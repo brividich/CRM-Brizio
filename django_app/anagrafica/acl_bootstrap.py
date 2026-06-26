@@ -1,8 +1,96 @@
 from __future__ import annotations
 
+import logging
+
+from django.db import transaction
+
 from core.acl_bootstrap_base import run_bootstrap
 
-_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v2"
+logger = logging.getLogger(__name__)
+
+# Bump alla v3: aggiunge i permessi canonici Skill Matrix MOD.187.
+_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v3"
+
+# ── ACL v2 canonico — Skill Matrix MOD.187 ─────────────────────────────────────
+# Rende le route Skill Matrix governabili da /admin-portale/acl-canonico/ (e
+# applicabili dal middleware in ACL_STRICT_CANONICAL). Senza questi binding, in
+# strict-mode le route sarebbero raggiungibili solo dal superuser.
+MODULE = "anagrafica"
+PERM_SKM_VIEW = "anagrafica.skillmatrix.view"
+PERM_SKM_MANAGE = "anagrafica.skillmatrix.manage"
+
+_SKM_CANONICAL = {
+    PERM_SKM_VIEW: {
+        "label": "Skill Matrix - Visualizza",
+        "description": "Matrice persone×macchine (abilitazioni MOD.187), sola lettura.",
+    },
+    PERM_SKM_MANAGE: {
+        "label": "Skill Matrix - Gestisci",
+        "description": "Validazione match asset, refresh semestrale CAR, import baseline.",
+    },
+}
+
+_SKM_ROUTE_BINDINGS = {
+    "anagrafica:skill_matrix_macchina": PERM_SKM_VIEW,
+    "anagrafica:skm_match_validazione": PERM_SKM_MANAGE,
+    "anagrafica:skm_refresh": PERM_SKM_MANAGE,
+}
+
+# Grant di default (CREATE-ONLY: non sovrascrive le scelte fatte in ACL canonico).
+_SKM_ROLE_GRANTS = {
+    "admin": {PERM_SKM_VIEW, PERM_SKM_MANAGE},
+    "amministrazione": {PERM_SKM_VIEW, PERM_SKM_MANAGE},
+    "qualita": {PERM_SKM_VIEW, PERM_SKM_MANAGE},
+    "caporeparto": {PERM_SKM_VIEW, PERM_SKM_MANAGE},
+}
+
+
+def _norm(value: str) -> str:
+    return str(value or "").strip().lower()
+
+
+def _bootstrap_skillmatrix_canonical() -> bool:
+    """Registra permessi canonici + binding route→permesso + grant di default."""
+    from core.legacy_models import Ruolo
+    from core.models import (
+        PermissionDefinition, RolePermissionGrant, RoutePermissionBinding,
+    )
+
+    changed = False
+    with transaction.atomic():
+        for code, payload in _SKM_CANONICAL.items():
+            _, created = PermissionDefinition.objects.get_or_create(
+                code=code,
+                defaults={"module": MODULE, "label": payload["label"],
+                          "description": payload["description"], "is_active": True},
+            )
+            changed = changed or created
+
+        for route_name, code in _SKM_ROUTE_BINDINGS.items():
+            binding, created = RoutePermissionBinding.objects.get_or_create(
+                route_name=route_name, path_pattern="",
+                defaults={"match_strategy": RoutePermissionBinding.MATCH_EXACT,
+                          "permission_id": code, "source_app": MODULE,
+                          "note": "[SKM_BOOTSTRAP] binding Skill Matrix MOD.187",
+                          "priority": 80, "is_active": True},
+            )
+            changed = changed or created
+            if not created and (binding.permission_id != code or not binding.is_active):
+                binding.permission_id = code
+                binding.is_active = True
+                binding.save(update_fields=["permission", "is_active", "updated_at"])
+                changed = True
+
+        roles = {int(r.id): _norm(r.nome) for r in Ruolo.objects.all()}
+        for rid, rname in roles.items():
+            grants = _SKM_ROLE_GRANTS.get(rname, set())
+            for code in (PERM_SKM_VIEW, PERM_SKM_MANAGE):
+                _, created = RolePermissionGrant.objects.get_or_create(
+                    legacy_role_id=rid, permission_id=code,
+                    defaults={"enabled": code in grants, "note": "[SKM_BOOTSTRAP] default"},
+                )
+                changed = changed or created
+    return changed
 
 _PULSANTI_DEFINITIONS = [
     {"modulo": "anagrafica", "codice": "anagrafica_index", "label": "Anagrafica - Dashboard", "url": "/anagrafica/", "hide": False},
@@ -38,4 +126,5 @@ def bootstrap_anagrafica_acl_endpoints(force: bool = False) -> None:
         icona="users",
         section="anagrafica_api",
         force=force,
+        bootstrap_nav_fn=_bootstrap_skillmatrix_canonical,
     )

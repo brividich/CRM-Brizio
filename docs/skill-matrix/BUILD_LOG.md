@@ -252,11 +252,16 @@ Impostazioni → Navigazione) — sotto il pilastro **Competenze**, gruppo **"Sk
 - **Abilitazioni macchina (MOD.187)** → `anagrafica:skill_matrix_macchina`
 - **Validazione abbinamento macchine** → `anagrafica:skm_match_validazione`
 
-**ACL:** le view usano la guardia in-view `_check_hr_permission` (come `matrice_competenze`
-e `conformita_report`), quindi **non** servono `RoutePermissionBinding` canonici dedicati:
-l'autorizzazione non passa dal middleware ACL per queste rotte. La parte ACL formale di F7
-(permission code dedicati) resta opzionale e va valutata insieme alla revisione ACL del
-modulo.
+**ACL canonico (completato 2026-06-26):** le 3 route sono ora governabili da
+`/admin-portale/acl-canonico/`. `anagrafica/acl_bootstrap.py` registra (via
+`bootstrap_nav_fn`, cache key → v3) i permessi canonici **`anagrafica.skillmatrix.view`**
+e **`anagrafica.skillmatrix.manage`**, i `RoutePermissionBinding`
+(matrice→view, validazione/refresh→manage) e i grant di default CREATE-ONLY
+(admin/amministrazione/qualita/caporeparto). Le view non usano più `_check_hr_permission`
+ma il nuovo helper **`_check_skm_permission(request, code)`** (`core.acl_v2.evaluate_permission_code_access`:
+bypass superuser/admin legacy, altrimenti grant del ruolo) → ciò che si imposta in ACL
+canonico governa davvero l'accesso, e in `ACL_STRICT_CANONICAL` (prod) il middleware applica
+i binding (senza i quali le route sarebbero state **solo-superuser**).
 
 **Test (F4+F7):** `anagrafica.tests_skillmatrix_ui` → **5 passed** (render vuoto, render con
 abilitazione, export CSV, accesso negato, voci di menu seminate). Suite skill-matrix totale
@@ -406,7 +411,7 @@ pagine Skill Matrix — rimandato perché `README.md` è in editing parallelo da
 - [x] F4 Matrice macchina UI + tab (`/anagrafica/skill-matrix/`, 5 test) — vuota finché F2b non importa la baseline
 - [~] F5 Continuità operativa — **regola sospensione + seed CND-PT fatti (6 test)**; STOP: sorgente produzione `ultima_esecuzione` da approvare/cablare
 - [x] F6 Refresh semestrale (CAR) — pagina `/anagrafica/skill-matrix/refresh/` + servizio (12 test)
-- [~] F7 ACL + navigazione — **voci di menu fatte** (migration 0072, sotto Competenze/Skill Matrix); ACL formale opzionale (view già gated da `_check_hr_permission`)
+- [x] F7 ACL + navigazione — voci di menu (migration 0072/0074) **+ ACL canonico** (permessi `anagrafica.skillmatrix.view/.manage`, binding route, grant di default → governabili in /admin-portale/acl-canonico/)
 - [x] F8 Hardening test — suite skill-matrix **70 verdi**, `makemigrations --check` pulito, `check` pulito
 - [x] F9 Chiusura — BUILD_LOG finalizzato; gate residui (F2b `--apply`, sorgente F5) e README a merge
 

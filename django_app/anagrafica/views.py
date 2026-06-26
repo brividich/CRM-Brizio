@@ -1219,6 +1219,25 @@ def _check_hr_permission(request) -> bool:
     return False
 
 
+def _check_skm_permission(request, code: str) -> bool:
+    """Permesso canonico Skill Matrix MOD.187 (governabile in /admin-portale/acl-canonico/).
+
+    Bypass per superuser/admin legacy; altrimenti richiede il grant del ruolo sul
+    ``code`` canonico (``anagrafica.skillmatrix.view`` / ``.manage``). Allinea la
+    guardia in-view alla decisione del middleware ACL canonico, così ciò che si
+    imposta in ACL canonico governa davvero l'accesso (in dev/test il middleware è
+    disattivo: qui resta l'unico controllo).
+    """
+    from core.acl_v2 import evaluate_permission_code_access
+    try:
+        legacy_user = get_legacy_user(request.user)
+    except Exception:
+        legacy_user = None
+    return bool(evaluate_permission_code_access(
+        permission_code=code, legacy_user=legacy_user, django_user=request.user,
+    ).get("allowed"))
+
+
 def _can_view_visite_mediche(request) -> bool:
     """Verifica se l'utente può vedere/registrare le visite mediche.
 
@@ -13181,7 +13200,8 @@ def skm_match_validazione(request):
     preservate dalle ri-sincronizzazioni.
     Accesso: ``_check_hr_permission`` (ACL formale in F7).
     """
-    if not _check_hr_permission(request):
+    from .acl_bootstrap import PERM_SKM_MANAGE
+    if not _check_skm_permission(request, PERM_SKM_MANAGE):
         messages.error(request, "Non hai i permessi per la validazione Skill Matrix.")
         return redirect("anagrafica:index")
 
@@ -13298,7 +13318,8 @@ def skill_matrix_macchina(request):
     Finché la baseline (F2b) non è importata, la matrice è vuota: la pagina
     mostra comunque struttura e KPI, con rimando alla validazione match (F2a).
     """
-    if not _check_hr_permission(request):
+    from .acl_bootstrap import PERM_SKM_VIEW
+    if not _check_skm_permission(request, PERM_SKM_VIEW):
         messages.error(request, "Non hai i permessi per la Skill Matrix macchine.")
         return redirect("anagrafica:index")
 
@@ -13433,7 +13454,8 @@ def skm_refresh(request):
     Accesso: ``_check_hr_permission`` (lo scoping per CAR sul proprio reparto è una
     rifinitura successiva). Merito = CAR; la campagna è solo l'innesco.
     """
-    if not _check_hr_permission(request):
+    from .acl_bootstrap import PERM_SKM_MANAGE
+    if not _check_skm_permission(request, PERM_SKM_MANAGE):
         messages.error(request, "Non hai i permessi per il refresh Skill Matrix.")
         return redirect("anagrafica:index")
 
