@@ -29,6 +29,7 @@ Important: Do not read all docs automatically. Open only the files relevant to t
 | [RUNBOOK_PROD_DEPLOY_E_MAIL_ANOMALIE.md](RUNBOOK_PROD_DEPLOY_E_MAIL_ANOMALIE.md) | Topologia deploy PROD/TEST (server `pclogsys`, share `X:`/`Y:`) e runbook dell'incidente 401 sulla mail anomalie CC/CAR. |
 | [TABELLE_PERSONALIZZABILI.md](TABELLE_PERSONALIZZABILI.md) | Infrastruttura tabelle personalizzabili per-utente (`UserTablePreference`): sort/filtro/ricerca/visibilità/ordine per colonna, rollout client-side globale. |
 | [RAG_SGI_ROLLOUT.md](RAG_SGI_ROLLOUT.md) | RAG SGI (documenti SGI citabili nell'Assistente AI): riepilogo F1–F3, settings con default, runbook di rollout prod (pull modello embedding, stemming opt-in, `index_sgi_documents` + schedulazione), verifica funzionale. |
+| [14_AI_EXPANSION_ROADMAP.md](14_AI_EXPANSION_ROADMAP.md) | Backlog ordinato (a ondate) per espandere l'AI nel portale: nuovi tool live, copiloti per-modulo, allargamento RAG, predittivo/digest. Vincoli, pattern riusabili, effort e ordine di partenza. |
 
 ## Rule Of Thumb
 
