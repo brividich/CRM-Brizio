@@ -746,6 +746,20 @@ class SessionIdleTimeoutMiddlewareTests(TestCase):
 
     @patch("core.session_middleware.time.time", return_value=1700000100)
     def test_interactive_endpoint_refreshes_activity(self, _mocked_time):
+        # Attività oltre la finestra di throttle (100s > 30s default) → riscrive.
+        request = self._request("/richieste")
+        request.session[SessionIdleTimeoutMiddleware.SESSION_KEY] = 1700000000
+        request.session.save()
+        middleware = SessionIdleTimeoutMiddleware(lambda req: HttpResponse("ok"))
+
+        middleware(request)
+
+        self.assertEqual(request.session[SessionIdleTimeoutMiddleware.SESSION_KEY], 1700000100)
+
+    @patch("core.session_middleware.time.time", return_value=1700000100)
+    def test_interactive_endpoint_throttles_frequent_activity(self, _mocked_time):
+        # Attività ravvicinata (10s < 30s default) NON riscrive il timestamp →
+        # niente save di sessione a ogni richiesta (mitiga SessionInterrupted).
         request = self._request("/richieste")
         request.session[SessionIdleTimeoutMiddleware.SESSION_KEY] = 1700000090
         request.session.save()
@@ -753,7 +767,7 @@ class SessionIdleTimeoutMiddlewareTests(TestCase):
 
         middleware(request)
 
-        self.assertEqual(request.session[SessionIdleTimeoutMiddleware.SESSION_KEY], 1700000100)
+        self.assertEqual(request.session[SessionIdleTimeoutMiddleware.SESSION_KEY], 1700000090)
 
     @patch("core.session_middleware.time.time", return_value=1700000200)
     def test_login_post_success_refreshes_activity(self, _mocked_time):
