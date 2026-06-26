@@ -220,7 +220,17 @@ def _overlap_tail(text: str, overlap_chars: int) -> str:
 
 
 def _split_long_section(source: str, title: str, content: str, *, max_chars: int) -> list[KnowledgeChunk]:
-    paragraphs = [part.strip() for part in re.split(r"\n\s*\n", content) if part.strip()]
+    raw_paragraphs = [part.strip() for part in re.split(r"\n\s*\n", content) if part.strip()]
+    # Spezza i paragrafi piu' lunghi di max_chars: i PDF spesso estraggono il testo
+    # come UN UNICO blocco senza righe vuote -> senza questo taglio si formerebbe un
+    # chunk enorme che sfonda il limite di token del modello di embedding (TEI/Ollama
+    # restituiscono errore -> tutto il warm fallisce). Niente piu' chunk > max_chars.
+    paragraphs: list[str] = []
+    for part in raw_paragraphs:
+        if len(part) <= max_chars:
+            paragraphs.append(part)
+        else:
+            paragraphs.extend(part[k:k + max_chars] for k in range(0, len(part), max_chars))
     overlap_chars = int(getattr(settings, "OLLAMA_RAG_CHUNK_OVERLAP_CHARS", 0) or 0)
     chunks: list[KnowledgeChunk] = []
     current = ""
@@ -814,7 +824,7 @@ def _embeddings_for_chunks(chunks: list[KnowledgeChunk], model: str) -> list[lis
             texts = [_chunk_embed_text(chunks[i]) for i in group]
             vectors = None
             for attempt in range(retries + 1):
-                vectors = _ollama_embed_texts(texts)
+                vectors = _compute_embeddings(texts)
                 if vectors is not None:
                     break
                 if attempt < retries:
@@ -842,7 +852,7 @@ def _embeddings_for_chunks(chunks: list[KnowledgeChunk], model: str) -> list[lis
 
 
 def _query_embedding(prompt: str) -> list[float] | None:
-    vectors = _ollama_embed_texts([prompt])
+    vectors = _compute_embeddings([prompt])
     if not vectors:
         return None
     return vectors[0]
@@ -851,17 +861,116 @@ def _query_embedding(prompt: str) -> list[float] | None:
 def embeddings_enabled() -> bool:
     """True se il retrieval/routing semantico via embeddings e' utilizzabile.
 
-    Richiede il flag attivo e il provider Ollama nativo (Open WebUI non supportato
-    per gli embeddings in questo stack).
+    Richiede il flag attivo. Con backend ``fastembed`` (in-process) o ``openai``
+    (endpoint HTTP) e' indipendente dal provider chat; con backend ``ollama`` resta
+    valido solo il provider Ollama nativo (Open WebUI non espone gli embeddings).
     """
     if not bool(getattr(settings, "OLLAMA_EMBED_ENABLED", False)):
         return False
+    backend = _embed_backend()
+    if backend in ("fastembed", "openai"):
+        return True
     provider = str(getattr(settings, "OLLAMA_API_PROVIDER", "ollama") or "ollama").strip().lower()
     return provider == "ollama"
 
 
 def embed_texts(texts: list[str]) -> list[list[float]] | None:
     """API pubblica per embeddare testi (usata dal routing tool). None su errore."""
+    return _compute_embeddings(texts)
+
+
+# ── Backend embeddings configurabile (RAG_EMBED_BACKEND) ────────────────────
+# Default "ollama" (com'era). "fastembed" calcola i vettori IN-PROCESS (CPU, ONNX:
+# nessun server da saturare, ideale per il warm notturno). "openai" li prende da un
+# endpoint HTTP OpenAI-compatibile (TEI / Infinity / vLLM / LM Studio sulla GPU).
+# Tutto on-premise, nessun vector DB: il vettore non lascia la rete interna.
+_FASTEMBED_CACHE: dict[str, Any] = {"name": "", "model": None}
+
+
+def _embed_backend() -> str:
+    return str(getattr(settings, "RAG_EMBED_BACKEND", "ollama") or "ollama").strip().lower()
+
+
+def _effective_embed_model() -> str:
+    """Nome modello del backend attivo (usato anche per la chiave di cache vettori)."""
+    backend = _embed_backend()
+    if backend == "fastembed":
+        return str(getattr(settings, "RAG_EMBED_FASTEMBED_MODEL", "BAAI/bge-m3") or "").strip()
+    if backend == "openai":
+        return str(getattr(settings, "RAG_EMBED_OPENAI_MODEL", "") or "").strip()
+    return str(getattr(settings, "OLLAMA_EMBED_MODEL", "") or "").strip()
+
+
+def _get_fastembed_model(name: str):
+    """Istanza fastembed cachata (il caricamento del modello e' costoso). None se la
+    dipendenza manca o il modello non e' supportato (fail-safe -> BM25)."""
+    if _FASTEMBED_CACHE["name"] != name or _FASTEMBED_CACHE["model"] is None:
+        _FASTEMBED_CACHE["name"] = name
+        try:
+            from fastembed import TextEmbedding
+
+            _FASTEMBED_CACHE["model"] = TextEmbedding(model_name=name)
+        except Exception as exc:
+            logger.debug("fastembed non disponibile (%s): %s", name, exc)
+            _FASTEMBED_CACHE["model"] = None
+    return _FASTEMBED_CACHE["model"]
+
+
+def _fastembed_texts(texts: list[str]) -> list[list[float]] | None:
+    if not texts:
+        return []
+    emb = _get_fastembed_model(_effective_embed_model() or "BAAI/bge-m3")
+    if emb is None:
+        return None
+    try:
+        return [[float(x) for x in vec] for vec in emb.embed(list(texts))]
+    except Exception as exc:
+        logger.debug("fastembed embed fallita: %s", exc)
+        return None
+
+
+def _openai_embed_texts(texts: list[str]) -> list[list[float]] | None:
+    """Embeddings da endpoint OpenAI-compatibile (TEI/Infinity/vLLM/LM Studio)."""
+    if not texts:
+        return []
+    base = str(getattr(settings, "RAG_EMBED_OPENAI_BASE_URL", "") or "").strip().rstrip("/")
+    model = str(getattr(settings, "RAG_EMBED_OPENAI_MODEL", "") or "").strip()
+    if not base or not model:
+        return None
+    api_key = str(getattr(settings, "RAG_EMBED_OPENAI_API_KEY", "") or "").strip()
+    timeout = int(getattr(settings, "OLLAMA_EMBED_TIMEOUT_SECONDS", 30) or 30)
+    headers = {"Content-Type": "application/json", "Accept": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    request = urllib.request.Request(
+        f"{base}/v1/embeddings",
+        data=json.dumps({"model": model, "input": list(texts)}).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            data = json.loads(response.read().decode("utf-8", errors="replace"))
+    except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError, ValueError):
+        return None
+    items = data.get("data") if isinstance(data, dict) else None
+    if not isinstance(items, list) or len(items) != len(texts):
+        return None
+    try:
+        return [[float(x) for x in item["embedding"]] for item in items]
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _compute_embeddings(texts: list[str]) -> list[list[float]] | None:
+    """Dispatcher: calcola gli embeddings col backend configurato (RAG_EMBED_BACKEND)."""
+    if not texts:
+        return []
+    backend = _embed_backend()
+    if backend == "fastembed":
+        return _fastembed_texts(texts)
+    if backend == "openai":
+        return _openai_embed_texts(texts)
     return _ollama_embed_texts(texts)
 
 
@@ -929,8 +1038,9 @@ def _load_knowledge_index() -> KnowledgeIndex:
     index = _build_index(chunks)
 
     # Arricchimento semantico opzionale (fail-safe: se fallisce resta BM25-only).
-    if chunks and bool(getattr(settings, "OLLAMA_EMBED_ENABLED", False)):
-        embed_model = str(getattr(settings, "OLLAMA_EMBED_MODEL", "") or "").strip()
+    # Usa il backend configurato (ollama / fastembed / openai) via embeddings_enabled().
+    if chunks and embeddings_enabled():
+        embed_model = _effective_embed_model()
         if embed_model:
             vectors = _embeddings_for_chunks(chunks, embed_model)
             if vectors:

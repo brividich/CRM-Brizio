@@ -746,6 +746,7 @@ class AiAssistantTests(TestCase):
             OLLAMA_EMBED_ENABLED=True,
             OLLAMA_EMBED_MODEL="test-embed",
             OLLAMA_API_PROVIDER="ollama",
+            RAG_EMBED_BACKEND="ollama",
             AI_TOOL_ROUTING_ENABLED=True,
             AI_TOOL_ROUTING_THRESHOLD=0.7,
             AI_TOOL_ROUTING_MARGIN=0.5,
@@ -810,6 +811,7 @@ class AiAssistantTests(TestCase):
                 OLLAMA_EMBED_ENABLED=True,
                 OLLAMA_EMBED_MODEL="test-embed",
                 OLLAMA_EMBED_PERSIST=False,
+                RAG_EMBED_BACKEND="ollama",
                 OLLAMA_RAG_SOURCE_PATHS=[tmpdir],
                 OLLAMA_RAG_MAX_CHUNKS=1,
                 OLLAMA_RAG_MAX_CONTEXT_CHARS=1000,
@@ -832,6 +834,7 @@ class AiAssistantTests(TestCase):
                 OLLAMA_EMBED_MODEL="test-embed",
                 OLLAMA_EMBED_PERSIST=False,
                 OLLAMA_EMBED_RETRY=0,  # niente backoff: il fallback e' immediato nel test
+                RAG_EMBED_BACKEND="ollama",
                 OLLAMA_RAG_SOURCE_PATHS=[tmpdir],
                 OLLAMA_RAG_MAX_CHUNKS=2,
                 OLLAMA_RAG_CACHE_SECONDS=0,
@@ -2517,3 +2520,88 @@ class SgiRagLoaderTests(TestCase):
         self.assertFalse(any("MT CN 06" in s for s in off), msg=f"off={off}")
         # ON: 'timbrare'->'timbr' == 'timbri'->'timbr' -> il documento timbri viene recuperato.
         self.assertTrue(any("MT CN 06" in s for s in on), msg=f"on={on}")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SETUP_WIZARD_REQUIRED=False)
+class EmbedBackendTests(TestCase):
+    """Backend embeddings configurabile (RAG_EMBED_BACKEND) + fix chunk oversize."""
+
+    def test_split_long_section_bounds_oversized_paragraph(self):
+        from ai_assistant.services import _split_long_section
+
+        # Un PDF estratto come UN unico blocco senza righe vuote: prima del fix
+        # diventava un chunk gigante che sfondava il limite del modello embed.
+        giant = "parola " * 2000  # ~14000 char in un solo "paragrafo"
+        with override_settings(OLLAMA_RAG_CHUNK_OVERLAP_CHARS=0):
+            chunks = _split_long_section("proc:X#rev1", "X Rev.1", giant, max_chars=900)
+        self.assertGreater(len(chunks), 1, "il blocco gigante deve essere spezzato")
+        self.assertTrue(
+            all(len(c.content) <= 900 for c in chunks),
+            msg=f"nessun chunk deve superare max_chars: {[len(c.content) for c in chunks]}",
+        )
+
+    def test_openai_backend_parses_embeddings(self):
+        from ai_assistant import services
+
+        payload = {
+            "object": "list",
+            "data": [
+                {"embedding": [0.1, 0.2, 0.3], "index": 0},
+                {"embedding": [0.4, 0.5, 0.6], "index": 1},
+            ],
+            "model": "bge-m3",
+        }
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self):
+                return json.dumps(payload).encode("utf-8")
+
+        with override_settings(
+            RAG_EMBED_BACKEND="openai",
+            RAG_EMBED_OPENAI_BASE_URL="http://10.0.0.34:8081",
+            RAG_EMBED_OPENAI_MODEL="BAAI/bge-m3",
+        ), patch("ai_assistant.services.urllib.request.urlopen", return_value=FakeResponse()) as mocked:
+            result = services._compute_embeddings(["a", "b"])
+
+        self.assertEqual(result, [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]])
+        # ha chiamato l'endpoint OpenAI-compatibile, non Ollama
+        self.assertTrue(mocked.call_args.args[0].full_url.endswith("/v1/embeddings"))
+
+    def test_openai_backend_failsafe_on_mismatch(self):
+        from ai_assistant import services
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self):
+                return b'{"object":"list","data":[]}'  # 0 vettori per 2 input
+
+        with override_settings(
+            RAG_EMBED_BACKEND="openai",
+            RAG_EMBED_OPENAI_BASE_URL="http://x:8081",
+            RAG_EMBED_OPENAI_MODEL="m",
+        ), patch("ai_assistant.services.urllib.request.urlopen", return_value=FakeResponse()):
+            self.assertIsNone(services._compute_embeddings(["a", "b"]))
+
+    def test_embeddings_enabled_respects_backend(self):
+        from ai_assistant.services import embeddings_enabled
+
+        # openai: indipendente dal provider chat
+        with override_settings(OLLAMA_EMBED_ENABLED=True, RAG_EMBED_BACKEND="openai", OLLAMA_API_PROVIDER="openwebui"):
+            self.assertTrue(embeddings_enabled())
+        # master switch off -> sempre False
+        with override_settings(OLLAMA_EMBED_ENABLED=False, RAG_EMBED_BACKEND="openai"):
+            self.assertFalse(embeddings_enabled())
+        # ollama + openwebui -> False (gli embeddings non passano da Open WebUI)
+        with override_settings(OLLAMA_EMBED_ENABLED=True, RAG_EMBED_BACKEND="ollama", OLLAMA_API_PROVIDER="openwebui"):
+            self.assertFalse(embeddings_enabled())

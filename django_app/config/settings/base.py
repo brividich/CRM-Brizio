@@ -301,6 +301,16 @@ OLLAMA_EMBED_BATCH = int(env("OLLAMA_EMBED_BATCH", "16") or "16")
 # sul server. La cache per batch fa convergere i run successivi.
 OLLAMA_EMBED_RETRY = int(env("OLLAMA_EMBED_RETRY", "2") or "2")
 OLLAMA_EMBED_BATCH_PAUSE_MS = int(env("OLLAMA_EMBED_BATCH_PAUSE_MS", "0") or "0")
+# Backend di calcolo embeddings: "ollama" (default), "fastembed" (in-process, CPU,
+# ONNX: nessun server da saturare — robusto per il warm di corpora grandi) oppure
+# "openai" (endpoint HTTP OpenAI-compatibile: TEI/Infinity/vLLM/LM Studio sulla GPU).
+# Richiede comunque OLLAMA_EMBED_ENABLED=1. fastembed e' una dipendenza opzionale
+# (import lazy, fail-safe -> BM25 se assente).
+RAG_EMBED_BACKEND = env("RAG_EMBED_BACKEND", "ollama")
+RAG_EMBED_FASTEMBED_MODEL = env("RAG_EMBED_FASTEMBED_MODEL", "BAAI/bge-m3")
+RAG_EMBED_OPENAI_BASE_URL = env("RAG_EMBED_OPENAI_BASE_URL", "")
+RAG_EMBED_OPENAI_MODEL = env("RAG_EMBED_OPENAI_MODEL", "")
+RAG_EMBED_OPENAI_API_KEY = env("RAG_EMBED_OPENAI_API_KEY", "")
 OLLAMA_EMBED_PERSIST = env_bool("OLLAMA_EMBED_PERSIST", True)
 OLLAMA_EMBED_CACHE_TTL = int(env("OLLAMA_EMBED_CACHE_TTL", "2592000") or "2592000")
 # Fusione ibrida BM25 + semantica (Reciprocal Rank Fusion): k attenua i ranghi bassi.
