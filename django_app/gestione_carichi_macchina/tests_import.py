@@ -194,3 +194,44 @@ class ReaderWorkbookTest(TestCase):
         self.assertEqual(notte[0].data, date(2026, 6, 1))
         self.assertTrue(all(v.categoria == "5_axis" for v in voci))
         self.assertTrue(all(v.snapshot_idx == 0 for v in voci))
+
+
+class ReaderGuardTest(TestCase):
+    """Guard righe-ordine + snapshot_date dalle colonne reali."""
+
+    def test_riga_ordine_con_giorni_va_in_backlog_non_macchina(self):
+        import openpyxl
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "AGG 22 GIU"  # titolo senza anno: la data deve venire dalle colonne
+        ws.append(["", date(2026, 6, 1), date(2026, 6, 2), date(2026, 6, 3)])
+        ws.append(["macchine 5 axis", None, None, None])
+        ws.append(["DM3", "8 gimbal (33h)", None, None])          # macchina vera
+        ws.append(["DM13 HSK", "2 koala fin", None, None])        # codice vero (2 parole, <=16): NON scartare
+        ws.append(["6 ragni ferrari", "x", None, None])           # ORDINE con contenuto-giorno -> backlog
+        ws.append(["carrier AVIO EURODRONE", "y", None, None])    # ORDINE lungo -> backlog
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "g.xlsx"
+            wb.save(path)
+            voci, titoli, backlog, cicli_lines = leggi_workbook(str(path))
+
+        codici = {v.codice_macchina for v in voci}
+        self.assertIn("DM3", codici)
+        self.assertIn("DM13 HSK", codici)               # codice vero conservato
+        self.assertNotIn("6 ragni ferrari", codici)     # ordine scartato dalle macchine
+        self.assertNotIn("carrier AVIO EURODRONE", codici)
+        self.assertIn("6 ragni ferrari", backlog)       # ... e finito nel backlog
+        # snapshot_date dalla data reale massima delle colonne (anno corretto), non dal titolo
+        self.assertTrue(voci and all(v.snapshot_date == date(2026, 6, 3) for v in voci))
+
+    def test_parse_title_date_mese_italiano(self):
+        from .importer import _parse_title_date
+
+        anno = date.today().year
+        self.assertEqual(_parse_title_date("AGG 22 GIU"), date(anno, 6, 22))
+        self.assertEqual(_parse_title_date("AGG 24LUG"), date(anno, 7, 24))   # senza spazio
+        self.assertEqual(_parse_title_date("AGG 3 FEB"), date(anno, 2, 3))
+        self.assertEqual(_parse_title_date("AGG 16-06-2026"), date(2026, 6, 16))  # numerico invariato
+        self.assertIsNone(_parse_title_date("INIZIALE"))

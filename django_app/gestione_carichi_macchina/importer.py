@@ -38,6 +38,16 @@ _SEZIONE_ORDINE = (
 )
 _RE_NOTTE = re.compile(r"nottur|week\s*[- ]?\s*end|weekend", re.IGNORECASE)
 _RE_TITLE_DATE = re.compile(r"(\d{1,2})[/\-.](\d{1,2})(?:[/\-.](\d{2,4}))?")
+# Titoli reali tipo "AGG 22 GIU", "AGG 16 GIUG", "AGG 24LUG" (mese italiano abbreviato,
+# anche senza spazio, senza anno). NB: e' solo un FALLBACK: la snapshot_date primaria si
+# ricava dalle date reali delle colonne-giorno (anno corretto, vedi _leggi_fogli).
+_MESI_IT = {
+    "gen": 1, "feb": 2, "mar": 3, "apr": 4, "mag": 5, "giu": 6,
+    "lug": 7, "ago": 8, "set": 9, "ott": 10, "nov": 11, "dic": 12,
+}
+_RE_TITLE_MESE = re.compile(
+    r"(\d{1,2})\s*(gen|feb|mar|apr|mag|giu|lug|ago|set|ott|nov|dic)", re.IGNORECASE,
+)
 
 
 @dataclass
@@ -82,17 +92,26 @@ def _as_date(v):
 
 
 def _parse_title_date(title: str) -> date | None:
-    m = _RE_TITLE_DATE.search(title or "")
-    if not m:
-        return None
-    d, mth, y = m.group(1), m.group(2), m.group(3)
-    try:
-        anno = int(y) if y else date.today().year
-        if anno < 100:
-            anno += 2000
-        return date(anno, int(mth), int(d))
-    except ValueError:
-        return None
+    t = title or ""
+    m = _RE_TITLE_DATE.search(t)
+    if m:
+        d, mth, y = m.group(1), m.group(2), m.group(3)
+        try:
+            anno = int(y) if y else date.today().year
+            if anno < 100:
+                anno += 2000
+            return date(anno, int(mth), int(d))
+        except ValueError:
+            return None
+    # fallback: mese italiano abbreviato senza anno -> anno corrente (best effort).
+    # In pratica conta poco: per i fogli reali la snapshot_date arriva dalle colonne-giorno.
+    mm = _RE_TITLE_MESE.search(t)
+    if mm:
+        try:
+            return date(date.today().year, _MESI_IT[mm.group(2).lower()], int(mm.group(1)))
+        except ValueError:
+            return None
+    return None
 
 
 def leggi_workbook(path: str) -> tuple[list[Voce], list[str], list[str], list[str]]:
@@ -131,6 +150,34 @@ def _riga_ha_giorni(row, day_cols: dict[int, date]) -> bool:
     return any((c < len(row)) and _cell_str(row[c]) for c in day_cols)
 
 
+_RE_INIZIA_QTA = re.compile(r"^\s*\d")
+
+
+def _pare_lavoro_non_macchina(first: str) -> bool:
+    """True se la riga col-A e' una DESCRIZIONE di lavoro/ordine, non un codice macchina.
+
+    I codici-officina sono mnemonici corti e maiuscoli (``CNV``, ``MZ5``, ``DIXI80``,
+    ``MK1 HSK``, ``HH ISO40``, ``TORNIO TRAD 1``). Le righe d'ordine (``6 ragni ferrari``,
+    ``carrier AVIO EURODRONE``, ``MONO V2 LAMBORGHINI``) a volte hanno contenuto nelle
+    colonne-giorno e sfuggono al filtro backlog (``_riga_ha_giorni``), finendo per essere
+    prese per macchine. Questo guard le riconosce e le rimanda al backlog.
+
+    Conservativo per costruzione: scarta solo i casi CHIARI (quantita' iniziale, testo
+    lungo, troppe parole) cosi' da non perdere nessun codice-macchina reale. Qualche
+    descrizione ambigua e corta puo' restare: e' innocua (non mappa ad asset -> saltata).
+    """
+    s = (first or "").strip()
+    if not s:
+        return False
+    if _RE_INIZIA_QTA.match(s):    # "6 ragni", "11 carrier", "2+4 motori", "12 ZENZERI"
+        return True
+    if len(s.split()) > 3:         # "Nuovo assieme basamento APRILIA 850", "Alberi corti Alluminio FR"
+        return True
+    if len(s) > 16:               # "carrier AVIO EURODRONE", "MONO V2 LAMBORGHINI"
+        return True
+    return False
+
+
 def _leggi_fogli(wb, voci, titoli, backlog, cicli_lines) -> None:
     from .parsing import RE_CICLI_HDR
 
@@ -139,7 +186,7 @@ def _leggi_fogli(wb, voci, titoli, backlog, cicli_lines) -> None:
         if not ws.title.strip().lower().startswith("agg"):
             continue
         titoli.append(ws.title)
-        snap_date = _parse_title_date(ws.title)
+        snap_date = _parse_title_date(ws.title)  # fallback dal titolo (mese IT incl.)
         day_cols: dict[int, date] = {}
         header_found = False
         cicli_mode = False
@@ -151,6 +198,9 @@ def _leggi_fogli(wb, voci, titoli, backlog, cicli_lines) -> None:
                 if len(dcols) >= 2:
                     day_cols = dcols
                     header_found = True
+                    # snapshot_date PRIMARIA dalla data reale piu' recente del foglio:
+                    # anno corretto, nessuna inferenza dal titolo "AGG 22 GIU".
+                    snap_date = max(day_cols.values())
                     cat0 = categoria_da_sezione(_cell_str(row[0]) if row else "")
                     if cat0:
                         current_cat = cat0
@@ -181,6 +231,12 @@ def _leggi_fogli(wb, voci, titoli, backlog, cicli_lines) -> None:
             else:
                 # macchina solo se ci sono lavori nei giorni; altrimenti e' backlog ordini
                 if not _riga_ha_giorni(row, day_cols):
+                    if snap_idx == 0:
+                        backlog.append(first)
+                    continue
+                # ... e solo se col-A somiglia a un codice-macchina: una riga d'ordine con
+                # contenuto nelle colonne-giorno ("6 ragni ferrari") non e' una macchina.
+                if _pare_lavoro_non_macchina(first):
                     if snap_idx == 0:
                         backlog.append(first)
                     continue
