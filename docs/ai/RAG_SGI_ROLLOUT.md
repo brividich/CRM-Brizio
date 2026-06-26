@@ -79,6 +79,38 @@ Il chunking SGI riusa `OLLAMA_RAG_CHUNK_CHARS` / `OLLAMA_RAG_CHUNK_OVERLAP_CHARS
    `python manage.py setup_q_schedules`. Anticipa la build notturna così non è la prima chat
    della giornata a pagarla.
 
+## Procedure su file server / share di rete (lettura del corpo PDF)
+
+Le procedure (`procedure_refresh.ProcedureRevision`) non hanno il PDF dentro il portale: il
+corpo viene letto **solo** quando `source_type=fileserver` e `source_path` punta a un file
+`.pdf` esistente e leggibile **dal processo Django** (e dal cluster django-q per il warm
+schedulato). SharePoint (`source_type=sharepoint`) e file non raggiungibili → **fallback
+metadati** (il documento resta citabile per codice/titolo, ma senza §sezione). Mai un blocco.
+
+Due regole **non negoziabili** perché la lettura da share funzioni in prod:
+
+1. **Percorso UNC completo, NON la lettera di drive mappato.**
+   - ✅ `\\pclogsys\sgi\procedure\MT_CN_06.pdf`
+   - ❌ `Y:\procedure\MT_CN_06.pdf`
+   Le lettere mappate (`Y:`, `X:`) esistono solo nella sessione interattiva di un utente; un
+   servizio/app-pool che gira non-interattivo **non le vede** → la lettura fallirebbe. Il path
+   UNC non dipende da alcun mapping. Imposta quindi `ProcedureRevision.source_path` in UNC.
+
+2. **L'account del servizio deve avere `Read` sulla share** (a livello share **e** NTFS):
+   l'identità dell'**app pool IIS** (Django/Waitress) **e** l'account del **Task Scheduler
+   `QCluster_PROD`** (django-q). Se la share è autenticata e l'account non ha accesso, la
+   lettura fallisce e si ripiega sui metadati.
+
+Lo stesso vale per le **specifiche** se `GESTIONE_SPECIFICHE_PRIVATE_ROOT` è su una share
+(qui però il PDF è letto via storage Django, non via `source_path`).
+
+Verifica che la lettura del corpo funzioni: dopo `index_sgi_documents --json`, nel summary
+`sgi_chunks` deve essere > 0 e maggiore del numero di documenti se i PDF sono spezzati in più
+sezioni (segno che ha indicizzato il **corpo**, non solo i metadati). Performance: leggere
+molti PDF via SMB a ogni rebuild è costoso → la doppia cache (testo per `file_hash`, hash per
+`(pk, updated_at)`) evita di rileggere la share finché i file non cambiano, e il warm notturno
+assorbe la prima passata.
+
 ## Verifica funzionale
 
 - In chat, una domanda su un documento SGI deve produrre una risposta **citata**
