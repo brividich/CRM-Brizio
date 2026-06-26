@@ -208,6 +208,18 @@ MODULE_REGISTRY: list[dict] = [
      "description": "Presa visione procedure MT/MTSI: campagne, assegnazioni, tracking aperture",
      "app_label": "procedure_refresh", "required": False, "default": True, "depends_on": [],
      "has_migrations": True,  "tier": "optional"},
+    {"key": "gestione_carichi_macchina", "label": "Gestione Carichi Macchina",
+     "description": "Pianificazione carichi macchina (Excel/Gantt), saturazione, suggeritore",
+     "app_label": "gestione_carichi_macchina", "required": False, "default": True,
+     "depends_on": ["assets"], "has_migrations": True, "tier": "standard"},
+    {"key": "gestione_specifiche", "label": "Gestione Specifiche",
+     "description": "Flusso specifiche tecniche + MOD.133, OFI/MOD.174, distribuzione, verifica periodica",
+     "app_label": "gestione_specifiche", "required": False, "default": True,
+     "depends_on": ["anagrafica"], "has_migrations": True, "tier": "optional"},
+    {"key": "ai_assistant", "label": "Assistente AI",
+     "description": "Copilot on-premise (Ollama): chat, RAG knowledge base, suggerimenti",
+     "app_label": "ai_assistant", "required": False, "default": True,
+     "depends_on": [], "has_migrations": True, "tier": "optional"},
 ]
 
 # Mappa key → entry per lookup O(1)
@@ -2949,6 +2961,20 @@ class InstallPage(Page):
                 self._log_line(f"  ✗ migrate {m['app_label']} fallito", "err")
                 all_ok = False
 
+        # 4. Safety-net: applica QUALSIASI migrazione residua (app non presenti nel
+        # MODULE_REGISTRY o aggiunte dopo). Senza questo, un'app in INSTALLED_APPS ma
+        # assente dal registry resta senza tabelle → 500 in prod.
+        ok = self._cmd(
+            [str(venv_py), "manage.py", "migrate",
+             f"--settings={settings}", "--noinput"],
+            cwd=django_app, env=env_vars,
+        )
+        if ok:
+            self._log_line("  ✓ migrazioni residue (safety-net globale)", "ok")
+        else:
+            self._log_line("  ✗ migrate globale (safety-net) fallito", "err")
+            all_ok = False
+
         return all_ok
 
     def _run_assenze_tipo_alignment(
@@ -5169,6 +5195,21 @@ class ReleaseRunPage(Page):
             else:
                 self._log_line(f"  ✗ migrate {m['app_label']} fallito", "err")
                 all_ok = False
+
+        # 4. Safety-net: applica QUALSIASI migrazione residua (app non presenti nel
+        # MODULE_REGISTRY o aggiunte dopo). Senza questo, un'app in INSTALLED_APPS ma
+        # assente dal registry resta senza tabelle → 500 in prod.
+        ok = self._cmd(
+            [str(venv_py), "manage.py", "migrate",
+             f"--settings={settings}", "--noinput"],
+            cwd=django_app, env=env_vars,
+        )
+        if ok:
+            self._log_line("  ✓ migrazioni residue (safety-net globale)", "ok")
+        else:
+            self._log_line("  ✗ migrate globale (safety-net) fallito", "err")
+            all_ok = False
+
         return all_ok
 
     def _run_assenze_tipo_alignment(self, *, venv_py, django_app, env_vars, settings) -> bool:
