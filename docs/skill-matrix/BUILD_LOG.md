@@ -354,6 +354,48 @@ e **② aggiunta manuale** (legacy id + macchina + livello). Servizio `skillmatr
 abilitazioni reparto, conferma/modifica/rimuovi, aggiunta manuale, livello invalido, dry-run,
 view GET/POST, accesso negato, voce menu). Suite skill-matrix totale **70 verdi**.
 
+## F8 — Hardening test  ✅ (2026-06-26)
+
+- Suite Skill Matrix completa **70 verdi** (9 moduli: modelli, match, seed, export,
+  resolver, UI, importer, continuità, refresh).
+- `makemigrations anagrafica --check` → **No changes detected** (nessun model change
+  pendente; migrazioni 0071–0074 consistenti).
+- `manage.py check` (test) → **0 issues**.
+- **Compatibilità preesistente:** lo strato è **additivo**. Nessuna modifica ai modelli/
+  view esistenti tranne (a) la guardia *fail-safe* su `fetch_anagrafica_rows` nelle nuove
+  view e (b) il rename `CND-PT`→`CND-PT-TEST` in un test modello (collisione col seed F5).
+  La suite **completa** di `anagrafica` include test che dipendono dalla **sorgente legacy
+  SQL** (`fetch_anagrafica_rows` → colonna `ruolo`): falliscono su SQLite **per ambiente**,
+  non per queste modifiche → vanno eseguiti nell'ambiente di test con SQL Server.
+
+## F9 — Chiusura  ✅ (2026-06-26)
+
+**Costruito (commit `26de68f`→`7c4a19d` sul branch `feature/skill-matrix-mod187`, no push):**
+modello dati (F1), report match asset + specchietto di validazione in portale + export/match
+offline (F2a), importer baseline dry-run (F2b, gated), resolver read-only (F3), matrice
+persone×macchine UI (F4), continuità operativa con sospensione automatica (F5, sorgente
+gated), refresh semestrale CAR (F6), voci di menu Anagrafica→Competenze→Skill Matrix (F7).
+**70 test**, tutto SQL-Server-safe, dipendente sempre via `legacy_anagrafica_id`.
+
+**Pagine:** `/anagrafica/skill-matrix/` (matrice), `…/match/` (validazione F2a),
+`…/refresh/` (refresh CAR). **Comandi:** `skm_seed_catalogo`, `skm_asset_match_report`,
+`skm_export_assets`, `import_skill_matrix`, `skm_continuita_sync`.
+
+**⛔ Gate ancora aperti (azioni umane su prod, non codice):**
+1. **F2b `--apply`** — import baseline: prima confermare il match competenza→asset
+   nell'ambiente target (specchietto F2a; mapping prod già derivato), poi `import_skill_matrix`
+   (dry-run → `--apply`).
+2. **F5 sorgente continuità** — cablare `ultima_esecuzione` alla produzione reale dopo aver
+   scelto/approvato la fonte (avanzamento ordini / timbri / log CND).
+
+**TODO aperti (sessione CAR / avvio):** regola multivoce (default `MIN`), voci per tipo
+macchina (catalogo vuoto), elenco processi critici (CND-PT certo; saldatura/cromatura),
+mappatura sotto-aree→CAR padre, visibilità matrice (scoping CAR/qualità), scoping ACL CAR
+sul refresh, link processo→`TipoQualifica` in continuità.
+
+**Follow-up a merge:** aggiornare `README.md` (catalogo moduli / sezione anagrafica) con le
+pagine Skill Matrix — rimandato perché `README.md` è in editing parallelo da altre chat.
+
 ## Stato fasi
 - [x] F0 Discovery
 - [x] F1 Modelli + migrazione + test modello (12 verdi)
@@ -365,8 +407,8 @@ view GET/POST, accesso negato, voce menu). Suite skill-matrix totale **70 verdi*
 - [~] F5 Continuità operativa — **regola sospensione + seed CND-PT fatti (6 test)**; STOP: sorgente produzione `ultima_esecuzione` da approvare/cablare
 - [x] F6 Refresh semestrale (CAR) — pagina `/anagrafica/skill-matrix/refresh/` + servizio (12 test)
 - [~] F7 ACL + navigazione — **voci di menu fatte** (migration 0072, sotto Competenze/Skill Matrix); ACL formale opzionale (view già gated da `_check_hr_permission`)
-- [ ] F8 Hardening test
-- [ ] F9 Chiusura
+- [x] F8 Hardening test — suite skill-matrix **70 verdi**, `makemigrations --check` pulito, `check` pulito
+- [x] F9 Chiusura — BUILD_LOG finalizzato; gate residui (F2b `--apply`, sorgente F5) e README a merge
 
 ## TODO aperti (da confermare in sessione CAR / avvio)
 - Regola totale multivoce (default `MIN`).
