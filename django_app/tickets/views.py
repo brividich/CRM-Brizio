@@ -1775,6 +1775,63 @@ def api_assegna(request):
 
 
 # ---------------------------------------------------------------------------
+# API: Copilota triage AI (solo gestori) - proposta read-only, l'umano firma
+# ---------------------------------------------------------------------------
+
+@require_POST
+@_tickets_gestione_required
+def api_copilota_triage(request):
+    """Propone (NON salva) categoria/priorita/assegnatario/bozza dal testo ticket.
+
+    Read-only: il gestore rivede la proposta e applica con i pulsanti esistenti
+    (assegna/stato). Audit solo-metadati, nessun prompt/testo salvato.
+    """
+    try:
+        payload = json.loads(request.body)
+        ticket_id = payload.get("ticket_id")
+        tipo = (payload.get("tipo") or "").strip().upper()
+        titolo = (payload.get("titolo") or "").strip()
+        descrizione = (payload.get("descrizione") or "").strip()
+    except (json.JSONDecodeError, ValueError):
+        return _json_err("Dati non validi")
+
+    ticket = None
+    tid = _int_or_none(ticket_id)
+    if tid:
+        ticket = Ticket.objects.filter(pk=tid).first()
+        if ticket is not None:
+            tipo = ticket.tipo
+            titolo = titolo or ticket.titolo
+            descrizione = descrizione or ticket.descrizione
+
+    if tipo not in (TipoTicket.IT, TipoTicket.MAN):
+        return _json_err("Tipo ticket non valido")
+    if not (titolo or descrizione):
+        return _json_err("Testo del ticket mancante")
+
+    categorie = list(get_categorie(tipo))
+    cfg = TicketImpostazioni.objects.filter(tipo=tipo).first()
+    gestori = (cfg.team_gestori if cfg else []) or []
+
+    from .ai_copilota import proponi_triage
+    proposta = proponi_triage(
+        titolo=titolo, descrizione=descrizione, tipo=tipo,
+        categorie=categorie, gestori=gestori,
+    )
+
+    # Audit metadata-only: niente prompt, testo o contenuti del modello.
+    log_action(request, "ticket_copilota_triage", "tickets", {
+        "ticket_id": ticket.pk if ticket else None,
+        "tipo": tipo,
+        "ai_disponibile": proposta.get("ai_disponibile"),
+        "ha_categoria": bool(proposta.get("categoria")),
+        "ha_assegnatario": bool(proposta.get("assegnatario")),
+    })
+
+    return JsonResponse({"ok": True, "proposta": proposta})
+
+
+# ---------------------------------------------------------------------------
 # API: aggiorna asset collegato al ticket (gestori e admin)
 # ---------------------------------------------------------------------------
 

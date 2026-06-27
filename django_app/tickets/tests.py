@@ -14,7 +14,16 @@ from django.utils import timezone
 from assets.models import Asset, AssetCategory
 from core.upload_mime import UploadMimeValidationError
 from core.models import UserOnboarding
-from tickets.models import PrioritaTicket, Ticket, TicketAllegato, TicketCommento, TicketIntervento, TicketStatoLog
+from tickets.models import (
+    PrioritaTicket,
+    Ticket,
+    TicketAllegato,
+    TicketCommento,
+    TicketImpostazioni,
+    TicketIntervento,
+    TicketStatoLog,
+    TipoTicket,
+)
 from tickets.views import _build_ticket_activity_feed, _get_assets_for_select
 
 
@@ -193,6 +202,118 @@ class TicketNuovoAssetsJsonScriptTests(TestCase):
         # json_script escapa '<' in '<': il payload non deve comparire grezzo.
         self.assertIn('id="assets-list-data"', html)
         self.assertNotIn("</script><script>window.__xss=1</script>", html)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class TicketCopilotaTests(TestCase):
+    """Copilota triage AI (Ondata 3.1): proposta read-only, validata, fail-safe."""
+
+    CATEGORIE = [("PC", "PC / Notebook"), ("RETE", "Rete / Connettività")]
+    GESTORI = [
+        {"nome": "Mario Rossi", "email": "mario@example.com"},
+        {"nome": "Lucia Bianchi", "email": "lucia@example.com"},
+    ]
+
+    def setUp(self):
+        super().setUp()
+        import json as _json
+        self._json = _json
+        self.user = get_user_model().objects.create_user(
+            username="copilota-user", password="pass12345", email="copilota@example.com",
+        )
+        _complete_onboarding(self.user)
+        self.client.force_login(self.user)
+        TicketImpostazioni.objects.create(tipo=TipoTicket.IT, team_gestori=self.GESTORI)
+
+    # --- unit test su proponi_triage (niente DB/HTTP) ---
+
+    def _proponi(self, raw_ai: str):
+        from tickets.ai_copilota import proponi_triage
+        with patch("tickets.ai_copilota._chiama_ai", return_value=raw_ai):
+            return proponi_triage(
+                titolo="PC non si accende", descrizione="Schermo nero dopo aggiornamento",
+                tipo="IT", categorie=self.CATEGORIE, gestori=self.GESTORI,
+            )
+
+    def test_proponi_triage_valid(self):
+        raw = self._json.dumps({
+            "categoria": "PC", "priorita": "alta", "incide_sicurezza": False,
+            "assegnatario_email": "mario@example.com",
+            "bozza_risoluzione": "Verificare alimentatore e RAM.",
+            "motivazione": "Hardware PC, impatto su un utente.",
+        })
+        p = self._proponi(raw)
+        self.assertTrue(p["proposto"])
+        self.assertTrue(p["ai_disponibile"])
+        self.assertEqual(p["categoria"], "PC")
+        self.assertEqual(p["priorita"], "ALTA")
+        self.assertFalse(p["incide_sicurezza"])
+        self.assertEqual(p["assegnatario"], {"nome": "Mario Rossi", "email": "mario@example.com"})
+        self.assertIn("alimentatore", p["bozza_risoluzione"])
+
+    def test_proponi_triage_rejects_out_of_list(self):
+        raw = self._json.dumps({
+            "categoria": "INVENTATA", "priorita": "SUPER",
+            "assegnatario_email": "estraneo@example.com",
+        })
+        p = self._proponi(raw)
+        self.assertEqual(p["categoria"], "")        # categoria fuori lista scartata
+        self.assertEqual(p["priorita"], "")          # priorita fuori enum scartata
+        self.assertIsNone(p["assegnatario"])         # assegnatario non tra i gestori
+
+    def test_proponi_triage_security_forces_urgente(self):
+        raw = self._json.dumps({
+            "categoria": "PC", "priorita": "BASSA", "incide_sicurezza": True,
+        })
+        p = self._proponi(raw)
+        self.assertTrue(p["incide_sicurezza"])
+        self.assertEqual(p["priorita"], PrioritaTicket.URGENTE)
+
+    def test_proponi_triage_ai_offline_failsafe(self):
+        p = self._proponi("")  # AI non disponibile
+        self.assertTrue(p["proposto"])
+        self.assertFalse(p["ai_disponibile"])
+        self.assertEqual(p["categoria"], "")
+        self.assertEqual(p["priorita"], "")
+        self.assertIsNone(p["assegnatario"])
+
+    # --- endpoint ---
+
+    def test_api_copilota_requires_gestore(self):
+        # utente non gestore (nessun admin, nessuna acl_gestione) -> 403
+        response = self.client.post(
+            reverse("tickets:api_copilota"),
+            data=self._json.dumps({"tipo": "IT", "titolo": "x", "descrizione": "y"}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_api_copilota_happy_path(self):
+        raw = self._json.dumps({
+            "categoria": "PC", "priorita": "MEDIA",
+            "assegnatario_email": "lucia@example.com",
+            "bozza_risoluzione": "Controllo connettività.",
+        })
+        with (
+            patch("tickets.views._can_manage_tickets", return_value=True),
+            patch("tickets.ai_copilota._chiama_ai", return_value=raw),
+        ):
+            response = self.client.post(
+                reverse("tickets:api_copilota"),
+                data=self._json.dumps({
+                    "tipo": "IT", "titolo": "Rete lenta",
+                    "descrizione": "La rete del reparto e' lentissima",
+                }),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        prop = data["proposta"]
+        self.assertEqual(prop["categoria"], "PC")
+        self.assertEqual(prop["priorita"], "MEDIA")
+        self.assertEqual(prop["assegnatario"]["email"], "lucia@example.com")
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)

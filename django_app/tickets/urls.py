@@ -15,6 +15,7 @@ urlpatterns = [
     path("api/allegato/",             views.api_allegato,            name="api_allegato"),
     path("api/stato/",                views.api_stato,               name="api_stato"),
     path("api/assegna/",              views.api_assegna,             name="api_assegna"),
+    path("api/copilota/",             views.api_copilota_triage,     name="api_copilota"),
     path("api/asset/",                views.api_asset,               name="api_asset"),
     path("api/impostazioni/",         views.api_impostazioni,        name="api_impostazioni"),
     path("api/cerca-utenti/",         views.api_cerca_utenti,        name="api_cerca_utenti"),
