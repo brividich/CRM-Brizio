@@ -82,7 +82,8 @@ import json, os
 from django.conf import settings as s
 out = {}
 keys = ['OLLAMA_API_PROVIDER','OLLAMA_BASE_URL','OLLAMA_CHAT_MODEL','OLLAMA_CHAT_ENABLED',
-        'OLLAMA_EMBED_ENABLED','OLLAMA_EMBED_MODEL','RAG_EMBED_BACKEND','OLLAMA_RAG_ENABLED',
+        'OLLAMA_EMBED_ENABLED','OLLAMA_EMBED_MODEL','RAG_EMBED_BACKEND',
+        'RAG_EMBED_OPENAI_BASE_URL','RAG_EMBED_OPENAI_MODEL','OLLAMA_RAG_ENABLED',
         'OLLAMA_RAG_SGI_ENABLED','OLLAMA_RAG_STEMMING_ENABLED','OLLAMA_RAG_SOURCE_PATHS',
         'OLLAMA_KEEP_ALIVE']
 out['settings'] = {k: getattr(s, k, None) for k in keys}
@@ -140,13 +141,18 @@ if (-not $facts) {
     $cfg = $facts.settings
 
     # 1. Settings AI effettivi
-    $baseUrl   = [string]$cfg.OLLAMA_BASE_URL
-    $chatModel = [string]$cfg.OLLAMA_CHAT_MODEL
-    $embModel  = [string]$cfg.OLLAMA_EMBED_MODEL
-    $embOn     = [bool]$cfg.OLLAMA_EMBED_ENABLED
-    $sgiOn     = [bool]$cfg.OLLAMA_RAG_SGI_ENABLED
+    $baseUrl    = [string]$cfg.OLLAMA_BASE_URL
+    $chatModel  = [string]$cfg.OLLAMA_CHAT_MODEL
+    $embOn      = [bool]$cfg.OLLAMA_EMBED_ENABLED
+    $sgiOn      = [bool]$cfg.OLLAMA_RAG_SGI_ENABLED
+    $embBackend = ([string]$cfg.RAG_EMBED_BACKEND).Trim().ToLower()
+    if (-not $embBackend) { $embBackend = 'ollama' }
+    $teiBase    = [string]$cfg.RAG_EMBED_OPENAI_BASE_URL
+    $teiModel   = [string]$cfg.RAG_EMBED_OPENAI_MODEL
+    # modello embed "effettivo" per il backend attivo (TEI usa RAG_EMBED_OPENAI_MODEL)
+    $embModel   = if ($embBackend -eq 'openai') { $teiModel } else { [string]$cfg.OLLAMA_EMBED_MODEL }
     Add-Result 'settings.chat' 'PASS' ("model={0} base={1} provider={2}" -f $chatModel, $baseUrl, $cfg.OLLAMA_API_PROVIDER)
-    Add-Result 'settings.embed' ($(if ($embOn) {'PASS'} else {'WARN'})) ("enabled={0} model={1} backend={2}" -f $embOn, $embModel, $cfg.RAG_EMBED_BACKEND)
+    Add-Result 'settings.embed' ($(if ($embOn) {'PASS'} else {'WARN'})) ("enabled={0} backend={1} model={2}" -f $embOn, $embBackend, $embModel)
     Add-Result 'settings.rag_sgi' ($(if ($sgiOn) {'PASS'} else {'WARN'})) ("enabled={0} stemming={1}" -f $sgiOn, $cfg.OLLAMA_RAG_STEMMING_ENABLED)
 
     # 1b. sorgenti RAG: la KB curata deve esserci, altrimenti in prod resta solo README
@@ -215,14 +221,38 @@ if ($facts -and $baseUrl) {
         $names = @($tags.models | ForEach-Object { $_.name })
         $base = { param($m) ($m -split ':')[0] }
         $haveChat = $names | Where-Object { $_ -eq $chatModel -or (& $base $_) -eq (& $base $chatModel) }
-        $haveEmb  = $names | Where-Object { $_ -eq $embModel  -or (& $base $_) -eq (& $base $embModel) }
         Add-Result 'ollama.reach' 'PASS' ("{0} modelli su {1}" -f $names.Count, $baseUrl)
         Add-Result 'ollama.chat'  ($(if ($haveChat) {'PASS'} else {'FAIL'})) ("modello chat '{0}' {1}" -f $chatModel, $(if ($haveChat) {'presente'} else {"ASSENTE -> ollama pull $chatModel"}))
-        if ($embOn) {
-            Add-Result 'ollama.embed' ($(if ($haveEmb) {'PASS'} else {'FAIL'})) ("modello embed '{0}' {1}" -f $embModel, $(if ($haveEmb) {'presente'} else {"ASSENTE -> ollama pull $embModel"}))
+        # Il modello embed va cercato in Ollama SOLO col backend nativo: con TEI
+        # (backend openai) gli embeddings stanno su TEI, non in Ollama (check 3b).
+        if ($embOn -and $embBackend -eq 'ollama') {
+            $embBase  = [string]$cfg.OLLAMA_EMBED_MODEL
+            $haveEmb  = $names | Where-Object { $_ -eq $embBase -or (& $base $_) -eq (& $base $embBase) }
+            Add-Result 'ollama.embed' ($(if ($haveEmb) {'PASS'} else {'FAIL'})) ("modello embed '{0}' {1}" -f $embBase, $(if ($haveEmb) {'presente'} else {"ASSENTE -> ollama pull $embBase"}))
         }
     } catch {
         Add-Result 'ollama.reach' 'FAIL' ("{0} irraggiungibile: {1}" -f $baseUrl, $_.Exception.Message)
+    }
+}
+
+# ---- 3b: TEI (backend embeddings OpenAI-compatibile) ---------------------
+if ($facts -and $embOn -and $embBackend -eq 'openai') {
+    if (-not $teiBase)  { Add-Result 'tei.config' 'FAIL' 'RAG_EMBED_BACKEND=openai ma RAG_EMBED_OPENAI_BASE_URL vuota' }
+    elseif (-not $teiModel) { Add-Result 'tei.config' 'FAIL' 'RAG_EMBED_BACKEND=openai ma RAG_EMBED_OPENAI_MODEL vuoto' }
+    else {
+        $teiRoot = $teiBase.TrimEnd('/')
+        $health = $false
+        try { Invoke-RestMethod -Uri ("{0}/health" -f $teiRoot) -TimeoutSec 10 -Method Get | Out-Null; $health = $true } catch { $health = $false }
+        try {
+            $body = @{ model = $teiModel; input = @('ping') } | ConvertTo-Json
+            $resp = Invoke-RestMethod -Uri ("{0}/v1/embeddings" -f $teiRoot) -TimeoutSec 20 -Method Post -ContentType 'application/json' -Body $body
+            $dim = 0
+            if ($resp.data -and $resp.data[0].embedding) { $dim = @($resp.data[0].embedding).Count }
+            $dimWarn = if ($dim -gt 0 -and $dim -ne 1024) { " (atteso 1024 per bge-m3!)" } else { "" }
+            Add-Result 'tei.embed' 'PASS' ("TEI ok su {0} | modello={1} | dim={2}{3} | health={4}" -f $teiRoot, $teiModel, $dim, $dimWarn, $health)
+        } catch {
+            Add-Result 'tei.embed' 'FAIL' ("TEI {0} non risponde su /v1/embeddings: {1} (TEI su per docker? porta 8081?)" -f $teiRoot, $_.Exception.Message)
+        }
     }
 }
 
