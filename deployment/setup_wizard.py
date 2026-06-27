@@ -59,10 +59,12 @@ _bootstrap_tcl_tk_env()
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
-BRAND        = "#1a56db"
-BRAND_DARK   = "#1e429f"
-BRAND_HOVER  = "#2563eb"
-SIDEBAR_BG   = "#0f2a7a"
+# Palette allineata al design system NOVICROM HUB (navy/cyan/arancio/verde).
+BRAND        = "#1f87cd"   # cyan HUB (azione primaria)
+BRAND_DARK   = "#0c2545"   # navy HUB (header)
+BRAND_HOVER  = "#1769a8"   # cyan scuro (hover pulsanti)
+SIDEBAR_BG   = "#0c2545"   # navy HUB
+ORANGE       = "#ff6b00"   # accento HUB
 SIDEBAR_W    = 210
 WIN_W, WIN_H = 900, 620
 
@@ -70,7 +72,7 @@ GRAY50   = "#f9fafb"; GRAY100 = "#f3f4f6"; GRAY200 = "#e5e7eb"
 GRAY400  = "#9ca3af"; GRAY500 = "#6b7280"; GRAY600 = "#4b5563"
 GRAY700  = "#374151"; GRAY800 = "#1f2937"; GRAY900 = "#111827"
 
-GREEN    = "#16a34a"; GREEN_BG  = "#f0fdf4"; GREEN_BD  = "#86efac"
+GREEN    = "#2f9e6f"; GREEN_BG  = "#f0fdf4"; GREEN_BD  = "#86efac"
 YELLOW_BG= "#fffbeb"; YELLOW_BD = "#fcd34d"; YELLOW_TX = "#92400e"
 RED      = "#dc2626"; RED_BG    = "#fef2f2"
 BLUE_BG  = "#eff6ff"; BLUE_BD   = "#93c5fd"
@@ -88,7 +90,7 @@ PYTHON_MIN_VERSION = (3, 11)
 
 STEPS = ["Benvenuto","Pacchetto","Ambiente","Python",
          "Database","Active Directory","Email","IIS / Web",
-         "Prerequisiti IIS","Utente Admin","Moduli","Riepilogo","Installazione","Completato"]
+         "Prerequisiti IIS","Utente Admin","Moduli","Assistente AI","Riepilogo","Installazione","Completato"]
 
 STEPS_RELEASE   = ["Modalità", "Configurazione", "Esecuzione", "Completato"]
 STEPS_UNINSTALL = ["Configurazione", "Conferma", "Disinstallazione", "Completato"]
@@ -415,6 +417,72 @@ def _env_key_values(env_content: str) -> dict[str, str]:
     return values
 
 
+def _apply_env_updates(text: str, updates: dict, remove=()) -> str:
+    """Aggiorna le chiavi `updates` nel testo .env, elimina quelle in `remove`
+    (se non anche in updates) e RIMUOVE i duplicati (tiene la prima occorrenza).
+    Le chiavi assenti vengono accodate in un blocco dedicato. Commenti e righe
+    non KEY=VALUE sono preservati. Usato dal Server Dashboard per editare la
+    config AI senza riscrivere a mano il .env (e ripulendo eventuali duplicati)."""
+    remove_set = set(remove) - set(updates)
+    out: list[str] = []
+    seen: set[str] = set()
+    for line in text.splitlines():
+        m = re.match(r"^\s*([^#=]+)=", line)
+        if not m:
+            out.append(line)
+            continue
+        key = m.group(1).strip()
+        if key in remove_set:
+            continue
+        if key in updates:
+            if key in seen:
+                continue  # duplicato -> scartato
+            out.append(f"{key}={updates[key]}")
+            seen.add(key)
+            continue
+        out.append(line)
+    missing = [k for k in updates if k not in seen]
+    if missing:
+        if out and out[-1].strip():
+            out.append("")
+        out.append("# --- Assistente AI (Server Dashboard) ---")
+        out.extend(f"{k}={updates[k]}" for k in missing)
+    result = "\n".join(out)
+    if text.endswith("\n") and not result.endswith("\n"):
+        result += "\n"
+    return result
+
+
+def _ai_build_env_updates(backend, base_url, chat_model, embed_model,
+                          tei_base, tei_model):
+    """Costruisce (updates, remove) per la config AI in base al backend scelto
+    (off | ollama | tei). Logica pura (testabile): le chiavi rispecchiano quelle
+    lette da ai_assistant/services.py."""
+    updates = {
+        "OLLAMA_API_PROVIDER": "ollama",
+        "OLLAMA_BASE_URL": base_url,
+        "OLLAMA_CHAT_MODEL": chat_model,
+        "OLLAMA_CHAT_ENABLED": "True",
+    }
+    remove = set()
+    if backend == "off":
+        updates["OLLAMA_EMBED_ENABLED"] = "False"
+        remove |= {"RAG_EMBED_BACKEND", "OLLAMA_EMBED_MODEL",
+                   "RAG_EMBED_OPENAI_BASE_URL", "RAG_EMBED_OPENAI_MODEL"}
+    elif backend == "ollama":
+        updates["OLLAMA_EMBED_ENABLED"] = "True"
+        updates["RAG_EMBED_BACKEND"] = "ollama"
+        updates["OLLAMA_EMBED_MODEL"] = embed_model
+        remove |= {"RAG_EMBED_OPENAI_BASE_URL", "RAG_EMBED_OPENAI_MODEL"}
+    else:  # tei
+        updates["OLLAMA_EMBED_ENABLED"] = "True"
+        updates["RAG_EMBED_BACKEND"] = "openai"
+        updates["RAG_EMBED_OPENAI_BASE_URL"] = tei_base
+        updates["RAG_EMBED_OPENAI_MODEL"] = tei_model
+        remove |= {"OLLAMA_EMBED_MODEL"}
+    return updates, remove
+
+
 def _env_drift_keys(config_content: str, current_content: str) -> list[str]:
     config_values = _env_key_values(config_content)
     current_values = _env_key_values(current_content)
@@ -540,6 +608,15 @@ class Config:
         self.selected_modules: list[str] = [
             m["key"] for m in MODULE_REGISTRY if m["default"]
         ]
+        # Assistente AI (Ollama on-premise + embeddings RAG). Scritte in to_env()
+        # solo se il modulo "ai_assistant" e' selezionato. Default conservativi:
+        # chat su Ollama locale, embeddings DISATTIVI (opt-in da AIPage).
+        self.ai_base_url      = "http://127.0.0.1:11434"
+        self.ai_chat_model    = "qwen2.5:14b-instruct"
+        self.ai_embed_backend = "off"               # "off" | "ollama" | "tei"
+        self.ai_embed_model   = "nomic-embed-text"  # backend ollama
+        self.ai_tei_base_url  = "http://127.0.0.1:8081"  # backend tei
+        self.ai_tei_model     = "BAAI/bge-m3"            # backend tei
 
     @property
     def env_path(self): return Path(self.base_dir) / self.environment
@@ -606,6 +683,33 @@ class Config:
             f"SQL_LOG_ENABLED={'True' if self.environment=='test' else 'False'}",
             f"ENVIRONMENT={self.environment}",
         ]
+        # Assistente AI (solo se il modulo e' selezionato). On-premise, fail-safe:
+        # con embeddings "off" il RAG resta BM25-only; "tei" usa l'endpoint OpenAI-
+        # compatibile (Text Embeddings Inference) su GPU.
+        if "ai_assistant" in self.selected_modules:
+            lines += [
+                "\n# --- Assistente AI (Ollama + RAG) ---",
+                "OLLAMA_API_PROVIDER=ollama",
+                f"OLLAMA_BASE_URL={self.ai_base_url}",
+                f"OLLAMA_CHAT_MODEL={self.ai_chat_model}",
+                "OLLAMA_CHAT_ENABLED=True",
+                "OLLAMA_RAG_SGI_ENABLED=True",
+            ]
+            if self.ai_embed_backend == "ollama":
+                lines += [
+                    "OLLAMA_EMBED_ENABLED=True",
+                    "RAG_EMBED_BACKEND=ollama",
+                    f"OLLAMA_EMBED_MODEL={self.ai_embed_model}",
+                ]
+            elif self.ai_embed_backend == "tei":
+                lines += [
+                    "OLLAMA_EMBED_ENABLED=True",
+                    "RAG_EMBED_BACKEND=openai",
+                    f"RAG_EMBED_OPENAI_BASE_URL={self.ai_tei_base_url}",
+                    f"RAG_EMBED_OPENAI_MODEL={self.ai_tei_model}",
+                ]
+            else:
+                lines += ["OLLAMA_EMBED_ENABLED=False"]
         return "\n".join(lines)
 
 
@@ -918,9 +1022,9 @@ class Sidebar(tk.Frame):
         tk.Label(hdr, text="Portale\nNovicrom", font=(SF,14,"bold"),
                  bg=SIDEBAR_BG, fg="white", justify="left").pack(anchor="w", pady=(4,2))
         tk.Label(hdr, text=subtitle, font=(SF,9),
-                 bg=SIDEBAR_BG, fg="#60a5fa").pack(anchor="w")
+                 bg=SIDEBAR_BG, fg="#5bb3e8").pack(anchor="w")
 
-        frame(self, bg="#1e40af", height=1).pack(fill="x", padx=20, pady=18)
+        frame(self, bg="#13345e", height=1).pack(fill="x", padx=20, pady=18)
 
         self._steps_frame = frame(self, bg=SIDEBAR_BG)
         self._steps_frame.pack(fill="x")
@@ -938,14 +1042,14 @@ class Sidebar(tk.Frame):
                 dot_bg, dot_fg, name_fg = "#166534", "#86efac", "#93c5fd"
                 sym = "✓"
             elif active:
-                dot_bg, dot_fg, name_fg = BRAND, "white", "white"
+                dot_bg, dot_fg, name_fg = ORANGE, "white", "white"
                 sym = str(i+1)
             else:
                 dot_bg, dot_fg, name_fg = SIDEBAR_BG, "#334155", "#475569"
                 sym = "·"
 
             # Highlight riga attiva
-            row_bg = "#1e3a8a" if active else SIDEBAR_BG
+            row_bg = "#12365f" if active else SIDEBAR_BG
             row.configure(bg=row_bg)
 
             dot = tk.Label(row, text=sym, font=(SF,8,"bold"),
@@ -2546,6 +2650,128 @@ class ModulesPage(Page):
             messagebox.showerror("Moduli", "Il modulo Core è obbligatorio.")
             return False
         return True
+
+
+class AIPage(Page):
+    """Step Assistente AI: configura Ollama (chat) e il backend embeddings (RAG).
+
+    Le chiavi OLLAMA_*/RAG_EMBED_* finiscono nel .env via Config.to_env() solo se
+    il modulo 'ai_assistant' e' selezionato (altrimenti la pagina e' informativa).
+    On-premise: nessun servizio cloud. Gli embeddings sono opt-in (default off).
+    """
+
+    _BACKENDS = [
+        ("off", "Disattivati  —  solo ricerca testuale (BM25)",
+         "RAG testuale puro, nessun embedding. Sempre funzionante, nessuna GPU.",
+         (GRAY50, GRAY200, GRAY700)),
+        ("ollama", "Ollama nativo",
+         "Embeddings calcolati da Ollama. Richiede il pull del modello sul server.",
+         (BLUE_BG, BLUE_BD, BRAND)),
+        ("tei", "TEI su GPU  (consigliato)",
+         "Server TEI dedicato (Docker): veloce e robusto sui corpora grandi.",
+         (GREEN_BG, GREEN_BD, GREEN)),
+    ]
+
+    def __init__(self, parent, cfg):
+        super().__init__(parent, "Assistente AI",
+                         "Motore on-premise (Ollama) e ricerca semantica (embeddings RAG)")
+        self.cfg = cfg
+        self._build_ui()
+
+    def _build_ui(self):
+        wrap = frame(self.body, bg="white")
+        wrap.pack(fill="both", expand=True, padx=32, pady=(8, 8))
+
+        # Banner: mostrato in on_enter se il modulo AI non e' selezionato.
+        self._banner = frame(wrap, bg=YELLOW_BG)
+        self._banner.configure(highlightthickness=1, highlightbackground=YELLOW_BD)
+        tk.Label(self._banner,
+                 text="Il modulo «Assistente AI» non e' selezionato: questa pagina e' "
+                      "informativa, le chiavi non verranno scritte nel .env.",
+                 font=FSM, bg=YELLOW_BG, fg=YELLOW_TX, justify="left",
+                 wraplength=560).pack(anchor="w", padx=12, pady=8)
+        self._banner.pack(fill="x", pady=(0, 10))
+
+        # --- Modello di chat (Ollama) ---
+        self._anchor = tk.Label(wrap, text="MODELLO DI CHAT (OLLAMA)", font=(SF, 8, "bold"),
+                                fg=GRAY500, bg="white")
+        self._anchor.pack(anchor="w", pady=(2, 2))
+        self._var_base = tk.StringVar(value=self.cfg.ai_base_url)
+        self._var_chat = tk.StringVar(value=self.cfg.ai_chat_model)
+        FieldGroup(wrap, "URL del server Ollama (OLLAMA_BASE_URL)", self._var_base,
+                   mono=True).pack(fill="x", pady=(0, 6))
+        FieldGroup(wrap, "Modello di chat (OLLAMA_CHAT_MODEL)", self._var_chat,
+                   mono=True).pack(fill="x", pady=(0, 12))
+
+        # --- Ricerca semantica (embeddings) ---
+        tk.Label(wrap, text="RICERCA SEMANTICA (EMBEDDINGS / RAG)", font=(SF, 8, "bold"),
+                 fg=GRAY500, bg="white").pack(anchor="w", pady=(2, 2))
+        self._sel = CardSelector(wrap, self._BACKENDS,
+                                 initial=self.cfg.ai_embed_backend,
+                                 on_change=self._on_backend)
+        self._sel.pack(fill="x")
+
+        # Campi condizionali — backend Ollama
+        self._frm_ollama = frame(wrap, bg="white")
+        self._var_emb = tk.StringVar(value=self.cfg.ai_embed_model)
+        FieldGroup(self._frm_ollama, "Modello embeddings Ollama (OLLAMA_EMBED_MODEL)",
+                   self._var_emb, mono=True).pack(fill="x", pady=(6, 0))
+
+        # Campi condizionali — backend TEI
+        self._frm_tei = frame(wrap, bg="white")
+        self._var_tei_base = tk.StringVar(value=self.cfg.ai_tei_base_url)
+        self._var_tei_model = tk.StringVar(value=self.cfg.ai_tei_model)
+        FieldGroup(self._frm_tei, "Endpoint TEI (RAG_EMBED_OPENAI_BASE_URL)",
+                   self._var_tei_base, mono=True).pack(fill="x", pady=(6, 0))
+        FieldGroup(self._frm_tei, "Modello TEI (RAG_EMBED_OPENAI_MODEL)",
+                   self._var_tei_model, mono=True).pack(fill="x", pady=(6, 0))
+
+        tk.Label(wrap,
+                 text="On-premise: nessun dato esce dalla rete. Puoi modificare questi "
+                      "valori anche dopo, dal Server Dashboard.",
+                 font=FSM, fg=GRAY500, bg="white", justify="left",
+                 wraplength=560).pack(anchor="w", pady=(12, 0))
+
+        self._on_backend(self.cfg.ai_embed_backend)
+
+    def _on_backend(self, value):
+        self._frm_ollama.pack_forget()
+        self._frm_tei.pack_forget()
+        if value == "ollama":
+            self._frm_ollama.pack(fill="x", after=self._sel)
+        elif value == "tei":
+            self._frm_tei.pack(fill="x", after=self._sel)
+
+    def _sync(self):
+        self.cfg.ai_base_url      = self._var_base.get().strip() or "http://127.0.0.1:11434"
+        self.cfg.ai_chat_model    = self._var_chat.get().strip() or "qwen2.5:14b-instruct"
+        self.cfg.ai_embed_backend = self._sel.value
+        self.cfg.ai_embed_model   = self._var_emb.get().strip() or "nomic-embed-text"
+        self.cfg.ai_tei_base_url  = self._var_tei_base.get().strip() or "http://127.0.0.1:8081"
+        self.cfg.ai_tei_model     = self._var_tei_model.get().strip() or "BAAI/bge-m3"
+
+    def on_enter(self):
+        if "ai_assistant" in self.cfg.selected_modules:
+            self._banner.pack_forget()
+        else:
+            self._banner.pack(fill="x", pady=(0, 10), before=self._anchor)
+
+    def validate(self):
+        backend = self._sel.value
+        if backend == "tei" and (not self._var_tei_base.get().strip()
+                                 or not self._var_tei_model.get().strip()):
+            messagebox.showwarning("Assistente AI",
+                                   "Con backend TEI servono sia l'endpoint sia il modello.")
+            return False
+        if backend == "ollama" and not self._var_emb.get().strip():
+            messagebox.showwarning("Assistente AI",
+                                   "Indica il modello di embeddings di Ollama.")
+            return False
+        self._sync()
+        return True
+
+    def on_leave(self):
+        self._sync()
 
 
 class SummaryPage(Page):
@@ -4223,10 +4449,11 @@ class WizardApp:
             HttpPlatformHandlerPage(   self.container, self.cfg),          # 8 — skip DEV
             AdminPage(                 self.container, self.cfg),          # 9
             ModulesPage(               self.container, self.cfg),          # 10
-            SummaryPage(               self.container, self.cfg),          # 11
-            InstallPage(               self.container, self.cfg,           # 12
+            AIPage(                    self.container, self.cfg),          # 11
+            SummaryPage(               self.container, self.cfg),          # 12
+            InstallPage(               self.container, self.cfg,           # 13
                                         self._on_done),
-            FinishPage(                self.container, self.cfg, self._close),  # 13
+            FinishPage(                self.container, self.cfg, self._close),  # 14
         ]
 
     def _show(self, idx):
@@ -6688,6 +6915,37 @@ class ServerDashboard:
         q_log_sb.pack(side="right", fill="y")
         self._q_log_txt.pack(fill="both", expand=True, padx=8, pady=6)
 
+        # ── Assistente AI (Ollama + RAG) ─────────────────────────
+        frame(main, height=14).pack()
+        ai_card = frame(main, bg=GRAY50, highlightthickness=1, highlightbackground=GRAY200)
+        ai_card.pack(fill="x")
+
+        ai_head = frame(ai_card, bg=GRAY50)
+        ai_head.pack(fill="x", padx=14, pady=(10, 6))
+        tk.Label(ai_head, text="Assistente AI (Ollama + RAG)", font=(SF, 9, "bold"),
+                 bg=GRAY50, fg=GRAY600).pack(side="left")
+        self._ai_status_lbl = tk.Label(ai_head, text="— (premi Verifica)", font=FSM,
+                                       bg=GRAY50, fg=GRAY400)
+        self._ai_status_lbl.pack(side="right")
+
+        ai_btn_row = frame(ai_card, bg=GRAY50)
+        ai_btn_row.pack(anchor="w", padx=14, pady=(0, 8))
+        SecondaryButton(ai_btn_row, "🔎  Verifica", self._ai_verify).pack(side="left", padx=(0, 8))
+        SecondaryButton(ai_btn_row, "🧠  Re-index SGI", self._ai_reindex).pack(side="left", padx=(0, 8))
+        SecondaryButton(ai_btn_row, "✎  Modifica config AI", self._ai_edit_config).pack(side="left", padx=(0, 8))
+
+        ai_log_wrap = frame(ai_card, bg=CODE_BG, highlightthickness=1, highlightbackground=GRAY700)
+        ai_log_wrap.pack(fill="x", padx=14, pady=(0, 10))
+        self._ai_log_txt = tk.Text(ai_log_wrap, bg=CODE_BG, fg=CODE_FG, font=FMO,
+                                   relief="flat", state="disabled", wrap="none", height=4)
+        self._ai_log_txt.tag_configure("meta", foreground="#58a6ff")
+        self._ai_log_txt.tag_configure("error", foreground="#f87171")
+        self._ai_log_txt.tag_configure("ok", foreground="#7ee787")
+        ai_log_sb = tk.Scrollbar(ai_log_wrap, command=self._ai_log_txt.yview)
+        self._ai_log_txt.configure(yscrollcommand=ai_log_sb.set)
+        ai_log_sb.pack(side="right", fill="y")
+        self._ai_log_txt.pack(fill="both", expand=True, padx=8, pady=6)
+
         # ── Log viewer ──────────────────────────────────────────
         frame(main, height=14).pack()
         tk.Label(main, text="Log recente (waitress)", font=(SF, 9, "bold"),
@@ -7346,6 +7604,215 @@ if ($t) {{
             self._append_terminal("\n[stop richiesto]\n", "meta")
         except Exception as exc:
             self._append_terminal(f"\nStop non riuscito: {exc}\n", "error")
+
+    # ── Assistente AI (Ollama + RAG) ─────────────────────────────
+
+    def _ai_settings_flag(self, env: str) -> str:
+        return f"--settings={_django_settings(env)}"
+
+    def _ai_active_env_path(self, env: str):
+        da = self._resolve_env_django_app(env)
+        return (da / ".env") if da else None
+
+    def _ai_persistent_env_path(self, env: str) -> Path:
+        """.env da editare: preferisce il persistente config\\.env, altrimenti l'attivo."""
+        cfg_env = self._env_root(env) / "config" / ".env"
+        if cfg_env.exists():
+            return cfg_env
+        active = self._ai_active_env_path(env)
+        return active if active else cfg_env
+
+    def _ai_read_config(self, env: str) -> dict:
+        path = self._ai_active_env_path(env)
+        if not path or not path.exists():
+            return {}
+        try:
+            return _env_key_values(path.read_text(encoding="utf-8", errors="replace"))
+        except Exception:
+            return {}
+
+    def _ai_log(self, text, tag=None):
+        if not hasattr(self, "_ai_log_txt"):
+            return
+        self._ai_log_txt.configure(state="normal")
+        if tag:
+            self._ai_log_txt.insert("end", text, tag)
+        else:
+            self._ai_log_txt.insert("end", text)
+        self._ai_log_txt.see("end")
+        self._ai_log_txt.configure(state="disabled")
+
+    def _ai_verify(self):
+        env = self._selected_env.get()
+        cfg = self._ai_read_config(env)
+        if not cfg:
+            self._ai_status_lbl.configure(text="✗ .env non trovato", fg=RED)
+            self._ai_log(f"\n[{env.upper()}] .env attivo non trovato (release corrente?).\n", "error")
+            return
+        self._ai_log(f"\n[{env.upper()}] Verifica AI in corso...\n", "meta")
+        threading.Thread(target=self._ai_verify_thread, args=(env, cfg), daemon=True).start()
+
+    def _ai_verify_thread(self, env, cfg):
+        import urllib.request
+        import json as _json
+
+        def _get_json(url, timeout=10):
+            req = urllib.request.Request(url, method="GET")
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return _json.loads(r.read().decode("utf-8", "replace"))
+
+        def _post_json(url, payload, timeout=20):
+            data = _json.dumps(payload).encode("utf-8")
+            req = urllib.request.Request(url, data=data, method="POST",
+                                         headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return _json.loads(r.read().decode("utf-8", "replace"))
+
+        lines = []
+        ok_all = True
+        base = (cfg.get("OLLAMA_BASE_URL") or "http://127.0.0.1:11434").rstrip("/")
+        chat = cfg.get("OLLAMA_CHAT_MODEL") or "qwen2.5:14b-instruct"
+        try:
+            tags = _get_json(f"{base}/api/tags")
+            names = [m.get("name", "") for m in (tags.get("models") or [])]
+            have = any(n == chat or n.split(":")[0] == chat.split(":")[0] for n in names)
+            lines.append(f"Ollama {base}: {len(names)} modelli; chat '{chat}' {'OK' if have else 'ASSENTE'}")
+            ok_all = ok_all and have
+        except Exception as exc:
+            lines.append(f"Ollama {base}: IRRAGGIUNGIBILE ({exc})")
+            ok_all = False
+
+        backend = (cfg.get("RAG_EMBED_BACKEND") or "ollama").strip().lower()
+        emb_on = (cfg.get("OLLAMA_EMBED_ENABLED") or "").strip().lower() in ("1", "true", "yes", "on")
+        if emb_on and backend == "openai":
+            tei = (cfg.get("RAG_EMBED_OPENAI_BASE_URL") or "").rstrip("/")
+            model = cfg.get("RAG_EMBED_OPENAI_MODEL") or ""
+            if not tei or not model:
+                lines.append("TEI: config incompleta (BASE_URL/MODEL)")
+                ok_all = False
+            else:
+                try:
+                    resp = _post_json(f"{tei}/v1/embeddings", {"model": model, "input": ["ping"]})
+                    dim = len((resp.get("data") or [{}])[0].get("embedding") or [])
+                    warn = "" if dim in (0, 1024) else f" (atteso 1024, trovato {dim})"
+                    lines.append(f"TEI {tei}: OK, dim={dim}{warn}")
+                except Exception as exc:
+                    lines.append(f"TEI {tei}: NON RISPONDE ({exc})")
+                    ok_all = False
+        elif emb_on and backend == "ollama":
+            lines.append("Embeddings: backend Ollama nativo (modello caricato in Ollama)")
+        else:
+            lines.append("Embeddings: disattivati (BM25-only)")
+
+        summary = "✔ tutto ok" if ok_all else "✗ problemi rilevati"
+        col = GREEN if ok_all else RED
+
+        def _apply():
+            self._ai_status_lbl.configure(text=summary, fg=col)
+            for ln in lines:
+                self._ai_log("  " + ln + "\n", "ok" if ok_all else None)
+
+        self.root.after(0, _apply)
+
+    def _ai_reindex(self):
+        env = self._selected_env.get()
+        self._ai_log(f"\n[{env.upper()}] Re-index SGI -> terminale integrato.\n", "meta")
+        self._q_run_manage(f"manage.py index_sgi_documents --json {self._ai_settings_flag(env)}")
+
+    def _ai_edit_config(self):
+        env = self._selected_env.get()
+        target = self._ai_persistent_env_path(env)
+        current = self._ai_read_config(env)
+
+        emb_on = (current.get("OLLAMA_EMBED_ENABLED") or "").strip().lower() in ("1", "true", "yes", "on")
+        backend0 = (current.get("RAG_EMBED_BACKEND") or "ollama").strip().lower()
+        if not emb_on:
+            backend0 = "off"
+        elif backend0 == "openai":
+            backend0 = "tei"
+        else:
+            backend0 = "ollama"
+
+        dlg = tk.Toplevel(self.root)
+        dlg.title(f"Config AI — {env.upper()}")
+        dlg.configure(bg="white")
+        dlg.transient(self.root)
+        dlg.grab_set()
+        dlg.geometry("580x540")
+
+        pad = frame(dlg, bg="white")
+        pad.pack(fill="both", expand=True, padx=18, pady=14)
+        tk.Label(pad, text=f"Scrive in:  {target}", font=FSM, fg=GRAY500, bg="white",
+                 wraplength=540, justify="left").pack(anchor="w", pady=(0, 8))
+
+        v_base = tk.StringVar(value=current.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434"))
+        v_chat = tk.StringVar(value=current.get("OLLAMA_CHAT_MODEL", "qwen2.5:14b-instruct"))
+        v_emb = tk.StringVar(value=current.get("OLLAMA_EMBED_MODEL", "nomic-embed-text"))
+        v_tbase = tk.StringVar(value=current.get("RAG_EMBED_OPENAI_BASE_URL", "http://127.0.0.1:8081"))
+        v_tmod = tk.StringVar(value=current.get("RAG_EMBED_OPENAI_MODEL", "BAAI/bge-m3"))
+        v_back = tk.StringVar(value=backend0)
+
+        FieldGroup(pad, "OLLAMA_BASE_URL", v_base, mono=True).pack(fill="x", pady=(0, 6))
+        FieldGroup(pad, "OLLAMA_CHAT_MODEL", v_chat, mono=True).pack(fill="x", pady=(0, 10))
+
+        tk.Label(pad, text="BACKEND EMBEDDINGS", font=(SF, 8, "bold"),
+                 fg=GRAY500, bg="white").pack(anchor="w")
+        radio_row = frame(pad, bg="white")
+        radio_row.pack(fill="x", pady=(2, 6))
+
+        frm_o = frame(pad, bg="white")
+        FieldGroup(frm_o, "OLLAMA_EMBED_MODEL", v_emb, mono=True).pack(fill="x", pady=(0, 6))
+        frm_t = frame(pad, bg="white")
+        FieldGroup(frm_t, "RAG_EMBED_OPENAI_BASE_URL", v_tbase, mono=True).pack(fill="x", pady=(0, 6))
+        FieldGroup(frm_t, "RAG_EMBED_OPENAI_MODEL", v_tmod, mono=True).pack(fill="x", pady=(0, 6))
+
+        def _refresh():
+            frm_o.pack_forget()
+            frm_t.pack_forget()
+            if v_back.get() == "ollama":
+                frm_o.pack(fill="x", after=radio_row)
+            elif v_back.get() == "tei":
+                frm_t.pack(fill="x", after=radio_row)
+
+        for val, txt in (("off", "Off (BM25)"), ("ollama", "Ollama"), ("tei", "TEI")):
+            tk.Radiobutton(radio_row, text=txt, value=val, variable=v_back, bg="white",
+                           activebackground="white", font=FSM,
+                           command=_refresh).pack(side="left", padx=(0, 14))
+        _refresh()
+
+        tk.Label(pad, text="Dopo il salvataggio: riavvia IIS e, se cambi modello/backend, "
+                           "lancia «Re-index SGI». Le chiavi duplicate vengono ripulite.",
+                 font=FSM, fg=YELLOW_TX, bg="white", wraplength=540, justify="left").pack(anchor="w", pady=(10, 8))
+
+        def _save():
+            backend = v_back.get()
+            if backend == "tei" and (not v_tbase.get().strip() or not v_tmod.get().strip()):
+                messagebox.showwarning("Config AI", "Con TEI servono endpoint e modello.")
+                return
+            updates, remove = _ai_build_env_updates(
+                backend, v_base.get().strip(), v_chat.get().strip(),
+                v_emb.get().strip() or "nomic-embed-text",
+                v_tbase.get().strip(), v_tmod.get().strip() or "BAAI/bge-m3",
+            )
+            if env == "prod" and not messagebox.askyesno(
+                "Conferma PROD", f"Scrivere la config AI in:\n{target}\n(ambiente PROD)?"):
+                return
+            try:
+                text = target.read_text(encoding="utf-8", errors="replace") if target.exists() else ""
+                new_text = _apply_env_updates(text, updates, remove)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(new_text, encoding="utf-8")
+            except Exception as exc:
+                messagebox.showerror("Config AI", f"Scrittura fallita: {exc}")
+                return
+            self._ai_log(f"\n[{env.upper()}] Config AI salvata in {target} "
+                         f"(backend={backend}). Riavvia IIS per applicare.\n", "ok")
+            dlg.destroy()
+
+        btns = frame(pad, bg="white")
+        btns.pack(fill="x", side="bottom", pady=(8, 0))
+        PrimaryButton(btns, "💾  Salva", _save).pack(side="right")
+        SecondaryButton(btns, "Annulla", dlg.destroy).pack(side="right", padx=(0, 8))
 
     # ── Automazioni django-q ─────────────────────────────────────
 
