@@ -782,6 +782,7 @@ body.theme-dark .ai-segmented button.is-active {
   data-api-url="{% url 'ai_assistant:api_chat' %}"
   data-stream-url="{% url 'ai_assistant:api_chat_stream' %}"
   data-save-url="{% url 'ai_assistant:api_save_knowledge' %}"
+  data-report-url="{% url 'ai_assistant:api_report' %}"
   data-max-prompt-chars="{{ max_prompt_chars }}"
   data-username="{{ request.user.get_full_name|default:request.user.username|truncatechars:2|upper }}"
 >
@@ -812,6 +813,9 @@ body.theme-dark .ai-segmented button.is-active {
     <div class="ai-hero-actions">
       <button class="ai-hero-btn ai-hero-btn-secondary" type="button" data-ai-new-chat title="Nuova conversazione (cancella la sessione corrente)">
         &#x1F504; Nuova chat
+      </button>
+      <button class="ai-hero-btn ai-hero-btn-secondary" type="button" data-ai-report {% if not ollama_enabled %}disabled{% endif %} title="Genera un report PDF sull'argomento (dati live filtrati dai tuoi permessi)">
+        &#x1F4C4; Report PDF
       </button>
       {% if can_manage_knowledge %}
         <a class="ai-hero-btn ai-hero-btn-primary" href="{% url 'admin_portale:ai_settings' %}" title="Apri la console di gestione AI (solo admin)">
@@ -1644,6 +1648,51 @@ body.theme-dark .ai-segmented button.is-active {
       learnBtn.textContent = orig;
     }
   });
+
+  /* ── Report PDF: genera un PDF sull'argomento (dati live ACL-gated) ───── */
+  var reportBtn = root.querySelector("[data-ai-report]");
+  var reportUrl = root.dataset.reportUrl;
+  if (reportBtn && reportUrl) {
+    reportBtn.addEventListener("click", async function () {
+      var topic = (input && input.value.trim()) || (lastPair && lastPair.question) || "";
+      topic = (topic || "").trim();
+      if (!topic) {
+        topic = (window.prompt("Su quale argomento vuoi il report?") || "").trim();
+      }
+      if (!topic) return;
+      var orig = reportBtn.innerHTML;
+      reportBtn.disabled = true;
+      reportBtn.innerHTML = "⏳ Genero…";
+      try {
+        var resp = await fetch(reportUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-CSRFToken": csrf(), "X-Requested-With": "XMLHttpRequest" },
+          body: JSON.stringify({ topic: topic })
+        });
+        if (!resp.ok) {
+          var msg = "Impossibile generare il report.";
+          try { var j = await resp.json(); if (j && j.error) msg = j.error; } catch (e) {}
+          window.alert(msg);
+          return;
+        }
+        var blob = await resp.blob();
+        var dispo = resp.headers.get("Content-Disposition") || "";
+        var match = /filename="?([^"]+)"?/.exec(dispo);
+        var fname = match ? match[1] : "report-ai.pdf";
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement("a");
+        a.href = url; a.download = fname;
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+      } catch (err) {
+        window.alert("Errore di rete durante la generazione del report.");
+      } finally {
+        reportBtn.disabled = false;
+        reportBtn.innerHTML = orig;
+      }
+    });
+  }
 })();
 </script>
 <script>

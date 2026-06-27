@@ -11,7 +11,6 @@ gestito). Il PDF e' marcato come **bozza generata dall'AI**: l'umano verifica e 
 """
 from __future__ import annotations
 
-import html
 import io
 import logging
 import re
@@ -91,103 +90,189 @@ def genera_report(request, topic: str) -> dict:
     }
 
 
-# ── Rendering PDF (reportlab) ───────────────────────────────────────────────
+# ── Rendering PDF — stile NOVICROM HUB (canvas, come i PDF del portale) ──────
+# Palette del design system del portale (navy/cyan/orange + neutrali condivisi coi
+# PDF ticket): coerenza visiva con i documenti gia' generati dal portale.
 
-def _md_inline(text: str) -> str:
-    """Escapa l'output del modello (untrusted) e applica solo il grassetto markdown.
+def _plain(text: str) -> str:
+    """Testo per il canvas (no rich-text): rimuove i marcatori markdown.
 
-    L'escape PRIMA del markup evita injection nei tag mini-HTML di reportlab.
+    Il canvas disegna stringhe letterali (nessuna interpretazione di tag), quindi
+    non c'e' rischio di injection; togliamo solo **grassetto**, `code` e simili.
     """
-    safe = html.escape(text or "", quote=False)
-    safe = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", safe)
-    return safe
+    s = re.sub(r"\*\*(.+?)\*\*", r"\1", text or "")
+    s = s.replace("`", "").replace("**", "")
+    return s
 
 
 def render_report_pdf(report: dict, *, autore: str = "") -> bytes:
-    """Renderizza il report in PDF (bytes). Solleva se reportlab non e' disponibile."""
-    from reportlab.lib.enums import TA_LEFT
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-    from reportlab.lib.units import mm
-    from reportlab.platypus import (
-        Paragraph,
-        SimpleDocTemplate,
-        Spacer,
-    )
+    """Renderizza il report in PDF (bytes) nello stile NOVICROM HUB.
 
-    base = getSampleStyleSheet()
-    st_title = ParagraphStyle(
-        "AiTitle", parent=base["Title"], fontSize=18, leading=22, spaceAfter=4, textColor="#0c2545"
-    )
-    st_meta = ParagraphStyle("AiMeta", parent=base["Normal"], fontSize=8.5, textColor="#64748b", spaceAfter=10)
-    st_h2 = ParagraphStyle(
-        "AiH2", parent=base["Heading2"], fontSize=12.5, leading=15, spaceBefore=10, spaceAfter=4, textColor="#1f87cd"
-    )
-    st_body = ParagraphStyle("AiBody", parent=base["Normal"], fontSize=10, leading=14, alignment=TA_LEFT, spaceAfter=4)
-    st_bullet = ParagraphStyle("AiBullet", parent=st_body, leftIndent=12, bulletIndent=2)
-    st_src = ParagraphStyle("AiSrc", parent=base["Normal"], fontSize=8.5, leading=12, textColor="#475569")
+    Solleva se reportlab non e' disponibile (gestito fail-safe dal chiamante).
+    """
+    from reportlab.lib.colors import HexColor, white
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.pdfgen import canvas
+
+    NAVY = HexColor("#0c2545")
+    CYAN = HexColor("#1f87cd")
+    ORANGE = HexColor("#ff6b00")
+    DARK = HexColor("#0f172a")
+    GRAY = HexColor("#64748b")
+    BORDER = HexColor("#e2e8f0")
+    M = 16 * mm
+    FOOTER_H = 12 * mm
+
+    buffer = io.BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    page_width, page_height = A4
+    content_w = page_width - 2 * M
+    titolo = (report.get("titolo") or "Report AI").strip()
+    pdf.setTitle(titolo[:120])
+    pdf.setAuthor("NOVICROM HUB — Assistente AI")
 
     generato = timezone.localtime().strftime("%d-%m-%Y %H:%M")
-    flow: list = []
-    flow.append(Paragraph(_md_inline(report.get("titolo") or "Report AI"), st_title))
-    meta_bits = [f"Generato il {generato}"]
-    if autore:
-        meta_bits.append(f"Richiesto da {html.escape(autore, quote=False)}")
-    flow.append(Paragraph(" · ".join(meta_bits), st_meta))
+    disclaimer = "Bozza generata dall'AI nei limiti dei tuoi permessi — verifica i dati. L'AI propone, l'umano firma."
+
+    def wrap(text: str, font: str, size: float, max_w: float) -> list[str]:
+        out: list[str] = []
+        for raw in _plain(text).splitlines() or [" "]:
+            line = raw.strip()
+            if not line:
+                out.append("")
+                continue
+            words = line.split(" ")
+            cur = ""
+            for w in words:
+                trial = (cur + " " + w).strip()
+                if pdf.stringWidth(trial, font, size) <= max_w or not cur:
+                    cur = trial
+                else:
+                    out.append(cur)
+                    cur = w
+            if cur:
+                out.append(cur)
+        return out or [""]
+
+    def footer(page_num: int) -> None:
+        pdf.setStrokeColor(BORDER)
+        pdf.setLineWidth(0.5)
+        pdf.line(M, FOOTER_H, page_width - M, FOOTER_H)
+        pdf.setFont("Helvetica", 7)
+        pdf.setFillColor(GRAY)
+        pdf.drawString(M, FOOTER_H - 4 * mm, f"NOVICROM HUB · Report AI · generato il {generato}")
+        pdf.drawRightString(page_width - M, FOOTER_H - 4 * mm, f"Pag. {page_num}")
+        pdf.setFillColor(HexColor("#94a3b8"))
+        pdf.drawString(M, FOOTER_H - 7.5 * mm, disclaimer[:150])
+
+    def new_page(page_num: int) -> tuple[float, int]:
+        footer(page_num)
+        pdf.showPage()
+        page_num += 1
+        # mini header di continuazione (band navy sottile)
+        y = page_height - 12 * mm
+        pdf.setFillColor(NAVY)
+        pdf.rect(M, y, content_w, 8 * mm, fill=1, stroke=0)
+        pdf.setFillColor(white)
+        pdf.setFont("Helvetica-Bold", 8)
+        pdf.drawString(M + 3 * mm, y + 2.5 * mm, "NOVICROM HUB · Report AI")
+        pdf.setFont("Helvetica", 8)
+        pdf.drawRightString(page_width - M - 3 * mm, y + 2.5 * mm, titolo[:70])
+        return y - 7 * mm, page_num
+
+    def check(y: float, needed: float, page_num: int) -> tuple[float, int]:
+        if y - needed < FOOTER_H + 8 * mm:
+            return new_page(page_num)
+        return y, page_num
+
+    def section(title: str, y: float, page_num: int) -> tuple[float, int]:
+        y, page_num = check(y, 12 * mm, page_num)
+        h = 7 * mm
+        pdf.setFillColor(CYAN)
+        pdf.rect(M, y - h, content_w, h, fill=1, stroke=0)
+        pdf.setFillColor(white)
+        pdf.setFont("Helvetica-Bold", 9)
+        pdf.drawString(M + 3 * mm, y - h + 2.2 * mm, _plain(title).upper()[:90])
+        return y - h - 3 * mm, page_num
+
+    def paragraph(text: str, y: float, page_num: int, *, indent: float = 0.0, bullet: bool = False) -> tuple[float, int]:
+        size = 9.5
+        x = M + indent
+        max_w = content_w - indent - (4 * mm if bullet else 0)
+        lines = wrap(text, "Helvetica", size, max_w)
+        line_h = 5.0 * mm
+        first = True
+        for ln in lines:
+            y, page_num = check(y, line_h, page_num)
+            if bullet and first:
+                pdf.setFillColor(CYAN)
+                pdf.setFont("Helvetica-Bold", 9.5)
+                pdf.drawString(x, y - 3.6 * mm, "•")
+            pdf.setFillColor(DARK)
+            pdf.setFont("Helvetica", size)
+            pdf.drawString(x + (4 * mm if bullet else 0), y - 3.6 * mm, ln)
+            y -= line_h
+            first = False
+        return y - 1 * mm, page_num
+
+    # ── Header prima pagina (band navy + accento orange + titolo) ──
+    band_h = 24 * mm
+    by = page_height - band_h
+    pdf.setFillColor(NAVY)
+    pdf.rect(0, by, page_width, band_h, fill=1, stroke=0)
+    pdf.setFillColor(ORANGE)
+    pdf.rect(0, by - 1.4 * mm, page_width, 1.4 * mm, fill=1, stroke=0)  # accento
+    pdf.setFillColor(white)
+    pdf.setFont("Helvetica-Bold", 15)
+    pdf.drawString(M, by + band_h - 10 * mm, "NOVICROM HUB")
+    pdf.setFont("Helvetica", 9)
+    pdf.setFillColor(HexColor("#9fb6d6"))
+    pdf.drawString(M, by + band_h - 15 * mm, "Assistente AI · Report")
+    pdf.setFillColor(white)
+    pdf.setFont("Helvetica", 8.5)
+    meta = f"Generato il {generato}" + (f"  ·  Richiesto da {_plain(autore)[:40]}" if autore else "")
+    pdf.drawRightString(page_width - M, by + band_h - 10 * mm, meta)
+
+    y = by - 8 * mm
+    page_num = 1
+    # Titolo del report (navy, wrap su max 2 righe)
+    pdf.setFillColor(NAVY)
+    for ln in wrap(titolo, "Helvetica-Bold", 16, content_w)[:2]:
+        pdf.setFont("Helvetica-Bold", 16)
+        pdf.drawString(M, y - 6 * mm, ln)
+        y -= 7.5 * mm
+    y -= 3 * mm
 
     markdown = report.get("markdown") or ""
     if not markdown.strip():
-        flow.append(Paragraph(
+        y, page_num = paragraph(
             "Il servizio AI non ha prodotto contenuto per questo report. Riprova piu' tardi.",
-            st_body,
-        ))
+            y, page_num,
+        )
     for raw in markdown.splitlines():
-        line = raw.rstrip()
-        s = line.strip()
+        s = raw.strip()
         if not s:
-            flow.append(Spacer(1, 4))
+            y -= 2 * mm
             continue
         if s.startswith("# "):
-            continue  # titolo gia' reso a parte
+            continue  # titolo gia' reso nell'header
         if s.startswith("### "):
-            flow.append(Paragraph(_md_inline(s[4:].strip()), st_h2))
+            y, page_num = section(s[4:], y, page_num)
         elif s.startswith("## "):
-            flow.append(Paragraph(_md_inline(s[3:].strip()), st_h2))
+            y, page_num = section(s[3:], y, page_num)
         elif s.startswith(("- ", "* ")):
-            flow.append(Paragraph(_md_inline(s[2:].strip()), st_bullet, bulletText="•"))
+            y, page_num = paragraph(s[2:], y, page_num, indent=4 * mm, bullet=True)
         else:
-            flow.append(Paragraph(_md_inline(s), st_body))
+            y, page_num = paragraph(s, y, page_num)
 
     fonti = report.get("fonti") or []
     if fonti:
-        flow.append(Spacer(1, 10))
-        flow.append(Paragraph("Fonti", st_h2))
+        y, page_num = section("Fonti", y, page_num)
         for src in fonti:
-            flow.append(Paragraph("• " + html.escape(str(src), quote=False), st_src))
+            y, page_num = paragraph(str(src), y, page_num, indent=4 * mm, bullet=True)
 
-    disclaimer = (
-        "Bozza generata dall'AI dal contesto live nei limiti dei tuoi permessi. "
-        "Verifica i dati prima di condividere o decidere. L'AI propone, l'umano firma."
-    )
-
-    def _footer(canvas, doc):
-        canvas.saveState()
-        canvas.setFont("Helvetica", 7)
-        canvas.setFillColor("#94a3b8")
-        width = A4[0]
-        canvas.drawString(18 * mm, 12 * mm, disclaimer[:140])
-        canvas.drawRightString(width - 18 * mm, 12 * mm, f"NOVICROM HUB · pag. {doc.page}")
-        canvas.restoreState()
-
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(
-        buffer,
-        pagesize=A4,
-        topMargin=18 * mm,
-        bottomMargin=20 * mm,
-        leftMargin=18 * mm,
-        rightMargin=18 * mm,
-        title=(report.get("titolo") or "Report AI"),
-    )
-    doc.build(flow, onFirstPage=_footer, onLaterPages=_footer)
+    footer(page_num)
+    pdf.showPage()
+    pdf.save()
     return buffer.getvalue()

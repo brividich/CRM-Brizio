@@ -2998,3 +2998,11 @@ class AiReportTests(TestCase):
                 content_type="application/json",
             )
         self.assertEqual(resp.status_code, 502)
+
+    def test_chat_page_shows_report_button(self):
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("ai_assistant:chat"))
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode("utf-8")
+        self.assertIn("data-ai-report", html)
+        self.assertIn(reverse("ai_assistant:api_report"), html)
