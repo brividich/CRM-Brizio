@@ -731,7 +731,7 @@ class AiAssistantTests(TestCase):
     def test_semantic_routing_activates_domain_without_keyword(self):
         from ai_assistant import tools
 
-        def fake_embed(texts):
+        def fake_embed(texts, *, timeout=None):
             vectors = []
             for text in texts:
                 lowered = text.lower()
@@ -787,7 +787,7 @@ class AiAssistantTests(TestCase):
         """Con embeddings attivi, un documento pertinente ma senza match lessicale
         viene comunque recuperato (BM25 da solo lo perderebbe)."""
 
-        def fake_embed(texts):
+        def fake_embed(texts, *, timeout=None):
             vectors = []
             for text in texts:
                 lowered = text.lower()
@@ -2800,3 +2800,86 @@ class OllamaTuningTests(TestCase):
         self.assertNotIn("options", payload)
         self.assertNotIn("keep_alive", payload)
         self.assertEqual(payload.get("temperature"), 0.3)
+
+
+class EmbedTimeoutTests(TestCase):
+    """Timeout breve per gli embeddings nel routing (degrado rapido a keyword-only)."""
+
+    def test_embed_texts_forwards_timeout(self):
+        from ai_assistant import services
+        with patch.object(services, "_compute_embeddings", return_value=[[0.0]]) as m:
+            services.embed_texts(["x"], timeout=6)
+        m.assert_called_once_with(["x"], timeout=6)
+
+    def test_openai_embed_uses_override_timeout(self):
+        from ai_assistant import services
+        captured = {}
+
+        class FakeResp:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self):
+                return b'{"data":[{"embedding":[0.1,0.2]}]}'
+
+        def fake_urlopen(req, timeout=None):
+            captured["timeout"] = timeout
+            return FakeResp()
+
+        with override_settings(
+            RAG_EMBED_BACKEND="openai",
+            RAG_EMBED_OPENAI_BASE_URL="http://x:8081",
+            RAG_EMBED_OPENAI_MODEL="m",
+            OLLAMA_EMBED_TIMEOUT_SECONDS=60,
+        ), patch("ai_assistant.services.urllib.request.urlopen", side_effect=fake_urlopen):
+            out = services._openai_embed_texts(["a"], timeout=6)
+
+        self.assertEqual(captured["timeout"], 6)          # override applicato
+        self.assertEqual(out, [[0.1, 0.2]])
+
+    def test_openai_embed_defaults_to_setting_timeout(self):
+        from ai_assistant import services
+        captured = {}
+
+        class FakeResp:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self):
+                return b'{"data":[{"embedding":[0.1]}]}'
+
+        def fake_urlopen(req, timeout=None):
+            captured["timeout"] = timeout
+            return FakeResp()
+
+        with override_settings(
+            RAG_EMBED_BACKEND="openai",
+            RAG_EMBED_OPENAI_BASE_URL="http://x:8081",
+            RAG_EMBED_OPENAI_MODEL="m",
+            OLLAMA_EMBED_TIMEOUT_SECONDS=42,
+        ), patch("ai_assistant.services.urllib.request.urlopen", side_effect=fake_urlopen):
+            services._openai_embed_texts(["a"])  # nessun override -> usa il setting
+
+        self.assertEqual(captured["timeout"], 42)
+
+    def test_rank_domains_uses_short_routing_timeout(self):
+        from ai_assistant import services, tools
+
+        tools._ROUTING_SEED_CACHE.update({"model": "", "vectors": None})
+        with override_settings(
+            AI_TOOL_ROUTING_ENABLED=True,
+            AI_TOOL_ROUTING_EMBED_TIMEOUT_SECONDS=6,
+            OLLAMA_EMBED_ENABLED=True,
+            RAG_EMBED_BACKEND="ollama",
+        ), patch.object(services, "embeddings_enabled", return_value=True), patch.object(
+            tools, "_domain_seed_vectors", return_value={"absence": [[1.0, 0.0]]}
+        ), patch.object(services, "embed_texts", return_value=[[1.0, 0.0]]) as m:
+            tools._rank_domains("chi e' assente domani in azienda")
+
+        self.assertEqual(m.call_args.kwargs.get("timeout"), 6)

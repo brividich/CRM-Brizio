@@ -118,6 +118,31 @@ assorbe la prima passata.
 - Se il contesto non basta, la risposta deve dire «Non disponibile nei documenti indicizzati»
   invece di inventare codici/revisioni.
 
+## Ritaratura soglie routing per bge-m3 (qualità — da misurare sull'hardware)
+
+Le soglie del routing semantico dei tool (`AI_TOOL_ROUTING_THRESHOLD=0.70`,
+`AI_TOOL_ROUTING_MARGIN=0.04`) sono **calibrate su `nomic-embed-text`**. Con
+`bge-m3` la distribuzione delle similarità coseno è diversa → le soglie vanno
+**rimisurate**, non cambiate a intuito. Procedura (sul box con la GPU raggiungibile):
+
+1. Indice/embeddings pronti: `python django_app\manage.py index_sgi_documents --json`.
+2. Misura il routing dei tool (senza flag → modalità routing) e il RAG:
+   ```powershell
+   python django_app\manage.py ai_eval --json            # routing tool (accuratezza domini)
+   python django_app\manage.py ai_eval --rag --json      # recall@k / MRR KB
+   python django_app\manage.py ai_eval --rag-sgi --json  # recall@k / MRR corpus SGI
+   ```
+3. Se il routing attiva domini a sproposito → **alza** `AI_TOOL_ROUTING_THRESHOLD`
+   (es. 0.72-0.78 tipico per bge-m3); se manca domini pertinenti → **abbassala**.
+   `AI_TOOL_ROUTING_MARGIN` allarga/stringe il ventaglio di domini co-attivati dal top.
+4. Itera 2-3 finché il routing è stabile **senza regressioni** su `--rag`/`--rag-sgi`.
+5. Fissa i valori scelti nel `.env` persistente di prod (`config\.env`).
+
+Latency: il routing embedda la query a ogni messaggio con un **timeout breve**
+(`AI_TOOL_ROUTING_EMBED_TIMEOUT_SECONDS`, default 6s) e fail-safe a keyword-only se
+l'endpoint embeddings è lento/giù — così una soglia mal tarata o un TEI lento non
+rallentano la chat. Per la parte GPU/VRAM vedi [OLLAMA_GPU_TUNING.md](OLLAMA_GPU_TUNING.md).
+
 ## Vincoli rispettati
 
 On-premise (nessuna chiamata cloud), fail-safe assoluto (PDF corrotto / Ollama offline →

@@ -3337,7 +3337,10 @@ def _rank_domains(prompt: str) -> list[tuple[str, float]]:
     seeds = _domain_seed_vectors()
     if not seeds:
         return []
-    query_vectors = services.embed_texts([text])
+    # Timeout breve: il routing non deve sommare il timeout pieno degli embeddings
+    # alla latenza della chat se l'endpoint e' lento/giu' (degrada a keyword-only).
+    routing_timeout = int(getattr(settings, "AI_TOOL_ROUTING_EMBED_TIMEOUT_SECONDS", 6) or 6)
+    query_vectors = services.embed_texts([text], timeout=routing_timeout)
     if not query_vectors:
         return []
     query_vec = query_vectors[0]

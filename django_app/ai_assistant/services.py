@@ -727,13 +727,17 @@ def _post_ollama_json(url: str, payload: dict[str, Any], timeout: int) -> dict[s
     return data if isinstance(data, dict) else None
 
 
-def _ollama_embed_texts(texts: list[str]) -> list[list[float]] | None:
+def _ollama_embed_texts(texts: list[str], *, timeout: int | None = None) -> list[list[float]] | None:
     """Embeddings per una lista di testi via Ollama nativo.
 
     Prova prima ``/api/embed`` (batch, Ollama recente), poi ripiega su
     ``/api/embeddings`` per singolo item (API legacy). Ritorna ``None`` su
     qualunque errore o disallineamento (il chiamante usa solo BM25).
     Supportato solo per il provider ``ollama`` (Open WebUI -> solo BM25).
+
+    ``timeout`` (secondi) sovrascrive ``OLLAMA_EMBED_TIMEOUT_SECONDS`` per i
+    chiamanti latency-sensitive (es. routing semantico) che devono degradare
+    rapidamente a keyword-only se l'endpoint e' lento/giu'.
     """
     if not texts:
         return []
@@ -743,7 +747,7 @@ def _ollama_embed_texts(texts: list[str]) -> list[list[float]] | None:
     model = str(getattr(settings, "OLLAMA_EMBED_MODEL", "") or "").strip()
     if not model:
         return None
-    timeout = int(getattr(settings, "OLLAMA_EMBED_TIMEOUT_SECONDS", 30) or 30)
+    timeout = int(timeout) if timeout else int(getattr(settings, "OLLAMA_EMBED_TIMEOUT_SECONDS", 30) or 30)
     keep_alive = str(getattr(settings, "OLLAMA_KEEP_ALIVE", "") or "").strip()
 
     batch_payload: dict[str, Any] = {"model": model, "input": texts}
@@ -874,9 +878,14 @@ def embeddings_enabled() -> bool:
     return provider == "ollama"
 
 
-def embed_texts(texts: list[str]) -> list[list[float]] | None:
-    """API pubblica per embeddare testi (usata dal routing tool). None su errore."""
-    return _compute_embeddings(texts)
+def embed_texts(texts: list[str], *, timeout: int | None = None) -> list[list[float]] | None:
+    """API pubblica per embeddare testi (usata dal routing tool). None su errore.
+
+    ``timeout`` (secondi) e' un override per i chiamanti latency-sensitive: il
+    routing semantico passa un timeout breve cosi' un endpoint embeddings lento
+    degrada subito a keyword-only invece di rallentare ogni messaggio di chat.
+    """
+    return _compute_embeddings(texts, timeout=timeout)
 
 
 # ── Backend embeddings configurabile (RAG_EMBED_BACKEND) ────────────────────
@@ -929,8 +938,13 @@ def _fastembed_texts(texts: list[str]) -> list[list[float]] | None:
         return None
 
 
-def _openai_embed_texts(texts: list[str]) -> list[list[float]] | None:
-    """Embeddings da endpoint OpenAI-compatibile (TEI/Infinity/vLLM/LM Studio)."""
+def _openai_embed_texts(texts: list[str], *, timeout: int | None = None) -> list[list[float]] | None:
+    """Embeddings da endpoint OpenAI-compatibile (TEI/Infinity/vLLM/LM Studio).
+
+    ``timeout`` sovrascrive ``OLLAMA_EMBED_TIMEOUT_SECONDS`` (vedi
+    ``_ollama_embed_texts``): il routing usa un timeout breve per non bloccare
+    la chat se l'endpoint embeddings e' lento/giu'.
+    """
     if not texts:
         return []
     base = str(getattr(settings, "RAG_EMBED_OPENAI_BASE_URL", "") or "").strip().rstrip("/")
@@ -938,7 +952,7 @@ def _openai_embed_texts(texts: list[str]) -> list[list[float]] | None:
     if not base or not model:
         return None
     api_key = str(getattr(settings, "RAG_EMBED_OPENAI_API_KEY", "") or "").strip()
-    timeout = int(getattr(settings, "OLLAMA_EMBED_TIMEOUT_SECONDS", 30) or 30)
+    timeout = int(timeout) if timeout else int(getattr(settings, "OLLAMA_EMBED_TIMEOUT_SECONDS", 30) or 30)
     headers = {"Content-Type": "application/json", "Accept": "application/json"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
@@ -962,16 +976,20 @@ def _openai_embed_texts(texts: list[str]) -> list[list[float]] | None:
         return None
 
 
-def _compute_embeddings(texts: list[str]) -> list[list[float]] | None:
-    """Dispatcher: calcola gli embeddings col backend configurato (RAG_EMBED_BACKEND)."""
+def _compute_embeddings(texts: list[str], *, timeout: int | None = None) -> list[list[float]] | None:
+    """Dispatcher: calcola gli embeddings col backend configurato (RAG_EMBED_BACKEND).
+
+    ``timeout`` si applica ai backend di rete (openai/ollama); ``fastembed`` e'
+    in-process (CPU) e lo ignora.
+    """
     if not texts:
         return []
     backend = _embed_backend()
     if backend == "fastembed":
         return _fastembed_texts(texts)
     if backend == "openai":
-        return _openai_embed_texts(texts)
-    return _ollama_embed_texts(texts)
+        return _openai_embed_texts(texts, timeout=timeout)
+    return _ollama_embed_texts(texts, timeout=timeout)
 
 
 def cosine_similarity(a: list[float] | tuple[float, ...], b: list[float] | tuple[float, ...]) -> float:

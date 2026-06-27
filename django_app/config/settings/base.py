@@ -325,6 +325,11 @@ AI_TOOL_ROUTING_ENABLED = env_bool("AI_TOOL_ROUTING_ENABLED", True)
 AI_TOOL_ROUTING_THRESHOLD = float(env("AI_TOOL_ROUTING_THRESHOLD", "0.70") or "0.70")
 AI_TOOL_ROUTING_MARGIN = float(env("AI_TOOL_ROUTING_MARGIN", "0.04") or "0.04")
 AI_TOOL_ROUTING_TOP_K = int(env("AI_TOOL_ROUTING_TOP_K", "2") or "2")
+# Timeout BREVE (s) per l'embedding della query nel routing: il routing gira a
+# OGNI messaggio, quindi se l'endpoint embeddings e' lento/giu' deve degradare in
+# fretta a keyword-only invece di sommare il timeout pieno (OLLAMA_EMBED_TIMEOUT_SECONDS)
+# alla latenza della chat. Override per i soli chiamanti latency-sensitive.
+AI_TOOL_ROUTING_EMBED_TIMEOUT_SECONDS = int(env("AI_TOOL_ROUTING_EMBED_TIMEOUT_SECONDS", "6") or "6")
 # Tetto del contesto live iniettato nel modello: meno caratteri = prefill piu'
 # rapido (riduce la latenza/timeout sulle domande che attivano molti tool).
 AI_RUNTIME_CONTEXT_MAX_CHARS = int(env("AI_RUNTIME_CONTEXT_MAX_CHARS", "12000") or "12000")
