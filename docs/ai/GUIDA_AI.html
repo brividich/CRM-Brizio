@@ -67,7 +67,7 @@
   <div class="wrap">
     <h1>Assistente AI — Guida al funzionamento</h1>
     <p>Come è fatto, cosa sa rispondere e quali sono i suoi limiti. Documento interno NOVICROM HUB.</p>
-    <span class="badge">Ultimo aggiornamento: 2026-06-27 · Versione guida 1.2</span>
+    <span class="badge">Ultimo aggiornamento: 2026-06-27 · Versione guida 1.3</span>
   </div>
 </header>
 
@@ -181,6 +181,18 @@
     <li>Filtra sulla <strong>macchina citata</strong> (codice o sigla d'officina) o sul <strong>reparto</strong> citato (torni, alesatrici, 4/5 assi…); altrimenti mostra le 8 più sature.</li>
     <li><strong>Non</strong> espone commessa, cliente o dettagli del pezzo.</li>
   </ul>
+
+  <h3>Copiloti per-modulo (l'AI propone, l'umano firma)</h3>
+  <p>Oltre ai tool che <em>leggono</em> i dati, alcuni moduli hanno un <strong>copilota</strong> che
+  <strong>propone</strong> contenuti da rivedere e firmare (nessun salvataggio automatico):</p>
+  <ul>
+    <li><strong>Ticket</strong> <span class="pill on">attivo</span> — dal testo del ticket propone in <em>triage</em>:
+    categoria, priorità, se incide sulla sicurezza, assegnatario (dal team gestori) e una <strong>bozza di
+    risoluzione</strong>. Pulsante «Copilota AI» nel dettaglio gestione: i valori si pre-compilano nei campi
+    esistenti ma è il gestore a salvarli. Valori validati (categoria/priorità/assegnatario ammessi) e fail-safe.</li>
+    <li><strong>Specifiche / MOD.133</strong> <span class="pill on">attivo</span> — pre-compilazione righe
+    flow-down e classificazione TAG dal PDF (proposta).</li>
+  </ul>
 </section>
 
 <section id="esempi">
@@ -231,6 +243,7 @@
   <h2>9. Storico della guida</h2>
   <table>
     <tr><th>Data</th><th>Versione</th><th>Modifica</th></tr>
+    <tr><td>2026-06-27</td><td>1.3</td><td>Aggiunta sezione <strong>Copiloti per-modulo</strong>: <strong>Copilota Ticket</strong> (triage: categoria/priorità/sicurezza/assegnatario + bozza) e Specifiche/MOD.133.</td></tr>
     <tr><td>2026-06-27</td><td>1.2</td><td><strong>Carichi macchina</strong> migliorato: etichette di stato + ore libere, intento «libere vs sovraccariche», filtro per reparto, sintesi in testa. Aggiornati esempi.</td></tr>
     <tr><td>2026-06-27</td><td>1.1</td><td>Aggiunto tool live <strong>Carichi macchina</strong> (Ondata 1.2) alla tabella tool ed esempi.</td></tr>
     <tr><td>2026-06-27</td><td>1.0</td><td>Prima stesura: architettura on-premise, RAG SGI citabile, tool runtime, governance, roadmap.</td></tr>

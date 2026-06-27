@@ -315,6 +315,20 @@ class TicketCopilotaTests(TestCase):
         self.assertEqual(prop["priorita"], "MEDIA")
         self.assertEqual(prop["assegnatario"]["email"], "lucia@example.com")
 
+    def test_gestione_detail_shows_copilota_button(self):
+        ticket = Ticket.objects.create(
+            tipo=TipoTicket.IT, titolo="PC lento", descrizione="Tutto lento",
+            categoria="PC", richiedente_nome="Tester",
+        )
+        with patch("tickets.views._can_manage_tickets", return_value=True):
+            response = self.client.get(reverse("tickets:gestione_detail", args=[ticket.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode("utf-8")
+        self.assertIn('id="copilota-run"', html)
+        self.assertIn('id="copilota-card"', html)
+        self.assertIn(reverse("tickets:api_copilota"), html)
+
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class TicketDashboardTests(TestCase):

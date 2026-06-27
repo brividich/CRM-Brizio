@@ -52,7 +52,7 @@ Clonare il pattern MOD.133 dove c'è data-entry strutturato. Tutti **read-only/p
 
 | # | Voce | Modulo | Cosa propone | Effort |
 |---|---|---|---|---|
-| 3.1 | **Copilota ticket** | `tickets` | categoria/priorità/assegnatario dal testo + bozza risoluzione | M |
+| 3.1 | **✅ FATTO — Copilota ticket** | `tickets` (`ai_copilota.py` + endpoint `api/copilota/` + UI dettaglio gestione) | categoria/priorità/assegnatario dal testo + bozza risoluzione; read-only, validato, fail-safe, audit metadata-only | M |
 | 3.2 | **Copilota anomalie** | `anomalie` | bozza RDC / azione correttiva dalla descrizione | M |
 | 3.3 | **Copilota DPI** | `dpi` | set DPI proposto dalla mansione (modelli di rischio già presenti) | M |
 | 3.4 | **Copilota incidenti / diario preposto** | `rilevazione_incidenti`, `diario_preposto` | classificazione + cause proposte; sintesi | M |
@@ -88,4 +88,4 @@ Clonare il pattern MOD.133 dove c'è data-entry strutturato. Tutti **read-only/p
 **Ordine consigliato di partenza**: 1.3 (auto-quiz, dati pronti e modulo "nostro") → ~~1.2 (carichi)~~ ✅ →
 2.2 (RAG sicurezza) → 3.1/3.2 (copiloti ticket/anomalie).
 
-**Stato avanzamento**: ✅ 1.2 Carichi macchina (2026-06-27, branch `feature/skill-matrix-mod187`).
+**Stato avanzamento**: ✅ 1.2 Carichi macchina · ✅ 3.1 Copilota ticket (2026-06-27, branch `feature/skill-matrix-mod187`).
