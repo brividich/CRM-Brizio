@@ -305,24 +305,6 @@ _DPI_KEYWORDS = {
     "consegna dpi",
     "consegne dpi",
 }
-_CARICO_KEYWORDS = {
-    "carico",
-    "carichi",
-    "saturazione",
-    "saturo",
-    "satura",
-    "sature",
-    "saturi",
-    "capacita",
-    "capacità",
-    "occupazione",
-    "occupata",
-    "occupate",
-    "carico macchina",
-    "carico macchine",
-    "carichi macchina",
-    "carico di lavoro",
-}
 # Segnali "forti" di una domanda sui carichi: bastano da soli a qualificare
 # l'intento. "macchina/macchine" NON e' qui perche' compare anche in asset,
 # anomalie e manutenzioni: da solo non deve attivare il tool carichi.
@@ -330,6 +312,7 @@ _CARICO_SIGNAL_KEYWORDS = {
     "carico", "carichi", "saturazione", "saturo", "satura", "sature", "saturi",
     "capacita", "capacità", "occupazione", "occupata", "occupate",
     "carico di lavoro", "carico macchina", "carico macchine", "carichi macchina",
+    "sovraccaric", "scariche",
 }
 _ANOMALIE_KEYWORDS = {
     "anomalia",
@@ -734,9 +717,16 @@ def _wants_asset_context(prompt: str) -> bool:
 
 def _wants_carico_context(prompt: str) -> bool:
     text = _norm_text(prompt)
+    has_signal = any(keyword in text for keyword in _CARICO_SIGNAL_KEYWORDS)
+    # "macchine libere/disponibili/scariche/sovraccariche" = domanda di carico
+    # anche senza la parola "saturazione"/"carico".
+    if not has_signal and re.search(r"\bmacchin[ae]\b", text) and re.search(
+        r"\b(liber[ae]|disponibil[ei]|scarich[ae]|scarica|sovraccaric\w*)", text
+    ):
+        has_signal = True
     # Precisione: serve un segnale forte di "carico/saturazione/capacita".
     # "macchina" da sola NON basta (e' anche un asset/anomalia).
-    if not any(keyword in text for keyword in _CARICO_SIGNAL_KEYWORDS):
+    if not has_signal:
         return False
     return bool(
         re.search(
@@ -1927,8 +1917,45 @@ def _carichi_context(request, prompt: str) -> RuntimeContext:
     sat = calcola_saturazione(macchine, pians, giorni)
     per_macchina = sat["per_macchina"]
 
-    # Filtro per macchina citata: codice asset (codice) o codice-officina (alias).
+    cat_label = dict(Macchina.CATEGORIA_CHOICES)
     text = _norm_text(prompt)
+
+    def _perc(m) -> float:
+        return per_macchina.get(m.id, {}).get("perc", 0.0)
+
+    def _sat_label(perc: float) -> str:
+        if perc >= 100:
+            return "SOVRACCARICA"
+        if perc >= 85:
+            return "quasi piena"
+        if perc < 1:
+            return "libera"
+        if perc < 40:
+            return "scarica"
+        return "ok"
+
+    # Filtro opzionale per reparto/categoria (la sigla piu' specifica vince).
+    cat_filter = ""
+    _cat_aliases = [
+        ("torni fresa", Macchina.CAT_TORNI_FRESA), ("torni-fresa", Macchina.CAT_TORNI_FRESA),
+        ("tornio fresa", Macchina.CAT_TORNI_FRESA), ("alesatric", Macchina.CAT_ALESATRICI),
+        ("5 assi", Macchina.CAT_5AXIS), ("cinque assi", Macchina.CAT_5AXIS),
+        ("4 assi", Macchina.CAT_4AXIS), ("quattro assi", Macchina.CAT_4AXIS),
+        ("torni", Macchina.CAT_TORNI), ("tornio", Macchina.CAT_TORNI),
+    ]
+    for alias, cat in _cat_aliases:
+        if alias in text:
+            cat_filter = cat
+            break
+
+    # Intento: macchine con piu' capacita' LIBERA vs colli di bottiglia (piu' sature).
+    vuole_libere = bool(re.search(
+        r"\b(liber[ae]|disponibil[ei]|scarich[ae]|scarica|meno carich[ae]|"
+        r"meno satur\w*|capacita libera|piu capacita|dove (posso|metto|c'?e spazio))\b", text))
+    vuole_sovraccarico = bool(re.search(
+        r"\b(sovraccaric\w*|piu carich[ae]|piu satur\w*|pien[ae]|colli di bottiglia|critich[ae])\b", text))
+
+    # Filtro per macchina citata: codice asset (codice) o codice-officina (alias).
     cited_ids: set[int] = set()
     for m in macchine:
         code = (m.codice or "").strip().lower()
@@ -1939,26 +1966,38 @@ def _carichi_context(request, prompt: str) -> RuntimeContext:
         if f and re.search(r"\b" + re.escape(f) + r"\b", text):
             cited_ids.add(mid)
 
-    if cited_ids:
-        sel = [m for m in macchine if m.id in cited_ids]
-        scope_label = "macchine citate nella domanda"
-        filtro = "codice"
-    else:
-        sel = sorted(
-            macchine, key=lambda m: per_macchina.get(m.id, {}).get("perc", 0.0), reverse=True
-        )[:8]
-        scope_label = "8 macchine piu' sature"
-        filtro = "top8"
+    base = [m for m in macchine if not cat_filter or m.categoria == cat_filter]
+    filtro_parts: list[str] = []
+    if cat_filter:
+        filtro_parts.append(f"reparto={cat_filter}")
 
-    cat_label = dict(Macchina.CATEGORIA_CHOICES)
+    if cited_ids:
+        sel = [m for m in base if m.id in cited_ids]
+        scope_label = "macchine citate nella domanda"
+        filtro_parts.insert(0, "codice")
+    elif vuole_libere and not vuole_sovraccarico:
+        sel = sorted(base, key=_perc)[:8]  # meno sature prima = piu' capacita' libera
+        scope_label = "8 macchine con piu' capacita' libera"
+        filtro_parts.insert(0, "libere")
+    else:
+        sel = sorted(base, key=_perc, reverse=True)[:8]
+        scope_label = "8 macchine piu' sature"
+        filtro_parts.insert(0, "sovraccarico" if vuole_sovraccarico else "top8")
+    filtro = "+".join(filtro_parts)
+
+    # Sintesi sull'intero parco (o sul reparto filtrato), per dare subito il quadro.
+    n_sovra = sum(1 for m in base if _perc(m) >= 100)
+    n_alta = sum(1 for m in base if 85 <= _perc(m) < 100)
+    n_scarica = sum(1 for m in base if _perc(m) < 40)
 
     def _riga(m) -> str:
         s = per_macchina.get(m.id, {"carico": 0.0, "capacita": 0.0, "perc": 0.0})
         codice = m.codice or f"#{m.id}"
+        ore_libere = round(s["capacita"] - s["carico"], 1)
         return (
             f"- {codice} [{cat_label.get(m.categoria, m.categoria)}]: "
-            f"saturazione {s['perc']}% "
-            f"(carico {s['carico']}h / capacita {s['capacita']}h), "
+            f"saturazione {s['perc']}% [{_sat_label(s['perc'])}] "
+            f"(carico {s['carico']}h / capacita {s['capacita']}h, {ore_libere}h libere), "
             f"{n_job.get(m.id, 0)} lavori pianificati"
         )
 
@@ -1968,15 +2007,19 @@ def _carichi_context(request, prompt: str) -> RuntimeContext:
         for cat, v in sat["per_reparto"].items()
     ) or "Nessun reparto."
     tot = sat["totale"]
+    ambito_parco = f" nel reparto {cat_label.get(cat_filter, cat_filter)}" if cat_filter else ""
 
     return RuntimeContext(
         text=(
             "DATI LIVE PORTALE - CARICHI MACCHINA\n"
             f"Settimana lavorativa: {start.strftime('%d-%m-%Y')} - {fine.strftime('%d-%m-%Y')} (lun-ven).\n"
-            f"Ambito: {scope_label}. Macchine mostrate: {len(sel)}.\n"
-            "ISTRUZIONE RISPOSTA: riporta per ciascuna macchina la % di saturazione, il carico/capacita in ore "
-            "e il numero di lavori pianificati. Non citare commesse, clienti o dettagli dei pezzi "
-            "(non disponibili in questa vista). Non inventare dati.\n"
+            f"Sintesi{ambito_parco}: {n_sovra} sovraccariche (>=100%), {n_alta} quasi piene (85-99%), "
+            f"{n_scarica} scariche (<40%) su {len(base)} macchine attive.\n"
+            f"Ambito elenco: {scope_label}. Macchine mostrate: {len(sel)}.\n"
+            "ISTRUZIONE RISPOSTA: riporta per ciascuna macchina la % di saturazione, lo stato tra parentesi quadre, "
+            "il carico/capacita in ore (con le ore ancora libere) e il numero di lavori pianificati; quando utile "
+            "evidenzia le macchine sovraccariche o quelle con piu' capacita' libera. Non citare commesse, clienti o "
+            "dettagli dei pezzi (non disponibili in questa vista). Non inventare dati.\n"
             f"{righe}\n\n"
             f"Totale officina: {tot['perc']}% (carico {tot['carico']}h / capacita {tot['capacita']}h).\n"
             f"Saturazione per reparto:\n{rep_lines}"
@@ -3208,6 +3251,8 @@ _DOMAIN_ROUTING_SEEDS: dict[str, tuple[str, ...]] = {
         "quanto e' satura una macchina questa settimana",
         "capacita e occupazione dei centri di lavoro",
         "carico di lavoro per reparto di produzione",
+        "quali macchine sono libere o hanno capacita disponibile",
+        "quali macchine sono sovraccariche o sono colli di bottiglia",
     ),
     "dpi": (
         "dispositivi di protezione individuale in scadenza",

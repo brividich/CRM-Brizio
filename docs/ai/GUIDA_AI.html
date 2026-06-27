@@ -67,7 +67,7 @@
   <div class="wrap">
     <h1>Assistente AI — Guida al funzionamento</h1>
     <p>Come è fatto, cosa sa rispondere e quali sono i suoi limiti. Documento interno NOVICROM HUB.</p>
-    <span class="badge">Ultimo aggiornamento: 2026-06-27 · Versione guida 1.1</span>
+    <span class="badge">Ultimo aggiornamento: 2026-06-27 · Versione guida 1.2</span>
   </div>
 </header>
 
@@ -176,8 +176,9 @@
   <h3>Esempio: tool «Carichi macchina»</h3>
   <ul>
     <li>Finestra: <strong>settimana lavorativa corrente</strong> (lun–ven).</li>
-    <li>Espone: <strong>% di saturazione</strong>, <strong>ore carico/capacità</strong>, <strong>n. lavori pianificati</strong> per macchina, più totale officina e per reparto.</li>
-    <li>Filtra sulla macchina citata (codice o sigla d'officina); altrimenti mostra le più sature.</li>
+    <li>Espone, per macchina: <strong>% di saturazione</strong> con <strong>etichetta di stato</strong> (sovraccarica / quasi piena / ok / scarica / libera), <strong>ore carico/capacità</strong> e <strong>ore ancora libere</strong>, <strong>n. lavori pianificati</strong>; più una <strong>sintesi in testa</strong> (quante sovraccariche / quasi piene / scariche) e i totali officina e per reparto.</li>
+    <li>Capisce l'<strong>intento</strong>: «macchine <em>libere</em> / con capacità disponibile» ordina dalle meno cariche; «macchine <em>sovraccariche</em> / colli di bottiglia» dalle più cariche.</li>
+    <li>Filtra sulla <strong>macchina citata</strong> (codice o sigla d'officina) o sul <strong>reparto</strong> citato (torni, alesatrici, 4/5 assi…); altrimenti mostra le 8 più sature.</li>
     <li><strong>Non</strong> espone commessa, cliente o dettagli del pezzo.</li>
   </ul>
 </section>
@@ -185,7 +186,11 @@
 <section id="esempi">
   <h2>6. Esempi di domande</h2>
   <div class="ex"><div class="q">«Qual è la saturazione delle macchine questa settimana?»</div>
-    <div class="a">→ elenco macchine più cariche con % e ore, totale e per reparto.</div></div>
+    <div class="a">→ sintesi + elenco macchine più cariche con % e stato, ore (anche libere), totale e per reparto.</div></div>
+  <div class="ex"><div class="q">«Quali macchine sono libere / hanno capacità disponibile?»</div>
+    <div class="a">→ macchine ordinate dalle meno cariche, con le ore ancora libere.</div></div>
+  <div class="ex"><div class="q">«Quali torni sono sovraccarichi?»</div>
+    <div class="a">→ filtra il reparto Torni e mostra prima i colli di bottiglia (≥100%).</div></div>
   <div class="ex"><div class="q">«Dove si parla della gestione delle deroghe nel SGI?»</div>
     <div class="a">→ risposta discorsiva con citazione del MT e del paragrafo.</div></div>
   <div class="ex"><div class="q">«Quali DPI sono in scadenza per me?»</div>
@@ -226,6 +231,7 @@
   <h2>9. Storico della guida</h2>
   <table>
     <tr><th>Data</th><th>Versione</th><th>Modifica</th></tr>
+    <tr><td>2026-06-27</td><td>1.2</td><td><strong>Carichi macchina</strong> migliorato: etichette di stato + ore libere, intento «libere vs sovraccariche», filtro per reparto, sintesi in testa. Aggiornati esempi.</td></tr>
     <tr><td>2026-06-27</td><td>1.1</td><td>Aggiunto tool live <strong>Carichi macchina</strong> (Ondata 1.2) alla tabella tool ed esempi.</td></tr>
     <tr><td>2026-06-27</td><td>1.0</td><td>Prima stesura: architettura on-premise, RAG SGI citabile, tool runtime, governance, roadmap.</td></tr>
   </table>

@@ -2231,10 +2231,14 @@ class CarichiMacchinaContextTests(TestCase):
         self.assertTrue(_wants_carico_context("qual e' la saturazione delle macchine questa settimana?"))
         self.assertTrue(_wants_carico_context("carico macchina MZAI1"))
         self.assertTrue(_wants_carico_context("quanto e' satura l'officina?"))
+        # "macchine libere/scariche/sovraccariche" attivano anche senza "carico"
+        self.assertTrue(_wants_carico_context("quali macchine sono libere questa settimana?"))
+        self.assertTrue(_wants_carico_context("ci sono macchine sovraccariche?"))
         # "macchina" da sola (manutenzione/asset) NON deve attivare il tool carichi
         self.assertFalse(_wants_carico_context("manutenzione della macchina"))
         self.assertFalse(_wants_carico_context("quali asset sono in riparazione?"))
         self.assertFalse(_wants_carico_context("mostra le mie ferie residue"))
+        self.assertFalse(_wants_carico_context("la batteria del muletto e' scarica"))
 
     def test_carichi_context_aggregates_current_week(self):
         request = SimpleNamespace(user=self.user, path="/assistente-ai/")
@@ -2284,6 +2288,51 @@ class CarichiMacchinaContextTests(TestCase):
         self.assertIsNotNone(audit)
         self.assertFalse(audit["allowed"])
         self.assertEqual(audit["reason"], "anonymous")
+
+    def test_carichi_context_labels_and_summary(self):
+        request = SimpleNamespace(user=self.user, path="/assistente-ai/")
+
+        context = build_runtime_context(
+            request, "qual e' la saturazione delle macchine questa settimana?"
+        )
+
+        # mac_a 24h/40h = 60% -> "ok"; mac_b 0% -> "libera"; ore libere mostrate
+        self.assertIn("[ok]", context.text)
+        self.assertIn("[libera]", context.text)
+        self.assertIn("h libere", context.text)
+        # sintesi sull'intero parco (2 macchine, mac_b < 40% = scarica)
+        self.assertIn("Sintesi", context.text)
+        self.assertIn("su 2 macchine attive", context.text)
+        self.assertIn("1 scariche (<40%)", context.text)
+
+    def test_carichi_context_free_intent_sorts_least_loaded(self):
+        request = SimpleNamespace(user=self.user, path="/assistente-ai/")
+
+        context = build_runtime_context(
+            request, "quali macchine sono libere questa settimana?"
+        )
+
+        self.assertIn("tool:carichi:riepilogo", context.sources)
+        self.assertIn("DMAI2", context.text)  # la macchina scarica deve comparire
+        self.assertIn("capacita' libera", context.text)
+        audit = self._carichi_audit(context)
+        self.assertIsNotNone(audit)
+        self.assertEqual(audit["filtro"], "libere")
+
+    def test_carichi_context_category_filter(self):
+        request = SimpleNamespace(user=self.user, path="/assistente-ai/")
+
+        # mac_b e' un tornio, mac_a una 5 assi: filtrando "torni" resta solo mac_b
+        context = build_runtime_context(
+            request, "qual e' la saturazione dei torni questa settimana?"
+        )
+
+        self.assertIn("DMAI2", context.text)
+        self.assertNotIn("MZAI1", context.text)
+        self.assertIn("su 1 macchine attive", context.text)
+        audit = self._carichi_audit(context)
+        self.assertIsNotNone(audit)
+        self.assertIn("reparto=torni", audit["filtro"])
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SETUP_WIZARD_REQUIRED=False)
