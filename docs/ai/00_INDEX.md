@@ -31,6 +31,7 @@ Important: Do not read all docs automatically. Open only the files relevant to t
 | [RAG_SGI_ROLLOUT.md](RAG_SGI_ROLLOUT.md) | RAG SGI (documenti SGI citabili nell'Assistente AI): riepilogo F1–F3, settings con default, runbook di rollout prod (pull modello embedding, stemming opt-in, `index_sgi_documents` + schedulazione), verifica funzionale. |
 | [14_AI_EXPANSION_ROADMAP.md](14_AI_EXPANSION_ROADMAP.md) | Backlog ordinato (a ondate) per espandere l'AI nel portale: nuovi tool live, copiloti per-modulo, allargamento RAG, predittivo/digest. Vincoli, pattern riusabili, effort e ordine di partenza. |
 | [GUIDA_AI.html](GUIDA_AI.html) | Guida HTML (autoconsistente, per utenti) al funzionamento dell'Assistente AI: architettura on-premise (Ollama+TEI), RAG SGI citabile, tabella dei tool runtime, esempi di domande, limiti/privacy/governance, roadmap a ondate. **Da tenere aggiornata a ogni nuova capacità AI** (nuovi tool, nuovi corpora RAG, cambi di policy). |
+| [OLLAMA_GPU_TUNING.md](OLLAMA_GPU_TUNING.md) | Runbook ottimizzazione GPU/modelli AI su PCGAVANCINI (A4000 16GB): topologia Ollama(chat) + TEI(embeddings), env server-side raccomandate (max_loaded_models=1 perché gli embeddings sono su TEI, flash attention, KV-cache q8_0, num_parallel), come applicarle via NSSM, settings portale (num_predict cap), verifica (`ai_healthcheck_prod.ps1`, `ollama ps`, `nvidia-smi`) e rollback. |
 
 ## Rule Of Thumb
 

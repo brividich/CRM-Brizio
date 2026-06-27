@@ -306,6 +306,9 @@ OLLAMA_EMBED_BATCH_PAUSE_MS = int(env("OLLAMA_EMBED_BATCH_PAUSE_MS", "0") or "0"
 # "openai" (endpoint HTTP OpenAI-compatibile: TEI/Infinity/vLLM/LM Studio sulla GPU).
 # Richiede comunque OLLAMA_EMBED_ENABLED=1. fastembed e' una dipendenza opzionale
 # (import lazy, fail-safe -> BM25 se assente).
+# NB GPU: con backend "openai"/TEI gli embeddings NON girano in Ollama -> sul server
+# Ollama va impostato OLLAMA_MAX_LOADED_MODELS=1 (solo il modello chat) per liberare
+# VRAM. Dettagli in docs/ai/OLLAMA_GPU_TUNING.md.
 RAG_EMBED_BACKEND = env("RAG_EMBED_BACKEND", "ollama")
 RAG_EMBED_FASTEMBED_MODEL = env("RAG_EMBED_FASTEMBED_MODEL", "BAAI/bge-m3")
 RAG_EMBED_OPENAI_BASE_URL = env("RAG_EMBED_OPENAI_BASE_URL", "")
@@ -328,10 +331,14 @@ AI_RUNTIME_CONTEXT_MAX_CHARS = int(env("AI_RUNTIME_CONTEXT_MAX_CHARS", "12000") 
 AI_RUNTIME_CONTEXT_MAX_LINES = int(env("AI_RUNTIME_CONTEXT_MAX_LINES", "160") or "160")
 # Tuning runtime del modello chat (solo Ollama nativo). keep_alive tiene il modello
 # in memoria (primo token piu' veloce); num_ctx dimensiona la finestra di contesto
-# perche' contesto live + RAG non vengano troncati in silenzio; num_predict=0 -> nessun cap.
+# perche' contesto live + RAG non vengano troncati in silenzio; num_predict cappa la
+# generazione: 0 = nessun cap dal portale (Ollama usa il suo default). Cap esplicito
+# 1536 -> evita risposte runaway che tengono il worker per tutto il timeout e allocano
+# KV-cache, restando ampio per risposte discorsive. Per le env SERVER-SIDE della GPU
+# (flash attention, KV-cache q8_0, max_loaded_models=1) vedi docs/ai/OLLAMA_GPU_TUNING.md.
 OLLAMA_KEEP_ALIVE = env("OLLAMA_KEEP_ALIVE", "30m")
 OLLAMA_NUM_CTX = int(env("OLLAMA_NUM_CTX", "16384") or "16384")
-OLLAMA_NUM_PREDICT = int(env("OLLAMA_NUM_PREDICT", "0") or "0")
+OLLAMA_NUM_PREDICT = int(env("OLLAMA_NUM_PREDICT", "1536") or "1536")
 # Throttle per-utente delle richieste alla chat AI (protegge l'istanza Ollama e i
 # thread Waitress). 0 = disabilitato. Finestra fissa in secondi.
 OLLAMA_CHAT_RATE_LIMIT = int(env("OLLAMA_CHAT_RATE_LIMIT", "20") or "20")

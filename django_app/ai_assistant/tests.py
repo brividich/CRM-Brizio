@@ -2770,3 +2770,33 @@ class EmbedBackendTests(TestCase):
         # ollama + openwebui -> False (gli embeddings non passano da Open WebUI)
         with override_settings(OLLAMA_EMBED_ENABLED=True, RAG_EMBED_BACKEND="ollama", OLLAMA_API_PROVIDER="openwebui"):
             self.assertFalse(embeddings_enabled())
+
+
+class OllamaTuningTests(TestCase):
+    """Opzioni runtime passate a Ollama (num_ctx/num_predict/keep_alive)."""
+
+    def _payload(self, provider="ollama"):
+        from ai_assistant.services import _apply_ollama_tuning
+        payload: dict = {}
+        _apply_ollama_tuning(payload, provider)
+        return payload
+
+    def test_num_predict_cap_applied_when_positive(self):
+        with override_settings(OLLAMA_NUM_PREDICT=1536, OLLAMA_NUM_CTX=16384, OLLAMA_KEEP_ALIVE="30m"):
+            payload = self._payload("ollama")
+        self.assertEqual(payload["options"]["num_predict"], 1536)
+        self.assertEqual(payload["options"]["num_ctx"], 16384)
+        self.assertEqual(payload["keep_alive"], "30m")
+
+    def test_num_predict_omitted_when_zero(self):
+        with override_settings(OLLAMA_NUM_PREDICT=0):
+            payload = self._payload("ollama")
+        self.assertNotIn("num_predict", payload.get("options", {}))
+
+    def test_openwebui_provider_has_no_options(self):
+        with override_settings(OLLAMA_NUM_PREDICT=1536, OLLAMA_CHAT_TEMPERATURE=0.3):
+            payload = self._payload("openwebui")
+        # Open WebUI: solo temperatura top-level, nessun options/num_predict/keep_alive
+        self.assertNotIn("options", payload)
+        self.assertNotIn("keep_alive", payload)
+        self.assertEqual(payload.get("temperature"), 0.3)
