@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
-from django.http import JsonResponse, StreamingHttpResponse
+from django.http import HttpResponse, JsonResponse, StreamingHttpResponse
 from django.shortcuts import render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -595,6 +595,67 @@ def api_daily_brief(request):
         },
     )
     return JsonResponse({"ok": True, "cached": False, **data})
+
+
+@require_POST
+@login_required
+def api_genera_report(request):
+    """Genera un report PDF su un argomento, ancorato al contesto live ACL-gated.
+
+    Read-only: i dati vengono dai tool live (ACL dell'utente) e dal RAG; l'AI scrive
+    solo la prosa, cita le fonti e non inventa. PDF marcato come bozza (umano firma).
+    Audit solo-metadati. Fail-safe: AI giu' -> 502, niente PDF.
+    """
+    if not bool(getattr(settings, "OLLAMA_CHAT_ENABLED", True)):
+        return JsonResponse({"ok": False, "error": "Assistente AI disabilitato in configurazione."}, status=503)
+
+    allowed, retry_after = _check_rate_limit(request)
+    if not allowed:
+        return _rate_limited_response(retry_after)
+
+    payload = _json_payload(request)
+    topic = str(payload.get("topic") or "").replace("\x00", "").strip()
+    if not topic:
+        return JsonResponse({"ok": False, "error": "Indica l'argomento del report."}, status=400)
+
+    started = time.monotonic()
+    from .ai_report import genera_report, render_report_pdf
+
+    report = genera_report(request, topic)
+    if not report["ai_disponibile"] and not report["markdown"]:
+        return JsonResponse(
+            {"ok": False, "error": "Servizio AI non disponibile per generare il report. Riprova piu' tardi."},
+            status=502,
+        )
+
+    autore = (request.user.get_full_name() or request.user.get_username() or "").strip()
+    try:
+        pdf_bytes = render_report_pdf(report, autore=autore)
+    except Exception:  # noqa: BLE001 — reportlab assente/errore di rendering
+        return JsonResponse({"ok": False, "error": "Generazione del PDF non disponibile."}, status=503)
+
+    elapsed_ms = int((time.monotonic() - started) * 1000)
+    log_action(
+        request,
+        "ai_report",
+        "ai_assistant",
+        {
+            "model": report.get("model"),
+            "topic_chars": len(topic),
+            "report_chars": len(report.get("markdown") or ""),
+            "sources_count": len(report.get("fonti") or []),
+            "had_context": report.get("has_context"),
+            "format": "pdf",
+            "elapsed_ms": elapsed_ms,
+            **_runtime_audit_summary(report.get("runtime_audit")),
+        },
+    )
+
+    filename = f"report-ai-{timezone.localdate().strftime('%Y%m%d')}.pdf"
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    response["Content-Length"] = str(len(pdf_bytes))
+    return response
 
 
 @require_POST

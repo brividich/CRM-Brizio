@@ -2883,3 +2883,118 @@ class EmbedTimeoutTests(TestCase):
             tools._rank_domains("chi e' assente domani in azienda")
 
         self.assertEqual(m.call_args.kwargs.get("timeout"), 6)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SETUP_WIZARD_REQUIRED=False)
+class AiReportTests(TestCase):
+    """Generatore report PDF (Ondata 4): ancorato al contesto autorizzato, fail-safe."""
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()
+        self.user = get_user_model().objects.create_superuser(
+            username="report.admin", email="report.admin@example.local", password="password"
+        )
+
+    def _fake_rc(self):
+        return SimpleNamespace(
+            text="DATI LIVE PORTALE - ASSETS\nAsset X in scadenza.",
+            sources=("tool:assets:riepilogo",),
+            audit={"tools": [{"tool": "assets_summary", "allowed": True}]},
+        )
+
+    def _fake_result(self):
+        return SimpleNamespace(
+            content="# Stato asset\n\n## Sintesi\n- Asset X **in scadenza**.\nTesto.",
+            model="qwen2.5",
+            sources=("spec:MT CN 06#rev7",),
+            rag_context_chars=42,
+        )
+
+    def test_genera_report_grounded_in_context(self):
+        from ai_assistant import ai_report, services, tools
+
+        req = SimpleNamespace(user=self.user, path="/assistente-ai/")
+        with patch.object(tools, "build_runtime_context", return_value=self._fake_rc()), patch.object(
+            services, "chat_with_ollama", return_value=self._fake_result()
+        ):
+            rep = ai_report.genera_report(req, "stato asset")
+
+        self.assertTrue(rep["ai_disponibile"])
+        self.assertEqual(rep["titolo"], "Stato asset")
+        self.assertIn("tool:assets:riepilogo", rep["fonti"])     # fonte tool live
+        self.assertIn("spec:MT CN 06#rev7", rep["fonti"])         # fonte SGI
+        self.assertIn("Asset X", rep["markdown"])
+
+    def test_genera_report_failsafe_when_ai_offline(self):
+        from ai_assistant import ai_report, services, tools
+        from ai_assistant.services import OllamaChatError
+
+        req = SimpleNamespace(user=self.user, path="/assistente-ai/")
+        with patch.object(tools, "build_runtime_context", return_value=self._fake_rc()), patch.object(
+            services, "chat_with_ollama", side_effect=OllamaChatError("giu'")
+        ):
+            rep = ai_report.genera_report(req, "x")
+
+        self.assertFalse(rep["ai_disponibile"])
+        self.assertEqual(rep["markdown"], "")
+
+    def test_render_report_pdf_returns_pdf_bytes(self):
+        from ai_assistant.ai_report import render_report_pdf
+
+        pdf = render_report_pdf(
+            {
+                "titolo": "Report Test",
+                "markdown": "# Report Test\n\n## Sezione 1\n- punto **uno**\nUn paragrafo.",
+                "fonti": ["tool:assets:riepilogo"],
+                "ai_disponibile": True,
+                "model": "m",
+                "topic": "t",
+            },
+            autore="Mario Rossi",
+        )
+        self.assertTrue(pdf.startswith(b"%PDF"))
+        self.assertGreater(len(pdf), 500)
+
+    def test_api_report_returns_pdf_attachment(self):
+        from ai_assistant import services, tools
+
+        self.client.force_login(self.user)
+        with patch.object(tools, "build_runtime_context", return_value=self._fake_rc()), patch.object(
+            services, "chat_with_ollama", return_value=self._fake_result()
+        ):
+            resp = self.client.post(
+                reverse("ai_assistant:api_report"),
+                data=json.dumps({"topic": "stato asset in scadenza"}),
+                content_type="application/json",
+            )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], "application/pdf")
+        self.assertIn("attachment", resp["Content-Disposition"])
+        self.assertTrue(resp.content.startswith(b"%PDF"))
+
+    def test_api_report_requires_topic(self):
+        self.client.force_login(self.user)
+        resp = self.client.post(
+            reverse("ai_assistant:api_report"),
+            data=json.dumps({"topic": "   "}),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_api_report_502_when_ai_offline(self):
+        from ai_assistant import services, tools
+        from ai_assistant.services import OllamaChatError
+
+        self.client.force_login(self.user)
+        with patch.object(tools, "build_runtime_context", return_value=self._fake_rc()), patch.object(
+            services, "chat_with_ollama", side_effect=OllamaChatError("giu'")
+        ):
+            resp = self.client.post(
+                reverse("ai_assistant:api_report"),
+                data=json.dumps({"topic": "qualcosa"}),
+                content_type="application/json",
+            )
+        self.assertEqual(resp.status_code, 502)

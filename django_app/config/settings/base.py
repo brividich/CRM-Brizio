@@ -236,6 +236,9 @@ OLLAMA_DAILY_BRIEF_ENABLED = env_bool("OLLAMA_DAILY_BRIEF_ENABLED", True)
 # Timeout dedicato (piu' corto) per il brief giornaliero: non e' critico e non
 # deve occupare un worker per l'intero OLLAMA_REQUEST_TIMEOUT_SECONDS; degrada a fallback.
 OLLAMA_DAILY_BRIEF_TIMEOUT_SECONDS = int(env("OLLAMA_DAILY_BRIEF_TIMEOUT_SECONDS", "45") or "45")
+# Timeout per la generazione di un report PDF (api/report/): piu' lungo del brief
+# perche' l'output e' un documento strutturato, ma comunque limitato.
+OLLAMA_REPORT_TIMEOUT_SECONDS = int(env("OLLAMA_REPORT_TIMEOUT_SECONDS", "120") or "120")
 OLLAMA_API_PROVIDER = env("OLLAMA_API_PROVIDER", "ollama").strip().lower()
 OLLAMA_BASE_URL = env("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
 OLLAMA_CHAT_MODEL = env("OLLAMA_CHAT_MODEL", "qwen2.5:14b-instruct")

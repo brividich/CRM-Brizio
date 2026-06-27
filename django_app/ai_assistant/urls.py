@@ -10,6 +10,7 @@ urlpatterns = [
     path("api/chat/", views.api_chat, name="api_chat"),
     path("api/chat/stream/", views.api_chat_stream, name="api_chat_stream"),
     path("api/daily-brief/", views.api_daily_brief, name="api_daily_brief"),
+    path("api/report/", views.api_genera_report, name="api_report"),
     path("api/knowledge/save/", views.api_save_knowledge, name="api_save_knowledge"),
     path("api/feedback/", views.api_feedback, name="api_feedback"),
 ]
