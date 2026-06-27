@@ -100,6 +100,20 @@ RUNTIME_TOOL_CATALOG: tuple[RuntimeToolSpec, ...] = (
         privacy_note="Filtra per asset personali o ambiti autorizzati.",
     ),
     RuntimeToolSpec(
+        key="carichi_macchina",
+        label="Carichi macchina",
+        domain="Produzione",
+        audit_tool="carichi_macchina",
+        source_prefix="tool:carichi",
+        status="enabled",
+        sample_prompt="quanto e' satura la macchina MZ5 questa settimana?",
+        privacy_note=(
+            "Espone solo aggregati di saturazione della settimana corrente "
+            "(macchina, % saturazione, ore carico/capacita, n. lavori). "
+            "Nessun dettaglio commessa, cliente o pezzo."
+        ),
+    ),
+    RuntimeToolSpec(
         key="dpi_summary",
         label="DPI",
         domain="DPI",
@@ -291,6 +305,32 @@ _DPI_KEYWORDS = {
     "consegna dpi",
     "consegne dpi",
 }
+_CARICO_KEYWORDS = {
+    "carico",
+    "carichi",
+    "saturazione",
+    "saturo",
+    "satura",
+    "sature",
+    "saturi",
+    "capacita",
+    "capacità",
+    "occupazione",
+    "occupata",
+    "occupate",
+    "carico macchina",
+    "carico macchine",
+    "carichi macchina",
+    "carico di lavoro",
+}
+# Segnali "forti" di una domanda sui carichi: bastano da soli a qualificare
+# l'intento. "macchina/macchine" NON e' qui perche' compare anche in asset,
+# anomalie e manutenzioni: da solo non deve attivare il tool carichi.
+_CARICO_SIGNAL_KEYWORDS = {
+    "carico", "carichi", "saturazione", "saturo", "satura", "sature", "saturi",
+    "capacita", "capacità", "occupazione", "occupata", "occupate",
+    "carico di lavoro", "carico macchina", "carico macchine", "carichi macchina",
+}
 _ANOMALIE_KEYWORDS = {
     "anomalia",
     "anomalie",
@@ -424,6 +464,7 @@ _RUNTIME_PRIORITY_BY_TOOL = {
     "procedure_refresh_summary": 30,
     "dpi_summary": 40,
     "assets_summary": 50,
+    "carichi_macchina": 55,
     "tickets_summary": 60,
     "tasks_summary": 70,
     "anomalie_summary": 80,
@@ -688,6 +729,22 @@ def _wants_asset_context(prompt: str) -> bool:
         )
         or "work order" in text
         or "ordine di lavoro" in text
+    )
+
+
+def _wants_carico_context(prompt: str) -> bool:
+    text = _norm_text(prompt)
+    # Precisione: serve un segnale forte di "carico/saturazione/capacita".
+    # "macchina" da sola NON basta (e' anche un asset/anomalia).
+    if not any(keyword in text for keyword in _CARICO_SIGNAL_KEYWORDS):
+        return False
+    return bool(
+        re.search(
+            r"\b(carico|carichi|saturazione|satur[aoie]|capacita|capacità|"
+            r"occupazione|occupat[ae]|quanto|quanta|quante|qual[ei]|com'?e|come|"
+            r"mostra|dimmi|stato|settimana|macchin[ae]|reparto|reparti|officina)\b",
+            text,
+        )
     )
 
 
@@ -1814,6 +1871,127 @@ def _assets_context(request, prompt: str) -> RuntimeContext:
     )
 
 
+def _carichi_context(request, prompt: str) -> RuntimeContext:
+    if not _should_run(request, "carichi", _wants_carico_context(prompt)):
+        return RuntimeContext()
+
+    # Confine reale del modulo: oggi gestione_carichi_macchina e' protetto solo da
+    # @login_required (nessun binding ACL v2: arriva al Passo 6). Il gate del tool
+    # rispecchia quel confine.
+    # TODO(ACL v2): stringere a user_can_modulo_action(request,
+    # "gestione_carichi_macchina", "<azione_list>") quando il modulo avra' il
+    # binding canonico, allineando il tool al permesso reale.
+    if not getattr(request.user, "is_authenticated", False):
+        return RuntimeContext(
+            text=(
+                "DATI LIVE PORTALE - CARICHI MACCHINA\n"
+                "Esito autorizzazione: negato. L'utente corrente non e' autenticato; "
+                "non fornire dati su carichi o saturazione delle macchine."
+            ),
+            sources=("tool:carichi:accesso-negato",),
+            audit={"tool": "carichi_macchina", "allowed": False, "reason": "anonymous"},
+        )
+
+    from gestione_carichi_macchina.models import Macchina, MacchinaAlias, Pianificazione
+    from gestione_carichi_macchina.saturazione import calcola_saturazione
+    from gestione_carichi_macchina.views import _giorni_lavorativi, _lunedi
+
+    oggi = timezone.localdate()
+    giorni = _giorni_lavorativi(_lunedi(oggi), 5)  # settimana lavorativa corrente (lun-ven)
+    start, fine = giorni[0], giorni[-1]
+
+    macchine = list(
+        Macchina.objects.filter(attivo=True)
+        .select_related("asset")
+        .order_by("categoria", "ordine_sezione", "id")
+    )
+    if not macchine:
+        return RuntimeContext(
+            text=(
+                "DATI LIVE PORTALE - CARICHI MACCHINA\n"
+                f"Settimana lavorativa: {start.strftime('%d-%m-%Y')} - {fine.strftime('%d-%m-%Y')} (lun-ven).\n"
+                "Nessuna macchina attiva configurata nel modulo carichi."
+            ),
+            sources=("tool:carichi:riepilogo",),
+            audit={"tool": "carichi_macchina", "allowed": True, "scope": "settimana_corrente",
+                   "filtro": "nessuna_macchina", "row_count": 0},
+        )
+
+    pians = list(
+        Pianificazione.objects.filter(data__range=(start, fine), macchina__in=macchine)
+    )
+    n_job: dict[int, int] = {}
+    for p in pians:
+        n_job[p.macchina_id] = n_job.get(p.macchina_id, 0) + 1
+
+    sat = calcola_saturazione(macchine, pians, giorni)
+    per_macchina = sat["per_macchina"]
+
+    # Filtro per macchina citata: codice asset (codice) o codice-officina (alias).
+    text = _norm_text(prompt)
+    cited_ids: set[int] = set()
+    for m in macchine:
+        code = (m.codice or "").strip().lower()
+        if code and re.search(r"\b" + re.escape(code) + r"\b", text):
+            cited_ids.add(m.id)
+    for foglio, mid in MacchinaAlias.objects.values_list("codice_foglio", "macchina_id"):
+        f = (foglio or "").strip().lower()
+        if f and re.search(r"\b" + re.escape(f) + r"\b", text):
+            cited_ids.add(mid)
+
+    if cited_ids:
+        sel = [m for m in macchine if m.id in cited_ids]
+        scope_label = "macchine citate nella domanda"
+        filtro = "codice"
+    else:
+        sel = sorted(
+            macchine, key=lambda m: per_macchina.get(m.id, {}).get("perc", 0.0), reverse=True
+        )[:8]
+        scope_label = "8 macchine piu' sature"
+        filtro = "top8"
+
+    cat_label = dict(Macchina.CATEGORIA_CHOICES)
+
+    def _riga(m) -> str:
+        s = per_macchina.get(m.id, {"carico": 0.0, "capacita": 0.0, "perc": 0.0})
+        codice = m.codice or f"#{m.id}"
+        return (
+            f"- {codice} [{cat_label.get(m.categoria, m.categoria)}]: "
+            f"saturazione {s['perc']}% "
+            f"(carico {s['carico']}h / capacita {s['capacita']}h), "
+            f"{n_job.get(m.id, 0)} lavori pianificati"
+        )
+
+    righe = "\n".join(_riga(m) for m in sel) if sel else "Nessuna macchina corrispondente ai filtri."
+    rep_lines = "\n".join(
+        f"- {cat_label.get(cat, cat)}: {v['perc']}% (carico {v['carico']}h / capacita {v['capacita']}h)"
+        for cat, v in sat["per_reparto"].items()
+    ) or "Nessun reparto."
+    tot = sat["totale"]
+
+    return RuntimeContext(
+        text=(
+            "DATI LIVE PORTALE - CARICHI MACCHINA\n"
+            f"Settimana lavorativa: {start.strftime('%d-%m-%Y')} - {fine.strftime('%d-%m-%Y')} (lun-ven).\n"
+            f"Ambito: {scope_label}. Macchine mostrate: {len(sel)}.\n"
+            "ISTRUZIONE RISPOSTA: riporta per ciascuna macchina la % di saturazione, il carico/capacita in ore "
+            "e il numero di lavori pianificati. Non citare commesse, clienti o dettagli dei pezzi "
+            "(non disponibili in questa vista). Non inventare dati.\n"
+            f"{righe}\n\n"
+            f"Totale officina: {tot['perc']}% (carico {tot['carico']}h / capacita {tot['capacita']}h).\n"
+            f"Saturazione per reparto:\n{rep_lines}"
+        ),
+        sources=("tool:carichi:riepilogo",),
+        audit={
+            "tool": "carichi_macchina",
+            "allowed": True,
+            "scope": "settimana_corrente",
+            "filtro": filtro,
+            "row_count": len(sel),
+        },
+    )
+
+
 def _dpi_context(request, prompt: str) -> RuntimeContext:
     if not _should_run(request, "dpi", _wants_dpi_context(prompt)):
         return RuntimeContext()
@@ -2886,6 +3064,7 @@ RUNTIME_TOOLS: tuple[RuntimeTool, ...] = (
     _ticket_context,
     _tasks_context,
     _assets_context,
+    _carichi_context,
     _dpi_context,
     _anagrafica_context,
     _anomalie_context,
@@ -3023,6 +3202,12 @@ _DOMAIN_ROUTING_SEEDS: dict[str, tuple[str, ...]] = {
         "manutenzioni e verifiche periodiche dei macchinari",
         "attrezzature in riparazione o fuori servizio",
         "asset assegnati a una persona o reparto",
+    ),
+    "carichi": (
+        "carico e saturazione delle macchine in officina",
+        "quanto e' satura una macchina questa settimana",
+        "capacita e occupazione dei centri di lavoro",
+        "carico di lavoro per reparto di produzione",
     ),
     "dpi": (
         "dispositivi di protezione individuale in scadenza",

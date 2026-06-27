@@ -2170,6 +2170,122 @@ class AiAssistantTests(TestCase):
         )
 
 
+@override_settings(
+    LEGACY_AUTH_ENABLED=False,
+    SETUP_WIZARD_REQUIRED=False,
+    AI_TOOL_ROUTING_ENABLED=False,  # routing keyword-only: test deterministico, no rete
+)
+class CarichiMacchinaContextTests(TestCase):
+    """Tool live 'carichi macchina' (Ondata 1.2): read-only, ACL=login, soli aggregati."""
+
+    def setUp(self):
+        from decimal import Decimal
+
+        from django.core.cache import cache
+
+        from assets.models import Asset
+        from gestione_carichi_macchina.models import Commessa, Macchina, Pianificazione
+
+        cache.clear()
+        self.user = get_user_model().objects.create_user(
+            username="carichi.user",
+            email="carichi.user@example.local",
+            password="password",
+        )
+
+        oggi = timezone.localdate()
+        lunedi = oggi - timedelta(days=oggi.weekday())
+
+        asset_a = Asset.objects.create(asset_tag="MZAI1", name="Mazak AI 1", asset_type=Asset.TYPE_PC)
+        asset_b = Asset.objects.create(asset_tag="DMAI2", name="DMG AI 2", asset_type=Asset.TYPE_PC)
+        self.mac_a = Macchina.objects.create(
+            asset=asset_a, categoria=Macchina.CAT_5AXIS, ore_giorno_disponibili=Decimal("8.0")
+        )
+        self.mac_b = Macchina.objects.create(
+            asset=asset_b, categoria=Macchina.CAT_TORNI, ore_giorno_disponibili=Decimal("8.0")
+        )
+
+        # Dato "sensibile" di commessa: NON deve mai comparire nell'output del tool.
+        self.commessa = Commessa.objects.create(
+            numero="OP-SEGRETO", nome="SEGRETO_COMMESSA", cliente="SEGRETO_CLIENTE"
+        )
+        # Carico solo sulla macchina A (24h nella settimana) -> piu' satura di B (0h).
+        Pianificazione.objects.create(
+            macchina=self.mac_a, data=lunedi, ore=Decimal("16.00"), commessa=self.commessa
+        )
+        Pianificazione.objects.create(
+            macchina=self.mac_a, data=lunedi + timedelta(days=1), ore=Decimal("8.00")
+        )
+
+    @staticmethod
+    def _carichi_audit(context):
+        for entry in (context.audit or {}).get("tools", []):
+            if entry.get("tool") == "carichi_macchina":
+                return entry
+        return None
+
+    def test_wants_carico_gate_precision(self):
+        from ai_assistant.tools import _wants_carico_context
+
+        # Domande di carico reali -> True
+        self.assertTrue(_wants_carico_context("qual e' la saturazione delle macchine questa settimana?"))
+        self.assertTrue(_wants_carico_context("carico macchina MZAI1"))
+        self.assertTrue(_wants_carico_context("quanto e' satura l'officina?"))
+        # "macchina" da sola (manutenzione/asset) NON deve attivare il tool carichi
+        self.assertFalse(_wants_carico_context("manutenzione della macchina"))
+        self.assertFalse(_wants_carico_context("quali asset sono in riparazione?"))
+        self.assertFalse(_wants_carico_context("mostra le mie ferie residue"))
+
+    def test_carichi_context_aggregates_current_week(self):
+        request = SimpleNamespace(user=self.user, path="/assistente-ai/")
+
+        context = build_runtime_context(
+            request, "qual e' la saturazione delle macchine questa settimana?"
+        )
+
+        self.assertIn("tool:carichi:riepilogo", context.sources)
+        self.assertIn("MZAI1", context.text)
+        self.assertIn("saturazione", context.text)
+        self.assertIn("lavori pianificati", context.text)
+        self.assertIn("2 lavori pianificati", context.text)  # n. lavori macchina A
+        # Nessun dettaglio commessa/cliente nell'output del tool
+        self.assertNotIn("SEGRETO_COMMESSA", context.text)
+        self.assertNotIn("SEGRETO_CLIENTE", context.text)
+        self.assertNotIn("OP-SEGRETO", context.text)
+
+        audit = self._carichi_audit(context)
+        self.assertIsNotNone(audit)
+        self.assertTrue(audit["allowed"])
+        self.assertEqual(audit["scope"], "settimana_corrente")
+        self.assertEqual(audit["filtro"], "top8")
+
+    def test_carichi_context_filters_by_cited_machine(self):
+        request = SimpleNamespace(user=self.user, path="/assistente-ai/")
+
+        context = build_runtime_context(
+            request, "qual e' il carico della macchina MZAI1 questa settimana?"
+        )
+
+        self.assertIn("MZAI1", context.text)
+        self.assertNotIn("DMAI2", context.text)
+        audit = self._carichi_audit(context)
+        self.assertIsNotNone(audit)
+        self.assertEqual(audit["filtro"], "codice")
+
+    def test_carichi_context_denies_anonymous(self):
+        from django.contrib.auth.models import AnonymousUser
+
+        request = SimpleNamespace(user=AnonymousUser(), path="/assistente-ai/")
+
+        context = build_runtime_context(request, "qual e' la saturazione delle macchine?")
+
+        self.assertIn("tool:carichi:accesso-negato", context.sources)
+        audit = self._carichi_audit(context)
+        self.assertIsNotNone(audit)
+        self.assertFalse(audit["allowed"])
+        self.assertEqual(audit["reason"], "anonymous")
+
+
 @override_settings(LEGACY_AUTH_ENABLED=False, SETUP_WIZARD_REQUIRED=False)
 class SgiRagLoaderTests(TestCase):
     """F1 — loader RAG del corpus documentale SGI (specifiche + procedure correnti).

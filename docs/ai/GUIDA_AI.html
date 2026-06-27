@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guida all'Assistente AI — NOVICROM HUB</title>
+<style>
+  :root{
+    --bg:#0f172a; --panel:#ffffff; --ink:#1e293b; --muted:#64748b;
+    --brand:#0ea5e9; --brand-dark:#0369a1; --ok:#16a34a; --warn:#d97706;
+    --stop:#dc2626; --line:#e2e8f0; --soft:#f1f5f9;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink);background:var(--soft);line-height:1.55;font-size:15px}
+  header{background:linear-gradient(135deg,var(--brand-dark),var(--brand));color:#fff;
+    padding:32px 24px}
+  header .wrap{max-width:960px;margin:0 auto}
+  header h1{margin:0 0 6px;font-size:26px}
+  header p{margin:0;opacity:.92}
+  .badge{display:inline-block;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);
+    padding:2px 10px;border-radius:999px;font-size:12px;margin-top:10px}
+  main{max-width:960px;margin:0 auto;padding:24px}
+  section{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:20px 22px;margin:16px 0;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+  h2{font-size:19px;margin:0 0 12px;color:var(--brand-dark);
+    border-bottom:2px solid var(--soft);padding-bottom:8px}
+  h3{font-size:15px;margin:16px 0 6px}
+  p{margin:8px 0}
+  ul{margin:8px 0;padding-left:22px}
+  li{margin:4px 0}
+  code{background:var(--soft);padding:1px 6px;border-radius:5px;font-size:13px;
+    font-family:Consolas,Monaco,monospace}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+  .card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:#fff}
+  .card .t{font-weight:600;font-size:14px}
+  .card .d{color:var(--muted);font-size:13px;margin-top:4px}
+  .pill{display:inline-block;font-size:11px;padding:1px 8px;border-radius:999px;
+    font-weight:600;letter-spacing:.2px}
+  .pill.on{background:#dcfce7;color:var(--ok)}
+  .pill.off{background:#fee2e2;color:var(--stop)}
+  table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13.5px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:var(--soft);color:var(--ink);font-weight:600}
+  .ex{background:var(--soft);border-left:3px solid var(--brand);padding:10px 14px;
+    border-radius:0 8px 8px 0;margin:8px 0}
+  .ex .q{font-weight:600}
+  .ex .a{color:var(--muted);font-size:13.5px;margin-top:2px}
+  .callout{border-left:4px solid var(--warn);background:#fffbeb;padding:12px 16px;
+    border-radius:0 8px 8px 0}
+  .callout.stop{border-color:var(--stop);background:#fef2f2}
+  .callout.ok{border-color:var(--ok);background:#f0fdf4}
+  .muted{color:var(--muted)}
+  .flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0}
+  .flow .step{background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 12px;
+    font-size:13px;font-weight:600}
+  .flow .arr{color:var(--brand);font-weight:700}
+  footer{max-width:960px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);font-size:12.5px}
+  .toc{columns:2;font-size:13.5px}
+  .toc a{color:var(--brand-dark);text-decoration:none}
+  .toc a:hover{text-decoration:underline}
+  @media(max-width:640px){.toc{columns:1}}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>Assistente AI — Guida al funzionamento</h1>
+    <p>Come è fatto, cosa sa rispondere e quali sono i suoi limiti. Documento interno NOVICROM HUB.</p>
+    <span class="badge">Ultimo aggiornamento: 2026-06-27 · Versione guida 1.1</span>
+  </div>
+</header>
+
+<main>
+
+<section>
+  <h2>Indice</h2>
+  <div class="toc">
+    <a href="#cosa">1. Cos'è l'assistente</a><br>
+    <a href="#arch">2. Come funziona (architettura on-premise)</a><br>
+    <a href="#sa">3. Cosa sa rispondere</a><br>
+    <a href="#rag">4. Memoria documentale (RAG SGI citabile)</a><br>
+    <a href="#tools">5. Dati live del portale (tool runtime)</a><br>
+    <a href="#esempi">6. Esempi di domande</a><br>
+    <a href="#limiti">7. Limiti, privacy e governance</a><br>
+    <a href="#estende">8. Come si estende (roadmap a ondate)</a><br>
+    <a href="#changelog">9. Storico della guida</a>
+  </div>
+</section>
+
+<section id="cosa">
+  <h2>1. Cos'è l'assistente</h2>
+  <p>L'<strong>Assistente AI</strong> è un copilota interno integrato in NOVICROM HUB
+  (voce di menu <em>Assistente AI</em>). Risponde in linguaggio naturale su:</p>
+  <ul>
+    <li>la <strong>documentazione SGI</strong> (manuali tecnici, procedure, piani qualità, DVR…) <strong>citando la fonte</strong>;</li>
+    <li>i <strong>dati operativi live</strong> del portale (assenze, ticket, task, asset, carichi macchina, DPI, anomalie, procedure, notizie, sicurezza, anagrafica), <strong>sempre nei limiti dei permessi dell'utente</strong>;</li>
+    <li>la <strong>navigazione</strong> (quali moduli e funzioni sono disponibili).</li>
+  </ul>
+  <div class="callout ok"><strong>Principio guida:</strong> «<strong>l'AI propone, l'umano firma</strong>».
+  L'assistente non scrive nulla nei moduli e non prende decisioni: produce risposte e proposte.</div>
+</section>
+
+<section id="arch">
+  <h2>2. Come funziona (architettura on-premise)</h2>
+  <p>Tutto gira <strong>in azienda</strong>, senza cloud: nessun dato esce dalla rete interna.</p>
+  <div class="grid">
+    <div class="card"><div class="t">Modello di chat</div>
+      <div class="d"><strong>Ollama</strong> con <code>qwen2.5:14b-instruct</code> su GPU dedicata (PCGAVANCINI, RTX A4000). Genera le risposte.</div></div>
+    <div class="card"><div class="t">Motore di ricerca documentale</div>
+      <div class="d"><strong>RAG</strong>: ricerca testuale <strong>BM25</strong> + ricerca semantica con <strong>embeddings</strong> (modello <code>bge-m3</code> via <strong>TEI</strong> su GPU), fusi insieme (RRF).</div></div>
+    <div class="card"><div class="t">Tool runtime</div>
+      <div class="d">Funzioni che leggono i dati live del portale <strong>al momento della domanda</strong>, filtrati per ACL. Vedi §5.</div></div>
+    <div class="card"><div class="t">Audit</div>
+      <div class="d">Di ogni interrogazione si registrano <strong>solo metadati</strong> (quale tool, esito autorizzazione, conteggi). Mai il testo dei dati o delle risposte.</div></div>
+  </div>
+  <h3>Il percorso di una domanda</h3>
+  <div class="flow">
+    <span class="step">Domanda utente</span><span class="arr">→</span>
+    <span class="step">Routing (parole chiave + semantico)</span><span class="arr">→</span>
+    <span class="step">Tool live + ricerca SGI (filtrati per ACL)</span><span class="arr">→</span>
+    <span class="step">Contesto citabile</span><span class="arr">→</span>
+    <span class="step">Modello Ollama</span><span class="arr">→</span>
+    <span class="step">Risposta con fonti</span>
+  </div>
+  <p class="muted">Se gli embeddings non sono disponibili, il sistema continua a funzionare in modalità solo-parole-chiave (fail-safe).</p>
+</section>
+
+<section id="sa">
+  <h2>3. Cosa sa rispondere</h2>
+  <table>
+    <tr><th>Tipo di domanda</th><th>Da dove prende la risposta</th></tr>
+    <tr><td>«In che MT si parla dei timbri?»</td><td>RAG SGI → cita es. <em>MT CN 06 Rev.7 §4.2</em></td></tr>
+    <tr><td>«Quanto è satura la macchina MZ5 questa settimana?»</td><td>Tool live <em>Carichi macchina</em></td></tr>
+    <tr><td>«Quali ticket aperti ho?»</td><td>Tool live <em>Ticket</em> (scope personale/gestione da ACL)</td></tr>
+    <tr><td>«Chi è assente domani?»</td><td>Tool live <em>Assenze</em></td></tr>
+    <tr><td>«Quali moduli posso usare?»</td><td>Tool <em>Catalogo moduli</em> (navigazione visibile)</td></tr>
+    <tr><td>«Cosa devo fare oggi?»</td><td>Router cross-dominio: brief operativo dai tool autorizzati</td></tr>
+  </table>
+</section>
+
+<section id="rag">
+  <h2>4. Memoria documentale (RAG SGI citabile)</h2>
+  <p>L'assistente indicizza il corpus SGI (oggi ~248 documenti importati dalla cartella di rete del
+  Sistema di Gestione Integrato) e risponde <strong>citando codice documento, revisione e paragrafo</strong>,
+  es. «<code>MT CN 04 Rev.0 §5.1</code>».</p>
+  <ul>
+    <li>Solo <strong>revisioni correnti</strong> (i documenti superati sono esclusi).</li>
+    <li>Se la risposta non è nei documenti, lo <strong>dichiara</strong> invece di inventare.</li>
+    <li>L'indice si ricostruisce in automatico (schedulazione notturna) e all'import di nuovi documenti.</li>
+  </ul>
+  <p class="muted">Espansioni previste del corpus citabile: specifiche, sicurezza (DVR/PEI), formazione, manuali macchina. Vedi §8.</p>
+</section>
+
+<section id="tools">
+  <h2>5. Dati live del portale (tool runtime)</h2>
+  <p>Ogni tool legge i dati <strong>in tempo reale</strong>, applicando <strong>prima</strong> i permessi (ACL)
+  dell'utente che fa la domanda. Espone solo i campi minimi necessari.</p>
+  <table>
+    <tr><th>Tool</th><th>Risponde su</th><th>Stato</th></tr>
+    <tr><td>Brief operativo (router)</td><td>«cosa devo fare oggi» cross-dominio</td><td><span class="pill on">attivo</span></td></tr>
+    <tr><td>Catalogo moduli</td><td>moduli/funzioni disponibili</td><td><span class="pill on">attivo</span></td></tr>
+    <tr><td>Assenze</td><td>chi è assente/in ferie nel periodo</td><td><span class="pill on">attivo</span></td></tr>
+    <tr><td>Ticket</td><td>ticket aperti/urgenti (scope da ACL)</td><td><span class="pill on">attivo</span></td></tr>
+    <tr><td>Task / KICK-OFF</td><td>attività in ritardo o in scadenza</td><td><span class="pill on">attivo</span></td></tr>
+    <tr><td>Asset</td><td>asset, scadenze, manutenzioni, OdL</td><td><span class="pill on">attivo</span></td></tr>
+    <tr><td><strong>Carichi macchina</strong></td><td><strong>saturazione settimanale per macchina/reparto, n. lavori</strong></td><td><span class="pill on">attivo</span></td></tr>
+    <tr><td>DPI</td><td>richieste e consegne DPI, scadenze</td><td><span class="pill on">attivo</span></td></tr>
+    <tr><td>Anomalie</td><td>anomalie/non conformità aperte</td><td><span class="pill on">attivo</span></td></tr>
+    <tr><td>Procedure / quiz</td><td>procedure da leggere, prese visione</td><td><span class="pill on">attivo</span></td></tr>
+    <tr><td>Notizie</td><td>comunicazioni obbligatorie da confermare</td><td><span class="pill on">attivo</span></td></tr>
+    <tr><td>Sicurezza</td><td>KPI diario preposto / incidenti (aggregati)</td><td><span class="pill on">attivo</span></td></tr>
+    <tr><td>Anagrafica HR</td><td>dati aziendali minimi, ferie/ratei residui</td><td><span class="pill on">attivo</span></td></tr>
+    <tr><td>Timbri / Presenze</td><td>—</td><td><span class="pill off">bloccato</span> (richiede DPIA privacy)</td></tr>
+  </table>
+  <h3>Esempio: tool «Carichi macchina»</h3>
+  <ul>
+    <li>Finestra: <strong>settimana lavorativa corrente</strong> (lun–ven).</li>
+    <li>Espone: <strong>% di saturazione</strong>, <strong>ore carico/capacità</strong>, <strong>n. lavori pianificati</strong> per macchina, più totale officina e per reparto.</li>
+    <li>Filtra sulla macchina citata (codice o sigla d'officina); altrimenti mostra le più sature.</li>
+    <li><strong>Non</strong> espone commessa, cliente o dettagli del pezzo.</li>
+  </ul>
+</section>
+
+<section id="esempi">
+  <h2>6. Esempi di domande</h2>
+  <div class="ex"><div class="q">«Qual è la saturazione delle macchine questa settimana?»</div>
+    <div class="a">→ elenco macchine più cariche con % e ore, totale e per reparto.</div></div>
+  <div class="ex"><div class="q">«Dove si parla della gestione delle deroghe nel SGI?»</div>
+    <div class="a">→ risposta discorsiva con citazione del MT e del paragrafo.</div></div>
+  <div class="ex"><div class="q">«Quali DPI sono in scadenza per me?»</div>
+    <div class="a">→ solo le consegne dell'utente, nei limiti del suo accesso.</div></div>
+  <div class="ex"><div class="q">«Cosa devo fare oggi?»</div>
+    <div class="a">→ brief con notizie obbligatorie, scadenze, ticket urgenti, task in ritardo.</div></div>
+  <p class="muted">Suggerimento: cita la <strong>macchina, il documento o la persona</strong> per risposte più mirate.</p>
+</section>
+
+<section id="limiti">
+  <h2>7. Limiti, privacy e governance</h2>
+  <div class="callout"><strong>Permessi sempre lato server.</strong> L'assistente non aggira l'ACL:
+  vede solo ciò che l'utente vedrebbe nei moduli. La visibilità del menu non è una barriera di sicurezza; lo è l'ACL.</div>
+  <ul>
+    <li><strong>Read-only</strong>: nessuna scrittura nei moduli, nessuna decisione automatica.</li>
+    <li><strong>Niente invenzioni</strong>: se un dato non c'è o non è autorizzato, lo dichiara.</li>
+    <li><strong>Audit solo-metadati</strong>: si registra l'uso del tool, non i contenuti.</li>
+    <li><strong>Matrice campi</strong> per modulo (whitelist/blacklist): mai CF, IBAN, dati sanitari, retributivi o documenti.</li>
+    <li>Ogni nuovo tool va in produzione <strong>solo dopo una revisione privacy approvata</strong> (<code>AiToolPrivacyReview</code>).</li>
+  </ul>
+  <div class="callout stop"><strong>Bloccato fino a DPIA dedicata:</strong> Timbri/Presenze (dato cronologico sensibile).</div>
+</section>
+
+<section id="estende">
+  <h2>8. Come si estende (roadmap a ondate)</h2>
+  <p>L'AI cresce <strong>una voce alla volta, con approvazione («STOP»)</strong>. Sintesi delle ondate
+  (dettaglio in <code>docs/ai/14_AI_EXPANSION_ROADMAP.md</code>):</p>
+  <ul>
+    <li><strong>Ondata 1 — Quick win:</strong> tool live Skill Matrix, <strong>Carichi macchina (fatto)</strong>, auto-quiz da procedura.</li>
+    <li><strong>Ondata 2 — RAG più ampio:</strong> specifiche, sicurezza (DVR/PEI), formazione, manuali macchina.</li>
+    <li><strong>Ondata 3 — Copiloti per-modulo:</strong> ticket, anomalie, DPI, incidenti, KICK-OFF.</li>
+    <li><strong>Ondata 4 — Generazione & ricerca semantica:</strong> «cosa è cambiato» tra revisioni, bozze, ricerca/dedup.</li>
+    <li><strong>Ondata 5 — Predittivo & digest:</strong> scadenze a rischio, trend, briefing mattutino, KPI raccontati.</li>
+  </ul>
+</section>
+
+<section id="changelog">
+  <h2>9. Storico della guida</h2>
+  <table>
+    <tr><th>Data</th><th>Versione</th><th>Modifica</th></tr>
+    <tr><td>2026-06-27</td><td>1.1</td><td>Aggiunto tool live <strong>Carichi macchina</strong> (Ondata 1.2) alla tabella tool ed esempi.</td></tr>
+    <tr><td>2026-06-27</td><td>1.0</td><td>Prima stesura: architettura on-premise, RAG SGI citabile, tool runtime, governance, roadmap.</td></tr>
+  </table>
+</section>
+
+</main>
+
+<footer>
+  NOVICROM HUB · Documento interno. Esempi e codici documento sono indicativi.
+  Mantieni questa guida allineata a ogni nuova capacità AI (nuovi tool, nuovi corpora RAG, cambi di policy).
+</footer>
+
+</body>
+</html>

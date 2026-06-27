@@ -30,6 +30,7 @@ Important: Do not read all docs automatically. Open only the files relevant to t
 | [TABELLE_PERSONALIZZABILI.md](TABELLE_PERSONALIZZABILI.md) | Infrastruttura tabelle personalizzabili per-utente (`UserTablePreference`): sort/filtro/ricerca/visibilità/ordine per colonna, rollout client-side globale. |
 | [RAG_SGI_ROLLOUT.md](RAG_SGI_ROLLOUT.md) | RAG SGI (documenti SGI citabili nell'Assistente AI): riepilogo F1–F3, settings con default, runbook di rollout prod (pull modello embedding, stemming opt-in, `index_sgi_documents` + schedulazione), verifica funzionale. |
 | [14_AI_EXPANSION_ROADMAP.md](14_AI_EXPANSION_ROADMAP.md) | Backlog ordinato (a ondate) per espandere l'AI nel portale: nuovi tool live, copiloti per-modulo, allargamento RAG, predittivo/digest. Vincoli, pattern riusabili, effort e ordine di partenza. |
+| [GUIDA_AI.html](GUIDA_AI.html) | Guida HTML (autoconsistente, per utenti) al funzionamento dell'Assistente AI: architettura on-premise (Ollama+TEI), RAG SGI citabile, tabella dei tool runtime, esempi di domande, limiti/privacy/governance, roadmap a ondate. **Da tenere aggiornata a ogni nuova capacità AI** (nuovi tool, nuovi corpora RAG, cambi di policy). |
 
 ## Rule Of Thumb
 

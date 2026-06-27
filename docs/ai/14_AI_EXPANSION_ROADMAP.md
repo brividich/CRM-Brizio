@@ -32,7 +32,7 @@ Effort: **S** = poche ore · **M** = 1–2 gg · **L** = multi-giorno.
 | # | Voce | Dove / pattern | ACL · governance | Effort |
 |---|---|---|---|---|
 | 1.1 | **Tool live Skill Matrix** ("chi può operare la macchina X?", uomo-solo, copertura) | nuovo tool in `ai_assistant/tools.py` che chiama `skillmatrix_resolver` (read-only, già esiste) | `_check_hr_permission`; campi: legacy_id→nome, livello, macchina. **Vuoto finché baseline F2b non importata** | S |
-| 1.2 | **Tool live Carichi macchina** ("carico/saturazione macchina X questa settimana") | nuovo tool che legge `gestione_carichi_macchina` (saturazione.py) | ACL modulo; espone macchina, % saturazione, n. lavori. No dettagli commessa | S–M |
+| 1.2 | **✅ FATTO — Tool live Carichi macchina** ("carico/saturazione macchina X questa settimana") | `ai_assistant/tools.py::_carichi_context` (legge `gestione_carichi_macchina/saturazione.py`); gate `_wants_carico_context`, seed routing `"carichi"`, audit metadata-only, 4 test | ACL = confine reale modulo (oggi `@login_required`; TODO ACL v2 al Passo 6); espone macchina, % saturazione, ore carico/capacità, n. lavori. No dettagli commessa/cliente | S–M |
 | 1.3 | **Auto-quiz da procedura** (proponi domande dal PDF di una MT/procedura) | copilota in `procedure_refresh` (riusa `_estrai_testo_pdf` + `chat_with_ollama`); target: modello `ProcedureQuiz` già esistente | read-only, `proposto=True`; l'umano approva il quiz. Dati pronti (248 procedure importate) | M |
 
 ## Ondata 2 — Allargare il RAG citabile (la "memoria aziendale")
@@ -85,5 +85,7 @@ Clonare il pattern MOD.133 dove c'è data-entry strutturato. Tutti **read-only/p
 3. Commit per voce (no push automatico se non richiesto), CHANGELOG aggiornato.
 4. Misurare dove ha senso (come `ai_eval` per il RAG).
 
-**Ordine consigliato di partenza**: 1.3 (auto-quiz, dati pronti e modulo "nostro") → 1.2 (carichi) →
+**Ordine consigliato di partenza**: 1.3 (auto-quiz, dati pronti e modulo "nostro") → ~~1.2 (carichi)~~ ✅ →
 2.2 (RAG sicurezza) → 3.1/3.2 (copiloti ticket/anomalie).
+
+**Stato avanzamento**: ✅ 1.2 Carichi macchina (2026-06-27, branch `feature/skill-matrix-mod187`).
