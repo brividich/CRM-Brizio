@@ -418,3 +418,102 @@ class DpiExpiryReminderCommandTests(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("[DPI]", mail.outbox[0].subject)
         self.assertIn(richiesta.numero, mail.outbox[0].body)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class DpiCopilotaTests(TestCase):
+    """Copilota DPI (Ondata 3.3): proposta read-only, validata sul catalogo, fail-safe."""
+
+    CATALOGO = [
+        {"nome": "Guanti", "tipi": ["Antitaglio"]},
+        {"nome": "Scarpe", "tipi": ["Antinfortunistiche"]},
+    ]
+
+    def setUp(self):
+        super().setUp()
+        from django.core.cache import cache
+
+        cache.clear()
+        self.user = get_user_model().objects.create_superuser(
+            username="dpi-cop", email="dpi-cop@example.com", password="pass12345"
+        )
+        self.client.force_login(self.user)
+        self.cat_guanti = CategoriaDPI.objects.create(nome="Guanti", is_active=True, obbligatoria_mansionario=False)
+        TipoDPI.objects.create(categoria=self.cat_guanti, nome="Antitaglio", is_active=True)
+        self.cat_scarpe = CategoriaDPI.objects.create(nome="Scarpe", is_active=True, obbligatoria_mansionario=True)
+        TipoDPI.objects.create(categoria=self.cat_scarpe, nome="Antinfortunistiche", is_active=True)
+
+    # --- unit su proponi_dpi_mansione ---
+
+    def test_proponi_valid_drops_out_of_catalog_and_filters_tipi(self):
+        import json
+        from dpi import ai_copilota
+
+        raw = json.dumps([
+            {"categoria": "Guanti", "tipi": ["Antitaglio", "Inventato"], "motivazione": "taglio lamiere"},
+            {"categoria": "Casco spaziale", "tipi": [], "motivazione": "fuori catalogo"},
+        ])
+        with patch("dpi.ai_copilota._chiama_ai", return_value=raw):
+            p = ai_copilota.proponi_dpi_mansione(
+                mansione="Operatore", note="", categorie=self.CATALOGO, obbligatorie=["Scarpe"]
+            )
+        nomi = [d["categoria"] for d in p["dpi"]]
+        self.assertIn("Guanti", nomi)
+        self.assertIn("Scarpe", nomi)               # obbligatoria sempre presente
+        self.assertNotIn("Casco spaziale", nomi)    # fuori catalogo -> scartata
+        guanti = next(d for d in p["dpi"] if d["categoria"] == "Guanti")
+        self.assertEqual(guanti["tipi"], ["Antitaglio"])   # tipo inventato filtrato
+        scarpe = next(d for d in p["dpi"] if d["categoria"] == "Scarpe")
+        self.assertTrue(scarpe["obbligatoria"])
+        self.assertTrue(p["ai_disponibile"])
+
+    def test_proponi_failsafe_only_obbligatorie_when_ai_offline(self):
+        from dpi import ai_copilota
+
+        with patch("dpi.ai_copilota._chiama_ai", return_value=""):
+            p = ai_copilota.proponi_dpi_mansione(
+                mansione="X", note="", categorie=self.CATALOGO, obbligatorie=["Scarpe"]
+            )
+        self.assertFalse(p["ai_disponibile"])
+        self.assertEqual([d["categoria"] for d in p["dpi"]], ["Scarpe"])
+
+    # --- endpoint ---
+
+    def test_api_copilota_dpi_requires_gestore(self):
+        import json
+
+        normal = get_user_model().objects.create_user(username="dpi-normal", password="pass12345")
+        self.client.force_login(normal)
+        resp = self.client.post(
+            reverse("dpi:api_copilota_dpi"),
+            data=json.dumps({"mansione": "Op"}),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_api_copilota_dpi_happy_path(self):
+        import json
+
+        raw = json.dumps([{"categoria": "Guanti", "tipi": ["Antitaglio"], "motivazione": "fumi"}])
+        with patch("dpi.ai_copilota._chiama_ai", return_value=raw):
+            resp = self.client.post(
+                reverse("dpi:api_copilota_dpi"),
+                data=json.dumps({"mansione": "Saldatore", "note": "fumi di saldatura"}),
+                content_type="application/json",
+            )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["ok"])
+        nomi = [d["categoria"] for d in data["proposta"]["dpi"]]
+        self.assertIn("Guanti", nomi)
+        self.assertIn("Scarpe", nomi)   # obbligatoria dal catalogo reale, sempre inclusa
+
+    def test_api_copilota_dpi_requires_mansione(self):
+        import json
+
+        resp = self.client.post(
+            reverse("dpi:api_copilota_dpi"),
+            data=json.dumps({"mansione": "  "}),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 400)

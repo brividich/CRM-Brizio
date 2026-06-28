@@ -1183,3 +1183,50 @@ def api_categorie(request):
         for c in cats
     ]
     return JsonResponse({"categorie": data})
+
+
+@require_POST
+@login_required
+def api_copilota_dpi(request):
+    """Copilota DPI: propone (NON salva) un set DPI per una mansione.
+
+    Read-only: i DPI proposti sono validati contro il catalogo reale e le categorie
+    obbligatorie da mansionario sono sempre incluse; il gestore rivede e firma.
+    Solo gestori (JSON 403 altrimenti). Audit solo-metadati.
+    """
+    if not _is_gestore(request):
+        return JsonResponse({"ok": False, "error": "Permessi insufficienti."}, status=403)
+    try:
+        payload = json.loads(request.body or b"{}")
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({"ok": False, "error": "Dati non validi."}, status=400)
+    mansione = str(payload.get("mansione") or "").strip()
+    note = str(payload.get("note") or "").strip()
+    if not mansione:
+        return JsonResponse({"ok": False, "error": "Indica la mansione."}, status=400)
+
+    cats = (
+        CategoriaDPI.objects.filter(is_active=True)
+        .prefetch_related("tipi")
+        .order_by("order_index", "nome")
+    )
+    categorie = []
+    obbligatorie = []
+    for c in cats:
+        tipi = [t.nome for t in c.tipi.all() if t.is_active]
+        categorie.append({"nome": c.nome, "tipi": tipi})
+        if c.obbligatoria_mansionario:
+            obbligatorie.append(c.nome)
+
+    from .ai_copilota import proponi_dpi_mansione
+    proposta = proponi_dpi_mansione(
+        mansione=mansione, note=note, categorie=categorie, obbligatorie=obbligatorie,
+    )
+
+    log_action(request, "dpi_copilota", "dpi", {
+        "mansione_chars": len(mansione),
+        "dpi_count": len(proposta.get("dpi") or []),
+        "obbligatorie_count": len(obbligatorie),
+        "ai_disponibile": proposta.get("ai_disponibile"),
+    })
+    return JsonResponse({"ok": True, "proposta": proposta})

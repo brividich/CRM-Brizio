@@ -30,4 +30,5 @@ urlpatterns = [
     path("impostazioni/taglie/nuova/", views.taglia_edit, name="taglia_nuova"),
     path("impostazioni/taglie/<int:pk>/modifica/", views.taglia_edit, name="taglia_modifica"),
     path("api/categorie/", views.api_categorie, name="api_categorie"),
+    path("api/copilota-dpi/", views.api_copilota_dpi, name="api_copilota_dpi"),
 ]
