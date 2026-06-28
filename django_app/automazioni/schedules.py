@@ -150,6 +150,19 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # Health-check AI (Ollama/TEI) + servizi readyz, con alert email su degrado.
+        # Riusa i destinatari/rate-limit del monitoring; invia solo al cambio di
+        # stato (no spam). Fail-safe: ogni check cattura le proprie eccezioni e l'AI
+        # è comunque fail-safe (degrada a BM25), quindi un suo problema = WARN/FAIL
+        # solo informativo, mai un blocco. Cadenza frequente: pochi probe di rete.
+        "name": "ai_readiness_alert",
+        "func": "monitoring.tasks.run_ai_readiness_alert",
+        "schedule_type": "I",       # Schedule.MINUTES
+        "minutes": 15,
+        "repeats": -1,
+        "kwargs": {"include_services": True},
+    },
+    {
         # Promemoria scadenza attività KICK-OFF: materializza i TaskReminder in
         # scadenza come notifiche portale (idempotente, fired flag). Porta i
         # promemoria nello scheduler centralizzato al posto del Task Windows.

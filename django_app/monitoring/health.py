@@ -42,6 +42,9 @@ _SEVERITY_RANK = {STATUS_OK: 0, STATUS_SKIPPED: 0, STATUS_WARN: 1, STATUS_FAIL: 
 
 # Cache key per il risultato memoizzato.
 _READYZ_CACHE_KEY = "monitoring:readyz:result"
+# Cache key per lo stato dell'ultimo alert AI (fingerprint dei check degradati):
+# evita di rispammare la stessa mail finché il degrado non cambia (TTL = rate limit).
+_AI_ALERT_STATE_KEY = "monitoring:ai-alert:fingerprint"
 
 
 @dataclass
@@ -341,6 +344,115 @@ def check_automation_queue() -> CheckResult:
     )
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Check Assistente AI (Ollama / embeddings-TEI) — NON registrati nel readyz hot
+# path: fanno chiamate di rete al box GPU, le esegue il monitoring schedulato
+# (run_ai_readiness_alert) non ogni probe HTTP. critical=False: l'AI è fail-safe
+# (degrada a BM25), un suo problema non deve mai mandare /readyz in 503.
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def _ai_checks_enabled() -> bool:
+    return bool(getattr(settings, "MONITORING_AI_CHECKS_ENABLED", True))
+
+
+def _ai_timeout() -> float:
+    return float(getattr(settings, "MONITORING_AI_CHECK_TIMEOUT", 4) or 4)
+
+
+def _ollama_model_names(base_url: str) -> list[str]:
+    import json as _json
+    import urllib.request
+
+    req = urllib.request.Request(f"{base_url}/api/tags", method="GET")
+    with urllib.request.urlopen(req, timeout=_ai_timeout()) as response:
+        data = _json.loads(response.read().decode("utf-8", "replace"))
+    return [str(m.get("name", "")) for m in (data.get("models") or [])]
+
+
+def _model_present(names: list[str], model: str) -> bool:
+    if not model:
+        return True
+    base = model.split(":")[0]
+    return any(n == model or n.split(":")[0] == base for n in names)
+
+
+def check_ollama_chat() -> CheckResult:
+    name = "ollama_chat"
+    if not _ai_checks_enabled() or not bool(getattr(settings, "OLLAMA_CHAT_ENABLED", True)):
+        return CheckResult(name=name, status=STATUS_SKIPPED, latency_ms=0, message="Chat AI disabilitata.")
+    base = (getattr(settings, "OLLAMA_BASE_URL", "") or "http://127.0.0.1:11434").rstrip("/")
+    model = (getattr(settings, "OLLAMA_CHAT_MODEL", "") or "").strip()
+    try:
+        names = _ollama_model_names(base)
+    except Exception as exc:
+        return CheckResult(name=name, status=STATUS_FAIL, latency_ms=0, critical=False,
+                           message=f"Ollama irraggiungibile: {exc.__class__.__name__}: {exc}",
+                           details={"base_url": base})
+    if not _model_present(names, model):
+        return CheckResult(name=name, status=STATUS_WARN, latency_ms=0, critical=False,
+                           message=f"Modello chat '{model}' non presente in Ollama.",
+                           details={"base_url": base, "models": len(names)})
+    return CheckResult(name=name, status=STATUS_OK, latency_ms=0,
+                       details={"base_url": base, "model": model})
+
+
+def check_embeddings() -> CheckResult:
+    name = "ai_embeddings"
+    if not _ai_checks_enabled():
+        return CheckResult(name=name, status=STATUS_SKIPPED, latency_ms=0, message="Check AI disabilitati.")
+    if not bool(getattr(settings, "OLLAMA_EMBED_ENABLED", False)):
+        return CheckResult(name=name, status=STATUS_SKIPPED, latency_ms=0,
+                           message="Embeddings disattivati (BM25-only).")
+    backend = (getattr(settings, "RAG_EMBED_BACKEND", "ollama") or "ollama").strip().lower()
+    if backend == "openai":  # TEI / endpoint OpenAI-compatibile
+        base = (getattr(settings, "RAG_EMBED_OPENAI_BASE_URL", "") or "").rstrip("/")
+        model = (getattr(settings, "RAG_EMBED_OPENAI_MODEL", "") or "").strip()
+        if not base or not model:
+            return CheckResult(name=name, status=STATUS_WARN, latency_ms=0, critical=False,
+                               message="Backend TEI ma BASE_URL/MODEL non configurati.")
+        try:
+            import json as _json
+            import urllib.request
+
+            payload = _json.dumps({"model": model, "input": ["ping"]}).encode("utf-8")
+            req = urllib.request.Request(f"{base}/v1/embeddings", data=payload, method="POST",
+                                         headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=_ai_timeout()) as response:
+                data = _json.loads(response.read().decode("utf-8", "replace"))
+        except Exception as exc:
+            return CheckResult(name=name, status=STATUS_FAIL, latency_ms=0, critical=False,
+                               message=f"TEI non risponde: {exc.__class__.__name__}: {exc}",
+                               details={"backend": "tei", "base_url": base})
+        dim = len((data.get("data") or [{}])[0].get("embedding") or [])
+        if dim == 0:
+            return CheckResult(name=name, status=STATUS_WARN, latency_ms=0, critical=False,
+                               message="TEI ha risposto senza vettore.",
+                               details={"backend": "tei", "base_url": base})
+        return CheckResult(name=name, status=STATUS_OK, latency_ms=0,
+                           details={"backend": "tei", "base_url": base, "dim": dim})
+    # backend Ollama nativo: il modello embeddings deve essere caricato in Ollama
+    base = (getattr(settings, "OLLAMA_BASE_URL", "") or "http://127.0.0.1:11434").rstrip("/")
+    model = (getattr(settings, "OLLAMA_EMBED_MODEL", "") or "").strip()
+    try:
+        names = _ollama_model_names(base)
+    except Exception as exc:
+        return CheckResult(name=name, status=STATUS_FAIL, latency_ms=0, critical=False,
+                           message=f"Ollama irraggiungibile: {exc.__class__.__name__}: {exc}",
+                           details={"backend": "ollama", "base_url": base})
+    if not _model_present(names, model) or not model:
+        return CheckResult(name=name, status=STATUS_WARN, latency_ms=0, critical=False,
+                           message=f"Modello embeddings '{model}' non presente in Ollama.",
+                           details={"backend": "ollama", "base_url": base})
+    return CheckResult(name=name, status=STATUS_OK, latency_ms=0,
+                       details={"backend": "ollama", "model": model})
+
+
+def run_ai_checks() -> list[CheckResult]:
+    """Esegue i check AI con timing/isolamento eccezioni (come il readyz)."""
+    return [_timed(check_ollama_chat), _timed(check_embeddings)]
+
+
 # Registry: name -> nome attributo del modulo. La risoluzione avviene a
 # runtime via getattr(modulo, ...) cosi' i test possono mock.patch.object i
 # singoli check senza dover ricostruire il registry.
@@ -473,3 +585,70 @@ def http_status_for(report: ReadyzReport) -> int:
     if report.status == STATUS_FAIL:
         return 503
     return 200
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Alert AI (+ servizi) schedulabile
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def run_ai_readiness_alert(*, include_services: bool = False, force_email: bool = False) -> dict[str, Any]:
+    """Esegue i check AI (+ opz. i check readyz dei servizi), aggrega e, su degrado
+    (WARN/FAIL), invia un alert email agli admin del monitoring.
+
+    Riusa i destinatari e il rate-limit del monitoring (``MONITORING_ADMIN_EMAILS``,
+    ``MONITORING_EMAIL_RATE_LIMIT_SECONDS``) e invia SOLO quando il quadro di degrado
+    cambia (fingerprint) o scade il rate-limit, così non rispamma. Al ritorno a OK
+    azzera lo stato, così il prossimo degrado riallarma subito. Pensato per django-q.
+    """
+    checks = run_ai_checks()
+    if include_services:
+        checks = checks + run_readyz_checks().checks
+    status = _aggregate_status(checks)
+    degraded = status in (STATUS_WARN, STATUS_FAIL)
+    payload: dict[str, Any] = {
+        "status": status,
+        "degraded": degraded,
+        "emailed": False,
+        "checks": [asdict(c) for c in checks],
+    }
+
+    if not degraded:
+        cache.delete(_AI_ALERT_STATE_KEY)
+        return payload
+
+    rate_limit = int(getattr(settings, "MONITORING_EMAIL_RATE_LIMIT_SECONDS", 1800) or 1800)
+    fingerprint = ";".join(
+        f"{c.name}:{c.status}" for c in checks if c.status in (STATUS_WARN, STATUS_FAIL)
+    )
+    last = cache.get(_AI_ALERT_STATE_KEY)
+    if not force_email and last == fingerprint:
+        return payload  # stesso degrado già notificato entro il rate-limit
+
+    if bool(getattr(settings, "MONITORING_NOTIFY_CRITICAL_BY_EMAIL", True)):
+        try:
+            from django.core.mail import send_mail
+
+            from monitoring.services import _admin_recipients
+
+            recipients = _admin_recipients()
+            if recipients:
+                env_label = getattr(settings, "MONITORING_ENVIRONMENT", "") or ""
+                subject = f"[AI {status.upper()}] Readiness assistente AI" + (f" — {env_label}" if env_label else "")
+                body_lines = [f"Stato aggregato: {status.upper()}", ""]
+                for c in checks:
+                    suffix = f" · {c.message}" if c.message else ""
+                    body_lines.append(f"- {c.name}: {c.status.upper()}{suffix}")
+                body_lines += ["", "Alert generato da monitoring_ai_alert (rate-limited, solo al cambio stato)."]
+                from_email = (
+                    getattr(settings, "DEFAULT_FROM_EMAIL", "")
+                    or getattr(settings, "SERVER_EMAIL", "")
+                    or "monitoring@localhost"
+                )
+                send_mail(subject, "\n".join(body_lines), from_email, recipients, fail_silently=True)
+                payload["emailed"] = True
+        except Exception:
+            logger.exception("Invio alert readiness AI fallito")
+
+    cache.set(_AI_ALERT_STATE_KEY, fingerprint, timeout=rate_limit)
+    return payload

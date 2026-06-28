@@ -183,6 +183,10 @@ MONITORING_EMAIL_RATE_LIMIT_SECONDS = int(env("MONITORING_EMAIL_RATE_LIMIT_SECON
 MONITORING_WATCHDOG_CRITICAL_UNASSIGNED_MINUTES = int(
     env("MONITORING_WATCHDOG_CRITICAL_UNASSIGNED_MINUTES", "120") or "120"
 )
+# Health-check AI (Ollama/TEI) nel monitoring schedulato (monitoring_ai_alert).
+# NON nel hot path di /readyz: fanno chiamate di rete al box GPU. Timeout corto.
+MONITORING_AI_CHECKS_ENABLED = env_bool("MONITORING_AI_CHECKS_ENABLED", True)
+MONITORING_AI_CHECK_TIMEOUT = float(env("MONITORING_AI_CHECK_TIMEOUT", "4") or "4")
 # ── Content-Security-Policy ───────────────────────────────────────────────────
 # Applicata da core.middleware.ContentSecurityPolicyMiddleware a tutte le
 # risposte. La allowlist riflette l'inventario reale dei template:

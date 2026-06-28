@@ -252,3 +252,108 @@ class RunReadyzChecksDirectTests(TestCase):
         # Almeno i check sempre presenti devono esserci.
         self.assertIn("db_default", names)
         self.assertIn("cache", names)
+
+
+class _FakeHTTP:
+    """Risposta HTTP fittizia usabile come context manager (per urlopen)."""
+
+    def __init__(self, payload):
+        self._b = json.dumps(payload).encode("utf-8")
+
+    def read(self):
+        return self._b
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+@override_settings(MONITORING_AI_CHECKS_ENABLED=True, OLLAMA_CHAT_ENABLED=True,
+                   OLLAMA_BASE_URL="http://gpu:11434", OLLAMA_CHAT_MODEL="qwen2.5:14b-instruct")
+class AiHealthCheckTests(TestCase):
+    def test_ollama_chat_ok_when_model_present(self):
+        payload = {"models": [{"name": "qwen2.5:14b-instruct"}, {"name": "altro"}]}
+        with mock.patch("urllib.request.urlopen", return_value=_FakeHTTP(payload)):
+            result = health.check_ollama_chat()
+        self.assertEqual(result.status, STATUS_OK)
+        self.assertFalse(result.critical)
+
+    def test_ollama_chat_warn_when_model_missing(self):
+        with mock.patch("urllib.request.urlopen", return_value=_FakeHTTP({"models": [{"name": "altro"}]})):
+            result = health.check_ollama_chat()
+        self.assertEqual(result.status, STATUS_WARN)
+
+    def test_ollama_chat_fail_when_unreachable(self):
+        with mock.patch("urllib.request.urlopen", side_effect=OSError("connection refused")):
+            result = health.check_ollama_chat()
+        self.assertEqual(result.status, STATUS_FAIL)
+        self.assertFalse(result.critical)  # AI giù non deve far 503 il readyz
+
+    @override_settings(MONITORING_AI_CHECKS_ENABLED=False)
+    def test_ollama_chat_skipped_when_disabled(self):
+        result = health.check_ollama_chat()
+        self.assertEqual(result.status, STATUS_SKIPPED)
+
+    @override_settings(OLLAMA_EMBED_ENABLED=False)
+    def test_embeddings_skipped_when_off(self):
+        self.assertEqual(health.check_embeddings().status, STATUS_SKIPPED)
+
+    @override_settings(OLLAMA_EMBED_ENABLED=True, RAG_EMBED_BACKEND="openai",
+                       RAG_EMBED_OPENAI_BASE_URL="http://gpu:8081", RAG_EMBED_OPENAI_MODEL="bge-m3")
+    def test_embeddings_tei_ok(self):
+        payload = {"data": [{"embedding": [0.1] * 1024}]}
+        with mock.patch("urllib.request.urlopen", return_value=_FakeHTTP(payload)):
+            result = health.check_embeddings()
+        self.assertEqual(result.status, STATUS_OK)
+        self.assertEqual(result.details.get("dim"), 1024)
+
+    @override_settings(OLLAMA_EMBED_ENABLED=True, RAG_EMBED_BACKEND="openai",
+                       RAG_EMBED_OPENAI_BASE_URL="http://gpu:8081", RAG_EMBED_OPENAI_MODEL="bge-m3")
+    def test_embeddings_tei_fail_when_unreachable(self):
+        with mock.patch("urllib.request.urlopen", side_effect=OSError("down")):
+            self.assertEqual(health.check_embeddings().status, STATUS_FAIL)
+
+
+class AiReadinessAlertTests(TestCase):
+    def setUp(self):
+        cache.clear()
+
+    @override_settings(MONITORING_NOTIFY_CRITICAL_BY_EMAIL=True)
+    def test_no_email_when_all_ok(self):
+        ok = [CheckResult(name="ollama_chat", status=STATUS_OK, latency_ms=1)]
+        with mock.patch.object(health, "run_ai_checks", return_value=ok), \
+             mock.patch("django.core.mail.send_mail") as send:
+            result = health.run_ai_readiness_alert()
+        self.assertEqual(result["status"], STATUS_OK)
+        self.assertFalse(result["emailed"])
+        send.assert_not_called()
+
+    @override_settings(MONITORING_NOTIFY_CRITICAL_BY_EMAIL=True)
+    def test_email_on_degrade_then_suppressed_until_change(self):
+        bad = [CheckResult(name="ollama_chat", status=STATUS_FAIL, latency_ms=1,
+                           message="irraggiungibile")]
+        with mock.patch.object(health, "run_ai_checks", return_value=bad), \
+             mock.patch("monitoring.services._admin_recipients", return_value=["a@b.c"]), \
+             mock.patch("django.core.mail.send_mail") as send:
+            first = health.run_ai_readiness_alert()
+            second = health.run_ai_readiness_alert()   # stesso degrado -> niente spam
+        self.assertTrue(first["emailed"])
+        self.assertFalse(second["emailed"])
+        self.assertEqual(send.call_count, 1)
+
+    @override_settings(MONITORING_NOTIFY_CRITICAL_BY_EMAIL=True)
+    def test_recovery_resets_state(self):
+        bad = [CheckResult(name="ollama_chat", status=STATUS_FAIL, latency_ms=1)]
+        ok = [CheckResult(name="ollama_chat", status=STATUS_OK, latency_ms=1)]
+        with mock.patch("monitoring.services._admin_recipients", return_value=["a@b.c"]), \
+             mock.patch("django.core.mail.send_mail") as send:
+            with mock.patch.object(health, "run_ai_checks", return_value=bad):
+                health.run_ai_readiness_alert()
+            with mock.patch.object(health, "run_ai_checks", return_value=ok):
+                health.run_ai_readiness_alert()        # ritorno OK -> azzera stato
+            with mock.patch.object(health, "run_ai_checks", return_value=bad):
+                again = health.run_ai_readiness_alert() # nuovo degrado -> riallarma
+        self.assertTrue(again["emailed"])
+        self.assertEqual(send.call_count, 2)
