@@ -150,6 +150,19 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # Qualità del RAG SGI: dopo il warm dell'indice (03:30) misura recall/MRR
+        # con ai_eval --rag-sgi e avvisa gli admin se l'indice è vuoto (sgi_chunks=0)
+        # o la recall scende sotto OLLAMA_RAG_SGI_MIN_RECALL. Complementare alla
+        # liveness (ai_readiness_alert): qui si verifica che il RAG "risponda bene".
+        # Giornaliero (l'eval ricostruisce l'indice). Fail-safe / rate-limited.
+        "name": "ai_rag_quality_alert",
+        "func": "ai_assistant.tasks.run_rag_quality_alert",
+        "schedule_type": "C",   # Schedule.CRON
+        "cron": "0 4 * * *",    # ogni notte alle 04:00 (dopo l'indicizzazione 03:30)
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # Health-check AI (Ollama/TEI) + servizi readyz, con alert email su degrado.
         # Riusa i destinatari/rate-limit del monitoring; invia solo al cambio di
         # stato (no spam). Fail-safe: ogni check cattura le proprie eccezioni e l'AI

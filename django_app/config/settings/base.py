@@ -287,6 +287,9 @@ OLLAMA_RAG_SGI_MAX_SPECS = int(env("OLLAMA_RAG_SGI_MAX_SPECS", "300") or "300")
 OLLAMA_RAG_SGI_MAX_PROCS = int(env("OLLAMA_RAG_SGI_MAX_PROCS", "300") or "300")
 OLLAMA_RAG_SGI_MAX_PDF_CHARS = int(env("OLLAMA_RAG_SGI_MAX_PDF_CHARS", "200000") or "200000")
 OLLAMA_RAG_SGI_TEXT_CACHE_TTL = int(env("OLLAMA_RAG_SGI_TEXT_CACHE_TTL", "2592000") or "2592000")
+# Soglia minima di recall del RAG SGI sotto la quale l'alert qualità giornaliero
+# (ai_assistant.tasks.run_rag_quality_alert) avvisa gli admin. 0 = solo sgi_chunks=0.
+OLLAMA_RAG_SGI_MIN_RECALL = float(env("OLLAMA_RAG_SGI_MIN_RECALL", "0.7") or "0.7")
 # Stemming italiano opt-in per il RAG (Snowball via snowballstemmer, pure-python).
 # OFF di default: misurare il recall con `ai_eval --rag`/`--rag-sgi` prima di attivarlo
 # in .env. Applicato identico a query e chunk; fail-safe se la dipendenza manca.

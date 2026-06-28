@@ -592,6 +592,43 @@ def http_status_for(report: ReadyzReport) -> int:
 # ──────────────────────────────────────────────────────────────────────────────
 
 
+def emit_monitoring_alert(*, subject: str, body: str, fingerprint: str,
+                          state_key: str, force: bool = False) -> bool:
+    """Invia un'email agli admin del monitoring, riusando destinatari e rate-limit
+    (``MONITORING_ADMIN_EMAILS`` / ``MONITORING_EMAIL_RATE_LIMIT_SECONDS``).
+
+    Anti-spam: ``state_key`` memorizza il ``fingerprint`` del degrado con TTL = rate
+    limit. Stesso fingerprint entro la finestra → soppresso (no invio, TTL non
+    rinnovato → riallarma quando scade come reminder); fingerprint diverso o scaduto
+    → invia. Ritorna True se la mail è stata inviata. Riusato da più alert (AI
+    readiness, qualità RAG, …). Il chiamante azzera ``state_key`` al ritorno OK.
+    """
+    last = cache.get(state_key)
+    if not force and last == fingerprint:
+        return False
+    sent = False
+    if bool(getattr(settings, "MONITORING_NOTIFY_CRITICAL_BY_EMAIL", True)):
+        try:
+            from django.core.mail import send_mail
+
+            from monitoring.services import _admin_recipients
+
+            recipients = _admin_recipients()
+            if recipients:
+                from_email = (
+                    getattr(settings, "DEFAULT_FROM_EMAIL", "")
+                    or getattr(settings, "SERVER_EMAIL", "")
+                    or "monitoring@localhost"
+                )
+                send_mail(subject, body, from_email, recipients, fail_silently=True)
+                sent = True
+        except Exception:
+            logger.exception("Invio alert monitoring fallito")
+    rate_limit = int(getattr(settings, "MONITORING_EMAIL_RATE_LIMIT_SECONDS", 1800) or 1800)
+    cache.set(state_key, fingerprint, timeout=rate_limit)
+    return sent
+
+
 def run_ai_readiness_alert(*, include_services: bool = False, force_email: bool = False) -> dict[str, Any]:
     """Esegue i check AI (+ opz. i check readyz dei servizi), aggrega e, su degrado
     (WARN/FAIL), invia un alert email agli admin del monitoring.
@@ -617,38 +654,21 @@ def run_ai_readiness_alert(*, include_services: bool = False, force_email: bool 
         cache.delete(_AI_ALERT_STATE_KEY)
         return payload
 
-    rate_limit = int(getattr(settings, "MONITORING_EMAIL_RATE_LIMIT_SECONDS", 1800) or 1800)
     fingerprint = ";".join(
         f"{c.name}:{c.status}" for c in checks if c.status in (STATUS_WARN, STATUS_FAIL)
     )
-    last = cache.get(_AI_ALERT_STATE_KEY)
-    if not force_email and last == fingerprint:
-        return payload  # stesso degrado già notificato entro il rate-limit
-
-    if bool(getattr(settings, "MONITORING_NOTIFY_CRITICAL_BY_EMAIL", True)):
-        try:
-            from django.core.mail import send_mail
-
-            from monitoring.services import _admin_recipients
-
-            recipients = _admin_recipients()
-            if recipients:
-                env_label = getattr(settings, "MONITORING_ENVIRONMENT", "") or ""
-                subject = f"[AI {status.upper()}] Readiness assistente AI" + (f" — {env_label}" if env_label else "")
-                body_lines = [f"Stato aggregato: {status.upper()}", ""]
-                for c in checks:
-                    suffix = f" · {c.message}" if c.message else ""
-                    body_lines.append(f"- {c.name}: {c.status.upper()}{suffix}")
-                body_lines += ["", "Alert generato da monitoring_ai_alert (rate-limited, solo al cambio stato)."]
-                from_email = (
-                    getattr(settings, "DEFAULT_FROM_EMAIL", "")
-                    or getattr(settings, "SERVER_EMAIL", "")
-                    or "monitoring@localhost"
-                )
-                send_mail(subject, "\n".join(body_lines), from_email, recipients, fail_silently=True)
-                payload["emailed"] = True
-        except Exception:
-            logger.exception("Invio alert readiness AI fallito")
-
-    cache.set(_AI_ALERT_STATE_KEY, fingerprint, timeout=rate_limit)
+    env_label = getattr(settings, "MONITORING_ENVIRONMENT", "") or ""
+    subject = f"[AI {status.upper()}] Readiness assistente AI" + (f" — {env_label}" if env_label else "")
+    body_lines = [f"Stato aggregato: {status.upper()}", ""]
+    for c in checks:
+        suffix = f" · {c.message}" if c.message else ""
+        body_lines.append(f"- {c.name}: {c.status.upper()}{suffix}")
+    body_lines += ["", "Alert generato da monitoring_ai_alert (rate-limited, solo al cambio stato)."]
+    payload["emailed"] = emit_monitoring_alert(
+        subject=subject,
+        body="\n".join(body_lines),
+        fingerprint=fingerprint,
+        state_key=_AI_ALERT_STATE_KEY,
+        force=force_email,
+    )
     return payload
