@@ -517,3 +517,13 @@ class DpiCopilotaTests(TestCase):
             content_type="application/json",
         )
         self.assertEqual(resp.status_code, 400)
+
+    def test_report_conformita_shows_copilota_card(self):
+        with patch("dpi.views.ensure_anagrafica_schema", return_value=None), patch(
+            "dpi.views.fetch_anagrafica_rows", return_value=[]
+        ):
+            resp = self.client.get(reverse("dpi:report_conformita"))
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode("utf-8")
+        self.assertIn("data-dpi-copilota", html)
+        self.assertIn(reverse("dpi:api_copilota_dpi"), html)

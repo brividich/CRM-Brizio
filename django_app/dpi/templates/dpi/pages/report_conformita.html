@@ -90,6 +90,26 @@ body.theme-dark .dpi-table td { border-color:var(--border); color:var(--text); }
     </form>
   </div>
 
+  <div class="dpi-card" data-dpi-copilota data-url="{% url 'dpi:api_copilota_dpi' %}" data-csrf="{{ csrf_token }}">
+    <div>
+      <strong>&#x1F9BA; Copilota DPI</strong>
+      <div class="dpi-muted" style="font-size:12px;">Proposta AI dei DPI per una mansione, scelti dal catalogo. Le categorie obbligatorie sono sempre incluse. <strong>Rivedi e firma</strong>: non salva nulla.</div>
+    </div>
+    <div class="dpi-filters" style="margin-top:10px; grid-template-columns:2fr 2fr auto;">
+      <div class="dpi-field">
+        <label for="cop-mansione">Mansione</label>
+        <input type="text" id="cop-mansione" value="{{ dipendente.mansione|default:'' }}" placeholder="Es. Saldatore, Operatore CNC...">
+      </div>
+      <div class="dpi-field">
+        <label for="cop-note">Note (attivita'/rischi, opzionale)</label>
+        <input type="text" id="cop-note" placeholder="Es. fumi di saldatura, taglio lamiere...">
+      </div>
+      <button type="button" class="dpi-btn" id="cop-run">Proponi DPI</button>
+    </div>
+    <div id="cop-status" class="dpi-muted" style="font-size:12px; margin-top:8px;"></div>
+    <div id="cop-result" style="display:none; margin-top:10px; overflow-x:auto;"></div>
+  </div>
+
   {% if dipendente %}
   <div class="dpi-card">
     <div class="dpi-summary">
@@ -139,4 +159,49 @@ body.theme-dark .dpi-table td { border-color:var(--border); color:var(--text); }
   <div class="dpi-card dpi-muted">Dipendente non trovato.</div>
   {% endif %}
 </div>
+
+<script>
+/* Copilota DPI: proposta read-only del set DPI per mansione. Non salva nulla. */
+(function () {
+  var root = document.querySelector("[data-dpi-copilota]");
+  if (!root) return;
+  var btn = document.getElementById("cop-run");
+  var statusEl = document.getElementById("cop-status");
+  var resEl = document.getElementById("cop-result");
+  var mans = document.getElementById("cop-mansione");
+  var note = document.getElementById("cop-note");
+  function esc(v) { return String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  btn.addEventListener("click", async function () {
+    var m = (mans.value || "").trim();
+    if (!m) { statusEl.textContent = "Indica la mansione."; return; }
+    btn.disabled = true; statusEl.textContent = "Proposta in corso..."; resEl.style.display = "none";
+    try {
+      var r = await fetch(root.dataset.url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": root.dataset.csrf, "X-Requested-With": "XMLHttpRequest" },
+        body: JSON.stringify({ mansione: m, note: (note.value || "").trim() })
+      });
+      var d = await r.json();
+      if (!r.ok || !d.ok) { statusEl.textContent = (d && d.error) || "Errore."; return; }
+      var p = d.proposta || {};
+      statusEl.textContent = p.ai_disponibile
+        ? "Proposta pronta - rivedi e firma:"
+        : "AI non disponibile: mostrate solo le categorie obbligatorie.";
+      var dpi = p.dpi || [];
+      if (!dpi.length) { resEl.innerHTML = '<div class="dpi-muted">Nessun DPI proposto.</div>'; resEl.style.display = ""; return; }
+      var html = '<table class="dpi-table"><thead><tr><th>Categoria</th><th>Tipi</th><th>Obbligatoria</th><th>Motivazione</th></tr></thead><tbody>';
+      dpi.forEach(function (x) {
+        html += "<tr><td>" + esc(x.categoria) + "</td><td>" + esc((x.tipi || []).join(", "))
+          + "</td><td>" + (x.obbligatoria ? "Si" : "-") + "</td><td>" + esc(x.motivazione) + "</td></tr>";
+      });
+      html += "</tbody></table>";
+      resEl.innerHTML = html; resEl.style.display = "";
+    } catch (e) {
+      statusEl.textContent = "Errore di rete.";
+    } finally {
+      btn.disabled = false;
+    }
+  });
+})();
+</script>
 {% endblock %}
