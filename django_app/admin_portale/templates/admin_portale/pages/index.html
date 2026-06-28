@@ -301,6 +301,8 @@ body.theme-dark .ap-qn-pill:hover { background: var(--accent-light); color: var(
   {% url 'admin_portale:automazioni_run_log_list' as automazioni_run_log_url %}
   {% url 'admin_portale:automazioni_teams_presets' as automazioni_teams_url %}
   {% url 'monitoring_admin:dashboard'             as monitoring_dashboard_url %}
+  {% url 'monitoring_admin:system_status'         as monitoring_status_url %}
+  {% url 'monitoring_admin:schedule_list'         as monitoring_schedules_url %}
   {% url 'monitoring_admin:issue_list'            as monitoring_issue_list_url %}
   {% url 'monitoring_admin:automation_list'       as monitoring_automation_list_url %}
   {% url 'hub_tools:hub_moduli'                   as hub_moduli_url %}
@@ -526,19 +528,33 @@ body.theme-dark .ap-qn-pill:hover { background: var(--accent-light); color: var(
   </div>
   {% endif %}
 
-  <!-- ── 4. Monitoraggio ────────────────────────────────────── -->
+  <!-- ── 4. Monitoraggio & Centrale di comando ──────────────── -->
   <div class="ap-section orange" id="monitoraggio">
     <div class="ap-section-head">
       <div class="ap-section-icon">📊</div>
-      <div class="ap-section-title">Monitoraggio interno</div>
-      <span class="ap-section-count">3 strumenti</span>
+      <div class="ap-section-title">Monitoraggio &amp; Centrale di comando</div>
+      <span class="ap-section-count">5 strumenti</span>
     </div>
     <div class="modules-grid">
+      <a class="mod" href="{{ monitoring_status_url }}">
+        <div class="mod-icon">🩺</div>
+        <div>
+          <div class="mod-name">Stato sistema</div>
+          <div class="mod-sub">Centrale: servizi (readiness), Assistente AI, automazioni e issue a colpo d'occhio + azioni rapide</div>
+        </div>
+      </a>
       <a class="mod" href="{{ monitoring_dashboard_url }}">
         <div class="mod-icon">🖥️</div>
         <div>
           <div class="mod-name">Monitor errori</div>
           <div class="mod-sub">Dashboard issue, trend recenti, segnalazioni utente e criticità aperte</div>
+        </div>
+      </a>
+      <a class="mod" href="{{ monitoring_issue_list_url }}">
+        <div class="mod-icon">🚨</div>
+        <div>
+          <div class="mod-name">Lista issue</div>
+          <div class="mod-sub">Vista operativa per filtro, triage, assegnazione e dettaglio tecnico</div>
         </div>
       </a>
       <a class="mod" href="{{ monitoring_automation_list_url }}">
@@ -548,11 +564,11 @@ body.theme-dark .ap-qn-pill:hover { background: var(--accent-light); color: var(
           <div class="mod-sub">Stato dei job interni, fallimenti consecutivi, missing e run history</div>
         </div>
       </a>
-      <a class="mod" href="{{ monitoring_issue_list_url }}">
-        <div class="mod-icon">🚨</div>
+      <a class="mod" href="{{ monitoring_schedules_url }}">
+        <div class="mod-icon">⏱️</div>
         <div>
-          <div class="mod-name">Lista issue</div>
-          <div class="mod-sub">Vista operativa per filtro, triage, assegnazione e dettaglio tecnico</div>
+          <div class="mod-name">Schedule automazioni</div>
+          <div class="mod-sub">Abilita/disabilita (durevole) ed esegui ora i job pianificati django-q</div>
         </div>
       </a>
     </div>
@@ -596,7 +612,7 @@ body.theme-dark .ap-qn-pill:hover { background: var(--accent-light); color: var(
     <div class="ap-section-head">
       <div class="ap-section-icon">🔧</div>
       <div class="ap-section-title">Sistema &amp; Diagnostica</div>
-      <span class="ap-section-count">6 strumenti</span>
+      <span class="ap-section-count">8 strumenti</span>
     </div>
     <div class="modules-grid">
       <a class="mod" href="{% url 'admin_portale:audit_log' %}">
