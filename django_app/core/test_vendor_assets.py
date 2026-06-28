@@ -37,6 +37,8 @@ EXPECTED_VENDOR_FILES = [
     "flatpickr/flatpickr.min.js",
     "flatpickr/flatpickr.min.css",
     "flatpickr/l10n-it.js",
+    "driver/driver.js.iife.js",
+    "driver/driver.css",
 ]
 
 
@@ -108,6 +110,20 @@ class VendorAssetsTests(SimpleTestCase):
         self.assertIn("core/css/command-palette.css", base)
         self.assertTrue((DJANGO_APP / "core" / "static" / "core" / "js" / "command-palette.js").is_file())
         self.assertTrue((DJANGO_APP / "core" / "static" / "core" / "css" / "command-palette.css").is_file())
+
+    def test_tour_wired_and_pilot(self):
+        base = (DJANGO_APP / "core" / "templates" / "core" / "base.html").read_text(
+            encoding="utf-8", errors="ignore"
+        )
+        self.assertIn("NHUB_TOUR", base)
+        self.assertIn("core/vendor/driver/driver.js.iife.js", base)
+        self.assertIn("core/js/tour.js", base)
+        self.assertTrue((DJANGO_APP / "core" / "static" / "core" / "js" / "tour.js").is_file())
+        rc = (
+            DJANGO_APP / "dpi" / "templates" / "dpi" / "pages" / "report_conformita.html"
+        ).read_text(encoding="utf-8", errors="ignore")
+        self.assertIn("data-tour-start", rc)
+        self.assertIn('data-tour-step="1"', rc)
 
     def test_chart_helper_present_and_used_in_pilot(self):
         self.assertTrue(

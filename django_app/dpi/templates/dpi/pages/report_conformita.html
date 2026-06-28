@@ -57,7 +57,11 @@ body.theme-dark .dpi-table td { border-color:var(--border); color:var(--text); }
     <div class="dpi-hero-sub">Verifica i DPI obbligatori consegnati, scaduti o mancanti per dipendente</div>
   </div>
 
-  <div class="dpi-card">
+  <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+    <button type="button" class="dpi-btn" data-tour-start data-tour-key="dpi-conformita" style="background:#1f87cd;">&#x2753; Tour guidato</button>
+  </div>
+
+  <div class="dpi-card" data-tour-step="1" data-tour-title="Trova il dipendente" data-tour-text="Cerca e seleziona qui il dipendente di cui verificare i DPI, poi premi «Aggiorna».">
     <form method="get" class="dpi-filters">
       <div class="dpi-field">
         <label for="q">Cerca dipendente</label>
@@ -90,7 +94,7 @@ body.theme-dark .dpi-table td { border-color:var(--border); color:var(--text); }
     </form>
   </div>
 
-  <div class="dpi-card" data-dpi-copilota data-url="{% url 'dpi:api_copilota_dpi' %}" data-csrf="{{ csrf_token }}">
+  <div class="dpi-card" data-dpi-copilota data-url="{% url 'dpi:api_copilota_dpi' %}" data-csrf="{{ csrf_token }}" data-tour-step="2" data-tour-title="Copilota DPI" data-tour-text="Dalla mansione l'AI propone il set di DPI dal catalogo (le obbligatorie sono sempre incluse). Tu rivedi e firmi.">
     <div>
       <strong>&#x1F9BA; Copilota DPI</strong>
       <div class="dpi-muted" style="font-size:12px;">Proposta AI dei DPI per una mansione, scelti dal catalogo. Le categorie obbligatorie sono sempre incluse. <strong>Rivedi e firma</strong>: non salva nulla.</div>
@@ -121,11 +125,11 @@ body.theme-dark .dpi-table td { border-color:var(--border); color:var(--text); }
       <span class="dpi-summary-pill dpi-summary-neutral">{{ dipendente.cognome }} {{ dipendente.nome }}</span>
       {% if dipendente.reparto %}<span class="dpi-summary-pill dpi-summary-neutral">{{ dipendente.reparto }}</span>{% endif %}
       {% if dipendente.mansione %}<span class="dpi-summary-pill dpi-summary-neutral">{{ dipendente.mansione }}</span>{% endif %}
-      {% if righe_report %}<a class="dpi-btn" style="margin-left:auto;text-decoration:none;" href="?dipendente_id={{ dipendente_id }}&amp;categoria_id={{ categoria_id }}&amp;solo_obbligatorie={% if solo_obbligatorie %}1{% else %}0{% endif %}&amp;q={{ q|urlencode }}&amp;export=xlsx">&#x2B07; Esporta Excel</a>{% endif %}
+      {% if righe_report %}<a class="dpi-btn" style="margin-left:auto;text-decoration:none;" data-tour-step="3" data-tour-title="Esporta in Excel" data-tour-text="Scarica la tabella di conformità DPI del dipendente in formato .xlsx." href="?dipendente_id={{ dipendente_id }}&amp;categoria_id={{ categoria_id }}&amp;solo_obbligatorie={% if solo_obbligatorie %}1{% else %}0{% endif %}&amp;q={{ q|urlencode }}&amp;export=xlsx">&#x2B07; Esporta Excel</a>{% endif %}
     </div>
   </div>
 
-  <div class="dpi-card" style="padding:0; overflow-x:auto;">
+  <div class="dpi-card" style="padding:0; overflow-x:auto;" data-tour-step="4" data-tour-title="Stato dei DPI" data-tour-text="Per ogni categoria obbligatoria: consegnato (OK), scaduto o mancante, con l'ultima consegna e la scadenza.">
     <table class="dpi-table">
       <thead>
         <tr>

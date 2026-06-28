@@ -64,7 +64,14 @@ Django SSR + HTMX, niente SPA/build step, on-premise.
 ## Ondata D — Interattività & onboarding
 - [ ] **D1. Alpine.js** (vendor) — sprinkles dichiarativi complementari a HTMX;
   caso pilota di refactor del vanilla JS scritto a mano.
-- [ ] **D2. driver.js** (vendor) — tour guidati per-modulo, agganciati all'onboarding.
+- [x] **D2. driver.js** ✅ (F1: infra + 1 tour pilota) — vendorizzato; launcher
+  riusabile e **dichiarativo** `core/js/tour.js`: gli elementi dichiarano i passi con
+  `data-tour-step/-title/-text`, un pulsante `data-tour-start` avvia il tour;
+  driver.js **lazy** (zero costo senza tour), passi solo su elementi visibili
+  (il tour si adatta), pulsanti IT, «già visto» in localStorage. Pilota: **Report
+  conformità DPI** (filtri → Copilota DPI → export → tabella stato). Per nuovi tour
+  bastano i `data-tour-*` (nessun nuovo codice). *(Aggiungere tour ad altri moduli =
+  solo contenuto, on-demand.)*
 - [ ] **D3. Lucide** (SVG) — set icone coerente (sostituzione progressiva di emoji/SVG sparsi).
 - [x] **D4. Command palette `Ctrl+K`** ✅ — `core/js/command-palette.js` + CSS di
   brand. Overlay vanilla (Ctrl+K / Cmd+K) per saltare a qualsiasi pagina; indice

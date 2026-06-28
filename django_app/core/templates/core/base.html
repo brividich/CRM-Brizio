@@ -146,6 +146,9 @@ window.portalReadJsonResponse = async function (response, opts) {
 {# Command palette (Ctrl+K): indice navigazione ACL-filtrato lato server. #}
 {{ command_palette_items|json_script:"command-palette-data" }}
 <script src="{% static 'core/js/command-palette.js' %}" defer></script>
+{# Tour guidati (driver.js, lazy): pagine con [data-tour-start]/[data-tour-step]. #}
+<script>window.NHUB_TOUR={js:"{% static 'core/vendor/driver/driver.js.iife.js' %}",css:"{% static 'core/vendor/driver/driver.css' %}"};</script>
+<script src="{% static 'core/js/tour.js' %}" defer></script>
 <script src="{% static 'monitoring/js/report_problem.js' %}"></script>
 <script>
 (function () {
