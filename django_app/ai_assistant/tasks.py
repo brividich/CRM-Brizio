@@ -105,8 +105,36 @@ def run_rag_quality_alert() -> dict:
 
     result["degraded"] = bool(problems)
     if not problems:
+        try:
+            from monitoring.models import Issue
+            from monitoring.services import resolve_health_check_issue
+
+            resolve_health_check_issue(
+                check_name="ai_rag_quality", category=Issue.Category.DATA,
+                summary="RAG SGI tornato sopra soglia.",
+            )
+        except Exception:
+            logger.exception("run_rag_quality_alert: resolve Issue fallito")
         cache.delete(_RAG_QUALITY_STATE_KEY)
         return result
+
+    # Centrale di comando: apri/aggiorna la Issue del monitoring per la qualità RAG.
+    try:
+        from monitoring.models import Issue
+        from monitoring.services import open_or_update_issue_from_health_check
+
+        severity = (Issue.Severity.HIGH if (sgi_chunks == 0 or "error" in result)
+                    else Issue.Severity.MEDIUM)
+        open_or_update_issue_from_health_check(
+            check_name="ai_rag_quality",
+            title="AI · qualità RAG SGI degradata — " + problems[0],
+            message=" ; ".join(problems),
+            severity=severity, category=Issue.Category.DATA, module_name="ai_assistant",
+            extra_json={"sgi_chunks": sgi_chunks, "recall_hits": recall_hits, "cases": cases},
+            notify=False,  # il push email lo fa emit_monitoring_alert
+        )
+    except Exception:
+        logger.exception("run_rag_quality_alert: open Issue fallito")
 
     try:
         from monitoring.health import emit_monitoring_alert

@@ -462,6 +462,88 @@ def open_or_update_issue_from_automation_error(
     return issue
 
 
+def _health_check_fingerprint(*, check_name: str, category: str) -> str:
+    """Fingerprint stabile per una Issue da health-check, dipendente SOLO dal nome
+    del check (non dal module_name/message) così create e resolve combaciano sempre."""
+    return build_issue_fingerprint(
+        source=Issue.Source.SYSTEM_WATCHDOG,
+        category=category,
+        exception_class="health-check",
+        current_url=f"check:{check_name}",
+    )
+
+
+def open_or_update_issue_from_health_check(
+    *,
+    check_name: str,
+    title: str,
+    message: str = "",
+    severity: str = Issue.Severity.HIGH,
+    category: str = Issue.Category.SYSTEM,
+    module_name: str = "monitoring",
+    extra_json: dict | None = None,
+    occurred_at=None,
+    notify: bool = True,
+) -> Issue:
+    """Apre/aggiorna una Issue (dedup per ``check_name``) da un health-check periodico
+    — readiness AI, qualità RAG, … — così gli alert confluiscono nella centrale
+    monitoring (dedup, severità, assegnazione, notifica). Idempotente: stesso check =
+    stessa Issue finché non viene risolta. ``Source=SYSTEM_WATCHDOG``."""
+    occurred_at = occurred_at or timezone.now()
+    release_version = get_default_release_version()
+    environment = get_default_environment()
+    source = Issue.Source.SYSTEM_WATCHDOG
+    current_url = f"check:{check_name}"
+    fingerprint = _health_check_fingerprint(check_name=check_name, category=category)
+
+    with transaction.atomic():
+        issue = (
+            Issue.objects.select_for_update()
+            .filter(fingerprint=fingerprint, status__in=OPEN_ISSUE_STATUSES)
+            .order_by("-last_seen_at", "-id")
+            .first()
+        )
+        if issue is None:
+            issue = _create_issue(
+                fingerprint=fingerprint, title=title, category=category,
+                severity=severity, source=source, occurred_at=occurred_at,
+                module_name=module_name, current_url=current_url, route_name="",
+                user=None, release_version=release_version, environment=environment,
+            )
+        else:
+            _update_issue_rollup(
+                issue, occurred_at=occurred_at, severity=severity,
+                module_name=module_name, current_url=current_url, route_name="",
+                release_version=release_version, environment=environment, user=None,
+            )
+        register_issue_occurrence(
+            issue, occurred_at=occurred_at, source=source, category=category,
+            severity=severity, current_url=current_url, route_name="",
+            module_name=module_name, view_name="", user=None, legacy_user_id=None,
+            session_key="", request_id="", message=message, exception_class="health-check",
+            traceback_text="", user_agent="", remote_addr="", extra_json=extra_json or {},
+            release_version=release_version, environment=environment,
+        )
+
+    if notify:
+        notify_admins_for_critical_issue(issue)
+    return issue
+
+
+def resolve_health_check_issue(*, check_name: str, category: str = Issue.Category.SYSTEM,
+                               summary: str = "") -> int:
+    """Chiude (RESOLVED) le Issue aperte di un health-check tornato OK. Idempotente
+    (no-op se non ce ne sono). Ritorna quante ne ha risolte."""
+    fingerprint = _health_check_fingerprint(check_name=check_name, category=category)
+    resolved = 0
+    for issue in Issue.objects.filter(fingerprint=fingerprint, status__in=OPEN_ISSUE_STATUSES):
+        issue.status = Issue.Status.RESOLVED
+        issue.resolution_summary = (summary or "Risolto automaticamente: check tornato OK.")[:2000]
+        issue.save(update_fields=["status", "resolution_summary", "updated_at"])
+        resolved += 1
+    return resolved
+
+
 def register_user_problem_report(
     *,
     user=None,

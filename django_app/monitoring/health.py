@@ -629,6 +629,43 @@ def emit_monitoring_alert(*, subject: str, body: str, fingerprint: str,
     return sent
 
 
+def _sync_check_issues(checks: list[CheckResult]) -> None:
+    """Apre/risolve una Issue del monitoring per ogni check: FAIL→HIGH, WARN→MEDIUM,
+    OK→risolta, SKIPPED→ignorato. Così gli alert AI confluiscono nella centrale
+    (monitoring_admin/issues). Fail-safe: non solleva (non deve rompere l'alert)."""
+    try:
+        from monitoring.models import Issue
+        from monitoring.services import (
+            open_or_update_issue_from_health_check,
+            resolve_health_check_issue,
+        )
+    except Exception:
+        return
+    severity_for = {STATUS_FAIL: Issue.Severity.HIGH, STATUS_WARN: Issue.Severity.MEDIUM}
+    for c in checks:
+        check_name = f"ai_{c.name}"
+        try:
+            if c.status in (STATUS_FAIL, STATUS_WARN):
+                open_or_update_issue_from_health_check(
+                    check_name=check_name,
+                    title=f"AI · {c.name}: {c.status.upper()}"
+                          + (f" — {c.message}" if c.message else ""),
+                    message=c.message or "",
+                    severity=severity_for[c.status],
+                    category=Issue.Category.INTEGRATION,
+                    module_name="ai_assistant",
+                    extra_json={"check": c.name, "status": c.status, "details": c.details},
+                    notify=False,  # il push email lo fa emit_monitoring_alert
+                )
+            elif c.status == STATUS_OK:
+                resolve_health_check_issue(
+                    check_name=check_name, category=Issue.Category.INTEGRATION,
+                    summary=f"{c.name} tornato OK.",
+                )
+        except Exception:
+            logger.exception("Sync Issue per check %s fallito", c.name)
+
+
 def run_ai_readiness_alert(*, include_services: bool = False, force_email: bool = False) -> dict[str, Any]:
     """Esegue i check AI (+ opz. i check readyz dei servizi), aggrega e, su degrado
     (WARN/FAIL), invia un alert email agli admin del monitoring.
@@ -649,6 +686,9 @@ def run_ai_readiness_alert(*, include_services: bool = False, force_email: bool 
         "emailed": False,
         "checks": [asdict(c) for c in checks],
     }
+
+    # Centrale di comando: ogni check apre/risolve una Issue del monitoring.
+    _sync_check_issues(checks)
 
     if not degraded:
         cache.delete(_AI_ALERT_STATE_KEY)

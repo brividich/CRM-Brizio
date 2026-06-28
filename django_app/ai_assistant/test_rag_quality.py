@@ -55,3 +55,23 @@ class RagQualityAlertTests(TestCase):
         # eval non eseguibile = problema -> alert (fail-safe: non solleva)
         self.assertTrue(result["degraded"])
         emit.assert_called_once()
+
+    def test_creates_issue_on_degrade_and_resolves_on_recovery(self):
+        from monitoring.models import Issue
+
+        with mock.patch("django.core.management.call_command",
+                        side_effect=_fake_eval({"sgi_chunks": 0, "recall_hits": 4, "cases": 4})), \
+             mock.patch("monitoring.health.emit_monitoring_alert", return_value=False):
+            tasks.run_rag_quality_alert()
+        open_data = Issue.objects.exclude(status=Issue.Status.RESOLVED).filter(category=Issue.Category.DATA)
+        self.assertEqual(open_data.count(), 1)
+        self.assertEqual(open_data.first().severity, Issue.Severity.HIGH)  # sgi_chunks=0
+
+        with mock.patch("django.core.management.call_command",
+                        side_effect=_fake_eval({"sgi_chunks": 50, "recall_hits": 4, "cases": 4})), \
+             mock.patch("monitoring.health.emit_monitoring_alert", return_value=False):
+            tasks.run_rag_quality_alert()
+        self.assertEqual(
+            Issue.objects.exclude(status=Issue.Status.RESOLVED).filter(category=Issue.Category.DATA).count(),
+            0,
+        )

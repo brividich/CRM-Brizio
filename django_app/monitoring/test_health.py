@@ -357,3 +357,50 @@ class AiReadinessAlertTests(TestCase):
                 again = health.run_ai_readiness_alert() # nuovo degrado -> riallarma
         self.assertTrue(again["emailed"])
         self.assertEqual(send.call_count, 2)
+
+
+class AiAlertIssueTests(TestCase):
+    """Gli alert AI confluiscono come Issue nella centrale monitoring."""
+
+    def setUp(self):
+        cache.clear()
+
+    @staticmethod
+    def _checks(status):
+        return [CheckResult(name="ollama_chat", status=status, latency_ms=1, message="x")]
+
+    def test_creates_issue_on_fail_and_resolves_on_ok(self):
+        from monitoring.models import Issue
+
+        with mock.patch.object(health, "run_ai_checks", return_value=self._checks(STATUS_FAIL)), \
+             mock.patch("django.core.mail.send_mail"):
+            health.run_ai_readiness_alert()
+        open_issues = Issue.objects.exclude(status=Issue.Status.RESOLVED)
+        self.assertEqual(open_issues.count(), 1)
+        issue = open_issues.first()
+        self.assertEqual(issue.category, Issue.Category.INTEGRATION)
+        self.assertEqual(issue.severity, Issue.Severity.HIGH)
+        self.assertEqual(issue.source, Issue.Source.SYSTEM_WATCHDOG)
+
+        # Secondo run ancora FAIL: stessa Issue (dedup), non una nuova.
+        with mock.patch.object(health, "run_ai_checks", return_value=self._checks(STATUS_FAIL)), \
+             mock.patch("django.core.mail.send_mail"):
+            health.run_ai_readiness_alert()
+        self.assertEqual(Issue.objects.exclude(status=Issue.Status.RESOLVED).count(), 1)
+
+        # Ritorno OK: la Issue viene risolta.
+        with mock.patch.object(health, "run_ai_checks", return_value=self._checks(STATUS_OK)), \
+             mock.patch("django.core.mail.send_mail"):
+            health.run_ai_readiness_alert()
+        self.assertEqual(Issue.objects.exclude(status=Issue.Status.RESOLVED).count(), 0)
+        self.assertEqual(Issue.objects.filter(status=Issue.Status.RESOLVED).count(), 1)
+
+    def test_warn_maps_to_medium_severity(self):
+        from monitoring.models import Issue
+
+        with mock.patch.object(health, "run_ai_checks", return_value=self._checks(STATUS_WARN)), \
+             mock.patch("django.core.mail.send_mail"):
+            health.run_ai_readiness_alert()
+        issue = Issue.objects.exclude(status=Issue.Status.RESOLVED).first()
+        self.assertIsNotNone(issue)
+        self.assertEqual(issue.severity, Issue.Severity.MEDIUM)
