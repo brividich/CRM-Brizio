@@ -1,10 +1,11 @@
 {% extends "assenze/base_shell.html" %}
+{% load static %}
 
 {% block title %}Calendario Assenze | Portale Applicativo{% endblock %}
 
 {% block assenze_shell_head %}
-  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.17/index.global.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.17/locales-all.global.min.js"></script>
+  <script src="{% static 'core/vendor/fullcalendar-6.1.17/index.global.min.js' %}"></script>
+  <script src="{% static 'core/vendor/fullcalendar-6.1.17/locales-all.global.min.js' %}"></script>
   <style>
     .content { max-width: 100%; padding: 18px 14px 22px 14px; }
     .calendar-layout {

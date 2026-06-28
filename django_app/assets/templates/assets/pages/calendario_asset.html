@@ -1,10 +1,11 @@
 {% extends "assets/base_shell.html" %}
+{% load static %}
 
 {% block title %}Calendario Asset{% endblock %}
 
 {% block assets_shell_head %}
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.css">
+{# FullCalendar 6 inietta la propria CSS dal bundle JS: nessun file CSS separato. #}
+<link rel="stylesheet" href="{% static 'core/vendor/frappe-gantt-0.6.1/frappe-gantt.css' %}">
 <style>
 /* ── Layout ──────────────────────────────────────────────── */
 .ca-page { display:grid; gap:14px; }
@@ -343,8 +344,8 @@ body.theme-dark .gantt .upper-text { fill:var(--text-light) !important; }
 {% endblock %}
 
 {% block assets_shell_scripts %}
-<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.umd.js"></script>
+<script src="{% static 'core/vendor/fullcalendar-6.1.11/index.global.min.js' %}"></script>
+<script src="{% static 'core/vendor/frappe-gantt-0.6.1/frappe-gantt.min.js' %}"></script>
 <script>
 (function () {
   var jsonUrl = "{% url 'assets:calendario_asset_json' %}";

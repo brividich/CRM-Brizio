@@ -1,5 +1,6 @@
 {% extends "assets/base_shell.html" %}
 {% load assets_extras %}
+{% load static %}
 
 {% block title %}{{ asset.asset_tag }}{% endblock %}
 
@@ -440,7 +441,7 @@ body.theme-dark .af-export-pop a:hover { background:rgba(37,99,235,.12); }
 body.theme-dark .af-statusband-col { background:var(--surface); border-color:var(--border); }
 </style>
 {% if asset.asset_type == "WORK_MACHINE" or asset.asset_type == "CNC" %}
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css">
+{# FullCalendar 6 inietta la propria CSS dal bundle JS: nessun file CSS separato. #}
 <style>
 /* ── FullCalendar overrides (asset detail) ───────────────── */
 .fc { font-family:inherit !important; }
@@ -1564,7 +1565,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
 </script>
 
 {% if asset.asset_type == "WORK_MACHINE" or asset.asset_type == "CNC" %}
-<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+<script src="{% static 'core/vendor/fullcalendar-6.1.11/index.global.min.js' %}"></script>
 <script>
 (function () {
   const loading = document.getElementById("ac-loading");
