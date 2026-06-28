@@ -187,6 +187,9 @@ MONITORING_WATCHDOG_CRITICAL_UNASSIGNED_MINUTES = int(
 # NON nel hot path di /readyz: fanno chiamate di rete al box GPU. Timeout corto.
 MONITORING_AI_CHECKS_ENABLED = env_bool("MONITORING_AI_CHECKS_ENABLED", True)
 MONITORING_AI_CHECK_TIMEOUT = float(env("MONITORING_AI_CHECK_TIMEOUT", "4") or "4")
+# Digest giornaliero "stato portale" (monitoring.tasks.run_system_digest): True =
+# heartbeat (invia sempre, anche "tutto ok"); False = invia solo se c'è da segnalare.
+MONITORING_DIGEST_ALWAYS = env_bool("MONITORING_DIGEST_ALWAYS", True)
 # ── Content-Security-Policy ───────────────────────────────────────────────────
 # Applicata da core.middleware.ContentSecurityPolicyMiddleware a tutte le
 # risposte. La allowlist riflette l'inventario reale dei template:

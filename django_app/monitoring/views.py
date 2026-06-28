@@ -175,8 +175,10 @@ def system_status(request):
         .order_by("severity", "-last_seen_at")
     )
     severity_counts = {
+        # .order_by() azzera il Meta.ordering: senza, il GROUP BY da values()/annotate()
+        # eredita last_seen_at nell'ORDER BY e fallisce su SQL Server (8127).
         row["severity"]: row["total"]
-        for row in Issue.objects.filter(open_filter).values("severity").annotate(total=Count("id"))
+        for row in Issue.objects.filter(open_filter).values("severity").annotate(total=Count("id")).order_by()
     }
     missing_jobs = detect_missed_jobs(now=now, create_issues=False)
 

@@ -163,6 +163,18 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # Digest giornaliero "stato portale" via email agli admin del monitoring:
+        # servizi (readyz), Assistente AI, automazioni e issue per severità in un
+        # colpo d'occhio. Heartbeat: per default invia sempre (anche "tutto ok"),
+        # con MONITORING_DIGEST_ALWAYS=False solo se c'è qualcosa da segnalare.
+        "name": "system_digest",
+        "func": "monitoring.tasks.run_system_digest",
+        "schedule_type": "C",   # Schedule.CRON
+        "cron": "0 7 * * *",    # ogni mattina alle 07:00
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # Health-check AI (Ollama/TEI) + servizi readyz, con alert email su degrado.
         # Riusa i destinatari/rate-limit del monitoring; invia solo al cambio di
         # stato (no spam). Fail-safe: ogni check cattura le proprie eccezioni e l'AI
