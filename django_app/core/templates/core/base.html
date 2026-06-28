@@ -30,6 +30,7 @@
   <link rel="stylesheet" href="{% static 'monitoring/css/monitoring.css' %}">
   <link rel="stylesheet" href="{% static 'core/css/fm-table-enhanced.css' %}">
   <link rel="stylesheet" href="{% static 'core/vendor/tom-select/tom-select.min.css' %}">
+  <link rel="stylesheet" href="{% static 'core/vendor/flatpickr/flatpickr.min.css' %}">
   {% block extra_head %}{% endblock %}
 </head>
 <body class="{% block body_class %}nav-{{ ui_prefs.nav_mode|default:'top' }} fs-{{ ui_prefs.font_scale|default:'normal' }}{% if ui_prefs.theme_mode == 'dark' %} theme-dark{% endif %}{% if ui_prefs.sidebar_collapsed %} sb-collapsed{% endif %}{% endblock %}">

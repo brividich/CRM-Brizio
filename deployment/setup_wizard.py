@@ -6741,6 +6741,13 @@ class ServerDashboard:
         self._q_log_txt: tk.Text | None = None
         self._q_start_btn: "SecondaryButton | None" = None
         self._q_stop_btn: "SecondaryButton | None" = None
+        # Pagina scrollabile + sezioni target dei blocchi di navigazione
+        self._page_canvas: "tk.Canvas | None" = None
+        self._page_sb: "tk.Scrollbar | None" = None
+        self._page_content: "tk.Frame | None" = None
+        self._page_win = None
+        self._sec_status = self._sec_svc = self._sec_ctrl = None
+        self._sec_q = self._sec_ai = self._sec_log = self._sec_term = None
 
         self._build()
         self._refresh()
@@ -6769,14 +6776,33 @@ class ServerDashboard:
             btn.bind("<Button-1>", lambda e, v=env: self._select_env(v))
             self._tab_btns[env] = btn
 
-        # ── Main area ────────────────────────────────────────────
-        main = frame(self.root, bg="white")
+        # ── Main area (pagina scrollabile) ───────────────────────
+        page_wrap = frame(self.root, bg="white")
+        page_wrap.pack(fill="both", expand=True)
+        self._page_canvas = tk.Canvas(page_wrap, bg="white",
+                                      highlightthickness=0, bd=0)
+        self._page_sb = tk.Scrollbar(page_wrap, orient="vertical",
+                                     command=self._page_canvas.yview)
+        self._page_canvas.configure(yscrollcommand=self._page_sb.set)
+        self._page_sb.pack(side="right", fill="y")
+        self._page_canvas.pack(side="left", fill="both", expand=True)
+        self._page_content = frame(self._page_canvas, bg="white")
+        self._page_win = self._page_canvas.create_window(
+            (0, 0), window=self._page_content, anchor="nw")
+        self._page_content.bind("<Configure>", self._on_page_content_config)
+        self._page_canvas.bind("<Configure>", self._on_page_canvas_config)
+
+        main = frame(self._page_content, bg="white")
         main.pack(fill="both", expand=True, padx=24, pady=16)
+
+        # ── Pannello di controllo (blocchi di navigazione) ───────
+        self._build_nav_blocks(main)
 
         # Status panel
         status_frame = frame(main, bg=GRAY50,
                               highlightthickness=1, highlightbackground=GRAY200)
         status_frame.pack(fill="x")
+        self._sec_status = status_frame
         tk.Label(status_frame, text="Stato servizi", font=(SF, 9, "bold"),
                  bg=GRAY50, fg=GRAY600).pack(anchor="w", padx=14, pady=(10, 6))
 
@@ -6804,6 +6830,7 @@ class ServerDashboard:
         svc_card = frame(main, bg=GRAY50,
                          highlightthickness=1, highlightbackground=GRAY200)
         svc_card.pack(fill="x")
+        self._sec_svc = svc_card
 
         svc_head = frame(svc_card, bg=GRAY50)
         svc_head.pack(fill="x", padx=14, pady=(10, 4))
@@ -6840,6 +6867,7 @@ class ServerDashboard:
         frame(main, height=14).pack()
         ctrl = frame(main, bg="white")
         ctrl.pack(fill="x")
+        self._sec_ctrl = ctrl
         tk.Label(ctrl, text="Controlli", font=(SF, 9, "bold"),
                  fg=GRAY600, bg="white").pack(anchor="w", pady=(0, 8))
         btn_row = frame(ctrl, bg="white")
@@ -6869,6 +6897,7 @@ class ServerDashboard:
         frame(main, height=14).pack()
         q_card = frame(main, bg=GRAY50, highlightthickness=1, highlightbackground=GRAY200)
         q_card.pack(fill="x")
+        self._sec_q = q_card
 
         q_head_row = frame(q_card, bg=GRAY50)
         q_head_row.pack(fill="x", padx=14, pady=(10, 6))
@@ -6919,6 +6948,7 @@ class ServerDashboard:
         frame(main, height=14).pack()
         ai_card = frame(main, bg=GRAY50, highlightthickness=1, highlightbackground=GRAY200)
         ai_card.pack(fill="x")
+        self._sec_ai = ai_card
 
         ai_head = frame(ai_card, bg=GRAY50)
         ai_head.pack(fill="x", padx=14, pady=(10, 6))
@@ -6948,8 +6978,10 @@ class ServerDashboard:
 
         # ── Log viewer ──────────────────────────────────────────
         frame(main, height=14).pack()
-        tk.Label(main, text="Log recente (waitress)", font=(SF, 9, "bold"),
-                 fg=GRAY600, bg="white").pack(anchor="w")
+        log_title = tk.Label(main, text="Log recente (waitress)", font=(SF, 9, "bold"),
+                             fg=GRAY600, bg="white")
+        log_title.pack(anchor="w")
+        self._sec_log = log_title
         frame(main, height=4).pack()
         log_frame = frame(main, bg=CODE_BG,
                           highlightthickness=1, highlightbackground=GRAY700)
@@ -6966,6 +6998,7 @@ class ServerDashboard:
         frame(main, height=14).pack()
         term_head = frame(main, bg="white")
         term_head.pack(fill="x")
+        self._sec_term = term_head
         tk.Label(term_head, text="Terminale ambiente", font=(SF, 9, "bold"),
                  fg=GRAY600, bg="white").pack(side="left")
         self._terminal_context_lbl = tk.Label(term_head, text="", font=FSM,
@@ -7044,7 +7077,134 @@ class ServerDashboard:
         SecondaryButton(ftr, "🗑  Pulisci release vecchie", self._clean_old_releases).pack(side="right", padx=(0, 8), pady=4)
         SecondaryButton(ftr, "🔄  Aggiorna ora", self._refresh).pack(side="right", padx=14, pady=4)
 
+        # La rotella del mouse scorre la pagina (o l'elenco servizi se è sotto
+        # il puntatore). Bind impostato per ultimo così prevale su quello
+        # globale dello ScrollableFrame dei servizi.
+        self.root.bind_all("<MouseWheel>", self._on_page_wheel)
+
         self._select_env(self._selected_env.get())
+
+    # ── Navigazione a blocchi + scroll pagina ────────────────────
+    def _build_nav_blocks(self, parent):
+        """Griglia di blocchi cliccabili che portano alle sezioni sottostanti."""
+        blocks = [
+            ("🌐", "Stato servizi IIS", "Sito, App Pool e URL dell'ambiente",  "_sec_status", BRAND),
+            ("🪟", "Servizi Windows",   "IIS e SQL Server: avvio/arresto",     "_sec_svc",    BRAND_DARK),
+            ("🎛", "Controlli IIS",     "Avvia, ferma, riavvia, ricicla pool", "_sec_ctrl",   GREEN),
+            ("⚙",  "Automazioni",       "django-q: schedule, qcluster, task",  "_sec_q",      ORANGE),
+            ("🧠", "Assistente AI",     "Ollama + RAG: verifica, re-index",    "_sec_ai",     "#7c3aed"),
+            ("📜", "Log waitress",      "Output recente del runtime",          "_sec_log",    GRAY600),
+            ("💻", "Terminale",         "Comandi manage.py nell'ambiente",     "_sec_term",   GRAY700),
+        ]
+        head = frame(parent, bg="white")
+        head.pack(fill="x")
+        tk.Label(head, text="Pannello di controllo", font=(SF, 11, "bold"),
+                 fg=GRAY900, bg="white").pack(side="left")
+        tk.Label(head, text="Scegli un'area da gestire", font=FSM,
+                 fg=GRAY500, bg="white").pack(side="left", padx=(10, 0))
+
+        grid = frame(parent, bg="white")
+        grid.pack(fill="x", pady=(10, 0))
+        cols = 4
+        for c in range(cols):
+            grid.grid_columnconfigure(c, weight=1, uniform="navcol")
+        for i, (icon, title, sub, target, accent) in enumerate(blocks):
+            r, c = divmod(i, cols)
+            tile = self._make_nav_tile(grid, icon, title, sub, target, accent)
+            tile.grid(row=r, column=c, sticky="nsew",
+                      padx=(0 if c == 0 else 8, 0),
+                      pady=(0 if r == 0 else 8, 0))
+        frame(parent, bg=GRAY100, height=1).pack(fill="x", pady=(14, 0))
+
+    def _make_nav_tile(self, parent, icon, title, subtitle, target_attr, accent):
+        """Crea una card cliccabile che scorre alla sezione `target_attr`."""
+        tile = tk.Frame(parent, bg=GRAY50, cursor="hand2",
+                        highlightthickness=1, highlightbackground=GRAY200)
+        tk.Frame(tile, bg=accent, width=4).pack(side="left", fill="y")
+        body = tk.Frame(tile, bg=GRAY50)
+        body.pack(side="left", fill="both", expand=True, padx=10, pady=8)
+        top = tk.Frame(body, bg=GRAY50)
+        top.pack(fill="x")
+        ico = tk.Label(top, text=icon, font=(SF, 13), bg=GRAY50, fg=accent)
+        ico.pack(side="left")
+        ttl = tk.Label(top, text=title, font=(SF, 10, "bold"),
+                       bg=GRAY50, fg=GRAY800, anchor="w")
+        ttl.pack(side="left", padx=(8, 0))
+        sub = tk.Label(body, text=subtitle, font=FSM, bg=GRAY50, fg=GRAY500,
+                       anchor="w", justify="left", wraplength=175)
+        sub.pack(fill="x", pady=(3, 0))
+
+        hot = (tile, body, top, ico, ttl, sub)
+
+        def on_enter(_e=None):
+            for w in hot:
+                w.configure(bg="white")
+            tile.configure(highlightbackground=accent)
+
+        def on_leave(_e=None):
+            for w in hot:
+                w.configure(bg=GRAY50)
+            tile.configure(highlightbackground=GRAY200)
+
+        def on_click(_e=None):
+            self._scroll_to(getattr(self, target_attr, None))
+
+        for w in hot:
+            w.bind("<Enter>", on_enter)
+            w.bind("<Leave>", on_leave)
+            w.bind("<Button-1>", on_click)
+        return tile
+
+    def _scroll_to(self, widget):
+        """Scorre la pagina così che `widget` sia in cima all'area visibile."""
+        cv = self._page_canvas
+        if cv is None or widget is None or self._page_content is None:
+            return
+        try:
+            if not widget.winfo_exists():
+                return
+            cv.update_idletasks()
+            bbox = cv.bbox("all")
+            if not bbox:
+                return
+            total = bbox[3] - bbox[1]
+            if total <= 0:
+                return
+            offset = widget.winfo_rooty() - self._page_content.winfo_rooty()
+            frac = max(0.0, min(1.0, (offset - 12) / total))
+            cv.yview_moveto(frac)
+        except tk.TclError:
+            pass
+
+    def _on_page_content_config(self, _e=None):
+        cv = self._page_canvas
+        if cv is None:
+            return
+        cv.configure(scrollregion=cv.bbox("all"))
+
+    def _on_page_canvas_config(self, e):
+        if self._page_canvas is not None and self._page_win is not None:
+            self._page_canvas.itemconfig(self._page_win, width=e.width)
+
+    def _on_page_wheel(self, e):
+        cv = getattr(self, "_page_canvas", None)
+        if cv is None:
+            return
+        try:
+            if not cv.winfo_exists():
+                return
+            # Se il puntatore è sull'elenco servizi (con barra attiva), scorri quello
+            svc = self._svc_scroll
+            if svc is not None and svc.sb.winfo_ismapped():
+                node = self.root.winfo_containing(e.x_root, e.y_root)
+                while node is not None:
+                    if node is svc.canvas:
+                        svc.canvas.yview_scroll(-1 * (e.delta // 120), "units")
+                        return
+                    node = getattr(node, "master", None)
+            cv.yview_scroll(-1 * (e.delta // 120), "units")
+        except tk.TclError:
+            pass
 
     def _select_env(self, env):
         self._selected_env.set(env)

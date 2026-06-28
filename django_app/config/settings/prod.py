@@ -3,9 +3,9 @@ from django.core.exceptions import ImproperlyConfigured
 from .base import *  # noqa: F403,F401
 from .base import SECRET_KEY, build_database_from_env, env, env_bool, env_list
 
-# ── Guard chiave segreta ───────────────────────────────────────────────────────
-# Blocca l'avvio se SECRET_KEY non è stata impostata nel file .env.
-# "change-me-in-dev" è il valore di default dichiarato in base.py.
+# â”€â”€ Guard chiave segreta â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Blocca l'avvio se SECRET_KEY non Ã¨ stata impostata nel file .env.
+# "change-me-in-dev" Ã¨ il valore di default dichiarato in base.py.
 if SECRET_KEY == "change-me-in-dev":
     raise ImproperlyConfigured(
         "DJANGO_SECRET_KEY non impostata. "
@@ -24,8 +24,8 @@ CSRF_TRUSTED_ORIGINS = env_list(
     ["https://app.example.local"],
 )
 
-# ── Guard CSRF_TRUSTED_ORIGINS ─────────────────────────────────────────────────
-# Blocca l'avvio se CSRF_TRUSTED_ORIGINS è vuoto o contiene ancora il valore
+# â”€â”€ Guard CSRF_TRUSTED_ORIGINS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Blocca l'avvio se CSRF_TRUSTED_ORIGINS Ã¨ vuoto o contiene ancora il valore
 # placeholder di default: in produzione le POST cross-origin dal dominio reale
 # verrebbero rifiutate e il placeholder non rappresenta un origin attendibile.
 _CSRF_PLACEHOLDER_HOSTS = ("app.example.local", "example.local")
@@ -42,8 +42,8 @@ if not CSRF_TRUSTED_ORIGINS or any(
     )
 DATABASES = {"default": build_database_from_env("sqlserver")}
 
-# ── Cache condivisa tra worker ─────────────────────────────────────────────────
-# Con 2+ worker IIS, LocMemCache (default Django) è per-processo: bump_legacy_cache_version()
+# â”€â”€ Cache condivisa tra worker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Con 2+ worker IIS, LocMemCache (default Django) Ã¨ per-processo: bump_legacy_cache_version()
 # non si propaga agli altri worker. DatabaseCache usa SQL Server come backend condiviso,
 # rende cache.incr() atomico e garantisce invalidazione ACL immediata su tutti i worker.
 # Setup una-tantum: python manage.py createcachetable
@@ -59,20 +59,22 @@ CACHES = {
 }
 
 # Cache-busting automatico: appende hash contenuto al nome file (es. theme.abc123.css).
-# Quando un file statico cambia, l'URL cambia → il browser scarica sempre la versione aggiornata.
-# Richiede che i template usino {% static %} (già fatto in base.html).
+# Quando un file statico cambia, l'URL cambia â†’ il browser scarica sempre la versione aggiornata.
+# Richiede che i template usino {% static %} (giÃ  fatto in base.html).
 STORAGES = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
     },
     "staticfiles": {
-        "BACKEND": "django.contrib.staticfiles.storage.ManifestStaticFilesStorage",
+        # Manifest (cache-busting) ma tollerante ai sourcemap .map mancanti dei
+        # vendor (vedi core/storage.py): evita ValueError in collectstatic.
+        "BACKEND": "core.storage.ForgivingManifestStaticFilesStorage",
     },
 }
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
-# Forzare HTTPS e HSTS. Commentare se il reverse proxy gestisce già il redirect.
+# Forzare HTTPS e HSTS. Commentare se il reverse proxy gestisce giÃ  il redirect.
 SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", True)
 SECURE_HSTS_SECONDS = 31536000          # 1 anno
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True

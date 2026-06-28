@@ -60,6 +60,36 @@ def pool_abilitati(asset, livello_min=None, *, includi_riserva=None, config=None
     return list(qs.values_list("legacy_anagrafica_id", flat=True))
 
 
+def pool_abilitati_bulk(asset_ids, *, livello_min=None, includi_riserva=None, config=None) -> dict[int, list[int]]:
+    """Come ``pool_abilitati`` ma per più asset in **una sola query**.
+
+    Ritorna ``{asset_id: [legacy_anagrafica_id, ...]}`` (solo asset con ≥1 operativo).
+    Pensato per l'overlay disponibilità del Gantt carichi macchina, che deve
+    risolvere il pool di decine di macchine senza N query.
+    """
+    ids = sorted({int(a) for a in (asset_ids or []) if a is not None})
+    if not ids:
+        return {}
+    config = config or SkillMatrixConfig.get_instance()
+    soglia = ordinale_livello(livello_min) if livello_min else config.soglia_operativa_ordinale
+    if includi_riserva is None:
+        includi_riserva = config.includi_car_come_riserva
+
+    qs = AbilitazioneMacchina.objects.filter(
+        asset_id__in=ids,
+        stato=AbilitazioneMacchina.STATO_ATTIVA,
+        in_lista=True,
+        livello__in=_livelli_da_ordinale(soglia),
+    )
+    if not includi_riserva:
+        qs = qs.filter(conteggiabile_nel_carico=True)
+
+    out: dict[int, list[int]] = {}
+    for asset_id, legacy_id in qs.values_list("asset_id", "legacy_anagrafica_id"):
+        out.setdefault(asset_id, []).append(legacy_id)
+    return out
+
+
 def livello_operatore(legacy_anagrafica_id: int, asset) -> str | None:
     """Livello I/L/U/O del dipendente su ``asset`` (None se non in lista/assente)."""
     aid = _asset_id(asset)

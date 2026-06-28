@@ -19,7 +19,7 @@ from core.acl_bootstrap_base import run_bootstrap
 logger = logging.getLogger(__name__)
 
 MODULE = "gestione_specifiche"
-_BOOTSTRAP_CACHE_KEY = "gestione_specifiche_acl_bootstrap_v7"
+_BOOTSTRAP_CACHE_KEY = "gestione_specifiche_acl_bootstrap_v9"
 
 # --- Permessi canonici --------------------------------------------------------
 PERM_VIEW = "gestione_specifiche.specifica.view"
@@ -99,6 +99,38 @@ _PULSANTI_DEFINITIONS = [
      "url": "/gestione-specifiche/", "visible_topbar": True, "ui_order": 47},
 ]
 
+# Subnav interna del modulo (tab sotto la barra principale), fedele al design
+# Claude (handoff "Gestione Specifiche", sidebar "MODULO QUALITÀ", 7 voci).
+# Tutte gated da PERM_VIEW. parent_code = app_name così get_subnav_nodes le
+# associa alla sezione corrente. **Target distinti obbligatori**: il registry
+# accorpa voci con lo stesso route_name/url_path → le "code di lavoro"
+# per-specifica del design diventano viste filtrate dell'elenco (url distinte).
+_BASE = "/gestione-specifiche/"
+_SUBNAV_ITEMS = [
+    {"code": "gs-sub-cruscotto", "label": "Cruscotto specifiche",
+     "route_name": "gestione_specifiche:lista", "order": 10, "icon": "grid",
+     "description": "Elenco e cruscotto delle specifiche."},
+    {"code": "gs-sub-scheda", "label": "Scheda + MOD.133",
+     "url_path": f"{_BASE}?stato=flow_down", "order": 20, "icon": "file-text",
+     "description": "Specifiche in flow-down: apri per compilare scheda e MOD.133."},
+    {"code": "gs-sub-approvazione", "label": "Approvazione MOD.133",
+     "url_path": f"{_BASE}?stato=flow_down&vista=approvazione", "order": 30, "icon": "shield",
+     "description": "Coda dei MOD.133 da approvare (separazione compilatore/approvatore)."},
+    {"code": "gs-sub-distribuzione", "label": "Distribuzione copie",
+     "url_path": f"{_BASE}?stato=in_validita", "order": 40, "icon": "box",
+     "description": "Specifiche in validità: distribuzione ai reparti e tracciamento copie."},
+    {"code": "gs-sub-storico", "label": "Storico specifica",
+     "url_path": f"{_BASE}?storico=1", "order": 50, "icon": "clock",
+     "description": "Archivio: specifiche superate/terminali e cronologia."},
+    {"code": "gs-sub-kpi", "label": "Dashboard KPI qualità",
+     "route_name": "gestione_specifiche:kpi", "order": 60, "icon": "bar-chart",
+     "description": "Indicatori direzionali del flusso specifiche."},
+    {"code": "gs-sub-inventario", "label": "Inventario componenti",
+     "order": 70, "icon": "package", "coming": True,
+     "description": "In arrivo: inventario componenti collegati alle specifiche."},
+]
+_SUBNAV_CODES = {s["code"] for s in _SUBNAV_ITEMS}
+
 
 def _norm(value: str) -> str:
     return str(value or "").strip().lower()
@@ -150,6 +182,29 @@ def _bootstrap_canonical() -> bool:
                       "description": "Flusso specifiche + MOD.133 (qualità ISO 9001/EN 9100)."},
         )
         changed = changed or created
+
+        # 3b) subnav interna del modulo (7 voci come da design). "Inventario
+        # componenti" è senza target → il registry la rende "in arrivo".
+        for sub in _SUBNAV_ITEMS:
+            _, created = NavigationItem.objects.update_or_create(
+                code=sub["code"],
+                defaults={"label": sub["label"],
+                          "route_name": sub.get("route_name", ""),
+                          "url_path": sub.get("url_path", ""),
+                          "section": "subnav", "parent_code": MODULE,
+                          "required_permission_code": PERM_VIEW, "order": sub["order"],
+                          "is_visible": True, "is_enabled": True,
+                          "icon": sub.get("icon", ""),
+                          "description": sub.get("description", "")},
+            )
+            changed = changed or created
+        # 3c) pulizia voci subnav del modulo non più previste (es. vecchie code)
+        stale = NavigationItem.objects.filter(
+            section="subnav", parent_code=MODULE
+        ).exclude(code__in=_SUBNAV_CODES)
+        if stale.exists():
+            stale.delete()
+            changed = True
 
         roles = {int(r.id): _norm(r.nome) for r in Ruolo.objects.all()}
 

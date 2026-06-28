@@ -174,6 +174,16 @@
 
   .gempty { padding: 26px; text-align: center; color: var(--g-light); }
 
+  /* "abilitati assenti" (Skill Matrix × assenze): striscia discreta sul fondo della
+     cella-giorno, colore = severità (n. assenti / pool). Non bloccante, riepilogo a hover. */
+  .gabs { position: absolute; bottom: 1px; height: 6px; border-radius: 3px; z-index: 2;
+    cursor: help; box-shadow: inset 0 0 0 1px rgba(255,255,255,.55);
+    background-image: repeating-linear-gradient(45deg, rgba(255,255,255,.35) 0 2px, transparent 2px 5px); }
+  .gabs-bassa { background-color: #fcd34d; }
+  .gabs-media { background-color: #fb923c; }
+  .gabs-alta  { background-color: #ef4444; }
+  .gabs:hover { filter: brightness(1.08); box-shadow: inset 0 0 0 1px rgba(255,255,255,.55), 0 2px 6px rgba(0,0,0,.25); }
+
   /* splitter colonna macchine */
   .gsplit { position: sticky; left: var(--leftw); z-index: 8; flex: 0 0 0; width: 0; }
   .gsplit i { position: absolute; left: -4px; top: 0; bottom: 0; width: 8px; cursor: col-resize; }
@@ -355,6 +365,8 @@
           <span><i class="gdot" style="background:repeating-linear-gradient(110deg,#9aa5b1 0 5px,#cbd5e1 5px 10px)"></i> Stima</span>
         {% endif %}
         <span><i class="gdot" style="background:var(--g-orange);transform:rotate(45deg);border-radius:0"></i> Milestone</span>
+        <span title="Operatori abilitati (Skill Matrix) già assenti nel giorno: colore in base a quanti. Passa il mouse per il riepilogo.">
+          <i class="gdot" style="background:#fcd34d;border-radius:2px"></i><i class="gdot" style="background:#fb923c;border-radius:2px;margin-left:-3px"></i><i class="gdot" style="background:#ef4444;border-radius:2px;margin-left:-3px"></i> Abilitati assenti</span>
       </div>
       {% if colore_mode == 'famiglia' and famiglie_legenda %}
         <div class="glegend">{% for c in famiglie_legenda %}<span><i class="gdot" style="background:{{ c.colore }}"></i>{{ c.label }}</span>{% endfor %}</div>
@@ -440,6 +452,9 @@
                    style="left:calc(var(--cw) * {{ bar.start_idx }}); width:calc(var(--cw) * {{ bar.span }} - 4px); top:calc(var(--laneh) * {{ bar.lane|default:0 }} + 4px);{% if colore_mode != 'stato' %}background:{% if colore_mode == 'famiglia' %}{{ bar.colore_fam }}{% else %}{{ bar.colore }}{% endif %};{% endif %}">
                 <span style="overflow:hidden;text-overflow:ellipsis;">{{ bar.label }}</span>{% if bar.conflitto %}<span class="gcfl">&#9888;</span>{% endif %}{% if bar.prog %}<i class="gprog" style="width:{{ bar.prog }}%"></i>{% endif %}
               </div>
+            {% endfor %}
+            {% for a in riga.assenze %}
+              <div class="gabs gabs-{{ a.sev }}" style="left:calc(var(--cw) * {{ a.start_idx }} + 1px); width:calc(var(--cw) - 2px);" title="{{ a.riepilogo }}"></div>
             {% endfor %}
           </div>
         </div>

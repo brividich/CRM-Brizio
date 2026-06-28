@@ -579,11 +579,22 @@ def _load_subnav_items(request, legacy_user) -> list:
     if not nodes:
         return []
     current_variants = _path_variants(request.path)
+    from urllib.parse import urlsplit as _urlsplit
+    # Stato attivo: match ESATTO su path+query (le viste filtrate condividono lo
+    # stesso path, es. ?stato=...); fallback al match per solo path se nessuna
+    # voce combacia esattamente (retro-compatibile con le subnav esistenti).
+    try:
+        current_full = request.get_full_path()
+    except Exception:
+        current_full = request.path
+    has_exact = any(node.href == current_full for node in nodes)
     result = []
     for node in nodes:
-        from urllib.parse import urlsplit as _urlsplit
-        href_path = _normalize_path(_urlsplit(node.href).path or "/")
-        active = bool(current_variants.intersection({href_path}))
+        if has_exact:
+            active = (node.href == current_full)
+        else:
+            href_path = _normalize_path(_urlsplit(node.href).path or "/")
+            active = bool(current_variants.intersection({href_path}))
         result.append(NavItem(
             label=node.label,
             legacy_url=node.legacy_url,

@@ -231,6 +231,102 @@ def sync_kickoff_task_to_pianificazione(task, *, user=None):
         return ("noop", None)
 
 
+# ---------------------------------------------------------------------------
+# Overlay "abilitati assenti" (Skill Matrix MOD.187 × modulo assenze)
+# ---------------------------------------------------------------------------
+# Per ogni macchina sappiamo (via Skill Matrix) chi è abilitato a operarla; il
+# modulo assenze sa chi è assente e quando. L'incrocio segnala — in modo NON
+# bloccante — i giorni in cui parte del pool operativo è già a casa, così la
+# pianificazione tiene conto della manodopera realmente disponibile.
+
+
+def _severita_assenze(n: int, tot: int) -> str:
+    """Severità (colore) in base al numero di assenti e alla quota del pool.
+
+    bassa = 1 assente / quota bassa · media = 2 o ~1/3 · alta = ≥3 o ~2/3+.
+    """
+    if n <= 0:
+        return "bassa"
+    frac = (n / tot) if tot else 1.0
+    if n >= 3 or frac >= 0.66:
+        return "alta"
+    if n == 2 or frac >= 0.34:
+        return "media"
+    return "bassa"
+
+
+def _aggrega_assenze_giorni(pool_by_asset, assenze_by_aid, giorni) -> dict:
+    """Aggrega per (asset, giorno) gli operatori assenti. Funzione pura (no DB).
+
+    Ritorna ``{asset_id: {giorno(date): {"n", "tot", "nomi": [(nome, tipo)], "sev"}}}``.
+    ``pool_by_asset``: {asset_id: [legacy_anagrafica_id]}; ``assenze_by_aid``:
+    {legacy_id: [{"data_inizio", "data_fine", "tipo", "nome"}]}; ``giorni``: lista date.
+    """
+    out: dict = {}
+    if not pool_by_asset or not assenze_by_aid or not giorni:
+        return out
+    for asset_id, operatori in pool_by_asset.items():
+        tot = len(operatori)
+        if not tot:
+            continue
+        per_giorno: dict = {}
+        for aid in operatori:
+            for ass in assenze_by_aid.get(aid, []):
+                di = ass.get("data_inizio")
+                df = ass.get("data_fine")
+                if not di or not df:
+                    continue
+                for g in giorni:
+                    if di <= g <= df:
+                        slot = per_giorno.setdefault(g, {"aids": set(), "nomi": []})
+                        if aid not in slot["aids"]:
+                            slot["aids"].add(aid)
+                            slot["nomi"].append(
+                                (ass.get("nome") or f"ID {aid}", ass.get("tipo") or "Assenza")
+                            )
+        giorni_info = {}
+        for g, slot in per_giorno.items():
+            n = len(slot["aids"])
+            giorni_info[g] = {
+                "n": n, "tot": tot,
+                "nomi": slot["nomi"], "sev": _severita_assenze(n, tot),
+            }
+        if giorni_info:
+            out[asset_id] = giorni_info
+    return out
+
+
+def assenze_overlay_for_assets(asset_ids, giorni) -> dict:
+    """Overlay abilitati-assenti per le macchine, sui giorni della finestra Gantt.
+
+    Read-only, **fail-safe** e **additivo**: se la Skill Matrix non è ancora
+    popolata o il modulo assenze non risponde, ritorna ``{}`` e il Gantt resta
+    identico a prima. Per scelta di prodotto non blocca mai la pianificazione.
+
+    Ritorna ``{asset_id: {giorno(date): {"n", "tot", "nomi", "sev"}}}``.
+    """
+    ids = sorted({int(a) for a in (asset_ids or []) if a})
+    if not ids or not giorni:
+        return {}
+    try:
+        from anagrafica.services import skillmatrix_resolver as resolver
+
+        from assenze.availability import assenze_per_anagrafica
+
+        # Pool = operatori al livello operativo di config (capacità reale della macchina).
+        pool_by_asset = resolver.pool_abilitati_bulk(ids)
+        if not pool_by_asset:
+            return {}
+        all_ids = sorted({lid for ops in pool_by_asset.values() for lid in ops})
+        assenze_by_aid = assenze_per_anagrafica(all_ids, giorni[0], giorni[-1])
+        if not assenze_by_aid:
+            return {}
+        return _aggrega_assenze_giorni(pool_by_asset, assenze_by_aid, giorni)
+    except Exception:
+        logger.warning("assenze_overlay_for_assets fallita (assets=%d)", len(ids), exc_info=True)
+        return {}
+
+
 def autolink_commessa_to_project(commessa) -> bool:
     """Aggancio automatico Commessa -> Project KICK-OFF per part number / numero / nome.
 

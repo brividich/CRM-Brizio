@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guida · Gestione Carichi Macchina — NOVICROM HUB</title>
+<style>
+  :root{
+    --navy:#0c2545; --navy-mid:#2f5f89; --cyan:#1f87cd; --orange:#ff8a1f;
+    --bg:#eef2f6; --surf:#fff; --surf-alt:#f6f9fc; --border:#d7e0ea;
+    --text:#1a202c; --mid:#4a5568; --light:#94a3b8;
+    --success:#38a169; --warning:#d69e2e; --danger:#e53e3e;
+    --radius:16px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:"Outfit",system-ui,-apple-system,"Segoe UI",sans-serif;
+    line-height:1.55; font-size:15px;
+  }
+  .wrap{max-width:1000px; margin:0 auto; padding:28px 20px 80px;}
+
+  /* ── Hero ── */
+  .hero{
+    background:linear-gradient(135deg,#0a1f3c 0%,var(--navy) 55%,#173a63 100%);
+    color:#fff; border-radius:var(--radius); padding:34px 34px 30px; position:relative; overflow:hidden;
+    box-shadow:0 18px 40px rgba(12,37,69,.18);
+  }
+  .hero::after{content:""; position:absolute; right:-60px; top:-60px; width:240px; height:240px;
+    background:radial-gradient(circle, rgba(255,138,31,.28), transparent 70%);}
+  .hero .eyebrow{font-size:.7rem; font-weight:800; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.6);}
+  .hero h1{margin:.3em 0 .25em; font-size:2.05rem; font-weight:800; letter-spacing:-.01em;}
+  .hero p{margin:0; max-width:62ch; color:rgba(255,255,255,.82); font-size:1rem;}
+  .hero .pills{margin-top:18px; display:flex; gap:8px; flex-wrap:wrap;}
+  .hero .pill{display:inline-flex; align-items:center; gap:7px; background:rgba(255,255,255,.10);
+    border:1px solid rgba(255,255,255,.18); border-radius:999px; padding:6px 13px; font-size:.78rem; font-weight:700;}
+  .hero .pill b{color:var(--orange);}
+
+  /* ── TOC ── */
+  .toc{margin-top:22px; background:var(--surf); border:1px solid var(--border); border-radius:var(--radius); padding:16px 20px;}
+  .toc h2{margin:0 0 10px; font-size:.72rem; letter-spacing:.1em; text-transform:uppercase; color:var(--light);}
+  .toc ol{margin:0; padding:0; list-style:none; display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:6px 18px; counter-reset:t;}
+  .toc li{counter-increment:t;}
+  .toc a{display:flex; gap:9px; align-items:baseline; text-decoration:none; color:var(--text); padding:6px 8px; border-radius:8px; font-weight:600; font-size:.92rem;}
+  .toc a:hover{background:var(--surf-alt); color:var(--cyan);}
+  .toc a::before{content:counter(t); flex:0 0 22px; height:22px; line-height:22px; text-align:center; font-size:.72rem; font-weight:800;
+    color:#fff; background:var(--navy-mid); border-radius:6px;}
+
+  /* ── Sezioni ── */
+  section{background:var(--surf); border:1px solid var(--border); border-radius:var(--radius); padding:24px 28px; margin-top:18px;
+    box-shadow:0 8px 24px rgba(12,37,69,.05);}
+  section > h2{margin:0 0 4px; font-size:1.3rem; font-weight:800; color:var(--navy); display:flex; align-items:center; gap:11px;}
+  section > h2 .n{flex:0 0 30px; height:30px; line-height:30px; text-align:center; font-size:.85rem; font-weight:800; color:#fff;
+    background:linear-gradient(135deg,var(--cyan),#1567a8); border-radius:9px;}
+  h3{margin:22px 0 6px; font-size:1.02rem; color:var(--navy-mid); font-weight:800;}
+  p{margin:.55em 0;}
+  ul,ol{margin:.4em 0; padding-left:1.3em;}
+  li{margin:.28em 0;}
+  a{color:var(--cyan);}
+  code{background:#eef3f9; border:1px solid #dde7f1; border-radius:6px; padding:.08em .4em; font-size:.86em;
+    font-family:"JetBrains Mono",ui-monospace,Consolas,monospace; color:#173a63;}
+  pre{background:var(--navy); color:#e9f0f8; border-radius:12px; padding:14px 16px; overflow:auto; font-size:.84rem;
+    font-family:"JetBrains Mono",ui-monospace,Consolas,monospace; line-height:1.5;}
+  pre.light{background:var(--surf-alt); color:var(--text); border:1px solid var(--border);}
+
+  /* ── Callout ── */
+  .note{border-left:4px solid var(--cyan); background:#eef6ff; border-radius:0 12px 12px 0; padding:12px 16px; margin:16px 0; font-size:.94rem;}
+  .note.warn{border-color:var(--warning); background:rgba(214,158,46,.10);}
+  .note.tip{border-color:var(--success); background:rgba(56,161,105,.09);}
+  .note b{color:var(--navy);}
+  .note .tag{display:inline-block; font-size:.62rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--navy-mid); margin-bottom:2px;}
+
+  /* ── Tabelle ── */
+  table{width:100%; border-collapse:collapse; margin:14px 0; font-size:.92rem;}
+  th,td{text-align:left; padding:9px 12px; border-bottom:1px solid var(--border); vertical-align:top;}
+  thead th{background:var(--surf-alt); color:var(--navy-mid); font-size:.72rem; letter-spacing:.05em; text-transform:uppercase;}
+  tbody tr:hover{background:var(--surf-alt);}
+  td code{white-space:nowrap;}
+
+  /* ── Cards 2 viste ── */
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:12px;}
+  .vcard{border:1px solid var(--border); border-radius:14px; padding:16px 18px; background:var(--surf-alt);}
+  .vcard h4{margin:0 0 4px; color:var(--navy); font-size:1rem; display:flex; align-items:center; gap:8px;}
+  .vcard .u{font-family:ui-monospace,Consolas,monospace; font-size:.78rem; color:var(--cyan); font-weight:700;}
+  .vcard p{margin:.4em 0 0; font-size:.9rem; color:var(--mid);}
+
+  /* ── Mock box suggerimento ── */
+  .mock{border:1px solid var(--border); border-radius:14px; padding:14px 16px; background:#fff; max-width:340px; margin:14px 0;}
+  .mock .mh{font-weight:800; font-size:.6rem; text-transform:uppercase; letter-spacing:.05em; color:var(--light); margin-bottom:8px;}
+  .mrow{margin-bottom:10px;}
+  .mtop{display:flex; justify-content:space-between; font-size:.8rem; font-weight:700;}
+  .mtop .cur{color:var(--cyan);}
+  .mbar{height:7px; border-radius:4px; background:#eef2f8; overflow:hidden; margin-top:3px;}
+  .mbar i{display:block; height:100%;}
+  .mbar i.lib{background:var(--success);} .mbar i.med{background:var(--warning);} .mbar i.sat{background:var(--danger);}
+  .mock .mf{color:var(--light); font-size:.62rem; margin-top:6px;}
+
+  /* ── Legend chips ── */
+  .legend{display:flex; flex-wrap:wrap; gap:8px 14px; margin:12px 0;}
+  .legend span{display:inline-flex; align-items:center; gap:6px; font-size:.84rem; color:var(--mid); font-weight:600;}
+  .dot{width:14px; height:14px; border-radius:4px; display:inline-block; box-sizing:border-box;}
+  .dot.diamond{transform:rotate(45deg); border-radius:2px;}
+
+  /* ── Footer ── */
+  footer{margin-top:26px; text-align:center; color:var(--light); font-size:.8rem;}
+  .kbd{font-family:ui-monospace,Consolas,monospace; background:#fff; border:1px solid var(--border); border-bottom-width:2px; border-radius:6px; padding:1px 7px; font-size:.8em; color:var(--mid);}
+
+  @media (max-width:680px){ .grid2{grid-template-columns:1fr;} .hero h1{font-size:1.6rem;} }
+  @media print{
+    body{background:#fff;} .wrap{max-width:none; padding:0;}
+    section,.toc,.hero{box-shadow:none; break-inside:avoid;}
+    .toc{display:none;} a{color:var(--text); text-decoration:none;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <div class="eyebrow">NOVICROM HUB · Operations</div>
+    <h1>Gestione Carichi Macchina</h1>
+    <p>Pianifica <b>commesse</b> e <b>lavori</b> sulle macchine utensili giorno per giorno,
+       stima le <b>durate</b> e fatti <b>suggerire la macchina</b> più adatta a ogni famiglia di
+       pezzi — con un motore <b>dati-driven ed esplicabile</b>: ogni numero arriva dallo storico,
+       nessuna scatola nera.</p>
+    <div class="pills">
+      <span class="pill">Vista <b>Excel</b> · griglia macchine × giorni</span>
+      <span class="pill">Vista <b>Gantt</b> · barre + drag &amp; drop</span>
+      <span class="pill">Suggerimento <b>pesato</b> + spiegazione AI</span>
+    </div>
+  </header>
+
+  <nav class="toc">
+    <h2>Indice</h2>
+    <ol>
+      <li><a href="#viste">Le due viste</a></li>
+      <li><a href="#pianificare">Pianificare un lavoro</a></li>
+      <li><a href="#suggerimento">Suggerimento macchina</a></li>
+      <li><a href="#gantt">Gantt: barre, pannelli, drag</a></li>
+      <li><a href="#ore">Stima delle ore</a></li>
+      <li><a href="#saturazione">Saturazione e rischio ritardo</a></li>
+      <li><a href="#import">Importazione dati</a></li>
+      <li><a href="#limiti">Limiti e note</a></li>
+      <li><a href="#rif">Riferimenti rapidi</a></li>
+    </ol>
+  </nav>
+
+  <div class="note tip">
+    <span class="tag">In sintesi</span>
+    Le macchine <b>non</b> sono una nuova anagrafica: il modulo si appoggia agli <b>asset</b>
+    esistenti (<code>assets.Asset</code>) in sola lettura e aggiunge solo gli attributi di
+    pianificazione (categoria, turni, ore/giorno, stato).
+  </div>
+
+  <section id="viste">
+    <h2><span class="n">1</span> Le due viste</h2>
+    <p>Lo stesso piano è visualizzabile in due modi; si passa dall'uno all'altro con il
+       selettore <b>Excel ⇄ Gantt</b> in alto.</p>
+    <div class="grid2">
+      <div class="vcard">
+        <h4>📊 Vista Excel</h4>
+        <div class="u">/carichi-macchina/</div>
+        <p>Griglia macchine × giorni, come il foglio di officina. È la vista per
+           <b>inserire e correggere</b> i lavori, cella per cella, via form inline.</p>
+      </div>
+      <div class="vcard">
+        <h4>📈 Vista Gantt</h4>
+        <div class="u">/carichi-macchina/gantt/</div>
+        <p>Barre temporali per macchina con filtri, KPI di saturazione e
+           <b>trascinamento</b> delle barre (snap al giorno, con conferma). Pannelli di
+           dettaglio per lavoro e macchina.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="pianificare">
+    <h2><span class="n">2</span> Pianificare un lavoro (vista Excel)</h2>
+    <ol>
+      <li><b>Clic su una cella</b> (macchina + giorno): si apre il form inline.</li>
+      <li>Nel campo testo scrivi il lavoro nel formato dell'officina, es.
+          <code>8 gimbal (33h)</code> (quantità + famiglia + ore). Il campo ha
+          l'<b>autocompletamento</b> delle famiglie note.</li>
+      <li>Facoltativi: <b>qta</b>, <b>ore</b>, <b>stato</b> (pianificata / in corso /
+          completata) e <b>fase</b> (sgrossatura / finitura / ripresa / assemblaggio).
+          Se non compili ore/qta, il sistema prova a ricavarle dal testo e dalle stime
+          (vedi <a href="#ore">§5</a>).</li>
+      <li><b>Salva</b>. Per rimuovere un lavoro: svuota il testo e salva, oppure usa il
+          cestino 🗑.</li>
+    </ol>
+    <p>La <b>famiglia</b> del pezzo viene riconosciuta automaticamente dal testo (per nome o
+       alias, es. <i>gimbal, sombrero, campane, ragni</i>): è la chiave che lega lo storico
+       macchina↔pezzo.</p>
+    <div class="note">
+      <span class="tag">Aggiungere al volo</span>
+      Nel Gantt il pulsante <b>+ Aggiungi lavoro</b> apre una finestra rapida: scegli macchina,
+      data e turno, scrivi il lavoro e — appena la famiglia è riconosciuta — compare il box
+      <b>Consigliate</b> per scegliere la macchina migliore.
+    </div>
+  </section>
+
+  <section id="suggerimento">
+    <h2><span class="n">3</span> Il suggerimento macchina</h2>
+    <p>Mentre digiti un lavoro, se la <b>famiglia è riconosciuta</b> compare un box
+       <b>«Consigliate · &lt;famiglia&gt;»</b> con le macchine migliori per quel pezzo.</p>
+
+    <div class="mock" aria-hidden="true">
+      <div class="mh">Consigliate · gimbal</div>
+      <div class="mrow">
+        <div class="mtop"><span class="cur">● DM3</span><span>78%</span></div>
+        <div class="mbar"><i class="lib" style="width:78%"></i></div>
+      </div>
+      <div class="mrow">
+        <div class="mtop"><span>DM11</span><span>64%</span></div>
+        <div class="mbar"><i class="med" style="width:64%"></i></div>
+      </div>
+      <div class="mrow">
+        <div class="mtop"><span>DM2</span><span>41%</span></div>
+        <div class="mbar"><i class="sat" style="width:41%"></i></div>
+      </div>
+      <div class="mf">barra = score · colore = carico (verde libera → rosso satura)</div>
+    </div>
+
+    <h3>Come si legge</h3>
+    <ul>
+      <li><b>Lunghezza barra = score complessivo</b> (più lunga = più consigliata).</li>
+      <li><b>Colore barra = carico attuale</b>: 🟢 <b>verde</b> libera · 🟠 <b>ambra</b>
+          mediamente carica · 🔴 <b>rosso</b> satura (spingerci lavoro crea coda).</li>
+      <li><b>●</b> davanti al codice = è <b>la macchina della cella</b> che stai compilando.</li>
+      <li><b>Passa il mouse</b> sulla riga per il <b>perché</b> (tooltip): peso dello storico,
+          quanto è recente, quanto la macchina è libera, n. lavori storici e % saturazione.</li>
+      <li>Se compare <b>«Questa macchina non è tra le consigliate»</b>, lo storico indica altre
+          macchine: valuta se spostare il lavoro.</li>
+    </ul>
+
+    <h3>Come viene calcolato lo score</h3>
+    <p>Lo score combina tre segnali che provengono <b>dai dati</b>, non da un'analisi testuale:</p>
+    <table>
+      <thead><tr><th>Segnale</th><th>Significato</th><th>Peso default</th></tr></thead>
+      <tbody>
+        <tr><td><b>Storico (affinità)</b></td><td>quante volte quella famiglia è stata lavorata su quella macchina</td><td>0.50</td></tr>
+        <tr><td><b>Recency</b></td><td>quanto è <b>recente</b> quella storia (decadimento nel tempo)</td><td>0.20</td></tr>
+        <tr><td><b>Carico libero</b></td><td>quanto la macchina è <b>libera ora</b> (1 − saturazione)</td><td>0.30</td></tr>
+      </tbody>
+    </table>
+    <p>Le macchine in <b>guasto</b> o <b>manutenzione</b> sono <b>escluse</b> dai suggerimenti
+       (non possono prendere lavoro adesso).</p>
+
+    <div class="note">
+      <span class="tag">Perché non una ricerca testuale (BM25)?</span>
+      L'affinità commessa↔macchina è un problema <b>numerico/categoriale</b> (tipo di
+      lavorazione, storico, carico), non di ricerca di parole. Per questo si usa uno
+      <b>scoring pesato</b> trasparente. Tecniche più fini (similarità su feature /
+      nearest-neighbour) avranno senso quando il pezzo avrà <b>feature strutturate</b>
+      (materiale, tolleranze, attrezzaggio): oggi la "famiglia" è di fatto un soprannome.
+    </div>
+
+    <h3>Spiegazione in linguaggio naturale (opzionale)</h3>
+    <p>Se l'assistente AI locale è attivo, l'endpoint <code>api/spiega-macchina/</code> produce
+       una frase di sintesi. L'AI <b>spiega soltanto</b> i numeri già calcolati (non predice e
+       non inventa); se non è disponibile, restano i suggerimenti deterministici.</p>
+  </section>
+
+  <section id="gantt">
+    <h2><span class="n">4</span> Gantt: barre, pannelli e drag</h2>
+    <p>La vista Gantt mostra una barra per ogni lavoro, raggruppata per macchina e sezione,
+       su una timeline a soli giorni lavorativi.</p>
+    <h3>Lettura delle barre</h3>
+    <div class="legend">
+      <span><i class="dot" style="background:var(--navy)"></i> Pianificata</span>
+      <span><i class="dot" style="background:var(--cyan)"></i> In corso</span>
+      <span><i class="dot" style="background:var(--orange);border:2px solid var(--danger)"></i> Urgente / ritardo</span>
+      <span><i class="dot" style="background:#6b7a8f"></i> Completata</span>
+      <span><i class="dot" style="background:repeating-linear-gradient(110deg,#9aa5b1 0 5px,#cbd5e1 5px 10px)"></i> Durata stimata</span>
+      <span><i class="dot diamond" style="background:var(--orange)"></i> Milestone (KICK-OFF / consegna)</span>
+      <span><i class="dot" style="background:#fcd34d;border-radius:2px"></i><i class="dot" style="background:#fb923c;border-radius:2px;margin-left:-4px"></i><i class="dot" style="background:#ef4444;border-radius:2px;margin-left:-4px"></i> Abilitati assenti (manodopera)</span>
+    </div>
+    <ul>
+      <li>Il <b>colore</b> della barra raggruppa per commessa / famiglia / stato (selettore
+          <b>Colore</b> nella barra filtri).</li>
+      <li>Il <b>tratteggio</b> indica una durata <b>stimata</b> (ore non confermate).</li>
+      <li>Il <b>bordo rosso</b> e il simbolo ⚠ segnalano un <b>conflitto di capacità</b>
+          (due lavori sullo stesso turno che si sovrappongono).</li>
+      <li>La sottile <b>barra di avanzamento</b> in basso = quota completata.</li>
+      <li>I <b>rombi</b> sono milestone derivate: attività KICK-OFF e date di consegna.</li>
+    </ul>
+    <h3>Abilitati assenti (manodopera)</h3>
+    <p>Sotto la cella-giorno di una macchina può comparire una <b>sottile striscia colorata</b>:
+       segnala che in quel giorno <b>uno o più operatori abilitati</b> a quella macchina
+       (secondo la <b>Skill Matrix MOD.187</b>) hanno un'<b>assenza già programmata</b>
+       (ferie/permesso confermati). Serve a non caricare a pieno una macchina che resterà
+       <b>scoperta di manodopera</b>.</p>
+    <div class="legend">
+      <span><i class="dot" style="background:#fcd34d;border-radius:2px"></i> Pochi assenti</span>
+      <span><i class="dot" style="background:#fb923c;border-radius:2px"></i> ~ un terzo del pool</span>
+      <span><i class="dot" style="background:#ef4444;border-radius:2px"></i> Molti (≥3 o ~due terzi)</span>
+    </div>
+    <ul>
+      <li>Il <b>colore</b> indica <i>quanti</i> assenti rispetto al pool di abilitati.</li>
+      <li>Passando il <b>mouse</b> sulla striscia compare un <b>riepilogo</b>:
+          «<i>N di M abilitati assenti il gg/mm · Cognome Nome (Ferie), …</i>».</li>
+      <li>È un <b>avviso non bloccante</b>: non tocca le barre, non impedisce di pianificare.</li>
+      <li>Si attiva <b>solo dopo l'import della baseline Skill Matrix</b>; finché la matrice è
+          vuota, il Gantt resta identico.</li>
+    </ul>
+    <h3>Spostare i lavori (drag-to-reschedule)</h3>
+    <ul>
+      <li><b>Trascina</b> una barra per cambiarne la data: lo spostamento fa <b>snap al giorno</b>
+          e chiede <b>conferma</b> prima di salvare.</li>
+      <li>Con <b>Cascata</b> attiva, sposti anche i lavori successivi della stessa macchina e
+          turno (le altre linee turno restano intatte).</li>
+      <li>Trascinando su <b>un'altra macchina</b>: se la categoria è diversa (e fuori pool di
+          equivalenza), il sistema avvisa e chiede se procedere comunque.</li>
+      <li><span class="kbd">↩ Annulla</span> ripristina l'ultimo spostamento.</li>
+    </ul>
+    <h3>Pannelli di dettaglio</h3>
+    <ul>
+      <li><b>Clic su una barra</b> → pannello <b>lavoro</b>: macchina, date, famiglia, cliente,
+          commessa, consegna, form di modifica (testo/qta/ore/stato/fase) e box
+          <b>Macchine consigliate</b>.</li>
+      <li><b>Clic sul nome macchina</b> → pannello <b>macchina</b>: reparto, modello, ore
+          pianificate, saturazione e <b>lavori in coda</b> cliccabili.</li>
+    </ul>
+    <h3>Zoom e ridimensionamento</h3>
+    <p>Gli stepper <b>Largh. col.</b> e <b>Alt. righe</b> regolano la densità senza ricaricare;
+       il bordo destro di una colonna e quello inferiore di una riga sono trascinabili, così
+       come lo splitter della colonna macchine.</p>
+  </section>
+
+  <section id="ore">
+    <h2><span class="n">5</span> Stima delle ore (durata)</h2>
+    <p>Quando le ore di un lavoro non sono indicate, il sistema le <b>stima</b> con questa
+       priorità (dalla più alla meno affidabile):</p>
+    <ol>
+      <li><b>Tempo di ciclo</b> dell'operazione × pezzi (alta confidenza);</li>
+      <li><b>Media storica</b> per quella coppia (macchina, famiglia) — confidenza media;</li>
+      <li><b>Media storica della famiglia</b> su qualunque macchina — confidenza bassa.</li>
+    </ol>
+    <p>Le ore stimate alimentano la <b>saturazione</b> e il <b>rischio ritardo</b>, così la
+       pianificazione resta realistica anche prima di confermare i tempi reali. Le barre con
+       ore stimate appaiono <b>tratteggiate</b> nel Gantt.</p>
+  </section>
+
+  <section id="saturazione">
+    <h2><span class="n">6</span> Saturazione, colli di bottiglia, rischio ritardo</h2>
+    <ul>
+      <li><b>Saturazione</b>: carico (ore pianificate) ÷ capacità (ore/giorno × giorni
+          lavorativi × turni). Una macchina/reparto <b>oltre il 100%</b> è un
+          <b>collo di bottiglia</b>, evidenziato nei KPI e nel colore della saturazione
+          (verde → giallo → arancio → rosso).</li>
+      <li><b>Carico settimanale</b>: previsione delle prossime settimane per reparto e totale,
+          usando ore reali dove ci sono e stimate altrimenti.</li>
+      <li><b>Rischio ritardo</b>: dato inizio, ore previste e consegna, stima la data di fine
+          (giorni lavorativi) e indica <b>margine</b> o <b>ritardo</b>.</li>
+    </ul>
+    <div class="note warn">
+      <span class="tag">Come ribilanciare</span>
+      Se il box suggerimento mostra una macchina consigliata ma <b>rossa</b> (satura),
+      conviene scegliere la seconda scelta 🟢 libera: stesso pezzo, meno coda.
+    </div>
+  </section>
+
+  <section id="import">
+    <h2><span class="n">7</span> Importazione dati</h2>
+    <p>Lo storico (affinità macchina↔famiglia, cicli, alias) e il backlog si popolano dal
+       foglio di officina con il comando di import:</p>
+    <pre class="light">python django_app\manage.py import_carichi --help</pre>
+    <p>L'import fa <b>dedup</b> dello storico, calcola le <b>affinità</b> (occorrenze, ore
+       medie, ultima data) e rileva i <b>pool di equivalenza</b> (macchine intercambiabili
+       sulla stessa famiglia, da confermare a mano). Più storico = suggerimenti più affidabili.</p>
+
+    <h3>Import cumulativo da più edizioni del foglio</h3>
+    <p>Per <b>imparare anche dalle edizioni più vecchie</b> (settimane non più presenti nel
+       file corrente) si passano <b>più file</b> allo stesso comando:</p>
+    <pre class="light">python django_app\manage.py import_carichi recente.xlsx vecchia1.xlsx vecchia2.xlsx</pre>
+    <ul>
+      <li>L'edizione <b>più recente</b> (per data degli snapshot <code>AGG</code>) fornisce
+          il <b>piano vivo</b>, il backlog e i cicli; le altre contribuiscono <b>solo allo
+          storico</b> (affinità, recency, pool).</li>
+      <li>Le settimane <b>in comune</b> non vengono ricontate (dedup su
+          macchina/data/testo); quelle presenti <b>solo</b> nelle edizioni vecchie
+          <b>aggiungono</b> occorrenze e date → suggerimenti e stime più ricchi.</li>
+      <li>L'<b>ordine</b> dei file non conta (decide la data degli snapshot); se i titoli
+          <code>AGG</code> non hanno date, elenca <b>per primo</b> il più recente.</li>
+      <li>Resta <b>idempotente</b>: ripetere l'import non crea duplicati.</li>
+    </ul>
+    <div class="note tip">
+      <span class="tag">Dati</span>
+      I file <code>.xlsx</code> reali restano <b>fuori dal repository</b> (mai committati):
+      deposito esterno → import.
+    </div>
+  </section>
+
+  <section id="limiti">
+    <h2><span class="n">8</span> Limiti e note operative</h2>
+    <ul>
+      <li>La qualità del suggerimento dipende dallo <b>storico</b>: una famiglia senza storia
+          non ha suggerimenti (per i pezzi nuovi conviene partire dai pool di equivalenza /
+          cicli).</li>
+      <li>La <b>famiglia</b> è un'etichetta (soprannome): lavori molto diversi nella stessa
+          famiglia ereditano lo stesso suggerimento. La granularità più fine arriverà con le
+          feature di pezzo (fase 2).</li>
+      <li>Tutto è <b>read-only verso gli asset</b> e <b>deterministico/esplicabile</b>: nessun
+          dato viene inventato e l'eventuale spiegazione AI è solo descrittiva.</li>
+    </ul>
+  </section>
+
+  <section id="rif">
+    <h2><span class="n">9</span> Riferimenti rapidi</h2>
+    <table>
+      <thead><tr><th>Cosa</th><th>Dove</th></tr></thead>
+      <tbody>
+        <tr><td>Vista griglia</td><td><code>/carichi-macchina/</code></td></tr>
+        <tr><td>Vista Gantt</td><td><code>/carichi-macchina/gantt/</code></td></tr>
+        <tr><td>Suggerimento macchina (JSON)</td><td><code>/carichi-macchina/api/suggerimento-macchina/?famiglia=&lt;id|nome&gt;</code></td></tr>
+        <tr><td>Suggerimento + spiegazione AI</td><td><code>/carichi-macchina/api/spiega-macchina/?famiglia=&lt;id|nome&gt;</code></td></tr>
+        <tr><td>Import storico/backlog</td><td><code>manage.py import_carichi</code></td></tr>
+      </tbody>
+    </table>
+    <p style="color:var(--mid);font-size:.9rem;">Codice di riferimento: motore predittivo in
+       <code>gestione_carichi_macchina/previsioni.py</code> (funzioni pure + builder degli
+       indici), saturazione in <code>saturazione.py</code>, spiegazione AI in
+       <code>spiegazioni.py</code>.</p>
+  </section>
+
+  <footer>
+    NOVICROM HUB — Gestione Carichi Macchina · Guida d'uso ·
+    Suggerimento <b>la macchina lo propone, l'operatore decide</b>.<br>
+    Per stamparla: <span class="kbd">Ctrl</span>+<span class="kbd">P</span> → Salva come PDF.
+  </footer>
+
+</div>
+</body>
+</html>

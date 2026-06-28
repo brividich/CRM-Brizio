@@ -468,6 +468,7 @@ def vista_gantt(request):
     """Gantt (stessa sorgente dati della vista Excel): barre per pianificazione,
     raggruppate per macchina/sezione, con saturazione, filtri, zoom, corsie e
     drag-to-reschedule."""
+    from .integrations import assenze_overlay_for_assets
     from .models import Commessa, FamigliaPezzo, Macchina, Pianificazione
     from .previsioni import costruisci_indici, prevedi_ore, rischio_ritardo
     from .tasks import saturazione_finestra
@@ -498,6 +499,10 @@ def vista_gantt(request):
     if f_cat:
         macchine_qs = macchine_qs.filter(categoria=f_cat)
     macchine = list(macchine_qs.order_by("categoria", "ordine_sezione", "id"))
+
+    # Overlay "abilitati assenti" (Skill Matrix × assenze): per asset → {giorno: info}.
+    # Fail-safe e additivo: {} finché la baseline skill matrix non è popolata.
+    assenze_overlay = assenze_overlay_for_assets([m.asset_id for m in macchine], giorni)
 
     pians_qs = (
         Pianificazione.objects.filter(data__range=(start, fine), macchina__in=macchine or [0])
@@ -605,6 +610,24 @@ def vista_gantt(request):
                 milestones.append({"start_idx": idx_map[d_cons],
                                    "label": ("Consegna " + lbl).strip(), "kind": "consegna"})
 
+            # Marker "abilitati assenti" per giorno (Skill Matrix × assenze). Vuoto se
+            # la baseline skill matrix non è popolata: overlay completamente additivo.
+            assenze_markers = []
+            for g, info in (assenze_overlay.get(m.asset_id) or {}).items():
+                idx = idx_map.get(g)
+                if idx is None:
+                    continue
+                nomi = info.get("nomi") or []
+                parts = [f"{nome} ({tipo})" for nome, tipo in nomi[:6]]
+                if len(nomi) > 6:
+                    parts.append(f"+{len(nomi) - 6} altri")
+                assenze_markers.append({
+                    "start_idx": idx, "n": info["n"], "tot": info["tot"], "sev": info["sev"],
+                    "riepilogo": "%d di %d abilitati assenti il %s · %s" % (
+                        info["n"], info["tot"], g.strftime("%d/%m"), ", ".join(parts)),
+                })
+            assenze_markers.sort(key=lambda a: a["start_idx"])
+
             def _riga(turni_inclusi, label, kind, expandable=False):
                 sub_bars = [b for b in bars if b["turno"] in turni_inclusi]
                 if filtro_lavori and not sub_bars:
@@ -622,6 +645,7 @@ def vista_gantt(request):
                     "row_h": nlanes * lane_h + 12, "conflitto": conf,
                     "kickoff": m_ko if not sub else [],
                     "milestones": milestones if not sub else [],
+                    "assenze": assenze_markers if not sub else [],
                 }
 
             espandibile = m.ha_secondo_turno or m.ha_turno_notte

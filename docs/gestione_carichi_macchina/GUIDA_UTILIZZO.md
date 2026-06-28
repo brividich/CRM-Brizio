@@ -124,6 +124,26 @@ consigliata ma **rossa** (satura), conviene scegliere la seconda scelta 🟢 lib
 
 ---
 
+## 5-bis. Abilitati assenti (manodopera)
+
+Sul **Gantt**, sotto ogni cella-giorno, può comparire una **sottile striscia colorata**:
+segnala che, in quel giorno, **uno o più operatori abilitati** a quella macchina (secondo
+la **Skill Matrix MOD.187**) hanno **un'assenza già programmata** (ferie/permesso
+confermati). Serve a non pianificare a pieno carico una macchina che resterà **scoperta di
+manodopera**.
+
+- Il **colore** indica *quanti* assenti rispetto al pool: **giallo** = pochi, **arancio** =
+  circa un terzo, **rosso** = molti (≥3 o ~due terzi del pool).
+- Passando il mouse sulla striscia compare un **riepilogo**: «*N di M abilitati assenti il
+  gg/mm · Cognome Nome (Ferie), …*».
+- È un **avviso non bloccante**: non modifica le barre, non impedisce di pianificare; è solo
+  un'informazione in più.
+
+L'indicatore si attiva **solo dopo l'import della baseline Skill Matrix** (chi è abilitato a
+ciascuna macchina). Finché la matrice è vuota, il Gantt resta identico a prima.
+
+---
+
 ## 6. Importazione dati
 
 Lo storico (affinità macchina↔famiglia, cicli, alias) e il backlog si popolano dal foglio
@@ -136,6 +156,25 @@ python django_app\manage.py import_carichi --help
 L'import fa dedup dello storico, calcola le **affinità** (occorrenze, ore medie, ultima
 data) e rileva i **pool di equivalenza** (macchine intercambiabili sulla stessa famiglia,
 da confermare a mano). Più storico = suggerimenti più affidabili.
+
+### Import cumulativo da più edizioni del foglio
+
+Per **imparare anche dalle edizioni più vecchie** del foglio (settimane non più presenti
+nel file corrente) si passano **più file** allo stesso comando:
+
+```powershell
+python django_app\manage.py import_carichi <recente.xlsx> <vecchia1.xlsx> <vecchia2.xlsx>
+```
+
+- L'edizione **più recente** (per data degli snapshot `AGG`) fornisce il **piano vivo**,
+  il backlog e i cicli; le altre contribuiscono **solo allo storico** (affinità, recency,
+  pool).
+- Le settimane **in comune** tra edizioni non vengono ricontate (dedup su
+  macchina/data/testo); quelle presenti **solo** nelle edizioni vecchie **aggiungono**
+  occorrenze e date → suggerimenti e stime più ricchi.
+- L'ordine in cui elenchi i file non conta (decide la data degli snapshot); se i titoli
+  `AGG` non contengono date, elenca **per primo** il file più recente.
+- Resta tutto **idempotente**: ripetere l'import non crea duplicati.
 
 ---
 

@@ -1,0 +1,1566 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guida esplorativa · NOVICROM HUB — moduli & gestione</title>
+<style>
+  :root{
+    --navy:#0c2545; --navy-mid:#2f5f89; --cyan:#1f87cd; --orange:#ff8a1f;
+    --bg:#eef2f6; --surf:#fff; --surf-alt:#f6f9fc; --border:#d7e0ea;
+    --text:#1a202c; --mid:#4a5568; --light:#94a3b8;
+    --success:#38a169; --warning:#d69e2e; --danger:#e53e3e;
+    --radius:14px; --side:288px;
+    --area-core:#1f87cd; --area-ops:#2f9e6f; --area-hr:#9061d6; --area-sic:#e0792b; --area-auto:#c0392b;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0; background:var(--bg); color:var(--text);
+    font-family:"Outfit",system-ui,-apple-system,"Segoe UI",sans-serif; line-height:1.55; font-size:15px;}
+
+  /* ── Shell a due pannelli ── */
+  .app{display:flex; align-items:flex-start;}
+  .sidebar{position:sticky; top:0; height:100vh; width:var(--side); flex:0 0 var(--side);
+    background:linear-gradient(180deg,#0a1f3c,var(--navy)); color:#fff; overflow-y:auto; padding:0 0 30px;}
+  .sidebar .brand{position:sticky; top:0; z-index:2; background:linear-gradient(180deg,#0a1f3c,#0b2240);
+    padding:18px 20px 14px; border-bottom:1px solid rgba(255,255,255,.08);}
+  .sidebar .brand .logo{font-weight:800; font-size:1.12rem; letter-spacing:-.01em;}
+  .sidebar .brand .logo b{color:var(--orange);}
+  .sidebar .brand .sub{font-size:.7rem; color:rgba(255,255,255,.55); letter-spacing:.04em; margin-top:2px;}
+  .sidebar .search{width:100%; margin-top:12px; padding:8px 11px; border-radius:9px; border:1px solid rgba(255,255,255,.16);
+    background:rgba(255,255,255,.07); color:#fff; font-size:.84rem; font-family:inherit;}
+  .sidebar .search::placeholder{color:rgba(255,255,255,.5);}
+  .nav-group{padding:14px 12px 0;}
+  .nav-group .gl{font-size:.62rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase;
+    color:rgba(255,255,255,.42); padding:0 8px 6px; display:flex; align-items:center; gap:7px;}
+  .nav-group .gl::before{content:""; width:8px; height:8px; border-radius:3px; background:var(--gc,#1f87cd);}
+  .sidebar a.navlink{display:flex; align-items:center; gap:9px; text-decoration:none; color:rgba(255,255,255,.82);
+    padding:6px 9px; border-radius:8px; font-size:.86rem; font-weight:600; border-left:2px solid transparent;}
+  .sidebar a.navlink:hover{background:rgba(255,255,255,.08); color:#fff;}
+  .sidebar a.navlink.active{background:rgba(31,135,205,.22); color:#fff; border-left-color:var(--orange);}
+  .sidebar a.navlink .ic{width:18px; text-align:center; flex:0 0 18px;}
+  .sidebar a.navlink .st{margin-left:auto; font-size:.56rem; font-weight:800; padding:1px 6px; border-radius:999px;
+    background:rgba(255,255,255,.12); color:rgba(255,255,255,.7);}
+  .sidebar a.navlink .st.ok{background:rgba(56,161,105,.3); color:#bff0d2;}
+
+  .main{flex:1 1 auto; min-width:0; max-width:1120px; margin:0 auto; padding:26px 32px 90px;}
+
+  /* ── Hero ── */
+  .hero{background:linear-gradient(135deg,#0a1f3c 0%,var(--navy) 55%,#173a63 100%); color:#fff;
+    border-radius:var(--radius); padding:34px 36px 30px; position:relative; overflow:hidden; box-shadow:0 18px 40px rgba(12,37,69,.18);}
+  .hero::after{content:""; position:absolute; right:-60px; top:-60px; width:260px; height:260px;
+    background:radial-gradient(circle, rgba(255,138,31,.28), transparent 70%);}
+  .hero .eyebrow{font-size:.7rem; font-weight:800; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.6);}
+  .hero h1{margin:.3em 0 .25em; font-size:2.05rem; font-weight:800; letter-spacing:-.01em;}
+  .hero p{margin:0; max-width:70ch; color:rgba(255,255,255,.84); font-size:1rem;}
+  .hero .pills{margin-top:18px; display:flex; gap:8px; flex-wrap:wrap;}
+  .hero .pill{display:inline-flex; align-items:center; gap:7px; background:rgba(255,255,255,.10);
+    border:1px solid rgba(255,255,255,.18); border-radius:999px; padding:6px 13px; font-size:.78rem; font-weight:700;}
+  .hero .pill b{color:var(--orange);}
+
+  .howto{margin-top:18px; background:var(--surf); border:1px solid var(--border); border-radius:var(--radius); padding:18px 22px;}
+  .howto h2{margin:0 0 8px; font-size:.95rem; color:var(--navy); text-transform:uppercase; letter-spacing:.06em;}
+  .blocklegend{display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:10px; margin-top:10px;}
+  .blk{display:flex; gap:10px; align-items:flex-start; border:1px solid var(--border); border-radius:11px; padding:10px 12px; background:var(--surf-alt);}
+  .blk .bi{flex:0 0 30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:1rem; color:#fff;}
+  .blk b{display:block; font-size:.84rem; color:var(--navy);}
+  .blk span{font-size:.76rem; color:var(--mid);}
+  .bi-use{background:var(--area-ops);} .bi-sub{background:var(--navy-mid);} .bi-adm{background:var(--cyan);}
+  .bi-acl{background:var(--area-hr);} .bi-url{background:var(--orange);}
+
+  /* ── Sezione modulo ── */
+  section.mod{background:var(--surf); border:1px solid var(--border); border-radius:var(--radius); padding:0; margin-top:20px;
+    box-shadow:0 8px 24px rgba(12,37,69,.05); overflow:hidden; scroll-margin-top:14px;}
+  .mod-head{display:flex; gap:15px; align-items:flex-start; padding:20px 26px; border-bottom:1px solid var(--border);
+    background:linear-gradient(180deg,var(--surf-alt),#fff);}
+  .mod-ic{flex:0 0 50px; height:50px; border-radius:13px; display:flex; align-items:center; justify-content:center; font-size:1.55rem;
+    background:#fff; border:1px solid var(--border); box-shadow:0 4px 12px rgba(12,37,69,.08);}
+  .mod-head .meta{flex:1 1 auto; min-width:0;}
+  .mod-area{font-size:.66rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--navy-mid); display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+  .mod-area .badge{padding:1px 8px; border-radius:999px; color:#fff; font-size:.6rem;}
+  .mod-area code{background:#eef3f9; border:1px solid #dde7f1; border-radius:6px; padding:.05em .45em; font-size:.92em; color:#173a63;}
+  .mod-head h2{margin:3px 0 2px; font-size:1.35rem; font-weight:800; color:var(--navy);}
+  .mod-sub{margin:0; color:var(--mid); font-size:.92rem;}
+  .badge.core{background:var(--area-core);} .badge.ops{background:var(--area-ops);}
+  .badge.hr{background:var(--area-hr);} .badge.sic{background:var(--area-sic);} .badge.auto{background:var(--area-auto);}
+
+  .mod-body{padding:8px 26px 24px;}
+  .block{padding:16px 0 4px; border-top:1px dashed var(--border);}
+  .block:first-child{border-top:0;}
+  .block > h3{margin:0 0 6px; font-size:1rem; color:var(--navy); font-weight:800; display:flex; align-items:center; gap:9px;}
+  .block > h3 .bi{flex:0 0 26px; height:26px; border-radius:7px; font-size:.85rem;}
+  .block p{margin:.5em 0;} .block ul{margin:.4em 0; padding-left:1.25em;} .block li{margin:.26em 0;}
+
+  h3{color:var(--navy-mid);}
+  code{background:#eef3f9; border:1px solid #dde7f1; border-radius:6px; padding:.08em .4em; font-size:.86em;
+    font-family:"JetBrains Mono",ui-monospace,Consolas,monospace; color:#173a63;}
+  pre{background:var(--navy); color:#e9f0f8; border-radius:11px; padding:13px 15px; overflow:auto; font-size:.82rem;
+    font-family:"JetBrains Mono",ui-monospace,Consolas,monospace; line-height:1.5;}
+  a{color:var(--cyan);}
+
+  table{width:100%; border-collapse:collapse; margin:12px 0; font-size:.9rem;}
+  th,td{text-align:left; padding:8px 11px; border-bottom:1px solid var(--border); vertical-align:top;}
+  thead th{background:var(--surf-alt); color:var(--navy-mid); font-size:.68rem; letter-spacing:.05em; text-transform:uppercase;}
+  tbody tr:hover{background:var(--surf-alt);}
+  td code{white-space:nowrap;}
+
+  .note{border-left:4px solid var(--cyan); background:#eef6ff; border-radius:0 11px 11px 0; padding:11px 15px; margin:14px 0; font-size:.9rem;}
+  .note.warn{border-color:var(--warning); background:rgba(214,158,46,.10);}
+  .note.tip{border-color:var(--success); background:rgba(56,161,105,.09);}
+  .note .tag{display:inline-block; font-size:.6rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--navy-mid); margin-bottom:2px;}
+  .note b{color:var(--navy);}
+
+  .pillrow{display:flex; flex-wrap:wrap; gap:6px; margin:8px 0;}
+  .tg{display:inline-flex; align-items:center; gap:5px; font-size:.74rem; font-weight:700; color:var(--navy-mid);
+    background:var(--surf-alt); border:1px solid var(--border); border-radius:999px; padding:3px 10px;}
+
+  /* ── Screenshot ── */
+  figure.shot{margin:14px 0 4px; border:1px solid var(--border); border-radius:12px; overflow:hidden; background:var(--surf-alt);}
+  figure.shot img{display:block; width:100%; height:auto;}
+  figure.shot .ph{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
+    min-height:180px; color:var(--light); background:repeating-linear-gradient(45deg,#f2f6fb 0 12px,#eef2f6 12px 24px);
+    text-align:center; padding:24px; font-size:.84rem;}
+  figure.shot .ph b{color:var(--navy-mid); font-size:.92rem;}
+  figure.shot figcaption{padding:8px 13px; font-size:.78rem; color:var(--mid); background:#fff; border-top:1px solid var(--border);}
+
+  .stub{display:flex; align-items:center; gap:10px; padding:16px 26px; color:var(--mid); font-size:.9rem;}
+  .stub .dotpulse{width:9px; height:9px; border-radius:50%; background:var(--warning); box-shadow:0 0 0 0 rgba(214,158,46,.5);}
+
+  footer{margin-top:30px; text-align:center; color:var(--light); font-size:.8rem;}
+
+  @media (max-width:900px){
+    .sidebar{display:none;}
+    .main{padding:18px 16px 70px;}
+  }
+  @media print{
+    .sidebar{display:none;} .main{max-width:none; margin:0; padding:0;}
+    section.mod,.hero,.howto{box-shadow:none; break-inside:avoid;}
+    a{color:var(--text); text-decoration:none;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ───────────────────────── SIDEBAR ───────────────────────── -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">NOVICROM <b>HUB</b></div>
+      <div class="sub">Guida esplorativa · moduli & gestione</div>
+      <input id="navsearch" class="search" type="search" placeholder="Filtra moduli…" autocomplete="off">
+    </div>
+
+    <nav id="navtree">
+      <div class="nav-group" style="--gc:var(--area-core)">
+        <div class="gl">Core Platform</div>
+        <a class="navlink" href="#mod-core"><span class="ic">🧩</span> core <span class="st ok">✓</span></a>
+        <a class="navlink" href="#mod-twofa"><span class="ic">🔐</span> twofa <span class="st ok">✓</span></a>
+        <a class="navlink" href="#mod-dashboard"><span class="ic">🏠</span> dashboard <span class="st ok">✓</span></a>
+        <a class="navlink" href="#mod-ai_assistant"><span class="ic">🤖</span> ai_assistant <span class="st ok">✓</span></a>
+        <a class="navlink" href="#mod-admin_portale"><span class="ic">⚙️</span> admin_portale <span class="st ok">✓</span></a>
+        <a class="navlink" href="#mod-hub_tools"><span class="ic">🧰</span> hub_tools <span class="st ok">✓</span></a>
+        <a class="navlink" href="#mod-setup_wizard"><span class="ic">🧙</span> setup_wizard <span class="st ok">✓</span></a>
+        <a class="navlink" href="#mod-monitoring"><span class="ic">📈</span> monitoring <span class="st ok">✓</span></a>
+      </div>
+      <div class="nav-group" style="--gc:var(--area-ops)">
+        <div class="gl">Operations</div>
+        <a class="navlink" href="#mod-anagrafica"><span class="ic">👥</span> anagrafica <span class="st ok">✓</span></a>
+        <a class="navlink" href="#mod-fornitori"><span class="ic">🏭</span> fornitori <span class="st ok">✓</span></a>
+        <a class="navlink" href="#mod-assets"><span class="ic">🖥️</span> assets <span class="st ok">✓</span></a>
+        <a class="navlink" href="#mod-attrezzature"><span class="ic">🔧</span> attrezzature <span class="st ok">✓</span></a>
+        <a class="navlink" href="#mod-carichi-macchina"><span class="ic">🛠️</span> carichi macchina <span class="st ok">✓</span></a>
+        <a class="navlink" href="#mod-gestione_specifiche"><span class="ic">📋</span> gestione_specifiche <span class="st ok">✓</span></a>
+        <a class="navlink" href="#mod-tasks"><span class="ic">🚀</span> tasks · KICK-OFF <span class="st ok">✓</span></a>
+        <a class="navlink" href="#mod-planimetria"><span class="ic">🗺️</span> planimetria <span class="st ok">✓</span></a>
+      </div>
+      <div class="nav-group" style="--gc:var(--area-hr)">
+        <div class="gl">HR &amp; Workflow</div>
+        <a class="navlink" href="#mod-assenze"><span class="ic">🌴</span> assenze <span class="st ok">✓</span></a>
+        <a class="navlink" href="#mod-anomalie"><span class="ic">⚠️</span> anomalie <span class="st ok">✓</span></a>
+        <a class="navlink" href="#mod-tickets"><span class="ic">🎫</span> tickets <span class="st ok">✓</span></a>
+        <a class="navlink" href="#mod-timbri"><span class="ic">⏱️</span> timbri <span class="st ok">✓</span></a>
+        <a class="navlink" href="#mod-notizie"><span class="ic">📰</span> notizie <span class="st ok">✓</span></a>
+      </div>
+      <div class="nav-group" style="--gc:var(--area-sic)">
+        <div class="gl">Sicurezza &amp; Compliance</div>
+        <a class="navlink" href="#mod-dpi"><span class="ic">🦺</span> dpi <span class="st ok">✓</span></a>
+        <a class="navlink" href="#mod-diario_preposto"><span class="ic">📓</span> diario_preposto <span class="st ok">✓</span></a>
+        <a class="navlink" href="#mod-rilevazione_incidenti"><span class="ic">🚑</span> rilevazione_incidenti <span class="st ok">✓</span></a>
+        <a class="navlink" href="#mod-procedure_refresh"><span class="ic">📑</span> procedure_refresh <span class="st ok">✓</span></a>
+        <a class="navlink" href="#mod-rentri"><span class="ic">♻️</span> rentri <span class="st ok">✓</span></a>
+      </div>
+      <div class="nav-group" style="--gc:var(--area-auto)">
+        <div class="gl">Automation</div>
+        <a class="navlink" href="#mod-automazioni"><span class="ic">🔁</span> automazioni <span class="st ok">✓</span></a>
+      </div>
+    </nav>
+  </aside>
+
+  <!-- ───────────────────────── MAIN ───────────────────────── -->
+  <main class="main">
+
+    <header class="hero" id="top">
+      <div class="eyebrow">NOVICROM HUB · Guida esplorativa</div>
+      <h1>Tutti i moduli del portale, e come si gestiscono</h1>
+      <p>Una mappa navigabile del portale interno: per ogni modulo (e relativi sotto-moduli)
+         trovi <b>a cosa serve</b> per chi lo usa, la <b>parte di gestione/amministrazione</b>,
+         i <b>ruoli e permessi (ACL)</b> e gli <b>URL/riferimenti tecnici</b> — con screenshot reali
+         delle schermate.</p>
+      <div class="pills">
+        <span class="pill">27 moduli · <b>5 aree</b></span>
+        <span class="pill">Utente · <b>Gestione</b> · ACL · Tecnico</span>
+        <span class="pill">Screenshot <b>reali</b> (in arrivo)</span>
+      </div>
+    </header>
+
+    <div class="howto">
+      <h2>Come leggere questa guida</h2>
+      <p>Usa la <b>barra laterale</b> per saltare a un modulo (o filtra per nome). Ogni scheda modulo
+         è organizzata sempre negli stessi quattro blocchi, più gli screenshot:</p>
+      <div class="blocklegend">
+        <div class="blk"><div class="bi bi-use">👤</div><div><b>A cosa serve</b><span>Per l'utente finale: scopo e flussi principali</span></div></div>
+        <div class="blk"><div class="bi bi-adm">⚙️</div><div><b>Gestione / Admin</b><span>Configurazione, impostazioni, viste di gestione, automazioni</span></div></div>
+        <div class="blk"><div class="bi bi-acl">🔑</div><div><b>Ruoli &amp; permessi</b><span>Chi vede/usa cosa · permessi canonici ACL v2</span></div></div>
+        <div class="blk"><div class="bi bi-url">🔗</div><div><b>URL &amp; riferimenti</b><span>Percorsi, comandi, file e doc del modulo</span></div></div>
+      </div>
+      <div class="note tip"><span class="tag">Stato</span> <b>Tutte le 27 schede sono compilate</b> (testo: a cosa serve · gestione · ACL · URL).
+        Restano da inserire gli <b>screenshot reali</b> — workstream successivo, privacy-safe (dati sintetici/anonimizzati per i moduli con dati personali).</div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════════
+         ESEMPLARE 1 — GESTIONE CARICHI MACCHINA  (completo)
+    ═════════════════════════════════════════════════════════════ -->
+    <section class="mod" id="mod-carichi-macchina">
+      <div class="mod-head">
+        <div class="mod-ic">🛠️</div>
+        <div class="meta">
+          <div class="mod-area"><span class="badge ops">Operations</span> <code>gestione_carichi_macchina</code> · <code>/carichi-macchina/</code></div>
+          <h2>Gestione Carichi Macchina</h2>
+          <p class="mod-sub">Pianifica commesse e lavori sulle macchine utensili giorno per giorno; sostituisce il foglio Excel di officina con stima durate, suggerimento macchina e Gantt interattivo.</p>
+        </div>
+      </div>
+      <div class="mod-body">
+
+        <div class="block">
+          <h3><span class="bi bi-use">👤</span> A cosa serve (utente)</h3>
+          <p>Dà al reparto un <b>piano vivo</b> dei carichi macchina al posto del foglio Excel. Due viste sugli stessi dati:</p>
+          <ul>
+            <li><b>Vista Excel</b> (<code>/carichi-macchina/</code>): matrice <i>macchine × giorni</i>, modifica della cella inline (HTMX). Si pianifica un lavoro scrivendo nella cella del giorno.</li>
+            <li><b>Vista Gantt</b> (<code>/carichi-macchina/gantt/</code>): una barra per lavoro su timeline a giorni lavorativi, colore per commessa/famiglia/stato, milestone KICK-OFF/consegna, <b>drag-to-reschedule</b> (anche a cascata), conflitti/overbooking, zoom.</li>
+          </ul>
+          <p>Funzioni dati-driven a supporto: <b>suggerimento macchina</b> pesato (storico affinità + carico) con spiegazione AI, <b>stima ore</b> quando non sono scritte, <b>saturazione</b> per macchina/reparto e <b>rischio ritardo</b> sulla consegna. Novità: <b>overlay «abilitati assenti»</b> che incrocia la Skill Matrix con le assenze e segnala i giorni con manodopera ridotta (non bloccante).</p>
+          <div class="pillrow">
+            <span class="tg">Vista Excel</span><span class="tg">Gantt + drag</span><span class="tg">Suggerimento pesato</span>
+            <span class="tg">Stima ore (AI)</span><span class="tg">Saturazione</span><span class="tg">Abilitati assenti</span>
+          </div>
+          <figure class="shot">
+            <div class="ph"><b>📸 Screenshot in arrivo</b>Vista Gantt — barre, milestone, saturazione, marker «abilitati assenti»</div>
+            <figcaption>Gantt carichi macchina · <code>/carichi-macchina/gantt/</code> (dati sintetici)</figcaption>
+          </figure>
+        </div>
+
+        <div class="block">
+          <h3><span class="bi bi-sub">🧱</span> Sotto-moduli / aree</h3>
+          <table>
+            <thead><tr><th>Area</th><th>Cosa fa</th></tr></thead>
+            <tbody>
+              <tr><td><b>Pianificazione (Excel/Gantt)</b></td><td>Le due viste del piano; edit cella, riprogrammazione, undo.</td></tr>
+              <tr><td><b>Suggerimento macchina</b></td><td>Scoring pesato load-aware (frequenza, recency, carico libero) + spiegazione LLM via <code>ai_assistant</code>.</td></tr>
+              <tr><td><b>Stima ore &amp; saturazione</b></td><td>Previsione durata da cicli/affinità; saturazione per macchina/reparto, colli di bottiglia, rischio ritardo.</td></tr>
+              <tr><td><b>Importazione</b></td><td>Import del foglio reale (mappatura asset, backlog, cicli, affinità) — anche cumulativo da più edizioni.</td></tr>
+              <tr><td><b>Integrazione KICK-OFF</b></td><td>Le attività «lavoro macchina» di <code>tasks</code> generano/aggiornano pianificazioni collegate (fonte <code>kickoff</code>).</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="block">
+          <h3><span class="bi bi-adm">⚙️</span> Gestione / Admin</h3>
+          <ul>
+            <li><b>Profili macchina</b>: ogni <code>Macchina</code> è legata 1:1 a un <code>assets.Asset</code> (categoria, turni, ore/giorno disponibili, stato pianificazione). Non duplica l'anagrafica asset.</li>
+            <li><b>Import dati</b>: comando <code>import_carichi</code> (dry-run di default), idempotente, con dedup dello storico e calcolo affinità/pool di equivalenza. In produzione si usa <code>tools/import_carichi_prod.ps1</code> (staging fuori webroot, conferma esplicita, cleanup).</li>
+            <li><b>Saturazione</b>: ricalcolata sulla finestra; task/funzioni in <code>saturazione.py</code>/<code>tasks.py</code>.</li>
+            <li><b>Overlay assenze</b>: si attiva da solo dopo l'import della baseline Skill Matrix (vedi <code>anagrafica</code>); fino ad allora il Gantt è invariato.</li>
+          </ul>
+          <div class="note"><span class="tag">Nota operativa</span> Le pianificazioni a <b>fonte <code>kickoff</code></b> sono gestite dalla sincronizzazione con <code>tasks</code> e non vanno editate a mano: si riallineano da sole quando cambia l'attività KICK-OFF.</div>
+        </div>
+
+        <div class="block">
+          <h3><span class="bi bi-acl">🔑</span> Ruoli &amp; permessi (ACL)</h3>
+          <table>
+            <thead><tr><th>Permesso canonico</th><th>Chi</th><th>Cosa</th></tr></thead>
+            <tbody>
+              <tr><td><code>gestione_carichi_macchina.piano.view</code></td><td>Utenti autorizzati al modulo</td><td>Vedere Excel/Gantt, saturazione, suggerimenti.</td></tr>
+              <tr><td><code>gestione_carichi_macchina.piano.edit</code></td><td>Pianificatori / capireparto</td><td>Pianificare, riprogrammare, modificare le celle.</td></tr>
+            </tbody>
+          </table>
+          <p class="mod-sub">Oggi le pagine sono accessibili agli utenti autenticati con l'aggancio al permesso canonico predisposto sulle azioni di scrittura (<code>cella_edit</code>/<code>reschedule</code>); il binding fine al permesso <code>edit</code> è il prossimo passo ACL del modulo.</p>
+        </div>
+
+        <div class="block">
+          <h3><span class="bi bi-url">🔗</span> URL &amp; riferimenti tecnici</h3>
+          <table>
+            <thead><tr><th>URL name</th><th>Percorso</th><th>Scopo</th></tr></thead>
+            <tbody>
+              <tr><td><code>gestione_carichi_macchina:excel</code></td><td><code>/carichi-macchina/</code></td><td>Vista Excel (matrice)</td></tr>
+              <tr><td><code>gestione_carichi_macchina:gantt</code></td><td><code>/carichi-macchina/gantt/</code></td><td>Vista Gantt</td></tr>
+              <tr><td><code>…:cella_edit</code> · <code>…:cella_suggerimento</code></td><td><code>/carichi-macchina/cella/…</code></td><td>Edit cella + box macchine consigliate (HTMX)</td></tr>
+              <tr><td><code>…:reschedule</code> · <code>…:reschedule_undo</code></td><td><code>/carichi-macchina/reschedule/…</code></td><td>Drag-to-reschedule + undo</td></tr>
+              <tr><td><code>…:api_suggerimento_macchina</code> · <code>…:api_spiega_macchina</code></td><td><code>/carichi-macchina/api/…</code></td><td>Suggerimento pesato + spiegazione AI</td></tr>
+            </tbody>
+          </table>
+          <div class="pillrow">
+            <span class="tg">📄 docs/gestione_carichi_macchina/GUIDA_UTILIZZO.html</span>
+            <span class="tg">🧪 import_carichi</span>
+            <span class="tg">🧰 tools/import_carichi_prod.ps1</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════════════════════════════════
+         ESEMPLARE 2 — ASSENZE  (completo)
+    ═════════════════════════════════════════════════════════════ -->
+    <section class="mod" id="mod-assenze">
+      <div class="mod-head">
+        <div class="mod-ic">🌴</div>
+        <div class="meta">
+          <div class="mod-area"><span class="badge hr">HR &amp; Workflow</span> <code>assenze</code> · <code>/assenze/</code></div>
+          <h2>Assenze</h2>
+          <p class="mod-sub">Richiesta e gestione di ferie/permessi/malattia, calendario, certificazione presenza e riconciliazione presenze↔assenze, con flusso di approvazione del caporeparto e sync SharePoint.</p>
+        </div>
+      </div>
+      <div class="mod-body">
+
+        <div class="block">
+          <h3><span class="bi bi-use">👤</span> A cosa serve (utente)</h3>
+          <ul>
+            <li><b>Richiesta assenza</b> (<code>/assenze/richiesta_assenze</code>): il dipendente inserisce tipo (ferie, permesso, malattia, flessibilità…), intervallo date e motivazione; il sistema propone il <b>caporeparto</b> approvatore.</li>
+            <li><b>Calendario</b> (<code>/assenze/calendario</code>): vista mensile delle assenze proprie e — per i ruoli di gestione — del reparto, con colori per tipo/stato.</li>
+            <li><b>Certificazione presenza</b>: registrazione delle presenze certificate (orari mattina/pomeriggio), distinta dalle assenze.</li>
+          </ul>
+          <p>Gli stati seguono il flusso <b>Bozza → In attesa → Approvato/Rifiutato</b>, più <b>Programmato</b> (confermata in pianificazione). L'approvazione è del caporeparto (CAR).</p>
+          <figure class="shot">
+            <div class="ph"><b>📸 Screenshot in arrivo</b>Calendario assenze del reparto (dati sintetici, nessun nome reale)</div>
+            <figcaption>Calendario · <code>/assenze/calendario</code> — <b>screenshot con dati sintetici</b> per il confine privacy</figcaption>
+          </figure>
+        </div>
+
+        <div class="block">
+          <h3><span class="bi bi-sub">🧱</span> Sotto-moduli / aree</h3>
+          <table>
+            <thead><tr><th>Area</th><th>URL</th><th>Cosa fa</th></tr></thead>
+            <tbody>
+              <tr><td><b>Menu / richiesta</b></td><td><code>/assenze/</code>, <code>…/richiesta_assenze</code></td><td>Punto d'ingresso e inserimento richiesta (anche «per conto di» per i CAR).</td></tr>
+              <tr><td><b>Calendario</b></td><td><code>…/calendario</code></td><td>Vista mensile + API eventi/colori.</td></tr>
+              <tr><td><b>Gestione (CAR)</b></td><td><code>…/impostazioni/</code>, <code>…/car/dashboard</code></td><td>Coda richieste del reparto, approva/rifiuta, export CSV.</td></tr>
+              <tr><td><b>Riconciliazione</b></td><td><code>…/riconciliazione/</code></td><td>Incrocio presenze certificate ↔ assenze approvate a giornata intera (segnala incongruenze).</td></tr>
+              <tr><td><b>Certificazione presenza</b></td><td><code>…/certificazione-presenza/</code></td><td>Inserimento presenze certificate.</td></tr>
+              <tr><td><b>Sync SharePoint</b></td><td><code>…/api/sync/push|pull</code></td><td>Allineamento con la lista SharePoint legacy.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="block">
+          <h3><span class="bi bi-adm">⚙️</span> Gestione / Admin</h3>
+          <ul>
+            <li><b>Impostazioni gestione</b> (<code>/assenze/impostazioni/</code>): coda del reparto, decisioni di consenso, parametri.</li>
+            <li><b>Gestione admin</b> (<code>/assenze/gestione-admin/</code>): viste amministrative globali.</li>
+            <li><b>Sorgente dati ibrida</b>: il modello Django <code>CertificazionePresenza</code> + la tabella legacy <code>assenze</code> (campi <code>data_inizio/fine</code>, <code>tipo_assenza</code>, <code>moderation_status</code> 0=Approvato·1=Rifiutato·2=In attesa·3=Bozza·4=Programmato).</li>
+            <li><b>Identità dipendente</b>: il match alle assenze legacy passa per <code>copia_nome</code>/<code>email_esterna</code> (non per id), con risoluzione da <code>anagrafica_dipendenti</code>.</li>
+          </ul>
+          <div class="note warn"><span class="tag">Privacy</span> Le schermate contengono <b>dati personali</b> (nomi, motivazioni, malattia). Gli screenshot di questa scheda usano <b>solo dati sintetici</b> e/o sono anonimizzati: nessun nominativo reale finisce nella guida.</div>
+        </div>
+
+        <div class="block">
+          <h3><span class="bi bi-acl">🔑</span> Ruoli &amp; permessi (ACL)</h3>
+          <table>
+            <thead><tr><th>Ruolo</th><th>Può</th></tr></thead>
+            <tbody>
+              <tr><td><b>Dipendente</b></td><td>Inserire e vedere le <i>proprie</i> richieste; vedere il proprio calendario.</td></tr>
+              <tr><td><b>Caporeparto (CAR)</b></td><td>Vedere/gestire le richieste del <i>proprio reparto</i> (scope via <code>caporeparto_legacy_id</code>), approvare/rifiutare, inserire per conto di, export CSV.</td></tr>
+              <tr><td><b>Admin assenze</b></td><td>Gestione globale, riconciliazione, sync SharePoint.</td></tr>
+            </tbody>
+          </table>
+          <p class="mod-sub">Le decisioni d'accesso passano per il modulo ACL <code>assenze</code> (<code>core.acl.user_can_modulo_action</code>) e per lo scope reparto risolto ad-hoc nelle view; il dettaglio del confine OWN/TEAM è gestito a livello di vista.</p>
+        </div>
+
+        <div class="block">
+          <h3><span class="bi bi-url">🔗</span> URL &amp; riferimenti tecnici</h3>
+          <table>
+            <thead><tr><th>URL name</th><th>Percorso</th><th>Scopo</th></tr></thead>
+            <tbody>
+              <tr><td><code>assenze_menu</code> · <code>assenze_richiesta</code></td><td><code>/assenze/</code> · <code>…/richiesta_assenze</code></td><td>Menu + nuova richiesta</td></tr>
+              <tr><td><code>assenze_calendario</code> · <code>assenze_api_eventi</code></td><td><code>…/calendario</code> · <code>…/api/eventi</code></td><td>Calendario + feed eventi</td></tr>
+              <tr><td><code>assenze_gestione</code> · <code>assenze_car_dashboard</code></td><td><code>…/impostazioni/</code> · <code>…/car/dashboard</code></td><td>Gestione / dashboard CAR</td></tr>
+              <tr><td><code>assenze_riconciliazione</code></td><td><code>…/riconciliazione/</code></td><td>Riconciliazione presenze↔assenze</td></tr>
+              <tr><td><code>assenze_api_sync_push|pull</code></td><td><code>…/api/sync/…</code></td><td>Sync SharePoint</td></tr>
+            </tbody>
+          </table>
+          <div class="pillrow">
+            <span class="tg">🧩 models: CertificazionePresenza + tabella legacy «assenze»</span>
+            <span class="tg">🔗 availability.py (bridge carichi macchina)</span>
+            <span class="tg">🔗 riconciliazione.py</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════════════════════════════════
+         STUB — gli altri moduli (compilati dopo l'approvazione del modello)
+    ═════════════════════════════════════════════════════════════ -->
+    <!-- CORE -->
+    <section class="mod" id="mod-core">
+      <div class="mod-head"><div class="mod-ic">🧩</div><div class="meta">
+        <div class="mod-area"><span class="badge core">Core</span> <code>core</code> · <code>/capa/</code></div>
+        <h2>Core platform</h2>
+        <p class="mod-sub">Il motore comune del portale: middleware ACL, navigation registry, autenticazione in cascata, audit, notifiche, ricerca globale, preferenze UI ed export — più le azioni <b>CAPA</b> correttive/preventive trasversali.</p>
+      </div></div>
+      <div class="mod-body">
+        <div class="block"><h3><span class="bi bi-use">👤</span> A cosa serve (utente)</h3>
+          <p>Non è un modulo «da aprire»: è l'infrastruttura che fa funzionare tutto il resto. Per l'utente emergono però alcune funzioni trasversali:</p>
+          <ul>
+            <li><b>Login</b> (form legacy + <b>SSO Windows</b> in rete interna), <b>profilo</b>, <b>rubrica</b>, <b>organigramma</b>.</li>
+            <li><b>Centro notifiche</b> (campanella, badge, popup live su scadenze asset/DPI/SLA).</li>
+            <li><b>Ricerca globale</b> Ctrl+K cross-modulo (dipendenti, asset, ticket, progetti, task, procedure, DPI) — ACL-filtrata.</li>
+            <li><b>Azioni CAPA</b> (<code>/capa/</code>): workflow correttivo/preventivo APERTA → IN_CORSO → CHIUSA → VERIFICATA con «quattro occhi».</li>
+          </ul>
+          <figure class="shot"><div class="ph"><b>📸 Screenshot in arrivo</b>Lista azioni CAPA + ricerca globale Ctrl+K</div><figcaption>CAPA · <code>/capa/</code></figcaption></figure>
+        </div>
+        <div class="block"><h3><span class="bi bi-sub">🧱</span> Sotto-moduli / aree</h3>
+          <table><thead><tr><th>Area</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td>Autenticazione</td><td><code>/login/</code> · <code>/login/windows/</code> · <code>/logout/</code></td><td>4 backend in cascata (Axes → SQL legacy → LDAP → Django) + SSO AD.</td></tr>
+            <tr><td>Profilo / rubrica / organigramma</td><td><code>/profilo/</code> · <code>/rubrica/</code> · <code>/organigramma/</code></td><td>Dati utente e struttura aziendale.</td></tr>
+            <tr><td>Centro notifiche</td><td><code>/notifiche/</code> + API</td><td>Pannello HTMX, live polling, popup ACK.</td></tr>
+            <tr><td>Ricerca globale</td><td><code>/api/search/</code></td><td>Ctrl+K su 7 sorgenti, ACL-gated.</td></tr>
+            <tr><td>Preferenze UI</td><td><code>/preferenze/</code></td><td>nav_mode, tema, font, sidebar.</td></tr>
+            <tr><td>CAPA</td><td><code>/capa/</code> · <code>…/&lt;pk&gt;/chiudi|verifica|annulla/</code></td><td>Azioni correttive/preventive con gating fail-closed.</td></tr>
+          </tbody></table>
+        </div>
+        <div class="block"><h3><span class="bi bi-adm">⚙️</span> Gestione / Admin</h3>
+          <ul>
+            <li><b>Motore ACL</b>: <code>bootstrap_acl_v2</code> (mappa route→permessi canonici), diagnostica <code>acl_diagnose</code>/<code>acl_coverage_report</code>/<code>acl_fallback_report</code>/<code>acl_strict_readiness</code>.</li>
+            <li><b>Navigation registry</b>: <code>NavigationItem</code>/<code>NavigationRoleAccess</code>/<code>UserNavigationOverride</code>; restore controllato con <code>restore_navigation_registry</code> (dry-run + snapshot).</li>
+            <li><b>Identità</b>: <code>sync_ldap_users</code>, <code>bootstrap_caporeparto_locale</code>; <b>backup</b> con <code>backup_portale</code>; <b>branding</b> via <code>SiteConfig</code>.</li>
+            <li><b>Audit immutabile</b> (<code>core.audit.log_action</code>, tabella <code>AuditLog</code>) fire-and-forget su ogni operazione rilevante. ~22 management command in totale.</li>
+          </ul>
+        </div>
+        <div class="block"><h3><span class="bi bi-acl">🔑</span> Ruoli &amp; permessi (ACL)</h3>
+          <p>Questo modulo <b>è</b> il sistema ACL: <code>ACLMiddleware</code> risolve l'accesso con il resolver canonico v2 e fallback legacy (<code>Pulsante</code>/<code>Permesso</code>/<code>Ruolo</code>) per le voci non ancora mappate.</p>
+          <table><thead><tr><th>Permesso CAPA</th><th>Chi / cosa</th></tr></thead><tbody>
+            <tr><td><code>core.capa_manage</code></td><td>Gestore CAPA: vede tutto, crea, modifica, verifica, annulla.</td></tr>
+            <tr><td><code>core.capa_create</code></td><td>Creazione manuale (anche preposti/RSPP da rilevazione_incidenti).</td></tr>
+            <tr><td><i>quattro occhi</i></td><td>Chi <b>verifica</b> l'efficacia ≠ chi ha <b>eseguito</b> (salvo superuser).</td></tr>
+          </tbody></table>
+          <div class="note"><span class="tag">Contesto</span> In prod è attivo <code>ACL_STRICT_CANONICAL</code>: le route con binding canonico ignorano i permessi legacy. Diagnosi da <code>/admin-portale/acl-canonico/</code> e <code>acl_diagnose</code>.</div>
+        </div>
+        <div class="block"><h3><span class="bi bi-url">🔗</span> URL &amp; riferimenti tecnici</h3>
+          <div class="pillrow"><span class="tg">🔗 capa_list · capa_verify · api_global_search · notifiche</span><span class="tg">🧩 middleware.py · acl.py · navigation_registry.py · views_capa.py</span><span class="tg">🧪 bootstrap_acl_v2 · acl_diagnose</span></div>
+        </div>
+      </div>
+    </section>
+    <section class="mod" id="mod-twofa">
+      <div class="mod-head"><div class="mod-ic">🔐</div><div class="meta">
+        <div class="mod-area"><span class="badge core">Core</span> <code>twofa</code> · <code>/2fa/</code></div>
+        <h2>Autenticazione a due fattori</h2>
+        <p class="mod-sub">Protegge l'accesso con un secondo fattore (TOTP da app o OTP via email), applicato per ruolo/rete con policy configurabile e setup self-service.</p>
+      </div></div>
+      <div class="mod-body">
+        <div class="block"><h3><span class="bi bi-use">👤</span> A cosa serve (utente)</h3>
+          <ul>
+            <li><b>Verifica 2FA</b> al login quando la policy lo richiede; inserimento codice TOTP o OTP email.</li>
+            <li><b>Setup self-service</b> con <b>QR code</b> da scansionare con un'app authenticator.</li>
+            <li>Possibilità di <b>reinviare l'OTP</b> via email.</li>
+          </ul>
+          <figure class="shot"><div class="ph"><b>📸 Screenshot in arrivo</b>Setup TOTP con QR + schermata verifica codice</div><figcaption>Setup · <code>/2fa/setup/totp/</code></figcaption></figure>
+        </div>
+        <div class="block"><h3><span class="bi bi-sub">🧱</span> Sotto-moduli / aree</h3>
+          <table><thead><tr><th>Area</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td>Verifica</td><td><code>/2fa/verifica/</code></td><td>Inserimento e validazione del codice.</td></tr>
+            <tr><td>Setup TOTP</td><td><code>/2fa/setup/totp/</code></td><td>Genera secret, QR, conferma.</td></tr>
+            <tr><td>Reinvia OTP</td><td><code>/2fa/resend-otp/</code></td><td>Rigenera e rispedisce l'OTP email.</td></tr>
+            <tr><td>Pannello admin</td><td><code>/admin-portale/2fa/</code></td><td>Policy globale + tabella utenti (toggle/reset/metodo).</td></tr>
+          </tbody></table>
+        </div>
+        <div class="block"><h3><span class="bi bi-adm">⚙️</span> Gestione / Admin</h3>
+          <ul>
+            <li><b>Policy</b> singleton <code>TwoFactorPolicy</code>: <code>enabled</code>, <code>when_required</code> (<i>always</i> / <i>external_only</i>), ruoli richiesti, reti interne (CIDR), metodi ammessi, durata sessione (default 8h).</li>
+            <li><b>API admin</b>: salva policy, toggle/reset utente, cambia metodo, imposta email override.</li>
+            <li><b>Secret TOTP cifrato</b> con Fernet (derivato da SECRET_KEY).</li>
+          </ul>
+        </div>
+        <div class="block"><h3><span class="bi bi-acl">🔑</span> Ruoli &amp; permessi (ACL)</h3>
+          <p>La verifica è per ogni utente loggato secondo <code>should_require_2fa()</code> (policy + ruolo + IP interno/esterno); il <code>TwoFactorMiddleware</code> blocca la navigazione finché la sessione non è verificata. Il pannello admin è <code>@legacy_admin_required</code>.</p>
+        </div>
+        <div class="block"><h3><span class="bi bi-url">🔗</span> URL &amp; riferimenti tecnici</h3>
+          <div class="pillrow"><span class="tg">🔗 twofa:verify · setup_totp · resend_otp</span><span class="tg">🧩 twofa/middleware.py · utils.py · models.py</span></div>
+        </div>
+      </div>
+    </section>
+    <section class="mod" id="mod-dashboard">
+      <div class="mod-head"><div class="mod-ic">🏠</div><div class="meta">
+        <div class="mod-area"><span class="badge core">Core</span> <code>dashboard</code> · <code>/</code></div>
+        <h2>Dashboard / Home</h2>
+        <p class="mod-sub">La home del portale: KPI e launcher personalizzabili, il cockpit «Le mie attività», lo Scadenzario Globale unificato e la scheda dipendente infografica.</p>
+      </div></div>
+      <div class="mod-body">
+        <div class="block"><h3><span class="bi bi-use">👤</span> A cosa serve (utente)</h3>
+          <ul>
+            <li><b>Home KPI</b> (<code>/</code> → <code>/dashboard</code>): widget e launcher dei moduli accessibili, layout <b>drag &amp; drop</b> salvato per utente.</li>
+            <li><b>Le mie attività</b> (<code>/mie-attivita</code>): aggregato cross-modulo personale — approvazioni assenze, ticket aperti, anomalie proprie, procedure da leggere, richieste DPI.</li>
+            <li><b>Scadenzario Globale</b> (<code>/scadenze</code>): scadenze &lt;60gg da più moduli (HR, asset, DPI, RENTRI, CAPA) con KPI e export CSV.</li>
+            <li><b>Scheda dipendente</b> (<code>/scheda-dipendente</code>): infografica KPI personale, layout configurabile, export PDF.</li>
+          </ul>
+          <figure class="shot"><div class="ph"><b>📸 Screenshot in arrivo</b>Home con widget KPI + cockpit «Le mie attività»</div><figcaption>Home · <code>/dashboard</code> (dati sintetici)</figcaption></figure>
+        </div>
+        <div class="block"><h3><span class="bi bi-sub">🧱</span> Sotto-moduli / aree</h3>
+          <table><thead><tr><th>Area</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td>Home</td><td><code>/dashboard</code></td><td>Griglia widget KPI, moduli per ruolo, cockpit in cima.</td></tr>
+            <tr><td>Le mie attività</td><td><code>/mie-attivita</code></td><td>Cockpit operativo cross-modulo (helper <code>build_cose_da_gestire()</code>).</td></tr>
+            <tr><td>Scadenzario Globale</td><td><code>/scadenze</code></td><td>Tabella unificata + filtri sorgente/stato/reparto + export.</td></tr>
+            <tr><td>Scheda dipendente</td><td><code>/scheda-dipendente</code> · <code>…/pdf</code></td><td>Infografica + PDF.</td></tr>
+          </tbody></table>
+        </div>
+        <div class="block"><h3><span class="bi bi-adm">⚙️</span> Gestione / Admin</h3>
+          <ul>
+            <li><b>Layout per-utente</b> salvati in <code>UserDashboardLayout</code>; visibilità widget/moduli (<code>UserDashboardConfig</code>, <code>UserModuleVisibility</code>).</li>
+            <li><b>Scheda dipendente</b>: template globale admin (<code>EmployeeBoardConfig</code>) + override per-utente con reset.</li>
+            <li><b>Provider scadenzario</b> (<code>scadenze_providers.py</code>): sorgenti <code>hr/asset/dpi/rentri/capa</code> <b>ACL-gated</b> e <b>fail-safe</b> (un modulo in errore non rompe la pagina).</li>
+          </ul>
+        </div>
+        <div class="block"><h3><span class="bi bi-acl">🔑</span> Ruoli &amp; permessi (ACL)</h3>
+          <p>14 permessi canonici <code>dashboard.*</code> (home, mie_attivita, scadenze, employee_board + API). Le rotte sono <b>condivise</b> (tutti i loggati) ma i contenuti sono filtrati: ogni provider/widget ri-applica l'ACL del modulo sorgente. Le azioni di scrittura (toggle widget, salva layout) restano gated.</p>
+        </div>
+        <div class="block"><h3><span class="bi bi-url">🔗</span> URL &amp; riferimenti tecnici</h3>
+          <div class="pillrow"><span class="tg">🔗 dashboard_home · mie_attivita · scadenze_globali · employee_board</span><span class="tg">🧩 views_mie_attivita.py · views_scadenze.py · scadenze_providers.py</span></div>
+        </div>
+      </div>
+    </section>
+    <section class="mod" id="mod-ai_assistant">
+      <div class="mod-head"><div class="mod-ic">🤖</div><div class="meta">
+        <div class="mod-area"><span class="badge core">Core</span> <code>ai_assistant</code> · <code>/assistente-ai/</code></div>
+        <h2>Assistente AI</h2>
+        <p class="mod-sub">Copilota interno autenticato e <b>on-premise</b> (Ollama/TEI): risponde su dati live del portale (ACL-filtrati) e cita il corpus documentale SGI. L'AI propone, l'umano firma.</p>
+      </div></div>
+      <div class="mod-body">
+        <div class="block"><h3><span class="bi bi-use">👤</span> A cosa serve (utente)</h3>
+          <ul>
+            <li><b>Chat interna</b> autenticata: domande in linguaggio naturale su assenze, ticket, task, asset, DPI, procedure, anomalie, carichi macchina… Le risposte usano <b>dati live ACL-filtrati</b> (citati come <code>tool:*</code>), non inventati.</li>
+            <li><b>Risposte citate dal corpus SGI</b>: specifiche in vigore (<code>spec:</code>) e procedure correnti (<code>proc:</code>) indicizzate e citabili (es. «in che MT si parla di timbri?» → «MT CN 06 §4.2»).</li>
+            <li><b>Brief operativo personale</b> (<code>/api/daily-brief/</code>): riepilogo giornaliero delle proprie priorità (fail-safe: mostra i dati grezzi se l'AI è offline).</li>
+            <li><b>Report PDF</b> e <b>feedback</b> 👍/👎 con eventuale correzione (alimenta la knowledge base).</li>
+          </ul>
+          <div class="pillrow"><span class="tg">On-premise (Ollama/TEI)</span><span class="tg">RAG SGI citabile</span><span class="tg">12 tool runtime</span><span class="tg">Audit solo-metadati</span></div>
+          <figure class="shot"><div class="ph"><b>📸 Screenshot in arrivo</b>Chat assistente AI con risposta citata (spec:/proc:) — dati sintetici</div><figcaption>Chat · <code>/assistente-ai/</code></figcaption></figure>
+        </div>
+        <div class="block"><h3><span class="bi bi-sub">🧱</span> Sotto-moduli / aree</h3>
+          <table><thead><tr><th>Area</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td>Chat web + API</td><td><code>/</code> · <code>/api/chat/</code> · <code>/api/chat/stream/</code></td><td>Conversazione sync e in streaming (NDJSON), con citazioni e rate-limit.</td></tr>
+            <tr><td>Daily brief</td><td><code>/api/daily-brief/</code></td><td>Riepilogo personale cached (refresh con throttle).</td></tr>
+            <tr><td>Report PDF</td><td><code>/api/report/</code></td><td>Bozza PDF citata su un tema (umano firma).</td></tr>
+            <tr><td>Knowledge / feedback</td><td><code>/api/knowledge/save/</code> · <code>/api/feedback/</code></td><td>FAQ curate (admin/HR) e rating con correzione.</td></tr>
+            <tr><td>Runtime tools</td><td><code>tools.py</code></td><td>12 tool live ACL-aware (assenze, ticket, task, asset, carichi macchina, DPI, anomalie, procedure, notizie, sicurezza, anagrafica, router).</td></tr>
+            <tr><td>RAG / indice</td><td><code>services.py</code></td><td>Ibrido BM25 + embeddings su README/FAQ/SGI.</td></tr>
+          </tbody></table>
+        </div>
+        <div class="block"><h3><span class="bi bi-adm">⚙️</span> Gestione / Admin</h3>
+          <ul>
+            <li><b>Configurazione</b> via settings: <code>OLLAMA_*</code> (modello chat, base URL, provider, timeout, rate-limit, num_ctx/num_predict), <code>OLLAMA_RAG_*</code> e <code>RAG_EMBED_BACKEND</code> (ollama/TEI/fastembed), <code>OLLAMA_RAG_SGI_*</code>.</li>
+            <li><b>Comandi</b>: <code>warmup_ollama</code> (zero cold-start), <code>index_sgi_documents</code> (build indice + warm embeddings SGI), <code>ai_eval</code> (recall@k routing/RAG).</li>
+            <li><b>Schedule django-q</b>: <code>run_warmup_ollama</code> e <code>run_index_sgi_documents</code> (notturno).</li>
+            <li><b>Governance privacy</b>: <code>AiToolPrivacyReview</code> per ogni tool (status approved/restricted/blocked, campi consentiti/bloccati, retention). Console admin per FAQ e feedback.</li>
+          </ul>
+          <div class="note tip"><span class="tag">Capacità AI</span> Per il funzionamento dettagliato (RAG, tool, storico versioni) vedi <code>docs/ai/GUIDA_AI.html</code>, da tenere aggiornata a ogni nuova capacità.</div>
+        </div>
+        <div class="block"><h3><span class="bi bi-acl">🔑</span> Ruoli &amp; permessi (ACL)</h3>
+          <ul>
+            <li><b>Chat/API</b>: <code>@login_required</code> — ogni tool ri-applica l'ACL del dominio (vedi solo ciò che vedresti nel modulo).</li>
+            <li><b>Salvataggio knowledge</b>: solo superuser / staff / admin legacy.</li>
+            <li><b>Audit solo-metadati</b>: <code>core.audit.log_action</code> registra modello, conteggi caratteri, n. citazioni, tool usati, latenza — <b>mai</b> il testo dell'utente o sensibili.</li>
+            <li>Tool con dati sensibili (es. <code>anagrafica</code> read-only senza CF/IBAN/sanità/retribuzione; <code>timbri</code> oggi <b>disabilitato</b>) gestiti da <code>AiToolPrivacyReview</code>.</li>
+          </ul>
+        </div>
+        <div class="block"><h3><span class="bi bi-url">🔗</span> URL &amp; riferimenti tecnici</h3>
+          <div class="pillrow"><span class="tg">🧩 views.py · tools.py · services.py</span><span class="tg">🧪 warmup_ollama · index_sgi_documents · ai_eval</span><span class="tg">📄 docs/ai/GUIDA_AI.html</span><span class="tg">⚙️ settings OLLAMA_*/RAG_*</span></div>
+        </div>
+      </div>
+    </section>
+    <section class="mod" id="mod-admin_portale">
+      <div class="mod-head"><div class="mod-ic">⚙️</div><div class="meta">
+        <div class="mod-area"><span class="badge core">Core</span> <code>admin_portale</code> · <code>/admin-portale/</code></div>
+        <h2>Admin portale</h2>
+        <p class="mod-sub">Il pannello di governance del portale: ACL v2 canonico, utenti e ruoli, diagnostica permessi, audit/attività, branding e template PDF — più i sotto-pannelli 2FA, hub, automazioni e AI.</p>
+      </div></div>
+      <div class="mod-body">
+        <div class="block"><h3><span class="bi bi-use">👤</span> A cosa serve (utente)</h3>
+          <p>Console amministrativa <b>custom</b> (non l'admin Django) per chi governa il portale:</p>
+          <ul>
+            <li><b>Utenti &amp; ruoli</b>: CRUD, assegnazione ruoli, impersonate, forza cambio password.</li>
+            <li><b>ACL v2 canonico</b>: permission code, binding route, grant ruolo/utente, override, diagnostica.</li>
+            <li><b>Navigazione</b>, <b>branding</b>, <b>template PDF</b>, <b>audit</b> e attività utenti.</li>
+          </ul>
+          <figure class="shot"><div class="ph"><b>📸 Screenshot in arrivo</b>ACL canonico + mappa permessi/navigazione</div><figcaption>ACL canonico · <code>/admin-portale/acl-canonico/</code></figcaption></figure>
+        </div>
+        <div class="block"><h3><span class="bi bi-sub">🧱</span> Sotto-moduli / aree</h3>
+          <table><thead><tr><th>Area</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td>Utenti</td><td><code>/admin-portale/utenti/</code></td><td>CRUD, ruoli bulk, impersonate, reset.</td></tr>
+            <tr><td>Permessi / ACL canonico</td><td><code>…/permessi/</code> · <code>…/acl-canonico/</code></td><td>Toggle permessi, grant, binding, override.</td></tr>
+            <tr><td>Diagnostica ACL</td><td><code>…/acl-diagnostica/</code> · <code>…/acl-route-coverage/</code></td><td>Trace decisioni, copertura route.</td></tr>
+            <tr><td>Navigazione</td><td><code>…/navigation-builder/</code></td><td>Editor voci menu, publish snapshot.</td></tr>
+            <tr><td>Audit / Branding / PDF / Login</td><td><code>…/audit/</code> · <code>…/branding/</code> · <code>…/pdf-template/</code></td><td>Log, identità visiva, template, banner.</td></tr>
+            <tr><td>Sotto-pannelli</td><td><code>…/2fa/</code> · <code>…/hub/…</code> · <code>…/automazioni/…</code> · <code>…/ai/</code></td><td>2FA, hub tools, mailbox automazioni, AI.</td></tr>
+          </tbody></table>
+        </div>
+        <div class="block"><h3><span class="bi bi-adm">⚙️</span> Gestione / Admin</h3>
+          <ul>
+            <li>60+ endpoint API per permessi/utenti/pulsanti/ACL v2/branding/navigazione.</li>
+            <li>Operazioni critiche protette da <code>@sensitive_admin_operation_required</code> (delete utenti, reset 2FA).</li>
+            <li>Opera su <code>PermissionDefinition</code>, <code>RoutePermissionBinding</code>, <code>RolePermissionGrant</code>, <code>UserPermissionGrant/Override</code>, <code>NavigationItem</code>.</li>
+          </ul>
+        </div>
+        <div class="block"><h3><span class="bi bi-acl">🔑</span> Ruoli &amp; permessi (ACL)</h3>
+          <p>Tutto il modulo è <code>@legacy_admin_required</code> (solo superuser o admin legacy). È il punto da cui si <b>governa</b> l'ACL canonico dell'intero portale (vedi <a href="#mod-core">core</a>).</p>
+        </div>
+        <div class="block"><h3><span class="bi bi-url">🔗</span> URL &amp; riferimenti tecnici</h3>
+          <div class="pillrow"><span class="tg">🔗 admin_portale:index · utenti_list · acl_canonico</span><span class="tg">🧩 acl_v2_views.py · decorators.py · security.py · api.py</span></div>
+        </div>
+      </div>
+    </section>
+    <section class="mod" id="mod-hub_tools">
+      <div class="mod-head"><div class="mod-ic">🧰</div><div class="meta">
+        <div class="mod-area"><span class="badge core">Core</span> <code>hub_tools</code> · <code>/admin-portale/hub/</code></div>
+        <h2>Hub tools</h2>
+        <p class="mod-sub">La cassetta degli attrezzi dell'amministratore: abilita/disabilita moduli, gestisce il database, personalizza branding e homepage, e cataloga le guide del portale.</p>
+      </div></div>
+      <div class="mod-body">
+        <div class="block"><h3><span class="bi bi-use">👤</span> A cosa serve (utente)</h3>
+          <p>Pannello <b>solo-admin</b> per la gestione tecnica del portale, senza toccare il codice:</p>
+          <ul>
+            <li><b>Module Manager</b>: attiva/disattiva i moduli e imposta il redirect post-login.</li>
+            <li><b>Database Manager</b>: statistiche tabelle, backup, pulizia sessioni/log, ottimizzazione indici, ripristino.</li>
+            <li><b>Branding &amp; Homepage builder</b>: logo/favicon/colori e layout della home con drag &amp; drop per ruolo.</li>
+            <li><b>Guide &amp; Manuali</b>: catalogo auto-indicizzato di HTML/PDF/MD (manuali, audit ACL, schema DB) — <i>qui vivrà anche questa guida</i>.</li>
+          </ul>
+          <figure class="shot"><div class="ph"><b>📸 Screenshot in arrivo</b>Hub admin — Module Manager / Database Manager</div><figcaption>Hub · <code>/admin-portale/hub/</code> (modulo admin, nessun dato personale)</figcaption></figure>
+        </div>
+        <div class="block"><h3><span class="bi bi-sub">🧱</span> Sotto-moduli / aree</h3>
+          <table><thead><tr><th>Area</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td>Module Manager</td><td><code>/admin-portale/hub/moduli/</code></td><td>Toggle moduli, redirect post-login, visibilità.</td></tr>
+            <tr><td>Database Manager</td><td><code>…/hub/database/</code></td><td>Stats, backup, cleanup, VACUUM/ANALYZE, restore.</td></tr>
+            <tr><td>DB Schema</td><td><code>…/hub/database/schema/</code></td><td>Infografica modelli/relazioni.</td></tr>
+            <tr><td>Homepage Builder</td><td><code>…/hub/homepage-builder/</code></td><td>Editor drag &amp; drop sezioni per ruolo.</td></tr>
+            <tr><td>Setup Wizard Hub</td><td><code>…/hub/setup-wizard/</code></td><td>Riconfigura <code>.env</code> senza riavviare.</td></tr>
+            <tr><td>Guide &amp; Manuali</td><td><code>…/hub/guide/</code></td><td>Catalogo guide HTML/PDF/MD con ricerca.</td></tr>
+            <tr><td>Branding · KPI · Pulsanti</td><td><code>…/hub/branding/</code> · <code>…/kpi/</code> · <code>…/pulsanti/</code></td><td>Identità visiva, KPI dashboard, bottoni home.</td></tr>
+          </tbody></table>
+        </div>
+        <div class="block"><h3><span class="bi bi-adm">⚙️</span> Gestione / Admin</h3>
+          <ul>
+            <li>Operazioni DB via API (<code>api_db_stats/backup/cleanup/optimize/restore</code>) — <b>on-demand</b>, nessuno schedulato.</li>
+            <li>Non possiede modelli propri: opera su <code>SiteConfig</code> (core) e sul file <code>.env</code> (via <code>config/env_config.py</code>).</li>
+            <li>Le guide sono scoperte da <code>_discover_guides()</code> scandendo <code>tools/</code>, <code>doc/</code>, <code>deployment/</code>.</li>
+          </ul>
+        </div>
+        <div class="block"><h3><span class="bi bi-acl">🔑</span> Ruoli &amp; permessi (ACL)</h3>
+          <p>Tutte le view sono protette da <code>@legacy_admin_required</code> (admin/staff). Accesso <b>tutto-o-nulla</b>: non ci sono permessi granulari per singola funzione.</p>
+        </div>
+        <div class="block"><h3><span class="bi bi-url">🔗</span> URL &amp; riferimenti tecnici</h3>
+          <div class="pillrow"><span class="tg">🔗 hub_index · hub_moduli · hub_database · hub_guide_list</span><span class="tg">🧩 hub_tools/views.py</span><span class="tg">⚙️ config/env_config.py</span></div>
+        </div>
+      </div>
+    </section>
+    <section class="mod" id="mod-setup_wizard">
+      <div class="mod-head"><div class="mod-ic">🧙</div><div class="meta">
+        <div class="mod-area"><span class="badge core">Core</span> <code>setup_wizard</code> · <code>/setup/</code></div>
+        <h2>Setup wizard</h2>
+        <p class="mod-sub">Procedura guidata di prima installazione e riconfigurazione: database, LDAP, SMTP, Graph/SharePoint, selezione moduli, branding e creazione admin. Disponibile anche come <code>SetupWizard.exe</code> per Windows Server.</p>
+      </div></div>
+      <div class="mod-body">
+        <div class="block"><h3><span class="bi bi-use">👤</span> A cosa serve (utente)</h3>
+          <ul>
+            <li>Allestisce il portale al <b>primo avvio</b> (raggiungibile a <code>/setup/</code> finché <code>SETUP_COMPLETED=0</code>): un percorso multi-step che scrive il <code>.env</code> e prepara il database.</li>
+            <li><b>Test integrati</b> di connessione DB (SQL Server), LDAP (bind con fallback UPN/dominio/DN) e SMTP (STARTTLS), prima di salvare.</li>
+            <li><b>Selezione moduli</b> a tier (system/standard/optional) con migrate selettivo, e creazione del <b>primo superuser</b>.</li>
+            <li>Versione <b>standalone</b> <code>SetupWizard.exe</code> (14 step) per il deploy su Windows con discovery SQL Server e gestione servizi.</li>
+          </ul>
+          <figure class="shot"><div class="ph"><b>📸 Screenshot in arrivo</b>Wizard di setup — step DB / moduli / admin</div><figcaption>Wizard · <code>/setup/</code> (ambiente di prova)</figcaption></figure>
+        </div>
+        <div class="block"><h3><span class="bi bi-sub">🧱</span> Sotto-moduli / aree</h3>
+          <table><thead><tr><th>Area</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td>Wizard</td><td><code>/setup/</code></td><td>Form multi-step (istanza, DB, LDAP, SMTP, Graph, moduli, branding, admin).</td></tr>
+            <tr><td>Test connessioni</td><td><code>…/api/test-db|ldap|smtp/</code></td><td>Verifica credenziali/raggiungibilità prima di salvare.</td></tr>
+            <tr><td>Salvataggio</td><td><code>…/api/save/</code></td><td>Scrive <code>.env</code>, genera SECRET_KEY, marca <code>SETUP_COMPLETED=1</code>.</td></tr>
+            <tr><td>Migrazioni / finalize</td><td><code>…/api/run-migrations/</code> · <code>…/finalize-database/</code></td><td>Migrate, schema legacy, cache table, bootstrap ACL v2, seed.</td></tr>
+            <tr><td>Crea admin / moduli</td><td><code>…/api/create-admin/</code> · <code>…/set-modules/</code></td><td>Superuser + visibilità moduli.</td></tr>
+          </tbody></table>
+        </div>
+        <div class="block"><h3><span class="bi bi-adm">⚙️</span> Gestione / Admin</h3>
+          <ul>
+            <li>Finalizzazione DB sequenziale: <code>ensure_legacy_schema</code> → <code>createcachetable</code> → <code>bootstrap_acl_v2</code> → seed pulsanti.</li>
+            <li>Riconfigurazione successiva del <code>.env</code> dall'<b>Hub</b> (<code>/admin-portale/hub/setup-wizard/</code>) senza riavvio.</li>
+            <li><code>SetupRequiredMiddleware</code> forza il wizard finché il setup non è completo.</li>
+          </ul>
+          <div class="note warn"><span class="tag">Deploy</span> Il migrate dal wizard era <b>selettivo</b> per modulo: una rete di sicurezza esegue ora anche un <code>migrate</code> globale (vedi CHANGELOG). Se cambia <code>deployment/setup_wizard.py</code> va rigenerato <code>SetupWizard.exe</code>.</div>
+        </div>
+        <div class="block"><h3><span class="bi bi-acl">🔑</span> Ruoli &amp; permessi (ACL)</h3>
+          <p>Accessibile <b>senza autenticazione solo al primo avvio</b> (pre-setup); a setup completato reindirizza alla home. Il gating è basato su <code>SETUP_COMPLETED</code> nel <code>.env</code>.</p>
+        </div>
+        <div class="block"><h3><span class="bi bi-url">🔗</span> URL &amp; riferimenti tecnici</h3>
+          <div class="pillrow"><span class="tg">🔗 setup_wizard_home · setup_api_*</span><span class="tg">🧩 setup_wizard/views.py · middleware.py</span><span class="tg">🧪 bootstrap_acl_v2 · ensure_legacy_schema</span><span class="tg">📦 deployment/dist/SetupWizard.exe</span></div>
+        </div>
+      </div>
+    </section>
+    <section class="mod" id="mod-monitoring">
+      <div class="mod-head"><div class="mod-ic">📈</div><div class="meta">
+        <div class="mod-area"><span class="badge core">Core</span> <code>monitoring</code> · <code>/monitoring/</code> · <code>/admin-portale/monitoring/</code></div>
+        <h2>Monitoring</h2>
+        <p class="mod-sub">Salute del portale: cattura automatica di errori/issue, segnalazioni «Report problema» degli utenti, monitor dei job di automazione e probe di health-check per il deploy.</p>
+      </div></div>
+      <div class="mod-body">
+        <div class="block"><h3><span class="bi bi-use">👤</span> A cosa serve (utente)</h3>
+          <ul>
+            <li><b>Report problema</b> (modal in-app): l'utente segnala un malfunzionamento con messaggio e contesto (URL/route/browser) → crea/aggancia una <code>Issue</code>.</li>
+            <li><b>Issue tracking</b> (admin): bug/errori raccolti automaticamente con severity/categoria/sorgente, deduplicati per fingerprint, con timeline occorrenze e assegnazione.</li>
+            <li><b>Monitor automazioni</b>: salute dei job (run mancate, bloccate, fallimenti consecutivi, prossima esecuzione, durata media).</li>
+            <li><b>Health probe</b> (<code>/healthz</code>, <code>/readyz</code>) per orchestrazione/IIS, con check su DB/cache/Graph/LDAP/SMTP/queue.</li>
+          </ul>
+          <figure class="shot"><div class="ph"><b>📸 Screenshot in arrivo</b>Dashboard monitoring — issue aperte/critiche e salute job</div><figcaption>Dashboard · <code>/admin-portale/monitoring/</code> (modulo admin)</figcaption></figure>
+        </div>
+        <div class="block"><h3><span class="bi bi-sub">🧱</span> Sotto-moduli / aree</h3>
+          <table><thead><tr><th>Area</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td>Dashboard</td><td><code>/admin-portale/monitoring/</code></td><td>KPI issue aperte/critiche/24h, top moduli/URL, stats django-q.</td></tr>
+            <tr><td>Issue list / detail</td><td><code>…/issues/</code> · <code>…/issues/&lt;id&gt;/</code></td><td>Filtri, timeline occorrenze, utenti, note, assegnazione, risoluzione.</td></tr>
+            <tr><td>Automation list / detail</td><td><code>…/automations/</code> · <code>…/automations/&lt;id&gt;/</code></td><td>Health card per job + esecuzioni storiche e issue correlate.</td></tr>
+            <tr><td>Report problema</td><td><code>/monitoring/report-problem</code></td><td>Endpoint del modal utente (auto-match issue per fingerprint).</td></tr>
+            <tr><td>Health probe</td><td><code>/monitoring/healthz</code> · <code>…/readyz</code></td><td>Liveness/readiness, IP allowlisted, cache 30s.</td></tr>
+          </tbody></table>
+        </div>
+        <div class="block"><h3><span class="bi bi-adm">⚙️</span> Gestione / Admin</h3>
+          <ul>
+            <li><b>Modelli</b>: <code>Issue</code>, <code>IssueOccurrence</code>, <code>UserProblemReport</code>, <code>AutomationJob</code>, <code>AutomationExecution</code>.</li>
+            <li><b>Cattura errori</b> via <code>middleware.py</code> (eccezioni → Issue) e rilevazione job mancati/bloccati in <code>services.py</code>.</li>
+            <li><b>Comandi</b>: <code>monitoring_digest</code> (riepilogo, cronabile per email) e <code>monitoring_healthcheck</code> (check manuale).</li>
+            <li><b>Settings</b>: <code>MONITORING_ENABLED</code>, <code>HEALTHZ_ALLOWED_IPS</code> (default localhost).</li>
+          </ul>
+        </div>
+        <div class="block"><h3><span class="bi bi-acl">🔑</span> Ruoli &amp; permessi (ACL)</h3>
+          <table><thead><tr><th>Superficie</th><th>Accesso</th></tr></thead><tbody>
+            <tr><td>Dashboard / issue / automazioni</td><td><code>@legacy_admin_required</code> (admin)</td></tr>
+            <tr><td>Report problema</td><td><code>@login_required</code> (qualsiasi utente)</td></tr>
+            <tr><td>Probe <code>/healthz</code>·<code>/readyz</code></td><td>Nessun auth, ma solo IP in <code>HEALTHZ_ALLOWED_IPS</code></td></tr>
+          </tbody></table>
+        </div>
+        <div class="block"><h3><span class="bi bi-url">🔗</span> URL &amp; riferimenti tecnici</h3>
+          <div class="pillrow"><span class="tg">🔗 monitoring_admin:dashboard|issue_list|automation_list</span><span class="tg">🔗 monitoring:report_problem|healthz|readyz</span><span class="tg">🧩 monitoring/health.py · services.py · middleware.py</span></div>
+        </div>
+      </div>
+    </section>
+    <!-- OPERATIONS -->
+    <section class="mod" id="mod-anagrafica">
+      <div class="mod-head"><div class="mod-ic">👥</div><div class="meta">
+        <div class="mod-area"><span class="badge ops">Operations</span> <code>anagrafica</code> · <code>/anagrafica/</code></div>
+        <h2>Anagrafica HR</h2>
+        <p class="mod-sub">Il fascicolo del personale e tutto ciò che gli ruota attorno: formazione e corsi, qualifiche/abilitazioni, matrice competenze, Skill Matrix MOD.187 (abilitazioni macchina) e retribuzioni — con trattamento GDPR dei dati personali.</p>
+      </div></div>
+      <div class="mod-body">
+        <div class="block"><h3><span class="bi bi-use">👤</span> A cosa serve (utente)</h3>
+          <ul>
+            <li><b>Dipendenti</b>: fascicolo anagrafico, documenti, reparto/mansione, contatti.</li>
+            <li><b>Formazione</b>: piani formativi, corsi, sessioni, istruttori, scadenzario, attestati/registri firme.</li>
+            <li><b>Qualifiche / abilitazioni</b> di sicurezza con cruscotto e scadenzario; <b>matrice competenze</b> (ISO 45001).</li>
+            <li><b>Skill Matrix MOD.187</b>: abilitazioni macchina I/L/U/O; <b>retribuzioni/ratei</b>.</li>
+          </ul>
+          <figure class="shot"><div class="ph"><b>📸 Screenshot in arrivo</b>Matrice competenze / Skill Matrix MOD.187 (dati sintetici)</div><figcaption>Matrice · <code>/anagrafica/sicurezza/matrice/</code> — <b>screenshot anonimizzati</b> (dati personali)</figcaption></figure>
+        </div>
+        <div class="block"><h3><span class="bi bi-sub">🧱</span> Sotto-moduli / aree (in dettaglio)</h3>
+          <p>Anagrafica è di fatto un <b>HRMS completo</b>: ecco i sotto-moduli, raggruppati per area.</p>
+
+          <p style="margin:16px 0 2px;font-weight:800;color:var(--navy)">🗂️ Fascicolo del dipendente</p>
+          <table><thead><tr><th>Sotto-modulo</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td><b>Elenco / Scheda</b></td><td><code>/anagrafica/dipendenti/</code> · <code>…/&lt;id&gt;/</code></td><td>Lista e scheda completa con anagrafica <b>civile</b> e <b>aziendale</b>, widget configurabili.</td></tr>
+            <tr><td><b>Documenti &amp; Foto</b></td><td><code>…/&lt;id&gt;/documenti/…</code> · <code>…/&lt;id&gt;/foto</code></td><td>Box documenti per cartelle e foto profilo su <b>storage privato</b> (servite da view protetta).</td></tr>
+            <tr><td><b>Mansione · Reparto · Username · Stato</b></td><td><code>…/&lt;id&gt;/mansione|reparto|username/set</code></td><td>Aggiorna i campi legacy; <code>aliasusername</code> è la fonte unica dello username.</td></tr>
+            <tr><td><b>Stampe</b></td><td><code>…/&lt;id&gt;/stampa/</code> · <code>…/libretto-formativo/</code></td><td>Scheda completa e <b>libretto formativo</b> PDF (storico corsi + obblighi).</td></tr>
+            <tr><td><b>Conformità (idoneità)</b></td><td><code>…/&lt;id&gt;/conformita/</code> · <code>/anagrafica/conformita/</code></td><td>Semaforo per dominio: idoneità alla mansione (formazione/qualifiche/visite/DPI).</td></tr>
+            <tr><td><b>Onboarding / Offboarding</b></td><td><code>…/onboarding/</code> · <code>…/&lt;id&gt;/offboarding/…</code></td><td>Pratiche strutturate con checklist task (ingresso e cessazione rapporto).</td></tr>
+            <tr><td><b>Ex dipendenti</b></td><td><code>/anagrafica/ex-dipendenti/</code></td><td>Vista dedicata dei rapporti cessati (+ rimetti-in-forza).</td></tr>
+          </tbody></table>
+
+          <p style="margin:16px 0 2px;font-weight:800;color:var(--navy)">🎓 Formazione</p>
+          <table><thead><tr><th>Sotto-modulo</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td><b>Dashboard &amp; Ricerca</b></td><td><code>/anagrafica/formazione/</code> · <code>…/ricerca/</code></td><td>Cruscotto formazione e ricerca globale (corsi, sessioni, piani, attestati).</td></tr>
+            <tr><td><b>Piani formativi</b></td><td><code>…/formazione/piani/</code></td><td>Programmi di formazione pluri-corso.</td></tr>
+            <tr><td><b>Corsi</b></td><td><code>…/formazione/corsi/</code></td><td>Catalogo con <b>prerequisiti</b>, <b>versioni</b>, regole di superamento/obbligatorietà, assegnazione dipendenti.</td></tr>
+            <tr><td><b>E-learning</b></td><td><code>…/formazione/elearning/</code> · <code>…/corsi-online/</code></td><td>Micro-corsi (slide + quiz): hub autore/HR e <b>player</b> per il discente.</td></tr>
+            <tr><td><b>Sessioni &amp; Presenze</b></td><td><code>…/formazione/sessioni/</code></td><td>Edizioni con lezioni, <b>registro firme</b> stampabile, presenze (anche da registro), iscritti, attestati, fascicolo edizione PDF.</td></tr>
+            <tr><td><b>Istruttori</b></td><td><code>…/formazione/istruttori/</code></td><td>Anagrafica docenti interni/esterni.</td></tr>
+            <tr><td><b>Scadenzario · Copertura · Plan</b></td><td><code>…/formazione/scadenzario|copertura|plan/</code></td><td>Scadenze, <b>gap formativo</b> (chi manca quali obblighi) e calendario eventi.</td></tr>
+            <tr><td><b>Attestati</b></td><td><code>…/formazione/attestato/&lt;id&gt;/</code></td><td>Generazione/archiviazione attestati (template configurabile).</td></tr>
+          </tbody></table>
+
+          <p style="margin:16px 0 2px;font-weight:800;color:var(--navy)">🪪 Qualifiche, visite mediche, sicurezza &amp; competenze</p>
+          <table><thead><tr><th>Sotto-modulo</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td><b>Qualifiche / Certificazioni</b></td><td><code>/anagrafica/qualifiche/</code> (cruscotto, scadenzario)</td><td>Catalogo abilitazioni, cruscotto trasversale, scadenzario.</td></tr>
+            <tr><td><b>Sessioni di rinnovo</b></td><td><code>…/qualifiche/sessioni/</code></td><td>Rilascio/rinnovo <b>collettivo</b> di una qualifica (data + ente + partecipanti).</td></tr>
+            <tr><td><b>Visite mediche</b></td><td><code>/anagrafica/visite-mediche/</code></td><td>Dashboard, sessioni, export scadenze/copertura; visite per dipendente.</td></tr>
+            <tr><td><b>Matrice competenze</b></td><td><code>/anagrafica/sicurezza/matrice/</code></td><td>Dipendenti × abilitazioni/qualifiche per audit <b>ISO 45001</b>.</td></tr>
+            <tr><td><b>Skill Matrix MOD.187</b></td><td><code>/anagrafica/skill-matrix/</code> (match, refresh)</td><td>Abilitazioni macchina <b>I/L/U/O</b>; validazione match asset e refresh semestrale CAR.</td></tr>
+            <tr><td><b>Rischi (Safety)</b></td><td><code>…/formazione/rischi/</code> (fattori, categorie, esposizioni)</td><td>Catalogo fattori di rischio ed <b>esposizioni</b> (chi è esposto a cosa → obblighi formativi).</td></tr>
+            <tr><td><b>Sicurezza HUB</b></td><td><code>/anagrafica/sicurezza/</code> (+ ricerca, guida)</td><td>Punto d'ingresso unificato dell'area sicurezza HR.</td></tr>
+          </tbody></table>
+
+          <p style="margin:16px 0 2px;font-weight:800;color:var(--navy)">💶 Retribuzioni, contratti &amp; cataloghi</p>
+          <table><thead><tr><th>Sotto-modulo</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td><b>Voci retributive / Cedolini</b></td><td><code>/anagrafica/retribuzioni/</code> · <code>…/cedolini/</code></td><td>Import CSV/XLSX, vista globale pivot, storico ed export per dipendente.</td></tr>
+            <tr><td><b>Ratei</b></td><td><code>/anagrafica/ratei/</code></td><td>Ferie / ROL / ex-festività: lista aggregata ed export.</td></tr>
+            <tr><td><b>Contratti</b></td><td><code>/anagrafica/contratti/</code></td><td>Storico contrattuale (import + CRUD), con livelli e tipologie di contratto.</td></tr>
+            <tr><td><b>Struttura &amp; cataloghi</b></td><td><code>…/aree/</code> · <code>…/mansioni/</code> · <code>…/ruoli-aziendali/</code> · <code>…/organigramma/</code></td><td>Aree/reparti, mansioni (+ requisiti), ruoli, <b>organigramma</b> visuale, scadenzario unificato.</td></tr>
+            <tr><td><b>Impostazioni HR</b></td><td><code>/anagrafica/impostazioni/</code></td><td>Cataloghi (DPI, visite, livelli…), permessi del modulo, campi workflow, subnav.</td></tr>
+          </tbody></table>
+        </div>
+        <div class="block"><h3><span class="bi bi-adm">⚙️</span> Gestione / Admin</h3>
+          <ul>
+            <li>Modelli divisi per area: <code>models.py</code>, <code>models_formazione.py</code>, <code>models_skillmatrix.py</code>, <code>models_rischi.py</code>.</li>
+            <li>Import dipendenti da CSV; servizi Skill Matrix (resolver, match asset, import baseline, refresh semestrale CAR).</li>
+            <li><code>aliasusername</code> è la fonte unica dello username (propagato all'account Django).</li>
+          </ul>
+          <div class="note warn"><span class="tag">GDPR</span> Modulo con <b>dati personali</b>: minimizzazione, ACL granulare, audit trail, export protetto e <b>documenti fuori dal webroot</b>. Gli screenshot in guida sono anonimizzati.</div>
+        </div>
+        <div class="block"><h3><span class="bi bi-acl">🔑</span> Ruoli &amp; permessi (ACL)</h3>
+          <p>Accesso HR riservato (amministrazione/HR/qualità) con permessi per area. La Skill Matrix usa i permessi canonici <code>anagrafica.skillmatrix.view</code> e <code>anagrafica.skillmatrix.manage</code> (governabili in <code>/admin-portale/acl-canonico/</code>); default per admin/amministrazione/qualità/caporeparto.</p>
+        </div>
+        <div class="block"><h3><span class="bi bi-url">🔗</span> URL &amp; riferimenti tecnici</h3>
+          <div class="pillrow"><span class="tg">🔗 anagrafica:dipendenti_list · formazione_dashboard · qualifiche_list · matrice_competenze · skill_matrix_macchina</span><span class="tg">🧩 models_*.py · services/skillmatrix_*.py</span></div>
+        </div>
+      </div>
+    </section>
+    <section class="mod" id="mod-fornitori">
+      <div class="mod-head"><div class="mod-ic">🏭</div><div class="meta">
+        <div class="mod-area"><span class="badge ops">Operations</span> <code>fornitori</code> · <code>/fornitori/</code></div>
+        <h2>Anagrafica fornitori</h2>
+        <p class="mod-sub">L'anagrafica dei fornitori — separata da quella HR — con dashboard KPI, ordini e spesa, valutazioni qualità, documenti e collegamento agli asset aziendali.</p>
+      </div></div>
+      <div class="mod-body">
+        <div class="block"><h3><span class="bi bi-use">👤</span> A cosa serve (utente)</h3>
+          <ul>
+            <li><b>Dashboard</b> con KPI (fornitori attivi/inattivi, spesa totale, ordini, asset assegnati) e top 5 spesa per categoria.</li>
+            <li><b>Scheda fornitore</b>: anagrafica completa con tab Documenti / Ordini / Valutazioni / Asset assegnati.</li>
+            <li><b>Valutazioni qualità</b> su 5 stelle (qualità, puntualità, comunicazione) con media calcolata.</li>
+            <li><b>Documenti</b> allegati (upload validato MIME+estensione, max 15MB) e link agli asset/contratti di manutenzione.</li>
+          </ul>
+          <figure class="shot"><div class="ph"><b>📸 Screenshot in arrivo</b>Scheda fornitore — tab Ordini / Valutazioni / Asset</div><figcaption>Scheda · <code>/fornitori/&lt;id&gt;/</code></figcaption></figure>
+        </div>
+        <div class="block"><h3><span class="bi bi-sub">🧱</span> Sotto-moduli / aree</h3>
+          <table><thead><tr><th>Area</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td>Dashboard</td><td><code>/fornitori/</code></td><td>KPI, ultimi fornitori, top spesa per categoria.</td></tr>
+            <tr><td>Elenco</td><td><code>…/elenco/</code></td><td>Ricerca per ragione sociale/P.IVA/città, filtri categoria/stato.</td></tr>
+            <tr><td>Scheda + CRUD</td><td><code>…/&lt;id&gt;/</code> · <code>…/nuovo/</code> · <code>…/&lt;id&gt;/modifica/</code></td><td>Anagrafica e gestione fornitore.</td></tr>
+            <tr><td>Documenti / Ordini / Valutazioni / Asset</td><td><code>…/&lt;id&gt;/documenti|ordini|valutazioni|asset/…</code></td><td>Allegati, ordini con stato/importo, rating, collegamento asset.</td></tr>
+          </tbody></table>
+        </div>
+        <div class="block"><h3><span class="bi bi-adm">⚙️</span> Gestione / Admin</h3>
+          <ul>
+            <li><b>Modelli</b> (<code>Fornitore</code>, <code>FornitoreDocumento/Ordine/Valutazione/Asset</code>) restano in <code>anagrafica.models</code> per compatibilità con le FK storiche di <code>assets</code>.</li>
+            <li>Form Django dedicati (<code>fornitori/forms.py</code>); audit via <code>core.audit.log_action</code>.</li>
+            <li>Nessun comando management/schedule: gestione interamente da UI.</li>
+          </ul>
+        </div>
+        <div class="block"><h3><span class="bi bi-acl">🔑</span> Ruoli &amp; permessi (ACL)</h3>
+          <p><b>Modulo ACL separato</b> da HR: route <code>fornitori:*</code> con ~14 azioni granulari (index, list, create, detail, edit, toggle, documento/ordine/valutazione/asset add/delete). Default: admin/amministrazione full; ruoli operativi in consultazione. Cache bootstrap <code>fornitori_acl_bootstrap_v2</code>.</p>
+        </div>
+        <div class="block"><h3><span class="bi bi-url">🔗</span> URL &amp; riferimenti tecnici</h3>
+          <div class="pillrow"><span class="tg">🔗 fornitori:index · fornitori_list · fornitore_detail</span><span class="tg">🧩 fornitori/views.py · forms.py · acl_bootstrap.py</span></div>
+        </div>
+      </div>
+    </section>
+    <section class="mod" id="mod-assets">
+      <div class="mod-head"><div class="mod-ic">🖥️</div><div class="meta">
+        <div class="mod-area"><span class="badge ops">Operations</span> <code>assets</code> · <code>/assets/</code></div>
+        <h2>Assets · inventario IT &amp; produzione</h2>
+        <p class="mod-sub">L'inventario centralizzato di beni IT e di produzione, con ordini di lavoro, manutenzioni periodiche, calendario, planimetrie, licenze software ed export.</p>
+      </div></div>
+      <div class="mod-body">
+        <div class="block"><h3><span class="bi bi-use">👤</span> A cosa serve (utente)</h3>
+          <ul>
+            <li><b>Inventario</b> filtrabile (PC, server, stampanti, macchinari, componenti) con scheda asset, documenti e QR.</li>
+            <li><b>Ordini di lavoro (OdL)</b>: apertura/chiusura con durata, fermo macchina, costi, allegati.</li>
+            <li><b>Manutenzioni periodiche</b>: regole, template checklist, scadenzario e prossime manutenzioni.</li>
+            <li><b>Calendario</b> asset, <b>planimetrie</b>, <b>licenze SW</b>, export Excel e sync SharePoint/Outlook.</li>
+          </ul>
+          <figure class="shot"><div class="ph"><b>📸 Screenshot in arrivo</b>Hub manutenzione + mappa macchinari su planimetria</div><figcaption>Manutenzione · <code>/assets/manutenzione/</code></figcaption></figure>
+        </div>
+        <div class="block"><h3><span class="bi bi-sub">🧱</span> Sotto-moduli / aree (in dettaglio)</h3>
+
+          <p style="margin:12px 0 2px;font-weight:800;color:var(--navy)">📦 Inventario &amp; componenti</p>
+          <table><thead><tr><th>Sotto-modulo</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td><b>Inventario</b></td><td><code>/assets/lista/</code></td><td>Lista filtrabile con export XLSX (PC, server, stampanti, macchinari…).</td></tr>
+            <tr><td><b>Scheda asset</b></td><td><code>…/view/&lt;id&gt;/</code></td><td>Componenti, documenti, meter, QR label.</td></tr>
+            <tr><td><b>CRUD &amp; Assegnazione</b></td><td><code>…/new/</code> · <code>…/edit/&lt;id&gt;/</code> · <code>…/assign/&lt;id&gt;/</code></td><td>Creazione/modifica con campi custom; collegamento asset↔dipendente.</td></tr>
+            <tr><td><b>Dispositivi IT</b></td><td><code>…/dispositivi/</code></td><td>Vista filtrata dei soli asset IT.</td></tr>
+          </tbody></table>
+
+          <p style="margin:14px 0 2px;font-weight:800;color:var(--navy)">🏭 Macchinari &amp; planimetria</p>
+          <table><thead><tr><th>Sotto-modulo</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td><b>Macchine di lavoro</b></td><td><code>…/work-machines/</code> · <code>…/work-machines/dashboard/</code></td><td>Profili macchina con dettagli officina e KPI.</td></tr>
+            <tr><td><b>Mappa officina</b></td><td><code>…/work-machines/map/</code> · <code>…/map/editor/</code></td><td>Posizionamento dei macchinari su planimetria SVG (vedi <a href="#mod-planimetria">planimetria</a>).</td></tr>
+          </tbody></table>
+
+          <p style="margin:14px 0 2px;font-weight:800;color:var(--navy)">🔧 Manutenzione &amp; work order</p>
+          <table><thead><tr><th>Sotto-modulo</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td><b>Hub manutenzione</b></td><td><code>…/manutenzione/</code></td><td>Cruscotto scadenzario/interventi/regole/contratti.</td></tr>
+            <tr><td><b>Regole &amp; Template</b></td><td><code>…/manutenzione/regole/</code> · <code>…/templates/</code></td><td>Frequenza/fornitori/reminder e modelli intervento con checklist.</td></tr>
+            <tr><td><b>Prossime &amp; Verifiche</b></td><td><code>…/manutenzione/prossime/</code> · <code>…/verifiche/</code></td><td>Manutenzioni generate dalle regole e piani su asset multipli.</td></tr>
+            <tr><td><b>Work order (OdL)</b></td><td><code>…/workorders/</code> · <code>…/new/&lt;id&gt;/</code> · <code>…/close/&lt;id&gt;/</code></td><td>Registro interventi: apertura, durata, fermo, costi, allegati.</td></tr>
+          </tbody></table>
+
+          <p style="margin:14px 0 2px;font-weight:800;color:var(--navy)">📅 Adempimenti, licenze, calendario, report</p>
+          <table><thead><tr><th>Sotto-modulo</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td><b>Scadenze amministrative</b></td><td><code>…/scadenze/</code></td><td>Certificazioni, revisioni, rinnovi legali.</td></tr>
+            <tr><td><b>Licenze software</b></td><td><code>…/licenze/</code></td><td>Catalogo licenze con vita utile e scadenze.</td></tr>
+            <tr><td><b>Calendario &amp; Report</b></td><td><code>…/calendario/</code> · <code>…/reports/</code></td><td>Vista manutenzioni/OdL e dashboard KPI / export.</td></tr>
+            <tr><td><b>Impostazioni</b></td><td><code>…/impostazioni/</code></td><td>Campi custom, liste precompilate, pulsanti, config SharePoint.</td></tr>
+          </tbody></table>
+        </div>
+        <div class="block"><h3><span class="bi bi-adm">⚙️</span> Gestione / Admin</h3>
+          <ul>
+            <li><b>Impostazioni</b> (<code>/assets/impostazioni/</code>): campi custom, liste precompilate, pulsanti, config SharePoint.</li>
+            <li><b>Import</b>: <code>import_assets_excel</code>, <code>import_assets_catalog</code>, <code>import_work_machines_excel</code>.</li>
+            <li><b>Automazioni</b>: <code>send_maintenance_reminders</code>, <code>sync_asset_documents_from_sharepoint</code>, <code>assets_ensure_public_share_links</code>.</li>
+          </ul>
+        </div>
+        <div class="block"><h3><span class="bi bi-acl">🔑</span> Ruoli &amp; permessi (ACL)</h3>
+          <p>Permessi <code>assets_*</code> (legacy + canonico): consultazione per i ruoli operativi; creazione/modifica per amministrazione/CAR/caporeparto; manutenzione e report per i gestori impianti/qualità.</p>
+        </div>
+        <div class="block"><h3><span class="bi bi-url">🔗</span> URL &amp; riferimenti tecnici</h3>
+          <div class="pillrow"><span class="tg">🔗 assets:asset_list · wo_view · maintenance_hub · calendario</span><span class="tg">🧩 assets/models.py (Asset · WorkOrder · PlantLayout · MaintenanceRule)</span><span class="tg">🧪 import_assets_excel · send_maintenance_reminders</span></div>
+        </div>
+      </div>
+    </section>
+    <section class="mod" id="mod-attrezzature">
+      <div class="mod-head"><div class="mod-ic">🔧</div><div class="meta">
+        <div class="mod-area"><span class="badge ops">Operations</span> <code>attrezzature</code> · <code>/attrezzature/</code></div>
+        <h2>Attrezzature</h2>
+        <p class="mod-sub">Gestisce il workflow degli attrezzi/Part-Number (dalla richiesta alla pronta produzione) con avanzamento percentuale, import Excel legacy e collegamento alle attività KICK-OFF.</p>
+      </div></div>
+      <div class="mod-body">
+        <div class="block"><h3><span class="bi bi-use">👤</span> A cosa serve (utente)</h3>
+          <ul>
+            <li><b>Inventario attrezzi</b> con stato, disponibilità, Part-Number e consegna prevista.</li>
+            <li><b>Avanzamento</b> percentuale e conferma «<b>pronta produzione</b>» (con timestamp).</li>
+            <li><b>Task operativi</b> per attrezzatura (verifica/creazione/aggiornamento), con origine manuale/kickoff/import.</li>
+            <li><b>Import Excel legacy</b> con preview e mapping colonne.</li>
+          </ul>
+          <figure class="shot"><div class="ph"><b>📸 Screenshot in arrivo</b>Lista attrezzature + avanzamento / pronta produzione</div><figcaption>Lista · <code>/attrezzature/</code></figcaption></figure>
+        </div>
+        <div class="block"><h3><span class="bi bi-sub">🧱</span> Sotto-moduli / aree</h3>
+          <table><thead><tr><th>Area</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td>Lista / Dettaglio / CRUD</td><td><code>/attrezzature/</code> · <code>…/&lt;pk&gt;/</code> · <code>…/nuova/</code></td><td>Inventario e gestione.</td></tr>
+            <tr><td>Import</td><td><code>…/import/</code> (preview, confirm)</td><td>Caricamento Excel legacy.</td></tr>
+            <tr><td>Task</td><td><code>…/tasks/</code> · <code>…/tasks/&lt;pk&gt;/complete|block/</code></td><td>Attività operative.</td></tr>
+            <tr><td>Avanzamento / Pronta produzione</td><td><code>…/&lt;pk&gt;/aggiorna-avanzamento/</code> · <code>…/conferma-pronta-produzione/</code></td><td>Stato readiness.</td></tr>
+            <tr><td>Embedded</td><td><code>…/embedded-preview/</code></td><td>Pannello integrato in KICK-OFF.</td></tr>
+          </tbody></table>
+        </div>
+        <div class="block"><h3><span class="bi bi-adm">⚙️</span> Gestione / Admin</h3>
+          <ul>
+            <li>Transizioni di stato in <code>services/workflow.py</code>; import in <code>services/excel_import.py</code>; integrazione KICK-OFF in <code>services/kickoff_integration.py</code>.</li>
+            <li>Navigazione registrata da <code>create_attrezzature_nav</code>; nessuna automazione schedulata built-in.</li>
+          </ul>
+        </div>
+        <div class="block"><h3><span class="bi bi-acl">🔑</span> Ruoli &amp; permessi (ACL)</h3>
+          <p>Permessi canonici <code>attrezzature.*</code> (view/edit/confirm, <code>kickoff.link</code>) con fallback legacy. Default: admin/amministrazione full; caporeparto/qualità per creazione/modifica/task/conferma; eliminazione solo amministrazione.</p>
+        </div>
+        <div class="block"><h3><span class="bi bi-url">🔗</span> URL &amp; riferimenti tecnici</h3>
+          <div class="pillrow"><span class="tg">🔗 attrezzature:list · detail · action · import</span><span class="tg">🧩 attrezzature/models.py · services/workflow.py · kickoff_integration.py</span></div>
+        </div>
+      </div>
+    </section>
+    <section class="mod" id="mod-gestione_specifiche">
+      <div class="mod-head"><div class="mod-ic">📋</div><div class="meta">
+        <div class="mod-area"><span class="badge ops">Operations</span> <code>gestione_specifiche</code> · <code>/gestione-specifiche/</code></div>
+        <h2>Gestione specifiche</h2>
+        <p class="mod-sub">Digitalizza il Flusso Specifiche + MOD.133 (flow-down requisiti cliente, OFI→MOD.174, verifica periodica, distribuzione tracciata) per audit ISO 9001 §7.5 / EN 9100, con macchina a stati, audit immutabile e copilota AI.</p>
+      </div></div>
+      <div class="mod-body">
+        <div class="block"><h3><span class="bi bi-use">👤</span> A cosa serve (utente)</h3>
+          <ul>
+            <li><b>Ciclo di vita</b> di specifiche/comunicazioni/piani di qualità con macchina a stati <b>S1 bozza → S9 errore</b>.</li>
+            <li><b>MOD.133</b>: flow-down dei requisiti, generazione <b>OFI → MOD.174</b>, separazione compilatore/approvatore.</li>
+            <li><b>Distribuzione</b> tracciata (copie cartacee per reparto, deroga giustificata) e <b>storico</b> con timeline revisioni ed export PDF/CSV.</li>
+            <li><b>Copilota AI</b> on-premise: pre-compila MOD.133 da PDF, propone TAG, ricerca semantica con citazione SGI. L'AI propone, l'umano firma.</li>
+          </ul>
+          <figure class="shot"><div class="ph"><b>📸 Screenshot in arrivo</b>Cruscotto specifiche + scheda MOD.133 con Copilota AI</div><figcaption>Cruscotto · <code>/gestione-specifiche/</code></figcaption></figure>
+        </div>
+        <div class="block"><h3><span class="bi bi-sub">🧱</span> Sotto-moduli / aree (in dettaglio · 7 voci subnav)</h3>
+
+          <p style="margin:12px 0 2px;font-weight:800;color:var(--navy)">📋 Ciclo di vita della specifica</p>
+          <table><thead><tr><th>Sotto-modulo</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td><b>Cruscotto</b></td><td><code>/gestione-specifiche/</code></td><td>Elenco con KPI ciclo di vita, filtri stato/tipo/cliente/TAG, stepper S1→S4.</td></tr>
+            <tr><td><b>Scheda specifica</b></td><td><code>…/&lt;pk&gt;/</code></td><td>Dettaglio a tab (Dati/MOD.133/Distribuzione/Storico); sospendi/ripristina/annulla.</td></tr>
+            <tr><td><b>Macchina a stati</b></td><td><i>FSM</i></td><td>9 stati <code>S1 bozza → S9 errore</code> (django-fsm-2) con audit immutabile.</td></tr>
+          </tbody></table>
+
+          <p style="margin:14px 0 2px;font-weight:800;color:var(--navy)">📝 MOD.133 &amp; OFI</p>
+          <table><thead><tr><th>Sotto-modulo</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td><b>Compilazione MOD.133</b></td><td><code>…/&lt;pk&gt;/mod133/</code></td><td>Flow-down requisiti a righe (formset), con Copilota AI di pre-compilazione/TAG.</td></tr>
+            <tr><td><b>OFI → MOD.174</b></td><td><i>azione per riga</i></td><td>Generazione di Opportunità di Miglioramento (mai automatica: conferma per riga).</td></tr>
+            <tr><td><b>Approvazione</b></td><td><code>…/?vista=approvazione</code></td><td>Coda con <b>guardia separazione ruoli</b> (compilatore ≠ approvatore).</td></tr>
+          </tbody></table>
+
+          <p style="margin:14px 0 2px;font-weight:800;color:var(--navy)">📦 Distribuzione, storico &amp; analisi</p>
+          <table><thead><tr><th>Sotto-modulo</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td><b>Distribuzione copie</b></td><td><code>…/&lt;pk&gt;/distribuisci/</code></td><td>Canale (email/in-app/cartaceo), copie cartacee tracciate, <b>deroga</b> giustificata.</td></tr>
+            <tr><td><b>Storico</b></td><td><code>…/&lt;pk&gt;/storico/</code></td><td>Timeline revisioni, ricostruzione punto-nel-tempo, export PDF/CSV.</td></tr>
+            <tr><td><b>Dashboard KPI</b></td><td><code>…/kpi/</code></td><td>Distribuzione per stato, OFI per cliente, tempo medio flow-down, verifiche in scadenza.</td></tr>
+            <tr><td><b>Ricerca semantica / API</b></td><td><code>…/ricerca/</code> · <code>…/api/</code></td><td>Ricerca AI con citazione SGI; API django-ninja (elenco/dettaglio/eventi/transizioni).</td></tr>
+          </tbody></table>
+        </div>
+        <div class="block"><h3><span class="bi bi-adm">⚙️</span> Gestione / Admin</h3>
+          <ul>
+            <li><b>Macchina a stati</b> <code>django-fsm-2</code> (9 stati) + audit immutabile <code>EventoSpecifica</code> (snapshot per ricostruzione punto-nel-tempo).</li>
+            <li><b>Reminder/verifica periodica</b> via django-q2 (email + notifica in-app); <code>SCADENZA_VERIFICA_GIORNI</code> (default 30).</li>
+            <li><b>Import storico</b>: <code>import_specifiche_storico</code> (dry-run di default, idempotente).</li>
+            <li><b>Allegati</b> su storage privato cifrato fuori webroot.</li>
+          </ul>
+        </div>
+        <div class="block"><h3><span class="bi bi-acl">🔑</span> Ruoli &amp; permessi (ACL)</h3>
+          <p>8 permessi canonici <code>gestione_specifiche.*</code> (<code>specifica.view/claim/sospendi/annulla</code>, <code>mod133.compila/approva</code>, <code>distribuzione.deroga/distribuisci</code>). Default: admin/amministrazione/qualità full; caporeparto = view/claim/compila. 20+ route binding, attivi con <code>ACL_STRICT_CANONICAL</code>.</p>
+        </div>
+        <div class="block"><h3><span class="bi bi-url">🔗</span> URL &amp; riferimenti tecnici</h3>
+          <div class="pillrow"><span class="tg">🔗 lista · dettaglio · mod133_compila · mod133_approva · kpi</span><span class="tg">🧩 state_machine.py · ai_copilota.py · api.py · acl_bootstrap.py</span><span class="tg">🧪 import_specifiche_storico</span></div>
+        </div>
+      </div>
+    </section>
+    <section class="mod" id="mod-tasks">
+      <div class="mod-head"><div class="mod-ic">🚀</div><div class="meta">
+        <div class="mod-area"><span class="badge ops">Operations</span> <code>tasks</code> · <code>/tasks/</code></div>
+        <h2>Tasks · KICK-OFF</h2>
+        <p class="mod-sub">Portfolio dei progetti KICK-OFF e delle attività: Gantt interattivo, tracciamento VRF (MOD.073) con blocco progressivo, incontri di avanzamento numerati e flag impatto sicurezza.</p>
+      </div></div>
+      <div class="mod-body">
+        <div class="block"><h3><span class="bi bi-use">👤</span> A cosa serve (utente)</h3>
+          <ul>
+            <li><b>Portfolio KICK-OFF</b>: progetti numerati (P/N + revisione + versione) con attività, sottotask, timeline eventi.</li>
+            <li><b>Gantt interattivo</b>: drag della barra per spostare, drag ai bordi per ridimensionare, dipendenze e baseline.</li>
+            <li><b>VRF (MOD.073)</b>: upload Excel con parsing automatico delle celle fisse e <b>blocco progressivo</b> (warning 7gg, bloccante 30gg).</li>
+            <li><b>Incontri di avanzamento</b> numerati con agenda, partecipanti, sync Outlook e tracker problemi riportati all'ODG successivo.</li>
+          </ul>
+          <figure class="shot"><div class="ph"><b>📸 Screenshot in arrivo</b>Gantt di progetto con barre draggabili e dipendenze</div><figcaption>Gantt · <code>/tasks/projects/&lt;id&gt;/gantt/</code></figcaption></figure>
+        </div>
+        <div class="block"><h3><span class="bi bi-sub">🧱</span> Sotto-moduli / aree (in dettaglio)</h3>
+
+          <p style="margin:12px 0 2px;font-weight:800;color:var(--navy)">✅ Attività</p>
+          <table><thead><tr><th>Sotto-modulo</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td><b>Lista / Dettaglio</b></td><td><code>/tasks/</code> · <code>…/&lt;id&gt;/</code></td><td>Portfolio attività con filtri, tag, griglia/elenco; scheda con timeline e sottotask.</td></tr>
+            <tr><td><b>Creazione / Modifica</b></td><td><code>…/new/</code> · <code>…/&lt;id&gt;/edit/</code></td><td>Categoria custom, assegnatario, date, sottotask inline, allegati, flag <b>impatto sicurezza</b>.</td></tr>
+          </tbody></table>
+
+          <p style="margin:14px 0 2px;font-weight:800;color:var(--navy)">📁 Progetti KICK-OFF &amp; Gantt</p>
+          <table><thead><tr><th>Sotto-modulo</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td><b>Portfolio progetti</b></td><td><code>…/projects/</code></td><td>Progetti numerati (P/N + revisione + versione) con KPI e stato VRF.</td></tr>
+            <tr><td><b>Gantt</b></td><td><code>…/projects/&lt;id&gt;/gantt/</code></td><td>Barre draggabili, resize, dipendenze, baseline, shift temporale.</td></tr>
+          </tbody></table>
+
+          <p style="margin:14px 0 2px;font-weight:800;color:var(--navy)">📄 VRF (MOD.073) &amp; incontri</p>
+          <table><thead><tr><th>Sotto-modulo</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td><b>VRF</b></td><td><code>…/projects/&lt;id&gt;/vrf/</code></td><td>Upload Excel MOD.073, parsing celle fisse, <b>blocco progressivo</b> (warning 7gg, bloccante 30gg), copia kickoff.</td></tr>
+            <tr><td><b>Incontri di avanzamento</b></td><td><code>…/projects/&lt;id&gt;/incontri/</code></td><td>Numerati, agenda step/problemi, partecipanti, <b>sync Outlook</b>, prenotazione sala, follow-up.</td></tr>
+          </tbody></table>
+
+          <p style="margin:14px 0 2px;font-weight:800;color:var(--navy)">⚙️ Gestione &amp; import</p>
+          <table><thead><tr><th>Sotto-modulo</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td><b>Impostazioni</b></td><td><code>…/impostazioni/</code></td><td>Configurazione, ruoli operativi, matrice accessi, promemoria, log.</td></tr>
+            <tr><td><b>Import Excel</b></td><td><code>…/import/</code></td><td>Creazione massiva di attività/progetti da catalogo (con template).</td></tr>
+          </tbody></table>
+        </div>
+        <div class="block"><h3><span class="bi bi-adm">⚙️</span> Gestione / Admin</h3>
+          <ul>
+            <li><b>Configurazione</b> singleton <code>TaskImpostazioni</code> (ruoli operativi, accessi, promemoria, branding); <code>VRF_REMINDER_DAYS</code>/<code>VRF_BLOCKING_DAYS</code>.</li>
+            <li><b>Reminder</b>: <code>send_task_reminders</code> (materializza i promemoria in notifiche); sync Outlook (<code>meeting_outlook.py</code>, <code>outlook_reminder.py</code>).</li>
+            <li><b>VRF</b>: <code>vrf_generator.py</code>/<code>vrf_catalog.py</code> per parsing e workflow.</li>
+            <li>Integrazione <b>carichi macchina</b>: le attività «lavoro macchina» generano pianificazioni collegate.</li>
+          </ul>
+        </div>
+        <div class="block"><h3><span class="bi bi-acl">🔑</span> Ruoli &amp; permessi (ACL)</h3>
+          <p>6 permessi canonici <code>tasks.kickoff.*</code> (view, create, edit, comment, admin, projects). Default: admin/amministrazione full; caporeparto = view/create/edit/comment/projects; operatore = view/comment. 32+ route binding (match esatto).</p>
+        </div>
+        <div class="block"><h3><span class="bi bi-url">🔗</span> URL &amp; riferimenti tecnici</h3>
+          <div class="pillrow"><span class="tg">🔗 tasks:list · detail · project_gantt · project_vrf_upload · project_meetings</span><span class="tg">🧩 vrf_generator.py · meeting_outlook.py · acl_bootstrap.py</span><span class="tg">🧪 send_task_reminders</span></div>
+        </div>
+      </div>
+    </section>
+    <section class="mod" id="mod-planimetria">
+      <div class="mod-head"><div class="mod-ic">🗺️</div><div class="meta">
+        <div class="mod-area"><span class="badge ops">Operations</span> <code>planimetria</code> · <code>/planimetria/</code></div>
+        <h2>Planimetria</h2>
+        <p class="mod-sub">Un wrapper di compatibilità che rende «scopribile» il layout dell'officina: punto d'ingresso stabile che rimanda alla mappa macchinari gestita dal modulo <a href="#mod-assets">assets</a>.</p>
+      </div></div>
+      <div class="mod-body">
+        <div class="block"><h3><span class="bi bi-use">👤</span> A cosa serve (utente)</h3>
+          <ul>
+            <li><b>Visualizzatore</b> della planimetria (mappa SVG con reparti e macchinari) e <b>editor</b> per chi può modificare il layout.</li>
+            <li>Mantiene stabili gli URL storici <code>/planimetria/</code> usati nei documenti/link legacy.</li>
+          </ul>
+        </div>
+        <div class="block"><h3><span class="bi bi-sub">🧱</span> Sotto-moduli / aree</h3>
+          <table><thead><tr><th>Area</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td>Visualizzatore</td><td><code>/planimetria/</code></td><td>Redirect a <code>/assets/work-machines/map/</code>.</td></tr>
+            <tr><td>Editor</td><td><code>/planimetria/editor/</code></td><td>Redirect all'editor mappa (admin).</td></tr>
+          </tbody></table>
+        </div>
+        <div class="block"><h3><span class="bi bi-adm">⚙️</span> Gestione / Admin</h3>
+          <p>Nessun modello né configurazione propri: tutto è delegato ad <code>assets</code> (<code>PlantLayout</code>, <code>PlantLayoutArea</code>, <code>PlantLayoutMarker</code>). Gestione layout da <code>/assets/impostazioni/</code> e dall'editor mappa.</p>
+        </div>
+        <div class="block"><h3><span class="bi bi-acl">🔑</span> Ruoli &amp; permessi (ACL)</h3>
+          <p><code>planimetria_mappa</code> in lettura; <code>planimetria_editor</code> riservato all'admin. Il fallback canonico punta a <code>assets.plant_layout.view/edit</code>.</p>
+        </div>
+        <div class="block"><h3><span class="bi bi-url">🔗</span> URL &amp; riferimenti tecnici</h3>
+          <div class="pillrow"><span class="tg">🔗 planimetria:mappa · editor</span><span class="tg">🧩 modelli reali in assets (PlantLayout…)</span></div>
+        </div>
+      </div>
+    </section>
+    <!-- HR & WORKFLOW -->
+    <section class="mod" id="mod-anomalie">
+      <div class="mod-head"><div class="mod-ic">⚠️</div><div class="meta">
+        <div class="mod-area"><span class="badge hr">HR &amp; Workflow</span> <code>anomalie</code> · <code>/anomalie/</code></div>
+        <h2>Anomalie di produzione</h2>
+        <p class="mod-sub">Segnalazione e gestione delle anomalie di produzione, agganciate agli ordini (OP), con timeline delle azioni, allegati, statistiche e sincronizzazione SharePoint.</p>
+      </div></div>
+      <div class="mod-body">
+        <div class="block"><h3><span class="bi bi-use">👤</span> A cosa serve (utente)</h3>
+          <ul>
+            <li><b>Apertura segnalazione</b> di anomalia legata a un ordine/OP, con campi dinamici e allegati.</li>
+            <li><b>Gestione</b> delle anomalie aperte, con <b>timeline azioni</b> e notifiche all'OP.</li>
+            <li><b>Statistiche</b> e ricerca, con export CSV (anche filtrato) e report.</li>
+          </ul>
+          <figure class="shot"><div class="ph"><b>📸 Screenshot in arrivo</b>Gestione anomalie + timeline azioni</div><figcaption>Gestione · <code>/gestione-anomalie</code></figcaption></figure>
+        </div>
+        <div class="block"><h3><span class="bi bi-sub">🧱</span> Sotto-moduli / aree</h3>
+          <table><thead><tr><th>Area</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td>Gestione / Nuova</td><td><code>/gestione-anomalie</code> · <code>…/nuova-segnalazione</code></td><td>Elenco e apertura.</td></tr>
+            <tr><td>Configurazione</td><td><code>…/configurazione</code></td><td>Liste, logo, template report.</td></tr>
+            <tr><td>Statistiche</td><td><code>…/statistiche</code></td><td>KPI e analisi.</td></tr>
+            <tr><td>API</td><td><code>/api/anomalie/…</code> (salva, timeline, allegati, notifica-op, sync)</td><td>Backend operativo e SharePoint.</td></tr>
+            <tr><td>Mail-action (token)</td><td><code>…/mail-action/&lt;token&gt;/</code></td><td>Azioni da email senza login.</td></tr>
+          </tbody></table>
+        </div>
+        <div class="block"><h3><span class="bi bi-adm">⚙️</span> Gestione / Admin</h3>
+          <ul>
+            <li>Configurazione liste/logo/template report; <b>timeline</b> azioni (<code>AnomaliaActionLog</code>) scritta dal portale e aggregata per OP.</li>
+            <li>Sync SharePoint (<code>api_sync</code>); export CSV/CSV-filtrato; notifiche all'OP via email.</li>
+          </ul>
+          <div class="note"><span class="tag">Nota</span> Le anomalie con <code>op_lookup_id</code> nullo si recuperano per titolo (<code>ex_op_nominativo</code>) come fallback; il timezone in <code>anomalie/views.py</code> è stdlib, non Django.</div>
+        </div>
+        <div class="block"><h3><span class="bi bi-acl">🔑</span> Ruoli &amp; permessi (ACL)</h3>
+          <p>Accesso alla gestione anomalie per i ruoli operativi/qualità; le API protette ritornano JSON. Le mail-action usano token opachi (superficie senza login limitata all'azione).</p>
+        </div>
+        <div class="block"><h3><span class="bi bi-url">🔗</span> URL &amp; riferimenti tecnici</h3>
+          <div class="pillrow"><span class="tg">🔗 gestione_anomalie_page · apertura_segnalazione · anomalie_statistiche_page</span><span class="tg">🔗 api_anomalie_salva · api_anomalie_timeline · api_anomalie_sync</span></div>
+        </div>
+      </div>
+    </section>
+    <section class="mod" id="mod-tickets">
+      <div class="mod-head"><div class="mod-ic">🎫</div><div class="meta">
+        <div class="mod-area"><span class="badge hr">HR &amp; Workflow</span> <code>tickets</code> · <code>/tickets/</code></div>
+        <h2>Tickets</h2>
+        <p class="mod-sub">I ticket interni di assistenza/manutenzione: interventi, fermo macchina, ticket ricorrenti, reminder SLA ed escalation, con un copilota AI di triage.</p>
+      </div></div>
+      <div class="mod-body">
+        <div class="block"><h3><span class="bi bi-use">👤</span> A cosa serve (utente)</h3>
+          <ul>
+            <li><b>Apertura ticket</b> con allegati; dashboard personale dei propri ticket.</li>
+            <li><b>Gestione</b> (per i gestori): assegnazione, cambio stato, interventi, fermo macchina, costi/componenti.</li>
+            <li><b>Copilota AI</b> di triage: propone categoria, priorità, assegnatario e bozza di risoluzione (l'AI propone, il gestore firma).</li>
+            <li>Creazione di un <b>work order</b> da ticket verso il modulo asset.</li>
+          </ul>
+          <figure class="shot"><div class="ph"><b>📸 Screenshot in arrivo</b>Dettaglio gestione ticket con card Copilota AI</div><figcaption>Gestione · <code>/tickets/gestione/&lt;id&gt;/</code></figcaption></figure>
+        </div>
+        <div class="block"><h3><span class="bi bi-sub">🧱</span> Sotto-moduli / aree</h3>
+          <table><thead><tr><th>Area</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td>Dashboard / Nuovo / Dettaglio</td><td><code>/tickets/</code> · <code>…/nuovo/</code> · <code>…/&lt;pk&gt;/</code></td><td>I miei ticket e apertura.</td></tr>
+            <tr><td>Gestione</td><td><code>…/gestione/</code> · <code>…/gestione/&lt;pk&gt;/</code></td><td>Coda gestori, assegnazione, stato.</td></tr>
+            <tr><td>Impostazioni</td><td><code>…/impostazioni/</code></td><td>SLA, escalation, team gestori.</td></tr>
+            <tr><td>API</td><td><code>…/api/stato|assegna|copilota|intervento|crea-workorder/</code></td><td>Operazioni e copilota AI.</td></tr>
+          </tbody></table>
+        </div>
+        <div class="block"><h3><span class="bi bi-adm">⚙️</span> Gestione / Admin</h3>
+          <ul>
+            <li><b>Due flussi reminder complementari</b>: <code>send_sla_reminders</code> (assegnati con SLA scaduto) e <code>run_tickets_escalation</code> (urgenti non assegnati). Config in <code>/tickets/impostazioni/</code>.</li>
+            <li>Import CSV, analytics, integrazione SharePoint (test connessione).</li>
+            <li>Copilota AI in <code>tickets/ai_copilota.py</code> (read-only, audit solo-metadati).</li>
+          </ul>
+        </div>
+        <div class="block"><h3><span class="bi bi-acl">🔑</span> Ruoli &amp; permessi (ACL)</h3>
+          <div class="note warn"><span class="tag">Attenzione</span> Il <b>dettaglio gestione</b> è gated da <code>acl_gestione</code> con <b>match esatto</b> su username/email dell'account Django (non team_gestori, non ACL v2): un'email anagrafica che non combacia genera 403.</div>
+        </div>
+        <div class="block"><h3><span class="bi bi-url">🔗</span> URL &amp; riferimenti tecnici</h3>
+          <div class="pillrow"><span class="tg">🔗 tickets: dashboard · detail · gestione_detail · impostazioni · api_copilota</span><span class="tg">🧩 tickets/ai_copilota.py · views.py</span><span class="tg">🧪 send_sla_reminders · run_tickets_escalation</span></div>
+        </div>
+      </div>
+    </section>
+    <section class="mod" id="mod-timbri">
+      <div class="mod-head"><div class="mod-ic">⏱️</div><div class="meta">
+        <div class="mod-area"><span class="badge hr">HR &amp; Workflow</span> <code>timbri</code> · <code>/timbri/</code></div>
+        <h2>Timbri · registro firme/sigle</h2>
+        <p class="mod-sub">Il registro dei timbri/firme/sigle fisiche degli operatori (da DB legacy), con immagini del badge. Non è un marcatempo delle presenze (quelle vivono in <a href="#mod-assenze">assenze</a>).</p>
+      </div></div>
+      <div class="mod-body">
+        <div class="block"><h3><span class="bi bi-use">👤</span> A cosa serve (utente)</h3>
+          <ul>
+            <li>Consulta il <b>registro</b> dei timbri per operatore, con immagini del timbro/firma.</li>
+            <li>Apre la scheda dell'operatore anche per <b>id anagrafica legacy</b> (embed/preview/report).</li>
+            <li>Esporta il registro in CSV.</li>
+          </ul>
+          <figure class="shot"><div class="ph"><b>📸 Screenshot in arrivo</b>Scheda operatore con registro timbri e immagini badge</div><figcaption>Operatore · <code>/timbri/operatori/&lt;id&gt;/</code> (dati sintetici)</figcaption></figure>
+        </div>
+        <div class="block"><h3><span class="bi bi-sub">🧱</span> Sotto-moduli / aree</h3>
+          <table><thead><tr><th>Area</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td>Indice</td><td><code>/timbri/</code></td><td>Elenco e accesso registro.</td></tr>
+            <tr><td>Operatori</td><td><code>…/operatori/&lt;id&gt;/</code> · <code>…/anagrafica/&lt;legacy_id&gt;/</code></td><td>Scheda operatore, embed/preview/report.</td></tr>
+            <tr><td>Registrazioni</td><td><code>…/operatori/&lt;id&gt;/nuovo/</code> · <code>…/record/&lt;id&gt;/modifica/</code></td><td>Inserimento/modifica timbro.</td></tr>
+            <tr><td>Impostazioni / Export / Immagini</td><td><code>…/impostazioni/</code> · <code>…/export-csv</code> · <code>…/immagine/&lt;id&gt;/</code></td><td>Config, export, serve immagine.</td></tr>
+          </tbody></table>
+        </div>
+        <div class="block"><h3><span class="bi bi-adm">⚙️</span> Gestione / Admin</h3>
+          <ul>
+            <li>Configurazione del modulo (<code>configurazione_page</code>); immagini badge servite in modo controllato (<code>serve_timbri_image</code>).</li>
+            <li>Aggancio all'anagrafica via <code>legacy_id</code> per le viste per-dipendente (embed nel fascicolo).</li>
+          </ul>
+        </div>
+        <div class="block"><h3><span class="bi bi-acl">🔑</span> Ruoli &amp; permessi (ACL)</h3>
+          <p>Accesso riservato (login + ruoli HR/gestione); le immagini sono servite solo tramite la view dedicata, non da <code>/media/</code> pubblico.</p>
+        </div>
+        <div class="block"><h3><span class="bi bi-url">🔗</span> URL &amp; riferimenti tecnici</h3>
+          <div class="pillrow"><span class="tg">🔗 timbri:index · operatore_detail · registro_create · configurazione · serve_image</span><span class="tg">🧩 timbri/views.py</span></div>
+        </div>
+      </div>
+    </section>
+    <section class="mod" id="mod-notizie">
+      <div class="mod-head"><div class="mod-ic">📰</div><div class="meta">
+        <div class="mod-area"><span class="badge hr">HR &amp; Workflow</span> <code>notizie</code> · <code>/notizie/</code></div>
+        <h2>Notizie · bacheca</h2>
+        <p class="mod-sub">La bacheca aziendale: comunicazioni con destinatari mirati (audience), allegati, letture tracciate e <b>presa visione obbligatoria</b> per le notizie critiche.</p>
+      </div></div>
+      <div class="mod-body">
+        <div class="block"><h3><span class="bi bi-use">👤</span> A cosa serve (utente)</h3>
+          <ul>
+            <li><b>Bacheca</b> personale con le notizie rivolte al proprio reparto/ruolo (audience).</li>
+            <li><b>Dettaglio</b> con allegati e <b>conferma di presa visione</b>.</li>
+            <li>Le notizie <b>obbligatorie</b> non confermate vengono riproposte finché non si conferma (middleware).</li>
+          </ul>
+          <figure class="shot"><div class="ph"><b>📸 Screenshot in arrivo</b>Bacheca + notizia obbligatoria con conferma presa visione</div><figcaption>Bacheca · <code>/notizie/</code></figcaption></figure>
+        </div>
+        <div class="block"><h3><span class="bi bi-sub">🧱</span> Sotto-moduli / aree</h3>
+          <table><thead><tr><th>Area</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td>Bacheca / Dettaglio</td><td><code>/notizie/</code> · <code>…/&lt;id&gt;/</code></td><td>Lista e lettura, conferma presa visione.</td></tr>
+            <tr><td>Obbligatorie</td><td><code>…/obbligatorie/</code></td><td>Notizie da confermare.</td></tr>
+            <tr><td>Redazione (admin)</td><td><code>…/dashboard/</code> (nuova, modifica, pubblica, archivia)</td><td>Creazione e ciclo di vita.</td></tr>
+            <tr><td>Report / Impostazioni</td><td><code>…/report/</code> · <code>…/impostazioni/</code></td><td>Letture tracciate, export, config.</td></tr>
+          </tbody></table>
+        </div>
+        <div class="block"><h3><span class="bi bi-adm">⚙️</span> Gestione / Admin</h3>
+          <ul>
+            <li><b>Redazione</b> dalla dashboard: bozza → pubblicata → archiviata, con audience e allegati.</li>
+            <li><b>Report</b> delle letture/conferme con export CSV.</li>
+            <li><code>NotizieMandatoryMiddleware</code> impone la presa visione delle notizie obbligatorie prima di proseguire.</li>
+          </ul>
+        </div>
+        <div class="block"><h3><span class="bi bi-acl">🔑</span> Ruoli &amp; permessi (ACL)</h3>
+          <p>Lettura per tutti i loggati (filtrata per audience); la <b>redazione</b> (dashboard, report, impostazioni) è riservata ai ruoli di gestione/comunicazione.</p>
+        </div>
+        <div class="block"><h3><span class="bi bi-url">🔗</span> URL &amp; riferimenti tecnici</h3>
+          <div class="pillrow"><span class="tg">🔗 notizie_lista · notizie_dettaglio · notizie_conferma · notizie_obbligatorie · notizie_dashboard</span><span class="tg">🧩 notizie/mandatory_middleware.py · views.py</span></div>
+        </div>
+      </div>
+    </section>
+    <!-- SICUREZZA -->
+    <section class="mod" id="mod-dpi">
+      <div class="mod-head"><div class="mod-ic">🦺</div><div class="meta">
+        <div class="mod-area"><span class="badge sic">Sicurezza</span> <code>dpi</code> · <code>/dpi/</code></div>
+        <h2>DPI · dispositivi di protezione</h2>
+        <p class="mod-sub">Gestisce il ciclo di vita dei DPI: dalla richiesta all'approvazione, alla consegna firmata, fino alla scadenza — con catalogo gerarchico, report di conformità al mansionario e reminder automatici.</p>
+      </div></div>
+      <div class="mod-body">
+        <div class="block"><h3><span class="bi bi-use">👤</span> A cosa serve (utente)</h3>
+          <ul>
+            <li><b>Richiesta DPI</b> con card-picker grafico per categoria; flusso CREATA → APPROVATA → CONSEGNATA.</li>
+            <li><b>Consegna firmata</b>: firma su canvas, generazione PDF e archiviazione nel fascicolo del dipendente.</li>
+            <li><b>Report conformità</b> per dipendente: categorie obbligatorie OK / scadute / mancanti con semaforo.</li>
+            <li><b>Reminder</b> automatici per DPI in scadenza e consegne arretrate.</li>
+          </ul>
+          <figure class="shot"><div class="ph"><b>📸 Screenshot in arrivo</b>Consegna DPI con firma + report conformità</div><figcaption>Gestione · <code>/dpi/gestione/</code> (dati sintetici)</figcaption></figure>
+        </div>
+        <div class="block"><h3><span class="bi bi-sub">🧱</span> Sotto-moduli / aree</h3>
+          <table><thead><tr><th>Area</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td>Dashboard / Nuova richiesta</td><td><code>/dpi/</code> · <code>…/nuova/</code></td><td>KPI e creazione richiesta.</td></tr>
+            <tr><td>Gestione / Dettaglio</td><td><code>…/gestione/</code> · <code>…/&lt;pk&gt;/</code></td><td>Coda responsabile sicurezza, timeline.</td></tr>
+            <tr><td>Approvazione / Consegna</td><td><code>…/gestione/&lt;pk&gt;/approva|consegna/</code></td><td>Workflow + firma + PDF.</td></tr>
+            <tr><td>Storico / Report conformità</td><td><code>…/storico/</code> · <code>…/report-conformita/</code></td><td>Consegne per dipendente, conformità mansionario.</td></tr>
+            <tr><td>Impostazioni catalogo</td><td><code>…/impostazioni/</code></td><td>Categorie, tipi, modelli, taglie, vita utile.</td></tr>
+          </tbody></table>
+        </div>
+        <div class="block"><h3><span class="bi bi-adm">⚙️</span> Gestione / Admin</h3>
+          <ul>
+            <li><b>Config</b> singleton <code>DPIImpostazioni</code> (responsabili sicurezza, email reminder, giorni preallarme).</li>
+            <li><b>Comandi</b>: <code>send_dpi_expiry_reminders</code> (schedulabile via django-q) e <code>import_dpi_storico</code>.</li>
+            <li>Catalogo gerarchico Categoria → Tipo → Modello → Taglia con immagini.</li>
+          </ul>
+        </div>
+        <div class="block"><h3><span class="bi bi-acl">🔑</span> Ruoli &amp; permessi (ACL)</h3>
+          <p>Permessi canonici <code>dpi_*</code>: <code>dpi_view</code>/<code>dpi_create</code> per gli utenti; <code>dpi_manage</code> (approvazione/consegna) e <code>dpi_impostazioni</code> per il responsabile sicurezza. Il PDF di consegna firmato è archiviato come documento del dipendente, visibile solo a dipendente/HR/RSPP; azioni critiche in audit.</p>
+        </div>
+        <div class="block"><h3><span class="bi bi-url">🔗</span> URL &amp; riferimenti tecnici</h3>
+          <div class="pillrow"><span class="tg">🔗 dpi:dashboard · nuova · gestione_list · consegna · report_conformita</span><span class="tg">🧩 dpi/models.py · pdf.py · acl_bootstrap.py</span><span class="tg">🧪 send_dpi_expiry_reminders</span></div>
+        </div>
+      </div>
+    </section>
+    <section class="mod" id="mod-diario_preposto">
+      <div class="mod-head"><div class="mod-ic">📓</div><div class="meta">
+        <div class="mod-area"><span class="badge sic">Sicurezza</span> <code>diario_preposto</code> · <code>/diario-preposto/</code></div>
+        <h2>Diario del preposto</h2>
+        <p class="mod-sub">Il registro delle verifiche del preposto alla sicurezza: segnalazioni categorizzate, allegati riservati su storage cifrato e ispezioni periodiche con checklist.</p>
+      </div></div>
+      <div class="mod-body">
+        <div class="block"><h3><span class="bi bi-use">👤</span> A cosa serve (utente)</h3>
+          <ul>
+            <li><b>Segnalazioni</b> quotidiane del preposto (comportamento, infrastruttura, DPI, procedura) con codice <code>DP-YYYY-NNNN</code>.</li>
+            <li><b>Allegati riservati</b> (foto/documenti) su storage privato, <b>non</b> esposto su <code>/media/</code>.</li>
+            <li><b>Ispezioni periodiche</b>: checklist ricorrenti per macchine/aree con registrazione delle esecuzioni.</li>
+            <li>Eventuale <b>follow-up CAPA</b> collegato alla segnalazione.</li>
+          </ul>
+          <figure class="shot"><div class="ph"><b>📸 Screenshot in arrivo</b>Nuova segnalazione preposto + ispezione periodica</div><figcaption>Diario · <code>/diario-preposto/</code> (dati sintetici)</figcaption></figure>
+        </div>
+        <div class="block"><h3><span class="bi bi-sub">🧱</span> Sotto-moduli / aree</h3>
+          <table><thead><tr><th>Area</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td>Lista / Nuovo / Dettaglio</td><td><code>/diario-preposto/</code> · <code>…/nuovo/</code> · <code>…/&lt;pk&gt;/</code></td><td>Elenco filtrabile, inserimento, scheda.</td></tr>
+            <tr><td>Ispezioni periodiche</td><td><code>…/ispezioni/</code> · <code>…/ispezioni/nuova/</code></td><td>Checklist ricorrenti e registrazione.</td></tr>
+            <tr><td>Allegati</td><td><code>…/allegato/&lt;id&gt;/download/</code></td><td>Download autenticato da storage privato.</td></tr>
+            <tr><td>Export / Impostazioni</td><td><code>…/export-excel/</code> · <code>…/impostazioni/</code></td><td>Export e autorizzazioni di scrittura.</td></tr>
+          </tbody></table>
+        </div>
+        <div class="block"><h3><span class="bi bi-adm">⚙️</span> Gestione / Admin</h3>
+          <ul>
+            <li><b>Autorizzazioni di scrittura</b> configurabili (<code>DiarioPrepostoImpostazioni</code>, lista utenti con autocomplete); lista vuota = aperto a tutti i loggati.</li>
+            <li><b>Storage privato</b> (<code>DIARIO_PREPOSTO_PRIVATE_ROOT</code>, <code>PrivateDiarioPrepostoStorage</code>) con validazione MIME stretta; allegati serviti solo via download autenticato.</li>
+            <li>Import storico: <code>import_preposto_csv</code>.</li>
+          </ul>
+        </div>
+        <div class="block"><h3><span class="bi bi-acl">🔑</span> Ruoli &amp; permessi (ACL)</h3>
+          <p>Permessi <code>diario_preposto_*</code> (lista, nuovo, ispezioni, dettaglio, modifica, elimina, allegato). La <b>creazione/modifica</b> è gated dalla lista autorizzati; l'<b>eliminazione</b> è da admin legacy. Download allegati loggato in audit.</p>
+        </div>
+        <div class="block"><h3><span class="bi bi-url">🔗</span> URL &amp; riferimenti tecnici</h3>
+          <div class="pillrow"><span class="tg">🔗 diario_preposto:lista · nuovo · ispezioni · allegato_download</span><span class="tg">🧩 diario_preposto/storage.py · models.py · acl_bootstrap.py</span><span class="tg">🧪 import_preposto_csv</span></div>
+        </div>
+      </div>
+    </section>
+    <section class="mod" id="mod-rilevazione_incidenti">
+      <div class="mod-head"><div class="mod-ic">🚑</div><div class="meta">
+        <div class="mod-area"><span class="badge sic">Sicurezza</span> <code>rilevazione_incidenti</code> · <code>/rilevazione-incidenti/</code></div>
+        <h2>Rilevazione incidenti</h2>
+        <p class="mod-sub">Segnalazione e analisi di unsafe condition, near miss e incidenti, con KPI di sicurezza, heatmap su planimetria e generazione automatica di azioni correttive (CAPA).</p>
+      </div></div>
+      <div class="mod-body">
+        <div class="block"><h3><span class="bi bi-use">👤</span> A cosa serve (utente)</h3>
+          <ul>
+            <li><b>Segnalazione</b> di unsafe condition / near miss / incidente con causa, reparto, asset, persone coinvolte e analisi <b>5 Why</b>.</li>
+            <li><b>KPI sicurezza</b>: TRIR, giorni senza infortuni, frequenza per reparto/causa, trend mensile.</li>
+            <li><b>Heatmap</b> degli hot-spot sulla planimetria SVG con drill-down.</li>
+            <li>Ogni incidente genera automaticamente un'<b>azione CAPA</b> (APERTA→…→VERIFICATA) tracciata nello Scadenzario Globale.</li>
+          </ul>
+          <figure class="shot"><div class="ph"><b>📸 Screenshot in arrivo</b>Heatmap incidenti su planimetria + KPI sicurezza</div><figcaption>Heatmap · <code>/rilevazione-incidenti/heatmap/</code> (dati sintetici)</figcaption></figure>
+        </div>
+        <div class="block"><h3><span class="bi bi-sub">🧱</span> Sotto-moduli / aree</h3>
+          <table><thead><tr><th>Area</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td>Lista / Nuovo / Dettaglio</td><td><code>/rilevazione-incidenti/</code> · <code>…/nuovo/</code> · <code>…/&lt;sp_id&gt;/</code></td><td>Elenco, segnalazione, scheda con workflow.</td></tr>
+            <tr><td>Statistiche</td><td><code>…/statistiche/</code></td><td>KPI sicurezza e trend.</td></tr>
+            <tr><td>Heatmap</td><td><code>…/heatmap/</code></td><td>Hot-spot su planimetria.</td></tr>
+            <tr><td>Impostazioni / Export</td><td><code>…/impostazioni/</code> · <code>…/export-csv/</code></td><td>Reparti/cause/soglie KPI; export.</td></tr>
+          </tbody></table>
+        </div>
+        <div class="block"><h3><span class="bi bi-adm">⚙️</span> Gestione / Admin</h3>
+          <ul>
+            <li><b>Config</b> singleton <code>SicurezzaImpostazioni</code> (reparti, cause evento, soglie TRIR/giorni infortuni, headcount).</li>
+            <li><b>Source-of-truth SharePoint</b>: i record sono cache locale di una lista SharePoint via Graph; normalizzazione tipi evento; sync schedulato.</li>
+            <li><b>CAPA automatica</b>: ogni incidente crea un <code>ActionItem</code> (<code>source_code=rilevazione_incidenti</code>) visibile nel pannello «Azioni collegate».</li>
+          </ul>
+          <div class="note warn"><span class="tag">Security Center</span> Il nominativo è dato personale: trattato solo da RSPP/RLS autorizzati. Audit su create/modifica/chiusura; allegati su SharePoint, non in Django.</div>
+        </div>
+        <div class="block"><h3><span class="bi bi-acl">🔑</span> Ruoli &amp; permessi (ACL)</h3>
+          <table><thead><tr><th>Ruolo</th><th>Può</th></tr></thead><tbody>
+            <tr><td>Operaio / Preposto</td><td>Segnalare (lista, nuovo).</td></tr>
+            <tr><td>RLS</td><td>Leggere, analizzare, approvare (dettaglio, modifica).</td></tr>
+            <tr><td>RSPP / Admin</td><td>Gestione completa, statistiche, heatmap, impostazioni, chiusura/verifica CAPA.</td></tr>
+          </tbody></table>
+        </div>
+        <div class="block"><h3><span class="bi bi-url">🔗</span> URL &amp; riferimenti tecnici</h3>
+          <div class="pillrow"><span class="tg">🔗 rilevazione_incidenti:lista · statistiche · heatmap</span><span class="tg">🧩 services.py (get_safety_kpis · normalize_tipo_evento) · acl_bootstrap.py</span><span class="tg">🔗 integrazione CAPA (core)</span></div>
+        </div>
+      </div>
+    </section>
+    <section class="mod" id="mod-procedure_refresh">
+      <div class="mod-head"><div class="mod-ic">📑</div><div class="meta">
+        <div class="mod-area"><span class="badge sic">Sicurezza</span> <code>procedure_refresh</code> · <code>/procedure-refresh/</code></div>
+        <h2>Procedure refresh · presa visione</h2>
+        <p class="mod-sub">Gestisce la presa visione tracciata delle procedure MT/MTSI: campagne, assegnazioni con scadenza, quiz di verifica, matrice formazione per reparto ed export audit per ISO.</p>
+      </div></div>
+      <div class="mod-body">
+        <div class="block"><h3><span class="bi bi-use">👤</span> A cosa serve (utente)</h3>
+          <ul>
+            <li><b>Le mie letture</b>: l'utente vede le procedure assegnate (stati assegnata → aperta → confermata), le legge e conferma.</li>
+            <li><b>Quiz</b> post-lettura (max 3 domande) per verificare la comprensione.</li>
+            <li>Tracciamento per <b>audit</b>: aperture, IP, data conferma, scadenze.</li>
+          </ul>
+          <figure class="shot"><div class="ph"><b>📸 Screenshot in arrivo</b>«Le mie letture» — assegnazioni e conferma lettura</div><figcaption>Le mie letture · <code>/procedure-refresh/</code></figcaption></figure>
+        </div>
+        <div class="block"><h3><span class="bi bi-sub">🧱</span> Sotto-moduli / aree</h3>
+          <table><thead><tr><th>Area</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td>Le mie letture / dettaglio</td><td><code>/procedure-refresh/</code> · <code>…/&lt;pk&gt;/</code></td><td>Assegnazioni utente, lettura, conferma, quiz.</td></tr>
+            <tr><td>Documenti / Revisioni / Quiz (admin)</td><td><code>…/admin/documenti/…</code></td><td>CRUD documenti, revisioni (SharePoint/file server), quiz.</td></tr>
+            <tr><td>Campagne (admin)</td><td><code>…/admin/campagne/</code></td><td>Bozza → pubblicata → chiusa, assegnazione utenti.</td></tr>
+            <tr><td>Report / Matrice / Export</td><td><code>…/admin/report/…</code> · <code>…/export-csv/</code></td><td>Copertura per utente/documento/campagna, matrice reparto, CSV.</td></tr>
+          </tbody></table>
+        </div>
+        <div class="block"><h3><span class="bi bi-adm">⚙️</span> Gestione / Admin</h3>
+          <ul>
+            <li><b>Campagne</b> con assegnazioni datate, log eventi (OPENED/CONFIRMED/REASSIGNED) e reminder.</li>
+            <li><b>Import corpus SGI</b>: <code>import_sgi_da_share</code> (dry-run di default) registra i PDF MT/MTSI come documenti — <b>alimenta il RAG</b> dell'assistente AI; <code>index_sgi_documents</code> per l'indicizzazione.</li>
+            <li>8 modelli (Document, Revision, Campaign, Assignment, ReadEvent, Quiz, QuizAttempt…).</li>
+          </ul>
+        </div>
+        <div class="block"><h3><span class="bi bi-acl">🔑</span> Ruoli &amp; permessi (ACL)</h3>
+          <p><code>pr_view</code> (le proprie letture) per <b>tutti</b> i loggati; le aree admin (documenti, campagne, report, quiz, export) sono riservate a <b>legacy admin</b>/superuser.</p>
+        </div>
+        <div class="block"><h3><span class="bi bi-url">🔗</span> URL &amp; riferimenti tecnici</h3>
+          <div class="pillrow"><span class="tg">🔗 procedure_refresh:my_assignments · admin_dashboard · report_matrix</span><span class="tg">🧪 import_sgi_da_share · index_sgi_documents</span><span class="tg">⚙️ PROCEDURE_REFRESH_SGI_SHARE_ROOT</span></div>
+        </div>
+      </div>
+    </section>
+    <section class="mod" id="mod-rentri">
+      <div class="mod-head"><div class="mod-ic">♻️</div><div class="meta">
+        <div class="mod-area"><span class="badge sic">Sicurezza</span> <code>rentri</code> · <code>/rentri/</code></div>
+        <h2>RENTRI · tracciabilità rifiuti</h2>
+        <p class="mod-sub">Registro dei rifiuti secondo normativa RENTRI: movimenti Carico/Scarico/Rettifica con codice CER, scadenzario degli adempimenti e giacenze per CER con semaforo del deposito temporaneo.</p>
+      </div></div>
+      <div class="mod-body">
+        <div class="block"><h3><span class="bi bi-use">👤</span> A cosa serve (utente)</h3>
+          <ul>
+            <li><b>Registro C/O/M/R</b>: registra carico, scarico originale/effettivo e rettifiche con codice EER, quantità e pericolosità.</li>
+            <li><b>Scadenzario adempimenti</b>: FIR mancanti, registrazioni da comunicare a RENTRI, bozze non salvate.</li>
+            <li><b>Giacenze per CER</b> (carico − scarico − rettifiche) con <b>semaforo</b> del deposito temporaneo (rosso/giallo/verde).</li>
+            <li>Import/export CSV e sync SharePoint via Microsoft Graph.</li>
+          </ul>
+          <figure class="shot"><div class="ph"><b>📸 Screenshot in arrivo</b>Giacenze per CER con semaforo deposito temporaneo</div><figcaption>Giacenze · <code>/rentri/giacenze/</code></figcaption></figure>
+        </div>
+        <div class="block"><h3><span class="bi bi-sub">🧱</span> Sotto-moduli / aree</h3>
+          <table><thead><tr><th>Area</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td>Movimenti</td><td><code>/rentri/carico|scarico-originale|scarico-effettivo|rettifica-scarico/</code></td><td>Registrazione tipi C/O/M/R.</td></tr>
+            <tr><td>Elenco registri</td><td><code>…/elenco/</code></td><td>Famiglie C + O/M/R, filtri, paginazione.</td></tr>
+            <tr><td>Scadenzario / Giacenze</td><td><code>…/scadenzario/</code> · <code>…/giacenze/</code></td><td>Adempimenti aperti e giacenze per CER (sola lettura + CSV).</td></tr>
+            <tr><td>Import / Sync / Impostazioni</td><td><code>…/import/…</code> · <code>…/api/sync/pull</code> · <code>…/impostazioni/</code></td><td>Import CSV, sync SharePoint, config registro.</td></tr>
+          </tbody></table>
+        </div>
+        <div class="block"><h3><span class="bi bi-adm">⚙️</span> Gestione / Admin</h3>
+          <ul>
+            <li><b>Impostazioni</b> singleton (<code>RentriImpostazioni</code>): codice iscrizione RENTRI, ragione sociale, responsabili.</li>
+            <li><b>Comandi</b>: <code>import_rentri_csv</code> (import da CSV SharePoint) e <code>check_rentri_scadenze</code> (alert email su registrazioni non salvate/non comunicate oltre soglia).</li>
+            <li><b>Sync Graph</b> bidirezionale con la lista SharePoint; soglie deposito in <code>SiteConfig</code> (rosso/giallo).</li>
+          </ul>
+        </div>
+        <div class="block"><h3><span class="bi bi-acl">🔑</span> Ruoli &amp; permessi (ACL)</h3>
+          <p>Consultazione (elenco, scadenzario, giacenze, export) per <b>tutti</b> i loggati; la <b>scrittura del registro</b> (C/O/M/R, import, sync) è riservata a superuser/legacy admin (<code>can_manage_rentri</code>) — è un <b>dato a valenza legale</b>.</p>
+        </div>
+        <div class="block"><h3><span class="bi bi-url">🔗</span> URL &amp; riferimenti tecnici</h3>
+          <div class="pillrow"><span class="tg">🔗 rentri_menu · rentri_elenco · rentri_scadenzario · rentri_giacenze</span><span class="tg">🧪 import_rentri_csv · check_rentri_scadenze</span><span class="tg">🧩 rentri/giacenze.py · views.py</span></div>
+        </div>
+      </div>
+    </section>
+    <!-- AUTOMATION -->
+    <section class="mod" id="mod-automazioni">
+      <div class="mod-head"><div class="mod-ic">🔁</div><div class="meta">
+        <div class="mod-area"><span class="badge auto">Automation</span> <code>automazioni</code> · <code>/automazioni/</code></div>
+        <h2>Automazioni</h2>
+        <p class="mod-sub">Designer visuale event-driven: trigger SQL su tabelle → coda → azioni (email, aggiornamento record, approvazioni), con approvazioni multi-canale e import da Power Automate. Tutto senza scrivere codice.</p>
+      </div></div>
+      <div class="mod-body">
+        <div class="block"><h3><span class="bi bi-use">👤</span> A cosa serve (utente)</h3>
+          <ul>
+            <li><b>Regole visuali</b>: trigger (insert/update su una tabella) + condizioni (campo, operatori, cool-down) + azioni (email, update, approvazione).</li>
+            <li><b>Approvazioni multi-canale</b>: reply email <code>APPROVO/RIFIUTO</code>, Teams, oppure link portale con <b>token</b> opaco.</li>
+            <li><b>Controllo flusso</b>: branch (if-else), loop (<code>do_until</code>), <code>for_each</code>, soglie N eventi in M giorni.</li>
+            <li><b>Import Power Automate</b>: converte un flow <code>.zip</code>/<code>.json</code> in una regola (importata come <b>bozza</b>, non attiva).</li>
+          </ul>
+          <figure class="shot"><div class="ph"><b>📸 Screenshot in arrivo</b>Designer regola — trigger, condizioni, azioni</div><figcaption>Designer · <code>/automazioni/regole/</code></figcaption></figure>
+        </div>
+        <div class="block"><h3><span class="bi bi-sub">🧱</span> Sotto-moduli / aree</h3>
+          <table><thead><tr><th>Area</th><th>URL</th><th>Cosa fa</th></tr></thead><tbody>
+            <tr><td>Regole / Designer</td><td><code>/automazioni/regole/</code></td><td>Lista, designer, test inline, attivazione.</td></tr>
+            <tr><td>Sorgenti / Contenuti / Trigger</td><td><code>…/sorgenti/</code> · <code>…/trigger-generator/</code></td><td>Tabelle trigger-enabled e scope SQL.</td></tr>
+            <tr><td>Coda / Run log</td><td><code>…/queue/</code> · <code>…/run-log/</code></td><td>Eventi pending/success/error; storico run.</td></tr>
+            <tr><td>Approvazioni / Canali</td><td><code>…/template-approvazioni/</code> · <code>…/canali-teams/</code></td><td>Template (portal/mail/hybrid) e webhook Teams.</td></tr>
+            <tr><td>Mailbox / Import</td><td><code>…/mailbox-log/</code> · <code>…/regole/converti-power-automate/</code></td><td>Diagnostica poll e import flow.</td></tr>
+          </tbody></table>
+        </div>
+        <div class="block"><h3><span class="bi bi-adm">⚙️</span> Gestione / Admin</h3>
+          <ul>
+            <li><b>Queue processor</b> <code>process_automation_queue</code> (ogni ~1 min): match regole ed esecuzione azioni → <code>AutomationRunLog</code>.</li>
+            <li><b>Mailbox poller</b> <code>process_approval_mailbox</code> (ogni ~2 min, Graph): legge le reply e applica le decisioni.</li>
+            <li><b>Trigger SQL</b> con <code>apply_sql_triggers</code>; tutte le schedule registrate da <code>setup_q_schedules</code> (django-q2).</li>
+            <li><b>Retention GDPR</b>: <code>cleanup_run_logs</code> (default 90gg). Config in <code>SiteConfig</code> (backend mailbox, validità approvazioni, destinatari).</li>
+          </ul>
+        </div>
+        <div class="block"><h3><span class="bi bi-acl">🔑</span> Ruoli &amp; permessi (ACL)</h3>
+          <ul>
+            <li><b>Designer/config</b> (<code>/automazioni/*</code>): login + permessi canonici (8 endpoint <code>automazioni_*</code>) — superficie <b>interna</b>.</li>
+            <li><b>Approvazioni a token</b> (<code>/automazioni/approvazione/*</code>, <code>/approval-actions/*</code>): <b>senza login</b>, con token UUID opaco.</li>
+            <li><b>Confine</b>: Entra Application Proxy pubblica <b>solo</b> <code>/approval-actions/*</code> — il designer resta interno.</li>
+            <li><b>Fail-closed</b>: validazione attore (email in lista), idempotenza, scadenza token, deduplica per namespace, audit della decisione.</li>
+          </ul>
+        </div>
+        <div class="block"><h3><span class="bi bi-url">🔗</span> URL &amp; riferimenti tecnici</h3>
+          <div class="pillrow"><span class="tg">🔗 automazioni_rule_list · approval_proxy_approve/reject</span><span class="tg">🧩 schedules.py · approval_security.py · approval_proxy_urls.py</span><span class="tg">🧪 process_automation_queue · process_approval_mailbox · setup_q_schedules</span></div>
+        </div>
+      </div>
+    </section>
+
+    <footer>NOVICROM HUB · Guida esplorativa dei moduli — documento interno · generato per revisione struttura</footer>
+  </main>
+</div>
+
+<script>
+  // Filtro moduli nella sidebar
+  (function(){
+    var q = document.getElementById('navsearch');
+    if(!q) return;
+    q.addEventListener('input', function(){
+      var t = q.value.trim().toLowerCase();
+      document.querySelectorAll('#navtree .navlink').forEach(function(a){
+        a.style.display = a.textContent.toLowerCase().indexOf(t) > -1 ? '' : 'none';
+      });
+      document.querySelectorAll('#navtree .nav-group').forEach(function(g){
+        var any = Array.prototype.some.call(g.querySelectorAll('.navlink'), function(a){ return a.style.display !== 'none'; });
+        g.style.display = any ? '' : 'none';
+      });
+    });
+  })();
+  // Scrollspy: evidenzia la voce del modulo visibile
+  (function(){
+    var links = {}, secs = [];
+    document.querySelectorAll('#navtree .navlink').forEach(function(a){
+      var id = a.getAttribute('href').slice(1); links[id] = a;
+    });
+    document.querySelectorAll('section.mod').forEach(function(s){ secs.push(s); });
+    if(!('IntersectionObserver' in window) || !secs.length) return;
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(e.isIntersecting){
+          Object.values(links).forEach(function(a){ a.classList.remove('active'); });
+          var a = links[e.target.id]; if(a){ a.classList.add('active'); }
+        }
+      });
+    }, {rootMargin:'-15% 0px -75% 0px', threshold:0});
+    secs.forEach(function(s){ io.observe(s); });
+  })();
+</script>
+</body>
+</html>

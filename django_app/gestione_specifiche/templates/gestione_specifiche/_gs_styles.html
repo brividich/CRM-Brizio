@@ -3,8 +3,11 @@
    Le classi "legacy" (gs-head, gs-card, gs-grid, gs-btn, gs-input, gs-table,
    gs-evt, gs-actions, gs-toolbar) restano per specifica_form/ricerca. #}
 <style>
-  .gs-wrap{ max-width:1280px; margin:0 auto; font-family:'Outfit',system-ui,-apple-system,'Segoe UI',sans-serif; color:#0c2545; }
+  .gs-wrap{ max-width:none; margin:0 auto; font-family:'Outfit',system-ui,-apple-system,'Segoe UI',sans-serif; color:#0c2545; }
   .gs-wrap *{ box-sizing:border-box; }
+  /* Full-width su TUTTE le pagine del modulo: override del cap .content (1680px)
+     e gs-wrap (1280px). _gs_styles è incluso solo qui, quindi non tocca il resto. */
+  .content{ width:100%; max-width:none; }
   @keyframes gsUp{ from{opacity:0; transform:translateY(12px)} to{opacity:1; transform:translateY(0)} }
 
   /* ---- breadcrumb / back ------------------------------------------------ */
