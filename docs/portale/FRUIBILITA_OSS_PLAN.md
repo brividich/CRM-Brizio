@@ -55,9 +55,11 @@ Django SSR + HTMX, niente SPA/build step, on-premise.
   per mese ora anche come **grafico a barre** (oltre alla tabella), dai dati già
   fetchati. Riusabile su altre dashboard includendo Chart.js + helper e chiamando
   `NHUB.barChart(canvas, {labels, values, label})`.
-- [ ] **C2. Export Excel (openpyxl, già installato)** — util condivisa per
-  esportare i "report a tabella" (saturazione, asset, conformità DPI) in `.xlsx`,
-  ACL-gated, audit-light. Eventuale formato `xlsx` anche per il report AI.
+- [x] **C2. Export Excel (openpyxl)** ✅ — util condivisa `core/excel_export.py`
+  (`make_xlsx_response`/`build_xlsx_bytes`: intestazione navy, larghezze auto, riga
+  bloccata, autofiltro). Pilota: **conformità DPI** — pulsante «Esporta Excel» che
+  scarica la tabella stato-DPI del dipendente (ACL gestore, audit-light). Riusabile
+  per saturazione carichi, asset, ecc. passando colonne+righe già calcolate.
 
 ## Ondata D — Interattività & onboarding
 - [ ] **D1. Alpine.js** (vendor) — sprinkles dichiarativi complementari a HTMX;

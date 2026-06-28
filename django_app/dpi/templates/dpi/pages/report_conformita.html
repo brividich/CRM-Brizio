@@ -121,6 +121,7 @@ body.theme-dark .dpi-table td { border-color:var(--border); color:var(--text); }
       <span class="dpi-summary-pill dpi-summary-neutral">{{ dipendente.cognome }} {{ dipendente.nome }}</span>
       {% if dipendente.reparto %}<span class="dpi-summary-pill dpi-summary-neutral">{{ dipendente.reparto }}</span>{% endif %}
       {% if dipendente.mansione %}<span class="dpi-summary-pill dpi-summary-neutral">{{ dipendente.mansione }}</span>{% endif %}
+      {% if righe_report %}<a class="dpi-btn" style="margin-left:auto;text-decoration:none;" href="?dipendente_id={{ dipendente_id }}&amp;categoria_id={{ categoria_id }}&amp;solo_obbligatorie={% if solo_obbligatorie %}1{% else %}0{% endif %}&amp;q={{ q|urlencode }}&amp;export=xlsx">&#x2B07; Esporta Excel</a>{% endif %}
     </div>
   </div>
 

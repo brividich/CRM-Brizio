@@ -604,6 +604,34 @@ def report_conformita(request):
                 })
             conforme = bool(righe_report) and all(row["stato"] == "ok" for row in righe_report)
 
+    if request.GET.get("export") == "xlsx" and dipendente and righe_report:
+        from core.excel_export import make_xlsx_response
+
+        _stato_lbl = {"ok": "OK", "scaduto": "Scaduto", "mancante": "Mancante"}
+        _rows = []
+        for _r in righe_report:
+            _c = _r.get("consegna")
+            _scad = (getattr(_c, "scadenza_calcolata", None) or getattr(_c, "data_scadenza_stimata", None)) if _c else None
+            _rows.append([
+                _r["categoria"].nome,
+                _stato_lbl.get(_r["stato"], _r["stato"]),
+                _c.data_consegna.strftime("%d-%m-%Y") if _c and _c.data_consegna else "",
+                _scad.strftime("%d-%m-%Y") if _scad else "",
+                _c.richiesta.numero if _c and _c.richiesta_id else "",
+            ])
+        _nome = f"{dipendente.get('cognome', '')} {dipendente.get('nome', '')}".strip() or "dipendente"
+        log_action(request, "dpi_conformita_export_xlsx", "dpi", {
+            "dipendente_id": dipendente_id_raw,
+            "rows": len(_rows),
+        })
+        return make_xlsx_response(
+            filename=f"conformita-dpi-{_nome.replace(' ', '_')}.xlsx",
+            columns=["Categoria", "Stato", "Ultima consegna", "Scadenza", "Richiesta"],
+            rows=_rows,
+            sheet_title="Conformità DPI",
+            title=f"Conformità DPI — {_nome}",
+        )
+
     return render(request, "dpi/pages/report_conformita.html", {
         "dipendenti": dipendenti,
         "dipendente": dipendente,

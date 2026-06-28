@@ -527,3 +527,42 @@ class DpiCopilotaTests(TestCase):
         html = resp.content.decode("utf-8")
         self.assertIn("data-dpi-copilota", html)
         self.assertIn(reverse("dpi:api_copilota_dpi"), html)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class DpiConformitaExportTests(TestCase):
+    """Export Excel della conformità DPI (C2): util riusabile core.excel_export."""
+
+    def setUp(self):
+        super().setUp()
+        self.user = get_user_model().objects.create_superuser(
+            username="dpi-exp", email="dpi-exp@example.com", password="pass12345"
+        )
+        self.client.force_login(self.user)
+        cat = CategoriaDPI.objects.create(nome="Scarpe", is_active=True, obbligatoria_mansionario=True)
+        req = RichiestaDPI.objects.create(
+            categoria=cat,
+            stato=StatoRichiesta.CONSEGNATA,
+            richiedente_legacy_id=1,
+            richiedente_nome="Mario Rossi",
+            created_by=self.user,
+        )
+        ConsegnaDPI.objects.create(
+            richiesta=req,
+            data_consegna=date.today(),
+            data_scadenza_stimata=date.today() + timedelta(days=30),
+        )
+
+    def test_export_xlsx_returns_spreadsheet(self):
+        rows = [{"id": 1, "nome": "Mario", "cognome": "Rossi", "mansione": "Operatore", "reparto": "PROD", "attivo": True}]
+        with patch("dpi.views.ensure_anagrafica_schema", return_value=None), patch(
+            "dpi.views.fetch_anagrafica_rows", return_value=rows
+        ):
+            resp = self.client.get(
+                reverse("dpi:report_conformita"),
+                {"dipendente_id": "1", "export": "xlsx"},
+            )
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("spreadsheetml", resp["Content-Type"])
+        self.assertIn("attachment", resp["Content-Disposition"])
+        self.assertEqual(resp.content[:2], b"PK")
