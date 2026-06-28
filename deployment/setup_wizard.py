@@ -7954,19 +7954,36 @@ if ($t) {{
                 v_emb.get().strip() or "nomic-embed-text",
                 v_tbase.get().strip(), v_tmod.get().strip() or "BAAI/bge-m3",
             )
+            # Scrive sia il .env PERSISTENTE (config\.env, durevole tra i deploy) sia
+            # l'ATTIVO (current\django_app\.env, usato dal processo in esecuzione e da
+            # Verifica): senza l'attivo il salvataggio non ha effetto finche' non gira
+            # un deploy, e Verifica/prefill continuerebbero a mostrare il vecchio
+            # valore. Scriverli entrambi li tiene allineati (nessun drift).
+            persistent = self._ai_persistent_env_path(env)
+            active = self._ai_active_env_path(env)
+            targets, seen = [], set()
+            for t in (persistent, active):
+                if t and str(t) not in seen:
+                    seen.add(str(t))
+                    targets.append(t)
             if env == "prod" and not messagebox.askyesno(
-                "Conferma PROD", f"Scrivere la config AI in:\n{target}\n(ambiente PROD)?"):
+                "Conferma PROD",
+                "Scrivere la config AI (PROD) in:\n" + "\n".join(str(t) for t in targets) + " ?"):
                 return
-            try:
-                text = target.read_text(encoding="utf-8", errors="replace") if target.exists() else ""
-                new_text = _apply_env_updates(text, updates, remove)
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_text(new_text, encoding="utf-8")
-            except Exception as exc:
-                messagebox.showerror("Config AI", f"Scrittura fallita: {exc}")
-                return
-            self._ai_log(f"\n[{env.upper()}] Config AI salvata in {target} "
-                         f"(backend={backend}). Riavvia IIS per applicare.\n", "ok")
+            written = []
+            for t in targets:
+                try:
+                    text = t.read_text(encoding="utf-8", errors="replace") if t.exists() else ""
+                    t.parent.mkdir(parents=True, exist_ok=True)
+                    t.write_text(_apply_env_updates(text, updates, remove), encoding="utf-8")
+                    written.append(str(t))
+                except Exception as exc:
+                    messagebox.showerror("Config AI", f"Scrittura di {t} fallita: {exc}")
+                    return
+            self._ai_log(
+                f"\n[{env.upper()}] Config AI salvata (backend={backend}) in:\n  "
+                + "\n  ".join(written)
+                + "\nRiavvia IIS per applicare.\n", "ok")
             dlg.destroy()
 
         btns = frame(pad, bg="white")
