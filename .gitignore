@@ -251,3 +251,20 @@ movimenti collado.xlsx
 storico collaudo.xlsx
 docs/assets/riconciliazione_collaudo_macchine.xlsx
 docs/assets/riconciliazione_collaudo_macchine_PROD.xlsx
+
+# Materiale di lavoro / handoff / scratch lasciato in radice (non versionare)
+/Carichi macchina*.xlsx
+/Gestione Specifiche NOVICROM-handoff.zip
+/Gestione carichi macchina Gantt.zip
+/Novicrom HUB Design System.zip
+/Guida_Microcorsi_Elearning_NOVICROM.pdf
+/Proposte_Formazione_AccordoStatoRegioni_2025.pdf
+/Senza titolo.png
+/PROMPT_claude_code_*.md
+# Doc anagrafica con possibili dati personali / export di chat
+docs/anagrafica/CHAT_EXPORT_competenze.md
+docs/anagrafica/PROPOSTA_GESTIONE_COMPETENZE.html
+docs/anagrafica/PROPOSTA_GESTIONE_COMPETENZE.pdf
+docs/anagrafica/skillmatrix/skm_catalogo_competenze.csv
+# Guida d'uso in PDF (rigenerabile dall'HTML)
+docs/gestione_carichi_macchina/GUIDA_UTILIZZO.pdf
