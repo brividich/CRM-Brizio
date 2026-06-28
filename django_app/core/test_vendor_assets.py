@@ -34,6 +34,9 @@ EXPECTED_VENDOR_FILES = [
     "outfit/outfit.css",
     "tom-select/tom-select.complete.min.js",
     "tom-select/tom-select.min.css",
+    "flatpickr/flatpickr.min.js",
+    "flatpickr/flatpickr.min.css",
+    "flatpickr/l10n-it.js",
 ]
 
 
@@ -77,3 +80,21 @@ class VendorAssetsTests(SimpleTestCase):
             DJANGO_APP / "dpi" / "templates" / "dpi" / "pages" / "report_conformita.html"
         ).read_text(encoding="utf-8", errors="ignore")
         self.assertIn('id="dipendente_id" class="js-searchable"', rc)
+
+    def test_flatpickr_wired_in_base(self):
+        base = (DJANGO_APP / "core" / "templates" / "core" / "base.html").read_text(
+            encoding="utf-8", errors="ignore"
+        )
+        self.assertIn("flatpickr/flatpickr.min.css", base)
+        self.assertIn("flatpickr/flatpickr.min.js", base)
+        self.assertIn("flatpickr/l10n-it.js", base)
+        self.assertIn("core/js/flatpickr-init.js", base)
+        self.assertTrue(
+            (DJANGO_APP / "core" / "static" / "core" / "js" / "flatpickr-init.js").is_file()
+        )
+
+    def test_flatpickr_applied_to_pilot_input(self):
+        audit = (
+            DJANGO_APP / "admin_portale" / "templates" / "admin_portale" / "pages" / "audit_log.html"
+        ).read_text(encoding="utf-8", errors="ignore")
+        self.assertIn('name="data" value="{{ filtro_data }}" class="js-datepicker"', audit)

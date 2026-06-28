@@ -42,8 +42,11 @@ Django SSR + HTMX, niente SPA/build step, on-premise.
   Piloti: report conformità DPI (dipendente + categoria), assegnazione ticket
   (tecnico + fornitore). Per abilitarlo su altri select basta aggiungere la classe
   `js-searchable` (+ opz. `data-placeholder`).
-- [ ] **B2. Flatpickr** (vendor, locale IT) — date/range picker coerente nei filtri
-  e nei report; degrada a `<input type=date>`.
+- [x] **B2. Flatpickr** ✅ — vendorizzato (JS+CSS+locale IT); init globale
+  `core/js/flatpickr-init.js` su `input.js-datepicker` (e `js-daterange` per il
+  range), valore inviato sempre ISO `Y-m-d` (compat Django), mostrato `d/m/Y`,
+  anche post-HTMX, fallback a `<input type=date>` nativo. Pilota: filtro data di
+  audit_log. Estendibile aggiungendo `js-datepicker` a qualsiasi input data.
 
 ## Ondata C — Visualizzazione dati
 - [ ] **C1. Chart.js riusabile** — dopo il self-host (A1), un piccolo helper +
