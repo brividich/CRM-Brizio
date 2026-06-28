@@ -253,6 +253,77 @@ def system_action(request):
 
 
 @legacy_admin_required
+def schedule_list(request):
+    """Gestione schedule django-q dalla centrale (Ondata 3). Abilita/disabilita è
+    DUREVOLE (monitoring.ScheduleControl, rispettato da setup_q_schedules anche dopo
+    un redeploy); la cadenza resta definita nel codice (automazioni/schedules.py)."""
+    from django_q.models import Schedule
+
+    from automazioni.schedules import SCHEDULES
+
+    from .models import ScheduleControl
+
+    live = {s.name: s for s in Schedule.objects.all()}
+    controls = {c.name: c.enabled for c in ScheduleControl.objects.all()}
+    rows = []
+    for spec in SCHEDULES:
+        name = spec["name"]
+        sch = live.get(name)
+        rows.append({
+            "name": name,
+            "func": spec["func"],
+            "cadence": (f"cron {spec['cron']}" if spec.get("schedule_type") == "C"
+                        else f"ogni {spec.get('minutes')} min"),
+            "enabled": controls.get(name, True),
+            "registered": sch is not None,
+            "next_run": getattr(sch, "next_run", None),
+        })
+    return render(request, "monitoring/pages/schedules.html", {"rows": rows})
+
+
+@legacy_admin_required
+@require_POST
+def schedule_action(request):
+    """Toggle (abilita/disabilita durevole) o 'esegui ora' di uno schedule."""
+    from automazioni.schedules import delete_schedule, register_schedule, spec_by_name
+
+    from .models import ScheduleControl
+
+    name = (request.POST.get("name") or "").strip()
+    action = (request.POST.get("action") or "").strip()
+    spec = spec_by_name(name)
+    if not spec:
+        messages.error(request, "Schedule sconosciuto.")
+        return redirect("monitoring_admin:schedule_list")
+
+    if action == "toggle":
+        control, _ = ScheduleControl.objects.get_or_create(name=name)
+        control.enabled = not control.enabled
+        control.updated_by = request.user if request.user.is_authenticated else None
+        control.save()
+        try:
+            register_schedule(spec) if control.enabled else delete_schedule(name)
+        except Exception as exc:
+            messages.error(request, f"Applicazione non riuscita: {exc}")
+            return redirect("monitoring_admin:schedule_list")
+        log_action(request, "monitoring_schedule_toggle", "monitoring",
+                   {"name": name, "enabled": control.enabled})
+        messages.success(request, f"Schedule '{name}' {'abilitato' if control.enabled else 'disabilitato'}.")
+    elif action == "run_now":
+        try:
+            from django_q.tasks import async_task
+
+            async_task(spec["func"], **(spec.get("kwargs") or {}))
+            log_action(request, "monitoring_schedule_run_now", "monitoring", {"name": name})
+            messages.success(request, f"'{name}' avviato ora (accodato al cluster).")
+        except Exception as exc:
+            messages.error(request, f"Avvio non riuscito (cluster django-q attivo?): {exc}")
+    else:
+        messages.error(request, "Azione non riconosciuta.")
+    return redirect("monitoring_admin:schedule_list")
+
+
+@legacy_admin_required
 def issue_list(request):
     qs = Issue.objects.select_related("assigned_to", "created_by_user").all().order_by("-last_seen_at", "-id")
     filters = {

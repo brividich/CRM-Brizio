@@ -228,3 +228,25 @@ class AutomationExecution(models.Model):
 
     def __str__(self) -> str:
         return f"{self.job.code} - {self.status} - {self.started_at:%Y-%m-%d %H:%M:%S}"
+
+
+class ScheduleControl(models.Model):
+    """Stato di abilitazione DUREVOLE di uno Schedule django-q, gestito dalla
+    centrale di comando. ``setup_q_schedules`` lo consulta: se ``enabled=False``
+    NON registra (ed elimina) lo schedule, anche dopo un redeploy. La cadenza
+    resta definita nel codice (``automazioni/schedules.py`` = fonte di verità)."""
+
+    name = models.CharField(max_length=120, unique=True, db_index=True)
+    enabled = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="monitoring_schedule_controls",
+    )
+
+    class Meta:
+        verbose_name = "controllo schedule"
+        verbose_name_plural = "controlli schedule"
+
+    def __str__(self) -> str:
+        return f"{self.name} [{'on' if self.enabled else 'off'}]"

@@ -1,0 +1,68 @@
+{% extends "core/base.html" %}
+
+{% block title %}Schedule | Monitoring{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% url 'monitoring_admin:system_status' as monitoring_status_url %}
+  {% include "admin_portale/components/page_header.html" with page_title="Schedule automazioni" page_subtitle="Abilita/disabilita (durevole) ed esegui ora i job pianificati. La cadenza è definita nel codice." page_action_label="Stato sistema" page_action_url=monitoring_status_url %}
+
+  <style>
+    .sch-table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:8px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden}
+    .sch-table th,.sch-table td{text-align:left;padding:10px 12px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+    .sch-table th{background:#f8fafc;color:#0c2545;font-size:12px;text-transform:uppercase;letter-spacing:.3px}
+    .sch-table tr:last-child td{border-bottom:0}
+    .sch-func{font-family:Consolas,Monaco,monospace;font-size:12px;color:#64748b}
+    .sch-badge{font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px}
+    .sch-on{background:#dcfce7;color:#166534}
+    .sch-off{background:#fee2e2;color:#991b1b}
+    .sch-btn{border:1px solid #cbd5e1;background:#fff;color:#0c2545;font-size:12.5px;font-weight:600;padding:5px 11px;border-radius:7px;cursor:pointer}
+    .sch-btn:hover{background:#f1f5f9}
+    .sch-btn.warn{border-color:#fca5a5;color:#991b1b}
+    .sch-actions{display:flex;gap:8px}
+    .sch-actions form{margin:0}
+  </style>
+
+  <table class="sch-table">
+    <thead>
+      <tr><th>Schedule</th><th>Cadenza</th><th>Prossimo run</th><th>Stato</th><th>Azioni</th></tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+        <tr>
+          <td><strong>{{ r.name }}</strong><br><span class="sch-func">{{ r.func }}</span></td>
+          <td>{{ r.cadence }}</td>
+          <td>{% if r.registered %}{{ r.next_run|date:"d-m H:i"|default:"—" }}{% else %}<span style="color:#991b1b">non registrato</span>{% endif %}</td>
+          <td><span class="sch-badge {% if r.enabled %}sch-on{% else %}sch-off{% endif %}">{% if r.enabled %}ABILITATO{% else %}DISABILITATO{% endif %}</span></td>
+          <td>
+            <div class="sch-actions">
+              <form method="post" action="{% url 'monitoring_admin:schedule_action' %}">
+                {% csrf_token %}
+                <input type="hidden" name="name" value="{{ r.name }}">
+                <input type="hidden" name="action" value="toggle">
+                <button type="submit" class="sch-btn {% if r.enabled %}warn{% endif %}">{% if r.enabled %}Disabilita{% else %}Abilita{% endif %}</button>
+              </form>
+              <form method="post" action="{% url 'monitoring_admin:schedule_action' %}">
+                {% csrf_token %}
+                <input type="hidden" name="name" value="{{ r.name }}">
+                <input type="hidden" name="action" value="run_now">
+                <button type="submit" class="sch-btn">▶ Esegui ora</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">Nessuno schedule definito.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <p style="font-size:12.5px;color:#64748b;margin-top:12px">
+    <strong>Disabilita</strong> è durevole: rimosso anche dopo un redeploy (via <code>monitoring.ScheduleControl</code>,
+    rispettato da <code>setup_q_schedules</code>). La <strong>cadenza</strong> resta definita in
+    <code>automazioni/schedules.py</code> (fonte di verità). <strong>Esegui ora</strong> accoda il task al cluster django-q.
+  </p>
+{% endblock %}

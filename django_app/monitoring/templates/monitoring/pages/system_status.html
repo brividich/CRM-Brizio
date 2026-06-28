@@ -81,7 +81,7 @@
       <h3>Automazioni</h3>
       <div class="ss-row"><span class="lbl">Job falliti oggi</span><span class="ss-badge {% if job_failed_today_count %}ss-fail{% else %}ss-ok{% endif %}">{{ job_failed_today_count }}</span></div>
       <div class="ss-row"><span class="lbl">Job non eseguiti nei tempi</span><span class="ss-badge {% if job_missing_count %}ss-warn{% else %}ss-ok{% endif %}">{{ job_missing_count }}</span></div>
-      <p class="ss-note">Dettaglio in <a href="{% url 'monitoring_admin:automation_list' %}">Automazioni</a>.</p>
+      <p class="ss-note">Dettaglio in <a href="{% url 'monitoring_admin:automation_list' %}">Automazioni</a> · gestisci le <a href="{% url 'monitoring_admin:schedule_list' %}">schedule</a>.</p>
     </div>
 
     {# Issue per severità #}

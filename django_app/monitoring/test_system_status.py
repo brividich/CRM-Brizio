@@ -76,3 +76,44 @@ class SystemActionViewTests(TestCase):
     def test_get_not_allowed(self):
         resp = self.client.get(self.url)
         self.assertEqual(resp.status_code, 405)
+
+
+class ScheduleManagementTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.admin = User.objects.create_superuser(
+            username="admin_sch", email="admin_sch@example.test", password="x"
+        )
+        self.client = Client()
+        self.client.force_login(self.admin)
+        self.action_url = reverse("monitoring_admin:schedule_action")
+
+    def test_list_renders(self):
+        resp = self.client.get(reverse("monitoring_admin:schedule_list"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "ai_readiness_alert")
+
+    def test_toggle_is_durable(self):
+        from monitoring.models import ScheduleControl
+
+        self.client.post(self.action_url, {"name": "ai_readiness_alert", "action": "toggle"})
+        ctrl = ScheduleControl.objects.get(name="ai_readiness_alert")
+        self.assertFalse(ctrl.enabled)  # primo toggle = disabilita
+        # setup_q_schedules deve rispettare la disabilitazione (durevole)
+        from automazioni.schedules import disabled_schedule_names
+        self.assertIn("ai_readiness_alert", disabled_schedule_names())
+        # secondo toggle riabilita
+        self.client.post(self.action_url, {"name": "ai_readiness_alert", "action": "toggle"})
+        ctrl.refresh_from_db()
+        self.assertTrue(ctrl.enabled)
+
+    def test_run_now_enqueues_func(self):
+        with mock.patch("django_q.tasks.async_task") as async_task:
+            resp = self.client.post(self.action_url, {"name": "ai_readiness_alert", "action": "run_now"})
+        self.assertEqual(resp.status_code, 302)
+        async_task.assert_called_once()
+        self.assertEqual(async_task.call_args.args[0], "monitoring.tasks.run_ai_readiness_alert")
+
+    def test_unknown_schedule_redirects(self):
+        resp = self.client.post(self.action_url, {"name": "nope", "action": "toggle"})
+        self.assertEqual(resp.status_code, 302)

@@ -33,11 +33,20 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         from django_q.models import Schedule
-        from automazioni.schedules import SCHEDULES
+
+        from automazioni.schedules import (
+            SCHEDULES,
+            delete_schedule,
+            disabled_schedule_names,
+            register_schedule,
+        )
 
         dry_run: bool = bool(options.get("dry_run"))
         delete: bool = bool(options.get("delete"))
         mode = "[dry-run]" if dry_run else "[run]"
+        # Schedule disabilitati dalla centrale di comando (monitoring.ScheduleControl):
+        # non vengono registrati anche dopo un redeploy (l'abilitazione è durevole).
+        disabled = set() if delete else disabled_schedule_names()
 
         for spec in SCHEDULES:
             name = spec["name"]
@@ -46,33 +55,20 @@ class Command(BaseCommand):
                 if dry_run:
                     self.stdout.write(f"{mode} Eliminerei schedule '{name}'")
                 else:
-                    deleted, _ = Schedule.objects.filter(name=name).delete()
+                    deleted = delete_schedule(name)
                     if deleted:
                         self.stdout.write(self.style.WARNING(f"  [x] eliminato: {name}"))
                     else:
                         self.stdout.write(f"  [-] non trovato: {name}")
                 continue
 
-            kwargs_repr = json.dumps(spec.get("kwargs") or {})
-            defaults = {
-                "func": spec["func"],
-                "schedule_type": spec["schedule_type"],
-                "repeats": spec.get("repeats", -1),
-                "kwargs": kwargs_repr,
-            }
-            # Schedule a intervallo (I = MINUTES) usa 'minutes'; schedule CRON usa 'cron'.
-            # NB: django-q2 non implementa il tipo SECONDS ('S') in calculate_next_run
-            # (UnboundLocalError 'add'): usare sempre 'I' per le cadenze al minuto.
-            if spec.get("schedule_type") == "C":
-                defaults["cron"] = spec["cron"]
-                defaults["minutes"] = None
-            else:
-                defaults["minutes"] = spec["minutes"]
-                # Riallinea il prossimo run a "ora" così, dopo un (re)deploy, lo
-                # schedule riparte subito invece di restare appeso a un next_run
-                # passato (es. cluster rimasto fermo tra due release).
-                from django.utils import timezone
-                defaults["next_run"] = timezone.now()
+            if name in disabled:
+                if dry_run:
+                    self.stdout.write(f"{mode} Salterei (disabilitato dalla centrale): '{name}'")
+                else:
+                    delete_schedule(name)
+                    self.stdout.write(self.style.WARNING(f"  [off] disabilitato (non registrato): {name}"))
+                continue
 
             if dry_run:
                 cadence = (
@@ -85,7 +81,7 @@ class Command(BaseCommand):
                     f"{cadence} repeats={spec.get('repeats', -1)}"
                 )
             else:
-                _obj, created = Schedule.objects.update_or_create(name=name, defaults=defaults)
+                _obj, created = register_schedule(spec)
                 verb = "creato" if created else "aggiornato"
                 self.stdout.write(self.style.SUCCESS(f"  [ok] {verb}: {name} -> {spec['func']}"))
 
@@ -93,4 +89,6 @@ class Command(BaseCommand):
             count = Schedule.objects.filter(
                 name__in=[s["name"] for s in SCHEDULES]
             ).count()
-            self.stdout.write(f"\nSchedule attivi registrati: {count}/{len(SCHEDULES)}")
+            self.stdout.write(
+                f"\nSchedule registrati: {count}/{len(SCHEDULES)} (disabilitati: {len(disabled)})"
+            )

@@ -215,3 +215,55 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
 ]
+
+
+def spec_by_name(name: str):
+    """Spec statico di uno schedule per nome (None se non esiste)."""
+    return next((s for s in SCHEDULES if s.get("name") == name), None)
+
+
+def _schedule_defaults(spec: dict) -> dict:
+    import json
+
+    from django.utils import timezone
+
+    defaults = {
+        "func": spec["func"],
+        "schedule_type": spec["schedule_type"],
+        "repeats": spec.get("repeats", -1),
+        "kwargs": json.dumps(spec.get("kwargs") or {}),
+    }
+    if spec.get("schedule_type") == "C":
+        defaults["cron"] = spec["cron"]
+        defaults["minutes"] = None
+    else:
+        defaults["minutes"] = spec["minutes"]
+        # riallinea il next_run a "ora" così riparte subito dopo la (re)registrazione
+        defaults["next_run"] = timezone.now()
+    return defaults
+
+
+def register_schedule(spec: dict):
+    """Crea/aggiorna lo Schedule django-q allo stato del codice. Ritorna (obj, created)."""
+    from django_q.models import Schedule
+
+    return Schedule.objects.update_or_create(name=spec["name"], defaults=_schedule_defaults(spec))
+
+
+def delete_schedule(name: str) -> int:
+    """Elimina lo Schedule django-q (no-op se assente). Ritorna quanti eliminati."""
+    from django_q.models import Schedule
+
+    deleted, _ = Schedule.objects.filter(name=name).delete()
+    return deleted
+
+
+def disabled_schedule_names() -> set:
+    """Nomi degli schedule disabilitati dalla centrale (monitoring.ScheduleControl).
+    Lazy import per evitare cicli al load. Fail-safe: set vuoto se non disponibile."""
+    try:
+        from monitoring.models import ScheduleControl
+
+        return set(ScheduleControl.objects.filter(enabled=False).values_list("name", flat=True))
+    except Exception:
+        return set()
