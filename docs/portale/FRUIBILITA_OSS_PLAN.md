@@ -32,9 +32,9 @@ Django SSR + HTMX, niente SPA/build step, on-premise.
   FullCalendar 6.1.17 (JS) + locales-all, frappe-gantt 0.6.1 (JS+CSS),
   SortableJS 1.15.2, html2canvas 1.4.1. **Guardrail**: test che nessun template
   referenzi più `cdn.jsdelivr`/`unpkg`/`cdnjs` per gli script/style.
-- [ ] **A2. Self-host font Outfit** (CSS + woff2) e repoint dei `<link>` Google
-  Fonts → offline-safe anche la tipografia. *(Separato perché tocca molti template
-  di stampa; degrada comunque a font di sistema.)*
+- [x] **A2. Self-host font Outfit** ✅ — CSS + 2 woff2 (Outfit è variable font → un
+  solo file per latin/latin-ext copre tutti i pesi) in `core/static/core/vendor/outfit/`;
+  repoint di `base.html` + 6 template di stampa. Guardrail esteso ai Google Fonts.
 
 ## Ondata B — Form & input (alto ROI sulla data-entry)
 - [ ] **B1. Tom Select** (vendor) — select ricercabili/typeahead accessibili,

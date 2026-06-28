@@ -1,8 +1,8 @@
 """Guardrail: librerie front-end self-hostate, niente CDN a runtime.
 
-Verifica che (1) nessun template reale referenzi piu' `<script>`/`<link>` da CDN
-(jsdelivr/unpkg/cdnjs) — i Google Fonts sono esclusi: sono un intervento separato
-(A2) e degradano comunque a font di sistema — e (2) i file vendorizzati esistano.
+Verifica che (1) nessun template reale referenzi piu' `<script>`/`<link>` da CDN —
+librerie (jsdelivr/unpkg/cdnjs) **e** font (Google Fonts) — e (2) i file
+vendorizzati esistano (incluso il font Outfit self-hostato in A2).
 """
 from __future__ import annotations
 
@@ -14,10 +14,11 @@ from django.test import SimpleTestCase
 DJANGO_APP = Path(__file__).resolve().parents[1]
 VENDOR_DIR = DJANGO_APP / "core" / "static" / "core" / "vendor"
 
-# Solo CDN di LIBRERIE js/css (font esclusi: googleapis/gstatic).
+# CDN di librerie js/css E font (tutto va self-hostato in vendor/).
 _CDN_TAG_RE = re.compile(
     r"<(?:script|link)\b[^>]*\b(?:src|href)\s*=\s*[\"'][^\"']*"
-    r"(?:cdn\.jsdelivr\.net|unpkg\.com|cdnjs\.cloudflare\.com)",
+    r"(?:cdn\.jsdelivr\.net|unpkg\.com|cdnjs\.cloudflare\.com"
+    r"|fonts\.googleapis\.com|fonts\.gstatic\.com)",
     re.IGNORECASE,
 )
 
@@ -30,6 +31,7 @@ EXPECTED_VENDOR_FILES = [
     "frappe-gantt-0.6.1/frappe-gantt.css",
     "sortablejs/Sortable.min.js",
     "html2canvas/html2canvas.min.js",
+    "outfit/outfit.css",
 ]
 
 
