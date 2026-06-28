@@ -65,7 +65,7 @@ body.theme-dark .dpi-table td { border-color:var(--border); color:var(--text); }
       </div>
       <div class="dpi-field">
         <label for="dipendente_id">Dipendente</label>
-        <select name="dipendente_id" id="dipendente_id">
+        <select name="dipendente_id" id="dipendente_id" class="js-searchable" data-placeholder="Cerca dipendente…">
           <option value="">Seleziona dipendente</option>
           {% for d in dipendenti %}
           <option value="{{ d.id }}"{% if dipendente_id == d.id|stringformat:"s" %} selected{% endif %}>{{ d.cognome }} {{ d.nome }}{% if d.reparto %} - {{ d.reparto }}{% endif %}{% if d.mansione %} / {{ d.mansione }}{% endif %}</option>
@@ -74,7 +74,7 @@ body.theme-dark .dpi-table td { border-color:var(--border); color:var(--text); }
       </div>
       <div class="dpi-field">
         <label for="categoria_id">Categoria</label>
-        <select name="categoria_id" id="categoria_id">
+        <select name="categoria_id" id="categoria_id" class="js-searchable">
           <option value="">Tutte</option>
           {% for cat in categorie %}
           <option value="{{ cat.pk }}"{% if categoria_id == cat.pk|stringformat:"s" %} selected{% endif %}>{{ cat.nome }}</option>

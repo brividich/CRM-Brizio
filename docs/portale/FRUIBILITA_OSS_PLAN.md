@@ -37,10 +37,11 @@ Django SSR + HTMX, niente SPA/build step, on-premise.
   repoint di `base.html` + 6 template di stampa. Guardrail esteso ai Google Fonts.
 
 ## Ondata B — Form & input (alto ROI sulla data-entry)
-- [ ] **B1. Tom Select** (vendor) — select ricercabili/typeahead accessibili,
-  init globale su `select.js-searchable` (+ data-attr), fallback al `<select>`
-  nativo. Applicazione progressiva: report DPI (dipendente/mansione), assegnazione
-  ticket, filtri con liste lunghe.
+- [x] **B1. Tom Select** ✅ — vendorizzato; init globale `core/js/tomselect-init.js`
+  su `select.js-searchable` (anche post-HTMX, fallback nativo, opt-in via classe).
+  Piloti: report conformità DPI (dipendente + categoria), assegnazione ticket
+  (tecnico + fornitore). Per abilitarlo su altri select basta aggiungere la classe
+  `js-searchable` (+ opz. `data-placeholder`).
 - [ ] **B2. Flatpickr** (vendor, locale IT) — date/range picker coerente nei filtri
   e nei report; degrada a `<input type=date>`.
 

@@ -32,6 +32,8 @@ EXPECTED_VENDOR_FILES = [
     "sortablejs/Sortable.min.js",
     "html2canvas/html2canvas.min.js",
     "outfit/outfit.css",
+    "tom-select/tom-select.complete.min.js",
+    "tom-select/tom-select.min.css",
 ]
 
 
@@ -58,3 +60,20 @@ class VendorAssetsTests(SimpleTestCase):
     def test_vendored_files_present(self):
         missing = [rel for rel in EXPECTED_VENDOR_FILES if not (VENDOR_DIR / rel).is_file()]
         self.assertEqual(missing, [], f"File vendorizzati mancanti: {missing}")
+
+    def test_tomselect_wired_in_base(self):
+        base = (DJANGO_APP / "core" / "templates" / "core" / "base.html").read_text(
+            encoding="utf-8", errors="ignore"
+        )
+        self.assertIn("tom-select/tom-select.min.css", base)
+        self.assertIn("tom-select/tom-select.complete.min.js", base)
+        self.assertIn("core/js/tomselect-init.js", base)
+        self.assertTrue(
+            (DJANGO_APP / "core" / "static" / "core" / "js" / "tomselect-init.js").is_file()
+        )
+
+    def test_tomselect_applied_to_pilot_select(self):
+        rc = (
+            DJANGO_APP / "dpi" / "templates" / "dpi" / "pages" / "report_conformita.html"
+        ).read_text(encoding="utf-8", errors="ignore")
+        self.assertIn('id="dipendente_id" class="js-searchable"', rc)
