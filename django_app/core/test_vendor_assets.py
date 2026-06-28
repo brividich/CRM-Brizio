@@ -99,6 +99,16 @@ class VendorAssetsTests(SimpleTestCase):
         ).read_text(encoding="utf-8", errors="ignore")
         self.assertIn('name="data" value="{{ filtro_data }}" class="js-datepicker"', audit)
 
+    def test_command_palette_wired(self):
+        base = (DJANGO_APP / "core" / "templates" / "core" / "base.html").read_text(
+            encoding="utf-8", errors="ignore"
+        )
+        self.assertIn("command-palette-data", base)
+        self.assertIn("core/js/command-palette.js", base)
+        self.assertIn("core/css/command-palette.css", base)
+        self.assertTrue((DJANGO_APP / "core" / "static" / "core" / "js" / "command-palette.js").is_file())
+        self.assertTrue((DJANGO_APP / "core" / "static" / "core" / "css" / "command-palette.css").is_file())
+
     def test_chart_helper_present_and_used_in_pilot(self):
         self.assertTrue(
             (DJANGO_APP / "core" / "static" / "core" / "js" / "chart-helper.js").is_file()

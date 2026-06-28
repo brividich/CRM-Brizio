@@ -66,7 +66,11 @@ Django SSR + HTMX, niente SPA/build step, on-premise.
   caso pilota di refactor del vanilla JS scritto a mano.
 - [ ] **D2. driver.js** (vendor) — tour guidati per-modulo, agganciati all'onboarding.
 - [ ] **D3. Lucide** (SVG) — set icone coerente (sostituzione progressiva di emoji/SVG sparsi).
-- [ ] **D4. Command palette `Ctrl+K`** (vanilla) — navigazione rapida cross-modulo (~27 moduli).
+- [x] **D4. Command palette `Ctrl+K`** ✅ — `core/js/command-palette.js` + CSS di
+  brand. Overlay vanilla (Ctrl+K / Cmd+K) per saltare a qualsiasi pagina; indice
+  **piatto e ACL-filtrato** costruito lato server (`command_palette_items` in
+  `legacy_nav`, da `nav_items`/subnav, niente voci "in arrivo"). Filtro multi-termine,
+  navigazione frecce/Invio/Esc, tema chiaro+scuro. Zero costo per anonimi (lista vuota).
 
 ---
 

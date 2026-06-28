@@ -31,6 +31,7 @@
   <link rel="stylesheet" href="{% static 'core/css/fm-table-enhanced.css' %}">
   <link rel="stylesheet" href="{% static 'core/vendor/tom-select/tom-select.min.css' %}">
   <link rel="stylesheet" href="{% static 'core/vendor/flatpickr/flatpickr.min.css' %}">
+  <link rel="stylesheet" href="{% static 'core/css/command-palette.css' %}">
   {% block extra_head %}{% endblock %}
 </head>
 <body class="{% block body_class %}nav-{{ ui_prefs.nav_mode|default:'top' }} fs-{{ ui_prefs.font_scale|default:'normal' }}{% if ui_prefs.theme_mode == 'dark' %} theme-dark{% endif %}{% if ui_prefs.sidebar_collapsed %} sb-collapsed{% endif %}{% endblock %}">
@@ -142,6 +143,9 @@ window.portalReadJsonResponse = async function (response, opts) {
 <script src="{% static 'core/vendor/flatpickr/flatpickr.min.js' %}" defer></script>
 <script src="{% static 'core/vendor/flatpickr/l10n-it.js' %}" defer></script>
 <script src="{% static 'core/js/flatpickr-init.js' %}" defer></script>
+{# Command palette (Ctrl+K): indice navigazione ACL-filtrato lato server. #}
+{{ command_palette_items|json_script:"command-palette-data" }}
+<script src="{% static 'core/js/command-palette.js' %}" defer></script>
 <script src="{% static 'monitoring/js/report_problem.js' %}"></script>
 <script>
 (function () {

@@ -619,6 +619,7 @@ def legacy_nav(request):
         "notifiche_count": 0,
         "subnav_items": [],
         "admin_subnav_items": [],
+        "command_palette_items": [],
         "topbar_color": "",
         "impersonation_active": False,
         "impersonator_display": "",
@@ -758,6 +759,35 @@ def legacy_nav(request):
         pass
 
     result["admin_subnav_items"] = _load_admin_subnav_items(request, legacy_user)
+
+    # Indice piatto per la command palette (Ctrl+K): label -> url, ACL-filtrato,
+    # niente voci "in arrivo" (coming) o placeholder (#). Difensivo su NavItem/dict.
+    palette: list[dict] = []
+    seen_urls: set[str] = set()
+
+    def _palette_add(it) -> None:
+        is_dict = isinstance(it, dict)
+        href = (it.get("href") if is_dict else getattr(it, "href", "")) or ""
+        label = (it.get("label") if is_dict else getattr(it, "label", "")) or ""
+        coming = (it.get("coming") if is_dict else getattr(it, "coming", False)) or False
+        group = (
+            (it.get("group") or it.get("category_label") if is_dict else "")
+            or (getattr(it, "category_label", "") or getattr(it, "group", ""))
+        )
+        href = str(href).strip()
+        label = str(label).strip()
+        if not href or not label or coming or href in ("#",) or href in seen_urls:
+            return
+        seen_urls.add(href)
+        palette.append({"l": label, "u": href, "g": str(group or "")})
+
+    for _it in result.get("nav_items", []) or []:
+        _palette_add(_it)
+    for _key in ("subnav_items", "admin_subnav_items"):
+        for _it in result.get(_key, []) or []:
+            _palette_add(_it)
+    result["command_palette_items"] = palette
+
     return result
 
 
