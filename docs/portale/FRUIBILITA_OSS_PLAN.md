@@ -49,9 +49,12 @@ Django SSR + HTMX, niente SPA/build step, on-premise.
   audit_log. Estendibile aggiungendo `js-datepicker` a qualsiasi input data.
 
 ## Ondata C — Visualizzazione dati
-- [ ] **C1. Chart.js riusabile** — dopo il self-host (A1), un piccolo helper +
-  pattern per portare grafici veri dove oggi ci sono **barre CSS** (KPI gestione
-  specifiche, analytics ticket, saturazione carichi). Una dashboard pilota.
+- [x] **C1. Chart.js riusabile** ✅ — helper di brand `core/js/chart-helper.js`
+  (`NHUB.barChart/lineChart/chart`, palette navy/cyan/orange, lifecycle: ridisegnare
+  distrugge l'istanza precedente). Pilota: **anomalie_statistiche** — distribuzione
+  per mese ora anche come **grafico a barre** (oltre alla tabella), dai dati già
+  fetchati. Riusabile su altre dashboard includendo Chart.js + helper e chiamando
+  `NHUB.barChart(canvas, {labels, values, label})`.
 - [ ] **C2. Export Excel (openpyxl, già installato)** — util condivisa per
   esportare i "report a tabella" (saturazione, asset, conformità DPI) in `.xlsx`,
   ACL-gated, audit-light. Eventuale formato `xlsx` anche per il report AI.

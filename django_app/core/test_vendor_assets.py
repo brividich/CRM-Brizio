@@ -98,3 +98,14 @@ class VendorAssetsTests(SimpleTestCase):
             DJANGO_APP / "admin_portale" / "templates" / "admin_portale" / "pages" / "audit_log.html"
         ).read_text(encoding="utf-8", errors="ignore")
         self.assertIn('name="data" value="{{ filtro_data }}" class="js-datepicker"', audit)
+
+    def test_chart_helper_present_and_used_in_pilot(self):
+        self.assertTrue(
+            (DJANGO_APP / "core" / "static" / "core" / "js" / "chart-helper.js").is_file()
+        )
+        stats = (
+            DJANGO_APP / "anomalie" / "templates" / "anomalie" / "pages" / "anomalie_statistiche.html"
+        ).read_text(encoding="utf-8", errors="ignore")
+        self.assertIn("core/vendor/chartjs/chart.umd.min.js", stats)
+        self.assertIn("core/js/chart-helper.js", stats)
+        self.assertIn('id="chart-mese"', stats)

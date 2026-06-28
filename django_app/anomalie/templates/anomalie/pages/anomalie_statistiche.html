@@ -150,6 +150,7 @@
     <div class="card">
       <div class="card-head"><div class="card-title">Per mese (creazione)</div></div>
       <div class="card-body" style="overflow-x:auto;">
+        <div style="position:relative;height:240px;margin-bottom:12px;"><canvas id="chart-mese"></canvas></div>
         <div id="tbl-mese-wrap"><div class="loading">Caricamento...</div></div>
       </div>
     </div>
@@ -182,6 +183,9 @@
 {% endblock %}
 
 {% block extra_scripts %}
+{# Chart.js + helper di brand (riusabile): grafico della distribuzione per mese. #}
+<script src="{% static 'core/vendor/chartjs/chart.umd.min.js' %}"></script>
+<script src="{% static 'core/js/chart-helper.js' %}"></script>
 <script>
 (function () {
   const $ = id => document.getElementById(id);
@@ -339,6 +343,15 @@
       const maxN = d.per_avanzamento.length ? Math.max(...d.per_avanzamento.map(x => x.n)) : 0;
       tblAvanz.innerHTML = renderAvanzamento(d.per_avanzamento, maxN);
       tblMese.innerHTML  = renderMese(d.per_mese);
+      // Grafico vero della distribuzione mensile (oltre alla tabella).
+      if (window.NHUB && NHUB.barChart) {
+        const mese = d.per_mese || [];
+        NHUB.barChart($('chart-mese'), {
+          labels: mese.map(r => r.mese || '—'),
+          values: mese.map(r => r.n),
+          label: 'Anomalie create',
+        });
+      }
       const maxOp = (d.per_op && d.per_op.length) ? Math.max(...d.per_op.map(x => x.n)) : 0;
       tblOp.innerHTML = renderOp(d.per_op, maxOp);
     } catch (e) {
