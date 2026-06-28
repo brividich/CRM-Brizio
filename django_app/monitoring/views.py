@@ -157,6 +157,45 @@ def admin_dashboard(request):
 
 
 @legacy_admin_required
+def system_status(request):
+    """Centrale di comando: stato a colpo d'occhio di Servizi (readyz), Assistente AI,
+    Automazioni e Issue per severità. Lo stato AI è letto dalle Issue (lo scheduled
+    task le apre/risolve sondando Ollama/TEI/RAG), quindi la pagina NON fa probe di
+    rete verso la GPU."""
+    from monitoring.health import run_readyz_checks
+
+    now = timezone.now()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    open_filter = Q(status__in=OPEN_ISSUE_STATUSES)
+
+    readyz = run_readyz_checks()
+    ai_issues = list(
+        Issue.objects.filter(open_filter, source=Issue.Source.SYSTEM_WATCHDOG,
+                             current_url__startswith="check:ai_")
+        .order_by("severity", "-last_seen_at")
+    )
+    severity_counts = {
+        row["severity"]: row["total"]
+        for row in Issue.objects.filter(open_filter).values("severity").annotate(total=Count("id"))
+    }
+    missing_jobs = detect_missed_jobs(now=now, create_issues=False)
+
+    context = {
+        "generated_at": now,
+        "readyz": readyz,
+        "readyz_ok": readyz.status == "ok",
+        "ai_issues": ai_issues,
+        "ai_ok": not ai_issues,
+        "severity_counts": severity_counts,
+        "open_issues_count": Issue.objects.filter(open_filter).count(),
+        "job_failed_today_count": AutomationExecution.objects.filter(
+            status=AutomationExecution.Status.FAILED, started_at__gte=today_start).count(),
+        "job_missing_count": len(missing_jobs),
+    }
+    return render(request, "monitoring/pages/system_status.html", context)
+
+
+@legacy_admin_required
 def issue_list(request):
     qs = Issue.objects.select_related("assigned_to", "created_by_user").all().order_by("-last_seen_at", "-id")
     filters = {

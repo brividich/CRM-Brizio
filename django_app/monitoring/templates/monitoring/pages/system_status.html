@@ -1,0 +1,81 @@
+{% extends "core/base.html" %}
+
+{% block title %}Stato sistema | Monitoring{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% url 'monitoring_admin:dashboard' as monitoring_dashboard_url %}
+  {% include "admin_portale/components/page_header.html" with page_title="Stato sistema" page_subtitle="Centrale di comando: servizi, AI, automazioni e issue a colpo d'occhio." page_action_label="Cruscotto monitoring" page_action_url=monitoring_dashboard_url %}
+
+  <style>
+    .ss-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-top:8px}
+    .ss-card{border:1px solid #e5e7eb;border-radius:12px;padding:16px 18px;background:#fff}
+    .ss-card h3{margin:0 0 10px;font-size:15px;color:#0c2545}
+    .ss-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:13.5px}
+    .ss-row:last-child{border-bottom:0}
+    .ss-row .lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .ss-badge{font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;white-space:nowrap}
+    .ss-ok{background:#dcfce7;color:#166534}
+    .ss-warn{background:#fef9c3;color:#854d0e}
+    .ss-fail{background:#fee2e2;color:#991b1b}
+    .ss-skip{background:#f1f5f9;color:#64748b}
+    .ss-note{font-size:12.5px;color:#64748b;margin:8px 0 0}
+  </style>
+
+  <div class="ss-grid">
+
+    {# Servizi (readyz) #}
+    <div class="ss-card">
+      <h3>Servizi · readiness <span class="ss-badge {% if readyz_ok %}ss-ok{% elif readyz.status == 'fail' %}ss-fail{% else %}ss-warn{% endif %}">{{ readyz.status|upper }}</span></h3>
+      {% for c in readyz.checks %}
+        <div class="ss-row">
+          <span class="lbl">{{ c.name }}{% if c.message %} · <span style="color:#94a3b8">{{ c.message }}</span>{% endif %}</span>
+          <span class="ss-badge ss-{% if c.status == 'ok' %}ok{% elif c.status == 'warn' %}warn{% elif c.status == 'fail' %}fail{% else %}skip{% endif %}">{{ c.status|upper }}</span>
+        </div>
+      {% empty %}
+        <div class="ss-row"><span class="lbl">Nessun check abilitato</span></div>
+      {% endfor %}
+    </div>
+
+    {# Assistente AI (dalle Issue, no probe in pagina) #}
+    <div class="ss-card">
+      <h3>Assistente AI <span class="ss-badge {% if ai_ok %}ss-ok{% else %}ss-fail{% endif %}">{% if ai_ok %}OPERATIVO{% else %}DEGRADATO{% endif %}</span></h3>
+      {% if ai_ok %}
+        <div class="ss-row"><span class="lbl">Ollama · TEI · RAG SGI</span><span class="ss-badge ss-ok">OK</span></div>
+        <p class="ss-note">Nessun problema aperto. Verifica liveness ogni 15′, qualità RAG ogni notte.</p>
+      {% else %}
+        {% for i in ai_issues %}
+          <div class="ss-row">
+            <a class="lbl" href="{% url 'monitoring_admin:issue_detail' i.id %}">{{ i.title }}</a>
+            <span class="ss-badge {% if i.severity == 'critical' or i.severity == 'high' %}ss-fail{% else %}ss-warn{% endif %}">{{ i.get_severity_display|upper }}</span>
+          </div>
+        {% endfor %}
+        <p class="ss-note">Apri la issue per dettagli/assegnazione. Si risolve da sola al rientro.</p>
+      {% endif %}
+    </div>
+
+    {# Automazioni #}
+    <div class="ss-card">
+      <h3>Automazioni</h3>
+      <div class="ss-row"><span class="lbl">Job falliti oggi</span><span class="ss-badge {% if job_failed_today_count %}ss-fail{% else %}ss-ok{% endif %}">{{ job_failed_today_count }}</span></div>
+      <div class="ss-row"><span class="lbl">Job non eseguiti nei tempi</span><span class="ss-badge {% if job_missing_count %}ss-warn{% else %}ss-ok{% endif %}">{{ job_missing_count }}</span></div>
+      <p class="ss-note">Dettaglio in <a href="{% url 'monitoring_admin:automation_list' %}">Automazioni</a>.</p>
+    </div>
+
+    {# Issue per severità #}
+    <div class="ss-card">
+      <h3>Issue aperte per severità</h3>
+      <div class="ss-row"><span class="lbl">Critiche</span><span class="ss-badge ss-fail">{{ severity_counts.critical|default:0 }}</span></div>
+      <div class="ss-row"><span class="lbl">Alte</span><span class="ss-badge ss-fail">{{ severity_counts.high|default:0 }}</span></div>
+      <div class="ss-row"><span class="lbl">Medie</span><span class="ss-badge ss-warn">{{ severity_counts.medium|default:0 }}</span></div>
+      <div class="ss-row"><span class="lbl">Basse</span><span class="ss-badge ss-skip">{{ severity_counts.low|default:0 }}</span></div>
+      <div class="ss-row"><strong class="lbl">Totale aperte</strong><strong>{{ open_issues_count }}</strong></div>
+    </div>
+
+  </div>
+
+  <p class="ss-note" style="margin-top:14px">Aggiornato: {{ generated_at|date:"d-m-Y H:i:s" }} · le verifiche AI/qualità girano via schedule django-q.</p>
+{% endblock %}
