@@ -191,8 +191,65 @@ def system_status(request):
         "job_failed_today_count": AutomationExecution.objects.filter(
             status=AutomationExecution.Status.FAILED, started_at__gte=today_start).count(),
         "job_missing_count": len(missing_jobs),
+        "quick_actions": [
+            ("ai_verify", "🔎 Verifica AI"),
+            ("ai_reindex", "🧠 Re-index SGI"),
+            ("rag_quality", "📊 Valuta qualità RAG"),
+            ("register_schedules", "📅 Registra schedule"),
+        ],
     }
     return render(request, "monitoring/pages/system_status.html", context)
+
+
+# Azioni rapide async (riusano i task django-q esistenti). Le operazioni lente
+# (verifica AI ~rete, re-index ~minuti, eval qualità) si ACCODANO al cluster, non
+# bloccano la request; l'esito si vede al refresh (badge/Issue).
+_SYSTEM_ASYNC_ACTIONS = {
+    "ai_verify": ("monitoring.tasks.run_ai_readiness_alert", {"include_services": True},
+                  "Verifica AI avviata: ricarica tra poco per vedere l'esito."),
+    "ai_reindex": ("ai_assistant.tasks.run_index_sgi_documents", {},
+                   "Re-index del corpus SGI avviato (può richiedere minuti)."),
+    "rag_quality": ("ai_assistant.tasks.run_rag_quality_alert", {},
+                    "Valutazione qualità RAG avviata."),
+}
+
+
+@legacy_admin_required
+@require_POST
+def system_action(request):
+    """Azioni rapide dalla centrale di comando (Ondata 2). Le azioni lente vengono
+    accodate come task django-q (richiedono il cluster attivo); 'register_schedules'
+    è rapida e sincrona. L'avvio/arresto del qcluster resta nel Server Dashboard
+    (è il bootstrap su cui tutto il resto si appoggia)."""
+    action = (request.POST.get("action") or "").strip()
+
+    if action == "register_schedules":
+        try:
+            from django.core.management import call_command
+
+            call_command("setup_q_schedules")
+            log_action(request, "monitoring_register_schedules", "monitoring", {"action": action})
+            messages.success(request, "Schedule django-q (ri)registrate.")
+        except Exception as exc:
+            messages.error(request, f"Registrazione schedule fallita: {exc}")
+        return redirect("monitoring_admin:system_status")
+
+    spec = _SYSTEM_ASYNC_ACTIONS.get(action)
+    if not spec:
+        messages.error(request, "Azione non riconosciuta.")
+        return redirect("monitoring_admin:system_status")
+
+    func_path, kwargs, ok_message = spec
+    try:
+        from django_q.tasks import async_task
+
+        async_task(func_path, **kwargs)
+        log_action(request, "monitoring_system_action", "monitoring",
+                   {"action": action, "func": func_path})
+        messages.success(request, ok_message)
+    except Exception as exc:
+        messages.error(request, f"Avvio azione non riuscito (cluster django-q attivo?): {exc}")
+    return redirect("monitoring_admin:system_status")
 
 
 @legacy_admin_required

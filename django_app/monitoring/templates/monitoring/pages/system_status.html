@@ -23,7 +23,26 @@
     .ss-fail{background:#fee2e2;color:#991b1b}
     .ss-skip{background:#f1f5f9;color:#64748b}
     .ss-note{font-size:12.5px;color:#64748b;margin:8px 0 0}
+    .ss-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:8px 0 4px}
+    .ss-actions form{margin:0}
+    .ss-btn{border:1px solid #1f87cd;background:#1f87cd;color:#fff;font-size:13px;font-weight:600;
+      padding:7px 14px;border-radius:8px;cursor:pointer}
+    .ss-btn:hover{background:#1769a8}
+    .ss-btn.secondary{background:#fff;color:#0c2545;border-color:#cbd5e1}
+    .ss-btn.secondary:hover{background:#f1f5f9}
   </style>
+
+  <div class="ss-actions">
+    <span style="font-weight:700;color:#0c2545;font-size:13px">Azioni rapide:</span>
+    {% for value, label in quick_actions %}
+      <form method="post" action="{% url 'monitoring_admin:system_action' %}">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="{{ value }}">
+        <button type="submit" class="ss-btn{% if value == 'register_schedules' %} secondary{% endif %}">{{ label }}</button>
+      </form>
+    {% endfor %}
+  </div>
+  <p class="ss-note">Le azioni lente (verifica/re-index/qualità) si <strong>accodano</strong> al cluster django-q: l'esito appare al refresh. Avvio/arresto del cluster resta nel Server Dashboard.</p>
 
   <div class="ss-grid">
 
