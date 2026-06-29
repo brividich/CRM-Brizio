@@ -76,6 +76,23 @@
       {% endif %}
     </div>
 
+    {# Indice documentale (RAG) — sola lettura dello stato salvato all'ultimo build #}
+    <div class="ss-card">
+      <h3>Indice documentale (RAG)
+        {% if rag_status %}<span class="ss-badge {% if rag_status.oversized %}ss-fail{% elif rag_status.embed_enabled and not rag_status.embeddings_ready %}ss-warn{% else %}ss-ok{% endif %}">{% if rag_status.oversized %}CACHE PICCOLA{% elif rag_status.embed_enabled and rag_status.embeddings_ready %}SEMANTICO{% elif rag_status.embed_enabled %}EMBED KO{% else %}BM25{% endif %}</span>{% else %}<span class="ss-badge ss-skip">N/D</span>{% endif %}
+      </h3>
+      {% if rag_status %}
+        <div class="ss-row"><span class="lbl">Chunk totali · di cui SGI</span><span>{{ rag_status.chunks_total }} · {{ rag_status.chunks_sgi }}</span></div>
+        <div class="ss-row"><span class="lbl">Embeddings</span><span class="ss-badge {% if not rag_status.embed_enabled %}ss-skip{% elif rag_status.embeddings_ready %}ss-ok{% else %}ss-warn{% endif %}">{% if not rag_status.embed_enabled %}OFF (BM25){% elif rag_status.embeddings_ready %}{{ rag_status.embed_model }}{% else %}NON PRONTI{% endif %}</span></div>
+        <div class="ss-row"><span class="lbl">Cache MAX_ENTRIES</span><span class="ss-badge {% if rag_status.oversized %}ss-fail{% else %}ss-ok{% endif %}">{{ rag_status.cache_max_entries|default:"?" }}</span></div>
+        <div class="ss-row"><span class="lbl">Ultimo build</span><span style="color:#94a3b8">{{ rag_status.built_at }} · {{ rag_status.elapsed_ms }} ms</span></div>
+        {% if rag_status.oversized %}<p class="ss-note" style="color:#f87171">Chunk &gt; MAX_ENTRIES: gli embedding vengono ricalcolati a ogni rebuild (latenza). Alza <code>DJANGO_CACHE_MAX_ENTRIES</code>.</p>{% endif %}
+      {% else %}
+        <div class="ss-row"><span class="lbl">Indice non ancora costruito in questo processo</span><span class="ss-badge ss-skip">N/D</span></div>
+        <p class="ss-note">Lo stato appare dopo la prima chat o dopo <code>index_sgi_documents</code>.</p>
+      {% endif %}
+    </div>
+
     {# Automazioni #}
     <div class="ss-card">
       <h3>Automazioni</h3>

@@ -1051,6 +1051,47 @@ def _warn_if_embed_cache_too_small(n_chunks: int) -> None:
         )
 
 
+_RAG_STATUS_CACHE_KEY = "ai_rag:index_status"
+
+
+def _record_rag_index_status(index: "KnowledgeIndex", chunks: list[KnowledgeChunk], elapsed_ms: float) -> None:
+    """Salva un blob di stato dell'indice RAG (no PII) leggibile dalla pagina
+    "Stato sistema" senza rieseguire il build. Fail-safe."""
+    try:
+        from django.utils import timezone
+
+        total = len(chunks)
+        sgi = sum(1 for c in chunks if c.source.startswith(("spec:", "proc:")))
+        max_entries = _embed_cache_max_entries()
+        embed_on = bool(embeddings_enabled())
+        cache.set(
+            _RAG_STATUS_CACHE_KEY,
+            {
+                "built_at": timezone.now().isoformat(timespec="seconds"),
+                "elapsed_ms": int(elapsed_ms),
+                "chunks_total": total,
+                "chunks_sgi": sgi,
+                "embed_enabled": embed_on,
+                "embeddings_ready": bool(getattr(index, "embeddings", None)),
+                "embed_model": getattr(index, "embed_model", "") or "",
+                "cache_max_entries": max_entries,
+                "oversized": bool(embed_on and max_entries is not None and total > max_entries),
+            },
+            timeout=7 * 24 * 3600,
+        )
+    except Exception:
+        pass
+
+
+def rag_index_status() -> dict | None:
+    """Ultimo stato noto dell'indice RAG (None se mai costruito in questo deploy)."""
+    try:
+        value = cache.get(_RAG_STATUS_CACHE_KEY)
+        return value if isinstance(value, dict) else None
+    except Exception:
+        return None
+
+
 def _load_knowledge_index() -> KnowledgeIndex:
     if not bool(getattr(settings, "OLLAMA_RAG_ENABLED", True)):
         return KnowledgeIndex(chunks=(), idf={}, avgdl=0.0)
@@ -1072,6 +1113,7 @@ def _load_knowledge_index() -> KnowledgeIndex:
     ):
         return cached
 
+    build_start = time.monotonic()
     max_file_chars = int(getattr(settings, "OLLAMA_RAG_MAX_FILE_CHARS", 300000) or 300000)
     chunks: list[KnowledgeChunk] = []
     for path in files:
@@ -1102,6 +1144,7 @@ def _load_knowledge_index() -> KnowledgeIndex:
                     embed_model=embed_model,
                 )
 
+    _record_rag_index_status(index, chunks, (time.monotonic() - build_start) * 1000.0)
     _KNOWLEDGE_CACHE.update({"loaded_at": now, "signature": signature, "index": index})
     return index
 

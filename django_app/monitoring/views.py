@@ -182,12 +182,21 @@ def system_status(request):
     }
     missing_jobs = detect_missed_jobs(now=now, create_issues=False)
 
+    # Stato indice RAG: SOLO lettura cache (nessun probe/rebuild), fail-safe.
+    try:
+        from ai_assistant.services import rag_index_status
+
+        rag_status = rag_index_status()
+    except Exception:
+        rag_status = None
+
     context = {
         "generated_at": now,
         "readyz": readyz,
         "readyz_ok": readyz.status == "ok",
         "ai_issues": ai_issues,
         "ai_ok": not ai_issues,
+        "rag_status": rag_status,
         "severity_counts": severity_counts,
         "open_issues_count": Issue.objects.filter(open_filter).count(),
         "job_failed_today_count": AutomationExecution.objects.filter(

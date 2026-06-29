@@ -3085,3 +3085,42 @@ class EmbeddingsCacheBatchTests(TestCase):
         with self.assertLogs(services.logger, level="WARNING") as cm:
             services._warn_if_embed_cache_too_small(500)
         self.assertTrue(any("MAX_ENTRIES" in m for m in cm.output))
+
+
+class RagIndexStatusTests(TestCase):
+    """Blob di stato indice RAG per la pagina "Stato sistema" (sola cache, no PII)."""
+
+    def test_record_e_lettura(self):
+        from collections import Counter
+
+        from django.core.cache import cache
+
+        from ai_assistant import services
+        from ai_assistant.services import KnowledgeChunk
+
+        cache.clear()
+        chunks = [
+            KnowledgeChunk(source="proc:MT CN 2714#rev1", title="t", content="c", tokens=Counter()),
+            KnowledgeChunk(source="spec:ABC", title="t", content="c", tokens=Counter()),
+            KnowledgeChunk(source="file:readme.md", title="t", content="c", tokens=Counter()),
+        ]
+        index = services._build_index(chunks)
+        with override_settings(OLLAMA_EMBED_ENABLED=False):
+            services._record_rag_index_status(index, chunks, 1234.0)
+            st = services.rag_index_status()
+
+        self.assertIsNotNone(st)
+        self.assertEqual(st["chunks_total"], 3)
+        self.assertEqual(st["chunks_sgi"], 2)  # solo proc:/spec:, non file:
+        self.assertFalse(st["embed_enabled"])
+        self.assertFalse(st["embeddings_ready"])
+        self.assertFalse(st["oversized"])
+        self.assertEqual(st["elapsed_ms"], 1234)
+
+    def test_status_none_se_mai_costruito(self):
+        from django.core.cache import cache
+
+        from ai_assistant import services
+
+        cache.clear()
+        self.assertIsNone(services.rag_index_status())
