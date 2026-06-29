@@ -39,6 +39,32 @@ def _setup_needed() -> bool:
     return True
 
 
+# Estensioni immagine ammesse per logo/favicon caricati dal wizard. Funge da
+# allowlist anti path-traversal: qualunque valore con separatori di percorso o
+# ".." non vi compare e ricade sul default sicuro.
+_ALLOWED_BRANDING_IMAGE_EXTS = {"png", "jpg", "jpeg", "webp", "svg", "ico", "gif"}
+
+
+def _safe_branding_ext(value, default: str) -> str:
+    ext = str(value or default).strip().lower().lstrip(".")
+    return ext if ext in _ALLOWED_BRANDING_IMAGE_EXTS else default
+
+
+def _reject_if_setup_completed():
+    """Gli endpoint mutanti/di test del wizard sono attivi SOLO durante la finestra
+    di setup. Il prefisso ``/setup/`` è esente da autenticazione e ACL (deve poter
+    funzionare prima che esistano utenti e database): per evitare che restino
+    raggiungibili da utenti NON autenticati a installazione completata, rispondono
+    403 quando ``SETUP_COMPLETED=1``. Per riconfigurare impostare
+    ``SETUP_COMPLETED=0`` nel .env e riavviare."""
+    if not _setup_needed():
+        return _json(
+            {"ok": False, "error": "Setup già completato: endpoint non disponibile."},
+            status=403,
+        )
+    return None
+
+
 # ── Pagina wizard ─────────────────────────────────────────────────────────────
 
 @require_GET
@@ -116,6 +142,9 @@ def _run_manage_command(args: list[str], *, timeout: int = 180) -> tuple[bool, s
 
 @require_POST
 def api_test_db(request):
+    locked = _reject_if_setup_completed()
+    if locked:
+        return locked
     data, err = _parse_json(request)
     if err:
         return _json(err)
@@ -165,6 +194,9 @@ def api_test_db(request):
 
 @require_POST
 def api_test_ldap(request):
+    locked = _reject_if_setup_completed()
+    if locked:
+        return locked
     data, err = _parse_json(request)
     if err:
         return _json(err)
@@ -238,6 +270,9 @@ def api_test_ldap(request):
 
 @require_POST
 def api_test_smtp(request):
+    locked = _reject_if_setup_completed()
+    if locked:
+        return locked
     data, err = _parse_json(request)
     if err:
         return _json(err)
@@ -281,7 +316,7 @@ def api_save(request):
     # ── Salva logo aziendale ──────────────────────────────────────────────────
     branding_logo_path = ""
     logo_b64 = (data.get("logo_b64") or "").strip()
-    logo_ext = (data.get("logo_ext") or "png").strip().lower().lstrip(".")
+    logo_ext = _safe_branding_ext(data.get("logo_ext"), "png")
     if logo_b64:
         try:
             _BRANDING_DIR.mkdir(parents=True, exist_ok=True)
@@ -295,7 +330,7 @@ def api_save(request):
     # ── Salva favicon ─────────────────────────────────────────────────────────
     branding_favicon_path = ""
     favicon_b64 = (data.get("favicon_b64") or "").strip()
-    favicon_ext = (data.get("favicon_ext") or "ico").strip().lower().lstrip(".")
+    favicon_ext = _safe_branding_ext(data.get("favicon_ext"), "ico")
     if favicon_b64:
         try:
             _BRANDING_DIR.mkdir(parents=True, exist_ok=True)
@@ -311,7 +346,11 @@ def api_save(request):
         return "1" if data.get(key, default) else "0"
 
     def s(key, default=""):
-        return str(data.get(key) or default).strip()
+        # Rimuove newline/CR/NULL dai valori: impediscono l'iniezione di righe
+        # KEY=VALUE aggiuntive nel .env (update_env_file_values scrive raw).
+        val = str(data.get(key) or default)
+        val = "".join(c for c in val if c not in "\r\n\x00")
+        return val.strip()
 
     # Genera SECRET_KEY se mancante o CHANGE_ME
     secret_key = s("secret_key")
@@ -414,8 +453,8 @@ def api_save(request):
 from django.http import JsonResponse  # noqa: E402 (import at bottom for clarity)
 
 
-def _json(data: dict) -> JsonResponse:
-    return JsonResponse(data)
+def _json(data: dict, status: int = 200) -> JsonResponse:
+    return JsonResponse(data, status=status)
 
 
 # ── Esegui migrazioni ─────────────────────────────────────────────────────────
@@ -423,6 +462,9 @@ def _json(data: dict) -> JsonResponse:
 @require_POST
 def api_run_migrations(request):
     """Esegue `manage.py migrate` come sottoprocesso dopo il salvataggio del .env."""
+    locked = _reject_if_setup_completed()
+    if locked:
+        return locked
     settings_module = _settings_module_from_env()
 
     try:
@@ -440,6 +482,9 @@ def api_run_migrations(request):
 @require_POST
 def api_finalize_database(request):
     """Esegue gli step tecnici post-migration necessari a una installazione pronta."""
+    locked = _reject_if_setup_completed()
+    if locked:
+        return locked
     settings_module = _settings_module_from_env()
     sqlserver = _env_uses_sqlserver()
     warnings: list[str] = []
@@ -513,6 +558,9 @@ def api_finalize_database(request):
 @require_POST
 def api_create_admin(request):
     """Crea un superuser Django. Richiede che le migrazioni siano già state eseguite."""
+    locked = _reject_if_setup_completed()
+    if locked:
+        return locked
     data, err = _parse_json(request)
     if err:
         return _json(err)
@@ -529,6 +577,14 @@ def api_create_admin(request):
     try:
         from django.contrib.auth import get_user_model
         User = get_user_model()
+
+        # Difesa in profondità: una volta che esiste un amministratore, questo
+        # endpoint (esente da auth durante il setup) non deve poterne creare altri.
+        if User.objects.filter(is_superuser=True).exists():
+            return _json({
+                "ok": False,
+                "error": "Esiste già un amministratore: creazione superuser non consentita da questo endpoint.",
+            }, status=403)
 
         if User.objects.filter(username=username).exists():
             return _json({
@@ -554,6 +610,9 @@ def api_create_admin(request):
 @require_POST
 def api_set_modules(request):
     """Scrive le preferenze di visibilità moduli in SiteConfig (DB)."""
+    locked = _reject_if_setup_completed()
+    if locked:
+        return locked
     data, err = _parse_json(request)
     if err:
         return _json(err)
