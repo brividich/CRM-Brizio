@@ -1209,10 +1209,127 @@ def _select_chunk_indices(prompt: str, query_tokens: Counter[str], index: Knowle
     return bm25_ranked
 
 
+# ── Modalità "panoramica documento" ─────────────────────────────────────────
+# Quando l'utente cita un codice documento (es. «MT CN 06») e chiede di cosa parla
+# / il contenuto, NON usiamo il top-k semantico (che pesca poche sezioni e induce
+# il modello a inventare lo scopo): costruiamo scopo + INDICE COMPLETO delle sezioni
+# dai titoli reali del documento. Fedele al 100%, zero confabulazione.
+_DOC_OVERVIEW_INTENT_RE = re.compile(
+    r"di\s+cosa\s+(parla|tratta)|di\s+che\s+(cosa\s+)?(parla|tratta)|di\s+che\s+si\s+tratta|"
+    r"cosa\s+(contiene|tratta)|contenut|riassum|panoramica|\bindice\b|\bsezioni\b|argoment|"
+    r"in\s+generale|tutto\s+il\s+(contenut|document)",
+    re.IGNORECASE,
+)
+
+
+def _index_document_codes(index: KnowledgeIndex) -> dict[str, list[int]]:
+    """Mappa codice-documento -> indici chunk, dai source 'proc:<code>#rev..'/'spec:<code>..'."""
+    codes: dict[str, list[int]] = {}
+    for i, chunk in enumerate(index.chunks):
+        src = chunk.source
+        if not (src.startswith("proc:") or src.startswith("spec:")):
+            continue
+        code = src.split(":", 1)[1].split("#", 1)[0].strip()
+        if code:
+            codes.setdefault(code, []).append(i)
+    return codes
+
+
+def _code_match_regex(code: str) -> "re.Pattern[str]":
+    """Regex per trovare un codice documento nel testo utente: tollerante a
+    spazi/punteggiatura tra i token e a zeri iniziali, con confini per non
+    confondere 06/065 o 271/2710. Es. «MT CN 06» trova anche «mt cn 6», «MTCN06»."""
+    tokens = re.findall(r"[A-Za-z]+|\d+", code)  # solo lettere e gruppi di cifre
+    sep = r"[\s._\-]*"  # separatore flessibile (spazi, ., _, -)
+    body = sep.join(
+        (r"0*" + str(int(t)) if t.isdigit() else re.escape(t)) for t in tokens
+    )
+    return re.compile(r"(?<![A-Za-z0-9])" + body + r"(?![0-9])", re.IGNORECASE)
+
+
+def _match_document_code(prompt: str, codes: dict[str, list[int]]) -> str | None:
+    """Il codice documento citato nel prompt (match più specifico/lungo), o None."""
+    best: str | None = None
+    for code in codes:
+        if _code_match_regex(code).search(prompt) and (best is None or len(code) > len(best)):
+            best = code
+    return best
+
+
+def _doc_label_from_title(title: str) -> str:
+    for sep in (" — ", " - ", "—"):
+        if sep in title:
+            return title.split(sep, 1)[0].strip()
+    return title.strip()
+
+
+def _document_overview_context(prompt: str, index: KnowledgeIndex) -> KnowledgeContext | None:
+    """Costruisce scopo + indice sezioni di un documento nominato, o None se non
+    applicabile (nessun intento panoramica, nessun codice citato, doc assente)."""
+    if not _DOC_OVERVIEW_INTENT_RE.search(prompt):
+        return None
+    codes = _index_document_codes(index)
+    if not codes:
+        return None
+    code = _match_document_code(prompt, codes)
+    if not code:
+        return None
+
+    chunks = [index.chunks[i] for i in codes[code]]
+    doc_label = _doc_label_from_title(chunks[0].title) if chunks else code
+
+    sections: dict[str, str] = {}
+    scope_text = ""
+    for ch in chunks:
+        m = re.search(r"§\s*([\d.]+)\s*(.*)$", ch.title)
+        if m:
+            num = m.group(1).strip(".")
+            heading = re.sub(r"\s+", " ", m.group(2)).strip()
+            if 0 < len(heading) <= 70 and num not in sections:
+                sections[num] = heading
+        elif not scope_text and ch.content.strip():
+            scope_text = ch.content.strip()  # chunk senza § = intro/scopo
+    if not scope_text:
+        for ch in chunks:
+            t = ch.title.lower()
+            if "scopo" in t or "campo di applicazione" in t:
+                scope_text = ch.content.strip()
+                break
+    scope_text = scope_text[:700]
+
+    def _sec_key(n: str) -> tuple[int, ...]:
+        try:
+            return tuple(int(x) for x in n.split("."))
+        except ValueError:
+            return (9999,)
+
+    outline = "\n".join(f"- §{num} {sections[num]}" for num in sorted(sections, key=_sec_key))
+    if not (scope_text or outline):
+        return None
+
+    parts = [f"PANORAMICA DEL DOCUMENTO {doc_label} (codice {code}):"]
+    if scope_text:
+        parts.append(f"SCOPO (estratto dal documento):\n{scope_text}")
+    if outline:
+        parts.append(f"INDICE COMPLETO DELLE SEZIONI (dai titoli reali del documento):\n{outline}")
+    parts.append(
+        f"ISTRUZIONE: questo è l'inquadramento (scopo) e l'INDICE COMPLETO delle sezioni di {doc_label}. "
+        "Presenta lo scopo ed elenca le sezioni così come sopra. NON descrivere il contenuto di sezioni "
+        "non elencate e NON dedurre l'argomento del documento da poche sezioni; per i dettagli di una "
+        f"specifica sezione invita l'utente a chiederla. Cita il documento come «{doc_label}». "
+        "Per il testo integrale rimanda al documento nel modulo Procedure del portale."
+    )
+    return KnowledgeContext(text="\n\n".join(parts).strip(), sources=(f"{code} > {doc_label} (panoramica)",))
+
+
 def build_knowledge_context(prompt: str) -> KnowledgeContext:
     index = _load_knowledge_index()
     if not index.chunks:
         return KnowledgeContext(text="", sources=())
+
+    overview = _document_overview_context(prompt, index)
+    if overview is not None:
+        return overview
 
     query_tokens = Counter(_tokenize(prompt))
     selected_indices = _select_chunk_indices(prompt, query_tokens, index)

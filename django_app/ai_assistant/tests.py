@@ -3124,3 +3124,72 @@ class RagIndexStatusTests(TestCase):
 
         cache.clear()
         self.assertIsNone(services.rag_index_status())
+
+
+class DocumentOverviewTests(TestCase):
+    """Modalità panoramica: 'di cosa parla MT CN XX' -> scopo + indice sezioni
+    deterministico dai titoli reali, invece del top-k (che induce confabulazione)."""
+
+    def _index(self, chunks):
+        from ai_assistant.services import KnowledgeIndex
+
+        return KnowledgeIndex(chunks=tuple(chunks), idf={}, avgdl=0.0)
+
+    def _chunk(self, source, title, content="x"):
+        from collections import Counter
+
+        from ai_assistant.services import KnowledgeChunk
+
+        return KnowledgeChunk(source=source, title=title, content=content, tokens=Counter())
+
+    def test_match_document_code_tollera_zeri_e_confini(self):
+        from ai_assistant.services import _index_document_codes, _match_document_code
+
+        idx = self._index([
+            self._chunk("proc:MT CN 06#rev21", "MT CN 06 Rev.21"),
+            self._chunk("proc:MT CN 65#rev21", "MT CN 65 Rev.21"),
+            self._chunk("proc:MT CN 2710#rev0", "MT CN 2710 Rev.0"),
+            self._chunk("proc:MT CN 271#rev2", "MT CN 271 Rev.2"),
+        ])
+        codes = _index_document_codes(idx)
+        self.assertEqual(_match_document_code("di cosa parla MT CN 06?", codes), "MT CN 06")
+        self.assertEqual(_match_document_code("contenuto di MT CN 6", codes), "MT CN 06")   # zero iniziale
+        self.assertEqual(_match_document_code("riassumi MT CN 65", codes), "MT CN 65")      # 6 != 65
+        self.assertEqual(_match_document_code("indice MT CN 271", codes), "MT CN 271")      # 271 != 2710
+        self.assertEqual(_match_document_code("indice MT CN 2710", codes), "MT CN 2710")
+        self.assertIsNone(_match_document_code("di cosa parla il portale?", codes))
+
+    def test_overview_costruisce_scopo_e_indice(self):
+        from ai_assistant.services import _document_overview_context
+
+        long_body = "Vi è una lunga frase di corpo che non è un vero heading e va scartata perché supera i settanta caratteri di lunghezza"
+        idx = self._index([
+            self._chunk("proc:MT CN 06#rev21", "MT CN 06 Rev.21", "Scopo: gestione del personale."),
+            self._chunk("proc:MT CN 06#rev21", "MT CN 06 Rev.21 — §3.1 Campo di Applicazione"),
+            self._chunk("proc:MT CN 06#rev21", "MT CN 06 Rev.21 — §8 Skill Matrix"),
+            self._chunk("proc:MT CN 06#rev21", "MT CN 06 Rev.21 — §10 Gestione timbri"),
+            self._chunk("proc:MT CN 06#rev21", f"MT CN 06 Rev.21 — §11 {long_body}"),
+        ])
+        ctx = _document_overview_context("di cosa parla MT CN 06?", idx)
+        self.assertIsNotNone(ctx)
+        self.assertIn("PANORAMICA", ctx.text)
+        self.assertIn("§3.1 Campo di Applicazione", ctx.text)
+        self.assertIn("§8 Skill Matrix", ctx.text)
+        self.assertIn("§10 Gestione timbri", ctx.text)
+        self.assertNotIn("lunga frase di corpo", ctx.text)  # heading-frase scartato (>70 char)
+        self.assertIn("gestione del personale", ctx.text.lower())  # scopo dal chunk senza §
+        self.assertLess(ctx.text.index("§3.1"), ctx.text.index("§8"))  # ordinamento sezioni
+        self.assertLess(ctx.text.index("§8"), ctx.text.index("§10"))
+
+    def test_overview_none_senza_intento_panoramica(self):
+        from ai_assistant.services import _document_overview_context
+
+        idx = self._index([self._chunk("proc:MT CN 06#rev21", "MT CN 06 Rev.21 — §10 Timbri")])
+        # cita il codice ma chiede una sezione specifica -> niente modalità panoramica
+        self.assertIsNone(_document_overview_context("dove sono regolati i timbri in MT CN 06?", idx))
+
+    def test_overview_none_se_documento_assente(self):
+        from ai_assistant.services import _document_overview_context
+
+        idx = self._index([self._chunk("proc:MT CN 07#rev14", "MT CN 07 Rev.14")])
+        self.assertIsNone(_document_overview_context("di cosa parla MT CN 06?", idx))
