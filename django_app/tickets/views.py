@@ -812,6 +812,22 @@ def ticket_dashboard(request):
     is_gestore  = _can_manage_tickets(request)
 
     qs = Ticket.objects.select_related("asset")
+    kpi_qs = Ticket.objects.all()
+
+    # SEC: chi NON è gestore/admin vede solo i ticket di cui è richiedente.
+    # Senza questo filtro la dashboard esponeva numero/titolo/categoria/asset e
+    # flag "Sicurezza" di TUTTI i ticket a qualsiasi utente autenticato. Si usano
+    # gli identificatori stabili (account Django, id legacy, email); il match
+    # solo-per-nome è escluso di proposito perché ambiguo tra omonimi.
+    if not (is_admin or is_gestore):
+        from django.db.models import Q
+        own = Q(richiedente_user=request.user)
+        if legacy_id:
+            own |= Q(richiedente_legacy_user_id=legacy_id)
+        if email:
+            own |= Q(richiedente_email__iexact=email)
+        qs = qs.filter(own)
+        kpi_qs = kpi_qs.filter(own)
 
     # Filtri GET
     tipo_f   = request.GET.get("tipo", "").strip().upper()
@@ -847,9 +863,9 @@ def ticket_dashboard(request):
         "filtro_prio":   prio_f,
         "filtro_cerca":  cerca_f,
         # KPI
-        "n_aperte":      Ticket.objects.filter(stato=StatoTicket.APERTA).count(),
-        "n_urgenti":     Ticket.objects.filter(priorita=PrioritaTicket.URGENTE, stato__in=[StatoTicket.APERTA, StatoTicket.IN_CARICO]).count(),
-        "n_in_carico":   Ticket.objects.filter(stato=StatoTicket.IN_CARICO).count(),
+        "n_aperte":      kpi_qs.filter(stato=StatoTicket.APERTA).count(),
+        "n_urgenti":     kpi_qs.filter(priorita=PrioritaTicket.URGENTE, stato__in=[StatoTicket.APERTA, StatoTicket.IN_CARICO]).count(),
+        "n_in_carico":   kpi_qs.filter(stato=StatoTicket.IN_CARICO).count(),
     }
     return render(request, "tickets/pages/dashboard.html", ctx)
 

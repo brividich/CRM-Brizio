@@ -64,6 +64,16 @@ def verify(request):
     error = ""
     email_sent = request.session.get("twofa_email_sent", False)
 
+    # Invio automatico del codice email se si arriva qui da un percorso che non ha
+    # chiamato initiate_2fa (es. SSO Windows): ora il middleware è autorevole e può
+    # reindirizzare alla verifica qualunque sessione non verificata. Evita che
+    # l'utente resti su una pagina senza codice. Inviato una sola volta per sessione.
+    if request.method == "GET" and method == "email" and not email_sent:
+        code = generate_email_otp(user, get_client_ip(request))
+        if send_otp_email(user, code):
+            request.session["twofa_email_sent"] = True
+            email_sent = True
+
     if request.method == "POST":
         form = VerifyOTPForm(request.POST)
         action = request.POST.get("action", "verify")

@@ -4609,6 +4609,14 @@ def certificazione_presenza(request):
     from .models import CertificazionePresenza
 
     is_admin = user_can_modulo_action(request, "assenze", "admin_assenze")
+    # SEC: la certificazione presenze è una funzione amministrativa. Senza questo
+    # enforcement la pagina elencava TUTTE le CertificazionePresenza e permetteva
+    # create/update/delete (con auto-inserimento di un'assenza già "Approvato",
+    # salta_approvazione=True, per un dipendente arbitrario) a qualsiasi utente
+    # autenticato, scavalcando l'approvazione CAR. Il permesso era già calcolato
+    # ma mai applicato.
+    if not is_admin:
+        return render(request, "core/pages/forbidden.html", status=403)
     perm_ctx = _template_perm_context(request)
 
     # Filtri lista

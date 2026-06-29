@@ -197,7 +197,13 @@ def _can_view(request) -> bool:
     user = getattr(request, "user", None)
     if not user or not user.is_authenticated:
         return False
-    if getattr(user, "is_superuser", False) or _can_write(request):
+    # SEC-AUDIT-002 (fix): NON usare _can_write come scorciatoia di autorizzazione
+    # alla lettura. _can_write è fail-open (ritorna True per qualsiasi utente
+    # autenticato quando acl_scrittura è vuota = default), perciò — essendo questa
+    # route esente dal gate ACL del middleware — rendeva il download degli allegati
+    # accessibile a chiunque. La visibilità del download segue ORA solo l'ACL di
+    # modulo (la stessa che protegge la scheda dettaglio), come da docstring.
+    if getattr(user, "is_superuser", False):
         return True
     from core.legacy_utils import legacy_auth_enabled
     if not legacy_auth_enabled():
