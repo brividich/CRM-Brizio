@@ -214,6 +214,76 @@ def dedup_candidates(parsed: list[dict]) -> tuple[list[dict], list[dict]]:
     return candidates, conflicts
 
 
+def scan_share_candidates(
+    root: Path, *, solo_procedure: bool = False, limit: int = 0
+) -> tuple[list[dict], list[dict], list[dict]]:
+    """Scansiona la share (esclusa ``SUPERATO``), parserizza i nomi e deduplica.
+
+    Sola lettura del file system, nessuna scrittura DB. Ritorna
+    ``(candidates, skipped, conflicts)``. Riusata dal comando e dal watchdog di drift.
+    """
+    parsed: list[dict] = []
+    skipped: list[dict] = []
+    for pdf in sorted(root.rglob("*.pdf")):
+        full = str(pdf)
+        if _SUPERATO_RE.search(full):
+            continue
+        info = parse_sgi_filename(pdf.name)
+        if info is None:
+            if solo_procedure:
+                skipped.append({"file": pdf.name, "motivo": "non riconosciuto, escluso (--solo-procedure)"})
+                continue
+            # "Tutto quanto": importa comunque con codice ricavato dal nome.
+            info = _fallback_parse(pdf.name)
+        if solo_procedure and info["code"].upper().startswith("MOD"):
+            skipped.append({"file": pdf.name, "motivo": "modulistica MOD esclusa (--solo-procedure)"})
+            continue
+        info["path"] = full
+        info["file_name"] = pdf.name
+        info["category"] = _category_from_path(pdf, root)
+        parsed.append(info)
+        if limit and len(parsed) >= limit:
+            break
+    candidates, conflicts = dedup_candidates(parsed)
+    return candidates, skipped, conflicts
+
+
+def detect_share_drift(root: Path, *, solo_procedure: bool = False) -> dict:
+    """Confronta la share col DB (ProcedureDocument attivi + revisione corrente) SENZA
+    scrivere. Ritorna i documenti **nuovi** (codice assente nel DB) e **aggiornati**
+    (revisione sulla share > revisione corrente nel DB). Base del watchdog di notifica:
+    l'import resta manuale (--apply)."""
+    from procedure_refresh.models import ProcedureDocument
+
+    candidates, _skipped, _conflicts = scan_share_candidates(root, solo_procedure=solo_procedure)
+    db_current: dict[str, str] = {}
+    for doc in ProcedureDocument.objects.filter(is_active=True).prefetch_related("revisions"):
+        rev = doc.current_revision()
+        db_current[doc.code] = rev.revision_code if rev else ""
+
+    new_docs: list[dict] = []
+    updated_docs: list[dict] = []
+    for info in candidates:
+        code = info["code"]
+        if code not in db_current:
+            new_docs.append({
+                "code": code, "revision": info.get("revision", ""),
+                "title": info.get("title", ""), "file_name": info.get("file_name", ""),
+            })
+        elif _rev_int(info) > _rev_int({"revision": db_current[code]}):
+            updated_docs.append({
+                "code": code, "revision_share": info.get("revision", ""),
+                "revision_db": db_current[code], "title": info.get("title", ""),
+                "file_name": info.get("file_name", ""),
+            })
+    return {
+        "total_candidates": len(candidates),
+        "in_db": len(db_current),
+        "new": new_docs,
+        "updated": updated_docs,
+    }
+
+
 class Command(BaseCommand):
     help = "Importa il corpus documentale SGI (PDF) da una share come documenti procedura citabili dall'AI."
 
@@ -249,34 +319,10 @@ class Command(BaseCommand):
         if not root.exists():
             raise CommandError(f"Root non raggiungibile o inesistente: {raw_root}")
 
-        # 1) Scansione PDF (esclusa SUPERATO).
-        parsed: list[dict] = []
-        skipped: list[dict] = []
-        for pdf in sorted(root.rglob("*.pdf")):
-            full = str(pdf)
-            if _SUPERATO_RE.search(full):
-                continue
-            info = parse_sgi_filename(pdf.name)
-            if info is None:
-                if solo_procedure:
-                    skipped.append({"file": pdf.name, "motivo": "non riconosciuto, escluso (--solo-procedure)"})
-                    continue
-                # "Tutto quanto": importa comunque con codice ricavato dal nome.
-                info = _fallback_parse(pdf.name)
-            if solo_procedure and info["code"].upper().startswith("MOD"):
-                skipped.append({"file": pdf.name, "motivo": "modulistica MOD esclusa (--solo-procedure)"})
-                continue
-            info["path"] = full
-            info["file_name"] = pdf.name
-            info["category"] = _category_from_path(pdf, root)
-            parsed.append(info)
-            if limit and len(parsed) >= limit:
-                break
-
-        # 2) Dedup titolo-aware: stesso titolo => revisioni (tiene la più alta),
-        #    titoli diversi sotto lo stesso codice => documenti distinti (codice
-        #    disambiguato col titolo, nessuna perdita). Vedi dedup_candidates().
-        candidates, conflicts = dedup_candidates(parsed)
+        # 1) Scansione + 2) dedup titolo-aware (logica riusabile, vedi scan_share_candidates).
+        candidates, skipped, conflicts = scan_share_candidates(
+            root, solo_procedure=solo_procedure, limit=limit
+        )
 
         # 3) Applica (o simula).
         created_docs = updated_docs = created_revs = 0
@@ -292,7 +338,8 @@ class Command(BaseCommand):
         summary = {
             "mode": "apply" if apply else "dry-run",
             "root": raw_root,
-            "pdf_validi": len(parsed),
+            # ogni PDF parserizzato e' o un candidato (tenuto) o un conflitto (scartato)
+            "pdf_validi": len(candidates) + len(conflicts),
             "documenti_unici": len(candidates),
             "fallback": fallback_count,
             "disambiguati": len(disambiguated),
@@ -320,7 +367,7 @@ class Command(BaseCommand):
             f"{'APPLY' if apply else 'DRY-RUN'} | root={raw_root}"
         )
         self.stdout.write(
-            f"PDF validi={len(parsed)} | documenti unici={len(candidates)} "
+            f"PDF validi={len(candidates) + len(conflicts)} | documenti unici={len(candidates)} "
             f"(di cui fallback nome={fallback_count}, codici disambiguati={len(disambiguated)}) "
             f"| saltati={len(skipped)} | conflitti={len(conflicts)}"
         )

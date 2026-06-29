@@ -163,6 +163,19 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # Watchdog "drift" del corpus SGI: confronta la share col DB e apre una Issue
+        # INFORMATIVA se ci sono documenti nuovi/aggiornati non ancora importati. L'import
+        # resta MANUALE (import_sgi_da_share --apply + index_sgi_documents): qui si
+        # NOTIFICA soltanto, così i nuovi MT/MOD non restano invisibili all'AI. Fail-safe
+        # / no-op se PROCEDURE_REFRESH_SGI_SHARE_ROOT non e' impostato o la share e' giu'.
+        "name": "sgi_share_check",
+        "func": "procedure_refresh.tasks.run_sgi_share_check",
+        "schedule_type": "C",   # Schedule.CRON
+        "cron": "30 4 * * *",   # ogni notte alle 04:30 (dopo l'indicizzazione 03:30)
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # Digest giornaliero "stato portale" via email agli admin del monitoring:
         # servizi (readyz), Assistente AI, automazioni e issue per severità in un
         # colpo d'occhio. Heartbeat: per default invia sempre (anche "tutto ok"),

@@ -507,3 +507,89 @@ class ImportSgiDaShareTests(TestCase):
         self.assertEqual(len(primary), 1)
         self.assertTrue(primary[0]["file_name"].startswith("Mod.088 - CIS - A"))  # "A" < "B"
         self.assertEqual(primary[0]["code"], "Mod.088")
+
+
+class SgiShareDriftTests(TestCase):
+    """Watchdog: rileva documenti SGI nuovi/aggiornati sulla share vs DB e NOTIFICA
+    (Issue), senza importare nulla (--apply resta un'azione umana)."""
+
+    def _build_share(self, tmp):
+        from pathlib import Path
+
+        files = {
+            "9100_Qualita/2_MT/MT CN 06 Rev.21_Risorse Umane.pdf",   # allineato al DB
+            "9100_Qualita/_Modelli/MOD.165 - RAR Rev.3.pdf",          # share Rev.3 > DB Rev.2
+            "_Piani Qualita/PdQ CN_01.2020 Rev.21_firmato.pdf",       # fallback, non nel DB = nuovo
+        }
+        for rel in files:
+            p = Path(tmp) / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_bytes(b"%PDF-1.4 contenuto finto")
+        return tmp
+
+    def _seed_doc(self, code, rev, title="t"):
+        doc = ProcedureDocument.objects.create(code=code, title=title, is_active=True)
+        ProcedureRevision.objects.create(
+            document=doc, revision_code=rev, revision_date=date.today(),
+            effective_date=date.today(), source_type=SourceType.FILESERVER,
+            source_path="x.pdf", file_name="x.pdf", is_current=True,
+        )
+        return doc
+
+    def test_detect_share_drift(self):
+        import tempfile
+        from pathlib import Path
+
+        from procedure_refresh.management.commands.import_sgi_da_share import detect_share_drift
+
+        self._seed_doc("MT CN 06", "21")  # = share -> non drift
+        self._seed_doc("MOD.165", "2")    # share ha Rev.3 -> aggiornato
+        with tempfile.TemporaryDirectory() as tmp:
+            self._build_share(tmp)
+            drift = detect_share_drift(Path(tmp))
+
+        self.assertEqual(len(drift["new"]), 1)
+        self.assertTrue(drift["new"][0]["code"].startswith("PdQ"))
+        self.assertEqual(len(drift["updated"]), 1)
+        self.assertEqual(drift["updated"][0]["code"], "MOD.165")
+        self.assertEqual(drift["updated"][0]["revision_share"], "3")
+        self.assertEqual(drift["updated"][0]["revision_db"], "2")
+
+    def test_watchdog_apre_e_risolve_issue(self):
+        import tempfile
+
+        from django.core.management import call_command
+        from django.test import override_settings
+
+        from monitoring.models import Issue
+        from procedure_refresh.tasks import run_sgi_share_check
+
+        self._seed_doc("MT CN 06", "21")
+        self._seed_doc("MOD.165", "2")
+        with tempfile.TemporaryDirectory() as tmp:
+            self._build_share(tmp)
+            with override_settings(PROCEDURE_REFRESH_SGI_SHARE_ROOT=tmp):
+                res = run_sgi_share_check()
+                self.assertTrue(res["ok"])
+                self.assertEqual(res["new"], 1)
+                self.assertEqual(res["updated"], 1)
+                issue = Issue.objects.filter(current_url="check:sgi_share_drift").first()
+                self.assertIsNotNone(issue)
+                self.assertNotEqual(issue.status, Issue.Status.RESOLVED)
+
+                # Allinea il DB alla share -> niente drift -> Issue risolta automaticamente
+                call_command("import_sgi_da_share", "--root", tmp, "--apply")
+                res2 = run_sgi_share_check()
+                self.assertEqual(res2["new"], 0)
+                self.assertEqual(res2["updated"], 0)
+                issue.refresh_from_db()
+                self.assertEqual(issue.status, Issue.Status.RESOLVED)
+
+    def test_skip_se_root_non_configurata(self):
+        from django.test import override_settings
+
+        from procedure_refresh.tasks import run_sgi_share_check
+
+        with override_settings(PROCEDURE_REFRESH_SGI_SHARE_ROOT=""):
+            res = run_sgi_share_check()
+        self.assertTrue(res["skipped"])
