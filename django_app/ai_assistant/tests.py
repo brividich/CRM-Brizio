@@ -3068,3 +3068,20 @@ class EmbeddingsCacheBatchTests(TestCase):
         self.assertTrue(all(v == [0.1, 0.2, 0.3] for v in vecs))
         recompute.assert_not_called()  # nessun ricalcolo: erano tutti in cache
         self.assertGreaterEqual(spy.call_count, 4)  # letture a batch (350/100), non una sola
+
+    @override_settings(
+        CACHES={
+            "default": {
+                "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+                "LOCATION": "c",
+                "OPTIONS": {"MAX_ENTRIES": 100},
+            }
+        }
+    )
+    def test_warn_se_chunk_superano_max_entries(self):
+        """Guardrail: chunk > MAX_ENTRIES -> warning (gli embedding verrebbero cullati)."""
+        from ai_assistant import services
+
+        with self.assertLogs(services.logger, level="WARNING") as cm:
+            services._warn_if_embed_cache_too_small(500)
+        self.assertTrue(any("MAX_ENTRIES" in m for m in cm.output))

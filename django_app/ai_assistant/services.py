@@ -1027,6 +1027,30 @@ def _rrf_fuse(ranking_a: list[int], ranking_b: list[int], k: int) -> list[int]:
     return sorted(scores, key=lambda i: scores[i], reverse=True)
 
 
+def _embed_cache_max_entries() -> int | None:
+    """MAX_ENTRIES del cache ``default`` (None se non leggibile / non DatabaseCache)."""
+    try:
+        default_cache = (getattr(settings, "CACHES", {}) or {}).get("default", {}) or {}
+        raw = (default_cache.get("OPTIONS", {}) or {}).get("MAX_ENTRIES")
+        return int(raw) if raw is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _warn_if_embed_cache_too_small(n_chunks: int) -> None:
+    """Avvisa se i chunk superano MAX_ENTRIES: gli embedding verrebbero cullati e
+    ricalcolati a ogni rebuild (causa reale della latenza ~95s del 2026-06-29)."""
+    max_entries = _embed_cache_max_entries()
+    if max_entries is not None and n_chunks > max_entries:
+        logger.warning(
+            "ai_assistant: RAG ha %d chunk ma il cache MAX_ENTRIES=%d -> gli embedding "
+            "verranno cullati e RICALCOLATI a ogni rebuild dell'indice (latenza chat alta). "
+            "Alza DJANGO_CACHE_MAX_ENTRIES sopra il numero di chunk.",
+            n_chunks,
+            max_entries,
+        )
+
+
 def _load_knowledge_index() -> KnowledgeIndex:
     if not bool(getattr(settings, "OLLAMA_RAG_ENABLED", True)):
         return KnowledgeIndex(chunks=(), idf={}, avgdl=0.0)
@@ -1066,6 +1090,7 @@ def _load_knowledge_index() -> KnowledgeIndex:
     # Arricchimento semantico opzionale (fail-safe: se fallisce resta BM25-only).
     # Usa il backend configurato (ollama / fastembed / openai) via embeddings_enabled().
     if chunks and embeddings_enabled():
+        _warn_if_embed_cache_too_small(len(chunks))
         embed_model = _effective_embed_model()
         if embed_model:
             vectors = _embeddings_for_chunks(chunks, embed_model)
