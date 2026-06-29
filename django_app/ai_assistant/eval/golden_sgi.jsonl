@@ -28,7 +28,7 @@
 # --- Sicurezza sul lavoro / DPI (MT CN 451) ---
 {"q": "come si gestiscono i dispositivi di protezione individuale?", "expect": ["MT CN 451"]}
 {"q": "qual e' la procedura di gestione dei DPI?", "expect": ["MT CN 451"]}
-{"q": "dove trovo il modulo per il verbale di consegna dei DPI?", "expect": ["MOD.155"]}
+{"q": "dove trovo il modulo per il verbale di consegna dei DPI?", "expect": ["MOD.155", "MT CN 451"]}
 
 # --- Qualita: produzione, controlli, non conformita ---
 {"q": "come si gestiscono i materiali non conformi?", "expect": ["MT CN 16"]}
@@ -38,7 +38,7 @@
 {"q": "quali sono gli indicatori di performance KPI?", "expect": ["MT CN 13"]}
 {"q": "come funziona l'approvvigionamento e gli acquisti?", "expect": ["MT CN 04"]}
 {"q": "gestione di macchine e impianti", "expect": ["MT CN 07"]}
-{"q": "come si fa la programmazione delle verifiche ispettive?", "expect": ["MOD.034"]}
+{"q": "come si fa la programmazione delle verifiche ispettive?", "expect": ["MOD.034", "MT CN 12"]}
 
 # --- CND / controlli non distruttivi ---
 {"q": "come si esegue l'ispezione con liquidi penetranti?", "expect": ["MT CN 65"]}
