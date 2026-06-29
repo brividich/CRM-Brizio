@@ -165,17 +165,28 @@ def cambia_password(request):
     if request.method == "POST":
         form = LegacyChangePasswordForm(request.POST)
         if form.is_valid():
-            if legacy_user is not None:
-                legacy_user.password = generate_password_hash(form.cleaned_data["nuova_password"])
-                legacy_user.deve_cambiare_password = False
-                legacy_user.save(update_fields=["password", "deve_cambiare_password"])
-            try:
-                from core.audit import log_action
-                log_action(request, "cambio_password", "core")
-            except Exception:
-                pass
-            messages.success(request, "Password aggiornata con successo.")
-            return redirect("dashboard_home")
+            from werkzeug.security import check_password_hash
+            stored_pwd = getattr(legacy_user, "password", "") if legacy_user is not None else ""
+            # Con legacy_user assente (auth legacy disabilitata) non c'è password da
+            # verificare/cambiare: si mantiene il comportamento precedente.
+            current_ok = (
+                legacy_user is None
+                or (stored_pwd and check_password_hash(stored_pwd, form.cleaned_data.get("password_attuale") or ""))
+            )
+            if not current_ok:
+                form.add_error("password_attuale", "Password attuale non corretta.")
+            else:
+                if legacy_user is not None:
+                    legacy_user.password = generate_password_hash(form.cleaned_data["nuova_password"])
+                    legacy_user.deve_cambiare_password = False
+                    legacy_user.save(update_fields=["password", "deve_cambiare_password"])
+                try:
+                    from core.audit import log_action
+                    log_action(request, "cambio_password", "core")
+                except Exception:
+                    pass
+                messages.success(request, "Password aggiornata con successo.")
+                return redirect("dashboard_home")
     else:
         form = LegacyChangePasswordForm()
 

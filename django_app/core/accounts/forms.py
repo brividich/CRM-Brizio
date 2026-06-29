@@ -22,6 +22,13 @@ class LegacyAuthenticationForm(AuthenticationForm):
 
 
 class LegacyChangePasswordForm(forms.Form):
+    # SEC (CWE-620): richiede la password attuale per il cambio self-service, così
+    # una sessione temporaneamente dirottata non può reimpostare la password senza
+    # conoscere quella corrente. Verificata nella view contro l'hash legacy.
+    password_attuale = forms.CharField(
+        label="Password attuale",
+        widget=forms.PasswordInput(attrs={"autocomplete": "current-password", "placeholder": "Password attuale"}),
+    )
     nuova_password = forms.CharField(
         label="Nuova password",
         widget=forms.PasswordInput(attrs={"autocomplete": "new-password", "placeholder": "Nuova password"}),

@@ -97,6 +97,12 @@ ANOMALIE_LIST_DEFAULTS = {
     "escalation_supervisori": [],
 }
 ANOMALIE_NON_EMPTY_DEFAULT_KEYS = frozenset({"causali_doc", "stati_superficie", "avanzamenti"})
+# SEC: liste di sola configurazione (email notifica/escalation, destinatari RDC,
+# whitelist autorizzati alla modifica). Vanno esposte solo a chi gestisce la config,
+# non a tutti gli utenti del modulo via il GET di api_anomalie_config_liste.
+_ANOMALIE_SENSITIVE_LIST_KEYS = frozenset({
+    "autorizzati_modifica", "conferma_aggiornamenti", "rdc_segnalazione", "escalation_supervisori",
+})
 # Liste derivate dall'anagrafica: sola lettura, mai persistite nel file JSON.
 ANOMALIE_DERIVED_LIST_KEYS = frozenset({"capi_reparto", "capi_commessa"})
 ANOMALIE_ATTACHMENTS_DIR_DEFAULT = r"media\anomalie_allegati"
@@ -2968,10 +2974,14 @@ def anomalie_configurazione_page(request):
 @login_required
 def api_anomalie_config_liste(request):
     if request.method == "GET":
+        lists = _load_anomalie_lists()
+        if not _can_manage_anomalie_config(request):
+            # SEC: nascondi le liste di notifica/whitelist a chi non gestisce la config.
+            lists = {k: v for k, v in lists.items() if k not in _ANOMALIE_SENSITIVE_LIST_KEYS}
         return JsonResponse(
             {
                 "success": True,
-                "lists": _load_anomalie_lists(),
+                "lists": lists,
                 "attachments_dir": _anomalie_attachments_dir_value(),
                 "menu_logo": _load_anomalie_menu_logo(),
             }
