@@ -2550,6 +2550,11 @@ def api_seriali_op(request):
     op_id = _safe_text(request.GET.get("op_id"), 100)
     if not op_id:
         return JsonResponse({"seriali": []})
+    # SEC: rispetta lo scope di visibilità per-OP come gli altri endpoint di lettura
+    # (ASSIGNED/OWN): senza questo un utente a scope ristretto enumererebbe i seriali
+    # di qualunque OP. Ritorna lista vuota (no enumerazione) se fuori scope.
+    if not _can_view_anomalie_for_op(request, op_id):
+        return JsonResponse({"seriali": []})
     if not _has_table("anomalie"):
         return JsonResponse({"seriali": []})
     try:

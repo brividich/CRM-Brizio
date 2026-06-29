@@ -30,6 +30,12 @@ from twofa.utils import (
 
 logger = logging.getLogger(__name__)
 
+# SEC: lockout anti brute-force per la verifica TOTP. Il ramo email ha già un
+# contatore tentativi (TwoFactorChallenge.attempts); il TOTP no, e con un OTP a 6
+# cifre senza limite il brute-force online è fattibile. Contatore in sessione.
+_TOTP_MAX_ATTEMPTS = 5
+_TOTP_LOCK_SECONDS = 300
+
 
 def _get_next(request) -> str:
     """URL di destinazione post-verifica."""
@@ -90,13 +96,30 @@ def verify(request):
             ok = False
 
             if method == "totp":
-                try:
-                    secret = decrypt_totp_secret(u2f.totp_secret_enc)
-                    ok = verify_totp(secret, code)
-                except Exception:
+                import time as _time
+                now_ts = _time.time()
+                lock_until = float(request.session.get("twofa_totp_lock_until", 0) or 0)
+                if lock_until and now_ts < lock_until:
                     ok = False
-                if not ok:
-                    error = "Codice non valido. Riprova."
+                    error = "Troppi tentativi. Riprova tra qualche minuto."
+                else:
+                    try:
+                        secret = decrypt_totp_secret(u2f.totp_secret_enc)
+                        ok = verify_totp(secret, code)
+                    except Exception:
+                        ok = False
+                    if ok:
+                        request.session.pop("twofa_totp_fails", None)
+                        request.session.pop("twofa_totp_lock_until", None)
+                    else:
+                        fails = int(request.session.get("twofa_totp_fails", 0) or 0) + 1
+                        if fails >= _TOTP_MAX_ATTEMPTS:
+                            request.session["twofa_totp_fails"] = 0
+                            request.session["twofa_totp_lock_until"] = now_ts + _TOTP_LOCK_SECONDS
+                            error = "Troppi tentativi. Riprova tra qualche minuto."
+                        else:
+                            request.session["twofa_totp_fails"] = fails
+                            error = f"Codice non valido. Tentativi rimanenti: {_TOTP_MAX_ATTEMPTS - fails}."
             else:  # email
                 ok, error = verify_email_otp(user, code)
 

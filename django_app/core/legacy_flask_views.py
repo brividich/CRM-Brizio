@@ -102,18 +102,14 @@ def _resolve_db_legacy_redirect(request: HttpRequest, full_path: str):
 
 
 def legacy_flask_check(request: HttpRequest):
-    db_engine = ""
-    try:
-        db_engine = str(settings.DATABASES.get("default", {}).get("ENGINE", ""))
-    except Exception:
-        db_engine = ""
+    # SEC: endpoint raggiungibile da utenti non autenticati (prefisso esente).
+    # NON esporre il flag DEBUG né l'engine del DB (informazioni di ricognizione):
+    # rispondi solo con stato/versione minimi.
     return JsonResponse(
         {
             "app": "Portale Applicativo (Django)",
             "framework": "django",
             "version": str(getattr(settings, "APP_VERSION", "")),
-            "debug": bool(getattr(settings, "DEBUG", False)),
-            "db_engine": db_engine,
             "legacy_flask": "removed",
         }
     )
