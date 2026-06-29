@@ -5,13 +5,62 @@
 # attese compare tra i primi --top-k chunk recuperati. Le righe che iniziano con #
 # sono commenti e vengono ignorate.
 #
-# STARTER SET: contiene solo l'esempio verificato (timbri -> MT CN 06, dal prompt).
-# VA CURATO contro il corpus REALE dell'ambiente target (aggiungere una riga per
-# ogni documento SGI tipico, con le domande come le porrebbe un utente). L'eval va
-# eseguito dove il corpus e' indicizzato (specifiche in vigore / procedure correnti).
-# Le piu' phrasing sullo stesso documento esercitano la robustezza del retrieval e
-# l'effetto dello stemming (timbri/timbro/timbrare -> stessa radice).
+# CURATO il 2026-06-29 sul corpus reale (\\novisrv\sistema gestione integrato): codici
+# presi dal catalogo dell'import (MT/MTSI/IDOR/MOD). I codici attesi sono dedotti dai
+# titoli dei documenti; VANNO VALIDATI contro l'indice live dopo il deploy con
+# `ai_eval --rag-sgi` (alcune domande potrebbero agganciare un documento adiacente:
+# in quel caso correggere l'expect o affinare la domanda). Tutte le voci puntano a
+# PROCEDURE (procedure_refresh); il corpus Specifiche (gestione_specifiche) e' separato
+# e oggi vuoto, quindi qui non compaiono fonti spec:.
+
+# --- Risorse umane / presenze (MT CN 06) ---
 {"q": "in che MT si fa riferimento ai timbri?", "expect": ["MT CN 06"]}
 {"q": "dove sono regolati i timbri di presenza?", "expect": ["MT CN 06"]}
 {"q": "come si registra un timbro a inizio turno?", "expect": ["MT CN 06"]}
 {"q": "qual e' la procedura per timbrare le presenze?", "expect": ["MT CN 06"]}
+{"q": "come sono gestite le risorse umane in azienda?", "expect": ["MT CN 06"]}
+
+# --- Intelligenza artificiale generativa (MT CN 2714) ---
+{"q": "cosa prevede la policy sull'uso dell'intelligenza artificiale generativa?", "expect": ["MT CN 2714"]}
+{"q": "posso usare ChatGPT o Copilot per lavoro?", "expect": ["MT CN 2714"]}
+{"q": "quali strumenti di AI generativa sono approvati?", "expect": ["MT CN 2714"]}
+
+# --- Sicurezza sul lavoro / DPI (MT CN 451) ---
+{"q": "come si gestiscono i dispositivi di protezione individuale?", "expect": ["MT CN 451"]}
+{"q": "qual e' la procedura di gestione dei DPI?", "expect": ["MT CN 451"]}
+{"q": "dove trovo il modulo per il verbale di consegna dei DPI?", "expect": ["MOD.155"]}
+
+# --- Qualita: produzione, controlli, non conformita ---
+{"q": "come si gestiscono i materiali non conformi?", "expect": ["MT CN 16"]}
+{"q": "come si aprono le azioni correttive?", "expect": ["MT CN 11"]}
+{"q": "come si svolgono gli audit interni di sistema?", "expect": ["MT CN 12"]}
+{"q": "ogni quanto si fa il riesame della direzione?", "expect": ["MT CN 19"]}
+{"q": "quali sono gli indicatori di performance KPI?", "expect": ["MT CN 13"]}
+{"q": "come funziona l'approvvigionamento e gli acquisti?", "expect": ["MT CN 04"]}
+{"q": "gestione di macchine e impianti", "expect": ["MT CN 07"]}
+{"q": "come si fa la programmazione delle verifiche ispettive?", "expect": ["MOD.034"]}
+
+# --- CND / controlli non distruttivi ---
+{"q": "come si esegue l'ispezione con liquidi penetranti?", "expect": ["MT CN 65"]}
+{"q": "come si fa il cleanliness check millipore?", "expect": ["MT CN 66"]}
+
+# --- Sicurezza delle informazioni (27001) ---
+{"q": "qual e' la politica di sicurezza delle informazioni?", "expect": ["MT CN 271"]}
+{"q": "come si gestiscono gli incidenti di sicurezza informatica?", "expect": ["MT CN 2711"]}
+{"q": "qual e' il piano di business continuity?", "expect": ["MT CN 2712"]}
+{"q": "come sono crittografate le informazioni?", "expect": ["MT CN 279"]}
+{"q": "requisiti legali normativi e contrattuali sulla sicurezza delle informazioni", "expect": ["MT CN 2710"]}
+
+# --- Manuali di sistema / IDOR ---
+{"q": "dov'e' il manuale del sistema di gestione integrato?", "expect": ["IDOR CN 01"]}
+{"q": "manuale di gestione del sistema informatico", "expect": ["IDOR CN 02"]}
+
+# --- Fornitori / terzisti / aeronautico ---
+{"q": "come si selezionano e qualificano fornitori e terzisti?", "expect": ["MTSI CN 16"]}
+{"q": "cosa prevede la procedura PART 145?", "expect": ["MT CN 70"]}
+
+# --- Parita di genere (125) ---
+{"q": "selezione e assunzione nell'ottica della parita di genere", "expect": ["MT CN 125_5"]}
+
+# --- Modulistica nota ---
+{"q": "dove trovo la skill matrix / matrice delle competenze?", "expect": ["MOD.187"]}
