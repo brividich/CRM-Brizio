@@ -24,6 +24,15 @@ from core.acl_v2 import (
 )
 from core.middleware import is_acl_exempt_path, is_acl_shared_path, resolve_acl_gate_target_path
 from core.legacy_models import AnagraficaDipendente, Pulsante, Ruolo, UtenteLegacy
+from core.permission_taxonomy import (
+    AREA_ORDER,
+    ORIGIN_ORDER,
+    area_for_module,
+    area_label,
+    derive_resource,
+    origin_for_code,
+    origin_label,
+)
 from core.navigation_registry import resolve_navigation_item_permission_code
 from core.models import (
     LegacyRedirect,
@@ -306,7 +315,9 @@ def _collect_route_coverage_rows() -> tuple[list[dict], dict]:
         for candidate in path_bindings:
             if _binding_matches_path(candidate, gate_target_path):
                 path_matches.append(candidate)
-        resolved = resolve_canonical_target(path=gate_target_path, route_name=route_name)
+        resolved = resolve_canonical_target(
+            path=gate_target_path, route_name=route_name, bindings=active_bindings
+        )
         binding_payload = resolved.get("binding") or {}
         effective_binding_id = _int_or_none(binding_payload.get("id"))
         effective_permission_code = normalize_permission_code(str(binding_payload.get("permission_code") or ""))
@@ -482,59 +493,74 @@ def _permission_grant_stats() -> tuple[dict[str, int], dict[str, int]]:
     return dict(enabled_counts), dict(total_counts)
 
 
-# Un permission code e' "API" quando ha un segmento "api" (es. modulo.api_xxx.view).
-_API_PERMISSION_RE = re.compile(r"(^|[._])api(_|[._]|$)")
-
-
-def _is_api_permission_code(code: str) -> bool:
-    return bool(_API_PERMISSION_RE.search((code or "").lower()))
-
-
-def _summarize_perm_subgroup(rows: list) -> dict:
-    """Conteggi/stato aggregato per un sottogruppo (Permessi o Permessi API)."""
+def _aggregate_grant_state(rows: list) -> dict:
+    """Conteggi/stato aggregato (granted/total/all/partial) per un gruppo di righe grant."""
     granted_count = sum(1 for r in rows if r["granted"])
     total = len(rows)
-    all_granted = total > 0 and granted_count == total
     any_granted = granted_count > 0
     return {
-        "rows": rows,
         "granted_count": granted_count,
         "total_count": total,
-        "all_granted": all_granted,
-        "partial": any_granted and not all_granted,
+        "all_granted": total > 0 and granted_count == total,
+        "partial": any_granted and granted_count != total,
         "any_granted": any_granted,
     }
 
 
-def _group_permission_rows_by_module(permission_rows: list) -> list[dict]:
-    """Raggruppa permission_rows per modulo, separando permessi standard e permessi API,
-    e calcola lo stato aggregato per la card header."""
-    grouped: dict[str, list] = defaultdict(list)
+def _group_permission_rows_by_area(permission_rows: list) -> list[dict]:
+    """Gerarchia area funzionale -> modulo -> risorsa per la griglia Role Grant.
+
+    Tre livelli ricavati dai dati esistenti (nessuna migrazione): l'area dalla
+    mappa modulo->area, il modulo dal campo ``module``, la risorsa dal 2o
+    segmento del code. Ogni livello porta lo stato aggregato per i toggle/badge.
+    """
+    tree: dict[str, dict[str, dict[str, list]]] = defaultdict(
+        lambda: defaultdict(lambda: defaultdict(list))
+    )
     for row in permission_rows:
-        module = row["permission"].module or "—"
-        grouped[module].append(row)
-    result = []
-    for module, rows in sorted(grouped.items()):
-        standard_rows = [r for r in rows if not _is_api_permission_code(r["permission"].code)]
-        api_rows = [r for r in rows if _is_api_permission_code(r["permission"].code)]
-        granted_count = sum(1 for r in rows if r["granted"])
-        all_granted = granted_count == len(rows)
-        any_granted = granted_count > 0
-        standard = {"label": "Permessi", **_summarize_perm_subgroup(standard_rows)}
-        api = {"label": "Permessi API", **_summarize_perm_subgroup(api_rows)}
-        result.append({
-            "module": module,
-            "rows": rows,
-            "subgroups": [standard, api],
-            "standard": standard,
-            "api": api,
-            "granted_count": granted_count,
-            "total_count": len(rows),
-            "all_granted": all_granted,
-            "partial": any_granted and not all_granted,
-            "any_granted": any_granted,
+        perm = row["permission"]
+        module = perm.module or "—"
+        area = area_for_module(module)
+        resource = derive_resource(perm.code, module)
+        tree[area][module][resource].append(row)
+
+    ordered_areas = [a for a in AREA_ORDER if a in tree]
+    ordered_areas += [a for a in sorted(tree) if a not in AREA_ORDER]
+
+    areas_out: list[dict] = []
+    for area in ordered_areas:
+        modules_map = tree[area]
+        modules_out: list[dict] = []
+        area_rows: list = []
+        for module in sorted(modules_map):
+            resources_map = modules_map[module]
+            resources_out: list[dict] = []
+            module_rows: list = []
+            for resource in sorted(resources_map):
+                resource_rows = resources_map[resource]
+                module_rows.extend(resource_rows)
+                resources_out.append({
+                    "resource": resource,
+                    "rows": resource_rows,
+                    **_aggregate_grant_state(resource_rows),
+                })
+            area_rows.extend(module_rows)
+            modules_out.append({
+                "module": module,
+                "resources": resources_out,
+                "rows": module_rows,
+                "resource_count": len(resources_out),
+                **_aggregate_grant_state(module_rows),
+            })
+        areas_out.append({
+            "area": area,
+            "area_label": area_label(area),
+            "modules": modules_out,
+            "rows": area_rows,
+            "module_count": len(modules_out),
+            **_aggregate_grant_state(area_rows),
         })
-    return result
+    return areas_out
 
 
 @legacy_admin_required
@@ -794,6 +820,9 @@ def acl_canonico(request):
 
     q_filter = str(request.GET.get("q") or "").strip()
     module_filter = str(request.GET.get("module") or "").strip().lower()
+    origin_filter = str(request.GET.get("origin") or "all").strip().lower()
+    if origin_filter not in {"all", *ORIGIN_ORDER}:
+        origin_filter = "all"
     permission_state = str(request.GET.get("permission_state") or "all").strip().lower()
     binding_state = str(request.GET.get("binding_state") or "all").strip().lower()
     active_tab = str(request.GET.get("tab") or "permissions").strip().lower()
@@ -829,6 +858,7 @@ def acl_canonico(request):
         total_count = int(total_grants_count.get(permission.code, 0))
         bind_count = int(binding_counts.get(permission.code, 0))
         is_unassigned = enabled_count == 0
+        origin = origin_for_code(permission.code)
         row = {
             "permission": permission,
             "granted": bool(role_grants_map.get(permission.code, False)),
@@ -837,10 +867,17 @@ def acl_canonico(request):
             "bindings_count": bind_count,
             "warning_unassigned": is_unassigned,
             "warning_missing_binding": bind_count == 0,
+            "origin": origin,
+            "origin_label": origin_label(origin),
+            "area": area_for_module(permission.module),
+            "area_label": area_label(area_for_module(permission.module)),
+            "resource": derive_resource(permission.code, permission.module),
         }
         if permission_state == "unassigned" and not row["warning_unassigned"]:
             continue
         if permission_state == "no_binding" and not row["warning_missing_binding"]:
+            continue
+        if origin_filter != "all" and origin != origin_filter:
             continue
         permission_rows.append(row)
 
@@ -1017,11 +1054,21 @@ def acl_canonico(request):
     module_choices = list(
         PermissionDefinition.objects.exclude(module="").values_list("module", flat=True).distinct().order_by("module")
     )
+    origin_choices = [{"value": value, "label": origin_label(value)} for value in ORIGIN_ORDER]
+    # Con filtri attivi i gruppi della griglia grant partono espansi (altrimenti i
+    # risultati resterebbero nascosti dentro le card collassate).
+    filters_active = bool(
+        q_filter or module_filter or origin_filter != "all" or permission_state != "all"
+    )
     summary = {
         "permissions_total": PermissionDefinition.objects.count(),
         "permissions_active": PermissionDefinition.objects.filter(is_active=True).count(),
         "permissions_unassigned": sum(1 for value in enabled_grants_count.values() if int(value) == 0)
-        + sum(1 for permission in PermissionDefinition.objects.all() if permission.code not in enabled_grants_count),
+        + sum(
+            1
+            for code in PermissionDefinition.objects.values_list("code", flat=True)
+            if code not in enabled_grants_count
+        ),
         "bindings_total": RoutePermissionBinding.objects.count(),
         "bindings_missing_grant": sum(1 for row in bindings if row["warning_missing_any_grant"]),
         "overrides_total": UserPermissionGrant.objects.count(),
@@ -1041,11 +1088,14 @@ def acl_canonico(request):
         "filters": {
             "q": q_filter,
             "module": module_filter,
+            "origin": origin_filter,
             "permission_state": permission_state,
             "binding_state": binding_state,
             "tab": active_tab,
         },
         "module_choices": module_choices,
+        "origin_choices": origin_choices,
+        "filters_active": filters_active,
         "permission_code_format_hint": PERMISSION_CODE_FORMAT_HINT,
         "active_tab": active_tab,
         "coverage_summary": coverage_summary,
@@ -1057,8 +1107,8 @@ def acl_canonico(request):
         "selected_user": selected_user,
         "selected_user_label": selected_user_label,
         "user_override_rows": user_override_rows,
-        # Step 3: permission rows raggruppati per modulo (per card grid)
-        "permission_rows_by_module": _group_permission_rows_by_module(permission_rows),
+        # Step 3: gerarchia area -> modulo -> risorsa per la card grid
+        "permission_rows_by_area": _group_permission_rows_by_area(permission_rows),
         # Step 5: nav override per-utente
         "nav_ov_user_id": nav_ov_user_id,
         "nav_ov_user": nav_ov_user,

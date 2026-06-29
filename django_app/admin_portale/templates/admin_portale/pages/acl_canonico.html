@@ -94,6 +94,7 @@
   .acl-collapse-head:focus-visible { outline:2px solid var(--accent,#3b82f6); outline-offset:-2px; }
   .acl-collapse-caret { display:inline-flex; font-size:10px; color:var(--text-muted,#888); transition:transform .15s ease; flex-shrink:0; }
   .acl-collapsed > .acl-collapse-head .acl-collapse-caret { transform:rotate(0deg); }
+  .acl-area:not(.acl-collapsed) > .acl-collapse-head .acl-collapse-caret,
   .acl-mod-card:not(.acl-collapsed) > .acl-collapse-head .acl-collapse-caret,
   .acl-subgroup:not(.acl-collapsed) > .acl-collapse-head .acl-collapse-caret { transform:rotate(90deg); }
   .acl-collapsed > .acl-collapse-body { display:none; }
@@ -105,6 +106,25 @@
   }
   .acl-subgroup-name { font-size:12px; font-weight:600; color:var(--text,#444); }
   .acl-subgroup-count { font-size:11px; color:var(--text-muted,#888); }
+  /* Livello area funzionale (sopra il modulo) */
+  .acl-areas { display:flex; flex-direction:column; gap:12px; }
+  .acl-area { border:1px solid var(--border,#dbe3ef); border-radius:12px; overflow:hidden; background:#fff; }
+  .acl-area-head {
+    display:flex; align-items:center; gap:10px;
+    padding:11px 14px; background:var(--bg-card,#f1f5f9);
+    border-bottom:1px solid var(--border,#e2e8f0);
+  }
+  .acl-area:where(.acl-collapsed) > .acl-area-head { border-bottom:none; }
+  .acl-area-title { font-weight:700; font-size:14px; color:#0f172a; }
+  .acl-area-meta { margin-left:auto; display:flex; align-items:center; gap:8px; font-size:11px; color:#64748b; }
+  .acl-area-body { padding:12px 14px; }
+  .acl-origin-pill {
+    display:inline-flex; align-items:center; padding:1px 6px; border-radius:999px;
+    font-size:9px; font-weight:700; letter-spacing:.03em; border:1px solid #cbd5e1;
+    background:#f1f5f9; color:#475569; text-transform:uppercase;
+  }
+  .acl-origin-pill.legacy { border-color:#fcd34d; background:#fffbeb; color:#92400e; }
+  .acl-origin-pill.api { border-color:#a5b4fc; background:#eef2ff; color:#3730a3; }
   @media(max-width:640px){ .acl-mod-cards { grid-template-columns:1fr; } }
 </style>
 {% endblock %}
@@ -163,6 +183,15 @@
             <option value="">-- tutti --</option>
             {% for module in module_choices %}
               <option value="{{ module }}" {% if module == filters.module %}selected{% endif %}>{{ module }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>Origine</label>
+          <select class="input" name="origin">
+            <option value="all" {% if filters.origin == 'all' %}selected{% endif %}>Tutte</option>
+            {% for opt in origin_choices %}
+              <option value="{{ opt.value }}" {% if opt.value == filters.origin %}selected{% endif %}>{{ opt.label }}</option>
             {% endfor %}
           </select>
         </div>
@@ -270,7 +299,10 @@
               <tr>
                 <th>Code</th>
                 <th>Label</th>
+                <th>Area</th>
                 <th>Modulo</th>
+                <th>Risorsa</th>
+                <th>Origine</th>
                 <th>Stato</th>
                 <th>Binding</th>
                 <th>Ruoli enabled</th>
@@ -282,7 +314,10 @@
                 <tr>
                   <td><code>{{ row.permission.code }}</code></td>
                   <td>{{ row.permission.label }}</td>
+                  <td>{{ row.area_label }}</td>
                   <td>{{ row.permission.module }}</td>
+                  <td><code>{{ row.resource }}</code></td>
+                  <td><span class="acl-origin-pill {{ row.origin }}">{{ row.origin_label }}</span></td>
                   <td>
                     {% if row.permission.is_active %}<span class="acl-badge">ACTIVE</span>{% else %}<span class="acl-badge warn">INACTIVE</span>{% endif %}
                   </td>
@@ -297,7 +332,7 @@
                   </td>
                 </tr>
               {% empty %}
-                <tr><td colspan="7" class="cell-muted">Nessun permission code con i filtri correnti.</td></tr>
+                <tr><td colspan="10" class="cell-muted">Nessun permission code con i filtri correnti.</td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -435,64 +470,91 @@
         </div>
         <div id="acl-grants-status"></div>
 
-        {% if permission_rows_by_module %}
-          <div class="acl-mod-cards" id="grants-card-grid">
-            {% for grp in permission_rows_by_module %}
-              <div class="acl-mod-card acl-collapsed" data-module="{{ grp.module }}">
-                <div class="acl-mod-head acl-collapse-head" role="button" tabindex="0" aria-expanded="false">
-                  <div class="acl-mod-head-left">
-                    <span class="acl-collapse-caret" aria-hidden="true">▶</span>
-                    <div class="acl-mod-icon">{{ grp.module|slice:":1"|upper }}</div>
-                    <div>
-                      <div class="acl-mod-name">{{ grp.module }}</div>
-                      <div class="acl-mod-count">{{ grp.total_count }} permission{{ grp.total_count|pluralize:"e,i" }}</div>
-                    </div>
-                  </div>
-                  <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-                    {% if grp.partial %}<span class="acl-partial-badge">parziale</span>{% endif %}
-                    <label class="acl-toggle-switch" onclick="event.stopPropagation()">
-                      <input type="checkbox"
-                             class="grants-module-toggle"
-                             data-module="{{ grp.module }}"
-                             {% if grp.all_granted %}checked{% endif %}>
-                      <span class="acl-toggle-slider"></span>
-                    </label>
+        {% if permission_rows_by_area %}
+          <p class="acl-mini" style="margin:0 0 10px;">Gerarchia: <strong>area funzionale → modulo → risorsa</strong>. Il toggle di modulo abilita/revoca l'intero modulo; quello di risorsa solo il sottogruppo.</p>
+          <div class="acl-areas" id="grants-card-grid">
+            {% for area in permission_rows_by_area %}
+              <div class="acl-area {% if not filters_active %}acl-collapsed{% endif %}" data-area="{{ area.area }}">
+                <div class="acl-area-head acl-collapse-head" role="button" tabindex="0" aria-expanded="{% if filters_active %}true{% else %}false{% endif %}">
+                  <span class="acl-collapse-caret" aria-hidden="true">▶</span>
+                  <div class="acl-area-title">{{ area.area_label }}</div>
+                  <div class="acl-area-meta">
+                    <span>{{ area.module_count }} modul{{ area.module_count|pluralize:"o,i" }} · {{ area.granted_count }}/{{ area.total_count }}</span>
+                    {% if area.partial %}<span class="acl-partial-badge">parziale</span>{% endif %}
                   </div>
                 </div>
                 <div class="acl-collapse-body">
-                  {% for sub in grp.subgroups %}
-                    {% if sub.rows %}
-                      <div class="acl-subgroup acl-collapsed">
-                        <div class="acl-subgroup-head acl-collapse-head" role="button" tabindex="0" aria-expanded="false">
-                          <span class="acl-collapse-caret" aria-hidden="true">▶</span>
-                          <span class="acl-subgroup-name">{{ sub.label }}</span>
-                          <span class="acl-subgroup-count">{{ sub.granted_count }}/{{ sub.total_count }}</span>
-                          {% if sub.partial %}<span class="acl-partial-badge">parziale</span>{% endif %}
-                        </div>
-                        <div class="acl-collapse-body">
-                          {% for row in sub.rows %}
-                            <div class="acl-perm-row" data-code="{{ row.permission.code }}" data-module="{{ row.permission.module }}">
-                              <div class="acl-perm-label">
-                                {{ row.permission.label }}
-                                <span class="acl-perm-code">{{ row.permission.code }}</span>
-                              </div>
-                              <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-                                {% if row.warning_missing_binding %}<span class="acl-badge warn" style="font-size:9px;">NO BIND</span>{% endif %}
-                                <label class="acl-toggle-switch" onclick="event.stopPropagation()">
-                                  <input type="checkbox"
-                                         class="grants-perm-toggle"
-                                         data-code="{{ row.permission.code }}"
-                                         data-module="{{ row.permission.module }}"
-                                         {% if row.granted %}checked{% endif %}>
-                                  <span class="acl-toggle-slider"></span>
-                                </label>
+                  <div class="acl-area-body">
+                    <div class="acl-mod-cards">
+                      {% for grp in area.modules %}
+                        <div class="acl-mod-card {% if not filters_active %}acl-collapsed{% endif %}" data-module="{{ grp.module }}">
+                          <div class="acl-mod-head acl-collapse-head" role="button" tabindex="0" aria-expanded="{% if filters_active %}true{% else %}false{% endif %}">
+                            <div class="acl-mod-head-left">
+                              <span class="acl-collapse-caret" aria-hidden="true">▶</span>
+                              <div class="acl-mod-icon">{{ grp.module|slice:":1"|upper }}</div>
+                              <div>
+                                <div class="acl-mod-name">{{ grp.module }}</div>
+                                <div class="acl-mod-count">{{ grp.total_count }} permess{{ grp.total_count|pluralize:"o,i" }} · {{ grp.granted_count }}/{{ grp.total_count }}</div>
                               </div>
                             </div>
-                          {% endfor %}
+                            <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+                              {% if grp.partial %}<span class="acl-partial-badge">parziale</span>{% endif %}
+                              <label class="acl-toggle-switch" onclick="event.stopPropagation()" title="Abilita/disabilita tutto il modulo">
+                                <input type="checkbox"
+                                       class="grants-module-toggle"
+                                       data-module="{{ grp.module }}"
+                                       {% if grp.all_granted %}checked{% endif %}>
+                                <span class="acl-toggle-slider"></span>
+                              </label>
+                            </div>
+                          </div>
+                          <div class="acl-collapse-body">
+                            {% for res in grp.resources %}
+                              <div class="acl-subgroup {% if not filters_active %}acl-collapsed{% endif %}" data-resource="{{ res.resource }}">
+                                <div class="acl-subgroup-head acl-collapse-head" role="button" tabindex="0" aria-expanded="{% if filters_active %}true{% else %}false{% endif %}">
+                                  <span class="acl-collapse-caret" aria-hidden="true">▶</span>
+                                  <span class="acl-subgroup-name">{{ res.resource }}</span>
+                                  <span class="acl-subgroup-count">{{ res.granted_count }}/{{ res.total_count }}</span>
+                                  {% if res.partial %}<span class="acl-partial-badge">parziale</span>{% endif %}
+                                  <label class="acl-toggle-switch" onclick="event.stopPropagation()" style="margin-left:auto;" title="Abilita/disabilita la risorsa">
+                                    <input type="checkbox"
+                                           class="grants-resource-toggle"
+                                           data-module="{{ grp.module }}"
+                                           data-resource="{{ res.resource }}"
+                                           {% if res.all_granted %}checked{% endif %}>
+                                    <span class="acl-toggle-slider"></span>
+                                  </label>
+                                </div>
+                                <div class="acl-collapse-body">
+                                  {% for row in res.rows %}
+                                    <div class="acl-perm-row" data-code="{{ row.permission.code }}" data-module="{{ row.permission.module }}" data-resource="{{ res.resource }}">
+                                      <div class="acl-perm-label">
+                                        {{ row.permission.label }}
+                                        <span class="acl-perm-code">{{ row.permission.code }}</span>
+                                      </div>
+                                      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+                                        {% if row.origin == 'legacy' %}<span class="acl-origin-pill legacy">legacy</span>{% elif row.origin == 'api' %}<span class="acl-origin-pill api">api</span>{% endif %}
+                                        {% if row.warning_missing_binding %}<span class="acl-badge warn" style="font-size:9px;">NO BIND</span>{% endif %}
+                                        <label class="acl-toggle-switch" onclick="event.stopPropagation()">
+                                          <input type="checkbox"
+                                                 class="grants-perm-toggle"
+                                                 data-code="{{ row.permission.code }}"
+                                                 data-module="{{ row.permission.module }}"
+                                                 data-resource="{{ res.resource }}"
+                                                 {% if row.granted %}checked{% endif %}>
+                                          <span class="acl-toggle-slider"></span>
+                                        </label>
+                                      </div>
+                                    </div>
+                                  {% endfor %}
+                                </div>
+                              </div>
+                            {% endfor %}
+                          </div>
                         </div>
-                      </div>
-                    {% endif %}
-                  {% endfor %}
+                      {% endfor %}
+                    </div>
+                  </div>
                 </div>
               </div>
             {% endfor %}
@@ -561,10 +623,36 @@
             mCb.checked = allOn;
           }
 
-          // Init indeterminate
+          // Sottogruppo risorsa: lo cerco per dataset (i nomi risorsa possono
+          // contenere '.' o '()', quindi evito i selettori CSS sull'attributo).
+          function findResourceSub(card, resource){
+            return Array.from(card.querySelectorAll(".acl-subgroup")).find(function(s){
+              return s.dataset.resource === resource;
+            });
+          }
+          function recalcResourceToggle(card, resource){
+            if(!card) return;
+            var sub = findResourceSub(card, resource);
+            if(!sub) return;
+            var toggles = Array.from(sub.querySelectorAll(".grants-perm-toggle"));
+            var allOn = toggles.length > 0 && toggles.every(function(t){ return t.checked; });
+            var anyOn = toggles.some(function(t){ return t.checked; });
+            var rCb = sub.querySelector(".grants-resource-toggle");
+            if(!rCb) return;
+            rCb.indeterminate = anyOn && !allOn;
+            rCb.checked = allOn;
+          }
+          function recalcAllResourceToggles(card){
+            if(!card) return;
+            card.querySelectorAll(".grants-resource-toggle").forEach(function(rCb){
+              recalcResourceToggle(card, rCb.dataset.resource);
+            });
+          }
+
+          // Init indeterminate (modulo + risorse)
           document.querySelectorAll(".acl-mod-card[data-module]").forEach(function(card){
-            var mod = card.dataset.module;
-            recalcModuleToggle(mod);
+            recalcModuleToggle(card.dataset.module);
+            recalcAllResourceToggles(card);
           });
 
           // Toggle singolo permesso
@@ -582,6 +670,7 @@
               if(data.ok){
                 setStatus("Salvato: "+cb.dataset.code, true);
                 recalcModuleToggle(cb.dataset.module);
+                recalcResourceToggle(cb.closest(".acl-mod-card"), cb.dataset.resource);
               } else {
                 setStatus("Errore: "+(data.error||"sconosciuto"), false);
                 cb.checked = !cb.checked;
@@ -591,6 +680,32 @@
               cb.checked = !cb.checked;
             }
             if(row) row.classList.remove("saving");
+          });
+
+          // Toggle risorsa (sottogruppo): applica a tutti i code della risorsa.
+          // Riusa l'endpoint per-code in loop (poche voci per risorsa).
+          document.addEventListener("change", async function(e){
+            var rCb = e.target.closest(".grants-resource-toggle");
+            if(!rCb || ROLE_ID === null) return;
+            var card = rCb.closest(".acl-mod-card");
+            var sub = findResourceSub(card, rCb.dataset.resource);
+            if(!sub) return;
+            var value = rCb.checked;
+            rCb.indeterminate = false;
+            var toggles = Array.from(sub.querySelectorAll(".grants-perm-toggle"));
+            sub.querySelectorAll(".acl-perm-row").forEach(function(r){ r.classList.add("saving"); });
+            try {
+              for(var i=0;i<toggles.length;i++){
+                var data = await postJson(TOGGLE_URL, { role_id: ROLE_ID, permission_code: toggles[i].dataset.code, value: value });
+                if(data.ok){ toggles[i].checked = value; }
+              }
+              setStatus("Risorsa "+rCb.dataset.resource+(value?" abilitata":" disabilitata"), true);
+            } catch(err){
+              setStatus("Errore: "+((err && err.message) || "Errore aggiornamento risorsa."), false);
+            }
+            recalcResourceToggle(card, rCb.dataset.resource);
+            recalcModuleToggle(rCb.dataset.module);
+            sub.querySelectorAll(".acl-perm-row").forEach(function(r){ r.classList.remove("saving"); });
           });
 
           // Toggle modulo intero
@@ -606,9 +721,11 @@
                 setStatus("Modulo "+module+(mCb.checked?" abilitato":" disabilitato"), true);
                 if(card) card.querySelectorAll(".grants-perm-toggle").forEach(function(t){ t.checked=mCb.checked; });
                 recalcModuleToggle(module);
+                recalcAllResourceToggles(card);
               } else {
                 setStatus("Errore: "+(data.error||"sconosciuto"), false);
                 recalcModuleToggle(module);
+                recalcAllResourceToggles(card);
               }
             } catch(err){
               setStatus("Errore: "+((err && err.message) || "Errore aggiornamento modulo."), false);
@@ -625,6 +742,7 @@
               codes[i].checked = true;
             }
             document.querySelectorAll(".grants-module-toggle").forEach(function(m){ m.checked=true; m.indeterminate=false; });
+            document.querySelectorAll(".grants-resource-toggle").forEach(function(r){ r.checked=true; r.indeterminate=false; });
             setStatus("Tutti i permessi abilitati.", true);
           });
           document.getElementById("grants-disable-all")&&document.getElementById("grants-disable-all").addEventListener("click", async function(){
@@ -635,6 +753,7 @@
               codes[i].checked = false;
             }
             document.querySelectorAll(".grants-module-toggle").forEach(function(m){ m.checked=false; m.indeterminate=false; });
+            document.querySelectorAll(".grants-resource-toggle").forEach(function(r){ r.checked=false; r.indeterminate=false; });
             setStatus("Tutti i permessi disabilitati.", true);
           });
         })();

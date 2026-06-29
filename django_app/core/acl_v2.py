@@ -313,32 +313,76 @@ def _binding_path_sort_key(binding: RoutePermissionBinding) -> tuple[int, int, i
     )
 
 
-def _find_canonical_binding(*, route_name: str, path_norm: str) -> tuple[RoutePermissionBinding | None, str]:
-    by_route = None
+def _find_canonical_binding(
+    *,
+    route_name: str,
+    path_norm: str,
+    bindings: list[RoutePermissionBinding] | None = None,
+) -> tuple[RoutePermissionBinding | None, str]:
+    """Risolve il binding canonico effettivo per route_name/path.
 
-    if route_name:
-        by_route = (
-            RoutePermissionBinding.objects.filter(is_active=True, route_name__iexact=route_name)
+    Se ``bindings`` è fornito (lista di binding gia caricati in memoria, es. da
+    una vista che deve risolvere molte route) la risoluzione avviene senza query:
+    stessa logica di selezione, zero round-trip al DB. La logica di matching e di
+    priorita resta unica per evitare divergenze di comportamento tra i due rami.
+    Il chiamante deve passare binding con ``permission`` gia in select_related.
+    """
+    if bindings is None:
+        by_route = None
+
+        if route_name:
+            by_route = (
+                RoutePermissionBinding.objects.filter(is_active=True, route_name__iexact=route_name)
+                .select_related("permission")
+                .order_by("priority", "id")
+                .first()
+            )
+            if by_route is not None:
+                return by_route, "route_name"
+
+        path_candidates = (
+            RoutePermissionBinding.objects.filter(is_active=True)
+            .exclude(path_pattern="")
             .select_related("permission")
             .order_by("priority", "id")
-            .first()
         )
-        if by_route is not None:
+        path_matches: list[RoutePermissionBinding] = []
+        for candidate in path_candidates:
+            if _binding_matches_path(candidate, path_norm):
+                path_matches.append(candidate)
+        by_path = min(path_matches, key=_binding_path_sort_key) if path_matches else None
+        if by_path is not None:
+            return by_path, "path_pattern"
+        return None, ""
+
+    # Ramo in-memory: stessa semantica del ramo DB, ma sul set pre-caricato.
+    route_name_lower = str(route_name or "").lower()
+    if route_name_lower:
+        route_matches = [
+            binding
+            for binding in bindings
+            if getattr(binding, "is_active", True)
+            and str(binding.route_name or "").lower() == route_name_lower
+        ]
+        if route_matches:
+            by_route = min(
+                route_matches,
+                key=lambda binding: (
+                    int(getattr(binding, "priority", 0) or 0),
+                    int(getattr(binding, "id", 0) or 0),
+                ),
+            )
             return by_route, "route_name"
 
-    path_candidates = (
-        RoutePermissionBinding.objects.filter(is_active=True)
-        .exclude(path_pattern="")
-        .select_related("permission")
-        .order_by("priority", "id")
-    )
-    path_matches: list[RoutePermissionBinding] = []
-    for candidate in path_candidates:
-        if _binding_matches_path(candidate, path_norm):
-            path_matches.append(candidate)
-    by_path = min(path_matches, key=_binding_path_sort_key) if path_matches else None
-    if by_path is not None:
-        return by_path, "path_pattern"
+    path_matches = [
+        binding
+        for binding in bindings
+        if getattr(binding, "is_active", True)
+        and str(binding.path_pattern or "").strip()
+        and _binding_matches_path(binding, path_norm)
+    ]
+    if path_matches:
+        return min(path_matches, key=_binding_path_sort_key), "path_pattern"
     return None, ""
 
 
@@ -484,6 +528,7 @@ def resolve_canonical_target(
     path: str | None = None,
     route_name: str | None = None,
     request=None,
+    bindings: list[RoutePermissionBinding] | None = None,
 ) -> dict:
     resolved_route_name = str(route_name or "").strip()
     path_input = str(path or "").strip()
@@ -497,7 +542,9 @@ def resolve_canonical_target(
     path_norm = normalize_acl_path(path_input)
     if not resolved_route_name:
         resolved_route_name = resolve_route_name(path_norm, request=request)
-    binding, matched_by = _find_canonical_binding(route_name=resolved_route_name, path_norm=path_norm)
+    binding, matched_by = _find_canonical_binding(
+        route_name=resolved_route_name, path_norm=path_norm, bindings=bindings
+    )
     permission = binding.permission if binding is not None else None
     return {
         "path_input": path_input,

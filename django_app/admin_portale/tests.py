@@ -3759,6 +3759,107 @@ class AdminPortaleAclCanonicoTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "NO ROLE GRANT", html=False)
 
+    def test_grants_tab_renders_area_module_resource_hierarchy(self):
+        PermissionDefinition.objects.create(
+            code="assets.work_orders.manage", label="Gestione ODL", module="assets", is_active=True
+        )
+        PermissionDefinition.objects.create(
+            code="dpi.assegnazioni.view", label="DPI assegnazioni", module="dpi", is_active=True
+        )
+        self.client.force_login(self.admin_user)
+
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.get(self.url, {"tab": "grants", "role_id": "6"})
+
+        self.assertEqual(response.status_code, 200)
+        # Livello area (sopra il modulo) e livello risorsa (2o segmento del code).
+        self.assertContains(response, "Operazioni", html=False)
+        self.assertContains(response, "Sicurezza / Compliance", html=False)
+        self.assertContains(response, 'data-area="operazioni"', html=False)
+        self.assertContains(response, 'data-resource="work_orders"', html=False)
+        self.assertContains(response, 'class="grants-resource-toggle"', html=False)
+
+    def test_origin_filter_excludes_other_origins(self):
+        # Code canonico volutamente diverso dagli esempi citati nell'hint di pagina.
+        PermissionDefinition.objects.create(
+            code="assets.manutenzioni.export", label="Canonico", module="assets", is_active=True
+        )
+        PermissionDefinition.objects.create(
+            code="legacy.timbri.view", label="Legacy import", module="timbri", is_active=True
+        )
+        self.client.force_login(self.admin_user)
+
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.get(
+                self.url, {"tab": "permissions", "role_id": "6", "origin": "legacy"}
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "legacy.timbri.view", html=False)
+        self.assertNotContains(response, "assets.manutenzioni.export", html=False)
+
+
+class AclPermissionTaxonomyTests(SimpleTestCase):
+    def test_derive_resource_canonical_and_legacy(self):
+        from core.permission_taxonomy import derive_resource
+
+        self.assertEqual(derive_resource("assets.work_orders.manage", "assets"), "work_orders")
+        # Code legacy: il prefisso 'legacy' non deve diventare un gruppo rumore.
+        self.assertEqual(derive_resource("legacy.timbri.view", "timbri"), "timbri")
+        # Risorsa con nome uguale al modulo (entita' principale).
+        self.assertEqual(derive_resource("attrezzature.attrezzature.view", "attrezzature"), "attrezzature")
+        # Code annidato: si conservano i segmenti intermedi.
+        self.assertEqual(derive_resource("admin_portale.users.roles.edit", "admin_portale"), "users.roles")
+
+    def test_origin_for_code(self):
+        from core.permission_taxonomy import origin_for_code
+
+        self.assertEqual(origin_for_code("assets.work_orders.manage"), "canonico")
+        self.assertEqual(origin_for_code("legacy.timbri.view"), "legacy")
+        self.assertEqual(origin_for_code("tickets.api_sla.view"), "api")
+
+    def test_area_for_module_with_fallback(self):
+        from core.permission_taxonomy import area_for_module
+
+        self.assertEqual(area_for_module("dpi"), "sicurezza")
+        self.assertEqual(area_for_module("assets"), "operazioni")
+        self.assertEqual(area_for_module("admin_portale"), "core")
+        # Modulo sconosciuto -> Altro (mai nascosto).
+        self.assertEqual(area_for_module("modulo_inesistente"), "altro")
+
+    def test_group_permission_rows_by_area_nesting_and_counts(self):
+        from admin_portale.acl_v2_views import _group_permission_rows_by_area
+
+        def make_row(code, module, granted):
+            return {"permission": SimpleNamespace(code=code, module=module), "granted": granted}
+
+        rows = [
+            make_row("assets.work_orders.manage", "assets", True),
+            make_row("assets.work_orders.view", "assets", False),
+            make_row("dpi.assegnazioni.view", "dpi", True),
+        ]
+        areas = _group_permission_rows_by_area(rows)
+        by_area = {a["area"]: a for a in areas}
+        self.assertIn("operazioni", by_area)
+        self.assertIn("sicurezza", by_area)
+
+        operazioni = by_area["operazioni"]
+        self.assertEqual(operazioni["total_count"], 2)
+        self.assertEqual(operazioni["granted_count"], 1)
+        self.assertTrue(operazioni["partial"])
+        assets_module = operazioni["modules"][0]
+        self.assertEqual(assets_module["module"], "assets")
+        resource = assets_module["resources"][0]
+        self.assertEqual(resource["resource"], "work_orders")
+        self.assertEqual(resource["total_count"], 2)
+        self.assertEqual(resource["granted_count"], 1)
+
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class AdminPortaleAclRouteCoverageTests(TestCase):

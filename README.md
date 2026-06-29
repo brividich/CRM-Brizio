@@ -787,7 +787,7 @@ python django_app/manage.py seed_acl_uat --reset
 ### Strumenti admin
 
 - `/admin-portale/accessi/` — toggle modulo canonico-first (scrive `RolePermissionGrant`; legacy/nav restano diagnostici)
-- `/admin-portale/acl-canonico/` — gestione permission code, binding, grant, override, nav override
+- `/admin-portale/acl-canonico/` — gestione permission code, binding, grant, override, nav override (Role Grant raggruppato in gerarchia **area → modulo → risorsa**, con filtro per **origine** Canonico/Legacy/API)
 - `/admin-portale/acl-route-coverage/` — stato di ogni route (`CANONICAL_BOUND` / `LEGACY_FALLBACK` / `UNBOUND` / `REDIRECT_ONLY`) + export CSV
 - `/admin-portale/acl-diagnostica/` — diagnostica combinata con trace di ogni decisione
 - `/admin-portale/mappa-permessi-navigazione/` — workflow visuale cliccabile route/menu/ruoli
