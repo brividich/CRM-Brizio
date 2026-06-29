@@ -526,6 +526,10 @@ GESTIONE_SPECIFICHE = {
     "ESCALATION_GIORNI": int(env("GESTIONE_SPECIFICHE_ESCALATION_GIORNI", "14")),
 }
 
+# Allegati KICK-OFF/Task e documenti VRF (dati commerciali: client_name, part_number,
+# matrice rischi): storage privato fuori webroot, servito solo da view protette.
+TASKS_PRIVATE_ROOT = Path(env("TASKS_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
+
 # Chiave AES-256 Fernet per cifratura at rest dei file privati.
 # Generare con: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 # Se vuota: nessuna cifratura (sviluppo). In produzione DEVE essere impostata.

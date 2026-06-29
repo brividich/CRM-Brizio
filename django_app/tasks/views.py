@@ -3068,6 +3068,43 @@ def subtask_toggle(request, task_id: int, subtask_id: int):
     )
 
 
+@task_permissions_required("tasks_view")
+def task_attachment_download(request, attachment_id: int):
+    """Serve un allegato KICK-OFF/Task dallo storage privato (mai da /media pubblico).
+
+    SEC: gli allegati contengono dati commerciali (P/N, riferimenti cliente). Un
+    TaskAttachment può appartenere a un task e/o a un progetto: l'accesso è concesso
+    solo se il task o il progetto rientra nello scope OWN/TEAM dell'utente. Il
+    controllo precede l'accesso al file; out-of-scope → 404 (non rivela l'esistenza).
+    Streaming come allegato, nome file sanificato, nosniff.
+    """
+    import mimetypes
+    from pathlib import Path as _Path
+
+    from django.http import FileResponse, Http404
+
+    attachment = get_object_or_404(TaskAttachment, pk=attachment_id)
+    in_scope = (
+        (attachment.task_id and _scoped_tasks_queryset(request).filter(pk=attachment.task_id).exists())
+        or (attachment.project_id and _scoped_projects_queryset(request).filter(pk=attachment.project_id).exists())
+    )
+    if not in_scope:
+        raise Http404("Allegato non disponibile.")
+    if not attachment.file or not attachment.file.name:
+        raise Http404("Allegato non disponibile.")
+    try:
+        fh = attachment.file.open("rb")
+    except Exception:
+        raise Http404("File non trovato.")
+    filename = attachment.original_name or _Path(attachment.file.name).name
+    safe_name = filename.replace('"', "").replace("\r", "").replace("\n", "").strip() or "allegato"
+    content_type = mimetypes.guess_type(safe_name)[0] or "application/octet-stream"
+    resp = FileResponse(fh, content_type=content_type)
+    resp["Content-Disposition"] = f'attachment; filename="{safe_name}"'
+    resp["X-Content-Type-Options"] = "nosniff"
+    return resp
+
+
 @require_POST
 @task_permissions_required("tasks_view")
 def add_attachment(request, task_id: int):
