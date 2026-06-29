@@ -3006,3 +3006,65 @@ class AiReportTests(TestCase):
         html = resp.content.decode("utf-8")
         self.assertIn("data-ai-report", html)
         self.assertIn(reverse("ai_assistant:api_report"), html)
+
+
+class EmbeddingsCacheBatchTests(TestCase):
+    """La lettura cache degli embeddings deve andare a BATCH: una get_many con
+    migliaia di chiavi sfonda il limite parametri del DB (SQL Server ~2100, SQLite
+    999) -> fallirebbe e ricalcoleremmo TUTTI gli embedding ad ogni rebuild (~94s
+    di TTFT misurati in prod col corpus SGI). Regressione contro quel bug."""
+
+    def _chunk(self, i):
+        from collections import Counter
+
+        from ai_assistant.services import KnowledgeChunk
+
+        return KnowledgeChunk(
+            source=f"proc:DOC{i}",
+            title=f"Titolo {i}",
+            content=f"Contenuto del chunk numero {i}",
+            tokens=Counter(),
+        )
+
+    @override_settings(
+        OLLAMA_EMBED_PERSIST=True,
+        OLLAMA_EMBED_CACHE_GET_BATCH=100,
+        # MAX_ENTRIES alto: qui interessa il BATCHING della lettura, non la culling.
+        CACHES={
+            "default": {
+                "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+                "LOCATION": "embed-batch-test",
+                "OPTIONS": {"MAX_ENTRIES": 100000},
+            }
+        },
+    )
+    def test_get_many_a_batch_legge_dalla_cache_senza_ricalcolare(self):
+        import hashlib
+        from unittest import mock
+
+        from django.core.cache import caches
+
+        from ai_assistant import services
+
+        cache = caches["default"]
+        cache.clear()
+        model = "test-embed"
+        # 350 chunk > 3 batch da 100: con la vecchia get_many unica, su un DB reale
+        # con cap parametri (SQL Server ~2100, SQLite 999) salterebbe e ricalcolerebbe tutto.
+        chunks = [self._chunk(i) for i in range(350)]
+        for c in chunks:
+            key = "ai_embed:" + hashlib.sha256(
+                f"{model}\n{services._chunk_embed_text(c)}".encode("utf-8")
+            ).hexdigest()
+            cache.set(key, [0.1, 0.2, 0.3])
+
+        with mock.patch.object(cache, "get_many", wraps=cache.get_many) as spy, mock.patch.object(
+            services, "_compute_embeddings", return_value=None
+        ) as recompute:
+            vecs = services._embeddings_for_chunks(chunks, model)
+
+        self.assertIsNotNone(vecs)  # tutto letto dalla cache -> non None
+        self.assertEqual(len(vecs), 350)
+        self.assertTrue(all(v == [0.1, 0.2, 0.3] for v in vecs))
+        recompute.assert_not_called()  # nessun ricalcolo: erano tutti in cache
+        self.assertGreaterEqual(spy.call_count, 4)  # letture a batch (350/100), non una sola

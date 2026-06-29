@@ -329,6 +329,10 @@ RAG_EMBED_OPENAI_MODEL = env("RAG_EMBED_OPENAI_MODEL", "")
 RAG_EMBED_OPENAI_API_KEY = env("RAG_EMBED_OPENAI_API_KEY", "")
 OLLAMA_EMBED_PERSIST = env_bool("OLLAMA_EMBED_PERSIST", True)
 OLLAMA_EMBED_CACHE_TTL = int(env("OLLAMA_EMBED_CACHE_TTL", "2592000") or "2592000")
+# Lettura cache embeddings a batch: una get_many con migliaia di chiavi sfonda il
+# limite parametri del backend (SQL Server ~2100, SQLite 999) -> la lettura fallirebbe
+# e ricalcoleremmo TUTTI gli embedding ad ogni rebuild dell'indice. Tienilo < ~900.
+OLLAMA_EMBED_CACHE_GET_BATCH = int(env("OLLAMA_EMBED_CACHE_GET_BATCH", "500") or "500")
 # Fusione ibrida BM25 + semantica (Reciprocal Rank Fusion): k attenua i ranghi bassi.
 OLLAMA_RAG_HYBRID_RRF_K = int(env("OLLAMA_RAG_HYBRID_RRF_K", "60") or "60")
 # Routing semantico dei tool runtime: attiva i domini pertinenti per similarita'

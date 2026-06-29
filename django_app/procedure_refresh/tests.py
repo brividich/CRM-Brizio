@@ -444,3 +444,66 @@ class ImportSgiDaShareTests(TestCase):
 
         self.assertTrue(ProcedureDocument.objects.filter(code="MT CN 06").exists())
         self.assertFalse(ProcedureDocument.objects.filter(code="MOD.165").exists())  # MOD escluso
+
+    def _dedup(self):
+        from procedure_refresh.management.commands.import_sgi_da_share import dedup_candidates
+
+        return dedup_candidates
+
+    def _info(self, code, revision, title, file_name):
+        return {
+            "code": code,
+            "revision": revision,
+            "title": title,
+            "file_name": file_name,
+            "document_type": "MT",
+            "fallback": False,
+            "category": "",
+            "path": f"\\\\srv\\sgi\\{file_name}",
+        }
+
+    def test_dedup_stesso_titolo_tiene_revisione_piu_alta(self):
+        """Stesso codice + stesso titolo = revisioni: si tiene la più alta, niente perdita di documenti distinti."""
+        dedup = self._dedup()
+        parsed = [
+            self._info("MOD.165", "2", "RAR RiskAssessmentAndRegister", "MOD.165 - RAR RiskAssessmentAndRegister Rev.2.pdf"),
+            self._info("MOD.165", "3", "RAR RiskAssessmentAndRegister", "MOD.165 - RAR RiskAssessmentAndRegister Rev.3.pdf"),
+        ]
+        candidates, conflicts = dedup(parsed)
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(candidates[0]["code"], "MOD.165")
+        self.assertEqual(candidates[0]["revision"], "3")  # vince la revisione più alta
+        self.assertEqual(len(conflicts), 1)
+        self.assertEqual(conflicts[0]["motivo"], "revisione superata")
+
+    def test_dedup_titoli_diversi_stesso_codice_disambigua_e_non_perde(self):
+        """Documenti DISTINTI che condividono il codice parserizzato vengono tenuti tutti (codice disambiguato)."""
+        dedup = self._dedup()
+        parsed = [
+            self._info("IDOR CN 02", "9", "Manuale di gestione del sistema informatico", "IDOR CN 02_Manuale di gestione del sistema informatico Rev.9.pdf"),
+            self._info("IDOR CN 02", "2", "ISMS_Manuale ISMS", "IDOR CN 02 ISMS_Manuale ISMS Rev.2.pdf"),
+        ]
+        candidates, conflicts = dedup(parsed)
+        codes = {c["code"] for c in candidates}
+        # nessuna perdita: due documenti distinti, due codici distinti
+        self.assertEqual(len(candidates), 2)
+        self.assertIn("IDOR CN 02", codes)  # primario (revisione più alta) tiene il codice nudo
+        self.assertNotIn("IDOR CN 02", [c["code"] for c in candidates if c.get("disambiguated_from")])
+        disamb = [c for c in candidates if c.get("disambiguated_from") == "IDOR CN 02"]
+        self.assertEqual(len(disamb), 1)
+        self.assertEqual(disamb[0]["revision"], "2")
+        self.assertNotEqual(disamb[0]["code"], "IDOR CN 02")
+        self.assertFalse(conflicts)  # non è una revisione superata: è un altro documento
+
+    def test_dedup_primario_stabile_su_parita_revisione(self):
+        """A parità di revisione il codice nudo va al nome file alfabeticamente primo (idempotenza con import passati)."""
+        dedup = self._dedup()
+        parsed = [
+            self._info("Mod.088", "1", "CIS - B - Certificato Ispezione NC CND", "Mod.088 - CIS - B - Certificato Ispezione NC CND Rev.1.pdf"),
+            self._info("Mod.088", "1", "CIS - A - Certificato Ispezione CND", "Mod.088 - CIS - A - Certificato Ispezione CND Rev.1.pdf"),
+        ]
+        candidates, _ = dedup(parsed)
+        primary = [c for c in candidates if not c.get("disambiguated_from")]
+        self.assertEqual(len(primary), 1)
+        self.assertTrue(primary[0]["file_name"].startswith("Mod.088 - CIS - A"))  # "A" < "B"
+        self.assertEqual(primary[0]["code"], "Mod.088")

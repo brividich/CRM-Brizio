@@ -798,10 +798,18 @@ def _embeddings_for_chunks(chunks: list[KnowledgeChunk], model: str) -> list[lis
     ]
     cached_map: dict[str, Any] = {}
     if persist:
-        try:
-            cached_map = cache.get_many(cache_keys) or {}
-        except Exception:
-            cached_map = {}
+        # get_many A BATCH: una IN(...) con migliaia di chiavi sfonda il limite di
+        # parametri del backend (SQL Server ~2100, SQLite 999) -> la lettura intera
+        # fallirebbe e ricalcoleremmo TUTTI gli embedding ad ogni rebuild (~140s di
+        # TTFT). Batch piccolo e tollerante: un batch fallito = quei chunk risultano
+        # "missing" e vengono ricalcolati, senza buttare via gli altri letti.
+        get_batch = max(1, int(getattr(settings, "OLLAMA_EMBED_CACHE_GET_BATCH", 500) or 500))
+        for start in range(0, len(cache_keys), get_batch):
+            keys = cache_keys[start:start + get_batch]
+            try:
+                cached_map.update(cache.get_many(keys) or {})
+            except Exception:
+                continue
 
     embeddings: list[list[float] | None] = [None] * len(chunks)
     missing: list[int] = []

@@ -11,7 +11,13 @@ Principi:
   esclusa; ogni file nell'albero attivo è la revisione corrente del suo documento.
 - **L'AI propone, l'umano firma**: ``--dry-run`` è il default, scrive solo con
   ``--apply``. Il report elenca cosa verrebbe creato/aggiornato, cosa è saltato
-  (nome non riconosciuto, es. standard esterni) e i conflitti di codice.
+  (nome non riconosciuto, es. standard esterni), i codici disambiguati e i
+  conflitti di revisione.
+- **Niente perdita di documenti distinti** (``dedup_candidates``): a parità di
+  codice, file con lo stesso titolo sono revisioni (si tiene la più alta), titoli
+  diversi sono documenti distinti (es. ``IDOR CN 02`` vs ``IDOR CN 02 ISMS``) e si
+  tengono tutti, disambiguando il codice dei secondari. Il primario mantiene il
+  codice nudo → import idempotente.
 - **Best-effort sul nome**: convenzione ``<CODICE> Rev.<n>_<Titolo>.pdf``
   (es. ``MT CN 06 Rev.21_Risorse Umane.pdf``); gli allegati hanno codice distinto
   (``IDOR CN 01 Allegato A``). I nomi non riconosciuti non vengono importati.
@@ -27,6 +33,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections import defaultdict
 from datetime import date
 from pathlib import Path
 
@@ -138,6 +145,75 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def _title_key(title: str) -> str:
+    """Chiave di confronto titoli: minuscolo, solo alfanumerici, spazi normalizzati.
+
+    Serve a distinguere «stesso documento, revisione diversa» (titolo uguale) da
+    «documenti diversi che condividono il codice parserizzato» (titolo diverso).
+    """
+    return re.sub(r"[^a-z0-9]+", " ", (title or "").lower()).strip()
+
+
+def dedup_candidates(parsed: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Deduplica i PDF parserizzati in (candidates, conflicts), titolo-aware.
+
+    Raggruppa per codice. Dentro lo stesso codice:
+    - file con lo **stesso titolo** = revisioni dello stesso documento -> si tiene
+      la revisione piu' alta (le altre vanno in ``conflicts`` come «revisione superata»);
+    - titoli **diversi** sotto lo stesso codice = **documenti distinti** (es.
+      ``IDOR CN 02`` "Manuale sistema informatico" vs ``IDOR CN 02 ISMS`` "Manuale ISMS",
+      o ``MOD.007 - A`` vs ``MOD.007 - D``): si tengono **tutti**, disambiguando il
+      codice dei secondari col titolo cosi' non si perde nessun documento.
+
+    Il documento "primario" (revisione piu' alta; a parita', nome file alfabetico)
+    mantiene il **codice nudo** -> idempotente con quanto gia' importato in passato.
+    """
+    groups: dict[str, list[dict]] = defaultdict(list)
+    for info in parsed:
+        groups[info["code"]].append(info)
+
+    candidates: list[dict] = []
+    conflicts: list[dict] = []
+    for code, items in groups.items():
+        by_title: dict[str, list[dict]] = defaultdict(list)
+        for it in items:
+            by_title[_title_key(it.get("title", ""))].append(it)
+
+        # Vincitore per ciascun titolo: revisione piu' alta (a parita', nome file).
+        per_title_winners: list[dict] = []
+        for group in by_title.values():
+            ordered = sorted(group, key=lambda d: (_rev_int(d), d["file_name"]))
+            winner = ordered[-1]
+            per_title_winners.append(winner)
+            for it in ordered[:-1]:
+                conflicts.append(
+                    {
+                        "code": code,
+                        "tenuto": winner["file_name"],
+                        "scartato": it["file_name"],
+                        "motivo": "revisione superata",
+                    }
+                )
+
+        # Primario = revisione piu' alta complessiva; a parita', nome file alfabetico
+        # (coerente con la vecchia logica -> codice nudo stabile/idempotente).
+        max_rev = max(_rev_int(d) for d in per_title_winners)
+        primary = min(
+            (d for d in per_title_winners if _rev_int(d) == max_rev),
+            key=lambda d: d["file_name"],
+        )
+        for w in per_title_winners:
+            if w is primary:
+                w["code"] = code
+            else:
+                w["code"] = _safe_code(f"{code} {w.get('title', '')}".strip())
+                w["disambiguated_from"] = code
+            candidates.append(w)
+
+    candidates.sort(key=lambda d: d["code"])
+    return candidates, conflicts
+
+
 class Command(BaseCommand):
     help = "Importa il corpus documentale SGI (PDF) da una share come documenti procedura citabili dall'AI."
 
@@ -197,23 +273,10 @@ class Command(BaseCommand):
             if limit and len(parsed) >= limit:
                 break
 
-        # 2) Dedup per codice: a parità di codice tiene la revisione più alta
-        #    (poi il nome), il resto è un conflitto da segnalare.
-        by_code: dict[str, dict] = {}
-        conflicts: list[dict] = []
-        for info in parsed:
-            code = info["code"]
-            prev = by_code.get(code)
-            if prev is None:
-                by_code[code] = info
-                continue
-            keep, drop = (info, prev) if _rev_int(info) > _rev_int(prev) else (prev, info)
-            by_code[code] = keep
-            conflicts.append(
-                {"code": code, "tenuto": keep["file_name"], "scartato": drop["file_name"]}
-            )
-
-        candidates = sorted(by_code.values(), key=lambda d: d["code"])
+        # 2) Dedup titolo-aware: stesso titolo => revisioni (tiene la più alta),
+        #    titoli diversi sotto lo stesso codice => documenti distinti (codice
+        #    disambiguato col titolo, nessuna perdita). Vedi dedup_candidates().
+        candidates, conflicts = dedup_candidates(parsed)
 
         # 3) Applica (o simula).
         created_docs = updated_docs = created_revs = 0
@@ -225,12 +288,14 @@ class Command(BaseCommand):
                 created_revs += int(c_rev)
 
         fallback_count = sum(1 for d in candidates if d.get("fallback"))
+        disambiguated = [d for d in candidates if d.get("disambiguated_from")]
         summary = {
             "mode": "apply" if apply else "dry-run",
             "root": raw_root,
             "pdf_validi": len(parsed),
             "documenti_unici": len(candidates),
             "fallback": fallback_count,
+            "disambiguati": len(disambiguated),
             "saltati": len(skipped),
             "conflitti": len(conflicts),
             "documenti_creati": created_docs if apply else None,
@@ -256,7 +321,8 @@ class Command(BaseCommand):
         )
         self.stdout.write(
             f"PDF validi={len(parsed)} | documenti unici={len(candidates)} "
-            f"(di cui fallback nome={fallback_count}) | saltati={len(skipped)} | conflitti={len(conflicts)}"
+            f"(di cui fallback nome={fallback_count}, codici disambiguati={len(disambiguated)}) "
+            f"| saltati={len(skipped)} | conflitti={len(conflicts)}"
         )
         self.stdout.write("-" * 78)
         for info in candidates[:40]:
@@ -271,11 +337,20 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING(f"Saltati ({len(skipped)}), campione:"))
             for s in skipped[:15]:
                 self.stdout.write(self._safe(f"  - {s['file']}"))
+        if disambiguated:
+            self.stdout.write("-" * 78)
+            self.stdout.write(self.style.WARNING(
+                f"Codici disambiguati ({len(disambiguated)}) — documenti distinti sotto lo stesso codice, tenuti tutti:"
+            ))
+            for d in disambiguated[:15]:
+                self.stdout.write(self._safe(f"  - {d['disambiguated_from']} -> {d['code']}  «{d['file_name']}»"))
         if conflicts:
             self.stdout.write("-" * 78)
             self.stdout.write(self.style.WARNING(f"Conflitti di codice ({len(conflicts)}), campione:"))
             for c in conflicts[:15]:
-                self.stdout.write(self._safe(f"  - {c['code']}: tengo «{c['tenuto']}», scarto «{c['scartato']}»"))
+                self.stdout.write(self._safe(
+                    f"  - {c['code']}: tengo «{c['tenuto']}», scarto «{c['scartato']}» ({c.get('motivo', '')})"
+                ))
         self.stdout.write("-" * 78)
         if apply:
             self.stdout.write(self.style.SUCCESS(

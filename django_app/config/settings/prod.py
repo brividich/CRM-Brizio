@@ -48,12 +48,17 @@ DATABASES = {"default": build_database_from_env("sqlserver")}
 # rende cache.incr() atomico e garantisce invalidazione ACL immediata su tutti i worker.
 # Setup una-tantum: python manage.py createcachetable
 _CACHE_TABLE = env("DJANGO_CACHE_TABLE", "django_cache")
+# MAX_ENTRIES deve superare il numero di chunk indicizzati dal RAG: gli embeddings
+# (uno per chunk, ~10k col corpus SGI) vivono qui. Se MAX_ENTRIES < #chunk il
+# DatabaseCache li cullà di continuo -> ogni rebuild indice ricalcola TUTTI gli
+# embedding via TEI (~140s di TTFT). Tienilo ampio (default 50k); env-configurabile.
+_CACHE_MAX_ENTRIES = int(env("DJANGO_CACHE_MAX_ENTRIES", "50000") or "50000")
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.db.DatabaseCache",
         "LOCATION": _CACHE_TABLE,
         "OPTIONS": {
-            "MAX_ENTRIES": 5000,
+            "MAX_ENTRIES": _CACHE_MAX_ENTRIES,
         },
     }
 }
