@@ -3479,6 +3479,14 @@ _REPORT_REQUIRED_PLACEHOLDER_GROUPS = [
     ("{{ anomalia.id }}", "{{ anomalia.seriale }}", "{{ anomalia.descrizione }}"),
 ]
 _EXTERNAL_SCRIPT_RE = re.compile(r'<script[^>]+src\s*=\s*["\']https?://', re.IGNORECASE)
+# SEC: il template OP viene reso col motore Django e servito a qualsiasi utente che
+# apre il report; un caricatore (anche legacy-admin non superuser) potrebbe iniettare
+# script che colpiscono utenti più privilegiati. Si bloccano in validazione TUTTI gli
+# <script> (inline o esterni), gli handler di evento on*= e gli URI javascript:/data:
+# (i placeholder {{ }} restano consentiti e i dati sono comunque auto-escapati).
+_ANY_SCRIPT_RE = re.compile(r'<\s*script', re.IGNORECASE)
+_EVENT_HANDLER_RE = re.compile(r'<[^>]*\son\w+\s*=', re.IGNORECASE)
+_DANGEROUS_URI_RE = re.compile(r'(?:href|src|action|formaction)\s*=\s*["\']?\s*(?:javascript|data|vbscript):', re.IGNORECASE)
 
 
 def _report_template_path() -> Path:
@@ -3513,8 +3521,12 @@ def _validate_report_template(content: bytes, filename: str) -> list[str]:
             "({{ op.id }}, {{ anomalia.seriale }}, {{ anomalia.descrizione }}) "
             "oppure quelli legacy della singola anomalia."
         )
-    if _EXTERNAL_SCRIPT_RE.search(text):
-        errors.append("Il template non può caricare script da domini esterni (<script src=\"https://...\">).")
+    if _ANY_SCRIPT_RE.search(text):
+        errors.append("Il template non può contenere tag <script> (né inline né esterni).")
+    if _EVENT_HANDLER_RE.search(text):
+        errors.append("Il template non può contenere handler di evento inline (es. onclick=, onerror=).")
+    if _DANGEROUS_URI_RE.search(text):
+        errors.append("Il template non può contenere URI javascript:/data:/vbscript: in href/src.")
     return errors
 
 

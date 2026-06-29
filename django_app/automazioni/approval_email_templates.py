@@ -104,7 +104,7 @@ def _build_facts_html(facts: list[dict[str, str]]) -> str:
 
 def _button_html(label: str, url: str, color: str) -> str:
     return (
-        f'<a href="{url}" class="ecta" style="display:inline-block;padding:12px 22px;background:{color};'
+        f'<a href="{_escape_html(url)}" class="ecta" style="display:inline-block;padding:12px 22px;background:{color};'
         f'color:#ffffff;text-decoration:none;border-radius:9px;font-size:14px;font-weight:800;'
         f'margin:0 10px 10px 0;">'
         f"{_escape_html(label)}</a>"

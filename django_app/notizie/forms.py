@@ -128,6 +128,16 @@ class NotiziaAllegatoForm(forms.ModelForm):
         if not file_obj and not url_esterno:
             raise forms.ValidationError("Inserisci un file o un URL esterno.")
 
+        if url_esterno:
+            # SEC: url_esterno è un CharField reso in un href; consenti solo http/https
+            # o percorsi relativi che iniziano con '/'. Blocca javascript:/data:/vbscript:
+            # che eseguirebbero codice al click (stored XSS), che l'autoescape non ferma.
+            low = url_esterno.lower()
+            if not (low.startswith("http://") or low.startswith("https://") or url_esterno.startswith("/")):
+                raise forms.ValidationError(
+                    "L'URL esterno deve iniziare con http:// o https:// (o essere un percorso che inizia con /)."
+                )
+
         if file_obj:
             try:
                 validate_extension_and_mime(
