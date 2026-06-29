@@ -4480,7 +4480,11 @@ def _asset_availability_report(
     start,
     end,
     exclude_task_id: int | None = None,
+    scope_task_ids: set[int] | None = None,
 ) -> dict:
+    # SEC: `scope_task_ids` (se fornito) e' l'insieme dei task visibili al richiedente
+    # (scope OWN/TEAM). I conflitti su task fuori scope mostrano solo l'occupazione,
+    # senza titolo (che puo' contenere P/N o riferimenti cliente) ne' link.
     """Calcola il report di disponibilita per un asset nella finestra [start, end].
 
     Il risultato contiene: stato asset, OdL aperti, verifiche periodiche, ticket
@@ -4601,8 +4605,9 @@ def _asset_availability_report(
             if not _windows_overlap(start, end, o_start, o_end):
                 continue
             seen_task_ids.add(ref.task_id)
+            in_scope = scope_task_ids is None or other.id in scope_task_ids
             try:
-                t_url = reverse("tasks:detail", kwargs={"task_id": other.id})
+                t_url = reverse("tasks:detail", kwargs={"task_id": other.id}) if in_scope else ""
             except Exception:
                 t_url = ""
             when_label = o_start.isoformat() if o_start else ""
@@ -4611,8 +4616,11 @@ def _asset_availability_report(
             conflicts.append({
                 "type": "task",
                 "severity": "block",
-                "title": f"Attivita gia' assegnata: {other.title}",
-                "detail": other.get_status_display(),
+                "title": (
+                    f"Attivita gia' assegnata: {other.title}" if in_scope
+                    else "Attivita gia' assegnata (altro team)"
+                ),
+                "detail": other.get_status_display() if in_scope else "",
                 "when": when_label,
                 "url": t_url,
             })
@@ -4790,7 +4798,10 @@ def asset_availability_json(request, asset_id: int):
             exclude_task_id = None
 
     cfg = TaskImpostazioni.get_singleton()
-    report = _asset_availability_report(asset, start, end, exclude_task_id)
+    # SEC: passa gli id dei task visibili (scope OWN/TEAM); i conflitti su task fuori
+    # scope mostreranno l'occupazione senza titolo/link.
+    scope_task_ids = set(_scoped_tasks_queryset(request).values_list("id", flat=True))
+    report = _asset_availability_report(asset, start, end, exclude_task_id, scope_task_ids=scope_task_ids)
     report["ok"] = True
     report["check_enabled"] = bool(cfg.asset_conflict_check_enabled)
     report["block_on_conflict"] = bool(cfg.asset_conflict_block)
