@@ -3667,7 +3667,14 @@ def _domain_seed_vectors() -> dict[str, list[list[float]]] | None:
     """Embeddings (cache di processo) delle frasi-seme per ogni dominio."""
     from . import services
 
-    model = str(getattr(settings, "OLLAMA_EMBED_MODEL", "") or "").strip()
+    # Guard sul retrieval semantico REALE, non sul solo OLLAMA_EMBED_MODEL: con backend
+    # "openai" (TEI) o "fastembed" il modello vive in RAG_EMBED_OPENAI_MODEL /
+    # RAG_EMBED_FASTEMBED_MODEL e OLLAMA_EMBED_MODEL puo' essere vuoto -> col vecchio
+    # check il routing semantico si spegneva in silenzio. La chiave di cache usa il
+    # modello EFFETTIVO cosi' un cambio modello (es. nomic -> bge-m3) la invalida.
+    if not services.embeddings_enabled():
+        return None
+    model = services._effective_embed_model()
     if not model:
         return None
     cached = _ROUTING_SEED_CACHE.get("vectors")

@@ -131,6 +131,77 @@ function Invoke-GuardCommand {
     }
 }
 
+function Invoke-RagRegressionGate {
+    # Gate anti-regressione del retrieval RAG: esegue `ai_eval --rag --json` sulla KB
+    # curata e FALLISCE se il recall non e' totale o l'MRR scende sotto la soglia.
+    # Forza OLLAMA_EMBED_ENABLED=0 -> BM25 puro: deterministico, nessuna dipendenza
+    # da GPU/TEI (il --rag-sgi resta una verifica di prod, richiede il corpus SGI).
+    param(
+        [string]$PythonExe,
+        [string]$ManagePy,
+        [string]$ArtifactPath = "",
+        [double]$MinMrr = 0.90
+    )
+
+    $Label = "ai_eval --rag (regression gate RAG/KB)"
+    Write-GuardInfo "Eseguo ${Label}: BM25 deterministico, no GPU"
+    Push-Location $SourcePath
+    $previousEAP = $ErrorActionPreference
+    $hadEmbedVar = Test-Path Env:\OLLAMA_EMBED_ENABLED
+    $prevEmbed = if ($hadEmbedVar) { $env:OLLAMA_EMBED_ENABLED } else { $null }
+    $tempRoot = Join-Path $SourcePath ".tmp_tests\release_guard"
+    New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
+    $stdoutPath = Join-Path $tempRoot ("rag-{0}.json" -f ([guid]::NewGuid().ToString("N")))
+    $stderrPath = Join-Path $tempRoot ("rag-{0}.err" -f ([guid]::NewGuid().ToString("N")))
+    try {
+        $ErrorActionPreference = "Continue"
+        $env:OLLAMA_EMBED_ENABLED = "0"
+        & $PythonExe $ManagePy ai_eval --rag --json --settings=config.settings.test 1> $stdoutPath 2> $stderrPath
+        $exitCode = $LASTEXITCODE
+        $stdout = Get-Content -LiteralPath $stdoutPath -Raw -ErrorAction SilentlyContinue
+    } finally {
+        $ErrorActionPreference = $previousEAP
+        # Ripristina lo stato precedente: $prevEmbed = $null (var non settata) -> la rimuove.
+        [Environment]::SetEnvironmentVariable('OLLAMA_EMBED_ENABLED', $prevEmbed)
+        foreach ($p in @($stdoutPath, $stderrPath)) {
+            if ($p -and (Test-Path -LiteralPath $p)) { Remove-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue }
+        }
+        Pop-Location
+    }
+
+    if ($ArtifactPath -and $stdout) {
+        Write-TextArtifact -Path $ArtifactPath -Lines @($stdout)
+        Write-GuardInfo "Artifact aggiornato: $ArtifactPath"
+    }
+
+    if ($exitCode -ne 0) { Add-Failure("$Label fallito con exit code $exitCode"); return }
+    if (-not $stdout) { Add-Failure("$Label non ha prodotto output JSON"); return }
+
+    try {
+        $data = $stdout | ConvertFrom-Json
+    } catch {
+        Add-Failure("${Label}: JSON non parsabile ($($_.Exception.Message))")
+        return
+    }
+
+    $summary = $data.summary
+    if ($null -eq $summary) { Add-Failure("${Label}: campo 'summary' assente"); return }
+
+    $cases = [int]$summary.cases
+    $recall = [int]$summary.recall_hits
+    $mrr = [double]$summary.mrr
+    if ($cases -le 0) { Add-Failure("${Label}: 0 casi golden KB valutati (golden vuota?)"); return }
+    if ($recall -lt $cases) {
+        Add-Failure(("${Label}: regressione recall KB {0}/{1} (atteso 100%); MRR={2}" -f $recall, $cases, $mrr))
+        return
+    }
+    if ($mrr -lt $MinMrr) {
+        Add-Failure(("${Label}: regressione MRR KB {0} < soglia {1} (recall {2}/{3})" -f $mrr, $MinMrr, $recall, $cases))
+        return
+    }
+    Write-GuardInfo ("$Label OK: recall {0}/{1}, MRR {2}" -f $recall, $cases, $mrr)
+}
+
 function Assert-FileExists {
     param(
         [string]$Path,
@@ -547,6 +618,12 @@ if (-not $pythonExe) {
         -Arguments $deploymentValidationArgs `
         -Label "validate_deployment JSON artifact" `
         -ArtifactPath $deploymentArtifact)
+
+    # Regression gate RAG (KB curata): BM25 deterministico, no GPU. Cattura a monte le
+    # regressioni di retrieval (chunking / stopword / stemming / seed) prima che si
+    # manifestino nella chat in prod. Il --rag-sgi resta verifica di prod (corpus SGI).
+    $ragArtifact = Join-Path $ArtifactDir "rag_eval.json"
+    Invoke-RagRegressionGate -PythonExe $pythonExe -ManagePy $djangoManage -ArtifactPath $ragArtifact -MinMrr 0.90
 
     if ($WithLive) {
         Write-GuardInfo "Eseguo contract test livello B (live integration). Richiedono credenziali reali."

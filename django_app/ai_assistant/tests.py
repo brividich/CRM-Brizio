@@ -758,6 +758,29 @@ class AiAssistantTests(TestCase):
         tools._ROUTING_SEED_CACHE.update({"model": "", "vectors": None})
         self.assertIn("anagrafica", active)
 
+    def test_domain_seed_vectors_use_effective_embed_model_with_tei_backend(self):
+        """Col backend TEI ("openai") il modello vive in RAG_EMBED_OPENAI_MODEL e
+        OLLAMA_EMBED_MODEL puo' essere vuoto: i seed di routing NON devono spegnersi
+        (col vecchio codice -> None) e la chiave cache segue il modello effettivo."""
+        from ai_assistant import services, tools
+
+        tools._ROUTING_SEED_CACHE.update({"model": "", "vectors": None})
+        with override_settings(
+            OLLAMA_EMBED_ENABLED=True,
+            OLLAMA_EMBED_MODEL="",  # vuoto: col vecchio guard il routing si spegneva
+            RAG_EMBED_BACKEND="openai",
+            RAG_EMBED_OPENAI_MODEL="BAAI/bge-m3",
+            RAG_EMBED_OPENAI_BASE_URL="http://10.0.0.34:8081",
+        ), patch.object(
+            services, "embed_texts", side_effect=lambda texts, **kw: [[1.0, 0.0] for _ in texts]
+        ):
+            seeds = tools._domain_seed_vectors()
+            cached_model = tools._ROUTING_SEED_CACHE.get("model")
+        tools._ROUTING_SEED_CACHE.update({"model": "", "vectors": None})
+
+        self.assertIsNotNone(seeds, "i seed di routing non devono spegnersi col backend TEI")
+        self.assertEqual(cached_model, "BAAI/bge-m3")
+
     def test_semantic_routing_does_not_bypass_acl(self):
         """Un tool attivato SOLO dal routing semantico (nessuna keyword) deve
         comunque applicare l'ACL interna e negare l'accesso se non autorizzato."""
