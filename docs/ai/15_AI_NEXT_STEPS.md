@@ -70,3 +70,18 @@ Una superficie alla volta, ognuna con: F1 backend → F1b UI → privacy review 
 3. **FASE 3.2 (reranker)** quando si vuole il salto di qualità retrieval.
 
 Tracciamento: task list di sessione (vedi `TaskList`).
+
+---
+
+## Risultati FASE 1 (dev) — 2026-06-30
+- **1.1 ✅** Regression gate `Invoke-RagRegressionGate` in `release_guard.ps1` (Wave 2): `ai_eval --rag --json` con `OLLAMA_EMBED_ENABLED=0` (BM25 puro, no GPU), fallisce se `recall_hits<cases` o `MRR<0.90`. Baseline dev KB **26/26, MRR 0.962**. Commit `c383807`.
+- **1.2 ✅** Fix `tools._domain_seed_vectors`: guard `embeddings_enabled()` + chiave cache `_effective_embed_model()`. +1 test. Commit `c383807`.
+- **1.3 ✅ (dev)** Stemming, misura KB (BM25 puro): OFF → MRR **0.962** (rank1 24); ON → MRR **0.942** (rank1 23); recall 26/26 in entrambi. **Sulla KB lo stemming peggiora leggermente** → NON attivare alla cieca; decide la misura SGI in prod.
+- **1.4 ✅ (dev)** Analisi golden: probabili 3 miss tra r31/r41 (`MOD.xxx` su corpus solo-procedure), r55/r56 (`IDOR CN 01`/`02` quasi identici), r63 (`MT CN 125_5`, underscore da verificare). Correzioni da applicare dopo validazione su indice live.
+
+## STOP 1 — checklist PROD (richiede TEI + corpus SGI)
+Eseguire sul server prod (venv prod, `--settings=config.settings.prod`):
+1. **Baseline SGI**: `python django_app\manage.py ai_eval --rag-sgi --json` → annota recall/MRR (atteso ~29/32, 0.634).
+2. **Stemming**: ripetere `ai_eval --rag-sgi --json` con `OLLAMA_RAG_STEMMING_ENABLED=1`. Attivare nel `config\.env` **solo se** il recall SGI sale di più di quanto la KB perda in MRR (la chat usa entrambi i corpora).
+3. **Golden**: per ogni MISS reale, correggere `golden_sgi.jsonl` (r63: allineare il codice al formato live; r31/r41: tenere solo `MT CN` se la modulistica non è indicizzata) o affinare la query — senza mascherare difetti reali di retrieval.
+4. **Ritaratura routing bge-m3**: con `ai_eval` routing-mode misurare e portare `AI_TOOL_ROUTING_THRESHOLD`/`_MARGIN` ai valori bge-m3 (tipico 0.72–0.78); **allineare `OLLAMA_EMBED_MODEL`** al modello reale per coerenza cache seed (ora corretta dal fix 1.2, ma il nome resta usato altrove).
