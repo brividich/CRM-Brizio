@@ -3193,3 +3193,216 @@ class DocumentOverviewTests(TestCase):
 
         idx = self._index([self._chunk("proc:MT CN 07#rev14", "MT CN 07 Rev.14")])
         self.assertIsNone(_document_overview_context("di cosa parla MT CN 06?", idx))
+
+
+@override_settings(
+    LEGACY_AUTH_ENABLED=False,
+    SETUP_WIZARD_REQUIRED=False,
+    AI_TOOL_ROUTING_ENABLED=False,  # keyword-only: deterministico, niente rete
+)
+class SkillMatrixContextTests(TestCase):
+    """Tool live Skill Matrix MOD.187: GATED e SAFE-BY-DEFAULT.
+
+    Tre cancelli in cascata: ACL canonico (anagrafica.skillmatrix.view) ->
+    revisione privacy approvata -> minimizzazione campi. Nessun dato personale
+    finche' tutti i cancelli sono verdi; con matrice vuota risponde "non popolata".
+    """
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()
+        User = get_user_model()
+        # Superuser: bypassa l'ACL canonico anagrafica.skillmatrix.view.
+        self.admin = User.objects.create_superuser(
+            username="skm.admin", email="skm.admin@example.local", password="password",
+        )
+        # Utente base: nessun permesso skill matrix.
+        self.base = User.objects.create_user(
+            username="skm.base", email="skm.base@example.local", password="password",
+        )
+
+    @staticmethod
+    def _skm_audit(context):
+        for entry in (context.audit or {}).get("tools", []):
+            if entry.get("tool") == "skillmatrix":
+                return entry
+        return None
+
+    @staticmethod
+    def _approve_privacy(status="approved"):
+        from ai_assistant.models import AiToolPrivacyReview
+
+        AiToolPrivacyReview.objects.update_or_create(
+            tool_key="skill_matrix", defaults={"privacy_status": status},
+        )
+
+    # --- gate keyword ------------------------------------------------------
+    def test_wants_skillmatrix_gate_precision(self):
+        from ai_assistant.tools import _wants_skillmatrix_context
+
+        # domande di abilitazione reali -> True
+        self.assertTrue(_wants_skillmatrix_context("chi e' abilitato sulla DM11?"))
+        self.assertTrue(_wants_skillmatrix_context("chi puo' sostituire sulla DM11?"))
+        self.assertTrue(_wants_skillmatrix_context("operatori abilitati per reparto"))
+        self.assertTrue(_wants_skillmatrix_context("quali sono le macchine scoperte?"))
+        self.assertTrue(_wants_skillmatrix_context("prontezza squadra produzione"))
+        self.assertTrue(_wants_skillmatrix_context("livello operatore skill matrix MOD.187"))
+        # domande NON di skill matrix -> False (no falsi positivi che sopprimono il RAG)
+        self.assertFalse(_wants_skillmatrix_context("manutenzione della macchina"))
+        self.assertFalse(_wants_skillmatrix_context("mostra le mie ferie residue"))
+        self.assertFalse(_wants_skillmatrix_context("quali asset sono in riparazione?"))
+
+    # --- (1) accesso NEGATO senza permesso ---------------------------------
+    def test_denies_user_without_permission(self):
+        request = SimpleNamespace(user=self.base, path="/assistente-ai/")
+        with patch("ai_assistant.tools.get_legacy_user", return_value=None):
+            context = build_runtime_context(request, "chi e' abilitato sulla DM11?")
+
+        self.assertIn("tool:skillmatrix:accesso-negato", context.sources)
+        self.assertIn("anagrafica.skillmatrix.view", context.text)
+        audit = self._skm_audit(context)
+        self.assertIsNotNone(audit)
+        self.assertFalse(audit["allowed"])
+        self.assertEqual(audit["reason"], "missing_skillmatrix_view")
+        # niente dati: nessun blocco "abilitati in lista"
+        self.assertNotIn("abilitati in lista", context.text)
+
+    # --- (2) revisione privacy NON approvata -------------------------------
+    def test_privacy_review_pending_blocks_data(self):
+        request = SimpleNamespace(user=self.admin, path="/assistente-ai/")
+        context = build_runtime_context(request, "chi e' abilitato sulla DM11?")
+
+        self.assertIn("tool:skillmatrix:in-revisione", context.sources)
+        self.assertIn("attesa di approvazione privacy", context.text)
+        audit = self._skm_audit(context)
+        self.assertIsNotNone(audit)
+        self.assertFalse(audit["allowed"])
+        self.assertEqual(audit["reason"], "privacy_review_pending")
+        self.assertNotIn("abilitati in lista", context.text)
+
+    def test_blocked_privacy_review_is_not_treated_as_approved(self):
+        self._approve_privacy(status="blocked")
+        request = SimpleNamespace(user=self.admin, path="/assistente-ai/")
+        context = build_runtime_context(request, "chi e' abilitato sulla DM11?")
+
+        self.assertIn("tool:skillmatrix:in-revisione", context.sources)
+        audit = self._skm_audit(context)
+        self.assertEqual(audit["reason"], "privacy_review_pending")
+
+    # --- (3) permesso + review approvata, matrice VUOTA --------------------
+    def test_approved_but_empty_matrix_reports_not_populated(self):
+        from anagrafica.models import CompetenzaSkm
+        from assets.models import Asset
+
+        asset = Asset.objects.create(asset_tag="DM11", name="Rettifica DM11", asset_type=Asset.TYPE_PC)
+        CompetenzaSkm.objects.create(
+            competenza_key="DM11", display="DM11 Rettifica",
+            tipo=CompetenzaSkm.TIPO_MACCHINA, asset=asset, match_confermato=True,
+        )
+        self._approve_privacy()
+        request = SimpleNamespace(user=self.admin, path="/assistente-ai/")
+
+        context = build_runtime_context(request, "chi e' abilitato sulla DM11?")
+
+        self.assertIn("tool:skillmatrix:abilitati", context.sources)
+        self.assertIn("non ancora popolata", context.text)
+        audit = self._skm_audit(context)
+        self.assertIsNotNone(audit)
+        self.assertTrue(audit["allowed"])
+        self.assertEqual(audit["row_count"], 0)
+
+    def test_approved_empty_prontezza_reports_not_populated(self):
+        self._approve_privacy()
+        request = SimpleNamespace(user=self.admin, path="/assistente-ai/")
+
+        context = build_runtime_context(request, "prontezza squadra")
+
+        self.assertIn("tool:skillmatrix:prontezza", context.sources)
+        self.assertIn("non ancora popolata", context.text)
+        audit = self._skm_audit(context)
+        self.assertTrue(audit["allowed"])
+        self.assertEqual(audit["intent"], "prontezza")
+
+    # --- (4) audit METADATA-ONLY con dati presenti -------------------------
+    def test_audit_is_metadata_only_with_data(self):
+        from anagrafica.models import AbilitazioneMacchina, CompetenzaSkm
+        from assets.models import Asset
+
+        asset = Asset.objects.create(asset_tag="DM11", name="Rettifica DM11", asset_type=Asset.TYPE_PC)
+        CompetenzaSkm.objects.create(
+            competenza_key="DM11", display="DM11 Rettifica",
+            tipo=CompetenzaSkm.TIPO_MACCHINA, asset=asset,
+        )
+        AbilitazioneMacchina.objects.create(
+            legacy_anagrafica_id=10, asset=asset, livello="U", in_lista=True,
+            stato=AbilitazioneMacchina.STATO_ATTIVA,
+            prossima_revisione=date(2026, 12, 31),
+        )
+        self._approve_privacy()
+        request = SimpleNamespace(user=self.admin, path="/assistente-ai/")
+        rows = [{"id": 10, "nome": "Mario", "cognome": "Rossi"}]
+
+        with patch("core.legacy_anagrafica.fetch_anagrafica_rows", return_value=rows):
+            context = build_runtime_context(request, "chi e' abilitato sulla DM11?")
+
+        # dati esposti minimizzati: nome, livello, stato, revisione
+        self.assertIn("tool:skillmatrix:abilitati", context.sources)
+        self.assertIn("Mario Rossi", context.text)
+        self.assertIn("Autonomo (U)", context.text)
+        self.assertIn("31-12-2026", context.text)
+        audit = self._skm_audit(context)
+        self.assertIsNotNone(audit)
+        self.assertTrue(audit["allowed"])
+        self.assertEqual(audit["row_count"], 1)
+        self.assertEqual(audit["codici"], ["DM11"])
+        # METADATA-ONLY: nessun nominativo/PII nei valori dell'audit
+        audit_blob = json.dumps(audit, default=str, ensure_ascii=False).lower()
+        self.assertNotIn("mario", audit_blob)
+        self.assertNotIn("rossi", audit_blob)
+
+    # --- minimizzazione: campi vietati -> contesto limitato ----------------
+    def test_forbidden_field_request_returns_limited(self):
+        self._approve_privacy()
+        request = SimpleNamespace(user=self.admin, path="/assistente-ai/")
+
+        context = build_runtime_context(
+            request, "mostra le note di abilitazione e il codice fiscale di chi e' abilitato sulla DM11"
+        )
+
+        self.assertIn("tool:skillmatrix:accesso-limitato", context.sources)
+        audit = self._skm_audit(context)
+        self.assertIsNotNone(audit)
+        self.assertFalse(audit["allowed"])
+        self.assertEqual(audit["reason"], "forbidden_field_request")
+        self.assertNotIn("abilitati in lista", context.text)
+
+    # --- (5) coerenza dominio tra le registrazioni -------------------------
+    def test_skillmatrix_domain_is_coherent_across_registrations(self):
+        from ai_assistant.tools import (
+            RUNTIME_TOOLS,
+            _DOMAIN_ROUTING_SEEDS,
+            _RUNTIME_PRIORITY_BY_TOOL,
+            _skillmatrix_context,
+            get_runtime_tool_catalog,
+        )
+
+        # la funzione e' registrata e chiamabile
+        self.assertIn(_skillmatrix_context, RUNTIME_TOOLS)
+        # dominio e priority coerenti
+        self.assertIn("skillmatrix", _DOMAIN_ROUTING_SEEDS)
+        self.assertIn("skillmatrix", _RUNTIME_PRIORITY_BY_TOOL)
+        # spec catalogo
+        spec = next(s for s in get_runtime_tool_catalog() if s.key == "skill_matrix")
+        self.assertEqual(spec.audit_tool, "skillmatrix")
+        self.assertEqual(spec.source_prefix, "tool:skillmatrix")
+        self.assertEqual(spec.domain, "HR")
+        self.assertEqual(spec.status, "deferred")
+        # l'audit prodotto a runtime usa la stessa chiave dello spec.audit_tool/priority map
+        self._approve_privacy()
+        request = SimpleNamespace(user=self.admin, path="/assistente-ai/")
+        context = build_runtime_context(request, "prontezza squadra")
+        audit = self._skm_audit(context)
+        self.assertIsNotNone(audit)
+        self.assertEqual(audit["tool"], spec.audit_tool)
+        self.assertIn(spec.audit_tool, _RUNTIME_PRIORITY_BY_TOOL)

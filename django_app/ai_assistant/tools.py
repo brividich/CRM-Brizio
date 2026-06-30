@@ -177,6 +177,20 @@ RUNTIME_TOOL_CATALOG: tuple[RuntimeToolSpec, ...] = (
         ),
     ),
     RuntimeToolSpec(
+        key="skill_matrix",
+        label="Skill Matrix MOD.187",
+        domain="HR",
+        audit_tool="skillmatrix",
+        source_prefix="tool:skillmatrix",
+        status="deferred",
+        sample_prompt="chi e' abilitato a usare la macchina DM11?",
+        privacy_note=(
+            "Costruito ma non abilitato in prod (safe-by-default). Espone dati solo con permesso ACL "
+            "'anagrafica.skillmatrix.view' E una revisione privacy approvata; minimizza a nome operatore, "
+            "livello I/L/U/O, macchina, stato e prossima revisione. Mai note, CF, idoneita', retribuzioni o documenti."
+        ),
+    ),
+    RuntimeToolSpec(
         key="timbri_presenze",
         label="Timbri / Presenze",
         domain="HR",
@@ -440,6 +454,23 @@ _UNAVAILABLE_DOMAIN_KEYWORDS = {
     "cartellini",
     "presenze",
 }
+# Segnali "forti" del dominio Skill Matrix MOD.187 (abilitazioni macchina I/L/U/O):
+# vocabolario specifico delle abilitazioni. Da sola "macchina" NON basta (collide
+# con asset/carichi/anomalie): serve il lessico dell'abilitazione o un'intenzione
+# "chi puo' usare/operare/sostituire".
+_SKILLMATRIX_SIGNAL_KEYWORDS = {
+    "abilitat",  # abilitato / abilitati / abilitazione / abilitata
+    "skill matrix", "skillmatrix", "skill-matrix",
+    "matrice competenze", "matrice delle competenze",
+    "mod.187", "mod 187", "mod187",
+    "operatori abilitati", "operatore abilitato",
+    "macchine scoperte", "macchina scoperta",
+    "prontezza", "prontezza squadra",
+    "uomo solo", "uomo-solo",
+    "livello operatore", "livello di abilitazione",
+}
+# Codice-macchina tipo DM11, MZ5, BM02: lettere seguite da cifre (suffisso opzionale).
+_SKILLMATRIX_CODE_RE = re.compile(r"\b([a-z]{1,6}\d{1,4}[a-z]?)\b", re.IGNORECASE)
 _RUNTIME_PRIORITY_BY_TOOL = {
     "runtime_router": 0,
     "sicurezza_summary": 10,
@@ -452,6 +483,7 @@ _RUNTIME_PRIORITY_BY_TOOL = {
     "tasks_summary": 70,
     "anomalie_summary": 80,
     "anagrafica_summary": 85,
+    "skillmatrix": 86,
     "assenze_periodo": 90,
     "module_catalog": 100,
     "runtime_unavailable": 110,
@@ -736,6 +768,25 @@ def _wants_carico_context(prompt: str) -> bool:
             text,
         )
     )
+
+
+def _wants_skillmatrix_context(prompt: str) -> bool:
+    text = _norm_text(prompt)
+    # Segnale forte: lessico delle abilitazioni / skill matrix.
+    if any(keyword in text for keyword in _SKILLMATRIX_SIGNAL_KEYWORDS):
+        return True
+    # "chi puo' usare/operare/sostituire/condurre (una macchina)" e' una domanda di
+    # abilitazione anche senza la parola "abilitato".
+    if re.search(
+        r"\bchi\b.{0,40}\b(puo|puo'|può|sa|sanno|riesce|riescono|in grado)\b.{0,40}"
+        r"\b(usar\w*|operar\w*|sostitu\w*|condurr\w*|guidar\w*|lavorar\w*|stare)\b",
+        text,
+    ):
+        return True
+    # "chi sostituisce X sulla <codice-macchina>" con un codice esplicito citato.
+    if "chi" in text and "sostitu" in text and _SKILLMATRIX_CODE_RE.search(text):
+        return True
+    return False
 
 
 def _wants_dpi_context(prompt: str) -> bool:
@@ -3059,6 +3110,318 @@ def _unavailable_domain_context(request, prompt: str) -> RuntimeContext:
     )
 
 
+# ── Tool live Skill Matrix MOD.187 (abilitazioni macchina) ─────────────────────
+# COSTRUITO ma GATED e SAFE-BY-DEFAULT: nessun dato personale esposto finche'
+# (a) l'utente ha il permesso canonico anagrafica.skillmatrix.view E
+# (b) esiste una AiToolPrivacyReview APPROVATA per il tool_key dedicato.
+# Oggi la matrice e' vuota (import MOD.187 in gate F2b): il tool risponde con
+# onesta' "non popolata" invece di inventare nominativi o livelli.
+_SKILLMATRIX_PRIVACY_TOOL_KEY = "skill_matrix"  # == RuntimeToolSpec.key (governance privacy)
+_SKILLMATRIX_MAX_ROWS = 30
+_SKILLMATRIX_LIVELLO_LABEL = {
+    "I": "In formazione (I)",
+    "L": "Intermedio (L)",
+    "U": "Autonomo (U)",
+    "O": "Formatore/Esperto (O)",
+}
+
+
+def _can_use_skillmatrix_runtime(request) -> tuple[bool, str]:
+    """Gate ACL del tool Skill Matrix: permesso canonico anagrafica.skillmatrix.view,
+    con bypass SOLO per superuser e admin legacy.
+
+    Nessun fallback legacy modulo/azione: la Skill Matrix nasce gia' canonica
+    (anagrafica/acl_bootstrap.py), quindi si valuta direttamente il codice canonico
+    PERM_SKM_VIEW. user_can_modulo_action normalizzerebbe verso
+    ``legacy.<modulo>.<azione>``, che NON coincide con ``anagrafica.skillmatrix.view``
+    e renderebbe inefficace il binding: per questo si usa evaluate_permission_code_access.
+    """
+    user = getattr(request, "user", None)
+    if not getattr(user, "is_authenticated", False):
+        return False, "anonymous"
+    if getattr(user, "is_superuser", False):
+        return True, "superuser"
+
+    from anagrafica.acl_bootstrap import PERM_SKM_VIEW
+    from core.acl_v2 import evaluate_permission_code_access
+    from core.legacy_utils import is_legacy_admin
+
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(user)
+    if legacy_user is not None:
+        request.legacy_user = legacy_user
+    if is_legacy_admin(legacy_user):
+        return True, "legacy_admin"
+
+    decision = evaluate_permission_code_access(
+        permission_code=PERM_SKM_VIEW,
+        legacy_user=legacy_user,
+        django_user=user,
+        allow_superuser=True,
+        allow_legacy_admin=True,
+    )
+    if bool(decision.get("allowed")):
+        return True, "skillmatrix_view"
+    return False, "missing_skillmatrix_view"
+
+
+def _skillmatrix_privacy_approved() -> bool:
+    """True se esiste una revisione privacy APPROVATA (approved/restricted) per il tool."""
+    from .models import AiToolPrivacyReview
+
+    return AiToolPrivacyReview.objects.filter(
+        tool_key=_SKILLMATRIX_PRIVACY_TOOL_KEY,
+        privacy_status__in=("approved", "restricted"),
+    ).exists()
+
+
+def _skillmatrix_cited_codes(text: str) -> list[str]:
+    """Codici-macchina citati nel prompt (token lettere+cifre), dedup, max 5.
+
+    Esclude i falsi positivi noti come 'mod187' (riferimento al modulo, non a una macchina).
+    """
+    seen: list[str] = []
+    for token in _SKILLMATRIX_CODE_RE.findall(text):
+        code = str(token).strip().upper()
+        if not code or code in seen:
+            continue
+        if re.fullmatch(r"MOD\d+", code):  # "mod187" e' il modulo, non una macchina
+            continue
+        seen.append(code)
+    return seen[:5]
+
+
+def _skillmatrix_names_by_id(legacy_ids) -> dict[int, str]:
+    """Risolve legacy_anagrafica_id -> nome (la matrice non memorizza i nominativi)."""
+    ids = [int(value) for value in legacy_ids if int(value or 0) > 0]
+    if not ids:
+        return {}
+    from core.legacy_anagrafica import fetch_anagrafica_rows
+
+    rows = fetch_anagrafica_rows(ids=ids, deduplicate=True)
+    return {
+        int(row.get("id") or 0): _full_name_from_anagrafica_row(row)
+        for row in rows
+        if int(row.get("id") or 0) > 0
+    }
+
+
+def _skillmatrix_context(request, prompt: str) -> RuntimeContext:
+    if not _should_run(request, "skillmatrix", _wants_skillmatrix_context(prompt)):
+        return RuntimeContext()
+
+    header = "DATI LIVE PORTALE - SKILL MATRIX (MOD.187)"
+
+    # GATE 1 — autenticazione.
+    user = getattr(request, "user", None)
+    if not getattr(user, "is_authenticated", False):
+        return RuntimeContext(
+            text=(
+                f"{header}\n"
+                "Esito autorizzazione: negato. L'utente corrente non e' autenticato; "
+                "non fornire nominativi, livelli o abilitazioni macchina."
+            ),
+            sources=("tool:skillmatrix:accesso-negato",),
+            audit={"tool": "skillmatrix", "allowed": False, "reason": "anonymous"},
+        )
+
+    # GATE 2 — ACL canonico (anagrafica.skillmatrix.view), bypass superuser/legacy_admin.
+    allowed_acl, acl_reason = _can_use_skillmatrix_runtime(request)
+    if not allowed_acl:
+        return RuntimeContext(
+            text=(
+                f"{header}\n"
+                "Esito autorizzazione: negato. L'utente corrente non ha il permesso "
+                "'anagrafica.skillmatrix.view' per consultare le abilitazioni macchina (MOD.187) "
+                "tramite AI; invita ad aprire il modulo Skill Matrix o a chiedere l'abilitazione."
+            ),
+            sources=("tool:skillmatrix:accesso-negato",),
+            audit={"tool": "skillmatrix", "allowed": False, "reason": acl_reason},
+        )
+
+    # GATE 3 — revisione privacy runtime: safe-by-default, accesa solo se un admin approva.
+    if not _skillmatrix_privacy_approved():
+        return RuntimeContext(
+            text=(
+                f"{header}\n"
+                "Esito: tool in attesa di approvazione privacy. La consultazione AI delle abilitazioni macchina "
+                "(MOD.187) e' costruita ma non ancora abilitata: nessun nominativo, livello o macchina viene "
+                "esposto finche' un amministratore non approva la revisione privacy dedicata. "
+                "Invita a usare il modulo Skill Matrix."
+            ),
+            sources=("tool:skillmatrix:in-revisione",),
+            audit={"tool": "skillmatrix", "allowed": False, "reason": "privacy_review_pending"},
+        )
+
+    # GATE 4 — minimizzazione campi GDPR: richieste di campi vietati -> contesto limitato.
+    text = _norm_text(prompt)
+    if (
+        any(keyword in text for keyword in _ANAGRAFICA_FORBIDDEN_KEYWORDS)
+        or _ANAGRAFICA_FORBIDDEN_TOKEN_PATTERN.search(text)
+        or re.search(r"\bnot[ae]\b", text)
+    ):
+        return RuntimeContext(
+            text=(
+                f"{header}\n"
+                "Esito autorizzazione: limitato. Il tool AI Skill Matrix espone solo nome operatore, livello "
+                "I/L/U/O, macchina, stato e prossima revisione: non fornisce note, dati sanitari/idoneita', "
+                "retributivi, privati o documentali. Invita ad aprire la scheda nel modulo Skill Matrix."
+            ),
+            sources=("tool:skillmatrix:accesso-limitato",),
+            audit={"tool": "skillmatrix", "allowed": False, "reason": "forbidden_field_request"},
+        )
+
+    return _skillmatrix_build_context(request, prompt, scope=acl_reason)
+
+
+def _skillmatrix_build_context(request, prompt: str, *, scope: str) -> RuntimeContext:
+    from django.db.models import Q
+
+    from anagrafica.models import AbilitazioneMacchina, CompetenzaSkm, SkillMatrixConfig
+    from anagrafica.services import skillmatrix_resolver as resolver
+
+    header = "DATI LIVE PORTALE - SKILL MATRIX (MOD.187)"
+    instruction = (
+        "ISTRUZIONE RISPOSTA: usa esclusivamente i dati elencati qui sotto. Esponi solo nome operatore, "
+        "livello I/L/U/O, macchina, stato e prossima revisione. Non inventare nominativi, livelli o macchine; "
+        "se non risultano abilitazioni registrate dillo chiaramente e invita ad aprire il modulo Skill Matrix. "
+        "Non citare note, dati sanitari/idoneita', retributivi o documentali."
+    )
+    text = _norm_text(prompt)
+
+    def _ctx(body: str, source: str, audit_extra: dict) -> RuntimeContext:
+        audit = {"tool": "skillmatrix", "allowed": True, "scope": scope}
+        audit.update(audit_extra)
+        return RuntimeContext(text=f"{header}\n{instruction}\n{body}", sources=(source,), audit=audit)
+
+    # --- intent: prontezza squadra (aggregato, nessun PII) ---
+    if "prontezza" in text:
+        reparto = _extract_reparto_filter(prompt) or None
+        kpi = resolver.prontezza_squadra(reparto)
+        rep_label = f"reparto '{reparto}'" if reparto else "tutti i reparti"
+        body = (
+            f"Prontezza squadra ({rep_label}): {kpi['operativi']} operativi su {kpi['totale_in_lista']} "
+            f"abilitazioni in lista ({kpi['percentuale']}%), su {kpi['n_macchine']} macchine MOD.187."
+        )
+        if kpi["totale_in_lista"] == 0:
+            body += " Nessuna abilitazione registrata (matrice skill non ancora popolata)."
+        return _ctx(
+            body,
+            "tool:skillmatrix:prontezza",
+            {"intent": "prontezza", "reparto": reparto or "", "n_macchine": kpi["n_macchine"],
+             "row_count": kpi["totale_in_lista"]},
+        )
+
+    # --- intent: macchine scoperte (aggregato + nomi asset, nessun PII) ---
+    if "scopert" in text:
+        reparto = _extract_reparto_filter(prompt) or None
+        asset_ids = resolver.macchine_scoperte(reparto)
+        rep_label = f"reparto '{reparto}'" if reparto else "tutti i reparti"
+        if not asset_ids:
+            body = (
+                f"Macchine scoperte ({rep_label}): nessuna. "
+                "Nota: la matrice skill potrebbe non essere ancora popolata (import MOD.187 in gate)."
+            )
+            return _ctx(
+                body,
+                "tool:skillmatrix:macchine-scoperte",
+                {"intent": "macchine_scoperte", "reparto": reparto or "", "row_count": 0},
+            )
+        from assets.models import Asset
+
+        names = list(
+            Asset.objects.filter(id__in=asset_ids[:_SKILLMATRIX_MAX_ROWS])
+            .order_by("asset_tag", "name")
+            .values_list("asset_tag", "name")
+        )
+        righe = "\n".join(f"- {tag or '(senza codice)'}: {name}" for tag, name in names) or "- (asset non risolti)"
+        body = (
+            f"Macchine scoperte ({rep_label}): {len(asset_ids)} senza alcun operatore abilitato in lista.\n{righe}"
+        )
+        return _ctx(
+            body,
+            "tool:skillmatrix:macchine-scoperte",
+            {"intent": "macchine_scoperte", "reparto": reparto or "", "row_count": len(asset_ids)},
+        )
+
+    # --- intent: codici macchina citati -> pool abilitati (+ eventuale uomo-solo) ---
+    codes = _skillmatrix_cited_codes(text)
+    if codes:
+        comp_qs = CompetenzaSkm.objects.filter(tipo=CompetenzaSkm.TIPO_MACCHINA, asset__isnull=False)
+        code_q = Q()
+        for code in codes:
+            code_q |= (
+                Q(competenza_key__iexact=code)
+                | Q(display__icontains=code)
+                | Q(alias_storici__icontains=code)
+            )
+        comps = list(comp_qs.filter(code_q).select_related("asset")[:5])
+        if not comps:
+            body = (
+                f"Macchine citate: {', '.join(codes)}. Nessuna macchina MOD.187 corrispondente nel catalogo skill "
+                "matrix (match asset non confermato o codice inesistente). Verifica il codice nel modulo Skill Matrix."
+            )
+            return _ctx(
+                body,
+                "tool:skillmatrix:abilitati",
+                {"intent": "pool_abilitati", "codici": codes, "row_count": 0},
+            )
+
+        soglia = SkillMatrixConfig.get_instance().soglia_operativa_ordinale
+        wants_uomo_solo = "uomo solo" in text or "uomo-solo" in text
+        sezioni: list[str] = []
+        total_rows = 0
+        for comp in comps:
+            asset = comp.asset
+            macchina_label = (asset.asset_tag or comp.competenza_key or str(comp)).strip()
+            abil = list(
+                AbilitazioneMacchina.objects.filter(asset_id=asset.id, in_lista=True)
+                .order_by("-livello", "legacy_anagrafica_id")[:_SKILLMATRIX_MAX_ROWS]
+            )
+            if not abil:
+                sezioni.append(
+                    f"Macchina {macchina_label} ({asset.name}): nessuna abilitazione registrata "
+                    "(matrice skill non ancora popolata)."
+                )
+                continue
+            names = _skillmatrix_names_by_id([a.legacy_anagrafica_id for a in abil])
+            righe = []
+            for a in abil:
+                nome = names.get(int(a.legacy_anagrafica_id)) or f"ID {a.legacy_anagrafica_id}"
+                livello = _SKILLMATRIX_LIVELLO_LABEL.get(a.livello, a.livello or "n/d")
+                stato = "attiva" if a.stato == AbilitazioneMacchina.STATO_ATTIVA else "sospesa"
+                operativo = "si" if a.is_operativa(soglia) else "no"
+                revisione = a.prossima_revisione.strftime("%d-%m-%Y") if a.prossima_revisione else "n/d"
+                righe.append(
+                    f"  - {nome}: livello {livello}, stato {stato}, operativo {operativo}, "
+                    f"prossima revisione {revisione}"
+                )
+                total_rows += 1
+            blocco = (
+                f"Macchina {macchina_label} ({asset.name}): {len(abil)} abilitati in lista.\n" + "\n".join(righe)
+            )
+            if wants_uomo_solo:
+                k = resolver.kpi_uomo_solo(asset)
+                blocco += (
+                    f"\n  Rischio uomo-solo: {'SI' if k['a_rischio'] else 'no'} "
+                    f"({k['n_operativi']} operativi, soglia {k['soglia']})."
+                )
+            sezioni.append(blocco)
+        return _ctx(
+            "\n".join(sezioni),
+            "tool:skillmatrix:abilitati",
+            {"intent": "pool_abilitati", "codici": codes, "row_count": total_rows},
+        )
+
+    # --- fallback: spiega cosa si puo' chiedere ---
+    body = (
+        "Nessun elemento risolvibile nella domanda. Per la Skill Matrix MOD.187 posso indicare: chi e' "
+        "abilitato/operativo su una macchina (cita il codice, es. DM11), le macchine scoperte senza operatori "
+        "(eventualmente per reparto), la prontezza squadra e il rischio uomo-solo. "
+        "Nota: oggi la matrice potrebbe non essere ancora popolata (import in gate)."
+    )
+    return _ctx(body, "tool:skillmatrix:guida", {"intent": "guida", "row_count": 0})
+
+
 def _cross_domain_router_context(prompt: str) -> RuntimeContext:
     today = timezone.localdate()
     return RuntimeContext(
@@ -3110,6 +3473,7 @@ RUNTIME_TOOLS: tuple[RuntimeTool, ...] = (
     _carichi_context,
     _dpi_context,
     _anagrafica_context,
+    _skillmatrix_context,
     _anomalie_context,
     _procedure_context,
     _notizie_context,
@@ -3267,6 +3631,13 @@ _DOMAIN_ROUTING_SEEDS: dict[str, tuple[str, ...]] = {
         "saldo ratei ferie permessi ex festivita",
         "quanto tempo libero o quante ferie mi restano da prendere",
         "giorni di ferie o permessi ancora da godere quest'anno",
+    ),
+    "skillmatrix": (
+        "chi e' abilitato a usare una macchina",
+        "chi puo' operare o sostituire su un asset o macchina",
+        "operatori abilitati per reparto nella skill matrix",
+        "livello di abilitazione di un operatore skill matrix MOD.187",
+        "macchine scoperte senza operatori abilitati",
     ),
     "anomalie": (
         "anomalie e non conformita' di produzione aperte",
