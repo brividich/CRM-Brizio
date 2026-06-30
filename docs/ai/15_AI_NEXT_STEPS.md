@@ -41,7 +41,7 @@ Una superficie alla volta, ognuna con: F1 backend → F1b UI → privacy review 
 |----|-----------|---------|-------------|----------|
 | **A1** | **Tool live Rischi-mansione** ✅ **F1 fatto (dev)** — qui i rischi sono dati STRUTTURATI (`FattoreRischio`/`EsposizioneRischio`→DPI/visite/formazione via `mansionario.py`), non PDF DVR | tool live (no RAG) | auth + `_can_view_formazione`; **nessun PII** | 🥇 |
 | **A2** | **Copilota Incidenti/RCA** (`rilevazione_incidenti`): 5-Why, classificazione, azioni | copilota + RAG | dati salute → minimizzazione, audit no-nomi | 🥇 |
-| **A3** | **Copilota Anomalie** (triage come ticket) | copilota ticket | ACL gestori anomalie | 🥈 (roadmap 3.2) |
+| **A3** | **Copilota Anomalie** ✅ **F1 backend (dev)** — anomalie NON è come i ticket (SharePoint-coupled, liste controllate): propone `stato_superficie`/`avanzamento` (validati su `_load_anomalie_lists`), `serve_rdc`, bozza; endpoint `api/anomalie/copilota` gated ≥EDIT_ASSIGNED. **UI React = F1b (da fare)** | copilota (proposto=True, fail-safe) | access-level anomalie | 🥈 |
 
 **STOP 2** prima di ciascuna: definizione matrice campi + `AiToolPrivacyReview` + golden dedicato.
 

@@ -2543,36 +2543,93 @@ def api_anomalie_timeline(request):
 def api_seriali_op(request):
     """Ritorna i seriali con anomalie APERTE sull'OP, per il check duplicati live.
 
-    Risposta: {"seriali": ["LCN0001", "LCN0005", ...]}. I seriali compositi
-    (range "LCN0001-LCN0010" o liste "LCN0001, LCN0005") vengono espansi nei
-    singoli token così il confronto lato client copre anche i pezzi dentro un range.
+    Risposta::
+
+        {
+          "seriali": ["LCN0001", "LCN0005", ...],
+          "dettagli": {
+            "lcn0001": {"seriale": "LCN0001", "descrizione": "...",
+                        "avanzamento": "...", "autore": "Mario Rossi"},
+            ...
+          }
+        }
+
+    I seriali compositi (range "LCN0001-LCN0010" o liste "LCN0001, LCN0005")
+    vengono espansi nei singoli token così il confronto lato client copre anche
+    i pezzi dentro un range. ``dettagli`` mappa ogni token (lowercase) a
+    descrizione/avanzamento/autore dell'anomalia aperta corrispondente, così il
+    client può mostrare un popup d'aiuto all'operatore quando digita un S/N già
+    segnalato (``autore`` = chi l'ha inserita, vuoto se la colonna
+    ``created_by_user_id`` non è nello schema legacy o l'utente non è risolvibile).
     """
     op_id = _safe_text(request.GET.get("op_id"), 100)
     if not op_id:
-        return JsonResponse({"seriali": []})
+        return JsonResponse({"seriali": [], "dettagli": {}})
     if not _has_table("anomalie"):
-        return JsonResponse({"seriali": []})
+        return JsonResponse({"seriali": [], "dettagli": {}})
+    # L'autore (created_by_user_id) c'è solo se lo schema legacy ha la colonna.
+    cols = legacy_table_columns("anomalie") or set()
+    has_author = "created_by_user_id" in cols
+    author_sel = ", created_by_user_id" if has_author else ""
     try:
         with connections["default"].cursor() as cur:
             if connections["default"].vendor == "sqlite":
                 sql = (
-                    "SELECT seriale FROM anomalie WHERE LOWER(ex_op_nominativo) = LOWER(%s) "
+                    f"SELECT seriale, descrizione, avanzamento{author_sel} FROM anomalie "
+                    "WHERE LOWER(ex_op_nominativo) = LOWER(%s) "
                     "AND (chiudere IS NULL OR chiudere = 0)"
                 )
             else:
                 sql = (
-                    "SELECT seriale FROM anomalie WHERE LOWER(CAST(ex_op_nominativo AS NVARCHAR(MAX))) = LOWER(%s) "
+                    f"SELECT seriale, descrizione, avanzamento{author_sel} FROM anomalie "
+                    "WHERE LOWER(CAST(ex_op_nominativo AS NVARCHAR(MAX))) = LOWER(%s) "
                     "AND (chiudere IS NULL OR chiudere = 0)"
                 )
             cur.execute(sql, [op_id])
-            raw = [str(r[0] or "").strip() for r in cur.fetchall()]
+            rows = [
+                (
+                    str(r[0] or "").strip(),
+                    str(r[1] or "").strip()[:600],
+                    str(r[2] or "").strip(),
+                    (r[3] if has_author and len(r) > 3 else None),
+                )
+                for r in cur.fetchall()
+            ]
     except DatabaseError:
         logger.warning("api_seriali_op: lettura fallita op=%s", op_id, exc_info=True)
-        return JsonResponse({"seriali": []})
+        return JsonResponse({"seriali": [], "dettagli": {}})
 
-    # Espandi range numerici e liste in singoli token per il confronto duplicati.
+    # Risolvi gli id autore in nomi leggibili con un'unica query (no N+1).
+    autori_by_id: dict = {}
+    if has_author:
+        ids = {r[3] for r in rows if r[3]}
+        if ids:
+            try:
+                for uid, nome in UtenteLegacy.objects.filter(id__in=ids).values_list("id", "nome"):
+                    autori_by_id[uid] = str(nome or "").strip()
+            except Exception:
+                logger.warning("api_seriali_op: risoluzione autori fallita op=%s", op_id, exc_info=True)
+                autori_by_id = {}
+
+    # Espandi range numerici e liste in singoli token per il confronto duplicati;
+    # per ogni token tieni descrizione/avanzamento/autore dell'anomalia aperta così
+    # il client può mostrarli nel popup d'aiuto.
     seriali: set[str] = set()
-    for val in raw:
+    dettagli: dict[str, dict] = {}
+
+    def _registra(tok: str, seriale_orig: str, descr: str, avanz: str, autore: str) -> None:
+        tok = tok.strip()
+        if not tok:
+            return
+        seriali.add(tok)
+        # La prima anomalia aperta che cita il token vince (non sovrascrivere).
+        dettagli.setdefault(
+            tok.lower(),
+            {"seriale": seriale_orig, "descrizione": descr, "avanzamento": avanz, "autore": autore},
+        )
+
+    for val, descr, avanz, autore_id in rows:
+        autore = autori_by_id.get(autore_id, "") if autore_id else ""
         if not val:
             continue
         # rimuovi eventuale suffisso "(N pezzi)"
@@ -2580,9 +2637,7 @@ def api_seriali_op(request):
         # lista separata da virgola
         if "," in base:
             for tok in base.split(","):
-                tok = tok.strip()
-                if tok:
-                    seriali.add(tok)
+                _registra(tok, base, descr, avanz, autore)
             continue
         # range con trattino: prefisso + numero
         m = re.match(r"^(.*?)(\d+)\s*-\s*(?:\1)?(\d+)$", base)
@@ -2593,13 +2648,13 @@ def api_seriali_op(request):
                 pad = len(a)
                 if na <= nb and nb - na <= 1000:
                     for i in range(na, nb + 1):
-                        seriali.add(f"{prefix}{str(i).zfill(pad)}")
+                        _registra(f"{prefix}{str(i).zfill(pad)}", base, descr, avanz, autore)
                     continue
             except ValueError:
                 pass
-        seriali.add(base)
+        _registra(base, base, descr, avanz, autore)
 
-    return JsonResponse({"seriali": sorted(seriali)})
+    return JsonResponse({"seriali": sorted(seriali), "dettagli": dettagli})
 
 
 def _op_is_benestare(op_title: str) -> bool:
@@ -3131,6 +3186,47 @@ def apertura_segnalazione_page(request):
         "config_lists_json": json.dumps(_load_anomalie_lists(), ensure_ascii=False),
     }
     return render(request, "anomalie/pages/apertura_segnalazione.html", context)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Copilota AI anomalie (Fase 2 - A3): triage PROPOSTO, l'operatore rivede e firma
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@login_required
+@csrf_protect
+@require_POST
+def api_copilota_anomalia(request):
+    """Proposta di triage AI per una segnalazione (read-only, NON salva nulla).
+
+    Gate: serve almeno EDIT_ASSIGNED sulle anomalie (CAR/capocommessa o admin); i
+    soli lettori sono esclusi. Endpoint protetto -> JSON 403, mai redirect HTML.
+    I valori proposti sono validati contro le liste reali (_load_anomalie_lists).
+    """
+    if not _access_level_at_least(
+        _request_anomalie_global_access_level(request), AnomalieAccessLevel.EDIT_ASSIGNED
+    ):
+        return JsonResponse({"error": "forbidden"}, status=403)
+
+    try:
+        payload = json.loads(request.body or b"{}")
+    except Exception:
+        payload = {}
+    descrizione = ""
+    if isinstance(payload, dict):
+        descrizione = str(payload.get("descrizione") or "").strip()
+    if not descrizione:
+        return JsonResponse({"error": "descrizione mancante"}, status=400)
+
+    from anomalie.ai_copilota import proponi_triage_anomalia
+
+    lists = _load_anomalie_lists()
+    proposta = proponi_triage_anomalia(
+        descrizione=descrizione,
+        stati_superficie=lists.get("stati_superficie") or [],
+        avanzamenti=lists.get("avanzamenti") or [],
+    )
+    return JsonResponse({"success": True, "proposta": proposta})
 
 
 # ─────────────────────────────────────────────────────────────────────────────
