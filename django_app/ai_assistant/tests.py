@@ -3406,3 +3406,44 @@ class SkillMatrixContextTests(TestCase):
         self.assertIsNotNone(audit)
         self.assertEqual(audit["tool"], spec.audit_tool)
         self.assertIn(spec.audit_tool, _RUNTIME_PRIORITY_BY_TOOL)
+
+
+class SkillMatrixPrivacySeedCommandTests(TestCase):
+    """Comando ai_seed_skillmatrix_privacy_review: prepara (pending) e attiva (--approve)
+    la revisione privacy che accende il tool Skill Matrix (safe-by-default)."""
+
+    def test_default_pending_then_approve(self):
+        from django.core.management import call_command
+
+        from ai_assistant.models import AiToolPrivacyReview
+        from ai_assistant.tools import _skillmatrix_privacy_approved
+
+        # senza record -> tool inerte
+        self.assertFalse(_skillmatrix_privacy_approved())
+
+        # default: crea in pending (governance), il tool resta inerte
+        call_command("ai_seed_skillmatrix_privacy_review")
+        review = AiToolPrivacyReview.objects.get(tool_key="skill_matrix")
+        self.assertEqual(review.privacy_status, "pending")
+        self.assertTrue(review.allowed_fields and review.blocked_fields)
+        self.assertIsNone(review.reviewed_at)
+        self.assertFalse(_skillmatrix_privacy_approved())
+
+        # --approve: attiva il tool e marca reviewed_at
+        call_command("ai_seed_skillmatrix_privacy_review", "--approve")
+        review.refresh_from_db()
+        self.assertEqual(review.privacy_status, "approved")
+        self.assertIsNotNone(review.reviewed_at)
+        self.assertTrue(_skillmatrix_privacy_approved())
+
+    def test_idempotente_non_riapprova_da_solo(self):
+        from django.core.management import call_command
+
+        from ai_assistant.models import AiToolPrivacyReview
+
+        call_command("ai_seed_skillmatrix_privacy_review")  # pending
+        # rilancio senza flag NON deve attivarlo
+        call_command("ai_seed_skillmatrix_privacy_review")
+        self.assertEqual(
+            AiToolPrivacyReview.objects.get(tool_key="skill_matrix").privacy_status, "pending"
+        )
