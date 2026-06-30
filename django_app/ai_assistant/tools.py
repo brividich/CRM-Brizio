@@ -164,6 +164,19 @@ RUNTIME_TOOL_CATALOG: tuple[RuntimeToolSpec, ...] = (
         privacy_note="Restituisce indicatori aggregati, non note sensibili.",
     ),
     RuntimeToolSpec(
+        key="rischi_mansione",
+        label="Rischi & requisiti mansione",
+        domain="Sicurezza",
+        audit_tool="rischi_mansione",
+        source_prefix="tool:rischi",
+        status="enabled",
+        sample_prompt="a quali rischi e' esposta la mansione saldatore e quali DPI servono?",
+        privacy_note=(
+            "Dati ORGANIZZATIVI (mansione -> fattori di rischio -> DPI / visite / formazione, D.Lgs. 81/08), "
+            "nessun dato personale. Gated come la sezione Formazione/Sicurezza HR (_can_view_formazione)."
+        ),
+    ),
+    RuntimeToolSpec(
         key="anagrafica_summary",
         label="Anagrafica HR",
         domain="HR",
@@ -474,6 +487,7 @@ _SKILLMATRIX_CODE_RE = re.compile(r"\b([a-z]{1,6}\d{1,4}[a-z]?)\b", re.IGNORECAS
 _RUNTIME_PRIORITY_BY_TOOL = {
     "runtime_router": 0,
     "sicurezza_summary": 10,
+    "rischi_mansione": 12,
     "notizie_summary": 20,
     "procedure_refresh_summary": 30,
     "dpi_summary": 40,
@@ -3464,6 +3478,163 @@ def _cross_domain_contexts(request, prompt: str) -> list[RuntimeContext] | None:
     return contexts
 
 
+# ── Tool live Rischi & requisiti per mansione (D.Lgs. 81/08) ──────────────────
+# Il "rischio" qui e' DATO STRUTTURATO (FattoreRischio/EsposizioneRischio ->
+# DPI/visite/formazione via anagrafica.services.mansionario), NON un PDF DVR.
+# Dati ORGANIZZATIVI, nessun dato personale: gating = autenticazione + la stessa
+# autorita' della sezione Formazione/Sicurezza HR (_can_view_formazione). Read-only.
+_RISCHI_SIGNAL_KEYWORDS = (
+    "fattore di rischio", "fattori di rischio", "valutazione dei rischi",
+    "valutazione rischi", "esposizione a rischio", "esposizione ai rischi",
+    "mansione di rischio", "esposto a rischi", "esposti a rischi", "dvr",
+)
+_RISCHI_MANSIONE_STOPWORDS = {
+    "addetto", "addetta", "operaio", "operaia", "tecnico", "tecnica",
+    "responsabile", "generico", "generica", "altro", "altra",
+}
+
+
+def _wants_rischi_context(prompt: str) -> bool:
+    text = _norm_text(prompt)
+    if any(keyword in text for keyword in _RISCHI_SIGNAL_KEYWORDS):
+        return True
+    # "a quali rischi e' esposta la mansione X", "che rischi corre il saldatore",
+    # "quali DPI/visite/formazione servono per la mansione X".
+    if re.search(r"\brisch\w+\b", text) and re.search(
+        r"\b(mansion\w*|esposiz\w*|esposto|esposta|saldator\w*|tornitor\w*|manutentor\w*)\b", text
+    ):
+        return True
+    return False
+
+
+def _match_mansioni(prompt: str) -> list[tuple[str, dict]]:
+    """Mansioni attive il cui nome (o un token distintivo >=6) compare nel prompt.
+
+    Ritorna [(nome, requisiti)] risolvendo i requisiti (diretti + ereditati dai
+    fattori di rischio) con anagrafica.services.mansionario.
+    """
+    from anagrafica.models import Mansione
+    from anagrafica.services import mansionario
+
+    norm = _norm_text(prompt)
+    nomi_match: list[str] = []
+    for nome in Mansione.objects.filter(is_active=True).values_list("nome", flat=True):
+        n = _norm_text(nome)
+        if not n:
+            continue
+        if n in norm:
+            nomi_match.append(nome)
+            continue
+        toks = [
+            t for t in re.split(r"[^a-zà-ÿ0-9]+", n)
+            if len(t) >= 6 and t not in _RISCHI_MANSIONE_STOPWORDS
+        ]
+        if any(re.search(rf"\b{re.escape(t)}", norm) for t in toks):
+            nomi_match.append(nome)
+        if len(nomi_match) >= 8:
+            break
+    if not nomi_match:
+        return []
+    reqs = mansionario.requisiti_per_nome(nomi_match)
+    return [
+        (nome, reqs.get(nome.strip().casefold(), mansionario.requisiti_vuoti()))
+        for nome in nomi_match
+    ]
+
+
+def _rischi_build_context(prompt: str) -> RuntimeContext:
+    from anagrafica.models import Mansione
+
+    header = "DATI LIVE PORTALE - RISCHI & REQUISITI PER MANSIONE (D.Lgs. 81/08)"
+    instruction = (
+        "ISTRUZIONE RISPOSTA: usa esclusivamente i dati elencati. Sono dati ORGANIZZATIVI "
+        "(mansione -> fattori di rischio -> DPI / visite mediche / formazione), NON dati "
+        "personali: non citare nominativi. Se la mansione non risulta o non ha esposizioni "
+        "registrate, dillo e invita ad aprire la sezione Formazione/Rischi."
+    )
+
+    def _ctx(body: str, source: str, audit_extra: dict) -> RuntimeContext:
+        audit = {"tool": "rischi_mansione", "allowed": True}
+        audit.update(audit_extra)
+        return RuntimeContext(text=f"{header}\n{instruction}\n{body}", sources=(source,), audit=audit)
+
+    matched = _match_mansioni(prompt)
+    if not matched:
+        nomi = list(
+            Mansione.objects.filter(is_active=True).order_by("nome").values_list("nome", flat=True)[:40]
+        )
+        if not nomi:
+            return _ctx("Nessuna mansione attiva configurata in anagrafica.", "tool:rischi:vuoto", {"rows": 0})
+        body = (
+            "Mansione non riconosciuta nella domanda. Mansioni disponibili: "
+            + ", ".join(nomi)
+            + ". Chiedi indicandone una."
+        )
+        return _ctx(body, "tool:rischi:mansione-non-trovata", {"rows": 0, "available": len(nomi)})
+
+    lines: list[str] = []
+    for nome, req in matched[:5]:
+        fattori = req.get("fattori") or []
+        dpi = req.get("dpi") or []
+        visite = req.get("visite") or []
+        corsi = req.get("corsi") or []
+        if not (fattori or dpi or visite or corsi):
+            lines.append(f"- Mansione '{nome}': nessuna esposizione o requisito registrato.")
+            continue
+        fatt_txt = "; ".join(
+            f"{f.codice} {f.nome} ({f.get_categoria_display()})" for f in fattori
+        ) or "nessuno"
+        dpi_txt = ", ".join(str(d) for d in dpi) or "nessuno"
+        vis_txt = ", ".join(str(v) for v in visite) or "nessuna"
+        cor_txt = ", ".join(str(c) for c in corsi) or "nessuna"
+        lines.append(
+            f"- Mansione '{nome}':\n"
+            f"    fattori di rischio: {fatt_txt}\n"
+            f"    DPI richiesti: {dpi_txt}\n"
+            f"    visite mediche: {vis_txt}\n"
+            f"    formazione: {cor_txt}"
+        )
+    body = "Rischi e requisiti per mansione (D.Lgs. 81/08):\n" + "\n".join(lines)
+    return _ctx(body, "tool:rischi:mansione", {"rows": len(matched)})
+
+
+def _rischi_mansione_context(request, prompt: str) -> RuntimeContext:
+    if not _should_run(request, "rischi_mansione", _wants_rischi_context(prompt)):
+        return RuntimeContext()
+
+    header = "DATI LIVE PORTALE - RISCHI & REQUISITI PER MANSIONE (D.Lgs. 81/08)"
+
+    # GATE 1 — autenticazione.
+    user = getattr(request, "user", None)
+    if not getattr(user, "is_authenticated", False):
+        return RuntimeContext(
+            text=f"{header}\nEsito autorizzazione: negato (utente non autenticato).",
+            sources=("tool:rischi:accesso-negato",),
+            audit={"tool": "rischi_mansione", "allowed": False, "reason": "anonymous"},
+        )
+
+    # GATE 2 — ACL: stessa autorita' della sezione Formazione/Sicurezza HR.
+    try:
+        from anagrafica.views import _can_view_formazione
+    except Exception:
+        return RuntimeContext(
+            text=f"{header}\nEsito: tool non disponibile (modulo Formazione assente).",
+            sources=("tool:rischi:non-disponibile",),
+            audit={"tool": "rischi_mansione", "allowed": False, "reason": "module_unavailable"},
+        )
+    if not _can_view_formazione(request):
+        return RuntimeContext(
+            text=(
+                f"{header}\nEsito autorizzazione: negato. Manca il permesso di visualizzazione "
+                "della sezione Formazione/Sicurezza HR; invita ad aprire il modulo o a chiedere l'abilitazione."
+            ),
+            sources=("tool:rischi:accesso-negato",),
+            audit={"tool": "rischi_mansione", "allowed": False, "reason": "missing_formazione_view"},
+        )
+
+    return _rischi_build_context(prompt)
+
+
 RUNTIME_TOOLS: tuple[RuntimeTool, ...] = (
     _absence_context,
     _module_catalog_context,
@@ -3478,6 +3649,7 @@ RUNTIME_TOOLS: tuple[RuntimeTool, ...] = (
     _procedure_context,
     _notizie_context,
     _sicurezza_context,
+    _rischi_mansione_context,
     _unavailable_domain_context,
 )
 
@@ -3638,6 +3810,13 @@ _DOMAIN_ROUTING_SEEDS: dict[str, tuple[str, ...]] = {
         "operatori abilitati per reparto nella skill matrix",
         "livello di abilitazione di un operatore skill matrix MOD.187",
         "macchine scoperte senza operatori abilitati",
+    ),
+    "rischi_mansione": (
+        "a quali rischi e' esposta una mansione",
+        "fattori di rischio della mansione (chimico, fisico, rumore, MMC)",
+        "quali DPI servono per una mansione",
+        "valutazione dei rischi e requisiti di una mansione",
+        "sorveglianza sanitaria e formazione obbligatoria per mansione",
     ),
     "anomalie": (
         "anomalie e non conformita' di produzione aperte",

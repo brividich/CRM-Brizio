@@ -39,7 +39,7 @@ Una superficie alla volta, ognuna con: F1 backend → F1b UI → privacy review 
 
 | ID | Superficie | Pattern | Privacy/ACL | Priorità |
 |----|-----------|---------|-------------|----------|
-| **A1** | **RAG Sicurezza DVR/PEI** (chat cita il rischio mansione) | RAG SGI | review corpus sicurezza; ACL preposti/RSPP | 🥇 (roadmap 2.2) |
+| **A1** | **Tool live Rischi-mansione** ✅ **F1 fatto (dev)** — qui i rischi sono dati STRUTTURATI (`FattoreRischio`/`EsposizioneRischio`→DPI/visite/formazione via `mansionario.py`), non PDF DVR | tool live (no RAG) | auth + `_can_view_formazione`; **nessun PII** | 🥇 |
 | **A2** | **Copilota Incidenti/RCA** (`rilevazione_incidenti`): 5-Why, classificazione, azioni | copilota + RAG | dati salute → minimizzazione, audit no-nomi | 🥇 |
 | **A3** | **Copilota Anomalie** (triage come ticket) | copilota ticket | ACL gestori anomalie | 🥈 (roadmap 3.2) |
 

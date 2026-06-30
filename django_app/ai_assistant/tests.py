@@ -781,6 +781,53 @@ class AiAssistantTests(TestCase):
         self.assertIsNotNone(seeds, "i seed di routing non devono spegnersi col backend TEI")
         self.assertEqual(cached_model, "BAAI/bge-m3")
 
+    def test_wants_rischi_context_recognizes_risk_phrasings(self):
+        from ai_assistant import tools
+
+        self.assertTrue(tools._wants_rischi_context("a quali rischi e' esposta la mansione saldatore?"))
+        self.assertTrue(tools._wants_rischi_context("quali sono i fattori di rischio del tornitore?"))
+        self.assertTrue(tools._wants_rischi_context("qual e' la valutazione dei rischi della mansione?"))
+        self.assertFalse(tools._wants_rischi_context("qual e' il fatturato di quest'anno?"))
+
+    def test_rischi_context_denies_anonymous(self):
+        from ai_assistant import tools
+
+        anon = SimpleNamespace(user=SimpleNamespace(is_authenticated=False), path="/assistente-ai/")
+        ctx = tools._rischi_mansione_context(anon, "rischi della mansione saldatore")
+        self.assertIn("tool:rischi:accesso-negato", ctx.sources)
+        self.assertFalse(ctx.audit.get("allowed"))
+        self.assertEqual(ctx.audit.get("reason"), "anonymous")
+
+    def test_rischi_context_denies_without_formazione_permission(self):
+        from ai_assistant import tools
+
+        req = SimpleNamespace(user=self.user, path="/assistente-ai/")
+        with patch("anagrafica.views._can_view_formazione", return_value=False):
+            ctx = tools._rischi_mansione_context(req, "rischi della mansione saldatore")
+        self.assertIn("tool:rischi:accesso-negato", ctx.sources)
+        self.assertFalse(ctx.audit.get("allowed"))
+        self.assertEqual(ctx.audit.get("reason"), "missing_formazione_view")
+
+    def test_rischi_context_returns_risk_and_requirements_when_authorized(self):
+        from ai_assistant import tools
+        from anagrafica.models import Mansione
+        from anagrafica.models_rischi import EsposizioneRischio, FattoreRischio
+
+        mansione = Mansione.objects.create(nome="Saldatore TIG")
+        fattore = FattoreRischio.objects.create(
+            codice="RUMORE", nome="Rumore", categoria=FattoreRischio.CAT_FISICO
+        )
+        EsposizioneRischio.objects.create(fattore=fattore, mansione=mansione)
+
+        req = SimpleNamespace(user=self.user, path="/assistente-ai/")
+        with patch("anagrafica.views._can_view_formazione", return_value=True):
+            ctx = tools._rischi_mansione_context(req, "a quali rischi e' esposto il saldatore?")
+
+        self.assertTrue(ctx.audit.get("allowed"))
+        self.assertIn("Saldatore TIG", ctx.text)
+        self.assertIn("Rumore", ctx.text)
+        self.assertIn("tool:rischi:mansione", ctx.sources)
+
     def test_semantic_routing_does_not_bypass_acl(self):
         """Un tool attivato SOLO dal routing semantico (nessuna keyword) deve
         comunque applicare l'ACL interna e negare l'accesso se non autorizzato."""
