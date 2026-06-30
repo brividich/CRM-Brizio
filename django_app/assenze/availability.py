@@ -32,6 +32,51 @@ logger = logging.getLogger(__name__)
 _STATI_CONFERMATI_MOD = (0, 4)
 _STATI_CONFERMATI_TXT = ("APPROVATO", "PROGRAMMATO")
 
+# Stato "pendente" (richiesta inviata ma non ancora approvata né rifiutata).
+# moderation_status 2 = In attesa; 1 = Rifiutato (escluso). Vedi assenze/tests.py.
+_STATO_PENDENTE_MOD = (2,)
+_STATO_PENDENTE_TXT = ("IN ATTESA",)
+_STATO_RIFIUTATO_MOD = (1,)
+_STATO_RIFIUTATO_TXT = ("RIFIUTATO",)
+
+# Tipi (``tipo_assenza`` legacy) che rendono un operatore NON disponibile sulla
+# macchina. Esclusi di proposito: "Flessibilità" (orario flessibile, comunque
+# presente), "Certifica presenza" (è una presenza, non un'assenza), "Altro"
+# (ambiguo). Match per prefisso normalizzato per assorbire varianti del testo
+# legacy ("Permesso retribuito", "Malattia INPS", ...).
+_TIPI_INDISPONIBILITA = ("FERIE", "MALATTIA", "PERMESSO")
+# Tipi a copertura solo parziale della giornata (non assenza a giornata intera).
+_TIPI_PARZIALI = ("PERMESSO",)
+
+
+def _categoria_tipo(tipo) -> tuple[bool, bool]:
+    """``(rilevante, parziale)`` per un ``tipo_assenza`` legacy.
+
+    ``rilevante=False`` → il tipo non blocca la disponibilità (va ignorato).
+    Funzione pura, testabile senza DB.
+    """
+    t = _norm_key(tipo)
+    rilevante = any(t.startswith(k) for k in _TIPI_INDISPONIBILITA)
+    parziale = any(t.startswith(k) for k in _TIPI_PARZIALI)
+    return rilevante, parziale
+
+
+def _classifica_stato(moderation_status, consenso) -> str | None:
+    """Stato di una riga assenza: ``confermata`` | ``pendente`` | ``None`` (escludi).
+
+    Coerente col resto del modulo: la moderazione "Rifiutato" è finale e vince.
+    Se né ``moderation_status`` né ``consenso`` sono informativi (colonne assenti
+    nel legacy) si assume ``confermata`` (best-effort, come la query confermati).
+    """
+    cons = _norm_key(consenso)
+    if moderation_status in _STATO_RIFIUTATO_MOD or cons in _STATO_RIFIUTATO_TXT:
+        return None
+    if moderation_status in _STATI_CONFERMATI_MOD or cons in _STATI_CONFERMATI_TXT:
+        return "confermata"
+    if moderation_status in _STATO_PENDENTE_MOD or cons in _STATO_PENDENTE_TXT:
+        return "pendente"
+    return "confermata"
+
 
 def _as_date(value):
     """date | datetime | 'YYYY-MM-DD[...]' → date, altrimenti None (fail-safe)."""
@@ -217,4 +262,132 @@ def assenze_per_anagrafica(anagrafica_ids, start, end) -> dict[int, list[dict]]:
         return out
     except Exception:
         logger.warning("assenze_per_anagrafica fallita (ids=%d)", len(ids), exc_info=True)
+        return {}
+
+
+def disponibilita_per_anagrafica(anagrafica_ids, start, end, *, includi_pendenti=True) -> dict[int, list[dict]]:
+    """Indisponibilità (ferie/malattia/permesso) per ``anagrafica_id`` su ``[start, end]``.
+
+    Estende ``assenze_per_anagrafica`` per la Skill Matrix MOD.187: rispetto a
+    quella (a) filtra ai soli tipi che impediscono di stare sulla macchina
+    (``_TIPI_INDISPONIBILITA``), (b) distingue assenze **confermate** da quelle
+    ancora **pendenti** (se ``includi_pendenti``), (c) marca come *parziali* i
+    permessi (assenza non a giornata intera).
+
+    Ritorna ``{anagrafica_id: [{"data_inizio", "data_fine", "tipo", "nome",
+    "stato", "parziale"}, ...]}`` con ``stato`` in {"confermata", "pendente"}.
+    Read-only e **fail-safe**: ``{}`` se manca la sorgente o nessun id risolto.
+    """
+    start = _as_date(start)
+    end = _as_date(end)
+    ids = sorted({int(i) for i in (anagrafica_ids or []) if i is not None})
+    if not ids or not start or not end or start > end:
+        return {}
+    try:
+        identities = _resolve_identities(ids)
+        if not identities:
+            return {}
+
+        cols = set(legacy_table_columns("assenze") or [])
+        if not {"data_inizio", "data_fine"}.issubset(cols):
+            return {}
+
+        name_to_aids: dict[str, set[int]] = {}
+        email_to_aids: dict[str, set[int]] = {}
+        for aid, info in identities.items():
+            for nm in info["names"]:
+                name_to_aids.setdefault(nm, set()).add(aid)
+            for em in info["emails"]:
+                email_to_aids.setdefault(em, set()).add(aid)
+        all_names = sorted(name_to_aids)
+        all_emails = sorted(email_to_aids)
+        if not all_names and not all_emails:
+            return {}
+
+        has_copia = "copia_nome" in cols
+        has_email = "email_esterna" in cols
+        has_mod = "moderation_status" in cols
+        has_cons = "consenso" in cols
+
+        sel = ["data_inizio", "data_fine"]
+        for opt in ("copia_nome", "email_esterna", "tipo_assenza", "moderation_status", "consenso"):
+            if opt in cols:
+                sel.append(opt)
+
+        who: list[str] = []
+        who_params: list = []
+        if has_copia and all_names:
+            who.append("UPPER(COALESCE(copia_nome,'')) IN (%s)" % ", ".join(["%s"] * len(all_names)))
+            who_params.extend(all_names)
+        if has_email and all_emails:
+            who.append("UPPER(COALESCE(email_esterna,'')) IN (%s)" % ", ".join(["%s"] * len(all_emails)))
+            who_params.extend(all_emails)
+        if not who:
+            return {}
+
+        # Stati ammessi nella query: confermati (+ pendenti se richiesti); il
+        # rifiutato resta escluso. Il filtro fine (confermata/pendente) è poi in Python.
+        mod_ammessi = _STATI_CONFERMATI_MOD + (_STATO_PENDENTE_MOD if includi_pendenti else ())
+        txt_ammessi = _STATI_CONFERMATI_TXT + (_STATO_PENDENTE_TXT if includi_pendenti else ())
+        status: list[str] = []
+        if has_mod:
+            status.append(
+                "COALESCE(moderation_status, -1) IN (%s)" % ", ".join("%d" % s for s in mod_ammessi)
+            )
+        if has_cons:
+            status.append(
+                "UPPER(COALESCE(consenso,'')) IN (%s)" % ", ".join("'%s'" % s for s in txt_ammessi)
+            )
+        status_sql = "(" + " OR ".join(status) + ")" if status else "1=1"
+
+        sql = (
+            f"SELECT {', '.join(sel)} FROM assenze "
+            "WHERE data_inizio IS NOT NULL AND data_fine IS NOT NULL "
+            "AND data_fine >= %s AND data_inizio <= %s "
+            f"AND {status_sql} AND (" + " OR ".join(who) + ")"
+        )
+        rows = _fetch_dict(sql, [start, end, *who_params])
+
+        out: dict[int, list[dict]] = {}
+        seen: set[tuple] = set()  # dedupe (aid, di, df, tipo, stato)
+        for r in rows:
+            tipo = str(r.get("tipo_assenza") or "").strip() or "Assenza"
+            rilevante, parziale = _categoria_tipo(tipo)
+            if not rilevante:
+                continue
+            stato = _classifica_stato(r.get("moderation_status"), r.get("consenso"))
+            if stato is None or (stato == "pendente" and not includi_pendenti):
+                continue
+            di = _as_date(r.get("data_inizio"))
+            df = _as_date(r.get("data_fine"))
+            if not di or not df:
+                continue
+            if df < di:
+                di, df = df, di
+            display = str(r.get("copia_nome") or "").strip()
+            aids: set[int] = set()
+            nm = _norm_key(r.get("copia_nome"))
+            if nm:
+                aids |= name_to_aids.get(nm, set())
+            em = _norm_key(r.get("email_esterna"))
+            if em:
+                aids |= email_to_aids.get(em, set())
+            for aid in aids:
+                key = (aid, di, df, tipo, stato)
+                if key in seen:
+                    continue
+                seen.add(key)
+                info = identities.get(aid) or {}
+                nome = display or f"{info.get('cognome', '')} {info.get('nome', '')}".strip() or f"ID {aid}"
+                out.setdefault(aid, []).append({
+                    "data_inizio": di,
+                    "data_fine": df,
+                    "tipo": tipo,
+                    "nome": nome,
+                    "stato": stato,
+                    "parziale": parziale,
+                })
+        return out
+    except Exception:
+        logger.warning("disponibilita_per_anagrafica fallita (ids=%d)", len(ids), exc_info=True)
         return {}

@@ -34,6 +34,7 @@ _SKM_ROUTE_BINDINGS = {
     "anagrafica:skill_matrix_macchina": PERM_SKM_VIEW,
     "anagrafica:skm_match_validazione": PERM_SKM_MANAGE,
     "anagrafica:skm_refresh": PERM_SKM_MANAGE,
+    "anagrafica:skm_impostazioni": PERM_SKM_MANAGE,
 }
 
 # Grant di default (CREATE-ONLY: non sovrascrive le scelte fatte in ACL canonico).

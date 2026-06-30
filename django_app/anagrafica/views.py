@@ -13367,6 +13367,23 @@ def skill_matrix_macchina(request):
             logger.warning("Skill Matrix: anagrafica legacy non disponibile, nomi non risolti", exc_info=True)
     soglia_ord = config.soglia_operativa_ordinale
 
+    # Disponibilità per una data scelta (Skill Matrix × assenze): chi è in
+    # ferie/malattia/permesso quel giorno. Read-only, fail-safe: se la sorgente
+    # assenze non risponde la matrice resta identica (nessun marker).
+    import datetime as _dt
+    data_str = (request.GET.get("data") or "").strip()
+    try:
+        data_sel = _dt.date.fromisoformat(data_str) if data_str else oggi
+    except ValueError:
+        data_sel = oggi
+    disp_map: dict[int, list[dict]] = {}
+    if legacy_ids:
+        try:
+            from assenze.availability import disponibilita_per_anagrafica
+            disp_map = disponibilita_per_anagrafica(sorted(legacy_ids), data_sel, data_sel)
+        except Exception:
+            logger.warning("Skill Matrix: disponibilità assenze non risolta", exc_info=True)
+
     righe: list[dict] = []
     for lid in legacy_ids:
         dip = dip_map.get(lid, {})
@@ -13387,12 +13404,21 @@ def skill_matrix_macchina(request):
                 "sospesa": ab.stato == AbilitazioneMacchina.STATO_SOSPESA,
                 "in_lista": ab.in_lista,
             })
+        assenze_lid = disp_map.get(lid, [])
+        if any(a["stato"] == "confermata" for a in assenze_lid):
+            disp_stato = "assente"
+        elif any(a["stato"] == "pendente" for a in assenze_lid):
+            disp_stato = "da_confermare"
+        else:
+            disp_stato = "presente"
         righe.append({
             "legacy_id": lid,
             "cognome": str(dip.get("cognome") or f"ID {lid}").strip(),
             "nome": str(dip.get("nome") or "").strip(),
             "reparto": str(dip.get("reparto") or "").strip(),
             "celle": celle,
+            "disp_stato": disp_stato,
+            "disp_assenze": assenze_lid,
         })
     righe.sort(key=lambda r: (r["cognome"].casefold(), r["nome"].casefold()))
 
@@ -13420,6 +13446,9 @@ def skill_matrix_macchina(request):
         if co.stato() == ContinuitaOperativa.STATO_PERSA
     )
 
+    from .acl_bootstrap import PERM_SKM_MANAGE
+    n_assenti = sum(1 for r in righe if r["disp_stato"] == "assente")
+    n_da_confermare = sum(1 for r in righe if r["disp_stato"] == "da_confermare")
     return render(request, "anagrafica/pages/skill_matrix_macchina.html", {
         "macchine": comp_macchine,
         "righe": righe,
@@ -13435,6 +13464,10 @@ def skill_matrix_macchina(request):
         },
         "matrice_vuota": len(righe) == 0,
         "n_macchine": len(comp_macchine),
+        "data_sel": data_sel,
+        "n_assenti": n_assenti,
+        "n_da_confermare": n_da_confermare,
+        "can_manage": _check_skm_permission(request, PERM_SKM_MANAGE),
     })
 
 
@@ -13534,6 +13567,39 @@ def skm_refresh(request):
         "arretrati": sum(1 for r in righe if r["arretrata"]),
         "livelli": LivelloSkm.choices,
         "totale": len(righe),
+    })
+
+
+@login_required
+def skm_impostazioni(request):
+    """Gestione del singleton ``SkillMatrixConfig`` (parametri Skill Matrix MOD.187).
+
+    Governa "operativo" (soglia livello, CAR come riserva), il rischio uomo-solo,
+    le cadenze continuità/refresh e le etichette della scala. Sola configurazione,
+    nessun dato personale. Accesso: ``anagrafica.skillmatrix.manage``.
+    """
+    from .acl_bootstrap import PERM_SKM_MANAGE
+    if not _check_skm_permission(request, PERM_SKM_MANAGE):
+        messages.error(request, "Non hai i permessi per gestire la configurazione Skill Matrix.")
+        return redirect("anagrafica:index")
+
+    from .forms import SkillMatrixConfigForm
+    from .models import SkillMatrixConfig
+
+    config = SkillMatrixConfig.get_instance()
+    if request.method == "POST":
+        form = SkillMatrixConfigForm(request.POST, instance=config)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Configurazione Skill Matrix aggiornata.")
+            return redirect("anagrafica:skm_impostazioni")
+        messages.error(request, "Controlla i campi: la configurazione non è stata salvata.")
+    else:
+        form = SkillMatrixConfigForm(instance=config)
+
+    return render(request, "anagrafica/pages/skill_matrix_impostazioni.html", {
+        "form": form,
+        "config": config,
     })
 
 

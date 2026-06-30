@@ -39,6 +39,11 @@
 .sm-multi { box-shadow:inset 0 -3px 0 #1f87cd; }
 .sm-arr { background-image:repeating-linear-gradient(45deg,transparent,transparent 3px,rgba(148,163,184,.35) 3px,rgba(148,163,184,.35) 6px); }
 .sm-rep { color:#94a3b8; font-size:11px; font-weight:400; }
+.sm-disp { display:inline-block; font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.02em; border-radius:4px; padding:1px 5px; margin-left:6px; vertical-align:middle; }
+.sm-disp.ass { background:#fee2e2; color:#991b1b; }
+.sm-disp.dub { background:#fef9c3; color:#854d0e; }
+.sm-table td.name.sm-row-ass { box-shadow:inset 3px 0 0 #ef4444; }
+.sm-table td.name.sm-row-dub { box-shadow:inset 3px 0 0 #f59e0b; }
 .sm-empty { text-align:center; padding:46px 16px; color:#475569; }
 body.theme-dark .sm-table th.name, body.theme-dark .sm-table td.name { background:var(--surface); color:var(--text-light); }
 </style>
@@ -59,6 +64,7 @@ body.theme-dark .sm-table th.name, body.theme-dark .sm-table td.name { backgroun
       <p class="hr-pagehead-desc">Matrice persone × macchine con livelli I/L/U/O. Soglia operativa: <b>≥ {{ config.soglia_operativa }}</b> ({{ config.get_soglia_operativa_display }}).</p>
     </div>
     <div style="display:flex;gap:8px;">
+      {% if can_manage %}<a href="{% url 'anagrafica:skm_impostazioni' %}" class="hr-btn hr-btn-outline" title="Soglia operativa, CAR, uomo-solo, etichette">⚙️ Impostazioni</a>{% endif %}
       <a href="{% url 'anagrafica:skm_match_validazione' %}" class="hr-btn hr-btn-outline" title="Valida l'abbinamento competenza→asset (gate F2a)">🔧 Validazione match</a>
       <a href="?{% if filtro_reparto %}reparto={{ filtro_reparto|urlencode }}&{% endif %}format=csv" class="hr-btn hr-btn-outline">⬇ CSV</a>
     </div>
@@ -82,7 +88,17 @@ body.theme-dark .sm-table th.name, body.theme-dark .sm-table td.name { backgroun
       <option value="">Tutti i reparti</option>
       {% for r in reparti %}<option value="{{ r }}" {% if r == filtro_reparto %}selected{% endif %}>{{ r }}</option>{% endfor %}
     </select>
+    <label class="sm-rep" for="sm-data">Disponibilità al</label>
+    <input type="date" id="sm-data" name="data" value="{{ data_sel|date:'Y-m-d' }}" onchange="this.form.submit()"
+           style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;">
     <span class="sm-rep">{{ totale_persone }} persone · {{ n_macchine }} macchine</span>
+    {% if n_assenti or n_da_confermare %}
+      <span class="sm-rep">·
+        {% if n_assenti %}<b style="color:#991b1b;">{{ n_assenti }} assenti</b>{% endif %}
+        {% if n_da_confermare %}{% if n_assenti %} · {% endif %}<b style="color:#854d0e;">{{ n_da_confermare }} da confermare</b>{% endif %}
+        il {{ data_sel|date:'d/m' }}
+      </span>
+    {% endif %}
   </form>
 
   {% if matrice_vuota %}
@@ -101,6 +117,8 @@ body.theme-dark .sm-table th.name, body.theme-dark .sm-table td.name { backgroun
       <span class="sm-arr" style="padding:2px 8px;">rivalutazione arretrata</span>
       <span class="sm-multi" style="padding:2px 8px;">multivoce</span>
       <span>vuoto = non in lista</span>
+      <span><span class="sm-disp ass">assente</span> ferie/malattia/permesso confermato il {{ data_sel|date:'d/m' }}</span>
+      <span><span class="sm-disp dub">da confermare</span> richiesta in attesa</span>
     </div>
     <div class="sm-wrap">
       <table class="sm-table">
@@ -113,7 +131,12 @@ body.theme-dark .sm-table th.name, body.theme-dark .sm-table td.name { backgroun
         <tbody>
           {% for r in righe %}
           <tr>
-            <td class="name">{{ r.cognome }} {{ r.nome }}{% if r.reparto %}<div class="sm-rep">{{ r.reparto }}</div>{% endif %}</td>
+            <td class="name {% if r.disp_stato == 'assente' %}sm-row-ass{% elif r.disp_stato == 'da_confermare' %}sm-row-dub{% endif %}">
+              {{ r.cognome }} {{ r.nome }}
+              {% if r.disp_stato == 'assente' %}<span class="sm-disp ass" title="{% for a in r.disp_assenze %}{{ a.tipo }} {{ a.data_inizio|date:'d/m' }}–{{ a.data_fine|date:'d/m' }}{% if a.parziale %} (parziale){% endif %}{% if not forloop.last %}; {% endif %}{% endfor %}">assente</span>
+              {% elif r.disp_stato == 'da_confermare' %}<span class="sm-disp dub" title="Richiesta assenza in attesa di approvazione">da confermare</span>{% endif %}
+              {% if r.reparto %}<div class="sm-rep">{{ r.reparto }}</div>{% endif %}
+            </td>
             {% for cell in r.celle %}
               {% if cell.vuota %}
                 <td></td>

@@ -12,6 +12,7 @@ from .models import (
     Mansione,
     RuoloAziendale,
     RuoloOperativo,
+    SkillMatrixConfig,
     TipoVisitaMedica,
     VisitaMedica,
 )
@@ -764,3 +765,41 @@ class EsposizioneRischioForm(forms.ModelForm):
         if not cleaned.get("mansione") and not cleaned.get("area"):
             raise forms.ValidationError("Specificare almeno Mansione o Area come target dell'esposizione.")
         return cleaned
+
+
+# ── Skill Matrix MOD.187 — configurazione (singleton) ──────────────────────────
+class SkillMatrixConfigForm(forms.ModelForm):
+    """Form di gestione del singleton ``SkillMatrixConfig``.
+
+    Espone i parametri che governano "operativo" (soglia livello, CAR come
+    riserva), il rischio uomo-solo, le cadenze di continuità/refresh e le
+    etichette della scala. Gated in view da ``anagrafica.skillmatrix.manage``.
+    """
+
+    class Meta:
+        model = SkillMatrixConfig
+        fields = [
+            "soglia_operativa", "includi_car_come_riserva", "regola_multivoce",
+            "soglia_uomo_solo", "finestra_continuita_mesi", "preavviso_continuita_mesi",
+            "periodicita_refresh_mesi",
+            "etichetta_i", "etichetta_l", "etichetta_u", "etichetta_o",
+        ]
+        widgets = {
+            "soglia_operativa": forms.Select(attrs={"class": "ana-input"}),
+            "regola_multivoce": forms.Select(attrs={"class": "ana-input"}),
+            "includi_car_come_riserva": forms.CheckboxInput(attrs={"class": "ana-check"}),
+            "soglia_uomo_solo": forms.NumberInput(attrs={"class": "ana-input", "min": 1}),
+            "finestra_continuita_mesi": forms.NumberInput(attrs={"class": "ana-input", "min": 0}),
+            "preavviso_continuita_mesi": forms.NumberInput(attrs={"class": "ana-input", "min": 0}),
+            "periodicita_refresh_mesi": forms.NumberInput(attrs={"class": "ana-input", "min": 0}),
+            "etichetta_i": forms.TextInput(attrs={"class": "ana-input"}),
+            "etichetta_l": forms.TextInput(attrs={"class": "ana-input"}),
+            "etichetta_u": forms.TextInput(attrs={"class": "ana-input"}),
+            "etichetta_o": forms.TextInput(attrs={"class": "ana-input"}),
+        }
+
+    def clean_soglia_uomo_solo(self):
+        v = self.cleaned_data.get("soglia_uomo_solo")
+        if v is not None and v < 1:
+            raise forms.ValidationError("La soglia uomo-solo deve essere almeno 1.")
+        return v

@@ -221,6 +221,7 @@ urlpatterns = [
     path("skill-matrix/", views.skill_matrix_macchina, name="skill_matrix_macchina"),
     path("skill-matrix/match/", views.skm_match_validazione, name="skm_match_validazione"),
     path("skill-matrix/refresh/", views.skm_refresh, name="skm_refresh"),
+    path("skill-matrix/impostazioni/", views.skm_impostazioni, name="skm_impostazioni"),
 
     # Onboarding strutturato (pratica + checklist, speculare a offboarding)
     path("onboarding/", views.onboarding_list, name="onboarding_list"),

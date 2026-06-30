@@ -3219,6 +3219,71 @@ def _skillmatrix_names_by_id(legacy_ids) -> dict[int, str]:
     }
 
 
+def _skillmatrix_target_date(text: str, today):
+    """Data bersaglio della disponibilità dal prompt (default ``today``).
+
+    Riconosce "oggi"/"domani"/"dopodomani" e date esplicite (gg/mm[/aaaa] o
+    aaaa-mm-gg). Fail-safe: qualsiasi formato non valido → ``today``.
+    """
+    import datetime as _dt
+    import re as _re
+
+    t = text or ""
+    if "dopodomani" in t:
+        return today + _dt.timedelta(days=2)
+    if "domani" in t:
+        return today + _dt.timedelta(days=1)
+    # aaaa-mm-gg
+    m = _re.search(r"\b(\d{4})-(\d{1,2})-(\d{1,2})\b", t)
+    if m:
+        try:
+            return _dt.date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        except ValueError:
+            return today
+    # gg/mm[/aaaa] o gg-mm[-aaaa]
+    m = _re.search(r"\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b", t)
+    if m:
+        try:
+            day, month = int(m.group(1)), int(m.group(2))
+            year = int(m.group(3)) if m.group(3) else today.year
+            if year < 100:
+                year += 2000
+            return _dt.date(year, month, day)
+        except ValueError:
+            return today
+    return today
+
+
+# Etichette disponibilità per la CHAT: per GDPR (art. 9) la causale sanitaria
+# non va esposta su questa superficie → "malattia" e ogni altro tipo non neutro
+# diventano un generico "assenza". Ferie e permesso (non sanitari) restano espliciti.
+_SKILLMATRIX_DISP_LABEL_CHAT = {"FERIE": "ferie", "PERMESSO": "permesso"}
+
+
+def _skillmatrix_disp_chat(assenze) -> str:
+    """Frase disponibilità privacy-safe per una persona (lista assenze del giorno).
+
+    Ritorna "" se presente; altrimenti "non disponibile (...)" per le confermate
+    o "operativo, assenza in attesa di conferma" per le sole pendenti.
+    """
+    confermate = [a for a in assenze if a.get("stato") == "confermata"]
+    pendenti = [a for a in assenze if a.get("stato") == "pendente"]
+    if confermate:
+        motivi = []
+        for a in confermate:
+            parole = str(a.get("tipo") or "").strip().upper().split()
+            chiave = parole[0] if parole else ""
+            lbl = _SKILLMATRIX_DISP_LABEL_CHAT.get(chiave, "assenza")
+            if lbl == "permesso" and a.get("parziale"):
+                lbl = "permesso (parziale)"
+            if lbl not in motivi:
+                motivi.append(lbl)
+        return "NON disponibile (%s)" % ", ".join(motivi)
+    if pendenti:
+        return "operativo, ma assenza in attesa di conferma"
+    return ""
+
+
 def _skillmatrix_context(request, prompt: str) -> RuntimeContext:
     if not _should_run(request, "skillmatrix", _wants_skillmatrix_context(prompt)):
         return RuntimeContext()
@@ -3296,9 +3361,12 @@ def _skillmatrix_build_context(request, prompt: str, *, scope: str) -> RuntimeCo
     header = "DATI LIVE PORTALE - SKILL MATRIX (MOD.187)"
     instruction = (
         "ISTRUZIONE RISPOSTA: usa esclusivamente i dati elencati qui sotto. Esponi solo nome operatore, "
-        "livello I/L/U/O, macchina, stato e prossima revisione. Non inventare nominativi, livelli o macchine; "
-        "se non risultano abilitazioni registrate dillo chiaramente e invita ad aprire il modulo Skill Matrix. "
-        "Non citare note, dati sanitari/idoneita', retributivi o documentali."
+        "livello I/L/U/O, macchina, stato, prossima revisione e, se presente, la disponibilita' indicata per "
+        "la data (presente / non disponibile / assenza in attesa di conferma). Riporta la causale dell'assenza "
+        "SOLO se gia' scritta qui sotto (ferie/permesso): non dedurre ne' citare malattia o altri dati sanitari. "
+        "Non inventare nominativi, livelli, macchine o assenze; se non risultano abilitazioni registrate dillo "
+        "chiaramente e invita ad aprire il modulo Skill Matrix. Non citare note, dati sanitari/idoneita', "
+        "retributivi o documentali."
     )
     text = _norm_text(prompt)
 
@@ -3382,6 +3450,16 @@ def _skillmatrix_build_context(request, prompt: str, *, scope: str) -> RuntimeCo
 
         soglia = SkillMatrixConfig.get_instance().soglia_operativa_ordinale
         wants_uomo_solo = "uomo solo" in text or "uomo-solo" in text
+
+        # Data bersaglio per la disponibilità (es. "domani"); default oggi.
+        from django.utils import timezone as _tz
+        target_date = _skillmatrix_target_date(text, _tz.localdate())
+        data_lbl = target_date.strftime("%d-%m-%Y")
+        try:
+            from assenze.availability import disponibilita_per_anagrafica
+        except Exception:
+            disponibilita_per_anagrafica = None
+
         sezioni: list[str] = []
         total_rows = 0
         for comp in comps:
@@ -3398,21 +3476,51 @@ def _skillmatrix_build_context(request, prompt: str, *, scope: str) -> RuntimeCo
                 )
                 continue
             names = _skillmatrix_names_by_id([a.legacy_anagrafica_id for a in abil])
+
+            # Disponibilità del giorno (ferie/malattia/permesso). Privacy: in chat
+            # la causale sanitaria è generalizzata (vedi _skillmatrix_disp_chat).
+            disp_map: dict = {}
+            if disponibilita_per_anagrafica is not None:
+                try:
+                    disp_map = disponibilita_per_anagrafica(
+                        [a.legacy_anagrafica_id for a in abil], target_date, target_date)
+                except Exception:
+                    disp_map = {}
+
             righe = []
+            n_op = n_assenti = n_dubbi = 0
             for a in abil:
                 nome = names.get(int(a.legacy_anagrafica_id)) or f"ID {a.legacy_anagrafica_id}"
                 livello = _SKILLMATRIX_LIVELLO_LABEL.get(a.livello, a.livello or "n/d")
                 stato = "attiva" if a.stato == AbilitazioneMacchina.STATO_ATTIVA else "sospesa"
-                operativo = "si" if a.is_operativa(soglia) else "no"
+                operativa = a.is_operativa(soglia)
+                operativo = "si" if operativa else "no"
                 revisione = a.prossima_revisione.strftime("%d-%m-%Y") if a.prossima_revisione else "n/d"
-                righe.append(
+                ass = disp_map.get(int(a.legacy_anagrafica_id), [])
+                disp_txt = _skillmatrix_disp_chat(ass)
+                riga = (
                     f"  - {nome}: livello {livello}, stato {stato}, operativo {operativo}, "
                     f"prossima revisione {revisione}"
                 )
+                if disp_txt:
+                    riga += f" — {disp_txt} il {data_lbl}"
+                righe.append(riga)
                 total_rows += 1
+                if operativa:
+                    n_op += 1
+                    if any(x.get("stato") == "confermata" for x in ass):
+                        n_assenti += 1
+                    elif any(x.get("stato") == "pendente" for x in ass):
+                        n_dubbi += 1
             blocco = (
                 f"Macchina {macchina_label} ({asset.name}): {len(abil)} abilitati in lista.\n" + "\n".join(righe)
             )
+            riepilogo = (
+                f"\n  Disponibili (operativi e presenti) il {data_lbl}: {n_op - n_assenti} su {n_op} operativi"
+            )
+            if n_dubbi:
+                riepilogo += f" ({n_dubbi} con assenza in attesa di conferma)"
+            blocco += riepilogo + "."
             if wants_uomo_solo:
                 k = resolver.kpi_uomo_solo(asset)
                 blocco += (
@@ -3423,7 +3531,7 @@ def _skillmatrix_build_context(request, prompt: str, *, scope: str) -> RuntimeCo
         return _ctx(
             "\n".join(sezioni),
             "tool:skillmatrix:abilitati",
-            {"intent": "pool_abilitati", "codici": codes, "row_count": total_rows},
+            {"intent": "pool_abilitati", "codici": codes, "row_count": total_rows, "data": data_lbl},
         )
 
     # --- fallback: spiega cosa si puo' chiedere ---
