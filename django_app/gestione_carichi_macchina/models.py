@@ -110,6 +110,45 @@ class Macchina(models.Model):
         """Descrizione/nome letti dall'asset."""
         return self.asset.name if self.asset_id else ""
 
+    # ── Turni: single source of truth della capability/capacita' per turno ──
+    # I flag `ha_secondo_turno`/`ha_turno_notte` decidono quali turni una macchina
+    # puo' fare; questi helper sono usati da viste, saturazione, suggerimenti e
+    # template per non duplicare la regola.
+    def n_turni_attivi(self) -> int:
+        """Numero di turni effettivamente abilitati (1° sempre, +2° giorno, +notte)."""
+        return 1 + (1 if self.ha_secondo_turno else 0) + (1 if self.ha_turno_notte else 0)
+
+    def turni_consentiti(self) -> list[str]:
+        """Valori di `Pianificazione.turno` selezionabili per questa macchina.
+
+        1° turno sempre; 2° turno ed «entrambi» richiedono `ha_secondo_turno`; notturno
+        richiede `ha_turno_notte`; H24 richiede entrambi i flag.
+        """
+        out = [Pianificazione.TURNO_GIORNO]
+        if self.ha_secondo_turno:
+            out += [Pianificazione.TURNO_T2, Pianificazione.TURNO_ENTRAMBI]
+        if self.ha_turno_notte:
+            out.append(Pianificazione.TURNO_NOTTE)
+        if self.ha_secondo_turno and self.ha_turno_notte:
+            out.append(Pianificazione.TURNO_H24)
+        return out
+
+    def puo_turno(self, turno: str) -> bool:
+        return turno in self.turni_consentiti()
+
+    def ore_giorno_per_turno(self, turno: str) -> float:
+        """Ore/giorno disponibili a un lavoro secondo il turno scelto.
+
+        «entrambi» (1°+2°) raddoppia, «H24» triplica le ore-base di un singolo turno:
+        un lavoro h24 occupa quindi meno giorni a parita' di ore totali.
+        """
+        base = float(self.ore_giorno_disponibili) or 8.0
+        if turno == Pianificazione.TURNO_ENTRAMBI:
+            return base * 2
+        if turno == Pianificazione.TURNO_H24:
+            return base * 3
+        return base
+
 
 class MacchinaAlias(models.Model):
     """Mappa un codice-officina del foglio (es. MZ5, DM3) verso una Macchina.
@@ -364,14 +403,42 @@ class Pianificazione(models.Model):
     stato (workflow) e fase (lavorazione) sono DUE dimensioni ortogonali, campi distinti.
     """
 
-    TURNO_GIORNO = "giorno"  # 1° turno (giorno)
-    TURNO_T2 = "t2"          # 2° turno (giorno)
-    TURNO_NOTTE = "notte"
+    TURNO_GIORNO = "giorno"      # 1° turno (06-14)
+    TURNO_T2 = "t2"              # 2° turno (14-22)
+    TURNO_ENTRAMBI = "entrambi"  # 1°+2° turno (06-22): doppia capacita' giorno
+    TURNO_NOTTE = "notte"        # notturno (22-06)
+    TURNO_H24 = "h24"            # ciclo continuo (24h)
     TURNO_CHOICES = [
-        (TURNO_GIORNO, "1° turno"),
-        (TURNO_T2, "2° turno"),
-        (TURNO_NOTTE, "Notturno"),
+        (TURNO_GIORNO, "1° turno (6-14)"),
+        (TURNO_T2, "2° turno (14-22)"),
+        (TURNO_ENTRAMBI, "Entrambi (6-22)"),
+        (TURNO_NOTTE, "Notturno (22-6)"),
+        (TURNO_H24, "H24"),
     ]
+    # Turni che coprono (anche) la fascia diurna: usati per raggruppare le barre
+    # nella riga "giorno" unita del Gantt e per la rilevazione conflitti.
+    TURNI_DIURNI = (TURNO_GIORNO, TURNO_T2, TURNO_ENTRAMBI, TURNO_H24)
+
+    # ── Fasce orarie occupate da ciascun turno ──
+    # G = 06-14 (1°), T = 14-22 (2°), N = 22-06 (notte). Due lavori sulla stessa
+    # macchina/giorno confliggono se le loro fasce si INTERSECANO (1°+2° non si toccano,
+    # ma 1°+Entrambi, 2°+Entrambi, *+H24, Notte+H24 sì). Ordine verticale G<T<N.
+    FASCIA_G = "G"
+    FASCIA_T = "T"
+    FASCIA_N = "N"
+    FASCE_ORDINE = (FASCIA_G, FASCIA_T, FASCIA_N)
+    FASCE_TURNO = {
+        TURNO_GIORNO: (FASCIA_G,),
+        TURNO_T2: (FASCIA_T,),
+        TURNO_ENTRAMBI: (FASCIA_G, FASCIA_T),
+        TURNO_NOTTE: (FASCIA_N,),
+        TURNO_H24: (FASCIA_G, FASCIA_T, FASCIA_N),
+    }
+
+    @classmethod
+    def fasce_di(cls, turno: str) -> set:
+        """Insieme delle fasce orarie occupate da un turno (default 1° turno)."""
+        return set(cls.FASCE_TURNO.get(turno, (cls.FASCIA_G,)))
 
     STATO_PIANIFICATA = "pianificata"
     STATO_IN_CORSO = "in_corso"
@@ -387,12 +454,14 @@ class Pianificazione(models.Model):
     FASE_FIN = "fin"
     FASE_RIP = "rip"
     FASE_ASS = "ass"
+    # Codici storici invariati (retro-compatibili con lo storico importato): cambiano
+    # solo le etichette per allinearsi al linguaggio d'officina (Assieme, Ripristino).
     FASE_CHOICES = [
         (FASE_NA, "—"),
-        (FASE_SGR, "Sgrossatura"),
         (FASE_FIN, "Finitura"),
-        (FASE_RIP, "Ripresa"),
-        (FASE_ASS, "Assemblaggio"),
+        (FASE_SGR, "Sgrossatura"),
+        (FASE_ASS, "Assieme"),
+        (FASE_RIP, "Ripristino"),
     ]
 
     FONTE_IMPORT = "import"
