@@ -67,7 +67,7 @@
   <div class="wrap">
     <h1>Assistente AI — Guida al funzionamento</h1>
     <p>Come è fatto, cosa sa rispondere e quali sono i suoi limiti. Documento interno NOVICROM HUB.</p>
-    <span class="badge">Ultimo aggiornamento: 2026-06-30 · Versione guida 1.8</span>
+    <span class="badge">Ultimo aggiornamento: 2026-06-30 · Versione guida 1.9</span>
   </div>
 </header>
 
@@ -203,6 +203,13 @@
     necessari, scelti <strong>dal catalogo reale</strong> (categorie/tipi); le categorie obbligatorie da
     mansionario sono sempre incluse. Pulsante «Proponi DPI» nel report conformità: proposta da validare,
     non salva nulla.</li>
+    <li><strong>Anomalie</strong> <span class="pill on">attivo</span> — dal testo della segnalazione propone in
+    <em>triage</em>: stato superficie e avanzamento (dalle liste reali del modulo), se serve aprire un <strong>RDC</strong> /
+    segnalare al cliente, e una bozza descrizione. Nella pagina di apertura segnalazione: pannello di
+    <strong>suggerimento</strong> (non modifica i campi automaticamente), da usare come guida.</li>
+    <li><strong>Incidenti / RCA</strong> <span class="pill on">attivo</span> — da attività e avvenimento di un
+    evento di sicurezza propone: classificazione tipo evento, causa radice, catena <strong>5-Why</strong> e azioni
+    correttive. Pulsante «Proponi analisi» nella nuova rilevazione: pre-compila i 5-Why e le note, l'operatore rivede e firma.</li>
   </ul>
 </section>
 
@@ -256,6 +263,7 @@
   <h2>9. Storico della guida</h2>
   <table>
     <tr><th>Data</th><th>Versione</th><th>Modifica</th></tr>
+    <tr><td>2026-07-01</td><td>1.9</td><td>Nuovi <strong>copiloti Anomalie</strong> (triage segnalazione: stato superficie/avanzamento/RDC dalla descrizione) e <strong>Incidenti/RCA</strong> (classificazione + causa + catena 5-Why + azioni correttive). Collegati alle rispettive pagine (apertura segnalazione React / nuova rilevazione). Read-only, «l'AI propone, l'umano firma».</td></tr>
     <tr><td>2026-06-30</td><td>1.8</td><td>Tool live <strong>Skill Matrix</strong>: ora incrocia le <strong>assenze</strong> e dice chi è realmente <strong>disponibile</strong> in una data (es. «chi può lavorare domani su DM11?»), anche nella risposta sui <strong>sostituti</strong>. La causale-categoria è mostrata (ferie/malattia/permesso), <strong>senza dettagli sanitari ulteriori</strong> (diagnosi/certificati/idoneità). Stessa info nella matrice (<code>/anagrafica/skill-matrix/</code>, selettore data, anche nell'<strong>export CSV</strong>) + nuova pagina <strong>Impostazioni Skill Matrix</strong> (soglia operativa, CAR, uomo-solo, etichette).</td></tr>
     <tr><td>2026-06-30</td><td>1.7</td><td>Nuovo tool live <strong>Rischi &amp; requisiti mansione</strong> (Fase 2 / A1): da una mansione elenca i fattori di rischio e i DPI / visite mediche / formazione che ne derivano (dati strutturati D.Lgs. 81/08, nessun dato personale; gated come la sezione Formazione/Sicurezza HR).</td></tr>
     <tr><td>2026-06-30</td><td>1.6</td><td>RAG: modalità <strong>«panoramica documento»</strong> (di cosa parla / contenuto di un MT → scopo + indice completo delle sezioni, niente confabulazione dello scopo). Nuovo tool live <strong>Skill Matrix</strong> (chi è abilitato/sostituti macchina, MOD.187) — costruito ma <strong>gated safe-by-default</strong>: si attiva solo dopo l'approvazione della revisione privacy.</td></tr>
