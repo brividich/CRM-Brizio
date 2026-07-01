@@ -81,6 +81,7 @@ class TransizioneIn(Schema):
     azione: str
     motivo: str = ""
     errore: Optional[dict] = None
+    master: Optional[int] = None  # id della Specifica master (per marca_duplicato)
 
 
 class TransizioneOut(Schema):
@@ -142,6 +143,15 @@ def transizione_specifica(request, spec_id: int, payload: TransizioneIn):
         kwargs.update(motivo=payload.motivo)
     elif payload.azione == "errore_tecnico":
         kwargs.update(errore=payload.errore or {"messaggio": payload.motivo or "errore"})
+    elif payload.azione == "marca_duplicato":
+        # La master va indicata (Matrice T2): impostata qui sull'istanza, validata prima.
+        if payload.master:
+            if payload.master == spec.id:
+                return api.create_response(request, {"ok": False, "error": "Una specifica non può essere duplicato di se stessa."}, status=400)
+            if not Specifica.objects.filter(pk=payload.master).exists():
+                return api.create_response(request, {"ok": False, "error": "Specifica master inesistente."}, status=400)
+            spec.master_id = payload.master
+        kwargs.update(motivo=payload.motivo)
 
     try:
         metodo(**kwargs)

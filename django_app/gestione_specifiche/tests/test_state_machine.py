@@ -168,13 +168,18 @@ class AnnullaTests(FSMBase):
 
 
 class DuplicatoTests(FSMBase):
-    def test_marca_duplicato_richiede_master(self):
+    def test_marca_duplicato_richiede_master_e_motivo(self):
         s = Specifica.objects.create(codice="SP-500", titolo="T")
+        # senza master -> errore (anche con motivo)
         with self.assertRaises(ValidationError):
-            s.marca_duplicato(attore=self.comp)
+            s.marca_duplicato(attore=self.comp, motivo="doppione")
         master = Specifica.objects.create(codice="SP-MASTER", titolo="T")
         s.master = master
-        s.marca_duplicato(attore=self.comp)
+        # con master ma senza motivo -> errore (Matrice T2: master + motivo)
+        with self.assertRaises(ValidationError):
+            s.marca_duplicato(attore=self.comp, motivo="")
+        # con master + motivo -> ok
+        s.marca_duplicato(attore=self.comp, motivo="doppione del master")
         s.save()
         self.assertEqual(s.stato, C.STATO_DUPLICATO)
 

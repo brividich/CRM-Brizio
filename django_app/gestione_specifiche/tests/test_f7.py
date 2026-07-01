@@ -73,6 +73,27 @@ class ApiTests(_Base):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json()["stato"], C.STATO_FLOW_DOWN)
 
+    def test_transizione_duplicato_master_e_motivo(self):
+        master = Specifica.objects.create(codice="SP-API-MASTER", titolo="T")
+        spec = Specifica.objects.create(codice="SP-API-DUP", titolo="T")
+        token = self._csrf()
+        # senza master -> 400 (Matrice T2: master obbligatorio)
+        r0 = self.client.post(
+            f"{API}/specifiche/{spec.pk}/transizione",
+            data=json.dumps({"azione": "marca_duplicato", "motivo": "doppione"}),
+            content_type="application/json", HTTP_X_CSRFTOKEN=token,
+        )
+        self.assertEqual(r0.status_code, 400)
+        # con master + motivo -> ok, master persistita
+        r = self.client.post(
+            f"{API}/specifiche/{spec.pk}/transizione",
+            data=json.dumps({"azione": "marca_duplicato", "master": master.pk, "motivo": "doppione del master"}),
+            content_type="application/json", HTTP_X_CSRFTOKEN=token,
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()["stato"], C.STATO_DUPLICATO)
+        self.assertEqual(Specifica.objects.get(pk=spec.pk).master_id, master.pk)
+
     def test_transizione_illegale_400(self):
         spec = Specifica.objects.create(codice="SP-API-4", titolo="T")
         token = self._csrf()

@@ -220,11 +220,13 @@ class Specifica(models.Model):
 
     @transition(field=stato, source=[C.STATO_BOZZA, C.STATO_FLOW_DOWN],
                 target=C.STATO_DUPLICATO)
-    def marca_duplicato(self, attore=None):
-        """{S1,S2}→S7: master obbligatorio."""
+    def marca_duplicato(self, attore=None, motivo=""):
+        """{S1,S2}→S7: riferimento master E motivo obbligatori (Matrice T2)."""
         if not self.master_id:
             raise ValidationError("Per marcare come duplicato è obbligatorio indicare la master.")
-        self._prep_evento(attore, master_id=self.master_id)
+        if not motivo:
+            raise ValidationError("Il motivo del duplicato è obbligatorio.")
+        self._prep_evento(attore, master_id=self.master_id, motivo=motivo)
 
     @transition(field=stato, source="+", target=C.STATO_ERRORE_TECNICO)
     def errore_tecnico(self, attore=None, errore=None):
