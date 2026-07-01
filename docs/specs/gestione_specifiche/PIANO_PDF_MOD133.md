@@ -29,7 +29,8 @@ percorso UNC** (`\\novisrv\Area Produzione\SPECIFICHE`) che è il riferimento az
 | F5 — AI diff rev↔rev → pre-compila MOD.133 | ✅ copilota+endpoint costruiti+testati (offline) |
 | F6a — Composito ufficiale (offline: render+componi+proteggi) | ✅ costruito+testato |
 | F6b — Aggancio FSM + deposito share + flag protezione UI | ⏳ da fare (con revisione utente sulle scritture) |
-| F7 — Conformità alla Matrice ARXivar | ⏳ da fare |
+| F7 — Conformità alla Matrice ARXivar | ✅ checklist prodotta (portale già ampiamente conforme + backlog gap) |
+| UI — pulsante diff copilota + info cartella share | ✅ fatto (stile gs-*) |
 
 ## 2. Decisioni prese (LOCKED — non ri-discutere senza motivo)
 - **Piattaforma = portale**; ARXivar scartato. La `Matrice_Workflow_ARXivar.xlsx` è ora la
@@ -185,3 +186,11 @@ volute). Nota: partire sempre in **dry-run**; nessun `--apply` in prod senza con
   protetto, lettura originale read-only da allegato/share, owner-password dai settings. 7 test.
   **Resta F6b** (aggancio FSM approvazione → deposito share via F2 + flag protezione UI), da fare
   con l'utente sulle scritture; poi UI copiloti e **F7**.
+- **2026-07-01** — **F7 + UI** (utente da remoto). F7: analizzati i 2 Excel reali (Matrice ex
+  ARXivar + FLUSSO) → doc `CONFORMITA_MATRICE_ARXIVAR.md`: il portale è **già ampiamente conforme**
+  (S1-S9, transizioni H1-H4/T1-T6/R1, motivi obbligatori, pausa timer, 7/14gg + 6 mesi,
+  distribuzione+copie+presa visione); backlog gap (griglie condizionali, Ruolo→ACL, algoritmo
+  copie cartacee, campi obbligatori duplicato/errore, reminder S1). **UI**: pulsante «Confronta con
+  revisione precedente» (F5 diff) nel copilota MOD.133 + chip **cartella share** (cliente reale) in
+  scheda. **Resta**: F6b, assegnazione cartelle e i gap del backlog F7, tutti da fare in prod/con
+  l'utente.

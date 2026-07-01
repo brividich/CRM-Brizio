@@ -31,8 +31,10 @@
         Pre-compilazione estratta dal PDF della specifica{% if spec.allegato_nome %} <strong style="color:#1c2b42;">{{ spec.allegato_nome }}</strong>{% endif %}. Ogni proposta richiede conferma dell'operatore: nulla viene salvato automaticamente.</p>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <button type="button" class="gs-btn gs-btn--cyan" style="min-height:32px;" onclick="gsAiRighe()" data-ai-righe>{% include "gestione_specifiche/partials/_icon.html" with name="ai" size=14 %} Proponi righe da PDF</button>
+        <button type="button" class="gs-btn gs-btn--dashed" style="min-height:32px;" onclick="gsAiDiff()" data-ai-diff>{% include "gestione_specifiche/partials/_icon.html" with name="branch" size=14 %} Confronta con revisione precedente</button>
         <button type="button" class="gs-btn" style="min-height:32px;" onclick="gsAiTag()" data-ai-tag>{% include "gestione_specifiche/partials/_icon.html" with name="tag" size=13 %} Proponi TAG di processo</button>
       </div>
+      {% if spec.revisione_precedente %}<p style="margin:8px 0 0; font-size:11.5px; color:#7c8aa2;">Confronto disponibile con <strong style="color:#1c2b42;">{{ spec.revisione_precedente.codice }}</strong> rev. {{ spec.revisione_precedente.revisione|default:"—" }}: il diff evidenzia i paragrafi cambiati e pre-compila il MOD.133 su quelli.</p>{% endif %}
       <div id="gs-ai-out" style="margin-top:12px; display:none;"></div>
     </div>
   </div>
@@ -127,6 +129,44 @@ function gsAiRighe(){
           '</div></div>';
       });
       html+='<div style="font-size:11px;color:#92a0b5;font-style:italic;">'+gsEsc(d.nota||'')+'</div>';
+      gsAiBox(html);
+    }).catch(function(){ if(btn){btn.disabled=false; btn.classList.remove('btn-loading');} gsAiBox('<div style="font-size:12.5px;color:#b5564f;">Errore nel contattare il Copilota AI.</div>'); });
+}
+function gsAiRigaCard(r){
+  return '<div style="background:#fff;border:1px solid #dce7f3;border-radius:11px;padding:10px 12px;margin-bottom:8px;">'+
+    '<div style="font-size:12.5px;color:#1c2b42;"><strong>'+gsEsc(r.rif_paragrafo||r.paragrafi||'—')+'</strong> '+gsEsc(r.argomento||r.argomenti||'')+'</div>'+
+    (r.descrizione_modifiche?'<div style="font-size:11.5px;color:#7c8aa2;margin-top:4px;">'+gsEsc(r.descrizione_modifiche)+'</div>':'')+
+    '<div style="display:flex;gap:6px;margin-top:7px;flex-wrap:wrap;">'+
+      (r.impatto_documenti?'<span class="gs-tag is-blue">Impatto doc</span>':'')+
+      (r.impatto_operativo?'<span class="gs-tag is-green">Impatto operativo</span>':'')+
+      (r.tag_processo?'<span class="gs-tag">'+gsEsc(r.tag_processo)+'</span>':'')+
+    '</div></div>';
+}
+function gsAiDiff(){
+  var btn=document.querySelector('[data-ai-diff]'); if(btn){btn.disabled=true; btn.classList.add('btn-loading');}
+  gsAiBox('<div style="font-size:12.5px;color:#5b6b82;">Confronto con la revisione precedente in corso…</div>');
+  fetch("{% url 'gestione_specifiche:ai_diff_mod133' spec.pk %}", {headers:{'X-Requested-With':'XMLHttpRequest'}})
+    .then(function(r){return r.json();}).then(function(d){
+      if(btn){btn.disabled=false; btn.classList.remove('btn-loading');}
+      var camb=d.cambiamenti||[];
+      var html='';
+      if(camb.length){
+        var col={aggiunto:'is-green',modificato:'is-blue',rimosso:''};
+        html+='<div class="gs-eyebrow" style="margin-bottom:8px;">'+camb.length+' cambiamenti rilevati tra le revisioni</div>';
+        camb.slice(0,20).forEach(function(c){
+          html+='<div style="display:flex;gap:7px;align-items:flex-start;margin-bottom:5px;">'+
+            '<span class="gs-tag '+(col[c.tipo]||'')+'" style="flex:0 0 auto;">'+gsEsc(c.tipo)+'</span>'+
+            '<span style="font-size:11.5px;color:#5b6b82;">'+gsEsc(c.testo)+'</span></div>';
+        });
+        html+='<div style="height:9px;"></div>';
+      }
+      if(d.righe&&d.righe.length){
+        html+='<div class="gs-eyebrow" style="margin-bottom:8px;">'+d.righe.length+' righe MOD.133 proposte dal confronto · rivedi e inserisci manualmente</div>';
+        d.righe.forEach(function(r){ html+=gsAiRigaCard(r); });
+      } else if(!camb.length){
+        html+='<div style="font-size:12.5px;color:#a86a14;">'+gsEsc(d.nota||'Nessun confronto disponibile.')+'</div>';
+      }
+      if(d.nota){ html+='<div style="font-size:11px;color:#92a0b5;font-style:italic;">'+gsEsc(d.nota)+'</div>'; }
       gsAiBox(html);
     }).catch(function(){ if(btn){btn.disabled=false; btn.classList.remove('btn-loading');} gsAiBox('<div style="font-size:12.5px;color:#b5564f;">Errore nel contattare il Copilota AI.</div>'); });
 }

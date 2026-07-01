@@ -206,6 +206,11 @@ def dettaglio(request, pk: int):
         spec.allegato_nome = spec.allegato.name.rsplit("/", 1)[-1]
     elif spec.percorso_esterno:
         spec.allegato_nome = os.path.basename(spec.percorso_esterno)
+    # Cartella share = cliente/categoria REALE (fonte di verità dell'organizzazione).
+    if spec.percorso_esterno:
+        from .share_write import cartella_top_da_percorso
+
+        spec.cartella_share = cartella_top_da_percorso(spec.percorso_esterno)
     mod = MOD133.objects.filter(specifica=spec).first()
     righe = list(mod.righe.all()) if mod else []
     azioni_ofi = (

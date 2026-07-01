@@ -178,6 +178,16 @@ class CopilotaViewTests(TestCase):
         self.assertEqual(data["fonte"], "ai_diff")
         self.assertEqual(RigaMOD133.objects.count(), 0)  # INVARIANTE
 
+    def test_pagina_compila_ha_pulsante_diff(self):
+        # La pagina di compilazione MOD.133 mostra il pulsante «Confronta con revisione precedente».
+        spec = Specifica.objects.create(codice="SP-CMP", titolo="T")
+        spec.avvia_flow_down(attore=self.su)  # S1->S2, crea il MOD.133
+        spec.save()
+        r = self.client.get(reverse("gestione_specifiche:mod133_compila", args=[spec.pk]))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Confronta con revisione precedente")
+        self.assertContains(r, "gsAiDiff")
+
     def test_pagina_ricerca(self):
         Specifica.objects.create(codice="SP-RIC", titolo="Trattamento superficiale")
         r = self.client.get(reverse("gestione_specifiche:ricerca"), {"q": "trattamento"})
