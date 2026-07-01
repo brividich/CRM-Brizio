@@ -1,6 +1,9 @@
 """F4/F7 — test matrice macchina (UI), export CSV, accesso e voci di menu."""
 from __future__ import annotations
 
+from datetime import date
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -44,6 +47,19 @@ class SkillMatrixMacchinaViewTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertIn("text/csv", resp["Content-Type"])
         self.assertIn("skill_matrix_macchina.csv", resp["Content-Disposition"])
+
+    def test_export_csv_include_disponibilita(self):
+        a = Asset.objects.create(asset_tag="CNC-DM3-3", name="DM3", asset_type="CNC", reparto="Off")
+        CompetenzaSkm.objects.create(competenza_key="DM3", display="DM3", tipo="macchina", asset=a)
+        AbilitazioneMacchina.objects.create(legacy_anagrafica_id=7, asset=a, livello=LivelloSkm.AUTONOMO)
+        fake = {7: [{"data_inizio": date(2026, 7, 1), "data_fine": date(2026, 7, 1),
+                     "tipo": "Ferie", "nome": "Rossi Mario", "stato": "confermata", "parziale": False}]}
+        with patch("assenze.availability.disponibilita_per_anagrafica", return_value=fake):
+            resp = self.client.get(self.url, {"format": "csv", "data": "2026-07-01"})
+        self.assertEqual(resp.status_code, 200)
+        body = resp.content.decode("utf-8-sig")
+        self.assertIn("Disponibilità 01/07/2026", body)
+        self.assertIn("assente (Ferie)", body)
 
     def test_accesso_negato_senza_permesso(self):
         self.client.logout()

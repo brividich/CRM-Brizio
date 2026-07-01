@@ -13423,15 +13423,34 @@ def skill_matrix_macchina(request):
     righe.sort(key=lambda r: (r["cognome"].casefold(), r["nome"].casefold()))
 
     if export_csv:
+        def _disp_csv(r):
+            if r["disp_stato"] == "assente":
+                tipi = []
+                for a in r["disp_assenze"]:
+                    if a["stato"] != "confermata":
+                        continue
+                    t = a["tipo"] + (" (parziale)" if a.get("parziale") else "")
+                    if t not in tipi:
+                        tipi.append(t)
+                return "assente (%s)" % ", ".join(tipi) if tipi else "assente"
+            if r["disp_stato"] == "da_confermare":
+                return "da confermare"
+            return ""
+
         resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
         resp["Content-Disposition"] = 'attachment; filename="skill_matrix_macchina.csv"'
         writer = csv.writer(resp, delimiter=";")
-        writer.writerow(["Dipendente", "Reparto"] + [c.display or c.competenza_key for c in comp_macchine])
+        disp_col = f"Disponibilità {data_sel.strftime('%d/%m/%Y')}"
+        writer.writerow(
+            ["Dipendente", "Reparto", disp_col] + [c.display or c.competenza_key for c in comp_macchine]
+        )
         for r in righe:
             cells = []
             for cell in r["celle"]:
                 cells.append("" if cell["vuota"] else cell["livello"])
-            writer.writerow([f"{r['cognome']} {r['nome']}".strip(), r["reparto"]] + cells)
+            writer.writerow(
+                [f"{r['cognome']} {r['nome']}".strip(), r["reparto"], _disp_csv(r)] + cells
+            )
         return resp
 
     # KPI dal resolver (rispettano il filtro reparto).

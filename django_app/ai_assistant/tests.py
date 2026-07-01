@@ -3445,22 +3445,24 @@ class SkillMatrixContextTests(TestCase):
         self.assertEqual(_skillmatrix_target_date("data assurda 99/99", today), today)
         self.assertEqual(_skillmatrix_target_date("nessuna data", today), today)
 
-    def test_disp_chat_generalizza_malattia(self):
+    def test_disp_chat_mostra_categoria(self):
         from ai_assistant.tools import _skillmatrix_disp_chat
         self.assertEqual(_skillmatrix_disp_chat([]), "")
         self.assertIn("ferie", _skillmatrix_disp_chat(
             [{"tipo": "Ferie", "stato": "confermata", "parziale": False}]).lower())
-        # GDPR: la malattia NON deve mai comparire come causale in chat
+        # la causale-categoria è esposta (malattia inclusa); nessun dettaglio ulteriore
         out = _skillmatrix_disp_chat([{"tipo": "Malattia", "stato": "confermata", "parziale": False}])
         self.assertIn("non disponibile", out.lower())
-        self.assertNotIn("malattia", out.lower())
-        self.assertIn("assenza", out.lower())
+        self.assertIn("malattia", out.lower())
+        # un tipo fuori categoria (non atteso dal bridge) resta generico
+        outx = _skillmatrix_disp_chat([{"tipo": "Sciopero", "stato": "confermata", "parziale": False}])
+        self.assertIn("assenza", outx.lower())
         out2 = _skillmatrix_disp_chat([{"tipo": "Permesso", "stato": "confermata", "parziale": True}])
         self.assertIn("parziale", out2.lower())
         out3 = _skillmatrix_disp_chat([{"tipo": "Ferie", "stato": "pendente", "parziale": False}])
         self.assertIn("attesa", out3.lower())
 
-    def test_disponibilita_in_chat_minimizza_malattia(self):
+    def test_disponibilita_in_chat_mostra_causale(self):
         from datetime import date as _date
 
         from anagrafica.models import AbilitazioneMacchina, CompetenzaSkm
@@ -3497,13 +3499,40 @@ class SkillMatrixContextTests(TestCase):
 
         self.assertIn("tool:skillmatrix:abilitati", context.sources)
         lower = context.text.lower()
-        self.assertIn("(ferie)", lower)          # causale non sanitaria: esplicita
-        self.assertIn("(assenza)", lower)        # malattia generalizzata
-        self.assertNotIn("(malattia)", lower)    # causale sanitaria mai esposta nei dati
+        self.assertIn("(ferie)", lower)          # causale ferie esplicita
+        self.assertIn("(malattia)", lower)       # causale-categoria malattia esposta nei dati
         self.assertIn("non disponibile", lower)
         self.assertIn("Disponibili", context.text)  # riga riepilogo
         audit = self._skm_audit(context)
         self.assertEqual(audit.get("data"), "01-07-2026")
+
+    def test_sostituti_includono_disponibilita(self):
+        # "chi può sostituire ... domani" passa dal ramo abilitati (cita il codice)
+        # e riceve quindi l'incrocio assenze come le altre domande sulla macchina.
+        from datetime import date as _date
+
+        from anagrafica.models import AbilitazioneMacchina, CompetenzaSkm
+        from assets.models import Asset
+
+        asset = Asset.objects.create(asset_tag="DM11", name="Rettifica DM11", asset_type=Asset.TYPE_PC)
+        CompetenzaSkm.objects.create(
+            competenza_key="DM11", display="DM11", tipo=CompetenzaSkm.TIPO_MACCHINA, asset=asset,
+        )
+        AbilitazioneMacchina.objects.create(
+            legacy_anagrafica_id=10, asset=asset, livello="U", in_lista=True,
+            stato=AbilitazioneMacchina.STATO_ATTIVA,
+        )
+        self._approve_privacy()
+        request = SimpleNamespace(user=self.admin, path="/assistente-ai/")
+        rows = [{"id": 10, "nome": "Mario", "cognome": "Rossi"}]
+        fake = {10: [{"data_inizio": _date(2026, 7, 2), "data_fine": _date(2026, 7, 2),
+                      "tipo": "Ferie", "nome": "Rossi Mario", "stato": "confermata", "parziale": False}]}
+        with patch("core.legacy_anagrafica.fetch_anagrafica_rows", return_value=rows), \
+             patch("assenze.availability.disponibilita_per_anagrafica", return_value=fake):
+            context = build_runtime_context(request, "chi puo' sostituire sulla DM11 domani?")
+        self.assertIn("tool:skillmatrix:abilitati", context.sources)
+        self.assertIn("non disponibile", context.text.lower())
+        self.assertIn("Disponibili", context.text)
 
     # --- minimizzazione: campi vietati -> contesto limitato ----------------
     def test_forbidden_field_request_returns_limited(self):

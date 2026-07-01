@@ -3254,10 +3254,10 @@ def _skillmatrix_target_date(text: str, today):
     return today
 
 
-# Etichette disponibilità per la CHAT: per GDPR (art. 9) la causale sanitaria
-# non va esposta su questa superficie → "malattia" e ogni altro tipo non neutro
-# diventano un generico "assenza". Ferie e permesso (non sanitari) restano espliciti.
-_SKILLMATRIX_DISP_LABEL_CHAT = {"FERIE": "ferie", "PERMESSO": "permesso"}
+# Etichette disponibilità per la CHAT. La causale è limitata alla CATEGORIA
+# (ferie/malattia/permesso) presa dai dati; nessun dettaglio sanitario ulteriore
+# (diagnosi/certificati/idoneità) viene mai passato. Tipi fuori mappa → "assenza".
+_SKILLMATRIX_DISP_LABEL_CHAT = {"FERIE": "ferie", "MALATTIA": "malattia", "PERMESSO": "permesso"}
 
 
 def _skillmatrix_disp_chat(assenze) -> str:
@@ -3363,8 +3363,9 @@ def _skillmatrix_build_context(request, prompt: str, *, scope: str) -> RuntimeCo
         "ISTRUZIONE RISPOSTA: usa esclusivamente i dati elencati qui sotto. Esponi solo nome operatore, "
         "livello I/L/U/O, macchina, stato, prossima revisione e, se presente, la disponibilita' indicata per "
         "la data (presente / non disponibile / assenza in attesa di conferma). Riporta la causale dell'assenza "
-        "SOLO se gia' scritta qui sotto (ferie/permesso): non dedurre ne' citare malattia o altri dati sanitari. "
-        "Non inventare nominativi, livelli, macchine o assenze; se non risultano abilitazioni registrate dillo "
+        "SOLO se gia' scritta qui sotto (ferie/malattia/permesso): non aggiungere alcun dettaglio sanitario "
+        "ulteriore (diagnosi, certificati, idoneita'). Non inventare nominativi, livelli, macchine o assenze; "
+        "se non risultano abilitazioni registrate dillo "
         "chiaramente e invita ad aprire il modulo Skill Matrix. Non citare note, dati sanitari/idoneita', "
         "retributivi o documentali."
     )

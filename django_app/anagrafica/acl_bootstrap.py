@@ -9,7 +9,9 @@ from core.acl_bootstrap_base import run_bootstrap
 logger = logging.getLogger(__name__)
 
 # Bump alla v3: aggiunge i permessi canonici Skill Matrix MOD.187.
-_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v3"
+# Bump alla v4: aggiunge il binding route della pagina Impostazioni Skill Matrix
+# (anagrafica:skm_impostazioni → manage), così si ri-registra negli ambienti già a v3.
+_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v4"
 
 # ── ACL v2 canonico — Skill Matrix MOD.187 ─────────────────────────────────────
 # Rende le route Skill Matrix governabili da /admin-portale/acl-canonico/ (e
