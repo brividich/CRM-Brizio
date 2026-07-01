@@ -379,6 +379,17 @@ body.theme-dark .sic-error-box { background:rgba(153,27,27,.2); border-color:rgb
           <span class="sic-section-num">2</span>Modello 5WHY
         </div>
 
+        <div id="copilota-inc-card" style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;padding:12px 14px;margin-bottom:14px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+            <strong style="color:#0369a1;">&#129302; Copilota AI &mdash; analisi RCA</strong>
+            <button type="button" id="copilota-inc-run" data-url="{% url 'rilevazione_incidenti:api_copilota_incidente' %}"
+                    style="background:#0ea5e9;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;">Proponi analisi</button>
+          </div>
+          <div style="font-size:11px;color:#64748b;margin-top:4px;">Dalle descrizioni sopra propone tipo evento, causa, catena 5-Why e azioni correttive: <strong>rivedi e firma</strong>. Nulla viene salvato finch&eacute; non premi tu &laquo;Salva rilevazione&raquo;.</div>
+          <div id="copilota-inc-status" style="font-size:12px;color:#64748b;margin-top:8px;"></div>
+          <div id="copilota-inc-result" style="display:none;margin-top:10px;font-size:13px;"></div>
+        </div>
+
         <div class="sic-field">
           <label>Partecipanti all'analisi</label>
           <input type="text" name="partecipanti" value="{{ form_data.partecipanti.0|default:'' }}"
@@ -416,5 +427,54 @@ function toggleMacchina(cb) {
 function toggleMisure(cb) {
   document.getElementById('misure-fields').classList.toggle('hidden', !cb.checked);
 }
+
+/* Copilota AI analisi RCA (Fase 2/A2): proposta read-only. Pre-compila i campi
+   5-Why e note ma NON salva: l'utente conferma con "Salva rilevazione". */
+(function(){
+  var btn=document.getElementById("copilota-inc-run");
+  if(!btn)return;
+  var CSRF="{{ csrf_token }}";
+  var statusEl=document.getElementById("copilota-inc-status");
+  var resEl=document.getElementById("copilota-inc-result");
+  function esc(v){return String(v||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+  function val(name){var el=document.querySelector('[name="'+name+'"]');return el?String(el.value||"").trim():"";}
+  btn.addEventListener("click",async function(){
+    var attivita=val("descrizione_attivita"), avvenimento=val("descrizione_avvenimento");
+    if(!attivita && !avvenimento){statusEl.textContent="Compila prima le descrizioni (attività / avvenimento).";return;}
+    btn.disabled=true;statusEl.textContent="Analisi in corso...";resEl.style.display="none";
+    try{
+      var r=await fetch(btn.dataset.url,{method:"POST",headers:{"Content-Type":"application/json","X-CSRFToken":CSRF},body:JSON.stringify({descrizione_attivita:attivita,descrizione_avvenimento:avvenimento})});
+      var d=await r.json();
+      if(!r.ok||!d.success){statusEl.textContent=(d&&d.error)||"Errore.";btn.disabled=false;return;}
+      var p=d.proposta||{};
+      if(!p.ai_disponibile){statusEl.textContent="AI non disponibile al momento. Riprova più tardi.";btn.disabled=false;return;}
+      statusEl.textContent="Proposta pronta (rivedi e firma):";
+      var perche=p.cinque_perche||[], azioni=p.azioni_correttive||[];
+      var html='<div style="background:#fff;border:1px solid #bae6fd;border-radius:10px;padding:10px 12px;">';
+      if(p.tipo_evento)html+='<div><strong>Tipo evento:</strong> '+esc(p.tipo_evento)+'</div>';
+      if(p.causa_evento)html+='<div><strong>Causa (bozza):</strong> '+esc(p.causa_evento)+'</div>';
+      if(perche.length){html+='<div style="margin-top:6px;"><strong>5-Why:</strong><ol style="margin:4px 0 0 18px;">';perche.forEach(function(x){html+='<li>'+esc(x)+'</li>';});html+='</ol></div>';}
+      if(azioni.length){html+='<div style="margin-top:6px;"><strong>Azioni correttive:</strong><ul style="margin:4px 0 0 18px;">';azioni.forEach(function(x){html+='<li>'+esc(x)+'</li>';});html+='</ul></div>';}
+      if(p.motivazione)html+='<div style="margin-top:6px;color:#475569;"><em>'+esc(p.motivazione)+'</em></div>';
+      html+='<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">';
+      if(perche.length)html+='<button type="button" id="cop-inc-use-why" style="background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;">Compila i 5 WHY</button>';
+      if(azioni.length)html+='<button type="button" id="cop-inc-use-azioni" style="background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;">Usa azioni nelle note</button>';
+      html+='</div><div id="cop-inc-apply" style="font-size:11px;color:#16a34a;margin-top:6px;"></div></div>';
+      resEl.innerHTML=html;resEl.style.display="";
+      var applyEl=document.getElementById("cop-inc-apply");
+      var uw=document.getElementById("cop-inc-use-why");
+      if(uw)uw.addEventListener("click",function(){
+        for(var i=0;i<5;i++){var ta=document.querySelector('[name="why_'+(i+1)+'"]');if(ta&&perche[i])ta.value=perche[i];}
+        applyEl.textContent="Campi 5-Why compilati: rivedili prima di salvare.";
+      });
+      var ua=document.getElementById("cop-inc-use-azioni");
+      if(ua)ua.addEventListener("click",function(){
+        var ta=document.querySelector('[name="note_preposto"]');
+        if(ta){var pre=String(ta.value||"").trim();ta.value=(pre?pre+"\n":"")+"Azioni correttive proposte:\n- "+azioni.join("\n- ");applyEl.textContent="Azioni inserite nelle note preposto: rivedile prima di salvare.";}
+      });
+    }catch(e){statusEl.textContent="Errore di rete.";}
+    btn.disabled=false;
+  });
+})();
 </script>
 {% endblock %}
