@@ -21,8 +21,9 @@ class ProcedureRevisionInline(admin.TabularInline):
 
 @admin.register(ProcedureDocument)
 class ProcedureDocumentAdmin(admin.ModelAdmin):
-    list_display = ("code", "title", "document_type", "category", "is_active", "requires_acknowledgement", "created_at")
-    list_filter = ("document_type", "is_active", "requires_acknowledgement")
+    list_display = ("code", "title", "document_type", "category", "is_active", "requires_acknowledgement", "escludi_dal_rag", "created_at")
+    list_filter = ("document_type", "is_active", "requires_acknowledgement", "escludi_dal_rag")
+    list_editable = ("escludi_dal_rag",)
     search_fields = ("code", "title", "category", "owner_department")
     inlines = [ProcedureRevisionInline]
     readonly_fields = ("created_at", "updated_at")

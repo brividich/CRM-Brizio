@@ -573,6 +573,28 @@ def _sgi_procedure_metadata(doc) -> str:
     return "\n".join(p for p in parts if p)
 
 
+def _sgi_exclude_patterns() -> list[str]:
+    """Deny-list roster operatori (OLLAMA_RAG_SGI_EXCLUDE), lower-case, deduplicata vuoti."""
+    raw = getattr(settings, "OLLAMA_RAG_SGI_EXCLUDE", []) or []
+    if isinstance(raw, str):
+        raw = raw.split(";")
+    return [str(p).strip().lower() for p in raw if str(p).strip()]
+
+
+def _sgi_excluded_by_keyword(code: str, title: str) -> bool:
+    """True se codice/titolo del documento SGI combacia con la deny-list roster operatori.
+
+    Impedisce che gli elenchi di persone abilitate/licenziate a una macchina (skill matrix /
+    licensed operators / MOD.187) entrino nel corpus RAG: sono la fonte di allucinazioni HR
+    ("X e' abilitato alla macchina Y") e scavalcherebbero il tool governato (ACL + privacy).
+    """
+    patterns = _sgi_exclude_patterns()
+    if not patterns:
+        return False
+    hay = f"{code or ''} {title or ''}".lower()
+    return any(p in hay for p in patterns)
+
+
 def _load_sgi_specifiche_chunks() -> list[KnowledgeChunk]:
     """Chunk citabili dalle Specifiche in vigore (stato S3 `in_validita`)."""
     try:
@@ -592,10 +614,14 @@ def _load_sgi_specifiche_chunks() -> list[KnowledgeChunk]:
 
     max_chars = int(getattr(settings, "OLLAMA_RAG_CHUNK_CHARS", 900) or 900)
     chunks: list[KnowledgeChunk] = []
+    esclusi: list[str] = []
     for spec in specifiche:
         try:
             codice = _clean_text(spec.codice, limit=100)
             if not codice:
+                continue
+            if _sgi_excluded_by_keyword(codice, getattr(spec, "titolo", "") or ""):
+                esclusi.append(codice)
                 continue
             rev = _clean_text(spec.revisione, limit=30)
             doc_label = f"{codice} Rev.{rev}" if rev else codice
@@ -604,6 +630,9 @@ def _load_sgi_specifiche_chunks() -> list[KnowledgeChunk]:
             chunks.extend(_sgi_chunks_from_text(source=source, doc_label=doc_label, text=text, max_chars=max_chars))
         except Exception:
             continue
+    if esclusi:
+        logger.info("RAG SGI: %d specifiche escluse dal corpus (deny-list roster): %s",
+                    len(esclusi), ", ".join(esclusi[:20]))
     return chunks
 
 
@@ -629,11 +658,18 @@ def _load_sgi_procedure_chunks() -> list[KnowledgeChunk]:
 
     max_chars = int(getattr(settings, "OLLAMA_RAG_CHUNK_CHARS", 900) or 900)
     chunks: list[KnowledgeChunk] = []
+    esclusi: list[str] = []
     for rev in revisions:
         try:
             doc = rev.document
             code = _clean_text(getattr(doc, "code", ""), limit=50)
             if not code:
+                continue
+            # Governance HR: flag curato per-documento OPPURE deny-list roster operatori.
+            if getattr(doc, "escludi_dal_rag", False) or _sgi_excluded_by_keyword(
+                code, getattr(doc, "title", "") or ""
+            ):
+                esclusi.append(code)
                 continue
             rev_code = _clean_text(rev.revision_code, limit=50)
             doc_label = f"{code} Rev.{rev_code}" if rev_code else code
@@ -642,6 +678,9 @@ def _load_sgi_procedure_chunks() -> list[KnowledgeChunk]:
             chunks.extend(_sgi_chunks_from_text(source=source, doc_label=doc_label, text=text, max_chars=max_chars))
         except Exception:
             continue
+    if esclusi:
+        logger.info("RAG SGI: %d procedure escluse dal corpus (flag/deny-list roster): %s",
+                    len(esclusi), ", ".join(esclusi[:20]))
     return chunks
 
 

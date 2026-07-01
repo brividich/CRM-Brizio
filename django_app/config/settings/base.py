@@ -290,6 +290,20 @@ OLLAMA_RAG_SGI_MAX_SPECS = int(env("OLLAMA_RAG_SGI_MAX_SPECS", "300") or "300")
 OLLAMA_RAG_SGI_MAX_PROCS = int(env("OLLAMA_RAG_SGI_MAX_PROCS", "300") or "300")
 OLLAMA_RAG_SGI_MAX_PDF_CHARS = int(env("OLLAMA_RAG_SGI_MAX_PDF_CHARS", "200000") or "200000")
 OLLAMA_RAG_SGI_TEXT_CACHE_TTL = int(env("OLLAMA_RAG_SGI_TEXT_CACHE_TTL", "2592000") or "2592000")
+# Deny-list documenti SGI: codici/titoli che NON devono entrare nel corpus RAG perche'
+# sono roster di persone abilitate/licenziate a una macchina (skill matrix / licensed
+# operators / MOD.187). Sono la fonte di allucinazioni HR "X e' abilitato alla macchina Y"
+# e un bypass del tool governato (che ha ACL + revisione privacy): quel dato vive SOLO nel
+# modulo Skill Matrix, mai nei documenti indicizzati. Match case-insensitive per sottostringa
+# su "codice titolo". Estendibile via .env (lista separata da ';'). In aggiunta, il flag
+# per-documento ProcedureDocument.escludi_dal_rag esclude singoli documenti dall'admin.
+OLLAMA_RAG_SGI_EXCLUDE = [
+    p.strip() for p in str(env(
+        "OLLAMA_RAG_SGI_EXCLUDE",
+        "licensed operator;operatori abilitati;operatore abilitato;skill matrix;"
+        "matrice abilit;matrice competenz;abilitazioni macchina;mod.187;mod 187;mod187",
+    )).split(";") if p.strip()
+]
 # Soglia minima di recall del RAG SGI sotto la quale l'alert qualità giornaliero
 # (ai_assistant.tasks.run_rag_quality_alert) avvisa gli admin. 0 = solo sgi_chunks=0.
 OLLAMA_RAG_SGI_MIN_RECALL = float(env("OLLAMA_RAG_SGI_MIN_RECALL", "0.7") or "0.7")

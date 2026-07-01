@@ -57,6 +57,17 @@ class ProcedureDocument(models.Model):
     requires_acknowledgement = models.BooleanField(
         default=True, verbose_name="Richiede presa visione"
     )
+    escludi_dal_rag = models.BooleanField(
+        default=False,
+        db_index=True,
+        verbose_name="Escludi dal RAG AI",
+        help_text=(
+            "Se attivo, il documento NON viene indicizzato dall'assistente AI (corpus RAG). "
+            "Usare per i roster di persone abilitate/licenziate a una macchina (skill matrix / "
+            "licensed operators): quel dato deve arrivare solo dal modulo Skill Matrix governato, "
+            "non essere dedotto dai documenti (evita allucinazioni HR e bypass dei permessi)."
+        ),
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

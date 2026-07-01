@@ -2599,6 +2599,57 @@ class SgiRagLoaderTests(TestCase):
             msg=f"un documento dismesso non deve comparire: {context.sources}",
         )
 
+    # ── Governance: roster operatori fuori dal corpus RAG (anti-allucinazione HR) ──
+    def _make_proc(self, code, title, **extra):
+        from procedure_refresh.models import ProcedureDocument, ProcedureRevision
+
+        doc = ProcedureDocument.objects.create(code=code, title=title, is_active=True, **extra)
+        ProcedureRevision.objects.create(
+            document=doc, revision_code="1", revision_date=date.today(), effective_date=date.today(),
+            source_type="sharepoint", source_url="https://sp.example/x", file_name="x.pdf", is_current=True,
+        )
+        return doc
+
+    def test_sgi_corpus_excludes_operator_roster_by_keyword(self):
+        # I roster operatori (skill matrix / licensed operators / MOD.187) NON entrano nel
+        # corpus RAG: sono la fonte dell'allucinazione HR "X è abilitato alla macchina Y"
+        # (dato che vive solo nel tool governato). Le procedure legittime restano.
+        from ai_assistant import services
+
+        self._make_proc("MOD.187", "Skill Matrix - abilitazioni macchina operatori")
+        self._make_proc("DPD MBD", "DMF Licensed Operators - Appendix C")
+        self._make_proc("MT CN 06", "Registrazione presenze")
+
+        clear_knowledge_cache()
+        sources = " ".join(c.source for c in services._load_sgi_document_chunks())
+        self.assertNotIn("MOD.187", sources)
+        self.assertNotIn("DPD MBD", sources)
+        self.assertIn("MT CN 06", sources)  # procedura legittima: resta citabile
+
+    def test_sgi_corpus_excludes_specifica_roster_by_keyword(self):
+        from ai_assistant import services
+
+        self._make_specifica_in_validita(codice="MOD.187", revisione="0", titolo="Operatori abilitati")
+        self._make_specifica_in_validita(codice="MT CN 06", revisione="7", titolo="Presenze")
+
+        clear_knowledge_cache()
+        sources = " ".join(c.source for c in services._load_sgi_document_chunks())
+        self.assertNotIn("spec:MOD.187", sources)
+        self.assertIn("spec:MT CN 06", sources)
+
+    def test_sgi_corpus_excludes_document_flagged_no_rag(self):
+        # Flag curato per-documento: un documento marcato "escludi_dal_rag" esce dal corpus
+        # anche se il titolo non combacia con la deny-list (controllo puntuale dell'admin).
+        from ai_assistant import services
+
+        self._make_proc("MT CN 50", "Procedura generica di reparto", escludi_dal_rag=True)
+        self._make_proc("MT CN 51", "Procedura generica gemella")
+
+        clear_knowledge_cache()
+        sources = " ".join(c.source for c in services._load_sgi_document_chunks())
+        self.assertNotIn("MT CN 50", sources)
+        self.assertIn("MT CN 51", sources)  # gemella non flaggata: resta
+
     # ── F2: regola di citazione nel prompt + comando di indicizzazione ──────
     def test_prompt_carries_sgi_citation_rule(self):
         messages = build_ollama_messages(
