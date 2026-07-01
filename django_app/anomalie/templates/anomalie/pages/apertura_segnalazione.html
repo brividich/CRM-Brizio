@@ -70,6 +70,20 @@
     .sn-preview { margin-top: 8px; font-size: var(--fs-sm); color: var(--text-mid); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 7px 11px; }
     .sn-preview strong { color: var(--text); }
     .sn-warn { margin-top: 8px; font-size: var(--fs-sm); color: #92400e; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; padding: 7px 11px; font-weight: 600; }
+    /* Popup d'aiuto: anomalia gia' aperta per il S/N digitato (con descrizione) */
+    .sn-dup-pop { position: relative; margin-top: 10px; background: var(--surface); border: 1px solid #bfdbfe; border-left: 4px solid var(--primary-mid, #2563eb); border-radius: 8px; padding: 10px 12px; box-shadow: 0 6px 18px rgba(15,23,42,.10); display: flex; flex-direction: column; gap: 8px; animation: snDupIn .14s ease-out; }
+    .sn-dup-pop::before { content: ""; position: absolute; top: -7px; left: 18px; width: 12px; height: 12px; background: var(--surface); border-left: 1px solid #bfdbfe; border-top: 1px solid #bfdbfe; transform: rotate(45deg); }
+    @keyframes snDupIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+    .sn-dup-pop__head { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm); font-weight: 700; color: var(--text); }
+    .sn-dup-pop__icon { flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; background: var(--primary-mid, #2563eb); color: #fff; font-weight: 800; font-size: 12px; line-height: 18px; text-align: center; }
+    .sn-dup-card { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; }
+    .sn-dup-card__top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .sn-dup-card__sn { font-weight: 700; color: var(--text); font-size: var(--fs-sm); letter-spacing: .02em; }
+    .sn-dup-card__stato { font-size: var(--fs-xs, 11px); font-weight: 700; color: var(--primary-mid, #2563eb); background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 999px; padding: 1px 8px; }
+    .sn-dup-card__desc { font-size: var(--fs-sm); color: var(--text-mid); white-space: pre-wrap; word-break: break-word; }
+    .sn-dup-card__meta { font-size: var(--fs-xs, 11px); color: var(--text-mid); }
+    .sn-dup-card__meta strong { color: var(--text); }
+    .sn-dup-card__from { font-size: var(--fs-xs, 11px); color: var(--text-light); }
     .error-msg { background: var(--danger-bg); border: 1px solid #fca5a5; color: var(--danger); border-radius: 8px; padding: 10px 14px; font-size: var(--fs-base); font-weight: 600; }
     .info-msg { background: var(--bg); border: 1px solid var(--border); border-left: 4px solid var(--primary-mid); color: var(--text); border-radius: 8px; padding: 10px 14px; font-size: var(--fs-base); font-weight: 600; }
     .loading-msg, .empty-msg { padding: 32px 28px; text-align: center; font-size: var(--fs-md); color: var(--text-light); }
@@ -125,6 +139,7 @@
       notifica_op: "{% url 'api_anomalie_notifica_op' %}",
       seriali_op: "{% url 'api_anomalie_seriali_op' %}",
       allegati_upload: "{% url 'api_anomalie_allegati_upload' %}",
+      copilota: "{% url 'api_anomalie_copilota' %}",
     };
   </script>
 
@@ -137,6 +152,7 @@
     notifica_op: '/api/anomalie/notifica-op',
     seriali_op: '/api/anomalie/seriali-op',
     allegati_upload: '/api/anomalie/allegati/upload',
+    copilota: '/api/anomalie/copilota',
   };
 
   const cfgLists = window._AP_CONFIG_LISTS || {};
@@ -537,6 +553,9 @@
     const [snFine,    setSnFine]    = useState('');
     const [desc,      setDesc]      = useState('');
     const [note,      setNote]      = useState('');
+    const [copSug,     setCopSug]     = useState(null);
+    const [copLoading, setCopLoading] = useState(false);
+    const [copErr,     setCopErr]     = useState('');
     const [saving,    setSaving]    = useState(false);
     const [error,     setError]     = useState('');
     const [attachMsg, setAttachMsg] = useState('');
@@ -544,16 +563,23 @@
     const fileInputRef = useRef(null);
     // Seriali con anomalie aperte sull'OP (per check duplicati live)
     const [serialiEsistenti, setSerialiEsistenti] = useState([]);
+    // Mappa token (lowercase) -> { seriale, descrizione, avanzamento } per il popup d'aiuto
+    const [serialiDettagli, setSerialiDettagli] = useState({});
     const [snWarn, setSnWarn] = useState('');
+    const [snDuplicati, setSnDuplicati] = useState([]);
 
     // Carica i seriali già presenti (anomalie aperte) sull'OP selezionato.
     useEffect(() => {
-      if (!op || !op.id) { setSerialiEsistenti([]); return; }
+      if (!op || !op.id) { setSerialiEsistenti([]); setSerialiDettagli({}); return; }
       let alive = true;
       fetch(`${API.seriali_op}?op_id=${encodeURIComponent(op.id)}`, { credentials: 'same-origin' })
-        .then(r => r.ok ? r.json() : { seriali: [] })
-        .then(d => { if (alive) setSerialiEsistenti(Array.isArray(d.seriali) ? d.seriali : []); })
-        .catch(() => { if (alive) setSerialiEsistenti([]); });
+        .then(r => r.ok ? r.json() : { seriali: [], dettagli: {} })
+        .then(d => {
+          if (!alive) return;
+          setSerialiEsistenti(Array.isArray(d.seriali) ? d.seriali : []);
+          setSerialiDettagli(d && d.dettagli && typeof d.dettagli === 'object' ? d.dettagli : {});
+        })
+        .catch(() => { if (alive) { setSerialiEsistenti([]); setSerialiDettagli({}); } });
       return () => { alive = false; };
     }, [op && op.id]);
 
@@ -612,6 +638,26 @@
       setPendingFiles(prev => prev.filter((_, i) => i !== idx));
     };
 
+    /* Copilota AI: proposta di triage read-only (non modifica i campi). */
+    const proponiCopilota = async () => {
+      if (!desc.trim()) { setCopErr('Scrivi prima la descrizione.'); return; }
+      setCopLoading(true); setCopErr(''); setCopSug(null);
+      try {
+        const csrf = getCsrf();
+        const r = await fetch(API.copilota, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+          body: JSON.stringify({ descrizione: desc }),
+        });
+        const d = await r.json();
+        if (!r.ok || !d.success) { setCopErr((d && d.error) || 'Errore.'); }
+        else if (!d.proposta || !d.proposta.ai_disponibile) { setCopErr('AI non disponibile al momento.'); }
+        else { setCopSug(d.proposta); }
+      } catch (e) { setCopErr('Errore di rete.'); }
+      setCopLoading(false);
+    };
+
     const validate = () => {
       if (!window._AP_HAS_ANOMALIE) return 'Tabella anomalie non disponibile.';
       if (!desc.trim()) return 'Descrizione anomalia obbligatoria.';
@@ -667,8 +713,9 @@
     /* Formato seriale canonico: 3 lettere + 5 cifre (es. LCN00001). */
     const SN_PATTERN = /^[A-Za-z]{3}\d{5}$/;
 
-    /* Check live: formato canonico + coerenza prefisso + duplicati.
-       Tutto NON bloccante: ritorna un messaggio di warning o ''. */
+    /* Check live formato: formato canonico + coerenza prefisso.
+       NON bloccante: ritorna un messaggio di warning o ''.
+       (I duplicati hanno un popup dedicato con la descrizione, vedi sotto.) */
     const computeSnWarn = () => {
       const toks = tokensFromInput();
       if (!toks.length) return '';
@@ -690,22 +737,38 @@
         }
       }
 
-      // 3) Duplicati: token già presenti tra le anomalie aperte dell'OP
-      if (serialiEsistenti.length) {
-        const existSet = new Set(serialiEsistenti.map(x => x.toLowerCase()));
-        const dups = toks.filter(t => existSet.has(t.toLowerCase()));
-        if (dups.length) {
-          warns.push(`Già presente${dups.length > 1 ? 'i' : ''} anomalia aperta per: ${dups.join(', ')}`);
-        }
-      }
-
       return warns.join(' · ');
     };
 
-    // Ricalcola il warning quando cambia l'input o i seriali esistenti.
+    /* Duplicati: per ogni token in input che ha già un'anomalia aperta sull'OP,
+       restituisce { token, descrizione, avanzamento, seriale } per il popup
+       d'aiuto che mostra all'operatore la descrizione di quell'anomalia. */
+    const computeSnDuplicati = () => {
+      if (!serialiEsistenti.length) return [];
+      const existSet = new Set(serialiEsistenti.map(x => x.toLowerCase()));
+      const seen = new Set();
+      const out = [];
+      for (const t of tokensFromInput()) {
+        const key = t.toLowerCase();
+        if (!existSet.has(key) || seen.has(key)) continue;
+        seen.add(key);
+        const info = (serialiDettagli && serialiDettagli[key]) || {};
+        out.push({
+          token: t,
+          descrizione: info.descrizione || '',
+          avanzamento: info.avanzamento || '',
+          autore: info.autore || '',
+          seriale: info.seriale || t,
+        });
+      }
+      return out;
+    };
+
+    // Ricalcola warning e duplicati quando cambia l'input o i seriali esistenti.
     useEffect(() => {
       setSnWarn(computeSnWarn());
-    }, [sn, snInizio, snFine, isRange, serialiEsistenti]);
+      setSnDuplicati(computeSnDuplicati());
+    }, [sn, snInizio, snFine, isRange, serialiEsistenti, serialiDettagli]);
 
     const buildPayload = (snVal) => ({
       op_id:       op.id,
@@ -867,9 +930,41 @@
                 Verrà salvata <strong>1 anomalia</strong> · S/N: <strong>{buildSeriale()}</strong>
               </div>
             )}
-            {/* Warning live non bloccante: linea seriale / duplicati */}
+            {/* Warning live non bloccante: formato / coerenza prefisso seriale */}
             {snWarn && (
               <div className="sn-warn">⚠ {snWarn}</div>
+            )}
+            {/* Popup d'aiuto: anomalie GIA' aperte per i S/N digitati, con descrizione */}
+            {snDuplicati.length > 0 && (
+              <div className="sn-dup-pop" role="status" aria-live="polite">
+                <div className="sn-dup-pop__head">
+                  <span className="sn-dup-pop__icon">!</span>
+                  {snDuplicati.length === 1
+                    ? 'Esiste già un’anomalia aperta per questo S/N'
+                    : `Esistono già ${snDuplicati.length} anomalie aperte per questi S/N`}
+                </div>
+                {snDuplicati.map((d, i) => (
+                  <div className="sn-dup-card" key={d.token + '_' + i}>
+                    <div className="sn-dup-card__top">
+                      <span className="sn-dup-card__sn">{d.token}</span>
+                      {d.avanzamento && (
+                        <span className="sn-dup-card__stato">{d.avanzamento}</span>
+                      )}
+                    </div>
+                    <div className="sn-dup-card__desc">
+                      {d.descrizione
+                        ? d.descrizione
+                        : <em>(nessuna descrizione registrata)</em>}
+                    </div>
+                    {d.autore && (
+                      <div className="sn-dup-card__meta">Inserita da <strong>{d.autore}</strong></div>
+                    )}
+                    {d.seriale && d.seriale.toLowerCase() !== d.token.toLowerCase() && (
+                      <div className="sn-dup-card__from">Fa parte di: {d.seriale}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 
@@ -885,6 +980,28 @@
               value={desc}
               onChange={e => setDesc(e.target.value)}
             />
+          </div>
+
+          {/* Copilota AI: proposta di triage (read-only, non modifica i campi) */}
+          <div style={{background:'#f0f9ff',border:'1px solid #bae6fd',borderRadius:'12px',padding:'10px 12px',margin:'6px 0 14px'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'8px',flexWrap:'wrap'}}>
+              <strong style={{color:'#0369a1',fontSize:'13px'}}>Copilota AI &mdash; triage</strong>
+              <button type="button" onClick={proponiCopilota} disabled={copLoading}
+                style={{background:'#0ea5e9',color:'#fff',border:'none',borderRadius:'8px',padding:'5px 11px',fontSize:'12px',fontWeight:600,cursor:copLoading?'default':'pointer'}}>
+                {copLoading ? 'Analisi…' : 'Proponi triage'}
+              </button>
+            </div>
+            <div style={{fontSize:'11px',color:'#64748b',marginTop:'4px'}}>Suggerimento dalla descrizione: <strong>rivedi tu</strong>, non modifica i campi automaticamente.</div>
+            {copErr ? <div style={{fontSize:'12px',color:'#dc2626',marginTop:'6px'}}>{copErr}</div> : null}
+            {copSug ? (
+              <div style={{background:'#fff',border:'1px solid #bae6fd',borderRadius:'10px',padding:'8px 10px',marginTop:'8px',fontSize:'12.5px'}}>
+                {copSug.stato_superficie ? <div><strong>Stato superficie:</strong> {copSug.stato_superficie}</div> : null}
+                {copSug.avanzamento ? <div><strong>Avanzamento:</strong> {copSug.avanzamento}</div> : null}
+                <div><strong>Serve RDC/cliente:</strong> {copSug.serve_rdc ? 'si' : 'no'}</div>
+                {copSug.bozza_descrizione ? <div style={{marginTop:'4px'}}><strong>Bozza:</strong> {copSug.bozza_descrizione}</div> : null}
+                {copSug.motivazione ? <div style={{marginTop:'4px',color:'#475569'}}><em>{copSug.motivazione}</em></div> : null}
+              </div>
+            ) : null}
           </div>
 
           {/* Note aggiuntive */}
