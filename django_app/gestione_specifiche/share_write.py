@@ -168,6 +168,33 @@ def elenca_cartelle_consentite(max_depth: int = 2) -> list[dict]:
     return sorted(out, key=lambda d: (str(d["root"]).lower(), d["label"].lower()))
 
 
+def cartella_top_da_percorso(percorso: str) -> str:
+    """Cartella di 1o livello (cliente/categoria) sotto una radice consentita, dal percorso
+    MEMORIZZATO (analisi lessicale: funziona anche se il file e' stato spostato/rinominato).
+
+    Es. ``\\\\srv\\...\\SPECIFICHE\\FINCANTIERI\\15500 REV.0.pdf`` -> ``FINCANTIERI``.
+    Ritorna '' se il percorso non e' sotto una radice o e' direttamente nella radice.
+    """
+    p = str(percorso or "").replace("/", "\\")
+    for root in radici_consentite():
+        r = str(root).replace("/", "\\").rstrip("\\")
+        if p.lower().startswith(r.lower() + "\\"):
+            segs = [s for s in p[len(r) + 1:].split("\\") if s]
+            return segs[0] if len(segs) > 1 else ""  # l'ultimo segmento e' il file
+    return ""
+
+
+def sottocartella_da_percorso(percorso: str) -> str:
+    """Sottocartella relativa alla radice (tutti i segmenti tranne il file), '' se in radice."""
+    p = str(percorso or "").replace("/", "\\")
+    for root in radici_consentite():
+        r = str(root).replace("/", "\\").rstrip("\\")
+        if p.lower().startswith(r.lower() + "\\"):
+            segs = [s for s in p[len(r) + 1:].split("\\") if s]
+            return "\\".join(segs[:-1])
+    return ""
+
+
 def valida_cartella_destinazione(cartella: str) -> str | None:
     """Realpath della cartella se e' una dir ESISTENTE, dentro allowlist e NON esclusa; altrimenti None."""
     reale = risolvi_consentito(cartella)

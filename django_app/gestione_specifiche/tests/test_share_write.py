@@ -2,21 +2,26 @@
 collisioni (identico/diverso/forza), rollback. Nessun dato reale: file PDF sintetici in una
 share-root temporanea via override_settings.
 """
+import csv
 import os
 import shutil
 import tempfile
+from io import StringIO
 from unittest import mock
 
+from django.core.management import call_command
 from django.test import TestCase, override_settings
 
 from gestione_specifiche.models import EventoSpecifica, Specifica
 from gestione_specifiche import share_write
 from gestione_specifiche.share_write import (
+    cartella_top_da_percorso,
     elenca_cartelle_consentite,
     esegui,
     nome_canonico,
     nome_nuova_revisione,
     pianifica,
+    sottocartella_da_percorso,
     valida_cartella_destinazione,
     _sanitizza_nome,
     _stem_documento,
@@ -224,3 +229,43 @@ class RollbackTest(ShareWriteBase):
         self.assertEqual(Specifica.objects.get(pk=self.spec.pk).percorso_esterno, self.vecchio)
         # nessun evento persistito
         self.assertEqual(EventoSpecifica.objects.filter(specifica=self.spec, trigger="deposito_revisione_share").count(), 0)
+
+
+@override_settings(GESTIONE_SPECIFICHE_SHARE_ROOTS=[r"\\novisrv\Area Produzione\SPECIFICHE"])
+class MappaturaCartelleTest(TestCase):
+    """La cartella di 1o livello sulla share e' il cliente/categoria reale (mapping READ-ONLY)."""
+
+    def test_cartella_top_e_sottocartella(self):
+        p = r"\\novisrv\Area Produzione\SPECIFICHE\FINCANTIERI\15500 REV.0.pdf"
+        self.assertEqual(cartella_top_da_percorso(p), "FINCANTIERI")
+        self.assertEqual(sottocartella_da_percorso(p), "FINCANTIERI")
+        # con sottocartella
+        p2 = r"\\novisrv\Area Produzione\SPECIFICHE\FERRARI - FERRARI GES\SPECIFICHE Q\X REV.0.pdf"
+        self.assertEqual(cartella_top_da_percorso(p2), "FERRARI - FERRARI GES")
+        self.assertEqual(sottocartella_da_percorso(p2), r"FERRARI - FERRARI GES\SPECIFICHE Q")
+        # fuori radice
+        self.assertEqual(cartella_top_da_percorso(r"\\altro\share\X.pdf"), "")
+
+    def test_comando_mapping_evidenzia_difformi(self):
+        Specifica.objects.create(
+            codice="109040245101_LIN01", revisione="0", titolo="t", tipo="specifica", fonte="cliente",
+            cliente="FINCANTIERI",
+            percorso_esterno=r"\\novisrv\Area Produzione\SPECIFICHE\FINCANTIERI\15500 REV.0.pdf",
+        )
+        Specifica.objects.create(
+            codice="ABC", revisione="0", titolo="t", tipo="specifica", fonte="cliente",
+            cliente="DUCATI",  # cliente gestionale != cartella (FERRARI) -> difforme
+            percorso_esterno=r"\\novisrv\Area Produzione\SPECIFICHE\FERRARI - FERRARI GES\ABC REV.0.pdf",
+        )
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        out_csv = os.path.join(tmp, "map.csv")
+        buf = StringIO()
+        call_command("mappa_cartelle_specifiche", "--out", out_csv, stdout=buf)
+        with open(out_csv, newline="", encoding="utf-8-sig") as fh:
+            righe = {r["codice"]: r for r in csv.DictReader(fh, delimiter=";")}
+        self.assertEqual(righe["109040245101_LIN01"]["cartella"], "FINCANTIERI")
+        self.assertEqual(righe["109040245101_LIN01"]["coerente"], "SI")
+        self.assertEqual(righe["ABC"]["cartella"], "FERRARI - FERRARI GES")
+        self.assertEqual(righe["ABC"]["coerente"], "NO")  # DUCATI != FERRARI
+        self.assertIn("difformi", buf.getvalue())
