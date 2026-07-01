@@ -27,7 +27,8 @@ percorso UNC** (`\\novisrv\Area Produzione\SPECIFICHE`) che è il riferimento az
 | F3 — Toolkit PDF (componi + proteggi) | ✅ costruito+integrato (test verdi) |
 | F4 — Renderer MOD.133 | ✅ costruito+integrato (test verdi) |
 | F5 — AI diff rev↔rev → pre-compila MOD.133 | ✅ copilota+endpoint costruiti+testati (offline) |
-| F6 — Aggancio workflow + flag protezione UI | ⏳ da fare |
+| F6a — Composito ufficiale (offline: render+componi+proteggi) | ✅ costruito+testato |
+| F6b — Aggancio FSM + deposito share + flag protezione UI | ⏳ da fare (con revisione utente sulle scritture) |
 | F7 — Conformità alla Matrice ARXivar | ⏳ da fare |
 
 ## 2. Decisioni prese (LOCKED — non ri-discutere senza motivo)
@@ -101,8 +102,13 @@ percorso UNC** (`\\novisrv\Area Produzione\SPECIFICHE`) che è il riferimento az
   share) → **diff deterministico a paragrafi** (`difflib`) → LLM interpreta i soli cambiamenti in
   **righe MOD.133** (Copilota; umano firma). Fail-safe, nessuna scrittura, ritorna anche i
   `cambiamenti` per la UI. **Da fare**: bottone/UI nella scheda (F6/UI) e OCR per scansioni.
-- **F6 — Aggancio workflow**: all'approvazione MOD.133 → rigenera+salva composito sulla share;
-  **flag protezione** nella UI; download serve il composito quando c'è MOD.133.
+- **F6a — Composito ufficiale** ✅ (offline): `composito.py` orchestra F4 (render MOD.133) →
+  F3 (`anteponi_pagine` + `applica_protezione`) → byte del composito `[MOD.133]+[originale]`
+  protetto; `dati_mod133_da_spec` mappa `MOD133`/`RigaMOD133`; originale letto in sola lettura
+  (allegato o share). Nessuna scrittura.
+- **F6b — Aggancio workflow**: all'approvazione MOD.133 → rigenera+**deposita** il composito sulla
+  share (F2); **flag protezione** nella UI; download serve il composito quando c'è MOD.133. **Da
+  fare** con revisione utente sulle scritture.
 - **F7 — Conformità Matrice**: escalation 14gg, algoritmo copie cartacee, griglie condizionali,
   mappa ruoli→gruppi (dalla `Matrice_Workflow_ARXivar.xlsx`).
 
@@ -174,3 +180,8 @@ volute). Nota: partire sempre in **dry-run**; nessun `--apply` in prod senza con
   righe MOD.133; fail-safe, nessuna scrittura). **Prossimo: F6** (aggancio workflow + composito
   protetto + supersessione FSM) e la **UI** (bottoni copilota diff + flag protezione), oltre a
   **assegnazione cartelle** e **F7** conformità.
+- **2026-07-01** — **F6a costruito+testato offline**: `composito.py`
+  (`componi_composito_ufficiale`/`_da_spec`, `dati_mod133_da_spec`) — [MOD.133]+[originale]
+  protetto, lettura originale read-only da allegato/share, owner-password dai settings. 7 test.
+  **Resta F6b** (aggancio FSM approvazione → deposito share via F2 + flag protezione UI), da fare
+  con l'utente sulle scritture; poi UI copiloti e **F7**.
