@@ -68,6 +68,14 @@ class Specifica(models.Model):
         "Allegato", upload_to=upload_to_specifica, storage=specifica_allegato_storage,
         null=True, blank=True, max_length=255,
     )
+    # Modalità COLLEGAMENTO (alternativa alla copia in `allegato`): percorso UNC del PDF
+    # sulla share aziendale — "single source of truth" per tutti, sempre allineato al master
+    # (versionato/aggiornato lì, PDF protetti da Adobe). La view protetta lo serve on-demand
+    # dalla share con allowlist + anti-traversal; nessuna copia locale. Se valorizzato ha la
+    # precedenza sull'allegato locale nel download.
+    percorso_esterno = models.CharField(
+        "Percorso esterno (share UNC)", max_length=500, blank=True, default="",
+    )
 
     # Hook nullable per agganci futuri al resto del HUB (decisione F0 #9) — NO FK.
     commessa_ref = models.CharField("Rif. commessa", max_length=100, blank=True, default="", db_index=True)

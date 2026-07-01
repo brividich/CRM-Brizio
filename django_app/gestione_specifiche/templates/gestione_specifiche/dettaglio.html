@@ -87,11 +87,12 @@
       {% if spec.note %}<div style="margin-top:18px;"><div class="gs-flabel">Note</div><div style="font-size:13px; color:#5b6b82; line-height:1.5;">{{ spec.note|linebreaksbr }}</div></div>{% endif %}
       <div style="margin-top:20px; padding-top:18px; border-top:1px solid #eef2f7; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
         <span class="gs-flabel" style="margin:0;">Documento allegato</span>
-        {% if spec.allegato %}
+        {% if spec.allegato or spec.percorso_esterno %}
         <a href="{% url 'gestione_specifiche:allegato_download' spec.pk %}" style="display:inline-flex; align-items:center; gap:9px; padding:8px 13px; border-radius:10px; background:#f6f9fd; border:1px solid #e6eef7; text-decoration:none;">
           <span style="color:#1f87cd;">{% include "gestione_specifiche/partials/_icon.html" with name="file" size=15 %}</span>
           <span style="font-size:12.5px; font-weight:700; color:#1c2b42;">{{ spec.allegato_nome }}</span>
           <span style="color:#1f87cd;">{% include "gestione_specifiche/partials/_icon.html" with name="download" size=15 %}</span>
+          {% if spec.percorso_esterno and not spec.allegato %}<span style="font-size:10.5px; color:#6b7a90;">(sulla share)</span>{% endif %}
         </a>
         {% else %}<span style="font-size:12.5px; color:#92a0b5; font-style:italic;">Nessun allegato</span>{% endif %}
         {% if spec.stato == C.STATO_BOZZA or spec.stato == C.STATO_FLOW_DOWN %}<div style="flex:1;"></div><a class="gs-btn" href="{% url 'gestione_specifiche:modifica' spec.pk %}">{% include "gestione_specifiche/partials/_icon.html" with name="edit" size=15 %} Modifica metadati</a>{% endif %}

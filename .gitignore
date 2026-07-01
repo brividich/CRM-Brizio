@@ -268,3 +268,9 @@ docs/anagrafica/PROPOSTA_GESTIONE_COMPETENZE.pdf
 docs/anagrafica/skillmatrix/skm_catalogo_competenze.csv
 # Guida d'uso in PDF (rigenerabile dall'HTML)
 docs/gestione_carichi_macchina/GUIDA_UTILIZZO.pdf
+
+# Export/listoni Excel lasciati nella RADICE del repo (dati reali, mai versionare).
+# Solo root-level: gli .xls/.xlsx tracciati stanno in sottocartelle e non sono toccati.
+/*.xls
+/*.xlsx
+/*.csv

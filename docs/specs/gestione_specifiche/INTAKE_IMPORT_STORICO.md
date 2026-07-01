@@ -5,6 +5,29 @@
 > revisioni superate/annullate **non** vanno importate: lo storico nasce dal
 > sistema in avanti.
 
+## 0. Scorciatoia: conversione automatica dai listoni del gestionale
+
+Se parti dagli **export del gestionale** (invece di compilare a mano il CSV), usa
+l'adattatore `converti_export_gestionale`, che li trasforma nei CSV di questo template:
+
+- **SPTE** (Specifiche Tecniche, es. `OK SPTE AL …-…-….xls`) → `specifiche_spte.csv`
+  (`fonte=generica`) **+ `allegati_spte.csv`** (codice;revisione;percorso UNC del PDF).
+- **Specifiche Cliente** (`MOD.097 … .xlsx`, foglio `Registro`) → `specifiche_cliente.csv`
+  (`fonte=cliente`).
+
+```powershell
+python django_app\manage.py converti_export_gestionale ^
+    --spte    "C:\PortaleNovicrom\import\OK SPTE AL 25-6-26.xls" ^
+    --cliente "C:\PortaleNovicrom\import\MOD.097 - SPE - Specifiche Cliente.xlsx" ^
+    --out     "C:\PortaleNovicrom\import\csv" --settings=config.settings.prod
+```
+
+Regole "In validità" applicate: scarta codici vuoti/`0`; **esclude** le SPTE con `fvali`
+valorizzato (sospese/superate — override con `--includi-fvali`); per i clienti tiene solo
+`SOSP.=NO` e non superate; dedup su (codice, revisione); date convertite. **Titolo cliente**:
+il Registro non ha un titolo → si usa il N° Documento. I CSV prodotti si validano/applicano
+coi passi §4. *(File ed export vanno tenuti FUORI dal repo — dati reali.)*
+
 ## 1. Cosa serve da te
 
 Un file **CSV** (UTF-8) compilato secondo il template
@@ -64,12 +87,42 @@ python django_app\manage.py import_specifiche_storico --genera-template docs\spe
 Ogni specifica importata nasce in stato **`in_validita`**, con `data_inserimento`
 storica preservata e un evento di audit `EventoSpecifica(trigger="import_storico")`.
 
-## 5. Cosa NON fa l'import
+## 5. Allegati: PDF dalla share UNC
+
+`import_specifiche_storico` carica **solo i metadati**. I PDF si agganciano dopo, in una di
+due modalità (entrambe dry-run → `--apply`, idempotenti, da lanciare su una macchina che
+vede la share e **dopo** l'import):
+
+### 5a. COLLEGAMENTO (default consigliato — la share è il master unico)
+
+La `Specifica` memorizza il **percorso UNC** (`percorso_esterno`) e la view protetta serve il
+PDF **on-demand dalla share**: nessuna copia, sempre allineato al master (PDF protetti da
+Adobe, cartella aggiornata da tutti) — coerente con ISO 9001/EN 9100.
+
+```powershell
+python django_app\manage.py collega_pdf_da_share "C:\PortaleNovicrom\import\csv\allegati_spte.csv" --settings=config.settings.prod           # dry-run
+python django_app\manage.py collega_pdf_da_share "C:\PortaleNovicrom\import\csv\allegati_spte.csv" --apply --settings=config.settings.prod   # scrive
+```
+
+**Sicurezza**: si servono SOLO percorsi dentro le radici allowlist
+`GESTIONE_SPECIFICHE_SHARE_ROOTS` (default `\\novisrv\Area Produzione\SPECIFICHE`), assoluti e
+senza traversal, ri-validati ad ogni download. **Prerequisito**: all'app-pool IIS serve la
+**sola lettura** su quella share (least privilege) perché il download funzioni in prod.
+
+### 5b. COPIA cifrata (alternativa)
+
+`allega_pdf_da_share` copia invece il PDF in `Specifica.allegato` (storage privato **cifrato**
+at-rest). Usala solo se vuoi una copia locale indipendente dalla share.
+
+```powershell
+python django_app\manage.py allega_pdf_da_share "…\allegati_spte.csv" --apply --settings=config.settings.prod
+```
+
+> Lo script guidato `tools/import_specifiche_prod.ps1 -Apply` esegue tutta la catena
+> (conversione → import → allegati) usando il **collegamento** di default (`-Copia` per la copia).
+
+## 6. Cosa NON fa l'import
 
 - Non importa revisioni non in validità (vengono scartate con motivo).
 - Non genera MOD.133/OFI/distribuzioni storiche (lo storico processuale nasce in avanti).
 - Non modifica righe già presenti (idempotente).
-
----
-> **Pending**: il caricamento dei **dati reali** è in attesa del file compilato.
-> Vedi BLOCKER «dati storici attesi» in `BUILD_LOG.md`.

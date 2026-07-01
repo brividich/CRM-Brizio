@@ -157,8 +157,29 @@ def lista(request):
 
 @login_required
 def allegato_download(request, pk: int):
-    """Download protetto dell'allegato di una specifica (storage privato)."""
+    """Download protetto dell'allegato di una specifica.
+
+    Due modalità: (1) COLLEGAMENTO alla share (`percorso_esterno`, precedenza) — il PDF
+    resta sul master aziendale e si serve on-demand, ma SOLO se il percorso è dentro una
+    radice consentita (allowlist + anti-traversal); (2) copia locale cifrata (`allegato`).
+    In entrambe l'accesso passa da questa view ACL-protetta.
+    """
+    import os
+
     spec = get_object_or_404(Specifica, pk=pk)
+
+    if spec.percorso_esterno:
+        from .share_link import risolvi_consentito
+
+        # risolvi_consentito ritorna il path REALE (realpath) solo se dentro una radice
+        # allowlist: si serve la forma canonica (chiude ADS/junction/spazi finali).
+        reale = risolvi_consentito(spec.percorso_esterno)
+        if reale is None:
+            raise Http404("Percorso allegato non consentito")
+        if not os.path.isfile(reale):
+            raise Http404("File non trovato sulla share")
+        return FileResponse(open(reale, "rb"), as_attachment=True, filename=os.path.basename(reale))
+
     if not spec.allegato:
         raise Http404("Allegato non presente")
     try:
@@ -175,9 +196,14 @@ def allegato_download(request, pk: int):
 
 @login_required
 def dettaglio(request, pk: int):
+    import os
+
     spec = get_object_or_404(Specifica.objects.select_related("mod133", "revisione_precedente"), pk=pk)
+    # Nome mostrato per il download: dalla copia locale OPPURE dal collegamento share.
     if spec.allegato:
         spec.allegato_nome = spec.allegato.name.rsplit("/", 1)[-1]
+    elif spec.percorso_esterno:
+        spec.allegato_nome = os.path.basename(spec.percorso_esterno)
     mod = MOD133.objects.filter(specifica=spec).first()
     righe = list(mod.righe.all()) if mod else []
     azioni_ofi = (
