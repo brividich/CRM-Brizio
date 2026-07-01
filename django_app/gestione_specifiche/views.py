@@ -27,7 +27,9 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
 from . import constants as C
-from .ai_copilota import proponi_righe_mod133, proponi_tag, ricerca_semantica
+from .ai_copilota import (
+    proponi_righe_da_diff, proponi_righe_mod133, proponi_tag, ricerca_semantica,
+)
 from .distribuzione import DerogaCopieRichiesta, crea_distribuzione
 from .forms import ApprovazioneForm, DistribuzioneForm, RigaMOD133FormSet, SpecificaForm
 from .models import AzioneOFI, Distribuzione, MOD133, RigaMOD133, Specifica
@@ -641,6 +643,23 @@ def ai_proponi_tag(request, pk: int):
     testo = f"{spec.titolo}\n{spec.note}\n{spec.cliente}"
     proposta = proponi_tag(testo)
     proposta["nota"] = "Proposta AI: applica il TAG manualmente se corretto. Nessuna modifica salvata."
+    return JsonResponse(proposta)
+
+
+@login_required
+def ai_diff_mod133(request, pk: int):
+    """Proposta AI di righe MOD.133 dal DIFF rev. precedente ↔ nuova (JSON). NON salva nulla.
+
+    Usa `spec.revisione_precedente` come termine di confronto (F5). Il diff a paragrafi è
+    deterministico; l'AI interpreta i cambiamenti in righe MOD.133 (proposta, l'umano firma).
+    """
+    spec = get_object_or_404(Specifica, pk=pk)
+    proposta = proponi_righe_da_diff(spec)
+    proposta.setdefault(
+        "nota",
+        "Proposta AI dal confronto con la revisione precedente: rivedi e inserisci manualmente. "
+        "Nessuna riga è stata salvata.",
+    )
     return JsonResponse(proposta)
 
 

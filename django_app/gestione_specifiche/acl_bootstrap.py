@@ -68,6 +68,7 @@ _ROUTE_BINDINGS = {
     "gestione_specifiche:ricerca": PERM_VIEW,
     "gestione_specifiche:ai_precompila_mod133": PERM_COMPILA,
     "gestione_specifiche:ai_proponi_tag": PERM_COMPILA,
+    "gestione_specifiche:ai_diff_mod133": PERM_COMPILA,
 }
 
 # Grant di default (CREATE-ONLY, l'admin può rifinire in /admin-portale/acl-canonico/).

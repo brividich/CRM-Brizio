@@ -67,7 +67,7 @@
   <div class="wrap">
     <h1>Assistente AI — Guida al funzionamento</h1>
     <p>Come è fatto, cosa sa rispondere e quali sono i suoi limiti. Documento interno NOVICROM HUB.</p>
-    <span class="badge">Ultimo aggiornamento: 2026-06-30 · Versione guida 1.9</span>
+    <span class="badge">Ultimo aggiornamento: 2026-07-01 · Versione guida 2.1</span>
   </div>
 </header>
 
@@ -198,7 +198,10 @@
     risoluzione</strong>. Pulsante «Copilota AI» nel dettaglio gestione: i valori si pre-compilano nei campi
     esistenti ma è il gestore a salvarli. Valori validati (categoria/priorità/assegnatario ammessi) e fail-safe.</li>
     <li><strong>Specifiche / MOD.133</strong> <span class="pill on">attivo</span> — pre-compilazione righe
-    flow-down e classificazione TAG dal PDF (proposta).</li>
+    flow-down e classificazione TAG dal PDF (proposta); inoltre <strong>confronto tra la revisione
+    precedente e la nuova</strong> che pre-compila il MOD.133 sui <em>soli cambiamenti</em> (un diff
+    testuale deterministico individua i paragrafi aggiunti/modificati e l'AI li traduce in righe): mostra
+    <em>cosa</em> è cambiato accanto alla proposta, che resta da validare e firmare.</li>
     <li><strong>DPI</strong> <span class="pill on">attivo</span> — dalla <em>mansione</em> propone il set di DPI
     necessari, scelti <strong>dal catalogo reale</strong> (categorie/tipi); le categorie obbligatorie da
     mansionario sono sempre incluse. Pulsante «Proponi DPI» nel report conformità: proposta da validare,
@@ -263,6 +266,7 @@
   <h2>9. Storico della guida</h2>
   <table>
     <tr><th>Data</th><th>Versione</th><th>Modifica</th></tr>
+    <tr><td>2026-07-01</td><td>2.1</td><td>Copilota <strong>Specifiche/MOD.133</strong> esteso col <strong>confronto revisione precedente↔nuova</strong>: un diff testuale deterministico individua i cambiamenti e l'AI pre-compila il MOD.133 sui soli paragrafi modificati (endpoint <code>ai_diff_mod133</code>, ACL come gli altri copiloti). Read-only, «l'AI propone, l'umano firma».</td></tr>
     <tr><td>2026-07-01</td><td>2.0</td><td><strong>Barriera anti-allucinazione Skill Matrix.</strong> Corretto un caso in cui alla domanda «Tizio può lavorare alla DM11?» (senza la parola «chi») l'AI <em>inventava</em> l'abilitazione di una persona leggendola dai <strong>documenti</strong> invece che dal tool governato. Ora: le domande di abilitazione/idoneità <em>persona↔macchina</em> passano <strong>solo</strong> dal tool Skill Matrix (con ACL + privacy), e una <strong>barriera di dominio</strong> impedisce all'AI di dedurre chi è abilitato/idoneo su una macchina a partire dai documenti (rimando al modulo). Se la persona citata non è in elenco, l'AI dichiara che <strong>non risulta abilitata</strong> anziché indovinare. Inoltre gli <strong>elenchi di operatori abilitati/licenziati</strong> (skill matrix / <em>licensed operators</em> / MOD.187) sono stati <strong>rimossi dal corpus documentale RAG</strong> (erano la fonte del nome inventato): quel dato arriva ora solo dal modulo Skill Matrix governato.</td></tr>
     <tr><td>2026-07-01</td><td>1.9</td><td>Nuovi <strong>copiloti Anomalie</strong> (triage segnalazione: stato superficie/avanzamento/RDC dalla descrizione) e <strong>Incidenti/RCA</strong> (classificazione + causa + catena 5-Why + azioni correttive). Collegati alle rispettive pagine (apertura segnalazione React / nuova rilevazione). Read-only, «l'AI propone, l'umano firma».</td></tr>
     <tr><td>2026-06-30</td><td>1.8</td><td>Tool live <strong>Skill Matrix</strong>: ora incrocia le <strong>assenze</strong> e dice chi è realmente <strong>disponibile</strong> in una data (es. «chi può lavorare domani su DM11?»), anche nella risposta sui <strong>sostituti</strong>. La causale-categoria è mostrata (ferie/malattia/permesso), <strong>senza dettagli sanitari ulteriori</strong> (diagnosi/certificati/idoneità). Stessa info nella matrice (<code>/anagrafica/skill-matrix/</code>, selettore data, anche nell'<strong>export CSV</strong>) + nuova pagina <strong>Impostazioni Skill Matrix</strong> (soglia operativa, CAR, uomo-solo, etichette).</td></tr>

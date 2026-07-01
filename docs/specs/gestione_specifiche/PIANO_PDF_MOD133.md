@@ -26,7 +26,7 @@ percorso UNC** (`\\novisrv\Area Produzione\SPECIFICHE`) che è il riferimento az
 | F2 — Ingestion + gestione file sulla share | ✅ service+comando costruiti+testati (dry-run/rollback/audit) · ⏳ dry-run reale su share da fare |
 | F3 — Toolkit PDF (componi + proteggi) | ✅ costruito+integrato (test verdi) |
 | F4 — Renderer MOD.133 | ✅ costruito+integrato (test verdi) |
-| F5 — AI diff rev↔rev → pre-compila MOD.133 | ⏳ da fare |
+| F5 — AI diff rev↔rev → pre-compila MOD.133 | ✅ copilota+endpoint costruiti+testati (offline) |
 | F6 — Aggancio workflow + flag protezione UI | ⏳ da fare |
 | F7 — Conformità alla Matrice ARXivar | ⏳ da fare |
 
@@ -96,8 +96,11 @@ percorso UNC** (`\\novisrv\Area Produzione\SPECIFICHE`) che è il riferimento az
   originale)` + `proteggi(filigrana + owner-pw + flag)` con pymupdf.
 - **F4 — Renderer MOD.133**: dalla `MOD133` del portale → pagina PDF (reportlab, replica il
   layout del `.docx`: header + griglia 7 colonne + note + compilato/approvato-da).
-- **F5 — AI diff rev↔rev**: estrae testo delle due revisioni → LLM on-prem → **proposte righe
-  MOD.133** (Copilota; umano firma). Fallback OCR per scansioni.
+- **F5 — AI diff rev↔rev** ✅ (copilota + endpoint): `ai_copilota.proponi_righe_da_diff` +
+  endpoint `ai_diff_mod133` (ACL `PERM_COMPILA`). Estrae testo delle due revisioni (allegato o
+  share) → **diff deterministico a paragrafi** (`difflib`) → LLM interpreta i soli cambiamenti in
+  **righe MOD.133** (Copilota; umano firma). Fail-safe, nessuna scrittura, ritorna anche i
+  `cambiamenti` per la UI. **Da fare**: bottone/UI nella scheda (F6/UI) e OCR per scansioni.
 - **F6 — Aggancio workflow**: all'approvazione MOD.133 → rigenera+salva composito sulla share;
   **flag protezione** nella UI; download serve il composito quando c'è MOD.133.
 - **F7 — Conformità Matrice**: escalation 14gg, algoritmo copie cartacee, griglie condizionali,
@@ -157,3 +160,17 @@ volute). Nota: partire sempre in **dry-run**; nessun `--apply` in prod senza con
   collisione idempotente/forza). 12 test verdi. **Nessuna scrittura sul master reale**: l'utente
   vuole vedere un dry-run PRIMA del primo `--apply`. Scoping v1: archivia il file collegato a
   QUESTA specifica; supersessione della revisione precedente (altra Specifica + FSM) → F6.
+- **2026-07-01** — Fetta gestione_specifiche (F0+intake+F1-F4+F2) **committata+pushata**
+  (`0b25997` su `feature/skill-matrix-mod187`, 24 file, nessun file dati; suite 183 verde).
+  `--lista-cartelle` provato dal dev contro la share LIVE: **87 cartelle reali**, `_SUPERATO`
+  escluso (read-only, ok). **Prossimo "A"**: dry-run per singola specifica **in prod** (dove
+  stanno i 3301 import) dopo `git pull` + `migrate gestione_specifiche`.
+- **2026-07-01** — 1° dry-run reale (spec 123 `109040245101_LIN01` → FINCANTIERI): scoperto che
+  **la cartella share è il cliente/categoria reale**, non il codice gestionale. Fix naming F2
+  (`51c6e9d`) + comando read-only `mappa_cartelle_specifiche` (`c5aa9e1`) per la futura
+  **assegnazione** (in attesa del run in prod).
+- **2026-07-01** — **F5 costruito+testato offline** (utente da remoto, prod in pausa):
+  `proponi_righe_da_diff` + endpoint `ai_diff_mod133` (diff `difflib` rev precedente↔nuova → LLM →
+  righe MOD.133; fail-safe, nessuna scrittura). **Prossimo: F6** (aggancio workflow + composito
+  protetto + supersessione FSM) e la **UI** (bottoni copilota diff + flag protezione), oltre a
+  **assegnazione cartelle** e **F7** conformità.
