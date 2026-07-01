@@ -19,8 +19,13 @@
 | `9444f3b` | tool live **Skill Matrix** (gated, safe-by-default) |
 | `4e616f7` | comando `ai_seed_skillmatrix_privacy_review` + GUIDA_AI.html v1.6 |
 | `1582870` | fix conflitto migrazioni gcm (merge `0005`) |
+| `c383807` | **Fase 1**: regression gate RAG in `release_guard` + fix cache-key routing bge-m3 |
+| `3ffb015` | **Fase 2/A1**: tool live "Rischi & requisiti per mansione" (attivo al deploy, gate ACL Formazione) |
+| `687e5c1` + `c6d34c8` | **Fase 2/A3**: copilota Anomalie (triage) backend + UI React (pannello suggerimenti) |
+| `4728cca` + `ce81196` | **Fase 2/A2**: copilota Incidenti/RCA (5-Why) backend + UI + mappa `API_ACL_GATE_PATHS` |
+| GUIDA v1.9 | doc copiloti Anomalie/Incidenti |
 
-Il pacchetto si costruisce dal **working tree** (non da un commit): vedi pre-flight.
+Nessuna nuova chiave `.env` né migrazione dalle Fasi 1/2 (i copiloti usano la config Ollama esistente; il gate RAG è dev-only in `release_guard`). Il pacchetto si costruisce dal **working tree** (non da un commit): vedi pre-flight.
 
 ---
 
@@ -31,6 +36,7 @@ Il pacchetto si costruisce dal **working tree** (non da un commit): vedi pre-fli
   - Oltre all'AI work, il working tree contiene la **UI gcm non committata** della sessione `gestione_carichi_macchina` (verde, 108 test) e modifiche `CHANGELOG/README` di altre sessioni. **Decidi se shipparla** o falla finalizzare/committare prima dalla sua sessione.
   - La migrazione gcm `0005_merge` **è committata** ed è necessaria (leaf singolo): va inclusa comunque.
 - [ ] `git status` pulito da file dati (`.xlsx/.csv/.pdf/.sqlite`) — l'allowlist li esclude, ma verifica.
+- [ ] ⚠️ **UI React non verificata in browser.** Le UI copilota (A2 `rilevazione-incidenti/nuovo`, A3 `apertura_segnalazione` **React**) compilano lato Django e hanno endpoint testati, ma il rendering **JSX/Babel** si valida solo a runtime. **Subito dopo l'attivazione apri** `apertura_segnalazione` e `rilevazione-incidenti/nuovo`: conferma che i form renderizzano e che i pulsanti «Proponi…» rispondono. Se il **form React non appare** → errore JSX → **rollback** (`rollback-release.ps1`). Consigliato: provarle prima in **test/UAT**.
 
 ## 1) Build pacchetto (su DEV)
 
