@@ -3646,6 +3646,83 @@ class SkillMatrixContextTests(TestCase):
         self.assertEqual(audit["tool"], spec.audit_tool)
         self.assertIn(spec.audit_tool, _RUNTIME_PRIORITY_BY_TOOL)
 
+    # --- (6) routing: persona nominata + codice macchina -------------------
+    def test_wants_skillmatrix_gate_person_machine_code(self):
+        # Regressione allucinazione MOD.187: "<nome> può lavorare alla DM11?"
+        # non ha "chi" ma è una domanda di abilitazione operatore -> deve routare
+        # al tool governato (che sopprime il RAG), non cadere sui documenti.
+        from ai_assistant.tools import _wants_skillmatrix_context
+
+        self.assertTrue(_wants_skillmatrix_context("invece federico bernini può lavorare alla dm11?"))
+        self.assertTrue(_wants_skillmatrix_context("bernini puo' operare sulla DM11?"))
+        self.assertTrue(_wants_skillmatrix_context("mario riesce a usare la MZ5?"))
+        self.assertTrue(_wants_skillmatrix_context("è idoneo alla DM11?"))
+        # niente falsi positivi: carico/asset/procedura restano fuori (RAG non soppresso)
+        self.assertFalse(_wants_skillmatrix_context("qual e' il carico di lavoro della DM11?"))
+        self.assertFalse(_wants_skillmatrix_context("come si avvia la DM11?"))
+        self.assertFalse(_wants_skillmatrix_context("dove si trova la DM11?"))
+
+    def test_person_machine_code_routes_to_live_tool_not_rag(self):
+        # Il prompt reale che allucinava: il tool live deve rispondere (fonte reale),
+        # la persona citata NON in elenco non deve comparire, e la barriera non serve.
+        from anagrafica.models import AbilitazioneMacchina, CompetenzaSkm
+        from assets.models import Asset
+
+        asset = Asset.objects.create(asset_tag="DM11", name="DMG Mori DMC 85", asset_type=Asset.TYPE_PC)
+        CompetenzaSkm.objects.create(
+            competenza_key="DM11", display="DM11", tipo=CompetenzaSkm.TIPO_MACCHINA, asset=asset,
+        )
+        AbilitazioneMacchina.objects.create(
+            legacy_anagrafica_id=10, asset=asset, livello="U", in_lista=True,
+            stato=AbilitazioneMacchina.STATO_ATTIVA,
+        )
+        self._approve_privacy()
+        request = SimpleNamespace(user=self.admin, path="/assistente-ai/")
+        rows = [{"id": 10, "nome": "Nico", "cognome": "Guerrieri"}]
+        with patch("core.legacy_anagrafica.fetch_anagrafica_rows", return_value=rows):
+            context = build_runtime_context(request, "invece federico bernini può lavorare alla dm11?")
+
+        # ha risposto il tool live governato, non il RAG documenti
+        self.assertIn("tool:skillmatrix:abilitati", context.sources)
+        self.assertNotIn("tool:skillmatrix:guardrail", context.sources)
+        # Federico Bernini NON è tra gli abilitati: non deve essere inventato
+        self.assertNotIn("bernini", context.text.lower())
+        self.assertIn("Nico Guerrieri", context.text)
+        # istruzione rinforzata: persona citata assente = non risulta abilitata
+        self.assertIn("non risulta", context.text.lower())
+
+    # --- (7) barriera di dominio: mai idoneità operatore dal RAG ------------
+    def test_guardrail_suppresses_rag_for_operator_idoneita_without_live_data(self):
+        # Domanda di idoneità/abilitazione operatore su una macchina SENZA dato live
+        # autorizzato (nessun codice risolvibile, tool non scattato): deve emettere una
+        # barriera che sopprime il RAG (has_runtime_context) e rimanda al modulo.
+        request = SimpleNamespace(user=self.admin, path="/assistente-ai/")
+        context = build_runtime_context(request, "è idoneo bernini a lavorare alla fresa grande?")
+
+        self.assertIn("tool:skillmatrix:guardrail", context.sources)
+        self.assertIn("modulo skill matrix", context.text.lower())
+        self.assertTrue(context.text.strip())  # sopprime il RAG a valle
+        audit = self._skm_audit(context)
+        self.assertIsNotNone(audit)
+        self.assertFalse(audit["allowed"])
+        self.assertEqual(audit["reason"], "domain_guardrail_no_live_data")
+
+    def test_guardrail_absent_for_machine_procedure_question(self):
+        # No-regression: una domanda su procedura/config macchina NON è dominio
+        # abilitazioni -> nessuna barriera, il RAG risponde come prima.
+        request = SimpleNamespace(user=self.admin, path="/assistente-ai/")
+        context = build_runtime_context(request, "come si avvia la DM11?")
+        self.assertNotIn("tool:skillmatrix:guardrail", context.sources)
+
+    def test_guardrail_absent_when_live_tool_answers(self):
+        # Se il tool live scatta (anche gated), la barriera NON si aggiunge:
+        # il contesto gated sopprime già il RAG.
+        request = SimpleNamespace(user=self.admin, path="/assistente-ai/")
+        # privacy non approvata -> ramo in-revisione (gated), non guardrail
+        context = build_runtime_context(request, "chi e' abilitato sulla DM11?")
+        self.assertIn("tool:skillmatrix:in-revisione", context.sources)
+        self.assertNotIn("tool:skillmatrix:guardrail", context.sources)
+
 
 class SkillMatrixPrivacySeedCommandTests(TestCase):
     """Comando ai_seed_skillmatrix_privacy_review: prepara (pending) e attiva (--approve)

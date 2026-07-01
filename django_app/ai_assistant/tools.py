@@ -484,6 +484,23 @@ _SKILLMATRIX_SIGNAL_KEYWORDS = {
 }
 # Codice-macchina tipo DM11, MZ5, BM02: lettere seguite da cifre (suffisso opzionale).
 _SKILLMATRIX_CODE_RE = re.compile(r"\b([a-z]{1,6}\d{1,4}[a-z]?)\b", re.IGNORECASE)
+# "persona che opera la macchina": modale + verbo operativo (es. "puo' lavorare",
+# "sa usare", "riesce a condurre"). Non include "avviare/manutenzione" (procedura/config
+# = dominio RAG) ne' "carico di lavoro" (nessun modale davanti -> dominio carichi).
+_SKILLMATRIX_OPERATE_RE = re.compile(
+    r"\b(puo|puo'|può|puoi|sa|sanno|riesc\w+|in grado|capac\w+)\b.{0,30}"
+    r"\b(usar\w*|utilizz\w*|operar\w*|condurr\w*|guidar\w*|manovr\w*|lavorar\w*|lavorarci|stare|starci)\b",
+    re.IGNORECASE,
+)
+# Lessico esplicito "abilitazione/idoneita'/licenza operatore" (topic MOD.187).
+_SKILLMATRIX_ABIL_TOPIC_RE = re.compile(
+    r"\b(idone\w+|abilitat\w+|licenz\w+|licensed operator)\b", re.IGNORECASE)
+# Indicatori "macchina" per la barriera di dominio (oltre al codice tipo DM11).
+_SKILLMATRIX_MACHINE_WORD_RE = re.compile(
+    r"\b(macchin\w+|macchinari\w*|fres\w+|tornio|torni|alesatric\w+|rettific\w+|"
+    r"pressa|presse|mandrin\w+|centro di lavoro|dmg|dmc)\b",
+    re.IGNORECASE,
+)
 _RUNTIME_PRIORITY_BY_TOOL = {
     "runtime_router": 0,
     "sicurezza_summary": 10,
@@ -800,7 +817,57 @@ def _wants_skillmatrix_context(prompt: str) -> bool:
     # "chi sostituisce X sulla <codice-macchina>" con un codice esplicito citato.
     if "chi" in text and "sostitu" in text and _SKILLMATRIX_CODE_RE.search(text):
         return True
+    # Persona/idoneita' + codice-macchina citato, ANCHE senza "chi":
+    # "<nome> puo' lavorare alla DM11?", "e' idoneo/abilitato alla DM11?", "sa usare la MZ5?".
+    # Il codice esplicito tiene la regola precisa (niente collisioni con carichi/asset/
+    # procedure che nominano la macchina senza chiedere l'abilitazione dell'operatore).
+    if _SKILLMATRIX_CODE_RE.search(text) and (
+        _SKILLMATRIX_ABIL_TOPIC_RE.search(text) or _SKILLMATRIX_OPERATE_RE.search(text)
+    ):
+        return True
     return False
+
+
+def _skillmatrix_domain_guard(prompt: str) -> bool:
+    """Barriera di dominio Skill Matrix: True se la domanda riguarda l'abilitazione,
+    l'idoneita' o la licenza di una PERSONA su una MACCHINA.
+
+    Serve a impedire che il RAG risponda a domande di abilitazione operatore leggendo i
+    documenti indicizzati: quello e' un percorso non governato (allucinazioni + bypass di
+    ACL canonico e revisione privacy del tool live). Quando questa guardia scatta e il tool
+    live governato non ha prodotto dati, ``build_runtime_context`` inietta un contesto-barriera
+    che sopprime il RAG e rimanda al modulo Skill Matrix. E' volutamente piu' ampia di
+    ``_wants_skillmatrix_context`` (non richiede un codice risolvibile): copre anche
+    "e' idoneo Tizio alla fresa grande?" dove non c'e' un codice macchina.
+    """
+    text = _norm_text(prompt)
+    has_topic = bool(
+        _SKILLMATRIX_ABIL_TOPIC_RE.search(text) or _SKILLMATRIX_OPERATE_RE.search(text)
+    )
+    if not has_topic:
+        return False
+    return bool(_SKILLMATRIX_CODE_RE.search(text) or _SKILLMATRIX_MACHINE_WORD_RE.search(text))
+
+
+def _skillmatrix_guardrail_context() -> RuntimeContext:
+    """Contesto-barriera: nega esplicitamente al modello di dedurre abilitazioni/idoneita'
+    operatore dai documenti quando non c'e' dato live autorizzato. Sopprime il RAG a valle
+    (has_runtime_context) e rimanda al modulo governato."""
+    header = "DATI LIVE PORTALE - SKILL MATRIX (MOD.187)"
+    return RuntimeContext(
+        text=(
+            f"{header}\n"
+            "Esito: la domanda riguarda l'abilitazione, l'idoneita', la licenza o la disponibilita' "
+            "di una persona su una macchina, ma non e' disponibile alcun dato live autorizzato. "
+            "NON dedurre, affermare o negare l'abilitazione, l'idoneita' o la licenza di una singola "
+            "persona su una macchina a partire dai documenti indicizzati o da conoscenze generali: "
+            "questi dati provengono ESCLUSIVAMENTE dal modulo Skill Matrix (MOD.187), con i relativi "
+            "permessi. Rispondi invitando ad aprire il modulo Skill Matrix e, se utile, a citare il "
+            "codice macchina (es. DM11); non citare documenti come fonte di abilitazioni operatore."
+        ),
+        sources=("tool:skillmatrix:guardrail",),
+        audit={"tool": "skillmatrix", "allowed": False, "reason": "domain_guardrail_no_live_data"},
+    )
 
 
 def _wants_dpi_context(prompt: str) -> bool:
@@ -3394,7 +3461,10 @@ def _skillmatrix_build_context(request, prompt: str, *, scope: str) -> RuntimeCo
         "SOLO se gia' scritta qui sotto (ferie/malattia/permesso): non aggiungere alcun dettaglio sanitario "
         "ulteriore (diagnosi, certificati, idoneita'). Non inventare nominativi, livelli, macchine o assenze; "
         "se non risultano abilitazioni registrate dillo "
-        "chiaramente e invita ad aprire il modulo Skill Matrix. Non citare note, dati sanitari/idoneita', "
+        "chiaramente e invita ad aprire il modulo Skill Matrix. "
+        "Se una persona citata nella domanda NON compare tra gli abilitati elencati qui sotto, dichiara che "
+        "NON risulta abilitata su quella macchina: non dedurre la sua abilitazione da altri documenti o "
+        "conoscenze. Non citare note, dati sanitari/idoneita', "
         "retributivi o documentali."
     )
     text = _norm_text(prompt)
@@ -4116,6 +4186,16 @@ def build_runtime_context(request, prompt: str, history: Any = None) -> RuntimeC
         unavailable_context = _unavailable_domain_context(request, enriched)
         if unavailable_context.text.strip():
             contexts.append(unavailable_context)
+
+    # Barriera di dominio Skill Matrix: se la domanda riguarda l'abilitazione/idoneita'
+    # di una persona su una macchina ma NESSUN tool live governato ha prodotto un contesto
+    # skillmatrix, non lasciare che il RAG risponda dai documenti (allucinazione + bypass
+    # ACL/privacy). Un ramo gated del tool (accesso-negato/in-revisione) conta come risposta
+    # e sopprime gia' il RAG: in quel caso la barriera non serve.
+    if _skillmatrix_domain_guard(enriched) and not any(
+        source.startswith("tool:skillmatrix") for ctx in contexts for source in ctx.sources
+    ):
+        contexts.append(_skillmatrix_guardrail_context())
 
     result = _merge_contexts(contexts)
     routing_audit = {
