@@ -3444,6 +3444,18 @@ class SkillMatrixContextTests(TestCase):
         self.assertEqual(_skillmatrix_target_date("2026-07-15", today), _date(2026, 7, 15))
         self.assertEqual(_skillmatrix_target_date("data assurda 99/99", today), today)
         self.assertEqual(_skillmatrix_target_date("nessuna data", today), today)
+        # anno fuori finestra plausibile -> fallback oggi
+        self.assertEqual(_skillmatrix_target_date("1/2/202", today), today)
+
+    def test_wants_disponibilita(self):
+        from ai_assistant.tools import _skillmatrix_wants_disponibilita
+        # intento presenza/data -> incrocia
+        for t in ("chi è disponibile su DM11", "chi può lavorare domani", "chi è presente oggi",
+                  "chi copre il turno", "chi può sostituire DM11", "il 01/07/2026 su DM11"):
+            self.assertTrue(_skillmatrix_wants_disponibilita(t), t)
+        # sola abilitazione / data parziale-frazione -> NON incrocia
+        for t in ("chi è abilitato su DM11", "operatori abilitati DM11", "lotto 6/8 su DM11"):
+            self.assertFalse(_skillmatrix_wants_disponibilita(t), t)
 
     def test_disp_chat_mostra_categoria(self):
         from ai_assistant.tools import _skillmatrix_disp_chat
@@ -3502,9 +3514,63 @@ class SkillMatrixContextTests(TestCase):
         self.assertIn("(ferie)", lower)          # causale ferie esplicita
         self.assertIn("(malattia)", lower)       # causale-categoria malattia esposta nei dati
         self.assertIn("non disponibile", lower)
-        self.assertIn("Disponibili", context.text)  # riga riepilogo
+        self.assertIn("assenti (assenze registrate)", lower)  # riepilogo, non "tutti presenti"
         audit = self._skm_audit(context)
         self.assertEqual(audit.get("data"), "01-07-2026")
+
+    def test_abilitazione_senza_intento_non_incrocia_assenze(self):
+        # GDPR: "chi è abilitato" senza intento presenza/data NON incrocia le assenze
+        # (nessuna categoria assenza, nessuna chiamata al bridge, nessun campo data).
+        from anagrafica.models import AbilitazioneMacchina, CompetenzaSkm
+        from assets.models import Asset
+
+        asset = Asset.objects.create(asset_tag="DM11", name="Rettifica DM11", asset_type=Asset.TYPE_PC)
+        CompetenzaSkm.objects.create(
+            competenza_key="DM11", display="DM11", tipo=CompetenzaSkm.TIPO_MACCHINA, asset=asset,
+        )
+        AbilitazioneMacchina.objects.create(
+            legacy_anagrafica_id=10, asset=asset, livello="U", in_lista=True,
+            stato=AbilitazioneMacchina.STATO_ATTIVA,
+        )
+        self._approve_privacy()
+        request = SimpleNamespace(user=self.admin, path="/assistente-ai/")
+        rows = [{"id": 10, "nome": "Mario", "cognome": "Rossi"}]
+        with patch("core.legacy_anagrafica.fetch_anagrafica_rows", return_value=rows), \
+             patch("assenze.availability.disponibilita_per_anagrafica") as m_disp:
+            context = build_runtime_context(request, "chi e' abilitato sulla DM11?")
+        m_disp.assert_not_called()  # gate: nessun incrocio assenze
+        lower = context.text.lower()
+        self.assertIn("mario rossi", lower)
+        # nessuna annotazione disponibilità nei DATI (l'istruzione può citare la parola)
+        self.assertNotIn("(malattia)", lower)
+        self.assertNotIn("(ferie)", lower)
+        self.assertNotIn("assenze registrate", lower)
+        audit = self._skm_audit(context)
+        self.assertNotIn("data", audit)
+
+    def test_disponibilita_outage_non_afferma_presenza(self):
+        # Se la fonte assenze è giù (call solleva), non affermare "tutti presenti":
+        # il riepilogo segnala l'incrocio non disponibile.
+        from anagrafica.models import AbilitazioneMacchina, CompetenzaSkm
+        from assets.models import Asset
+
+        asset = Asset.objects.create(asset_tag="DM11", name="Rettifica DM11", asset_type=Asset.TYPE_PC)
+        CompetenzaSkm.objects.create(
+            competenza_key="DM11", display="DM11", tipo=CompetenzaSkm.TIPO_MACCHINA, asset=asset,
+        )
+        AbilitazioneMacchina.objects.create(
+            legacy_anagrafica_id=10, asset=asset, livello="U", in_lista=True,
+            stato=AbilitazioneMacchina.STATO_ATTIVA,
+        )
+        self._approve_privacy()
+        request = SimpleNamespace(user=self.admin, path="/assistente-ai/")
+        rows = [{"id": 10, "nome": "Mario", "cognome": "Rossi"}]
+        with patch("core.legacy_anagrafica.fetch_anagrafica_rows", return_value=rows), \
+             patch("assenze.availability.disponibilita_per_anagrafica", side_effect=RuntimeError("giù")):
+            context = build_runtime_context(request, "chi puo' lavorare sulla DM11 domani?")
+        lower = context.text.lower()
+        self.assertIn("incrocio assenze non disponibile", lower)
+        self.assertNotIn("assenti (assenze registrate)", lower)
 
     def test_sostituti_includono_disponibilita(self):
         # "chi può sostituire ... domani" passa dal ramo abilitati (cita il codice)
@@ -3532,7 +3598,7 @@ class SkillMatrixContextTests(TestCase):
             context = build_runtime_context(request, "chi puo' sostituire sulla DM11 domani?")
         self.assertIn("tool:skillmatrix:abilitati", context.sources)
         self.assertIn("non disponibile", context.text.lower())
-        self.assertIn("Disponibili", context.text)
+        self.assertIn("assenti (assenze registrate)", context.text.lower())
 
     # --- minimizzazione: campi vietati -> contesto limitato ----------------
     def test_forbidden_field_request_returns_limited(self):

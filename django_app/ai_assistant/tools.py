@@ -3228,6 +3228,10 @@ def _skillmatrix_target_date(text: str, today):
     import datetime as _dt
     import re as _re
 
+    def _accetta(d):
+        # scarta date fuori da una finestra plausibile (token numerici spuri)
+        return d if (today.year - 1) <= d.year <= (today.year + 5) else today
+
     t = text or ""
     if "dopodomani" in t:
         return today + _dt.timedelta(days=2)
@@ -3237,7 +3241,7 @@ def _skillmatrix_target_date(text: str, today):
     m = _re.search(r"\b(\d{4})-(\d{1,2})-(\d{1,2})\b", t)
     if m:
         try:
-            return _dt.date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+            return _accetta(_dt.date(int(m.group(1)), int(m.group(2)), int(m.group(3))))
         except ValueError:
             return today
     # gg/mm[/aaaa] o gg-mm[-aaaa]
@@ -3248,10 +3252,34 @@ def _skillmatrix_target_date(text: str, today):
             year = int(m.group(3)) if m.group(3) else today.year
             if year < 100:
                 year += 2000
-            return _dt.date(year, month, day)
+            return _accetta(_dt.date(year, month, day))
         except ValueError:
             return today
     return today
+
+
+# L'incrocio con le assenze scatta SOLO su domande di disponibilità/presenza/data
+# (minimizzazione GDPR art. 5): "chi è abilitato su X" da solo NON tira dentro le
+# assenze né la categoria (malattia inclusa) degli operatori.
+_SKILLMATRIX_DISP_INTENT_RE = re.compile(
+    r"\b(disponibil\w*|present\w*|assent\w*|coprir\w*|sostitu\w*|lavor\w*|"
+    r"turno|oggi|domani|dopodomani)\b", re.IGNORECASE)
+
+
+def _skillmatrix_wants_disponibilita(text: str) -> bool:
+    """True se la domanda riguarda la disponibilità del giorno.
+
+    Scatta su una keyword di presenza/turno o su una data esplicita **completa**
+    (con anno): una data parziale tipo "6/8" (frazioni/lotti) NON basta, per non
+    incrociare le assenze quando non è richiesto.
+    """
+    t = text or ""
+    if _SKILLMATRIX_DISP_INTENT_RE.search(t):
+        return True
+    return bool(
+        re.search(r"\b\d{4}-\d{1,2}-\d{1,2}\b", t)
+        or re.search(r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b", t)
+    )
 
 
 # Etichette disponibilità per la CHAT. La causale è limitata alla CATEGORIA
@@ -3452,14 +3480,23 @@ def _skillmatrix_build_context(request, prompt: str, *, scope: str) -> RuntimeCo
         soglia = SkillMatrixConfig.get_instance().soglia_operativa_ordinale
         wants_uomo_solo = "uomo solo" in text or "uomo-solo" in text
 
-        # Data bersaglio per la disponibilità (es. "domani"); default oggi.
-        from django.utils import timezone as _tz
-        target_date = _skillmatrix_target_date(text, _tz.localdate())
-        data_lbl = target_date.strftime("%d-%m-%Y")
-        try:
-            from assenze.availability import disponibilita_per_anagrafica
-        except Exception:
-            disponibilita_per_anagrafica = None
+        # Incrocio assenze SOLO su intento di disponibilità (minimizzazione GDPR):
+        # "chi è abilitato su X" da solo non tira dentro le assenze né la categoria.
+        wants_disp = _skillmatrix_wants_disponibilita(text)
+        target_date = None
+        data_lbl = None
+        disponibilita_per_anagrafica = None
+        disp_ok = False
+        if wants_disp:
+            from django.utils import timezone as _tz
+            target_date = _skillmatrix_target_date(text, _tz.localdate())
+            data_lbl = target_date.strftime("%d-%m-%Y")
+            try:
+                from assenze.availability import disponibilita_per_anagrafica
+                disp_ok = True
+            except Exception:
+                disponibilita_per_anagrafica = None
+                disp_ok = False
 
         sezioni: list[str] = []
         total_rows = 0
@@ -3478,15 +3515,16 @@ def _skillmatrix_build_context(request, prompt: str, *, scope: str) -> RuntimeCo
                 continue
             names = _skillmatrix_names_by_id([a.legacy_anagrafica_id for a in abil])
 
-            # Disponibilità del giorno (ferie/malattia/permesso). Privacy: in chat
-            # la causale sanitaria è generalizzata (vedi _skillmatrix_disp_chat).
+            # Disponibilità del giorno (ferie/malattia/permesso) solo se richiesta.
+            # Privacy: in chat la causale è limitata alla categoria (_skillmatrix_disp_chat).
             disp_map: dict = {}
-            if disponibilita_per_anagrafica is not None:
+            if wants_disp and disponibilita_per_anagrafica is not None:
                 try:
                     disp_map = disponibilita_per_anagrafica(
                         [a.legacy_anagrafica_id for a in abil], target_date, target_date)
                 except Exception:
                     disp_map = {}
+                    disp_ok = False
 
             righe = []
             n_op = n_assenti = n_dubbi = 0
@@ -3497,31 +3535,40 @@ def _skillmatrix_build_context(request, prompt: str, *, scope: str) -> RuntimeCo
                 operativa = a.is_operativa(soglia)
                 operativo = "si" if operativa else "no"
                 revisione = a.prossima_revisione.strftime("%d-%m-%Y") if a.prossima_revisione else "n/d"
-                ass = disp_map.get(int(a.legacy_anagrafica_id), [])
-                disp_txt = _skillmatrix_disp_chat(ass)
                 riga = (
                     f"  - {nome}: livello {livello}, stato {stato}, operativo {operativo}, "
                     f"prossima revisione {revisione}"
                 )
-                if disp_txt:
-                    riga += f" — {disp_txt} il {data_lbl}"
+                if wants_disp:
+                    ass = disp_map.get(int(a.legacy_anagrafica_id), [])
+                    disp_txt = _skillmatrix_disp_chat(ass)
+                    if disp_txt:
+                        riga += f" — {disp_txt} il {data_lbl}"
+                    if operativa:
+                        n_op += 1
+                        if any(x.get("stato") == "confermata" for x in ass):
+                            n_assenti += 1
+                        elif any(x.get("stato") == "pendente" for x in ass):
+                            n_dubbi += 1
                 righe.append(riga)
                 total_rows += 1
-                if operativa:
-                    n_op += 1
-                    if any(x.get("stato") == "confermata" for x in ass):
-                        n_assenti += 1
-                    elif any(x.get("stato") == "pendente" for x in ass):
-                        n_dubbi += 1
             blocco = (
                 f"Macchina {macchina_label} ({asset.name}): {len(abil)} abilitati in lista.\n" + "\n".join(righe)
             )
-            riepilogo = (
-                f"\n  Disponibili (operativi e presenti) il {data_lbl}: {n_op - n_assenti} su {n_op} operativi"
-            )
-            if n_dubbi:
-                riepilogo += f" ({n_dubbi} con assenza in attesa di conferma)"
-            blocco += riepilogo + "."
+            if wants_disp and disp_ok:
+                # Riepilogo in termini di ASSENZE REGISTRATE (non "tutti presenti"):
+                # se la fonte assenze non risponde vale il ramo else qui sotto.
+                riepilogo = (
+                    f"\n  Operativi: {n_op}; assenti (assenze registrate) il {data_lbl}: {n_assenti}"
+                )
+                if n_dubbi:
+                    riepilogo += f" (+{n_dubbi} con richiesta assenza in attesa)"
+                blocco += riepilogo + "."
+            elif wants_disp:
+                blocco += (
+                    f"\n  Operativi: {n_op}. Incrocio assenze NON disponibile per il {data_lbl}: "
+                    "verifica manualmente le presenze."
+                )
             if wants_uomo_solo:
                 k = resolver.kpi_uomo_solo(asset)
                 blocco += (
@@ -3529,11 +3576,10 @@ def _skillmatrix_build_context(request, prompt: str, *, scope: str) -> RuntimeCo
                     f"({k['n_operativi']} operativi, soglia {k['soglia']})."
                 )
             sezioni.append(blocco)
-        return _ctx(
-            "\n".join(sezioni),
-            "tool:skillmatrix:abilitati",
-            {"intent": "pool_abilitati", "codici": codes, "row_count": total_rows, "data": data_lbl},
-        )
+        audit_extra = {"intent": "pool_abilitati", "codici": codes, "row_count": total_rows}
+        if wants_disp:
+            audit_extra["data"] = data_lbl
+        return _ctx("\n".join(sezioni), "tool:skillmatrix:abilitati", audit_extra)
 
     # --- fallback: spiega cosa si puo' chiedere ---
     body = (
