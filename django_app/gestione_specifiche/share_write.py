@@ -24,6 +24,7 @@ import hashlib
 import logging
 import ntpath
 import os
+import re
 import shutil
 from dataclasses import dataclass, field
 
@@ -58,6 +59,42 @@ def nome_canonico(codice: str, revisione: str) -> str:
     cod = _sanitizza_nome(codice)
     rev = _sanitizza_nome(revisione)
     return f"{cod} REV.{rev}.pdf" if rev else f"{cod}.pdf"
+
+
+# Suffisso di revisione in coda a un nome file (varianti reali: "REV.0", "REV. 02", "REV.A1",
+# "_REV.B", ".REV.C"). Ancorato a fine stringa: NON tocca eventuali "REV" interni al nome.
+_REV_RE = re.compile(r"(?i)[\s._-]*REV\.?\s*[A-Za-z0-9][A-Za-z0-9\-]*\s*$")
+
+
+def _stem_documento(nome_file: str) -> str:
+    """Estrae il "numero documento" (il NOME che deve restare invariato) da un nome file.
+
+    Rimuove estensione e suffisso di revisione: ``15500 REV.0.pdf`` -> ``15500``,
+    ``DMH 00-04.002 REV. 02.pdf`` -> ``DMH 00-04.002``. Il nome documento e' la parte che
+    NON cambia tra una revisione e l'altra (la rev e' input umano, imprevedibile).
+    """
+    base = re.sub(r"(?i)\.pdf$", "", str(nome_file or "")).rstrip()
+    stem = _REV_RE.sub("", base).rstrip(" .-_")
+    return stem or base
+
+
+def nome_nuova_revisione(base_documento: str, revisione: str) -> str:
+    """``<base_documento> REV.<rev>.pdf`` con la rev VERBATIM (mai auto-incrementata).
+
+    Il ``base_documento`` (numero documento) resta invariato; cambia solo la rev, che e'
+    quella inserita dall'umano. Senza rev -> ``<base_documento>.pdf``.
+    """
+    base = _sanitizza_nome(base_documento)
+    rev = _sanitizza_nome(revisione)
+    return f"{base} REV.{rev}.pdf" if rev else f"{base}.pdf"
+
+
+def _assicura_pdf(nome: str) -> str:
+    """Nome file sicuro (segmento singolo) con estensione .pdf garantita (per l'override --nome)."""
+    n = _sanitizza_nome(nome)  # sostituisce anche separatori di path -> niente traversal
+    if not n.lower().endswith(".pdf"):
+        n = n + ".pdf"
+    return n
 
 
 # ---------------------------------------------------------------------------
@@ -215,13 +252,26 @@ def _dest_superato_unica(dest: str) -> str:
     return cand
 
 
-def pianifica(spec: Specifica, sorgente, *, cartella: str | None = None, forza: bool = False) -> PianoDeposito:
-    """Calcola il piano di deposito SENZA effetti collaterali (dry-run)."""
+def pianifica(spec: Specifica, sorgente, *, cartella: str | None = None, nome: str | None = None,
+              revisione: str | None = None, forza: bool = False) -> PianoDeposito:
+    """Calcola il piano di deposito SENZA effetti collaterali (dry-run).
+
+    Naming (deciso con l'utente):
+    - il **numero documento** (il nome che deve restare invariato) si eredita dal FILE ATTUALE
+      collegato alla specifica, NON dal codice gestionale;
+    - la **revisione** e' input umano verbatim (mai auto-incrementata): ``spec.revisione`` di
+      default, oppure l'override ``revisione``;
+    - ``nome`` (override) forza il nome file esatto;
+    - se la specifica non ha ancora un file collegato non c'e' un numero documento da cui derivare
+      -> serve ``nome`` esplicito (esito ``nome_richiesto``).
+    """
     dati = _leggi_sorgente(sorgente)
     if not dati:
         return PianoDeposito(esito="sorgente_mancante", note="PDF sorgente assente o vuoto.")
 
     corrente = (getattr(spec, "percorso_esterno", "") or "").strip()
+    corrente_reale = risolvi_consentito(corrente) if corrente else None
+    ha_corrente = bool(corrente_reale and os.path.isfile(corrente_reale))
 
     # 1) cartella di destinazione: quella della revisione corrente, oppure --cartella esistente.
     if cartella:
@@ -229,40 +279,46 @@ def pianifica(spec: Specifica, sorgente, *, cartella: str | None = None, forza: 
         if cartella_reale is None:
             return PianoDeposito(esito="cartella_non_valida",
                                  note="Cartella inesistente, fuori allowlist o in _SUPERATO.")
-    else:
-        if not corrente:
-            return PianoDeposito(esito="cartella_richiesta",
-                                 note="Specifica senza revisione sulla share: indicare una cartella esistente.")
-        corrente_reale = risolvi_consentito(corrente)
-        if corrente_reale is None:
-            return PianoDeposito(esito="path_non_consentito",
-                                 note="percorso_esterno corrente fuori allowlist.")
+    elif ha_corrente:
         cartella_reale = os.path.dirname(corrente_reale)
+    elif corrente and corrente_reale is None:
+        return PianoDeposito(esito="path_non_consentito", note="percorso_esterno corrente fuori allowlist.")
+    else:
+        return PianoDeposito(esito="cartella_richiesta",
+                             note="Specifica senza file collegato: indicare una cartella esistente e --nome.")
 
-    # 2) target canonico e validazione destinazione attiva.
-    target = os.path.join(cartella_reale, nome_canonico(spec.codice, spec.revisione))
+    # 2) revisione VERBATIM (umano) e nome file (numero documento invariato).
+    rev = revisione if (revisione is not None and str(revisione).strip() != "") else (getattr(spec, "revisione", "") or "")
+    if nome:
+        fname = _assicura_pdf(nome)
+    elif ha_corrente:
+        fname = nome_nuova_revisione(_stem_documento(os.path.basename(corrente_reale)), rev)
+    else:
+        return PianoDeposito(esito="nome_richiesto",
+                             note="Nessun file collegato da cui derivare il numero documento: indicare --nome.")
+
+    # 3) target e validazione destinazione attiva (dentro allowlist, mai in _SUPERATO).
+    target = os.path.join(cartella_reale, fname)
     target_reale = risolvi_consentito(target)
     if target_reale is None or _in_cartella_esclusa(target_reale):
-        return PianoDeposito(esito="path_non_consentito",
-                             note="Target fuori allowlist o dentro _SUPERATO.")
+        return PianoDeposito(esito="path_non_consentito", note="Target fuori allowlist o dentro _SUPERATO.")
 
     piano = PianoDeposito(esito="ok", target=target_reale)
 
-    # 3) revisione precedente da archiviare (se diversa dal target).
-    corrente_reale = risolvi_consentito(corrente) if corrente else None
-    if corrente_reale and os.path.isfile(corrente_reale) and _real_nc(corrente_reale) != _real_nc(target_reale):
+    # 4) revisione precedente da archiviare (se e' un file diverso dal target).
+    if ha_corrente and _real_nc(corrente_reale) != _real_nc(target_reale):
         piano.sposta_da = corrente_reale
         piano.sposta_a = _dest_superato(corrente_reale)
 
-    # 4) collisione al target.
+    # 5) collisione al target.
     if os.path.isfile(target_reale):
         if _sha256(dati) == _sha256_file(target_reale):
             piano.esito = "identico"
-            piano.note = "Un file identico e' gia' presente al path canonico: nessuna scrittura."
+            piano.note = "Un file identico e' gia' presente al path del target: nessuna scrittura."
             return piano
         if not forza:
             piano.esito = "collisione"
-            piano.note = "Esiste gia' un file DIVERSO al path canonico. Usare forza per archiviarlo in _SUPERATO."
+            piano.note = "Esiste gia' un file DIVERSO al path del target. Usare forza per archiviarlo in _SUPERATO."
             return piano
         piano.collisione_da = target_reale
         piano.collisione_a = _dest_superato(target_reale)
@@ -270,10 +326,10 @@ def pianifica(spec: Specifica, sorgente, *, cartella: str | None = None, forza: 
     return piano
 
 
-def esegui(spec: Specifica, sorgente, *, cartella: str | None = None, forza: bool = False,
-           apply: bool = False, attore=None) -> PianoDeposito:
+def esegui(spec: Specifica, sorgente, *, cartella: str | None = None, nome: str | None = None,
+           revisione: str | None = None, forza: bool = False, apply: bool = False, attore=None) -> PianoDeposito:
     """Esegue il deposito con rollback. Con ``apply=False`` ritorna solo il piano (dry-run)."""
-    piano = pianifica(spec, sorgente, cartella=cartella, forza=forza)
+    piano = pianifica(spec, sorgente, cartella=cartella, nome=nome, revisione=revisione, forza=forza)
     if not apply or piano.esito in ("identico",):
         return piano
     if piano.esito != "ok":
@@ -318,6 +374,7 @@ def esegui(spec: Specifica, sorgente, *, cartella: str | None = None, forza: boo
             trigger=_TRIGGER_AUDIT,
             payload={
                 "target": piano.target,
+                "nome": os.path.basename(piano.target),
                 "precedente": percorso_precedente,
                 "superato_in": piano.sposta_a,
                 "collisione_archiviata_in": piano.collisione_a,

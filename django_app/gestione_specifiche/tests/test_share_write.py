@@ -15,9 +15,11 @@ from gestione_specifiche.share_write import (
     elenca_cartelle_consentite,
     esegui,
     nome_canonico,
+    nome_nuova_revisione,
     pianifica,
     valida_cartella_destinazione,
     _sanitizza_nome,
+    _stem_documento,
 )
 
 
@@ -54,6 +56,18 @@ class NamingTest(TestCase):
         # caratteri illegali -> '_'; spazio/punto finale rimossi
         self.assertEqual(_sanitizza_nome("A/B:C*?"), "A_B_C__")
         self.assertEqual(_sanitizza_nome("nome . "), "nome")
+
+    def test_stem_documento(self):
+        # il "numero documento" resta, il suffisso di revisione (varie forme) va via
+        self.assertEqual(_stem_documento("15500 REV.0.pdf"), "15500")
+        self.assertEqual(_stem_documento("DMH 00-04.002 REV. 02.pdf"), "DMH 00-04.002")
+        self.assertEqual(_stem_documento("X REV.A1.pdf"), "X")
+        self.assertEqual(_stem_documento("15500.pdf"), "15500")  # senza rev
+
+    def test_nome_nuova_revisione_verbatim(self):
+        # la rev e' verbatim (mai auto-incrementata): A1, B, 02...
+        self.assertEqual(nome_nuova_revisione("15500", "A1"), "15500 REV.A1.pdf")
+        self.assertEqual(nome_nuova_revisione("15500", "02"), "15500 REV.02.pdf")
 
 
 class CartelleTest(ShareWriteBase):
@@ -110,17 +124,48 @@ class SupersessioneTest(ShareWriteBase):
         self.assertEqual(ev.first().payload["target"], piano.target)
 
 
+class NomeDaFileAttualeTest(ShareWriteBase):
+    """Il nome nuova revisione eredita il NUMERO DOCUMENTO dal file attuale, NON dal codice
+    gestionale (caso reale prod: codice 109040245101_LIN01, file sulla share '15500 REV.0.pdf').
+    """
+    def test_nome_dal_documento_non_dal_codice(self):
+        vecchio = self._file(os.path.join(self.cliente_dir, "15500 REV.0.pdf"))
+        spec = self._spec(codice="109040245101_LIN01", revisione="1", percorso=vecchio)
+        piano = pianifica(spec, b"%PDF-1.4 nuova rev")
+        self.assertEqual(piano.esito, "ok")
+        # target = numero documento (15500) + rev verbatim, NON il codice gestionale
+        self.assertTrue(piano.target.endswith("15500 REV.1.pdf"))
+        self.assertNotIn("109040245101_LIN01", piano.target)
+        # supera il file attuale '15500 REV.0.pdf'
+        self.assertTrue(piano.sposta_da.endswith("15500 REV.0.pdf"))
+        self.assertIn("_SUPERATO", piano.sposta_a)
+
+    def test_nome_override_esplicito(self):
+        vecchio = self._file(os.path.join(self.cliente_dir, "15500 REV.0.pdf"))
+        spec = self._spec(codice="X", revisione="1", percorso=vecchio)
+        piano = pianifica(spec, b"%PDF nuovo", nome="15500 REV.1")
+        self.assertEqual(piano.esito, "ok")
+        self.assertTrue(piano.target.endswith("15500 REV.1.pdf"))  # .pdf aggiunto
+
+
 class NuovaSpecificaTest(ShareWriteBase):
     def test_senza_percorso_richiede_cartella(self):
         spec = self._spec(codice="Y", revisione="0", percorso="")
         piano = pianifica(spec, b"%PDF nuovo")
         self.assertEqual(piano.esito, "cartella_richiesta")
 
-    def test_cartella_esplicita_deposita(self):
+    def test_cartella_senza_nome_richiede_nome(self):
+        # spec nuova (nessun file): con --cartella ma senza --nome non c'e' numero documento
+        # da cui derivare -> serve --nome (niente invenzioni dal codice).
         spec = self._spec(codice="Y", revisione="0", percorso="")
-        piano = esegui(spec, b"%PDF nuovo", cartella=self.cliente_dir, apply=True)
+        piano = pianifica(spec, b"%PDF nuovo", cartella=self.cliente_dir)
+        self.assertEqual(piano.esito, "nome_richiesto")
+
+    def test_cartella_e_nome_deposita(self):
+        spec = self._spec(codice="Y", revisione="0", percorso="")
+        piano = esegui(spec, b"%PDF nuovo", cartella=self.cliente_dir, nome="15500 REV.0", apply=True)
         self.assertEqual(piano.esito, "ok")
-        self.assertTrue(piano.target.endswith("Y REV.0.pdf"))
+        self.assertTrue(piano.target.endswith("15500 REV.0.pdf"))
         self.assertTrue(os.path.isfile(piano.target))
         self.assertEqual(piano.sposta_da, "")  # niente da superare
         self.assertEqual(Specifica.objects.get(pk=spec.pk).percorso_esterno, piano.target)
