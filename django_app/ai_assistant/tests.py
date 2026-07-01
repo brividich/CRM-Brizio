@@ -2687,8 +2687,16 @@ class SgiRagLoaderTests(TestCase):
     def test_ai_eval_rag_sgi_reports_recall_on_seeded_corpus(self):
         from ai_assistant import services
 
-        self._make_specifica_in_validita(codice="MT CN 06", revisione="7", titolo="Registrazione presenze")
+        # MT CN 06 nel corpus reale e' il documento "Risorse Umane" che copre anche la
+        # registrazione delle presenze: il fixture riflette entrambi gli ambiti, cosi'
+        # tutte le golden che attendono MT CN 06 (timbri/presenze E risorse umane) sono
+        # valutabili sul corpus a singolo documento.
+        self._make_specifica_in_validita(
+            codice="MT CN 06", revisione="7", titolo="Gestione risorse umane e presenze")
         pdf_text = (
+            "1. Scopo: gestione delle risorse umane\n"
+            "Questa procedura descrive come sono gestite le risorse umane in azienda: "
+            "assunzione e formazione del personale, mansioni e registrazione delle presenze.\n"
             "4.2 Registrazione timbri\n"
             "I timbri di presenza si registrano a inizio e fine turno tramite il portale."
         )
@@ -2714,8 +2722,18 @@ class SgiRagLoaderTests(TestCase):
         self.assertTrue(summary["stemming_enabled"])
         self.assertGreaterEqual(summary["sgi_chunks"], 1)
         self.assertGreaterEqual(summary["cases"], 1)
-        # Unico documento del corpus: con stemming tutte le golden recuperano MT CN 06.
-        self.assertEqual(summary["recall_hits"], summary["cases"])
+        # Il corpus seminato ha SOLO MT CN 06: le golden che attendono quel documento
+        # devono essere recuperate TUTTE (con stemming le query flesse su timbri/presenze
+        # agganciano MT CN 06). Le altre golden puntano a documenti non seminati e non
+        # sono valutabili qui, quindi si misura il recall sul solo sottoinsieme MT CN 06
+        # (robusto alla crescita del golden set, che ora copre 25+ documenti).
+        mtcn06 = [row for row in payload["results"] if "MT CN 06" in row["expected"]]
+        self.assertTrue(mtcn06, "il golden set dovrebbe contenere casi attesi su MT CN 06")
+        mancate = [row["query"] for row in mtcn06 if not row["recall_ok"]]
+        self.assertFalse(mancate, msg=f"golden MT CN 06 non recuperate con stemming: {mancate}")
+        # Coerenza: con un solo documento seminato, gli hit totali sono esattamente
+        # i casi che attendono MT CN 06 (nessun altro documento puo' fare hit).
+        self.assertEqual(summary["recall_hits"], len(mtcn06))
 
     def test_stemming_recovers_inflected_query_match(self):
         """Misura l'effetto della leva stemming: una query flessa ('timbrare') recupera
