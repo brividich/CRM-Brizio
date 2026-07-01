@@ -162,6 +162,39 @@ def _can_manage_settings(request) -> bool:
     return bool(getattr(request.user, "is_superuser", False) or (legacy_user and is_legacy_admin(legacy_user)))
 
 
+@login_required
+@require_POST
+def api_copilota_incidente(request):
+    """Analisi RCA proposta per un evento di sicurezza (read-only, NON salva nulla).
+
+    Gate: preposti/creatori (acl_preposti) o RSPP (acl_rspp). Endpoint protetto ->
+    JSON 403, mai redirect HTML. CSRF via middleware. L'audit a monte resta
+    metadata-only: qui non si logga il testo dell'evento.
+    """
+    from django.http import JsonResponse
+
+    if not (_can_create(request) or _can_manage_rspp(request)):
+        return JsonResponse({"error": "forbidden"}, status=403)
+
+    try:
+        payload = json.loads(request.body or b"{}")
+    except Exception:
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    attivita = str(payload.get("descrizione_attivita") or "").strip()
+    avvenimento = str(payload.get("descrizione_avvenimento") or "").strip()
+    if not (attivita or avvenimento):
+        return JsonResponse({"error": "descrizione mancante"}, status=400)
+
+    from rilevazione_incidenti.ai_copilota import proponi_analisi_incidente
+
+    proposta = proponi_analisi_incidente(
+        descrizione_attivita=attivita, descrizione_avvenimento=avvenimento
+    )
+    return JsonResponse({"success": True, "proposta": proposta})
+
+
 def _create_required(view_func):
     @wraps(view_func)
     def _wrapped(request, *args, **kwargs):
