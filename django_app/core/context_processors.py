@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import logging
 from urllib.parse import urlsplit
 
@@ -20,7 +20,12 @@ from core.legacy_cache import (
     normalize_legacy_path,
 )
 from core.module_registry import resolve_module_label
-from core.navigation_registry import get_admin_subnav_nodes, get_subnav_nodes, get_topbar_nodes
+from core.navigation_registry import (
+    get_admin_subnav_nodes,
+    get_sidebar_children_map,
+    get_subnav_nodes,
+    get_topbar_nodes,
+)
 from core.versioning import get_changelog_entries, get_current_release, get_module_versions
 
 _NAV_LOG_ONCE_TTL_SECONDS = 300
@@ -195,6 +200,7 @@ class NavItem:
     category_label: str = ""
     category_icon: str = ""
     category_order: int = 0
+    children: list = field(default_factory=list)
 
 
 def _group_nav_items(items: list) -> list[dict]:
@@ -410,6 +416,46 @@ def _dedupe_legacy_nav_items(items: list[NavItem]) -> list[NavItem]:
     return [chosen[key] for key in order]
 
 
+def _build_sidebar_children(child_nodes: list, request) -> tuple[list[NavItem], bool]:
+    """Costruisce le NavItem figlie (3° livello) con stato attivo calcolato dal path.
+
+    Match ESATTO su path+query, con fallback al solo path (coerente con _load_subnav_items).
+    Ritorna (figli, almeno_uno_attivo).
+    """
+    if not child_nodes:
+        return [], False
+    current_variants = _path_variants(request.path)
+    try:
+        current_full = request.get_full_path()
+    except Exception:
+        current_full = request.path
+    has_exact = any(n.href == current_full for n in child_nodes)
+    children: list[NavItem] = []
+    any_active = False
+    for n in child_nodes:
+        if has_exact:
+            active = (n.href == current_full)
+        else:
+            href_path = _normalize_path(urlsplit(n.href).path or "/")
+            active = bool(current_variants.intersection({href_path}))
+        any_active = any_active or active
+        children.append(
+            NavItem(
+                label=n.label,
+                legacy_url=n.legacy_url,
+                href=n.href,
+                active=active,
+                coming=n.coming,
+                modulo=n.modulo,
+                codice=n.codice,
+                icon=n.icon,
+                group=n.group,
+                order_hint=n.order_hint,
+            )
+        )
+    return children, any_active
+
+
 def _load_registry_nav_items(request, legacy_user) -> list[NavItem]:
     if not _navigation_registry_enabled():
         return []
@@ -437,26 +483,35 @@ def _load_registry_nav_items(request, legacy_user) -> list[NavItem]:
     )
     if not nodes:
         return []
-    return [
-        NavItem(
-            label=node.label,
-            legacy_url=node.legacy_url,
-            href=node.href,
-            active=node.active,
-            coming=node.coming,
-            modulo=node.modulo,
-            codice=node.codice,
-            icon=node.icon,
-            group=node.group,
-            order_hint=node.order_hint,
-            category_color=node.category_color,
-            category_key=node.category_key,
-            category_label=node.category_label,
-            category_icon=node.category_icon,
-            category_order=node.category_order,
+    child_map = get_sidebar_children_map(
+        role_id=role_id,
+        is_admin=is_admin,
+        legacy_user_id=legacy_user_id_for_override,
+    )
+    items: list[NavItem] = []
+    for node in nodes:
+        children, child_active = _build_sidebar_children(child_map.get(node.codice, []), request)
+        items.append(
+            NavItem(
+                label=node.label,
+                legacy_url=node.legacy_url,
+                href=node.href,
+                active=bool(node.active or child_active),
+                coming=node.coming,
+                modulo=node.modulo,
+                codice=node.codice,
+                icon=node.icon,
+                group=node.group,
+                order_hint=node.order_hint,
+                category_color=node.category_color,
+                category_key=node.category_key,
+                category_label=node.category_label,
+                category_icon=node.category_icon,
+                category_order=node.category_order,
+                children=children,
+            )
         )
-        for node in nodes
-    ]
+    return items
 
 
 _CAR_PENDING_ALLOWED_CLAUSES = frozenset({

@@ -382,6 +382,51 @@ def get_subnav_nodes(
     return nodes
 
 
+def get_sidebar_children_map(
+    *,
+    role_id: int | None,
+    is_admin: bool,
+    legacy_user_id: int | None = None,
+) -> dict[str, list[NavigationNode]]:
+    """Mappa parent_code -> voci subnav (ACL-filtrate) per il 3° livello sidebar.
+
+    Riusa la stessa compilazione ACL-aware di get_subnav_nodes (section='subnav'),
+    raggruppando per parent_code invece di filtrare su un singolo gruppo.
+    Lo stato attivo è calcolato dal context processor (active=False qui).
+    """
+    compiled = _compiled_items_for_role(
+        role_id=role_id,
+        is_admin=is_admin,
+        section="subnav",
+        legacy_user_id=legacy_user_id,
+    )
+    if legacy_user_id is not None and not is_admin:
+        compiled = _apply_user_nav_overrides(compiled, legacy_user_id, "subnav", is_admin)
+    out: dict[str, list[NavigationNode]] = {}
+    for row in compiled:
+        parent = str(row.get("parent_code", "") or "")
+        if not parent:
+            continue
+        out.setdefault(parent, []).append(
+            NavigationNode(
+                label=row["label"],
+                href=row["href"],
+                active=False,  # calcolato nel context processor
+                order_hint=_safe_int(row["order"], 100),
+                coming=bool(row["coming"]),
+                legacy_url=row.get("route_name") or row.get("url_path") or "",
+                modulo="navigation",
+                codice=row["code"],
+                icon=row.get("icon", ""),
+                group=row.get("group", ""),
+                active_patterns=row.get("active_patterns", ""),
+            )
+        )
+    for parent in out:
+        out[parent].sort(key=lambda n: (n.order_hint, n.label.lower()))
+    return out
+
+
 def get_topbar_nodes(
     *,
     current_path: str,

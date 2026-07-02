@@ -2494,3 +2494,69 @@ class PdfTemplateTests(TestCase):
         data = buf.getvalue()
         self.assertTrue(data.startswith(b"%PDF"))
         self.assertGreater(len(data), 500)
+
+
+class SidebarChildrenMapTests(TestCase):
+    def test_groups_subnav_by_parent_code_ordered(self):
+        from core.models import NavigationItem
+        from core.navigation_registry import get_sidebar_children_map
+
+        NavigationItem.objects.create(code="topbar-x", label="X", section="topbar", url_path="/x/")
+        NavigationItem.objects.create(
+            code="x-sub-2", label="Due", section="subnav",
+            parent_code="topbar-x", url_path="/x/due/", order=20,
+        )
+        NavigationItem.objects.create(
+            code="x-sub-1", label="Uno", section="subnav",
+            parent_code="topbar-x", url_path="/x/uno/", order=10,
+        )
+        # subnav senza parent → ignorata
+        NavigationItem.objects.create(
+            code="x-orphan", label="Orfana", section="subnav",
+            parent_code="", url_path="/x/orfana/", order=5,
+        )
+
+        m = get_sidebar_children_map(role_id=None, is_admin=True, legacy_user_id=None)
+
+        self.assertIn("topbar-x", m)
+        self.assertEqual([n.label for n in m["topbar-x"]], ["Uno", "Due"])
+        self.assertNotIn("", m)
+
+
+class BuildSidebarChildrenTests(TestCase):
+    def test_marks_active_child_by_path(self):
+        from django.test import RequestFactory
+        from core.context_processors import _build_sidebar_children
+        from core.navigation_registry import NavigationNode
+
+        nodes = [
+            NavigationNode(label="Uno", href="/x/uno/", active=False, order_hint=10,
+                           coming=False, legacy_url="", modulo="navigation", codice="x-sub-1"),
+            NavigationNode(label="Due", href="/x/due/", active=False, order_hint=20,
+                           coming=False, legacy_url="", modulo="navigation", codice="x-sub-2"),
+        ]
+        req = RequestFactory().get("/x/due/")
+        children, any_active = _build_sidebar_children(nodes, req)
+
+        self.assertEqual([c.label for c in children], ["Uno", "Due"])
+        self.assertTrue(any_active)
+        self.assertFalse(children[0].active)
+        self.assertTrue(children[1].active)
+
+    def test_empty_input(self):
+        from django.test import RequestFactory
+        from core.context_processors import _build_sidebar_children
+        children, any_active = _build_sidebar_children([], RequestFactory().get("/"))
+        self.assertEqual(children, [])
+        self.assertFalse(any_active)
+
+
+class AnagraficaSidebarSeedTests(TestCase):
+    def test_seed_creates_anagrafica_subnav_children(self):
+        from core.models import NavigationItem
+        codes = ["anagrafica-sub-dipendenti", "anagrafica-sub-ex-dipendenti", "anagrafica-sub-ruoli-operativi"]
+        qs = NavigationItem.objects.filter(code__in=codes)
+        self.assertEqual(qs.count(), 3)
+        for it in qs:
+            self.assertEqual(it.section, "subnav")
+            self.assertEqual(it.parent_code, "anagrafica")

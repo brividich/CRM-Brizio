@@ -49,11 +49,34 @@
           </button>
           <div class="sb-cat-items">
             {% for item in grp.items %}
-              <a class="sb-item sb-sub-item{% if item.active %} active{% endif %}" href="{{ item.href }}" title="{{ item.label }}"{% if item.active %} aria-current="page"{% endif %}>
-                <span class="sb-icon" aria-hidden="true">{% render_icon item.icon item.label %}</span>
-                <span class="sb-label">{{ item.label }}</span>
-                {% if item.coming %}<span class="sb-item-badge sb-item-badge-dot" aria-hidden="true"></span>{% endif %}
-              </a>
+              {% if item.children %}
+                <div class="sb-module{% if item.active %} open active{% endif %}" data-key="{{ item.codice }}">
+                  <div class="sb-mod-head">
+                    <a class="sb-item sb-sub-item{% if item.active %} active{% endif %}" href="{{ item.href }}" title="{{ item.label }}"{% if item.active %} aria-current="page"{% endif %}>
+                      <span class="sb-icon" aria-hidden="true">{% render_icon item.icon item.label %}</span>
+                      <span class="sb-label">{{ item.label }}</span>
+                    </a>
+                    <button class="sb-mod-toggle" type="button" aria-expanded="{% if item.active %}true{% else %}false{% endif %}" aria-label="Espandi {{ item.label }}">
+                      <span class="sb-cat-arrow" aria-hidden="true">&#8250;</span>
+                    </button>
+                  </div>
+                  <div class="sb-mod-items">
+                    {% for child in item.children %}
+                      <a class="sb-item sb-sub-item sb-sub-item--l3{% if child.active %} active{% endif %}" href="{{ child.href }}" title="{{ child.label }}"{% if child.active %} aria-current="page"{% endif %}>
+                        <span class="sb-icon" aria-hidden="true">{% render_icon child.icon child.label %}</span>
+                        <span class="sb-label">{{ child.label }}</span>
+                        {% if child.coming %}<span class="sb-item-badge sb-item-badge-dot" aria-hidden="true"></span>{% endif %}
+                      </a>
+                    {% endfor %}
+                  </div>
+                </div>
+              {% else %}
+                <a class="sb-item sb-sub-item{% if item.active %} active{% endif %}" href="{{ item.href }}" title="{{ item.label }}"{% if item.active %} aria-current="page"{% endif %}>
+                  <span class="sb-icon" aria-hidden="true">{% render_icon item.icon item.label %}</span>
+                  <span class="sb-label">{{ item.label }}</span>
+                  {% if item.coming %}<span class="sb-item-badge sb-item-badge-dot" aria-hidden="true"></span>{% endif %}
+                </a>
+              {% endif %}
             {% endfor %}
           </div>
         </div>
@@ -198,6 +221,21 @@
       btn.setAttribute('aria-expanded', !isOpen ? 'true' : 'false');
 
       if (!isOpen && body.classList.contains('sb-collapsed')) {
+        body.classList.remove('sb-collapsed');
+        syncToggleState();
+        persistCollapsed(false);
+      }
+    });
+  });
+
+  sidebar.querySelectorAll('.sb-mod-toggle').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      var mod = btn.closest('.sb-module');
+      if (!mod) return;
+      var isOpen = mod.classList.toggle('open');
+      btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      if (isOpen && body.classList.contains('sb-collapsed')) {
         body.classList.remove('sb-collapsed');
         syncToggleState();
         persistCollapsed(false);
