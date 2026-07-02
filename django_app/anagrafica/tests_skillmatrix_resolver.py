@@ -76,9 +76,35 @@ class ResolverTests(TestCase):
         self.assertEqual(p["percentuale"], 50.0)
         self.assertEqual(p["n_macchine"], 1)
 
+    def test_macchine_operatore_reverse_lookup(self):
+        # Seconda macchina su cui 101 è abilitato (livello O), per verificare
+        # elenco multiplo + ordinamento per livello desc.
+        b = Asset.objects.create(asset_tag="CNC-B", name="Macchina B",
+                                 asset_type="CNC", reparto="Officina")
+        CompetenzaSkm.objects.create(competenza_key="B", tipo="macchina", asset=b)
+        AbilitazioneMacchina.objects.create(legacy_anagrafica_id=101, asset=b,
+                                            livello=LivelloSkm.ESPERTO)
+
+        righe = R.macchine_operatore(101)
+        # 101 è in lista su A (U, operativo) e B (O, operativo): ordinamento O prima di U.
+        self.assertEqual([r["asset_id"] for r in righe], [b.id, self.a.id])
+        self.assertTrue(all(r["operativa"] for r in righe))
+
+        # 103 è sotto soglia (L < U) su A: compare ma NON operativo.
+        righe103 = R.macchine_operatore(103)
+        self.assertEqual([r["asset_id"] for r in righe103], [self.a.id])
+        self.assertFalse(righe103[0]["operativa"])
+
+        # 105 non è in lista → nessuna macchina.
+        self.assertEqual(R.macchine_operatore(105), [])
+        # id inesistente / non valido → lista vuota, mai eccezione.
+        self.assertEqual(R.macchine_operatore(999), [])
+        self.assertEqual(R.macchine_operatore(None), [])
+
     def test_resolver_non_scrive(self):
         prima = AbilitazioneMacchina.objects.count()
         R.pool_abilitati(self.a)
         R.prontezza_squadra("Officina")
         R.macchine_scoperte("Officina")
+        R.macchine_operatore(101)
         self.assertEqual(AbilitazioneMacchina.objects.count(), prima)

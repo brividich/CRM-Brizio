@@ -25,6 +25,48 @@ from ..models import (
 )
 
 
+def macchine_operatore(legacy_anagrafica_id, *, solo_operative=False, config=None) -> list[dict]:
+    """Reverse di ``pool_abilitati``: le macchine su cui un dipendente è abilitato.
+
+    Ritorna ``[{asset_id, livello, stato, operativa, prossima_revisione}, ...]``
+    per le abilitazioni **in lista** (ordinamento per livello decrescente). Con
+    ``solo_operative`` scarta chi è sotto soglia / sospeso. Fail-safe: id non
+    valido → lista vuota (mai eccezione). Read-only.
+    """
+    try:
+        lid = int(legacy_anagrafica_id or 0)
+    except (TypeError, ValueError):
+        return []
+    if lid <= 0:
+        return []
+    config = config or SkillMatrixConfig.get_instance()
+    soglia = config.soglia_operativa_ordinale
+    qs = (
+        AbilitazioneMacchina.objects
+        .filter(legacy_anagrafica_id=lid, in_lista=True, asset__isnull=False)
+        .values("asset_id", "livello", "stato", "prossima_revisione",
+                "conteggiabile_nel_carico")
+    )
+    out: list[dict] = []
+    for ab in qs:
+        operativa = (
+            ab["stato"] == AbilitazioneMacchina.STATO_ATTIVA
+            and bool(ab["conteggiabile_nel_carico"])
+            and ordinale_livello(ab["livello"]) >= soglia
+        )
+        if solo_operative and not operativa:
+            continue
+        out.append({
+            "asset_id": ab["asset_id"],
+            "livello": ab["livello"],
+            "stato": ab["stato"],
+            "operativa": operativa,
+            "prossima_revisione": ab["prossima_revisione"],
+        })
+    out.sort(key=lambda r: ordinale_livello(r["livello"]), reverse=True)
+    return out
+
+
 def _asset_id(asset) -> int | None:
     """Accetta un Asset o il suo id."""
     return getattr(asset, "id", asset)

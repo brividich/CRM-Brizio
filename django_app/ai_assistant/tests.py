@@ -3760,6 +3760,111 @@ class SkillMatrixContextTests(TestCase):
         # istruzione rinforzata: persona citata assente = non risulta abilitata
         self.assertIn("non risulta", context.text.lower())
 
+    # --- (6b) reverse lookup "dove può lavorare <persona>" -----------------
+    def test_wants_skillmatrix_gate_persona_macchine(self):
+        # "dove può lavorare NOME" / "su quali macchine ..." è dominio Skill Matrix
+        # anche senza codice-macchina citato (la persona è il soggetto).
+        from ai_assistant.tools import _wants_skillmatrix_context
+
+        self.assertTrue(_wants_skillmatrix_context("dove può lavorare federico bernini"))
+        self.assertTrue(_wants_skillmatrix_context("su quali macchine è abilitato mario rossi"))
+        self.assertTrue(_wants_skillmatrix_context("quali macchine sa usare luca bianchi?"))
+        # HR "dove lavora X" (indicativo = reparto, non capacità) NON è skill matrix
+        self.assertFalse(_wants_skillmatrix_context("dove lavora mario rossi"))
+        self.assertFalse(_wants_skillmatrix_context("in che reparto sta mario"))
+
+    def test_persona_macchine_lists_operator_machines(self):
+        # Capacità nuova: data una PERSONA, elenca le macchine su cui è abilitata.
+        from anagrafica.models import AbilitazioneMacchina, CompetenzaSkm
+        from assets.models import Asset
+
+        dm11 = Asset.objects.create(asset_tag="DM11", name="DMG Mori DMC 85", asset_type=Asset.TYPE_PC)
+        mz5 = Asset.objects.create(asset_tag="MZ5", name="Mazak 5", asset_type=Asset.TYPE_PC)
+        for a in (dm11, mz5):
+            CompetenzaSkm.objects.create(
+                competenza_key=a.asset_tag, display=a.asset_tag,
+                tipo=CompetenzaSkm.TIPO_MACCHINA, asset=a,
+            )
+        AbilitazioneMacchina.objects.create(
+            legacy_anagrafica_id=20, asset=dm11, livello="U", in_lista=True,
+            stato=AbilitazioneMacchina.STATO_ATTIVA, prossima_revisione=date(2026, 12, 31),
+        )
+        AbilitazioneMacchina.objects.create(
+            legacy_anagrafica_id=20, asset=mz5, livello="O", in_lista=True,
+            stato=AbilitazioneMacchina.STATO_ATTIVA,
+        )
+        self._approve_privacy()
+        request = SimpleNamespace(user=self.admin, path="/assistente-ai/")
+        rows = [{"id": 20, "nome": "Federico", "cognome": "Bernini", "attivo": True}]
+        with patch("core.legacy_anagrafica.fetch_anagrafica_rows", return_value=rows):
+            context = build_runtime_context(request, "dove può lavorare federico bernini")
+
+        self.assertIn("tool:skillmatrix:operatore", context.sources)
+        self.assertNotIn("tool:skillmatrix:abilitati", context.sources)
+        self.assertIn("Federico Bernini", context.text)
+        self.assertIn("DM11", context.text)
+        self.assertIn("MZ5", context.text)
+        audit = self._skm_audit(context)
+        self.assertTrue(audit["allowed"])
+        self.assertEqual(audit["intent"], "operatore_macchine")
+        self.assertEqual(audit["row_count"], 2)
+        # METADATA-ONLY: nessun nominativo nei valori dell'audit
+        audit_blob = json.dumps(audit, default=str, ensure_ascii=False).lower()
+        self.assertNotIn("bernini", audit_blob)
+
+    def test_persona_macchine_ignores_history_machine_code(self):
+        # REGRESSIONE del bug reale: "dove può lavorare federico bernini" chiesto DOPO
+        # "chi può lavorare domani alla dm11" NON deve ereditare il codice DM11 dallo
+        # storico e rispondere "Bernini non abilitato su DM11". La persona non risolvibile
+        # deve dare risposta onesta, senza elencare il pool DM11.
+        from anagrafica.models import AbilitazioneMacchina, CompetenzaSkm
+        from assets.models import Asset
+
+        dm11 = Asset.objects.create(asset_tag="DM11", name="DMG Mori DMC 85", asset_type=Asset.TYPE_PC)
+        CompetenzaSkm.objects.create(
+            competenza_key="DM11", display="DM11", tipo=CompetenzaSkm.TIPO_MACCHINA, asset=dm11,
+        )
+        AbilitazioneMacchina.objects.create(
+            legacy_anagrafica_id=10, asset=dm11, livello="U", in_lista=True,
+            stato=AbilitazioneMacchina.STATO_ATTIVA,
+        )
+        self._approve_privacy()
+        request = SimpleNamespace(user=self.admin, path="/assistente-ai/")
+        history = [
+            {"role": "user", "content": "chi può lavorare domani alla dm11"},
+            {"role": "assistant", "content": "Sulla DM11 possono lavorare ..."},
+        ]
+        rows = [{"id": 10, "nome": "Nico", "cognome": "Guerrieri", "attivo": True}]
+        with patch("core.legacy_anagrafica.fetch_anagrafica_rows", return_value=rows):
+            context = build_runtime_context(
+                request, "dove può lavorare federico bernini", history)
+
+        # NON dirotta sul ramo macchina-centrico DM11 ereditato dallo storico
+        self.assertIn("tool:skillmatrix:operatore", context.sources)
+        self.assertNotIn("tool:skillmatrix:abilitati", context.sources)
+        # non elenca il pool DM11 (Nico Guerrieri) come se fosse la risposta
+        self.assertNotIn("Guerrieri", context.text)
+        # risposta onesta: operatore non riconosciuto
+        self.assertIn("non ho riconosciuto", context.text.lower())
+        audit = self._skm_audit(context)
+        self.assertEqual(audit["intent"], "operatore_macchine")
+        self.assertEqual(audit["row_count"], 0)
+
+    def test_persona_macchine_resolved_but_no_abilitazioni(self):
+        # Persona in anagrafica ma senza abilitazioni in lista: risposta onesta,
+        # niente invenzioni.
+        self._approve_privacy()
+        request = SimpleNamespace(user=self.admin, path="/assistente-ai/")
+        rows = [{"id": 30, "nome": "Federico", "cognome": "Bernini", "attivo": True}]
+        with patch("core.legacy_anagrafica.fetch_anagrafica_rows", return_value=rows):
+            context = build_runtime_context(request, "dove può lavorare federico bernini")
+
+        self.assertIn("tool:skillmatrix:operatore", context.sources)
+        self.assertIn("Federico Bernini", context.text)
+        self.assertIn("nessuna abilitazione", context.text.lower())
+        audit = self._skm_audit(context)
+        self.assertEqual(audit["row_count"], 0)
+
     # --- (7) barriera di dominio: mai idoneità operatore dal RAG ------------
     def test_guardrail_suppresses_rag_for_operator_idoneita_without_live_data(self):
         # Domanda di idoneità/abilitazione operatore su una macchina SENZA dato live

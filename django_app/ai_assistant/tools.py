@@ -501,6 +501,16 @@ _SKILLMATRIX_MACHINE_WORD_RE = re.compile(
     r"pressa|presse|mandrin\w+|centro di lavoro|dmg|dmc)\b",
     re.IGNORECASE,
 )
+# Reverse lookup "persona -> macchine": "dove PUO' lavorare NOME", "su quali macchine
+# e' abilitato/sa usare NOME", "quali abilitazioni ha NOME". Il MODALE distingue dalla
+# domanda HR "dove lavora NOME" (indicativo = reparto/assegnazione, non capacita').
+_SKILLMATRIX_PERSONA_MACCHINE_RE = re.compile(
+    r"\bdove\b.{0,30}\b(puo|puo'|può|sa|sanno|riesc\w+|in grado)\b.{0,25}"
+    r"\b(lavor\w*|operar\w*|usar\w*|utilizz\w*|condurr\w*|manovr\w*|guidar\w*|stare|starci)\b"
+    r"|\b(su\s+)?quali\s+macchin\w+.{0,40}\b(puo|puo'|può|sa|sanno|abilitat\w+|lavor\w*|operar\w*|usar\w*)\b"
+    r"|\bquali\s+abilitazion\w+\b",
+    re.IGNORECASE,
+)
 _RUNTIME_PRIORITY_BY_TOOL = {
     "runtime_router": 0,
     "sicurezza_summary": 10,
@@ -824,6 +834,10 @@ def _wants_skillmatrix_context(prompt: str) -> bool:
     if _SKILLMATRIX_CODE_RE.search(text) and (
         _SKILLMATRIX_ABIL_TOPIC_RE.search(text) or _SKILLMATRIX_OPERATE_RE.search(text)
     ):
+        return True
+    # Reverse lookup "dove puo' lavorare NOME" / "su quali macchine ... NOME": la persona
+    # e' il soggetto, non serve un codice-macchina citato.
+    if _SKILLMATRIX_PERSONA_MACCHINE_RE.search(text):
         return True
     return False
 
@@ -3271,6 +3285,66 @@ def _skillmatrix_cited_codes(text: str) -> list[str]:
     return seen[:5]
 
 
+def _skillmatrix_wants_persona_macchine(text: str) -> bool:
+    """True se la domanda e' un reverse lookup "persona -> macchine"."""
+    return bool(_SKILLMATRIX_PERSONA_MACCHINE_RE.search(text or ""))
+
+
+_SKILLMATRIX_NAME_STOPWORDS = frozenset({
+    "dove", "può", "puo", "puo'", "sa", "sanno", "riesce", "riescono", "quali",
+    "macchina", "macchine", "abilitato", "abilitata", "abilitazioni", "abilitazione",
+    "lavorare", "lavora", "operare", "opera", "usare", "usa", "condurre", "guidare",
+    "manovrare", "stare", "starci", "sulla", "sullo", "sul", "sui", "alla", "allo",
+    "agli", "alle", "della", "dello", "degli", "delle", "con", "che", "una", "uno",
+    "grado", "invece", "secondo", "skillmatrix", "skill", "matrix", "mod", "operatore",
+    "cosa", "come", "quando", "chi", "per", "del", "dei", "gli", "le", "la", "il", "lo",
+})
+
+
+def _skillmatrix_resolve_person(text: str):
+    """Risolve un operatore citato nel prompt CORRENTE -> ``(legacy_id, nome completo)``.
+
+    Match su nome+cognome presenti come token nel testo (read-only su anagrafica,
+    tramite ``fetch_anagrafica_rows``). Ritorna ``None`` se nessun operatore e'
+    risolvibile: in quel caso il tool risponde onestamente senza inventare nomi.
+    """
+    from core.legacy_anagrafica import fetch_anagrafica_rows
+
+    tokens = {
+        tok for tok in re.findall(r"[0-9a-zà-ù']+", _norm_text(text))
+        if len(tok) >= 2 and tok not in _SKILLMATRIX_NAME_STOPWORDS
+    }
+    if len(tokens) < 2:
+        return None
+    try:
+        rows = fetch_anagrafica_rows(deduplicate=True)
+    except Exception:
+        return None
+
+    best = None
+    best_score = 0
+    for row in rows:
+        nome_toks = set(_norm_text(str(row.get("nome") or "")).split())
+        cognome_toks = set(_norm_text(str(row.get("cognome") or "")).split())
+        if not nome_toks or not cognome_toks:
+            continue
+        # richiede almeno un token di nome E uno di cognome presenti nel testo
+        if not (nome_toks & tokens) or not (cognome_toks & tokens):
+            continue
+        score = len((nome_toks | cognome_toks) & tokens)
+        if row.get("attivo"):
+            score += 1
+        if score > best_score:
+            best_score = score
+            best = row
+    if best is None:
+        return None
+    lid = int(best.get("id") or 0)
+    if lid <= 0:
+        return None
+    return lid, _full_name_from_anagrafica_row(best)
+
+
 def _skillmatrix_names_by_id(legacy_ids) -> dict[int, str]:
     """Risolve legacy_anagrafica_id -> nome (la matrice non memorizza i nominativi)."""
     ids = [int(value) for value in legacy_ids if int(value or 0) > 0]
@@ -3468,6 +3542,12 @@ def _skillmatrix_build_context(request, prompt: str, *, scope: str) -> RuntimeCo
         "retributivi o documentali."
     )
     text = _norm_text(prompt)
+    # Estrazione entita' (codici, nome operatore) dal prompt CORRENTE grezzo: evita
+    # che un codice-macchina di un turno precedente (in ``text`` via history) dirotti
+    # la domanda. Lo storico resta utile solo come fallback per i codici (follow-up
+    # "e domani?" senza codice esplicito).
+    raw = getattr(request, "ai_prompt_raw", None) or prompt
+    raw_norm = _norm_text(raw)
 
     def _ctx(body: str, source: str, audit_extra: dict) -> RuntimeContext:
         audit = {"tool": "skillmatrix", "allowed": True, "scope": scope}
@@ -3524,8 +3604,71 @@ def _skillmatrix_build_context(request, prompt: str, *, scope: str) -> RuntimeCo
             {"intent": "macchine_scoperte", "reparto": reparto or "", "row_count": len(asset_ids)},
         )
 
+    # --- intent: reverse lookup "persona -> macchine" (dal prompt CORRENTE) ---
+    # Precede il ramo codici: "dove puo' lavorare NOME" ha la persona come soggetto e
+    # NON deve essere dirottata da un codice-macchina ereditato dallo storico.
+    if _skillmatrix_wants_persona_macchine(raw_norm):
+        persona = _skillmatrix_resolve_person(raw)
+        if persona is None:
+            body = (
+                "Domanda su dove puo' lavorare un operatore, ma non ho riconosciuto un "
+                "nominativo (nome e cognome) nel testo, oppure la persona non e' in "
+                "anagrafica. Indica nome e cognome dell'operatore, o apri il modulo Skill "
+                "Matrix (MOD.187) per la ricerca."
+            )
+            return _ctx(
+                body,
+                "tool:skillmatrix:operatore",
+                {"intent": "operatore_macchine", "row_count": 0, "risolto": False},
+            )
+        legacy_id, full_name = persona
+        righe_op = resolver.macchine_operatore(legacy_id)
+        if not righe_op:
+            body = (
+                f"{full_name}: nessuna abilitazione macchina in lista risulta registrata "
+                "nella Skill Matrix (MOD.187). Apri il modulo per verificare o registrare "
+                "le abilitazioni."
+            )
+            return _ctx(
+                body,
+                "tool:skillmatrix:operatore",
+                {"intent": "operatore_macchine", "row_count": 0, "risolto": True},
+            )
+        from assets.models import Asset
+
+        asset_map = {
+            a.id: a for a in Asset.objects.filter(
+                id__in=[r["asset_id"] for r in righe_op][:_SKILLMATRIX_MAX_ROWS]
+            )
+        }
+        righe = []
+        for r in righe_op[:_SKILLMATRIX_MAX_ROWS]:
+            asset = asset_map.get(r["asset_id"])
+            if asset is None:
+                continue
+            macchina_label = (asset.asset_tag or asset.name or f"asset {r['asset_id']}").strip()
+            livello = _SKILLMATRIX_LIVELLO_LABEL.get(r["livello"], r["livello"] or "n/d")
+            stato = "attiva" if r["stato"] == AbilitazioneMacchina.STATO_ATTIVA else "sospesa"
+            operativo = "si" if r["operativa"] else "no"
+            revisione = r["prossima_revisione"].strftime("%d-%m-%Y") if r["prossima_revisione"] else "n/d"
+            righe.append(
+                f"  - {macchina_label} ({asset.name}): livello {livello}, stato {stato}, "
+                f"operativo {operativo}, prossima revisione {revisione}"
+            )
+        body = (
+            f"{full_name} e' abilitato/a su {len(righe)} macchine MOD.187 (in lista):\n"
+            + "\n".join(righe)
+        )
+        return _ctx(
+            body,
+            "tool:skillmatrix:operatore",
+            {"intent": "operatore_macchine", "row_count": len(righe), "risolto": True},
+        )
+
     # --- intent: codici macchina citati -> pool abilitati (+ eventuale uomo-solo) ---
-    codes = _skillmatrix_cited_codes(text)
+    # Codici dal prompt CORRENTE; fallback allo storico solo se la domanda corrente
+    # non cita alcun codice (follow-up tipo "e domani?").
+    codes = _skillmatrix_cited_codes(raw_norm) or _skillmatrix_cited_codes(text)
     if codes:
         comp_qs = CompetenzaSkm.objects.filter(tipo=CompetenzaSkm.TIPO_MACCHINA, asset__isnull=False)
         code_q = Q()
@@ -4168,6 +4311,13 @@ def _should_run(request, domain_key: str, keyword_hit: bool) -> bool:
 
 def build_runtime_context(request, prompt: str, history: Any = None) -> RuntimeContext:
     enriched = _enrich_prompt_with_history(prompt, history)
+    # Il prompt GREZZO (senza history) serve ai tool per estrarre le entita' della
+    # domanda CORRENTE senza ereditare codici/nomi dai turni precedenti: lo storico
+    # alimenta solo il gate di dominio, non la selezione dell'intento operativo.
+    try:
+        request.ai_prompt_raw = prompt
+    except Exception:
+        pass
     try:
         ranked = _rank_domains(enriched)
         active = _active_from_ranked(ranked)
