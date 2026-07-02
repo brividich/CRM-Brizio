@@ -193,3 +193,10 @@ class CompositoPreviewViewTest(TestCase):
         spec = Specifica.objects.create(codice="SP-PV2", titolo="T")
         r = self.client.get(reverse("gestione_specifiche:composito_preview", args=[spec.pk]))
         self.assertEqual(r.status_code, 302)
+
+    def test_thumb_png(self):
+        spec = Specifica.objects.create(codice="SP-TH", titolo="T")
+        with patch("gestione_specifiche.composito.componi_attesa_da_spec", return_value=_pdf(["X"])):
+            r = self.client.get(reverse("gestione_specifiche:composito_thumb", args=[spec.pk]))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r["Content-Type"], "image/png")

@@ -95,6 +95,7 @@
           {% if spec.percorso_esterno and not spec.allegato %}<span style="font-size:10.5px; color:#6b7a90;">(sulla share)</span>{% endif %}
         </a>
         {% if spec.cartella_share %}<span class="gs-chip" title="Cartella sulla share (cliente/categoria reale)">{{ spec.cartella_share }}</span>{% endif %}
+        <a href="{% url 'gestione_specifiche:composito_preview' spec.pk %}" target="_blank" title="Apri l'anteprima del composito ufficiale (nuova scheda)" style="display:inline-flex; line-height:0;"><img src="{% url 'gestione_specifiche:composito_thumb' spec.pk %}" alt="Anteprima composito" loading="lazy" onerror="this.closest('a').style.display='none'" style="height:88px; width:auto; border:1px solid #e6eef7; border-radius:8px; box-shadow:0 1px 5px rgba(28,43,66,.10);"></a>
         <a class="gs-btn" href="{% url 'gestione_specifiche:composito_preview' spec.pk %}" target="_blank" title="Anteprima del composito ufficiale (MOD.133 o cover 'in attesa' + specifica). Non scrive sulla share.">{% include "gestione_specifiche/partials/_icon.html" with name="filecheck" size=15 %} Anteprima composito</a>
         {% else %}<span style="font-size:12.5px; color:#92a0b5; font-style:italic;">Nessun allegato</span>{% endif %}
         {% if spec.stato == C.STATO_BOZZA or spec.stato == C.STATO_FLOW_DOWN %}<div style="flex:1;"></div><a class="gs-btn" href="{% url 'gestione_specifiche:modifica' spec.pk %}">{% include "gestione_specifiche/partials/_icon.html" with name="edit" size=15 %} Modifica metadati</a>{% endif %}

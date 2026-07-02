@@ -23,6 +23,7 @@ urlpatterns = [
     path("<int:pk>/distribuisci/", views.distribuzione_nuova, name="distribuzione_nuova"),
     # F6b-1 — anteprima composito ufficiale (nessuna scrittura sulla share)
     path("<int:pk>/composito/anteprima/", views.composito_preview, name="composito_preview"),
+    path("<int:pk>/composito/miniatura.png", views.composito_thumb, name="composito_thumb"),
     # Storico consultabile + export
     path("<int:pk>/storico/", views.scheda_storico, name="scheda_storico"),
     path("<int:pk>/storico/export.csv", views.storico_export_csv, name="storico_export_csv"),

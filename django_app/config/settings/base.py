@@ -598,6 +598,21 @@ ANAGRAFICA_PRIVATE_ROOT = Path(env("ANAGRAFICA_PRIVATE_ROOT", str(BASE_DIR / "me
 # Allegati specifiche tecniche (gestione_specifiche): storage privato cifrato,
 # mai esposto da IIS; accessibile solo via view protetta con ACL.
 GESTIONE_SPECIFICHE_PRIVATE_ROOT = Path(env("GESTIONE_SPECIFICHE_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
+# Radici UNC CONSENTITE per gli allegati "collegati" (modalità share = single source of
+# truth: il PDF resta sul master aziendale, il portale lo serve on-demand). La view di
+# download serve SOLO file dentro queste radici (allowlist + anti-traversal). Più radici
+# separate da ';'. Al portale serve solo LETTURA sulla share (least privilege).
+GESTIONE_SPECIFICHE_SHARE_ROOTS = [
+    p.strip() for p in str(
+        env("GESTIONE_SPECIFICHE_SHARE_ROOTS", r"\\novisrv\Area Produzione\SPECIFICHE")
+    ).split(";") if p.strip()
+]
+# Cartelle (per nome, a qualsiasi livello) da ESCLUDERE dal match-per-nome degli allegati:
+# es. `_SUPERATO` contiene le revisioni superate, che NON vanno collegate a una specifica
+# "in validità". Più nomi separati da ';'.
+GESTIONE_SPECIFICHE_SHARE_EXCLUDE = [
+    p.strip() for p in str(env("GESTIONE_SPECIFICHE_SHARE_EXCLUDE", "_SUPERATO")).split(";") if p.strip()
+]
 
 # Configurazione di processo dell'app gestione_specifiche (BUILD_SPEC §5).
 # APPROVAZIONE_DOC_CN_MODE ∈ {mod133_approver, car_flow, rdd_dedicato} (decisione F0 #2).
@@ -606,7 +621,17 @@ GESTIONE_SPECIFICHE = {
     "VERIFICA_PERIODICA_MESI": int(env("GESTIONE_SPECIFICHE_VERIFICA_PERIODICA_MESI", "6")),
     "REMINDER_GIORNI": int(env("GESTIONE_SPECIFICHE_REMINDER_GIORNI", "7")),
     "ESCALATION_GIORNI": int(env("GESTIONE_SPECIFICHE_ESCALATION_GIORNI", "14")),
+    # Owner-password (permessi) applicata ai PDF compositi protetti (no stampa/modifica).
+    # SEGRETO runtime: valorizzare SOLO nel .env persistente (config\.env), unica per tutti i
+    # documenti; il modulo pdf_compose.applica_protezione la riceve come parametro, non la legge.
+    "PDF_OWNER_PASSWORD": env("GESTIONE_SPECIFICHE_PDF_OWNER_PASSWORD", ""),
 }
+
+# F6b-2: aggancio AUTOMATICO del deposito del composito controllato sulla share (all'upload e
+# all'approvazione MOD.133, con "scambio" delle forme attesa<->approvato). Default OFF: le scritture
+# sulla share avvengono solo se attivato esplicitamente in prod, e comunque richiedono la Modifica
+# share per l'app-pool + GESTIONE_SPECIFICHE_PDF_OWNER_PASSWORD.
+GESTIONE_SPECIFICHE_COMPOSITO_AUTO = env_bool("GESTIONE_SPECIFICHE_COMPOSITO_AUTO", False)
 
 # Chiave AES-256 Fernet per cifratura at rest dei file privati.
 # Generare con: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"

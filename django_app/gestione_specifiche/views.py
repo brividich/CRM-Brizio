@@ -252,6 +252,12 @@ def nuova_specifica(request):
                 spec.revisione_precedente = prev
             spec.save()
             messages.success(request, "Specifica creata.")
+            # F6b-2: se abilitato e con destinazione share risolvibile, deposita la forma "in attesa".
+            from .composito_deposito import deposita_auto
+
+            dep = deposita_auto(spec, attore=request.user)
+            if dep is not None and dep.esito == "ok":
+                messages.info(request, "Composito 'in attesa MOD.133' depositato sulla share.")
             return redirect("gestione_specifiche:dettaglio", pk=spec.pk)
     else:
         initial = {}
@@ -445,6 +451,14 @@ def mod133_approva(request, pk: int):
                 spec.respingi_flow_down(attore=request.user, motivo=note)
             spec.save()
         messages.success(request, "Esito registrato.")
+        # F6b-2: se abilitato, deposita la forma "approvato" (MOD.133 + originale) sulla share.
+        # Best-effort e gated dal flag: un problema di deposito non tocca l'approvazione (gia' committata).
+        if esito == C.ESITO_APPROVATO:
+            from .composito_deposito import deposita_auto
+
+            dep = deposita_auto(spec, attore=request.user)
+            if dep is not None and dep.esito == "ok":
+                messages.info(request, "Composito ufficiale (MOD.133) depositato sulla share.")
     except (TransitionNotAllowed, ValidationError) as exc:
         messages.error(request, f"Operazione non consentita: {exc}")
     return redirect("gestione_specifiche:dettaglio", pk=spec.pk)
@@ -744,6 +758,33 @@ def composito_preview(request, pk: int):
 
     resp = HttpResponse(pdf, content_type="application/pdf")
     resp["Content-Disposition"] = f'inline; filename="{nome}"'
+    return resp
+
+
+@login_required
+def composito_thumb(request, pk: int):
+    """Miniatura PNG della 1a pagina del composito (anteprima in-portale). NESSUNA scrittura share."""
+    spec = get_object_or_404(Specifica, pk=pk)
+    from .composito import componi_attesa_da_spec, componi_composito_da_spec
+
+    mod = MOD133.objects.filter(specifica=spec).first()
+    approvato = bool(mod and mod.esito == C.ESITO_APPROVATO)
+    try:
+        pdf = (componi_composito_da_spec(spec, proteggi=False) if approvato
+               else componi_attesa_da_spec(spec, proteggi=False))
+    except ValueError:
+        raise Http404("Anteprima composito non disponibile")
+
+    import fitz
+
+    doc = fitz.open(stream=pdf, filetype="pdf")
+    try:
+        pix = doc.load_page(0).get_pixmap(matrix=fitz.Matrix(0.7, 0.7))
+        png = pix.tobytes("png")
+    finally:
+        doc.close()
+    resp = HttpResponse(png, content_type="image/png")
+    resp["Cache-Control"] = "no-store"
     return resp
 
 
