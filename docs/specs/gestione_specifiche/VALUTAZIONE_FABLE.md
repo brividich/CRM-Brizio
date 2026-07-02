@@ -3,8 +3,9 @@
 > **Aggiornamento 2026-07-02 — RISOLTI**: **A1** (API django-ninja portata sotto ACL v2: gate
 > middleware + controllo permesso per-azione in `transizione_specifica`), **A2** (enforcement di
 > stato server-side su claim/compila/chiudi/riga_add/approva/distribuzione/OFI + congelamento
-> MOD.133 post-approvazione) e **M4** (approvazione atomica). Restano aperti gli altri punti (A3,
-> M1-M2-M3, M6-M12, ecc.) come backlog.
+> MOD.133 post-approvazione) e **M4** (approvazione atomica); **M2** (slot `stato_pre_errore`
+> dedicato → niente più intrappolamento S5↔S9) e **M1** (unicità `(codice,revisione)` app-level +
+> comando `specifiche_duplicati`; vincolo DB dopo dedup prod). Restano aperti: A3, M3, M6-M12.
 
 > Revisione **in sola lettura** condotta da un agente sul modello Fable (claude-fable-5): letti per
 > intero models/state_machine/views/api/forms/acl_bootstrap/ai_copilota/share_link/share_write/

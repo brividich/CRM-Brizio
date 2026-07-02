@@ -190,7 +190,7 @@ class ErroreTecnicoTests(FSMBase):
         spec.errore_tecnico(attore=self.comp, errore={"msg": "import rotto"})
         spec.save()
         self.assertEqual(spec.stato, C.STATO_ERRORE_TECNICO)
-        self.assertEqual(spec.stato_precedente, C.STATO_IN_VALIDITA)
+        self.assertEqual(spec.stato_pre_errore, C.STATO_IN_VALIDITA)  # slot dedicato all'errore (M2)
         spec.ripristina_da_errore(attore=self.comp)
         spec.save()
         self.assertEqual(spec.stato, C.STATO_IN_VALIDITA)
@@ -199,6 +199,23 @@ class ErroreTecnicoTests(FSMBase):
         spec = Specifica.objects.create(codice="SP-601", titolo="T")
         with self.assertRaises(ValidationError):
             spec.errore_tecnico(attore=self.comp, errore=None)
+
+    def test_errore_durante_sospensione_non_intrappola(self):
+        # M2: S3 -> sospendi -> S5 -> errore -> S9 -> ripristina_da_errore -> S5 -> ripristina -> S3.
+        # Con slot separati (stato_precedente vs stato_pre_errore) i due percorsi non si calpestano.
+        spec = self._porta_in_validita(codice="SP-602")
+        spec.sospendi(attore=self.comp, motivo="riesame", data=date.today())
+        spec.save()
+        self.assertEqual(spec.stato, C.STATO_SOSPESO)
+        spec.errore_tecnico(attore=self.comp, errore={"msg": "glitch"})
+        spec.save()
+        self.assertEqual(spec.stato, C.STATO_ERRORE_TECNICO)
+        spec.ripristina_da_errore(attore=self.comp)
+        spec.save()
+        self.assertEqual(spec.stato, C.STATO_SOSPESO)  # torna alla sospensione, NON intrappolata
+        spec.ripristina(attore=self.comp, motivo="ok")
+        spec.save()
+        self.assertEqual(spec.stato, C.STATO_IN_VALIDITA)  # slot sospensione intatto -> torna in S3
 
 
 class TransizioniIllegaliTests(FSMBase):

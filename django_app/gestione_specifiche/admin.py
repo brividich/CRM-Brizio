@@ -49,7 +49,7 @@ class SpecificaAdmin(admin.ModelAdmin):
                     "cliente", "data_verifica", "data_inserimento")
     list_filter = ("tipo", "fonte", "stato")
     search_fields = ("codice", "titolo", "cliente", "tag", "commessa_ref", "famiglia_ref")
-    readonly_fields = ("stato", "stato_precedente", "data_inserimento", "created_at", "updated_at")
+    readonly_fields = ("stato", "stato_precedente", "stato_pre_errore", "data_inserimento", "created_at", "updated_at")
     autocomplete_fields = ("revisione_precedente", "master")
     inlines = (EventoSpecificaInline, DistribuzioneInline)
     date_hierarchy = "data_inserimento"

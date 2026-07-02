@@ -127,6 +127,35 @@ class GuardieA1A2Tests(_Base):
         self.assertEqual(r.status_code, 302)
 
 
+class M1DuplicatiTests(TestCase):
+    """M1: unicita' applicativa (codice, revisione) + report duplicati (pre-UniqueConstraint DB)."""
+
+    def _dati(self, codice, revisione, titolo="T"):
+        return {"codice": codice, "revisione": revisione, "titolo": titolo,
+                "tipo": C.TIPO_SPECIFICA, "fonte": C.FONTE_CLIENTE}
+
+    def test_form_blocca_codice_revisione_duplicati(self):
+        from gestione_specifiche.forms import SpecificaForm
+        Specifica.objects.create(codice="DUP-1", revisione="A", titolo="T")
+        form = SpecificaForm(data=self._dati("DUP-1", "A", "Altro"))
+        self.assertFalse(form.is_valid())
+
+    def test_form_ammette_revisione_diversa(self):
+        from gestione_specifiche.forms import SpecificaForm
+        Specifica.objects.create(codice="DUP-2", revisione="A", titolo="T")
+        form = SpecificaForm(data=self._dati("DUP-2", "B", "Nuova rev"))
+        self.assertTrue(form.is_valid())
+
+    def test_comando_report_duplicati(self):
+        from io import StringIO
+        from django.core.management import call_command
+        Specifica.objects.create(codice="DUP-3", revisione="A", titolo="T")
+        Specifica.objects.create(codice="DUP-3", revisione="A", titolo="T2")  # duplicato (no constraint DB)
+        buf = StringIO()
+        call_command("specifiche_duplicati", stdout=buf)
+        self.assertIn("DUP-3", buf.getvalue())
+
+
 class ArchivioStoricoTests(_Base):
     def test_archivio_include_storico(self):
         Specifica.objects.create(codice="SP-ATT", titolo="T")  # bozza = attiva

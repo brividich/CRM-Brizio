@@ -48,8 +48,11 @@ class Specifica(models.Model):
         "Stato", max_length=30, choices=C.STATO_CHOICES,
         default=C.STATO_BOZZA, protected=True, db_index=True,
     )
-    # Stato salvato prima di sospensione (S5) o errore tecnico (S9), per ripristino.
-    stato_precedente = models.CharField("Stato precedente", max_length=30, blank=True, default="")
+    # Stato salvato prima della SOSPENSIONE (S5), per il ripristino da sospeso.
+    stato_precedente = models.CharField("Stato precedente (sospensione)", max_length=30, blank=True, default="")
+    # Stato salvato prima dell'ERRORE tecnico (S9), per il ripristino da errore. Slot SEPARATO da
+    # stato_precedente: sospensione ed errore possono annidarsi (S5→S9→S5) senza calpestarsi (M2).
+    stato_pre_errore = models.CharField("Stato precedente (errore tecnico)", max_length=30, blank=True, default="")
 
     data_inserimento = models.DateTimeField("Data inserimento", auto_now_add=True)
     data_verifica = models.DateField("Data verifica periodica", null=True, blank=True, db_index=True)
@@ -230,20 +233,20 @@ class Specifica(models.Model):
 
     @transition(field=stato, source="+", target=C.STATO_ERRORE_TECNICO)
     def errore_tecnico(self, attore=None, errore=None):
-        """*→S9: salva stato_precedente; payload errore obbligatorio."""
+        """*→S9: salva lo stato pre-errore (slot dedicato); payload errore obbligatorio."""
         if not errore:
             raise ValidationError("Il payload di errore è obbligatorio.")
-        self.stato_precedente = self.stato
+        self.stato_pre_errore = self.stato
         self._prep_evento(attore, errore=errore)
 
     @transition(field=stato, source=C.STATO_ERRORE_TECNICO,
-                target=GET_STATE(lambda self, **kw: self.stato_precedente,
+                target=GET_STATE(lambda self, **kw: self.stato_pre_errore,
                                  states=[C.STATO_BOZZA, C.STATO_FLOW_DOWN, C.STATO_IN_VALIDITA,
                                          C.STATO_SUPERATO, C.STATO_SOSPESO, C.STATO_ANNULLATO,
                                          C.STATO_DUPLICATO, C.STATO_RESPINTO]))
     def ripristina_da_errore(self, attore=None):
-        """S9→stato_precedente."""
-        if not self.stato_precedente:
+        """S9→stato precedente all'errore (usa lo slot dedicato, non calpesta la sospensione)."""
+        if not self.stato_pre_errore:
             raise ValidationError("Stato precedente assente: impossibile ripristinare da errore.")
         self._prep_evento(attore)
 

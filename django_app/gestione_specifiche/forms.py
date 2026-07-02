@@ -31,6 +31,23 @@ class SpecificaForm(forms.ModelForm):
             "famiglia_ref": forms.TextInput(attrs=_TXT),
         }
 
+    def clean(self):
+        cleaned = super().clean()
+        # M1: unicita' applicativa (codice, revisione) — blocca nuovi duplicati da UI. Il vincolo
+        # DB (UniqueConstraint) sara' aggiunto dopo la deduplica del pregresso (comando
+        # `specifiche_duplicati`).
+        codice = (cleaned.get("codice") or "").strip()
+        revisione = (cleaned.get("revisione") or "").strip()
+        if codice:
+            qs = Specifica.objects.filter(codice=codice, revisione=revisione)
+            if self.instance and self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise forms.ValidationError(
+                    "Esiste gia' una specifica con questo codice e questa revisione."
+                )
+        return cleaned
+
 
 class RigaMOD133Form(forms.ModelForm):
     # Ordine non è più un campo visibile (la UI mostra un badge numerico): è
