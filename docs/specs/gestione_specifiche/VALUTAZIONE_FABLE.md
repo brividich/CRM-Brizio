@@ -8,9 +8,10 @@
 > comando `specifiche_duplicati`; vincolo DB dopo dedup prod); **M3** (pausa timer S9), **M6**
 > (numerazione OFI serializzata), **M7** (azione OFI non ribaltabile), **M8** (audit-log a warning),
 > **M10** (delete Specifica disabilitata in admin), **M11** (owner-pw vuota rifiutata), **M12** (no 500
-> su filtri data). **Restano aperti**: **A3** (ricerca embeddings N+1 — richiede cache, medio) e
-> **M1b** (UniqueConstraint DB dopo dedup prod), oltre agli affinamenti F7 (UI master-picker,
-> PERM_DEROGA, reminder S1) e alle voci BASSE (B1-B9).
+> su filtri data); **A3** (ricerca semantica: pre-filtro lessicale + re-ranking sulla sola shortlist
+> con embedding cache-ati → niente più N+1 HTTP). **Restano aperti**: **M1b** (UniqueConstraint DB
+> dopo dedup prod), gli affinamenti F7 (UI master-picker, PERM_DEROGA, reminder S1) e le voci BASSE
+> (B1-B9). **Nota**: A1/A2/M1a/M2/M3/M4/M6/M7/M8/M10/M11/M12/A3 = tutto il grosso backlog è risolto.
 
 > Revisione **in sola lettura** condotta da un agente sul modello Fable (claude-fable-5): letti per
 > intero models/state_machine/views/api/forms/acl_bootstrap/ai_copilota/share_link/share_write/

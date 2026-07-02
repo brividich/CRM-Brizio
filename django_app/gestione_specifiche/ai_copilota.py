@@ -18,6 +18,7 @@ così la ricerca funziona anche offline e nei test.
 from __future__ import annotations
 
 import difflib
+import hashlib
 import json
 import logging
 import math
@@ -252,6 +253,24 @@ def _embedding(testo: str):
         return None
 
 
+def _embedding_cached(testo: str):
+    """Embedding con cache per (modello, content-hash): evita di ricalcolare lo stesso testo
+    a ogni ricerca (mitiga A3, il costo N+1 HTTP). None se embeddings non disponibili."""
+    if not getattr(settings, "OLLAMA_EMBED_ENABLED", False):
+        return None
+    from django.core.cache import cache
+
+    model = getattr(settings, "OLLAMA_EMBED_MODEL", "nomic-embed-text")
+    key = "gs:emb:" + model + ":" + hashlib.sha256((testo or "").encode("utf-8")).hexdigest()[:24]
+    cached = cache.get(key)
+    if cached is not None:
+        return cached
+    e = _embedding(testo)
+    if e is not None:
+        cache.set(key, e, getattr(settings, "OLLAMA_EMBED_CACHE_TTL", 86400))
+    return e
+
+
 def _cosine(a, b) -> float:
     if not a or not b or len(a) != len(b):
         return 0.0
@@ -268,30 +287,44 @@ def _overlap(query_tokens: set, testo: str) -> float:
     return len(query_tokens & doc) / len(query_tokens | doc)  # Jaccard
 
 
+def _riga_ricerca(s, score) -> dict:
+    return {"id": s.id, "codice": s.codice, "titolo": s.titolo, "tag": s.tag,
+            "stato": s.stato, "score": round(float(score), 4)}
+
+
 def ricerca_semantica(query: str, *, limit: int = 10) -> list[dict]:
-    """Classifica l'archivio specifiche per similarità con la query (read-only)."""
+    """Classifica l'archivio specifiche per similarità con la query (read-only).
+
+    A3: NON fa una chiamata embedding per ogni specifica (N+1 HTTP, inutilizzabile su migliaia
+    di record). Strategia ibrida: (1) **pre-filtro lessicale** in-memory su tutto l'archivio (nessun
+    HTTP); (2) se gli embeddings sono attivi, **re-ranking semantico SOLO sulla shortlist** dei
+    migliori candidati lessicali, con embedding **cache-ati** per content-hash. Le chiamate HTTP per
+    ricerca sono così limitate a ~len(shortlist)+1, non a N.
+    """
     query = (query or "").strip()
     if not query:
         return []
-    emb_q = _embedding(query)
     q_tokens = set(_tokenizza(query))
 
-    risultati = []
-    for s in Specifica.objects.all().only(
-        "id", "codice", "titolo", "tag", "cliente", "note", "stato"
-    ):
+    # (1) pre-filtro lessicale (deterministico, nessuna chiamata HTTP).
+    lessicali = []
+    for s in Specifica.objects.all().only("id", "codice", "titolo", "tag", "cliente", "note", "stato"):
         testo = f"{s.codice} {s.titolo} {s.tag} {s.cliente} {s.note}"
-        if emb_q is not None:
-            e = _embedding(testo)
-            score = _cosine(emb_q, e) if e else 0.0
-        else:
-            score = _overlap(q_tokens, testo)
-        if score > 0:
-            risultati.append((score, s))
+        lex = _overlap(q_tokens, testo)
+        if lex > 0:
+            lessicali.append((lex, s, testo))
+    if not lessicali:
+        return []
+    lessicali.sort(key=lambda t: t[0], reverse=True)
 
-    risultati.sort(key=lambda t: t[0], reverse=True)
-    return [
-        {"id": s.id, "codice": s.codice, "titolo": s.titolo, "tag": s.tag,
-         "stato": s.stato, "score": round(score, 4)}
-        for score, s in risultati[:limit]
-    ]
+    # (2) re-ranking semantico SOLO sulla shortlist (bounded + cache); altrimenti lessicale puro.
+    emb_q = _embedding(query)
+    if emb_q is None:
+        return [_riga_ricerca(s, lex) for lex, s, _ in lessicali[:limit]]
+    shortlist = lessicali[: max(limit * 3, 30)]
+    ranked = []
+    for lex, s, testo in shortlist:
+        e = _embedding_cached(testo)
+        ranked.append((_cosine(emb_q, e) if e else lex, s))
+    ranked.sort(key=lambda t: t[0], reverse=True)
+    return [_riga_ricerca(s, score) for score, s in ranked[:limit]]

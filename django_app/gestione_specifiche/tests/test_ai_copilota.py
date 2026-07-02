@@ -139,6 +139,20 @@ class RicercaSemanticaTests(TestCase):
     def test_query_vuota(self):
         self.assertEqual(ricerca_semantica(""), [])
 
+    @override_settings(OLLAMA_EMBED_ENABLED=True)
+    def test_a3_embeddings_limitati_alla_shortlist(self):
+        # A3: con embeddings attivi le chiamate NON sono N+1 su tutto l'archivio, ma limitate
+        # alla shortlist lessicale (max limit*3=30) + la query.
+        from unittest.mock import patch
+        from django.core.cache import cache
+        cache.clear()
+        for i in range(40):
+            Specifica.objects.create(codice=f"SP-B{i}", titolo="trattamento termico lega")
+        with patch("gestione_specifiche.ai_copilota._embedding", return_value=[1.0, 0.0, 0.0]) as m:
+            res = ricerca_semantica("trattamento termico")
+        self.assertTrue(res)
+        self.assertLessEqual(m.call_count, 32)  # ~30 shortlist + 1 query, NON 41
+
 
 class CopilotaViewTests(TestCase):
     def setUp(self):
