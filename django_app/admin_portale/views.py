@@ -7803,6 +7803,14 @@ def navigation_builder(request):
         for key, label, hint in visual_lane_defs
     ]
 
+    # Moduli topbar disponibili come "Modulo padre" per le voci subnav (3° livello sidebar).
+    # Query dedicata (non filtrata da q_filter) così il menù è sempre completo.
+    topbar_modules = [
+        {"code": it.code, "label": it.label}
+        for it in NavigationItem.objects.filter(section="topbar", is_visible=True).order_by("label", "code")
+    ]
+    topbar_module_codes = [m["code"] for m in topbar_modules]
+
     return render(
         request,
         "admin_portale/pages/navigation_builder.html",
@@ -7813,6 +7821,8 @@ def navigation_builder(request):
             "snapshots": snapshots,
             "redirects": redirects,
             "icon_library": _navigation_icon_library_items(),
+            "topbar_modules": topbar_modules,
+            "topbar_module_codes": topbar_module_codes,
             "filters": {"q": q_filter, "section": section_filter, "advanced": "1" if advanced_mode else "0"},
             "state_preview_json": json.dumps(export_navigation_state(), ensure_ascii=False, indent=2),
             "visual_sections": visual_sections,

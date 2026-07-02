@@ -534,9 +534,14 @@
           </div>
 
           <div class="field" id="create-parent-code-field" style="display:none;">
-            <label>Gruppo subnav <span style="color:#dc2626;font-size:11px;">obbligatorio per subnav</span></label>
-            <input class="input" type="text" name="parent_code" placeholder="es. dashboard, assenze, anagrafica">
-            <div class="field-help">Codice del gruppo: la subnav appare quando l'utente è in quella sezione. Valori comuni: <code>dashboard</code>, <code>assenze</code>, <code>anagrafica</code>, <code>admin_portale</code>, <code>assets</code>, <code>notizie</code>, <code>tasks</code>.</div>
+            <label>Modulo padre <span style="color:#dc2626;font-size:11px;">obbligatorio per subnav</span></label>
+            <select class="input" name="parent_code">
+              <option value="">— Seleziona il modulo padre —</option>
+              {% for mod in topbar_modules %}
+                <option value="{{ mod.code }}">{{ mod.label }} ({{ mod.code }})</option>
+              {% endfor %}
+            </select>
+            <div class="field-help">La voce appare come sotto-modulo (3° livello) nella sidebar sotto il modulo scelto, e come subnav in-pagina quando l'utente è in quella sezione.</div>
           </div>
 
           <div class="field">
@@ -801,7 +806,17 @@
                       <option value="page" {% if row.section == "page" %}selected{% endif %}>page</option>
                     </select>
                   </td>
-                  <td><input class="input input-sm" type="text" data-name="parent_code" value="{{ row.parent_code }}" placeholder="es. assenze" title="Gruppo subnav"></td>
+                  <td>
+                    <select class="input input-sm" data-name="parent_code" title="Modulo padre (per subnav)">
+                      <option value="">—</option>
+                      {% for mod in topbar_modules %}
+                        <option value="{{ mod.code }}"{% if row.parent_code == mod.code %} selected{% endif %}>{{ mod.label }} ({{ mod.code }})</option>
+                      {% endfor %}
+                      {% if row.parent_code and row.parent_code not in topbar_module_codes %}
+                        <option value="{{ row.parent_code }}" selected>{{ row.parent_code }} (attuale)</option>
+                      {% endif %}
+                    </select>
+                  </td>
                   <td><input class="input input-sm" type="number" data-name="order" value="{{ row.order }}" title="Ordine"></td>
                   <td>
                     <div class="nav-icon-picker nav-icon-picker-inline" data-nav-icon-picker data-fallback-name="label">

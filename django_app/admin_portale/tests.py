@@ -2607,6 +2607,21 @@ class AdminPortaleNavigationBuilderVisualTests(TestCase):
         self.assertContains(response, 'data-advanced="1"', html=False)
         self.assertContains(response, "Passa a modalità standard", html=False)
 
+    def test_navigation_builder_exposes_parent_module_dropdown(self):
+        response = self._as_admin_get(
+            reverse("admin_portale:navigation_builder"),
+            {"section": "all"},
+        )
+        self.assertEqual(response.status_code, 200)
+        codes = [m["code"] for m in response.context["topbar_modules"]]
+        self.assertIn("nav-topbar-1", codes)
+        self.assertIn("nav-topbar-2", codes)
+        # Il campo "Modulo padre" è un <select name=parent_code> nel form di creazione
+        self.assertContains(response, 'name="parent_code"', html=False)
+        self.assertContains(response, "Topbar One (nav-topbar-1)", html=False)
+        # Fallback: una subnav con parent_code non tra i moduli topbar mantiene il valore attuale
+        self.assertContains(response, "dashboard (attuale)", html=False)
+
     def test_api_navigation_reorder_supports_section_orders_payload(self):
         response = self._as_admin_post_json(
             reverse("admin_portale:api_navigation_reorder"),
