@@ -22,7 +22,7 @@ pyOpenSSL>=25.1.0,<26             # TLS per ldap3 e pyspnego
 # --- Microsoft Graph / Office ---
 openpyxl>=3.1.5                 # lettura/scrittura Excel (VRF MOD.073)
 reportlab>=4.0                  # generazione PDF
-pymupdf>=1.24                   # rendering PDF->PNG (import slide e-learning da PPTX/PDF)
+pymupdf>=1.28.0                   # rendering PDF->PNG (import slide e-learning da PPTX/PDF)
 
 # --- Task queue ---
 django-q2>=1.7,<2               # code automazioni e task asincroni
