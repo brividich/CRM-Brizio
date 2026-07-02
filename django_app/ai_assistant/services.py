@@ -1941,6 +1941,13 @@ def warmup_ollama(*, timeout: int | None = None) -> dict[str, Any]:
     effective_timeout = int(timeout) if timeout else max(int(configured_timeout), 300)
     keep_alive = str(getattr(settings, "OLLAMA_KEEP_ALIVE", "") or "").strip()
     payload: dict[str, Any] = {"model": model, "prompt": "", "stream": False}
+    # Precarica con LO STESSO num_ctx delle richieste di chat: se il warmup scaldasse
+    # a un contesto diverso (default Ollama, es. 4096), la prima chat con num_ctx
+    # maggiore forzerebbe un RICARICAMENTO del modello -> warmup sprecato e latenza
+    # di cold-load a ogni ciclo (flip-flop 4096<->OLLAMA_NUM_CTX).
+    num_ctx = int(getattr(settings, "OLLAMA_NUM_CTX", 0) or 0)
+    if num_ctx > 0:
+        payload["options"] = {"num_ctx": num_ctx}
     if keep_alive:
         payload["keep_alive"] = keep_alive
 

@@ -255,6 +255,7 @@ class AiAssistantTests(TestCase):
             OLLAMA_BASE_URL="http://10.0.0.34:11434",
             OLLAMA_CHAT_MODEL="llama3.1",
             OLLAMA_KEEP_ALIVE="30m",
+            OLLAMA_NUM_CTX=16384,
         ), patch("ai_assistant.services.urllib.request.urlopen", return_value=FakeResponse()) as mocked_urlopen:
             result = warmup_ollama()
 
@@ -265,6 +266,8 @@ class AiAssistantTests(TestCase):
         self.assertEqual(payload["prompt"], "")
         self.assertFalse(payload["stream"])
         self.assertEqual(payload["keep_alive"], "30m")
+        # Precarica allo stesso num_ctx della chat: evita il reload al primo messaggio.
+        self.assertEqual(payload["options"]["num_ctx"], 16384)
         self.assertTrue(result["ok"])
         self.assertTrue(result["loaded"])
         self.assertFalse(result["skipped"])
