@@ -17,6 +17,7 @@ from ninja import NinjaAPI, Schema
 from ninja.security import django_auth
 
 from . import constants as C
+from .acl_bootstrap import PERM_ANNULLA, PERM_APPROVA, PERM_CLAIM, PERM_SOSPENDI
 from .models import Specifica
 
 # `django_auth` (SessionAuth): autenticazione di sessione del HUB; in django-ninja
@@ -35,6 +36,33 @@ _TRANSIZIONI_API = {
     "sospendi", "ripristina", "annulla", "marca_duplicato",
     "errore_tecnico", "ripristina_da_errore",
 }
+
+# Permesso ACL v2 richiesto per ogni azione (OLTRE al gate VIEW del middleware sull'API).
+# Difesa in profondita': senza questo, chi ha solo `specifica.view` potrebbe eseguire
+# transizioni scavalcando la granularita' approva/sospendi/annulla.
+_AZIONE_PERM = {
+    "avvia_flow_down": PERM_CLAIM,
+    "approva_flow_down": PERM_APPROVA,
+    "respingi_flow_down": PERM_APPROVA,
+    "sospendi": PERM_SOSPENDI,
+    "ripristina": PERM_SOSPENDI,
+    "annulla": PERM_ANNULLA,
+    "marca_duplicato": PERM_ANNULLA,
+    "errore_tecnico": PERM_ANNULLA,
+    "ripristina_da_errore": PERM_ANNULLA,
+}
+
+
+def _user_can(request, permission_code: str) -> bool:
+    """True se l'utente ha il permesso ACL v2 (bypass superuser/legacy-admin inclusi)."""
+    from core.acl_v2 import evaluate_permission_code_access
+    from core.legacy_utils import get_legacy_user
+
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    res = evaluate_permission_code_access(
+        permission_code=permission_code, django_user=request.user, legacy_user=legacy_user,
+    )
+    return bool(res.get("allowed"))
 
 
 class SpecificaOut(Schema):
@@ -135,6 +163,11 @@ def transizione_specifica(request, spec_id: int, payload: TransizioneIn):
     metodo = getattr(spec, payload.azione, None)
     if not callable(metodo):
         return api.create_response(request, {"ok": False, "error": "Azione non disponibile."}, status=400)
+
+    perm = _AZIONE_PERM.get(payload.azione)
+    if perm and not _user_can(request, perm):
+        return api.create_response(
+            request, {"ok": False, "error": "Permesso ACL insufficiente per questa azione."}, status=403)
 
     kwargs = {"attore": request.user}
     if payload.azione == "sospendi":

@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from gestione_specifiche import constants as C
@@ -125,6 +125,7 @@ class ProponiTagTests(TestCase):
         self.assertFalse(res["ai_disponibile"])
 
 
+@override_settings(OLLAMA_EMBED_ENABLED=False)  # forza il fallback lessicale: deterministico, no endpoint live
 class RicercaSemanticaTests(TestCase):
     def test_ranking_lessicale_read_only(self):
         Specifica.objects.create(codice="SP-TT", titolo="Trattamento termico tolleranze lega")

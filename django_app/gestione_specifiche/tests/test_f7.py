@@ -111,6 +111,22 @@ class ApiTests(_Base):
         self.assertIn(r.status_code, (401, 403))
 
 
+class GuardieA1A2Tests(_Base):
+    def test_a1_api_sotto_acl_gate(self):
+        # A1: l'API e' risolta dal middleware verso la route `lista` (bound a PERM_VIEW),
+        # non verso se stessa -> non e' piu' fuori dal perimetro ACL v2.
+        from core.middleware import resolve_acl_gate_target_path
+        target = resolve_acl_gate_target_path("/gestione-specifiche/api/specifiche/5/transizione")
+        self.assertIn("gestione-specifiche", target)
+        self.assertNotIn("/api", target)
+
+    def test_a2_compila_congelata_dopo_approvazione(self):
+        # A2: dopo l'approvazione (S3) il MOD.133 e' congelato: compila POST -> redirect, no edit.
+        spec = self._in_validita("SP-FREEZE")
+        r = self.client.post(reverse("gestione_specifiche:mod133_compila", args=[spec.pk]))
+        self.assertEqual(r.status_code, 302)
+
+
 class ArchivioStoricoTests(_Base):
     def test_archivio_include_storico(self):
         Specifica.objects.create(codice="SP-ATT", titolo="T")  # bozza = attiva

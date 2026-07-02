@@ -16,6 +16,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.db.models import Count, Q
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -293,11 +294,27 @@ def avvia_flow_down_view(request, pk: int):
     return redirect("gestione_specifiche:dettaglio", pk=spec.pk)
 
 
+def _blocca_fuori_stato(request, spec, stati_ok):
+    """Enforcement di stato SERVER-SIDE: ritorna un redirect se lo stato non e' ammesso.
+
+    La UI nasconde i pulsanti, ma le URL restano azionabili via POST diretto: senza questa
+    guardia si potrebbero (es.) modificare le righe di un MOD.133 gia' approvato o distribuire
+    una bozza. Ritorna None se lo stato e' ok.
+    """
+    if spec.stato not in stati_ok:
+        messages.error(request, "Operazione non consentita nello stato attuale della specifica.")
+        return redirect("gestione_specifiche:dettaglio", pk=spec.pk)
+    return None
+
+
 @login_required
 @require_POST
 def claim(request, pk: int):
     """Presa in carico ('dito'): assegna l'utente come compilatore del MOD.133."""
     spec = get_object_or_404(Specifica, pk=pk)
+    resp = _blocca_fuori_stato(request, spec, [C.STATO_FLOW_DOWN])
+    if resp:
+        return resp
     mod = MOD133.objects.filter(specifica=spec).first()
     if mod is None:
         messages.error(request, "MOD.133 non ancora creato.")
@@ -312,8 +329,16 @@ def claim(request, pk: int):
 
 @login_required
 def mod133_compila(request, pk: int):
-    """Compilazione righe MOD.133 con formset (HTMX add/remove lato client)."""
+    """Compilazione righe MOD.133 con formset (HTMX add/remove lato client).
+
+    Editabile SOLO durante il flow-down (S2): dopo l'approvazione il MOD.133 e' congelato
+    (il composito ufficiale F6a legge le righe live → un edit post-approvazione cambierebbe
+    il documento ufficiale in silenzio).
+    """
     spec = get_object_or_404(Specifica, pk=pk)
+    resp = _blocca_fuori_stato(request, spec, [C.STATO_FLOW_DOWN])
+    if resp:
+        return resp
     mod = MOD133.objects.filter(specifica=spec).first()
     if mod is None:
         messages.error(request, "Avvia prima il flow-down.")
@@ -337,8 +362,10 @@ def mod133_compila(request, pk: int):
 
 @login_required
 def mod133_riga_add(request, pk: int):
-    """HTMX: ritorna una nuova riga vuota del formset all'indice richiesto."""
+    """HTMX: ritorna una nuova riga vuota del formset all'indice richiesto (solo in flow-down)."""
     spec = get_object_or_404(Specifica, pk=pk)
+    if spec.stato != C.STATO_FLOW_DOWN:
+        return HttpResponse(status=409)  # MOD.133 congelato fuori dal flow-down
     mod = get_object_or_404(MOD133, specifica=spec)
     try:
         idx = int(request.GET.get("i", "0"))
@@ -356,8 +383,11 @@ def mod133_riga_add(request, pk: int):
 @login_required
 @require_POST
 def mod133_chiudi(request, pk: int):
-    """Chiusura compilazione: firma compilatore + data, pronta per approvazione."""
+    """Chiusura compilazione: firma compilatore + data, pronta per approvazione (solo in flow-down)."""
     spec = get_object_or_404(Specifica, pk=pk)
+    resp = _blocca_fuori_stato(request, spec, [C.STATO_FLOW_DOWN])
+    if resp:
+        return resp
     mod = get_object_or_404(MOD133, specifica=spec)
     if not mod.compilatore_id:
         mod.compilatore = request.user
@@ -371,6 +401,9 @@ def mod133_chiudi(request, pk: int):
 def mod133_approva(request, pk: int):
     """Approvazione/respingimento del flow-down (approvatore ≠ compilatore)."""
     spec = get_object_or_404(Specifica, pk=pk)
+    resp = _blocca_fuori_stato(request, spec, [C.STATO_FLOW_DOWN])
+    if resp:
+        return resp
     mod = get_object_or_404(MOD133, specifica=spec)
     righe = list(mod.righe.all())
     extra = {
@@ -395,17 +428,20 @@ def mod133_approva(request, pk: int):
     if esito == C.ESITO_APPROVATO and mod.compilatore_id == request.user.id:
         messages.error(request, "L'approvatore deve essere diverso dal compilatore.")
         return redirect("gestione_specifiche:dettaglio", pk=spec.pk)
-    # l'approvatore prende in carico l'approvazione ('dito')
-    mod.approvatore = request.user
-    mod.esito = esito
-    mod.data_approvazione = timezone.now()
-    mod.save(update_fields=["approvatore", "esito", "data_approvazione", "updated_at"])
+    # Esito + transizione ATOMICI: se la transizione FSM fallisce, l'esito/approvatore/data NON
+    # restano persistiti (evita "Approvato" su un flow-down ancora in S2). L'approvatore prende
+    # in carico l'approvazione ('dito').
     try:
-        if esito == C.ESITO_APPROVATO:
-            spec.approva_flow_down(attore=request.user)
-        else:
-            spec.respingi_flow_down(attore=request.user, motivo=note)
-        spec.save()
+        with transaction.atomic():
+            mod.approvatore = request.user
+            mod.esito = esito
+            mod.data_approvazione = timezone.now()
+            mod.save(update_fields=["approvatore", "esito", "data_approvazione", "updated_at"])
+            if esito == C.ESITO_APPROVATO:
+                spec.approva_flow_down(attore=request.user)
+            else:
+                spec.respingi_flow_down(attore=request.user, motivo=note)
+            spec.save()
         messages.success(request, "Esito registrato.")
     except (TransitionNotAllowed, ValidationError) as exc:
         messages.error(request, f"Operazione non consentita: {exc}")
@@ -419,8 +455,11 @@ def mod133_approva(request, pk: int):
 @login_required
 @require_POST
 def riga_genera_ofi(request, pk: int, riga_id: int):
-    """Genera l'OFI per una riga con impatto, SU CONFERMA (mai automatica)."""
+    """Genera l'OFI per una riga con impatto, SU CONFERMA (mai automatica); solo in validita' (S3)."""
     spec = get_object_or_404(Specifica, pk=pk)
+    resp = _blocca_fuori_stato(request, spec, [C.STATO_IN_VALIDITA])
+    if resp:
+        return resp
     riga = get_object_or_404(RigaMOD133, pk=riga_id, mod133__specifica=spec)
     try:
         azione = crea_ofi_da_riga(riga, attore=request.user)
@@ -456,6 +495,9 @@ def distribuzione_nuova(request, pk: int):
     (warning + deroga giustificata, no blocco rigido)."""
     from .distribuzione import copie_distribuite_rev_precedente
     spec = get_object_or_404(Specifica.objects.select_related("revisione_precedente"), pk=pk)
+    resp = _blocca_fuori_stato(request, spec, [C.STATO_IN_VALIDITA])
+    if resp:
+        return resp
     deroga_richiesta = False
     if request.method == "POST":
         form = DistribuzioneForm(request.POST)

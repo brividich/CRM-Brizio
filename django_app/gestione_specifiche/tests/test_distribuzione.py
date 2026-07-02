@@ -21,6 +21,21 @@ def _spec(codice, *, tipo=C.TIPO_SPECIFICA, revisione="0", revisione_precedente=
     )
 
 
+def _spec_in_validita(codice, *, revisione="0", revisione_precedente=None):
+    """Crea una specifica e la porta in S3 (In validita'): la distribuzione richiede S3 (A2)."""
+    comp = User.objects.create_user(f"c_{codice}_{revisione}", password="x")
+    appr = User.objects.create_user(f"a_{codice}_{revisione}", password="x")
+    spec = _spec(codice, revisione=revisione, revisione_precedente=revisione_precedente)
+    spec.avvia_flow_down(attore=comp)
+    spec.save()
+    mod = spec.mod133
+    mod.compilatore, mod.approvatore, mod.esito = comp, appr, C.ESITO_APPROVATO
+    mod.save()
+    spec.approva_flow_down(attore=appr)
+    spec.save()
+    return spec
+
+
 class RegolaCopieTests(TestCase):
     def test_match_copie_nessuna_deroga(self):
         prev = _spec("SP-D1", revisione="0")
@@ -100,13 +115,21 @@ class DistribuzioneViewTests(TestCase):
         self.client.force_login(self.su)
 
     def test_get_form(self):
-        spec = _spec("SP-VD")
+        spec = _spec_in_validita("SP-VD")
         r = self.client.get(reverse("gestione_specifiche:distribuzione_nuova", args=[spec.pk]))
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "Distribuzione")
 
+    def test_fuori_stato_bloccata(self):
+        # A2: distribuzione consentita solo in S3; su una bozza -> redirect, nessuna scrittura.
+        spec = _spec("SP-VD0")  # bozza
+        r = self.client.post(reverse("gestione_specifiche:distribuzione_nuova", args=[spec.pk]),
+                            {"canale": C.CANALE_NOTIFICA})
+        self.assertEqual(r.status_code, 302)
+        self.assertFalse(Distribuzione.objects.filter(specifica=spec).exists())
+
     def test_post_notifica(self):
-        spec = _spec("SP-VD2")
+        spec = _spec_in_validita("SP-VD2")
         r = self.client.post(reverse("gestione_specifiche:distribuzione_nuova", args=[spec.pk]),
                             {"canale": C.CANALE_NOTIFICA})
         self.assertEqual(r.status_code, 302)
@@ -115,7 +138,7 @@ class DistribuzioneViewTests(TestCase):
     def test_post_cartacea_mismatch_poi_deroga(self):
         prev = _spec("SP-VD3", revisione="0")
         crea_distribuzione(prev, canale=C.CANALE_CARTACEO, cartacea=True, n_copie_distribuite=5)
-        new = _spec("SP-VD3", revisione="1", revisione_precedente=prev)
+        new = _spec_in_validita("SP-VD3", revisione="1", revisione_precedente=prev)
         # mismatch senza deroga: re-render 200, nessuna nuova distribuzione
         r = self.client.post(reverse("gestione_specifiche:distribuzione_nuova", args=[new.pk]),
                             {"canale": C.CANALE_CARTACEO, "cartacea": "on",

@@ -1,5 +1,11 @@
 # Valutazione approfondita `gestione_specifiche` — modello Fable (2026-07-01)
 
+> **Aggiornamento 2026-07-02 — RISOLTI**: **A1** (API django-ninja portata sotto ACL v2: gate
+> middleware + controllo permesso per-azione in `transizione_specifica`), **A2** (enforcement di
+> stato server-side su claim/compila/chiudi/riga_add/approva/distribuzione/OFI + congelamento
+> MOD.133 post-approvazione) e **M4** (approvazione atomica). Restano aperti gli altri punti (A3,
+> M1-M2-M3, M6-M12, ecc.) come backlog.
+
 > Revisione **in sola lettura** condotta da un agente sul modello Fable (claude-fable-5): letti per
 > intero models/state_machine/views/api/forms/acl_bootstrap/ai_copilota/share_link/share_write/
 > pdf_compose/mod133_render/composito/distribuzione/ofi/scadenze/storage/import + tutti i management

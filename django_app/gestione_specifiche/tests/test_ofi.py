@@ -109,12 +109,21 @@ class OFIViewTests(TestCase):
         self.client.force_login(self.su)
 
     def test_genera_ofi_e_approva_da_view(self):
+        altro = User.objects.create_user("altro_vofi", password="x")
         spec = Specifica.objects.create(codice="SP-VOFI", titolo="T")
         spec.avvia_flow_down(attore=self.su)
         spec.save()
         riga = RigaMOD133.objects.create(
             mod133=spec.mod133, ordine=1, argomento="A", genera_ofi=True, rif_doc_cn="CN-9",
         )
+        # OFI generabile solo in validita' (S3): porta la specifica in S3.
+        mod = spec.mod133
+        mod.compilatore = altro
+        mod.approvatore = self.su
+        mod.esito = C.ESITO_APPROVATO
+        mod.save()
+        spec.approva_flow_down(attore=self.su)
+        spec.save()
         r = self.client.post(reverse("gestione_specifiche:riga_genera_ofi", args=[spec.pk, riga.pk]))
         self.assertEqual(r.status_code, 302)
         self.assertTrue(AzioneOFI.objects.filter(riga_mod133=riga).exists())

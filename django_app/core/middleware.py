@@ -19,6 +19,9 @@ API_ACL_GATE_PATHS = {
     # Copilota AI incidenti: gate come il modulo Rilevazione Incidenti (rilev_inc_lista);
     # il gate fine preposti/RSPP resta dentro la view (_can_create / _can_manage_rspp).
     "/rilevazione-incidenti/api/": "/rilevazione-incidenti/",
+    # API django-ninja delle specifiche: gate come la lista (PERM_VIEW). Il permesso FINE
+    # per-azione (approva/sospendi/annulla/...) e' verificato dentro `transizione_specifica`.
+    "/gestione-specifiche/api/": "/gestione-specifiche/",
 }
 _ACL_MIDDLEWARE_LOG_TTL_SECONDS = 300
 logger = logging.getLogger(__name__)
