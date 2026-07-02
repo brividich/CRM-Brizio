@@ -330,7 +330,8 @@ class AiReadinessAlertTests(TestCase):
         self.assertFalse(result["emailed"])
         send.assert_not_called()
 
-    @override_settings(MONITORING_NOTIFY_CRITICAL_BY_EMAIL=True)
+    @override_settings(MONITORING_NOTIFY_CRITICAL_BY_EMAIL=True,
+                       MONITORING_ALERT_QUIET_HOURS_ENABLED=False)
     def test_email_on_degrade_then_suppressed_until_change(self):
         bad = [CheckResult(name="ollama_chat", status=STATUS_FAIL, latency_ms=1,
                            message="irraggiungibile")]
@@ -343,7 +344,8 @@ class AiReadinessAlertTests(TestCase):
         self.assertFalse(second["emailed"])
         self.assertEqual(send.call_count, 1)
 
-    @override_settings(MONITORING_NOTIFY_CRITICAL_BY_EMAIL=True)
+    @override_settings(MONITORING_NOTIFY_CRITICAL_BY_EMAIL=True,
+                       MONITORING_ALERT_QUIET_HOURS_ENABLED=False)
     def test_recovery_resets_state(self):
         bad = [CheckResult(name="ollama_chat", status=STATUS_FAIL, latency_ms=1)]
         ok = [CheckResult(name="ollama_chat", status=STATUS_OK, latency_ms=1)]
@@ -357,6 +359,47 @@ class AiReadinessAlertTests(TestCase):
                 again = health.run_ai_readiness_alert() # nuovo degrado -> riallarma
         self.assertTrue(again["emailed"])
         self.assertEqual(send.call_count, 2)
+
+    @override_settings(MONITORING_NOTIFY_CRITICAL_BY_EMAIL=True,
+                       MONITORING_ALERT_QUIET_HOURS_ENABLED=True,
+                       MONITORING_ALERT_QUIET_START_HOUR=18,
+                       MONITORING_ALERT_QUIET_END_HOUR=8)
+    def test_quiet_hours_suppress_then_resume(self):
+        import datetime as _dt
+
+        bad = [CheckResult(name="ollama_chat", status=STATUS_FAIL, latency_ms=1)]
+        with mock.patch.object(health, "run_ai_checks", return_value=bad), \
+             mock.patch("monitoring.services._admin_recipients", return_value=["a@b.c"]), \
+             mock.patch("django.core.mail.send_mail") as send:
+            # 20:00 -> quiet-hours: nessuna mail, stato anti-spam NON consumato
+            with mock.patch("django.utils.timezone.localtime",
+                            return_value=_dt.datetime(2026, 7, 2, 20, 0)):
+                night = health.run_ai_readiness_alert()
+            self.assertFalse(night["emailed"])
+            send.assert_not_called()
+            # 10:00 -> orario attivo: lo stesso degrado ancora presente riallarma
+            with mock.patch("django.utils.timezone.localtime",
+                            return_value=_dt.datetime(2026, 7, 3, 10, 0)):
+                day = health.run_ai_readiness_alert()
+            self.assertTrue(day["emailed"])
+            self.assertEqual(send.call_count, 1)
+
+    @override_settings(MONITORING_NOTIFY_CRITICAL_BY_EMAIL=True,
+                       MONITORING_ALERT_QUIET_HOURS_ENABLED=True,
+                       MONITORING_ALERT_QUIET_START_HOUR=18,
+                       MONITORING_ALERT_QUIET_END_HOUR=8)
+    def test_quiet_hours_force_email_overrides(self):
+        import datetime as _dt
+
+        bad = [CheckResult(name="ollama_chat", status=STATUS_FAIL, latency_ms=1)]
+        with mock.patch.object(health, "run_ai_checks", return_value=bad), \
+             mock.patch("monitoring.services._admin_recipients", return_value=["a@b.c"]), \
+             mock.patch("django.core.mail.send_mail") as send, \
+             mock.patch("django.utils.timezone.localtime",
+                        return_value=_dt.datetime(2026, 7, 2, 23, 0)):
+            res = health.run_ai_readiness_alert(force_email=True)
+        self.assertTrue(res["emailed"])
+        send.assert_called_once()
 
 
 class AiAlertIssueTests(TestCase):

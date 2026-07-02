@@ -180,6 +180,12 @@ MONITORING_ENVIRONMENT = env(
 ).strip()
 MONITORING_ADMIN_EMAILS = env_list("MONITORING_ADMIN_EMAILS", [])
 MONITORING_EMAIL_RATE_LIMIT_SECONDS = int(env("MONITORING_EMAIL_RATE_LIMIT_SECONDS", "1800") or "1800")
+# Quiet-hours: gli alert email del monitoring NON vengono inviati nella finestra
+# [START, END) in ora locale (default 18:00→08:00). I check e le Issue della centrale
+# continuano comunque a girare; solo l'EMAIL è soppressa. --force-email ignora la finestra.
+MONITORING_ALERT_QUIET_HOURS_ENABLED = env_bool("MONITORING_ALERT_QUIET_HOURS_ENABLED", True)
+MONITORING_ALERT_QUIET_START_HOUR = int(env("MONITORING_ALERT_QUIET_START_HOUR", "18") or "18")
+MONITORING_ALERT_QUIET_END_HOUR = int(env("MONITORING_ALERT_QUIET_END_HOUR", "8") or "8")
 MONITORING_WATCHDOG_CRITICAL_UNASSIGNED_MINUTES = int(
     env("MONITORING_WATCHDOG_CRITICAL_UNASSIGNED_MINUTES", "120") or "120"
 )

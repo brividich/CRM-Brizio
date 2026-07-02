@@ -592,6 +592,26 @@ def http_status_for(report: ReadyzReport) -> int:
 # ──────────────────────────────────────────────────────────────────────────────
 
 
+def _within_alert_quiet_hours(now=None) -> bool:
+    """True se l'ora locale cade nella finestra di silenzio degli alert email.
+
+    Default 18:00→08:00 (``MONITORING_ALERT_QUIET_START_HOUR``/``_END_HOUR``). La
+    finestra è a cavallo di mezzanotte quando start > end (silenzio se ora ≥ start
+    OPPURE ora < end). Disattivabile con ``MONITORING_ALERT_QUIET_HOURS_ENABLED=0``.
+    """
+    if not bool(getattr(settings, "MONITORING_ALERT_QUIET_HOURS_ENABLED", True)):
+        return False
+    start = int(getattr(settings, "MONITORING_ALERT_QUIET_START_HOUR", 18) or 0)
+    end = int(getattr(settings, "MONITORING_ALERT_QUIET_END_HOUR", 8) or 0)
+    if start == end:
+        return False
+    from django.utils import timezone
+    hour = (now or timezone.localtime()).hour
+    if start < end:
+        return start <= hour < end
+    return hour >= start or hour < end
+
+
 def emit_monitoring_alert(*, subject: str, body: str, fingerprint: str,
                           state_key: str, force: bool = False) -> bool:
     """Invia un'email agli admin del monitoring, riusando destinatari e rate-limit
@@ -602,7 +622,13 @@ def emit_monitoring_alert(*, subject: str, body: str, fingerprint: str,
     rinnovato → riallarma quando scade come reminder); fingerprint diverso o scaduto
     → invia. Ritorna True se la mail è stata inviata. Riusato da più alert (AI
     readiness, qualità RAG, …). Il chiamante azzera ``state_key`` al ritorno OK.
+
+    Quiet-hours: nella finestra notturna (default 18→8) l'email è soppressa senza
+    consumare lo stato anti-spam, così al ritorno in orario attivo il degrado ancora
+    presente riallarma. ``force=True`` (es. ``--force-email``) ignora la finestra.
     """
+    if not force and _within_alert_quiet_hours():
+        return False
     last = cache.get(state_key)
     if not force and last == fingerprint:
         return False
