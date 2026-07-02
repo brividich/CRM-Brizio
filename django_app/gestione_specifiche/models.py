@@ -237,6 +237,12 @@ class Specifica(models.Model):
         if not errore:
             raise ValidationError("Il payload di errore è obbligatorio.")
         self.stato_pre_errore = self.stato
+        # Pausa timer flow-down (M3): il tempo in S9 non deve contare per reminder/escalation.
+        # Se e' gia' in pausa (es. veniva da una sospensione), non tocca nulla.
+        mod = MOD133.objects.filter(specifica=self).first()
+        if mod is not None and mod.timer_anchor and not mod.timer_pausa_at:
+            mod.timer_pausa_at = timezone.now()
+            mod.save(update_fields=["timer_pausa_at", "updated_at"])
         self._prep_evento(attore, errore=errore)
 
     @transition(field=stato, source=C.STATO_ERRORE_TECNICO,
@@ -248,6 +254,14 @@ class Specifica(models.Model):
         """S9→stato precedente all'errore (usa lo slot dedicato, non calpesta la sospensione)."""
         if not self.stato_pre_errore:
             raise ValidationError("Stato precedente assente: impossibile ripristinare da errore.")
+        # Ripresa timer (M3) SOLO se si torna al flow-down (S2). Se si torna in sospeso (S5) o in
+        # un altro stato, il timer deve restare com'e' (in sospeso resta in pausa).
+        if self.stato_pre_errore == C.STATO_FLOW_DOWN:
+            mod = MOD133.objects.filter(specifica=self).first()
+            if mod is not None and mod.timer_pausa_at and mod.timer_anchor:
+                mod.timer_anchor = mod.timer_anchor + (timezone.now() - mod.timer_pausa_at)
+                mod.timer_pausa_at = None
+                mod.save(update_fields=["timer_anchor", "timer_pausa_at", "updated_at"])
         self._prep_evento(attore)
 
 

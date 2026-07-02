@@ -140,6 +140,13 @@ def componi_composito_ufficiale(
     """
     if not originale_pdf:
         raise ValueError("PDF originale mancante: impossibile comporre il composito.")
+    # M11: un composito "protetto" con owner-password vuota sarebbe sbloccabile da chiunque
+    # (protezione nulla). Fail-closed: non lo produciamo.
+    if proteggi and not owner_password:
+        raise ValueError(
+            "Owner-password mancante: impossibile produrre un composito protetto "
+            "(configurare GESTIONE_SPECIFICHE_PDF_OWNER_PASSWORD nel .env)."
+        )
     pagina_mod133 = render_mod133(dati_mod133)
     composito = anteponi_pagine(originale_pdf, [pagina_mod133])
     if proteggi:

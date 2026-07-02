@@ -92,7 +92,7 @@ def _log_evento(spec: Specifica, trigger: str, payload: dict) -> None:
             payload={"snapshot": spec.snapshot_metadati(), **payload},
         )
     except Exception as exc:
-        logger.debug("gs log evento timer fallito: %s", exc)
+        logger.warning("gs AUDIT evento timer fallito (evento non registrato): %s", exc)
 
 
 # ---------------------------------------------------------------------------

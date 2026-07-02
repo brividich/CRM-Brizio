@@ -126,6 +126,11 @@ class GuardieA1A2Tests(_Base):
         r = self.client.post(reverse("gestione_specifiche:mod133_compila", args=[spec.pk]))
         self.assertEqual(r.status_code, 302)
 
+    def test_m12_filtri_data_invalidi_no_500(self):
+        # M12: date filtro invalide non devono causare 500.
+        r = self.client.get(reverse("gestione_specifiche:lista"), {"dal": "abc", "al": "xyz"})
+        self.assertEqual(r.status_code, 200)
+
 
 class M1DuplicatiTests(TestCase):
     """M1: unicita' applicativa (codice, revisione) + report duplicati (pre-UniqueConstraint DB)."""

@@ -113,6 +113,11 @@ class ComponiCompositoTest(TestCase):
         finally:
             d.close()
 
+    def test_owner_password_vuota_rifiutata(self):
+        # M11: composito protetto con owner-password vuota = protezione nulla -> rifiutato.
+        with self.assertRaises(ValueError):
+            componi_composito_ufficiale(_pdf(["O"]), {"righe": []}, proteggi=True, owner_password="")
+
     def test_originale_mancante_solleva(self):
         spec = Specifica.objects.create(codice="C5", titolo="T")  # ne allegato ne percorso
         with self.assertRaises(ValueError):

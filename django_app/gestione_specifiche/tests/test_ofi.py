@@ -34,6 +34,16 @@ class OFIBase(TestCase):
         return spec, mod, riga
 
 
+class ApprovazioneOFIStatoTests(OFIBase):
+    def test_azione_gia_decisa_non_ribaltabile(self):
+        # M7: una volta approvata/respinta, l'azione OFI non e' piu' modificabile.
+        spec, mod, riga = self._riga()
+        az = crea_ofi_da_riga(riga, attore=self.dm)
+        approva_azione_ofi(az, approvatore=self.appr, esito=C.AZIONE_OFI_APPROVATA)
+        with self.assertRaises(ValidationError):
+            approva_azione_ofi(az, approvatore=self.appr, esito=C.AZIONE_OFI_RESPINTA)
+
+
 class CreazioneOFITests(OFIBase):
     def test_crea_su_conferma(self):
         spec, mod, riga = self._riga()

@@ -36,15 +36,17 @@ def _log_evento(spec, trigger: str, payload: dict, attore=None) -> None:
             payload={"snapshot": spec.snapshot_metadati(), **payload},
         )
     except Exception as exc:  # pragma: no cover
-        logger.debug("gs log evento OFI fallito: %s", exc)
+        logger.warning("gs AUDIT evento OFI fallito (evento non registrato): %s", exc)
 
 
 def _prossimo_numero_ofi() -> int:
-    massimo = (
-        max(
-            RigaMOD133.objects.aggregate(m=models.Max("ofi"))["m"] or 0,
-            AzioneOFI.objects.aggregate(m=models.Max("ofi"))["m"] or 0,
-        )
+    # M6: chiamata DENTRO crea_ofi_da_riga (@transaction.atomic). Il lock sulle AzioneOFI con
+    # ofi valorizzato serializza i creatori concorrenti (SQL Server) -> niente due OFI con lo
+    # stesso numero MAX+1. Mitigazione finche' non esiste il registro MOD.174 reale (B1).
+    list(AzioneOFI.objects.select_for_update().filter(ofi__isnull=False).values_list("id", flat=True))
+    massimo = max(
+        RigaMOD133.objects.aggregate(m=models.Max("ofi"))["m"] or 0,
+        AzioneOFI.objects.aggregate(m=models.Max("ofi"))["m"] or 0,
     )
     return max(massimo, _OFI_BASE) + 1
 
@@ -103,6 +105,9 @@ def approva_azione_ofi(azione: AzioneOFI, *, approvatore, esito: str = C.AZIONE_
     """
     if esito not in (C.AZIONE_OFI_APPROVATA, C.AZIONE_OFI_RESPINTA):
         raise ValidationError("Esito azione OFI non valido.")
+    # M7: un'azione gia' decisa non e' ribaltabile (no approvata<->respinta con un nuovo POST).
+    if azione.stato in (C.AZIONE_OFI_APPROVATA, C.AZIONE_OFI_RESPINTA):
+        raise ValidationError("Azione OFI gia' decisa: non e' piu' modificabile.")
 
     mod = azione.riga_mod133.mod133
     if azione.modo_approvazione == C.APPROV_MOD133:

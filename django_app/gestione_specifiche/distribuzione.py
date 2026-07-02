@@ -40,7 +40,7 @@ def _log_evento(spec, trigger: str, payload: dict, attore=None) -> None:
             payload={"snapshot": spec.snapshot_metadati(), **payload},
         )
     except Exception as exc:  # pragma: no cover
-        logger.debug("gs log evento distribuzione fallito: %s", exc)
+        logger.warning("gs AUDIT evento distribuzione fallito (evento non registrato): %s", exc)
 
 
 def presa_visione_richiesta(tipo_documento: str, reparti) -> bool:

@@ -22,6 +22,7 @@ from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_POST
 from django_fsm import TransitionNotAllowed
 from reportlab.lib.pagesizes import A4
@@ -98,8 +99,9 @@ def lista(request):
     f_cliente = request.GET.get("cliente", "").strip()
     f_tag = request.GET.get("tag", "").strip()
     f_q = request.GET.get("q", "").strip()
-    f_dal = request.GET.get("dal", "").strip()
-    f_al = request.GET.get("al", "").strip()
+    # M12: date parse-ate in modo sicuro (None se vuote/invalide) -> niente 500 su input errato.
+    f_dal = parse_date(request.GET.get("dal", "").strip())
+    f_al = parse_date(request.GET.get("al", "").strip())
 
     qs = Specifica.objects.all().select_related("mod133").annotate(
         n_righe=Count("mod133__righe", distinct=True),
@@ -476,7 +478,7 @@ def azione_ofi_approva(request, azione_id: int):
     azione = get_object_or_404(
         AzioneOFI.objects.select_related("riga_mod133__mod133__specifica"), pk=azione_id)
     spec = azione.riga_mod133.mod133.specifica
-    esito = request.POST.get("esito", C.AZIONE_OFI_APPROVATA)
+    esito = request.POST.get("esito", "")  # M7: nessun default 'approvata' -> l'esito va esplicitato
     try:
         approva_azione_ofi(azione, approvatore=request.user, esito=esito)
         messages.success(request, f"Azione OFI {azione.ofi}: {azione.get_stato_display()}.")

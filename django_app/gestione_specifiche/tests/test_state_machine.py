@@ -200,6 +200,16 @@ class ErroreTecnicoTests(FSMBase):
         with self.assertRaises(ValidationError):
             spec.errore_tecnico(attore=self.comp, errore=None)
 
+    def test_errore_in_flow_down_mette_in_pausa_timer(self):
+        # M3: l'errore tecnico in flow-down (S2) mette in pausa il timer reminder/escalation.
+        spec = Specifica.objects.create(codice="SP-603", titolo="T")
+        spec.avvia_flow_down(attore=self.comp)  # S2: crea MOD.133 con timer_anchor
+        spec.save()
+        spec.errore_tecnico(attore=self.comp, errore={"msg": "glitch"})
+        spec.save()
+        # rilettura fresca: spec.mod133 e' cache-ato stale (popolato dallo snapshot in avvia_flow_down)
+        self.assertIsNotNone(MOD133.objects.get(specifica=spec).timer_pausa_at)
+
     def test_errore_durante_sospensione_non_intrappola(self):
         # M2: S3 -> sospendi -> S5 -> errore -> S9 -> ripristina_da_errore -> S5 -> ripristina -> S3.
         # Con slot separati (stato_precedente vs stato_pre_errore) i due percorsi non si calpestano.

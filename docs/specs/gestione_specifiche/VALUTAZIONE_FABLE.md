@@ -5,7 +5,12 @@
 > stato server-side su claim/compila/chiudi/riga_add/approva/distribuzione/OFI + congelamento
 > MOD.133 post-approvazione) e **M4** (approvazione atomica); **M2** (slot `stato_pre_errore`
 > dedicato → niente più intrappolamento S5↔S9) e **M1** (unicità `(codice,revisione)` app-level +
-> comando `specifiche_duplicati`; vincolo DB dopo dedup prod). Restano aperti: A3, M3, M6-M12.
+> comando `specifiche_duplicati`; vincolo DB dopo dedup prod); **M3** (pausa timer S9), **M6**
+> (numerazione OFI serializzata), **M7** (azione OFI non ribaltabile), **M8** (audit-log a warning),
+> **M10** (delete Specifica disabilitata in admin), **M11** (owner-pw vuota rifiutata), **M12** (no 500
+> su filtri data). **Restano aperti**: **A3** (ricerca embeddings N+1 — richiede cache, medio) e
+> **M1b** (UniqueConstraint DB dopo dedup prod), oltre agli affinamenti F7 (UI master-picker,
+> PERM_DEROGA, reminder S1) e alle voci BASSE (B1-B9).
 
 > Revisione **in sola lettura** condotta da un agente sul modello Fable (claude-fable-5): letti per
 > intero models/state_machine/views/api/forms/acl_bootstrap/ai_copilota/share_link/share_write/

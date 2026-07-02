@@ -55,6 +55,11 @@ class SpecificaAdmin(admin.ModelAdmin):
     date_hierarchy = "data_inserimento"
     ordering = ("-data_inserimento",)
 
+    def has_delete_permission(self, request, obj=None):
+        # M10: cancellare una Specifica farebbe CASCADE sugli EventoSpecifica -> distrugge l'audit
+        # trail immutabile. Gli stati terminali (Annullato/Duplicato) sostituiscono la delete.
+        return False
+
 
 @admin.register(MOD133)
 class MOD133Admin(admin.ModelAdmin):
