@@ -66,6 +66,7 @@ _ROUTE_BINDINGS = {
     "gestione_specifiche:ripristina": PERM_SOSPENDI,
     "gestione_specifiche:annulla": PERM_ANNULLA,
     "gestione_specifiche:ricerca": PERM_VIEW,
+    "gestione_specifiche:guida": PERM_VIEW,
     "gestione_specifiche:ai_precompila_mod133": PERM_COMPILA,
     "gestione_specifiche:ai_proponi_tag": PERM_COMPILA,
     "gestione_specifiche:ai_diff_mod133": PERM_COMPILA,

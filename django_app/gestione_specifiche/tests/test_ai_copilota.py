@@ -203,6 +203,11 @@ class CopilotaViewTests(TestCase):
         self.assertContains(r, "Confronta con revisione precedente")
         self.assertContains(r, "gsAiDiff")
 
+    def test_pagina_guida(self):
+        r = self.client.get(reverse("gestione_specifiche:guida"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Guida operativa")
+
     def test_pagina_ricerca(self):
         Specifica.objects.create(codice="SP-RIC", titolo="Trattamento superficiale")
         r = self.client.get(reverse("gestione_specifiche:ricerca"), {"q": "trattamento"})

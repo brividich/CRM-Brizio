@@ -712,6 +712,12 @@ def ai_diff_mod133(request, pk: int):
     return JsonResponse(proposta)
 
 
+@login_required
+def guida(request):
+    """Guida operativa (HTML autoconsistente) alla gestione Specifiche/MOD.133."""
+    return render(request, "gestione_specifiche/guida.html")
+
+
 # ---------------------------------------------------------------------------
 # Dashboard direzionale KPI qualità (ISO 9001 / EN 9100)
 # ---------------------------------------------------------------------------

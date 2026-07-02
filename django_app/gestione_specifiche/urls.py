@@ -31,6 +31,7 @@ urlpatterns = [
     path("<int:pk>/annulla/", views.annulla_view, name="annulla"),
     # F9 — Copilota AI (proposte) + ricerca semantica
     path("ricerca/", views.ricerca_semantica_view, name="ricerca"),
+    path("guida/", views.guida, name="guida"),
     path("<int:pk>/ai/precompila-mod133/", views.ai_precompila_mod133, name="ai_precompila_mod133"),
     path("<int:pk>/ai/proponi-tag/", views.ai_proponi_tag, name="ai_proponi_tag"),
     path("<int:pk>/ai/diff-mod133/", views.ai_diff_mod133, name="ai_diff_mod133"),

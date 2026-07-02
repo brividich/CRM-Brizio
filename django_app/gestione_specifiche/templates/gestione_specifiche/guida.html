@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guida alla gestione — Specifiche & MOD.133 · NOVICROM HUB</title>
+<style>
+  :root{
+    --navy:#1c2b42; --navy2:#24344f; --cyan:#1f87cd; --orange:#e8842b;
+    --ink:#2b3a52; --muted:#5b6b82; --line:#e6eef7; --bg:#f6f9fd; --ok:#1f9d63; --warn:#a86a14; --danger:#b5564f;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       color:var(--ink);background:var(--bg);line-height:1.55;font-size:15px}
+  header{background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;padding:30px 40px}
+  header h1{margin:0 0 6px;font-size:24px}
+  header p{margin:0;color:#c6d4e8;font-size:14px}
+  .badge{display:inline-block;margin-top:12px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);
+         padding:5px 12px;border-radius:20px;font-size:12.5px}
+  .accent{color:var(--orange)}
+  main{max-width:920px;margin:0 auto;padding:28px 22px 60px}
+  nav{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 20px;margin-bottom:26px}
+  nav b{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px}
+  nav a{display:inline-block;margin:3px 14px 3px 0;color:var(--cyan);text-decoration:none;font-size:13.5px}
+  nav a:hover{text-decoration:underline}
+  section{background:#fff;border:1px solid var(--line);border-radius:14px;padding:22px 26px;margin-bottom:20px}
+  h2{color:var(--navy);font-size:19px;margin:0 0 14px;padding-bottom:8px;border-bottom:2px solid var(--line)}
+  h3{color:var(--navy2);font-size:15.5px;margin:18px 0 6px}
+  p{margin:8px 0}
+  code{background:#eef4fb;border:1px solid #dde8f5;border-radius:5px;padding:1px 6px;font-size:12.5px;color:#12456b}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.5px}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:#eef4fb;color:var(--navy);font-weight:700}
+  .pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11.5px;font-weight:700;white-space:nowrap}
+  .p-navy{background:var(--navy);color:#fff}.p-cyan{background:#e3f0fb;color:#12456b}.p-green{background:#e4f5ec;color:var(--ok)}
+  .p-grey{background:#eef2f7;color:var(--muted)}.p-orange{background:#fbeede;color:var(--warn)}.p-red{background:#fbe7e5;color:var(--danger)}
+  .note{background:#f0f7ff;border-left:4px solid var(--cyan);padding:10px 14px;border-radius:0 8px 8px 0;margin:12px 0;font-size:13.5px}
+  .warn{background:#fdf5e9;border-left:4px solid var(--orange)}
+  ul,ol{margin:8px 0;padding-left:22px}li{margin:4px 0}
+  .muted{color:var(--muted);font-size:12.5px}
+  footer{max-width:920px;margin:0 auto;padding:10px 22px 40px;color:var(--muted);font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Gestione Specifiche &amp; MOD.133 <span class="accent">— Guida operativa</span></h1>
+  <p>Ciclo di vita delle specifiche tecniche/comunicazioni, flow-down requisiti (MOD.133), distribuzione controllata e documenti sulla share. Modulo <code>gestione_specifiche</code> di NOVICROM HUB.</p>
+  <span class="badge">Versione guida 1.0 · 2026-07-02 · orientamento ISO 9001 §7.5 / EN 9100</span>
+</header>
+<main>
+
+<nav>
+  <b>Indice</b>
+  <a href="#intro">1. Cos'è</a>
+  <a href="#stati">2. Stati e ciclo di vita</a>
+  <a href="#flusso">3. Il flusso passo-passo</a>
+  <a href="#ruoli">4. Ruoli e permessi</a>
+  <a href="#mod133">5. MOD.133 (flow-down)</a>
+  <a href="#ai">6. Copiloti AI</a>
+  <a href="#pdf">7. PDF &amp; share</a>
+  <a href="#distribuzione">8. Distribuzione e copie</a>
+  <a href="#timer">9. Riesame, reminder, escalation</a>
+  <a href="#comandi">10. Comandi operativi</a>
+  <a href="#note">11. Sicurezza e buone pratiche</a>
+</nav>
+
+<section id="intro">
+  <h2>1. Cos'è</h2>
+  <p>Il modulo digitalizza il <strong>Flusso Specifiche + MOD.133</strong>: dalla ricezione/creazione di una specifica cliente (o comunicazione, piano di qualità) fino alla sua messa in validità, distribuzione tracciata e verifica periodica, passando per il <strong>flow-down dei requisiti</strong> (analisi degli impatti sui documenti e sull'operatività) formalizzato nel modulo <strong>MOD.133</strong>.</p>
+  <p>Principi di fondo: <strong>audit immutabile</strong> di ogni evento, <strong>separazione dei compiti</strong> (chi compila ≠ chi approva), <strong>documenti controllati</strong> (revisioni, copie cartacee, obsolescenza) e <strong>l'AI che propone, l'umano che firma</strong>.</p>
+</section>
+
+<section id="stati">
+  <h2>2. Stati e ciclo di vita</h2>
+  <p>Ogni specifica ha uno <strong>stato</strong> (macchina a stati protetta): le azioni possibili dipendono dallo stato e sono tracciate.</p>
+  <table>
+    <tr><th>Stato</th><th>Significato</th><th>Da qui si può…</th></tr>
+    <tr><td><span class="pill p-grey">S1 Bozza</span></td><td>Documento caricato/creato, metadati compilati, flow-down non ancora avviato.</td><td>Avviare il flow-down · Annullare · Marcare duplicato</td></tr>
+    <tr><td><span class="pill p-cyan">S2 In flow-down</span></td><td>MOD.133 aperto: si raccolgono impatti e si approva.</td><td>Approvare (→ validità) · Respingere · Sospendere · Annullare</td></tr>
+    <tr><td><span class="pill p-green">S3 In validità</span></td><td>Specifica valida e distribuibile; verifica periodica attiva.</td><td>Distribuire · Generare OFI · Sospendere · (superamento automatico con nuova rev)</td></tr>
+    <tr><td><span class="pill p-grey">S4 Superato</span></td><td>Revisione precedente superata automaticamente da una più recente.</td><td>— (storico)</td></tr>
+    <tr><td><span class="pill p-orange">S5 Sospeso</span></td><td>Sospensione temporanea: timer in pausa, distribuzione bloccata.</td><td>Ripristinare · Annullare</td></tr>
+    <tr><td><span class="pill p-red">S6 Annullato</span></td><td>Annullato per errore/ritiro/non pertinenza (con motivo).</td><td>— (terminale)</td></tr>
+    <tr><td><span class="pill p-grey">S7 Duplicato</span></td><td>Duplicato di un master (con riferimento e motivo).</td><td>— (terminale)</td></tr>
+    <tr><td><span class="pill p-grey">S8 Respinto</span></td><td>Flow-down chiuso senza azioni / non applicabile.</td><td>— (terminale)</td></tr>
+    <tr><td><span class="pill p-red">S9 Errore tecnico</span></td><td>Blocco per un problema applicativo; timer in pausa.</td><td>Ripristinare allo stato precedente · Annullare</td></tr>
+  </table>
+  <div class="note">Le azioni «distruttive» richiedono un <strong>motivo obbligatorio</strong> (sospensione, ripristino, annullo); il duplicato richiede <strong>master + motivo</strong>; l'errore tecnico richiede il <strong>payload</strong> dell'errore.</div>
+</section>
+
+<section id="flusso">
+  <h2>3. Il flusso passo-passo</h2>
+  <ol>
+    <li><strong>Inserimento</strong> (DM/IN1): si carica/crea il documento con codice, revisione, titolo, tipo, fonte/cliente. In caricamento di una nuova revisione, quella diventa «in validità» e la precedente passa automaticamente a «superato».</li>
+    <li><strong>Avvio flow-down</strong> (DM): si apre il MOD.133 e parte il timer di reminder.</li>
+    <li><strong>Compilazione MOD.133</strong> (Destinatario/Owner task): si compilano le righe di flow-down (vedi §5) e si <em>chiude</em> la compilazione.</li>
+    <li><strong>Approvazione</strong> (Approvatore ≠ compilatore): esito approvato → la specifica va <strong>in validità</strong> (S3) e si attiva la verifica periodica; esito respinto/non applicabile → S8.</li>
+    <li><strong>Distribuzione</strong> (DM): canale, destinatari, presa visione, copie cartacee (vedi §8).</li>
+  </ol>
+  <p>In parallelo restano sempre possibili, secondo lo stato: <strong>sospensione/ripristino</strong>, <strong>annullo</strong>, <strong>duplicato</strong>, e la gestione dell'<strong>errore tecnico</strong>.</p>
+</section>
+
+<section id="ruoli">
+  <h2>4. Ruoli e permessi</h2>
+  <p>Gli accessi sono governati dall'<strong>ACL v2</strong> del portale (permessi granulari, non i vecchi gruppi). Mappa indicativa ruolo → permessi:</p>
+  <table>
+    <tr><th>Ruolo</th><th>Permessi</th></tr>
+    <tr><td>DM (responsabile documento)</td><td>tutto: avvio, compila, approva, sospendi, annulla, distribuisci, deroga</td></tr>
+    <tr><td>Approvatore (RDD/MSM/MSO) · SGI</td><td>tutto, incluso <strong>approva</strong></td></tr>
+    <tr><td>IT Admin</td><td>tutto (gestione errori tecnici)</td></tr>
+    <tr><td>Compilatore / capi</td><td>vedi · presa in carico · <strong>compila</strong> (non approva → separazione compiti)</td></tr>
+  </table>
+  <div class="note">Regola invalicabile: <strong>l'approvatore del MOD.133 deve essere diverso dal compilatore</strong> (separazione dei compiti), verificata dal sistema. Le azioni sono consentite <strong>solo nello stato giusto</strong>: es. la compilazione del MOD.133 è possibile solo durante il flow-down (dopo l'approvazione il modulo è <em>congelato</em>), e la distribuzione solo in validità.</div>
+</section>
+
+<section id="mod133">
+  <h2>5. MOD.133 — flow-down dei requisiti</h2>
+  <p>Il MOD.133 è la <strong>tabella dei nuovi requisiti</strong>: una riga per ogni argomento/paragrafo impattato. Per ogni riga si indica:</p>
+  <ul>
+    <li>riferimento paragrafo e argomento del documento analizzato;</li>
+    <li><strong>impatto su documenti</strong> (SÌ/NO) → se SÌ, il riferimento al documento CN diventa <strong>obbligatorio</strong> (griglia condizionale);</li>
+    <li><strong>impatto operativo</strong> (SÌ/NO) e descrizione;</li>
+    <li>paragrafo/documento Costruzioni Novicrom interessato, descrizione delle modifiche;</li>
+    <li><strong>TAG</strong> di processo; flag <strong>genera OFI</strong> (opportunità di miglioramento → registro MOD.174).</li>
+  </ul>
+  <p>Alla chiusura la compilazione è firmata dal compilatore; all'approvazione dall'approvatore (con data). Le righe a impatto possono generare un <strong>OFI</strong> <em>su conferma</em> (mai automatico); un'azione OFI, una volta approvata/respinta, non è più ribaltabile.</p>
+</section>
+
+<section id="ai">
+  <h2>6. Copiloti AI (propongono, l'umano firma)</h2>
+  <p>L'AI on-premise assiste la compilazione, <strong>senza mai salvare né cambiare stato</strong>: ogni output è una proposta da rivedere e inserire a mano.</p>
+  <ul>
+    <li><strong>Pre-compilazione righe MOD.133 dal PDF</strong>: estrae il testo della specifica e propone le righe.</li>
+    <li><strong>Confronto tra revisioni</strong> («Confronta con revisione precedente»): un diff testuale evidenzia i paragrafi <em>aggiunti/modificati</em> e pre-compila il MOD.133 sui soli cambiamenti.</li>
+    <li><strong>Proposta TAG</strong> di processo.</li>
+    <li><strong>Ricerca semantica</strong> nell'archivio specifiche.</li>
+  </ul>
+  <div class="note">Se l'AI non è disponibile, i pulsanti restituiscono una proposta vuota e il lavoro prosegue manualmente (fail-safe). Nessun dato esce dalla rete aziendale.</div>
+</section>
+
+<section id="pdf">
+  <h2>7. Documenti PDF &amp; share</h2>
+  <p>La <strong>share aziendale</strong> (<code>\\novisrv\Area Produzione\SPECIFICHE</code>) è il riferimento unico: il portale <strong>collega</strong> il PDF sul master (non ne fa copie), e lo serve on-demand solo se dentro l'allowlist (protezione anti-traversal).</p>
+  <h3>Cosa può fare il portale</h3>
+  <ul>
+    <li><strong>Vedere/scaricare</strong> il PDF collegato dalla scheda (serve la lettura all'app-pool sulla share).</li>
+    <li><strong>Inventario</strong> (<code>analizza_pdf_specifiche</code>): classifica i PDF collegati in <em>ha-MOD.133 / cover in attesa / senza / incerto</em>.</li>
+    <li><strong>Deposito nuova revisione</strong> (<code>deposita_revisione_share</code>): scrive la nuova revisione con il <strong>numero documento</strong> del file esistente (non il codice gestionale), archivia la revisione precedente in <code>_SUPERATO</code> (spostamento, mai cancellazione), aggiorna il collegamento. Sempre <strong>dry-run</strong> di default, con rollback e audit.</li>
+    <li><strong>Composito ufficiale</strong> (al milestone): <strong>[pagina MOD.133 compilata] + [PDF originale]</strong>, <strong>protetto</strong> con owner-password (no-stampa/no-modifica) ed eventuale filigrana.</li>
+  </ul>
+  <div class="warn note"><strong>Naming &amp; revisioni</strong>: il <em>numero documento</em> non cambia tra una revisione e l'altra; la <strong>revisione è input umano verbatim</strong> (A, A1, B, 02… mai auto-incrementata). La cartella di 1° livello sulla share rappresenta il <strong>cliente/categoria reale</strong>.</div>
+  <div class="note"><strong>In arrivo</strong>: l'aggancio automatico «approvazione MOD.133 → genera e deposita il composito protetto sulla share» (oggi i mattoni esistono e sono usabili via comando; l'automazione è il prossimo passo, da attivare con dry-run).</div>
+</section>
+
+<section id="distribuzione">
+  <h2>8. Distribuzione e copie controllate</h2>
+  <p>Dalla specifica in validità si registra una <strong>distribuzione</strong>: canale (email/notifica/altro), reparti destinatari, eventuale <strong>presa visione</strong> richiesta, data e audit.</p>
+  <h3>Copie cartacee</h3>
+  <p>Per le distribuzioni cartacee il sistema applica la regola delle <strong>copie controllate</strong>: il numero di <strong>copie ritirate</strong> della nuova revisione deve corrispondere alle <strong>copie distribuite</strong> della revisione precedente. In caso di scostamento serve una <strong>deroga giustificata</strong> dal DM, altrimenti la distribuzione non viene registrata.</p>
+</section>
+
+<section id="timer">
+  <h2>9. Riesame periodico, reminder ed escalation</h2>
+  <ul>
+    <li><strong>Verifica periodica</strong>: dalle specifiche in validità parte una ricorrenza (default <strong>6 mesi</strong>) dalla data di verifica scelta dal DM.</li>
+    <li><strong>Reminder</strong> a <strong>7 giorni</strong> e <strong>escalation</strong> a <strong>14 giorni</strong> sul MOD.133 non ancora chiuso/approvato.</li>
+    <li>In <strong>sospensione</strong> e in <strong>errore tecnico</strong> i timer sono messi <strong>in pausa</strong> (il tempo non conta) e riprendono al ripristino.</li>
+  </ul>
+</section>
+
+<section id="comandi">
+  <h2>10. Comandi operativi (per amministratori)</h2>
+  <p>Da eseguire sul server (tutti <strong>dry-run first</strong>, output ASCII):</p>
+  <table>
+    <tr><th>Comando</th><th>A cosa serve</th></tr>
+    <tr><td><code>analizza_pdf_specifiche</code></td><td>Inventario READ-ONLY dei PDF collegati (report CSV con la classe di ciascuno).</td></tr>
+    <tr><td><code>mappa_cartelle_specifiche</code></td><td>Mappa READ-ONLY specifica → cartella share (cliente reale), evidenzia le difformità col cliente del gestionale.</td></tr>
+    <tr><td><code>specifiche_duplicati</code></td><td>Elenca READ-ONLY i duplicati (codice, revisione) — da deduplicare prima del vincolo di unicità.</td></tr>
+    <tr><td><code>deposita_revisione_share</code></td><td>Deposita una nuova revisione sulla share (dry-run; <code>--apply</code> per eseguire; <code>--lista-cartelle</code> per la scelta cartella; <code>--forza</code> sulle collisioni).</td></tr>
+    <tr><td><code>converti_export_gestionale</code> · <code>import_specifiche_storico</code> · <code>collega_pdf_da_share</code></td><td>Intake storico: dai listoni Excel del gestionale ai record + collegamento dei PDF sulla share.</td></tr>
+  </table>
+  <div class="warn note">Le scritture sulla share e gli <code>--apply</code> vanno sempre preceduti da un <strong>dry-run</strong> e verificati. Le operazioni sono <strong>move, mai delete</strong>, con audit e rollback.</div>
+</section>
+
+<section id="note">
+  <h2>11. Sicurezza e buone pratiche</h2>
+  <ul>
+    <li><strong>Audit immutabile</strong>: ogni transizione ed evento è registrato e non modificabile; le specifiche non si cancellano (si usano gli stati terminali).</li>
+    <li><strong>Allowlist share</strong>: il portale legge/scrive solo dentro le radici consentite, con difese anti-traversal.</li>
+    <li><strong>Documenti privati</strong>: gli allegati locali sono su storage cifrato, fuori dal webroot, scaricabili solo via view protetta.</li>
+    <li><strong>Owner-password</strong> dei PDF protetti: unica, conservata solo nel <code>.env</code> (mai nel codice).</li>
+    <li><strong>Separazione dei compiti</strong> e <strong>permessi per azione</strong> (anche via API): l'autorizzazione non si affida alla UI.</li>
+  </ul>
+  <p class="muted">Documenti tecnici correlati: PIANO_PDF_MOD133.md, CONFORMITA_MATRICE_ARXIVAR.md, PROPOSTE_EVOLUTIVE.md, VALUTAZIONE_FABLE.md (cartella <code>docs/specs/gestione_specifiche/</code>).</p>
+</section>
+
+</main>
+<footer>NOVICROM HUB · Gestione Specifiche &amp; MOD.133 — guida operativa. Documento interno; usare dati sintetici negli esempi.</footer>
+</body>
+</html>

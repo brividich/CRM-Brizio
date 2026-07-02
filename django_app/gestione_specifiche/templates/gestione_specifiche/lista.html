@@ -23,6 +23,9 @@
           {{ kpi.verifica_scad }} verifica{{ kpi.verifica_scad|pluralize:"e" }} in scadenza
         </a>
         {% endif %}
+        <a href="{% url 'gestione_specifiche:guida' %}" target="_blank" class="gs-btn" style="height:42px;" title="Guida operativa (si apre in una nuova scheda)">
+          {% include "gestione_specifiche/partials/_icon.html" with name="file" size=16 %} Guida
+        </a>
         <a href="{% url 'gestione_specifiche:nuova' %}" class="gs-btn gs-btn--orange" style="height:42px;">
           {% include "gestione_specifiche/partials/_icon.html" with name="plus" size=17 %} Nuova specifica
         </a>
