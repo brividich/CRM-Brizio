@@ -21,6 +21,11 @@
     </div>
     {% endfor %}
   </div>
+  {# Fase 2 mappatura: suggerisce/conferma la cartella share in base al cliente (HTMX; degrada in sicurezza) #}
+  <div id="gs-cartella-box"
+       hx-get="{% url 'gestione_specifiche:cartella_suggerita' %}"
+       hx-trigger="load, change from:#id_cliente delay:300ms, keyup changed from:#id_cliente delay:600ms"
+       hx-include="#id_cliente" hx-target="this" hx-swap="innerHTML"></div>
   <div class="gs-actions" style="margin-top:14px;">
     <button class="gs-btn gs-btn--primary" type="submit">Salva</button>
     <a class="gs-btn" href="{% if is_new %}{% url 'gestione_specifiche:lista' %}{% else %}{% url 'gestione_specifiche:dettaglio' spec.pk %}{% endif %}">Annulla</a>

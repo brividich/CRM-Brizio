@@ -251,6 +251,7 @@ def nuova_specifica(request):
             if prev is not None:
                 spec.revisione_precedente = prev
             spec.save()
+            _salva_mappatura_cartella(request, spec)  # Fase 2: ricorda cliente→cartella confermata
             messages.success(request, "Specifica creata.")
             # F6b-2: se abilitato e con destinazione share risolvibile, deposita la forma "in attesa".
             from .composito_deposito import deposita_auto
@@ -279,7 +280,8 @@ def modifica_specifica(request, pk: int):
     if request.method == "POST":
         form = SpecificaForm(request.POST, request.FILES, instance=spec)
         if form.is_valid():
-            form.save()
+            spec = form.save()
+            _salva_mappatura_cartella(request, spec)  # Fase 2: ricorda cliente→cartella confermata
             messages.success(request, "Specifica aggiornata.")
             return redirect("gestione_specifiche:dettaglio", pk=spec.pk)
     else:
@@ -759,6 +761,41 @@ def composito_preview(request, pk: int):
     resp = HttpResponse(pdf, content_type="application/pdf")
     resp["Content-Disposition"] = f'inline; filename="{nome}"'
     return resp
+
+
+@login_required
+def cartella_suggerita(request):
+    """HTMX (Fase 2 mappatura): partial con la cartella share mappata/suggerita per un cliente.
+
+    Cliente già in memoria → mostra la cartella confermata (campo nascosto). Cliente nuovo → menu
+    con le cartelle REALI (suggerite in cima), da confermare: la scelta viene ricordata al salvataggio.
+    """
+    from .cartelle_cliente import cartelle_disponibili, risolvi, suggerisci
+    from .models import ClienteCartellaShare
+
+    cliente = (request.GET.get("cliente") or "").strip()
+    mappata = ""
+    suggerite: list[str] = []
+    altre: list[str] = []
+    if cliente:
+        _path, fonte = risolvi(cliente)
+        m = ClienteCartellaShare.objects.filter(cliente__iexact=cliente, attivo=True).first()
+        mappata = m.cartella if (m and fonte == "mappatura") else ""
+        if not mappata:
+            suggerite = suggerisci(cliente)
+        disponibili = cartelle_disponibili()
+        altre = [c for c in disponibili if c not in suggerite]
+    return render(request, "gestione_specifiche/partials/_cartella_suggerita.html",
+                  {"cliente": cliente, "mappata": mappata, "suggerite": suggerite, "altre": altre})
+
+
+def _salva_mappatura_cartella(request, spec):
+    """Conferma/ricorda la mappatura cliente→cartella dalla POST del form (Fase 2)."""
+    cart = (request.POST.get("cartella_share") or "").strip()
+    cliente = (getattr(spec, "cliente", "") or "").strip()
+    if cart and cliente:
+        from .cartelle_cliente import salva_mappatura
+        salva_mappatura(cliente, cart, note="confermata da form")
 
 
 @login_required

@@ -1,0 +1,21 @@
+{% if cliente %}
+<div style="margin-top:14px; padding:12px 14px; border:1px solid #e6eef7; border-radius:10px; background:#f6f9fd;">
+  <div class="lbl" style="margin-bottom:6px;">Cartella sulla share (destinazione del composito ufficiale)</div>
+  {% if mappata %}
+    <div style="display:flex; align-items:center; gap:9px; font-size:13px;">
+      <span>{% include "gestione_specifiche/partials/_icon.html" with name="share" size=15 %} <b>{{ mappata }}</b></span>
+      <span style="font-size:11px; color:#1f9d63; background:#e4f5ec; padding:2px 9px; border-radius:10px; font-weight:700;">già in memoria</span>
+    </div>
+    <input type="hidden" name="cartella_share" value="{{ mappata }}">
+  {% else %}
+    <select name="cartella_share" style="width:100%; padding:8px 10px; border:1px solid #dde8f5; border-radius:8px; font-size:13px;">
+      <option value="">(nessuna — decido dopo)</option>
+      {% for c in suggerite %}<option value="{{ c }}"{% if forloop.first %} selected{% endif %}>{{ c }} — suggerita</option>{% endfor %}
+      {% for c in altre %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+    </select>
+    <div style="font-size:11.5px; color:#a86a14; margin-top:6px;">
+      Cliente nuovo o non ancora mappato: <b>conferma la cartella</b> — verrà ricordata per le prossime specifiche di questo cliente.
+    </div>
+  {% endif %}
+</div>
+{% endif %}

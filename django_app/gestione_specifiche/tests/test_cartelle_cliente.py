@@ -4,8 +4,10 @@ import shutil
 import tempfile
 from io import StringIO
 
+from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.test import TestCase, override_settings
+from django.urls import reverse
 
 from gestione_specifiche import cartelle_cliente as cc
 from gestione_specifiche.composito_deposito import _risolvi_target
@@ -74,3 +76,49 @@ class CartelleClienteTest(TestCase):
         spec = Specifica.objects.create(codice="NEW-2", revisione="0", titolo="t", cliente="ClienteNuovo")
         with self._ctx():
             self.assertEqual(_risolvi_target(spec, cartella=None), (None, "cartella_richiesta"))
+
+
+class CartellaSuggeritaViewTest(TestCase):
+    """Fase 2: endpoint HTMX + salvataggio (conferma) della mappatura dal form."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+        for f in ("DUCATI", "FERRARI - FERRARI GES"):
+            os.makedirs(os.path.join(self.root, f))
+        self.su = get_user_model().objects.create_superuser("cs_su", "a@x.it", "x")
+        self.client.force_login(self.su)
+
+    def _ctx(self):
+        return override_settings(GESTIONE_SPECIFICHE_SHARE_ROOTS=[self.root])
+
+    def test_endpoint_cliente_mappato(self):
+        ClienteCartellaShare.objects.create(cliente="Ducati", cartella="DUCATI")
+        with self._ctx():
+            r = self.client.get(reverse("gestione_specifiche:cartella_suggerita"), {"cliente": "Ducati"})
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "già in memoria")
+        self.assertContains(r, "DUCATI")
+
+    def test_endpoint_cliente_nuovo_suggerisce(self):
+        with self._ctx():
+            r = self.client.get(reverse("gestione_specifiche:cartella_suggerita"), {"cliente": "Ferrari"})
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "cartella_share")            # menu presente
+        self.assertContains(r, "FERRARI - FERRARI GES")     # suggerita
+
+    def test_endpoint_cliente_vuoto(self):
+        r = self.client.get(reverse("gestione_specifiche:cartella_suggerita"), {"cliente": ""})
+        self.assertEqual(r.status_code, 200)
+        self.assertNotContains(r, "cartella_share")
+
+    def test_nuova_specifica_conferma_mappatura(self):
+        with self._ctx():
+            r = self.client.post(reverse("gestione_specifiche:nuova"), {
+                "codice": "NEW-X", "revisione": "0", "titolo": "T",
+                "tipo": "specifica", "fonte": "cliente", "cliente": "Ducati",
+                "tag": "", "note": "", "commessa_ref": "", "famiglia_ref": "",
+                "cartella_share": "DUCATI",
+            })
+        self.assertEqual(r.status_code, 302)  # creata -> redirect
+        self.assertTrue(ClienteCartellaShare.objects.filter(cliente="Ducati", cartella="DUCATI").exists())
