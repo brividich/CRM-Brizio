@@ -471,3 +471,27 @@ class ConfigPresaVisione(models.Model):
     def __str__(self) -> str:
         rep = self.reparto.nome if self.reparto else "TUTTI"
         return f"{self.get_tipo_documento_display()} / {rep}: {'sì' if self.richiesta else 'no'}"
+
+
+class ClienteCartellaShare(models.Model):
+    """Mappatura persistente Cliente -> cartella reale sulla share (memoria stabile).
+
+    Deriva la cartella di destinazione del composito dal ``cliente`` della specifica. Una volta
+    confermata resta (le cartelle cambiano di rado, ~2-3/anno): la ``cartella`` e' l'etichetta
+    RELATIVA alla radice della share (es. ``DUCATI``, ``FERRARI - FERRARI GES``), risolta a path
+    reale al momento dell'uso (validata contro l'allowlist).
+    """
+    cliente = models.CharField("Cliente", max_length=200, unique=True)
+    cartella = models.CharField("Cartella share (relativa alla radice)", max_length=300)
+    attivo = models.BooleanField("Attivo", default=True)
+    note = models.CharField("Note", max_length=300, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Mappatura cliente-cartella share"
+        verbose_name_plural = "Mappature cliente-cartella share"
+        ordering = ["cliente"]
+
+    def __str__(self) -> str:
+        return f"{self.cliente} -> {self.cartella}"

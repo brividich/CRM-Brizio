@@ -128,6 +128,13 @@ def _risolvi_target(spec, *, cartella: str | None) -> tuple[str | None, str]:
         return corrente_reale, "ok"
     if corrente and corrente_reale is None:
         return None, "path_non_consentito"
+    # Nuova specifica senza file sulla share: prova la mappatura CONFERMATA cliente -> cartella.
+    from .cartelle_cliente import risolvi as _risolvi_cliente
+
+    cartella_map, _fonte = _risolvi_cliente(getattr(spec, "cliente", "") or "")
+    if cartella_map:
+        fname = nome_canonico(getattr(spec, "codice", "") or "", getattr(spec, "revisione", "") or "")
+        return os.path.join(cartella_map, fname), "ok"
     return None, "cartella_richiesta"
 
 

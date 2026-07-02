@@ -8,9 +8,18 @@ from __future__ import annotations
 from django.contrib import admin
 
 from .models import (
-    AzioneOFI, ConfigPresaVisione, Distribuzione, EventoSpecifica,
+    AzioneOFI, ClienteCartellaShare, ConfigPresaVisione, Distribuzione, EventoSpecifica,
     MOD133, RigaMOD133, Specifica,
 )
+
+
+@admin.register(ClienteCartellaShare)
+class ClienteCartellaShareAdmin(admin.ModelAdmin):
+    list_display = ("cliente", "cartella", "attivo", "note", "updated_at")
+    list_filter = ("attivo",)
+    search_fields = ("cliente", "cartella")
+    list_editable = ("cartella", "attivo")
+    ordering = ("cliente",)
 
 
 class RigaMOD133Inline(admin.TabularInline):
