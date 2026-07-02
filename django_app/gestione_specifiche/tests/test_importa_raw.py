@@ -25,6 +25,16 @@ def _crea_pdf(path, testi):
         doc.close()
 
 
+def _crea_pdf_vuoto(path):
+    """PDF con una pagina vuota (nessun testo estraibile) = scansione simulata (classe incerto)."""
+    doc = fitz.open()
+    try:
+        doc.new_page()
+        doc.save(path)
+    finally:
+        doc.close()
+
+
 class ImportaRawTest(TestCase):
     def setUp(self):
         self.root = tempfile.mkdtemp()
@@ -68,3 +78,16 @@ class ImportaRawTest(TestCase):
         Specifica.objects.filter(pk=self.raw.pk).update(allegato="specifiche/gia.pdf")
         out = self._run("--apply")
         self.assertIn("promuovibili: 0", out)
+
+    def test_ocr_recupera_scansione_pristina(self):
+        p_scan = os.path.join(self.root, "SCAN REV.0.pdf")
+        _crea_pdf_vuoto(p_scan)
+        Specifica.objects.create(codice="SCAN", revisione="0", titolo="t", percorso_esterno=p_scan)
+        from gestione_specifiche.management.commands.importa_raw_allegato_da_share import Command
+        # senza --ocr: la scansione resta incerto -> saltata
+        self.assertIn("non-pristino(incerto/incerto)", self._run())
+        # con --ocr (mockato = testo pristino): diventa 'senza' -> promuovibile
+        with patch.object(Command, "_ocr_testo", return_value="Documento cliente senza marker"), \
+                patch.object(Command, "_ocr_pagina", return_value="Documento cliente senza marker"):
+            out = self._run("--ocr")
+        self.assertIn("PROMUOVI: SCAN", out)

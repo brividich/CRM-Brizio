@@ -39,6 +39,8 @@ class Command(BaseCommand):
         parser.add_argument("--apply", action="store_true", help="esegue l'import (default: dry-run)")
         parser.add_argument("--limit", type=int, default=0, help="al piu' N specifiche (0 = tutte)")
         parser.add_argument("--pk", type=int, default=0, help="una sola specifica (pk)")
+        parser.add_argument("--ocr", action="store_true",
+                            help="classifica via OCR i PDF scansionati (richiede Tesseract; es. su pcgavancini)")
 
     def handle(self, *args, **opts):
         import fitz  # PyMuPDF
@@ -54,7 +56,7 @@ class Command(BaseCommand):
         for spec in qs:
             if spec.allegato:  # ha gia' il raw nel portale
                 continue
-            motivo = self._promuovi(spec, fitz, apply=opts["apply"])
+            motivo = self._promuovi(spec, fitz, apply=opts["apply"], ocr=opts["ocr"])
             if motivo == "ok":
                 promossi += 1
             else:
@@ -68,7 +70,7 @@ class Command(BaseCommand):
             self.stdout.write("  (dry-run: nessuna scrittura. Rilancia con --apply per importare.)")
 
     # ------------------------------------------------------------------ helpers
-    def _promuovi(self, spec, fitz, *, apply: bool) -> str:
+    def _promuovi(self, spec, fitz, *, apply: bool, ocr: bool = False) -> str:
         """Ritorna 'ok' se (dry-run: promuoverebbe / apply: promosso), altrimenti il motivo di skip."""
         reale = risolvi_consentito(spec.percorso_esterno)
         if reale is None or not os.path.isfile(reale):
@@ -82,6 +84,16 @@ class Command(BaseCommand):
                 return "protetto-password"
             classe = _classifica(self._testo(doc, MAX_PAGINE))
             prima = _classifica(self._pagina(doc, 0))
+            # OCR (scansioni): riclassifica documento e/o prima pagina se il testo non e' estraibile.
+            if ocr and (classe == "incerto" or prima == "incerto"):
+                if classe == "incerto":
+                    t = self._ocr_testo(doc)
+                    if t:
+                        classe = _classifica(t)
+                if prima == "incerto":
+                    p = self._ocr_pagina(doc, 0)
+                    if p:
+                        prima = _classifica(p)
         finally:
             doc.close()
         if not (classe == "senza" and prima == "senza"):
@@ -114,5 +126,25 @@ class Command(BaseCommand):
     def _pagina(self, doc, i: int) -> str:
         try:
             return doc.load_page(i).get_text("text")
+        except Exception:  # noqa: BLE001
+            return ""
+
+    def _ocr_testo(self, doc, max_pagine: int = 3) -> str:
+        """OCR delle prime pagine (richiede Tesseract). Guardato: '' se il motore manca."""
+        parti = []
+        try:
+            for i in range(min(doc.page_count, max_pagine)):
+                page = doc.load_page(i)
+                tp = page.get_textpage_ocr(full=True)
+                parti.append(page.get_text("text", textpage=tp))
+            return "\n".join(parti)
+        except Exception:  # noqa: BLE001
+            return ""
+
+    def _ocr_pagina(self, doc, i: int) -> str:
+        try:
+            page = doc.load_page(i)
+            tp = page.get_textpage_ocr(full=True)
+            return page.get_text("text", textpage=tp)
         except Exception:  # noqa: BLE001
             return ""
