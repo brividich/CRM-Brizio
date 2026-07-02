@@ -90,7 +90,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             "--out", default="",
-            help="Percorso del report CSV da scrivere (pk;codice;revisione;classe;pagine;path;note).",
+            help="Percorso del report CSV (pk;codice;revisione;classe;prima_pagina;promuovibile;pagine;path;note).",
         )
         parser.add_argument(
             "--limit", type=int, default=0,
@@ -116,16 +116,24 @@ class Command(BaseCommand):
             qs = qs[:opts["limit"]]
 
         cnt = Counter()
+        n_promuovibili = 0
         righe = []
         problemi = []
         for spec in qs:
-            classe, pagine, path_str, nota = self._analizza(spec, fitz, ocr=opts["ocr"])
+            classe, prima, pagine, path_str, nota = self._analizza(spec, fitz, ocr=opts["ocr"])
             cnt[classe] += 1
+            # RAW pristino = nessun marker MOD.133/cover nel doc E prima pagina = contenuto:
+            # candidato a essere "promosso" come allegato raw nel portale per F6b-2.
+            promuovibile = (classe == "senza" and prima == "senza")
+            if promuovibile:
+                n_promuovibili += 1
             righe.append({
                 "pk": spec.pk,
                 "codice": spec.codice,
                 "revisione": spec.revisione,
                 "classe": classe,
+                "prima_pagina": prima,
+                "promuovibile": "si" if promuovibile else "",
                 "pagine": pagine,
                 "path": path_str,
                 "note": nota,
@@ -146,6 +154,9 @@ class Command(BaseCommand):
             ))
         self.stdout.write(f"  radici consentite: {[_ascii(r) for r in radici]}")
         self.stdout.write(f"  analizzate: {sum(cnt.values())} | {dict(cnt)}")
+        self.stdout.write(
+            f"  raw pristini 'promuovibili' (senza + prima pagina = contenuto): {n_promuovibili}"
+        )
         for p in problemi:
             self.stdout.write(self.style.WARNING(p))
         if out:
@@ -161,15 +172,22 @@ class Command(BaseCommand):
         cartella = os.path.dirname(out)
         if cartella:
             os.makedirs(cartella, exist_ok=True)
-        campi = ["pk", "codice", "revisione", "classe", "pagine", "path", "note"]
+        campi = ["pk", "codice", "revisione", "classe", "prima_pagina", "promuovibile",
+                 "pagine", "path", "note"]
         with open(out, "w", newline="", encoding="utf-8-sig") as fh:
             writer = csv.DictWriter(fh, fieldnames=campi, delimiter=";")
             writer.writeheader()
             writer.writerows(righe)
 
     def _analizza(self, spec, fitz, ocr: bool = False):
-        """Ritorna (classe, pagine, path_str, nota). Non solleva mai: gli errori
-        di apertura diventano classe 'irraggiungibile'."""
+        """Ritorna (classe, prima_pagina, pagine, path_str, nota). Non solleva mai: gli errori
+        di apertura diventano classe 'irraggiungibile'.
+
+        - ``classe`` = classificazione del documento (marker nelle prime/ultime pagine);
+        - ``prima_pagina`` = classificazione della SOLA pagina 1 (cover_attesa/mod133/senza/incerto):
+          serve a distinguere un raw PRISTINO (prima pagina = contenuto = 'senza') da un file
+          gia' compositato (prima pagina = cover_attesa/mod133).
+        """
         percorso = (getattr(spec, "percorso_esterno", "") or "").strip()
         path_str = ""
         doc = None
@@ -178,48 +196,66 @@ class Command(BaseCommand):
                 path_str = percorso
                 reale = risolvi_consentito(percorso)
                 if reale is None:
-                    return ("irraggiungibile", 0, path_str, "path non consentito (fuori allowlist)")
+                    return ("irraggiungibile", "", 0, path_str, "path non consentito (fuori allowlist)")
                 if not os.path.isfile(reale):
-                    return ("irraggiungibile", 0, path_str, "file non trovato sulla share")
+                    return ("irraggiungibile", "", 0, path_str, "file non trovato sulla share")
                 doc = fitz.open(reale)
             else:
                 allegato = getattr(spec, "allegato", None)
                 if not allegato:
-                    return ("irraggiungibile", 0, "", "nessun percorso_esterno ne allegato")
+                    return ("irraggiungibile", "", 0, "", "nessun percorso_esterno ne allegato")
                 path_str = allegato.name
                 try:
                     with allegato.open("rb") as fh:
                         dati = fh.read()
                     doc = fitz.open(stream=dati, filetype="pdf")
                 except Exception as exc:  # noqa: BLE001  (report, mai crash)
-                    return ("irraggiungibile", 0, path_str, "allegato non leggibile: " + _ascii(str(exc)))
+                    return ("irraggiungibile", "", 0, path_str, "allegato non leggibile: " + _ascii(str(exc)))
         except Exception as exc:  # noqa: BLE001
-            return ("irraggiungibile", 0, path_str, "apertura fallita: " + _ascii(str(exc)))
+            return ("irraggiungibile", "", 0, path_str, "apertura fallita: " + _ascii(str(exc)))
 
         try:
             pagine = doc.page_count
             if getattr(doc, "needs_pass", False):
                 # PDF con user-password: il contenuto non e' leggibile (diverso da una scansione).
-                return ("incerto", pagine, path_str, "pdf protetto da password utente (contenuto non leggibile)")
+                return ("incerto", "incerto", pagine, path_str,
+                        "pdf protetto da password utente (contenuto non leggibile)")
             testo = self._estrai_testo(doc, MAX_PAGINE)
             classe = _classifica(testo)
+            prima = _classifica(self._testo_pagina(doc, 0))
             nota = ""
-            if classe == "incerto":
+            if classe == "incerto" or prima == "incerto":
                 if ocr:
                     testo_ocr, nota_ocr = self._ocr_testo(doc, fitz)
-                    if testo_ocr:
+                    if classe == "incerto" and testo_ocr:
                         classe = _classifica(testo_ocr)
-                        nota = "ocr: " + nota_ocr
-                    else:
-                        nota = "ocr non riuscito: " + nota_ocr
+                    p0_ocr = self._ocr_pagina(doc, 0)
+                    if p0_ocr:
+                        prima = _classifica(p0_ocr)
+                    nota = "ocr: " + nota_ocr
                 else:
                     nota = "nessun testo estraibile (probabile scansione); usa --ocr"
-            return (classe, pagine, path_str, nota)
+            return (classe, prima, pagine, path_str, nota)
         finally:
             try:
                 doc.close()
             except Exception:  # noqa: BLE001
                 pass
+
+    def _testo_pagina(self, doc, i: int) -> str:
+        try:
+            return doc.load_page(i).get_text("text")
+        except Exception:  # noqa: BLE001
+            return ""
+
+    def _ocr_pagina(self, doc, i: int) -> str:
+        """OCR della sola pagina ``i`` (per la prima pagina). Guardato: '' se il motore manca."""
+        try:
+            page = doc.load_page(i)
+            tp = page.get_textpage_ocr(full=True)
+            return _normalizza(page.get_text("text", textpage=tp))
+        except Exception:  # noqa: BLE001
+            return ""
 
     def _estrai_testo(self, doc, max_pagine: int) -> str:
         parti = []

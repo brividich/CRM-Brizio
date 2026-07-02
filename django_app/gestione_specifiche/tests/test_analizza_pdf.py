@@ -85,12 +85,19 @@ class AnalizzaPdfTest(TestCase):
         self.assertEqual(per_codice["INCERTO"]["classe"], "incerto")
         # PDF fuori dalla allowlist -> irraggiungibile (mai aperto)
         self.assertEqual(per_codice["FUORI"]["classe"], "irraggiungibile")
-        # colonne del report
+        # colonne del report (incl. prima_pagina + flag promuovibile)
         for r in per_codice.values():
             self.assertEqual(
                 set(r.keys()),
-                {"pk", "codice", "revisione", "classe", "pagine", "path", "note"},
+                {"pk", "codice", "revisione", "classe", "prima_pagina", "promuovibile",
+                 "pagine", "path", "note"},
             )
+        # SENZA: prima pagina = contenuto -> raw pristino promuovibile
+        self.assertEqual(per_codice["SENZA"]["prima_pagina"], "senza")
+        self.assertEqual(per_codice["SENZA"]["promuovibile"], "si")
+        # COVER: prima pagina = cover -> NON promuovibile (gia' compositato)
+        self.assertEqual(per_codice["COVER"]["prima_pagina"], "cover_attesa")
+        self.assertEqual(per_codice["COVER"]["promuovibile"], "")
         # il riepilogo a console riporta i conteggi per classe
         self.assertIn("mod133", output)
         self.assertIn("irraggiungibile", output)
