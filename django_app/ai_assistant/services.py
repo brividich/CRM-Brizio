@@ -931,8 +931,27 @@ def embed_texts(texts: list[str], *, timeout: int | None = None) -> list[list[fl
     ``timeout`` (secondi) e' un override per i chiamanti latency-sensitive: il
     routing semantico passa un timeout breve cosi' un endpoint embeddings lento
     degrada subito a keyword-only invece di rallentare ogni messaggio di chat.
+
+    I testi vengono inviati in **sotto-batch** (``OLLAMA_EMBED_BATCH``, default 16):
+    alcuni backend HTTP rifiutano richieste con troppi input in un colpo (es. TEI,
+    ``max_client_batch_size=32``). Senza batch il calcolo dei vettori-seme del routing
+    (~55 frasi) veniva respinto in blocco -> None -> ranking semantico spento in
+    silenzio (fail-safe a keyword-only). L'indicizzazione RAG batchava gia'; questo
+    allinea anche il percorso ``embed_texts``.
     """
-    return _compute_embeddings(texts, timeout=timeout)
+    if not texts:
+        return []
+    batch_size = max(1, int(getattr(settings, "OLLAMA_EMBED_BATCH", 16) or 16))
+    if len(texts) <= batch_size:
+        return _compute_embeddings(texts, timeout=timeout)
+    out: list[list[float]] = []
+    for start in range(0, len(texts), batch_size):
+        group = list(texts[start:start + batch_size])
+        vectors = _compute_embeddings(group, timeout=timeout)
+        if not vectors or len(vectors) != len(group):
+            return None
+        out.extend(vectors)
+    return out
 
 
 # ── Backend embeddings configurabile (RAG_EMBED_BACKEND) ────────────────────

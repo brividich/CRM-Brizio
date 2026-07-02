@@ -2897,6 +2897,38 @@ class EmbedBackendTests(TestCase):
         ), patch("ai_assistant.services.urllib.request.urlopen", return_value=FakeResponse()):
             self.assertIsNone(services._compute_embeddings(["a", "b"]))
 
+    def test_embed_texts_batches_large_input(self):
+        # Regressione "routing semantico spento": alcuni backend HTTP (TEI,
+        # max_client_batch_size=32) rifiutano batch grandi. embed_texts deve spezzare
+        # in sotto-batch: le ~55 frasi-seme del routing, mandate in blocco, saturavano
+        # il limite -> None -> _rank_domains vuoto -> chat degradata a keyword-only.
+        from ai_assistant import services
+
+        calls: list[int] = []
+
+        def fake_compute(texts, *, timeout=None):
+            calls.append(len(texts))
+            if len(texts) > 32:
+                return None  # come TEI: batch oltre max_client_batch_size respinto
+            return [[float(i)] for i in range(len(texts))]
+
+        with override_settings(OLLAMA_EMBED_BATCH=16), \
+                patch.object(services, "_compute_embeddings", side_effect=fake_compute):
+            out = services.embed_texts([f"frase {i}" for i in range(55)])
+
+        self.assertIsNotNone(out)
+        self.assertEqual(len(out), 55)          # tutti i vettori, concatenati in ordine
+        self.assertTrue(calls)                  # chiamato a sotto-batch
+        self.assertLessEqual(max(calls), 16)    # nessun batch oltre la soglia configurata
+
+    def test_embed_texts_batch_failure_returns_none(self):
+        # Se un sotto-batch fallisce, l'intera embed_texts torna None (fail-safe).
+        from ai_assistant import services
+
+        with override_settings(OLLAMA_EMBED_BATCH=16), \
+                patch.object(services, "_compute_embeddings", side_effect=lambda t, *, timeout=None: None):
+            self.assertIsNone(services.embed_texts([f"x{i}" for i in range(40)]))
+
     def test_embeddings_enabled_respects_backend(self):
         from ai_assistant.services import embeddings_enabled
 
