@@ -11,6 +11,32 @@ _TXT = {"class": "gs-input"}
 _AREA = {"class": "gs-input", "rows": 2}
 
 
+class PrivateClearableFileInput(forms.ClearableFileInput):
+    """ClearableFileInput per allegati su storage privato (senza URL pubblico).
+
+    Il widget standard, in rendering, chiama ``value.url`` per costruire il link
+    "Attualmente: ...". Con ``PrivateSpecificaStorage`` quell'accesso solleva
+    ``NotImplementedError`` (gli allegati non sono esposti su /media/). Qui
+    sopprimiamo il link: mostriamo solo lo stato "file presente" + checkbox di
+    rimozione, senza mai accedere a ``.url``. Stesso pattern di
+    ``anagrafica.forms.PrivateClearableFileInput``.
+    """
+
+    template_name = "gestione_specifiche/widgets/private_clearable_file_input.html"
+
+    def is_initial(self, value):
+        # Lo standard fa `bool(value and getattr(value, "url", False))`, che
+        # innesca l'accesso a .url. Qui basta che esista un file salvato.
+        return bool(value and getattr(value, "name", None))
+
+    def format_value(self, value):
+        # Non restituiamo un oggetto con .url: evita che il template provi a
+        # leggerlo. Il nome file basta per mostrare "file presente".
+        if self.is_initial(value):
+            return getattr(value, "name", "")
+        return None
+
+
 class SpecificaForm(forms.ModelForm):
     class Meta:
         model = Specifica
@@ -27,6 +53,7 @@ class SpecificaForm(forms.ModelForm):
             "cliente": forms.TextInput(attrs=_TXT),
             "tag": forms.TextInput(attrs=_TXT),
             "note": forms.Textarea(attrs=_AREA),
+            "allegato": PrivateClearableFileInput(attrs=_TXT),
             "commessa_ref": forms.TextInput(attrs=_TXT),
             "famiglia_ref": forms.TextInput(attrs=_TXT),
         }
