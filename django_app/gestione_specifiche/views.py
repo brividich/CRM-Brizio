@@ -718,6 +718,35 @@ def guida(request):
     return render(request, "gestione_specifiche/guida.html")
 
 
+@login_required
+def composito_preview(request, pk: int):
+    """F6b-1: ANTEPRIMA scaricabile del composito ufficiale — NESSUNA scrittura sulla share.
+
+    Forma "approvato" ([pagina MOD.133] + originale) se il MOD.133 e' approvato; altrimenti forma
+    "in attesa" ([cover] + originale + filigrana). Anteprima NON protetta (la cifratura e' solo sul
+    file depositato sulla share, F6b-2): qui serve solo a vedere il layout risultante.
+    """
+    spec = get_object_or_404(Specifica, pk=pk)
+    from .composito import componi_attesa_da_spec, componi_composito_da_spec
+
+    mod = MOD133.objects.filter(specifica=spec).first()
+    approvato = bool(mod and mod.esito == C.ESITO_APPROVATO)
+    try:
+        if approvato:
+            pdf = componi_composito_da_spec(spec, proteggi=False)
+            nome = f"{spec.codice}_composito_MOD133.pdf"
+        else:
+            pdf = componi_attesa_da_spec(spec, proteggi=False)
+            nome = f"{spec.codice}_in_attesa_MOD133.pdf"
+    except ValueError as exc:
+        messages.error(request, f"Anteprima composito non disponibile: {exc}")
+        return redirect("gestione_specifiche:dettaglio", pk=spec.pk)
+
+    resp = HttpResponse(pdf, content_type="application/pdf")
+    resp["Content-Disposition"] = f'inline; filename="{nome}"'
+    return resp
+
+
 # ---------------------------------------------------------------------------
 # Dashboard direzionale KPI qualità (ISO 9001 / EN 9100)
 # ---------------------------------------------------------------------------

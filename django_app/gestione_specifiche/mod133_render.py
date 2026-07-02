@@ -417,6 +417,72 @@ def _costruisci_pdf(dati: dict) -> bytes:
     return buffer.getvalue()
 
 
+COVER_ATTESA_TITOLO = "SPECIFICA IN ATTESA DI COMPILAZIONE MOD.133"
+COVER_ATTESA_SUB = (
+    "Documento non ancora sottoposto al Flow Down dei requisiti (MOD.133) / "
+    "Awaiting requirements flow-down (MOD.133)"
+)
+_STILE_COVER_TITOLO = ParagraphStyle(
+    "cover_titolo", fontName="Helvetica-Bold", fontSize=18, leading=24,
+    alignment=TA_CENTER, spaceAfter=10,
+)
+_STILE_COVER_SUB = ParagraphStyle(
+    "cover_sub", fontName="Helvetica-Oblique", fontSize=10.5, leading=14,
+    alignment=TA_CENTER, textColor=colors.Color(0.3, 0.3, 0.3), spaceAfter=26,
+)
+_STILE_COVER_LABEL = ParagraphStyle(
+    "cover_label", fontName="Helvetica-Bold", fontSize=10, leading=14, alignment=TA_LEFT,
+)
+_STILE_COVER_VAL = ParagraphStyle(
+    "cover_val", fontName="Helvetica", fontSize=10, leading=14, alignment=TA_LEFT,
+)
+
+
+def _story_cover_attesa(dati: dict) -> list:
+    """Story della cover: titolo grande + sottotitolo + tabella metadati della specifica."""
+    utile = A4[0] - _MARGINE_SX - _MARGINE_DX
+    story = [Spacer(1, 1.3 * inch)]
+    story.append(_p(COVER_ATTESA_TITOLO, _STILE_COVER_TITOLO))
+    story.append(_p(COVER_ATTESA_SUB, _STILE_COVER_SUB))
+    campi = [
+        ("Codice / Code", _str(dati.get("codice"))),
+        ("Revisione / Revision", _str(dati.get("revisione"))),
+        ("Titolo / Title", _str(dati.get("titolo"))),
+        ("Fonte / Source", _str(dati.get("cliente"))),
+        ("Data / Date", _str(dati.get("data"))),
+    ]
+    rows = [[_p(k, _STILE_COVER_LABEL), _p(v, _STILE_COVER_VAL)] for k, v in campi]
+    tab = Table(rows, colWidths=[utile * 0.32, utile * 0.68])
+    tab.setStyle(TableStyle([
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.Color(0.7, 0.7, 0.7)),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("BACKGROUND", (0, 0), (0, -1), colors.Color(0.93, 0.93, 0.93)),
+        ("TOPPADDING", (0, 0), (-1, -1), 6), ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6), ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    story.append(tab)
+    return story
+
+
+def render_cover_attesa(dati: dict) -> bytes:
+    """Genera la pagina di copertina "SPECIFICA IN ATTESA DI COMPILAZIONE MOD.133" (byte PDF).
+
+    ``dati`` accetta le chiavi ``codice``, ``revisione``, ``titolo``, ``cliente``, ``data``
+    (tutte facoltative -> celle vuote, mai crash). Nessun accesso a file/share.
+    """
+    if not isinstance(dati, dict):
+        dati = {}
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=A4,
+        leftMargin=_MARGINE_SX, rightMargin=_MARGINE_DX,
+        topMargin=_MARGINE_TOP, bottomMargin=_MARGINE_BOTTOM,
+        title="Specifica in attesa MOD.133",
+    )
+    doc.build(_story_cover_attesa(dati), onFirstPage=_disegna_cornice, onLaterPages=_disegna_cornice)
+    return buffer.getvalue()
+
+
 def render_mod133(dati: dict) -> bytes:
     """Genera il PDF del MOD.133 dai dati forniti e ne ritorna i byte.
 

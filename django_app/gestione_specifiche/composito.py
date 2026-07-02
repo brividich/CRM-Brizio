@@ -22,8 +22,8 @@ import os
 
 from django.conf import settings
 
-from .mod133_render import render_mod133
-from .pdf_compose import anteponi_pagine, applica_protezione
+from .mod133_render import render_cover_attesa, render_mod133
+from .pdf_compose import anteponi_pagine, applica_filigrana, applica_protezione
 
 logger = logging.getLogger(__name__)
 
@@ -193,3 +193,62 @@ def componi_composito_da_spec(
         consenti_copia=consenti_copia,
         filigrana=filigrana,
     )
+
+
+# Filigrana della forma "in attesa" (non ancora compilato/approvato il MOD.133).
+FILIGRANA_ATTESA = "IN ATTESA MOD.133"
+
+
+def _dati_cover_attesa(spec) -> dict:
+    data = ""
+    d = getattr(spec, "data_inserimento", None)
+    if d:
+        try:
+            data = d.strftime("%d/%m/%Y")
+        except Exception:  # noqa: BLE001
+            data = ""
+    return {
+        "codice": spec.codice,
+        "revisione": spec.revisione,
+        "titolo": spec.titolo,
+        "cliente": spec.cliente or "",
+        "data": data,
+    }
+
+
+def componi_attesa_da_spec(
+    spec,
+    *,
+    originale: bytes | None = None,
+    owner_password: str | None = None,
+    proteggi: bool = True,
+    filigrana: str = FILIGRANA_ATTESA,
+) -> bytes:
+    """Forma "IN ATTESA MOD.133": [cover attesa] + [originale] + filigrana (+ protezione).
+
+    Usata prima della compilazione/approvazione del MOD.133 (F6b, deposito sulla share). Con
+    ``proteggi=True`` cifra owner-password e applica la filigrana in un colpo solo; con
+    ``proteggi=False`` (anteprima) applica solo la filigrana VISIBILE senza cifrare. Non scrive
+    nulla sulla share. Solleva ``ValueError`` se l'originale non e' disponibile o (protetto) senza
+    owner-password.
+    """
+    pdf = originale if originale is not None else _leggi_pdf_originale(spec)
+    if not pdf:
+        raise ValueError("PDF originale della specifica non disponibile (ne allegato ne share leggibili).")
+    cover = render_cover_attesa(_dati_cover_attesa(spec))
+    composito = anteponi_pagine(pdf, [cover])
+    if proteggi:
+        pw = owner_password if owner_password is not None else _owner_password_default()
+        if not pw:
+            raise ValueError(
+                "Owner-password mancante: impossibile produrre la forma protetta "
+                "(configurare GESTIONE_SPECIFICHE_PDF_OWNER_PASSWORD nel .env)."
+            )
+        composito = applica_protezione(
+            composito, owner_password=pw,
+            consenti_stampa=False, consenti_modifica=False, consenti_copia=False,
+            filigrana=filigrana,
+        )
+    elif filigrana:
+        composito = applica_filigrana(composito, filigrana)
+    return composito

@@ -104,6 +104,27 @@ def _applica_filigrana(page: "fitz.Page", testo: str) -> None:
     tw.write_text(page, morph=(pivot, mat), overlay=1)
 
 
+def applica_filigrana(pdf: bytes, testo: str) -> bytes:
+    """Sovrimprime `testo` in filigrana su OGNI pagina SENZA cifrare. Ritorna i byte.
+
+    Utile per le anteprime (mostra la filigrana della forma "in attesa" senza applicare la
+    protezione owner-password, che nel composito depositato viene aggiunta da ``applica_protezione``).
+    Best-effort per pagina: un errore su una pagina non azzera la filigrana sulle altre.
+    """
+    if not testo:
+        return pdf
+    doc = _apri(pdf)
+    try:
+        for page in doc:
+            try:
+                _applica_filigrana(page, testo)
+            except Exception:  # noqa: BLE001
+                continue
+        return doc.tobytes()
+    finally:
+        doc.close()
+
+
 def applica_protezione(
     pdf: bytes,
     *,

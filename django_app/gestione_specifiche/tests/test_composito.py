@@ -4,18 +4,21 @@ protezione. PDF sintetici, nessuna scrittura sulla share.
 import os
 import shutil
 import tempfile
+from unittest.mock import patch
 
 import fitz
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
+from django.urls import reverse
 
 from gestione_specifiche.composito import (
+    componi_attesa_da_spec,
     componi_composito_da_spec,
     componi_composito_ufficiale,
     dati_mod133_da_spec,
     _leggi_pdf_originale,
 )
-from gestione_specifiche.mod133_render import render_mod133
+from gestione_specifiche.mod133_render import render_cover_attesa, render_mod133
 from gestione_specifiche.models import MOD133, RigaMOD133, Specifica
 
 User = get_user_model()
@@ -135,3 +138,58 @@ class ComponiCompositoTest(TestCase):
         with override_settings(GESTIONE_SPECIFICHE_SHARE_ROOTS=[root]):
             b = _leggi_pdf_originale(spec)
         self.assertTrue(b and b.startswith(b"%PDF"))
+
+
+class AttesaCompositoTest(TestCase):
+    """F6b-1: forma 'in attesa MOD.133' (cover + originale + filigrana)."""
+
+    def test_cover_attesa_pdf_valido(self):
+        b = render_cover_attesa({"codice": "SP-1", "revisione": "A", "titolo": "T", "cliente": "Ducati"})
+        self.assertEqual(_npag(b), 1)
+
+    def test_attesa_cover_piu_originale_non_protetto(self):
+        spec = Specifica.objects.create(codice="SP-ATT", titolo="T", cliente="Ducati")
+        out = componi_attesa_da_spec(spec, originale=_pdf(["Orig A", "Orig B"]), proteggi=False)
+        d = fitz.open(stream=out, filetype="pdf")
+        try:
+            self.assertEqual(d.page_count, 3)                 # cover + 2 pagine originale
+            self.assertFalse(d.metadata.get("encryption"))    # anteprima NON cifrata
+        finally:
+            d.close()
+
+    @override_settings(GESTIONE_SPECIFICHE={"PDF_OWNER_PASSWORD": "segreto"})
+    def test_attesa_protetta_dai_settings(self):
+        spec = Specifica.objects.create(codice="SP-ATT2", titolo="T")
+        out = componi_attesa_da_spec(spec, originale=_pdf(["O"]), proteggi=True)
+        d = fitz.open(stream=out, filetype="pdf")
+        try:
+            self.assertTrue(d.metadata.get("encryption"))
+            self.assertEqual(d.permissions & fitz.PDF_PERM_PRINT, 0)
+        finally:
+            d.close()
+
+    def test_attesa_protetta_senza_owner_pw_solleva(self):
+        spec = Specifica.objects.create(codice="SP-ATT3", titolo="T")
+        with self.assertRaises(ValueError):
+            componi_attesa_da_spec(spec, originale=_pdf(["O"]), proteggi=True, owner_password="")
+
+
+class CompositoPreviewViewTest(TestCase):
+    """F6b-1: la view di anteprima non scrive sulla share e serve il PDF corretto."""
+
+    def setUp(self):
+        self.su = User.objects.create_superuser("cp_su", "s@x.it", "x")
+        self.client.force_login(self.su)
+
+    def test_preview_200_pdf(self):
+        spec = Specifica.objects.create(codice="SP-PV", titolo="T")
+        with patch("gestione_specifiche.composito.componi_attesa_da_spec", return_value=_pdf(["X"])):
+            r = self.client.get(reverse("gestione_specifiche:composito_preview", args=[spec.pk]))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r["Content-Type"], "application/pdf")
+
+    def test_preview_senza_originale_redirect(self):
+        # nessun originale -> ValueError -> messaggio + redirect (nessun 500)
+        spec = Specifica.objects.create(codice="SP-PV2", titolo="T")
+        r = self.client.get(reverse("gestione_specifiche:composito_preview", args=[spec.pk]))
+        self.assertEqual(r.status_code, 302)
