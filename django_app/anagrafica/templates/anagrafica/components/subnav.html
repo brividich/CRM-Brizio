@@ -24,7 +24,8 @@ body.nav-side .hrnav { top:0; }
 .hrnav-tab:hover .hrnav-ico { color:#1f87cd; }
 .hrnav-tab.active { background:#0c2545; color:#fff; box-shadow:0 1px 2px rgba(8,20,45,.25); }
 .hrnav-tab.active .hrnav-ico { color:#1f87cd; }
-.hrnav-caret { font-size:9px; opacity:.7; margin-left:2px; }
+.hrnav-caret { font-size:9px; opacity:.7; margin-left:2px; display:inline-block; transition:transform .18s ease; }
+@media (prefers-reduced-motion:reduce){ .hrnav-caret { transition:none; } }
 .hrnav-dd { position:relative; display:inline-flex; align-items:stretch; }
 /* Pilastro «split»: il testo è un link verso la dashboard del sotto-modulo,
    il caret apre il dropdown. I due pezzi sembrano un'unica pill. */
@@ -40,10 +41,21 @@ body.nav-side .hrnav { top:0; }
 .hrnav-dd-menu { display:none; position:absolute; top:calc(100% + 6px); left:0; min-width:210px;
   background:#fff; border:1px solid #e6ebf3; border-radius:12px;
   box-shadow:0 14px 36px rgba(12,37,69,.18); z-index:200; padding:6px; }
-.hrnav-dd:hover .hrnav-dd-menu, .hrnav-dd:focus-within .hrnav-dd-menu,
-.hrnav-dd-btn:focus + .hrnav-dd-menu { display:block; }
-/* Mega-menu a colonne: una colonna per «gruppo» con intestazione. */
-.hrnav-dd:hover .hrnav-dd-menu.hrnav-dd-mega, .hrnav-dd:focus-within .hrnav-dd-menu.hrnav-dd-mega { display:flex; gap:2px; }
+/* Apertura al CLICK: stato .open pilotato dal controller JS in fondo al file. */
+.hrnav-dd-menu.open { display:block; }
+/* Mega-menu a colonne: una colonna per «gruppo» con intestazione (al click). */
+.hrnav-dd-menu.hrnav-dd-mega.open { display:flex; gap:2px; }
+/* Stato «aperto» sul trigger + caret ruotato. */
+.hrnav-caret-btn[aria-expanded="true"], .hrnav-dd-btn[aria-expanded="true"] { background:#f1f5f9; color:#0c2545; }
+.hrnav-caret-btn.active[aria-expanded="true"], .hrnav-dd-btn.active[aria-expanded="true"] { background:#0c2545; color:#fff; }
+.hrnav-dd-btn[aria-expanded="true"] .hrnav-caret { transform:rotate(180deg); }
+/* Fallback senza JS: finché il controller non marca <html class="hrnav-js">, i menu
+   restano raggiungibili all'hover / focus da tastiera (nessuno resta tagliato fuori). */
+html:not(.hrnav-js) .hrnav-dd:hover .hrnav-dd-menu,
+html:not(.hrnav-js) .hrnav-dd:focus-within .hrnav-dd-menu,
+html:not(.hrnav-js) .hrnav-dd-btn:focus + .hrnav-dd-menu { display:block; }
+html:not(.hrnav-js) .hrnav-dd:hover .hrnav-dd-menu.hrnav-dd-mega,
+html:not(.hrnav-js) .hrnav-dd:focus-within .hrnav-dd-menu.hrnav-dd-mega { display:flex; gap:2px; }
 .hrnav-dd-col { min-width:188px; padding:0 3px; }
 .hrnav-dd-col + .hrnav-dd-col { border-left:1px solid #eef2f7; }
 .hrnav-dd-head { font-size:10px; font-weight:800; letter-spacing:.06em; text-transform:uppercase;
@@ -52,6 +64,8 @@ body.theme-dark .hrnav-caret-btn { color:var(--text-light); }
 body.theme-dark .hrnav-dd:hover .hrnav-pill, body.theme-dark .hrnav-dd:hover .hrnav-caret-btn { background:var(--surface-alt); color:#93c5fd; }
 body.theme-dark .hrnav-dd-col + .hrnav-dd-col { border-color:var(--border); }
 body.theme-dark .hrnav-dd-head { color:var(--text-light); }
+body.theme-dark .hrnav-caret-btn[aria-expanded="true"], body.theme-dark .hrnav-dd-btn[aria-expanded="true"] { background:var(--surface-alt); color:#93c5fd; }
+body.theme-dark .hrnav-caret-btn.active[aria-expanded="true"], body.theme-dark .hrnav-dd-btn.active[aria-expanded="true"] { background:#0c2545; color:#fff; }
 .hrnav-dd-menu a { display:flex; align-items:center; gap:8px; padding:8px 11px; border-radius:8px;
   font-size:13px; font-weight:600; color:#475569; text-decoration:none; white-space:nowrap; }
 .hrnav-dd-menu a:hover { background:#f4f8fc; color:#0c2545; }
@@ -70,7 +84,7 @@ body.theme-dark .hrnav-dd-menu a:hover { background:var(--surface-alt); color:#9
     {% if item.type == "link" %}
       {% with ic=item.label|subnav_svg_icon %}
       <a class="hrnav-tab{% if item.active %} active{% endif %}"
-         href="{{ item.url }}"
+         href="{{ item.url }}"{% if item.active %} aria-current="page"{% endif %}
          {% if item.target == "_blank" %}target="_blank" rel="noopener"{% endif %}>{% if ic %}<svg class="hrnav-ico"><use href="#{{ ic }}"/></svg>{{ item.label|strip_leading_emoji }}{% elif item.icona %}{{ item.icona }} {{ item.label }}{% else %}{{ item.label }}{% endif %}</a>
       {% endwith %}
     {% elif item.type == "category" %}
@@ -79,12 +93,12 @@ body.theme-dark .hrnav-dd-menu a:hover { background:var(--surface-alt); color:#9
         {% if item.landing_url %}
           {# Pilastro «split»: il testo porta alla dashboard del sotto-modulo, il caret apre il menu. #}
           <a class="hrnav-tab hrnav-pill{% if item.active %} active{% endif %}" href="{{ item.landing_url }}">{% if ic %}<svg class="hrnav-ico"><use href="#{{ ic }}"/></svg>{{ item.label|strip_leading_emoji }}{% elif item.icona %}{{ item.icona }} {{ item.label }}{% else %}{{ item.label }}{% endif %}</a>
-          <button class="hrnav-caret-btn{% if item.active %} active{% endif %}" type="button" aria-label="Apri menu {{ item.label }}">▾</button>
+          <button class="hrnav-caret-btn{% if item.active %} active{% endif %}" type="button" aria-label="Apri menu {{ item.label }}" aria-haspopup="true" aria-expanded="false" aria-controls="hrnav-menu-{{ item.id }}">▾</button>
         {% else %}
-          <button class="hrnav-tab hrnav-dd-btn{% if item.active %} active{% endif %}" type="button">{% if ic %}<svg class="hrnav-ico"><use href="#{{ ic }}"/></svg>{{ item.label|strip_leading_emoji }}{% elif item.icona %}{{ item.icona }} {{ item.label }}{% else %}{{ item.label }}{% endif %}<span class="hrnav-caret">▾</span></button>
+          <button class="hrnav-tab hrnav-dd-btn{% if item.active %} active{% endif %}" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="hrnav-menu-{{ item.id }}">{% if ic %}<svg class="hrnav-ico"><use href="#{{ ic }}"/></svg>{{ item.label|strip_leading_emoji }}{% elif item.icona %}{{ item.icona }} {{ item.label }}{% else %}{{ item.label }}{% endif %}<span class="hrnav-caret">▾</span></button>
         {% endif %}
         {% endwith %}
-        <div class="hrnav-dd-menu{% if item.has_headers %} hrnav-dd-mega{% endif %}">
+        <div class="hrnav-dd-menu{% if item.has_headers %} hrnav-dd-mega{% endif %}" id="hrnav-menu-{{ item.id }}">
           {% if item.has_headers %}
             {% for g in item.groups %}
               <div class="hrnav-dd-col">
@@ -92,7 +106,7 @@ body.theme-dark .hrnav-dd-menu a:hover { background:var(--surface-alt); color:#9
                 {% for child in g.links %}
                   {% with cic=child.label|subnav_svg_icon %}
                   <a href="{{ child.url }}"
-                     class="{% if child.active %}active{% endif %}"
+                     class="{% if child.active %}active{% endif %}"{% if child.active %} aria-current="page"{% endif %}
                      {% if child.target == "_blank" %}target="_blank" rel="noopener"{% endif %}>{% if cic %}<svg class="hrnav-ico"><use href="#{{ cic }}"/></svg>{{ child.label|strip_leading_emoji }}{% elif child.icona %}{{ child.icona }} {{ child.label }}{% else %}{{ child.label }}{% endif %}</a>
                   {% endwith %}
                 {% endfor %}
@@ -102,7 +116,7 @@ body.theme-dark .hrnav-dd-menu a:hover { background:var(--surface-alt); color:#9
             {% for child in item.links %}
               {% with cic=child.label|subnav_svg_icon %}
               <a href="{{ child.url }}"
-                 class="{% if child.active %}active{% endif %}"
+                 class="{% if child.active %}active{% endif %}"{% if child.active %} aria-current="page"{% endif %}
                  {% if child.target == "_blank" %}target="_blank" rel="noopener"{% endif %}>{% if cic %}<svg class="hrnav-ico"><use href="#{{ cic }}"/></svg>{{ child.label|strip_leading_emoji }}{% elif child.icona %}{{ child.icona }} {{ child.label }}{% else %}{{ child.label }}{% endif %}</a>
               {% endwith %}
             {% endfor %}
@@ -120,3 +134,40 @@ sopra le tabelle, mantenendo le icone di ordina/filtro per colonna negli header.
 Marca <body> prima che fm-table-enhanced.js (defer) inizializzi le tabelle.
 {% endcomment %}
 <script>document.body && document.body.setAttribute("data-fm-hide-controls", "1");</script>
+<script>
+/* Subnav Anagrafica — apertura dropdown al CLICK (non più hover).
+   Uno alla volta · click fuori / Esc chiudono · gestisce aria-expanded.
+   Degrada senza JS: senza la classe .hrnav-js sul <html>, il CSS di fallback
+   riapre i menu all'hover/focus da tastiera. */
+(function(){
+  var bar = document.querySelector(".hrnav");
+  if(!bar) return;
+  document.documentElement.classList.add("hrnav-js");
+  var groups = Array.prototype.slice.call(bar.querySelectorAll(".hrnav-dd")).map(function(dd){
+    return { trigger: dd.querySelector(".hrnav-caret-btn, .hrnav-dd-btn"),
+             menu: dd.querySelector(".hrnav-dd-menu") };
+  }).filter(function(g){ return g.trigger && g.menu; });
+  if(!groups.length) return;
+  function close(g){ g.menu.classList.remove("open"); g.trigger.setAttribute("aria-expanded","false"); }
+  function open(g){ g.menu.classList.add("open"); g.trigger.setAttribute("aria-expanded","true"); }
+  function closeAll(except){ groups.forEach(function(g){ if(g!==except) close(g); }); }
+  groups.forEach(function(g){
+    g.trigger.addEventListener("click", function(e){
+      e.preventDefault(); e.stopPropagation();
+      var isOpen = g.trigger.getAttribute("aria-expanded") === "true";
+      closeAll(g);
+      if(isOpen){ close(g); } else { open(g); }
+    });
+  });
+  document.addEventListener("click", function(e){
+    if(!e.target.closest(".hrnav-dd")) closeAll(null);
+  });
+  document.addEventListener("keydown", function(e){
+    if(e.key === "Escape" || e.key === "Esc"){
+      groups.forEach(function(g){
+        if(g.menu.classList.contains("open")){ close(g); g.trigger.focus(); }
+      });
+    }
+  });
+})();
+</script>
