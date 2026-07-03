@@ -8,6 +8,9 @@
 /*.csv
 /*.msg
 /*.eml
+/*.png
+/*.jpg
+/*.jpeg
 
 # Deployment — cartelle generate sul server (non versionare)
 releases/
