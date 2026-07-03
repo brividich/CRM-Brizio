@@ -1,3 +1,14 @@
+# File dati lasciati nella RADICE del repo (dati cliente reali: MAI committare).
+# Solo root (/*), così non tocca gli asset legittimi nelle sottocartelle.
+/*.docx
+/*.doc
+/*.pdf
+/*.xlsx
+/*.xls
+/*.csv
+/*.msg
+/*.eml
+
 # Deployment — cartelle generate sul server (non versionare)
 releases/
 deployment/releases/
