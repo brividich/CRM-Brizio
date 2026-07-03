@@ -74,6 +74,16 @@ class DepositoCompositoTest(TestCase):
         self.assertTrue(EventoSpecifica.objects.filter(
             specifica=spec, trigger="deposito_composito_share").exists())
 
+    def test_apply_legge_il_raw_una_sola_volta(self):
+        # Regressione: l'allegato cifrato non e' ri-leggibile 2 volte nello stesso processo ->
+        # il deposito deve leggere/generare il composito UNA sola volta (bug "originale non disponibile").
+        spec = self._spec()
+        with override_settings(GESTIONE_SPECIFICHE_SHARE_ROOTS=[self.root]), \
+                patch(_RAW, return_value=_pdf(["RAW"])) as m:
+            piano = deposita(spec, cartella=self.cart, dry_run=False)
+        self.assertEqual(piano.esito, "ok")
+        self.assertEqual(m.call_count, 1)
+
     def test_swap_attesa_poi_approvato(self):
         spec = self._spec()
         with override_settings(GESTIONE_SPECIFICHE_SHARE_ROOTS=[self.root]), \

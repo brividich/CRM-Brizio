@@ -80,8 +80,13 @@ def _leggi_raw(spec) -> bytes | None:
     if not alleg:
         return None
     try:
-        with alleg.open("rb") as fh:
+        # Apertura via storage (non ``alleg.open``): evita la cache del FieldFile, che sullo storage
+        # cifrato rende non ri-leggibile una seconda volta lo stesso allegato nello stesso processo.
+        fh = alleg.storage.open(alleg.name, "rb")
+        try:
             return fh.read()
+        finally:
+            fh.close()
     except Exception:  # noqa: BLE001
         return None
 
@@ -139,7 +144,20 @@ def _risolvi_target(spec, *, cartella: str | None) -> tuple[str | None, str]:
 
 
 def pianifica(spec, *, cartella: str | None = None) -> PianoComposito:
-    """Piano del deposito SENZA scrivere: forma corrente, target, dimensione del composito."""
+    """Piano del deposito SENZA scrivere (delega a ``deposita`` in dry-run)."""
+    return deposita(spec, cartella=cartella, dry_run=True)
+
+
+def deposita(spec, *, cartella: str | None = None, dry_run: bool = True, attore=None) -> PianoComposito:
+    """Deposita il composito controllato sulla share (con backup+rollback e audit).
+
+    Con ``dry_run=True`` (default) ritorna solo il piano. Con ``dry_run=False`` scrive: fa il
+    **backup** dell'eventuale forma esistente al target, scrive la nuova forma, aggiorna
+    ``percorso_esterno`` se cambia, registra l'audit e rimuove il backup; su errore **ripristina**
+    il backup (la share non resta mai incoerente).
+
+    Il composito e' generato **una sola volta** (l'allegato cifrato non e' ri-leggibile due volte).
+    """
     forma = forma_corrente(spec)
     target, motivo = _risolvi_target(spec, cartella=cartella)
     if target is None:
@@ -153,28 +171,16 @@ def pianifica(spec, *, cartella: str | None = None) -> PianoComposito:
                               note="Target fuori allowlist o dentro _SUPERATO.")
 
     try:
-        dati = _bytes_forma(spec, forma)
+        dati = _bytes_forma(spec, forma)   # generato UNA sola volta
     except ValueError as exc:
         motivo = "owner_pw_mancante" if "wner-password" in str(exc) else "originale_mancante"
         return PianoComposito(esito=motivo, forma=forma, target=target_reale, note=str(exc))
 
-    return PianoComposito(esito="ok", forma=forma, target=target_reale, dimensione=len(dati))
-
-
-def deposita(spec, *, cartella: str | None = None, dry_run: bool = True, attore=None) -> PianoComposito:
-    """Deposita il composito controllato sulla share (con backup+rollback e audit).
-
-    Con ``dry_run=True`` (default) ritorna solo il piano. Con ``dry_run=False`` scrive: fa il
-    **backup** dell'eventuale forma esistente al target, scrive la nuova forma, aggiorna
-    ``percorso_esterno`` se cambia, registra l'audit e rimuove il backup; su errore **ripristina**
-    il backup (la share non resta mai incoerente).
-    """
-    piano = pianifica(spec, cartella=cartella)
-    if dry_run or piano.esito != "ok":
+    piano = PianoComposito(esito="ok", forma=forma, target=target_reale, dimensione=len(dati))
+    if dry_run:
         return piano
 
-    dati = _bytes_forma(spec, piano.forma)
-    target = piano.target
+    target = target_reale
     percorso_precedente = getattr(spec, "percorso_esterno", "") or ""
     backup = ""
     try:
