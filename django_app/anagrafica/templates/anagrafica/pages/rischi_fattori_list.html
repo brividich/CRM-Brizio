@@ -6,6 +6,7 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 {% include "anagrafica/components/_fm_style.html" %}
+{% include "core/components/_hub_formkit.html" %}
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -119,19 +120,19 @@
     <form method="post" action="{% url 'anagrafica:fattore_rischio_create' %}">
       {% csrf_token %}
       <div class="fm-modal-body">
-        {% if form.non_field_errors %}<div class="fm-err" style="margin-bottom:10px;">{{ form.non_field_errors|join:", " }}</div>{% endif %}
+        {% if form.non_field_errors %}<div class="hub-err" style="margin-bottom:10px;">{{ form.non_field_errors|join:", " }}</div>{% endif %}
         <div class="fm-form-section-lbl">Dati fattore</div>
         <div class="fm-form-grid-2">
-          <div class="fm-form-field"><label>Codice <span class="fm-req">*</span></label>{{ form.codice }}{% for err in form.codice.errors %}<div class="fm-err">{{ err }}</div>{% endfor %}</div>
-          <div class="fm-form-field"><label>Categoria <span class="fm-req">*</span></label>{{ form.categoria }}{% for err in form.categoria.errors %}<div class="fm-err">{{ err }}</div>{% endfor %}</div>
+          <div class="hub-field"><label>Codice <span class="hub-req">*</span></label>{{ form.codice }}{% for err in form.codice.errors %}<div class="hub-err">{{ err }}</div>{% endfor %}</div>
+          <div class="hub-field"><label>Categoria <span class="hub-req">*</span></label>{{ form.categoria }}{% for err in form.categoria.errors %}<div class="hub-err">{{ err }}</div>{% endfor %}</div>
         </div>
-        <div class="fm-form-field"><label>Nome <span class="fm-req">*</span></label>{{ form.nome }}{% for err in form.nome.errors %}<div class="fm-err">{{ err }}</div>{% endfor %}</div>
-        <div class="fm-form-field"><label>Descrizione</label>{{ form.descrizione }}{% for err in form.descrizione.errors %}<div class="fm-err">{{ err }}</div>{% endfor %}</div>
+        <div class="hub-field"><label>Nome <span class="hub-req">*</span></label>{{ form.nome }}{% for err in form.nome.errors %}<div class="hub-err">{{ err }}</div>{% endfor %}</div>
+        <div class="hub-field"><label>Descrizione</label>{{ form.descrizione }}{% for err in form.descrizione.errors %}<div class="hub-err">{{ err }}</div>{% endfor %}</div>
 
         <div class="fm-form-section-lbl">Periodicità e obblighi</div>
         <div class="fm-form-grid-2">
-          <div class="fm-form-field"><label>Periodicità formazione (mesi)</label>{{ form.periodicita_formazione_mesi }}{% for err in form.periodicita_formazione_mesi.errors %}<div class="fm-err">{{ err }}</div>{% endfor %}</div>
-          <div class="fm-form-field"><label>Periodicità sorveglianza (mesi)</label>{{ form.periodicita_sorveglianza_mesi }}{% for err in form.periodicita_sorveglianza_mesi.errors %}<div class="fm-err">{{ err }}</div>{% endfor %}</div>
+          <div class="hub-field"><label>Periodicità formazione (mesi)</label>{{ form.periodicita_formazione_mesi }}{% for err in form.periodicita_formazione_mesi.errors %}<div class="hub-err">{{ err }}</div>{% endfor %}</div>
+          <div class="hub-field"><label>Periodicità sorveglianza (mesi)</label>{{ form.periodicita_sorveglianza_mesi }}{% for err in form.periodicita_sorveglianza_mesi.errors %}<div class="hub-err">{{ err }}</div>{% endfor %}</div>
         </div>
         <div class="fm-form-checks-row">
           <label class="fm-form-check">{{ form.richiede_formazione }} <span>Richiede formazione</span></label>
@@ -141,11 +142,11 @@
 
         <div class="fm-form-section-lbl">Requisiti generati (ereditati dalle mansioni esposte)</div>
         <div class="fm-form-grid-2">
-          <div class="fm-form-field"><label>🏥 Visite generate</label>{{ form.tipi_visita }}{% for err in form.tipi_visita.errors %}<div class="fm-err">{{ err }}</div>{% endfor %}</div>
-          <div class="fm-form-field"><label>🦺 DPI generati</label>{{ form.categorie_dpi }}{% for err in form.categorie_dpi.errors %}<div class="fm-err">{{ err }}</div>{% endfor %}</div>
+          <div class="hub-field"><label>🏥 Visite generate</label>{{ form.tipi_visita }}{% for err in form.tipi_visita.errors %}<div class="hub-err">{{ err }}</div>{% endfor %}</div>
+          <div class="hub-field"><label>🦺 DPI generati</label>{{ form.categorie_dpi }}{% for err in form.categorie_dpi.errors %}<div class="hub-err">{{ err }}</div>{% endfor %}</div>
         </div>
 
-        <div class="fm-form-field"><label>Note</label>{{ form.note }}{% for err in form.note.errors %}<div class="fm-err">{{ err }}</div>{% endfor %}</div>
+        <div class="hub-field"><label>Note</label>{{ form.note }}{% for err in form.note.errors %}<div class="hub-err">{{ err }}</div>{% endfor %}</div>
         <label class="fm-form-check">{{ form.is_active }} <span>Attivo</span></label>
       </div>
       <div class="fm-modal-foot">
@@ -187,14 +188,14 @@ function openFattoreEdit(pk, codice, nome, categoria, descrizione, periodForm, p
   const catSel = CAT_OPTS.map(o => `<option value="${o[0]}"${o[0]===categoria?' selected':''}>${o[1]}</option>`).join('');
   document.getElementById('edit-fattore-fields').innerHTML = `
     <div class="fm-form-grid-2">
-      <div class="fm-form-field"><label>Codice *</label><input name="codice" class="fm-input" value="${codice.replace(/"/g,'&quot;')}" required maxlength="20"></div>
-      <div class="fm-form-field"><label>Categoria *</label><select name="categoria" class="fm-input fm-select">${catSel}</select></div>
+      <div class="hub-field"><label>Codice *</label><input name="codice" class="fm-input" value="${codice.replace(/"/g,'&quot;')}" required maxlength="20"></div>
+      <div class="hub-field"><label>Categoria *</label><select name="categoria" class="fm-input fm-select">${catSel}</select></div>
     </div>
-    <div class="fm-form-field"><label>Nome *</label><input name="nome" class="fm-input" value="${nome.replace(/"/g,'&quot;')}" required maxlength="200"></div>
-    <div class="fm-form-field"><label>Descrizione</label><textarea name="descrizione" class="fm-input" rows="2">${descrizione}</textarea></div>
+    <div class="hub-field"><label>Nome *</label><input name="nome" class="fm-input" value="${nome.replace(/"/g,'&quot;')}" required maxlength="200"></div>
+    <div class="hub-field"><label>Descrizione</label><textarea name="descrizione" class="fm-input" rows="2">${descrizione}</textarea></div>
     <div class="fm-form-grid-2">
-      <div class="fm-form-field"><label>Periodicità formazione (mesi)</label><input name="periodicita_formazione_mesi" type="number" min="0" class="fm-input" value="${periodForm}"></div>
-      <div class="fm-form-field"><label>Periodicità sorveglianza (mesi)</label><input name="periodicita_sorveglianza_mesi" type="number" min="0" class="fm-input" value="${periodSorv}"></div>
+      <div class="hub-field"><label>Periodicità formazione (mesi)</label><input name="periodicita_formazione_mesi" type="number" min="0" class="fm-input" value="${periodForm}"></div>
+      <div class="hub-field"><label>Periodicità sorveglianza (mesi)</label><input name="periodicita_sorveglianza_mesi" type="number" min="0" class="fm-input" value="${periodSorv}"></div>
     </div>
     <div class="fm-form-checks-row">
       <label class="fm-form-check"><input type="checkbox" name="richiede_formazione"${reqForm?' checked':''}> <span>Richiede formazione</span></label>
@@ -202,10 +203,10 @@ function openFattoreEdit(pk, codice, nome, categoria, descrizione, periodForm, p
       <label class="fm-form-check"><input type="checkbox" name="richiede_dpi"${reqDpi?' checked':''}> <span>Richiede DPI</span></label>
     </div>
     <div class="fm-form-grid-2">
-      <div class="fm-form-field"><label>Visite generate dal fattore</label>${multiSel('tipi_visita', VIS_OPTS, selVis)}</div>
-      <div class="fm-form-field"><label>DPI generati dal fattore</label>${multiSel('categorie_dpi', DPI_OPTS, selDpi)}</div>
+      <div class="hub-field"><label>Visite generate dal fattore</label>${multiSel('tipi_visita', VIS_OPTS, selVis)}</div>
+      <div class="hub-field"><label>DPI generati dal fattore</label>${multiSel('categorie_dpi', DPI_OPTS, selDpi)}</div>
     </div>
-    <div class="fm-form-field"><label>Note</label><textarea name="note" class="fm-input" rows="2">${note}</textarea></div>
+    <div class="hub-field"><label>Note</label><textarea name="note" class="fm-input" rows="2">${note}</textarea></div>
     <label class="fm-form-check"><input type="checkbox" name="is_active"${isActive?' checked':''}> <span>Attivo</span></label>
   `;
   document.getElementById('modal-edit-fattore').classList.add('open');
