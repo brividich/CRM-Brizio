@@ -30,7 +30,7 @@
     </div>
     {% if is_editor %}
     <div>
-      <button class="hr-btn hr-btn-primary" onclick="document.getElementById('modal-crea-fattore').classList.add('open')">
+      <button class="hub-btn hub-btn-primary" onclick="document.getElementById('modal-crea-fattore').classList.add('open')">
         + Nuovo fattore
       </button>
     </div>
@@ -41,8 +41,8 @@
     <div class="fm-section-head">
       <div class="fm-section-title">Fattori <span class="fm-count">{{ fattori|length }}</span></div>
       <div>
-        <a class="hr-btn hr-btn-sm hr-btn-ghost" href="{% url 'anagrafica:categorie_corso_list' %}">→ Categorie corso</a>
-        <a class="hr-btn hr-btn-sm hr-btn-ghost" href="{% url 'anagrafica:esposizioni_rischio_list' %}">→ Esposizioni</a>
+        <a class="hub-btn hub-btn-sm hub-btn-ghost" href="{% url 'anagrafica:categorie_corso_list' %}">→ Categorie corso</a>
+        <a class="hub-btn hub-btn-sm hub-btn-ghost" href="{% url 'anagrafica:esposizioni_rischio_list' %}">→ Esposizioni</a>
       </div>
     </div>
     {% if fattori %}
@@ -71,18 +71,18 @@
           <tr>
             <td class="mono">{{ f.codice }}</td>
             <td><strong>{{ f.nome }}</strong>{% if f.descrizione %}<div class="muted" style="font-size:11px;margin-top:2px;">{{ f.descrizione|truncatechars:80 }}</div>{% endif %}</td>
-            <td data-value="{{ f.categoria }}"><span class="fm-pill fm-pill-missing">{{ f.get_categoria_display }}</span></td>
+            <td data-value="{{ f.categoria }}"><span class="hub-pill neutral">{{ f.get_categoria_display }}</span></td>
             <td class="num">{% if f.periodicita_formazione_mesi %}{{ f.periodicita_formazione_mesi }}{% else %}<span class="muted" style="font-weight:400;">—</span>{% endif %}</td>
             <td class="num">{% if f.periodicita_sorveglianza_mesi %}{{ f.periodicita_sorveglianza_mesi }}{% else %}<span class="muted" style="font-weight:400;">—</span>{% endif %}</td>
-            <td>{% if f.richiede_formazione %}<span class="fm-pill fm-pill-valid">✓</span>{% else %}<span class="muted">—</span>{% endif %}</td>
-            <td>{% if f.richiede_visita_medica %}<span class="fm-pill fm-pill-valid">✓</span>{% else %}<span class="muted">—</span>{% endif %}</td>
-            <td>{% if f.richiede_dpi %}<span class="fm-pill fm-pill-valid">✓</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td>{% if f.richiede_formazione %}<span class="hub-pill ok">✓</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td>{% if f.richiede_visita_medica %}<span class="hub-pill ok">✓</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td>{% if f.richiede_dpi %}<span class="hub-pill ok">✓</span>{% else %}<span class="muted">—</span>{% endif %}</td>
             <td class="num">{{ f.n_categorie }}</td>
             <td class="num">{{ f.n_esposizioni }}</td>
-            <td>{% if f.is_active %}<span class="fm-pill fm-pill-valid">Sì</span>{% else %}<span class="fm-pill fm-pill-missing">No</span>{% endif %}</td>
+            <td>{% if f.is_active %}<span class="hub-pill ok">Sì</span>{% else %}<span class="hub-pill neutral">No</span>{% endif %}</td>
             <td class="nowrap">
               {% if is_editor %}
-              <button class="hr-btn hr-btn-sm"
+              <button class="hub-btn hub-btn-sm"
                       onclick="openFattoreEdit({{ f.pk }}, '{{ f.codice|escapejs }}', '{{ f.nome|escapejs }}', '{{ f.categoria }}', '{{ f.descrizione|escapejs }}', '{{ f.periodicita_formazione_mesi|default_if_none:'' }}', '{{ f.periodicita_sorveglianza_mesi|default_if_none:'' }}', {{ f.richiede_formazione|yesno:'true,false' }}, {{ f.richiede_visita_medica|yesno:'true,false' }}, {{ f.richiede_dpi|yesno:'true,false' }}, {{ f.is_active|yesno:'true,false' }}, '{{ f.note|escapejs }}', {{ f.sel_visite_ids|default_if_none:'[]' }}, {{ f.sel_dpi_ids|default_if_none:'[]' }})">
                 Modifica
               </button>
@@ -90,7 +90,7 @@
                     style="display:inline;"
                     onsubmit="return confirm('Eliminare fattore «{{ f.nome|escapejs }}»? (Se collegato verrà solo disattivato.)')">
                 {% csrf_token %}
-                <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">Elimina</button>
+                <button type="submit" class="hub-btn hub-btn-sm hub-btn-danger">Elimina</button>
               </form>
               {% endif %}
             </td>
@@ -150,8 +150,8 @@
         <label class="fm-form-check">{{ form.is_active }} <span>Attivo</span></label>
       </div>
       <div class="fm-modal-foot">
-        <button type="button" class="hr-btn hr-btn-ghost" onclick="document.getElementById('modal-crea-fattore').classList.remove('open')">Annulla</button>
-        <button type="submit" class="hr-btn hr-btn-primary">Crea fattore</button>
+        <button type="button" class="hub-btn hub-btn-ghost" onclick="document.getElementById('modal-crea-fattore').classList.remove('open')">Annulla</button>
+        <button type="submit" class="hub-btn hub-btn-primary">Crea fattore</button>
       </div>
     </form>
   </div>
@@ -167,8 +167,8 @@
       {% csrf_token %}
       <div class="fm-modal-body"><div id="edit-fattore-fields"></div></div>
       <div class="fm-modal-foot">
-        <button type="button" class="hr-btn hr-btn-ghost" onclick="document.getElementById('modal-edit-fattore').classList.remove('open')">Annulla</button>
-        <button type="submit" class="hr-btn hr-btn-primary">Salva</button>
+        <button type="button" class="hub-btn hub-btn-ghost" onclick="document.getElementById('modal-edit-fattore').classList.remove('open')">Annulla</button>
+        <button type="submit" class="hub-btn hub-btn-primary">Salva</button>
       </div>
     </form>
   </div>

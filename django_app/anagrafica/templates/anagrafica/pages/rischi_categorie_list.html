@@ -30,7 +30,7 @@
     </div>
     {% if is_editor %}
     <div>
-      <button class="hr-btn hr-btn-primary" onclick="document.getElementById('modal-crea-cat').style.display='flex'">+ Nuova categoria</button>
+      <button class="hub-btn hub-btn-primary" onclick="document.getElementById('modal-crea-cat').style.display='flex'">+ Nuova categoria</button>
     </div>
     {% endif %}
   </div>
@@ -39,8 +39,8 @@
     <div class="fm-section-head">
       <div class="fm-section-title">Categorie <span class="fm-count">{{ categorie|length }}</span></div>
       <div>
-        <a class="hr-btn hr-btn-sm hr-btn-ghost" href="{% url 'anagrafica:fattori_rischio_list' %}">→ Fattori di rischio</a>
-        <a class="hr-btn hr-btn-sm hr-btn-ghost" href="{% url 'anagrafica:esposizioni_rischio_list' %}">→ Esposizioni</a>
+        <a class="hub-btn hub-btn-sm hub-btn-ghost" href="{% url 'anagrafica:fattori_rischio_list' %}">→ Fattori di rischio</a>
+        <a class="hub-btn hub-btn-sm hub-btn-ghost" href="{% url 'anagrafica:esposizioni_rischio_list' %}">→ Esposizioni</a>
       </div>
     </div>
     {% if categorie %}
@@ -64,20 +64,20 @@
             <td><strong>{{ c.nome }}</strong></td>
             <td class="muted">{{ c.descrizione|truncatechars:60|default:"—" }}</td>
             <td>
-              {% for fr in c.fattori_rischio.all %}<span class="fm-pill fm-pill-missing" style="margin:1px 2px 1px 0;">{{ fr.codice }}</span>{% empty %}<span class="muted">—</span>{% endfor %}
+              {% for fr in c.fattori_rischio.all %}<span class="hub-pill neutral" style="margin:1px 2px 1px 0;">{{ fr.codice }}</span>{% empty %}<span class="muted">—</span>{% endfor %}
             </td>
             <td class="num">{{ c.n_corsi }}</td>
-            <td>{% if c.is_active %}<span class="fm-pill fm-pill-valid">Sì</span>{% else %}<span class="fm-pill fm-pill-missing">No</span>{% endif %}</td>
+            <td>{% if c.is_active %}<span class="hub-pill ok">Sì</span>{% else %}<span class="hub-pill neutral">No</span>{% endif %}</td>
             <td class="nowrap">
               {% if is_editor %}
-              <button class="hr-btn hr-btn-sm"
+              <button class="hub-btn hub-btn-sm"
                       onclick="openCatEdit({{ c.pk }}, '{{ c.codice|escapejs }}', '{{ c.nome|escapejs }}', '{{ c.descrizione|escapejs }}', {{ c.is_active|yesno:'true,false' }}, [{% for fr in c.fattori_rischio.all %}{{ fr.pk }}{% if not forloop.last %},{% endif %}{% endfor %}])">
                 Modifica
               </button>
               <form method="post" action="{% url 'anagrafica:categoria_corso_delete' c.pk %}" style="display:inline;"
                     onsubmit="return confirm('Eliminare categoria «{{ c.nome|escapejs }}»? (Se collegata a corsi verrà solo disattivata.)')">
                 {% csrf_token %}
-                <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">Elimina</button>
+                <button type="submit" class="hub-btn hub-btn-sm hub-btn-danger">Elimina</button>
               </form>
               {% endif %}
             </td>
@@ -106,8 +106,8 @@
       {% csrf_token %}
       {% include "core/forms/_form.html" with form=form %}
       <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:14px;">
-        <button type="button" class="hr-btn hr-btn-ghost" onclick="document.getElementById('modal-crea-cat').style.display='none'">Annulla</button>
-        <button type="submit" class="hr-btn hr-btn-primary">Crea</button>
+        <button type="button" class="hub-btn hub-btn-ghost" onclick="document.getElementById('modal-crea-cat').style.display='none'">Annulla</button>
+        <button type="submit" class="hub-btn hub-btn-primary">Crea</button>
       </div>
     </form>
   </div>
@@ -123,8 +123,8 @@
       {% csrf_token %}
       <div id="edit-cat-fields"></div>
       <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:14px;">
-        <button type="button" class="hr-btn hr-btn-ghost" onclick="document.getElementById('modal-edit-cat').style.display='none'">Annulla</button>
-        <button type="submit" class="hr-btn hr-btn-primary">Salva</button>
+        <button type="button" class="hub-btn hub-btn-ghost" onclick="document.getElementById('modal-edit-cat').style.display='none'">Annulla</button>
+        <button type="submit" class="hub-btn hub-btn-primary">Salva</button>
       </div>
     </form>
   </div>

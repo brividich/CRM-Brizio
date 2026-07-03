@@ -30,7 +30,7 @@
     </div>
     {% if is_editor %}
     <div>
-      <button class="hr-btn hr-btn-primary" onclick="document.getElementById('modal-crea-esp').style.display='flex'">+ Nuova esposizione</button>
+      <button class="hub-btn hub-btn-primary" onclick="document.getElementById('modal-crea-esp').style.display='flex'">+ Nuova esposizione</button>
     </div>
     {% endif %}
   </div>
@@ -39,8 +39,8 @@
     <div class="fm-section-head">
       <div class="fm-section-title">Esposizioni <span class="fm-count">{{ esposizioni|length }}</span></div>
       <div>
-        <a class="hr-btn hr-btn-sm hr-btn-ghost" href="{% url 'anagrafica:fattori_rischio_list' %}">→ Fattori</a>
-        <a class="hr-btn hr-btn-sm hr-btn-ghost" href="{% url 'anagrafica:categorie_corso_list' %}">→ Categorie</a>
+        <a class="hub-btn hub-btn-sm hub-btn-ghost" href="{% url 'anagrafica:fattori_rischio_list' %}">→ Fattori</a>
+        <a class="hub-btn hub-btn-sm hub-btn-ghost" href="{% url 'anagrafica:categorie_corso_list' %}">→ Categorie</a>
       </div>
     </div>
     {% if esposizioni %}
@@ -65,17 +65,17 @@
             <td>{% if e.mansione %}{{ e.mansione.nome }}{% else %}<span class="muted">—</span>{% endif %}</td>
             <td>{% if e.area %}{{ e.area.nome }}{% else %}<span class="muted">—</span>{% endif %}</td>
             <td class="muted">{{ e.note|truncatechars:50|default:"—" }}</td>
-            <td>{% if e.is_active %}<span class="fm-pill fm-pill-valid">Sì</span>{% else %}<span class="fm-pill fm-pill-missing">No</span>{% endif %}</td>
+            <td>{% if e.is_active %}<span class="hub-pill ok">Sì</span>{% else %}<span class="hub-pill neutral">No</span>{% endif %}</td>
             <td class="nowrap">
               {% if is_editor %}
-              <button class="hr-btn hr-btn-sm"
+              <button class="hub-btn hub-btn-sm"
                       onclick="openEspEdit({{ e.pk }}, {{ e.fattore_id }}, {{ e.mansione_id|default:'null' }}, {{ e.area_id|default:'null' }}, '{{ e.note|escapejs }}', {{ e.is_active|yesno:'true,false' }})">
                 Modifica
               </button>
               <form method="post" action="{% url 'anagrafica:esposizione_rischio_delete' e.pk %}" style="display:inline;"
                     onsubmit="return confirm('Eliminare esposizione?')">
                 {% csrf_token %}
-                <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">Elimina</button>
+                <button type="submit" class="hub-btn hub-btn-sm hub-btn-danger">Elimina</button>
               </form>
               {% endif %}
             </td>
@@ -105,8 +105,8 @@
       {% include "core/forms/_form.html" with form=form %}
       <div class="muted" style="font-size:11px;color:#94a3b8;margin-top:4px;">Specificare almeno Mansione o Area.</div>
       <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:14px;">
-        <button type="button" class="hr-btn hr-btn-ghost" onclick="document.getElementById('modal-crea-esp').style.display='none'">Annulla</button>
-        <button type="submit" class="hr-btn hr-btn-primary">Crea</button>
+        <button type="button" class="hub-btn hub-btn-ghost" onclick="document.getElementById('modal-crea-esp').style.display='none'">Annulla</button>
+        <button type="submit" class="hub-btn hub-btn-primary">Crea</button>
       </div>
     </form>
   </div>
@@ -122,8 +122,8 @@
       {% csrf_token %}
       <div id="edit-esp-fields"></div>
       <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:14px;">
-        <button type="button" class="hr-btn hr-btn-ghost" onclick="document.getElementById('modal-edit-esp').style.display='none'">Annulla</button>
-        <button type="submit" class="hr-btn hr-btn-primary">Salva</button>
+        <button type="button" class="hub-btn hub-btn-ghost" onclick="document.getElementById('modal-edit-esp').style.display='none'">Annulla</button>
+        <button type="submit" class="hub-btn hub-btn-primary">Salva</button>
       </div>
     </form>
   </div>
