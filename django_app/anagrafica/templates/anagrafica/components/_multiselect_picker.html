@@ -1,0 +1,103 @@
+{# ────────────────────────────────────────────────────────────────────────────
+   Picker multiselezione RICERCABILE — progressive enhancement.
+   Uso: <select multiple data-picker [data-picker-placeholder="Cerca DPI…"] name="…">
+   La <select> resta la FONTE DI VERITÀ (nome, opzioni, selezione): il contratto
+   POST non cambia. Senza JS la select nativa resta visibile e funzionante.
+   Idempotente; ri-aggancia il contenuto caricato via HTMX.
+   Includere una sola volta per pagina (nel blocco content o extra_head).
+──────────────────────────────────────────────────────────────────────────── #}
+<style>
+.msp{ position:relative; border:1px solid var(--fmd-line,#e7edf3); border-radius:9px; background:#fff; }
+.msp-search{ width:100%; box-sizing:border-box; border:none; border-bottom:1px solid #eef2f7;
+  border-radius:9px 9px 0 0; padding:8px 11px 8px 32px; font:inherit; font-size:13px; color:#2d3a55;
+  background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.4'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M21 21l-4.3-4.3'/%3E%3C/svg%3E") no-repeat 11px center;
+  outline:none; }
+.msp-search:focus{ box-shadow:0 0 0 3px rgba(31,135,205,.12) inset; }
+.msp-list{ max-height:210px; overflow-y:auto; padding:4px; }
+.msp-opt{ display:flex; align-items:center; gap:9px; padding:6px 8px; border-radius:7px; font-size:13px;
+  color:#2d3a55; cursor:pointer; }
+.msp-opt:hover{ background:#f6f8fc; }
+.msp-opt input{ width:16px; height:16px; accent-color:var(--fmd-cyan,#1f87cd); flex:0 0 auto; margin:0; }
+.msp-opt.msp-hid{ display:none; }
+.msp-foot{ display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 10px;
+  border-top:1px solid #eef2f7; font-size:11.5px; color:#64748b; }
+.msp-foot a{ color:var(--fmd-cyan,#1f87cd); cursor:pointer; text-decoration:none; font-weight:600; }
+.msp-foot a:hover{ text-decoration:underline; }
+.msp-none{ padding:12px; text-align:center; color:#94a3b8; font-size:12px; }
+select.msp-src-hidden{ position:absolute !important; width:1px; height:1px; opacity:0; pointer-events:none; overflow:hidden; }
+body.theme-dark .msp{ background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .msp-search{ background-color:transparent; color:var(--text); border-color:var(--border); }
+body.theme-dark .msp-opt{ color:var(--text-mid); }
+body.theme-dark .msp-opt:hover{ background:var(--surface); }
+body.theme-dark .msp-foot{ border-color:var(--border); }
+</style>
+<script>
+(function () {
+  function build(sel) {
+    if (sel.dataset.mspBound) return;
+    sel.dataset.mspBound = '1';
+    var opts = Array.prototype.slice.call(sel.options);
+    var wrap = document.createElement('div'); wrap.className = 'msp';
+    var search = document.createElement('input');
+    search.type = 'text'; search.className = 'msp-search';
+    search.placeholder = sel.getAttribute('data-picker-placeholder') || 'Cerca…';
+    search.setAttribute('aria-label', search.placeholder);
+    var list = document.createElement('div'); list.className = 'msp-list';
+    var none = document.createElement('div'); none.className = 'msp-none'; none.textContent = 'Nessun risultato'; none.style.display = 'none';
+    var rows = opts.map(function (o) {
+      var row = document.createElement('label'); row.className = 'msp-opt';
+      var cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = o.selected;
+      var txt = document.createElement('span'); txt.textContent = o.textContent;
+      row.appendChild(cb); row.appendChild(txt);
+      row.__opt = o; row.__cb = cb;
+      cb.addEventListener('change', function () { o.selected = cb.checked; sync(); fire(); });
+      list.appendChild(row);
+      return row;
+    });
+    var foot = document.createElement('div'); foot.className = 'msp-foot';
+    var count = document.createElement('span');
+    var actions = document.createElement('span');
+    var aAll = document.createElement('a'); aAll.textContent = 'Seleziona tutti'; aAll.setAttribute('role', 'button'); aAll.tabIndex = 0;
+    var aNone = document.createElement('a'); aNone.textContent = 'Deseleziona'; aNone.style.marginLeft = '12px'; aNone.setAttribute('role', 'button'); aNone.tabIndex = 0;
+    actions.appendChild(aAll); actions.appendChild(aNone);
+    foot.appendChild(count); foot.appendChild(actions);
+    function fire() { sel.dispatchEvent(new Event('change', { bubbles: true })); }
+    function sync() {
+      var n = 0; opts.forEach(function (o) { if (o.selected) n++; });
+      count.textContent = n + ' selezionat' + (n === 1 ? 'o' : 'i');
+    }
+    function filter() {
+      var q = search.value.toLowerCase(); var any = false;
+      rows.forEach(function (row) {
+        var m = row.__opt.textContent.toLowerCase().indexOf(q) >= 0;
+        row.classList.toggle('msp-hid', !m); if (m) any = true;
+      });
+      none.style.display = any ? 'none' : '';
+    }
+    function setAll(v, onlyVisible) {
+      rows.forEach(function (row) {
+        if (onlyVisible && row.classList.contains('msp-hid')) return;
+        row.__cb.checked = v; row.__opt.selected = v;
+      });
+      sync(); fire();
+    }
+    search.addEventListener('input', filter);
+    aAll.addEventListener('click', function () { setAll(true, true); });
+    aNone.addEventListener('click', function () { setAll(false, false); });
+    [aAll, aNone].forEach(function (a) {
+      a.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); a.click(); } });
+    });
+    wrap.appendChild(search); wrap.appendChild(list); wrap.appendChild(none); wrap.appendChild(foot);
+    sel.parentNode.insertBefore(wrap, sel.nextSibling);
+    sel.classList.add('msp-src-hidden');   // nasconde la select nativa SOLO ora (no-JS = select visibile)
+    sync();
+  }
+  function init(root) {
+    (root || document).querySelectorAll('select[multiple][data-picker]').forEach(build);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { init(); });
+  } else { init(); }
+  document.addEventListener('htmx:afterSwap', function (e) { init(e.target || document); });
+})();
+</script>

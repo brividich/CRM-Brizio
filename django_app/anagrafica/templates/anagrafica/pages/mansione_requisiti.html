@@ -7,6 +7,7 @@
 {% include "anagrafica/components/_hr_restyle.html" %}
 {% include "anagrafica/components/_fm_style.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
+{% include "anagrafica/components/_multiselect_picker.html" %}
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -71,7 +72,7 @@
           <div class="fm-form-field">
             <label>DPI richiesti</label>
             {% if dpi_opts %}
-            <select name="dpi_richiesti" class="fm-input fm-select fm-multiselect" multiple size="10" aria-label="DPI richiesti dalla mansione">
+            <select name="dpi_richiesti" class="fm-input fm-select fm-multiselect" multiple size="10" data-picker data-picker-placeholder="Cerca DPI…" aria-label="DPI richiesti dalla mansione">
               {% for c in dpi_opts %}<option value="{{ c.pk }}"{% if c.pk in sel_dpi_ids %} selected{% endif %}>{{ c.nome }}</option>{% endfor %}
             </select>
             {% else %}<div class="fmd-muted">Modulo DPI non disponibile.</div>{% endif %}
@@ -79,13 +80,13 @@
           <div class="fm-form-field">
             <label>Visite mediche richieste</label>
             {% if visite_opts %}
-            <select name="visite_richieste" class="fm-input fm-select fm-multiselect" multiple size="10" aria-label="Visite mediche richieste dalla mansione">
+            <select name="visite_richieste" class="fm-input fm-select fm-multiselect" multiple size="10" data-picker data-picker-placeholder="Cerca tipo di visita…" aria-label="Visite mediche richieste dalla mansione">
               {% for v in visite_opts %}<option value="{{ v.pk }}"{% if v.pk in sel_visite_ids %} selected{% endif %}>{{ v.nome }}</option>{% endfor %}
             </select>
             {% else %}<div class="fmd-muted">Nessun tipo di visita definito. Creane in <a class="fmd-data-link" href="{% url 'anagrafica:visite_mediche_dashboard' %}">Visite mediche</a>.</div>{% endif %}
           </div>
         </div>
-        <div class="fm-help" style="margin-top:6px;">Tieni premuto Ctrl/⌘ per selezionare più voci.</div>
+        <div class="fm-help" style="margin-top:6px;">Cerca e spunta le voci; il numero di selezionati è indicato in fondo a ciascun elenco.</div>
         <div class="fmd-tfoot" style="border-top:1px solid var(--fmd-line-soft);margin-top:16px;justify-content:flex-end;">
           <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mansioni_list' %}">Indietro</a>
           <button type="submit" class="fmd-btn fmd-btn-primary">Salva requisiti</button>

@@ -4,6 +4,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_multiselect_picker.html" %}
 <style>
 .dc-page { display:flex; flex-direction:column; gap:20px; }
 .dc-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
@@ -251,6 +252,7 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
             <select name="ruoli_operativi_ids" id="id_ruoli_operativi_ids"
                     class="dc-input ruoli-operativi-select"
                     multiple size="6"
+                    data-picker data-picker-placeholder="Cerca ruolo…"
                     hx-get="{% url 'anagrafica:htmx_dpi_iniziali' %}"
                     hx-trigger="change"
                     hx-target="#dpi-iniziali-righe"
@@ -262,7 +264,7 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
                 </option>
               {% endfor %}
             </select>
-            <span style="font-size:11px;color:#94a3b8;">Tieni premuto Ctrl/Cmd per selezionare più voci.</span>
+            <span style="font-size:11px;color:#94a3b8;">Cerca e spunta i ruoli; determinano visite obbligatorie e DPI proposti.</span>
           </div>
         </div>
 
