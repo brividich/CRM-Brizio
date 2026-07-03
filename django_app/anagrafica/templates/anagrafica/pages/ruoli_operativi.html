@@ -4,6 +4,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
+{% include "core/components/_hub_formkit.html" %}
 <style>
 .ro-page { display:flex; flex-direction:column; gap:20px; }
 .ro-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
@@ -160,26 +161,26 @@ body.theme-dark .ro-form-label { color:var(--text-mid); }
     <div class="ro-card-body">
       <form method="post" action="{% url 'anagrafica:ruolo_operativo_create' %}">
         {% csrf_token %}
-        <div class="ro-form-grid">
-          <div class="ro-field" style="grid-column:1/-1;">
-            <label>Nome ruolo *</label>
-            <input class="ro-input" type="text" name="nome" required placeholder="es. Preposto, RSPP, Squadra antincendio…" maxlength="100">
+        <div class="hub-form-grid">
+          <div class="hub-field hub-col-full">
+            <label>Nome ruolo <span class="hub-req">*</span></label>
+            <input type="text" name="nome" required placeholder="es. Preposto, RSPP, Squadra antincendio…" maxlength="100">
           </div>
-          <div class="ro-field" style="grid-column:1/-1;">
+          <div class="hub-field hub-col-full">
             <label>Descrizione</label>
-            <input class="ro-input" type="text" name="descrizione" placeholder="Breve descrizione del ruolo (opzionale)" maxlength="200">
+            <input type="text" name="descrizione" placeholder="Breve descrizione del ruolo (opzionale)" maxlength="200">
           </div>
-          <div class="ro-field">
+          <div class="hub-field">
             <label>Colore badge</label>
-            <input class="ro-input" type="color" name="colore" value="#1f87cd" style="height:40px;padding:4px 8px;cursor:pointer;">
+            <input type="color" name="colore" value="#1f87cd" style="height:40px;padding:4px 8px;cursor:pointer;">
           </div>
-          <div class="ro-field">
+          <div class="hub-field">
             <label>Icona (emoji, opzionale)</label>
-            <input class="ro-input" type="text" name="icona" placeholder="es. 🦺 🔥 🚑" maxlength="10">
+            <input type="text" name="icona" placeholder="es. 🦺 🔥 🚑" maxlength="10">
           </div>
         </div>
         <div style="margin-top:14px;">
-          <button type="submit" class="ro-btn ro-btn-primary">Crea ruolo</button>
+          <button type="submit" class="hub-btn hub-btn-primary">Crea ruolo</button>
         </div>
       </form>
     </div>
