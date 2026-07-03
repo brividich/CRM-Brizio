@@ -200,3 +200,20 @@ class CompositoPreviewViewTest(TestCase):
             r = self.client.get(reverse("gestione_specifiche:composito_thumb", args=[spec.pk]))
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r["Content-Type"], "image/png")
+
+
+class DataRicevutoTest(TestCase):
+    def test_usa_data_inserimento(self):
+        from datetime import datetime
+
+        from django.utils.timezone import make_aware
+
+        from gestione_specifiche.composito import _data_ricevuto
+        from gestione_specifiche.models import Specifica
+
+        spec = Specifica.objects.create(codice="RIC-1", titolo="T")
+        # data_inserimento è auto_now_add: la forziamo a una data storica via update
+        Specifica.objects.filter(pk=spec.pk).update(
+            data_inserimento=make_aware(datetime(2024, 3, 14, 12, 0)))
+        spec = Specifica.objects.get(pk=spec.pk)  # refresh_from_db() vietato da FSMField
+        self.assertEqual(_data_ricevuto(spec), "14/03/2024")

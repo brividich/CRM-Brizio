@@ -94,6 +94,19 @@ def dati_mod133_da_spec(spec) -> dict:
     }
 
 
+def _data_ricevuto(spec) -> str:
+    """Data per il timbro RICEVUTO: la data REALE di ingresso della specifica nel portale
+    (``data_inserimento``), formattata gg/mm/aaaa. È la data più vecchia della catena
+    ricezione ≤ compilazione ≤ approvazione: NON usare ``data_approvazione``."""
+    from django.utils import timezone
+
+    d = getattr(spec, "data_inserimento", None) or timezone.now()
+    try:
+        return d.strftime("%d/%m/%Y")
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 def _risolvi_timbri(spec) -> dict | None:
     """#2 — Timbri per il composito: RICEVUTO del compilatore + firme MOD.133 di compilatore e
     approvatore. Ritorna il dict per ``applica_timbri`` (o None se nessun timbro configurato)."""
@@ -101,8 +114,6 @@ def _risolvi_timbri(spec) -> dict | None:
         mod = spec.mod133
     except Exception:  # noqa: BLE001
         return None
-
-    from django.utils import timezone
 
     from .models import TimbroCapocommessa
 
@@ -132,8 +143,39 @@ def _risolvi_timbri(spec) -> dict | None:
         "ricevuto": ricevuto,
         "stamp_revisore": rev,
         "stamp_approvatore": app,
-        "data_testo": timezone.now().strftime("%d/%m/%Y"),
+        "data_testo": _data_ricevuto(spec),
     }
+
+
+def _risolvi_placements(spec) -> list | None:
+    """#2 tool — posizioni timbri scelte dal compilatore (``TimbroApplicazione``), o None."""
+    try:
+        apps = list(spec.timbri_applicati.select_related("timbro").all())
+    except Exception:  # noqa: BLE001
+        return None
+    if not apps:
+        return None
+
+    from .models import TimbroCapocommessa
+
+    data = _data_ricevuto(spec)
+    out = []
+    for a in apps:
+        t = a.timbro
+        if not t or not t.file:
+            continue
+        try:
+            with t.file.open("rb") as fh:
+                img = fh.read()
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("composito: timbro applicato non leggibile: %s", exc)
+            continue
+        out.append({
+            "image": img, "sezione": a.sezione, "pagina": a.pagina,
+            "x": a.x, "y": a.y, "w": a.w,
+            "data_testo": data if t.tipo == TimbroCapocommessa.TIPO_RICEVUTO else "",
+        })
+    return out or None
 
 
 def _leggi_pdf_originale(spec) -> bytes | None:
@@ -176,6 +218,7 @@ def componi_composito_ufficiale(
     consenti_copia: bool = False,
     filigrana: str | None = None,
     timbri: dict | None = None,
+    placements: list | None = None,
 ) -> bytes:
     """[pagina MOD.133] + [originale], opzionalmente protetto. Ritorna i byte del composito.
 
@@ -194,13 +237,16 @@ def componi_composito_ufficiale(
     # #1: usa il MOD.133 REALE come template (overlay pymupdf), non il render reportlab.
     pagina_mod133 = render_mod133_overlay(dati_mod133)
     composito = anteponi_pagine(originale_pdf, [pagina_mod133])
-    # #2: timbri (RICEVUTO sul documento originale + firme sul MOD.133) PRIMA della protezione.
-    if timbri:
+    # #2: timbri PRIMA della protezione — posizioni scelte dal compilatore (tool) o automatiche.
+    if placements or timbri:
         import math
-
-        from .timbri_overlay import applica_timbri
         n_mod133 = max(1, math.ceil(len(dati_mod133.get("righe") or []) / 7))
-        composito = applica_timbri(composito, n_pagine_mod133=n_mod133, **timbri)
+        if placements:
+            from .timbri_overlay import applica_timbri_placements
+            composito = applica_timbri_placements(composito, placements, n_pagine_mod133=n_mod133)
+        else:
+            from .timbri_overlay import applica_timbri
+            composito = applica_timbri(composito, n_pagine_mod133=n_mod133, **timbri)
     if proteggi:
         composito = applica_protezione(
             composito,
@@ -235,6 +281,7 @@ def componi_composito_da_spec(
     if not pdf:
         raise ValueError("PDF originale della specifica non disponibile (ne allegato ne share leggibili).")
     pw = owner_password if owner_password is not None else _owner_password_default()
+    _placements = _risolvi_placements(spec)
     return componi_composito_ufficiale(
         pdf,
         dati_mod133_da_spec(spec),
@@ -244,7 +291,9 @@ def componi_composito_da_spec(
         consenti_modifica=consenti_modifica,
         consenti_copia=consenti_copia,
         filigrana=filigrana,
-        timbri=_risolvi_timbri(spec),  # #2: timbri RICEVUTO + firme MOD.133
+        # #2: posizioni scelte dal compilatore (tool) → altrimenti timbri automatici (fallback)
+        placements=_placements,
+        timbri=None if _placements else _risolvi_timbri(spec),
     )
 
 
