@@ -101,12 +101,22 @@ Nuovo helper nel modulo `gestione_specifiche` (es. `date_utils.py`):
 - **Nessuna** modifica alle viste admin: `auto_approva.html` e `log.html` continuano a
   interrogare gli eventi `auto_approvazione` → traccia interna preservata (con timestamp reale).
 
-### 4. Coerenza sul PDF composito
+### 4. Coerenza delle date sul PDF composito
 
-- `data` è già `data_approvazione` → nessuna modifica necessaria.
-- `composito.py:135`: sostituire `timezone.now()` del timbro con `mod.data_approvazione`
-  (fallback a `data_chiusura_compilazione`, poi `timezone.now()`), così la data sul
-  documento ufficiale non rivela l'istante reale.
+Sul composito convivono tre date che devono formare una catena coerente:
+
+**RICEVUTO (ricezione) ≤ compilazione ≤ approvazione.**
+
+- **Corpo MOD.133** (`data`, `composito.py:74`) = `data_approvazione or data_chiusura_compilazione`
+  → **invariato**, resta la data (fittizia) di approvazione.
+- **Timbro RICEVUTO** (`data_testo`): oggi è `timezone.now()` in **entrambi** i percorsi —
+  automatico (`composito.py:135`, `_risolvi_timbri`) e tool interattivo (`composito.py:152`,
+  `_risolvi_placements`). Sostituire con **`spec.data_inserimento`** (data reale di ingresso
+  nel portale), formattata `d/m/Y`. Fallback difensivo se assente:
+  `data_chiusura_compilazione` → `timezone.now()`. È l'unica data stampata su un timbro; le
+  firme revisore/approvatore restano PNG senza data.
+- Il timbro RICEVUTO **non** usa `data_approvazione` (sarebbe la data più recente sul timbro
+  più vecchio della catena): decisione esplicita.
 
 ### 5. Dettaglio: mostra "Approvato il"
 
@@ -122,7 +132,7 @@ Nuovo helper nel modulo `gestione_specifiche` (es. `date_utils.py`):
 | Admin «Auto-approvazioni recenti» | elenca gli eventi | **invariato** (timestamp reale) |
 | Admin log | elenca gli eventi (filtro trigger) | **invariato** (timestamp reale) |
 | `EventoSpecifica` DB | eventi con `timestamp` reale | **invariato**: timestamp reali, immutabilità intatta; solo payload di `auto_approvazione` arricchito |
-| PDF composito | `data` = approvazione; timbro = now | `data` invariata; timbro allineato a `data_approvazione` |
+| PDF composito | `data` = approvazione; timbro RICEVUTO = now | corpo `data` invariato (= approvazione); timbro RICEVUTO = `data_inserimento` |
 
 ## Casi limite / regole data
 
@@ -144,6 +154,9 @@ Nuovo helper nel modulo `gestione_specifiche` (es. `date_utils.py`):
 - Timeline utente: l'evento `auto_approvazione` **non** compare nel context; la riga di
   approvazione espone `mod.data_approvazione` (non il timestamp reale dell'evento).
 - Admin: gli eventi `auto_approvazione` **restano** interrogabili (auto_approva + log).
+- Timbro RICEVUTO: `data_testo` = `spec.data_inserimento` (non `now()`), in **entrambi** i
+  percorsi `_risolvi_timbri` e `_risolvi_placements`; catena ricezione ≤ compilazione ≤
+  approvazione rispettata.
 
 ## Non-obiettivi / fuori scope
 
