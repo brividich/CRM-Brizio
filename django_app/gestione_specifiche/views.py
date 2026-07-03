@@ -41,6 +41,7 @@ from .models import (
     MOD133, RigaMOD133, Specifica,
 )
 from .ofi import approva_azione_ofi, crea_ofi_da_riga
+from .timeline import eventi_umanizzati
 
 _INHERIT_FIELDS = ["codice", "titolo", "tipo", "fonte", "cliente", "tag",
                    "note", "commessa_ref", "famiglia_ref"]
@@ -238,7 +239,7 @@ def dettaglio(request, pk: int):
         "azioni_ofi": azioni_ofi,
         "righe_ofi_candidate": righe_ofi_candidate,
         "distribuzioni": spec.distribuzioni.prefetch_related("destinatari"),
-        "eventi": spec.eventi.all()[:50],
+        "eventi": eventi_umanizzati(spec, mod, limit=50),
         "C": C,
     }
     return render(request, "gestione_specifiche/dettaglio.html", context)
@@ -694,7 +695,7 @@ def scheda_storico(request, pk: int):
     context = {
         "spec": spec,
         "catena": _catena_revisioni(spec),
-        "eventi": spec.eventi.all(),
+        "eventi": eventi_umanizzati(spec, mod),
         "righe": mod.righe.all() if mod else [],
         "azioni_ofi": azioni_ofi,
         "distribuzioni": spec.distribuzioni.prefetch_related("destinatari"),

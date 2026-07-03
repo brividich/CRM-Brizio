@@ -162,6 +162,7 @@
           <span><span class="gs-eyebrow">Approvatore</span><div style="font-weight:700; color:#0c2545; margin-top:2px;">{{ mod.approvatore|default:"—" }}</div></span>
           <span><span class="gs-eyebrow">Esito</span><div style="font-weight:700; color:#0c2545; margin-top:2px;">{{ mod.get_esito_display|default:"—" }}</div></span>
           <span><span class="gs-eyebrow">Chiusura compilazione</span><div style="font-weight:700; color:#0c2545; margin-top:2px;">{{ mod.data_chiusura_compilazione|date:"d/m/Y H:i"|default:"—" }}</div></span>
+          <span><span class="gs-eyebrow">Approvato il</span><div style="font-weight:700; color:#0c2545; margin-top:2px;">{{ mod.data_approvazione|date:"d/m/Y H:i"|default:"—" }}</div></span>
         </div>
       </div>
       <div style="padding:6px 0;">
@@ -284,7 +285,7 @@
           <div class="gs-tl__row">
             <div class="gs-tl__rail"><div class="gs-tl__dot {% if e.stato_a == C.STATO_IN_VALIDITA %}is-green{% elif e.stato_a == C.STATO_FLOW_DOWN %}is-blue{% endif %}"></div>{% if not forloop.last %}<div class="gs-tl__line"></div>{% endif %}</div>
             <div class="gs-tl__body">
-              <div class="gs-tl__when">{{ e.timestamp|date:"d/m/Y H:i" }}</div>
+              <div class="gs-tl__when">{{ e.ts_display|date:"d/m/Y H:i" }}</div>
               <div class="gs-tl__title">{{ e.stato_da|default:"—" }} → {{ e.stato_a }}</div>
               <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;"><span style="font-size:11.5px; color:#5b6b82;">{{ e.attore|default:"sistema" }}</span><span class="gs-tag is-grey">trigger: {{ e.trigger|default:"—" }}</span></div>
             </div>

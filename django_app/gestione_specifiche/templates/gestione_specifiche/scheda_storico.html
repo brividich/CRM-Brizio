@@ -44,7 +44,7 @@
           <div class="gs-tl__row">
             <div class="gs-tl__rail"><div class="gs-tl__dot {% if e.stato_a == C.STATO_IN_VALIDITA %}is-green{% elif e.stato_a == C.STATO_FLOW_DOWN %}is-blue{% endif %}"></div>{% if not forloop.last %}<div class="gs-tl__line"></div>{% endif %}</div>
             <div class="gs-tl__body">
-              <div class="gs-tl__when">{{ e.timestamp|date:"d/m/Y H:i" }}</div>
+              <div class="gs-tl__when">{{ e.ts_display|date:"d/m/Y H:i" }}</div>
               <div class="gs-tl__title">{% if e.stato_da and e.stato_da != e.stato_a %}{{ e.stato_da }} → {{ e.stato_a }}{% else %}{{ e.trigger|default:e.stato_a }}{% endif %}</div>
               <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                 <span style="font-size:11.5px; color:#5b6b82;">{{ e.attore|default:"sistema" }}</span>
