@@ -29,6 +29,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
 from . import constants as C
+from .admin_views import utente_puo_admin
 from .ai_copilota import (
     proponi_righe_da_diff, proponi_righe_mod133, proponi_tag, ricerca_semantica,
 )
@@ -156,6 +157,7 @@ def lista(request):
         "STATO_CHOICES": C.STATO_CHOICES,
         "TIPO_CHOICES": C.TIPO_CHOICES,
         "C": C,
+        "puo_admin": utente_puo_admin(request),
     }
     return render(request, "gestione_specifiche/lista.html", context)
 

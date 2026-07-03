@@ -1,0 +1,75 @@
+{% extends "core/base.html" %}
+{% block title %}Mappatura cliente → cartella · Amministrazione{% endblock %}
+{% block extra_head %}{% include "gestione_specifiche/_gs_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="gs-wrap">
+  <a class="gs-back" href="{% url 'gestione_specifiche:admin_home' %}">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=14 %} Amministrazione</a>
+
+  <div class="gs-hdrcard" style="margin-top:8px;">
+    <div class="gs-hdrcard__ic is-navy">{% include "gestione_specifiche/partials/_icon.html" with name="share" size=20 %}</div>
+    <div style="flex:1;">
+      <div class="gs-eyebrow">Amministrazione</div>
+      <h1 style="margin:2px 0 0; font-size:18px; font-weight:800; color:#0c2545;">Mappatura cliente → cartella</h1>
+      <p style="margin:4px 0 0; font-size:12.5px; color:#7c8aa2;">Dove viene depositato il composito di ogni cliente sulla share. Le cartelle sono quelle reali (clienti + sotto-cartelle).</p>
+    </div>
+  </div>
+
+  {% include "gestione_specifiche/partials/_messages.html" %}
+
+  {# --- Aggiungi mappatura --- #}
+  <form method="post" class="gs-panel" style="margin-top:16px; padding:14px 16px; display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+    {% csrf_token %}
+    <div style="flex:1; min-width:200px;">
+      <label class="gs-flabel">Cliente</label>
+      <input type="text" name="cliente" required placeholder="es. Ducati" style="width:100%; padding:8px 10px; border:1px solid #dde8f5; border-radius:8px;">
+    </div>
+    <div style="flex:1; min-width:220px;">
+      <label class="gs-flabel">Cartella share</label>
+      <select name="cartella" required style="width:100%; padding:8px 10px; border:1px solid #dde8f5; border-radius:8px;">
+        <option value="">— scegli una cartella —</option>
+        {% for c in cartelle %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="gs-btn gs-btn--primary" style="height:38px;">{% include "gestione_specifiche/partials/_icon.html" with name="plus" size=15 %} Aggiungi</button>
+  </form>
+
+  {# --- Elenco mappature --- #}
+  <div class="gs-card" style="margin-top:16px; padding:0; overflow:hidden;">
+    <table style="width:100%; border-collapse:collapse; font-size:13px;">
+      <thead>
+        <tr style="background:#eef4fb; text-align:left;">
+          <th style="padding:10px 14px; color:#1c2b42;">Cliente</th>
+          <th style="padding:10px 14px; color:#1c2b42;">Cartella + stato</th>
+          <th style="padding:10px 14px; width:90px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in mappature %}
+        <tr style="border-top:1px solid #eef2f7;">
+          <td style="padding:10px 14px; font-weight:700; color:#0c2545;">{{ m.cliente }}</td>
+          <td style="padding:8px 14px;">
+            <form method="post" action="{% url 'gestione_specifiche:admin_cartella_edit' m.pk %}" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              {% csrf_token %}
+              <select name="cartella" style="padding:6px 8px; border:1px solid #dde8f5; border-radius:7px; min-width:220px;">
+                {% for c in cartelle %}<option value="{{ c }}"{% if c == m.cartella %} selected{% endif %}>{{ c }}</option>{% endfor %}
+                {% if m.cartella not in cartelle %}<option value="{{ m.cartella }}" selected>{{ m.cartella }} — (non trovata sulla share)</option>{% endif %}
+              </select>
+              <label style="font-size:12px; display:inline-flex; align-items:center; gap:5px;"><input type="checkbox" name="attivo" value="1"{% if m.attivo %} checked{% endif %}> attivo</label>
+              <button type="submit" class="gs-btn" style="min-height:30px;">Salva</button>
+            </form>
+          </td>
+          <td style="padding:8px 14px; text-align:right;">
+            <form method="post" action="{% url 'gestione_specifiche:admin_cartella_delete' m.pk %}" onsubmit="return confirm('Eliminare la mappatura di {{ m.cliente|escapejs }}?');" style="display:inline;">
+              {% csrf_token %}<button type="submit" class="gs-btn gs-btn--danger" style="min-height:30px;" title="Elimina">{% include "gestione_specifiche/partials/_icon.html" with name="trash" size=14 %}</button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="3" style="padding:18px; text-align:center; color:#92a0b5; font-style:italic;">Nessuna mappatura. Aggiungine una qui sopra, oppure semina dai dati reali con <code>seed_cartelle_cliente --apply</code>.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

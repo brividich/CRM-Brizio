@@ -19,7 +19,7 @@ from core.acl_bootstrap_base import run_bootstrap
 logger = logging.getLogger(__name__)
 
 MODULE = "gestione_specifiche"
-_BOOTSTRAP_CACHE_KEY = "gestione_specifiche_acl_bootstrap_v9"
+_BOOTSTRAP_CACHE_KEY = "gestione_specifiche_acl_bootstrap_v10"
 
 # --- Permessi canonici --------------------------------------------------------
 PERM_VIEW = "gestione_specifiche.specifica.view"
@@ -30,6 +30,7 @@ PERM_SOSPENDI = "gestione_specifiche.specifica.sospendi"
 PERM_ANNULLA = "gestione_specifiche.specifica.annulla"
 PERM_DEROGA = "gestione_specifiche.distribuzione.deroga"
 PERM_DISTRIBUISCI = "gestione_specifiche.distribuzione.distribuisci"
+PERM_ADMIN = "gestione_specifiche.admin"
 
 _CANONICAL = {
     PERM_VIEW: {"label": "Specifiche - Visualizza", "description": "Accesso elenco/dettaglio/storico specifiche e API."},
@@ -40,6 +41,7 @@ _CANONICAL = {
     PERM_ANNULLA: {"label": "Specifiche - Annulla", "description": "Annullamento e marcatura duplicato."},
     PERM_DEROGA: {"label": "Specifiche - Deroga copie", "description": "Deroga giustificata sulla regola copie cartacee."},
     PERM_DISTRIBUISCI: {"label": "Specifiche - Distribuisci", "description": "Creazione e tracciamento distribuzioni."},
+    PERM_ADMIN: {"label": "Specifiche - Amministrazione", "description": "Sezione admin del modulo: mappatura cartelle, timbri, auto-approvazione, notifiche."},
 }
 
 # Binding route -> permesso (esteso man mano che le rotte vengono aggiunte).
@@ -73,6 +75,11 @@ _ROUTE_BINDINGS = {
     "gestione_specifiche:ai_precompila_mod133": PERM_COMPILA,
     "gestione_specifiche:ai_proponi_tag": PERM_COMPILA,
     "gestione_specifiche:ai_diff_mod133": PERM_COMPILA,
+    # #6 — sezione Amministrazione (ACL PERM_ADMIN)
+    "gestione_specifiche:admin_home": PERM_ADMIN,
+    "gestione_specifiche:admin_cartelle": PERM_ADMIN,
+    "gestione_specifiche:admin_cartella_edit": PERM_ADMIN,
+    "gestione_specifiche:admin_cartella_delete": PERM_ADMIN,
 }
 
 # Grant di default (CREATE-ONLY, l'admin può rifinire in /admin-portale/acl-canonico/).
@@ -97,6 +104,7 @@ _LEGACY_ACTIONS = {
     "gs_annulla": PERM_ANNULLA,
     "gs_deroga": PERM_DEROGA,
     "gs_distribuisci": PERM_DISTRIBUISCI,
+    "gs_admin": PERM_ADMIN,
 }
 
 _PULSANTI_DEFINITIONS = [

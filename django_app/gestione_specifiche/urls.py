@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import admin_views, views
 from .api import api as ninja_api
 
 app_name = "gestione_specifiche"
@@ -36,6 +36,11 @@ urlpatterns = [
     # F9 — Copilota AI (proposte) + ricerca semantica
     path("ricerca/", views.ricerca_semantica_view, name="ricerca"),
     path("guida/", views.guida, name="guida"),
+    # #6 — sezione Amministrazione (ACL PERM_ADMIN)
+    path("admin/", admin_views.admin_home, name="admin_home"),
+    path("admin/cartelle/", admin_views.admin_cartelle, name="admin_cartelle"),
+    path("admin/cartelle/<int:pk>/modifica/", admin_views.admin_cartella_edit, name="admin_cartella_edit"),
+    path("admin/cartelle/<int:pk>/elimina/", admin_views.admin_cartella_delete, name="admin_cartella_delete"),
     path("<int:pk>/ai/precompila-mod133/", views.ai_precompila_mod133, name="ai_precompila_mod133"),
     path("<int:pk>/ai/proponi-tag/", views.ai_proponi_tag, name="ai_proponi_tag"),
     path("<int:pk>/ai/diff-mod133/", views.ai_diff_mod133, name="ai_diff_mod133"),
