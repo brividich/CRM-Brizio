@@ -473,6 +473,37 @@ class ConfigPresaVisione(models.Model):
         return f"{self.get_tipo_documento_display()} / {rep}: {'sì' if self.richiesta else 'no'}"
 
 
+class AutoApprovazioneConfig(models.Model):
+    """#3 — Config (singleton) dell'auto-approvazione del MOD.133.
+
+    Quando ``attiva``, il «Procedi con l'approvazione» approva il MOD.133 automaticamente a nome
+    dell'``approvatore`` di riferimento (MSO): nell'audit risulta approvato da lui, con marcatore
+    `auto=true`. La segregazione dei compiti resta (l'approvatore di record e' l'MSO, ≠ compilatore).
+    """
+    attiva = models.BooleanField("Auto-approvazione attiva", default=False)
+    approvatore = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="+", verbose_name="Approvatore di riferimento (MSO)",
+    )
+    nota = models.CharField("Nota", max_length=300, blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Config auto-approvazione MOD.133"
+        verbose_name_plural = "Config auto-approvazione MOD.133"
+
+    def __str__(self) -> str:
+        return f"Auto-approvazione {'ON' if self.attiva else 'OFF'}"
+
+    @classmethod
+    def get_config(cls) -> "AutoApprovazioneConfig":
+        """Ritorna la config singleton (la crea vuota/OFF se non esiste)."""
+        obj = cls.objects.first()
+        if obj is None:
+            obj = cls.objects.create()
+        return obj
+
+
 class ClienteCartellaShare(models.Model):
     """Mappatura persistente Cliente -> cartella reale sulla share (memoria stabile).
 

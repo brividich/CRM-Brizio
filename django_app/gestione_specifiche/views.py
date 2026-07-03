@@ -35,7 +35,10 @@ from .ai_copilota import (
 )
 from .distribuzione import DerogaCopieRichiesta, crea_distribuzione
 from .forms import ApprovazioneForm, DistribuzioneForm, RigaMOD133FormSet, SpecificaForm
-from .models import AzioneOFI, Distribuzione, MOD133, RigaMOD133, Specifica
+from .models import (
+    AutoApprovazioneConfig, AzioneOFI, Distribuzione, EventoSpecifica,
+    MOD133, RigaMOD133, Specifica,
+)
 from .ofi import approva_azione_ofi, crea_ofi_da_riga
 
 _INHERIT_FIELDS = ["codice", "titolo", "tipo", "fonte", "cliente", "tag",
@@ -392,6 +395,43 @@ def mod133_riga_add(request, pk: int):
     return HttpResponse(html)
 
 
+def _auto_approva_se_configurata(request, spec, mod) -> bool:
+    """#3: se l'auto-approvazione è attiva e c'è un MSO configurato, approva il MOD.133 a suo nome.
+
+    Ritorna True se ha approvato (transizione S2→S3 + audit `auto_approvazione`), False altrimenti.
+    La segregazione resta rispettata: l'approvatore di record è l'MSO (≠ compilatore).
+    """
+    cfg = AutoApprovazioneConfig.get_config()
+    if not cfg.attiva or not cfg.approvatore_id:
+        return False
+    nome = cfg.approvatore.get_full_name() or cfg.approvatore.username
+    try:
+        with transaction.atomic():
+            mod.approvatore_id = cfg.approvatore_id
+            mod.esito = C.ESITO_APPROVATO
+            mod.data_approvazione = timezone.now()
+            mod.save(update_fields=["approvatore", "esito", "data_approvazione", "updated_at"])
+            spec.approva_flow_down(attore=cfg.approvatore)
+            spec.save()
+            EventoSpecifica.objects.create(
+                specifica=spec, stato_da=C.STATO_FLOW_DOWN, stato_a=spec.stato, attore=request.user,
+                trigger="auto_approvazione",
+                payload={"auto": True, "per_conto_di": nome,
+                         "avviata_da": (request.user.get_full_name() or request.user.username)},
+            )
+    except (TransitionNotAllowed, ValidationError) as exc:
+        messages.error(request, f"Auto-approvazione non riuscita: {exc}")
+        return False
+    # #3 + F6b-2: se il deposito automatico è attivo, deposita la forma "approvato" (best-effort).
+    try:
+        from .composito_deposito import deposita_auto
+        deposita_auto(spec, attore=cfg.approvatore)
+    except Exception:  # noqa: BLE001
+        pass
+    messages.success(request, f"MOD.133 approvato automaticamente per conto di {nome}.")
+    return True
+
+
 @login_required
 @require_POST
 def mod133_chiudi(request, pk: int):
@@ -405,9 +445,13 @@ def mod133_chiudi(request, pk: int):
         mod.compilatore = request.user
     mod.data_chiusura_compilazione = timezone.now()
     mod.save(update_fields=["compilatore", "data_chiusura_compilazione", "updated_at"])
+    vai_approva = request.POST.get("vai") == "approva"
+    # #3: se l'auto-approvazione e' attiva, "Procedi con l'approvazione" approva a nome dell'MSO.
+    if vai_approva and _auto_approva_se_configurata(request, spec, mod):
+        return redirect("gestione_specifiche:dettaglio", pk=spec.pk)
     messages.success(request, "Compilazione chiusa: in attesa di approvazione.")
     # #7: "Procedi con l'approvazione" = chiudi + vai diretto alla pagina di approvazione.
-    if request.POST.get("vai") == "approva":
+    if vai_approva:
         return redirect("gestione_specifiche:mod133_approva", pk=spec.pk)
     return redirect("gestione_specifiche:dettaglio", pk=spec.pk)
 

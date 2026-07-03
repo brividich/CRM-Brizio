@@ -1,0 +1,50 @@
+{% extends "core/base.html" %}
+{% block title %}Auto-approvazione MOD.133 · Amministrazione{% endblock %}
+{% block extra_head %}{% include "gestione_specifiche/_gs_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="gs-wrap">
+  <a class="gs-back" href="{% url 'gestione_specifiche:admin_home' %}">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=14 %} Amministrazione</a>
+
+  <div class="gs-hdrcard" style="margin-top:8px;">
+    <div class="gs-hdrcard__ic is-navy">{% include "gestione_specifiche/partials/_icon.html" with name="shield" size=20 %}</div>
+    <div style="flex:1;">
+      <div class="gs-eyebrow">Amministrazione</div>
+      <h1 style="margin:2px 0 0; font-size:18px; font-weight:800; color:#0c2545;">Auto-approvazione MOD.133</h1>
+      <p style="margin:4px 0 0; font-size:12.5px; color:#7c8aa2;">Se attiva, «Procedi con l'approvazione» approva il MOD.133 <strong>automaticamente</strong> a nome dell'MSO — senza attendere un secondo utente. Nel log risulta approvato dall'MSO (con marcatore automatico).</p>
+    </div>
+  </div>
+
+  {% include "gestione_specifiche/partials/_messages.html" %}
+
+  <form method="post" class="gs-card" style="margin-top:16px; padding:20px; max-width:640px; display:flex; flex-direction:column; gap:16px;">
+    {% csrf_token %}
+    <label style="display:flex; align-items:center; gap:10px; font-size:14px; font-weight:700; color:#0c2545; cursor:pointer;">
+      <input type="checkbox" name="attiva" value="1"{% if cfg.attiva %} checked{% endif %} style="width:18px; height:18px;">
+      Auto-approvazione attiva
+    </label>
+
+    <div>
+      <label class="gs-flabel">Approvatore di riferimento (MSO)</label>
+      <select name="approvatore" style="width:100%; padding:9px 10px; border:1px solid #dde8f5; border-radius:8px;">
+        <option value="">— nessuno —</option>
+        {% for u in utenti %}<option value="{{ u.pk }}"{% if u.pk == cfg.approvatore_id %} selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>{% endfor %}
+      </select>
+      <div style="font-size:11.5px; color:#7c8aa2; margin-top:5px;">Chi risulterà «approvatore» nel log; il MOD.133 verrà approvato a suo nome. Obbligatorio per attivare.</div>
+    </div>
+
+    <div>
+      <label class="gs-flabel">Nota (opzionale)</label>
+      <input type="text" name="nota" value="{{ cfg.nota }}" placeholder="es. delega approvazione MOD.133 come da procedura X" style="width:100%; padding:9px 10px; border:1px solid #dde8f5; border-radius:8px;">
+    </div>
+
+    <div>
+      <button type="submit" class="gs-btn gs-btn--primary">{% include "gestione_specifiche/partials/_icon.html" with name="check" size=15 %} Salva configurazione</button>
+    </div>
+  </form>
+
+  <div class="gs-panel" style="margin-top:14px; padding:14px 16px; max-width:640px; font-size:12.5px; color:#5b6b82;">
+    <strong style="color:#0c2545;">Come funziona.</strong> La segregazione dei compiti resta rispettata: l'approvatore <em>di record</em> è l'MSO configurato (≠ compilatore). Nell'audit compare «Approvato automaticamente (per conto di {% if cfg.approvatore %}{{ cfg.approvatore.get_full_name|default:cfg.approvatore.username }}{% else %}MSO{% endif %})», con l'indicazione di chi ha avviato l'operazione.
+  </div>
+</div>
+{% endblock %}

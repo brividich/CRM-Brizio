@@ -13,7 +13,7 @@ from django.views.decorators.http import require_POST
 
 from .acl_bootstrap import PERM_ADMIN
 from .cartelle_cliente import cartelle_disponibili
-from .models import ClienteCartellaShare
+from .models import AutoApprovazioneConfig, ClienteCartellaShare
 
 
 def utente_puo_admin(request) -> bool:
@@ -36,8 +36,6 @@ def utente_puo_admin(request) -> bool:
 _AREE_PLACEHOLDER = [
     {"titolo": "Timbri per capocommessa", "icon": "user",
      "desc": "Timbro ricevuto + firma da sovrapporre al MOD.133 (arriva col MOD.133 reale)."},
-    {"titolo": "Auto-approvazione MOD.133", "icon": "shield",
-     "desc": "Delega di approvazione automatica (registrata a nome MSO)."},
     {"titolo": "Notifiche / assegnazione", "icon": "share",
      "desc": "Incaricato o gruppo IN1 a cui notificare le nuove specifiche."},
 ]
@@ -46,8 +44,10 @@ _AREE_PLACEHOLDER = [
 @login_required
 def admin_home(request):
     """Landing della sezione Amministrazione: card per ogni area gestibile."""
+    cfg = AutoApprovazioneConfig.get_config()
     return render(request, "gestione_specifiche/admin/home.html", {
         "n_mappature": ClienteCartellaShare.objects.count(),
+        "auto_attiva": cfg.attiva,
         "aree_placeholder": _AREE_PLACEHOLDER,
     })
 
@@ -95,3 +95,26 @@ def admin_cartella_delete(request, pk: int):
     m.delete()
     messages.success(request, f"Mappatura eliminata: {cliente}.")
     return redirect("gestione_specifiche:admin_cartelle")
+
+
+@login_required
+def admin_auto_approva(request):
+    """#3 — Config auto-approvazione MOD.133: attiva + approvatore MSO."""
+    from django.contrib.auth import get_user_model
+
+    cfg = AutoApprovazioneConfig.get_config()
+    if request.method == "POST":
+        cfg.attiva = request.POST.get("attiva") == "1"
+        appr = (request.POST.get("approvatore") or "").strip()
+        cfg.approvatore_id = int(appr) if appr.isdigit() else None
+        cfg.nota = (request.POST.get("nota") or "").strip()[:300]
+        if cfg.attiva and not cfg.approvatore_id:
+            messages.error(request, "Per attivare l'auto-approvazione serve un approvatore di riferimento (MSO).")
+            cfg.attiva = False
+        cfg.save()
+        messages.success(request, "Configurazione auto-approvazione salvata.")
+        return redirect("gestione_specifiche:admin_auto_approva")
+
+    User = get_user_model()
+    utenti = User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
+    return render(request, "gestione_specifiche/admin/auto_approva.html", {"cfg": cfg, "utenti": utenti})

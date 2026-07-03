@@ -19,7 +19,7 @@ from core.acl_bootstrap_base import run_bootstrap
 logger = logging.getLogger(__name__)
 
 MODULE = "gestione_specifiche"
-_BOOTSTRAP_CACHE_KEY = "gestione_specifiche_acl_bootstrap_v10"
+_BOOTSTRAP_CACHE_KEY = "gestione_specifiche_acl_bootstrap_v11"
 
 # --- Permessi canonici --------------------------------------------------------
 PERM_VIEW = "gestione_specifiche.specifica.view"
@@ -80,6 +80,7 @@ _ROUTE_BINDINGS = {
     "gestione_specifiche:admin_cartelle": PERM_ADMIN,
     "gestione_specifiche:admin_cartella_edit": PERM_ADMIN,
     "gestione_specifiche:admin_cartella_delete": PERM_ADMIN,
+    "gestione_specifiche:admin_auto_approva": PERM_ADMIN,
 }
 
 # Grant di default (CREATE-ONLY, l'admin può rifinire in /admin-portale/acl-canonico/).
