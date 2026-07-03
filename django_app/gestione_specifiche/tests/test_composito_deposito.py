@@ -9,6 +9,8 @@ import tempfile
 from unittest.mock import patch
 
 import fitz
+from cryptography.fernet import Fernet
+from django.core.files.base import ContentFile
 from django.test import TestCase, override_settings
 
 from gestione_specifiche import constants as C
@@ -73,6 +75,22 @@ class DepositoCompositoTest(TestCase):
         self.assertEqual(spec.percorso_esterno, piano.target)
         self.assertTrue(EventoSpecifica.objects.filter(
             specifica=spec, trigger="deposito_composito_share").exists())
+
+    def test_deposita_con_allegato_reale_cifrato(self):
+        # NON mockato: allegato REALE nello storage CIFRATO -> deposita deve leggere+decifrare+scrivere.
+        # (Avrebbe preso il bug "originale_mancante": lettura sbagliata dell'allegato cifrato.)
+        media = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, media, ignore_errors=True)
+        spec = Specifica.objects.create(codice="ENC-1", revisione="0", titolo="t")
+        with override_settings(DOCUMENT_ENCRYPTION_KEY=Fernet.generate_key().decode(),
+                               GESTIONE_SPECIFICHE_PRIVATE_ROOT=media,
+                               GESTIONE_SPECIFICHE_SHARE_ROOTS=[self.root]):
+            spec.allegato.save("enc.pdf", ContentFile(_pdf(["RAW-CIFRATO"])), save=False)
+            Specifica.objects.filter(pk=spec.pk).update(allegato=spec.allegato.name)
+            spec = Specifica.objects.get(pk=spec.pk)
+            piano = deposita(spec, cartella=self.cart, dry_run=False)
+        self.assertEqual(piano.esito, "ok")
+        self.assertTrue(os.path.isfile(piano.target))
 
     def test_apply_legge_il_raw_una_sola_volta(self):
         # Regressione: l'allegato cifrato non e' ri-leggibile 2 volte nello stesso processo ->

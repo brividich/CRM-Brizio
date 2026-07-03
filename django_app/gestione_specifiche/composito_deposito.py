@@ -80,13 +80,11 @@ def _leggi_raw(spec) -> bytes | None:
     if not alleg:
         return None
     try:
-        # Apertura via storage (non ``alleg.open``): evita la cache del FieldFile, che sullo storage
-        # cifrato rende non ri-leggibile una seconda volta lo stesso allegato nello stesso processo.
-        fh = alleg.storage.open(alleg.name, "rb")
-        try:
+        # NB: usare ``alleg.open`` (passa dal layer di decifratura dello storage cifrato); NON
+        # ``alleg.storage.open`` che restituirebbe i byte cifrati. La non-ri-leggibilita' nello stesso
+        # processo e' gestita a monte: ``deposita`` genera il composito UNA sola volta (letto una volta).
+        with alleg.open("rb") as fh:
             return fh.read()
-        finally:
-            fh.close()
     except Exception:  # noqa: BLE001
         return None
 
