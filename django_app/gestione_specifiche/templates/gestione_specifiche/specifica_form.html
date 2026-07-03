@@ -30,7 +30,7 @@
   {# #5 — Assegnazione: persona (menu) oppure Gruppo IN1 (default). Notifica alla creazione. #}
   <div style="margin-top:14px;">
     <div class="lbl">Assegna a</div>
-    <select name="incaricato" style="width:100%; max-width:420px; padding:8px 10px; border:1px solid #dde8f5; border-radius:8px;">
+    <select name="incaricato" class="gs-input" style="max-width:420px;">
       <option value="">Gruppo IN1 — chi è disponibile la prende in carico</option>
       {% for u in pool_incaricati %}<option value="{{ u.pk }}">{{ u.get_full_name|default:u.username }}</option>{% endfor %}
     </select>

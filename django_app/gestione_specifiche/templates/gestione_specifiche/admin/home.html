@@ -6,7 +6,7 @@
 <div class="gs-wrap">
   <a class="gs-back" href="{% url 'gestione_specifiche:lista' %}">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=14 %} Cruscotto specifiche</a>
 
-  <div class="gs-hdrcard" style="margin-top:8px;">
+  <div class="gs-hdrcard">
     <div class="gs-hdrcard__ic is-navy">{% include "gestione_specifiche/partials/_icon.html" with name="shield" size=20 %}</div>
     <div style="flex:1;">
       <div class="gs-eyebrow">Modulo Specifiche</div>
@@ -17,42 +17,68 @@
 
   {% include "gestione_specifiche/partials/_messages.html" %}
 
-  <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px; margin-top:18px;">
-    <a href="{% url 'gestione_specifiche:admin_specifiche' %}" style="text-decoration:none; display:block; padding:18px; border:1px solid #e6eef7; border-radius:14px; background:#fff; box-shadow:0 1px 4px rgba(28,43,66,.05);">
-      <div style="display:flex; align-items:center; gap:9px;">{% include "gestione_specifiche/partials/_icon.html" with name="grid" size=17 %}<strong style="font-size:14px; color:#0c2545;">Gestione specifiche</strong></div>
-      <p style="margin:8px 0 0; font-size:12px; color:#5b6b82;">Elenco completo (ogni stato) con ricerca, filtro e riassegna incaricato. <strong>{{ n_specifiche }}</strong> in archivio.</p>
-      <span style="display:inline-block; margin-top:8px; font-size:11px; font-weight:700; color:#1f9d63; background:#e4f5ec; padding:2px 9px; border-radius:10px;">Attiva</span>
+  <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(270px,1fr)); gap:16px; margin-top:18px;">
+
+    <a class="gs-kpi gs-kpi--link" href="{% url 'gestione_specifiche:admin_specifiche' %}">
+      <div class="gs-kpi__top">
+        <div class="gs-kpi__icon is-blue">{% include "gestione_specifiche/partials/_icon.html" with name="grid" size=20 %}</div>
+        <span class="gs-kpi__arrow">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=16 %}</span>
+      </div>
+      <div style="font-size:15px; font-weight:800; color:#0c2545; margin-top:14px;">Gestione specifiche</div>
+      <div style="font-size:12px; color:#7c8aa2; margin-top:5px; line-height:1.45;">Elenco completo (ogni stato) con ricerca, filtro e riassegna incaricato. <strong>{{ n_specifiche }}</strong> in archivio.</div>
+      <span class="gs-tag is-blue" style="margin-top:12px;">Elenco</span>
     </a>
 
-    <a href="{% url 'gestione_specifiche:admin_cartelle' %}" style="text-decoration:none; display:block; padding:18px; border:1px solid #e6eef7; border-radius:14px; background:#fff; box-shadow:0 1px 4px rgba(28,43,66,.05);">
-      <div style="display:flex; align-items:center; gap:9px;">{% include "gestione_specifiche/partials/_icon.html" with name="share" size=17 %}<strong style="font-size:14px; color:#0c2545;">Mappatura cliente → cartella</strong></div>
-      <p style="margin:8px 0 0; font-size:12px; color:#5b6b82;">Dove va il composito di ogni cliente sulla share. <strong>{{ n_mappature }}</strong> mappatur{{ n_mappature|pluralize:"a,e" }}.</p>
-      <span style="display:inline-block; margin-top:8px; font-size:11px; font-weight:700; color:#1f9d63; background:#e4f5ec; padding:2px 9px; border-radius:10px;">Attiva</span>
+    <a class="gs-kpi gs-kpi--link" href="{% url 'gestione_specifiche:admin_cartelle' %}">
+      <div class="gs-kpi__top">
+        <div class="gs-kpi__icon is-blue">{% include "gestione_specifiche/partials/_icon.html" with name="share" size=20 %}</div>
+        <span class="gs-kpi__arrow">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=16 %}</span>
+      </div>
+      <div style="font-size:15px; font-weight:800; color:#0c2545; margin-top:14px;">Mappatura cliente → cartella</div>
+      <div style="font-size:12px; color:#7c8aa2; margin-top:5px; line-height:1.45;">Dove va il composito di ogni cliente sulla share. <strong>{{ n_mappature }}</strong> mappatur{{ n_mappature|pluralize:"a,e" }}.</div>
+      <span class="gs-tag is-green" style="margin-top:12px;">Attiva</span>
     </a>
 
-    <a href="{% url 'gestione_specifiche:admin_auto_approva' %}" style="text-decoration:none; display:block; padding:18px; border:1px solid #e6eef7; border-radius:14px; background:#fff; box-shadow:0 1px 4px rgba(28,43,66,.05);">
-      <div style="display:flex; align-items:center; gap:9px;">{% include "gestione_specifiche/partials/_icon.html" with name="shield" size=17 %}<strong style="font-size:14px; color:#0c2545;">Auto-approvazione MOD.133</strong></div>
-      <p style="margin:8px 0 0; font-size:12px; color:#5b6b82;">Approva il MOD.133 automaticamente a nome dell'MSO (registrato nel log).</p>
-      {% if auto_attiva %}<span style="display:inline-block; margin-top:8px; font-size:11px; font-weight:700; color:#1f9d63; background:#e4f5ec; padding:2px 9px; border-radius:10px;">Attiva</span>{% else %}<span style="display:inline-block; margin-top:8px; font-size:11px; font-weight:700; color:#7c8aa2; background:#eef2f7; padding:2px 9px; border-radius:10px;">Disattivata</span>{% endif %}
+    <a class="gs-kpi gs-kpi--link" href="{% url 'gestione_specifiche:admin_auto_approva' %}">
+      <div class="gs-kpi__top">
+        <div class="gs-kpi__icon is-amber">{% include "gestione_specifiche/partials/_icon.html" with name="shield" size=20 %}</div>
+        <span class="gs-kpi__arrow">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=16 %}</span>
+      </div>
+      <div style="font-size:15px; font-weight:800; color:#0c2545; margin-top:14px;">Auto-approvazione MOD.133</div>
+      <div style="font-size:12px; color:#7c8aa2; margin-top:5px; line-height:1.45;">Approva il MOD.133 automaticamente a nome dell'MSO (registrato nel log).</div>
+      {% if auto_attiva %}<span class="gs-tag is-green" style="margin-top:12px;">Attiva</span>{% else %}<span class="gs-tag is-grey" style="margin-top:12px;">Disattivata</span>{% endif %}
     </a>
 
-    <a href="{% url 'gestione_specifiche:admin_notifiche' %}" style="text-decoration:none; display:block; padding:18px; border:1px solid #e6eef7; border-radius:14px; background:#fff; box-shadow:0 1px 4px rgba(28,43,66,.05);">
-      <div style="display:flex; align-items:center; gap:9px;">{% include "gestione_specifiche/partials/_icon.html" with name="share" size=17 %}<strong style="font-size:14px; color:#0c2545;">Notifiche / assegnazione</strong></div>
-      <p style="margin:8px 0 0; font-size:12px; color:#5b6b82;">Incaricato o gruppo IN1 avvisato alla nuova specifica. Reparto: <strong>{{ reparto_in1 }}</strong>.</p>
-      <span style="display:inline-block; margin-top:8px; font-size:11px; font-weight:700; color:#1f9d63; background:#e4f5ec; padding:2px 9px; border-radius:10px;">Attiva</span>
+    <a class="gs-kpi gs-kpi--link" href="{% url 'gestione_specifiche:admin_notifiche' %}">
+      <div class="gs-kpi__top">
+        <div class="gs-kpi__icon is-blue">{% include "gestione_specifiche/partials/_icon.html" with name="mail" size=20 %}</div>
+        <span class="gs-kpi__arrow">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=16 %}</span>
+      </div>
+      <div style="font-size:15px; font-weight:800; color:#0c2545; margin-top:14px;">Notifiche / assegnazione</div>
+      <div style="font-size:12px; color:#7c8aa2; margin-top:5px; line-height:1.45;">Incaricato o gruppo IN1 avvisato alla nuova specifica. Reparto: <strong>{{ reparto_in1 }}</strong>.</div>
+      <span class="gs-tag is-green" style="margin-top:12px;">Attiva</span>
     </a>
 
-    <a href="{% url 'gestione_specifiche:admin_log' %}" style="text-decoration:none; display:block; padding:18px; border:1px solid #e6eef7; border-radius:14px; background:#fff; box-shadow:0 1px 4px rgba(28,43,66,.05);">
-      <div style="display:flex; align-items:center; gap:9px;">{% include "gestione_specifiche/partials/_icon.html" with name="clock" size=17 %}<strong style="font-size:14px; color:#0c2545;">Log / Audit</strong></div>
-      <p style="margin:8px 0 0; font-size:12px; color:#5b6b82;">Cronologia eventi del modulo (sola lettura). <strong>{{ n_eventi }}</strong> event{{ n_eventi|pluralize:"o,i" }}.</p>
-      <span style="display:inline-block; margin-top:8px; font-size:11px; font-weight:700; color:#1f9d63; background:#e4f5ec; padding:2px 9px; border-radius:10px;">Attiva</span>
+    <a class="gs-kpi gs-kpi--link" href="{% url 'gestione_specifiche:admin_timbri' %}">
+      <div class="gs-kpi__top">
+        <div class="gs-kpi__icon is-green">{% include "gestione_specifiche/partials/_icon.html" with name="user" size=20 %}</div>
+        <span class="gs-kpi__arrow">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=16 %}</span>
+      </div>
+      <div style="font-size:15px; font-weight:800; color:#0c2545; margin-top:14px;">Timbri capocommessa</div>
+      <div style="font-size:12px; color:#7c8aa2; margin-top:5px; line-height:1.45;">RICEVUTO + firme MOD.133 da sovrapporre al composito. <strong>{{ n_timbri }}</strong> caricat{{ n_timbri|pluralize:"o,i" }}.</div>
+      <span class="gs-tag is-green" style="margin-top:12px;">Attiva</span>
     </a>
 
-    <a href="{% url 'gestione_specifiche:admin_timbri' %}" style="text-decoration:none; display:block; padding:18px; border:1px solid #e6eef7; border-radius:14px; background:#fff; box-shadow:0 1px 4px rgba(28,43,66,.05);">
-      <div style="display:flex; align-items:center; gap:9px;">{% include "gestione_specifiche/partials/_icon.html" with name="user" size=17 %}<strong style="font-size:14px; color:#0c2545;">Timbri capocommessa</strong></div>
-      <p style="margin:8px 0 0; font-size:12px; color:#5b6b82;">Timbro «RICEVUTO» per capocommessa da sovrapporre al composito. <strong>{{ n_timbri }}</strong> caricat{{ n_timbri|pluralize:"o,i" }}.</p>
-      <span style="display:inline-block; margin-top:8px; font-size:11px; font-weight:700; color:#a86a14; background:#fbeede; padding:2px 9px; border-radius:10px;">Caricamento attivo · overlay in arrivo</span>
+    <a class="gs-kpi gs-kpi--link" href="{% url 'gestione_specifiche:admin_log' %}">
+      <div class="gs-kpi__top">
+        <div class="gs-kpi__icon is-grey">{% include "gestione_specifiche/partials/_icon.html" with name="clock" size=20 %}</div>
+        <span class="gs-kpi__arrow">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=16 %}</span>
+      </div>
+      <div style="font-size:15px; font-weight:800; color:#0c2545; margin-top:14px;">Log / Audit</div>
+      <div style="font-size:12px; color:#7c8aa2; margin-top:5px; line-height:1.45;">Cronologia eventi del modulo (sola lettura). <strong>{{ n_eventi }}</strong> event{{ n_eventi|pluralize:"o,i" }}.</div>
+      <span class="gs-tag is-grey" style="margin-top:12px;">Sola lettura</span>
     </a>
+
   </div>
 </div>
 {% endblock %}
