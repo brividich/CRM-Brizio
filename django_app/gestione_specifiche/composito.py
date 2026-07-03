@@ -22,7 +22,8 @@ import os
 
 from django.conf import settings
 
-from .mod133_render import render_cover_attesa, render_mod133
+from .mod133_overlay import render_mod133_overlay
+from .mod133_render import render_cover_attesa
 from .pdf_compose import anteponi_pagine, applica_filigrana, applica_protezione
 
 logger = logging.getLogger(__name__)
@@ -147,7 +148,8 @@ def componi_composito_ufficiale(
             "Owner-password mancante: impossibile produrre un composito protetto "
             "(configurare GESTIONE_SPECIFICHE_PDF_OWNER_PASSWORD nel .env)."
         )
-    pagina_mod133 = render_mod133(dati_mod133)
+    # #1: usa il MOD.133 REALE come template (overlay pymupdf), non il render reportlab.
+    pagina_mod133 = render_mod133_overlay(dati_mod133)
     composito = anteponi_pagine(originale_pdf, [pagina_mod133])
     if proteggi:
         composito = applica_protezione(
