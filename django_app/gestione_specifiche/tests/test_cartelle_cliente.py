@@ -5,6 +5,7 @@ import tempfile
 from io import StringIO
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -16,13 +17,30 @@ from gestione_specifiche.models import ClienteCartellaShare, Specifica
 
 class CartelleClienteTest(TestCase):
     def setUp(self):
+        cache.clear()
         self.root = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
         for f in ("DUCATI", "FERRARI - FERRARI GES", "GE AVIO AERO"):
             os.makedirs(os.path.join(self.root, f))
+        # sotto-cartella dentro un cliente (le cartelle cliente hanno sotto-cartelle)
+        self.sub = os.path.join("FERRARI - FERRARI GES", "Motori")
+        os.makedirs(os.path.join(self.root, self.sub))
 
     def _ctx(self):
         return override_settings(GESTIONE_SPECIFICHE_SHARE_ROOTS=[self.root])
+
+    def test_include_sottocartelle(self):
+        with self._ctx():
+            disp = cc.cartelle_disponibili()
+        self.assertIn("FERRARI - FERRARI GES", disp)
+        self.assertIn(self.sub, disp)   # cliente\sottocartella presente (depth 2 default)
+
+    def test_risolvi_sottocartella(self):
+        ClienteCartellaShare.objects.create(cliente="Ferrari Motori", cartella=self.sub)
+        with self._ctx():
+            path, fonte = cc.risolvi("Ferrari Motori")
+        self.assertEqual(fonte, "mappatura")
+        self.assertTrue(path and path.endswith(self.sub))
 
     def test_suggerisci_match_lessicale(self):
         with self._ctx():
@@ -82,6 +100,7 @@ class CartellaSuggeritaViewTest(TestCase):
     """Fase 2: endpoint HTMX + salvataggio (conferma) della mappatura dal form."""
 
     def setUp(self):
+        cache.clear()
         self.root = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
         for f in ("DUCATI", "FERRARI - FERRARI GES"):

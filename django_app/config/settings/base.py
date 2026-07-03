@@ -638,6 +638,11 @@ GESTIONE_SPECIFICHE = {
 # sulla share avvengono solo se attivato esplicitamente in prod, e comunque richiedono la Modifica
 # share per l'app-pool + GESTIONE_SPECIFICHE_PDF_OWNER_PASSWORD.
 GESTIONE_SPECIFICHE_COMPOSITO_AUTO = env_bool("GESTIONE_SPECIFICHE_COMPOSITO_AUTO", False)
+# Profondità cartelle proposte per la destinazione del composito: 1=solo cartelle cliente,
+# 2=cliente + sotto-cartelle (default), 3=due livelli di sotto-cartelle. Il camminamento della
+# share è cache-ato per GESTIONE_SPECIFICHE_SHARE_CACHE_TTL secondi (default 600).
+GESTIONE_SPECIFICHE_SHARE_MAX_DEPTH = int(env("GESTIONE_SPECIFICHE_SHARE_MAX_DEPTH", "2") or "2")
+GESTIONE_SPECIFICHE_SHARE_CACHE_TTL = int(env("GESTIONE_SPECIFICHE_SHARE_CACHE_TTL", "600") or "600")
 
 # Chiave AES-256 Fernet per cifratura at rest dei file privati.
 # Generare con: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
