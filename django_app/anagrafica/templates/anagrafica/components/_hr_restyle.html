@@ -118,6 +118,8 @@ a.hr-metric:hover, button.hr-metric:hover { transform:translateY(-2px); box-shad
 .hr-btn-outline:hover { background:#f8fafc; }
 .hr-btn-ghost { background:#f1f5f9; color:#334155; }
 .hr-btn-ghost:hover { background:#e2e8f0; }
+.hr-btn-danger { background:#fef2f2; color:#b91c1c; border-color:#fecaca; }
+.hr-btn-danger:hover { background:#fee2e2; }
 .hr-btn-sm { padding:5px 10px; font-size:12px; border-radius:9px; }
 
 /* ── Tab bar / subnav a pill ─────────────────────────────────────────────── */
@@ -221,6 +223,35 @@ body.theme-dark .hr-soon { background:var(--surface-alt); border-color:var(--bor
 body.theme-dark .hr-tab:hover { background:var(--surface-alt); }
 body.theme-dark .hr-btn-outline { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
 body.theme-dark .hr-btn-ghost { background:var(--surface-alt); color:var(--text-mid); }
+body.theme-dark .hr-btn-danger { background:rgba(185,28,28,.16); color:#fca5a5; border-color:rgba(248,113,113,.35); }
 body.theme-dark .hr-search input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
 </style>
 {% include "anagrafica/components/_info_styles.html" %}
+<script>
+(function () {
+  /* Accessibilità condivisa: rende operabili da tastiera (Invio / Spazio) gli
+     elementi interattivi NON nativi marcati role="button" con onclick
+     (header collassabili, righe/celle cliccabili, apri-modale). Le pagine
+     aggiungono solo gli attributi role/tabindex; il comportamento è qui, una volta.
+     Idempotente (data-kbd-bound) e rieseguito dopo gli swap HTMX. */
+  function initA11yButtons(root) {
+    (root || document).querySelectorAll('[role="button"][onclick]').forEach(function (el) {
+      var t = el.tagName;
+      if (t === 'BUTTON' || t === 'A' || t === 'INPUT') return;   // già accessibili
+      if (el.dataset.kbdBound) return;                             // evita doppio binding
+      el.dataset.kbdBound = '1';
+      if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '0');
+      el.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
+      });
+    });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { initA11yButtons(); });
+  } else {
+    initA11yButtons();
+  }
+  // Contenuti caricati via HTMX (candidati, righe, pannelli): riesegue sul frammento.
+  document.addEventListener('htmx:afterSwap', function (e) { initA11yButtons(e.target); });
+})();
+</script>

@@ -53,12 +53,12 @@
 .senza-area-band { background:#fff8f0; border-left:4px solid #f59e0b; }
 .senza-area-band td { color:#92400e; font-size:12px; font-weight:600; }
 
-/* Tabs */
-.hr-tabs { display:flex; gap:2px; border-bottom:2px solid #e2e8f0; margin-bottom:0; }
-.hr-tab { padding:10px 18px; font-size:13px; font-weight:600; color:#64748b; cursor:pointer; border:none; background:none; border-bottom:2px solid transparent; margin-bottom:-2px; transition:color .15s,border-color .15s; }
-.hr-tab.active { color:#1f87cd; border-bottom-color:#1f87cd; }
-.hr-tab-panel { display:none; }
-.hr-tab-panel.active { display:block; }
+/* Tabs (prefisso locale cat-* per non collidere con il componente pill hr-tabs di _hr_restyle) */
+.cat-tabs { display:flex; gap:2px; border-bottom:2px solid #e2e8f0; margin-bottom:0; }
+.cat-tab { padding:10px 18px; font-size:13px; font-weight:600; color:#64748b; cursor:pointer; border:none; background:none; border-bottom:2px solid transparent; margin-bottom:-2px; transition:color .15s,border-color .15s; }
+.cat-tab.active { color:#1f87cd; border-bottom-color:#1f87cd; }
+.cat-tab-panel { display:none; }
+.cat-tab-panel.active { display:block; }
 
 /* Dark */
 body.theme-dark .cat-title { color:var(--text); }
@@ -94,17 +94,17 @@ body.theme-dark .cat-input, body.theme-dark .cat-select { background:var(--surfa
   <!-- ── TAB BAR ── -->
   <div class="cat-card" style="overflow:visible;">
     <div style="padding:0 20px;">
-      <div class="hr-tabs">
-        <button class="hr-tab active" data-tab="struttura">Struttura gerarchica</button>
+      <div class="cat-tabs">
+        <button class="cat-tab active" data-tab="struttura">Struttura gerarchica</button>
         {% if is_admin %}
-        <button class="hr-tab" data-tab="add-area">+ Area aziendale</button>
-        <button class="hr-tab" data-tab="add-reparto">+ Reparto</button>
+        <button class="cat-tab" data-tab="add-area">+ Area aziendale</button>
+        <button class="cat-tab" data-tab="add-reparto">+ Reparto</button>
         {% endif %}
       </div>
     </div>
 
     <!-- ── TAB: Struttura ── -->
-    <div class="hr-tab-panel active" data-tab-panel="struttura">
+    <div class="cat-tab-panel active" data-tab-panel="struttura">
       <table class="cat-table" data-table-id="anagrafica.aree.list">
         <thead>
           <tr>
@@ -250,7 +250,7 @@ body.theme-dark .cat-input, body.theme-dark .cat-select { background:var(--surfa
 
     {% if is_admin %}
     <!-- ── TAB: Nuova area aziendale ── -->
-    <div class="hr-tab-panel" data-tab-panel="add-area">
+    <div class="cat-tab-panel" data-tab-panel="add-area">
       <div style="padding:20px;">
         <div class="cat-add-title">Nuova area aziendale</div>
         <form method="post" action="{% url 'anagrafica:area_aziendale_create' %}">
@@ -277,7 +277,7 @@ body.theme-dark .cat-input, body.theme-dark .cat-select { background:var(--surfa
     </div>
 
     <!-- ── TAB: Nuovo reparto ── -->
-    <div class="hr-tab-panel" data-tab-panel="add-reparto">
+    <div class="cat-tab-panel" data-tab-panel="add-reparto">
       <div style="padding:20px;">
         <div class="cat-add-title">Nuovo reparto</div>
         <form method="post" action="{% url 'anagrafica:area_create' %}">
@@ -405,11 +405,11 @@ body.theme-dark .cat-input, body.theme-dark .cat-select { background:var(--surfa
 <script>
 (function() {
   // ── Tab navigation ──
-  document.querySelectorAll('.hr-tab').forEach(function(tab) {
+  document.querySelectorAll('.cat-tab').forEach(function(tab) {
     tab.addEventListener('click', function() {
       var key = tab.getAttribute('data-tab');
-      document.querySelectorAll('.hr-tab').forEach(function(t) { t.classList.remove('active'); });
-      document.querySelectorAll('.hr-tab-panel').forEach(function(p) { p.classList.remove('active'); });
+      document.querySelectorAll('.cat-tab').forEach(function(t) { t.classList.remove('active'); });
+      document.querySelectorAll('.cat-tab-panel').forEach(function(p) { p.classList.remove('active'); });
       tab.classList.add('active');
       var panel = document.querySelector('[data-tab-panel="' + key + '"]');
       if (panel) panel.classList.add('active');

@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=2">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
 <style>
 /* Stili residui per il form di creazione e il modale (logica invariata). */
 .ql-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; transition:background .15s; }
@@ -136,7 +136,7 @@
                 <td class="fmd-nowrap">
                   <div style="display:flex;gap:6px;">
                     <button type="button" class="ql-btn ql-btn-ghost ql-btn-sm"
-                      onclick="openEdit({{ t.id }}, '{{ t.nome|escapejs }}', '{{ t.categoria }}', {{ t.durata_mesi }}, '{{ t.descrizione|escapejs }}', {{ t.is_active|yesno:'true,false' }})">Modifica</button>
+                      onclick="openEdit({{ t.id }}, '{{ t.nome|escapejs }}', '{{ t.categoria }}', '{{ t.durata_mesi|default_if_none:'' }}', '{{ t.descrizione|escapejs }}', {{ t.is_active|yesno:'true,false' }})">Modifica</button>
                     {% if t.n_assegnazioni == 0 %}
                     <form method="post" action="{% url 'anagrafica:tipo_qualifica_delete' t.id %}" style="display:inline;">
                       {% csrf_token %}

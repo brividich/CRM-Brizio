@@ -40,7 +40,7 @@
       </form>
       {% endif %}
       <a href="{% url 'anagrafica:formazione_corso_create' %}?piano={{ piano.pk }}"
-         class="hr-btn hr-btn-primary {% if not is_editor %}hr-btn-ghost{% endif %}">
+         class="hr-btn {% if is_editor %}hr-btn-primary{% else %}hr-btn-ghost{% endif %}">
         + Nuovo corso
       </a>
     </div>

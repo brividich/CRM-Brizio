@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=2">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -97,12 +97,12 @@
       </div>
 
       <div class="fmd-tfoot">
-        <span class="fmd-info">Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }} · {{ page_obj.paginator.count }} dipendenti{% if q or reparto %} (filtrati){% endif %}</span>
+        <span class="fmd-info">Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }} · {{ page_obj.paginator.count }} dipendenti{% if q or reparto or area or tipologia_contratto %} (filtrati){% endif %}</span>
         {% if page_obj.has_other_pages %}
         <div class="fmd-pager">
-          {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}&q={{ q }}&reparto={{ reparto }}">‹</a>{% endif %}
+          {% if page_obj.has_previous %}<a href="{% querystring page=page_obj.previous_page_number %}">‹</a>{% endif %}
           <span class="fmd-page fmd-on">{{ page_obj.number }}</span>
-          {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}&q={{ q }}&reparto={{ reparto }}">›</a>{% endif %}
+          {% if page_obj.has_next %}<a href="{% querystring page=page_obj.next_page_number %}">›</a>{% endif %}
         </div>
         {% endif %}
       </div>

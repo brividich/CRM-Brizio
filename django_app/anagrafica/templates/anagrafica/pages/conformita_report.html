@@ -25,13 +25,23 @@ body.theme-dark .cr-ok { background:rgba(22,101,52,.25); color:#86efac; }
 body.theme-dark .cr-warn { background:rgba(133,77,14,.25); color:#fde68a; }
 body.theme-dark .cr-ko { background:rgba(153,27,27,.3); color:#fca5a5; }
 body.theme-dark .cr-na { background:rgba(100,116,139,.25); color:#cbd5e1; }
+/* ── Stampa: solo il report, senza la chrome dell'app ── */
+@media print {
+  @page { size:A4 landscape; margin:12mm; }
+  body * { visibility:hidden; }
+  .cr-print-area, .cr-print-area * { visibility:visible; }
+  .cr-print-area { position:absolute; left:0; top:0; width:100%; }
+  .safnav, .cr-filters, .hr-pagehead .hr-btn { display:none !important; }
+  .cr-badge, .hr-pill, .hr-metric-ico { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .hr-metric, .hr-card { break-inside:avoid; box-shadow:none !important; }
+}
 </style>
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
-<div style="display:flex;flex-direction:column;gap:20px;">
+<div class="cr-print-area" style="display:flex;flex-direction:column;gap:20px;">
 
   {% include "anagrafica/components/flash_messages.html" %}
   {% include "anagrafica/partials/_safety_subnav.html" with active="conformita" %}
@@ -44,7 +54,7 @@ body.theme-dark .cr-na { background:rgba(100,116,139,.25); color:#cbd5e1; }
       <p class="hr-pagehead-desc">Semaforo di idoneità per ogni dipendente attivo: formazione obbligatoria, visite mediche, qualifiche e DPI.</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-      <a class="hr-btn hr-btn-outline" href="?{% for k,v in request.GET.items %}{% if k != 'format' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}format=csv">⬇ Esporta CSV</a>
+      <a class="hr-btn hr-btn-outline" href="{% querystring format='csv' page=None %}">⬇ Esporta CSV</a>
       <button type="button" class="hr-btn hr-btn-outline" onclick="window.print();">🖨 Stampa / PDF</button>
       <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:index' %}">← Dashboard</a>
     </div>

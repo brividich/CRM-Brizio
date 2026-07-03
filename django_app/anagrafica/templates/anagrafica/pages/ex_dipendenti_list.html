@@ -126,11 +126,11 @@ body.theme-dark .hr-pag span { color:var(--text-light); }
     {% if page_obj.has_other_pages %}
     <div class="hr-pag">
       {% if page_obj.has_previous %}
-        <a class="hr-btn hr-btn-ghost hr-btn-sm" href="?page={{ page_obj.previous_page_number }}&q={{ q }}">← Prec</a>
+        <a class="hr-btn hr-btn-ghost hr-btn-sm" href="{% querystring page=page_obj.previous_page_number %}">← Prec</a>
       {% endif %}
       <span>Pagina {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
       {% if page_obj.has_next %}
-        <a class="hr-btn hr-btn-ghost hr-btn-sm" href="?page={{ page_obj.next_page_number }}&q={{ q }}">Succ →</a>
+        <a class="hr-btn hr-btn-ghost hr-btn-sm" href="{% querystring page=page_obj.next_page_number %}">Succ →</a>
       {% endif %}
     </div>
     {% endif %}

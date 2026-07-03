@@ -214,7 +214,7 @@
         </thead>
         <tbody>
           {% for anno in anni %}
-            <tr class="dr-year-row {% if anno.open %}open{% endif %}" data-year="{{ anno.anno }}" onclick="toggleYear(this)">
+            <tr class="dr-year-row {% if anno.open %}open{% endif %}" data-year="{{ anno.anno }}" onclick="toggleYear(this)" role="button" tabindex="0" aria-expanded="{% if anno.open %}true{% else %}false{% endif %}">
               <td colspan="{{ n_colonne|add:1 }}">
                 <span class="dr-year-toggle">▶</span>
                 {{ anno.anno }}
@@ -235,6 +235,7 @@
                     data-voce-note="{{ cell.voce.note }}"
                     data-voce-mese="{{ cell.voce.data_competenza|date:'d-m-Y' }}"
                     onclick="openManualeModal(this)"
+                    role="button" tabindex="0"
                     {% endif %}
                   >
                     {% if cell.importo is not None %}
@@ -307,6 +308,7 @@ function toggleAddPanel() {
 function toggleYear(row) {
   const year = row.dataset.year;
   const open = row.classList.toggle('open');
+  row.setAttribute('aria-expanded', open ? 'true' : 'false');
   document.querySelectorAll('.dr-month-row[data-year="' + year + '"]').forEach(r => {
     r.style.display = open ? '' : 'none';
   });

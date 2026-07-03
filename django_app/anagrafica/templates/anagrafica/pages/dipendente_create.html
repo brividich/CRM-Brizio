@@ -116,7 +116,7 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
          SEZIONE 1 — Dati account (sempre aperta)
     ═══════════════════════════════════════════════════════════════════════ -->
     <div class="dc-card" id="card-legacy">
-      <div class="dc-card-head" onclick="toggleCard('card-legacy')">
+      <div class="dc-card-head" onclick="toggleCard('card-legacy')" role="button" tabindex="0" aria-expanded="true">
         <div class="dc-card-title">
           👤 Dati account
           <span class="dc-card-badge dc-badge-required">Obbligatorio</span>
@@ -141,7 +141,8 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
             </div>
             <div class="dc-field">
               <label class="dc-label" for="{{ legacy_form.matricola.id_for_label }}">Matricola</label>
-              <input id="{{ legacy_form.matricola.id_for_label }}" name="matricola" type="text" class="dc-input" value="{{ legacy_form.matricola.value|default:'' }}" placeholder="Es. CNO 0001">
+              <input id="{{ legacy_form.matricola.id_for_label }}" name="matricola" type="text" class="dc-input {% if legacy_form.matricola.errors %}has-error{% endif %}" value="{{ legacy_form.matricola.value|default:'' }}" placeholder="Es. CNO 0001">
+              {% if legacy_form.matricola.errors %}<div class="dc-error">{{ legacy_form.matricola.errors|join:", " }}</div>{% endif %}
             </div>
           </div>
         </div>
@@ -152,11 +153,12 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
           <div class="dc-grid">
             <div class="dc-field">
               <label class="dc-label" for="{{ legacy_form.aliasusername.id_for_label }}">Alias / Username</label>
-              <input id="{{ legacy_form.aliasusername.id_for_label }}" name="aliasusername" type="text" class="dc-input" value="{{ legacy_form.aliasusername.value|default:'' }}" placeholder="Es. m.rossi">
+              <input id="{{ legacy_form.aliasusername.id_for_label }}" name="aliasusername" type="text" class="dc-input {% if legacy_form.aliasusername.errors %}has-error{% endif %}" value="{{ legacy_form.aliasusername.value|default:'' }}" placeholder="Es. m.rossi">
+              {% if legacy_form.aliasusername.errors %}<div class="dc-error">{{ legacy_form.aliasusername.errors|join:", " }}</div>{% endif %}
             </div>
             <div class="dc-field">
               <label class="dc-label" for="{{ legacy_form.reparto.id_for_label }}">Reparto</label>
-              <select id="{{ legacy_form.reparto.id_for_label }}" name="reparto" class="dc-input">
+              <select id="{{ legacy_form.reparto.id_for_label }}" name="reparto" class="dc-input {% if legacy_form.reparto.errors %}has-error{% endif %}">
                 <option value="">— Nessun reparto —</option>
                 {% for rep in reparti_catalogo %}
                   <option value="{{ rep.nome }}" {% if legacy_form.reparto.value == rep.nome %}selected{% endif %}>
@@ -165,15 +167,17 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
                 {% endfor %}
               </select>
               <span style="font-size:11px;color:#94a3b8;">Area aziendale e caporeparto vengono assegnati automaticamente dal catalogo reparti.</span>
+              {% if legacy_form.reparto.errors %}<div class="dc-error">{{ legacy_form.reparto.errors|join:", " }}</div>{% endif %}
             </div>
             <div class="dc-field">
               <label class="dc-label" for="{{ legacy_form.mansione.id_for_label }}">Mansione</label>
-              <select id="{{ legacy_form.mansione.id_for_label }}" name="mansione" class="dc-input">
+              <select id="{{ legacy_form.mansione.id_for_label }}" name="mansione" class="dc-input {% if legacy_form.mansione.errors %}has-error{% endif %}">
                 <option value="">— Nessuna —</option>
                 {% for m in mansioni_catalogo %}
                   <option value="{{ m.nome }}" {% if legacy_form.mansione.value == m.nome %}selected{% endif %}>{{ m.nome }}</option>
                 {% endfor %}
               </select>
+              {% if legacy_form.mansione.errors %}<div class="dc-error">{{ legacy_form.mansione.errors|join:", " }}</div>{% endif %}
             </div>
           </div>
         </div>
@@ -189,7 +193,8 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
             </div>
             <div class="dc-field">
               <label class="dc-label" for="{{ legacy_form.email_notifica.id_for_label }}">Email notifica</label>
-              <input id="{{ legacy_form.email_notifica.id_for_label }}" name="email_notifica" type="email" class="dc-input" value="{{ legacy_form.email_notifica.value|default:'' }}" placeholder="nome@example.com">
+              <input id="{{ legacy_form.email_notifica.id_for_label }}" name="email_notifica" type="email" class="dc-input {% if legacy_form.email_notifica.errors %}has-error{% endif %}" value="{{ legacy_form.email_notifica.value|default:'' }}" placeholder="nome@example.com">
+              {% if legacy_form.email_notifica.errors %}<div class="dc-error">{{ legacy_form.email_notifica.errors|join:", " }}</div>{% endif %}
             </div>
             <div class="dc-field" style="justify-content:flex-end; padding-bottom:4px;">
               <label class="dc-checkrow">
@@ -206,7 +211,7 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
          SEZIONE 2 — Anagrafica aziendale (collassata)
     ═══════════════════════════════════════════════════════════════════════ -->
     <div class="dc-card dc-collapsed" id="card-aziendale">
-      <div class="dc-card-head" onclick="toggleCard('card-aziendale')">
+      <div class="dc-card-head" onclick="toggleCard('card-aziendale')" role="button" tabindex="0" aria-expanded="false">
         <div class="dc-card-title">
           🏢 Anagrafica aziendale
           <span class="dc-card-badge dc-badge-optional">Facoltativo</span>
@@ -394,7 +399,7 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
          SEZIONE 3 — Anagrafica civile (collassata)
     ═══════════════════════════════════════════════════════════════════════ -->
     <div class="dc-card dc-collapsed" id="card-civile">
-      <div class="dc-card-head" onclick="toggleCard('card-civile')">
+      <div class="dc-card-head" onclick="toggleCard('card-civile')" role="button" tabindex="0" aria-expanded="false">
         <div class="dc-card-title">
           🪪 Anagrafica civile
           <span class="dc-card-badge dc-badge-optional">Facoltativo</span>
@@ -525,7 +530,7 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
     ═══════════════════════════════════════════════════════════════════════ -->
     {% if can_hr %}
     <div class="dc-card dc-collapsed" id="card-hr">
-      <div class="dc-card-head" onclick="toggleCard('card-hr')">
+      <div class="dc-card-head" onclick="toggleCard('card-hr')" role="button" tabindex="0" aria-expanded="false">
         <div class="dc-card-title">
           🔒 Dati riservati HR
           <span class="dc-card-badge dc-badge-hr">Accesso HR</span>
@@ -634,7 +639,10 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
 
 <script>
 function toggleCard(id) {
-  document.getElementById(id).classList.toggle('dc-collapsed');
+  const card = document.getElementById(id);
+  const collapsed = card.classList.toggle('dc-collapsed');
+  const head = card.querySelector('.dc-card-head');
+  if (head) head.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
 }
 
 /* ── Figli a carico: aggiunta righe e abilitazione legata al flag ───────────── */
