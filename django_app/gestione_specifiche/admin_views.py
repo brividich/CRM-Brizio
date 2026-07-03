@@ -16,7 +16,8 @@ from . import constants as C
 from .acl_bootstrap import PERM_ADMIN
 from .cartelle_cliente import cartelle_disponibili
 from .models import (
-    AutoApprovazioneConfig, ClienteCartellaShare, EventoSpecifica, NotificaConfig, Specifica,
+    AutoApprovazioneConfig, ClienteCartellaShare, EventoSpecifica, NotificaConfig,
+    Specifica, TimbroCapocommessa,
 )
 from .notifiche_gs import pool_utenti
 
@@ -38,12 +39,6 @@ def utente_puo_admin(request) -> bool:
         return False
 
 
-_AREE_PLACEHOLDER = [
-    {"titolo": "Timbri per capocommessa", "icon": "user",
-     "desc": "Timbro ricevuto + firma da sovrapporre al MOD.133 (arriva col MOD.133 reale)."},
-]
-
-
 @login_required
 def admin_home(request):
     """Landing della sezione Amministrazione: card per ogni area gestibile."""
@@ -55,7 +50,7 @@ def admin_home(request):
         "reparto_in1": ncfg.reparto_in1,
         "n_eventi": EventoSpecifica.objects.count(),
         "n_specifiche": Specifica.objects.count(),
-        "aree_placeholder": _AREE_PLACEHOLDER,
+        "n_timbri": TimbroCapocommessa.objects.count(),
     })
 
 
@@ -132,6 +127,50 @@ def admin_specifica_riassegna(request, pk: int):
     spec.save(update_fields=["incaricato"])
     messages.success(request, f"Incaricato aggiornato per {spec.codice}.")
     return redirect("gestione_specifiche:admin_specifiche")
+
+
+@login_required
+def admin_timbri(request):
+    """#2 — Timbri «RICEVUTO» per capocommessa: elenco + caricamento (file SENZA data)."""
+    from django.contrib.auth import get_user_model
+
+    if request.method == "POST":
+        codice = (request.POST.get("codice") or "").strip()
+        if not codice or "file" not in request.FILES:
+            messages.error(request, "Codice e file del timbro sono obbligatori.")
+        else:
+            uid = (request.POST.get("utente") or "").strip()
+            TimbroCapocommessa.objects.create(
+                codice=codice[:50],
+                nome=(request.POST.get("nome") or "").strip()[:150],
+                utente_id=int(uid) if uid.isdigit() else None,
+                file=request.FILES["file"],
+                attivo=True,
+            )
+            messages.success(request, f"Timbro {codice} caricato.")
+        return redirect("gestione_specifiche:admin_timbri")
+
+    User = get_user_model()
+    utenti = User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
+    return render(request, "gestione_specifiche/admin/timbri.html", {
+        "timbri": TimbroCapocommessa.objects.select_related("utente").all(),
+        "utenti": utenti,
+    })
+
+
+@login_required
+@require_POST
+def admin_timbro_delete(request, pk: int):
+    """Elimina un timbro (file compreso)."""
+    t = get_object_or_404(TimbroCapocommessa, pk=pk)
+    cod = t.codice
+    try:
+        t.file.delete(save=False)
+    except Exception:  # noqa: BLE001
+        pass
+    t.delete()
+    messages.success(request, f"Timbro {cod} eliminato.")
+    return redirect("gestione_specifiche:admin_timbri")
 
 
 @login_required

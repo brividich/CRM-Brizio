@@ -19,7 +19,7 @@ from core.acl_bootstrap_base import run_bootstrap
 logger = logging.getLogger(__name__)
 
 MODULE = "gestione_specifiche"
-_BOOTSTRAP_CACHE_KEY = "gestione_specifiche_acl_bootstrap_v14"
+_BOOTSTRAP_CACHE_KEY = "gestione_specifiche_acl_bootstrap_v15"
 
 # --- Permessi canonici --------------------------------------------------------
 PERM_VIEW = "gestione_specifiche.specifica.view"
@@ -85,6 +85,8 @@ _ROUTE_BINDINGS = {
     "gestione_specifiche:admin_log": PERM_ADMIN,
     "gestione_specifiche:admin_specifiche": PERM_ADMIN,
     "gestione_specifiche:admin_specifica_riassegna": PERM_ADMIN,
+    "gestione_specifiche:admin_timbri": PERM_ADMIN,
+    "gestione_specifiche:admin_timbro_delete": PERM_ADMIN,
 }
 
 # Grant di default (CREATE-ONLY, l'admin può rifinire in /admin-portale/acl-canonico/).

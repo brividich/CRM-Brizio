@@ -19,7 +19,7 @@ from django.utils import timezone
 from django_fsm import FSMField, GET_STATE, transition
 
 from . import constants as C
-from .storage import specifica_allegato_storage, upload_to_specifica
+from .storage import specifica_allegato_storage, upload_to_specifica, upload_to_timbro
 
 
 def _verifica_periodica_mesi() -> int:
@@ -538,6 +538,33 @@ class NotificaConfig(models.Model):
         if obj is None:
             obj = cls.objects.create()
         return obj
+
+
+class TimbroCapocommessa(models.Model):
+    """#2 — Timbro «RICEVUTO» per capocommessa, sovrapposto al composito su ogni pagina.
+
+    Il file va caricato **senza data** (la data odierna viene scritta dinamicamente in compose):
+    contiene RICEVUTO + codice (es. CNOT102) + firma. Lo `utente` collega il timbro al
+    capocommessa: in compilazione si usa il timbro del compilatore. Storage privato cifrato.
+    """
+    utente = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="timbri_capocommessa", verbose_name="Capocommessa",
+    )
+    codice = models.CharField("Codice timbro", max_length=50, help_text="Es. CNOT102")
+    nome = models.CharField("Nome/descrizione", max_length=150, blank=True, default="")
+    file = models.FileField("File timbro (senza data)", upload_to=upload_to_timbro,
+                            storage=specifica_allegato_storage)
+    attivo = models.BooleanField("Attivo", default=True)
+    creato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Timbro capocommessa"
+        verbose_name_plural = "Timbri capocommessa"
+        ordering = ["codice"]
+
+    def __str__(self) -> str:
+        return f"Timbro {self.codice}"
 
 
 class ClienteCartellaShare(models.Model):

@@ -13,7 +13,7 @@ from django.core import mail
 from gestione_specifiche import constants as C
 from gestione_specifiche.models import (
     AutoApprovazioneConfig, ClienteCartellaShare, EventoSpecifica, MOD133,
-    NotificaConfig, Specifica,
+    NotificaConfig, Specifica, TimbroCapocommessa,
 )
 from gestione_specifiche.notifiche_gs import notifica_nuova_specifica
 
@@ -181,3 +181,26 @@ class AdminSectionTest(TestCase):
         self.client.post(reverse("gestione_specifiche:admin_specifica_riassegna", args=[s1.pk]),
                          {"incaricato": ""})
         self.assertIsNone(Specifica.objects.get(pk=s1.pk).incaricato_id)
+
+    # --- #2 Timbri capocommessa ---
+    def test_timbri_upload_e_delete(self):
+        from cryptography.fernet import Fernet
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        media = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, media, ignore_errors=True)
+        with override_settings(DOCUMENT_ENCRYPTION_KEY=Fernet.generate_key().decode(),
+                               GESTIONE_SPECIFICHE_PRIVATE_ROOT=media):
+            r = self.client.get(reverse("gestione_specifiche:admin_timbri"))
+            self.assertEqual(r.status_code, 200)
+            self.assertContains(r, "Timbri capocommessa")
+            f = SimpleUploadedFile("timbro.png", b"\x89PNG-fake-bytes", content_type="image/png")
+            r = self.client.post(reverse("gestione_specifiche:admin_timbri"),
+                                 {"codice": "CNOT102", "nome": "Cap. 1", "utente": str(self.mso.pk), "file": f})
+            self.assertEqual(r.status_code, 302)
+            t = TimbroCapocommessa.objects.get(codice="CNOT102")
+            self.assertTrue(t.file.name)
+            self.assertEqual(t.utente_id, self.mso.pk)
+            r = self.client.post(reverse("gestione_specifiche:admin_timbro_delete", args=[t.pk]))
+            self.assertEqual(r.status_code, 302)
+            self.assertFalse(TimbroCapocommessa.objects.filter(pk=t.pk).exists())

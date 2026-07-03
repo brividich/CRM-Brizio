@@ -1,0 +1,79 @@
+{% extends "core/base.html" %}
+{% block title %}Timbri capocommessa · Amministrazione{% endblock %}
+{% block extra_head %}{% include "gestione_specifiche/_gs_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="gs-wrap">
+  <a class="gs-back" href="{% url 'gestione_specifiche:admin_home' %}">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=14 %} Amministrazione</a>
+
+  <div class="gs-hdrcard" style="margin-top:8px;">
+    <div class="gs-hdrcard__ic is-navy">{% include "gestione_specifiche/partials/_icon.html" with name="user" size=20 %}</div>
+    <div style="flex:1;">
+      <div class="gs-eyebrow">Amministrazione</div>
+      <h1 style="margin:2px 0 0; font-size:18px; font-weight:800; color:#0c2545;">Timbri capocommessa</h1>
+      <p style="margin:4px 0 0; font-size:12.5px; color:#7c8aa2;">Timbro «RICEVUTO» per capocommessa, da sovrapporre al composito. <strong>Carica il file SENZA data</strong>: la data odierna viene scritta in automatico al momento della compilazione.</p>
+    </div>
+  </div>
+
+  {% include "gestione_specifiche/partials/_messages.html" %}
+
+  {# --- Caricamento --- #}
+  <form method="post" enctype="multipart/form-data" class="gs-panel" style="margin-top:16px; padding:16px; display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+    {% csrf_token %}
+    <div>
+      <label class="gs-flabel">Codice</label>
+      <input type="text" name="codice" required placeholder="es. CNOT102" style="width:130px; padding:8px 10px; border:1px solid #dde8f5; border-radius:8px;">
+    </div>
+    <div style="min-width:200px;">
+      <label class="gs-flabel">Capocommessa (opzionale)</label>
+      <select name="utente" style="width:100%; padding:8px 10px; border:1px solid #dde8f5; border-radius:8px;">
+        <option value="">— nessuno —</option>
+        {% for u in utenti %}<option value="{{ u.pk }}">{{ u.get_full_name|default:u.username }}</option>{% endfor %}
+      </select>
+    </div>
+    <div style="flex:1; min-width:160px;">
+      <label class="gs-flabel">Nome/descrizione</label>
+      <input type="text" name="nome" placeholder="opzionale" style="width:100%; padding:8px 10px; border:1px solid #dde8f5; border-radius:8px;">
+    </div>
+    <div>
+      <label class="gs-flabel">File (PDF/PNG, senza data)</label>
+      <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg" required style="width:220px;">
+    </div>
+    <button type="submit" class="gs-btn gs-btn--primary" style="height:38px;">{% include "gestione_specifiche/partials/_icon.html" with name="plus" size=15 %} Carica</button>
+  </form>
+
+  {# --- Elenco --- #}
+  <div class="gs-card" style="margin-top:16px; padding:0; overflow-x:auto;">
+    <table style="width:100%; border-collapse:collapse; font-size:13px; min-width:560px;">
+      <thead>
+        <tr style="background:#eef4fb; text-align:left;">
+          <th style="padding:10px 14px;">Codice</th>
+          <th style="padding:10px 14px;">Capocommessa</th>
+          <th style="padding:10px 14px;">Nome</th>
+          <th style="padding:10px 14px;">Stato</th>
+          <th style="padding:10px 14px; width:70px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in timbri %}
+        <tr style="border-top:1px solid #eef2f7;">
+          <td style="padding:10px 14px; font-weight:700; color:#0c2545;">{{ t.codice }}</td>
+          <td style="padding:10px 14px; color:#3a4a63;">{% if t.utente %}{{ t.utente.get_full_name|default:t.utente.username }}{% else %}—{% endif %}</td>
+          <td style="padding:10px 14px; color:#7c8aa2;">{{ t.nome|default:"—" }}</td>
+          <td style="padding:10px 14px;">{% if t.attivo %}<span class="gs-tag is-green">attivo</span>{% else %}<span class="gs-tag">disattivo</span>{% endif %}</td>
+          <td style="padding:10px 14px; text-align:right;">
+            <form method="post" action="{% url 'gestione_specifiche:admin_timbro_delete' t.pk %}" onsubmit="return confirm('Eliminare il timbro {{ t.codice|escapejs }}?');" style="display:inline;">
+              {% csrf_token %}<button type="submit" class="gs-btn gs-btn--danger" style="min-height:30px;" title="Elimina">{% include "gestione_specifiche/partials/_icon.html" with name="trash" size=14 %}</button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" style="padding:18px; text-align:center; color:#92a0b5; font-style:italic;">Nessun timbro caricato.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <p style="margin-top:12px; font-size:12px; color:#7c8aa2;">L'<strong>applicazione</strong> del timbro sul composito (overlay su ogni pagina + data dinamica) è il prossimo passo — richiede i file definitivi.</p>
+</div>
+{% endblock %}

@@ -45,3 +45,9 @@ def specifica_allegato_storage() -> PrivateSpecificaStorage:
 def upload_to_specifica(instance, filename: str) -> str:
     safe_code = get_valid_filename(getattr(instance, "codice", "") or "spec")
     return f"gestione_specifiche/{safe_code}/{get_valid_filename(filename)}"
+
+
+def upload_to_timbro(instance, filename: str) -> str:
+    """#2 — timbri per capocommessa: storage privato cifrato, sottocartella `timbri/`."""
+    safe_code = get_valid_filename(getattr(instance, "codice", "") or "timbro")
+    return f"timbri/{safe_code}/{get_valid_filename(filename)}"
