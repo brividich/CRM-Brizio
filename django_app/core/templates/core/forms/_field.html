@@ -1,0 +1,21 @@
+{% comment %}
+NOVICROM HUB — Renderer di UN campo del design-system unico (classi hub-).
+Uso: include "core/forms/_field.html" with field=form.nome
+Per un intero form usare "core/forms/_form.html".
+Richiede il form-kit: include "core/components/_hub_formkit.html".
+{% endcomment %}
+{% if field.field.widget.input_type == "checkbox" %}
+<div class="hub-field{% if field.errors %} hub-field-err{% endif %}">
+  <label class="hub-check" for="{{ field.id_for_label }}">{{ field }}
+    <span>{{ field.label }}{% if field.field.required %} <span class="hub-req">*</span>{% endif %}</span></label>
+  {% for err in field.errors %}<div class="hub-err">{{ err }}</div>{% endfor %}
+  {% if field.help_text %}<div class="hub-help">{{ field.help_text }}</div>{% endif %}
+</div>
+{% else %}
+<div class="hub-field{% if field.errors %} hub-field-err{% endif %}{% if field.field.widget.allow_multiple_selected %} hub-col-full{% endif %}">
+  <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %}<span class="hub-req">*</span>{% endif %}</label>
+  {{ field }}
+  {% for err in field.errors %}<div class="hub-err">{{ err }}</div>{% endfor %}
+  {% if field.help_text %}<div class="hub-help">{{ field.help_text }}</div>{% endif %}
+</div>
+{% endif %}

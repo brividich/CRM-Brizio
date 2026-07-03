@@ -1,0 +1,95 @@
+{% comment %}
+NOVICROM HUB — Form Kit canonico (design-system portale-wide).
+UN'unica fonte per token, campo, pill di stato, bottone, modale.
+Prefisso hub-. Sostituisce progressivamente i namespace ad-hoc
+(dc-/dp-/hr-/fm-/fmd-/ana-/dr-/qs-/ro-/cr-/cf-/wz-/vm-/…).
+Opt-in: la pagina include "core/components/_hub_formkit.html".
+Deriva dai valori già in uso (palette NOVICROM navy/cyan/arancio).
+{% endcomment %}
+<style>
+:root{
+  --hub-navy:#0c2545; --hub-navy-deep:#08142d; --hub-cyan:#1f87cd; --hub-orange:#ff8a1f;
+  --hub-ink:#22314f; --hub-slate:#334155; --hub-muted:#64748b; --hub-muted-2:#94a3b8;
+  --hub-line:#e7edf3; --hub-line-soft:#eef2f7; --hub-wash:#f6f8fc; --hub-surface:#fff;
+  --hub-ok-bg:#ecfdf5; --hub-ok-fg:#065f46; --hub-ok-bd:#a7f3d0;
+  --hub-warn-bg:#fffbeb; --hub-warn-fg:#92400e; --hub-warn-bd:#fde68a;
+  --hub-hot-bg:#fff7ed; --hub-hot-fg:#c2410c; --hub-hot-bd:#fed7aa;
+  --hub-bad-bg:#fef2f2; --hub-bad-fg:#b91c1c; --hub-bad-bd:#fecaca;
+  --hub-neu-bg:#f8fafc; --hub-neu-fg:#64748b; --hub-neu-bd:#e2e8f0;
+  --hub-blue-bg:#eff6ff; --hub-blue-fg:#1f87cd; --hub-blue-bd:#bfdbfe;
+  --hub-radius:10px; --hub-mono:"Consolas","Cascadia Mono",ui-monospace,monospace;
+}
+
+/* ── Campo ─────────────────────────────────────────────────────────────────── */
+.hub-field{ display:flex; flex-direction:column; gap:6px; min-width:0; margin-bottom:2px; }
+.hub-field > label{ font-family:var(--hub-mono); font-size:10px; font-weight:700; letter-spacing:.05em;
+  text-transform:uppercase; color:#6b7a90; }
+.hub-req{ color:var(--hub-orange); font-style:normal; margin-left:3px; }
+.hub-field input:not([type=checkbox]):not([type=radio]):not([type=file]),
+.hub-field select, .hub-field textarea{
+  width:100%; min-height:38px; border:1px solid var(--hub-line); border-radius:var(--hub-radius);
+  padding:8px 11px; font:inherit; font-size:13px; color:var(--hub-ink); background:#fff;
+  outline:none; transition:border-color .15s, box-shadow .15s; box-sizing:border-box; }
+.hub-field textarea{ min-height:76px; resize:vertical; line-height:1.5; }
+.hub-field input:focus, .hub-field select:focus, .hub-field textarea:focus{
+  border-color:var(--hub-cyan); box-shadow:0 0 0 3px rgba(31,135,205,.12); }
+.hub-field input::placeholder, .hub-field textarea::placeholder{ color:var(--hub-muted-2); }
+.hub-field-err input, .hub-field-err select, .hub-field-err textarea{ border-color:#e0736b; background:#fff7f6; }
+.hub-help{ font-size:11px; color:var(--hub-muted-2); line-height:1.45; }
+.hub-err{ font-size:11px; font-weight:600; color:#c53030; }
+.hub-check{ display:inline-flex; align-items:center; gap:9px; padding:8px 12px; border:1px solid var(--hub-line);
+  border-radius:9px; background:#fafbfd; cursor:pointer; font-size:12.5px; font-weight:600; color:var(--hub-ink); }
+.hub-check input{ width:16px; height:16px; margin:0; accent-color:var(--hub-cyan); flex:0 0 auto; }
+.hub-form-grid{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px 16px; }
+.hub-col-full{ grid-column:1 / -1; }
+@media (max-width:720px){ .hub-form-grid{ grid-template-columns:1fr; } }
+
+/* ── Pill di stato (UNICA scala) ──────────────────────────────────────────── */
+.hub-pill{ display:inline-flex; align-items:center; gap:5px; padding:2px 9px; border-radius:999px;
+  font-size:11px; font-weight:700; white-space:nowrap; border:1px solid; }
+.hub-pill.ok{ background:var(--hub-ok-bg); color:var(--hub-ok-fg); border-color:var(--hub-ok-bd); }
+.hub-pill.warn{ background:var(--hub-warn-bg); color:var(--hub-warn-fg); border-color:var(--hub-warn-bd); }
+.hub-pill.hot{ background:var(--hub-hot-bg); color:var(--hub-hot-fg); border-color:var(--hub-hot-bd); }
+.hub-pill.bad{ background:var(--hub-bad-bg); color:var(--hub-bad-fg); border-color:var(--hub-bad-bd); }
+.hub-pill.neutral{ background:var(--hub-neu-bg); color:var(--hub-neu-fg); border-color:var(--hub-neu-bd); }
+.hub-pill.info{ background:var(--hub-blue-bg); color:var(--hub-blue-fg); border-color:var(--hub-blue-bd); }
+
+/* ── Bottone ───────────────────────────────────────────────────────────────── */
+.hub-btn{ display:inline-flex; align-items:center; gap:6px; cursor:pointer; text-decoration:none;
+  border:1px solid transparent; border-radius:11px; padding:8px 14px; font-size:13px; font-weight:700;
+  font-family:inherit; transition:background .15s, border-color .15s; }
+.hub-btn-primary{ background:var(--hub-navy); color:#fff; }
+.hub-btn-primary:hover{ background:var(--hub-navy-deep); }
+.hub-btn-outline{ background:#fff; color:var(--hub-navy); border-color:var(--hub-neu-bd); }
+.hub-btn-outline:hover{ background:var(--hub-wash); }
+.hub-btn-ghost{ background:#f1f5f9; color:var(--hub-slate); }
+.hub-btn-ghost:hover{ background:#e2e8f0; }
+.hub-btn-danger{ background:var(--hub-bad-bg); color:var(--hub-bad-fg); border-color:var(--hub-bad-bd); }
+.hub-btn-danger:hover{ background:#fee2e2; }
+.hub-btn-sm{ padding:5px 10px; font-size:12px; border-radius:9px; }
+.hub-btn:disabled{ opacity:.55; cursor:not-allowed; }
+
+/* ── Modale ────────────────────────────────────────────────────────────────── */
+.hub-modal{ position:fixed; inset:0; z-index:1000; display:none; align-items:flex-start; justify-content:center;
+  background:rgba(8,20,45,.46); padding:42px 16px; overflow-y:auto; }
+.hub-modal.open{ display:flex; }
+.hub-modal-card{ background:#fff; border-radius:16px; width:640px; max-width:96vw;
+  box-shadow:0 30px 70px rgba(8,20,45,.4); overflow:hidden; }
+.hub-modal-head{ display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:18px 22px; border-bottom:1px solid var(--hub-line-soft); }
+.hub-modal-head strong{ font-size:16px; font-weight:800; color:var(--hub-navy); }
+.hub-modal-x{ background:none; border:none; font-size:22px; line-height:1; cursor:pointer; color:var(--hub-muted-2); }
+.hub-modal-body{ padding:20px 22px; max-height:64vh; overflow-y:auto; }
+.hub-modal-foot{ display:flex; justify-content:flex-end; gap:9px; padding:14px 22px;
+  border-top:1px solid var(--hub-line-soft); background:#fafbfd; }
+
+/* ── Dark mode (allineato ai token core) ──────────────────────────────────── */
+body.theme-dark .hub-field input:not([type=checkbox]):not([type=radio]),
+body.theme-dark .hub-field select, body.theme-dark .hub-field textarea{
+  background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .hub-check{ background:var(--surface-alt); border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .hub-btn-outline{ background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .hub-btn-ghost{ background:var(--surface-alt); color:var(--text-mid); }
+body.theme-dark .hub-modal-card{ background:var(--surface); }
+body.theme-dark .hub-modal-head strong{ color:#93c5fd; }
+</style>

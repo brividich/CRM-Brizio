@@ -1,0 +1,8 @@
+{% comment %}
+NOVICROM HUB — Renderer di un INTERO ModelForm del design-system unico.
+Rende non_field_errors + ogni campo via core/forms/_field.html.
+Uso: include "core/forms/_form.html" with form=myform
+Richiede il form-kit: include "core/components/_hub_formkit.html".
+{% endcomment %}
+{% if form.non_field_errors %}<div class="hub-err" style="margin-bottom:10px;">{{ form.non_field_errors|join:", " }}</div>{% endif %}
+{% for field in form %}{% include "core/forms/_field.html" with field=field %}{% endfor %}

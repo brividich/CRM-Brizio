@@ -1,11 +1,11 @@
-{# ────────────────────────────────────────────────────────────────────────────
-   Picker multiselezione RICERCABILE — progressive enhancement.
-   Uso: <select multiple data-picker [data-picker-placeholder="Cerca DPI…"] name="…">
-   La <select> resta la FONTE DI VERITÀ (nome, opzioni, selezione): il contratto
-   POST non cambia. Senza JS la select nativa resta visibile e funzionante.
-   Idempotente; ri-aggancia il contenuto caricato via HTMX.
-   Includere una sola volta per pagina (nel blocco content o extra_head).
-──────────────────────────────────────────────────────────────────────────── #}
+{% comment %}
+Picker multiselezione RICERCABILE — progressive enhancement.
+Uso: select multiple data-picker [data-picker-placeholder="Cerca DPI…"] name="…"
+La select resta la FONTE DI VERITÀ (nome, opzioni, selezione): il contratto
+POST non cambia. Senza JS la select nativa resta visibile e funzionante.
+Idempotente; ri-aggancia il contenuto caricato via HTMX.
+Includere una sola volta per pagina (nel blocco content o extra_head).
+{% endcomment %}
 <style>
 .msp{ position:relative; border:1px solid var(--fmd-line,#e7edf3); border-radius:9px; background:#fff; }
 .msp-search{ width:100%; box-sizing:border-box; border:none; border-bottom:1px solid #eef2f7;
