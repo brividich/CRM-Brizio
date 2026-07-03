@@ -26,6 +26,17 @@
        hx-get="{% url 'gestione_specifiche:cartella_suggerita' %}"
        hx-trigger="load, change from:#id_cliente delay:300ms, keyup changed from:#id_cliente delay:600ms"
        hx-include="#id_cliente" hx-target="this" hx-swap="innerHTML"></div>
+  {% if is_new %}
+  {# #5 — Assegnazione: persona (menu) oppure Gruppo IN1 (default). Notifica alla creazione. #}
+  <div style="margin-top:14px;">
+    <div class="lbl">Assegna a</div>
+    <select name="incaricato" style="width:100%; max-width:420px; padding:8px 10px; border:1px solid #dde8f5; border-radius:8px;">
+      <option value="">Gruppo IN1 — chi è disponibile la prende in carico</option>
+      {% for u in pool_incaricati %}<option value="{{ u.pk }}">{{ u.get_full_name|default:u.username }}</option>{% endfor %}
+    </select>
+    <div style="font-size:.8rem; color:#7c8aa2; margin-top:4px;">Scegli una persona da avvisare, oppure lascia «Gruppo IN1» per notificare tutti. La notifica (in-app + email) parte alla creazione.</div>
+  </div>
+  {% endif %}
   <div class="gs-actions" style="margin-top:14px;">
     <button class="gs-btn gs-btn--primary" type="submit">Salva</button>
     <a class="gs-btn" href="{% if is_new %}{% url 'gestione_specifiche:lista' %}{% else %}{% url 'gestione_specifiche:dettaglio' spec.pk %}{% endif %}">Annulla</a>

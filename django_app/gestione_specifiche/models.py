@@ -43,6 +43,11 @@ class Specifica(models.Model):
     cliente = models.CharField("Cliente", max_length=200, blank=True, default="", db_index=True)
     # TAG di processo a livello specifica (classificazione AI/umana, filtro F7).
     tag = models.CharField("TAG processo", max_length=120, blank=True, default="", db_index=True)
+    # #5 — incaricato scelto all'inserimento (chi deve prenderla in carico); vuoto = gruppo IN1.
+    incaricato = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="specifiche_incaricato", verbose_name="Incaricato",
+    )
 
     stato = FSMField(
         "Stato", max_length=30, choices=C.STATO_CHOICES,
@@ -498,6 +503,37 @@ class AutoApprovazioneConfig(models.Model):
     @classmethod
     def get_config(cls) -> "AutoApprovazioneConfig":
         """Ritorna la config singleton (la crea vuota/OFF se non esiste)."""
+        obj = cls.objects.first()
+        if obj is None:
+            obj = cls.objects.create()
+        return obj
+
+
+class NotificaConfig(models.Model):
+    """#5 — Config (singleton) dell'assegnazione/notifica delle nuove specifiche.
+
+    ``reparto_in1`` è il reparto (anagrafica ``area``) i cui membri formano il «gruppo IN1»;
+    ``utenti_aggiuntivi`` sono persone extra assegnabili singolarmente (oltre al reparto);
+    ``email_attiva`` invia anche l'email HTML oltre alla notifica in-app.
+    """
+    reparto_in1 = models.CharField("Reparto IN1", max_length=100, default="IN1",
+                                   help_text="Reparto (area anagrafica) del gruppo IN1.")
+    email_attiva = models.BooleanField("Invia anche email", default=True)
+    utenti_aggiuntivi = models.ManyToManyField(
+        settings.AUTH_USER_MODEL, blank=True, related_name="+",
+        verbose_name="Nomi aggiuntivi assegnabili",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Config notifiche/assegnazione"
+        verbose_name_plural = "Config notifiche/assegnazione"
+
+    def __str__(self) -> str:
+        return f"NotificaConfig(reparto={self.reparto_in1})"
+
+    @classmethod
+    def get_config(cls) -> "NotificaConfig":
         obj = cls.objects.first()
         if obj is None:
             obj = cls.objects.create()

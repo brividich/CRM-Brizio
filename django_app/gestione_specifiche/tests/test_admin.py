@@ -8,10 +8,14 @@ from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
+from django.core import mail
+
 from gestione_specifiche import constants as C
 from gestione_specifiche.models import (
-    AutoApprovazioneConfig, ClienteCartellaShare, EventoSpecifica, MOD133, Specifica,
+    AutoApprovazioneConfig, ClienteCartellaShare, EventoSpecifica, MOD133,
+    NotificaConfig, Specifica,
 )
+from gestione_specifiche.notifiche_gs import notifica_nuova_specifica
 
 User = get_user_model()
 
@@ -104,3 +108,42 @@ class AdminSectionTest(TestCase):
         self.assertEqual(r.status_code, 302)
         self.assertIn(reverse("gestione_specifiche:mod133_approva", args=[spec.pk]), r["Location"])
         self.assertEqual(Specifica.objects.get(pk=spec.pk).stato, C.STATO_FLOW_DOWN)  # NON approvato
+
+    # --- #5 notifiche/assegnazione ---
+    def test_config_notifiche_save(self):
+        r = self.client.get(reverse("gestione_specifiche:admin_notifiche"))
+        self.assertEqual(r.status_code, 200)
+        r = self.client.post(reverse("gestione_specifiche:admin_notifiche"),
+                             {"reparto_in1": "IN2", "email_attiva": "1",
+                              "utenti_aggiuntivi": [str(self.mso.pk)]})
+        self.assertEqual(r.status_code, 302)
+        cfg = NotificaConfig.get_config()
+        self.assertEqual(cfg.reparto_in1, "IN2")
+        self.assertTrue(cfg.email_attiva)
+        self.assertIn(self.mso.pk, set(cfg.utenti_aggiuntivi.values_list("pk", flat=True)))
+
+    def test_form_nuova_ha_assegna_a(self):
+        NotificaConfig.get_config().utenti_aggiuntivi.set([self.mso.pk])
+        r = self.client.get(reverse("gestione_specifiche:nuova"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Assegna a")
+        self.assertContains(r, "Gruppo IN1")
+        self.assertContains(r, "Mario MSO")  # utente del pool nel menu
+
+    def test_notifica_nuova_specifica_invia_email(self):
+        cfg = NotificaConfig.get_config()
+        cfg.email_attiva = True
+        cfg.save()
+        spec = Specifica.objects.create(codice="SP-INC", titolo="T", incaricato=self.mso)
+        n = notifica_nuova_specifica(spec)
+        self.assertGreaterEqual(n, 1)
+        self.assertGreaterEqual(len(mail.outbox), 1)  # email HTML all'incaricato
+        self.assertIn("SP-INC", mail.outbox[0].subject)
+
+    def test_notifica_email_disattivata_non_invia(self):
+        cfg = NotificaConfig.get_config()
+        cfg.email_attiva = False
+        cfg.save()
+        spec = Specifica.objects.create(codice="SP-NOEMAIL", titolo="T", incaricato=self.mso)
+        notifica_nuova_specifica(spec)
+        self.assertEqual(len(mail.outbox), 0)

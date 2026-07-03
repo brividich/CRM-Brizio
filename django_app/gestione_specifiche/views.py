@@ -30,6 +30,7 @@ from reportlab.pdfgen import canvas
 
 from . import constants as C
 from .admin_views import utente_puo_admin
+from .notifiche_gs import notifica_nuova_specifica, pool_utenti
 from .ai_copilota import (
     proponi_righe_da_diff, proponi_righe_mod133, proponi_tag, ricerca_semantica,
 )
@@ -257,6 +258,12 @@ def nuova_specifica(request):
                 spec.revisione_precedente = prev
             spec.save()
             _salva_mappatura_cartella(request, spec)  # Fase 2: ricorda cliente→cartella confermata
+            # #5: incaricato scelto ("" = gruppo IN1) + notifica (in-app + email)
+            _inc = (request.POST.get("incaricato") or "").strip()
+            if _inc.isdigit():
+                spec.incaricato_id = int(_inc)
+                spec.save(update_fields=["incaricato"])
+            notifica_nuova_specifica(spec)
             messages.success(request, "Specifica creata.")
             # F6b-2: se abilitato e con destinazione share risolvibile, deposita la forma "in attesa".
             from .composito_deposito import deposita_auto
@@ -273,7 +280,8 @@ def nuova_specifica(request):
         form = SpecificaForm(initial=initial)
 
     return render(request, "gestione_specifiche/specifica_form.html",
-                  {"form": form, "prev": prev, "is_new": True})
+                  {"form": form, "prev": prev, "is_new": True,
+                   "pool_incaricati": pool_utenti()})
 
 
 @login_required

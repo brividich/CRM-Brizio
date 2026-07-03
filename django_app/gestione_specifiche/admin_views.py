@@ -13,7 +13,7 @@ from django.views.decorators.http import require_POST
 
 from .acl_bootstrap import PERM_ADMIN
 from .cartelle_cliente import cartelle_disponibili
-from .models import AutoApprovazioneConfig, ClienteCartellaShare
+from .models import AutoApprovazioneConfig, ClienteCartellaShare, NotificaConfig
 
 
 def utente_puo_admin(request) -> bool:
@@ -36,8 +36,6 @@ def utente_puo_admin(request) -> bool:
 _AREE_PLACEHOLDER = [
     {"titolo": "Timbri per capocommessa", "icon": "user",
      "desc": "Timbro ricevuto + firma da sovrapporre al MOD.133 (arriva col MOD.133 reale)."},
-    {"titolo": "Notifiche / assegnazione", "icon": "share",
-     "desc": "Incaricato o gruppo IN1 a cui notificare le nuove specifiche."},
 ]
 
 
@@ -45,11 +43,35 @@ _AREE_PLACEHOLDER = [
 def admin_home(request):
     """Landing della sezione Amministrazione: card per ogni area gestibile."""
     cfg = AutoApprovazioneConfig.get_config()
+    ncfg = NotificaConfig.get_config()
     return render(request, "gestione_specifiche/admin/home.html", {
         "n_mappature": ClienteCartellaShare.objects.count(),
         "auto_attiva": cfg.attiva,
+        "reparto_in1": ncfg.reparto_in1,
         "aree_placeholder": _AREE_PLACEHOLDER,
     })
+
+
+@login_required
+def admin_notifiche(request):
+    """#5 — Config notifiche/assegnazione: reparto IN1 + nomi aggiuntivi + email on/off."""
+    from django.contrib.auth import get_user_model
+
+    cfg = NotificaConfig.get_config()
+    if request.method == "POST":
+        cfg.reparto_in1 = ((request.POST.get("reparto_in1") or "").strip()[:100]) or "IN1"
+        cfg.email_attiva = request.POST.get("email_attiva") == "1"
+        cfg.save()
+        ids = [int(x) for x in request.POST.getlist("utenti_aggiuntivi") if x.isdigit()]
+        cfg.utenti_aggiuntivi.set(ids)
+        messages.success(request, "Configurazione notifiche salvata.")
+        return redirect("gestione_specifiche:admin_notifiche")
+
+    User = get_user_model()
+    utenti = User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
+    selezionati = set(cfg.utenti_aggiuntivi.values_list("pk", flat=True))
+    return render(request, "gestione_specifiche/admin/notifiche.html",
+                  {"cfg": cfg, "utenti": utenti, "selezionati": selezionati})
 
 
 @login_required

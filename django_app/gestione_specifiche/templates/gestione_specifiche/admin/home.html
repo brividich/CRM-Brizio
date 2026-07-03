@@ -30,6 +30,12 @@
       {% if auto_attiva %}<span style="display:inline-block; margin-top:8px; font-size:11px; font-weight:700; color:#1f9d63; background:#e4f5ec; padding:2px 9px; border-radius:10px;">Attiva</span>{% else %}<span style="display:inline-block; margin-top:8px; font-size:11px; font-weight:700; color:#7c8aa2; background:#eef2f7; padding:2px 9px; border-radius:10px;">Disattivata</span>{% endif %}
     </a>
 
+    <a href="{% url 'gestione_specifiche:admin_notifiche' %}" style="text-decoration:none; display:block; padding:18px; border:1px solid #e6eef7; border-radius:14px; background:#fff; box-shadow:0 1px 4px rgba(28,43,66,.05);">
+      <div style="display:flex; align-items:center; gap:9px;">{% include "gestione_specifiche/partials/_icon.html" with name="share" size=17 %}<strong style="font-size:14px; color:#0c2545;">Notifiche / assegnazione</strong></div>
+      <p style="margin:8px 0 0; font-size:12px; color:#5b6b82;">Incaricato o gruppo IN1 avvisato alla nuova specifica. Reparto: <strong>{{ reparto_in1 }}</strong>.</p>
+      <span style="display:inline-block; margin-top:8px; font-size:11px; font-weight:700; color:#1f9d63; background:#e4f5ec; padding:2px 9px; border-radius:10px;">Attiva</span>
+    </a>
+
     {% for area in aree_placeholder %}
     <div style="padding:18px; border:1px dashed #dce7f3; border-radius:14px; background:#f8fbff; opacity:.75;">
       <div style="display:flex; align-items:center; gap:9px;">{% include "gestione_specifiche/partials/_icon.html" with name=area.icon size=17 %}<strong style="font-size:14px; color:#0c2545;">{{ area.titolo }}</strong></div>

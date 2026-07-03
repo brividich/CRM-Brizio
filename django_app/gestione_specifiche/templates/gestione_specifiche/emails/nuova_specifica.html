@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="it">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0; padding:0; background:#eef2f7; font-family:Arial,Helvetica,sans-serif; color:#1c2b42;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef2f7; padding:24px 12px;">
+    <tr><td align="center">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px; width:100%; background:#ffffff; border-radius:14px; overflow:hidden; box-shadow:0 2px 10px rgba(12,37,69,.10);">
+        <tr>
+          <td style="background:#002b5c; padding:20px 26px;">
+            <div style="color:#9fc0e6; font-size:11px; letter-spacing:.14em; text-transform:uppercase; font-weight:700;">NOVICROM HUB · Gestione Specifiche</div>
+            <div style="color:#ffffff; font-size:19px; font-weight:800; margin-top:4px;">Nuova specifica da prendere in carico</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:24px 26px;">
+            <p style="margin:0 0 14px; font-size:14px; line-height:1.55;">È stata inserita una nuova specifica che richiede la <strong>presa in carico</strong>.</p>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f9fd; border:1px solid #e0e9f4; border-radius:10px; margin:0 0 20px;">
+              <tr><td style="padding:14px 16px;">
+                <div style="font-size:12px; color:#7c8aa2;">Codice</div>
+                <div style="font-size:16px; font-weight:800; color:#0c2545;">{{ spec.codice }}{% if spec.revisione %} · r.{{ spec.revisione }}{% endif %}</div>
+                {% if spec.titolo %}<div style="font-size:13px; color:#3a4a63; margin-top:6px;">{{ spec.titolo }}</div>{% endif %}
+                {% if spec.cliente %}<div style="font-size:12.5px; color:#5b6b82; margin-top:6px;">Cliente: <strong>{{ spec.cliente }}</strong></div>{% endif %}
+              </td></tr>
+            </table>
+            <a href="{{ url }}" style="display:inline-block; background:#ff6b00; color:#ffffff; text-decoration:none; font-size:14px; font-weight:700; padding:12px 22px; border-radius:9px;">Apri la scheda e prendi in carico</a>
+            <p style="margin:20px 0 0; font-size:12px; color:#92a0b5; line-height:1.5;">Notifica automatica dal portale NOVICROM HUB. Se non sei la persona giusta, la specifica resta disponibile al gruppo per la presa in carico.</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>
