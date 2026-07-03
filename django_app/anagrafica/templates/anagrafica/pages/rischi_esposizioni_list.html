@@ -6,6 +6,7 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 {% include "anagrafica/components/_fm_style.html" %}
+{% include "core/components/_hub_formkit.html" %}
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -101,7 +102,7 @@
     </div>
     <form method="post" action="{% url 'anagrafica:esposizione_rischio_create' %}">
       {% csrf_token %}
-      {% include "anagrafica/partials/_fm_form_fields.html" with form=form %}
+      {% include "core/forms/_form.html" with form=form %}
       <div class="muted" style="font-size:11px;color:#94a3b8;margin-top:4px;">Specificare almeno Mansione o Area.</div>
       <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:14px;">
         <button type="button" class="hr-btn hr-btn-ghost" onclick="document.getElementById('modal-crea-esp').style.display='none'">Annulla</button>

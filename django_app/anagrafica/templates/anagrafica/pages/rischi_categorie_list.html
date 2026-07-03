@@ -6,6 +6,7 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 {% include "anagrafica/components/_fm_style.html" %}
+{% include "core/components/_hub_formkit.html" %}
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -103,7 +104,7 @@
     </div>
     <form method="post" action="{% url 'anagrafica:categoria_corso_create' %}">
       {% csrf_token %}
-      {% include "anagrafica/partials/_fm_form_fields.html" with form=form %}
+      {% include "core/forms/_form.html" with form=form %}
       <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:14px;">
         <button type="button" class="hr-btn hr-btn-ghost" onclick="document.getElementById('modal-crea-cat').style.display='none'">Annulla</button>
         <button type="submit" class="hr-btn hr-btn-primary">Crea</button>
