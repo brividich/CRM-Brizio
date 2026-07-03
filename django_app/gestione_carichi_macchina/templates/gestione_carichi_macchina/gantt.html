@@ -30,6 +30,9 @@
   }
   .gapp {
     display: flex; flex-direction: column;
+    /* A tutta pagina di default: riempie l'altezza utile sotto la nav.
+       Il fallback CSS evita il "salto" prima che gcmFit() calcoli l'altezza precisa. */
+    height: calc(100vh - 150px);
     border: 1px solid var(--g-border); border-radius: 16px; overflow: hidden;
     background: #fff; box-shadow: 0 16px 34px rgba(12,37,69,.06);
   }
@@ -80,7 +83,9 @@
   .gdot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; box-sizing: border-box; }
 
   /* ── Griglia ── (le variabili --cw/--laneh/--leftw sono impostate inline su .gscroll) */
-  .gscroll { overflow: auto; max-height: 72vh; background: #fff; }
+  /* flex:1 + min-height:0 → la griglia occupa tutta l'altezza residua di .gapp e
+     scrolla internamente (header/strip/footer restano fissi). */
+  .gscroll { overflow: auto; flex: 1 1 auto; min-height: 0; background: #fff; }
   .grow { display: flex; align-items: stretch; }
   .gmac { position: sticky; left: 0; z-index: 2; width: var(--leftw); min-width: var(--leftw); max-width: var(--leftw);
     box-sizing: border-box; background: #fff; border-right: 1px solid var(--g-border); padding: 5px 12px;
@@ -135,13 +140,19 @@
   .sat-hi { color: #f56a00; } i.sat-hi { background: #f56a00; }
   .sat-crit { color: var(--g-danger); } i.sat-crit { background: var(--g-danger); }
   .gmac-sub { display: flex; align-items: center; gap: 6px; font-size: .68rem; font-weight: 700; color: var(--g-cyan); }
-  .gturni-exp { font-size: .58rem; font-weight: 800; color: var(--g-cyan); cursor: pointer; text-decoration: none; white-space: nowrap; }
   .gwarn { color: #c0392b; font-weight: 800; }
   .gko { display: inline-block; font-size: .56rem; font-weight: 800; color: #9a3412; background: #ffedd5;
     border: 1px solid #fed7aa; border-radius: 6px; padding: 1px 6px; margin-top: 3px; }
 
   .grow.gbody .gtrack { background-image: repeating-linear-gradient(90deg, #f1f5f9 0, #f1f5f9 1px, transparent 1px, transparent var(--cw)); }
   .gtoday { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--g-orange); opacity: .85; z-index: 1; pointer-events: none; }
+
+  /* Chip di fascia oraria (1°/2°/Notte) a sinistra della traccia quando la riga ha più
+     corsie. z-index sotto le barre: visibile dove non c'è lavoro, le barre lo coprono. */
+  .gband { position: absolute; left: 2px; z-index: 1; height: calc(var(--laneh) - 8px);
+    display: flex; align-items: center; padding: 0 5px; border-radius: 5px;
+    font-size: .54rem; font-weight: 800; letter-spacing: .03em; color: var(--g-navymid);
+    background: rgba(255,255,255,.72); border: 1px solid var(--g-border); pointer-events: none; }
 
   /* barre */
   .gbar { position: absolute; height: calc(var(--laneh) - 8px); border-radius: 6px; color: #fff;
@@ -277,6 +288,24 @@
   .gcm-sugg-bar i.satura { background: var(--g-danger); }
   .gcm-sugg-note { color: #b45309; font-size: .64rem; margin-top: 3px; }
   .gcm-sugg-foot { color: var(--g-light); font-size: .58rem; margin-top: 5px; }
+
+  /* Azioni drawer lavoro: Duplica/Elimina accanto a Salva. */
+  .gd-actions .danger { color: var(--g-danger); border-color: var(--g-danger); }
+  .gd-actions .danger:hover { background: var(--g-danger); color: #fff; }
+  /* Config turni nel pannello macchina (toggle rapidi). */
+  .gm-cfg { display: grid; gap: 8px; margin-top: 8px; }
+  .gm-chk { display: flex; align-items: center; gap: 8px; font-size: .82rem; font-weight: 600; color: var(--g-text); cursor: pointer; }
+  .gm-chk input { width: 16px; height: 16px; }
+  .gm-num { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: .82rem; font-weight: 600; color: var(--g-text); }
+  .gm-num input { width: 80px; padding: 5px 7px; border: 1px solid var(--g-border); border-radius: 7px; font-size: .82rem; }
+  .gm-cfg-msg { font-size: .72rem; color: var(--g-success); font-weight: 700; min-height: 1em; }
+  /* Avviso live di sovrapposizione nel modale "+ Aggiungi" + bottone "usa slot libero". */
+  .gcm-warnbox { background: rgba(214,158,46,.12); border: 1px solid var(--g-warning); border-radius: 9px;
+    padding: 9px 11px; font-size: .8rem; color: #8a6d1f; line-height: 1.45; }
+  .gcm-warnbox b { color: #7a5d12; }
+  .gcm-usaslot { display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 11px; margin-top: 7px;
+    border-radius: 8px; border: 1px solid var(--g-cyan); background: #fff; color: var(--g-cyan); font-weight: 800; font-size: .76rem; cursor: pointer; }
+  .gcm-usaslot:hover { background: var(--g-cyan); color: #fff; }
 </style>
 {% endblock %}
 
@@ -290,13 +319,13 @@
     </div>
     <div class="gh-tools">
       <span class="gtoggle">
-        <a href="{% url 'gestione_carichi_macchina:excel' %}?start={{ start|date:'Y-m-d' }}&giorni={{ giorni_n }}{% if turni_qs %}&turni={{ turni_qs }}{% endif %}">Excel</a>
-        <a class="active" href="{% url 'gestione_carichi_macchina:gantt' %}?start={{ start|date:'Y-m-d' }}&giorni={{ giorni_n }}{% if turni_qs %}&turni={{ turni_qs }}{% endif %}">Gantt</a>
+        <a href="{% url 'gestione_carichi_macchina:excel' %}?start={{ start|date:'Y-m-d' }}&giorni={{ giorni_n }}">Excel</a>
+        <a class="active" href="{% url 'gestione_carichi_macchina:gantt' %}?start={{ start|date:'Y-m-d' }}&giorni={{ giorni_n }}">Gantt</a>
       </span>
       <span class="gnav">
-        <a class="gpill sq" title="Periodo precedente" href="?start={{ prev_start }}&giorni={{ giorni_n }}{% if f_cat %}&cat={{ f_cat }}{% endif %}{% if f_cliente %}&cliente={{ f_cliente|urlencode }}{% endif %}{% if f_fam %}&fam={{ f_fam }}{% endif %}{% if turni_qs %}&turni={{ turni_qs }}{% endif %}">‹</a>
-        <a class="gpill" href="?giorni={{ giorni_n }}{% if turni_qs %}&turni={{ turni_qs }}{% endif %}">Oggi</a>
-        <a class="gpill sq" title="Periodo successivo" href="?start={{ next_start }}&giorni={{ giorni_n }}{% if f_cat %}&cat={{ f_cat }}{% endif %}{% if f_cliente %}&cliente={{ f_cliente|urlencode }}{% endif %}{% if f_fam %}&fam={{ f_fam }}{% endif %}{% if turni_qs %}&turni={{ turni_qs }}{% endif %}">›</a>
+        <a class="gpill sq" title="Periodo precedente" href="?start={{ prev_start }}&giorni={{ giorni_n }}{% if f_cat %}&cat={{ f_cat }}{% endif %}{% if f_cliente %}&cliente={{ f_cliente|urlencode }}{% endif %}{% if f_fam %}&fam={{ f_fam }}{% endif %}">‹</a>
+        <a class="gpill" href="?giorni={{ giorni_n }}">Oggi</a>
+        <a class="gpill sq" title="Periodo successivo" href="?start={{ next_start }}&giorni={{ giorni_n }}{% if f_cat %}&cat={{ f_cat }}{% endif %}{% if f_cliente %}&cliente={{ f_cliente|urlencode }}{% endif %}{% if f_fam %}&fam={{ f_fam }}{% endif %}">›</a>
       </span>
       <span class="gstep"><span>Largh. col.</span>
         <span class="box"><b onclick="gcmStep('--cw',-8)">−</b><i></i><b onclick="gcmStep('--cw',8)">+</b></span>
@@ -305,7 +334,9 @@
         <span class="box"><b onclick="gcmStep('--laneh',-6)">−</b><i></i><b onclick="gcmStep('--laneh',6)">+</b></span>
       </span>
       {% if ha_undo %}<button type="button" id="g_undo" class="gpill" title="Annulla l'ultimo spostamento">&#8634; Annulla</button>{% endif %}
-      <button type="button" id="gcm-add-btn" class="gpill orange">+ Aggiungi lavoro</button>
+      <a class="gpill" href="{% url 'gestione_carichi_macchina:registro' %}" title="Registro azioni (chi ha modificato cosa)">&#9783; Registro</a>
+      {% if can_edit %}<a class="gpill sq" href="{% url 'gestione_carichi_macchina:impostazioni' %}" title="Impostazioni macchine (turni, capacità, stato)">&#9881;</a>
+      <button type="button" id="gcm-add-btn" class="gpill orange">+ Aggiungi lavoro</button>{% endif %}
       <button type="button" id="gcm-ai-btn" class="gpill" title="Suggerimento e spiegazione AI">🔮 AI</button>
     </div>
   </header>
@@ -410,36 +441,35 @@
       {% for riga in sez.righe %}
         <div class="grow gbody" data-macchina="{{ riga.macchina.id }}" data-turno="{{ riga.turno }}">
           <div class="gmac">
-            {% if riga.sub %}
-              <div class="gmac-sub">↳ {{ riga.turno_label }}{% if riga.conflitto %} <span class="gwarn" title="Sovrapposizioni / overbooking su questo turno">&#9888;</span>{% endif %}</div>
-            {% else %}
-              <div class="gmac-body"
-                   data-cod="{{ riga.macchina.codice }}"
-                   data-desc="{{ riga.macchina.descrizione }}"
-                   data-rep="{{ sez.label }}"
-                   data-model="{{ riga.macchina.descrizione|truncatechars:40 }}"
-                   {% if riga.sat %}data-sat="{{ riga.sat.perc }}" data-carico="{{ riga.sat.carico }}" data-cap="{{ riga.sat.capacita }}"{% endif %}
-                   onclick="if(!event.target.closest('.gturni-exp'))gcmOpenMachine(this.closest('.grow'));">
-                <div class="gmac-main">
-                  <div class="gmac-cod">
-                    <button type="button" class="gmac-name" title="Dettaglio macchina">{{ riga.macchina.codice }}</button>
-                    {% if riga.sat.perc > 100 or riga.conflitto %}<span class="gwarn" title="Sovraccarico / conflitti">&#9888;</span>{% endif %}
-                    {% if riga.expandable %}<a class="gturni-exp" href="javascript:void(0)" onclick="gcmToggleTurni({{ riga.macchina.id }})" title="Mostra/nascondi i turni">{% if riga.kind == 'split_main' %}&#9650; turni{% else %}&#9660; turni{% endif %}</a>{% endif %}
-                  </div>
-                  <div class="gmac-desc">{% if riga.kind == 'split_main' %}1° turno · {% endif %}Macchine CNC · {{ riga.macchina.descrizione|truncatechars:26 }}</div>
-                  {% if riga.kickoff %}<span class="gko" title="Attività KICK-OFF nel periodo">KICK-OFF · {{ riga.kickoff|length }}</span>{% endif %}
+            <div class="gmac-body"
+                 data-cod="{{ riga.macchina.codice }}"
+                 data-desc="{{ riga.macchina.descrizione }}"
+                 data-rep="{{ sez.label }}"
+                 data-model="{{ riga.macchina.descrizione|truncatechars:40 }}"
+                 {% if riga.sat %}data-sat="{{ riga.sat.perc }}" data-carico="{{ riga.sat.carico }}" data-cap="{{ riga.sat.capacita }}"{% endif %}
+                 onclick="gcmOpenMachine(this.closest('.grow'));">
+              <div class="gmac-main">
+                <div class="gmac-cod">
+                  <button type="button" class="gmac-name" title="Dettaglio macchina">{{ riga.macchina.codice }}</button>
+                  {% if riga.sat.perc > 100 or riga.conflitto %}<span class="gwarn" title="Sovraccarico / conflitti di capacità">&#9888;</span>{% endif %}
                 </div>
-                {% if riga.sat %}
-                  {% if riga.sat.perc < 40 %}{% with sc='sat-lo' %}{% include 'gestione_carichi_macchina/partials/_gantt_sat.html' %}{% endwith %}
-                  {% elif riga.sat.perc < 70 %}{% with sc='sat-mid' %}{% include 'gestione_carichi_macchina/partials/_gantt_sat.html' %}{% endwith %}
-                  {% elif riga.sat.perc < 90 %}{% with sc='sat-hi' %}{% include 'gestione_carichi_macchina/partials/_gantt_sat.html' %}{% endwith %}
-                  {% else %}{% with sc='sat-crit' %}{% include 'gestione_carichi_macchina/partials/_gantt_sat.html' %}{% endwith %}{% endif %}
-                {% endif %}
+                <div class="gmac-desc">Macchine CNC · {{ riga.macchina.descrizione|truncatechars:26 }}</div>
+                {% if riga.kickoff %}<span class="gko" title="Attività KICK-OFF nel periodo">KICK-OFF · {{ riga.kickoff|length }}</span>{% endif %}
               </div>
-            {% endif %}
+              {% if riga.sat %}
+                {% if riga.sat.perc < 40 %}{% with sc='sat-lo' %}{% include 'gestione_carichi_macchina/partials/_gantt_sat.html' %}{% endwith %}
+                {% elif riga.sat.perc < 70 %}{% with sc='sat-mid' %}{% include 'gestione_carichi_macchina/partials/_gantt_sat.html' %}{% endwith %}
+                {% elif riga.sat.perc < 90 %}{% with sc='sat-hi' %}{% include 'gestione_carichi_macchina/partials/_gantt_sat.html' %}{% endwith %}
+                {% else %}{% with sc='sat-crit' %}{% include 'gestione_carichi_macchina/partials/_gantt_sat.html' %}{% endwith %}{% endif %}
+              {% endif %}
+            </div>
           </div>
           <div class="gtrack" style="height:calc(var(--laneh) * {{ riga.lanes|default:1 }} + 12px);">
             {% if oggi_idx is not None %}<div class="gtoday" style="left:calc(var(--cw) * {{ oggi_idx }});"></div>{% endif %}
+            {# Chip di fascia (1°/2°/Notte) quando la riga ha più corsie orarie #}
+            {% for banda in riga.bande %}
+              <div class="gband" style="top:calc(var(--laneh) * {{ banda.top }} + 4px);">{{ banda.label }}</div>
+            {% endfor %}
             {% for ms in riga.milestones %}
               <div class="gms {{ ms.kind }}" style="left:calc(var(--cw) * {{ ms.start_idx }} - 6px);" title="{{ ms.label }}"><i></i><b>{{ ms.label }}</b></div>
             {% endfor %}
@@ -448,8 +478,8 @@
                    data-id="{{ bar.id }}" data-start="{{ bar.start_idx }}" data-span="{{ bar.span }}"
                    data-ore="{% if bar.ore %}{{ bar.ore }}{% elif bar.ore_stima %}{{ bar.ore_stima }}{% endif %}"
                    data-fam="{{ bar.famiglia }}" data-color="{% if colore_mode == 'famiglia' %}{{ bar.colore_fam }}{% else %}{{ bar.colore }}{% endif %}"
-                   title="{{ bar.label }}{% if bar.qta %} · {{ bar.qta }} pz{% endif %}{% if bar.ore %} · {{ bar.ore }}h{% elif bar.ore_stima %} · ≈{{ bar.ore_stima }}h (stima){% endif %}{% if bar.cliente %} · {{ bar.cliente }}{% endif %}{% if bar.turno == 'notte' %} · turno notte{% endif %}{% if bar.ritardo %} · ⏱ ritardo previsto{% endif %}"
-                   style="left:calc(var(--cw) * {{ bar.start_idx }}); width:calc(var(--cw) * {{ bar.span }} - 4px); top:calc(var(--laneh) * {{ bar.lane|default:0 }} + 4px);{% if colore_mode != 'stato' %}background:{% if colore_mode == 'famiglia' %}{{ bar.colore_fam }}{% else %}{{ bar.colore }}{% endif %};{% endif %}">
+                   title="{{ bar.label }}{% if bar.qta %} · {{ bar.qta }} pz{% endif %}{% if bar.ore %} · {{ bar.ore }}h{% elif bar.ore_stima %} · ≈{{ bar.ore_stima }}h (stima){% endif %}{% if bar.cliente %} · {{ bar.cliente }}{% endif %} · {{ bar.turno_label }}{% if bar.ritardo %} · ⏱ ritardo previsto{% endif %}"
+                   style="left:calc(var(--cw) * {{ bar.start_idx }}); width:calc(var(--cw) * {{ bar.span }} - 4px); top:calc(var(--laneh) * {{ bar.lane|default:0 }} + 4px); height:calc(var(--laneh) * {{ bar.lanespan|default:1 }} - 8px);{% if colore_mode != 'stato' %}background:{% if colore_mode == 'famiglia' %}{{ bar.colore_fam }}{% else %}{{ bar.colore }}{% endif %};{% endif %}">
                 <span style="overflow:hidden;text-overflow:ellipsis;">{{ bar.label }}</span>{% if bar.conflitto %}<span class="gcfl">&#9888;</span>{% endif %}{% if bar.prog %}<i class="gprog" style="width:{{ bar.prog }}%"></i>{% endif %}
               </div>
             {% endfor %}
@@ -476,6 +506,9 @@
 
 <datalist id="gcm-famiglie">{% for f in famiglie %}<option value="{{ f.nome }}"></option>{% endfor %}</datalist>
 <script id="gcm-giorni" type="application/json">[{% for g in giorni %}"{{ g|date:'d/m' }}"{% if not forloop.last %},{% endif %}{% endfor %}]</script>
+{# Capability macchine (turni/ore/flag) + label turni per il picker del modale e i toggle del pannello macchina. #}
+{{ macchine_scelta|json_script:"gcm-macchine" }}
+{{ turno_choices|json_script:"gcm-turni-label" }}
 
 {# ── Drawer: dettaglio LAVORO (click su barra) ── #}
 <aside id="gcm-detail" class="gcm-drawer">
@@ -512,6 +545,8 @@
     {% if can_edit %}
     <div class="gd-actions">
       <button type="button" id="gd-save" class="primary">Salva modifiche</button>
+      <button type="button" id="gd-duplica" title="Crea una copia di questo lavoro">Duplica</button>
+      <button type="button" id="gd-elimina" class="danger" title="Elimina questo lavoro">Elimina</button>
     </div>
     {% endif %}
   </div>
@@ -532,10 +567,20 @@
       <div class="t">Saturazione <b id="gm-satp"></b></div>
       <div class="bar"><i id="gm-satbar"></i></div>
     </div>
+    {% if can_edit %}
+    <div class="gd-sec">TURNI E CAPACITÀ</div>
+    <div class="gm-cfg">
+      <label class="gm-chk"><input type="checkbox" id="gm-t2"> 2° turno di giorno (14-22)</label>
+      <label class="gm-chk"><input type="checkbox" id="gm-notte"> Turno notturno (22-6)</label>
+      <label class="gm-num">Ore/giorno per turno <input type="number" min="1" step="0.5" id="gm-ogg" title="Ore/giorno per turno"></label>
+      <div class="gm-cfg-msg" id="gm-cfg-msg"></div>
+    </div>
+    {% endif %}
     <div class="gd-sec" id="gm-jobs-h">LAVORI IN CODA</div>
     <div class="gd-jobs" id="gm-jobs"></div>
     <div class="gd-actions">
       <a class="primary" id="gm-excel" href="#">Apri nel foglio Excel</a>
+      <a id="gm-settings" href="{% url 'gestione_carichi_macchina:impostazioni' %}">Impostazioni</a>
     </div>
   </div>
 </aside>
@@ -548,14 +593,20 @@
       <div><label>Macchina</label><select id="gcm-add-mac">{% for mm in macchine_scelta %}<option value="{{ mm.id }}">{{ mm.codice }}</option>{% endfor %}</select></div>
       <div class="row2">
         <div><label>Data</label><input type="date" id="gcm-add-data" value="{{ oggi|date:'Y-m-d' }}"></div>
-        <div><label>Turno</label><select id="gcm-add-turno"><option value="giorno">1° turno</option><option value="t2">2° turno</option><option value="notte">Notturno</option></select></div>
+        {# Le opzioni del turno vengono ripopolate via JS in base alla capability della macchina. #}
+        <div><label>Turno</label><select id="gcm-add-turno"></select></div>
       </div>
       <div><label>Lavoro (testo libero)</label><input id="gcm-add-testo" list="gcm-famiglie" placeholder="es. 8 gimbal (33h)"></div>
+      <div class="row2">
+        <div><label>Lavorazione</label><select id="gcm-add-fase">{% for val, lbl in fase_choices %}<option value="{{ val }}">{{ lbl }}</option>{% endfor %}</select></div>
+        <div><label>Quantità (pz)</label><input type="number" min="0" id="gcm-add-qta"></div>
+      </div>
       <div id="gcm-add-sugg"></div>
       <div class="row2">
-        <div><label>Quantità (pz)</label><input type="number" min="0" id="gcm-add-qta"></div>
         <div><label>Ore</label><input type="number" min="0" step="0.5" id="gcm-add-ore"></div>
+        <div><label>Stato</label><select id="gcm-add-stato">{% for val, lbl in stato_choices %}<option value="{{ val }}">{{ lbl }}</option>{% endfor %}</select></div>
       </div>
+      <div class="gcm-warnbox" id="gcm-add-warn" style="display:none"></div>
       <div class="actions">
         <button type="button" data-close>Annulla</button>
         <button type="button" class="primary" id="gcm-add-save">Aggiungi</button>
@@ -579,22 +630,13 @@
 
 {% block extra_scripts %}
 <script>
-// ── Espande/collassa i turni di UNA macchina (toggle id in ?turni=..., ricarica) ──
-function gcmToggleTurni(mid) {
-  var u = new URL(window.location.href);
-  var set = (u.searchParams.get('turni') || '').split(',').filter(Boolean);
-  var i = set.indexOf(String(mid));
-  if (i >= 0) set.splice(i, 1); else set.push(String(mid));
-  if (set.length) u.searchParams.set('turni', set.join(',')); else u.searchParams.delete('turni');
-  window.location.href = u.toString();
-}
-
 // ── Stepper live su variabili CSS (largh. colonna / alt. riga) ──
 function gcmStep(name, delta) {
   var s = document.querySelector('.gscroll'); if (!s) return;
   var cur = parseInt(getComputedStyle(s).getPropertyValue(name), 10) || 0;
-  var min = name === '--cw' ? 18 : 22, max = name === '--cw' ? 86 : 76;
+  var min = name === '--cw' ? 18 : 22, max = name === '--cw' ? 120 : 76;
   s.style.setProperty(name, Math.max(min, Math.min(max, cur + delta)) + 'px');
+  if (name === '--cw') s.dataset.cwManual = '1';  // disattiva l'auto-fit larghezza
 }
 
 (function () {
@@ -602,6 +644,60 @@ function gcmStep(name, delta) {
   if (!scroll) return;
   var url = scroll.getAttribute('data-reschedule-url');
   var days = JSON.parse(document.getElementById('gcm-giorni').textContent || '[]');
+
+  // ── Gantt a tutta pagina: l'app riempie l'altezza utile sotto la nav. ──
+  // Calcolo l'altezza esatta dal top reale di .gapp (robusto a top-nav/subnav/banner
+  // di altezza variabile), con un piccolo margine di respiro in fondo.
+  function gcmFit() {
+    var app = document.querySelector('.gapp'); if (!app) return;
+    var top = app.getBoundingClientRect().top;
+    var h = window.innerHeight - top - 12;
+    if (h > 320) app.style.height = h + 'px';
+  }
+  // ── A tutta pagina anche in LARGHEZZA: se i giorni della finestra non bastano a
+  // riempire la timeline (es. 21 giorni su schermo largo), allarga le colonne fino a
+  // coprire lo spazio; non scende MAI sotto la larghezza di default (così con finestre
+  // ampie le colonne restano leggibili e parte lo scroll orizzontale). Disattivato se
+  // l'utente regola a mano la larghezza con lo stepper (data-cw-manual).
+  function gcmFitWidth() {
+    if (scroll.dataset.cwManual === '1') return;
+    var n = (days && days.length) || 0;
+    if (!n) return;
+    var leftw = parseInt(getComputedStyle(scroll).getPropertyValue('--leftw'), 10) || 256;
+    var avail = scroll.clientWidth - leftw - 2;
+    if (avail <= 0) return;
+    var cw = Math.max(38, Math.min(120, Math.floor(avail / n)));
+    scroll.style.setProperty('--cw', cw + 'px');
+  }
+  function gcmFitAll() { gcmFit(); gcmFitWidth(); }
+  gcmFitAll();
+  window.addEventListener('resize', gcmFitAll);
+
+  // ── Capability macchine + label turni (per picker dinamico e toggle pannello) ──
+  var MAC = {};
+  try {
+    (JSON.parse(document.getElementById('gcm-macchine').textContent || '[]') || [])
+      .forEach(function (m) { MAC[String(m.id)] = m; });
+  } catch (e) {}
+  var TURNO_LABEL = {};
+  try {
+    (JSON.parse(document.getElementById('gcm-turni-label').textContent || '[]') || [])
+      .forEach(function (t) { TURNO_LABEL[t[0]] = t[1]; });
+  } catch (e) {}
+  function macById(id) { return MAC[String(id)] || null; }
+  // Ripopola un <select> turno con le SOLE opzioni consentite dalla macchina scelta,
+  // mantenendo la selezione corrente se ancora valida.
+  function gcmPopolaTurni(sel, macId, keep) {
+    if (!sel) return;
+    var m = macById(macId);
+    var turni = (m && m.turni && m.turni.length) ? m.turni : ['giorno'];
+    var cur = keep || sel.value;
+    sel.innerHTML = turni.map(function (t) {
+      return '<option value="' + t + '">' + esc(TURNO_LABEL[t] || t) + '</option>';
+    }).join('');
+    if (turni.indexOf(cur) >= 0) sel.value = cur;
+  }
+  var gmCurrentId = null;  // macchina aperta nel pannello dettaglio (per i toggle config)
 
   function cw() { return parseInt(getComputedStyle(scroll).getPropertyValue('--cw'), 10) || 38; }
   function csrf() { var m = document.querySelector("meta[name='csrf-token']"); return m ? m.getAttribute('content') : ''; }
@@ -648,8 +744,8 @@ function gcmStep(name, delta) {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' },
       body: new URLSearchParams(params).toString()
     }).then(function (r) { return r.json(); }).then(function (data) {
-      if (data && data.reason === 'incompatibile') {
-        if (window.confirm(data.error || 'Macchina incompatibile. Spostare comunque?')) { params.forza = '1'; return postMove(d, params); }
+      if (data && (data.reason === 'incompatibile' || data.reason === 'sovrapposizione')) {
+        if (window.confirm(data.error || 'Spostare comunque?')) { params.forza = '1'; return postMove(d, params); }
         resetBar(d); return;
       }
       if (data && data.ok) {
@@ -785,9 +881,43 @@ function gcmStep(name, delta) {
     });
     var ex = document.getElementById('gm-excel');
     if (ex) ex.href = "{% url 'gestione_carichi_macchina:excel' %}?start={{ start|date:'Y-m-d' }}&giorni={{ giorni_n }}";
+    // Config turni della macchina (toggle rapidi): popola dai dati capability.
+    gmCurrentId = mid;
+    var mcfg = macById(mid);
+    var gmT2El = document.getElementById('gm-t2');
+    var gmNtEl = document.getElementById('gm-notte');
+    var gmOggEl = document.getElementById('gm-ogg');
+    if (mcfg) {
+      if (gmT2El) gmT2El.checked = !!mcfg.ha_secondo_turno;
+      if (gmNtEl) gmNtEl.checked = !!mcfg.ha_turno_notte;
+      if (gmOggEl) gmOggEl.value = (mcfg.ore_giorno != null) ? mcfg.ore_giorno : '';
+    }
+    var cfgMsg = document.getElementById('gm-cfg-msg'); if (cfgMsg) cfgMsg.textContent = '';
     document.getElementById('gcm-machine').classList.add('open');
   }
   window.gcmOpenMachine = gcmOpenMachine;
+
+  // ── Toggle config macchina (2° turno / notte / ore-giorno) dal pannello ──
+  function gmSalvaConfig(campo, valore) {
+    if (!gmCurrentId) return;
+    var msg = document.getElementById('gm-cfg-msg'); if (msg) msg.textContent = 'Salvo…';
+    var body = new URLSearchParams({ macchina: gmCurrentId });
+    body.set(campo, valore);
+    fetch("{% url 'gestione_carichi_macchina:macchina_config' %}", { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' }, body: body.toString() })
+      .then(function (r) { return r.json(); }).then(function (d) {
+        if (!d || !d.ok) throw 0;
+        var m = MAC[String(gmCurrentId)];
+        if (m) { m.ha_secondo_turno = d.ha_secondo_turno; m.ha_turno_notte = d.ha_turno_notte; m.ore_giorno = d.ore_giorno; m.turni = d.turni; }
+        if (msg) msg.textContent = 'Salvato · aggiorno la capacità…';
+        setTimeout(function () { window.location.reload(); }, 600);  // ricalcola saturazione/righe
+      }).catch(function () { if (msg) msg.textContent = 'Errore nel salvataggio.'; });
+  }
+  var gmT2 = document.getElementById('gm-t2');
+  var gmNotte = document.getElementById('gm-notte');
+  var gmOgg = document.getElementById('gm-ogg');
+  if (gmT2) gmT2.addEventListener('change', function () { gmSalvaConfig('ha_secondo_turno', gmT2.checked ? '1' : '0'); });
+  if (gmNotte) gmNotte.addEventListener('change', function () { gmSalvaConfig('ha_turno_notte', gmNotte.checked ? '1' : '0'); });
+  if (gmOgg) gmOgg.addEventListener('change', function () { if (gmOgg.value) gmSalvaConfig('ore_giorno', gmOgg.value); });
 
   // ── Salva modifiche lavoro ──
   var gdSave = document.getElementById('gd-save');
@@ -804,6 +934,33 @@ function gcmStep(name, delta) {
       .catch(function () { gdSave.disabled = false; alert('Errore nel salvataggio.'); });
   });
 
+  // ── Duplica lavoro ──
+  var gdDup = document.getElementById('gd-duplica');
+  if (gdDup) gdDup.addEventListener('click', function () {
+    var f = document.getElementById('gd-form'); var pid = f && f.dataset.pid; if (!pid) return;
+    gdDup.disabled = true;
+    var u = "{% url 'gestione_carichi_macchina:pianificazione_duplica' 0 %}".replace('/0/duplica/', '/' + pid + '/duplica/');
+    fetch(u, { method: 'POST', headers: { 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function (r) { return r.json(); }).then(function (d) {
+        if (d && d.ok) window.location.reload(); else { gdDup.disabled = false; alert('Errore nella duplicazione.'); }
+      }).catch(function () { gdDup.disabled = false; alert('Errore di rete.'); });
+  });
+
+  // ── Elimina lavoro (riusa cella_edit con elimina=1) ──
+  var gdDel = document.getElementById('gd-elimina');
+  if (gdDel) gdDel.addEventListener('click', function () {
+    var f = document.getElementById('gd-form'); if (!f || !f.dataset.pid) return;
+    if (!window.confirm('Eliminare definitivamente questo lavoro?')) return;
+    gdDel.disabled = true;
+    var body = new URLSearchParams({
+      pianificazione_id: f.dataset.pid, macchina: f.dataset.mac,
+      turno: f.dataset.turno, data: f.dataset.data, elimina: '1',
+    });
+    fetch("{% url 'gestione_carichi_macchina:cella_edit' %}", { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' }, body: body.toString() })
+      .then(function (r) { if (!r.ok) throw 0; window.location.reload(); })
+      .catch(function () { gdDel.disabled = false; alert('Errore nell\'eliminazione.'); });
+  });
+
   // ── Modali "+ Aggiungi lavoro" e "🔮 AI" ──
   function openOv(id) { var o = document.getElementById(id); if (o) o.classList.add('open'); }
   document.querySelectorAll('.gcm-ov').forEach(function (o) {
@@ -811,28 +968,99 @@ function gcmStep(name, delta) {
   });
   var addBtn = document.getElementById('gcm-add-btn');
   var macSel = document.getElementById('gcm-add-mac');
+  var turnoSel = document.getElementById('gcm-add-turno');
   if (addBtn) {
-    addBtn.addEventListener('click', function () { openOv('gcm-add-ov'); });
+    gcmPopolaTurni(turnoSel, macSel && macSel.value, 'giorno');  // opzioni iniziali
+    addBtn.addEventListener('click', function () { openOv('gcm-add-ov'); scheduleCheck(); });
     var addSugg = document.getElementById('gcm-add-sugg');
     var addTesto = document.getElementById('gcm-add-testo');
+    var addFase = document.getElementById('gcm-add-fase');
     var suggTimer;
     function refreshAddSugg() {
       if (!addSugg || !addTesto) return;
       var testo = addTesto.value.trim();
       if (!testo) { addSugg.innerHTML = ''; return; }
-      var qs = new URLSearchParams({ testo: testo, macchina: (macSel && macSel.value) || '', fase: '' });
+      // Suggerimenti coerenti con FASE e TURNO scelti (macchine non idonee al turno escluse).
+      var qs = new URLSearchParams({
+        testo: testo, macchina: (macSel && macSel.value) || '',
+        fase: (addFase && addFase.value) || '', turno: (turnoSel && turnoSel.value) || '',
+      });
       fetch("{% url 'gestione_carichi_macchina:cella_suggerimento' %}?" + qs.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
         .then(function (r) { return r.text(); }).then(function (html) { addSugg.innerHTML = html; }).catch(function () {});
     }
+    // ── Avviso live di sovrapposizione + "usa slot libero" ──
+    var addWarn = document.getElementById('gcm-add-warn');
+    var addData = document.getElementById('gcm-add-data');
+    var addOre = document.getElementById('gcm-add-ore');
+    var warnTimer;
+    function applySlot(turno, dataIso) {
+      if (dataIso && addData) addData.value = dataIso;
+      if (turno && turnoSel) {
+        if (![].some.call(turnoSel.options, function (o) { return o.value === turno; })) {
+          gcmPopolaTurni(turnoSel, macSel && macSel.value, turno);
+        }
+        turnoSel.value = turno;
+      }
+    }
+    function checkOverlap() {
+      if (!addWarn) return;
+      var mid = macSel && macSel.value, data = addData && addData.value;
+      var turno = turnoSel && turnoSel.value, ore = addOre && addOre.value;
+      if (!mid || !data) { addWarn.style.display = 'none'; return; }
+      var qs = new URLSearchParams({ macchina: mid, turno: turno || 'giorno', data: data, ore: ore || '' });
+      fetch("{% url 'gestione_carichi_macchina:api_sovrapposizione' %}?" + qs.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function (r) { return r.json(); }).then(function (d) {
+          if (!d || !d.overlap) { addWarn.style.display = 'none'; addWarn.innerHTML = ''; return; }
+          var etich = (d.conflitti && d.conflitti[0] && d.conflitti[0].testo) || 'un altro lavoro';
+          var html = '⚠ Si sovrappone a <b>' + esc(etich) + '</b> (conflitto di capacità).';
+          if (d.suggerimento) html += '<br>Primo libero: <b>' + esc(d.suggerimento.label) + '</b><br><button type="button" class="gcm-usaslot" id="gcm-usaslot">Usa questo slot</button>';
+          addWarn.innerHTML = html; addWarn.style.display = '';
+          var us = document.getElementById('gcm-usaslot');
+          if (us && d.suggerimento) us.addEventListener('click', function () {
+            applySlot(d.suggerimento.turno, d.suggerimento.data);
+            refreshAddSugg(); checkOverlap();
+          });
+        }).catch(function () { addWarn.style.display = 'none'; });
+    }
+    function scheduleCheck() { clearTimeout(warnTimer); warnTimer = setTimeout(checkOverlap, 350); }
+
     if (addTesto) addTesto.addEventListener('input', function () { clearTimeout(suggTimer); suggTimer = setTimeout(refreshAddSugg, 450); });
-    if (macSel) macSel.addEventListener('change', refreshAddSugg);
+    if (addFase) addFase.addEventListener('change', refreshAddSugg);
+    if (turnoSel) turnoSel.addEventListener('change', function () { refreshAddSugg(); scheduleCheck(); });
+    if (addData) addData.addEventListener('change', scheduleCheck);
+    if (addOre) addOre.addEventListener('input', scheduleCheck);
+    if (macSel) macSel.addEventListener('change', function () {
+      gcmPopolaTurni(turnoSel, macSel.value, turnoSel && turnoSel.value);  // turni della nuova macchina
+      refreshAddSugg(); scheduleCheck();
+    });
     var addSave = document.getElementById('gcm-add-save');
     if (addSave) addSave.addEventListener('click', function () {
-      var testo = addTesto.value.trim(); var mid = macSel ? macSel.value : ''; var data = document.getElementById('gcm-add-data').value; var turno = document.getElementById('gcm-add-turno').value;
+      var testo = addTesto.value.trim();
+      var mid = macSel ? macSel.value : '';
+      var data = document.getElementById('gcm-add-data').value;
+      var turno = turnoSel ? turnoSel.value : 'giorno';
+      var ore = document.getElementById('gcm-add-ore').value;
       if (!mid || !data || !testo) { alert('Compila macchina, data e lavoro.'); return; }
-      var body = new URLSearchParams({ macchina: mid, turno: turno, data: data, testo: testo, qta: document.getElementById('gcm-add-qta').value, ore: document.getElementById('gcm-add-ore').value, stato: 'pianificata', fase: '' });
-      fetch("{% url 'gestione_carichi_macchina:cella_edit' %}", { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' }, body: body.toString() })
-        .then(function (r) { if (!r.ok) throw 0; return r.text(); }).then(function () { window.location.reload(); }).catch(function () { alert('Errore nel salvataggio del lavoro.'); });
+      function salva() {
+        var body = new URLSearchParams({
+          macchina: mid, turno: turno, data: data, testo: testo,
+          qta: document.getElementById('gcm-add-qta').value, ore: ore,
+          stato: document.getElementById('gcm-add-stato').value || 'pianificata',
+          fase: (addFase && addFase.value) || '',
+        });
+        fetch("{% url 'gestione_carichi_macchina:cella_edit' %}", { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' }, body: body.toString() })
+          .then(function (r) { if (!r.ok) throw 0; return r.text(); }).then(function () { window.location.reload(); }).catch(function () { alert('Errore nel salvataggio del lavoro.'); });
+      }
+      // Conferma su SOVRAPPOSIZIONE prima di creare (stesso pattern del drag).
+      var chk = new URLSearchParams({ macchina: mid, turno: turno, data: data, ore: ore });
+      fetch("{% url 'gestione_carichi_macchina:api_sovrapposizione' %}?" + chk.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function (r) { return r.json(); }).then(function (d) {
+          if (d && d.overlap) {
+            var etich = (d.conflitti && d.conflitti[0] && d.conflitti[0].testo) || 'un altro lavoro';
+            if (!window.confirm('Si sovrappone a «' + etich + '» sullo stesso turno. Inserire comunque?')) return;
+          }
+          salva();
+        }).catch(salva);  // se il check fallisce, non bloccare l'inserimento
     });
   }
   var aiBtn = document.getElementById('gcm-ai-btn');

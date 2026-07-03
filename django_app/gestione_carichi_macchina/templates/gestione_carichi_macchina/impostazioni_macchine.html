@@ -1,0 +1,136 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Gestione Carichi Macchina · Impostazioni macchine{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* Impostazioni macchine: capability di pianificazione (turni, ore/giorno, stato).
+     Stile allineato ai token del portale (navy/cyan/orange), SSR + vanilla JS. */
+  .ims { --i-navy: var(--primary, #0c2545); --i-cyan: var(--primary-mid, #1f87cd);
+    --i-border: #d7e0ea; --i-surf: #f6f9fc; --i-mid: #4a5568; --i-light: #94a3b8;
+    font-family: "Outfit", system-ui, -apple-system, "Segoe UI", sans-serif; color: #1a202c; }
+  .ims-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+  .ims-head h1 { margin: 0; font-size: 1.3rem; font-weight: 800; color: var(--i-navy); }
+  .ims-head .sub { font-size: .82rem; color: var(--i-mid); margin-top: 3px; }
+  .ims-back { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px;
+    border-radius: 8px; background: var(--i-navy); color: #fff; text-decoration: none; font-weight: 700; font-size: .82rem; }
+  .ims-back:hover { filter: brightness(1.08); }
+  .ims-sez { margin: 18px 0 6px; font-size: .72rem; font-weight: 800; letter-spacing: .05em;
+    text-transform: uppercase; color: var(--i-cyan); }
+  .ims-table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid var(--i-border);
+    border-radius: 12px; overflow: hidden; }
+  .ims-table th { background: var(--i-navy); color: #fff; font-size: .66rem; font-weight: 800; text-transform: uppercase;
+    letter-spacing: .04em; padding: 9px 12px; text-align: left; }
+  .ims-table th.c, .ims-table td.c { text-align: center; }
+  .ims-table td { padding: 8px 12px; border-top: 1px solid #eef2f6; font-size: .84rem; vertical-align: middle; }
+  .ims-table tr:hover td { background: var(--i-surf); }
+  .ims-cod { font-weight: 800; color: var(--i-navy); }
+  .ims-desc { font-size: .72rem; color: var(--i-light); }
+  .ims-chk { width: 18px; height: 18px; cursor: pointer; }
+  .ims-ogg { width: 72px; padding: 5px 7px; border: 1px solid var(--i-border); border-radius: 7px; font-size: .82rem; }
+  .ims-stato { padding: 5px 7px; border: 1px solid var(--i-border); border-radius: 7px; font-size: .82rem; background: #fff; }
+  .ims-turni { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 24px;
+    padding: 0 7px; border-radius: 12px; background: rgba(31,135,205,.12); color: var(--i-cyan); font-weight: 800; font-size: .76rem; }
+  .ims-ok { font-size: .72rem; font-weight: 800; color: #38a169; opacity: 0; transition: opacity .15s ease; }
+  .ims-ok.show { opacity: 1; }
+  .ims-note { margin-top: 16px; font-size: .76rem; color: var(--i-mid); background: rgba(31,135,205,.06);
+    border: 1px solid var(--i-border); border-radius: 10px; padding: 10px 12px; line-height: 1.5; }
+</style>
+{% endblock %}
+
+{% block content %}
+{# data-fm-table-skip: griglie-form di config, non tabelle-dati → escluse dall'enhancer globale (niente toolbar auto). #}
+<div class="ims" data-fm-table-skip="1" data-config-url="{% url 'gestione_carichi_macchina:macchina_config' %}">
+  <div class="ims-head">
+    <div>
+      <h1>Impostazioni macchine</h1>
+      <div class="sub">Turni abilitati, ore/giorno per turno e stato · {{ n_macchine }} macchine attive.
+        La capacità è <b>ore/giorno × n° turni abilitati</b> (1°&nbsp;sempre, +2°&nbsp;turno, +notturno).</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <a class="ims-back" href="{% url 'gestione_carichi_macchina:registro' %}" style="background:#fff;color:var(--i-navy);border:1px solid var(--i-border)">Registro azioni</a>
+      <a class="ims-back" href="{% url 'gestione_carichi_macchina:gantt' %}">‹ Torna al Gantt</a>
+    </div>
+  </div>
+
+  {% for sez in sezioni %}
+    <div class="ims-sez">{{ sez.label }}</div>
+    <table class="ims-table">
+      <thead>
+        <tr>
+          <th>Macchina</th>
+          <th class="c" title="Secondo turno di giorno (14-22)">2° turno</th>
+          <th class="c" title="Turno notturno (22-6)">Notturno</th>
+          <th class="c">Ore/giorno</th>
+          <th class="c" title="Numero di turni abilitati">N° turni</th>
+          <th>Stato</th>
+          <th class="c"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in sez.macchine %}
+          <tr data-mac="{{ m.id }}">
+            <td><div class="ims-cod">{{ m.codice }}</div><div class="ims-desc">{{ m.descrizione|truncatechars:42 }}</div></td>
+            <td class="c"><input type="checkbox" class="ims-chk" data-field="ha_secondo_turno" {% if m.ha_secondo_turno %}checked{% endif %} title="Abilita 2° turno"></td>
+            <td class="c"><input type="checkbox" class="ims-chk" data-field="ha_turno_notte" {% if m.ha_turno_notte %}checked{% endif %} title="Abilita turno notturno"></td>
+            <td class="c"><input type="number" class="ims-ogg" data-field="ore_giorno" min="1" step="0.5" value="{{ m.ore_giorno_disponibili }}" title="Ore disponibili per turno"></td>
+            <td class="c"><span class="ims-turni" data-turni>{{ m.n_turni_attivi }}</span></td>
+            <td>
+              <select class="ims-stato" data-field="stato" title="Stato di pianificazione">
+                {% for val, lbl in stato_choices %}
+                  <option value="{{ val }}"{% if m.stato_pianificazione == val %} selected{% endif %}>{{ lbl }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td class="c"><span class="ims-ok" data-ok>✓ salvato</span></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% empty %}
+    <div class="ims-note">Nessuna macchina attiva. Le macchine si aggiungono dagli asset (anagrafica) e dall'import del foglio carichi.</div>
+  {% endfor %}
+
+  <div class="ims-note">
+    Le modifiche sono salvate automaticamente. I flag di turno limitano anche le opzioni selezionabili
+    quando si aggiunge un lavoro nel Gantt (una macchina senza turno notturno non può ricevere lavori notturni o H24).
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+  var root = document.querySelector('.ims');
+  if (!root) return;
+  var url = root.getAttribute('data-config-url');
+  function csrf() { var m = document.querySelector("meta[name='csrf-token']"); return m ? m.getAttribute('content') : ''; }
+
+  function salva(row, field, value) {
+    var ok = row.querySelector('[data-ok]');
+    var body = new URLSearchParams({ macchina: row.getAttribute('data-mac') });
+    body.set(field, value);
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' },
+      body: body.toString(),
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d || !d.ok) throw 0;
+      var badge = row.querySelector('[data-turni]'); if (badge && d.n_turni != null) badge.textContent = d.n_turni;
+      if (ok) { ok.classList.add('show'); setTimeout(function () { ok.classList.remove('show'); }, 1400); }
+    }).catch(function () { alert('Errore nel salvataggio della macchina ' + row.getAttribute('data-mac') + '.'); });
+  }
+
+  root.querySelectorAll('input[data-field], select[data-field]').forEach(function (el) {
+    el.addEventListener('change', function () {
+      var row = el.closest('tr[data-mac]'); if (!row) return;
+      var field = el.getAttribute('data-field');
+      var value = el.type === 'checkbox' ? (el.checked ? '1' : '0') : el.value;
+      if (field === 'ore_giorno' && !(parseFloat(value) > 0)) return;  // ignora ore non valide
+      salva(row, field, value);
+    });
+  });
+})();
+</script>
+{% endblock %}

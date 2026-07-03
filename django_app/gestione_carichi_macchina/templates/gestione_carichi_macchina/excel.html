@@ -142,6 +142,13 @@
   .gcm-ai-mac .bar { flex: 1; height: 8px; border-radius: 4px; background: #e8eef6; overflow: hidden; }
   .gcm-ai-mac .bar i { display: block; height: 100%; background: var(--primary-mid,#1f87cd); }
   .gcm-muted { color: #94a3b8; font-size: .82rem; }
+  .gcm-warnbox { background: rgba(214,158,46,.12); border: 1px solid #d69e2e; border-radius: 9px;
+    padding: 9px 11px; font-size: .8rem; color: #8a6d1f; line-height: 1.45; }
+  .gcm-warnbox b { color: #7a5d12; }
+  .gcm-usaslot { display: inline-flex; align-items: center; height: 30px; padding: 0 11px; margin-top: 7px;
+    border-radius: 8px; border: 1px solid var(--primary-mid,#1f87cd); background: #fff; color: var(--primary-mid,#1f87cd);
+    font-weight: 800; font-size: .76rem; cursor: pointer; }
+  .gcm-usaslot:hover { background: var(--primary-mid,#1f87cd); color: #fff; }
 </style>
 {% endblock %}
 
@@ -163,7 +170,9 @@
       <a class="gcm-btn" href="?start={{ start|date:'Y-m-d' }}&giorni={{ giorni_n }}{% if not mostra_turni %}&turni=1{% endif %}"
          title="Mostra/nascondi le righe per turno (1° / 2° / notturno)"
          {% if mostra_turni %}style="background:var(--primary,#0c2545);color:#fff;border-color:var(--primary,#0c2545);"{% endif %}>Turni{% if mostra_turni %}: ON{% endif %}</a>
-      <button type="button" id="gcm-add-btn" class="gcm-btn" style="background:var(--primary-mid,#1f87cd);color:#fff;border-color:var(--primary-mid,#1f87cd);">+ Aggiungi lavoro</button>
+      <a class="gcm-btn" href="{% url 'gestione_carichi_macchina:registro' %}" title="Registro azioni (chi ha modificato cosa)">Registro</a>
+      {% if can_edit %}<a class="gcm-btn" href="{% url 'gestione_carichi_macchina:impostazioni' %}" title="Impostazioni macchine">Impostazioni</a>
+      <button type="button" id="gcm-add-btn" class="gcm-btn" style="background:var(--primary-mid,#1f87cd);color:#fff;border-color:var(--primary-mid,#1f87cd);">+ Aggiungi lavoro</button>{% endif %}
       <button type="button" id="gcm-ai-btn" class="gcm-btn" title="Suggerimento e spiegazione AI">🔮 AI</button>
     </nav>
   </header>
@@ -224,6 +233,9 @@
 <datalist id="gcm-famiglie">
   {% for nome in famiglie %}<option value="{{ nome }}"></option>{% endfor %}
 </datalist>
+{# Turni consentiti per macchina + label, per il picker dinamico del modale. #}
+{{ macchine_turni|json_script:"gcm-macchine-turni" }}
+{{ turno_choices|json_script:"gcm-turni-label" }}
 
 {# ── Modale: + Aggiungi lavoro (come nel foglio Excel) ── #}
 <div class="gcm-ov" id="gcm-add-ov">
@@ -233,7 +245,8 @@
       <div><label>Macchina</label><select id="gcm-add-mac"></select></div>
       <div class="row2">
         <div><label>Data</label><input type="date" id="gcm-add-data" value="{{ oggi|date:'Y-m-d' }}"></div>
-        <div><label>Turno</label><select id="gcm-add-turno"><option value="giorno">1° turno</option><option value="t2">2° turno</option><option value="notte">Notturno</option></select></div>
+        {# Opzioni ripopolate via JS in base alla capability della macchina scelta. #}
+        <div><label>Turno</label><select id="gcm-add-turno"></select></div>
       </div>
       <div><label>Lavoro (testo libero)</label><input id="gcm-add-testo" list="gcm-famiglie" placeholder="es. 8 gimbal (33h)"></div>
       <div id="gcm-add-sugg"></div>
@@ -241,6 +254,7 @@
         <div><label>Quantità (pz)</label><input type="number" min="0" id="gcm-add-qta"></div>
         <div><label>Ore</label><input type="number" min="0" step="0.5" id="gcm-add-ore"></div>
       </div>
+      <div class="gcm-warnbox" id="gcm-add-warn" style="display:none"></div>
       <div class="actions">
         <button type="button" data-close>Annulla</button>
         <button type="button" class="primary" id="gcm-add-save">Aggiungi</button>
@@ -275,26 +289,80 @@
   // ── + Aggiungi lavoro: popola macchine dalla tabella, crea via cella_edit ──
   var addBtn = document.getElementById('gcm-add-btn');
   var macSel = document.getElementById('gcm-add-mac');
+  // Capability turni per macchina + label (per il picker dinamico del turno).
+  var TURNI_MAC = {};
+  try { TURNI_MAC = JSON.parse(document.getElementById('gcm-macchine-turni').textContent || '{}') || {}; } catch (e) {}
+  var TURNO_LABEL = {};
+  try {
+    (JSON.parse(document.getElementById('gcm-turni-label').textContent || '[]') || [])
+      .forEach(function (t) { TURNO_LABEL[t[0]] = t[1]; });
+  } catch (e) {}
   if (addBtn && macSel) {
+    var addTurno = document.getElementById('gcm-add-turno');
+    function popolaTurni() {
+      if (!addTurno) return;
+      var turni = TURNI_MAC[macSel.value] || ['giorno'];
+      var cur = addTurno.value;
+      addTurno.innerHTML = turni.map(function (t) {
+        return '<option value="' + t + '">' + esc(TURNO_LABEL[t] || t) + '</option>';
+      }).join('');
+      if (turni.indexOf(cur) >= 0) addTurno.value = cur;
+    }
     document.querySelectorAll('th.gcm-mac[data-mid]').forEach(function (th) {
       var op = document.createElement('option');
       op.value = th.getAttribute('data-mid');
       op.textContent = th.getAttribute('data-mcod');
       macSel.appendChild(op);
     });
-    addBtn.addEventListener('click', function () { openOv('gcm-add-ov'); });
+    popolaTurni();  // turni della prima macchina
+    addBtn.addEventListener('click', function () { openOv('gcm-add-ov'); scheduleCheck(); });
+
+    // ── Avviso live di sovrapposizione + "usa slot libero" ──
+    var addWarn = document.getElementById('gcm-add-warn');
+    var addData = document.getElementById('gcm-add-data');
+    var addOre = document.getElementById('gcm-add-ore');
+    var warnTimer;
+    function applySlot(turno, dataIso) {
+      if (dataIso && addData) addData.value = dataIso;
+      if (turno && addTurno) {
+        if (![].some.call(addTurno.options, function (o) { return o.value === turno; })) popolaTurni();
+        addTurno.value = turno;
+      }
+    }
+    function checkOverlap() {
+      if (!addWarn) return;
+      var mid = macSel.value, data = addData && addData.value;
+      var turno = addTurno && addTurno.value, ore = addOre && addOre.value;
+      if (!mid || !data) { addWarn.style.display = 'none'; return; }
+      var qs = new URLSearchParams({ macchina: mid, turno: turno || 'giorno', data: data, ore: ore || '' });
+      fetch("{% url 'gestione_carichi_macchina:api_sovrapposizione' %}?" + qs.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function (r) { return r.json(); }).then(function (d) {
+          if (!d || !d.overlap) { addWarn.style.display = 'none'; addWarn.innerHTML = ''; return; }
+          var etich = (d.conflitti && d.conflitti[0] && d.conflitti[0].testo) || 'un altro lavoro';
+          var html = '⚠ Si sovrappone a <b>' + esc(etich) + '</b> (conflitto di capacità).';
+          if (d.suggerimento) html += '<br>Primo libero: <b>' + esc(d.suggerimento.label) + '</b><br><button type="button" class="gcm-usaslot" id="gcm-usaslot">Usa questo slot</button>';
+          addWarn.innerHTML = html; addWarn.style.display = '';
+          var us = document.getElementById('gcm-usaslot');
+          if (us && d.suggerimento) us.addEventListener('click', function () {
+            applySlot(d.suggerimento.turno, d.suggerimento.data); refreshAddSugg(); checkOverlap();
+          });
+        }).catch(function () { addWarn.style.display = 'none'; });
+    }
+    function scheduleCheck() { clearTimeout(warnTimer); warnTimer = setTimeout(checkOverlap, 350); }
 
     // Affinità macchine nel modale: STESSO box/endpoint del "+" cella (componente identico).
     // La macchina si sceglie dopo: il box guida la scelta ed evidenzia quella selezionata.
     var addSugg = document.getElementById('gcm-add-sugg');
     var addTesto = document.getElementById('gcm-add-testo');
-    var addTurno = document.getElementById('gcm-add-turno');
     var suggTimer;
     function refreshAddSugg() {
       if (!addSugg || !addTesto) return;
       var testo = addTesto.value.trim();
       if (!testo) { addSugg.innerHTML = ''; return; }
-      var qs = new URLSearchParams({ testo: testo, macchina: macSel.value || '', fase: '' });
+      var qs = new URLSearchParams({
+        testo: testo, macchina: macSel.value || '', fase: '',
+        turno: (addTurno && addTurno.value) || '',
+      });
       fetch("{% url 'gestione_carichi_macchina:cella_suggerimento' %}?" + qs.toString(),
         { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
         .then(function (r) { return r.text(); })
@@ -302,26 +370,42 @@
         .catch(function () {});
     }
     if (addTesto) addTesto.addEventListener('input', function () { clearTimeout(suggTimer); suggTimer = setTimeout(refreshAddSugg, 450); });
-    macSel.addEventListener('change', refreshAddSugg);
-    if (addTurno) addTurno.addEventListener('change', refreshAddSugg);
+    macSel.addEventListener('change', function () { popolaTurni(); refreshAddSugg(); scheduleCheck(); });
+    if (addTurno) addTurno.addEventListener('change', function () { refreshAddSugg(); scheduleCheck(); });
+    if (addData) addData.addEventListener('change', scheduleCheck);
+    if (addOre) addOre.addEventListener('input', scheduleCheck);
 
     document.getElementById('gcm-add-save').addEventListener('click', function () {
       var testo = document.getElementById('gcm-add-testo').value.trim();
       var mid = macSel.value, data = document.getElementById('gcm-add-data').value;
-      var turno = document.getElementById('gcm-add-turno').value;
+      var turno = addTurno ? addTurno.value : 'giorno';
+      var ore = document.getElementById('gcm-add-ore').value;
       if (!mid || !data || !testo) { alert('Compila macchina, data e lavoro.'); return; }
-      var body = new URLSearchParams({
-        macchina: mid, turno: turno, data: data, testo: testo,
-        qta: document.getElementById('gcm-add-qta').value,
-        ore: document.getElementById('gcm-add-ore').value, stato: 'pianificata', fase: ''
-      });
-      fetch("{% url 'gestione_carichi_macchina:cella_edit' %}", {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' },
-        body: body.toString()
-      }).then(function (r) { if (!r.ok) throw 0; return r.text(); })
-        .then(function () { window.location.reload(); })
-        .catch(function () { alert('Errore nel salvataggio del lavoro.'); });
+      function salva() {
+        var body = new URLSearchParams({
+          macchina: mid, turno: turno, data: data, testo: testo,
+          qta: document.getElementById('gcm-add-qta').value,
+          ore: ore, stato: 'pianificata', fase: ''
+        });
+        fetch("{% url 'gestione_carichi_macchina:cella_edit' %}", {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' },
+          body: body.toString()
+        }).then(function (r) { if (!r.ok) throw 0; return r.text(); })
+          .then(function () { window.location.reload(); })
+          .catch(function () { alert('Errore nel salvataggio del lavoro.'); });
+      }
+      // Conferma su sovrapposizione prima di creare.
+      var chk = new URLSearchParams({ macchina: mid, turno: turno, data: data, ore: ore });
+      fetch("{% url 'gestione_carichi_macchina:api_sovrapposizione' %}?" + chk.toString(),
+        { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function (r) { return r.json(); }).then(function (d) {
+          if (d && d.overlap) {
+            var etich = (d.conflitti && d.conflitti[0] && d.conflitti[0].testo) || 'un altro lavoro';
+            if (!window.confirm('Si sovrappone a «' + etich + '» sullo stesso turno. Inserire comunque?')) return;
+          }
+          salva();
+        }).catch(salva);
     });
   }
 

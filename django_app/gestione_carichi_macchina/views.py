@@ -56,6 +56,47 @@ def _lunedi(d: date) -> date:
     return d - timedelta(days=d.weekday())
 
 
+def _puo_modificare(request) -> bool:
+    """True se l'utente ha il permesso canonico di MODIFICA del piano.
+
+    L'enforcement principale è il binding route->permesso (middleware ACL v2, strict in
+    prod); questo serve a riflettere il permesso nella UI (nascondere i comandi di scrittura
+    a chi ha solo la vista). Fail-safe: in assenza del sottosistema ACL ricade su
+    is_authenticated (come prima), così dev/test restano usabili.
+    """
+    try:
+        from core.acl_v2 import evaluate_permission_code_access
+        from core.legacy_utils import get_legacy_user
+
+        # Risolve l'identità legacy (ruolo) come fa il middleware ACL: senza di essa
+        # evaluate_permission_code_access non può leggere i grant di ruolo e negherebbe
+        # la modifica a tutti i non-superuser (caporeparto/amministrazione compresi).
+        legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+        return bool(evaluate_permission_code_access(
+            permission_code="gestione_carichi_macchina.piano.edit",
+            legacy_user=legacy_user,
+            django_user=request.user,
+        ).get("allowed"))
+    except Exception:
+        return bool(getattr(request, "user", None) and request.user.is_authenticated)
+
+
+def _log_azione(request, azione, *, macchina=None, pianificazione_id=None, descrizione=""):
+    """Registra un'azione sul piano (audit trail). Fail-safe: non deve mai rompere l'operazione."""
+    from .models import RegistroAzione
+
+    try:
+        u = request.user if getattr(request, "user", None) and request.user.is_authenticated else None
+        RegistroAzione.objects.create(
+            utente=u, utente_nome=(u.get_username() if u else ""),
+            azione=azione, macchina=macchina,
+            macchina_cod=(getattr(macchina, "codice", "") if macchina else ""),
+            pianificazione_id=pianificazione_id, descrizione=(descrizione or "")[:255],
+        )
+    except Exception:
+        pass
+
+
 def _giorni_lavorativi(start: date, n: int) -> list[date]:
     """n giorni lavorativi (lun-ven) a partire da start (weekend esclusi, come nel foglio)."""
     out: list[date] = []
@@ -65,6 +106,75 @@ def _giorni_lavorativi(start: date, n: int) -> list[date]:
             out.append(d)
         d += timedelta(days=1)
     return out
+
+
+def _span_lavorativi(ore, ore_giorno) -> int:
+    """Durata in giorni LAVORATIVI di un lavoro: ceil(ore / ore_giorno), minimo 1."""
+    if not ore or not ore_giorno or ore_giorno <= 0:
+        return 1
+    return max(1, ceil(float(ore) / float(ore_giorno)))
+
+
+def _fine_lavorativa_excl(inizio: date, span_lav: int) -> date:
+    """Data di fine ESCLUSIVA contando `span_lav` giorni lavorativi da `inizio`."""
+    giorni = _giorni_lavorativi(inizio, max(1, span_lav))
+    return giorni[-1] + timedelta(days=1)
+
+
+def _sovrapposizioni(macchina, turno, data, ore, escludi_id=None):
+    """Altri lavori sulla stessa macchina che CONFLIGGONO col lavoro dato.
+
+    Conflitto = le **fasce orarie** dei due turni si intersecano (1°/2° non si toccano,
+    ma 1°+Entrambi, *+H24, Notte+H24 sì) **e** gli intervalli in giorni lavorativi si
+    sovrappongono. Usato per la conferma all'inserimento/spostamento; esclude i completati.
+    """
+    from .models import Pianificazione
+
+    fasce = Pianificazione.fasce_di(turno)
+    span = _span_lavorativi(ore, macchina.ore_giorno_per_turno(turno))
+    fine = _fine_lavorativa_excl(data, span)
+    qs = (
+        Pianificazione.objects.filter(macchina=macchina, data__lt=fine)
+        .exclude(stato=Pianificazione.STATO_COMPLETATA)
+        .select_related("famiglia")
+    )
+    if escludi_id:
+        qs = qs.exclude(pk=escludi_id)
+    out = []
+    for o in qs:
+        if not (fasce & Pianificazione.fasce_di(o.turno)):
+            continue  # fasce disgiunte (es. 1° vs 2°): nessun conflitto
+        o_fine = _fine_lavorativa_excl(
+            o.data, _span_lavorativi(float(o.ore) if o.ore else None,
+                                     macchina.ore_giorno_per_turno(o.turno))
+        )
+        if o.data < fine and data < o_fine:  # intersezione temporale
+            out.append(o)
+    return out
+
+
+def _primo_slot_libero(macchina, data, ore, turno):
+    """Primo slot senza conflitto sulla macchina: prima gli altri turni consentiti nello
+    STESSO giorno, poi lo stesso turno nei giorni lavorativi successivi (orizzonte 20gg).
+
+    Ritorna {turno, data, tipo, label} o None se non trova nulla nell'orizzonte.
+    """
+    from .models import Pianificazione
+
+    turni_lbl = dict(Pianificazione.TURNO_CHOICES)
+    # 1) stesso giorno, un altro turno che la macchina può fare e con fasce libere
+    for t in macchina.turni_consentiti():
+        if t == turno:
+            continue
+        if not _sovrapposizioni(macchina, t, data, ore):
+            return {"turno": t, "data": data.isoformat(), "tipo": "turno",
+                    "label": f"{turni_lbl.get(t, t)}, stesso giorno"}
+    # 2) stesso turno, primo giorno lavorativo successivo libero
+    for g in _giorni_lavorativi(data + timedelta(days=1), 20):
+        if not _sovrapposizioni(macchina, turno, g, ore):
+            return {"turno": turno, "data": g.isoformat(), "tipo": "giorno",
+                    "label": f"{turni_lbl.get(turno, turno)} dal {g.strftime('%d/%m')}"}
+    return None
 
 
 def _inizio_finestra_prec(start: date, n: int) -> date:
@@ -78,12 +188,34 @@ def _inizio_finestra_prec(start: date, n: int) -> date:
     return ws[-1]
 
 
+def _giorni_lavorativi_indietro(d: date, n: int) -> date:
+    """Data n giorni lavorativi PRIMA di d (d escluso). n<=0 → d."""
+    if n <= 0:
+        return d
+    out: list[date] = []
+    cur = d - timedelta(days=1)
+    while len(out) < n:
+        if cur.weekday() < 5:
+            out.append(cur)
+        cur -= timedelta(days=1)
+    return out[-1]
+
+
 def _finestra(request):
-    """Finestra in GIORNI LAVORATIVI (no sabato/domenica): (start, giorni_n, [giorni])."""
+    """Finestra in GIORNI LAVORATIVI (no sabato/domenica): (start, giorni_n, [giorni]).
+
+    Senza ?start esplicito la finestra parte qualche giorno lavorativo PRIMA di oggi
+    (buffer "all'indietro" ∝ ampiezza finestra), così il Gantt mostra di default anche il
+    recente passato e si può guardare/scrollare indietro senza cambiare periodo. Con uno
+    ?start esplicito (navigazione ‹/›) la finestra è esatta.
+    """
     oggi = timezone.localdate()
-    start = _parse_date(request.GET.get("start")) or _lunedi(oggi)
     giorni_n = _as_int(request.GET.get("giorni"), _GIORNI_DEFAULT) or _GIORNI_DEFAULT
     giorni_n = max(_GIORNI_MIN, min(giorni_n, _GIORNI_MAX))
+    start = _parse_date(request.GET.get("start"))
+    if start is None:
+        backward = max(2, min(5, giorni_n // 4))  # ~1/4 della finestra nel passato
+        start = _giorni_lavorativi_indietro(oggi, backward)
     giorni = _giorni_lavorativi(start, giorni_n)
     return giorni[0], giorni_n, giorni
 
@@ -217,23 +349,25 @@ def vista_excel(request):
                 return out
 
             if mostra_turni:
-                seq = [(Pianificazione.TURNO_GIORNO, "1° turno", False)]
+                # «entrambi»/«H24» (multi-fascia) si vedono nella riga 1° turno.
+                seq = [([Pianificazione.TURNO_GIORNO, Pianificazione.TURNO_ENTRAMBI,
+                         Pianificazione.TURNO_H24], Pianificazione.TURNO_GIORNO, "1° turno", False)]
                 if m.ha_secondo_turno:
-                    seq.append((Pianificazione.TURNO_T2, "2° turno", True))
+                    seq.append(([Pianificazione.TURNO_T2], Pianificazione.TURNO_T2, "2° turno", True))
                 if m.ha_turno_notte:
-                    seq.append((Pianificazione.TURNO_NOTTE, "notturno", True))
-                for turno, label, sub in seq:
+                    seq.append(([Pianificazione.TURNO_NOTTE], Pianificazione.TURNO_NOTTE, "notturno", True))
+                for turni_inc, turno, label, sub in seq:
                     righe.append({
                         "macchina": m, "turno": turno, "turno_label": label, "sub": sub,
-                        "celle": _celle([turno]), "ferma": ferma,
+                        "celle": _celle(turni_inc), "ferma": ferma,
                     })
             else:
-                # Default: 1°+2° turno UNITI in una riga (look familiare); il notturno
-                # resta su riga separata solo se la macchina lo ha (com'era nel foglio).
+                # Default: turni diurni (1°/2°/entrambi/H24) UNITI in una riga (look
+                # familiare); il notturno resta su riga separata solo se la macchina lo ha.
                 righe.append({
                     "macchina": m, "turno": Pianificazione.TURNO_GIORNO, "turno_label": "",
                     "sub": False, "ferma": ferma,
-                    "celle": _celle([Pianificazione.TURNO_GIORNO, Pianificazione.TURNO_T2]),
+                    "celle": _celle(list(Pianificazione.TURNI_DIURNI)),
                 })
                 if m.ha_turno_notte:
                     righe.append({
@@ -258,6 +392,11 @@ def vista_excel(request):
         "mostra_turni": mostra_turni,
         "stato_choices": Pianificazione.STATO_CHOICES,
         "fase_choices": Pianificazione.FASE_CHOICES,
+        # Turni consentiti per macchina (picker del modale "+ Aggiungi" coerente con la
+        # capability) + label dei turni.
+        "turno_choices": Pianificazione.TURNO_CHOICES,
+        "macchine_turni": {m.id: m.turni_consentiti() for m in macchine},
+        "can_edit": _puo_modificare(request),
     }
     return render(request, "gestione_carichi_macchina/excel.html", ctx)
 
@@ -324,14 +463,20 @@ def cella_edit(request):
     # POST
     job_id = _as_int(request.POST.get("pianificazione_id"))
     if request.POST.get("elimina") and job_id:
-        Pianificazione.objects.filter(pk=job_id, macchina=macchina).delete()
+        n, _ = Pianificazione.objects.filter(pk=job_id, macchina=macchina).delete()
+        if n:
+            _log_azione(request, "elimina", macchina=macchina, pianificazione_id=job_id,
+                        descrizione=f"Eliminato lavoro #{job_id}")
         return _render_cella(request, macchina, turno, data)
 
     testo = (request.POST.get("testo") or "").strip()
     if not testo:
         # niente testo: se esiste e si svuota, elimina; altrimenti no-op
         if job_id:
-            Pianificazione.objects.filter(pk=job_id, macchina=macchina).delete()
+            n, _ = Pianificazione.objects.filter(pk=job_id, macchina=macchina).delete()
+            if n:
+                _log_azione(request, "elimina", macchina=macchina, pianificazione_id=job_id,
+                            descrizione=f"Svuotato lavoro #{job_id}")
         return _render_cella(request, macchina, turno, data)
 
     p = parse_cell(testo)
@@ -348,8 +493,20 @@ def cella_edit(request):
     }
     if job_id:
         Pianificazione.objects.filter(pk=job_id, macchina=macchina).update(**valori)
+        _log_azione(request, "modifica", macchina=macchina, pianificazione_id=job_id,
+                    descrizione=f"{turno} {data.isoformat()} · {testo}")
     else:
-        Pianificazione.objects.create(macchina=macchina, turno=turno, data=data, **valori)
+        # Blocco "doppio inserimento": un doppio submit / doppio click non deve creare
+        # due lavori identici. Se esiste gia' un lavoro con stessa macchina/turno/giorno e
+        # stesso testo, non duplicare (idempotente); l'eventuale aggiornamento passa dal
+        # ramo job_id sopra.
+        esiste = Pianificazione.objects.filter(
+            macchina=macchina, turno=turno, data=data, testo_originale=testo
+        ).exists()
+        if not esiste:
+            nuovo = Pianificazione.objects.create(macchina=macchina, turno=turno, data=data, **valori)
+            _log_azione(request, "crea", macchina=macchina, pianificazione_id=nuovo.id,
+                        descrizione=f"{turno} {data.isoformat()} · {testo}")
     return _render_cella(request, macchina, turno, data)
 
 
@@ -419,48 +576,60 @@ def api_pianificazione_dettaglio(request, pk):
     }})
 
 
-def _assign_lanes(bars: list[dict]) -> int:
-    """Assegna a ogni barra una 'corsia' verticale per non sovrapporre intervalli.
+def _layout_bande(bars: list[dict], lane_h: int):
+    """Dispone le barre in corsie per FASCIA oraria (1°=G, 2°=T, notte=N) e marca i conflitti.
 
-    Greedy interval partitioning su (start_idx, start_idx+span). Imposta b['lane'].
-    Ritorna il numero di corsie usate (min 1).
+    Le fasce sono impilate verticalmente (G in alto, poi T, poi N); una banda compare solo
+    se almeno una barra la usa. I lavori multi-fascia (Entrambi/H24) diventano barre **alte**
+    più corsie. Più lavori che si contendono la stessa fascia+giorno finiscono in "blocchi"
+    impilati (e marcati conflitto). Ritorna (n_lane_totali, bande) dove `bande` elenca le
+    etichette di fascia presenti col loro offset verticale (chip a sinistra della traccia).
     """
-    lanes_end: list[int] = []
+    from .models import Pianificazione
+
+    fasce_bar = {
+        id(b): [f for f in Pianificazione.FASCE_ORDINE if f in Pianificazione.fasce_di(b["turno"])]
+        for b in bars
+    }
+    presenti = [f for f in Pianificazione.FASCE_ORDINE if any(f in fasce_bar[id(b)] for b in bars)]
+    if not presenti:
+        presenti = [Pianificazione.FASCIA_G]
+    pos = {f: i for i, f in enumerate(presenti)}
+    nb = len(presenti)
+
+    blocchi: list[dict] = []  # ogni blocco: {fascia: indice-giorno di fine occupazione}
     for b in sorted(bars, key=lambda x: x["start_idx"]):
-        fine_idx = b["start_idx"] + b["span"]
-        for li, end in enumerate(lanes_end):
-            if b["start_idx"] >= end:
-                b["lane"] = li
-                lanes_end[li] = fine_idx
+        ff = fasce_bar[id(b)] or [presenti[0]]
+        top_i = min(pos[f] for f in ff)
+        bot_i = max(pos[f] for f in ff)
+        need = presenti[top_i:bot_i + 1]
+        scelto = None
+        for bi, blk in enumerate(blocchi):
+            if all(b["start_idx"] >= blk.get(f, -1) for f in need):
+                scelto = bi
                 break
-        else:
-            b["lane"] = len(lanes_end)
-            lanes_end.append(fine_idx)
-    return len(lanes_end) or 1
+        if scelto is None:
+            blocchi.append({})
+            scelto = len(blocchi) - 1
+        for f in need:
+            blocchi[scelto][f] = b["start_idx"] + b["span"]
+        b["lane"] = scelto * nb + top_i
+        b["lanespan"] = bot_i - top_i + 1
+        b["top"] = b["lane"] * lane_h + 6
 
+    # Conflitti: fasce intersecanti + sovrapposizione temporale (N piccolo, O(n^2)).
+    for i, a in enumerate(bars):
+        fa = set(fasce_bar[id(a)])
+        for c in bars[i + 1:]:
+            if (fa & set(fasce_bar[id(c)])
+                    and a["start_idx"] < c["start_idx"] + c["span"]
+                    and c["start_idx"] < a["start_idx"] + a["span"]):
+                a["conflitto"] = True
+                c["conflitto"] = True
 
-def _segna_conflitti(bars: list[dict]) -> bool:
-    """Marca le barre che si sovrappongono nel tempo sullo STESSO turno (conflitto di
-    capacita': in finite-capacity due lavori non possono occupare la stessa macchina/turno).
-    Ritorna True se la riga ha almeno un conflitto."""
-    has = False
-    per_turno: dict[str, list] = defaultdict(list)
-    for b in bars:
-        per_turno[b["turno"]].append(b)
-    for grp in per_turno.values():
-        grp.sort(key=lambda x: x["start_idx"])
-        max_end = -1
-        prev = None
-        for b in grp:
-            if b["start_idx"] < max_end:
-                b["conflitto"] = True
-                if prev is not None:
-                    prev["conflitto"] = True
-                has = True
-            if b["start_idx"] + b["span"] > max_end:
-                max_end = b["start_idx"] + b["span"]
-                prev = b
-    return has
+    etich = {Pianificazione.FASCIA_G: "1°", Pianificazione.FASCIA_T: "2°", Pianificazione.FASCIA_N: "Notte"}
+    bande = [{"label": etich.get(f, f), "top": i} for i, f in enumerate(presenti)] if nb > 1 else []
+    return max(1, len(blocchi) * nb), bande
 
 
 @login_required
@@ -491,9 +660,6 @@ def vista_gantt(request):
     f_cat = request.GET.get("cat") or ""
     f_cliente = (request.GET.get("cliente") or "").strip()
     f_fam = _as_int(request.GET.get("fam"))
-    # Turni espansi PER-MACCHINA: lista di id macchina in ?turni=12,34 (espandi una
-    # non apre le altre). Vuoto = tutte unite (1°+2° turno) come nel foglio.
-    turni_aperti = {x for x in request.GET.get("turni", "").split(",") if x.isdigit()}
 
     macchine_qs = Macchina.objects.filter(attivo=True).select_related("asset")
     if f_cat:
@@ -538,12 +704,14 @@ def vista_gantt(request):
             continue
         righe = []
         for m in ms:
-            ogg = float(m.ore_giorno_disponibili) or 8.0
             bars = []
             for p in by_mac.get(m.id, []):
                 start_idx = idx_map.get(p.data)
                 if start_idx is None:
                     continue
+                # Ore/giorno secondo il TURNO del lavoro: «entrambi» e «H24» fanno entrare
+                # piu' ore al giorno, quindi la barra dura meno giorni a parita' di ore.
+                ogg = m.ore_giorno_per_turno(p.turno)
                 ore = float(p.ore) if p.ore else None
                 stima = False
                 if ore is None:  # AI predittiva: stima la durata quando le ore non sono scritte
@@ -579,7 +747,8 @@ def vista_gantt(request):
                     "label": _job_label(p), "classe": classe,
                     "colore": colore, "colore_fam": colore_fam,
                     "urgente": classe == "urg", "conflitto": False, "ritardo": ritardo,
-                    "turno": p.turno, "ore": p.ore, "qta": p.qta, "prog": prog,
+                    "turno": p.turno, "turno_label": p.get_turno_display(),
+                    "ore": p.ore, "qta": p.qta, "prog": prog,
                     "stima": stima, "ore_stima": round(ore, 1) if stima else None,
                     "famiglia": famiglia, "cliente": cliente,
                 })
@@ -628,40 +797,20 @@ def vista_gantt(request):
                 })
             assenze_markers.sort(key=lambda a: a["start_idx"])
 
-            def _riga(turni_inclusi, label, kind, expandable=False):
-                sub_bars = [b for b in bars if b["turno"] in turni_inclusi]
-                if filtro_lavori and not sub_bars:
-                    return None
-                nlanes = _assign_lanes(sub_bars)
-                conf = _segna_conflitti(sub_bars)
-                for b in sub_bars:
-                    b["top"] = b["lane"] * lane_h + 6
-                turno_riga = turni_inclusi[0] if len(turni_inclusi) == 1 else Pianificazione.TURNO_GIORNO
-                sub = kind == "split_sub"
-                return {
-                    "macchina": m, "turno": turno_riga, "turno_label": label, "sub": sub,
-                    "kind": kind, "expandable": expandable, "bars": sub_bars, "lanes": nlanes,
-                    "sat": sat["per_macchina"].get(m.id) if not sub else None,
-                    "row_h": nlanes * lane_h + 12, "conflitto": conf,
-                    "kickoff": m_ko if not sub else [],
-                    "milestones": milestones if not sub else [],
-                    "assenze": assenze_markers if not sub else [],
-                }
-
-            espandibile = m.ha_secondo_turno or m.ha_turno_notte
-            if espandibile and str(m.id) in turni_aperti:
-                # Espansa SOLO questa macchina (le altre restano unite): 1°/2°/notturno.
-                rows = [_riga([Pianificazione.TURNO_GIORNO], "1° turno", "split_main", True)]
-                if m.ha_secondo_turno:
-                    rows.append(_riga([Pianificazione.TURNO_T2], "2° turno", "split_sub"))
-                if m.ha_turno_notte:
-                    rows.append(_riga([Pianificazione.TURNO_NOTTE], "notturno", "split_sub"))
-            else:
-                # Default: 1°+2° turno UNITI; notturno su riga separata se presente.
-                rows = [_riga([Pianificazione.TURNO_GIORNO, Pianificazione.TURNO_T2], "", "union", espandibile)]
-                if m.ha_turno_notte:
-                    rows.append(_riga([Pianificazione.TURNO_NOTTE], "notturno", "split_sub"))
-            righe.extend(r for r in rows if r is not None)
+            # UNA riga per macchina con CORSIE PER FASCIA oraria (1°/2°/notte): i lavori
+            # multi-fascia (Entrambi/H24) sono barre alte e i conflitti cross-fascia (es.
+            # 1° turno vs Entrambi, qualcosa vs H24) sono marcati e bordati di rosso.
+            if filtro_lavori and not bars:
+                continue
+            nlanes, bande = _layout_bande(bars, lane_h)
+            conf = any(b.get("conflitto") for b in bars)
+            righe.append({
+                "macchina": m, "turno": Pianificazione.TURNO_GIORNO,
+                "bars": bars, "lanes": nlanes, "bande": bande,
+                "sat": sat["per_macchina"].get(m.id),
+                "row_h": nlanes * lane_h + 12, "conflitto": conf,
+                "kickoff": m_ko, "milestones": milestones, "assenze": assenze_markers,
+            })
         if righe:
             sezioni.append({
                 "categoria": cat, "label": cat_label.get(cat, cat),
@@ -703,15 +852,23 @@ def vista_gantt(request):
         "finestra_opzioni": [7, 14, 21, 28, 42, 56],
         "clienti": clienti,
         "famiglie": list(FamigliaPezzo.objects.values("id", "nome").order_by("nome")),
-        "f_cat": f_cat, "f_cliente": f_cliente, "f_fam": f_fam, "turni_qs": request.GET.get("turni", ""),
-        # Hook ACL: per ora tutto il modulo è login-only (come cella_edit); qui si potrà
-        # agganciare il permesso canonico gestione_carichi_macchina.piano.edit.
-        "can_edit": request.user.is_authenticated,
+        "f_cat": f_cat, "f_cliente": f_cliente, "f_fam": f_fam,
+        # can_edit = permesso canonico di modifica (gestione_carichi_macchina.piano.edit):
+        # nasconde i comandi di scrittura a chi ha solo la vista. L'enforcement reale è il
+        # binding route->permesso (middleware ACL v2).
+        "can_edit": _puo_modificare(request),
         "stato_choices": Pianificazione.STATO_CHOICES, "fase_choices": Pianificazione.FASE_CHOICES,
+        "turno_choices": Pianificazione.TURNO_CHOICES,
         # Macchine per il select del modale "+ Aggiungi lavoro": rispetta il filtro
         # categoria della vista (coerente con ciò che si vede; il test verifica che le
-        # macchine fuori categoria non compaiano).
-        "macchine_scelta": [{"id": mm.id, "codice": mm.codice} for mm in macchine],
+        # macchine fuori categoria non compaiano). Porta anche la capability turni della
+        # macchina, così il picker del turno mostra solo le opzioni davvero possibili.
+        "macchine_scelta": [
+            {"id": mm.id, "codice": mm.codice, "turni": mm.turni_consentiti(),
+             "ha_secondo_turno": mm.ha_secondo_turno, "ha_turno_notte": mm.ha_turno_notte,
+             "ore_giorno": float(mm.ore_giorno_disponibili), "stato": mm.stato_pianificazione}
+            for mm in macchine
+        ],
         "colore_mode": colore_mode,
         "commesse_legenda": commesse_legenda,
         "famiglie_legenda": famiglie_legenda,
@@ -777,6 +934,25 @@ def reschedule(request):
                 "error": f"{target.codice} è di categoria diversa ({target.get_categoria_display()}). Spostare comunque?",
             }, status=200)
 
+    # Conferma su SOVRAPPOSIZIONE: se il nuovo posizionamento collide (fasce orarie
+    # intersecanti) con un altro lavoro e l'operatore non ha gia' forzato, chiedi conferma
+    # (stesso pattern di "incompatibile"). Niente cascata qui: si valuta solo la barra.
+    if not forza and not cascata:
+        macchina_eff = target or p.macchina
+        nuova_data = p.data + timedelta(days=delta)
+        ore_f = float(p.ore) if p.ore else None
+        altri = _sovrapposizioni(macchina_eff, p.turno, nuova_data, ore_f, escludi_id=p.id)
+        if altri:
+            etich = altri[0].testo_originale or (altri[0].famiglia.nome if altri[0].famiglia_id else "un altro lavoro")
+            sug = _primo_slot_libero(macchina_eff, nuova_data, ore_f, p.turno)
+            msg = f"Si sovrappone a «{etich}» (conflitto di capacità)."
+            if sug:
+                msg += f" Primo libero: {sug['label']}."
+            return JsonResponse({
+                "ok": False, "reason": "sovrapposizione",
+                "error": msg + " Spostare comunque?",
+            }, status=200)
+
     with transaction.atomic():
         if cascata and not sposta_macchina:
             # Cascata SOLO sullo stesso turno: spostare un lavoro del 1° turno non deve
@@ -802,6 +978,12 @@ def reschedule(request):
 
     request.session["gcm_undo"] = {"snap": snap}
     request.session.modified = True
+    macchina_log = target or p.macchina
+    if sposta_macchina:
+        descr = f"Spostato su {macchina_log.codice}" + (f", {delta:+d} giorni" if delta else "")
+    else:
+        descr = f"Spostato di {delta:+d} giorni" + (" (cascata)" if cascata else "")
+    _log_azione(request, "sposta", macchina=macchina_log, pianificazione_id=p.id, descrizione=descr)
     return JsonResponse({
         "ok": True, "id": p.id, "spostati": len(affected),
         "cascata": cascata and not sposta_macchina, "macchina": sposta_macchina,
@@ -827,6 +1009,7 @@ def reschedule_undo(request):
             )
     del request.session["gcm_undo"]
     request.session.modified = True
+    _log_azione(request, "undo", descrizione=f"Annullato spostamento di {len(snap)} lavori")
     return JsonResponse({"ok": True, "annullati": len(snap)})
 
 
@@ -841,7 +1024,7 @@ def _famiglia_da_param(par: str):
     return None
 
 
-def _suggerimenti_macchina(fam, fase: str = "") -> list[dict]:
+def _suggerimenti_macchina(fam, fase: str = "", turno: str = "") -> list[dict]:
     from .models import Macchina
     from .previsioni import (
         costruisci_indice_carico,
@@ -862,11 +1045,20 @@ def _suggerimenti_macchina(fam, fase: str = "") -> list[dict]:
         recency_per_coppia=costruisci_indice_recency(),
         carico_per_macchina=costruisci_indice_carico(),
         stato_per_macchina=costruisci_indice_stato(),
-    )[:5]
+    )
     macs = {
         m.id: m for m in
         Macchina.objects.filter(id__in=[r["macchina_id"] for r in ranked]).select_related("asset")
     }
+    # Coerenza col TURNO richiesto: una macchina che non puo' fare quel turno (es. lavoro
+    # notturno su macchina senza turno notte) non va suggerita. Filtra prima del taglio
+    # ai primi 5, cosi' la lista non si svuota scartando candidati in coda.
+    if turno:
+        ranked = [
+            r for r in ranked
+            if r["macchina_id"] in macs and macs[r["macchina_id"]].puo_turno(turno)
+        ]
+    ranked = ranked[:5]
     return [
         {"macchina_id": r["macchina_id"],
          "codice": macs[r["macchina_id"]].codice if r["macchina_id"] in macs else "",
@@ -924,7 +1116,10 @@ def cella_suggerimento(request):
     if not fam:
         return HttpResponse("")
     fase = (request.GET.get("fase") or "").strip()
-    righe = _righe_suggerimento_display(_suggerimenti_macchina(fam, fase=fase), macchina_corrente)
+    turno = (request.GET.get("turno") or "").strip()
+    righe = _righe_suggerimento_display(
+        _suggerimenti_macchina(fam, fase=fase, turno=turno), macchina_corrente
+    )
     ctx = {
         "famiglia": fam.nome,
         "fase": fase,
@@ -963,4 +1158,151 @@ def api_spiega_macchina(request):
         spiegazione = spiega(prompt, contesto, timeout=30)
     return JsonResponse({
         "ok": True, "famiglia": fam.nome, "suggerimenti": sugg, "spiegazione": spiegazione,
+    })
+
+
+@login_required
+def api_sovrapposizione(request):
+    """Verifica (read-only) se un lavoro su (macchina, turno, data, ore) collide con altri.
+
+    Usata dal modale "+ Aggiungi lavoro" per chiedere conferma PRIMA di salvare. FBV+JSON.
+    """
+    from .models import Macchina, Pianificazione
+
+    macchina = get_object_or_404(Macchina, pk=request.GET.get("macchina") or 0)
+    turno = request.GET.get("turno") or Pianificazione.TURNO_GIORNO
+    data = _parse_date(request.GET.get("data")) or timezone.localdate()
+    ore = _as_dec(request.GET.get("ore"))
+    ore_f = float(ore) if ore else None
+    escludi = _as_int(request.GET.get("escludi"))
+    altri = _sovrapposizioni(macchina, turno, data, ore_f, escludi_id=escludi)
+    # Suggerimento "primo slot libero" solo quando serve (c'è conflitto).
+    suggerimento = _primo_slot_libero(macchina, data, ore_f, turno) if altri else None
+    return JsonResponse({
+        "ok": True, "overlap": bool(altri),
+        "conflitti": [
+            {"id": o.id,
+             "testo": o.testo_originale or (o.famiglia.nome if o.famiglia_id else "lavoro"),
+             "turno": o.turno, "data": o.data.isoformat()}
+            for o in altri[:5]
+        ],
+        "suggerimento": suggerimento,
+    })
+
+
+@login_required
+@require_POST
+def pianificazione_duplica(request, pk):
+    """Duplica un lavoro (stesso giorno/turno/macchina) come nuovo lavoro pianificato."""
+    from .models import Pianificazione
+
+    p = get_object_or_404(Pianificazione.objects.select_related("macchina__asset"), pk=pk)
+    nuovo = Pianificazione.objects.create(
+        macchina_id=p.macchina_id, data=p.data, turno=p.turno,
+        commessa_id=p.commessa_id, operazione_id=p.operazione_id, famiglia_id=p.famiglia_id,
+        qta=p.qta, ore=p.ore, stato=Pianificazione.STATO_PIANIFICATA, fase=p.fase,
+        testo_originale=p.testo_originale, fonte=Pianificazione.FONTE_MANUALE,
+    )
+    _log_azione(request, "duplica", macchina=p.macchina, pianificazione_id=nuovo.id,
+                descrizione=f"Duplicato da #{p.id}: {p.testo_originale or ''}".strip())
+    return JsonResponse({"ok": True, "id": nuovo.id})
+
+
+# Campi macchina modificabili dalla UI di pianificazione (NON si tocca l'asset).
+_MACCHINA_CONFIG_CAMPI = ("ha_secondo_turno", "ha_turno_notte", "ore_giorno_disponibili", "stato_pianificazione")
+
+
+@login_required
+@require_POST
+def macchina_config(request):
+    """Aggiorna i parametri di pianificazione di UNA macchina (flag turni, ore/gg, stato).
+
+    Usata sia dalla pagina "Impostazioni macchine" sia dai toggle rapidi nel pannello
+    macchina del Gantt. Aggiorna solo i campi presenti nel POST; l'asset NON viene toccato.
+    """
+    from .models import Macchina
+
+    m = get_object_or_404(Macchina.objects.select_related("asset"), pk=request.POST.get("macchina") or 0)
+    aggiornati = []
+    if "ha_secondo_turno" in request.POST:
+        m.ha_secondo_turno = request.POST.get("ha_secondo_turno") in ("1", "true", "on")
+        aggiornati.append("ha_secondo_turno")
+    if "ha_turno_notte" in request.POST:
+        m.ha_turno_notte = request.POST.get("ha_turno_notte") in ("1", "true", "on")
+        aggiornati.append("ha_turno_notte")
+    if request.POST.get("ore_giorno"):
+        og = _as_dec(request.POST.get("ore_giorno"))
+        if og is not None and og > 0:
+            m.ore_giorno_disponibili = og
+            aggiornati.append("ore_giorno_disponibili")
+    if request.POST.get("stato") in dict(Macchina.STATO_CHOICES):
+        m.stato_pianificazione = request.POST.get("stato")
+        aggiornati.append("stato_pianificazione")
+    if aggiornati:
+        m.save(update_fields=aggiornati + ["updated_at"])
+        _log_azione(request, "config", macchina=m,
+                    descrizione="Aggiornato: " + ", ".join(aggiornati))
+    return JsonResponse({
+        "ok": True, "macchina": m.id, "codice": m.codice,
+        "ha_secondo_turno": m.ha_secondo_turno, "ha_turno_notte": m.ha_turno_notte,
+        "ore_giorno": float(m.ore_giorno_disponibili), "stato": m.stato_pianificazione,
+        "turni": m.turni_consentiti(), "n_turni": m.n_turni_attivi(),
+    })
+
+
+@login_required
+def impostazioni_macchine(request):
+    """Pagina SSR per configurare i turni/stato/ore delle macchine (capability di pianificazione)."""
+    from .models import Macchina
+
+    macchine = list(
+        Macchina.objects.filter(attivo=True).select_related("asset")
+        .order_by("categoria", "ordine_sezione", "id")
+    )
+    cat_label = dict(Macchina.CATEGORIA_CHOICES)
+    by_cat: dict[str, list] = defaultdict(list)
+    for m in macchine:
+        by_cat[m.categoria].append(m)
+    sezioni = [
+        {"categoria": cat, "label": cat_label.get(cat, cat), "macchine": by_cat[cat]}
+        for cat in _CAT_ORDER if by_cat.get(cat)
+    ]
+    return render(request, "gestione_carichi_macchina/impostazioni_macchine.html", {
+        "sezioni": sezioni,
+        "stato_choices": Macchina.STATO_CHOICES,
+        "n_macchine": len(macchine),
+        "can_edit": _puo_modificare(request),
+    })
+
+
+@login_required
+def registro_azioni(request):
+    """Sezione LOG: audit delle azioni sul piano (chi/cosa/quando), filtrabile."""
+    from .models import Macchina, RegistroAzione
+
+    from django.db import DatabaseError
+
+    f_azione = request.GET.get("azione") or ""
+    f_mac = _as_int(request.GET.get("macchina"))
+    f_q = (request.GET.get("q") or "").strip()
+    azioni, tabella_assente = [], False
+    try:
+        qs = RegistroAzione.objects.select_related("utente", "macchina__asset")
+        if f_azione in dict(RegistroAzione.AZIONE_CHOICES):
+            qs = qs.filter(azione=f_azione)
+        if f_mac:
+            qs = qs.filter(macchina_id=f_mac)
+        if f_q:
+            qs = qs.filter(descrizione__icontains=f_q) | qs.filter(utente_nome__icontains=f_q)
+        azioni = list(qs.order_by("-created_at", "-id")[:300])
+    except DatabaseError:
+        # Tabella non ancora creata (deploy senza `migrate`): degrada con un avviso
+        # invece di un 500. Il log inizia a popolarsi dopo la migrazione 0006.
+        tabella_assente = True
+    return render(request, "gestione_carichi_macchina/registro_azioni.html", {
+        "azioni": azioni,
+        "azione_choices": RegistroAzione.AZIONE_CHOICES,
+        "macchine": Macchina.objects.filter(attivo=True).select_related("asset").order_by("categoria", "ordine_sezione"),
+        "f_azione": f_azione, "f_mac": f_mac, "f_q": f_q,
+        "totale": len(azioni), "tabella_assente": tabella_assente,
     })

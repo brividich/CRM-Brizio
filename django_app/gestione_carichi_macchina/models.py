@@ -12,6 +12,7 @@ I test girano su sqlite (DB_ENGINE=sqlite).
 """
 from decimal import Decimal
 
+from django.conf import settings
 from django.db import models
 
 
@@ -540,3 +541,55 @@ class Pianificazione(models.Model):
 
     def __str__(self) -> str:
         return f"{self.macchina_id} {self.data} {self.turno}"
+
+
+class RegistroAzione(models.Model):
+    """Traccia (audit) delle azioni sul piano: chi ha creato/modificato/spostato/eliminato.
+
+    Snapshot di username e codice macchina così la riga resta leggibile anche se utente o
+    macchina vengono poi rimossi. Solo metadati operativi: nessun dato personale sensibile.
+    """
+
+    AZIONE_CREA = "crea"
+    AZIONE_MODIFICA = "modifica"
+    AZIONE_ELIMINA = "elimina"
+    AZIONE_SPOSTA = "sposta"
+    AZIONE_DUPLICA = "duplica"
+    AZIONE_CONFIG = "config"
+    AZIONE_UNDO = "undo"
+    AZIONE_CHOICES = [
+        (AZIONE_CREA, "Creazione lavoro"),
+        (AZIONE_MODIFICA, "Modifica lavoro"),
+        (AZIONE_ELIMINA, "Eliminazione lavoro"),
+        (AZIONE_SPOSTA, "Spostamento (reschedule)"),
+        (AZIONE_DUPLICA, "Duplicazione lavoro"),
+        (AZIONE_CONFIG, "Config macchina"),
+        (AZIONE_UNDO, "Annulla spostamento"),
+    ]
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    utente = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="carichi_azioni",
+    )
+    utente_nome = models.CharField(max_length=150, blank=True, default="")  # snapshot username
+    azione = models.CharField(max_length=16, choices=AZIONE_CHOICES, db_index=True)
+    macchina = models.ForeignKey(
+        Macchina, on_delete=models.SET_NULL, null=True, blank=True, related_name="azioni",
+    )
+    macchina_cod = models.CharField(max_length=64, blank=True, default="")  # snapshot codice
+    # id della pianificazione coinvolta (può non esistere più dopo un'eliminazione).
+    pianificazione_id = models.PositiveIntegerField(null=True, blank=True)
+    descrizione = models.CharField(max_length=255, blank=True, default="")
+
+    class Meta:
+        verbose_name = "Azione piano (log)"
+        verbose_name_plural = "Azioni piano (log)"
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["-created_at"]),
+            models.Index(fields=["macchina", "-created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.created_at:%Y-%m-%d %H:%M} {self.utente_nome} {self.azione}"

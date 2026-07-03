@@ -1,8 +1,10 @@
 """Calcolo della saturazione (carico/capacita') per macchina e per reparto.
 
 Funzioni pure (niente DB qui): ricevono le macchine, le pianificazioni e i giorni
-della finestra. La capacita' considera i giorni lavorativi (lun-ven) e il doppio
-turno per le macchine con turno notte.
+della finestra. La capacita' considera i giorni lavorativi (lun-ven) e i TURNI
+abilitati della macchina: 1° turno sempre, +2° turno di giorno, +notturno
+(ore/giorno x giorni-lavorativi x n_turni). I flag stanno su Macchina; qui si
+leggono in modo difensivo (getattr) perche' la funzione accetta anche stub di test.
 """
 from __future__ import annotations
 
@@ -26,7 +28,9 @@ def calcola_saturazione(macchine, pians, giorni: list[date]) -> dict:
     tot = {"carico": 0.0, "capacita": 0.0}
 
     for m in macchine:
-        turni = 2 if m.ha_turno_notte else 1
+        # n_turni = 1° (sempre) + 2° turno giorno + notturno, secondo i flag macchina.
+        turni = 1 + (1 if getattr(m, "ha_secondo_turno", False) else 0) \
+                  + (1 if getattr(m, "ha_turno_notte", False) else 0)
         capacita = float(m.ore_giorno_disponibili) * wd * turni
         carico = carico_per_macchina.get(m.id, 0.0)
         perc = round(100 * carico / capacita, 1) if capacita else 0.0

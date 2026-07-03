@@ -16,7 +16,9 @@ from core.acl_bootstrap_base import run_bootstrap
 logger = logging.getLogger(__name__)
 
 MODULE = "gestione_carichi_macchina"
-_BOOTSTRAP_CACHE_KEY = "gestione_carichi_macchina_acl_bootstrap_v1"
+# v2: aggiunti i binding dei nuovi endpoint (impostazioni/config/duplica/sovrapposizione/
+# suggerimento/dettaglio/registro). Bump = re-registrazione immediata dopo il deploy.
+_BOOTSTRAP_CACHE_KEY = "gestione_carichi_macchina_acl_bootstrap_v2"
 
 PERM_VIEW = "gestione_carichi_macchina.piano.view"
 PERM_EDIT = "gestione_carichi_macchina.piano.edit"
@@ -33,14 +35,23 @@ _CANONICAL = {
 }
 
 _ROUTE_BINDINGS = {
+    # Lettura del piano (view)
     "gestione_carichi_macchina:excel": PERM_VIEW,
     "gestione_carichi_macchina:gantt": PERM_VIEW,
+    "gestione_carichi_macchina:registro": PERM_VIEW,
     "gestione_carichi_macchina:api_pianificazioni": PERM_VIEW,
+    "gestione_carichi_macchina:api_pianificazione_dettaglio": PERM_VIEW,
     "gestione_carichi_macchina:api_suggerimento_macchina": PERM_VIEW,
     "gestione_carichi_macchina:api_spiega_macchina": PERM_VIEW,
+    "gestione_carichi_macchina:api_sovrapposizione": PERM_VIEW,
+    "gestione_carichi_macchina:cella_suggerimento": PERM_VIEW,
+    # Modifica del piano (edit)
     "gestione_carichi_macchina:cella_edit": PERM_EDIT,
     "gestione_carichi_macchina:reschedule": PERM_EDIT,
     "gestione_carichi_macchina:reschedule_undo": PERM_EDIT,
+    "gestione_carichi_macchina:pianificazione_duplica": PERM_EDIT,
+    "gestione_carichi_macchina:impostazioni": PERM_EDIT,
+    "gestione_carichi_macchina:macchina_config": PERM_EDIT,
 }
 
 _ROLE_GRANTS = {

@@ -1,0 +1,112 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Gestione Carichi Macchina · Registro azioni{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* Registro azioni (audit): chi ha creato/modificato/spostato/eliminato sul piano. */
+  .reg { --r-navy: var(--primary, #0c2545); --r-cyan: var(--primary-mid, #1f87cd);
+    --r-border: #d7e0ea; --r-surf: #f6f9fc; --r-mid: #4a5568; --r-light: #94a3b8;
+    font-family: "Outfit", system-ui, -apple-system, "Segoe UI", sans-serif; color: #1a202c; }
+  .reg-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+  .reg-head h1 { margin: 0; font-size: 1.3rem; font-weight: 800; color: var(--r-navy); }
+  .reg-head .sub { font-size: .82rem; color: var(--r-mid); margin-top: 3px; }
+  .reg-back { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px;
+    border-radius: 8px; background: var(--r-navy); color: #fff; text-decoration: none; font-weight: 700; font-size: .82rem; }
+  .reg-back:hover { filter: brightness(1.08); }
+  .reg-filtri { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; background: var(--r-surf);
+    border: 1px solid var(--r-border); border-radius: 12px; padding: 11px 13px; margin-bottom: 14px; }
+  .reg-filtri label { display: flex; flex-direction: column; gap: 4px; font-size: .6rem; font-weight: 800;
+    letter-spacing: .05em; text-transform: uppercase; color: var(--r-light); }
+  .reg-filtri select, .reg-filtri input { min-height: 34px; border: 1px solid var(--r-border); border-radius: 8px;
+    padding: 4px 9px; font-size: .82rem; background: #fff; color: #1a202c; }
+  .reg-filtri .go { min-height: 34px; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--r-navy);
+    background: var(--r-navy); color: #fff; font-weight: 800; font-size: .82rem; cursor: pointer; }
+  .reg-filtri .clr { min-height: 34px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--r-border);
+    background: #fff; color: var(--r-navy); font-weight: 700; font-size: .82rem; text-decoration: none; display: inline-flex; align-items: center; }
+  .reg-table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid var(--r-border);
+    border-radius: 12px; overflow: hidden; }
+  .reg-table th { background: var(--r-navy); color: #fff; font-size: .66rem; font-weight: 800; text-transform: uppercase;
+    letter-spacing: .04em; padding: 9px 12px; text-align: left; white-space: nowrap; }
+  .reg-table td { padding: 7px 12px; border-top: 1px solid #eef2f6; font-size: .82rem; vertical-align: top; }
+  .reg-table tr:hover td { background: var(--r-surf); }
+  .reg-when { white-space: nowrap; color: var(--r-mid); font-variant-numeric: tabular-nums; }
+  .reg-user { font-weight: 700; color: var(--r-navy); }
+  .reg-badge { display: inline-block; padding: 1px 8px; border-radius: 11px; font-size: .68rem; font-weight: 800; white-space: nowrap; }
+  .reg-crea { background: rgba(56,161,105,.14); color: #2f855a; }
+  .reg-modifica { background: rgba(31,135,205,.14); color: #1f6fb2; }
+  .reg-elimina { background: rgba(229,62,62,.14); color: #c53030; }
+  .reg-sposta { background: rgba(214,158,46,.16); color: #975a16; }
+  .reg-duplica { background: rgba(128,90,213,.14); color: #6b46c1; }
+  .reg-config { background: rgba(74,85,104,.14); color: #4a5568; }
+  .reg-undo { background: rgba(160,174,192,.18); color: #4a5568; }
+  .reg-mac { font-weight: 700; }
+  .reg-empty { padding: 26px; text-align: center; color: var(--r-light); }
+  .reg-note { margin-bottom: 14px; background: rgba(214,158,46,.12); border: 1px solid #d69e2e;
+    border-radius: 10px; padding: 11px 13px; font-size: .84rem; color: #8a6d1f; line-height: 1.5; }
+  .reg-note code { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 4px; font-size: .92em; }
+</style>
+{% endblock %}
+
+{% block content %}
+{# data-fm-table-skip: il filtro è già server-side qui → niente toolbar auto dell'enhancer. #}
+<div class="reg" data-fm-table-skip="1">
+  <div class="reg-head">
+    <div>
+      <h1>Registro azioni</h1>
+      <div class="sub">Tracciamento di chi crea, modifica, sposta, elimina e configura sul piano carichi · ultime {{ totale }} azioni.</div>
+    </div>
+    <a class="reg-back" href="{% url 'gestione_carichi_macchina:gantt' %}">‹ Torna al Gantt</a>
+  </div>
+
+  {% if tabella_assente %}
+    <div class="reg-note">Il registro non è ancora disponibile: la tabella del log non è stata creata. Esegui le migrazioni del database (<code>manage.py migrate</code>) e ricarica.</div>
+  {% endif %}
+
+  <form method="get" class="reg-filtri">
+    <label>Azione
+      <select name="azione">
+        <option value="">Tutte</option>
+        {% for val, lbl in azione_choices %}<option value="{{ val }}"{% if f_azione == val %} selected{% endif %}>{{ lbl }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Macchina
+      <select name="macchina">
+        <option value="">Tutte</option>
+        {% for m in macchine %}<option value="{{ m.id }}"{% if f_mac == m.id %} selected{% endif %}>{{ m.codice }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Cerca
+      <input type="text" name="q" value="{{ f_q }}" placeholder="testo o utente" autocomplete="off">
+    </label>
+    <button type="submit" class="go">Filtra</button>
+    {% if f_azione or f_mac or f_q %}<a class="clr" href="{% url 'gestione_carichi_macchina:registro' %}">Azzera</a>{% endif %}
+  </form>
+
+  <table class="reg-table">
+    <thead>
+      <tr>
+        <th>Quando</th>
+        <th>Utente</th>
+        <th>Azione</th>
+        <th>Macchina</th>
+        <th>Dettaglio</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in azioni %}
+        <tr>
+          <td class="reg-when">{{ a.created_at|date:"d/m/Y H:i" }}</td>
+          <td class="reg-user">{{ a.utente_nome|default:"—" }}</td>
+          <td><span class="reg-badge reg-{{ a.azione }}">{{ a.get_azione_display }}</span></td>
+          <td class="reg-mac">{{ a.macchina_cod|default:"—" }}</td>
+          <td>{{ a.descrizione|default:"" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="reg-empty">Nessuna azione registrata per i filtri correnti.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

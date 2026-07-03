@@ -10,6 +10,7 @@ from .models import (
     MacchinaFamigliaAffinita,
     Operazione,
     Pianificazione,
+    RegistroAzione,
 )
 
 
@@ -78,3 +79,16 @@ class PianificazioneAdmin(admin.ModelAdmin):
     search_fields = ("macchina__asset__asset_tag", "testo_originale")
     raw_id_fields = ("macchina", "commessa", "operazione", "famiglia")
     date_hierarchy = "data"
+
+
+@admin.register(RegistroAzione)
+class RegistroAzioneAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "utente_nome", "azione", "macchina_cod", "descrizione")
+    list_filter = ("azione", "created_at")
+    search_fields = ("utente_nome", "macchina_cod", "descrizione")
+    date_hierarchy = "created_at"
+    readonly_fields = ("created_at", "utente", "utente_nome", "azione", "macchina",
+                       "macchina_cod", "pianificazione_id", "descrizione")
+
+    def has_add_permission(self, request):
+        return False  # il log si scrive solo dalle viste (audit immutabile)
