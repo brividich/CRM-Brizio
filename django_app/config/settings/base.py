@@ -603,7 +603,13 @@ DIARIO_PREPOSTO_PRIVATE_ROOT = Path(env("DIARIO_PREPOSTO_PRIVATE_ROOT", str(BASE
 ANAGRAFICA_PRIVATE_ROOT = Path(env("ANAGRAFICA_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
 # Allegati specifiche tecniche (gestione_specifiche): storage privato cifrato,
 # mai esposto da IIS; accessibile solo via view protetta con ACL.
-GESTIONE_SPECIFICHE_PRIVATE_ROOT = Path(env("GESTIONE_SPECIFICHE_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
+# Default derivato da MEDIA_ROOT (persistente, fuori da `current`) e NON da BASE_DIR: gli allegati
+# devono SOPRAVVIVERE ai deploy. Con MEDIA_ROOT=C:\PortaleNovicrom\<env>\media -> media_private e'
+# C:\PortaleNovicrom\<env>\media_private (stessa area persistente degli altri storage). In dev
+# (MEDIA_ROOT=BASE_DIR\media) resta BASE_DIR\media_private, invariato.
+GESTIONE_SPECIFICHE_PRIVATE_ROOT = Path(
+    env("GESTIONE_SPECIFICHE_PRIVATE_ROOT", str(MEDIA_ROOT.parent / "media_private"))
+)
 # Radici UNC CONSENTITE per gli allegati "collegati" (modalità share = single source of
 # truth: il PDF resta sul master aziendale, il portale lo serve on-demand). La view di
 # download serve SOLO file dentro queste radici (allowlist + anti-traversal). Più radici
