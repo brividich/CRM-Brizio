@@ -576,6 +576,34 @@ class TimbroCapocommessa(models.Model):
         return f"Timbro {self.codice}"
 
 
+class TimbroApplicazione(models.Model):
+    """#2 — Posizione scelta dal COMPILATORE per un timbro sul composito (tool interattivo).
+
+    Le specifiche non sono tutte uguali: invece di posizioni fisse, chi compila trascina i timbri
+    dove vuole. Coordinate in **punti PDF** (origine alto-sinistra), riferite a una *sezione* del
+    composito (``mod133`` o ``originale``) + indice pagina nella sezione, così restano valide anche
+    se cambia il numero di pagine del MOD.133. L'altezza deriva dall'aspetto dell'immagine.
+    """
+    SEZ_MOD133 = "mod133"
+    SEZ_ORIGINALE = "originale"
+    SEZ_CHOICES = [(SEZ_MOD133, "MOD.133"), (SEZ_ORIGINALE, "Documento originale")]
+
+    specifica = models.ForeignKey("Specifica", on_delete=models.CASCADE, related_name="timbri_applicati")
+    timbro = models.ForeignKey("TimbroCapocommessa", on_delete=models.CASCADE, related_name="+")
+    sezione = models.CharField(max_length=12, choices=SEZ_CHOICES, default=SEZ_ORIGINALE)
+    pagina = models.PositiveIntegerField(default=0, help_text="Indice pagina nella sezione (0-based)")
+    x = models.FloatField(default=0.0)
+    y = models.FloatField(default=0.0)
+    w = models.FloatField(default=120.0)
+    creato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["sezione", "pagina"]
+
+    def __str__(self) -> str:
+        return f"{self.timbro.codice} su {self.sezione} p.{self.pagina}"
+
+
 class ClienteCartellaShare(models.Model):
     """Mappatura persistente Cliente -> cartella reale sulla share (memoria stabile).
 

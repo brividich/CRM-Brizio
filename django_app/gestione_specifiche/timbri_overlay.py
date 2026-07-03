@@ -41,6 +41,45 @@ def _fit_center(page, rect, text, color):
             return
 
 
+def _ratio(img_bytes: bytes) -> float:
+    """Rapporto w/h di un'immagine timbro (fallback ~1.5)."""
+    try:
+        pix = fitz.Pixmap(img_bytes)
+        return (pix.width / pix.height) if pix.height else 1.5
+    except Exception:  # noqa: BLE001
+        return 1.5
+
+
+def applica_timbri_placements(pdf_bytes: bytes, placements, *, n_pagine_mod133: int = 1) -> bytes:
+    """#2 tool interattivo — applica i timbri alle posizioni scelte dal compilatore.
+
+    ``placements`` = lista di dict ``{image, sezione, pagina, x, y, w, data_testo}`` (coordinate in
+    punti PDF, origine alto-sinistra; ``sezione`` = "mod133" | "originale"). L'altezza deriva
+    dall'aspetto dell'immagine. Se ``data_testo`` è valorizzato (RICEVUTO), la data va nella banda.
+    """
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    for p in placements:
+        img = p.get("image")
+        if not img:
+            continue
+        pagina = int(p.get("pagina") or 0)
+        idx = pagina if p.get("sezione") == "mod133" else n_pagine_mod133 + pagina
+        if idx < 0 or idx >= doc.page_count:
+            continue
+        page = doc[idx]
+        w = float(p.get("w") or 120)
+        h = w / _ratio(img)
+        x = float(p.get("x") or 0)
+        y = float(p.get("y") or 0)
+        page.insert_image(fitz.Rect(x, y, x + w, y + h), stream=img, keep_proportion=True, overlay=True)
+        if p.get("data_testo"):
+            band = fitz.Rect(x + 4, y + h * _RIC_DATA_TOP, x + w - 4, y + h * _RIC_DATA_BOT)
+            _fit_center(page, band, p["data_testo"], (0.05, 0.05, 0.6))
+    out = doc.tobytes()
+    doc.close()
+    return out
+
+
 def applica_timbri(pdf_bytes: bytes, *, ricevuto: bytes | None = None,
                    stamp_revisore: bytes | None = None, stamp_approvatore: bytes | None = None,
                    data_testo: str = "", n_pagine_mod133: int = 1) -> bytes:

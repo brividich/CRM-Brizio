@@ -97,6 +97,7 @@
       </form>
       <form method="post" action="{% url 'gestione_specifiche:mod133_chiudi' spec.pk %}" style="display:inline;">{% csrf_token %}<button type="submit" class="gs-btn">{% include "gestione_specifiche/partials/_icon.html" with name="check" size=16 %} Chiudi compilazione</button></form>
     {% endif %}
+    <a class="gs-btn" href="{% url 'gestione_specifiche:applica_timbri' spec.pk %}">{% include "gestione_specifiche/partials/_icon.html" with name="filecheck" size=15 %} Applica timbri</a>
     <a class="gs-btn" href="{% url 'gestione_specifiche:dettaglio' spec.pk %}">Torna alla scheda</a>
   </div>
   {% endif %}

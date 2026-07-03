@@ -1,0 +1,164 @@
+{% extends "core/base.html" %}
+{% block title %}Applica timbri · {{ spec.codice }}{% endblock %}
+{% block extra_head %}{% include "gestione_specifiche/_gs_styles.html" %}
+<style>
+  .at-palette{ display:flex; gap:12px; flex-wrap:wrap; padding:14px 16px; }
+  .at-src{ border:1px solid #e6ecf4; border-radius:11px; padding:9px; background:#fff; cursor:grab; text-align:center; width:128px; user-select:none; }
+  .at-src:hover{ border-color:#1f87cd; }
+  .at-src img{ max-width:100%; max-height:56px; pointer-events:none; }
+  .at-pagewrap{ display:flex; flex-direction:column; align-items:center; gap:4px; margin-bottom:20px; }
+  .at-page{ position:relative; box-shadow:0 6px 20px rgba(12,37,69,.14); line-height:0; }
+  .at-page img.pg{ display:block; max-width:100%; height:auto; }
+  .at-stamp{ position:absolute; border:1px dashed rgba(31,135,205,.7); box-sizing:border-box; cursor:move; }
+  .at-stamp img{ width:100%; height:100%; display:block; pointer-events:none; }
+  .at-stamp .del{ position:absolute; top:-11px; right:-11px; width:22px; height:22px; border-radius:50%; background:#cf3a3a; color:#fff; border:none; cursor:pointer; font-size:13px; line-height:1; box-shadow:0 2px 6px rgba(0,0,0,.25); }
+  .at-stamp .rs{ position:absolute; bottom:-7px; right:-7px; width:15px; height:15px; background:#1f87cd; border:2px solid #fff; border-radius:4px; cursor:se-resize; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="gs-wrap">
+  <a class="gs-back" href="{% url 'gestione_specifiche:dettaglio' spec.pk %}">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=14 %} Scheda specifica</a>
+
+  <div class="gs-hdrcard">
+    <div class="gs-hdrcard__ic is-navy">{% include "gestione_specifiche/partials/_icon.html" with name="filecheck" size=20 %}</div>
+    <div style="flex:1;">
+      <div class="gs-eyebrow">MOD.133 — {{ spec.codice }}</div>
+      <h1 style="margin:2px 0 0; font-size:18px; font-weight:800; color:#0c2545;">Applica timbri</h1>
+      <p style="margin:4px 0 0; font-size:12.5px; color:#7c8aa2;">Trascina un timbro dalla palette sulla pagina, poi spostalo e ridimensionalo. Per il RICEVUTO la data di oggi viene scritta automaticamente. Le posizioni si applicano al composito ufficiale.</p>
+    </div>
+  </div>
+
+  {% if errore %}
+  <div class="gs-banner gs-banner--warn" style="margin-top:14px;">
+    <div class="gs-banner__ic">{% include "gestione_specifiche/partials/_icon.html" with name="alert" size=16 %}</div>
+    <div style="flex:1; align-self:center; font-size:12.5px; color:#a86a14;">{{ errore }}</div>
+  </div>
+  {% endif %}
+
+  {# --- Palette --- #}
+  <div class="gs-panel" style="margin-top:14px;">
+    <div class="gs-panel__head"><h2 class="gs-panel__title">Timbri disponibili</h2><span class="gs-panel__meta">Trascina sulla pagina · sposta con il mouse · ridimensiona dall'angolo</span></div>
+    <div class="at-palette">
+      {% for t in palette %}
+      <div class="at-src" draggable="true" data-timbro="{{ t.id }}" data-ric="{{ t.is_ricevuto|yesno:'1,0' }}" data-uri="{{ t.uri }}">
+        <img src="{{ t.uri }}" alt="">
+        <div style="font-size:11px; font-weight:700; color:#0c2545; margin-top:5px;">{{ t.codice }}</div>
+        <div style="font-size:10px; color:#7c8aa2;">{{ t.tipo }}</div>
+      </div>
+      {% empty %}
+      <div style="color:#92a0b5; padding:6px; font-style:italic;">Nessun timbro attivo. Caricali in <strong>Admin → Timbri</strong>.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# --- Azioni --- #}
+  <div class="gs-actions" style="margin:14px 0;">
+    <button type="button" class="gs-btn gs-btn--cyan" id="at-save">{% include "gestione_specifiche/partials/_icon.html" with name="check" size=15 %} Salva posizioni</button>
+    <button type="button" class="gs-btn gs-btn--danger" id="at-clear">{% include "gestione_specifiche/partials/_icon.html" with name="trash" size=14 %} Rimuovi tutti</button>
+    <span id="at-msg" style="font-size:12.5px; font-weight:600; color:#1f7a52;"></span>
+  </div>
+
+  {# --- Pagine --- #}
+  <div id="at-pages">
+    {% for p in pagine %}
+    <div class="at-pagewrap">
+      <div style="font-size:11px; color:#7c8aa2; font-weight:700;">Pagina {{ forloop.counter }} · {{ p.sezione }}</div>
+      <div class="at-page" data-page="{{ p.idx }}" data-ptw="{{ p.ptw }}" data-pth="{{ p.pth }}">
+        <img class="pg" src="{{ p.uri }}" draggable="false" alt="">
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+(function(){
+  var ESIST = {{ esistenti_json|safe }};
+  function getCookie(n){ var m=document.cookie.match('(^|;)\\s*'+n+'\\s*=\\s*([^;]+)'); return m?m.pop():''; }
+
+  function mkStamp(page, timbro, uri, isRic, left, top, w){
+    var s=document.createElement('div'); s.className='at-stamp';
+    s.dataset.timbro=timbro; s.dataset.ric=isRic?'1':'0';
+    s.style.left=Math.max(0,left)+'px'; s.style.top=Math.max(0,top)+'px'; s.style.width=w+'px';
+    var img=document.createElement('img'); img.src=uri;
+    var probe=new Image(); probe.onload=function(){ s.style.height=(w*probe.height/probe.width)+'px'; }; probe.src=uri;
+    s.appendChild(img);
+    var del=document.createElement('button'); del.className='del'; del.type='button'; del.textContent='×';
+    del.addEventListener('click', function(e){ e.stopPropagation(); s.remove(); }); s.appendChild(del);
+    var rs=document.createElement('div'); rs.className='rs'; s.appendChild(rs);
+    // sposta
+    s.addEventListener('mousedown', function(e){
+      if(e.target===rs || e.target===del) return; e.preventDefault();
+      var sx=e.clientX, sy=e.clientY, ol=s.offsetLeft, ot=s.offsetTop;
+      function mv(ev){ s.style.left=(ol+ev.clientX-sx)+'px'; s.style.top=(ot+ev.clientY-sy)+'px'; }
+      function up(){ document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up); }
+      document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up);
+    });
+    // ridimensiona (mantiene proporzione)
+    rs.addEventListener('mousedown', function(e){
+      e.preventDefault(); e.stopPropagation();
+      var sx=e.clientX, ow=s.offsetWidth, oh=s.offsetHeight, ar=oh/ow||0.66;
+      function mv(ev){ var nw=Math.max(28, ow+ev.clientX-sx); s.style.width=nw+'px'; s.style.height=(nw*ar)+'px'; }
+      function up(){ document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up); }
+      document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up);
+    });
+    page.appendChild(s); return s;
+  }
+
+  // palette -> drag
+  document.querySelectorAll('.at-src').forEach(function(src){
+    src.addEventListener('dragstart', function(e){
+      e.dataTransfer.setData('timbro', src.dataset.timbro);
+      e.dataTransfer.setData('uri', src.dataset.uri);
+      e.dataTransfer.setData('ric', src.dataset.ric);
+    });
+  });
+  // pagine -> drop
+  document.querySelectorAll('.at-page').forEach(function(page){
+    page.addEventListener('dragover', function(e){ e.preventDefault(); });
+    page.addEventListener('drop', function(e){
+      e.preventDefault();
+      var timbro=e.dataTransfer.getData('timbro'); if(!timbro) return;
+      var r=page.getBoundingClientRect();
+      mkStamp(page, timbro, e.dataTransfer.getData('uri'), e.dataTransfer.getData('ric')==='1',
+              e.clientX-r.left-65, e.clientY-r.top-24, 130);
+    });
+  });
+
+  // precarica posizioni salvate (dopo il load delle immagini)
+  window.addEventListener('load', function(){
+    var pal={}; document.querySelectorAll('.at-src').forEach(function(s){ pal[s.dataset.timbro]={uri:s.dataset.uri, ric:s.dataset.ric}; });
+    ESIST.forEach(function(e){
+      var page=document.querySelector('.at-page[data-page="'+e.page+'"]'); if(!page) return;
+      var img=page.querySelector('img.pg'); var dw=img.clientWidth||1;
+      var ptw=parseFloat(page.dataset.ptw), pth=parseFloat(page.dataset.pth);
+      var dh=img.clientHeight||1; var p=pal[e.timbro]||{};
+      mkStamp(page, e.timbro, p.uri||'', p.ric==='1', e.x/ptw*dw, e.y/pth*dh, e.w/ptw*dw);
+    });
+  });
+
+  document.getElementById('at-clear').addEventListener('click', function(){
+    document.querySelectorAll('.at-stamp').forEach(function(s){ s.remove(); });
+  });
+
+  document.getElementById('at-save').addEventListener('click', function(){
+    var placements=[];
+    document.querySelectorAll('.at-page').forEach(function(page){
+      var img=page.querySelector('img.pg'); var dw=img.clientWidth||1, dh=img.clientHeight||1;
+      var ptw=parseFloat(page.dataset.ptw), pth=parseFloat(page.dataset.pth), pg=parseInt(page.dataset.page);
+      page.querySelectorAll('.at-stamp').forEach(function(s){
+        placements.push({ timbro:parseInt(s.dataset.timbro), page:pg,
+          x:s.offsetLeft/dw*ptw, y:s.offsetTop/dh*pth, w:s.offsetWidth/dw*ptw });
+      });
+    });
+    var msg=document.getElementById('at-msg'); msg.textContent='Salvataggio…'; msg.style.color='#5b6b82';
+    fetch(window.location.href, {method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')}, body:JSON.stringify({placements:placements})})
+      .then(function(r){return r.json();}).then(function(d){
+        msg.style.color = d.ok ? '#1f7a52' : '#b5564f';
+        msg.textContent = d.ok ? (d.n + ' timbro/i salvati e applicati al composito.') : ('Errore: '+(d.error||'salvataggio fallito'));
+      }).catch(function(){ msg.style.color='#b5564f'; msg.textContent='Errore di rete.'; });
+  });
+})();
+</script>
+{% endblock %}

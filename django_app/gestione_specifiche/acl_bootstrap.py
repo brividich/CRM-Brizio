@@ -19,7 +19,7 @@ from core.acl_bootstrap_base import run_bootstrap
 logger = logging.getLogger(__name__)
 
 MODULE = "gestione_specifiche"
-_BOOTSTRAP_CACHE_KEY = "gestione_specifiche_acl_bootstrap_v15"
+_BOOTSTRAP_CACHE_KEY = "gestione_specifiche_acl_bootstrap_v16"
 
 # --- Permessi canonici --------------------------------------------------------
 PERM_VIEW = "gestione_specifiche.specifica.view"
@@ -58,6 +58,7 @@ _ROUTE_BINDINGS = {
     "gestione_specifiche:mod133_riga_add": PERM_COMPILA,
     "gestione_specifiche:mod133_chiudi": PERM_COMPILA,
     "gestione_specifiche:mod133_approva": PERM_APPROVA,
+    "gestione_specifiche:applica_timbri": PERM_COMPILA,
     "gestione_specifiche:riga_genera_ofi": PERM_APPROVA,
     "gestione_specifiche:azione_ofi_approva": PERM_APPROVA,
     "gestione_specifiche:distribuzione_nuova": PERM_DISTRIBUISCI,
