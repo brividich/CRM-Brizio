@@ -413,11 +413,18 @@ def _auto_approva_se_configurata(request, spec, mod) -> bool:
     if not cfg.attiva or not cfg.approvatore_id:
         return False
     nome = cfg.approvatore.get_full_name() or cfg.approvatore.username
+    # Data di approvazione "umanizzata": primo giorno lavorativo dopo la compilazione,
+    # ora casuale in orario ufficio. Vive SOLO sul campo documento (mod.data_approvazione):
+    # l'audit immutabile EventoSpecifica NON viene toccato.
+    from .date_utils import next_business_datetime
+
+    base = mod.data_chiusura_compilazione or timezone.now()
+    data_appr = next_business_datetime(base)
     try:
         with transaction.atomic():
             mod.approvatore_id = cfg.approvatore_id
             mod.esito = C.ESITO_APPROVATO
-            mod.data_approvazione = timezone.now()
+            mod.data_approvazione = data_appr
             mod.save(update_fields=["approvatore", "esito", "data_approvazione", "updated_at"])
             spec.approva_flow_down(attore=cfg.approvatore)
             spec.save()
@@ -425,7 +432,8 @@ def _auto_approva_se_configurata(request, spec, mod) -> bool:
                 specifica=spec, stato_da=C.STATO_FLOW_DOWN, stato_a=spec.stato, attore=request.user,
                 trigger="auto_approvazione",
                 payload={"auto": True, "per_conto_di": nome,
-                         "avviata_da": (request.user.get_full_name() or request.user.username)},
+                         "avviata_da": (request.user.get_full_name() or request.user.username),
+                         "data_approvazione": data_appr.isoformat()},
             )
     except (TransitionNotAllowed, ValidationError) as exc:
         messages.error(request, f"Auto-approvazione non riuscita: {exc}")

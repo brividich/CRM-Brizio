@@ -13,7 +13,7 @@ from django.core import mail
 from gestione_specifiche import constants as C
 from gestione_specifiche.models import (
     AutoApprovazioneConfig, ClienteCartellaShare, EventoSpecifica, MOD133,
-    NotificaConfig, Specifica, TimbroCapocommessa,
+    NotificaConfig, Specifica, TimbroApplicazione, TimbroCapocommessa,
 )
 from gestione_specifiche.notifiche_gs import notifica_nuova_specifica
 
@@ -101,6 +101,35 @@ class AdminSectionTest(TestCase):
         mod = MOD133.objects.get(specifica=spec)
         self.assertEqual(mod.approvatore_id, self.mso.pk)  # a nome dell'MSO
         self.assertTrue(EventoSpecifica.objects.filter(specifica=spec, trigger="auto_approvazione").exists())
+
+    def test_auto_approvazione_data_fittizia(self):
+        from datetime import timedelta
+
+        from gestione_specifiche.date_utils import festivi_it
+
+        cfg = AutoApprovazioneConfig.get_config()
+        cfg.attiva = True
+        cfg.approvatore = self.mso
+        cfg.save()
+        spec = self._spec_flow_down("SP-FITT")
+        self.client.post(reverse("gestione_specifiche:mod133_chiudi", args=[spec.pk]), {"vai": "approva"})
+        mod = MOD133.objects.get(specifica=spec)
+
+        # data_approvazione valorizzata, strettamente dopo la compilazione, in giorno lavorativo
+        self.assertIsNotNone(mod.data_approvazione)
+        self.assertGreater(mod.data_approvazione, mod.data_chiusura_compilazione)
+        d = mod.data_approvazione.date()
+        self.assertLess(d.weekday(), 5)
+        self.assertNotIn(d, festivi_it(d.year))
+        # è almeno il giorno dopo la compilazione
+        self.assertGreaterEqual((d - mod.data_chiusura_compilazione.date()), timedelta(days=1))
+
+        # audit onesto: l'evento di transizione mantiene il timestamp reale (≈ adesso, non futuro)
+        ev = EventoSpecifica.objects.get(specifica=spec, trigger="approva_flow_down")
+        self.assertLess(ev.timestamp, mod.data_approvazione)
+        # il marcatore interno porta la data fittizia nel payload
+        auto = EventoSpecifica.objects.get(specifica=spec, trigger="auto_approvazione")
+        self.assertIn("data_approvazione", auto.payload)
 
     def test_procedi_senza_auto_va_alla_pagina_approva(self):
         spec = self._spec_flow_down("SP-NOAUTO")  # nessuna config attiva
@@ -204,3 +233,40 @@ class AdminSectionTest(TestCase):
             r = self.client.post(reverse("gestione_specifiche:admin_timbro_delete", args=[t.pk]))
             self.assertEqual(r.status_code, 302)
             self.assertFalse(TimbroCapocommessa.objects.filter(pk=t.pk).exists())
+
+    def test_applica_timbri_get_render(self):
+        spec = self._spec_flow_down("SP-TG")  # senza allegato → mostra errore ma rende
+        r = self.client.get(reverse("gestione_specifiche:applica_timbri", args=[spec.pk]))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Applica timbri")
+
+    def test_applica_timbri_salva_posizioni(self):
+        import json
+
+        from cryptography.fernet import Fernet
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        media = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, media, ignore_errors=True)
+        with override_settings(DOCUMENT_ENCRYPTION_KEY=Fernet.generate_key().decode(),
+                               GESTIONE_SPECIFICHE_PRIVATE_ROOT=media):
+            f = SimpleUploadedFile("t.png", b"\x89PNG-fake", content_type="image/png")
+            self.client.post(reverse("gestione_specifiche:admin_timbri"),
+                             {"codice": "CNOT1", "tipo": "ricevuto", "file": f})
+            t = TimbroCapocommessa.objects.get(codice="CNOT1")
+            spec = self._spec_flow_down("SP-TIMB")  # crea MOD.133 (0 righe → n_mod133=1)
+            r = self.client.post(
+                reverse("gestione_specifiche:applica_timbri", args=[spec.pk]),
+                data=json.dumps({"placements": [
+                    {"timbro": t.pk, "page": 0, "x": 10, "y": 20, "w": 100},
+                    {"timbro": t.pk, "page": 1, "x": 30, "y": 40, "w": 120}]}),
+                content_type="application/json")
+            self.assertEqual(r.status_code, 200)
+            self.assertTrue(r.json()["ok"])
+        apps = list(TimbroApplicazione.objects.filter(specifica=spec))
+        self.assertEqual(len(apps), 2)
+        sez = {a.sezione: a for a in apps}
+        self.assertIn("mod133", sez)       # page 0 → MOD.133
+        self.assertIn("originale", sez)    # page 1 → originale
+        self.assertEqual(sez["originale"].pagina, 0)  # 1 - n_mod133(1)
+        self.assertEqual(sez["mod133"].pagina, 0)
