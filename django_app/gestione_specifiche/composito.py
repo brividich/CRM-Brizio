@@ -94,6 +94,48 @@ def dati_mod133_da_spec(spec) -> dict:
     }
 
 
+def _risolvi_timbri(spec) -> dict | None:
+    """#2 — Timbri per il composito: RICEVUTO del compilatore + firme MOD.133 di compilatore e
+    approvatore. Ritorna il dict per ``applica_timbri`` (o None se nessun timbro configurato)."""
+    try:
+        mod = spec.mod133
+    except Exception:  # noqa: BLE001
+        return None
+
+    from django.utils import timezone
+
+    from .models import TimbroCapocommessa
+
+    def _leggi(utente, tipo):
+        if not utente:
+            return None
+        t = (TimbroCapocommessa.objects
+             .filter(utente=utente, tipo=tipo, attivo=True)
+             .order_by("-creato_il").first())
+        if not t or not t.file:
+            return None
+        try:
+            with t.file.open("rb") as fh:
+                return fh.read()
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("composito: timbro non leggibile: %s", exc)
+            return None
+
+    comp = getattr(mod, "compilatore", None)
+    appr = getattr(mod, "approvatore", None)
+    ricevuto = _leggi(comp, TimbroCapocommessa.TIPO_RICEVUTO)
+    rev = _leggi(comp, TimbroCapocommessa.TIPO_MOD133)
+    app = _leggi(appr, TimbroCapocommessa.TIPO_MOD133)
+    if not any([ricevuto, rev, app]):
+        return None
+    return {
+        "ricevuto": ricevuto,
+        "stamp_revisore": rev,
+        "stamp_approvatore": app,
+        "data_testo": timezone.now().strftime("%d/%m/%Y"),
+    }
+
+
 def _leggi_pdf_originale(spec) -> bytes | None:
     """Byte del PDF originale della specifica (READ-ONLY): allegato locale cifrato o share.
 
@@ -133,6 +175,7 @@ def componi_composito_ufficiale(
     consenti_modifica: bool = False,
     consenti_copia: bool = False,
     filigrana: str | None = None,
+    timbri: dict | None = None,
 ) -> bytes:
     """[pagina MOD.133] + [originale], opzionalmente protetto. Ritorna i byte del composito.
 
@@ -151,6 +194,13 @@ def componi_composito_ufficiale(
     # #1: usa il MOD.133 REALE come template (overlay pymupdf), non il render reportlab.
     pagina_mod133 = render_mod133_overlay(dati_mod133)
     composito = anteponi_pagine(originale_pdf, [pagina_mod133])
+    # #2: timbri (RICEVUTO sul documento originale + firme sul MOD.133) PRIMA della protezione.
+    if timbri:
+        import math
+
+        from .timbri_overlay import applica_timbri
+        n_mod133 = max(1, math.ceil(len(dati_mod133.get("righe") or []) / 7))
+        composito = applica_timbri(composito, n_pagine_mod133=n_mod133, **timbri)
     if proteggi:
         composito = applica_protezione(
             composito,
@@ -194,6 +244,7 @@ def componi_composito_da_spec(
         consenti_modifica=consenti_modifica,
         consenti_copia=consenti_copia,
         filigrana=filigrana,
+        timbri=_risolvi_timbri(spec),  # #2: timbri RICEVUTO + firme MOD.133
     )
 
 

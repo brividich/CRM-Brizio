@@ -140,8 +140,11 @@ def admin_timbri(request):
             messages.error(request, "Codice e file del timbro sono obbligatori.")
         else:
             uid = (request.POST.get("utente") or "").strip()
+            tipo = (request.POST.get("tipo") or "").strip()
+            valid_tipi = {c[0] for c in TimbroCapocommessa.TIPO_CHOICES}
             TimbroCapocommessa.objects.create(
                 codice=codice[:50],
+                tipo=tipo if tipo in valid_tipi else TimbroCapocommessa.TIPO_RICEVUTO,
                 nome=(request.POST.get("nome") or "").strip()[:150],
                 utente_id=int(uid) if uid.isdigit() else None,
                 file=request.FILES["file"],
@@ -155,6 +158,7 @@ def admin_timbri(request):
     return render(request, "gestione_specifiche/admin/timbri.html", {
         "timbri": TimbroCapocommessa.objects.select_related("utente").all(),
         "utenti": utenti,
+        "tipi": TimbroCapocommessa.TIPO_CHOICES,
     })
 
 

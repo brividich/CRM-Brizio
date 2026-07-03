@@ -547,10 +547,19 @@ class TimbroCapocommessa(models.Model):
     contiene RICEVUTO + codice (es. CNOT102) + firma. Lo `utente` collega il timbro al
     capocommessa: in compilazione si usa il timbro del compilatore. Storage privato cifrato.
     """
+    TIPO_RICEVUTO = "ricevuto"
+    TIPO_MOD133 = "mod133"
+    TIPO_CHOICES = [
+        (TIPO_RICEVUTO, "RICEVUTO (sul documento originale)"),
+        (TIPO_MOD133, "Firma MOD.133 (Revisore/Approvatore)"),
+    ]
+
     utente = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
         related_name="timbri_capocommessa", verbose_name="Capocommessa",
     )
+    tipo = models.CharField("Tipo", max_length=20, choices=TIPO_CHOICES,
+                            default=TIPO_RICEVUTO, db_index=True)
     codice = models.CharField("Codice timbro", max_length=50, help_text="Es. CNOT102")
     nome = models.CharField("Nome/descrizione", max_length=150, blank=True, default="")
     file = models.FileField("File timbro (senza data)", upload_to=upload_to_timbro,

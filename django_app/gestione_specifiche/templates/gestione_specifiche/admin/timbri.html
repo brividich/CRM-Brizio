@@ -24,6 +24,12 @@
       <label class="gs-flabel">Codice</label>
       <input type="text" name="codice" required placeholder="es. CNOT102" style="width:130px; padding:8px 10px; border:1px solid #dde8f5; border-radius:8px;">
     </div>
+    <div>
+      <label class="gs-flabel">Tipo</label>
+      <select name="tipo" style="padding:8px 10px; border:1px solid #dde8f5; border-radius:8px;">
+        {% for val, lbl in tipi %}<option value="{{ val }}">{{ lbl }}</option>{% endfor %}
+      </select>
+    </div>
     <div style="min-width:200px;">
       <label class="gs-flabel">Capocommessa (opzionale)</label>
       <select name="utente" style="width:100%; padding:8px 10px; border:1px solid #dde8f5; border-radius:8px;">
@@ -48,6 +54,7 @@
       <thead>
         <tr style="background:#eef4fb; text-align:left;">
           <th style="padding:10px 14px;">Codice</th>
+          <th style="padding:10px 14px;">Tipo</th>
           <th style="padding:10px 14px;">Capocommessa</th>
           <th style="padding:10px 14px;">Nome</th>
           <th style="padding:10px 14px;">Stato</th>
@@ -58,6 +65,7 @@
         {% for t in timbri %}
         <tr style="border-top:1px solid #eef2f7;">
           <td style="padding:10px 14px; font-weight:700; color:#0c2545;">{{ t.codice }}</td>
+          <td style="padding:10px 14px;"><span class="gs-tag {% if t.tipo == 'ricevuto' %}is-blue{% else %}is-green{% endif %}">{{ t.get_tipo_display }}</span></td>
           <td style="padding:10px 14px; color:#3a4a63;">{% if t.utente %}{{ t.utente.get_full_name|default:t.utente.username }}{% else %}—{% endif %}</td>
           <td style="padding:10px 14px; color:#7c8aa2;">{{ t.nome|default:"—" }}</td>
           <td style="padding:10px 14px;">{% if t.attivo %}<span class="gs-tag is-green">attivo</span>{% else %}<span class="gs-tag">disattivo</span>{% endif %}</td>
@@ -68,7 +76,7 @@
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="5" style="padding:18px; text-align:center; color:#92a0b5; font-style:italic;">Nessun timbro caricato.</td></tr>
+        <tr><td colspan="6" style="padding:18px; text-align:center; color:#92a0b5; font-style:italic;">Nessun timbro caricato.</td></tr>
         {% endfor %}
       </tbody>
     </table>
