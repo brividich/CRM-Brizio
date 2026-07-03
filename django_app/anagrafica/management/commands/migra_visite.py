@@ -25,6 +25,7 @@ Opzioni:
                            (default: rifiuta, per evitare doppioni).
 """
 import json
+from datetime import date
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
@@ -174,10 +175,15 @@ class Command(BaseCommand):
                 tipo = tipi_prod.get(tk)
                 if tipo is None:
                     continue  # gia' segnalata come orfana
+                ds = v.get("data_svolgimento")
+                if isinstance(ds, str):
+                    ds = date.fromisoformat(ds)  # il save() del modello legge .month
+                if ds is None:
+                    continue  # data_svolgimento e' obbligatoria
                 VisitaMedica.objects.create(
                     legacy_anagrafica_id=v["legacy_anagrafica_id"],
                     tipo=tipo,
-                    data_svolgimento=v["data_svolgimento"],
+                    data_svolgimento=ds,
                     esito=v.get("esito") or VisitaMedica.Esito.IDONEO,
                     prescrizioni=v.get("prescrizioni", ""),
                     medico_competente=v.get("medico_competente", ""),
