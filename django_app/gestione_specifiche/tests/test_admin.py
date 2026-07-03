@@ -147,3 +147,15 @@ class AdminSectionTest(TestCase):
         spec = Specifica.objects.create(codice="SP-NOEMAIL", titolo="T", incaricato=self.mso)
         notifica_nuova_specifica(spec)
         self.assertEqual(len(mail.outbox), 0)
+
+    # --- Log / Audit ---
+    def test_admin_log_render_e_filtro(self):
+        self._spec_flow_down("SP-LOG")  # genera un evento di transizione
+        r = self.client.get(reverse("gestione_specifiche:admin_log"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "SP-LOG")
+        r = self.client.get(reverse("gestione_specifiche:admin_log"), {"codice": "SP-LOG"})
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "SP-LOG")
+        r = self.client.get(reverse("gestione_specifiche:admin_log"), {"codice": "ZZZ-NONE"})
+        self.assertNotContains(r, "SP-LOG")

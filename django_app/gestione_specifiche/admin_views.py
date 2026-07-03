@@ -13,7 +13,9 @@ from django.views.decorators.http import require_POST
 
 from .acl_bootstrap import PERM_ADMIN
 from .cartelle_cliente import cartelle_disponibili
-from .models import AutoApprovazioneConfig, ClienteCartellaShare, NotificaConfig
+from .models import (
+    AutoApprovazioneConfig, ClienteCartellaShare, EventoSpecifica, NotificaConfig,
+)
 
 
 def utente_puo_admin(request) -> bool:
@@ -48,6 +50,7 @@ def admin_home(request):
         "n_mappature": ClienteCartellaShare.objects.count(),
         "auto_attiva": cfg.attiva,
         "reparto_in1": ncfg.reparto_in1,
+        "n_eventi": EventoSpecifica.objects.count(),
         "aree_placeholder": _AREE_PLACEHOLDER,
     })
 
@@ -72,6 +75,28 @@ def admin_notifiche(request):
     selezionati = set(cfg.utenti_aggiuntivi.values_list("pk", flat=True))
     return render(request, "gestione_specifiche/admin/notifiche.html",
                   {"cfg": cfg, "utenti": utenti, "selezionati": selezionati})
+
+
+@login_required
+def admin_log(request):
+    """Log/Audit del modulo: cronologia EventoSpecifica (sola lettura), con filtri."""
+    from django.core.paginator import Paginator
+
+    eventi = EventoSpecifica.objects.select_related("specifica", "attore").order_by("-timestamp")
+    q_codice = (request.GET.get("codice") or "").strip()
+    q_trigger = (request.GET.get("trigger") or "").strip()
+    if q_codice:
+        eventi = eventi.filter(specifica__codice__icontains=q_codice)
+    if q_trigger:
+        eventi = eventi.filter(trigger=q_trigger)
+
+    triggers = (EventoSpecifica.objects.exclude(trigger="")
+                .values_list("trigger", flat=True).distinct().order_by("trigger"))
+    page = Paginator(eventi, 50).get_page(request.GET.get("p"))
+    return render(request, "gestione_specifiche/admin/log.html", {
+        "page": page, "triggers": triggers,
+        "f": {"codice": q_codice, "trigger": q_trigger},
+    })
 
 
 @login_required
@@ -139,4 +164,8 @@ def admin_auto_approva(request):
 
     User = get_user_model()
     utenti = User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
-    return render(request, "gestione_specifiche/admin/auto_approva.html", {"cfg": cfg, "utenti": utenti})
+    # Gestione: ultime specifiche auto-approvate (dal log)
+    auto_recenti = (EventoSpecifica.objects.filter(trigger="auto_approvazione")
+                    .select_related("specifica").order_by("-timestamp")[:20])
+    return render(request, "gestione_specifiche/admin/auto_approva.html",
+                  {"cfg": cfg, "utenti": utenti, "auto_recenti": auto_recenti})

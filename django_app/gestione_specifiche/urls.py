@@ -43,6 +43,7 @@ urlpatterns = [
     path("admin/cartelle/<int:pk>/elimina/", admin_views.admin_cartella_delete, name="admin_cartella_delete"),
     path("admin/auto-approvazione/", admin_views.admin_auto_approva, name="admin_auto_approva"),
     path("admin/notifiche/", admin_views.admin_notifiche, name="admin_notifiche"),
+    path("admin/log/", admin_views.admin_log, name="admin_log"),
     path("<int:pk>/ai/precompila-mod133/", views.ai_precompila_mod133, name="ai_precompila_mod133"),
     path("<int:pk>/ai/proponi-tag/", views.ai_proponi_tag, name="ai_proponi_tag"),
     path("<int:pk>/ai/diff-mod133/", views.ai_diff_mod133, name="ai_diff_mod133"),
