@@ -12641,7 +12641,7 @@ def fattore_rischio_delete(request, pk: int):
 # ── Categorie Corso ──────────────────────────────────────────────────────────
 
 @login_required
-def categorie_corso_list(request):
+def categorie_corso_list(request, form=None, open_create=False, status=200):
     if not _can_view_formazione(request):
         messages.error(request, "Non hai i permessi per visualizzare le categorie corso.")
         return redirect("anagrafica:index")
@@ -12652,12 +12652,14 @@ def categorie_corso_list(request):
         .annotate(n_corsi=Count("corsi", distinct=True))
         .order_by("nome")
     )
-    form = CategoriaCorsoForm()
+    if form is None:
+        form = CategoriaCorsoForm()
     return render(request, "anagrafica/pages/rischi_categorie_list.html", {
         "categorie": categorie,
         "form":      form,
         "is_editor": is_editor,
-    })
+        "open_create": open_create,
+    }, status=status)
 
 
 @login_required
@@ -12669,9 +12671,9 @@ def categoria_corso_create(request):
     if form.is_valid():
         form.save()
         messages.success(request, "Categoria corso creata.")
-    else:
-        messages.error(request, "Errore nel form: " + "; ".join(f"{k}: {v}" for k, v in form.errors.items()))
-    return redirect("anagrafica:categorie_corso_list")
+        return redirect("anagrafica:categorie_corso_list")
+    messages.error(request, "Correggi gli errori evidenziati nel form.")
+    return categorie_corso_list(request, form=form, open_create=True, status=400)
 
 
 @login_required
@@ -12708,7 +12710,7 @@ def categoria_corso_delete(request, pk: int):
 # ── Esposizioni Rischio ──────────────────────────────────────────────────────
 
 @login_required
-def esposizioni_rischio_list(request):
+def esposizioni_rischio_list(request, form=None, open_create=False, status=200):
     if not _can_view_formazione(request):
         messages.error(request, "Non hai i permessi per visualizzare le esposizioni.")
         return redirect("anagrafica:index")
@@ -12718,12 +12720,14 @@ def esposizioni_rischio_list(request):
         .select_related("fattore", "mansione", "area")
         .order_by("fattore__categoria", "fattore__nome", "mansione__nome", "area__nome")
     )
-    form = EsposizioneRischioForm()
+    if form is None:
+        form = EsposizioneRischioForm()
     return render(request, "anagrafica/pages/rischi_esposizioni_list.html", {
         "esposizioni": esposizioni,
         "form":        form,
         "is_editor":   is_editor,
-    })
+        "open_create": open_create,
+    }, status=status)
 
 
 @login_required
@@ -12735,9 +12739,9 @@ def esposizione_rischio_create(request):
     if form.is_valid():
         form.save()
         messages.success(request, "Esposizione creata.")
-    else:
-        messages.error(request, "Errore nel form: " + "; ".join(f"{k}: {v}" for k, v in form.errors.items()))
-    return redirect("anagrafica:esposizioni_rischio_list")
+        return redirect("anagrafica:esposizioni_rischio_list")
+    messages.error(request, "Correggi gli errori evidenziati nel form.")
+    return esposizioni_rischio_list(request, form=form, open_create=True, status=400)
 
 
 @login_required

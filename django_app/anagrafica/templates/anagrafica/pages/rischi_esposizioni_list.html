@@ -93,7 +93,7 @@
 </div>
 
 {% if is_editor %}
-<div id="modal-crea-esp" style="display:none;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;background:rgba(0,0,0,.4);">
+<div id="modal-crea-esp" style="display:{% if open_create %}flex{% else %}none{% endif %};position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;background:rgba(0,0,0,.4);">
   <div style="background:#fff;border-radius:12px;padding:24px 28px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
       <strong style="font-size:15px;">Nuova esposizione</strong>
