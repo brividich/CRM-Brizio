@@ -12550,7 +12550,7 @@ from .forms import (  # noqa: E402
 # ── Fattori di Rischio ──────────────────────────────────────────────────────
 
 @login_required
-def fattori_rischio_list(request):
+def fattori_rischio_list(request, form=None, open_create=False, status=200):
     if not _can_view_formazione(request):
         messages.error(request, "Non hai i permessi per visualizzare i fattori di rischio.")
         return redirect("anagrafica:index")
@@ -12580,7 +12580,8 @@ def fattori_rischio_list(request):
     except Exception:
         dpi_opts = []
 
-    form = FattoreRischioForm()
+    if form is None:
+        form = FattoreRischioForm()
     return render(request, "anagrafica/pages/rischi_fattori_list.html", {
         "fattori":   fattori,
         "form":      form,
@@ -12588,7 +12589,8 @@ def fattori_rischio_list(request):
         "CATEGORIA_CHOICES": FattoreRischio.CATEGORIA_CHOICES,
         "visite_opts": visite_opts,
         "dpi_opts":    dpi_opts,
-    })
+        "open_create": open_create,
+    }, status=status)
 
 
 @login_required
@@ -12600,9 +12602,9 @@ def fattore_rischio_create(request):
     if form.is_valid():
         form.save()
         messages.success(request, "Fattore di rischio creato.")
-    else:
-        messages.error(request, "Errore nel form: " + "; ".join(f"{k}: {v}" for k, v in form.errors.items()))
-    return redirect("anagrafica:fattori_rischio_list")
+        return redirect("anagrafica:fattori_rischio_list")
+    messages.error(request, "Correggi gli errori evidenziati nel form.")
+    return fattori_rischio_list(request, form=form, open_create=True, status=400)
 
 
 @login_required

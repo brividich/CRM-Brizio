@@ -110,7 +110,7 @@
 
 {# ── Modal crea ─────────────────────────────────────────────────────────── #}
 {% if is_editor %}
-<div id="modal-crea-fattore" class="fm-modal">
+<div id="modal-crea-fattore" class="fm-modal{% if open_create %} open{% endif %}">
   <div class="fm-modal-card">
     <div class="fm-modal-head">
       <strong>⚠️ Nuovo fattore di rischio</strong>
@@ -119,18 +119,19 @@
     <form method="post" action="{% url 'anagrafica:fattore_rischio_create' %}">
       {% csrf_token %}
       <div class="fm-modal-body">
+        {% if form.non_field_errors %}<div class="fm-err" style="margin-bottom:10px;">{{ form.non_field_errors|join:", " }}</div>{% endif %}
         <div class="fm-form-section-lbl">Dati fattore</div>
         <div class="fm-form-grid-2">
-          <div class="fm-form-field"><label>Codice <span class="fm-req">*</span></label>{{ form.codice }}</div>
-          <div class="fm-form-field"><label>Categoria <span class="fm-req">*</span></label>{{ form.categoria }}</div>
+          <div class="fm-form-field"><label>Codice <span class="fm-req">*</span></label>{{ form.codice }}{% for err in form.codice.errors %}<div class="fm-err">{{ err }}</div>{% endfor %}</div>
+          <div class="fm-form-field"><label>Categoria <span class="fm-req">*</span></label>{{ form.categoria }}{% for err in form.categoria.errors %}<div class="fm-err">{{ err }}</div>{% endfor %}</div>
         </div>
-        <div class="fm-form-field"><label>Nome <span class="fm-req">*</span></label>{{ form.nome }}</div>
-        <div class="fm-form-field"><label>Descrizione</label>{{ form.descrizione }}</div>
+        <div class="fm-form-field"><label>Nome <span class="fm-req">*</span></label>{{ form.nome }}{% for err in form.nome.errors %}<div class="fm-err">{{ err }}</div>{% endfor %}</div>
+        <div class="fm-form-field"><label>Descrizione</label>{{ form.descrizione }}{% for err in form.descrizione.errors %}<div class="fm-err">{{ err }}</div>{% endfor %}</div>
 
         <div class="fm-form-section-lbl">Periodicità e obblighi</div>
         <div class="fm-form-grid-2">
-          <div class="fm-form-field"><label>Periodicità formazione (mesi)</label>{{ form.periodicita_formazione_mesi }}</div>
-          <div class="fm-form-field"><label>Periodicità sorveglianza (mesi)</label>{{ form.periodicita_sorveglianza_mesi }}</div>
+          <div class="fm-form-field"><label>Periodicità formazione (mesi)</label>{{ form.periodicita_formazione_mesi }}{% for err in form.periodicita_formazione_mesi.errors %}<div class="fm-err">{{ err }}</div>{% endfor %}</div>
+          <div class="fm-form-field"><label>Periodicità sorveglianza (mesi)</label>{{ form.periodicita_sorveglianza_mesi }}{% for err in form.periodicita_sorveglianza_mesi.errors %}<div class="fm-err">{{ err }}</div>{% endfor %}</div>
         </div>
         <div class="fm-form-checks-row">
           <label class="fm-form-check">{{ form.richiede_formazione }} <span>Richiede formazione</span></label>
@@ -140,11 +141,11 @@
 
         <div class="fm-form-section-lbl">Requisiti generati (ereditati dalle mansioni esposte)</div>
         <div class="fm-form-grid-2">
-          <div class="fm-form-field"><label>🏥 Visite generate</label>{{ form.tipi_visita }}</div>
-          <div class="fm-form-field"><label>🦺 DPI generati</label>{{ form.categorie_dpi }}</div>
+          <div class="fm-form-field"><label>🏥 Visite generate</label>{{ form.tipi_visita }}{% for err in form.tipi_visita.errors %}<div class="fm-err">{{ err }}</div>{% endfor %}</div>
+          <div class="fm-form-field"><label>🦺 DPI generati</label>{{ form.categorie_dpi }}{% for err in form.categorie_dpi.errors %}<div class="fm-err">{{ err }}</div>{% endfor %}</div>
         </div>
 
-        <div class="fm-form-field"><label>Note</label>{{ form.note }}</div>
+        <div class="fm-form-field"><label>Note</label>{{ form.note }}{% for err in form.note.errors %}<div class="fm-err">{{ err }}</div>{% endfor %}</div>
         <label class="fm-form-check">{{ form.is_active }} <span>Attivo</span></label>
       </div>
       <div class="fm-modal-foot">

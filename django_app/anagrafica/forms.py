@@ -781,7 +781,7 @@ class SkillMatrixConfigForm(forms.ModelForm):
         fields = [
             "soglia_operativa", "includi_car_come_riserva", "regola_multivoce",
             "soglia_uomo_solo", "finestra_continuita_mesi", "preavviso_continuita_mesi",
-            "periodicita_refresh_mesi",
+            "periodicita_refresh_mesi", "preavviso_refresh_giorni",
             "etichetta_i", "etichetta_l", "etichetta_u", "etichetta_o",
         ]
         widgets = {
@@ -792,6 +792,7 @@ class SkillMatrixConfigForm(forms.ModelForm):
             "finestra_continuita_mesi": forms.NumberInput(attrs={"class": "ana-input", "min": 0}),
             "preavviso_continuita_mesi": forms.NumberInput(attrs={"class": "ana-input", "min": 0}),
             "periodicita_refresh_mesi": forms.NumberInput(attrs={"class": "ana-input", "min": 0}),
+            "preavviso_refresh_giorni": forms.NumberInput(attrs={"class": "ana-input", "min": 0}),
             "etichetta_i": forms.TextInput(attrs={"class": "ana-input"}),
             "etichetta_l": forms.TextInput(attrs={"class": "ana-input"}),
             "etichetta_u": forms.TextInput(attrs={"class": "ana-input"}),

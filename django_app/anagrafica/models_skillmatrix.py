@@ -76,6 +76,11 @@ class SkillMatrixConfig(models.Model):
     finestra_continuita_mesi = models.PositiveSmallIntegerField(default=12)
     preavviso_continuita_mesi = models.PositiveSmallIntegerField(default=9)
     periodicita_refresh_mesi = models.PositiveSmallIntegerField(default=6)
+    preavviso_refresh_giorni = models.PositiveSmallIntegerField(
+        default=60,
+        help_text="Giorni prima di prossima_revisione entro cui un reparto è "
+                  "«in arrivo» nello scadenzario abilitazioni.",
+    )
     soglia_uomo_solo = models.PositiveSmallIntegerField(
         default=2, help_text="Numero minimo di persone U/O per non essere a rischio "
                              "uomo-solo (MT CN 06 §8.2.2).",
