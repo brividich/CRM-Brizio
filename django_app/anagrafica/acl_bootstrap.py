@@ -11,7 +11,9 @@ logger = logging.getLogger(__name__)
 # Bump alla v3: aggiunge i permessi canonici Skill Matrix MOD.187.
 # Bump alla v4: aggiunge il binding route della pagina Impostazioni Skill Matrix
 # (anagrafica:skm_impostazioni → manage), così si ri-registra negli ambienti già a v3.
-_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v4"
+# Bump alla v5: aggiunge il binding route dello Scadenzario abilitazioni (F10)
+# (anagrafica:skm_scadenzario → manage), così si ri-registra negli ambienti già a v4.
+_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v5"
 
 # ── ACL v2 canonico — Skill Matrix MOD.187 ─────────────────────────────────────
 # Rende le route Skill Matrix governabili da /admin-portale/acl-canonico/ (e
@@ -36,6 +38,7 @@ _SKM_ROUTE_BINDINGS = {
     "anagrafica:skill_matrix_macchina": PERM_SKM_VIEW,
     "anagrafica:skm_match_validazione": PERM_SKM_MANAGE,
     "anagrafica:skm_refresh": PERM_SKM_MANAGE,
+    "anagrafica:skm_scadenzario": PERM_SKM_MANAGE,
     "anagrafica:skm_impostazioni": PERM_SKM_MANAGE,
 }
 

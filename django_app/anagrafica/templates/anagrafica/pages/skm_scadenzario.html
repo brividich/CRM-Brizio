@@ -1,0 +1,97 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Scadenzario abilitazioni — Skill Matrix MOD.187{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<style>
+.sc-toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:6px 0 16px; }
+.sc-kpis { display:flex; flex-wrap:wrap; gap:10px; margin:0 0 16px; }
+.sc-chip { border:1px solid #e2e8f0; border-radius:999px; padding:6px 12px; font-size:12.5px; font-weight:700; color:#475569; background:#fff; }
+.sc-chip b { color:#0c2545; }
+.sc-chip.warn { border-color:#fcd34d; background:#fef9c3; color:#854d0e; }
+.sc-chip.bad { border-color:#fca5a5; background:#fee2e2; color:#991b1b; }
+.sc-table { border-collapse:collapse; width:100%; font-size:13px; }
+.sc-table th, .sc-table td { border-bottom:1px solid #eef2f7; padding:7px 9px; text-align:left; vertical-align:middle; }
+.sc-table thead th { background:#0c2545; color:#fff; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+.sc-table tbody tr:hover { background:#f8fafc; }
+.sc-badge { display:inline-block; font-size:10.5px; font-weight:800; border-radius:5px; padding:2px 7px; }
+.sc-badge.scaduto { color:#991b1b; background:#fee2e2; }
+.sc-badge.in_arrivo { color:#854d0e; background:#fef9c3; }
+.sc-badge.ok { color:#166534; background:#dcfce7; }
+.sc-empty { text-align:center; padding:40px 16px; color:#475569; }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">
+        <a href="{% url 'anagrafica:index' %}" class="fm-crumb">Anagrafica</a>
+        <span class="fm-crumb-sep">›</span> Skill Matrix MOD.187
+      </div>
+      <h2 class="hr-pagehead-title">📅 Scadenzario abilitazioni macchina</h2>
+      <p class="hr-pagehead-desc">Prossime revisioni per reparto. HR avvia il refresh (il CAR viene avvisato); la rivalutazione resta al CAR.</p>
+    </div>
+    <a href="{% url 'anagrafica:skill_matrix_macchina' %}" class="hr-btn hr-btn-outline">↩ Torna alla matrice</a>
+  </div>
+
+  <div class="sc-kpis">
+    <span class="sc-chip {% if kpi.reparti_scaduti %}bad{% endif %}">Reparti con arretrati <b>{{ kpi.reparti_scaduti }}</b></span>
+    <span class="sc-chip {% if kpi.abil_scadute %}warn{% endif %}">Abilitazioni scadute <b>{{ kpi.abil_scadute }}</b></span>
+    <span class="sc-chip">Campagne aperte <b>{{ kpi.campagne_aperte }}</b></span>
+  </div>
+
+  <form method="get" class="sc-toolbar">
+    <label style="font-size:12px;color:#64748b;font-weight:700;">Stato</label>
+    <select name="stato" onchange="this.form.submit()">
+      <option value="" {% if not filtro_stato %}selected{% endif %}>Tutti</option>
+      <option value="scaduto" {% if filtro_stato == 'scaduto' %}selected{% endif %}>Scaduti</option>
+      <option value="in_arrivo" {% if filtro_stato == 'in_arrivo' %}selected{% endif %}>In arrivo</option>
+    </select>
+    <a class="hr-btn hr-btn-outline" href="?{% if filtro_stato %}stato={{ filtro_stato }}&amp;{% endif %}format=csv">⬇ CSV</a>
+  </form>
+
+  {% if righe %}
+  <table class="sc-table">
+    <thead>
+      <tr><th>Reparto</th><th>Prossima revisione</th><th>In lista</th><th>Scadute</th><th>In arrivo</th><th>Stato</th><th>Campagna</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for r in righe %}
+      <tr>
+        <td><a href="{% url 'anagrafica:skm_refresh' %}?reparto={{ r.reparto|urlencode }}">{{ r.reparto }}</a></td>
+        <td>{{ r.prossima_revisione|date:"d/m/Y"|default:"—" }}</td>
+        <td>{{ r.n_totali }}</td>
+        <td>{{ r.n_scadute }}</td>
+        <td>{{ r.n_in_arrivo }}</td>
+        <td><span class="sc-badge {{ r.stato }}">{{ r.stato }}</span></td>
+        <td>{% if r.campagna_aperta %}aperta dal {{ r.campagna_periodo_inizio|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+        <td>
+          {% if not r.campagna_aperta %}
+          <form method="post" style="margin:0;">
+            {% csrf_token %}
+            <input type="hidden" name="azione" value="avvia">
+            <input type="hidden" name="reparto" value="{{ r.reparto }}">
+            <button type="submit" class="hr-btn hr-btn-primary" style="padding:4px 10px;font-size:12px;">▶ Avvia refresh</button>
+          </form>
+          {% else %}
+          <a class="hr-btn hr-btn-outline" style="padding:4px 10px;font-size:12px;" href="{% url 'anagrafica:skm_refresh' %}?reparto={{ r.reparto|urlencode }}">Rivaluta</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <div class="sc-empty">Nessun reparto da mostrare (la baseline abilitazioni non è ancora stata importata, oppure non ci sono scadenze per il filtro scelto).</div>
+  {% endif %}
+
+</div>
+{% endblock %}

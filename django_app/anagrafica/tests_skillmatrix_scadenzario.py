@@ -126,3 +126,77 @@ class CampagneDaGestireTests(TestCase):
         self.assertEqual(items[0]["reparto"], "Officina")
         self.assertEqual(items[0]["n_da_rivalutare"], 1)
         self.assertEqual(self.R.campagne_da_gestire(100), [])
+
+
+@override_settings(SECURE_SSL_REDIRECT=False, LEGACY_AUTH_ENABLED=False)
+class ScadenzarioViewTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser("scadm", "sc@example.com", "pass12345")
+        self.client.force_login(self.admin)
+        self.url = reverse("anagrafica:skm_scadenzario")
+        self.asset = Asset.objects.create(asset_tag="CNC-E-1", name="Epsilon", asset_type="CNC", reparto="Officina")
+        CompetenzaSkm.objects.create(competenza_key="E1", display="E1", tipo="macchina", asset=self.asset)
+        AbilitazioneMacchina.objects.create(
+            legacy_anagrafica_id=1, asset=self.asset, livello=LivelloSkm.AUTONOMO,
+            prossima_revisione=OGGI - timedelta(days=3))
+        Reparto.objects.create(nome="Officina", caporeparto_legacy_id=99)
+
+    def test_get_render(self):
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Officina")
+
+    def test_export_csv(self):
+        resp = self.client.get(self.url, {"format": "csv"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("text/csv", resp["Content-Type"])
+        self.assertIn("Officina".encode("utf-8"), resp.content)
+
+    def test_post_avvia_apre_campagna(self):
+        resp = self.client.post(self.url, {"azione": "avvia", "reparto": "Officina"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(CampagnaRefresh.objects.filter(
+            reparto="Officina", stato=CampagnaRefresh.STATO_APERTA).exists())
+
+    def test_accesso_negato(self):
+        self.client.logout()
+        nobody = User.objects.create_user("nob10", "nob10@example.com", "pass12345")
+        self.client.force_login(nobody)
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, 302)
+
+
+class AclBindingTests(TestCase):
+    def test_binding_scadenzario_manage(self):
+        from .acl_bootstrap import _bootstrap_skillmatrix_canonical, PERM_SKM_MANAGE
+        from core.models import RoutePermissionBinding
+        _bootstrap_skillmatrix_canonical()
+        b = RoutePermissionBinding.objects.filter(route_name="anagrafica:skm_scadenzario").first()
+        self.assertIsNotNone(b)
+        self.assertEqual(b.permission_id, PERM_SKM_MANAGE)
+
+
+class ScadenzarioNavTests(TestCase):
+    def test_voce_menu_scadenzario(self):
+        link = SubnavLinkAnagrafica.objects.filter(url_value="anagrafica:skm_scadenzario").first()
+        self.assertIsNotNone(link)
+        self.assertEqual(link.gruppo, "Skill Matrix")
+
+
+class CoseDaGestireHelperTests(TestCase):
+    def setUp(self):
+        from .services import skillmatrix_refresh as R
+        self.asset = Asset.objects.create(asset_tag="CNC-F-1", name="Zeta", asset_type="CNC", reparto="Officina")
+        CompetenzaSkm.objects.create(competenza_key="F1", display="F1", tipo="macchina", asset=self.asset)
+        AbilitazioneMacchina.objects.create(
+            legacy_anagrafica_id=1, asset=self.asset, livello=LivelloSkm.AUTONOMO)
+        Reparto.objects.create(nome="Officina", caporeparto_legacy_id=77)
+        R.avvia_refresh(reparto="Officina", avviatore_ruolo="HR")
+
+    def test_helper_mappa_item(self):
+        from dashboard.views_mie_attivita import _my_skm_refresh
+        items = _my_skm_refresh(77)
+        self.assertEqual(len(items), 1)
+        self.assertIn("Officina", items[0]["title"])
+        self.assertIn("url", items[0])
+        self.assertEqual(_my_skm_refresh(0), [])
