@@ -367,7 +367,7 @@ def mod133_compila(request, pk: int):
     else:
         formset = RigaMOD133FormSet(instance=mod, prefix="righe")
     return render(request, "gestione_specifiche/mod133_compila.html",
-                  {"spec": spec, "mod": mod, "formset": formset})
+                  {"spec": spec, "mod": mod, "formset": formset, "C": C})
 
 
 @login_required
@@ -404,6 +404,9 @@ def mod133_chiudi(request, pk: int):
     mod.data_chiusura_compilazione = timezone.now()
     mod.save(update_fields=["compilatore", "data_chiusura_compilazione", "updated_at"])
     messages.success(request, "Compilazione chiusa: in attesa di approvazione.")
+    # #7: "Procedi con l'approvazione" = chiudi + vai diretto alla pagina di approvazione.
+    if request.POST.get("vai") == "approva":
+        return redirect("gestione_specifiche:mod133_approva", pk=spec.pk)
     return redirect("gestione_specifiche:dettaglio", pk=spec.pk)
 
 

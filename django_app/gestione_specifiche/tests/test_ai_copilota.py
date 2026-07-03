@@ -202,6 +202,16 @@ class CopilotaViewTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "Confronta con revisione precedente")
         self.assertContains(r, "gsAiDiff")
+        self.assertContains(r, "Procedi con l'approvazione")  # #7
+
+    def test_procedi_con_approvazione_chiude_e_va_ad_approva(self):
+        # #7: un click chiude la compilazione e porta direttamente alla pagina di approvazione.
+        spec = Specifica.objects.create(codice="SP-PROC", titolo="T")
+        spec.avvia_flow_down(attore=self.su)
+        spec.save()
+        r = self.client.post(reverse("gestione_specifiche:mod133_chiudi", args=[spec.pk]), {"vai": "approva"})
+        self.assertEqual(r.status_code, 302)
+        self.assertIn(reverse("gestione_specifiche:mod133_approva", args=[spec.pk]), r["Location"])
 
     def test_pagina_guida(self):
         r = self.client.get(reverse("gestione_specifiche:guida"))

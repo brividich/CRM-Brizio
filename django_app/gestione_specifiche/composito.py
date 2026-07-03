@@ -196,7 +196,7 @@ def componi_composito_da_spec(
 
 
 # Filigrana della forma "in attesa" (non ancora compilato/approvato il MOD.133).
-FILIGRANA_ATTESA = "IN ATTESA MOD.133"
+FILIGRANA_ATTESA = "SOLO PER CONSULTAZIONE"
 
 
 def _dati_cover_attesa(spec) -> dict:

@@ -1,57 +1,76 @@
 {# Una riga (form) del formset MOD.133 — card design HUB. Usato anche per
-   l'empty_form (HTMX add): __prefix__ è sostituito lato server con l'indice. #}
-<div class="gs-row133 gs-riga" data-riga>
+   l'empty_form (HTMX add): __prefix__ è sostituito lato server con l'indice.
+   #7: le righe GIA' SALVATE (form.instance.pk) partono COMPRESSE (sommario cliccabile);
+   le righe nuove partono espanse. I campi restano nel DOM anche se compressi (si inviano). #}
+<div class="gs-row133 gs-riga{% if form.instance.pk %} is-collapsed{% endif %}" data-riga>
   {{ form.id }}{{ form.ordine }}
-  <div class="gs-row133__head">
-    <span class="gs-row133__n">{% include "gestione_specifiche/partials/_icon.html" with name="plusrow" size=14 %}</span>
-    <div style="display:flex; flex-direction:column; gap:3px;">
-      <span class="gs-eyebrow" style="font-size:10.5px;">Rif. paragrafo</span>
-      {{ form.rif_paragrafo }}
-    </div>
-    <div style="flex:1;"></div>
-    <label class="gs-cbswitch gs-cbpill is-ofi" data-toggle title="Se attivo, la riga potrà generare un OFI dopo l'approvazione">
-      {{ form.genera_ofi }}<span class="tk"></span>
-      <span class="lbl-txt">{% include "gestione_specifiche/partials/_icon.html" with name="alert" size=14 %} Genera OFI</span>
-    </label>
-    <button type="button" class="gs-iconbtn is-danger" onclick="gsRemoveRiga(this)" title="Rimuovi riga">{% include "gestione_specifiche/partials/_icon.html" with name="trash" size=15 %}</button>
+
+  {# --- Sommario compatto (visibile solo se compressa) --- #}
+  <div class="gs-riga-summary" onclick="gsToggleRiga(this)">
+    <span class="gs-riga-caret">&#9662;</span>
+    <strong style="font-size:12.5px; color:#0c2545;">{{ form.rif_paragrafo.value|default:"§ —" }}</strong>
+    <span class="gs-riga-summary__arg">{{ form.argomento.value|default:"" }}</span>
+    <span style="flex:1;"></span>
+    {% if form.impatto_documenti.value %}<span class="gs-tag is-blue">doc</span>{% endif %}
+    {% if form.impatto_operativo.value %}<span class="gs-tag is-green">op</span>{% endif %}
+    {% if form.genera_ofi.value %}<span class="gs-tag">OFI</span>{% endif %}
+    <span style="font-size:11px; color:#1f87cd; font-weight:700;">Modifica</span>
   </div>
 
-  <div class="gs-row133__body">
-    <label class="gs-flabel">Argomento</label>
-    {{ form.argomento }}
-
-    {# Impatto su documenti CN → rivela la griglia documenti #}
-    <div class="gs-softbox" style="margin-top:16px;">
-      <label class="gs-cbswitch" data-toggle data-reveal="doc">{{ form.impatto_documenti }}<span class="tk"></span><span class="lbl-txt">Impatto su documenti CN</span></label>
-      <span style="font-size:12px; color:#7c8aa2;">— se attivo, compila la griglia documenti</span>
+  {# --- Form completo (nascosto se compressa) --- #}
+  <div class="gs-riga-full">
+    <div class="gs-row133__head">
+      <span class="gs-row133__n">{% include "gestione_specifiche/partials/_icon.html" with name="plusrow" size=14 %}</span>
+      <div style="display:flex; flex-direction:column; gap:3px;">
+        <span class="gs-eyebrow" style="font-size:10.5px;">Rif. paragrafo</span>
+        {{ form.rif_paragrafo }}
+      </div>
+      <div style="flex:1;"></div>
+      <label class="gs-cbswitch gs-cbpill is-ofi" data-toggle title="Se attivo, la riga potrà generare un OFI dopo l'approvazione">
+        {{ form.genera_ofi }}<span class="tk"></span>
+        <span class="lbl-txt">{% include "gestione_specifiche/partials/_icon.html" with name="alert" size=14 %} Genera OFI</span>
+      </label>
+      {% if form.instance.pk %}<button type="button" class="gs-iconbtn" onclick="gsToggleRiga(this)" title="Comprimi la riga">&#9652;</button>{% endif %}
+      <button type="button" class="gs-iconbtn is-danger" onclick="gsRemoveRiga(this)" title="Rimuovi riga">{% include "gestione_specifiche/partials/_icon.html" with name="trash" size=15 %}</button>
     </div>
-    <div class="gs-impact-grid" data-reveal-target="doc"{% if not form.impatto_documenti.value %} hidden{% endif %}>
-      <div class="gs-eyebrow" style="color:#1f87cd; margin-bottom:12px;">Griglia documenti CN impattati</div>
-      <div style="display:grid; grid-template-columns:200px 1fr; gap:14px;">
-        <div>
-          <label class="gs-flabel">Rif. documento CN</label>
-          {{ form.rif_doc_cn }}
-          {% if form.rif_doc_cn.errors %}<div style="color:#b5564f; font-size:11px; margin-top:3px;">{{ form.rif_doc_cn.errors|striptags }}</div>{% endif %}
-          <label class="gs-flabel" style="margin-top:10px;">Rif. § documento CN</label>
-          {{ form.rif_paragrafo_cn }}
-        </div>
-        <div>
-          <label class="gs-flabel">Descrizione modifiche al documento</label>
-          {{ form.descrizione_modifiche }}
+
+    <div class="gs-row133__body">
+      <label class="gs-flabel">Argomento</label>
+      {{ form.argomento }}
+
+      {# Impatto su documenti CN → rivela la griglia documenti #}
+      <div class="gs-softbox" style="margin-top:16px;">
+        <label class="gs-cbswitch" data-toggle data-reveal="doc">{{ form.impatto_documenti }}<span class="tk"></span><span class="lbl-txt">Impatto su documenti CN</span></label>
+        <span style="font-size:12px; color:#7c8aa2;">— se attivo, compila la griglia documenti</span>
+      </div>
+      <div class="gs-impact-grid" data-reveal-target="doc"{% if not form.impatto_documenti.value %} hidden{% endif %}>
+        <div class="gs-eyebrow" style="color:#1f87cd; margin-bottom:12px;">Griglia documenti CN impattati</div>
+        <div style="display:grid; grid-template-columns:200px 1fr; gap:14px;">
+          <div>
+            <label class="gs-flabel">Rif. documento CN</label>
+            {{ form.rif_doc_cn }}
+            {% if form.rif_doc_cn.errors %}<div style="color:#b5564f; font-size:11px; margin-top:3px;">{{ form.rif_doc_cn.errors|striptags }}</div>{% endif %}
+            <label class="gs-flabel" style="margin-top:10px;">Rif. § documento CN</label>
+            {{ form.rif_paragrafo_cn }}
+          </div>
+          <div>
+            <label class="gs-flabel">Descrizione modifiche al documento</label>
+            {{ form.descrizione_modifiche }}
+          </div>
         </div>
       </div>
-    </div>
 
-    {# Impatto operativo + descrizione #}
-    <div class="gs-softbox" style="margin-top:14px;">
-      <label class="gs-cbswitch" data-toggle>{{ form.impatto_operativo }}<span class="tk"></span><span class="lbl-txt">Impatto operativo</span></label>
-    </div>
-    <label class="gs-flabel" style="margin-top:10px;">Descrizione impatto operativo</label>
-    {{ form.descrizione_impatto }}
+      {# Impatto operativo + descrizione #}
+      <div class="gs-softbox" style="margin-top:14px;">
+        <label class="gs-cbswitch" data-toggle>{{ form.impatto_operativo }}<span class="tk"></span><span class="lbl-txt">Impatto operativo</span></label>
+      </div>
+      <label class="gs-flabel" style="margin-top:10px;">Descrizione impatto operativo</label>
+      {{ form.descrizione_impatto }}
 
-    <div style="margin-top:16px;">
-      <label class="gs-flabel">TAG di processo</label>
-      {{ form.tag_processo }}
+      <div style="margin-top:16px;">
+        <label class="gs-flabel">TAG di processo</label>
+        {{ form.tag_processo }}
+      </div>
     </div>
   </div>
 

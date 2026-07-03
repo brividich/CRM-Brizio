@@ -1,7 +1,18 @@
 {% extends "core/base.html" %}
 {% load static %}
 {% block title %}Compila MOD.133 · {{ spec.codice }}{% endblock %}
-{% block extra_head %}{% include "gestione_specifiche/_gs_styles.html" %}{% endblock %}
+{% block extra_head %}{% include "gestione_specifiche/_gs_styles.html" %}
+<style>
+  /* #7 — righe MOD.133 gia' inserite: compresse, si espandono al click */
+  .gs-riga.is-collapsed .gs-riga-full{display:none;}
+  .gs-riga:not(.is-collapsed) .gs-riga-summary{display:none;}
+  .gs-riga-summary{display:flex;align-items:center;gap:10px;cursor:pointer;padding:11px 14px;border-radius:12px;}
+  .gs-riga-summary:hover{background:#f6f9fd;}
+  .gs-riga-summary__arg{font-size:12.5px;color:#5b6b82;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:46%;}
+  .gs-riga-caret{font-size:10px;color:#7c8aa2;transition:transform .15s;display:inline-block;}
+  .gs-riga.is-collapsed .gs-riga-caret{transform:rotate(-90deg);}
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="gs-wrap">
@@ -77,9 +88,14 @@
   {% if spec.stato == C.STATO_FLOW_DOWN %}
   <div class="gs-actions" style="margin-top:14px;">
     {% if mod.data_chiusura_compilazione %}
-      <a class="gs-btn gs-btn--success" href="{% url 'gestione_specifiche:mod133_approva' spec.pk %}">{% include "gestione_specifiche/partials/_icon.html" with name="shield" size=15 %} Vai all'approvazione</a>
+      <a class="gs-btn gs-btn--success" href="{% url 'gestione_specifiche:mod133_approva' spec.pk %}">{% include "gestione_specifiche/partials/_icon.html" with name="shield" size=15 %} Procedi con l'approvazione</a>
     {% else %}
-      <form method="post" action="{% url 'gestione_specifiche:mod133_chiudi' spec.pk %}">{% csrf_token %}<button type="submit" class="gs-btn gs-btn--success">{% include "gestione_specifiche/partials/_icon.html" with name="check" size=16 %} Chiudi compilazione</button></form>
+      {# Un click: chiude la compilazione e va diretto all'approvazione #}
+      <form method="post" action="{% url 'gestione_specifiche:mod133_chiudi' spec.pk %}" style="display:inline;">{% csrf_token %}
+        <input type="hidden" name="vai" value="approva">
+        <button type="submit" class="gs-btn gs-btn--success">{% include "gestione_specifiche/partials/_icon.html" with name="shield" size=15 %} Procedi con l'approvazione</button>
+      </form>
+      <form method="post" action="{% url 'gestione_specifiche:mod133_chiudi' spec.pk %}" style="display:inline;">{% csrf_token %}<button type="submit" class="gs-btn">{% include "gestione_specifiche/partials/_icon.html" with name="check" size=16 %} Chiudi compilazione</button></form>
     {% endif %}
     <a class="gs-btn" href="{% url 'gestione_specifiche:dettaglio' spec.pk %}">Torna alla scheda</a>
   </div>
@@ -94,6 +110,8 @@ function gsRemoveRiga(btn){
   if (del){ del.checked = true; row.style.display = 'none'; }
   else { row.remove(); }
 }
+/* #7 — comprimi/espandi una riga gia' inserita */
+function gsToggleRiga(el){ el.closest('.gs-riga').classList.toggle('is-collapsed'); }
 /* Reveal griglia documenti al toggle "Impatto su documenti CN" (delegato → vale anche per righe HTMX) */
 document.addEventListener('change', function(e){
   var toggle = e.target.closest('[data-reveal] input[type=checkbox]');
