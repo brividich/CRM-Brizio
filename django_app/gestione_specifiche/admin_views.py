@@ -8,14 +8,17 @@ from __future__ import annotations
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
+from . import constants as C
 from .acl_bootstrap import PERM_ADMIN
 from .cartelle_cliente import cartelle_disponibili
 from .models import (
-    AutoApprovazioneConfig, ClienteCartellaShare, EventoSpecifica, NotificaConfig,
+    AutoApprovazioneConfig, ClienteCartellaShare, EventoSpecifica, NotificaConfig, Specifica,
 )
+from .notifiche_gs import pool_utenti
 
 
 def utente_puo_admin(request) -> bool:
@@ -51,6 +54,7 @@ def admin_home(request):
         "auto_attiva": cfg.attiva,
         "reparto_in1": ncfg.reparto_in1,
         "n_eventi": EventoSpecifica.objects.count(),
+        "n_specifiche": Specifica.objects.count(),
         "aree_placeholder": _AREE_PLACEHOLDER,
     })
 
@@ -97,6 +101,37 @@ def admin_log(request):
         "page": page, "triggers": triggers,
         "f": {"codice": q_codice, "trigger": q_trigger},
     })
+
+
+@login_required
+def admin_specifiche(request):
+    """Elenco potente di TUTTE le specifiche (ogni stato): ricerca/filtro + riassegna incaricato."""
+    from django.core.paginator import Paginator
+
+    specs = Specifica.objects.select_related("incaricato").order_by("-id")
+    q = (request.GET.get("q") or "").strip()
+    stato = (request.GET.get("stato") or "").strip()
+    if q:
+        specs = specs.filter(Q(codice__icontains=q) | Q(titolo__icontains=q) | Q(cliente__icontains=q))
+    if stato:
+        specs = specs.filter(stato=stato)
+    page = Paginator(specs, 40).get_page(request.GET.get("p"))
+    return render(request, "gestione_specifiche/admin/specifiche.html", {
+        "page": page, "f": {"q": q, "stato": stato},
+        "stati": C.STATO_CHOICES, "pool": pool_utenti(),
+    })
+
+
+@login_required
+@require_POST
+def admin_specifica_riassegna(request, pk: int):
+    """Riassegna l'incaricato di una specifica ("" = gruppo IN1)."""
+    spec = get_object_or_404(Specifica, pk=pk)
+    inc = (request.POST.get("incaricato") or "").strip()
+    spec.incaricato_id = int(inc) if inc.isdigit() else None
+    spec.save(update_fields=["incaricato"])
+    messages.success(request, f"Incaricato aggiornato per {spec.codice}.")
+    return redirect("gestione_specifiche:admin_specifiche")
 
 
 @login_required

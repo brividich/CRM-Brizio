@@ -159,3 +159,25 @@ class AdminSectionTest(TestCase):
         self.assertContains(r, "SP-LOG")
         r = self.client.get(reverse("gestione_specifiche:admin_log"), {"codice": "ZZZ-NONE"})
         self.assertNotContains(r, "SP-LOG")
+
+    # --- Gestione specifiche (admin) ---
+    def test_admin_specifiche_lista_filtro_riassegna(self):
+        s1 = Specifica.objects.create(codice="SP-A", titolo="Alpha", cliente="Ferrari")
+        Specifica.objects.create(codice="SP-B", titolo="Beta", cliente="Ducati")
+        r = self.client.get(reverse("gestione_specifiche:admin_specifiche"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "SP-A")
+        self.assertContains(r, "SP-B")
+        # ricerca per cliente
+        r = self.client.get(reverse("gestione_specifiche:admin_specifiche"), {"q": "Ferrari"})
+        self.assertContains(r, "SP-A")
+        self.assertNotContains(r, "SP-B")
+        # riassegna a una persona
+        r = self.client.post(reverse("gestione_specifiche:admin_specifica_riassegna", args=[s1.pk]),
+                             {"incaricato": str(self.mso.pk)})
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(Specifica.objects.get(pk=s1.pk).incaricato_id, self.mso.pk)
+        # riassegna al gruppo (vuoto)
+        self.client.post(reverse("gestione_specifiche:admin_specifica_riassegna", args=[s1.pk]),
+                         {"incaricato": ""})
+        self.assertIsNone(Specifica.objects.get(pk=s1.pk).incaricato_id)
