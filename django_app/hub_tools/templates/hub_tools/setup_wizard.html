@@ -133,6 +133,24 @@ input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; accent-color:
 
 /* Section divider */
 .sw-sep { border: none; border-top: 1px solid var(--sw-border); margin: 14px 0; }
+/* Dark mode (additivo) */
+body.theme-dark {
+  --sw-border: var(--border);
+  --sw-muted: var(--text-mid);
+}
+body.theme-dark .sw-section { background: var(--surface); }
+body.theme-dark .sw-section-head { background: var(--surface-alt, #17222f); }
+body.theme-dark .sw-section-head:hover { background: var(--surface-alt, #17222f); }
+body.theme-dark .sw-section-head.open { background: var(--surface-alt, #17222f); }
+body.theme-dark .sw-fg input[type=text],
+body.theme-dark .sw-fg input[type=password],
+body.theme-dark .sw-fg input[type=number],
+body.theme-dark .sw-fg input[type=email],
+body.theme-dark .sw-fg select { background: var(--surface); color: var(--text); }
+body.theme-dark .sw-tog { background: var(--surface-alt, #17222f); }
+body.theme-dark .sw-module-tog { background: var(--surface-alt, #17222f); }
+body.theme-dark .sw-module-tog:hover { background: var(--surface-alt, #17222f); }
+body.theme-dark .sw-bottom { background: var(--surface); }
 </style>
 
 <div class="sw-page">

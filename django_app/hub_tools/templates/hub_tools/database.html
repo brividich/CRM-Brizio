@@ -39,6 +39,15 @@
 .backup-name{flex:1;font-family:monospace}
 .backup-meta{color:#64748b;font-size:.76rem}
 @media(max-width:700px){.tool-grid{grid-template-columns:1fr}}
+/* Dark mode (additivo) */
+body.theme-dark .hub-subtitle{color:var(--text-mid)}
+body.theme-dark .tool-card{background:var(--surface);border-color:var(--border)}
+body.theme-dark .tool-card-desc{color:var(--text-mid)}
+body.theme-dark .stat-table th{background:var(--surface-alt, #17222f);border-bottom-color:var(--border)}
+body.theme-dark .stat-table td{border-bottom-color:var(--border)}
+body.theme-dark .stat-table tr:hover td{background:var(--surface-alt, #17222f)}
+body.theme-dark .backup-list li{border-bottom-color:var(--border)}
+body.theme-dark .backup-meta{color:var(--text-mid)}
 </style>
 
 <div style="max-width:1100px;margin:0 auto;padding:24px 20px">

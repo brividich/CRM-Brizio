@@ -339,6 +339,86 @@
       flex-shrink: 0;
     }
     .nav-builder .nav-icon-modal[hidden] { display: none !important; }
+    /* Dark mode (additivo) */
+    body.theme-dark .nav-builder .visual-section-tab:not(.active) {
+      background: var(--surface-alt, #17222f);
+      color: var(--text);
+    }
+    body.theme-dark .nav-builder .visual-section-tab:not(.active):hover {
+      background: var(--border);
+    }
+    body.theme-dark .nav-builder .visual-lane {
+      background: var(--surface-alt, #17222f);
+    }
+    body.theme-dark .nav-builder .visual-lane-head {
+      border-bottom-color: var(--border);
+    }
+    body.theme-dark .nav-builder .visual-lane-title {
+      color: var(--text);
+    }
+    body.theme-dark .nav-builder .visual-lane-hint {
+      color: var(--text-mid);
+    }
+    body.theme-dark .nav-builder .visual-lane-count {
+      border-color: var(--border);
+      background: var(--surface);
+      color: var(--text);
+    }
+    body.theme-dark .nav-builder .visual-lane-empty {
+      border-color: var(--border);
+      background: var(--surface);
+    }
+    body.theme-dark .nav-builder .visual-card {
+      border-color: var(--border);
+      background: var(--surface);
+    }
+    body.theme-dark .nav-builder .visual-card-label {
+      color: var(--text);
+    }
+    body.theme-dark .nav-builder .visual-card-handle {
+      color: var(--text-mid);
+    }
+    body.theme-dark .nav-builder .visual-card-meta {
+      color: var(--text-mid);
+    }
+    body.theme-dark .nav-builder .visual-badge:not(.ok):not(.off) {
+      border-color: var(--border);
+      background: var(--surface-alt, #17222f);
+      color: var(--text);
+    }
+    body.theme-dark .nav-builder .nav-icon-preview {
+      background: var(--surface-alt, #17222f);
+      color: var(--text);
+    }
+    body.theme-dark .nav-builder .nav-icon-modal-card {
+      background: var(--surface);
+    }
+    body.theme-dark .nav-builder .nav-icon-modal-title {
+      color: var(--text);
+    }
+    body.theme-dark .nav-builder .nav-icon-modal-copy {
+      color: var(--text-mid);
+    }
+    body.theme-dark .nav-builder .nav-icon-modal-grid {
+      background: var(--surface-alt, #17222f);
+    }
+    body.theme-dark .nav-builder .nav-icon-card {
+      border-color: var(--border);
+      background: var(--surface);
+    }
+    body.theme-dark .nav-builder .nav-icon-card-preview {
+      background: var(--surface-alt, #17222f);
+      border-color: var(--border);
+    }
+    body.theme-dark .nav-builder .nav-icon-card-name {
+      color: var(--text);
+    }
+    body.theme-dark .nav-builder .nav-icon-card-value {
+      color: var(--text-mid);
+    }
+    body.theme-dark .nav-builder .nav-icon-empty {
+      color: var(--text-mid);
+    }
     .nav-builder .nav-icon-modal {
       position: fixed;
       inset: 0;

@@ -162,6 +162,54 @@
 .pdf-preview-table span:nth-child(3n) { border-right: 0; }
 .pdf-preview-table div:first-child span { background: var(--pdf-primary); }
 .pdf-preview-table div:nth-child(3) span { background: #f8fafc; }
+/* Dark mode (additivo) */
+body.theme-dark .pdf-color-row input[type="color"] {
+  background: var(--surface);
+}
+body.theme-dark .pdf-logo-current {
+  background: var(--surface-alt, #17222f);
+}
+body.theme-dark .pdf-logo-current img {
+  background: var(--surface);
+}
+body.theme-dark .pdf-option {
+  background: var(--surface-alt, #17222f);
+}
+body.theme-dark .pdf-preview-sheet {
+  border-color: var(--border);
+  background: var(--surface);
+}
+body.theme-dark .pdf-preview-logo img {
+  background: var(--surface);
+}
+body.theme-dark .pdf-preview-title strong {
+  color: var(--text);
+}
+body.theme-dark .pdf-preview-title span,
+body.theme-dark .pdf-preview-meta span {
+  color: var(--text-mid);
+}
+body.theme-dark .pdf-preview-lines span {
+  background: var(--border);
+}
+body.theme-dark .pdf-preview-table {
+  border-color: var(--border);
+}
+body.theme-dark .pdf-preview-table span {
+  background: var(--surface);
+  border-right-color: var(--border);
+  border-bottom-color: var(--border);
+}
+body.theme-dark .pdf-preview-table div:first-child span {
+  background: var(--pdf-primary);
+}
+body.theme-dark .pdf-preview-table div:nth-child(3) span {
+  background: var(--surface-alt, #17222f);
+}
+body.theme-dark .pdf-preview-footer {
+  border-top-color: var(--border);
+  color: var(--text-mid);
+}
 .pdf-preview-accent {
   width: 44px;
   height: 4px;
