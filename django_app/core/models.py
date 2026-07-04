@@ -4,6 +4,9 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import DatabaseError, models
+from django.urls import NoReverseMatch, reverse
+
+from core.hub_bacheca_storage import HubLinkStorage
 
 
 class Profile(models.Model):
@@ -1022,3 +1025,115 @@ class ActionItem(models.Model):
             return onb.get_notifica(tipo, default)
         except Exception:
             return default  # fail-open: in caso di errore DB, invia sempre
+
+
+class HubLinkCategory(models.Model):
+    """Categoria della bacheca 'Documenti & Collegamenti' (gestita da admin)."""
+
+    name = models.CharField(max_length=120)
+    slug = models.SlugField(max_length=140, unique=True)
+    icon = models.CharField(max_length=500, blank=True, default="",
+                            help_text="Emoji, alias SVG o URL immagine.")
+    description = models.CharField(max_length=255, blank=True, default="")
+    order = models.IntegerField(default=100)
+    is_visible = models.BooleanField(default=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                                   null=True, blank=True, related_name="hub_categories_created")
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                                   null=True, blank=True, related_name="hub_categories_updated")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["order", "name", "id"]
+
+    def __str__(self) -> str:
+        return f"HubCat<{self.slug}>"
+
+
+class HubLink(models.Model):
+    """Voce della bacheca: documento caricato, collegamento esterno o scorciatoia interna."""
+
+    KIND_FILE = "file"
+    KIND_URL = "url"
+    KIND_INTERNAL = "internal"
+    KIND_CHOICES = [
+        (KIND_FILE, "Documento"),
+        (KIND_URL, "Collegamento esterno"),
+        (KIND_INTERNAL, "Scorciatoia interna"),
+    ]
+
+    category = models.ForeignKey(HubLinkCategory, on_delete=models.CASCADE, related_name="links")
+    kind = models.CharField(max_length=12, choices=KIND_CHOICES)
+    title = models.CharField(max_length=160)
+    description = models.CharField(max_length=300, blank=True, default="")
+    icon = models.CharField(max_length=500, blank=True, default="")
+    # target per kind:
+    url = models.CharField(max_length=500, blank=True, default="")            # kind=url
+    route_name = models.CharField(max_length=160, blank=True, default="")     # kind=internal
+    route_kwargs = models.JSONField(default=dict, blank=True)                 # kind=internal (opzionale)
+    file = models.FileField(storage=HubLinkStorage(), upload_to="hub_links/%Y/%m",
+                            blank=True, null=True)                            # kind=file
+    original_filename = models.CharField(max_length=255, blank=True, default="")
+    file_size = models.PositiveIntegerField(null=True, blank=True)
+    content_type = models.CharField(max_length=120, blank=True, default="")
+    open_in_new_tab = models.BooleanField(default=False)
+    order = models.IntegerField(default=100)
+    is_visible = models.BooleanField(default=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                                   null=True, blank=True, related_name="hub_links_created")
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                                   null=True, blank=True, related_name="hub_links_updated")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["order", "title", "id"]
+
+    def __str__(self) -> str:
+        return f"HubLink<{self.kind}:{self.title}>"
+
+    def clean(self):
+        if self.kind == self.KIND_URL:
+            if not (self.url or "").strip():
+                raise ValidationError({"url": "URL obbligatorio per un collegamento esterno."})
+        elif self.kind == self.KIND_INTERNAL:
+            if not (self.route_name or "").strip():
+                raise ValidationError({"route_name": "Nome route obbligatorio per una scorciatoia interna."})
+        elif self.kind == self.KIND_FILE:
+            if not self.file:
+                raise ValidationError({"file": "File obbligatorio per un documento."})
+        else:
+            raise ValidationError({"kind": "Tipo non valido."})
+
+    def resolve_href(self) -> str:
+        if self.kind == self.KIND_URL:
+            return self.url or "#"
+        if self.kind == self.KIND_INTERNAL:
+            try:
+                return reverse(self.route_name, kwargs=self.route_kwargs or None)
+            except NoReverseMatch:
+                return "#"
+        if self.kind == self.KIND_FILE:
+            try:
+                return reverse("hub_link_download", args=[self.pk])
+            except NoReverseMatch:
+                return "#"
+        return "#"
+
+
+class HubLinkRoleAccess(models.Model):
+    """Visibilità per ruolo di una voce bacheca (come NavigationRoleAccess).
+
+    Nessun record per una voce ⇒ visibile a TUTTI i ruoli.
+    """
+
+    link = models.ForeignKey(HubLink, on_delete=models.CASCADE, related_name="role_accesses")
+    legacy_role_id = models.IntegerField(db_index=True)
+    can_view = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = [("link", "legacy_role_id")]
+
+    def __str__(self) -> str:
+        return f"HubLinkAccess<link={self.link_id} role={self.legacy_role_id}>"
