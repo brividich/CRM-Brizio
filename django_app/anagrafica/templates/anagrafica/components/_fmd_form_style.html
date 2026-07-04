@@ -66,4 +66,23 @@
 @media (max-width:720px){
   .fmd-grid, .fmd-grid-3{ grid-template-columns:1fr; }
 }
+
+/* ── Dark mode (additivo: le regole light restano invariate) ──────────────────
+   I campi hanno background:#fff hardcoded → il solo ribaltamento dei token --fmd-*
+   non basta: qui si overridano esplicitamente input/select/textarea, checkbox,
+   footer e modale. Selettori con prefisso body.theme-dark = specificità superiore. */
+body.theme-dark .fmd-form-sec{ border-top-color:var(--border); }
+body.theme-dark .fmd-form-sec-t,
+body.theme-dark .fmd-modal-head strong{ color:var(--text); }
+body.theme-dark .fmd-field input:not([type=checkbox]):not([type=radio]):not([type=file]),
+body.theme-dark .fmd-field select,
+body.theme-dark .fmd-field textarea{
+  background:var(--surface); border-color:var(--border); color:var(--text);
+}
+body.theme-dark .fmd-field input.fmd-autofill{ background:rgba(31,135,205,.12); border-color:rgba(31,135,205,.4); }
+body.theme-dark .fmd-check{ background:var(--surface-alt,#17222f); border-color:var(--border); color:var(--text); }
+body.theme-dark .fmd-form-foot,
+body.theme-dark .fmd-modal-foot{ background:var(--surface-alt,#17222f); border-top-color:var(--border); }
+body.theme-dark .fmd-modal-card{ background:var(--surface); }
+body.theme-dark .fmd-modal-head{ border-bottom-color:var(--border); }
 </style>

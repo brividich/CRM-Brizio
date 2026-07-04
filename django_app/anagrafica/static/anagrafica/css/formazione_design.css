@@ -330,3 +330,91 @@ a.fmd-mtr:hover{ transform:translateY(-1px); box-shadow:0 8px 22px rgba(0,43,92,
 .fm-assign-item{ display:flex; align-items:center; gap:9px; padding:5px 6px; border-radius:7px; font-size:13.5px; color:#1f2d3d; cursor:pointer; }
 .fm-assign-item:hover{ background:#f3f9fe; }
 .fm-assign-item.fm-hidden{ display:none; }
+
+/* ============================================================
+   DARK MODE — additivo (le regole light qui sopra restano invariate)
+   Il tema scuro del portale è `body.theme-dark` + token in theme.css.
+   `--fmd-navy` è SOVRACCARICO (testo E sfondo bottoni) → NON si ribalta:
+   si flippano solo i token di testo/bordo non sovraccarichi e si overridano
+   puntualmente superfici e testi navy. Selettori scopati sotto `.fmd` per
+   vincere di specificità sulle regole a singola classe.
+   NB: rifinitura visiva (contrasti) da confermare a schermo.
+   ============================================================ */
+body.theme-dark .fmd{
+  --fmd-ink: var(--text);
+  --fmd-muted: var(--text-mid);
+  --fmd-line: var(--border);
+  --fmd-line-soft: var(--border);
+  color: var(--text);
+}
+/* Superfici card / pannelli / controlli: #fff → superficie scura */
+body.theme-dark .fmd .fmd-mtr,
+body.theme-dark .fmd .fmd-panel,
+body.theme-dark .fmd .fmd-area,
+body.theme-dark .fmd .fmd-folder,
+body.theme-dark .fmd .fmd-corso-card,
+body.theme-dark .fmd .fmd-search-pop,
+body.theme-dark .fmd .fmd-btn-ghost,
+body.theme-dark .fmd .fmd-btn-mini,
+body.theme-dark .fmd .fmd-chip,
+body.theme-dark .fmd .fmd-pager a,
+body.theme-dark .fmd .fmd-pager span.fmd-page,
+body.theme-dark .fmd .fmd-search input,
+body.theme-dark .fmd .fmd-select,
+body.theme-dark .fmd .fmd-toolbar select,
+body.theme-dark .fmd .fmd-toolbar input[type=text],
+body.theme-dark .fmd .fmd-filtf input[type=text],
+body.theme-dark .fmd .fmd-filtf select,
+body.theme-dark .fmd .fm-assign-list{
+  background: var(--surface);
+  border-color: var(--border);
+}
+/* Superfici "soft" (thead / hover / edizioni / count / bar / code / import) */
+body.theme-dark .fmd .fmd-table thead th,
+body.theme-dark .fmd .fmd-count,
+body.theme-dark .fmd .fmd-ed,
+body.theme-dark .fmd .fmd-bar,
+body.theme-dark .fmd .fmd-flow-chip,
+body.theme-dark .fmd .fm-slide-body code,
+body.theme-dark .fmd .fm-import-box{
+  background: var(--surface-alt, #17222f);
+  border-color: var(--border);
+}
+body.theme-dark .fmd .fmd-table tbody tr:hover,
+body.theme-dark .fmd .fmd-btn-ghost:hover,
+body.theme-dark .fmd .fmd-btn-mini:hover,
+body.theme-dark .fmd .fmd-ed-head:hover,
+body.theme-dark .fmd .fmd-suggest-item:hover,
+body.theme-dark .fmd .fmd-suggest-all:hover,
+body.theme-dark .fmd .fm-assign-item:hover{
+  background: var(--surface-alt, #17222f);
+}
+/* Testi che usano --fmd-navy (sovraccarico) → chiari in dark */
+body.theme-dark .fmd .fmd-mtr-val,
+body.theme-dark .fmd .fmd-block-title,
+body.theme-dark .fmd .fmd-area-title,
+body.theme-dark .fmd .fmd-num,
+body.theme-dark .fmd .fmd-data-link,
+body.theme-dark .fmd .fmd-empty .fmd-et,
+body.theme-dark .fmd .fmd-pagehead h1,
+body.theme-dark .fmd .fmd-flow-chip,
+body.theme-dark .fmd .fmd-folder-t,
+body.theme-dark .fmd .fmd-ed-code,
+body.theme-dark .fmd .fmd-suggest-t,
+body.theme-dark .fmd .fm-slide-title,
+body.theme-dark .fmd .fm-slide-body,
+body.theme-dark .fmd .fm-slide-body h2,
+body.theme-dark .fmd .fm-slide-body h3,
+body.theme-dark .fmd .fmd-lesson-arg{
+  color: var(--text);
+}
+/* Stati "attivo" navy: in dark usano l'accent cyan per staccare dal fondo */
+body.theme-dark .fmd .fmd-chip.fmd-on,
+body.theme-dark .fmd .fmd-pager .fmd-page.fmd-on{
+  background: var(--fmd-cyan); border-color: var(--fmd-cyan); color: #fff;
+}
+body.theme-dark .fmd .fmd-btn-navy{ background:#1c3a63; }
+/* Alert banner (gradiente chiaro) → tinta arancio scura */
+body.theme-dark .fmd .fmd-alert{
+  background: rgba(249,115,22,.08); border-color: rgba(249,115,22,.28);
+}
