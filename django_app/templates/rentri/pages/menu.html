@@ -136,6 +136,26 @@
 .rn-badge-tipo-R { background:#fef08a; color:#713f12; }
 .rn-import-actions { display:flex; gap:8px; }
 .rn-import-actions .rn-tool-btn { flex:1; }
+/* Dark mode (additivo) */
+body.theme-dark .rn-logo-title { color:var(--text); }
+body.theme-dark .rn-logo-sub { color:var(--text-mid); }
+
+body.theme-dark .rn-tool-card {
+  background:var(--surface); border:1px solid var(--border);
+}
+body.theme-dark .rn-tool-title { color:var(--text); }
+
+body.theme-dark .rn-tool-btn-outline {
+  background:var(--surface-alt, #17222f); color:var(--text); border:1px solid var(--border);
+}
+body.theme-dark .rn-tool-btn-outline:hover { background:var(--border); }
+
+body.theme-dark .rn-import-panel {
+  border-top:1px solid var(--border);
+}
+body.theme-dark .rn-preview-wrap { border:1px solid var(--border); }
+body.theme-dark .rn-preview-table th { background:var(--surface-alt, #17222f); color:var(--text-mid); border-bottom:1px solid var(--border); }
+body.theme-dark .rn-preview-table td { border-bottom:1px solid var(--border); }
 
 @media(max-width:520px) {
   .rn-grid { grid-template-columns:1fr; }

@@ -32,6 +32,19 @@
   .sc-link:hover { text-decoration:underline; }
   .sc-empty { padding:16px; color:#94a3b8; font-size:.88rem; }
   .sc-emptyall { text-align:center; padding:40px 16px; color:#16a34a; font-weight:700; }
+  /* Dark mode (additivo) */
+  body.theme-dark .sc-title { color: var(--text); }
+  body.theme-dark .sc-sub { color: var(--text-mid); }
+  body.theme-dark .sc-btn { border-color: var(--border); background: var(--surface-alt, #17222f); color: var(--text); }
+  body.theme-dark .sc-btn:hover { background: var(--border); }
+  body.theme-dark .sc-section { background: var(--surface); border-color: var(--border); }
+  body.theme-dark .sc-sec-head { border-bottom-color: var(--border); }
+  body.theme-dark .sc-sec-label { color: var(--text); }
+  body.theme-dark .sc-sec-desc { color: var(--text-mid); }
+  body.theme-dark .sc-table th { background: var(--surface-alt, #17222f); color: var(--text-mid); border-bottom-color: var(--border); }
+  body.theme-dark .sc-table td { border-bottom-color: var(--surface-alt, #17222f); color: var(--text); }
+  body.theme-dark .sc-table tr:hover td { background: var(--surface-alt, #17222f); }
+  body.theme-dark .sc-id { color: var(--text-mid); }
   @media print {
     .subnav, .sc-actions { display:none !important; }
     .sc-section { border-color:#cbd5e1; break-inside:avoid; }

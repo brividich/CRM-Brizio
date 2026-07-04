@@ -42,6 +42,21 @@
   .gi-age.warn { color:#b45309; font-weight:700; }
   .gi-empty { text-align:center; padding:40px 16px; color:#16a34a; font-weight:700; }
   .gi-note { margin-top:14px; font-size:.78rem; color:#94a3b8; line-height:1.5; }
+  /* Dark mode (additivo) */
+  body.theme-dark .gi-title { color: var(--text); }
+  body.theme-dark .gi-sub { color: var(--text-mid); }
+  body.theme-dark .gi-btn { border-color: var(--border); background: var(--surface-alt, #17222f); color: var(--text); }
+  body.theme-dark .gi-btn:hover { background: var(--border); }
+  body.theme-dark .gi-chip { border-color: var(--border); background: var(--surface); color: var(--text-mid); }
+  body.theme-dark .gi-search { border-color: var(--border); background: var(--surface); color: var(--text); }
+  body.theme-dark .gi-kpi { background: var(--surface); border-color: var(--border); }
+  body.theme-dark .gi-kpi-n { color: var(--text); }
+  body.theme-dark .gi-card { background: var(--surface); border-color: var(--border); }
+  body.theme-dark .gi-table th { background: var(--surface-alt, #17222f); color: var(--text-mid); border-bottom-color: var(--border); }
+  body.theme-dark .gi-table td { border-bottom-color: var(--border); color: var(--text); }
+  body.theme-dark .gi-table tr:hover td { background: var(--surface-alt, #17222f); }
+  body.theme-dark .gi-cer { color: var(--text); }
+  body.theme-dark .gi-badge.chiuso { background: var(--surface-alt, #17222f); color: var(--text-mid); }
   @media print { .subnav, .gi-actions, .gi-filters { display:none !important; } .gi-card { border-color:#cbd5e1; } }
 </style>
 {% endblock %}

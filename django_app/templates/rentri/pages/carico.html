@@ -81,6 +81,21 @@
 .rn-modal-si:hover { background:#218ABF; }
 .rn-modal-no { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
 .rn-modal-no:hover { background:#e2e8f0; }
+/* Dark mode (additivo) */
+body.theme-dark .cp-form-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .cp-form-head { background:var(--surface-alt, #17222f); border-bottom-color:var(--border); }
+body.theme-dark .cp-form-title { color:var(--text); }
+body.theme-dark .cp-label { color:var(--text-mid); }
+body.theme-dark .cp-input,
+body.theme-dark .cp-select,
+body.theme-dark .cp-textarea { border-color:var(--border); background:var(--surface); color:var(--text); }
+body.theme-dark .cp-btn-ghost { background:var(--surface-alt, #17222f); color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .cp-btn-ghost:hover { background:var(--border); }
+body.theme-dark .rn-modal { background:var(--surface); }
+body.theme-dark .rn-modal-title { color:var(--text); }
+body.theme-dark .rn-modal-sub { color:var(--text-mid); }
+body.theme-dark .rn-modal-no { background:var(--surface-alt, #17222f); color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .rn-modal-no:hover { background:var(--border); }
 
 @media(max-width:700px) {
   .cp-grid { grid-template-columns:1fr; }
