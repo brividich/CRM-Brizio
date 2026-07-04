@@ -418,11 +418,10 @@ class HubBachecaServiceTests(TestCase):
         self.assertNotIn("nasc", slugs)
 
     def test_visible_bacheca_empty_category_excluded(self):
+        # setUp crea la categoria "coll" senza voci; ne aggiungiamo un'altra vuota.
         HubLinkCategory.objects.create(name="Vuota", slug="vuota")
         groups = visible_bacheca(legacy_role_id=None, is_admin=False)
-        self.assertEqual([g["category"].slug for g in groups], ["coll"] if False else [])
-        # nessun link → nessun gruppo
-        self.assertEqual(groups, [])
+        self.assertEqual(groups, [])  # nessuna voce in nessuna categoria -> nessun gruppo
 
     def test_preview_limit_and_more(self):
         for i in range(6):
