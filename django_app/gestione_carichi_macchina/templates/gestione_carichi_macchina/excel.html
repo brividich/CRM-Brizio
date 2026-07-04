@@ -149,6 +149,100 @@
     border-radius: 8px; border: 1px solid var(--primary-mid,#1f87cd); background: #fff; color: var(--primary-mid,#1f87cd);
     font-weight: 800; font-size: .76rem; cursor: pointer; }
   .gcm-usaslot:hover { background: var(--primary-mid,#1f87cd); color: #fff; }
+/* Dark mode (additivo) */
+  body.theme-dark .gcm-head {
+    background: var(--surface);
+    border-color: var(--border);
+  }
+  body.theme-dark .gcm-head h1 { color: var(--text); }
+  body.theme-dark .gcm-head p { color: var(--text-mid); }
+
+  body.theme-dark .gcm-btn {
+    background: var(--surface);
+    border-color: var(--border);
+    color: var(--text);
+  }
+  body.theme-dark .gcm-btn:hover { background: var(--surface-alt, #17222f); }
+
+  body.theme-dark .gcm-toggle { border-color: var(--border); }
+  body.theme-dark .gcm-toggle a:not(.active) {
+    background: var(--surface);
+    color: var(--text);
+  }
+
+  body.theme-dark .gcm-scroll {
+    background: var(--surface);
+    border-color: var(--border);
+  }
+
+  body.theme-dark table.gcm th,
+  body.theme-dark table.gcm td {
+    border-right-color: var(--border);
+    border-bottom-color: var(--border);
+  }
+
+  body.theme-dark table.gcm th.gcm-mac {
+    background: var(--surface-alt, #17222f);
+    color: var(--text);
+  }
+  body.theme-dark table.gcm th.gcm-mac small { color: var(--text-mid); }
+  body.theme-dark tr.gcm-notte th.gcm-mac { background: var(--surface-alt, #17222f); }
+  body.theme-dark tr.gcm-ferma th.gcm-mac {
+    background: var(--surface-alt, #17222f);
+    color: var(--text-mid);
+  }
+
+  body.theme-dark td.gcm-td { background: var(--surface); }
+  body.theme-dark td.gcm-td.gcm-weekend { background: var(--surface-alt, #17222f); }
+  body.theme-dark td.gcm-td.gcm-today { background: var(--surface-alt, #17222f); }
+  body.theme-dark tr.gcm-ferma td.gcm-td {
+    background: repeating-linear-gradient(45deg, var(--surface-alt,#17222f), var(--surface-alt,#17222f) 6px, var(--border) 6px, var(--border) 12px);
+  }
+
+  body.theme-dark .gcm-cell-form input,
+  body.theme-dark .gcm-cell-form select {
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--border);
+  }
+  body.theme-dark .gcm-form-actions button:not(.gcm-save):not(.gcm-del) {
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--border);
+  }
+
+  body.theme-dark .gcm-sugg {
+    border-top-color: var(--border);
+    color: var(--text);
+  }
+  body.theme-dark .gcm-sugg-h { color: var(--text-mid); }
+  body.theme-dark .gcm-sugg-bar { background: var(--surface-alt, #17222f); }
+
+  body.theme-dark .gcm-legend { color: var(--text-mid); }
+
+  body.theme-dark .gcm-modal { background: var(--surface); }
+  body.theme-dark .gcm-modal label { color: var(--text-mid); }
+  body.theme-dark .gcm-modal input,
+  body.theme-dark .gcm-modal select {
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--border);
+  }
+  body.theme-dark .gcm-modal .actions button:not(.primary) {
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--border);
+  }
+
+  body.theme-dark .gcm-ai-spieg {
+    background: var(--surface-alt, #17222f);
+    border-color: var(--border);
+    color: var(--text);
+  }
+  body.theme-dark .gcm-ai-mac .bar { background: var(--surface-alt, #17222f); }
+
+  body.theme-dark .gcm-usaslot { background: var(--surface); }
+  body.theme-dark .gcm-usaslot:hover { background: var(--primary-mid,#1f87cd); }
 </style>
 {% endblock %}
 

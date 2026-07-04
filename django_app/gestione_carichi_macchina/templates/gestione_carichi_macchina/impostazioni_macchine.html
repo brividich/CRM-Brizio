@@ -36,6 +36,15 @@
   .ims-ok.show { opacity: 1; }
   .ims-note { margin-top: 16px; font-size: .76rem; color: var(--i-mid); background: rgba(31,135,205,.06);
     border: 1px solid var(--i-border); border-radius: 10px; padding: 10px 12px; line-height: 1.5; }
+  /* Dark mode (additivo) */
+  body.theme-dark .ims { color: var(--text);
+    --i-border: var(--border); --i-surf: var(--surface-alt, #17222f); --i-mid: var(--text-mid); }
+  body.theme-dark .ims-head h1 { color: var(--text); }
+  body.theme-dark .ims-cod { color: var(--text); }
+  body.theme-dark .ims-table { background: var(--surface); }
+  body.theme-dark .ims-table td { border-top: 1px solid var(--border); }
+  body.theme-dark .ims-ogg { background: var(--surface); color: var(--text); }
+  body.theme-dark .ims-stato { background: var(--surface); color: var(--text); }
 </style>
 {% endblock %}
 

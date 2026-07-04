@@ -48,6 +48,21 @@
   .sg-empty { text-align:center; color:#94a3b8; padding:40px 0; }
   .sg-pager { display:flex; gap:8px; justify-content:center; margin-top:16px; align-items:center; color:#64748b; font-size:.85rem; }
   .sg-pager a { text-decoration:none; border:1px solid #cbd5e1; border-radius:8px; padding:5px 12px; color:#0f172a; }
+  /* Dark mode (additivo) */
+  body.theme-dark .sg-title { color: var(--text); }
+  body.theme-dark .sg-sub { color: var(--text-mid); }
+  body.theme-dark .sg-kpi { background: var(--surface); border-color: var(--border); }
+  body.theme-dark .sg-kpi span { color: var(--text-mid); }
+  body.theme-dark .sg-filters { background: var(--surface); border-color: var(--border); }
+  body.theme-dark .sg-filters label { color: var(--text-mid); }
+  body.theme-dark .sg-filters select,
+  body.theme-dark .sg-filters input { background: var(--surface); color: var(--text); border-color: var(--border); }
+  body.theme-dark .sg-btn.ghost { background: var(--surface); color: var(--text); border-color: var(--border); }
+  body.theme-dark .sg-table { background: var(--surface); border-color: var(--border); }
+  body.theme-dark .sg-table th { color: var(--text-mid); background: var(--surface-alt, #17222f); border-bottom-color: var(--border); }
+  body.theme-dark .sg-table td { color: var(--text); border-bottom-color: var(--border); }
+  body.theme-dark .sg-pager { color: var(--text-mid); }
+  body.theme-dark .sg-pager a { color: var(--text); border-color: var(--border); }
 </style>
 {% endblock %}
 

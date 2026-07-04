@@ -298,6 +298,66 @@
   box-shadow: 0 20px 60px rgba(0,0,0,.2);
 }
 .ped-mac-box h3 { font-size: 14px; font-weight: 700; margin: 0 0 14px; }
+/* Dark mode (additivo) */
+body.theme-dark .ped-tool-btn:not(.active):not(.danger):not(.success) {
+  background: var(--surface-alt, #17222f);
+  border-color: var(--border);
+  color: var(--text);
+}
+body.theme-dark .ped-tool-btn:not(.active):not(.danger):not(.success):hover {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text);
+}
+body.theme-dark #ped-container {
+  background: var(--surface-alt, #17222f);
+  border-color: var(--border);
+}
+body.theme-dark .ped-no-img {
+  background: repeating-linear-gradient(
+    45deg, var(--border) 0, var(--border) 1px, var(--surface-alt, #17222f) 0, var(--surface-alt, #17222f) 50%
+  );
+  background-size: 16px 16px;
+}
+body.theme-dark .ped-card {
+  background: var(--surface);
+  border-color: var(--border);
+}
+body.theme-dark .ped-card-head {
+  background: var(--surface-alt, #17222f);
+  border-bottom-color: var(--border);
+}
+body.theme-dark .ped-field label { color: var(--text-mid); }
+body.theme-dark .ped-field input,
+body.theme-dark .ped-field textarea,
+body.theme-dark .ped-field select {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text);
+}
+body.theme-dark .ped-field input:focus,
+body.theme-dark .ped-field textarea:focus,
+body.theme-dark .ped-field select:focus {
+  border-color: #3b82f6;
+}
+body.theme-dark .ped-color-swatch.active { border-color: var(--text); }
+body.theme-dark .ped-mac-row { border-bottom-color: var(--border); }
+body.theme-dark .ped-btn:not(.primary):not(.danger) {
+  background: var(--surface-alt, #17222f);
+  border-color: var(--border);
+  color: var(--text);
+}
+body.theme-dark .ped-btn:not(.primary):not(.danger):hover {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text);
+}
+body.theme-dark #ped-plan-select {
+  background: var(--surface);
+  color: var(--text);
+}
+body.theme-dark .ped-upload-box { background: var(--surface); }
+body.theme-dark .ped-mac-box { background: var(--surface); }
 </style>
 {% endblock %}
 

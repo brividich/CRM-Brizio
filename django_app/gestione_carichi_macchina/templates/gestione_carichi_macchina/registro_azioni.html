@@ -46,6 +46,20 @@
   .reg-note { margin-bottom: 14px; background: rgba(214,158,46,.12); border: 1px solid #d69e2e;
     border-radius: 10px; padding: 11px 13px; font-size: .84rem; color: #8a6d1f; line-height: 1.5; }
   .reg-note code { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 4px; font-size: .92em; }
+  /* Dark mode (additivo) */
+  body.theme-dark .reg {
+    --r-border: var(--border);
+    --r-surf: var(--surface-alt, #17222f);
+    --r-mid: var(--text-mid);
+    color: var(--text);
+  }
+  body.theme-dark .reg-head h1 { color: var(--text); }
+  body.theme-dark .reg-user { color: var(--text); }
+  body.theme-dark .reg-filtri select,
+  body.theme-dark .reg-filtri input { background: var(--surface); color: var(--text); }
+  body.theme-dark .reg-filtri .clr { background: var(--surface); color: var(--text); }
+  body.theme-dark .reg-table { background: var(--surface); }
+  body.theme-dark .reg-table td { border-top: 1px solid var(--border); }
 </style>
 {% endblock %}
 

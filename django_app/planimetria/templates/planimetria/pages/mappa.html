@@ -207,6 +207,59 @@
   color: #94a3b8;
 }
 .pmap-no-plan strong { display: block; font-size: 16px; margin-bottom: 8px; color: #0f172a; }
+/* Dark mode (additivo) */
+body.theme-dark #pmap-container {
+  background: var(--surface-alt, #17222f);
+}
+body.theme-dark #pmap-img.no-plan {
+  background: repeating-linear-gradient(
+    45deg, var(--border) 0, var(--border) 1px, var(--surface-alt, #17222f) 0, var(--surface-alt, #17222f) 50%
+  );
+  background-size: 16px 16px;
+}
+body.theme-dark .pmap-reparto.selected {
+  box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px currentColor;
+}
+body.theme-dark #pmap-panel {
+  background: var(--surface);
+}
+body.theme-dark .pmap-panel-head {
+  border-bottom: 1px solid var(--border);
+}
+body.theme-dark .pmap-panel-nome {
+  color: var(--text);
+}
+body.theme-dark .pmap-panel-close {
+  color: var(--text-mid);
+}
+body.theme-dark .pmap-panel-close:hover {
+  color: var(--text);
+}
+body.theme-dark .pmap-panel-meta-lbl {
+  color: var(--text-mid);
+}
+body.theme-dark .pmap-panel-meta-val {
+  color: var(--text);
+}
+body.theme-dark .pmap-section-title {
+  color: var(--text-mid);
+}
+body.theme-dark .pmap-macchina-row {
+  border-bottom: 1px solid var(--border);
+}
+body.theme-dark .pmap-mac-mat {
+  color: var(--text-mid);
+}
+body.theme-dark .pmap-mac-stato.dismessa {
+  background: var(--surface-alt, #17222f);
+  color: var(--text-mid);
+}
+body.theme-dark .pmap-no-plan {
+  color: var(--text-mid);
+}
+body.theme-dark .pmap-no-plan strong {
+  color: var(--text);
+}
 
 @media (max-width: 600px) {
   #pmap-panel { width: 100%; right: -100%; }

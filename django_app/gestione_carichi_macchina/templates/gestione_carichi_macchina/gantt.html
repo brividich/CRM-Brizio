@@ -306,6 +306,92 @@
   .gcm-usaslot { display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 11px; margin-top: 7px;
     border-radius: 8px; border: 1px solid var(--g-cyan); background: #fff; color: var(--g-cyan); font-weight: 800; font-size: .76rem; cursor: pointer; }
   .gcm-usaslot:hover { background: var(--g-cyan); color: #fff; }
+
+  /* Dark mode (additivo) */
+  /* Rimappa i token locali di superficie/bordo/testo sui token globali del tema.
+     NB: --g-navy/--g-cyan/--g-orange sono brand/overloaded (header navy, bottoni
+     primari e anche testo) e NON vanno ribaltati qui. */
+  body.theme-dark .gapp,
+  body.theme-dark .gcm-drawer,
+  body.theme-dark .gcm-ov {
+    --g-surf: var(--surface);
+    --g-surfalt: var(--surface-alt, #17222f);
+    --g-border: var(--border);
+    --g-text: var(--text);
+    --g-mid: var(--text-mid);
+  }
+
+  /* Superfici bianche hardcoded (non passano dai token) */
+  body.theme-dark .gapp { background: var(--surface); }
+  body.theme-dark .gscroll { background: var(--surface); }
+  body.theme-dark .gmac { background: var(--surface); }
+  body.theme-dark .ghead .gtrack { background: var(--surface); }
+  body.theme-dark .gcm-drawer { background: var(--surface); }
+  body.theme-dark .gcm-modal { background: var(--surface); }
+
+  /* Griglia giorni: bordi e righello */
+  body.theme-dark .gday { border-left-color: var(--border); }
+  body.theme-dark .grow.gbody { border-bottom-color: var(--border); }
+  body.theme-dark .grow.gbody .gtrack {
+    background-image: repeating-linear-gradient(90deg, var(--border) 0, var(--border) 1px, transparent 1px, transparent var(--cw));
+  }
+
+  /* Chip overlay sulla traccia (fascia oraria / etichetta milestone) */
+  body.theme-dark .gband { background: var(--surface-alt, #17222f); color: var(--text-mid); }
+  body.theme-dark .gms b { background: var(--surface-alt, #17222f); color: var(--text); }
+
+  /* Track vuoti delle barrette (progress/saturazione) */
+  body.theme-dark .gsatbar { background: var(--surface-alt, #17222f); }
+  body.theme-dark .gd-satbox .bar { background: var(--surface-alt, #17222f); }
+  body.theme-dark .gd-sugg-row .bar { background: var(--surface-alt, #17222f); }
+  body.theme-dark .gcm-sugg-bar { background: var(--surface-alt, #17222f); }
+  body.theme-dark .gcm-ai-mac .bar { background: var(--surface-alt, #17222f); }
+
+  /* Bordi soft hardcoded */
+  body.theme-dark .gd-row { border-bottom-color: var(--border); }
+
+  /* Campi input/select (sfondo bianco o UA-default) */
+  body.theme-dark .gfield select,
+  body.theme-dark .gfield input,
+  body.theme-dark .gd-form input,
+  body.theme-dark .gd-form select,
+  body.theme-dark .gcm-modal input,
+  body.theme-dark .gcm-modal select,
+  body.theme-dark .gm-num input {
+    background: var(--surface);
+    color: var(--text);
+  }
+
+  /* Bottone secondario strip (bianco + testo navy) -> superficie + testo chiaro;
+     riafferma .primary navy per non appiattirlo */
+  body.theme-dark .gbtn { background: var(--surface); color: var(--text); }
+  body.theme-dark .gbtn:hover { background: var(--surface-alt, #17222f); }
+  body.theme-dark .gbtn.primary { background: var(--g-navy); color: #fff; }
+  body.theme-dark .gflag { background: var(--surface); }
+
+  /* Bottoni azione drawer (bianco + navy) -> superficie + testo;
+     riafferma .primary cyan e .danger rosso */
+  body.theme-dark .gd-x { background: var(--surface); }
+  body.theme-dark .gd-actions button,
+  body.theme-dark .gd-actions a { background: var(--surface); color: var(--text); }
+  body.theme-dark .gd-actions .primary { background: var(--g-cyan); color: #fff; }
+  body.theme-dark .gd-actions .danger { color: var(--g-danger); }
+
+  /* Bottoni azione modale (bianco) -> superficie; riafferma .primary navy */
+  body.theme-dark .gcm-modal .actions button { background: var(--surface); }
+  body.theme-dark .gcm-modal .actions .primary { background: var(--g-navy); }
+  body.theme-dark .gcm-usaslot { background: var(--surface); }
+
+  /* Testi navy scuri su superficie -> var(--text) */
+  body.theme-dark .gmac-cod { color: var(--text); }
+  body.theme-dark .gd-title b { color: var(--text); }
+
+  /* Box informativo AI (non semantico) */
+  body.theme-dark .gcm-ai-spieg {
+    background: var(--surface-alt, #17222f);
+    border-color: var(--border);
+    color: var(--text);
+  }
 </style>
 {% endblock %}
 
