@@ -601,6 +601,10 @@ DIARIO_PREPOSTO_PRIVATE_ROOT = Path(env("DIARIO_PREPOSTO_PRIVATE_ROOT", str(BASE
 # Documenti dipendente (consegne DPI archiviate, referti visite mediche, contratti).
 # Storage privato, mai esposto da IIS: accessibile solo via view protetta con ACL.
 ANAGRAFICA_PRIVATE_ROOT = Path(env("ANAGRAFICA_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
+# Bacheca "Documenti & Collegamenti": documenti caricati (modulistica, SGI, organigramma).
+# Storage privato cifrato FUORI webroot, servito SOLO da dashboard:hub_link_download (ACL + audit).
+# Default persistente (fuori da `current`) come GESTIONE_SPECIFICHE_PRIVATE_ROOT: sopravvive ai deploy.
+HUB_BACHECA_PRIVATE_ROOT = Path(env("HUB_BACHECA_PRIVATE_ROOT", str(MEDIA_ROOT.parent / "media_private")))
 # Allegati specifiche tecniche (gestione_specifiche): storage privato cifrato,
 # mai esposto da IIS; accessibile solo via view protetta con ACL.
 # Default derivato da MEDIA_ROOT (persistente, fuori da `current`) e NON da BASE_DIR: gli allegati
