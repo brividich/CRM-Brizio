@@ -284,4 +284,38 @@
   .gs-input--num{ width:90px; }
   .gs-evt{ font-size:.84rem; color:#51607a; border-left:2px solid #d9e2ef; padding:4px 0 4px 12px; margin-left:6px; }
   .gs-evt b{ color:#24395e; }
+
+  /* ── DARK MODE — additivo: hex chiari → token del tema. Hero e pill/bottoni
+     colorati (gs-seg attivo, gs-btn--primary/--cyan) restano invariati perché il
+     loro testo sta su una superficie chiara propria. Rifinitura a schermo. ── */
+  body.theme-dark .gs-wrap{ color: var(--text); }
+  body.theme-dark .gs-card,
+  body.theme-dark .gs-panel,
+  body.theme-dark .gs-kpi,
+  body.theme-dark .gs-table,
+  body.theme-dark .gs-input,
+  body.theme-dark .gs-rifinput,
+  body.theme-dark .gs-modal,
+  body.theme-dark .gs-hdrcard,
+  body.theme-dark .gs-iconbtn,
+  body.theme-dark .gs-btn,
+  body.theme-dark .gs-btn--dashed,
+  body.theme-dark .gs-bar__sel,
+  body.theme-dark .gs-row133,
+  body.theme-dark .gs-cbpill,
+  body.theme-dark .gs-chan__opt,
+  body.theme-dark .gs-chip--add,
+  body.theme-dark .gs-badge-prop{ background: var(--surface); border-color: var(--border); color: var(--text); }
+  body.theme-dark .gs-table thead th{ background: var(--surface-alt, #17222f); color: var(--text-light); }
+  body.theme-dark .gs-head,
+  body.theme-dark .gs-kpi__num,
+  body.theme-dark .gs-panel__title,
+  body.theme-dark .gs-statbox__n,
+  body.theme-dark .gs-tab,
+  body.theme-dark .gs-code,
+  body.theme-dark .gs-hbar__v,
+  body.theme-dark .gs-banner__title{ color: var(--text); }
+  body.theme-dark .gs-table td,
+  body.theme-dark .gs-evt b{ color: var(--text-mid); }
+  body.theme-dark .gs-table tbody tr:hover{ background: rgba(255,255,255,.04); }
 </style>
