@@ -5,12 +5,6 @@
 
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'tasks/css/tasks.css' %}">
-<style>
-  .content {
-    width: 100% !important;
-    max-width: none !important;
-  }
-</style>
 {% block tasks_shell_head %}{% endblock %}
 {% endblock %}
 
@@ -34,27 +28,12 @@
     </div>
   </section>
 
-  <nav class="ts-tabs">
-    <a class="ts-tab {% if tasks_shell_active == 'dashboard' %}active{% endif %}" href="{% url 'tasks:list' %}">Dashboard</a>
-    <a class="ts-tab {% if tasks_shell_active == 'projects' %}active{% endif %}" href="{% url 'tasks:project_list' %}">Kickoff</a>
-    {% if tasks_shell_task %}
-      <a class="ts-tab {% if tasks_shell_active == 'detail' %}active{% endif %}" href="{% url 'tasks:detail' tasks_shell_task.id %}">Dettaglio</a>
-    {% endif %}
-    {% if tasks_shell_project %}
-      <a class="ts-tab {% if tasks_shell_active == 'gantt' %}active{% endif %}" href="{% url 'tasks:project_gantt' tasks_shell_project.id %}">Gantt</a>
-      <a class="ts-tab {% if tasks_shell_active == 'meetings' %}active{% endif %}" href="{% url 'tasks:project_meetings' tasks_shell_project.id %}">Incontri</a>
-    {% endif %}
-    {% if tasks_shell_active == 'edit' and tasks_shell_task %}
-      <a class="ts-tab active" href="{% url 'tasks:edit' tasks_shell_task.id %}">Modifica</a>
-    {% endif %}
-    {% if tasks_shell_active == 'create' %}
-      <a class="ts-tab active" href="{% url 'tasks:create' %}">Nuova attivita</a>
-    {% endif %}
-    {% if tasks_shell_active == 'admin' or tasks_shell_active == 'impostazioni' or tasks_shell_can_admin %}
-      <a class="ts-tab {% if tasks_shell_active == 'admin' or tasks_shell_active == 'impostazioni' %}active{% endif %}" href="{% url 'tasks:impostazioni' %}">Impostazioni</a>
-    {% endif %}
-    {% block tasks_shell_tabs_extra %}{% endblock %}
-  </nav>
+  {# Nav di modulo (Dashboard/Kickoff/Impostazioni) ora dalla subnav condivisa. #}
+  {# Qui restano solo le tab contestuali di commessa (record-level). #}
+  {% if tasks_shell_project %}
+    {% include "tasks/_project_tabs.html" with project=tasks_shell_project active=tasks_shell_active %}
+  {% endif %}
+  {% block tasks_shell_tabs_extra %}{% endblock %}
 
   {% if messages %}
     <div class="ts-messages">
