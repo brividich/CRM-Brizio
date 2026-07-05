@@ -86,3 +86,19 @@ class HubLinkDownloadViewTests(TestCase):
             link = self._file_link()
             resp = hub_link_download(self._req(link.pk, AnonymousUser()), link.pk)
             self.assertEqual(resp.status_code, 302)  # login_required redirect
+
+
+class HomeRenderSmokeTests(TestCase):
+    """La home riscritta (layout Bacheca) deve renderizzare senza errori."""
+
+    def test_home_renders_for_admin(self):
+        from django.urls import reverse
+        admin = get_user_model().objects.create_superuser(
+            username="adm", email="a@a.it", password="x")
+        cat = HubLinkCategory.objects.create(name="Modulistica", slug="mod-smoke")
+        HubLink.objects.create(category=cat, kind=HubLink.KIND_URL, title="Gestionale",
+                               url="https://esempio.local")
+        self.client.force_login(admin)
+        resp = self.client.get(reverse("home_portale:index"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Documenti")
