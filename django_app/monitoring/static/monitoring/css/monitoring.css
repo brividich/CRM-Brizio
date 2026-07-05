@@ -205,6 +205,14 @@
   line-height: 1;
 }
 
+/* ── DARK MODE — additivo: superfici bianche + numeri navy → token del tema ── */
+body.theme-dark .monitoring-modal,
+body.theme-dark .monitoring-kpi,
+body.theme-dark .monitoring-inline-item { background: var(--surface); border-color: var(--border); }
+body.theme-dark .monitoring-modal-head { background: var(--surface-alt, #17222f); border-color: var(--border); }
+body.theme-dark .monitoring-modal-title,
+body.theme-dark .monitoring-kpi-value { color: var(--text); }
+
 .monitoring-stacktrace {
   margin: 0;
   padding: 14px;
