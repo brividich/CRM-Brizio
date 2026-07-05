@@ -826,6 +826,14 @@
         </div>
       </div>
 
+      {% if readiness_summary %}
+      <div class="tk-readiness-summary">
+        <span class="tk-readiness tk-readiness--ready">Pronte {{ readiness_summary.ready }}</span>
+        <span class="tk-readiness tk-readiness--partial">Quasi {{ readiness_summary.partial }}</span>
+        <span class="tk-readiness tk-readiness--notready">Non pronte {{ readiness_summary.notready }}</span>
+      </div>
+      {% endif %}
+
       {% if admin_project_summary %}
       <div class="ts-card-grid" style="margin-top:4px;">
         {% for project in admin_project_summary %}
@@ -956,6 +964,7 @@
                   <td>
                     {% if task.project %}
                       <a class="tl-ko-link" href="{% url 'tasks:list' %}?project={{ task.project.id }}">{{ task.project.name }}</a>
+                      {% if task.project_readiness %}<div style="margin-top:4px;">{% include "tasks/_readiness_badge.html" with readiness=task.project_readiness %}</div>{% endif %}
                     {% else %}
                       <span style="color:#94a3b8;font-size:12px;">&mdash;</span>
                     {% endif %}

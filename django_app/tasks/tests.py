@@ -2989,3 +2989,28 @@ class ReadinessProjectHeaderRenderTests(TestCase):
         assert r.status_code == 200
         assert b"tk-rchecklist" in r.content
         assert "Prontezza all'avvio".encode() in r.content
+
+
+class ReadinessDashboardAggregateTests(TestCase):
+    """F2 Task 5 — riepilogo aggregato + badge riga backlog."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin = User.objects.create_superuser(
+            username="rd_agg", email="g@x.local", password="x"
+        )
+
+    def setUp(self):
+        from tasks.models import Project, Task
+
+        self.client.force_login(self.admin)
+        p = Project.objects.create(name="C1", created_by=self.admin)
+        Task.objects.create(
+            title="t1", created_by=self.admin, project=p, due_date=timezone.localdate()
+        )
+
+    def test_dashboard_shows_readiness_summary_and_row_badge(self):
+        r = self.client.get(reverse("tasks:list") + "?mine=0")
+        assert r.status_code == 200
+        assert b"tk-readiness-summary" in r.content
+        assert b"tk-readiness" in r.content

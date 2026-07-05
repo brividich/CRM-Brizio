@@ -2104,10 +2104,34 @@ def task_list(request):
             .order_by("-open_total", "name")[:6]
         )
 
+    # ── Readiness (prontezza avvio): singolo progetto, aggregato, badge riga backlog ──
+    from tasks.readiness import (
+        annotate_readiness_qs,
+        compute_project_readiness,
+        readiness_summary,
+    )
+
     active_project_readiness = None
     if active_project:
-        from tasks.readiness import compute_project_readiness
         active_project_readiness = compute_project_readiness(active_project)
+
+    readiness_summary_ctx = None
+    if is_scope_admin:
+        readiness_summary_ctx = readiness_summary(
+            list(annotate_readiness_qs(_scoped_projects_queryset(request)))
+        )
+
+    tasks = list(tasks)
+    if not active_project:
+        proj_ids = {t.project_id for t in tasks if getattr(t, "project_id", None)}
+        rmap = {}
+        if proj_ids:
+            rmap = {
+                p.id: compute_project_readiness(p)
+                for p in annotate_readiness_qs(Project.objects.filter(id__in=proj_ids))
+            }
+        for t in tasks:
+            t.project_readiness = rmap.get(getattr(t, "project_id", None))
 
     return render(
         request,
@@ -2128,6 +2152,7 @@ def task_list(request):
             "admin_project_summary": admin_project_summary,
             "active_project": active_project,
             "active_project_readiness": active_project_readiness,
+            "readiness_summary": readiness_summary_ctx,
             "done_pct": done_pct,
         },
     )
