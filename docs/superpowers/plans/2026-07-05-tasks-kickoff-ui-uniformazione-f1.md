@@ -10,14 +10,33 @@
 
 Spec di riferimento: `docs/superpowers/specs/2026-07-05-tasks-kickoff-ui-uniformazione-f1-design.md`
 
-## Stato esecuzione (2026-07-05)
+## Stato esecuzione (2026-07-05) — PIVOT rispetto ai Task 4–11
 
-Eseguiti inline (utente assente, niente subagent) i task fondativi a basso rischio:
+Durante l'esecuzione è emerso che la banda **hero** è integrata in tutti i 15 template via i
+block `tasks_shell_*` con contenuti (pills/KPI/azioni) pensati per il fondo scuro. Un repoint
+per-pagina a `tasks/base.html`/`hub-page-header` sarebbe surgery rischiosa su 15 file. **Decisione
+utente:** *tieni la hero, completa il dark-mode*. Quindi la strategia è cambiata: invece di
+ripointare le pagine, si **rifà `base_shell.html`** preservando l'interfaccia dei block.
 
-- ✅ **Task 2** — `tasks/base.html` + `_project_tabs.html` + stili `.tk-*` (commit `77eccdf`). Tutto dentro `tasks/`, **inerte** (nessuna pagina ancora ripointata).
-- ✅ **Task 3** — migrazione `core/0061_tasks_subnav.py` (commit `01d0b45`). **NON applicata al DB dev**: va applicata **insieme** ai repoint (Task 4–10), altrimenti le pagine ancora su `base_shell` mostrano doppia navigazione (ts-tabs + subnav condivisa).
-- ⏸️ **Task 1** — **NON eseguito**: l'edit a `core/base.html` è stato **negato dall'utente**. **Sostituzione:** l'opt-in larghezza si farà **senza toccare il core**, via il block `{% block body_class %}` già esposto da `core/base.html` (linea 37). Nel Gantt (Task 7): `{% block body_class %}{{ block.super }} tk-wide{% endblock %}` + regola in `tasks.css`: `body.tk-wide .content{width:100%;max-width:none}`. Ignorare gli Step su `core/base.html`+`theme.css` del Task 1 originale.
-- ⏭️ **Task 4–12** — da fare al ritorno dell'utente (richiedono verifica visiva light/dark). Iniziare applicando la migrazione 0061 al dev (`migrate core --settings=config.settings.dev`) contestualmente al primo repoint.
+Fatto (commit):
+- ✅ **Task 2** — `tasks/base.html` + `_project_tabs.html` + stili `.tk-*` (`77eccdf`). `_project_tabs`
+  è usato; `tasks/base.html` resta come fondazione pronta (hero preservata ⇒ non ripointiamo).
+- ✅ **Task 3** — migrazione `core/0061_tasks_subnav.py` (`01d0b45`), **corretta** con `parent_code="tasks"`
+  (= app_name, come lo calcola `context_processors._detect_subnav_parent_code`; NON il codice
+  della nav topbar `vrf-kick-off`) (`0be3106`). **Applicata al DB dev.**
+- ✅ **base_shell refactor** (`c493d2c`): rimossi i `ts-tabs` (nav di modulo ora dalla **subnav
+  condivisa**), rimosso l'override `.content{max-width:none}`, aggiunto include condizionale
+  `_project_tabs` per le pagine-commessa. Hero preservata. 21 test di rendering esistenti verdi.
+- ⏸️ **Task 1** — l'edit a `core/base.html` è stato **negato**. Opt-in larghezza (per il Gantt)
+  si farà via `{% block body_class %}{{ block.super }} tk-wide{% endblock %}` + `body.tk-wide .content{max-width:none}`
+  in `tasks.css`. **Ancora da applicare al Gantt.**
+
+Rimane per chiudere F1:
+- **Dark-mode gap-fill per pagina** (verifica visiva a carico dell'utente, poi fix mirati). NB:
+  ogni template ha **già** un blocco `body.theme-dark`; è un audit dei buchi residui, non una
+  riscrittura. Ignorare la "recipe hex→token" di massa dei Task 4–10.
+- **Gantt wide** via `body_class` (sopra).
+- **Task 12** — CHANGELOG (fatto in itinere) + README + bump versione a chiusura.
 
 Deviazione token confermata: `--ts-*` restano (già dark-aware); nessun rename a `--hub-*`.
 
