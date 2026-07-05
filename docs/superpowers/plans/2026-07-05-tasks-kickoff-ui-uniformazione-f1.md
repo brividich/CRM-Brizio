@@ -10,6 +10,17 @@
 
 Spec di riferimento: `docs/superpowers/specs/2026-07-05-tasks-kickoff-ui-uniformazione-f1-design.md`
 
+## Stato esecuzione (2026-07-05)
+
+Eseguiti inline (utente assente, niente subagent) i task fondativi a basso rischio:
+
+- ✅ **Task 2** — `tasks/base.html` + `_project_tabs.html` + stili `.tk-*` (commit `77eccdf`). Tutto dentro `tasks/`, **inerte** (nessuna pagina ancora ripointata).
+- ✅ **Task 3** — migrazione `core/0061_tasks_subnav.py` (commit `01d0b45`). **NON applicata al DB dev**: va applicata **insieme** ai repoint (Task 4–10), altrimenti le pagine ancora su `base_shell` mostrano doppia navigazione (ts-tabs + subnav condivisa).
+- ⏸️ **Task 1** — **NON eseguito**: l'edit a `core/base.html` è stato **negato dall'utente**. **Sostituzione:** l'opt-in larghezza si farà **senza toccare il core**, via il block `{% block body_class %}` già esposto da `core/base.html` (linea 37). Nel Gantt (Task 7): `{% block body_class %}{{ block.super }} tk-wide{% endblock %}` + regola in `tasks.css`: `body.tk-wide .content{width:100%;max-width:none}`. Ignorare gli Step su `core/base.html`+`theme.css` del Task 1 originale.
+- ⏭️ **Task 4–12** — da fare al ritorno dell'utente (richiedono verifica visiva light/dark). Iniziare applicando la migrazione 0061 al dev (`migrate core --settings=config.settings.dev`) contestualmente al primo repoint.
+
+Deviazione token confermata: `--ts-*` restano (già dark-aware); nessun rename a `--hub-*`.
+
 ## Global Constraints
 
 - **Iso-funzionale:** NON modificare `tasks/views.py`, `tasks/urls.py`, `tasks/models.py`, `tasks/forms.py` nella logica. Route e permessi invariati. (Unica eccezione ammessa: lettura del codice nav top in migrazione dati.)
