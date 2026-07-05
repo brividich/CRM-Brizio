@@ -780,6 +780,27 @@ body.theme-dark .task-meta-chip     { background: var(--surface); }
 /* Una pagina attiva la larghezza piena con {% block body_class %}{{ block.super }} tk-wide{% endblock %} */
 body.tk-wide .content { width: 100%; max-width: none; }
 
+/* ── Readiness (prontezza avvio) ─────────────────────────────────── */
+.tk-readiness{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:var(--hub-font-xs);font-weight:800;border:1px solid var(--border);background:var(--surface);color:var(--text-mid);white-space:nowrap}
+.tk-readiness-dot{width:8px;height:8px;border-radius:50%;background:var(--hub-status-neutral);flex-shrink:0}
+.tk-readiness--ready{background:var(--hub-status-success-bg);border-color:var(--hub-status-success);color:var(--hub-status-success)}
+.tk-readiness--ready .tk-readiness-dot{background:var(--hub-status-success)}
+.tk-readiness--partial{background:var(--hub-status-warning-bg);border-color:var(--hub-status-warning);color:var(--hub-status-warning)}
+.tk-readiness--partial .tk-readiness-dot{background:var(--hub-status-warning)}
+.tk-readiness--notready{background:var(--hub-status-danger-bg);border-color:var(--hub-status-danger);color:var(--hub-status-danger)}
+.tk-readiness--notready .tk-readiness-dot{background:var(--hub-status-danger)}
+.tk-readiness-summary{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+
+/* ── Checklist readiness ─────────────────────────────────────────── */
+.tk-rchecklist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.tk-ritem{display:flex;align-items:center;gap:8px;font-size:var(--hub-font-sm);color:var(--text)}
+.tk-ritem-ic{display:inline-flex;width:18px;height:18px;align-items:center;justify-content:center;border-radius:50%;font-size:11px;font-weight:900;flex-shrink:0}
+.tk-ritem--ok .tk-ritem-ic{background:var(--hub-status-success-bg);color:var(--hub-status-success)}
+.tk-ritem--miss .tk-ritem-ic{background:var(--hub-status-danger-bg);color:var(--hub-status-danger)}
+.tk-ritem--miss .tk-ritem-label{color:var(--text-mid)}
+.tk-ritem-fix{margin-left:auto;font-size:var(--hub-font-xs);font-weight:800;color:var(--accent);text-decoration:none}
+.tk-ritem-fix:hover{text-decoration:underline}
+
 /* ── Tab contestuali di commessa (record-level) ─────────────────── */
 .tk-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin: 0 0 var(--hub-space-4); border-bottom: 1px solid var(--border); padding-bottom: 0; }
 .tk-tab { padding: 9px 14px; border-radius: var(--hub-radius-md) var(--hub-radius-md) 0 0; font-size: var(--hub-font-sm); font-weight: 700; color: var(--text-mid); text-decoration: none; border: 1px solid transparent; border-bottom: none; transition: background .12s, color .12s; }

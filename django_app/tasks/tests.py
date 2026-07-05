@@ -2946,3 +2946,24 @@ class ReadinessQuerysetTests(TestCase):
         summary = readiness_summary(list(annotate_readiness_qs(Project.objects.all())))
         assert summary["notready"] >= 1 and summary["partial"] >= 1
         assert set(summary.keys()) == {"ready", "partial", "notready"}
+
+
+class ReadinessPortfolioRenderTests(TestCase):
+    """F2 Task 3 — badge readiness nelle card portfolio."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin = User.objects.create_superuser(
+            username="rd_admin", email="a@x.local", password="x"
+        )
+
+    def setUp(self):
+        from tasks.models import Project
+
+        self.client.force_login(self.admin)
+        Project.objects.create(name="Vuota", created_by=self.admin)
+
+    def test_portfolio_shows_readiness_badge(self):
+        r = self.client.get(reverse("tasks:project_list"))
+        assert r.status_code == 200
+        assert b"tk-readiness" in r.content

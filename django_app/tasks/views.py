@@ -3208,6 +3208,8 @@ def project_list(request):
         task_progress_avg=Count("tasks", filter=Q(tasks__progress__gt=0), distinct=True),
         earliest_due=F("tasks__due_date"),
     )
+    from tasks.readiness import annotate_readiness_qs, compute_project_readiness
+    projects_qs = annotate_readiness_qs(projects_qs)
 
     # Ordinamento
     if q_sort == "due":
@@ -3232,6 +3234,7 @@ def project_list(request):
     for p in projects:
         p.vrf_detail = _vrf_status_detail(p, cfg)
         p.can_manage = _can_manage_project(request, p)
+        p.readiness = compute_project_readiness(p)
         overdue = getattr(p, "task_overdue", 0) or 0
         if overdue == 0:
             p.ral_status = "green"

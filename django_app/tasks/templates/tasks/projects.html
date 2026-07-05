@@ -441,6 +441,11 @@
                 {% endif %}
               </div>
 
+              <!-- Prontezza all'avvio -->
+              {% if project.readiness %}
+                <div style="margin:2px 0;">{% include "tasks/_readiness_badge.html" with readiness=project.readiness %}</div>
+              {% endif %}
+
               <!-- Avanzamento -->
               <div class="pf-progress">
                 <div class="pf-progress-header">
