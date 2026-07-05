@@ -1,0 +1,204 @@
+{% extends "core/base.html" %}
+
+{% block title %}Documenti &amp; Collegamenti | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .bz-wrap{ display:flex; flex-direction:column; gap:16px }
+  .bz-card{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow) }
+  .bz-card-h{ display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--border) }
+  .bz-card-h h3{ font-size:var(--fs-md); font-weight:800; margin:0 }
+  .bz-card-h .sp{ flex:1 }
+  .bz-body{ padding:12px 16px }
+  .bz-row{ display:flex; align-items:center; gap:12px; padding:9px 10px; border-radius:9px }
+  .bz-row:hover{ background:var(--bg) }
+  .bz-row + .bz-row{ border-top:1px solid var(--border) }
+  .bz-kind{ font-size:var(--fs-2xs); font-weight:800; text-transform:uppercase; padding:2px 8px; border-radius:6px; flex-shrink:0 }
+  .bz-kind.file{ background:var(--danger-bg); color:var(--danger) }
+  .bz-kind.url{ background:var(--accent-light); color:var(--primary-mid) }
+  .bz-kind.internal{ background:var(--accent-light); color:var(--accent) }
+  .bz-row-bd{ flex:1; min-width:0 }
+  .bz-row-t{ font-weight:600; font-size:var(--fs-base) }
+  .bz-row-m{ font-size:var(--fs-xs); color:var(--text-light) }
+  .bz-roles{ display:flex; gap:5px; flex-wrap:wrap }
+  .bz-chip{ font-size:var(--fs-2xs); font-weight:700; padding:2px 8px; border-radius:999px; background:var(--bg); border:1px solid var(--border); color:var(--text-mid) }
+  .bz-chip.all{ background:var(--success-bg); color:var(--success); border-color:transparent }
+  .bz-btn{ display:inline-flex; align-items:center; gap:6px; min-height:32px; padding:0 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--text); font-size:var(--fs-sm); font-weight:600; cursor:pointer }
+  .bz-btn:hover{ border-color:var(--accent); color:var(--accent) }
+  .bz-btn.primary{ background:var(--accent); color:#fff; border-color:var(--accent) }
+  .bz-btn.primary:hover{ background:#ea580c; color:#fff }
+  .bz-btn.danger:hover{ border-color:var(--danger); color:var(--danger) }
+  .bz-form{ display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; padding:12px 16px; border-top:1px dashed var(--border); background:var(--bg) }
+  .bz-field{ display:flex; flex-direction:column; gap:4px; min-width:160px }
+  .bz-field label{ font-size:var(--fs-2xs); font-weight:700; text-transform:uppercase; letter-spacing:.03em; color:var(--text-light) }
+  .bz-field input, .bz-field select{ min-height:36px; padding:6px 10px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--text) }
+  .bz-rolesbox{ display:flex; flex-wrap:wrap; gap:8px; padding:8px 0 }
+  .bz-rolesbox label{ display:inline-flex; align-items:center; gap:5px; font-size:var(--fs-xs); font-weight:500; text-transform:none; letter-spacing:0; color:var(--text) }
+  .bz-hint{ font-size:var(--fs-xs); color:var(--text-light); margin:2px 0 0 }
+  .bz-empty{ padding:14px; color:var(--text-light); font-size:var(--fs-sm) }
+  .bz-off{ opacity:.5 }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="hp-wrap">
+  {% csrf_token %}
+  <div class="page-header">
+    <div class="page-header-main">
+      <h1 class="page-h">Documenti &amp; Collegamenti</h1>
+      <p class="page-sub">Gestisci le risorse mostrate nella bacheca della home. Le voci senza ruoli assegnati sono visibili a tutti.</p>
+    </div>
+  </div>
+
+  <div class="bz-wrap">
+
+    <div class="bz-card">
+      <div class="bz-card-h"><h3>Nuova categoria</h3></div>
+      <div class="bz-form">
+        <div class="bz-field" style="flex:1">
+          <label>Nome categoria</label>
+          <input type="text" id="newCatName" placeholder="Es. Modulistica, Qualità/SGI, Collegamenti utili">
+        </div>
+        <button class="bz-btn primary" onclick="createCategory()">+ Aggiungi categoria</button>
+      </div>
+    </div>
+
+    {% for cat in categories %}
+      <div class="bz-card{% if not cat.is_visible %} bz-off{% endif %}" data-cat="{{ cat.id }}">
+        <div class="bz-card-h">
+          <h3>{{ cat.name }}</h3>
+          <span class="bz-chip">{{ cat.links.count }} voci</span>
+          <span class="sp"></span>
+          <button class="bz-btn danger" onclick="deleteCategory({{ cat.id }}, '{{ cat.name|escapejs }}')">Elimina categoria</button>
+        </div>
+
+        <div class="bz-body">
+          {% for link in cat.links.all %}
+            <div class="bz-row{% if not link.is_visible %} bz-off{% endif %}" data-link="{{ link.id }}">
+              <span class="bz-kind {{ link.kind }}">{{ link.get_kind_display }}</span>
+              <div class="bz-row-bd">
+                <div class="bz-row-t">{{ link.title }}</div>
+                <div class="bz-row-m">{{ link.description }}</div>
+              </div>
+              <div class="bz-roles">
+                {% for acc in link.role_accesses.all %}
+                  <span class="bz-chip">ruolo #{{ acc.legacy_role_id }}</span>
+                {% empty %}
+                  <span class="bz-chip all">Tutti</span>
+                {% endfor %}
+              </div>
+              <button class="bz-btn" onclick="toggleLink({{ link.id }}, {% if link.is_visible %}false{% else %}true{% endif %})">
+                {% if link.is_visible %}Nascondi{% else %}Mostra{% endif %}
+              </button>
+              <button class="bz-btn danger" onclick="deleteLink({{ link.id }})">Elimina</button>
+            </div>
+          {% empty %}
+            <div class="bz-empty">Nessuna voce in questa categoria.</div>
+          {% endfor %}
+        </div>
+
+        <form class="bz-form" onsubmit="return createLink(event, {{ cat.id }})" enctype="multipart/form-data">
+          <div class="bz-field">
+            <label>Tipo</label>
+            <select name="kind" onchange="onKindChange(this)">
+              {% for value, label in kinds %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="bz-field" style="flex:1">
+            <label>Titolo</label>
+            <input type="text" name="title" required placeholder="Es. MOD.187 — Idoneità mansione">
+          </div>
+          <div class="bz-field" style="flex:1">
+            <label>Descrizione</label>
+            <input type="text" name="description" placeholder="Facoltativa">
+          </div>
+          <div class="bz-field bz-t-url" style="flex:1">
+            <label>URL esterno</label>
+            <input type="url" name="url" placeholder="https://...">
+          </div>
+          <div class="bz-field bz-t-internal" style="flex:1; display:none">
+            <label>Nome route Django</label>
+            <input type="text" name="route_name" placeholder="Es. assenze_menu">
+          </div>
+          <div class="bz-field bz-t-file" style="display:none">
+            <label>File (PDF/Office/immagine)</label>
+            <input type="file" name="file">
+          </div>
+          <button class="bz-btn primary" type="submit">+ Aggiungi voce</button>
+          <div style="flex-basis:100%">
+            <p class="bz-hint">Visibile ai ruoli (nessuno selezionato = tutti):</p>
+            <div class="bz-rolesbox">
+              {% for r in ruoli %}
+                <label><input type="checkbox" name="role_ids" value="{{ r.id }}"> {{ r.nome }} <span style="color:var(--text-light)">#{{ r.id }}</span></label>
+              {% empty %}
+                <span class="bz-hint">Nessun ruolo legacy disponibile.</span>
+              {% endfor %}
+            </div>
+          </div>
+        </form>
+      </div>
+    {% empty %}
+      <div class="bz-card"><div class="bz-empty">Nessuna categoria. Creane una qui sopra per iniziare.</div></div>
+    {% endfor %}
+
+  </div>
+</div>
+
+<script>
+const CSRF = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+async function postJson(url, body){
+  const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':CSRF}, body:JSON.stringify(body)});
+  return r.json().catch(() => ({ok:false, error:'Risposta non valida'}));
+}
+function fail(res){ alert('Errore: ' + (res && res.error ? res.error : 'operazione non riuscita')); }
+
+async function createCategory(){
+  const name = document.getElementById('newCatName').value.trim();
+  if(!name){ return; }
+  const res = await postJson("{% url 'admin_portale:api_hub_category_create' %}", {name});
+  if(res.ok){ location.reload(); } else { fail(res); }
+}
+async function deleteCategory(id, name){
+  if(!confirm('Eliminare la categoria "'+name+'" e tutte le sue voci?')) return;
+  const res = await postJson("{% url 'admin_portale:api_hub_category_delete' %}", {id});
+  if(res.ok){ location.reload(); } else { fail(res); }
+}
+async function deleteLink(id){
+  if(!confirm('Eliminare questa voce?')) return;
+  const res = await postJson("{% url 'admin_portale:api_hub_link_delete' %}", {id});
+  if(res.ok){ location.reload(); } else { fail(res); }
+}
+async function toggleLink(id, visible){
+  const res = await postJson("{% url 'admin_portale:api_hub_link_toggle' %}", {id, is_visible:visible});
+  if(res.ok){ location.reload(); } else { fail(res); }
+}
+function onKindChange(sel){
+  const form = sel.closest('form');
+  form.querySelector('.bz-t-url').style.display   = sel.value === 'url' ? '' : 'none';
+  form.querySelector('.bz-t-internal').style.display = sel.value === 'internal' ? '' : 'none';
+  form.querySelector('.bz-t-file').style.display  = sel.value === 'file' ? '' : 'none';
+}
+async function createLink(ev, categoryId){
+  ev.preventDefault();
+  const form = ev.target;
+  const kind = form.kind.value;
+  let r;
+  if(kind === 'file'){
+    const fd = new FormData(form);
+    fd.append('category_id', categoryId);
+    r = await fetch("{% url 'admin_portale:api_hub_link_create' %}", {method:'POST', headers:{'X-CSRFToken':CSRF}, body:fd});
+  } else {
+    const role_ids = Array.from(form.querySelectorAll('input[name=role_ids]:checked')).map(c => c.value);
+    r = await fetch("{% url 'admin_portale:api_hub_link_create' %}", {
+      method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
+      body: JSON.stringify({category_id:categoryId, kind, title:form.title.value, description:form.description.value,
+                            url:form.url.value, route_name:form.route_name.value, role_ids})
+    });
+  }
+  const res = await r.json().catch(() => ({ok:false, error:'Risposta non valida'}));
+  if(res.ok){ location.reload(); } else { fail(res); }
+  return false;
+}
+</script>
+{% endblock %}

@@ -1,6 +1,6 @@
 from django.urls import include, path
 
-from . import acl_v2_views, api, views
+from . import acl_v2_views, api, views, views_bacheca
 
 
 app_name = "admin_portale"
@@ -137,4 +137,13 @@ urlpatterns = [
     path("api/2fa/utenti/<int:user_id>/reset", views.api_twofa_user_reset, name="api_twofa_user_reset"),
     path("api/2fa/utenti/<int:user_id>/method", views.api_twofa_user_method_set, name="api_twofa_user_method_set"),
     path("api/2fa/utenti/<int:user_id>/email", views.api_twofa_user_email_set, name="api_twofa_user_email_set"),
+    # Bacheca "Documenti & Collegamenti"
+    path("bacheca/", views_bacheca.bacheca, name="bacheca"),
+    path("api/bacheca/category/create", views_bacheca.api_hub_category_create, name="api_hub_category_create"),
+    path("api/bacheca/category/update", views_bacheca.api_hub_category_update, name="api_hub_category_update"),
+    path("api/bacheca/category/delete", views_bacheca.api_hub_category_delete, name="api_hub_category_delete"),
+    path("api/bacheca/link/create", views_bacheca.api_hub_link_create, name="api_hub_link_create"),
+    path("api/bacheca/link/delete", views_bacheca.api_hub_link_delete, name="api_hub_link_delete"),
+    path("api/bacheca/link/toggle", views_bacheca.api_hub_link_toggle, name="api_hub_link_toggle"),
+    path("api/bacheca/reorder", views_bacheca.api_hub_reorder, name="api_hub_reorder"),
 ]
