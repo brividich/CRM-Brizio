@@ -541,6 +541,7 @@
         {% if active_project.vrf_quote_number %}<span class="pk-header-chip">Prev. {{ active_project.vrf_quote_number }}</span>{% endif %}
         {% if active_project.safety_impact %}<span class="pk-header-chip">Impatto sicurezza</span>{% endif %}
         <span class="pk-header-chip">VRF: {{ active_project.get_vrf_status_display }}</span>
+        {% if active_project_readiness %}{% include "tasks/_readiness_badge.html" with readiness=active_project_readiness %}{% endif %}
       </div>
       {% if active_project.vrf_description %}
         <p class="pk-header-desc">{{ active_project.vrf_description }}</p>
@@ -567,6 +568,21 @@
       <div class="pk-progress-pct">{{ done_pct }}<small>% done</small></div>
     </div>
   </div>
+
+  {% if active_project_readiness %}
+  <section class="ts-panel">
+    <div class="ts-panel-head">
+      <div class="ts-panel-title-wrap">
+        <h2 class="ts-panel-title">Prontezza all'avvio</h2>
+        <p class="ts-panel-subtitle">{{ active_project_readiness.label }} &middot; {{ active_project_readiness.met }}/{{ active_project_readiness.total }} criteri</p>
+      </div>
+      {% include "tasks/_readiness_badge.html" with readiness=active_project_readiness %}
+    </div>
+    <div class="ts-panel-body">
+      {% include "tasks/_readiness_checklist.html" with readiness=active_project_readiness %}
+    </div>
+  </section>
+  {% endif %}
 
   <section class="ts-panel">
     <div class="ts-panel-head">

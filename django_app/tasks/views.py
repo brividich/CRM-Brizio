@@ -2104,6 +2104,11 @@ def task_list(request):
             .order_by("-open_total", "name")[:6]
         )
 
+    active_project_readiness = None
+    if active_project:
+        from tasks.readiness import compute_project_readiness
+        active_project_readiness = compute_project_readiness(active_project)
+
     return render(
         request,
         "tasks/list.html",
@@ -2122,6 +2127,7 @@ def task_list(request):
             "admin_console": admin_console,
             "admin_project_summary": admin_project_summary,
             "active_project": active_project,
+            "active_project_readiness": active_project_readiness,
             "done_pct": done_pct,
         },
     )

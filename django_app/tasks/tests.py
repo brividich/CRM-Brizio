@@ -2967,3 +2967,25 @@ class ReadinessPortfolioRenderTests(TestCase):
         r = self.client.get(reverse("tasks:project_list"))
         assert r.status_code == 200
         assert b"tk-readiness" in r.content
+
+
+class ReadinessProjectHeaderRenderTests(TestCase):
+    """F2 Task 4 — checklist readiness nell'header commessa."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin = User.objects.create_superuser(
+            username="rd_hdr", email="h@x.local", password="x"
+        )
+
+    def setUp(self):
+        from tasks.models import Project
+
+        self.client.force_login(self.admin)
+        self.project = Project.objects.create(name="Commessa", created_by=self.admin)
+
+    def test_project_mode_shows_readiness_checklist(self):
+        r = self.client.get(reverse("tasks:list") + f"?project={self.project.id}")
+        assert r.status_code == 200
+        assert b"tk-rchecklist" in r.content
+        assert "Prontezza all'avvio".encode() in r.content
