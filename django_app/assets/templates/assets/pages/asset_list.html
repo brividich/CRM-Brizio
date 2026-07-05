@@ -468,6 +468,36 @@ body.theme-dark .widget-manager-group {
 body.theme-dark .ch {
   background:linear-gradient(90deg,rgba(255,255,255,.04) 0%,rgba(255,255,255,.01) 100%);
 }
+
+/* ── DARK MODE — leggibilità: testi navy hardcoded → token, superfici chiare → scure ── */
+body.theme-dark .cell-title,
+body.theme-dark .am,
+body.theme-dark .name,
+body.theme-dark .kv,
+body.theme-dark .t,
+body.theme-dark .widget-manager-title { color: var(--text); }
+body.theme-dark .name span { color: #60a5fa; }
+body.theme-dark .tbl td,
+body.theme-dark .widget-manager-row label { color: var(--text-mid); }
+body.theme-dark .cell-sub,
+body.theme-dark .cell-muted,
+body.theme-dark .as,
+body.theme-dark .tf { color: var(--text-light); }
+body.theme-dark .tbl th { background: var(--surface-alt, #17222f); color: var(--text-light); }
+body.theme-dark .r:hover { background: rgba(255,255,255,.05); }
+body.theme-dark .row-action,
+body.theme-dark .rows-btn,
+body.theme-dark .pg-btn,
+body.theme-dark .ib,
+body.theme-dark .tool,
+body.theme-dark .widget-manager-group,
+body.theme-dark .widget-handle { background: var(--surface); border-color: var(--border); color: var(--text-mid); }
+body.theme-dark .row-action:hover,
+body.theme-dark .rows-btn:hover,
+body.theme-dark .pg-btn:hover { background: rgba(255,255,255,.07); border-color: var(--border); color: #60a5fa; }
+body.theme-dark .chip { background: var(--surface-alt, #17222f); border-color: var(--border); color: var(--text-mid); }
+body.theme-dark .chip.a { background: rgba(96,165,250,.15); border-color: transparent; color: #93c5fd; }
+body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid); }
 </style>
 {% endblock %}
 

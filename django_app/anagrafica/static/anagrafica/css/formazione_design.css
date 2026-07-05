@@ -331,6 +331,11 @@ a.fmd-mtr:hover{ transform:translateY(-1px); box-shadow:0 8px 22px rgba(0,43,92,
 .fm-assign-item:hover{ background:#f3f9fe; }
 .fm-assign-item.fm-hidden{ display:none; }
 
+/* Testo principale di cella (es. nome dipendente in lista) — navy in chiaro,
+   ribaltato nel blocco dark qui sotto. Il colore NON va messo inline nel
+   template, altrimenti vince sul dark. */
+.fmd-cell-main{ color:var(--fmd-navy); font-weight:700; }
+
 /* ============================================================
    DARK MODE — additivo (le regole light qui sopra restano invariate)
    Il tema scuro del portale è `body.theme-dark` + token in theme.css.
@@ -405,7 +410,8 @@ body.theme-dark .fmd .fm-slide-title,
 body.theme-dark .fmd .fm-slide-body,
 body.theme-dark .fmd .fm-slide-body h2,
 body.theme-dark .fmd .fm-slide-body h3,
-body.theme-dark .fmd .fmd-lesson-arg{
+body.theme-dark .fmd .fmd-lesson-arg,
+body.theme-dark .fmd .fmd-cell-main{
   color: var(--text);
 }
 /* Stati "attivo" navy: in dark usano l'accent cyan per staccare dal fondo */

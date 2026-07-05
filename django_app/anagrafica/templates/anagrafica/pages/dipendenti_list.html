@@ -75,7 +75,7 @@
                 <div class="fmd-person">
                   <span class="fmd-avatar">{% if dip.foto_url %}<img src="{{ dip.foto_url }}" alt="" style="width:100%;height:100%;border-radius:8px;object-fit:cover;">{% else %}{{ dip.cognome|slice:":1" }}{{ dip.nome|slice:":1" }}{% endif %}</span>
                   <span>
-                    <span class="fmd-cell-main" style="font-weight:700;color:var(--fmd-navy);">{{ dip.cognome }} {{ dip.nome }}</span>
+                    <span class="fmd-cell-main">{{ dip.cognome }} {{ dip.nome }}</span>
                     {% if dip.timbri_legacy_id %}<span class="fmd-cell-sub"><span class="fmd-code">#{{ dip.timbri_legacy_id }}</span></span>{% endif %}
                   </span>
                 </div>
