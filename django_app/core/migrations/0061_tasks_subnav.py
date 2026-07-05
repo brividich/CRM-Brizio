@@ -10,19 +10,17 @@ SEED = [
 ]
 
 
-def _tasks_parent_code(NavigationItem):
-    """Codice della NavigationItem top di tasks (fallback 'tasks')."""
-    top = (
-        NavigationItem.objects.filter(section="topbar", route_name="tasks:list")
-        .order_by("id")
-        .first()
-    )
-    return top.code if top else "tasks"
+# La subnav condivisa e' keyed per app_name (core.context_processors
+# ._detect_subnav_parent_code restituisce request.resolver_match.app_name).
+# L'app tasks ha app_name="tasks" (tasks/urls.py), quindi il parent_code
+# DEVE essere "tasks" — NON il codice della NavigationItem topbar
+# (che qui e' "vrf-kick-off"), altrimenti la subnav non verrebbe risolta.
+PARENT_CODE = "tasks"
 
 
 def seed(apps, schema_editor):
     NavigationItem = apps.get_model("core", "NavigationItem")
-    parent_code = _tasks_parent_code(NavigationItem)
+    parent_code = PARENT_CODE
     for row in SEED:
         NavigationItem.objects.get_or_create(
             code=row["code"],

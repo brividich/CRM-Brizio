@@ -2815,12 +2815,14 @@ class TasksSubnavSeedTests(TestCase):
     def test_subnav_items_seeded(self):
         from core.models import NavigationItem
 
-        codes = set(
-            NavigationItem.objects.filter(
-                section="subnav", code__startswith="tasks-sub-"
-            ).values_list("code", flat=True)
+        items = NavigationItem.objects.filter(
+            section="subnav", code__startswith="tasks-sub-"
         )
+        codes = set(items.values_list("code", flat=True))
         assert {"tasks-sub-dashboard", "tasks-sub-kickoff", "tasks-sub-impostazioni"} <= codes
+        # parent_code DEVE essere l'app_name 'tasks' (come lo calcola il context
+        # processor), non il codice della NavigationItem topbar ('vrf-kick-off').
+        assert set(items.values_list("parent_code", flat=True)) == {"tasks"}
 
     def test_impostazioni_is_admin_gated(self):
         from core.models import NavigationItem
