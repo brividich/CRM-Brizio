@@ -1,0 +1,44 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Documenti &amp; Collegamenti · NOVICROM HUB{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'core/css/home_portale.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="hp-wrap">
+  <div class="page-header">
+    <div class="page-header-main">
+      <h1 class="page-h">Documenti &amp; Collegamenti</h1>
+      <p class="page-sub">Risorse utili dell'azienda, gestite dall'amministrazione.</p>
+    </div>
+  </div>
+
+  {% for g in bacheca_groups %}
+    <section class="hp-card hp-docs-card" id="{{ g.slug }}" style="margin-bottom:16px">
+      <header class="hp-card-h">
+        <div>
+          <h3 class="hp-card-t">{{ g.name }}</h3>
+        </div>
+      </header>
+      <div class="hp-docs">
+        {% for it in g.items %}
+          <a class="hp-doc k-{{ it.kind }}" href="{{ it.href }}"
+             {% if it.open_in_new_tab %}target="_blank" rel="noopener"{% endif %}>
+            <span class="hp-doc-ic" aria-hidden="true">{{ it.kind_label|slice:":1" }}</span>
+            <span class="hp-doc-bd">
+              <span class="hp-doc-t">{{ it.title }}</span>
+              <span class="hp-doc-d">{{ it.description }}</span>
+            </span>
+            <span class="hp-doc-kind">{{ it.kind_label }}</span>
+          </a>
+        {% endfor %}
+      </div>
+    </section>
+  {% empty %}
+    <p class="hp-empty hp-docs-empty">Nessun documento o collegamento disponibile per il tuo profilo.</p>
+  {% endfor %}
+</div>
+{% endblock %}
