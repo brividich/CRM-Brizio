@@ -46,7 +46,7 @@ body.theme-dark .compliance-non_letto { background:var(--surface-alt); color:var
     {% endif %}
   </div>
 
-  <h1 style="font-size:1.7rem;font-weight:700;color:var(--primary,#1e3a5f);margin-bottom:1rem;">{{ notizia.titolo }}</h1>
+  <h1 style="font-size:1.7rem;font-weight:700;color:var(--text);margin-bottom:1rem;">{{ notizia.titolo }}</h1>
 
   {% if compliance == 'conforme' %}
     <div class="compliance-box compliance-conforme">
@@ -73,7 +73,7 @@ body.theme-dark .compliance-non_letto { background:var(--surface-alt); color:var
 
   {% if allegati %}
   <section style="margin:1.5rem 0;">
-    <h2 style="font-size:1rem;font-weight:600;color:var(--primary,#1e3a5f);margin-bottom:.75rem;">Allegati</h2>
+    <h2 style="font-size:1rem;font-weight:600;color:var(--text);margin-bottom:.75rem;">Allegati</h2>
     <ul class="allegati-list">
       {% for a in allegati %}
       <li>
