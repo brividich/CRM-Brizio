@@ -2896,3 +2896,53 @@ class ReadinessComputeTests(TestCase):
         r = compute_project_readiness(p)
         by = {c.key: c for c in r.criteria}
         assert by["team"].ok is False
+
+
+class ReadinessQuerysetTests(TestCase):
+    """F2 Task 2 — annotazioni queryset (Exists), no-N+1, aggregato."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(username="rd_qs", password="x")
+
+    def test_annotations_mark_meeting_and_plan(self):
+        from tasks.models import Project, KickoffMeeting, Task
+        from tasks.readiness import annotate_readiness_qs
+
+        p_full = Project.objects.create(name="full", created_by=self.user)
+        KickoffMeeting.objects.create(
+            project=p_full, titolo="k", data=timezone.localdate(), created_by=self.user
+        )
+        Task.objects.create(
+            title="t", created_by=self.user, project=p_full, due_date=timezone.localdate()
+        )
+        p_empty = Project.objects.create(name="empty", created_by=self.user)
+
+        rows = {p.id: p for p in annotate_readiness_qs(Project.objects.all())}
+        assert rows[p_full.id].rd_has_meeting is True
+        assert rows[p_full.id].rd_has_planned is True
+        assert rows[p_empty.id].rd_has_meeting is False
+        assert rows[p_empty.id].rd_has_planned is False
+
+    def test_no_n_plus_one(self):
+        from tasks.models import Project
+        from tasks.readiness import annotate_readiness_qs, compute_project_readiness
+
+        for i in range(3):
+            Project.objects.create(name=f"P{i}", created_by=self.user)
+        with self.assertNumQueries(1):
+            projects = list(annotate_readiness_qs(Project.objects.all()))
+            _ = [compute_project_readiness(p) for p in projects]
+
+    def test_summary_counts_levels(self):
+        from tasks.models import Project, VRFDocStatus
+        from tasks.readiness import annotate_readiness_qs, readiness_summary
+
+        Project.objects.create(name="n", created_by=self.user)
+        Project.objects.create(
+            name="p", created_by=self.user, vrf_status=VRFDocStatus.UPLOADED,
+            project_manager=self.user, capo_commessa=self.user, programmer=self.user,
+        )
+        summary = readiness_summary(list(annotate_readiness_qs(Project.objects.all())))
+        assert summary["notready"] >= 1 and summary["partial"] >= 1
+        assert set(summary.keys()) == {"ready", "partial", "notready"}
