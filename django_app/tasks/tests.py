@@ -2807,3 +2807,24 @@ class TasksBaseTemplateTests(TestCase):
         )
         assert "/tasks/projects/7/gantt/" in html
         assert "tk-tab--active" in html
+
+
+class TasksSubnavSeedTests(TestCase):
+    """F1 Task 3 — subnav di modulo via NavigationItem (seed migrazione)."""
+
+    def test_subnav_items_seeded(self):
+        from core.models import NavigationItem
+
+        codes = set(
+            NavigationItem.objects.filter(
+                section="subnav", code__startswith="tasks-sub-"
+            ).values_list("code", flat=True)
+        )
+        assert {"tasks-sub-dashboard", "tasks-sub-kickoff", "tasks-sub-impostazioni"} <= codes
+
+    def test_impostazioni_is_admin_gated(self):
+        from core.models import NavigationItem
+
+        item = NavigationItem.objects.get(code="tasks-sub-impostazioni")
+        assert item.required_permission_code == "tasks.kickoff.admin"
+        assert item.route_name == "tasks:impostazioni"
