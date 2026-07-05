@@ -1,0 +1,26 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ page_title|default:"KICK-OFF" }} - NOVICROM HUB{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'tasks/css/tasks.css' %}">
+{% block tasks_head %}{% endblock %}
+{% endblock %}
+
+{% block content %}
+  {% include "core/components/page_header.html" with eyebrow=page_eyebrow|default:"Workflow operativo" title=page_title|default:"KICK-OFF" subtitle=page_subtitle only %}
+  {% block page_actions %}{% endblock %}
+
+  {% if messages %}
+    <div class="tk-messages">
+      {% for message in messages %}
+        <div class="tk-message tk-message--{{ message.tags|default:'info' }}">{{ message }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {% block tasks_content %}{% endblock %}
+{% endblock %}
+
+{% block extra_scripts %}{% block tasks_scripts %}{% endblock %}{% endblock %}

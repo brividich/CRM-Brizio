@@ -2786,3 +2786,24 @@ class VRFCompileOnlineTests(TasksBaseTestCase):
         assessment = VRFRiskAssessment.objects.get(project=self.project)
         self.assertGreaterEqual(assessment.total_p, vrf_catalog.DIG_THRESHOLD)
         self.assertTrue(assessment.dig_triggered)
+
+
+class TasksBaseTemplateTests(TestCase):
+    """F1 Task 2 — base di modulo su core/base + componente tab commessa."""
+
+    def test_base_extends_core(self):
+        from django.template.loader import get_template
+
+        src = Path(get_template("tasks/base.html").origin.name).read_text(encoding="utf-8")
+        assert 'extends "core/base.html"' in src
+        assert "core/components/page_header.html" in src
+
+    def test_project_tabs_render_active(self):
+        from django.template.loader import render_to_string
+
+        html = render_to_string(
+            "tasks/_project_tabs.html",
+            {"project": type("P", (), {"id": 7})(), "active": "gantt"},
+        )
+        assert "/tasks/projects/7/gantt/" in html
+        assert "tk-tab--active" in html
