@@ -776,6 +776,10 @@ body.theme-dark .ts-message.warning { background: rgba(146,64,14,.15);  border-c
 body.theme-dark .ts-message.info    { background: rgba(29,78,216,.15);  border-color: rgba(191,219,254,.3); color: #93c5fd; }
 body.theme-dark .task-meta-chip     { background: var(--surface); }
 
+/* ── Opt-in larghezza piena (senza modificare il core) ──────────── */
+/* Una pagina attiva la larghezza piena con {% block body_class %}{{ block.super }} tk-wide{% endblock %} */
+body.tk-wide .content { width: 100%; max-width: none; }
+
 /* ── Tab contestuali di commessa (record-level) ─────────────────── */
 .tk-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin: 0 0 var(--hub-space-4); border-bottom: 1px solid var(--border); padding-bottom: 0; }
 .tk-tab { padding: 9px 14px; border-radius: var(--hub-radius-md) var(--hub-radius-md) 0 0; font-size: var(--hub-font-sm); font-weight: 700; color: var(--text-mid); text-decoration: none; border: 1px solid transparent; border-bottom: none; transition: background .12s, color .12s; }
