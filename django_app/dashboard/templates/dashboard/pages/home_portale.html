@@ -81,6 +81,68 @@
     {% endfor %}
   </section>
 
+  <section class="hp-bacheca" aria-label="Bacheca: news e documenti">
+    <div class="hp-card hp-news-card">
+      <header class="hp-card-h">
+        <div>
+          <h3 class="hp-card-t">News aziendali</h3>
+          <p class="hp-card-s">Comunicazioni interne</p>
+        </div>
+        <a href="{% url 'notizie_lista' %}" class="hp-card-link">Vedi tutte →</a>
+      </header>
+      <ul class="hp-news">
+        {% for n in news_items %}
+          <li>
+            <a href="{{ n.url }}">
+              <span class="hp-news-mark"></span>
+              <span class="hp-news-body">
+                <span class="hp-news-t">{{ n.title }}</span>
+                <span class="hp-news-m">{{ n.source }}</span>
+              </span>
+              <span class="hp-news-time">{{ n.ago }}</span>
+            </a>
+          </li>
+        {% empty %}
+          <li class="hp-empty">Nessuna notizia recente.</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <div class="hp-card hp-docs-card">
+      <header class="hp-card-h">
+        <div>
+          <h3 class="hp-card-t">Documenti &amp; Collegamenti</h3>
+          <p class="hp-card-s">Risorse utili, gestite dall'amministrazione</p>
+        </div>
+        <a href="{% url 'bacheca' %}" class="hp-card-link">Apri tutti →</a>
+      </header>
+      <div class="hp-docs">
+        {% for cat in bacheca_groups %}
+          <div class="hp-docs-cat">
+            <div class="hp-docs-cat-h">
+              <span class="hp-docs-cat-nm">{{ cat.name }}</span>
+              <span class="hp-docs-cat-ct">{{ cat.items|length }}</span>
+            </div>
+            {% for it in cat.items %}
+              <a class="hp-doc k-{{ it.kind }}" href="{{ it.href }}"
+                 {% if it.open_in_new_tab %}target="_blank" rel="noopener"{% endif %}>
+                <span class="hp-doc-ic" aria-hidden="true">{{ it.kind_label|slice:":1" }}</span>
+                <span class="hp-doc-bd">
+                  <span class="hp-doc-t">{{ it.title }}</span>
+                  <span class="hp-doc-d">{{ it.description }}</span>
+                </span>
+                <span class="hp-doc-kind">{{ it.kind_label }}</span>
+              </a>
+            {% endfor %}
+            {% if cat.more %}<a class="hp-doc-more" href="{% url 'bacheca' %}#{{ cat.slug }}">+{{ cat.more }} altri →</a>{% endif %}
+          </div>
+        {% empty %}
+          <p class="hp-empty hp-docs-empty">Nessun documento o collegamento pubblicato.<br><span class="hp-docs-empty-hint">L'amministrazione può aggiungerne dalla gestione bacheca.</span></p>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
   {% if ai_daily_brief_enabled %}
   <section class="hp-aibrief" aria-label="Brief AI del giorno">
     {% include "ai_assistant/partials/daily_brief_widget.html" %}
@@ -139,161 +201,18 @@
     <div class="hp-modules-head">
       <div>
         <h2 class="hp-h2">Moduli del portale</h2>
-        <p class="hp-h2-sub">Moduli disponibili per il tuo profilo.</p>
+        <p class="hp-h2-sub">Le funzioni disponibili per il tuo profilo.</p>
       </div>
     </div>
-
-    {% for grp in module_groups %}
-      <div class="hp-grp" data-hp-section="grp-{{ grp.key }}">
-        <div class="hp-grp-h hp-collapsible-hdr">
-          <button type="button" class="hp-chev" aria-expanded="true" aria-label="Comprimi {{ grp.label }}">▾</button>
-          <span class="hp-grp-l">{{ grp.label }}</span>
-          <span class="hp-grp-c">{{ grp.accessible_count }}/{{ grp.total }} accessibili</span>
-          <span class="hp-grp-rule"></span>
-          <span class="hp-grp-hint">{{ grp.hint }}</span>
-        </div>
-        <div class="hp-collapse-body">
-          <div class="hp-grid">
-            {% for mod in grp.modules %}
-              {% include "core/components/_home_module_tile.html" with mod=mod %}
-            {% endfor %}
-          </div>
-        </div>
-      </div>
-    {% endfor %}
+    <div class="hp-grid">
+      {% for mod in module_launcher %}
+        {% include "core/components/_home_module_tile.html" with mod=mod %}
+      {% endfor %}
+    </div>
   </section>
 
-  <section class="hp-board">
-
-    <div class="hp-col-l">
-
-      <div class="hp-card" data-hp-section="card-presenze">
-        <header class="hp-card-h hp-collapsible-hdr">
-          <div>
-            <h3 class="hp-card-t">Presenze settimana</h3>
-            <p class="hp-card-s">Assenze pianificate · clic per dettaglio</p>
-          </div>
-          <span class="hp-card-h-r">
-            <a href="{% url 'assenze_calendario' %}" class="hp-card-link">Calendario completo →</a>
-            <button type="button" class="hp-chev" aria-expanded="true" aria-label="Comprimi">▾</button>
-          </span>
-        </header>
-        <div class="hp-collapse-body">
-          <div class="hp-cal">
-            {% for d in calendar_week %}
-              <a class="hp-cal-c{% if d.is_today %} now{% endif %}{% if d.is_weekend %} we{% endif %}"
-                 href="{% url 'assenze_calendario' %}?day={{ d.iso }}">
-                <span class="hp-cal-d">{{ d.day }}</span>
-                <span class="hp-cal-n">{{ d.num }}</span>
-                {% if d.is_today %}<span class="hp-cal-tag">oggi</span>{% endif %}
-                {% if d.absent_count %}<span class="hp-cal-abs">{{ d.absent_count }}</span>{% endif %}
-              </a>
-            {% endfor %}
-          </div>
-        </div>
-      </div>
-
-    </div>
-
-    <div class="hp-col-r">
-
-      <div class="hp-card" data-hp-section="card-news">
-        <header class="hp-card-h hp-collapsible-hdr">
-          <div>
-            <h3 class="hp-card-t">Comunicazioni e attività</h3>
-            <p class="hp-card-s">News aziendali e ultime azioni nel portale</p>
-          </div>
-          <span class="hp-card-h-r">
-            <a href="{% url 'notizie_lista' %}" class="hp-card-link">News →</a>
-            <button type="button" class="hp-chev" aria-expanded="true" aria-label="Comprimi">▾</button>
-          </span>
-        </header>
-        <div class="hp-collapse-body">
-          <div class="hp-news-sec">
-            <div class="hp-mini-lbl">News</div>
-            <ul class="hp-news">
-              {% for n in news_items %}
-                <li>
-                  <a href="{{ n.url }}">
-                    <span class="hp-news-mark"></span>
-                    <span class="hp-news-body">
-                      <span class="hp-news-t">{{ n.title }}</span>
-                      <span class="hp-news-m">{{ n.source }}</span>
-                    </span>
-                    <span class="hp-news-time">{{ n.ago }}</span>
-                  </a>
-                </li>
-              {% empty %}
-                <li class="hp-empty">Nessuna notizia recente.</li>
-              {% endfor %}
-            </ul>
-          </div>
-          <div class="hp-act-sec">
-            <div class="hp-mini-lbl">Attività recenti</div>
-            <ul class="hp-act"
-                hx-get="{% url 'home_portale:activity_recent' %}"
-                hx-trigger="every 60s"
-                hx-swap="innerHTML">
-              {% include "core/partials/_home_activity.html" with items=activity_items %}
-            </ul>
-          </div>
-        </div>
-      </div>
-
-    </div>
-
-  </section>
-
-  {% if safety_kpis or system_status %}
-  <section class="hp-bottom">
-
-    {% if safety_kpis %}
-    <div class="hp-card" data-hp-section="card-safety">
-      <header class="hp-card-h hp-collapsible-hdr">
-        <div>
-          <h3 class="hp-card-t">KPI sicurezza</h3>
-          <p class="hp-card-s">Anno in corso</p>
-        </div>
-        <button type="button" class="hp-chev" aria-expanded="true" aria-label="Comprimi">▾</button>
-      </header>
-      <div class="hp-collapse-body">
-        <div class="hp-safety">
-          {% for s in safety_kpis %}
-            <div class="hp-safety-c hp-tone-{{ s.tone }}">
-              <span class="hp-safety-v">{{ s.value }}</span>
-              <span class="hp-safety-l">{{ s.label }}</span>
-            </div>
-          {% endfor %}
-        </div>
-      </div>
-    </div>
-    {% endif %}
-
-    {% if system_status %}
-    <div class="hp-card" data-hp-section="card-system">
-      <header class="hp-card-h hp-collapsible-hdr">
-        <div>
-          <h3 class="hp-card-t">Stato sistema</h3>
-          <p class="hp-card-s">Servizi integrati e job</p>
-        </div>
-        <button type="button" class="hp-chev" aria-expanded="true" aria-label="Comprimi">▾</button>
-      </header>
-      <div class="hp-collapse-body">
-        <ul class="hp-sys">
-          {% for s in system_status %}
-            <li>
-              <span class="hp-sys-d hp-tone-{{ s.tone }}"></span>
-              <span class="hp-sys-l">{{ s.label }}</span>
-              <span class="hp-sys-v hp-tone-{{ s.tone }}">{{ s.value }}</span>
-            </li>
-          {% endfor %}
-        </ul>
-      </div>
-    </div>
-    {% endif %}
-
-  </section>
-  {% endif %}
+  {% comment %} Sezioni "Presenze settimana", "Comunicazioni/Attività" (news ora nella Bacheca)
+     e "KPI sicurezza / Stato sistema" rimosse nel redesign Bacheca. {% endcomment %}
 
   <footer class="hp-foot">
     <span>NOVICROM HUB · v {{ app_version }} · {{ module_total }} moduli disponibili</span>

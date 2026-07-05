@@ -448,3 +448,37 @@
 .hp-cdg-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));
               gap:4px 18px; align-items:start }
 .hp-cdg-grid .hp-cdg-group{ margin:0 0 10px }
+
+/* ── Bacheca: News + Documenti & Collegamenti (info-hub) ────────────────── */
+.hp-bacheca{ display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start; margin-bottom:14px }
+.hp-news-card .hp-card-h,
+.hp-docs-card .hp-card-h{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px }
+.hp-docs{ display:flex; flex-direction:column; gap:10px; padding:6px }
+.hp-docs-cat-h{ display:flex; align-items:center; gap:8px; padding:6px 6px 2px }
+.hp-docs-cat-nm{ font-size:var(--fs-xs); font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--text-mid) }
+.hp-docs-cat-ct{ font-size:var(--fs-2xs); font-weight:700; color:var(--text-light); background:var(--bg);
+                 border:1px solid var(--border); padding:1px 7px; border-radius:999px }
+.hp-doc{ display:flex; align-items:center; gap:11px; padding:8px 9px; border-radius:10px;
+         text-decoration:none; color:var(--text); transition:background .14s }
+.hp-doc:hover{ background:var(--bg) }
+.hp-doc-ic{ width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+            flex-shrink:0; border:1px solid var(--border); background:var(--surface); font-weight:800; font-size:var(--fs-sm) }
+.hp-doc.k-file .hp-doc-ic{ color:var(--danger) }
+.hp-doc.k-url .hp-doc-ic{ color:var(--primary-mid) }
+.hp-doc.k-internal .hp-doc-ic{ color:var(--accent) }
+.hp-doc-bd{ flex:1; min-width:0; display:flex; flex-direction:column }
+.hp-doc-t{ font-size:var(--fs-base); font-weight:600; line-height:1.25 }
+.hp-doc-d{ font-size:var(--fs-xs); color:var(--text-light); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.hp-doc-kind{ flex-shrink:0; font-size:var(--fs-2xs); font-weight:700; text-transform:uppercase;
+              letter-spacing:.03em; padding:2px 7px; border-radius:6px }
+.hp-doc.k-file .hp-doc-kind{ background:var(--danger-bg); color:var(--danger) }
+.hp-doc.k-url .hp-doc-kind{ background:var(--accent-light); color:var(--primary-mid) }
+.hp-doc.k-internal .hp-doc-kind{ background:var(--accent-light); color:var(--accent) }
+.hp-doc-more{ display:inline-block; font-size:var(--fs-xs); font-weight:700; color:var(--accent);
+              text-decoration:none; padding:4px 9px }
+.hp-doc-more:hover{ text-decoration:underline }
+.hp-docs-empty{ padding:18px; text-align:center; color:var(--text-light) }
+.hp-docs-empty-hint{ font-size:var(--fs-xs) }
+@media (max-width: 900px){
+  .hp-bacheca{ grid-template-columns:1fr }
+}

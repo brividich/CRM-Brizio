@@ -48,6 +48,8 @@ _ACL_SHARED_ROUTE_NAMES = _ACL_ONBOARDING_SHARED_ROUTE_NAMES + (
     "employee_board",
     "mie_attivita",
     "scadenze_globali",
+    "bacheca",
+    "hub_link_download",
     "api_employee_board_layout",
     "api_employee_board_widget_config",
     "api_employee_board_reset",

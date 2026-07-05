@@ -23,6 +23,8 @@ from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
 from core.legacy_utils import get_legacy_user, is_legacy_admin
+from core.hub_bacheca import visible_bacheca
+from core.models import HubLink
 
 # Riusa helpers già in dashboard/views.py (stessa app, no circular import)
 from dashboard.views import (
@@ -618,6 +620,55 @@ def _header_actions(request) -> list[dict]:
     ]
 
 
+# ── Bacheca "Documenti & Collegamenti" ────────────────────────────────────────
+
+BACHECA_PREVIEW_PER_CATEGORY = 4
+
+_KIND_LABEL = {HubLink.KIND_FILE: "File", HubLink.KIND_URL: "Link", HubLink.KIND_INTERNAL: "Interna"}
+
+
+def _documenti_collegamenti(request, preview: bool = True) -> list[dict]:
+    """Sezione Documenti & Collegamenti per la home / pagina bacheca."""
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    is_admin = request.user.is_superuser or (is_legacy_admin(legacy_user) if legacy_user else False)
+    role_id = getattr(legacy_user, "ruolo_id", None)
+    limit = BACHECA_PREVIEW_PER_CATEGORY if preview else None
+    groups = visible_bacheca(role_id, is_admin=is_admin, preview_limit=limit)
+    out: list[dict] = []
+    for g in groups:
+        cat = g["category"]
+        out.append({
+            "name": cat.name,
+            "icon": cat.icon,
+            "slug": cat.slug,
+            "more": g["more"],
+            "items": [{
+                "title": l.title,
+                "description": l.description,
+                "kind": l.kind,
+                "kind_label": _KIND_LABEL.get(l.kind, ""),
+                "icon": l.icon,
+                "href": l.resolve_href(),
+                "open_in_new_tab": bool(l.open_in_new_tab or l.kind == HubLink.KIND_URL),
+            } for l in g["items"]],
+        })
+    return out
+
+
+def _module_launcher(groups: list[dict]) -> list[dict]:
+    """Appiattisce i module_groups in un'unica lista di card 'home modulo' (dedup)."""
+    seen: set[str] = set()
+    flat: list[dict] = []
+    for grp in groups:
+        for mod in grp.get("modules", []):
+            key = str(mod.get("id") or mod.get("label") or "").lower()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            flat.append(mod)
+    return flat
+
+
 # ── Views ─────────────────────────────────────────────────────────────────────
 
 @login_required
@@ -668,11 +719,10 @@ def home_portale(request: HttpRequest) -> HttpResponse:
         "pending_approvals":  pending,
         "cose_da_gestire":        cose_da_gestire["sections"],
         "cose_da_gestire_total":  cose_da_gestire["total"],
-        "calendar_week":      _calendar_week(request),
+        "bacheca_groups":     _documenti_collegamenti(request),
+        "module_launcher":    _module_launcher(groups),
         "news_items":         _news_items(request),
         "activity_items":     _activity_items(request),
-        "safety_kpis":        _safety_kpis(request),
-        "system_status":      _system_status(request),
         "app_version":        str(getattr(settings, "APP_VERSION", "") or ""),
         "ai_daily_brief_enabled": bool(
             getattr(settings, "OLLAMA_CHAT_ENABLED", True)

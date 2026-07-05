@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import htmx_views, views, views_mie_attivita, views_scadenze
+from . import htmx_views, views, views_bacheca, views_mie_attivita, views_scadenze
 
 
 urlpatterns = [
@@ -24,4 +24,7 @@ urlpatterns = [
     path("api/employee-board/widget/<str:widget_id>/partial/", htmx_views.widget_partial, name="widget_partial"),
     path("scheda-dipendente/pdf", views.employee_board_pdf, name="employee_board_pdf"),
     path("hub-preview/", views.dashboard_hub_preview, name="dashboard_hub_preview"),
+    # Bacheca "Documenti & Collegamenti"
+    path("bacheca/", views_bacheca.bacheca, name="bacheca"),
+    path("bacheca/doc/<int:pk>/", views_bacheca.hub_link_download, name="hub_link_download"),
 ]
