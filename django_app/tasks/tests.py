@@ -2830,3 +2830,69 @@ class TasksSubnavSeedTests(TestCase):
         item = NavigationItem.objects.get(code="tasks-sub-impostazioni")
         assert item.required_permission_code == "tasks.kickoff.admin"
         assert item.route_name == "tasks:impostazioni"
+
+
+class ReadinessComputeTests(TestCase):
+    """F2 Task 1 — calcolo prontezza all'avvio (gate 4 criteri)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(username="rd_owner", password="x")
+
+    def _project(self, **kw):
+        from tasks.models import Project
+
+        return Project.objects.create(name=kw.pop("name", "P"), created_by=self.user, **kw)
+
+    def test_all_criteria_met_is_ready(self):
+        from tasks.models import VRFDocStatus
+        from tasks.readiness import compute_project_readiness
+
+        p = self._project(
+            vrf_status=VRFDocStatus.UPLOADED,
+            project_manager=self.user, capo_commessa=self.user, programmer=self.user,
+        )
+        p.rd_has_meeting = True
+        p.rd_has_planned = True
+        r = compute_project_readiness(p)
+        assert r.met == 4 and r.total == 4
+        assert r.level == "ready" and r.label == "Pronto"
+        assert all(c.action_url is None for c in r.criteria)
+
+    def test_nothing_met_is_notready_with_action_urls(self):
+        from tasks.readiness import compute_project_readiness
+
+        p = self._project()  # vrf PENDING, no team, no meeting, no plan
+        p.rd_has_meeting = False
+        p.rd_has_planned = False
+        r = compute_project_readiness(p)
+        assert r.met == 0 and r.level == "notready" and r.label == "Non pronto"
+        by = {c.key: c for c in r.criteria}
+        assert by["vrf"].action_url and f"/tasks/projects/{p.id}/vrf/" in by["vrf"].action_url
+        assert by["meeting"].action_url and f"/tasks/projects/{p.id}/incontri/new/" in by["meeting"].action_url
+        assert by["plan"].action_url and f"project={p.id}" in by["plan"].action_url
+        assert by["team"].action_url is None
+
+    def test_two_met_is_partial(self):
+        from tasks.models import VRFDocStatus
+        from tasks.readiness import compute_project_readiness
+
+        p = self._project(
+            vrf_status=VRFDocStatus.NOT_REQUIRED,
+            project_manager=self.user, capo_commessa=self.user, programmer=self.user,
+        )
+        p.rd_has_meeting = False
+        p.rd_has_planned = False
+        r = compute_project_readiness(p)
+        assert r.met == 2 and r.level == "partial" and r.label == "Quasi pronto"
+
+    def test_team_partial_is_not_ok(self):
+        from tasks.models import VRFDocStatus
+        from tasks.readiness import compute_project_readiness
+
+        p = self._project(vrf_status=VRFDocStatus.UPLOADED, project_manager=self.user)
+        p.rd_has_meeting = False
+        p.rd_has_planned = False
+        r = compute_project_readiness(p)
+        by = {c.key: c for c in r.criteria}
+        assert by["team"].ok is False
