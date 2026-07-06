@@ -18,6 +18,13 @@ class VRFDocStatus(models.TextChoices):
     NOT_REQUIRED = "NOT_REQUIRED", "Non richiesto"
 
 
+class ProjectPhase(models.TextChoices):
+    BOZZA = "BOZZA", "Bozza"
+    VRF = "VRF", "VRF"
+    EXEC = "EXEC", "In esecuzione"
+    DONE = "DONE", "Completata"
+
+
 class TaskStatus(models.TextChoices):
     TODO = "TODO", "To do"
     IN_PROGRESS = "IN_PROGRESS", "In progress"
@@ -80,6 +87,10 @@ class Project(models.Model):
     vrf_status = models.CharField(
         max_length=20, choices=VRFDocStatus.choices, default=VRFDocStatus.PENDING,
         verbose_name="Stato documento VRF",
+    )
+    phase = models.CharField(
+        max_length=10, choices=ProjectPhase.choices,
+        default=ProjectPhase.BOZZA, db_index=True, verbose_name="Fase",
     )
     vrf_file = models.FileField(upload_to="tasks_vrf/%Y/%m/", null=True, blank=True)
     vrf_original_name = models.CharField(max_length=255, blank=True, default="")

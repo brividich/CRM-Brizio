@@ -3148,3 +3148,16 @@ class KickoffDaGestireAclTests(TestCase):
         assert RoutePermissionBinding.objects.filter(
             route_name="tasks:da_gestire", permission_id="tasks.kickoff.view", is_active=True
         ).exists()
+
+
+class ProjectPhaseDeriveTests(TestCase):
+    """Board per fase — derivazione fase iniziale (backfill)."""
+
+    def test_derivation(self):
+        from tasks.phase import derive_initial_phase
+
+        assert derive_initial_phase(3, 0, "PENDING") == "DONE"
+        assert derive_initial_phase(3, 2, "PENDING") == "EXEC"
+        assert derive_initial_phase(0, 0, "UPLOADED") == "VRF"
+        assert derive_initial_phase(0, 0, "PENDING") == "BOZZA"
+        assert derive_initial_phase(0, 0, "NOT_REQUIRED") == "BOZZA"
