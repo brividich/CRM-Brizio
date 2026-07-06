@@ -3127,3 +3127,24 @@ class KickoffDaGestireRenderTests(TestCase):
     def test_scope_mine_renders(self):
         r = self.client.get(reverse("tasks:da_gestire") + "?scope=mine")
         assert r.status_code == 200
+
+
+class KickoffDaGestireSubnavTests(TestCase):
+    def test_subnav_item_seeded(self):
+        from core.models import NavigationItem
+
+        item = NavigationItem.objects.get(code="tasks-sub-da-gestire")
+        assert item.section == "subnav" and item.parent_code == "tasks"
+        assert item.route_name == "tasks:da_gestire"
+        assert item.required_permission_code == "tasks.kickoff.view"
+
+
+class KickoffDaGestireAclTests(TestCase):
+    def test_route_is_bound(self):
+        from core.models import RoutePermissionBinding
+        from tasks.acl_bootstrap import bootstrap_tasks_acl_endpoints
+
+        bootstrap_tasks_acl_endpoints(force=True)
+        assert RoutePermissionBinding.objects.filter(
+            route_name="tasks:da_gestire", permission_id="tasks.kickoff.view", is_active=True
+        ).exists()
