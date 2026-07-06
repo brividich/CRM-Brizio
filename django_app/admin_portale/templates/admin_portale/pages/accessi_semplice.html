@@ -71,6 +71,12 @@
     gap: 12px;
     flex-wrap: wrap;
   }
+
+  /* ── Dark mode overrides (additive) ──────────────────────────────── */
+  body.theme-dark .simple-table tr:hover td { background: rgba(255,255,255,.04); }
+  body.theme-dark .sticky-save { background: var(--surface); }
+  body.theme-dark .simple-table th,
+  body.theme-dark .sample { color: var(--text-mid); }
 </style>
 {% endblock %}
 

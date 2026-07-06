@@ -24,6 +24,12 @@
   }
   .cov-badge.warn { border-color:#fbbf24; background:#fffbeb; color:#92400e; }
   .cov-badge.danger { border-color:#fca5a5; background:#fef2f2; color:#991b1b; }
+
+  /* ── Dark mode overrides (additive) ──────────────────────────────── */
+  body.theme-dark .cov-mini { background: var(--surface-alt, #17222f); border-color: var(--border); }
+  body.theme-dark .cov-mini .n { color: var(--text); }
+  body.theme-dark .cov-mini .l { color: var(--text-mid); }
+  body.theme-dark .cov-badge:not(.warn):not(.danger) { background: var(--surface-alt, #17222f); border-color: var(--border); color: var(--text-mid); }
 </style>
 {% endblock %}
 

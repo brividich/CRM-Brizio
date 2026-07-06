@@ -43,6 +43,14 @@
   .chip-null { display:inline-block; padding:2px 7px; border-radius:4px; font-size:11px; font-weight:600; background:#f3f4f6; color:#888; }
 
   .card-head-with-actions { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+
+  /* ── Dark mode overrides (additive) ──────────────────────────────── */
+  body.theme-dark .ruoli-table tr:hover td,
+  body.theme-dark .ov-table tr:hover td { background: rgba(255,255,255,.04); }
+  body.theme-dark .ruoli-table th,
+  body.theme-dark .ov-table th,
+  body.theme-dark .perm-count-label,
+  body.theme-dark .ov-path { color: var(--text-mid); }
 </style>
 {% endblock %}
 

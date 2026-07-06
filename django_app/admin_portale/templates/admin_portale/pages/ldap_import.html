@@ -57,6 +57,13 @@
 
   .search-spinner { display: none; width: 16px; height: 16px; border: 2px solid #ccc; border-top-color: #555; border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-left: 6px; }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Dark mode overrides (additive) ──────────────────────────────── */
+  body.theme-dark .import-table th { color: var(--text-mid); }
+  body.theme-dark .import-table tr:hover td { background: rgba(255,255,255,.04); }
+  body.theme-dark .group-chip { background: var(--surface-alt, #17222f); color: var(--text-mid); }
+  body.theme-dark .import-footer .select-info { color: var(--text-mid); }
+  body.theme-dark .result-item:not(.ok):not(.warn):not(.err) { color: var(--text); }
 </style>
 {% endblock %}
 

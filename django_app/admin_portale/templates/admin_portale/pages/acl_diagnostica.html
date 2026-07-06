@@ -38,6 +38,11 @@
   .diag-summary-detail { font-size:13px; color:#334155; }
   .diag-details { margin-top:10px; }
   .diag-details summary { cursor:pointer; font-weight:700; color:#334155; }
+
+  /* ── Dark mode overrides (additive) ──────────────────────────────── */
+  body.theme-dark .diag-badge:not(.allow):not(.deny) { background: var(--surface-alt, #17222f); border-color: var(--border); color: var(--text-mid); }
+  body.theme-dark .diag-mini { color: var(--text-mid); }
+  body.theme-dark .diag-details summary { color: var(--text); }
 </style>
 {% endblock %}
 

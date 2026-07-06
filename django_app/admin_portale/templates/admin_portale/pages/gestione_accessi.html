@@ -166,6 +166,17 @@
   margin-bottom: 10px;
   flex-wrap: wrap;
 }
+
+/* ── Dark mode overrides (additive) ──────────────────────────────── */
+body.theme-dark .mod-header:hover { background: rgba(255,255,255,.04); }
+body.theme-dark .perm-table th { background: var(--surface-alt, #17222f); color: var(--text-mid); }
+body.theme-dark .perm-table tr:hover td { background: rgba(255,255,255,.04); }
+body.theme-dark .mod-bulk { background: var(--surface-alt, #17222f); }
+body.theme-dark .sticky-save { background: var(--surface); }
+body.theme-dark .role-stat,
+body.theme-dark .mod-chevron,
+body.theme-dark .cell-label .cod,
+body.theme-dark .mod-bulk .count-lbl { color: var(--text-mid); }
 </style>
 {% endblock %}
 
