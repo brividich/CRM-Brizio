@@ -313,6 +313,94 @@ class ProcedureReadEvent(models.Model):
         return f"{self.event_type} @ {self.event_at}"
 
 
+class ChangeRequestStatus(models.TextChoices):
+    APERTA = "aperta", "Aperta"
+    IN_CARICO = "in_carico", "Presa in carico"
+    RECEPITA = "recepita", "Recepita"
+    RESPINTA = "respinta", "Respinta"
+
+
+class ProcedureChangeRequest(models.Model):
+    """Segnalazione di modifica a un documento proposta da chi ne fa la presa
+    visione. Evidenza del ciclo di miglioramento (ISO 9001/EN 9100): non si
+    cancella mai, si tracciano solo i cambi di stato fino alla chiusura
+    (recepita in una revisione / respinta con motivazione)."""
+
+    document = models.ForeignKey(
+        ProcedureDocument,
+        on_delete=models.PROTECT,
+        related_name="change_requests",
+        verbose_name="Documento",
+    )
+    revision = models.ForeignKey(
+        ProcedureRevision,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="change_requests",
+        verbose_name="Revisione letta",
+    )
+    assignment = models.ForeignKey(
+        ProcedureAssignment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="change_requests",
+        verbose_name="Assegnazione di origine",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="pr_change_requests_created",
+        verbose_name="Proponente",
+    )
+    testo = models.TextField(verbose_name="Proposta di modifica")
+    status = models.CharField(
+        max_length=20,
+        choices=ChangeRequestStatus.choices,
+        default=ChangeRequestStatus.APERTA,
+        db_index=True,
+        verbose_name="Stato",
+    )
+    risposta_gestore = models.TextField(blank=True, default="", verbose_name="Risposta del gestore")
+    gestita_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="pr_change_requests_gestite",
+        verbose_name="Gestita da",
+    )
+    gestita_il = models.DateTimeField(null=True, blank=True, verbose_name="Gestita il")
+    recepita_in_revisione = models.ForeignKey(
+        ProcedureRevision,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        verbose_name="Recepita nella revisione",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Segnalazione di modifica"
+        verbose_name_plural = "Segnalazioni di modifica"
+        indexes = [
+            models.Index(fields=["document", "status"], name="pr_cr_document_status"),
+        ]
+
+    def __str__(self) -> str:
+        return f"CR#{self.pk} {self.document.code} [{self.status}]"
+
+    @property
+    def is_open(self) -> bool:
+        return self.status in {ChangeRequestStatus.APERTA, ChangeRequestStatus.IN_CARICO}
+
+
 class ProcedureQuiz(models.Model):
     revision = models.ForeignKey(
         ProcedureRevision,

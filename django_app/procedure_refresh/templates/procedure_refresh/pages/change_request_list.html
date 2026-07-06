@@ -1,0 +1,131 @@
+{% extends "core/base.html" %}
+
+{% block title %}Segnalazioni di modifica | Presa Visione{% endblock %}
+
+{% block body_class %}{{ block.super }} pr-workspace-page pr-change-request-page{% endblock %}
+
+{% block extra_head %}
+<style>
+#pr-root { display:flex; flex-direction:column; gap:20px; }
+.pr-page-title { font-size:20px; font-weight:900; color:#0f172a; }
+.pr-filter-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 20px; }
+.pr-filter-row { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
+.pr-filter-row select { padding:8px 12px; border:1px solid #d1d5db; border-radius:8px; font-size:13px; min-width:200px; }
+.pr-filter-btn { padding:8px 18px; background:#1d4ed8; color:#fff; border:none; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; }
+.pr-cr { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:18px 20px; display:flex; flex-direction:column; gap:12px; }
+.pr-cr-head { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+.pr-cr-doc { font-size:14px; font-weight:800; color:#0f172a; }
+.pr-cr-meta { font-size:12px; color:#64748b; }
+.pr-cr-text { font-size:14px; color:#0f172a; background:#f8fafc; border-radius:10px; padding:12px 14px; }
+.pr-badge { display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; }
+.pr-badge-aperta { background:#dbeafe; color:#1d4ed8; }
+.pr-badge-in_carico { background:#fef3c7; color:#b45309; }
+.pr-badge-recepita { background:#dcfce7; color:#15803d; }
+.pr-badge-respinta { background:#fee2e2; color:#dc2626; }
+.pr-cr-form { display:grid; gap:8px; border-top:1px dashed #e2e8f0; padding-top:12px; }
+.pr-cr-form textarea, .pr-cr-form select { padding:8px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px; }
+.pr-cr-form-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.pr-empty { text-align:center; padding:40px; color:#64748b; font-size:14px; background:#fff; border:1px solid #e2e8f0; border-radius:14px; }
+
+body.theme-dark .pr-page-title { color:var(--text); }
+body.theme-dark .pr-filter-card, body.theme-dark .pr-cr, body.theme-dark .pr-empty { background:var(--surface); border-color:var(--border); }
+body.theme-dark .pr-filter-row select, body.theme-dark .pr-cr-form textarea, body.theme-dark .pr-cr-form select { background:var(--surface); border-color:var(--border); color:var(--text); }
+body.theme-dark .pr-cr-doc { color:var(--text); }
+body.theme-dark .pr-cr-text { background:var(--surface-alt); color:var(--text); }
+body.theme-dark .pr-badge-aperta { background:rgba(29,78,216,.2); color:#93c5fd; }
+body.theme-dark .pr-badge-in_carico { background:rgba(180,83,9,.2); color:#fcd34d; }
+body.theme-dark .pr-badge-recepita { background:rgba(21,128,61,.2); color:#86efac; }
+body.theme-dark .pr-badge-respinta { background:rgba(220,38,38,.2); color:#fca5a5; }
+</style>
+{% include "procedure_refresh/components/workspace_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<div id="pr-root">
+  {% include "procedure_refresh/components/subnav.html" with is_manager=True %}
+
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+    <div class="pr-page-title">Segnalazioni di modifica</div>
+    <div style="font-size:13px;color:#64748b;">Aperte: <strong>{{ n_open }}</strong></div>
+  </div>
+
+  {% if messages %}
+    <div style="display:grid;gap:8px;">
+      {% for message in messages %}
+        <div class="pr-filter-card" style="padding:12px 16px;">{{ message }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <form method="get" class="pr-filter-card">
+    <div class="pr-filter-row">
+      <div>
+        <label style="font-size:12px;color:#475569;display:block;margin-bottom:4px;">Documento</label>
+        <select name="doc">
+          <option value="">Tutti</option>
+          {% for d in documents %}
+            <option value="{{ d.pk }}" {% if doc_filter == d.pk|stringformat:'s' %}selected{% endif %}>{{ d.code }} — {{ d.title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:12px;color:#475569;display:block;margin-bottom:4px;">Stato</label>
+        <select name="stato">
+          <option value="">Tutti</option>
+          {% for value, label in ChangeRequestStatus.choices %}
+            <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="pr-filter-btn">Filtra</button>
+    </div>
+  </form>
+
+  {% if change_requests %}
+    {% for cr in change_requests %}
+      <div class="pr-cr">
+        <div class="pr-cr-head">
+          <div>
+            <div class="pr-cr-doc">{{ cr.document.code }} — {{ cr.document.title }}</div>
+            <div class="pr-cr-meta">
+              Da {{ cr.created_by.get_full_name|default:cr.created_by.username|default:"—" }}
+              il {{ cr.created_at|date:"d-m-Y H:i" }}
+              {% if cr.revision %} · revisione letta {{ cr.revision.revision_code }}{% endif %}
+            </div>
+          </div>
+          <span class="pr-badge pr-badge-{{ cr.status }}">{{ cr.get_status_display }}</span>
+        </div>
+        <div class="pr-cr-text">{{ cr.testo }}</div>
+        {% if cr.risposta_gestore %}
+          <div class="pr-cr-meta">
+            <strong>Risposta:</strong> {{ cr.risposta_gestore }}
+            {% if cr.recepita_in_revisione %} (recepita in {{ cr.recepita_in_revisione.revision_code }}){% endif %}
+            — {{ cr.gestita_da.get_full_name|default:cr.gestita_da.username|default:"" }}
+            {% if cr.gestita_il %}il {{ cr.gestita_il|date:"d-m-Y H:i" }}{% endif %}
+          </div>
+        {% endif %}
+        <form method="post" action="{% url 'procedure_refresh:change_request_set_status' pk=cr.pk %}" class="pr-cr-form">
+          {% csrf_token %}
+          <textarea name="risposta_gestore" rows="2" placeholder="Risposta / motivazione (opzionale)">{{ cr.risposta_gestore }}</textarea>
+          <div class="pr-cr-form-row">
+            <select name="status">
+              {% for value, label in ChangeRequestStatus.choices %}
+                <option value="{{ value }}" {% if cr.status == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            <select name="recepita_in_revisione">
+              <option value="">— recepita in revisione —</option>
+              {% for rev in cr.document.revisions.all %}
+                <option value="{{ rev.pk }}" {% if cr.recepita_in_revisione_id == rev.pk %}selected{% endif %}>{{ rev.revision_code }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="pr-filter-btn">Aggiorna</button>
+          </div>
+        </form>
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="pr-empty">Nessuna segnalazione con i filtri correnti.</div>
+  {% endif %}
+</div>
+{% endblock %}

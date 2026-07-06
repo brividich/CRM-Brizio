@@ -24,9 +24,11 @@ from core.module_branding import get_module_branding_context, handle_module_bran
 from .models import (
     AssignmentStatus,
     CampaignStatus,
+    ChangeRequestStatus,
     ProcedureAssignment,
     ProcedureCampaign,
     ProcedureCampaignDocument,
+    ProcedureChangeRequest,
     ProcedureDocument,
     ProcedureQuiz,
     ProcedureQuizAttempt,
@@ -275,6 +277,31 @@ def assignment_detail(request, pk: int):
     )
 
     if request.method == "POST":
+        if request.POST.get("submit_change_request"):
+            testo = (request.POST.get("change_text") or "").strip()
+            if not testo:
+                messages.error(request, "Inserisci il testo della segnalazione.")
+                return redirect("procedure_refresh:assignment_detail", pk=pk)
+            ProcedureChangeRequest.objects.create(
+                document=assignment.revision.document,
+                revision=assignment.revision,
+                assignment=assignment,
+                created_by=request.user,
+                testo=testo,
+            )
+            log_action(
+                request,
+                "segnalazione_modifica",
+                "procedure_refresh",
+                _audit_detail(
+                    "Segnalazione di modifica documento",
+                    assignment_id=assignment.pk,
+                    document_id=assignment.revision.document_id,
+                ),
+            )
+            messages.success(request, "Segnalazione inviata al gestore qualità.")
+            return redirect("procedure_refresh:assignment_detail", pk=pk)
+
         if request.POST.get("submit_quiz"):
             active_quiz = _active_quiz_for_revision(assignment.revision)
             if not active_quiz:
@@ -407,12 +434,17 @@ def assignment_detail(request, pk: int):
     if active_quiz:
         quiz_attempt = active_quiz.attempts.filter(assignment=assignment, user=request.user).first()
 
+    my_change_requests = ProcedureChangeRequest.objects.filter(
+        document=assignment.revision.document, created_by=request.user
+    ).select_related("recepita_in_revisione").order_by("-created_at")
+
     return render(request, "procedure_refresh/pages/assignment_detail.html", {
         "assignment": assignment,
         "revision": assignment.revision,
         "document": assignment.revision.document,
         "active_quiz": active_quiz,
         "quiz_attempt": quiz_attempt,
+        "my_change_requests": my_change_requests,
     })
 
 
@@ -482,6 +514,9 @@ def admin_dashboard(request):
         status__in=[AssignmentStatus.ASSIGNED, AssignmentStatus.OPENED]
     ).count()
     n_overdue = ProcedureAssignment.objects.filter(status=AssignmentStatus.OVERDUE).count()
+    n_change_requests_open = ProcedureChangeRequest.objects.filter(
+        status__in=[ChangeRequestStatus.APERTA, ChangeRequestStatus.IN_CARICO]
+    ).count()
 
     recent_campaigns = (
         ProcedureCampaign.objects.select_related("created_by").order_by("-created_at")[:5]
@@ -507,6 +542,7 @@ def admin_dashboard(request):
         "reminder_giorni_validi": GIORNI_VALIDI,
         "sgi_auto_on": sgi_auto_on,
         "sgi_last_sync": sgi_last_sync,
+        "n_change_requests_open": n_change_requests_open,
         "n_documents": n_documents,
         "n_campaigns": n_campaigns,
         "n_published": n_published,
@@ -554,8 +590,21 @@ def document_list(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("procedure_refresh:my_assignments")
 
+    from django.db.models import Count, Q
+
     qs = (
         ProcedureDocument.objects.prefetch_related("revisions")
+        .annotate(
+            n_open_change_requests=Count(
+                "change_requests",
+                filter=Q(
+                    change_requests__status__in=[
+                        ChangeRequestStatus.APERTA,
+                        ChangeRequestStatus.IN_CARICO,
+                    ]
+                ),
+            )
+        )
         .order_by("document_type", "code")
     )
     return render(request, "procedure_refresh/pages/document_list.html", {
@@ -1202,6 +1251,97 @@ def cancel_assignment(request, pk: int):
     )
     messages.success(request, "Assegnazione annullata.")
     return redirect("procedure_refresh:campaign_detail", pk=assignment.campaign_id)
+
+
+# ---------------------------------------------------------------------------
+# Segnalazioni di modifica (gestore)
+# ---------------------------------------------------------------------------
+
+@login_required
+def change_request_list(request):
+    if not _is_manager(request):
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("procedure_refresh:my_assignments")
+
+    doc_filter = request.GET.get("doc", "").strip()
+    status_filter = request.GET.get("stato", "").strip()
+
+    qs = (
+        ProcedureChangeRequest.objects.select_related(
+            "document", "revision", "created_by", "gestita_da", "recepita_in_revisione"
+        )
+        .order_by("-created_at")
+    )
+    if doc_filter:
+        try:
+            qs = qs.filter(document_id=int(doc_filter))
+        except ValueError:
+            pass
+    if status_filter:
+        qs = qs.filter(status=status_filter)
+
+    change_requests = list(qs)
+    documents = ProcedureDocument.objects.order_by("document_type", "code")
+
+    return render(request, "procedure_refresh/pages/change_request_list.html", {
+        "change_requests": change_requests,
+        "documents": documents,
+        "doc_filter": doc_filter,
+        "status_filter": status_filter,
+        "ChangeRequestStatus": ChangeRequestStatus,
+        "n_open": ProcedureChangeRequest.objects.filter(
+            status__in=[ChangeRequestStatus.APERTA, ChangeRequestStatus.IN_CARICO]
+        ).count(),
+    })
+
+
+@login_required
+@require_POST
+def change_request_set_status(request, pk: int):
+    if not _is_manager(request):
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("procedure_refresh:my_assignments")
+
+    cr = get_object_or_404(
+        ProcedureChangeRequest.objects.select_related("document"), pk=pk
+    )
+    new_status = (request.POST.get("status") or "").strip()
+    valid = {c[0] for c in ChangeRequestStatus.choices}
+    if new_status not in valid:
+        messages.error(request, "Stato non valido.")
+        return redirect("procedure_refresh:change_request_list")
+
+    cr.status = new_status
+    cr.risposta_gestore = (request.POST.get("risposta_gestore") or "").strip()
+    cr.gestita_da = request.user
+    cr.gestita_il = timezone.now()
+
+    cr.recepita_in_revisione = None
+    if new_status == ChangeRequestStatus.RECEPITA:
+        rev_id = (request.POST.get("recepita_in_revisione") or "").strip()
+        if rev_id:
+            try:
+                cr.recepita_in_revisione = ProcedureRevision.objects.get(
+                    pk=int(rev_id), document=cr.document
+                )
+            except (ProcedureRevision.DoesNotExist, ValueError):
+                cr.recepita_in_revisione = None
+
+    cr.save(update_fields=[
+        "status", "risposta_gestore", "gestita_da", "gestita_il",
+        "recepita_in_revisione", "updated_at",
+    ])
+    log_action(
+        request, "segnalazione_stato", "procedure_refresh",
+        _audit_detail(
+            "Cambio stato segnalazione",
+            change_request_id=cr.pk,
+            document_id=cr.document_id,
+            new_status=new_status,
+        ),
+    )
+    messages.success(request, "Segnalazione aggiornata.")
+    return redirect("procedure_refresh:change_request_list")
 
 
 # ---------------------------------------------------------------------------

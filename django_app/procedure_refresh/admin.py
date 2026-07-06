@@ -4,6 +4,7 @@ from .models import (
     ProcedureAssignment,
     ProcedureCampaign,
     ProcedureCampaignDocument,
+    ProcedureChangeRequest,
     ProcedureDocument,
     ProcedureQuiz,
     ProcedureQuizAttempt,
@@ -82,3 +83,11 @@ class ProcedureQuizAttemptAdmin(admin.ModelAdmin):
     list_filter = ("quiz",)
     search_fields = ("user__username", "user__last_name", "quiz__revision__document__code")
     readonly_fields = ("submitted_at",)
+
+
+@admin.register(ProcedureChangeRequest)
+class ProcedureChangeRequestAdmin(admin.ModelAdmin):
+    list_display = ("document", "status", "created_by", "gestita_da", "created_at")
+    list_filter = ("status", "document__document_type")
+    search_fields = ("document__code", "document__title", "testo")
+    readonly_fields = ("created_at", "updated_at", "gestita_il")

@@ -94,7 +94,16 @@ body.theme-dark .pr-empty { color:var(--text-light); }
           {% for doc in documents %}
             <tr>
               <td><strong>{{ doc.code }}</strong></td>
-              <td>{{ doc.title }}</td>
+              <td>
+                {{ doc.title }}
+                {% if doc.n_open_change_requests %}
+                  <a href="{% url 'procedure_refresh:change_request_list' %}?doc={{ doc.pk }}"
+                     title="Segnalazioni di modifica aperte"
+                     style="display:inline-block;margin-left:6px;padding:1px 8px;border-radius:20px;background:#fef3c7;color:#b45309;font-size:11px;font-weight:700;text-decoration:none;">
+                    {{ doc.n_open_change_requests }} segnalazion{{ doc.n_open_change_requests|pluralize:"e,i" }}
+                  </a>
+                {% endif %}
+              </td>
               <td>
                 {% if doc.document_type == 'MT' %}<span class="pr-badge pr-badge-mt">MT</span>
                 {% elif doc.document_type == 'MTSI' %}<span class="pr-badge pr-badge-mtsi">MTSI</span>

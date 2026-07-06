@@ -38,6 +38,10 @@ urlpatterns = [
     path("admin/campagne/<int:pk>/assegna/", views.assign_users, name="assign_users"),
     path("admin/assegnazioni/<int:pk>/annulla/", views.cancel_assignment, name="cancel_assignment"),
 
+    # ── Admin — segnalazioni di modifica ────────────────────────────────────
+    path("admin/segnalazioni/", views.change_request_list, name="change_request_list"),
+    path("admin/segnalazioni/<int:pk>/stato/", views.change_request_set_status, name="change_request_set_status"),
+
     # ── API ─────────────────────────────────────────────────────────────────
     path("api/parse-sharepoint-url/", views.api_parse_sharepoint_url, name="api_parse_sharepoint_url"),
 

@@ -55,6 +55,14 @@ _PULSANTI_DEFINITIONS = [
     },
     {
         "modulo": "procedure_refresh",
+        "codice": "pr_change_requests",
+        "label": "Presa Visione - Segnalazioni modifica",
+        "url": "/procedure-refresh/admin/segnalazioni/",
+        "visible_topbar": False,
+        "ui_order": None,
+    },
+    {
+        "modulo": "procedure_refresh",
         "codice": "pr_report_user",
         "label": "Presa Visione - Report utente",
         "url": "/procedure-refresh/admin/report/utente/",

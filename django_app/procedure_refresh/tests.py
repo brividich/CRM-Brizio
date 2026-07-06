@@ -885,6 +885,101 @@ class AdminDashboardReminderCardTests(TestCase):
         self.assertEqual(cfg["digest_destinatari"], ["qualita@test.local"])
 
 
+class ChangeRequestTests(TestCase):
+    """Segnalazioni di modifica: proposta dal lettore + gestione con stati."""
+
+    def setUp(self):
+        self.manager = User.objects.create_user(
+            username="crmgr", password="pw", is_superuser=True
+        )
+        # Proprietario dell'assegnazione: superuser come da convenzione dei test del
+        # portale (bypassa il middleware ACL; i test con utente-employee richiedono
+        # setup legacy non previsto qui). Testa il branch di view submit_change_request.
+        self.reader = User.objects.create_user(
+            username="crreader", password="pw", is_superuser=True
+        )
+        self.doc = ProcedureDocument.objects.create(
+            code="MT-CR-001", title="CR doc", document_type="MT", is_active=True
+        )
+        self.rev = ProcedureRevision.objects.create(
+            document=self.doc, revision_code="Rev.01", revision_date=date(2026, 1, 1),
+            effective_date=date(2026, 1, 1), source_type=SourceType.SHAREPOINT,
+            source_url="https://example.sharepoint.com/cr.pdf", file_name="cr.pdf",
+            is_current=True,
+        )
+        self.campaign = ProcedureCampaign.objects.create(
+            name="CR Campaign", status=CampaignStatus.PUBLISHED,
+            start_date=date(2026, 1, 1), due_date=date(2026, 12, 31), created_by=self.manager,
+        )
+        self.assignment = ProcedureAssignment.objects.create(
+            campaign=self.campaign, revision=self.rev, user=self.reader,
+            assigned_by=self.manager, due_date=date(2026, 12, 31),
+            status=AssignmentStatus.ASSIGNED,
+        )
+
+    def test_reader_submits_change_request(self):
+        from procedure_refresh.models import ChangeRequestStatus, ProcedureChangeRequest
+
+        self.client.force_login(self.reader)
+        url = reverse("procedure_refresh:assignment_detail", kwargs={"pk": self.assignment.pk})
+        resp = self.client.post(url, {
+            "submit_change_request": "1",
+            "change_text": "La tabella 3 va aggiornata con i nuovi limiti.",
+        })
+        self.assertEqual(resp.status_code, 302)
+        cr = ProcedureChangeRequest.objects.get(document=self.doc, created_by=self.reader)
+        self.assertEqual(cr.status, ChangeRequestStatus.APERTA)
+        self.assertIn("tabella 3", cr.testo)
+
+    def test_empty_change_request_rejected(self):
+        from procedure_refresh.models import ProcedureChangeRequest
+
+        self.client.force_login(self.reader)
+        url = reverse("procedure_refresh:assignment_detail", kwargs={"pk": self.assignment.pk})
+        self.client.post(url, {"submit_change_request": "1", "change_text": "   "})
+        self.assertEqual(ProcedureChangeRequest.objects.count(), 0)
+
+    def test_manager_sets_status_recepita(self):
+        from procedure_refresh.models import ChangeRequestStatus, ProcedureChangeRequest
+
+        cr = ProcedureChangeRequest.objects.create(
+            document=self.doc, revision=self.rev, assignment=self.assignment,
+            created_by=self.reader, testo="Proposta X",
+        )
+        self.client.force_login(self.manager)
+        url = reverse("procedure_refresh:change_request_set_status", kwargs={"pk": cr.pk})
+        resp = self.client.post(url, {
+            "status": ChangeRequestStatus.RECEPITA,
+            "risposta_gestore": "Recepita nella nuova revisione.",
+            "recepita_in_revisione": str(self.rev.pk),
+        })
+        self.assertEqual(resp.status_code, 302)
+        cr.refresh_from_db()
+        self.assertEqual(cr.status, ChangeRequestStatus.RECEPITA)
+        self.assertEqual(cr.gestita_da, self.manager)
+        self.assertIsNotNone(cr.gestita_il)
+        self.assertEqual(cr.recepita_in_revisione_id, self.rev.pk)
+
+    def test_change_request_list_requires_manager(self):
+        plain = User.objects.create_user(username="crplain", password="pw")
+        self.client.force_login(plain)
+        resp = self.client.get(reverse("procedure_refresh:change_request_list"))
+        # Negato: 302 dal check _is_manager della view o 403 dal middleware ACL.
+        self.assertIn(resp.status_code, (302, 403))
+
+    def test_kpi_open_count(self):
+        from procedure_refresh.models import ChangeRequestStatus, ProcedureChangeRequest
+
+        ProcedureChangeRequest.objects.create(document=self.doc, created_by=self.reader, testo="a")
+        ProcedureChangeRequest.objects.create(
+            document=self.doc, created_by=self.reader, testo="b",
+            status=ChangeRequestStatus.RESPINTA,
+        )
+        self.client.force_login(self.manager)
+        resp = self.client.get(reverse("procedure_refresh:admin_dashboard"))
+        self.assertEqual(resp.context["n_change_requests_open"], 1)
+
+
 class ReminderConfigTests(TestCase):
     """Config solleciti presa visione (SiteConfig, pattern tickets_escalation)."""
 

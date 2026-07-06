@@ -17,6 +17,10 @@
        class="pr-subnav-link{% if 'campagne' in request.path %} active{% endif %}">
       Campagne
     </a>
+    <a href="{% url 'procedure_refresh:change_request_list' %}"
+       class="pr-subnav-link{% if 'segnalazioni' in request.path %} active{% endif %}">
+      Segnalazioni
+    </a>
     <a href="{% url 'procedure_refresh:report_user' %}"
        class="pr-subnav-link{% if 'report' in request.path %} active{% endif %}">
       Report
