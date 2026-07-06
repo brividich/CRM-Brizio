@@ -57,6 +57,15 @@
   /* ── Confirm delete overlay ── */
   .delete-confirm-wrap { display: none; align-items: center; gap: 8px; flex-wrap: wrap; }
   .delete-confirm-wrap.open { display: flex; }
+
+  /* ── Dark mode overrides (additive) ──────────────────────────────── */
+  body.theme-dark .ruoli-table thead th,
+  body.theme-dark .badge-count.zero {
+    background: var(--surface-alt, #17222f);
+  }
+  body.theme-dark .ruoli-table tbody tr:hover td {
+    background: rgba(255,255,255,.04);
+  }
 </style>
 {% endblock %}
 

@@ -276,6 +276,36 @@
     font-size: 12px; font-weight: 600; flex-shrink: 0; white-space: nowrap;
   }
   .help-btn:hover { background: var(--accent, #3b82f6); color: #fff; }
+
+  /* ── Dark mode overrides (additive) ──────────────────────────────── */
+  body.theme-dark .perm-mod-head,
+  body.theme-dark .pulsante-row.is-disabled,
+  body.theme-dark .pulsante-edit-panel,
+  body.theme-dark .create-panel,
+  body.theme-dark .pulsante-codice,
+  body.theme-dark .tut-body code,
+  body.theme-dark .modal-close {
+    background: var(--surface-alt, #17222f);
+  }
+  body.theme-dark .pulsante-thumb,
+  body.theme-dark .card-image-preview,
+  body.theme-dark .modal-box {
+    background: var(--surface);
+  }
+  body.theme-dark .pulsante-row-main:hover,
+  body.theme-dark .route-table tr:hover td,
+  body.theme-dark .btn-icon:hover {
+    background: rgba(255,255,255,.04);
+  }
+  body.theme-dark .modal-close:hover {
+    background: rgba(255,255,255,.06);
+  }
+  body.theme-dark .tut-body {
+    color: var(--text-mid);
+  }
+  body.theme-dark .proposed-row {
+    border-bottom-color: var(--border);
+  }
 </style>
 {% endblock %}
 

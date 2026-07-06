@@ -98,6 +98,22 @@
     .perm-tab { white-space: nowrap; }
     .perm-cards-grid { grid-template-columns: 1fr; }
   }
+
+  /* ── Dark mode overrides (additive) ──────────────────────────────── */
+  body.theme-dark .perm-mod-head,
+  body.theme-dark .canonical-warn {
+    background: var(--surface-alt, #17222f);
+  }
+  body.theme-dark .pulsante-perm-row:hover {
+    background: rgba(255,255,255,.04);
+  }
+  body.theme-dark .canonical-warn {
+    border-top-color: var(--border);
+    color: var(--text-mid);
+  }
+  body.theme-dark .canonical-warn a {
+    color: var(--accent);
+  }
 </style>
 {% endblock %}
 

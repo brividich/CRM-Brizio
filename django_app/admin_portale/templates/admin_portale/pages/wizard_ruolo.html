@@ -206,6 +206,24 @@
 
   /* ── No-results ── */
   .no-results-msg { text-align:center; color:var(--text-muted,#888); font-size:13px; padding:20px; display:none; }
+
+  /* ── Dark mode overrides (additive) ──────────────────────────────── */
+  body.theme-dark .wstep-num,
+  body.theme-dark .wiz-role-btn,
+  body.theme-dark .perm-section-head,
+  body.theme-dark .step2-search,
+  body.theme-dark .wiz-create-form-wrap {
+    background: var(--surface-alt, #17222f);
+  }
+  body.theme-dark .wiz-role-btn:hover,
+  body.theme-dark .wiz-create-toggle:hover,
+  body.theme-dark .perm-section-head:hover,
+  body.theme-dark .perm-row:hover td {
+    background: rgba(255,255,255,.04);
+  }
+  body.theme-dark .wiz-role-btn.selected {
+    background: rgba(255,255,255,.06);
+  }
 </style>
 {% endblock %}
 

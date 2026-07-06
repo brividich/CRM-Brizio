@@ -161,6 +161,14 @@
   }
   #wizard-status.err { color: #dc2626; }
   #wizard-status.ok  { color: #16a34a; }
+
+  /* ── Dark mode overrides (additive) ──────────────────────────────── */
+  body.theme-dark .wstep-num,
+  body.theme-dark .perm-detail-row,
+  body.theme-dark .chip,
+  body.theme-dark .wiz-recap-pill {
+    background: var(--surface-alt, #17222f);
+  }
 </style>
 {% endblock %}
 

@@ -33,6 +33,12 @@
   @media (max-width: 640px) {
     .cl-two-col { grid-template-columns: 1fr; }
   }
+
+  /* Dark mode overrides (additive) */
+  body.theme-dark .cl-voce-row { border-bottom-color: var(--border); }
+  body.theme-dark .cl-voce-tipo { background: var(--surface-alt, #17222f); }
+  body.theme-dark .cl-btn-edit { color: var(--text-mid); }
+  body.theme-dark .cl-modal { background: var(--surface); }
 </style>
 {% endblock %}
 

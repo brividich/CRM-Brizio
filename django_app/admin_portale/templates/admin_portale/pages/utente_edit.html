@@ -80,6 +80,21 @@
     .scheda-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     .scheda-tab { white-space: nowrap; padding: 10px 14px; }
   }
+
+  /* ── DARK MODE — additivo: --bg-card/--bg-subtle/--bg-hover/--text-muted
+     usati sopra NON sono token reali del tema, quindi il fallback chiaro
+     resta sempre attivo; qui li rimappiamo alle superfici/testo del tema.
+     Pill/bottoni colorati (role-on verde, ov-on blu, ov-off rosso) restano
+     invariati: il loro testo sta sul loro sfondo proprio. ── */
+  body.theme-dark .flag-toggle,
+  body.theme-dark .flag-toggle[data-state="role-off"] { background: var(--surface); border-color: var(--border); }
+  body.theme-dark .perm-table th,
+  body.theme-dark .perm-modulo-head td,
+  body.theme-dark .dash-module-head,
+  body.theme-dark .dash-pulsanti-table th { background: var(--surface-alt, #17222f); }
+  body.theme-dark .perm-modulo-head td { color: var(--text-mid); }
+  body.theme-dark .perm-table tr.has-override td { background: var(--warning-bg); }
+  body.theme-dark .perm-table tr:hover td { background: rgba(255,255,255,.04); }
 </style>
 {% endblock %}
 

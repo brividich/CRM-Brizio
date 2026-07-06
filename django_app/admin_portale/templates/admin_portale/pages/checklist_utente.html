@@ -46,6 +46,13 @@
     font-weight:600;
   }
   .cl-config-link:hover { text-decoration:underline; }
+
+  /* Dark mode overrides (additive) */
+  body.theme-dark .cl-voce-item,
+  body.theme-dark .st-risposta { border-bottom-color: var(--border); }
+  body.theme-dark .st-esec-head { background: var(--surface-alt, #17222f); }
+  body.theme-dark .st-esec-head:hover { background: rgba(255,255,255,.04); }
+  body.theme-dark .st-risp-label { color: var(--text-mid); }
 </style>
 {% endblock %}
 

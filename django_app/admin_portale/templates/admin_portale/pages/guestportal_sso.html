@@ -49,6 +49,10 @@
     font-size: 12px;
     color: #713f12;
   }
+
+  /* Dark mode overrides (additive) */
+  body.theme-dark .gp-info { background: var(--surface-alt, #17222f); border-color: var(--border); color: var(--text); }
+  body.theme-dark .gp-warning { background: var(--warning-bg, rgba(214,158,46,.16)); border-color: var(--border); color: var(--text); }
 </style>
 {% endblock %}
 
