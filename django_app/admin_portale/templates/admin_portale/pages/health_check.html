@@ -23,7 +23,7 @@
     <div class="card-body" style="padding:0;">
       <table style="width:100%;border-collapse:collapse;">
         <thead>
-          <tr style="background:#f8fafc;border-bottom:1px solid #e2e8f0;">
+          <tr style="background:var(--surface-alt,#f8fafc);border-bottom:1px solid var(--border,#e2e8f0);">
             <th style="padding:10px 16px;text-align:left;font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;">Componente</th>
             <th style="padding:10px 16px;text-align:left;font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;">Stato</th>
             <th style="padding:10px 16px;text-align:left;font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;">Dettaglio</th>
@@ -31,8 +31,8 @@
         </thead>
         <tbody>
           {% for check in checks %}
-            <tr style="border-bottom:1px solid #f1f5f9;">
-              <td style="padding:12px 16px;font-size:14px;font-weight:500;color:#1e293b;">{{ check.nome }}</td>
+            <tr style="border-bottom:1px solid var(--border,#f1f5f9);">
+              <td style="padding:12px 16px;font-size:14px;font-weight:500;color:var(--text,#1e293b);">{{ check.nome }}</td>
               <td style="padding:12px 16px;">
                 {% if check.ok %}
                   <span style="display:inline-flex;align-items:center;gap:6px;color:#16a34a;font-weight:600;font-size:13px;">
@@ -44,7 +44,7 @@
                   </span>
                 {% endif %}
               </td>
-              <td style="padding:12px 16px;font-size:13px;color:#475569;font-family:monospace;">{{ check.dettaglio }}</td>
+              <td style="padding:12px 16px;font-size:13px;color:var(--text-mid,#475569);font-family:monospace;">{{ check.dettaglio }}</td>
             </tr>
           {% endfor %}
         </tbody>

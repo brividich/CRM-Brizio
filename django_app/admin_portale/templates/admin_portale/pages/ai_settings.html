@@ -791,7 +791,7 @@ body.theme-dark .ai-faq-title {
                 </td>
                 <td style="max-width:240px;">
                   {% if fb.correction %}
-                    <span style="font-size:12px;color:#334155;">{{ fb.correction|truncatechars:120 }}</span>
+                    <span style="font-size:12px;color:var(--text-mid,#334155);">{{ fb.correction|truncatechars:120 }}</span>
                     {% if fb.knowledge_entry %}
                       <br><span class="ai-badge{% if fb.knowledge_entry.is_active %} ok{% endif %}">
                         FAQ #{{ fb.knowledge_entry.id }} {% if fb.knowledge_entry.is_active %}attiva{% else %}bozza{% endif %}
