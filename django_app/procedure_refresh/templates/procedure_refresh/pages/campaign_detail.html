@@ -246,7 +246,48 @@ body.theme-dark .pr-empty { color:var(--text-light); }
 
   <!-- Assegnazioni -->
   <div class="pr-card">
-    <div class="pr-card-title">Assegnazioni ({{ n_total }})</div>
+    <div class="pr-card-title" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <span>Assegnazioni ({{ n_total }})</span>
+      {% if recipients_count %}
+        <button type="button" id="pr-copy-recipients" class="pr-btn pr-btn-secondary" style="font-size:12px;"
+                data-recipients="{{ recipients_clipboard }}">
+          Copia elenco destinatari ({{ recipients_count }})
+        </button>
+      {% endif %}
+    </div>
+    {% if recipients_senza_email %}
+      <p style="font-size:12px;color:#b45309;margin:4px 0 10px;">
+        Senza email di notifica in anagrafica ({{ recipients_senza_email|length }}):
+        {{ recipients_senza_email|join:", " }} — riceveranno solo la notifica nel portale.
+      </p>
+    {% endif %}
+    {% if recipients_count %}
+      <script>
+        (function () {
+          var btn = document.getElementById("pr-copy-recipients");
+          if (!btn) return;
+          btn.addEventListener("click", function () {
+            var text = btn.getAttribute("data-recipients") || "";
+            var done = function () {
+              var orig = btn.textContent;
+              btn.textContent = "Copiato!";
+              setTimeout(function () { btn.textContent = orig; }, 1600);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(text).then(done);
+            } else {
+              var ta = document.createElement("textarea");
+              ta.value = text;
+              document.body.appendChild(ta);
+              ta.select();
+              try { document.execCommand("copy"); } catch (e) {}
+              document.body.removeChild(ta);
+              done();
+            }
+          });
+        })();
+      </script>
+    {% endif %}
     {% if assignments %}
       <div style="overflow-x:auto;">
         <table class="pr-table">

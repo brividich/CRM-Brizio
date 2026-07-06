@@ -121,6 +121,60 @@
     </div>
 
     <div class="pr-card">
+      <div class="pr-card-title">Solleciti presa visione</div>
+      <p style="font-size:13px;color:#64748b;margin:0 0 14px;">
+        La marcatura <strong>Scaduta</strong> delle assegnazioni oltre la data limite avviene sempre,
+        ogni mattina (evidenza ISO 9001/EN 9100). Qui attivi le email di sollecito automatiche:
+        promemoria pre-scadenza al dipendente, sollecito periodico agli inadempienti e digest ai gestori.
+        Le email usano l'indirizzo di notifica dell'anagrafica.
+      </p>
+      <form method="post" style="display:grid;gap:12px;max-width:640px;">
+        {% csrf_token %}
+        <input type="hidden" name="save_reminder_config" value="1">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#0f172a;">
+          <input type="checkbox" name="reminder_attivo" value="1" {% if reminder_cfg.attivo %}checked{% endif %}>
+          Solleciti email attivi
+        </label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <label style="font-size:12px;color:#475569;display:grid;gap:4px;">
+            Promemoria pre-scadenza (giorni, CSV)
+            <input type="text" name="reminder_pre_giorni" value="{{ reminder_cfg.pre_giorni|join:',' }}"
+                   placeholder="7,2" style="padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;">
+          </label>
+          <label style="font-size:12px;color:#475569;display:grid;gap:4px;">
+            Sollecito scaduti ogni (giorni)
+            <input type="number" name="reminder_post_cadenza" min="1" max="60"
+                   value="{{ reminder_cfg.post_cadenza_giorni }}"
+                   style="padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;">
+          </label>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 2fr;gap:12px;">
+          <label style="font-size:12px;color:#475569;display:grid;gap:4px;">
+            Digest gestori (giorno)
+            <select name="reminder_digest_giorno" style="padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;">
+              <option value="" {% if not reminder_cfg.digest_giorno %}selected{% endif %}>Disattivo</option>
+              {% for g in reminder_giorni_validi %}
+                <option value="{{ g }}" {% if reminder_cfg.digest_giorno == g %}selected{% endif %}>{{ g|capfirst }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label style="font-size:12px;color:#475569;display:grid;gap:4px;">
+            Destinatari digest (email, CSV)
+            <input type="text" name="reminder_digest_destinatari"
+                   value="{{ reminder_cfg.digest_destinatari|join:', ' }}"
+                   placeholder="qualita@azienda.it, rspp@azienda.it"
+                   style="padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;">
+          </label>
+        </div>
+        <div>
+          <button type="submit" class="pr-ql" style="cursor:pointer;background:#1d4ed8;color:#fff;border-color:#1d4ed8;">
+            Salva impostazioni solleciti
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <div class="pr-card">
       <div class="pr-card-title">Ultime campagne</div>
       {% if recent_campaigns %}
         <table class="pr-table">

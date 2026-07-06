@@ -612,6 +612,133 @@ class SgiShareDriftTests(TestCase):
         self.assertTrue(res["skipped"])
 
 
+class AssignUsersNotificaTests(TestCase):
+    """All'assegnazione parte la notifica in-app (niente mail: la manda l'IT)."""
+
+    def setUp(self):
+        self.manager = User.objects.create_user(
+            username="assignmgr", password="pw", is_superuser=True
+        )
+        self.reader = User.objects.create_user(
+            username="assignreader", password="pw", first_name="Anna", last_name="Bianchi"
+        )
+        self.doc = ProcedureDocument.objects.create(
+            code="MT-ASSIGN-001", title="Assign doc", document_type="MT", is_active=True
+        )
+        self.rev = ProcedureRevision.objects.create(
+            document=self.doc,
+            revision_code="Rev.01",
+            revision_date=date(2026, 1, 1),
+            effective_date=date(2026, 1, 1),
+            source_type=SourceType.SHAREPOINT,
+            source_url="https://example.sharepoint.com/assign.pdf",
+            file_name="assign.pdf",
+            is_current=True,
+        )
+        self.campaign = ProcedureCampaign.objects.create(
+            name="Assign Campaign",
+            status=CampaignStatus.PUBLISHED,
+            start_date=date(2026, 1, 1),
+            due_date=date(2026, 12, 31),
+            created_by=self.manager,
+        )
+
+    def test_assign_crea_notifica_in_app(self):
+        from core.models import Notifica
+
+        self.client.force_login(self.manager)
+        url = reverse("procedure_refresh:assign_users", kwargs={"pk": self.campaign.pk})
+        resp = self.client.post(url, {
+            "user_ids": [str(self.reader.pk)],
+            "revision_id": str(self.rev.pk),
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(
+            ProcedureAssignment.objects.filter(campaign=self.campaign, user=self.reader).count(), 1
+        )
+        notifiche = Notifica.objects.filter(messaggio__contains="MT-ASSIGN-001")
+        self.assertEqual(notifiche.count(), 1)
+        self.assertEqual(len(mail.outbox), 0)  # nessuna mail automatica all'assegnazione
+
+        # Ri-assegnazione stessa revisione: nessuna nuova notifica
+        self.client.post(url, {
+            "user_ids": [str(self.reader.pk)],
+            "revision_id": str(self.rev.pk),
+        })
+        self.assertEqual(Notifica.objects.filter(messaggio__contains="MT-ASSIGN-001").count(), 1)
+
+    def test_campaign_detail_espone_elenco_destinatari(self):
+        ProcedureAssignment.objects.create(
+            campaign=self.campaign, revision=self.rev, user=self.reader,
+            assigned_by=self.manager, due_date=date(2026, 12, 31),
+            status=AssignmentStatus.ASSIGNED,
+        )
+        self.client.force_login(self.manager)
+        with mock.patch(
+            "procedure_refresh.tasks._notification_email_map",
+            return_value={self.reader.pk: "bianchi@test.local"},
+        ):
+            resp = self.client.get(
+                reverse("procedure_refresh:campaign_detail", kwargs={"pk": self.campaign.pk})
+            )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["recipients_count"], 1)
+        self.assertIn("Anna Bianchi <bianchi@test.local>", resp.context["recipients_clipboard"])
+        self.assertContains(resp, "Copia elenco destinatari")
+
+    def test_campaign_detail_evidenzia_senza_email(self):
+        ProcedureAssignment.objects.create(
+            campaign=self.campaign, revision=self.rev, user=self.reader,
+            assigned_by=self.manager, due_date=date(2026, 12, 31),
+            status=AssignmentStatus.ASSIGNED,
+        )
+        self.client.force_login(self.manager)
+        with mock.patch(
+            "procedure_refresh.tasks._notification_email_map",
+            return_value={self.reader.pk: ""},
+        ):
+            resp = self.client.get(
+                reverse("procedure_refresh:campaign_detail", kwargs={"pk": self.campaign.pk})
+            )
+        self.assertEqual(resp.context["recipients_count"], 0)
+        self.assertIn("Anna Bianchi", resp.context["recipients_senza_email"])
+
+
+class AdminDashboardReminderCardTests(TestCase):
+    """Card impostazioni solleciti nella dashboard admin del modulo."""
+
+    def setUp(self):
+        self.manager = User.objects.create_user(
+            username="cardmgr", password="pw", is_superuser=True
+        )
+        self.client.force_login(self.manager)
+
+    def test_get_mostra_card(self):
+        resp = self.client.get(reverse("procedure_refresh:admin_dashboard"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Solleciti presa visione")
+        self.assertContains(resp, "reminder_pre_giorni")
+
+    def test_post_salva_config(self):
+        from procedure_refresh.reminder_config import get_reminder_config
+
+        resp = self.client.post(reverse("procedure_refresh:admin_dashboard"), {
+            "save_reminder_config": "1",
+            "reminder_attivo": "1",
+            "reminder_pre_giorni": "10,3",
+            "reminder_post_cadenza": "5",
+            "reminder_digest_giorno": "ven",
+            "reminder_digest_destinatari": "qualita@test.local",
+        })
+        self.assertEqual(resp.status_code, 302)
+        cfg = get_reminder_config()
+        self.assertTrue(cfg["attivo"])
+        self.assertEqual(cfg["pre_giorni"], [10, 3])
+        self.assertEqual(cfg["post_cadenza_giorni"], 5)
+        self.assertEqual(cfg["digest_giorno"], "ven")
+        self.assertEqual(cfg["digest_destinatari"], ["qualita@test.local"])
+
+
 class ReminderConfigTests(TestCase):
     """Config solleciti presa visione (SiteConfig, pattern tickets_escalation)."""
 

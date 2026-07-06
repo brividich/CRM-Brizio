@@ -425,6 +425,25 @@ def admin_dashboard(request):
         return redirect("procedure_refresh:my_assignments")
 
     if request.method == "POST":
+        if request.POST.get("save_reminder_config"):
+            from .reminder_config import save_reminder_config
+
+            save_reminder_config(
+                attivo=bool(request.POST.get("reminder_attivo")),
+                pre_giorni=request.POST.get("reminder_pre_giorni", ""),
+                post_cadenza_giorni=request.POST.get("reminder_post_cadenza", ""),
+                digest_giorno=request.POST.get("reminder_digest_giorno", ""),
+                digest_destinatari=request.POST.get("reminder_digest_destinatari", ""),
+            )
+            log_action(
+                request,
+                "modifica",
+                "procedure_refresh",
+                _audit_detail("Configurazione solleciti presa visione aggiornata"),
+            )
+            messages.success(request, "Impostazioni solleciti salvate.")
+            return redirect("procedure_refresh:admin_dashboard")
+
         branding_response = handle_module_branding_post(
             request,
             module_key="procedure_refresh",
@@ -451,7 +470,11 @@ def admin_dashboard(request):
         ProcedureCampaign.objects.select_related("created_by").order_by("-created_at")[:5]
     )
 
+    from .reminder_config import GIORNI_VALIDI, get_reminder_config
+
     return render(request, "procedure_refresh/pages/admin_dashboard.html", {
+        "reminder_cfg": get_reminder_config(),
+        "reminder_giorni_validi": GIORNI_VALIDI,
         "n_documents": n_documents,
         "n_campaigns": n_campaigns,
         "n_published": n_published,
@@ -852,6 +875,31 @@ def campaign_detail(request, pk: int):
         status__in=[AssignmentStatus.ASSIGNED, AssignmentStatus.OPENED]
     ).count()
 
+    # Helper mail manuale (supporto IT): elenco "Nome <email_notifica>" degli
+    # assegnatari con presa visione ancora pendente, pronto per il client di posta.
+    from .tasks import _notification_email_map
+
+    pending_states = {
+        AssignmentStatus.ASSIGNED,
+        AssignmentStatus.OPENED,
+        AssignmentStatus.OVERDUE,
+    }
+    pending_assignments = [a for a in assignments if a.status in pending_states]
+    email_map = _notification_email_map(sorted({a.user_id for a in pending_assignments}))
+    recipients_lines: list[str] = []
+    recipients_senza_email: list[str] = []
+    seen_uids: set[int] = set()
+    for a in pending_assignments:
+        if a.user_id in seen_uids:
+            continue
+        seen_uids.add(a.user_id)
+        nome = a.user.get_full_name() or a.user.username
+        addr = email_map.get(a.user_id, "")
+        if addr:
+            recipients_lines.append(f"{nome} <{addr}>")
+        else:
+            recipients_senza_email.append(nome)
+
     return render(request, "procedure_refresh/pages/campaign_detail.html", {
         "campaign": campaign,
         "campaign_docs": campaign_docs,
@@ -861,6 +909,9 @@ def campaign_detail(request, pk: int):
         "n_total": n_total,
         "n_confirmed": n_confirmed,
         "n_pending": n_pending,
+        "recipients_clipboard": "; ".join(recipients_lines),
+        "recipients_count": len(recipients_lines),
+        "recipients_senza_email": recipients_senza_email,
         "CampaignStatus": CampaignStatus,
         "AssignmentStatus": AssignmentStatus,
     })
@@ -999,7 +1050,7 @@ def assign_users(request, pk: int):
         return redirect("procedure_refresh:campaign_detail", pk=pk)
 
     try:
-        revision = ProcedureRevision.objects.get(pk=int(revision_id))
+        revision = ProcedureRevision.objects.select_related("document").get(pk=int(revision_id))
     except (ProcedureRevision.DoesNotExist, ValueError):
         messages.error(request, "Revisione non trovata.")
         return redirect("procedure_refresh:campaign_detail", pk=pk)
@@ -1012,6 +1063,7 @@ def assign_users(request, pk: int):
             pass
 
     created_count = 0
+    notified_user_ids: list[int] = []
     for uid in user_ids:
         try:
             user = User.objects.get(pk=int(uid), is_active=True)
@@ -1029,6 +1081,28 @@ def assign_users(request, pk: int):
         )
         if created:
             created_count += 1
+            notified_user_ids.append(user.pk)
+
+    # Notifica in-app agli assegnati (una per utente per azione). La comunicazione
+    # email iniziale resta manuale (supporto IT): qui solo il campanellino portale.
+    if notified_user_ids:
+        from core.notifiche import invia_notifica
+
+        from .tasks import _legacy_id_map
+
+        legacy_map = _legacy_id_map(notified_user_ids)
+        scad = due_date or campaign.due_date
+        scad_str = scad.strftime("%d/%m/%Y") if scad else "-"
+        for uid in notified_user_ids:
+            invia_notifica(
+                legacy_map.get(uid),
+                "generico",
+                (
+                    f"Nuovo documento in presa visione: {revision.document.code} "
+                    f"(campagna {campaign.name}, scadenza {scad_str})."
+                ),
+                url_azione="/procedure-refresh/",
+            )
 
     log_action(
         request, "assegna", "procedure_refresh",
