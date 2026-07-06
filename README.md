@@ -162,7 +162,7 @@ sequenceDiagram
 | 17 | [`dpi`](django_app/dpi/) | Sicurezza | `/dpi/` | Dispositivi Protezione Individuale: catalogo gerarchico, richieste, approvazione, consegna firmata, report conformita, reminder scadenze |
 | 18 | [`diario_preposto`](django_app/diario_preposto/) | Sicurezza | `/diario-preposto/` | Diario preposto sicurezza con segnalazioni, allegati privati e ispezioni periodiche |
 | 19 | [`rilevazione_incidenti`](django_app/rilevazione_incidenti/) | Sicurezza | `/rilevazione-incidenti/` | Unsafe conditions, near miss, incidenti, KPI sicurezza e heatmap planimetria |
-| 20 | [`procedure_refresh`](django_app/procedure_refresh/) | Sicurezza | `/procedure-refresh/` | Presa visione procedure MT/MTSI, campagne, matrice formazione, quiz e export CSV |
+| 20 | [`procedure_refresh`](django_app/procedure_refresh/) | Sicurezza | `/procedure-refresh/` | Presa visione procedure MT/MTSI, campagne, motore scadenze/solleciti, sync SGI, segnalazioni di modifica, matrice formazione ISO |
 | 21 | [`rentri`](django_app/rentri/) | Sicurezza | `/rentri/` | Tracciabilità rifiuti (normativa RENTRI): registro C/O/M/R, scadenzario adempimenti, **giacenze per CER** con semaforo deposito temporaneo |
 | 22 | [`automazioni`](django_app/automazioni/) | Automation | `/automazioni/` | Designer visuale, trigger SQL, queue processor, approvazioni email/Teams, import Power Automate |
 
@@ -663,18 +663,21 @@ Segnalazione e tracciamento incidenti/mancati incidenti con **SharePoint** come 
 <details open>
 <summary><b>19. <code>procedure_refresh</code> — presa visione procedure</b></summary>
 
-Campagne di aggiornamento procedure MT/MTSI con tracking letture obbligatorio.
+Campagne di aggiornamento procedure MT/MTSI con tracking letture obbligatorio (ciclo ISO 9001/EN 9100).
 
-- **8 modelli**: ProcedureDocument, ProcedureRevision, ProcedureCampaign, ProcedureCampaignDocument, ProcedureAssignment, ProcedureReadEvent, ProcedureQuiz, ProcedureQuizAttempt
-- **Anagrafica procedure** con codice univoco, tipo MT/MTSI/ALTRO
+- **9 modelli**: ProcedureDocument, ProcedureRevision, ProcedureCampaign, ProcedureCampaignDocument, ProcedureAssignment, ProcedureReadEvent, ProcedureQuiz, ProcedureQuizAttempt, ProcedureChangeRequest
+- **Anagrafica procedure** con codice univoco, tipo MT/MTSI/ALTRO; elenco con tab **Presa visione / Corpus AI** e ricerca
 - **Revisioni** con sorgente SharePoint o file server, validazione URL/path
-- **Campagne** con stati draft → published → closed → archived
+- **Campagne** con stati draft → published → closed → archived; picker filtrato alle sole revisioni correnti in presa visione, helper «Copia elenco destinatari»
 - **Assegnazioni** per utente Django con stati assigned → opened → read_confirmed (o overdue/cancelled)
+- **Motore scadenze** (`run_assignment_lifecycle`, CRON 06:45): marca sempre le scadute `OVERDUE`; con `pr_reminder_attivo` invia promemoria pre-scadenza, solleciti post-scadenza e digest inadempienti ai gestori (SiteConfig `pr_reminder_*`, email su `email_notifica`). Notifica in-app all'assegnazione
+- **Sync SGI automatica** (`run_sgi_auto_sync`, CRON 03:00, flag `pr_sgi_auto_sync_attivo`) a perimetro sicuro + pulsante «Sincronizza ora»; watchdog rileva anche i documenti spariti dalla share
+- **Segnalazioni di modifica** (`ProcedureChangeRequest`): il lettore propone modifiche al documento, il gestore le chiude con stati (aperta → in carico → recepita in Rev.X / respinta) — evidenza del ciclo di miglioramento
 - **Tracking aperture**: `open_count`, `first_opened_at`, `last_opened_at`, IP, user agent
-- **Log eventi**: opened, confirmed, reminder_sent, reassigned, exported
+- **Log eventi**: opened, confirmed, reminder_sent, overdue_marked, reassigned, exported
 - **Matrice formazione** in `/procedure-refresh/admin/report/matrice/` con completamento per reparto e export CSV audit ISO
 - **Quiz post-lettura** per revisione procedura, mostrato dopo la conferma e tracciato senza bloccare `read_confirmed`
-- **Reminder automatici** via mail configurabili
+- **ACL v2 canonico**: gate `_can_manage` con permesso canonico (ruolo qualità/RSPP non-admin) e fallback legacy
 - **Export CSV** per audit
 - **Report** copertura per reparto/procedura
 </details>
