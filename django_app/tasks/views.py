@@ -3307,6 +3307,19 @@ def project_list(request):
         if client_name
     ))
 
+    from tasks.models import ProjectPhase
+    view_mode = "board" if request.GET.get("view") == "board" else "cards"
+    board_columns = None
+    is_board_editor = _has_task_permission(request, "tasks_edit")
+    if view_mode == "board":
+        by_phase = {key: [] for key, _ in ProjectPhase.choices}
+        for p in projects:
+            by_phase.get(getattr(p, "phase", ProjectPhase.BOZZA), by_phase[ProjectPhase.BOZZA]).append(p)
+        board_columns = [
+            {"key": key, "label": label, "projects": by_phase[key]}
+            for key, label in ProjectPhase.choices
+        ]
+
     return render(
         request,
         "tasks/projects.html",
@@ -3314,6 +3327,10 @@ def project_list(request):
             **_tasks_shell_context(request, active="projects"),
             "page_title": "Portfolio kickoff",
             "projects": projects,
+            "view": view_mode,
+            "board_columns": board_columns,
+            "is_board_editor": is_board_editor,
+            "phase_choices": ProjectPhase.choices,
             "is_scope_admin": _has_task_permission(request, "tasks_admin"),
             "pf_filter_q": q_text,
             "pf_filter_client": q_client,

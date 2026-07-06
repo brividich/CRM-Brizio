@@ -3202,3 +3202,32 @@ class ProjectSetPhaseTests(TestCase):
         assert r.status_code in (302, 403, 404)
         p.refresh_from_db()
         assert p.phase == "BOZZA"
+
+
+class ProjectBoardRenderTests(TestCase):
+    """Board per fase — render toggle Card/Board."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin = User.objects.create_superuser(
+            username="brd_admin", email="b@x.local", password="x"
+        )
+
+    def setUp(self):
+        from tasks.models import Project
+
+        self.client.force_login(self.admin)
+        Project.objects.create(name="P1", created_by=self.admin)
+
+    def test_board_view_renders_columns(self):
+        r = self.client.get(reverse("tasks:project_list") + "?view=board")
+        assert r.status_code == 200
+        assert b"kbf-board" in r.content
+        assert b"In esecuzione" in r.content
+        assert b"data-set-phase-url" in r.content
+
+    def test_cards_view_default(self):
+        r = self.client.get(reverse("tasks:project_list"))
+        assert r.status_code == 200
+        assert b"pf-grid" in r.content
+        assert b"kbf-board" not in r.content

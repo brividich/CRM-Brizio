@@ -393,6 +393,13 @@
         <option value="ral"          {% if pf_sort == 'ral' %}selected{% endif %}>Criticità ↓</option>
       </select>
     </div>
+    <div class="ts-field">
+      <label>Vista</label>
+      <div class="pf-view-toggle">
+        <button type="submit" name="view" value="cards" class="pf-view-btn {% if view != 'board' %}active{% endif %}">Card</button>
+        <button type="submit" name="view" value="board" class="pf-view-btn {% if view == 'board' %}active{% endif %}">Board</button>
+      </div>
+    </div>
     <button type="submit" class="btn btn-sm">Filtra</button>
     {% if pf_filter_q or pf_filter_client or pf_filter_vrf or pf_sort %}
       <a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_list' %}">Reset</a>
@@ -400,7 +407,9 @@
   </form>
 
   <div class="ts-panel-body">
-    {% if projects %}
+    {% if view == 'board' %}
+      {% include "tasks/_board.html" %}
+    {% elif projects %}
       <div class="pf-grid">
         {% for project in projects %}
           {% with d=project.vrf_detail %}

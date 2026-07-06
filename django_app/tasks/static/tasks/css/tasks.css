@@ -776,6 +776,27 @@ body.theme-dark .ts-message.warning { background: rgba(146,64,14,.15);  border-c
 body.theme-dark .ts-message.info    { background: rgba(29,78,216,.15);  border-color: rgba(191,219,254,.3); color: #93c5fd; }
 body.theme-dark .task-meta-chip     { background: var(--surface); }
 
+/* ── Board per fase ──────────────────────────────────────────────── */
+.pf-view-toggle{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.pf-view-btn{border:none;background:var(--surface);color:var(--text-mid);font-size:12px;font-weight:700;padding:6px 12px;cursor:pointer}
+.pf-view-btn.active{background:var(--accent);color:#fff}
+.kbf-board{display:grid;grid-template-columns:repeat(4,minmax(220px,1fr));gap:12px;align-items:start;overflow-x:auto}
+.kbf-col{background:color-mix(in srgb,var(--surface) 92%,var(--text) 8%);border:1px solid var(--border);border-radius:var(--hub-radius-lg);display:flex;flex-direction:column;min-height:120px}
+.kbf-col.is-over{border-color:var(--accent);box-shadow:var(--hub-shadow-focus)}
+.kbf-col-head{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--border);font-weight:800;font-size:12px;color:var(--text)}
+.kbf-col-count{background:var(--hub-status-neutral-bg);color:var(--text-mid);border-radius:999px;padding:1px 8px;font-size:11px}
+.kbf-col-body{padding:8px;display:flex;flex-direction:column;gap:8px;flex:1}
+.kbf-col-empty{color:var(--text-light);text-align:center;margin:8px 0}
+.kbf-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--hub-radius-md);padding:10px;display:flex;flex-direction:column;gap:5px;box-shadow:var(--hub-shadow-sm)}
+.kbf-card[draggable='true']{cursor:grab}
+.kbf-card.is-dragging{opacity:.5}
+.kbf-card-name{font-weight:800;color:var(--text);text-decoration:none;font-size:13px}
+.kbf-card-name:hover{color:var(--accent)}
+.kbf-card-client{font-size:11px;color:var(--text-mid)}
+.kbf-card-meta{display:flex;gap:6px;font-size:11px;color:var(--text-light)}
+.kbf-card-move{margin-top:4px;font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text)}
+@media (max-width:900px){.kbf-board{grid-template-columns:repeat(2,minmax(200px,1fr))}}
+
 /* ── Centro "Da gestire" ─────────────────────────────────────────── */
 .dg-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
 .dg-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--hub-radius-md);border-left:3px solid var(--border);transition:background .1s ease}

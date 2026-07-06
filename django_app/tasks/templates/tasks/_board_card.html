@@ -1,0 +1,15 @@
+<div class="kbf-card" draggable="{{ is_board_editor|yesno:'true,false' }}" data-project-id="{{ project.id }}">
+  <a class="kbf-card-name" href="{% url 'tasks:project_gantt' project.id %}">{{ project.name }}</a>
+  {% if project.client_name %}<div class="kbf-card-client">{{ project.client_name }}</div>{% endif %}
+  {% if project.readiness %}<div class="kbf-card-badge">{% include "tasks/_readiness_badge.html" with readiness=project.readiness %}</div>{% endif %}
+  <div class="kbf-card-meta">
+    <span>{{ project.task_open }} aperte</span><span>·</span><span>{{ project.task_total }} tot</span>
+  </div>
+  {% if is_board_editor %}
+    <select class="kbf-card-move js-phase-select" data-project-id="{{ project.id }}" aria-label="Sposta fase">
+      {% for key, label in phase_choices %}
+        <option value="{{ key }}" {% if key == project.phase %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  {% endif %}
+</div>

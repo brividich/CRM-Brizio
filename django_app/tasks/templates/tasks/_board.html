@@ -1,0 +1,73 @@
+<div class="kbf-board" data-set-phase-url="{% url 'tasks:project_list' %}">
+  {% for col in board_columns %}
+    <div class="kbf-col" data-phase="{{ col.key }}">
+      <div class="kbf-col-head">
+        <span class="kbf-col-label">{{ col.label }}</span>
+        <span class="kbf-col-count">{{ col.projects|length }}</span>
+      </div>
+      <div class="kbf-col-body">
+        {% for project in col.projects %}
+          {% include "tasks/_board_card.html" with project=project is_board_editor=is_board_editor phase_choices=phase_choices %}
+        {% empty %}
+          <p class="kbf-col-empty">—</p>
+        {% endfor %}
+      </div>
+    </div>
+  {% endfor %}
+</div>
+
+{% if is_board_editor %}
+<script>
+(function () {
+  var meta = document.querySelector("meta[name='csrf-token']");
+  var csrf = meta ? meta.getAttribute("content") : "";
+  function setPhase(projectId, phase, onOk, onErr) {
+    fetch("/tasks/projects/" + projectId + "/set-phase/", {
+      method: "POST",
+      headers: {
+        "X-CSRFToken": csrf,
+        "Content-Type": "application/x-www-form-urlencoded",
+        "X-Requested-With": "XMLHttpRequest"
+      },
+      body: "phase=" + encodeURIComponent(phase)
+    }).then(function (r) { return r.ok ? r.json() : Promise.reject(r); })
+      .then(function (d) { if (d && d.ok) { onOk(); } else { onErr(); } })
+      .catch(function () { onErr(); });
+  }
+  var dragged = null;
+  document.querySelectorAll(".kbf-card[draggable='true']").forEach(function (card) {
+    card.addEventListener("dragstart", function () { dragged = card; card.classList.add("is-dragging"); });
+    card.addEventListener("dragend", function () { card.classList.remove("is-dragging"); dragged = null; });
+  });
+  document.querySelectorAll(".kbf-col").forEach(function (col) {
+    col.addEventListener("dragover", function (e) { e.preventDefault(); col.classList.add("is-over"); });
+    col.addEventListener("dragleave", function () { col.classList.remove("is-over"); });
+    col.addEventListener("drop", function (e) {
+      e.preventDefault(); col.classList.remove("is-over");
+      if (!dragged) { return; }
+      var card = dragged;
+      var pid = card.getAttribute("data-project-id");
+      var phase = col.getAttribute("data-phase");
+      var body = col.querySelector(".kbf-col-body");
+      var prev = card.parentNode;
+      var placeholder = prev.querySelector(".kbf-col-empty");
+      body.appendChild(card);
+      setPhase(pid, phase, function () {
+        var sel = card.querySelector(".js-phase-select");
+        if (sel) { sel.value = phase; }
+      }, function () {
+        prev.appendChild(card);
+        if (placeholder) { prev.appendChild(placeholder); }
+        alert("Cambio fase non riuscito.");
+      });
+    });
+  });
+  document.querySelectorAll(".js-phase-select").forEach(function (sel) {
+    sel.addEventListener("change", function () {
+      var pid = sel.getAttribute("data-project-id");
+      setPhase(pid, sel.value, function () { window.location.reload(); }, function () { alert("Cambio fase non riuscito."); });
+    });
+  });
+})();
+</script>
+{% endif %}
