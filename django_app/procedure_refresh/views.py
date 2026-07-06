@@ -43,8 +43,6 @@ User = get_user_model()
 # ---------------------------------------------------------------------------
 
 def _is_manager(request) -> bool:
-    from core.legacy_models import UtenteLegacy
-
     legacy_user = get_legacy_user(request.user)
     return request.user.is_superuser or is_legacy_admin(legacy_user)
 
@@ -925,7 +923,7 @@ def campaign_remove_document(request, pk: int, cd_pk: int):
         request, "rimuovi", "procedure_refresh",
         _audit_detail(
             "Documento rimosso da campagna",
-            campaign_id=campaign.pk,
+            campaign_id=pk,
             campaign_document_id=cd_pk,
             revision=str(rev_str),
         )

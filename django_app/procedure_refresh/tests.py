@@ -229,6 +229,20 @@ class ViewTests(TestCase):
         self.assertIsNotNone(self.assignment.first_opened_at)
         self.assertEqual(self.assignment.status, AssignmentStatus.OPENED)
 
+    def test_campaign_remove_document(self):
+        """Regressione: la rimozione di un documento da campagna non deve andare in 500
+        (bug NameError su `campaign.pk` nel log_action)."""
+        self.client.force_login(self.user)
+        url = reverse(
+            "procedure_refresh:campaign_remove_document",
+            kwargs={"pk": self.campaign.pk, "cd_pk": self.campaign_doc.pk},
+        )
+        resp = self.client.post(url)
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(
+            ProcedureCampaignDocument.objects.filter(pk=self.campaign_doc.pk).exists()
+        )
+
     def test_assignment_detail_confirm_read(self):
         self.client.force_login(self.user)
         url = reverse("procedure_refresh:assignment_detail", kwargs={"pk": self.assignment.pk})
