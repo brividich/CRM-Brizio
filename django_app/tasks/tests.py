@@ -3014,3 +3014,89 @@ class ReadinessDashboardAggregateTests(TestCase):
         assert r.status_code == 200
         assert b"tk-readiness-summary" in r.content
         assert b"tk-readiness" in r.content
+
+
+class KickoffDaGestireTests(TestCase):
+    """Centro 'Da gestire' — logica delle 4 sezioni."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin = User.objects.create_superuser(
+            username="dg_admin", email="dg@x.local", password="x"
+        )
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def _req(self):
+        # Request reale processato dal middleware (ha legacy_user, ecc.):
+        # gli helper _scoped_* chiamano _has_task_permission che tocca attributi
+        # settati dal middleware, quindi NON usare RequestFactory.
+        return self.client.get(reverse("tasks:list")).wsgi_request
+
+    def _sections(self, data):
+        return {s["key"]: s for s in data["sections"]}
+
+    def test_vrf_pending_section(self):
+        # NB: Project.save() sovrascrive il name con "KICK-OFF <n>" per i nuovi
+        # progetti senza kickoff_number → verificare via id/url, non via name.
+        from tasks.models import Project, VRFDocStatus
+        from tasks.da_gestire import build_kickoff_da_gestire
+
+        p_pending = Project.objects.create(name="x", created_by=self.admin)  # PENDING
+        Project.objects.create(
+            name="y", created_by=self.admin, vrf_status=VRFDocStatus.UPLOADED
+        )
+        secs = self._sections(build_kickoff_da_gestire(self._req(), "portfolio"))
+        urls = [i["url"] for i in secs["vrf"]["items"]]
+        assert len(secs["vrf"]["items"]) == 1
+        assert any(f"/tasks/projects/{p_pending.id}/vrf/" in u for u in urls)
+
+    def test_not_ready_section(self):
+        from tasks.models import Project
+        from tasks.da_gestire import build_kickoff_da_gestire
+
+        p = Project.objects.create(name="x", created_by=self.admin)  # 0/4 -> notready
+        secs = self._sections(build_kickoff_da_gestire(self._req(), "portfolio"))
+        urls = [i["url"] for i in secs["not_ready"]["items"]]
+        assert any(f"?project={p.id}" in u for u in urls)
+
+    def test_critical_tasks_section_reasons(self):
+        from tasks.models import Project, Task, TaskStatus
+        from tasks.da_gestire import build_kickoff_da_gestire
+
+        p = Project.objects.create(name="C", created_by=self.admin)
+        Task.objects.create(
+            title="Scaduta", created_by=self.admin, project=p,
+            due_date=timezone.localdate() - timedelta(days=2),
+            status=TaskStatus.TODO, assigned_to=self.admin,
+        )
+        Task.objects.create(
+            title="NonAssegnata", created_by=self.admin, project=p,
+            due_date=timezone.localdate() + timedelta(days=5), status=TaskStatus.TODO,
+        )
+        secs = self._sections(build_kickoff_da_gestire(self._req(), "portfolio"))
+        titles = [i["label"] for i in secs["critical"]["items"]]
+        assert "Scaduta" in titles and "NonAssegnata" in titles
+
+    def test_meetings_open_issues_section(self):
+        from tasks.models import Project, KickoffMeeting, MeetingIssue, MeetingIssueStatus
+        from tasks.da_gestire import build_kickoff_da_gestire
+
+        p = Project.objects.create(name="M", created_by=self.admin)
+        m = KickoffMeeting.objects.create(
+            project=p, titolo="Inc1", data=timezone.localdate(), created_by=self.admin
+        )
+        MeetingIssue.objects.create(
+            project=p, source_meeting=m, title="Problema", status=MeetingIssueStatus.OPEN
+        )
+        secs = self._sections(build_kickoff_da_gestire(self._req(), "portfolio"))
+        assert len(secs["meetings"]["items"]) == 1
+        assert f"/tasks/projects/{p.id}/incontri/{m.id}/" in secs["meetings"]["items"][0]["url"]
+
+    def test_total_and_scope_normalized(self):
+        from tasks.da_gestire import build_kickoff_da_gestire
+
+        data = build_kickoff_da_gestire(self._req(), "garbage")
+        assert data["scope"] == "portfolio"
+        assert data["total"] == sum(len(s["items"]) for s in data["sections"])
