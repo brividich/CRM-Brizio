@@ -3325,6 +3325,23 @@ def project_list(request):
 
 
 @require_POST
+@task_permissions_required("tasks_view")
+def project_set_phase(request, project_id: int):
+    from tasks.models import ProjectPhase
+
+    project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    if not (_has_task_permission(request, "tasks_edit") or _can_manage_project(request, project)):
+        return JsonResponse({"ok": False, "error": "Permesso negato."}, status=403)
+    phase = (request.POST.get("phase") or "").strip()
+    if phase not in ProjectPhase.values:
+        return JsonResponse({"ok": False, "error": "Fase non valida."}, status=400)
+    if project.phase != phase:
+        project.phase = phase
+        project.save(update_fields=["phase", "updated_at"])
+    return JsonResponse({"ok": True, "phase": phase, "phase_label": ProjectPhase(phase).label})
+
+
+@require_POST
 @task_permissions_required("tasks_view", "tasks_create")
 def copy_project_with_vrf(request, project_id: int):
     source_project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)

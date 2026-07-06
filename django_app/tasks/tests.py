@@ -3161,3 +3161,44 @@ class ProjectPhaseDeriveTests(TestCase):
         assert derive_initial_phase(0, 0, "UPLOADED") == "VRF"
         assert derive_initial_phase(0, 0, "PENDING") == "BOZZA"
         assert derive_initial_phase(0, 0, "NOT_REQUIRED") == "BOZZA"
+
+
+class ProjectSetPhaseTests(TestCase):
+    """Board per fase — endpoint cambio fase."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin = User.objects.create_superuser(
+            username="ph_admin", email="p@x.local", password="x"
+        )
+        cls.outsider = User.objects.create_user(username="ph_out", password="x")
+
+    def _make_project(self):
+        from tasks.models import Project
+
+        return Project.objects.create(name="P", created_by=self.admin)
+
+    def test_editor_can_set_phase(self):
+        p = self._make_project()
+        self.client.force_login(self.admin)
+        r = self.client.post(reverse("tasks:project_set_phase", args=[p.id]), {"phase": "EXEC"})
+        assert r.status_code == 200
+        assert r.json()["phase"] == "EXEC"
+        p.refresh_from_db()
+        assert p.phase == "EXEC"
+
+    def test_invalid_phase_400(self):
+        p = self._make_project()
+        self.client.force_login(self.admin)
+        r = self.client.post(reverse("tasks:project_set_phase", args=[p.id]), {"phase": "NOPE"})
+        assert r.status_code == 400
+
+    def test_non_editor_denied(self):
+        # Il non-editor viene negato dal gate ACL (302 redirect del middleware
+        # strict-canonical) o dalla view (403/404): in ogni caso NON cambia la fase.
+        p = self._make_project()
+        self.client.force_login(self.outsider)
+        r = self.client.post(reverse("tasks:project_set_phase", args=[p.id]), {"phase": "EXEC"})
+        assert r.status_code in (302, 403, 404)
+        p.refresh_from_db()
+        assert p.phase == "BOZZA"

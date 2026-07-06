@@ -11,6 +11,7 @@ urlpatterns = [
     path("tasks/da-gestire/", views.da_gestire, name="da_gestire"),
     path("tasks/projects/", views.project_list, name="project_list"),
     path("tasks/projects/new/", views.project_create, name="project_create"),
+    path("tasks/projects/<int:project_id>/set-phase/", views.project_set_phase, name="project_set_phase"),
     path("tasks/projects/<int:project_id>/gantt/", views.project_gantt, name="project_gantt"),
     path(
         "tasks/projects/<int:project_id>/copy/",
