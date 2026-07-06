@@ -7,7 +7,7 @@
 **Il portale interno unificato di Costruzioni Novicrom SRL**
 *Workflow · Operations · Sicurezza · Automazioni · Governance*
 
-![Version](https://img.shields.io/badge/version-1.2.1-F97316?style=flat-square)
+![Version](https://img.shields.io/badge/version-1.3.0-F97316?style=flat-square)
 ![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white)
 ![Django](https://img.shields.io/badge/Django-5.2-0C4B33?style=flat-square&logo=django&logoColor=white)
 ![DB](https://img.shields.io/badge/DB-SQLite%20%7C%20SQL%20Server-1E3A5F?style=flat-square&logo=microsoftsqlserver&logoColor=white)
@@ -472,6 +472,7 @@ Portfolio gestione progetti con workflow documento **VRF** (MOD.073). Presentato
 - **Kickoff = progetto** con numerazione automatica `KICK-OFF <progressivo>`
 - **Prontezza all'avvio (readiness)**: gate a 4 criteri calcolato al volo (VRF a posto · incontro di kickoff · team assegnato PM/CC/programmatore · piano attività con scadenza), con semaforo + conteggio, checklist azionabile nell'header commessa e riepilogo aggregato in dashboard. Nessun campo persistente né migrazione; annotazioni `Exists` per evitare N+1; badge dark-safe sui token
 - **Centro «Da gestire»** (`/tasks/da-gestire/`, voce subnav): pagina portfolio/PM che raccoglie in liste azionabili ciò che richiede intervento — VRF da caricare, commesse non pronte, attività critiche (scadute/non assegnate/senza data/ferme), incontri con problemi aperti — con toggle **Portfolio / Le mie**. Solo navigazione (link mirati), logica isolata `tasks/da_gestire.py`, riusa la readiness
+- **Board per fase** (toggle Card ⇄ Board sul portfolio `/tasks/projects/`): vista Kanban delle commesse per fase del ciclo di avvio (**Bozza · VRF · In esecuzione · Completata**), campo persistente `Project.phase` con backfill derivato; **drag&drop** (o `<select>` di fallback) per cambiare fase via `project_set_phase` (permesso di modifica; sola lettura per gli altri)
 - **Identità univoca** su `part_number + revisione + versione` — riuso automatico, niente duplicati
 - **Timeline eventi attività**: il dettaglio task mostra una storia operativa leggibile (stato, date, assegnatari, subtask, allegati) con payload tecnico ancora consultabile in disclosure audit
 - **Gantt KICK-OFF**: drag al centro della barra per spostare inizio/fine insieme; drag sui bordi per allungare o accorciare solo inizio/fine mantenendo separata la durata dallo shift date
@@ -1286,7 +1287,7 @@ Il comando `status` segnala automaticamente sessioni stale (avvio > 8 ore: avvis
 
 <div align="center">
 
-**NOVICROM HUB** · Costruzioni Novicrom SRL · `v1.2.1`
+**NOVICROM HUB** · Costruzioni Novicrom SRL · `v1.3.0`
 
 *Repository ripulito per pubblicazione sicura: nessuna credenziale reale è inclusa.
 I file `.example` sono template. Il pre-commit hook in `tools/git-hooks/` blocca
