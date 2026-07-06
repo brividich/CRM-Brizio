@@ -1,0 +1,36 @@
+{% extends "tasks/base_shell.html" %}
+
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Calendario</span>{% endblock %}
+{% block tasks_shell_title %}Calendario incontri{% endblock %}
+{% block tasks_shell_subtitle %}Gli incontri di kickoff del mese, tutte le commesse.{% endblock %}
+
+{% block tasks_shell_actions %}
+  <a class="ts-hero-action" href="?m={{ cal.prev }}" aria-label="Mese precedente">‹</a>
+  <a class="ts-hero-action" href="{% url 'tasks:incontri_calendario' %}">Oggi</a>
+  <a class="ts-hero-action" href="?m={{ cal.next }}" aria-label="Mese successivo">›</a>
+{% endblock %}
+
+{% block tasks_shell_content %}
+<section class="ts-panel">
+  <div class="ts-panel-head"><h2 class="ts-panel-title">{{ cal.month_label }}</h2></div>
+  <div class="ts-panel-body">
+    <div class="cal-scroll">
+      <div class="cal-grid">
+        <div class="cal-dow">Lun</div><div class="cal-dow">Mar</div><div class="cal-dow">Mer</div><div class="cal-dow">Gio</div><div class="cal-dow">Ven</div><div class="cal-dow">Sab</div><div class="cal-dow">Dom</div>
+        {% for week in cal.weeks %}
+          {% for day in week %}
+            <div class="cal-day{% if not day.in_month %} cal-day--out{% endif %}{% if day.is_today %} cal-day--today{% endif %}">
+              <div class="cal-day-num">{{ day.date.day }}</div>
+              {% for mtg in day.meetings %}
+                <a class="cal-mtg" href="{% url 'tasks:project_meeting_detail' mtg.project_id mtg.id %}" title="{{ mtg.luogo }}">
+                  {% if mtg.ora %}{{ mtg.ora|time:"H:i" }} {% endif %}{{ mtg.project.name }}
+                </a>
+              {% endfor %}
+            </div>
+          {% endfor %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

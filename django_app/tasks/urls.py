@@ -9,6 +9,7 @@ app_name = "tasks"
 urlpatterns = [
     path("tasks/", views.task_list, name="list"),
     path("tasks/da-gestire/", views.da_gestire, name="da_gestire"),
+    path("tasks/incontri-calendario/", views.incontri_calendario, name="incontri_calendario"),
     path("tasks/projects/", views.project_list, name="project_list"),
     path("tasks/projects/new/", views.project_create, name="project_create"),
     path("tasks/projects/<int:project_id>/set-phase/", views.project_set_phase, name="project_set_phase"),

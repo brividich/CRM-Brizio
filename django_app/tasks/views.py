@@ -3341,6 +3341,40 @@ def project_list(request):
     )
 
 
+@task_permissions_required("tasks_view")
+def incontri_calendario(request):
+    from tasks.models import KickoffMeeting
+    from tasks.calendario import build_meetings_calendar
+
+    today = timezone.localdate()
+    year, month = today.year, today.month
+    m_param = (request.GET.get("m") or "").strip()
+    if m_param:
+        try:
+            y_str, mo_str = m_param.split("-")
+            y, mo = int(y_str), int(mo_str)
+            if 1 <= mo <= 12:
+                year, month = y, mo
+        except (ValueError, TypeError):
+            pass
+    meetings = (
+        KickoffMeeting.objects
+        .filter(project__in=_scoped_projects_queryset(request), data__year=year, data__month=month)
+        .select_related("project")
+        .order_by("data", "ora")
+    )
+    cal = build_meetings_calendar(list(meetings), year, month, today=today)
+    return render(
+        request,
+        "tasks/incontri_calendario.html",
+        {
+            **_tasks_shell_context(request, active="calendario"),
+            "page_title": "Calendario incontri",
+            "cal": cal,
+        },
+    )
+
+
 @require_POST
 @task_permissions_required("tasks_view")
 def project_set_phase(request, project_id: int):

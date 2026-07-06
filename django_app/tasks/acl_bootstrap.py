@@ -8,7 +8,7 @@ from core.acl_bootstrap_base import run_bootstrap
 
 logger = logging.getLogger(__name__)
 
-_BOOTSTRAP_CACHE_KEY = "tasks_acl_bootstrap_v6"
+_BOOTSTRAP_CACHE_KEY = "tasks_acl_bootstrap_v7"
 
 MODULE = "tasks"
 
@@ -107,6 +107,7 @@ _ROUTE_BINDINGS = {
     # Lista e dettaglio attività
     "tasks:list": "tasks.kickoff.view",
     "tasks:da_gestire": "tasks.kickoff.view",
+    "tasks:incontri_calendario": "tasks.kickoff.view",
     "tasks:detail": "tasks.kickoff.view",
     "tasks:download_excel_template": "tasks.kickoff.view",
     "tasks:category_fields_json": "tasks.kickoff.view",

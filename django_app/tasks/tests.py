@@ -3256,3 +3256,54 @@ class MeetingsCalendarTests(TestCase):
 
         assert build_meetings_calendar([], 2026, 1)["prev"] == "2025-12"
         assert build_meetings_calendar([], 2026, 12)["next"] == "2027-01"
+
+
+class MeetingsCalendarRenderTests(TestCase):
+    """Calendario incontri — render pagina."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin = User.objects.create_superuser(
+            username="cal_admin", email="c@x.local", password="x"
+        )
+
+    def setUp(self):
+        from tasks.models import Project, KickoffMeeting
+
+        self.client.force_login(self.admin)
+        p = Project.objects.create(name="P", created_by=self.admin)
+        self.meeting = KickoffMeeting.objects.create(
+            project=p, numero=1, titolo="Inc", data=timezone.localdate(), created_by=self.admin
+        )
+
+    def test_calendar_renders_current_month_with_meeting(self):
+        r = self.client.get(reverse("tasks:incontri_calendario"))
+        assert r.status_code == 200
+        assert b"cal-grid" in r.content
+        detail_url = reverse(
+            "tasks:project_meeting_detail", args=[self.meeting.project_id, self.meeting.id]
+        )
+        assert detail_url.encode() in r.content
+
+    def test_month_param_navigates(self):
+        r = self.client.get(reverse("tasks:incontri_calendario") + "?m=2026-01")
+        assert r.status_code == 200
+        assert b"Gennaio 2026" in r.content
+
+
+class MeetingsCalendarNavAclTests(TestCase):
+    def test_subnav_seeded(self):
+        from core.models import NavigationItem
+
+        item = NavigationItem.objects.get(code="tasks-sub-calendario")
+        assert item.section == "subnav" and item.parent_code == "tasks"
+        assert item.route_name == "tasks:incontri_calendario"
+
+    def test_route_bound(self):
+        from core.models import RoutePermissionBinding
+        from tasks.acl_bootstrap import bootstrap_tasks_acl_endpoints
+
+        bootstrap_tasks_acl_endpoints(force=True)
+        assert RoutePermissionBinding.objects.filter(
+            route_name="tasks:incontri_calendario", permission_id="tasks.kickoff.view", is_active=True
+        ).exists()
