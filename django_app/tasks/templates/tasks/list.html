@@ -800,7 +800,10 @@
         <h2 class="ts-panel-title">Alert operativi</h2>
         <p class="ts-panel-subtitle">Situazioni che richiedono intervento amministrativo.</p>
       </div>
-      <span class="ts-chip info">Admin</span>
+      <div class="ts-panel-meta">
+        <a class="ts-chip soft" style="text-decoration:none;" href="{% url 'tasks:da_gestire' %}">Vai a «Da gestire»</a>
+        <span class="ts-chip info">Admin</span>
+      </div>
     </div>
     <div class="ts-panel-body">
       <div class="tl-admin-kpis">
