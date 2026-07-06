@@ -121,6 +121,42 @@
     </div>
 
     <div class="pr-card">
+      <div class="pr-card-title">Sincronizzazione corpus SGI</div>
+      <p style="font-size:13px;color:#64748b;margin:0 0 14px;">
+        Importa dalla share i documenti SGI nuovi o aggiornati (solo quelli a perimetro sicuro:
+        codice riconosciuto e non gestiti a mano). L'auto-sync notturno alle 03:00 li rende
+        disponibili all'AI dal re-index delle 03:30. I documenti in presa visione non vengono
+        mai toccati automaticamente.
+      </p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+        <form method="post" style="margin:0;">
+          {% csrf_token %}
+          <input type="hidden" name="save_sgi_auto_sync" value="1">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#0f172a;">
+            <input type="checkbox" name="sgi_auto_sync_attivo" value="1" {% if sgi_auto_on %}checked{% endif %}
+                   onchange="this.form.submit()">
+            Auto-sync notturno attivo
+          </label>
+        </form>
+        <form method="post" action="{% url 'procedure_refresh:sgi_sync_now' %}" style="margin:0;">
+          {% csrf_token %}
+          <button type="submit" class="pr-ql" style="cursor:pointer;background:#0f766e;color:#fff;border-color:#0f766e;">
+            Sincronizza ora
+          </button>
+        </form>
+      </div>
+      {% if sgi_last_sync %}
+        <p style="font-size:12px;color:#475569;margin:12px 0 0;">
+          Ultima sync: <strong>{{ sgi_last_sync.at }}</strong> —
+          {{ sgi_last_sync.created }} creati, {{ sgi_last_sync.updated }} aggiornati,
+          {{ sgi_last_sync.revisions }} revisioni, {{ sgi_last_sync.excluded }} esclusi (fuori perimetro sicuro).
+        </p>
+      {% else %}
+        <p style="font-size:12px;color:#94a3b8;margin:12px 0 0;">Nessuna sincronizzazione automatica ancora eseguita.</p>
+      {% endif %}
+    </div>
+
+    <div class="pr-card">
       <div class="pr-card-title">Solleciti presa visione</div>
       <p style="font-size:13px;color:#64748b;margin:0 0 14px;">
         La marcatura <strong>Scaduta</strong> delle assegnazioni oltre la data limite avviene sempre,

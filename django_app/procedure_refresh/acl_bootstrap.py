@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from core.acl_bootstrap_base import run_bootstrap
 
-_BOOTSTRAP_CACHE_KEY = "procedure_refresh_acl_bootstrap_v2"
+_BOOTSTRAP_CACHE_KEY = "procedure_refresh_acl_bootstrap_v3"
 
 _PULSANTI_DEFINITIONS = [
     {
@@ -26,6 +26,14 @@ _PULSANTI_DEFINITIONS = [
         "codice": "pr_admin",
         "label": "Presa Visione - Impostazioni",
         "url": "/procedure-refresh/impostazioni/",
+        "visible_topbar": False,
+        "ui_order": None,
+    },
+    {
+        "modulo": "procedure_refresh",
+        "codice": "pr_sgi_sync",
+        "label": "Presa Visione - Sync SGI",
+        "url": "/procedure-refresh/admin/sgi-sync/",
         "visible_topbar": False,
         "ui_order": None,
     },

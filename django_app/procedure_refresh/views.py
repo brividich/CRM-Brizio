@@ -15,6 +15,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from django_q.tasks import async_task
+
 from core.audit import log_action
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 from core.module_branding import get_module_branding_context, handle_module_branding_post
@@ -425,6 +427,21 @@ def admin_dashboard(request):
         return redirect("procedure_refresh:my_assignments")
 
     if request.method == "POST":
+        if request.POST.get("save_sgi_auto_sync") is not None:
+            from core.models import SiteConfig
+
+            attivo = bool(request.POST.get("sgi_auto_sync_attivo"))
+            SiteConfig.set(
+                "pr_sgi_auto_sync_attivo", "1" if attivo else "0",
+                "Presa visione: sync automatica notturna del corpus SGI (perimetro sicuro).",
+            )
+            log_action(
+                request, "modifica", "procedure_refresh",
+                _audit_detail(f"Auto-sync SGI {'attivata' if attivo else 'disattivata'}"),
+            )
+            messages.success(request, f"Sync SGI automatica {'attivata' if attivo else 'disattivata'}.")
+            return redirect("procedure_refresh:admin_dashboard")
+
         if request.POST.get("save_reminder_config"):
             from .reminder_config import save_reminder_config
 
@@ -472,9 +489,24 @@ def admin_dashboard(request):
 
     from .reminder_config import GIORNI_VALIDI, get_reminder_config
 
+    from core.models import SiteConfig
+
+    sgi_auto_on = str(SiteConfig.get("pr_sgi_auto_sync_attivo", "") or "").strip().lower() in {"1", "true", "on", "yes"}
+    sgi_last_sync = None
+    raw_last = SiteConfig.get("pr_sgi_last_sync", "")
+    if raw_last:
+        import json as _json
+
+        try:
+            sgi_last_sync = _json.loads(raw_last)
+        except (ValueError, TypeError):
+            sgi_last_sync = None
+
     return render(request, "procedure_refresh/pages/admin_dashboard.html", {
         "reminder_cfg": get_reminder_config(),
         "reminder_giorni_validi": GIORNI_VALIDI,
+        "sgi_auto_on": sgi_auto_on,
+        "sgi_last_sync": sgi_last_sync,
         "n_documents": n_documents,
         "n_campaigns": n_campaigns,
         "n_published": n_published,
@@ -486,6 +518,34 @@ def admin_dashboard(request):
         "CampaignStatus": CampaignStatus,
         **get_module_branding_context("procedure_refresh", fallback_label="Procedure Refresh"),
     })
+
+
+@login_required
+@require_POST
+def sgi_sync_now(request):
+    if not _is_manager(request):
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("procedure_refresh:my_assignments")
+
+    try:
+        async_task(
+            "procedure_refresh.tasks.run_sgi_auto_sync",
+            force=True,
+            reindex=True,
+        )
+        messages.success(
+            request,
+            "Sincronizzazione SGI avviata in background. L'esito comparirà tra poco nella card qui sotto.",
+        )
+    except Exception:
+        logger.exception("Avvio sync SGI manuale fallito")
+        messages.error(request, "Impossibile avviare la sincronizzazione (coda non disponibile).")
+
+    log_action(
+        request, "sgi_sync", "procedure_refresh",
+        _audit_detail("Sync SGI manuale avviata"),
+    )
+    return redirect("procedure_refresh:admin_dashboard")
 
 
 @login_required

@@ -13,6 +13,7 @@ urlpatterns = [
     # ── Admin — dashboard ───────────────────────────────────────────────────
     path("impostazioni/", views.admin_dashboard, name="admin_dashboard"),
     path("admin/", RedirectView.as_view(pattern_name="procedure_refresh:admin_dashboard", permanent=False)),
+    path("admin/sgi-sync/", views.sgi_sync_now, name="sgi_sync_now"),
 
     # ── Admin — documenti ───────────────────────────────────────────────────
     path("admin/documenti/", views.document_list, name="document_list"),

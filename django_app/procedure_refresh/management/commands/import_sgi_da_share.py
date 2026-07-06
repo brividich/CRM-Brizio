@@ -248,16 +248,135 @@ def scan_share_candidates(
     return candidates, skipped, conflicts
 
 
+@transaction.atomic
+def upsert_candidate(info: dict) -> tuple[str, bool]:
+    """Crea/aggiorna documento + revisione corrente da un candidato parserizzato.
+
+    Ritorna ``(stato_doc, rev_creata)`` con ``stato_doc`` in {"created","updated"}.
+    Funzione modulare riusata sia dal comando ``import_sgi_da_share`` sia dal task
+    di sincronizzazione automatica ``run_sgi_auto_sync``.
+    """
+    doc, doc_created = ProcedureDocument.objects.get_or_create(
+        code=info["code"],
+        defaults={
+            "title": info["title"],
+            "category": info["category"],
+            "document_type": info["document_type"],
+            "is_active": True,
+            # Import per il RAG: non li marchiamo come "richiede presa visione"
+            # (non vanno spinti nei flussi di conferma lettura senza una decisione umana).
+            "requires_acknowledgement": False,
+        },
+    )
+    doc_state = "created"
+    if not doc_created:
+        doc_state = "updated"
+        if not doc.is_active:
+            doc.is_active = True
+            doc.save(update_fields=["is_active", "updated_at"])
+
+    path = Path(info["path"])
+    try:
+        stat = path.stat()
+        file_date = date.fromtimestamp(stat.st_mtime)
+        file_hash = _sha256(path)
+    except OSError:
+        file_date = date.today()
+        file_hash = ""
+
+    rev, rev_created = ProcedureRevision.objects.get_or_create(
+        document=doc,
+        revision_code=info["revision"],
+        defaults={
+            "revision_date": file_date,
+            "effective_date": file_date,
+            "source_type": SourceType.FILESERVER,
+            "source_path": info["path"],
+            "file_name": info["file_name"],
+            "file_hash": file_hash,
+            "is_current": True,
+        },
+    )
+    if not rev_created:
+        rev.source_type = SourceType.FILESERVER
+        rev.source_path = info["path"]
+        rev.file_name = info["file_name"]
+        rev.file_hash = file_hash
+        rev.is_current = True  # save() azzera le altre correnti del documento
+    else:
+        rev.is_current = True
+    rev.save()
+    return doc_state, rev_created
+
+
+def _doc_is_import_child(doc) -> bool:
+    """True se il documento è interamente 'figlio dell'import SGI' e quindi
+    l'auto-sync può toccarlo senza rischio di scavalcare evidenza gestita a mano:
+    tutte le revisioni sono ``fileserver``, non richiede presa visione e nessuna
+    sua revisione è mai stata assegnata in una campagna."""
+    from procedure_refresh.models import ProcedureAssignment, SourceType
+
+    if doc.requires_acknowledgement:
+        return False
+    revisions = list(doc.revisions.all())
+    if not revisions:
+        return True
+    if any(r.source_type != SourceType.FILESERVER for r in revisions):
+        return False
+    rev_ids = [r.pk for r in revisions]
+    if ProcedureAssignment.objects.filter(revision_id__in=rev_ids).exists():
+        return False
+    return True
+
+
+def filter_auto_safe(candidates: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Divide i candidati in (safe, excluded) per la sincronizzazione automatica.
+
+    Un candidato è SAFE se il nome è riconosciuto dal parser (``not fallback``) e
+    o il codice è nuovo, o il documento esistente è interamente figlio dell'import
+    (:func:`_doc_is_import_child`). Tutto il resto è escluso e resta all'occhio
+    umano (watchdog): niente scritture automatiche su documenti in presa visione,
+    su codici disambiguati o su nomi non riconosciuti.
+    """
+    from procedure_refresh.models import ProcedureDocument
+
+    existing = {
+        d.code: d
+        for d in ProcedureDocument.objects.filter(
+            code__in=[c["code"] for c in candidates]
+        ).prefetch_related("revisions")
+    }
+    safe: list[dict] = []
+    excluded: list[dict] = []
+    for info in candidates:
+        if info.get("fallback") or info.get("disambiguated_from"):
+            excluded.append({**info, "motivo_esclusione": "nome non riconosciuto o codice disambiguato"})
+            continue
+        doc = existing.get(info["code"])
+        if doc is None:
+            safe.append(info)
+        elif _doc_is_import_child(doc):
+            safe.append(info)
+        else:
+            excluded.append({**info, "motivo_esclusione": "documento gestito a mano / in presa visione"})
+    return safe, excluded
+
+
 def detect_share_drift(root: Path, *, solo_procedure: bool = False) -> dict:
     """Confronta la share col DB (ProcedureDocument attivi + revisione corrente) SENZA
-    scrivere. Ritorna i documenti **nuovi** (codice assente nel DB) e **aggiornati**
-    (revisione sulla share > revisione corrente nel DB). Base del watchdog di notifica:
-    l'import resta manuale (--apply)."""
-    from procedure_refresh.models import ProcedureDocument
+    scrivere. Ritorna i documenti **nuovi** (codice assente nel DB), **aggiornati**
+    (revisione sulla share > revisione corrente nel DB) e **spariti** (documento
+    attivo, revisione corrente ``fileserver``, il cui file non è più presente sotto
+    la root o è finito in ``SUPERATO``). Base del watchdog di notifica: l'import e la
+    disattivazione restano azioni umane (--apply)."""
+    from procedure_refresh.models import ProcedureDocument, SourceType
 
     candidates, _skipped, _conflicts = scan_share_candidates(root, solo_procedure=solo_procedure)
     db_current: dict[str, str] = {}
-    for doc in ProcedureDocument.objects.filter(is_active=True).prefetch_related("revisions"):
+    active_docs = list(
+        ProcedureDocument.objects.filter(is_active=True).prefetch_related("revisions")
+    )
+    for doc in active_docs:
         rev = doc.current_revision()
         db_current[doc.code] = rev.revision_code if rev else ""
 
@@ -276,11 +395,36 @@ def detect_share_drift(root: Path, *, solo_procedure: bool = False) -> dict:
                 "revision_db": db_current[code], "title": info.get("title", ""),
                 "file_name": info.get("file_name", ""),
             })
+
+    # Documenti "spariti": revisione corrente su file server il cui path non esiste
+    # più o è passato sotto SUPERATO. Solo notifica: la disattivazione resta umana
+    # (requisito ISO "prevenire l'uso di documenti obsoleti").
+    missing_docs: list[dict] = []
+    for doc in active_docs:
+        rev = doc.current_revision()
+        if rev is None or rev.source_type != SourceType.FILESERVER:
+            continue
+        path_str = rev.source_path or ""
+        if not path_str:
+            continue
+        gone = _SUPERATO_RE.search(path_str)
+        if not gone:
+            try:
+                gone = not Path(path_str).exists()
+            except OSError:
+                gone = True
+        if gone:
+            missing_docs.append({
+                "code": doc.code, "title": doc.title,
+                "revision": rev.revision_code, "source_path": path_str,
+            })
+
     return {
         "total_candidates": len(candidates),
         "in_db": len(db_current),
         "new": new_docs,
         "updated": updated_docs,
+        "missing": missing_docs,
     }
 
 
@@ -407,60 +551,9 @@ class Command(BaseCommand):
         else:
             self.stdout.write("Dry-run: nulla scritto. Rilancia con --apply per registrare i documenti.")
 
-    @transaction.atomic
     def _upsert(self, info: dict) -> tuple[str, bool]:
         """Crea/aggiorna documento + revisione corrente. Ritorna (stato_doc, rev_creata)."""
-        doc, doc_created = ProcedureDocument.objects.get_or_create(
-            code=info["code"],
-            defaults={
-                "title": info["title"],
-                "category": info["category"],
-                "document_type": info["document_type"],
-                "is_active": True,
-                # Import per il RAG: non li marchiamo come "richiede presa visione"
-                # (non vanno spinti nei flussi di conferma lettura senza una decisione umana).
-                "requires_acknowledgement": False,
-            },
-        )
-        doc_state = "created"
-        if not doc_created:
-            doc_state = "updated"
-            if not doc.is_active:
-                doc.is_active = True
-                doc.save(update_fields=["is_active", "updated_at"])
-
-        path = Path(info["path"])
-        try:
-            stat = path.stat()
-            file_date = date.fromtimestamp(stat.st_mtime)
-            file_hash = _sha256(path)
-        except OSError:
-            file_date = date.today()
-            file_hash = ""
-
-        rev, rev_created = ProcedureRevision.objects.get_or_create(
-            document=doc,
-            revision_code=info["revision"],
-            defaults={
-                "revision_date": file_date,
-                "effective_date": file_date,
-                "source_type": SourceType.FILESERVER,
-                "source_path": info["path"],
-                "file_name": info["file_name"],
-                "file_hash": file_hash,
-                "is_current": True,
-            },
-        )
-        if not rev_created:
-            rev.source_type = SourceType.FILESERVER
-            rev.source_path = info["path"]
-            rev.file_name = info["file_name"]
-            rev.file_hash = file_hash
-            rev.is_current = True  # save() azzera le altre correnti del documento
-        else:
-            rev.is_current = True
-        rev.save()
-        return doc_state, rev_created
+        return upsert_candidate(info)
 
     def _safe(self, text: str) -> str:
         enc = getattr(getattr(self.stdout, "_out", None), "encoding", None) or "utf-8"

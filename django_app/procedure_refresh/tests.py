@@ -612,6 +612,152 @@ class SgiShareDriftTests(TestCase):
         self.assertTrue(res["skipped"])
 
 
+class AutoSyncSafeSubsetTests(TestCase):
+    """Sync SGI automatica: perimetro sicuro (filter_auto_safe) + task."""
+
+    def _candidate(self, code, title="Titolo", revision="1", fallback=False, disamb=None):
+        info = {
+            "code": code, "title": title, "revision": revision,
+            "document_type": "MT", "category": "9100", "fallback": fallback,
+            "file_name": f"{code}.pdf", "path": f"C:/share/{code}.pdf",
+        }
+        if disamb:
+            info["disambiguated_from"] = disamb
+        return info
+
+    def _seed(self, code, *, source_type=SourceType.FILESERVER, requires_ack=False, with_assignment=False):
+        doc = ProcedureDocument.objects.create(
+            code=code, title="t", is_active=True, requires_acknowledgement=requires_ack
+        )
+        rev = ProcedureRevision.objects.create(
+            document=doc, revision_code="1", revision_date=date.today(),
+            effective_date=date.today(), source_type=source_type,
+            source_path="C:/share/x.pdf", source_url="https://x/y.pdf" if source_type == SourceType.SHAREPOINT else "",
+            file_name="x.pdf", is_current=True,
+        )
+        if with_assignment:
+            camp = ProcedureCampaign.objects.create(
+                name="c", status=CampaignStatus.PUBLISHED,
+                start_date=date.today(), due_date=date.today(),
+            )
+            u = User.objects.create_user(username=f"u_{code}", password="pw")
+            ProcedureAssignment.objects.create(
+                campaign=camp, revision=rev, user=u, status=AssignmentStatus.ASSIGNED
+            )
+        return doc
+
+    def test_filter_auto_safe(self):
+        from procedure_refresh.management.commands.import_sgi_da_share import filter_auto_safe
+
+        self._seed("MT-EXIST-CHILD")                                  # figlio import -> safe
+        self._seed("MT-EXIST-SP", source_type=SourceType.SHAREPOINT)  # sharepoint -> escluso
+        self._seed("MT-EXIST-ACK", requires_ack=True)                 # presa visione -> escluso
+        self._seed("MT-EXIST-ASSIGNED", with_assignment=True)         # assegnato -> escluso
+
+        candidates = [
+            self._candidate("MT-NEW-001"),                 # nuovo -> safe
+            self._candidate("MT-EXIST-CHILD"),             # safe
+            self._candidate("MT-EXIST-SP"),                # escluso
+            self._candidate("MT-EXIST-ACK"),               # escluso
+            self._candidate("MT-EXIST-ASSIGNED"),          # escluso
+            self._candidate("MT-FALLBACK", fallback=True), # escluso (nome non riconosciuto)
+            self._candidate("MT-DISAMB", disamb="MT-BASE"),# escluso (disambiguato)
+        ]
+        safe, excluded = filter_auto_safe(candidates)
+        safe_codes = {c["code"] for c in safe}
+        self.assertEqual(safe_codes, {"MT-NEW-001", "MT-EXIST-CHILD"})
+        self.assertEqual(len(excluded), 5)
+
+    def test_run_auto_sync_flag_off_skips(self):
+        from procedure_refresh.tasks import run_sgi_auto_sync
+
+        res = run_sgi_auto_sync()  # flag non impostato
+        self.assertTrue(res["skipped"])
+        self.assertEqual(res["created"], 0)
+
+    def test_run_auto_sync_applies_safe_only(self):
+        import tempfile
+        from pathlib import Path
+
+        from django.test import override_settings
+
+        from core.models import SiteConfig
+        from procedure_refresh.tasks import run_sgi_auto_sync
+
+        SiteConfig.set("pr_sgi_auto_sync_attivo", "1", "test")
+        # Documento in presa visione già esistente: l'auto-sync NON deve toccarlo.
+        doc_ack = ProcedureDocument.objects.create(
+            code="MT CN 06", title="Manuale", is_active=True, requires_acknowledgement=True
+        )
+        ProcedureRevision.objects.create(
+            document=doc_ack, revision_code="20", revision_date=date.today(),
+            effective_date=date.today(), source_type=SourceType.FILESERVER,
+            source_path="C:/old.pdf", file_name="old.pdf", is_current=True,
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            for rel in ["9100/MT CN 07 Rev.3_Nuovo.pdf", "9100/MT CN 06 Rev.21_Manuale.pdf"]:
+                p = Path(tmp) / rel
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_bytes(b"%PDF-1.4 x")
+            with override_settings(PROCEDURE_REFRESH_SGI_SHARE_ROOT=tmp):
+                res = run_sgi_auto_sync(reindex=False)
+        self.assertTrue(res["ok"])
+        self.assertFalse(res["skipped"])
+        self.assertEqual(res["created"], 1)  # solo MT CN 07 (nuovo, safe)
+        self.assertTrue(ProcedureDocument.objects.filter(code="MT CN 07").exists())
+        # Il doc in presa visione resta alla sua revisione (non scavalcato)
+        doc_ack.refresh_from_db()
+        self.assertEqual(doc_ack.current_revision().revision_code, "20")
+        # Esito persistito
+        self.assertTrue(SiteConfig.get("pr_sgi_last_sync", ""))
+
+    def test_detect_missing_documents(self):
+        import tempfile
+        from pathlib import Path
+
+        from procedure_refresh.management.commands.import_sgi_da_share import detect_share_drift
+
+        with tempfile.TemporaryDirectory() as tmp:
+            # Documento con path che NON esiste sulla share -> "missing"
+            doc = ProcedureDocument.objects.create(code="MT-GONE", title="Sparito", is_active=True)
+            ProcedureRevision.objects.create(
+                document=doc, revision_code="1", revision_date=date.today(),
+                effective_date=date.today(), source_type=SourceType.FILESERVER,
+                source_path=str(Path(tmp) / "non_esiste.pdf"), file_name="non_esiste.pdf",
+                is_current=True,
+            )
+            drift = detect_share_drift(Path(tmp))
+        codes = {m["code"] for m in drift["missing"]}
+        self.assertIn("MT-GONE", codes)
+
+
+class SgiSyncNowViewTests(TestCase):
+    def setUp(self):
+        self.manager = User.objects.create_user(
+            username="syncmgr", password="pw", is_superuser=True
+        )
+        self.client.force_login(self.manager)
+
+    def test_pulsante_accoda_task(self):
+        with mock.patch("procedure_refresh.views.async_task") as m:
+            resp = self.client.post(reverse("procedure_refresh:sgi_sync_now"))
+        self.assertEqual(resp.status_code, 302)
+        m.assert_called_once()
+        args, kwargs = m.call_args
+        self.assertEqual(args[0], "procedure_refresh.tasks.run_sgi_auto_sync")
+        self.assertTrue(kwargs.get("force"))
+
+    def test_toggle_auto_sync(self):
+        from core.models import SiteConfig
+
+        resp = self.client.post(reverse("procedure_refresh:admin_dashboard"), {
+            "save_sgi_auto_sync": "1",
+            "sgi_auto_sync_attivo": "1",
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(SiteConfig.get("pr_sgi_auto_sync_attivo", ""), "1")
+
+
 class AssignUsersNotificaTests(TestCase):
     """All'assegnazione parte la notifica in-app (niente mail: la manda l'IT)."""
 

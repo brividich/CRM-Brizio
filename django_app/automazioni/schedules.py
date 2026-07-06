@@ -176,6 +176,19 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # Sincronizzazione automatica del corpus SGI dalla share (perimetro sicuro):
+        # applica solo documenti nuovi o interamente figli dell'import, MAI quelli in
+        # presa visione o gestiti a mano. Dietro flag SiteConfig pr_sgi_auto_sync_attivo
+        # (default off). Gira alle 03:00 così i nuovi documenti sono già indicizzati dal
+        # re-index RAG delle 03:30. Fail-safe / no-op se flag off o share giù.
+        "name": "pr_sgi_auto_sync",
+        "func": "procedure_refresh.tasks.run_sgi_auto_sync",
+        "schedule_type": "C",   # Schedule.CRON
+        "cron": "0 3 * * *",    # ogni notte alle 03:00 (prima del re-index RAG 03:30)
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # Motore scadenze presa visione (ISO 9001/EN 9100): marca SEMPRE "Scaduta"
         # le assegnazioni oltre due_date (stato dei dati, evidenza audit); con
         # pr_reminder_attivo=1 invia anche promemoria pre-scadenza, solleciti agli
