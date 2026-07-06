@@ -3100,3 +3100,30 @@ class KickoffDaGestireTests(TestCase):
         data = build_kickoff_da_gestire(self._req(), "garbage")
         assert data["scope"] == "portfolio"
         assert data["total"] == sum(len(s["items"]) for s in data["sections"])
+
+
+class KickoffDaGestireRenderTests(TestCase):
+    """Pagina /tasks/da-gestire/ — render + toggle."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin = User.objects.create_superuser(
+            username="dg_render", email="r@x.local", password="x"
+        )
+
+    def setUp(self):
+        from tasks.models import Project
+
+        self.client.force_login(self.admin)
+        Project.objects.create(name="Vuota", created_by=self.admin)
+
+    def test_page_renders_with_sections_and_toggle(self):
+        r = self.client.get(reverse("tasks:da_gestire"))
+        assert r.status_code == 200
+        assert b"dg-section" in r.content
+        assert b"Commesse non pronte" in r.content
+        assert b"?scope=mine" in r.content
+
+    def test_scope_mine_renders(self):
+        r = self.client.get(reverse("tasks:da_gestire") + "?scope=mine")
+        assert r.status_code == 200

@@ -2159,6 +2159,28 @@ def task_list(request):
 
 
 @task_permissions_required("tasks_view")
+def da_gestire(request):
+    from tasks.da_gestire import build_kickoff_da_gestire
+
+    is_admin = _has_task_permission(request, "tasks_admin")
+    scope = request.GET.get("scope") or ("portfolio" if is_admin else "mine")
+    if scope not in ("portfolio", "mine"):
+        scope = "portfolio" if is_admin else "mine"
+    data = build_kickoff_da_gestire(request, scope)
+    return render(
+        request,
+        "tasks/da_gestire.html",
+        {
+            **_tasks_shell_context(request, active="da_gestire"),
+            "page_title": "Da gestire",
+            "da_gestire_data": data,
+            "scope": scope,
+            "is_scope_admin": is_admin,
+        },
+    )
+
+
+@task_permissions_required("tasks_view")
 def task_detail(request, task_id: int):
     task = get_object_or_404(_detail_queryset(request), pk=task_id)
     can_manage = _can_manage_task(request, task)

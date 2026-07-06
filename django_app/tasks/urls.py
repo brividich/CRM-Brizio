@@ -8,6 +8,7 @@ app_name = "tasks"
 
 urlpatterns = [
     path("tasks/", views.task_list, name="list"),
+    path("tasks/da-gestire/", views.da_gestire, name="da_gestire"),
     path("tasks/projects/", views.project_list, name="project_list"),
     path("tasks/projects/new/", views.project_create, name="project_create"),
     path("tasks/projects/<int:project_id>/gantt/", views.project_gantt, name="project_gantt"),

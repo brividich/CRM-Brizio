@@ -1,0 +1,23 @@
+<section class="ts-panel dg-section">
+  <div class="ts-panel-head">
+    <div class="ts-panel-title-wrap">
+      <h2 class="ts-panel-title">{{ section.icon }} {{ section.label }}</h2>
+      <p class="ts-panel-subtitle">{{ section.items|length }} da gestire</p>
+    </div>
+    {% if section.all_url %}<a class="ts-chip soft" style="text-decoration:none;" href="{{ section.all_url }}">Vedi tutti</a>{% endif %}
+  </div>
+  <div class="ts-panel-body">
+    {% if section.items %}
+      <ul class="dg-list">
+        {% for item in section.items %}
+          <li class="dg-item dg-item--{{ section.tone }}">
+            <a class="dg-item-link" href="{{ item.url }}">{{ item.label }}</a>
+            {% if item.meta %}<span class="dg-item-meta">{{ item.meta }}</span>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="dg-empty">{{ section.empty }}</p>
+    {% endif %}
+  </div>
+</section>

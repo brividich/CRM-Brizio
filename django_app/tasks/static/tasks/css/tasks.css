@@ -776,6 +776,18 @@ body.theme-dark .ts-message.warning { background: rgba(146,64,14,.15);  border-c
 body.theme-dark .ts-message.info    { background: rgba(29,78,216,.15);  border-color: rgba(191,219,254,.3); color: #93c5fd; }
 body.theme-dark .task-meta-chip     { background: var(--surface); }
 
+/* ── Centro "Da gestire" ─────────────────────────────────────────── */
+.dg-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.dg-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--hub-radius-md);border-left:3px solid var(--border);transition:background .1s ease}
+.dg-item:hover{background:color-mix(in srgb,var(--accent) 6%,transparent)}
+.dg-item--danger{border-left-color:var(--hub-status-danger)}
+.dg-item--warning{border-left-color:var(--hub-status-warning)}
+.dg-item--info{border-left-color:var(--hub-status-info)}
+.dg-item-link{font-weight:700;color:var(--text);text-decoration:none;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dg-item-link:hover{color:var(--accent)}
+.dg-item-meta{font-size:var(--hub-font-xs);font-weight:700;color:var(--text-mid);white-space:nowrap;flex-shrink:0}
+.dg-empty{color:var(--text-mid);font-size:var(--hub-font-sm);margin:0;padding:6px 2px}
+
 /* ── Opt-in larghezza piena (senza modificare il core) ──────────── */
 /* Una pagina attiva la larghezza piena con {% block body_class %}{{ block.super }} tk-wide{% endblock %} */
 body.tk-wide .content { width: 100%; max-width: none; }

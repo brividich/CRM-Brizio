@@ -1,0 +1,18 @@
+{% extends "tasks/base_shell.html" %}
+
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Da gestire</span>{% endblock %}
+{% block tasks_shell_title %}Da gestire{% endblock %}
+{% block tasks_shell_subtitle %}Cosa richiede intervento sulle commesse kickoff.{% endblock %}
+
+{% block tasks_shell_actions %}
+  <a class="ts-hero-action {% if scope == 'portfolio' %}primary{% endif %}" href="{% url 'tasks:da_gestire' %}?scope=portfolio">Portfolio</a>
+  <a class="ts-hero-action {% if scope == 'mine' %}primary{% endif %}" href="{% url 'tasks:da_gestire' %}?scope=mine">Le mie</a>
+{% endblock %}
+
+{% block tasks_shell_content %}
+<div class="ts-stack">
+  {% for section in da_gestire_data.sections %}
+    {% include "tasks/_da_gestire_section.html" with section=section %}
+  {% endfor %}
+</div>
+{% endblock %}
