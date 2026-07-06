@@ -980,6 +980,81 @@ class ChangeRequestTests(TestCase):
         self.assertEqual(resp.context["n_change_requests_open"], 1)
 
 
+class AclAndUxTests(TestCase):
+    """Fase D: gate ACL v2 canonico + separazione presa visione / corpus AI."""
+
+    def setUp(self):
+        self.manager = User.objects.create_user(
+            username="daclmgr", password="pw", is_superuser=True
+        )
+        self.doc_pv = ProcedureDocument.objects.create(
+            code="MT-PV-001", title="Documento presa visione", document_type="MT",
+            is_active=True, requires_acknowledgement=True,
+        )
+        self.rev_pv = ProcedureRevision.objects.create(
+            document=self.doc_pv, revision_code="Rev.01", revision_date=date(2026, 1, 1),
+            effective_date=date(2026, 1, 1), source_type=SourceType.SHAREPOINT,
+            source_url="https://example.sharepoint.com/pv.pdf", file_name="pv.pdf",
+            is_current=True,
+        )
+        self.doc_rag = ProcedureDocument.objects.create(
+            code="MT-RAG-001", title="Documento solo AI", document_type="MT",
+            is_active=True, requires_acknowledgement=False,
+        )
+        ProcedureRevision.objects.create(
+            document=self.doc_rag, revision_code="Rev.01", revision_date=date(2026, 1, 1),
+            effective_date=date(2026, 1, 1), source_type=SourceType.FILESERVER,
+            source_path="C:/share/rag.pdf", file_name="rag.pdf", is_current=True,
+        )
+
+    def test_can_manage_via_acl_v2(self):
+        """Un utente non-admin ma con permesso canonico ACL v2 accede alla gestione."""
+        from core.models import UserOnboarding
+
+        plain = User.objects.create_user(username="daclplain", password="pw")
+        UserOnboarding.objects.create(user=plain, skipped=True)  # bypassa il wizard primo accesso
+        self.client.force_login(plain)
+        with mock.patch("core.acl_v2.check_acl_access_v2", return_value=True), \
+             mock.patch("core.middleware.resolve_acl_access", return_value={"allowed": True}):
+            resp = self.client.get(reverse("procedure_refresh:document_list"))
+        self.assertEqual(resp.status_code, 200)
+
+    def test_document_list_default_vista_presa_visione(self):
+        self.client.force_login(self.manager)
+        resp = self.client.get(reverse("procedure_refresh:document_list"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["vista"], "pv")
+        codes = {d.code for d in resp.context["documents"]}
+        self.assertIn("MT-PV-001", codes)
+        self.assertNotIn("MT-RAG-001", codes)
+
+    def test_document_list_vista_rag(self):
+        self.client.force_login(self.manager)
+        resp = self.client.get(reverse("procedure_refresh:document_list") + "?vista=rag")
+        codes = {d.code for d in resp.context["documents"]}
+        self.assertIn("MT-RAG-001", codes)
+        self.assertNotIn("MT-PV-001", codes)
+
+    def test_document_list_search(self):
+        self.client.force_login(self.manager)
+        resp = self.client.get(reverse("procedure_refresh:document_list") + "?vista=pv&q=PV-001")
+        codes = {d.code for d in resp.context["documents"]}
+        self.assertEqual(codes, {"MT-PV-001"})
+
+    def test_campaign_picker_only_presa_visione_current(self):
+        campaign = ProcedureCampaign.objects.create(
+            name="Picker", status=CampaignStatus.DRAFT,
+            start_date=date(2026, 1, 1), due_date=date(2026, 12, 31), created_by=self.manager,
+        )
+        self.client.force_login(self.manager)
+        resp = self.client.get(
+            reverse("procedure_refresh:campaign_detail", kwargs={"pk": campaign.pk})
+        )
+        rev_docs = {r.document.code for r in resp.context["available_revisions"]}
+        self.assertIn("MT-PV-001", rev_docs)
+        self.assertNotIn("MT-RAG-001", rev_docs)  # documento RAG-only escluso dal picker
+
+
 class ReminderConfigTests(TestCase):
     """Config solleciti presa visione (SiteConfig, pattern tickets_escalation)."""
 

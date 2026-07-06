@@ -76,6 +76,27 @@ body.theme-dark .pr-empty { color:var(--text-light); }
     <a href="{% url 'procedure_refresh:document_create' %}" class="pr-btn">+ Nuovo documento</a>
   </div>
 
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+    <div style="display:flex;gap:6px;">
+      <a href="?vista=pv{% if query %}&q={{ query|urlencode }}{% endif %}"
+         style="padding:7px 16px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;
+         {% if vista == 'pv' %}background:#1d4ed8;color:#fff;{% else %}background:#f1f5f9;color:#475569;{% endif %}">
+        Presa visione ({{ n_pv }})
+      </a>
+      <a href="?vista=rag{% if query %}&q={{ query|urlencode }}{% endif %}"
+         style="padding:7px 16px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;
+         {% if vista == 'rag' %}background:#1d4ed8;color:#fff;{% else %}background:#f1f5f9;color:#475569;{% endif %}">
+        Corpus AI ({{ n_rag }})
+      </a>
+    </div>
+    <form method="get" style="display:flex;gap:6px;align-items:center;">
+      <input type="hidden" name="vista" value="{{ vista }}">
+      <input type="text" name="q" value="{{ query }}" placeholder="Cerca codice o titolo..."
+             style="padding:7px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;min-width:200px;">
+      <button type="submit" style="padding:7px 16px;background:#1d4ed8;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">Cerca</button>
+    </form>
+  </div>
+
   <div class="pr-table-wrap">
     {% if documents %}
       <table class="pr-table">

@@ -51,6 +51,28 @@ def _is_manager(request) -> bool:
     return request.user.is_superuser or is_legacy_admin(legacy_user)
 
 
+def _can_manage(request) -> bool:
+    """Gate dell'area gestione del modulo.
+
+    Preferisce il permesso canonico ACL v2 sulla risorsa admin del modulo (così un
+    ruolo qualità/RSPP può gestire le procedure senza essere admin di portale);
+    ricade sul check legacy (superuser / admin legacy) finché la copertura ACL non
+    è completa. Coerente con la migrazione ACL in corso."""
+    if _is_manager(request):
+        return True
+    try:
+        from core.acl_v2 import check_acl_access_v2
+
+        return check_acl_access_v2(
+            path="/procedure-refresh/impostazioni/",
+            legacy_user=get_legacy_user(request.user),
+            django_user=request.user,
+            request=request,
+        )
+    except Exception:
+        return False
+
+
 def _client_ip(request) -> str:
     ip = request.META.get("HTTP_X_FORWARDED_FOR", request.META.get("REMOTE_ADDR", ""))
     if ip and "," in ip:
@@ -454,7 +476,7 @@ def assignment_detail(request, pk: int):
 
 @login_required
 def admin_dashboard(request):
-    if not _is_manager(request):
+    if not _can_manage(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("procedure_refresh:my_assignments")
 
@@ -559,7 +581,7 @@ def admin_dashboard(request):
 @login_required
 @require_POST
 def sgi_sync_now(request):
-    if not _is_manager(request):
+    if not _can_manage(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("procedure_refresh:my_assignments")
 
@@ -586,11 +608,16 @@ def sgi_sync_now(request):
 
 @login_required
 def document_list(request):
-    if not _is_manager(request):
+    if not _can_manage(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("procedure_refresh:my_assignments")
 
     from django.db.models import Count, Q
+
+    vista = request.GET.get("vista", "pv").strip()
+    if vista not in {"pv", "rag"}:
+        vista = "pv"
+    query = request.GET.get("q", "").strip()
 
     qs = (
         ProcedureDocument.objects.prefetch_related("revisions")
@@ -607,14 +634,28 @@ def document_list(request):
         )
         .order_by("document_type", "code")
     )
+    if vista == "pv":
+        qs = qs.filter(requires_acknowledgement=True)
+    else:
+        qs = qs.filter(requires_acknowledgement=False)
+    if query:
+        qs = qs.filter(Q(code__icontains=query) | Q(title__icontains=query))
+
+    n_pv = ProcedureDocument.objects.filter(requires_acknowledgement=True).count()
+    n_rag = ProcedureDocument.objects.filter(requires_acknowledgement=False).count()
+
     return render(request, "procedure_refresh/pages/document_list.html", {
         "documents": qs,
+        "vista": vista,
+        "query": query,
+        "n_pv": n_pv,
+        "n_rag": n_rag,
     })
 
 
 @login_required
 def document_form(request, pk: int | None = None):
-    if not _is_manager(request):
+    if not _can_manage(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("procedure_refresh:my_assignments")
 
@@ -718,7 +759,7 @@ def document_form(request, pk: int | None = None):
 @login_required
 @require_POST
 def document_delete(request, pk: int):
-    if not _is_manager(request):
+    if not _can_manage(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("procedure_refresh:my_assignments")
 
@@ -738,7 +779,7 @@ def document_delete(request, pk: int):
 
 @login_required
 def revision_form(request, doc_pk: int, pk: int | None = None):
-    if not _is_manager(request):
+    if not _can_manage(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("procedure_refresh:my_assignments")
 
@@ -832,7 +873,7 @@ def revision_form(request, doc_pk: int, pk: int | None = None):
 
 @login_required
 def revision_quiz(request, rev_pk: int):
-    if not _is_manager(request):
+    if not _can_manage(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("procedure_refresh:my_assignments")
 
@@ -880,7 +921,7 @@ def revision_quiz(request, rev_pk: int):
 
 @login_required
 def campaign_list(request):
-    if not _is_manager(request):
+    if not _can_manage(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("procedure_refresh:my_assignments")
 
@@ -893,7 +934,7 @@ def campaign_list(request):
 
 @login_required
 def campaign_form(request, pk: int | None = None):
-    if not _is_manager(request):
+    if not _can_manage(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("procedure_refresh:my_assignments")
 
@@ -956,7 +997,7 @@ def campaign_form(request, pk: int | None = None):
 
 @login_required
 def campaign_detail(request, pk: int):
-    if not _is_manager(request):
+    if not _can_manage(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("procedure_refresh:my_assignments")
 
@@ -969,8 +1010,14 @@ def campaign_detail(request, pk: int):
     ).order_by("user__last_name", "user__first_name")
 
     already_in = [cd.revision_id for cd in campaign_docs]
+    # Solo documenti in presa visione e solo la revisione CORRENTE: dopo l'import SGI
+    # il corpus RAG conta centinaia di documenti/revisioni che non vanno in campagna.
     available_revisions = (
-        ProcedureRevision.objects.filter(document__is_active=True)
+        ProcedureRevision.objects.filter(
+            document__is_active=True,
+            document__requires_acknowledgement=True,
+            is_current=True,
+        )
         .exclude(id__in=already_in)
         .select_related("document")
         .order_by("document__document_type", "document__code", "-revision_date")
@@ -1029,7 +1076,7 @@ def campaign_detail(request, pk: int):
 @login_required
 @require_POST
 def campaign_add_document(request, pk: int):
-    if not _is_manager(request):
+    if not _can_manage(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("procedure_refresh:my_assignments")
 
@@ -1072,7 +1119,7 @@ def campaign_add_document(request, pk: int):
 @login_required
 @require_POST
 def campaign_remove_document(request, pk: int, cd_pk: int):
-    if not _is_manager(request):
+    if not _can_manage(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("procedure_refresh:my_assignments")
 
@@ -1095,7 +1142,7 @@ def campaign_remove_document(request, pk: int, cd_pk: int):
 @login_required
 @require_POST
 def campaign_publish(request, pk: int):
-    if not _is_manager(request):
+    if not _can_manage(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("procedure_refresh:my_assignments")
 
@@ -1120,7 +1167,7 @@ def campaign_publish(request, pk: int):
 @login_required
 @require_POST
 def campaign_close(request, pk: int):
-    if not _is_manager(request):
+    if not _can_manage(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("procedure_refresh:my_assignments")
 
@@ -1145,7 +1192,7 @@ def campaign_close(request, pk: int):
 @login_required
 @require_POST
 def assign_users(request, pk: int):
-    if not _is_manager(request):
+    if not _can_manage(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("procedure_refresh:my_assignments")
 
@@ -1228,7 +1275,7 @@ def assign_users(request, pk: int):
 @login_required
 @require_POST
 def cancel_assignment(request, pk: int):
-    if not _is_manager(request):
+    if not _can_manage(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("procedure_refresh:my_assignments")
 
@@ -1259,7 +1306,7 @@ def cancel_assignment(request, pk: int):
 
 @login_required
 def change_request_list(request):
-    if not _is_manager(request):
+    if not _can_manage(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("procedure_refresh:my_assignments")
 
@@ -1298,7 +1345,7 @@ def change_request_list(request):
 @login_required
 @require_POST
 def change_request_set_status(request, pk: int):
-    if not _is_manager(request):
+    if not _can_manage(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("procedure_refresh:my_assignments")
 
@@ -1350,7 +1397,7 @@ def change_request_set_status(request, pk: int):
 
 @login_required
 def report_user(request):
-    if not _is_manager(request):
+    if not _can_manage(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("procedure_refresh:my_assignments")
 
@@ -1380,7 +1427,7 @@ def report_user(request):
 
 @login_required
 def report_document(request):
-    if not _is_manager(request):
+    if not _can_manage(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("procedure_refresh:my_assignments")
 
@@ -1410,7 +1457,7 @@ def report_document(request):
 
 @login_required
 def report_campaign(request):
-    if not _is_manager(request):
+    if not _can_manage(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("procedure_refresh:my_assignments")
 
@@ -1455,7 +1502,7 @@ def report_campaign(request):
 
 @login_required
 def report_matrix(request):
-    if not _is_manager(request):
+    if not _can_manage(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("procedure_refresh:my_assignments")
 
@@ -1488,7 +1535,7 @@ class _Echo:
 
 @login_required
 def export_csv(request):
-    if not _is_manager(request):
+    if not _can_manage(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("procedure_refresh:my_assignments")
 
@@ -1731,7 +1778,7 @@ def api_parse_sharepoint_url(request):
     """GET /procedure-refresh/api/parse-sharepoint-url/?url=...
     Restituisce metadati del documento SharePoint per auto-compilare il form revisione.
     """
-    if not _is_manager(request):
+    if not _can_manage(request):
         return JsonResponse({"ok": False, "error": "Non autorizzato."}, status=403)
 
     url_raw = request.GET.get("url", "").strip()

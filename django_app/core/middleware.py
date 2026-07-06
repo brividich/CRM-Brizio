@@ -22,6 +22,10 @@ API_ACL_GATE_PATHS = {
     # API django-ninja delle specifiche: gate come la lista (PERM_VIEW). Il permesso FINE
     # per-azione (approva/sospendi/annulla/...) e' verificato dentro `transizione_specifica`.
     "/gestione-specifiche/api/": "/gestione-specifiche/",
+    # API presa visione (parse URL SharePoint): gate come l'area gestione del modulo
+    # (impostazioni). Senza mappatura, con ACL_STRICT_CANONICAL i non-superuser
+    # prenderebbero 403 sull'endpoint (la view fa comunque il proprio _can_manage).
+    "/procedure-refresh/api/": "/procedure-refresh/impostazioni/",
 }
 _ACL_MIDDLEWARE_LOG_TTL_SECONDS = 300
 logger = logging.getLogger(__name__)
