@@ -36,6 +36,7 @@ class ReadEventType(models.TextChoices):
     REMINDER_SENT = "reminder_sent", "Reminder inviato"
     REASSIGNED = "reassigned", "Riassegnata"
     EXPORTED = "exported", "Esportata"
+    OVERDUE_MARKED = "overdue_marked", "Marcata scaduta"
 
 
 class ProcedureDocument(models.Model):

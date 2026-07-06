@@ -4,11 +4,14 @@ Tests per il modulo procedure_refresh.
 Esecuzione:
     python manage.py test procedure_refresh --settings=config.settings.dev
 """
-from datetime import date
+from datetime import date, timedelta
+from unittest import mock
 
 from django.contrib.auth import get_user_model
+from django.core import mail
 from django.test import Client, TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from core.models import UserExtraInfo
 
@@ -607,3 +610,209 @@ class SgiShareDriftTests(TestCase):
         with override_settings(PROCEDURE_REFRESH_SGI_SHARE_ROOT=""):
             res = run_sgi_share_check()
         self.assertTrue(res["skipped"])
+
+
+class ReminderConfigTests(TestCase):
+    """Config solleciti presa visione (SiteConfig, pattern tickets_escalation)."""
+
+    def test_defaults(self):
+        from procedure_refresh.reminder_config import get_reminder_config
+
+        cfg = get_reminder_config()
+        self.assertFalse(cfg["attivo"])
+        self.assertEqual(cfg["pre_giorni"], [7, 2])
+        self.assertEqual(cfg["post_cadenza_giorni"], 7)
+        self.assertEqual(cfg["digest_giorno"], "lun")
+        self.assertEqual(cfg["digest_destinatari"], [])
+
+    def test_save_and_parse(self):
+        from procedure_refresh.reminder_config import (
+            get_reminder_config,
+            save_reminder_config,
+        )
+
+        save_reminder_config(
+            attivo=True,
+            pre_giorni="10, 3, abc, 3, 999",
+            post_cadenza_giorni="200",
+            digest_giorno="VEN",
+            digest_destinatari="A@B.it,, a@b.it , c@d.it, nonvalida",
+        )
+        cfg = get_reminder_config()
+        self.assertTrue(cfg["attivo"])
+        self.assertEqual(cfg["pre_giorni"], [60, 10, 3])  # 999 clampato a 60
+        self.assertEqual(cfg["post_cadenza_giorni"], 60)  # clamp
+        self.assertEqual(cfg["digest_giorno"], "ven")
+        self.assertEqual(cfg["digest_destinatari"], ["a@b.it", "c@d.it"])
+
+    def test_digest_giorno_invalido_spegne_digest(self):
+        from procedure_refresh.reminder_config import (
+            get_reminder_config,
+            save_reminder_config,
+        )
+
+        save_reminder_config(
+            attivo=False, pre_giorni="7,2", post_cadenza_giorni=7,
+            digest_giorno="xyz", digest_destinatari="",
+        )
+        self.assertEqual(get_reminder_config()["digest_giorno"], "")
+
+
+class AssignmentLifecycleTests(TestCase):
+    """Motore scadenze: marcatura OVERDUE (sempre) + solleciti (se attivi)."""
+
+    def setUp(self):
+        self.manager = User.objects.create_user(
+            username="lifemgr", password="pw", is_superuser=True
+        )
+        self.reader = User.objects.create_user(
+            username="lifereader", password="pw", first_name="Mario", last_name="Rossi"
+        )
+        self.doc = ProcedureDocument.objects.create(
+            code="MT-LIFE-001", title="Life doc", document_type="MT", is_active=True
+        )
+        self.rev = ProcedureRevision.objects.create(
+            document=self.doc,
+            revision_code="Rev.01",
+            revision_date=date(2026, 1, 1),
+            effective_date=date(2026, 1, 1),
+            source_type=SourceType.SHAREPOINT,
+            source_url="https://example.sharepoint.com/life.pdf",
+            file_name="life.pdf",
+            is_current=True,
+        )
+
+    def _campaign(self, due_date):
+        return ProcedureCampaign.objects.create(
+            name=f"Life {due_date}",
+            status=CampaignStatus.PUBLISHED,
+            start_date=date(2026, 1, 1),
+            due_date=due_date,
+            created_by=self.manager,
+        )
+
+    def _assignment(self, due_date, status=AssignmentStatus.ASSIGNED):
+        campaign = self._campaign(due_date)
+        return ProcedureAssignment.objects.create(
+            campaign=campaign,
+            revision=self.rev,
+            user=self.reader,
+            assigned_by=self.manager,
+            due_date=due_date,
+            status=status,
+        )
+
+    def _enable_reminders(self, **overrides):
+        from procedure_refresh.reminder_config import save_reminder_config
+
+        params = {
+            "attivo": True,
+            "pre_giorni": "7,2",
+            "post_cadenza_giorni": 7,
+            "digest_giorno": "",
+            "digest_destinatari": "",
+        }
+        params.update(overrides)
+        save_reminder_config(**params)
+
+    def test_overdue_marcato_anche_con_solleciti_spenti(self):
+        from procedure_refresh.tasks import run_assignment_lifecycle
+
+        assignment = self._assignment(timezone.localdate() - timedelta(days=3))
+        res = run_assignment_lifecycle()
+        self.assertTrue(res["ok"])
+        self.assertEqual(res["overdue_marked"], 1)
+        assignment.refresh_from_db()
+        self.assertEqual(assignment.status, AssignmentStatus.OVERDUE)
+        self.assertTrue(
+            assignment.events.filter(event_type=ReadEventType.OVERDUE_MARKED).exists()
+        )
+        self.assertEqual(len(mail.outbox), 0)  # solleciti spenti: nessuna mail
+
+        # Secondo run: idempotente, nessuna doppia marcatura
+        res2 = run_assignment_lifecycle()
+        self.assertEqual(res2["overdue_marked"], 0)
+        self.assertEqual(
+            assignment.events.filter(event_type=ReadEventType.OVERDUE_MARKED).count(), 1
+        )
+
+    def test_pre_scadenza_inviata_una_sola_volta(self):
+        from procedure_refresh.tasks import run_assignment_lifecycle
+
+        assignment = self._assignment(timezone.localdate() + timedelta(days=7))
+        self._enable_reminders()
+        with mock.patch(
+            "procedure_refresh.tasks._notification_email_map",
+            return_value={self.reader.pk: "rossi@test.local"},
+        ):
+            res = run_assignment_lifecycle()
+            self.assertEqual(res["pre_sent"], 1)
+            self.assertEqual(len(mail.outbox), 1)
+            self.assertIn("rossi@test.local", mail.outbox[0].to)
+            self.assertIn("MT-LIFE-001", mail.outbox[0].body)
+
+            # Dedup: secondo run stesso giorno, nessun nuovo invio
+            res2 = run_assignment_lifecycle()
+            self.assertEqual(res2["pre_sent"], 0)
+            self.assertEqual(len(mail.outbox), 1)
+        self.assertTrue(
+            assignment.events.filter(
+                event_type=ReadEventType.REMINDER_SENT,
+                meta_json__contains='"kind": "pre7"',
+            ).exists()
+        )
+
+    def test_post_scadenza_rispetta_cadenza(self):
+        from procedure_refresh.tasks import run_assignment_lifecycle
+
+        assignment = self._assignment(
+            timezone.localdate() - timedelta(days=2), status=AssignmentStatus.OVERDUE
+        )
+        self._enable_reminders()
+        with mock.patch(
+            "procedure_refresh.tasks._notification_email_map",
+            return_value={self.reader.pk: "rossi@test.local"},
+        ):
+            res = run_assignment_lifecycle()
+            self.assertEqual(res["post_sent"], 1)
+            self.assertEqual(len(mail.outbox), 1)
+            self.assertIn("SCADUTA", mail.outbox[0].subject)
+
+            res2 = run_assignment_lifecycle()
+            self.assertEqual(res2["post_sent"], 0)
+            self.assertEqual(len(mail.outbox), 1)
+        self.assertTrue(
+            assignment.events.filter(
+                event_type=ReadEventType.REMINDER_SENT,
+                meta_json__contains='"kind": "post"',
+            ).exists()
+        )
+
+    def test_digest_gestore_solo_nel_giorno_configurato_e_una_volta(self):
+        from procedure_refresh.tasks import _WEEKDAYS, run_assignment_lifecycle
+
+        self._assignment(
+            timezone.localdate() - timedelta(days=2), status=AssignmentStatus.OVERDUE
+        )
+        oggi = _WEEKDAYS[timezone.localdate().weekday()]
+        self._enable_reminders(
+            post_cadenza_giorni=60,
+            digest_giorno=oggi,
+            digest_destinatari="qualita@test.local",
+        )
+        with mock.patch(
+            "procedure_refresh.tasks._notification_email_map",
+            return_value={self.reader.pk: ""},  # nessuna mail diretta al lettore
+        ):
+            res = run_assignment_lifecycle()
+            self.assertTrue(res["digest_sent"])
+            digest = [m for m in mail.outbox if "qualita@test.local" in m.to]
+            self.assertEqual(len(digest), 1)
+            self.assertIn("MT-LIFE-001", digest[0].body)
+
+            # Stesso giorno: non re-invia
+            res2 = run_assignment_lifecycle()
+            self.assertFalse(res2["digest_sent"])
+            self.assertEqual(
+                len([m for m in mail.outbox if "qualita@test.local" in m.to]), 1
+            )

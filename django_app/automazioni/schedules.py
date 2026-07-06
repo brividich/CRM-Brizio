@@ -176,6 +176,19 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # Motore scadenze presa visione (ISO 9001/EN 9100): marca SEMPRE "Scaduta"
+        # le assegnazioni oltre due_date (stato dei dati, evidenza audit); con
+        # pr_reminder_attivo=1 invia anche promemoria pre-scadenza, solleciti agli
+        # inadempienti e il digest ai gestori (config SiteConfig pr_reminder_* dalla
+        # dashboard admin del modulo). Email su email_notifica. Fail-safe.
+        "name": "pr_assignment_lifecycle",
+        "func": "procedure_refresh.tasks.run_assignment_lifecycle",
+        "schedule_type": "C",   # Schedule.CRON
+        "cron": "45 6 * * *",   # ogni mattina alle 06:45 (prima dell'orario d'ufficio)
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # Digest giornaliero "stato portale" via email agli admin del monitoring:
         # servizi (readyz), Assistente AI, automazioni e issue per severità in un
         # colpo d'occhio. Heartbeat: per default invia sempre (anche "tutto ok"),
