@@ -3231,3 +3231,28 @@ class ProjectBoardRenderTests(TestCase):
         assert r.status_code == 200
         assert b"pf-grid" in r.content
         assert b"kbf-board" not in r.content
+
+
+class MeetingsCalendarTests(TestCase):
+    """Calendario incontri — griglia mensile pura."""
+
+    def test_grid_and_placement(self):
+        import types
+        from datetime import date
+        from tasks.calendario import build_meetings_calendar
+
+        m = types.SimpleNamespace(data=date(2026, 7, 15))
+        cal = build_meetings_calendar([m], 2026, 7, today=date(2026, 7, 6))
+        assert cal["month_label"] == "Luglio 2026"
+        assert cal["prev"] == "2026-06" and cal["next"] == "2026-08"
+        assert all(len(w) == 7 for w in cal["weeks"])
+        placed = [d for w in cal["weeks"] for d in w if d["date"] == date(2026, 7, 15)]
+        assert placed and placed[0]["meetings"] == [m]
+        todays = [d for w in cal["weeks"] for d in w if d["is_today"]]
+        assert len(todays) == 1 and todays[0]["date"] == date(2026, 7, 6)
+
+    def test_year_boundary(self):
+        from tasks.calendario import build_meetings_calendar
+
+        assert build_meetings_calendar([], 2026, 1)["prev"] == "2025-12"
+        assert build_meetings_calendar([], 2026, 12)["next"] == "2027-01"
