@@ -1,0 +1,53 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ titolo }} | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
+<style>
+  .mpqf-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;}
+  .mpqf-lbl{display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:4px;}
+  .fm-input,.fm-select{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #d7e0ea;border-radius:8px;background:#fff;font:inherit;color:#0b1b2e;}
+  .fm-input:focus,.fm-select:focus{outline:none;border-color:#1f87cd;box-shadow:0 0 0 3px rgba(31,135,205,.15);}
+  .fm-check{margin-right:6px;transform:scale(1.1);}
+  .mpqf-err{color:#c53030;font-size:12px;margin-top:3px;}
+  body.theme-dark .fm-input,body.theme-dark .fm-select{background:var(--surface);border-color:var(--border);color:var(--text);}
+  body.theme-dark .mpqf-lbl{color:var(--text-mid);}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+{% include "anagrafica/components/_multiselect_picker.html" %}
+<div class="fmd">
+  <div class="fmd-wrap">
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>{{ titolo }}</div>
+      </div>
+      <form method="post"{% if multipart %} enctype="multipart/form-data"{% endif %}>
+        {% csrf_token %}
+        {% if form.non_field_errors %}<div class="mpqf-err" style="margin-bottom:10px;">{{ form.non_field_errors }}</div>{% endif %}
+        <div class="mpqf-grid">
+          {% for field in form %}
+          <div>
+            <label class="mpqf-lbl" for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} *{% endif %}</label>
+            {{ field }}
+            {% if field.help_text %}<div class="fmd-muted" style="font-size:11px;">{{ field.help_text }}</div>{% endif %}
+            {% if field.errors %}<div class="mpqf-err">{{ field.errors }}</div>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        <div style="margin-top:18px;display:flex;gap:8px;">
+          <button type="submit" class="fmd-btn fmd-btn-primary">Salva</button>
+          <a href="{{ back_url }}" class="fmd-btn fmd-btn-ghost">Annulla</a>
+        </div>
+      </form>
+    </section>
+  </div>
+</div>
+{% endblock %}

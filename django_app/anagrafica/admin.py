@@ -555,3 +555,94 @@ class TrainingExportLogAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return request.user.is_superuser
+
+
+# ─────────────────────────────────────────────────────────────
+# MOD.128 MPQ — Mansionario Processi Qualificati
+# ─────────────────────────────────────────────────────────────
+
+from .models_mpq import (
+    AbilitazioneProcesso,
+    CertificazioneIndividuale,
+    ClienteQualificante,
+    MpqStorico,
+    ProcessoQualificato,
+    RiferimentoProcesso,
+)
+
+
+@admin.register(ClienteQualificante)
+class ClienteQualificanteAdmin(admin.ModelAdmin):
+    list_display = ("nome", "tipo", "codice", "certificatore", "is_active")
+    list_filter = ("tipo", "is_active")
+    search_fields = ("nome", "codice")
+    readonly_fields = ("created_at",)
+
+
+class RiferimentoProcessoInline(admin.TabularInline):
+    model = RiferimentoProcesso
+    extra = 1
+    fields = ("codice", "tipo", "note")
+
+
+class AbilitazioneProcessoInline(admin.TabularInline):
+    model = AbilitazioneProcesso
+    extra = 0
+    fields = (
+        "legacy_anagrafica_id", "is_qualificato", "is_addetto",
+        "is_controllore", "is_part145", "stato",
+    )
+
+
+@admin.register(ProcessoQualificato)
+class ProcessoQualificatoAdmin(admin.ModelAdmin):
+    list_display = (
+        "nome", "cliente", "regime", "livello", "tipo_validita",
+        "scadenza_effettiva", "stato",
+    )
+    list_filter = ("stato", "regime", "tipo_validita", "personale_modalita", "cliente")
+    search_fields = ("nome", "cliente__nome", "riferimento_dichiarazione", "riferimenti__codice")
+    autocomplete_fields = ()
+    filter_horizontal = ("reparti", "clienti_addizionali")
+    readonly_fields = ("created_at", "updated_at", "scadenza_effettiva")
+    inlines = [RiferimentoProcessoInline, AbilitazioneProcessoInline]
+
+
+class CertificazioneIndividualeInline(admin.TabularInline):
+    model = CertificazioneIndividuale
+    extra = 0
+    fields = ("schema", "numero", "livello", "data_scadenza", "ente_certificatore", "stato")
+
+
+@admin.register(AbilitazioneProcesso)
+class AbilitazioneProcessoAdmin(admin.ModelAdmin):
+    list_display = (
+        "legacy_anagrafica_id", "processo", "is_qualificato",
+        "is_addetto", "is_controllore", "is_part145", "stato",
+    )
+    list_filter = ("stato", "is_addetto", "is_controllore", "is_part145", "processo__cliente")
+    search_fields = ("legacy_anagrafica_id", "processo__nome")
+    readonly_fields = ("created_at", "updated_at")
+    inlines = [CertificazioneIndividualeInline]
+
+
+@admin.register(CertificazioneIndividuale)
+class CertificazioneIndividualeAdmin(admin.ModelAdmin):
+    list_display = ("abilitazione", "schema", "numero", "livello", "data_scadenza", "stato")
+    list_filter = ("stato", "schema", "ente_certificatore")
+    search_fields = ("numero", "schema", "abilitazione__legacy_anagrafica_id")
+    readonly_fields = ("created_at",)
+
+
+@admin.register(MpqStorico)
+class MpqStoricoAdmin(admin.ModelAdmin):
+    list_display = ("registrato_il", "evento", "processo", "abilitazione", "origine", "registrato_da")
+    list_filter = ("origine",)
+    search_fields = ("evento", "dettaglio", "processo__nome")
+    readonly_fields = ("registrato_il", "registrato_da")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False

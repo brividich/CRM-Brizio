@@ -1,0 +1,233 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Processi qualificati (MOD.128) | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  <div class="fmd-wrap">
+
+    {# ── Hero ───────────────────────────────────────────────────────────── #}
+    <section class="fmd-hero">
+      <div class="fmd-hero-bg" aria-hidden="true"></div>
+      <div class="fmd-hero-inner">
+        <div>
+          <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Qualifiche · MOD.128</div>
+          <h1><svg class="fmd-ico fmd-cap"><use href="#i-cap"/></svg>Processi qualificati</h1>
+          <p class="fmd-sub">Mansionario dei processi qualificati/speciali (MOD.128 MPQ): clienti/enti, personale abilitato per ruolo, doppia scadenza aziendale e individuale, distribuzione a reparto. Vista di controllo, aggiornata al {{ oggi|date:"d-m-Y" }}.</p>
+          <div class="fmd-hero-actions" style="gap:8px;flex-wrap:wrap;">
+            {% if can_manage %}
+            <a class="fmd-btn-template" href="{% url 'anagrafica:mpq_processo_create' %}">
+              <svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo processo
+            </a>
+            <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mpq_cliente_list' %}">
+              <svg class="fmd-ico"><use href="#i-clipboard"/></svg>Clienti/enti
+            </a>
+            {% endif %}
+            <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mpq_vista' %}">
+              <svg class="fmd-ico"><use href="#i-clipboard"/></svg>Vista MOD.128 · export
+            </a>
+            <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:qualifiche_dashboard' %}">
+              <svg class="fmd-ico"><use href="#i-arrow-right"/></svg>Cruscotto Qualifiche
+            </a>
+          </div>
+        </div>
+        <div class="fmd-hero-side">
+          <div class="fmd-hero-tile">
+            <span class="fmd-corner"></span>
+            <span class="fmd-bignum">{{ n_processi }}</span>
+            <span class="fmd-lbl">Processi a registro</span>
+          </div>
+          <div class="fmd-hero-tile fmd-alt">
+            <span class="fmd-corner"></span>
+            <span class="fmd-bignum">{{ n_persone }}</span>
+            <span class="fmd-lbl">Persone abilitate</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {# ── KPI ribbon ─────────────────────────────────────────────────────── #}
+    <section class="fmd-kpi">
+      <div class="fmd-mtr fmd-t-green">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ n_attivi }}</span></div>
+        <div class="fmd-mtr-lbl">Processi attivi</div>
+        <div class="fmd-mtr-sub">{{ n_sospesi }} sospesi · {{ n_dismessi }} dismessi/non rinnovati</div>
+      </div>
+      <div class="fmd-mtr fmd-t-yellow">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ n_in_scadenza }}</span></div>
+        <div class="fmd-mtr-lbl">Processi in scadenza ≤60gg</div>
+        <div class="fmd-mtr-sub">{{ n_s30 }} entro 30 giorni</div>
+      </div>
+      <div class="fmd-mtr fmd-t-amber">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ n_scaduti }}</span></div>
+        <div class="fmd-mtr-lbl">Processi scaduti</div>
+        <div class="fmd-mtr-sub">Da rinnovare/revocare con priorità</div>
+      </div>
+      <div class="fmd-mtr fmd-t-cyan">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-grid"/></svg></span><span class="fmd-mtr-val">{{ n_abilitazioni }}</span></div>
+        <div class="fmd-mtr-lbl">Abilitazioni attive</div>
+        <div class="fmd-mtr-sub">{{ n_clienti }} clienti/enti a registro</div>
+      </div>
+      <div class="fmd-mtr fmd-t-violet">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alarm"/></svg></span><span class="fmd-mtr-val">{{ cert_scad }}</span></div>
+        <div class="fmd-mtr-lbl">Certificati individuali ≤60gg</div>
+        <div class="fmd-mtr-sub">Seconda scadenza (per persona)</div>
+      </div>
+    </section>
+
+    <div class="fmd-grid2" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;">
+
+      {# ── Distribuzione per regime ─────────────────────────────────────── #}
+      <section class="fmd-panel fmd-block">
+        <div class="fmd-block-head">
+          <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>Distribuzione per regime</div>
+        </div>
+        {% if distribuzione %}
+        <div style="display:flex;flex-direction:column;gap:12px;padding:4px 2px;">
+          {% for d in distribuzione %}
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;color:#475569;margin-bottom:4px;">
+              <span>{{ d.label }}</span><span class="fmd-num">{{ d.n }}</span>
+            </div>
+            <div style="height:10px;background:#eef3f8;border-radius:6px;overflow:hidden;">
+              <div style="height:100%;width:{% widthratio d.n n_processi 100 %}%;background:#1f87cd;border-radius:6px;"></div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="fmd-empty">Nessun processo qualificato registrato.</div>
+        {% endif %}
+      </section>
+
+      {# ── Timeline scadenze 12 mesi ────────────────────────────────────── #}
+      <section class="fmd-panel fmd-block">
+        <div class="fmd-block-head">
+          <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-cal-clock"/></svg>Scadenze processo prossimi 12 mesi</div>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:6px;height:130px;padding:8px 2px 0;">
+          {% for t in timeline %}
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end;" title="{{ t.label }}: {{ t.n }}">
+            <span class="fmd-num" style="font-size:11px;color:#64748b;">{{ t.n }}</span>
+            <div style="width:100%;background:{% if t.n %}#f59e0b{% else %}#eef3f8{% endif %};border-radius:5px 5px 0 0;height:{% if t.pct %}{{ t.pct }}{% else %}3{% endif %}%;min-height:3px;"></div>
+            <span style="font-size:10px;color:#94a3b8;white-space:nowrap;">{{ t.label }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+    </div>
+
+    {# ── Scadenze urgenti ───────────────────────────────────────────────── #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title">
+          <svg class="fmd-ico"><use href="#i-alarm"/></svg>Processi in scadenza
+          {% if scadenze_urgenti %}<span class="fmd-count">{{ scadenze_urgenti|length }}</span>{% endif %}
+        </div>
+        <div class="fmd-block-aside">Scaduti e in scadenza ≤60gg (top 15)</div>
+      </div>
+      {% if scadenze_urgenti %}
+      <div class="fmd-tablewrap" style="margin:0 -22px;">
+        <table class="fmd-table">
+          <thead>
+            <tr>
+              <th>Cliente/ente</th>
+              <th>Processo</th>
+              <th>Regime</th>
+              <th class="fmd-nowrap">Scadenza</th>
+              <th class="fmd-r">Giorni</th>
+              <th>Stato</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in scadenze_urgenti %}
+            <tr>
+              <td class="fmd-muted">{{ r.obj.cliente.nome }}</td>
+              <td><a class="fmd-data-link" href="{% url 'anagrafica:mpq_processo_detail' r.obj.id %}">{{ r.obj.nome }}</a></td>
+              <td class="fmd-muted">{{ r.regime_label }}</td>
+              <td class="fmd-nowrap fmd-muted">{{ r.scadenza|date:"d-m-Y" }}</td>
+              <td class="fmd-r">
+                {% if r.giorni < 0 %}<span class="fmd-num" style="color:#c53030;">{{ r.giorni }}gg</span>
+                {% elif r.giorni <= 30 %}<span class="fmd-num" style="color:#c2410c;">+{{ r.giorni }}gg</span>
+                {% else %}<span class="fmd-num fmd-muted">+{{ r.giorni }}gg</span>{% endif %}
+              </td>
+              <td>
+                {% if r.scad_stato == "scaduta" %}<span class="fmd-badge fmd-b-red">Scaduta</span>
+                {% elif r.scad_stato == "s30" %}<span class="fmd-badge fmd-b-orange">≤30gg</span>
+                {% else %}<span class="fmd-badge fmd-b-amber">≤60gg</span>{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="fmd-empty">Nessun processo scaduto o in scadenza nei prossimi 60 giorni. 🎉</div>
+      {% endif %}
+    </section>
+
+    {# ── Elenco processi ────────────────────────────────────────────────── #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Registro processi qualificati</div>
+        <div class="fmd-block-aside">La "vista MOD.128" completa (export dedicato in arrivo)</div>
+      </div>
+      {% if processi %}
+      <div class="fmd-tablewrap" style="margin:0 -22px;">
+        <table class="fmd-table">
+          <thead>
+            <tr>
+              <th>Cliente/ente</th>
+              <th>Processo</th>
+              <th>Regime</th>
+              <th>Livello</th>
+              <th class="fmd-r">Abilitati</th>
+              <th class="fmd-nowrap">Scadenza</th>
+              <th>Stato</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in processi %}
+            <tr>
+              <td class="fmd-muted">{{ r.obj.cliente.nome }}</td>
+              <td><a class="fmd-data-link" href="{% url 'anagrafica:mpq_processo_detail' r.obj.id %}">{{ r.obj.nome }}</a></td>
+              <td class="fmd-muted">{{ r.regime_label }}</td>
+              <td class="fmd-muted">{{ r.obj.livello|default:"—" }}</td>
+              <td class="fmd-r fmd-num">{{ r.n_abil }}</td>
+              <td class="fmd-nowrap fmd-muted">
+                {% if r.scadenza %}{{ r.scadenza|date:"d-m-Y" }}{% else %}—{% endif %}
+              </td>
+              <td>
+                {% if r.obj.stato == "ATTIVO" %}<span class="fmd-badge fmd-b-green">{{ r.stato_label }}</span>
+                {% elif r.obj.stato == "SOSPESO" %}<span class="fmd-badge fmd-b-amber">{{ r.stato_label }}</span>
+                {% else %}<span class="fmd-badge fmd-b-gray">{{ r.stato_label }}</span>{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="fmd-empty">Il registro MOD.128 è vuoto. I processi si inseriscono dall'area amministrativa.</div>
+      {% endif %}
+    </section>
+
+  </div>
+</div>
+{% endblock %}

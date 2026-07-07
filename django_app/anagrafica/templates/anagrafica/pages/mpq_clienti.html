@@ -1,0 +1,49 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Clienti/enti qualificanti · MOD.128 | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  <div class="fmd-wrap">
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Clienti / enti qualificanti (MOD.128)</div>
+        <div class="fmd-block-aside">
+          <a href="{% url 'anagrafica:mpq_cliente_create' %}" class="fmd-btn fmd-btn-primary">＋ Nuovo cliente/ente</a>
+          <a href="{% url 'anagrafica:mpq_cruscotto' %}" class="fmd-btn fmd-btn-ghost">← Cruscotto</a>
+        </div>
+      </div>
+      {% if clienti %}
+      <div class="fmd-tablewrap" style="margin:0 -22px;">
+        <table class="fmd-table">
+          <thead><tr><th>Nome</th><th>Tipo</th><th>Codice</th><th>Certificatore</th><th>Attivo</th><th>Azioni</th></tr></thead>
+          <tbody>
+            {% for c in clienti %}
+            <tr>
+              <td><strong>{{ c.nome }}</strong></td>
+              <td class="fmd-muted">{{ c.get_tipo_display }}</td>
+              <td class="fmd-muted">{{ c.codice|default:"—" }}</td>
+              <td class="fmd-muted">{{ c.certificatore.nome|default:"—" }}</td>
+              <td>{% if c.is_active %}<span class="fmd-badge fmd-b-green">Sì</span>{% else %}<span class="fmd-badge fmd-b-gray">No</span>{% endif %}</td>
+              <td><a class="fmd-data-link" href="{% url 'anagrafica:mpq_cliente_edit' c.id %}">Modifica</a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="fmd-empty">Nessun cliente/ente registrato.</div>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

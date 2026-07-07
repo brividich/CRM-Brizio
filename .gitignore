@@ -280,6 +280,10 @@ docs/anagrafica/CHAT_EXPORT_competenze.md
 docs/anagrafica/PROPOSTA_GESTIONE_COMPETENZE.html
 docs/anagrafica/PROPOSTA_GESTIONE_COMPETENZE.pdf
 docs/anagrafica/skillmatrix/skm_catalogo_competenze.csv
+# MOD.128 MPQ e procedura RU: sorgenti con PII reale (nomi + numeri certificato) — MAI versionare
+docs/anagrafica/MOD.128*
+docs/anagrafica/MT CN 06*
+docs/anagrafica/*.xlsx
 # Guida d'uso in PDF (rigenerabile dall'HTML)
 docs/gestione_carichi_macchina/GUIDA_UTILIZZO.pdf
 

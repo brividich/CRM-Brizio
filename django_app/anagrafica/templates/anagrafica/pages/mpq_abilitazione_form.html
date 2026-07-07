@@ -1,0 +1,91 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ titolo }} | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
+<style>
+  .mpqf-lbl{display:block;font-size:12px;font-weight:600;color:#475569;margin:10px 0 4px;}
+  .fm-input,.fm-select{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #d7e0ea;border-radius:8px;background:#fff;font:inherit;color:#0b1b2e;}
+  .fm-input:focus,.fm-select:focus{outline:none;border-color:#1f87cd;box-shadow:0 0 0 3px rgba(31,135,205,.15);}
+  .mpqf-roles{display:flex;gap:16px;flex-wrap:wrap;margin-top:6px;}
+  .mpqf-roles label{font-size:13px;color:#334155;}
+  .mpqf-err{color:#c53030;font-size:12px;margin-top:3px;}
+  body.theme-dark .fm-input,body.theme-dark .fm-select{background:var(--surface);border-color:var(--border);color:var(--text);}
+  body.theme-dark .mpqf-lbl,body.theme-dark .mpqf-roles label{color:var(--text-mid);}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  <div class="fmd-wrap">
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>{{ titolo }}</div>
+        <div class="fmd-block-aside">Processo: {{ processo.nome }}</div>
+      </div>
+      <form method="post">
+        {% csrf_token %}
+        {% if form.non_field_errors %}<div class="mpqf-err">{{ form.non_field_errors }}</div>{% endif %}
+
+        <label class="mpqf-lbl">Tipo persona</label>
+        <div style="display:flex;gap:16px;">{{ form.tipo_persona }}</div>
+        {% if form.tipo_persona.errors %}<div class="mpqf-err">{{ form.tipo_persona.errors }}</div>{% endif %}
+
+        <label class="mpqf-lbl" for="id_dipendente">Dipendente interno</label>
+        <input type="text" id="dip-filter" class="fm-input" placeholder="🔎 Filtra per cognome/nome…" autocomplete="off" style="margin-bottom:6px;">
+        <select name="dipendente" id="id_dipendente" class="fm-input fm-select" size="8">
+          <option value="">— Seleziona dipendente —</option>
+          {% for lid, label in dipendenti %}
+          <option value="{{ lid }}"{% if form.dipendente.value|stringformat:'s' == lid|stringformat:'s' %} selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <script>
+        (function () {
+          var f = document.getElementById('dip-filter'),
+              s = document.getElementById('id_dipendente');
+          if (!f || !s) return;
+          var opts = Array.prototype.slice.call(s.options);
+          f.addEventListener('input', function () {
+            var q = f.value.toLowerCase();
+            opts.forEach(function (o) {
+              if (!o.value) return; // mantieni il placeholder
+              o.hidden = o.textContent.toLowerCase().indexOf(q) < 0;
+            });
+          });
+        })();
+        </script>
+        {% if form.dipendente.errors %}<div class="mpqf-err">{{ form.dipendente.errors }}</div>{% endif %}
+
+        <label class="mpqf-lbl" for="{{ form.nominativo_esterno.id_for_label }}">Qualificatore esterno (nominativo)</label>
+        {{ form.nominativo_esterno }}
+        {% if form.nominativo_esterno.errors %}<div class="mpqf-err">{{ form.nominativo_esterno.errors }}</div>{% endif %}
+
+        <label class="mpqf-lbl">Ruoli sul processo</label>
+        <div class="mpqf-roles">
+          <label>{{ form.is_qualificato }} Qualificato</label>
+          <label>{{ form.is_addetto }} Addetto</label>
+          <label>{{ form.is_controllore }} Controllore</label>
+          <label>{{ form.is_part145 }} Part 145</label>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:6px;">
+          <div><label class="mpqf-lbl" for="{{ form.stato.id_for_label }}">Stato</label>{{ form.stato }}</div>
+          <div><label class="mpqf-lbl" for="{{ form.data_ingresso.id_for_label }}">Data ingresso</label>{{ form.data_ingresso }}</div>
+          <div><label class="mpqf-lbl" for="{{ form.note.id_for_label }}">Note</label>{{ form.note }}</div>
+        </div>
+
+        <div style="margin-top:18px;display:flex;gap:8px;">
+          <button type="submit" class="fmd-btn fmd-btn-primary">Salva</button>
+          <a href="{{ back_url }}" class="fmd-btn fmd-btn-ghost">Annulla</a>
+        </div>
+      </form>
+    </section>
+  </div>
+</div>
+{% endblock %}

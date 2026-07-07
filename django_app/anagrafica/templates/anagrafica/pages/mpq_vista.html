@@ -1,0 +1,124 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Vista MOD.128 · Processi qualificati | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
+<style>
+  .mpq-vista-table{width:100%;border-collapse:collapse;font-size:12px;}
+  .mpq-vista-table th,.mpq-vista-table td{border:1px solid #d7e0ea;padding:6px 8px;vertical-align:top;text-align:left;}
+  .mpq-vista-table thead th{background:#eef3f8;font-size:11px;text-transform:uppercase;letter-spacing:.02em;color:#475569;}
+  .mpq-vista-table td ul{margin:0;padding-left:14px;}
+  .mpq-cliente-cap{margin:18px 0 6px;font-weight:700;color:#0b1b2e;}
+  .mpq-org{font-style:italic;color:#64748b;}
+  body.theme-dark .mpq-vista-table th,body.theme-dark .mpq-vista-table td{border-color:var(--border);}
+  body.theme-dark .mpq-vista-table thead th{background:var(--surface-2);color:var(--text-mid);}
+  body.theme-dark .mpq-cliente-cap{color:var(--text);}
+  @media print{
+    .hrnav,.fmd-hero-actions,.mpq-noprint{display:none !important;}
+    .fmd-hero-bg{display:none;}
+    .mpq-vista-table{font-size:10px;}
+  }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  <div class="fmd-wrap">
+
+    <section class="fmd-hero">
+      <div class="fmd-hero-bg" aria-hidden="true"></div>
+      <div class="fmd-hero-inner">
+        <div>
+          <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Qualifiche · MOD.128</div>
+          <h1><svg class="fmd-ico fmd-cap"><use href="#i-cap"/></svg>Vista MOD.128</h1>
+          <p class="fmd-sub">Replica del Mansionario Processi Qualificati: tabella per cliente/ente, personale abilitato per ruolo, scadenze e distribuzione a reparto. {{ n_processi }} process{{ n_processi|pluralize:"o,i" }} · estratto del {{ oggi|date:"d-m-Y" }}.</p>
+          <div class="fmd-hero-actions">
+            <a class="fmd-btn-template" href="?{% if cliente_sel %}cliente={{ cliente_sel }}&{% endif %}{% if not solo_attivi %}tutti=1&{% endif %}format=docx">
+              <svg class="fmd-ico"><use href="#i-download"/></svg>Scarica .docx (replica-Word)
+            </a>
+            <button type="button" class="fmd-btn fmd-btn-ghost mpq-noprint" onclick="window.print()">
+              <svg class="fmd-ico"><use href="#i-printer"/></svg>Stampa
+            </button>
+            <a class="fmd-btn fmd-btn-ghost mpq-noprint" href="{% url 'anagrafica:mpq_cruscotto' %}">← Cruscotto</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {# ── Filtri ─────────────────────────────────────────────────────────── #}
+    <section class="fmd-panel fmd-block mpq-noprint">
+      <form method="get" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;">
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:#475569;">
+          Cliente/ente
+          <select name="cliente" class="fmd-input" style="min-width:220px;">
+            <option value="">Tutti</option>
+            {% for c in clienti %}
+            <option value="{{ c.id }}"{% if cliente_sel == c.id|stringformat:"s" %} selected{% endif %}>{{ c.nome }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#475569;">
+          <input type="checkbox" name="tutti" value="1"{% if not solo_attivi %} checked{% endif %}>
+          Includi sospesi/dismessi
+        </label>
+        <button type="submit" class="fmd-btn fmd-btn-primary">Applica</button>
+      </form>
+    </section>
+
+    {# ── Tabella MOD.128 per cliente ────────────────────────────────────── #}
+    {% for gruppo in gruppi %}
+    <section class="fmd-panel fmd-block">
+      <div class="mpq-cliente-cap">Cliente/ente: {{ gruppo.cliente }}</div>
+      <div class="fmd-tablewrap">
+        <table class="mpq-vista-table">
+          <thead>
+            <tr>
+              <th style="min-width:180px;">Processo qualificato</th>
+              <th>Personale qualificato</th>
+              <th>Addetto</th>
+              <th>Controllore</th>
+              <th>Part 145</th>
+              <th>Scadenze</th>
+              <th>Distribuzione a reparto</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in gruppo.righe %}
+            <tr>
+              <td>
+                <a class="fmd-data-link" href="{% url 'anagrafica:mpq_processo_detail' r.processo_id %}"><strong>{{ r.processo }}</strong></a>
+                <div class="fmd-muted" style="font-size:11px;">{{ r.regime }}{% if r.livello %} · Liv. {{ r.livello }}{% endif %} · {{ r.stato }}</div>
+                {% if r.riferimenti %}<div class="fmd-muted" style="font-size:11px;">Rif.: {{ r.riferimenti|join:", " }}</div>{% endif %}
+              </td>
+              {% if r.organizzativo %}
+              <td colspan="4" class="mpq-org">{{ r.organizzativo_rif }}</td>
+              {% else %}
+              <td>{% if r.qualificato %}<ul>{% for n in r.qualificato %}<li>{{ n }}</li>{% endfor %}</ul>{% else %}—{% endif %}</td>
+              <td>{% if r.addetto %}<ul>{% for n in r.addetto %}<li>{{ n }}</li>{% endfor %}</ul>{% else %}—{% endif %}</td>
+              <td>{% if r.controllore %}<ul>{% for n in r.controllore %}<li>{{ n }}</li>{% endfor %}</ul>{% else %}—{% endif %}</td>
+              <td>{% if r.part145 %}<ul>{% for n in r.part145 %}<li>{{ n }}</li>{% endfor %}</ul>{% else %}—{% endif %}</td>
+              {% endif %}
+              <td>{% if r.scadenze %}<ul>{% for s in r.scadenze %}<li>{{ s }}</li>{% endfor %}</ul>{% else %}—{% endif %}</td>
+              <td>{% if r.reparti %}{{ r.reparti|join:", " }}{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    {% empty %}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-empty">Nessun processo qualificato per i filtri selezionati.</div>
+    </section>
+    {% endfor %}
+
+  </div>
+</div>
+{% endblock %}

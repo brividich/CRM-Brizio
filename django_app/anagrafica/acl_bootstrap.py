@@ -11,7 +11,9 @@ logger = logging.getLogger(__name__)
 # Bump alla v3: aggiunge i permessi canonici Skill Matrix MOD.187.
 # Bump alla v4: aggiunge il binding route della pagina Impostazioni Skill Matrix
 # (anagrafica:skm_impostazioni → manage), così si ri-registra negli ambienti già a v3.
-_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v4"
+# Bump alla v5: aggiunge i permessi/binding canonici MOD.128 MPQ (processi qualificati).
+# Bump alla v6: aggiunge i binding delle route di gestione (CRUD) MOD.128 → manage.
+_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v6"
 
 # ── ACL v2 canonico — Skill Matrix MOD.187 ─────────────────────────────────────
 # Rende le route Skill Matrix governabili da /admin-portale/acl-canonico/ (e
@@ -45,6 +47,54 @@ _SKM_ROLE_GRANTS = {
     "amministrazione": {PERM_SKM_VIEW, PERM_SKM_MANAGE},
     "qualita": {PERM_SKM_VIEW, PERM_SKM_MANAGE},
     "caporeparto": {PERM_SKM_VIEW, PERM_SKM_MANAGE},
+}
+
+
+# ── ACL v2 canonico — MOD.128 MPQ (processi qualificati) ───────────────────────
+# Rende governabili da /admin-portale/acl-canonico/ (ed enforce-abili dal
+# middleware in ACL_STRICT_CANONICAL) le route della vista MOD.128. Le pagine
+# sono di sola lettura → binding su VIEW; MANAGE è definito e pronto per i futuri
+# endpoint di data-entry (F5), oggi il data-entry passa da Django admin.
+PERM_MPQ_VIEW = "anagrafica.mpq.view"
+PERM_MPQ_MANAGE = "anagrafica.mpq.manage"
+
+_MPQ_CANONICAL = {
+    PERM_MPQ_VIEW: {
+        "label": "Processi qualificati MOD.128 - Visualizza",
+        "description": "Cruscotto/vista/dettaglio dei processi qualificati (MPQ), sola lettura.",
+    },
+    PERM_MPQ_MANAGE: {
+        "label": "Processi qualificati MOD.128 - Gestisci",
+        "description": "Gestione processi/abilitazioni/certificazioni MPQ (data-entry, F5).",
+    },
+}
+
+_MPQ_ROUTE_BINDINGS = {
+    "anagrafica:mpq_cruscotto": PERM_MPQ_VIEW,
+    "anagrafica:mpq_vista": PERM_MPQ_VIEW,
+    "anagrafica:mpq_processo_detail": PERM_MPQ_VIEW,
+    # Gestione (CRUD) → manage
+    "anagrafica:mpq_processo_create": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_processo_edit": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_processo_delete": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_cliente_list": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_cliente_create": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_cliente_edit": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_abilitazione_add": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_abilitazione_edit": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_abilitazione_delete": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_certificazione_add": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_certificazione_delete": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_riferimento_add": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_riferimento_delete": PERM_MPQ_MANAGE,
+}
+
+# Grant di default (CREATE-ONLY: non sovrascrive le scelte fatte in ACL canonico).
+_MPQ_ROLE_GRANTS = {
+    "admin": {PERM_MPQ_VIEW, PERM_MPQ_MANAGE},
+    "amministrazione": {PERM_MPQ_VIEW, PERM_MPQ_MANAGE},
+    "qualita": {PERM_MPQ_VIEW, PERM_MPQ_MANAGE},
+    "caporeparto": {PERM_MPQ_VIEW},
 }
 
 
@@ -95,6 +145,62 @@ def _bootstrap_skillmatrix_canonical() -> bool:
                 changed = changed or created
     return changed
 
+
+def _bootstrap_mpq_canonical() -> bool:
+    """Registra permessi canonici MOD.128 MPQ + binding route + grant di default.
+
+    Struttura identica al bootstrap Skill Matrix (stesso pattern conservativo:
+    definizioni get_or_create, binding create-only con riattivazione, grant
+    create-only che non sovrascrive le scelte fatte in ACL canonico).
+    """
+    from core.legacy_models import Ruolo
+    from core.models import (
+        PermissionDefinition, RolePermissionGrant, RoutePermissionBinding,
+    )
+
+    changed = False
+    with transaction.atomic():
+        for code, payload in _MPQ_CANONICAL.items():
+            _, created = PermissionDefinition.objects.get_or_create(
+                code=code,
+                defaults={"module": MODULE, "label": payload["label"],
+                          "description": payload["description"], "is_active": True},
+            )
+            changed = changed or created
+
+        for route_name, code in _MPQ_ROUTE_BINDINGS.items():
+            binding, created = RoutePermissionBinding.objects.get_or_create(
+                route_name=route_name, path_pattern="",
+                defaults={"match_strategy": RoutePermissionBinding.MATCH_EXACT,
+                          "permission_id": code, "source_app": MODULE,
+                          "note": "[MPQ_BOOTSTRAP] binding MOD.128 processi qualificati",
+                          "priority": 80, "is_active": True},
+            )
+            changed = changed or created
+            if not created and (binding.permission_id != code or not binding.is_active):
+                binding.permission_id = code
+                binding.is_active = True
+                binding.save(update_fields=["permission", "is_active", "updated_at"])
+                changed = True
+
+        roles = {int(r.id): _norm(r.nome) for r in Ruolo.objects.all()}
+        for rid, rname in roles.items():
+            grants = _MPQ_ROLE_GRANTS.get(rname, set())
+            for code in (PERM_MPQ_VIEW, PERM_MPQ_MANAGE):
+                _, created = RolePermissionGrant.objects.get_or_create(
+                    legacy_role_id=rid, permission_id=code,
+                    defaults={"enabled": code in grants, "note": "[MPQ_BOOTSTRAP] default"},
+                )
+                changed = changed or created
+    return changed
+
+
+def _bootstrap_anagrafica_canonical() -> bool:
+    """Bootstrap canonico delle aree anagrafica governate da ACL v2 (SKM + MPQ)."""
+    changed_skm = _bootstrap_skillmatrix_canonical()
+    changed_mpq = _bootstrap_mpq_canonical()
+    return bool(changed_skm or changed_mpq)
+
 _PULSANTI_DEFINITIONS = [
     {"modulo": "anagrafica", "codice": "anagrafica_index", "label": "Anagrafica - Dashboard", "url": "/anagrafica/", "hide": False},
     {"modulo": "anagrafica", "codice": "anagrafica_dipendenti", "label": "Anagrafica - Lista dipendenti", "url": "/anagrafica/dipendenti/", "hide": False},
@@ -129,5 +235,5 @@ def bootstrap_anagrafica_acl_endpoints(force: bool = False) -> None:
         icona="users",
         section="anagrafica_api",
         force=force,
-        bootstrap_nav_fn=_bootstrap_skillmatrix_canonical,
+        bootstrap_nav_fn=_bootstrap_anagrafica_canonical,
     )

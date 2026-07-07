@@ -116,6 +116,21 @@ class RegistroTimbro(models.Model):
     firma_testo = models.TextField(blank=True, default="")
     is_attivo = models.BooleanField(default=True, db_index=True)
     is_archived = models.BooleanField(default=False, db_index=True)
+    # Aggancio al MOD.128 MPQ: il timbro fisico può essere legato a una specifica
+    # abilitazione persona×processo qualificato. Quando l'abilitazione non è più
+    # operativa il timbro viene sospeso automaticamente (vedi
+    # anagrafica.services.mpq_timbri). FK opzionale via string ref (no import).
+    abilitazione_processo = models.ForeignKey(
+        "anagrafica.AbilitazioneProcesso", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="timbri",
+    )
+    # Sospensione (MT CN 06 §10.3: serve la data di sospensione e, quando nota,
+    # quella prevista di rientro). Stato intermedio tra "attivo" e "superato".
+    is_sospeso = models.BooleanField(default=False, db_index=True)
+    sospeso_dal = models.DateField(null=True, blank=True)
+    sospeso_al = models.DateField(null=True, blank=True)
+    sospeso_motivo = models.CharField(max_length=255, blank=True, default="")
+    sospeso_riferimento = models.CharField(max_length=255, blank=True, default="")
     sharepoint_item_id = models.CharField(max_length=100, blank=True, default="", db_index=True)
     imported_at = models.DateTimeField(null=True, blank=True)
     last_import_at = models.DateTimeField(null=True, blank=True)
@@ -147,6 +162,9 @@ class RegistroTimbro(models.Model):
     def clean(self) -> None:
         if self.is_archived and self.is_attivo:
             self.is_attivo = False
+        # Un timbro sospeso non è utilizzabile: non può restare "attivo".
+        if self.is_sospeso and self.is_attivo:
+            self.is_attivo = False
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -156,6 +174,8 @@ class RegistroTimbro(models.Model):
     def stato_label(self) -> str:
         if self.is_archived:
             return "Archiviato"
+        if self.is_sospeso:
+            return "Sospeso"
         if self.is_attivo:
             return "Attivo"
         return "Superato"

@@ -1,0 +1,208 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ processo.nome }} · MOD.128 | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  <div class="fmd-wrap">
+
+    {# ── Testata processo ───────────────────────────────────────────────── #}
+    <section class="fmd-hero">
+      <div class="fmd-hero-bg" aria-hidden="true"></div>
+      <div class="fmd-hero-inner">
+        <div>
+          <div class="fmd-hero-eyebrow">
+            <span class="fmd-dot"></span>
+            <a href="{% url 'anagrafica:mpq_cruscotto' %}" style="color:inherit;text-decoration:none;">MOD.128 · Processi qualificati</a>
+          </div>
+          <h1><svg class="fmd-ico fmd-cap"><use href="#i-cap"/></svg>{{ processo.nome }}</h1>
+          <p class="fmd-sub">
+            Cliente/ente: <strong>{{ processo.cliente.nome }}</strong>
+            · Regime: {{ processo.get_regime_display }}
+            {% if processo.livello %}· Livello: {{ processo.livello }}{% endif %}
+            {% if processo.ente_certificatore %}· Certificatore: {{ processo.ente_certificatore.nome }}{% endif %}
+          </p>
+          <div class="fmd-hero-actions" style="gap:8px;flex-wrap:wrap;">
+            {% if processo.stato == "ATTIVO" %}<span class="fmd-badge fmd-b-green">{{ processo.get_stato_display }}</span>
+            {% elif processo.stato == "SOSPESO" %}<span class="fmd-badge fmd-b-amber">{{ processo.get_stato_display }}</span>
+            {% else %}<span class="fmd-badge fmd-b-gray">{{ processo.get_stato_display }}</span>{% endif %}
+            {% if scadenza %}
+              {% if scad_stato == "scaduta" %}<span class="fmd-badge fmd-b-red">Scaduto il {{ scadenza|date:"d-m-Y" }}</span>
+              {% elif scad_stato == "s30" %}<span class="fmd-badge fmd-b-orange">Scade {{ scadenza|date:"d-m-Y" }}</span>
+              {% elif scad_stato == "s60" %}<span class="fmd-badge fmd-b-amber">Scade {{ scadenza|date:"d-m-Y" }}</span>
+              {% else %}<span class="fmd-badge fmd-b-green">Valido fino al {{ scadenza|date:"d-m-Y" }}</span>{% endif %}
+            {% else %}
+              <span class="fmd-badge fmd-b-gray">Validità illimitata (salvo revoca/sospensione)</span>
+            {% endif %}
+          </div>
+          {% if can_manage %}
+          <div class="fmd-hero-actions" style="gap:8px;flex-wrap:wrap;margin-top:10px;">
+            <a class="fmd-btn-template" href="{% url 'anagrafica:mpq_processo_edit' processo.id %}">
+              <svg class="fmd-ico"><use href="#i-edit"/></svg>Modifica
+            </a>
+            <form method="post" action="{% url 'anagrafica:mpq_processo_delete' processo.id %}"
+                  onsubmit="return confirm('Eliminare definitivamente il processo «{{ processo.nome|escapejs }}» e tutte le sue abilitazioni?');" style="display:inline;">
+              {% csrf_token %}
+              <button type="submit" class="fmd-btn fmd-btn-ghost" style="color:#c53030;">🗑 Elimina</button>
+            </form>
+          </div>
+          {% endif %}
+        </div>
+        <div class="fmd-hero-side">
+          <div class="fmd-hero-tile">
+            <span class="fmd-corner"></span>
+            <span class="fmd-bignum">{{ abilitazioni|length }}</span>
+            <span class="fmd-lbl">Persone abilitate</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {% if processo.stato != "ATTIVO" and processo.motivo_stato %}
+    <section class="fmd-panel fmd-block" style="border-left:4px solid #f59e0b;">
+      <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg>{{ processo.get_stato_display }}</div>
+      <p class="fmd-sub" style="margin:6px 0 0;">{{ processo.motivo_stato }}{% if processo.riferimento_stato %} <span class="fmd-muted">— {{ processo.riferimento_stato }}</span>{% endif %}</p>
+    </section>
+    {% endif %}
+
+    {# ── Anagrafica processo ────────────────────────────────────────────── #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Dati del processo</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;padding:6px 2px;">
+        <div><div class="fmd-muted" style="font-size:12px;">Personale</div><div>{{ processo.get_personale_modalita_display }}</div>
+          {% if processo.riferimento_dichiarazione %}<div class="fmd-muted" style="font-size:12px;">{{ processo.riferimento_dichiarazione }}</div>{% endif %}</div>
+        <div><div class="fmd-muted" style="font-size:12px;">Distribuzione a reparto</div>
+          <div>{% for rep in reparti %}<span class="fmd-badge fmd-b-cyan">{{ rep.nome }}</span> {% empty %}—{% endfor %}</div></div>
+        <div><div class="fmd-muted" style="font-size:12px;">Riconoscimento condiviso</div>
+          <div>{% for c in clienti_addizionali %}<span class="fmd-badge fmd-b-gray">{{ c.nome }}</span> {% empty %}—{% endfor %}</div></div>
+        <div><div class="fmd-muted" style="font-size:12px;">Revisione modulo</div>
+          <div>{{ processo.numero_revisione|default:"—" }}{% if processo.data_revisione %} · {{ processo.data_revisione|date:"d-m-Y" }}{% endif %}</div>
+          {% if processo.responsabile_qualita %}<div class="fmd-muted" style="font-size:12px;">RQ: {{ processo.responsabile_qualita }}</div>{% endif %}</div>
+      </div>
+      {% if riferimenti or can_manage %}
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid #eef3f8;">
+        <div class="fmd-muted" style="font-size:12px;margin-bottom:6px;">Riferimenti / codici di approvazione</div>
+        {% for rif in riferimenti %}
+          <span class="fmd-badge fmd-b-violet" title="{{ rif.get_tipo_display }}">{{ rif.codice }}{% if can_manage %}
+            <form method="post" action="{% url 'anagrafica:mpq_riferimento_delete' rif.id %}" style="display:inline;" onsubmit="return confirm('Rimuovere il riferimento {{ rif.codice|escapejs }}?');">{% csrf_token %}<button type="submit" title="Rimuovi" style="border:0;background:none;color:#c53030;cursor:pointer;padding:0 0 0 4px;font:inherit;">×</button></form>
+          {% endif %}</span>
+        {% empty %}{% if not can_manage %}<span class="fmd-muted">—</span>{% endif %}{% endfor %}
+        {% if can_manage %}
+        <form method="post" action="{% url 'anagrafica:mpq_riferimento_add' processo.id %}" style="display:flex;gap:6px;margin-top:8px;max-width:520px;">
+          {% csrf_token %}
+          <input type="text" name="codice" placeholder="Nuovo codice (es. COP001)" required
+                 style="flex:1;padding:6px 9px;border:1px solid #d7e0ea;border-radius:8px;font:inherit;">
+          <select name="tipo" style="padding:6px 9px;border:1px solid #d7e0ea;border-radius:8px;font:inherit;">
+            <option value="APPROVAZIONE">Approvazione</option>
+            <option value="SPECIFICA">Specifica</option>
+            <option value="CERTIFICATO">Certificato</option>
+            <option value="DICHIARAZIONE">Dichiarazione</option>
+          </select>
+          <button type="submit" class="fmd-btn fmd-btn-ghost">＋ Aggiungi</button>
+        </form>
+        {% endif %}
+      </div>
+      {% endif %}
+      {% if processo.note %}<p class="fmd-sub" style="margin-top:10px;">{{ processo.note|linebreaksbr }}</p>{% endif %}
+    </section>
+
+    {# ── Personale abilitato ────────────────────────────────────────────── #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>Personale abilitato
+          {% if abilitazioni %}<span class="fmd-count">{{ abilitazioni|length }}</span>{% endif %}
+        </div>
+        <div class="fmd-block-aside">
+          Ruoli sul processo + certificazioni individuali (seconda scadenza)
+          {% if can_manage %}
+          <a class="fmd-btn fmd-btn-primary" style="margin-left:10px;" href="{% url 'anagrafica:mpq_abilitazione_add' processo.id %}">＋ Aggiungi persona</a>
+          {% endif %}
+        </div>
+      </div>
+      {% if abilitazioni %}
+      <div class="fmd-tablewrap" style="margin:0 -22px;">
+        <table class="fmd-table">
+          <thead>
+            <tr><th>Persona</th><th>Ruoli</th><th>Stato</th><th>Certificazioni individuali</th>{% if can_manage %}<th>Azioni</th>{% endif %}</tr>
+          </thead>
+          <tbody>
+            {% for a in abilitazioni %}
+            <tr>
+              <td>
+                {% if a.nome_risolto %}
+                  <a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' a.obj.legacy_anagrafica_id %}">{{ a.nome }}</a>
+                {% else %}{{ a.nome }}{% endif %}
+              </td>
+              <td>{% for r in a.ruoli %}<span class="fmd-badge fmd-b-cyan">{{ r }}</span> {% empty %}<span class="fmd-muted">—</span>{% endfor %}</td>
+              <td>
+                {% if a.obj.stato == "ATTIVA" %}<span class="fmd-badge fmd-b-green">{{ a.stato_label }}</span>
+                {% elif a.obj.stato == "SOSPESA" %}<span class="fmd-badge fmd-b-amber">{{ a.stato_label }}</span>
+                {% else %}<span class="fmd-badge fmd-b-gray">{{ a.stato_label }}</span>{% endif %}
+              </td>
+              <td>
+                {% for c in a.certificazioni %}
+                  <div style="margin-bottom:3px;">
+                    <strong>{{ c.obj.schema }}</strong> {{ c.obj.numero }}
+                    {% if c.obj.data_scadenza %}
+                      {% if c.scad_stato == "scaduta" %}<span class="fmd-badge fmd-b-red">scad. {{ c.obj.data_scadenza|date:"d-m-Y" }}</span>
+                      {% elif c.scad_stato == "s30" or c.scad_stato == "s60" %}<span class="fmd-badge fmd-b-amber">scad. {{ c.obj.data_scadenza|date:"d-m-Y" }}</span>
+                      {% else %}<span class="fmd-muted">scad. {{ c.obj.data_scadenza|date:"d-m-Y" }}</span>{% endif %}
+                    {% endif %}
+                  </div>
+                {% empty %}<span class="fmd-muted">—</span>{% endfor %}
+              </td>
+              {% if can_manage %}
+              <td class="fmd-nowrap">
+                <a class="fmd-data-link" href="{% url 'anagrafica:mpq_abilitazione_edit' a.obj.id %}">Modifica</a>
+                · <a class="fmd-data-link" href="{% url 'anagrafica:mpq_certificazione_add' a.obj.id %}">＋ cert</a>
+                · <form method="post" action="{% url 'anagrafica:mpq_abilitazione_delete' a.obj.id %}" style="display:inline;" onsubmit="return confirm('Rimuovere l'abilitazione di {{ a.nome|escapejs }}?');">{% csrf_token %}<button type="submit" class="fmd-linkbtn" style="border:0;background:none;color:#c53030;cursor:pointer;padding:0;font:inherit;">Rimuovi</button></form>
+              </td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="fmd-empty">Nessuna persona abilitata su questo processo.</div>
+      {% endif %}
+    </section>
+
+    {# ── Storico ────────────────────────────────────────────────────────── #}
+    {% if storico %}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-cal-clock"/></svg>Storico</div>
+      </div>
+      <div class="fmd-tablewrap" style="margin:0 -22px;">
+        <table class="fmd-table">
+          <thead><tr><th class="fmd-nowrap">Quando</th><th>Evento</th><th>Origine</th></tr></thead>
+          <tbody>
+            {% for s in storico %}
+            <tr>
+              <td class="fmd-nowrap fmd-muted">{{ s.registrato_il|date:"d-m-Y H:i" }}</td>
+              <td>{{ s.evento }}{% if s.dettaglio %}<div class="fmd-muted" style="font-size:12px;">{{ s.dettaglio }}</div>{% endif %}</td>
+              <td class="fmd-muted">{{ s.get_origine_display }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

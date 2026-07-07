@@ -1,6 +1,7 @@
 from django.urls import path
 
 from . import views
+from . import views_mpq
 
 app_name = "anagrafica"
 
@@ -181,6 +182,26 @@ urlpatterns = [
     path("qualifiche/<int:tipo_id>/", views.tipo_qualifica_detail, name="tipo_qualifica_detail"),
     path("qualifiche/<int:tipo_id>/modifica", views.tipo_qualifica_edit, name="tipo_qualifica_edit"),
     path("qualifiche/<int:tipo_id>/elimina", views.tipo_qualifica_delete, name="tipo_qualifica_delete"),
+
+    # MOD.128 MPQ — Processi qualificati (cruscotto + vista/export + dettaglio).
+    # Agganciato al gruppo esistente Competenze → Qualifiche (subnav 0077).
+    path("mod128/", views_mpq.mpq_cruscotto, name="mpq_cruscotto"),
+    path("mod128/vista/", views_mpq.mpq_vista, name="mpq_vista"),
+    # Gestione (CRUD) — gated anagrafica.mpq.manage
+    path("mod128/nuovo/", views_mpq.mpq_processo_create, name="mpq_processo_create"),
+    path("mod128/clienti/", views_mpq.mpq_cliente_list, name="mpq_cliente_list"),
+    path("mod128/clienti/nuovo/", views_mpq.mpq_cliente_create, name="mpq_cliente_create"),
+    path("mod128/clienti/<int:cliente_id>/modifica/", views_mpq.mpq_cliente_edit, name="mpq_cliente_edit"),
+    path("mod128/abilitazione/<int:ab_id>/modifica/", views_mpq.mpq_abilitazione_edit, name="mpq_abilitazione_edit"),
+    path("mod128/abilitazione/<int:ab_id>/elimina/", views_mpq.mpq_abilitazione_delete, name="mpq_abilitazione_delete"),
+    path("mod128/abilitazione/<int:ab_id>/certificazione/aggiungi/", views_mpq.mpq_certificazione_add, name="mpq_certificazione_add"),
+    path("mod128/certificazione/<int:cert_id>/elimina/", views_mpq.mpq_certificazione_delete, name="mpq_certificazione_delete"),
+    path("mod128/riferimento/<int:rif_id>/elimina/", views_mpq.mpq_riferimento_delete, name="mpq_riferimento_delete"),
+    path("mod128/<int:processo_id>/", views_mpq.mpq_processo_detail, name="mpq_processo_detail"),
+    path("mod128/<int:processo_id>/modifica/", views_mpq.mpq_processo_edit, name="mpq_processo_edit"),
+    path("mod128/<int:processo_id>/elimina/", views_mpq.mpq_processo_delete, name="mpq_processo_delete"),
+    path("mod128/<int:processo_id>/abilitazione/aggiungi/", views_mpq.mpq_abilitazione_add, name="mpq_abilitazione_add"),
+    path("mod128/<int:processo_id>/riferimento/aggiungi/", views_mpq.mpq_riferimento_add, name="mpq_riferimento_add"),
 
     # Voci retributive — importazione CSV e storico dipendente
     path("retribuzioni/", views.retribuzioni_import, name="retribuzioni_import"),
