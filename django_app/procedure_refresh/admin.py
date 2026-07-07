@@ -10,6 +10,7 @@ from .models import (
     ProcedureQuizAttempt,
     ProcedureReadEvent,
     ProcedureRevision,
+    SgiSyncLog,
 )
 
 
@@ -91,3 +92,14 @@ class ProcedureChangeRequestAdmin(admin.ModelAdmin):
     list_filter = ("status", "document__document_type")
     search_fields = ("document__code", "document__title", "testo")
     readonly_fields = ("created_at", "updated_at", "gestita_il")
+
+
+@admin.register(SgiSyncLog)
+class SgiSyncLogAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "azione", "document_code", "revision_old", "revision_new", "origine", "run_id")
+    list_filter = ("azione", "origine")
+    search_fields = ("document_code", "run_id", "note")
+    readonly_fields = ("run_id", "azione", "document_code", "revision_old", "revision_new", "note", "origine", "created_at")
+
+    def has_add_permission(self, request):
+        return False  # append-only: scritto solo dai task di sync

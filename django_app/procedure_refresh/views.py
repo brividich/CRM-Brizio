@@ -1440,6 +1440,29 @@ def change_request_set_status(request, pk: int):
     return redirect("procedure_refresh:change_request_list")
 
 
+@login_required
+def sync_log_list(request):
+    """Log append-only dei cambiamenti della sincronizzazione SGI (evidenza ISO)."""
+    if not _can_manage(request):
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("procedure_refresh:my_assignments")
+
+    from .models import SgiSyncLog, SgiSyncAction
+
+    azione = (request.GET.get("azione") or "").strip()
+    qs = SgiSyncLog.objects.all()
+    if azione in {c[0] for c in SgiSyncAction.choices}:
+        qs = qs.filter(azione=azione)
+    rows = list(qs[:500])
+
+    return render(request, "procedure_refresh/pages/sync_log_list.html", {
+        "rows": rows,
+        "azione": azione,
+        "azioni": SgiSyncAction.choices,
+        "n_tot": SgiSyncLog.objects.count(),
+    })
+
+
 # ---------------------------------------------------------------------------
 # Reports
 # ---------------------------------------------------------------------------

@@ -1090,6 +1090,43 @@ class AclAndUxTests(TestCase):
         self.assertFalse(self.doc_rag.requires_acknowledgement)  # invariato
 
 
+class SgiSyncLogTests(TestCase):
+    """Log append-only dei cambiamenti della sincronizzazione SGI."""
+
+    def test_helper_scrive_riga(self):
+        from procedure_refresh.models import SgiSyncLog, SgiSyncAction
+        from procedure_refresh.tasks import log_sgi_change
+
+        row = log_sgi_change(
+            run_id="r1", azione=SgiSyncAction.NUOVA_REVISIONE,
+            document_code="MT CN 06", revision_old="20", revision_new="21",
+        )
+        self.assertEqual(SgiSyncLog.objects.count(), 1)
+        self.assertEqual(row.azione, SgiSyncAction.NUOVA_REVISIONE)
+        self.assertEqual(row.revision_new, "21")
+        self.assertEqual(row.origine, "auto")
+
+    def test_pagina_admin_visibile_al_gestore(self):
+        from procedure_refresh.models import SgiSyncAction
+        from procedure_refresh.tasks import log_sgi_change
+
+        log_sgi_change(run_id="r1", azione=SgiSyncAction.NUOVO_DOC, document_code="MT CN 99")
+        mgr = User.objects.create_user(username="synclogmgr", password="pw", is_superuser=True)
+        self.client.force_login(mgr)
+        resp = self.client.get(reverse("procedure_refresh:sync_log_list"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "MT CN 99")
+
+    def test_pagina_admin_negata_ai_non_gestori(self):
+        from core.models import UserOnboarding
+
+        plain = User.objects.create_user(username="synclogplain", password="pw")
+        UserOnboarding.objects.create(user=plain, skipped=True)
+        self.client.force_login(plain)
+        resp = self.client.get(reverse("procedure_refresh:sync_log_list"))
+        self.assertIn(resp.status_code, (302, 403))
+
+
 class ReminderConfigTests(TestCase):
     """Config solleciti presa visione (SiteConfig, pattern tickets_escalation)."""
 

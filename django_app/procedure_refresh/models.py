@@ -39,6 +39,41 @@ class ReadEventType(models.TextChoices):
     OVERDUE_MARKED = "overdue_marked", "Marcata scaduta"
 
 
+class SgiSyncAction(models.TextChoices):
+    NUOVO_DOC = "nuovo_doc", "Nuovo documento"
+    NUOVA_REVISIONE = "nuova_revisione", "Nuova revisione"
+    DOC_SPARITO = "doc_sparito", "Documento sparito dalla share"
+
+
+class SgiSyncLog(models.Model):
+    """Riga append-only del log di sincronizzazione SGI.
+
+    Traccia ogni cambiamento rilevato/applicato dalla sync (automatica o manuale):
+    nuovo documento, nuova revisione di un documento esistente, documento sparito
+    dalla share. È l'evidenza ISO dei cambiamenti al corpus documentale e la fonte
+    del badge «nuova revisione» nella lista documenti. Mai cancellata dai flussi.
+    """
+
+    run_id = models.CharField(max_length=64, db_index=True, verbose_name="ID esecuzione")
+    azione = models.CharField(
+        max_length=20, choices=SgiSyncAction.choices, db_index=True, verbose_name="Azione"
+    )
+    document_code = models.CharField(max_length=50, db_index=True, verbose_name="Codice documento")
+    revision_old = models.CharField(max_length=50, blank=True, default="", verbose_name="Revisione precedente")
+    revision_new = models.CharField(max_length=50, blank=True, default="", verbose_name="Revisione nuova")
+    note = models.CharField(max_length=300, blank=True, default="", verbose_name="Note")
+    origine = models.CharField(max_length=10, default="auto", verbose_name="Origine")  # auto | manuale
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        verbose_name = "Log sincronizzazione SGI"
+        verbose_name_plural = "Log sincronizzazioni SGI"
+
+    def __str__(self) -> str:
+        return f"[{self.get_azione_display()}] {self.document_code} ({self.created_at:%Y-%m-%d})"
+
+
 class ProcedureDocument(models.Model):
     code = models.CharField(max_length=50, unique=True, verbose_name="Codice documento")
     title = models.CharField(max_length=300, verbose_name="Titolo")

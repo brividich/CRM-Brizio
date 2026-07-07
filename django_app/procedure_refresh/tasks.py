@@ -33,6 +33,28 @@ def _site_url() -> str:
     return str(getattr(settings, "SITE_URL", "") or "").rstrip("/")
 
 
+def log_sgi_change(
+    *, run_id, azione, document_code, revision_old="", revision_new="", note="", origine="auto"
+):
+    """Scrive una riga nel log append-only ``SgiSyncLog`` (evidenza dei cambiamenti
+    della sync SGI). Fail-safe: non deve mai far fallire la sync."""
+    try:
+        from procedure_refresh.models import SgiSyncLog
+
+        return SgiSyncLog.objects.create(
+            run_id=str(run_id or ""),
+            azione=azione,
+            document_code=str(document_code or "")[:50],
+            revision_old=str(revision_old or "")[:50],
+            revision_new=str(revision_new or "")[:50],
+            note=str(note or "")[:300],
+            origine=origine if origine in ("auto", "manuale") else "auto",
+        )
+    except Exception:
+        logger.exception("log_sgi_change fallito (%s %s)", azione, document_code)
+        return None
+
+
 def _legacy_id_map(user_ids: list[int]) -> dict[int, int]:
     """user.pk -> legacy_user_id (fallback: user.pk stesso). Difensivo."""
     result = {uid: uid for uid in user_ids}

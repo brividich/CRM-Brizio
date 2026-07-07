@@ -43,6 +43,9 @@ urlpatterns = [
     path("admin/segnalazioni/", views.change_request_list, name="change_request_list"),
     path("admin/segnalazioni/<int:pk>/stato/", views.change_request_set_status, name="change_request_set_status"),
 
+    # ── Admin — log sincronizzazioni SGI ────────────────────────────────────
+    path("admin/sync-log/", views.sync_log_list, name="sync_log_list"),
+
     # ── API ─────────────────────────────────────────────────────────────────
     path("api/parse-sharepoint-url/", views.api_parse_sharepoint_url, name="api_parse_sharepoint_url"),
 
