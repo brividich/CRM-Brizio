@@ -409,8 +409,14 @@ def mpq_vista(request):
     gruppi = _build_vista_groups(qs)
 
     if request.GET.get("format") == "docx":
-        from .mpq_export import build_mod128_docx_bytes
-        data = build_mod128_docx_bytes(gruppi, oggi)
+        try:
+            from .mpq_export import build_mod128_docx_bytes
+            data = build_mod128_docx_bytes(gruppi, oggi)
+        except ImportError:
+            messages.error(
+                request,
+                "Export .docx non disponibile: la libreria python-docx non è installata sul server.")
+            return redirect("anagrafica:mpq_vista")
         resp = HttpResponse(
             data,
             content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
