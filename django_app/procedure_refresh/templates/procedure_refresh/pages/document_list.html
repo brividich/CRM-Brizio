@@ -97,6 +97,13 @@ body.theme-dark .pr-empty { color:var(--text-light); }
     </form>
   </div>
 
+  {% if vista == 'rag' %}
+    <div style="padding:10px 14px;border-radius:10px;background:#eff6ff;color:#1e40af;font-size:12.5px;line-height:1.5;">
+      Documenti del <strong>corpus AI</strong> (es. importati dalla share SGI): citabili dall'Assistente ma <strong>non</strong> soggetti a presa visione.
+      Per usarne uno in una campagna, premi <strong>«→ Presa visione»</strong> per abilitarlo.
+    </div>
+  {% endif %}
+
   <div class="pr-table-wrap">
     {% if documents %}
       <table class="pr-table">
@@ -160,6 +167,19 @@ body.theme-dark .pr-empty { color:var(--text-light); }
                 <div style="display:flex;gap:6px;flex-wrap:wrap;">
                   <a href="{% url 'procedure_refresh:document_edit' pk=doc.pk %}" class="pr-btn pr-btn-sm pr-btn-gray">Modifica</a>
                   <a href="{% url 'procedure_refresh:revision_create' doc_pk=doc.pk %}" class="pr-btn pr-btn-sm pr-btn-green">+ Rev.</a>
+                  {% if doc.requires_acknowledgement %}
+                    <form method="post" action="{% url 'procedure_refresh:document_toggle_ack' pk=doc.pk %}"
+                          onsubmit="return confirm('Riportare {{ doc.code }} a solo corpus AI? Non sarà più selezionabile nelle campagne.')">
+                      {% csrf_token %}
+                      <button type="submit" class="pr-btn pr-btn-sm pr-btn-gray" title="Rimuovi dalla presa visione, resta nel corpus AI">→ Solo AI</button>
+                    </form>
+                  {% else %}
+                    <form method="post" action="{% url 'procedure_refresh:document_toggle_ack' pk=doc.pk %}"
+                          title="Abilita la presa visione: il documento diventa selezionabile nelle campagne">
+                      {% csrf_token %}
+                      <button type="submit" class="pr-btn pr-btn-sm pr-btn-green">→ Presa visione</button>
+                    </form>
+                  {% endif %}
                   {% if doc.is_active %}
                     <form method="post" action="{% url 'procedure_refresh:document_delete' pk=doc.pk %}"
                           onsubmit="return confirm('Disattivare il documento {{ doc.code }}?')">

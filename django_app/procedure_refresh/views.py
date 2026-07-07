@@ -12,6 +12,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -775,6 +776,46 @@ def document_delete(request, pk: int):
     )
     messages.success(request, f"Documento {code} disattivato.")
     return redirect("procedure_refresh:document_list")
+
+
+@login_required
+@require_POST
+def document_toggle_ack(request, pk: int):
+    """Promuove/degrada un documento tra «Presa visione» e «Solo AI».
+
+    I documenti importati dalla share SGI nascono ``requires_acknowledgement=False``
+    (corpus per il RAG) e non sono selezionabili nelle campagne. Questo toggle a un
+    click li rende soggetti a presa visione — o li riporta a solo-AI — senza passare
+    dal form completo. Requisito ISO: la scelta di cosa richiede presa visione resta
+    una decisione umana tracciata.
+    """
+    if not _can_manage(request):
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("procedure_refresh:my_assignments")
+
+    document = get_object_or_404(ProcedureDocument, pk=pk)
+    document.requires_acknowledgement = not document.requires_acknowledgement
+    document.save(update_fields=["requires_acknowledgement", "updated_at"])
+    log_action(
+        request,
+        "modifica",
+        "procedure_refresh",
+        _audit_detail(
+            "Presa visione abilitata" if document.requires_acknowledgement else "Presa visione rimossa",
+            document_id=pk,
+            code=document.code,
+        ),
+    )
+    if document.requires_acknowledgement:
+        messages.success(
+            request,
+            f"{document.code}: presa visione abilitata — ora è selezionabile nelle campagne.",
+        )
+        vista = "pv"
+    else:
+        messages.success(request, f"{document.code}: riportato a solo corpus AI.")
+        vista = "rag"
+    return redirect(f"{reverse('procedure_refresh:document_list')}?vista={vista}")
 
 
 @login_required

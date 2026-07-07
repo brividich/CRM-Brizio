@@ -1054,6 +1054,44 @@ class AclAndUxTests(TestCase):
         self.assertIn("MT-PV-001", rev_docs)
         self.assertNotIn("MT-RAG-001", rev_docs)  # documento RAG-only escluso dal picker
 
+    def test_toggle_promuove_documento_a_presa_visione(self):
+        """Un documento importato dal SGI (solo AI) si promuove a presa visione con
+        un solo click e diventa selezionabile nelle campagne."""
+        self.client.force_login(self.manager)
+        resp = self.client.post(
+            reverse("procedure_refresh:document_toggle_ack", kwargs={"pk": self.doc_rag.pk}),
+            {"vista": "rag"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.doc_rag.refresh_from_db()
+        self.assertTrue(self.doc_rag.requires_acknowledgement)
+        # ora compare nel tab "Presa visione"
+        resp2 = self.client.get(reverse("procedure_refresh:document_list") + "?vista=pv")
+        self.assertIn("MT-RAG-001", {d.code for d in resp2.context["documents"]})
+
+    def test_toggle_rimuove_presa_visione(self):
+        """Il toggle è reversibile: un documento in presa visione torna solo-AI."""
+        self.client.force_login(self.manager)
+        self.client.post(
+            reverse("procedure_refresh:document_toggle_ack", kwargs={"pk": self.doc_pv.pk}),
+            {"vista": "pv"},
+        )
+        self.doc_pv.refresh_from_db()
+        self.assertFalse(self.doc_pv.requires_acknowledgement)
+
+    def test_toggle_richiede_permesso_gestione(self):
+        from core.models import UserOnboarding
+
+        plain = User.objects.create_user(username="daclnope", password="pw")
+        UserOnboarding.objects.create(user=plain, skipped=True)
+        self.client.force_login(plain)
+        resp = self.client.post(
+            reverse("procedure_refresh:document_toggle_ack", kwargs={"pk": self.doc_rag.pk})
+        )
+        self.assertIn(resp.status_code, (302, 403))
+        self.doc_rag.refresh_from_db()
+        self.assertFalse(self.doc_rag.requires_acknowledgement)  # invariato
+
 
 class ReminderConfigTests(TestCase):
     """Config solleciti presa visione (SiteConfig, pattern tickets_escalation)."""

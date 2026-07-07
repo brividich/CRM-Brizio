@@ -20,6 +20,7 @@ urlpatterns = [
     path("admin/documenti/nuovo/", views.document_form, name="document_create"),
     path("admin/documenti/<int:pk>/", views.document_form, name="document_edit"),
     path("admin/documenti/<int:pk>/elimina/", views.document_delete, name="document_delete"),
+    path("admin/documenti/<int:pk>/presa-visione/", views.document_toggle_ack, name="document_toggle_ack"),
 
     # ── Admin — revisioni ───────────────────────────────────────────────────
     path("admin/documenti/<int:doc_pk>/revisioni/nuova/", views.revision_form, name="revision_create"),
