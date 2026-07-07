@@ -164,10 +164,12 @@ body.theme-dark .pr-empty { color:var(--text-light); }
         <form method="post" action="{% url 'procedure_refresh:campaign_add_document' pk=campaign.pk %}"
               class="pr-form-inline" style="margin-bottom:14px;">
           {% csrf_token %}
-          <select name="revision_id" required style="flex:1;min-width:180px;">
+          <input type="text" id="pr-picker-search" placeholder="Filtra documenti…" autocomplete="off"
+                 style="flex:1;min-width:160px;padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:12px;">
+          <select name="revision_id" id="pr-picker-select" required style="flex:1;min-width:180px;">
             <option value="">— Seleziona revisione —</option>
             {% for rev in available_revisions %}
-              <option value="{{ rev.pk }}">[{{ rev.document.document_type }}] {{ rev.document.code }} rev.{{ rev.revision_code }}</option>
+              <option value="{{ rev.pk }}" data-search="{{ rev.document.code|lower }} {{ rev.document.title|lower }} {{ rev.document.document_type|lower }}">[{{ rev.document.document_type }}] {{ rev.document.code }} rev.{{ rev.revision_code }} — {{ rev.document.title|truncatechars:60 }}</option>
             {% endfor %}
           </select>
           <label style="font-size:12px;display:flex;align-items:center;gap:4px;">
@@ -175,6 +177,24 @@ body.theme-dark .pr-empty { color:var(--text-light); }
           </label>
           <button type="submit">Aggiungi</button>
         </form>
+        <script>
+        (function () {
+          var box = document.getElementById('pr-picker-search');
+          var sel = document.getElementById('pr-picker-select');
+          if (!box || !sel) return;
+          box.addEventListener('input', function () {
+            var q = box.value.trim().toLowerCase();
+            var opts = sel.options;
+            for (var i = 0; i < opts.length; i++) {
+              var o = opts[i];
+              if (!o.value) { continue; }  // placeholder sempre visibile
+              var hay = o.getAttribute('data-search') || o.text.toLowerCase();
+              o.hidden = q !== '' && hay.indexOf(q) === -1;
+            }
+            if (sel.selectedOptions.length && sel.selectedOptions[0].hidden) { sel.value = ''; }
+          });
+        })();
+        </script>
       {% endif %}
 
       {% if campaign_docs %}

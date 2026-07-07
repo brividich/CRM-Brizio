@@ -77,32 +77,27 @@ body.theme-dark .pr-empty { color:var(--text-light); }
   </div>
 
   <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-    <div style="display:flex;gap:6px;">
-      <a href="?vista=pv{% if query %}&q={{ query|urlencode }}{% endif %}"
-         style="padding:7px 16px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;
-         {% if vista == 'pv' %}background:#1d4ed8;color:#fff;{% else %}background:#f1f5f9;color:#475569;{% endif %}">
-        Presa visione ({{ n_pv }})
-      </a>
-      <a href="?vista=rag{% if query %}&q={{ query|urlencode }}{% endif %}"
-         style="padding:7px 16px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;
-         {% if vista == 'rag' %}background:#1d4ed8;color:#fff;{% else %}background:#f1f5f9;color:#475569;{% endif %}">
-        Corpus AI ({{ n_rag }})
-      </a>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      {% for key, label, count in filtri %}
+        <a href="?filtro={{ key }}{% if query %}&q={{ query|urlencode }}{% endif %}"
+           style="padding:7px 16px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;
+           {% if filtro == key %}background:#1d4ed8;color:#fff;{% else %}background:#f1f5f9;color:#475569;{% endif %}">
+          {{ label }} ({{ count }})
+        </a>
+      {% endfor %}
     </div>
     <form method="get" style="display:flex;gap:6px;align-items:center;">
-      <input type="hidden" name="vista" value="{{ vista }}">
+      <input type="hidden" name="filtro" value="{{ filtro }}">
       <input type="text" name="q" value="{{ query }}" placeholder="Cerca codice o titolo..."
              style="padding:7px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;min-width:200px;">
       <button type="submit" style="padding:7px 16px;background:#1d4ed8;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">Cerca</button>
     </form>
   </div>
 
-  {% if vista == 'rag' %}
-    <div style="padding:10px 14px;border-radius:10px;background:#eff6ff;color:#1e40af;font-size:12.5px;line-height:1.5;">
-      Documenti del <strong>corpus AI</strong> (es. importati dalla share SGI): citabili dall'Assistente ma <strong>non</strong> soggetti a presa visione.
-      Per usarne uno in una campagna, premi <strong>«→ Presa visione»</strong> per abilitarlo.
-    </div>
-  {% endif %}
+  <div style="padding:10px 14px;border-radius:10px;background:#eff6ff;color:#1e40af;font-size:12.5px;line-height:1.5;">
+    Lista <strong>unica</strong>: ogni documento può essere insieme indicizzato dall'<strong>AI</strong> e soggetto a <strong>presa visione</strong> — sono cose indipendenti.
+    Nelle campagne puoi selezionare <strong>qualsiasi</strong> documento; il badge «Presa visione» è solo un promemoria di cosa va tenuto sotto presa visione.
+  </div>
 
   <div class="pr-table-wrap">
     {% if documents %}
@@ -131,6 +126,16 @@ body.theme-dark .pr-empty { color:var(--text-light); }
                     {{ doc.n_open_change_requests }} segnalazion{{ doc.n_open_change_requests|pluralize:"e,i" }}
                   </a>
                 {% endif %}
+                <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;">
+                  {% if doc.requires_acknowledgement %}
+                    <span class="pr-badge" style="background:#dbeafe;color:#1d4ed8;" title="Soggetto a presa visione">Presa visione</span>
+                  {% endif %}
+                  {% if doc.escludi_dal_rag %}
+                    <span class="pr-badge" style="background:#fee2e2;color:#dc2626;" title="Escluso dall'assistente AI (contenuto sensibile)">Sensibile · no AI</span>
+                  {% else %}
+                    <span class="pr-badge" style="background:#dcfce7;color:#15803d;" title="Indicizzato dall'assistente AI">AI</span>
+                  {% endif %}
+                </div>
               </td>
               <td>
                 {% if doc.document_type == 'MT' %}<span class="pr-badge pr-badge-mt">MT</span>
@@ -168,16 +173,15 @@ body.theme-dark .pr-empty { color:var(--text-light); }
                   <a href="{% url 'procedure_refresh:document_edit' pk=doc.pk %}" class="pr-btn pr-btn-sm pr-btn-gray">Modifica</a>
                   <a href="{% url 'procedure_refresh:revision_create' doc_pk=doc.pk %}" class="pr-btn pr-btn-sm pr-btn-green">+ Rev.</a>
                   {% if doc.requires_acknowledgement %}
-                    <form method="post" action="{% url 'procedure_refresh:document_toggle_ack' pk=doc.pk %}"
-                          onsubmit="return confirm('Riportare {{ doc.code }} a solo corpus AI? Non sarà più selezionabile nelle campagne.')">
+                    <form method="post" action="{% url 'procedure_refresh:document_toggle_ack' pk=doc.pk %}">
                       {% csrf_token %}
-                      <button type="submit" class="pr-btn pr-btn-sm pr-btn-gray" title="Rimuovi dalla presa visione, resta nel corpus AI">→ Solo AI</button>
+                      <button type="submit" class="pr-btn pr-btn-sm pr-btn-gray" title="Rimuovi il marcatore «presa visione» (resta comunque selezionabile in campagna)">Smarca PV</button>
                     </form>
                   {% else %}
                     <form method="post" action="{% url 'procedure_refresh:document_toggle_ack' pk=doc.pk %}"
-                          title="Abilita la presa visione: il documento diventa selezionabile nelle campagne">
+                          title="Marca come soggetto a presa visione (comparirà nel report dei gap)">
                       {% csrf_token %}
-                      <button type="submit" class="pr-btn pr-btn-sm pr-btn-green">→ Presa visione</button>
+                      <button type="submit" class="pr-btn pr-btn-sm pr-btn-green">Marca PV</button>
                     </form>
                   {% endif %}
                   {% if doc.is_active %}

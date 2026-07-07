@@ -615,9 +615,11 @@ def document_list(request):
 
     from django.db.models import Count, Q
 
-    vista = request.GET.get("vista", "pv").strip()
-    if vista not in {"pv", "rag"}:
-        vista = "pv"
+    # Lista UNICA: presa visione e corpus AI sono flag ortogonali (requires_acknowledgement
+    # vs escludi_dal_rag), non due tab esclusivi. Il filtro è solo una comodità.
+    filtro = request.GET.get("filtro", "tutti").strip()
+    if filtro not in {"tutti", "pv", "ai", "sensibili"}:
+        filtro = "tutti"
     query = request.GET.get("q", "").strip()
 
     qs = (
@@ -635,22 +637,33 @@ def document_list(request):
         )
         .order_by("document_type", "code")
     )
-    if vista == "pv":
+    if filtro == "pv":
         qs = qs.filter(requires_acknowledgement=True)
-    else:
-        qs = qs.filter(requires_acknowledgement=False)
+    elif filtro == "ai":
+        qs = qs.filter(escludi_dal_rag=False)
+    elif filtro == "sensibili":
+        qs = qs.filter(escludi_dal_rag=True)
     if query:
         qs = qs.filter(Q(code__icontains=query) | Q(title__icontains=query))
 
-    n_pv = ProcedureDocument.objects.filter(requires_acknowledgement=True).count()
-    n_rag = ProcedureDocument.objects.filter(requires_acknowledgement=False).count()
+    base = ProcedureDocument.objects.all()
+    n_tot = base.count()
+    n_pv = base.filter(requires_acknowledgement=True).count()
+    n_ai = base.filter(escludi_dal_rag=False).count()
+    n_sensibili = base.filter(escludi_dal_rag=True).count()
+
+    filtri = [
+        ("tutti", "Tutti", n_tot),
+        ("pv", "Presa visione", n_pv),
+        ("ai", "Corpus AI", n_ai),
+        ("sensibili", "Sensibili (esclusi AI)", n_sensibili),
+    ]
 
     return render(request, "procedure_refresh/pages/document_list.html", {
         "documents": qs,
-        "vista": vista,
+        "filtro": filtro,
+        "filtri": filtri,
         "query": query,
-        "n_pv": n_pv,
-        "n_rag": n_rag,
     })
 
 
@@ -781,13 +794,13 @@ def document_delete(request, pk: int):
 @login_required
 @require_POST
 def document_toggle_ack(request, pk: int):
-    """Promuove/degrada un documento tra «Presa visione» e «Solo AI».
+    """Marca/smarca un documento come «soggetto a presa visione».
 
-    I documenti importati dalla share SGI nascono ``requires_acknowledgement=False``
-    (corpus per il RAG) e non sono selezionabili nelle campagne. Questo toggle a un
-    click li rende soggetti a presa visione — o li riporta a solo-AI — senza passare
-    dal form completo. Requisito ISO: la scelta di cosa richiede presa visione resta
-    una decisione umana tracciata.
+    Nella lista unica il flag ``requires_acknowledgement`` è solo un **marcatore**
+    informativo (badge): il picker campagna mostra comunque tutti i documenti. Il
+    marcatore alimenta il report dei documenti da mettere in presa visione ma non
+    ancora coperti da una campagna. Requisito ISO: la marcatura resta una decisione
+    umana tracciata.
     """
     if not _can_manage(request):
         messages.error(request, "Accesso non autorizzato.")
@@ -801,21 +814,16 @@ def document_toggle_ack(request, pk: int):
         "modifica",
         "procedure_refresh",
         _audit_detail(
-            "Presa visione abilitata" if document.requires_acknowledgement else "Presa visione rimossa",
+            "Marcato presa visione" if document.requires_acknowledgement else "Marcatura presa visione rimossa",
             document_id=pk,
             code=document.code,
         ),
     )
     if document.requires_acknowledgement:
-        messages.success(
-            request,
-            f"{document.code}: presa visione abilitata — ora è selezionabile nelle campagne.",
-        )
-        vista = "pv"
+        messages.success(request, f"{document.code}: marcato come soggetto a presa visione.")
     else:
-        messages.success(request, f"{document.code}: riportato a solo corpus AI.")
-        vista = "rag"
-    return redirect(f"{reverse('procedure_refresh:document_list')}?vista={vista}")
+        messages.success(request, f"{document.code}: marcatura presa visione rimossa.")
+    return redirect("procedure_refresh:document_list")
 
 
 @login_required
@@ -1051,12 +1059,12 @@ def campaign_detail(request, pk: int):
     ).order_by("user__last_name", "user__first_name")
 
     already_in = [cd.revision_id for cd in campaign_docs]
-    # Solo documenti in presa visione e solo la revisione CORRENTE: dopo l'import SGI
-    # il corpus RAG conta centinaia di documenti/revisioni che non vanno in campagna.
+    # Tutte le revisioni CORRENTI dei documenti attivi: la scelta di cosa mettere in
+    # campagna la fa il gestore al momento (il template offre una ricerca client-side,
+    # sono centinaia dopo l'import SGI). Non filtriamo su requires_acknowledgement.
     available_revisions = (
         ProcedureRevision.objects.filter(
             document__is_active=True,
-            document__requires_acknowledgement=True,
             is_current=True,
         )
         .exclude(id__in=already_in)

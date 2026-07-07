@@ -1019,29 +1019,32 @@ class AclAndUxTests(TestCase):
             resp = self.client.get(reverse("procedure_refresh:document_list"))
         self.assertEqual(resp.status_code, 200)
 
-    def test_document_list_default_vista_presa_visione(self):
+    def test_lista_unica_mostra_tutti_con_badge(self):
+        """Lista unica: presa visione e corpus AI coesistono nella stessa lista."""
         self.client.force_login(self.manager)
         resp = self.client.get(reverse("procedure_refresh:document_list"))
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.context["vista"], "pv")
+        self.assertEqual(resp.context["filtro"], "tutti")
+        codes = {d.code for d in resp.context["documents"]}
+        self.assertIn("MT-PV-001", codes)
+        self.assertIn("MT-RAG-001", codes)  # non più partizionati in tab esclusivi
+
+    def test_lista_filtro_solo_presa_visione(self):
+        self.client.force_login(self.manager)
+        resp = self.client.get(reverse("procedure_refresh:document_list") + "?filtro=pv")
         codes = {d.code for d in resp.context["documents"]}
         self.assertIn("MT-PV-001", codes)
         self.assertNotIn("MT-RAG-001", codes)
 
-    def test_document_list_vista_rag(self):
-        self.client.force_login(self.manager)
-        resp = self.client.get(reverse("procedure_refresh:document_list") + "?vista=rag")
-        codes = {d.code for d in resp.context["documents"]}
-        self.assertIn("MT-RAG-001", codes)
-        self.assertNotIn("MT-PV-001", codes)
-
     def test_document_list_search(self):
         self.client.force_login(self.manager)
-        resp = self.client.get(reverse("procedure_refresh:document_list") + "?vista=pv&q=PV-001")
+        resp = self.client.get(reverse("procedure_refresh:document_list") + "?q=PV-001")
         codes = {d.code for d in resp.context["documents"]}
         self.assertEqual(codes, {"MT-PV-001"})
 
-    def test_campaign_picker_only_presa_visione_current(self):
+    def test_campaign_picker_include_tutti_i_documenti(self):
+        """Il picker mostra TUTTE le revisioni correnti dei documenti attivi:
+        la scelta di cosa mettere in campagna si fa al momento della campagna."""
         campaign = ProcedureCampaign.objects.create(
             name="Picker", status=CampaignStatus.DRAFT,
             start_date=date(2026, 1, 1), due_date=date(2026, 12, 31), created_by=self.manager,
@@ -1052,29 +1055,23 @@ class AclAndUxTests(TestCase):
         )
         rev_docs = {r.document.code for r in resp.context["available_revisions"]}
         self.assertIn("MT-PV-001", rev_docs)
-        self.assertNotIn("MT-RAG-001", rev_docs)  # documento RAG-only escluso dal picker
+        self.assertIn("MT-RAG-001", rev_docs)  # ora incluso: si sceglie in campagna
 
-    def test_toggle_promuove_documento_a_presa_visione(self):
-        """Un documento importato dal SGI (solo AI) si promuove a presa visione con
-        un solo click e diventa selezionabile nelle campagne."""
+    def test_toggle_marca_badge_presa_visione(self):
+        """Il toggle marca/smarca il badge presa-visione (non gatta più il picker)."""
         self.client.force_login(self.manager)
         resp = self.client.post(
             reverse("procedure_refresh:document_toggle_ack", kwargs={"pk": self.doc_rag.pk}),
-            {"vista": "rag"},
         )
         self.assertEqual(resp.status_code, 302)
         self.doc_rag.refresh_from_db()
         self.assertTrue(self.doc_rag.requires_acknowledgement)
-        # ora compare nel tab "Presa visione"
-        resp2 = self.client.get(reverse("procedure_refresh:document_list") + "?vista=pv")
-        self.assertIn("MT-RAG-001", {d.code for d in resp2.context["documents"]})
 
-    def test_toggle_rimuove_presa_visione(self):
-        """Il toggle è reversibile: un documento in presa visione torna solo-AI."""
+    def test_toggle_smarca_presa_visione(self):
+        """Il toggle è reversibile."""
         self.client.force_login(self.manager)
         self.client.post(
             reverse("procedure_refresh:document_toggle_ack", kwargs={"pk": self.doc_pv.pk}),
-            {"vista": "pv"},
         )
         self.doc_pv.refresh_from_db()
         self.assertFalse(self.doc_pv.requires_acknowledgement)
