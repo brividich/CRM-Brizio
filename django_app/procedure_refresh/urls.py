@@ -22,6 +22,9 @@ urlpatterns = [
     path("admin/documenti/<int:pk>/elimina/", views.document_delete, name="document_delete"),
     path("admin/documenti/<int:pk>/presa-visione/", views.document_toggle_ack, name="document_toggle_ack"),
 
+    # ── Consultazione documento (apertura da Bacheca, tutti gli autenticati) ──
+    path("documenti/<int:rev_pk>/apri/", views.document_open, name="document_open"),
+
     # ── Admin — revisioni ───────────────────────────────────────────────────
     path("admin/documenti/<int:doc_pk>/revisioni/nuova/", views.revision_form, name="revision_create"),
     path("admin/documenti/<int:doc_pk>/revisioni/<int:pk>/", views.revision_form, name="revision_edit"),

@@ -34,6 +34,42 @@ class DocumentiCollegamentiHelperTests(TestCase):
         self.assertTrue(g["items"][0]["open_in_new_tab"])
 
 
+class ProcedureGroupInBachecaTests(TestCase):
+    """Il gruppo virtuale «Procedure SGI» compare in bacheca, esclusi i sensibili."""
+
+    def _admin_request(self):
+        return SimpleNamespace(
+            user=SimpleNamespace(is_superuser=True, get_username=lambda: "admin",
+                                 first_name="", email=""),
+            legacy_user=SimpleNamespace(id=1, ruolo="AMMINISTRAZIONE", ruolo_id=1, nome="Admin"),
+        )
+
+    def _proc_doc(self, code, sensibile=False):
+        from datetime import date
+
+        from procedure_refresh.models import ProcedureDocument, ProcedureRevision, SourceType
+
+        doc = ProcedureDocument.objects.create(
+            code=code, title="Titolo " + code, is_active=True, escludi_dal_rag=sensibile,
+        )
+        ProcedureRevision.objects.create(
+            document=doc, revision_code="1", revision_date=date(2026, 1, 1),
+            effective_date=date(2026, 1, 1), source_type=SourceType.SHAREPOINT,
+            source_url="https://sp/" + code, file_name=code + ".pdf", is_current=True,
+        )
+        return doc
+
+    def test_gruppo_procedure_in_bacheca(self):
+        self._proc_doc("MT CN 30")
+        self._proc_doc("MT CN 31", sensibile=True)
+        groups = hp._documenti_collegamenti(self._admin_request(), preview=False)
+        proc = [g for g in groups if g["name"] == "Procedure SGI"]
+        self.assertEqual(len(proc), 1)
+        titles = " ".join(i["title"] for i in proc[0]["items"])
+        self.assertIn("MT CN 30", titles)
+        self.assertNotIn("MT CN 31", titles)
+
+
 class HubLinkDownloadViewTests(TestCase):
     """Testa la view di download direttamente (RequestFactory) per isolare la
     logica di visibilità/serving dal middleware ACL/onboarding del portale.

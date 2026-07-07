@@ -652,6 +652,25 @@ def _documenti_collegamenti(request, preview: bool = True) -> list[dict]:
                 "open_in_new_tab": bool(l.open_in_new_tab or l.kind == HubLink.KIND_URL),
             } for l in g["items"]],
         })
+
+    # Gruppo virtuale «Procedure SGI»: documenti procedura consultabili (esclusi i
+    # sensibili). Costruito al volo da procedure_refresh, non da HubLink.
+    try:
+        from procedure_refresh.bacheca import build_procedure_group
+
+        proc = build_procedure_group(role_id, is_admin=is_admin, preview_limit=limit)
+        if proc:
+            out.append({
+                "name": proc["category"].name,
+                "icon": proc["category"].icon,
+                "slug": proc["category"].slug,
+                "more": proc["more"],
+                "items": [{**it, "icon": ""} for it in proc["items"]],
+            })
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).exception("home: gruppo bacheca Procedure SGI non disponibile")
     return out
 
 

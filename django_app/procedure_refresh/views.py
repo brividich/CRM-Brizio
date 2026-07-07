@@ -10,7 +10,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse, StreamingHttpResponse
+from django.http import FileResponse, Http404, JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -1458,6 +1458,68 @@ def change_request_set_status(request, pk: int):
     )
     messages.success(request, "Segnalazione aggiornata.")
     return redirect("procedure_refresh:change_request_list")
+
+
+def _safe_sgi_pdf(raw_path: str):
+    """Path PDF leggibile e (se la root SGI è configurata) contenuto sotto di essa,
+    altrimenti ``None``. Difesa in profondità contro path anomali: serviamo solo file
+    che sono la ``source_path`` di una revisione nota E stanno sotto la share SGI."""
+    from pathlib import Path
+
+    try:
+        path = Path(raw_path).resolve()
+    except (OSError, ValueError):
+        return None
+    from django.conf import settings as _settings
+
+    root_raw = str(getattr(_settings, "PROCEDURE_REFRESH_SGI_SHARE_ROOT", "") or "").strip()
+    if root_raw:
+        try:
+            root = Path(root_raw).resolve()
+            path.relative_to(root)  # ValueError se non è sotto la root
+        except (OSError, ValueError):
+            return None
+    try:
+        if path.is_file() and path.suffix.lower() == ".pdf":
+            return path
+    except OSError:
+        return None
+    return None
+
+
+@login_required
+def document_open(request, rev_pk: int):
+    """Apre un documento procedura dalla consultazione (Bacheca): SharePoint →
+    redirect all'URL; file server → stream del PDF (whitelist DB + root SGI).
+
+    Accessibile a tutti gli autenticati; i documenti **sensibili** (esclusi dal RAG)
+    e quelli non attivi non sono apribili (404), coerente con la visibilità in bacheca.
+    """
+    from .bacheca import documento_e_sensibile
+
+    rev = get_object_or_404(
+        ProcedureRevision.objects.select_related("document"), pk=rev_pk
+    )
+    doc = rev.document
+    if not doc.is_active or documento_e_sensibile(doc):
+        raise Http404("Documento non disponibile.")
+
+    log_action(
+        request, "apri", "procedure_refresh",
+        _audit_detail("Apertura documento", document_id=doc.pk, code=doc.code, revision=rev.revision_code),
+    )
+
+    if rev.source_type == SourceType.SHAREPOINT and rev.source_url:
+        return redirect(rev.source_url)
+    if rev.source_type == SourceType.FILESERVER and rev.source_path:
+        path = _safe_sgi_pdf(rev.source_path)
+        if path is None:
+            raise Http404("File non disponibile.")
+        return FileResponse(
+            open(path, "rb"), content_type="application/pdf",
+            filename=(rev.file_name or path.name),
+        )
+    raise Http404("Sorgente non disponibile.")
 
 
 @login_required

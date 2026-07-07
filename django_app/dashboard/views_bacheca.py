@@ -32,6 +32,25 @@ def bacheca(request):
             "open_in_new_tab": bool(l.open_in_new_tab or l.kind == HubLink.KIND_URL),
         } for l in g["items"]],
     } for g in groups]
+
+    # Gruppo virtuale «Procedure SGI»: documenti procedura consultabili (esclusi i
+    # sensibili). Le voci sono già nella forma dict attesa dal template.
+    try:
+        from procedure_refresh.bacheca import build_procedure_group
+
+        proc = build_procedure_group(role_id, is_admin=is_admin, preview_limit=None)
+        if proc:
+            view_groups.append({
+                "name": proc["category"].name,
+                "slug": proc["category"].slug,
+                "icon": proc["category"].icon,
+                "items": proc["items"],
+            })
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).exception("bacheca: gruppo Procedure SGI non disponibile")
+
     return render(request, "dashboard/pages/bacheca.html", {
         "page_title": "Documenti & Collegamenti",
         "bacheca_groups": view_groups,

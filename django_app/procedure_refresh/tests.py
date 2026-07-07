@@ -1121,6 +1121,109 @@ class AclAndUxTests(TestCase):
         self.assertFalse(self.doc_rag.requires_acknowledgement)  # invariato
 
 
+class BachecaProcedureTests(TestCase):
+    """Documenti procedura in Bacheca (esclusi i sensibili) + apertura documento."""
+
+    def _doc(self, code, *, sensibile=False, sharepoint=True, source_path=""):
+        doc = ProcedureDocument.objects.create(
+            code=code, title="Titolo " + code, is_active=True, escludi_dal_rag=sensibile,
+        )
+        rev = ProcedureRevision.objects.create(
+            document=doc, revision_code="1", revision_date=date(2026, 1, 1),
+            effective_date=date(2026, 1, 1),
+            source_type=SourceType.SHAREPOINT if sharepoint else SourceType.FILESERVER,
+            source_url=("https://sp/" + code) if sharepoint else "",
+            source_path=source_path, file_name=code + ".pdf", is_current=True,
+        )
+        return doc, rev
+
+    def test_builder_esclude_sensibili(self):
+        from procedure_refresh.bacheca import build_procedure_group
+
+        self._doc("MT CN 10")
+        self._doc("MT CN 11", sensibile=True)
+        group = build_procedure_group()
+        titles = " ".join(i["title"] for i in group["items"])
+        self.assertIn("MT CN 10", titles)
+        self.assertNotIn("MT CN 11", titles)
+
+    def test_builder_esclude_denylist_keyword(self):
+        from django.test import override_settings
+
+        from procedure_refresh.bacheca import build_procedure_group
+
+        self._doc("MOD.187 Skill Matrix")
+        self._doc("MT CN 12")
+        with override_settings(OLLAMA_RAG_SGI_EXCLUDE=["skill matrix"]):
+            group = build_procedure_group()
+        titles = " ".join(i["title"] for i in (group["items"] if group else []))
+        self.assertIn("MT CN 12", titles)
+        self.assertNotIn("Skill Matrix", titles)
+
+    def _open(self, rev_pk, username):
+        # View diretta (RequestFactory) per isolare la logica dal middleware
+        # onboarding/ACL, come HubLinkDownloadViewTests in dashboard.
+        from django.test import RequestFactory
+
+        from procedure_refresh.views import document_open
+
+        req = RequestFactory().get(f"/procedure-refresh/documenti/{rev_pk}/apri/")
+        req.user = User.objects.create_user(username=username, password="pw")
+        return document_open(req, rev_pk)
+
+    def test_open_sharepoint_redirect(self):
+        _, rev = self._doc("MT CN 20", sharepoint=True)
+        resp = self._open(rev.pk, "opener1")
+        self.assertEqual(resp.status_code, 302)
+        # Django percent-encoda lo spazio nell'header Location.
+        self.assertEqual(resp["Location"], "https://sp/MT%20CN%2020")
+
+    def test_open_sensibile_404(self):
+        from django.http import Http404
+
+        _, rev = self._doc("MT CN 21", sensibile=True)
+        with self.assertRaises(Http404):
+            self._open(rev.pk, "opener2")
+
+    def test_open_fileserver_stream_whitelisted(self):
+        import tempfile
+        from pathlib import Path
+
+        from django.test import override_settings
+
+        with tempfile.TemporaryDirectory() as tmp:
+            pdf = Path(tmp) / "doc.pdf"
+            pdf.write_bytes(b"%PDF-1.4 test")
+            _, rev = self._doc("MT CN 22", sharepoint=False, source_path=str(pdf))
+            with override_settings(PROCEDURE_REFRESH_SGI_SHARE_ROOT=tmp):
+                resp = self._open(rev.pk, "opener3")
+                content = b"".join(resp.streaming_content)
+                # NON usare resp.close(): emette request_finished -> close_old_connections
+                # e chiuderebbe la connessione SQLite di test. Chiudo solo il file handle
+                # (rilascia il lock su Windows per la pulizia della tempdir).
+                fh = getattr(resp, "file_to_stream", None)
+                if fh:
+                    fh.close()
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp["Content-Type"], "application/pdf")
+            self.assertTrue(content.startswith(b"%PDF"))
+
+    def test_open_fileserver_fuori_root_404(self):
+        import tempfile
+        from pathlib import Path
+
+        from django.http import Http404
+        from django.test import override_settings
+
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as other:
+            pdf = Path(other) / "doc.pdf"
+            pdf.write_bytes(b"%PDF-1.4 test")
+            _, rev = self._doc("MT CN 23", sharepoint=False, source_path=str(pdf))
+            with override_settings(PROCEDURE_REFRESH_SGI_SHARE_ROOT=tmp):
+                with self.assertRaises(Http404):
+                    self._open(rev.pk, "opener4")
+
+
 class SgiSyncLogTests(TestCase):
     """Log append-only dei cambiamenti della sincronizzazione SGI."""
 
