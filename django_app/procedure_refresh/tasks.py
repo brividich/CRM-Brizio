@@ -329,7 +329,7 @@ _AUTO_SYNC_FLAG = "pr_sgi_auto_sync_attivo"
 _LAST_SYNC_KEY = "pr_sgi_last_sync"
 
 
-def run_sgi_auto_sync(force: bool = False, reindex: bool = False, **kwargs) -> dict:
+def run_sgi_auto_sync(force: bool = False, reindex: bool = False, origine: str | None = None, **kwargs) -> dict:
     """Sincronizzazione automatica del corpus SGI dalla share (perimetro sicuro).
 
     Applica soltanto i candidati "safe" (:func:`filter_auto_safe`): documenti nuovi
@@ -371,13 +371,26 @@ def run_sgi_auto_sync(force: bool = False, reindex: bool = False, **kwargs) -> d
             scan_share_candidates,
             upsert_candidate,
         )
+        from procedure_refresh.models import ProcedureDocument, SgiSyncAction
+        from django.utils import timezone
 
         candidates, _skipped, _conflicts = scan_share_candidates(root)
         safe, excluded = filter_auto_safe(candidates)
         result["excluded"] = len(excluded)
 
+        now = timezone.now()
+        run_id = now.strftime("%Y%m%d%H%M%S")
+        origine_log = origine or ("manuale" if force else "auto")
+
         for info in safe:
             try:
+                # Revisione corrente PRIMA dell'upsert (per il log NUOVA_REVISIONE).
+                old_rev = ""
+                existing_doc = ProcedureDocument.objects.filter(code=info["code"]).first()
+                if existing_doc is not None:
+                    cur = existing_doc.current_revision()
+                    old_rev = cur.revision_code if cur else ""
+
                 doc_state, rev_created = upsert_candidate(info)
                 if doc_state == "created":
                     result["created"] += 1
@@ -385,14 +398,26 @@ def run_sgi_auto_sync(force: bool = False, reindex: bool = False, **kwargs) -> d
                     result["updated"] += 1
                 if rev_created:
                     result["revisions"] += 1
+
+                # Traccia il cambiamento nel log append-only (evidenza ISO + badge).
+                if doc_state == "created":
+                    log_sgi_change(
+                        run_id=run_id, azione=SgiSyncAction.NUOVO_DOC,
+                        document_code=info["code"], revision_new=info.get("revision", ""),
+                        origine=origine_log,
+                    )
+                elif rev_created:
+                    log_sgi_change(
+                        run_id=run_id, azione=SgiSyncAction.NUOVA_REVISIONE,
+                        document_code=info["code"], revision_old=old_rev,
+                        revision_new=info.get("revision", ""), origine=origine_log,
+                    )
             except Exception:
                 logger.exception("run_sgi_auto_sync: upsert fallito per %s", info.get("code"))
 
-        # Persisti l'esito per la card dashboard (timestamp passato dal chiamante-safe).
-        from django.utils import timezone
-
+        # Persisti l'esito per la card dashboard.
         payload = {
-            "at": timezone.now().isoformat(timespec="seconds"),
+            "at": now.isoformat(timespec="seconds"),
             "created": result["created"],
             "updated": result["updated"],
             "revisions": result["revisions"],
@@ -435,8 +460,37 @@ def run_sgi_share_check(**kwargs) -> dict:
 
         drift = detect_share_drift(root)
         n_new, n_upd = len(drift["new"]), len(drift["updated"])
-        n_missing = len(drift.get("missing", []))
+        missing = drift.get("missing", [])
+        n_missing = len(missing)
         result.update(new=n_new, updated=n_upd, missing=n_missing, in_db=drift.get("in_db", 0))
+
+        # Cataloga a log i documenti spariti (evidenza ISO "prevenire uso di obsoleti"),
+        # con dedup: non riscrivere lo stesso codice se già loggato negli ultimi 30 gg.
+        if missing:
+            try:
+                from datetime import timedelta
+
+                from django.utils import timezone
+
+                from procedure_refresh.models import SgiSyncAction, SgiSyncLog
+
+                since = timezone.now() - timedelta(days=30)
+                gia_loggati = set(
+                    SgiSyncLog.objects.filter(
+                        azione=SgiSyncAction.DOC_SPARITO, created_at__gte=since
+                    ).values_list("document_code", flat=True)
+                )
+                run_id = timezone.now().strftime("%Y%m%d%H%M%S")
+                for m in missing:
+                    if m["code"] in gia_loggati:
+                        continue
+                    log_sgi_change(
+                        run_id=run_id, azione=SgiSyncAction.DOC_SPARITO,
+                        document_code=m["code"], revision_old=m.get("revision", ""),
+                        note=(m.get("source_path", "") or "")[:300], origine="auto",
+                    )
+            except Exception:
+                logger.exception("run_sgi_share_check: log DOC_SPARITO fallito")
 
         # Se l'auto-sync è attivo, nuovi/aggiornati "safe" vengono già scritti di
         # notte: la Issue serve solo a segnalare le anomalie residue (documenti spariti

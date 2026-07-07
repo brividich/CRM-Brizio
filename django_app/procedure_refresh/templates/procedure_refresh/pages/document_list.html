@@ -116,7 +116,12 @@ body.theme-dark .pr-empty { color:var(--text-light); }
         <tbody>
           {% for doc in documents %}
             <tr>
-              <td><strong>{{ doc.code }}</strong></td>
+              <td>
+                <strong>{{ doc.code }}</strong>
+                {% if doc.badge_nuova_rev %}
+                  <br><span class="pr-badge" style="background:#fef3c7;color:#b45309;margin-top:3px;" title="Nuova revisione rilevata dal sync con la share SGI">⟳ nuova Rev.{{ doc.badge_nuova_rev }}</span>
+                {% endif %}
+              </td>
               <td>
                 {{ doc.title }}
                 {% if doc.n_open_change_requests %}

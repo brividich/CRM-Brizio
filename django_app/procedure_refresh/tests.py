@@ -668,6 +668,18 @@ class AutoSyncSafeSubsetTests(TestCase):
         self.assertEqual(safe_codes, {"MT-NEW-001", "MT-EXIST-CHILD"})
         self.assertEqual(len(excluded), 5)
 
+    def test_filter_auto_safe_ammette_update_rev_su_presa_visione(self):
+        from procedure_refresh.management.commands.import_sgi_da_share import filter_auto_safe
+
+        self._seed("MT CN 06", requires_ack=True)  # revisione "1", in presa visione
+        # revisione PIU' recente sulla share -> ora è un aggiornamento SAFE
+        safe_newer, _ = filter_auto_safe([self._candidate("MT CN 06", revision="2")])
+        self.assertEqual({c["code"] for c in safe_newer}, {"MT CN 06"})
+        # stessa revisione -> nessun aggiornamento -> resta escluso
+        safe_same, excl_same = filter_auto_safe([self._candidate("MT CN 06", revision="1")])
+        self.assertEqual(safe_same, [])
+        self.assertEqual(len(excl_same), 1)
+
     def test_run_auto_sync_flag_off_skips(self):
         from procedure_refresh.tasks import run_sgi_auto_sync
 
@@ -703,11 +715,16 @@ class AutoSyncSafeSubsetTests(TestCase):
                 res = run_sgi_auto_sync(reindex=False)
         self.assertTrue(res["ok"])
         self.assertFalse(res["skipped"])
-        self.assertEqual(res["created"], 1)  # solo MT CN 07 (nuovo, safe)
+        self.assertEqual(res["created"], 1)  # MT CN 07 nuovo
         self.assertTrue(ProcedureDocument.objects.filter(code="MT CN 07").exists())
-        # Il doc in presa visione resta alla sua revisione (non scavalcato)
+        # Il doc in presa visione ora AVANZA alla nuova revisione (aggiorna e segnala)
         doc_ack.refresh_from_db()
-        self.assertEqual(doc_ack.current_revision().revision_code, "20")
+        self.assertEqual(doc_ack.current_revision().revision_code, "21")
+        # Il cambiamento è tracciato a log come NUOVA_REVISIONE
+        from procedure_refresh.models import SgiSyncLog, SgiSyncAction
+        self.assertTrue(SgiSyncLog.objects.filter(
+            document_code="MT CN 06", azione=SgiSyncAction.NUOVA_REVISIONE, revision_new="21"
+        ).exists())
         # Esito persistito
         self.assertTrue(SiteConfig.get("pr_sgi_last_sync", ""))
 
@@ -1075,6 +1092,20 @@ class AclAndUxTests(TestCase):
         )
         self.doc_pv.refresh_from_db()
         self.assertFalse(self.doc_pv.requires_acknowledgement)
+
+    def test_badge_nuova_rev_dal_synclog(self):
+        """Un documento con una NUOVA_REVISIONE recente nel log mostra il badge."""
+        from procedure_refresh.models import SgiSyncLog, SgiSyncAction
+
+        SgiSyncLog.objects.create(
+            run_id="r", azione=SgiSyncAction.NUOVA_REVISIONE,
+            document_code="MT-PV-001", revision_new="7",
+        )
+        self.client.force_login(self.manager)
+        resp = self.client.get(reverse("procedure_refresh:document_list"))
+        docmap = {d.code: d for d in resp.context["documents"]}
+        self.assertEqual(docmap["MT-PV-001"].badge_nuova_rev, "7")
+        self.assertIsNone(docmap["MT-RAG-001"].badge_nuova_rev)
 
     def test_toggle_richiede_permesso_gestione(self):
         from core.models import UserOnboarding

@@ -329,14 +329,41 @@ def _doc_is_import_child(doc) -> bool:
     return True
 
 
+def _rev_code_to_int(code) -> int:
+    """Ricava il numero di revisione da un codice ("21", "Rev.21", "20") per
+    confronti di anzianità. -1 se non contiene cifre."""
+    nums = re.findall(r"\d+", str(code or ""))
+    return int(nums[-1]) if nums else -1
+
+
+def _candidate_is_newer_revision(info: dict, doc) -> bool:
+    """True se il candidato porta una revisione PIÙ RECENTE di quella corrente del
+    documento (e non già presente): è un aggiornamento, sicuro da applicare anche
+    sui documenti in presa visione (crea la nuova revisione, non tocca le
+    assegnazioni esistenti). Requisito: «se la rev è cambiata deve aggiornarsi»."""
+    cand = _rev_code_to_int(info.get("revision"))
+    if cand < 0:
+        return False
+    revisions = list(doc.revisions.all())
+    if str(info.get("revision") or "") in {r.revision_code for r in revisions}:
+        return False  # revisione già presente: nessun aggiornamento
+    current = next((r for r in revisions if r.is_current), None)
+    cur = _rev_code_to_int(current.revision_code) if current else -1
+    return cand > cur
+
+
 def filter_auto_safe(candidates: list[dict]) -> tuple[list[dict], list[dict]]:
     """Divide i candidati in (safe, excluded) per la sincronizzazione automatica.
 
-    Un candidato è SAFE se il nome è riconosciuto dal parser (``not fallback``) e
-    o il codice è nuovo, o il documento esistente è interamente figlio dell'import
-    (:func:`_doc_is_import_child`). Tutto il resto è escluso e resta all'occhio
-    umano (watchdog): niente scritture automatiche su documenti in presa visione,
-    su codici disambiguati o su nomi non riconosciuti.
+    Un candidato è SAFE se il nome è riconosciuto dal parser (``not fallback``,
+    non disambiguato) e vale una di queste: il codice è nuovo; il documento è
+    interamente figlio dell'import (:func:`_doc_is_import_child`); **oppure** porta
+    una revisione più recente di quella corrente (:func:`_candidate_is_newer_revision`)
+    — in tal caso l'aggiornamento è sicuro anche sui documenti in presa visione,
+    perché crea una nuova revisione senza toccare le assegnazioni esistenti e il
+    cambiamento viene segnalato/loggato. Resta escluso solo il rischio sul NOME
+    (fallback / codici disambiguati) e i documenti gestiti a mano la cui revisione
+    non è cambiata.
     """
     from procedure_refresh.models import ProcedureDocument
 
@@ -357,8 +384,10 @@ def filter_auto_safe(candidates: list[dict]) -> tuple[list[dict], list[dict]]:
             safe.append(info)
         elif _doc_is_import_child(doc):
             safe.append(info)
+        elif _candidate_is_newer_revision(info, doc):
+            safe.append({**info, "aggiornamento_revisione": True})
         else:
-            excluded.append({**info, "motivo_esclusione": "documento gestito a mano / in presa visione"})
+            excluded.append({**info, "motivo_esclusione": "documento gestito a mano, revisione non più recente"})
     return safe, excluded
 
 

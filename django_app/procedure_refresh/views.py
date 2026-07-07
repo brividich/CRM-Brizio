@@ -659,8 +659,28 @@ def document_list(request):
         ("sensibili", "Sensibili (esclusi AI)", n_sensibili),
     ]
 
+    # Badge «nuova revisione»: derivato dal log sync (NUOVA_REVISIONE) recente, così
+    # si segnala senza macchina a stati — invecchia da solo dopo N giorni.
+    from datetime import timedelta
+    from django.conf import settings as _settings
+    from .models import SgiSyncLog, SgiSyncAction
+
+    giorni = int(getattr(_settings, "PROCEDURE_REFRESH_NUOVA_REV_BADGE_GIORNI", 30) or 30)
+    since = timezone.now() - timedelta(days=giorni)
+    badge_map: dict[str, str] = {}
+    for row in (
+        SgiSyncLog.objects.filter(azione=SgiSyncAction.NUOVA_REVISIONE, created_at__gte=since)
+        .order_by("document_code", "-created_at")
+        .values("document_code", "revision_new")
+    ):
+        badge_map.setdefault(row["document_code"], row["revision_new"])
+
+    documents = list(qs)
+    for d in documents:
+        d.badge_nuova_rev = badge_map.get(d.code) or None
+
     return render(request, "procedure_refresh/pages/document_list.html", {
-        "documents": qs,
+        "documents": documents,
         "filtro": filtro,
         "filtri": filtri,
         "query": query,
