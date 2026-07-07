@@ -1280,14 +1280,48 @@ _DOC_OVERVIEW_INTENT_RE = re.compile(
 )
 
 
-def _index_document_codes(index: KnowledgeIndex) -> dict[str, list[int]]:
-    """Mappa codice-documento -> indici chunk, dai source 'proc:<code>#rev..'/'spec:<code>..'."""
+def _sgi_source_kind(source: str) -> str | None:
+    """'spec'/'proc' per le fonti SGI protette da ACL di modulo, None per il resto
+    (file di knowledge, FAQ curate: non protetti da ACL, sempre condivisibili)."""
+    if source.startswith("spec:"):
+        return "spec"
+    if source.startswith("proc:"):
+        return "proc"
+    return None
+
+
+def _sgi_chunk_allowed(chunk: KnowledgeChunk, *, allow_specifiche: bool, allow_procedure: bool) -> bool:
+    """Gate ACL per-sorgente del corpus SGI (finding leakage #1).
+
+    I chunk delle Specifiche entrano solo se l'utente potrebbe aprirle nel modulo
+    (`allow_specifiche`); quelli delle Procedure solo per i manager
+    (`allow_procedure`). Tutte le altre fonti (file, FAQ curate) restano ammesse.
+    """
+    kind = _sgi_source_kind(chunk.source)
+    if kind == "spec":
+        return allow_specifiche
+    if kind == "proc":
+        return allow_procedure
+    return True
+
+
+def _index_document_codes(
+    index: KnowledgeIndex, *, allow_specifiche: bool = True, allow_procedure: bool = True
+) -> dict[str, list[int]]:
+    """Mappa codice-documento -> indici chunk, dai source 'proc:<code>#rev..'/'spec:<code>..'.
+
+    Rispetta il gate ACL per-sorgente: i documenti la cui sorgente non è
+    autorizzata non entrano nella mappa (quindi non producono panoramica)."""
     codes: dict[str, list[int]] = {}
     for i, chunk in enumerate(index.chunks):
-        src = chunk.source
-        if not (src.startswith("proc:") or src.startswith("spec:")):
+        chunk_kind = _sgi_source_kind(chunk.source)
+        if chunk_kind is None:
             continue
-        code = src.split(":", 1)[1].split("#", 1)[0].strip()
+        if chunk_kind == "spec" and not allow_specifiche:
+            continue
+        if chunk_kind == "proc" and not allow_procedure:
+            continue
+        code = chunk.source.split(":", 1)[1].split("#", 1)[0].strip()
         if code:
             codes.setdefault(code, []).append(i)
     return codes
@@ -1321,12 +1355,23 @@ def _doc_label_from_title(title: str) -> str:
     return title.strip()
 
 
-def _document_overview_context(prompt: str, index: KnowledgeIndex) -> KnowledgeContext | None:
+def _document_overview_context(
+    prompt: str,
+    index: KnowledgeIndex,
+    *,
+    allow_specifiche: bool = True,
+    allow_procedure: bool = True,
+) -> KnowledgeContext | None:
     """Costruisce scopo + indice sezioni di un documento nominato, o None se non
-    applicabile (nessun intento panoramica, nessun codice citato, doc assente)."""
+    applicabile (nessun intento panoramica, nessun codice citato, doc assente).
+
+    Applica il gate ACL per-sorgente: la panoramica di un documento la cui
+    sorgente non è autorizzata non viene costruita (canale di leak, finding #1)."""
     if not _DOC_OVERVIEW_INTENT_RE.search(prompt):
         return None
-    codes = _index_document_codes(index)
+    codes = _index_document_codes(
+        index, allow_specifiche=allow_specifiche, allow_procedure=allow_procedure
+    )
     if not codes:
         return None
     code = _match_document_code(prompt, codes)
@@ -1380,17 +1425,81 @@ def _document_overview_context(prompt: str, index: KnowledgeIndex) -> KnowledgeC
     return KnowledgeContext(text="\n\n".join(parts).strip(), sources=(f"{code} > {doc_label} (panoramica)",))
 
 
-def build_knowledge_context(prompt: str) -> KnowledgeContext:
+def sgi_rag_access(request) -> tuple[bool, bool]:
+    """Autorizzazione al retrieval SGI: ``(allow_specifiche, allow_procedure)``.
+
+    Replica l'ACL di modulo così che la chat/report non esponga contenuto che
+    l'utente non vedrebbe aprendo il modulo (finding leakage #1):
+
+    - Specifiche: stessa decisione ACL della rotta ``/gestione-specifiche/``.
+    - Procedure: solo manager (superuser / admin legacy), come ``_is_manager``
+      di ``procedure_refresh`` (la libreria documenti da cui il RAG estrae il testo).
+
+    Fail-closed: ``request`` assente → ``(False, False)``. Se la legacy-auth non
+    è attiva (dev/test) il middleware ACL non applica gate → ``(True, True)``,
+    coerente col comportamento del portale.
+    """
+    if request is None:
+        return (False, False)
+    try:
+        from core.acl_v2 import resolve_acl_access
+        from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_auth_enabled
+    except Exception:
+        return (False, False)
+
+    user = getattr(request, "user", None)
+    if getattr(user, "is_superuser", False):
+        return (True, True)
+    if not legacy_auth_enabled():
+        return (True, True)
+
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(user)
+
+    # Procedure: solo manager (come procedure_refresh._is_manager).
+    allow_procedure = bool(is_legacy_admin(legacy_user))
+
+    # Specifiche: stessa decisione ACL della rotta di modulo.
+    try:
+        decision = resolve_acl_access(
+            path="/gestione-specifiche/",
+            legacy_user=legacy_user,
+            django_user=user,
+            request=request,
+            include_legacy_diagnostic=False,
+        )
+        allow_specifiche = bool(decision.get("allowed"))
+    except Exception:
+        allow_specifiche = False
+
+    return (allow_specifiche, allow_procedure)
+
+
+def build_knowledge_context(
+    prompt: str, *, allow_specifiche: bool = False, allow_procedure: bool = False
+) -> KnowledgeContext:
     index = _load_knowledge_index()
     if not index.chunks:
         return KnowledgeContext(text="", sources=())
 
-    overview = _document_overview_context(prompt, index)
+    overview = _document_overview_context(
+        prompt, index, allow_specifiche=allow_specifiche, allow_procedure=allow_procedure
+    )
     if overview is not None:
         return overview
 
     query_tokens = Counter(_tokenize(prompt))
     selected_indices = _select_chunk_indices(prompt, query_tokens, index)
+    # Gate ACL per-sorgente SGI (finding #1): i chunk spec:/proc: entrano solo se
+    # l'utente potrebbe vederli aprendo il modulo; i non-SGI restano sempre ammessi.
+    # Il filtro è a valle dell'indice cachato (content-only, condiviso): nessuno
+    # scoping per-utente della cache, e il risultato del retrieval non è cachato.
+    selected_indices = [
+        i
+        for i in selected_indices
+        if _sgi_chunk_allowed(
+            index.chunks[i], allow_specifiche=allow_specifiche, allow_procedure=allow_procedure
+        )
+    ]
     if not selected_indices:
         return KnowledgeContext(text="", sources=())
 
@@ -1578,6 +1687,8 @@ def chat_with_ollama(
     runtime_context: str = "",
     user_preferences: dict[str, Any] | None = None,
     timeout: int | None = None,
+    allow_specifiche: bool = False,
+    allow_procedure: bool = False,
 ) -> OllamaChatResult:
     base_url = str(getattr(settings, "OLLAMA_BASE_URL", "") or "").strip().rstrip("/")
     provider = str(getattr(settings, "OLLAMA_API_PROVIDER", "ollama") or "ollama").strip().lower()
@@ -1588,7 +1699,9 @@ def chat_with_ollama(
     if not model:
         raise OllamaChatError("OLLAMA_CHAT_MODEL non configurato.")
 
-    knowledge = build_knowledge_context(prompt)
+    knowledge = build_knowledge_context(
+        prompt, allow_specifiche=allow_specifiche, allow_procedure=allow_procedure
+    )
     has_runtime_context = bool(runtime_context.strip())
     # Se c'è un contesto live (dati operativi reali), non iniettare il RAG nel payload:
     # i modelli small ignorano l'istruzione "ignora i documenti se c'è contesto live"
@@ -1760,6 +1873,8 @@ def open_ollama_stream(
     *,
     runtime_context: str = "",
     user_preferences: dict[str, Any] | None = None,
+    allow_specifiche: bool = False,
+    allow_procedure: bool = False,
 ) -> tuple[Any, dict[str, Any]]:
     """Apre una richiesta streaming verso Ollama/Open WebUI.
 
@@ -1775,7 +1890,9 @@ def open_ollama_stream(
     if not model:
         raise OllamaChatError("OLLAMA_CHAT_MODEL non configurato.")
 
-    knowledge = build_knowledge_context(prompt)
+    knowledge = build_knowledge_context(
+        prompt, allow_specifiche=allow_specifiche, allow_procedure=allow_procedure
+    )
     has_runtime_context = bool(runtime_context.strip())
     rag_for_llm = "" if has_runtime_context else knowledge.text
     payload: dict[str, Any] = {

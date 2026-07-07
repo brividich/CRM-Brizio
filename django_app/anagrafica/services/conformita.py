@@ -275,15 +275,35 @@ def _idoneita_batch(
     oggi = timezone.localdate()
 
     req_per_nome = mansionario.requisiti_per_nome(set(mansioni_per_legacy.values()))
-    if not req_per_nome:
-        return {}
+
+    # Requisiti aggiuntivi dai processi qualificati (MOD.128) per persona: si
+    # sommano a quelli della mansione (DPI/visite/corsi richiesti dal processo).
+    try:
+        from .mpq_idoneita import requisiti_processo_per_legacy
+        proc_req = requisiti_processo_per_legacy(legacy_ids)
+    except Exception:
+        proc_req = {}
+
+    def _dedup_pk(items):
+        seen, out_l = set(), []
+        for x in items:
+            if x.pk not in seen:
+                seen.add(x.pk)
+                out_l.append(x)
+        return out_l
 
     req_per_legacy: dict[int, dict[str, list]] = {}
     for legacy_id in legacy_ids:
         nome = (mansioni_per_legacy.get(legacy_id) or "").strip().casefold()
-        req = req_per_nome.get(nome)
-        if req and (req["dpi"] or req["visite"] or req["corsi"]):
-            req_per_legacy[legacy_id] = req
+        m = req_per_nome.get(nome) or {"dpi": [], "visite": [], "corsi": []}
+        pr = proc_req.get(legacy_id) or {"dpi": [], "visite": [], "corsi": []}
+        merged = {
+            "dpi": _dedup_pk(list(m["dpi"]) + list(pr["dpi"])),
+            "visite": _dedup_pk(list(m["visite"]) + list(pr["visite"])),
+            "corsi": _dedup_pk(list(m["corsi"]) + list(pr["corsi"])),
+        }
+        if merged["dpi"] or merged["visite"] or merged["corsi"]:
+            req_per_legacy[legacy_id] = merged
     if not req_per_legacy:
         return {}
 

@@ -2206,6 +2206,8 @@ class AiAssistantTests(TestCase):
             history=None,
             runtime_context="Mario Rossi: Ferie",
             user_preferences={},
+            allow_specifiche=True,
+            allow_procedure=True,
         )
         self.assertEqual(response.json()["sources"], ["tool:assenze:periodo"])
 
@@ -2240,6 +2242,8 @@ class AiAssistantTests(TestCase):
             history=None,
             runtime_context="",
             user_preferences={"style": "dettagliato", "show_limits": True},
+            allow_specifiche=True,
+            allow_procedure=True,
         )
 
 
@@ -2451,7 +2455,9 @@ class SgiRagLoaderTests(TestCase):
             OLLAMA_RAG_MAX_CHUNKS=4,
         ), patch("ai_assistant.services._sgi_extract_specifica_text", return_value=pdf_text):
             clear_knowledge_cache()
-            context = build_knowledge_context("in che documento si parla dei timbri?")
+            context = build_knowledge_context(
+                "in che documento si parla dei timbri?", allow_specifiche=True
+            )
 
         self.assertIn("timbri", context.text.lower())
         self.assertTrue(
@@ -2496,7 +2502,9 @@ class SgiRagLoaderTests(TestCase):
             OLLAMA_RAG_CACHE_SECONDS=0,
         ):
             clear_knowledge_cache()
-            context = build_knowledge_context("gestione presenze e timbrature")
+            context = build_knowledge_context(
+                "gestione presenze e timbrature", allow_specifiche=True
+            )
 
         self.assertTrue(
             any(s.startswith("spec:MT CN 09#rev2") for s in context.sources),
@@ -2591,7 +2599,9 @@ class SgiRagLoaderTests(TestCase):
             OLLAMA_RAG_CACHE_SECONDS=0,
         ):
             clear_knowledge_cache()
-            context = build_knowledge_context("dove registro i timbri di presenza?")
+            context = build_knowledge_context(
+                "dove registro i timbri di presenza?", allow_procedure=True
+            )
 
         self.assertTrue(
             any(s.startswith("proc:MT CN 06#rev7") for s in context.sources),
@@ -2816,7 +2826,9 @@ class SgiRagLoaderTests(TestCase):
                 OLLAMA_RAG_STEMMING_ENABLED=stemming,
             ), patch("ai_assistant.services._sgi_extract_specifica_text", side_effect=fake_extract):
                 clear_knowledge_cache()
-                ctx = build_knowledge_context("come timbrare, info sul personale")
+                ctx = build_knowledge_context(
+                    "come timbrare, info sul personale", allow_specifiche=True
+                )
             return ctx.sources
 
         off = sources_for(False)
@@ -2827,6 +2839,277 @@ class SgiRagLoaderTests(TestCase):
         self.assertFalse(any("MT CN 06" in s for s in off), msg=f"off={off}")
         # ON: 'timbrare'->'timbr' == 'timbri'->'timbr' -> il documento timbri viene recuperato.
         self.assertTrue(any("MT CN 06" in s for s in on), msg=f"on={on}")
+
+
+@override_settings(
+    OLLAMA_RAG_ENABLED=True,
+    OLLAMA_RAG_SGI_ENABLED=True,
+    OLLAMA_EMBED_ENABLED=False,
+    OLLAMA_RAG_SOURCE_PATHS=[],
+    OLLAMA_RAG_CACHE_SECONDS=0,
+    OLLAMA_RAG_MAX_CHUNKS=8,
+)
+class SgiRagAclGateTests(TestCase):
+    """Finding #1 (Critico) — il retrieval RAG non deve esporre contenuto SGI
+    (Specifiche/Procedure) a chi non potrebbe vederlo aprendo il modulo.
+
+    Gate per-sorgente su `build_knowledge_context`:
+      - spec:  ammesso solo se allow_specifiche (rotta /gestione-specifiche/)
+      - proc:  ammesso solo se allow_procedure (manager, come procedure_refresh)
+      - file/faq (non protetti da ACL di modulo): sempre ammessi.
+    Default fail-closed: senza flag espliciti, niente SGI nel contesto.
+    """
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()
+        clear_knowledge_cache()
+
+    def _spec_in_validita(self, *, codice, revisione, titolo, tag="timbri"):
+        from gestione_specifiche import constants as C
+        from gestione_specifiche.models import Specifica
+
+        spec = Specifica.objects.create(
+            codice=codice, revisione=revisione, titolo=titolo, cliente="ACME", tag=tag
+        )
+        Specifica.objects.filter(pk=spec.pk).update(stato=C.STATO_IN_VALIDITA)
+        return spec
+
+    def _proc_corrente(self, *, code, title, description):
+        from procedure_refresh.models import ProcedureDocument, ProcedureRevision
+
+        doc = ProcedureDocument.objects.create(
+            code=code, title=title, description=description, category="Qualita", is_active=True
+        )
+        ProcedureRevision.objects.create(
+            document=doc, revision_code="3", revision_date=date.today(), effective_date=date.today(),
+            source_type="sharepoint", source_url="https://sp.example/x", file_name="x.pdf", is_current=True,
+        )
+        return doc
+
+    def test_default_fail_closed_excludes_specifiche(self):
+        self._spec_in_validita(codice="MT CN 06", revisione="7", titolo="Registrazione timbri")
+        clear_knowledge_cache()
+        ctx = build_knowledge_context("dove si registrano i timbri di presenza?")
+        self.assertFalse(
+            any(s.startswith("spec:") for s in ctx.sources),
+            msg=f"senza flag il corpus Specifiche non deve trapelare: {ctx.sources}",
+        )
+
+    def test_allow_specifiche_includes_spec(self):
+        self._spec_in_validita(codice="MT CN 06", revisione="7", titolo="Registrazione timbri")
+        clear_knowledge_cache()
+        ctx = build_knowledge_context(
+            "dove si registrano i timbri di presenza?", allow_specifiche=True
+        )
+        self.assertTrue(
+            any(s.startswith("spec:MT CN 06") for s in ctx.sources),
+            msg=f"con allow_specifiche l'utente autorizzato deve vedere la specifica: {ctx.sources}",
+        )
+
+    def test_procedure_gated_by_allow_procedure(self):
+        self._proc_corrente(
+            code="MT CN 40", title="Gestione presenze",
+            description="Procedura per la registrazione delle presenze e dei timbri.",
+        )
+        clear_knowledge_cache()
+        denied = build_knowledge_context("come registro le presenze e i timbri?")
+        self.assertFalse(
+            any(s.startswith("proc:") for s in denied.sources),
+            msg=f"senza allow_procedure il corpus Procedure non deve trapelare: {denied.sources}",
+        )
+        clear_knowledge_cache()
+        allowed = build_knowledge_context(
+            "come registro le presenze e i timbri?", allow_procedure=True
+        )
+        self.assertTrue(
+            any(s.startswith("proc:MT CN 40") for s in allowed.sources),
+            msg=f"con allow_procedure il manager deve vedere la procedura: {allowed.sources}",
+        )
+
+    def test_non_sgi_chunks_always_present_even_fail_closed(self):
+        # Le FAQ curate NON sono protette da ACL di modulo: restano nel corpus
+        # condiviso anche col gate SGI fail-closed.
+        AiKnowledgeEntry.objects.create(
+            question="Come apro un ticket di assistenza?",
+            answer="Vai nel modulo Tickets e premi Nuovo ticket.",
+            is_active=True,
+        )
+        clear_knowledge_cache()
+        ctx = build_knowledge_context("come apro un ticket di assistenza?")
+        self.assertIn("modulo tickets", ctx.text.lower())
+
+    def test_overview_specifiche_gated(self):
+        # La modalità panoramica (scopo + indice sezioni da codice citato) è un
+        # canale di leak: deve essere soppressa se la sorgente non è autorizzata.
+        self._spec_in_validita(codice="MT CN 06", revisione="7", titolo="Manuale tecnico")
+        pdf_text = (
+            "Scopo\nQuesto documento descrive il processo qualità.\n\n"
+            "4.2 Registrazione timbri\nRegola di registrazione.\n\n"
+            "5.1 Controlli\nControlli periodici.\n"
+        )
+        with patch("ai_assistant.services._sgi_extract_specifica_text", return_value=pdf_text):
+            clear_knowledge_cache()
+            denied = build_knowledge_context("di cosa parla MT CN 06?")
+            self.assertNotIn(
+                "PANORAMICA", denied.text,
+                msg=f"panoramica non autorizzata deve essere soppressa: {denied.text!r}",
+            )
+            clear_knowledge_cache()
+            allowed = build_knowledge_context("di cosa parla MT CN 06?", allow_specifiche=True)
+            self.assertIn("PANORAMICA", allowed.text)
+
+
+class SgiRagAccessResolverTests(TestCase):
+    """`sgi_rag_access(request) -> (allow_specifiche, allow_procedure)` — mappa
+    l'autorizzazione al retrieval SGI sull'ACL di modulo, fail-closed."""
+
+    def test_no_request_is_fail_closed(self):
+        from ai_assistant.services import sgi_rag_access
+
+        self.assertEqual(sgi_rag_access(None), (False, False))
+
+    def test_superuser_allows_all(self):
+        from ai_assistant.services import sgi_rag_access
+
+        user = get_user_model().objects.create_superuser(
+            username="root.sgi", email="root.sgi@example.local", password="pw"
+        )
+        req = SimpleNamespace(user=user, path="/assistente-ai/")
+        self.assertEqual(sgi_rag_access(req), (True, True))
+
+    def test_legacy_auth_disabled_allows_all(self):
+        from ai_assistant import services
+
+        user = get_user_model().objects.create_user(username="u.nolegacy", password="pw")
+        req = SimpleNamespace(user=user, path="/assistente-ai/")
+        with patch("core.legacy_utils.legacy_auth_enabled", return_value=False):
+            self.assertEqual(services.sgi_rag_access(req), (True, True))
+
+    def test_regular_user_specs_from_acl_procedure_manager_only(self):
+        from ai_assistant import services
+
+        user = get_user_model().objects.create_user(username="u.reg", password="pw")
+        req = SimpleNamespace(user=user, path="/assistente-ai/", legacy_user=SimpleNamespace(id=7, ruolo_id=3))
+        with patch("core.legacy_utils.legacy_auth_enabled", return_value=True), patch(
+            "core.legacy_utils.is_legacy_admin", return_value=False
+        ), patch("core.acl_v2.resolve_acl_access", return_value={"allowed": True}):
+            self.assertEqual(services.sgi_rag_access(req), (True, False))
+
+    def test_regular_user_denied_specs_when_acl_denies(self):
+        from ai_assistant import services
+
+        user = get_user_model().objects.create_user(username="u.den", password="pw")
+        req = SimpleNamespace(user=user, path="/assistente-ai/", legacy_user=SimpleNamespace(id=8, ruolo_id=3))
+        with patch("core.legacy_utils.legacy_auth_enabled", return_value=True), patch(
+            "core.legacy_utils.is_legacy_admin", return_value=False
+        ), patch("core.acl_v2.resolve_acl_access", return_value={"allowed": False}):
+            self.assertEqual(services.sgi_rag_access(req), (False, False))
+
+    def test_manager_allows_procedure(self):
+        from ai_assistant import services
+
+        user = get_user_model().objects.create_user(username="u.mgr", password="pw")
+        req = SimpleNamespace(user=user, path="/assistente-ai/", legacy_user=SimpleNamespace(id=9, ruolo_id=1))
+        with patch("core.legacy_utils.legacy_auth_enabled", return_value=True), patch(
+            "core.legacy_utils.is_legacy_admin", return_value=True
+        ), patch("core.acl_v2.resolve_acl_access", return_value={"allowed": True}):
+            self.assertEqual(services.sgi_rag_access(req), (True, True))
+
+
+class _FakeOllamaResponse:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def read(self):
+        return b'{"model":"m","message":{"content":"ok"},"done":true}'
+
+
+class SgiRagFlagForwardingTests(TestCase):
+    """I canali di retrieval devono propagare i flag SGI a `build_knowledge_context`."""
+
+    def test_chat_with_ollama_forwards_sgi_flags(self):
+        with override_settings(
+            OLLAMA_API_PROVIDER="ollama",
+            OLLAMA_BASE_URL="http://10.0.0.34:11434",
+            OLLAMA_CHAT_MODEL="m",
+            OLLAMA_RAG_ENABLED=True,
+        ), patch("ai_assistant.services.build_knowledge_context") as mk, patch(
+            "ai_assistant.services.urllib.request.urlopen", return_value=_FakeOllamaResponse()
+        ):
+            mk.return_value = SimpleNamespace(text="", sources=())
+            chat_with_ollama("domanda", allow_specifiche=True, allow_procedure=False)
+
+        self.assertEqual(mk.call_args.kwargs.get("allow_specifiche"), True)
+        self.assertEqual(mk.call_args.kwargs.get("allow_procedure"), False)
+
+    def test_open_ollama_stream_forwards_sgi_flags(self):
+        from ai_assistant.services import open_ollama_stream
+
+        with override_settings(
+            OLLAMA_API_PROVIDER="ollama",
+            OLLAMA_BASE_URL="http://10.0.0.34:11434",
+            OLLAMA_CHAT_MODEL="m",
+            OLLAMA_RAG_ENABLED=True,
+        ), patch("ai_assistant.services.build_knowledge_context") as mk, patch(
+            "ai_assistant.services.urllib.request.urlopen", return_value=_FakeOllamaResponse()
+        ):
+            mk.return_value = SimpleNamespace(text="", sources=())
+            open_ollama_stream("domanda", allow_specifiche=False, allow_procedure=True)
+
+        self.assertEqual(mk.call_args.kwargs.get("allow_specifiche"), False)
+        self.assertEqual(mk.call_args.kwargs.get("allow_procedure"), True)
+
+
+class SgiRagReportGateTests(TestCase):
+    """Il canale Report PDF (`genera_report`) deve risolvere e propagare i flag SGI."""
+
+    def _fake_rc(self):
+        return SimpleNamespace(text="", sources=(), audit={})
+
+    def test_genera_report_forwards_resolved_flags(self):
+        from ai_assistant import ai_report, services, tools
+
+        user = get_user_model().objects.create_superuser(
+            username="rep.sgi", email="rep.sgi@example.local", password="pw"
+        )
+        req = SimpleNamespace(user=user, path="/assistente-ai/")
+        captured = {}
+
+        def fake_chat(prompt, **kw):
+            captured.update(kw)
+            return SimpleNamespace(content="# T", model="m", sources=(), rag_context_chars=0)
+
+        with patch.object(tools, "build_runtime_context", return_value=self._fake_rc()), patch.object(
+            services, "chat_with_ollama", side_effect=fake_chat
+        ):
+            ai_report.genera_report(req, "argomento")
+
+        self.assertEqual(captured.get("allow_specifiche"), True)
+        self.assertEqual(captured.get("allow_procedure"), True)
+
+    def test_genera_report_forwards_denied_flags(self):
+        from ai_assistant import ai_report, services, tools
+
+        user = get_user_model().objects.create_user(username="rep.reg", password="pw")
+        req = SimpleNamespace(user=user, path="/assistente-ai/")
+        captured = {}
+
+        def fake_chat(prompt, **kw):
+            captured.update(kw)
+            return SimpleNamespace(content="# T", model="m", sources=(), rag_context_chars=0)
+
+        with patch.object(services, "sgi_rag_access", return_value=(False, False)), patch.object(
+            tools, "build_runtime_context", return_value=self._fake_rc()
+        ), patch.object(services, "chat_with_ollama", side_effect=fake_chat):
+            ai_report.genera_report(req, "argomento")
+
+        self.assertEqual(captured.get("allow_specifiche"), False)
+        self.assertEqual(captured.get("allow_procedure"), False)
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SETUP_WIZARD_REQUIRED=False)

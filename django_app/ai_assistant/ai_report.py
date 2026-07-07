@@ -47,12 +47,15 @@ def _estrai_titolo(markdown: str, topic: str) -> str:
 
 def genera_report(request, topic: str) -> dict:
     """Costruisce il report (markdown) dal contesto autorizzato. Niente DB/scrittura."""
-    from .services import OllamaChatError, chat_with_ollama
+    from .services import OllamaChatError, chat_with_ollama, sgi_rag_access
     from .tools import build_runtime_context
 
     topic = (topic or "").strip()[:_MAX_TOPIC_CHARS]
     runtime_context = build_runtime_context(request, topic)
     has_context = bool(runtime_context.text.strip())
+    # Stesso gate ACL per-sorgente SGI della chat: il report non deve consolidare
+    # in un PDF scaricabile contenuto Specifiche/Procedure fuori dai permessi (finding #1).
+    allow_specifiche, allow_procedure = sgi_rag_access(request)
 
     prompt = _REPORT_PROMPT.format(topic=topic)
     ai_disponibile = True
@@ -65,6 +68,8 @@ def genera_report(request, topic: str) -> dict:
             runtime_context=runtime_context.text,
             user_preferences={"style": "dettagliato", "show_limits": True},
             timeout=int(getattr(settings, "OLLAMA_REPORT_TIMEOUT_SECONDS", 120) or 120),
+            allow_specifiche=allow_specifiche,
+            allow_procedure=allow_procedure,
         )
         markdown = (result.content or "").strip()[:_MAX_MARKDOWN_CHARS]
         model = result.model

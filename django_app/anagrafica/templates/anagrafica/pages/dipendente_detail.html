@@ -417,6 +417,56 @@ body.theme-dark .dp-abs-item-dur { color:var(--text-mid); }
 body.theme-dark .dp-pill-red   { background:rgba(185,28,28,.2); color:#fca5a5; }
 body.theme-dark .dp-pill-amber { background:rgba(146,64,14,.28); color:#fcd34d; }
 body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(--border); color:var(--text-light); }
+
+/* === Dark mode · tabelle (retribuzioni / ratei / contratti / storico org) === */
+body.theme-dark .dp-retr-block + .dp-retr-block { border-color:var(--border); }
+body.theme-dark .dp-retr-table td { border-color:var(--border); }
+body.theme-dark .dp-retr-name { color:var(--text-mid); }
+body.theme-dark .dp-retr-val { color:var(--text); }
+body.theme-dark .dp-retr-val.is-totale { color:#60a5fa; }
+body.theme-dark .dp-retr-val.is-ral { color:#86efac; }
+body.theme-dark .dp-retr-up { background:rgba(21,128,61,.25); color:#86efac; }
+body.theme-dark .dp-retr-down { background:rgba(185,28,28,.25); color:#fca5a5; }
+body.theme-dark .dp-retr-footer { border-color:var(--border); }
+body.theme-dark .dp-ratei-th-pin { background:var(--thead-bg); border-color:var(--border); }
+body.theme-dark .dp-ratei-td-pin { background:var(--surface); border-color:var(--border); }
+body.theme-dark .dp-ratei-th { color:var(--text-light); border-color:var(--border); }
+body.theme-dark .dp-ratei-th-group { border-color:var(--border); }
+body.theme-dark .dp-ratei-td { border-color:var(--border); }
+body.theme-dark .dp-ratei-row:hover .dp-ratei-td,
+body.theme-dark .dp-ratei-row:hover .dp-ratei-td-pin { background:var(--tbody-hover); }
+body.theme-dark .dp-ratei-ferie { background:rgba(133,77,14,.16); color:#fcd34d; }
+body.theme-dark .dp-ratei-rol   { background:rgba(30,64,175,.18); color:#93c5fd; }
+body.theme-dark .dp-ratei-exfest{ background:rgba(21,128,61,.16); color:#86efac; }
+body.theme-dark .dp-contr-table th { border-color:var(--border); }
+body.theme-dark .dp-contr-table td { border-color:var(--border); }
+body.theme-dark .dp-contr-table tr.dp-contr-edit-row td { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .dp-contr-incorso td:first-child { color:#86efac; }
+body.theme-dark .sc-row:hover { background:var(--surface-alt); }
+
+/* Card riservate HR con testata ambra (ex background/border inline) */
+.dp-card-warn { border-color:#fde68a; }
+.dp-card-head-warn { background:#fffbeb; }
+body.theme-dark .dp-card-warn { border-color:rgba(253,230,138,.30); }
+body.theme-dark .dp-card-head-warn { background:rgba(146,64,14,.15); }
+
+/* Celle/righe delle tabelle markup-inline: il colore sta in classe (non
+   inline) così l'override dark può vincere. */
+.dp-sec-label { color:#64748b; }
+.dp-th-muted { color:#64748b; }
+.dp-tr-line { border-bottom:1px solid #f1f5f9; }
+.dp-tr-head { border-bottom:1px solid #e2e8f0; }
+.dp-thead-soft { background:#f8fafc; }
+.dp-td-strong { color:#1e293b; }
+.dp-td-ink { color:#0f172a; }
+.dp-td-mid { color:#475569; }
+body.theme-dark .dp-sec-label { color:var(--text-light); }
+body.theme-dark .dp-tr-line { border-color:var(--border); }
+body.theme-dark .dp-tr-head { border-color:var(--border); }
+body.theme-dark .dp-thead-soft { background:var(--thead-bg); }
+body.theme-dark .dp-td-strong,
+body.theme-dark .dp-td-ink { color:var(--text); }
+body.theme-dark .dp-td-mid { color:var(--text-mid); }
 </style>
 {% endblock %}
 
@@ -1044,8 +1094,8 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
 
   <!-- CONTRATTO & INQUADRAMENTO -->
   {% if can_hr %}
-  <div class="dp-card" data-tab="contratto" style="border-color:#fde68a;">
-    <div class="dp-card-head" style="background:#fffbeb;display:flex;align-items:center;justify-content:space-between;">
+  <div class="dp-card dp-card-warn" data-tab="contratto">
+    <div class="dp-card-head dp-card-head-warn" style="display:flex;align-items:center;justify-content:space-between;">
       <div class="dp-card-title">📋 Contratto & Inquadramento</div>
       {% if is_admin %}
         <a href="{% url 'anagrafica:contratti_import' %}" class="dp-btn dp-btn-ghost dp-btn-sm">⬆ Importa CSV</a>
@@ -1215,8 +1265,8 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
 
   <!-- VOCI RETRIBUTIVE -->
   {% if can_hr %}
-  <div class="dp-card" data-tab="contratto" style="border-color:#fde68a;">
-    <div class="dp-card-head" style="background:#fffbeb;">
+  <div class="dp-card dp-card-warn" data-tab="contratto">
+    <div class="dp-card-head dp-card-head-warn">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <div class="dp-card-title">💰 Voci retributive</div>
         {% if retribuzioni_data_competenza %}
@@ -1335,8 +1385,8 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
 
   <!-- DATI RISERVATI HR -->
   {% if can_hr %}
-  <div class="dp-card" data-tab="contratto" style="border-color:#fde68a;">
-    <div class="dp-card-head" style="background:#fffbeb;">
+  <div class="dp-card dp-card-warn" data-tab="contratto">
+    <div class="dp-card-head dp-card-head-warn">
       <div class="dp-card-title">🔒 Dati riservati HR</div>
       {% if is_admin %}
         <button type="button" onclick="toggleSection('hr-edit')" class="dp-btn dp-btn-ghost dp-btn-sm">✏ Modifica</button>
@@ -1409,23 +1459,23 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
       <div style="overflow-x:auto;">
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
           <thead>
-            <tr style="border-bottom:1px solid #e2e8f0;background:#f8fafc;">
-              <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;">Data effetto</th>
-              <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;">Tipo</th>
-              <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;">Da</th>
-              <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;">A</th>
-              <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;">Autore</th>
+            <tr class="dp-tr-head dp-thead-soft">
+              <th class="dp-th-muted" style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;">Data effetto</th>
+              <th class="dp-th-muted" style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;">Tipo</th>
+              <th class="dp-th-muted" style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;">Da</th>
+              <th class="dp-th-muted" style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;">A</th>
+              <th class="dp-th-muted" style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;">Autore</th>
             </tr>
           </thead>
           <tbody id="sc-tbody">
             {% for c in storico_cambiamenti %}
             <tr class="sc-row" data-tipo="{{ c.tipo }}" style="border-bottom:1px solid #f1f5f9;">
-              <td style="padding:8px 10px;white-space:nowrap;color:#1e293b;font-weight:600;">{{ c.data_effetto|date:"d-m-Y" }}</td>
+              <td class="dp-td-strong" style="padding:8px 10px;white-space:nowrap;font-weight:600;">{{ c.data_effetto|date:"d-m-Y" }}</td>
               <td style="padding:8px 10px;white-space:nowrap;">
                 <span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;color:#fff;background:{{ c.colore }};">{{ c.get_tipo_display }}</span>
               </td>
               <td style="padding:8px 10px;color:#94a3b8;">{{ c.valore_precedente|default:"(vuoto)" }}</td>
-              <td style="padding:8px 10px;color:#0f172a;font-weight:600;">{{ c.valore_nuovo|default:"(vuoto)" }}</td>
+              <td class="dp-td-ink" style="padding:8px 10px;font-weight:600;">{{ c.valore_nuovo|default:"(vuoto)" }}</td>
               <td style="padding:8px 10px;color:#64748b;font-size:12px;white-space:nowrap;">
                 {% if c.created_by %}{{ c.created_by.get_full_name|default:c.created_by.username }}{% else %}—{% endif %}
                 <br><span style="color:#cbd5e1;font-size:10px;">{{ c.created_at|date:"d-m-Y H:i" }}</span>
@@ -1486,8 +1536,8 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
         <tbody>
           {% with s=ratei_saldi.0 %}
           <tr class="dp-ratei-row">
-            <td class="dp-ratei-td-pin" style="font-weight:600;color:#1e293b;">{{ s.data_competenza|date:"M Y" }}</td>
-            <td class="dp-ratei-td-pin" style="color:#64748b;font-size:12px;">
+            <td class="dp-ratei-td-pin dp-td-strong" style="font-weight:600;">{{ s.data_competenza|date:"M Y" }}</td>
+            <td class="dp-ratei-td-pin dp-td-mid" style="font-size:12px;">
               {% if s.anzianita_anni is not None %}{{ s.anzianita_anni }}a{% if s.anzianita_mesi %} {{ s.anzianita_mesi }}m{% endif %}{% else %}—{% endif %}
             </td>
             <td class="dp-ratei-td dp-ratei-ferie">{{ s.ferie_maturati }}</td>
@@ -1847,7 +1897,7 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
 
       {% if dpi_consegnati %}
       <div style="margin-bottom:16px;">
-        <div style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">In dotazione</div>
+        <div class="dp-sec-label" style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">In dotazione</div>
         <div style="display:flex;flex-wrap:wrap;gap:8px;">
           {% for r in dpi_consegnati %}
           <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:8px 12px;font-size:12px;min-width:140px;">
@@ -1880,10 +1930,10 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
 
       {% if dpi_richieste %}
       <div>
-        <div style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Ultime richieste</div>
+        <div class="dp-sec-label" style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Ultime richieste</div>
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
           <thead>
-            <tr style="border-bottom:1px solid #e2e8f0;">
+            <tr class="dp-tr-head">
               <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">N°</th>
               <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Categoria</th>
               <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Qtà</th>
@@ -1893,14 +1943,14 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
           </thead>
           <tbody>
             {% for r in dpi_richieste %}
-            <tr style="border-bottom:1px solid #f1f5f9;">
+            <tr class="dp-tr-line">
               <td style="padding:7px 8px;">
                 <a href="{% url 'dpi:detail' r.pk %}" style="color:#1f87cd;font-weight:600;font-size:12px;">{{ r.numero }}</a>
               </td>
-              <td style="padding:7px 8px;color:#1e293b;">
+              <td class="dp-td-strong" style="padding:7px 8px;">
                 {{ r.categoria.icona_emoji }} {{ r.categoria.nome }}
               </td>
-              <td style="padding:7px 8px;color:#475569;">{{ r.quantita }} {{ r.categoria.unita_misura }}</td>
+              <td class="dp-td-mid" style="padding:7px 8px;">{{ r.quantita }} {{ r.categoria.unita_misura }}</td>
               <td style="padding:7px 8px;">
                 {% if r.stato == "INVIATA" %}
                   <span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;">Inviata</span>
@@ -1949,10 +1999,10 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
 
       {% if visite_stato_list %}
       <div style="margin-bottom:18px;">
-        <div style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Stato visite richieste (in base ai ruoli operativi)</div>
+        <div class="dp-sec-label" style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Stato visite richieste (in base ai ruoli operativi)</div>
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
           <thead>
-            <tr style="border-bottom:1px solid #e2e8f0;background:#f8fafc;">
+            <tr class="dp-tr-head dp-thead-soft">
               <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Tipo</th>
               <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Ultima visita</th>
               <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Scadenza</th>
@@ -1961,10 +2011,10 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
           </thead>
           <tbody>
             {% for row in visite_stato_list %}
-            <tr style="border-bottom:1px solid #f1f5f9;">
-              <td style="padding:7px 8px;color:#1e293b;font-weight:600;">{{ row.tipo.nome }}</td>
-              <td style="padding:7px 8px;color:#475569;">{% if row.ultima %}{{ row.ultima.data_svolgimento|date:"d-m-Y" }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
-              <td style="padding:7px 8px;color:#475569;">{% if row.data_scadenza %}{{ row.data_scadenza|date:"d-m-Y" }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
+            <tr class="dp-tr-line">
+              <td class="dp-td-strong" style="padding:7px 8px;font-weight:600;">{{ row.tipo.nome }}</td>
+              <td class="dp-td-mid" style="padding:7px 8px;">{% if row.ultima %}{{ row.ultima.data_svolgimento|date:"d-m-Y" }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
+              <td class="dp-td-mid" style="padding:7px 8px;">{% if row.data_scadenza %}{{ row.data_scadenza|date:"d-m-Y" }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
               <td style="padding:7px 8px;">
                 {% if row.stato == "mancante" %}
                   <span style="background:#e0e7ff;color:#3730a3;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;">⏳ Mancante</span>
@@ -1985,10 +2035,10 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
 
       {% if visite_storico_list %}
       <div style="margin-bottom:14px;">
-        <div style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Storico visite</div>
+        <div class="dp-sec-label" style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Storico visite</div>
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
           <thead>
-            <tr style="border-bottom:1px solid #e2e8f0;">
+            <tr class="dp-tr-head">
               <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Data</th>
               <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Tipo</th>
               <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Esito</th>
@@ -1999,11 +2049,11 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
           </thead>
           <tbody>
             {% for v in visite_storico_list %}
-            <tr style="border-bottom:1px solid #f1f5f9;">
-              <td style="padding:7px 8px;color:#1e293b;">{{ v.data_svolgimento|date:"d-m-Y" }}</td>
-              <td style="padding:7px 8px;color:#1e293b;font-weight:600;">{{ v.tipo.nome }}</td>
-              <td style="padding:7px 8px;color:#475569;">{{ v.get_esito_display }}</td>
-              <td style="padding:7px 8px;color:#475569;">{% if v.data_scadenza %}{{ v.data_scadenza|date:"d-m-Y" }}{% if v.is_scaduta %} 🔴{% elif v.in_scadenza %} 🟠{% endif %}{% else %}—{% endif %}</td>
+            <tr class="dp-tr-line">
+              <td class="dp-td-strong" style="padding:7px 8px;">{{ v.data_svolgimento|date:"d-m-Y" }}</td>
+              <td class="dp-td-strong" style="padding:7px 8px;font-weight:600;">{{ v.tipo.nome }}</td>
+              <td class="dp-td-mid" style="padding:7px 8px;">{{ v.get_esito_display }}</td>
+              <td class="dp-td-mid" style="padding:7px 8px;">{% if v.data_scadenza %}{{ v.data_scadenza|date:"d-m-Y" }}{% if v.is_scaduta %} 🔴{% elif v.in_scadenza %} 🟠{% endif %}{% else %}—{% endif %}</td>
               <td style="padding:7px 8px;">
                 {% if v.referto_documento_id %}
                   <a href="{% url 'anagrafica:documento_download' v.referto_documento_id %}" style="color:#1f87cd;font-weight:600;">📄 Apri</a>
@@ -2143,13 +2193,13 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
             <table style="width:100%;border-collapse:collapse;font-size:13px;">
               <tbody>
                 {% for d in gruppo.list %}
-                <tr style="border-bottom:1px solid #f8fafc;">
-                  <td style="padding:6px 8px;color:#1e293b;font-weight:600;">
+                <tr class="dp-tr-line">
+                  <td class="dp-td-strong" style="padding:6px 8px;font-weight:600;">
                     {% if d.tipo == "VISITA_MEDICA_REFERTO" %}🩺 {% elif d.tipo == "DPI_CONSEGNA" %}🦺 {% else %}📄 {% endif %}
                     {{ d.nome_originale }}
                   </td>
-                  <td style="padding:6px 8px;color:#64748b;font-size:12px;">
-                    {% if d.descrizione %}<span style="color:#475569;">{{ d.descrizione }}</span> · {% endif %}
+                  <td class="dp-td-mid" style="padding:6px 8px;font-size:12px;">
+                    {% if d.descrizione %}<span class="dp-td-mid">{{ d.descrizione }}</span> · {% endif %}
                     {{ d.created_at|date:"d-m-Y" }}
                     {% if d.created_by_display %} · {{ d.created_by_display }}{% endif %}
                   </td>

@@ -54,7 +54,19 @@
 
 .org-empty-rep { padding:8px 14px 12px; font-size:12px; color:#94a3b8; font-style:italic; }
 
+/* Filtro area + bucket "non a catalogo" (niente colori inline: vincono sul dark) */
+.org-filter-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
+.org-select { border:1px solid #e2e8f0; border-radius:9px; padding:8px 12px; font-size:13px; background:#f8fafc; font-family:inherit; }
+.org-nm-hint { font-size:12px; color:#94a3b8; }
+.org-nm-link { color:#334155; text-decoration:none; }
+.org-nm-link:hover { color:#1f87cd; text-decoration:underline; }
+.org-nm-rep { font-size:11px; color:#b45309; }
+
 /* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .org-filter-label { color:var(--text-light); }
+body.theme-dark .org-select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .org-nm-link { color:var(--text-mid); }
+body.theme-dark .org-nm-rep { color:#fbbf24; }
 body.theme-dark .org-rep { background:var(--surface); border-color:var(--border); }
 body.theme-dark .org-area-title { color:var(--text); }
 body.theme-dark .org-rep-name { color:var(--text); }
@@ -128,9 +140,8 @@ body.theme-dark .org-capo-missing { background:rgba(133,77,14,.18); border-color
   <div class="hr-card org-filters">
     <form method="get" action="" style="display:flex;gap:12px;align-items:flex-end;padding:14px 16px;flex-wrap:wrap;">
       <div style="display:flex;flex-direction:column;gap:4px;min-width:200px;">
-        <label for="org-area" style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">Area aziendale</label>
-        <select id="org-area" name="area" class="sc-select" onchange="this.form.submit()"
-                style="border:1px solid #e2e8f0;border-radius:9px;padding:8px 12px;font-size:13px;background:#f8fafc;font-family:inherit;">
+        <label for="org-area" class="org-filter-label">Area aziendale</label>
+        <select id="org-area" name="area" class="sc-select org-select" onchange="this.form.submit()">
           <option value="" {% if not filtro_area %}selected{% endif %}>Tutte</option>
           {% for nome in nomi_aree %}
           <option value="{{ nome }}" {% if nome == filtro_area %}selected{% endif %}>{{ nome }}</option>
@@ -198,13 +209,13 @@ body.theme-dark .org-capo-missing { background:rgba(133,77,14,.18); border-color
   <div class="hr-card">
     <div class="hr-card-head">
       <div class="hr-card-title">🧩 Dipendenti con reparto non a catalogo</div>
-      <div style="font-size:12px;color:#94a3b8;">Il reparto legacy non corrisponde a nessun reparto censito nelle impostazioni.</div>
+      <div class="org-nm-hint">Il reparto legacy non corrisponde a nessun reparto censito nelle impostazioni.</div>
     </div>
     <ul style="list-style:none;margin:0;padding:8px 16px 14px;columns:3;column-gap:24px;">
       {% for m in non_mappati %}
       <li style="padding:3px 0;font-size:13px;break-inside:avoid;">
-        <a href="{% url 'anagrafica:dipendente_detail' m.id %}" style="color:#334155;text-decoration:none;">{{ m.cognome }} {{ m.nome }}</a>
-        {% if m.reparto %}<span style="font-size:11px;color:#b45309;"> · «{{ m.reparto }}»</span>{% endif %}
+        <a href="{% url 'anagrafica:dipendente_detail' m.id %}" class="org-nm-link">{{ m.cognome }} {{ m.nome }}</a>
+        {% if m.reparto %}<span class="org-nm-rep"> · «{{ m.reparto }}»</span>{% endif %}
       </li>
       {% endfor %}
     </ul>

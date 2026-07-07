@@ -147,6 +147,16 @@ def _legacy_ids_pertinenti(corso, dipendenti: dict[int, dict]) -> tuple[set[int]
                 if e["mansione"].strip().casefold() in mansioni_obbligate:
                     ids.add(lid)
 
+    # 5) requisiti MOD.128: abilitati (ATTIVA) a processi che richiedono il corso.
+    try:
+        from .mpq_formazione import legacy_ids_richiesti_da_processo
+        proc_ids = legacy_ids_richiesti_da_processo(corso.pk)
+    except Exception:
+        proc_ids = set()
+    if proc_ids:
+        has_rules = True
+        ids.update(proc_ids)
+
     # Restringi ai dipendenti effettivamente in forza.
     ids &= set(dipendenti.keys())
     return ids, has_rules

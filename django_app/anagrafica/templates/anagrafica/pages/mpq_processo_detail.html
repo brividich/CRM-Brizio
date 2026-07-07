@@ -118,6 +118,25 @@
       {% if processo.note %}<p class="fmd-sub" style="margin-top:10px;">{{ processo.note|linebreaksbr }}</p>{% endif %}
     </section>
 
+    {# ── Requisiti del processo (corsi/DPI/visite) ──────────────────────── #}
+    {% if ha_requisiti or can_manage %}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-shield"/></svg>Requisiti del processo</div>
+        <div class="fmd-block-aside">Corsi/DPI/visite necessari all'idoneità (come una mansione di rischio)</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;padding:6px 2px;">
+        <div><div class="fmd-muted" style="font-size:12px;">Corsi di formazione</div>
+          <div>{% for c in corsi_req %}<span class="fmd-badge fmd-b-cyan">{{ c.titolo }}</span> {% empty %}<span class="fmd-muted">—</span>{% endfor %}</div></div>
+        <div><div class="fmd-muted" style="font-size:12px;">DPI</div>
+          <div>{% for d in dpi_req %}<span class="fmd-badge fmd-b-amber">{{ d.nome }}</span> {% empty %}<span class="fmd-muted">—</span>{% endfor %}</div></div>
+        <div><div class="fmd-muted" style="font-size:12px;">Visite mediche</div>
+          <div>{% for v in visite_req %}<span class="fmd-badge fmd-b-violet">{{ v.nome }}</span> {% empty %}<span class="fmd-muted">—</span>{% endfor %}</div></div>
+      </div>
+      {% if can_manage %}<div class="fmd-muted" style="font-size:11px;margin-top:8px;">Modifica i requisiti dal pulsante «Modifica» in testata. L'idoneità di ogni persona abilitata è mostrata nella tabella sotto.</div>{% endif %}
+    </section>
+    {% endif %}
+
     {# ── Personale abilitato ────────────────────────────────────────────── #}
     <section class="fmd-panel fmd-block">
       <div class="fmd-block-head">
@@ -135,7 +154,7 @@
       <div class="fmd-tablewrap" style="margin:0 -22px;">
         <table class="fmd-table">
           <thead>
-            <tr><th>Persona</th><th>Ruoli</th><th>Stato</th><th>Certificazioni individuali</th>{% if can_manage %}<th>Azioni</th>{% endif %}</tr>
+            <tr><th>Persona</th><th>Ruoli</th><th>Stato</th><th>Certificazioni individuali</th>{% if ha_requisiti %}<th>Idoneità</th>{% endif %}{% if can_manage %}<th>Azioni</th>{% endif %}</tr>
           </thead>
           <tbody>
             {% for a in abilitazioni %}
@@ -163,6 +182,17 @@
                   </div>
                 {% empty %}<span class="fmd-muted">—</span>{% endfor %}
               </td>
+              {% if ha_requisiti %}
+              <td>
+                {% if a.conformita %}
+                  {% if a.conformita.esito == "ok" %}<span class="fmd-badge fmd-b-green">Idoneo</span>
+                  {% elif a.conformita.esito == "warn" %}<span class="fmd-badge fmd-b-amber">In scadenza</span>
+                  {% elif a.conformita.esito == "incompleto" %}<span class="fmd-badge fmd-b-gray" title="{% for x in a.conformita.voci %}{% if x.stato == 'mancante' %}{{ x.tipo }}: {{ x.nome }}; {% endif %}{% endfor %}">Incompleto ({{ a.conformita.n_mancanti }})</span>
+                  {% elif a.conformita.esito == "ko" %}<span class="fmd-badge fmd-b-red" title="{% for x in a.conformita.voci %}{% if x.stato == 'scaduto' %}{{ x.tipo }}: {{ x.nome }}; {% endif %}{% endfor %}">Non idoneo</span>
+                  {% else %}<span class="fmd-muted">—</span>{% endif %}
+                {% else %}<span class="fmd-muted">—</span>{% endif %}
+              </td>
+              {% endif %}
               {% if can_manage %}
               <td class="fmd-nowrap">
                 <a class="fmd-data-link" href="{% url 'anagrafica:mpq_abilitazione_edit' a.obj.id %}">Modifica</a>

@@ -1,0 +1,678 @@
+<title>NOVICROM HUB — Presentazione direzionale</title>
+
+<style>
+  /* ============ DESIGN TOKENS ============ */
+  :root{
+    --ground:#0B1B2E;--panel:#122A42;--panel-2:#0F2439;--ink:#EAF2FA;--ink-soft:#C4D4E4;
+    --muted:#8AA2BA;--line:rgba(255,255,255,.10);--line-strong:rgba(255,255,255,.18);
+    --accent:#F97316;--accent-2:#2FA2DA;--good:#3FB86B;--warn:#E8B23A;--hero:#081625;
+    --grid:rgba(255,255,255,.045);--shadow:0 18px 50px -24px rgba(0,0,0,.75);
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --ground:#E9EEF3;--panel:#FFFFFF;--panel-2:#F3F6FA;--ink:#0C1B2A;--ink-soft:#26394B;
+      --muted:#5A6E80;--line:rgba(11,27,46,.12);--line-strong:rgba(11,27,46,.20);
+      --accent:#D9560B;--accent-2:#1F87CD;--good:#1E9E52;--warn:#B7841A;--hero:#0B1B2E;
+      --grid:rgba(11,27,46,.05);--shadow:0 18px 44px -26px rgba(11,27,46,.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0B1B2E;--panel:#122A42;--panel-2:#0F2439;--ink:#EAF2FA;--ink-soft:#C4D4E4;
+    --muted:#8AA2BA;--line:rgba(255,255,255,.10);--line-strong:rgba(255,255,255,.18);
+    --accent:#F97316;--accent-2:#2FA2DA;--good:#3FB86B;--warn:#E8B23A;--hero:#081625;
+    --grid:rgba(255,255,255,.045);--shadow:0 18px 50px -24px rgba(0,0,0,.75);
+  }
+  :root[data-theme="light"]{
+    --ground:#E9EEF3;--panel:#FFFFFF;--panel-2:#F3F6FA;--ink:#0C1B2A;--ink-soft:#26394B;
+    --muted:#5A6E80;--line:rgba(11,27,46,.12);--line-strong:rgba(11,27,46,.20);
+    --accent:#D9560B;--accent-2:#1F87CD;--good:#1E9E52;--warn:#B7841A;--hero:#0B1B2E;
+    --grid:rgba(11,27,46,.05);--shadow:0 18px 44px -26px rgba(11,27,46,.35);
+  }
+
+  /* ============ BASE ============ */
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;background:var(--ground);color:var(--ink);
+    font-family:"Segoe UI Variable Display","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;line-height:1.5;
+  }
+  .mono{font-family:"Cascadia Code",Consolas,ui-monospace,"SF Mono",Menlo,"Roboto Mono",monospace}
+
+  /* ============ DECK / SLIDES ============ */
+  .deck{height:100vh;overflow-y:auto;scroll-snap-type:y mandatory;scroll-behavior:smooth;scrollbar-width:none}
+  .deck::-webkit-scrollbar{display:none}
+  .slide{
+    position:relative;min-height:100vh;scroll-snap-align:start;display:flex;align-items:center;
+    padding:clamp(2.2rem,5.5vh,4.4rem) clamp(1.4rem,7vw,7rem);border-bottom:1px solid var(--line);overflow:hidden;
+  }
+  .slide__inner{width:100%;max-width:1160px;margin:0 auto}
+  .slide::before,.slide::after{content:"";position:absolute;width:22px;height:22px;pointer-events:none;
+    border-color:var(--line-strong);border-style:solid;opacity:.8}
+  .slide::before{top:26px;left:26px;border-width:1px 0 0 1px}
+  .slide::after{bottom:26px;right:26px;border-width:0 1px 1px 0}
+  .slide--hero,.slide--dark{background:var(--hero);color:#EAF2FA;
+    --ink:#EAF2FA;--ink-soft:#C4D4E4;--muted:#8FA6BE;--line:rgba(255,255,255,.10);
+    --line-strong:rgba(255,255,255,.20);--panel:rgba(255,255,255,.05);--panel-2:rgba(255,255,255,.03);
+    --accent:#F97316;--accent-2:#2FA2DA;--grid:rgba(255,255,255,.05)}
+  .slide--hero{background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:46px 46px}
+
+  /* ============ TYPOGRAPHY ============ */
+  .eyebrow{font-family:"Cascadia Code",Consolas,ui-monospace,monospace;font-size:.72rem;letter-spacing:.24em;
+    text-transform:uppercase;color:var(--muted);margin:0 0 1.3rem;display:flex;align-items:center;gap:.7rem}
+  .eyebrow b{color:var(--accent);font-weight:600}
+  .eyebrow .tick{width:26px;height:1px;background:var(--accent);display:inline-block}
+  h1.title{font-size:clamp(2.7rem,7.2vw,5.9rem);line-height:.98;letter-spacing:-.03em;font-weight:800;margin:0;text-wrap:balance}
+  h2.title{font-size:clamp(1.8rem,4vw,3rem);line-height:1.04;letter-spacing:-.02em;font-weight:750;margin:0 0 1.2rem;text-wrap:balance}
+  .lead{font-size:clamp(1.02rem,1.45vw,1.25rem);color:var(--ink-soft);max-width:62ch;margin:0}
+  .sub{color:var(--muted)}
+  .accent{color:var(--accent)}.accent-2{color:var(--accent-2)}
+
+  /* ============ HERO ============ */
+  .hero-brand{display:flex;align-items:center;gap:.85rem;margin-bottom:2.4rem}
+  .hero-mark{width:44px;height:44px;border-radius:9px;display:grid;place-items:center;background:var(--accent);
+    color:#0B1B2E;font-weight:800;font-size:1.35rem;box-shadow:0 0 0 1px rgba(255,255,255,.12),var(--shadow)}
+  .hero-brand span{font-family:"Cascadia Code",Consolas,monospace;letter-spacing:.28em;font-size:.74rem;text-transform:uppercase;color:var(--ink-soft)}
+  .hero-tag{margin:1.7rem 0 0;font-size:clamp(1.1rem,2vw,1.5rem);color:var(--ink-soft);max-width:42ch;font-weight:400}
+  .hero-meta{margin-top:3rem;display:flex;flex-wrap:wrap;gap:.6rem 2.2rem;align-items:center}
+  .hero-meta .m{font-family:"Cascadia Code",Consolas,monospace;font-size:.78rem;letter-spacing:.06em;color:var(--muted)}
+  .hero-meta .m b{color:var(--ink);font-weight:600}
+
+  /* ============ KPI GRID ============ */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1px;background:var(--line);
+    border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-top:.5rem}
+  .kpi{background:var(--panel);padding:1.4rem 1.3rem;display:flex;flex-direction:column;gap:.35rem}
+  .kpi .fig{font-family:"Cascadia Code",Consolas,monospace;font-size:clamp(2rem,4.4vw,3.2rem);font-weight:600;
+    line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums;color:var(--ink)}
+  .kpi .fig small{font-size:.42em;color:var(--accent);letter-spacing:.02em;margin-left:.15em}
+  .kpi .lbl{font-size:.85rem;color:var(--muted)}
+
+  /* ============ CARD GRIDS ============ */
+  .grid{display:grid;gap:1rem;margin-top:.4rem}
+  .grid.g2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+  .grid.g3{grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+  .grid.g5{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:1.25rem 1.3rem;position:relative;overflow:hidden}
+  .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent-2);opacity:.9}
+  .card.is-accent::before{background:var(--accent)}
+  .card .idx{font-family:"Cascadia Code",Consolas,monospace;font-size:.72rem;letter-spacing:.14em;color:var(--muted)}
+  .card h3{margin:.5rem 0 .5rem;font-size:1.1rem;letter-spacing:-.01em;font-weight:700}
+  .card p{margin:0;color:var(--ink-soft);font-size:.92rem;line-height:1.48}
+  .card .tags{margin-top:.8rem;display:flex;flex-wrap:wrap;gap:.35rem}
+  .chip{font-family:"Cascadia Code",Consolas,monospace;font-size:.67rem;letter-spacing:.04em;padding:.22rem .5rem;
+    border-radius:6px;background:var(--panel-2);border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+
+  /* ============ MODULE DEEP-DIVE ============ */
+  .deep{display:grid;grid-template-columns:.92fr 1.08fr;gap:2.2rem;margin-top:.3rem;align-items:start}
+  .deep h2.title{margin-bottom:.55rem}
+  .route{display:inline-block;font-family:"Cascadia Code",Consolas,monospace;font-size:.72rem;letter-spacing:.06em;
+    color:var(--accent-2);border:1px solid var(--line);border-radius:6px;padding:.2rem .55rem;margin-bottom:1rem}
+  .val{margin:1.15rem 0;padding:.85rem 1rem;border-left:3px solid var(--accent);background:var(--panel);border-radius:0 10px 10px 0}
+  .val b{display:block;font-family:"Cascadia Code",Consolas,monospace;font-size:.68rem;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--accent);margin-bottom:.28rem}
+  .val p{margin:0;color:var(--ink-soft);font-size:.95rem;line-height:1.45}
+  .fgrid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+  .fcard{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:.85rem .95rem}
+  .fcard h4{margin:0 0 .28rem;font-size:.95rem;font-weight:700;display:flex;gap:.45rem;align-items:baseline;letter-spacing:-.01em}
+  .fcard h4::before{content:"▸";color:var(--accent);font-size:.78em;flex:none}
+  .fcard p{margin:0;font-size:.83rem;color:var(--ink-soft);line-height:1.4}
+  .fcard.key{border-color:color-mix(in srgb,var(--accent) 42%,var(--line));background:color-mix(in srgb,var(--accent) 7%,var(--panel))}
+  .fcard.key h4::before{content:"★";font-size:.72em}
+  @media (max-width:900px){.deep{grid-template-columns:1fr;gap:1.3rem}}
+  @media (max-width:540px){.fgrid{grid-template-columns:1fr}}
+
+  .pills{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.4rem}
+  .pill{display:inline-flex;align-items:center;gap:.45rem;padding:.4rem .75rem;border-radius:999px;
+    border:1px solid var(--line);background:var(--panel);font-size:.82rem;color:var(--ink-soft)}
+  .pill .dot{width:7px;height:7px;border-radius:50%;background:var(--accent-2)}
+  .pill.on .dot{background:var(--good)}
+
+  /* before/after */
+  .ba{display:grid;grid-template-columns:1fr auto 1fr;gap:1.4rem;align-items:stretch;margin-top:.6rem}
+  .ba .col{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:1.3rem}
+  .ba .col.after{border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
+  .ba .col h4{margin:0 0 1rem;font-family:"Cascadia Code",Consolas,monospace;font-size:.74rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+  .ba .col.after h4{color:var(--accent)}
+  .ba ul{margin:0;padding:0;list-style:none;display:grid;gap:.55rem}
+  .ba li{display:flex;gap:.6rem;font-size:.95rem;color:var(--ink-soft);line-height:1.4}
+  .ba li::before{content:"—";color:var(--muted)}
+  .ba .col.after li::before{content:"+";color:var(--accent);font-weight:700}
+  .ba .arrow{display:grid;place-items:center;color:var(--muted);font-family:"Cascadia Code",monospace;font-size:1.6rem}
+  @media (max-width:760px){.ba{grid-template-columns:1fr}.ba .arrow{transform:rotate(90deg)}}
+
+  /* value list */
+  .vlist{display:grid;gap:.85rem;margin-top:.4rem}
+  .vitem{display:grid;grid-template-columns:auto 1fr;gap:1.1rem;align-items:start;padding:1rem 1.2rem;
+    background:var(--panel);border:1px solid var(--line);border-radius:12px}
+  .vitem .vn{font-family:"Cascadia Code",Consolas,monospace;font-size:.9rem;color:var(--accent);font-weight:600;padding-top:.15rem;font-variant-numeric:tabular-nums}
+  .vitem h3{margin:0 0 .25rem;font-size:1.04rem;font-weight:700}
+  .vitem p{margin:0;color:var(--ink-soft);font-size:.93rem}
+
+  .note{margin-top:1.1rem;font-size:.88rem;color:var(--muted)}
+
+  /* ============ FIXED CHROME ============ */
+  .chrome{position:fixed;z-index:40;font-family:"Cascadia Code",Consolas,monospace}
+  .brandmark{top:22px;left:26px;display:flex;align-items:center;gap:.55rem;font-size:.72rem;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--muted);mix-blend-mode:difference}
+  .brandmark .b{width:20px;height:20px;border-radius:5px;background:var(--accent);color:#0B1B2E;display:grid;place-items:center;font-weight:800;font-size:.8rem;mix-blend-mode:normal}
+  .counter{bottom:24px;left:26px;font-size:.78rem;letter-spacing:.1em;color:var(--muted);font-variant-numeric:tabular-nums;mix-blend-mode:difference}
+  .counter b{color:var(--accent)}
+  .rail{position:fixed;right:22px;top:50%;transform:translateY(-50%);z-index:40;display:flex;flex-direction:column;gap:8px;align-items:center}
+  .rail button{all:unset;cursor:pointer;width:10px;height:10px;display:grid;place-items:center}
+  .rail .r{width:7px;height:7px;border-radius:50%;background:var(--muted);opacity:.4;transition:all .3s ease}
+  .rail button[aria-current="true"] .r{opacity:1;background:var(--accent);height:18px;border-radius:4px}
+  .rail button:hover .r{opacity:.9}
+  .rail button:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:3px}
+  .toggle{position:fixed;top:20px;right:20px;z-index:41}
+  .toggle button{all:unset;cursor:pointer;font-family:"Cascadia Code",monospace;font-size:.7rem;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--muted);border:1px solid var(--line);background:var(--panel);padding:.4rem .7rem;border-radius:8px}
+  .toggle button:hover{color:var(--ink);border-color:var(--line-strong)}
+  .toggle button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .hint{position:fixed;bottom:24px;right:26px;z-index:40;font-family:"Cascadia Code",monospace;font-size:.68rem;letter-spacing:.08em;color:var(--muted);opacity:.85;mix-blend-mode:difference}
+  @media (max-width:720px){.rail,.hint{display:none}}
+
+  /* ============ ANIMATION ============ */
+  [data-anim]{opacity:0;transform:translateY(10px);transition:opacity .6s ease,transform .6s cubic-bezier(.2,.7,.2,1)}
+  .is-active [data-anim]{opacity:1;transform:none}
+  .is-active [data-anim="1"]{transition-delay:.05s}
+  .is-active [data-anim="2"]{transition-delay:.13s}
+  .is-active [data-anim="3"]{transition-delay:.21s}
+  .is-active [data-anim="4"]{transition-delay:.29s}
+  @media (prefers-reduced-motion:reduce){.deck{scroll-behavior:auto}[data-anim]{opacity:1;transform:none;transition:none}}
+
+  /* ============ PRINT / EXPORT PDF ============ */
+  @page{size:A4 landscape;margin:0}
+  @media print{
+    :root{--ground:#FFFFFF;--panel:#F3F6FA;--panel-2:#EEF2F7;--ink:#0C1B2A;--ink-soft:#26394B;--muted:#5A6E80;
+      --line:rgba(11,27,46,.14);--line-strong:rgba(11,27,46,.22);--accent:#D9560B;--accent-2:#1F87CD;--hero:#0B1B2E;--grid:rgba(11,27,46,.05)}
+    .chrome,.rail,.toggle,.hint,.brandmark,.counter{display:none !important}
+    .deck{height:auto;overflow:visible;scroll-snap-type:none}
+    .slide{min-height:0;height:100vh;page-break-after:always;break-after:page;border-bottom:0;box-shadow:none;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .slide:last-child{page-break-after:auto;break-after:auto}
+    [data-anim]{opacity:1 !important;transform:none !important}
+    body{background:#fff}
+  }
+</style>
+
+<div class="toggle chrome"><button id="themeBtn" type="button" aria-label="Cambia tema">◐ Tema</button></div>
+<div class="brandmark chrome"><span class="b">N</span> Novicrom Hub</div>
+<div class="counter chrome"><b id="cNow">01</b> / <span id="cTot">23</span></div>
+<nav class="rail" id="rail" aria-label="Navigazione slide"></nav>
+<div class="hint chrome">↓ / spazio · naviga</div>
+
+<div class="deck" id="deck">
+
+  <!-- 01 · COVER -->
+  <section class="slide slide--hero" data-title="Copertina">
+    <div class="slide__inner">
+      <div class="hero-brand" data-anim="1"><div class="hero-mark">N</div><span>Costruzioni Novicrom SRL · Portale interno</span></div>
+      <h1 class="title" data-anim="2">NOVICROM<span class="accent">·</span>HUB</h1>
+      <p class="hero-tag" data-anim="3">Un solo ambiente per workflow, operations, sicurezza, automazioni e governance degli accessi.</p>
+      <div class="hero-meta" data-anim="4">
+        <span class="m">VERSIONE <b>1.2.1</b></span><span class="m">27 <b>moduli</b></span>
+        <span class="m">AI <b>on-premise</b></span><span class="m">PRESENTAZIONE <b>DIREZIONALE</b></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 · PERCHÉ -->
+  <section class="slide" data-title="Perché">
+    <div class="slide__inner">
+      <p class="eyebrow" data-anim="1"><span class="tick"></span>02 · Il punto di partenza</p>
+      <h2 class="title" data-anim="2">Da strumenti sparsi a un'unica fonte di verità</h2>
+      <div class="ba" data-anim="3">
+        <div class="col"><h4>Prima</h4><ul>
+          <li>Fogli Excel per carichi macchina, ferie, attrezzature</li>
+          <li>Comunicazioni e approvazioni via email</li>
+          <li>Documenti sparsi su cartelle di rete e SharePoint</li>
+          <li>Gestionale legacy consultato a parte</li>
+          <li>Permessi difficili da tracciare e verificare</li>
+        </ul></div>
+        <div class="arrow" aria-hidden="true">▸</div>
+        <div class="col after"><h4>Con NOVICROM HUB</h4><ul>
+          <li>Dati e processi in un unico portale aziendale</li>
+          <li>Approvazioni tracciate e auditabili</li>
+          <li>Documenti governati, cifrati e a norma</li>
+          <li>Integrazione nativa con Microsoft 365 e Active Directory</li>
+          <li>Accessi granulari: chi vede cosa è deciso e registrato</li>
+        </ul></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 · COS'È -->
+  <section class="slide slide--dark" data-title="Cos'è">
+    <div class="slide__inner">
+      <p class="eyebrow" data-anim="1"><span class="tick"></span>03 · Definizione</p>
+      <h2 class="title" data-anim="2">Il portale che consolida<br>tutta l'operatività aziendale</h2>
+      <p class="lead" data-anim="3">NOVICROM HUB è la piattaforma interna di Costruzioni Novicrom: centralizza
+        <b class="accent-2">workflow HR</b>, <b class="accent-2">gestione asset e produzione</b>,
+        <b class="accent-2">compliance sicurezza</b>, <b class="accent-2">automazioni</b> e una
+        <b class="accent-2">governance degli accessi</b> puntuale — costruita su misura sui processi reali,
+        non un software generico adattato.</p>
+      <div class="pills" data-anim="4">
+        <span class="pill on"><span class="dot"></span>Costruito sui processi Novicrom</span>
+        <span class="pill on"><span class="dot"></span>Dati in azienda, non in cloud terzo</span>
+        <span class="pill on"><span class="dot"></span>Auditabile e a norma</span>
+        <span class="pill on"><span class="dot"></span>Modulare, attivabile a moduli</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 · NUMERI -->
+  <section class="slide" data-title="Numeri chiave">
+    <div class="slide__inner">
+      <p class="eyebrow" data-anim="1"><span class="tick"></span>04 · A colpo d'occhio</p>
+      <h2 class="title" data-anim="2">I numeri del portale</h2>
+      <div class="kpis" data-anim="3">
+        <div class="kpi"><div class="fig">27</div><div class="lbl">moduli funzionali su misura</div></div>
+        <div class="kpi"><div class="fig">5</div><div class="lbl">aree operative coperte</div></div>
+        <div class="kpi"><div class="fig">100<small>%</small></div><div class="lbl">AI in casa, on-premise</div></div>
+        <div class="kpi"><div class="fig">v2</div><div class="lbl">governance accessi (ACL canonica)</div></div>
+        <div class="kpi"><div class="fig">M365</div><div class="lbl">integrazione nativa Microsoft</div></div>
+        <div class="kpi"><div class="fig">ISO<small>·EN</small></div><div class="lbl">9001 / 9100 supporto compliance</div></div>
+      </div>
+      <p class="note" data-anim="4">Ogni modulo è attivabile o disattivabile dal Module Manager: l'adozione può essere progressiva, area per area.</p>
+    </div>
+  </section>
+
+  <!-- 05 · 5 AREE -->
+  <section class="slide slide--dark" data-title="Le 5 aree">
+    <div class="slide__inner">
+      <p class="eyebrow" data-anim="1"><span class="tick"></span>05 · Copertura funzionale</p>
+      <h2 class="title" data-anim="2">Cinque aree, un unico portale</h2>
+      <div class="grid g5" data-anim="3">
+        <div class="card is-accent"><div class="idx">A1</div><h3>Piattaforma core</h3><p>Dashboard KPI, pannello admin, notifiche, ricerca globale, assistente AI, monitoraggio.</p></div>
+        <div class="card"><div class="idx">A2</div><h3>Operations</h3><p>Anagrafica HR, asset e officina, attrezzature, carichi macchina, specifiche, progetti.</p></div>
+        <div class="card"><div class="idx">A3</div><h3>HR &amp; Workflow</h3><p>Ferie e assenze, anomalie di produzione, ticket interni, timbri, bacheca.</p></div>
+        <div class="card is-accent"><div class="idx">A4</div><h3>Sicurezza &amp; Compliance</h3><p>DPI, diario preposto, incidenti e near-miss, procedure, tracciabilità rifiuti.</p></div>
+        <div class="card"><div class="idx">A5</div><h3>Automazioni</h3><p>Designer visuale, trigger, approvazioni, integrazione con la posta aziendale.</p></div>
+      </div>
+      <p class="note" data-anim="4">Si parte dal modulo più esteso — l'Anagrafica HR — poi gli altri moduli in evidenza.</p>
+    </div>
+  </section>
+
+  <!-- 06 · ANAGRAFICA 1/3 -->
+  <section class="slide" data-title="Anagrafica · Fascicolo">
+    <div class="slide__inner">
+      <p class="eyebrow" data-anim="1"><span class="tick"></span>06 · Operations · Anagrafica HR (1/3)</p>
+      <div class="deep">
+        <div data-anim="2">
+          <h2 class="title">Anagrafica HR</h2>
+          <span class="route">/anagrafica/ · l'anagrafica master del personale</span>
+          <p class="lead">Il fascicolo unico del dipendente, integrato con Active Directory e le tabelle legacy, con livelli di visibilità differenziati per la privacy.</p>
+          <div class="val"><b>Valore</b><p>Un solo fascicolo completo per persona, ingresso e uscita guidati, storico organizzativo e contrattuale sempre ricostruibile.</p></div>
+          <div class="tags"><span class="chip">scheda a tab</span><span class="chip">onboarding</span><span class="chip">storico CCNL</span><span class="chip">Skill Matrix MOD.187</span><span class="chip">GDPR</span></div>
+        </div>
+        <div class="fgrid" data-anim="3">
+          <div class="fcard"><h4>Scheda a tab</h4><p>Riepilogo con KPI — anzianità, documenti, asset in carico, assenze — e dati d'impiego in sintesi.</p></div>
+          <div class="fcard"><h4>Civile &amp; aziendale</h4><p>Dati personali, residenza, contatti, area/ruolo/badge, taglie DPI — modificabili inline.</p></div>
+          <div class="fcard"><h4>Storico contrattuale</h4><p>Periodi CCNL, livelli, qualifiche e cambiamenti organizzativi tracciati nel tempo.</p></div>
+          <div class="fcard"><h4>Onboarding &amp; offboarding</h4><p>Pratiche guidate: checklist d'ingresso e task di restituzione/chiusura all'uscita.</p></div>
+          <div class="fcard"><h4>Retribuzioni &amp; ratei</h4><p>Voci retributive e ratei ferie/ROL con semaforo del residuo (solo HR).</p></div>
+          <div class="fcard"><h4>Dati protetti (GDPR)</h4><p>C.F./IBAN mascherati, foto e documenti cifrati fuori dal web pubblico.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 07 · ANAGRAFICA 2/3 -->
+  <section class="slide slide--dark" data-title="Anagrafica · Formazione">
+    <div class="slide__inner">
+      <p class="eyebrow" data-anim="1"><span class="tick"></span>07 · Operations · Anagrafica HR (2/3)</p>
+      <div class="deep">
+        <div data-anim="2">
+          <h2 class="title">Formazione &amp; competenze</h2>
+          <span class="route">sottomodulo Formazione + Qualifiche</span>
+          <p class="lead">Il ciclo completo della formazione e delle abilitazioni: dalla pianificazione dei corsi agli attestati, con le scadenze sempre sotto controllo.</p>
+          <div class="val"><b>Valore</b><p>Personale sempre formato e in regola, attestati e libretti pronti per l'audit, rinnovi pianificati senza sorprese.</p></div>
+          <div class="tags"><span class="chip">corsi</span><span class="chip">e-learning</span><span class="chip">attestati</span><span class="chip">qualifiche</span><span class="chip">rinnovi</span></div>
+        </div>
+        <div class="fgrid" data-anim="3">
+          <div class="fcard"><h4>Ciclo formazione</h4><p>Corso → sessione → turno, con proposta dei candidati «tenuti» al corso per mansione o ruolo.</p></div>
+          <div class="fcard"><h4>E-learning interno</h4><p>Micro-corsi con slide e quiz finale, tracciati per audit, fruibili in autonomia.</p></div>
+          <div class="fcard"><h4>Attestati &amp; libretto</h4><p>Attestati autogenerati e libretto formativo del dipendente, stampabili in PDF.</p></div>
+          <div class="fcard"><h4>Fascicolo d'edizione</h4><p>Documento unico per l'Accordo Stato-Regioni 2025: progettazione, presenze, esiti, firme.</p></div>
+          <div class="fcard"><h4>Qualifiche &amp; abilitazioni</h4><p>Catalogo unico con scadenze e sessioni di rinnovo collettive.</p></div>
+          <div class="fcard"><h4>Evidenza &amp; verifica</h4><p>Numero, ente, certificato allegato e verifica HR per ogni abilitazione.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 08 · ANAGRAFICA 3/3 -->
+  <section class="slide" data-title="Anagrafica · Sicurezza & Skill Matrix">
+    <div class="slide__inner">
+      <p class="eyebrow" data-anim="1"><span class="tick"></span>08 · Operations · Anagrafica HR (3/3)</p>
+      <div class="deep">
+        <div data-anim="2">
+          <h2 class="title">Sicurezza, idoneità &amp; Skill Matrix</h2>
+          <span class="route">sottomodulo Salute e Sicurezza + MOD.187</span>
+          <p class="lead">Requisiti di sicurezza per mansione, visite mediche e idoneità: sapere in ogni momento chi è in regola e chi può operare su cosa.</p>
+          <div class="val"><b>Valore</b><p>Idoneità alla mansione tracciata (avviso, non blocco), squadra sotto controllo, azienda pronta per gli audit ISO 45001.</p></div>
+          <div class="tags"><span class="chip">mansioni di rischio</span><span class="chip">visite mediche</span><span class="chip">idoneità</span><span class="chip">Skill Matrix MOD.187</span><span class="chip">ISO 45001</span></div>
+        </div>
+        <div class="fgrid" data-anim="3">
+          <div class="fcard"><h4>Mansioni di rischio</h4><p>Ogni mansione dichiara DPI, visite e livello di rischio richiesti (ASR).</p></div>
+          <div class="fcard"><h4>Visite mediche</h4><p>Tipologie con durata, esiti e reminder — dato sanitario riservato e protetto.</p></div>
+          <div class="fcard"><h4>Conformità &amp; idoneità</h4><p>Semaforo unico formazione + visite + qualifiche + DPI per ogni persona.</p></div>
+          <div class="fcard"><h4>Matrice competenze</h4><p>Dipendenti × abilitazioni per audit ISO 45001, per categoria e reparto.</p></div>
+          <div class="fcard key"><h4>Skill Matrix MOD.187</h4><p>Matrice persone × macchine (livelli I/L/U/O), prontezza della squadra, macchine scoperte e rischio «uomo solo».</p></div>
+          <div class="fcard key"><h4>Disponibilità del giorno</h4><p>Incrocia abilitazioni e assenze per sapere chi è davvero operativo su ogni macchina in una data.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 09 · CARICHI MACCHINA -->
+  <section class="slide slide--dark" data-title="Carichi macchina">
+    <div class="slide__inner">
+      <p class="eyebrow" data-anim="1"><span class="tick"></span>09 · Operations · Modulo in evidenza</p>
+      <div class="deep">
+        <div data-anim="2">
+          <h2 class="title">Carichi macchina</h2>
+          <span class="route">/carichi-macchina/</span>
+          <p class="lead">Sostituisce il foglio Excel di pianificazione: chi lavora cosa, su quale macchina e quando, visibile a tutti e sempre aggiornato.</p>
+          <div class="val"><b>Valore</b><p>Pianificazione condivisa, saturazione delle macchine a colpo d'occhio, meno colli di bottiglia e conflitti di capacità.</p></div>
+          <div class="tags"><span class="chip">Gantt</span><span class="chip">turni</span><span class="chip">capacità</span><span class="chip">AI predittiva</span><span class="chip">audit</span></div>
+        </div>
+        <div class="fgrid" data-anim="3">
+          <div class="fcard"><h4>Gantt a tutta pagina</h4><p>Colori per commessa/famiglia/stato, milestone KICK-OFF e consegna, trascinamento tra macchine.</p></div>
+          <div class="fcard"><h4>Vista Excel</h4><p>Matrice macchine × giorni con modifica inline, per chi è abituato al foglio.</p></div>
+          <div class="fcard"><h4>Turni &amp; capacità</h4><p>Cinque fasce (1°/2°/entrambi/notte/H24); capacità = ore × turni, conflitti in rosso.</p></div>
+          <div class="fcard"><h4>AI predittiva</h4><p>Durata stimata, macchina probabile, rischio ritardo e colli di bottiglia, con spiegazione.</p></div>
+          <div class="fcard"><h4>Abilitati assenti</h4><p>Incrocia la Skill Matrix con le assenze e segnala i giorni a manodopera ridotta.</p></div>
+          <div class="fcard"><h4>Registro azioni</h4><p>Audit di chi crea, sposta o elimina, con permessi distinti in lettura e scrittura.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10 · GESTIONE SPECIFICHE -->
+  <section class="slide" data-title="Gestione specifiche">
+    <div class="slide__inner">
+      <p class="eyebrow" data-anim="1"><span class="tick"></span>10 · Operations · Modulo in evidenza</p>
+      <div class="deep">
+        <div data-anim="2">
+          <h2 class="title">Gestione specifiche</h2>
+          <span class="route">/gestione-specifiche/ · MOD.133</span>
+          <p class="lead">Digitalizza il flusso delle specifiche tecniche e del MOD.133, pensato per gli audit di qualità ISO 9001 / EN 9100.</p>
+          <div class="val"><b>Valore</b><p>Tracciabilità completa e pronta all'audit, meno lavoro manuale sui moduli, storico ricostruibile a norma.</p></div>
+          <div class="tags"><span class="chip">MOD.133</span><span class="chip">ISO 9001</span><span class="chip">EN 9100</span><span class="chip">audit immutabile</span><span class="chip">copilota AI</span></div>
+        </div>
+        <div class="fgrid" data-anim="3">
+          <div class="fcard"><h4>Ciclo di vita a stati</h4><p>Dalla bozza all'approvazione alla distribuzione tracciata, senza passaggi persi.</p></div>
+          <div class="fcard"><h4>Audit immutabile</h4><p>Snapshot che permettono di ricostruire ogni specifica in un preciso momento.</p></div>
+          <div class="fcard"><h4>MOD.133 flow-down</h4><p>Verifica dei requisiti con firme e separazione dei ruoli (chi compila ≠ chi approva).</p></div>
+          <div class="fcard"><h4>Copilota AI</h4><p>Pre-compila il MOD.133 dal PDF e confronta le revisioni; l'AI propone, la persona firma.</p></div>
+          <div class="fcard"><h4>KPI direzionali</h4><p>Distribuzione per stato, OFI per cliente, tempo medio di flow-down, verifiche in scadenza.</p></div>
+          <div class="fcard"><h4>Documenti governati</h4><p>Allegati cifrati o collegati alla share master, deposito revisioni tracciato.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 11 · ASSET -->
+  <section class="slide slide--dark" data-title="Asset & officina">
+    <div class="slide__inner">
+      <p class="eyebrow" data-anim="1"><span class="tick"></span>11 · Operations · Il modulo più ricco</p>
+      <div class="deep">
+        <div data-anim="2">
+          <h2 class="title">Asset &amp; officina</h2>
+          <span class="route">/assets/</span>
+          <p class="lead">Il registro unico del patrimonio aziendale: macchinari, IT, infrastruttura e software, con tutta la manutenzione collegata.</p>
+          <div class="val"><b>Valore</b><p>Un solo inventario del parco macchine, manutenzione programmata e meno fermi non pianificati.</p></div>
+          <div class="tags"><span class="chip">OdL</span><span class="chip">manutenzione preventiva</span><span class="chip">QR officina</span><span class="chip">contatori</span><span class="chip">SharePoint</span></div>
+        </div>
+        <div class="fgrid" data-anim="3">
+          <div class="fcard"><h4>Inventario unico</h4><p>Macchinari, IT, impianti e software con stato, responsabile e disponibilità.</p></div>
+          <div class="fcard"><h4>Manutenzione a tab</h4><p>«Da fare» e «Scadenzario» con OdL, regole a giorni e a contatore (ore/km/cicli).</p></div>
+          <div class="fcard"><h4>Ordini di lavoro</h4><p>Checklist da template, allegati, costi e storico interventi per ogni asset.</p></div>
+          <div class="fcard"><h4>Manutenzione preventiva</h4><p>Piani periodici con storico esecuzioni e generazione automatica degli OdL.</p></div>
+          <div class="fcard"><h4>QR in officina</h4><p>L'operatore scansiona la macchina e apre una segnalazione dal telefono.</p></div>
+          <div class="fcard"><h4>Reportistica</h4><p>PM compliance, budget vs actual, KPI e sincronizzazione scadenze su Outlook.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 12 · ANOMALIE -->
+  <section class="slide" data-title="Anomalie">
+    <div class="slide__inner">
+      <p class="eyebrow" data-anim="1"><span class="tick"></span>12 · HR &amp; Workflow · Modulo in evidenza</p>
+      <div class="deep">
+        <div data-anim="2">
+          <h2 class="title">Anomalie di produzione</h2>
+          <span class="route">/anomalie/</span>
+          <p class="lead">Segnalazione e gestione delle anomalie rilevate in produzione dagli operatori, fino alla chiusura tracciata.</p>
+          <div class="val"><b>Valore</b><p>Nessuna anomalia persa, tracciabilità verso cliente e RDC, molte meno mail manuali grazie alle notifiche automatiche.</p></div>
+          <div class="tags"><span class="chip">seriali S/N</span><span class="chip">mail-action</span><span class="chip">RDC</span><span class="chip">escalation</span><span class="chip">KPI</span></div>
+        </div>
+        <div class="fgrid" data-anim="3">
+          <div class="fcard"><h4>Segnalazione rapida</h4><p>Range e liste di seriali gestiti come un'unica anomalia, con controllo live.</p></div>
+          <div class="fcard"><h4>Anti-duplicato</h4><p>Se un seriale ha già un'anomalia aperta, l'operatore lo vede subito con autore e stato.</p></div>
+          <div class="fcard"><h4>Workflow di gestione</h4><p>Presa in carico, avanzamento e chiusura con stepper di stato leggibile.</p></div>
+          <div class="fcard"><h4>Mail-action senza login</h4><p>Capocommessa e CAR aggiornano l'OP da un link sicuro ricevuto via email.</p></div>
+          <div class="fcard"><h4>RDC &amp; cliente in risalto</h4><p>Sezioni dedicate per «aprire RDC» e «segnalare a cliente» nelle notifiche.</p></div>
+          <div class="fcard"><h4>Escalation &amp; KPI</h4><p>Promemoria sugli OP fermi, statistiche (pezzi recuperati, giorni medi) ed export.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 13 · ALTRI OPERATIONS -->
+  <section class="slide slide--dark" data-title="Altri Operations">
+    <div class="slide__inner">
+      <p class="eyebrow" data-anim="1"><span class="tick"></span>13 · Operations · Gli altri moduli</p>
+      <h2 class="title" data-anim="2">Attrezzature · KICK-OFF · Fornitori</h2>
+      <div class="grid g3" data-anim="3">
+        <div class="card is-accent"><h3>Attrezzature</h3><p>Gestione attrezzi e P/N, import Excel legacy, avanzamento verso la pronta produzione, collegamento a KICK-OFF.</p>
+          <div class="tags"><span class="chip">P/N</span><span class="chip">import Excel</span></div></div>
+        <div class="card"><h3>KICK-OFF / Progetti</h3><p>Portfolio progetti con Gantt, documento VRF (MOD.073) con parsing Excel e blocco progressivo, incontri di avanzamento e tracker problemi, flag impatto sicurezza.</p>
+          <div class="tags"><span class="chip">VRF · MOD.073</span><span class="chip">Gantt</span></div></div>
+        <div class="card"><h3>Fornitori</h3><p>Dashboard KPI spesa e ordini, scheda con documenti, ordini, valutazioni qualità e asset assegnati.</p>
+          <div class="tags"><span class="chip">spesa</span><span class="chip">valutazioni</span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 14 · HR & WORKFLOW -->
+  <section class="slide" data-title="HR & Workflow">
+    <div class="slide__inner">
+      <p class="eyebrow" data-anim="1"><span class="tick"></span>14 · HR &amp; Workflow</p>
+      <h2 class="title" data-anim="2">Le persone, ogni giorno</h2>
+      <div class="grid g2" data-anim="3">
+        <div class="card is-accent"><h3>Assenze / Ferie</h3><p>Richiesta → approvazione del caporeparto → calendario. Inserimento «per conto di», sync SharePoint e riconciliazione presenze ↔ assenze.</p></div>
+        <div class="card"><h3>Ticket interni</h3><p>Assistenza IT e manutenzione con interventi, fermo macchina, ticket ricorrenti e reminder SLA con escalation.</p></div>
+        <div class="card"><h3>Timbri</h3><p>Digitalizza i timbri fisici dell'ufficio — timbro, firma e sigla usati sui documenti: raccolta delle immagini per operatore, copia e download con permessi granulari, registro e audit.</p></div>
+        <div class="card is-accent"><h3>Notizie / Bacheca</h3><p>Comunicazioni aziendali con destinatari per ruolo o reparto, allegati e letture tracciate per misurare l'engagement.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 15 · SICUREZZA -->
+  <section class="slide slide--dark" data-title="Security Center">
+    <div class="slide__inner">
+      <p class="eyebrow" data-anim="1"><span class="tick"></span>15 · Sicurezza &amp; Compliance</p>
+      <h2 class="title" data-anim="2">Pronti per l'audit, ogni giorno</h2>
+      <div class="grid g5" data-anim="3">
+        <div class="card"><h3>DPI</h3><p>Catalogo, richiesta, approvazione, consegna firmata e report di conformità.</p></div>
+        <div class="card"><h3>Diario preposto</h3><p>Segnalazioni, ispezioni periodiche e follow-up con firma e controfirma.</p></div>
+        <div class="card is-accent"><h3>Incidenti</h3><p>Near-miss e condizioni non sicure, KPI (TRIR, giorni senza infortuni), heatmap.</p></div>
+        <div class="card"><h3>Procedure</h3><p>Presa visione MT/MTSI con quiz e matrice formazione per audit.</p></div>
+        <div class="card"><h3>RENTRI rifiuti</h3><p>Registro, scadenzario e giacenze per CER con semaforo del deposito.</p></div>
+      </div>
+      <p class="note" data-anim="4">Ogni evento può generare azioni correttive/preventive (CAPA) tracciate fino alla verifica di efficacia — con separazione dei ruoli.</p>
+    </div>
+  </section>
+
+  <!-- 16 · PIATTAFORMA CORE -->
+  <section class="slide" data-title="Piattaforma core">
+    <div class="slide__inner">
+      <p class="eyebrow" data-anim="1"><span class="tick"></span>16 · Piattaforma core</p>
+      <h2 class="title" data-anim="2">Le fondamenta trasversali</h2>
+      <div class="grid g3" data-anim="3">
+        <div class="card is-accent"><h3>«Le mie attività»</h3><p>La home raccoglie in un punto solo tutto ciò che richiede un'azione: approvazioni, ticket, scadenze.</p></div>
+        <div class="card"><h3>Scadenzario globale</h3><p>Tutte le scadenze cross-modulo entro 60 giorni: personale, asset, DPI, rifiuti, azioni CAPA.</p></div>
+        <div class="card"><h3>Ricerca globale</h3><p>Ctrl+K su dipendenti, asset, ticket, progetti, procedure e DPI, con anteprima del risultato.</p></div>
+        <div class="card"><h3>Centro notifiche</h3><p>Campanella con badge, pannello e popup live in-app dalle scadenze dei moduli.</p></div>
+        <div class="card is-accent"><h3>CAPA</h3><p>Azioni correttive/preventive collegate agli eventi, tracciate fino alla verifica di efficacia.</p></div>
+        <div class="card"><h3>Admin &amp; ACL</h3><p>Pannello di amministrazione per governance accessi, diagnostica e branding del portale.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 17 · AUTOMAZIONI -->
+  <section class="slide slide--dark" data-title="Automazioni">
+    <div class="slide__inner">
+      <p class="eyebrow" data-anim="1"><span class="tick"></span>17 · Automazioni · Modulo in evidenza</p>
+      <div class="deep">
+        <div data-anim="2">
+          <h2 class="title">Automazioni</h2>
+          <span class="route">/automazioni/</span>
+          <p class="lead">Un motore che reagisce agli eventi aziendali e gestisce notifiche e approvazioni, disegnato a blocchi senza scrivere codice.</p>
+          <div class="val"><b>Valore</b><p>Meno lavoro manuale ripetitivo, processi affidabili e ripetibili, approvazioni che non si perdono e non si duplicano.</p></div>
+          <div class="tags"><span class="chip">designer visuale</span><span class="chip">approvazioni</span><span class="chip">Teams/email</span><span class="chip">Power Automate</span></div>
+        </div>
+        <div class="fgrid" data-anim="3">
+          <div class="fcard"><h4>Designer visuale</h4><p>Flussi a blocchi con anteprima in stile Power Automate, senza codice.</p></div>
+          <div class="fcard"><h4>Trigger sui dati</h4><p>Reagiscono ai cambiamenti nel database aziendale (SQL Server) e nella posta.</p></div>
+          <div class="fcard"><h4>Approvazioni multi-canale</h4><p>Email, Teams o Graph, deduplicate e fail-closed (nel dubbio non approvano).</p></div>
+          <div class="fcard"><h4>Approvazioni a catena</h4><p>Doppia o tripla firma con rami «approvato» e «rifiutato».</p></div>
+          <div class="fcard"><h4>39 pacchetti pronti</h4><p>Anomalie, scadenze, escalation, KPI, incidenti — da importare e attivare.</p></div>
+          <div class="fcard"><h4>Import Power Automate</h4><p>Riusa i flussi esistenti convertendoli nel designer del portale.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 18 · AI -->
+  <section class="slide" data-title="Intelligenza Artificiale">
+    <div class="slide__inner">
+      <p class="eyebrow" data-anim="1"><span class="tick"></span>18 · Intelligenza Artificiale</p>
+      <h2 class="title" data-anim="2">Un'AI privata, dentro l'azienda</h2>
+      <p class="lead" data-anim="2" style="margin-bottom:1.4rem">Il motore AI gira <b class="accent">on-premise</b> sui server aziendali:
+        nessun dato esce, nessun abbonamento a servizi terzi. L'AI <b class="accent">propone</b>, la persona <b class="accent">firma</b>.</p>
+      <div class="grid g2" data-anim="3">
+        <div class="card is-accent"><h3>Risposte citate</h3><p>Risponde su procedure e specifiche indicando la fonte esatta (es. «MT CN 06 Rev.7 §4.2»), senza inventare.</p></div>
+        <div class="card"><h3>Copiloti per modulo</h3><p>Suggerisce triage ticket, set DPI da mansione, compilazione MOD.133 — sempre da rivedere e approvare.</p></div>
+        <div class="card"><h3>Accessi rispettati</h3><p>L'AI vede solo ciò che l'utente può vedere; ogni chiamata è tracciata a livello di metadati, mai i contenuti.</p></div>
+        <div class="card is-accent"><h3>Supporto alle decisioni</h3><p>Stime di durata e macchina probabile per i carichi, segnalazione di rischi ritardo e colli di bottiglia.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 19 · GOVERNANCE -->
+  <section class="slide slide--dark" data-title="Governance">
+    <div class="slide__inner">
+      <p class="eyebrow" data-anim="1"><span class="tick"></span>19 · Governance &amp; protezione dati</p>
+      <h2 class="title" data-anim="2">Chi vede cosa è deciso, e registrato</h2>
+      <div class="grid g2" data-anim="3">
+        <div class="card is-accent"><h3>Controllo accessi ACL v2</h3><p>Autorizzazioni gestite come dati, per singola funzione. La decisione di sicurezza è sempre lato server.</p></div>
+        <div class="card"><h3>Doppio fattore (2FA)</h3><p>App authenticator o codice via email, con policy per ruolo e per rete interna. Attivazione self-service.</p></div>
+        <div class="card"><h3>Audit trail immutabile</h3><p>Ogni operazione rilevante è registrata: chi, cosa, quando. Ricostruibile punto-nel-tempo per gli audit.</p></div>
+        <div class="card is-accent"><h3>Privacy &amp; GDPR</h3><p>Dati HR minimizzati, documenti fuori dal webroot e cifrati, export protetti, consenso tracciato.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 20 · INTEGRAZIONI -->
+  <section class="slide" data-title="Integrazioni">
+    <div class="slide__inner">
+      <p class="eyebrow" data-anim="1"><span class="tick"></span>20 · Ecosistema</p>
+      <h2 class="title" data-anim="2">Si innesta su ciò che già usate</h2>
+      <div class="grid g3" data-anim="3">
+        <div class="card"><h3>Microsoft 365</h3><p>SharePoint, Outlook e calendario, sincronizzati con i moduli operativi.</p><div class="tags"><span class="chip">Graph</span><span class="chip">SharePoint</span></div></div>
+        <div class="card is-accent"><h3>Active Directory</h3><p>Login con le credenziali aziendali (LDAP/AD), utenti importabili e allineati.</p><div class="tags"><span class="chip">SSO</span><span class="chip">LDAP</span></div></div>
+        <div class="card"><h3>SQL Server</h3><p>Dati sul database aziendale, con il gestionale legacy consultabile in continuità.</p><div class="tags"><span class="chip">legacy</span></div></div>
+        <div class="card"><h3>Accesso esterno sicuro</h3><p>Le sole azioni di approvazione sono pubblicate via Entra Application Proxy, in modo controllato.</p><div class="tags"><span class="chip">Entra Proxy</span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 21 · AFFIDABILITÀ -->
+  <section class="slide slide--dark" data-title="Affidabilità">
+    <div class="slide__inner">
+      <p class="eyebrow" data-anim="1"><span class="tick"></span>21 · Esercizio &amp; affidabilità</p>
+      <h2 class="title" data-anim="2">Robusto, sui server aziendali</h2>
+      <div class="kpis" data-anim="3">
+        <div class="kpi"><div class="fig">IIS</div><div class="lbl">hosting Windows Server standard</div></div>
+        <div class="kpi"><div class="fig">SQL</div><div class="lbl">Server aziendale, backup integrati</div></div>
+        <div class="kpi"><div class="fig">14</div><div class="lbl">step di setup guidato (installer)</div></div>
+        <div class="kpi"><div class="fig">✓✓</div><div class="lbl">sonde di salute e monitoraggio interno</div></div>
+      </div>
+      <p class="note" data-anim="4">Installazione, aggiornamenti e diagnostica passano da un wizard e da una console di controllo: deploy ripetibile e fail-fast.</p>
+    </div>
+  </section>
+
+  <!-- 22 · VALORE -->
+  <section class="slide" data-title="Valore">
+    <div class="slide__inner">
+      <p class="eyebrow" data-anim="1"><span class="tick"></span>22 · Valore per la direzione</p>
+      <h2 class="title" data-anim="2">Perché conviene</h2>
+      <div class="vlist" data-anim="3">
+        <div class="vitem"><div class="vn">01</div><div><h3>Una sola fonte di verità</h3><p>Fine dei fogli Excel scollegati: meno errori, meno tempo perso a riconciliare dati.</p></div></div>
+        <div class="vitem"><div class="vn">02</div><div><h3>Compliance sempre pronta</h3><p>Tracciabilità e reportistica per audit ISO 9001 / EN 9100 / 45001 e per gli obblighi di sicurezza.</p></div></div>
+        <div class="vitem"><div class="vn">03</div><div><h3>Controllo e sicurezza dei dati</h3><p>Accessi granulari, 2FA, audit immutabile e GDPR — l'informazione resta in azienda.</p></div></div>
+        <div class="vitem"><div class="vn">04</div><div><h3>Efficienza e AI privata</h3><p>Automazioni sui processi ripetitivi e un'AI on-premise che assiste senza esporre dati.</p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 23 · CHIUSURA -->
+  <section class="slide slide--hero" data-title="Chiusura">
+    <div class="slide__inner">
+      <div class="hero-brand" data-anim="1"><div class="hero-mark">N</div><span>Costruzioni Novicrom SRL</span></div>
+      <h1 class="title" data-anim="2">Un portale.<br>Tutta l'azienda.</h1>
+      <p class="hero-tag" data-anim="3">NOVICROM HUB centralizza operatività, sicurezza e dati in un ambiente unico, governato e a norma — costruito su misura e pronto a crescere.</p>
+      <div class="hero-meta" data-anim="4"><span class="m">GRAZIE · <b>Domande &amp; approfondimenti</b></span><span class="m">v<b>1.2.1</b></span></div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+(function(){
+  var deck=document.getElementById('deck');
+  var slides=Array.prototype.slice.call(deck.querySelectorAll('.slide'));
+  var rail=document.getElementById('rail');
+  var cNow=document.getElementById('cNow'),cTot=document.getElementById('cTot');
+  var current=0;
+  cTot.textContent=String(slides.length).padStart(2,'0');
+  slides.forEach(function(s,i){
+    var b=document.createElement('button');
+    b.type='button';
+    b.setAttribute('aria-label','Vai a: '+(s.dataset.title||('Slide '+(i+1))));
+    b.innerHTML='<span class="r"></span>';
+    b.addEventListener('click',function(){goTo(i);});
+    rail.appendChild(b);
+  });
+  var railBtns=Array.prototype.slice.call(rail.children);
+  function prefersReduced(){return window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;}
+  function setActive(i){
+    if(i===current&&slides[i].classList.contains('is-active'))return;
+    current=i;cNow.textContent=String(i+1).padStart(2,'0');
+    slides.forEach(function(s,k){s.classList.toggle('is-active',k===i);});
+    railBtns.forEach(function(b,k){b.setAttribute('aria-current',k===i?'true':'false');});
+  }
+  function goTo(i){i=Math.max(0,Math.min(slides.length-1,i));slides[i].scrollIntoView({behavior:prefersReduced()?'auto':'smooth'});}
+  var io=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){if(e.isIntersecting&&e.intersectionRatio>=0.55){setActive(slides.indexOf(e.target));}});
+  },{root:deck,threshold:[0.55]});
+  slides.forEach(function(s){io.observe(s);});
+  document.addEventListener('keydown',function(e){
+    var k=e.key;
+    if(k==='ArrowDown'||k==='PageDown'||k===' '||k==='Spacebar'){e.preventDefault();goTo(current+1);}
+    else if(k==='ArrowUp'||k==='PageUp'){e.preventDefault();goTo(current-1);}
+    else if(k==='Home'){e.preventDefault();goTo(0);}
+    else if(k==='End'){e.preventDefault();goTo(slides.length-1);}
+  });
+  var root=document.documentElement;
+  document.getElementById('themeBtn').addEventListener('click',function(){
+    var cur=root.getAttribute('data-theme'),isDark;
+    if(cur){isDark=cur==='dark';}else{isDark=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;}
+    root.setAttribute('data-theme',isDark?'light':'dark');
+  });
+  setActive(0);
+})();
+</script>

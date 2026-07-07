@@ -112,6 +112,47 @@ def propaga_sospensioni(*, oggi=None, apply: bool = True) -> dict:
     return stats
 
 
+def propaga_timbro(timbro, *, oggi=None) -> str | None:
+    """Applica la regola sospensione/riattivazione a **un singolo** timbro.
+
+    Pensata per essere chiamata subito dopo aver collegato un timbro a
+    un'abilitazione (dal modulo timbri), così la sospensione automatica scatta
+    immediatamente. Ritorna "sospeso" / "riattivato" / None (nessun cambiamento).
+    Idempotente, stesso MARKER della propagazione batch.
+    """
+    oggi = oggi or timezone.localdate()
+    ab = timbro.abilitazione_processo
+    if ab is None:
+        return None
+    operativa = _abilitazione_operativa(ab, oggi)
+    if not operativa:
+        if timbro.is_archived or timbro.is_sospeso:
+            return None
+        timbro.is_sospeso = True
+        timbro.is_attivo = False
+        timbro.sospeso_dal = oggi
+        timbro.sospeso_motivo = _motivo(ab, oggi)[:255]
+        timbro.sospeso_riferimento = MARKER
+        timbro.save(update_fields=[
+            "is_sospeso", "is_attivo", "sospeso_dal",
+            "sospeso_motivo", "sospeso_riferimento", "updated_at",
+        ])
+        return "sospeso"
+    if timbro.is_sospeso and MARKER in (timbro.sospeso_riferimento or ""):
+        timbro.is_sospeso = False
+        timbro.is_attivo = True
+        timbro.sospeso_dal = None
+        timbro.sospeso_al = None
+        timbro.sospeso_motivo = ""
+        timbro.sospeso_riferimento = ""
+        timbro.save(update_fields=[
+            "is_sospeso", "is_attivo", "sospeso_dal", "sospeso_al",
+            "sospeso_motivo", "sospeso_riferimento", "updated_at",
+        ])
+        return "riattivato"
+    return None
+
+
 def notifica_msm_sospensioni(pks, *, oggi=None, override=None, fail_silently: bool = True) -> int:
     """Notifica MSM/Qualità dei timbri sospesi automaticamente (digest email).
 

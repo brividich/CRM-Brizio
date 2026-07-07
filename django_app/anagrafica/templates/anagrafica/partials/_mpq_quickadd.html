@@ -1,0 +1,119 @@
+{# MOD.128 — enhancer requisiti: filtro ricerca + crea-al-volo (modale) sui select #}
+{# corsi_richiesti / visite_richieste / dpi_richiesti del form processo. Progressive #}
+{# enhancement: senza JS i select nativi restano usabili. Richiede csrf_token in pagina. #}
+{{ qa_piani|default:""|json_script:"mpqqa-piani" }}
+{{ qa_categorie|default:""|json_script:"mpqqa-categorie" }}
+<div id="mpqqa-modal" style="display:none;position:fixed;inset:0;z-index:1100;align-items:center;
+     justify-content:center;background:rgba(0,0,0,.45);">
+  <div style="background:#fff;border-radius:12px;padding:22px 26px;width:480px;max-width:95vw;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <strong id="mpqqa-title" style="font-size:15px;color:#0b1b2e;">Nuovo</strong>
+      <button type="button" onclick="mpqqaClose()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b;">&times;</button>
+    </div>
+    <div id="mpqqa-fields"></div>
+    <div id="mpqqa-error" style="display:none;color:#b91c1c;font-size:12px;margin-top:8px;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+      <button type="button" class="fmd-btn fmd-btn-ghost" onclick="mpqqaClose()">Annulla</button>
+      <button type="button" class="fmd-btn fmd-btn-primary" id="mpqqa-save" onclick="mpqqaSave()">Crea e seleziona</button>
+    </div>
+  </div>
+</div>
+<style>
+  .mpqqa-add{align-self:flex-start;margin-top:6px;padding:5px 11px;font:inherit;font-size:11.5px;
+    font-weight:700;line-height:1;color:#1565a8;background:#e8f3fb;border:1px solid #bfdded;
+    border-radius:7px;cursor:pointer;}
+  .mpqqa-filter{margin-bottom:6px;}
+  .mpqqa-note{display:block;margin-top:5px;font-size:11.5px;color:#166534;}
+  .mpqqa-note a{color:#1565a8;font-weight:700;}
+  body.theme-dark .mpqqa-add{color:#7cc0f0;background:rgba(21,101,168,.18);border-color:var(--border);}
+  body.theme-dark .mpqqa-note{color:#86efac;}
+  #mpqqa-modal .fm-input{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #d7e0ea;border-radius:8px;font:inherit;}
+  #mpqqa-modal label{font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px;}
+</style>
+<script>
+(function(){
+  function opts(id){ try { return JSON.parse((document.getElementById(id)||{}).textContent || '[]') || []; } catch(e){ return []; } }
+  const PIANI = opts('mpqqa-piani'), CATEG = opts('mpqqa-categorie');
+  const CFG = {
+    corsi_richiesti:  {url:"{% url 'anagrafica:mpq_quickadd_corso' %}",  title:"Nuovo corso di formazione",
+      fields:[{n:"titolo",l:"Titolo *"},
+              {n:"piano",l:"Piano formativo *",options:PIANI},
+              {n:"categoria",l:"Categoria di rischio (opzionale)",options:CATEG,empty:"— Nessuna —"},
+              {n:"durata_ore_teorica",l:"Ore teoriche",type:"number",v:"1"},
+              {n:"validita_mesi",l:"Validità (mesi, 0 = una tantum)",type:"number",v:"0"}]},
+    visite_richieste: {url:"{% url 'anagrafica:mpq_quickadd_visita' %}", title:"Nuovo tipo di visita medica",
+      fields:[{n:"nome",l:"Nome *"},{n:"durata_mesi",l:"Periodicità (mesi)",type:"number",v:"12"}]},
+    dpi_richiesti:    {url:"{% url 'anagrafica:mpq_quickadd_dpi' %}",    title:"Nuova categoria DPI",
+      fields:[{n:"nome",l:"Nome *"}]},
+  };
+  let current = null;
+  const csrf = () => (document.querySelector('[name=csrfmiddlewaretoken]') || {}).value || '';
+  window.mpqqaClose = function(){ document.getElementById('mpqqa-modal').style.display='none'; };
+  function fieldHtml(f){
+    let inner;
+    if (f.options) {
+      inner = '<select data-qa="' + f.n + '" class="fm-input">'
+        + (f.empty ? '<option value="">' + f.empty + '</option>' : '')
+        + f.options.map(function(o){ return '<option value="' + o.id + '">' + o.nome + '</option>'; }).join('')
+        + '</select>';
+    } else {
+      inner = '<input data-qa="' + f.n + '" type="' + (f.type||'text') + '" class="fm-input" value="' + (f.v||'') + '">';
+    }
+    return '<div style="margin-bottom:10px;"><label>' + f.l + '</label>' + inner + '</div>';
+  }
+  function open(key, select){
+    current = {key:key, select:select, cfg:CFG[key]};
+    document.getElementById('mpqqa-title').textContent = CFG[key].title;
+    document.getElementById('mpqqa-error').style.display = 'none';
+    document.getElementById('mpqqa-fields').innerHTML = CFG[key].fields.map(fieldHtml).join('');
+    document.getElementById('mpqqa-modal').style.display = 'flex';
+    const first = document.querySelector('#mpqqa-fields input,#mpqqa-fields select'); if (first) first.focus();
+  }
+  window.mpqqaSave = async function(){
+    if (!current) return;
+    const body = new URLSearchParams();
+    body.append('csrfmiddlewaretoken', csrf());
+    document.querySelectorAll('#mpqqa-fields [data-qa]').forEach(function(i){ body.append(i.dataset.qa, (i.value||'').trim()); });
+    const btn = document.getElementById('mpqqa-save'); btn.disabled = true;
+    try {
+      const r = await fetch(current.cfg.url, {method:'POST', headers:{'X-Requested-With':'XMLHttpRequest'}, body:body});
+      const data = await r.json();
+      if (!r.ok || !data.ok) throw new Error(data.error || 'Errore durante la creazione.');
+      let opt = Array.prototype.slice.call(current.select.options).filter(function(o){ return o.value == data.id; })[0];
+      if (!opt) { opt = new Option(data.label, data.id, true, true); current.select.add(opt); }
+      else { opt.selected = true; }
+      current.select.dispatchEvent(new Event('change', {bubbles:true}));
+      // Se l'entità nasce come bozza incompleta, invita a completarla (niente orfani).
+      const note = current.select.__mpqqaNote;
+      if (note && data.edit_url) {
+        note.innerHTML = '✔ «' + data.label + '» creato come bozza — '
+          + '<a href="' + data.edit_url + '" target="_blank" rel="noopener">completa la scheda ↗</a>';
+      }
+      mpqqaClose();
+    } catch (e) {
+      const err = document.getElementById('mpqqa-error'); err.textContent = e.message; err.style.display='block';
+    } finally { btn.disabled = false; }
+  };
+  function wire(key, sel){
+    if (sel.dataset.mpqqaBound) return; sel.dataset.mpqqaBound = '1';
+    const f = document.createElement('input');
+    f.type='text'; f.className='fm-input mpqqa-filter'; f.placeholder='🔎 Filtra…'; f.autocomplete='off';
+    f.addEventListener('input', function(){
+      const q=f.value.toLowerCase();
+      Array.prototype.forEach.call(sel.options, function(o){ o.hidden = o.textContent.toLowerCase().indexOf(q)<0; });
+    });
+    sel.parentNode.insertBefore(f, sel);
+    const b = document.createElement('button');
+    b.type='button'; b.className='mpqqa-add'; b.textContent='+ nuovo';
+    b.addEventListener('click', function(){ open(key, sel); });
+    sel.insertAdjacentElement('afterend', b);
+    const note = document.createElement('span'); note.className='mpqqa-note';
+    b.insertAdjacentElement('afterend', note); sel.__mpqqaNote = note;
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    Object.keys(CFG).forEach(function(key){
+      document.querySelectorAll('select[name="' + key + '"]').forEach(function(sel){ wire(key, sel); });
+    });
+  });
+})();
+</script>

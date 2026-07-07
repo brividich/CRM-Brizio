@@ -3307,3 +3307,40 @@ class MeetingsCalendarNavAclTests(TestCase):
         assert RoutePermissionBinding.objects.filter(
             route_name="tasks:incontri_calendario", permission_id="tasks.kickoff.view", is_active=True
         ).exists()
+
+
+class PortfolioTimelineTests(TestCase):
+    """Timeline cross-commessa — geometria roadmap pura."""
+
+    def test_geometry_and_window(self):
+        from datetime import date
+        from tasks.timeline import build_portfolio_timeline
+
+        items = [
+            {"project": "A", "start": date(2026, 3, 1), "end": date(2026, 4, 30), "readiness": None},
+            {"project": "B", "start": date(2026, 6, 1), "end": date(2026, 6, 15), "readiness": None},
+        ]
+        tl = build_portfolio_timeline(items, today=date(2026, 5, 10))
+        assert tl["empty"] is False
+        assert tl["window_start"] == date(2026, 3, 1)
+        assert tl["window_end"] == date(2026, 6, 30)
+        assert len(tl["months"]) == 4
+        assert tl["rows"][0]["left_pct"] == 0.0
+        assert 0 < tl["today_pct"] < 100
+
+    def test_empty(self):
+        from datetime import date
+        from tasks.timeline import build_portfolio_timeline
+
+        tl = build_portfolio_timeline([{"project": "X", "start": None, "end": None}], today=date(2026, 5, 1))
+        assert tl["empty"] is True and tl["rows"] == []
+
+    def test_clamp_end_before_start(self):
+        from datetime import date
+        from tasks.timeline import build_portfolio_timeline
+
+        tl = build_portfolio_timeline(
+            [{"project": "C", "start": date(2026, 5, 10), "end": date(2026, 5, 1)}],
+            today=date(2026, 5, 5),
+        )
+        assert tl["rows"][0]["end"] == date(2026, 5, 10)

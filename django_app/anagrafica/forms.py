@@ -361,6 +361,43 @@ class TrainingCourseForm(forms.ModelForm):
         self.fields["qualifica"].required = False
         self.fields["qualifica"].empty_label = "— Nessuna (corso non legato a qualifica) —"
 
+        # Dropdown qualifica raggruppato per tipologia (optgroups per categoria).
+        from itertools import groupby
+        _cat_labels = dict(TipoQualifica.CATEGORIA_CHOICES)
+        _grouped = [("", self.fields["qualifica"].empty_label)]
+        for _cat, _items in groupby(self.fields["qualifica"].queryset, key=lambda q: q.categoria):
+            _grouped.append((_cat_labels.get(_cat, _cat), [(q.pk, q.nome) for q in _items]))
+        self.fields["qualifica"].widget.choices = _grouped
+
+        # Processi qualificati (MOD.128) che richiedono questo corso (reverse M2M
+        # di ProcessoQualificato.corsi_richiesti): gestibile anche dal lato corso.
+        try:
+            from .models_mpq import ProcessoQualificato
+            self.fields["processi_richiedenti"] = forms.ModelMultipleChoiceField(
+                queryset=ProcessoQualificato.objects.select_related("cliente").order_by("cliente__nome", "nome"),
+                required=False,
+                label="Processi qualificati che lo richiedono (MOD.128)",
+                help_text="Chi è abilitato a questi processi sarà tenuto a questo corso.",
+                widget=forms.SelectMultiple(attrs={
+                    "class": "fm-input fm-select", "size": "5",
+                    "data-picker": "", "data-picker-placeholder": "Cerca processo qualificato…"}),
+            )
+            self.fields["processi_richiedenti"].label_from_instance = (
+                lambda p: f"{p.nome} ({p.cliente.nome})")
+            if self.instance and self.instance.pk:
+                self.fields["processi_richiedenti"].initial = list(
+                    self.instance.processi_richiedenti.values_list("pk", flat=True))
+        except Exception:
+            pass
+
+    def salva_processi(self, corso) -> None:
+        """Persiste il reverse-M2M dei processi qualificati che richiedono il corso.
+
+        Va chiamato dalla view dopo il salvataggio del corso (il create usa
+        ``save(commit=False)`` senza ``save_m2m``)."""
+        if "processi_richiedenti" in self.fields:
+            corso.processi_richiedenti.set(self.cleaned_data.get("processi_richiedenti") or [])
+
     def clean_codice(self):
         return (self.cleaned_data.get("codice") or "").strip().upper()
 

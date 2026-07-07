@@ -22,7 +22,7 @@ from datetime import timedelta
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -260,6 +260,13 @@ def mpq_processo_detail(request, processo_id: int):
     )
     nomi = _nomi_map([a.legacy_anagrafica_id for a in abilitazioni])
 
+    # Requisiti del processo (corsi/DPI/visite) → conformità per persona abilitata.
+    corsi_req = list(processo.corsi_richiesti.all())
+    dpi_req = list(processo.dpi_richiesti.all())
+    visite_req = list(processo.visite_richieste.all())
+    ha_requisiti = bool(corsi_req or dpi_req or visite_req)
+    from .services.mpq_conformita import verifica_requisiti
+
     ab_stato_labels = dict(AbilitazioneProcesso.STATO_CHOICES)
     righe = []
     for a in abilitazioni:
@@ -281,6 +288,9 @@ def mpq_processo_detail(request, processo_id: int):
         else:
             nome_persona = nomi.get(a.legacy_anagrafica_id) or f"#{a.legacy_anagrafica_id}"
             nome_risolto = a.legacy_anagrafica_id in nomi
+        conformita = None
+        if ha_requisiti and not a.nominativo_esterno and a.legacy_anagrafica_id:
+            conformita = verifica_requisiti(processo, a.legacy_anagrafica_id, oggi=oggi)
         righe.append({
             "obj": a,
             "nome": nome_persona,
@@ -288,6 +298,7 @@ def mpq_processo_detail(request, processo_id: int):
             "ruoli": ruoli,
             "stato_label": ab_stato_labels.get(a.stato, a.stato),
             "certificazioni": certs,
+            "conformita": conformita,
         })
 
     scad = processo.scadenza_effettiva
@@ -303,6 +314,10 @@ def mpq_processo_detail(request, processo_id: int):
         "clienti_addizionali": list(processo.clienti_addizionali.all()),
         "reparti": list(processo.reparti.all()),
         "riferimenti": list(processo.riferimenti.all()),
+        "corsi_req": corsi_req,
+        "dpi_req": dpi_req,
+        "visite_req": visite_req,
+        "ha_requisiti": ha_requisiti,
         "abilitazioni": righe,
         "storico": list(processo.storico.select_related("registrato_da")[:50]),
     })
@@ -476,6 +491,24 @@ def _dipendenti_scelte():
     return out
 
 
+def _qa_corso_options():
+    """Opzioni piano/categoria per il popup crea-al-volo corso (fail-safe)."""
+    piani, categorie = [], []
+    try:
+        from .models import TrainingPlan
+        piani = [{"id": p.pk, "nome": str(p)}
+                 for p in TrainingPlan.objects.filter(is_active=True).order_by("nome")]
+    except Exception:
+        pass
+    try:
+        from .models_rischi import CategoriaCorso
+        categorie = [{"id": c.pk, "nome": c.nome}
+                     for c in CategoriaCorso.objects.filter(is_active=True).order_by("nome")]
+    except Exception:
+        pass
+    return piani, categorie
+
+
 @login_required
 def mpq_processo_create(request):
     if not _check_manage(request):
@@ -490,9 +523,11 @@ def mpq_processo_create(request):
             return redirect("anagrafica:mpq_processo_detail", processo_id=proc.id)
     else:
         form = ProcessoQualificatoForm()
+    qa_piani, qa_categorie = _qa_corso_options()
     return render(request, "anagrafica/pages/mpq_form.html", {
         "form": form, "titolo": "Nuovo processo qualificato (MOD.128)",
         "back_url": reverse("anagrafica:mpq_cruscotto"),
+        "mpq_requisiti": True, "qa_piani": qa_piani, "qa_categorie": qa_categorie,
     })
 
 
@@ -511,9 +546,11 @@ def mpq_processo_edit(request, processo_id: int):
             return redirect("anagrafica:mpq_processo_detail", processo_id=proc.id)
     else:
         form = ProcessoQualificatoForm(instance=proc)
+    qa_piani, qa_categorie = _qa_corso_options()
     return render(request, "anagrafica/pages/mpq_form.html", {
         "form": form, "titolo": f"Modifica · {proc.nome}",
         "back_url": reverse("anagrafica:mpq_processo_detail", args=[proc.id]),
+        "mpq_requisiti": True, "qa_piani": qa_piani, "qa_categorie": qa_categorie,
     })
 
 
@@ -739,3 +776,92 @@ def mpq_riferimento_delete(request, rif_id: int):
     rif.delete()
     messages.success(request, "Riferimento rimosso.")
     return redirect("anagrafica:mpq_processo_detail", processo_id=pid)
+
+
+# ── Crea-al-volo (JSON) di corso/visita/DPI dal form processo (gated manage) ──
+# Ritornano {ok, id, label} così l'enhancer li appende al <select> e li seleziona.
+
+@login_required
+@require_POST
+def mpq_quickadd_visita(request):
+    if not _check_manage(request):
+        return JsonResponse({"ok": False, "error": "Permesso negato."}, status=403)
+    from .models import TipoVisitaMedica
+    nome = (request.POST.get("nome") or "").strip()[:150]
+    if not nome:
+        return JsonResponse({"ok": False, "error": "Il nome è obbligatorio."}, status=400)
+    try:
+        durata = max(1, int(request.POST.get("durata_mesi") or 12))
+    except (TypeError, ValueError):
+        durata = 12
+    obj, _ = TipoVisitaMedica.objects.get_or_create(nome=nome, defaults={"durata_mesi": durata})
+    return JsonResponse({"ok": True, "id": obj.pk, "label": obj.nome})
+
+
+@login_required
+@require_POST
+def mpq_quickadd_dpi(request):
+    if not _check_manage(request):
+        return JsonResponse({"ok": False, "error": "Permesso negato."}, status=403)
+    try:
+        from dpi.models import CategoriaDPI
+    except Exception:
+        return JsonResponse({"ok": False, "error": "Modulo DPI non disponibile."}, status=400)
+    nome = (request.POST.get("nome") or "").strip()[:100]
+    if not nome:
+        return JsonResponse({"ok": False, "error": "Il nome è obbligatorio."}, status=400)
+    obj, _ = CategoriaDPI.objects.get_or_create(nome=nome)
+    return JsonResponse({"ok": True, "id": obj.pk, "label": obj.nome})
+
+
+@login_required
+@require_POST
+def mpq_quickadd_corso(request):
+    if not _check_manage(request):
+        return JsonResponse({"ok": False, "error": "Permesso negato."}, status=403)
+    import re as _re
+    from .models import TrainingCourse, TrainingPlan
+    titolo = (request.POST.get("titolo") or "").strip()[:300]
+    if not titolo:
+        return JsonResponse({"ok": False, "error": "Il titolo è obbligatorio."}, status=400)
+    try:
+        ore = max(0.5, float(request.POST.get("durata_ore_teorica") or 1))
+    except (TypeError, ValueError):
+        ore = 1
+    try:
+        validita = max(0, int(request.POST.get("validita_mesi") or 0))
+    except (TypeError, ValueError):
+        validita = 0
+    # Piano: quello scelto, altrimenti primo attivo, altrimenti un piano dedicato.
+    piano = None
+    pid = (request.POST.get("piano") or "").strip()
+    if pid.isdigit():
+        piano = TrainingPlan.objects.filter(pk=int(pid)).first()
+    if piano is None:
+        piano = TrainingPlan.objects.filter(is_active=True).order_by("id").first()
+    if piano is None:
+        piano = TrainingPlan.objects.create(
+            codice="MPQ", nome="Requisiti processi qualificati", created_by=request.user)
+    # Categoria di rischio (opzionale) per la derivazione DPI/fattori.
+    categoria = None
+    cid = (request.POST.get("categoria") or "").strip()
+    if cid.isdigit():
+        try:
+            from .models_rischi import CategoriaCorso
+            categoria = CategoriaCorso.objects.filter(pk=int(cid)).first()
+        except Exception:
+            categoria = None
+    base = _re.sub(r"[^A-Z0-9]+", "-", titolo.upper()).strip("-")[:22] or "CORSO"
+    codice, n = base, 1
+    while TrainingCourse.objects.filter(codice=codice).exists():
+        n += 1
+        codice = f"{base[:18]}-{n}"
+    corso = TrainingCourse.objects.create(
+        piano=piano, categoria=categoria, codice=codice, titolo=titolo,
+        durata_ore_teorica=ore, validita_mesi=validita, stato="BOZZA",
+        created_by=request.user)
+    # Il corso nasce come BOZZA (incompleto): restituiamo il link per completarlo.
+    return JsonResponse({
+        "ok": True, "id": corso.pk, "label": corso.titolo, "bozza": True,
+        "edit_url": reverse("anagrafica:formazione_corso_detail", args=[corso.pk]),
+    })

@@ -64,8 +64,10 @@
           {% include "anagrafica/partials/_fmd_field.html" with field=form.piano %}
           {% include "anagrafica/partials/_fmd_field.html" with field=form.categoria %}
           {% include "anagrafica/partials/_fmd_field.html" with field=form.qualifica full=1 %}
+          {% if form.processi_richiedenti %}{% include "anagrafica/partials/_fmd_field.html" with field=form.processi_richiedenti full=1 %}{% endif %}
         </div>
       </div>
+      {% include "anagrafica/components/_multiselect_picker.html" %}
 
       {# ── Durata e validità ────────────────────────────────── #}
       <div class="fmd-form-sec">

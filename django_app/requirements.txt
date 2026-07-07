@@ -32,6 +32,7 @@ openpyxl==3.1.5           # via -r requirements.in
 pillow==12.0.0            # via -r requirements.in, qrcode, reportlab
 pyasn1==0.6.3             # via ldap3
 pycparser==3.0            # via cffi
+xlrd==2.0.1               # legacy .xls reader (intake export gestionale Specifiche)
 pydantic==2.13.4          # via django-ninja
 pydantic-core==2.46.4     # via pydantic
 pyjwt==2.12.1             # via msal, pyjwt

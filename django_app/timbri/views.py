@@ -919,6 +919,13 @@ def _save_record_from_form(request, form: RegistroTimbroForm, *, operatore: Oper
         uploaded = form.cleaned_data.get(field_name)
         if uploaded:
             save_variant_image(registro=registro, variante=variante, uploaded_file=uploaded)
+    # Aggancio MOD.128: se il timbro è collegato a un'abilitazione non operativa,
+    # scatta la sospensione automatica (MT CN 06 §10.3). Fail-safe.
+    try:
+        from anagrafica.services.mpq_timbri import propaga_timbro
+        propaga_timbro(registro)
+    except Exception:
+        pass
     return registro
 
 
@@ -936,7 +943,7 @@ def registro_create(request, operatore_id: int):
     initial_tipo = str(request.GET.get("tipo") or "").strip().upper()
     allowed_types = {choice[0] for choice in RegistroTimbro.TIPO_CHOICES}
     if request.method == "POST":
-        form = RegistroTimbroForm(request.POST, request.FILES)
+        form = RegistroTimbroForm(request.POST, request.FILES, operatore=operatore)
         if form.is_valid():
             registro = _save_record_from_form(request, form, operatore=operatore)
             log_action(request, "timbri_registro_create", "timbri", {"operatore_id": operatore.id, "registro_id": registro.id})
@@ -947,7 +954,8 @@ def registro_create(request, operatore_id: int):
             initial={
                 "is_attivo": True,
                 "tipo_timbro": initial_tipo if initial_tipo in allowed_types else RegistroTimbro.TIPO_FISICO_E_DIGITALE,
-            }
+            },
+            operatore=operatore,
         )
     return render(
         request,
@@ -982,7 +990,7 @@ def registro_create_by_legacy(request, legacy_id: int):
     initial_tipo = str(request.GET.get("tipo") or "").strip().upper()
     allowed_types = {choice[0] for choice in RegistroTimbro.TIPO_CHOICES}
     if request.method == "POST":
-        form = RegistroTimbroForm(request.POST, request.FILES)
+        form = RegistroTimbroForm(request.POST, request.FILES, operatore=operatore)
         if form.is_valid():
             registro = _save_record_from_form(request, form, operatore=operatore)
             log_action(request, "timbri_registro_create", "timbri", {"operatore_id": operatore.id, "registro_id": registro.id})
@@ -993,7 +1001,8 @@ def registro_create_by_legacy(request, legacy_id: int):
             initial={
                 "is_attivo": True,
                 "tipo_timbro": initial_tipo if initial_tipo in allowed_types else RegistroTimbro.TIPO_FISICO_E_DIGITALE,
-            }
+            },
+            operatore=operatore,
         )
     return render(
         request,
@@ -1038,7 +1047,7 @@ def registro_edit(request, record_id: int):
         return redirect("timbri:operatore_detail", operatore_id=record.operatore_id)
 
     if request.method == "POST":
-        form = RegistroTimbroForm(request.POST, request.FILES, instance=record)
+        form = RegistroTimbroForm(request.POST, request.FILES, instance=record, operatore=record.operatore)
         if form.is_valid():
             registro = _save_record_from_form(request, form, operatore=record.operatore)
             log_action(request, "timbri_registro_update", "timbri", {"registro_id": registro.id, "operatore_id": registro.operatore_id})
@@ -1047,7 +1056,7 @@ def registro_edit(request, record_id: int):
                 return redirect("timbri:operatore_detail_by_legacy", legacy_id=int(registro.operatore.legacy_anagrafica_id))
             return redirect("timbri:operatore_detail", operatore_id=registro.operatore_id)
     else:
-        form = RegistroTimbroForm(instance=record)
+        form = RegistroTimbroForm(instance=record, operatore=record.operatore)
 
     employee = {
         "legacy_id": None,

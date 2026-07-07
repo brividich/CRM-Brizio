@@ -32,6 +32,7 @@ class RegistroTimbroForm(forms.ModelForm):
             "codice_timbro",
             "qualifica",
             "tipo_timbro",
+            "abilitazione_processo",
             "data_consegna",
             "data_ritiro",
             "note",
@@ -42,10 +43,34 @@ class RegistroTimbroForm(forms.ModelForm):
             "codice_timbro": forms.TextInput(attrs={"class": "tim-input", "placeholder": "Codice timbro"}),
             "qualifica": forms.TextInput(attrs={"class": "tim-input", "placeholder": "Qualifica"}),
             "tipo_timbro": forms.Select(attrs={"class": "tim-input"}),
+            "abilitazione_processo": forms.Select(attrs={"class": "tim-input"}),
             "note": forms.Textarea(attrs={"class": "tim-input", "rows": 4, "placeholder": "Note operative"}),
             "firma_testo": forms.Textarea(attrs={"class": "tim-input", "rows": 3, "placeholder": "Testo o note firma"}),
             "is_attivo": forms.CheckboxInput(attrs={"class": "tim-checkbox"}),
         }
+
+    def __init__(self, *args, operatore=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        fld = self.fields.get("abilitazione_processo")
+        if fld is None:
+            return
+        # Aggancio MOD.128: offre SOLO le abilitazioni della persona del timbro
+        # (match per legacy_anagrafica_id dell'operatore). Import locale (cross-app).
+        from anagrafica.models_mpq import AbilitazioneProcesso
+        lid = getattr(operatore, "legacy_anagrafica_id", None)
+        if lid is None and getattr(self.instance, "operatore_id", None):
+            lid = getattr(self.instance.operatore, "legacy_anagrafica_id", None)
+        if lid:
+            fld.queryset = (AbilitazioneProcesso.objects
+                            .filter(legacy_anagrafica_id=lid)
+                            .select_related("processo", "processo__cliente"))
+        else:
+            fld.queryset = AbilitazioneProcesso.objects.none()
+        fld.required = False
+        fld.label = "Abilitazione MOD.128 collegata"
+        fld.empty_label = "— Nessuna —"
+        fld.label_from_instance = (
+            lambda ab: f"{ab.processo.nome} ({ab.processo.cliente.nome})")
 
     def clean(self):
         cleaned = super().clean()

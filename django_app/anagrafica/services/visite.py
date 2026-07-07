@@ -38,15 +38,26 @@ def tipi_visita_richiesti_per_dipendente(legacy_id: int) -> list[TipoVisitaMedic
         .filter(legacy_anagrafica_id=legacy_id)
         .values_list("ruolo_id", flat=True)
     )
-    if not ruoli_ids:
-        return []
-    qs = (
-        TipoVisitaMedica.objects
-        .filter(is_active=True, obbligatoria=True, ruoli_operativi__id__in=ruoli_ids)
-        .distinct()
-        .order_by("nome")
-    )
-    return list(qs)
+    tipi: dict[int, TipoVisitaMedica] = {}
+    if ruoli_ids:
+        for t in (
+            TipoVisitaMedica.objects
+            .filter(is_active=True, obbligatoria=True, ruoli_operativi__id__in=ruoli_ids)
+            .distinct()
+        ):
+            tipi[t.id] = t
+
+    # Sorgente MOD.128: visite richieste dai processi a cui la persona è abilitata.
+    try:
+        from .mpq_visite import tipi_visita_richiesti_da_processo
+        extra_ids = tipi_visita_richiesti_da_processo(legacy_id) - set(tipi.keys())
+    except Exception:
+        extra_ids = set()
+    if extra_ids:
+        for t in TipoVisitaMedica.objects.filter(id__in=extra_ids, is_active=True):
+            tipi[t.id] = t
+
+    return sorted(tipi.values(), key=lambda t: t.nome)
 
 
 def ultime_visite_per_tipo(legacy_id: int) -> dict[int, VisitaMedica]:

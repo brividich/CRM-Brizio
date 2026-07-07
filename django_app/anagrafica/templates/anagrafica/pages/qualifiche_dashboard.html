@@ -118,6 +118,21 @@
       </div>
     </section>
 
+    {# ── Processi qualificati (MOD.128) — riepilogo ─────────────────────── #}
+    {% if mpq and mpq.n %}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Processi qualificati (MOD.128)</div>
+        <div class="fmd-block-aside"><a href="{% url 'anagrafica:mpq_cruscotto' %}" class="fmd-data-link">Apri il modulo →</a></div>
+      </div>
+      <div style="display:flex;gap:26px;flex-wrap:wrap;padding:8px 2px;align-items:baseline;">
+        <div><span class="fmd-num" style="font-size:26px;font-weight:800;color:#1f87cd;">{{ mpq.n }}</span> <span class="fmd-muted">processi a registro ({{ mpq.attivi }} attivi)</span></div>
+        <div><span class="fmd-num" style="font-size:26px;font-weight:800;color:#f59e0b;">{{ mpq.in_scadenza }}</span> <span class="fmd-muted">in scadenza ≤60gg</span></div>
+        <div><span class="fmd-num" style="font-size:26px;font-weight:800;color:#c53030;">{{ mpq.scaduti }}</span> <span class="fmd-muted">scaduti</span></div>
+      </div>
+    </section>
+    {% endif %}
+
     <div class="fmd-grid2" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;">
 
       {# ── Distribuzione per categoria ──────────────────────────────────── #}

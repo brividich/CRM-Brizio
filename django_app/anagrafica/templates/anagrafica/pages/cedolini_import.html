@@ -48,8 +48,29 @@
 .ci-alert { display:flex; gap:10px; padding:12px 16px; border-radius:10px; font-size:13px; }
 .ci-alert-info { background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; }
 .ci-alert-warn { background:#fffbeb; border:1px solid #fde68a; color:#92400e; }
+.ci-code { background:#dbeafe; padding:1px 5px; border-radius:4px; font-size:11px; }
+
+/* Dark mode — ribalta i colori hardcodati sopra sui token di theme.css */
+body.theme-dark .ci-title { color:var(--text); }
+body.theme-dark .ci-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .ci-card-head { border-color:var(--border); }
+body.theme-dark .ci-card-title { color:var(--text); }
+body.theme-dark .ci-btn-ghost { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .ci-btn-ghost:hover { background:var(--surface); }
+body.theme-dark .ci-upload-zone { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .ci-upload-label { color:var(--text); }
+body.theme-dark .ci-spec-item { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .ci-spec-value { color:var(--text-mid); }
+body.theme-dark .ci-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
+body.theme-dark .ci-table td { color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .ci-table tr:hover td { background:var(--tbody-hover); }
+body.theme-dark .ci-alert-info { background:rgba(59,130,246,.12); border-color:rgba(59,130,246,.35); color:#93c5fd; }
+body.theme-dark .ci-alert-warn { background:rgba(217,119,6,.12); border-color:rgba(217,119,6,.35); color:#fcd34d; }
+body.theme-dark .ci-code { background:rgba(59,130,246,.25); }
 </style>
 {% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
 <div class="ci-page">
@@ -83,7 +104,7 @@
         <span>ℹ</span>
         <span>
           Il file deve contenere il foglio <strong>Dati</strong> con il layout standard dei cedolini paga.
-          I saldi vengono salvati con upsert su <code style="background:#dbeafe;padding:1px 5px;border-radius:4px;font-size:11px;">(codice_fiscale, mese)</code>:
+          I saldi vengono salvati con upsert su <code class="ci-code">(codice_fiscale, mese)</code>:
           una nuova importazione aggiorna i valori già presenti per lo stesso mese.
         </span>
       </div>

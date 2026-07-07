@@ -27,7 +27,27 @@
 .ql-modal-title { font-size:17px; font-weight:700; color:#0f172a; margin-bottom:16px; }
 .fmd-scad-red td { background:#fff5f5; }
 .fmd-scad-orange td { background:#fffbf0; }
+.ql-panel-warn { border-color:#f6d9b8; }
+.ql-scad-hd { color:#9a3412; }
+.ql-scad-date { font-weight:700; }
+.ql-scad-date-red { color:#c53030; }
+.ql-scad-date-orange { color:#c2410c; }
 @media (max-width:700px){ .ql-form-grid { grid-template-columns:1fr; } }
+
+/* Dark mode — ribalta sfondi/testi hardcodati sui token di theme.css
+   (il colore NON va inline nel template, altrimenti vince sul dark). */
+body.theme-dark .fmd-scad-red td { background:rgba(239,68,68,.10); }
+body.theme-dark .fmd-scad-orange td { background:rgba(249,115,22,.10); }
+body.theme-dark .fmd .ql-panel-warn { border-color:rgba(249,115,22,.35); }
+body.theme-dark .fmd .ql-scad-hd { color:#fdba74; }
+body.theme-dark .fmd .ql-scad-date-red { color:#f87171; }
+body.theme-dark .fmd .ql-scad-date-orange { color:#fb923c; }
+body.theme-dark .ql-btn-ghost { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .ql-btn-ghost:hover { background:var(--surface); }
+body.theme-dark .ql-input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .ql-field label { color:var(--text-light); }
+body.theme-dark .ql-modal { background:var(--surface); }
+body.theme-dark .ql-modal-title { color:var(--text); }
 </style>
 {% endblock %}
 
@@ -65,9 +85,9 @@
 
     {# ── Scadenze ───────────────────────────────────────────────────────── #}
     {% if scadenze %}
-    <section class="fmd-panel fmd-block" style="border-color:#f6d9b8;">
+    <section class="fmd-panel fmd-block ql-panel-warn">
       <div class="fmd-block-head">
-        <div class="fmd-block-title" style="color:#9a3412;"><svg class="fmd-ico"><use href="#i-alarm"/></svg>Scadenze in arrivo o già scadute <span class="fmd-count">{{ scadenze|length }}</span></div>
+        <div class="fmd-block-title ql-scad-hd"><svg class="fmd-ico"><use href="#i-alarm"/></svg>Scadenze in arrivo o già scadute <span class="fmd-count">{{ scadenze|length }}</span></div>
       </div>
       <div class="fmd-tablewrap" style="margin:0 -22px -2px;">
         <table class="fmd-table" data-table-id="anagrafica.qualifiche.list">
@@ -87,7 +107,7 @@
             {% for s in scadenze %}
             <tr class="{% if s.scaduta %}fmd-scad-red{% elif s.in_scadenza %}fmd-scad-orange{% endif %}">
               <td><a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' s.legacy_anagrafica_id %}">{{ s.dipendente }}</a></td>
-              <td style="font-weight:700;color:var(--fmd-navy);">{{ s.tipo_nome }}</td>
+              <td class="fmd-cell-main">{{ s.tipo_nome }}</td>
               <td>
                 {% if s.tipo_categoria == "SICUREZZA" %}<span class="fmd-badge fmd-b-red">Sicurezza</span>
                 {% elif s.tipo_categoria == "PROFESSIONALE" %}<span class="fmd-badge fmd-b-cyan">Professionale</span>
@@ -95,7 +115,7 @@
                 {% else %}<span class="fmd-badge fmd-b-grey">Altro</span>{% endif %}
               </td>
               <td class="fmd-muted" data-sort-value="{{ s.data_conseguimento|date:'Y-m-d' }}">{% if s.data_conseguimento %}{{ s.data_conseguimento|date:"d-m-Y" }}{% else %}—{% endif %}</td>
-              <td data-sort-value="{{ s.data_scadenza|date:'Y-m-d' }}" style="font-weight:700;{% if s.scaduta %}color:#c53030;{% elif s.in_scadenza %}color:#c2410c;{% endif %}">{{ s.data_scadenza|date:"d-m-Y" }}</td>
+              <td data-sort-value="{{ s.data_scadenza|date:'Y-m-d' }}" class="ql-scad-date{% if s.scaduta %} ql-scad-date-red{% elif s.in_scadenza %} ql-scad-date-orange{% endif %}">{{ s.data_scadenza|date:"d-m-Y" }}</td>
               <td>{% if s.scaduta %}<span class="fmd-badge fmd-b-red">Scaduta</span>{% else %}<span class="fmd-badge fmd-b-orange">In scadenza</span>{% endif %}</td>
             </tr>
             {% endfor %}
@@ -162,6 +182,34 @@
         <span class="fmd-em">{% if active_categoria %}Nessuna qualifica nella categoria {{ active_categoria_label }}.{% else %}Nessun tipo di qualifica nel catalogo.{% endif %}</span>
       </div>
     </div>
+    {% endif %}
+
+    {# ── Processi qualificati (MOD.128) ─────────────────────────────────── #}
+    {% if processi_qualificati %}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-cap"/></svg>Processi qualificati (MOD.128) <span class="fmd-count">{{ processi_qualificati|length }}</span></div>
+        <div class="fmd-block-aside"><a class="fmd-data-link" href="{% url 'anagrafica:mpq_cruscotto' %}">Apri il modulo →</a></div>
+      </div>
+      <div class="fmd-tablewrap" style="margin:0 -22px -2px;">
+        <table class="fmd-table">
+          <thead>
+            <tr><th>Processo qualificato</th><th>Cliente/ente</th><th>Regime</th><th class="fmd-c">Abilitati</th><th>Stato</th></tr>
+          </thead>
+          <tbody>
+            {% for p in processi_qualificati %}
+            <tr>
+              <td><a class="fmd-data-link" href="{% url 'anagrafica:mpq_processo_detail' p.id %}">{{ p.nome }}</a></td>
+              <td class="fmd-muted">{{ p.cliente.nome }}</td>
+              <td class="fmd-muted">{{ p.get_regime_display }}</td>
+              <td class="fmd-c"><span class="fmd-badge fmd-b-cyan">{{ p.n_abil }}</span></td>
+              <td>{% if p.stato == "ATTIVO" %}<span class="fmd-badge fmd-b-green">{{ p.get_stato_display }}</span>{% else %}<span class="fmd-badge fmd-b-grey">{{ p.get_stato_display }}</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
     {% endif %}
 
     {# ── Form nuovo tipo + suggeriti (logica/markup invariati) ──────────── #}

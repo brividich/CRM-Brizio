@@ -30,12 +30,67 @@ Si passa da una vista all'altra dal selettore in alto.
 2. Nel campo testo scrivi il lavoro nel formato dell'officina, es. **`8 gimbal (33h)`**
    (quantità + famiglia + ore). Il campo ha l'**autocompletamento** delle famiglie note.
 3. Facoltativi: **qta**, **ore**, **stato** (pianificata / in corso / completata) e
-   **fase** (sgrossatura / finitura / ripresa / assemblaggio). Se non compili ore/qta,
+   **lavorazione** (finitura / sgrossatura / assieme / ripristino). Se non compili ore/qta,
    il sistema prova a ricavarle dal testo e dalle stime (vedi §4).
 4. **Salva**. Per rimuovere un lavoro: svuota il testo e salva, oppure usa il cestino 🗑.
 
 La **famiglia** del pezzo viene riconosciuta automaticamente dal testo (per nome o alias,
 es. *gimbal, sombrero, campane, ragni*). È la chiave che lega lo storico macchina↔pezzo.
+
+Un **doppio salvataggio accidentale** dello stesso lavoro (stessa macchina/turno/giorno e
+stesso testo) **non crea un duplicato**. Se inserendo o spostando un lavoro questo **si
+sovrappone** a un altro sullo stesso turno, il sistema **chiede conferma** prima di salvare.
+
+---
+
+## 2-bis. Turni e capacità della macchina
+
+Quando aggiungi un lavoro (pulsante **«+ Aggiungi lavoro»** nel Gantt o nell'Excel) scegli
+anche il **turno**:
+
+- **1° turno** (6-14), **2° turno** (14-22), **Entrambi** (6-22), **Notturno** (22-6), **H24**.
+- «Entrambi» e «H24» fanno entrare **più ore al giorno**, quindi a parità di ore il lavoro
+  **occupa meno giorni**.
+
+Le opzioni mostrate dipendono dalla **macchina**: una macchina senza 2° turno non potrà
+ricevere lavori di 2° turno/Entrambi/H24, una senza turno notturno non potrà ricevere
+notturni/H24 (così non si pianifica per errore su un turno che la macchina non fa).
+
+Questi flag si configurano nella pagina **Impostazioni macchine** (ingranaggio ⚙ in alto
+nel Gantt) oppure dai **toggle rapidi** nel pannello laterale che si apre cliccando il nome
+di una macchina. La **capacità** (saturazione) di una macchina è **ore/giorno × numero di
+turni abilitati** (1° sempre, +2° turno, +notturno).
+
+Nel pannello laterale di un **lavoro** ci sono anche **Duplica** (per ripetere velocemente
+una lavorazione) ed **Elimina**.
+
+### Corsie per turno e conflitti
+
+Nel **Gantt** ogni macchina è una riga divisa in **corsie per fascia oraria** (a sinistra i
+chip **1° / 2° / Notte**). Un lavoro **Entrambi** o **H24** è una **barra alta** che occupa
+più corsie. Due lavori sulla stessa macchina e giorno sono in **conflitto** (bordo rosso ⚠)
+se le loro fasce **si sovrappongono**:
+
+- 1° turno **+** 2° turno → **nessun** conflitto (sono sequenziali nella giornata);
+- 1° (o 2°) **+** Entrambi → conflitto;
+- qualunque turno **+** H24, e Notturno **+** H24 → conflitto.
+
+Quando inserisci un lavoro che si sovrappone, il modale mostra un **avviso** e propone il
+**primo slot libero** sulla macchina (un altro turno nello stesso giorno, oppure lo stesso
+turno dal primo giorno libero): col bottone **«Usa questo slot»** i campi si compilano da
+soli. Lo stesso avviso compare quando **trascini** una barra in una posizione occupata.
+
+### Permessi e registro
+
+Le azioni di **modifica** (aggiungere/spostare/duplicare/eliminare lavori, configurare le
+macchine) richiedono il permesso **«Carichi Macchina – Modifica piano»**. Chi ha solo la
+**vista** non vede i comandi di modifica (pulsanti «+ Aggiungi», «Impostazioni», toggle nel
+pannello, Duplica/Elimina); restano disponibili Gantt, Excel, suggerimenti AI e il Registro.
+
+Il **Registro azioni** (pulsante in alto nel Gantt/Excel, oppure
+`/carichi-macchina/registro/`) elenca **chi ha fatto cosa e quando** sul piano
+(creazioni, modifiche, spostamenti, eliminazioni, duplicazioni, configurazioni), filtrabile
+per azione, macchina o testo.
 
 ---
 

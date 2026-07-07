@@ -118,6 +118,26 @@ class MpqProcessoDetailUITests(TestCase):
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class QualificheCatalogoProcessiTests(TestCase):
+    """Il catalogo Qualifiche (/anagrafica/qualifiche/) mostra i processi MOD.128."""
+
+    def setUp(self):
+        _ensure_anagrafica_table()
+        _ensure_utenti_table()
+        self.user = User.objects.create_superuser(
+            username="ql-cat", email="ql-cat@example.com", password="pass12345")
+        self.client.force_login(self.user)
+
+    def test_catalogo_mostra_processi(self):
+        cli = ClienteQualificante.objects.create(nome="Cliente Catalogo")
+        ProcessoQualificato.objects.create(nome="Processo In Catalogo", cliente=cli)
+        resp = self.client.get(reverse("anagrafica:qualifiche_list"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Processi qualificati (MOD.128)")
+        self.assertContains(resp, "Processo In Catalogo")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class MpqSubnavSeedTests(TestCase):
     def test_link_mpq_sotto_competenze_qualifiche(self):
         from .models import SubnavLinkAnagrafica

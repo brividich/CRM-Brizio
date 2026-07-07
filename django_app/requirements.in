@@ -21,6 +21,7 @@ pyOpenSSL>=25.1.0,<26             # TLS per ldap3 e pyspnego
 
 # --- Microsoft Graph / Office ---
 openpyxl>=3.1.5                 # lettura/scrittura Excel (VRF MOD.073)
+xlrd>=2.0.1                     # lettura .xls legacy (intake export gestionale Specifiche)
 reportlab>=4.0                  # generazione PDF
 pymupdf>=1.24                   # rendering PDF->PNG (import slide e-learning da PPTX/PDF)
 

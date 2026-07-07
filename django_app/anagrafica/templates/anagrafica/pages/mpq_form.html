@@ -47,6 +47,7 @@
           <a href="{{ back_url }}" class="fmd-btn fmd-btn-ghost">Annulla</a>
         </div>
       </form>
+      {% if mpq_requisiti %}{% include "anagrafica/partials/_mpq_quickadd.html" %}{% endif %}
     </section>
   </div>
 </div>

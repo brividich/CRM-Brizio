@@ -151,6 +151,64 @@ class MpqTimbriPropagazioneTests(TestCase):
         self.assertEqual(stats["sospesi"], 1)  # conteggia il piano
 
 
+class PropagaTimbroSingoloTests(TestCase):
+    """Collegamento dal modulo timbri → propagazione immediata su un singolo timbro."""
+
+    def test_collega_ad_abilitazione_revocata_sospende(self):
+        from anagrafica.services.mpq_timbri import propaga_timbro
+        ab = _make_ab(stato=AbilitazioneProcesso.STATO_REVOCATA)
+        t = _make_timbro(ab=ab)
+        propaga_timbro(t)
+        t.refresh_from_db()
+        self.assertTrue(t.is_sospeso)
+        self.assertFalse(t.is_attivo)
+
+    def test_collega_ad_attiva_non_sospende(self):
+        from anagrafica.services.mpq_timbri import propaga_timbro
+        ab = _make_ab()  # attiva
+        t = _make_timbro(ab=ab)
+        propaga_timbro(t)
+        t.refresh_from_db()
+        self.assertFalse(t.is_sospeso)
+
+    def test_riattiva_al_ritorno_operativo(self):
+        from anagrafica.services.mpq_timbri import propaga_timbro
+        ab = _make_ab(stato=AbilitazioneProcesso.STATO_REVOCATA)
+        t = _make_timbro(ab=ab)
+        propaga_timbro(t)
+        ab.stato = AbilitazioneProcesso.STATO_ATTIVA
+        ab.save()
+        propaga_timbro(t)
+        t.refresh_from_db()
+        self.assertFalse(t.is_sospeso)
+        self.assertTrue(t.is_attivo)
+
+    def test_senza_abilitazione_no_op(self):
+        from anagrafica.services.mpq_timbri import propaga_timbro
+        t = _make_timbro(ab=None)
+        propaga_timbro(t)  # non deve sollevare
+        t.refresh_from_db()
+        self.assertFalse(t.is_sospeso)
+
+
+class RegistroTimbroFormAbilitazioneTests(TestCase):
+    """Il form timbri offre solo le abilitazioni MOD.128 dell'operatore."""
+
+    def test_queryset_filtrato_per_operatore(self):
+        from timbri.models import OperatoreTimbri
+        from timbri.forms import RegistroTimbroForm
+        cli = ClienteQualificante.objects.create(nome="Cliente Q")
+        p1 = ProcessoQualificato.objects.create(nome="P1", cliente=cli)
+        p2 = ProcessoQualificato.objects.create(nome="P2", cliente=cli)
+        ab_mio = AbilitazioneProcesso.objects.create(legacy_anagrafica_id=99, processo=p1)
+        ab_altro = AbilitazioneProcesso.objects.create(legacy_anagrafica_id=1234, processo=p2)
+        op = OperatoreTimbri.objects.create(nome="X", cognome="Y", legacy_anagrafica_id=99)
+        form = RegistroTimbroForm(operatore=op)
+        ids = set(form.fields["abilitazione_processo"].queryset.values_list("id", flat=True))
+        self.assertIn(ab_mio.id, ids)
+        self.assertNotIn(ab_altro.id, ids)
+
+
 @override_settings(ADMINS=[], DEFAULT_FROM_EMAIL="hub@example.com")
 class MpqTimbriNotificaMsmTests(TestCase):
     def test_notifica_no_destinatari_non_crasha(self):

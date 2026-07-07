@@ -178,6 +178,22 @@ class ProcessoQualificato(models.Model):
         help_text="Tipo qualifica di catalogo collegato (opzionale).",
     )
 
+    # Requisiti per l'idoneità al processo (come le mansioni di rischio): corsi di
+    # formazione, DPI e visite mediche necessari a chi è abilitato. Alimentano la
+    # verifica di conformità (services/mpq_conformita).
+    corsi_richiesti = models.ManyToManyField(
+        "anagrafica.TrainingCourse", blank=True, related_name="processi_richiedenti",
+        help_text="Corsi di formazione richiesti per l'idoneità al processo.",
+    )
+    dpi_richiesti = models.ManyToManyField(
+        "dpi.CategoriaDPI", blank=True, related_name="processi_richiedenti",
+        help_text="Categorie DPI obbligatorie per il processo.",
+    )
+    visite_richieste = models.ManyToManyField(
+        "anagrafica.TipoVisitaMedica", blank=True, related_name="processi_richiedenti",
+        help_text="Tipologie di visita medica obbligatorie per il processo.",
+    )
+
     # Scadenza a livello processo/attestato (aziendale).
     tipo_validita = models.CharField(max_length=12, choices=VALIDITA_CHOICES, default=VALIDITA_DATA)
     data_conseguimento = models.DateField(null=True, blank=True)

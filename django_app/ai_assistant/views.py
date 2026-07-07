@@ -22,6 +22,7 @@ from .services import (
     clear_knowledge_cache,
     iter_ollama_stream,
     open_ollama_stream,
+    sgi_rag_access,
 )
 from .tools import build_runtime_context
 
@@ -287,12 +288,15 @@ def api_chat(request):
 
     started = time.monotonic()
     runtime_context = build_runtime_context(request, message, history=history)
+    allow_specifiche, allow_procedure = sgi_rag_access(request)
     try:
         result = chat_with_ollama(
             message,
             history=history,
             runtime_context=runtime_context.text,
             user_preferences=preferences,
+            allow_specifiche=allow_specifiche,
+            allow_procedure=allow_procedure,
         )
     except OllamaChatError as exc:
         elapsed_ms = int((time.monotonic() - started) * 1000)
@@ -389,6 +393,7 @@ def api_chat_stream(request):
     runtime_context = build_runtime_context(request, message, history=history)
     runtime_audit = _runtime_audit_summary(runtime_context.audit)
     model = str(getattr(settings, "OLLAMA_CHAT_MODEL", "") or "").strip()
+    allow_specifiche, allow_procedure = sgi_rag_access(request)
 
     try:
         stream, meta = open_ollama_stream(
@@ -396,6 +401,8 @@ def api_chat_stream(request):
             history=history,
             runtime_context=runtime_context.text,
             user_preferences=preferences,
+            allow_specifiche=allow_specifiche,
+            allow_procedure=allow_procedure,
         )
     except OllamaChatError as exc:
         elapsed_ms = int((time.monotonic() - started) * 1000)

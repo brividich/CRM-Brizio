@@ -84,6 +84,16 @@ def refresh_deadlines(
     for r in rules_idx_qs:
         direct_rule_map[(r.legacy_anagrafica_id, r.corso_id)] = r
 
+    # Requisiti MOD.128: (legacy_id, corso) resi obbligatori dai processi qualificati.
+    process_pairs: dict[tuple[int, int], TrainingCourse] = {}
+    try:
+        from .mpq_formazione import coppie_richieste_da_processo
+        for _lid, _corso in coppie_richieste_da_processo(corso_id=corso_id, legacy_id=legacy_id):
+            process_pairs[(_lid, _corso.pk)] = _corso
+    except Exception:
+        process_pairs = {}
+    handled_rule_keys: set[tuple[int, int]] = set()
+
     for (lid, cid), rec in pairs.items():
         stato, giorni = _compute_stato(rec.data_scadenza, rec.corso.validita_mesi, today)
         rule = direct_rule_map.get((lid, cid))
@@ -98,7 +108,7 @@ def refresh_deadlines(
                 "data_scadenza": rec.data_scadenza,
                 "stato_scadenza": stato,
                 "giorni_alla_scadenza": giorni,
-                "is_required": rule.is_mandatory if rule else False,
+                "is_required": (rule.is_mandatory if rule else False) or ((lid, cid) in process_pairs),
                 "needs_refresh": False,
                 "last_recalculation_source": "refresh_deadlines",
             },
@@ -138,11 +148,34 @@ def refresh_deadlines(
                     "data_scadenza": None,
                     "stato_scadenza": "MAI_FREQUENTATO",
                     "giorni_alla_scadenza": None,
-                    "is_required": rule.is_mandatory,
+                    "is_required": rule.is_mandatory or (key in process_pairs),
                     "needs_refresh": False,
                     "last_recalculation_source": "refresh_deadlines",
                 },
             )
+            handled_rule_keys.add(key)
             updated += 1
+
+    # ── 3. Requisiti MOD.128 senza regola né record: obbligo dal processo ────
+    for (lid, cid), corso in process_pairs.items():
+        if (lid, cid) in pairs or (lid, cid) in handled_rule_keys:
+            continue
+        TrainingDeadline.objects.update_or_create(
+            corso=corso,
+            legacy_anagrafica_id=lid,
+            defaults={
+                "requirement_rule": None,
+                "assignment": None,
+                "ultimo_completamento": None,
+                "data_ultimo_completamento": None,
+                "data_scadenza": None,
+                "stato_scadenza": "MAI_FREQUENTATO",
+                "giorni_alla_scadenza": None,
+                "is_required": True,
+                "needs_refresh": False,
+                "last_recalculation_source": "refresh_deadlines",
+            },
+        )
+        updated += 1
 
     return updated

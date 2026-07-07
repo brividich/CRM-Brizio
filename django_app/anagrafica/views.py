@@ -5802,9 +5802,23 @@ def qualifiche_list(request):
         tipi_grouped = [g for g in tipi_grouped if g[0] == cat_filter]
         scadenze = [s for s in scadenze if s["tipo_categoria"] == cat_filter]
 
+    # Processi qualificati MOD.128 (modulo additivo, fail-safe): mostrati nel
+    # catalogo come famiglia a sé, così si vedono nella sezione Qualifiche.
+    processi_qualificati = []
+    try:
+        from .models_mpq import ProcessoQualificato as _PQ
+        processi_qualificati = list(
+            _PQ.objects.select_related("cliente")
+            .annotate(n_abil=Count("abilitazioni", distinct=True))
+            .order_by("cliente__nome", "nome")
+        )
+    except Exception:
+        processi_qualificati = []
+
     return render(request, "anagrafica/pages/qualifiche_list.html", {
         "tipi": tipi,
         "tipi_grouped": tipi_grouped,
+        "processi_qualificati": processi_qualificati,
         "scadenze": scadenze,
         "is_admin": is_admin,
         "oggi": oggi,
@@ -5936,9 +5950,33 @@ def qualifiche_dashboard(request):
         .order_by("data_conseguimento")[:8]
     )
 
+    # MOD.128 — riepilogo processi qualificati (modulo additivo, fail-safe).
+    mpq = None
+    try:
+        from .models_mpq import ProcessoQualificato as _PQ
+        _procs = list(_PQ.objects.all())
+        _mpq_scaduti = _mpq_scad60 = 0
+        for _p in _procs:
+            _se = _p.scadenza_effettiva
+            if _se is None:
+                continue
+            if _se < oggi:
+                _mpq_scaduti += 1
+            elif _se <= soglia_60:
+                _mpq_scad60 += 1
+        mpq = {
+            "n": len(_procs),
+            "attivi": sum(1 for _p in _procs if _p.stato == "ATTIVO"),
+            "scaduti": _mpq_scaduti,
+            "in_scadenza": _mpq_scad60,
+        }
+    except Exception:
+        mpq = None
+
     return render(request, "anagrafica/pages/qualifiche_dashboard.html", {
         "oggi": oggi,
         "is_admin": is_admin,
+        "mpq": mpq,
         "tipi_attivi": tipi_attivi,
         "tot_assegnazioni": len(quals),
         "dipendenti_con_qualifica": len(dipendenti_ids),
@@ -10425,6 +10463,7 @@ def formazione_corso_create(request):
             corso = form.save(commit=False)
             corso.created_by = request.user
             corso.save()
+            form.salva_processi(corso)
             messages.success(request, f'Corso "{corso.titolo}" creato.')
             return redirect("anagrafica:formazione_corso_detail", corso_id=corso.pk)
     else:
@@ -10703,7 +10742,8 @@ def formazione_corso_edit(request, corso_id: int):
     corso = get_object_or_404(TrainingCourse, pk=corso_id)
     form = TrainingCourseForm(request.POST, instance=corso)
     if form.is_valid():
-        form.save()
+        corso = form.save()
+        form.salva_processi(corso)
         messages.success(request, f'Corso "{corso.titolo}" aggiornato.')
     else:
         for field_errors in form.errors.values():

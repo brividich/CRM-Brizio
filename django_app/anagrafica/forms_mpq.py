@@ -57,7 +57,8 @@ class ProcessoQualificatoForm(forms.ModelForm):
             "personale_modalita", "riferimento_dichiarazione",
             "stato", "motivo_stato", "riferimento_stato",
             "numero_revisione", "responsabile_qualita", "data_revisione",
-            "reparti", "clienti_addizionali", "note",
+            "reparti", "clienti_addizionali",
+            "corsi_richiesti", "dpi_richiesti", "visite_richieste", "note",
         ]
         widgets = {
             "cliente": forms.Select(attrs=_FM_SELECT),
@@ -84,6 +85,11 @@ class ProcessoQualificatoForm(forms.ModelForm):
             "clienti_addizionali": forms.SelectMultiple(attrs={
                 "class": "fm-input fm-select", "size": "4",
                 "data-picker": "", "data-picker-placeholder": "Cerca cliente/ente…"}),
+            # corsi/DPI/visite: select nativi con filtro + crea-al-volo (_mpq_quickadd),
+            # niente data-picker (gestiti dall'enhancer MOD.128, non dal msp-picker).
+            "corsi_richiesti": forms.SelectMultiple(attrs={"class": "fm-input fm-select", "size": "6"}),
+            "dpi_richiesti": forms.SelectMultiple(attrs={"class": "fm-input fm-select", "size": "6"}),
+            "visite_richieste": forms.SelectMultiple(attrs={"class": "fm-input fm-select", "size": "6"}),
             "note": forms.Textarea(attrs=_FM_TEXTAREA),
         }
 
@@ -91,7 +97,8 @@ class ProcessoQualificatoForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         for f in ("ente_certificatore", "tipo_qualifica", "reparti",
                   "clienti_addizionali", "durata_mesi", "data_conseguimento",
-                  "data_scadenza", "data_revisione"):
+                  "data_scadenza", "data_revisione",
+                  "corsi_richiesti", "dpi_richiesti", "visite_richieste"):
             self.fields[f].required = False
         cli_qs = ClienteQualificante.objects.all().order_by("nome")
         self.fields["cliente"].queryset = cli_qs

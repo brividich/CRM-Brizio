@@ -147,3 +147,55 @@ class MpqCertRiferimentoTests(MpqCrudBase):
         self.assertEqual(resp.status_code, 302)
         self.assertTrue(RiferimentoProcesso.objects.filter(
             processo=self.proc, codice="COP001").exists())
+
+
+class MpqQuickAddTests(MpqCrudBase):
+    """Crea-al-volo (JSON) di corso/visita/DPI dal form processo."""
+
+    def test_quickadd_visita(self):
+        resp = self.client.post(
+            reverse("anagrafica:mpq_quickadd_visita"), {"nome": "Visita Nuova", "durata_mesi": "24"})
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["ok"])
+        from .models import TipoVisitaMedica
+        v = TipoVisitaMedica.objects.get(nome="Visita Nuova")
+        self.assertEqual(v.durata_mesi, 24)
+        self.assertEqual(data["id"], v.pk)
+
+    def test_quickadd_dpi(self):
+        resp = self.client.post(reverse("anagrafica:mpq_quickadd_dpi"), {"nome": "Guanti Nuovi"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["ok"])
+        from dpi.models import CategoriaDPI
+        self.assertTrue(CategoriaDPI.objects.filter(nome="Guanti Nuovi").exists())
+
+    def test_quickadd_corso(self):
+        from .models import TrainingCourse, TrainingPlan
+        plan = TrainingPlan.objects.create(codice="PLQA", nome="Piano QA")
+        resp = self.client.post(
+            reverse("anagrafica:mpq_quickadd_corso"),
+            {"titolo": "Corso Nuovo", "durata_ore_teorica": "2",
+             "validita_mesi": "12", "piano": str(plan.pk)})
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["ok"])
+        self.assertIn("edit_url", data)  # link per completare la bozza
+        c = TrainingCourse.objects.get(titolo="Corso Nuovo")
+        self.assertEqual(c.validita_mesi, 12)
+        self.assertEqual(c.piano_id, plan.pk)   # piano scelto rispettato
+        self.assertEqual(c.stato, "BOZZA")      # nasce incompleto → bozza
+
+    def test_quickadd_nome_vuoto_400(self):
+        resp = self.client.post(reverse("anagrafica:mpq_quickadd_visita"), {"nome": ""})
+        self.assertEqual(resp.status_code, 400)
+        self.assertFalse(resp.json()["ok"])
+
+    def test_quickadd_negato_senza_manage(self):
+        from dpi.models import CategoriaDPI
+        u = User.objects.create_user(username="qa-plain", email="qa@example.com", password="pass12345")
+        self.client.force_login(u)
+        resp = self.client.post(reverse("anagrafica:mpq_quickadd_dpi"), {"nome": "X Negato"})
+        # negato (302 redirect middleware o 403 gate in-view); comunque NON creato
+        self.assertIn(resp.status_code, (302, 403))
+        self.assertFalse(CategoriaDPI.objects.filter(nome="X Negato").exists())
