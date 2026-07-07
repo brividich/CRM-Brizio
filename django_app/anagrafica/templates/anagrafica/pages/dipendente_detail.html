@@ -460,6 +460,8 @@ body.theme-dark .dp-card-head-warn { background:rgba(146,64,14,.15); }
 .dp-td-strong { color:#1e293b; }
 .dp-td-ink { color:#0f172a; }
 .dp-td-mid { color:#475569; }
+.dp-note-amber { color:#92400e; }
+.dp-link-ok { color:#065f46; text-decoration:none; font-weight:700; }
 body.theme-dark .dp-sec-label { color:var(--text-light); }
 body.theme-dark .dp-tr-line { border-color:var(--border); }
 body.theme-dark .dp-tr-head { border-color:var(--border); }
@@ -467,6 +469,8 @@ body.theme-dark .dp-thead-soft { background:var(--thead-bg); }
 body.theme-dark .dp-td-strong,
 body.theme-dark .dp-td-ink { color:var(--text); }
 body.theme-dark .dp-td-mid { color:var(--text-mid); }
+body.theme-dark .dp-note-amber { color:#fcd34d; }
+body.theme-dark .dp-link-ok { color:#86efac; }
 </style>
 {% endblock %}
 
@@ -790,12 +794,12 @@ body.theme-dark .dp-td-mid { color:var(--text-mid); }
     </div>
     <div class="dp-card-body">
       {% if onboarding_pratica_attiva %}
-        <p style="font-size:13px;color:#475569;margin:0 0 8px;">
+        <p class="dp-td-mid" style="font-size:13px;margin:0 0 8px;">
           Pratica di inserimento <strong>in corso</strong> aperta il {{ onboarding_pratica_attiva.created_at|date:"d-m-Y" }}.
           Gestisci la checklist nella pagina dedicata.
         </p>
       {% else %}
-        <p style="font-size:13px;color:#475569;margin:0 0 10px;">
+        <p class="dp-td-mid" style="font-size:13px;margin:0 0 10px;">
           Nessuna pratica onboarding attiva. Avviane una per generare la checklist di inserimento (account, badge, DPI, formazione, visita).
           La procedura è pensata per i <strong>nuovi ingressi</strong>: per i dipendenti già in forza i dati verranno completati in seguito, senza segnalazioni di scadenza.
         </p>
@@ -1270,7 +1274,7 @@ body.theme-dark .dp-td-mid { color:var(--text-mid); }
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <div class="dp-card-title">💰 Voci retributive</div>
         {% if retribuzioni_data_competenza %}
-          <span style="font-size:11px;color:#92400e;font-weight:600;">{{ retribuzioni_data_competenza|date:"F Y" }}</span>
+          <span class="dp-note-amber" style="font-size:11px;font-weight:600;">{{ retribuzioni_data_competenza|date:"F Y" }}</span>
         {% endif %}
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
@@ -1501,7 +1505,7 @@ body.theme-dark .dp-td-mid { color:var(--text-mid); }
       <div class="dp-card-title">📅 Ratei Ferie / Permessi</div>
       <div style="display:flex;align-items:center;gap:10px;">
         {% if ratei_saldi %}
-          <span style="font-size:11px;color:#92400e;font-weight:600;">
+          <span class="dp-note-amber" style="font-size:11px;font-weight:600;">
             Ultimo cedolino: {{ ratei_saldi.0.data_competenza|date:"F Y" }}
           </span>
         {% endif %}
@@ -1755,9 +1759,9 @@ body.theme-dark .dp-td-mid { color:var(--text-mid); }
                 <summary style="cursor:pointer;font-size:11px;color:#64748b;font-weight:700;">↻ Storico rinnovi ({{ q.storico.all|length }}){% info_hint "qualifica_storico" %}</summary>
                 <div style="margin-top:4px;display:flex;flex-direction:column;gap:2px;padding-left:6px;border-left:2px solid #e2e8f0;">
                   {% for s in q.storico.all %}
-                  <div style="font-size:11px;color:#475569;">
+                  <div class="dp-td-mid" style="font-size:11px;">
                     {% if s.data_conseguimento %}<strong>{{ s.data_conseguimento|date:"d-m-Y" }}</strong>{% else %}—{% endif %}{% if s.data_scadenza %} → {{ s.data_scadenza|date:"d-m-Y" }}{% endif %}{% if s.ente %} · {{ s.ente }}{% endif %}{% if s.numero %} · n° {{ s.numero }}{% endif %}
-                    <span style="color:#94a3b8;">({{ s.get_origine_display }})</span>{% if s.documento and is_admin %} · <a href="{% url 'anagrafica:dipendente_qualifica_storico_evidenza' legacy_id q.id s.id %}" title="Scarica l'evidenza di questo rinnovo" style="color:#065f46;text-decoration:none;font-weight:700;">📎 Evidenza</a>{% endif %}
+                    <span style="color:#94a3b8;">({{ s.get_origine_display }})</span>{% if s.documento and is_admin %} · <a href="{% url 'anagrafica:dipendente_qualifica_storico_evidenza' legacy_id q.id s.id %}" title="Scarica l'evidenza di questo rinnovo" class="dp-link-ok">📎 Evidenza</a>{% endif %}
                   </div>
                   {% endfor %}
                 </div>
@@ -2394,7 +2398,7 @@ body.theme-dark .dp-td-mid { color:var(--text-mid); }
 
     <!-- Edit bar -->
     <div class="dp-edit-bar" id="dp-edit-bar">
-      <span style="font-size:13px;color:#92400e;">Modalità modifica — trascina per riordinare, clicca × per nascondere</span>
+      <span class="dp-note-amber" style="font-size:13px;">Modalità modifica — trascina per riordinare, clicca × per nascondere</span>
       <div style="display:flex;gap:8px;">
         <button type="button" class="dp-btn dp-btn-primary dp-btn-sm" onclick="saveLayout()">💾 Salva</button>
         <button type="button" class="dp-btn dp-btn-ghost dp-btn-sm" onclick="resetLayout()">↺ Ripristina</button>
