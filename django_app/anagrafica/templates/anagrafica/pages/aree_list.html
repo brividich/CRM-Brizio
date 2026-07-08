@@ -34,7 +34,8 @@
 .cat-empty { text-align:center; padding:40px; color:#94a3b8; font-size:14px; }
 .cat-add-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:20px; }
 .cat-add-title { font-size:14px; font-weight:700; color:#1e293b; margin-bottom:14px; }
-.cat-form-row { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
+.cat-form-row { display:flex; flex-direction:column; gap:14px; align-items:stretch; }
+.cat-form-row > div[style*="padding-bottom"] { align-self:flex-start; padding-bottom:0 !important; }
 .cat-field { display:flex; flex-direction:column; gap:4px; flex:1; min-width:180px; }
 .cat-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
 .cat-input { border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; width:100%; box-sizing:border-box; }
@@ -42,7 +43,7 @@
 .cat-select { border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; width:100%; box-sizing:border-box; }
 .cat-select:focus { border-color:#1f87cd; background:#fff; }
 
-/* Area band — riga colorata per area aziendale */
+/* Reparto band — riga colorata per reparto (ora contenitore di primo livello) */
 .area-band { background:#f0f7ff; border-left:4px solid var(--area-color, #1f87cd); }
 .area-band td { font-weight:700; color:#0f172a; padding:10px 16px; }
 .area-badge { display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:700; }
@@ -86,7 +87,7 @@ body.theme-dark .cat-input, body.theme-dark .cat-select { background:var(--surfa
   <div class="cat-topbar">
     <div>
       <div class="cat-title">Aree & Reparti</div>
-      <div class="cat-sub">Gerarchia aziendale: aree di alto livello con i relativi reparti e caporeparti</div>
+      <div class="cat-sub">Gerarchia aziendale: reparti con le relative aree aziendali e caporeparti</div>
     </div>
     <a class="cat-btn cat-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Dipendenti</a>
   </div>
@@ -97,8 +98,8 @@ body.theme-dark .cat-input, body.theme-dark .cat-select { background:var(--surfa
       <div class="cat-tabs">
         <button class="cat-tab active" data-tab="struttura">Struttura gerarchica</button>
         {% if is_admin %}
-        <button class="cat-tab" data-tab="add-area">+ Area aziendale</button>
         <button class="cat-tab" data-tab="add-reparto">+ Reparto</button>
+        <button class="cat-tab" data-tab="add-area">+ Area aziendale</button>
         {% endif %}
       </div>
     </div>
@@ -110,33 +111,37 @@ body.theme-dark .cat-input, body.theme-dark .cat-select { background:var(--surfa
           <tr>
             <th data-col="nome" data-col-label="Nome" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Nome</th>
             <th data-col="descrizione" data-col-label="Descrizione" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Descrizione</th>
-            <th data-col="caporeparto" data-col-label="Caporeparto" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Caporeparto</th>
+            <th data-col="responsabile" data-col-label="Caporeparto / Responsabile" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Caporeparto / Responsabile</th>
             <th data-col="stato" data-col-label="Stato" data-col-type="text" data-col-sortable="1">Stato</th>
             {% if is_admin %}<th style="width:160px;"></th>{% endif %}
           </tr>
         </thead>
         <tbody>
-          {% for area_az in aree_aziendali %}
-          <!-- Area aziendale band -->
-          <tr class="area-band" style="--area-color:{{ area_az.colore }};">
+          {% for rep in reparti %}
+          <!-- Reparto band -->
+          <tr class="area-band" style="--area-color:{{ rep.colore }};">
             <td colspan="{% if is_admin %}5{% else %}4{% endif %}">
               <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
                 <div class="area-badge">
-                  <span class="area-badge-dot" style="background:{{ area_az.colore }};"></span>
-                  {{ area_az.nome }}
-                  <span style="font-size:11px;font-weight:400;color:#64748b;">({{ area_az.reparti.count }} reparto/i)</span>
+                  <span class="area-badge-dot" style="background:{{ rep.colore }};"></span>
+                  {{ rep.nome }}
+                  <span style="font-size:11px;font-weight:400;color:#64748b;">({{ rep.aree_aziendali.count }} area/e)</span>
+                  {% if rep.caporeparto_label %}
+                    <span class="cat-pill cat-pill-blue">👤 {{ rep.caporeparto_label }}</span>
+                  {% endif %}
                 </div>
                 {% if is_admin %}
                 <div style="display:flex;gap:6px;">
                   <button class="cat-btn cat-btn-ghost cat-btn-sm"
-                          data-edit-area-id="{{ area_az.pk }}"
-                          data-edit-area-nome="{{ area_az.nome }}"
-                          data-edit-area-desc="{{ area_az.descrizione }}"
-                          data-edit-area-colore="{{ area_az.colore }}"
-                          data-edit-area-active="{{ area_az.is_active|yesno:'1,0' }}">
+                          data-edit-rep-id="{{ rep.pk }}"
+                          data-edit-rep-nome="{{ rep.nome }}"
+                          data-edit-rep-desc="{{ rep.descrizione }}"
+                          data-edit-rep-colore="{{ rep.colore }}"
+                          data-edit-rep-capo="{{ rep.caporeparto_legacy_id|default_if_none:'' }}"
+                          data-edit-rep-active="{{ rep.is_active|yesno:'1,0' }}">
                     Modifica
                   </button>
-                  <form method="post" action="{% url 'anagrafica:area_aziendale_delete' area_az.pk %}" style="display:inline;" onsubmit="return confirm('Eliminare l\'area «{{ area_az.nome }}»? I reparti associati resteranno senza area.')">
+                  <form method="post" action="{% url 'anagrafica:area_delete' rep.pk %}" style="display:inline;" onsubmit="return confirm('Eliminare il reparto «{{ rep.nome }}»? Le aree aziendali associate resteranno senza reparto.')">
                     {% csrf_token %}
                     <button type="submit" class="cat-btn cat-btn-danger cat-btn-sm">Elimina</button>
                   </form>
@@ -145,22 +150,22 @@ body.theme-dark .cat-input, body.theme-dark .cat-select { background:var(--surfa
               </div>
             </td>
           </tr>
-          <!-- Reparti di questa area -->
-          {% for rep in area_az.reparti.all %}
-          <tr class="reparto-row" {% if not rep.is_active %}style="opacity:.6;"{% endif %}>
+          <!-- Aree aziendali di questo reparto -->
+          {% for area in rep.aree_aziendali.all %}
+          <tr class="reparto-row" {% if not area.is_active %}style="opacity:.6;"{% endif %}>
             <td>
-              <span class="reparto-name">↳ {{ rep.nome }}</span>
+              <span class="reparto-name">↳ {{ area.nome }}</span>
             </td>
-            <td style="color:#64748b;">{{ rep.descrizione|default:"—" }}</td>
+            <td style="color:#64748b;">{{ area.descrizione|default:"—" }}</td>
             <td>
-              {% if rep.caporeparto_label %}
-                <span class="cat-pill cat-pill-blue">{{ rep.caporeparto_label }}</span>
+              {% if area.responsabile_label %}
+                <span class="cat-pill cat-pill-blue">{{ area.responsabile_label }}</span>
               {% else %}
                 <span style="color:#94a3b8;">—</span>
               {% endif %}
             </td>
             <td>
-              {% if rep.is_active %}
+              {% if area.is_active %}
                 <span class="cat-pill cat-pill-green">Attivo</span>
               {% else %}
                 <span class="cat-pill cat-pill-gray">Inattivo</span>
@@ -170,15 +175,15 @@ body.theme-dark .cat-input, body.theme-dark .cat-select { background:var(--surfa
             <td>
               <div style="display:flex;gap:6px;flex-wrap:wrap;">
                 <button class="cat-btn cat-btn-ghost cat-btn-sm"
-                        data-edit-rep-id="{{ rep.pk }}"
-                        data-edit-rep-nome="{{ rep.nome }}"
-                        data-edit-rep-desc="{{ rep.descrizione }}"
-                        data-edit-rep-capo="{{ rep.caporeparto_legacy_id|default_if_none:'' }}"
-                        data-edit-rep-area="{{ area_az.pk }}"
-                        data-edit-rep-active="{{ rep.is_active|yesno:'1,0' }}">
+                        data-edit-area-id="{{ area.pk }}"
+                        data-edit-area-nome="{{ area.nome }}"
+                        data-edit-area-desc="{{ area.descrizione }}"
+                        data-edit-area-responsabile="{{ area.responsabile_legacy_id|default_if_none:'' }}"
+                        data-edit-area-reparto="{{ rep.pk }}"
+                        data-edit-area-active="{{ area.is_active|yesno:'1,0' }}">
                   Modifica
                 </button>
-                <form method="post" action="{% url 'anagrafica:area_delete' rep.pk %}" style="display:inline;" onsubmit="return confirm('Eliminare il reparto «{{ rep.nome }}»?')">
+                <form method="post" action="{% url 'anagrafica:area_aziendale_delete' area.pk %}" style="display:inline;" onsubmit="return confirm('Eliminare l\'area «{{ area.nome }}»?')">
                   {% csrf_token %}
                   <button type="submit" class="cat-btn cat-btn-danger cat-btn-sm">Elimina</button>
                 </form>
@@ -189,34 +194,34 @@ body.theme-dark .cat-input, body.theme-dark .cat-select { background:var(--surfa
           {% empty %}
           <tr class="reparto-row">
             <td colspan="{% if is_admin %}5{% else %}4{% endif %}" style="padding-left:36px;color:#94a3b8;font-size:12px;font-style:italic;">
-              Nessun reparto in questa area. Crea un reparto e associalo qui.
+              Nessuna area aziendale in questo reparto. Crea un'area e associala qui.
             </td>
           </tr>
           {% endfor %}
           {% empty %}
-          <tr><td colspan="{% if is_admin %}5{% else %}4{% endif %}" class="cat-empty">Nessuna area aziendale creata. Usa il tab "＋ Area aziendale" per aggiungerne una.</td></tr>
+          <tr><td colspan="{% if is_admin %}5{% else %}4{% endif %}" class="cat-empty">Nessun reparto creato. Usa il tab "＋ Reparto" per aggiungerne uno.</td></tr>
           {% endfor %}
 
-          {% if reparti_senza_area %}
-          <!-- Reparti non assegnati ad alcuna area -->
+          {% if aree_senza_reparto %}
+          <!-- Aree aziendali non assegnate ad alcun reparto -->
           <tr class="senza-area-band">
             <td colspan="{% if is_admin %}5{% else %}4{% endif %}">
-              <span>⚠ Reparti senza area aziendale ({{ reparti_senza_area|length }})</span>
+              <span>⚠ Aree aziendali senza reparto ({{ aree_senza_reparto|length }})</span>
             </td>
           </tr>
-          {% for rep in reparti_senza_area %}
-          <tr class="reparto-row" {% if not rep.is_active %}style="opacity:.6;"{% endif %}>
-            <td><span class="reparto-name">↳ {{ rep.nome }}</span></td>
-            <td style="color:#64748b;">{{ rep.descrizione|default:"—" }}</td>
+          {% for area in aree_senza_reparto %}
+          <tr class="reparto-row" {% if not area.is_active %}style="opacity:.6;"{% endif %}>
+            <td><span class="reparto-name">↳ {{ area.nome }}</span></td>
+            <td style="color:#64748b;">{{ area.descrizione|default:"—" }}</td>
             <td>
-              {% if rep.caporeparto_label %}
-                <span class="cat-pill cat-pill-blue">{{ rep.caporeparto_label }}</span>
+              {% if area.responsabile_label %}
+                <span class="cat-pill cat-pill-blue">{{ area.responsabile_label }}</span>
               {% else %}
                 <span style="color:#94a3b8;">—</span>
               {% endif %}
             </td>
             <td>
-              {% if rep.is_active %}
+              {% if area.is_active %}
                 <span class="cat-pill cat-pill-green">Attivo</span>
               {% else %}
                 <span class="cat-pill cat-pill-gray">Inattivo</span>
@@ -226,15 +231,15 @@ body.theme-dark .cat-input, body.theme-dark .cat-select { background:var(--surfa
             <td>
               <div style="display:flex;gap:6px;flex-wrap:wrap;">
                 <button class="cat-btn cat-btn-ghost cat-btn-sm"
-                        data-edit-rep-id="{{ rep.pk }}"
-                        data-edit-rep-nome="{{ rep.nome }}"
-                        data-edit-rep-desc="{{ rep.descrizione }}"
-                        data-edit-rep-capo="{{ rep.caporeparto_legacy_id|default_if_none:'' }}"
-                        data-edit-rep-area=""
-                        data-edit-rep-active="{{ rep.is_active|yesno:'1,0' }}">
+                        data-edit-area-id="{{ area.pk }}"
+                        data-edit-area-nome="{{ area.nome }}"
+                        data-edit-area-desc="{{ area.descrizione }}"
+                        data-edit-area-responsabile="{{ area.responsabile_legacy_id|default_if_none:'' }}"
+                        data-edit-area-reparto=""
+                        data-edit-area-active="{{ area.is_active|yesno:'1,0' }}">
                   Modifica
                 </button>
-                <form method="post" action="{% url 'anagrafica:area_delete' rep.pk %}" style="display:inline;" onsubmit="return confirm('Eliminare il reparto «{{ rep.nome }}»?')">
+                <form method="post" action="{% url 'anagrafica:area_aziendale_delete' area.pk %}" style="display:inline;" onsubmit="return confirm('Eliminare l\'area «{{ area.nome }}»?')">
                   {% csrf_token %}
                   <button type="submit" class="cat-btn cat-btn-danger cat-btn-sm">Elimina</button>
                 </form>
@@ -249,33 +254,6 @@ body.theme-dark .cat-input, body.theme-dark .cat-select { background:var(--surfa
     </div>
 
     {% if is_admin %}
-    <!-- ── TAB: Nuova area aziendale ── -->
-    <div class="cat-tab-panel" data-tab-panel="add-area">
-      <div style="padding:20px;">
-        <div class="cat-add-title">Nuova area aziendale</div>
-        <form method="post" action="{% url 'anagrafica:area_aziendale_create' %}">
-          {% csrf_token %}
-          <div class="cat-form-row">
-            <div class="cat-field">
-              <label class="cat-label">Nome <span style="color:#ef4444;">*</span></label>
-              <input class="cat-input" type="text" name="nome" maxlength="100" placeholder="Es. Produzione, Uffici, Cantieri..." required>
-            </div>
-            <div class="cat-field" style="flex:2;">
-              <label class="cat-label">Descrizione</label>
-              <input class="cat-input" type="text" name="descrizione" placeholder="Descrizione opzionale">
-            </div>
-            <div class="cat-field" style="flex:0;min-width:100px;">
-              <label class="cat-label">Colore</label>
-              <input class="cat-input" type="color" name="colore" value="#1f87cd" style="padding:4px;height:37px;cursor:pointer;">
-            </div>
-            <div style="padding-bottom:1px;">
-              <button type="submit" class="cat-btn cat-btn-primary">Crea area</button>
-            </div>
-          </div>
-        </form>
-      </div>
-    </div>
-
     <!-- ── TAB: Nuovo reparto ── -->
     <div class="cat-tab-panel" data-tab-panel="add-reparto">
       <div style="padding:20px;">
@@ -285,22 +263,17 @@ body.theme-dark .cat-input, body.theme-dark .cat-select { background:var(--surfa
           <div class="cat-form-row">
             <div class="cat-field">
               <label class="cat-label">Nome <span style="color:#ef4444;">*</span></label>
-              <input class="cat-input" type="text" name="nome" maxlength="100" placeholder="Es. Assemblaggio, Magazzino..." required>
+              <input class="cat-input" type="text" name="nome" maxlength="100" placeholder="Es. UT, Produzione, Magazzino..." required>
             </div>
             <div class="cat-field" style="flex:2;">
               <label class="cat-label">Descrizione</label>
               <input class="cat-input" type="text" name="descrizione" placeholder="Descrizione opzionale">
             </div>
-            <div class="cat-field" style="min-width:200px;">
-              <label class="cat-label">Area aziendale</label>
-              <select class="cat-select" name="area_aziendale_id">
-                <option value="">— Nessuna —</option>
-                {% for az in aree_aziendali %}
-                  <option value="{{ az.pk }}">{{ az.nome }}</option>
-                {% endfor %}
-              </select>
+            <div class="cat-field" style="flex:0;min-width:100px;">
+              <label class="cat-label">Colore</label>
+              <input class="cat-input" type="color" name="colore" value="#1f87cd" style="padding:4px;height:37px;cursor:pointer;">
             </div>
-            <div class="cat-field" style="flex:2;min-width:220px;">
+            <div class="cat-field" style="flex:3;min-width:240px;">
               <label class="cat-label">Caporeparto</label>
               <select class="cat-select" name="caporeparto_legacy_id">
                 <option value="">— Nessuno —</option>
@@ -316,45 +289,53 @@ body.theme-dark .cat-input, body.theme-dark .cat-select { background:var(--surfa
         </form>
       </div>
     </div>
+
+    <!-- ── TAB: Nuova area aziendale ── -->
+    <div class="cat-tab-panel" data-tab-panel="add-area">
+      <div style="padding:20px;">
+        <div class="cat-add-title">Nuova area aziendale</div>
+        <form method="post" action="{% url 'anagrafica:area_aziendale_create' %}">
+          {% csrf_token %}
+          <div class="cat-form-row">
+            <div class="cat-field">
+              <label class="cat-label">Nome <span style="color:#ef4444;">*</span></label>
+              <input class="cat-input" type="text" name="nome" maxlength="100" placeholder="Es. IN1, IN2, IT, DM..." required>
+            </div>
+            <div class="cat-field" style="flex:2;">
+              <label class="cat-label">Descrizione</label>
+              <input class="cat-input" type="text" name="descrizione" placeholder="Descrizione opzionale">
+            </div>
+            <div class="cat-field" style="min-width:200px;">
+              <label class="cat-label">Reparto</label>
+              <select class="cat-select" name="reparto_id">
+                <option value="">— Nessuno —</option>
+                {% for rep in reparti %}
+                  <option value="{{ rep.pk }}">{{ rep.nome }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="cat-field" style="flex:2;min-width:220px;">
+              <label class="cat-label">Responsabile</label>
+              <select class="cat-select" name="responsabile_legacy_id">
+                <option value="">— Nessuno —</option>
+                {% for dip in dipendenti_picker %}
+                  <option value="{{ dip.id }}">{{ dip.label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div style="padding-bottom:1px;">
+              <button type="submit" class="cat-btn cat-btn-primary">Crea area</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
     {% endif %}
   </div><!-- /cat-card -->
 
 </div><!-- /cat-page -->
 
 {% if is_admin %}
-<!-- ── Modal modifica area aziendale ── -->
-<div id="edit-area-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center;">
-  <div style="background:#fff;border-radius:14px;padding:24px;min-width:380px;max-width:500px;width:90%;">
-    <div style="font-size:15px;font-weight:700;color:#1e293b;margin-bottom:16px;">Modifica area aziendale</div>
-    <form method="post" id="edit-area-form">
-      {% csrf_token %}
-      <div style="display:flex;flex-direction:column;gap:12px;">
-        <div class="cat-field">
-          <label class="cat-label">Nome <span style="color:#ef4444;">*</span></label>
-          <input class="cat-input" type="text" name="nome" id="edit-area-nome" maxlength="100" required>
-        </div>
-        <div class="cat-field">
-          <label class="cat-label">Descrizione</label>
-          <input class="cat-input" type="text" name="descrizione" id="edit-area-desc">
-        </div>
-        <div class="cat-field" style="flex:0;min-width:100px;">
-          <label class="cat-label">Colore</label>
-          <input class="cat-input" type="color" name="colore" id="edit-area-colore" style="padding:4px;height:37px;cursor:pointer;">
-        </div>
-        <div>
-          <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#334155;cursor:pointer;">
-            <input type="checkbox" name="is_active" id="edit-area-active" value="1"> Area attiva
-          </label>
-        </div>
-        <div style="display:flex;gap:8px;padding-top:4px;">
-          <button type="submit" class="cat-btn cat-btn-primary">Salva</button>
-          <button type="button" class="cat-btn cat-btn-ghost" onclick="closeAreaEdit()">Annulla</button>
-        </div>
-      </div>
-    </form>
-  </div>
-</div>
-
 <!-- ── Modal modifica reparto ── -->
 <div id="edit-rep-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:14px;padding:24px;min-width:380px;max-width:560px;width:90%;">
@@ -370,14 +351,9 @@ body.theme-dark .cat-input, body.theme-dark .cat-select { background:var(--surfa
           <label class="cat-label">Descrizione</label>
           <input class="cat-input" type="text" name="descrizione" id="edit-rep-desc">
         </div>
-        <div class="cat-field">
-          <label class="cat-label">Area aziendale</label>
-          <select class="cat-select" name="area_aziendale_id" id="edit-rep-area">
-            <option value="">— Nessuna —</option>
-            {% for az in aree_aziendali %}
-              <option value="{{ az.pk }}">{{ az.nome }}</option>
-            {% endfor %}
-          </select>
+        <div class="cat-field" style="flex:0;min-width:100px;">
+          <label class="cat-label">Colore</label>
+          <input class="cat-input" type="color" name="colore" id="edit-rep-colore" style="padding:4px;height:37px;cursor:pointer;">
         </div>
         <div class="cat-field">
           <label class="cat-label">Caporeparto</label>
@@ -402,6 +378,53 @@ body.theme-dark .cat-input, body.theme-dark .cat-select { background:var(--surfa
   </div>
 </div>
 
+<!-- ── Modal modifica area aziendale ── -->
+<div id="edit-area-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;padding:24px;min-width:380px;max-width:500px;width:90%;">
+    <div style="font-size:15px;font-weight:700;color:#1e293b;margin-bottom:16px;">Modifica area aziendale</div>
+    <form method="post" id="edit-area-form">
+      {% csrf_token %}
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div class="cat-field">
+          <label class="cat-label">Nome <span style="color:#ef4444;">*</span></label>
+          <input class="cat-input" type="text" name="nome" id="edit-area-nome" maxlength="100" required>
+        </div>
+        <div class="cat-field">
+          <label class="cat-label">Descrizione</label>
+          <input class="cat-input" type="text" name="descrizione" id="edit-area-desc">
+        </div>
+        <div class="cat-field">
+          <label class="cat-label">Reparto</label>
+          <select class="cat-select" name="reparto_id" id="edit-area-reparto">
+            <option value="">— Nessuno —</option>
+            {% for rep in reparti %}
+              <option value="{{ rep.pk }}">{{ rep.nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="cat-field">
+          <label class="cat-label">Responsabile</label>
+          <select class="cat-select" name="responsabile_legacy_id" id="edit-area-responsabile">
+            <option value="">— Nessuno —</option>
+            {% for dip in dipendenti_picker %}
+              <option value="{{ dip.id }}">{{ dip.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#334155;cursor:pointer;">
+            <input type="checkbox" name="is_active" id="edit-area-active" value="1"> Area attiva
+          </label>
+        </div>
+        <div style="display:flex;gap:8px;padding-top:4px;">
+          <button type="submit" class="cat-btn cat-btn-primary">Salva</button>
+          <button type="button" class="cat-btn cat-btn-ghost" onclick="closeAreaEdit()">Annulla</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
 (function() {
   // ── Tab navigation ──
@@ -416,26 +439,6 @@ body.theme-dark .cat-input, body.theme-dark .cat-select { background:var(--surfa
     });
   });
 
-  // ── Modal area aziendale ──
-  var areaEditBase = "{% url 'anagrafica:area_aziendale_edit' 0 %}";
-  window.closeAreaEdit = function() {
-    document.getElementById('edit-area-modal').style.display = 'none';
-  };
-  document.querySelectorAll('[data-edit-area-id]').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      var id = btn.getAttribute('data-edit-area-id');
-      document.getElementById('edit-area-form').action = areaEditBase.replace('/0/', '/' + id + '/');
-      document.getElementById('edit-area-nome').value = btn.getAttribute('data-edit-area-nome') || '';
-      document.getElementById('edit-area-desc').value = btn.getAttribute('data-edit-area-desc') || '';
-      document.getElementById('edit-area-colore').value = btn.getAttribute('data-edit-area-colore') || '#64748b';
-      document.getElementById('edit-area-active').checked = btn.getAttribute('data-edit-area-active') === '1';
-      document.getElementById('edit-area-modal').style.display = 'flex';
-    });
-  });
-  document.getElementById('edit-area-modal').addEventListener('click', function(e) {
-    if (e.target === this) closeAreaEdit();
-  });
-
   // ── Modal reparto ──
   var repEditBase = "{% url 'anagrafica:area_edit' 0 %}";
   window.closeRepEdit = function() {
@@ -447,14 +450,35 @@ body.theme-dark .cat-input, body.theme-dark .cat-select { background:var(--surfa
       document.getElementById('edit-rep-form').action = repEditBase.replace('/0/', '/' + id + '/');
       document.getElementById('edit-rep-nome').value = btn.getAttribute('data-edit-rep-nome') || '';
       document.getElementById('edit-rep-desc').value = btn.getAttribute('data-edit-rep-desc') || '';
+      document.getElementById('edit-rep-colore').value = btn.getAttribute('data-edit-rep-colore') || '#64748b';
       document.getElementById('edit-rep-capo').value = btn.getAttribute('data-edit-rep-capo') || '';
-      document.getElementById('edit-rep-area').value = btn.getAttribute('data-edit-rep-area') || '';
       document.getElementById('edit-rep-active').checked = btn.getAttribute('data-edit-rep-active') === '1';
       document.getElementById('edit-rep-modal').style.display = 'flex';
     });
   });
   document.getElementById('edit-rep-modal').addEventListener('click', function(e) {
     if (e.target === this) closeRepEdit();
+  });
+
+  // ── Modal area aziendale ──
+  var areaEditBase = "{% url 'anagrafica:area_aziendale_edit' 0 %}";
+  window.closeAreaEdit = function() {
+    document.getElementById('edit-area-modal').style.display = 'none';
+  };
+  document.querySelectorAll('[data-edit-area-id]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var id = btn.getAttribute('data-edit-area-id');
+      document.getElementById('edit-area-form').action = areaEditBase.replace('/0/', '/' + id + '/');
+      document.getElementById('edit-area-nome').value = btn.getAttribute('data-edit-area-nome') || '';
+      document.getElementById('edit-area-desc').value = btn.getAttribute('data-edit-area-desc') || '';
+      document.getElementById('edit-area-reparto').value = btn.getAttribute('data-edit-area-reparto') || '';
+      document.getElementById('edit-area-responsabile').value = btn.getAttribute('data-edit-area-responsabile') || '';
+      document.getElementById('edit-area-active').checked = btn.getAttribute('data-edit-area-active') === '1';
+      document.getElementById('edit-area-modal').style.display = 'flex';
+    });
+  });
+  document.getElementById('edit-area-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeAreaEdit();
   });
 })();
 </script>
