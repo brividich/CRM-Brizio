@@ -566,24 +566,18 @@ class Command(BaseCommand):
                 aziendale.save()
                 stats["aggiornati_aziendale"] += 1
 
-        # 3b) Sync reparto → area aziendale + caporeparto
+        # 3b) Sync reparto → caporeparto (l'area aziendale non si autopopola
+        # più: con l'inversione della gerarchia un Reparto può avere più
+        # Aree aziendali figlie, quindi non è più derivabile da un singolo
+        # Reparto — vedi Fase 2 nello spec).
         reparto_nome = _txt(cell(raw_row, "reparto"))
         if reparto_nome and (created_az or update_existing):
-            rep = (
-                Reparto.objects
-                .filter(nome__iexact=reparto_nome, is_active=True)
-                .select_related("area_aziendale")
-                .first()
-            )
-            area_nome = rep.area_aziendale.nome if rep and rep.area_aziendale else ""
+            rep = Reparto.objects.filter(nome__iexact=reparto_nome, is_active=True).first()
             capo_id = rep.caporeparto_legacy_id if rep else None
             update_fields = []
             if aziendale.area != reparto_nome:
                 aziendale.area = reparto_nome
                 update_fields.append("area")
-            if aziendale.area_aziendale_nome != area_nome:
-                aziendale.area_aziendale_nome = area_nome
-                update_fields.append("area_aziendale_nome")
             if aziendale.caporeparto_legacy_id != capo_id:
                 aziendale.caporeparto_legacy_id = capo_id
                 update_fields.append("caporeparto_legacy_id")
