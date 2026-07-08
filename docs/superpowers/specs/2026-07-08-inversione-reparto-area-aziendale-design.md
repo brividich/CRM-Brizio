@@ -57,6 +57,7 @@ Verificata con un audit esaustivo (agenti paralleli + verifica manuale mirata) s
 | `anagrafica/tests.py` | `OrganigrammaTests` (righe 2706-2749): `setUpTestData` crea `AreaAziendale(colore=...)` + `Reparto(area_aziendale=...)`, e le asserzioni sulla view organigramma assumono la gerarchia attuale |
 | `anagrafica/management/commands/import_dipendenti_xlsx.py` | Sezione "3b) Sync reparto → area aziendale" (righe 570-592): `select_related("area_aziendale")` + `rep.area_aziendale.nome` |
 | `dashboard/views_home_portale.py` | Tile "planimetria" (~401): `AreaAziendale.objects.count()` etichettato "reparti" → va `Reparto.objects.count()` |
+| `anagrafica/templates/anagrafica/pages/impostazioni.html` | **Trovato in approfondimento post-spec**: seconda UI CRUD completa (tab "Aree aziendali" + "Reparti" + blocco "Capireparto designati", righe ~202-663), quasi duplicato di `aree_list.html`, alimentata dalle stesse view. Usa `az.reparti.count`, `a.area_aziendale`/`a.area_aziendale.nome`/`a.area_aziendale_id`, `rep.area_aziendale.nome` — stessi punti di rottura di `aree_list.html` |
 
 ### Compatibile ma dati da re-inserire (`data_reentry_only`)
 
