@@ -58,16 +58,54 @@ def _url_scheda(spec) -> str:
 
 
 def _invia_email_html(email: str, spec, url_rel: str) -> None:
+    """Email HTML in stile HUB (frame condiviso) con tabella fatti + CTA.
+
+    Usa send_hub_mail: il corpo `text/plain` è testo vero (niente HTML grezzo),
+    l'alternativa HTML è instradata nel frame NOVICROM HUB.
+    """
     try:
-        from django.core.mail import EmailMultiAlternatives
-        from django.template.loader import render_to_string
+        from core.email_utils import email_cta, email_facts_table, send_hub_mail
         base = str(getattr(settings, "SITE_URL", "") or "").rstrip("/")
-        ctx = {"spec": spec, "url": (base + url_rel) if base else url_rel}
-        html = render_to_string("gestione_specifiche/emails/nuova_specifica.html", ctx)
-        subj = f"Nuova specifica {spec.codice} da prendere in carico"
-        msg = EmailMultiAlternatives(subj, html, getattr(settings, "DEFAULT_FROM_EMAIL", None), [email])
-        msg.attach_alternative(html, "text/html")
-        msg.send(fail_silently=True)
+        url = (base + url_rel) if base else url_rel
+        codice = getattr(spec, "codice", "") or ""
+        rev = getattr(spec, "revisione", "") or ""
+        titolo = getattr(spec, "titolo", "") or ""
+        cliente = getattr(spec, "cliente", "") or ""
+
+        rows = [("Codice", f"{codice} · r.{rev}" if rev else codice)]
+        if titolo:
+            rows.append(("Titolo", titolo))
+        if cliente:
+            rows.append(("Cliente", cliente))
+
+        fragment = (
+            '<p style="margin:0 0 16px;color:#475569;font-size:15px;line-height:1.6;">'
+            'È stata inserita una nuova specifica che richiede la '
+            '<strong>presa in carico</strong>.</p>'
+            + email_facts_table(rows)
+            + '<div style="height:18px;line-height:18px;font-size:0;">&nbsp;</div>'
+            + email_cta("Apri la scheda e prendi in carico", url)
+        )
+        body_text = "\n".join(x for x in [
+            "È stata inserita una nuova specifica da prendere in carico.",
+            "",
+            f"Codice: {codice}" + (f" · r.{rev}" if rev else ""),
+            f"Titolo: {titolo}" if titolo else "",
+            f"Cliente: {cliente}" if cliente else "",
+            "",
+            f"Apri la scheda: {url}",
+        ] if x is not None)
+
+        send_hub_mail(
+            subject=f"Nuova specifica {codice} da prendere in carico",
+            body_text=body_text,
+            recipients=[email],
+            title="Nuova specifica da prendere in carico",
+            email_type="Gestione Specifiche",
+            section_label="Presa in carico",
+            body_html_fragment=fragment,
+            fail_silently=True,
+        )
     except Exception:  # noqa: BLE001
         logger.exception("[gs] invio email nuova specifica a %s fallito", email)
 

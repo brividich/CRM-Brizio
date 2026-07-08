@@ -55,9 +55,30 @@ def _legacy_user_id(user):
         return None
 
 
-def _notifica(users, *, oggetto: str, messaggio: str, url: str, tipo: str = "generico") -> None:
-    """Invia email + notifica in-app ai destinatari (fail-safe, dedup)."""
+def _abs_url(url: str) -> str:
+    base = str(getattr(settings, "SITE_URL", "") or "").rstrip("/")
+    return base + url if base and url.startswith("/") else url
+
+
+def _fragment_email(messaggio: str, url: str, facts) -> str:
+    """Frammento HTML del corpo: messaggio + tabella fatti + CTA (email-safe)."""
+    from core.email_utils import email_cta, email_facts_table, text_to_html
+    parts = [text_to_html(messaggio)]
+    if facts:
+        parts.append('<div style="height:14px;line-height:14px;font-size:0;">&nbsp;</div>')
+        parts.append(email_facts_table(facts))
+    if url:
+        parts.append('<div style="height:18px;line-height:18px;font-size:0;">&nbsp;</div>')
+        parts.append(email_cta("Apri la scheda sul portale", _abs_url(url)))
+    return "".join(parts)
+
+
+def _notifica(users, *, oggetto: str, messaggio: str, url: str, tipo: str = "generico",
+              facts: list | None = None) -> None:
+    """Invia email (frame HUB + tabella fatti + CTA) + notifica in-app ai
+    destinatari (fail-safe, dedup). ``facts``: righe ``(etichetta, valore)``."""
     seen = set()
+    fragment = _fragment_email(messaggio, url, facts)
     for user in users:
         if user is None or user.id in seen:
             continue
@@ -77,8 +98,9 @@ def _notifica(users, *, oggetto: str, messaggio: str, url: str, tipo: str = "gen
                 from core.email_utils import send_hub_mail
                 send_hub_mail(
                     subject=oggetto, body_text=messaggio, recipients=[email],
-                    title="Gestione Specifiche", email_type="Scadenze",
-                    fail_silently=True,
+                    title=oggetto, email_type="Scadenze",
+                    section_label="Gestione Specifiche",
+                    body_html_fragment=fragment, fail_silently=True,
                 )
             except Exception as exc:
                 logger.debug("gs email fallita: %s", exc)
@@ -118,6 +140,10 @@ def invia_reminder_mod133(now=None) -> dict:
             oggetto=f"Promemoria MOD.133 — {spec.codice}",
             messaggio=f"Il MOD.133 della specifica {spec.codice} attende la presa in carico da {giorni} giorni.",
             url=_url_dettaglio(spec), tipo="generico",
+            facts=[
+                ("Specifica", spec.codice),
+                ("Situazione", f"MOD.133 non preso in carico da {giorni} giorni"),
+            ],
         )
         mod.reminder_inviato = True
         mod.save(update_fields=["reminder_inviato", "updated_at"])
@@ -145,6 +171,10 @@ def invia_escalation_mod133(now=None) -> dict:
             oggetto=f"ESCALATION MOD.133 — {spec.codice}",
             messaggio=f"Il MOD.133 della specifica {spec.codice} è in flow-down da oltre {giorni} giorni senza approvazione.",
             url=_url_dettaglio(spec), tipo="generico",
+            facts=[
+                ("Specifica", spec.codice),
+                ("Situazione", f"In flow-down da oltre {giorni} giorni senza approvazione"),
+            ],
         )
         mod.escalation_inviata = True
         mod.save(update_fields=["escalation_inviata", "updated_at"])
@@ -173,6 +203,10 @@ def esegui_verifica_periodica(now=None) -> dict:
             oggetto=f"Verifica periodica — {spec.codice}",
             messaggio=f"La specifica {spec.codice} è in scadenza di verifica periodica (al {spec.data_verifica}).",
             url=_url_dettaglio(spec), tipo="generico",
+            facts=[
+                ("Specifica", spec.codice),
+                ("Verifica periodica", f"prevista entro il {spec.data_verifica}"),
+            ],
         )
         spec.verifica_reminder_inviata_at = now
         spec.data_verifica = spec.data_verifica + relativedelta(months=mesi)
