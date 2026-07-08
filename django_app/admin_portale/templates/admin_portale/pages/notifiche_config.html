@@ -1,0 +1,50 @@
+{% extends "core/base.html" %}
+
+{% block title %}Gestione notifiche | Admin Portale{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Gestione notifiche" page_subtitle="Accendi o spegni ciascuna categoria di notifica per tutti gli utenti." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-body" style="padding:14px;font-size:13px;color:#475569;line-height:1.6;">
+      Questi interruttori valgono <strong>per tutti</strong> (livello admin). Se spegni una categoria,
+      nessun utente riceve più quelle notifiche <strong>in-app</strong> (l'admin ha la precedenza sulle
+      preferenze personali). Ogni utente può poi disattivare per sé le categorie accese, da
+      <em>Notifiche → Impostazioni</em>. Vedi cosa parte davvero nel
+      <a href="{% url 'admin_portale:notifiche_log' %}">Log notifiche</a>.
+    </div>
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">🔔 Categorie di notifica</div>
+      </div>
+      <div class="card-body" style="padding:0;">
+        {% for c in categorie %}
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 18px;border-bottom:1px solid #f1f5f9;">
+            <div style="font-size:14px;color:#1e293b;font-weight:600;">{{ c.label }}
+              <span style="font-size:11px;color:#94a3b8;font-weight:400;"> · {{ c.key }}</span>
+            </div>
+            <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;">
+              <input type="checkbox" name="cat_{{ c.key }}" value="1" {% if c.enabled %}checked{% endif %}
+                     style="width:18px;height:18px;cursor:pointer;">
+              <span style="font-size:13px;color:{% if c.enabled %}#16a34a{% else %}#94a3b8{% endif %};font-weight:600;min-width:64px;">
+                {% if c.enabled %}Attiva{% else %}Spenta{% endif %}
+              </span>
+            </label>
+          </div>
+        {% endfor %}
+      </div>
+      <div style="padding:16px 18px;">
+        <button type="submit" style="padding:9px 22px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;">Salva</button>
+      </div>
+    </div>
+  </form>
+{% endblock %}

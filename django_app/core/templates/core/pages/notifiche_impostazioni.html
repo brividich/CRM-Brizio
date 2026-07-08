@@ -1,0 +1,46 @@
+{% extends "core/base.html" %}
+
+{% block title %}Impostazioni notifiche | Portale{% endblock %}
+
+{% block content %}
+  <div class="page-header">
+    <div class="page-h">Impostazioni notifiche</div>
+    <div class="page-sub">Scegli quali categorie di notifica ricevere</div>
+  </div>
+
+  {% if messages %}
+    {% for msg in messages %}
+      <div style="padding:12px 16px;border-radius:10px;margin-bottom:12px;background:#dcfce7;color:#15803d;font-size:13px;font-weight:600;">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">🔔 Le mie notifiche</div>
+        <a href="{% url 'notifiche' %}" style="font-size:13px;color:#2563eb;text-decoration:none;">← Torna alle notifiche</a>
+      </div>
+      <div class="card-body" style="padding:0;">
+        {% for o in options %}
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:16px 18px;border-bottom:1px solid #f1f5f9;">
+            <div style="flex:1;">
+              <div style="font-size:14px;color:#1e293b;font-weight:600;">{{ o.label }}</div>
+              <div style="font-size:12px;color:#94a3b8;margin-top:3px;">{{ o.description }}</div>
+              {% if o.global_off %}
+                <div style="font-size:11px;color:#b45309;margin-top:5px;">⚠️ Disattivata a livello aziendale — la tua scelta qui non ha effetto finché resta spenta.</div>
+              {% endif %}
+            </div>
+            <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;padding-top:2px;">
+              <input type="checkbox" name="notifiche_{{ o.key }}" value="1" {% if o.enabled %}checked{% endif %}
+                     style="width:18px;height:18px;cursor:pointer;">
+            </label>
+          </div>
+        {% endfor %}
+      </div>
+      <div style="padding:16px 18px;">
+        <button type="submit" style="padding:9px 22px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;">Salva preferenze</button>
+      </div>
+    </div>
+  </form>
+{% endblock %}

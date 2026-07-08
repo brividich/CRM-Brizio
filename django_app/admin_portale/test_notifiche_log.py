@@ -73,3 +73,43 @@ class NotificheLogViewTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         blob = (resp.get("Content-Type", "") + resp.get("Content-Disposition", "")).lower()
         self.assertIn("csv", blob)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class NotificheConfigViewTests(TestCase):
+    """Pannello admin: accende/spegne le categorie globalmente."""
+
+    def setUp(self):
+        _ensure_utenti_table()
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM utenti")
+        self.admin_user = User.objects.create_superuser(
+            username="admin-notif-cfg", email="a.cfg@test.local", password="pass12345"
+        )
+        self.admin_legacy = UtenteLegacy.objects.create(
+            nome="Admin Cfg", email="a.cfg@test.local", password="*AD_MANAGED*",
+            ruolo="admin", ruolo_id=1, attivo=True, deve_cambiare_password=False,
+        )
+
+    def _as_admin(self, method, url, data=None):
+        self.client.force_login(self.admin_user)
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin", return_value=True
+        ):
+            if method == "post":
+                return self.client.post(url, data or {})
+            return self.client.get(url)
+
+    def test_pagina_render(self):
+        resp = self._as_admin("get", reverse("admin_portale:notifiche_config"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Scadenzari")
+
+    def test_toggle_spegne_categoria(self):
+        from core.notifiche_prefs import is_category_enabled_globally
+
+        # POST con solo 'assenze' acceso → le altre categorie si spengono
+        self._as_admin("post", reverse("admin_portale:notifiche_config"), {"cat_assenze": "1"})
+        self.assertTrue(is_category_enabled_globally("assenze"))
+        self.assertFalse(is_category_enabled_globally("scadenzari"))
+        self.assertFalse(is_category_enabled_globally("ticket"))

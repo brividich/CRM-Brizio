@@ -115,6 +115,7 @@ urlpatterns = [
     path("audit/", views.audit_log_view, name="audit_log"),
     path("attivita-utenti/", views.user_activity_view, name="user_activity"),
     path("notifiche-log/", views.notifiche_log_view, name="notifiche_log"),
+    path("notifiche-config/", views.notifiche_config_view, name="notifiche_config"),
     path("health/", views.admin_health_check, name="health_check"),
     path("accessi/", views.accessi_semplice, name="accessi"),
     path("gestione-accessi/", views.gestione_accessi, name="gestione_accessi"),

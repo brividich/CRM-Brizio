@@ -18,6 +18,7 @@
       <div class="card-title">🔔 Cronologia notifiche</div>
       <div style="display:flex;align-items:center;gap:12px;">
         <span class="cell-muted">Ultime 50{% if unread_count %} · {{ unread_count }} non lette{% endif %}</span>
+        <a href="{% url 'notifiche_impostazioni' %}" style="padding:5px 12px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;color:#64748b;text-decoration:none;">⚙️ Impostazioni</a>
         {% if notifiche_list %}
           <button type="button" data-notification-mark-read
                   style="padding:5px 12px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;background:#fff;color:#334155;cursor:pointer;">

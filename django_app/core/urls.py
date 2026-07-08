@@ -47,6 +47,7 @@ urlpatterns = [
     path("rubrica/", views.rubrica, name="rubrica"),
     path("organigramma/", views.organigramma, name="organigramma"),
     path("notifiche/", views.notifiche, name="notifiche"),
+    path("notifiche/impostazioni/", views.notifiche_impostazioni, name="notifiche_impostazioni"),
     path("api/notifiche/<int:notifica_id>/leggi", views.api_notifica_leggi, name="api_notifica_leggi"),
     path("api/notifiche/panel/", views.api_notifiche_panel, name="api_notifiche_panel"),
     path("api/notifiche/live/", views.api_notifiche_live, name="api_notifiche_live"),

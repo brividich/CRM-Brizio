@@ -40,6 +40,15 @@ def invia_notifica(
             messaggio,
         )
         return
+    # Rispetta gli interruttori notifiche (admin globale + preferenza utente):
+    # unico chokepoint in-app → copre tutti i moduli. Fail-open in caso di errore.
+    try:
+        from core.notifiche_prefs import should_notify
+
+        if not should_notify(tipo=tipo, legacy_user_id=legacy_user_id):
+            return
+    except Exception:
+        logger.exception("should_notify fallito (tipo=%s): invio comunque", tipo)
     try:
         from core.models import Notifica
         Notifica.objects.create(

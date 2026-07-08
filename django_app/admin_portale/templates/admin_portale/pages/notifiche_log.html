@@ -14,7 +14,10 @@
   <div class="card" style="margin-bottom:16px;">
     <div class="card-head">
       <div class="card-title">📊 Ultimi {{ days }} giorni</div>
-      <div class="cell-muted">{{ totale }} notifiche · {{ non_lette }} non lette</div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span class="cell-muted">{{ totale }} notifiche · {{ non_lette }} non lette</span>
+        <a href="{% url 'admin_portale:notifiche_config' %}" style="font-size:13px;color:#2563eb;text-decoration:none;">⚙️ Gestione (accendi/spegni)</a>
+      </div>
     </div>
     <div class="card-body" style="padding:14px;">
       {% if per_tipo %}

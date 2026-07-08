@@ -71,6 +71,13 @@ _ONBOARDING_NOTIFICATION_SPECS: tuple[dict[str, object], ...] = (
         "default": False,
         "module_keys": {"tickets"},
     },
+    {
+        "key": "operativita",
+        "label": "Operatività (anomalie, task, CAPA, specifiche)",
+        "description": "Anomalie da gestire, attività assegnate, azioni CAPA e specifiche.",
+        "default": True,
+        "module_keys": {"anomalie", "tasks", "gestione_specifiche"},
+    },
 )
 
 
@@ -868,6 +875,42 @@ def notifiche(request):
         "page_title": "Notifiche",
         "notifiche_list": lista,
         "unread_count": sum(1 for n in lista if not n.letta),
+    })
+
+
+@login_required
+def notifiche_impostazioni(request):
+    """Impostazioni notifiche dell'utente: gestisci le preferenze per categoria
+    anche dopo l'onboarding. Effettive ovunque via core.notifiche_prefs."""
+    from core.models import UserOnboarding
+    from core.notifiche_prefs import is_category_enabled_globally
+
+    onb, _ = UserOnboarding.objects.get_or_create(user=request.user)
+
+    if request.method == "POST":
+        cfg = onb.notifiche_config if isinstance(onb.notifiche_config, dict) else {}
+        for spec in _ONBOARDING_NOTIFICATION_SPECS:
+            key = str(spec["key"])
+            cfg[key] = request.POST.get(f"notifiche_{key}") == "1"
+        onb.notifiche_config = cfg
+        onb.save(update_fields=["notifiche_config"])
+        messages.success(request, "Preferenze notifiche salvate.")
+        return redirect("notifiche_impostazioni")
+
+    saved = onb.notifiche_config if isinstance(onb.notifiche_config, dict) else {}
+    options = [
+        {
+            "key": str(spec["key"]),
+            "label": str(spec["label"]),
+            "description": str(spec["description"]),
+            "enabled": bool(saved.get(str(spec["key"]), bool(spec.get("default", True)))),
+            "global_off": not is_category_enabled_globally(str(spec["key"])),
+        }
+        for spec in _ONBOARDING_NOTIFICATION_SPECS
+    ]
+    return render(request, "core/pages/notifiche_impostazioni.html", {
+        "page_title": "Impostazioni notifiche",
+        "options": options,
     })
 
 

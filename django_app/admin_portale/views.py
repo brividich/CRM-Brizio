@@ -9343,6 +9343,30 @@ def notifiche_log_view(request):
 
 
 @legacy_admin_required
+def notifiche_config_view(request):
+    """Interruttore admin globale: accende/spegne per TUTTI ciascuna categoria di
+    notifica (in-app; l'email lo eredita dove il sender consulta l'enforcement)."""
+    from core.notifiche_meta import CATEGORIE
+    from core.notifiche_prefs import is_category_enabled_globally, set_category_global
+
+    if request.method == "POST":
+        for cat in CATEGORIE:
+            set_category_global(cat, enabled=(request.POST.get(f"cat_{cat}") == "1"))
+        log_action(request, "notifiche_config", "admin_portale", {"categorie": list(CATEGORIE)})
+        messages.success(request, "Interruttori notifiche aggiornati.")
+        return redirect("admin_portale:notifiche_config")
+
+    categorie = [
+        {"key": cat, "label": label, "enabled": is_category_enabled_globally(cat)}
+        for cat, label in CATEGORIE.items()
+    ]
+    return render(request, "admin_portale/pages/notifiche_config.html", {
+        "page_title": "Gestione notifiche",
+        "categorie": categorie,
+    })
+
+
+@legacy_admin_required
 def user_activity_view(request):
     from datetime import timedelta
     from core.models import AuditLog
