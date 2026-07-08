@@ -635,7 +635,7 @@ def emit_monitoring_alert(*, subject: str, body: str, fingerprint: str,
     sent = False
     if bool(getattr(settings, "MONITORING_NOTIFY_CRITICAL_BY_EMAIL", True)):
         try:
-            from django.core.mail import send_mail
+            from core.email_utils import send_hub_mail
 
             from monitoring.services import _admin_recipients
 
@@ -646,7 +646,14 @@ def emit_monitoring_alert(*, subject: str, body: str, fingerprint: str,
                     or getattr(settings, "SERVER_EMAIL", "")
                     or "monitoring@localhost"
                 )
-                send_mail(subject, body, from_email, recipients, fail_silently=True)
+                # Frame HUB + badge; il corpo (freeform) viene reso da send_hub_mail
+                # come paragrafo email-safe, il text/plain resta ``body`` pulito.
+                send_hub_mail(
+                    subject, body, recipients,
+                    email_type="Monitoraggio", badge="Alert",
+                    section_label="Centrale di comando",
+                    from_email=from_email, fail_silently=True,
+                )
                 sent = True
         except Exception:
             logger.exception("Invio alert monitoring fallito")

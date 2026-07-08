@@ -37,8 +37,9 @@ def run_system_digest(**kwargs) -> dict:
         always = bool(getattr(settings, "MONITORING_DIGEST_ALWAYS", True))
         if not (always or not digest["all_green"]):
             return result
-        from django.core.mail import send_mail
+        from core.email_utils import send_hub_mail
 
+        from monitoring.digest import render_system_digest_html
         from monitoring.services import _admin_recipients
 
         recipients = _admin_recipients()
@@ -50,7 +51,13 @@ def run_system_digest(**kwargs) -> dict:
             or getattr(settings, "SERVER_EMAIL", "")
             or "monitoring@localhost"
         )
-        send_mail(subject, body, from_email, recipients, fail_silently=True)
+        send_hub_mail(
+            subject, body, recipients,
+            email_type="Monitoraggio", section_label="Stato sistema",
+            badge=("Tutto ok" if digest["all_green"] else "Attenzioni"),
+            body_html_fragment=render_system_digest_html(digest),
+            from_email=from_email, fail_silently=True,
+        )
         result["sent"] = True
     except Exception:
         logger.exception("run_system_digest: errore inatteso")

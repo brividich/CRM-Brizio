@@ -35,7 +35,7 @@ class SystemDigestTests(TestCase):
     @override_settings(MONITORING_DIGEST_ALWAYS=True)
     def test_task_sends_heartbeat_when_always(self):
         with mock.patch("monitoring.services._admin_recipients", return_value=["a@b.c"]), \
-             mock.patch("django.core.mail.send_mail") as send:
+             mock.patch("core.email_utils.send_hub_mail") as send:
             result = tasks.run_system_digest()
         self.assertTrue(result["sent"])
         send.assert_called_once()
@@ -43,7 +43,7 @@ class SystemDigestTests(TestCase):
     @override_settings(MONITORING_DIGEST_ALWAYS=False)
     def test_task_skips_when_green_and_not_always(self):
         with mock.patch("monitoring.services._admin_recipients", return_value=["a@b.c"]), \
-             mock.patch("django.core.mail.send_mail") as send:
+             mock.patch("core.email_utils.send_hub_mail") as send:
             result = tasks.run_system_digest()
         self.assertFalse(result["sent"])
         send.assert_not_called()
@@ -51,7 +51,7 @@ class SystemDigestTests(TestCase):
     @override_settings(MONITORING_DIGEST_ALWAYS=True)
     def test_task_no_recipients_no_send(self):
         with mock.patch("monitoring.services._admin_recipients", return_value=[]), \
-             mock.patch("django.core.mail.send_mail") as send:
+             mock.patch("core.email_utils.send_hub_mail") as send:
             result = tasks.run_system_digest()
         self.assertFalse(result["sent"])
         send.assert_not_called()

@@ -324,7 +324,7 @@ class AiReadinessAlertTests(TestCase):
     def test_no_email_when_all_ok(self):
         ok = [CheckResult(name="ollama_chat", status=STATUS_OK, latency_ms=1)]
         with mock.patch.object(health, "run_ai_checks", return_value=ok), \
-             mock.patch("django.core.mail.send_mail") as send:
+             mock.patch("core.email_utils.send_hub_mail") as send:
             result = health.run_ai_readiness_alert()
         self.assertEqual(result["status"], STATUS_OK)
         self.assertFalse(result["emailed"])
@@ -337,7 +337,7 @@ class AiReadinessAlertTests(TestCase):
                            message="irraggiungibile")]
         with mock.patch.object(health, "run_ai_checks", return_value=bad), \
              mock.patch("monitoring.services._admin_recipients", return_value=["a@b.c"]), \
-             mock.patch("django.core.mail.send_mail") as send:
+             mock.patch("core.email_utils.send_hub_mail") as send:
             first = health.run_ai_readiness_alert()
             second = health.run_ai_readiness_alert()   # stesso degrado -> niente spam
         self.assertTrue(first["emailed"])
@@ -350,7 +350,7 @@ class AiReadinessAlertTests(TestCase):
         bad = [CheckResult(name="ollama_chat", status=STATUS_FAIL, latency_ms=1)]
         ok = [CheckResult(name="ollama_chat", status=STATUS_OK, latency_ms=1)]
         with mock.patch("monitoring.services._admin_recipients", return_value=["a@b.c"]), \
-             mock.patch("django.core.mail.send_mail") as send:
+             mock.patch("core.email_utils.send_hub_mail") as send:
             with mock.patch.object(health, "run_ai_checks", return_value=bad):
                 health.run_ai_readiness_alert()
             with mock.patch.object(health, "run_ai_checks", return_value=ok):
@@ -370,7 +370,7 @@ class AiReadinessAlertTests(TestCase):
         bad = [CheckResult(name="ollama_chat", status=STATUS_FAIL, latency_ms=1)]
         with mock.patch.object(health, "run_ai_checks", return_value=bad), \
              mock.patch("monitoring.services._admin_recipients", return_value=["a@b.c"]), \
-             mock.patch("django.core.mail.send_mail") as send:
+             mock.patch("core.email_utils.send_hub_mail") as send:
             # 20:00 -> quiet-hours: nessuna mail, stato anti-spam NON consumato
             with mock.patch("django.utils.timezone.localtime",
                             return_value=_dt.datetime(2026, 7, 2, 20, 0)):
@@ -394,7 +394,7 @@ class AiReadinessAlertTests(TestCase):
         bad = [CheckResult(name="ollama_chat", status=STATUS_FAIL, latency_ms=1)]
         with mock.patch.object(health, "run_ai_checks", return_value=bad), \
              mock.patch("monitoring.services._admin_recipients", return_value=["a@b.c"]), \
-             mock.patch("django.core.mail.send_mail") as send, \
+             mock.patch("core.email_utils.send_hub_mail") as send, \
              mock.patch("django.utils.timezone.localtime",
                         return_value=_dt.datetime(2026, 7, 2, 23, 0)):
             res = health.run_ai_readiness_alert(force_email=True)
@@ -416,7 +416,7 @@ class AiAlertIssueTests(TestCase):
         from monitoring.models import Issue
 
         with mock.patch.object(health, "run_ai_checks", return_value=self._checks(STATUS_FAIL)), \
-             mock.patch("django.core.mail.send_mail"):
+             mock.patch("core.email_utils.send_hub_mail"):
             health.run_ai_readiness_alert()
         open_issues = Issue.objects.exclude(status=Issue.Status.RESOLVED)
         self.assertEqual(open_issues.count(), 1)
@@ -427,13 +427,13 @@ class AiAlertIssueTests(TestCase):
 
         # Secondo run ancora FAIL: stessa Issue (dedup), non una nuova.
         with mock.patch.object(health, "run_ai_checks", return_value=self._checks(STATUS_FAIL)), \
-             mock.patch("django.core.mail.send_mail"):
+             mock.patch("core.email_utils.send_hub_mail"):
             health.run_ai_readiness_alert()
         self.assertEqual(Issue.objects.exclude(status=Issue.Status.RESOLVED).count(), 1)
 
         # Ritorno OK: la Issue viene risolta.
         with mock.patch.object(health, "run_ai_checks", return_value=self._checks(STATUS_OK)), \
-             mock.patch("django.core.mail.send_mail"):
+             mock.patch("core.email_utils.send_hub_mail"):
             health.run_ai_readiness_alert()
         self.assertEqual(Issue.objects.exclude(status=Issue.Status.RESOLVED).count(), 0)
         self.assertEqual(Issue.objects.filter(status=Issue.Status.RESOLVED).count(), 1)
@@ -442,7 +442,7 @@ class AiAlertIssueTests(TestCase):
         from monitoring.models import Issue
 
         with mock.patch.object(health, "run_ai_checks", return_value=self._checks(STATUS_WARN)), \
-             mock.patch("django.core.mail.send_mail"):
+             mock.patch("core.email_utils.send_hub_mail"):
             health.run_ai_readiness_alert()
         issue = Issue.objects.exclude(status=Issue.Status.RESOLVED).first()
         self.assertIsNotNone(issue)
