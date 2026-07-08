@@ -4045,7 +4045,9 @@ def dipendente_anagrafica_aziendale_save(request, legacy_id: int):
         obj.legacy_anagrafica_id = legacy_id
         obj.updated_by = request.user
         obj.save()
-        _sync_aziendale_from_reparto(legacy_id, obj.area or "", saved_by=request.user)
+        _sync_aziendale_from_reparto(
+            legacy_id, obj.area or "", area_aziendale_id=obj.area_aziendale_id, saved_by=request.user
+        )
         _registra_cambiamento(
             legacy_id,
             DipendenteCambiamentoOrganizzativo.TIPO_AREA,

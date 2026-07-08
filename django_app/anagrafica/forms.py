@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from django import forms
+from django.db.models import Q
 from django.utils import timezone
 
 from .models import (
@@ -143,7 +144,7 @@ class AnagraficaAziendaleForm(forms.ModelForm):
         exclude = [
             "legacy_anagrafica_id", "updated_by", "updated_at",
             "tipologia_contratto", "livello_inquadramento",
-            "area_aziendale_nome", "caporeparto_legacy_id",
+            "caporeparto_legacy_id",
         ]
         widgets = {
             "badge": forms.TextInput(attrs={"class": "dp-input", "placeholder": "Codice badge fisico"}),
@@ -173,6 +174,21 @@ class AnagraficaAziendaleForm(forms.ModelForm):
         self.fields["area"].label = "Reparto"
         self.fields["area"].widget = forms.Select(attrs={"class": "dp-input"})
         self.fields["area"].widget.choices = area_choices
+
+        # Area aziendale: dropdown filtrato via JS sul Reparto scelto (client-side,
+        # vedi cascading in dipendente_detail.html). Il queryset include le aree
+        # attive più quella eventualmente già assegnata (anche se nel frattempo
+        # disattivata), stesso criterio già usato sopra per "area".
+        area_aziendale_corrente_id = self.instance.area_aziendale_id if self.instance.pk else None
+        self.fields["area_aziendale"].queryset = AreaAziendale.objects.filter(
+            Q(is_active=True) | Q(pk=area_aziendale_corrente_id)
+        ).order_by("nome")
+        self.fields["area_aziendale"].label = "Area aziendale"
+        self.fields["area_aziendale"].empty_label = "— Nessuna —"
+        self.fields["area_aziendale"].widget.attrs.update({
+            "class": "dp-input",
+            "data-current": str(area_aziendale_corrente_id or ""),
+        })
 
         # Ruolo aziendale: dropdown da catalogo RuoloAziendale
         active_ruoli = list(RuoloAziendale.objects.filter(is_active=True).values_list("nome", flat=True).order_by("nome"))

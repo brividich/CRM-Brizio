@@ -149,3 +149,47 @@ class DipendenteRepartoSetAreaAziendaleTests(TestCase):
             {"reparto": "UT"},
         )
         self.assertEqual(resp.status_code, 302)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AnagraficaAziendaleFormAreaAziendaleTests(TestCase):
+    """Il form completo 'Modifica dati aziendali' include ora la FK area_aziendale,
+    corretta/azzerata da _sync_aziendale_from_reparto se incoerente col reparto."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin = User.objects.create_superuser(
+            username="az_form_admin", email="az_form_admin@x.local", password="x"
+        )
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def test_form_include_campo_area_aziendale_non_piu_nome(self):
+        from .forms import AnagraficaAziendaleForm
+        form = AnagraficaAziendaleForm()
+        self.assertIn("area_aziendale", form.fields)
+        self.assertNotIn("area_aziendale_nome", form.fields)
+
+    def test_save_con_area_coerente_persiste_la_fk(self):
+        rep = Reparto.objects.create(nome="UT")
+        area = AreaAziendale.objects.create(nome="IN1", reparto=rep)
+        resp = self.client.post(
+            reverse("anagrafica:dipendente_aziendale_save", args=[920]),
+            {"area": "UT", "area_aziendale": str(area.pk)},
+        )
+        self.assertEqual(resp.status_code, 302)
+        az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=920)
+        self.assertEqual(az.area_aziendale_id, area.pk)
+
+    def test_save_con_area_incoerente_viene_azzerata(self):
+        Reparto.objects.create(nome="UT")
+        rep_mag = Reparto.objects.create(nome="MAG")
+        area_mag = AreaAziendale.objects.create(nome="ZONA1", reparto=rep_mag)
+        resp = self.client.post(
+            reverse("anagrafica:dipendente_aziendale_save", args=[921]),
+            {"area": "UT", "area_aziendale": str(area_mag.pk)},
+        )
+        self.assertEqual(resp.status_code, 302)
+        az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=921)
+        self.assertIsNone(az.area_aziendale_id)
