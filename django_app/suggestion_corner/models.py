@@ -213,6 +213,40 @@ class SuggestionCorner(models.Model):
         self.plan_eseguito = True
         self._prep_evento(attore)
 
+    @transition(field=stato, source=Stato.PLAN_DEFINITO, target=Stato.DO_IN_CORSO)
+    def avvia_do(self, attore=None):
+        """PLAN_DEFINITO→DO_IN_CORSO."""
+        self._prep_evento(attore)
+
+    @transition(field=stato, source=Stato.DO_IN_CORSO, target=Stato.DO_COMPLETATO)
+    def completa_do(self, esito_do, do_testo="", attore=None):
+        """DO_IN_CORSO→DO_COMPLETATO. Registra esito (SI/NO) e data. Regola
+        'chi completa deve essere self.incaricato' enforced lato view (sessione 3)."""
+        if esito_do not in (self.EsitoAttivita.SI, self.EsitoAttivita.NO):
+            raise ValidationError("esito_do deve essere SI o NO.")
+        self.do_eseguito = True
+        self.data_esecuzione_do = timezone.localdate()
+        self.esito_do = esito_do
+        self.do_testo = do_testo
+        self._prep_evento(attore, esito_do=str(esito_do))
+
+    @transition(field=stato, source=Stato.DO_COMPLETATO, target=Stato.CHECK_IN_CORSO,
+                conditions=[lambda self: self.esito_do == "SI"])
+    def avvia_check(self, attore=None):
+        """DO_COMPLETATO→CHECK_IN_CORSO (solo se esito_do==SI)."""
+        self._prep_evento(attore)
+
+    @transition(field=stato, source=Stato.DO_COMPLETATO, target=Stato.DO_IN_CORSO,
+                conditions=[lambda self: self.esito_do == "NO"])
+    def do_da_rifare(self, nuova_data_limite_esecuzione, attore=None):
+        """DO_COMPLETATO→DO_IN_CORSO (solo se esito_do==NO). Nuova scadenza,
+        reset dei campi DO per la riesecuzione."""
+        self.data_limite_esecuzione = nuova_data_limite_esecuzione
+        self.do_eseguito = False
+        self.esito_do = ""
+        self.data_esecuzione_do = None
+        self._prep_evento(attore)
+
 
 class SuggestionCornerAllegato(models.Model):
     segnalazione = models.ForeignKey(
