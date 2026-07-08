@@ -5,10 +5,15 @@ docs/BUILD_SPEC_suggestion_corner.md.
 """
 from __future__ import annotations
 
+import logging
+
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 from django_fsm import FSMField
+
+logger = logging.getLogger("suggestion_corner")
 
 
 class SuggestionCorner(models.Model):
@@ -25,6 +30,18 @@ class SuggestionCorner(models.Model):
         POSITIVO = "POSITIVO", "Positivo"
         NEGATIVO = "NEGATIVO", "Negativo"
         RINVIATO = "RINVIATO", "Rinviato"
+
+    class Stato(models.TextChoices):
+        INSERITA = "INSERITA", "Inserita"
+        DA_CLASSIFICARE = "DA_CLASSIFICARE", "Da classificare"
+        CLASSIFICATA = "CLASSIFICATA", "Classificata"
+        PLAN_DEFINITO = "PLAN_DEFINITO", "Plan definito"
+        DO_IN_CORSO = "DO_IN_CORSO", "Do in corso"
+        DO_COMPLETATO = "DO_COMPLETATO", "Do completato"
+        CHECK_IN_CORSO = "CHECK_IN_CORSO", "Check in corso"
+        CHECK_COMPLETATO = "CHECK_COMPLETATO", "Check completato"
+        ACT_INSERITO = "ACT_INSERITO", "Act inserito"
+        CHIUSA = "CHIUSA", "Chiusa"
 
     # Identificazione / provenienza
     legacy_sharepoint_id = models.IntegerField(null=True, blank=True, unique=True, db_index=True)
@@ -131,6 +148,43 @@ class SuggestionCorner(models.Model):
             and not self.check_eseguito
             and self.data_limite_controllo < timezone.now().date()
         )
+
+    # --- Validazione di dominio -------------------------------------------
+    def clean(self):
+        super().clean()
+        if (
+            self.incaricato_id
+            and self.controllore_id
+            and self.incaricato_id == self.controllore_id
+        ):
+            raise ValidationError(
+                {"controllore": "Il controllore deve essere diverso dall'incaricato."}
+            )
+
+    def save(self, *args, **kwargs):
+        # Audit ISO 27001: logga un eventuale bypass della regola incaricato≠controllore
+        if (
+            self.incaricato_id
+            and self.controllore_id
+            and self.incaricato_id == self.controllore_id
+        ):
+            logger.warning(
+                "SuggestionCorner#%s salvata con incaricato==controllore (id=%s): "
+                "bypass regola di segregazione.",
+                self.pk,
+                self.incaricato_id,
+            )
+        super().save(*args, **kwargs)
+
+    # --- Macchina a stati (§2) --------------------------------------------
+    # Le transizioni cambiano `stato` (FSMField protected). Lo storico
+    # `SuggestionCornerStorico` è creato centralmente dal signal
+    # post_transition (state_machine.py); ogni transizione prepara
+    # attore/payload via `_prep_evento`.
+
+    def _prep_evento(self, attore=None, **payload):
+        self._evento_attore = attore
+        self._evento_payload = payload
 
 
 class SuggestionCornerAllegato(models.Model):
