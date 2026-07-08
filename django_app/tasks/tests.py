@@ -3344,3 +3344,35 @@ class PortfolioTimelineTests(TestCase):
             today=date(2026, 5, 5),
         )
         assert tl["rows"][0]["end"] == date(2026, 5, 10)
+
+
+class PortfolioTimelineRenderTests(TestCase):
+    """Timeline cross-commessa — render vista portfolio."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin = User.objects.create_superuser(
+            username="tl_admin", email="t@x.local", password="x"
+        )
+
+    def setUp(self):
+        from tasks.models import Project, Task
+
+        self.client.force_login(self.admin)
+        p = Project.objects.create(name="P", created_by=self.admin)
+        Task.objects.create(
+            title="t", created_by=self.admin, project=p,
+            next_step_due=timezone.localdate(),
+            due_date=timezone.localdate() + timedelta(days=20),
+        )
+
+    def test_timeline_view_renders_bar(self):
+        r = self.client.get(reverse("tasks:project_list") + "?view=timeline")
+        assert r.status_code == 200
+        assert b"ptl-timeline" in r.content
+        assert b"ptl-bar" in r.content
+
+    def test_cards_still_default(self):
+        r = self.client.get(reverse("tasks:project_list"))
+        assert r.status_code == 200
+        assert b"ptl-timeline" not in r.content

@@ -776,6 +776,23 @@ body.theme-dark .ts-message.warning { background: rgba(146,64,14,.15);  border-c
 body.theme-dark .ts-message.info    { background: rgba(29,78,216,.15);  border-color: rgba(191,219,254,.3); color: #93c5fd; }
 body.theme-dark .task-meta-chip     { background: var(--surface); }
 
+/* ── Timeline portfolio (roadmap) ────────────────────────────────── */
+.ptl-scroll{overflow-x:auto}
+.ptl-timeline{display:flex;flex-direction:column;gap:5px;min-width:820px}
+.ptl-row{display:flex;gap:10px;align-items:center}
+.ptl-row-label{width:210px;flex-shrink:0;display:flex;flex-direction:column;gap:3px;font-size:12px}
+.ptl-row-label a{font-weight:800;color:var(--text);text-decoration:none}
+.ptl-row-label a:hover{color:var(--accent)}
+.ptl-row-track{position:relative;flex:1;height:26px;background:color-mix(in srgb,var(--surface) 92%,var(--text) 8%);border-radius:6px}
+.ptl-head-track{height:18px;background:transparent}
+.ptl-month{position:absolute;top:0;font-size:10px;font-weight:800;text-transform:uppercase;color:var(--text-mid);border-left:1px solid var(--border);padding-left:4px;box-sizing:border-box;overflow:hidden;white-space:nowrap}
+.ptl-today{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--accent);z-index:2}
+.ptl-bar{position:absolute;top:4px;height:18px;border-radius:5px;min-width:4px;background:var(--hub-status-neutral)}
+.ptl-bar--ready{background:var(--hub-status-success)}
+.ptl-bar--partial{background:var(--hub-status-warning)}
+.ptl-bar--notready{background:var(--hub-status-danger)}
+.ptl-empty,.ptl-note{color:var(--text-mid);font-size:13px;margin:8px 2px}
+
 /* ── Calendario incontri ─────────────────────────────────────────── */
 .cal-scroll{overflow-x:auto}
 .cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;min-width:660px}

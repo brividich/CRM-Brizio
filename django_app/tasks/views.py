@@ -3308,7 +3308,8 @@ def project_list(request):
     ))
 
     from tasks.models import ProjectPhase
-    view_mode = "board" if request.GET.get("view") == "board" else "cards"
+    _v = request.GET.get("view")
+    view_mode = _v if _v in ("board", "timeline") else "cards"
     board_columns = None
     is_board_editor = _has_task_permission(request, "tasks_edit")
     if view_mode == "board":
@@ -3319,6 +3320,28 @@ def project_list(request):
             {"key": key, "label": label, "projects": by_phase[key]}
             for key, label in ProjectPhase.choices
         ]
+
+    timeline = None
+    timeline_undated = []
+    if view_mode == "timeline":
+        from django.db.models import Max, Min
+        from django.db.models.functions import Coalesce
+        from tasks.timeline import build_portfolio_timeline
+        spans = {
+            r["id"]: (r["tl_start"], r["tl_end"])
+            for r in Project.objects.filter(id__in=[p.id for p in projects]).annotate(
+                tl_start=Min(Coalesce("tasks__next_step_due", "tasks__due_date")),
+                tl_end=Max("tasks__due_date"),
+            ).values("id", "tl_start", "tl_end")
+        }
+        items = []
+        for p in projects:
+            s, e = spans.get(p.id, (None, None))
+            if s and e:
+                items.append({"project": p, "start": s, "end": e, "readiness": getattr(p, "readiness", None)})
+            else:
+                timeline_undated.append(p)
+        timeline = build_portfolio_timeline(items, timezone.localdate())
 
     return render(
         request,
@@ -3331,6 +3354,8 @@ def project_list(request):
             "board_columns": board_columns,
             "is_board_editor": is_board_editor,
             "phase_choices": ProjectPhase.choices,
+            "timeline": timeline,
+            "timeline_undated": timeline_undated,
             "is_scope_admin": _has_task_permission(request, "tasks_admin"),
             "pf_filter_q": q_text,
             "pf_filter_client": q_client,

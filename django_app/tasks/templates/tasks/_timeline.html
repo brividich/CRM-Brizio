@@ -1,0 +1,31 @@
+{% if timeline.empty %}
+  <p class="ptl-empty">Nessuna commessa con date pianificate.</p>
+{% else %}
+<div class="ptl-scroll">
+  <div class="ptl-timeline">
+    <div class="ptl-row ptl-row--head">
+      <div class="ptl-row-label"></div>
+      <div class="ptl-row-track ptl-head-track">
+        {% for mo in timeline.months %}
+          <div class="ptl-month" style="left:{{ mo.left_pct }}%;width:{{ mo.width_pct }}%;">{{ mo.label }}</div>
+        {% endfor %}
+      </div>
+    </div>
+    {% for row in timeline.rows %}
+      <div class="ptl-row">
+        <div class="ptl-row-label">
+          <a href="{% url 'tasks:project_gantt' row.project.id %}">{{ row.project.name }}</a>
+          {% if row.readiness %}{% include "tasks/_readiness_badge.html" with readiness=row.readiness %}{% endif %}
+        </div>
+        <div class="ptl-row-track">
+          {% if timeline.today_pct is not None %}<div class="ptl-today" style="left:{{ timeline.today_pct }}%;"></div>{% endif %}
+          <div class="ptl-bar ptl-bar--{{ row.readiness.level|default:'na' }}" style="left:{{ row.left_pct }}%;width:{{ row.width_pct }}%;" title="{{ row.start|date:'d/m/Y' }} – {{ row.end|date:'d/m/Y' }}"></div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% if timeline_undated %}
+  <p class="ptl-note">{{ timeline_undated|length }} commesse senza date pianificate (visibili nella vista Card).</p>
+{% endif %}
