@@ -47,6 +47,15 @@ class SuggestionCornerModelTest(TestCase):
         s = self._base(data_limite_controllo=ieri, check_eseguito=False)
         self.assertTrue(s.scaduto_check)
 
+    def test_scaduto_check_false_se_eseguito(self):
+        ieri = timezone.now().date() - datetime.timedelta(days=1)
+        s = self._base(data_limite_controllo=ieri, check_eseguito=True)
+        self.assertFalse(s.scaduto_check)
+
+    def test_scaduto_check_false_senza_limite(self):
+        s = self._base()
+        self.assertFalse(s.scaduto_check)
+
 
 class SuggestionCornerAllegatoTest(TestCase):
     def test_allegato_link_esterno(self):

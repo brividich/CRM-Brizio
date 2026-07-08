@@ -31,7 +31,7 @@ class SuggestionCorner(models.Model):
     da_portale = models.BooleanField(default=True)  # True = nuovo, False = migrato
     anonima = models.BooleanField(default=False)
 
-    data_segnalazione = models.DateField(auto_now_add=True)
+    data_segnalazione = models.DateField(default=timezone.localdate)
     reparto_provenienza = models.ForeignKey(
         "anagrafica.Reparto", on_delete=models.PROTECT,
         related_name="segnalazioni_provenienza",
@@ -205,7 +205,7 @@ class SuggestionCornerProcessoMapping(models.Model):
     `ProcessoQualificato` reale (o lo marca come default), curabile da admin."""
     valore_libero = models.CharField(max_length=255, unique=True)
     processo = models.ForeignKey(
-        "anagrafica.ProcessoQualificato", on_delete=models.CASCADE, null=True, blank=True,
+        "anagrafica.ProcessoQualificato", on_delete=models.SET_NULL, null=True, blank=True,
         related_name="suggestion_mapping",
     )
     is_default = models.BooleanField(default=False)

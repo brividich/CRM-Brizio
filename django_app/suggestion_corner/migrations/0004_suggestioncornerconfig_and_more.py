@@ -34,7 +34,7 @@ class Migration(migrations.Migration):
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('valore_libero', models.CharField(max_length=255, unique=True)),
                 ('is_default', models.BooleanField(default=False)),
-                ('processo', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='suggestion_mapping', to='anagrafica.processoqualificato')),
+                ('processo', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='suggestion_mapping', to='anagrafica.processoqualificato')),
             ],
             options={
                 'verbose_name': 'Mappatura processo',
