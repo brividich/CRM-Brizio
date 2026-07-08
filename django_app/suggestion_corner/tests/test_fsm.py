@@ -307,3 +307,97 @@ class SuggestionCornerProtectedTest(TestCase):
         s.chiudi()
         s.save()
         self.assertEqual(s.stato, "CHIUSA")
+
+
+class SuggestionCornerReminderResetTest(TestCase):
+    """Verifica che le transizioni di loop-back (do_da_rifare, check_rinviato,
+    check_negativo) resettino i flag latch sollecito/escalation quando
+    rinnovano una scadenza, altrimenti i solleciti futuri resterebbero
+    permanentemente soppressi (sessione 5)."""
+
+    def setUp(self):
+        self.reparto = Reparto.objects.create(nome="REMIND")
+        self.u1 = User.objects.create(username="remind_do")
+        self.u2 = User.objects.create(username="remind_ck")
+
+    def _fino_a_do_completato_no(self):
+        s = SuggestionCorner.objects.create(
+            reparto_provenienza=self.reparto, opportunity="Flusso reminder DO.",
+        )
+        s.notifica_sms_team()
+        s.classifica(SuggestionCorner.StatoSMS.SMS_SI)
+        d = datetime.date.today() + datetime.timedelta(days=10)
+        s.definisci_plan(incaricato=self.u1, controllore=self.u2,
+                         data_limite_esecuzione=d, data_limite_controllo=d)
+        s.avvia_do()
+        s.completa_do(SuggestionCorner.EsitoAttivita.NO)
+        s.save()
+        return s
+
+    def _fino_a_check_in_corso(self):
+        s = SuggestionCorner.objects.create(
+            reparto_provenienza=self.reparto, opportunity="Flusso reminder CHECK.",
+        )
+        s.notifica_sms_team()
+        s.classifica(SuggestionCorner.StatoSMS.SMS_SI)
+        d = datetime.date.today() + datetime.timedelta(days=10)
+        s.definisci_plan(incaricato=self.u1, controllore=self.u2,
+                         data_limite_esecuzione=d, data_limite_controllo=d)
+        s.avvia_do()
+        s.completa_do(SuggestionCorner.EsitoAttivita.SI)
+        s.avvia_check()
+        s.save()
+        return s
+
+    def test_do_da_rifare_resetta_i_solleciti_do(self):
+        s = self._fino_a_do_completato_no()
+        s.sollecito_do_30 = True
+        s.sollecito_do_15 = True
+        s.sollecito_do_5 = True
+        s.escalation_do_inviata = True
+        nuova = datetime.date.today() + datetime.timedelta(days=30)
+        s.do_da_rifare(nuova_data_limite_esecuzione=nuova)
+        s.save()
+        self.assertFalse(s.sollecito_do_30)
+        self.assertFalse(s.sollecito_do_15)
+        self.assertFalse(s.sollecito_do_5)
+        self.assertFalse(s.escalation_do_inviata)
+        self.assertEqual(s.data_limite_esecuzione, nuova)
+
+    def test_check_rinviato_resetta_i_solleciti_check(self):
+        s = self._fino_a_check_in_corso()
+        s.sollecito_check_30 = True
+        s.sollecito_check_15 = True
+        s.sollecito_check_5 = True
+        s.escalation_check_inviata = True
+        nuova = datetime.date.today() + datetime.timedelta(days=45)
+        s.check_rinviato(nuova_data_limite_controllo=nuova)
+        s.save()
+        self.assertFalse(s.sollecito_check_30)
+        self.assertFalse(s.sollecito_check_15)
+        self.assertFalse(s.sollecito_check_5)
+        self.assertFalse(s.escalation_check_inviata)
+        self.assertEqual(s.data_limite_controllo, nuova)
+
+    def test_check_negativo_resetta_tutti_i_solleciti_e_la_scadenza_do(self):
+        s = self._fino_a_check_in_corso()
+        s.sollecito_do_30 = True
+        s.sollecito_do_15 = True
+        s.sollecito_do_5 = True
+        s.escalation_do_inviata = True
+        s.sollecito_check_30 = True
+        s.sollecito_check_15 = True
+        s.sollecito_check_5 = True
+        s.escalation_check_inviata = True
+        s.check_negativo()
+        s.save()
+        self.assertFalse(s.sollecito_do_30)
+        self.assertFalse(s.sollecito_do_15)
+        self.assertFalse(s.sollecito_do_5)
+        self.assertFalse(s.escalation_do_inviata)
+        self.assertFalse(s.sollecito_check_30)
+        self.assertFalse(s.sollecito_check_15)
+        self.assertFalse(s.sollecito_check_5)
+        self.assertFalse(s.escalation_check_inviata)
+        self.assertIsNone(s.data_limite_esecuzione)
+        self.assertEqual(s.stato, "DO_IN_CORSO")

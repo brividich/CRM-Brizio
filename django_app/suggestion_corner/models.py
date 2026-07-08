@@ -245,6 +245,10 @@ class SuggestionCorner(models.Model):
         self.do_eseguito = False
         self.esito_do = ""
         self.data_esecuzione_do = None
+        self.sollecito_do_30 = False
+        self.sollecito_do_15 = False
+        self.sollecito_do_5 = False
+        self.escalation_do_inviata = False
         self._prep_evento(attore)
 
     @transition(field=stato, source=Stato.CHECK_IN_CORSO, target=Stato.CHECK_COMPLETATO)
@@ -266,6 +270,15 @@ class SuggestionCorner(models.Model):
         self.esito_do = ""
         self.data_esecuzione_do = None
         self.check_eseguito = False
+        self.data_limite_esecuzione = None
+        self.sollecito_do_30 = False
+        self.sollecito_do_15 = False
+        self.sollecito_do_5 = False
+        self.escalation_do_inviata = False
+        self.sollecito_check_30 = False
+        self.sollecito_check_15 = False
+        self.sollecito_check_5 = False
+        self.escalation_check_inviata = False
         self._prep_evento(attore, esito_check="NEGATIVO")
 
     @transition(field=stato, source=Stato.CHECK_IN_CORSO, target=Stato.CHECK_IN_CORSO)
@@ -273,6 +286,10 @@ class SuggestionCorner(models.Model):
         """CHECK_IN_CORSO→CHECK_IN_CORSO (self-loop). Rinvio con nuova scadenza."""
         self.esito_check = self.EsitoCheck.RINVIATO
         self.data_limite_controllo = nuova_data_limite_controllo
+        self.sollecito_check_30 = False
+        self.sollecito_check_15 = False
+        self.sollecito_check_5 = False
+        self.escalation_check_inviata = False
         self._prep_evento(attore, esito_check="RINVIATO")
 
     @transition(field=stato, source=Stato.CHECK_COMPLETATO, target=Stato.ACT_INSERITO,
