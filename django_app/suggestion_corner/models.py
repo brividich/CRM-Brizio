@@ -150,3 +150,26 @@ class SuggestionCornerAllegato(models.Model):
 
     def __str__(self) -> str:
         return self.file.name or self.link_esterno or f"Allegato #{self.pk}"
+
+
+class SuggestionCornerStorico(models.Model):
+    segnalazione = models.ForeignKey(
+        SuggestionCorner, on_delete=models.CASCADE, related_name="storico",
+    )
+    stato_precedente = models.CharField(max_length=30)
+    stato_nuovo = models.CharField(max_length=30)
+    campo_modificato = models.CharField(max_length=50, blank=True)
+    valore_precedente = models.TextField(blank=True)
+    valore_nuovo = models.TextField(blank=True)
+    autore = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+    )
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Voce storico segnalazione"
+        verbose_name_plural = "Storico segnalazione"
+        ordering = ["-timestamp", "-id"]
+
+    def __str__(self) -> str:
+        return f"SC#{self.segnalazione_id}: {self.stato_precedente}→{self.stato_nuovo}"

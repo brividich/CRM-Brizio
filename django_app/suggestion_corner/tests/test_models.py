@@ -62,3 +62,18 @@ class SuggestionCornerAllegatoTest(TestCase):
         )
         self.assertEqual(seg.allegati.count(), 1)
         self.assertIn("novisrv", a.link_esterno)
+
+
+class SuggestionCornerStoricoTest(TestCase):
+    def test_storico_voce_manuale(self):
+        from suggestion_corner.models import SuggestionCornerStorico
+
+        reparto = Reparto.objects.create(nome="PRESETTING")
+        seg = SuggestionCorner.objects.create(
+            reparto_provenienza=reparto, opportunity="Test storico.",
+        )
+        v = SuggestionCornerStorico.objects.create(
+            segnalazione=seg, stato_precedente="INSERITA", stato_nuovo="DA_CLASSIFICARE",
+        )
+        self.assertEqual(seg.storico.count(), 1)
+        self.assertEqual(v.stato_nuovo, "DA_CLASSIFICARE")
