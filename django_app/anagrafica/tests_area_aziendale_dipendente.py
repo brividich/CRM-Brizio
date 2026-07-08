@@ -47,3 +47,105 @@ class DipendenteAreaAziendaleFieldTests(TestCase):
         area.delete()
         az.refresh_from_db()
         self.assertIsNone(az.area_aziendale_id)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class SyncAziendaleFromRepartoTests(TestCase):
+    """_sync_aziendale_from_reparto valida che l'Area aziendale assegnata
+    appartenga sempre al Reparto risolto, azzerandola in caso contrario."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin = User.objects.create_superuser(
+            username="sync_az_admin", email="sync_az_admin@x.local", password="x"
+        )
+
+    def test_area_appartenente_al_reparto_viene_salvata(self):
+        from .views import _sync_aziendale_from_reparto
+        rep = Reparto.objects.create(nome="UT", caporeparto_legacy_id=401)
+        area = AreaAziendale.objects.create(nome="IN1", reparto=rep)
+        _sync_aziendale_from_reparto(910, "UT", area_aziendale_id=area.pk, saved_by=self.admin)
+        az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=910)
+        self.assertEqual(az.area_aziendale_id, area.pk)
+        self.assertEqual(az.caporeparto_legacy_id, 401)
+
+    def test_area_di_un_altro_reparto_viene_azzerata(self):
+        from .views import _sync_aziendale_from_reparto
+        Reparto.objects.create(nome="UT")
+        rep_mag = Reparto.objects.create(nome="MAG")
+        area_mag = AreaAziendale.objects.create(nome="ZONA1", reparto=rep_mag)
+        _sync_aziendale_from_reparto(911, "UT", area_aziendale_id=area_mag.pk, saved_by=self.admin)
+        az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=911)
+        self.assertIsNone(az.area_aziendale_id)
+
+    def test_reparto_vuoto_azzera_anche_area(self):
+        from .views import _sync_aziendale_from_reparto
+        rep = Reparto.objects.create(nome="UT")
+        area = AreaAziendale.objects.create(nome="IN1", reparto=rep)
+        _sync_aziendale_from_reparto(912, "", area_aziendale_id=area.pk, saved_by=self.admin)
+        az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=912)
+        self.assertIsNone(az.area_aziendale_id)
+        self.assertEqual(az.area, "")
+
+    def test_area_disattivata_ma_ancora_del_reparto_resta_valida(self):
+        from .views import _sync_aziendale_from_reparto
+        rep = Reparto.objects.create(nome="UT")
+        area = AreaAziendale.objects.create(nome="IN1", reparto=rep, is_active=False)
+        _sync_aziendale_from_reparto(913, "UT", area_aziendale_id=area.pk, saved_by=self.admin)
+        az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=913)
+        self.assertEqual(az.area_aziendale_id, area.pk)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class DipendenteRepartoSetAreaAziendaleTests(TestCase):
+    """Il mini-form rapido 'Cambia reparto' può impostare anche l'Area aziendale."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+        cls.admin = User.objects.create_superuser(
+            username="rep_set_admin", email="rep_set_admin@x.local", password="x"
+        )
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM anagrafica_dipendenti")
+            cursor.execute(
+                "INSERT INTO anagrafica_dipendenti (aliasusername, nome, cognome, attivo) "
+                "VALUES (%s, %s, %s, %s)",
+                ["l.verdi", "Luca", "Verdi", 1],
+            )
+            cursor.execute("SELECT id FROM anagrafica_dipendenti WHERE aliasusername = %s", ["l.verdi"])
+            self.legacy_id = int(cursor.fetchone()[0])
+
+    def test_post_con_area_del_reparto_selezionato_viene_salvata(self):
+        rep = Reparto.objects.create(nome="UT")
+        area = AreaAziendale.objects.create(nome="IN1", reparto=rep)
+        resp = self.client.post(
+            reverse("anagrafica:dipendente_reparto_set", args=[self.legacy_id]),
+            {"reparto": "UT", "area_aziendale": str(area.pk)},
+        )
+        self.assertEqual(resp.status_code, 302)
+        az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=self.legacy_id)
+        self.assertEqual(az.area_aziendale_id, area.pk)
+
+    def test_post_con_area_di_un_altro_reparto_viene_ignorata(self):
+        Reparto.objects.create(nome="UT")
+        rep_mag = Reparto.objects.create(nome="MAG")
+        area_mag = AreaAziendale.objects.create(nome="ZONA1", reparto=rep_mag)
+        resp = self.client.post(
+            reverse("anagrafica:dipendente_reparto_set", args=[self.legacy_id]),
+            {"reparto": "UT", "area_aziendale": str(area_mag.pk)},
+        )
+        self.assertEqual(resp.status_code, 302)
+        az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=self.legacy_id)
+        self.assertIsNone(az.area_aziendale_id)
+
+    def test_post_senza_area_non_genera_errore(self):
+        Reparto.objects.create(nome="UT")
+        resp = self.client.post(
+            reverse("anagrafica:dipendente_reparto_set", args=[self.legacy_id]),
+            {"reparto": "UT"},
+        )
+        self.assertEqual(resp.status_code, 302)

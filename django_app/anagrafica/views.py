@@ -3199,6 +3199,8 @@ def dipendente_reparto_set(request, legacy_id: int):
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
     reparto_nome = (request.POST.get("reparto") or "").strip()[:200]
+    area_aziendale_raw = (request.POST.get("area_aziendale") or "").strip()
+    area_aziendale_id = int(area_aziendale_raw) if area_aziendale_raw.isdigit() else None
 
     rows = fetch_anagrafica_rows(ids=[legacy_id])
     if not rows:
@@ -3228,7 +3230,9 @@ def dipendente_reparto_set(request, legacy_id: int):
             request.user,
         )
         # Auto-fill area aziendale e caporeparto da catalogo
-        _sync_aziendale_from_reparto(legacy_id, reparto_nome, saved_by=request.user)
+        _sync_aziendale_from_reparto(
+            legacy_id, reparto_nome, area_aziendale_id=area_aziendale_id, saved_by=request.user
+        )
         messages.success(request, f'Reparto aggiornato a "{reparto_nome}".' if reparto_nome else "Reparto rimosso.")
     except Exception:
         logger.exception("Errore aggiornamento reparto dipendente %s", legacy_id)
@@ -5409,27 +5413,41 @@ def _resolve_caporeparto_id(raw: str | None) -> int | None:
     return value if value > 0 else None
 
 
-def _sync_aziendale_from_reparto(legacy_id: int, reparto_nome: str, *, saved_by) -> None:
-    """Aggiorna caporeparto_legacy_id su DipendenteAnagraficaAziendale in base
-    al Reparto assegnato. Chiamato ogni volta che il reparto cambia.
+def _sync_aziendale_from_reparto(
+    legacy_id: int, reparto_nome: str, *, area_aziendale_id: int | None = None, saved_by
+) -> None:
+    """Aggiorna caporeparto_legacy_id e area_aziendale su DipendenteAnagraficaAziendale
+    in base al Reparto assegnato. Chiamato ogni volta che il reparto (o l'area) cambia.
 
-    L'area aziendale non si autopopola più: con l'inversione della gerarchia
-    un Reparto può avere più Aree aziendali figlie, quindi non è più
-    derivabile in automatico da un singolo Reparto (Fase 2 nello spec).
+    L'Area aziendale deve appartenere al Reparto risolto, altrimenti viene azzerata
+    silenziosamente (reparto cambiato altrove, reparto non trovato/disattivato, o area
+    di un altro reparto) invece di bloccare il salvataggio. Non si richiede che l'area
+    sia attiva: un'assegnazione a un'area nel frattempo disattivata resta valida, come
+    già avviene per area/ruolo_aziendale (forms.py preserva il valore corrente anche
+    se non più nel catalogo "attive").
     """
     capo_id = None
+    rep = None
     if reparto_nome:
         rep = Reparto.objects.filter(nome__iexact=reparto_nome, is_active=True).first()
         if rep:
             capo_id = rep.caporeparto_legacy_id
+
+    area_id_valido = None
+    if area_aziendale_id and rep is not None:
+        area = AreaAziendale.objects.filter(pk=area_aziendale_id, reparto_id=rep.id).first()
+        if area is not None:
+            area_id_valido = area.id
+
     az, _ = DipendenteAnagraficaAziendale.objects.get_or_create(
         legacy_anagrafica_id=legacy_id,
         defaults={"updated_by": saved_by},
     )
     az.area = reparto_nome
     az.caporeparto_legacy_id = capo_id
+    az.area_aziendale_id = area_id_valido
     az.updated_by = saved_by
-    az.save(update_fields=["area", "caporeparto_legacy_id", "updated_by", "updated_at"])
+    az.save(update_fields=["area", "caporeparto_legacy_id", "area_aziendale", "updated_by", "updated_at"])
 
 
 @login_required
