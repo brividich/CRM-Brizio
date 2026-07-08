@@ -13,7 +13,7 @@ Questo documento NON riscrive la BUILD_SPEC: la assume come base (§1–§9) e n
 | Assunzione spec | Realtà codice | Esito |
 |---|---|---|
 | `anagrafica.Reparto` esiste | ✅ `anagrafica/models.py:730` (`db_table=anagrafica_areaaziendale`) | FK valida |
-| `django-fsm-2` installato | ✅ `requirements.txt:19` (`django-fsm-2==4.2.4`) | ma **mai usato** nel portale |
+| `django-fsm-2` installato | ✅ `requirements.txt:19` + **già usato in `gestione_specifiche`** (FSMField protected + `@transition` + signal audit) | pattern di riferimento esistente |
 | `ai_assistant/services.py` esiste | ✅ | riuso AI copilot fattibile |
 | `core.Notifica` esiste | ✅ `core/models.py:413` con `TIPI` hardcodata | riusabile |
 | `anagrafica.Processo` esiste | ❌ non esiste; il modello reale è `ProcessoQualificato` (`models_mpq.py:114`) | **correzione Δ2** |
@@ -23,10 +23,15 @@ Questo documento NON riscrive la BUILD_SPEC: la assume come base (§1–§9) e n
 
 ## Δ1 — Macchina a stati: django-fsm-2 (adottato)
 
-Si usa `FSMField` + `@transition` come da §2 della BUILD_SPEC. **È il primo uso di FSM nel portale** (tutto il resto — anomalie, tickets, gestione_specifiche, procedure_refresh — usa `TextChoices` + logica nelle view/service). Trade-off accettato consapevolmente: la sessione 1 stabilisce il pattern FSM di riferimento per HUB.
+Si usa `FSMField` + `@transition` come da §2 della BUILD_SPEC. **Non è un pattern nuovo**: `gestione_specifiche` lo usa già in modo maturo ed è il **riferimento da copiare**:
+- `Specifica.stato = FSMField(..., protected=True, db_index=True)` (`gestione_specifiche/models.py:52`);
+- transizioni `@transition(field=stato, source=..., target=...)` con guardie e `GET_STATE`;
+- audit centralizzato via signal `post_transition` in `gestione_specifiche/state_machine.py` → crea un evento immutabile con snapshot; le transizioni preparano attore/payload via un helper `_prep_evento(attore, **payload)` che setta transient `_evento_attore`/`_evento_payload`.
+- `state_machine` è agganciato nel `AppConfig.ready()` (`gestione_specifiche/apps.py`).
 
+`suggestion_corner` replica questa architettura:
 - `SuggestionCornerStorico` popolato via:
-  - signal `post_transition` di django-fsm-2 → registra `stato_precedente`/`stato_nuovo`;
+  - signal `post_transition` → registra `stato_precedente`/`stato_nuovo` + attore;
   - `pre_save` che diffa i campi PLAN/DO/CHECK/ACT → registra le modifiche di campo fuori transizione.
 - Regola **`incaricato != controllore`**: come `clean()`/validator sul modello, **non** dentro la FSM. Eccezione loggata in audit se qualcuno tenta il bypass (utile ISO 27001).
 - Enforcement "chi completa il DO deve essere `self.incaricato`": lato view/permission, non FSM.
