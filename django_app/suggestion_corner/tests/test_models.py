@@ -46,3 +46,19 @@ class SuggestionCornerModelTest(TestCase):
         ieri = timezone.now().date() - datetime.timedelta(days=1)
         s = self._base(data_limite_controllo=ieri, check_eseguito=False)
         self.assertTrue(s.scaduto_check)
+
+
+class SuggestionCornerAllegatoTest(TestCase):
+    def test_allegato_link_esterno(self):
+        from suggestion_corner.models import SuggestionCornerAllegato
+
+        reparto = Reparto.objects.create(nome="CNC")
+        seg = SuggestionCorner.objects.create(
+            reparto_provenienza=reparto, opportunity="Test allegato.",
+        )
+        a = SuggestionCornerAllegato.objects.create(
+            segnalazione=seg,
+            link_esterno=r"\\novisrv\Area Qualita\SMS_Suggestion Corner\2024",
+        )
+        self.assertEqual(seg.allegati.count(), 1)
+        self.assertIn("novisrv", a.link_esterno)

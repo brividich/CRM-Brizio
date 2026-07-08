@@ -131,3 +131,22 @@ class SuggestionCorner(models.Model):
             and not self.check_eseguito
             and self.data_limite_controllo < timezone.now().date()
         )
+
+
+class SuggestionCornerAllegato(models.Model):
+    segnalazione = models.ForeignKey(
+        SuggestionCorner, on_delete=models.CASCADE, related_name="allegati",
+    )
+    file = models.FileField(upload_to="suggestion_corner/%Y/", blank=True)
+    link_esterno = models.URLField(blank=True, max_length=500)
+    caricato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+    )
+    caricato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Allegato segnalazione"
+        verbose_name_plural = "Allegati segnalazione"
+
+    def __str__(self) -> str:
+        return self.file.name or self.link_esterno or f"Allegato #{self.pk}"
