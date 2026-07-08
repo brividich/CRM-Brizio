@@ -451,6 +451,7 @@ INSTALLED_APPS = [
     "rilevazione_incidenti.apps.RilevazioneIncidentiConfig",
     "dpi.apps.DpiConfig",
     "procedure_refresh.apps.ProcedureRefreshConfig",
+    "suggestion_corner.apps.SuggestionCornerConfig",
     "django_extensions",
     "django_q",
     "django_htmx",

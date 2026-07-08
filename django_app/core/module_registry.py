@@ -269,6 +269,19 @@ MODULE_DEFINITIONS: dict[str, ModuleDefinition] = {
         default_menu_label="Procedure",
         default_dashboard_label="Procedure",
     ),
+    "suggestion_corner": ModuleDefinition(
+        key="suggestion_corner",
+        default_label="Suggestion Corner",
+        icon="lightbulb",
+        order=95,
+        route_name="suggestion_corner:home",
+        route_namespace="suggestion_corner",
+        permission_namespace="suggestion_corner",
+        navigation_codes=("suggestion_corner",),
+        default_short_label="SMS",
+        default_menu_label="Suggestion Corner",
+        default_dashboard_label="Suggestion Corner",
+    ),
     # -------------------------------------------------------------------------
     # Moduli admin — richiede is_legacy_admin(), non visibili agli utenti normali
     # -------------------------------------------------------------------------
