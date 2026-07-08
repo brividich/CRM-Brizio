@@ -231,3 +231,37 @@ class DipendenteDetailAreaAziendaleUITests(TestCase):
         self.assertIn('"IN1"', content)
         self.assertIn('"IN2"', content)
         self.assertNotIn("az-area-autofill", content)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class TrainingEligibilityAreaAziendaleFkTests(TestCase):
+    """Le regole di formazione obbligatoria per Area aziendale matchano per FK,
+    non più per nome sul CharField rimosso."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO anagrafica_dipendenti (id, nome, cognome, attivo) VALUES "
+                "(931, 'Anna', 'Verdi', 1), (932, 'Bruno', 'Neri', 1)"
+            )
+
+    def test_pertinenza_per_area_aziendale_match_per_fk(self):
+        from .models_formazione import TrainingCourse, TrainingPlan, TrainingRequirementRule
+        from .services.training_eligibility import candidati_corso
+        rep = Reparto.objects.create(nome="UT")
+        area = AreaAziendale.objects.create(nome="IN1", reparto=rep)
+        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=931, area_aziendale=area)
+        # 932 resta senza area assegnata: non deve risultare pertinente.
+        piano = TrainingPlan.objects.create(codice="PSIC", nome="Piano sicurezza")
+        corso = TrainingCourse.objects.create(
+            piano=piano, codice="CS1", titolo="Corso sicurezza area", durata_ore_teorica=4,
+        )
+        TrainingRequirementRule.objects.create(
+            corso=corso, area=area, is_active=True, is_mandatory=True,
+        )
+        res = candidati_corso(corso)
+        ids = {c["legacy_id"] for c in res["idonei"]} | {c["legacy_id"] for c in res["non_idonei"]}
+        self.assertIn(931, ids)
+        self.assertNotIn(932, ids)

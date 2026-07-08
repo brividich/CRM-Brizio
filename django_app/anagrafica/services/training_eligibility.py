@@ -117,19 +117,14 @@ def _legacy_ids_pertinenti(corso, dipendenti: dict[int, dict]) -> tuple[set[int]
             .values_list("legacy_anagrafica_id", flat=True)
         )
 
-    # 3) regole per area aziendale (match per nome su area_aziendale_nome denormalizzato)
-    area_nomi = {
-        r.area.nome.strip().casefold()
-        for r in rules if r.area_id and r.area is not None
-    }
-    if area_nomi:
-        for lid, area_nome in (
-            DipendenteAnagraficaAziendale.objects
-            .exclude(area_aziendale_nome="")
-            .values_list("legacy_anagrafica_id", "area_aziendale_nome")
-        ):
-            if (area_nome or "").strip().casefold() in area_nomi:
-                ids.add(int(lid))
+    # 3) regole per area aziendale (match per FK area_aziendale, non più per nome)
+    area_ids = {r.area_id for r in rules if r.area_id}
+    if area_ids:
+        ids.update(
+            int(lid) for lid in DipendenteAnagraficaAziendale.objects
+            .filter(area_aziendale_id__in=area_ids)
+            .values_list("legacy_anagrafica_id", flat=True)
+        )
 
     # 4) regole per mansione + ereditarietà da fattori di rischio.
     #    Inverte mansionario: per ogni mansione presente in organico, se i suoi
