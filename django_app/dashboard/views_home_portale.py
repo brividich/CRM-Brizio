@@ -398,9 +398,9 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
 
     # ── PLANIMETRIA ───────────────────────────────────────────────────
     try:
-        from anagrafica.models import AreaAziendale
+        from anagrafica.models import Reparto
         out["planimetria"] = [
-            {"value": AreaAziendale.objects.count(), "unit": "reparti", "tone": "info"},
+            {"value": Reparto.objects.count(), "unit": "reparti", "tone": "info"},
         ]
     except Exception:
         pass
