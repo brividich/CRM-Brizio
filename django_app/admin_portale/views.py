@@ -9239,6 +9239,109 @@ def audit_log_view(request):
     })
 
 
+def _notifiche_display_names(legacy_ids) -> dict:
+    """legacy_user_id → nome (da UtenteLegacy), fail-safe (fallback #id)."""
+    names: dict = {}
+    ids = [int(i) for i in legacy_ids if i]
+    if not ids:
+        return names
+    try:
+        from core.legacy_models import UtenteLegacy
+
+        for row in UtenteLegacy.objects.filter(id__in=ids).values("id", "nome"):
+            names[row["id"]] = (row["nome"] or "").strip() or f"#{row['id']}"
+    except Exception:
+        pass
+    return names
+
+
+@legacy_admin_required
+def notifiche_log_view(request):
+    """Log amministrativo delle notifiche in-app (cross-utente): verifica cosa
+    parte davvero e a chi. Filtri per tipo/utente/stato/giorni + conteggi per tipo."""
+    from datetime import timedelta
+
+    from django.core.paginator import Paginator
+
+    from core.models import Notifica
+    from core.notifiche_meta import notifica_meta
+
+    days_raw = (request.GET.get("days") or "30").strip()
+    try:
+        days = max(1, min(365, int(days_raw)))
+    except ValueError:
+        days = 30
+    since = timezone.now() - timedelta(days=days)
+
+    filtro_tipo = (request.GET.get("tipo") or "").strip()
+    filtro_user = (request.GET.get("legacy_user_id") or "").strip()
+    filtro_stato = (request.GET.get("stato") or "").strip()  # "" | lette | non_lette
+
+    qs = Notifica.objects.filter(created_at__gte=since)
+    if filtro_tipo:
+        qs = qs.filter(tipo=filtro_tipo)
+    if filtro_user:
+        qs = qs.filter(legacy_user_id=filtro_user)
+    if filtro_stato == "lette":
+        qs = qs.filter(letta=True)
+    elif filtro_stato == "non_lette":
+        qs = qs.filter(letta=False)
+    qs = qs.order_by("-created_at")
+
+    # Conteggi per tipo nella finestra (con etichetta/icona dal registro).
+    per_tipo = []
+    for row in (
+        Notifica.objects.filter(created_at__gte=since)
+        .values("tipo")
+        .annotate(total=Count("id"))
+        .order_by("-total", "tipo")
+    ):
+        m = notifica_meta(row["tipo"])
+        per_tipo.append(
+            {"tipo": row["tipo"], "label": m["label"], "icona": m["icona"], "total": row["total"]}
+        )
+
+    export_format = (request.GET.get("export") or "").strip().lower()
+    if export_format in {"csv", "xlsx"}:
+        names = _notifiche_display_names(
+            qs.values_list("legacy_user_id", flat=True).distinct()
+        )
+        return export_rows_response(
+            rows=qs,
+            columns=[
+                ("Data/Ora", "created_at"),
+                ("Utente", lambda n: names.get(n.legacy_user_id, f"#{n.legacy_user_id}")),
+                ("Legacy user ID", "legacy_user_id"),
+                ("Tipo", lambda n: notifica_meta(n.tipo)["label"]),
+                ("Messaggio", "messaggio"),
+                ("Letta", lambda n: "Si" if n.letta else "No"),
+                ("URL", "url_azione"),
+            ],
+            filename="notifiche_log",
+            fmt=export_format,
+        )
+
+    paginator = Paginator(qs, 50)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    names = _notifiche_display_names([n.legacy_user_id for n in page_obj.object_list])
+    for n in page_obj.object_list:
+        n.utente_display = names.get(n.legacy_user_id, f"#{n.legacy_user_id}")
+        n.meta = notifica_meta(n.tipo)
+
+    return render(request, "admin_portale/pages/notifiche_log.html", {
+        "page_title": "Log notifiche",
+        "page_obj": page_obj,
+        "per_tipo": per_tipo,
+        "tipi_disponibili": [r["tipo"] for r in per_tipo],
+        "filtro_tipo": filtro_tipo,
+        "filtro_user": filtro_user,
+        "filtro_stato": filtro_stato,
+        "days": days,
+        "totale": qs.count(),
+        "non_lette": qs.filter(letta=False).count(),
+    })
+
+
 @legacy_admin_required
 def user_activity_view(request):
     from datetime import timedelta

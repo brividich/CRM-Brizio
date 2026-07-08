@@ -4,6 +4,7 @@ from django.contrib import admin
 from core.models import (
     PERMISSION_CODE_CANONICAL_RE,
     PERMISSION_CODE_CONVENTION_HINT,
+    Notifica,
     PermissionDefinition,
     RolePermissionGrant,
     RoutePermissionBinding,
@@ -11,6 +12,15 @@ from core.models import (
     UserPermissionGrant,
     UserUiPreference,
 )
+
+
+@admin.register(Notifica)
+class NotificaAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "legacy_user_id", "tipo", "letta", "messaggio")
+    list_filter = ("tipo", "letta", "created_at")
+    search_fields = ("messaggio", "legacy_user_id", "url_azione")
+    readonly_fields = ("created_at",)
+    ordering = ("-created_at",)
 
 
 @admin.register(SiteConfig)

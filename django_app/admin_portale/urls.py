@@ -114,6 +114,7 @@ urlpatterns = [
     path("api/checklist/esegui/<int:user_id>", views.api_checklist_esegui, name="api_checklist_esegui"),
     path("audit/", views.audit_log_view, name="audit_log"),
     path("attivita-utenti/", views.user_activity_view, name="user_activity"),
+    path("notifiche-log/", views.notifiche_log_view, name="notifiche_log"),
     path("health/", views.admin_health_check, name="health_check"),
     path("accessi/", views.accessi_semplice, name="accessi"),
     path("gestione-accessi/", views.gestione_accessi, name="gestione_accessi"),

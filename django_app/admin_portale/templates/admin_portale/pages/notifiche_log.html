@@ -1,0 +1,131 @@
+{% extends "core/base.html" %}
+
+{% block title %}Log notifiche | Admin Portale{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Log notifiche" page_subtitle="Notifiche in-app inviate agli utenti — verifica cosa parte davvero e a chi." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  <!-- Conteggi per tipo (finestra selezionata) -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-head">
+      <div class="card-title">📊 Ultimi {{ days }} giorni</div>
+      <div class="cell-muted">{{ totale }} notifiche · {{ non_lette }} non lette</div>
+    </div>
+    <div class="card-body" style="padding:14px;">
+      {% if per_tipo %}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          {% for t in per_tipo %}
+            <a href="?tipo={{ t.tipo }}&days={{ days }}"
+               style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid #e2e8f0;border-radius:20px;font-size:13px;text-decoration:none;color:#334155;{% if filtro_tipo == t.tipo %}background:#eff6ff;border-color:#bfdbfe;{% endif %}">
+              <span aria-hidden="true">{{ t.icona }}</span>
+              <span>{{ t.label }}</span>
+              <strong style="color:#2563eb;">{{ t.total }}</strong>
+            </a>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="cell-muted">Nessuna notifica in questa finestra.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Filtri -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-body" style="padding:14px;">
+      <form method="get" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Tipo</label>
+          <select name="tipo" style="padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;">
+            <option value="">— Tutti —</option>
+            {% for t in tipi_disponibili %}
+              <option value="{{ t }}" {% if t == filtro_tipo %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Utente (legacy id)</label>
+          <input type="text" name="legacy_user_id" value="{{ filtro_user }}" placeholder="es. 1234"
+            style="padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;width:120px;">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Stato</label>
+          <select name="stato" style="padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;">
+            <option value="" {% if not filtro_stato %}selected{% endif %}>— Tutte —</option>
+            <option value="non_lette" {% if filtro_stato == 'non_lette' %}selected{% endif %}>Non lette</option>
+            <option value="lette" {% if filtro_stato == 'lette' %}selected{% endif %}>Lette</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Giorni</label>
+          <input type="number" name="days" value="{{ days }}" min="1" max="365"
+            style="padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;width:80px;">
+        </div>
+        <div>
+          <button type="submit" style="padding:7px 18px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Filtra</button>
+          <a href="?tipo={{ filtro_tipo }}&legacy_user_id={{ filtro_user }}&stato={{ filtro_stato }}&days={{ days }}&export=csv" style="margin-left:8px;padding:7px 14px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;color:#64748b;text-decoration:none;">CSV</a>
+          <a href="?tipo={{ filtro_tipo }}&legacy_user_id={{ filtro_user }}&stato={{ filtro_stato }}&days={{ days }}&export=xlsx" style="margin-left:4px;padding:7px 14px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;color:#64748b;text-decoration:none;">Excel</a>
+          {% if filtro_tipo or filtro_user or filtro_stato %}
+            <a href="{% url 'admin_portale:notifiche_log' %}" style="margin-left:8px;padding:7px 14px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;color:#64748b;text-decoration:none;">✕ Reset</a>
+          {% endif %}
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">🔔 Notifiche — pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}</div>
+      <div class="cell-muted">{{ page_obj.paginator.count }} nel filtro</div>
+    </div>
+    <div class="card-body" style="padding:0;">
+      {% if page_obj.object_list %}
+        <div class="table-wrap">
+          <table style="width:100%;border-collapse:collapse;">
+            <thead>
+              <tr style="border-bottom:1px solid #e2e8f0;">
+                <th style="text-align:left;padding:10px 14px;font-size:11px;text-transform:uppercase;color:#94a3b8;">Data/Ora</th>
+                <th style="text-align:left;padding:10px 14px;font-size:11px;text-transform:uppercase;color:#94a3b8;">Utente</th>
+                <th style="text-align:left;padding:10px 14px;font-size:11px;text-transform:uppercase;color:#94a3b8;">Tipo</th>
+                <th style="text-align:left;padding:10px 14px;font-size:11px;text-transform:uppercase;color:#94a3b8;">Messaggio</th>
+                <th style="text-align:center;padding:10px 14px;font-size:11px;text-transform:uppercase;color:#94a3b8;">Letta</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for n in page_obj.object_list %}
+                <tr style="border-bottom:1px solid #f1f5f9;">
+                  <td style="padding:10px 14px;font-size:12px;color:#64748b;white-space:nowrap;">{{ n.created_at|date:"d-m-Y H:i" }}</td>
+                  <td style="padding:10px 14px;font-size:13px;color:#1e293b;">{{ n.utente_display }}<span style="color:#cbd5e1;font-size:11px;"> · #{{ n.legacy_user_id }}</span></td>
+                  <td style="padding:10px 14px;font-size:13px;white-space:nowrap;"><span aria-hidden="true">{{ n.meta.icona }}</span> {{ n.meta.label }}</td>
+                  <td style="padding:10px 14px;font-size:13px;color:#334155;">{{ n.messaggio }}{% if n.url_azione %}<br><a href="{{ n.url_azione }}" style="font-size:11px;color:#2563eb;text-decoration:none;">{{ n.url_azione }}</a>{% endif %}</td>
+                  <td style="padding:10px 14px;text-align:center;">{% if n.letta %}<span style="color:#16a34a;">✓</span>{% else %}<span style="color:#f59e0b;font-weight:600;">•</span>{% endif %}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        {% if page_obj.has_other_pages %}
+          <div style="display:flex;gap:8px;justify-content:center;padding:14px;">
+            {% if page_obj.has_previous %}
+              <a href="?tipo={{ filtro_tipo }}&legacy_user_id={{ filtro_user }}&stato={{ filtro_stato }}&days={{ days }}&page={{ page_obj.previous_page_number }}" style="padding:6px 12px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;color:#64748b;text-decoration:none;">← Precedente</a>
+            {% endif %}
+            <span style="padding:6px 12px;font-size:13px;color:#94a3b8;">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+            {% if page_obj.has_next %}
+              <a href="?tipo={{ filtro_tipo }}&legacy_user_id={{ filtro_user }}&stato={{ filtro_stato }}&days={{ days }}&page={{ page_obj.next_page_number }}" style="padding:6px 12px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;color:#64748b;text-decoration:none;">Successiva →</a>
+            {% endif %}
+          </div>
+        {% endif %}
+      {% else %}
+        <div style="padding:50px;text-align:center;color:#94a3b8;">
+          <div style="font-size:36px;margin-bottom:10px;">🔔</div>
+          <div>Nessuna notifica per il filtro selezionato.</div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}
