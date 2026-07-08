@@ -275,3 +275,35 @@ class SuggestionCornerActChiusuraTest(TestCase):
         # notifica_sms_team, classifica, definisci_plan, avvia_do, completa_do,
         # avvia_check, check_positivo, inserisci_act, chiudi = 9 transizioni
         self.assertEqual(s.storico.count(), 9)
+
+
+class SuggestionCornerProtectedTest(TestCase):
+    def test_assegnazione_diretta_stato_vietata(self):
+        reparto = Reparto.objects.create(nome="PROT")
+        s = SuggestionCorner.objects.create(
+            reparto_provenienza=reparto, opportunity="Protected.",
+        )
+        with self.assertRaises(AttributeError):
+            s.stato = "CHIUSA"
+
+    def test_ciclo_do_rifatto_poi_positivo(self):
+        reparto = Reparto.objects.create(nome="CICLO")
+        u1 = User.objects.create(username="ck_do")
+        u2 = User.objects.create(username="ck_ck")
+        s = SuggestionCorner.objects.create(
+            reparto_provenienza=reparto, opportunity="Ciclo con rework.",
+        )
+        s.notifica_sms_team()
+        s.classifica(SuggestionCorner.StatoSMS.SMS_SI)
+        d = datetime.date.today() + datetime.timedelta(days=10)
+        s.definisci_plan(incaricato=u1, controllore=u2,
+                         data_limite_esecuzione=d, data_limite_controllo=d)
+        s.avvia_do()
+        s.completa_do(SuggestionCorner.EsitoAttivita.NO)
+        s.do_da_rifare(nuova_data_limite_esecuzione=d)
+        s.completa_do(SuggestionCorner.EsitoAttivita.SI)
+        s.avvia_check()
+        s.check_positivo()
+        s.chiudi()
+        s.save()
+        self.assertEqual(s.stato, "CHIUSA")
