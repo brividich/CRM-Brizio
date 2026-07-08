@@ -137,7 +137,7 @@ creati **non di sistema** → liberamente riordinabili/eliminabili):
 
 | Pilastro | Landing (clic sul testo) | Dropdown |
 |---|---|---|
-| **Persone** | `dipendenti_list` | Elenco · Nuovo · Ex · Organigramma · Onboarding · Documenti · Report |
+| **Persone** | `dipendenti_list` | Elenco · Nuovo · Ex · Organigramma · Onboarding · Documenti · Report · Reparti |
 | **Competenze** | `formazione_dashboard` | *Formazione*: Dashboard·Piani·Corsi·Sessioni·Istruttori·E-learning·Corsi online·Copertura — *Qualifiche*: Cruscotto·Catalogo·Sessioni rinnovo — *Trasversale*: Matrice competenze |
 | **Compliance** | `sicurezza_hub` | Hub sicurezza · Visite mediche · Conformità mansione |
 | **Amministrazione** | `retribuzioni_globale` | Analisi retribuzioni · Import · Contratti · Cedolini · Ratei |
@@ -147,6 +147,10 @@ creati **non di sistema** → liberamente riordinabili/eliminabili):
 - **Nascosti dalla topbar** (non eliminati, restano in Impostazioni): `qualifiche_scadenzario`
   (doppione → Scadenzario unico), `mansioni_list` e `onboarding_offboarding` (cataloghi/config).
 - **Dashboard** resta la home del modulo; **⚙ Impostazioni** resta voce diretta.
+- **Migration `0081`**: `aree_list` (`/anagrafica/aree/`, catalogo Reparti/Aree aziendali) esce
+  dall'elenco "cataloghi struttura solo in Impostazioni" e diventa voce dedicata nel dropdown
+  **Persone** (richiesto esplicitamente, dopo l'inversione gerarchia Reparto/Area di `0080`).
+  Resta comunque gestibile anche dal tab "Reparti" del Pannello Impostazioni.
 
 > Estendere/riordinare da Impostazioni → Navigazione: ogni categoria ha i campi
 > *Landing / Tipo landing*, ogni link il campo *Gruppo*; la lista `subnav_route_choices`
