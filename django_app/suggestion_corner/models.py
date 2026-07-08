@@ -275,6 +275,19 @@ class SuggestionCorner(models.Model):
         self.data_limite_controllo = nuova_data_limite_controllo
         self._prep_evento(attore, esito_check="RINVIATO")
 
+    @transition(field=stato, source=Stato.CHECK_COMPLETATO, target=Stato.ACT_INSERITO,
+                conditions=[lambda self: self.vuoi_inserire_act])
+    def inserisci_act(self, attore=None):
+        """CHECK_COMPLETATO→ACT_INSERITO (solo se vuoi_inserire_act)."""
+        self.act_eseguito = True
+        self._prep_evento(attore)
+
+    @transition(field=stato, source=[Stato.CHECK_COMPLETATO, Stato.ACT_INSERITO],
+                target=Stato.CHIUSA)
+    def chiudi(self, attore=None):
+        """{CHECK_COMPLETATO, ACT_INSERITO}→CHIUSA."""
+        self._prep_evento(attore)
+
 
 class SuggestionCornerAllegato(models.Model):
     segnalazione = models.ForeignKey(

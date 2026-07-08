@@ -221,3 +221,57 @@ class SuggestionCornerCheckTest(TestCase):
         self.assertEqual(s.stato, "CHECK_IN_CORSO")
         self.assertEqual(s.esito_check, "RINVIATO")
         self.assertEqual(s.data_limite_controllo, nuova)
+
+
+class SuggestionCornerActChiusuraTest(TestCase):
+    def setUp(self):
+        self.reparto = Reparto.objects.create(nome="FIN")
+        self.u1 = User.objects.create(username="do3")
+        self.u2 = User.objects.create(username="ck3")
+
+    def _fino_a_check_completato(self, vuoi_act=False):
+        s = SuggestionCorner.objects.create(
+            reparto_provenienza=self.reparto, opportunity="Flusso ACT.",
+            vuoi_inserire_act=vuoi_act,
+        )
+        s.notifica_sms_team()
+        s.classifica(SuggestionCorner.StatoSMS.SMS_SI)
+        d = datetime.date.today() + datetime.timedelta(days=10)
+        s.definisci_plan(incaricato=self.u1, controllore=self.u2,
+                         data_limite_esecuzione=d, data_limite_controllo=d)
+        s.avvia_do()
+        s.completa_do(SuggestionCorner.EsitoAttivita.SI)
+        s.avvia_check()
+        s.check_positivo()
+        s.save()
+        return s
+
+    def test_chiudi_diretto_senza_act(self):
+        s = self._fino_a_check_completato(vuoi_act=False)
+        s.chiudi()
+        s.save()
+        self.assertEqual(s.stato, "CHIUSA")
+
+    def test_inserisci_act_poi_chiudi(self):
+        s = self._fino_a_check_completato(vuoi_act=True)
+        s.inserisci_act()
+        s.save()
+        self.assertEqual(s.stato, "ACT_INSERITO")
+        s.chiudi()
+        s.save()
+        self.assertEqual(s.stato, "CHIUSA")
+
+    def test_inserisci_act_bloccato_se_non_richiesto(self):
+        from django_fsm import TransitionNotAllowed
+        s = self._fino_a_check_completato(vuoi_act=False)
+        with self.assertRaises(TransitionNotAllowed):
+            s.inserisci_act()
+
+    def test_storico_completo_del_ciclo(self):
+        s = self._fino_a_check_completato(vuoi_act=True)
+        s.inserisci_act()
+        s.chiudi()
+        s.save()
+        # notifica_sms_team, classifica, definisci_plan, avvia_do, completa_do,
+        # avvia_check, check_positivo, inserisci_act, chiudi = 9 transizioni
+        self.assertEqual(s.storico.count(), 9)
