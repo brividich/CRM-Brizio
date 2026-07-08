@@ -173,3 +173,47 @@ class SuggestionCornerStorico(models.Model):
 
     def __str__(self) -> str:
         return f"SC#{self.segnalazione_id}: {self.stato_precedente}→{self.stato_nuovo}"
+
+
+class SuggestionCornerConfig(models.Model):
+    giorni_sollecito_1 = models.PositiveIntegerField(default=30)
+    giorni_sollecito_2 = models.PositiveIntegerField(default=15)
+    giorni_sollecito_3 = models.PositiveIntegerField(default=5)
+    giorni_escalation_oltre_scadenza = models.PositiveIntegerField(default=7)
+    email_responsabile_escalation = models.EmailField(blank=True)
+    sms_team_group_name = models.CharField(max_length=100, default="SMS_TEAM")
+
+    class Meta:
+        verbose_name = "Configurazione Suggestion Corner"
+        verbose_name_plural = "Configurazione Suggestion Corner"
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls) -> "SuggestionCornerConfig":
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def __str__(self) -> str:
+        return "Configurazione Suggestion Corner"
+
+
+class SuggestionCornerProcessoMapping(models.Model):
+    """Δ2 — normalizzazione: aggancia un valore `processo_libero` a un
+    `ProcessoQualificato` reale (o lo marca come default), curabile da admin."""
+    valore_libero = models.CharField(max_length=255, unique=True)
+    processo = models.ForeignKey(
+        "anagrafica.ProcessoQualificato", on_delete=models.CASCADE, null=True, blank=True,
+        related_name="suggestion_mapping",
+    )
+    is_default = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = "Mappatura processo"
+        verbose_name_plural = "Mappature processi (Suggestion Corner)"
+        ordering = ["valore_libero"]
+
+    def __str__(self) -> str:
+        return f"{self.valore_libero} → {self.processo or '(default)'}"

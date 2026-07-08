@@ -77,3 +77,37 @@ class SuggestionCornerStoricoTest(TestCase):
         )
         self.assertEqual(seg.storico.count(), 1)
         self.assertEqual(v.stato_nuovo, "DA_CLASSIFICARE")
+
+
+class SuggestionCornerConfigTest(TestCase):
+    def test_config_singleton_forza_pk_1(self):
+        from suggestion_corner.models import SuggestionCornerConfig
+
+        c1 = SuggestionCornerConfig.load()
+        c1.giorni_sollecito_1 = 20
+        c1.save()
+        c2 = SuggestionCornerConfig.load()
+        self.assertEqual(c2.pk, 1)
+        self.assertEqual(c2.giorni_sollecito_1, 20)
+        self.assertEqual(SuggestionCornerConfig.objects.count(), 1)
+
+    def test_config_default(self):
+        from suggestion_corner.models import SuggestionCornerConfig
+
+        c = SuggestionCornerConfig.load()
+        self.assertEqual(c.giorni_sollecito_1, 30)
+        self.assertEqual(c.giorni_sollecito_2, 15)
+        self.assertEqual(c.giorni_sollecito_3, 5)
+        self.assertEqual(c.giorni_escalation_oltre_scadenza, 7)
+        self.assertEqual(c.sms_team_group_name, "SMS_TEAM")
+
+
+class SuggestionCornerProcessoMappingTest(TestCase):
+    def test_mapping_valore_libero_unique(self):
+        from django.db import IntegrityError
+
+        from suggestion_corner.models import SuggestionCornerProcessoMapping
+
+        SuggestionCornerProcessoMapping.objects.create(valore_libero="Tornitura")
+        with self.assertRaises(IntegrityError):
+            SuggestionCornerProcessoMapping.objects.create(valore_libero="Tornitura")
