@@ -163,11 +163,11 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
                 <option value="">— Nessun reparto —</option>
                 {% for rep in reparti_catalogo %}
                   <option value="{{ rep.nome }}" {% if legacy_form.reparto.value == rep.nome %}selected{% endif %}>
-                    {{ rep.nome }}{% if rep.area_aziendale %} · {{ rep.area_aziendale.nome }}{% endif %}
+                    {{ rep.nome }}
                   </option>
                 {% endfor %}
               </select>
-              <span style="font-size:11px;color:#94a3b8;">Area aziendale e caporeparto vengono assegnati automaticamente dal catalogo reparti.</span>
+              <span style="font-size:11px;color:#94a3b8;">Il caporeparto viene assegnato automaticamente dal catalogo reparti.</span>
               {% if legacy_form.reparto.errors %}<div class="dc-error">{{ legacy_form.reparto.errors|join:", " }}</div>{% endif %}
             </div>
             <div class="dc-field">
@@ -225,7 +225,7 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
         <div class="dc-area">
           <div class="dc-area-title">Ruolo e organizzazione</div>
           <p style="font-size:12px;color:#64748b;margin:-6px 0 12px;">
-            Il <strong>reparto</strong> si imposta nella sezione “Dati account” e determina automaticamente l'area aziendale e il caporeparto.
+            Il <strong>reparto</strong> si imposta nella sezione “Dati account” e determina automaticamente il caporeparto.
           </p>
           <div class="dc-grid">
             {% for field in form_aziendale %}
