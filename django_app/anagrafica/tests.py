@@ -2704,7 +2704,7 @@ class LibrettoArchivioTests(TestCase):
 # ---------------------------------------------------------------------------
 
 class OrganigrammaTests(TestCase):
-    """Albero area → reparto → capo → membri, con bucket disallineamenti."""
+    """Albero reparto → area aziendale (badge) → capo → membri, con bucket disallineamenti."""
 
     @classmethod
     def setUpTestData(cls):
@@ -2713,11 +2713,11 @@ class OrganigrammaTests(TestCase):
         cls.admin = User.objects.create_superuser(
             username="org_admin", email="org_admin@x.local", password="x"
         )
-        cls.area = AreaAziendale.objects.create(nome="Produzione", colore="#1d4ed8")
         cls.rep_prod = Reparto.objects.create(
-            nome="PROD", area_aziendale=cls.area, caporeparto_legacy_id=401
+            nome="PROD", colore="#1d4ed8", caporeparto_legacy_id=401
         )
-        cls.rep_orfano = Reparto.objects.create(nome="MAG")  # senza area, senza capo
+        cls.area_in1 = AreaAziendale.objects.create(nome="IN1", reparto=cls.rep_prod)
+        cls.area_orfana = AreaAziendale.objects.create(nome="ORFANA")  # senza reparto
         with connection.cursor() as cur:
             cur.execute(
                 "INSERT INTO anagrafica_dipendenti (id, nome, cognome, mansione, reparto, attivo) VALUES "
@@ -2730,16 +2730,14 @@ class OrganigrammaTests(TestCase):
     def setUp(self):
         self.client.force_login(self.admin)
 
-    def test_albero_aree_reparti_capo(self):
+    def test_albero_reparti_capo(self):
         resp = self.client.get(reverse("anagrafica:organigramma"))
         self.assertEqual(resp.status_code, 200)
         content = resp.content.decode()
-        self.assertIn("Produzione", content)
         self.assertIn("PROD", content)
-        self.assertIn("Reparto Capo", content)          # capo evidenziato
-        self.assertIn("Verdi Mario", content)            # membro (capo escluso dai membri)
-        self.assertIn("Senza area", content)              # reparto MAG senza area
-        self.assertIn("Caporeparto non assegnato", content)
+        self.assertIn("IN1", content)                     # area aziendale mostrata come badge
+        self.assertIn("Reparto Capo", content)             # capo evidenziato
+        self.assertIn("Verdi Mario", content)               # membro (capo escluso dai membri)
 
     def test_non_mappati_visibili(self):
         resp = self.client.get(reverse("anagrafica:organigramma"))
@@ -2751,12 +2749,10 @@ class OrganigrammaTests(TestCase):
         resp = self.client.get(reverse("anagrafica:organigramma"))
         self.assertNotContains(resp, "Cessata")
 
-    def test_filtro_area(self):
-        resp = self.client.get(reverse("anagrafica:organigramma"), {"area": "Produzione"})
+    def test_filtro_reparto(self):
+        resp = self.client.get(reverse("anagrafica:organigramma"), {"reparto": "PROD"})
         content = resp.content.decode()
         self.assertIn("PROD", content)
-        # il gruppo "Senza area" sparisce col filtro
-        self.assertNotIn("Senza area</span>", content)
 
 
 # ---------------------------------------------------------------------------
