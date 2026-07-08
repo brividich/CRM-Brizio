@@ -1031,7 +1031,7 @@ def dipendente_create(request):
         formset_figli = FiglioACaricoFormSet(prefix="figli")
 
     reparti_catalogo = list(
-        Reparto.objects.filter(is_active=True).select_related("area_aziendale").order_by("nome")
+        Reparto.objects.filter(is_active=True).order_by("nome")
     )
     # Corsi di sicurezza per la dichiarazione "formazione pregressa" in preinserimento.
     from .models_formazione import TrainingCourse
@@ -2002,7 +2002,7 @@ def dipendente_detail(request, legacy_id: int):
             logger.exception("Errore caricamento pratiche onboarding per dipendente %s", legacy_id)
 
     # Catalogo reparti per dropdown + label caporeparto dall'aziendale
-    reparti_catalog = list(Reparto.objects.filter(is_active=True).select_related("area_aziendale").order_by("nome"))
+    reparti_catalog = list(Reparto.objects.filter(is_active=True).order_by("nome"))
     reparto_corrente = (dip.get("reparto") or "").strip()
     reparto_in_catalog = reparto_corrente and any(
         r.nome.strip().casefold() == reparto_corrente.casefold() for r in reparti_catalog
@@ -2011,7 +2011,6 @@ def dipendente_detail(request, legacy_id: int):
     caporeparto_label = _dip_picker_map_detail.get(aziendale.caporeparto_legacy_id, "") if aziendale and aziendale.caporeparto_legacy_id else ""
     reparto_autofill_json = json.dumps({
         r.nome: {
-            "area": r.area_aziendale.nome if r.area_aziendale else "",
             "capo_label": _dip_picker_map_detail.get(r.caporeparto_legacy_id or 0, ""),
         }
         for r in reparti_catalog
@@ -5411,49 +5410,51 @@ def _resolve_caporeparto_id(raw: str | None) -> int | None:
 
 
 def _sync_aziendale_from_reparto(legacy_id: int, reparto_nome: str, *, saved_by) -> None:
-    """Aggiorna area_aziendale_nome e caporeparto_legacy_id su DipendenteAnagraficaAziendale
-    in base al Reparto assegnato. Chiamato ogni volta che il reparto cambia."""
-    area_nome = ""
+    """Aggiorna caporeparto_legacy_id su DipendenteAnagraficaAziendale in base
+    al Reparto assegnato. Chiamato ogni volta che il reparto cambia.
+
+    L'area aziendale non si autopopola più: con l'inversione della gerarchia
+    un Reparto può avere più Aree aziendali figlie, quindi non è più
+    derivabile in automatico da un singolo Reparto (Fase 2 nello spec).
+    """
     capo_id = None
     if reparto_nome:
-        rep = Reparto.objects.filter(nome__iexact=reparto_nome, is_active=True).select_related("area_aziendale").first()
+        rep = Reparto.objects.filter(nome__iexact=reparto_nome, is_active=True).first()
         if rep:
-            area_nome = rep.area_aziendale.nome if rep.area_aziendale else ""
             capo_id = rep.caporeparto_legacy_id
     az, _ = DipendenteAnagraficaAziendale.objects.get_or_create(
         legacy_anagrafica_id=legacy_id,
         defaults={"updated_by": saved_by},
     )
     az.area = reparto_nome
-    az.area_aziendale_nome = area_nome
     az.caporeparto_legacy_id = capo_id
     az.updated_by = saved_by
-    az.save(update_fields=["area", "area_aziendale_nome", "caporeparto_legacy_id", "updated_by", "updated_at"])
+    az.save(update_fields=["area", "caporeparto_legacy_id", "updated_by", "updated_at"])
 
 
 @login_required
 def aree_list(request):
     legacy_user = get_legacy_user(request.user)
     is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
-    aree_aziendali = list(AreaAziendale.objects.prefetch_related("reparti").order_by("nome"))
-    reparti_senza_area = list(Reparto.objects.filter(area_aziendale__isnull=True).order_by("nome"))
+    reparti = list(Reparto.objects.prefetch_related("aree_aziendali").order_by("nome"))
+    aree_senza_reparto = list(AreaAziendale.objects.filter(reparto__isnull=True).order_by("nome"))
     dipendenti = _dipendenti_picker_rows()
     dip_map = {item["id"]: item["label"] for item in dipendenti}
-    # Arricchisci ogni reparto con la label del caporeparto
-    for area in aree_aziendali:
-        for rep in area.reparti.all():
-            rep.caporeparto_label = dip_map.get(rep.caporeparto_legacy_id or 0, "")
-    for rep in reparti_senza_area:
+    for rep in reparti:
         rep.caporeparto_label = dip_map.get(rep.caporeparto_legacy_id or 0, "")
+        for area in rep.aree_aziendali.all():
+            area.responsabile_label = dip_map.get(area.responsabile_legacy_id or 0, "")
+    for area in aree_senza_reparto:
+        area.responsabile_label = dip_map.get(area.responsabile_legacy_id or 0, "")
     return render(request, "anagrafica/pages/aree_list.html", {
-        "aree_aziendali": aree_aziendali,
-        "reparti_senza_area": reparti_senza_area,
+        "reparti": reparti,
+        "aree_senza_reparto": aree_senza_reparto,
         "is_admin": is_admin,
         "dipendenti_picker": dipendenti,
     })
 
 
-# ── Area Aziendale CRUD ──────────────────────────────────────────────────────
+# ── Area Aziendale CRUD (ora il livello FIGLIO) ─────────────────────────────
 
 @login_required
 @require_POST
@@ -5466,12 +5467,20 @@ def area_aziendale_create(request):
     if not nome:
         messages.error(request, "Il nome dell'area aziendale è obbligatorio.")
         return _back_to_caller(request, "anagrafica:aree_list")
+    reparto_id = request.POST.get("reparto_id") or None
+    reparto = None
+    if reparto_id:
+        try:
+            reparto = Reparto.objects.get(pk=int(reparto_id))
+        except (Reparto.DoesNotExist, ValueError):
+            pass
     obj, created = AreaAziendale.objects.get_or_create(
         nome__iexact=nome,
         defaults={
             "nome": nome,
             "descrizione": (request.POST.get("descrizione") or "").strip(),
-            "colore": (request.POST.get("colore") or "#64748b").strip()[:7],
+            "reparto": reparto,
+            "responsabile_legacy_id": _resolve_caporeparto_id(request.POST.get("responsabile_legacy_id")),
         },
     )
     if created:
@@ -5493,9 +5502,17 @@ def area_aziendale_edit(request, area_id: int):
     if not nome:
         messages.error(request, "Il nome dell'area aziendale è obbligatorio.")
         return _back_to_caller(request, "anagrafica:aree_list")
+    reparto_id = request.POST.get("reparto_id") or None
+    reparto = None
+    if reparto_id:
+        try:
+            reparto = Reparto.objects.get(pk=int(reparto_id))
+        except (Reparto.DoesNotExist, ValueError):
+            pass
     area.nome = nome
     area.descrizione = (request.POST.get("descrizione") or "").strip()
-    area.colore = (request.POST.get("colore") or "#64748b").strip()[:7]
+    area.reparto = reparto
+    area.responsabile_legacy_id = _resolve_caporeparto_id(request.POST.get("responsabile_legacy_id"))
     area.is_active = request.POST.get("is_active") == "1"
     area.save()
     messages.success(request, f'Area aziendale "{area.nome}" aggiornata.')
@@ -5510,16 +5527,13 @@ def area_aziendale_delete(request, area_id: int):
         messages.error(request, "Non hai i permessi per eliminare aree aziendali.")
         return _back_to_caller(request, "anagrafica:aree_list")
     area = get_object_or_404(AreaAziendale, pk=area_id)
-    if area.reparti.exists():
-        messages.error(request, f'Impossibile eliminare: l\'area "{area.nome}" ha reparti associati. Riassegna prima i reparti.')
-        return _back_to_caller(request, "anagrafica:aree_list")
     nome = area.nome
     area.delete()
     messages.success(request, f'Area aziendale "{nome}" eliminata.')
     return _back_to_caller(request, "anagrafica:aree_list")
 
 
-# ── Reparto CRUD ─────────────────────────────────────────────────────────────
+# ── Reparto CRUD (ora il livello PADRE) ─────────────────────────────────────
 
 def _sync_reparto_capo_mapping(rep) -> None:
     """Allinea RepartoCapoMapping al valore di Reparto.caporeparto_legacy_id.
@@ -5563,20 +5577,13 @@ def area_create(request):
         messages.error(request, "Il nome del reparto è obbligatorio.")
         return _back_to_caller(request, "anagrafica:aree_list")
     capo_id = _resolve_caporeparto_id(request.POST.get("caporeparto_legacy_id"))
-    area_az_id = request.POST.get("area_aziendale_id") or None
-    area_az = None
-    if area_az_id:
-        try:
-            area_az = AreaAziendale.objects.get(pk=int(area_az_id))
-        except (AreaAziendale.DoesNotExist, ValueError):
-            pass
     obj, created = Reparto.objects.get_or_create(
         nome__iexact=nome,
         defaults={
             "nome": nome,
             "descrizione": (request.POST.get("descrizione") or "").strip(),
+            "colore": (request.POST.get("colore") or "#64748b").strip()[:7],
             "caporeparto_legacy_id": capo_id,
-            "area_aziendale": area_az,
         },
     )
     if created:
@@ -5599,18 +5606,11 @@ def area_edit(request, area_id: int):
     if not nome:
         messages.error(request, "Il nome del reparto è obbligatorio.")
         return _back_to_caller(request, "anagrafica:aree_list")
-    area_az_id = request.POST.get("area_aziendale_id") or None
-    area_az = None
-    if area_az_id:
-        try:
-            area_az = AreaAziendale.objects.get(pk=int(area_az_id))
-        except (AreaAziendale.DoesNotExist, ValueError):
-            pass
     rep.nome = nome
     rep.descrizione = (request.POST.get("descrizione") or "").strip()
+    rep.colore = (request.POST.get("colore") or "#64748b").strip()[:7]
     rep.is_active = request.POST.get("is_active") == "1"
     rep.caporeparto_legacy_id = _resolve_caporeparto_id(request.POST.get("caporeparto_legacy_id"))
-    rep.area_aziendale = area_az
     rep.save()
     _sync_reparto_capo_mapping(rep)
     DipendenteAnagraficaAziendale.objects.filter(area__iexact=rep.nome).update(
@@ -5628,6 +5628,9 @@ def area_delete(request, area_id: int):
         messages.error(request, "Non hai i permessi per eliminare reparti.")
         return _back_to_caller(request, "anagrafica:aree_list")
     rep = get_object_or_404(Reparto, pk=area_id)
+    if rep.aree_aziendali.exists():
+        messages.error(request, f'Impossibile eliminare: il reparto "{rep.nome}" ha aree aziendali associate. Riassegna prima le aree.')
+        return _back_to_caller(request, "anagrafica:aree_list")
     nome = rep.nome
     rep.delete()
     messages.success(request, f'Reparto "{nome}" eliminato.')
@@ -8073,13 +8076,15 @@ def impostazioni(request):
         if items:
             mansioni_grouped.append((cat_code, cat_labels[cat_code], items))
 
-    # --- Reparti ---
-    aree = list(Reparto.objects.select_related("area_aziendale").order_by("nome"))
-    aree_aziendali = list(AreaAziendale.objects.prefetch_related("reparti").order_by("nome"))
+    # --- Reparti e Aree aziendali ---
+    aree = list(Reparto.objects.prefetch_related("aree_aziendali").order_by("nome"))
+    aree_aziendali = list(AreaAziendale.objects.order_by("nome"))
     dipendenti_picker = _dipendenti_picker_rows()
     _dip_picker_map = {item["id"]: item["label"] for item in dipendenti_picker}
     for a in aree:
         a.caporeparto_label = _dip_picker_map.get(a.caporeparto_legacy_id or 0, "")
+    for az in aree_aziendali:
+        az.responsabile_label = _dip_picker_map.get(az.responsabile_legacy_id or 0, "")
 
     # --- Ruoli aziendali ---
     ruoli_aziendali = list(RuoloAziendale.objects.all().order_by("nome"))

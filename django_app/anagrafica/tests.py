@@ -4423,3 +4423,79 @@ class RepartoAreaAziendaleModelTests(TestCase):
         rep.delete()
         area.refresh_from_db()
         self.assertIsNone(area.reparto_id)
+
+
+class AreeRepartiCrudTests(TestCase):
+    """CRUD di Reparto (padre) e AreaAziendale (figlia) dopo l'inversione."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin = User.objects.create_superuser(
+            username="aree_crud_admin", email="aree_crud_admin@x.local", password="x"
+        )
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def test_crea_reparto_con_colore_e_caporeparto(self):
+        from .models import Reparto
+        resp = self.client.post(reverse("anagrafica:area_create"), {
+            "nome": "UT", "descrizione": "Ufficio tecnico", "colore": "#1f87cd",
+            "caporeparto_legacy_id": "401",
+        })
+        self.assertEqual(resp.status_code, 302)
+        rep = Reparto.objects.get(nome="UT")
+        self.assertEqual(rep.colore, "#1f87cd")
+        self.assertEqual(rep.caporeparto_legacy_id, 401)
+
+    def test_crea_area_aziendale_assegnata_a_reparto(self):
+        from .models import AreaAziendale, Reparto
+        rep = Reparto.objects.create(nome="UT")
+        resp = self.client.post(reverse("anagrafica:area_aziendale_create"), {
+            "nome": "IN1", "descrizione": "Ingegneria 1", "reparto_id": str(rep.pk),
+            "responsabile_legacy_id": "402",
+        })
+        self.assertEqual(resp.status_code, 302)
+        area = AreaAziendale.objects.get(nome="IN1")
+        self.assertEqual(area.reparto_id, rep.pk)
+        self.assertEqual(area.responsabile_legacy_id, 402)
+
+    def test_modifica_area_aziendale_cambia_reparto(self):
+        from .models import AreaAziendale, Reparto
+        rep1 = Reparto.objects.create(nome="UT")
+        rep2 = Reparto.objects.create(nome="MAG")
+        area = AreaAziendale.objects.create(nome="IN1", reparto=rep1)
+        resp = self.client.post(reverse("anagrafica:area_aziendale_edit", args=[area.pk]), {
+            "nome": "IN1", "descrizione": "", "reparto_id": str(rep2.pk),
+            "responsabile_legacy_id": "", "is_active": "1",
+        })
+        self.assertEqual(resp.status_code, 302)
+        area.refresh_from_db()
+        self.assertEqual(area.reparto_id, rep2.pk)
+
+    def test_elimina_reparto_con_aree_associate_bloccata(self):
+        from .models import AreaAziendale, Reparto
+        rep = Reparto.objects.create(nome="UT")
+        AreaAziendale.objects.create(nome="IN1", reparto=rep)
+        resp = self.client.post(reverse("anagrafica:area_delete", args=[rep.pk]))
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(Reparto.objects.filter(pk=rep.pk).exists())
+
+    def test_elimina_area_aziendale_non_richiede_guardia(self):
+        from .models import AreaAziendale, Reparto
+        rep = Reparto.objects.create(nome="UT")
+        area = AreaAziendale.objects.create(nome="IN1", reparto=rep)
+        resp = self.client.post(reverse("anagrafica:area_aziendale_delete", args=[area.pk]))
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(AreaAziendale.objects.filter(pk=area.pk).exists())
+        self.assertTrue(Reparto.objects.filter(pk=rep.pk).exists())
+
+    def test_aree_list_mostra_reparto_come_contenitore(self):
+        from .models import AreaAziendale, Reparto
+        rep = Reparto.objects.create(nome="UT", colore="#1f87cd")
+        AreaAziendale.objects.create(nome="IN1", reparto=rep)
+        resp = self.client.get(reverse("anagrafica:aree_list"))
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode()
+        self.assertIn("UT", content)
+        self.assertIn("IN1", content)
