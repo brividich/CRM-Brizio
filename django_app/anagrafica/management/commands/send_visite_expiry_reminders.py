@@ -14,6 +14,7 @@ from django.utils import timezone
 from core.notifiche import invia_notifica
 
 from anagrafica.models import DipendenteAnagraficaAziendale, DipendenteRuoloOperativo
+from anagrafica.services.email_digest import digest_fragment, scadenza_badge
 from anagrafica.services.reminders import get_reminder_recipients
 from anagrafica.services.visite import STATO_IN_SCADENZA, STATO_SCADUTA, stato_visite
 
@@ -141,11 +142,34 @@ class Command(BaseCommand):
             ))
             return
 
+        scadute_cards = [{
+            "title": f"Dipendente #{legacy_id}",
+            "subtitle": row["tipo"].nome,
+            "badge": scadenza_badge(
+                (today - row["data_scadenza"]).days if row["data_scadenza"] else None,
+                scaduto=True, label_scaduto="Scaduta"),
+            "note": (f"Scaduta il {row['data_scadenza']:%d-%m-%Y}"
+                     if row["data_scadenza"] else "Scaduta"),
+            "accent": "#dc2626",
+        } for legacy_id, row in scadute]
+        inscad_cards = [{
+            "title": f"Dipendente #{legacy_id}",
+            "subtitle": row["tipo"].nome,
+            "badge": scadenza_badge(row.get("giorni_a_scadenza") or 0),
+            "note": (f"Scadenza {row['data_scadenza']:%d-%m-%Y}"
+                     if row["data_scadenza"] else ""),
+            "accent": "#f59e0b",
+        } for legacy_id, row in in_scadenza]
+        fragment = digest_fragment([
+            (f"Visite scadute ({len(scadute)})", scadute_cards),
+            (f"Visite in scadenza entro {days} giorni ({len(in_scadenza)})", inscad_cards),
+        ])
         from core.email_utils import send_hub_mail
         send_hub_mail(
             subject, body, recipients,
             email_type="Anagrafica HR",
             section_label="Reminder visite mediche",
+            body_html_fragment=fragment,
             fail_silently=False,
         )
         self.stdout.write(self.style.SUCCESS(

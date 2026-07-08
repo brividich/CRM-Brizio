@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
@@ -101,6 +102,27 @@ class Command(BaseCommand):
                 f"Trovi l'invito da aggiungere al calendario in allegato (.ics)."
             )
 
+            from core.email_utils import email_cta, email_facts_table, text_to_html
+            facts = [
+                ("Corso", sess.corso.titolo),
+                ("Edizione", sess.codice_sessione),
+                ("Inizio", quando),
+                ("Sede / modalità", f"{sess.sede or '-'} ({sess.get_modalita_display()})"),
+            ]
+            if sess.docente_nome:
+                facts.append(("Docente", sess.docente_nome))
+            base = str(getattr(settings, "SITE_URL", "") or "").rstrip("/")
+            url_rel = f"/anagrafica/formazione/sessioni/{sess.pk}/iscritti/"
+            cta_url = (base + url_rel) if base else url_rel
+            fragment = (
+                text_to_html("Ti ricordiamo il prossimo appuntamento formativo:")
+                + '<div style="height:12px;line-height:12px;font-size:0;">&nbsp;</div>'
+                + email_facts_table(facts)
+                + '<div style="height:16px;line-height:16px;font-size:0;">&nbsp;</div>'
+                + email_cta("Apri la scheda della sessione", cta_url,
+                            note="In allegato l'invito da aggiungere al calendario (.ics).")
+            )
+
             for i in iscritti:
                 if not dry:
                     try:
@@ -122,6 +144,7 @@ class Command(BaseCommand):
                                 subject, body, [email],
                                 email_type="Anagrafica HR",
                                 section_label="Promemoria corso",
+                                body_html_fragment=fragment,
                                 attachments=[(f"corso_{sess.codice_sessione}.ics", ics, "text/calendar")],
                                 fail_silently=True,
                             )

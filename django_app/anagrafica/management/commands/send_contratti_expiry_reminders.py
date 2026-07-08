@@ -27,6 +27,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from anagrafica.models import DipendenteAnagraficaAziendale, StoricoContratto
+from anagrafica.services.email_digest import digest_fragment, scadenza_badge
 from anagrafica.services.reminders import get_reminder_recipients
 
 # Tipologie dell'anagrafica aziendale considerate "a termine" per il fallback
@@ -199,11 +200,46 @@ class Command(BaseCommand):
             ))
             return
 
+        scaduti_cards = [{
+            "title": label(legacy_id),
+            "subtitle": (c.tipologia_contratto or "tipologia n/d"),
+            "badge": scadenza_badge((today - c.data_fine).days, scaduto=True, label_scaduto="Scaduto"),
+            "note": f"Scaduto il {c.data_fine:%d-%m-%Y} — verificare rinnovo/cessazione",
+            "accent": "#dc2626",
+        } for legacy_id, c in scaduti]
+        inscad_cards = [{
+            "title": label(legacy_id),
+            "subtitle": (c.tipologia_contratto or "tipologia n/d"),
+            "badge": scadenza_badge((c.data_fine - today).days),
+            "note": f"Scadenza {c.data_fine:%d-%m-%Y}",
+            "accent": "#f59e0b",
+        } for legacy_id, c in in_scadenza]
+        prove_cards = [{
+            "title": label(legacy_id),
+            "subtitle": "Periodo di prova",
+            "badge": scadenza_badge((az.prova_data_fine - today).days, label_scadenza="Fine prova"),
+            "note": f"Fine prova {az.prova_data_fine:%d-%m-%Y}",
+            "accent": "#f59e0b",
+        } for legacy_id, az in prove]
+        senza_cards = [{
+            "title": label(legacy_id),
+            "subtitle": tipologie_labels.get(az.tipologia_contratto, az.tipologia_contratto),
+            "badge": ("Data fine n/d", "neutral"),
+            "note": "Contratto a termine senza storico importato",
+            "accent": "#64748b",
+        } for legacy_id, az in senza_storico]
+        fragment = digest_fragment([
+            (f"Contratti scaduti, dipendente in forza ({len(scaduti)})", scaduti_cards),
+            (f"Contratti in scadenza entro {days} giorni ({len(in_scadenza)})", inscad_cards),
+            (f"Periodi di prova in chiusura entro {prova_days} giorni ({len(prove)})", prove_cards),
+            (f"Contratti a termine senza storico ({len(senza_storico)})", senza_cards),
+        ])
         from core.email_utils import send_hub_mail
         send_hub_mail(
             subject, body, recipients,
             email_type="Anagrafica HR",
             section_label="Reminder contratti e periodi di prova",
+            body_html_fragment=fragment,
             fail_silently=False,
         )
         self.stdout.write(self.style.SUCCESS(

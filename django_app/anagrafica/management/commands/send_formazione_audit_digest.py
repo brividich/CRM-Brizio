@@ -19,6 +19,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from anagrafica.models import TrainingEmployeeRecord
+from anagrafica.services.email_digest import digest_fragment, scadenza_badge
 
 
 def _get_recipients(override: list[str] | None) -> list[str]:
@@ -90,9 +91,20 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR("Nessun destinatario configurato."))
             return
 
+        cards = [{
+            "title": rec.course_title_snapshot or rec.course_code_snapshot or f"Corso #{rec.pk}",
+            "subtitle": f"Dipendente #{rec.legacy_anagrafica_id}",
+            "badge": scadenza_badge((rec.data_scadenza - today).days),
+            "note": f"Scadenza {rec.data_scadenza:%d-%m-%Y}",
+            "accent": "#f59e0b",
+        } for rec in in_scadenza]
+        fragment = digest_fragment([
+            (f"Abilitazioni in scadenza entro {days} giorni ({len(in_scadenza)})", cards),
+        ])
         from core.email_utils import send_hub_mail
         send_hub_mail(
             subject, body, recipients,
-            email_type="Anagrafica", section_label="Digest formazione ISO", fail_silently=False,
+            email_type="Anagrafica", section_label="Digest formazione ISO",
+            body_html_fragment=fragment, fail_silently=False,
         )
         self.stdout.write(self.style.SUCCESS(f"Digest inviato a {len(recipients)} destinatari ({len(in_scadenza)} record)."))

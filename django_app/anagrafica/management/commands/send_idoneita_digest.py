@@ -16,6 +16,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from anagrafica.services import conformita as conformita_service
+from anagrafica.services.email_digest import digest_fragment
 from anagrafica.services.reminders import get_reminder_recipients
 
 CONFIG_KEY = "idoneita_reminder_emails"
@@ -95,10 +96,30 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR("Nessun destinatario configurato (idoneita_reminder_emails)."))
             return
 
+        def _card(lid, idn, non_idoneo):
+            gap = list(idn.get("scaduti", [])) + list(idn.get("mancanti", []))
+            rep = str(dip_map.get(lid, {}).get("reparto") or "").strip()
+            return {
+                "title": _nome(lid),
+                "subtitle": rep or None,
+                "badge": ("Non idoneo", "danger") if non_idoneo else ("Con riserve", "warning"),
+                "note": "; ".join(gap),
+                "accent": "#dc2626" if non_idoneo else "#f59e0b",
+            }
+
+        ko_cards = [_card(lid, idn, True)
+                    for lid, idn in sorted(ko, key=lambda x: _nome(x[0]).casefold())]
+        warn_cards = [_card(lid, idn, False)
+                      for lid, idn in sorted(warn, key=lambda x: _nome(x[0]).casefold())]
+        fragment = digest_fragment([
+            (f"Non idonei — requisito scaduto ({len(ko)})", ko_cards),
+            (f"Idonei con riserve — requisito mancante ({len(warn)})", warn_cards),
+        ])
         from core.email_utils import send_hub_mail
         send_hub_mail(
             subject, body, recipients,
-            email_type="Anagrafica HR", section_label="Idoneità alla mansione", fail_silently=False,
+            email_type="Anagrafica HR", section_label="Idoneità alla mansione",
+            body_html_fragment=fragment, fail_silently=False,
         )
         self.stdout.write(self.style.SUCCESS(
             f"Digest idoneità inviato a {len(recipients)} destinatari ({len(ko)} non idonei, {len(warn)} con riserve)."

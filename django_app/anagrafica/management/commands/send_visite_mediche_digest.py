@@ -19,6 +19,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from anagrafica.models import VisitaMedica
+from anagrafica.services.email_digest import digest_fragment, scadenza_badge
 
 
 def _get_recipients(override: list[str] | None) -> list[str]:
@@ -71,12 +72,20 @@ class Command(BaseCommand):
             f"Visite in scadenza entro {days} giorni ({len(in_scadenza)}):",
             "",
         ]
+        cards = []
         for v in in_scadenza:
             days_left = (v.data_scadenza - today).days
             lines.append(
                 f"  [{days_left}gg] dipendente legacy_id={v.legacy_anagrafica_id} - "
                 f"esito {v.esito} - scadenza {v.data_scadenza:%d-%m-%Y}"
             )
+            cards.append({
+                "title": f"Dipendente #{v.legacy_anagrafica_id}",
+                "subtitle": f"Esito ultima visita: {v.get_esito_display()}",
+                "badge": scadenza_badge(days_left),
+                "note": f"Scadenza {v.data_scadenza:%d-%m-%Y}",
+                "accent": "#f59e0b",
+            })
         body = "\n".join(lines)
         subject = f"[Visite mediche] {len(in_scadenza)} in scadenza entro {days}gg - {today:%d-%m-%Y}"
 
@@ -89,9 +98,13 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR("Nessun destinatario configurato."))
             return
 
+        fragment = digest_fragment([
+            (f"Visite in scadenza entro {days} giorni ({len(in_scadenza)})", cards),
+        ])
         from core.email_utils import send_hub_mail
         send_hub_mail(
             subject, body, recipients,
-            email_type="Anagrafica", section_label="Digest visite mediche", fail_silently=False,
+            email_type="Anagrafica", section_label="Digest visite mediche",
+            body_html_fragment=fragment, fail_silently=False,
         )
         self.stdout.write(self.style.SUCCESS(f"Digest inviato a {len(recipients)} destinatari ({len(in_scadenza)} visite)."))
