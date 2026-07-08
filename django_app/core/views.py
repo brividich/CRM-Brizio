@@ -282,10 +282,14 @@ def _notification_payload(notifica) -> dict:
     else:
         created_iso = ""
         created_label = ""
+    from core.notifiche_meta import notifica_meta
+    meta = notifica_meta(notifica.tipo)
     return {
         "id": notifica.id,
         "tipo": notifica.tipo,
-        "tipo_label": notifica.get_tipo_display(),
+        "tipo_label": meta["label"],
+        "tipo_icona": meta["icona"],
+        "tipo_tono": meta["tono"],
         "messaggio": notifica.messaggio,
         "url_azione": notifica.url_azione or "",
         "created_at": created_iso,
@@ -837,6 +841,7 @@ def organigramma(request):
 @login_required
 def notifiche(request):
     from core.models import Notifica
+    from core.notifiche_meta import notifica_meta
     legacy_user = get_legacy_user(request.user)
     if not legacy_user:
         lista = []
@@ -847,7 +852,7 @@ def notifiche(request):
                 rows=qs.order_by("-created_at")[:500],
                 columns=[
                     ("Data", "created_at"),
-                    ("Tipo", lambda n: n.get_tipo_display()),
+                    ("Tipo", lambda n: notifica_meta(n.tipo)["label"]),
                     ("Messaggio", "messaggio"),
                     ("Letta", lambda n: "Si" if n.letta else "No"),
                     ("URL", "url_azione"),
@@ -856,11 +861,13 @@ def notifiche(request):
                 fmt=request.GET.get("export"),
             )
         lista = list(qs[:50])
-        # segna tutte come lette
-        Notifica.objects.filter(legacy_user_id=legacy_user.id, letta=False).update(letta=True)
+        # NB: aprire la pagina NON marca più tutto come letto (troppo aggressivo).
+        # Le singole si marcano leggendole (api_notifica_leggi); c'è il pulsante
+        # esplicito «Segna tutte come lette» (api_notifiche_mark_all_read).
     return render(request, "core/pages/notifiche.html", {
         "page_title": "Notifiche",
         "notifiche_list": lista,
+        "unread_count": sum(1 for n in lista if not n.letta),
     })
 
 

@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load notifiche_extras %}
 
 {% block title %}Notifiche | Portale Applicativo{% endblock %}
 
@@ -15,15 +16,22 @@
   <div class="card">
     <div class="card-head">
       <div class="card-title">🔔 Cronologia notifiche</div>
-      <div class="cell-muted">Ultime 50 — segnate come lette all'apertura</div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span class="cell-muted">Ultime 50{% if unread_count %} · {{ unread_count }} non lette{% endif %}</span>
+        {% if notifiche_list %}
+          <button type="button" data-notification-mark-read
+                  style="padding:5px 12px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;background:#fff;color:#334155;cursor:pointer;">
+            Segna tutte come lette
+          </button>
+        {% endif %}
+      </div>
     </div>
     <div class="card-body" style="padding:0;">
       {% if notifiche_list %}
         {% for n in notifiche_list %}
+          {% with m=n.tipo|notifica_meta %}
           <div style="display:flex;align-items:flex-start;gap:14px;padding:14px 18px;border-bottom:1px solid #f1f5f9;{% if not n.letta %}background:#eff6ff;{% endif %}">
-            <div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:5px;
-              background:{% if n.tipo == 'assenza_approvata' %}#16a34a{% elif n.tipo == 'assenza_rifiutata' %}#dc2626{% else %}#3b82f6{% endif %};">
-            </div>
+            <div style="flex-shrink:0;margin-top:2px;font-size:18px;line-height:1;" aria-hidden="true">{{ m.icona }}</div>
             <div style="flex:1;">
               <div style="font-size:14px;font-weight:{% if not n.letta %}600{% else %}400{% endif %};color:#1e293b;">
                 {{ n.messaggio }}
@@ -32,8 +40,8 @@
                 {{ n.created_at|date:"d-m-Y H:i" }}
                 &nbsp;·&nbsp;
                 <span style="text-transform:uppercase;font-size:11px;font-weight:600;
-                  color:{% if n.tipo == 'assenza_approvata' %}#16a34a{% elif n.tipo == 'assenza_rifiutata' %}#dc2626{% else %}#3b82f6{% endif %};">
-                  {{ n.get_tipo_display }}
+                  color:{% if m.tono == 'ok' %}#16a34a{% elif m.tono == 'danger' %}#dc2626{% elif m.tono == 'warn' %}#d97706{% else %}#3b82f6{% endif %};">
+                  {{ m.label }}
                 </span>
               </div>
             </div>
@@ -43,6 +51,7 @@
               </a>
             {% endif %}
           </div>
+          {% endwith %}
         {% endfor %}
       {% else %}
         <div style="padding:60px;text-align:center;color:#94a3b8;">

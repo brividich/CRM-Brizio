@@ -51,7 +51,7 @@ def notifica_responsabile(action: ActionItem) -> None:
         pass
     invia_notifica(
         legacy_user_id=legacy_id,
-        tipo="generico",
+        tipo="capa",
         messaggio=f"Ti è stata assegnata un'azione CAPA: «{action.titolo}»{scad}.",
         url_azione=url,
     )

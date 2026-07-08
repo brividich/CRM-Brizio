@@ -1321,7 +1321,7 @@ def assign_users(request, pk: int):
         for uid in notified_user_ids:
             invia_notifica(
                 legacy_map.get(uid),
-                "generico",
+                "presa_visione",
                 (
                     f"Nuovo documento in presa visione: {revision.document.code} "
                     f"(campagna {campaign.name}, scadenza {scad_str})."

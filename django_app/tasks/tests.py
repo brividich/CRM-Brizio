@@ -1718,7 +1718,7 @@ class TaskProjectGanttAndNotificationsTests(TasksBaseTestCase):
         self.assertEqual(comment.target_user_id, self.assignee.id)
         notification = Notifica.objects.filter(
             legacy_user_id=6002,
-            tipo="generico",
+            tipo="task",
             messaggio__icontains="Task Gantt",
         ).first()
         self.assertIsNotNone(notification)
@@ -1739,7 +1739,7 @@ class TaskProjectGanttAndNotificationsTests(TasksBaseTestCase):
         self.assertEqual(comment.target_user_id, self.assignee.id)
         notification = Notifica.objects.filter(
             legacy_user_id=6002,
-            tipo="generico",
+            tipo="task",
             messaggio__icontains=self.project.name,
         ).first()
         self.assertIsNotNone(notification)

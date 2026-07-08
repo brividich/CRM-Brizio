@@ -9,36 +9,14 @@ una terza copia negli altri command di reminder.
 
 from __future__ import annotations
 
-from django.conf import settings
-from django.contrib.auth import get_user_model
-
-from core.models import SiteConfig
-
-
-def split_emails(raw: str) -> list[str]:
-    """Spezza una stringa di email separate da virgole/punti e virgola/newline."""
-    cleaned = (raw or "").replace("\r", "\n").replace(",", "\n").replace(";", "\n")
-    return [email.strip() for email in cleaned.split("\n") if email.strip()]
+# Fonte unica: core.reminder_recipients. Restano qui come API storica dei
+# management command di reminder (import invariati), ma delegano al canonico.
+from core.reminder_recipients import resolve_reminder_recipients, split_emails  # noqa: F401
 
 
 def get_reminder_recipients(config_key: str, override: list[str] | None = None) -> list[str]:
-    """Destinatari del digest: override CLI → SiteConfig → ADMINS → superuser."""
-    if override:
-        return [email.strip() for email in override if email.strip()]
+    """Destinatari del digest: override CLI → SiteConfig → ADMINS → superuser.
 
-    recipients: list[str] = []
-    recipients.extend(split_emails(SiteConfig.get(config_key, "")))
-
-    if not recipients:
-        admins = getattr(settings, "ADMINS", ()) or ()
-        recipients.extend(str(email).strip() for _name, email in admins if str(email).strip())
-
-    if not recipients:
-        User = get_user_model()
-        recipients.extend(
-            User.objects.filter(is_active=True, is_superuser=True)
-            .exclude(email="")
-            .values_list("email", flat=True)
-            .distinct()
-        )
-    return sorted(set(recipients))
+    Wrapper sottile su :func:`core.reminder_recipients.resolve_reminder_recipients`.
+    """
+    return resolve_reminder_recipients(config_key=config_key, override=override)

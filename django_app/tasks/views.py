@@ -1327,7 +1327,7 @@ def _notify_user(target_user, *, message_text: str, action_url: str = "") -> Non
         return
     Notifica.objects.create(
         legacy_user_id=target_legacy_user_id,
-        tipo="generico",
+        tipo="task",
         messaggio=str(message_text or "")[:500],
         url_azione=str(action_url or "")[:255],
     )
@@ -4361,7 +4361,7 @@ def _handle_tasks_reminders_post(request):
             )[:500]
             Notifica.objects.create(
                 legacy_user_id=int(rem.legacy_user_id or 0),
-                tipo="generico",
+                tipo="task",
                 messaggio=message_text,
                 url_azione=reverse("tasks:detail", args=[task.id]),
             )

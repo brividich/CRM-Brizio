@@ -1,3 +1,4 @@
+{% load notifiche_extras %}
 {% if notifiche_popup %}
 <div
   class="notify-banner-wrap"
@@ -25,10 +26,11 @@
 
     <div class="notify-banner-list">
       {% for n in notifiche_popup %}
-        <article class="notify-banner-item notify-banner-item-{{ n.tipo }}" data-notifica-id="{{ n.id }}">
-          <span class="notify-banner-dot" aria-hidden="true"></span>
+        {% with m=n.tipo|notifica_meta %}
+        <article class="notify-banner-item notify-banner-item-{{ n.tipo }} notify-tono-{{ m.tono }}" data-notifica-id="{{ n.id }}">
+          <span class="notify-banner-dot" aria-hidden="true">{{ m.icona }}</span>
           <div class="notify-banner-copy">
-            <div class="notify-banner-item-title">{{ n.get_tipo_display }}</div>
+            <div class="notify-banner-item-title">{{ m.label }}</div>
             <div class="notify-banner-item-message">{{ n.messaggio }}</div>
             <div class="notify-banner-meta">{{ n.created_at|date:"d-m-Y H:i" }}</div>
           </div>
@@ -36,6 +38,7 @@
             <a class="notify-banner-item-link" href="{{ n.url_azione }}">Apri</a>
           {% endif %}
         </article>
+        {% endwith %}
       {% endfor %}
     </div>
   </section>

@@ -226,7 +226,7 @@ def run_assignment_lifecycle(**kwargs) -> dict:
                     intro="Hai documenti in presa visione non ancora confermati, in scadenza:",
                 )
                 invia_notifica(
-                    legacy_map.get(uid), "generico",
+                    legacy_map.get(uid), "presa_visione",
                     f"{len(items)} documenti in presa visione scadono tra {soglia} giorni.",
                     url_azione="/procedure-refresh/",
                 )
@@ -261,7 +261,7 @@ def run_assignment_lifecycle(**kwargs) -> dict:
                 intro="Hai documenti in presa visione con scadenza superata, da confermare al più presto:",
             )
             invia_notifica(
-                legacy_map.get(uid), "generico",
+                legacy_map.get(uid), "presa_visione",
                 f"{len(items)} documenti in presa visione sono scaduti senza conferma.",
                 url_azione="/procedure-refresh/?status=overdue",
             )

@@ -1055,23 +1055,7 @@ def _find_correlated_issue(*, current_url: str, route_name: str, module_name: st
 
 
 def _admin_recipients() -> list[str]:
-    explicit = getattr(settings, "MONITORING_ADMIN_EMAILS", None)
-    if explicit:
-        if isinstance(explicit, str):
-            emails = [item.strip() for item in explicit.split(",")]
-        else:
-            emails = [str(item).strip() for item in explicit]
-        return [email for email in emails if email]
+    # Delega alla cascata unica: MONITORING_ADMIN_EMAILS → ADMINS → superuser.
+    from core.reminder_recipients import resolve_reminder_recipients
 
-    admins = getattr(settings, "ADMINS", ()) or ()
-    admin_emails = [str(email).strip() for _name, email in admins if str(email).strip()]
-    if admin_emails:
-        return admin_emails
-
-    User = get_user_model()
-    return list(
-        User.objects.filter(is_active=True, is_superuser=True)
-        .exclude(email="")
-        .values_list("email", flat=True)
-        .distinct()
-    )
+    return resolve_reminder_recipients(setting_emails_key="MONITORING_ADMIN_EMAILS")

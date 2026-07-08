@@ -1,3 +1,4 @@
+{% load notifiche_extras %}
 <div class="notify-center-head">
   <div>
     <div class="notify-center-kicker">Centro notifiche</div>
@@ -11,10 +12,11 @@
 {% if notifications %}
   <div class="notify-center-list">
     {% for n in notifications %}
+      {% with m=n.tipo|notifica_meta %}
       <article class="notify-center-item{% if not n.letta %} unread{% endif %}">
-        <span class="notify-center-dot notify-center-dot-{{ n.tipo }}" aria-hidden="true"></span>
+        <span class="notify-center-dot notify-center-dot-{{ n.tipo }} notify-tono-{{ m.tono }}" aria-hidden="true"></span>
         <div class="notify-center-copy">
-          <div class="notify-center-type">{{ n.get_tipo_display }}</div>
+          <div class="notify-center-type"><span aria-hidden="true">{{ m.icona }}</span> {{ m.label }}</div>
           <div class="notify-center-msg">{{ n.messaggio }}</div>
           <div class="notify-center-time">{{ n.created_at|date:"d-m-Y H:i" }}</div>
         </div>
@@ -22,6 +24,7 @@
           <a href="{{ n.url_azione }}" class="notify-center-open">Apri</a>
         {% endif %}
       </article>
+      {% endwith %}
     {% endfor %}
   </div>
   <div class="notify-center-actions">

@@ -31,26 +31,10 @@ from core.notifiche import invia_notifica_email
 
 
 def _get_recipients(override: list[str] | None) -> list[str]:
-    if override:
-        return [e.strip() for e in override if e.strip()]
+    # Delega alla cascata unica (override → SiteConfig → ADMINS → superuser).
+    from core.reminder_recipients import resolve_reminder_recipients
 
-    cfg = SiteConfig.get("assets_reminder_emails", "")
-    if cfg.strip():
-        return [e.strip() for e in cfg.split(",") if e.strip()]
-
-    from django.conf import settings
-    admins = getattr(settings, "ADMINS", ()) or ()
-    admin_emails = [str(email).strip() for _name, email in admins if str(email).strip()]
-    if admin_emails:
-        return admin_emails
-
-    User = get_user_model()
-    return list(
-        User.objects.filter(is_active=True, is_superuser=True)
-        .exclude(email="")
-        .values_list("email", flat=True)
-        .distinct()
-    )
+    return resolve_reminder_recipients(config_key="assets_reminder_emails", override=override)
 
 
 class Command(BaseCommand):

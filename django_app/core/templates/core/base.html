@@ -485,7 +485,7 @@ document.addEventListener("htmx:configRequest", function(evt) {
       toast.className = 'notify-live-toast notify-live-toast-' + typeClass;
       toast.setAttribute('data-notification-live-id', String(id));
       toast.innerHTML =
-        '<span class="notify-live-dot" aria-hidden="true"></span>' +
+        '<span class="notify-live-dot" aria-hidden="true">' + escapeHtml(item.tipo_icona || '') + '</span>' +
         '<div class="notify-live-copy">' +
           '<div class="notify-live-kicker">' + escapeHtml(item.tipo_label || 'Notifica') + '</div>' +
           '<div class="notify-live-message">' + escapeHtml(item.messaggio || '') + '</div>' +

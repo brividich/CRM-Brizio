@@ -14,7 +14,7 @@ from core.notifiche import invia_notifica, invia_notifica_email
 
 logger = logging.getLogger(__name__)
 
-_TIPO = "generico"
+_TIPO = "specifica"
 
 
 def _legacy_id(user):
