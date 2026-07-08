@@ -11,11 +11,27 @@ from django.shortcuts import render
 
 @login_required
 def home(request):
-    """Elenco segnalazioni (raffinato nel Task 3 con queryset filtrati)."""
-    from .models import SuggestionCorner
+    """Elenco segnalazioni con scope per-utente.
 
-    segnalazioni = SuggestionCorner.objects.all().order_by("-data_segnalazione", "-id")
-    return render(request, "suggestion_corner/home.html", {"segnalazioni": segnalazioni})
+    - team SMS / superuser: tutte + coda 'da gestire' (DA_CLASSIFICARE);
+    - altri: solo le proprie + incarichi assegnati.
+    """
+    from .models import SuggestionCorner
+    from .permissions import is_sms_team, visible_segnalazioni
+
+    team = is_sms_team(request.user)
+    segnalazioni = visible_segnalazioni(request.user).select_related(
+        "reparto_provenienza", "incaricato", "controllore",
+    )
+    da_gestire = (
+        segnalazioni.filter(stato=SuggestionCorner.Stato.DA_CLASSIFICARE)
+        if team else SuggestionCorner.objects.none()
+    )
+    return render(request, "suggestion_corner/home.html", {
+        "segnalazioni": segnalazioni,
+        "da_gestire": da_gestire,
+        "is_team": team,
+    })
 
 
 @login_required

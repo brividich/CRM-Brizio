@@ -2,6 +2,36 @@
 {% block content %}
 <div class="content">
   <h1>Suggestion Corner</h1>
-  <p>{{ segnalazioni|length }} segnalazioni.</p>
+
+  {% if is_team and da_gestire %}
+  <h2>Da gestire ({{ da_gestire|length }})</h2>
+  <ul>
+    {% for s in da_gestire %}
+      <li><a href="{% url 'suggestion_corner:dettaglio' s.pk %}">SC#{{ s.pk }} — {{ s.opportunity|truncatechars:60 }}</a></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  <h2>{% if is_team %}Tutte le segnalazioni{% else %}Le mie segnalazioni{% endif %} ({{ segnalazioni|length }})</h2>
+  {% if segnalazioni %}
+  <table class="hub-table">
+    <thead>
+      <tr><th>#</th><th>Data</th><th>Reparto</th><th>Stato</th><th>Opportunità</th></tr>
+    </thead>
+    <tbody>
+      {% for s in segnalazioni %}
+      <tr>
+        <td><a href="{% url 'suggestion_corner:dettaglio' s.pk %}">SC#{{ s.pk }}</a></td>
+        <td>{{ s.data_segnalazione|date:"d/m/Y" }}</td>
+        <td>{{ s.reparto_provenienza.nome }}</td>
+        <td>{{ s.stato_label }}</td>
+        <td>{{ s.opportunity|truncatechars:80 }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>Nessuna segnalazione da mostrare.</p>
+  {% endif %}
 </div>
 {% endblock %}

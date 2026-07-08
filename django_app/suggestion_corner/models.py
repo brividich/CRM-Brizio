@@ -149,6 +149,14 @@ class SuggestionCorner(models.Model):
             and self.data_limite_controllo < timezone.now().date()
         )
 
+    @property
+    def stato_label(self) -> str:
+        """Etichetta leggibile dello stato (FSMField senza choices)."""
+        try:
+            return self.Stato(self.stato).label
+        except ValueError:
+            return self.stato
+
     # --- Validazione di dominio -------------------------------------------
     def clean(self):
         super().clean()
