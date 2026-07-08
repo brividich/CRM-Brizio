@@ -122,10 +122,14 @@ def _corsi_obbligatori(
     """Titoli dei corsi/piani obbligatori applicabili al dipendente.
 
     Match difensivo su ``TrainingRequirementRule`` attive e obbligatorie per
-    mansione (nome), area (derivata dal reparto), ruoli operativi o singolo
-    dipendente. Se nulla matcha ritorna lista vuota.
+    mansione (nome), ruoli operativi o singolo dipendente. Se nulla matcha
+    ritorna lista vuota.
+
+    Nota: il match per area aziendale derivata dal reparto non è più
+    possibile dopo l'inversione della gerarchia Reparto/AreaAziendale (un
+    Reparto ha ora più Aree aziendali figlie, non una sola) — vedi Fase 2
+    nello spec `docs/superpowers/specs/2026-07-08-inversione-reparto-area-aziendale-design.md`.
     """
-    from ..models import Reparto
     from ..models_formazione import TrainingRequirementRule
 
     conds: list[Q] = []
@@ -133,14 +137,6 @@ def _corsi_obbligatori(
         conds.append(Q(legacy_anagrafica_id=legacy_id))
     if mansione_nome:
         conds.append(Q(mansione__nome__iexact=mansione_nome.strip()))
-    if reparto_nome:
-        rep = (
-            Reparto.objects.filter(nome__iexact=reparto_nome.strip())
-            .select_related("area_aziendale")
-            .first()
-        )
-        if rep and rep.area_aziendale_id:
-            conds.append(Q(area_id=rep.area_aziendale_id))
     ruolo_ids = [int(r) for r in (ruolo_ids or []) if r]
     if ruolo_ids:
         conds.append(Q(ruolo_operativo_id__in=ruolo_ids))
