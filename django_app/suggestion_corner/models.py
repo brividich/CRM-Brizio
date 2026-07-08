@@ -11,7 +11,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
-from django_fsm import FSMField
+from django_fsm import FSMField, transition
 
 logger = logging.getLogger("suggestion_corner")
 
@@ -185,6 +185,33 @@ class SuggestionCorner(models.Model):
     def _prep_evento(self, attore=None, **payload):
         self._evento_attore = attore
         self._evento_payload = payload
+
+    @transition(field=stato, source=Stato.INSERITA, target=Stato.DA_CLASSIFICARE)
+    def notifica_sms_team(self, attore=None):
+        """INSERITA→DA_CLASSIFICARE. La mail al team SMS è sessione 5."""
+        self._prep_evento(attore)
+
+    @transition(field=stato, source=Stato.DA_CLASSIFICARE, target=Stato.CLASSIFICATA)
+    def classifica(self, stato_sms, attore=None):
+        """DA_CLASSIFICARE→CLASSIFICATA. Registra l'esito SMS (SI/NO)."""
+        if stato_sms not in (self.StatoSMS.SMS_SI, self.StatoSMS.SMS_NO):
+            raise ValidationError("stato_sms deve essere SMS_SI o SMS_NO.")
+        self.stato_sms = stato_sms
+        self._prep_evento(attore, stato_sms=str(stato_sms))
+
+    @transition(field=stato, source=Stato.CLASSIFICATA, target=Stato.PLAN_DEFINITO)
+    def definisci_plan(self, incaricato, controllore, data_limite_esecuzione,
+                       data_limite_controllo, plan_testo="", attore=None):
+        """CLASSIFICATA→PLAN_DEFINITO. incaricato≠controllore obbligatorio."""
+        if incaricato is not None and incaricato == controllore:
+            raise ValidationError("Il controllore deve essere diverso dall'incaricato.")
+        self.incaricato = incaricato
+        self.controllore = controllore
+        self.data_limite_esecuzione = data_limite_esecuzione
+        self.data_limite_controllo = data_limite_controllo
+        self.plan_testo = plan_testo
+        self.plan_eseguito = True
+        self._prep_evento(attore)
 
 
 class SuggestionCornerAllegato(models.Model):

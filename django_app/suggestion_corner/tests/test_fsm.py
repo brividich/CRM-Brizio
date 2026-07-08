@@ -39,3 +39,80 @@ class SuggestionCornerCleanTest(TestCase):
         s._prep_evento(self.u1, foo="bar")
         self.assertEqual(s._evento_attore, self.u1)
         self.assertEqual(s._evento_payload, {"foo": "bar"})
+
+
+import datetime
+
+
+class SuggestionCornerClassificazioneTest(TestCase):
+    def setUp(self):
+        self.reparto = Reparto.objects.create(nome="CNC")
+        self.u1 = User.objects.create(username="incaricato1")
+        self.u2 = User.objects.create(username="controllore1")
+
+    def _seg(self, **kw):
+        defaults = dict(reparto_provenienza=self.reparto, opportunity="Test flusso.")
+        defaults.update(kw)
+        return SuggestionCorner.objects.create(**defaults)
+
+    def test_notifica_sms_team_avanza_e_crea_storico(self):
+        s = self._seg()
+        self.assertEqual(s.stato, "INSERITA")
+        s.notifica_sms_team()
+        s.save()
+        self.assertEqual(s.stato, "DA_CLASSIFICARE")
+        voce = s.storico.get()
+        self.assertEqual(voce.stato_precedente, "INSERITA")
+        self.assertEqual(voce.stato_nuovo, "DA_CLASSIFICARE")
+
+    def test_classifica_setta_stato_sms_e_autore(self):
+        s = self._seg()
+        s.notifica_sms_team()
+        s.classifica(SuggestionCorner.StatoSMS.SMS_SI, attore=self.u1)
+        s.save()
+        self.assertEqual(s.stato, "CLASSIFICATA")
+        self.assertEqual(s.stato_sms, "SMS_SI")
+        voce = s.storico.filter(stato_nuovo="CLASSIFICATA").get()
+        self.assertEqual(voce.autore, self.u1)
+
+    def test_classifica_rifiuta_stato_sms_invalido(self):
+        s = self._seg()
+        s.notifica_sms_team()
+        with self.assertRaises(ValidationError):
+            s.classifica("DA_GESTIRE")
+
+    def test_definisci_plan_enforce_incaricato_diverso(self):
+        s = self._seg()
+        s.notifica_sms_team()
+        s.classifica(SuggestionCorner.StatoSMS.SMS_SI)
+        ieri = datetime.date.today()
+        with self.assertRaises(ValidationError):
+            s.definisci_plan(
+                incaricato=self.u1, controllore=self.u1,
+                data_limite_esecuzione=ieri, data_limite_controllo=ieri,
+            )
+
+    def test_definisci_plan_ok(self):
+        s = self._seg()
+        s.notifica_sms_team()
+        s.classifica(SuggestionCorner.StatoSMS.SMS_SI)
+        d1 = datetime.date.today() + datetime.timedelta(days=10)
+        d2 = datetime.date.today() + datetime.timedelta(days=20)
+        s.definisci_plan(
+            incaricato=self.u1, controllore=self.u2,
+            data_limite_esecuzione=d1, data_limite_controllo=d2,
+            plan_testo="Piano di miglioramento.",
+        )
+        s.save()
+        self.assertEqual(s.stato, "PLAN_DEFINITO")
+        self.assertTrue(s.plan_eseguito)
+        self.assertEqual(s.incaricato, self.u1)
+        self.assertEqual(s.controllore, self.u2)
+        self.assertEqual(s.data_limite_esecuzione, d1)
+
+    def test_uno_storico_per_transizione(self):
+        s = self._seg()
+        s.notifica_sms_team()
+        s.classifica(SuggestionCorner.StatoSMS.SMS_NO)
+        s.save()
+        self.assertEqual(s.storico.count(), 2)
