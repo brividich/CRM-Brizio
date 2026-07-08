@@ -247,6 +247,34 @@ class SuggestionCorner(models.Model):
         self.data_esecuzione_do = None
         self._prep_evento(attore)
 
+    @transition(field=stato, source=Stato.CHECK_IN_CORSO, target=Stato.CHECK_COMPLETATO)
+    def check_positivo(self, check_testo="", attore=None):
+        """CHECK_IN_CORSO→CHECK_COMPLETATO. Verifica positiva."""
+        self.esito_check = self.EsitoCheck.POSITIVO
+        self.check_eseguito = True
+        self.data_esecuzione_check = timezone.localdate()
+        self.check_testo = check_testo
+        self._prep_evento(attore, esito_check="POSITIVO")
+
+    @transition(field=stato, source=Stato.CHECK_IN_CORSO, target=Stato.DO_IN_CORSO)
+    def check_negativo(self, check_testo="", attore=None):
+        """CHECK_IN_CORSO→DO_IN_CORSO. Verifica negativa: riapre il DO."""
+        self.esito_check = self.EsitoCheck.NEGATIVO
+        self.check_testo = check_testo
+        # riapertura DO
+        self.do_eseguito = False
+        self.esito_do = ""
+        self.data_esecuzione_do = None
+        self.check_eseguito = False
+        self._prep_evento(attore, esito_check="NEGATIVO")
+
+    @transition(field=stato, source=Stato.CHECK_IN_CORSO, target=Stato.CHECK_IN_CORSO)
+    def check_rinviato(self, nuova_data_limite_controllo, attore=None):
+        """CHECK_IN_CORSO→CHECK_IN_CORSO (self-loop). Rinvio con nuova scadenza."""
+        self.esito_check = self.EsitoCheck.RINVIATO
+        self.data_limite_controllo = nuova_data_limite_controllo
+        self._prep_evento(attore, esito_check="RINVIATO")
+
 
 class SuggestionCornerAllegato(models.Model):
     segnalazione = models.ForeignKey(

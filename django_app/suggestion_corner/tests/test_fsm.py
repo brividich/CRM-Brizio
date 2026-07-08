@@ -172,3 +172,52 @@ class SuggestionCornerDoTest(TestCase):
         self.assertFalse(s.do_eseguito)
         self.assertEqual(s.esito_do, "")
         self.assertEqual(s.data_limite_esecuzione, nuova)
+
+
+class SuggestionCornerCheckTest(TestCase):
+    def setUp(self):
+        self.reparto = Reparto.objects.create(nome="COLL")
+        self.u1 = User.objects.create(username="do2")
+        self.u2 = User.objects.create(username="ck2")
+
+    def _fino_a_check_in_corso(self):
+        s = SuggestionCorner.objects.create(
+            reparto_provenienza=self.reparto, opportunity="Flusso CHECK.",
+        )
+        s.notifica_sms_team()
+        s.classifica(SuggestionCorner.StatoSMS.SMS_SI)
+        d = datetime.date.today() + datetime.timedelta(days=10)
+        s.definisci_plan(incaricato=self.u1, controllore=self.u2,
+                         data_limite_esecuzione=d, data_limite_controllo=d)
+        s.avvia_do()
+        s.completa_do(SuggestionCorner.EsitoAttivita.SI)
+        s.avvia_check()
+        s.save()
+        return s
+
+    def test_check_positivo(self):
+        s = self._fino_a_check_in_corso()
+        s.check_positivo(check_testo="Verificato ok.")
+        s.save()
+        self.assertEqual(s.stato, "CHECK_COMPLETATO")
+        self.assertEqual(s.esito_check, "POSITIVO")
+        self.assertTrue(s.check_eseguito)
+        self.assertIsNotNone(s.data_esecuzione_check)
+
+    def test_check_negativo_riapre_do(self):
+        s = self._fino_a_check_in_corso()
+        s.check_negativo()
+        s.save()
+        self.assertEqual(s.stato, "DO_IN_CORSO")
+        self.assertEqual(s.esito_check, "NEGATIVO")
+        self.assertFalse(s.do_eseguito)
+        self.assertEqual(s.esito_do, "")
+
+    def test_check_rinviato_self_loop_nuova_data(self):
+        s = self._fino_a_check_in_corso()
+        nuova = datetime.date.today() + datetime.timedelta(days=45)
+        s.check_rinviato(nuova_data_limite_controllo=nuova)
+        s.save()
+        self.assertEqual(s.stato, "CHECK_IN_CORSO")
+        self.assertEqual(s.esito_check, "RINVIATO")
+        self.assertEqual(s.data_limite_controllo, nuova)
