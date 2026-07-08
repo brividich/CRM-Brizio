@@ -1006,12 +1006,13 @@ class DipendenteAnagraficaAziendale(models.Model):
     badge = models.CharField(max_length=30, blank=True, default="", db_index=True, verbose_name="Badge")
 
     area = models.CharField(max_length=100, blank=True, default="", verbose_name="Reparto")
-    area_aziendale_nome = models.CharField(
-        max_length=100,
+    area_aziendale = models.ForeignKey(
+        AreaAziendale,
+        null=True,
         blank=True,
-        default="",
+        on_delete=models.SET_NULL,
+        related_name="dipendenti_assegnati",
         verbose_name="Area aziendale",
-        help_text="Compilato automaticamente dall'area aziendale del reparto assegnato.",
     )
     caporeparto_legacy_id = models.IntegerField(
         null=True,
