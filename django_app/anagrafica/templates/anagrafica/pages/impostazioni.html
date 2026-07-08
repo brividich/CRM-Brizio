@@ -383,7 +383,7 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
           <div class="imp-card-head">
             <div>
               <div class="imp-card-title">Aree aziendali</div>
-              <div class="imp-card-sub">Raggruppamenti di alto livello (stabilimento, divisione…) a cui appartengono i reparti</div>
+              <div class="imp-card-sub">Sotto-articolazioni di un reparto (es. IN1, IN2, IT, DM)</div>
             </div>
           </div>
           {% if is_admin %}
@@ -392,15 +392,29 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
             <input type="hidden" name="next_tab" value="aree-aziendali">
             <div class="imp-field" style="flex:2 1 220px;">
               <label class="imp-label">Nome *</label>
-              <input class="imp-input" type="text" name="nome" maxlength="100" required placeholder="Es. Produzione">
+              <input class="imp-input" type="text" name="nome" maxlength="100" required placeholder="Es. IN1">
             </div>
             <div class="imp-field" style="flex:3 1 280px;">
               <label class="imp-label">Descrizione</label>
               <input class="imp-input" type="text" name="descrizione" placeholder="Opzionale">
             </div>
-            <div class="imp-field">
-              <label class="imp-label">Colore</label>
-              <input class="imp-color" type="color" name="colore" value="#64748b">
+            <div class="imp-field" style="flex:2 1 200px;">
+              <label class="imp-label">Reparto</label>
+              <select class="imp-select" name="reparto_id">
+                <option value="">— Nessuno —</option>
+                {% for rep in aree %}
+                  <option value="{{ rep.id }}">{{ rep.nome }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="imp-field" style="flex:3 1 240px;">
+              <label class="imp-label">Responsabile</label>
+              <select class="imp-select" name="responsabile_legacy_id">
+                <option value="">— Nessuno —</option>
+                {% for dip in dipendenti_picker %}
+                  <option value="{{ dip.id }}">{{ dip.label }}</option>
+                {% endfor %}
+              </select>
             </div>
             <div class="imp-field">
               <button class="imp-btn imp-btn-green" type="submit">+ Aggiungi</button>
@@ -413,11 +427,22 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
           <div class="imp-list">
             {% for az in aree_aziendali %}
               <div class="imp-row {% if not az.is_active %}inactive{% endif %}">
-                <span class="imp-dot" style="background:{{ az.colore|default:'#64748b' }};"></span>
                 <div class="imp-row-main">
                   <div class="imp-row-name">{{ az.nome }}</div>
                   {% if az.descrizione %}<div class="imp-row-meta">{{ az.descrizione }}</div>{% endif %}
-                  <div class="imp-row-meta">{{ az.reparti.count }} reparti{% if not az.is_active %} · <span class="imp-badge imp-badge-gray">disattiva</span>{% endif %}</div>
+                  <div class="imp-row-meta">
+                    {% if az.reparto %}
+                      <span class="imp-badge imp-badge-blue" style="margin-right:4px;">🏭 {{ az.reparto.nome }}</span>
+                    {% else %}
+                      <span style="color:#f59e0b;font-size:11px;margin-right:6px;">Nessun reparto</span>
+                    {% endif %}
+                    {% if az.responsabile_label %}
+                      <span class="imp-badge" style="background:#dbeafe;color:#1e40af;">👤 {{ az.responsabile_label }}</span>
+                    {% else %}
+                      <span style="color:#94a3b8;font-size:12px;">responsabile non assegnato</span>
+                    {% endif %}
+                  </div>
+                  {% if not az.is_active %}<span class="imp-badge imp-badge-gray">disattiva</span>{% endif %}
                 </div>
                 {% if is_admin %}
                 <div class="imp-row-actions">
@@ -448,9 +473,23 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                         <label class="imp-label">Descrizione</label>
                         <textarea class="imp-textarea" name="descrizione">{{ az.descrizione }}</textarea>
                       </div>
-                      <div class="imp-field" style="flex-direction:row;align-items:center;gap:8px;">
-                        <label class="imp-label" style="margin:0;">Colore</label>
-                        <input class="imp-color" type="color" name="colore" value="{{ az.colore|default:'#64748b' }}">
+                      <div class="imp-field">
+                        <label class="imp-label">Reparto</label>
+                        <select class="imp-select" name="reparto_id">
+                          <option value="">— Nessuno —</option>
+                          {% for rep in aree %}
+                            <option value="{{ rep.id }}" {% if az.reparto_id == rep.id %}selected{% endif %}>{{ rep.nome }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                      <div class="imp-field">
+                        <label class="imp-label">Responsabile</label>
+                        <select class="imp-select" name="responsabile_legacy_id">
+                          <option value="">— Nessuno —</option>
+                          {% for dip in dipendenti_picker %}
+                            <option value="{{ dip.id }}" {% if az.responsabile_legacy_id == dip.id %}selected{% endif %}>{{ dip.label }}</option>
+                          {% endfor %}
+                        </select>
                       </div>
                       <div class="imp-field">
                         <label class="imp-label" style="display:flex;align-items:center;gap:6px;">
@@ -480,7 +519,7 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
           <div class="imp-card-head">
             <div>
               <div class="imp-card-title">Reparti</div>
-              <div class="imp-card-sub">Catalogo dei reparti aziendali con caporeparto assegnato (selezionato dalla lista dipendenti)</div>
+              <div class="imp-card-sub">Contenitori di primo livello, con caporeparto assegnato (selezionato dalla lista dipendenti)</div>
             </div>
             <a class="imp-btn imp-btn-ghost imp-btn-sm" href="{% url 'anagrafica:organigramma' %}">Organigramma →</a>
           </div>
@@ -490,20 +529,15 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
             <input type="hidden" name="next_tab" value="aree">
             <div class="imp-field" style="flex:2 1 220px;">
               <label class="imp-label">Nome *</label>
-              <input class="imp-input" type="text" name="nome" maxlength="100" required placeholder="Es. Produzione">
+              <input class="imp-input" type="text" name="nome" maxlength="100" required placeholder="Es. UT">
             </div>
             <div class="imp-field" style="flex:3 1 280px;">
               <label class="imp-label">Descrizione</label>
               <input class="imp-input" type="text" name="descrizione" placeholder="Opzionale">
             </div>
-            <div class="imp-field" style="flex:2 1 200px;">
-              <label class="imp-label">Area aziendale</label>
-              <select class="imp-select" name="area_aziendale_id">
-                <option value="">— Nessuna —</option>
-                {% for az in aree_aziendali %}
-                  <option value="{{ az.id }}">{{ az.nome }}</option>
-                {% endfor %}
-              </select>
+            <div class="imp-field" style="flex:0 1 100px;">
+              <label class="imp-label">Colore</label>
+              <input class="imp-color" type="color" name="colore" value="#64748b">
             </div>
             <div class="imp-field" style="flex:3 1 240px;">
               <label class="imp-label">Caporeparto</label>
@@ -525,19 +559,16 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
           <div class="imp-list">
             {% for a in aree %}
               <div class="imp-row {% if not a.is_active %}inactive{% endif %}">
+                <span class="imp-dot" style="background:{{ a.colore|default:'#64748b' }};"></span>
                 <div class="imp-row-main">
                   <div class="imp-row-name">{{ a.nome }}</div>
                   {% if a.descrizione %}<div class="imp-row-meta">{{ a.descrizione }}</div>{% endif %}
                   <div class="imp-row-meta">
-                    {% if a.area_aziendale %}
-                      <span class="imp-badge imp-badge-blue" style="margin-right:4px;">🏢 {{ a.area_aziendale.nome }}</span>
-                    {% else %}
-                      <span style="color:#f59e0b;font-size:11px;margin-right:6px;">Nessuna area</span>
-                    {% endif %}
+                    {{ a.aree_aziendali.count }} area/e aziendal{{ a.aree_aziendali.count|pluralize:"e,i" }}
                     {% if a.caporeparto_label %}
-                      <span class="imp-badge" style="background:#dbeafe;color:#1e40af;">👤 {{ a.caporeparto_label }}</span>
+                      · <span class="imp-badge" style="background:#dbeafe;color:#1e40af;">👤 {{ a.caporeparto_label }}</span>
                     {% else %}
-                      <span style="color:#94a3b8;font-size:12px;">caporeparto non assegnato</span>
+                      · <span style="color:#94a3b8;font-size:12px;">caporeparto non assegnato</span>
                     {% endif %}
                   </div>
                   {% if not a.is_active %}<span class="imp-badge imp-badge-gray">disattivo</span>{% endif %}
@@ -571,14 +602,9 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                         <label class="imp-label">Descrizione</label>
                         <textarea class="imp-textarea" name="descrizione">{{ a.descrizione }}</textarea>
                       </div>
-                      <div class="imp-field">
-                        <label class="imp-label">Area aziendale</label>
-                        <select class="imp-select" name="area_aziendale_id">
-                          <option value="">— Nessuna —</option>
-                          {% for az in aree_aziendali %}
-                            <option value="{{ az.id }}" {% if a.area_aziendale_id == az.id %}selected{% endif %}>{{ az.nome }}</option>
-                          {% endfor %}
-                        </select>
+                      <div class="imp-field" style="flex-direction:row;align-items:center;gap:8px;">
+                        <label class="imp-label" style="margin:0;">Colore</label>
+                        <input class="imp-color" type="color" name="colore" value="{{ a.colore|default:'#64748b' }}">
                       </div>
                       <div class="imp-field">
                         <label class="imp-label">Caporeparto</label>
@@ -652,10 +678,7 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
               <div class="imp-row">
                 <div class="imp-row-main">
                   <div class="imp-row-name">{{ rep.caporeparto_label }}</div>
-                  <div class="imp-row-meta">
-                    Caporeparto — {{ rep.nome }}
-                    {% if rep.area_aziendale %}<span style="color:#94a3b8;"> / {{ rep.area_aziendale.nome }}</span>{% endif %}
-                  </div>
+                  <div class="imp-row-meta">Caporeparto — {{ rep.nome }}</div>
                 </div>
                 <span class="imp-badge imp-badge-blue">Caporeparto</span>
               </div>
