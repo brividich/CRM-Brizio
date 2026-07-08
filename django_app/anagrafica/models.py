@@ -722,28 +722,7 @@ class DipendenteQualificaStorico(models.Model):
 
 
 # ---------------------------------------------------------------------------
-# Aree aziendali (raggruppamento di alto livello: es. "Produzione", "Uffici")
-# ---------------------------------------------------------------------------
-
-class AreaAziendale(models.Model):
-    nome = models.CharField(max_length=100, unique=True)
-    descrizione = models.TextField(blank=True, default="")
-    colore = models.CharField(max_length=7, default="#64748b", help_text="Colore esadecimale es. #1d4ed8")
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        db_table = "anagrafica_area_aziendale"
-        ordering = ["nome"]
-        verbose_name = "Area aziendale"
-        verbose_name_plural = "Aree aziendali"
-
-    def __str__(self) -> str:
-        return self.nome
-
-
-# ---------------------------------------------------------------------------
-# Reparti (sotto-unità dell'area aziendale, con caporeparto)
+# Reparti (contenitore di primo livello: es. "UT" - Ufficio Tecnico)
 # La tabella DB mantiene il nome storico ``anagrafica_areaaziendale`` per
 # compatibilità con migrazioni esistenti.
 # ---------------------------------------------------------------------------
@@ -751,14 +730,7 @@ class AreaAziendale(models.Model):
 class Reparto(models.Model):
     nome = models.CharField(max_length=100, unique=True)
     descrizione = models.TextField(blank=True, default="")
-    area_aziendale = models.ForeignKey(
-        AreaAziendale,
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name="reparti",
-        verbose_name="Area aziendale",
-    )
+    colore = models.CharField(max_length=7, default="#64748b", help_text="Colore esadecimale es. #1d4ed8")
     caporeparto_legacy_id = models.IntegerField(
         null=True,
         blank=True,
@@ -774,6 +746,46 @@ class Reparto(models.Model):
         ordering = ["nome"]
         verbose_name = "Reparto"
         verbose_name_plural = "Reparti"
+
+    def __str__(self) -> str:
+        return self.nome
+
+
+# ---------------------------------------------------------------------------
+# Aree aziendali (sotto-articolazione di un reparto, es. "IN1", "IN2", "IT",
+# "DM"). Un reparto può avere più aree aziendali; un'area aziendale
+# appartiene a un solo reparto. Il "responsabile" è opzionale e distinto dal
+# caporeparto: copre casi come UT, dove aree diverse (es. qualità vs
+# produzione) possono avere un dirigente diverso — solo metadato in questa
+# fase, non alimenta RepartoCapoMapping/automazioni.
+# ---------------------------------------------------------------------------
+
+class AreaAziendale(models.Model):
+    nome = models.CharField(max_length=100, unique=True)
+    descrizione = models.TextField(blank=True, default="")
+    reparto = models.ForeignKey(
+        Reparto,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="aree_aziendali",
+        verbose_name="Reparto",
+    )
+    responsabile_legacy_id = models.IntegerField(
+        null=True,
+        blank=True,
+        db_index=True,
+        verbose_name="Responsabile",
+        help_text="ID legacy del dipendente responsabile di quest'area (opzionale, es. dirigente qualità/produzione).",
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "anagrafica_area_aziendale"
+        ordering = ["nome"]
+        verbose_name = "Area aziendale"
+        verbose_name_plural = "Aree aziendali"
 
     def __str__(self) -> str:
         return self.nome

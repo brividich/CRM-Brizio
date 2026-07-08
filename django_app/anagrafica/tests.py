@@ -4375,3 +4375,51 @@ class FormazioneAllegatiReportTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertIn("text/csv", resp["Content-Type"])
         self.assertIn("Neri Sara", resp.content.decode("utf-8"))
+
+
+# ---------------------------------------------------------------------------
+# Inversione gerarchia Reparto (padre) / AreaAziendale (figlia)
+# ---------------------------------------------------------------------------
+
+class RepartoAreaAziendaleModelTests(TestCase):
+    """Reparto e' il contenitore di primo livello; AreaAziendale la sua
+    sotto-articolazione (FK verso Reparto, non viceversa)."""
+
+    def test_reparto_ha_colore_e_caporeparto_nessun_genitore(self):
+        from .models import Reparto
+        rep = Reparto.objects.create(
+            nome="UT", colore="#1d4ed8", caporeparto_legacy_id=401,
+        )
+        self.assertFalse(hasattr(rep, "area_aziendale"))
+        self.assertEqual(rep.colore, "#1d4ed8")
+        self.assertEqual(rep.caporeparto_legacy_id, 401)
+
+    def test_area_aziendale_appartiene_a_un_reparto_e_ha_responsabile_opzionale(self):
+        from .models import AreaAziendale, Reparto
+        rep = Reparto.objects.create(nome="UT")
+        area = AreaAziendale.objects.create(
+            nome="IN1", reparto=rep, responsabile_legacy_id=402,
+        )
+        self.assertEqual(area.reparto_id, rep.pk)
+        self.assertEqual(area.responsabile_legacy_id, 402)
+        self.assertFalse(hasattr(area, "colore"))
+
+    def test_un_reparto_puo_avere_piu_aree_aziendali(self):
+        from .models import AreaAziendale, Reparto
+        rep = Reparto.objects.create(nome="UT")
+        AreaAziendale.objects.create(nome="IN1", reparto=rep)
+        AreaAziendale.objects.create(nome="IN2", reparto=rep)
+        self.assertEqual(rep.aree_aziendali.count(), 2)
+
+    def test_area_aziendale_senza_reparto_ammessa(self):
+        from .models import AreaAziendale
+        area = AreaAziendale.objects.create(nome="ORFANA")
+        self.assertIsNone(area.reparto_id)
+
+    def test_eliminando_reparto_area_aziendale_resta_orfana(self):
+        from .models import AreaAziendale, Reparto
+        rep = Reparto.objects.create(nome="UT")
+        area = AreaAziendale.objects.create(nome="IN1", reparto=rep)
+        rep.delete()
+        area.refresh_from_db()
+        self.assertIsNone(area.reparto_id)
