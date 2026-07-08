@@ -547,6 +547,24 @@ class DeploymentValidator:
                 self.add("email", "smtp", WARN, "SMTP backend attivo ma EMAIL_HOST mancante o placeholder.", port=port)
             else:
                 self.add("email", "smtp", OK, "SMTP host/porta configurati.", host=host, port=port, user=user)
+            # Mittente: se ne' DEFAULT_FROM_EMAIL ne' EMAIL_HOST_USER sono valorizzati,
+            # Django ripiega su webmaster@localhost e le email non partono davvero.
+            if not _text(default_from) and not _text(user):
+                self.add(
+                    "email",
+                    "from_email",
+                    _severity_for_env(FAIL, WARN),
+                    "Backend SMTP attivo ma ne' DEFAULT_FROM_EMAIL ne' EMAIL_HOST_USER "
+                    "sono impostati: le email partirebbero da webmaster@localhost.",
+                )
+            else:
+                self.add(
+                    "email",
+                    "from_email",
+                    OK,
+                    "Mittente email configurato.",
+                    from_email=(default_from or user),
+                )
         else:
             self.add("email", "smtp", OK, "SMTP non richiesto dal backend email corrente.", backend=backend)
 

@@ -81,7 +81,11 @@ def resolve_notification_email(*, email: str = "", email_notifica: str = "") -> 
     notification_email = str(email_notifica or "").strip()
     if notification_email:
         return notification_email
-    return str(email or "").strip()
+    # In `anagrafica_dipendenti` il campo `email` è il LOGIN legacy (username),
+    # non un indirizzo: usarlo come fallback SOLO se sembra un vero indirizzo
+    # (contiene @), altrimenti niente invio (evita mail verso un non-indirizzo).
+    fallback = str(email or "").strip()
+    return fallback if "@" in fallback else ""
 
 
 def _normalized_key(value: str) -> str:

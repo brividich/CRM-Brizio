@@ -1,11 +1,16 @@
 from .base import *  # noqa: F403,F401
-from .base import build_database_from_env, default_dev_allowed_hosts, env_bool, env_list
+from .base import build_database_from_env, default_dev_allowed_hosts, env, env_bool, env_list
 
 
 DEBUG = env_bool("DJANGO_DEBUG", True)
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", default_dev_allowed_hosts())
 DATABASES = {"default": build_database_from_env("sqlite")}
 SETUP_WIZARD_REQUIRED = env_bool("SETUP_WIZARD_REQUIRED", False)
+
+# In sviluppo le email vanno stampate a CONSOLE, non inviate via SMTP reale
+# (override sempre possibile con EMAIL_BACKEND nel .env). Evita invii accidentali
+# dallo sviluppo e rende visibili gli errori di composizione.
+EMAIL_BACKEND = env("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
 DEV_SERVE_STATIC_AND_MEDIA = env_bool("DJANGO_DEV_SERVE_STATIC_AND_MEDIA", True)
 
 # Mai redirigere a HTTPS in sviluppo locale — evita che i browser cachino una 301

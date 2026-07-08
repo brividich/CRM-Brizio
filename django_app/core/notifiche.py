@@ -34,6 +34,11 @@ def invia_notifica(
     Se legacy_user_id è None o 0 non fa nulla.
     """
     if not legacy_user_id:
+        logger.warning(
+            "Notifica in-app non consegnata: legacy_user_id assente (tipo=%s, messaggio=%.80s)",
+            tipo,
+            messaggio,
+        )
         return
     try:
         from core.models import Notifica
@@ -90,4 +95,10 @@ def invia_notifica_email(email: str, tipo: str, messaggio: str, url_azione: str 
     for legacy_user_id in legacy_user_ids_for_email(email):
         invia_notifica(legacy_user_id, tipo, messaggio, url_azione)
         created += 1
+    if created == 0:
+        logger.warning(
+            "Notifica via email non consegnata: nessun utente legacy per email=%s (tipo=%s)",
+            email,
+            tipo,
+        )
     return created
