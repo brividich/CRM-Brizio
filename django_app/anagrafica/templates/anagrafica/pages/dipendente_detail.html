@@ -847,7 +847,7 @@ body.theme-dark .dp-link-ok { color:#86efac; }
                 <option value="">— Nessun reparto —</option>
                 {% for rep in reparti_catalog %}
                   <option value="{{ rep.nome }}" {% if rep.nome == dip.reparto %}selected{% endif %}>
-                    {{ rep.nome }}{% if rep.area_aziendale %} · {{ rep.area_aziendale.nome }}{% endif %}
+                    {{ rep.nome }}
                   </option>
                 {% endfor %}
                 {% if dip.reparto and not reparto_in_catalog %}
@@ -894,7 +894,7 @@ body.theme-dark .dp-link-ok { color:#86efac; }
             {% if aziendale.area_aziendale_nome %}
               {{ aziendale.area_aziendale_nome }}
             {% else %}
-              <span style="color:#94a3b8;font-size:12px;">Auto dal reparto</span>
+              <span style="color:#94a3b8;font-size:12px;">Non assegnata</span>
             {% endif %}
           </div>
         </div>
@@ -955,7 +955,7 @@ body.theme-dark .dp-link-ok { color:#86efac; }
             <div class="dp-form-field">
               <label class="dp-form-label">Area aziendale</label>
               <input type="text" id="az-area-autofill" class="dp-input" readonly style="background:#f8fafc;color:#64748b;cursor:default;" value="{{ aziendale.area_aziendale_nome|default:'' }}">
-              <span style="font-size:11px;color:#94a3b8;">Compilata automaticamente dal reparto</span>
+              <span style="font-size:11px;color:#94a3b8;">Non assegnata automaticamente in questa fase</span>
             </div>
             <div class="dp-form-field">
               <label class="dp-form-label">Caporeparto</label>
@@ -2695,16 +2695,15 @@ function toggleContrattoEdit(id) {
   show(firstAvailable);
 })();
 
-// Auto-fill area aziendale e caporeparto quando si seleziona il reparto
+// Auto-fill caporeparto quando si seleziona il reparto (l'area aziendale non
+// si autopopola più: un reparto può avere più aree aziendali figlie).
 (function() {
   var repartiData = {{ reparto_autofill_json|safe }};
   var sel = document.getElementById('id_area');
   if (!sel) return;
   function fill() {
     var d = repartiData[sel.value] || {};
-    var areaEl = document.getElementById('az-area-autofill');
     var capoEl = document.getElementById('az-capo-autofill');
-    if (areaEl) areaEl.value = d.area || '';
     if (capoEl) capoEl.value = d.capo_label || '';
   }
   sel.addEventListener('change', fill);
