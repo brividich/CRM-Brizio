@@ -12824,27 +12824,27 @@ def _forbid_json_or_redirect(request, msg: str):
 
 
 # ---------------------------------------------------------------------------
-# Organigramma visuale — Area aziendale → Reparto → caporeparto → dipendenti
+# Organigramma visuale — Reparto → Aree aziendali → caporeparto → dipendenti
 # ---------------------------------------------------------------------------
 
 @login_required
 def organigramma(request):
-    """Organigramma navigabile SSR: aree aziendali, reparti, capi e membri.
+    """Organigramma navigabile SSR: reparti, aree aziendali, capi e membri.
 
     Gli stessi dati (nomi/reparti) sono già visibili in `dipendenti_list`,
-    quindi basta il login. I disallineamenti emergono di proposito: i reparti
-    senza area finiscono in "Senza area", i dipendenti il cui reparto legacy
-    non corrisponde a nessun `Reparto` censito nel bucket "Non mappati".
+    quindi basta il login. I disallineamenti emergono di proposito: i
+    dipendenti il cui reparto legacy non corrisponde a nessun `Reparto`
+    censito finiscono nel bucket "Non mappati".
     """
     ensure_anagrafica_schema()
-    filtro_area = (request.GET.get("area") or "").strip()
+    filtro_reparto = (request.GET.get("reparto") or "").strip()
 
     dip_rows = [r for r in fetch_anagrafica_rows(deduplicate=True) if r.get("attivo")]
     dip_map = {int(r["id"]): r for r in dip_rows if r.get("id")}
 
     reparti = list(
-        Reparto.objects.select_related("area_aziendale")
-        .filter(is_active=True)
+        Reparto.objects.filter(is_active=True)
+        .prefetch_related("aree_aziendali")
         .order_by("nome")
     )
     reparto_by_name = {r.nome.strip().casefold(): r for r in reparti}
@@ -12867,34 +12867,28 @@ def organigramma(request):
         membri = sorted(membri_per_reparto.get(rep.id, []), key=_sort_key)
         if capo:
             membri = [m for m in membri if int(m.get("id") or 0) != int(capo.get("id") or 0)]
-        return {"reparto": rep, "capo": capo, "membri": membri,
-                "n_totale": len(membri) + (1 if capo else 0)}
+        return {
+            "reparto": rep,
+            "capo": capo,
+            "membri": membri,
+            "aree_aziendali": list(rep.aree_aziendali.filter(is_active=True).order_by("nome")),
+            "n_totale": len(membri) + (1 if capo else 0),
+        }
 
-    gruppi: list[dict] = []
-    aree_attive = list(AreaAziendale.objects.filter(is_active=True).order_by("nome"))
-    for area in aree_attive:
-        blocchi = [_blocco_reparto(r) for r in reparti if r.area_aziendale_id == area.id]
-        if blocchi:
-            gruppi.append({"area": area, "blocchi": blocchi})
-    blocchi_senza_area = [_blocco_reparto(r) for r in reparti if r.area_aziendale_id is None]
-    if blocchi_senza_area:
-        gruppi.append({"area": None, "blocchi": blocchi_senza_area})
+    blocchi = [_blocco_reparto(r) for r in reparti]
 
-    nomi_aree = [a.nome for a in aree_attive] + (["Senza area"] if blocchi_senza_area else [])
-    if filtro_area:
-        gruppi = [
-            g for g in gruppi
-            if (g["area"].nome if g["area"] else "Senza area").casefold() == filtro_area.casefold()
-        ]
+    nomi_reparti = [r.nome for r in reparti]
+    if filtro_reparto:
+        blocchi = [b for b in blocchi if b["reparto"].nome.casefold() == filtro_reparto.casefold()]
 
     non_mappati.sort(key=_sort_key)
     n_dipendenti = len(dip_rows)
 
     return render(request, "anagrafica/pages/organigramma.html", {
-        "gruppi": gruppi,
+        "blocchi": blocchi,
         "non_mappati": non_mappati,
-        "nomi_aree": nomi_aree,
-        "filtro_area": filtro_area,
+        "nomi_reparti": nomi_reparti,
+        "filtro_reparto": filtro_reparto,
         "n_dipendenti": n_dipendenti,
         "n_reparti": len(reparti),
         "n_non_mappati": len(non_mappati),

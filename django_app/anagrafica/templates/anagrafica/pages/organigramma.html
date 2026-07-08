@@ -7,15 +7,6 @@
 {% include "anagrafica/components/_hr_restyle.html" %}
 <style>
 /* ── Layout organigramma ────────────────────────────────────────────────── */
-.org-area { margin-bottom: 24px; }
-.org-area-head {
-  display:flex; align-items:center; gap:10px; margin-bottom:12px;
-  padding-bottom:8px; border-bottom:2px solid var(--org-color, #64748b);
-}
-.org-area-dot { width:12px; height:12px; border-radius:50%; background:var(--org-color, #64748b); flex-shrink:0; }
-.org-area-title { font-size:15px; font-weight:800; color:#0f172a; }
-.org-area-count { font-size:12px; color:#64748b; font-weight:600; }
-
 .org-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:14px; }
 .org-rep {
   border:1px solid #e2e8f0; border-radius:12px; background:#fff;
@@ -25,16 +16,18 @@
 .org-rep-head { padding:12px 14px 8px; }
 .org-rep-name { font-size:14px; font-weight:800; color:#0c2545; }
 .org-rep-count { font-size:11.5px; color:#94a3b8; font-weight:600; }
+.org-aree { display:flex; flex-wrap:wrap; gap:4px; margin:4px 14px 0; }
+.org-area-chip { font-size:10.5px; font-weight:700; color:#1e40af; background:#dbeafe; border-radius:999px; padding:2px 8px; }
 .org-capo {
   display:flex; align-items:center; gap:8px;
-  margin:6px 14px 10px; padding:7px 10px;
+  margin:8px 14px 10px; padding:7px 10px;
   background:#eff6ff; border:1px solid #dbeafe; border-radius:9px;
 }
 .org-capo-badge { font-size:10px; font-weight:800; color:#1f87cd; text-transform:uppercase; letter-spacing:.05em; }
 .org-capo a { font-size:13px; font-weight:700; color:#0c2545; text-decoration:none; }
 .org-capo a:hover { text-decoration:underline; }
 .org-capo-missing {
-  margin:6px 14px 10px; padding:7px 10px; border-radius:9px;
+  margin:8px 14px 10px; padding:7px 10px; border-radius:9px;
   background:#fef9c3; border:1px dashed #fde047;
   font-size:11.5px; color:#854d0e; font-weight:600;
 }
@@ -54,7 +47,7 @@
 
 .org-empty-rep { padding:8px 14px 12px; font-size:12px; color:#94a3b8; font-style:italic; }
 
-/* Filtro area + bucket "non a catalogo" (niente colori inline: vincono sul dark) */
+/* Filtro reparto + bucket "non a catalogo" (niente colori inline: vincono sul dark) */
 .org-filter-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
 .org-select { border:1px solid #e2e8f0; border-radius:9px; padding:8px 12px; font-size:13px; background:#f8fafc; font-family:inherit; }
 .org-nm-hint { font-size:12px; color:#94a3b8; }
@@ -68,8 +61,8 @@ body.theme-dark .org-select { background:var(--surface-alt); border-color:var(--
 body.theme-dark .org-nm-link { color:var(--text-mid); }
 body.theme-dark .org-nm-rep { color:#fbbf24; }
 body.theme-dark .org-rep { background:var(--surface); border-color:var(--border); }
-body.theme-dark .org-area-title { color:var(--text); }
 body.theme-dark .org-rep-name { color:var(--text); }
+body.theme-dark .org-area-chip { background:rgba(29,78,216,.22); color:#bfdbfe; }
 body.theme-dark .org-capo { background:rgba(29,78,216,.12); border-color:rgba(29,78,216,.3); }
 body.theme-dark .org-capo a { color:var(--text); }
 body.theme-dark .org-membri summary { color:var(--text-light); }
@@ -102,7 +95,7 @@ body.theme-dark .org-capo-missing { background:rgba(133,77,14,.18); border-color
     <div>
       <div class="hr-pagehead-eyebrow">Anagrafica HR</div>
       <h1 class="hr-pagehead-title">Organigramma</h1>
-      <p class="hr-pagehead-desc">Aree aziendali, reparti, capireparto e dipendenti in forza.</p>
+      <p class="hr-pagehead-desc">Reparti, aree aziendali, capireparto e dipendenti in forza.</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
       <button type="button" class="hr-btn hr-btn-outline" onclick="window.print();">🖨 Stampa</button>
@@ -135,16 +128,16 @@ body.theme-dark .org-capo-missing { background:rgba(133,77,14,.18); border-color
     </div>
   </div>
 
-  <!-- Filtro area -->
-  {% if nomi_aree %}
+  <!-- Filtro reparto -->
+  {% if nomi_reparti %}
   <div class="hr-card org-filters">
     <form method="get" action="" style="display:flex;gap:12px;align-items:flex-end;padding:14px 16px;flex-wrap:wrap;">
       <div style="display:flex;flex-direction:column;gap:4px;min-width:200px;">
-        <label for="org-area" class="org-filter-label">Area aziendale</label>
-        <select id="org-area" name="area" class="sc-select org-select" onchange="this.form.submit()">
-          <option value="" {% if not filtro_area %}selected{% endif %}>Tutte</option>
-          {% for nome in nomi_aree %}
-          <option value="{{ nome }}" {% if nome == filtro_area %}selected{% endif %}>{{ nome }}</option>
+        <label for="org-reparto" class="org-filter-label">Reparto</label>
+        <select id="org-reparto" name="reparto" class="sc-select org-select" onchange="this.form.submit()">
+          <option value="" {% if not filtro_reparto %}selected{% endif %}>Tutti</option>
+          {% for nome in nomi_reparti %}
+          <option value="{{ nome }}" {% if nome == filtro_reparto %}selected{% endif %}>{{ nome }}</option>
           {% endfor %}
         </select>
       </div>
@@ -155,57 +148,55 @@ body.theme-dark .org-capo-missing { background:rgba(133,77,14,.18); border-color
 
   <!-- Albero organigramma -->
   <div class="hr-card" style="padding:18px 20px;">
-    {% for g in gruppi %}
-    <section class="org-area" {% if g.area %}style="--org-color:{{ g.area.colore }};"{% endif %}>
-      <div class="org-area-head">
-        <span class="org-area-dot"></span>
-        <span class="org-area-title">{% if g.area %}{{ g.area.nome }}{% else %}Senza area{% endif %}</span>
-        <span class="org-area-count">{{ g.blocchi|length }} repart{{ g.blocchi|length|pluralize:"o,i" }}</span>
-      </div>
-      <div class="org-grid">
-        {% for b in g.blocchi %}
-        <div class="org-rep">
-          <div class="org-rep-head">
-            <div class="org-rep-name">{{ b.reparto.nome }}</div>
-            <div class="org-rep-count">{{ b.n_totale }} person{{ b.n_totale|pluralize:"a,e" }}</div>
-          </div>
-          {% if b.capo %}
-          <div class="org-capo">
-            <span class="org-capo-badge">Capo</span>
-            <a href="{% url 'anagrafica:dipendente_detail' b.capo.id %}">{{ b.capo.cognome }} {{ b.capo.nome }}</a>
-          </div>
-          {% else %}
-          <div class="org-capo-missing">⚠ Caporeparto non assegnato</div>
-          {% endif %}
-          {% if b.membri %}
-          <details class="org-membri">
-            <summary>{{ b.membri|length }} collaborator{{ b.membri|length|pluralize:"e,i" }}</summary>
-            <ul>
-              {% for m in b.membri %}
-              <li>
-                <a href="{% url 'anagrafica:dipendente_detail' m.id %}">{{ m.cognome }} {{ m.nome }}</a>
-                {% if m.mansione %}<span class="org-mansione"> · {{ m.mansione }}</span>{% endif %}
-              </li>
-              {% endfor %}
-            </ul>
-          </details>
-          {% elif not b.capo %}
-          <div class="org-empty-rep">Nessun dipendente assegnato.</div>
-          {% endif %}
+    <div class="org-grid">
+      {% for b in blocchi %}
+      <div class="org-rep" style="--org-color:{{ b.reparto.colore }};">
+        <div class="org-rep-head">
+          <div class="org-rep-name">{{ b.reparto.nome }}</div>
+          <div class="org-rep-count">{{ b.n_totale }} person{{ b.n_totale|pluralize:"a,e" }}</div>
         </div>
-        {% endfor %}
+        {% if b.aree_aziendali %}
+        <div class="org-aree">
+          {% for area in b.aree_aziendali %}
+          <span class="org-area-chip">{{ area.nome }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if b.capo %}
+        <div class="org-capo">
+          <span class="org-capo-badge">Capo</span>
+          <a href="{% url 'anagrafica:dipendente_detail' b.capo.id %}">{{ b.capo.cognome }} {{ b.capo.nome }}</a>
+        </div>
+        {% else %}
+        <div class="org-capo-missing">⚠ Caporeparto non assegnato</div>
+        {% endif %}
+        {% if b.membri %}
+        <details class="org-membri">
+          <summary>{{ b.membri|length }} collaborator{{ b.membri|length|pluralize:"e,i" }}</summary>
+          <ul>
+            {% for m in b.membri %}
+            <li>
+              <a href="{% url 'anagrafica:dipendente_detail' m.id %}">{{ m.cognome }} {{ m.nome }}</a>
+              {% if m.mansione %}<span class="org-mansione"> · {{ m.mansione }}</span>{% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+        </details>
+        {% elif not b.capo %}
+        <div class="org-empty-rep">Nessun dipendente assegnato.</div>
+        {% endif %}
       </div>
-    </section>
-    {% empty %}
-    <div class="hr-empty">
-      <div style="font-size:32px;margin-bottom:8px;">🏢</div>
-      Nessun reparto a catalogo. Configura aree e reparti dalle <a href="{% url 'anagrafica:impostazioni' %}">impostazioni</a>.
+      {% empty %}
+      <div class="hr-empty">
+        <div style="font-size:32px;margin-bottom:8px;">🏢</div>
+        Nessun reparto a catalogo. Configura reparti e aree dalle <a href="{% url 'anagrafica:impostazioni' %}">impostazioni</a>.
+      </div>
+      {% endfor %}
     </div>
-    {% endfor %}
   </div>
 
   <!-- Bucket non mappati: visibile di proposito, fa emergere i disallineamenti -->
-  {% if non_mappati and not filtro_area %}
+  {% if non_mappati and not filtro_reparto %}
   <div class="hr-card">
     <div class="hr-card-head">
       <div class="hr-card-title">🧩 Dipendenti con reparto non a catalogo</div>
