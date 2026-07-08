@@ -90,6 +90,19 @@ class InviaNotificaEnforcementTests(TestCase):
         )
 
 
+class EmailEnforcementTests(TestCase):
+    """I reminder email per-utente rispettano gli interruttori (via should_notify)."""
+
+    def test_reminder_presa_visione_rispetta_switch(self):
+        from procedure_refresh.tasks import _send_reminder_mail
+
+        u = User.objects.create_user("prmail", password="pw")
+        set_category_global("scadenzari", enabled=False)
+        self.assertFalse(_send_reminder_mail(u, "x@y.it", [], subject="s", intro="i"))
+        set_category_global("scadenzari", enabled=True)
+        self.assertTrue(_send_reminder_mail(u, "x@y.it", [], subject="s", intro="i"))
+
+
 class NotificheImpostazioniViewTests(TestCase):
     """Pagina utente: modifica le preferenze notifiche dopo l'onboarding, effettive."""
 

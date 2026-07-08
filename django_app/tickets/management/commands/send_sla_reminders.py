@@ -71,14 +71,17 @@ class Command(BaseCommand):
 
             try:
                 from core.email_utils import send_hub_mail
-                send_hub_mail(
-                    subject, body, [dest],
-                    email_type="Tickets",
-                    badge="SLA scaduto",
-                    section_label="Reminder SLA",
-                    from_email=from_email,
-                    fail_silently=False,
-                )
+                from core.notifiche_prefs import should_notify
+
+                if should_notify(tipo="ticket_sla"):
+                    send_hub_mail(
+                        subject, body, [dest],
+                        email_type="Tickets",
+                        badge="SLA scaduto",
+                        section_label="Reminder SLA",
+                        from_email=from_email,
+                        fail_silently=False,
+                    )
                 invia_notifica_email(dest, "ticket_sla", notification_message, notification_url)
                 self.stdout.write(
                     self.style.SUCCESS(f"[OK] Reminder inviato → {dest} | {ticket.numero_ticket}")

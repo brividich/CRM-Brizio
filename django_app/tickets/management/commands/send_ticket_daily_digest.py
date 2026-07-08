@@ -73,6 +73,10 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.WARNING(f"[DRY-RUN] -> {email} ({len(items)} ticket)"))
                 self.stdout.write(body)
                 continue
+            from core.notifiche_prefs import should_notify
+
+            if not should_notify(tipo="ticket_sla"):
+                continue
             send_hub_mail(
                 subject, body, [email],
                 email_type="Tickets", section_label="Digest giornaliero", fail_silently=True,

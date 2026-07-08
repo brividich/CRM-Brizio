@@ -113,7 +113,8 @@ class Command(BaseCommand):
                     except Exception:
                         pass
                 email = (rows.get(i.legacy_anagrafica_id, {}).get("email_notifica") or "").strip()
-                if email:
+                from core.notifiche_prefs import should_notify
+                if email and should_notify(tipo="formazione_promemoria", legacy_user_id=i.legacy_anagrafica_id):
                     if not dry:
                         from core.email_utils import send_hub_mail
                         try:

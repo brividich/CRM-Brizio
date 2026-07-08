@@ -128,6 +128,11 @@ def _send_reminder_mail(user, email: str, assignments: list, *, subject: str, in
     """Una mail per utente con l'elenco dei documenti. Ritorna True se inviata."""
     if not email:
         return False
+    from core.notifiche_prefs import should_notify
+
+    # Rispetta gli interruttori notifiche (admin globale + preferenza utente).
+    if not should_notify(tipo="presa_visione", django_user=user):
+        return False
     from core.email_utils import send_hub_mail
 
     lines = [intro, ""]
