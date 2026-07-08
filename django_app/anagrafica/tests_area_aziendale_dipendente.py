@@ -265,3 +265,37 @@ class TrainingEligibilityAreaAziendaleFkTests(TestCase):
         ids = {c["legacy_id"] for c in res["idonei"]} | {c["legacy_id"] for c in res["non_idonei"]}
         self.assertIn(931, ids)
         self.assertNotIn(932, ids)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class ReportRegoleFormazioneAreaCommandTests(TestCase):
+    """Comando di sola lettura: elenca le TrainingRequirementRule per area con
+    il conteggio dei dipendenti oggi assegnati (via FK)."""
+
+    def test_elenca_regole_area_con_conteggio_dipendenti(self):
+        from io import StringIO
+        from django.core.management import call_command
+        from .models_formazione import TrainingCourse, TrainingPlan, TrainingRequirementRule
+
+        rep = Reparto.objects.create(nome="UT")
+        area = AreaAziendale.objects.create(nome="IN1", reparto=rep)
+        piano = TrainingPlan.objects.create(codice="PF", nome="Piano F")
+        corso = TrainingCourse.objects.create(
+            piano=piano, codice="C1", titolo="Corso sicurezza", durata_ore_teorica=8,
+        )
+        TrainingRequirementRule.objects.create(corso=corso, area=area, is_active=True, is_mandatory=True)
+        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=940, area_aziendale=area)
+
+        out = StringIO()
+        call_command("report_regole_formazione_area", stdout=out)
+        output = out.getvalue()
+        self.assertIn("IN1", output)
+        self.assertIn("UT", output)
+        self.assertIn("Corso sicurezza", output)
+
+    def test_nessuna_regola_stampa_messaggio(self):
+        from io import StringIO
+        from django.core.management import call_command
+        out = StringIO()
+        call_command("report_regole_formazione_area", stdout=out)
+        self.assertIn("Nessuna regola", out.getvalue())
