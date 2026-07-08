@@ -193,3 +193,41 @@ class AnagraficaAziendaleFormAreaAziendaleTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=921)
         self.assertIsNone(az.area_aziendale_id)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class DipendenteDetailAreaAziendaleUITests(TestCase):
+    """dipendente_detail espone il cascading Reparto->Area aziendale in pagina."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+        cls.admin = User.objects.create_superuser(
+            username="dd_area_admin", email="dd_area_admin@x.local", password="x"
+        )
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM anagrafica_dipendenti")
+            cursor.execute(
+                "INSERT INTO anagrafica_dipendenti (aliasusername, nome, cognome, reparto, attivo) "
+                "VALUES (%s, %s, %s, %s, %s)",
+                ["p.bianchi", "Paolo", "Bianchi", "UT", 1],
+            )
+            cursor.execute("SELECT id FROM anagrafica_dipendenti WHERE aliasusername = %s", ["p.bianchi"])
+            self.legacy_id = int(cursor.fetchone()[0])
+
+    def test_pagina_espone_select_area_aziendale_e_blob_json(self):
+        rep = Reparto.objects.create(nome="UT")
+        AreaAziendale.objects.create(nome="IN1", reparto=rep)
+        AreaAziendale.objects.create(nome="IN2", reparto=rep)
+        resp = self.client.get(reverse("anagrafica:dipendente_detail", args=[self.legacy_id]))
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode()
+        self.assertIn('id="mini-area-select"', content)
+        self.assertIn('id_area_aziendale', content)
+        self.assertIn('"UT"', content)
+        self.assertIn('"IN1"', content)
+        self.assertIn('"IN2"', content)
+        self.assertNotIn("az-area-autofill", content)

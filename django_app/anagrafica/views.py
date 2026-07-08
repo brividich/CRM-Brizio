@@ -2016,6 +2016,18 @@ def dipendente_detail(request, legacy_id: int):
         for r in reparti_catalog
     })
 
+    _area_corrente_id = aziendale.area_aziendale_id if aziendale else None
+    aree_by_reparto: dict[str, list[dict]] = {}
+    for a in (
+        AreaAziendale.objects.filter(Q(is_active=True) | Q(pk=_area_corrente_id))
+        .select_related("reparto")
+        .order_by("nome")
+    ):
+        if a.reparto_id is None:
+            continue
+        aree_by_reparto.setdefault(a.reparto.nome, []).append({"id": a.id, "nome": a.nome})
+    aree_by_reparto_json = json.dumps(aree_by_reparto)
+
     # Anzianità di servizio (KPI scheda sintetica del Riepilogo). Calcolata dalla
     # prima assunzione (fallback su assunzione corrente) fino a oggi o alla
     # cessazione se il rapporto è chiuso.
@@ -2055,6 +2067,7 @@ def dipendente_detail(request, legacy_id: int):
         "reparto_in_catalog": reparto_in_catalog,
         "caporeparto_label": caporeparto_label,
         "reparto_autofill_json": reparto_autofill_json,
+        "aree_by_reparto_json": aree_by_reparto_json,
         "anzianita_label": anzianita_label,
         "widgets_visible": widgets_visible,
         "widgets_hidden": widgets_hidden,

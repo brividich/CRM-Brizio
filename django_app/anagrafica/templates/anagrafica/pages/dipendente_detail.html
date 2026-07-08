@@ -843,7 +843,7 @@ body.theme-dark .dp-link-ok { color:#86efac; }
           <div class="dp-mansione-form" id="reparto-form">
             <form method="post" action="{% url 'anagrafica:dipendente_reparto_set' legacy_id %}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
               {% csrf_token %}
-              <select name="reparto" class="dp-select" style="min-width:200px;">
+              <select name="reparto" id="mini-reparto-select" class="dp-select" style="min-width:200px;">
                 <option value="">— Nessun reparto —</option>
                 {% for rep in reparti_catalog %}
                   <option value="{{ rep.nome }}" {% if rep.nome == dip.reparto %}selected{% endif %}>
@@ -853,6 +853,9 @@ body.theme-dark .dp-link-ok { color:#86efac; }
                 {% if dip.reparto and not reparto_in_catalog %}
                   <option value="{{ dip.reparto }}" selected>{{ dip.reparto }} (attuale – non in catalogo)</option>
                 {% endif %}
+              </select>
+              <select name="area_aziendale" id="mini-area-select" class="dp-select" style="min-width:180px;" data-current="{{ aziendale.area_aziendale_id|default:'' }}">
+                <option value="">— Nessuna area —</option>
               </select>
               <button type="submit" class="dp-btn dp-btn-primary dp-btn-xs">Salva</button>
               <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" onclick="toggleRepartoForm()">Annulla</button>
@@ -891,8 +894,8 @@ body.theme-dark .dp-link-ok { color:#86efac; }
         <div class="dp-info-item">
           <div class="dp-info-label">Area aziendale</div>
           <div class="dp-info-value">
-            {% if aziendale.area_aziendale_nome %}
-              {{ aziendale.area_aziendale_nome }}
+            {% if aziendale.area_aziendale %}
+              {{ aziendale.area_aziendale.nome }}
             {% else %}
               <span style="color:#94a3b8;font-size:12px;">Non assegnata</span>
             {% endif %}
@@ -952,11 +955,6 @@ body.theme-dark .dp-link-ok { color:#86efac; }
               {% if field.errors %}<div style="font-size:11px;color:#b91c1c;">{{ field.errors|join:", " }}</div>{% endif %}
             </div>
             {% endfor %}
-            <div class="dp-form-field">
-              <label class="dp-form-label">Area aziendale</label>
-              <input type="text" id="az-area-autofill" class="dp-input" readonly style="background:#f8fafc;color:#64748b;cursor:default;" value="{{ aziendale.area_aziendale_nome|default:'' }}">
-              <span style="font-size:11px;color:#94a3b8;">Non assegnata automaticamente in questa fase</span>
-            </div>
             <div class="dp-form-field">
               <label class="dp-form-label">Caporeparto</label>
               <input type="text" id="az-capo-autofill" class="dp-input" readonly style="background:#f8fafc;color:#64748b;cursor:default;" value="{{ caporeparto_label|default:'' }}">
@@ -2695,19 +2693,52 @@ function toggleContrattoEdit(id) {
   show(firstAvailable);
 })();
 
-// Auto-fill caporeparto quando si seleziona il reparto (l'area aziendale non
-// si autopopola più: un reparto può avere più aree aziendali figlie).
+// Auto-fill caporeparto in sola lettura + cascading Reparto -> Area aziendale
+// (client-side, nessuna chiamata al server). L'area aziendale è impostabile sia
+// dal mini-form rapido "Cambia reparto" sia dal form completo "Modifica dati
+// aziendali"; entrambi ricostruiscono le opzioni dallo stesso blob JSON.
 (function() {
   var repartiData = {{ reparto_autofill_json|safe }};
-  var sel = document.getElementById('id_area');
-  if (!sel) return;
-  function fill() {
-    var d = repartiData[sel.value] || {};
-    var capoEl = document.getElementById('az-capo-autofill');
-    if (capoEl) capoEl.value = d.capo_label || '';
+  var areeByReparto = {{ aree_by_reparto_json|safe }};
+
+  function syncAreaOptions(repartoSel, areaSel) {
+    if (!repartoSel || !areaSel) return;
+    var current = areaSel.dataset.current || '';
+    var opzioni = areeByReparto[repartoSel.value] || [];
+    areaSel.innerHTML = '';
+    var optNone = document.createElement('option');
+    optNone.value = '';
+    optNone.textContent = '— Nessuna area —';
+    areaSel.appendChild(optNone);
+    opzioni.forEach(function(area) {
+      var opt = document.createElement('option');
+      opt.value = String(area.id);
+      opt.textContent = area.nome;
+      if (String(area.id) === current) opt.selected = true;
+      areaSel.appendChild(opt);
+    });
+    areaSel.dataset.current = '';  // il preselect vale solo al primo render
   }
-  sel.addEventListener('change', fill);
-  fill();
+
+  function wireCascading(repartoSel, areaSel) {
+    if (!repartoSel || !areaSel) return;
+    syncAreaOptions(repartoSel, areaSel);
+    repartoSel.addEventListener('change', function() { syncAreaOptions(repartoSel, areaSel); });
+  }
+
+  wireCascading(document.getElementById('mini-reparto-select'), document.getElementById('mini-area-select'));
+  wireCascading(document.getElementById('id_area'), document.getElementById('id_area_aziendale'));
+
+  var sel = document.getElementById('id_area');
+  if (sel) {
+    function fillCapo() {
+      var d = repartiData[sel.value] || {};
+      var capoEl = document.getElementById('az-capo-autofill');
+      if (capoEl) capoEl.value = d.capo_label || '';
+    }
+    sel.addEventListener('change', fillCapo);
+    fillCapo();
+  }
 })();
 </script>
 {% endblock %}
