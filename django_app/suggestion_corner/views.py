@@ -11,6 +11,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 from django_fsm import TransitionNotAllowed
@@ -281,3 +282,52 @@ def azione_chiudi(request, pk: int):
         request, pk, authorize=_team,
         apply=lambda seg, user, cd: seg.chiudi(attore=user),
     )
+
+
+# --- Copilota AI (sessione 9) — endpoint JSON AJAX --------------------------
+# Gating: @login_required + ACL PERM_VIEW (binding di rotta) + SMS_TEAM in-view.
+# Per la regola API/AJAX (CLAUDE.md) i non-autorizzati ricevono JSON 403, non un
+# redirect HTML. L'AI PROPONE soltanto: nessuna scrittura DB, nessuna transizione.
+
+def _richiede_team_json(request, pk):
+    """Restituisce (seg, None) se autorizzato, altrimenti (None, JsonResponse 403)."""
+    seg = get_object_or_404(SuggestionCorner, pk=pk)
+    if not is_sms_team(request.user):
+        return None, JsonResponse({"error": "Non autorizzato."}, status=403)
+    return seg, None
+
+
+@login_required
+@require_POST
+def ai_classifica(request, pk: int):
+    """Proposta AI di classificazione SMS Sì/No (l'operatore conferma)."""
+    from . import ai as sc_ai
+
+    seg, deny = _richiede_team_json(request, pk)
+    if deny is not None:
+        return deny
+    return JsonResponse(sc_ai.classifica_ai(seg))
+
+
+@login_required
+@require_POST
+def ai_bozza_plan(request, pk: int):
+    """Bozza AI del PLAN (l'operatore rivede e firma)."""
+    from . import ai as sc_ai
+
+    seg, deny = _richiede_team_json(request, pk)
+    if deny is not None:
+        return deny
+    return JsonResponse(sc_ai.bozza_plan_ai(seg))
+
+
+@login_required
+@require_POST
+def ai_simili(request, pk: int):
+    """Segnalazioni simili (dedup) — similarità token, senza dipendere dall'AI."""
+    from . import ai as sc_ai
+
+    seg, deny = _richiede_team_json(request, pk)
+    if deny is not None:
+        return deny
+    return JsonResponse({"risultati": sc_ai.trova_simili(seg)})

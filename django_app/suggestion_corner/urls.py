@@ -20,4 +20,8 @@ urlpatterns = [
     path("<int:pk>/check-rinviato/", views.azione_check_rinviato, name="check_rinviato"),
     path("<int:pk>/inserisci-act/", views.azione_inserisci_act, name="inserisci_act"),
     path("<int:pk>/chiudi/", views.azione_chiudi, name="chiudi"),
+    # Copilota AI (sessione 9) — endpoint JSON AJAX (gated SMS_TEAM, 403 JSON)
+    path("<int:pk>/ai/classifica/", views.ai_classifica, name="ai_classifica"),
+    path("<int:pk>/ai/bozza-plan/", views.ai_bozza_plan, name="ai_bozza_plan"),
+    path("<int:pk>/ai/simili/", views.ai_simili, name="ai_simili"),
 ]

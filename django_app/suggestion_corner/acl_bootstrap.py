@@ -16,7 +16,7 @@ from core.acl_bootstrap_base import run_bootstrap
 logger = logging.getLogger(__name__)
 
 MODULE = "suggestion_corner"
-_BOOTSTRAP_CACHE_KEY = "suggestion_corner_acl_bootstrap_v2"
+_BOOTSTRAP_CACHE_KEY = "suggestion_corner_acl_bootstrap_v3"
 
 PERM_VIEW = "suggestion_corner.segnalazione.view"
 
@@ -43,6 +43,10 @@ _ROUTE_BINDINGS = {
     "suggestion_corner:check_rinviato": PERM_VIEW,
     "suggestion_corner:inserisci_act": PERM_VIEW,
     "suggestion_corner:chiudi": PERM_VIEW,
+    # Copilota AI (sessione 9) — gate PERM_VIEW; l'accesso fine è SMS_TEAM in-view.
+    "suggestion_corner:ai_classifica": PERM_VIEW,
+    "suggestion_corner:ai_bozza_plan": PERM_VIEW,
+    "suggestion_corner:ai_simili": PERM_VIEW,
 }
 
 _PULSANTI_DEFINITIONS = [
