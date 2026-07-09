@@ -41,6 +41,7 @@ TIPO_META: dict[str, dict[str, str]] = {
     "task":                 {"label": "Attività",               "icona": "🗒️", "tono": "info",   "categoria": "operativita"},
     "capa":                 {"label": "Azione CAPA",            "icona": "🛠️", "tono": "info",   "categoria": "operativita"},
     "specifica":            {"label": "Specifica",              "icona": "📐", "tono": "info",   "categoria": "operativita"},
+    "sc_assegnazione":      {"label": "Suggestion Corner",      "icona": "💡", "tono": "info",   "categoria": "operativita"},
     "generico":             {"label": "Notifica",               "icona": "🔔", "tono": "info",   "categoria": "operativita"},
 }
 

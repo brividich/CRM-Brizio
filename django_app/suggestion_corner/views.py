@@ -127,10 +127,11 @@ def nuova(request):
 
 # --- Azioni FSM (sessione 3b) -----------------------------------------------
 
-def _do_transition(request, pk, *, authorize, apply, form_class=None):
+def _do_transition(request, pk, *, authorize, apply, form_class=None, on_success=None):
     """Helper comune: autorizza, valida il form, esegue la transizione in
     transazione atomica (transition + save insieme), gestisce gli errori e
-    torna al dettaglio con un messaggio."""
+    torna al dettaglio con un messaggio. `on_success(seg)` è un hook fail-safe
+    eseguito dopo il commit (es. notifiche)."""
     seg = get_object_or_404(SuggestionCorner, pk=pk)
     if not authorize(request.user, seg):
         raise PermissionDenied("Non autorizzato a questa operazione.")
@@ -151,6 +152,12 @@ def _do_transition(request, pk, *, authorize, apply, form_class=None):
     except (TransitionNotAllowed, ValidationError) as exc:
         messages.error(request, getattr(exc, "message", None) or str(exc) or "Transizione non consentita.")
         return redirect("suggestion_corner:dettaglio", pk=pk)
+
+    if on_success is not None:
+        try:
+            on_success(seg)
+        except Exception:
+            pass
 
     messages.success(request, "Operazione completata.")
     return redirect("suggestion_corner:dettaglio", pk=pk)
@@ -180,7 +187,13 @@ def azione_definisci_plan(request, pk: int):
             data_limite_controllo=cd["data_limite_controllo"],
             plan_testo=cd.get("plan_testo", ""), attore=user,
         ),
+        on_success=lambda seg: _notifica_assegnazione(seg),
     )
+
+
+def _notifica_assegnazione(seg):
+    from .notifications import notifica_assegnazione_in_app
+    notifica_assegnazione_in_app(seg)
 
 
 @login_required

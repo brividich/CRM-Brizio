@@ -73,6 +73,26 @@ def _sollecito(dest_email: str, seg, fase: str, giorni: int) -> int:
     )
 
 
+def notifica_assegnazione_in_app(seg) -> int:
+    """Notifica in-app (sessione 6) a incaricato e controllore quando il PLAN è
+    definito. Riusa `core.notifiche.invia_notifica` (rispetta gli interruttori
+    on/off via notifiche_prefs). Convenzione legacy_user_id = Django user.id.
+    """
+    from core.notifiche import invia_notifica
+
+    url = f"/suggestion-corner/{seg.pk}/"
+    n = 0
+    if seg.incaricato_id:
+        invia_notifica(seg.incaricato_id, "sc_assegnazione",
+                       f"Ti è stato assegnato il DO della segnalazione SC#{seg.pk}.", url)
+        n += 1
+    if seg.controllore_id:
+        invia_notifica(seg.controllore_id, "sc_assegnazione",
+                       f"Ti è stato assegnato il CHECK della segnalazione SC#{seg.pk}.", url)
+        n += 1
+    return n
+
+
 def _escalation(seg, fase: str) -> int:
     dest = SuggestionCornerConfig.load().email_responsabile_escalation
     if not dest:
