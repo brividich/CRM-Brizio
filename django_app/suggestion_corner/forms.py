@@ -8,9 +8,33 @@ from __future__ import annotations
 from django.contrib.auth import get_user_model
 from django import forms
 
+from anagrafica.models import Reparto
 from .models import SuggestionCorner
 
 User = get_user_model()
+
+
+class SegnalazionePubblicaForm(forms.Form):
+    """Form pubblico anonimo (§5) — sostituisce Microsoft Forms.
+
+    Reparto come select (FK popolata da subito, no free text). Opzione anonima.
+    Campo honeypot `website` nascosto via CSS: se compilato la request è bot.
+    """
+    reparto_provenienza = forms.ModelChoiceField(
+        queryset=Reparto.objects.filter(is_active=True).order_by("nome"),
+        label="Reparto di provenienza",
+    )
+    opportunity = forms.CharField(
+        label="Opportunità di miglioramento", widget=forms.Textarea,
+        max_length=5000,
+    )
+    anonima = forms.BooleanField(label="Invia in forma anonima", required=False)
+    # Honeypot: gli utenti veri non lo vedono (nascosto via CSS), i bot sì.
+    website = forms.CharField(required=False, widget=forms.TextInput(
+        attrs={"autocomplete": "off", "tabindex": "-1"}))
+
+    def is_bot(self) -> bool:
+        return bool(self.data.get("website"))
 
 
 class ClassificaForm(forms.Form):

@@ -76,6 +76,49 @@ def dettaglio(request, pk: int):
     return render(request, "suggestion_corner/dettaglio.html", ctx)
 
 
+# --- Form pubblico anonimo (sessione 4, §5) ---------------------------------
+# Route ESCLUSA dal gate ACL/login/onboarding via MIDDLEWARE_EXEMPT_PREFIXES
+# ("/suggestion-corner/nuova/"). Unica superficie pubblica non autenticata.
+
+def nuova(request):
+    """Form pubblico: crea una segnalazione (INSERITA→DA_CLASSIFICARE).
+
+    Rate-limit per IP + honeypot anti-bot. Nessun login richiesto.
+    """
+    from .ratelimit import is_rate_limited
+
+    if request.method == "POST":
+        if is_rate_limited(request):
+            return render(request, "suggestion_corner/pubblica_limite.html", status=429)
+
+        # Honeypot: se il campo nascosto è compilato è un bot → finto successo,
+        # nessuna creazione, nessun indizio all'attaccante.
+        if request.POST.get("website"):
+            return render(request, "suggestion_corner/pubblica_ok.html")
+
+        form = sc_forms.SegnalazionePubblicaForm(request.POST)
+        if form.is_valid():
+            cd = form.cleaned_data
+            anonima = cd["anonima"]
+            autenticato = getattr(request.user, "is_authenticated", False)
+            seg = SuggestionCorner(
+                reparto_provenienza=cd["reparto_provenienza"],
+                opportunity=cd["opportunity"],
+                anonima=anonima,
+                da_portale=True,
+                created_by=(request.user if autenticato and not anonima else None),
+            )
+            with transaction.atomic():
+                seg.save()
+                # auto-avanzamento INSERITA → DA_CLASSIFICARE (mail SMS = sessione 5)
+                seg.notifica_sms_team()
+                seg.save()
+            return render(request, "suggestion_corner/pubblica_ok.html")
+    else:
+        form = sc_forms.SegnalazionePubblicaForm()
+    return render(request, "suggestion_corner/pubblica_form.html", {"form": form})
+
+
 # --- Azioni FSM (sessione 3b) -----------------------------------------------
 
 def _do_transition(request, pk, *, authorize, apply, form_class=None):

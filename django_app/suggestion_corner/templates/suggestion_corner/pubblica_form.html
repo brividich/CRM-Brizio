@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Suggestion Corner — Nuova segnalazione</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; color: #1a2233; }
+    h1 { font-size: 1.5rem; }
+    label { display: block; font-weight: 600; margin-top: 1rem; }
+    input, textarea, select { width: 100%; padding: .5rem; margin-top: .25rem; box-sizing: border-box; }
+    textarea { min-height: 140px; }
+    .sc-hp { position: absolute; left: -9999px; top: -9999px; }
+    button { margin-top: 1.25rem; padding: .6rem 1.4rem; font-size: 1rem; cursor: pointer; }
+    .errorlist { color: #b00020; margin: .25rem 0 0; padding-left: 1rem; }
+    .anon { font-weight: 400; }
+  </style>
+</head>
+<body>
+  <h1>Suggestion Corner — Nuova segnalazione</h1>
+  <p>Segnala un'opportunità di miglioramento. La compilazione è aperta a tutti.</p>
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    <label for="id_reparto_provenienza">Reparto di provenienza</label>
+    {{ form.reparto_provenienza }}
+    {{ form.reparto_provenienza.errors }}
+
+    <label for="id_opportunity">Opportunità di miglioramento</label>
+    {{ form.opportunity }}
+    {{ form.opportunity.errors }}
+
+    <label class="anon"><input type="checkbox" name="anonima" id="id_anonima" style="width:auto"> Invia in forma anonima</label>
+
+    {# Honeypot: nascosto agli utenti, visibile ai bot #}
+    <div class="sc-hp" aria-hidden="true">
+      <label for="id_website">Website</label>
+      {{ form.website }}
+    </div>
+
+    <button type="submit">Invia segnalazione</button>
+  </form>
+</body>
+</html>

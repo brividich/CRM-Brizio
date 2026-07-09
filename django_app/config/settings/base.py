@@ -190,9 +190,12 @@ MONITORING_WATCHDOG_CRITICAL_UNASSIGNED_MINUTES = int(
     env("MONITORING_WATCHDOG_CRITICAL_UNASSIGNED_MINUTES", "120") or "120"
 )
 # Health-check AI (Ollama/TEI) nel monitoring schedulato (monitoring_ai_alert).
-# NON nel hot path di /readyz: fanno chiamate di rete al box GPU. Timeout corto.
+# NON nel hot path di /readyz: fanno chiamate di rete al box GPU. Allineato al
+# timeout di routing reale (AI_TOOL_ROUTING_EMBED_TIMEOUT_SECONDS=6s in tools.py)
+# con margine: un valore piu' stretto marcava FAIL/allarmava per jitter di rete
+# che l'uso reale dell'endpoint tollera senza problemi.
 MONITORING_AI_CHECKS_ENABLED = env_bool("MONITORING_AI_CHECKS_ENABLED", True)
-MONITORING_AI_CHECK_TIMEOUT = float(env("MONITORING_AI_CHECK_TIMEOUT", "4") or "4")
+MONITORING_AI_CHECK_TIMEOUT = float(env("MONITORING_AI_CHECK_TIMEOUT", "8") or "8")
 # Digest giornaliero "stato portale" (monitoring.tasks.run_system_digest): True =
 # heartbeat (invia sempre, anche "tutto ok"); False = invia solo se c'è da segnalare.
 MONITORING_DIGEST_ALWAYS = env_bool("MONITORING_DIGEST_ALWAYS", True)
@@ -706,6 +709,7 @@ MIDDLEWARE_EXEMPT_PREFIXES = (
     "/approval-actions/",          # token-based, Entra Application Proxy frontend
     "/2fa/",                       # 2FA verify/setup — gestiti internamente
     "/gestione-anomalie/mail-action/",  # token-based, no login required
+    "/suggestion-corner/nuova/",  # form pubblico anonimo (§5), no login required
 )
 
 AUTHENTICATION_BACKENDS = [

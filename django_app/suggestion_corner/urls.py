@@ -6,6 +6,7 @@ app_name = "suggestion_corner"
 
 urlpatterns = [
     path("", views.home, name="home"),
+    path("nuova/", views.nuova, name="nuova"),  # form pubblico (no login, esente ACL)
     path("<int:pk>/", views.dettaglio, name="dettaglio"),
     # Azioni FSM (sessione 3b) — POST
     path("<int:pk>/classifica/", views.azione_classifica, name="classifica"),
