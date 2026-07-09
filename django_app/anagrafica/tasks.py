@@ -116,6 +116,39 @@ def run_visite_mediche_digest(days: int = 60) -> dict:
         raise
 
 
+def run_elearning_reminders() -> dict:
+    """Promemoria micro-corsi e-learning non completati (digest HR + notifica in-app).
+
+    Wrappa ``send_elearning_reminders``. Le notifiche in-app partono comunque; il
+    digest email è **fail-safe** (no-op senza ``SiteConfig.elearning_reminder_emails``).
+    """
+    from django.core.management import call_command
+
+    try:
+        call_command("send_elearning_reminders", verbosity=0)
+        return {"ok": True}
+    except Exception:
+        logger.exception("run_elearning_reminders: eccezione inattesa")
+        raise
+
+
+def run_training_expiry_reminders(days: int = 60) -> dict:
+    """Reminder scadenze formazione (corsi scaduti/in scadenza): digest HR + notifica.
+
+    Wrappa ``send_training_expiry_reminders``. **Fail-safe**: senza destinatari
+    (``SiteConfig.training_reminder_emails``) il digest è un no-op; le notifiche
+    in-app al dipendente partono comunque.
+    """
+    from django.core.management import call_command
+
+    try:
+        call_command("send_training_expiry_reminders", days=days, verbosity=0)
+        return {"ok": True, "days": int(days)}
+    except Exception:
+        logger.exception("run_training_expiry_reminders: eccezione inattesa")
+        raise
+
+
 def run_archivia_attestati_mancanti(limit: int = 500) -> dict:
     """Archivia nel box documenti gli attestati mancanti per i completamenti.
 

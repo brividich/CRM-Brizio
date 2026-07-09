@@ -309,6 +309,41 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # CORE — digest mattutino caporeparto: DPI in attesa + incidenti aperti del
+        # reparto (fonte capi = Reparto.caporeparto_legacy_id; email = email_notifica).
+        # Fail-safe: no-op senza capi/voci; assenze (SharePoint dismesso) e ticket
+        # (nessun legame reparto) esclusi per design.
+        "name": "caporeparto_morning_digest",
+        "func": "core.tasks.run_caporeparto_morning_digest",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "0 7 * * 1-5",      # ogni mattina feriale alle 07:00
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # ANAGRAFICA — reminder scadenze formazione OBBLIGATORIA (corsi scaduti/in
+        # scadenza dalla cache TrainingDeadline): digest HR + notifica al dipendente.
+        # Complementare a formazione_audit_digest (trimestrale): qui è il reminder
+        # operativo. Fail-safe: digest no-op senza SiteConfig training_reminder_emails.
+        "name": "training_expiry_reminders",
+        "func": "anagrafica.tasks.run_training_expiry_reminders",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "5 8 * * *",        # ogni mattina alle 08:05
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # ANAGRAFICA — promemoria micro-corsi e-learning non completati: digest HR +
+        # notifica in-app al discente. Le notifiche in-app partono comunque; il
+        # digest è fail-safe (no-op senza SiteConfig elearning_reminder_emails).
+        "name": "elearning_reminders",
+        "func": "anagrafica.tasks.run_elearning_reminders",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "55 7 * * *",       # ogni mattina alle 07:55
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # ASSETS — genera gli OdL periodici dovuti dalle MaintenanceRule attive.
         # Idempotente (nessun duplicato se esiste già un WO OPEN). Gira PRIMA del
         # promemoria manutenzione così i nuovi OdL rientrano nella mail del giorno.

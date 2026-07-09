@@ -28,13 +28,28 @@ def notify_corso_assegnato(corso_id: int, legacy_anagrafica_id: int) -> None:
 
 
 def notify_promemoria_da_completare(corso_id: int, legacy_anagrafica_id: int) -> None:
-    """Hook: promemoria 'corso e-learning ancora da completare'.
+    """Promemoria in-app 'micro-corso e-learning ancora da completare'.
 
-    NO-OP per ora (D7).
+    Consegna una :class:`core.models.Notifica` al discente (``legacy_anagrafica_id``),
+    rispettando gli interruttori notifiche (``core.notifiche.invia_notifica`` è il
+    chokepoint unico). Fire-and-forget: nessuna eccezione propagata.
     """
-    logger.debug(
-        "[e-learning] hook notify_promemoria corso=%s dip=%s (invio non implementato)",
-        corso_id, legacy_anagrafica_id,
+    from core.notifiche import invia_notifica
+
+    try:
+        from ..models_formazione import TrainingCourse
+        titolo = (
+            TrainingCourse.objects.filter(pk=corso_id)
+            .values_list("titolo", flat=True).first()
+            or f"corso #{corso_id}"
+        )
+    except Exception:
+        titolo = f"corso #{corso_id}"
+    invia_notifica(
+        legacy_anagrafica_id,
+        "elearning_promemoria",
+        f"Micro-corso e-learning da completare: {titolo}.",
+        "/anagrafica/formazione/elearning/",
     )
 
 

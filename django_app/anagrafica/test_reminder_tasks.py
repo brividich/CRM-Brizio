@@ -23,6 +23,10 @@ _MATRIX = [
      "formazione_audit_digest", "anagrafica.tasks.run_formazione_audit_digest"),
     ("run_visite_mediche_digest", "send_visite_mediche_digest",
      "visite_mediche_digest", "anagrafica.tasks.run_visite_mediche_digest"),
+    ("run_training_expiry_reminders", "send_training_expiry_reminders",
+     "training_expiry_reminders", "anagrafica.tasks.run_training_expiry_reminders"),
+    ("run_elearning_reminders", "send_elearning_reminders",
+     "elearning_reminders", "anagrafica.tasks.run_elearning_reminders"),
 ]
 
 

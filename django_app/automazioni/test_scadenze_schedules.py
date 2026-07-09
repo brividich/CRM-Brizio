@@ -28,6 +28,8 @@ _MATRIX = [
      "tickets_sla_reminders", "tickets.tasks.run_sla_reminders"),
     ("tickets.tasks", "run_ticket_daily_digest", "send_ticket_daily_digest",
      "tickets_daily_digest", "tickets.tasks.run_ticket_daily_digest"),
+    ("core.tasks", "run_caporeparto_morning_digest", "send_caporeparto_morning_digest",
+     "caporeparto_morning_digest", "core.tasks.run_caporeparto_morning_digest"),
 ]
 
 
