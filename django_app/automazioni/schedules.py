@@ -308,6 +308,69 @@ SCHEDULES: list[dict] = [
         "repeats": -1,
         "kwargs": {},
     },
+    {
+        # ASSETS — genera gli OdL periodici dovuti dalle MaintenanceRule attive.
+        # Idempotente (nessun duplicato se esiste già un WO OPEN). Gira PRIMA del
+        # promemoria manutenzione così i nuovi OdL rientrano nella mail del giorno.
+        "name": "assets_generate_workorders",
+        "func": "assets.tasks.run_generate_scheduled_workorders",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "0 6 * * *",        # ogni mattina alle 06:00
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # ASSETS — promemoria scadenze manutenzione / verifiche periodiche + OdL
+        # scaduti. Destinatari SiteConfig assets_reminder_emails con FALLBACK su
+        # ADMINS/superuser (non no-op puro): disattivabile dalla Centrale di comando.
+        "name": "assets_maintenance_reminders",
+        "func": "assets.tasks.run_maintenance_reminders",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "0 7 * * *",        # ogni mattina alle 07:00 (dopo la generazione OdL)
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # DPI — promemoria DPI scaduti / in scadenza (+ notifica in-app). Destinatari
+        # da impostazioni DPI/SiteConfig con fallback ADMINS/superuser (non no-op
+        # puro): disattivabile dalla Centrale di comando.
+        "name": "dpi_expiry_reminders",
+        "func": "dpi.tasks.run_dpi_expiry_reminders",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "10 7 * * *",       # ogni mattina alle 07:10
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # RENTRI — alert registri non confermati/inviati oltre soglia, agli admin.
+        # Da attivare dove il modulo RENTRI è operativo.
+        "name": "rentri_scadenze_check",
+        "func": "rentri.tasks.run_rentri_scadenze_check",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "20 7 * * *",       # ogni mattina alle 07:20
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # TICKETS — promemoria SLA scaduto all'ASSEGNATARIO (complementare a
+        # tickets_escalation, che copre gli urgenti non assegnati).
+        "name": "tickets_sla_reminders",
+        "func": "tickets.tasks.run_sla_reminders",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "30 8 * * *",       # ogni mattina alle 08:30
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # TICKETS — digest mattutino "i miei ticket di oggi" per assegnatario
+        # (aperti in scadenza oggi o già scaduti).
+        "name": "tickets_daily_digest",
+        "func": "tickets.tasks.run_ticket_daily_digest",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "40 7 * * *",       # ogni mattina alle 07:40
+        "repeats": -1,
+        "kwargs": {},
+    },
 ]
 
 

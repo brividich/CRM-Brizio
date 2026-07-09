@@ -223,3 +223,36 @@ def run_tickets_escalation(*, force_email: bool = False) -> dict:
             out["reminders"], out["email_sent"], out["tickets"],
         )
     return out
+
+
+def run_sla_reminders() -> dict:
+    """Promemoria SLA scaduto all'ASSEGNATARIO del ticket.
+
+    Wrappa il management command ``send_sla_reminders``. Complementare a
+    ``run_tickets_escalation`` (che copre gli urgenti NON assegnati): qui si
+    sollecita chi ha già il ticket in carico con SLA sforato.
+    """
+    from django.core.management import call_command
+
+    try:
+        call_command("send_sla_reminders", verbosity=0)
+        return {"ok": True}
+    except Exception:
+        logger.exception("run_sla_reminders: eccezione inattesa")
+        raise
+
+
+def run_ticket_daily_digest() -> dict:
+    """Digest mattutino "i miei ticket di oggi" per ciascun assegnatario.
+
+    Wrappa il management command ``send_ticket_daily_digest``: raggruppa per
+    ``assegnato_email`` i ticket aperti in scadenza oggi o già scaduti.
+    """
+    from django.core.management import call_command
+
+    try:
+        call_command("send_ticket_daily_digest", verbosity=0)
+        return {"ok": True}
+    except Exception:
+        logger.exception("run_ticket_daily_digest: eccezione inattesa")
+        raise
