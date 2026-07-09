@@ -96,14 +96,14 @@ class GanttViewTest(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "--cw:52px")
 
-    def test_reschedule_cascata_sposta_i_successivi(self):
+    def test_reschedule_coda_sposta_i_successivi(self):
         self.client.force_login(self.user)
-        d0 = date(2026, 6, 23)
+        d0 = date(2026, 6, 22)  # lunedì
         p0 = Pianificazione.objects.create(macchina=self.m, data=d0, turno="giorno", testo_originale="a", fonte=Pianificazione.FONTE_IMPORT)
         p1 = Pianificazione.objects.create(macchina=self.m, data=d0 + timedelta(days=2), turno="giorno", testo_originale="b", fonte=Pianificazione.FONTE_IMPORT)
         p2 = Pianificazione.objects.create(macchina=self.m, data=d0 + timedelta(days=4), turno="giorno", testo_originale="c", fonte=Pianificazione.FONTE_IMPORT)
         r = self.client.post(reverse("gestione_carichi_macchina:reschedule"),
-                            {"pianificazione_id": p0.id, "giorni_delta": "3", "cascata": "1"})
+                             {"pianificazione_id": p0.id, "giorni_delta": "3", "coda": "1", "conferma_slittamento": "1"})
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json()["spostati"], 3)
         p0.refresh_from_db(); p1.refresh_from_db(); p2.refresh_from_db()
@@ -111,13 +111,13 @@ class GanttViewTest(TestCase):
         self.assertEqual(p1.data, d0 + timedelta(days=5))
         self.assertEqual(p2.data, d0 + timedelta(days=7))
 
-    def test_reschedule_senza_cascata_sposta_solo_uno(self):
+    def test_reschedule_senza_coda_non_tocca_i_non_conflitti(self):
         self.client.force_login(self.user)
-        d0 = date(2026, 6, 23)
+        d0 = date(2026, 6, 22)
         p0 = Pianificazione.objects.create(macchina=self.m, data=d0, turno="giorno", testo_originale="a", fonte=Pianificazione.FONTE_IMPORT)
         p1 = Pianificazione.objects.create(macchina=self.m, data=d0 + timedelta(days=2), turno="giorno", testo_originale="b", fonte=Pianificazione.FONTE_IMPORT)
         r = self.client.post(reverse("gestione_carichi_macchina:reschedule"),
-                            {"pianificazione_id": p0.id, "giorni_delta": "3", "cascata": "0"})
+                             {"pianificazione_id": p0.id, "giorni_delta": "1", "coda": "0"})
         self.assertEqual(r.json()["spostati"], 1)
         p1.refresh_from_db()
         self.assertEqual(p1.data, d0 + timedelta(days=2))  # invariato
@@ -127,7 +127,7 @@ class GanttViewTest(TestCase):
         d0 = date(2026, 6, 23)
         p = Pianificazione.objects.create(macchina=self.m, data=d0, turno="giorno", testo_originale="a", fonte=Pianificazione.FONTE_IMPORT)
         self.client.post(reverse("gestione_carichi_macchina:reschedule"),
-                        {"pianificazione_id": p.id, "giorni_delta": "3", "cascata": "0"})
+                        {"pianificazione_id": p.id, "giorni_delta": "3", "coda": "0"})
         p.refresh_from_db()
         self.assertEqual(p.data, d0 + timedelta(days=3))
         r = self.client.post(reverse("gestione_carichi_macchina:reschedule_undo"))
@@ -135,6 +135,19 @@ class GanttViewTest(TestCase):
         self.assertTrue(r.json()["ok"])
         p.refresh_from_db()
         self.assertEqual(p.data, d0)  # ripristinato
+
+    def test_undo_ripristina_tutti_gli_slittati(self):
+        self.client.force_login(self.user)
+        d = date(2026, 6, 22)
+        p0 = Pianificazione.objects.create(macchina=self.m, data=d, turno="giorno", testo_originale="A", fonte=Pianificazione.FONTE_IMPORT)
+        b = Pianificazione.objects.create(macchina=self.m, data=d + timedelta(days=1), turno="giorno", testo_originale="B", fonte=Pianificazione.FONTE_IMPORT)
+        self.client.post(reverse("gestione_carichi_macchina:reschedule"),
+                         {"pianificazione_id": p0.id, "giorni_delta": "1", "coda": "0", "conferma_slittamento": "1"})
+        r = self.client.post(reverse("gestione_carichi_macchina:reschedule_undo"))
+        self.assertTrue(r.json()["ok"])
+        p0.refresh_from_db(); b.refresh_from_db()
+        self.assertEqual(p0.data, d)
+        self.assertEqual(b.data, d + timedelta(days=1))
 
     def _altra_macchina(self, tag, categoria):
         a = Asset.objects.create(asset_tag=tag, name=tag, asset_type=Asset.TYPE_WORK_MACHINE)
