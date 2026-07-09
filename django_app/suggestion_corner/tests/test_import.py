@@ -28,6 +28,13 @@ class ImportLegacyTest(TestCase):
         self.addCleanup(lambda: os.remove(path))
         return path
 
+    def _write_map(self, mapping):
+        fd, path = tempfile.mkstemp(suffix=".json")
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(mapping, fh)
+        self.addCleanup(lambda: os.remove(path))
+        return path
+
     def _record(self, **kw):
         base = {
             "sharepoint_id": 1,
@@ -75,6 +82,16 @@ class ImportLegacyTest(TestCase):
         path = self._write([self._record(reparto_provenienza="INESISTENTE")])
         call_command("import_suggestion_corner_legacy", file=path, apply=True)
         self.assertEqual(SuggestionCorner.objects.count(), 0)
+
+    def test_reparto_map_rimappa_provenienza(self):
+        # 'LOG' del CSV va rimappato sul catalogo 'CNC'; 'Generico' → ignorato (vuoto).
+        path = self._write([self._record(
+            reparto_provenienza="LOG", reparto_destinazione="Generico")])
+        mp = self._write_map({"LOG": "CNC", "Generico": ""})
+        call_command("import_suggestion_corner_legacy", file=path, apply=True, reparto_map=mp)
+        seg = SuggestionCorner.objects.get()
+        self.assertEqual(seg.reparto_provenienza, self.cnc)
+        self.assertIsNone(seg.reparto_destinazione)  # mappato a vuoto
 
     def test_anonima_no_created_by(self):
         path = self._write([self._record(anonima=True)])

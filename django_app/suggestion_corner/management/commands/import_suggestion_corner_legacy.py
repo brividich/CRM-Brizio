@@ -51,6 +51,11 @@ class Command(BaseCommand):
         parser.add_argument("--file", required=True, help="Percorso del file JSON.")
         parser.add_argument("--apply", action="store_true",
                             help="Applica le modifiche (default: dry-run).")
+        parser.add_argument(
+            "--reparto-map", default=None,
+            help="Percorso di un JSON {nome_csv: nome_catalogo} per rimappare i "
+                 "nomi reparto (provenienza/destinazione) prima del match. "
+                 "Valore vuoto/null = ignora quel reparto (diventa nessun reparto).")
 
     def handle(self, *args, **opts):
         path = opts["file"]
@@ -62,6 +67,18 @@ class Command(BaseCommand):
             raise CommandError(f"Impossibile leggere {path}: {exc}")
         if not isinstance(records, list):
             raise CommandError("Il file JSON deve contenere una lista di record.")
+
+        # Rimappatura opzionale nomi reparto CSV→catalogo (chiavi case-insensitive).
+        self.reparto_map = {}
+        if opts.get("reparto_map"):
+            try:
+                with open(opts["reparto_map"], encoding="utf-8") as fh:
+                    raw = json.load(fh)
+            except Exception as exc:
+                raise CommandError(f"Impossibile leggere la mappa reparti: {exc}")
+            if not isinstance(raw, dict):
+                raise CommandError("La mappa reparti deve essere un oggetto JSON.")
+            self.reparto_map = {str(k).strip().lower(): (v or "") for k, v in raw.items()}
 
         rep = {"creati": 0, "aggiornati": 0, "saltati": 0,
                "reparti_mancanti": set(), "persone_mancanti": set(), "errori": []}
@@ -80,6 +97,14 @@ class Command(BaseCommand):
 
         self._print_report(rep, apply)
         return None
+
+    def _map_reparto(self, nome):
+        """Applica la mappa `--reparto-map` (case-insensitive) al nome reparto.
+        Se il nome non è mappato resta invariato; se è mappato a vuoto/null
+        diventa stringa vuota (nessun reparto)."""
+        nome = str(nome or "").strip()
+        mapped = getattr(self, "reparto_map", {}).get(nome.lower())
+        return nome if mapped is None else str(mapped).strip()
 
     def _persona(self, rec, prefix, rep):
         """Risolve una persona dal record: prima per `{prefix}_email`, poi per
@@ -108,13 +133,13 @@ class Command(BaseCommand):
             rep["saltati"] += 1
             return
 
-        nome_prov = str(rec.get("reparto_provenienza", "")).strip()
+        nome_prov = self._map_reparto(rec.get("reparto_provenienza", ""))
         reparto = reparti.get(nome_prov.lower())
         if reparto is None:
             rep["reparti_mancanti"].add(nome_prov)
             raise ValueError(f"reparto provenienza '{nome_prov}' non trovato")
 
-        rep_dest = reparti.get(str(rec.get("reparto_destinazione", "")).strip().lower())
+        rep_dest = reparti.get(self._map_reparto(rec.get("reparto_destinazione", "")).lower())
         anonima = bool(rec.get("anonima", False))
         autore = None if anonima else self._persona(rec, "autore", rep)
 
