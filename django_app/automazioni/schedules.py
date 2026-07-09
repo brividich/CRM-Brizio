@@ -265,6 +265,49 @@ SCHEDULES: list[dict] = [
         "repeats": -1,
         "kwargs": {},
     },
+    {
+        # ANAGRAFICA HR — reminder visite mediche scadute/in scadenza: digest ai
+        # responsabili (card+badge nel frame HUB) + notifica in-app al dipendente.
+        # Fail-safe: no-op senza SiteConfig visite_reminder_emails.
+        "name": "visite_expiry_reminders",
+        "func": "anagrafica.tasks.run_visite_expiry_reminders",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "45 7 * * *",       # ogni mattina alle 07:45
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # ANAGRAFICA HR — contratti a termine + periodi di prova in scadenza.
+        # Fail-safe: no-op senza SiteConfig contratti_reminder_emails.
+        "name": "contratti_expiry_reminders",
+        "func": "anagrafica.tasks.run_contratti_expiry_reminders",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "50 7 * * *",       # ogni mattina alle 07:50
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # ANAGRAFICA — digest trimestrale formazione (abilitazioni in scadenza) per
+        # audit ISO. NB destinatari placeholder (admin/superuser) finché non si
+        # configura una fonte HR/RSPP dedicata.
+        "name": "formazione_audit_digest",
+        "func": "anagrafica.tasks.run_formazione_audit_digest",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "0 8 1 1,4,7,10 *", # 1° di gen/apr/lug/ott alle 08:00 (trimestrale)
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # ANAGRAFICA — digest mensile visite mediche in scadenza (HR). In parte
+        # ridondante con visite_expiry_reminders: disattivabile dalla Centrale di
+        # comando. Destinatari placeholder (admin/superuser).
+        "name": "visite_mediche_digest",
+        "func": "anagrafica.tasks.run_visite_mediche_digest",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "0 8 1 * *",        # il 1° del mese alle 08:00
+        "repeats": -1,
+        "kwargs": {},
+    },
 ]
 
 

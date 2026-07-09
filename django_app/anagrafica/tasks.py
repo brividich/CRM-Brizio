@@ -48,6 +48,74 @@ def run_formazione_session_reminders(days: list | None = None) -> dict:
         raise
 
 
+def run_visite_expiry_reminders(days: int = 60) -> dict:
+    """Reminder visite mediche scadute/in scadenza (digest HR + notifica al dipendente).
+
+    Wrappa ``send_visite_expiry_reminders``. **Fail-safe**: senza destinatari
+    configurati (``SiteConfig.visite_reminder_emails``) è un no-op, quindi sicuro
+    da tenere sempre attivo.
+    """
+    from django.core.management import call_command
+
+    try:
+        call_command("send_visite_expiry_reminders", days=days, verbosity=0)
+        return {"ok": True, "days": int(days)}
+    except Exception:
+        logger.exception("run_visite_expiry_reminders: eccezione inattesa")
+        raise
+
+
+def run_contratti_expiry_reminders(days: int = 60, prova_days: int = 15) -> dict:
+    """Reminder contratti a termine + periodi di prova in scadenza (digest HR).
+
+    Wrappa ``send_contratti_expiry_reminders``. **Fail-safe**: senza destinatari
+    (``SiteConfig.contratti_reminder_emails``) è un no-op.
+    """
+    from django.core.management import call_command
+
+    try:
+        call_command("send_contratti_expiry_reminders", days=days,
+                     prova_days=prova_days, verbosity=0)
+        return {"ok": True, "days": int(days), "prova_days": int(prova_days)}
+    except Exception:
+        logger.exception("run_contratti_expiry_reminders: eccezione inattesa")
+        raise
+
+
+def run_formazione_audit_digest(days: int = 90) -> dict:
+    """Digest trimestrale formazione (abilitazioni in scadenza) per audit ISO.
+
+    Wrappa ``send_formazione_audit_digest``. **Fail-safe** (no-op senza destinatari).
+    NB: i destinatari attuali sono ADMINS/superuser finché non si configura una
+    fonte HR/RSPP dedicata (vedi il management command).
+    """
+    from django.core.management import call_command
+
+    try:
+        call_command("send_formazione_audit_digest", days=days, verbosity=0)
+        return {"ok": True, "days": int(days)}
+    except Exception:
+        logger.exception("run_formazione_audit_digest: eccezione inattesa")
+        raise
+
+
+def run_visite_mediche_digest(days: int = 60) -> dict:
+    """Digest mensile visite mediche in scadenza (HR).
+
+    Wrappa ``send_visite_mediche_digest``. **Fail-safe**. È in parte ridondante con
+    ``run_visite_expiry_reminders`` (disattivabile dalla Centrale di comando);
+    destinatari attuali = ADMINS/superuser.
+    """
+    from django.core.management import call_command
+
+    try:
+        call_command("send_visite_mediche_digest", days=days, verbosity=0)
+        return {"ok": True, "days": int(days)}
+    except Exception:
+        logger.exception("run_visite_mediche_digest: eccezione inattesa")
+        raise
+
+
 def run_archivia_attestati_mancanti(limit: int = 500) -> dict:
     """Archivia nel box documenti gli attestati mancanti per i completamenti.
 
