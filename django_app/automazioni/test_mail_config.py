@@ -92,3 +92,14 @@ class MailTestPreviewTests(TestCase):
         self.client.post(reverse("admin_portale:automazioni_pianificati_mail_test",
                                  kwargs={"name": "visite_expiry_reminders"}))
         self.assertEqual(mail.outbox[0].subject, "Oggetto mio")
+
+
+class MailOverridesNoFragmentTests(TestCase):
+    def test_intro_senza_frammento_va_nel_testo_non_nel_fragment(self):
+        # dpi/assets non passano un fragment: l'intro deve finire nel body_text,
+        # lasciando fragment vuoto (send_hub_mail lo auto-converte).
+        ScheduledMailText.objects.create(task_name="dpi_expiry_reminders", intro="Nota DPI")
+        s, b, f, foot = apply_mail_overrides("dpi_expiry_reminders",
+                                             subject="Sub", body_text="Corpo", fragment="")
+        self.assertIn("Nota DPI", b)
+        self.assertEqual(f, "")  # nessun fragment iniettato

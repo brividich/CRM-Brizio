@@ -103,13 +103,14 @@ def apply_mail_overrides(task_name: str, *, subject: str, body_text: str = "",
     new_footer = (cfg.footer or "").strip() or footer_note
     intro = (cfg.intro or "").strip()
     if intro:
-        if body_text:
-            body_text = f"{intro}\n\n{body_text}"
-        else:
-            body_text = intro
-        intro_html = "".join(
-            f"<p style='margin:0 0 12px;color:#334155'>{escape(p.strip())}</p>"
-            for p in intro.splitlines() if p.strip()
-        )
-        fragment = intro_html + (fragment or "")
+        body_text = f"{intro}\n\n{body_text}" if body_text else intro
+        # Se il chiamante usa un frammento HTML, anteponi l'intro come paragrafo.
+        # Se NON usa un frammento (fragment=""), lascialo vuoto: send_hub_mail
+        # convertirà automaticamente body_text (che già contiene l'intro).
+        if fragment:
+            intro_html = "".join(
+                f"<p style='margin:0 0 12px;color:#334155'>{escape(p.strip())}</p>"
+                for p in intro.splitlines() if p.strip()
+            )
+            fragment = intro_html + fragment
     return new_subject, body_text, fragment, new_footer

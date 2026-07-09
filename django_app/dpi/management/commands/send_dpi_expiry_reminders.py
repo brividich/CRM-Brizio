@@ -153,11 +153,16 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR("Nessun destinatario configurato per i reminder DPI."))
             return
 
+        from automazioni.mail_config import apply_mail_overrides
         from core.email_utils import send_hub_mail
+        subject, body, fragment, footer = apply_mail_overrides(
+            "dpi_expiry_reminders", subject=subject, body_text=body)
         send_hub_mail(
             subject, body, recipients,
             email_type="DPI",
             section_label="Reminder scadenze",
+            body_html_fragment=fragment,
+            footer_note=footer,
             fail_silently=False,
         )
         self.stdout.write(self.style.SUCCESS(

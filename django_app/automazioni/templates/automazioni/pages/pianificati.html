@@ -63,6 +63,7 @@
           <th>Quando gira</th>
           <th>Cosa fa</th>
           <th>Stato</th>
+          <th>Ultimo esito</th>
           <th>Prossima</th>
           <th>Azioni</th>
         </tr>
@@ -78,6 +79,13 @@
             {% if r.enabled %}<span class="pian-pill pian-on">● Attivo</span>
             {% else %}<span class="pian-pill pian-off">○ Disattivato</span>{% endif %}
             {% if r.enabled and not r.registered %}<br><small style="color:#b45309;">non ancora registrato</small>{% endif %}
+          </td>
+          <td>
+            {% if r.last_run %}
+              {% if r.last_ok %}<span class="pian-pill pian-on">✓ ok</span>
+              {% else %}<span class="pian-pill pian-off">✗ errore</span>{% endif %}
+              <br><small style="color:#94a3b8;">{{ r.last_run|date:"d/m H:i" }}</small>
+            {% else %}<span style="color:#94a3b8;">mai</span>{% endif %}
           </td>
           <td>{% if r.next_run %}{{ r.next_run|date:"d/m H:i" }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
           <td>
@@ -102,7 +110,7 @@
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="7" style="text-align:center;color:#64748b;padding:24px;">Nessun task pianificato.</td></tr>
+        <tr><td colspan="8" style="text-align:center;color:#64748b;padding:24px;">Nessun task pianificato.</td></tr>
         {% endfor %}
       </tbody>
     </table>

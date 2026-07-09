@@ -517,11 +517,24 @@ def schedule_rows() -> list[dict]:
     except Exception:
         controls = {}
 
+    # Ultimo esito per func (ultimo Task django-q completato).
+    last_runs: dict = {}
+    try:
+        from django_q.models import Task
+
+        funcs = [s["func"] for s in SCHEDULES]
+        for t in (Task.objects.filter(func__in=funcs)
+                  .order_by("func", "-stopped").values("func", "stopped", "success")):
+            last_runs.setdefault(t["func"], (t["stopped"], t["success"]))
+    except Exception:
+        last_runs = {}
+
     descr = schedule_descriptions()
     rows = []
     for spec in SCHEDULES:
         name = spec["name"]
         sch = live.get(name)
+        last = last_runs.get(spec["func"])
         rows.append({
             "name": name,
             "func": spec["func"],
@@ -531,6 +544,8 @@ def schedule_rows() -> list[dict]:
             "enabled": controls.get(name, True),
             "registered": sch is not None,
             "next_run": getattr(sch, "next_run", None),
+            "last_run": last[0] if last else None,
+            "last_ok": last[1] if last else None,
         })
     return rows
 

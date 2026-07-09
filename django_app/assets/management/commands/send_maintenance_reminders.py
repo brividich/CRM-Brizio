@@ -153,11 +153,16 @@ class Command(BaseCommand):
             return
 
         try:
+            from automazioni.mail_config import apply_mail_overrides
             from core.email_utils import send_hub_mail
+            subject, body, fragment, footer = apply_mail_overrides(
+                "assets_maintenance_reminders", subject=subject, body_text=body)
             send_hub_mail(
                 subject, body, recipients,
                 email_type="Assets",
                 section_label="Reminder manutenzione",
+                body_html_fragment=fragment,
+                footer_note=footer,
                 fail_silently=False,
             )
             for email in recipients:
