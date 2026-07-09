@@ -73,3 +73,33 @@ class HomeScopeTest(TestCase):
         resp = self.client.get(reverse("suggestion_corner:home"))
         self.assertFalse(resp.context["is_team"])
         self.assertEqual(len(resp.context["segnalazioni"]), 1)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False)
+class DettaglioScopeTest(TestCase):
+    def setUp(self):
+        self.reparto = Reparto.objects.create(nome="PRESS")
+        self.owner = User.objects.create_user(username="own", password="x")
+        self.estraneo = User.objects.create_user(username="ext2", password="x")
+        # Vedi nota in HomeScopeTest: force_login (non client.login, incompatibile
+        # con AxesStandaloneBackend) + UserOnboarding completato (altrimenti
+        # CoreMiddleware redirige a /onboarding/) + LEGACY_AUTH_ENABLED=False
+        # (altrimenti ACLMiddleware nega 403: nessun account legacy collegato e
+        # il modulo non ha ancora binding ACL v2 canonico, arriva in un task
+        # successivo).
+        UserOnboarding.objects.create(user=self.owner, completed=True, completed_at=timezone.now())
+        UserOnboarding.objects.create(user=self.estraneo, completed=True, completed_at=timezone.now())
+        self.seg = SuggestionCorner.objects.create(
+            reparto_provenienza=self.reparto, opportunity="Riservata.", created_by=self.owner,
+        )
+
+    def test_owner_vede_dettaglio(self):
+        self.client.force_login(self.owner)
+        resp = self.client.get(reverse("suggestion_corner:dettaglio", args=[self.seg.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["seg"], self.seg)
+
+    def test_estraneo_riceve_404(self):
+        self.client.force_login(self.estraneo)
+        resp = self.client.get(reverse("suggestion_corner:dettaglio", args=[self.seg.pk]))
+        self.assertEqual(resp.status_code, 404)

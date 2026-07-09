@@ -36,10 +36,16 @@ def home(request):
 
 @login_required
 def dettaglio(request, pk: int):
-    """Dettaglio segnalazione (raffinato nel Task 4 con scope + storico)."""
+    """Dettaglio in sola lettura; 404 se l'utente non ha visibilità sull'oggetto."""
     from django.shortcuts import get_object_or_404
 
-    from .models import SuggestionCorner
+    from .permissions import visible_segnalazioni
 
-    seg = get_object_or_404(SuggestionCorner, pk=pk)
-    return render(request, "suggestion_corner/dettaglio.html", {"seg": seg})
+    seg = get_object_or_404(
+        visible_segnalazioni(request.user).select_related(
+            "reparto_provenienza", "reparto_destinazione", "incaricato", "controllore",
+        ),
+        pk=pk,
+    )
+    storico = seg.storico.select_related("autore").all()
+    return render(request, "suggestion_corner/dettaglio.html", {"seg": seg, "storico": storico})

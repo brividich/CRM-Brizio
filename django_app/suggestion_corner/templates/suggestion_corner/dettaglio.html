@@ -1,7 +1,35 @@
 {% extends "core/base.html" %}
 {% block content %}
 <div class="content">
+  <p><a href="{% url 'suggestion_corner:home' %}">&larr; Suggestion Corner</a></p>
   <h1>Segnalazione SC#{{ seg.pk }}</h1>
-  <p>{{ seg.opportunity }}</p>
+
+  <dl class="hub-dl">
+    <dt>Stato</dt><dd>{{ seg.stato_label }}</dd>
+    <dt>Data</dt><dd>{{ seg.data_segnalazione|date:"d/m/Y" }}</dd>
+    <dt>Reparto provenienza</dt><dd>{{ seg.reparto_provenienza.nome }}</dd>
+    <dt>Processo</dt><dd>{{ seg.processo|default:seg.processo_libero|default:"—" }}</dd>
+    <dt>Incaricato</dt><dd>{{ seg.incaricato|default:"—" }}</dd>
+    <dt>Controllore</dt><dd>{{ seg.controllore|default:"—" }}</dd>
+  </dl>
+
+  <h2>Opportunità</h2>
+  <p>{{ seg.opportunity|linebreaksbr }}</p>
+
+  {% if seg.plan_testo %}<h2>Plan</h2><p>{{ seg.plan_testo|linebreaksbr }}</p>{% endif %}
+  {% if seg.do_testo %}<h2>Do</h2><p>{{ seg.do_testo|linebreaksbr }}</p>{% endif %}
+  {% if seg.check_testo %}<h2>Check</h2><p>{{ seg.check_testo|linebreaksbr }}</p>{% endif %}
+  {% if seg.act_testo %}<h2>Act</h2><p>{{ seg.act_testo|linebreaksbr }}</p>{% endif %}
+
+  <h2>Storico</h2>
+  {% if storico %}
+  <ul>
+    {% for v in storico %}
+      <li>{{ v.timestamp|date:"d/m/Y H:i" }} — {{ v.stato_precedente }} &rarr; {{ v.stato_nuovo }}{% if v.autore %} ({{ v.autore }}){% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p>Nessuna voce di storico.</p>
+  {% endif %}
 </div>
 {% endblock %}
