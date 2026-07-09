@@ -11,6 +11,8 @@ urlpatterns = [
     path("trigger-generator/", views.trigger_generator_page, name="automazioni_trigger_generator"),
     path("sorgenti/", views.sorgenti_page, name="automazioni_sorgenti"),
     path("contenuti/", views.contenuti_page, name="automazioni_contenuti"),
+    path("pianificati/", views.pianificati_page, name="automazioni_pianificati"),
+    path("pianificati/azione/", views.pianificati_action, name="automazioni_pianificati_action"),
     path("regole/", views.rule_list_page, name="automazioni_rule_list"),
     path(
         "regole/converti-power-automate/",

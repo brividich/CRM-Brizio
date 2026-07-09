@@ -1,0 +1,107 @@
+{% extends "core/base.html" %}
+
+{% block title %}Automazioni - Task pianificati | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .pian-stats { display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); margin-bottom:18px; }
+  .pian-stat { border:1px solid #e2e8f0; border-radius:14px; padding:14px 16px; background:#fff; }
+  .pian-stat .n { font-size:26px; font-weight:800; color:#0f172a; }
+  .pian-stat .l { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; }
+  .pian-table-wrap { overflow:auto; border:1px solid #e2e8f0; border-radius:14px; }
+  .pian-table { width:100%; border-collapse:collapse; font-size:14px; background:#fff; }
+  .pian-table th, .pian-table td { padding:11px 14px; border-bottom:1px solid #eef2f7; text-align:left; vertical-align:top; }
+  .pian-table th { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; background:#f8fafc; position:sticky; top:0; }
+  .pian-mod { display:inline-block; font-size:11px; font-weight:700; color:#334155; background:#f1f5f9; border-radius:999px; padding:2px 9px; }
+  .pian-name { font-family:ui-monospace,Menlo,Consolas,monospace; font-weight:700; color:#0f172a; }
+  .pian-desc { color:#475569; font-size:13px; max-width:520px; }
+  .pian-pill { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; border-radius:999px; padding:3px 10px; }
+  .pian-on { background:#dcfce7; color:#166534; }
+  .pian-off { background:#fee2e2; color:#991b1b; }
+  .pian-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .pian-btn { font-size:12px; font-weight:700; border-radius:9px; padding:6px 11px; border:1px solid #cbd5e1; background:#fff; cursor:pointer; color:#0f172a; }
+  .pian-btn.warn { border-color:#fca5a5; color:#991b1b; }
+  .pian-btn.ok { border-color:#86efac; color:#166534; }
+  .pian-btn.run { border-color:#93c5fd; color:#1e40af; }
+  .pian-note { color:#64748b; font-size:13px; margin:6px 0 16px; }
+  body.theme-dark .pian-stat, body.theme-dark .pian-table, body.theme-dark .pian-table-wrap { background:#0f172a; border-color:#1e293b; }
+  body.theme-dark .pian-table th { background:#0b1220; color:#94a3b8; }
+  body.theme-dark .pian-table td { border-color:#1e293b; }
+  body.theme-dark .pian-name, body.theme-dark .pian-stat .n { color:#e2e8f0; }
+  body.theme-dark .pian-desc { color:#94a3b8; }
+  body.theme-dark .pian-mod { background:#1e293b; color:#cbd5e1; }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Task pianificati" page_subtitle="Invii automatici a tempo (reminder, alert, digest di scadenza). Attiva/disattiva o esegui ora, accanto alle Regole." %}
+  {% include "automazioni/components/toasts.html" %}
+  {% include "automazioni/components/subnav.html" %}
+
+  <div class="pian-stats">
+    <div class="pian-stat"><div class="n">{{ totale }}</div><div class="l">Task pianificati</div></div>
+    <div class="pian-stat"><div class="n" style="color:#166534;">{{ attivi }}</div><div class="l">Attivi</div></div>
+    <div class="pian-stat"><div class="n" style="color:#991b1b;">{{ disattivi }}</div><div class="l">Disattivati</div></div>
+  </div>
+
+  <p class="pian-note">
+    Sono i task periodici (django-q) definiti nel codice. L'on/off qui è <strong>durevole</strong>
+    (sopravvive ai redeploy); la cadenza si cambia nel codice. La documentazione completa e
+    auto-aggiornata è in <code>docs/AUTOMAZIONI.md</code>.
+  </p>
+
+  <div class="pian-table-wrap">
+    <table class="pian-table">
+      <thead>
+        <tr>
+          <th>Task</th>
+          <th>Modulo</th>
+          <th>Quando gira</th>
+          <th>Cosa fa</th>
+          <th>Stato</th>
+          <th>Prossima</th>
+          <th>Azioni</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td><span class="pian-name">{{ r.name }}</span></td>
+          <td><span class="pian-mod">{{ r.module }}</span></td>
+          <td>{{ r.cadence }}</td>
+          <td class="pian-desc">{{ r.description|default:"—" }}</td>
+          <td>
+            {% if r.enabled %}<span class="pian-pill pian-on">● Attivo</span>
+            {% else %}<span class="pian-pill pian-off">○ Disattivato</span>{% endif %}
+            {% if r.enabled and not r.registered %}<br><small style="color:#b45309;">non ancora registrato</small>{% endif %}
+          </td>
+          <td>{% if r.next_run %}{{ r.next_run|date:"d/m H:i" }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
+          <td>
+            <div class="pian-actions">
+              <form method="post" action="{% url 'admin_portale:automazioni_pianificati_action' %}">
+                {% csrf_token %}
+                <input type="hidden" name="name" value="{{ r.name }}">
+                <input type="hidden" name="action" value="toggle">
+                {% if r.enabled %}<button class="pian-btn warn" type="submit">Disattiva</button>
+                {% else %}<button class="pian-btn ok" type="submit">Attiva</button>{% endif %}
+              </form>
+              <form method="post" action="{% url 'admin_portale:automazioni_pianificati_action' %}">
+                {% csrf_token %}
+                <input type="hidden" name="name" value="{{ r.name }}">
+                <input type="hidden" name="action" value="run_now">
+                <button class="pian-btn run" type="submit">Esegui ora</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" style="text-align:center;color:#64748b;padding:24px;">Nessun task pianificato.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

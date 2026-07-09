@@ -6878,3 +6878,71 @@ def approval_template_preview_page(request, pk: int):
         "custom_payload_raw": custom_payload_raw,
         "payload_error": payload_error,
     })
+
+
+# ── Task pianificati (schedule django-q) — riflessi nell'area automazioni ──────
+
+@legacy_admin_required
+@require_GET
+def pianificati_page(request):
+    """Elenco dei task pianificati (SCHEDULES) con stato on/off e prossima esecuzione.
+
+    Riflette nell'area Automazioni i job periodici django-q che finora si vedevano
+    solo dalla Centrale di comando. Abilita/disabilita è DUREVOLE (ScheduleControl,
+    rispettato anche dopo un redeploy); la cadenza è definita nel codice.
+    """
+    from .schedules import SCHEDULES, schedule_rows
+
+    rows = schedule_rows()
+    enabled_n = sum(1 for r in rows if r["enabled"])
+    context = {
+        **_base_context(),
+        "rows": rows,
+        "totale": len(SCHEDULES),
+        "attivi": enabled_n,
+        "disattivi": len(rows) - enabled_n,
+    }
+    return render(request, "automazioni/pages/pianificati.html", context)
+
+
+@legacy_admin_required
+@require_POST
+def pianificati_action(request):
+    """Toggle on/off durevole o 'esegui ora' di un task pianificato."""
+    from monitoring.models import ScheduleControl
+
+    from .schedules import delete_schedule, register_schedule, spec_by_name
+
+    name = (request.POST.get("name") or "").strip()
+    action = (request.POST.get("action") or "").strip()
+    spec = spec_by_name(name)
+    if not spec:
+        messages.error(request, "Task pianificato sconosciuto.")
+        return redirect("admin_portale:automazioni_pianificati")
+
+    if action == "toggle":
+        control, _ = ScheduleControl.objects.get_or_create(name=name)
+        control.enabled = not control.enabled
+        if hasattr(control, "updated_by"):
+            control.updated_by = request.user if request.user.is_authenticated else None
+        control.save()
+        try:
+            register_schedule(spec) if control.enabled else delete_schedule(name)
+        except Exception as exc:
+            messages.error(request, f"Applicazione non riuscita: {exc}")
+            return redirect("admin_portale:automazioni_pianificati")
+        log_action(request, "automazioni_schedule_toggle", "automazioni",
+                   {"name": name, "enabled": control.enabled})
+        messages.success(request, f"Task '{name}' {'attivato' if control.enabled else 'disattivato'}.")
+    elif action == "run_now":
+        try:
+            from django_q.tasks import async_task
+
+            async_task(spec["func"], **(spec.get("kwargs") or {}))
+            log_action(request, "automazioni_schedule_run_now", "automazioni", {"name": name})
+            messages.success(request, f"'{name}' avviato ora (accodato al cluster).")
+        except Exception as exc:
+            messages.error(request, f"Avvio non riuscito (cluster django-q attivo?): {exc}")
+    else:
+        messages.error(request, "Azione non riconosciuta.")
+    return redirect("admin_portale:automazioni_pianificati")

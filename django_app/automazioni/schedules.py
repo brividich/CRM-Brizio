@@ -423,6 +423,118 @@ def spec_by_name(name: str):
     return next((s for s in SCHEDULES if s.get("name") == name), None)
 
 
+# ── Presentazione (riusata da genera_doc_automazioni e dalla pagina admin) ─────
+
+_GIORNI = {"0": "dom", "1": "lun", "2": "mar", "3": "mer", "4": "gio", "5": "ven", "6": "sab", "7": "dom"}
+_MESI = {"1": "gen", "2": "feb", "3": "mar", "4": "apr", "5": "mag", "6": "giu",
+         "7": "lug", "8": "ago", "9": "set", "10": "ott", "11": "nov", "12": "dic"}
+
+
+def _describe_cron(cron: str) -> str:
+    parts = str(cron or "").split()
+    if len(parts) != 5:
+        return f"cron `{cron}`"
+    minute, hour, dom, month, dow = parts
+    if hour == "*" and minute == "*":
+        quando = "in continuazione"
+    elif hour == "*":
+        quando = f"ogni ora al minuto {minute}"
+    else:
+        try:
+            quando = f"alle {int(hour):02d}:{int(minute):02d}"
+        except ValueError:
+            quando = f"({minute} {hour})"
+    freq = "ogni giorno"
+    if dow != "*":
+        if "-" in dow:
+            a, b = dow.split("-", 1)
+            freq = f"da {_GIORNI.get(a, a)} a {_GIORNI.get(b, b)}"
+        else:
+            freq = "ogni " + ", ".join(_GIORNI.get(g, g) for g in dow.split(","))
+    elif dom != "*":
+        mesi = (" di " + "/".join(_MESI.get(m, m) for m in month.split(","))) if month != "*" else ""
+        freq = f"il giorno {dom}{mesi} del mese"
+    elif month != "*":
+        freq = "nei mesi " + "/".join(_MESI.get(m, m) for m in month.split(","))
+    return f"{freq}, {quando}"
+
+
+def describe_cadence(spec: dict) -> str:
+    """Cadenza di uno schedule in linguaggio naturale (italiano)."""
+    if spec.get("schedule_type") == "C":
+        return _describe_cron(spec.get("cron", ""))
+    minutes = spec.get("minutes")
+    return "ogni minuto" if minutes == 1 else f"ogni {minutes} minuti"
+
+
+def schedule_descriptions() -> dict:
+    """Mappa nome-schedule → spiegazione, estratta dai commenti di questo file.
+
+    I commenti stanno tra ``{`` (apertura dict) e la riga ``"name":``.
+    """
+    import re
+    from pathlib import Path
+
+    commenti: dict[str, str] = {}
+    buffer: list[str] = []
+    try:
+        righe = Path(__file__).read_text(encoding="utf-8").splitlines()
+    except Exception:
+        return commenti
+    for riga in righe:
+        s = riga.strip()
+        if s.startswith("{"):
+            buffer = []
+        elif s.startswith("#"):
+            buffer.append(s.lstrip("#").strip())
+        else:
+            m = re.match(r'"name"\s*:\s*"([^"]+)"', s)
+            if m:
+                if buffer:
+                    commenti[m.group(1)] = " ".join(x for x in buffer if x)
+                buffer = []
+    return commenti
+
+
+def schedule_rows() -> list[dict]:
+    """Righe pronte per la UI: statico (SCHEDULES) + stato runtime (django_q) + on/off.
+
+    Ogni riga: name, func, module, cadence (naturale), description, enabled, registered,
+    next_run. Fail-safe: se django_q/ScheduleControl non sono disponibili, degrada.
+    """
+    live: dict = {}
+    controls: dict = {}
+    try:
+        from django_q.models import Schedule
+
+        live = {s.name: s for s in Schedule.objects.all()}
+    except Exception:
+        live = {}
+    try:
+        from monitoring.models import ScheduleControl
+
+        controls = {c.name: c.enabled for c in ScheduleControl.objects.all()}
+    except Exception:
+        controls = {}
+
+    descr = schedule_descriptions()
+    rows = []
+    for spec in SCHEDULES:
+        name = spec["name"]
+        sch = live.get(name)
+        rows.append({
+            "name": name,
+            "func": spec["func"],
+            "module": str(spec["func"]).split(".", 1)[0],
+            "cadence": describe_cadence(spec),
+            "description": descr.get(name, ""),
+            "enabled": controls.get(name, True),
+            "registered": sch is not None,
+            "next_run": getattr(sch, "next_run", None),
+        })
+    return rows
+
+
 def _schedule_defaults(spec: dict) -> dict:
     import json
 
