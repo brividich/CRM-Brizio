@@ -182,6 +182,8 @@ Foglio operativo di tutti gli script eseguibili (Django management commands + Po
 | `import_rentri_csv` | 🟡 | Registrazioni RENTRI da CSV |
 | `importa_rilevazioni_csv` | 🟡 | Rilevazioni sicurezza da CSV (Power Apps) |
 | `import_preposto_csv` | 🟡 | Diario preposto da CSV |
+| `converti_sms_storico --file <csv> --out <json>` | 🟡 | Suggestion Corner: converte il «Registro SMS» storico (CSV doppio-codificato) nel JSON per l'import — sola lettura anagrafica, JSON **fuori dal repo** |
+| `import_suggestion_corner_legacy --file <json>` | 🟡 | Suggestion Corner: importa i record storici dal JSON — **dry-run di default**, `--apply` per scrivere (idempotente su `legacy_sharepoint_id`) |
 | `import_timbri_csv` / `import_timbri_da_share` | 🟡 | Timbri da CSV / immagini timbri dalla share |
 | `.\tools\import_carichi_prod.ps1` | 🔴 | Import carichi macchina in prod |
 | `.\tools\import_specifiche_prod.ps1` | 🔴 | Import specifiche in prod |
