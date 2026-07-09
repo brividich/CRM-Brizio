@@ -129,11 +129,12 @@ class ViewsTest(TestCase):
         p2 = Pianificazione.objects.create(macchina=self.m, turno="giorno", data=d + _td(days=1))
         pn = Pianificazione.objects.create(macchina=self.m, turno="notte", data=d + _td(days=1))
         r = self.client.post(reverse("gestione_carichi_macchina:reschedule"), {
-            "pianificazione_id": p1.id, "giorni_delta": 2, "cascata": "1",
+            "pianificazione_id": p1.id, "giorni_delta": 2, "coda": "1",
+            "conferma_slittamento": "1",
         })
         self.assertEqual(r.status_code, 200)
         p2.refresh_from_db(); pn.refresh_from_db()
-        self.assertEqual(p2.data, d + _td(days=3))   # cascata sullo STESSO turno
+        self.assertEqual(p2.data, d + _td(days=3))   # coda sullo STESSO turno
         self.assertEqual(pn.data, d + _td(days=1))    # turno diverso: NON toccato
 
     def test_gantt_corsie_per_fascia(self):
