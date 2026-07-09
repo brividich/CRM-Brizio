@@ -1100,6 +1100,11 @@ python django_app\manage.py rename_asset_names --export-template asset_names.csv
 python django_app\manage.py rename_asset_names asset_names.csv --dry-run
 python django_app\manage.py rename_asset_names asset_names.csv --commit
 
+# Dipendenti con reparto legacy "orfano" (valore cancellato dal catalogo Reparto): report, poi rimappatura guidata
+python django_app\manage.py report_reparti_orfani
+python django_app\manage.py report_reparti_orfani --reassign "CNC5G=CNC"                       # anteprima dry-run
+python django_app\manage.py report_reparti_orfani --reassign "CNC5G=CNC" --apply --eseguito-da admin
+
 # Release guard progressivo
 python django_app\manage.py secret_hygiene_check
 python django_app\manage.py validate_deployment --format json --settings=config.settings.test
