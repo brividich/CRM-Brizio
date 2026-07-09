@@ -7008,3 +7008,52 @@ def pianificati_mail_config_save(request, name):
     log_action(request, "automazioni_mail_config_save", "automazioni", {"name": name})
     messages.success(request, f"Configurazione mail di '{name}' salvata.")
     return redirect("admin_portale:automazioni_pianificati_mail", name=name)
+
+
+@legacy_admin_required
+@require_POST
+def pianificati_mail_test(request, name):
+    """Invia all'admin corrente un'ANTEPRIMA della mail del flusso (dati di esempio).
+
+    Usa la cornice reale (frame HUB + oggetto/intro/nota configurati) con righe di
+    esempio: non interroga le scadenze reali e non tocca i destinatari veri.
+    """
+    from .mail_config import apply_mail_overrides, is_configurable, task_meta
+    from .schedules import spec_by_name
+
+    spec = spec_by_name(name)
+    if not spec or not is_configurable(name):
+        messages.error(request, "Questo task non è configurabile.")
+        return redirect("admin_portale:automazioni_pianificati")
+
+    destinatario = (getattr(request.user, "email", "") or "").strip()
+    if not destinatario:
+        messages.error(request, "Il tuo utente non ha un'email: impossibile inviare l'anteprima.")
+        return redirect("admin_portale:automazioni_pianificati_mail", name=name)
+
+    from core.email_utils import email_item_cards, send_hub_mail
+
+    meta = task_meta(name)
+    esempio = email_item_cards([
+        {"title": "Dipendente #123", "subtitle": "Esempio di voce",
+         "badge": ("In scadenza", "warning"), "note": "Scadenza 31-12-2026", "accent": "#f59e0b"},
+        {"title": "Dipendente #456", "subtitle": "Esempio di voce",
+         "badge": ("Scaduto", "danger"), "note": "Scaduto il 01-01-2026", "accent": "#dc2626"},
+    ])
+    subject = f"[ANTEPRIMA] {meta.get('label', name)}"
+    body_text = ("Anteprima dell'email di questo flusso (dati di esempio).\n\n"
+                 "Le voci reali sono generate automaticamente dalle scadenze al momento dell'invio.")
+    subject, body_text, fragment, footer = apply_mail_overrides(
+        name, subject=subject, body_text=body_text, fragment=esempio)
+    try:
+        send_hub_mail(
+            subject, body_text, [destinatario],
+            email_type="Anteprima", section_label=meta.get("label", name),
+            body_html_fragment=fragment, footer_note=footer,
+            preheader="Anteprima flusso mail", fail_silently=False,
+        )
+        log_action(request, "automazioni_mail_test", "automazioni", {"name": name, "to": destinatario})
+        messages.success(request, f"Anteprima inviata a {destinatario}.")
+    except Exception as exc:
+        messages.error(request, f"Invio anteprima non riuscito: {exc}")
+    return redirect("admin_portale:automazioni_pianificati_mail", name=name)

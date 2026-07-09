@@ -15,6 +15,7 @@ urlpatterns = [
     path("pianificati/azione/", views.pianificati_action, name="automazioni_pianificati_action"),
     path("pianificati/<str:name>/mail/", views.pianificati_mail_config_page, name="automazioni_pianificati_mail"),
     path("pianificati/<str:name>/mail/salva/", views.pianificati_mail_config_save, name="automazioni_pianificati_mail_save"),
+    path("pianificati/<str:name>/mail/prova/", views.pianificati_mail_test, name="automazioni_pianificati_mail_test"),
     path("regole/", views.rule_list_page, name="automazioni_rule_list"),
     path(
         "regole/converti-power-automate/",

@@ -72,3 +72,23 @@ class MailConfigPageTests(TestCase):
             {"recipients": "", "subject": "", "intro": "", "footer": ""},
         )
         self.assertFalse(ScheduledMailText.objects.filter(task_name="visite_expiry_reminders").exists())
+
+
+class MailTestPreviewTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser("mt_admin", "mt@x.local", "x")
+        self.client.force_login(self.admin)
+
+    def test_invia_anteprima_al_proprio_indirizzo(self):
+        r = self.client.post(reverse("admin_portale:automazioni_pianificati_mail_test",
+                                     kwargs={"name": "visite_expiry_reminders"}))
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["mt@x.local"])
+        self.assertIn("ANTEPRIMA", mail.outbox[0].subject)
+
+    def test_anteprima_usa_override_oggetto(self):
+        ScheduledMailText.objects.create(task_name="visite_expiry_reminders", subject="Oggetto mio")
+        self.client.post(reverse("admin_portale:automazioni_pianificati_mail_test",
+                                 kwargs={"name": "visite_expiry_reminders"}))
+        self.assertEqual(mail.outbox[0].subject, "Oggetto mio")

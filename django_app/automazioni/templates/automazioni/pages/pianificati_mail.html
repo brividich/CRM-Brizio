@@ -77,5 +77,15 @@
         <a class="mailc-btn" href="{% url 'admin_portale:automazioni_pianificati' %}">Torna ai Task pianificati</a>
       </div>
     </form>
+
+    <div class="mailc-card" style="margin-top:16px;">
+      <h3>Anteprima</h3>
+      <p class="hint">Invia a te stesso un'anteprima con la cornice configurata e righe di esempio
+        (non tocca i destinatari reali). Salva prima, per vedere le modifiche applicate.</p>
+      <form method="post" action="{% url 'admin_portale:automazioni_pianificati_mail_test' name=name %}">
+        {% csrf_token %}
+        <button class="mailc-btn" type="submit">✉️ Invia prova a me</button>
+      </form>
+    </div>
   </div>
 {% endblock %}
