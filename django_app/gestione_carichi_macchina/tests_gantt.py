@@ -67,6 +67,21 @@ class GanttViewTest(TestCase):
         self.assertEqual(p.data, date(2026, 6, 26))
         self.assertEqual(p.fonte, Pianificazione.FONTE_MANUALE)
 
+    def test_piano_slittamento_spinge_solo_conflitto_minimo(self):
+        from datetime import date
+        from .views import _piano_slittamento
+        d = date(2026, 6, 22)  # lunedì
+        p0 = Pianificazione.objects.create(macchina=self.m, data=d, turno="giorno", testo_originale="A", fonte=Pianificazione.FONTE_IMPORT)
+        b = Pianificazione.objects.create(macchina=self.m, data=d + timedelta(days=1), turno="giorno", testo_originale="B", fonte=Pianificazione.FONTE_IMPORT)
+        c = Pianificazione.objects.create(macchina=self.m, data=d + timedelta(days=4), turno="giorno", testo_originale="C", fonte=Pianificazione.FONTE_IMPORT)
+        piano = _piano_slittamento(self.m, p0, d + timedelta(days=1), coda=False)
+        ids = [r["id"] for r in piano]
+        self.assertEqual(ids[0], p0.id)
+        self.assertIn(b.id, ids)
+        self.assertNotIn(c.id, ids)
+        riga_b = next(r for r in piano if r["id"] == b.id)
+        self.assertEqual(riga_b["a"], d + timedelta(days=2))
+
     def test_filtro_categoria_nasconde_altre_sezioni(self):
         self.client.force_login(self.user)
         r = self.client.get(reverse("gestione_carichi_macchina:gantt"),

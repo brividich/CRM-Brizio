@@ -177,6 +177,56 @@ def _primo_slot_libero(macchina, data, ore, turno):
     return None
 
 
+def _piano_slittamento(macchina_eff, p, nuova_data, coda=False, orizzonte=60):
+    """Calcola (senza toccare il DB) i movimenti necessari per spostare `p` a
+    `nuova_data` sulla macchina `macchina_eff`.
+
+    Con coda=False: spinge in avanti SOLO i lavori realmente in conflitto, del
+    minimo necessario (in giorni lavorativi), a catena finché nascono nuovi
+    conflitti reali. I lavori non collidenti non vengono toccati.
+
+    Ritorna lista ordinata di dict {id, etichetta, macchina, da, a}; la prima
+    riga è sempre `p`.
+    """
+    def _etichetta(job):
+        return (getattr(job, "testo_originale", "") or
+                (job.famiglia.nome if getattr(job, "famiglia_id", None) else "") or
+                "lavoro")
+
+    def _fine(inizio, job):
+        ore = float(job.ore) if job.ore else None
+        span = _span_lavorativi(ore, macchina_eff.ore_giorno_per_turno(job.turno))
+        return _fine_lavorativa_excl(inizio, span)
+
+    def _primo_lav(da_data):
+        return _giorni_lavorativi(da_data, 1)[0]
+
+    piano = [{"id": p.id, "etichetta": _etichetta(p), "macchina": macchina_eff.codice,
+              "da": p.data, "a": nuova_data}]
+
+    frontiera = [(p, nuova_data)]
+    visti = {p.id}
+    passi = 0
+    while frontiera and passi < 500:
+        passi += 1
+        job, job_data = frontiera.pop(0)
+        ore = float(job.ore) if job.ore else None
+        conflitti = _sovrapposizioni(macchina_eff, job.turno, job_data, ore, escludi_id=job.id)
+        conflitti.sort(key=lambda o: (o.data, o.id))
+        for o in conflitti:
+            if o.id in visti:
+                continue
+            visti.add(o.id)
+            nuova = _primo_lav(_fine(job_data, job))
+            limite = _giorni_lavorativi(job_data, orizzonte)[-1]
+            if nuova > limite:
+                nuova = limite
+            piano.append({"id": o.id, "etichetta": _etichetta(o), "macchina": macchina_eff.codice,
+                          "da": o.data, "a": nuova})
+            frontiera.append((o, nuova))
+    return piano
+
+
 def _inizio_finestra_prec(start: date, n: int) -> date:
     """Inizio della finestra precedente: n giorni lavorativi prima di start."""
     ws: list[date] = []
