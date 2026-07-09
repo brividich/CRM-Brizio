@@ -14,10 +14,11 @@ Schema record atteso (campi opzionali salvo `sharepoint_id`, `reparto_provenienz
   "reparto_destinazione": "CNC",
   "processo": "Tornitura",
   "opportunity": "...",
-  "autore_email": "mario@x.it",
+  "autore_email": "mario@x.it",   # oppure "autore_username": "m.rossi"
   "anonima": false,
   "stato_sms": "SMS_SI",
   "plan_testo": "...", "incaricato_email": "...", "controllore_email": "...",
+  # in alternativa alle email: "incaricato_username"/"controllore_username" (aliasusername)
   "do_testo": "...", "esito_do": "SI",
   "check_testo": "...", "esito_check": "POSITIVO|NEGATIVO|RINVIATO",
   "act_testo": "...",
@@ -80,13 +81,23 @@ class Command(BaseCommand):
         self._print_report(rep, apply)
         return None
 
-    def _persona(self, email, rep):
-        if not email:
-            return None
-        u = User.objects.filter(email__iexact=str(email).strip()).first()
-        if u is None:
-            rep["persone_mancanti"].add(str(email).strip())
-        return u
+    def _persona(self, rec, prefix, rep):
+        """Risolve una persona dal record: prima per `{prefix}_email`, poi per
+        `{prefix}_username` (fonte unica username del portale = aliasusername)."""
+        email = str(rec.get(f"{prefix}_email") or "").strip()
+        if email:
+            u = User.objects.filter(email__iexact=email).first()
+            if u is not None:
+                return u
+        username = str(rec.get(f"{prefix}_username") or "").strip()
+        if username:
+            u = User.objects.filter(username__iexact=username).first()
+            if u is not None:
+                return u
+        ident = email or username
+        if ident:
+            rep["persone_mancanti"].add(ident)
+        return None
 
     def _import_one(self, rec, reparti, rep):
         sp_id = rec.get("sharepoint_id")
@@ -105,7 +116,7 @@ class Command(BaseCommand):
 
         rep_dest = reparti.get(str(rec.get("reparto_destinazione", "")).strip().lower())
         anonima = bool(rec.get("anonima", False))
-        autore = None if anonima else self._persona(rec.get("autore_email"), rep)
+        autore = None if anonima else self._persona(rec, "autore", rep)
 
         seg = SuggestionCorner(
             legacy_sharepoint_id=sp_id,
@@ -117,8 +128,8 @@ class Command(BaseCommand):
             opportunity=str(rec.get("opportunity", "")),
             stato_sms=rec.get("stato_sms") or SuggestionCorner.StatoSMS.DA_GESTIRE,
             plan_testo=str(rec.get("plan_testo", "")),
-            incaricato=self._persona(rec.get("incaricato_email"), rep),
-            controllore=self._persona(rec.get("controllore_email"), rep),
+            incaricato=self._persona(rec, "incaricato", rep),
+            controllore=self._persona(rec, "controllore", rep),
             do_testo=str(rec.get("do_testo", "")),
             esito_do=rec.get("esito_do", ""),
             check_testo=str(rec.get("check_testo", "")),
