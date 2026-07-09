@@ -128,3 +128,26 @@ Nessuna migrazione, nessun dato toccato.
   guida sono stime per dimensionare, non risultati misurati.
 - Non ridurre il modello chat per "fare spazio": la capacità del 14B è voluta. Per
   liberare VRAM agire prima su KV-cache (`q8_0`) e `max_loaded_models=1`.
+
+## 4) Benchmark qualità argomentazione (chat) — Approccio A/B
+
+Riferimento: `docs/superpowers/specs/2026-07-09-assistente-ai-qualita-argomentazione-design.md`.
+Golden set: `docs/ai/GOLDEN_ARGOMENTAZIONE_CHAT.md` (12 domande, giudizio a occhio, nessun punteggio automatico).
+
+### Validare un cambio di prompt/config (Approccio A)
+
+1. Annotare le risposte del golden set **prima** della modifica (screenshot o copia-incolla, non serve altro).
+2. Applicare la modifica (`.env` o `base.py` + redeploy).
+3. Rilanciare lo stesso golden set, confrontare risposta per risposta col criterio di giudizio nel file del golden set.
+4. Tenere d'occhio `AiChatFeedback` (tasso di 👎) nelle 1-2 settimane successive come conferma a lungo termine.
+
+### Benchmark di un modello alternativo (Approccio B)
+
+1. Scaricare il modello candidato su PCGAVANCINI, stessa classe di taglia (~9 GB in Q4, budget VRAM invariato — vedi tabella VRAM sopra):
+   ```powershell
+   ollama pull <nome-modello-candidato>
+   ```
+2. Puntare `OLLAMA_CHAT_MODEL=<nome-modello-candidato>` in un `.env` di **test**, mai direttamente in prod. Riavviare il servizio portale.
+3. Rilanciare il golden set su questo modello, e in parallelo `manage.py ai_eval --rag` / `--rag-sgi` per verificare che il routing/retrieval non peggiori.
+4. **Criterio di promozione**: si cambia il modello in produzione solo se il candidato è chiaramente migliore su argomentazione/coerenza a giudizio umano sul golden set, e non peggiora latenza (`ollama ps` / warmup) o recall RAG in modo sensibile. In caso di dubbio, si resta su `qwen2.5:14b-instruct`.
+5. Rollback: ripristinare `OLLAMA_CHAT_MODEL=qwen2.5:14b-instruct` in `.env` e riavviare — nessuna migration, nessun dato toccato.

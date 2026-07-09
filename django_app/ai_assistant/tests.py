@@ -3259,6 +3259,21 @@ class OllamaTuningTests(TestCase):
         self.assertEqual(payload.get("temperature"), 0.3)
 
 
+class SystemPromptDefaultsTests(TestCase):
+    """Il prompt di sistema di default separa stile/argomentazione dalle regole di grounding."""
+
+    def test_default_prompt_separates_style_from_grounding_and_fits_cap(self):
+        prompt = settings.OLLAMA_CHAT_SYSTEM_PROMPT
+        cap = int(settings.OLLAMA_CHAT_MAX_SYSTEM_PROMPT_CHARS)
+        self.assertIn("STILE E ARGOMENTAZIONE", prompt)
+        self.assertIn("REGOLA ASSOLUTA", prompt)
+        self.assertLess(
+            prompt.index("STILE E ARGOMENTAZIONE"),
+            prompt.index("REGOLA ASSOLUTA"),
+        )
+        self.assertLessEqual(len(prompt), cap)
+
+
 class EmbedTimeoutTests(TestCase):
     """Timeout breve per gli embeddings nel routing (degrado rapido a keyword-only)."""
 

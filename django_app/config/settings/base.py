@@ -262,7 +262,7 @@ OPENWEBUI_API_KEY = env("OPENWEBUI_API_KEY", "")
 OLLAMA_REQUEST_TIMEOUT_SECONDS = int(env("OLLAMA_REQUEST_TIMEOUT_SECONDS", "180") or "180")
 OLLAMA_CHAT_TEMPERATURE = env("OLLAMA_CHAT_TEMPERATURE", "0.3")
 OLLAMA_CHAT_MAX_PROMPT_CHARS = int(env("OLLAMA_CHAT_MAX_PROMPT_CHARS", "2000") or "2000")
-OLLAMA_CHAT_MAX_HISTORY_MESSAGES = int(env("OLLAMA_CHAT_MAX_HISTORY_MESSAGES", "6") or "6")
+OLLAMA_CHAT_MAX_HISTORY_MESSAGES = int(env("OLLAMA_CHAT_MAX_HISTORY_MESSAGES", "16") or "16")
 OLLAMA_RAG_ENABLED = env_bool("OLLAMA_RAG_ENABLED", True)
 # Sorgenti RAG su file: README + KB curata in django_app/ai_assistant/knowledge,
 # che viaggia nel pacchetto (a differenza di docs/, escluso dal deploy) ed e' la
@@ -392,10 +392,15 @@ OLLAMA_CHAT_MAX_SYSTEM_PROMPT_CHARS = int(env("OLLAMA_CHAT_MAX_SYSTEM_PROMPT_CHA
 OLLAMA_CHAT_SYSTEM_PROMPT = env(
     "OLLAMA_CHAT_SYSTEM_PROMPT",
     (
-        # Stile: chiaro e discorsivo (no telegrafico), ma sempre ancorato al contesto.
-        "Sei l'assistente interno di NOVICROM HUB. Rispondi in italiano in modo chiaro e discorsivo: "
-        "spiega bene il contenuto, contestualizza e, quando aiuta, aggiungi un breve esempio pratico o i "
-        "passi concreti. Evita risposte telegrafiche ma resta pertinente. "
+        "Sei l'assistente interno di NOVICROM HUB. "
+        # Stile/argomentazione: separato dalle regole di grounding cosi' il rigore
+        # sui fatti non si traduce in risposte laconiche (vedi design 2026-07-09).
+        "STILE E ARGOMENTAZIONE (quando hai dati/contesto sufficienti): rispondi in italiano in modo "
+        "chiaro e discorsivo, mai telegrafico. Spiega il perche', non solo il cosa: contestualizza, "
+        "quando pertinente valuta alternative o casi limite, e aggiungi un breve esempio pratico o i "
+        "passi concreti basato sui dati che hai davvero. Struttura le risposte piu' lunghe con paragrafi "
+        "o elenchi puntati quando aiuta la lettura. Il rigore sui fatti (sotto) non deve tradursi in "
+        "risposte piu' corte: puoi essere articolato restando comunque ancorato al contesto. "
         # Gerarchia fonti — prima regola, non troncabile
         "PRIORITA' FONTI (obbligatoria): "
         "1) CONTESTO LIVE: se presente, e' la fonte principale. Rispondi usando quei dati, "
