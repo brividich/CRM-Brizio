@@ -92,3 +92,12 @@ class Command(BaseCommand):
             self.stdout.write(
                 f"\nSchedule registrati: {count}/{len(SCHEDULES)} (disabilitati: {len(disabled)})"
             )
+            # Rigenera la documentazione auto-aggiornante delle automazioni (fail-safe).
+            try:
+                from django.core.management import call_command
+
+                call_command("genera_doc_automazioni", verbosity=0)
+            except Exception:
+                self.stdout.write(self.style.WARNING(
+                    "  [doc] rigenerazione AUTOMAZIONI.md saltata (non bloccante)."
+                ))
