@@ -465,8 +465,8 @@
     </div>
     <button type="submit" class="gbtn primary">Applica</button>
     {% if f_cat or f_cliente or f_fam %}<a class="gbtn" href="?start={{ start|date:'Y-m-d' }}&giorni={{ giorni_n }}">Azzera</a>{% endif %}
-    <label class="gflag" title="Sposta anche i lavori successivi sulla stessa macchina e turno">
-      <input type="checkbox" id="g_cascata" checked> Cascata
+    <label class="gflag" title="Se attivo, il trascinamento sposta anche tutta la coda dei lavori successivi dello stesso numero di giorni. Se spento, sposta solo il lavoro e slitta i soli conflitti.">
+      <input type="checkbox" id="g_cascata"> Sposta anche la coda
     </label>
 
     <div class="gspacer"></div>
@@ -701,6 +701,21 @@
   </div>
 </div>
 
+{# ── Modale: riepilogo slittamento (conferma spostamenti a catena) ── #}
+<div class="gcm-ov" id="gcm-slit-ov">
+  <div class="gcm-modal">
+    <h3>Conferma spostamento <button type="button" data-close aria-label="Chiudi">&times;</button></h3>
+    <div class="body">
+      <p id="gcm-slit-intro" style="margin:0;font-size:.9rem;"></p>
+      <div id="gcm-slit-list" style="display:grid;gap:6px;max-height:46vh;overflow:auto;"></div>
+      <div class="actions">
+        <button type="button" data-close>Annulla</button>
+        <button type="button" class="primary" id="gcm-slit-ok">Conferma spostamento</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {# ── Modale: 🔮 Suggerimento AI ── #}
 <div class="gcm-ov" id="gcm-ai-ov">
   <div class="gcm-modal">
@@ -824,15 +839,47 @@ function gcmStep(name, delta) {
     drag.bar.style.transform = 'translateY(' + (e.clientY - drag.startY) + 'px)';
   });
   function resetBar(d) { d.bar.style.transform = ''; d.bar.style.left = calcLeft(d.origStart); }
+  function gcmMostraSlittamento(piano, onOk, onCancel) {
+    var ov = document.getElementById('gcm-slit-ov');
+    var intro = document.getElementById('gcm-slit-intro');
+    var list = document.getElementById('gcm-slit-list');
+    var ok = document.getElementById('gcm-slit-ok');
+    if (!ov || !ok) { if (window.confirm('Questo spostamento sposta ' + piano.length + ' lavori. Confermare?')) { onOk(); } else { onCancel(); } return; }
+    var n = Math.max(0, piano.length - 1);
+    intro.textContent = n ? ('Questo spostamento richiede di slittare ' + n + (n === 1 ? ' lavoro:' : ' lavori:')) : 'Confermi lo spostamento?';
+    list.innerHTML = piano.map(function (r, i) {
+      var tag = i === 0 ? '<b>' + esc(r.etichetta) + '</b>' : esc(r.etichetta);
+      return '<div style="display:flex;justify-content:space-between;gap:10px;font-size:.85rem;border-bottom:1px solid var(--g-border);padding-bottom:4px;">'
+        + '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + tag + '</span>'
+        + '<span style="white-space:nowrap;color:var(--g-light);">' + esc(r.da) + ' &rarr; ' + esc(r.a) + '</span></div>';
+    }).join('');
+    var ok2 = ok.cloneNode(true); ok.parentNode.replaceChild(ok2, ok);
+    ok2.addEventListener('click', function () { ov.classList.remove('open'); onOk(); });
+    var cancelled = { done: false };
+    function closer(e) {
+      if (e.target === ov || (e.target.closest && e.target.closest('[data-close]'))) {
+        ov.removeEventListener('click', closer);
+        if (!cancelled.done) { cancelled.done = true; onCancel(); }
+      }
+    }
+    ov.addEventListener('click', closer);
+    openOv('gcm-slit-ov');
+  }
   function postMove(d, params) {
     return fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' },
       body: new URLSearchParams(params).toString()
     }).then(function (r) { return r.json(); }).then(function (data) {
-      if (data && (data.reason === 'incompatibile' || data.reason === 'sovrapposizione')) {
+      if (data && data.reason === 'incompatibile') {
         if (window.confirm(data.error || 'Spostare comunque?')) { params.forza = '1'; return postMove(d, params); }
         resetBar(d); return;
+      }
+      if (data && data.reason === 'slittamento') {
+        gcmMostraSlittamento(data.piano || [], function () {
+          params.conferma_slittamento = '1'; postMove(d, params);
+        }, function () { resetBar(d); });
+        return;
       }
       if (data && data.ok) {
         if (data.macchina || data.spostati > 1) { window.location.reload(); return; }
@@ -868,11 +915,9 @@ function gcmStep(name, delta) {
     }
     var cascEl = document.getElementById('g_cascata');
     var casc = !!(cascEl && cascEl.checked);
-    var verso = deltaDays > 0 ? 'avanti' : 'indietro';
-    var m2 = 'Spostare la pianificazione di ' + Math.abs(deltaDays) + ' giorni ' + verso + '?';
-    if (casc) m2 += '\n(Cascata attiva: sposto anche i lavori successivi sulla stessa macchina e turno)';
-    if (!window.confirm(m2)) { resetBar(d); return; }
-    postMove(d, { pianificazione_id: d.bar.getAttribute('data-id'), giorni_delta: deltaDays, cascata: casc ? '1' : '0' });
+    // Nessun conflitto -> il backend applica diretto; se c'è slittamento risponde
+    // reason:"slittamento" e postMove apre il modale di riepilogo.
+    postMove(d, { pianificazione_id: d.bar.getAttribute('data-id'), giorni_delta: deltaDays, coda: casc ? '1' : '0' });
   });
 
   // scroll automatico alla colonna di OGGI
