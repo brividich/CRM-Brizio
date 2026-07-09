@@ -4,6 +4,12 @@
   <p><a href="{% url 'suggestion_corner:home' %}">&larr; Suggestion Corner</a></p>
   <h1>Segnalazione SC#{{ seg.pk }}</h1>
 
+  {% if messages %}
+    {% for m in messages %}
+      <div class="hub-alert hub-alert-{{ m.tags }}">{{ m }}</div>
+    {% endfor %}
+  {% endif %}
+
   <dl class="hub-dl">
     <dt>Stato</dt><dd>{{ seg.stato_label }}</dd>
     <dt>Data</dt><dd>{{ seg.data_segnalazione|date:"d/m/Y" }}</dd>
@@ -20,6 +26,77 @@
   {% if seg.do_testo %}<h2>Do</h2><p>{{ seg.do_testo|linebreaksbr }}</p>{% endif %}
   {% if seg.check_testo %}<h2>Check</h2><p>{{ seg.check_testo|linebreaksbr }}</p>{% endif %}
   {% if seg.act_testo %}<h2>Act</h2><p>{{ seg.act_testo|linebreaksbr }}</p>{% endif %}
+
+  {# --- Pannello azioni FSM (sessione 3b) --- #}
+  <h2>Azioni</h2>
+  <div class="sc-actions">
+    {% if seg.stato == "DA_CLASSIFICARE" and is_team %}
+      <form method="post" action="{% url 'suggestion_corner:classifica' seg.pk %}">
+        {% csrf_token %}{{ form_classifica.as_p }}
+        <button type="submit">Classifica</button>
+      </form>
+
+    {% elif seg.stato == "CLASSIFICATA" and is_team %}
+      <form method="post" action="{% url 'suggestion_corner:definisci_plan' seg.pk %}">
+        {% csrf_token %}{{ form_plan.as_p }}
+        <button type="submit">Definisci PLAN</button>
+      </form>
+
+    {% elif seg.stato == "PLAN_DEFINITO" and is_team %}
+      <form method="post" action="{% url 'suggestion_corner:avvia_do' seg.pk %}">
+        {% csrf_token %}<button type="submit">Avvia DO</button>
+      </form>
+
+    {% elif seg.stato == "DO_IN_CORSO" and can_do %}
+      <form method="post" action="{% url 'suggestion_corner:completa_do' seg.pk %}">
+        {% csrf_token %}{{ form_completa_do.as_p }}
+        <button type="submit">Completa DO</button>
+      </form>
+
+    {% elif seg.stato == "DO_COMPLETATO" %}
+      {% if seg.esito_do == "SI" and can_ck %}
+        <form method="post" action="{% url 'suggestion_corner:avvia_check' seg.pk %}">
+          {% csrf_token %}<button type="submit">Avvia CHECK</button>
+        </form>
+      {% elif seg.esito_do == "NO" and is_team %}
+        <form method="post" action="{% url 'suggestion_corner:do_da_rifare' seg.pk %}">
+          {% csrf_token %}{{ form_do_rifare.as_p }}
+          <button type="submit">Rimanda in esecuzione</button>
+        </form>
+      {% endif %}
+
+    {% elif seg.stato == "CHECK_IN_CORSO" and can_ck %}
+      <form method="post" action="{% url 'suggestion_corner:check_positivo' seg.pk %}">
+        {% csrf_token %}{{ form_check.as_p }}
+        <button type="submit">Check positivo</button>
+      </form>
+      <form method="post" action="{% url 'suggestion_corner:check_negativo' seg.pk %}">
+        {% csrf_token %}<button type="submit">Check negativo (riapre DO)</button>
+      </form>
+      <form method="post" action="{% url 'suggestion_corner:check_rinviato' seg.pk %}">
+        {% csrf_token %}{{ form_check_rinviato.as_p }}
+        <button type="submit">Rinvia check</button>
+      </form>
+
+    {% elif seg.stato == "CHECK_COMPLETATO" and is_team %}
+      {% if seg.vuoi_inserire_act %}
+      <form method="post" action="{% url 'suggestion_corner:inserisci_act' seg.pk %}">
+        {% csrf_token %}<button type="submit">Inserisci ACT</button>
+      </form>
+      {% endif %}
+      <form method="post" action="{% url 'suggestion_corner:chiudi' seg.pk %}">
+        {% csrf_token %}<button type="submit">Chiudi</button>
+      </form>
+
+    {% elif seg.stato == "ACT_INSERITO" and is_team %}
+      <form method="post" action="{% url 'suggestion_corner:chiudi' seg.pk %}">
+        {% csrf_token %}<button type="submit">Chiudi</button>
+      </form>
+
+    {% else %}
+      <p>Nessuna azione disponibile per te in questo stato.</p>
+    {% endif %}
+  </div>
 
   <h2>Storico</h2>
   {% if storico %}

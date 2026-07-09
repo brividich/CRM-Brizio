@@ -16,7 +16,7 @@ from core.acl_bootstrap_base import run_bootstrap
 logger = logging.getLogger(__name__)
 
 MODULE = "suggestion_corner"
-_BOOTSTRAP_CACHE_KEY = "suggestion_corner_acl_bootstrap_v1"
+_BOOTSTRAP_CACHE_KEY = "suggestion_corner_acl_bootstrap_v2"
 
 PERM_VIEW = "suggestion_corner.segnalazione.view"
 
@@ -27,9 +27,22 @@ _CANONICAL = {
     },
 }
 
+# Tutte le route (lettura + azioni FSM) usano il gate PERM_VIEW; l'autorizzazione
+# fine delle azioni (SMS_TEAM/incaricato/controllore) è enforced in-view.
 _ROUTE_BINDINGS = {
     "suggestion_corner:home": PERM_VIEW,
     "suggestion_corner:dettaglio": PERM_VIEW,
+    "suggestion_corner:classifica": PERM_VIEW,
+    "suggestion_corner:definisci_plan": PERM_VIEW,
+    "suggestion_corner:avvia_do": PERM_VIEW,
+    "suggestion_corner:completa_do": PERM_VIEW,
+    "suggestion_corner:avvia_check": PERM_VIEW,
+    "suggestion_corner:do_da_rifare": PERM_VIEW,
+    "suggestion_corner:check_positivo": PERM_VIEW,
+    "suggestion_corner:check_negativo": PERM_VIEW,
+    "suggestion_corner:check_rinviato": PERM_VIEW,
+    "suggestion_corner:inserisci_act": PERM_VIEW,
+    "suggestion_corner:chiudi": PERM_VIEW,
 }
 
 _PULSANTI_DEFINITIONS = [

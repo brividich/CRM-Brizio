@@ -33,3 +33,27 @@ def visible_segnalazioni(user):
     return qs.filter(
         Q(created_by=user) | Q(incaricato=user) | Q(controllore=user)
     ).distinct()
+
+
+# --- Autorizzazione azioni FSM (sessione 3b) --------------------------------
+# Il gate ACL (PERM_VIEW) lascia entrare ogni utente autenticato; qui si decide
+# CHI può eseguire una data transizione. SMS_TEAM/superuser gestisce l'intero
+# workflow; l'incaricato assegnato può completare il DO; il controllore
+# assegnato può eseguire il CHECK.
+
+def is_incaricato(user, seg) -> bool:
+    return bool(user and user.is_authenticated and seg.incaricato_id == user.id)
+
+
+def is_controllore(user, seg) -> bool:
+    return bool(user and user.is_authenticated and seg.controllore_id == user.id)
+
+
+def can_complete_do(user, seg) -> bool:
+    """Completa DO: SMS_TEAM/superuser oppure l'incaricato assegnato."""
+    return is_sms_team(user) or is_incaricato(user, seg)
+
+
+def can_check(user, seg) -> bool:
+    """Azioni CHECK: SMS_TEAM/superuser oppure il controllore assegnato."""
+    return is_sms_team(user) or is_controllore(user, seg)
