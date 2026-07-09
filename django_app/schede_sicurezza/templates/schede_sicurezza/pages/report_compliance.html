@@ -1,0 +1,14 @@
+{% extends "core/base.html" %}
+
+{% block title %}Report compliance | Schede Sicurezza{% endblock %}
+
+{% block content %}
+<div>
+  <h1>Report compliance SDS</h1>
+  <ul>
+    {% for prodotto in gap %}
+      <li>{{ prodotto.nome }}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endblock %}
