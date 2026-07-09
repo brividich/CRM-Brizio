@@ -262,7 +262,7 @@ OPENWEBUI_API_KEY = env("OPENWEBUI_API_KEY", "")
 OLLAMA_REQUEST_TIMEOUT_SECONDS = int(env("OLLAMA_REQUEST_TIMEOUT_SECONDS", "180") or "180")
 OLLAMA_CHAT_TEMPERATURE = env("OLLAMA_CHAT_TEMPERATURE", "0.3")
 OLLAMA_CHAT_MAX_PROMPT_CHARS = int(env("OLLAMA_CHAT_MAX_PROMPT_CHARS", "2000") or "2000")
-OLLAMA_CHAT_MAX_HISTORY_MESSAGES = int(env("OLLAMA_CHAT_MAX_HISTORY_MESSAGES", "6") or "6")
+OLLAMA_CHAT_MAX_HISTORY_MESSAGES = int(env("OLLAMA_CHAT_MAX_HISTORY_MESSAGES", "16") or "16")
 OLLAMA_RAG_ENABLED = env_bool("OLLAMA_RAG_ENABLED", True)
 # Sorgenti RAG su file: README + KB curata in django_app/ai_assistant/knowledge,
 # che viaggia nel pacchetto (a differenza di docs/, escluso dal deploy) ed e' la
