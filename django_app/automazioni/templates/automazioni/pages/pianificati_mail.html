@@ -1,0 +1,81 @@
+{% extends "core/base.html" %}
+
+{% block title %}Configura mail - {{ name }} | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .mailc-wrap { max-width:760px; }
+  .mailc-card { border:1px solid #e2e8f0; border-radius:14px; padding:20px 22px; background:#fff; margin-bottom:16px; }
+  .mailc-card h3 { margin:0 0 4px; font-size:15px; color:#0f172a; }
+  .mailc-card p.hint { margin:0 0 14px; font-size:13px; color:#64748b; }
+  .mailc-field { display:grid; gap:6px; margin-bottom:14px; }
+  .mailc-field label { font-size:12px; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:.04em; }
+  .mailc-field input, .mailc-field textarea { width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; background:#fff; font-size:14px; font-family:inherit; }
+  .mailc-field textarea { min-height:90px; resize:vertical; }
+  .mailc-meta { font-size:13px; color:#64748b; margin-bottom:18px; }
+  .mailc-meta code { background:#f1f5f9; border-radius:6px; padding:1px 6px; }
+  .mailc-actions { display:flex; gap:10px; }
+  .mailc-btn { font-size:14px; font-weight:700; border-radius:10px; padding:10px 18px; border:1px solid #cbd5e1; background:#fff; cursor:pointer; color:#0f172a; text-decoration:none; }
+  .mailc-btn.primary { background:#12395f; color:#fff; border-color:#12395f; }
+  body.theme-dark .mailc-card { background:#0f172a; border-color:#1e293b; }
+  body.theme-dark .mailc-card h3 { color:#e2e8f0; }
+  body.theme-dark .mailc-field input, body.theme-dark .mailc-field textarea { background:#0b1220; border-color:#334155; color:#e2e8f0; }
+  body.theme-dark .mailc-meta code { background:#1e293b; }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Configura mail" page_subtitle=meta.label %}
+  {% include "automazioni/components/toasts.html" %}
+  {% include "automazioni/components/subnav.html" %}
+
+  <div class="mailc-wrap">
+    <p class="mailc-meta">
+      Task <code>{{ name }}</code> · <strong>Quando gira:</strong> {{ cadence }}.<br>
+      {{ description }}
+    </p>
+
+    <form method="post" action="{% url 'admin_portale:automazioni_pianificati_mail_save' name=name %}">
+      {% csrf_token %}
+
+      {% if meta.config_key %}
+      <div class="mailc-card">
+        <h3>Destinatari</h3>
+        <p class="hint">Uno o più indirizzi email, separati da virgola, punto e virgola o a capo.
+          Vuoto = usa i destinatari di sistema (ADMINS). Chiave: <code>{{ meta.config_key }}</code>.</p>
+        <div class="mailc-field">
+          <label for="recipients">Email destinatari</label>
+          <textarea id="recipients" name="recipients" placeholder="es. rspp@azienda.it, hr@azienda.it">{{ recipients }}</textarea>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="mailc-card">
+        <h3>Testo della mail</h3>
+        <p class="hint">Personalizza la <strong>cornice</strong>. L'elenco delle scadenze resta generato
+          automaticamente dai dati e non è modificabile qui.</p>
+        <div class="mailc-field">
+          <label for="subject">Oggetto</label>
+          <input type="text" id="subject" name="subject" value="{{ subject }}" placeholder="Vuoto = oggetto predefinito del flusso">
+        </div>
+        <div class="mailc-field">
+          <label for="intro">Paragrafo introduttivo</label>
+          <textarea id="intro" name="intro" placeholder="Testo mostrato sopra l'elenco delle scadenze (facoltativo)">{{ intro }}</textarea>
+        </div>
+        <div class="mailc-field">
+          <label for="footer">Nota a piè di pagina</label>
+          <textarea id="footer" name="footer" placeholder="Nota in fondo alla mail (facoltativo)">{{ footer }}</textarea>
+        </div>
+      </div>
+
+      <div class="mailc-actions">
+        <button class="mailc-btn primary" type="submit">Salva</button>
+        <a class="mailc-btn" href="{% url 'admin_portale:automazioni_pianificati' %}">Torna ai Task pianificati</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

@@ -234,12 +234,16 @@ class Command(BaseCommand):
             (f"Periodi di prova in chiusura entro {prova_days} giorni ({len(prove)})", prove_cards),
             (f"Contratti a termine senza storico ({len(senza_storico)})", senza_cards),
         ])
+        from automazioni.mail_config import apply_mail_overrides
         from core.email_utils import send_hub_mail
+        subject, body, fragment, footer = apply_mail_overrides(
+            "contratti_expiry_reminders", subject=subject, body_text=body, fragment=fragment)
         send_hub_mail(
             subject, body, recipients,
             email_type="Anagrafica HR",
             section_label="Reminder contratti e periodi di prova",
             body_html_fragment=fragment,
+            footer_note=footer,
             fail_silently=False,
         )
         self.stdout.write(self.style.SUCCESS(

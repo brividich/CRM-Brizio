@@ -115,11 +115,14 @@ class Command(BaseCommand):
             (f"Non idonei — requisito scaduto ({len(ko)})", ko_cards),
             (f"Idonei con riserve — requisito mancante ({len(warn)})", warn_cards),
         ])
+        from automazioni.mail_config import apply_mail_overrides
         from core.email_utils import send_hub_mail
+        subject, body, fragment, footer = apply_mail_overrides(
+            "idoneita_digest", subject=subject, body_text=body, fragment=fragment)
         send_hub_mail(
             subject, body, recipients,
             email_type="Anagrafica HR", section_label="Idoneità alla mansione",
-            body_html_fragment=fragment, fail_silently=False,
+            body_html_fragment=fragment, footer_note=footer, fail_silently=False,
         )
         self.stdout.write(self.style.SUCCESS(
             f"Digest idoneità inviato a {len(recipients)} destinatari ({len(ko)} non idonei, {len(warn)} con riserve)."

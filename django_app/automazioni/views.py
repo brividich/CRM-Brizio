@@ -6891,9 +6891,12 @@ def pianificati_page(request):
     solo dalla Centrale di comando. Abilita/disabilita è DUREVOLE (ScheduleControl,
     rispettato anche dopo un redeploy); la cadenza è definita nel codice.
     """
+    from .mail_config import is_configurable
     from .schedules import SCHEDULES, schedule_rows
 
     rows = schedule_rows()
+    for r in rows:
+        r["configurable"] = is_configurable(r["name"])
     enabled_n = sum(1 for r in rows if r["enabled"])
     context = {
         **_base_context(),
@@ -6946,3 +6949,62 @@ def pianificati_action(request):
     else:
         messages.error(request, "Azione non riconosciuta.")
     return redirect("admin_portale:automazioni_pianificati")
+
+
+@legacy_admin_required
+@require_GET
+def pianificati_mail_config_page(request, name):
+    """Configura destinatari + cornice testuale (oggetto/intro/nota) di un task mail."""
+    from .mail_config import get_recipients_raw, get_text_overrides, is_configurable, task_meta
+    from .schedules import describe_cadence, schedule_descriptions, spec_by_name
+
+    spec = spec_by_name(name)
+    if not spec or not is_configurable(name):
+        messages.error(request, "Questo task non è configurabile.")
+        return redirect("admin_portale:automazioni_pianificati")
+
+    txt = get_text_overrides(name)
+    context = {
+        **_base_context(),
+        "name": name,
+        "meta": task_meta(name),
+        "cadence": describe_cadence(spec),
+        "description": schedule_descriptions().get(name, ""),
+        "recipients": get_recipients_raw(name),
+        "subject": getattr(txt, "subject", ""),
+        "intro": getattr(txt, "intro", ""),
+        "footer": getattr(txt, "footer", ""),
+    }
+    return render(request, "automazioni/pages/pianificati_mail.html", context)
+
+
+@legacy_admin_required
+@require_POST
+def pianificati_mail_config_save(request, name):
+    """Salva destinatari (SiteConfig) + testo (ScheduledMailText) di un task mail."""
+    from .mail_config import is_configurable, set_recipients_raw, task_meta
+    from .models import ScheduledMailText
+    from .schedules import spec_by_name
+
+    spec = spec_by_name(name)
+    if not spec or not is_configurable(name):
+        messages.error(request, "Questo task non è configurabile.")
+        return redirect("admin_portale:automazioni_pianificati")
+
+    if task_meta(name).get("config_key"):
+        set_recipients_raw(name, request.POST.get("recipients") or "")
+
+    subject = (request.POST.get("subject") or "").strip()
+    intro = (request.POST.get("intro") or "").strip()
+    footer = (request.POST.get("footer") or "").strip()
+    if subject or intro or footer:
+        obj, _ = ScheduledMailText.objects.get_or_create(task_name=name)
+        obj.subject, obj.intro, obj.footer = subject, intro, footer
+        obj.updated_by = request.user if request.user.is_authenticated else None
+        obj.save()
+    else:
+        ScheduledMailText.objects.filter(task_name=name).delete()
+
+    log_action(request, "automazioni_mail_config_save", "automazioni", {"name": name})
+    messages.success(request, f"Configurazione mail di '{name}' salvata.")
+    return redirect("admin_portale:automazioni_pianificati_mail", name=name)

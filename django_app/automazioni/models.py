@@ -916,3 +916,38 @@ class ApprovalMailboxMessage(models.Model):
 
     def __str__(self) -> str:
         return f"MailboxMsg<{self.from_email}:{self.command_detected}:{self.processing_status}>"
+
+
+class ScheduledMailText(models.Model):
+    """Override della cornice testuale delle mail dei task pianificati.
+
+    ``task_name`` coincide con lo schedule (automazioni.schedules.SCHEDULES[].name).
+    Solo la cornice è editabile (oggetto/intro/nota): la lista delle scadenze resta
+    generata dai dati. I destinatari NON stanno qui: restano su ``core.SiteConfig``
+    (chiave per flusso), così i comandi li leggono senza modifiche.
+    """
+    task_name = models.CharField(max_length=120, unique=True, db_index=True)
+    subject = models.CharField(
+        max_length=300, blank=True, default="",
+        help_text="Oggetto personalizzato. Vuoto = oggetto predefinito del comando.",
+    )
+    intro = models.TextField(
+        blank=True, default="",
+        help_text="Paragrafo introduttivo sopra l'elenco scadenze. Vuoto = nessuna intro.",
+    )
+    footer = models.TextField(
+        blank=True, default="",
+        help_text="Nota a piè di pagina. Vuoto = nessuna nota.",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+
+    class Meta:
+        verbose_name = "Testo mail task pianificato"
+        verbose_name_plural = "Testi mail task pianificati"
+
+    def __str__(self) -> str:
+        return f"ScheduledMailText<{self.task_name}>"

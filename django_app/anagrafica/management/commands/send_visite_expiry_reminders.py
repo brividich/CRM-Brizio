@@ -164,12 +164,16 @@ class Command(BaseCommand):
             (f"Visite scadute ({len(scadute)})", scadute_cards),
             (f"Visite in scadenza entro {days} giorni ({len(in_scadenza)})", inscad_cards),
         ])
+        from automazioni.mail_config import apply_mail_overrides
         from core.email_utils import send_hub_mail
+        subject, body, fragment, footer = apply_mail_overrides(
+            "visite_expiry_reminders", subject=subject, body_text=body, fragment=fragment)
         send_hub_mail(
             subject, body, recipients,
             email_type="Anagrafica HR",
             section_label="Reminder visite mediche",
             body_html_fragment=fragment,
+            footer_note=footer,
             fail_silently=False,
         )
         self.stdout.write(self.style.SUCCESS(

@@ -90,12 +90,16 @@ class Command(BaseCommand):
             sezioni.append((f"{titolo} ({len(iscr_list)})", cards))
         fragment = digest_fragment(sezioni)
 
+        from automazioni.mail_config import apply_mail_overrides
         from core.email_utils import send_hub_mail
+        subject, body, fragment, footer = apply_mail_overrides(
+            "elearning_reminders", subject=subject, body_text=body, fragment=fragment)
         send_hub_mail(
             subject, body, recipients,
             email_type="Anagrafica HR",
             section_label="Reminder e-learning",
             body_html_fragment=fragment,
+            footer_note=footer,
             fail_silently=False,
         )
         self.stdout.write(self.style.SUCCESS(

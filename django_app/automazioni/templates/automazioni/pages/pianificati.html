@@ -95,6 +95,9 @@
                 <input type="hidden" name="action" value="run_now">
                 <button class="pian-btn run" type="submit">Esegui ora</button>
               </form>
+              {% if r.configurable %}
+              <a class="pian-btn" href="{% url 'admin_portale:automazioni_pianificati_mail' name=r.name %}">✉️ Configura mail</a>
+              {% endif %}
             </div>
           </td>
         </tr>
