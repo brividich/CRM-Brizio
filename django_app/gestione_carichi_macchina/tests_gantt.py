@@ -96,6 +96,24 @@ class GanttViewTest(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "--cw:52px")
 
+    def test_piano_slittamento_conflitti_multipli_impilati_senza_overlap(self):
+        """Due lavori già sullo STESSO slot: trascinandone sopra un terzo, i conflitti
+        vengono impilati in giorni distinti, non ammucchiati sulla stessa data."""
+        from datetime import date
+
+        from .views import _piano_slittamento, _sovrapposizioni
+        d = date(2026, 6, 22)  # lunedì
+        p0 = Pianificazione.objects.create(macchina=self.m, data=d, turno="giorno", testo_originale="A", fonte=Pianificazione.FONTE_IMPORT)
+        # B e C già entrambi sul giorno 23 (slot condiviso pre-esistente)
+        b = Pianificazione.objects.create(macchina=self.m, data=d + timedelta(days=1), turno="giorno", testo_originale="B", fonte=Pianificazione.FONTE_IMPORT)
+        c = Pianificazione.objects.create(macchina=self.m, data=d + timedelta(days=1), turno="giorno", testo_originale="C", fonte=Pianificazione.FONTE_IMPORT)
+        piano = _piano_slittamento(self.m, p0, d + timedelta(days=1), coda=False)
+        a_di = {r["id"]: r["a"] for r in piano}
+        self.assertIn(b.id, a_di)
+        self.assertIn(c.id, a_di)
+        # B e C finiscono su giorni DISTINTI (impilati), non sulla stessa data
+        self.assertNotEqual(a_di[b.id], a_di[c.id])
+
     def test_reschedule_coda_sposta_i_successivi(self):
         self.client.force_login(self.user)
         d0 = date(2026, 6, 22)  # lunedì

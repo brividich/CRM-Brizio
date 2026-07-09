@@ -218,25 +218,55 @@ def _piano_slittamento(macchina_eff, p, nuova_data, coda=False, orizzonte=60):
                           "da": o.data, "a": o.data + timedelta(days=delta)})
         return piano
 
+    # Risoluzione simulation-aware: lavoriamo su posizioni SIMULATE in memoria (non su
+    # quelle a DB). Così conflitti multipli sullo stesso slot vengono impilati in
+    # sequenza (non ammucchiati sulla stessa data) e i conflitti a catena si rilevano
+    # sulle NUOVE posizioni. `_sovrapposizioni` leggerebbe il DB e non lo permetterebbe.
+    from .models import Pianificazione
+
+    attivi = list(
+        Pianificazione.objects.filter(macchina=macchina_eff)
+        .exclude(stato=Pianificazione.STATO_COMPLETATA)
+        .exclude(pk=p.pk)
+        .select_related("famiglia")
+    )
+    sim = {o.id: o.data for o in attivi}  # posizione (data-inizio) simulata corrente
+    limite = _giorni_lavorativi(nuova_data, orizzonte)[-1]
+
+    def _confligge(a, a_data, b, b_data):
+        # Stesse regole di _sovrapposizioni: fasce orarie intersecanti + sovrapposizione
+        # degli intervalli in giorni lavorativi, ma su date simulate.
+        if not (Pianificazione.fasce_di(a.turno) & Pianificazione.fasce_di(b.turno)):
+            return False
+        return a_data < _fine(b_data, b) and b_data < _fine(a_data, a)
+
+    righe = {}  # id -> dict riga nel piano (per aggiornare 'a' se un lavoro è rispinto)
     frontiera = [(p, nuova_data)]
-    visti = {p.id}
     passi = 0
-    while frontiera and passi < 500:
+    while frontiera and passi < 1000:
         passi += 1
         job, job_data = frontiera.pop(0)
-        ore = float(job.ore) if job.ore else None
-        conflitti = _sovrapposizioni(macchina_eff, job.turno, job_data, ore, escludi_id=job.id)
-        conflitti.sort(key=lambda o: (o.data, o.id))
+        cursor = _primo_lav(_fine(job_data, job))  # primo giorno lav. libero dopo job
+        conflitti = sorted(
+            (o for o in attivi
+             if o.id != job.id and _confligge(job, job_data, o, sim[o.id])),
+            key=lambda o: (sim[o.id], o.id),
+        )
         for o in conflitti:
-            if o.id in visti:
-                continue
-            visti.add(o.id)
-            nuova = _primo_lav(_fine(job_data, job))
-            limite = _giorni_lavorativi(job_data, orizzonte)[-1]
-            if nuova > limite:
-                nuova = limite
-            piano.append({"id": o.id, "etichetta": _etichetta(o), "macchina": macchina_eff.codice,
-                          "da": o.data, "a": nuova})
+            if sim[o.id] >= cursor:
+                continue  # già oltre la fine del genitore: nessuno spostamento
+            nuova = cursor if cursor <= limite else limite
+            if nuova <= sim[o.id]:
+                continue  # orizzonte saturo: non guadagniamo nulla, evita loop
+            sim[o.id] = nuova
+            if o.id in righe:
+                righe[o.id]["a"] = nuova
+            else:
+                r = {"id": o.id, "etichetta": _etichetta(o),
+                     "macchina": macchina_eff.codice, "da": o.data, "a": nuova}
+                righe[o.id] = r
+                piano.append(r)
+            cursor = _primo_lav(_fine(nuova, o))  # impila il prossimo dopo questo
             frontiera.append((o, nuova))
     return piano
 
@@ -1007,7 +1037,9 @@ def reschedule(request):
     macchina_eff = target or p.macchina
     nuova_data = p.data + timedelta(days=delta)
 
-    piano = _piano_slittamento(macchina_eff, p, nuova_data, coda=coda)
+    # `coda` (sposta tutta la coda) vale solo per gli spostamenti temporali: con cambio
+    # macchina slittiamo soltanto i conflitti reali sulla destinazione.
+    piano = _piano_slittamento(macchina_eff, p, nuova_data, coda=coda and not sposta_macchina)
 
     # C'è slittamento (piano oltre la sola p) e non ancora confermato -> preview.
     if len(piano) > 1 and not conferma and not forza:
