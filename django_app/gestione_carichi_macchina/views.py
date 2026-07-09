@@ -965,10 +965,14 @@ def reschedule(request):
     """Sposta una pianificazione nel tempo e/o su un'altra macchina (drag-to-reschedule).
 
     - `giorni_delta`: spostamento in giorni.
-    - `cascata=1`: sposta dello stesso delta anche i lavori successivi sulla STESSA macchina
-      (solo per spostamenti temporali, non con cambio macchina).
+    - `coda=1` (alias legacy `cascata=1`): sposta dello stesso delta anche i lavori
+      successivi sulla STESSA macchina/turno (solo per spostamenti temporali, non con
+      cambio macchina).
     - `macchina_dest`: nuova macchina; se incompatibile (categoria diversa e fuori pool)
       e senza `forza=1`, ritorna reason=incompatibile per far decidere all'operatore.
+    - Se il piano calcolato (`_piano_slittamento`) comporta più di una riga (slittamento
+      a catena di altri lavori) e l'operatore non ha ancora confermato/forzato, ritorna
+      un preview (`reason=slittamento`) SENZA scrivere sul DB.
     Snapshot dello stato precedente in sessione per l'undo.
     """
     from django.db import transaction
@@ -977,7 +981,6 @@ def reschedule(request):
 
     pid = _as_int(request.POST.get("pianificazione_id"))
     delta = _as_int(request.POST.get("giorni_delta"), 0) or 0
-    cascata = request.POST.get("cascata") in ("1", "true", "on")
     mac_dest = _as_int(request.POST.get("macchina_dest"))
     forza = request.POST.get("forza") in ("1", "true", "on")
     if not pid:
@@ -998,43 +1001,34 @@ def reschedule(request):
                 "error": f"{target.codice} è di categoria diversa ({target.get_categoria_display()}). Spostare comunque?",
             }, status=200)
 
-    # Conferma su SOVRAPPOSIZIONE: se il nuovo posizionamento collide (fasce orarie
-    # intersecanti) con un altro lavoro e l'operatore non ha gia' forzato, chiedi conferma
-    # (stesso pattern di "incompatibile"). Niente cascata qui: si valuta solo la barra.
-    if not forza and not cascata:
-        macchina_eff = target or p.macchina
-        nuova_data = p.data + timedelta(days=delta)
-        ore_f = float(p.ore) if p.ore else None
-        altri = _sovrapposizioni(macchina_eff, p.turno, nuova_data, ore_f, escludi_id=p.id)
-        if altri:
-            etich = altri[0].testo_originale or (altri[0].famiglia.nome if altri[0].famiglia_id else "un altro lavoro")
-            sug = _primo_slot_libero(macchina_eff, nuova_data, ore_f, p.turno)
-            msg = f"Si sovrappone a «{etich}» (conflitto di capacità)."
-            if sug:
-                msg += f" Primo libero: {sug['label']}."
-            return JsonResponse({
-                "ok": False, "reason": "sovrapposizione",
-                "error": msg + " Spostare comunque?",
-            }, status=200)
+    coda = (request.POST.get("coda") in ("1", "true", "on")
+            or request.POST.get("cascata") in ("1", "true", "on"))  # alias legacy
+    conferma = request.POST.get("conferma_slittamento") in ("1", "true", "on")
+    macchina_eff = target or p.macchina
+    nuova_data = p.data + timedelta(days=delta)
+
+    piano = _piano_slittamento(macchina_eff, p, nuova_data, coda=coda)
+
+    # C'è slittamento (piano oltre la sola p) e non ancora confermato -> preview.
+    if len(piano) > 1 and not conferma and not forza:
+        return JsonResponse({
+            "ok": False, "reason": "slittamento",
+            "piano": [{
+                "etichetta": r["etichetta"], "macchina": r["macchina"],
+                "da": r["da"].strftime("%d/%m"), "a": r["a"].strftime("%d/%m"),
+            } for r in piano],
+        }, status=200)
 
     with transaction.atomic():
-        if cascata and not sposta_macchina:
-            # Cascata SOLO sullo stesso turno: spostare un lavoro del 1° turno non deve
-            # toccare 2° turno / notturno (sono linee indipendenti).
-            successivi = list(
-                Pianificazione.objects.select_for_update().filter(
-                    macchina_id=p.macchina_id, turno=p.turno, data__gte=p.data
-                ).exclude(pk=p.pk)
-            )
-            affected = [p] + successivi
-        else:
-            affected = [p]
-        snap = [
-            {"id": j.id, "macchina_id": j.macchina_id, "data": j.data.isoformat()}
-            for j in affected
-        ]
-        for job in affected:
-            job.data = job.data + timedelta(days=delta)
+        ids = [r["id"] for r in piano]
+        blocco = {j.id: j for j in Pianificazione.objects.select_for_update().filter(pk__in=ids)}
+        snap = [{"id": j.id, "macchina_id": j.macchina_id, "data": j.data.isoformat()}
+                for j in blocco.values()]
+        for r in piano:
+            job = blocco.get(r["id"])
+            if not job:
+                continue
+            job.data = r["a"]
             if sposta_macchina and job.pk == p.pk:
                 job.macchina = target
             job.fonte = Pianificazione.FONTE_MANUALE
@@ -1043,14 +1037,17 @@ def reschedule(request):
     request.session["gcm_undo"] = {"snap": snap}
     request.session.modified = True
     macchina_log = target or p.macchina
+    n_slittati = len(piano) - 1
     if sposta_macchina:
         descr = f"Spostato su {macchina_log.codice}" + (f", {delta:+d} giorni" if delta else "")
     else:
-        descr = f"Spostato di {delta:+d} giorni" + (" (cascata)" if cascata else "")
+        descr = f"Spostato di {delta:+d} giorni"
+    if n_slittati:
+        descr += f" (+{n_slittati} slittati)"
     _log_azione(request, "sposta", macchina=macchina_log, pianificazione_id=p.id, descrizione=descr)
     return JsonResponse({
-        "ok": True, "id": p.id, "spostati": len(affected),
-        "cascata": cascata and not sposta_macchina, "macchina": sposta_macchina,
+        "ok": True, "id": p.id, "spostati": len(piano),
+        "coda": coda and not sposta_macchina, "macchina": sposta_macchina,
     })
 
 

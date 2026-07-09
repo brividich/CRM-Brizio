@@ -217,3 +217,35 @@ class GanttViewTest(TestCase):
         riga_c = next(r for r in piano if r["id"] == c.id)
         self.assertEqual(riga_b["a"], b.data + timedelta(days=3))
         self.assertEqual(riga_c["a"], c.data + timedelta(days=3))
+
+    def test_reschedule_conflitto_richiede_conferma_poi_applica(self):
+        self.client.force_login(self.user)
+        d = date(2026, 6, 22)  # lunedì
+        p0 = Pianificazione.objects.create(macchina=self.m, data=d, turno="giorno", testo_originale="A", fonte=Pianificazione.FONTE_IMPORT)
+        b = Pianificazione.objects.create(macchina=self.m, data=d + timedelta(days=1), turno="giorno", testo_originale="B", fonte=Pianificazione.FONTE_IMPORT)
+        r = self.client.post(reverse("gestione_carichi_macchina:reschedule"),
+                             {"pianificazione_id": p0.id, "giorni_delta": "1", "coda": "0"})
+        self.assertEqual(r.status_code, 200)
+        j = r.json()
+        self.assertFalse(j["ok"])
+        self.assertEqual(j["reason"], "slittamento")
+        self.assertGreaterEqual(len(j["piano"]), 2)
+        p0.refresh_from_db(); b.refresh_from_db()
+        self.assertEqual(p0.data, d)
+        self.assertEqual(b.data, d + timedelta(days=1))
+        r2 = self.client.post(reverse("gestione_carichi_macchina:reschedule"),
+                              {"pianificazione_id": p0.id, "giorni_delta": "1", "coda": "0", "conferma_slittamento": "1"})
+        self.assertTrue(r2.json()["ok"])
+        p0.refresh_from_db(); b.refresh_from_db()
+        self.assertEqual(p0.data, d + timedelta(days=1))
+        self.assertEqual(b.data, d + timedelta(days=2))
+
+    def test_reschedule_senza_conflitto_applica_diretto(self):
+        self.client.force_login(self.user)
+        d = date(2026, 6, 22)
+        p0 = Pianificazione.objects.create(macchina=self.m, data=d, turno="giorno", testo_originale="A", fonte=Pianificazione.FONTE_IMPORT)
+        r = self.client.post(reverse("gestione_carichi_macchina:reschedule"),
+                             {"pianificazione_id": p0.id, "giorni_delta": "3", "coda": "0"})
+        self.assertTrue(r.json()["ok"])
+        p0.refresh_from_db()
+        self.assertEqual(p0.data, d + timedelta(days=3))
