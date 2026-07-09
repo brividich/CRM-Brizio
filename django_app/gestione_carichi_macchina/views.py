@@ -204,6 +204,20 @@ def _piano_slittamento(macchina_eff, p, nuova_data, coda=False, orizzonte=60):
     piano = [{"id": p.id, "etichetta": _etichetta(p), "macchina": macchina_eff.codice,
               "da": p.data, "a": nuova_data}]
 
+    if coda:
+        from .models import Pianificazione
+        delta = (nuova_data - p.data).days
+        successivi = (Pianificazione.objects
+                      .filter(macchina=macchina_eff, turno=p.turno, data__gte=p.data)
+                      .exclude(pk=p.pk)
+                      .exclude(stato=Pianificazione.STATO_COMPLETATA)
+                      .order_by("data", "id"))
+        for o in successivi:
+            piano.append({"id": o.id, "etichetta": _etichetta(o),
+                          "macchina": macchina_eff.codice,
+                          "da": o.data, "a": o.data + timedelta(days=delta)})
+        return piano
+
     frontiera = [(p, nuova_data)]
     visti = {p.id}
     passi = 0

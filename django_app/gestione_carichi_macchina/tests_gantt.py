@@ -177,3 +177,43 @@ class GanttViewTest(TestCase):
         r = self.client.post(reverse("gestione_carichi_macchina:reschedule"),
                             {"pianificazione_id": p.id, "giorni_delta": "0"})
         self.assertEqual(r.status_code, 400)
+
+    def test_piano_slittamento_a_catena_solo_conflitti_reali(self):
+        from datetime import date
+        from .views import _piano_slittamento
+        d = date(2026, 6, 22)  # lunedì
+        p0 = Pianificazione.objects.create(macchina=self.m, data=d, turno="giorno", testo_originale="A", fonte=Pianificazione.FONTE_IMPORT)
+        b = Pianificazione.objects.create(macchina=self.m, data=d + timedelta(days=1), turno="giorno", testo_originale="B", fonte=Pianificazione.FONTE_IMPORT)
+        c = Pianificazione.objects.create(macchina=self.m, data=d + timedelta(days=2), turno="giorno", testo_originale="C", fonte=Pianificazione.FONTE_IMPORT)
+        far = Pianificazione.objects.create(macchina=self.m, data=d + timedelta(days=10), turno="giorno", testo_originale="Z", fonte=Pianificazione.FONTE_IMPORT)
+        piano = _piano_slittamento(self.m, p0, d + timedelta(days=1), coda=False)
+        ids = [r["id"] for r in piano]
+        self.assertIn(b.id, ids)
+        self.assertIn(c.id, ids)
+        self.assertNotIn(far.id, ids)
+
+    def test_piano_slittamento_salta_weekend(self):
+        from datetime import date
+        from .views import _piano_slittamento
+        ven = date(2026, 6, 26)  # venerdì
+        p0 = Pianificazione.objects.create(macchina=self.m, data=ven, turno="giorno", testo_originale="A", fonte=Pianificazione.FONTE_IMPORT)
+        b = Pianificazione.objects.create(macchina=self.m, data=ven, turno="giorno", testo_originale="B", fonte=Pianificazione.FONTE_IMPORT)
+        piano = _piano_slittamento(self.m, p0, ven, coda=False)
+        riga_b = next(r for r in piano if r["id"] == b.id)
+        self.assertEqual(riga_b["a"], date(2026, 6, 29))  # lunedì
+        self.assertLess(riga_b["a"].weekday(), 5)
+
+    def test_piano_slittamento_coda_sposta_tutta_la_coda(self):
+        from datetime import date
+        from .views import _piano_slittamento
+        d = date(2026, 6, 22)  # lunedì
+        p0 = Pianificazione.objects.create(macchina=self.m, data=d, turno="giorno", testo_originale="A", fonte=Pianificazione.FONTE_IMPORT)
+        b = Pianificazione.objects.create(macchina=self.m, data=d + timedelta(days=1), turno="giorno", testo_originale="B", fonte=Pianificazione.FONTE_IMPORT)
+        c = Pianificazione.objects.create(macchina=self.m, data=d + timedelta(days=2), turno="giorno", testo_originale="C", fonte=Pianificazione.FONTE_IMPORT)
+        piano = _piano_slittamento(self.m, p0, d + timedelta(days=3), coda=True)
+        ids = [r["id"] for r in piano]
+        self.assertEqual(set(ids), {p0.id, b.id, c.id})
+        riga_b = next(r for r in piano if r["id"] == b.id)
+        riga_c = next(r for r in piano if r["id"] == c.id)
+        self.assertEqual(riga_b["a"], b.data + timedelta(days=3))
+        self.assertEqual(riga_c["a"], c.data + timedelta(days=3))
