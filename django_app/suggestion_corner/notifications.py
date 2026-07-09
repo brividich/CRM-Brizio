@@ -1,0 +1,89 @@
+"""Notifiche email del modulo Suggestion Corner (sessione 5, §3).
+
+Riusa il frame grafico HUB (`core.email_utils.send_hub_mail`). Destinatari del
+team = membri del Django Group SMS_TEAM; solleciti/escalation ai referenti
+(incaricato/controllore) e al responsabile configurato.
+"""
+from __future__ import annotations
+
+from django.conf import settings
+from django.contrib.auth.models import Group
+
+from core.email_utils import send_hub_mail
+
+from .models import SuggestionCorner, SuggestionCornerConfig
+
+EMAIL_TYPE = "Suggestion Corner"
+
+
+def _base_url() -> str:
+    return (getattr(settings, "SITE_URL", "") or "").rstrip("/")
+
+
+def _dettaglio_url(seg) -> str:
+    return f"{_base_url()}/suggestion-corner/{seg.pk}/"
+
+
+def team_emails() -> list[str]:
+    """Email dei membri attivi del Group SMS_TEAM (deduplicate, non vuote)."""
+    name = SuggestionCornerConfig.load().sms_team_group_name
+    try:
+        group = Group.objects.get(name=name)
+    except Group.DoesNotExist:
+        return []
+    emails = []
+    for u in group.user_set.filter(is_active=True):
+        if u.email and u.email not in emails:
+            emails.append(u.email)
+    return emails
+
+
+def notifica_team_nuova_segnalazione(seg) -> int:
+    """Mail al team SMS all'arrivo di una nuova segnalazione (§5)."""
+    dest = team_emails()
+    if not dest:
+        return 0
+    reparto = seg.reparto_provenienza.nome if seg.reparto_provenienza_id else "—"
+    body = (
+        f"È arrivata una nuova segnalazione dal reparto {reparto}.\n\n"
+        f"{seg.opportunity}\n\n"
+        f"Prendila in carico e classificala: {_dettaglio_url(seg)}"
+    )
+    return send_hub_mail(
+        f"[Suggestion Corner] Nuova segnalazione SC#{seg.pk}",
+        body, dest,
+        title="Nuova segnalazione da classificare",
+        email_type=EMAIL_TYPE, badge="Da gestire", fail_silently=True,
+    )
+
+
+def _sollecito(dest_email: str, seg, fase: str, giorni: int) -> int:
+    if not dest_email:
+        return 0
+    quando = "scaduta" if giorni < 0 else f"tra {giorni} giorni"
+    body = (
+        f"La fase {fase} della segnalazione SC#{seg.pk} è {quando}.\n\n"
+        f"{seg.opportunity[:200]}\n\nApri: {_dettaglio_url(seg)}"
+    )
+    return send_hub_mail(
+        f"[Suggestion Corner] Sollecito {fase} — SC#{seg.pk}",
+        body, [dest_email],
+        title=f"Sollecito {fase}", email_type=EMAIL_TYPE,
+        badge="Scaduta" if giorni < 0 else "In scadenza", fail_silently=True,
+    )
+
+
+def _escalation(seg, fase: str) -> int:
+    dest = SuggestionCornerConfig.load().email_responsabile_escalation
+    if not dest:
+        return 0
+    body = (
+        f"La fase {fase} della segnalazione SC#{seg.pk} è scaduta oltre la soglia "
+        f"di escalation e non risulta completata.\n\nApri: {_dettaglio_url(seg)}"
+    )
+    return send_hub_mail(
+        f"[Suggestion Corner] ESCALATION {fase} — SC#{seg.pk}",
+        body, [dest],
+        title=f"Escalation {fase}", email_type=EMAIL_TYPE,
+        badge="Escalation", fail_silently=True,
+    )

@@ -406,6 +406,15 @@ SCHEDULES: list[dict] = [
         "repeats": -1,
         "kwargs": {},
     },
+    {
+        # SUGGESTION CORNER — solleciti DO/CHECK + escalation (§3)
+        "name": "suggestion_corner_reminders",
+        "func": "suggestion_corner.tasks.run_suggestion_corner_reminders",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "0 8 * * *",        # ogni mattina alle 08:00
+        "repeats": -1,
+        "kwargs": {},
+    },
 ]
 
 

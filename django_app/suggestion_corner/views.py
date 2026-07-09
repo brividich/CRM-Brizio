@@ -110,9 +110,15 @@ def nuova(request):
             )
             with transaction.atomic():
                 seg.save()
-                # auto-avanzamento INSERITA → DA_CLASSIFICARE (mail SMS = sessione 5)
+                # auto-avanzamento INSERITA → DA_CLASSIFICARE
                 seg.notifica_sms_team()
                 seg.save()
+            # mail al team SMS (fuori transazione, fail-safe)
+            try:
+                from .notifications import notifica_team_nuova_segnalazione
+                notifica_team_nuova_segnalazione(seg)
+            except Exception:
+                pass
             return render(request, "suggestion_corner/pubblica_ok.html")
     else:
         form = sc_forms.SegnalazionePubblicaForm()
