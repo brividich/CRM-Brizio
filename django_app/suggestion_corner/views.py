@@ -77,6 +77,48 @@ def dettaglio(request, pk: int):
     return render(request, "suggestion_corner/dettaglio.html", ctx)
 
 
+@login_required
+def modifica(request, pk: int):
+    """Modifica amministrativa della segnalazione (gestione interna al modulo).
+
+    Riservata al team SMS/superuser (`is_sms_team`), come le altre operazioni di
+    gestione. Consente di correggere reparti, persone, esiti e testi PDCA — utile
+    ad esempio dopo un import storico. NON tocca `stato` (workflow) né le date di
+    sistema. Ogni modifica lascia una voce nello storico (audit).
+    """
+    seg = get_object_or_404(SuggestionCorner, pk=pk)
+    if not is_sms_team(request.user):
+        raise PermissionDenied("Solo il team SMS può modificare le segnalazioni.")
+
+    if request.method == "POST":
+        form = sc_forms.ModificaSegnalazioneForm(request.POST, instance=seg)
+        if form.is_valid():
+            with transaction.atomic():
+                obj = form.save(commit=False)
+                obj.updated_by = request.user
+                obj.save()
+                _log_modifica_manuale(seg, request.user, form.changed_data)
+            messages.success(request, "Segnalazione aggiornata.")
+            return redirect("suggestion_corner:dettaglio", pk=pk)
+    else:
+        form = sc_forms.ModificaSegnalazioneForm(instance=seg)
+
+    return render(request, "suggestion_corner/modifica.html", {"seg": seg, "form": form})
+
+
+def _log_modifica_manuale(seg, user, changed_fields):
+    """Voce di storico per una modifica manuale (audit). Lo stato non cambia."""
+    from .models import SuggestionCornerStorico
+
+    SuggestionCornerStorico.objects.create(
+        segnalazione=seg,
+        stato_precedente=seg.stato, stato_nuovo=seg.stato,
+        campo_modificato="modifica_manuale",
+        valore_nuovo=", ".join(changed_fields) if changed_fields else "(nessun campo)",
+        autore=user,
+    )
+
+
 # --- Form pubblico anonimo (sessione 4, §5) ---------------------------------
 # Route ESCLUSA dal gate ACL/login/onboarding via MIDDLEWARE_EXEMPT_PREFIXES
 # ("/suggestion-corner/nuova/"). Unica superficie pubblica non autenticata.

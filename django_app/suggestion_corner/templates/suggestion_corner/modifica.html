@@ -1,0 +1,38 @@
+{% extends "core/base.html" %}
+{% block content %}
+<div class="content">
+  <p><a href="{% url 'suggestion_corner:dettaglio' seg.pk %}">&larr; Segnalazione SC#{{ seg.pk }}</a></p>
+  <h1>Modifica segnalazione SC#{{ seg.pk }}</h1>
+
+  {% if messages %}
+    {% for m in messages %}
+      <div class="hub-alert hub-alert-{{ m.tags }}">{{ m }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <p class="hub-help">
+    Correzione amministrativa (reparti, persone, esiti e testi). Lo <strong>stato</strong>
+    del workflow e le date di sistema non si modificano da qui. Ogni salvataggio viene
+    tracciato nello storico.
+  </p>
+
+  <form method="post" class="hub-form-stack">
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+      <div class="hub-alert hub-alert-error">{{ form.non_field_errors }}</div>
+    {% endif %}
+    {% for field in form %}
+      <div class="hub-field">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% if field.help_text %}<small class="hub-help">{{ field.help_text }}</small>{% endif %}
+        {% if field.errors %}<div class="hub-field-error">{{ field.errors }}</div>{% endif %}
+      </div>
+    {% endfor %}
+    <div class="hub-form-actions">
+      <button type="submit" class="hub-btn hub-btn-primary">Salva modifiche</button>
+      <a href="{% url 'suggestion_corner:dettaglio' seg.pk %}" class="hub-btn">Annulla</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

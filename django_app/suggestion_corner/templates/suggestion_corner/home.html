@@ -16,7 +16,7 @@
   {% if segnalazioni %}
   <table class="hub-table">
     <thead>
-      <tr><th>#</th><th>Data</th><th>Reparto</th><th>Stato</th><th>Opportunità</th></tr>
+      <tr><th>#</th><th>Data</th><th>Reparto</th><th>Stato</th><th>Opportunità</th>{% if is_team %}<th></th>{% endif %}</tr>
     </thead>
     <tbody>
       {% for s in segnalazioni %}
@@ -26,6 +26,7 @@
         <td>{{ s.reparto_provenienza.nome }}</td>
         <td>{{ s.stato_label }}</td>
         <td>{{ s.opportunity|truncatechars:80 }}</td>
+        {% if is_team %}<td><a href="{% url 'suggestion_corner:modifica' s.pk %}" class="hub-btn hub-btn-sm">Modifica</a></td>{% endif %}
       </tr>
       {% endfor %}
     </tbody>

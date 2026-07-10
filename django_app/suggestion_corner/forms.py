@@ -37,6 +37,41 @@ class SegnalazionePubblicaForm(forms.Form):
         return bool(self.data.get("website"))
 
 
+class ModificaSegnalazioneForm(forms.ModelForm):
+    """Modifica amministrativa della segnalazione (gestione interna al modulo,
+    riservata al team SMS). Consente di correggere reparti, persone, esiti e
+    testi PDCA. NON espone `stato` (FSMField protetto: si cambia solo via le
+    azioni del workflow) né le date di sistema."""
+
+    class Meta:
+        model = SuggestionCorner
+        fields = [
+            "reparto_provenienza", "reparto_destinazione", "processo_libero",
+            "opportunity", "stato_sms",
+            "incaricato", "controllore",
+            "plan_testo", "do_testo", "esito_do",
+            "check_testo", "esito_check", "act_testo",
+        ]
+        widgets = {
+            "opportunity": forms.Textarea(attrs={"rows": 4}),
+            "plan_testo": forms.Textarea(attrs={"rows": 3}),
+            "do_testo": forms.Textarea(attrs={"rows": 3}),
+            "check_testo": forms.Textarea(attrs={"rows": 3}),
+            "act_testo": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["reparto_provenienza"].queryset = (
+            Reparto.objects.filter(is_active=True).order_by("nome")
+        )
+        self.fields["reparto_destinazione"].queryset = (
+            Reparto.objects.filter(is_active=True).order_by("nome")
+        )
+        for f in ("incaricato", "controllore"):
+            self.fields[f].queryset = User.objects.filter(is_active=True).order_by("username")
+
+
 class ClassificaForm(forms.Form):
     stato_sms = forms.ChoiceField(
         choices=[

@@ -4,6 +4,10 @@
   <p><a href="{% url 'suggestion_corner:home' %}">&larr; Suggestion Corner</a></p>
   <h1>Segnalazione SC#{{ seg.pk }}</h1>
 
+  {% if is_team %}
+    <p><a href="{% url 'suggestion_corner:modifica' seg.pk %}" class="hub-btn">Modifica</a></p>
+  {% endif %}
+
   {% if messages %}
     {% for m in messages %}
       <div class="hub-alert hub-alert-{{ m.tags }}">{{ m }}</div>
