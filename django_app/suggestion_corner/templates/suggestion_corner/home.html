@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load sc_extras static %}
 {% block title %}Suggestion Corner{% endblock %}
 {% block extra_head %}{% include "suggestion_corner/partials/_sc_styles.html" %}{% endblock %}
 {% block content %}
@@ -8,7 +9,10 @@
       <span class="sc-eyebrow"><span class="dot"></span> Sistema di Miglioramento</span>
       <h1>Suggestion Corner</h1>
     </div>
-    <a href="{% url 'suggestion_corner:nuova' %}" class="hub-btn hub-btn-primary">+ Nuova segnalazione</a>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+      {% if is_team %}<a href="{% url 'suggestion_corner:gestione' %}" class="hub-btn">⚙ Gestione</a>{% endif %}
+      <a href="{% url 'suggestion_corner:nuova' %}" class="hub-btn hub-btn-primary">+ Nuova segnalazione</a>
+    </div>
   </div>
 
   {# --- Filtri come card-contatore --- #}
@@ -31,7 +35,7 @@
   <table class="hub-table">
     <thead>
       <tr>
-        <th>#</th><th>Data</th><th>Provenienza</th><th>Stato</th><th>SMS</th><th>Opportunità</th>
+        <th>#</th><th>PDCA</th><th>Data</th><th>Provenienza</th><th>Stato</th><th>SMS</th><th>Opportunità</th>
         {% if is_team %}<th></th>{% endif %}
       </tr>
     </thead>
@@ -39,6 +43,7 @@
       {% for s in segnalazioni %}
       <tr>
         <td><a href="{% url 'suggestion_corner:dettaglio' s.pk %}"><strong>SC#{{ s.pk }}</strong></a></td>
+        <td><img src="{% static s.stato|pdca_immagine %}" alt="{{ s.stato|pdca_alt }}" title="{{ s.stato|pdca_alt }}" style="height:34px;width:34px;object-fit:contain"></td>
         <td>{{ s.data_segnalazione|date:"d/m/Y" }}</td>
         <td>{{ s.provenienza_display }}</td>
         <td><span class="sc-badge" data-stato="{{ s.stato }}">{{ s.stato_label }}</span></td>
