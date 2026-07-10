@@ -118,10 +118,17 @@ finiscono su stderr con numero di riga.
   -c "import collections; from rilevazione_incidenti.models import RilevazioneIncidente as R; print('totale:', R.objects.count()); print(collections.Counter(R.objects.values_list('tipologia_scheda', flat=True)))"
 ```
 
-> ⚠️ **Controlla le tipologie**: il comando normalizza `Tipologia scheda` con etichette
-> legacy (es. `Near Miss`, `Unsafe Act`), che potrebbero **non coincidere** con le scelte
-> attuali del modello (`near_miss`, `unsafe_condition`, `incidente`). Se le vedi
-> incoerenti nel conteggio sopra, segnalalo: potrebbe servire un allineamento post-import.
+Sul modello ci sono **due** campi tipologia, entrambi popolati correttamente all'import:
+- `tipologia_scheda` — etichetta legacy testuale (es. `Near Miss`, `Unsafe Act`), presa
+  dal CSV e normalizzata;
+- `tipo_evento` — **categoria KPI** con scelte fisse (`near_miss` / `unsafe_condition` /
+  `incidente`), **dedotta automaticamente** dal `save()` del modello tramite
+  `normalize_tipo_evento(tipologia_scheda)`. È il campo usato per statistiche/heatmap.
+
+Il conteggio qui sopra (`Counter` su `tipologia_scheda`) mostra le etichette legacy; per i
+KPI conta `tipo_evento`. La derivazione è coperta da test
+(`rilevazione_incidenti.tests.ImportaRilevazioniCsvTests`), quindi non serve alcun
+allineamento manuale post-import.
 
 Poi in UI: **`/rilevazione-incidenti/`**. Admin:
 **`/admin/rilevazione_incidenti/rilevazioneincidente/`**.

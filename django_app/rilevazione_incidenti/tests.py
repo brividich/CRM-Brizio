@@ -44,6 +44,53 @@ class TipoEventoSicurezzaTests(TestCase):
         self.assertEqual(evento.tipo_evento, TipoEventoSicurezza.NEAR_MISS)
 
 
+class ImportaRilevazioniCsvTests(TestCase):
+    """Il comando di import deve derivare `tipo_evento` (KPI) dalla tipologia legacy.
+
+    Protegge da regressioni: il comando usa `inst.save()`, che eredita l'inferenza
+    del modello. Se un domani passasse a bulk_create/insert, `tipo_evento` resterebbe
+    al default e questo test fallirebbe.
+    """
+
+    def _run(self, righe, extra_args=()):
+        import csv
+        import tempfile
+        from pathlib import Path
+
+        from django.core.management import call_command
+
+        headers = ["Nominativo", "Tipologia scheda", "Data segnalazione", "ID"]
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        with __import__("os").fdopen(fd, "w", encoding="utf-8-sig", newline="") as fh:
+            writer = csv.DictWriter(fh, fieldnames=headers)
+            writer.writeheader()
+            for r in righe:
+                writer.writerow(r)
+        self.addCleanup(lambda: Path(path).unlink(missing_ok=True))
+        call_command("importa_rilevazioni_csv", path, *extra_args)
+
+    def test_import_deriva_tipo_evento_da_tipologia(self):
+        self._run([
+            {"Nominativo": "Mario Rossi", "Tipologia scheda": "Near Miss",
+             "Data segnalazione": "01/05/2026 09:00", "ID": "101"},
+            {"Nominativo": "Luigi Bianchi", "Tipologia scheda": "Accident",
+             "Data segnalazione": "02/05/2026 10:00", "ID": "102"},
+            {"Nominativo": "Anna Verdi", "Tipologia scheda": "Unsafe Act",
+             "Data segnalazione": "03/05/2026 11:00", "ID": "103"},
+        ])
+        by_id = {r.id_originale: r for r in RilevazioneIncidente.objects.all()}
+        self.assertEqual(by_id[101].tipo_evento, TipoEventoSicurezza.NEAR_MISS)
+        self.assertEqual(by_id[102].tipo_evento, TipoEventoSicurezza.INCIDENTE)
+        self.assertEqual(by_id[103].tipo_evento, TipoEventoSicurezza.UNSAFE_CONDITION)
+
+    def test_skip_existing_evita_duplicati(self):
+        riga = [{"Nominativo": "Mario Rossi", "Tipologia scheda": "Near Miss",
+                 "Data segnalazione": "01/05/2026 09:00", "ID": "101"}]
+        self._run(riga)
+        self._run(riga, extra_args=("--skip-existing",))
+        self.assertEqual(RilevazioneIncidente.objects.filter(id_originale=101).count(), 1)
+
+
 class SafetyKpiTests(TestCase):
     @patch("rilevazione_incidenti.services.active_headcount", return_value=50)
     def test_get_safety_kpis_counts_events_and_trir(self, _mock_headcount):
