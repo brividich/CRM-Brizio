@@ -54,3 +54,34 @@ class GestioneConsoleTest(TestCase):
         })
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(SuggestionCornerConfig.load().giorni_sollecito_1, 25)
+
+    def _group(self):
+        return Group.objects.get(name=SuggestionCornerConfig.load().sms_team_group_name)
+
+    def test_candidati_esclude_membri(self):
+        self.client.force_login(self.team)
+        candidati = list(self.client.get(self.url).context["candidati"])
+        self.assertIn(self.ext, candidati)       # non è nel team → candidato
+        self.assertNotIn(self.team, candidati)   # è già nel team → escluso
+
+    def test_team_aggiunge_membro(self):
+        self.client.force_login(self.team)
+        resp = self.client.post(reverse("suggestion_corner:gestione_team_add"),
+                                {"user_id": self.ext.pk})
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(self.ext.groups.filter(pk=self._group().pk).exists())
+
+    def test_team_rimuove_membro(self):
+        self.ext.groups.add(self._group())
+        self.client.force_login(self.team)
+        resp = self.client.post(reverse("suggestion_corner:gestione_team_remove"),
+                                {"user_id": self.ext.pk})
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(self.ext.groups.filter(pk=self._group().pk).exists())
+
+    def test_estraneo_non_puo_aggiungere(self):
+        self.client.force_login(self.ext)
+        resp = self.client.post(reverse("suggestion_corner:gestione_team_add"),
+                                {"user_id": self.ext.pk})
+        self.assertEqual(resp.status_code, 403)
+        self.assertFalse(self.ext.groups.filter(pk=self._group().pk).exists())

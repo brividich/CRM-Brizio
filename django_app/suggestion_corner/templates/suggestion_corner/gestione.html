@@ -79,13 +79,33 @@
         <div class="sc-card-head">Team SMS <span class="sc-chip">{{ team_group }}</span></div>
         <div class="sc-card-body">
           {% if team %}
-          <ul class="sc-tags" style="list-style:none;padding:0">
-            {% for u in team %}<li><span class="sc-chip">{{ u.get_full_name|default:u.username }}</span></li>{% endfor %}
+          <ul class="sc-tags" style="list-style:none;padding:0;display:flex;flex-direction:column;gap:.4rem;margin:0">
+            {% for u in team %}
+            <li style="display:flex;justify-content:space-between;align-items:center;gap:.5rem">
+              <span class="sc-chip">{{ u.get_full_name|default:u.username }}</span>
+              <form method="post" action="{% url 'suggestion_corner:gestione_team_remove' %}" style="margin:0">
+                {% csrf_token %}<input type="hidden" name="user_id" value="{{ u.pk }}">
+                <button type="submit" class="hub-btn hub-btn-sm" title="Rimuovi dal team">Rimuovi</button>
+              </form>
+            </li>
+            {% endfor %}
           </ul>
           {% else %}
-          <p class="hub-help">Nessun membro nel gruppo <strong>{{ team_group }}</strong>.
-            I membri si gestiscono dai gruppi Django (o dall'area amministrazione).</p>
+          <p class="hub-help">Nessun membro nel gruppo <strong>{{ team_group }}</strong>.</p>
           {% endif %}
+
+          <form method="post" action="{% url 'suggestion_corner:gestione_team_add' %}"
+                style="margin-top:.75rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+            {% csrf_token %}
+            <select name="user_id" required style="flex:1;min-width:200px">
+              <option value="">— aggiungi persona al team —</option>
+              {% for c in candidati %}
+              <option value="{{ c.pk }}">{{ c.get_full_name|default:c.username }} ({{ c.username }})</option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="hub-btn hub-btn-primary">Aggiungi</button>
+          </form>
+          <p class="hub-help" style="margin-top:.35rem">Chi aggiungi vede tutte le segnalazioni e può gestirle. Effettivo al suo prossimo login.</p>
         </div>
       </div>
 

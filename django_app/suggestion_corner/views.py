@@ -122,15 +122,65 @@ def gestione(request, *args, **kwargs):
         User.objects.filter(groups__name=config.sms_team_group_name, is_active=True)
         .order_by("username")
     )
+    # Candidati = utenti attivi non ancora nel team (per la select "aggiungi").
+    candidati = (
+        User.objects.filter(is_active=True)
+        .exclude(groups__name=config.sms_team_group_name)
+        .order_by("first_name", "last_name", "username")
+    )
 
     return render(request, "suggestion_corner/gestione.html", {
         "form_config": form_config,
         "kpi": kpi,
         "da_classificare": da_classificare,
         "team": team,
+        "candidati": candidati,
         "team_group": config.sms_team_group_name,
         "mappature": SuggestionCornerProcessoMapping.objects.all().order_by("valore_libero"),
     })
+
+
+def _sms_team_group():
+    from django.contrib.auth.models import Group
+
+    from .models import SuggestionCornerConfig
+    g, _ = Group.objects.get_or_create(name=SuggestionCornerConfig.load().sms_team_group_name)
+    return g
+
+
+@login_required
+@require_POST
+def gestione_team_add(request):
+    """Aggiunge un utente al gruppo SMS_TEAM (dalla console Gestione)."""
+    from django.contrib.auth import get_user_model
+
+    if not is_sms_team(request.user):
+        raise PermissionDenied("Sezione riservata al team SMS.")
+    u = get_user_model().objects.filter(pk=request.POST.get("user_id")).first()
+    if u is None:
+        messages.error(request, "Utente non trovato.")
+    else:
+        u.groups.add(_sms_team_group())
+        messages.success(request, f"{u.get_full_name() or u.username} aggiunto al team SMS.")
+    return redirect("suggestion_corner:gestione")
+
+
+@login_required
+@require_POST
+def gestione_team_remove(request):
+    """Rimuove un utente dal gruppo SMS_TEAM (dalla console Gestione)."""
+    from django.contrib.auth import get_user_model
+
+    if not is_sms_team(request.user):
+        raise PermissionDenied("Sezione riservata al team SMS.")
+    u = get_user_model().objects.filter(pk=request.POST.get("user_id")).first()
+    if u is None:
+        messages.error(request, "Utente non trovato.")
+    else:
+        u.groups.remove(_sms_team_group())
+        note = " (hai rimosso te stesso: perderai l'accesso di gestione)" if u == request.user else ""
+        messages.success(request, f"{u.get_full_name() or u.username} rimosso dal team SMS.{note}")
+    return redirect("suggestion_corner:gestione")
 
 
 def _corpo_cliente(seg):
