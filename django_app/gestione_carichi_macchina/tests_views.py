@@ -301,6 +301,28 @@ class TurniCapabilityTest(TestCase):
         sug = _suggerimenti_macchina(fam, turno=Pianificazione.TURNO_NOTTE)
         self.assertEqual(sug[0]["macchina_id"], self.m.id)
 
+    def test_suggerimenti_cold_start_fallback_su_fase_globale(self):
+        """Famiglia MAI lavorata (nessuno storico proprio): con una fase indicata, il
+        suggerimento ricade su quali macchine fanno tipicamente quella fase in generale,
+        invece di restare vuoto — segnalato con fallback_globale=True."""
+        from .models import FamigliaPezzo
+        from .views import _suggerimenti_macchina
+
+        altra = FamigliaPezzo.objects.create(nome="sombrero")
+        Pianificazione.objects.create(
+            macchina=self.m, famiglia=altra, fase="sgr",
+            data=date(2026, 6, 22), turno="giorno",
+            stato=Pianificazione.STATO_COMPLETATA, fonte=Pianificazione.FONTE_IMPORT,
+        )
+        nuova = FamigliaPezzo.objects.create(nome="mai-vista")
+        # Senza fase: nessuno storico ne' fallback (il fallback è solo per fase).
+        self.assertEqual(_suggerimenti_macchina(nuova), [])
+        # Con fase "sgr": eredita il segnale generico dalla fase, non dalla famiglia.
+        sug = _suggerimenti_macchina(nuova, fase="sgr")
+        self.assertTrue(sug)
+        self.assertEqual(sug[0]["macchina_id"], self.m.id)
+        self.assertTrue(sug[0]["fallback_globale"])
+
 
 class GestioneLavoriExtraTest(TestCase):
     """Anti-doppione, duplica, config macchina, impostazioni, overlap."""

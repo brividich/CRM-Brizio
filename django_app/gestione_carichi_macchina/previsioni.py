@@ -92,10 +92,13 @@ def prevedi_macchina(
     *,
     fase: str | None = None,
     freq_per_famiglia_fase: dict[tuple[int, str], list] | None = None,
+    freq_fase_globale: dict[str, list] | None = None,
     recency_per_coppia: dict[tuple[int, int], float] | None = None,
     carico_per_macchina: dict[int, float] | None = None,
     stato_per_macchina: dict[int, str] | None = None,
     pesi: dict[str, float] | None = None,
+    categoria_per_macchina: dict[int, str] | None = None,
+    pesi_per_categoria: dict[str, dict[str, float]] | None = None,
 ) -> list[dict]:
     """Predice su quali macchine conviene lavorare una certa famiglia.
 
@@ -110,20 +113,39 @@ def prevedi_macchina(
     guasto/manutenzione sono **escluse** (non possono prendere lavoro). Aggiunge a ogni
     voce `score`, `componenti` (freq/recency/carico_libero), `saturazione` e `stato`.
 
+    `pesi_per_categoria`/`categoria_per_macchina`: profili di pesi diversi per CATEGORIA
+    di macchina (es. i torni possono voler privilegiare il carico, le 5 assi la recency),
+    in aggiunta al singolo override `pesi`. Il peso applicato a ciascuna macchina candidata
+    e' `PESI_SUGGERIMENTO_DEFAULT` sovrascritto prima da `pesi` (globale alla chiamata) poi
+    dal profilo della SUA categoria, se presente — nessun impatto se non passati (retro-
+    compatibile).
+
+    `freq_fase_globale`: fallback COLD-START. Se la famiglia non ha ALCUNO storico proprio
+    (ne' per fase ne' generale) ma e' nota la fase, si ricade sulla frequenza aggregata di
+    quella fase su TUTTE le famiglie (quali macchine fanno tipicamente quella lavorazione)
+    invece di restituire una lista vuota. Le voci risultanti da questo fallback portano
+    `fallback_globale=True` (sempre presente, anche False altrimenti) cosi' l'UI puo'
+    segnalare che e' un suggerimento piu' debole, non specifico della famiglia.
+
     Tutti i termini sono in [0,1]; nessun LLM, ranking deterministico e spiegabile.
     """
     # Affinita' per FASE (sgr/fin/rip/ass) quando disponibile: le fasi sono lavorazioni
     # diverse, quindi la macchina giusta per la sgrossatura puo' non esserlo per la finitura.
     # Si usa la frequenza per (famiglia, fase) se presente, altrimenti si ricade sulla
-    # frequenza per sola famiglia (retro-compatibile).
+    # frequenza per sola famiglia (retro-compatibile), infine sulla fase GLOBALE (cold-start).
     items = None
     if fase and freq_per_famiglia_fase:
         items = freq_per_famiglia_fase.get((famiglia_id, fase))
     if not items:
         items = freq_per_famiglia.get(famiglia_id) or []
+    fallback_globale = False
+    if not items and fase and freq_fase_globale:
+        items = freq_fase_globale.get(fase) or []
+        fallback_globale = bool(items)
     tot = sum(o for _m, o in items)
     base = [
-        {"macchina_id": m, "occorrenze": o, "prob": round(o / tot, 3) if tot else 0.0}
+        {"macchina_id": m, "occorrenze": o, "prob": round(o / tot, 3) if tot else 0.0,
+         "fallback_globale": fallback_globale}
         for m, o in items
     ]
 
@@ -136,7 +158,9 @@ def prevedi_macchina(
         base.sort(key=lambda x: (x["occorrenze"], x["macchina_id"]), reverse=True)
         return base
 
-    w = {**PESI_SUGGERIMENTO_DEFAULT, **(pesi or {})}
+    w_base = {**PESI_SUGGERIMENTO_DEFAULT, **(pesi or {})}
+    cat_per_m = categoria_per_macchina or {}
+    profili_cat = pesi_per_categoria or {}
     rec = recency_per_coppia or {}
     car = carico_per_macchina or {}
     sta = stato_per_macchina or {}
@@ -146,6 +170,7 @@ def prevedi_macchina(
         stato = sta.get(m, "attiva")
         if stato in _STATI_NON_DISPONIBILI:
             continue  # vincolo rigido: macchina non disponibile ORA
+        w = {**w_base, **(profili_cat.get(cat_per_m.get(m)) or {})}
         s_freq = it["prob"]
         s_rec = float(rec.get((m, famiglia_id), 0.0))
         sat = float(car.get(m, 0.0))
@@ -211,6 +236,33 @@ def costruisci_indice_macchine_fase() -> dict[tuple[int, str], list]:
     }
 
 
+def costruisci_indice_macchine_fase_globale() -> dict[str, list]:
+    """Frequenza per SOLA fase (fase -> [(macchina_id, occ), ...]), aggregata su TUTTE le
+    famiglie e solo lavori COMPLETATI (stessa regola anti-feedback-loop di
+    `costruisci_indice_macchine_fase`).
+
+    Fallback cold-start per `prevedi_macchina`: una famiglia SENZA storico proprio (mai
+    lavorata) eredita quali macchine fanno tipicamente quella lavorazione in generale,
+    invece di restare senza alcun suggerimento.
+    """
+    from collections import defaultdict
+
+    from .models import Pianificazione
+
+    acc: dict[str, dict[int, int]] = defaultdict(lambda: defaultdict(int))
+    qs = (
+        Pianificazione.objects.filter(stato=Pianificazione.STATO_COMPLETATA)
+        .exclude(fase="")
+        .only("macchina_id", "fase")
+    )
+    for p in qs:
+        acc[p.fase][p.macchina_id] += 1
+    return {
+        fase: sorted(macs.items(), key=lambda kv: (kv[1], kv[0]), reverse=True)
+        for fase, macs in acc.items()
+    }
+
+
 def costruisci_indice_recency(oggi: date | None = None, *, mezza_vita_giorni: int = 180) -> dict[tuple[int, int], float]:
     """Recency score [0,1] per coppia (macchina, famiglia) da `ultima_data`.
 
@@ -229,6 +281,21 @@ def costruisci_indice_recency(oggi: date | None = None, *, mezza_vita_giorni: in
         giorni = max(0, (oggi - a.ultima_data).days)
         out[(a.macchina_id, a.famiglia_id)] = 0.5 ** (giorni / mezza_vita_giorni)
     return out
+
+
+def finestra_carico_per_ore(
+    ore_medie: float | None, *, ore_giorno: float = 8.0, minimo: int = 7, massimo: int = 30
+) -> int:
+    """Dimensiona in giorni la finestra di saturazione sulla durata TIPICA del lavoro da
+    assegnare, invece di una finestra fissa: 14gg fissi sovrastimano la saturazione per un
+    lavoro di 1 giorno (rumore su una macchina quasi libera) e la sottostimano per uno di
+    2 mesi (non vede l'impegno reale oltre la finestra). Ritorna un intero in
+    [`minimo`, `massimo`]; senza una stima (`ore_medie` assente/0) usa il default storico 14gg.
+    """
+    if not ore_medie:
+        return 14
+    giorni = ceil(float(ore_medie) / ore_giorno)
+    return max(minimo, min(massimo, giorni))
 
 
 def costruisci_indice_carico(giorni: int = 14, *, oggi: date | None = None) -> dict[int, float]:

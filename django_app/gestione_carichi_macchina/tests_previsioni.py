@@ -12,6 +12,8 @@ from .previsioni import (
     FONTE_NESSUNA,
     FONTE_STORICO,
     costruisci_indice_macchine_fase,
+    costruisci_indice_macchine_fase_globale,
+    finestra_carico_per_ore,
     prevedi_macchina,
     prevedi_ore,
     rischio_ritardo,
@@ -114,6 +116,68 @@ class PrevediMacchinaTest(SimpleTestCase):
         )
         self.assertEqual([r["macchina_id"] for r in ranked], [10, 11])
 
+    def test_pesi_per_categoria_macchina(self):
+        # Stessa frequenza; m10 vince su recency, m11 vince su carico.
+        freq = {1: [(10, 5), (11, 5)]}
+        comuni = dict(
+            recency_per_coppia={(10, 1): 1.0, (11, 1): 0.0},
+            carico_per_macchina={10: 1.0, 11: 0.0},
+            stato_per_macchina={10: "attiva", 11: "attiva"},
+        )
+        # Pesi uniformi (default): il carico (.3) pesa piu' della recency (.2) -> vince m11.
+        uniforme = prevedi_macchina(1, freq, **comuni)
+        self.assertEqual(uniforme[0]["macchina_id"], 11)
+        # Un profilo pesi dedicato alla CATEGORIA di m10 (recency-centrico) ribalta l'esito
+        # solo per lei: il peso applicato dipende dalla categoria della macchina candidata,
+        # non e' un unico override globale per l'intera chiamata.
+        pesato = prevedi_macchina(
+            1, freq, **comuni,
+            categoria_per_macchina={10: "5_axis", 11: "torni"},
+            pesi_per_categoria={"5_axis": {"freq": 0.05, "recency": 0.9, "carico": 0.05}},
+        )
+        self.assertEqual(pesato[0]["macchina_id"], 10)
+
+    def test_cold_start_fallback_fase_globale(self):
+        # Famiglia 99 senza ALCUNO storico proprio (ne' per famiglia ne' per fase) ->
+        # fallback sulla fase GLOBALE (quali macchine fanno tipicamente quella lavorazione,
+        # su qualunque famiglia), invece di restare senza suggerimento.
+        globale = {"sgr": [(20, 10), (21, 2)]}
+        ranked = prevedi_macchina(99, {}, fase="sgr", freq_fase_globale=globale)
+        self.assertEqual([r["macchina_id"] for r in ranked], [20, 21])
+        self.assertTrue(ranked[0]["fallback_globale"])
+
+        # Se la famiglia HA storico proprio, il fallback globale non si attiva.
+        freq = {1: [(10, 5)]}
+        ranked2 = prevedi_macchina(1, freq, fase="sgr", freq_fase_globale=globale)
+        self.assertEqual([r["macchina_id"] for r in ranked2], [10])
+        self.assertFalse(ranked2[0]["fallback_globale"])
+
+        # Senza freq_fase_globale, resta vuoto come prima (retro-compatibile).
+        self.assertEqual(prevedi_macchina(99, {}), [])
+
+
+class FinestraCaricoPerOreTest(SimpleTestCase):
+    """Una finestra di saturazione fissa (14gg) sovra/sottostima il carico reale per
+    lavori molto piu' corti o lunghi di 14gg: va dimensionata sulla durata tipica."""
+
+    def test_senza_ore_medie_usa_il_default(self):
+        self.assertEqual(finestra_carico_per_ore(None), 14)
+        self.assertEqual(finestra_carico_per_ore(0), 14)
+
+    def test_lavoro_breve_finestra_ridotta_al_minimo(self):
+        # 8h (1 giorno lav.) -> il minimo (7gg), non 1: una finestra troppo stretta
+        # sarebbe rumorosa (un solo giorno di carico non è rappresentativo).
+        self.assertEqual(finestra_carico_per_ore(8), 7)
+
+    def test_lavoro_lungo_finestra_proporzionale(self):
+        # 160h / 8h-giorno = 20 giorni lavorativi -> finestra a 20 (tra min e max).
+        self.assertEqual(finestra_carico_per_ore(160), 20)
+
+    def test_lavoro_molto_lungo_finestra_limitata_al_massimo(self):
+        # 400h -> 50 giorni, ma il tetto (30gg) evita di guardare troppo in la'
+        # (previsioni lontane nel tempo sono meno affidabili).
+        self.assertEqual(finestra_carico_per_ore(400), 30)
+
 
 class RischioRitardoTest(SimpleTestCase):
     def test_in_ritardo(self):
@@ -170,3 +234,37 @@ class CostruisciIndiceMacchineFaseTest(TestCase):
         macchine = dict(idx[(self.fam.id, "sgr")])
         self.assertIn(self.m1.id, macchine)
         self.assertNotIn(self.m2.id, macchine)
+
+
+class CostruisciIndiceMacchineFaseGlobaleTest(TestCase):
+    """Fallback cold-start: aggregato su TUTTE le famiglie (non serve una famiglia
+    specifica), solo lavori completati (stessa regola anti-feedback-loop)."""
+
+    def setUp(self):
+        a1 = Asset.objects.create(asset_tag="CNC-G1", name="G1", asset_type=Asset.TYPE_WORK_MACHINE)
+        a2 = Asset.objects.create(asset_tag="CNC-G2", name="G2", asset_type=Asset.TYPE_WORK_MACHINE)
+        self.m1 = Macchina.objects.create(asset=a1, categoria=Macchina.CAT_5AXIS)
+        self.m2 = Macchina.objects.create(asset=a2, categoria=Macchina.CAT_5AXIS)
+        self.fam_a = FamigliaPezzo.objects.create(nome="gimbal")
+        self.fam_b = FamigliaPezzo.objects.create(nome="sombrero")
+
+    def test_aggrega_su_tutte_le_famiglie_solo_completate(self):
+        Pianificazione.objects.create(
+            macchina=self.m1, famiglia=self.fam_a, fase="sgr",
+            data=date(2026, 6, 22), turno="giorno",
+            stato=Pianificazione.STATO_COMPLETATA, fonte=Pianificazione.FONTE_IMPORT,
+        )
+        Pianificazione.objects.create(
+            macchina=self.m1, famiglia=self.fam_b, fase="sgr",
+            data=date(2026, 6, 23), turno="giorno",
+            stato=Pianificazione.STATO_COMPLETATA, fonte=Pianificazione.FONTE_IMPORT,
+        )
+        Pianificazione.objects.create(
+            macchina=self.m2, famiglia=self.fam_a, fase="sgr",
+            data=date(2026, 6, 24), turno="giorno",
+            stato=Pianificazione.STATO_PIANIFICATA, fonte=Pianificazione.FONTE_MANUALE,
+        )
+        idx = costruisci_indice_macchine_fase_globale()
+        macchine = dict(idx["sgr"])
+        self.assertEqual(macchine.get(self.m1.id), 2)  # entrambe le famiglie completate
+        self.assertNotIn(self.m2.id, macchine)  # non completata

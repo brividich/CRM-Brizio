@@ -656,6 +656,14 @@ GESTIONE_SPECIFICHE = {
 # all'approvazione MOD.133, con "scambio" delle forme attesa<->approvato). Default OFF: le scritture
 # sulla share avvengono solo se attivato esplicitamente in prod, e comunque richiedono la Modifica
 # share per l'app-pool + GESTIONE_SPECIFICHE_PDF_OWNER_PASSWORD.
+# Gestione Carichi Macchina: profili di pesi ALTERNATIVI (freq/recency/carico, somma 1.0)
+# per lo scoring del suggerimento macchina (`previsioni.prevedi_macchina`), applicati per
+# CATEGORIA della macchina candidata (chiavi = `Macchina.CATEGORIA_CHOICES`, es. "torni",
+# "5_axis") sopra il default `PESI_SUGGERIMENTO_DEFAULT`. Vuoto di default (nessun impatto,
+# retro-compatibile); da valorizzare in un settings file di ambiente se un reparto ha un
+# criterio di priorità diverso (es. i torni molto richiesti privilegiano il carico libero).
+GCM_PESI_PER_CATEGORIA: dict[str, dict[str, float]] = {}
+
 GESTIONE_SPECIFICHE_COMPOSITO_AUTO = env_bool("GESTIONE_SPECIFICHE_COMPOSITO_AUTO", False)
 # Profondità cartelle proposte per la destinazione del composito: 1=solo cartelle cliente,
 # 2=cliente + sotto-cartelle (default), 3=due livelli di sotto-cartelle. Il camminamento della

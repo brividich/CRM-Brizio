@@ -1254,26 +1254,44 @@ def _famiglia_da_param(par: str):
 
 
 def _suggerimenti_macchina(fam, fase: str = "", turno: str = "") -> list[dict]:
+    from django.conf import settings
+
     from .models import Macchina
     from .previsioni import (
         costruisci_indice_carico,
         costruisci_indice_macchine,
         costruisci_indice_macchine_fase,
+        costruisci_indice_macchine_fase_globale,
         costruisci_indice_recency,
         costruisci_indice_stato,
+        costruisci_indici,
+        finestra_carico_per_ore,
         prevedi_macchina,
     )
 
     # Suggerimento PESATO: affinita' storica (per FASE quando indicata) + recency + carico
     # attuale, escludendo le macchine in guasto/manutenzione. Mantiene prob/occorrenze.
+    # Categoria di TUTTE le macchine (non solo quelle candidate: serve prima ancora di
+    # sapere chi sopravvive allo scoring) per applicare eventuali pesi dedicati per reparto.
+    categoria_per_macchina = dict(Macchina.objects.values_list("id", "categoria"))
+    # Finestra di saturazione dimensionata sulla durata TIPICA dei lavori della famiglia
+    # (non 14gg fissi): un lavoro breve va confrontato col carico immediato, uno lungo con
+    # un orizzonte piu' ampio.
+    _, _, famiglia_ore = costruisci_indici()
+    giorni_finestra = finestra_carico_per_ore(famiglia_ore.get(fam.id))
     ranked = prevedi_macchina(
         fam.id,
         costruisci_indice_macchine(),
         fase=fase or None,
         freq_per_famiglia_fase=costruisci_indice_macchine_fase() if fase else None,
+        # Cold-start: se la famiglia non ha ALCUNO storico proprio, ricade su quali
+        # macchine fanno tipicamente quella fase in generale (invece di nessun suggerimento).
+        freq_fase_globale=costruisci_indice_macchine_fase_globale() if fase else None,
         recency_per_coppia=costruisci_indice_recency(),
-        carico_per_macchina=costruisci_indice_carico(),
+        carico_per_macchina=costruisci_indice_carico(giorni=giorni_finestra),
         stato_per_macchina=costruisci_indice_stato(),
+        categoria_per_macchina=categoria_per_macchina,
+        pesi_per_categoria=getattr(settings, "GCM_PESI_PER_CATEGORIA", None),
     )
     macs = {
         m.id: m for m in
@@ -1293,7 +1311,8 @@ def _suggerimenti_macchina(fam, fase: str = "", turno: str = "") -> list[dict]:
          "codice": macs[r["macchina_id"]].codice if r["macchina_id"] in macs else "",
          "occorrenze": r["occorrenze"], "prob": r["prob"],
          "score": r.get("score"), "saturazione": r.get("saturazione"),
-         "componenti": r.get("componenti")}
+         "componenti": r.get("componenti"),
+         "fallback_globale": bool(r.get("fallback_globale"))}
         for r in ranked
     ]
 
@@ -1325,6 +1344,7 @@ def _righe_suggerimento_display(sugg: list[dict], macchina_corrente: int) -> lis
             "rec_pct": round(float(comp.get("recency", 0)) * 100),
             "lib_pct": round(float(comp.get("carico_libero", 0)) * 100),
             "is_corrente": s["macchina_id"] == macchina_corrente,
+            "fallback_globale": bool(s.get("fallback_globale")),
         })
     return righe
 
