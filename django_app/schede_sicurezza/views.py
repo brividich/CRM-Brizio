@@ -192,6 +192,29 @@ def prodotto_detail(request, pk: int):
             messages.error(request, "Accesso non autorizzato.")
             return redirect("schede_sicurezza:prodotto_detail", pk=pk)
 
+        if request.POST.get("form_type") == "modifica_campi_estratti":
+            scheda_corrente = prodotto.scheda_corrente()
+            if scheda_corrente is None:
+                messages.error(request, "Nessuna scheda corrente da modificare.")
+                return redirect("schede_sicurezza:prodotto_detail", pk=pk)
+
+            def _parse_lista(valore: str) -> list[str]:
+                return [v.strip() for v in valore.split(",") if v.strip()]
+
+            scheda_corrente.pittogrammi = _parse_lista(request.POST.get("pittogrammi", ""))
+            scheda_corrente.frasi_h = _parse_lista(request.POST.get("frasi_h", ""))
+            scheda_corrente.frasi_p = _parse_lista(request.POST.get("frasi_p", ""))
+            scheda_corrente.classificazione_clp = request.POST.get("classificazione_clp", "").strip()
+            scheda_corrente.dpi_testo = request.POST.get("dpi_testo", "").strip()
+            scheda_corrente.primo_soccorso = request.POST.get("primo_soccorso", "").strip()
+            scheda_corrente.incompatibilita = request.POST.get("incompatibilita", "").strip()
+            scheda_corrente.save(update_fields=[
+                "pittogrammi", "frasi_h", "frasi_p", "classificazione_clp",
+                "dpi_testo", "primo_soccorso", "incompatibilita",
+            ])
+            messages.success(request, "Campi estratti aggiornati.")
+            return redirect("schede_sicurezza:prodotto_detail", pk=pk)
+
         pdf_file = request.FILES.get("pdf")
         versione = request.POST.get("versione", "").strip()
         if not pdf_file:

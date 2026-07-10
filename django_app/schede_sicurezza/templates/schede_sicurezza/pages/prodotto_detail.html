@@ -1,0 +1,137 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ prodotto.nome }} | Schede Sicurezza{% endblock %}
+
+{% block content %}
+<div style="display:flex;flex-direction:column;gap:20px;max-width:960px;">
+  {% if messages %}
+    {% for msg in messages %}
+      <div style="padding:12px 16px;border-radius:10px;background:{% if 'error' in msg.tags %}#fee2e2{% else %}#dcfce7{% endif %};color:{% if 'error' in msg.tags %}#dc2626{% else %}#15803d{% endif %};font-size:13px;font-weight:600;">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+    <div>
+      <div style="font-size:20px;font-weight:900;">{{ prodotto.nome }}</div>
+      <div style="font-size:13px;color:#64748b;">{{ prodotto.reparto.nome }} · {{ prodotto.fornitore|default:"—" }}</div>
+    </div>
+    {% if can_gestire %}
+      <a href="{% url 'schede_sicurezza:prodotto_modifica' pk=prodotto.pk %}"
+         style="padding:8px 16px;background:#f1f5f9;color:#475569;border-radius:8px;text-decoration:none;font-weight:700;font-size:13px;">Modifica prodotto</a>
+    {% endif %}
+  </div>
+
+  <div style="display:flex;gap:20px;flex-wrap:wrap;">
+    <div style="flex:1;min-width:260px;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
+      <div style="font-weight:700;margin-bottom:10px;">QR code scheda mobile</div>
+      <img src="{% url 'schede_sicurezza:prodotto_qr' pk=prodotto.pk %}" alt="QR scheda {{ prodotto.nome }}" style="width:160px;height:160px;">
+      <div style="font-size:11px;color:#94a3b8;margin-top:8px;word-break:break-all;">{{ qr_url }}</div>
+    </div>
+
+    <div style="flex:2;min-width:280px;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
+      <div style="font-weight:700;margin-bottom:10px;">Scheda corrente</div>
+      {% if scheda_corrente %}
+        <div style="font-size:13px;line-height:1.7;">
+          Versione: <strong>{{ scheda_corrente.versione|default:"—" }}</strong><br>
+          Stato estrazione: <strong>{{ scheda_corrente.get_estrazione_stato_display }}</strong><br>
+          Caricata il {{ scheda_corrente.data_caricamento|date:"d/m/Y H:i" }}
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <a href="{% url 'schede_sicurezza:scheda_download' pk=scheda_corrente.pk %}"
+             style="padding:7px 14px;background:#1d4ed8;color:#fff;border-radius:8px;text-decoration:none;font-size:12px;font-weight:700;">Scarica PDF</a>
+          {% if can_gestire %}
+            <a href="{% url 'schede_sicurezza:presa_visione_list' scheda_pk=scheda_corrente.pk %}"
+               style="padding:7px 14px;background:#f1f5f9;color:#475569;border-radius:8px;text-decoration:none;font-size:12px;font-weight:700;">Prese visione</a>
+          {% endif %}
+        </div>
+      {% else %}
+        <div style="color:#94a3b8;font-size:13px;">Nessuna scheda caricata.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if can_gestire %}
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
+      <div style="font-weight:700;margin-bottom:10px;">Carica nuova versione SDS</div>
+      <form method="post" enctype="multipart/form-data" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        {% csrf_token %}
+        <input type="text" name="versione" placeholder="Versione (es. Rev. 3)" style="padding:8px;border:1px solid #cbd5e1;border-radius:8px;">
+        <input type="file" name="pdf" accept="application/pdf" required>
+        <button type="submit" style="padding:9px 18px;background:#15803d;color:#fff;border:none;border-radius:10px;font-weight:700;cursor:pointer;">Carica</button>
+      </form>
+    </div>
+  {% endif %}
+
+  {% if can_gestire and scheda_corrente %}
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
+      <div style="font-weight:700;margin-bottom:10px;">Modifica campi estratti</div>
+      <form method="post" style="display:flex;flex-direction:column;gap:10px;">
+        {% csrf_token %}
+        <input type="hidden" name="form_type" value="modifica_campi_estratti">
+
+        <label>Pittogrammi (separati da virgola)
+          <input type="text" name="pittogrammi" value="{{ scheda_corrente.pittogrammi|join:', ' }}"
+                 style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:8px;">
+        </label>
+        <div style="display:flex;gap:12px;">
+          <label style="flex:1;">Frasi H (separate da virgola)
+            <input type="text" name="frasi_h" value="{{ scheda_corrente.frasi_h|join:', ' }}"
+                   style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:8px;">
+          </label>
+          <label style="flex:1;">Frasi P (separate da virgola)
+            <input type="text" name="frasi_p" value="{{ scheda_corrente.frasi_p|join:', ' }}"
+                   style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:8px;">
+          </label>
+        </div>
+        <label>Classificazione CLP
+          <textarea name="classificazione_clp" rows="2"
+                    style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:8px;">{{ scheda_corrente.classificazione_clp }}</textarea>
+        </label>
+        <label>DPI (testo)
+          <textarea name="dpi_testo" rows="2"
+                    style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:8px;">{{ scheda_corrente.dpi_testo }}</textarea>
+        </label>
+        <label>Primo soccorso
+          <textarea name="primo_soccorso" rows="2"
+                    style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:8px;">{{ scheda_corrente.primo_soccorso }}</textarea>
+        </label>
+        <label>Incompatibilità
+          <textarea name="incompatibilita" rows="2"
+                    style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:8px;">{{ scheda_corrente.incompatibilita }}</textarea>
+        </label>
+        <div>
+          <button type="submit" style="padding:9px 18px;background:#1d4ed8;color:#fff;border:none;border-radius:10px;font-weight:700;cursor:pointer;">Salva campi</button>
+        </div>
+      </form>
+    </div>
+  {% endif %}
+
+  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
+    <div style="font-weight:700;margin-bottom:10px;">Storico versioni</div>
+    {% if schede %}
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="text-align:left;color:#475569;">
+            <th style="padding:6px 8px;">Versione</th>
+            <th style="padding:6px 8px;">Caricata il</th>
+            <th style="padding:6px 8px;">Stato estrazione</th>
+            <th style="padding:6px 8px;">Corrente</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for scheda in schede %}
+            <tr>
+              <td style="padding:6px 8px;">{{ scheda.versione|default:"—" }}</td>
+              <td style="padding:6px 8px;">{{ scheda.data_caricamento|date:"d/m/Y H:i" }}</td>
+              <td style="padding:6px 8px;">{{ scheda.get_estrazione_stato_display }}</td>
+              <td style="padding:6px 8px;">{% if scheda.is_corrente %}✅{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div style="color:#94a3b8;font-size:13px;">Nessuna versione caricata.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

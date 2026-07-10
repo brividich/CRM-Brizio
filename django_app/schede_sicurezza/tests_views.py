@@ -184,3 +184,65 @@ class ProdottoListFiltriTest(TestCase):
     def test_badge_da_rivedere_visibile_in_lista(self):
         resp = self.client.get(reverse("schede_sicurezza:prodotto_list"))
         self.assertContains(resp, "Da rivedere")
+
+
+class ModificaCampiEstrattiTest(TestCase):
+    def setUp(self):
+        self.reparto = Reparto.objects.create(nome="Produzione")
+        self.prodotto = ProdottoChimico.objects.create(nome="Sgrassante XY", reparto=self.reparto)
+        self.scheda = SchedaSicurezza.objects.create(
+            prodotto=self.prodotto, pdf=_valid_pdf_upload(), versione="1", is_corrente=True,
+        )
+        self.admin = User.objects.create_user(username="admin_edit_campi", password="x", is_superuser=True, is_staff=True)
+        self.client.force_login(self.admin)
+
+    def test_modifica_campi_estratti_aggiorna_scheda_corrente(self):
+        url = reverse("schede_sicurezza:prodotto_detail", args=[self.prodotto.pk])
+        resp = self.client.post(url, {
+            "form_type": "modifica_campi_estratti",
+            "pittogrammi": "GHS02, GHS07",
+            "frasi_h": "H225,  H319",
+            "frasi_p": "P210",
+            "classificazione_clp": "Liquido infiammabile categoria 2.",
+            "dpi_testo": "Guanti e occhiali protettivi.",
+            "primo_soccorso": "Sciacquare abbondantemente con acqua.",
+            "incompatibilita": "Incompatibile con ossidanti forti.",
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.scheda.refresh_from_db()
+        self.assertEqual(self.scheda.pittogrammi, ["GHS02", "GHS07"])
+        self.assertEqual(self.scheda.frasi_h, ["H225", "H319"])
+        self.assertEqual(self.scheda.frasi_p, ["P210"])
+        self.assertEqual(self.scheda.classificazione_clp, "Liquido infiammabile categoria 2.")
+        self.assertEqual(self.scheda.dpi_testo, "Guanti e occhiali protettivi.")
+        self.assertEqual(self.scheda.primo_soccorso, "Sciacquare abbondantemente con acqua.")
+        self.assertEqual(self.scheda.incompatibilita, "Incompatibile con ossidanti forti.")
+
+    def test_modifica_campi_estratti_ignora_virgole_vuote(self):
+        url = reverse("schede_sicurezza:prodotto_detail", args=[self.prodotto.pk])
+        self.client.post(url, {
+            "form_type": "modifica_campi_estratti",
+            "pittogrammi": "GHS02,, ,GHS07,",
+            "frasi_h": "", "frasi_p": "",
+            "classificazione_clp": "", "dpi_testo": "", "primo_soccorso": "", "incompatibilita": "",
+        })
+        self.scheda.refresh_from_db()
+        self.assertEqual(self.scheda.pittogrammi, ["GHS02", "GHS07"])
+        self.assertEqual(self.scheda.frasi_h, [])
+
+    def test_modifica_campi_estratti_richiede_permesso_gestisci(self):
+        utente = User.objects.create_user(username="senza_permesso_edit", password="x")
+        self.client.force_login(utente)
+        url = reverse("schede_sicurezza:prodotto_detail", args=[self.prodotto.pk])
+        resp = self.client.post(url, {"form_type": "modifica_campi_estratti", "pittogrammi": "GHS02"})
+        self.scheda.refresh_from_db()
+        self.assertEqual(self.scheda.pittogrammi, [])
+
+    def test_sezione_modifica_campi_presente_nel_dettaglio_con_scheda(self):
+        resp = self.client.get(reverse("schede_sicurezza:prodotto_detail", args=[self.prodotto.pk]))
+        self.assertContains(resp, "Modifica campi estratti")
+
+    def test_sezione_modifica_campi_assente_senza_scheda_corrente(self):
+        prodotto_senza = ProdottoChimico.objects.create(nome="Senza scheda", reparto=self.reparto)
+        resp = self.client.get(reverse("schede_sicurezza:prodotto_detail", args=[prodotto_senza.pk]))
+        self.assertNotContains(resp, "Modifica campi estratti")
