@@ -6020,6 +6020,20 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.assertContains(page, "Fornitore Manut Srl")
         self.assertContains(page, reverse("fornitori:fornitore_detail", kwargs={"fornitore_id": supplier.id}))
 
+    def test_maintenance_schedule_view_selector(self):
+        self.client.force_login(self.admin)
+        base = reverse("assets:maintenance_schedule")
+        for vista in ("lista", "board", "macchina"):
+            resp = self.client.get(base + f"?vista={vista}&status=all")
+            self.assertEqual(resp.status_code, 200)
+            self.assertContains(resp, "ms-viewsel")
+        board = self.client.get(base + "?vista=board&status=all")
+        self.assertContains(board, "ms-board")
+        self.assertContains(board, "Scadute")
+        macchina = self.client.get(base + "?vista=macchina&status=all")
+        self.assertContains(macchina, "ms-machines")
+        self.assertContains(macchina, self.asset.asset_tag)
+
     def test_maintenance_worksheet_renders(self):
         self.client.force_login(self.admin)
         resp = self.client.get(

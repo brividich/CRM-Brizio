@@ -141,6 +141,71 @@ body.theme-dark .ms-record-form-wrap { background:var(--surface-alt); border-col
 .ms-ext-badge { display:inline-block; font-size:var(--fs-xs); font-weight:800; padding:1px 7px; border-radius:999px; background:#ede9fe; color:#6d28d9; margin-left:4px; white-space:nowrap; }
 body.theme-dark .ms-ext-badge { background:rgba(109,40,217,.28); color:#c4b5fd; }
 
+/* ── Selettore viste (Lista / Board / Per macchina) ── */
+.ms-viewsel { display:inline-flex; gap:2px; background:#eef1f6; border:1px solid #e2e8f0; border-radius:10px; padding:3px; }
+.ms-viewsel-btn { font-size:var(--fs-sm); font-weight:700; color:#64748b; text-decoration:none; padding:6px 12px; border-radius:8px; white-space:nowrap; }
+.ms-viewsel-btn:hover { color:#1d4ed8; }
+.ms-viewsel-btn.is-active { background:#fff; color:#1d4ed8; box-shadow:0 1px 2px rgba(15,23,42,.08); }
+body.theme-dark .ms-viewsel { background:#162032; border-color:#334155; }
+body.theme-dark .ms-viewsel-btn { color:#94a3b8; }
+body.theme-dark .ms-viewsel-btn.is-active { background:#1e293b; color:#60a5fa; box-shadow:none; }
+
+/* Tag macchina mono (board/macchina) */
+.ms-tag2 { font-family:monospace; font-size:var(--fs-xs); font-weight:800; background:#eff6ff; color:#1d4ed8; padding:1px 6px; border-radius:5px; }
+body.theme-dark .ms-tag2 { background:#1e3a5f; color:#93c5fd; }
+
+/* Concept C: corsia di stato a sinistra nella Lista */
+.ms-row-overdue  td:first-child { box-shadow:inset 4px 0 0 #dc2626; }
+.ms-row-warning  td:first-child { box-shadow:inset 4px 0 0 #d97706; }
+.ms-row-upcoming td:first-child { box-shadow:inset 4px 0 0 #16a34a; }
+.ms-row-missing  td:first-child { box-shadow:inset 4px 0 0 #94a3b8; }
+.ms-table td:first-child { padding-left:14px; }
+
+/* Concept A: Board per stato */
+.ms-board { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:14px; }
+.ms-board-colh { display:flex; align-items:center; gap:8px; font-size:var(--fs-sm); font-weight:800; margin-bottom:10px; color:#0f172a; }
+.ms-board-dot { width:9px; height:9px; border-radius:50%; }
+.ms-overdue  .ms-board-dot { background:#dc2626; } .ms-warning .ms-board-dot { background:#d97706; } .ms-upcoming .ms-board-dot { background:#16a34a; }
+.ms-board-ct { margin-left:auto; color:#94a3b8; font-weight:700; font-variant-numeric:tabular-nums; }
+.ms-kcard { display:block; background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:11px 12px 11px 15px; margin-bottom:9px; position:relative; text-decoration:none; color:inherit; cursor:pointer; }
+.ms-kcard::before { content:""; position:absolute; left:0; top:10px; bottom:10px; width:3px; border-radius:3px; }
+.ms-kcard.ms-overdue::before { background:#dc2626; } .ms-kcard.ms-warning::before { background:#d97706; } .ms-kcard.ms-upcoming::before { background:#16a34a; }
+.ms-kcard:hover { border-color:#c7d2e5; }
+.ms-kcard-int { font-size:var(--fs-sm); font-weight:700; color:#0f172a; }
+.ms-kcard-mac { font-size:var(--fs-xs); color:#64748b; margin-top:1px; }
+.ms-kcard-foot { display:flex; align-items:center; gap:8px; margin-top:8px; }
+.ms-kcard-date { font-size:var(--fs-xs); color:#94a3b8; font-variant-numeric:tabular-nums; margin-left:auto; }
+.ms-kcard-act { font-size:var(--fs-xs); font-weight:800; color:#1d4ed8; text-decoration:none; }
+.ms-board-more, .ms-board-empty { text-align:center; padding:8px; font-size:var(--fs-xs); color:#94a3b8; }
+body.theme-dark .ms-board-colh { color:var(--text); }
+body.theme-dark .ms-kcard { background:#1e293b; border-color:#334155; }
+body.theme-dark .ms-kcard-int { color:var(--text); }
+body.theme-dark .ms-kcard-act { color:#60a5fa; }
+
+/* Concept B: Per macchina */
+.ms-machines { display:grid; gap:12px; }
+.ms-mcard { border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; background:#fff; }
+.ms-mcard-h { display:flex; align-items:center; gap:12px; padding:12px 16px; background:#f8fafc; border-bottom:1px solid #e2e8f0; cursor:pointer; }
+.ms-mcard-ico { width:34px; height:34px; border-radius:9px; background:#eaf0ff; color:#1d4ed8; display:grid; place-items:center; font-size:17px; flex-shrink:0; }
+.ms-mcard-name { font-size:var(--fs-xs); color:#64748b; margin-top:1px; }
+.ms-mcard-right { margin-left:auto; }
+.ms-cnt { font-size:var(--fs-xs); font-weight:800; padding:3px 10px; border-radius:999px; white-space:nowrap; }
+.ms-cnt.sc { background:#fdecee; color:#dc2626; } .ms-cnt.wa { background:#fdf3e3; color:#b45309; } .ms-cnt.ok { background:#e6f5ec; color:#15803d; }
+.ms-mrow { display:flex; align-items:center; gap:12px; padding:10px 16px; border-top:1px solid #f1f5f9; cursor:pointer; }
+.ms-mrow:hover { background:#f8fafc; }
+.ms-mrow-int { font-size:var(--fs-sm); font-weight:600; color:#1e293b; }
+.ms-mrow-meta { margin-left:auto; display:flex; align-items:center; gap:10px; }
+.ms-mrow-date { font-size:var(--fs-xs); color:#94a3b8; font-variant-numeric:tabular-nums; }
+body.theme-dark .ms-mcard { background:#1e293b; border-color:#334155; }
+body.theme-dark .ms-mcard-h { background:#162032; border-color:#334155; }
+body.theme-dark .ms-mcard-ico { background:#1e3a5f; color:#93c5fd; }
+body.theme-dark .ms-mrow { border-color:#253347; } body.theme-dark .ms-mrow:hover { background:#253347; }
+body.theme-dark .ms-mrow-int { color:var(--text); }
+body.theme-dark .ms-cnt.sc { background:rgba(220,38,38,.22); color:#fca5a5; }
+body.theme-dark .ms-cnt.wa { background:rgba(180,83,9,.25); color:#fcd9a0; }
+body.theme-dark .ms-cnt.ok { background:rgba(21,128,61,.25); color:#86efac; }
+@media (max-width:900px) { .ms-board { grid-template-columns:1fr; } }
+
 /* Note di integrazione Outlook senza margin inline */
 .ms-calendar-note { margin:0; max-width:360px; }
 
@@ -331,6 +396,11 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
         <h2>Scadenzario</h2>
         <p>Le righe senza una data base vengono mostrate come prima esecuzione da pianificare. Clicca una riga per aprire l'asset.</p>
       </div>
+      <div class="ms-viewsel" role="tablist" aria-label="Vista scadenzario">
+        <a class="ms-viewsel-btn {% if vista == 'lista' %}is-active{% endif %}" href="{{ vista_urls.lista }}" data-vista="lista">&#9776; Lista</a>
+        <a class="ms-viewsel-btn {% if vista == 'board' %}is-active{% endif %}" href="{{ vista_urls.board }}" data-vista="board">&#9636; Board</a>
+        <a class="ms-viewsel-btn {% if vista == 'macchina' %}is-active{% endif %}" href="{{ vista_urls.macchina }}" data-vista="macchina">&#9881; Per macchina</a>
+      </div>
       <a class="btn btn-secondary ms-calendar-link" href="{% url 'assets:calendario_asset' %}"
          title="Apri le manutenzioni in vista a calendario / Gantt">&#128197; Vista calendario</a>
       {% if can_manage_outlook_calendar and not outlook_calendar_ready %}
@@ -341,6 +411,7 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
     </summary>
     <div class="ms-card-body as-collapse-body">
       {% if schedule_rows %}
+      {% if vista == 'lista' %}
         <div class="ms-table-wrap">
           <table class="ms-table">
             <thead>
@@ -355,7 +426,7 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
             </thead>
             <tbody>
               {% for row in schedule_rows %}
-                <tr data-row-href="{{ row.asset_detail_url }}">
+                <tr data-row-href="{{ row.asset_detail_url }}" class="ms-row-{{ row.schedule_status }}">
                   <td>
                     <strong><a href="{{ row.asset_detail_url }}" class="ms-cell-link">{{ row.asset.asset_tag }}</a></strong><br>
                     <span class="ms-meta">{{ row.asset.name }}{% if row.asset.reparto %} · {{ row.asset.reparto }}{% endif %}</span>
@@ -538,6 +609,66 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
             </tbody>
           </table>
         </div>
+
+      {% elif vista == 'board' %}
+        <div class="ms-board">
+          {% for col in board_columns %}
+          <div class="ms-board-col">
+            <div class="ms-board-colh ms-{{ col.key }}">
+              <span class="ms-board-dot"></span> {{ col.label }}
+              <span class="ms-board-ct">{{ col.rows|length }}</span>
+            </div>
+            {% for row in col.rows|slice:":60" %}
+              <div class="ms-kcard ms-{{ col.key }}" data-row-href="{{ row.asset_detail_url }}">
+                <div class="ms-kcard-int">{{ row.effective_intervention_template.label|truncatechars:42 }}
+                  {% if row.base_rule.is_external %}<span class="ms-ext-badge">&#127970;{% if row.base_rule.supplier %} {{ row.base_rule.supplier|truncatechars:16 }}{% endif %}</span>{% endif %}
+                </div>
+                <div class="ms-kcard-mac"><span class="ms-tag2">{{ row.asset.asset_tag }}</span> {{ row.asset.name|truncatechars:22 }}</div>
+                <div class="ms-kcard-foot">
+                  <span class="as-badge as-badge--{{ row.schedule_badge_class }}">{{ row.schedule_label }}</span>
+                  {% if row.due_date %}<span class="ms-kcard-date">{{ row.due_date|date:"d-m-y" }}</span>{% endif %}
+                  <a class="ms-kcard-act" href="{{ row.workorder_create_url }}">Registra &rsaquo;</a>
+                </div>
+              </div>
+            {% endfor %}
+            {% if col.rows|length > 60 %}<div class="ms-board-more">+ {{ col.rows|length|add:"-60" }} altre…</div>{% endif %}
+            {% if not col.rows %}<div class="ms-board-empty">Nessuna</div>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+
+      {% elif vista == 'macchina' %}
+        <div class="ms-machines">
+          {% for g in machine_groups %}
+          <div class="ms-mcard">
+            <div class="ms-mcard-h" data-row-href="{{ g.asset_detail_url }}">
+              <div class="ms-mcard-ico">&#9881;</div>
+              <div style="min-width:0;">
+                <span class="ms-tag2">{{ g.asset.asset_tag }}</span>
+                <div class="ms-mcard-name">{{ g.asset.name|truncatechars:40 }}{% if g.asset.reparto %} · {{ g.asset.reparto }}{% endif %}</div>
+              </div>
+              <div class="ms-mcard-right">
+                {% if g.overdue %}<span class="ms-cnt sc">{{ g.overdue }} scadut{{ g.overdue|pluralize:"a,e" }}</span>
+                {% elif g.warning %}<span class="ms-cnt wa">{{ g.warning }} in scadenza</span>
+                {% else %}<span class="ms-cnt ok">in regola</span>{% endif %}
+              </div>
+            </div>
+            {% for row in g.rows %}
+              <div class="ms-mrow" data-row-href="{{ row.workorder_create_url }}">
+                <span class="ms-mrow-int">{{ row.effective_intervention_template.label|truncatechars:44 }}
+                  {% if row.base_rule.is_external %}<span class="ms-ext-badge">&#127970;{% if row.base_rule.supplier %} {{ row.base_rule.supplier|truncatechars:16 }}{% endif %}</span>{% endif %}
+                </span>
+                <span class="ms-mrow-meta">
+                  <span class="as-badge as-badge--{{ row.schedule_badge_class }}">{{ row.schedule_label }}</span>
+                  {% if row.due_date %}<span class="ms-mrow-date">{{ row.due_date|date:"d-m-Y" }}</span>{% endif %}
+                </span>
+              </div>
+            {% endfor %}
+          </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
       {% else %}
         <p class="ms-empty">Nessuna manutenzione trovata con i filtri correnti.</p>
       {% endif %}
@@ -669,6 +800,27 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
       wrap.classList.toggle("open");
     });
   });
+
+  // Selettore viste: ricorda l'ultima scelta per-utente (localStorage) e la
+  // riapplica ai caricamenti "nudi" (senza ?vista in URL).
+  (function () {
+    const sel = document.querySelector(".ms-viewsel");
+    if (!sel) return;
+    const KEY = "ms_vista";
+    sel.querySelectorAll("[data-vista]").forEach((a) => {
+      a.addEventListener("click", () => { try { localStorage.setItem(KEY, a.dataset.vista); } catch (e) {} });
+    });
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (!params.has("vista")) {
+        const saved = localStorage.getItem(KEY);
+        if (saved && saved !== "lista") {
+          const target = sel.querySelector('[data-vista="' + saved + '"]');
+          if (target && target.getAttribute("href")) window.location.replace(target.getAttribute("href"));
+        }
+      }
+    } catch (e) {}
+  })();
 })();
 </script>
 {% endblock %}

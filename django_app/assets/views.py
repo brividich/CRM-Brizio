@@ -12201,12 +12201,55 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
     periodic_upcoming = sum(1 for row in periodic_schedule_rows if row["schedule_status"] == "upcoming")
     periodic_missing = sum(1 for row in periodic_schedule_rows if row["schedule_status"] == "missing")
 
+    # ── Selettore viste (Lista / Board / Per macchina) ────────────────────────
+    vista = _clean_string(request.GET.get("vista")) or "lista"
+    if vista not in ("lista", "board", "macchina"):
+        vista = "lista"
+
+    def _vista_url(target: str) -> str:
+        params = request.GET.copy()
+        params["vista"] = target
+        return f"{request.path}?{params.urlencode()}"
+
+    vista_urls = {v: _vista_url(v) for v in ("lista", "board", "macchina")}
+    # Board: colonne per stato (le righe portano già tutti i dati per la card).
+    board_columns = [
+        {"key": "overdue", "label": "Scadute", "rows": [r for r in filtered_rows if r.get("schedule_status") == "overdue"]},
+        {"key": "warning", "label": "In scadenza", "rows": [r for r in filtered_rows if r.get("schedule_status") == "warning"]},
+        {"key": "upcoming", "label": "Pianificate", "rows": [r for r in filtered_rows if r.get("schedule_status") == "upcoming"]},
+    ]
+    # Per macchina: raggruppa le righe per asset, con lo stato peggiore in testa.
+    _status_rank = {"overdue": 0, "warning": 1, "missing": 2, "upcoming": 3}
+    machine_map: dict[int, dict[str, object]] = {}
+    for r in filtered_rows:
+        asset_obj = r["asset"]
+        grp = machine_map.setdefault(
+            asset_obj.id,
+            {"asset": asset_obj, "rows": [], "overdue": 0, "warning": 0, "asset_detail_url": r.get("asset_detail_url")},
+        )
+        grp["rows"].append(r)
+        if r.get("schedule_status") == "overdue":
+            grp["overdue"] = int(grp["overdue"]) + 1
+        elif r.get("schedule_status") == "warning":
+            grp["warning"] = int(grp["warning"]) + 1
+    machine_groups = sorted(
+        machine_map.values(),
+        key=lambda g: (
+            -int(g["overdue"]), -int(g["warning"]),
+            str(getattr(g["asset"], "reparto", "") or ""), str(getattr(g["asset"], "name", "") or ""),
+        ),
+    )
+
     return render(
         request,
         "assets/pages/maintenance_schedule.html",
         {
             "page_title": "Prossime manutenzioni",
             "selected_asset": selected_asset,
+            "vista": vista,
+            "vista_urls": vista_urls,
+            "board_columns": board_columns,
+            "machine_groups": machine_groups,
             "schedule_rows": filtered_rows,
             "schedule_total": len(filtered_rows),
             "periodic_schedule_rows": periodic_schedule_rows,
