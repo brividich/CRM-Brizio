@@ -57,6 +57,31 @@ def notifica_team_nuova_segnalazione(seg) -> int:
     )
 
 
+def notifica_cliente_sms(seg, messaggio: str = "") -> int:
+    """Comunicazione al cliente per una segnalazione classificata SMS Sì.
+
+    Destinatario = `seg.cliente_email` (per-segnalazione). Invio manuale dal team.
+    `fail_silently=False`: l'esito è restituito al chiamante (la view marca la
+    comunicazione come inviata solo se l'invio riesce)."""
+    if not seg.cliente_email:
+        return 0
+    reparto = seg.reparto_provenienza.nome if seg.reparto_provenienza_id else "—"
+    corpo = (
+        f"Gentile {seg.cliente_nome or 'cliente'},\n\n"
+        f"nell'ambito del nostro Sistema di Miglioramento/Segnalazione (SMS) le "
+        f"comunichiamo la seguente segnalazione (SC#{seg.pk}, reparto {reparto}):\n\n"
+        f"{seg.opportunity}\n"
+    )
+    if messaggio:
+        corpo += f"\n{messaggio}\n"
+    return send_hub_mail(
+        f"[Suggestion Corner] Comunicazione SMS — SC#{seg.pk}",
+        corpo, [seg.cliente_email],
+        title="Comunicazione al cliente (SMS)", email_type=EMAIL_TYPE,
+        badge="SMS Sì", fail_silently=False,
+    )
+
+
 def _sollecito(dest_email: str, seg, fase: str, giorni: int) -> int:
     if not dest_email:
         return 0

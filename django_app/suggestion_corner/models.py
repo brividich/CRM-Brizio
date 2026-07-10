@@ -105,6 +105,14 @@ class SuggestionCorner(models.Model):
         max_length=10, choices=StatoSMS.choices, default=StatoSMS.DA_GESTIRE,
     )
 
+    # Comunicazione al cliente (solo per le segnalazioni classificate SMS Sì).
+    # Destinatario per-segnalazione (§ analisi PowerApps): l'indirizzo si inserisce
+    # caso per caso al momento della comunicazione; l'invio è manuale (bottone).
+    cliente_nome = models.CharField(max_length=200, blank=True)
+    cliente_email = models.EmailField(blank=True)
+    comunicazione_cliente_inviata = models.BooleanField(default=False)
+    data_comunicazione_cliente = models.DateTimeField(null=True, blank=True)
+
     # Reminder tracking (§3) — flag per soglia, la scadenza è calcolata a runtime
     sollecito_do_30 = models.BooleanField(default=False)
     sollecito_do_15 = models.BooleanField(default=False)

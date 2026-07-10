@@ -16,6 +16,7 @@
 
   <dl class="hub-dl">
     <dt>Stato</dt><dd>{{ seg.stato_label }}</dd>
+    <dt>Classificazione SMS</dt><dd>{{ seg.get_stato_sms_display }}</dd>
     <dt>Data</dt><dd>{{ seg.data_segnalazione|date:"d/m/Y" }}</dd>
     <dt>Reparto provenienza</dt><dd>{{ seg.reparto_provenienza.nome }}</dd>
     <dt>Processo</dt><dd>{{ seg.processo|default:seg.processo_libero|default:"—" }}</dd>
@@ -30,6 +31,25 @@
   {% if seg.do_testo %}<h2>Do</h2><p>{{ seg.do_testo|linebreaksbr }}</p>{% endif %}
   {% if seg.check_testo %}<h2>Check</h2><p>{{ seg.check_testo|linebreaksbr }}</p>{% endif %}
   {% if seg.act_testo %}<h2>Act</h2><p>{{ seg.act_testo|linebreaksbr }}</p>{% endif %}
+
+  {# --- Comunicazione al cliente (solo SMS Sì, team) --- #}
+  {% if is_team and seg.stato_sms == SMS.SMS_SI %}
+  <h2>Comunicazione al cliente</h2>
+  {% if seg.comunicazione_cliente_inviata %}
+    <p class="hub-alert hub-alert-success">
+      Comunicato al cliente il {{ seg.data_comunicazione_cliente|date:"d/m/Y H:i" }}
+      {% if seg.cliente_email %}a <strong>{{ seg.cliente_email }}</strong>{% endif %}.
+    </p>
+  {% else %}
+    <p class="hub-help">Segnalazione classificata <strong>SMS Sì</strong>: da comunicare al cliente.</p>
+  {% endif %}
+  <form method="post" action="{% url 'suggestion_corner:comunica_cliente' seg.pk %}" class="hub-form-stack">
+    {% csrf_token %}{{ form_comunica_cliente.as_p }}
+    <button type="submit" class="hub-btn hub-btn-primary">
+      {% if seg.comunicazione_cliente_inviata %}Reinvia comunicazione{% else %}Invia comunicazione{% endif %}
+    </button>
+  </form>
+  {% endif %}
 
   {# --- Pannello azioni FSM (sessione 3b) --- #}
   <h2>Azioni</h2>

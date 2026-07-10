@@ -73,6 +73,10 @@ def dettaglio(request, pk: int):
         "form_do_rifare": sc_forms.DoRifareForm(),
         "form_check": sc_forms.CheckForm(),
         "form_check_rinviato": sc_forms.CheckRinviatoForm(),
+        "form_comunica_cliente": sc_forms.ComunicazioneClienteForm(initial={
+            "cliente_nome": seg.cliente_nome, "cliente_email": seg.cliente_email,
+        }),
+        "SMS": SuggestionCorner.StatoSMS,
     }
     return render(request, "suggestion_corner/dettaglio.html", ctx)
 
@@ -104,6 +108,59 @@ def modifica(request, pk: int):
         form = sc_forms.ModificaSegnalazioneForm(instance=seg)
 
     return render(request, "suggestion_corner/modifica.html", {"seg": seg, "form": form})
+
+
+@login_required
+@require_POST
+def azione_comunica_cliente(request, pk: int):
+    """Invia la comunicazione al cliente per una segnalazione SMS Sì e ne traccia
+    l'esito (data + flag). Riservata al team SMS; disponibile solo se la
+    segnalazione è classificata SMS Sì. Destinatario per-segnalazione."""
+    from django.utils import timezone
+
+    from .notifications import notifica_cliente_sms
+
+    seg = get_object_or_404(SuggestionCorner, pk=pk)
+    if not is_sms_team(request.user):
+        raise PermissionDenied("Solo il team SMS può comunicare al cliente.")
+    if seg.stato_sms != SuggestionCorner.StatoSMS.SMS_SI:
+        messages.error(request, "La comunicazione al cliente è prevista solo per le segnalazioni classificate SMS Sì.")
+        return redirect("suggestion_corner:dettaglio", pk=pk)
+
+    form = sc_forms.ComunicazioneClienteForm(request.POST)
+    if not form.is_valid():
+        for field, errs in form.errors.items():
+            messages.error(request, f"{field}: {'; '.join(errs)}")
+        return redirect("suggestion_corner:dettaglio", pk=pk)
+
+    cd = form.cleaned_data
+    seg.cliente_nome = cd["cliente_nome"]
+    seg.cliente_email = cd["cliente_email"]
+    try:
+        notifica_cliente_sms(seg, cd.get("messaggio", ""))
+    except Exception as exc:  # invio fallito: salva il destinatario, non marcare
+        seg.save(update_fields=["cliente_nome", "cliente_email", "updated_at"])
+        messages.error(request, f"Invio della comunicazione fallito: {exc}")
+        return redirect("suggestion_corner:dettaglio", pk=pk)
+
+    seg.comunicazione_cliente_inviata = True
+    seg.data_comunicazione_cliente = timezone.now()
+    seg.updated_by = request.user
+    seg.save()
+    _log_comunicazione_cliente(seg, request.user)
+    messages.success(request, f"Comunicazione inviata al cliente ({seg.cliente_email}).")
+    return redirect("suggestion_corner:dettaglio", pk=pk)
+
+
+def _log_comunicazione_cliente(seg, user):
+    from .models import SuggestionCornerStorico
+
+    SuggestionCornerStorico.objects.create(
+        segnalazione=seg, stato_precedente=seg.stato, stato_nuovo=seg.stato,
+        campo_modificato="comunicazione_cliente",
+        valore_nuovo=f"Comunicato al cliente: {seg.cliente_email}",
+        autore=user,
+    )
 
 
 def _log_modifica_manuale(seg, user, changed_fields):

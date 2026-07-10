@@ -11,6 +11,7 @@ urlpatterns = [
     path("<int:pk>/modifica/", views.modifica, name="modifica"),  # gestione (SMS_TEAM)
     # Azioni FSM (sessione 3b) — POST
     path("<int:pk>/classifica/", views.azione_classifica, name="classifica"),
+    path("<int:pk>/comunica-cliente/", views.azione_comunica_cliente, name="comunica_cliente"),
     path("<int:pk>/plan/", views.azione_definisci_plan, name="definisci_plan"),
     path("<int:pk>/avvia-do/", views.azione_avvia_do, name="avvia_do"),
     path("<int:pk>/completa-do/", views.azione_completa_do, name="completa_do"),

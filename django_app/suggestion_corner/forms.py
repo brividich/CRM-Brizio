@@ -48,6 +48,7 @@ class ModificaSegnalazioneForm(forms.ModelForm):
         fields = [
             "reparto_provenienza", "reparto_destinazione", "processo_libero",
             "opportunity", "stato_sms",
+            "cliente_nome", "cliente_email",
             "incaricato", "controllore",
             "plan_testo", "do_testo", "esito_do",
             "check_testo", "esito_check", "act_testo",
@@ -70,6 +71,17 @@ class ModificaSegnalazioneForm(forms.ModelForm):
         )
         for f in ("incaricato", "controllore"):
             self.fields[f].queryset = User.objects.filter(is_active=True).order_by("username")
+
+
+class ComunicazioneClienteForm(forms.Form):
+    """Comunicazione al cliente per le segnalazioni SMS Sì (destinatario
+    per-segnalazione). L'invio è manuale, riservato al team SMS."""
+    cliente_nome = forms.CharField(label="Cliente", max_length=200, required=False)
+    cliente_email = forms.EmailField(label="Email cliente")
+    messaggio = forms.CharField(
+        label="Messaggio (opzionale)", widget=forms.Textarea(attrs={"rows": 3}),
+        required=False,
+    )
 
 
 class ClassificaForm(forms.Form):
