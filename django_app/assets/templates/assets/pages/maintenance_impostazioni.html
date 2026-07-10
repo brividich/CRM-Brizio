@@ -195,6 +195,23 @@ a.mi-pill.danger:hover { background:#fecaca; }
   background:#f8fafc; border-bottom:1px solid #f1f5f9;
 }
 body.theme-dark .mi-plan-intro { background:#162032; border-color:#253347; color:#94a3b8; }
+
+/* Conformità piano manutenzione */
+.mi-compliance-hero { display:flex; align-items:center; gap:14px; padding:2px 0 12px; margin-bottom:10px; border-bottom:1px solid #e2e8f0; }
+.mi-comp-num { font-size:34px; font-weight:800; line-height:1; font-variant-numeric:tabular-nums; }
+.mi-comp-num span { font-size:16px; font-weight:700; margin-left:1px; }
+.mi-comp-num.ok { color:#15803d; } .mi-comp-num.wa { color:#b45309; } .mi-comp-num.sc { color:#dc2626; }
+.mi-comp-lbl { font-size:12.5px; font-weight:800; color:#0f172a; text-transform:uppercase; letter-spacing:.04em; }
+.mi-comp-sub { font-size:12px; color:#64748b; margin-top:2px; }
+.mi-bar-wrap { display:flex; align-items:center; gap:8px; min-width:110px; }
+.mi-bar { flex:1; height:8px; background:#e5e7eb; border-radius:999px; overflow:hidden; min-width:52px; }
+.mi-bar-fill { display:block; height:100%; border-radius:999px; }
+.mi-bar-fill.ok { background:#16a34a; } .mi-bar-fill.wa { background:#d97706; } .mi-bar-fill.sc { background:#dc2626; }
+.mi-bar-pct { font-size:12px; font-weight:800; font-variant-numeric:tabular-nums; min-width:34px; }
+.mi-bar-pct.ok { color:#15803d; } .mi-bar-pct.wa { color:#b45309; } .mi-bar-pct.sc { color:#dc2626; }
+body.theme-dark .mi-compliance-hero { border-color:#253347; }
+body.theme-dark .mi-comp-lbl { color:var(--text); }
+body.theme-dark .mi-bar { background:#334155; }
 .mi-scope-tag {
   font-size:var(--fs-xs); padding:2px 7px; border-radius:5px;
   font-weight:700;
@@ -420,6 +437,15 @@ body.theme-dark .mi-rule-label { color:#475569; }
       <a href="{{ url_schedule }}" class="mi-link">Apri scadenzario operativo &rsaquo;</a>
     </summary>
     <div class="mi-plan-intro">
+      {% if plan_totals.compliance_pct is not None %}
+        <div class="mi-compliance-hero">
+          <div class="mi-comp-num {% if plan_totals.compliance_pct >= 90 %}ok{% elif plan_totals.compliance_pct >= 70 %}wa{% else %}sc{% endif %}">{{ plan_totals.compliance_pct }}<span>%</span></div>
+          <div>
+            <div class="mi-comp-lbl">Conformità complessiva</div>
+            <div class="mi-comp-sub">manutenzioni pianificate non scadute · {{ plan_totals.overdue }} scadute su {{ plan_totals.tracked }} tracciate</div>
+          </div>
+        </div>
+      {% endif %}
       Salute della manutenzione programmata per categoria asset: regole <strong>a giorni</strong> e
       <strong>a contatore</strong> (ore/km/cicli, valutate sui contatori <code>AssetMeter</code> correnti).
       Da qui apri lo scadenzario operativo filtrato sulla categoria.
@@ -428,6 +454,7 @@ body.theme-dark .mi-rule-label { color:#475569; }
       <table class="mi-table">
         <thead><tr>
           <th scope="col">Categoria</th>
+          <th scope="col">Conformità</th>
           <th scope="col">Regole</th>
           <th scope="col">Asset</th>
           <th scope="col">Scadute</th>
@@ -441,6 +468,16 @@ body.theme-dark .mi-rule-label { color:#475569; }
             {% for r in plan_rows %}
             <tr data-row-href="{{ r.schedule_url }}">
               <td><strong>{{ r.category.label }}</strong></td>
+              <td>
+                {% if r.compliance_pct is not None %}
+                  <div class="mi-bar-wrap" title="{{ r.overdue }} scadute su {{ r.tracked }} tracciate">
+                    <div class="mi-bar"><span class="mi-bar-fill {% if r.compliance_pct >= 90 %}ok{% elif r.compliance_pct >= 70 %}wa{% else %}sc{% endif %}" style="width:{{ r.compliance_pct }}%"></span></div>
+                    <span class="mi-bar-pct {% if r.compliance_pct >= 90 %}ok{% elif r.compliance_pct >= 70 %}wa{% else %}sc{% endif %}">{{ r.compliance_pct }}%</span>
+                  </div>
+                {% else %}
+                  <span class="mi-muted">n/d</span>
+                {% endif %}
+              </td>
               <td>
                 <span class="mi-badge">{{ r.rules_count }}</span>
                 {% if r.meter_rules_count %}<span class="mi-rule-warning mi-muted">{{ r.meter_rules_count }} a contatore</span>{% endif %}
@@ -459,7 +496,7 @@ body.theme-dark .mi-rule-label { color:#475569; }
             {% endfor %}
           {% else %}
             <tr>
-              <td colspan="8" class="mi-empty">
+              <td colspan="9" class="mi-empty">
                 Nessuna regola di manutenzione attiva con categoria. Crea un
                 <a href="{{ url_template_new }}" class="mi-link">template</a> e poi una
                 <a href="{{ url_rule_new }}" class="mi-link">regola</a> per popolare il piano.

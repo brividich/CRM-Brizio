@@ -15968,6 +15968,10 @@ def _maintenance_plan_by_category_rows() -> list[dict[str, object]]:
         warning = int(bucket["warning"])
         upcoming = int(bucket["upcoming"])
         missing = int(bucket["missing"])
+        # Conformità (snapshot): quota di manutenzioni pianificate NON scadute.
+        # tracked = quelle con scadenza calcolata (esclude le baseline "mai eseguite").
+        tracked = overdue + warning + upcoming
+        compliance_pct = round(100 * (tracked - overdue) / tracked) if tracked else None
         rows.append(
             {
                 "category": category,
@@ -15979,6 +15983,8 @@ def _maintenance_plan_by_category_rows() -> list[dict[str, object]]:
                 "warning": warning,
                 "upcoming": upcoming,
                 "missing": missing,
+                "tracked": tracked,
+                "compliance_pct": compliance_pct,
                 "due_total": overdue + warning + missing,
                 "schedule_url": _maintenance_schedule_page_url(category_id=cat_id),
                 "schedule_due_url": _maintenance_schedule_page_url(category_id=cat_id, status="due"),
@@ -16062,10 +16068,14 @@ def maintenance_impostazioni(request: HttpRequest) -> HttpResponse:
     )
 
     plan_rows = _maintenance_plan_by_category_rows() if active_tab == "piano" else []
+    _plan_tracked = sum(int(r["tracked"]) for r in plan_rows)
+    _plan_overdue = sum(int(r["overdue"]) for r in plan_rows)
     plan_totals = {
-        "overdue": sum(int(r["overdue"]) for r in plan_rows),
+        "overdue": _plan_overdue,
         "warning": sum(int(r["warning"]) for r in plan_rows),
         "missing": sum(int(r["missing"]) for r in plan_rows),
+        "tracked": _plan_tracked,
+        "compliance_pct": round(100 * (_plan_tracked - _plan_overdue) / _plan_tracked) if _plan_tracked else None,
     }
     # Conteggio leggero (sempre disponibile) per il badge del tab Piano
     plan_category_count = (

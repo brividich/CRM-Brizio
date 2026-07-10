@@ -6020,6 +6020,24 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.assertContains(page, "Fornitore Manut Srl")
         self.assertContains(page, reverse("fornitori:fornitore_detail", kwargs={"fornitore_id": supplier.id}))
 
+    def test_maintenance_plan_compliance_column(self):
+        from datetime import timedelta
+
+        from assets.models import AssetMaintenanceRuleState
+
+        AssetMaintenanceRuleState.objects.update_or_create(
+            asset=self.asset,
+            base_rule=self.base_rule,
+            defaults={"last_execution_date": timezone.localdate() - timedelta(days=500)},
+        )
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("assets:maintenance_impostazioni") + "?tab=piano")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Conformità")
+        self.assertContains(resp, "mi-bar-fill")
+        # regola scaduta -> conformità 0% per la categoria e complessiva
+        self.assertContains(resp, "Conformità complessiva")
+
     def test_maintenance_schedule_view_selector(self):
         self.client.force_login(self.admin)
         base = reverse("assets:maintenance_schedule")
