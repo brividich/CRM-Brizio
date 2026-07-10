@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import csv
+import io
+
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 
-from anagrafica.models import Reparto
+from anagrafica.models import AreaAziendale, DipendenteAnagraficaAziendale, Reparto
+from core.models import Profile
 
-from .models import ProdottoChimico
+from .models import PresaVisioneScheda, ProdottoChimico, SchedaSicurezza
 
 User = get_user_model()
 
@@ -38,15 +42,6 @@ class ReportComplianceViewTest(TestCase):
         resp = self.client.get(reverse("schede_sicurezza:report_compliance"))
         self.assertEqual(resp.status_code, 302)
         self.assertIn("login", resp.url.lower())
-
-
-import csv
-import io
-
-from anagrafica.models import AreaAziendale, DipendenteAnagraficaAziendale
-from core.models import Profile
-
-from .models import PresaVisioneScheda, SchedaSicurezza
 
 
 class ReportComplianceCsvExportTest(TestCase):
