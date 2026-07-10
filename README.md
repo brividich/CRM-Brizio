@@ -754,6 +754,7 @@ Archivio schede dati di sicurezza (SDS) dei prodotti chimici, ancorato al repart
 - **Validazione upload SDS** con magic bytes (`core.upload_mime`, no solo estensione)
 - **ACL v2 canonico**: permessi `schede_sicurezza.prodotto.view`/`.gestisci`, route binding su tutte le view, voce di menu "Schede di Sicurezza" nell'area Sicurezza
 - **Report compliance** (`/schede-sicurezza/report/`): prodotti attivi senza scheda corrente + matrice per reparto della % di dipendenti attivi che hanno confermato la presa visione (denominatore = `anagrafica.DipendenteAnagraficaAziendale` attivi collegati via `area_aziendale`), export CSV per entrambe le sezioni
+- **Filtri lista** (reparto/famiglia/stato scheda) e **badge "Da rivedere"** (SDS non aggiornata da oltre 36 mesi, soglia unica riusata anche nel filtro); **editing manuale** dei campi curati (pittogrammi/frasi H-P/CLP/DPI/primo soccorso/incompatibilità) nel dettaglio prodotto, per correggere estrazioni PyMuPDF parziali; CTA verso `anagrafica:aree_list` quando non esiste ancora nessun reparto
 </details>
 
 ---
