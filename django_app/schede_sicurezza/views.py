@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import logging
+from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -9,11 +10,12 @@ from django.db.models import Q
 from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 
-from .models import PresaVisioneScheda, ProdottoChimico, SchedaSicurezza
+from .models import SCADENZA_SDS_GIORNI, PresaVisioneScheda, ProdottoChimico, SchedaSicurezza
 from .reports import matrice_presa_visione, prodotti_senza_scheda_corrente
 from .services.ingestion import estrai_sds
 from .services.qr import genera_qr_png
@@ -73,7 +75,13 @@ def prodotto_list(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("dashboard:dashboard")
 
+    from anagrafica.models import Reparto
+
     query = request.GET.get("q", "").strip()
+    reparto_id = request.GET.get("reparto", "").strip()
+    famiglia = request.GET.get("famiglia", "").strip()
+    stato = request.GET.get("stato", "").strip()
+
     qs = (
         ProdottoChimico.objects.filter(attivo=True)
         .select_related("reparto")
@@ -85,9 +93,29 @@ def prodotto_list(request):
             | Q(fornitore__icontains=query)
             | Q(codice_prodotto__icontains=query)
         )
+    if reparto_id:
+        qs = qs.filter(reparto_id=reparto_id)
+    if famiglia:
+        qs = qs.filter(famiglia=famiglia)
+    if stato == "senza_scheda":
+        qs = qs.filter(pk__in=prodotti_senza_scheda_corrente())
+    elif stato == "con_scheda":
+        qs = qs.filter(schede__is_corrente=True).distinct()
+    elif stato == "da_rivedere":
+        soglia = timezone.now() - timedelta(days=SCADENZA_SDS_GIORNI)
+        qs = qs.filter(schede__is_corrente=True, schede__data_caricamento__lt=soglia).distinct()
+
     return render(request, "schede_sicurezza/pages/prodotto_list.html", {
         "prodotti": qs,
         "query": query,
+        "reparto_selezionato": reparto_id,
+        "famiglia_selezionata": famiglia,
+        "stato_selezionato": stato,
+        "reparti_options": Reparto.objects.filter(is_active=True).order_by("nome"),
+        "famiglie_options": (
+            ProdottoChimico.objects.exclude(famiglia="")
+            .values_list("famiglia", flat=True).distinct().order_by("famiglia")
+        ),
         "can_gestire": _can_gestire(request),
     })
 

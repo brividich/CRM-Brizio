@@ -56,10 +56,28 @@ body.theme-dark .ss-empty { color:var(--text-light); }
     </div>
   </div>
 
-  <form method="get" style="display:flex;gap:6px;align-items:center;">
+  <form method="get" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
     <input type="text" name="q" value="{{ query }}" placeholder="Cerca nome, fornitore, codice..."
-           style="padding:7px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;min-width:240px;">
-    <button type="submit" class="ss-btn ss-btn-sm">Cerca</button>
+           style="padding:7px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;min-width:220px;">
+    <select name="reparto" style="padding:7px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;">
+      <option value="">Tutti i reparti</option>
+      {% for r in reparti_options %}
+        <option value="{{ r.pk }}" {% if reparto_selezionato == r.pk|stringformat:"s" %}selected{% endif %}>{{ r.nome }}</option>
+      {% endfor %}
+    </select>
+    <select name="famiglia" style="padding:7px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;">
+      <option value="">Tutte le famiglie</option>
+      {% for f in famiglie_options %}
+        <option value="{{ f }}" {% if famiglia_selezionata == f %}selected{% endif %}>{{ f }}</option>
+      {% endfor %}
+    </select>
+    <select name="stato" style="padding:7px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;">
+      <option value="">Tutti gli stati</option>
+      <option value="con_scheda" {% if stato_selezionato == "con_scheda" %}selected{% endif %}>Con scheda</option>
+      <option value="senza_scheda" {% if stato_selezionato == "senza_scheda" %}selected{% endif %}>Senza scheda</option>
+      <option value="da_rivedere" {% if stato_selezionato == "da_rivedere" %}selected{% endif %}>Da rivedere</option>
+    </select>
+    <button type="submit" class="ss-btn ss-btn-sm">Filtra</button>
   </form>
 
   <div class="ss-table-wrap">
@@ -83,6 +101,9 @@ body.theme-dark .ss-empty { color:var(--text-light); }
               <td>
                 {% if prodotto.scheda_corrente %}
                   <span class="ss-badge ss-badge-current">v.{{ prodotto.scheda_corrente.versione|default:"?" }}</span>
+                  {% if prodotto.scheda_corrente.scaduta %}
+                    <span class="ss-badge ss-badge-missing" title="Nessun aggiornamento da oltre 36 mesi">Da rivedere</span>
+                  {% endif %}
                 {% else %}
                   <span class="ss-badge ss-badge-missing">Nessuna scheda</span>
                 {% endif %}
