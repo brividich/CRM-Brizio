@@ -86,3 +86,28 @@ class ReportComplianceCsvExportTest(TestCase):
             ["Reparto", "Prodotto", "Versione scheda", "Dipendenti totali", "Confermati", "Percentuale"],
         )
         self.assertIn(["Produzione", "Con scheda", "Rev.2", "1", "1", "100%"], righe)
+
+
+class ReportComplianceTemplateTest(TestCase):
+    def setUp(self):
+        self.reparto = Reparto.objects.create(nome="Produzione")
+        self.area = AreaAziendale.objects.create(nome="Produzione - Linea 1", reparto=self.reparto)
+        self.prodotto = ProdottoChimico.objects.create(nome="Con scheda", reparto=self.reparto)
+        self.scheda = SchedaSicurezza.objects.create(
+            prodotto=self.prodotto, pdf=_pdf(), versione="Rev.2", is_corrente=True,
+        )
+        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=9201, area_aziendale=self.area)
+        dip_user = User.objects.create_user(username="dip9201", password="x")
+        Profile.objects.create(user=dip_user, legacy_user_id=9201)
+        self.admin = User.objects.create_user(username="admin_tpl", password="x", is_superuser=True, is_staff=True)
+
+    def test_matrice_mostra_percentuale_e_badge(self):
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("schede_sicurezza:report_compliance"))
+        self.assertContains(resp, "Rev.2")
+        self.assertContains(resp, "0%")  # nessuna presa visione ancora confermata
+
+    def test_link_report_presente_in_lista_prodotti(self):
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("schede_sicurezza:prodotto_list"))
+        self.assertContains(resp, reverse("schede_sicurezza:report_compliance"))

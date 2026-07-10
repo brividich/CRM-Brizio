@@ -2,13 +2,90 @@
 
 {% block title %}Report compliance | Schede Sicurezza{% endblock %}
 
+{% block extra_head %}
+<style>
+.ss-report-section { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:16px; margin-bottom:20px; }
+.ss-report-title { font-size:16px; font-weight:800; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; }
+.ss-pct-badge { display:inline-block; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700; }
+.ss-pct-rosso { background:#fee2e2; color:#dc2626; }
+.ss-pct-arancione { background:#fef3c7; color:#b45309; }
+.ss-pct-verde { background:#dcfce7; color:#15803d; }
+.ss-pct-nd { background:#f1f5f9; color:#64748b; }
+
+body.theme-dark .ss-report-section { background:var(--surface); border-color:var(--border); }
+body.theme-dark .ss-pct-rosso { background:rgba(220,38,38,.2); color:#fca5a5; }
+body.theme-dark .ss-pct-arancione { background:rgba(180,83,9,.2); color:#fbbf24; }
+body.theme-dark .ss-pct-verde { background:rgba(21,128,61,.2); color:#86efac; }
+body.theme-dark .ss-pct-nd { background:var(--surface-alt); color:var(--text-light); }
+</style>
+{% endblock %}
+
 {% block content %}
-<div>
-  <h1>Report compliance SDS</h1>
-  <ul>
-    {% for prodotto in gap %}
-      <li>{{ prodotto.nome }}</li>
-    {% endfor %}
-  </ul>
+<div style="display:flex;flex-direction:column;gap:8px;">
+  <div class="ss-header-row">
+    <div class="ss-page-title">Report compliance SDS</div>
+    <a href="{% url 'schede_sicurezza:prodotto_list' %}" class="ss-btn ss-btn-sm ss-btn-gray">← Torna all'elenco</a>
+  </div>
+
+  <div class="ss-report-section">
+    <div class="ss-report-title">
+      Prodotti senza scheda corrente ({{ gap|length }})
+      <a href="?formato=csv&amp;sezione=gap" class="ss-btn ss-btn-sm ss-btn-gray">Export CSV</a>
+    </div>
+    {% if gap %}
+      <table class="ss-table">
+        <thead><tr><th>Prodotto</th><th>Reparto</th><th>Fornitore</th><th></th></tr></thead>
+        <tbody>
+          {% for prodotto in gap %}
+            <tr>
+              <td>{{ prodotto.nome }}</td>
+              <td>{{ prodotto.reparto.nome }}</td>
+              <td>{{ prodotto.fornitore|default:"—" }}</td>
+              <td><a href="{% url 'schede_sicurezza:prodotto_detail' pk=prodotto.pk %}" class="ss-btn ss-btn-sm ss-btn-gray">Carica SDS</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="ss-empty">Tutti i prodotti attivi hanno una scheda corrente.</div>
+    {% endif %}
+  </div>
+
+  <div class="ss-report-section">
+    <div class="ss-report-title">
+      Presa visione per reparto
+      <a href="?formato=csv&amp;sezione=matrice" class="ss-btn ss-btn-sm ss-btn-gray">Export CSV</a>
+    </div>
+    {% if matrice %}
+      <table class="ss-table">
+        <thead><tr><th>Reparto</th><th>Prodotto</th><th>Versione</th><th>Confermati</th><th>Copertura</th></tr></thead>
+        <tbody>
+          {% for reparto_row in matrice %}
+            {% for riga in reparto_row.righe %}
+              <tr>
+                <td>{{ reparto_row.reparto_nome }}</td>
+                <td>{{ riga.prodotto_nome }}</td>
+                <td>{{ riga.scheda_versione|default:"—" }}</td>
+                <td>{{ riga.confermati }} / {{ riga.totale_dipendenti }}</td>
+                <td>
+                  {% if riga.percentuale is None %}
+                    <span class="ss-pct-badge ss-pct-nd" title="Nessun dipendente collegato al reparto tramite area aziendale">n/d</span>
+                  {% elif riga.percentuale >= 100 %}
+                    <span class="ss-pct-badge ss-pct-verde">{{ riga.percentuale }}%</span>
+                  {% elif riga.percentuale >= 50 %}
+                    <span class="ss-pct-badge ss-pct-arancione">{{ riga.percentuale }}%</span>
+                  {% else %}
+                    <span class="ss-pct-badge ss-pct-rosso">{{ riga.percentuale }}%</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="ss-empty">Nessun prodotto con scheda corrente da monitorare.</div>
+    {% endif %}
+  </div>
 </div>
 {% endblock %}

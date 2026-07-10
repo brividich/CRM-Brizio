@@ -1,0 +1,102 @@
+{% extends "core/base.html" %}
+
+{% block title %}Schede di Sicurezza | Portale{% endblock %}
+
+{% block body_class %}{{ block.super }} ss-page{% endblock %}
+
+{% block extra_head %}
+<style>
+#ss-root { display:flex; flex-direction:column; gap:20px; }
+.ss-header-row { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.ss-page-title { font-size:20px; font-weight:900; color:#0f172a; }
+.ss-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 18px; border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; background:#1d4ed8; color:#fff; border:none; cursor:pointer; }
+.ss-btn:hover { background:#1e40af; }
+.ss-btn-sm { padding:5px 12px; font-size:12px; border-radius:7px; }
+.ss-btn-gray { background:#f1f5f9; color:#475569; }
+.ss-btn-gray:hover { background:#e2e8f0; color:#0f172a; }
+.ss-table-wrap { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow-x:auto; }
+.ss-table { width:100%; border-collapse:collapse; font-size:13px; }
+.ss-table th { background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:10px 14px; text-align:left; font-weight:700; color:#475569; }
+.ss-table td { padding:10px 14px; border-bottom:1px solid #f1f5f9; color:#0f172a; vertical-align:middle; }
+.ss-table tr:last-child td { border-bottom:none; }
+.ss-table tr:hover td { background:#f8fafc; }
+.ss-badge { display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; }
+.ss-badge-current { background:#dcfce7; color:#15803d; }
+.ss-badge-missing { background:#fee2e2; color:#dc2626; }
+.ss-empty { text-align:center; padding:40px; color:#64748b; font-size:14px; }
+
+body.theme-dark .ss-page-title { color:var(--text); }
+body.theme-dark .ss-btn-gray { background:var(--surface); color:var(--text-mid); }
+body.theme-dark .ss-btn-gray:hover { background:var(--surface-alt); color:var(--text); }
+body.theme-dark .ss-table-wrap { background:var(--surface); border-color:var(--border); }
+body.theme-dark .ss-table th { background:var(--thead-bg); border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .ss-table td { border-color:var(--border); color:var(--text); }
+body.theme-dark .ss-table tr:hover td { background:var(--tbody-hover); }
+body.theme-dark .ss-badge-current { background:rgba(21,128,61,.2); color:#86efac; }
+body.theme-dark .ss-badge-missing { background:rgba(220,38,38,.2); color:#fca5a5; }
+body.theme-dark .ss-empty { color:var(--text-light); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="ss-root">
+  {% if messages %}
+    {% for msg in messages %}
+      <div style="padding:12px 16px;border-radius:10px;background:{% if 'error' in msg.tags %}#fee2e2{% else %}#dcfce7{% endif %};color:{% if 'error' in msg.tags %}#dc2626{% else %}#15803d{% endif %};font-size:13px;font-weight:600;">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="ss-header-row">
+    <div class="ss-page-title">Schede di Sicurezza (SDS)</div>
+    <div style="display:flex;gap:8px;">
+      {% if can_gestire %}
+        <a href="{% url 'schede_sicurezza:report_compliance' %}" class="ss-btn ss-btn-gray">Report compliance</a>
+        <a href="{% url 'schede_sicurezza:prodotto_nuovo' %}" class="ss-btn">+ Nuovo prodotto</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <form method="get" style="display:flex;gap:6px;align-items:center;">
+    <input type="text" name="q" value="{{ query }}" placeholder="Cerca nome, fornitore, codice..."
+           style="padding:7px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;min-width:240px;">
+    <button type="submit" class="ss-btn ss-btn-sm">Cerca</button>
+  </form>
+
+  <div class="ss-table-wrap">
+    {% if prodotti %}
+      <table class="ss-table">
+        <thead>
+          <tr>
+            <th>Nome</th>
+            <th>Reparto</th>
+            <th>Fornitore</th>
+            <th>Scheda corrente</th>
+            <th>Azioni</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for prodotto in prodotti %}
+            <tr>
+              <td><strong>{{ prodotto.nome }}</strong>{% if prodotto.codice_prodotto %}<br><span style="font-size:11px;color:#64748b;">{{ prodotto.codice_prodotto }}</span>{% endif %}</td>
+              <td>{{ prodotto.reparto.nome }}</td>
+              <td>{{ prodotto.fornitore|default:"—" }}</td>
+              <td>
+                {% if prodotto.scheda_corrente %}
+                  <span class="ss-badge ss-badge-current">v.{{ prodotto.scheda_corrente.versione|default:"?" }}</span>
+                {% else %}
+                  <span class="ss-badge ss-badge-missing">Nessuna scheda</span>
+                {% endif %}
+              </td>
+              <td>
+                <a href="{% url 'schede_sicurezza:prodotto_detail' pk=prodotto.pk %}" class="ss-btn ss-btn-sm ss-btn-gray">Apri</a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="ss-empty">Nessun prodotto chimico censito.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
