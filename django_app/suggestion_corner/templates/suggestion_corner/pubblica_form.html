@@ -4,42 +4,171 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Suggestion Corner — Nuova segnalazione</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; color: #1a2233; }
-    h1 { font-size: 1.5rem; }
-    label { display: block; font-weight: 600; margin-top: 1rem; }
-    input, textarea, select { width: 100%; padding: .5rem; margin-top: .25rem; box-sizing: border-box; }
-    textarea { min-height: 140px; }
-    .sc-hp { position: absolute; left: -9999px; top: -9999px; }
-    button { margin-top: 1.25rem; padding: .6rem 1.4rem; font-size: 1rem; cursor: pointer; }
-    .errorlist { color: #b00020; margin: .25rem 0 0; padding-left: 1rem; }
-    .anon { font-weight: 400; }
+    /* Token HUB (allineati a core/css/theme.css) — pagina anonima self-contained */
+    :root{
+      --bg:#f2f5f8; --surface:#fff; --border:#d7e0ea;
+      --primary:#002b5c; --primary-mid:#2f5f89; --accent:#ff6b00; --accent-light:#fff4ed;
+      --text:#1a202c; --text-mid:#4a5568; --text-light:#94a3b8;
+      --danger:#e53e3e; --danger-bg:#fff5f5;
+      --radius:16px; --shadow:0 1px 3px rgba(0,0,0,.06),0 12px 40px rgba(0,43,92,.10);
+    }
+    @media (prefers-color-scheme: dark){
+      :root{
+        --bg:#0b1220; --surface:#111a2a; --border:#223147;
+        --text:#e5e7eb; --text-mid:#cbd5e1; --text-light:#94a3b8;
+        --accent-light:rgba(249,115,22,.14); --danger-bg:rgba(229,62,62,.16);
+        --shadow:0 1px 3px rgba(0,0,0,.4),0 16px 48px rgba(0,0,0,.5);
+      }
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; min-height:100vh; color:var(--text);
+      font-family:"Outfit","Segoe UI",system-ui,sans-serif; line-height:1.5;
+      background:
+        radial-gradient(circle at 12% -8%, color-mix(in srgb,var(--primary-mid) 22%,transparent), transparent 40%),
+        radial-gradient(circle at 96% 4%, color-mix(in srgb,var(--accent) 12%,transparent), transparent 34%),
+        var(--bg);
+      display:flex; align-items:flex-start; justify-content:center;
+      padding:clamp(1rem,4vw,3rem);
+    }
+    .sc-card{
+      width:100%; max-width:600px; background:var(--surface);
+      border:1px solid var(--border); border-radius:var(--radius);
+      box-shadow:var(--shadow); overflow:hidden;
+    }
+    /* Header a banda, richiama la topbar HUB */
+    .sc-head{
+      position:relative; padding:1.6rem 1.75rem 1.5rem;
+      background:linear-gradient(135deg,var(--primary),var(--primary-mid));
+      color:#fff;
+    }
+    .sc-head::after{content:""; position:absolute; left:0; right:0; bottom:0; height:4px;
+      background:linear-gradient(90deg,var(--accent),#ffa24d)}
+    .sc-eyebrow{display:inline-flex; align-items:center; gap:.5rem;
+      font-size:.72rem; font-weight:600; letter-spacing:.12em; text-transform:uppercase;
+      color:rgba(255,255,255,.75); margin-bottom:.5rem}
+    .sc-eyebrow .dot{width:7px; height:7px; border-radius:999px; background:var(--accent)}
+    .sc-head h1{margin:0; font-size:1.6rem; font-weight:700; line-height:1.1}
+    .sc-head p{margin:.5rem 0 0; color:rgba(255,255,255,.82); font-size:.95rem; max-width:44ch}
+    /* Corpo */
+    .sc-body{padding:1.5rem 1.75rem 1.75rem}
+    .sc-group{margin-bottom:1.4rem}
+    .sc-group > label,.sc-legend{display:block; font-weight:600; font-size:.92rem;
+      color:var(--text); margin-bottom:.4rem}
+    .sc-hint{color:var(--text-light); font-weight:400; font-size:.82rem}
+    input[type=text],select,textarea{
+      width:100%; min-height:44px; padding:.6rem .75rem; font:inherit; color:var(--text);
+      background:var(--surface); border:1px solid var(--border); border-radius:10px;
+      transition:border-color .15s, box-shadow .15s;
+    }
+    textarea{min-height:150px; resize:vertical}
+    select:focus,textarea:focus,input:focus{
+      outline:none; border-color:var(--primary-mid);
+      box-shadow:0 0 0 3px color-mix(in srgb,var(--primary-mid) 22%,transparent);
+    }
+    .sc-cascade{display:grid; grid-template-columns:1fr 1fr; gap:.6rem}
+    @media (max-width:480px){.sc-cascade{grid-template-columns:1fr}}
+    .sc-sub{font-size:.78rem; color:var(--text-light); margin:.3rem 0 0}
+    /* Anonima come toggle */
+    .sc-toggle{display:flex; align-items:center; gap:.6rem; cursor:pointer;
+      padding:.7rem .85rem; border:1px solid var(--border); border-radius:10px;
+      background:color-mix(in srgb,var(--bg) 60%,transparent); font-size:.9rem}
+    .sc-toggle input{width:18px; height:18px; min-height:0; accent-color:var(--accent)}
+    /* Bottone */
+    .sc-submit{width:100%; min-height:48px; margin-top:.4rem; border:none; cursor:pointer;
+      background:var(--accent); color:#fff; font-weight:600; font-size:1rem; border-radius:10px;
+      box-shadow:0 6px 16px rgba(255,107,0,.28); transition:filter .15s, transform .05s}
+    .sc-submit:hover{filter:brightness(1.05)} .sc-submit:active{transform:translateY(1px)}
+    /* Errori */
+    .errorlist,.sc-error{list-style:none; margin:.4rem 0 0; padding:.55rem .7rem;
+      color:var(--danger); background:var(--danger-bg);
+      border:1px solid color-mix(in srgb,var(--danger) 30%,transparent); border-radius:8px;
+      font-size:.85rem}
+    .errorlist li{margin:0}
+    .sc-hp{position:absolute; left:-9999px; top:-9999px}
+    .sc-foot{margin-top:1.25rem; text-align:center; color:var(--text-light); font-size:.78rem}
+    :focus-visible{outline:2px solid var(--accent); outline-offset:2px}
   </style>
 </head>
 <body>
-  <h1>Suggestion Corner — Nuova segnalazione</h1>
-  <p>Segnala un'opportunità di miglioramento. La compilazione è aperta a tutti.</p>
+  <main class="sc-card">
+    <header class="sc-head">
+      <span class="sc-eyebrow"><span class="dot"></span> Novicrom · Miglioramento</span>
+      <h1>Suggestion Corner</h1>
+      <p>Segnala un'opportunità di miglioramento. La compilazione è aperta a tutti e richiede meno di un minuto.</p>
+    </header>
 
-  <form method="post" novalidate>
-    {% csrf_token %}
+    <div class="sc-body">
+      <form method="post" novalidate>
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+          <ul class="errorlist">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
+        {% endif %}
 
-    <label for="id_reparto_provenienza">Reparto di provenienza</label>
-    {{ form.reparto_provenienza }}
-    {{ form.reparto_provenienza.errors }}
+        <div class="sc-group">
+          <span class="sc-legend">Da dove arriva? <span class="sc-hint">— reparto o area</span></span>
+          <div class="sc-cascade">
+            <div>
+              {{ form.reparto_provenienza }}
+              {{ form.reparto_provenienza.errors }}
+            </div>
+            <div>
+              <select name="area_provenienza" id="id_area_provenienza" aria-label="Area (opzionale)">
+                <option value="">Area — tutto il reparto</option>
+                {% for area in form.area_provenienza.field.queryset %}
+                  <option value="{{ area.pk }}" data-reparto="{{ area.reparto_id|default:'' }}"
+                    {% if form.area_provenienza.value|stringformat:'s' == area.pk|stringformat:'s' %}selected{% endif %}>{{ area.nome }}</option>
+                {% endfor %}
+              </select>
+              {{ form.area_provenienza.errors }}
+            </div>
+          </div>
+          <p class="sc-sub">Scegli il reparto; se serve, precisa l'area.</p>
+        </div>
 
-    <label for="id_opportunity">Opportunità di miglioramento</label>
-    {{ form.opportunity }}
-    {{ form.opportunity.errors }}
+        <div class="sc-group">
+          <label for="id_opportunity">Opportunità di miglioramento</label>
+          {{ form.opportunity }}
+          {{ form.opportunity.errors }}
+        </div>
 
-    <label class="anon"><input type="checkbox" name="anonima" id="id_anonima" style="width:auto"> Invia in forma anonima</label>
+        <div class="sc-group">
+          <label class="sc-toggle">
+            <input type="checkbox" name="anonima" id="id_anonima"> Invia in forma anonima
+          </label>
+        </div>
 
-    {# Honeypot: nascosto agli utenti, visibile ai bot #}
-    <div class="sc-hp" aria-hidden="true">
-      <label for="id_website">Website</label>
-      {{ form.website }}
+        {# Honeypot: nascosto agli utenti, visibile ai bot #}
+        <div class="sc-hp" aria-hidden="true">
+          <label for="id_website">Website</label>{{ form.website }}
+        </div>
+
+        <button type="submit" class="sc-submit">Invia segnalazione</button>
+      </form>
+      <p class="sc-foot">NOVICROM HUB · Sistema di Miglioramento e Segnalazione (SMS)</p>
     </div>
+  </main>
 
-    <button type="submit">Invia segnalazione</button>
-  </form>
+  <script>
+    // Cascata Reparto → Area: mostra solo le aree del reparto scelto.
+    (function () {
+      var rep = document.getElementById("id_reparto_provenienza");
+      var area = document.getElementById("id_area_provenienza");
+      if (!rep || !area) return;
+      function filtra() {
+        var r = rep.value;
+        Array.prototype.forEach.call(area.options, function (opt) {
+          if (!opt.value) { opt.hidden = false; return; }
+          var match = !r || opt.getAttribute("data-reparto") === r;
+          opt.hidden = !match;
+          if (!match && opt.selected) { area.value = ""; }
+        });
+      }
+      rep.addEventListener("change", filtra);
+      filtra();
+    })();
+  </script>
 </body>
 </html>

@@ -1,136 +1,178 @@
 {% extends "core/base.html" %}
+{% block title %}SC#{{ seg.pk }} — Suggestion Corner{% endblock %}
+{% block extra_head %}{% include "suggestion_corner/partials/_sc_styles.html" %}{% endblock %}
 {% block content %}
 <div class="content">
-  <p><a href="{% url 'suggestion_corner:home' %}">&larr; Suggestion Corner</a></p>
-  <h1>Segnalazione SC#{{ seg.pk }}</h1>
-
-  {% if is_team %}
-    <p><a href="{% url 'suggestion_corner:modifica' seg.pk %}" class="hub-btn">Modifica</a></p>
-  {% endif %}
-
-  {% if messages %}
-    {% for m in messages %}
-      <div class="hub-alert hub-alert-{{ m.tags }}">{{ m }}</div>
-    {% endfor %}
-  {% endif %}
-
-  <dl class="hub-dl">
-    <dt>Stato</dt><dd>{{ seg.stato_label }}</dd>
-    <dt>Classificazione SMS</dt><dd>{{ seg.get_stato_sms_display }}</dd>
-    <dt>Data</dt><dd>{{ seg.data_segnalazione|date:"d/m/Y" }}</dd>
-    <dt>Reparto provenienza</dt><dd>{{ seg.reparto_provenienza.nome }}</dd>
-    <dt>Processo</dt><dd>{{ seg.processo|default:seg.processo_libero|default:"—" }}</dd>
-    <dt>Incaricato</dt><dd>{{ seg.incaricato|default:"—" }}</dd>
-    <dt>Controllore</dt><dd>{{ seg.controllore|default:"—" }}</dd>
-  </dl>
-
-  <h2>Opportunità</h2>
-  <p>{{ seg.opportunity|linebreaksbr }}</p>
-
-  {% if seg.plan_testo %}<h2>Plan</h2><p>{{ seg.plan_testo|linebreaksbr }}</p>{% endif %}
-  {% if seg.do_testo %}<h2>Do</h2><p>{{ seg.do_testo|linebreaksbr }}</p>{% endif %}
-  {% if seg.check_testo %}<h2>Check</h2><p>{{ seg.check_testo|linebreaksbr }}</p>{% endif %}
-  {% if seg.act_testo %}<h2>Act</h2><p>{{ seg.act_testo|linebreaksbr }}</p>{% endif %}
-
-  {# --- Comunicazione al cliente (solo SMS Sì, team) --- #}
-  {% if is_team and seg.stato_sms == SMS.SMS_SI %}
-  <h2>Comunicazione al cliente</h2>
-  {% if seg.comunicazione_cliente_inviata %}
-    <p class="hub-alert hub-alert-success">
-      Comunicato al cliente il {{ seg.data_comunicazione_cliente|date:"d/m/Y H:i" }}
-      {% if seg.cliente_email %}a <strong>{{ seg.cliente_email }}</strong>{% endif %}.
-    </p>
-  {% else %}
-    <p class="hub-help">Segnalazione classificata <strong>SMS Sì</strong>: da comunicare al cliente.</p>
-  {% endif %}
-  <form method="post" action="{% url 'suggestion_corner:comunica_cliente' seg.pk %}" class="hub-form-stack">
-    {% csrf_token %}{{ form_comunica_cliente.as_p }}
-    <button type="submit" class="hub-btn hub-btn-primary">
-      {% if seg.comunicazione_cliente_inviata %}Reinvia comunicazione{% else %}Invia comunicazione{% endif %}
-    </button>
-  </form>
-  {% endif %}
-
-  {# --- Pannello azioni FSM (sessione 3b) --- #}
-  <h2>Azioni</h2>
-  <div class="sc-actions">
-    {% if seg.stato == "DA_CLASSIFICARE" and is_team %}
-      <form method="post" action="{% url 'suggestion_corner:classifica' seg.pk %}">
-        {% csrf_token %}{{ form_classifica.as_p }}
-        <button type="submit">Classifica</button>
-      </form>
-
-    {% elif seg.stato == "CLASSIFICATA" and is_team %}
-      <form method="post" action="{% url 'suggestion_corner:definisci_plan' seg.pk %}">
-        {% csrf_token %}{{ form_plan.as_p }}
-        <button type="submit">Definisci PLAN</button>
-      </form>
-
-    {% elif seg.stato == "PLAN_DEFINITO" and is_team %}
-      <form method="post" action="{% url 'suggestion_corner:avvia_do' seg.pk %}">
-        {% csrf_token %}<button type="submit">Avvia DO</button>
-      </form>
-
-    {% elif seg.stato == "DO_IN_CORSO" and can_do %}
-      <form method="post" action="{% url 'suggestion_corner:completa_do' seg.pk %}">
-        {% csrf_token %}{{ form_completa_do.as_p }}
-        <button type="submit">Completa DO</button>
-      </form>
-
-    {% elif seg.stato == "DO_COMPLETATO" %}
-      {% if seg.esito_do == "SI" and can_ck %}
-        <form method="post" action="{% url 'suggestion_corner:avvia_check' seg.pk %}">
-          {% csrf_token %}<button type="submit">Avvia CHECK</button>
-        </form>
-      {% elif seg.esito_do == "NO" and is_team %}
-        <form method="post" action="{% url 'suggestion_corner:do_da_rifare' seg.pk %}">
-          {% csrf_token %}{{ form_do_rifare.as_p }}
-          <button type="submit">Rimanda in esecuzione</button>
-        </form>
-      {% endif %}
-
-    {% elif seg.stato == "CHECK_IN_CORSO" and can_ck %}
-      <form method="post" action="{% url 'suggestion_corner:check_positivo' seg.pk %}">
-        {% csrf_token %}{{ form_check.as_p }}
-        <button type="submit">Check positivo</button>
-      </form>
-      <form method="post" action="{% url 'suggestion_corner:check_negativo' seg.pk %}">
-        {% csrf_token %}<button type="submit">Check negativo (riapre DO)</button>
-      </form>
-      <form method="post" action="{% url 'suggestion_corner:check_rinviato' seg.pk %}">
-        {% csrf_token %}{{ form_check_rinviato.as_p }}
-        <button type="submit">Rinvia check</button>
-      </form>
-
-    {% elif seg.stato == "CHECK_COMPLETATO" and is_team %}
-      {% if seg.vuoi_inserire_act %}
-      <form method="post" action="{% url 'suggestion_corner:inserisci_act' seg.pk %}">
-        {% csrf_token %}<button type="submit">Inserisci ACT</button>
-      </form>
-      {% endif %}
-      <form method="post" action="{% url 'suggestion_corner:chiudi' seg.pk %}">
-        {% csrf_token %}<button type="submit">Chiudi</button>
-      </form>
-
-    {% elif seg.stato == "ACT_INSERITO" and is_team %}
-      <form method="post" action="{% url 'suggestion_corner:chiudi' seg.pk %}">
-        {% csrf_token %}<button type="submit">Chiudi</button>
-      </form>
-
-    {% else %}
-      <p>Nessuna azione disponibile per te in questo stato.</p>
-    {% endif %}
+  <div class="sc-page-head">
+    <div>
+      <span class="sc-eyebrow"><span class="dot"></span>
+        <a href="{% url 'suggestion_corner:home' %}" style="text-decoration:none;color:inherit">← Suggestion Corner</a>
+      </span>
+      <h1>Segnalazione SC#{{ seg.pk }}
+        <span class="sc-badge" data-stato="{{ seg.stato }}">{{ seg.stato_label }}</span>
+      </h1>
+    </div>
+    {% if is_team %}<a href="{% url 'suggestion_corner:modifica' seg.pk %}" class="hub-btn">Modifica</a>{% endif %}
   </div>
 
-  <h2>Storico</h2>
-  {% if storico %}
-  <ul>
-    {% for v in storico %}
-      <li>{{ v.timestamp|date:"d/m/Y H:i" }} — {{ v.stato_precedente }} &rarr; {{ v.stato_nuovo }}{% if v.autore %} ({{ v.autore }}){% endif %}</li>
-    {% endfor %}
-  </ul>
-  {% else %}
-  <p>Nessuna voce di storico.</p>
+  {% if messages %}
+    {% for m in messages %}<div class="hub-alert hub-alert-{{ m.tags }}">{{ m }}</div>{% endfor %}
   {% endif %}
+
+  <div class="sc-detail-grid">
+
+    {# --- Stepper PDCA: la firma della pagina --- #}
+    <div class="sc-card">
+      <div class="sc-card-head">Avanzamento PDCA</div>
+      <ol class="sc-pdca">
+        {% for step in pdca %}
+        <li class="{{ step.state }}">
+          <span class="p-dot">{% if step.state == 'done' %}✓{% else %}{{ step.letter }}{% endif %}</span>
+          <span class="p-lab">{{ step.label }}</span>
+        </li>
+        {% endfor %}
+      </ol>
+    </div>
+
+    {# --- Anagrafica segnalazione --- #}
+    <div class="sc-card">
+      <div class="sc-card-body">
+        <dl class="sc-facts">
+          <dt>Classificazione</dt><dd><span class="sc-chip" data-sms="{{ seg.stato_sms }}">{{ seg.get_stato_sms_display }}</span></dd>
+          <dt>Data</dt><dd>{{ seg.data_segnalazione|date:"d/m/Y" }}</dd>
+          <dt>Provenienza</dt><dd>{{ seg.provenienza_display }}</dd>
+          <dt>Destinazione</dt><dd>{{ seg.destinazione_display }}</dd>
+          <dt>Processo</dt><dd>{{ seg.processo|default:seg.processo_libero|default:"—" }}</dd>
+          <dt>Incaricato</dt><dd>{{ seg.incaricato|default:"—" }}</dd>
+          <dt>Controllore</dt><dd>{{ seg.controllore|default:"—" }}</dd>
+        </dl>
+      </div>
+    </div>
+
+    {# --- Contenuti PDCA --- #}
+    <div class="sc-card">
+      <div class="sc-card-body sc-prose">
+        <h3>Opportunità</h3>
+        <p>{{ seg.opportunity|linebreaksbr }}</p>
+        {% if seg.plan_testo %}<h3>Plan</h3><p>{{ seg.plan_testo|linebreaksbr }}</p>{% endif %}
+        {% if seg.do_testo %}<h3>Do</h3><p>{{ seg.do_testo|linebreaksbr }}</p>{% endif %}
+        {% if seg.check_testo %}<h3>Check</h3><p>{{ seg.check_testo|linebreaksbr }}</p>{% endif %}
+        {% if seg.act_testo %}<h3>Act</h3><p>{{ seg.act_testo|linebreaksbr }}</p>{% endif %}
+      </div>
+    </div>
+
+    {# --- Comunicazione al cliente (solo SMS Sì, team) --- #}
+    {% if is_team and seg.stato_sms == SMS.SMS_SI %}
+    <div class="sc-card">
+      <div class="sc-card-head">Comunicazione al cliente</div>
+      <div class="sc-card-body">
+        {% if seg.comunicazione_cliente_inviata %}
+          <p class="hub-alert hub-alert-success">
+            Comunicato al cliente il {{ seg.data_comunicazione_cliente|date:"d/m/Y H:i" }}
+            {% if seg.cliente_email %}a <strong>{{ seg.cliente_email }}</strong>{% endif %}.
+          </p>
+        {% else %}
+          <p class="hub-help">Segnalazione classificata <strong>SMS Sì</strong>: da comunicare al cliente.</p>
+        {% endif %}
+        <form method="post" action="{% url 'suggestion_corner:comunica_cliente' seg.pk %}" class="hub-form-stack">
+          {% csrf_token %}{{ form_comunica_cliente.as_p }}
+          <button type="submit" class="hub-btn hub-btn-primary">
+            {% if seg.comunicazione_cliente_inviata %}Reinvia comunicazione{% else %}Invia comunicazione{% endif %}
+          </button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    {# --- Pannello azioni FSM --- #}
+    <div class="sc-card">
+      <div class="sc-card-head">Azioni</div>
+      <div class="sc-card-body sc-actions">
+        {% if seg.stato == "DA_CLASSIFICARE" and is_team %}
+          <form method="post" action="{% url 'suggestion_corner:classifica' seg.pk %}">
+            {% csrf_token %}{{ form_classifica.as_p }}
+            <button type="submit" class="hub-btn hub-btn-primary">Classifica</button>
+          </form>
+
+        {% elif seg.stato == "CLASSIFICATA" and is_team %}
+          <form method="post" action="{% url 'suggestion_corner:definisci_plan' seg.pk %}">
+            {% csrf_token %}{{ form_plan.as_p }}
+            <button type="submit" class="hub-btn hub-btn-primary">Definisci PLAN</button>
+          </form>
+
+        {% elif seg.stato == "PLAN_DEFINITO" and is_team %}
+          <form method="post" action="{% url 'suggestion_corner:avvia_do' seg.pk %}">
+            {% csrf_token %}<button type="submit" class="hub-btn hub-btn-primary">Avvia DO</button>
+          </form>
+
+        {% elif seg.stato == "DO_IN_CORSO" and can_do %}
+          <form method="post" action="{% url 'suggestion_corner:completa_do' seg.pk %}">
+            {% csrf_token %}{{ form_completa_do.as_p }}
+            <button type="submit" class="hub-btn hub-btn-primary">Completa DO</button>
+          </form>
+
+        {% elif seg.stato == "DO_COMPLETATO" %}
+          {% if seg.esito_do == "SI" and can_ck %}
+            <form method="post" action="{% url 'suggestion_corner:avvia_check' seg.pk %}">
+              {% csrf_token %}<button type="submit" class="hub-btn hub-btn-primary">Avvia CHECK</button>
+            </form>
+          {% elif seg.esito_do == "NO" and is_team %}
+            <form method="post" action="{% url 'suggestion_corner:do_da_rifare' seg.pk %}">
+              {% csrf_token %}{{ form_do_rifare.as_p }}
+              <button type="submit" class="hub-btn">Rimanda in esecuzione</button>
+            </form>
+          {% endif %}
+
+        {% elif seg.stato == "CHECK_IN_CORSO" and can_ck %}
+          <form method="post" action="{% url 'suggestion_corner:check_positivo' seg.pk %}">
+            {% csrf_token %}{{ form_check.as_p }}
+            <button type="submit" class="hub-btn hub-btn-primary">Check positivo</button>
+          </form>
+          <form method="post" action="{% url 'suggestion_corner:check_negativo' seg.pk %}">
+            {% csrf_token %}<button type="submit" class="hub-btn">Check negativo (riapre DO)</button>
+          </form>
+          <form method="post" action="{% url 'suggestion_corner:check_rinviato' seg.pk %}">
+            {% csrf_token %}{{ form_check_rinviato.as_p }}
+            <button type="submit" class="hub-btn">Rinvia check</button>
+          </form>
+
+        {% elif seg.stato == "CHECK_COMPLETATO" and is_team %}
+          {% if seg.vuoi_inserire_act %}
+          <form method="post" action="{% url 'suggestion_corner:inserisci_act' seg.pk %}">
+            {% csrf_token %}<button type="submit" class="hub-btn hub-btn-primary">Inserisci ACT</button>
+          </form>
+          {% endif %}
+          <form method="post" action="{% url 'suggestion_corner:chiudi' seg.pk %}">
+            {% csrf_token %}<button type="submit" class="hub-btn">Chiudi</button>
+          </form>
+
+        {% elif seg.stato == "ACT_INSERITO" and is_team %}
+          <form method="post" action="{% url 'suggestion_corner:chiudi' seg.pk %}">
+            {% csrf_token %}<button type="submit" class="hub-btn hub-btn-primary">Chiudi</button>
+          </form>
+
+        {% else %}
+          <p class="hub-help">Nessuna azione disponibile per te in questo stato.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    {# --- Storico --- #}
+    <div class="sc-card">
+      <div class="sc-card-head">Storico</div>
+      <div class="sc-card-body">
+        {% if storico %}
+        <ul class="sc-timeline">
+          {% for v in storico %}
+            <li>{{ v.timestamp|date:"d/m/Y H:i" }} — {{ v.stato_precedente }} &rarr; {{ v.stato_nuovo }}{% if v.autore %} ({{ v.autore }}){% endif %}</li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="hub-help">Nessuna voce di storico.</p>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
 </div>
 {% endblock %}

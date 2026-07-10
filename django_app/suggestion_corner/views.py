@@ -62,6 +62,37 @@ def home(request):
     })
 
 
+def _pdca_steps(stato):
+    """Stato delle 4 fasi PDCA (Plan/Do/Check/Act) per lo stepper del dettaglio.
+
+    Ritorna una lista di dict {letter, label, state} con state ∈ done/current/todo,
+    derivato dallo stato FSM corrente. Nessun effetto collaterale.
+    """
+    order = [
+        "INSERITA", "DA_CLASSIFICARE", "CLASSIFICATA", "PLAN_DEFINITO",
+        "DO_IN_CORSO", "DO_COMPLETATO", "CHECK_IN_CORSO", "CHECK_COMPLETATO",
+        "ACT_INSERITO", "CHIUSA",
+    ]
+    idx = order.index(stato) if stato in order else 0
+    # (letter, label, indice in cui la fase è "current", soglia di "done")
+    fasi = [
+        ("P", "Plan", {"DA_CLASSIFICARE", "CLASSIFICATA"}, order.index("PLAN_DEFINITO")),
+        ("D", "Do", {"PLAN_DEFINITO", "DO_IN_CORSO"}, order.index("DO_COMPLETATO")),
+        ("C", "Check", {"DO_COMPLETATO", "CHECK_IN_CORSO"}, order.index("CHECK_COMPLETATO")),
+        ("A", "Act", {"CHECK_COMPLETATO", "ACT_INSERITO"}, order.index("CHIUSA")),
+    ]
+    steps = []
+    for letter, label, current_states, done_from in fasi:
+        if stato in current_states:
+            state = "current"
+        elif idx >= done_from:
+            state = "done"
+        else:
+            state = "todo"
+        steps.append({"letter": letter, "label": label, "state": state})
+    return steps
+
+
 @login_required
 def dettaglio(request, pk: int):
     """Dettaglio in sola lettura; 404 se l'utente non ha visibilità sull'oggetto.
@@ -71,7 +102,9 @@ def dettaglio(request, pk: int):
     """
     seg = get_object_or_404(
         visible_segnalazioni(request.user).select_related(
-            "reparto_provenienza", "reparto_destinazione", "incaricato", "controllore",
+            "reparto_provenienza", "reparto_destinazione",
+            "area_provenienza", "area_destinazione",
+            "incaricato", "controllore",
         ),
         pk=pk,
     )
@@ -94,6 +127,7 @@ def dettaglio(request, pk: int):
             "cliente_nome": seg.cliente_nome, "cliente_email": seg.cliente_email,
         }),
         "SMS": SuggestionCorner.StatoSMS,
+        "pdca": _pdca_steps(seg.stato),
     }
     return render(request, "suggestion_corner/dettaglio.html", ctx)
 

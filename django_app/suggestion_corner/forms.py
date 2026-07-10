@@ -30,7 +30,7 @@ class SegnalazionePubblicaForm(forms.Form):
     Campo honeypot `website` nascosto via CSS: se compilato la request è bot.
     """
     reparto_provenienza = forms.ModelChoiceField(
-        queryset=_reparti_qs(), required=False,
+        queryset=_reparti_qs(), required=False, empty_label="Reparto…",
         label="Reparto di provenienza",
     )
     area_provenienza = forms.ModelChoiceField(

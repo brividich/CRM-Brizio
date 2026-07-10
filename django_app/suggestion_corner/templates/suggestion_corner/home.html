@@ -1,45 +1,48 @@
 {% extends "core/base.html" %}
+{% block title %}Suggestion Corner{% endblock %}
+{% block extra_head %}{% include "suggestion_corner/partials/_sc_styles.html" %}{% endblock %}
 {% block content %}
 <div class="content">
-  <h1>Suggestion Corner</h1>
-
-  {# --- Dashboard: pulsanti-contatore per stato SMS --- #}
-  <div class="sc-filtri" style="display:flex;flex-wrap:wrap;gap:.5rem;margin:1rem 0;">
-    <a href="?filtro=tutte" class="hub-btn{% if filtro == 'tutte' %} hub-btn-primary{% endif %}">
-      Tutte <strong>{{ conteggi.tutte }}</strong>
-    </a>
-    <a href="?filtro=da_gestire" class="hub-btn{% if filtro == 'da_gestire' %} hub-btn-primary{% endif %}">
-      Da gestire <strong>{{ conteggi.da_gestire }}</strong>
-    </a>
-    <a href="?filtro=sms_si" class="hub-btn{% if filtro == 'sms_si' %} hub-btn-primary{% endif %}">
-      SMS Sì <strong>{{ conteggi.sms_si }}</strong>
-    </a>
-    <a href="?filtro=sms_no" class="hub-btn{% if filtro == 'sms_no' %} hub-btn-primary{% endif %}">
-      SMS No <strong>{{ conteggi.sms_no }}</strong>
-    </a>
+  <div class="sc-page-head">
+    <div>
+      <span class="sc-eyebrow"><span class="dot"></span> Sistema di Miglioramento</span>
+      <h1>Suggestion Corner</h1>
+    </div>
+    <a href="{% url 'suggestion_corner:nuova' %}" class="hub-btn hub-btn-primary">+ Nuova segnalazione</a>
   </div>
 
-  <h2>
-    {% if filtro == 'da_gestire' %}Da gestire
-    {% elif filtro == 'sms_si' %}SMS Sì
-    {% elif filtro == 'sms_no' %}SMS No
-    {% else %}{% if is_team %}Tutte le segnalazioni{% else %}Le mie segnalazioni{% endif %}{% endif %}
-    ({{ segnalazioni|length }})
-  </h2>
+  {# --- Filtri come card-contatore --- #}
+  <div class="sc-filtri">
+    <a href="?filtro=tutte" class="sc-stat{% if filtro == 'tutte' %} is-active{% endif %}">
+      <span class="n">{{ conteggi.tutte }}</span><span class="l">{% if is_team %}Tutte{% else %}Le mie{% endif %}</span>
+    </a>
+    <a href="?filtro=da_gestire" class="sc-stat{% if filtro == 'da_gestire' %} is-active{% endif %}">
+      <span class="n">{{ conteggi.da_gestire }}</span><span class="l">Da gestire</span>
+    </a>
+    <a href="?filtro=sms_si" class="sc-stat{% if filtro == 'sms_si' %} is-active{% endif %}">
+      <span class="n">{{ conteggi.sms_si }}</span><span class="l">SMS Sì</span>
+    </a>
+    <a href="?filtro=sms_no" class="sc-stat{% if filtro == 'sms_no' %} is-active{% endif %}">
+      <span class="n">{{ conteggi.sms_no }}</span><span class="l">SMS No</span>
+    </a>
+  </div>
 
   {% if segnalazioni %}
   <table class="hub-table">
     <thead>
-      <tr><th>#</th><th>Data</th><th>Reparto</th><th>Stato</th><th>SMS</th><th>Opportunità</th>{% if is_team %}<th></th>{% endif %}</tr>
+      <tr>
+        <th>#</th><th>Data</th><th>Provenienza</th><th>Stato</th><th>SMS</th><th>Opportunità</th>
+        {% if is_team %}<th></th>{% endif %}
+      </tr>
     </thead>
     <tbody>
       {% for s in segnalazioni %}
       <tr>
-        <td><a href="{% url 'suggestion_corner:dettaglio' s.pk %}">SC#{{ s.pk }}</a></td>
+        <td><a href="{% url 'suggestion_corner:dettaglio' s.pk %}"><strong>SC#{{ s.pk }}</strong></a></td>
         <td>{{ s.data_segnalazione|date:"d/m/Y" }}</td>
-        <td>{{ s.reparto_provenienza.nome }}</td>
-        <td>{{ s.stato_label }}</td>
-        <td>{{ s.get_stato_sms_display }}</td>
+        <td>{{ s.provenienza_display }}</td>
+        <td><span class="sc-badge" data-stato="{{ s.stato }}">{{ s.stato_label }}</span></td>
+        <td><span class="sc-chip" data-sms="{{ s.stato_sms }}">{{ s.get_stato_sms_display }}</span></td>
         <td>{{ s.opportunity|truncatechars:80 }}</td>
         {% if is_team %}<td><a href="{% url 'suggestion_corner:modifica' s.pk %}" class="hub-btn hub-btn-sm">Modifica</a></td>{% endif %}
       </tr>
@@ -47,7 +50,11 @@
     </tbody>
   </table>
   {% else %}
-  <p>Nessuna segnalazione da mostrare.</p>
+  <div class="sc-empty">
+    <div class="ico">💡</div>
+    <p><strong>Nessuna segnalazione</strong> in questo filtro.</p>
+    <p><a href="{% url 'suggestion_corner:nuova' %}" class="hub-btn hub-btn-primary">Inserisci la prima</a></p>
+  </div>
   {% endif %}
 </div>
 {% endblock %}
