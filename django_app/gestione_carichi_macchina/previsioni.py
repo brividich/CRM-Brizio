@@ -186,6 +186,10 @@ def costruisci_indice_macchine_fase() -> dict[tuple[int, str], list]:
     Derivata dallo storico delle `Pianificazione` (che porta gia' famiglia + fase), quindi
     senza migrazioni: cattura che sgrossatura/finitura/ripresa/assemblaggio vanno su macchine
     diverse anche per la stessa famiglia.
+
+    Solo lavori COMPLETATI: una pianificazione ancora aperta (pianificata/in corso) non deve
+    auto-rinforzare il proprio stesso suggerimento prima di essere mai stata eseguita
+    (altrimenti un'assegnazione manuale sbagliata verrebbe ri-suggerita, feedback loop).
     """
     from collections import defaultdict
 
@@ -193,7 +197,9 @@ def costruisci_indice_macchine_fase() -> dict[tuple[int, str], list]:
 
     acc: dict[tuple[int, str], dict[int, int]] = defaultdict(lambda: defaultdict(int))
     qs = (
-        Pianificazione.objects.filter(famiglia_id__isnull=False)
+        Pianificazione.objects.filter(
+            famiglia_id__isnull=False, stato=Pianificazione.STATO_COMPLETATA
+        )
         .exclude(fase="")
         .only("macchina_id", "famiglia_id", "fase")
     )

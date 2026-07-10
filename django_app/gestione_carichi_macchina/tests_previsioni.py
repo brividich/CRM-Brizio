@@ -1,13 +1,17 @@
 """Test della predizione durata/ore (funzioni pure)."""
 from datetime import date
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
+from assets.models import Asset
+
+from .models import FamigliaPezzo, Macchina, Pianificazione
 from .previsioni import (
     FONTE_CICLO,
     FONTE_FAMIGLIA,
     FONTE_NESSUNA,
     FONTE_STORICO,
+    costruisci_indice_macchine_fase,
     prevedi_macchina,
     prevedi_ore,
     rischio_ritardo,
@@ -136,3 +140,33 @@ class RischioRitardoTest(SimpleTestCase):
             data_consegna=date(2026, 6, 26),
         )
         self.assertFalse(r["valutabile"])
+
+
+class CostruisciIndiceMacchineFaseTest(TestCase):
+    """L'indice di affinita' per (famiglia, fase) deve imparare SOLO da lavori
+    completati: una pianificazione ancora aperta non deve auto-rinforzare il
+    proprio stesso suggerimento prima di essere mai stata eseguita (feedback loop)."""
+
+    def setUp(self):
+        a1 = Asset.objects.create(asset_tag="CNC-T1", name="T1", asset_type=Asset.TYPE_WORK_MACHINE)
+        a2 = Asset.objects.create(asset_tag="CNC-T2", name="T2", asset_type=Asset.TYPE_WORK_MACHINE)
+        self.m1 = Macchina.objects.create(asset=a1, categoria=Macchina.CAT_5AXIS)
+        self.m2 = Macchina.objects.create(asset=a2, categoria=Macchina.CAT_5AXIS)
+        self.fam = FamigliaPezzo.objects.create(nome="gimbal")
+
+    def test_esclude_pianificazioni_non_completate(self):
+        Pianificazione.objects.create(
+            macchina=self.m1, famiglia=self.fam, fase="sgr",
+            data=date(2026, 6, 22), turno="giorno",
+            stato=Pianificazione.STATO_COMPLETATA, fonte=Pianificazione.FONTE_IMPORT,
+        )
+        # Assegnazione manuale ancora APERTA su m2: non deve pesare nell'indice.
+        Pianificazione.objects.create(
+            macchina=self.m2, famiglia=self.fam, fase="sgr",
+            data=date(2026, 6, 23), turno="giorno",
+            stato=Pianificazione.STATO_PIANIFICATA, fonte=Pianificazione.FONTE_MANUALE,
+        )
+        idx = costruisci_indice_macchine_fase()
+        macchine = dict(idx[(self.fam.id, "sgr")])
+        self.assertIn(self.m1.id, macchine)
+        self.assertNotIn(self.m2.id, macchine)

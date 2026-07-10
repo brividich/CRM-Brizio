@@ -846,12 +846,18 @@ function gcmStep(name, delta) {
     var ok = document.getElementById('gcm-slit-ok');
     if (!ov || !ok) { if (window.confirm('Questo spostamento sposta ' + piano.length + ' lavori. Confermare?')) { onOk(); } else { onCancel(); } return; }
     var n = Math.max(0, piano.length - 1);
+    var nIrrisolti = piano.filter(function (r) { return r.irrisolto; }).length;
     intro.textContent = n ? ('Questo spostamento richiede di slittare ' + n + (n === 1 ? ' lavoro:' : ' lavori:')) : 'Confermi lo spostamento?';
+    if (nIrrisolti) {
+      intro.textContent += ' ⚠ ' + nIrrisolti + (nIrrisolti === 1 ? ' lavoro resta in conflitto' : ' lavori restano in conflitto') + " (oltre l'orizzonte di ricerca), non verrà spostato.";
+    }
     list.innerHTML = piano.map(function (r, i) {
       var tag = i === 0 ? '<b>' + esc(r.etichetta) + '</b>' : esc(r.etichetta);
+      var stile = r.irrisolto ? 'color:var(--g-danger,#c0392b);' : 'color:var(--g-light);';
+      var avviso = r.irrisolto ? ' ⚠' : '';
       return '<div style="display:flex;justify-content:space-between;gap:10px;font-size:.85rem;border-bottom:1px solid var(--g-border);padding-bottom:4px;">'
         + '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + tag + '</span>'
-        + '<span style="white-space:nowrap;color:var(--g-light);">' + esc(r.da) + ' &rarr; ' + esc(r.a) + '</span></div>';
+        + '<span style="white-space:nowrap;' + stile + '">' + esc(r.da) + ' &rarr; ' + esc(r.a) + avviso + '</span></div>';
     }).join('');
     var ok2 = ok.cloneNode(true); ok.parentNode.replaceChild(ok2, ok);
     ok2.addEventListener('click', function () { ov.classList.remove('open'); onOk(); });
@@ -871,13 +877,18 @@ function gcmStep(name, delta) {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' },
       body: new URLSearchParams(params).toString()
     }).then(function (r) { return r.json(); }).then(function (data) {
-      if (data && data.reason === 'incompatibile') {
+      if (data && (data.reason === 'incompatibile' || data.reason === 'turno_incompatibile')) {
         if (window.confirm(data.error || 'Spostare comunque?')) { params.forza = '1'; return postMove(d, params); }
+        resetBar(d); return;
+      }
+      if (data && data.reason === 'stato_cambiato') {
+        alert(data.error || 'Il piano è cambiato nel frattempo: riprova lo spostamento.');
         resetBar(d); return;
       }
       if (data && data.reason === 'slittamento') {
         gcmMostraSlittamento(data.piano || [], function () {
-          params.conferma_slittamento = '1'; postMove(d, params);
+          params.conferma_slittamento = '1'; params.versione = data.versione || '';
+          postMove(d, params);
         }, function () { resetBar(d); });
         return;
       }
@@ -930,7 +941,10 @@ function gcmStep(name, delta) {
     undoBtn.disabled = true;
     fetch(scroll.getAttribute('data-undo-url'), { method: 'POST', headers: { 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' } })
       .then(function (r) { return r.json(); }).then(function (d) {
-        if (d && d.ok) window.location.reload(); else { undoBtn.disabled = false; alert((d && d.error) || 'Niente da annullare.'); }
+        if (d && d.ok) {
+          if (d.saltati) alert(d.saltati + (d.saltati === 1 ? ' lavoro non è stato ripristinato perché' : ' lavori non sono stati ripristinati perché') + ' modificati nel frattempo.');
+          window.location.reload();
+        } else { undoBtn.disabled = false; alert((d && d.error) || 'Niente da annullare.'); }
       }).catch(function () { undoBtn.disabled = false; alert('Errore di rete.'); });
   });
 

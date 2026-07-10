@@ -8,6 +8,7 @@ ACL: per ora @login_required; il binding ACL v2 + voce di menu arriva al Passo 6
 """
 from __future__ import annotations
 
+import hashlib
 import re
 from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta
@@ -202,20 +203,28 @@ def _piano_slittamento(macchina_eff, p, nuova_data, coda=False, orizzonte=60):
         return _giorni_lavorativi(da_data, 1)[0]
 
     piano = [{"id": p.id, "etichetta": _etichetta(p), "macchina": macchina_eff.codice,
-              "da": p.data, "a": nuova_data}]
+              "da": p.data, "a": nuova_data, "irrisolto": False}]
 
     if coda:
         from .models import Pianificazione
-        delta = (nuova_data - p.data).days
+        delta_lav = _delta_giorni_lavorativi(p.data, nuova_data)
+        # Stessa regola di fascia-oraria di _confligge/_sovrapposizioni: la coda deve
+        # includere anche i turni DIVERSI ma la cui fascia si interseca con quella di p
+        # (es. 'entrambi' tocca sia 'giorno' che 't2'), non solo il match esatto.
+        fasce_p = Pianificazione.fasce_di(p.turno)
+        turni_compatibili = [
+            t for t, _ in Pianificazione.TURNO_CHOICES if Pianificazione.fasce_di(t) & fasce_p
+        ]
         successivi = (Pianificazione.objects
-                      .filter(macchina=macchina_eff, turno=p.turno, data__gte=p.data)
+                      .filter(macchina=macchina_eff, turno__in=turni_compatibili, data__gte=p.data)
                       .exclude(pk=p.pk)
                       .exclude(stato=Pianificazione.STATO_COMPLETATA)
                       .order_by("data", "id"))
         for o in successivi:
             piano.append({"id": o.id, "etichetta": _etichetta(o),
                           "macchina": macchina_eff.codice,
-                          "da": o.data, "a": o.data + timedelta(days=delta)})
+                          "da": o.data, "a": _sposta_giorni_lavorativi(o.data, delta_lav),
+                          "irrisolto": False})
         return piano
 
     # Risoluzione simulation-aware: lavoriamo su posizioni SIMULATE in memoria (non su
@@ -257,13 +266,24 @@ def _piano_slittamento(macchina_eff, p, nuova_data, coda=False, orizzonte=60):
                 continue  # già oltre la fine del genitore: nessuno spostamento
             nuova = cursor if cursor <= limite else limite
             if nuova <= sim[o.id]:
-                continue  # orizzonte saturo: non guadagniamo nulla, evita loop
+                # Orizzonte saturo: spostare oltre non guadagna nulla (evita loop). Il
+                # conflitto resta IRRISOLTO: va segnalato nel piano, non omesso in
+                # silenzio (l'utente deve poterlo vedere prima di confermare).
+                if o.id in righe:
+                    righe[o.id]["irrisolto"] = True
+                else:
+                    r = {"id": o.id, "etichetta": _etichetta(o), "macchina": macchina_eff.codice,
+                         "da": o.data, "a": sim[o.id], "irrisolto": True}
+                    righe[o.id] = r
+                    piano.append(r)
+                continue
             sim[o.id] = nuova
             if o.id in righe:
                 righe[o.id]["a"] = nuova
+                righe[o.id]["irrisolto"] = False
             else:
                 r = {"id": o.id, "etichetta": _etichetta(o),
-                     "macchina": macchina_eff.codice, "da": o.data, "a": nuova}
+                     "macchina": macchina_eff.codice, "da": o.data, "a": nuova, "irrisolto": False}
                 righe[o.id] = r
                 piano.append(r)
             cursor = _primo_lav(_fine(nuova, o))  # impila il prossimo dopo questo
@@ -293,6 +313,44 @@ def _giorni_lavorativi_indietro(d: date, n: int) -> date:
             out.append(cur)
         cur -= timedelta(days=1)
     return out[-1]
+
+
+def _giorni_lavorativi_avanti(d: date, n: int) -> date:
+    """Data n giorni lavorativi DOPO d (d escluso). n<=0 → d. Simmetrica a
+    `_giorni_lavorativi_indietro`."""
+    if n <= 0:
+        return d
+    out: list[date] = []
+    cur = d + timedelta(days=1)
+    while len(out) < n:
+        if cur.weekday() < 5:
+            out.append(cur)
+        cur += timedelta(days=1)
+    return out[-1]
+
+
+def _delta_giorni_lavorativi(a: date, b: date) -> int:
+    """Numero di giorni LAVORATIVI da percorrere per andare da `a` a `b` (segno secondo
+    la direzione; 0 se coincidono). Presuppone a e b giorni lavorativi: i weekend
+    attraversati non contano come passi."""
+    if b == a:
+        return 0
+    passo = 1 if b > a else -1
+    d, n = a, 0
+    while d != b:
+        d += timedelta(days=passo)
+        if d.weekday() < 5:
+            n += passo
+    return n
+
+
+def _sposta_giorni_lavorativi(d: date, n: int) -> date:
+    """Sposta `d` di `n` giorni LAVORATIVI (n può essere negativo), saltando i weekend."""
+    if n > 0:
+        return _giorni_lavorativi_avanti(d, n)
+    if n < 0:
+        return _giorni_lavorativi_indietro(d, -n)
+    return d
 
 
 def _finestra(request):
@@ -989,6 +1047,25 @@ def _stesso_pool(p, target) -> bool:
     ).exists()
 
 
+def _piano_token(macchina_eff, p) -> str:
+    """Impronta dello stato che `_piano_slittamento` usa per calcolare il piano su
+    `macchina_eff` (i lavori attivi della macchina + `p` stesso). Cambia se, tra la
+    preview e la conferma, qualcuno inserisce/sposta/elimina un lavoro coinvolto
+    (protezione TOCTOU: la conferma dell'operatore va invalidata se il piano che ha
+    visto non è più quello reale)."""
+    from .models import Pianificazione
+
+    parti = [f"p:{p.id}:{p.updated_at.isoformat()}"]
+    qs = (
+        Pianificazione.objects.filter(macchina=macchina_eff)
+        .exclude(stato=Pianificazione.STATO_COMPLETATA)
+        .exclude(pk=p.pk)
+        .only("id", "updated_at")
+    )
+    parti += sorted(f"{o.id}:{o.updated_at.isoformat()}" for o in qs)
+    return hashlib.sha256("|".join(parti).encode()).hexdigest()[:16]
+
+
 @login_required
 @require_POST
 def reschedule(request):
@@ -998,11 +1075,16 @@ def reschedule(request):
     - `coda=1` (alias legacy `cascata=1`): sposta dello stesso delta anche i lavori
       successivi sulla STESSA macchina/turno (solo per spostamenti temporali, non con
       cambio macchina).
-    - `macchina_dest`: nuova macchina; se incompatibile (categoria diversa e fuori pool)
-      e senza `forza=1`, ritorna reason=incompatibile per far decidere all'operatore.
+    - `macchina_dest`: nuova macchina; se incompatibile (categoria diversa e fuori pool),
+      o se non supporta il turno del lavoro, e senza `forza=1`, ritorna rispettivamente
+      reason=incompatibile / reason=turno_incompatibile per far decidere all'operatore.
+      `forza` bypassa SOLO questi due controlli di eleggibilità macchina, MAI la preview
+      di slittamento sotto: sono conferme indipendenti.
     - Se il piano calcolato (`_piano_slittamento`) comporta più di una riga (slittamento
-      a catena di altri lavori) e l'operatore non ha ancora confermato/forzato, ritorna
-      un preview (`reason=slittamento`) SENZA scrivere sul DB.
+      a catena di altri lavori) e l'operatore non ha ancora confermato (`conferma_slittamento`),
+      ritorna un preview (`reason=slittamento`, con flag `irrisolto` per riga se il conflitto
+      eccede l'orizzonte di ricerca) SENZA scrivere sul DB. Le righe irrisolte non vengono
+      comunque mai scritte (nessun movimento reale).
     Snapshot dello stato precedente in sessione per l'undo.
     """
     from django.db import transaction
@@ -1030,33 +1112,61 @@ def reschedule(request):
                 "ok": False, "reason": "incompatibile",
                 "error": f"{target.codice} è di categoria diversa ({target.get_categoria_display()}). Spostare comunque?",
             }, status=200)
+        if not target.puo_turno(p.turno) and not forza:
+            turno_lbl = dict(Pianificazione.TURNO_CHOICES).get(p.turno, p.turno)
+            return JsonResponse({
+                "ok": False, "reason": "turno_incompatibile",
+                "error": f"{target.codice} non può fare il turno «{turno_lbl}». Spostare comunque?",
+            }, status=200)
 
     coda = (request.POST.get("coda") in ("1", "true", "on")
             or request.POST.get("cascata") in ("1", "true", "on"))  # alias legacy
     conferma = request.POST.get("conferma_slittamento") in ("1", "true", "on")
+    versione_client = (request.POST.get("versione") or "").strip()
     macchina_eff = target or p.macchina
     nuova_data = p.data + timedelta(days=delta)
 
     # `coda` (sposta tutta la coda) vale solo per gli spostamenti temporali: con cambio
     # macchina slittiamo soltanto i conflitti reali sulla destinazione.
     piano = _piano_slittamento(macchina_eff, p, nuova_data, coda=coda and not sposta_macchina)
+    token = _piano_token(macchina_eff, p)
+
+    # TOCTOU: se il client sta confermando una preview vista in precedenza (ha una
+    # `versione`) ma nel frattempo lo stato è cambiato, il piano che l'operatore ha
+    # confermato non è più quello reale -> rifiuta, non applicare alla cieca.
+    if versione_client and versione_client != token:
+        return JsonResponse({
+            "ok": False, "reason": "stato_cambiato",
+            "error": "Il piano è cambiato nel frattempo: ricontrolla lo spostamento.",
+        }, status=200)
 
     # C'è slittamento (piano oltre la sola p) e non ancora confermato -> preview.
-    if len(piano) > 1 and not conferma and not forza:
+    # `forza` bypassa SOLO l'incompatibilità di categoria macchina (sopra): uno
+    # slittamento a catena richiede sempre la sua conferma esplicita e separata,
+    # anche quando il cambio macchina è già stato forzato.
+    if len(piano) > 1 and not conferma:
         return JsonResponse({
-            "ok": False, "reason": "slittamento",
+            "ok": False, "reason": "slittamento", "versione": token,
             "piano": [{
                 "etichetta": r["etichetta"], "macchina": r["macchina"],
                 "da": r["da"].strftime("%d/%m"), "a": r["a"].strftime("%d/%m"),
+                "irrisolto": bool(r.get("irrisolto")),
             } for r in piano],
         }, status=200)
 
+    # Le righe IRRISOLTE (conflitto residuo oltre l'orizzonte di ricerca) non vanno
+    # scritte: non c'è alcun movimento reale da applicare (a == da), solo da segnalare
+    # all'operatore — scriverle sposterebbe inutilmente fonte/updated_at di un lavoro
+    # che di fatto non e' stato toccato.
+    da_scrivere = [r for r in piano if not r.get("irrisolto")]
+    n_irrisolti = len(piano) - len(da_scrivere)
+
     with transaction.atomic():
-        ids = [r["id"] for r in piano]
+        ids = [r["id"] for r in da_scrivere]
         blocco = {j.id: j for j in Pianificazione.objects.select_for_update().filter(pk__in=ids)}
         snap = [{"id": j.id, "macchina_id": j.macchina_id, "data": j.data.isoformat()}
                 for j in blocco.values()]
-        for r in piano:
+        for r in da_scrivere:
             job = blocco.get(r["id"])
             if not job:
                 continue
@@ -1065,20 +1175,28 @@ def reschedule(request):
                 job.macchina = target
             job.fonte = Pianificazione.FONTE_MANUALE
             job.save(update_fields=["data", "macchina", "fonte", "updated_at"])
+        # "guardia": updated_at COME RISULTA dopo la nostra scrittura. L'undo la
+        # confronta con quella corrente al momento del click: se non coincidono più,
+        # qualcun altro ha ritoccato il job nel frattempo e non va sovrascritto alla cieca.
+        for s in snap:
+            s["guardia"] = blocco[s["id"]].updated_at.isoformat()
 
     request.session["gcm_undo"] = {"snap": snap}
     request.session.modified = True
     macchina_log = target or p.macchina
-    n_slittati = len(piano) - 1
+    n_slittati = len(da_scrivere) - 1
     if sposta_macchina:
         descr = f"Spostato su {macchina_log.codice}" + (f", {delta:+d} giorni" if delta else "")
     else:
         descr = f"Spostato di {delta:+d} giorni"
     if n_slittati:
         descr += f" (+{n_slittati} slittati)"
+    if n_irrisolti:
+        descr += f" ({n_irrisolti} conflitti irrisolti oltre l'orizzonte)"
     _log_azione(request, "sposta", macchina=macchina_log, pianificazione_id=p.id, descrizione=descr)
     return JsonResponse({
-        "ok": True, "id": p.id, "spostati": len(piano),
+        "ok": True, "id": p.id, "spostati": len(da_scrivere),
+        "irrisolti": n_irrisolti,
         "coda": coda and not sposta_macchina, "macchina": sposta_macchina,
     })
 
@@ -1086,7 +1204,13 @@ def reschedule(request):
 @login_required
 @require_POST
 def reschedule_undo(request):
-    """Annulla l'ultimo spostamento: ripristina macchina e data dallo snapshot in sessione."""
+    """Annulla l'ultimo spostamento: ripristina macchina e data dallo snapshot in sessione.
+
+    Non sovrascrive alla cieca: un job va ripristinato solo se il suo `updated_at`
+    coincide ancora con la "guardia" salvata subito dopo la nostra scrittura. Se qualcun
+    altro (altra tab/utente) lo ha ritoccato nel frattempo, viene saltato (riportato in
+    `saltati`) invece di perdere quella modifica successiva.
+    """
     from django.db import transaction
 
     from .models import Pianificazione
@@ -1095,15 +1219,27 @@ def reschedule_undo(request):
     snap = undo.get("snap") if undo else None
     if not snap:
         return JsonResponse({"ok": False, "error": "Niente da annullare."}, status=400)
+
+    correnti = {j.id: j for j in Pianificazione.objects.filter(pk__in=[s["id"] for s in snap])}
+    da_ripristinare = [
+        s for s in snap
+        if s.get("guardia") and s["id"] in correnti
+        and correnti[s["id"]].updated_at.isoformat() == s["guardia"]
+    ]
+    saltati = len(snap) - len(da_ripristinare)
+
     with transaction.atomic():
-        for s in snap:
+        for s in da_ripristinare:
             Pianificazione.objects.filter(pk=s["id"]).update(
                 macchina_id=s["macchina_id"], data=_parse_date(s["data"])
             )
     del request.session["gcm_undo"]
     request.session.modified = True
-    _log_azione(request, "undo", descrizione=f"Annullato spostamento di {len(snap)} lavori")
-    return JsonResponse({"ok": True, "annullati": len(snap)})
+    descr = f"Annullato spostamento di {len(da_ripristinare)} lavori"
+    if saltati:
+        descr += f" ({saltati} saltati: modificati nel frattempo)"
+    _log_azione(request, "undo", descrizione=descr)
+    return JsonResponse({"ok": True, "annullati": len(da_ripristinare), "saltati": saltati})
 
 
 def _famiglia_da_param(par: str):
