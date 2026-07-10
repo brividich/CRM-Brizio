@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import logging
 
 from django.contrib import messages
@@ -307,7 +308,40 @@ def report_compliance(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("dashboard:dashboard")
 
+    formato = request.GET.get("formato", "").strip()
+    sezione = request.GET.get("sezione", "").strip()
+
+    if formato == "csv" and sezione == "gap":
+        return _csv_gap_sds(prodotti_senza_scheda_corrente())
+    if formato == "csv" and sezione == "matrice":
+        return _csv_matrice_presa_visione(matrice_presa_visione())
+
     return render(request, "schede_sicurezza/pages/report_compliance.html", {
         "gap": prodotti_senza_scheda_corrente(),
         "matrice": matrice_presa_visione(),
     })
+
+
+def _csv_gap_sds(prodotti):
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="schede_sicurezza_gap_sds.csv"'
+    writer = csv.writer(response)
+    writer.writerow(["Prodotto", "Reparto", "Fornitore"])
+    for p in prodotti:
+        writer.writerow([p.nome, p.reparto.nome, p.fornitore])
+    return response
+
+
+def _csv_matrice_presa_visione(reparti):
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="schede_sicurezza_matrice_presa_visione.csv"'
+    writer = csv.writer(response)
+    writer.writerow(["Reparto", "Prodotto", "Versione scheda", "Dipendenti totali", "Confermati", "Percentuale"])
+    for reparto in reparti:
+        for riga in reparto.righe:
+            percentuale = "n/d" if riga.percentuale is None else f"{riga.percentuale}%"
+            writer.writerow([
+                reparto.reparto_nome, riga.prodotto_nome, riga.scheda_versione,
+                riga.totale_dipendenti, riga.confermati, percentuale,
+            ])
+    return response

@@ -38,3 +38,51 @@ class ReportComplianceViewTest(TestCase):
         resp = self.client.get(reverse("schede_sicurezza:report_compliance"))
         self.assertEqual(resp.status_code, 302)
         self.assertIn("login", resp.url.lower())
+
+
+import csv
+import io
+
+from anagrafica.models import AreaAziendale, DipendenteAnagraficaAziendale
+from core.models import Profile
+
+from .models import PresaVisioneScheda, SchedaSicurezza
+
+
+class ReportComplianceCsvExportTest(TestCase):
+    def setUp(self):
+        self.reparto = Reparto.objects.create(nome="Produzione")
+        self.area = AreaAziendale.objects.create(nome="Produzione - Linea 1", reparto=self.reparto)
+        self.senza_scheda = ProdottoChimico.objects.create(
+            nome="Senza scheda", reparto=self.reparto, fornitore="ACME",
+        )
+        self.con_scheda = ProdottoChimico.objects.create(nome="Con scheda", reparto=self.reparto)
+        self.scheda = SchedaSicurezza.objects.create(
+            prodotto=self.con_scheda, pdf=_pdf(), versione="Rev.2", is_corrente=True,
+        )
+        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=9101, area_aziendale=self.area)
+        dip_user = User.objects.create_user(username="dip9101", password="x")
+        Profile.objects.create(user=dip_user, legacy_user_id=9101)
+        PresaVisioneScheda.objects.create(scheda=self.scheda, operatore=dip_user)
+
+        self.admin = User.objects.create_user(username="admin_csv", password="x", is_superuser=True, is_staff=True)
+        self.client.force_login(self.admin)
+
+    def test_export_csv_gap(self):
+        resp = self.client.get(reverse("schede_sicurezza:report_compliance"), {"formato": "csv", "sezione": "gap"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], "text/csv")
+        righe = list(csv.reader(io.StringIO(resp.content.decode("utf-8"))))
+        self.assertEqual(righe[0], ["Prodotto", "Reparto", "Fornitore"])
+        self.assertIn(["Senza scheda", "Produzione", "ACME"], righe)
+
+    def test_export_csv_matrice(self):
+        resp = self.client.get(reverse("schede_sicurezza:report_compliance"), {"formato": "csv", "sezione": "matrice"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], "text/csv")
+        righe = list(csv.reader(io.StringIO(resp.content.decode("utf-8"))))
+        self.assertEqual(
+            righe[0],
+            ["Reparto", "Prodotto", "Versione scheda", "Dipendenti totali", "Confermati", "Percentuale"],
+        )
+        self.assertIn(["Produzione", "Con scheda", "Rev.2", "1", "1", "100%"], righe)
