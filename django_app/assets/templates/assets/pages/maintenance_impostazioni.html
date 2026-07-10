@@ -70,6 +70,22 @@
 }
 .mi-new-btn:hover { background:#1e40af; }
 
+/* ── Barra filtri ──────────────────────────────────────────────────── */
+.mi-filters {
+  display:flex; flex-wrap:wrap; align-items:center; gap:10px;
+  padding:12px 14px; background:#f8fafc;
+  border:1px solid #e2e8f0; border-radius:12px;
+}
+.mi-filter-field {
+  padding:7px 10px; font-size:var(--fs-sm);
+  border:1px solid #cbd5e1; border-radius:8px;
+  background:#fff; color:#1e293b;
+}
+.mi-filter-search { flex:1; min-width:180px; }
+.mi-filter-field:focus { outline:2px solid #93c5fd; outline-offset:1px; }
+body.theme-dark .mi-filters { background:#162032; border-color:#334155; }
+body.theme-dark .mi-filter-field { background:#1e293b; border-color:#3b4e6b; color:var(--text); }
+
 /* ── Tabella ───────────────────────────────────────────────────────── */
 .mi-table-wrap { overflow-x:auto; }
 .mi-table { width:100%; border-collapse:collapse; }
@@ -132,6 +148,8 @@
   letter-spacing:.05em;
 }
 .mi-rule-name { display:block; font-weight:600; }
+.mi-ext-badge { display:inline-block; font-size:10px; font-weight:800; padding:1px 6px; border-radius:999px; background:#ede9fe; color:#6d28d9; margin-left:4px; white-space:nowrap; }
+body.theme-dark .mi-ext-badge { background:rgba(109,40,217,.28); color:#c4b5fd; }
 .mi-rule-add-link  { font-size:var(--fs-xs); }
 .mi-rule-warning   { display:block; font-size:var(--fs-xs); margin-top:2px; }
 .mi-placeholder-cell { display:inline-block; width:22px; }
@@ -238,13 +256,9 @@ body.theme-dark .mi-rule-label { color:#475569; }
 
   <!-- TAB BAR ──────────────────────────────────────────────────────── -->
   <div class="mi-tabs">
-    <a href="?tab=templates" class="mi-tab {% if active_tab == 'templates' %}is-active{% endif %}">
-      Template &amp; Regole
+    <a href="?tab=interventi" class="mi-tab {% if active_tab == 'interventi' %}is-active{% endif %}">
+      Interventi &amp; Regole
       <span class="mi-tab-badge">{{ template_count }}</span>
-    </a>
-    <a href="?tab=rules" class="mi-tab {% if active_tab == 'rules' %}is-active{% endif %}">
-      Regole attive
-      <span class="mi-tab-badge">{{ rules_count }}</span>
     </a>
     <a href="?tab=piano" class="mi-tab {% if active_tab == 'piano' %}is-active{% endif %}">
       Piano per categoria
@@ -252,13 +266,41 @@ body.theme-dark .mi-rule-label { color:#475569; }
     </a>
   </div>
 
-  <!-- TAB: TEMPLATE E REGOLE ───────────────────────────────────────── -->
-  {% if active_tab == 'templates' %}
+  <!-- TAB: INTERVENTI E REGOLE ─────────────────────────────────────── -->
+  {% if active_tab == 'interventi' %}
+
+  <!-- Barra filtri integrata (sostituisce le vecchie pagine "Vista avanzata") -->
+  <form method="get" class="mi-filters" role="search">
+    <input type="hidden" name="tab" value="interventi">
+    <select name="category" class="mi-filter-field" aria-label="Filtra per categoria">
+      <option value="">Tutte le categorie</option>
+      {% for cat in category_options %}
+        <option value="{{ cat.id }}" {% if selected_category and selected_category.id == cat.id %}selected{% endif %}>{{ cat.label }}</option>
+      {% endfor %}
+    </select>
+    <select name="active" class="mi-filter-field" aria-label="Filtra per stato">
+      <option value="active"   {% if active_filter == 'active' %}selected{% endif %}>Solo attivi</option>
+      <option value="inactive" {% if active_filter == 'inactive' %}selected{% endif %}>Solo inattivi</option>
+      <option value="all"      {% if active_filter == 'all' %}selected{% endif %}>Tutti</option>
+    </select>
+    <select name="execution" class="mi-filter-field" aria-label="Filtra per esecuzione interna/esterna">
+      <option value="all"      {% if execution_filter == 'all' %}selected{% endif %}>Interne + esterne</option>
+      <option value="internal" {% if execution_filter == 'internal' %}selected{% endif %}>Solo interne</option>
+      <option value="external" {% if execution_filter == 'external' %}selected{% endif %}>Solo esterne</option>
+    </select>
+    <input type="search" name="q" value="{{ q }}" class="mi-filter-field mi-filter-search"
+           placeholder="Cerca intervento, codice o categoria…" aria-label="Ricerca">
+    <button type="submit" class="mi-new-btn">Filtra</button>
+    {% if has_active_filters %}
+      <a href="{{ clear_filters_url }}" class="mi-link">Azzera</a>
+    {% endif %}
+  </form>
+
   <details class="mi-card as-collapse as-collapse--cap" open>
     <summary class="mi-card-head">
-      <span class="mi-card-title">Template di intervento</span>
-      <a href="{{ url_templates_advanced }}" class="mi-link">Vista avanzata &middot; filtri</a>
-      <a href="{% url 'assets:maintenance_template_create' %}" class="mi-new-btn">+ Nuovo template</a>
+      <span class="mi-card-title">Interventi di manutenzione &amp; regole programmate</span>
+      <a href="{{ url_suppliers }}" class="mi-link">Fornitori manutenzione &rsaquo;</a>
+      <a href="{% url 'assets:maintenance_template_create' %}" class="mi-new-btn">+ Nuovo intervento</a>
     </summary>
     <div class="mi-table-wrap as-collapse-body">
       <table class="mi-table">
@@ -320,7 +362,9 @@ body.theme-dark .mi-rule-label { color:#475569; }
               <td></td>
               <td>
                 <span class="mi-rule-label">Regola</span>
-                <span class="mi-rule-name">{{ rule.asset_category.label }} — {{ rule.threshold_value }} {{ rule.get_threshold_type_display }}</span>
+                <span class="mi-rule-name">{{ rule.asset_category.label }} — {{ rule.threshold_value }} {{ rule.get_threshold_type_display }}
+                  {% if rule.is_external %}<span class="mi-ext-badge">Esterna{% if rule.supplier %} · {{ rule.supplier }}{% endif %}</span>{% endif %}
+                </span>
               </td>
               <td>
                 <span class="mi-tag">{{ rule.asset_category.label }}</span>
@@ -354,68 +398,15 @@ body.theme-dark .mi-rule-label { color:#475569; }
           <tbody>
             <tr>
               <td colspan="7" class="mi-empty">
-                Nessun template configurato. <a href="{% url 'assets:maintenance_template_create' %}" class="mi-link">Crea il primo.</a>
+                {% if has_active_filters %}
+                  Nessun intervento corrisponde ai filtri. <a href="{{ clear_filters_url }}" class="mi-link">Azzera i filtri</a>.
+                {% else %}
+                  Nessun intervento configurato. <a href="{% url 'assets:maintenance_template_create' %}" class="mi-link">Crea il primo.</a>
+                {% endif %}
               </td>
             </tr>
           </tbody>
         {% endif %}
-      </table>
-    </div>
-  </details>
-  {% endif %}
-
-  <!-- TAB: REGOLE ATTIVE ───────────────────────────────────────────── -->
-  {% if active_tab == 'rules' %}
-  <details class="mi-card as-collapse as-collapse--cap" open>
-    <summary class="mi-card-head">
-      <span class="mi-card-title">Regole manutenzione attive</span>
-      <a href="{{ url_rules_advanced }}" class="mi-link">Vista avanzata &middot; filtri</a>
-      <a href="{% url 'assets:maintenance_rule_create' %}" class="mi-new-btn">+ Nuova regola</a>
-    </summary>
-    <div class="mi-table-wrap as-collapse-body">
-      <table class="mi-table">
-        <thead><tr>
-          <th scope="col">Categoria asset</th>
-          <th scope="col">Template</th>
-          <th scope="col">Soglia</th>
-          <th scope="col">Avviso</th>
-          <th scope="col">Stato</th>
-          <th scope="col" aria-label="Azioni"></th>
-        </tr></thead>
-        <tbody>
-          {% if rule_qs %}
-            {% for rule in rule_qs %}
-            <tr data-row-href="{% url 'assets:maintenance_rule_edit' rule.id %}">
-              <td>
-                <span class="mi-tag">{{ rule.asset_category.label }}</span>
-              </td>
-              <td>
-                {% if rule.intervention_template %}
-                  <span class="mi-badge">{{ rule.intervention_template.label }}</span>
-                {% else %}
-                  <span class="mi-muted">—</span>
-                {% endif %}
-              </td>
-              <td>
-                <span class="mi-pill blue">{{ rule.threshold_value }} {{ rule.get_threshold_type_display }}</span>
-              </td>
-              <td class="mi-muted">
-                {% if rule.warning_days %}{{ rule.warning_days }}gg prima{% else %}—{% endif %}
-              </td>
-              <td>
-                <span class="mi-pill {% if rule.is_active %}active{% else %}inactive{% endif %}">
-                  {% if rule.is_active %}Attiva{% else %}Inattiva{% endif %}
-                </span>
-              </td>
-              <td>
-                <a href="{% url 'assets:maintenance_rule_edit' rule.id %}" class="mi-link">Modifica</a>
-              </td>
-            </tr>
-            {% endfor %}
-          {% else %}
-            <tr><td colspan="7" class="mi-empty">Nessuna regola attiva configurata.</td></tr>
-          {% endif %}
-        </tbody>
       </table>
     </div>
   </details>

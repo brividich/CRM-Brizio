@@ -5253,7 +5253,13 @@ class WorkOrderFlowTests(TestCase):
             f'href="{reverse("assets:wo_list")}?status={WorkOrder.STATUS_OPEN}"',
             html=False,
         )
-        self.assertContains(response, 'href="?tab=scadenzario&amp;sub=scadenze"', html=False)
+        # Il contatore "scadenze amministrative" ora punta al suo elenco dedicato
+        # (niente più tab-scadenzario interna al Centro).
+        self.assertContains(
+            response,
+            f'href="{reverse("assets:asset_administrative_deadline_list")}"',
+            html=False,
+        )
         self.assertContains(
             response,
             f'href="{reverse("assets:maintenance_schedule")}?status=due"',
@@ -5576,17 +5582,28 @@ class AssetMaintenanceStepTwoTests(TestCase):
 
         self.client.force_login(self.admin)
 
+        # Le vecchie liste standalone ora redirigono (301) alla vista unica
+        # "Interventi & Regole" in Impostazioni manutenzione.
+        settings_url = reverse("assets:maintenance_impostazioni")
+
         template_list_response = self.client.get(reverse("assets:maintenance_template_list"))
-        self.assertEqual(template_list_response.status_code, 200)
-        self.assertContains(template_list_response, "Template manutenzione")
-        self.assertContains(template_list_response, general_template.label)
-        self.assertContains(template_list_response, category_template.label)
+        self.assertEqual(template_list_response.status_code, 301)
+        self.assertIn(settings_url, template_list_response["Location"])
+        self.assertIn("tab=interventi", template_list_response["Location"])
 
         rule_list_response = self.client.get(reverse("assets:maintenance_rule_list"))
-        self.assertEqual(rule_list_response.status_code, 200)
-        self.assertContains(rule_list_response, "Regole manutenzione")
-        self.assertContains(rule_list_response, category_template.label)
-        self.assertContains(rule_list_response, self.category.label)
+        self.assertEqual(rule_list_response.status_code, 301)
+        self.assertIn(settings_url, rule_list_response["Location"])
+        self.assertIn("tab=interventi", rule_list_response["Location"])
+
+        # La vista unica mostra template e regole insieme (accordion), con la
+        # categoria e i suoi interventi.
+        settings_response = self.client.get(settings_url + "?tab=interventi&active=all")
+        self.assertEqual(settings_response.status_code, 200)
+        self.assertContains(settings_response, "Interventi &amp; Regole")
+        self.assertContains(settings_response, general_template.label)
+        self.assertContains(settings_response, category_template.label)
+        self.assertContains(settings_response, self.category.label)
 
     def test_maintenance_form_accepts_global_template_for_category_rule(self):
         template = MaintenanceInterventionTemplate.objects.create(
@@ -5923,6 +5940,259 @@ class AssetMaintenanceStepThreeTests(TestCase):
             sort_order=20,
             notes="Regola altra categoria",
         )
+
+    def test_maintenance_schedule_internal_external_filter_and_badge(self):
+        from anagrafica.models import Fornitore
+
+        supplier = Fornitore.objects.create(ragione_sociale="Ditta Esterna Srl")
+        self.base_rule.execution_mode = MaintenanceRule.MODE_EXTERNAL
+        self.base_rule.supplier = supplier
+        self.base_rule.save(update_fields=["execution_mode", "supplier"])
+        self.assertTrue(self.base_rule.is_external)
+        self.client.force_login(self.admin)
+
+        # Filtro "Esterne": la riga è presente con badge "Esterna" e fornitore.
+        page_ext = self.client.get(
+            reverse("assets:maintenance_schedule")
+            + f"?asset={self.asset.id}&status=all&execution=external"
+        )
+        self.assertEqual(page_ext.status_code, 200)
+        self.assertContains(page_ext, "Lubrificazione guidata")
+        self.assertContains(page_ext, "Esterna")
+        self.assertContains(page_ext, "Ditta Esterna Srl")
+
+        # Filtro "Interne": la regola esterna NON compare.
+        page_int = self.client.get(
+            reverse("assets:maintenance_schedule")
+            + f"?asset={self.asset.id}&status=all&execution=internal"
+        )
+        self.assertEqual(page_int.status_code, 200)
+        self.assertNotContains(page_int, "Lubrificazione guidata")
+
+    def test_external_rule_execution_inherits_supplier_on_workorder(self):
+        from anagrafica.models import Fornitore
+
+        supplier = Fornitore.objects.create(ragione_sociale="Assistenza Terza Srl")
+        self.base_rule.execution_mode = MaintenanceRule.MODE_EXTERNAL
+        self.base_rule.supplier = supplier
+        self.base_rule.save(update_fields=["execution_mode", "supplier"])
+        self.client.force_login(self.admin)
+
+        resp = self.client.post(
+            reverse("assets:maintenance_schedule"),
+            {
+                "action": "record_maintenance_rule_execution",
+                "asset_id": str(self.asset.id),
+                "base_rule_id": str(self.base_rule.id),
+                "execution_date": timezone.localdate().isoformat(),
+                "execution_duration_minutes": "30",
+                "execution_notes": "Intervento eseguito dalla ditta esterna",
+            },
+        )
+        self.assertEqual(resp.status_code, 302)
+        workorder = (
+            WorkOrder.objects.filter(asset=self.asset, maintenance_rule=self.base_rule)
+            .order_by("-id")
+            .first()
+        )
+        self.assertIsNotNone(workorder)
+        self.assertEqual(workorder.status, WorkOrder.STATUS_DONE)
+        self.assertEqual(workorder.supplier_id, supplier.id)
+
+    def test_maintenance_suppliers_page_and_redirect(self):
+        from anagrafica.models import Fornitore
+
+        supplier = Fornitore.objects.create(ragione_sociale="Fornitore Manut Srl")
+        self.base_rule.execution_mode = MaintenanceRule.MODE_EXTERNAL
+        self.base_rule.supplier = supplier
+        self.base_rule.save(update_fields=["execution_mode", "supplier"])
+        self.client.force_login(self.admin)
+
+        # La vecchia tab ?tab=fornitori ora redirige alla pagina dedicata.
+        redir = self.client.get(reverse("assets:maintenance_impostazioni") + "?tab=fornitori")
+        self.assertEqual(redir.status_code, 302)
+        self.assertIn(reverse("assets:maintenance_suppliers"), redir["Location"])
+
+        # Pagina dedicata: elenca il fornitore con link al modulo /fornitori/.
+        page = self.client.get(reverse("assets:maintenance_suppliers"))
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, "Fornitori usati in manutenzione")
+        self.assertContains(page, "Fornitore Manut Srl")
+        self.assertContains(page, reverse("fornitori:fornitore_detail", kwargs={"fornitore_id": supplier.id}))
+
+    def test_maintenance_worksheet_renders(self):
+        self.client.force_login(self.admin)
+        resp = self.client.get(
+            reverse(
+                "assets:maintenance_worksheet",
+                kwargs={"asset_id": self.asset.id, "rule_id": self.base_rule.id},
+            )
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Scheda intervento")
+        self.assertContains(resp, self.asset.asset_tag)
+        self.assertContains(resp, self.category_template.label)
+
+    def test_maintenance_reminders_includes_overdue_rules(self):
+        from datetime import timedelta
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        from assets.models import AssetMaintenanceRuleState
+
+        AssetMaintenanceRuleState.objects.update_or_create(
+            asset=self.asset,
+            base_rule=self.base_rule,
+            defaults={"last_execution_date": timezone.localdate() - timedelta(days=500)},
+        )
+        out = StringIO()
+        call_command("send_maintenance_reminders", "--dry-run", stdout=out)
+        output = out.getvalue()
+        self.assertIn("MANUTENZIONI PROGRAMMATE", output)
+        self.assertIn(self.asset.asset_tag, output)
+
+    def test_quick_record_copies_and_marks_checklist(self):
+        from assets.models import MaintenanceChecklistStep, WorkOrderChecklist
+
+        MaintenanceChecklistStep.objects.create(
+            intervention_template=self.category_template, step_number=10, description="Controlla livello olio"
+        )
+        MaintenanceChecklistStep.objects.create(
+            intervention_template=self.category_template, step_number=20, description="Pulisci filtri"
+        )
+        self.client.force_login(self.admin)
+
+        resp = self.client.post(
+            reverse("assets:maintenance_schedule"),
+            {
+                "action": "record_maintenance_rule_execution",
+                "asset_id": str(self.asset.id),
+                "base_rule_id": str(self.base_rule.id),
+                "execution_date": timezone.localdate().isoformat(),
+                "execution_duration_minutes": "0",
+                "execution_notes": "eseguito",
+                "checklist_done": ["10"],  # solo lo step 10 spuntato
+            },
+        )
+        self.assertEqual(resp.status_code, 302)
+        workorder = (
+            WorkOrder.objects.filter(asset=self.asset, maintenance_rule=self.base_rule)
+            .order_by("-id")
+            .first()
+        )
+        items = {c.step_number: c.is_done for c in WorkOrderChecklist.objects.filter(work_order=workorder)}
+        self.assertEqual(items, {10: True, 20: False})
+
+    def test_asset_qr_landing_shows_maintenance_and_documents(self):
+        if not self.asset.asset_tag:
+            self.asset.asset_tag = "QR-TEST-1"
+            self.asset.save(update_fields=["asset_tag"])
+        self.client.force_login(self.admin)
+
+        resp = self.client.get(
+            reverse("assets:asset_qr_landing", kwargs={"asset_tag": self.asset.asset_tag})
+        )
+        self.assertEqual(resp.status_code, 200)
+        # Le nuove sezioni mobile: manutenzioni in scadenza + documenti.
+        self.assertContains(resp, "Manutenzioni")
+        self.assertContains(resp, "Documenti")
+        # La regola di categoria dell'asset (missing/prima esecuzione) compare come voce.
+        self.assertContains(resp, self.category_template.label)
+
+    def test_seed_fornitori_manutenzione_command(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        from anagrafica.models import Fornitore
+
+        # Un fornitore già presente con nome più completo: l'idempotenza fuzzy deve saltarlo.
+        Fornitore.objects.create(ragione_sociale="Bruschi di Pino Florio")
+
+        call_command(
+            "seed_fornitori_manutenzione",
+            "--names", "Bruschi,Zega Manut",
+            "--commit",
+            stdout=StringIO(),
+        )
+        # "Bruschi" saltato (contenuto in "Bruschi di Pino Florio"), "Zega Manut" creato.
+        self.assertFalse(Fornitore.objects.filter(ragione_sociale="Bruschi").exists())
+        zega = Fornitore.objects.filter(ragione_sociale="Zega Manut").first()
+        self.assertIsNotNone(zega)
+        self.assertEqual(zega.categoria, Fornitore.CATEGORIA_MANUTENZIONE)
+
+        # Re-run idempotente: nessun duplicato.
+        call_command("seed_fornitori_manutenzione", "--names", "Zega Manut", "--commit", stdout=StringIO())
+        self.assertEqual(Fornitore.objects.filter(ragione_sociale="Zega Manut").count(), 1)
+
+    def test_classify_maintenance_external_command(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        from anagrafica.models import Fornitore
+
+        supplier = Fornitore.objects.create(ragione_sociale="F-gas Cert Srl")
+        template = MaintenanceInterventionTemplate.objects.create(
+            code="caus-a16", label="Controllo perdita freon", asset_category=self.category
+        )
+        rule = MaintenanceRule.objects.create(
+            intervention_template=template,
+            asset_category=self.category,
+            threshold_type=MaintenanceRule.THRESHOLD_DAYS,
+            threshold_value=365,
+        )
+        self.assertFalse(rule.is_external)
+
+        # Dry-run: non scrive.
+        call_command("classify_maintenance_external", "--external", "A16", "--dry-run", stdout=StringIO())
+        rule.refresh_from_db()
+        self.assertFalse(rule.is_external)
+
+        # Commit: marca esterna + assegna fornitore.
+        call_command(
+            "classify_maintenance_external",
+            "--external", "A16",
+            "--supplier", str(supplier.id),
+            "--commit",
+            stdout=StringIO(),
+        )
+        rule.refresh_from_db()
+        self.assertTrue(rule.is_external)
+        self.assertEqual(rule.supplier_id, supplier.id)
+
+        # La regola interna (self.base_rule) resta invariata.
+        self.base_rule.refresh_from_db()
+        self.assertFalse(self.base_rule.is_external)
+
+    def test_maintenance_rule_form_accepts_external_with_supplier(self):
+        from anagrafica.models import Fornitore
+
+        supplier = Fornitore.objects.create(ragione_sociale="Manutenzioni Terze Srl")
+        form = MaintenanceRuleForm(
+            data={
+                "intervention_template": str(self.category_template.id),
+                "asset_category": str(self.category.id),
+                "threshold_type": MaintenanceRule.THRESHOLD_DAYS,
+                "threshold_value": "180",
+                "warning_days": "15",
+                "execution_mode": MaintenanceRule.MODE_EXTERNAL,
+                "supplier": str(supplier.id),
+                "sort_order": "10",
+                "is_active": "on",
+                "notes": "",
+            }
+        )
+        self.assertTrue(form.is_valid(), form.errors.as_json())
+        rule = form.save()
+        self.assertTrue(rule.is_external)
+        self.assertEqual(rule.supplier_id, supplier.id)
+
+        # Interna → il fornitore viene azzerato dalla normalizzazione del modello.
+        rule.execution_mode = MaintenanceRule.MODE_INTERNAL
+        rule.full_clean()
+        self.assertIsNone(rule.supplier_id)
 
     def test_override_create_view_creates_valid_override(self):
         self.client.force_login(self.admin)

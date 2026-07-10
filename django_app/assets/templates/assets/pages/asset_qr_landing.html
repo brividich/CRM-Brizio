@@ -215,16 +215,47 @@
           <div class="qrl-kv-row">
             <span class="qrl-kv-label">Prossima scadenza</span>
             <span class="qrl-kv-value">
-              {{ next_deadline.expiry_date|date:"d-m-Y" }}
-              {% if next_deadline.expiry_date <= today %}
+              {{ next_deadline.due_date|date:"d-m-Y" }}
+              {% if next_deadline.due_date <= today %}
                 <span class="qrl-badge qrl-badge--alert">Scaduta</span>
-              {% elif next_deadline.expiry_date|timeuntil <= "7 giorni" %}
-                <span class="qrl-badge qrl-badge--warn">Imminente</span>
               {% endif %}
             </span>
           </div>
         {% endif %}
       </div>
+    </div>
+  </div>
+
+  {# Manutenzioni in scadenza (dalle regole) #}
+  <div class="qrl-card">
+    <div class="qrl-card-title">Manutenzioni {% if qr_overdue_count %}&middot; {{ qr_overdue_count }} scadute{% endif %}</div>
+    <div class="qrl-card-body">
+      {% if qr_schedule_rows %}
+        {% for r in qr_schedule_rows %}
+          <div class="qrl-wo-item">
+            <div class="qrl-wo-dot {% if r.status == 'overdue' %}qrl-wo-dot--urgente{% endif %}"></div>
+            <div style="flex:1; min-width:0;">
+              <div class="qrl-wo-title">
+                {{ r.label|truncatechars:44 }}
+                {% if r.is_external %}<span class="qrl-badge qrl-badge--info" style="font-size:.62rem;">&#127970; {{ r.supplier|default:"Esterna"|truncatechars:22 }}</span>{% endif %}
+              </div>
+              <div class="qrl-wo-meta">
+                {% if r.status == 'overdue' %}<span class="qrl-badge qrl-badge--alert">Scaduta</span>
+                {% elif r.status == 'warning' %}<span class="qrl-badge qrl-badge--warn">In scadenza</span>
+                {% elif r.status == 'missing' %}<span class="qrl-badge qrl-badge--info">Prima esecuzione</span>
+                {% else %}<span class="qrl-badge qrl-badge--ok">Pianificata</span>{% endif %}
+                {% if r.due_date %}&nbsp;&middot;&nbsp;{{ r.due_date|date:"d-m-Y" }}{% endif %}
+              </div>
+            </div>
+            <a href="{{ r.record_url }}" style="font-size:.75rem; color:#1d4ed8; font-weight:700; text-decoration:none; white-space:nowrap;">Registra &rsaquo;</a>
+          </div>
+        {% endfor %}
+        <div style="margin-top:10px;">
+          <a href="{{ schedule_url }}" style="font-size:.8rem; color:#1d4ed8; font-weight:600; text-decoration:none;">Scadenzario completo &rarr;</a>
+        </div>
+      {% else %}
+        <p class="qrl-empty">Nessuna manutenzione in scadenza.</p>
+      {% endif %}
     </div>
   </div>
 
@@ -252,6 +283,32 @@
         </div>
       {% else %}
         <p class="qrl-empty">Nessun intervento aperto.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Documenti #}
+  <div class="qrl-card">
+    <div class="qrl-card-title">Documenti{% if asset_documents %} ({{ asset_documents|length }}){% endif %}</div>
+    <div class="qrl-card-body">
+      {% if asset_documents %}
+        {% for doc in asset_documents %}
+          <div class="qrl-wo-item">
+            <div class="qrl-icon" style="font-size:1.1rem;">&#128196;</div>
+            <div style="flex:1; min-width:0;">
+              <div class="qrl-wo-title" style="word-break:break-word;">{{ doc.name|truncatechars:44 }}</div>
+              <div class="qrl-wo-meta">{{ doc.category_label }}{% if doc.document_date %} &middot; {{ doc.document_date|date:"d-m-Y" }}{% endif %}</div>
+            </div>
+            {% if doc.open_url %}<a href="{{ doc.open_url }}" target="_blank" rel="noopener" style="font-size:.75rem; color:#1d4ed8; font-weight:700; text-decoration:none;">Apri &rsaquo;</a>{% endif %}
+          </div>
+        {% endfor %}
+      {% else %}
+        <p class="qrl-empty">Nessun documento caricato.</p>
+      {% endif %}
+      {% if sharepoint_folder_url %}
+        <div style="margin-top:10px;">
+          <a href="{{ sharepoint_folder_url }}" target="_blank" rel="noopener" style="font-size:.8rem; color:#1d4ed8; font-weight:600; text-decoration:none;">Apri cartella SharePoint &rarr;</a>
+        </div>
       {% endif %}
     </div>
   </div>

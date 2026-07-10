@@ -26,6 +26,12 @@ urlpatterns = [
     path("assets/manutenzione/", views.maintenance_hub, name="maintenance_hub"),
     path("assets/manutenzione/scadenzario/", views.maintenance_scadenzario, name="maintenance_scadenzario"),
     path("assets/manutenzione/impostazioni/", views.maintenance_impostazioni, name="maintenance_impostazioni"),
+    path("assets/manutenzione/fornitori/", views.maintenance_suppliers, name="maintenance_suppliers"),
+    path(
+        "assets/manutenzione/scheda/<int:asset_id>/<int:rule_id>/",
+        views.maintenance_worksheet,
+        name="maintenance_worksheet",
+    ),
     path("assets/manutenzione/templates/", views.maintenance_template_list, name="maintenance_template_list"),
     path("assets/manutenzione/templates/new/", views.maintenance_template_create, name="maintenance_template_create"),
     path(

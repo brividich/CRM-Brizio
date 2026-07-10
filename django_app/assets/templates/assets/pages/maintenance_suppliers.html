@@ -1,0 +1,89 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Fornitori manutenzione{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.msup-card { border:1px solid #e2e8f0; border-radius:16px; background:#fff; overflow:hidden; box-shadow:0 1px 4px rgba(15,23,42,.04); }
+.msup-head { padding:14px 18px; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.msup-title { font-size:var(--fs-md); font-weight:800; color:#0f172a; flex:1; min-width:0; }
+.msup-intro { padding:12px 18px; color:#64748b; font-size:var(--fs-sm); background:#f8fafc; border-bottom:1px solid #f1f5f9; }
+.msup-new-btn { display:inline-flex; align-items:center; gap:6px; padding:6px 14px; background:#1d4ed8; color:#fff; border-radius:8px; font-size:var(--fs-sm); font-weight:700; text-decoration:none; }
+.msup-new-btn:hover { background:#1e40af; }
+.msup-link { color:#1d4ed8; text-decoration:none; font-weight:700; }
+.msup-link:hover { text-decoration:underline; }
+.msup-table-wrap { overflow-x:auto; }
+.msup-table { width:100%; border-collapse:collapse; }
+.msup-table th { text-align:left; padding:10px 14px; background:#f8fafc; border-bottom:1px solid #e5e7eb; color:#64748b; font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.06em; font-weight:800; white-space:nowrap; }
+.msup-table td { padding:11px 14px; border-bottom:1px solid #f1f5f9; color:#1e293b; font-size:var(--fs-sm); vertical-align:middle; }
+.msup-table tbody tr:last-child td { border-bottom:none; }
+.msup-badge { display:inline-block; padding:2px 8px; border-radius:6px; font-size:var(--fs-xs); font-weight:700; background:#eff6ff; color:#1e40af; }
+.msup-muted { color:#94a3b8; }
+.msup-empty { padding:32px 18px; text-align:center; color:#94a3b8; font-size:var(--fs-sm); }
+body.theme-dark .msup-card { background:#1e293b; border-color:#334155; box-shadow:none; }
+body.theme-dark .msup-head, body.theme-dark .msup-intro { border-color:#334155; }
+body.theme-dark .msup-intro { background:#162032; color:#94a3b8; }
+body.theme-dark .msup-title { color:var(--text); }
+body.theme-dark .msup-table th { background:#162032; border-color:#334155; color:#94a3b8; }
+body.theme-dark .msup-table td { color:var(--text); border-color:#253347; }
+body.theme-dark .msup-badge { background:#1e3a5f; color:#93c5fd; }
+body.theme-dark .msup-link { color:#60a5fa; }
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Fornitori manutenzione{% endblock %}
+{% block assets_shell_subtitle %}
+<p>Ditte terze collegate alla manutenzione. L'anagrafica completa vive nel modulo Fornitori.</p>
+{% endblock %}
+{% block assets_shell_toolbar %}
+  <a class="btn" href="{{ url_fornitori_list }}">Gestione completa fornitori</a>
+  <a class="btn btn-primary" href="{{ url_fornitore_new }}">+ Nuovo fornitore</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<div class="msup-card as-collapse as-collapse--cap">
+  <div class="msup-head">
+    <span class="msup-title">Fornitori usati in manutenzione ({{ supplier_total }})</span>
+    <a href="{{ url_fornitori_list }}" class="msup-link">Gestione completa &rsaquo;</a>
+  </div>
+  <div class="msup-intro">
+    Ditte terze collegate a manutenzione tramite <strong>regole esterne</strong>, <strong>ordini di lavoro</strong>,
+    <strong>contratti di assistenza</strong> o <strong>verifiche periodiche</strong>. Clicca una riga per aprire
+    il dettaglio nel modulo <strong>Fornitori</strong> (fonte unica di gestione/anagrafica).
+  </div>
+  <div class="msup-table-wrap">
+    <table class="msup-table">
+      <thead><tr>
+        <th scope="col">Fornitore</th>
+        <th scope="col">Regole esterne</th>
+        <th scope="col">Ordini di lavoro</th>
+        <th scope="col">Contratti</th>
+        <th scope="col">Verifiche</th>
+        <th scope="col" aria-label="Azioni"></th>
+      </tr></thead>
+      <tbody>
+        {% if supplier_rows %}
+          {% for row in supplier_rows %}
+          <tr data-row-href="{{ row.detail_url }}">
+            <td><strong>{{ row.f.ragione_sociale }}</strong></td>
+            <td>{% if row.rules %}<span class="msup-badge">{{ row.rules }}</span>{% else %}<span class="msup-muted">—</span>{% endif %}</td>
+            <td>{% if row.workorders %}<span class="msup-badge">{{ row.workorders }}</span>{% else %}<span class="msup-muted">—</span>{% endif %}</td>
+            <td>{% if row.contracts %}<span class="msup-badge">{{ row.contracts }}</span>{% else %}<span class="msup-muted">—</span>{% endif %}</td>
+            <td>{% if row.verifications %}<span class="msup-badge">{{ row.verifications }}</span>{% else %}<span class="msup-muted">—</span>{% endif %}</td>
+            <td><a href="{{ row.detail_url }}" class="msup-link">Apri</a></td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="6" class="msup-empty">
+              Nessun fornitore ancora collegato alla manutenzione. Marca una regola come
+              <strong>Esterna</strong> con fornitore (Impostazioni &rsaquo; Interventi &amp; Regole),
+              oppure <a href="{{ url_fornitore_new }}" class="msup-link">crea un fornitore</a>.
+            </td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

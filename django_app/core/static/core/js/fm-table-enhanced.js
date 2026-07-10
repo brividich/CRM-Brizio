@@ -463,6 +463,7 @@
         sortable:   th.dataset.colSortable === "1",
         filterable: th.dataset.colFilterable === "1",
         locked:     th.dataset.colLocked === "1",
+        hidden:     th.dataset.colHidden === "1",
       });
     });
     return cols;
@@ -471,7 +472,9 @@
   function defaultState(cols) {
     const named = cols.filter(c => c.key);
     return {
-      visible: named.map(c => c.key),
+      // `data-col-hidden="1"` → colonna presente ma NON visibile di default
+      // (resta riattivabile dal menu "Colonne ▾"). Additivo: default = visibile.
+      visible: named.filter(c => !c.hidden).map(c => c.key),
       order:   named.map(c => c.key),
       sort:    [],          // [[key,"asc"|"desc"], …]
       filters: {},

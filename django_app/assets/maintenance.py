@@ -387,7 +387,7 @@ def build_maintenance_schedule_rows(
     asset_ids = [asset.id for asset in assets]
     category_ids = {asset.asset_category_id for asset in assets if asset.asset_category_id}
     base_rules = list(
-        MaintenanceRule.objects.select_related("asset_category", "intervention_template")
+        MaintenanceRule.objects.select_related("asset_category", "intervention_template", "supplier")
         .filter(asset_category_id__in=category_ids)
         .order_by("asset_category__sort_order", "sort_order", "id")
     )

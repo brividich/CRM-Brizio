@@ -931,6 +931,13 @@ class MaintenanceRule(models.Model):
         (THRESHOLD_CYCLES, "Cicli"),
     ]
 
+    MODE_INTERNAL = "INTERNAL"
+    MODE_EXTERNAL = "EXTERNAL"
+    EXECUTION_MODE_CHOICES = [
+        (MODE_INTERNAL, "Interna"),
+        (MODE_EXTERNAL, "Esterna (ditta terza)"),
+    ]
+
     intervention_template = models.ForeignKey(
         "MaintenanceInterventionTemplate",
         on_delete=models.PROTECT,
@@ -945,6 +952,22 @@ class MaintenanceRule(models.Model):
     threshold_type = models.CharField(max_length=20, choices=THRESHOLD_TYPE_CHOICES, default=THRESHOLD_DAYS, db_index=True)
     threshold_value = models.PositiveIntegerField()
     warning_days = models.PositiveIntegerField(default=15)
+    # Interna (fatta dal team) o esterna (ditta terza). Il fornitore è opzionale:
+    # una manutenzione può essere "esterna" anche prima di sapere quale ditta la esegue.
+    execution_mode = models.CharField(
+        max_length=20,
+        choices=EXECUTION_MODE_CHOICES,
+        default=MODE_INTERNAL,
+        db_index=True,
+    )
+    supplier = models.ForeignKey(
+        "anagrafica.Fornitore",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="maintenance_rules",
+        help_text="Ditta esterna che esegue l'intervento (solo per manutenzioni esterne).",
+    )
     sort_order = models.IntegerField(default=100)
     is_active = models.BooleanField(default=True, db_index=True)
     notes = models.TextField(blank=True, default="")
@@ -956,6 +979,10 @@ class MaintenanceRule(models.Model):
         verbose_name = "Regola manutenzione"
         verbose_name_plural = "Regole manutenzione"
 
+    @property
+    def is_external(self) -> bool:
+        return self.execution_mode == self.MODE_EXTERNAL
+
     def __str__(self) -> str:
         return (
             f"{self.asset_category.label} - {self.intervention_template.label} "
@@ -964,6 +991,9 @@ class MaintenanceRule(models.Model):
 
     def clean(self):
         self.notes = (self.notes or "").strip()
+        # Coerenza interna/esterna: una manutenzione interna non ha ditta terza.
+        if self.execution_mode == self.MODE_INTERNAL:
+            self.supplier = None
         if not self.asset_category_id:
             raise ValidationError({"asset_category": "Seleziona una categoria asset."})
         if not self.intervention_template_id:

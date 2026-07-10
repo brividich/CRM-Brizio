@@ -124,13 +124,28 @@ body.theme-dark .ms-cell-link:hover { color:#60a5fa; }
 .ms-record-actions { display:flex; gap:6px; flex-wrap:wrap; }
 .ms-record-form-wrap { display:none; gap:8px; margin-top:10px; padding:10px; border:1px solid #cbd5e1; border-radius:10px; background:#f8fafc; }
 .ms-record-form-wrap.open { display:grid; }
+.ms-checklist { display:grid; gap:4px; margin-top:2px; }
+.ms-check-item { display:flex; align-items:flex-start; gap:8px; font-weight:400; font-size:var(--fs-sm); color:#334155; cursor:pointer; padding:4px 8px; border-radius:6px; background:#fff; border:1px solid #e2e8f0; }
+.ms-check-item input { margin-top:3px; flex-shrink:0; }
+body.theme-dark .ms-check-item { background:var(--surface); border-color:var(--border); color:var(--text); }
 .ms-executions-header { font-weight:800; text-transform:uppercase; letter-spacing:.05em; }
 body.theme-dark .ms-record-field { color:var(--text); }
 body.theme-dark .ms-record-input { background:var(--surface); border-color:var(--border); color:var(--text); }
 body.theme-dark .ms-record-form-wrap { background:var(--surface-alt); border-color:var(--border); }
 
+/* Gerarchia azioni: primaria evidente, toggle secondari e compatti */
+.ms-actions-row { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.ms-toggle { font-size:var(--fs-xs); padding:5px 9px; font-weight:600; }
+
+/* Badge "manutenzione esterna" (ditta terza) — distinto dai badge di stato */
+.ms-ext-badge { display:inline-block; font-size:var(--fs-xs); font-weight:800; padding:1px 7px; border-radius:999px; background:#ede9fe; color:#6d28d9; margin-left:4px; white-space:nowrap; }
+body.theme-dark .ms-ext-badge { background:rgba(109,40,217,.28); color:#c4b5fd; }
+
 /* Note di integrazione Outlook senza margin inline */
 .ms-calendar-note { margin:0; max-width:360px; }
+
+/* Pulsante "Vista calendario" allineato a destra nell'header dello scadenzario */
+.ms-calendar-link { margin-left:auto; align-self:center; white-space:nowrap; }
 
 /* Link nelle celle scadenze amministrative e look-ahead */
 .ms-blue-link { color:#1d4ed8; text-decoration:none; font-weight:600; }
@@ -231,6 +246,14 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
           </select>
         </div>
         <div class="ms-field">
+          <label for="id_execution">Esecuzione</label>
+          <select id="id_execution" name="execution">
+            {% for code, label in execution_choices %}
+              <option value="{{ code }}" {% if execution_filter == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="ms-field">
           <label for="id_q">Ricerca</label>
           <input id="id_q" type="text" name="q" value="{{ q }}" placeholder="Asset, tag, intervento">
         </div>
@@ -308,6 +331,8 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
         <h2>Scadenzario</h2>
         <p>Le righe senza una data base vengono mostrate come prima esecuzione da pianificare. Clicca una riga per aprire l'asset.</p>
       </div>
+      <a class="btn btn-secondary ms-calendar-link" href="{% url 'assets:calendario_asset' %}"
+         title="Apri le manutenzioni in vista a calendario / Gantt">&#128197; Vista calendario</a>
       {% if can_manage_outlook_calendar and not outlook_calendar_ready %}
         <p class="ms-inline-note ms-calendar-note">
           Integrazione Outlook non pronta: verifica le credenziali `GRAPH_*` e il permesso `Calendars.ReadWrite`.
@@ -324,7 +349,7 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
                 <th>Intervento</th>
                 <th>Ultima esecuzione</th>
                 <th>Prossima scadenza</th>
-                <th>Copertura</th>
+                <th data-col="copertura" data-col-hidden="1">Copertura</th>
                 <th>Azioni</th>
               </tr>
             </thead>
@@ -335,8 +360,12 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
                     <strong><a href="{{ row.asset_detail_url }}" class="ms-cell-link">{{ row.asset.asset_tag }}</a></strong><br>
                     <span class="ms-meta">{{ row.asset.name }}{% if row.asset.reparto %} · {{ row.asset.reparto }}{% endif %}</span>
                   </td>
-                  <td>
-                    <strong>{{ row.effective_intervention_template.label }}</strong><br>
+                  <td data-value="{% if row.base_rule.is_external %}external{% else %}internal{% endif %}">
+                    <strong>{{ row.effective_intervention_template.label }}</strong>
+                    {% if row.base_rule.is_external %}
+                      <span class="ms-ext-badge">Esterna{% if row.base_rule.supplier %} · {{ row.base_rule.supplier }}{% endif %}</span>
+                    {% endif %}
+                    <br>
                     <span class="ms-meta">{{ row.effective_threshold_value }} {{ row.effective_threshold_label|lower }} · warning {{ row.effective_warning_days }} gg</span>
                   </td>
                   <td>
@@ -353,7 +382,7 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
                       <span class="ms-meta">Nessuna esecuzione registrata</span>
                     {% endif %}
                   </td>
-                  <td>
+                  <td data-sort-value="{{ row.days_until_due|default_if_none:999999 }}">
                     {% if row.due_date %}
                       <strong>{{ row.due_date|date:"d-m-Y" }}</strong><br>
                     {% endif %}
@@ -379,11 +408,15 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
                         <a class="btn btn-primary" href="{{ row.workorder_create_url }}">Crea intervento</a>
                       {% endif %}
                       {% if can_manage_assets %}
-                        <button class="btn btn-secondary" type="button" data-ms-record-toggle="{{ row.asset.id }}-{{ row.base_rule.id }}">+ Registra esecuzione</button>
+                        <button class="btn btn-secondary ms-toggle" type="button" data-ms-record-toggle="{{ row.asset.id }}-{{ row.base_rule.id }}">+ Registra esecuzione</button>
                       {% endif %}
+                      {% if can_manage_outlook_calendar and row.due_date and outlook_calendar_ready and calendar_user_choices %}
+                        <button class="btn btn-secondary ms-toggle" type="button" data-ms-cal-toggle="{{ row.asset.id }}-{{ row.base_rule.id }}">&#128197; Outlook</button>
+                      {% endif %}
+                      <a class="btn btn-secondary ms-toggle" href="{% url 'assets:maintenance_worksheet' row.asset.id row.base_rule.id %}" target="_blank" rel="noopener" title="Scheda intervento stampabile">&#128424; Scheda</a>
                     </div>
                     {% if can_manage_assets %}
-                      <form method="post" class="ms-record-form" data-ms-record-form="{{ row.asset.id }}-{{ row.base_rule.id }}" enctype="multipart/form-data" class="ms-record-form-wrap">
+                      <form method="post" class="ms-record-form ms-record-form-wrap" data-ms-record-form="{{ row.asset.id }}-{{ row.base_rule.id }}" enctype="multipart/form-data">
                         {% csrf_token %}
                         <input type="hidden" name="action" value="record_maintenance_rule_execution">
                         <input type="hidden" name="asset_id" value="{{ row.asset.id }}">
@@ -404,12 +437,26 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
                           <label class="ms-record-field">Costo (EUR)
                             <input type="text" name="execution_cost_eur" inputmode="decimal" placeholder="es. 120.50" class="ms-record-input">
                           </label>
+                          {% if row.checklist_steps %}
+                          <div class="ms-record-field full">
+                            <span>Checklist intervento</span>
+                            <div class="ms-checklist">
+                              {% for step in row.checklist_steps %}
+                                <label class="ms-check-item">
+                                  <input type="checkbox" name="checklist_done" value="{{ step.step_number }}" checked>
+                                  <span>{{ step.description }}</span>
+                                </label>
+                              {% endfor %}
+                            </div>
+                          </div>
+                          {% endif %}
                           <label class="ms-record-field full">Note / risoluzione
                             <textarea name="execution_notes" rows="2" placeholder="Cosa è stato fatto, ricambi, anomalie..." class="ms-record-input"></textarea>
                           </label>
-                          <label class="ms-record-field full">Allegati (verbali, report, foto)
+                          <label class="ms-record-field full">
+                            {% if row.base_rule.is_external %}&#127970; Rapportino ditta esterna{% if row.base_rule.supplier %} ({{ row.base_rule.supplier }}){% endif %} + allegati{% else %}Allegati (verbali, report, foto){% endif %}
                             <input type="file" name="execution_files" multiple class="ms-record-input">
-                            <span class="ms-suggestion">Caricamento opzionale. I file vengono allegati all'intervento creato e visibili dall'asset.</span>
+                            <span class="ms-suggestion">{% if row.base_rule.is_external %}Allega il <strong>rapportino</strong> della ditta esterna. {% endif %}Caricamento opzionale. I file vengono allegati all'intervento creato e visibili dall'asset.</span>
                           </label>
                         </div>
                         <div class="ms-record-actions">
@@ -446,6 +493,7 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
                       {% if not outlook_calendar_ready %}
                         <div class="ms-inline-note">Configura Graph prima di creare eventi Outlook.</div>
                       {% elif calendar_user_choices %}
+                        <div class="ms-record-form-wrap" data-ms-cal-form="{{ row.asset.id }}-{{ row.base_rule.id }}">
                         <form method="post" class="ms-inline-form">
                           {% csrf_token %}
                           <input type="hidden" name="action" value="create_outlook_calendar_event">
@@ -465,6 +513,7 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
                           </select>
                           <button type="submit" class="btn btn-secondary">Crea evento Outlook</button>
                         </form>
+                        </div>
                       {% else %}
                         <div class="ms-inline-note">Nessun utente con mailbox disponibile per la sincronizzazione calendario.</div>
                       {% endif %}
@@ -610,6 +659,14 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
     });
     cancel?.addEventListener("click", () => {
       form.classList.remove("open");
+    });
+  });
+  document.querySelectorAll("[data-ms-cal-toggle]").forEach((toggle) => {
+    const key = toggle.dataset.msCalToggle;
+    const wrap = document.querySelector(`[data-ms-cal-form="${key}"]`);
+    if (!wrap) return;
+    toggle.addEventListener("click", () => {
+      wrap.classList.toggle("open");
     });
   });
 })();

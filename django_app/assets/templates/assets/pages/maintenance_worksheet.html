@@ -1,0 +1,110 @@
+{% extends "core/base.html" %}
+
+{% block title %}Scheda intervento — {{ asset.asset_tag }}{% endblock %}
+
+{% block content %}
+<style>
+  .ws-wrap { max-width: 800px; margin: 0 auto; padding: 16px; font-family: 'Outfit', sans-serif; color: #0f172a; }
+  .ws-toolbar { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 12px; }
+  .ws-print-btn { background: #1d4ed8; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-weight: 700; cursor: pointer; }
+  .ws-sheet { border: 1px solid #cbd5e1; border-radius: 8px; padding: 20px; background: #fff; }
+  .ws-head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 14px; }
+  .ws-title { font-size: 1.4rem; font-weight: 800; margin: 0; }
+  .ws-sub { font-size: .85rem; color: #475569; margin: 2px 0 0; }
+  .ws-doc { font-size: .75rem; color: #64748b; text-align: right; }
+  .ws-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; margin-bottom: 16px; }
+  .ws-kv { font-size: .9rem; }
+  .ws-kv b { color: #64748b; font-weight: 600; display: inline-block; min-width: 130px; }
+  .ws-ext { display: inline-block; background: #ede9fe; color: #6d28d9; border-radius: 999px; padding: 1px 8px; font-size: .75rem; font-weight: 800; }
+  .ws-section-title { font-size: .8rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: #334155; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin: 18px 0 10px; }
+  .ws-check { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px dashed #e2e8f0; font-size: .95rem; }
+  .ws-box { width: 18px; height: 18px; border: 2px solid #334155; border-radius: 4px; flex-shrink: 0; }
+  .ws-empty { color: #94a3b8; font-style: italic; font-size: .85rem; }
+  .ws-exec { font-size: .85rem; padding: 4px 0; border-bottom: 1px dashed #e2e8f0; }
+  .ws-fill { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 24px; margin-top: 12px; }
+  .ws-line { border-bottom: 1px solid #94a3b8; height: 28px; }
+  .ws-line-label { font-size: .78rem; color: #64748b; }
+  .ws-sign { margin-top: 26px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+  @media print {
+    .ws-toolbar, nav, header, footer, .as-section-nav, .app-sidebar, .app-header { display: none !important; }
+    .ws-wrap { max-width: 100%; padding: 0; }
+    .ws-sheet { border: none; padding: 0; }
+    body { background: #fff !important; }
+  }
+</style>
+
+<div class="ws-wrap">
+  <div class="ws-toolbar">
+    <button type="button" class="ws-print-btn" onclick="window.print()">&#128424; Stampa</button>
+  </div>
+
+  <div class="ws-sheet">
+    <div class="ws-head">
+      <div>
+        <h1 class="ws-title">Scheda intervento di manutenzione</h1>
+        <p class="ws-sub">{{ template.label|default:"Intervento" }}</p>
+      </div>
+      <div class="ws-doc">
+        NOVICROM HUB<br>
+        Stampata il {{ today|date:"d-m-Y" }}
+      </div>
+    </div>
+
+    <div class="ws-grid">
+      <div class="ws-kv"><b>Macchina</b> {{ asset.asset_tag }}</div>
+      <div class="ws-kv"><b>Nome</b> {{ asset.name }}</div>
+      <div class="ws-kv"><b>Reparto</b> {{ asset.reparto|default:"—" }}</div>
+      <div class="ws-kv"><b>Categoria</b> {{ asset.asset_category.label|default:"—" }}</div>
+      <div class="ws-kv"><b>Intervento</b> {{ template.label|default:"—" }}</div>
+      <div class="ws-kv"><b>Periodicità</b> {{ base_rule.threshold_value }} {{ base_rule.get_threshold_type_display|lower }}</div>
+      <div class="ws-kv"><b>Esecuzione</b>
+        {% if base_rule.is_external %}<span class="ws-ext">Esterna{% if base_rule.supplier %} · {{ base_rule.supplier }}{% endif %}</span>{% else %}Interna{% endif %}
+      </div>
+      <div class="ws-kv"><b>Ultima esecuzione</b> {% if last_execution_date %}{{ last_execution_date|date:"d-m-Y" }}{% else %}—{% endif %}</div>
+    </div>
+
+    {% if template.description %}
+      <div class="ws-section-title">Descrizione</div>
+      <div style="font-size:.9rem;">{{ template.description }}</div>
+    {% endif %}
+
+    <div class="ws-section-title">Checklist</div>
+    {% if checklist_steps %}
+      {% for step in checklist_steps %}
+        <div class="ws-check"><span class="ws-box"></span> <span>{{ step.description }}</span></div>
+      {% endfor %}
+    {% else %}
+      <p class="ws-empty">Nessuna checklist definita per questo intervento.</p>
+      <div class="ws-check"><span class="ws-box"></span> <span>_______________________________________________</span></div>
+      <div class="ws-check"><span class="ws-box"></span> <span>_______________________________________________</span></div>
+      <div class="ws-check"><span class="ws-box"></span> <span>_______________________________________________</span></div>
+    {% endif %}
+
+    <div class="ws-section-title">Ultime esecuzioni</div>
+    {% if last_executions %}
+      {% for wo in last_executions %}
+        <div class="ws-exec">{{ wo.closed_at|date:"d-m-Y" }} — {{ wo.title|truncatechars:70 }}{% if wo.supplier %} · {{ wo.supplier }}{% endif %}</div>
+      {% endfor %}
+    {% else %}
+      <p class="ws-empty">Nessuna esecuzione registrata.</p>
+    {% endif %}
+
+    <div class="ws-section-title">Registrazione intervento</div>
+    <div class="ws-fill">
+      <div><div class="ws-line-label">Data esecuzione</div><div class="ws-line"></div></div>
+      <div><div class="ws-line-label">Durata (min)</div><div class="ws-line"></div></div>
+      <div><div class="ws-line-label">Eseguito da{% if base_rule.is_external %} (ditta esterna){% endif %}</div><div class="ws-line"></div></div>
+      <div><div class="ws-line-label">Costo (€)</div><div class="ws-line"></div></div>
+    </div>
+    <div style="margin-top:14px;">
+      <div class="ws-line-label">Note / anomalie / ricambi</div>
+      <div class="ws-line"></div><div class="ws-line" style="margin-top:14px;"></div>
+    </div>
+
+    <div class="ws-sign">
+      <div><div class="ws-line"></div><div class="ws-line-label" style="text-align:center; margin-top:4px;">Firma esecutore</div></div>
+      <div><div class="ws-line"></div><div class="ws-line-label" style="text-align:center; margin-top:4px;">Firma responsabile</div></div>
+    </div>
+  </div>
+</div>
+{% endblock %}

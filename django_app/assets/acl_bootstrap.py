@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from core.acl_bootstrap_base import run_bootstrap
 
-_BOOTSTRAP_CACHE_KEY = "assets_acl_bootstrap_v4"
+_BOOTSTRAP_CACHE_KEY = "assets_acl_bootstrap_v6"
 
 _PULSANTI_DEFINITIONS = [
     {"modulo": "assets", "codice": "assets_list", "label": "Assets - Lista asset", "url": "/assets/", "hide": False},
@@ -22,6 +22,8 @@ _PULSANTI_DEFINITIONS = [
     {"modulo": "assets", "codice": "assets_maintenance_rules_new", "label": "Assets - Nuova regola manutenzione", "url": "/assets/manutenzione/regole/new/", "hide": True},
     {"modulo": "assets", "codice": "assets_maintenance_rules_edit", "label": "Assets - Modifica regola manutenzione", "url": "/assets/manutenzione/regole/edit/", "hide": True},
     {"modulo": "assets", "codice": "assets_maintenance_schedule", "label": "Assets - Prossime manutenzioni", "url": "/assets/manutenzione/prossime/", "hide": True},
+    {"modulo": "assets", "codice": "assets_maintenance_suppliers", "label": "Assets - Fornitori manutenzione", "url": "/assets/manutenzione/fornitori/", "hide": True},
+    {"modulo": "assets", "codice": "assets_maintenance_worksheet", "label": "Assets - Scheda intervento stampabile", "url": "/assets/manutenzione/scheda/", "hide": True},
     {"modulo": "assets", "codice": "assets_assistance_contracts", "label": "Assets - Contratti assistenza", "url": "/assets/manutenzione/contratti/", "hide": True},
     {"modulo": "assets", "codice": "assets_software_licenses", "label": "Assets - Licenze software", "url": "/assets/licenze/", "hide": True},
     {"modulo": "assets", "codice": "assets_asset_maintenance_rules", "label": "Assets - Regole manutenzione asset", "url": "/assets/manutenzione/asset-rules/", "hide": True},

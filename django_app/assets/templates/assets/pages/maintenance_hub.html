@@ -352,6 +352,8 @@
 .sc-pill.warn { background:#fef3c7; color:#a16207; }
 .sc-pill.danger { background:#fee2e2; color:#b91c1c; }
 .sc-pill.muted { background:#f1f5f9; color:#64748b; }
+.mh-ext-badge { display:inline-block; font-size:10px; font-weight:800; padding:1px 6px; border-radius:999px; background:#ede9fe; color:#6d28d9; margin-left:4px; white-space:nowrap; }
+body.theme-dark .mh-ext-badge { background:rgba(109,40,217,.28); color:#c4b5fd; }
 .sc-tag { font-family:monospace; font-size:var(--fs-xs); font-weight:800; background:#eff6ff; color:#1d4ed8; padding:2px 6px; border-radius:5px; text-decoration:none; white-space:nowrap; }
 .sc-tag:hover { background:#dbeafe; }
 .sc-muted { color:#94a3b8; }
@@ -582,20 +584,6 @@ body.theme-dark .sc-card-head {
     </a>
   </div>
 
-  <!-- ═══ TAB BAR PRINCIPALE ══════════════════════════════════════════════ -->
-  <div class="mh-tabs">
-    <a href="?tab=da_fare" class="mh-tab {% if active_tab == 'da_fare' %}is-active{% endif %}">
-      Da fare
-      {% if wo_overdue %}<span class="mh-tab-badge red">{{ wo_overdue|length }}</span>
-      {% elif wo_recent %}<span class="mh-tab-badge amber">{{ wo_recent|length }}</span>{% endif %}
-    </a>
-    <a href="?tab=scadenzario" class="mh-tab {% if active_tab == 'scadenzario' %}is-active{% endif %}">
-      Scadenzario
-      {% if overdue_verifications or overdue_deadlines %}<span class="mh-tab-badge red">{{ overdue_verifications|add:overdue_deadlines }}</span>
-      {% elif upcoming_verifications or upcoming_deadlines or contracts_expiring %}<span class="mh-tab-badge amber">{{ upcoming_verifications|add:upcoming_deadlines|add:contracts_expiring }}</span>{% endif %}
-    </a>
-  </div>
-
   {% if active_tab == 'da_fare' %}
   <!-- ═══════════════════════ TAB: DA FARE ════════════════════════════════ -->
 
@@ -683,7 +671,7 @@ body.theme-dark .sc-card-head {
         <div class="mh-card-head">
           <span class="mh-card-head-title">Urgenti / scadute</span>
           <span class="mh-card-head-badge mh-badge-red">{{ urgent_items|length }}</span>
-          <a href="?tab=scadenzario" class="mh-card-head-link">Scadenzario ›</a>
+          <a href="{{ url_maintenance_schedule }}" class="mh-card-head-link">Scadenzario ›</a>
         </div>
         <div class="mh-card-body">
           <div class="mh-due-list">
@@ -708,7 +696,7 @@ body.theme-dark .sc-card-head {
         <div class="mh-card-head">
           <span class="mh-card-head-title">In scadenza (30 giorni)</span>
           <span class="mh-card-head-badge mh-badge-amber">{{ upcoming_items|length }}</span>
-          <a href="?tab=scadenzario" class="mh-card-head-link">Scadenzario ›</a>
+          <a href="{{ url_maintenance_schedule }}" class="mh-card-head-link">Scadenzario ›</a>
         </div>
         <div class="mh-card-body">
           <div class="mh-due-list">
@@ -750,6 +738,7 @@ body.theme-dark .sc-card-head {
                   </td>
                   <td>
                     {{ row.effective_intervention_template.label|default:"Manutenzione programmata" }}
+                    {% if row.base_rule.is_external %}<span class="mh-ext-badge">&#127970; Esterna{% if row.base_rule.supplier %} &middot; {{ row.base_rule.supplier }}{% endif %}</span>{% endif %}
                     <div class="mh-wo-meta">{{ row.effective_threshold_label }}{% if row.effective_threshold_value %}: {{ row.effective_threshold_value }}{% endif %}</div>
                   </td>
                   <td>
@@ -843,7 +832,7 @@ body.theme-dark .sc-card-head {
           <span class="mh-empty">Nessun intervento aperto né scadenza imminente.</span>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
             <a href="{{ url_wo_create }}" class="mh-card-body-link">+ Nuovo intervento ›</a>
-            <a href="?tab=scadenzario" class="mh-card-body-link">Apri scadenzario completo ›</a>
+            <a href="{{ url_maintenance_schedule }}" class="mh-card-body-link">Apri scadenzario completo ›</a>
           </div>
         </div>
       </div>
@@ -866,11 +855,11 @@ body.theme-dark .sc-card-head {
                 <div class="mh-action-sub">Crea un ordine di lavoro</div>
               </div>
             </a>
-            <a href="?tab=scadenzario" class="mh-action-btn secondary">
+            <a href="{{ url_maintenance_schedule }}" class="mh-action-btn secondary">
               <span class="mh-action-icon">&#128197;</span>
               <div class="mh-action-body">
                 <div>Scadenzario</div>
-                <div class="mh-action-sub">Verifiche · scadenze amm. · contratti</div>
+                <div class="mh-action-sub">Manutenzioni · verifiche · scadenze amm.</div>
               </div>
             </a>
             <a href="{{ url_maintenance_schedule }}" class="mh-action-btn secondary">

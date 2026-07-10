@@ -1024,6 +1024,8 @@ class MaintenanceRuleForm(forms.ModelForm):
             "threshold_type",
             "threshold_value",
             "warning_days",
+            "execution_mode",
+            "supplier",
             "sort_order",
             "is_active",
             "notes",
@@ -1034,6 +1036,8 @@ class MaintenanceRuleForm(forms.ModelForm):
             "threshold_type": "Tipo soglia",
             "threshold_value": "Valore soglia",
             "warning_days": "Warning (giorni)",
+            "execution_mode": "Esecuzione",
+            "supplier": "Ditta esterna (se esterna)",
             "sort_order": "Ordine",
             "is_active": "Attiva",
             "notes": "Note",
@@ -1083,10 +1087,23 @@ class MaintenanceRuleForm(forms.ModelForm):
         )
         self.fields["warning_days"].help_text = "Giorni di preallerta prima della scadenza operativa."
         self.fields["notes"].help_text = "Note operative o eccezioni della policy standard."
+        # Interna/esterna: default INTERNA se non specificato (backward-compatible con i
+        # POST/import che non inviano il campo). Fornitore sempre opzionale.
+        self.fields["execution_mode"].required = False
+        self.fields["execution_mode"].initial = (
+            self.fields["execution_mode"].initial or MaintenanceRule.MODE_INTERNAL
+        )
+        self.fields["supplier"].required = False
+        self.fields["supplier"].help_text = (
+            "Solo per manutenzioni esterne; lascia vuoto se interna o se la ditta non è ancora definita."
+        )
         _attach_input_css(self)
 
     def clean_notes(self):
         return (self.cleaned_data.get("notes") or "").strip()
+
+    def clean_execution_mode(self):
+        return self.cleaned_data.get("execution_mode") or MaintenanceRule.MODE_INTERNAL
 
     def clean_warning_days(self):
         value = self.cleaned_data.get("warning_days")

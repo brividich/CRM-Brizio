@@ -1052,6 +1052,23 @@ def _asset_administrative_deadline_create_page_url(*, asset_id: int = 0, compone
     return f"{base_url}?{'&'.join(params)}" if params else base_url
 
 
+def _maintenance_settings_page_url(request: HttpRequest | None = None) -> str:
+    """URL della vista unica Impostazioni manutenzione (tab Interventi & Regole),
+    preservando i filtri categoria/attivo/ricerca eventualmente presenti nella query."""
+    params: list[str] = ["tab=interventi"]
+    if request is not None:
+        category_id = _as_int(request.GET.get("category"), default=0)
+        if category_id:
+            params.append(f"category={category_id}")
+        active_value = _clean_string(request.GET.get("active")).lower()
+        if active_value in {"active", "inactive", "all"}:
+            params.append(f"active={quote(active_value)}")
+        q = _clean_string(request.GET.get("q"))
+        if q:
+            params.append(f"q={quote(q)}")
+    return f"{reverse('assets:maintenance_impostazioni')}?{'&'.join(params)}"
+
+
 def _maintenance_template_list_page_url(*, category_id: int = 0, active: str = "") -> str:
     params: list[str] = []
     if category_id:
@@ -6586,6 +6603,7 @@ def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
         "reports": "reports",
         "report_template_admin": "report_templates",
         "maintenance_impostazioni": "settings",
+        "maintenance_suppliers": "suppliers",
         "maintenance_template_list": "settings",
         "maintenance_template_create": "settings",
         "maintenance_template_edit": "settings",
@@ -6636,6 +6654,11 @@ def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
             "key": "settings",
             "label": "Impostazioni",
             "url": settings_url,
+        },
+        {
+            "key": "suppliers",
+            "label": "Fornitori",
+            "url": reverse("assets:maintenance_suppliers"),
         },
     ]
     for item in items:
@@ -10066,16 +10089,11 @@ def asset_qr_landing(request: HttpRequest, asset_tag: str) -> HttpResponse:
         .first()
     )
 
-    # Prossima scadenza amministrativa
+    # Prossima scadenza amministrativa (campo corretto: due_date; niente flag 'completed').
     next_deadline = (
-        AssetAdministrativeDeadline.objects.filter(
-            asset=asset,
-            is_active=True,
-            completed=False,
-            expiry_date__isnull=False,
-        )
-        .order_by("expiry_date")
-        .values("id", "title", "expiry_date")
+        AssetAdministrativeDeadline.objects.filter(asset=asset, is_active=True)
+        .order_by("due_date")
+        .values("id", "title", "due_date")
         .first()
     )
 
@@ -10085,10 +10103,54 @@ def asset_qr_landing(request: HttpRequest, asset_tag: str) -> HttpResponse:
         closed_date = last_wo["closed_at"].date() if hasattr(last_wo["closed_at"], "date") else last_wo["closed_at"]
         days_since_last = (today - closed_date).days
 
+    # Manutenzioni programmate in scadenza per questa macchina (dalle regole) — solo azionabili.
+    from .maintenance import build_maintenance_schedule_rows
+
+    _status_order = {"overdue": 0, "warning": 1, "upcoming": 2, "missing": 3}
+    qr_schedule_rows: list[dict[str, object]] = []
+    for row in build_maintenance_schedule_rows(
+        asset_queryset=Asset.objects.filter(pk=asset.id).select_related("asset_category")
+    ):
+        status = str(row.get("schedule_status") or "")
+        if status not in _status_order:
+            continue
+        base_rule = row["base_rule"]
+        qr_schedule_rows.append(
+            {
+                "label": getattr(row.get("effective_intervention_template"), "label", "") or "Manutenzione",
+                "due_date": row.get("due_date"),
+                "status": status,
+                "schedule_label": row.get("schedule_label"),
+                "is_external": base_rule.is_external,
+                "supplier": str(base_rule.supplier) if (base_rule.is_external and base_rule.supplier_id) else "",
+                "record_url": _workorder_create_page_url(
+                    asset_id=asset.id, rule_id=base_rule.id, source="qr_landing"
+                ),
+            }
+        )
+    qr_schedule_rows.sort(key=lambda r: (_status_order.get(r["status"], 9), r["due_date"] or today))
+    qr_schedule_rows = qr_schedule_rows[:12]
+    qr_overdue_count = sum(1 for r in qr_schedule_rows if r["status"] == "overdue")
+
+    # Documenti dell'asset (manuali, specifiche, interventi) + cartella SharePoint.
+    asset_documents = []
+    for doc in asset.documents.all()[:15]:
+        open_url = _clean_string(doc.sharepoint_url) or (doc.file.url if doc.file else "")
+        asset_documents.append(
+            {
+                "name": doc.original_name or "Documento",
+                "category_label": ASSET_DOCUMENT_CATEGORY_LABELS.get(doc.category, doc.category),
+                "document_date": doc.document_date,
+                "open_url": open_url,
+            }
+        )
+    sharepoint_folder_url = _clean_string(getattr(asset, "sharepoint_folder_url", ""))
+
     # URL azioni
     detail_url = reverse("assets:asset_view", kwargs={"id": asset.id})
     report_url = f"{reverse('assets:asset_quick_report')}?asset={asset.id}"
     wo_list_url = f"{reverse('assets:wo_list')}?asset={asset.id}"
+    schedule_url = _maintenance_schedule_page_url(asset_id=asset.id)
 
     return render(
         request,
@@ -10102,9 +10164,14 @@ def asset_qr_landing(request: HttpRequest, asset_tag: str) -> HttpResponse:
             "next_deadline": next_deadline,
             "days_since_last": days_since_last,
             "today": today,
+            "qr_schedule_rows": qr_schedule_rows,
+            "qr_overdue_count": qr_overdue_count,
+            "asset_documents": asset_documents,
+            "sharepoint_folder_url": sharepoint_folder_url,
             "detail_url": detail_url,
             "report_url": report_url,
             "wo_list_url": wo_list_url,
+            "schedule_url": schedule_url,
             **_assets_shell_context(request, rows=25),
         },
     )
@@ -10967,82 +11034,12 @@ def asset_administrative_deadline_edit(request: HttpRequest, id: int | None = No
 
 @login_required
 def maintenance_template_list(request: HttpRequest) -> HttpResponse:
+    """Deprecata: template e regole sono ora un'unica vista in Impostazioni manutenzione.
+    Redirige alla tab 'Interventi & Regole' preservando i filtri (categoria/attivo/ricerca)."""
     if not _is_assets_admin(request):
         messages.error(request, "Solo admin puo gestire i template manutenzione.")
         return redirect("assets:asset_list")
-
-    selected_category_id = _as_int(request.GET.get("category"), default=0)
-    selected_category = None
-    if selected_category_id:
-        selected_category = AssetCategory.objects.filter(pk=selected_category_id).first()
-
-    active_filter = _clean_string(request.GET.get("active")).lower() or "active"
-    if active_filter not in {"active", "inactive", "all"}:
-        active_filter = "active"
-    q = _clean_string(request.GET.get("q"))
-
-    template_qs = MaintenanceInterventionTemplate.objects.select_related("asset_category").order_by(
-        "sort_order",
-        "label",
-        "id",
-    )
-    if selected_category is not None:
-        template_qs = template_qs.filter(Q(asset_category__isnull=True) | Q(asset_category_id=selected_category.id))
-    if active_filter == "active":
-        template_qs = template_qs.filter(is_active=True)
-    elif active_filter == "inactive":
-        template_qs = template_qs.filter(is_active=False)
-    if q:
-        template_qs = template_qs.filter(
-            Q(code__icontains=q)
-            | Q(label__icontains=q)
-            | Q(description__icontains=q)
-            | Q(asset_category__label__icontains=q)
-        )
-
-    template_rows: list[dict[str, object]] = []
-    for template in template_qs:
-        template_rows.append(
-            {
-                "template": template,
-                "rule_count": template.maintenance_rules.count(),
-                "edit_url": reverse("assets:maintenance_template_edit", kwargs={"id": template.id}),
-                "rules_url": _maintenance_rule_list_page_url(
-                    category_id=template.asset_category_id or 0,
-                    template_id=template.id,
-                ),
-            }
-        )
-
-    create_url = reverse("assets:maintenance_template_create")
-    if selected_category is not None:
-        create_url = f"{create_url}?category={selected_category.id}"
-
-    return render(
-        request,
-        "assets/pages/maintenance_template_list.html",
-        {
-            "page_title": "Template manutenzione",
-            "template_rows": template_rows,
-            "template_total": len(template_rows),
-            "active_template_count": sum(1 for row in template_rows if row["template"].is_active),
-            "general_template_count": sum(1 for row in template_rows if row["template"].asset_category_id is None),
-            "selected_category": selected_category,
-            "category_options": list(AssetCategory.objects.order_by("sort_order", "label", "id")),
-            "active_filter": active_filter,
-            "q": q,
-            "create_url": create_url,
-            "clear_filters_url": reverse("assets:maintenance_template_list"),
-            **_assets_shell_context(
-                request,
-                rows=_as_int(request.GET.get("rows"), default=25),
-                search_action=reverse("assets:maintenance_template_list"),
-                new_url=create_url,
-                new_label="+ Nuovo template",
-                search_placeholder="Ricerca rapida per template manutenzione, codice o categoria",
-            ),
-        },
-    )
+    return redirect(_maintenance_settings_page_url(request), permanent=True)
 
 
 def _save_template_checklist_formset(formset, template) -> None:
@@ -11179,94 +11176,12 @@ def maintenance_template_edit(request: HttpRequest, id: int | None = None) -> Ht
 
 @login_required
 def maintenance_rule_list(request: HttpRequest) -> HttpResponse:
+    """Deprecata: template e regole sono ora un'unica vista in Impostazioni manutenzione.
+    Redirige alla tab 'Interventi & Regole' preservando i filtri (categoria/attivo/ricerca)."""
     if not _is_assets_admin(request):
         messages.error(request, "Solo admin puo gestire le regole manutenzione.")
         return redirect("assets:asset_list")
-
-    selected_category_id = _as_int(request.GET.get("category"), default=0)
-    selected_template_id = _as_int(request.GET.get("template"), default=0)
-    threshold_type = _clean_string(request.GET.get("threshold_type")).upper()
-    valid_threshold_types = {code for code, _label in MaintenanceRule.THRESHOLD_TYPE_CHOICES}
-    if threshold_type not in valid_threshold_types:
-        threshold_type = ""
-    active_filter = _clean_string(request.GET.get("active")).lower() or "active"
-    if active_filter not in {"active", "inactive", "all"}:
-        active_filter = "active"
-    q = _clean_string(request.GET.get("q"))
-
-    rule_qs = MaintenanceRule.objects.select_related("asset_category", "intervention_template").order_by(
-        "asset_category__sort_order",
-        "asset_category__label",
-        "sort_order",
-        "id",
-    )
-    if selected_category_id:
-        rule_qs = rule_qs.filter(asset_category_id=selected_category_id)
-    if selected_template_id:
-        rule_qs = rule_qs.filter(intervention_template_id=selected_template_id)
-    if threshold_type:
-        rule_qs = rule_qs.filter(threshold_type=threshold_type)
-    if active_filter == "active":
-        rule_qs = rule_qs.filter(is_active=True)
-    elif active_filter == "inactive":
-        rule_qs = rule_qs.filter(is_active=False)
-    if q:
-        rule_qs = rule_qs.filter(
-            Q(asset_category__label__icontains=q)
-            | Q(intervention_template__label__icontains=q)
-            | Q(intervention_template__code__icontains=q)
-            | Q(notes__icontains=q)
-        )
-
-    rule_rows = [
-        {
-            "rule": rule,
-            "edit_url": reverse("assets:maintenance_rule_edit", kwargs={"id": rule.id}),
-            "template_url": reverse("assets:maintenance_template_edit", kwargs={"id": rule.intervention_template_id}),
-        }
-        for rule in rule_qs
-    ]
-
-    create_url = reverse("assets:maintenance_rule_create")
-    params = []
-    if selected_category_id:
-        params.append(f"category={selected_category_id}")
-    if selected_template_id:
-        params.append(f"template={selected_template_id}")
-    if params:
-        create_url = f"{create_url}?{'&'.join(params)}"
-
-    return render(
-        request,
-        "assets/pages/maintenance_rule_list.html",
-        {
-            "page_title": "Regole manutenzione",
-            "rule_rows": rule_rows,
-            "rule_total": len(rule_rows),
-            "active_rule_count": sum(1 for row in rule_rows if row["rule"].is_active),
-            "days_rule_count": sum(1 for row in rule_rows if row["rule"].threshold_type == MaintenanceRule.THRESHOLD_DAYS),
-            "category_options": list(AssetCategory.objects.order_by("sort_order", "label", "id")),
-            "template_options": list(
-                MaintenanceInterventionTemplate.objects.select_related("asset_category").order_by("sort_order", "label", "id")
-            ),
-            "selected_category_id": selected_category_id,
-            "selected_template_id": selected_template_id,
-            "selected_threshold_type": threshold_type,
-            "threshold_type_choices": MaintenanceRule.THRESHOLD_TYPE_CHOICES,
-            "active_filter": active_filter,
-            "q": q,
-            "create_url": create_url,
-            "clear_filters_url": reverse("assets:maintenance_rule_list"),
-            **_assets_shell_context(
-                request,
-                rows=_as_int(request.GET.get("rows"), default=25),
-                search_action=reverse("assets:maintenance_rule_list"),
-                new_url=create_url,
-                new_label="+ Nuova regola",
-                search_placeholder="Ricerca rapida per regola, template o categoria",
-            ),
-        },
-    )
+    return redirect(_maintenance_settings_page_url(request), permanent=True)
 
 
 @login_required
@@ -11962,8 +11877,25 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
                         cost_value=cost_value,
                         resolution_text=resolution_text,
                         maintenance_rule=base_rule,
+                        # Manutenzione esterna: l'OdL eredita la ditta terza della regola,
+                        # così storico e costi restano attribuiti al fornitore.
+                        supplier=base_rule.supplier if base_rule.is_external else None,
                     )
                     sync_workorder_maintenance_state(workorder)
+                    # Checklist operativa (Fase 2): copia gli step del template e spunta
+                    # quelli confermati nel form di registrazione rapida.
+                    copy_template_checklist_to_workorder(workorder)
+                    done_steps = [
+                        int(s) for s in request.POST.getlist("checklist_done") if str(s).isdigit()
+                    ]
+                    if done_steps:
+                        WorkOrderChecklist.objects.filter(
+                            work_order=workorder, step_number__in=done_steps
+                        ).update(
+                            is_done=True,
+                            done_at=timezone.now(),
+                            done_by=request.user if request.user.is_authenticated else None,
+                        )
                     if uploads:
                         attachments_total = len(
                             _save_workorder_attachments(
@@ -12007,6 +11939,9 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
     category_id = _as_int(request.GET.get("category"), default=0)
     reparto_filter = _clean_string(request.GET.get("reparto"))
     coverage_filter = _clean_string(request.GET.get("coverage")) or "all"
+    execution_filter = _clean_string(request.GET.get("execution")) or "all"
+    if execution_filter not in {"all", "internal", "external"}:
+        execution_filter = "all"
     q = _clean_string(request.GET.get("q"))
 
     asset_qs = Asset.objects.select_related("asset_category").exclude(status=Asset.STATUS_RETIRED).order_by(
@@ -12079,6 +12014,10 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
             continue
         if coverage_filter == "uncovered" and row["is_covered"]:
             continue
+        if execution_filter == "internal" and row["base_rule"].is_external:
+            continue
+        if execution_filter == "external" and not row["base_rule"].is_external:
+            continue
         if q:
             q_value = q.casefold()
             searchable_chunks = [
@@ -12109,6 +12048,17 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
                 attive_hidden_total += 1
                 continue
         filtered_rows.append(row)
+
+    # Ordine di default pensato per il manutentore: prima le SCADUTE (più in ritardo
+    # in cima), poi in warning, poi pianificate (più vicine prima), infine "mai eseguite".
+    # È solo l'ordine iniziale: l'utente può comunque riordinare dalle intestazioni.
+    _SCHEDULE_STATUS_ORDER = {"overdue": 0, "warning": 1, "upcoming": 2, "missing": 3}
+    filtered_rows.sort(
+        key=lambda r: (
+            _SCHEDULE_STATUS_ORDER.get(str(r.get("schedule_status") or ""), 9),
+            r["days_until_due"] if isinstance(r.get("days_until_due"), int) else 10 ** 9,
+        )
+    )
 
     calendar_event_map: dict[tuple[int, int, date], list[AssetCalendarEvent]] = defaultdict(list)
     if filtered_rows:
@@ -12166,6 +12116,24 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
         row["default_calendar_user_id"] = _asset_calendar_default_user_id(row["asset"], calendar_user_details)
         row["execution_rows"] = exec_by_pair.get((row["asset"].id, row["base_rule"].id), [])
         row["execution_count"] = len(row["execution_rows"])
+
+    # Checklist operativa del template per riga (Fase 2), batch anti-N+1.
+    from .models import MaintenanceChecklistStep
+
+    tmpl_ids = {
+        row["effective_intervention_template"].id
+        for row in filtered_rows
+        if row.get("effective_intervention_template")
+    }
+    steps_by_tmpl: dict[int, list] = defaultdict(list)
+    if tmpl_ids:
+        for step in MaintenanceChecklistStep.objects.filter(
+            intervention_template_id__in=tmpl_ids
+        ).order_by("step_number", "id"):
+            steps_by_tmpl[step.intervention_template_id].append(step)
+    for row in filtered_rows:
+        tmpl = row.get("effective_intervention_template")
+        row["checklist_steps"] = steps_by_tmpl.get(tmpl.id, []) if tmpl else []
 
     reparto_options = [
         value
@@ -12258,6 +12226,12 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
             "status_filter": status_filter,
             "status_choices": _maintenance_schedule_status_choices(),
             "coverage_filter": coverage_filter,
+            "execution_filter": execution_filter,
+            "execution_choices": [
+                ("all", "Tutte"),
+                ("internal", "Interne"),
+                ("external", "Esterne (ditta terza)"),
+            ],
             "q": q,
             "clear_filters_url": _maintenance_schedule_page_url(asset_id=selected_asset.id if selected_asset else 0),
             "can_manage_outlook_calendar": can_manage_outlook_calendar,
@@ -15514,12 +15488,16 @@ def maintenance_hub(request: HttpRequest) -> HttpResponse:
     overdue_threshold = today - timedelta(days=21)
     is_admin = _is_assets_admin(request)
 
-    active_tab = _clean_string(request.GET.get("tab")) or "da_fare"
-    if active_tab not in ("da_fare", "scadenzario"):
-        active_tab = "da_fare"
+    # Il Centro Manutenzione è ora solo cockpit "Da fare": lo scadenzario unico
+    # (regole + verifiche + amministrative) vive in /prossime/ (maintenance_schedule).
+    # Le vecchie URL/bookmark ?tab=scadenzario (e i deep-link sub=...) confluiscono lì,
+    # preservando il filtro reparto, per non avere due scadenzari.
+    reparto_filter = _clean_string(request.GET.get("reparto"))
+    if _clean_string(request.GET.get("tab")) == "scadenzario":
+        return redirect(_maintenance_schedule_page_url(reparto=reparto_filter))
+    active_tab = "da_fare"
 
     # Filtri condivisi (tab "da fare")
-    reparto_filter = _clean_string(request.GET.get("reparto"))
     assigned_filter = _clean_string(request.GET.get("assigned"))
 
     # ── OdL aperti ─────────────────────────────────────────────────────────
@@ -15831,9 +15809,9 @@ def maintenance_hub(request: HttpRequest) -> HttpResponse:
             "url_wo_overdue": wo_overdue_url,
             "url_wo_done": wo_done_url,
             "url_wo_create": reverse("assets:wo_create"),
-            "url_hub_scadenze": "?tab=scadenzario&sub=scadenze",
-            "url_hub_verifiche": "?tab=scadenzario&sub=verifiche",
-            "url_hub_contratti": "?tab=scadenzario&sub=contratti",
+            "url_hub_scadenze": _url_deadlines,
+            "url_hub_verifiche": _url_verifications,
+            "url_hub_contratti": reverse("assets:assistance_contract_list"),
             "url_maintenance_schedule": _maintenance_schedule_page_url(status="due", reparto=reparto_filter),
             "url_impostazioni": reverse("assets:maintenance_impostazioni"),
             "url_verifications_full": _url_verifications,
@@ -15846,15 +15824,63 @@ def maintenance_hub(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def maintenance_scadenzario(request: HttpRequest) -> HttpResponse:
-    """Deprecata: lo scadenzario è ora la tab 'scadenzario' del Centro Manutenzione."""
-    params = request.GET.copy()
-    # Nello scadenzario 'tab' indicava la sotto-sezione; ora la mappiamo su ?sub=.
-    sub = _clean_string(params.get("tab"))
-    params.pop("tab", None)
-    params["tab"] = "scadenzario"
-    if sub in ("verifiche", "scadenze", "contratti"):
-        params["sub"] = sub
-    return redirect(f"{reverse('assets:maintenance_hub')}?{params.urlencode()}", permanent=True)
+    """Deprecata: lo scadenzario unico è ora /prossime/ (maintenance_schedule).
+    Redirige lì preservando il filtro reparto."""
+    reparto_filter = _clean_string(request.GET.get("reparto"))
+    return redirect(_maintenance_schedule_page_url(reparto=reparto_filter), permanent=True)
+
+
+def _maintenance_supplier_rows() -> list[dict[str, object]]:
+    """Fornitori usati in manutenzione (regole esterne, OdL, contratti, verifiche periodiche),
+    con i relativi conteggi. La gestione dei fornitori resta nel modulo dedicato /fornitori/:
+    qui è una vista focalizzata con link, non un duplicato."""
+    from django.db.models import Count
+
+    from anagrafica.models import Fornitore
+
+    from .models import AssistanceContract
+
+    def _counts(qs) -> dict[int, int]:
+        # .order_by() azzera l'ordering di default del modello: senza, su SQL Server
+        # le colonne dell'ORDER BY ereditato non stanno nel GROUP BY -> errore 8127.
+        return {
+            row["supplier"]: row["c"]
+            for row in qs.filter(supplier__isnull=False)
+            .values("supplier")
+            .annotate(c=Count("id"))
+            .order_by()
+        }
+
+    rule_counts = _counts(MaintenanceRule.objects.filter(is_active=True))
+    wo_counts = _counts(WorkOrder.objects.all())
+    contract_counts = _counts(AssistanceContract.objects.filter(is_active=True))
+    verif_counts = _counts(PeriodicVerification.objects.filter(is_active=True))
+
+    # Includi anche i fornitori catalogati come "Manutenzione" anche se non ancora
+    # collegati a una regola/OdL: compaiono con conteggi a 0, pronti da assegnare.
+    catalog_ids = set(
+        Fornitore.objects.filter(
+            categoria=Fornitore.CATEGORIA_MANUTENZIONE, is_active=True
+        ).values_list("id", flat=True)
+    )
+
+    supplier_ids = set(rule_counts) | set(wo_counts) | set(contract_counts) | set(verif_counts) | catalog_ids
+    if not supplier_ids:
+        return []
+
+    rows: list[dict[str, object]] = []
+    for supplier in Fornitore.objects.filter(pk__in=supplier_ids).order_by("ragione_sociale", "id"):
+        rows.append(
+            {
+                "f": supplier,
+                "rules": rule_counts.get(supplier.id, 0),
+                "workorders": wo_counts.get(supplier.id, 0),
+                "contracts": contract_counts.get(supplier.id, 0),
+                "verifications": verif_counts.get(supplier.id, 0),
+                "detail_url": reverse("fornitori:fornitore_detail", kwargs={"fornitore_id": supplier.id}),
+            }
+        )
+    return rows
 
 
 def _maintenance_plan_by_category_rows() -> list[dict[str, object]]:
@@ -15924,20 +15950,73 @@ def _maintenance_plan_by_category_rows() -> list[dict[str, object]]:
 
 @login_required
 def maintenance_impostazioni(request: HttpRequest) -> HttpResponse:
-    """Impostazioni manutenzione: tab Template & Regole, Regole attive, Piano per categoria."""
-    active_tab = _clean_string(request.GET.get("tab")) or "templates"
-    if active_tab not in ("templates", "rules", "piano"):
-        active_tab = "templates"
+    """Impostazioni manutenzione: unica vista Interventi & Regole (con filtri integrati)
+    + Piano per categoria. Le vecchie tab 'templates'/'rules' e le pagine standalone
+    'Vista avanzata' sono confluite qui."""
+    # I fornitori hanno ora una pagina dedicata (nav di sezione): vecchi link ?tab=fornitori lì.
+    if _clean_string(request.GET.get("tab")) == "fornitori":
+        return redirect("assets:maintenance_suppliers")
+    active_tab = _clean_string(request.GET.get("tab")) or "interventi"
+    # Compat: vecchie tab (templates/rules) e vecchie URL -> tab unica "interventi".
+    if active_tab in ("templates", "rules"):
+        active_tab = "interventi"
+    if active_tab not in ("interventi", "piano"):
+        active_tab = "interventi"
     is_admin = _is_assets_admin(request)
 
     from .models import MaintenanceInterventionTemplate
-    template_qs = MaintenanceInterventionTemplate.objects.select_related("asset_category").prefetch_related("maintenance_rules__asset_category").order_by("asset_category__label", "sort_order", "label")
+
+    # ── Filtri integrati (sostituiscono le pagine standalone "Vista avanzata") ──
+    selected_category_id = _as_int(request.GET.get("category"), default=0)
+    selected_category = (
+        AssetCategory.objects.filter(pk=selected_category_id).first() if selected_category_id else None
+    )
+    active_filter = _clean_string(request.GET.get("active")).lower() or "active"
+    if active_filter not in {"active", "inactive", "all"}:
+        active_filter = "active"
+    execution_filter = _clean_string(request.GET.get("execution")) or "all"
+    if execution_filter not in {"all", "internal", "external"}:
+        execution_filter = "all"
+    q = _clean_string(request.GET.get("q"))
+
+    template_qs = (
+        MaintenanceInterventionTemplate.objects.select_related("asset_category")
+        .prefetch_related("maintenance_rules__asset_category", "maintenance_rules__supplier")
+        .order_by("asset_category__label", "sort_order", "label")
+    )
+    if selected_category is not None:
+        template_qs = template_qs.filter(
+            Q(asset_category__isnull=True) | Q(asset_category_id=selected_category.id)
+        )
+    if active_filter == "active":
+        template_qs = template_qs.filter(is_active=True)
+    elif active_filter == "inactive":
+        template_qs = template_qs.filter(is_active=False)
+    # Filtro esecuzione: template che hanno almeno una regola interna/esterna.
+    if execution_filter == "external":
+        template_qs = template_qs.filter(
+            maintenance_rules__execution_mode=MaintenanceRule.MODE_EXTERNAL
+        ).distinct()
+    elif execution_filter == "internal":
+        template_qs = template_qs.filter(
+            maintenance_rules__execution_mode=MaintenanceRule.MODE_INTERNAL
+        ).distinct()
+    if q:
+        template_qs = template_qs.filter(
+            Q(code__icontains=q)
+            | Q(label__icontains=q)
+            | Q(description__icontains=q)
+            | Q(asset_category__label__icontains=q)
+        )
+
     template_rows = []
     for t in template_qs:
         rules = [r for r in t.maintenance_rules.all() if r.is_active]
         template_rows.append({"t": t, "rules": rules, "rules_count": len(rules)})
 
-    rule_qs = MaintenanceRule.objects.filter(is_active=True).select_related("intervention_template", "asset_category").order_by("asset_category__label", "intervention_template__label")
+    has_active_filters = bool(
+        selected_category is not None or q or active_filter != "active" or execution_filter != "all"
+    )
 
     plan_rows = _maintenance_plan_by_category_rows() if active_tab == "piano" else []
     plan_totals = {
@@ -15963,18 +16042,81 @@ def maintenance_impostazioni(request: HttpRequest) -> HttpResponse:
             "is_admin": is_admin,
             "template_rows": template_rows,
             "template_count": len(template_rows),
-            "rule_qs": rule_qs,
-            "rules_count": rule_qs.count(),
             "plan_rows": plan_rows,
             "plan_category_count": plan_category_count,
             "plan_totals": plan_totals,
+            # Filtri integrati
+            "category_options": list(AssetCategory.objects.order_by("sort_order", "label", "id")),
+            "selected_category": selected_category,
+            "active_filter": active_filter,
+            "execution_filter": execution_filter,
+            "q": q,
+            "has_active_filters": has_active_filters,
+            "clear_filters_url": reverse("assets:maintenance_impostazioni") + "?tab=interventi",
+            "url_suppliers": reverse("assets:maintenance_suppliers"),
             "url_hub": reverse("assets:maintenance_hub"),
             "url_scadenzario": reverse("assets:maintenance_scadenzario"),
             "url_schedule": reverse("assets:maintenance_schedule"),
             "url_template_new": reverse("assets:maintenance_template_create"),
             "url_rule_new": reverse("assets:maintenance_rule_create"),
-            "url_templates_advanced": reverse("assets:maintenance_template_list"),
-            "url_rules_advanced": reverse("assets:maintenance_rule_list"),
+        },
+    )
+
+
+@login_required
+def maintenance_suppliers(request: HttpRequest) -> HttpResponse:
+    """Pagina dedicata: fornitori (ditte terze) usati in manutenzione, con conteggi e link
+    al modulo /fornitori/ (fonte unica di gestione/anagrafica). Raggiungibile dalla nav di
+    sezione manutenzione; nessun duplicato di anagrafica."""
+    rows = _maintenance_supplier_rows()
+    return render(
+        request,
+        "assets/pages/maintenance_suppliers.html",
+        {
+            **_assets_shell_context(request),
+            "page_title": "Fornitori manutenzione",
+            "is_admin": _is_assets_admin(request),
+            "supplier_rows": rows,
+            "supplier_total": len(rows),
+            "url_fornitori_list": reverse("fornitori:fornitori_list"),
+            "url_fornitore_new": reverse("fornitori:fornitore_create"),
+        },
+    )
+
+
+@login_required
+def maintenance_worksheet(request: HttpRequest, asset_id: int, rule_id: int) -> HttpResponse:
+    """Scheda intervento stampabile (A4) da portare alla macchina: dati macchina, intervento,
+    checklist da spuntare a penna, ultime esecuzioni e campi per la registrazione manuale."""
+    from .models import AssetMaintenanceRuleState, MaintenanceChecklistStep
+
+    asset = get_object_or_404(Asset.objects.select_related("asset_category"), pk=asset_id)
+    base_rule = get_object_or_404(
+        MaintenanceRule.objects.select_related("intervention_template", "supplier", "asset_category"),
+        pk=rule_id,
+    )
+    template = base_rule.intervention_template
+    checklist_steps = list(
+        MaintenanceChecklistStep.objects.filter(intervention_template=template).order_by("step_number", "id")
+    )
+    last_executions = list(
+        WorkOrder.objects.filter(
+            asset=asset, maintenance_rule=base_rule, status=WorkOrder.STATUS_DONE
+        ).order_by("-closed_at", "-id")[:5]
+    )
+    state = AssetMaintenanceRuleState.objects.filter(asset=asset, base_rule=base_rule).first()
+    return render(
+        request,
+        "assets/pages/maintenance_worksheet.html",
+        {
+            "page_title": f"Scheda intervento — {asset.asset_tag}",
+            "asset": asset,
+            "base_rule": base_rule,
+            "template": template,
+            "checklist_steps": checklist_steps,
+            "last_executions": last_executions,
+            "last_execution_date": state.last_execution_date if state else None,
+            "today": timezone.localdate(),
         },
     )
 
@@ -17326,19 +17468,26 @@ def _asset_calendar_events(asset_id: int) -> list[dict]:
             template = row.get("effective_intervention_template")
             label = getattr(template, "label", "") or "Manutenzione programmata"
             status = str(row.get("schedule_status") or "")
-            events.append({
-                "id": f"pm-{row['base_rule'].id}",
-                "title": f"Manut.: {label}",
+            base_rule = row["base_rule"]
+            is_external = base_rule.is_external
+            # Riempimento = urgenza (stato); bordo viola + marcatore 🏢 = manutenzione esterna (ditta terza).
+            pm_event = {
+                "id": f"pm-{base_rule.id}",
+                "title": f"{'🏢 ' if is_external else ''}Manut.: {label}",
                 "start": str(due),
                 "end": str(due),
                 "kind": "manutenzione_prog",
                 "status": status,
-                "assignee": "",
+                "assignee": str(base_rule.supplier) if (is_external and base_rule.supplier_id) else "",
                 "project": "",
                 "url": "",
                 "color": _pm_colors.get(status, "#10b981"),
                 "textColor": "#fff",
-            })
+            }
+            if is_external:
+                pm_event["borderColor"] = "#6d28d9"
+                pm_event["external"] = True
+            events.append(pm_event)
     except Exception:
         pass
 

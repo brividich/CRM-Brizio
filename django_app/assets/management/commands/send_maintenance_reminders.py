@@ -8,6 +8,7 @@ Controlla:
   1. AssetAdministrativeDeadline in scadenza entro --deadline-days (default: 30)
   2. PeriodicVerification in scadenza entro --deadline-days
   3. WorkOrder aperti da più di --wo-overdue-days (default: 21)
+  4. Manutenzioni programmate dalle REGOLE (MaintenanceRule) scadute o in warning entro --deadline-days
 
 Destinatari: SiteConfig chiave "assets_reminder_emails" (lista separata da virgola),
   oppure settings.ADMINS, oppure utenti superuser con email.
@@ -108,7 +109,26 @@ class Command(BaseCommand):
             .order_by("opened_at")
         )
 
-        if not admin_deadlines and not periodic and not overdue_wo:
+        # 4. Manutenzioni programmate dalle REGOLE: scadute + in warning entro l'orizzonte.
+        #    (Prima non erano coperte dai reminder: lo scadenzario rule-based era solo "pull".)
+        from assets.maintenance import build_maintenance_schedule_rows
+
+        rule_due: list[dict] = []
+        for row in build_maintenance_schedule_rows(today=today):
+            status = str(row.get("schedule_status") or "")
+            if status not in ("overdue", "warning"):
+                continue
+            days = row.get("days_until_due")
+            if status == "warning" and isinstance(days, int) and days > deadline_days:
+                continue
+            rule_due.append(row)
+        # scadute prima, poi per giorni residui; cap difensivo sull'email
+        rule_due.sort(
+            key=lambda r: (0 if r.get("schedule_status") == "overdue" else 1, r.get("days_until_due") or 0)
+        )
+        rule_due = rule_due[:50]
+
+        if not admin_deadlines and not periodic and not overdue_wo and not rule_due:
             self.stdout.write("Nessun promemoria da inviare.")
             return
 
@@ -132,6 +152,18 @@ class Command(BaseCommand):
                 lines.append(f"  [{days_left}gg] {v.name} — {v.next_verification_date:%d-%m-%Y}")
             lines.append("")
 
+        if rule_due:
+            lines.append(f"MANUTENZIONI PROGRAMMATE (regole) scadute/in scadenza ({len(rule_due)}):")
+            for row in rule_due:
+                asset = row["asset"]
+                label = getattr(row.get("effective_intervention_template"), "label", "") or "Manutenzione"
+                tag = "SCADUTA" if row.get("schedule_status") == "overdue" else "in scadenza"
+                due = row.get("due_date")
+                due_str = due.strftime("%d-%m-%Y") if due else "—"
+                ext = " [esterna" + (f" {row['base_rule'].supplier}" if row['base_rule'].is_external and row['base_rule'].supplier_id else "") + "]" if row["base_rule"].is_external else ""
+                lines.append(f"  [{tag}] {asset.asset_tag} — {label}{ext} — {due_str}")
+            lines.append("")
+
         if overdue_wo:
             lines.append(f"OdL APERTI DA PIÙ DI {wo_overdue_days} GIORNI ({len(overdue_wo)}):")
             for wo in overdue_wo:
@@ -140,7 +172,10 @@ class Command(BaseCommand):
             lines.append("")
 
         body = "\n".join(lines)
-        subject = f"[Manutenzione] {len(admin_deadlines)} scad. + {len(periodic)} verif. + {len(overdue_wo)} OdL — {today:%d-%m-%Y}"
+        subject = (
+            f"[Manutenzione] {len(rule_due)} regole + {len(admin_deadlines)} scad. + "
+            f"{len(periodic)} verif. + {len(overdue_wo)} OdL — {today:%d-%m-%Y}"
+        )
 
         if dry_run:
             self.stdout.write(self.style.WARNING("[DRY-RUN] Nessuna email inviata."))
@@ -189,6 +224,16 @@ class Command(BaseCommand):
                         "asset_scadenza",
                         f"OdL aperto da {age} giorni: #{wo.pk} {wo.asset.asset_tag} - {wo.title}.",
                         f"/assets/workorders/view/{wo.pk}/",
+                    )
+                for row in rule_due:
+                    asset = row["asset"]
+                    label = getattr(row.get("effective_intervention_template"), "label", "") or "Manutenzione"
+                    stato = "scaduta" if row.get("schedule_status") == "overdue" else "in scadenza"
+                    invia_notifica_email(
+                        email,
+                        "asset_scadenza",
+                        f"Manutenzione {stato}: {asset.asset_tag} - {label}.",
+                        f"/assets/manutenzione/prossime/?asset={asset.id}&status=due",
                     )
             self.stdout.write(self.style.SUCCESS(
                 f"Email inviata a {len(recipients)} destinatari. "
