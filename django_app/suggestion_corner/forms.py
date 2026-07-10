@@ -104,6 +104,28 @@ class ModificaSegnalazioneForm(forms.ModelForm):
         return cleaned
 
 
+class ConfigForm(forms.ModelForm):
+    """Configurazione operativa del modulo (soglie solleciti/escalation, gruppo
+    team SMS, email responsabile escalation). Singleton pk=1."""
+
+    class Meta:
+        from .models import SuggestionCornerConfig
+        model = SuggestionCornerConfig
+        fields = [
+            "giorni_sollecito_1", "giorni_sollecito_2", "giorni_sollecito_3",
+            "giorni_escalation_oltre_scadenza", "email_responsabile_escalation",
+            "sms_team_group_name",
+        ]
+        labels = {
+            "giorni_sollecito_1": "1° sollecito (giorni prima)",
+            "giorni_sollecito_2": "2° sollecito (giorni prima)",
+            "giorni_sollecito_3": "3° sollecito (giorni prima)",
+            "giorni_escalation_oltre_scadenza": "Escalation (giorni oltre scadenza)",
+            "email_responsabile_escalation": "Email responsabile (escalation)",
+            "sms_team_group_name": "Gruppo team SMS",
+        }
+
+
 class ComunicazioneClienteForm(forms.Form):
     """Comunicazione al cliente per le segnalazioni SMS Sì (destinatario
     per-segnalazione). L'invio è manuale, riservato al team SMS."""

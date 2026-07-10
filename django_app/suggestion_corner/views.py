@@ -62,6 +62,77 @@ def home(request):
     })
 
 
+@login_required
+def gestione(request, *args, **kwargs):
+    """Console di gestione del modulo — riservata al team SMS/superuser.
+
+    Riunisce in un'unica pagina «admin» del modulo: coda di triage
+    (DA_CLASSIFICARE), KPI per stato/classificazione, scadenze DO/CHECK,
+    membri del team SMS, mappature processo e configurazione operativa
+    (soglie solleciti/escalation, gruppo team). La configurazione si salva
+    via POST sulla stessa pagina.
+    """
+    if not is_sms_team(request.user):
+        raise PermissionDenied("Sezione riservata al team SMS.")
+
+    from django.contrib.auth import get_user_model
+    from django.utils import timezone
+
+    from .models import SuggestionCornerConfig, SuggestionCornerProcessoMapping
+
+    config = SuggestionCornerConfig.load()
+    if request.method == "POST":
+        form_config = sc_forms.ConfigForm(request.POST, instance=config)
+        if form_config.is_valid():
+            form_config.save()
+            messages.success(request, "Configurazione aggiornata.")
+            return redirect("suggestion_corner:gestione")
+    else:
+        form_config = sc_forms.ConfigForm(instance=config)
+
+    S, SMS = SuggestionCorner.Stato, SuggestionCorner.StatoSMS
+    qs = SuggestionCorner.objects.all()
+    oggi = timezone.localdate()
+
+    da_classificare = (
+        qs.filter(stato=S.DA_CLASSIFICARE)
+        .select_related("reparto_provenienza", "area_provenienza")
+        .order_by("data_segnalazione")
+    )
+    scaduti_do = qs.filter(
+        do_eseguito=False, data_limite_esecuzione__lt=oggi,
+    ).exclude(stato__in=[S.CHIUSA, S.INSERITA, S.DA_CLASSIFICARE]).count()
+    scaduti_check = qs.filter(
+        check_eseguito=False, data_limite_controllo__lt=oggi,
+    ).exclude(stato__in=[S.CHIUSA, S.INSERITA, S.DA_CLASSIFICARE]).count()
+
+    kpi = {
+        "totali": qs.count(),
+        "da_classificare": da_classificare.count(),
+        "aperte": qs.exclude(stato=S.CHIUSA).count(),
+        "chiuse": qs.filter(stato=S.CHIUSA).count(),
+        "sms_si": qs.filter(stato_sms=SMS.SMS_SI).count(),
+        "sms_no": qs.filter(stato_sms=SMS.SMS_NO).count(),
+        "scaduti_do": scaduti_do,
+        "scaduti_check": scaduti_check,
+    }
+
+    User = get_user_model()
+    team = (
+        User.objects.filter(groups__name=config.sms_team_group_name, is_active=True)
+        .order_by("username")
+    )
+
+    return render(request, "suggestion_corner/gestione.html", {
+        "form_config": form_config,
+        "kpi": kpi,
+        "da_classificare": da_classificare,
+        "team": team,
+        "team_group": config.sms_team_group_name,
+        "mappature": SuggestionCornerProcessoMapping.objects.all().order_by("valore_libero"),
+    })
+
+
 def _pdca_steps(stato):
     """Stato delle 4 fasi PDCA (Plan/Do/Check/Act) per lo stepper del dettaglio.
 

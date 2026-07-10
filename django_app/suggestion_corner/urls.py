@@ -6,6 +6,7 @@ app_name = "suggestion_corner"
 
 urlpatterns = [
     path("", views.home, name="home"),
+    path("gestione/", views.gestione, name="gestione"),  # console admin del modulo (SMS_TEAM)
     path("nuova/", views.nuova, name="nuova"),  # form pubblico (no login, esente ACL)
     path("<int:pk>/", views.dettaglio, name="dettaglio"),
     path("<int:pk>/modifica/", views.modifica, name="modifica"),  # gestione (SMS_TEAM)

@@ -1,0 +1,111 @@
+{% extends "core/base.html" %}
+{% block title %}Gestione — Suggestion Corner{% endblock %}
+{% block extra_head %}{% include "suggestion_corner/partials/_sc_styles.html" %}{% endblock %}
+{% block content %}
+<div class="content">
+  <div class="sc-page-head">
+    <div>
+      <span class="sc-eyebrow"><span class="dot"></span>
+        <a href="{% url 'suggestion_corner:home' %}" style="text-decoration:none;color:inherit">← Suggestion Corner</a>
+      </span>
+      <h1>Gestione modulo</h1>
+    </div>
+    <a href="{% url 'suggestion_corner:home' %}" class="hub-btn">Vai all'elenco</a>
+  </div>
+
+  {% if messages %}
+    {% for m in messages %}<div class="hub-alert hub-alert-{{ m.tags }}">{{ m }}</div>{% endfor %}
+  {% endif %}
+
+  {# --- KPI --- #}
+  <div class="sc-kpi">
+    <div class="sc-stat"><span class="n">{{ kpi.totali }}</span><span class="l">Totali</span></div>
+    <a href="{% url 'suggestion_corner:home' %}?filtro=tutte" class="sc-stat"><span class="n">{{ kpi.aperte }}</span><span class="l">Aperte</span></a>
+    <a href="{% url 'suggestion_corner:home' %}?filtro=da_gestire" class="sc-stat warn"><span class="n">{{ kpi.da_classificare }}</span><span class="l">Da classificare</span></a>
+    <div class="sc-stat ok"><span class="n">{{ kpi.chiuse }}</span><span class="l">Chiuse</span></div>
+    <a href="{% url 'suggestion_corner:home' %}?filtro=sms_si" class="sc-stat"><span class="n">{{ kpi.sms_si }}</span><span class="l">SMS Sì</span></a>
+    <a href="{% url 'suggestion_corner:home' %}?filtro=sms_no" class="sc-stat"><span class="n">{{ kpi.sms_no }}</span><span class="l">SMS No</span></a>
+    <div class="sc-stat danger"><span class="n">{{ kpi.scaduti_do }}</span><span class="l">DO scaduti</span></div>
+    <div class="sc-stat danger"><span class="n">{{ kpi.scaduti_check }}</span><span class="l">CHECK scaduti</span></div>
+  </div>
+
+  {# --- Coda di triage --- #}
+  <div class="sc-card" style="margin-bottom:var(--space-4)">
+    <div class="sc-card-head">Coda da classificare ({{ da_classificare.count }})</div>
+    <div class="sc-card-body">
+      {% if da_classificare %}
+      <ul class="sc-queue">
+        {% for s in da_classificare %}
+        <li>
+          <span class="q-txt">
+            <a href="{% url 'suggestion_corner:dettaglio' s.pk %}"><strong>SC#{{ s.pk }}</strong></a>
+            — {{ s.opportunity|truncatechars:70 }}
+          </span>
+          <span class="q-meta">{{ s.provenienza_display }} · {{ s.data_segnalazione|date:"d/m/Y" }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="hub-help">Nessuna segnalazione in attesa di classificazione. 👌</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="sc-cols">
+    {# --- Configurazione --- #}
+    <div class="sc-card">
+      <div class="sc-card-head">Configurazione</div>
+      <div class="sc-card-body sc-config">
+        <form method="post" class="hub-form-stack">
+          {% csrf_token %}
+          {% if form_config.non_field_errors %}
+            <div class="hub-alert hub-alert-error">{{ form_config.non_field_errors }}</div>
+          {% endif %}
+          {% for field in form_config %}
+            <div class="hub-field">
+              <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.errors %}<div class="hub-field-error">{{ field.errors }}</div>{% endif %}
+            </div>
+          {% endfor %}
+          <button type="submit" class="hub-btn hub-btn-primary">Salva configurazione</button>
+        </form>
+      </div>
+    </div>
+
+    <div style="display:grid;gap:var(--space-4)">
+      {# --- Team SMS --- #}
+      <div class="sc-card">
+        <div class="sc-card-head">Team SMS <span class="sc-chip">{{ team_group }}</span></div>
+        <div class="sc-card-body">
+          {% if team %}
+          <ul class="sc-tags" style="list-style:none;padding:0">
+            {% for u in team %}<li><span class="sc-chip">{{ u.get_full_name|default:u.username }}</span></li>{% endfor %}
+          </ul>
+          {% else %}
+          <p class="hub-help">Nessun membro nel gruppo <strong>{{ team_group }}</strong>.
+            I membri si gestiscono dai gruppi Django (o dall'area amministrazione).</p>
+          {% endif %}
+        </div>
+      </div>
+
+      {# --- Mappature processo --- #}
+      <div class="sc-card">
+        <div class="sc-card-head">Mappature processo ({{ mappature.count }})</div>
+        <div class="sc-card-body">
+          {% if mappature %}
+          <ul class="sc-queue">
+            {% for m in mappature %}
+            <li><span class="q-txt">{{ m.valore_libero }}</span>
+              <span class="q-meta">{{ m.processo|default:"— non mappato" }}</span></li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="hub-help">Nessuna mappatura processo definita.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -79,4 +79,24 @@
   .sc-timeline li{position:relative;padding:.35rem 0 .35rem 1.1rem;font-size:var(--fs-sm);color:var(--text-mid)}
   .sc-timeline li::before{content:"";position:absolute;left:0;top:.7rem;width:7px;height:7px;
     border-radius:999px;background:var(--accent)}
+
+  /* Console di gestione */
+  .sc-kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--space-3);
+    margin-bottom:var(--space-4)}
+  .sc-kpi .sc-stat{cursor:default}
+  .sc-kpi .sc-stat.warn .n{color:var(--warning)}
+  .sc-kpi .sc-stat.danger .n{color:var(--danger)}
+  .sc-kpi .sc-stat.ok .n{color:var(--success)}
+  .sc-cols{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4);align-items:start}
+  @media (max-width:820px){.sc-cols{grid-template-columns:1fr}}
+  .sc-queue{list-style:none;margin:0;padding:0}
+  .sc-queue li{display:flex;align-items:center;justify-content:space-between;gap:.75rem;
+    padding:.6rem .15rem;border-bottom:1px solid var(--border)}
+  .sc-queue li:last-child{border-bottom:none}
+  .sc-queue .q-txt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sc-queue .q-meta{color:var(--text-light);font-size:var(--fs-sm);flex-shrink:0}
+  .sc-config .hub-field,.sc-config p{margin:0 0 .75rem}
+  .sc-tags{display:flex;flex-wrap:wrap;gap:.4rem;margin:0}
+  .sc-tags .sc-chip{background:var(--accent-light);color:var(--accent);
+    border-color:color-mix(in srgb,var(--accent) 25%,transparent)}
 </style>
