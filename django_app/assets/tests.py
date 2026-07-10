@@ -6020,6 +6020,33 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.assertContains(page, "Fornitore Manut Srl")
         self.assertContains(page, reverse("fornitori:fornitore_detail", kwargs={"fornitore_id": supplier.id}))
 
+    def test_bulk_generate_workorders_for_category(self):
+        from datetime import timedelta
+
+        from assets.models import AssetMaintenanceRuleState
+
+        self.asset.status = Asset.STATUS_IN_USE
+        self.asset.save(update_fields=["status"])
+        AssetMaintenanceRuleState.objects.update_or_create(
+            asset=self.asset,
+            base_rule=self.base_rule,
+            defaults={"last_execution_date": timezone.localdate() - timedelta(days=500)},
+        )
+        self.client.force_login(self.admin)
+        url = reverse("assets:maintenance_impostazioni")
+
+        resp = self.client.post(url, {"action": "generate_workorders", "category_id": str(self.category.id)})
+        self.assertEqual(resp.status_code, 302)
+        open_qs = WorkOrder.objects.filter(
+            asset=self.asset, maintenance_rule=self.base_rule,
+            status=WorkOrder.STATUS_OPEN, origin=WorkOrder.ORIGIN_PERIODIC,
+        )
+        self.assertEqual(open_qs.count(), 1)
+
+        # Idempotente: un secondo click non duplica (OdL già aperto).
+        self.client.post(url, {"action": "generate_workorders", "category_id": str(self.category.id)})
+        self.assertEqual(open_qs.count(), 1)
+
     def test_maintenance_plan_compliance_column(self):
         from datetime import timedelta
 

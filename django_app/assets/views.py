@@ -16005,6 +16005,49 @@ def maintenance_impostazioni(request: HttpRequest) -> HttpResponse:
     # I fornitori hanno ora una pagina dedicata (nav di sezione): vecchi link ?tab=fornitori lì.
     if _clean_string(request.GET.get("tab")) == "fornitori":
         return redirect("assets:maintenance_suppliers")
+
+    # POST: genera in blocco gli OdL delle manutenzioni in scadenza di una categoria
+    # (riusa il comando periodico scoped alla categoria; dedup su OdL aperti, checklist inclusa).
+    if request.method == "POST" and _clean_string(request.POST.get("action")) == "generate_workorders":
+        piano_url = reverse("assets:maintenance_impostazioni") + "?tab=piano"
+        if not _is_assets_admin(request):
+            messages.error(request, "Solo admin può generare OdL di manutenzione.")
+            return redirect(piano_url)
+        cat_id = _as_int(request.POST.get("category_id"), default=0)
+        category = AssetCategory.objects.filter(pk=cat_id).first() if cat_id else None
+        if category is None:
+            messages.error(request, "Categoria non valida.")
+            return redirect(piano_url)
+        import re as _re
+        from io import StringIO as _StringIO
+
+        from django.core.management import call_command as _call_command
+
+        buf = _StringIO()
+        try:
+            _call_command("generate_scheduled_workorders", category=cat_id, limit=200, stdout=buf)
+        except Exception as exc:  # pragma: no cover - dipende dai dati
+            messages.error(request, f"Generazione OdL fallita: {exc}")
+            return redirect(piano_url)
+        text = buf.getvalue()
+        m_created = _re.search(r"Creati=(\d+)", text)
+        m_open = _re.search(r"GiaAperti=(\d+)", text)
+        created = int(m_created.group(1)) if m_created else 0
+        already = int(m_open.group(1)) if m_open else 0
+        log_action(request, "bulk_generate_workorders", "assets", {"category_id": cat_id, "created": created})
+        if created:
+            messages.success(
+                request,
+                f"Creati {created} ordini di lavoro per «{category.label}»"
+                + (f" ({already} già aperti, saltati)." if already else "."),
+            )
+        else:
+            messages.info(
+                request,
+                f"Nessun nuovo OdL per «{category.label}»: le manutenzioni in scadenza hanno già un intervento aperto.",
+            )
+        return redirect(piano_url)
+
     active_tab = _clean_string(request.GET.get("tab")) or "interventi"
     # Compat: vecchie tab (templates/rules) e vecchie URL -> tab unica "interventi".
     if active_tab in ("templates", "rules"):

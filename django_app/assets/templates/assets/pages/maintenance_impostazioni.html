@@ -212,6 +212,11 @@ body.theme-dark .mi-plan-intro { background:#162032; border-color:#253347; color
 body.theme-dark .mi-compliance-hero { border-color:#253347; }
 body.theme-dark .mi-comp-lbl { color:var(--text); }
 body.theme-dark .mi-bar { background:#334155; }
+
+/* Pulsante "Genera OdL" nel Piano */
+.mi-gen-form { margin:0 0 6px; }
+.mi-gen-btn { display:inline-flex; align-items:center; gap:5px; padding:5px 11px; background:#1d4ed8; color:#fff; border:none; border-radius:8px; font-size:var(--fs-xs); font-weight:800; cursor:pointer; }
+.mi-gen-btn:hover { background:#1e40af; }
 .mi-scope-tag {
   font-size:var(--fs-xs); padding:2px 7px; border-radius:5px;
   font-weight:700;
@@ -488,6 +493,14 @@ body.theme-dark .mi-rule-label { color:#475569; }
               <td>{% if r.upcoming %}<span class="mi-pill active">{{ r.upcoming }}</span>{% else %}<span class="mi-muted">0</span>{% endif %}</td>
               <td>{% if r.missing %}<span class="mi-pill blue">{{ r.missing }}</span>{% else %}<span class="mi-muted">0</span>{% endif %}</td>
               <td>
+                {% if r.overdue or r.warning %}
+                  <form method="post" class="mi-gen-form" onsubmit="return confirm('Generare gli ordini di lavoro per le manutenzioni scadute/in scadenza di «{{ r.category.label|escapejs }}»? Le voci con un intervento già aperto vengono saltate.');">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="generate_workorders">
+                    <input type="hidden" name="category_id" value="{{ r.category.id }}">
+                    <button type="submit" class="mi-gen-btn" title="Crea gli OdL delle scadute/in scadenza di questa categoria">&#43; Genera OdL ({{ r.overdue|add:r.warning }})</button>
+                  </form>
+                {% endif %}
                 <a href="{{ r.schedule_url }}" class="mi-link">Scadenzario</a>
                 <span class="mi-muted">·</span>
                 <a href="{{ r.rules_url }}" class="mi-link">Regole</a>
