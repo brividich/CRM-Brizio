@@ -1,0 +1,101 @@
+{% extends "core/base.html" %}
+
+{% block title %}{% if prodotto %}Modifica prodotto{% else %}Nuovo prodotto{% endif %} | Schede Sicurezza{% endblock %}
+
+{% block content %}
+<div style="max-width:720px;display:flex;flex-direction:column;gap:16px;">
+  {% if messages %}
+    {% for msg in messages %}
+      <div style="padding:12px 16px;border-radius:10px;background:{% if 'error' in msg.tags %}#fee2e2{% else %}#dcfce7{% endif %};color:{% if 'error' in msg.tags %}#dc2626{% else %}#15803d{% endif %};font-size:13px;font-weight:600;">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div style="font-size:20px;font-weight:900;">{% if prodotto %}Modifica prodotto{% else %}Nuovo prodotto chimico{% endif %}</div>
+
+  <form method="post" style="display:flex;flex-direction:column;gap:12px;">
+    {% csrf_token %}
+
+    <label>Nome prodotto *
+      <input type="text" name="nome" value="{{ prodotto.nome|default:'' }}" required
+             style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:8px;">
+    </label>
+
+    <label>Reparto *
+      {% if reparti %}
+        <select name="reparto" required style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:8px;">
+          <option value="">Seleziona…</option>
+          {% for r in reparti %}
+            <option value="{{ r.pk }}" {% if prodotto.reparto_id == r.pk %}selected{% endif %}>{{ r.nome }}</option>
+          {% endfor %}
+        </select>
+      {% else %}
+        <div style="padding:10px;border:1px solid #fde68a;background:#fffbeb;border-radius:8px;font-size:13px;color:#92400e;">
+          Nessun reparto disponibile. <a href="{% url 'anagrafica:aree_list' %}" style="color:#1d4ed8;font-weight:700;">Vai a Reparti &amp; Aree</a> per crearne uno.
+        </div>
+      {% endif %}
+    </label>
+
+    <div style="display:flex;gap:12px;">
+      <label style="flex:1;">Fornitore
+        <input type="text" name="fornitore" value="{{ prodotto.fornitore|default:'' }}"
+               style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:8px;">
+      </label>
+      <label style="flex:1;">Produttore
+        <input type="text" name="produttore" value="{{ prodotto.produttore|default:'' }}"
+               style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:8px;">
+      </label>
+    </div>
+
+    <div style="display:flex;gap:12px;">
+      <label style="flex:1;">Famiglia
+        <input type="text" name="famiglia" value="{{ prodotto.famiglia|default:'' }}"
+               style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:8px;">
+      </label>
+      <label style="flex:1;">Sottocategoria
+        <input type="text" name="sottocategoria" value="{{ prodotto.sottocategoria|default:'' }}"
+               style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:8px;">
+      </label>
+    </div>
+
+    <div style="display:flex;gap:12px;">
+      <label style="flex:1;">Numero interno
+        <input type="text" name="numero_interno" value="{{ prodotto.numero_interno|default:'' }}"
+               style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:8px;">
+      </label>
+      <label style="flex:1;">Codice prodotto
+        <input type="text" name="codice_prodotto" value="{{ prodotto.codice_prodotto|default:'' }}"
+               style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:8px;">
+      </label>
+    </div>
+
+    <div style="display:flex;gap:12px;">
+      <label style="flex:1;">Ubicazione
+        <input type="text" name="ubicazione" value="{{ prodotto.ubicazione|default:'' }}"
+               style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:8px;">
+      </label>
+      <label style="flex:1;">Quantità presente
+        <input type="text" name="quantita_presente" value="{{ prodotto.quantita_presente|default:'' }}"
+               style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:8px;">
+      </label>
+    </div>
+
+    <label>DPI obbligatori
+      <select name="dpi_obbligatori" multiple style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:8px;min-height:100px;">
+        {% for cat in categorie_dpi %}
+          <option value="{{ cat.pk }}" {% if cat in prodotto.dpi_obbligatori.all %}selected{% endif %}>{{ cat.icona_emoji }} {{ cat.nome }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label style="display:flex;align-items:center;gap:8px;">
+      <input type="checkbox" name="attivo" {% if not prodotto or prodotto.attivo %}checked{% endif %}>
+      Attivo
+    </label>
+
+    <div style="display:flex;gap:10px;">
+      <button type="submit" style="padding:9px 18px;background:#1d4ed8;color:#fff;border:none;border-radius:10px;font-weight:700;cursor:pointer;">Salva</button>
+      <a href="{% url 'schede_sicurezza:prodotto_list' %}" style="padding:9px 18px;background:#f1f5f9;color:#475569;border-radius:10px;text-decoration:none;font-weight:700;">Annulla</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

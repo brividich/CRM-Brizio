@@ -246,3 +246,18 @@ class ModificaCampiEstrattiTest(TestCase):
         prodotto_senza = ProdottoChimico.objects.create(nome="Senza scheda", reparto=self.reparto)
         resp = self.client.get(reverse("schede_sicurezza:prodotto_detail", args=[prodotto_senza.pk]))
         self.assertNotContains(resp, "Modifica campi estratti")
+
+
+class RepartoMancanteCtaTest(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(username="admin_reparto_cta", password="x", is_superuser=True, is_staff=True)
+        self.client.force_login(self.admin)
+
+    def test_link_aree_list_presente_senza_reparti(self):
+        resp = self.client.get(reverse("schede_sicurezza:prodotto_nuovo"))
+        self.assertContains(resp, reverse("anagrafica:aree_list"))
+
+    def test_select_normale_con_almeno_un_reparto(self):
+        Reparto.objects.create(nome="Produzione")
+        resp = self.client.get(reverse("schede_sicurezza:prodotto_nuovo"))
+        self.assertNotContains(resp, reverse("anagrafica:aree_list"))
