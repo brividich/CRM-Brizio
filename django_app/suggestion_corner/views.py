@@ -133,6 +133,27 @@ def gestione(request, *args, **kwargs):
     })
 
 
+def _corpo_cliente(seg):
+    """Corpo pre-compilato per la mail al cliente (SMS Sì), aperto nel client di
+    posta del team via mailto: contiene il contenuto della segnalazione."""
+    righe = [
+        f"Gentile {seg.cliente_nome or 'cliente'},",
+        "",
+        f"nell'ambito del nostro Sistema di Miglioramento/Segnalazione (SMS) le "
+        f"comunichiamo la seguente segnalazione (SC#{seg.pk}, provenienza "
+        f"{seg.provenienza_display}):",
+        "",
+        f"Opportunità di miglioramento:",
+        seg.opportunity or "—",
+    ]
+    for etichetta, testo in (("Plan", seg.plan_testo), ("Do", seg.do_testo),
+                             ("Check", seg.check_testo), ("Act", seg.act_testo)):
+        if testo:
+            righe += ["", f"{etichetta}:", testo]
+    righe += ["", "Cordiali saluti,", "Team SMS — NOVICROM"]
+    return "\n".join(righe)
+
+
 def _pdca_steps(stato):
     """Stato delle 4 fasi PDCA (Plan/Do/Check/Act) per lo stepper del dettaglio.
 
@@ -199,6 +220,8 @@ def dettaglio(request, pk: int):
         }),
         "SMS": SuggestionCorner.StatoSMS,
         "pdca": _pdca_steps(seg.stato),
+        "cliente_mail_subject": f"[Suggestion Corner] Comunicazione SMS — SC#{seg.pk}",
+        "cliente_mail_body": _corpo_cliente(seg),
     }
     return render(request, "suggestion_corner/dettaglio.html", ctx)
 
@@ -235,12 +258,14 @@ def modifica(request, pk: int):
 @login_required
 @require_POST
 def azione_comunica_cliente(request, pk: int):
-    """Invia la comunicazione al cliente per una segnalazione SMS Sì e ne traccia
-    l'esito (data + flag). Riservata al team SMS; disponibile solo se la
-    segnalazione è classificata SMS Sì. Destinatario per-segnalazione."""
-    from django.utils import timezone
+    """Registra la comunicazione al cliente per una segnalazione SMS Sì.
 
-    from .notifications import notifica_cliente_sms
+    La mail vera si scrive dal **client di posta del team** (pulsante mailto nel
+    dettaglio: apre il client con oggetto e corpo = contenuto segnalazione già
+    pronti). Qui NON si invia nulla lato server: si salva il destinatario
+    (nome/email) e si marca la comunicazione come effettuata (data + flag +
+    audit). Riservata al team SMS; solo se la segnalazione è SMS Sì."""
+    from django.utils import timezone
 
     seg = get_object_or_404(SuggestionCorner, pk=pk)
     if not is_sms_team(request.user):
@@ -258,19 +283,12 @@ def azione_comunica_cliente(request, pk: int):
     cd = form.cleaned_data
     seg.cliente_nome = cd["cliente_nome"]
     seg.cliente_email = cd["cliente_email"]
-    try:
-        notifica_cliente_sms(seg, cd.get("messaggio", ""))
-    except Exception as exc:  # invio fallito: salva il destinatario, non marcare
-        seg.save(update_fields=["cliente_nome", "cliente_email", "updated_at"])
-        messages.error(request, f"Invio della comunicazione fallito: {exc}")
-        return redirect("suggestion_corner:dettaglio", pk=pk)
-
     seg.comunicazione_cliente_inviata = True
     seg.data_comunicazione_cliente = timezone.now()
     seg.updated_by = request.user
     seg.save()
     _log_comunicazione_cliente(seg, request.user)
-    messages.success(request, f"Comunicazione inviata al cliente ({seg.cliente_email}).")
+    messages.success(request, f"Comunicazione al cliente registrata ({seg.cliente_email}).")
     return redirect("suggestion_corner:dettaglio", pk=pk)
 
 

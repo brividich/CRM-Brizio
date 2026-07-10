@@ -40,7 +40,9 @@ class ComunicazioneClienteTest(TestCase):
     def _reload(self):
         return SuggestionCorner.objects.get(pk=self.seg.pk)
 
-    def test_team_invia_e_traccia(self):
+    def test_team_registra_e_traccia(self):
+        # La mail si scrive dal client di posta del team (mailto): il server NON
+        # invia nulla, registra solo il destinatario + marca «comunicato» + audit.
         self.client.force_login(self.team)
         resp = self.client.post(self._url(), {
             "cliente_nome": "ACME SpA", "cliente_email": "qualita@acme.it",
@@ -51,8 +53,7 @@ class ComunicazioneClienteTest(TestCase):
         self.assertTrue(s.comunicazione_cliente_inviata)
         self.assertIsNotNone(s.data_comunicazione_cliente)
         self.assertEqual(s.cliente_email, "qualita@acme.it")
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertIn("qualita@acme.it", mail.outbox[0].to)
+        self.assertEqual(len(mail.outbox), 0)  # nessun invio server-side
         self.assertTrue(s.storico.filter(campo_modificato="comunicazione_cliente").exists())
 
     def test_non_sms_si_non_invia(self):

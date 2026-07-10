@@ -72,14 +72,37 @@
             {% if seg.cliente_email %}a <strong>{{ seg.cliente_email }}</strong>{% endif %}.
           </p>
         {% else %}
-          <p class="hub-help">Segnalazione classificata <strong>SMS Sì</strong>: da comunicare al cliente.</p>
+          <p class="hub-help">Segnalazione classificata <strong>SMS Sì</strong>: da comunicare al cliente.
+            Il pulsante apre il tuo <strong>client di posta</strong> con oggetto e testo già pronti.</p>
         {% endif %}
         <form method="post" action="{% url 'suggestion_corner:comunica_cliente' seg.pk %}" class="hub-form-stack">
           {% csrf_token %}{{ form_comunica_cliente.as_p }}
-          <button type="submit" class="hub-btn hub-btn-primary">
-            {% if seg.comunicazione_cliente_inviata %}Reinvia comunicazione{% else %}Invia comunicazione{% endif %}
-          </button>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <button type="button" id="sc-mailto-btn" class="hub-btn hub-btn-primary"
+                    data-subject="{{ cliente_mail_subject }}">✉ Apri nel client di posta</button>
+            <button type="submit" class="hub-btn">
+              {% if seg.comunicazione_cliente_inviata %}Aggiorna comunicazione{% else %}Segna come comunicato{% endif %}
+            </button>
+          </div>
         </form>
+        {{ cliente_mail_body|json_script:"sc-mail-body" }}
+        <script>
+          (function () {
+            var btn = document.getElementById("sc-mailto-btn");
+            var bodyEl = document.getElementById("sc-mail-body");
+            if (!btn || !bodyEl) return;
+            var baseBody = JSON.parse(bodyEl.textContent);
+            btn.addEventListener("click", function () {
+              var email = (document.getElementById("id_cliente_email") || {}).value || "";
+              var extra = (document.getElementById("id_messaggio") || {}).value || "";
+              var body = extra ? baseBody + "\n\n" + extra : baseBody;
+              var href = "mailto:" + encodeURIComponent(email).replace(/%40/g, "@")
+                + "?subject=" + encodeURIComponent(btn.dataset.subject)
+                + "&body=" + encodeURIComponent(body);
+              window.location.href = href;
+            });
+          })();
+        </script>
       </div>
     </div>
     {% endif %}
