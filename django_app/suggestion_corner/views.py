@@ -25,22 +25,39 @@ from .permissions import (
 
 @login_required
 def home(request):
-    """Elenco segnalazioni con scope per-utente.
+    """Dashboard/elenco segnalazioni con scope per-utente e filtro per stato SMS.
 
-    - team SMS / superuser: tutte + coda 'da gestire' (DA_CLASSIFICARE);
+    - team SMS / superuser: tutte le segnalazioni;
     - altri: solo le proprie + incarichi assegnati.
+
+    Pulsanti-contatore (Tutte / Da gestire / SMS Sì / SMS No) filtrano la lista
+    via `?filtro=`; i conteggi sono sempre sullo scope completo dell'utente.
     """
     team = is_sms_team(request.user)
-    segnalazioni = visible_segnalazioni(request.user).select_related(
+    base = visible_segnalazioni(request.user).select_related(
         "reparto_provenienza", "incaricato", "controllore",
     )
-    da_gestire = (
-        segnalazioni.filter(stato=SuggestionCorner.Stato.DA_CLASSIFICARE)
-        if team else SuggestionCorner.objects.none()
-    )
+    S, SMS = SuggestionCorner.Stato, SuggestionCorner.StatoSMS
+    conteggi = {
+        "tutte": base.count(),
+        "da_gestire": base.filter(stato=S.DA_CLASSIFICARE).count(),
+        "sms_si": base.filter(stato_sms=SMS.SMS_SI).count(),
+        "sms_no": base.filter(stato_sms=SMS.SMS_NO).count(),
+    }
+    filtro = (request.GET.get("filtro") or "tutte").strip()
+    if filtro == "da_gestire":
+        segnalazioni = base.filter(stato=S.DA_CLASSIFICARE)
+    elif filtro == "sms_si":
+        segnalazioni = base.filter(stato_sms=SMS.SMS_SI)
+    elif filtro == "sms_no":
+        segnalazioni = base.filter(stato_sms=SMS.SMS_NO)
+    else:
+        filtro = "tutte"
+        segnalazioni = base
     return render(request, "suggestion_corner/home.html", {
         "segnalazioni": segnalazioni,
-        "da_gestire": da_gestire,
+        "conteggi": conteggi,
+        "filtro": filtro,
         "is_team": team,
     })
 

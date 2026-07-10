@@ -74,6 +74,23 @@ class HomeScopeTest(TestCase):
         self.assertFalse(resp.context["is_team"])
         self.assertEqual(len(resp.context["segnalazioni"]), 1)
 
+    def test_dashboard_conteggi_e_filtro_sms(self):
+        # una SMS Sì e una SMS No tra le due esistenti
+        a, b = SuggestionCorner.objects.order_by("pk")
+        a.stato_sms = SuggestionCorner.StatoSMS.SMS_SI; a.save()
+        b.stato_sms = SuggestionCorner.StatoSMS.SMS_NO; b.save()
+        self.client.force_login(self.team)
+
+        resp = self.client.get(reverse("suggestion_corner:home"))
+        self.assertEqual(resp.context["conteggi"]["sms_si"], 1)
+        self.assertEqual(resp.context["conteggi"]["sms_no"], 1)
+        self.assertEqual(resp.context["conteggi"]["tutte"], 2)
+
+        resp = self.client.get(reverse("suggestion_corner:home") + "?filtro=sms_si")
+        self.assertEqual(resp.context["filtro"], "sms_si")
+        self.assertEqual(len(resp.context["segnalazioni"]), 1)
+        self.assertEqual(resp.context["segnalazioni"][0], a)
+
 
 @override_settings(LEGACY_AUTH_ENABLED=False)
 class DettaglioScopeTest(TestCase):
