@@ -5,7 +5,7 @@ from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 
-from anagrafica.models import Reparto
+from anagrafica.models import AreaAziendale, Reparto
 from suggestion_corner.models import SuggestionCorner
 
 
@@ -13,6 +13,7 @@ class FormPubblicoTest(TestCase):
     def setUp(self):
         cache.clear()
         self.reparto = Reparto.objects.create(nome="TORNI")
+        self.area = AreaAziendale.objects.create(nome="IT", reparto=self.reparto)
         self.url = reverse("suggestion_corner:nuova")
 
     def test_get_pubblico_anonimo_200(self):
@@ -59,9 +60,25 @@ class FormPubblicoTest(TestCase):
         self.assertEqual(resp.status_code, 200)  # finto successo
         self.assertEqual(SuggestionCorner.objects.count(), 0)  # nessuna creazione
 
+    def test_post_solo_area_crea_e_deduce_reparto(self):
+        resp = self.client.post(self.url, {
+            "area_provenienza": self.area.pk,
+            "opportunity": "Segnalazione da area IT.",
+        })
+        self.assertEqual(resp.status_code, 200)
+        seg = SuggestionCorner.objects.get()
+        self.assertEqual(seg.area_provenienza, self.area)
+        self.assertEqual(seg.reparto_provenienza, self.reparto)  # padre dedotto
+
     def test_form_invalido_non_crea(self):
         resp = self.client.post(self.url, {"opportunity": ""})
         self.assertEqual(resp.status_code, 200)  # ri-render con errori
+        self.assertEqual(SuggestionCorner.objects.count(), 0)
+
+    def test_post_senza_provenienza_non_crea(self):
+        # Né reparto né area → form invalido (regola "almeno uno").
+        resp = self.client.post(self.url, {"opportunity": "Manca la provenienza."})
+        self.assertEqual(resp.status_code, 200)
         self.assertEqual(SuggestionCorner.objects.count(), 0)
 
     def test_rate_limit_per_ip(self):

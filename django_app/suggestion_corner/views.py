@@ -219,7 +219,8 @@ def nuova(request):
             anonima = cd["anonima"]
             autenticato = getattr(request.user, "is_authenticated", False)
             seg = SuggestionCorner(
-                reparto_provenienza=cd["reparto_provenienza"],
+                reparto_provenienza=cd.get("reparto_provenienza"),
+                area_provenienza=cd.get("area_provenienza"),
                 opportunity=cd["opportunity"],
                 anonima=anonima,
                 da_portale=True,

@@ -9,7 +9,7 @@ from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.test import TestCase
 
-from anagrafica.models import Reparto
+from anagrafica.models import AreaAziendale, Reparto
 from suggestion_corner.models import SuggestionCorner
 
 User = get_user_model()
@@ -19,6 +19,8 @@ class ImportLegacyTest(TestCase):
     def setUp(self):
         self.torni = Reparto.objects.create(nome="TORNI")
         self.cnc = Reparto.objects.create(nome="CNC")
+        # Area sotto-articolazione di un reparto (es. IT sotto CNC)
+        self.it = AreaAziendale.objects.create(nome="IT", reparto=self.cnc)
         self.mario = User.objects.create_user(username="mario", email="mario@x.it")
 
     def _write(self, records):
@@ -78,10 +80,25 @@ class ImportLegacyTest(TestCase):
         call_command("import_suggestion_corner_legacy", file=path, apply=True)  # secondo run
         self.assertEqual(SuggestionCorner.objects.count(), 1)  # non duplica
 
-    def test_reparto_mancante_salta_record(self):
-        path = self._write([self._record(reparto_provenienza="INESISTENTE")])
+    def test_unita_non_risolta_crea_con_provenienza_vuota(self):
+        # I jolli storici (Altro/Generico) o nomi non mappati non scartano più il
+        # record: entra con provenienza vuota (esente dalla regola clean()).
+        path = self._write([self._record(reparto_provenienza="INESISTENTE",
+                                         reparto_destinazione="")])
         call_command("import_suggestion_corner_legacy", file=path, apply=True)
-        self.assertEqual(SuggestionCorner.objects.count(), 0)
+        self.assertEqual(SuggestionCorner.objects.count(), 1)
+        seg = SuggestionCorner.objects.get()
+        self.assertIsNone(seg.reparto_provenienza)
+        self.assertIsNone(seg.area_provenienza)
+
+    def test_provenienza_area_valorizza_reparto_padre(self):
+        # Nome=Area (IT): salva l'area E il reparto padre (CNC) automaticamente.
+        path = self._write([self._record(reparto_provenienza="it",  # case-insensitive
+                                         reparto_destinazione="")])
+        call_command("import_suggestion_corner_legacy", file=path, apply=True)
+        seg = SuggestionCorner.objects.get()
+        self.assertEqual(seg.area_provenienza, self.it)
+        self.assertEqual(seg.reparto_provenienza, self.cnc)  # reparto padre dedotto
 
     def test_reparto_map_rimappa_provenienza(self):
         # 'LOG' del CSV va rimappato sul catalogo 'CNC'; 'Generico' → ignorato (vuoto).

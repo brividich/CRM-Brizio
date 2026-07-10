@@ -49,13 +49,25 @@ class SuggestionCorner(models.Model):
     anonima = models.BooleanField(default=False)
 
     data_segnalazione = models.DateField(default=timezone.localdate)
+    # Provenienza/destinazione = Reparto OPPURE Area Aziendale (un'Area è
+    # sotto-articolazione di un Reparto). Entrambe nullable: le nuove segnalazioni
+    # richiedono almeno una provenienza (clean()); i record storici jolli
+    # (Altro/Generico) possono averle tutte nulle.
     reparto_provenienza = models.ForeignKey(
-        "anagrafica.Reparto", on_delete=models.PROTECT,
+        "anagrafica.Reparto", on_delete=models.PROTECT, null=True, blank=True,
         related_name="segnalazioni_provenienza",
+    )
+    area_provenienza = models.ForeignKey(
+        "anagrafica.AreaAziendale", on_delete=models.PROTECT, null=True, blank=True,
+        related_name="segnalazioni_area_provenienza",
     )
     reparto_destinazione = models.ForeignKey(
         "anagrafica.Reparto", on_delete=models.PROTECT, null=True, blank=True,
         related_name="segnalazioni_destinazione",
+    )
+    area_destinazione = models.ForeignKey(
+        "anagrafica.AreaAziendale", on_delete=models.PROTECT, null=True, blank=True,
+        related_name="segnalazioni_area_destinazione",
     )
     processo = models.ForeignKey(
         "anagrafica.ProcessoQualificato", on_delete=models.SET_NULL, null=True, blank=True,
@@ -165,6 +177,24 @@ class SuggestionCorner(models.Model):
         except ValueError:
             return self.stato
 
+    @property
+    def provenienza_display(self) -> str:
+        """Unità di provenienza: Area se presente, altrimenti Reparto, altrimenti '—'."""
+        if self.area_provenienza_id:
+            return self.area_provenienza.nome
+        if self.reparto_provenienza_id:
+            return self.reparto_provenienza.nome
+        return "—"
+
+    @property
+    def destinazione_display(self) -> str:
+        """Unità di destinazione: Area se presente, altrimenti Reparto, altrimenti '—'."""
+        if self.area_destinazione_id:
+            return self.area_destinazione.nome
+        if self.reparto_destinazione_id:
+            return self.reparto_destinazione.nome
+        return "—"
+
     # --- Validazione di dominio -------------------------------------------
     def clean(self):
         super().clean()
@@ -176,8 +206,23 @@ class SuggestionCorner(models.Model):
             raise ValidationError(
                 {"controllore": "Il controllore deve essere diverso dall'incaricato."}
             )
+        # Le nuove segnalazioni (non importate) devono indicare almeno una
+        # provenienza (Reparto o Area); i record storici (legacy_sharepoint_id)
+        # sono esenti perché i jolli Altro/Generico non mappano su nessuna unità.
+        if not self.legacy_sharepoint_id and not (
+            self.reparto_provenienza_id or self.area_provenienza_id
+        ):
+            raise ValidationError(
+                {"reparto_provenienza": "Indicare un reparto o un'area di provenienza."}
+            )
 
     def save(self, *args, **kwargs):
+        # Un'Area appartiene sempre a un Reparto: se si valorizza l'Area senza
+        # Reparto, il Reparto padre è impostato automaticamente (coerenza gerarchia).
+        if self.area_provenienza_id and not self.reparto_provenienza_id:
+            self.reparto_provenienza_id = self.area_provenienza.reparto_id
+        if self.area_destinazione_id and not self.reparto_destinazione_id:
+            self.reparto_destinazione_id = self.area_destinazione.reparto_id
         # Audit ISO 27001: logga un eventuale bypass della regola incaricato≠controllore
         if (
             self.incaricato_id

@@ -34,7 +34,7 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from anagrafica.models import Reparto
+from anagrafica.models import AreaAziendale, Reparto
 from suggestion_corner.models import (
     SuggestionCorner, SuggestionCornerAllegato, SuggestionCornerStorico,
 )
@@ -81,15 +81,19 @@ class Command(BaseCommand):
             self.reparto_map = {str(k).strip().lower(): (v or "") for k, v in raw.items()}
 
         rep = {"creati": 0, "aggiornati": 0, "saltati": 0,
-               "reparti_mancanti": set(), "persone_mancanti": set(), "errori": []}
+               "reparti_mancanti": set(), "unita_non_risolte": set(),
+               "persone_mancanti": set(), "errori": []}
 
-        # Cache reparti per nome (case-insensitive)
+        # Cache unità per nome (case-insensitive): Reparto e Area Aziendale.
         reparti = {r.nome.strip().lower(): r for r in Reparto.objects.all()}
+        aree = {a.nome.strip().lower(): a for a in AreaAziendale.objects.select_related("reparto").all()}
+        self._reparti = reparti
+        self._aree = aree
 
         for rec in records:
             try:
                 with transaction.atomic():
-                    self._import_one(rec, reparti, rep)
+                    self._import_one(rec, rep)
                     if not apply:
                         transaction.set_rollback(True)
             except Exception as exc:
@@ -124,7 +128,28 @@ class Command(BaseCommand):
             rep["persone_mancanti"].add(ident)
         return None
 
-    def _import_one(self, rec, reparti, rep):
+    def _unita(self, nome, rep):
+        """Risolve un nome (dopo `--reparto-map`) in `(reparto, area)`.
+
+        Prova prima il catalogo `Reparto`, poi `AreaAziendale` (restituendo anche
+        il reparto padre dell'area). Se il nome non è vuoto ma non matcha nessuno
+        dei due, lo registra in `unita_non_risolte` e ritorna `(None, None)` —
+        i jolli storici (Altro/Generico) entrano così senza essere scartati.
+        """
+        nome = self._map_reparto(nome)
+        if not nome:
+            return None, None
+        key = nome.lower()
+        reparto = self._reparti.get(key)
+        if reparto is not None:
+            return reparto, None
+        area = self._aree.get(key)
+        if area is not None:
+            return area.reparto, area  # reparto padre (può essere None) + area
+        rep["unita_non_risolte"].add(nome)
+        return None, None
+
+    def _import_one(self, rec, rep):
         sp_id = rec.get("sharepoint_id")
         if sp_id is None:
             raise ValueError("sharepoint_id mancante")
@@ -133,13 +158,8 @@ class Command(BaseCommand):
             rep["saltati"] += 1
             return
 
-        nome_prov = self._map_reparto(rec.get("reparto_provenienza", ""))
-        reparto = reparti.get(nome_prov.lower())
-        if reparto is None:
-            rep["reparti_mancanti"].add(nome_prov)
-            raise ValueError(f"reparto provenienza '{nome_prov}' non trovato")
-
-        rep_dest = reparti.get(self._map_reparto(rec.get("reparto_destinazione", "")).lower())
+        reparto, area_prov = self._unita(rec.get("reparto_provenienza", ""), rep)
+        reparto_dest, area_dest = self._unita(rec.get("reparto_destinazione", ""), rep)
         anonima = bool(rec.get("anonima", False))
         autore = None if anonima else self._persona(rec, "autore", rep)
 
@@ -148,7 +168,9 @@ class Command(BaseCommand):
             da_portale=False,
             anonima=anonima,
             reparto_provenienza=reparto,
-            reparto_destinazione=rep_dest,
+            area_provenienza=area_prov,
+            reparto_destinazione=reparto_dest,
+            area_destinazione=area_dest,
             processo_libero=str(rec.get("processo", "")),
             opportunity=str(rec.get("opportunity", "")),
             stato_sms=rec.get("stato_sms") or SuggestionCorner.StatoSMS.DA_GESTIRE,
@@ -188,6 +210,10 @@ class Command(BaseCommand):
         self.stdout.write(self.style.MIGRATE_HEADING(f"Import Suggestion Corner — {mode}"))
         self.stdout.write(f"  Creati:     {rep['creati']}")
         self.stdout.write(f"  Saltati (già presenti): {rep['saltati']}")
+        if rep["unita_non_risolte"]:
+            self.stdout.write(self.style.WARNING(
+                f"  Unità (reparto/area) non risolte → provenienza vuota: "
+                f"{sorted(rep['unita_non_risolte'])}"))
         if rep["reparti_mancanti"]:
             self.stdout.write(self.style.WARNING(
                 f"  Reparti non trovati: {sorted(rep['reparti_mancanti'])}"))

@@ -8,21 +8,34 @@ from __future__ import annotations
 from django.contrib.auth import get_user_model
 from django import forms
 
-from anagrafica.models import Reparto
+from anagrafica.models import AreaAziendale, Reparto
 from .models import SuggestionCorner
 
 User = get_user_model()
 
 
+def _reparti_qs():
+    return Reparto.objects.filter(is_active=True).order_by("nome")
+
+
+def _aree_qs():
+    return AreaAziendale.objects.filter(is_active=True).select_related("reparto").order_by("nome")
+
+
 class SegnalazionePubblicaForm(forms.Form):
     """Form pubblico anonimo (§5) — sostituisce Microsoft Forms.
 
-    Reparto come select (FK popolata da subito, no free text). Opzione anonima.
+    Provenienza = Reparto oppure Area (un'Area è sotto-articolazione di un
+    Reparto): selettore a cascata, almeno uno dei due richiesto. Opzione anonima.
     Campo honeypot `website` nascosto via CSS: se compilato la request è bot.
     """
     reparto_provenienza = forms.ModelChoiceField(
-        queryset=Reparto.objects.filter(is_active=True).order_by("nome"),
+        queryset=_reparti_qs(), required=False,
         label="Reparto di provenienza",
+    )
+    area_provenienza = forms.ModelChoiceField(
+        queryset=_aree_qs(), required=False,
+        label="Area (opzionale)",
     )
     opportunity = forms.CharField(
         label="Opportunità di miglioramento", widget=forms.Textarea,
@@ -36,6 +49,12 @@ class SegnalazionePubblicaForm(forms.Form):
     def is_bot(self) -> bool:
         return bool(self.data.get("website"))
 
+    def clean(self):
+        cleaned = super().clean()
+        if not (cleaned.get("reparto_provenienza") or cleaned.get("area_provenienza")):
+            raise forms.ValidationError("Indicare un reparto o un'area di provenienza.")
+        return cleaned
+
 
 class ModificaSegnalazioneForm(forms.ModelForm):
     """Modifica amministrativa della segnalazione (gestione interna al modulo,
@@ -46,7 +65,8 @@ class ModificaSegnalazioneForm(forms.ModelForm):
     class Meta:
         model = SuggestionCorner
         fields = [
-            "reparto_provenienza", "reparto_destinazione", "processo_libero",
+            "reparto_provenienza", "area_provenienza",
+            "reparto_destinazione", "area_destinazione", "processo_libero",
             "opportunity", "stato_sms",
             "cliente_nome", "cliente_email",
             "incaricato", "controllore",
@@ -63,14 +83,25 @@ class ModificaSegnalazioneForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["reparto_provenienza"].queryset = (
-            Reparto.objects.filter(is_active=True).order_by("nome")
-        )
-        self.fields["reparto_destinazione"].queryset = (
-            Reparto.objects.filter(is_active=True).order_by("nome")
-        )
+        self.fields["reparto_provenienza"].queryset = _reparti_qs()
+        self.fields["reparto_destinazione"].queryset = _reparti_qs()
+        self.fields["area_provenienza"].queryset = _aree_qs()
+        self.fields["area_destinazione"].queryset = _aree_qs()
+        for f in ("reparto_provenienza", "area_provenienza",
+                  "reparto_destinazione", "area_destinazione"):
+            self.fields[f].required = False
         for f in ("incaricato", "controllore"):
             self.fields[f].queryset = User.objects.filter(is_active=True).order_by("username")
+
+    def clean(self):
+        cleaned = super().clean()
+        # Coerenza gerarchia: se si sceglie un'Area senza Reparto, il Reparto
+        # padre è dedotto (il modello lo consolida in save(), qui solo per il form).
+        if not (cleaned.get("reparto_provenienza") or cleaned.get("area_provenienza")):
+            raise forms.ValidationError(
+                {"reparto_provenienza": "Indicare un reparto o un'area di provenienza."}
+            )
+        return cleaned
 
 
 class ComunicazioneClienteForm(forms.Form):

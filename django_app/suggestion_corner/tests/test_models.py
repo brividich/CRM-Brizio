@@ -5,8 +5,60 @@ import datetime
 from django.test import TestCase
 from django.utils import timezone
 
-from anagrafica.models import Reparto
+from django.core.exceptions import ValidationError
+
+from anagrafica.models import AreaAziendale, Reparto
 from suggestion_corner.models import SuggestionCorner
+
+
+class ProvenienzaRepartoAreaTest(TestCase):
+    """Provenienza/destinazione = Reparto OPPURE Area Aziendale."""
+
+    def setUp(self):
+        self.cnc = Reparto.objects.create(nome="CNC")
+        self.it = AreaAziendale.objects.create(nome="IT", reparto=self.cnc)
+        self.orfana = AreaAziendale.objects.create(nome="GENERICA", reparto=None)
+
+    def test_save_area_valorizza_reparto_padre(self):
+        s = SuggestionCorner.objects.create(
+            area_provenienza=self.it, opportunity="x")
+        s = SuggestionCorner.objects.get(pk=s.pk)  # re-fetch (FSMField vieta refresh_from_db)
+        self.assertEqual(s.area_provenienza, self.it)
+        self.assertEqual(s.reparto_provenienza, self.cnc)  # padre dedotto
+
+    def test_save_area_senza_padre_lascia_reparto_nullo(self):
+        s = SuggestionCorner.objects.create(
+            area_provenienza=self.orfana, opportunity="x")
+        s = SuggestionCorner.objects.get(pk=s.pk)
+        self.assertEqual(s.area_provenienza, self.orfana)
+        self.assertIsNone(s.reparto_provenienza)
+
+    def test_clean_nuova_senza_provenienza_fallisce(self):
+        s = SuggestionCorner(opportunity="x")  # né reparto né area, non importata
+        with self.assertRaises(ValidationError):
+            s.clean()
+
+    def test_clean_record_storico_esente(self):
+        # Un record importato (legacy_sharepoint_id) può non avere provenienza.
+        s = SuggestionCorner(opportunity="x", legacy_sharepoint_id=42)
+        s.clean()  # non solleva
+
+    def test_clean_ok_con_solo_area(self):
+        s = SuggestionCorner(opportunity="x", area_provenienza=self.it)
+        s.clean()  # non solleva
+
+    def test_provenienza_display_priorita_area(self):
+        s = SuggestionCorner.objects.create(
+            reparto_provenienza=self.cnc, area_provenienza=self.it, opportunity="x")
+        self.assertEqual(s.provenienza_display, "IT")  # area vince sul reparto
+
+    def test_provenienza_display_solo_reparto(self):
+        s = SuggestionCorner.objects.create(reparto_provenienza=self.cnc, opportunity="x")
+        self.assertEqual(s.provenienza_display, "CNC")
+
+    def test_destinazione_display_vuota(self):
+        s = SuggestionCorner.objects.create(reparto_provenienza=self.cnc, opportunity="x")
+        self.assertEqual(s.destinazione_display, "—")
 
 
 class SuggestionCornerModelTest(TestCase):
