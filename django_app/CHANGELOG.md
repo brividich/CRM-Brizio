@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### SOC IT - CN - Security Center AI fase B3: Pipeline + Celery->django-q2 + Configuration Studio
+
+- **[feat/refactor] `security/urls_hub.py`, `security/tasks.py`, `security/templates/security/{pipeline,inbox,help,admin_diagnostics,admin_docs,admin_addons,admin_addon_detail}.html` + `admin_config/*.html`**: fase B3 del core SC-AI. **Pipeline** (parser+regole+KPI) sincrona via HTMX (nessuna coda); i 2 task background da **Celery a django-q2** (funzioni pure, rimosso import `security_center_ai.celery`); montato l'intero **Configuration Studio** (config + diagnostica + inbox + moduli). **ACL v2**: 25 permessi `security.*` + 26 binding, grant al ruolo **admin**. `check` pulito, tutte le pagine 200. Escluso: API DRF (stub per il solo reverse), mailbox-admin, AI dormiente, suite test (B4).
+
 ### SOC IT - CN - Security Center AI fase B2: pagine Alert/Ticket/KPI + ACL + nav
 
 - **[feat] `security/urls_hub.py`, `security/templates/security/{alerts_list,alert_detail,tickets_list,kpis}.html`, `core/migrations/0068_soc_security_nav.py` [nuovo], `dashboard/views_home_portale.py`**: fase B2 del core SC-AI. Montate le pagine **Alert/Ticket/KPI** (viste reali di `security/views.py`) su `/soc/…` nello shell dell'HUB; **ACL v2** con 8 permessi `security.*` + binding + grant al ruolo **admin** (Direzione rimandata); voce topbar **Security Center** (`shield`) + tile launcher nell'area SOC IT - CN. Escluso (→B3): pipeline/ingestione, admin/config, inbox, diagnostica, API DRF; parte AI dormiente; suite test (B4). `check` pulito.
