@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### SOC IT - CN - Contatori sotto-progetto D1: collegamento agli asset dell'HUB
+
+- **[feat/test] `contatori/models.py` + `migrations/0004_macchina_asset.py`, `contatori/management/commands/collega_asset.py` [nuovo], `contatori/templates/contatori/macchina.html`, `contatori/tests.py`**: fase D1 (collegamento asset, post-implementazione). FK opzionale `Macchina.asset`→`assets.Asset` (SET_NULL); comando `collega_asset` (match matricola↔serial e host↔ip, dry-run/apply, **non tocca gli Asset**); pannello "Asset collegato" con link nella scheda macchina. 4 test (`CollegamentoAssetTest`, 36 totali contatori). Migrazione additiva su SQL Server. D2 (Security↔Asset) a seguire.
+
 ### SOC IT - CN - Security Center sotto-progetto C: tool live nell'assistente AI
 
 - **[feat/test] `ai_assistant/tools.py`, `security/tests_soc.py`**: tool live **`soc_summary`** nell'assistente AI (Ollama) — espone AGGREGATI del Security Center (alert aperti/critici/alti, ticket remediation aperti, CVE critiche, report di oggi): **solo conteggi**, nessun titolo/hostname/IP/asset (privacy). Gate ACL `security.dashboard.view` (bypass superuser/admin). Keyword IT-security disambiguate dalla sicurezza-sul-lavoro. Convergenza AI: dati security nell'assistente unico dell'HUB. 3 test (`SocAiToolTest`). Nessuna migrazione.
