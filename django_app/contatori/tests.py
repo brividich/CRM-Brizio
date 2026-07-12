@@ -337,3 +337,41 @@ class GestioneStampantiTest(_AuthedClientMixin, TestCase):
         self.assertEqual(kwargs["community"], "xyz")
         self.assertEqual(kwargs["version"], "v2c")
         self.assertEqual(kwargs["timeout"], 2)
+
+
+class CollegamentoAssetTest(_AuthedClientMixin, TestCase):
+    """Sotto-progetto D1: collegamento Macchina↔Asset dell'HUB."""
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_demo")
+
+    def test_fk_asset_nullable_default(self):
+        m = Macchina.objects.first()
+        self.assertIsNone(m.asset)
+
+    def test_collega_asset_command_dryrun_non_fallisce(self):
+        from io import StringIO
+        out = StringIO()
+        call_command("collega_asset", stdout=out)
+        self.assertIn("match trovati", out.getvalue())
+
+    def test_collega_asset_per_matricola(self):
+        from assets.models import Asset
+        m = Macchina.objects.first()
+        Asset.objects.create(asset_tag="SOC-TEST-1", name="MFC Test", serial_number=m.matricola)
+        from io import StringIO
+        out = StringIO()
+        call_command("collega_asset", "--apply", stdout=out)
+        m.refresh_from_db()
+        self.assertIsNotNone(m.asset)
+        self.assertEqual(m.asset.serial_number, m.matricola)
+
+    def test_scheda_macchina_mostra_asset_collegato(self):
+        from assets.models import Asset
+        m = Macchina.objects.first()
+        m.asset = Asset.objects.create(asset_tag="SOC-TEST-2", name="MFC Collegata", serial_number=m.matricola)
+        m.save(update_fields=["asset"])
+        r = self.client.get(reverse("contatori:macchina", args=[m.pk]))
+        self.assertContains(r, "Asset collegato")
+        self.assertContains(r, "MFC Collegata")

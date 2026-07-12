@@ -3,6 +3,14 @@
 <h1>{{ macchina.reparto }}</h1>
 <p class="sub">Matricola {{ macchina.matricola }} · {{ macchina.modello }} · contratto {{ macchina.contratto }} · {{ macchina.get_fornitore_display }}</p>
 
+{% if macchina.asset %}
+<div class="panel">
+  <h2>Asset collegato</h2>
+  <p><a class="plain" href="{% url 'assets:asset_view' macchina.asset.id %}">{{ macchina.asset.name }}</a>
+     <span class="pos">[{{ macchina.asset.asset_tag }}]</span>{% if macchina.asset.serial_number %} · serial {{ macchina.asset.serial_number }}{% endif %}</p>
+</div>
+{% endif %}
+
 <div class="panel">
   <h2>Storico letture</h2>
   <table>
