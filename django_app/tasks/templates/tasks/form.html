@@ -47,14 +47,14 @@
   .tf-id-chip{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:0 12px;border-radius:999px;border:1px solid rgba(30,58,95,.1);background:#fff;font-size:12px;font-weight:700;color:var(--text-mid)}
   .tf-id-chip .lbl{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-light)}
   .tf-id-chip.pn{background:rgba(45,82,130,.08);border-color:rgba(45,82,130,.16);color:var(--primary-mid)}
-  .tf-id-chip.rev{background:rgba(56,161,105,.1);border-color:rgba(56,161,105,.18);color:#2f855a}
-  .tf-id-chip.ver{background:rgba(249,115,22,.12);border-color:rgba(249,115,22,.18);color:#c05621}
+  .tf-id-chip.rev{background:rgba(56,161,105,.1);border-color:rgba(56,161,105,.18);color:var(--success)}
+  .tf-id-chip.ver{background:rgba(249,115,22,.12);border-color:rgba(249,115,22,.18);color:var(--accent)}
   .tf-meta{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
   .tf-meta-item{padding:10px 12px;border-radius:12px;border:1px solid rgba(30,58,95,.08);background:rgba(255,255,255,.94)}
   .tf-meta-item .lbl{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-light)}
   .tf-meta-item .val{margin-top:6px;font-size:13px;font-weight:700;line-height:1.5;color:var(--text)}
   .tf-banner{padding:12px 14px;border-radius:14px;border:1px solid rgba(30,58,95,.1);background:rgba(45,82,130,.06);font-size:13px;line-height:1.55;color:var(--primary-mid)}
-  .tf-banner.ok{border-color:rgba(56,161,105,.24);background:rgba(56,161,105,.1);color:#276749}.tf-banner.warning{border-color:rgba(214,158,46,.24);background:rgba(214,158,46,.12);color:#975a16}.tf-banner.blocked{border-color:rgba(229,62,62,.24);background:rgba(229,62,62,.1);color:#c53030}.tf-banner.na{border-color:rgba(148,163,184,.22);background:rgba(248,250,252,.92);color:var(--text-mid)}
+  .tf-banner.ok{border-color:rgba(56,161,105,.24);background:rgba(56,161,105,.1);color:var(--success)}.tf-banner.warning{border-color:rgba(214,158,46,.24);background:rgba(214,158,46,.12);color:var(--warning)}.tf-banner.blocked{border-color:rgba(229,62,62,.24);background:rgba(229,62,62,.1);color:var(--danger)}.tf-banner.na{border-color:rgba(148,163,184,.22);background:rgba(248,250,252,.92);color:var(--text-mid)}
   .tf-table-wrap{overflow-x:auto;border-radius:16px;border:1px solid rgba(30,58,95,.08);background:#fff}
   .tf-table{width:100%;border-collapse:collapse;font-size:12px;min-width:700px}
   .tf-table th{padding:10px 12px;text-align:left;background:#f8fafc;border-bottom:1px solid rgba(30,58,95,.08);font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-mid)}
@@ -63,13 +63,13 @@
   .tf-preview{padding:12px 14px;display:grid;gap:10px;border-color:rgba(249,115,22,.18);background:linear-gradient(180deg,rgba(255,255,255,.96) 0%,#fff7f0 100%)}
   .tf-preview-title{font-size:14px;font-weight:800;color:var(--text)}
   .date-suggestion-banner{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px;border-radius:16px;border:1px solid rgba(45,82,130,.14);background:rgba(45,82,130,.06);font-size:13px;line-height:1.6;color:var(--primary-mid)}
-  .date-suggestion-banner.override-active{border-color:rgba(249,115,22,.22);background:rgba(249,115,22,.1);color:#c05621}
-  .status-badge{display:inline-flex;align-items:center;justify-content:center;min-height:24px;padding:0 10px;border-radius:999px;background:#edf2f7;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-mid)}
-  .status-badge.done{background:rgba(56,161,105,.12);color:#2f855a}.status-badge.in_progress{background:rgba(214,158,46,.14);color:#975a16}.status-badge.todo{background:rgba(45,82,130,.1);color:var(--primary-mid)}.status-badge.canceled{background:rgba(148,163,184,.16);color:var(--text-mid)}
+  .date-suggestion-banner.override-active{border-color:rgba(249,115,22,.22);background:rgba(249,115,22,.1);color:var(--accent)}
+  .status-badge{display:inline-flex;align-items:center;justify-content:center;min-height:24px;padding:0 10px;border-radius:999px;background:var(--surface-alt);font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-mid)}
+  .status-badge.done{background:rgba(56,161,105,.12);color:var(--success)}.status-badge.in_progress{background:rgba(214,158,46,.14);color:var(--warning)}.status-badge.todo{background:rgba(45,82,130,.1);color:var(--primary-mid)}.status-badge.canceled{background:rgba(148,163,184,.16);color:var(--text-mid)}
   .tf-asset-conflict{margin-top:8px;display:none;padding:10px 12px;border-radius:12px;border:1px solid rgba(148,163,184,.3);background:#f8fafc;font-size:12px;line-height:1.5;color:var(--text-mid)}
-  .tf-asset-conflict[data-state="ok"]{display:block;border-color:rgba(56,161,105,.26);background:rgba(56,161,105,.08);color:#276749}
-  .tf-asset-conflict[data-state="warning"]{display:block;border-color:rgba(214,158,46,.3);background:rgba(214,158,46,.12);color:#7a4c0b}
-  .tf-asset-conflict[data-state="block"]{display:block;border-color:rgba(229,62,62,.28);background:rgba(229,62,62,.08);color:#9b2c2c}
+  .tf-asset-conflict[data-state="ok"]{display:block;border-color:rgba(56,161,105,.26);background:rgba(56,161,105,.08);color:var(--success)}
+  .tf-asset-conflict[data-state="warning"]{display:block;border-color:rgba(214,158,46,.3);background:rgba(214,158,46,.12);color:var(--warning)}
+  .tf-asset-conflict[data-state="block"]{display:block;border-color:rgba(229,62,62,.28);background:rgba(229,62,62,.08);color:var(--danger)}
   .tf-asset-conflict[data-state="loading"]{display:block}
   .tf-asset-conflict-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-weight:800;font-size:12px;letter-spacing:.02em}
   .tf-asset-conflict-head .badge{display:inline-flex;align-items:center;padding:2px 10px;border-radius:999px;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;background:rgba(255,255,255,.6);border:1px solid currentColor}
@@ -362,7 +362,7 @@ function updateProjectInfo(projectId){
   projectInfo.hidden=false;
   projectInfoEmpty.hidden=true;
   projectInfo.innerHTML='<div class="tf-empty">Caricamento anagrafica kickoff...</div>';
-  fetch(url,{headers:{"X-Requested-With":"XMLHttpRequest"}}).then(function(r){return r.json();}).then(function(data){renderInfo(data);}).catch(function(){projectInfo.innerHTML='<div class="tf-empty" style="color:#c53030;">Errore nel caricamento delle informazioni kickoff.</div>';});
+  fetch(url,{headers:{"X-Requested-With":"XMLHttpRequest"}}).then(function(r){return r.json();}).then(function(data){renderInfo(data);}).catch(function(){projectInfo.innerHTML='<div class="tf-empty" style="color:var(--danger);">Errore nel caricamento delle informazioni kickoff.</div>';});
 }
 function installFilter(input,select){
   if(!input||!select){return;}
@@ -540,7 +540,7 @@ function renderAssetPanel(code,data){
   const sev=data.overall_severity||'ok';
   panel.setAttribute('data-state',sev);
   const badge='<span class="badge">'+escHtml(severityLabels[sev]||sev)+'</span>';
-  const blockNote=(data.block_on_conflict&&data.has_blocking_conflict)?' <span class="badge" style="border-color:#9b2c2c;color:#9b2c2c;">Salvataggio bloccato</span>':'';
+  const blockNote=(data.block_on_conflict&&data.has_blocking_conflict)?' <span class="badge" style="border-color:var(--danger);color:var(--danger);">Salvataggio bloccato</span>':'';
   const windowNote=(data.window&&data.window.start)?(' finestra '+escHtml(data.window.start)+(data.window.end&&data.window.end!==data.window.start?(' -> '+escHtml(data.window.end)):'' )):' (nessuna data impostata)';
   let body='<div class="tf-asset-conflict-head">'+badge+' '+escHtml(data.asset?(data.asset.tag?data.asset.tag+' - ':'')+data.asset.name:'')+windowNote+blockNote+'</div>';
   if(sev==='ok'){body+='<div style="margin-top:6px;">Nessuna manutenzione, verifica, ticket o attivita gia programmata su questo asset.</div>';}
