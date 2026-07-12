@@ -1,0 +1,44 @@
+.contatori-module{
+  --navy:#12395f; --navy2:#1f5c91; --cyan:#1f87cd; --orange:#ff8a1f;
+  --card:#ffffff; --ink:#1a2733; --muted:#6b7c8f;
+  --ok:#1e7d34; --ok-bg:#e7f4ea; --warn:#b06a00; --warn-bg:#fff4e0;
+  --danger:#c0392b; --danger-bg:#fde2e0; --line:#e3e9f0;
+  color:var(--ink); font-size:14px;
+}
+.contatori-module h1{font-size:22px;margin:0 0 4px}
+.contatori-module .sub{color:var(--muted);margin:0 0 22px}
+.contatori-module .cnav{display:flex;gap:18px;margin:0 0 22px;border-bottom:1px solid var(--line);padding-bottom:10px;flex-wrap:wrap}
+.contatori-module .cnav a{color:var(--navy2);text-decoration:none;font-weight:600;padding:4px 2px;border-bottom:2px solid transparent}
+.contatori-module .cnav a:hover,.contatori-module .cnav a.active{color:var(--navy);border-color:var(--cyan)}
+.contatori-module .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px}
+.contatori-module .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 20px;box-shadow:0 1px 3px rgba(18,57,95,.05)}
+.contatori-module .card .k{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.6px}
+.contatori-module .card .v{font-size:30px;font-weight:700;margin-top:6px}
+.contatori-module .card.link{cursor:pointer;transition:.15s}
+.contatori-module .card.link:hover{border-color:var(--cyan);transform:translateY(-1px)}
+.contatori-module .panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px 22px;margin-bottom:22px;box-shadow:0 1px 3px rgba(18,57,95,.05)}
+.contatori-module .panel h2{font-size:16px;margin:0 0 14px;color:var(--navy)}
+.contatori-module table{width:100%;border-collapse:collapse}
+.contatori-module th,.contatori-module td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line)}
+.contatori-module th{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)}
+.contatori-module td.num,.contatori-module th.num{text-align:right;font-variant-numeric:tabular-nums}
+.contatori-module tr:last-child td{border-bottom:none}
+.contatori-module .pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600}
+.contatori-module .pill.ok{background:var(--ok-bg);color:var(--ok)}
+.contatori-module .pill.warn{background:var(--warn-bg);color:var(--warn)}
+.contatori-module .pill.danger{background:var(--danger-bg);color:var(--danger)}
+.contatori-module .btn{display:inline-block;background:var(--cyan);color:#fff;border:none;border-radius:10px;padding:9px 16px;font-weight:600;cursor:pointer;text-decoration:none;font-size:14px}
+.contatori-module .btn:hover{background:var(--navy2)}
+.contatori-module .btn.ghost{background:transparent;color:var(--navy2);border:1px solid var(--line)}
+.contatori-module .btn.ghost:hover{border-color:var(--cyan);background:#fff}
+.contatori-module .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.contatori-module .spacer{flex:1}
+.contatori-module select,.contatori-module input{padding:8px 10px;border:1px solid var(--line);border-radius:10px;font-size:14px}
+.contatori-module .banner{border-left:4px solid var(--danger);background:var(--danger-bg);color:var(--danger);padding:12px 16px;border-radius:10px;margin-bottom:16px;font-weight:500}
+.contatori-module .banner.clean{border-color:var(--ok);background:var(--ok-bg);color:var(--ok)}
+.contatori-module .neg{color:var(--danger);font-weight:700}
+.contatori-module .pos{color:var(--muted)}
+.contatori-module a.plain{color:var(--navy2);text-decoration:none;font-weight:600}
+.contatori-module a.plain:hover{text-decoration:underline}
+.contatori-module .bar{height:8px;background:var(--line);border-radius:6px;overflow:hidden;min-width:90px}
+.contatori-module .bar>span{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),var(--navy2))}

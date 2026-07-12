@@ -1,0 +1,81 @@
+{% extends "contatori/_base_modulo.html" %}
+{% load dictget %}
+{% block modulo %}
+<h1>Dashboard contatori</h1>
+<p class="sub">Ultimo trimestre disponibile: <strong>{{ ultimo|default:"—" }}</strong></p>
+
+<div class="cards">
+  <div class="card">
+    <div class="k">Trimestre corrente</div>
+    <div class="v">{{ ultimo|default:"—" }}</div>
+  </div>
+  <div class="card link" onclick="location='{% url 'contatori:riconciliazione' %}'">
+    <div class="k">Contatori verificati</div>
+    <div class="v">{{ riepilogo.contatori|default:"0" }}</div>
+  </div>
+  <div class="card link" onclick="location='{% url 'contatori:riconciliazione' %}'">
+    <div class="k">Anomalie fornitore</div>
+    <div class="v" {% if riepilogo.anomalie %}style="color:var(--danger)"{% else %}style="color:var(--ok)"{% endif %}>{{ riepilogo.anomalie|default:"0" }}</div>
+  </div>
+  <div class="card">
+    <div class="k">Cali di lettura (refusi?)</div>
+    <div class="v" {% if problemi %}style="color:var(--danger)"{% else %}style="color:var(--ok)"{% endif %}>{{ problemi|length }}</div>
+  </div>
+</div>
+
+{% if riepilogo %}
+  {% if riepilogo.ok %}
+    <div class="banner clean">✅ Nessuna stampa segnata in più nel trimestre {{ ultimo }} — fattura corretta.</div>
+  {% else %}
+    <div class="banner">⚠ {{ riepilogo.anomalie }} contatore/i da controllare nel trimestre {{ ultimo }}. Apri la riconciliazione.</div>
+  {% endif %}
+{% endif %}
+
+{% if problemi %}
+<div class="panel">
+  <h2>Cali di lettura interni (un contatore non può scendere)</h2>
+  <table>
+    <thead><tr><th>Macchina</th><th>Contatore</th><th class="num">Da</th><th class="num">A</th></tr></thead>
+    <tbody>
+    {% for p in problemi %}
+      <tr><td>{{ p.macchina }}</td><td>{{ p.contatore }}</td>
+          <td class="num">{{ p.da_val }} <span class="pos">({{ p.da_trim }})</span></td>
+          <td class="num neg">{{ p.a_val }} <span class="pos">({{ p.a_trim }})</span></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<div class="panel">
+  <div class="row">
+    <h2 style="margin:0">Macchine · ultima lettura ({{ ultimo|default:"—" }})</h2>
+    <div class="spacer"></div>
+    <form method="post" action="{% url 'contatori:leggi_snmp' %}">{% csrf_token %}
+      <button class="btn">Leggi ora via SNMP</button>
+    </form>
+  </div>
+  <table style="margin-top:14px">
+    <thead><tr><th>Reparto</th><th>Matricola</th><th>Contratto</th>
+      <th class="num">A4 BN</th><th class="num">A3 BN</th><th class="num">A4 COL</th><th class="num">A3 COL</th>
+      <th class="num">Totale</th></tr></thead>
+    <tbody>
+    {% for m in macchine %}
+      {% with l=ultime|get:m.id %}
+      <tr>
+        <td><a class="plain" href="{% url 'contatori:macchina' m.pk %}">{{ m.reparto }}</a></td>
+        <td>{{ m.matricola }}</td><td>{{ m.contratto }}</td>
+        {% if l %}
+          <td class="num">{{ l.a4_bn }}</td><td class="num">{{ l.a3_bn }}</td>
+          <td class="num">{{ l.a4_col }}</td><td class="num">{{ l.a3_col }}</td>
+          <td class="num"><strong>{{ l.totale }}</strong></td>
+        {% else %}
+          <td class="num pos" colspan="5">nessuna lettura</td>
+        {% endif %}
+      </tr>
+      {% endwith %}
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

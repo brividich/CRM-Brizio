@@ -1,0 +1,49 @@
+{% extends "contatori/_base_modulo.html" %}
+{% block modulo %}
+<h1>Riconciliazione trimestrale</h1>
+<p class="sub">Fattura fornitore vs rilevazione interna. Regola: la lettura interna (fatta più tardi) dev'essere ≥ a quella del fornitore.</p>
+
+<div class="panel">
+  <form class="row" method="get" onchange="this.submit()" action="">
+    <label>Trimestre:</label>
+    <select name="t" onchange="location='/riconciliazione/'+this.value+'/'">
+      {% for t in trimestri %}
+        <option value="{{ t }}" {% if t == trimestre %}selected{% endif %}>{{ t }}</option>
+      {% endfor %}
+    </select>
+    <div class="spacer"></div>
+    {% if riepilogo %}
+      {% if riepilogo.ok %}<span class="pill ok">✅ Fattura corretta</span>
+      {% else %}<span class="pill danger">⚠ {{ riepilogo.anomalie }} da controllare</span>{% endif %}
+      <span class="pos">· fatt. {{ riepilogo.fatture|join:", " }}</span>
+    {% endif %}
+  </form>
+  {% if righe %}<a class="btn ghost" href="{% url 'contatori:export_riconciliazione' trimestre %}">⬇ Esporta .xlsx</a>{% endif %}
+</div>
+
+{% if righe %}
+<div class="panel">
+  <table>
+    <thead><tr>
+      <th>Contratto</th><th>Unità</th><th>Contatore</th>
+      <th class="num">Fornitore</th><th class="num">Interno</th><th class="num">Scarto</th><th>Esito</th>
+    </tr></thead>
+    <tbody>
+    {% for r in righe %}
+      <tr>
+        <td>{{ r.contratto }}{% if r.pool %} <span class="pill warn">pool</span>{% endif %}</td>
+        <td class="pos">{{ r.descrizione }}</td>
+        <td>{{ r.contatore }}</td>
+        <td class="num">{{ r.fornitore }}</td>
+        <td class="num">{% if r.ns is not None %}{{ r.ns }}{% else %}—{% endif %}</td>
+        <td class="num {% if r.scarto and r.scarto < 0 %}neg{% endif %}">{% if r.scarto is not None %}{{ r.scarto }}{% else %}—{% endif %}</td>
+        <td><span class="pill {{ r.livello }}">{{ r.esito }}</span></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+  <div class="panel"><p class="pos">Nessun dato per questo trimestre. Carica una fattura e le letture interne.</p></div>
+{% endif %}
+{% endblock %}

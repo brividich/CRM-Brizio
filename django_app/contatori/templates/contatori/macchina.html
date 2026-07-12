@@ -1,0 +1,59 @@
+{% extends "contatori/_base_modulo.html" %}
+{% block modulo %}
+<h1>{{ macchina.reparto }}</h1>
+<p class="sub">Matricola {{ macchina.matricola }} · {{ macchina.modello }} · contratto {{ macchina.contratto }} · {{ macchina.get_fornitore_display }}</p>
+
+<div class="panel">
+  <h2>Storico letture</h2>
+  <table>
+    <thead><tr><th>Trimestre</th><th>Data</th>
+      <th class="num">A4 BN</th><th class="num">A3 BN</th><th class="num">A4 COL</th><th class="num">A3 COL</th>
+      <th class="num">Totale</th><th>Fonte</th></tr></thead>
+    <tbody>
+    {% for l in dati.letture %}
+      <tr><td>{{ l.trimestre }}</td><td>{{ l.data }}</td>
+          <td class="num">{{ l.a4_bn }}</td><td class="num">{{ l.a3_bn }}</td>
+          <td class="num">{{ l.a4_col }}</td><td class="num">{{ l.a3_col }}</td>
+          <td class="num"><strong>{{ l.totale }}</strong></td>
+          <td><span class="pill ok">{{ l.get_fonte_display }}</span></td></tr>
+    {% empty %}
+      <tr><td colspan="8" class="pos">Nessuna lettura registrata.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="panel">
+  <h2>Andamento totale copie</h2>
+  {% with serie=dati.serie %}
+  <table>
+    {% for cat, valori in serie.items %}
+      <tr><td style="width:80px">{{ cat }}</td>
+        <td>
+          <div class="bar"><span style="width:{% if valori %}100{% else %}0{% endif %}%"></span></div>
+        </td>
+        <td class="num" style="width:120px"><strong>{{ valori|last|default:0 }}</strong></td>
+      </tr>
+    {% endfor %}
+  </table>
+  <p class="pos" style="margin-top:8px">Trimestri: {{ dati.trimestri|join:" · " }}</p>
+  {% endwith %}
+</div>
+<div class="panel">
+  <div class="row">
+    <h2 style="margin:0">Consumabili (toner, tamburi, fusore)</h2>
+    <div class="spacer"></div>
+    <button class="btn ghost"
+            hx-post="{% url 'contatori:macchina_consumabili' macchina.pk %}"
+            hx-target="#consumabili"
+            hx-swap="innerHTML"
+            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+            hx-disabled-elt="this"
+            hx-indicator="#cons-load">Leggi ora via SNMP</button>
+  </div>
+  <div id="cons-load" class="htmx-indicator pos" style="margin-top:8px">Lettura in corso…</div>
+  <div id="consumabili"><p class="pos" style="margin-top:8px">Premi «Leggi ora» per interrogare la macchina.</p></div>
+</div>
+
+<a class="btn ghost" href="{% url 'contatori:dashboard' %}">← Dashboard</a>
+{% endblock %}
