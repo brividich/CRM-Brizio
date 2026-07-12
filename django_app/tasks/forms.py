@@ -610,6 +610,13 @@ class TaskForm(forms.ModelForm):
         due_date = cleaned_data.get("due_date")
         next_step_due = cleaned_data.get("next_step_due")
         task_scope = cleaned_data.get("task_scope") or self.TASK_SCOPE_SINGLE
+        # Enforcement "solo kickoff": una NUOVA attività non può essere standalone,
+        # nemmeno con un POST forzato scope=single → la trattiamo come "in kickoff",
+        # così la validazione più sotto esige la selezione/creazione del kickoff.
+        # L'edit di un'attività legacy senza kickoff resta invariato (può restare orfana).
+        if not self.instance.pk and task_scope == self.TASK_SCOPE_SINGLE:
+            task_scope = self.TASK_SCOPE_PROJECT
+            cleaned_data["task_scope"] = self.TASK_SCOPE_PROJECT
         raw_project_link_mode = cleaned_data.get("project_link_mode")
         project_choice = cleaned_data.get("project_choice")
         project_new_description = (cleaned_data.get("project_new_description") or "").strip()
