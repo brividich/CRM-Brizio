@@ -7,6 +7,7 @@ riportata separatamente. Le viste sono dietro `ACLMiddleware`; qui si autentica 
 superuser (che bypassa l'ACL) per verificare rendering e assenza di regressioni.
 """
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
 
@@ -105,3 +106,30 @@ class SocAiToolTest(TestCase):
         self.assertTrue(ctx.audit["allowed"])
         # privacy: nessun campo nominativo/host negli aggregati (DB vuoto)
         self.assertEqual(ctx.audit.get("row_count", 0), 0)
+
+
+class SecurityAssetLinkTest(TestCase):
+    """Sotto-progetto D2: collegamento SecurityAsset↔Asset dell'HUB."""
+
+    def test_hub_asset_fk_nullable(self):
+        from security.models import SecurityAsset
+        sa = SecurityAsset.objects.create(hostname="HOST-D2")
+        self.assertIsNone(sa.hub_asset)
+
+    def test_command_dryrun_non_fallisce(self):
+        from io import StringIO
+        out = StringIO()
+        call_command("collega_asset_security", stdout=out)
+        self.assertIn("match trovati", out.getvalue())
+
+    def test_match_per_hostname(self):
+        from io import StringIO
+        from assets.models import Asset
+        from security.models import SecurityAsset
+        Asset.objects.create(asset_tag="D2-TAG", name="FIREWALL-01")
+        sa = SecurityAsset.objects.create(hostname="FIREWALL-01")
+        out = StringIO()
+        call_command("collega_asset_security", "--apply", stdout=out)
+        sa.refresh_from_db()
+        self.assertIsNotNone(sa.hub_asset)
+        self.assertEqual(sa.hub_asset.name, "FIREWALL-01")
