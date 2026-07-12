@@ -22,6 +22,13 @@ class Macchina(models.Model):
     host = models.GenericIPAddressField(null=True, blank=True,
                                         help_text="IP per lettura SNMP")
     attiva = models.BooleanField(default=True)
+    asset = models.ForeignKey(
+        "assets.Asset",
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="contatori_macchine",
+        help_text="Asset del registro HUB collegato (match matricola↔serial / host↔IP).",
+    )
 
     class Meta:
         ordering = ["reparto"]
