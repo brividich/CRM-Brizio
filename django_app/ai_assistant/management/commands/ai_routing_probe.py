@@ -39,10 +39,24 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--prompt", help="Prompt singolo da sondare (invece del batch).")
         parser.add_argument("--top", type=int, default=4, help="Quanti domini mostrare per prompt.")
+        # Override temporanei (solo per questa esecuzione, non toccano il .env): servono
+        # allo sweep di soglie candidate senza riavviare/riconfigurare l'app.
+        parser.add_argument("--threshold", type=float, help="Override AI_TOOL_ROUTING_THRESHOLD per questa run.")
+        parser.add_argument("--margin", type=float, help="Override AI_TOOL_ROUTING_MARGIN per questa run.")
+        parser.add_argument("--top-k", type=int, dest="top_k", help="Override AI_TOOL_ROUTING_TOP_K per questa run.")
 
     def handle(self, *args, **options):
         from ai_assistant import services
         from ai_assistant.tools import _rank_domains, _semantic_active_domains
+
+        # Override in-process (settings mutabili a runtime; ogni invocazione e' un
+        # processo a se', quindi non contamina l'app in esecuzione).
+        if options.get("threshold") is not None:
+            settings.AI_TOOL_ROUTING_THRESHOLD = float(options["threshold"])
+        if options.get("margin") is not None:
+            settings.AI_TOOL_ROUTING_MARGIN = float(options["margin"])
+        if options.get("top_k") is not None:
+            settings.AI_TOOL_ROUTING_TOP_K = int(options["top_k"])
 
         thr = getattr(settings, "AI_TOOL_ROUTING_THRESHOLD", 0.70)
         margin = getattr(settings, "AI_TOOL_ROUTING_MARGIN", 0.04)

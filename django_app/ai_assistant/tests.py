@@ -2888,6 +2888,19 @@ class AiRoutingProbeCommandTests(TestCase):
 
         self.assertIn("routing semantico spento", out.getvalue())
 
+    def test_probe_threshold_override_is_reflected(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        out = StringIO()
+        with override_settings(AI_TOOL_ROUTING_ENABLED=True), patch(
+            "ai_assistant.services.embeddings_enabled", return_value=False
+        ):
+            call_command("ai_routing_probe", "--threshold", "0.55", stdout=out)
+
+        self.assertIn("threshold=0.55", out.getvalue())
+
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SETUP_WIZARD_REQUIRED=False)
 class SgiRagLoaderTests(TestCase):
