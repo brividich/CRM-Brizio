@@ -74,6 +74,23 @@ Clonare il pattern MOD.133 dove c'è data-entry strutturato. Tutti **read-only/p
 | 5.3 | **Digest per caporeparto/reparto** + **briefing mattutino email** (schedulabile) | per-utente, ACL-gated |
 | 5.4 | **KPI raccontati in prosa** (le dashboard hanno già i numeri) | narrativa, non nuovi dati |
 
+## Ondata 6 — Moduli introdotti dopo la stesura (ricognizione 2026-07-12)
+Moduli arrivati *dopo* le onde 1–5 e **non ancora raggiunti dall'AI**. Assi: Valore · Sforzo
+(S=ore, M=1–2gg) · Rischio governance. Fattibilità verificata sul codice reale.
+
+| # | Voce | Modulo / pattern | ACL · governance | Valore | Sforzo | Rischio |
+|---|---|---|---|---|---|---|
+| 6.1 | **Tool live Contatori MFC** ("consumo/classifica reparti", "andamento trimestri", "ultime rilevazioni macchina X") | nuovo tool in `ai_assistant/tools.py` che chiama `contatori/services.py` (`classifica_reparti`, `andamento_trimestri`, `consumo_per_trimestre`, `ultime_rilevazioni` — già pronti); gate `_wants_contatori_context`, seed routing `"contatori"`, audit metadata-only | Solo **aggregati** (nessun dato personale) → governance semplice. `AiToolPrivacyReview` di rito | Medio-Alto | **S** | **Basso** |
+| 6.2 | **RAG citabile Schede Sicurezza** ("cosa dice la scheda del prodotto X su DPI/rischi/stoccaggio") | nuovo corpus nel loader `_load_sgi_document_chunks`; `SchedaSicurezza` ha già `EstrazioneStato` → **estrazione testo esistente** | RAG citabile, read-only; concretizza l'**onda 2.2 sicurezza** con dato reale già in casa | **Alto** | S–M | Medio |
+| 6.3 | **Tool live Schede Sicurezza** ("quale scheda per prodotto X", "chi non ha preso visione", scadenze) | tool live su `schede_sicurezza` (`ProdottoChimico`, `SchedaSicurezza`, `PresaVisioneScheda`) | `PresaVisioneScheda` è nominativo → **whitelist campi** stretta nella matrice governance | Medio | **S** | Medio |
+| 6.4 | **Tool + copilota Suggestion Corner** (stato PDCA per reparto; bozza categoria/azione dal testo) | `suggestion_corner` (tool live + copilota stile MOD.133) | ⚠️ i suggerimenti SMS possono essere **anonimi** → **mini-DPIA prima**: l'AI non deve de-anonimizzare né correlare l'autore | Medio | M | **Medio-Alto** |
+| 6.5 | **Estensione tool Assets** a fornitori / OdL interne-esterne / checklist (overhaul manutenzione) | estendere `_asset_context` in `ai_assistant/tools.py` | eredita il gate ACL del tool assets | Basso-Medio | S–M | Basso |
+
+**Ordine consigliato Ondata 6**: 6.1 (quick win, services pronti, rischio minimo) → 6.2 (valore alto,
+sblocca 2.2) → 6.3 (complemento di 6.2, stesso modulo). 6.4 dopo la mini-DPIA anonimato. 6.5 opportunistico.
+
+> Nota: `strumenti_misura` è oggi **solo studio di fattibilità** (non è un'app installata) → fuori scope AI finché non esiste il modulo.
+
 ## Bloccato (solo dopo DPIA)
 - **Timbri/Presenze**: dato cronologico/sensibile. Nessun tool finché non c'è il sign-off privacy.
 
