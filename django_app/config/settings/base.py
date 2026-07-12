@@ -460,6 +460,7 @@ INSTALLED_APPS = [
     "dpi.apps.DpiConfig",
     "procedure_refresh.apps.ProcedureRefreshConfig",
     "suggestion_corner.apps.SuggestionCornerConfig",
+    "contatori.apps.ContatoriConfig",
     "django_extensions",
     "django_q",
     "django_htmx",
