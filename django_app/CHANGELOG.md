@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### SOC IT - CN - Security Center AI fase B2: pagine Alert/Ticket/KPI + ACL + nav
+
+- **[feat] `security/urls_hub.py`, `security/templates/security/{alerts_list,alert_detail,tickets_list,kpis}.html`, `core/migrations/0068_soc_security_nav.py` [nuovo], `dashboard/views_home_portale.py`**: fase B2 del core SC-AI. Montate le pagine **Alert/Ticket/KPI** (viste reali di `security/views.py`) su `/soc/…` nello shell dell'HUB; **ACL v2** con 8 permessi `security.*` + binding + grant al ruolo **admin** (Direzione rimandata); voce topbar **Security Center** (`shield`) + tile launcher nell'area SOC IT - CN. Escluso (→B3): pipeline/ingestione, admin/config, inbox, diagnostica, API DRF; parte AI dormiente; suite test (B4). `check` pulito.
+
 ### SOC IT - CN - Security Center AI (core) fase B1: app security innestata
 
 - **[feat] `security/**` [app SC-AI copiata, suite test esclusa], `config/settings/base.py`, `config/urls.py`, `security/urls_hub.py` [nuovo urlconf minimo], `security/templates/security/{_base_soc.html [nuovo],dashboard.html}`, `requirements.in`/`requirements.txt` [+djangorestframework]**: fase B1 del core Security Center AI (area SOC IT - CN). App `security` registrata + **35 tabelle `security_*`** migrate su SQL Server (33 modelli + 2 M2M) + **dashboard** resa nello shell `core/base.html` su **`/soc/`** dietro login. DRF installato (l'import di `permissions.py` lungo il path dashboard lo richiede). Escluso da B1: API DRF, altre pagine, parser, AI (copiata ma dormiente), Celery→django-q2, ACL/nav (B2), test (B4). `check` pulito.
