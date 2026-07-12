@@ -38,6 +38,16 @@ class PercorsoRenderTests(TestCase):
         # l'agenda builder (JS) resta presente
         self.assertIn('id="agenda-add-btn"', body)
 
+    def test_task_create_form_is_kickoff_only(self):
+        resp = self.client.get(reverse("tasks:create"))
+        self.assertEqual(resp.status_code, 200)
+        body = resp.content.decode("utf-8")
+        # niente più selettore "attività singola" / scope single per un nuovo task
+        self.assertNotIn("Attivita singola", body)
+        self.assertNotIn('value="single"', body)
+        # il pannello di aggancio kickoff è presente (task sempre dentro un kickoff)
+        self.assertIn("Aggancio e anagrafica kickoff", body)
+
     def test_vrf_forms_render_lifecycle_stepper(self):
         from tasks.models import Project
 

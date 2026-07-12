@@ -815,10 +815,6 @@
           <div class="tl-admin-kpi-val amber">{{ admin_console.without_due_date }}</div>
           <div class="tl-admin-kpi-label">Senza data fine</div>
         </div>
-        <div class="tl-admin-kpi c-teal">
-          <div class="tl-admin-kpi-val teal">{{ admin_console.without_project }}</div>
-          <div class="tl-admin-kpi-label">Attivita singole</div>
-        </div>
         <div class="tl-admin-kpi c-purple">
           <div class="tl-admin-kpi-val purple">{{ admin_console.due_next_7d }}</div>
           <div class="tl-admin-kpi-label">Scadono in 7gg</div>
@@ -932,7 +928,6 @@
             <label class="ts-checkline">{{ filter_form.overdue }} Solo overdue</label>
             <label class="ts-checkline">{{ filter_form.unassigned }} Non assegnate</label>
             <label class="ts-checkline">{{ filter_form.without_due_date }} Senza data fine</label>
-            <label class="ts-checkline">{{ filter_form.without_project }} Solo attivita singole</label>
           </div>
         </form>
       </div>
@@ -1034,7 +1029,7 @@
 
   (function () {
     const params = new URLSearchParams(window.location.search);
-    const keys = ['status','priority','assigned_to','tag','due_from','due_to','overdue','unassigned','without_due_date','without_project'];
+    const keys = ['status','priority','assigned_to','tag','due_from','due_to','overdue','unassigned','without_due_date'];
     if (keys.some(k => params.get(k))) {
       const body = document.getElementById('tl-filter-body');
       if (body) body.classList.add('open');

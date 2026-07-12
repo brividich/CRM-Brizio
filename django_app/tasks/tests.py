@@ -1032,21 +1032,6 @@ class TaskListFiltersTests(TasksBaseTestCase):
         self.assertContains(response, self.t_without_due.title)
         self.assertNotContains(response, self.t_future_low.title)
 
-    def test_filter_without_project(self):
-        self.client.force_login(self.manager)
-        response = self.client.get(
-            reverse("tasks:list"),
-            {
-                "mine": "0",
-                "without_project": "on",
-            },
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, self.t_future_low.title)
-        self.assertContains(response, self.t_unassigned.title)
-        self.assertNotContains(response, self.t_overdue.title)
-
-
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
     def setUp(self):

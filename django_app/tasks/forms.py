@@ -580,7 +580,8 @@ class TaskForm(forms.ModelForm):
             else:
                 self.initial.setdefault("task_scope", self.TASK_SCOPE_SINGLE)
         else:
-            self.initial.setdefault("task_scope", self.TASK_SCOPE_SINGLE)
+            # Ogni NUOVA attività nasce dentro un kickoff (modulo "solo kickoff").
+            self.initial.setdefault("task_scope", self.TASK_SCOPE_PROJECT)
             self.initial.setdefault("project_link_mode", self.PROJECT_LINK_EXISTING)
 
     def _matching_projects_for_new_entry(self, *, part_number: str, revisione: str, versione: str):
@@ -864,7 +865,6 @@ class TaskFilterForm(forms.Form):
     overdue = forms.BooleanField(required=False)
     unassigned = forms.BooleanField(required=False)
     without_due_date = forms.BooleanField(required=False)
-    without_project = forms.BooleanField(required=False)
     due_from = forms.DateField(
         required=False,
         widget=forms.DateInput(attrs={"class": "input", "type": "date"}),
@@ -898,7 +898,6 @@ class TaskFilterForm(forms.Form):
             self.fields["project"].queryset = Project.objects.order_by("name", "id")
         self.fields["unassigned"].label = "Solo non assegnate"
         self.fields["without_due_date"].label = "Senza data prevista"
-        self.fields["without_project"].label = "Attivita singole (senza kickoff)"
 
     def clean(self):
         cleaned_data = super().clean()

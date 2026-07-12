@@ -114,7 +114,7 @@
 {% block tasks_shell_subtitle %}{% if mode == "edit" %}Aggiorna contesto, kickoff e pianificazione mantenendo la scheda coerente con il resto del portale.{% elif locked_project %}Compila descrizione, pianificazione e assegnazione: l'attivita entra direttamente nel Gantt del kickoff.{% else %}Inserisci una nuova attivita kickoff con un flusso guidato: prima il contesto, poi il kickoff P/N, quindi pianificazione e responsabilita operative.{% endif %}{% endblock %}
 {% block tasks_shell_meta %}
   <span class="ts-hero-pill">{% if mode == "edit" %}Modalita modifica{% else %}Modalita creazione{% endif %}</span>
-  {% if task and task.project %}<span class="ts-hero-pill">{{ task.project.name }}</span>{% if task.project.part_number %}<span class="ts-hero-pill">P/N {{ task.project.part_number }}</span>{% endif %}{% elif locked_project %}<span class="ts-hero-pill">Dentro il kickoff</span>{% elif suggested_project_id %}<span class="ts-hero-pill">Kickoff preselezionato</span>{% else %}<span class="ts-hero-pill">Attivita singola o attivita in kickoff</span>{% endif %}
+  {% if task and task.project %}<span class="ts-hero-pill">{{ task.project.name }}</span>{% if task.project.part_number %}<span class="ts-hero-pill">P/N {{ task.project.part_number }}</span>{% endif %}{% elif locked_project %}<span class="ts-hero-pill">Dentro il kickoff</span>{% elif suggested_project_id %}<span class="ts-hero-pill">Kickoff preselezionato</span>{% else %}<span class="ts-hero-pill">Attività in kickoff</span>{% endif %}
   {% if task %}<span class="ts-hero-pill">{{ task.get_status_display }}</span>{% endif %}
 {% endblock %}
 {% block tasks_shell_actions %}{% if task %}<a class="ts-hero-action" href="{% url 'tasks:detail' task.id %}">Torna al dettaglio</a>{% elif locked_project %}<a class="ts-hero-action" href="{% url 'tasks:project_gantt' locked_project.id %}">Torna al Gantt kickoff</a>{% else %}<a class="ts-hero-action" href="{% url 'tasks:list' %}">Torna alla dashboard</a>{% endif %}{% endblock %}
@@ -164,18 +164,13 @@
     <input type="hidden" name="{{ form.project_link_mode.html_name }}" value="existing">
     <input type="hidden" name="{{ form.project_choice.html_name }}" value="{{ locked_project.id }}">
     {% else %}
-    <section class="tf-panel tf-panel-accent">
-      <div class="tf-head">
-        <div><span class="tf-kicker">Contesto operativo</span><h2 class="tf-title">Come nasce questa attivita</h2><p class="tf-copy">Il modulo distingue in modo piu chiaro tra attivita singola e inserimento dentro un kickoff P/N.</p></div>
-        <div class="tf-aside">Se stai lavorando su una commessa strutturata, scegli <strong>Attivita in kickoff</strong>: il flusso successivo ti guida nella selezione o nella creazione del kickoff.</div>
-      </div>
-      <div class="tf-choice-grid">
-        {% for radio in form.task_scope %}
-          <label class="tf-choice">{{ radio.tag }}<span class="tf-choice-body"><span class="tf-choice-label">{{ radio.choice_label }}</span><span class="tf-choice-copy">{% if forloop.first %}Usa questa opzione per una lavorazione autonoma.{% else %}Usa questa opzione per lavorare su una commessa tracciata per kickoff e P/N.{% endif %}</span></span></label>
-        {% endfor %}
-      </div>
-      {% if form.task_scope.errors %}<div class="ts-field-error">{{ form.task_scope.errors }}</div>{% endif %}
-    </section>
+    {% if task and not task.project_id %}
+    {# Modifica di un'attività legacy senza kickoff: resta tale, nessun kickoff forzato. #}
+    <input type="hidden" name="{{ form.task_scope.html_name }}" value="single">
+    <input type="hidden" name="{{ form.project_link_mode.html_name }}" value="existing">
+    {% else %}
+    {# Ogni nuova attività nasce dentro un kickoff. #}
+    <input type="hidden" name="{{ form.task_scope.html_name }}" value="project">
 
     <section class="tf-panel">
       <div class="tf-head">
@@ -219,6 +214,7 @@
         </div>
       </div>
     </section>
+    {% endif %}
     {% endif %}
 
     <section class="tf-panel">
