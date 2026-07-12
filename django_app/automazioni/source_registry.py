@@ -209,6 +209,40 @@ _SOURCE_REGISTRY: dict[str, dict[str, object]] = {
             _field(name="updated_at", label="Aggiornato il", data_type="datetime", description="Data e ora dell'ultimo aggiornamento del task.", aliases=["modified_at", "data_modifica"]),
         ],
     },
+    "tasks_kickoff": {
+        "code": "tasks_kickoff",
+        "label": "Incontri KICK-OFF",
+        "source_app": "tasks",
+        "table_name": "tasks_kickoffmeeting",
+        "pk_field": "id",
+        "supported_operations": ["insert", "update"],
+        "description": (
+            "Incontri di avvio commessa (KickoffMeeting). I destinatari della minuta sono "
+            "risolti in Python via get_all_attendee_emails() (M2M + email extra), non da colonna."
+        ),
+        "fields": [
+            _field(name="id", label="ID", data_type="int", description="Chiave primaria incontro.", aliases=["meeting_id"]),
+            _field(name="numero", label="Numero incontro", data_type="int", description="Numero progressivo incontro nel kickoff."),
+            _field(name="titolo", label="Titolo", data_type="string", description="Titolo dell'incontro.", aliases=["title"]),
+            _field(name="data", label="Data", data_type="date", description="Data dell'incontro.", aliases=["date"]),
+            _field(
+                name="note",
+                label="Verbale / Note",
+                data_type="string",
+                description="Testo del verbale/minuta dell'incontro.",
+                aliases=["verbale", "minuta"],
+            ),
+            _field(
+                name="old_note",
+                label="Verbale precedente",
+                data_type="string",
+                description="Valore precedente di `note` nel payload update del trigger kickoff.",
+                is_virtual=True,
+                aliases=["previous_note"],
+            ),
+            _field(name="project_id", label="Progetto (ID)", data_type="int", description="Kickoff/progetto collegato.", aliases=["project", "kickoff_id"]),
+        ],
+    },
     "assets": {
         "code": "assets",
         "label": "Assets",
