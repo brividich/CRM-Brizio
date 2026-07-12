@@ -75,3 +75,33 @@ class SocTasksTest(TestCase):
         from security import tasks
         self.assertEqual(tasks.run_security_parsers_task(), 0)
         self.assertEqual(tasks.evaluate_security_rules_task(), 0)
+
+
+class SocAiToolTest(TestCase):
+    """Sotto-progetto C: tool live 'soc_summary' nell'assistente AI (aggregati security)."""
+
+    def test_wants_soc_only_it_security(self):
+        from ai_assistant.tools import _wants_soc_context
+        self.assertTrue(_wants_soc_context("quanti alert di sicurezza aperti e critici?"))
+        self.assertTrue(_wants_soc_context("ci sono CVE critiche o vulnerabilita da rimediare?"))
+        # NON deve attivarsi su altri domini (DPI) o sulla sicurezza SUL LAVORO:
+        self.assertFalse(_wants_soc_context("quali DPI sono in scadenza?"))
+        self.assertFalse(_wants_soc_context("mostra i rischi della mansione saldatore"))
+
+    def test_soc_tool_registered_and_routed(self):
+        from ai_assistant.tools import _soc_context, RUNTIME_TOOLS, _DOMAIN_ROUTING_SEEDS
+        self.assertIn(_soc_context, RUNTIME_TOOLS)
+        self.assertIn("soc", _DOMAIN_ROUTING_SEEDS)
+
+    def test_soc_context_superuser_aggregati(self):
+        from django.test import RequestFactory
+        from ai_assistant.tools import _soc_context
+        U = get_user_model()
+        u = U.objects.create(username="soc_ai_test", is_superuser=True, is_staff=True)
+        req = RequestFactory().get("/")
+        req.user = u
+        ctx = _soc_context(req, "quanti alert di sicurezza aperti?")
+        self.assertIn("SECURITY CENTER", ctx.text)
+        self.assertTrue(ctx.audit["allowed"])
+        # privacy: nessun campo nominativo/host negli aggregati (DB vuoto)
+        self.assertEqual(ctx.audit.get("row_count", 0), 0)

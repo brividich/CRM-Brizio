@@ -129,6 +129,21 @@ RUNTIME_TOOL_CATALOG: tuple[RuntimeToolSpec, ...] = (
         ),
     ),
     RuntimeToolSpec(
+        key="soc_summary",
+        label="Security Center",
+        domain="SOC IT - CN",
+        audit_tool="soc_summary",
+        source_prefix="tool:soc",
+        status="enabled",
+        sample_prompt="quanti alert di sicurezza aperti ci sono e quanti critici?",
+        privacy_note=(
+            "Espone solo AGGREGATI del Security Center IT (conteggi di alert aperti/critici/alti, "
+            "ticket di remediation aperti, CVE critiche aperte, report ingeriti oggi). "
+            "NESSUN titolo di alert, hostname, IP o nome di asset. "
+            "Gated dal permesso canonico ACL v2 'security.dashboard.view'."
+        ),
+    ),
+    RuntimeToolSpec(
         key="suggestion_summary",
         label="Suggestion Corner (SMS)",
         domain="Miglioramento",
@@ -568,6 +583,7 @@ _RUNTIME_PRIORITY_BY_TOOL = {
     "assets_summary": 50,
     "carichi_macchina": 55,
     "contatori_summary": 57,
+    "soc_summary": 58,
     "tickets_summary": 60,
     "tasks_summary": 70,
     "anomalie_summary": 80,
@@ -882,6 +898,22 @@ def _wants_contatori_context(prompt: str) -> bool:
     if any(keyword in text for keyword in _CONTATORI_WEAK_KEYWORDS) and _CONTATORI_INTENT_RE.search(text):
         return True
     return False
+
+
+# Security Center IT (SOC): keyword di security INFORMATICA inequivocabili. NB: NON usare
+# il bare "sicurezza" (e' il dominio sicurezza-sul-lavoro _sicurezza_context); qui solo
+# termini di cyber/IT-security (SOC, alert di sicurezza, minacce, vulnerabilita, CVE,
+# vendor EDR/firewall, ransomware/phishing).
+_SOC_STRONG_KEYWORDS = (
+    "soc", "security center", "cybersecurity", "cyber", "minacc", "vulnerabilit",
+    "cve", "ransomware", "phishing", "malware", "watchguard", "defender",
+    "antivirus", "endpoint", "firewall", "alert di sicurezza",
+)
+
+
+def _wants_soc_context(prompt: str) -> bool:
+    text = _norm_text(prompt)
+    return any(keyword in text for keyword in _SOC_STRONG_KEYWORDS)
 
 
 # Suggestion Corner (SMS): "suggestion"/"pdca"/"suggeriment" sono inequivocabili;
@@ -2427,6 +2459,106 @@ def _contatori_context(request, prompt: str) -> RuntimeContext:
             "filtro": "aggregato",
             "row_count": len(classifica),
         },
+    )
+
+
+_SOC_PERM_VIEW = "security.dashboard.view"
+
+
+def _can_use_soc_runtime(request) -> tuple[bool, str]:
+    """Gate ACL del tool Security Center: permesso canonico ``security.dashboard.view``,
+    con bypass SOLO per superuser e admin legacy (stesso confine delle viste /soc/)."""
+    user = getattr(request, "user", None)
+    if not getattr(user, "is_authenticated", False):
+        return False, "anonymous"
+    if getattr(user, "is_superuser", False):
+        return True, "superuser"
+
+    from core.acl_v2 import evaluate_permission_code_access
+    from core.legacy_utils import is_legacy_admin
+
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(user)
+    if legacy_user is not None:
+        request.legacy_user = legacy_user
+    if is_legacy_admin(legacy_user):
+        return True, "legacy_admin"
+
+    decision = evaluate_permission_code_access(
+        permission_code=_SOC_PERM_VIEW,
+        legacy_user=legacy_user,
+        django_user=user,
+        allow_superuser=True,
+        allow_legacy_admin=True,
+    )
+    if bool(decision.get("allowed")):
+        return True, "security_view"
+    return False, "missing_security_view"
+
+
+def _soc_context(request, prompt: str) -> RuntimeContext:
+    if not _should_run(request, "soc", _wants_soc_context(prompt)):
+        return RuntimeContext()
+
+    allowed, reason = _can_use_soc_runtime(request)
+    if not allowed:
+        return RuntimeContext(
+            text=(
+                "DATI LIVE PORTALE - SECURITY CENTER (SOC IT - CN)\n"
+                "Esito autorizzazione: negato. L'utente corrente non e' autorizzato a vedere il "
+                "Security Center; non fornire dati su alert, vulnerabilita o ticket di sicurezza IT."
+            ),
+            sources=("tool:soc:accesso-negato",),
+            audit={"tool": "soc_summary", "allowed": False, "reason": reason},
+        )
+
+    from django.utils import timezone as _tz
+    from security.models import (
+        SecurityAlert,
+        SecurityRemediationTicket,
+        SecurityReport,
+        SecurityVulnerabilityFinding,
+        Severity,
+        Status,
+    )
+    from security.services.alert_lifecycle import ACTIVE_ALERT_STATUSES
+
+    today = _tz.localdate()
+    open_alerts = SecurityAlert.objects.filter(status__in=ACTIVE_ALERT_STATUSES)
+    open_count = open_alerts.count()
+    crit_count = open_alerts.filter(severity=Severity.CRITICAL).count()
+    high_count = open_alerts.filter(severity=Severity.HIGH).count()
+    open_tickets = SecurityRemediationTicket.objects.filter(
+        status__in=[Status.NEW, Status.OPEN, Status.IN_PROGRESS]
+    ).count()
+    crit_cves = SecurityVulnerabilityFinding.objects.filter(severity=Severity.CRITICAL).count()
+    reports_today = SecurityReport.objects.filter(created_at__date=today).count()
+
+    if open_count == 0 and open_tickets == 0 and crit_cves == 0 and reports_today == 0:
+        return RuntimeContext(
+            text=(
+                "DATI LIVE PORTALE - SECURITY CENTER (SOC IT - CN)\n"
+                "Nessun alert aperto, ticket di remediation o CVE critica al momento, e nessun "
+                "report di sicurezza ingerito oggi."
+            ),
+            sources=("tool:soc:riepilogo",),
+            audit={"tool": "soc_summary", "allowed": True, "scope": "globale",
+                   "filtro": "nessun_dato", "row_count": 0},
+        )
+
+    return RuntimeContext(
+        text=(
+            "DATI LIVE PORTALE - SECURITY CENTER (SOC IT - CN)\n"
+            f"Alert di sicurezza aperti: {open_count} (di cui {crit_count} critici, {high_count} alti).\n"
+            f"Ticket di remediation aperti: {open_tickets}.\n"
+            f"CVE/vulnerabilita critiche aperte: {crit_cves}.\n"
+            f"Report di sicurezza ingeriti oggi: {reports_today}.\n"
+            "ISTRUZIONE RISPOSTA: usa SOLO questi CONTEGGI aggregati. NON disponi di titoli di "
+            "alert, hostname, IP o nomi di asset (non esposti per privacy): se richiesti, indirizza "
+            "al Security Center (/soc/). Non inventare numeri non presenti."
+        ),
+        sources=("tool:soc:riepilogo",),
+        audit={"tool": "soc_summary", "allowed": True, "scope": "globale",
+               "filtro": "aggregato", "open_alerts": open_count, "critical": crit_count},
     )
 
 
@@ -4545,6 +4677,7 @@ RUNTIME_TOOLS: tuple[RuntimeTool, ...] = (
     _assets_context,
     _carichi_context,
     _contatori_context,
+    _soc_context,
     _dpi_context,
     _anagrafica_context,
     _skillmatrix_context,
@@ -4701,6 +4834,13 @@ _DOMAIN_ROUTING_SEEDS: dict[str, tuple[str, ...]] = {
         "andamento dei contatori delle stampanti per trimestre",
         "ripartizione bianco e nero e colore delle fotocopie",
         "stato delle rilevazioni dei contatori mfc",
+    ),
+    "soc": (
+        "quanti alert di sicurezza aperti o critici ci sono",
+        "stato del security center e delle minacce informatiche",
+        "vulnerabilita e CVE critiche aperte da rimediare",
+        "ticket di remediation di sicurezza IT aperti",
+        "report di sicurezza WatchGuard Defender endpoint ingeriti",
     ),
     "dpi": (
         "dispositivi di protezione individuale in scadenza",
