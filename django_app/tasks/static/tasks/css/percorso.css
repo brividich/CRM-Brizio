@@ -1,0 +1,94 @@
+/* ===========================================================================
+   Percorso guidato — componente form KICK-OFF (solo token del tema, dark-safe)
+   Usato da: project_create, project_meeting_form, project_vrf_compile/upload.
+   =========================================================================== */
+
+.kp-layout { display: grid; grid-template-columns: 210px 1fr; gap: 22px; align-items: start; }
+
+/* ── Rail di avanzamento ─────────────────────────────────────────────── */
+.kp-rail { position: sticky; top: 16px; }
+.kp-rail-title {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--text-light); margin-bottom: 12px;
+}
+.kp-rail-nodes { display: flex; flex-direction: column; }
+.kp-node {
+  display: grid; grid-template-columns: 26px 1fr; gap: 11px; align-items: start;
+  position: relative; padding-bottom: 20px; cursor: pointer;
+  background: none; border: 0; text-align: left; font: inherit; width: 100%; color: inherit;
+}
+.kp-node:last-child { padding-bottom: 0; }
+.kp-node:not(:last-child)::before {
+  content: ""; position: absolute; left: 12px; top: 26px; bottom: 0; width: 2px;
+  background: var(--border);
+}
+.kp-node.is-done:not(:last-child)::before { background: var(--success); }
+.kp-dot {
+  width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--border);
+  background: var(--surface); display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 800; color: var(--text-light); z-index: 1;
+  transition: border-color .2s, background .2s, color .2s, box-shadow .2s;
+}
+.kp-node.is-active .kp-dot {
+  border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 4px var(--accent-light);
+}
+.kp-node.is-done .kp-dot { border-color: var(--success); background: var(--success); color: #fff; }
+.kp-label { font-size: 12.5px; font-weight: 600; color: var(--text-mid); padding-top: 3px; }
+.kp-node.is-active .kp-label { color: var(--text); }
+.kp-progress { margin-top: 16px; font-size: 11.5px; color: var(--text-light); }
+.kp-progress-count { font-weight: 800; color: var(--text-mid); }
+
+/* ── Stazioni (tappe) ────────────────────────────────────────────────── */
+.kp-stations { display: flex; flex-direction: column; gap: 16px; }
+.kp-station {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+  scroll-margin-top: 16px; overflow: hidden;
+  transition: border-color .2s, box-shadow .2s;
+}
+.kp-station.is-current { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+.kp-station-head { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+.kp-num {
+  width: 28px; height: 28px; border-radius: 50%; background: var(--accent-light); color: var(--accent);
+  font-weight: 800; font-size: 13px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.kp-station.is-done .kp-num { background: var(--success-bg); color: var(--success); }
+.kp-station-titles h3 { margin: 0; font-size: 14.5px; font-weight: 700; color: var(--text); }
+.kp-station-titles p { margin: 2px 0 0; font-size: 12px; color: var(--text-light); }
+.kp-body { padding: 16px 18px; }
+
+/* ── Griglia campi ───────────────────────────────────────────────────── */
+.kp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.kp-field { display: flex; flex-direction: column; min-width: 0; }
+.kp-field.col-2 { grid-column: span 2; }
+.kp-field.col-3 { grid-column: span 3; }
+.kp-field > label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-light); margin-bottom: 4px;
+}
+.kp-req { color: var(--danger, #e53e3e); }
+.kp-field input, .kp-field select, .kp-field textarea, .kp-field .input {
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+  font-size: 13px; font-family: inherit; background: var(--surface); color: var(--text); width: 100%;
+}
+.kp-field textarea { min-height: 70px; resize: vertical; }
+.kp-field input:focus, .kp-field select:focus, .kp-field textarea:focus {
+  outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent);
+}
+.kp-inline { display: flex; align-items: center; gap: 8px; min-height: 34px; }
+.kp-help { font-size: 11px; color: var(--text-light); margin-top: 4px; }
+.kp-err { font-size: 11px; color: var(--danger, #e53e3e); margin-top: 4px; }
+
+/* ── Azioni ──────────────────────────────────────────────────────────── */
+.kp-actions { display: flex; justify-content: space-between; gap: 12px; margin-top: 20px; flex-wrap: wrap; align-items: center; }
+.kp-actions .kp-right { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* ── Responsive: rail orizzontale in cima ────────────────────────────── */
+@media (max-width: 760px) {
+  .kp-layout { grid-template-columns: 1fr; }
+  .kp-rail { position: static; }
+  .kp-rail-title, .kp-progress { display: none; }
+  .kp-rail-nodes { flex-direction: row; overflow-x: auto; gap: 16px; padding-bottom: 8px; }
+  .kp-node { grid-template-columns: auto auto; padding-bottom: 0; white-space: nowrap; }
+  .kp-node:not(:last-child)::before { display: none; }
+  .kp-grid { grid-template-columns: 1fr; }
+}
