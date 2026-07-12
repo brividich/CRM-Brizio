@@ -1,0 +1,59 @@
+{% extends "security/base.html" %}
+
+{% block title %}Registro moduli / Security Center AI{% endblock %}
+{% block page_icon %}#{% endblock %}
+{% block page_marker %}Amministrazione Security Center{% endblock %}
+{% block page_title %}Registro moduli{% endblock %}
+
+{% block content %}
+<section class="sec-panel">
+  <div class="sec-section-head">
+    <div>
+      <h2>Moduli gestiti</h2>
+      <p class="sec-muted">Riepilogo operativo in sola lettura per sorgenti, parser, regole alert, ticket, diagnostica e documentazione.</p>
+    </div>
+    <div class="sec-actions">
+      <a class="sec-button" href="{% url 'security:admin_config' %}">Configura</a>
+      <a class="sec-button" href="{% url 'security:admin_diagnostics' %}">Apri diagnostica</a>
+      <a class="sec-button" href="{% url 'security:admin_docs' %}">Leggi documentazione</a>
+    </div>
+  </div>
+</section>
+
+<div class="sec-grid sec-three-col" style="margin-top:12px">
+  {% for addon in addons %}
+    <article class="sec-card">
+      <div class="sec-section-head">
+        <div>
+          <h2>{{ addon.name }}</h2>
+          <p class="sec-muted">{{ addon.vendor }}</p>
+        </div>
+        <span class="sec-badge {{ addon.status_class }}">{{ addon.status_label }}</span>
+      </div>
+
+      <p>{{ addon.description }}</p>
+      <p class="sec-muted">{{ addon.status_reason }}</p>
+
+      <div class="sec-fact-grid">
+        <div class="sec-fact"><span>Parser attivi</span><strong>{{ addon.enabled_parser_count }} / {{ addon.total_parser_count }}</strong></div>
+        <div class="sec-fact"><span>Sorgenti attive</span><strong>{{ addon.enabled_source_count }} / {{ addon.total_source_count }}</strong></div>
+        <div class="sec-fact"><span>Regole alert</span><strong>{{ addon.enabled_rule_count }} / {{ addon.total_rule_count }}</strong></div>
+        <div class="sec-fact"><span>Alert aperti</span><strong>{{ addon.open_alert_count }}</strong></div>
+        <div class="sec-fact"><span>Alert critici</span><strong>{{ addon.critical_alert_count }}</strong></div>
+        <div class="sec-fact"><span>Ticket aperti</span><strong>{{ addon.open_ticket_count }}</strong></div>
+        <div class="sec-fact"><span>Ultimo report</span><strong>{% if addon.last_report_at %}{{ addon.last_report_at }}{% else %}Nessun dato disponibile{% endif %}</strong></div>
+        <div class="sec-fact"><span>Avvisi</span><strong>{{ addon.warning_count }}</strong></div>
+      </div>
+
+      <div class="sec-actions" style="margin-top:12px">
+        <a class="sec-button sec-button-primary" href="{{ addon.links.detail }}">Vedi dettagli</a>
+        <a class="sec-button" href="{{ addon.links.config }}">Configura</a>
+        <a class="sec-button" href="{{ addon.links.diagnostics }}">Apri diagnostica</a>
+        <a class="sec-button" href="{{ addon.links.docs }}">Leggi documentazione</a>
+      </div>
+    </article>
+  {% empty %}
+    <section class="sec-panel"><p class="sec-empty">Nessun dato disponibile.</p></section>
+  {% endfor %}
+</div>
+{% endblock %}

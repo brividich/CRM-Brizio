@@ -1,0 +1,21 @@
+{% extends "security/base.html" %}
+{% block title %}Backup / Security Center AI{% endblock %}
+{% block page_marker %}Configurazione{% endblock %}
+{% block page_title %}Configurazione monitoraggio backup{% endblock %}
+{% block page_icon %}*{% endblock %}
+{% block content %}
+<div class="sec-grid sec-two-col">
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Matrice backup attesi</h2><a href="{% url 'security:admin_config' %}">Home configurazione</a></div>
+    <div class="sec-table-wrap"><table class="sec-table"><thead><tr><th>Job</th><th>Dispositivo</th><th>NAS</th><th>Stato</th><th>Critico</th><th>Mancante dopo</th><th>Soglie</th></tr></thead><tbody>
+      {% for object in objects %}
+        <tr><td>{{ object.job_name }}</td><td>{{ object.device_name }}</td><td>{{ object.nas_name }}</td><td><span class="sec-badge {% if object.enabled %}ok{% else %}disabled{% endif %}">{{ object.enabled|yesno:"Attivo,Disattivato" }}</span></td><td>{{ object.critical_asset|yesno:"Si,No" }}</td><td>{{ object.missing_after_hours }}h</td><td>Durata {{ object.max_duration_minutes }}m, dimensione {{ object.min_transferred_gb|default:"-" }} - {{ object.max_transferred_gb|default:"-" }} GB</td></tr>
+      {% empty %}<tr><td colspan="7" class="sec-empty">Nessun job backup atteso.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Aggiungi job atteso</h2></div>
+    <form method="post" class="sec-grid">{% csrf_token %}{{ form.as_p }}<button class="sec-button-primary" type="submit">Salva aspettativa backup</button></form>
+  </section>
+</div>
+{% endblock %}

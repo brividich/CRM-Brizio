@@ -1,0 +1,38 @@
+{% extends "security/base.html" %}
+{% block title %}Configurazione / Security Center AI{% endblock %}
+{% block page_marker %}Configurazione admin{% endblock %}
+{% block page_title %}Configurazione{% endblock %}
+{% block page_icon %}*{% endblock %}
+{% block content %}
+<div class="sec-grid sec-three-col">
+  {% for card in cards %}
+    <section class="sec-card">
+      <div class="sec-section-head">
+        <h2>{{ card.title }}</h2>
+        <span class="sec-badge {{ card.status }}">{{ card.status_label }}</span>
+      </div>
+      <div class="sec-fact-grid">
+        <div class="sec-fact"><span>Attivi</span><strong>{{ card.enabled_count }}</strong></div>
+        <div class="sec-fact"><span>Avvisi</span><strong>{{ card.warning_count }}</strong></div>
+      </div>
+      <p class="sec-muted">Ultimo aggiornamento: {% if card.last_updated %}{{ card.last_updated|date:"Y-m-d H:i" }}{% else %}Mai{% endif %}</p>
+      <a class="sec-button sec-button-primary" href="{{ card.url }}">Configura</a>
+    </section>
+  {% endfor %}
+</div>
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Modifiche recenti alla configurazione</h2><a href="{% url 'security:admin_config_audit' %}">Registro audit</a></div>
+  <div class="sec-table-wrap">
+    <table class="sec-table">
+      <thead><tr><th>Quando</th><th>Attore</th><th>Oggetto</th><th>Campo</th><th>Azione</th></tr></thead>
+      <tbody>
+        {% for change in recent_changes %}
+          <tr><td>{{ change.created_at|date:"Y-m-d H:i" }}</td><td>{{ change.actor|default:"sistema" }}</td><td>{{ change.model_name }} {{ change.object_repr }}</td><td>{{ change.field_name }}</td><td>{{ change.action }}</td></tr>
+        {% empty %}
+          <tr><td colspan="5" class="sec-empty">Nessuna modifica di configurazione registrata.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

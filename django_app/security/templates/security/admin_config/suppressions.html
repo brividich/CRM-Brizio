@@ -1,0 +1,21 @@
+{% extends "security/base.html" %}
+{% block title %}Soppressioni / Security Center AI{% endblock %}
+{% block page_marker %}Configurazione{% endblock %}
+{% block page_title %}Regole di soppressione e silenziamento{% endblock %}
+{% block page_icon %}*{% endblock %}
+{% block content %}
+<div class="sec-grid sec-two-col">
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Regole di soppressione</h2><a href="{% url 'security:admin_config' %}">Home configurazione</a></div>
+    <div class="sec-table-wrap"><table class="sec-table"><thead><tr><th>Nome</th><th>Ambito</th><th>Stato</th><th>Responsabile</th><th>Motivo</th><th>Occorrenze</th><th>Scadenza</th></tr></thead><tbody>
+      {% for object in objects %}
+        <tr><td>{{ object.name }}</td><td>{{ object.scope_type }} {{ object.event_type }}</td><td><span class="sec-badge {% if object.is_expired %}warning{% elif object.is_active %}ok{% else %}disabled{% endif %}">{% if object.is_expired %}Scaduta{% elif object.is_active %}Attiva{% else %}Disattivata{% endif %}</span></td><td>{{ object.owner }}</td><td>{{ object.reason }}</td><td>{{ object.hit_count }}</td><td>{{ object.expires_at|default:"-" }}</td></tr>
+      {% empty %}<tr><td colspan="7" class="sec-empty">Nessuna regola di soppressione.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Crea soppressione</h2></div>
+    <form method="post" class="sec-grid">{% csrf_token %}{{ form.as_p }}<button class="sec-button-primary" type="submit">Salva soppressione</button></form>
+  </section>
+</div>
+{% endblock %}

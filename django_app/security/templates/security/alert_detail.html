@@ -1,0 +1,105 @@
+{% extends "security/base.html" %}
+{% load security_i18n %}
+
+{% block title %}Workspace investigazione | Security Center AI{% endblock %}
+{% block page_icon %}!{% endblock %}
+{% block page_marker %}Workspace investigazione{% endblock %}
+{% block page_title %}{{ alert.title }}{% endblock %}
+
+{% block content %}
+<p><a class="sec-button" href="{% url 'security:alerts_list' %}">&lt; Torna alla coda alert</a></p>
+
+<section class="sec-detail-hero">
+  <div class="sec-panel">
+    <div class="sec-section-head">
+      <div><span class="sec-badge {{ alert.severity }}">{{ alert.severity|ui_label }}</span></div>
+      <span class="sec-code">{{ alert.dedup_hash }}</span>
+    </div>
+    <div class="sec-fact-grid">
+      <div class="sec-fact"><span>Sorgente</span><strong>{{ alert.source.name }}</strong></div>
+      <div class="sec-fact"><span>Responsabile</span><strong>{{ alert.owner|default:"Non assegnato" }}</strong></div>
+      <div class="sec-fact"><span>Creato il</span><strong>{{ alert.created_at|date:"d M Y, H:i" }}</strong></div>
+      <div class="sec-fact"><span>Aggiornato il</span><strong>{{ alert.updated_at|date:"d M Y, H:i" }}</strong></div>
+    </div>
+    {% if alert.status_reason %}<p><strong>Motivo:</strong> {{ alert.status_reason }}</p>{% endif %}
+  </div>
+
+  {% include "security/partials/alert_lifecycle_panel.html" %}
+</section>
+
+<section class="sec-grid sec-three-col" style="margin-top: 12px;">
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Perche e stato generato</h2></div>
+    {% if vulnerability.cve %}
+      <p>Rilevata vulnerabilita <strong class="critical">{{ vulnerability.cve }}</strong> su {{ vulnerability.exposed_devices|default:"-" }} dispositivi. Prodotto: {{ vulnerability.affected_product|default:"-" }}. CVSS {{ vulnerability.cvss|default:"-" }}.</p>
+    {% else %}
+      <p>Alert generato dal motore regole per evento normalizzato con deduplica <span class="sec-code">{{ alert.short_dedup_hash }}</span>.</p>
+    {% endif %}
+  </div>
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Ticket</h2><a href="{% url 'security:tickets_list' %}">Board</a></div>
+    {% if ticket %}
+      <p><strong>{{ ticket.title }}</strong></p>
+      <p>Stato: <span class="sec-badge {{ ticket.status }}">{{ ticket.status|ui_label }}</span></p>
+      <p>CVE: {% if ticket.cve_ids %}{{ ticket.cve_ids|join:", " }}{% else %}{{ ticket.cve|default:"-" }}{% endif %} - Prodotto: {{ ticket.affected_product|default:"-" }}</p>
+      <p>CVSS massimo {{ ticket.max_cvss }} - Dispositivi esposti massimi {{ ticket.max_exposed_devices }} - Occorrenze {{ ticket.occurrence_count }}</p>
+    {% else %}
+      <p class="sec-empty">Nessun ticket remediation collegato.</p>
+    {% endif %}
+  </div>
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Timeline del caso</h2></div>
+    <div class="sec-timeline">
+      {% for log in action_logs|slice:":5" %}
+        <div class="sec-timeline-item"><strong>{{ log.created_at|date:"d M, H:i" }}</strong><br>{{ log.action }} - {{ log.actor }}</div>
+      {% empty %}
+        <div class="sec-empty">Nessuna voce audit disponibile.</div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="sec-grid sec-two-col" style="margin-top: 12px;">
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Evidenze correlate</h2></div>
+    <div class="sec-table-wrap">
+      <table class="sec-table">
+        <thead><tr><th>Contenitore</th><th>Stato</th><th>Creato il</th><th>Elementi</th></tr></thead>
+        <tbody>
+        {% for container in evidence %}
+          <tr><td class="sec-title-cell"><strong>{{ container.title }}</strong><small>{{ container.id }}</small></td><td><span class="sec-badge {{ container.status }}">{{ container.status|ui_label }}</span></td><td>{{ container.created_at|date:"d M Y, H:i" }}</td><td>{{ container.items.count }}</td></tr>
+        {% empty %}
+          <tr><td colspan="4" class="sec-empty">Nessun contenitore evidenze collegato.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Occorrenze</h2></div>
+    <div class="sec-table-wrap">
+      <table class="sec-table">
+        <thead><tr><th>Ora</th><th>Tipo</th><th>Severita</th><th>Payload</th></tr></thead>
+        <tbody>
+        {% for event in occurrences %}
+          <tr><td>{{ event.occurred_at|date:"d M, H:i" }}</td><td>{{ event.event_type }}</td><td class="{{ event.severity }}">{{ event.severity|ui_label }}</td><td><pre>{{ event.payload }}</pre></td></tr>
+        {% empty %}
+          <tr><td colspan="4" class="sec-empty">Nessuna occorrenza trovata.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>Report sorgente</h2></div>
+  {% if source_report %}
+    <p><strong>{{ source_report.title }}</strong> - {{ source_report.report_type }} - {{ source_report.report_date }}</p>
+    <pre>{{ source_report.parsed_payload }}</pre>
+  {% else %}
+    <p class="sec-empty">Nessun report sorgente disponibile.</p>
+  {% endif %}
+</section>
+{% endblock %}

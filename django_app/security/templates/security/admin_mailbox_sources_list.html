@@ -1,0 +1,107 @@
+{% extends "security/base.html" %}
+
+{% block title %}Sorgenti Mail - Security Center AI{% endblock %}
+
+{% block page_icon %}@{% endblock %}
+{% block page_marker %}Configurazione{% endblock %}
+{% block page_title %}Sorgenti Mail{% endblock %}
+
+{% block content %}
+<div class="sec-panel">
+  <div class="sec-panel-header">
+    <h2>Sorgenti Mailbox Configurate</h2>
+    <p>Gestione sorgenti per ingestion schedulata da mailbox</p>
+  </div>
+
+  {% if not sources %}
+    <div class="sec-empty-state">
+      <p>Nessuna sorgente mailbox configurata.</p>
+      <p><small>Le sorgenti mailbox permettono l'importazione automatica di report/alert da caselle email.</small></p>
+    </div>
+  {% else %}
+    <table class="sec-table">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>Codice</th>
+          <th>Tipo</th>
+          <th>Mailbox</th>
+          <th>Stato</th>
+          <th>Ultima esecuzione</th>
+          <th>Ultimo successo</th>
+          <th>Azioni</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for source in sources %}
+        <tr>
+          <td><strong>{{ source.name }}</strong></td>
+          <td><code>{{ source.code }}</code></td>
+          <td>{{ source.get_source_type_display }}</td>
+          <td>{{ source.mailbox_address|default:"—" }}</td>
+          <td>
+            {% if source.enabled %}
+              <span class="sec-badge sec-badge-success">Attivo</span>
+            {% else %}
+              <span class="sec-badge sec-badge-muted">Disattivo</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if source.last_run_at %}
+              {{ source.last_run_at|date:"d/m/Y H:i" }}
+              {% if source.latest_run %}
+                <br><small class="sec-muted">{{ source.latest_run.get_status_display }} - {{ source.latest_run.imported_messages_count }} importati</small>
+              {% endif %}
+            {% else %}
+              <span class="sec-muted">Mai eseguito</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if source.last_success_at %}
+              {{ source.last_success_at|date:"d/m/Y H:i" }}
+            {% else %}
+              <span class="sec-muted">—</span>
+            {% endif %}
+          </td>
+          <td><span class="sec-muted">Gestione da Configurazione</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</div>
+
+<div class="sec-panel">
+  <div class="sec-panel-header">
+    <h3>Link rapidi</h3>
+  </div>
+  <div class="sec-link-grid">
+    <a href="{% url 'security:admin_diagnostics' %}" class="sec-card-link">
+      <strong>Diagnostica</strong>
+      <small>Verifica stato sistema</small>
+    </a>
+    <a href="{% url 'security:inbox' %}" class="sec-card-link">
+      <strong>Inbox / Workbench</strong>
+      <small>Upload manuale report</small>
+    </a>
+    <a href="{% url 'security:admin_addons' %}" class="sec-card-link">
+      <strong>Moduli</strong>
+      <small>Registro addon</small>
+    </a>
+    <a href="{% url 'security:admin_docs' %}" class="sec-card-link">
+      <strong>Documentazione</strong>
+      <small>Guide e troubleshooting</small>
+    </a>
+  </div>
+</div>
+
+<div class="sec-panel">
+  <div class="sec-panel-header">
+    <h3>Comando manuale</h3>
+  </div>
+  <pre class="sec-code-block">python manage.py ingest_security_mailbox
+python manage.py ingest_security_mailbox --source watchguard-daily
+python manage.py ingest_security_mailbox --dry-run
+python manage.py ingest_security_mailbox --limit 10</pre>
+</div>
+{% endblock %}

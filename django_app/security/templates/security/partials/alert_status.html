@@ -1,0 +1,8 @@
+{% load security_i18n %}
+{% with canonical_status=alert.status|canonical_status_label %}
+<span class="sec-badge {{ alert.status }}" title="{{ canonical_status }}" aria-label="{{ canonical_status }}">
+  {{ alert.status|ui_label }}
+  <span class="sec-sr-only">{{ canonical_status }}</span>
+</span>
+{% endwith %}
+{% if alert.snoozed_until %}<span class="sec-muted">fino a {{ alert.snoozed_until|date:"Y-m-d H:i" }}</span>{% endif %}

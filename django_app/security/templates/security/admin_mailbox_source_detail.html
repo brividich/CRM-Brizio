@@ -1,0 +1,179 @@
+{% extends "security/base.html" %}
+
+{% block title %}{{ source.name }} - Sorgenti Mail - Security Center AI{% endblock %}
+
+{% block page_icon %}@{% endblock %}
+{% block page_marker %}Sorgente Mail{% endblock %}
+{% block page_title %}{{ source.name }}{% endblock %}
+
+{% block content %}
+<div class="sec-panel">
+  <div class="sec-panel-header">
+    <h2>Configurazione Sorgente</h2>
+  </div>
+  <dl class="sec-dl">
+    <dt>Nome</dt>
+    <dd><strong>{{ source.name }}</strong></dd>
+
+    <dt>Codice</dt>
+    <dd><code>{{ source.code }}</code></dd>
+
+    <dt>Tipo</dt>
+    <dd>{{ source.get_source_type_display }}</dd>
+
+    <dt>Mailbox</dt>
+    <dd>{{ source.mailbox_address|default:"Non configurato" }}</dd>
+
+    <dt>Stato</dt>
+    <dd>
+      {% if source.enabled %}
+        <span class="sec-badge sec-badge-success">Attivo</span>
+      {% else %}
+        <span class="sec-badge sec-badge-muted">Disattivo</span>
+      {% endif %}
+    </dd>
+
+    <dt>Descrizione</dt>
+    <dd>{{ source.description|default:"—" }}</dd>
+
+    <dt>Max messaggi per run</dt>
+    <dd>{{ source.max_messages_per_run }}</dd>
+
+    <dt>Processa allegati</dt>
+    <dd>{{ source.process_attachments|yesno:"Sì,No" }}</dd>
+
+    <dt>Processa corpo email</dt>
+    <dd>{{ source.process_email_body|yesno:"Sì,No" }}</dd>
+
+    <dt>Marca come letto</dt>
+    <dd>{{ source.mark_as_read_after_import|yesno:"Sì,No" }}</dd>
+
+    {% if source.sender_allowlist_text %}
+    <dt>Mittenti consentiti</dt>
+    <dd><pre class="sec-code-block">{{ source.sender_allowlist_text }}</pre></dd>
+    {% endif %}
+
+    {% if source.subject_include_text %}
+    <dt>Oggetto deve contenere</dt>
+    <dd><pre class="sec-code-block">{{ source.subject_include_text }}</pre></dd>
+    {% endif %}
+
+    {% if source.subject_exclude_text %}
+    <dt>Oggetto deve escludere</dt>
+    <dd><pre class="sec-code-block">{{ source.subject_exclude_text }}</pre></dd>
+    {% endif %}
+
+    {% if source.attachment_extensions %}
+    <dt>Estensioni allegati</dt>
+    <dd><code>{{ source.attachment_extensions }}</code></dd>
+    {% endif %}
+  </dl>
+</div>
+
+<div class="sec-panel">
+  <div class="sec-panel-header">
+    <h2>Stato Esecuzioni</h2>
+  </div>
+  <dl class="sec-dl">
+    <dt>Ultima esecuzione</dt>
+    <dd>{{ source.last_run_at|date:"d/m/Y H:i:s"|default:"Mai eseguito" }}</dd>
+
+    <dt>Ultimo successo</dt>
+    <dd>{{ source.last_success_at|date:"d/m/Y H:i:s"|default:"—" }}</dd>
+
+    <dt>Ultimo errore</dt>
+    <dd>{{ source.last_error_at|date:"d/m/Y H:i:s"|default:"—" }}</dd>
+
+    {% if source.last_error_message %}
+    <dt>Messaggio errore</dt>
+    <dd><pre class="sec-code-block sec-error">{{ source.last_error_message }}</pre></dd>
+    {% endif %}
+  </dl>
+</div>
+
+{% if recent_runs %}
+<div class="sec-panel">
+  <div class="sec-panel-header">
+    <h2>Esecuzioni Recenti</h2>
+  </div>
+  <table class="sec-table">
+    <thead>
+      <tr>
+        <th>Data/Ora</th>
+        <th>Stato</th>
+        <th>Importati</th>
+        <th>Duplicati</th>
+        <th>Saltati</th>
+        <th>File</th>
+        <th>Processati</th>
+        <th>Alert</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for run in recent_runs %}
+      <tr>
+        <td>{{ run.started_at|date:"d/m/Y H:i" }}</td>
+        <td>
+          {% if run.status == 'success' %}
+            <span class="sec-badge sec-badge-success">{{ run.get_status_display }}</span>
+          {% elif run.status == 'failed' %}
+            <span class="sec-badge sec-badge-critical">{{ run.get_status_display }}</span>
+          {% elif run.status == 'partial' %}
+            <span class="sec-badge sec-badge-warning">{{ run.get_status_display }}</span>
+          {% else %}
+            <span class="sec-badge sec-badge-muted">{{ run.get_status_display }}</span>
+          {% endif %}
+        </td>
+        <td>{{ run.imported_messages_count }}</td>
+        <td>{{ run.duplicate_messages_count }}</td>
+        <td>{{ run.skipped_messages_count }}</td>
+        <td>{{ run.imported_files_count }}</td>
+        <td>{{ run.processed_items_count }}</td>
+        <td>{{ run.generated_alerts_count }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if recent_messages %}
+<div class="sec-panel">
+  <div class="sec-panel-header">
+    <h2>Messaggi Recenti</h2>
+  </div>
+  <table class="sec-table">
+    <thead>
+      <tr>
+        <th>Ricevuto</th>
+        <th>Mittente</th>
+        <th>Oggetto</th>
+        <th>Stato parsing</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for msg in recent_messages %}
+      <tr>
+        <td>{{ msg.received_at|date:"d/m/Y H:i" }}</td>
+        <td><small>{{ msg.sender }}</small></td>
+        <td>{{ msg.subject }}</td>
+        <td>
+          {% if msg.parse_status == 'parsed' %}
+            <span class="sec-badge sec-badge-success">{{ msg.get_parse_status_display }}</span>
+          {% elif msg.parse_status == 'failed' %}
+            <span class="sec-badge sec-badge-critical">{{ msg.get_parse_status_display }}</span>
+          {% else %}
+            <span class="sec-badge sec-badge-muted">{{ msg.get_parse_status_display }}</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<div class="sec-panel">
+  <a href="{% url 'security:admin_config' %}" class="sec-btn-link">Torna alla configurazione</a>
+</div>
+{% endblock %}

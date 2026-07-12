@@ -1,0 +1,34 @@
+{% extends "security/base.html" %}
+{% block title %}Regole alert / Security Center AI{% endblock %}
+{% block page_marker %}Configurazione{% endblock %}
+{% block page_title %}Configurazione regole alert{% endblock %}
+{% block page_icon %}*{% endblock %}
+{% block content %}
+<div class="sec-grid sec-two-col">
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Regole</h2><a href="{% url 'security:admin_config' %}">Home configurazione</a></div>
+    <div class="sec-table-wrap">
+      <table class="sec-table">
+        <thead><tr><th>Codice</th><th>Sorgente</th><th>Stato</th><th>Metrica</th><th>Condizione</th><th>Severita</th><th>Trigger</th><th>Test</th></tr></thead>
+        <tbody>
+          {% for object in objects %}
+            <tr>
+              <td class="sec-code">{{ object.code }}</td><td>{{ object.source_type }}</td>
+              <td><span class="sec-badge {% if object.enabled %}ok{% else %}disabled{% endif %}">{{ object.enabled|yesno:"Attivo,Disattivato" }}</span></td>
+              <td>{{ object.metric_name }}</td><td>{{ object.condition_operator }} {{ object.threshold_value }}</td>
+              <td><span class="sec-badge {{ object.severity }}">{{ object.severity }}</span></td>
+              <td>{{ object.trigger_count }}{% if object.last_triggered_at %}<br><small>{{ object.last_triggered_at|date:"Y-m-d H:i" }}</small>{% endif %}</td>
+              <td><form method="post" class="sec-grid">{% csrf_token %}<input type="hidden" name="action" value="test-rule"><input type="hidden" name="rule_id" value="{{ object.pk }}"><input name="metrics_json" value="{&quot;value&quot;: 1}"><button type="submit">Test</button></form></td>
+            </tr>
+          {% empty %}<tr><td colspan="8" class="sec-empty">Nessuna regola alert disponibile.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if test_result %}<p class="sec-panel">{% if test_result.error %}{{ test_result.error }}{% else %}Regola {{ test_result.rule.code }}: <strong>{{ test_result.matched|yesno:"corrisponde,non corrisponde" }}</strong>{% endif %}</p>{% endif %}
+  </section>
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Aggiungi / sostituisci regola</h2></div>
+    <form method="post" class="sec-grid">{% csrf_token %}{{ form.as_p }}<button class="sec-button-primary" type="submit">Salva regola</button></form>
+  </section>
+</div>
+{% endblock %}

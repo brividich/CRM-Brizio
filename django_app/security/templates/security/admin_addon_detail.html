@@ -1,0 +1,192 @@
+{% extends "security/base.html" %}
+
+{% block title %}{{ addon.name }} / Registro moduli{% endblock %}
+{% block page_icon %}#{% endblock %}
+{% block page_marker %}Dettaglio modulo{% endblock %}
+{% block page_title %}{{ addon.name }}{% endblock %}
+
+{% block content %}
+<section class="sec-detail-hero">
+  <div class="sec-panel">
+    <div class="sec-section-head">
+      <div>
+        <h2>Panoramica</h2>
+        <p class="sec-muted">{{ addon.description }}</p>
+      </div>
+      <span class="sec-badge {{ addon.status_class }}">{{ addon.status_label }}</span>
+    </div>
+    <div class="sec-fact-grid">
+      <div class="sec-fact"><span>Fornitore</span><strong>{{ addon.vendor }}</strong></div>
+      <div class="sec-fact"><span>Stato</span><strong>{{ addon.status_label }}</strong></div>
+      <div class="sec-fact"><span>Alert aperti</span><strong>{{ addon.open_alert_count }}</strong></div>
+      <div class="sec-fact"><span>Alert critici</span><strong>{{ addon.critical_alert_count }}</strong></div>
+      <div class="sec-fact"><span>Ticket aperti</span><strong>{{ addon.open_ticket_count }}</strong></div>
+      <div class="sec-fact"><span>Ultimo report</span><strong>{% if addon.last_report_at %}{{ addon.last_report_at }}{% else %}Nessun dato disponibile{% endif %}</strong></div>
+      <div class="sec-fact"><span>Ultimo avviso parser</span><strong>{% if addon.last_parser_warning_at %}{{ addon.last_parser_warning_at }}{% else %}Nessun dato disponibile{% endif %}</strong></div>
+      <div class="sec-fact"><span>Ultimo errore parser</span><strong>{% if addon.last_parser_error_at %}{{ addon.last_parser_error_at }}{% else %}Nessun dato disponibile{% endif %}</strong></div>
+    </div>
+    <p class="sec-muted">{{ addon.status_reason }}</p>
+  </div>
+
+  <aside class="sec-panel">
+    <div class="sec-section-head"><h2>Collegamenti rapidi</h2></div>
+    <div class="sec-actions">
+      <a class="sec-button" href="{% url 'security:admin_addons' %}">Registro moduli</a>
+      <a class="sec-button" href="{{ addon.links.config }}">Configura</a>
+      <a class="sec-button" href="{{ addon.links.diagnostics }}">Apri diagnostica</a>
+      <a class="sec-button" href="{{ addon.links.docs }}">Leggi documentazione</a>
+    </div>
+  </aside>
+</section>
+
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Sorgenti</h2></div>
+  <div class="sec-table-wrap">
+    <table class="sec-table">
+      <thead><tr><th>Nome</th><th>Fornitore</th><th>source_type</th><th>Stato</th><th>Parser</th><th>Frequenza attesa</th></tr></thead>
+      <tbody>
+        {% for source in addon.sources %}
+          <tr><td>{{ source.name }}</td><td>{{ source.vendor|default:"-" }}</td><td><code>{{ source.source_type }}</code></td><td><span class="sec-badge {% if source.enabled %}ok{% else %}disabled{% endif %}">{% if source.enabled %}Attivo{% else %}Disattivato{% endif %}</span></td><td><code>{{ source.parser_name|default:"-" }}</code></td><td>{{ source.expected_frequency }}</td></tr>
+        {% empty %}
+          <tr><td colspan="6" class="sec-empty">Nessun dato disponibile.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Parser</h2></div>
+  <div class="sec-table-wrap">
+    <table class="sec-table">
+      <thead><tr><th>Nome parser</th><th>Stato</th><th>Priorita</th><th>source_type</th><th>Tipo input</th><th>Descrizione</th></tr></thead>
+      <tbody>
+        {% for parser in addon.parsers %}
+          <tr><td><code>{{ parser.parser_name }}</code></td><td><span class="sec-badge {% if parser.enabled %}ok{% else %}disabled{% endif %}">{% if parser.enabled %}Attivo{% else %}Disattivato{% endif %}</span></td><td>{{ parser.priority }}</td><td><code>{{ parser.source_type|default:"-" }}</code></td><td>{{ parser.input_type|default:"-" }}</td><td>{{ parser.description|default:"-" }}</td></tr>
+        {% empty %}
+          <tr><td colspan="6" class="sec-empty">Nessun dato disponibile.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Regole alert</h2></div>
+  <div class="sec-table-wrap">
+    <table class="sec-table">
+      <thead><tr><th>Codice</th><th>Nome</th><th>Stato</th><th>source_type</th><th>Metrica</th><th>Soglia</th><th>Severita</th><th>Ticket automatico</th></tr></thead>
+      <tbody>
+        {% for rule in addon.alert_rules %}
+          <tr><td><code>{{ rule.code }}</code></td><td>{{ rule.name }}</td><td><span class="sec-badge {% if rule.enabled %}ok{% else %}disabled{% endif %}">{% if rule.enabled %}Attivo{% else %}Disattivato{% endif %}</span></td><td><code>{{ rule.source_type|default:"-" }}</code></td><td>{{ rule.metric_name|default:"-" }}</td><td>{{ rule.condition_operator }} {{ rule.threshold_value }}</td><td><span class="sec-badge {{ rule.severity }}">{{ rule.severity }}</span></td><td>{{ rule.auto_create_ticket|yesno:"Si,No" }}</td></tr>
+        {% empty %}
+          <tr><td colspan="8" class="sec-empty">Nessun dato disponibile.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Soppressioni che influenzano questo modulo</h2></div>
+  <div class="sec-table-wrap">
+    <table class="sec-table">
+      <thead><tr><th>Nome</th><th>Sorgente</th><th>Tipo evento</th><th>Severita</th><th>Stato</th><th>Scadenza</th><th>Occorrenze</th></tr></thead>
+      <tbody>
+        {% for suppression in addon.suppressions %}
+          <tr><td>{{ suppression.name }}</td><td>{{ suppression.source|default:"-" }}</td><td>{{ suppression.event_type|default:"-" }}</td><td>{{ suppression.severity|default:"-" }}</td><td><span class="sec-badge {% if suppression.is_active %}ok{% else %}disabled{% endif %}">{% if suppression.is_active %}Attivo{% else %}Disattivato{% endif %}</span></td><td>{{ suppression.expires_at|default:"-" }}</td><td>{{ suppression.hit_count }}</td></tr>
+        {% empty %}
+          <tr><td colspan="7" class="sec-empty">Nessun dato disponibile.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="sec-grid sec-two-col" style="margin-top:12px">
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Riepilogo alert</h2></div>
+    <div class="sec-fact-grid">
+      <div class="sec-fact"><span>Totale</span><strong>{{ addon.alerts_summary.total }}</strong></div>
+      <div class="sec-fact"><span>Alert aperti</span><strong>{{ addon.alerts_summary.open }}</strong></div>
+      <div class="sec-fact"><span>Alert critici</span><strong>{{ addon.alerts_summary.critical_open }}</strong></div>
+    </div>
+  </section>
+
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Riepilogo ticket</h2></div>
+    <div class="sec-fact-grid">
+      <div class="sec-fact"><span>Totale</span><strong>{{ addon.tickets_summary.total }}</strong></div>
+      <div class="sec-fact"><span>Ticket aperti</span><strong>{{ addon.tickets_summary.open }}</strong></div>
+    </div>
+  </section>
+</div>
+
+{% if addon.backup_expected_jobs %}
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Job backup attesi</h2></div>
+  <div class="sec-table-wrap">
+    <table class="sec-table">
+      <thead><tr><th>Job</th><th>Dispositivo</th><th>NAS</th><th>Stato</th><th>Asset critico</th><th>Mancante dopo</th><th>Alert</th></tr></thead>
+      <tbody>
+        {% for job in addon.backup_expected_jobs %}
+          <tr><td>{{ job.job_name }}</td><td>{{ job.device_name|default:"-" }}</td><td>{{ job.nas_name|default:"-" }}</td><td><span class="sec-badge {% if job.enabled %}ok{% else %}disabled{% endif %}">{% if job.enabled %}Attivo{% else %}Disattivato{% endif %}</span></td><td>{{ job.critical_asset|yesno:"Si,No" }}</td><td>{{ job.missing_after_hours }}h</td><td>Mancante {{ job.alert_on_missing|yesno:"Si,No" }} / Errore {{ job.alert_on_failure|yesno:"Si,No" }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Ultimi report</h2></div>
+  <div class="sec-table-wrap">
+    <table class="sec-table">
+      <thead><tr><th>Titolo</th><th>Sorgente</th><th>Tipo report</th><th>Parser</th><th>Stato parsing</th><th>Data report</th><th>Creato</th></tr></thead>
+      <tbody>
+        {% for report in addon.last_reports %}
+          <tr><td>{{ report.title }}</td><td>{{ report.source }}</td><td>{{ report.report_type }}</td><td><code>{{ report.parser_name }}</code></td><td>{{ report.parse_status }}</td><td>{{ report.report_date|default:"-" }}</td><td>{{ report.created_at }}</td></tr>
+        {% empty %}
+          <tr><td colspan="7" class="sec-empty">Nessun dato disponibile.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Avvisi e configurazioni errate</h2></div>
+  <div class="sec-grid sec-two-col">
+    <div>
+      <h3>Avvisi</h3>
+      <ul class="sec-doc-list">
+        {% for warning in addon.warnings %}
+          <li>{{ warning }}</li>
+        {% empty %}
+          <li>Nessun avviso.</li>
+        {% endfor %}
+      </ul>
+    </div>
+    <div>
+      <h3>Configurazioni errate</h3>
+      <ul class="sec-doc-list">
+        {% for issue in addon.misconfigurations %}
+          <li>{{ issue }}</li>
+        {% empty %}
+          <li>Nessun dato disponibile.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="sec-panel sec-doc-panel">
+  <div class="sec-section-head">
+    <div>
+      <h2>Documentazione</h2>
+      <p class="sec-muted"><code>{{ addon.documentation_file }}</code></p>
+    </div>
+    <a class="sec-button sec-button-primary" href="{{ addon.links.docs }}">Leggi documentazione</a>
+  </div>
+</section>
+{% endblock %}

@@ -57,3 +57,6 @@ Werkzeug>=3.0,<4                # richiesto da runserver_plus; versione controll
 
 # --- SNMP (modulo contatori: lettura contatori/consumabili Canon iR-ADV) ---
 puresnmp>=2.0,<3               # client SNMP async (v1/v2c) per stampanti Canon
+
+# --- API REST (modulo security / Security Center AI) ---
+djangorestframework>=3.16,<4   # APIView/permissions dell'app security (SC-AI)

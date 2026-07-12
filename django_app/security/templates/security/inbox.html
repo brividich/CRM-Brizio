@@ -1,0 +1,130 @@
+{% extends "security/base.html" %}
+
+{% block title %}Security Inbox | Security Center AI{% endblock %}
+{% block page_icon %}IN{% endblock %}
+{% block page_marker %}Manual report ingestion and parser workbench{% endblock %}
+{% block page_title %}Security Inbox{% endblock %}
+
+{% block content %}
+<section class="sec-grid sec-two-col">
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Upload / Paste</h2><span class="sec-badge">Workbench</span></div>
+    <form method="post" enctype="multipart/form-data" action="{% url 'security:inbox' %}" hx-post="{% url 'security:inbox' %}" hx-target="#inbox-result">
+      {% csrf_token %}
+      <div class="sec-grid" style="gap: 10px;">
+        <label>Report file
+          <input type="file" name="report_file" accept=".pdf,.csv,.txt,.eml,.log">
+        </label>
+        <label>Sender
+          <input type="email" name="sender" placeholder="security@example.test">
+        </label>
+        <label>Subject
+          <input type="text" name="subject" placeholder="Report subject or sample title">
+        </label>
+        <label>Body
+          <textarea name="body" rows="9" style="width: 100%; min-height: 180px; border: 1px solid var(--sec-line); border-radius: 7px; background: rgba(8, 34, 65, 0.95); color: var(--sec-text); padding: 10px; font: inherit;" placeholder="Paste a report, alert email, CSV excerpt, or backup notification"></textarea>
+        </label>
+        <label>Source hint
+          <select name="source_hint">
+            <option value="">Auto match</option>
+            {% for source in source_configs %}
+              <option value="{{ source.pk }}">{{ source.name }}{% if source.parser_name %} / {{ source.parser_name }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>Content type
+          <input type="text" name="content_type" placeholder="text/plain">
+        </label>
+      </div>
+      <div class="sec-actions" style="margin-top: 14px;">
+        <button class="sec-button-primary" type="submit">Run inbox parser</button>
+        <span class="sec-badge">Max {{ max_upload_mb }} MB</span>
+        {% for extension in allowed_extensions %}<span class="sec-badge">{{ extension }}</span>{% endfor %}
+      </div>
+    </form>
+  </div>
+
+  <section class="sec-panel">
+    {% include "security/partials/inbox_result.html" with inbox_result=inbox_result %}
+  </section>
+</section>
+
+<section class="sec-grid sec-two-col" style="margin-top: 12px;">
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Recent reports</h2><span class="sec-badge">{{ recent_reports|length }}</span></div>
+    {% if recent_reports %}
+      <div class="sec-table-wrap">
+        <table class="sec-table">
+          <thead><tr><th>ID</th><th>Title</th><th>Source</th><th>Parser</th><th>Status</th></tr></thead>
+          <tbody>
+            {% for report in recent_reports %}
+              <tr><td>#{{ report.pk }}</td><td>{{ report.title }}</td><td>{{ report.source.name }}</td><td>{{ report.parser_name }}</td><td><span class="sec-badge">{{ report.parse_status }}</span></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="sec-empty">No recent reports.</p>
+    {% endif %}
+  </div>
+
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Recent mailbox messages / samples</h2><span class="sec-badge">{{ recent_mailbox_messages|length }}</span></div>
+    {% if recent_mailbox_messages %}
+      <div class="sec-table-wrap">
+        <table class="sec-table">
+          <thead><tr><th>ID</th><th>Subject</th><th>Source</th><th>Status</th><th>Received</th></tr></thead>
+          <tbody>
+            {% for message in recent_mailbox_messages %}
+              <tr><td>#{{ message.pk }}</td><td>{{ message.subject }}</td><td>{{ message.source.name }}</td><td><span class="sec-badge">{{ message.parse_status }}</span></td><td>{{ message.received_at }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="sec-empty">No recent mailbox messages.</p>
+    {% endif %}
+  </div>
+</section>
+
+<section class="sec-grid sec-two-col" style="margin-top: 12px;">
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Recent uploaded files</h2><span class="sec-badge">{{ recent_source_files|length }}</span></div>
+    {% if recent_source_files %}
+      <div class="sec-table-wrap">
+        <table class="sec-table">
+          <thead><tr><th>ID</th><th>Name</th><th>Source</th><th>Type</th><th>Status</th></tr></thead>
+          <tbody>
+            {% for file in recent_source_files %}
+              <tr><td>#{{ file.pk }}</td><td>{{ file.original_name }}</td><td>{{ file.source.name }}</td><td>{{ file.file_type }}</td><td><span class="sec-badge">{{ file.parse_status }}</span></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="sec-empty">No recent uploaded files.</p>
+    {% endif %}
+  </div>
+
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Parser/source status</h2><span class="sec-badge">Compact</span></div>
+    {% if source_configs or parser_configs %}
+      <div class="sec-table-wrap">
+        <table class="sec-table">
+          <thead><tr><th>Source</th><th>Parser</th><th>Status</th></tr></thead>
+          <tbody>
+            {% for source in source_configs %}
+              <tr><td>{{ source.name }}</td><td>{{ source.parser_name|default:"-" }}</td><td><span class="sec-badge {% if source.enabled %}ok{% else %}disabled{% endif %}">{% if source.enabled %}enabled{% else %}disabled{% endif %}</span></td></tr>
+            {% endfor %}
+            {% for parser in parser_configs %}
+              <tr><td>{{ parser.source_type|default:"Parser" }}</td><td>{{ parser.parser_name }}</td><td><span class="sec-badge {% if parser.enabled %}ok{% else %}disabled{% endif %}">{% if parser.enabled %}enabled{% else %}disabled{% endif %}</span></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="sec-empty">No parser or source configuration available.</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

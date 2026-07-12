@@ -1,0 +1,37 @@
+{% extends "security/base.html" %}
+{% load security_i18n %}
+
+{% block title %}Ticket | Security Center AI{% endblock %}
+{% block page_icon %}T{% endblock %}
+{% block page_marker %}Ticket remediation{% endblock %}
+{% block page_title %}Ticket / Remediation{% endblock %}
+
+{% block content %}
+<section class="sec-panel">
+  <div class="sec-section-head">
+    <h2>Ticket remediation</h2>
+    <span class="sec-badge">Totale {{ tickets|length }}</span>
+  </div>
+  <div class="sec-table-wrap">
+    <table class="sec-table">
+      <thead><tr><th>Stato</th><th>Severita</th><th>Titolo</th><th>CVE</th><th>Prodotto</th><th>Esposizione</th><th>Alert</th><th>Aggiornato</th></tr></thead>
+      <tbody>
+      {% for ticket in tickets %}
+        <tr>
+          <td><span class="sec-badge {{ ticket.status }}">{{ ticket.status|ui_label }}</span></td>
+          <td><span class="sec-badge {{ ticket.severity }}">{{ ticket.severity|ui_label }}</span></td>
+          <td class="sec-title-cell"><strong>{{ ticket.title }}</strong><small>{{ ticket.dedup_hash|slice:":12" }}</small></td>
+          <td>{% if ticket.cve_ids %}{{ ticket.cve_ids|join:", " }}{% else %}{{ ticket.cve|default:"-" }}{% endif %}</td>
+          <td>{{ ticket.affected_product|default:"-" }}</td>
+          <td>CVSS {{ ticket.max_cvss }} / {{ ticket.max_exposed_devices }} dispositivi / {{ ticket.occurrence_count }} occorrenze</td>
+          <td>{% if ticket.alert %}<a href="{% url 'security:alert_detail' ticket.alert.pk %}">{{ ticket.alert.title }}</a>{% else %}<span class="sec-muted">Nessuno</span>{% endif %}</td>
+          <td>{{ ticket.updated_at|date:"d M Y, H:i" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="8" class="sec-empty">Nessun ticket remediation.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

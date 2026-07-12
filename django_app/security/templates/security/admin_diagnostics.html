@@ -1,0 +1,162 @@
+{% extends "security/base.html" %}
+{% load security_i18n %}
+
+{% block title %}Diagnostica operativa | Security Center AI{% endblock %}
+{% block page_marker %}Diagnostica{% endblock %}
+{% block page_title %}Diagnostica operativa{% endblock %}
+{% block page_icon %}+{% endblock %}
+{% block content %}
+<section class="sec-panel">
+  <div class="sec-section-head">
+    <h2>Controllo salute</h2>
+    {% if diagnostics.status %}<span class="sec-badge {{ diagnostics.status }}">{{ diagnostics.status|ui_label }}</span>{% endif %}
+  </div>
+  <div class="sec-grid sec-three-col">
+    {% for card in health_cards %}
+      <div class="sec-card">
+        <div class="sec-section-head"><h2>{{ card.label }}</h2>{% if card.status %}<span class="sec-badge {{ card.status }}">{{ card.status|ui_label }}</span>{% endif %}</div>
+        <p class="sec-muted">{{ card.message|default:"Controllo non disponibile." }}</p>
+      </div>
+    {% empty %}
+      <p class="sec-empty">Nessun controllo salute disponibile.</p>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Diagnostica</h2></div>
+  <div class="sec-table-wrap">
+    <table class="sec-table">
+      <thead><tr><th>Stato</th><th>Controllo</th><th>Messaggio</th><th>Azione suggerita</th></tr></thead>
+      <tbody>
+        {% for check in diagnostics.checks %}
+          <tr><td><span class="sec-badge {{ check.status }}">{{ check.status|ui_label }}</span></td><td>{{ check.label }}</td><td>{{ check.message }}</td><td>{{ check.suggested_action|default:"-" }}</td></tr>
+        {% empty %}
+          <tr><td colspan="4" class="sec-empty">Nessun controllo diagnostico disponibile.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Diagnostica registro parser</h2></div>
+  <div class="sec-table-wrap">
+    <table class="sec-table">
+      <thead><tr><th>Parser</th><th>Configurato</th><th>Registro</th><th>Ultimo successo</th><th>Ultimo fallimento</th><th>Report</th><th>Avvisi</th><th>Errori</th><th>Flag</th></tr></thead>
+      <tbody>
+        {% for row in parser_diagnostics %}
+          <tr>
+            <td>{{ row.parser_name }}</td>
+            <td>{% if row.configured_enabled == None %}mancante{% elif row.configured_enabled %}attivo{% else %}disattivato{% endif %}</td>
+            <td>{% if row.exists_in_registry %}si{% else %}no{% endif %}</td>
+            <td>{% if row.last_successful_parse %}{{ row.last_successful_parse|date:"Y-m-d H:i" }}{% else %}-{% endif %}</td>
+            <td>{% if row.last_failed_parse %}{{ row.last_failed_parse|date:"Y-m-d H:i" }}{% else %}-{% endif %}</td>
+            <td>{{ row.report_count }}</td><td>{{ row.warning_count }}</td><td>{{ row.error_count }}</td>
+            <td>{% for flag in row.flags %}<span class="sec-badge warning">{{ flag }}</span> {% empty %}-{% endfor %}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="9" class="sec-empty">Nessun parser rilevato.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Matching sorgenti</h2></div>
+  <form method="post" class="sec-form-grid">
+    {% csrf_token %}
+    <label>Mittente<input type="email" name="sender" value="{{ source_match_result.sender|default:'' }}"></label>
+    <label>Oggetto<input type="text" name="subject" value="{{ source_match_result.subject|default:'' }}"></label>
+    <label>Corpo<textarea name="body" rows="3" placeholder="Incolla un corpo di esempio solo per matching temporaneo"></textarea></label>
+    <button class="sec-button sec-button-primary" type="submit">Test corrispondenza</button>
+  </form>
+  {% if source_match_result %}
+    <div class="sec-fact" style="margin-top:12px">
+      <span>Parser selezionato</span>
+      <strong>{{ source_match_result.selected_parser|default:"-" }}</strong>
+      <p class="sec-muted">{{ source_match_result.selected_reason|default:"Nessuna sorgente configurata corrisponde al campione." }}</p>
+    </div>
+    <div class="sec-table-wrap" style="margin-top:12px">
+      <table class="sec-table">
+        <thead><tr><th>Sorgente</th><th>Sorgente attiva</th><th>Parser</th><th>Parser attivo</th><th>Motivo</th></tr></thead>
+        <tbody>
+          {% for match in source_match_result.matching_sources %}
+            <tr><td>{{ match.source }}</td><td>{{ match.source_enabled|yesno:"si,no" }}</td><td>{{ match.selected_parser|default:"-" }}</td><td>{{ match.parser_enabled|yesno:"si,no" }}</td><td>{{ match.reason }}</td></tr>
+          {% empty %}
+            <tr><td colspan="5" class="sec-empty">Nessuna sorgente corrisponde al campione.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+</section>
+
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Diagnostica regole alert</h2></div>
+  <div class="sec-table-wrap">
+    <table class="sec-table">
+      <thead><tr><th>Regola</th><th>Stato</th><th>Severita</th><th>Ultimo trigger</th><th>Trigger</th><th>Cooldown</th><th>Dedup</th><th>Ticket</th><th>Evidenza</th><th>Flag</th></tr></thead>
+      <tbody>
+        {% for row in alert_rule_diagnostics.enabled %}{% include "security/partials/diagnostic_alert_rule_row.html" %}{% endfor %}
+        {% for row in alert_rule_diagnostics.disabled %}{% include "security/partials/diagnostic_alert_rule_row.html" %}{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Diagnostica soppressioni</h2></div>
+  <div class="sec-grid sec-three-col">
+    <div class="sec-fact"><span>Attive</span><strong>{{ suppression_diagnostics.active|length }}</strong></div>
+    <div class="sec-fact"><span>Scadute</span><strong>{{ suppression_diagnostics.expired|length }}</strong></div>
+    <div class="sec-fact"><span>Senza scadenza</span><strong>{{ suppression_diagnostics.without_expiration|length }}</strong></div>
+  </div>
+  <div class="sec-table-wrap">
+    <table class="sec-table">
+      <thead><tr><th>Regola</th><th>Severita</th><th>Responsabile</th><th>Scadenza</th><th>Occorrenze</th><th>Flag</th></tr></thead>
+      <tbody>
+        {% for row in suppression_diagnostics.top_by_hit_count %}
+          <tr><td>{{ row.rule.name }}</td><td>{{ row.rule.severity|default:"*" }}</td><td>{{ row.rule.owner|default:"-" }}</td><td>{% if row.rule.expires_at %}{{ row.rule.expires_at|date:"Y-m-d H:i" }}{% else %}-{% endif %}</td><td>{{ row.rule.hit_count }}</td><td>{% for flag in row.flags %}<span class="sec-badge warning">{{ flag }}</span> {% empty %}-{% endfor %}</td></tr>
+        {% empty %}
+          <tr><td colspan="6" class="sec-empty">Nessuna regola di soppressione configurata.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Diagnostica backup</h2></div>
+  <div class="sec-table-wrap"><table class="sec-table"><thead><tr><th>Job atteso</th><th>Attivo</th><th>Critico</th><th>Ultimo visto</th><th>Flag</th></tr></thead><tbody>
+    {% for row in backup_diagnostics.enabled_expected_jobs %}
+      <tr><td>{{ row.config.job_name }}</td><td>{{ row.config.enabled|yesno:"si,no" }}</td><td>{{ row.config.critical_asset|yesno:"si,no" }}</td><td>{% if row.last_seen %}{{ row.last_seen.created_at|date:"Y-m-d H:i" }} {{ row.last_seen.status }}{% else %}-{% endif %}</td><td>{% for flag in row.flags %}<span class="sec-badge warning">{{ flag }}</span> {% empty %}-{% endfor %}</td></tr>
+    {% empty %}
+      <tr><td colspan="5" class="sec-empty">Nessun job backup atteso attivo.</td></tr>
+    {% endfor %}
+  </tbody></table></div>
+</section>
+
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Diagnostica notifiche</h2></div>
+  <div class="sec-table-wrap"><table class="sec-table"><thead><tr><th>Canale</th><th>Tipo</th><th>Severita minima</th><th>Nuovo alert</th><th>Ticket</th><th>SLA</th><th>Destinazione</th><th>Flag</th></tr></thead><tbody>
+    {% for row in notification_diagnostics.enabled %}
+      <tr><td>{{ row.channel.name }}</td><td>{{ row.channel.channel_type }}</td><td>{{ row.channel.severity_min }}</td><td>{{ row.channel.notify_on_new_alert|yesno:"si,no" }}</td><td>{{ row.channel.notify_on_ticket_created|yesno:"si,no" }}</td><td>{{ row.channel.notify_on_sla_breach|yesno:"si,no" }}</td><td>{{ row.masked_destination }}</td><td>{% for flag in row.flags %}<span class="sec-badge warning">{{ flag }}</span> {% empty %}-{% endfor %}</td></tr>
+    {% empty %}
+      <tr><td colspan="8" class="sec-empty">Nessun canale notifica attivo.</td></tr>
+    {% endfor %}
+  </tbody></table></div>
+</section>
+
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Attivita recente</h2></div>
+  <div class="sec-table-wrap"><table class="sec-table"><thead><tr><th>Quando</th><th>Tipo</th><th>Titolo</th><th>Sorgente</th><th>Stato</th></tr></thead><tbody>
+    {% for item in recent_activity %}
+      <tr><td>{{ item.when|date:"Y-m-d H:i" }}</td><td>{{ item.type }}</td><td>{{ item.title }}</td><td>{{ item.source }}</td><td>{{ item.status }}</td></tr>
+    {% empty %}
+      <tr><td colspan="5" class="sec-empty">Nessuna attivita recente.</td></tr>
+    {% endfor %}
+  </tbody></table></div>
+</section>
+{% endblock %}

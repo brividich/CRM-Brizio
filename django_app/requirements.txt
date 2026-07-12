@@ -22,6 +22,7 @@ django-ninja==1.6.2       # via -r requirements.in
 django-picklefield==3.4.0  # via django-q2
 django-stubs-ext==6.0.6   # via django-ninja
 django-q2==1.9.0          # via -r requirements.in
+djangorestframework==3.17.1  # via -r requirements.in (app security / SC-AI)
 et-xmlfile==2.0.0         # via openpyxl
 idna==3.13                # via requests
 ldap3==2.9.1              # via -r requirements.in
