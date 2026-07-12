@@ -2608,6 +2608,168 @@ class SchedeSicurezzaRagLoaderTests(TestCase):
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SETUP_WIZARD_REQUIRED=False)
+class SuggestionCornerContextTests(TestCase):
+    """Tool live Suggestion Corner (Ondata 6.4): aggregati PDCA, scope reale del
+    modulo, guardrail anonimato (mai nomi, mai testo segnalazione, mai cliente)."""
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        from anagrafica.models import Reparto
+        from suggestion_corner.models import SuggestionCorner
+
+        cache.clear()
+        self.superuser = get_user_model().objects.create_superuser(
+            username="sms.admin", email="sms.admin@example.local", password="password"
+        )
+        self.plain_user = get_user_model().objects.create_user(
+            username="sms.plain", email="sms.plain@example.local", password="password"
+        )
+        self.reparto = Reparto.objects.get_or_create(nome="MONTAGGIO")[0]
+        oggi = timezone.localdate()
+
+        SuggestionCorner.objects.create(
+            opportunity="Migliorare illuminazione banco 3",
+            reparto_destinazione=self.reparto, stato_sms="SMS_SI",
+        )
+        SuggestionCorner.objects.create(
+            opportunity="Altra proposta", reparto_destinazione=self.reparto, stato_sms="SMS_NO",
+        )
+        # Anonima con un nome nel testo: NON deve mai trapelare dall'output aggregato.
+        SuggestionCorner.objects.create(
+            opportunity="MARIO_SEGRETO propone una pausa extra",
+            reparto_destinazione=self.reparto, anonima=True, stato_sms="DA_GESTIRE",
+            data_limite_esecuzione=oggi - timedelta(days=2), do_eseguito=False,
+        )
+        chiusa = SuggestionCorner.objects.create(
+            opportunity="Idea gia' chiusa", reparto_destinazione=self.reparto, stato_sms="SMS_SI",
+        )
+        # stato e' un FSMField protetto: si imposta via update() (come l'import storico).
+        SuggestionCorner.objects.filter(pk=chiusa.pk).update(stato="CHIUSA")
+
+    @staticmethod
+    def _suggestion_audit(context):
+        for entry in (context.audit or {}).get("tools", []):
+            if entry.get("tool") == "suggestion_summary":
+                return entry
+        return None
+
+    def test_wants_suggestion_gate_precision(self):
+        from ai_assistant.tools import _wants_suggestion_context
+
+        self.assertTrue(_wants_suggestion_context("mostra lo stato pdca dei suggerimenti"))
+        self.assertTrue(_wants_suggestion_context("quante segnalazioni sms aperte per reparto?"))
+        self.assertTrue(_wants_suggestion_context("a che punto e' il suggestion corner?"))
+        # Domini non pertinenti -> False
+        self.assertFalse(_wants_suggestion_context("apri un ticket per la stampante rotta"))
+        self.assertFalse(_wants_suggestion_context("riepilogo anomalie aperte"))
+        self.assertFalse(_wants_suggestion_context("mostra le mie ferie residue"))
+
+    def test_suggestion_context_aggregates_with_anonymity_guardrail(self):
+        request = SimpleNamespace(user=self.superuser, path="/assistente-ai/")
+
+        context = build_runtime_context(request, "mostra lo stato pdca delle segnalazioni sms")
+
+        self.assertIn("tool:suggestioni:riepilogo", context.sources)
+        self.assertIn("Stato PDCA", context.text)
+        self.assertIn("MONTAGGIO", context.text)  # reparto = dato organizzativo, ammesso
+        self.assertIn("DO scaduti 1", context.text)
+        # GUARDRAIL: nessun nome ne' testo di segnalazione nell'output aggregato
+        self.assertNotIn("MARIO_SEGRETO", context.text)
+        self.assertNotIn("illuminazione", context.text.lower())
+
+        audit = self._suggestion_audit(context)
+        self.assertIsNotNone(audit)
+        self.assertTrue(audit["allowed"])
+        self.assertEqual(audit["scope"], "team")
+        self.assertEqual(audit["row_count"], 4)
+
+    def test_suggestion_context_denies_anonymous(self):
+        from django.contrib.auth.models import AnonymousUser
+
+        request = SimpleNamespace(user=AnonymousUser(), path="/assistente-ai/")
+        context = build_runtime_context(request, "stato pdca segnalazioni sms")
+
+        self.assertIn("tool:suggestioni:accesso-negato", context.sources)
+        audit = self._suggestion_audit(context)
+        self.assertIsNotNone(audit)
+        self.assertFalse(audit["allowed"])
+        self.assertEqual(audit["reason"], "anonymous")
+
+    def test_suggestion_context_denies_unauthorized_user(self):
+        request = SimpleNamespace(user=self.plain_user, path="/assistente-ai/")
+        context = build_runtime_context(request, "stato pdca segnalazioni sms")
+
+        self.assertIn("tool:suggestioni:accesso-negato", context.sources)
+        audit = self._suggestion_audit(context)
+        self.assertIsNotNone(audit)
+        self.assertFalse(audit["allowed"])
+        self.assertNotIn("MONTAGGIO", context.text)
+
+
+class WorkorderLineExecutionModeTests(TestCase):
+    """Ondata 6.5 — la riga OdL del tool Assets espone interna/esterna + fornitore."""
+
+    def test_workorder_line_external_shows_supplier(self):
+        from ai_assistant.tools import _workorder_line
+
+        asset = SimpleNamespace(asset_tag="MZ5", name="Mazak")
+
+        class _WO:
+            asset = None
+            title = "Cambio guarnizioni"
+            status = "OPEN"
+            kind = "PREVENTIVE"
+            supplier_id = 7
+            supplier = SimpleNamespace(ragione_sociale="Ditta Rossi SRL")
+            opened_at = timezone.now()
+
+            def get_status_display(self):
+                return "Aperta"
+
+            def get_kind_display(self):
+                return "Preventiva"
+
+            def get_origin_display(self):
+                return "Periodica"
+
+        wo = _WO()
+        wo.asset = asset
+        line = _workorder_line(wo)
+        self.assertIn("esterna (Fornitore: Ditta Rossi SRL)", line)
+        self.assertIn("origine Periodica", line)
+
+    def test_workorder_line_internal_when_no_supplier(self):
+        from ai_assistant.tools import _workorder_line
+
+        asset = SimpleNamespace(asset_tag="TR2", name="Tornio")
+
+        class _WO:
+            asset = None
+            title = "Lubrificazione"
+            status = "OPEN"
+            kind = "PREVENTIVE"
+            supplier_id = None
+            supplier = None
+            opened_at = timezone.now()
+
+            def get_status_display(self):
+                return "Aperta"
+
+            def get_kind_display(self):
+                return "Preventiva"
+
+            def get_origin_display(self):
+                return "Manuale"
+
+        wo = _WO()
+        wo.asset = asset
+        line = _workorder_line(wo)
+        self.assertIn("interna", line)
+        self.assertNotIn("Fornitore", line)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SETUP_WIZARD_REQUIRED=False)
 class SgiRagLoaderTests(TestCase):
     """F1 — loader RAG del corpus documentale SGI (specifiche + procedure correnti).
 

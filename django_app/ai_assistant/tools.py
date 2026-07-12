@@ -129,6 +129,22 @@ RUNTIME_TOOL_CATALOG: tuple[RuntimeToolSpec, ...] = (
         ),
     ),
     RuntimeToolSpec(
+        key="suggestion_summary",
+        label="Suggestion Corner (SMS)",
+        domain="Miglioramento",
+        audit_tool="suggestion_summary",
+        source_prefix="tool:suggestioni",
+        status="enabled",
+        sample_prompt="a che punto sono le segnalazioni SMS del reparto montaggio?",
+        privacy_note=(
+            "Espone solo AGGREGATI del ciclo PDCA (conteggi per fase e classificazione SMS, "
+            "DO/CHECK scaduti, distribuzione per reparto). Scope reale del modulo "
+            "(visible_segnalazioni: il team SMS vede tutto, gli altri solo le proprie/assegnate). "
+            "MAI nomi (segnalatore/incaricato/controllore), MAI il testo della segnalazione, "
+            "MAI dati cliente; le segnalazioni anonime restano indistinguibili."
+        ),
+    ),
+    RuntimeToolSpec(
         key="dpi_summary",
         label="DPI",
         domain="DPI",
@@ -539,6 +555,7 @@ _RUNTIME_PRIORITY_BY_TOOL = {
     "tickets_summary": 60,
     "tasks_summary": 70,
     "anomalie_summary": 80,
+    "suggestion_summary": 82,
     "anagrafica_summary": 85,
     "skillmatrix": 86,
     "assenze_periodo": 90,
@@ -847,6 +864,26 @@ def _wants_contatori_context(prompt: str) -> bool:
         return True
     # Parola "debole" (stampe/copie/stampante...) solo con un'intenzione di volume/consumo.
     if any(keyword in text for keyword in _CONTATORI_WEAK_KEYWORDS) and _CONTATORI_INTENT_RE.search(text):
+        return True
+    return False
+
+
+# Suggestion Corner (SMS): "suggestion"/"pdca"/"suggeriment" sono inequivocabili;
+# "segnalazione"/"sms"/"miglioramento" qualificano solo con un'intenzione di
+# stato/conteggio (evita collisione con anomalie/incidenti che pure "segnalano").
+_SUGGESTION_STRONG_KEYWORDS = ("suggestion", "pdca", "suggeriment")
+_SUGGESTION_WEAK_KEYWORDS = ("segnalazion", "miglioram", "opportunit", "sms")
+_SUGGESTION_INTENT_RE = re.compile(
+    r"\b(stato|stati|fase|fasi|a che punto|quant[eio]|apert[ae]|chius[ae]|scadut[ae]|"
+    r"in ritardo|classific\w*|da gestire|plan|do|check|act|reparto|reparti)\b"
+)
+
+
+def _wants_suggestion_context(prompt: str) -> bool:
+    text = _norm_text(prompt)
+    if any(keyword in text for keyword in _SUGGESTION_STRONG_KEYWORDS):
+        return True
+    if any(keyword in text for keyword in _SUGGESTION_WEAK_KEYWORDS) and _SUGGESTION_INTENT_RE.search(text):
         return True
     return False
 
@@ -1234,7 +1271,18 @@ def _workorder_line(workorder) -> str:
     asset_label = f"{getattr(asset, 'asset_tag', 'N/D')} {getattr(asset, 'name', '')}".strip()
     status = workorder.get_status_display() if hasattr(workorder, "get_status_display") else str(getattr(workorder, "status", "N/D"))
     kind = workorder.get_kind_display() if hasattr(workorder, "get_kind_display") else str(getattr(workorder, "kind", "N/D"))
-    return f"- {asset_label}: {workorder.title}, {kind}, stato {status}, aperto {_short_datetime(workorder.opened_at)}"
+    # Interna/esterna (overhaul manutenzione): un OdL con fornitore = eseguito da ditta terza.
+    if getattr(workorder, "supplier_id", None):
+        forn = getattr(workorder.supplier, "ragione_sociale", "") or str(workorder.supplier)
+        esecuzione = f"esterna (Fornitore: {forn})"
+    else:
+        esecuzione = "interna"
+    origine = workorder.get_origin_display() if hasattr(workorder, "get_origin_display") else ""
+    origine_part = f", origine {origine}" if origine else ""
+    return (
+        f"- {asset_label}: {workorder.title}, {kind}, stato {status}, {esecuzione}{origine_part}, "
+        f"aperto {_short_datetime(workorder.opened_at)}"
+    )
 
 
 def _verification_line(verification) -> str:
@@ -1986,7 +2034,7 @@ def _assets_context(request, prompt: str) -> RuntimeContext:
         filters.append("scadenze<=30gg")
     deadline_rows = list(deadline_qs.order_by("due_date", "asset__asset_tag")[:15])
 
-    workorder_qs = WorkOrder.objects.filter(asset_id__in=asset_ids_qs).select_related("asset")
+    workorder_qs = WorkOrder.objects.filter(asset_id__in=asset_ids_qs).select_related("asset", "supplier")
     if re.search(r"\b(chius[ioe]|completat[ie])\b", text):
         workorder_qs = workorder_qs.filter(status=WorkOrder.STATUS_DONE)
         filters.append("odl=chiusi")
@@ -2340,6 +2388,157 @@ def _contatori_context(request, prompt: str) -> RuntimeContext:
             "scope": "flotta",
             "filtro": "aggregato",
             "row_count": len(classifica),
+        },
+    )
+
+
+_SUGGESTION_PERM_VIEW = "suggestion_corner.segnalazione.view"
+
+
+def _can_use_suggestion_runtime(request) -> tuple[bool, str]:
+    """Gate ACL del tool Suggestion Corner: permesso canonico
+    ``suggestion_corner.segnalazione.view``, bypass solo superuser/admin legacy.
+    Lo *scope dei dati* e' poi ristretto da ``visible_segnalazioni`` (team vs proprie).
+    """
+    user = getattr(request, "user", None)
+    if not getattr(user, "is_authenticated", False):
+        return False, "anonymous"
+    if getattr(user, "is_superuser", False):
+        return True, "superuser"
+
+    from core.acl_v2 import evaluate_permission_code_access
+    from core.legacy_utils import is_legacy_admin
+
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(user)
+    if legacy_user is not None:
+        request.legacy_user = legacy_user
+    if is_legacy_admin(legacy_user):
+        return True, "legacy_admin"
+
+    decision = evaluate_permission_code_access(
+        permission_code=_SUGGESTION_PERM_VIEW,
+        legacy_user=legacy_user,
+        django_user=user,
+        allow_superuser=True,
+        allow_legacy_admin=True,
+    )
+    if bool(decision.get("allowed")):
+        return True, "suggestion_view"
+    return False, "missing_suggestion_view"
+
+
+# Mappa stato PDCA -> macro-fase per il riepilogo aggregato.
+_SUGGESTION_PHASE_BUCKETS = (
+    ("Da classificare", ("INSERITA", "DA_CLASSIFICARE")),
+    ("Classificate", ("CLASSIFICATA",)),
+    ("Plan", ("PLAN_DEFINITO",)),
+    ("Do", ("DO_IN_CORSO", "DO_COMPLETATO")),
+    ("Check", ("CHECK_IN_CORSO", "CHECK_COMPLETATO")),
+    ("Act", ("ACT_INSERITO",)),
+    ("Chiuse", ("CHIUSA",)),
+)
+
+
+def _suggestion_context(request, prompt: str) -> RuntimeContext:
+    if not _should_run(request, "suggestioni", _wants_suggestion_context(prompt)):
+        return RuntimeContext()
+
+    allowed, reason = _can_use_suggestion_runtime(request)
+    if not allowed:
+        return RuntimeContext(
+            text=(
+                "DATI LIVE PORTALE - SUGGESTION CORNER (SMS)\n"
+                "Esito autorizzazione: negato. L'utente corrente non e' autorizzato al modulo "
+                "Suggestion Corner; non fornire dati su segnalazioni, stato PDCA o reparti."
+            ),
+            sources=("tool:suggestioni:accesso-negato",),
+            audit={"tool": "suggestion_summary", "allowed": False, "reason": reason},
+        )
+
+    from django.db.models import Count
+
+    from suggestion_corner.models import SuggestionCorner
+    from suggestion_corner.permissions import is_sms_team, visible_segnalazioni
+
+    qs = visible_segnalazioni(request.user)
+
+    # Filtro opzionale per reparto citato (provenienza O destinazione).
+    reparto_filter = _extract_reparto_filter(prompt)
+    filtro_label = "nessuno"
+    if reparto_filter:
+        qs = qs.filter(
+            Q(reparto_destinazione__nome__icontains=reparto_filter)
+            | Q(reparto_provenienza__nome__icontains=reparto_filter)
+            | Q(area_destinazione__nome__icontains=reparto_filter)
+            | Q(area_provenienza__nome__icontains=reparto_filter)
+        )
+        filtro_label = f"reparto/area contiene '{reparto_filter}'"
+
+    today = timezone.localdate()
+    total = qs.count()
+    if not total:
+        return RuntimeContext(
+            text=(
+                "DATI LIVE PORTALE - SUGGESTION CORNER (SMS)\n"
+                f"Filtro: {filtro_label}. Nessuna segnalazione nell'ambito visibile."
+            ),
+            sources=("tool:suggestioni:riepilogo",),
+            audit={"tool": "suggestion_summary", "allowed": True,
+                   "scope": "team" if is_sms_team(request.user) else "personale",
+                   "filtro": filtro_label, "row_count": 0},
+        )
+
+    # Conteggi per stato PDCA (aggregati, nessun dato personale ne' testo segnalazione).
+    stato_counts = {row["stato"]: row["n"] for row in qs.values("stato").annotate(n=Count("id"))}
+    phase_lines = []
+    for label, stati in _SUGGESTION_PHASE_BUCKETS:
+        n = sum(stato_counts.get(s, 0) for s in stati)
+        if n:
+            phase_lines.append(f"- {label}: {n}")
+    phase_block = "\n".join(phase_lines) or "- (nessuna fase valorizzata)"
+
+    # Classificazione SMS.
+    sms_counts = {row["stato_sms"]: row["n"] for row in qs.values("stato_sms").annotate(n=Count("id"))}
+    sms_labels = dict(SuggestionCorner.StatoSMS.choices)
+    sms_block = "\n".join(
+        f"- {sms_labels.get(k, k)}: {v}" for k, v in sms_counts.items()
+    ) or "- (nessuna)"
+
+    # Scaduti (aggregati).
+    do_scaduti = qs.filter(data_limite_esecuzione__lt=today, do_eseguito=False).count()
+    check_scaduti = qs.filter(data_limite_controllo__lt=today, check_eseguito=False).count()
+
+    # Distribuzione per reparto di destinazione (top, solo nomi reparto = organizzativo).
+    rep_rows = (
+        qs.values("reparto_destinazione__nome")
+        .annotate(n=Count("id"))
+        .order_by("-n")[:8]
+    )
+    rep_block = "\n".join(
+        f"- {r['reparto_destinazione__nome'] or '(non assegnato)'}: {r['n']}" for r in rep_rows
+    ) or "- (nessuna destinazione)"
+
+    aperte = total - stato_counts.get("CHIUSA", 0)
+
+    return RuntimeContext(
+        text=(
+            "DATI LIVE PORTALE - SUGGESTION CORNER (SMS)\n"
+            f"Filtro: {filtro_label}. Segnalazioni visibili: {total} (di cui {aperte} non chiuse).\n"
+            "ISTRUZIONE RISPOSTA: usa SOLO questi aggregati. NON citare nomi di persone "
+            "(segnalatore, incaricato, controllore), NON riportare il testo delle segnalazioni "
+            "ne' dati cliente: sono esclusi apposta (privacy/anonimato). Non inventare numeri.\n"
+            f"Stato PDCA:\n{phase_block}\n\n"
+            f"Classificazione SMS:\n{sms_block}\n\n"
+            f"In ritardo: DO scaduti {do_scaduti}, CHECK scaduti {check_scaduti}.\n\n"
+            f"Distribuzione per reparto di destinazione (top 8):\n{rep_block}"
+        ),
+        sources=("tool:suggestioni:riepilogo",),
+        audit={
+            "tool": "suggestion_summary",
+            "allowed": True,
+            "scope": "team" if is_sms_team(request.user) else "personale",
+            "filtro": filtro_label,
+            "row_count": total,
         },
     )
 
@@ -4178,6 +4377,7 @@ RUNTIME_TOOLS: tuple[RuntimeTool, ...] = (
     _anagrafica_context,
     _skillmatrix_context,
     _anomalie_context,
+    _suggestion_context,
     _procedure_context,
     _notizie_context,
     _sicurezza_context,
@@ -4361,6 +4561,12 @@ _DOMAIN_ROUTING_SEEDS: dict[str, tuple[str, ...]] = {
         "anomalie e non conformita' di produzione aperte",
         "segnalazioni RDC e pezzi recuperati",
         "stato delle anomalie in lavorazione",
+    ),
+    "suggestioni": (
+        "stato delle segnalazioni suggestion corner SMS",
+        "a che punto e' il ciclo PDCA dei suggerimenti di miglioramento",
+        "quante segnalazioni SMS aperte o chiuse per reparto",
+        "suggerimenti con DO o CHECK scaduti o in ritardo",
     ),
     "procedure": (
         "procedure e documenti da leggere e confermare",
