@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### SOC IT - CN - Security Center sotto-progetto C: tool live nell'assistente AI
+
+- **[feat/test] `ai_assistant/tools.py`, `security/tests_soc.py`**: tool live **`soc_summary`** nell'assistente AI (Ollama) — espone AGGREGATI del Security Center (alert aperti/critici/alti, ticket remediation aperti, CVE critiche, report di oggi): **solo conteggi**, nessun titolo/hostname/IP/asset (privacy). Gate ACL `security.dashboard.view` (bypass superuser/admin). Keyword IT-security disambiguate dalla sicurezza-sul-lavoro. Convergenza AI: dati security nell'assistente unico dell'HUB. 3 test (`SocAiToolTest`). Nessuna migrazione.
+
 ### SOC IT - CN - Security Center AI fase B4: test di regressione dell'innesto
 
 - **[test] `security/tests_soc.py` [nuovo]**: 12 test scoped sull'innesto SOC IT - CN (pagine `/soc/` render 200, pipeline sincrona, Configuration Studio, i 2 task `django-q2` puri). **Non** è la suite SC-AI completa (che testa anche funzioni non ancora montate e contiene fixture con **segreti sintetici** bloccati dall'hook pre-commit) → riportata separatamente in futuro. Lavoro spostato su **branch dedicato `feat/soc-security-b4`** per isolarlo da una sessione parallela sul modulo `ai_assistant`.
