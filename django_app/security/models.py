@@ -284,6 +284,13 @@ class SecurityAsset(models.Model):
     ip_address = models.GenericIPAddressField(null=True, blank=True, db_index=True)
     asset_type = models.CharField(max_length=80, blank=True)
     owner = models.CharField(max_length=120, blank=True)
+    hub_asset = models.ForeignKey(
+        "assets.Asset",
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="security_assets",
+        help_text="Asset del registro HUB collegato (match ip_address↔endpoint IP / hostname↔nome).",
+    )
     metadata = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
