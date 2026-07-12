@@ -238,6 +238,16 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # KICK-OFF — sollecito ai responsabili sui «problemi aperti» degli incontri
+        # scaduti (MeetingIssue OPEN con due_date passata). Email + notifica in-app.
+        "name": "tasks_meeting_issue_reminders",
+        "func": "tasks.tasks.run_meeting_issue_reminders",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "0 7 * * 1",        # ogni lunedi alle 07:00
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # GESTIONE SPECIFICHE — reminder 7gg sui MOD.133 non presi in carico.
         # Timer in pausa per le specifiche sospese/in errore (gestito nel job).
         "name": "gestione_specifiche_reminder",

@@ -214,6 +214,7 @@ def send_hub_mail(
     from_email: str | None = None,
     connection=None,
     attachments: list | None = None,
+    cc: list[str] | Sequence[str] | None = None,
     fail_silently: bool = False,
 ) -> int:
     """
@@ -223,6 +224,7 @@ def send_hub_mail(
                         Se omesso, body_text viene convertito automaticamente in HTML.
     attachments: lista opzionale di tuple ``(filename, content, mimetype)`` allegate
                  al messaggio (es. un invito calendario .ics).
+    cc: lista opzionale di indirizzi in copia conoscenza.
     """
     if not from_email:
         from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "") or None
@@ -243,6 +245,7 @@ def send_hub_mail(
         body=body_text,
         from_email=from_email,
         to=list(recipients),
+        cc=list(cc) if cc else None,
         connection=connection,
     )
     msg.attach_alternative(html_body, "text/html")
