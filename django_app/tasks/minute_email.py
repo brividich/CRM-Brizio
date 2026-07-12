@@ -173,6 +173,57 @@ def build_minute_pdf(meeting) -> bytes:
     return buffer.getvalue()
 
 
+def build_meeting_ics(meeting) -> bytes:
+    """Genera un invito calendario .ics (VEVENT) per l'incontro."""
+    from datetime import datetime, timedelta
+
+    from django.utils import timezone
+
+    def _dt(value) -> datetime | None:
+        if isinstance(value, datetime):
+            return value
+        return None
+
+    # DTSTART/DTEND: se c'è l'ora → evento a orario, altrimenti giornata intera (VALUE=DATE)
+    data = meeting.data
+    ora = meeting.ora
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//NOVICROM HUB//KICK-OFF//IT",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        "BEGIN:VEVENT",
+        f"UID:kickoff-meeting-{meeting.pk}@novicrom-hub",
+        f"DTSTAMP:{timezone.now().strftime('%Y%m%dT%H%M%SZ')}",
+    ]
+    if ora is not None and hasattr(data, "strftime"):
+        start = f"{data.strftime('%Y%m%d')}T{ora.strftime('%H%M%S')}"
+        try:
+            end_dt = datetime.combine(data, ora) + timedelta(hours=1)
+            end = end_dt.strftime("%Y%m%dT%H%M%S")
+        except Exception:
+            end = start
+        lines += [f"DTSTART:{start}", f"DTEND:{end}"]
+    elif hasattr(data, "strftime"):
+        lines += [f"DTSTART;VALUE=DATE:{data.strftime('%Y%m%d')}"]
+    else:
+        lines += [f"DTSTART;VALUE=DATE:{str(data).replace('-', '')}"]
+
+    kickoff = getattr(meeting.project, "kickoff_number", "") or ""
+    summary = f"KICK-OFF {kickoff} — Incontro {meeting.numero}"
+    if (meeting.titolo or "").strip():
+        summary += f": {meeting.titolo.strip()}"
+    lines += [
+        f"SUMMARY:{summary}",
+        f"LOCATION:{(meeting.luogo or '').strip()}",
+        f"DESCRIPTION:{(meeting.ordine_del_giorno or '').strip().replace(chr(10), ' ')}",
+        "END:VEVENT",
+        "END:VCALENDAR",
+    ]
+    return ("\r\n".join(lines) + "\r\n").encode("utf-8")
+
+
 def _cc_management(meeting, exclude: list[str]) -> list[str]:
     """Email di PM e capo commessa del progetto, escludendo chi è già destinatario."""
     cc: list[str] = []
@@ -234,6 +285,12 @@ def send_meeting_invite(meeting, *, sent_by=None) -> dict:
 
     subject, body_text, body_html = build_invite_email(meeting)
     cc = _cc_management(meeting, exclude=recipients)
+    attachments = None
+    try:
+        ics = build_meeting_ics(meeting)
+        attachments = [("convocazione-incontro.ics", ics, "text/calendar")]
+    except Exception:
+        attachments = None  # .ics opzionale: un errore non blocca l'invio
     sent_count = send_hub_mail(
         subject,
         body_text,
@@ -242,6 +299,7 @@ def send_meeting_invite(meeting, *, sent_by=None) -> dict:
         title=f"Convocazione incontro KICK-OFF {getattr(meeting.project, 'kickoff_number', '') or ''}",
         email_type="VRF - KICK-OFF",
         body_html_fragment=body_html,
+        attachments=attachments,
         fail_silently=False,
     )
     if not sent_count:

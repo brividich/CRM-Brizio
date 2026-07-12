@@ -4530,6 +4530,47 @@ def execute_action(
             )
             return {"status": status, "result_message": result_message, "action_log": action_log}
 
+        if action.action_type == AutomationActionType.SEND_PROJECT_ALERT:
+            from tasks.models import Project
+            from tasks.project_alerts import send_project_alert
+
+            pk_field = str((source_definition or {}).get("pk_field") or "id")
+            project_id = payload_context.get(pk_field)
+            if project_id is None:
+                raise ValueError("send_project_alert: ID progetto non trovato nel payload.")
+
+            project = Project.objects.filter(pk=project_id).first()
+            if project is None:
+                result_message = f"send_project_alert: progetto id={project_id} inesistente."
+                action_log = _create_action_log(
+                    run_log=run_log,
+                    action=action,
+                    status=AutomationActionLogStatus.SKIPPED,
+                    result_message=result_message,
+                )
+                return {"status": AutomationActionLogStatus.SKIPPED, "result_message": result_message, "action_log": action_log}
+
+            kind = str(config.get("alert") or "safety").strip()
+            extra_to = config.get("extra_to")
+            outcome = send_project_alert(project, kind, extra_to=extra_to)
+            if outcome["sent"]:
+                result_message = (
+                    f"Alert '{kind}' KICK-OFF {getattr(project, 'kickoff_number', '')} "
+                    f"inviato a {', '.join(outcome['recipients'])}."
+                )
+                status = AutomationActionLogStatus.SUCCESS
+            else:
+                result_message = f"Alert '{kind}' non inviato (motivo: {outcome['reason']})."
+                status = AutomationActionLogStatus.SKIPPED
+
+            action_log = _create_action_log(
+                run_log=run_log,
+                action=action,
+                status=status,
+                result_message=result_message,
+            )
+            return {"status": status, "result_message": result_message, "action_log": action_log}
+
         if action.action_type == AutomationActionType.TEAMS_WEBHOOK:
             webhook_url = str(_render_action_value(config.get("webhook_url"), payload_context) or "").strip()
             if not webhook_url:

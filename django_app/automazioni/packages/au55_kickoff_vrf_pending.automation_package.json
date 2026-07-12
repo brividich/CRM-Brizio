@@ -1,0 +1,55 @@
+{
+  "package_version": "2026.07",
+  "input": {
+    "flow_name": "AU55 - KICK-OFF in esecuzione con VRF non caricato: alert"
+  },
+  "source_candidate": {
+    "source_code": "tasks_project",
+    "label": "Progetti KICK-OFF"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "tasks_project"
+  },
+  "proposed_rules": [
+    {
+      "code": "au55-kickoff-vrf-pending",
+      "name": "AU55 - KICK-OFF in esecuzione con VRF non caricato: alert",
+      "description": "Quando un progetto passa alla fase EXEC (in esecuzione) ma il documento VRF (MOD.073) risulta ancora PENDING (da caricare), invia una email di allerta a PM e capo commessa: il VRF va caricato/approvato prima di avviare i lavori. Fail-closed sulla sicurezza. Importata come bozza: rivedere ed attivare dal designer.",
+      "source_code": "tasks_project",
+      "operation_type": "update",
+      "trigger_scope": "specific_field",
+      "watched_field": "phase",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "phase",
+          "operator": "changed_to",
+          "value": "EXEC",
+          "value_type": "string"
+        },
+        {
+          "field": "vrf_status",
+          "operator": "equals",
+          "value": "PENDING",
+          "value_type": "string"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "send_project_alert",
+          "description": "Alert VRF non caricato a PM/capo commessa",
+          "alert": "vrf_pending",
+          "extra_to": ""
+        }
+      ]
+    }
+  ]
+}

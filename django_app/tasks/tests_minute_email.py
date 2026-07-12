@@ -78,10 +78,21 @@ class MinuteEmailTests(TestCase):
         self.assertIn("Presentazione", body_html)  # ordine del giorno
         self.assertNotIn("Riunione conclusa", body_html)  # niente verbale
 
-    def test_send_meeting_invite_sends(self):
+    def test_send_meeting_invite_sends_with_ics(self):
         result = send_meeting_invite(self.meeting)
         self.assertTrue(result["sent"])
         self.assertEqual(len(mail.outbox), 1)
+        # .ics allegato
+        self.assertTrue(any(att[2] == "text/calendar" for att in mail.outbox[0].attachments))
+
+    def test_build_meeting_ics_is_valid_vevent(self):
+        from tasks.minute_email import build_meeting_ics
+
+        ics = build_meeting_ics(self.meeting).decode("utf-8")
+        self.assertIn("BEGIN:VCALENDAR", ics)
+        self.assertIn("BEGIN:VEVENT", ics)
+        self.assertIn("SUMMARY:", ics)
+        self.assertIn("DTSTART", ics)
 
     def test_create_tasks_from_next_steps_dedup(self):
         n1 = create_tasks_from_next_steps(self.meeting)
