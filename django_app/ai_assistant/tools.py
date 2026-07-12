@@ -145,6 +145,21 @@ RUNTIME_TOOL_CATALOG: tuple[RuntimeToolSpec, ...] = (
         ),
     ),
     RuntimeToolSpec(
+        key="schede_sicurezza_summary",
+        label="Schede di Sicurezza (SDS)",
+        domain="Sicurezza",
+        audit_tool="schede_sicurezza_summary",
+        source_prefix="tool:schede_sicurezza",
+        status="enabled",
+        sample_prompt="qual e' la scheda di sicurezza corrente dell'acetone e quante prese visione ha?",
+        privacy_note=(
+            "STATO/metadati delle schede di sicurezza correnti (prodotto, reparto, versione, "
+            "scadenza >36 mesi, classificazione CLP, DPI, CONTEGGIO prese visione). Gated dal "
+            "permesso canonico ACL v2 'schede_sicurezza.prodotto.view'. Le prese visione sono "
+            "esposte SOLO come conteggio: MAI i nomi degli operatori (il named list resta nel modulo)."
+        ),
+    ),
+    RuntimeToolSpec(
         key="dpi_summary",
         label="DPI",
         domain="DPI",
@@ -546,6 +561,7 @@ _RUNTIME_PRIORITY_BY_TOOL = {
     "runtime_router": 0,
     "sicurezza_summary": 10,
     "rischi_mansione": 12,
+    "schede_sicurezza_summary": 14,
     "notizie_summary": 20,
     "procedure_refresh_summary": 30,
     "dpi_summary": 40,
@@ -877,6 +893,28 @@ _SUGGESTION_INTENT_RE = re.compile(
     r"\b(stato|stati|fase|fasi|a che punto|quant[eio]|apert[ae]|chius[ae]|scadut[ae]|"
     r"in ritardo|classific\w*|da gestire|plan|do|check|act|reparto|reparti)\b"
 )
+
+
+def _wants_schede_sicurezza_context(prompt: str) -> bool:
+    """Domande su STATO/metadati delle schede di sicurezza (SDS) dei prodotti chimici.
+
+    NB: e' complementare al RAG SDS (6.2, che risponde sul CONTENUTO della scheda):
+    qui rispondiamo su versione corrente, scadenza e conteggio prese visione.
+    """
+    text = _norm_text(prompt)
+    if "sds" in text or "prodotto chimico" in text or "prodotti chimici" in text:
+        return True
+    if "chimic" in text and ("sostanz" in text or "prodott" in text):
+        return True
+    # "scheda/e di sicurezza": serve sia "scheda" sia "sicurezza"/"chimic".
+    if ("scheda" in text or "schede" in text) and ("sicurezza" in text or "chimic" in text):
+        return True
+    # prese visione / scadenza NEL contesto schede.
+    if ("presa visione" in text or "prese visione" in text or "scadut" in text) and (
+        "scheda" in text or "schede" in text or "sds" in text or "chimic" in text
+    ):
+        return True
+    return False
 
 
 def _wants_suggestion_context(prompt: str) -> bool:
@@ -2539,6 +2577,140 @@ def _suggestion_context(request, prompt: str) -> RuntimeContext:
             "scope": "team" if is_sms_team(request.user) else "personale",
             "filtro": filtro_label,
             "row_count": total,
+        },
+    )
+
+
+_SCHEDE_PERM_VIEW = "schede_sicurezza.prodotto.view"
+
+
+def _can_use_schede_sicurezza_runtime(request) -> tuple[bool, str]:
+    """Gate ACL del tool Schede di Sicurezza: permesso canonico
+    ``schede_sicurezza.prodotto.view``, bypass solo superuser/admin legacy."""
+    user = getattr(request, "user", None)
+    if not getattr(user, "is_authenticated", False):
+        return False, "anonymous"
+    if getattr(user, "is_superuser", False):
+        return True, "superuser"
+
+    from core.acl_v2 import evaluate_permission_code_access
+    from core.legacy_utils import is_legacy_admin
+
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(user)
+    if legacy_user is not None:
+        request.legacy_user = legacy_user
+    if is_legacy_admin(legacy_user):
+        return True, "legacy_admin"
+
+    decision = evaluate_permission_code_access(
+        permission_code=_SCHEDE_PERM_VIEW,
+        legacy_user=legacy_user,
+        django_user=user,
+        allow_superuser=True,
+        allow_legacy_admin=True,
+    )
+    if bool(decision.get("allowed")):
+        return True, "schede_view"
+    return False, "missing_schede_view"
+
+
+def _schede_sicurezza_context(request, prompt: str) -> RuntimeContext:
+    if not _should_run(request, "schede_sicurezza", _wants_schede_sicurezza_context(prompt)):
+        return RuntimeContext()
+
+    allowed, reason = _can_use_schede_sicurezza_runtime(request)
+    if not allowed:
+        return RuntimeContext(
+            text=(
+                "DATI LIVE PORTALE - SCHEDE DI SICUREZZA\n"
+                "Esito autorizzazione: negato. L'utente corrente non e' autorizzato al modulo "
+                "Schede di Sicurezza; non fornire dati su schede, prodotti chimici o prese visione."
+            ),
+            sources=("tool:schede_sicurezza:accesso-negato",),
+            audit={"tool": "schede_sicurezza_summary", "allowed": False, "reason": reason},
+        )
+
+    from django.db.models import Count
+
+    from schede_sicurezza.models import SCADENZA_SDS_GIORNI, SchedaSicurezza
+
+    text = _norm_text(prompt)
+    soglia = timezone.now() - timedelta(days=SCADENZA_SDS_GIORNI)
+
+    base_qs = (
+        SchedaSicurezza.objects.filter(is_corrente=True)
+        .select_related("prodotto", "prodotto__reparto")
+        .annotate(n_visioni=Count("prese_visione"))
+    )
+    tot_correnti = base_qs.count()
+    if not tot_correnti:
+        return RuntimeContext(
+            text=(
+                "DATI LIVE PORTALE - SCHEDE DI SICUREZZA\n"
+                "Nessuna scheda di sicurezza corrente registrata."
+            ),
+            sources=("tool:schede_sicurezza:riepilogo",),
+            audit={"tool": "schede_sicurezza_summary", "allowed": True, "scope": "modulo",
+                   "filtro": "nessun_dato", "row_count": 0},
+        )
+
+    n_scadute = base_qs.filter(data_caricamento__lt=soglia).count()
+    n_senza_visioni = base_qs.filter(n_visioni=0).count()
+
+    schede = list(base_qs.order_by("prodotto__reparto__nome", "prodotto__nome"))
+    filtro_parts: list[str] = []
+
+    # Filtro per prodotto citato nel prompt (nome prodotto contenuto nella domanda).
+    cited = [
+        s for s in schede
+        if len(_norm_text(s.prodotto.nome)) >= 3 and _norm_text(s.prodotto.nome) in text
+    ]
+    if cited:
+        schede = cited
+        filtro_parts.append("prodotto citato")
+
+    # Filtro "solo scadute / da rivedere".
+    if re.search(r"\b(scadut\w*|da rivedere|da aggiornare|vecchi\w*)\b", text):
+        schede = [s for s in schede if s.data_caricamento and s.data_caricamento < soglia]
+        filtro_parts.append("solo scadute")
+
+    schede = schede[:20]
+    filtro = "+".join(filtro_parts) or "tutte"
+
+    def _riga(s) -> str:
+        rep = getattr(s.prodotto.reparto, "nome", "") or "—"
+        ver = (s.versione or "?").strip()
+        is_scaduta = bool(s.data_caricamento and s.data_caricamento < soglia)
+        scad = "SCADUTA (>36 mesi)" if is_scaduta else "valida"
+        clp = (s.classificazione_clp or "").strip()[:120]
+        dpi = (s.dpi_testo or "").strip()[:160]
+        extra = ""
+        if clp:
+            extra += f"; CLP: {clp}"
+        if dpi:
+            extra += f"; DPI: {dpi}"
+        return f"- {s.prodotto.nome} [{rep}]: v.{ver}, {scad}, {s.n_visioni} prese visione{extra}"
+
+    righe = "\n".join(_riga(s) for s in schede) if schede else "Nessuna scheda corrispondente ai filtri."
+
+    return RuntimeContext(
+        text=(
+            "DATI LIVE PORTALE - SCHEDE DI SICUREZZA\n"
+            f"Schede correnti: {tot_correnti} (di cui {n_scadute} scadute >36 mesi, "
+            f"{n_senza_visioni} senza alcuna presa visione).\n"
+            f"Filtro: {filtro}. Schede mostrate: {len(schede)}.\n"
+            "ISTRUZIONE RISPOSTA: usa SOLO questi dati (prodotto, reparto, versione, scadenza, "
+            "classificazione CLP, DPI, NUMERO di prese visione). Le prese visione sono un CONTEGGIO: "
+            "NON esistono qui i nomi degli operatori, non inventarli e non dedurli. Non inventare dati.\n"
+            f"{righe}"
+        ),
+        sources=("tool:schede_sicurezza:riepilogo",),
+        audit={
+            "tool": "schede_sicurezza_summary",
+            "allowed": True,
+            "scope": "modulo",
+            "filtro": filtro,
+            "row_count": len(schede),
         },
     )
 
@@ -4378,6 +4550,7 @@ RUNTIME_TOOLS: tuple[RuntimeTool, ...] = (
     _skillmatrix_context,
     _anomalie_context,
     _suggestion_context,
+    _schede_sicurezza_context,
     _procedure_context,
     _notizie_context,
     _sicurezza_context,
@@ -4567,6 +4740,12 @@ _DOMAIN_ROUTING_SEEDS: dict[str, tuple[str, ...]] = {
         "a che punto e' il ciclo PDCA dei suggerimenti di miglioramento",
         "quante segnalazioni SMS aperte o chiuse per reparto",
         "suggerimenti con DO o CHECK scaduti o in ritardo",
+    ),
+    "schede_sicurezza": (
+        "scheda di sicurezza corrente di un prodotto chimico",
+        "quali schede di sicurezza sono scadute o da rivedere",
+        "versione e classificazione CLP della scheda di un prodotto",
+        "quante prese visione ha la scheda di sicurezza di un prodotto",
     ),
     "procedure": (
         "procedure e documenti da leggere e confermare",

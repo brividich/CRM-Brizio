@@ -2770,6 +2770,96 @@ class WorkorderLineExecutionModeTests(TestCase):
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SETUP_WIZARD_REQUIRED=False)
+class SchedeSicurezzaContextTests(TestCase):
+    """Tool live Schede di Sicurezza (Ondata 6.3): stato/metadati delle schede
+    correnti, prese visione come CONTEGGIO (mai i nomi), gate ACL prodotto.view."""
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        from anagrafica.models import Reparto
+        from schede_sicurezza.models import PresaVisioneScheda, ProdottoChimico, SchedaSicurezza
+
+        cache.clear()
+        self.superuser = get_user_model().objects.create_superuser(
+            username="sds.admin", email="sds.admin@example.local", password="password"
+        )
+        self.plain_user = get_user_model().objects.create_user(
+            username="sds.plain", email="sds.plain@example.local", password="password"
+        )
+        # Operatore che ha preso visione: il suo nome NON deve mai comparire nell'output.
+        self.operatore = get_user_model().objects.create_user(
+            username="pinco.segreto", email="pinco.segreto@example.local", password="password"
+        )
+
+        reparto = Reparto.objects.get_or_create(nome="VERNICIATURA")[0]
+        prodotto = ProdottoChimico.objects.create(
+            nome="Diluente Nitro", fornitore="ACME", reparto=reparto
+        )
+        self.scheda = SchedaSicurezza.objects.create(
+            prodotto=prodotto, pdf="schede/d.pdf", versione="4", is_corrente=True,
+            classificazione_clp="Liquido infiammabile Cat. 2", dpi_testo="Guanti nitrile, occhiali",
+            estrazione_stato="ok",
+        )
+        PresaVisioneScheda.objects.create(scheda=self.scheda, operatore=self.operatore)
+
+    @staticmethod
+    def _schede_audit(context):
+        for entry in (context.audit or {}).get("tools", []):
+            if entry.get("tool") == "schede_sicurezza_summary":
+                return entry
+        return None
+
+    def test_wants_schede_gate_precision(self):
+        from ai_assistant.tools import _wants_schede_sicurezza_context
+
+        self.assertTrue(_wants_schede_sicurezza_context("qual e' la scheda di sicurezza del diluente?"))
+        self.assertTrue(_wants_schede_sicurezza_context("quali schede sds sono scadute?"))
+        self.assertTrue(_wants_schede_sicurezza_context("mostra i prodotti chimici e le prese visione"))
+        # Non pertinenti -> False (kpi sicurezza != scheda di sicurezza)
+        self.assertFalse(_wants_schede_sicurezza_context("mostra kpi sicurezza incidenti"))
+        self.assertFalse(_wants_schede_sicurezza_context("mostra le mie ferie residue"))
+
+    def test_schede_context_aggregates_without_operator_names(self):
+        request = SimpleNamespace(user=self.superuser, path="/assistente-ai/")
+
+        context = build_runtime_context(request, "qual e' la scheda di sicurezza del diluente nitro?")
+
+        self.assertIn("tool:schede_sicurezza:riepilogo", context.sources)
+        self.assertIn("Diluente Nitro", context.text)
+        self.assertIn("VERNICIATURA", context.text)
+        self.assertIn("1 prese visione", context.text)
+        # GUARDRAIL: mai il nome dell'operatore che ha preso visione
+        self.assertNotIn("pinco", context.text.lower())
+
+        audit = self._schede_audit(context)
+        self.assertIsNotNone(audit)
+        self.assertTrue(audit["allowed"])
+
+    def test_schede_context_denies_anonymous(self):
+        from django.contrib.auth.models import AnonymousUser
+
+        request = SimpleNamespace(user=AnonymousUser(), path="/assistente-ai/")
+        context = build_runtime_context(request, "quali schede di sicurezza sono scadute?")
+
+        self.assertIn("tool:schede_sicurezza:accesso-negato", context.sources)
+        audit = self._schede_audit(context)
+        self.assertIsNotNone(audit)
+        self.assertFalse(audit["allowed"])
+        self.assertEqual(audit["reason"], "anonymous")
+
+    def test_schede_context_denies_unauthorized_user(self):
+        request = SimpleNamespace(user=self.plain_user, path="/assistente-ai/")
+        context = build_runtime_context(request, "quali schede di sicurezza sono scadute?")
+
+        self.assertIn("tool:schede_sicurezza:accesso-negato", context.sources)
+        audit = self._schede_audit(context)
+        self.assertIsNotNone(audit)
+        self.assertFalse(audit["allowed"])
+        self.assertNotIn("Diluente Nitro", context.text)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SETUP_WIZARD_REQUIRED=False)
 class SgiRagLoaderTests(TestCase):
     """F1 — loader RAG del corpus documentale SGI (specifiche + procedure correnti).
 
