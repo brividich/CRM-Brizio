@@ -48,6 +48,14 @@ class PercorsoRenderTests(TestCase):
         # il pannello di aggancio kickoff è presente (task sempre dentro un kickoff)
         self.assertIn("Aggancio e anagrafica kickoff", body)
 
+    def test_portfolio_page_renders(self):
+        from tasks.models import Project
+
+        Project.objects.create(name="", created_by=self.admin, client_name="ACME", part_number="PN1")
+        resp = self.client.get(reverse("tasks:project_list"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("pf-card", resp.content.decode("utf-8"))
+
     def test_vrf_forms_render_lifecycle_stepper(self):
         from tasks.models import Project
 

@@ -10,18 +10,18 @@
   }
 
   .pf-card {
-    border: 1px solid var(--ts-border);
+    border: 1px solid var(--border);
     border-radius: 20px;
-    background: #fff;
+    background: var(--surface);
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 2px 12px rgba(15,23,42,.05);
+    box-shadow: var(--shadow);
     transition: box-shadow .18s ease, transform .18s ease;
   }
 
   .pf-card:hover {
-    box-shadow: 0 12px 36px rgba(15,23,42,.12);
+    box-shadow: 0 12px 36px rgba(0,0,0,.12);
     transform: translateY(-3px);
   }
 
@@ -36,7 +36,7 @@
     padding: 14px 18px 12px;
   }
 
-  /* Gradient backgrounds per VRF status */
+  /* Gradient backgrounds per VRF status (decorativi, testo bianco in entrambi i temi) */
   .pf-card-cover.ok {
     background: linear-gradient(135deg, #064e3b 0%, #065f46 40%, #059669 100%);
   }
@@ -143,10 +143,11 @@
     opacity: .65;
   }
 
+  /* P/N resta indigo (colore identità senza token dedicato); rev/ver/client su token */
   .pf-chip.pn     { background: #eef2ff; border-color: #c7d2fe; color: #3730a3; }
-  .pf-chip.rev    { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
-  .pf-chip.ver    { background: #fff7ed; border-color: #fed7aa; color: #9a3412; }
-  .pf-chip.client { background: #f8fafc; border-color: #e2e8f0; color: #475569; }
+  .pf-chip.rev    { background: var(--success-bg); border-color: transparent; color: var(--success); }
+  .pf-chip.ver    { background: var(--accent-light); border-color: transparent; color: var(--accent); }
+  .pf-chip.client { background: var(--surface-alt); border-color: var(--border); color: var(--text-light); }
 
   /* ── Progress bar ── */
   .pf-progress { display: grid; gap: 6px; }
@@ -156,27 +157,27 @@
     justify-content: space-between;
     align-items: center;
     font-size: 11px;
-    color: #64748b;
+    color: var(--text-light);
     font-weight: 700;
   }
 
   .pf-progress-pct {
     font-weight: 900;
-    color: #0f172a;
+    color: var(--text);
     font-size: 12px;
   }
 
   .pf-progress-bar {
     height: 7px;
     border-radius: 999px;
-    background: #e2e8f0;
+    background: var(--border);
     overflow: hidden;
   }
 
   .pf-progress-fill {
     height: 100%;
     border-radius: 999px;
-    background: linear-gradient(90deg, #34d399 0%, #3b82f6 100%);
+    background: linear-gradient(90deg, var(--success) 0%, var(--primary-mid) 100%);
     transition: width .5s cubic-bezier(.22,1,.36,1);
   }
 
@@ -192,7 +193,7 @@
     gap: 4px;
     font-size: 11px;
     font-weight: 700;
-    color: #475569;
+    color: var(--text-mid);
   }
 
   .pf-count-dot {
@@ -202,9 +203,9 @@
     flex-shrink: 0;
   }
 
-  .pf-count-dot.total { background: #94a3b8; }
-  .pf-count-dot.open  { background: #3b82f6; }
-  .pf-count-dot.done  { background: #22c55e; }
+  .pf-count-dot.total { background: var(--text-light); }
+  .pf-count-dot.open  { background: var(--primary-mid); }
+  .pf-count-dot.done  { background: var(--success); }
 
   /* ── VRF row ── */
   .pf-vrf-row {
@@ -214,8 +215,8 @@
     gap: 8px;
     padding: 9px 12px;
     border-radius: 12px;
-    border: 1px solid var(--ts-border);
-    background: #f8fafc;
+    border: 1px solid var(--border);
+    background: var(--surface-alt);
     font-size: 11px;
     font-weight: 700;
   }
@@ -224,7 +225,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    color: #64748b;
+    color: var(--text-light);
   }
 
   .pf-vrf-dot {
@@ -233,17 +234,17 @@
     border-radius: 999px;
     flex-shrink: 0;
   }
-  .pf-vrf-dot.ok      { background: #22c55e; }
-  .pf-vrf-dot.warn    { background: #f59e0b; }
-  .pf-vrf-dot.blocked { background: #ef4444; }
-  .pf-vrf-dot.na      { background: #94a3b8; }
-  .pf-vrf-dot.pending { background: #94a3b8; }
+  .pf-vrf-dot.ok      { background: var(--success); }
+  .pf-vrf-dot.warn    { background: var(--warning); }
+  .pf-vrf-dot.blocked { background: var(--danger); }
+  .pf-vrf-dot.na      { background: var(--text-light); }
+  .pf-vrf-dot.pending { background: var(--text-light); }
 
   /* ── Card footer ── */
   .pf-card-footer {
     padding: 12px 20px;
-    border-top: 1px solid var(--ts-border);
-    background: linear-gradient(180deg, #f8fbff 0%, #f1f5f9 100%);
+    border-top: 1px solid var(--border);
+    background: var(--surface-alt);
     display: flex;
     gap: 7px;
     flex-wrap: wrap;
@@ -259,12 +260,12 @@
     flex-wrap: wrap;
     align-items: flex-end;
     padding: 12px 18px;
-    border-bottom: 1px solid var(--ts-border);
-    background: #f8fbff;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-alt);
   }
 
   .pf-toolbar .ts-field { gap: 3px; min-width: 130px; }
-  .pf-toolbar .ts-field label { font-size: 9px; text-transform: uppercase; letter-spacing: .08em; color: #94a3b8; font-weight: 800; }
+  .pf-toolbar .ts-field label { font-size: 9px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-light); font-weight: 800; }
   .pf-toolbar .ts-field .input,
   .pf-toolbar .ts-field select { min-height: 32px; font-size: 12px; padding: 0 8px; border-radius: 8px; }
   .pf-toolbar .ts-field input[type="text"] { min-height: 32px; font-size: 12px; padding: 0 8px; border-radius: 8px; }
@@ -293,33 +294,22 @@
     flex-shrink: 0;
   }
 
-  .pf-ral-dot.green  { background: #22c55e; }
-  .pf-ral-dot.yellow { background: #f59e0b; }
-  .pf-ral-dot.red    { background: #ef4444; }
+  .pf-ral-dot.green  { background: var(--success); }
+  .pf-ral-dot.yellow { background: var(--warning); }
+  .pf-ral-dot.red    { background: var(--danger); }
 
-  .pf-ral.green  { color: #15803d; }
-  .pf-ral.yellow { color: #b45309; }
-  .pf-ral.red    { color: #b91c1c; }
+  .pf-ral.green  { color: var(--success); }
+  .pf-ral.yellow { color: var(--warning); }
+  .pf-ral.red    { color: var(--danger); }
 
   /* ── Responsive ── */
   @media (max-width: 860px) {
     .pf-grid { grid-template-columns: 1fr; }
   }
 
-  /* ── Dark mode ── */
-  body.theme-dark .pf-card                { background: var(--surface); border-color: var(--border); }
-  body.theme-dark .pf-card:hover          { box-shadow: 0 12px 36px rgba(0,0,0,.35); }
-  body.theme-dark .pf-chip.pn             { background: rgba(55,48,163,.2);  border-color: rgba(199,210,254,.2); color: #a5b4fc; }
-  body.theme-dark .pf-chip.rev            { background: rgba(22,101,52,.2);  border-color: rgba(187,247,208,.2); color: #86efac; }
-  body.theme-dark .pf-chip.ver            { background: rgba(154,52,18,.2);  border-color: rgba(254,215,170,.2); color: #fdba74; }
-  body.theme-dark .pf-chip.client         { background: var(--surface-alt); border-color: var(--border); color: var(--text-light); }
-  body.theme-dark .pf-progress-header     { color: var(--text-light); }
-  body.theme-dark .pf-progress-pct        { color: var(--text); }
-  body.theme-dark .pf-progress-bar        { background: var(--border); }
-  body.theme-dark .pf-count               { color: var(--text-mid); }
-  body.theme-dark .pf-vrf-row             { background: var(--surface-alt); border-color: var(--border); }
-  body.theme-dark .pf-vrf-label           { color: var(--text-light); }
-  body.theme-dark .pf-card-footer         { background: var(--surface-alt); border-color: var(--border); }
+  /* ── Dark mode ── (solo il chip identità P/N indigo, senza token dedicato) */
+  .pf-card:hover { box-shadow: 0 12px 36px rgba(0,0,0,.12); }
+  body.theme-dark .pf-chip.pn { background: rgba(55,48,163,.2); border-color: rgba(199,210,254,.2); color: #a5b4fc; }
 </style>
 {% endblock %}
 
@@ -449,7 +439,7 @@
                   <span class="pf-chip ver"><span class="lbl">Ver</span>{{ project.versione }}</span>
                 {% endif %}
                 {% if project.safety_impact %}
-                  <span class="pf-chip" style="background:#fef2f2;border-color:#fecaca;color:#991b1b;">Impatto sicurezza</span>
+                  <span class="ts-chip danger" style="font-size:10px;">Impatto sicurezza</span>
                 {% endif %}
               </div>
 
