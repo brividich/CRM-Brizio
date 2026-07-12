@@ -1,4 +1,4 @@
-{% extends "security/base.html" %}
+{% extends "security/_base_soc.html" %}
 {% load security_i18n %}
 
 {% block title %}Workspace investigazione | Security Center AI{% endblock %}
@@ -6,7 +6,7 @@
 {% block page_marker %}Workspace investigazione{% endblock %}
 {% block page_title %}{{ alert.title }}{% endblock %}
 
-{% block content %}
+{% block soc_content %}
 <p><a class="sec-button" href="{% url 'security:alerts_list' %}">&lt; Torna alla coda alert</a></p>
 
 <section class="sec-detail-hero">
