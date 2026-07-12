@@ -4441,6 +4441,46 @@ def execute_action(
             )
             return {"status": AutomationActionLogStatus.SUCCESS, "result_message": result_message, "action_log": action_log}
 
+        if action.action_type == AutomationActionType.SEND_MEETING_MINUTE:
+            from tasks.minute_email import send_meeting_minute
+            from tasks.models import KickoffMeeting
+
+            pk_field = str((source_definition or {}).get("pk_field") or "id")
+            meeting_id = payload_context.get(pk_field)
+            if meeting_id is None:
+                raise ValueError("send_meeting_minute: ID incontro non trovato nel payload.")
+
+            meeting = KickoffMeeting.objects.filter(pk=meeting_id).first()
+            if meeting is None:
+                result_message = f"send_meeting_minute: incontro id={meeting_id} inesistente."
+                action_log = _create_action_log(
+                    run_log=run_log,
+                    action=action,
+                    status=AutomationActionLogStatus.SKIPPED,
+                    result_message=result_message,
+                )
+                return {"status": AutomationActionLogStatus.SKIPPED, "result_message": result_message, "action_log": action_log}
+
+            outcome = send_meeting_minute(meeting)
+            if outcome["sent"]:
+                result_message = (
+                    f"Minuta incontro {meeting.numero} (KICK-OFF "
+                    f"{getattr(meeting.project, 'kickoff_number', '')}) inviata a "
+                    f"{', '.join(outcome['recipients'])}."
+                )
+                status = AutomationActionLogStatus.SUCCESS
+            else:
+                result_message = f"Minuta non inviata (motivo: {outcome['reason']})."
+                status = AutomationActionLogStatus.SKIPPED
+
+            action_log = _create_action_log(
+                run_log=run_log,
+                action=action,
+                status=status,
+                result_message=result_message,
+            )
+            return {"status": status, "result_message": result_message, "action_log": action_log}
+
         if action.action_type == AutomationActionType.TEAMS_WEBHOOK:
             webhook_url = str(_render_action_value(config.get("webhook_url"), payload_context) or "").strip()
             if not webhook_url:
