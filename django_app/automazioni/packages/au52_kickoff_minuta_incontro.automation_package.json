@@ -1,0 +1,47 @@
+{
+  "package_version": "2026.07",
+  "input": {
+    "flow_name": "AU52 - Minuta incontro KICK-OFF ai partecipanti"
+  },
+  "source_candidate": {
+    "source_code": "tasks_kickoff",
+    "label": "Incontri KICK-OFF"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "tasks_kickoff"
+  },
+  "proposed_rules": [
+    {
+      "code": "au52-kickoff-minuta-incontro",
+      "name": "AU52 - Minuta incontro KICK-OFF ai partecipanti",
+      "description": "Quando il verbale/nota (`note`) di un incontro di kickoff viene compilato o aggiornato, invia via email la minuta dell'incontro a tutti i partecipanti (utenti portale + email extra), risolti automaticamente. Importata come bozza: rivedere ed attivare dal designer; eventuale debounce/cooldown configurabile per evitare invii ripetuti su modifiche successive del verbale.",
+      "source_code": "tasks_kickoff",
+      "operation_type": "update",
+      "trigger_scope": "specific_field",
+      "watched_field": "note",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "note",
+          "operator": "changed",
+          "value": "",
+          "value_type": "string"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "send_meeting_minute",
+          "description": "Invia la minuta dell'incontro ai partecipanti"
+        }
+      ]
+    }
+  ]
+}
