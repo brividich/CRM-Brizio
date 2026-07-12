@@ -684,18 +684,127 @@ def _load_sgi_procedure_chunks() -> list[KnowledgeChunk]:
     return chunks
 
 
-def _load_sgi_document_chunks() -> list[KnowledgeChunk]:
-    """Aggrega i chunk del corpus SGI (specifiche correnti + procedure correnti)."""
+def _sds_scheda_text(scheda) -> str:
+    """Compone il testo citabile di una Scheda di Sicurezza dai CAMPI CURATI in DB.
+
+    Nessun PDF ri-parsato: l'estrazione l'ha gia' fatta l'RSPP (campi curati +
+    ``estratto_grezzo``). Il testo e' impaginato con heading numerati SDS (1, 2, 4,
+    8, 10, ...) cosi' il chunker sezione-aware puo' citare il paragrafo. Contenuto =
+    sicurezza organizzativa (CLP, DPI, primo soccorso, incompatibilita'), non personale.
+    """
+    prodotto = scheda.prodotto
+    parts: list[str] = []
+
+    ident = [f"Prodotto: {_clean_text(getattr(prodotto, 'nome', ''), limit=200)}"]
+    if getattr(prodotto, "fornitore", ""):
+        ident.append(f"Fornitore: {_clean_text(prodotto.fornitore, limit=200)}")
+    if getattr(prodotto, "produttore", ""):
+        ident.append(f"Produttore: {_clean_text(prodotto.produttore, limit=200)}")
+    try:
+        reparto = _clean_text(getattr(prodotto.reparto, "nome", "") or "", limit=100)
+    except Exception:
+        reparto = ""
+    if reparto:
+        ident.append(f"Reparto: {reparto}")
+    if getattr(scheda, "versione", ""):
+        ident.append(f"Versione scheda: {_clean_text(scheda.versione, limit=50)}")
+    parts.append("1 Identificazione del prodotto\n" + "\n".join(ident))
+
+    clp_bits: list[str] = []
+    if getattr(scheda, "classificazione_clp", ""):
+        clp_bits.append(_clean_text(scheda.classificazione_clp, limit=2000))
+    frasi_h = scheda.frasi_h if isinstance(getattr(scheda, "frasi_h", None), list) else []
+    frasi_p = scheda.frasi_p if isinstance(getattr(scheda, "frasi_p", None), list) else []
+    pittogrammi = scheda.pittogrammi if isinstance(getattr(scheda, "pittogrammi", None), list) else []
+    if frasi_h:
+        clp_bits.append("Frasi H (indicazioni di pericolo): " + ", ".join(str(x) for x in frasi_h))
+    if frasi_p:
+        clp_bits.append("Frasi P (consigli di prudenza): " + ", ".join(str(x) for x in frasi_p))
+    if pittogrammi:
+        clp_bits.append("Pittogrammi: " + ", ".join(str(x) for x in pittogrammi))
+    if clp_bits:
+        parts.append("2 Classificazione ed etichettatura (CLP)\n" + "\n".join(clp_bits))
+
+    if getattr(scheda, "primo_soccorso", ""):
+        parts.append("4 Misure di primo soccorso\n" + _clean_text(scheda.primo_soccorso, limit=3000))
+    if getattr(scheda, "dpi_testo", ""):
+        parts.append(
+            "8 Controllo dell'esposizione e protezione individuale (DPI)\n"
+            + _clean_text(scheda.dpi_testo, limit=3000)
+        )
+    if getattr(scheda, "incompatibilita", ""):
+        parts.append(
+            "10 Stabilita' e reattivita' (incompatibilita')\n"
+            + _clean_text(scheda.incompatibilita, limit=3000)
+        )
+
+    # Altre sezioni dall'estratto grezzo (mappa sezione -> testo), non gia' coperte sopra.
+    estratto = scheda.estratto_grezzo if isinstance(getattr(scheda, "estratto_grezzo", None), dict) else {}
+    for key, value in estratto.items():
+        body = _clean_text(str(value), limit=3000)
+        if not body:
+            continue
+        label = _clean_text(str(key), limit=90)
+        head = label if re.match(r"^\s*\d", label) else f"Sezione {label}"
+        parts.append(f"{head}\n{body}")
+
+    return "\n\n".join(parts)
+
+
+def _load_schede_sicurezza_chunks() -> list[KnowledgeChunk]:
+    """Chunk citabili dalle Schede di Sicurezza CORRENTI (handle `sds:`).
+
+    Fail-safe come gli altri loader (app assente / errore -> lista vuota). OPT-OUT
+    con ``OLLAMA_RAG_SDS_ENABLED=False``.
+    """
+    if not bool(getattr(settings, "OLLAMA_RAG_SDS_ENABLED", True)):
+        return []
+    try:
+        from schede_sicurezza.models import SchedaSicurezza
+    except Exception:
+        return []
+    limit = int(getattr(settings, "OLLAMA_RAG_SDS_MAX", 500) or 500)
+    try:
+        schede = list(
+            SchedaSicurezza.objects.filter(is_corrente=True)
+            .select_related("prodotto", "prodotto__reparto")
+            .order_by("-data_caricamento")[:limit]
+        )
+    except Exception:
+        return []
+
+    max_chars = int(getattr(settings, "OLLAMA_RAG_CHUNK_CHARS", 900) or 900)
     chunks: list[KnowledgeChunk] = []
-    chunks.extend(_load_sgi_specifiche_chunks())
-    chunks.extend(_load_sgi_procedure_chunks())
+    for scheda in schede:
+        try:
+            nome = _clean_text(getattr(scheda.prodotto, "nome", ""), limit=120)
+            if not nome:
+                continue
+            versione = _clean_text(getattr(scheda, "versione", ""), limit=50)
+            doc_label = f"SDS {nome} v.{versione}" if versione else f"SDS {nome}"
+            source = f"sds:{nome}#v{versione}" if versione else f"sds:{nome}"
+            text = _sds_scheda_text(scheda)
+            if not text.strip():
+                continue
+            chunks.extend(_sgi_chunks_from_text(source=source, doc_label=doc_label, text=text, max_chars=max_chars))
+        except Exception:
+            continue
     return chunks
 
 
-def _sgi_documents_signature() -> tuple[int, str, int, str]:
-    """Firma del corpus SGI (count + max updated_at per fonte) per invalidare la cache."""
+def _load_sgi_document_chunks() -> list[KnowledgeChunk]:
+    """Aggrega il corpus SGI: specifiche + procedure correnti + schede di sicurezza correnti."""
+    chunks: list[KnowledgeChunk] = []
+    chunks.extend(_load_sgi_specifiche_chunks())
+    chunks.extend(_load_sgi_procedure_chunks())
+    chunks.extend(_load_schede_sicurezza_chunks())
+    return chunks
+
+
+def _sgi_documents_signature() -> tuple[int, str, int, str, int, str]:
+    """Firma del corpus SGI (count + max updated per fonte: spec, proc, schede) per la cache."""
     if not bool(getattr(settings, "OLLAMA_RAG_SGI_ENABLED", True)):
-        return (0, "", 0, "")
+        return (0, "", 0, "", 0, "")
     from django.db.models import Count, Max
 
     spec_count, spec_latest = 0, ""
@@ -723,7 +832,23 @@ def _sgi_documents_signature() -> tuple[int, str, int, str]:
     except Exception:
         proc_count, proc_latest = 0, ""
 
-    return (spec_count, spec_latest, proc_count, proc_latest)
+    # Schede di sicurezza correnti: senza campo updated_at usiamo Max(data_caricamento)
+    # come proxy (nuove schede/versioni invalidano la cache; le rimodifiche dei campi
+    # curati restano coperte dal TTL e dal re-index schedulato).
+    sds_count, sds_latest = 0, ""
+    if bool(getattr(settings, "OLLAMA_RAG_SDS_ENABLED", True)):
+        try:
+            from schede_sicurezza.models import SchedaSicurezza
+
+            agg = SchedaSicurezza.objects.filter(is_corrente=True).aggregate(
+                n=Count("id"), latest=Max("data_caricamento")
+            )
+            sds_count = agg["n"] or 0
+            sds_latest = agg["latest"].isoformat() if agg["latest"] else ""
+        except Exception:
+            sds_count, sds_latest = 0, ""
+
+    return (spec_count, spec_latest, proc_count, proc_latest, sds_count, sds_latest)
 
 
 def _build_index(chunks: list[KnowledgeChunk]) -> KnowledgeIndex:

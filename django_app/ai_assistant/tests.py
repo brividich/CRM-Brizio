@@ -2522,6 +2522,92 @@ class ContatoriContextTests(TestCase):
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SETUP_WIZARD_REQUIRED=False)
+class SchedeSicurezzaRagLoaderTests(TestCase):
+    """Ondata 6.2 — corpus RAG citabile delle Schede di Sicurezza (handle `sds:`).
+
+    Legge i campi curati in DB (nessun PDF ri-parsato), solo scheda corrente,
+    opt-out via setting. Contenuto = sicurezza organizzativa NON personale →
+    sempre citabile (come file/FAQ, nessun gate ACL per-utente)."""
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()
+        clear_knowledge_cache()
+
+    def _make_scheda(self, *, nome, versione, corrente=True, dpi="Guanti nitrile, occhiali di sicurezza"):
+        from anagrafica.models import Reparto
+        from schede_sicurezza.models import ProdottoChimico, SchedaSicurezza
+
+        reparto, _ = Reparto.objects.get_or_create(nome="MAGAZZINO")
+        prodotto = ProdottoChimico.objects.create(
+            nome=nome, fornitore="ACME Chimica", reparto=reparto
+        )
+        return SchedaSicurezza.objects.create(
+            prodotto=prodotto,
+            pdf="schede/dummy.pdf",
+            versione=versione,
+            is_corrente=corrente,
+            classificazione_clp="Liquido infiammabile Cat. 2",
+            frasi_h=["H225", "H319"],
+            dpi_testo=dpi,
+            primo_soccorso="In caso di contatto con gli occhi sciacquare abbondantemente con acqua.",
+            incompatibilita="Tenere lontano da ossidanti forti.",
+            estrazione_stato="ok",
+        )
+
+    def test_sds_loader_indexes_current_scheda_with_citable_source(self):
+        self._make_scheda(nome="Acetone Tecnico", versione="3")
+        with override_settings(
+            OLLAMA_RAG_ENABLED=True,
+            OLLAMA_RAG_SGI_ENABLED=True,
+            OLLAMA_RAG_SDS_ENABLED=True,
+            OLLAMA_EMBED_ENABLED=False,
+            OLLAMA_RAG_SOURCE_PATHS=[],
+            OLLAMA_RAG_CACHE_SECONDS=0,
+        ):
+            clear_knowledge_cache()
+            # allow_specifiche/procedure di default False: le SDS restano citabili
+            # (non sono spec/proc), come i dati di sicurezza organizzativi devono essere.
+            context = build_knowledge_context("quali DPI servono per l'acetone tecnico?")
+
+        self.assertTrue(
+            any(s.startswith("sds:Acetone Tecnico#v3") for s in context.sources),
+            msg=f"manca l'handle citabile sds:: {context.sources}",
+        )
+        self.assertIn("guanti", context.text.lower())
+
+    def test_sds_loader_excludes_non_current_scheda(self):
+        self._make_scheda(nome="Solvente Vecchio", versione="1", corrente=False)
+        with override_settings(
+            OLLAMA_RAG_ENABLED=True,
+            OLLAMA_RAG_SGI_ENABLED=True,
+            OLLAMA_RAG_SDS_ENABLED=True,
+            OLLAMA_EMBED_ENABLED=False,
+            OLLAMA_RAG_SOURCE_PATHS=[],
+            OLLAMA_RAG_CACHE_SECONDS=0,
+        ):
+            clear_knowledge_cache()
+            context = build_knowledge_context("solvente vecchio dpi guanti")
+
+        self.assertFalse(
+            any(s.startswith("sds:") for s in context.sources),
+            msg=f"una scheda non corrente non deve essere indicizzata: {context.sources}",
+        )
+
+    def test_sds_loader_opt_out_via_setting(self):
+        from ai_assistant import services
+
+        self._make_scheda(nome="Diluente Nitro", versione="2")
+        with override_settings(
+            OLLAMA_RAG_SDS_ENABLED=False,
+        ):
+            sources = " ".join(c.source for c in services._load_sgi_document_chunks())
+
+        self.assertNotIn("sds:", sources)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SETUP_WIZARD_REQUIRED=False)
 class SgiRagLoaderTests(TestCase):
     """F1 — loader RAG del corpus documentale SGI (specifiche + procedure correnti).
 
