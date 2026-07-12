@@ -12,6 +12,7 @@ Important: Do not read all docs automatically. Open only the files relevant to t
 | [02_ARCHITECTURE.md](02_ARCHITECTURE.md) | Stack, ACL architecture, routing, deployment-only infrastructure, settings, Graph/SharePoint architecture. |
 | [03_BACKEND_MODULES.md](03_BACKEND_MODULES.md) | Django app catalog, module-specific backend rules, Hub Tools, automations engine. |
 | [04_FRONTEND_DIRECTION.md](04_FRONTEND_DIRECTION.md) | SSR/HTMX conventions, navigation rendering, dashboards, visual designer UI rules. |
+| [FORM_DESIGN_SYSTEM_ANAGRAFICA.md](FORM_DESIGN_SYSTEM_ANAGRAFICA.md) | Design-system dei form anagrafica (verticali + sezioni) e primitive form-kit portale-wide (`.hub-field`/`.hub-form-stack`/`.hub-fsec` in `core/_hub_formkit.html`): quale leva usare, form catalogo già consolidati, form lasciati compatti di proposito, gotcha, come fare lo smoke-test, caveat drift `0080`. **Aprire prima di toccare i form di inserimento/gestione anagrafica.** |
 | [05_SECURITY_BOUNDARIES.md](05_SECURITY_BOUNDARIES.md) | ACL, auth boundaries, public/token routes, hardening, sensitive-file boundaries, Security Center AI safety rules. |
 | [06_TESTING_AND_QUALITY_GATES.md](06_TESTING_AND_QUALITY_GATES.md) | Required update workflow, release guard, version bump, Setup Wizard rules, test/dev commands. |
 | [07_PATCH_HISTORY.md](07_PATCH_HISTORY.md) | Patch workflow, version/changelog rules, release-history maintenance. |
@@ -31,6 +32,7 @@ Important: Do not read all docs automatically. Open only the files relevant to t
 | [RAG_SGI_ROLLOUT.md](RAG_SGI_ROLLOUT.md) | RAG SGI (documenti SGI citabili nell'Assistente AI): riepilogo F1–F3, settings con default, runbook di rollout prod (pull modello embedding, stemming opt-in, `index_sgi_documents` + schedulazione), verifica funzionale. |
 | [14_AI_EXPANSION_ROADMAP.md](14_AI_EXPANSION_ROADMAP.md) | Backlog ordinato (a ondate) per espandere l'AI nel portale: nuovi tool live, copiloti per-modulo, allargamento RAG, predittivo/digest. Vincoli, pattern riusabili, effort e ordine di partenza. |
 | [GUIDA_AI.html](GUIDA_AI.html) | Guida HTML (autoconsistente, per utenti) al funzionamento dell'Assistente AI: architettura on-premise (Ollama+TEI), RAG SGI citabile, tabella dei tool runtime, esempi di domande, limiti/privacy/governance, roadmap a ondate. **Da tenere aggiornata a ogni nuova capacità AI** (nuovi tool, nuovi corpora RAG, cambi di policy). |
+| [AI_TOOL_ROUTING_TUNING.md](AI_TOOL_ROUTING_TUNING.md) | Ritaratura del routing semantico dei tool AI dopo l'aggiunta di nuovi domini/tool (soglia/margine/top-K): come funziona, settings, procedura in prod col comando `ai_routing_probe`, note su cambio modello embedding. |
 | [OLLAMA_GPU_TUNING.md](OLLAMA_GPU_TUNING.md) | Runbook ottimizzazione GPU/modelli AI su PCGAVANCINI (A4000 16GB): topologia Ollama(chat) + TEI(embeddings), env server-side raccomandate (max_loaded_models=1 perché gli embeddings sono su TEI, flash attention, KV-cache q8_0, num_parallel), come applicarle via NSSM, settings portale (num_predict cap), verifica (`ai_healthcheck_prod.ps1`, `ollama ps`, `nvidia-smi`) e rollback. |
 
 ## Rule Of Thumb

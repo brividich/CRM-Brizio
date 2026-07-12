@@ -2859,6 +2859,36 @@ class SchedeSicurezzaContextTests(TestCase):
         self.assertNotIn("Diluente Nitro", context.text)
 
 
+class AiRoutingProbeCommandTests(TestCase):
+    """Comando ai_routing_probe: gira offline (embeddings off -> keyword-only) senza crash/rete."""
+
+    def test_probe_reports_keyword_only_without_embeddings(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        out = StringIO()
+        with override_settings(AI_TOOL_ROUTING_ENABLED=True), patch(
+            "ai_assistant.services.embeddings_enabled", return_value=False
+        ):
+            call_command("ai_routing_probe", stdout=out)
+
+        text = out.getvalue()
+        self.assertIn("Routing: enabled=True", text)
+        self.assertIn("keyword-only", text)  # degrada senza toccare la rete
+
+    def test_probe_reports_disabled_routing(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        out = StringIO()
+        with override_settings(AI_TOOL_ROUTING_ENABLED=False):
+            call_command("ai_routing_probe", stdout=out)
+
+        self.assertIn("routing semantico spento", out.getvalue())
+
+
 @override_settings(LEGACY_AUTH_ENABLED=False, SETUP_WIZARD_REQUIRED=False)
 class SgiRagLoaderTests(TestCase):
     """F1 — loader RAG del corpus documentale SGI (specifiche + procedure correnti).
