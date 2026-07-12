@@ -14,6 +14,8 @@
 {% block tasks_shell_content %}
 <div class="ts-stack">
 
+  {% include "tasks/_percorso_lifecycle.html" with current="anagrafica" %}
+
   {% if messages %}
     {% for msg in messages %}
       <div class="ts-note-box {% if 'error' in msg.tags %}danger{% endif %}">{{ msg }}</div>

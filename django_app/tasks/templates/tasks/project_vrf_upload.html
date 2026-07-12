@@ -1,6 +1,7 @@
 {% extends "tasks/base_shell.html" %}
 
 {% block tasks_shell_head %}
+{% include "tasks/_percorso_assets.html" %}
 <style>
   .vrf-upload-area {
     border: 2px dashed #bfdbfe;
@@ -218,6 +219,8 @@
       <div class="ts-note-box {% if 'error' in msg.tags %}danger{% endif %}">{{ msg }}</div>
     {% endfor %}
   {% endif %}
+
+  {% include "tasks/_percorso_lifecycle.html" with current="vrf" %}
 
   {# --- Banner stato VRF attuale --- #}
   {% if vrf_detail.status == 'blocked' %}

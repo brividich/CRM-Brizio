@@ -82,6 +82,29 @@
 .kp-actions { display: flex; justify-content: space-between; gap: 12px; margin-top: 20px; flex-wrap: wrap; align-items: center; }
 .kp-actions .kp-right { display: flex; gap: 10px; flex-wrap: wrap; }
 
+/* ── Stepper del ciclo di vita (cross-form: Anagrafica → VRF → Attività) ─ */
+.kp-steps {
+  display: flex; align-items: stretch; gap: 6px; margin-bottom: 16px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 6px;
+}
+.kp-step {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 9px 10px; border-radius: 8px; font-size: 12px; font-weight: 700;
+  color: var(--text-light); text-align: center;
+}
+.kp-step-badge {
+  width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border);
+  background: var(--surface); display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 800; flex-shrink: 0;
+}
+.kp-step.is-active { color: var(--accent); background: var(--accent-light); }
+.kp-step.is-active .kp-step-badge { border-color: var(--accent); color: var(--accent); background: var(--surface); }
+.kp-step.is-done { color: var(--success); }
+.kp-step.is-done .kp-step-badge { border-color: var(--success); background: var(--success); color: #fff; }
+@media (max-width: 620px) {
+  .kp-steps { flex-direction: column; }
+}
+
 /* ── Responsive: rail orizzontale in cima ────────────────────────────── */
 @media (max-width: 760px) {
   .kp-layout { grid-template-columns: 1fr; }
