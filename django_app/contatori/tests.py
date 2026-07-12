@@ -8,6 +8,24 @@ from contatori.models import Macchina, LetturaContatori, ImpostazioniSNMP
 from contatori.snmp import SNMPError
 
 
+class _AuthedClientMixin:
+    """Nell'HUB ogni vista è dietro ACLMiddleware: autentichiamo un superuser
+    (che bypassa l'ACL) prima di ogni richiesta del client."""
+
+    def setUp(self):
+        super().setUp()
+        from django.contrib.auth import get_user_model
+        U = get_user_model()
+        u, _ = U.objects.get_or_create(
+            username="contatori_test_admin",
+            defaults={"is_staff": True, "is_superuser": True},
+        )
+        u.is_staff = True
+        u.is_superuser = True
+        u.save()
+        self.client.force_login(u)
+
+
 class RiconciliazioneTest(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -73,7 +91,7 @@ class UltimeRilevazioniTest(TestCase):
         self.assertEqual(ur[m.id]["stato"], "mai")
 
 
-class AnalisiTest(TestCase):
+class AnalisiTest(_AuthedClientMixin, TestCase):
     @classmethod
     def setUpTestData(cls):
         call_command("seed_demo")
@@ -119,7 +137,7 @@ class AnalisiTest(TestCase):
         self.assertContains(r, "LOGISTICA")
 
 
-class ConsumabiliTest(TestCase):
+class ConsumabiliTest(_AuthedClientMixin, TestCase):
     @classmethod
     def setUpTestData(cls):
         call_command("seed_demo")
@@ -182,7 +200,7 @@ class ConsumabiliTest(TestCase):
         self.assertContains(r, "Black Toner")
 
 
-class ExportExcelTest(TestCase):
+class ExportExcelTest(_AuthedClientMixin, TestCase):
     XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
     @classmethod
@@ -212,7 +230,7 @@ class ExportExcelTest(TestCase):
         self.assertEqual(ultima[-1], 726853)
 
 
-class ViewsTest(TestCase):
+class ViewsTest(_AuthedClientMixin, TestCase):
     @classmethod
     def setUpTestData(cls):
         call_command("seed_demo")
@@ -233,7 +251,7 @@ class ViewsTest(TestCase):
         self.assertEqual(r.status_code, 200)
 
 
-class GestioneStampantiTest(TestCase):
+class GestioneStampantiTest(_AuthedClientMixin, TestCase):
     @classmethod
     def setUpTestData(cls):
         call_command("seed_demo")
