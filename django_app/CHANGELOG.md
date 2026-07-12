@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### SOC IT - CN - Security Center AI (core) fase B1: app security innestata
+
+- **[feat] `security/**` [app SC-AI copiata, suite test esclusa], `config/settings/base.py`, `config/urls.py`, `security/urls_hub.py` [nuovo urlconf minimo], `security/templates/security/{_base_soc.html [nuovo],dashboard.html}`, `requirements.in`/`requirements.txt` [+djangorestframework]**: fase B1 del core Security Center AI (area SOC IT - CN). App `security` registrata + **35 tabelle `security_*`** migrate su SQL Server (33 modelli + 2 M2M) + **dashboard** resa nello shell `core/base.html` su **`/soc/`** dietro login. DRF installato (l'import di `permissions.py` lungo il path dashboard lo richiede). Escluso da B1: API DRF, altre pagine, parser, AI (copiata ma dormiente), Celery→django-q2, ACL/nav (B2), test (B4). `check` pulito.
+
 ### SOC IT - CN - Contatori MFC innestato come modulo nativo dell'HUB
 
 - **[feat/test] `contatori/**` [nuova app], `config/settings/base.py`, `config/urls.py`, `core/migrations/0067_soc_it_cn_category.py` [nuovo], `dashboard/views_home_portale.py`, `requirements.in`/`requirements.txt`, `contatori/tests.py`**: innesto del tool **Contatori MFC** (contatori Canon iR-ADV: letture, riconciliazione fatture BASE, analisi volumi, consumabili SNMP, export Excel) come **modulo nativo SSR+HTMX** dell'HUB, primo della nuova area **SOC IT - CN** (`ModuleCategory key=soc_it_cn`, teal `#0f766e`, voce topbar icona `printer`). Usa **auth/ACL dell'HUB** (viste dietro `ACLMiddleware`, nessun login proprio); template migrati sullo shell `core/base.html` con CSS **scoped** `.contatori-module`; dipendenza **`puresnmp==2.0.1`**; tabelle `contatori_*` su SQL Server. **ACL v2**: 16 permessi `contatori.*` + binding, grant al ruolo **admin** (IT pieno) — **Direzione rimandata**. **32 test scoped verdi**, `check` pulito. Wiring `base.py`/`urls.py` e nota README non inglobati in questo commit (working tree condiviso con WIP di altra sessione). Config ACL vive nel DB: su test/prod rieseguire `bootstrap_acl_v2 --apply --apps=contatori` + grant admin.
