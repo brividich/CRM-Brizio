@@ -67,6 +67,7 @@ urlpatterns = [
     path("dpi/", include(("dpi.urls", "dpi"), namespace="dpi")),
     path("procedure-refresh/", include(("procedure_refresh.urls", "procedure_refresh"), namespace="procedure_refresh")),
     path("contatori/", include(("contatori.urls", "contatori"), namespace="contatori")),
+    path("soc/", include(("security.urls_hub", "security"), namespace="security")),
     path("2fa/", include(("twofa.urls", "twofa"), namespace="twofa")),
     path("", include("core.urls")),
     path("admin/", admin.site.urls),

@@ -1,4 +1,4 @@
-{% extends "security/base.html" %}
+{% extends "security/_base_soc.html" %}
 {% load security_i18n %}
 
 {% block title %}Dashboard | Security Center AI{% endblock %}
@@ -6,7 +6,7 @@
 {% block page_marker %}Dashboard sicurezza{% endblock %}
 {% block page_title %}Dashboard / Centro comando{% endblock %}
 
-{% block content %}
+{% block soc_content %}
 <section class="sec-grid sec-kpi-grid">
   <div class="sec-kpi-card"><span class="sec-kpi-label">Alert aperti</span><strong class="sec-kpi-value">{{ open_alerts_count }}</strong><span class="sec-kpi-delta">Coda attiva</span></div>
   <div class="sec-kpi-card"><span class="sec-kpi-label">Critici</span><strong class="sec-kpi-value critical">{{ critical_alerts_count }}</strong><span class="sec-kpi-delta">Da verificare</span></div>
