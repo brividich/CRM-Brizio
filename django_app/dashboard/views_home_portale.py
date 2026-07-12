@@ -109,6 +109,7 @@ _MODULE_CATALOG: list[dict] = [
     {"id": "permessi",    "cat": "sys",   "label": "Permessi e ruoli",      "sub": "ACL v2",                     "tone": "info",    "kpi_unit": "ruoli",       "url_name": "admin_portale:index",             "pulsante_aliases": ("permessi", "acl")},
     # SOC IT - CN
     {"id": "contatori",   "cat": "secit", "label": "Contatori MFC",         "sub": "Stampanti, letture, consumabili", "tone": "info", "kpi_unit": "stampanti",   "url_name": "contatori:dashboard",             "pulsante_aliases": ("contatori",)},
+    {"id": "security_center", "cat": "secit", "label": "Security Center",   "sub": "Alert, ticket, KPI sicurezza",    "tone": "danger", "kpi_unit": "alert",     "url_name": "security:dashboard",              "pulsante_aliases": ("security-center", "soc")},
 ]
 
 
