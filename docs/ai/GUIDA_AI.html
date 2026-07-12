@@ -94,7 +94,7 @@
   (voce di menu <em>Assistente AI</em>). Risponde in linguaggio naturale su:</p>
   <ul>
     <li>la <strong>documentazione SGI</strong> (manuali tecnici, procedure, piani qualità, DVR…) <strong>citando la fonte</strong>;</li>
-    <li>i <strong>dati operativi live</strong> del portale (assenze, ticket, task, asset, carichi macchina, DPI, anomalie, procedure, notizie, sicurezza, anagrafica), <strong>sempre nei limiti dei permessi dell'utente</strong>;</li>
+    <li>i <strong>dati operativi live</strong> del portale (assenze, ticket, task, asset, carichi macchina, contatori MFC, DPI, anomalie, procedure, notizie, sicurezza, anagrafica), <strong>sempre nei limiti dei permessi dell'utente</strong>;</li>
     <li>la <strong>navigazione</strong> (quali moduli e funzioni sono disponibili).</li>
     <li>genera <strong>report PDF scaricabili</strong> su un argomento, <strong>ancorati ai dati autorizzati</strong> (in stile NOVICROM HUB; bozza da verificare e firmare).</li>
   </ul>
@@ -133,6 +133,7 @@
     <tr><th>Tipo di domanda</th><th>Da dove prende la risposta</th></tr>
     <tr><td>«In che MT si parla dei timbri?»</td><td>RAG SGI → cita es. <em>MT CN 06 Rev.7 §4.2</em></td></tr>
     <tr><td>«Quanto è satura la macchina MZ5 questa settimana?»</td><td>Tool live <em>Carichi macchina</em></td></tr>
+    <tr><td>«Qual è il consumo stampe per reparto / l'andamento delle fotocopie?»</td><td>Tool live <em>Contatori MFC</em> (solo aggregati, gated)</td></tr>
     <tr><td>«Quali ticket aperti ho?»</td><td>Tool live <em>Ticket</em> (scope personale/gestione da ACL)</td></tr>
     <tr><td>«Chi è assente domani?»</td><td>Tool live <em>Assenze</em></td></tr>
     <tr><td>«Quali moduli posso usare?»</td><td>Tool <em>Catalogo moduli</em> (navigazione visibile)</td></tr>
@@ -176,6 +177,7 @@
     <tr><td>Task / KICK-OFF</td><td>attività in ritardo o in scadenza</td><td><span class="pill on">attivo</span></td></tr>
     <tr><td>Asset</td><td>asset, scadenze, manutenzioni, OdL</td><td><span class="pill on">attivo</span></td></tr>
     <tr><td><strong>Carichi macchina</strong></td><td><strong>saturazione settimanale per macchina/reparto, n. lavori</strong></td><td><span class="pill on">attivo</span></td></tr>
+    <tr><td><strong>Contatori MFC</strong></td><td><strong>consumo copie per trimestre, classifica reparti, ripartizione BN/colore e A4/A3, stato rilevazioni</strong> (solo aggregati)</td><td><span class="pill on">attivo</span> (gate <code>contatori.dashboard.view</code>)</td></tr>
     <tr><td>DPI</td><td>richieste e consegne DPI, scadenze</td><td><span class="pill on">attivo</span></td></tr>
     <tr><td>Anomalie</td><td>anomalie/non conformità aperte</td><td><span class="pill on">attivo</span></td></tr>
     <tr><td>Procedure / quiz</td><td>procedure da leggere, prese visione</td><td><span class="pill on">attivo</span></td></tr>

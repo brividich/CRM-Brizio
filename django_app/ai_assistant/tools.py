@@ -114,6 +114,21 @@ RUNTIME_TOOL_CATALOG: tuple[RuntimeToolSpec, ...] = (
         ),
     ),
     RuntimeToolSpec(
+        key="contatori_summary",
+        label="Contatori MFC",
+        domain="SOC IT - CN",
+        audit_tool="contatori_summary",
+        source_prefix="tool:contatori",
+        status="enabled",
+        sample_prompt="qual e' il consumo stampe per reparto?",
+        privacy_note=(
+            "Espone solo AGGREGATI dei contatori multifunzione (consumo copie per trimestre, "
+            "classifica reparti, ripartizione BN/colore e A4/A3, stato delle rilevazioni). "
+            "Nessun dato personale: le macchine sono identificate da reparto e matricola. "
+            "Gated dal permesso canonico ACL v2 'contatori.dashboard.view'."
+        ),
+    ),
+    RuntimeToolSpec(
         key="dpi_summary",
         label="DPI",
         domain="DPI",
@@ -520,6 +535,7 @@ _RUNTIME_PRIORITY_BY_TOOL = {
     "dpi_summary": 40,
     "assets_summary": 50,
     "carichi_macchina": 55,
+    "contatori_summary": 57,
     "tickets_summary": 60,
     "tasks_summary": 70,
     "anomalie_summary": 80,
@@ -809,6 +825,30 @@ def _wants_carico_context(prompt: str) -> bool:
             text,
         )
     )
+
+
+# Contatori MFC: segnali "forti" (dominio inequivocabile da soli) e "deboli" (una
+# parola sui documenti stampati che qualifica solo con un'intenzione di volume/consumo,
+# cosi' "la stampante e' rotta" -> ticket, non contatori).
+_CONTATORI_STRONG_KEYWORDS = {
+    "contatori", "contatore", "multifunzione", "multifunzioni",
+    "fotocopiatrice", "fotocopiatrici", "fotocopie", "mfc",
+}
+_CONTATORI_WEAK_KEYWORDS = ("stampant", "copie", "stampe", "stampat", "toner", "consumabil")
+_CONTATORI_INTENT_RE = re.compile(
+    r"\b(consum\w*|volum\w*|quant[eio]|classific\w*|andament\w*|trimestr\w*|"
+    r"repart[oi]|lettur\w*|rilevazion\w*|ripartizion\w*|bn|colore|a4|a3|totale|prodott\w*)\b"
+)
+
+
+def _wants_contatori_context(prompt: str) -> bool:
+    text = _norm_text(prompt)
+    if any(keyword in text for keyword in _CONTATORI_STRONG_KEYWORDS):
+        return True
+    # Parola "debole" (stampe/copie/stampante...) solo con un'intenzione di volume/consumo.
+    if any(keyword in text for keyword in _CONTATORI_WEAK_KEYWORDS) and _CONTATORI_INTENT_RE.search(text):
+        return True
+    return False
 
 
 def _wants_skillmatrix_context(prompt: str) -> bool:
@@ -2177,6 +2217,129 @@ def _carichi_context(request, prompt: str) -> RuntimeContext:
             "scope": "settimana_corrente",
             "filtro": filtro,
             "row_count": len(sel),
+        },
+    )
+
+
+_CONTATORI_PERM_VIEW = "contatori.dashboard.view"
+
+
+def _can_use_contatori_runtime(request) -> tuple[bool, str]:
+    """Gate ACL del tool Contatori MFC: permesso canonico ``contatori.dashboard.view``,
+    con bypass SOLO per superuser e admin legacy.
+
+    Il modulo contatori nasce gia' canonico (ACL v2, binding sulla dashboard), quindi
+    si valuta direttamente il permission code con evaluate_permission_code_access,
+    rispecchiando il confine reale applicato dall'ACLMiddleware sulle sue viste.
+    """
+    user = getattr(request, "user", None)
+    if not getattr(user, "is_authenticated", False):
+        return False, "anonymous"
+    if getattr(user, "is_superuser", False):
+        return True, "superuser"
+
+    from core.acl_v2 import evaluate_permission_code_access
+    from core.legacy_utils import is_legacy_admin
+
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(user)
+    if legacy_user is not None:
+        request.legacy_user = legacy_user
+    if is_legacy_admin(legacy_user):
+        return True, "legacy_admin"
+
+    decision = evaluate_permission_code_access(
+        permission_code=_CONTATORI_PERM_VIEW,
+        legacy_user=legacy_user,
+        django_user=user,
+        allow_superuser=True,
+        allow_legacy_admin=True,
+    )
+    if bool(decision.get("allowed")):
+        return True, "contatori_view"
+    return False, "missing_contatori_view"
+
+
+def _contatori_context(request, prompt: str) -> RuntimeContext:
+    if not _should_run(request, "contatori", _wants_contatori_context(prompt)):
+        return RuntimeContext()
+
+    allowed, reason = _can_use_contatori_runtime(request)
+    if not allowed:
+        return RuntimeContext(
+            text=(
+                "DATI LIVE PORTALE - CONTATORI MFC\n"
+                "Esito autorizzazione: negato. L'utente corrente non e' autorizzato a "
+                "vedere i contatori multifunzione; non fornire dati su consumi, copie o reparti."
+            ),
+            sources=("tool:contatori:accesso-negato",),
+            audit={"tool": "contatori_summary", "allowed": False, "reason": reason},
+        )
+
+    from contatori import services as contatori_services
+
+    consumo, anomalie_delta = contatori_services.consumo_per_trimestre()
+    classifica = contatori_services.classifica_reparti()
+    rip = contatori_services.ripartizione()
+    ultime = contatori_services.ultime_rilevazioni()
+
+    if not consumo and not classifica and not ultime:
+        return RuntimeContext(
+            text=(
+                "DATI LIVE PORTALE - CONTATORI MFC\n"
+                "Nessuna lettura contatori registrata: non ci sono ancora dati di consumo."
+            ),
+            sources=("tool:contatori:riepilogo",),
+            audit={"tool": "contatori_summary", "allowed": True, "scope": "flotta",
+                   "filtro": "nessun_dato", "row_count": 0},
+        )
+
+    # Stato rilevazioni: solo conteggi aggregati, mai il dettaglio nominativo.
+    n_agg = sum(1 for v in ultime.values() if v["stato"] == "aggiornata")
+    n_stale = sum(1 for v in ultime.values() if v["stato"] == "da_aggiornare")
+    n_mai = sum(1 for v in ultime.values() if v["stato"] == "mai")
+
+    # Ripartizione ultimo trimestre: le chiavi *_pct esistono solo quando c'e' un dato.
+    if rip.get("trimestre"):
+        rip_line = (
+            f"Ripartizione ultimo trimestre ({rip['trimestre']}, {rip['totale']} copie cumulate): "
+            f"BN {rip['bn_pct']}% / Colore {rip['col_pct']}%, A4 {rip['a4_pct']}% / A3 {rip['a3_pct']}%."
+        )
+    else:
+        rip_line = "Ripartizione: non disponibile (serve almeno un trimestre con letture)."
+
+    # Consumo per trimestre = copie effettivamente prodotte (delta tra letture consecutive).
+    consumo_lines = "\n".join(
+        f"- {r['trimestre']}: {r['totale']} copie (BN {r['bn']} / Colore {r['col']})"
+        for r in consumo[-6:]
+    ) or "Nessun consumo calcolabile (serve almeno un secondo trimestre di letture)."
+
+    # Classifica reparti per volume complessivo (aggregato, macchina = reparto/matricola).
+    classifica_lines = "\n".join(
+        f"- {r['reparto']} [{r['matricola']}]: {r['totale']} copie "
+        f"(BN {r['bn']} / Colore {r['col']}, quota colore {r['quota_col']}%)"
+        for r in classifica[:10]
+    ) or "Nessun reparto con consumo."
+
+    return RuntimeContext(
+        text=(
+            "DATI LIVE PORTALE - CONTATORI MFC\n"
+            f"Flotta: {len(ultime)} multifunzione attive "
+            f"(letture: {n_agg} aggiornate, {n_stale} da aggiornare, {n_mai} mai rilevate).\n"
+            f"{rip_line}\n"
+            "ISTRUZIONE RISPOSTA: usa SOLO questi aggregati (consumo per trimestre, classifica "
+            "reparti, ripartizione, stato letture). Le macchine sono identificate da reparto e "
+            "matricola: non sono dati personali. Non inventare numeri non presenti.\n"
+            f"Consumo copie per trimestre (ultimi disponibili):\n{consumo_lines}\n\n"
+            f"Classifica reparti per volume (top 10):\n{classifica_lines}\n\n"
+            f"Anomalie di monotonia rilevate nei delta (cali azzerati): {anomalie_delta}."
+        ),
+        sources=("tool:contatori:riepilogo",),
+        audit={
+            "tool": "contatori_summary",
+            "allowed": True,
+            "scope": "flotta",
+            "filtro": "aggregato",
+            "row_count": len(classifica),
         },
     )
 
@@ -4010,6 +4173,7 @@ RUNTIME_TOOLS: tuple[RuntimeTool, ...] = (
     _tasks_context,
     _assets_context,
     _carichi_context,
+    _contatori_context,
     _dpi_context,
     _anagrafica_context,
     _skillmatrix_context,
@@ -4157,6 +4321,13 @@ _DOMAIN_ROUTING_SEEDS: dict[str, tuple[str, ...]] = {
         "carico di lavoro per reparto di produzione",
         "quali macchine sono libere o hanno capacita disponibile",
         "quali macchine sono sovraccariche o sono colli di bottiglia",
+    ),
+    "contatori": (
+        "consumo di stampe e copie delle multifunzione",
+        "classifica dei reparti per volume di stampa",
+        "andamento dei contatori delle stampanti per trimestre",
+        "ripartizione bianco e nero e colore delle fotocopie",
+        "stato delle rilevazioni dei contatori mfc",
     ),
     "dpi": (
         "dispositivi di protezione individuale in scadenza",

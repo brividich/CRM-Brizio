@@ -2413,6 +2413,115 @@ class CarichiMacchinaContextTests(TestCase):
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SETUP_WIZARD_REQUIRED=False)
+class ContatoriContextTests(TestCase):
+    """Tool live 'contatori MFC' (Ondata 6.1): read-only, ACL=contatori.dashboard.view,
+    solo AGGREGATI (consumo per trimestre, classifica reparti, ripartizione, stato letture)."""
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        from contatori.models import LetturaContatori, Macchina
+
+        cache.clear()
+        self.superuser = get_user_model().objects.create_superuser(
+            username="contatori.admin",
+            email="contatori.admin@example.local",
+            password="password",
+        )
+        self.plain_user = get_user_model().objects.create_user(
+            username="contatori.plain",
+            email="contatori.plain@example.local",
+            password="password",
+        )
+
+        oggi = timezone.localdate()
+        self.mac_uff = Macchina.objects.create(
+            reparto="UFFICIO TECNICO", matricola="AAA111", modello="iR-ADV", attiva=True
+        )
+        self.mac_prod = Macchina.objects.create(
+            reparto="PRODUZIONE", matricola="BBB222", modello="iR-ADV", attiva=True
+        )
+        # Due trimestri per macchina -> delta di consumo calcolabile.
+        LetturaContatori.objects.create(
+            macchina=self.mac_uff, trimestre="2026-Q1", data=oggi - timedelta(days=60),
+            a4_bn=1000, a3_bn=100, a4_col=200, a3_col=50,
+        )
+        LetturaContatori.objects.create(
+            macchina=self.mac_uff, trimestre="2026-Q2", data=oggi - timedelta(days=5),
+            a4_bn=1600, a3_bn=120, a4_col=500, a3_col=60,
+        )
+        # PRODUZIONE consuma di piu' -> deve stare in cima alla classifica reparti.
+        LetturaContatori.objects.create(
+            macchina=self.mac_prod, trimestre="2026-Q1", data=oggi - timedelta(days=60),
+            a4_bn=5000, a3_bn=0, a4_col=0, a3_col=0,
+        )
+        LetturaContatori.objects.create(
+            macchina=self.mac_prod, trimestre="2026-Q2", data=oggi - timedelta(days=5),
+            a4_bn=9000, a3_bn=0, a4_col=0, a3_col=0,
+        )
+
+    @staticmethod
+    def _contatori_audit(context):
+        for entry in (context.audit or {}).get("tools", []):
+            if entry.get("tool") == "contatori_summary":
+                return entry
+        return None
+
+    def test_wants_contatori_gate_precision(self):
+        from ai_assistant.tools import _wants_contatori_context
+
+        # Domande sui contatori reali -> True
+        self.assertTrue(_wants_contatori_context("qual e' il consumo stampe per reparto?"))
+        self.assertTrue(_wants_contatori_context("mostra i contatori delle multifunzione"))
+        self.assertTrue(_wants_contatori_context("andamento delle fotocopie per trimestre"))
+        self.assertTrue(_wants_contatori_context("classifica reparti per copie stampate"))
+        # Dominio non pertinente -> False
+        self.assertFalse(_wants_contatori_context("la stampante non funziona, apri un ticket"))
+        self.assertFalse(_wants_contatori_context("quali asset sono in riparazione?"))
+        self.assertFalse(_wants_contatori_context("mostra le mie ferie residue"))
+
+    def test_contatori_context_aggregates_for_authorized(self):
+        request = SimpleNamespace(user=self.superuser, path="/assistente-ai/")
+
+        context = build_runtime_context(request, "qual e' il consumo stampe per reparto?")
+
+        self.assertIn("tool:contatori:riepilogo", context.sources)
+        self.assertIn("CONTATORI MFC", context.text)
+        self.assertIn("PRODUZIONE", context.text)  # reparto piu' "consumatore"
+        self.assertIn("UFFICIO TECNICO", context.text)
+
+        audit = self._contatori_audit(context)
+        self.assertIsNotNone(audit)
+        self.assertTrue(audit["allowed"])
+        self.assertEqual(audit["scope"], "flotta")
+
+    def test_contatori_context_denies_anonymous(self):
+        from django.contrib.auth.models import AnonymousUser
+
+        request = SimpleNamespace(user=AnonymousUser(), path="/assistente-ai/")
+
+        context = build_runtime_context(request, "mostra i contatori delle multifunzione")
+
+        self.assertIn("tool:contatori:accesso-negato", context.sources)
+        audit = self._contatori_audit(context)
+        self.assertIsNotNone(audit)
+        self.assertFalse(audit["allowed"])
+        self.assertEqual(audit["reason"], "anonymous")
+
+    def test_contatori_context_denies_unauthorized_user(self):
+        request = SimpleNamespace(user=self.plain_user, path="/assistente-ai/")
+
+        context = build_runtime_context(request, "mostra i contatori delle multifunzione")
+
+        self.assertIn("tool:contatori:accesso-negato", context.sources)
+        audit = self._contatori_audit(context)
+        self.assertIsNotNone(audit)
+        self.assertFalse(audit["allowed"])
+        # Nessun dato di consumo nell'output negato
+        self.assertNotIn("PRODUZIONE", context.text)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SETUP_WIZARD_REQUIRED=False)
 class SgiRagLoaderTests(TestCase):
     """F1 — loader RAG del corpus documentale SGI (specifiche + procedure correnti).
 
