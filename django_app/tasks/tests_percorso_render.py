@@ -48,6 +48,15 @@ class PercorsoRenderTests(TestCase):
         # il pannello di aggancio kickoff è presente (task sempre dentro un kickoff)
         self.assertIn("Aggancio e anagrafica kickoff", body)
 
+    def test_task_detail_renders(self):
+        from tasks.models import Project, Task
+
+        p = Project.objects.create(name="", created_by=self.admin)
+        t = Task.objects.create(title="Task UI", project=p, created_by=self.admin)
+        resp = self.client.get(reverse("tasks:detail", args=[t.id]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("task-detail-layout", resp.content.decode("utf-8"))
+
     def test_portfolio_page_renders(self):
         from tasks.models import Project
 
