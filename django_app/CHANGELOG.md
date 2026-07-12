@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### SOC IT - CN - Security Center AI fase B4: test di regressione dell'innesto
+
+- **[test] `security/tests_soc.py` [nuovo]**: 12 test scoped sull'innesto SOC IT - CN (pagine `/soc/` render 200, pipeline sincrona, Configuration Studio, i 2 task `django-q2` puri). **Non** è la suite SC-AI completa (che testa anche funzioni non ancora montate e contiene fixture con **segreti sintetici** bloccati dall'hook pre-commit) → riportata separatamente in futuro. Lavoro spostato su **branch dedicato `feat/soc-security-b4`** per isolarlo da una sessione parallela sul modulo `ai_assistant`.
+
 ### SOC IT - CN - Security Center AI fase B3: Pipeline + Celery->django-q2 + Configuration Studio
 
 - **[feat/refactor] `security/urls_hub.py`, `security/tasks.py`, `security/templates/security/{pipeline,inbox,help,admin_diagnostics,admin_docs,admin_addons,admin_addon_detail}.html` + `admin_config/*.html`**: fase B3 del core SC-AI. **Pipeline** (parser+regole+KPI) sincrona via HTMX (nessuna coda); i 2 task background da **Celery a django-q2** (funzioni pure, rimosso import `security_center_ai.celery`); montato l'intero **Configuration Studio** (config + diagnostica + inbox + moduli). **ACL v2**: 25 permessi `security.*` + 26 binding, grant al ruolo **admin**. `check` pulito, tutte le pagine 200. Escluso: API DRF (stub per il solo reverse), mailbox-admin, AI dormiente, suite test (B4).
