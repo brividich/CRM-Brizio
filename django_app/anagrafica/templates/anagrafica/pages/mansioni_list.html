@@ -76,6 +76,7 @@ body.theme-dark .mn-modal { background:var(--surface); }
       </label>
       <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-filter"/></svg>Filtra</button>
       {% if q_text or filtro_rischio or solo_rischio %}<a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mansioni_list' %}">Azzera</a>{% endif %}
+      {% include "anagrafica/components/_export_menu.html" with export_key="mansioni" %}
       <span class="fmd-spacer"></span>
       <span class="fmd-block-aside">{{ n_visibili }} mostrate · {{ n_rischio_tot }} di rischio</span>
     </form>

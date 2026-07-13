@@ -13,11 +13,13 @@ logger = logging.getLogger(__name__)
 # (anagrafica:skm_impostazioni → manage), così si ri-registra negli ambienti già a v3.
 # Bump alla v5: aggiunge i permessi/binding canonici MOD.128 MPQ (processi qualificati).
 # Bump alla v6: aggiunge i binding delle route di gestione (CRUD) MOD.128 → manage.
-# Bump alla v7: merge dei due filoni — oltre ai binding MOD.128 include anche il binding
-#   route dello Scadenzario abilitazioni (F10, anagrafica:skm_scadenzario → manage).
-#   La chiave DEVE essere nuova: gli ambienti gia' a v5 o a v6 altrimenti non
-#   ri-registrerebbero i binding dell'altro filone (route non mappata = 403).
-_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v7"
+# Bump alla v7: due filoni paralleli avevano entrambi scelto la v7 —
+#   (a) binding route dello Scadenzario abilitazioni (F10, anagrafica:skm_scadenzario → manage);
+#   (b) permesso/binding canonico dell'endpoint unico di export (anagrafica:export → anagrafica.export.use).
+# Bump alla v8: unione dei due. La chiave DEVE essere NUOVA: un ambiente gia' arrivato
+#   a "v7" con uno solo dei due filoni non ri-registrerebbe i binding dell'altro, e in
+#   ACL_STRICT_CANONICAL una route non mappata viene NEGATA a tutti i non-superuser (403).
+_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v8"
 
 # ── ACL v2 canonico — Skill Matrix MOD.187 ─────────────────────────────────────
 # Rende le route Skill Matrix governabili da /admin-portale/acl-canonico/ (e
@@ -103,8 +105,78 @@ _MPQ_ROLE_GRANTS = {
 }
 
 
+# ── ACL v2 canonico — endpoint unico di export liste (PDF/Excel) ──────────────
+# `anagrafica:export` (/anagrafica/esporta/<key>/) è una rotta trasversale: senza
+# RoutePermissionBinding canonico, con ACL_STRICT_CANONICAL=True il middleware la
+# nega a TUTTI i non-superuser (deny del fallback legacy). Le liste di anagrafica
+# non hanno permessi canonici in codice (i loro binding vivono in DB), quindi qui
+# si registra un permesso dedicato "uso dell'export", abilitato di default a tutti
+# i ruoli: il gate FINE resta la lista di origine, verificato dentro la view via
+# `exports.acl_gate("/anagrafica/<lista>/")`. Chi non vede la lista non la esporta.
+PERM_EXPORT = "anagrafica.export.use"
+
+_EXPORT_CANONICAL = {
+    PERM_EXPORT: {
+        "label": "Anagrafica - Export liste (PDF/Excel)",
+        "description": (
+            "Uso dell'endpoint unico di export delle liste di anagrafica. "
+            "Il contenuto esportabile resta limitato alle liste che l'utente può già vedere."
+        ),
+    },
+}
+
+_EXPORT_ROUTE_BINDINGS = {
+    "anagrafica:export": PERM_EXPORT,
+}
+
+
 def _norm(value: str) -> str:
     return str(value or "").strip().lower()
+
+
+def _bootstrap_export_canonical() -> bool:
+    """Registra permesso canonico + binding route dell'endpoint di export.
+
+    Grant di default: abilitato per tutti i ruoli legacy (CREATE-ONLY, non
+    sovrascrive le scelte fatte in /admin-portale/acl-canonico/).
+    """
+    from core.legacy_models import Ruolo
+    from core.models import (
+        PermissionDefinition, RolePermissionGrant, RoutePermissionBinding,
+    )
+
+    changed = False
+    with transaction.atomic():
+        for code, payload in _EXPORT_CANONICAL.items():
+            _, created = PermissionDefinition.objects.get_or_create(
+                code=code,
+                defaults={"module": MODULE, "label": payload["label"],
+                          "description": payload["description"], "is_active": True},
+            )
+            changed = changed or created
+
+        for route_name, code in _EXPORT_ROUTE_BINDINGS.items():
+            binding, created = RoutePermissionBinding.objects.get_or_create(
+                route_name=route_name, path_pattern="",
+                defaults={"match_strategy": RoutePermissionBinding.MATCH_EXACT,
+                          "permission_id": code, "source_app": MODULE,
+                          "note": "[EXPORT_BOOTSTRAP] binding endpoint unico export liste",
+                          "priority": 80, "is_active": True},
+            )
+            changed = changed or created
+            if not created and (binding.permission_id != code or not binding.is_active):
+                binding.permission_id = code
+                binding.is_active = True
+                binding.save(update_fields=["permission", "is_active", "updated_at"])
+                changed = True
+
+        for rid in Ruolo.objects.values_list("id", flat=True):
+            _, created = RolePermissionGrant.objects.get_or_create(
+                legacy_role_id=int(rid), permission_id=PERM_EXPORT,
+                defaults={"enabled": True, "note": "[EXPORT_BOOTSTRAP] default"},
+            )
+            changed = changed or created
+    return changed
 
 
 def _bootstrap_skillmatrix_canonical() -> bool:
@@ -201,10 +273,11 @@ def _bootstrap_mpq_canonical() -> bool:
 
 
 def _bootstrap_anagrafica_canonical() -> bool:
-    """Bootstrap canonico delle aree anagrafica governate da ACL v2 (SKM + MPQ)."""
+    """Bootstrap canonico delle aree anagrafica governate da ACL v2 (SKM + MPQ + export)."""
     changed_skm = _bootstrap_skillmatrix_canonical()
     changed_mpq = _bootstrap_mpq_canonical()
-    return bool(changed_skm or changed_mpq)
+    changed_export = _bootstrap_export_canonical()
+    return bool(changed_skm or changed_mpq or changed_export)
 
 _PULSANTI_DEFINITIONS = [
     {"modulo": "anagrafica", "codice": "anagrafica_index", "label": "Anagrafica - Dashboard", "url": "/anagrafica/", "hide": False},

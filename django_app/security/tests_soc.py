@@ -75,6 +75,11 @@ class SocPagesRenderTest(_AuthedSuperuserMixin, TestCase):
     def test_mailbox_sources_page(self):
         self.assertEqual(self.client.get(reverse("security:admin_mailbox_sources_list")).status_code, 200)
 
+    def test_api_dashboard_summary_json(self):
+        r = self.client.get(reverse("security:api_dashboard_summary"))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r["Content-Type"], "application/json")
+
     def test_assets_page_mostra_link_hub(self):
         from assets.models import Asset
         from security.models import SecurityAsset

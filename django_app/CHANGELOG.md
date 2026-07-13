@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### SOC IT - CN - mailbox-admin + API DRF read-only
+
+- **[feat/test] `security/urls_hub.py`, `security/templates/security/{admin_mailbox_sources_list,admin_mailbox_source_detail}.html`, `security/tests_soc.py`**: montate le ultime superfici escluse. (1) **mailbox-admin**: pagine config sorgenti mailbox (sola lettura) su `/soc/admin/mailbox/` — l'ingestione Graph/IMAP resta fuori (serve credenziali + scheduling). (2) **API DRF read-only**: `/soc/api/{dashboard-summary,alerts/recent,kpis/summary}/` (JSON, `permission_classes=[CanViewSecurityCenter]`, ACL-gated). **Esclusi di proposito**: `api_ai.py` (AI NVIDIA di SC-AI → contraddice la convergenza su Ollama del sotto-progetto C) e `api_configuration.py` (config wizard della SPA React droppata). ACL: 31 permessi `security.*` (grant admin). 22 test `tests_soc` verdi. `check` pulito.
+
 ### SOC IT - CN - Follow-up innesto (README, CSS, test subset, UI asset)
 
 - **[docs/style/test/feat] `README.md`, `security/static/security/security.css`, `security/tests/`, `security/views_soc.py` + `templates/security/soc_assets.html`, `security/templates/security/_base_soc.html`, `security/tests_soc.py`**: rifiniture post-programma. (1) Righe moduli contatori/security nel README. (2) `security.css` **scopata sotto `.soc-module`** (niente leak del tema dark sullo shell HUB). (3) Sottoinsieme suite SC-AI che regge (111 test: ai_config/ai_memory/rule_simulation) — esclusi i test di funzioni non wired (API/AI/mailbox/React) e le **fixtures con dati REALI del firewall** (non versionabili). (4) Pagina `/soc/assets/` (lista SecurityAsset + link Asset HUB da D2) + nav con link reali + ACL + 2 test. `check` pulito. API DRF/mailbox-admin restano superfici escluse.
