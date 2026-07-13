@@ -846,20 +846,29 @@ function gcmStep(name, delta) {
     var list = document.getElementById('gcm-slit-list');
     var ok = document.getElementById('gcm-slit-ok');
     if (!ov || !ok) { if (window.confirm('Questo spostamento sposta ' + piano.length + ' lavori. Confermare?')) { onOk(); } else { onCancel(); } return; }
-    var n = Math.max(0, piano.length - 1);
-    var nIrrisolti = piano.filter(function (r) { return r.irrisolto; }).length;
-    intro.textContent = n ? ('Questo spostamento richiede di slittare ' + n + (n === 1 ? ' lavoro:' : ' lavori:')) : 'Confermi lo spostamento?';
-    if (nIrrisolti) {
-      intro.textContent += ' ⚠ ' + nIrrisolti + (nIrrisolti === 1 ? ' lavoro resta in conflitto' : ' lavori restano in conflitto') + " (oltre l'orizzonte di ricerca), non verrà spostato.";
-    }
-    list.innerHTML = piano.map(function (r, i) {
-      var tag = i === 0 ? '<b>' + esc(r.etichetta) + '</b>' : esc(r.etichetta);
-      var stile = r.irrisolto ? 'color:var(--g-danger,#c0392b);' : 'color:var(--g-light);';
-      var avviso = r.irrisolto ? ' ⚠' : '';
+    var mosse = piano.filter(function (r) { return !r.irrisolto; });
+    var restano = piano.filter(function (r) { return r.irrisolto; });
+    var n = Math.max(0, mosse.length - 1);
+    intro.textContent = n
+      ? ('Oltre al lavoro trascinato slitta ' + n + (n === 1 ? ' lavoro in conflitto:' : ' lavori in conflitto:'))
+      : 'Confermi lo spostamento?';
+    function riga(r, grassetto) {
+      var tag = grassetto ? '<b>' + esc(r.etichetta) + '</b>' : esc(r.etichetta);
       return '<div style="display:flex;justify-content:space-between;gap:10px;font-size:.85rem;border-bottom:1px solid var(--g-border);padding-bottom:4px;">'
         + '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + tag + '</span>'
-        + '<span style="white-space:nowrap;' + stile + '">' + esc(r.da) + ' &rarr; ' + esc(r.a) + avviso + '</span></div>';
-    }).join('');
+        + '<span style="white-space:nowrap;color:var(--g-light);">' + esc(r.da) + ' &rarr; ' + esc(r.a) + '</span></div>';
+    }
+    var html = mosse.map(function (r, i) { return riga(r, i === 0); }).join('');
+    if (restano.length) {
+      html += '<div style="margin-top:8px;font-size:.8rem;color:var(--g-danger,#c0392b);">⚠ Resta'
+        + (restano.length === 1 ? ' in conflitto (non viene spostato):' : 'no in conflitto (non vengono spostati):') + '</div>'
+        + restano.map(function (r) {
+          return '<div style="display:flex;justify-content:space-between;gap:10px;font-size:.8rem;color:var(--g-danger,#c0392b);">'
+            + '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(r.etichetta) + '</span>'
+            + '<span style="white-space:nowrap;opacity:.85;">' + esc(r.motivo || '') + '</span></div>';
+        }).join('');
+    }
+    list.innerHTML = html;
     var ok2 = ok.cloneNode(true); ok.parentNode.replaceChild(ok2, ok);
     ok2.addEventListener('click', function () { ov.classList.remove('open'); onOk(); });
     var cancelled = { done: false };
@@ -871,6 +880,22 @@ function gcmStep(name, delta) {
     }
     ov.addEventListener('click', closer);
     openOv('gcm-slit-ov');
+  }
+  function gcmAvvisoConflitti(avvisi) {
+    // Avviso NON bloccante: lo spostamento è già stato applicato, il conflitto residuo
+    // (tipicamente uno che c'era già prima) va solo segnalato, non fatto confermare.
+    if (!avvisi || !avvisi.length) return;
+    var box = document.createElement('div');
+    box.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:9999;max-width:380px;'
+      + 'background:var(--g-panel,#fff);border:1px solid var(--g-danger,#c0392b);border-radius:8px;'
+      + 'padding:10px 12px;box-shadow:0 6px 22px rgba(0,0,0,.18);font-size:.82rem;';
+    box.innerHTML = '<div style="color:var(--g-danger,#c0392b);font-weight:600;margin-bottom:4px;">'
+      + '⚠ Spostato, ma ' + avvisi.length + (avvisi.length === 1 ? ' conflitto resta' : ' conflitti restano') + '</div>'
+      + avvisi.map(function (a) {
+        return '<div style="color:var(--g-light);">' + esc(a.etichetta) + ' — ' + esc(a.motivo || '') + '</div>';
+      }).join('');
+    document.body.appendChild(box);
+    setTimeout(function () { box.remove(); }, 8000);
   }
   function postMove(d, params) {
     return fetch(url, {
@@ -900,6 +925,7 @@ function gcmStep(name, delta) {
         d.bar.style.transform = ''; d.bar.style.left = calcLeft(newStart);
         d.bar.classList.add('saved');
         setTimeout(function () { d.bar.classList.remove('saved'); }, 1000);
+        gcmAvvisoConflitti(data.avvisi);
       } else { resetBar(d); alert((data && data.error) || 'Errore nello spostamento.'); }
     }).catch(function () { resetBar(d); alert('Errore di rete.'); });
   }

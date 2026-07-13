@@ -178,6 +178,9 @@ def _primo_slot_libero(macchina, data, ore, turno):
     return None
 
 
+_ORIZZONTE_SLOT = 120  # giorni lavorativi entro cui cercare uno slot libero per uno slittato
+
+
 def _piano_slittamento(macchina_eff, p, nuova_data, coda=False):
     """Calcola (senza toccare il DB) i movimenti necessari per spostare `p` a
     `nuova_data` sulla macchina `macchina_eff`.
@@ -188,12 +191,15 @@ def _piano_slittamento(macchina_eff, p, nuova_data, coda=False):
     * un lavoro che era GIÀ sovrapposto a `p` prima dello spostamento non viene
       toccato: il drag non ha creato quel conflitto, non tocca a lui risolverlo
       (nel foglio reale i lavori lunghi si sovrappongono già fra loro);
-    * NESSUNA catena: se uno slittato finisce sopra un terzo lavoro, il terzo
-      resta dov'è e il Gantt lo segnala come conflitto (⚠). Il modello tollera i
-      conflitti — segnalarli è compito della vista, non della pianificazione.
+    * NESSUNA catena: un lavoro che non confligge con `p` non viene mai mosso.
+      Lo slittato atterra sul primo giorno lavorativo **davvero libero** (nessun
+      conflitto con `p` né con nessun altro), quindi non serve spingere terzi;
+    * i lavori **in corso o già avviati** (data < oggi) non si spostano mai.
 
-    Ritorna lista ordinata di dict {id, etichetta, macchina, da, a, irrisolto};
-    la prima riga è sempre `p`.
+    Ritorna lista ordinata di dict {id, etichetta, macchina, da, a, irrisolto,
+    motivo}; la prima riga è sempre `p`. Le righe con `irrisolto=True` sono
+    **avvisi** (a == da, nessuna scrittura): conflitti che restano in piedi dopo
+    lo spostamento, col `motivo` per cui non sono stati risolti.
     """
     def _etichetta(job):
         return (getattr(job, "testo_originale", "") or
@@ -209,7 +215,7 @@ def _piano_slittamento(macchina_eff, p, nuova_data, coda=False):
         return _giorni_lavorativi(da_data, 1)[0]
 
     piano = [{"id": p.id, "etichetta": _etichetta(p), "macchina": macchina_eff.codice,
-              "da": p.data, "a": nuova_data, "irrisolto": False}]
+              "da": p.data, "a": nuova_data, "irrisolto": False, "motivo": ""}]
 
     if coda:
         from .models import Pianificazione
@@ -230,7 +236,7 @@ def _piano_slittamento(macchina_eff, p, nuova_data, coda=False):
             piano.append({"id": o.id, "etichetta": _etichetta(o),
                           "macchina": macchina_eff.codice,
                           "da": o.data, "a": _sposta_giorni_lavorativi(o.data, delta_lav),
-                          "irrisolto": False})
+                          "irrisolto": False, "motivo": ""})
         return piano
 
     from .models import Pianificazione
@@ -241,32 +247,63 @@ def _piano_slittamento(macchina_eff, p, nuova_data, coda=False):
         .exclude(pk=p.pk)
         .select_related("famiglia")
     )
+    oggi = timezone.localdate()
 
-    def _confligge(p_data, o):
-        # Stesse regole di _sovrapposizioni: fasce orarie intersecanti + sovrapposizione
-        # degli intervalli in giorni lavorativi, ma su una data-inizio ipotetica di `p`.
-        if not (Pianificazione.fasce_di(p.turno) & Pianificazione.fasce_di(o.turno)):
+    def _confligge(a, a_data, b, b_data):
+        # Stesse regole di _sovrapposizioni (fasce orarie intersecanti + intervalli in
+        # giorni lavorativi sovrapposti), ma su date-inizio ipotetiche.
+        if not (Pianificazione.fasce_di(a.turno) & Pianificazione.fasce_di(b.turno)):
             return False
-        return p_data < _fine(o.data, o) and o.data < _fine(p_data, p)
+        return a_data < _fine(b_data, b) and b_data < _fine(a_data, a)
+
+    def _con_p(p_data, o):
+        return _confligge(p, p_data, o, o.data)
+
+    def _avviso(o, motivo):
+        piano.append({"id": o.id, "etichetta": _etichetta(o), "macchina": macchina_eff.codice,
+                      "da": o.data, "a": o.data, "irrisolto": True, "motivo": motivo})
 
     # Conflitti che esistevano GIÀ nella posizione di partenza: non li ha creati il drag,
     # quindi restano dove sono. (Se il lavoro cambia macchina non ce n'è nessuno.)
     gia_in_conflitto = (
-        {o.id for o in attivi if _confligge(p.data, o)}
+        {o.id for o in attivi if _con_p(p.data, o)}
         if p.macchina_id == macchina_eff.id else set()
     )
     nuovi = sorted(
-        (o for o in attivi if o.id not in gia_in_conflitto and _confligge(nuova_data, o)),
+        (o for o in attivi if o.id not in gia_in_conflitto and _con_p(nuova_data, o)),
         key=lambda o: (o.data, o.id),
     )
 
-    # Ogni conflitto nuovo va dopo la fine di `p`, impilato in sequenza sugli altri
-    # slittati (così non si sovrappongono fra loro). Nessuna propagazione oltre.
-    cursor = _primo_lav(_fine(nuova_data, p))
+    # Posizioni simulate: `p` è già alla nuova data, gli slittati man mano ricollocati.
+    # Servono per far atterrare ogni slittato su uno slot DAVVERO libero, invece di
+    # appoggiarlo subito dopo `p` e scaricare il conflitto sul primo che passa.
+    sim = {o.id: o.data for o in attivi}
+    da_dove = _primo_lav(_fine(nuova_data, p))
+
     for o in nuovi:
+        if o.stato == Pianificazione.STATO_IN_CORSO or o.data < oggi:
+            _avviso(o, "in corso / già avviato")  # non si tocca: si avvisa e basta
+            continue
+        libero = None
+        for d in _giorni_lavorativi(da_dove, _ORIZZONTE_SLOT):
+            if _confligge(o, d, p, nuova_data):
+                continue
+            if any(_confligge(o, d, x, sim[x.id]) for x in attivi if x.id != o.id):
+                continue
+            libero = d
+            break
+        if libero is None:
+            _avviso(o, f"nessuno slot libero entro {_ORIZZONTE_SLOT} giorni lavorativi")
+            continue
+        sim[o.id] = libero
         piano.append({"id": o.id, "etichetta": _etichetta(o), "macchina": macchina_eff.codice,
-                      "da": o.data, "a": cursor, "irrisolto": False})
-        cursor = _primo_lav(_fine(cursor, o))
+                      "da": o.data, "a": libero, "irrisolto": False, "motivo": ""})
+
+    # I conflitti preesistenti non si toccano, ma vanno DETTI: l'operatore deve sapere
+    # che dopo lo spostamento quella sovrapposizione è ancora lì (e che non è colpa sua).
+    for o in attivi:
+        if o.id in gia_in_conflitto and _con_p(nuova_data, o):
+            _avviso(o, "conflitto già presente prima dello spostamento")
     return piano
 
 
@@ -1119,26 +1156,27 @@ def reschedule(request):
             "error": "Il piano è cambiato nel frattempo: ricontrolla lo spostamento.",
         }, status=200)
 
-    # C'è slittamento (piano oltre la sola p) e non ancora confermato -> preview.
-    # `forza` bypassa SOLO l'incompatibilità di categoria macchina (sopra): uno
-    # slittamento a catena richiede sempre la sua conferma esplicita e separata,
-    # anche quando il cambio macchina è già stato forzato.
-    if len(piano) > 1 and not conferma:
+    # Le righe IRRISOLTE sono AVVISI (a == da): conflitti che restano in piedi dopo lo
+    # spostamento (preesistenti, lavori in corso, nessuno slot libero). Non vanno
+    # scritte — scriverle muoverebbe fonte/updated_at di un lavoro mai toccato.
+    da_scrivere = [r for r in piano if not r.get("irrisolto")]
+    avvisi = [{"etichetta": r["etichetta"], "motivo": r["motivo"]}
+              for r in piano if r.get("irrisolto")]
+    n_irrisolti = len(avvisi)
+
+    # Conferma richiesta solo se c'è davvero qualcosa DA SPOSTARE oltre a `p`: un piano
+    # fatto di soli avvisi non giustifica un popup bloccante (il conflitto c'era già).
+    # `forza` bypassa SOLO l'incompatibilità di categoria macchina (sopra): lo
+    # slittamento richiede sempre la sua conferma esplicita e separata.
+    if len(da_scrivere) > 1 and not conferma:
         return JsonResponse({
             "ok": False, "reason": "slittamento", "versione": token,
             "piano": [{
                 "etichetta": r["etichetta"], "macchina": r["macchina"],
                 "da": r["da"].strftime("%d/%m"), "a": r["a"].strftime("%d/%m"),
-                "irrisolto": bool(r.get("irrisolto")),
+                "irrisolto": bool(r.get("irrisolto")), "motivo": r.get("motivo") or "",
             } for r in piano],
         }, status=200)
-
-    # Le righe IRRISOLTE (conflitto residuo oltre l'orizzonte di ricerca) non vanno
-    # scritte: non c'è alcun movimento reale da applicare (a == da), solo da segnalare
-    # all'operatore — scriverle sposterebbe inutilmente fonte/updated_at di un lavoro
-    # che di fatto non e' stato toccato.
-    da_scrivere = [r for r in piano if not r.get("irrisolto")]
-    n_irrisolti = len(piano) - len(da_scrivere)
 
     with transaction.atomic():
         ids = [r["id"] for r in da_scrivere]
@@ -1171,11 +1209,11 @@ def reschedule(request):
     if n_slittati:
         descr += f" (+{n_slittati} slittati)"
     if n_irrisolti:
-        descr += f" ({n_irrisolti} conflitti irrisolti oltre l'orizzonte)"
+        descr += f" ({n_irrisolti} conflitti restano)"
     _log_azione(request, "sposta", macchina=macchina_log, pianificazione_id=p.id, descrizione=descr)
     return JsonResponse({
         "ok": True, "id": p.id, "spostati": len(da_scrivere),
-        "irrisolti": n_irrisolti,
+        "irrisolti": n_irrisolti, "avvisi": avvisi,
         "coda": coda and not sposta_macchina, "macchina": sposta_macchina,
     })
 

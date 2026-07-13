@@ -43,6 +43,13 @@ class GanttViewTest(TestCase):
             asset_tag="CNC-DM3-1", name="DM3 - DMG Mori", asset_type=Asset.TYPE_WORK_MACHINE
         )
         self.m = Macchina.objects.create(asset=self.asset, categoria=Macchina.CAT_5AXIS)
+        # I test lavorano su date di giugno 2026: congelo "oggi" prima di quelle date,
+        # altrimenti i lavori risulterebbero "già avviati" e lo slittamento non li
+        # toccherebbe (li segnalerebbe come avvisi).
+        _freeze = patch("gestione_carichi_macchina.views.timezone.localdate",
+                        return_value=date(2026, 6, 1))
+        _freeze.start()
+        self.addCleanup(_freeze.stop)
 
     def test_gantt_page(self):
         self.client.force_login(self.user)
@@ -341,6 +348,68 @@ class GanttViewTest(TestCase):
         self.assertNotIn(c.id, ids)
         self.assertNotIn(far.id, ids)
 
+    def test_piano_slittamento_slittato_atterra_su_slot_davvero_libero(self):
+        """Lo slittato non viene appoggiato subito dopo il trascinato se lì c'è già
+        qualcun altro: cerca il primo giorno LIBERO da ogni conflitto, senza spingere
+        terzi (che infatti non compaiono nel piano)."""
+        from datetime import date
+        from .views import _piano_slittamento
+        d = date(2026, 6, 22)  # lunedì
+        p0 = Pianificazione.objects.create(macchina=self.m, data=d, turno="giorno", testo_originale="A", fonte=Pianificazione.FONTE_IMPORT)
+        b = Pianificazione.objects.create(macchina=self.m, data=d + timedelta(days=1), turno="giorno", testo_originale="B", fonte=Pianificazione.FONTE_IMPORT)  # mar 23
+        c = Pianificazione.objects.create(macchina=self.m, data=d + timedelta(days=2), turno="giorno", testo_originale="C", fonte=Pianificazione.FONTE_IMPORT)  # mer 24 (occupato)
+        piano = _piano_slittamento(self.m, p0, d + timedelta(days=1), coda=False)  # A -> mar 23, confligge con B
+        riga_b = next(r for r in piano if r["id"] == b.id)
+        self.assertEqual(riga_b["a"], d + timedelta(days=3))  # gio 25: mer 24 è occupato da C
+        self.assertNotIn(c.id, [r["id"] for r in piano])      # C non viene spinto
+
+    def test_piano_slittamento_non_tocca_lavori_in_corso(self):
+        """Un lavoro IN CORSO non viene mai slittato: diventa un avviso (irrisolto)."""
+        from datetime import date
+        from .views import _piano_slittamento
+        d = date(2026, 6, 22)  # lunedì
+        p0 = Pianificazione.objects.create(macchina=self.m, data=d, turno="giorno", testo_originale="A", fonte=Pianificazione.FONTE_IMPORT)
+        b = Pianificazione.objects.create(macchina=self.m, data=d + timedelta(days=1), turno="giorno", testo_originale="B",
+                                          stato=Pianificazione.STATO_IN_CORSO, fonte=Pianificazione.FONTE_IMPORT)
+        piano = _piano_slittamento(self.m, p0, d + timedelta(days=1), coda=False)
+        riga_b = next(r for r in piano if r["id"] == b.id)
+        self.assertTrue(riga_b["irrisolto"])
+        self.assertEqual(riga_b["a"], b.data)  # non spostato
+        self.assertIn("in corso", riga_b["motivo"])
+
+    def test_piano_slittamento_conflitto_preesistente_e_segnalato_come_avviso(self):
+        """Il conflitto già presente prima del drag non si tocca, ma va SEGNALATO."""
+        from datetime import date
+        from decimal import Decimal
+        from .views import _piano_slittamento
+        d = date(2026, 6, 22)
+        lungo = Pianificazione.objects.create(macchina=self.m, data=d, turno="giorno", ore=Decimal("129"), testo_originale="lungo", fonte=Pianificazione.FONTE_IMPORT)
+        drag = Pianificazione.objects.create(macchina=self.m, data=d + timedelta(days=1), turno="giorno", ore=Decimal("84"), testo_originale="drag", fonte=Pianificazione.FONTE_IMPORT)
+        piano = _piano_slittamento(self.m, drag, d + timedelta(days=8), coda=False)
+        riga = next(r for r in piano if r["id"] == lungo.id)
+        self.assertTrue(riga["irrisolto"])
+        self.assertEqual(riga["a"], lungo.data)
+        self.assertIn("già presente", riga["motivo"])
+
+    def test_reschedule_soli_avvisi_applica_diretto_senza_popup(self):
+        """Un piano fatto di soli AVVISI (conflitto preesistente) non deve bloccare con
+        il popup: lo spostamento si applica e i conflitti residui vengono riportati."""
+        from decimal import Decimal
+        self.client.force_login(self.user)
+        d = date(2026, 6, 22)
+        lungo = Pianificazione.objects.create(macchina=self.m, data=d, turno="giorno", ore=Decimal("129"), testo_originale="lungo", fonte=Pianificazione.FONTE_IMPORT)
+        drag = Pianificazione.objects.create(macchina=self.m, data=d + timedelta(days=1), turno="giorno", ore=Decimal("84"), testo_originale="drag", fonte=Pianificazione.FONTE_IMPORT)
+        r = self.client.post(reverse("gestione_carichi_macchina:reschedule"),
+                             {"pianificazione_id": drag.id, "giorni_delta": "7", "coda": "0"})
+        j = r.json()
+        self.assertTrue(j["ok"])                     # nessuna conferma richiesta
+        self.assertEqual(j["spostati"], 1)
+        self.assertEqual(j["irrisolti"], 1)
+        self.assertEqual(j["avvisi"][0]["etichetta"], "lungo")
+        drag.refresh_from_db(); lungo.refresh_from_db()
+        self.assertEqual(drag.data, d + timedelta(days=8))
+        self.assertEqual(lungo.data, d)              # il lavoro lungo non si è mosso
+
     def test_piano_slittamento_ignora_conflitto_preesistente(self):
         """Caso reale (CNC-DM5): un lavoro da 129h occupa 17 giorni lavorativi; il lavoro
         trascinato ci era GIÀ dentro prima del drag. Spostarlo in avanti non crea né
@@ -353,8 +422,8 @@ class GanttViewTest(TestCase):
         lungo = Pianificazione.objects.create(macchina=self.m, data=d, turno="giorno", ore=Decimal("129"), testo_originale="18 gimbal 4G 129h", fonte=Pianificazione.FONTE_IMPORT)
         drag = Pianificazione.objects.create(macchina=self.m, data=d + timedelta(days=1), turno="giorno", ore=Decimal("84"), testo_originale="SGR gimbal 84h", fonte=Pianificazione.FONTE_IMPORT)
         piano = _piano_slittamento(self.m, drag, d + timedelta(days=8), coda=False)
-        self.assertEqual([r["id"] for r in piano], [drag.id])
-        self.assertNotIn(lungo.id, [r["id"] for r in piano])
+        mosse = [r for r in piano if not r["irrisolto"]]
+        self.assertEqual([r["id"] for r in mosse], [drag.id])  # nessuno slittamento reale
 
     def test_piano_slittamento_salta_weekend(self):
         from datetime import date
@@ -418,16 +487,18 @@ class GanttViewTest(TestCase):
         self.assertFalse(piano[0]["irrisolto"])
 
     def test_reschedule_preview_segnala_conflitto_irrisolto(self):
-        """La view deve propagare il flag `irrisolto` calcolato da `_piano_slittamento`
-        nella preview JSON e, in fase di apply, non scrivere righe irrisolte (nessun
-        movimento reale) pur riportandone il conteggio."""
+        """Quando c'è almeno uno slittamento reale, la preview elenca ANCHE gli avvisi
+        (righe `irrisolto` col `motivo`); in fase di apply quelle righe non vengono
+        scritte (nessun movimento reale) pur essendo conteggiate."""
         self.client.force_login(self.user)
         d = date(2026, 6, 22)  # lunedì
         p0 = Pianificazione.objects.create(macchina=self.m, data=d, turno="giorno", testo_originale="A", fonte=Pianificazione.FONTE_IMPORT)
         b = Pianificazione.objects.create(macchina=self.m, data=d + timedelta(days=1), turno="giorno", testo_originale="B", fonte=Pianificazione.FONTE_IMPORT)
+        c = Pianificazione.objects.create(macchina=self.m, data=d + timedelta(days=2), turno="giorno", testo_originale="C", fonte=Pianificazione.FONTE_IMPORT)
         finto_piano = [
-            {"id": p0.id, "etichetta": "A", "macchina": self.m.codice, "da": d, "a": d + timedelta(days=1), "irrisolto": False},
-            {"id": b.id, "etichetta": "B", "macchina": self.m.codice, "da": b.data, "a": b.data, "irrisolto": True},
+            {"id": p0.id, "etichetta": "A", "macchina": self.m.codice, "da": d, "a": d + timedelta(days=1), "irrisolto": False, "motivo": ""},
+            {"id": b.id, "etichetta": "B", "macchina": self.m.codice, "da": b.data, "a": d + timedelta(days=3), "irrisolto": False, "motivo": ""},
+            {"id": c.id, "etichetta": "C", "macchina": self.m.codice, "da": c.data, "a": c.data, "irrisolto": True, "motivo": "in corso / già avviato"},
         ]
         with patch("gestione_carichi_macchina.views._piano_slittamento", return_value=finto_piano):
             r = self.client.post(reverse("gestione_carichi_macchina:reschedule"),
@@ -435,8 +506,9 @@ class GanttViewTest(TestCase):
             j = r.json()
             self.assertFalse(j["ok"])
             self.assertEqual(j["reason"], "slittamento")
-            riga_b = next(row for row in j["piano"] if row["etichetta"] == "B")
-            self.assertTrue(riga_b["irrisolto"])
+            riga_c = next(row for row in j["piano"] if row["etichetta"] == "C")
+            self.assertTrue(riga_c["irrisolto"])
+            self.assertEqual(riga_c["motivo"], "in corso / già avviato")
 
             r2 = self.client.post(reverse("gestione_carichi_macchina:reschedule"),
                                   {"pianificazione_id": p0.id, "giorni_delta": "1", "coda": "0",
@@ -444,8 +516,9 @@ class GanttViewTest(TestCase):
         j2 = r2.json()
         self.assertTrue(j2["ok"])
         self.assertEqual(j2["irrisolti"], 1)
-        b.refresh_from_db()
-        self.assertEqual(b.data, d + timedelta(days=1))  # non toccato: era irrisolto (a == da)
+        self.assertEqual(j2["avvisi"][0]["motivo"], "in corso / già avviato")
+        c.refresh_from_db()
+        self.assertEqual(c.data, d + timedelta(days=2))  # non toccato: era un avviso (a == da)
 
     def test_reschedule_conflitto_richiede_conferma_poi_applica(self):
         self.client.force_login(self.user)
