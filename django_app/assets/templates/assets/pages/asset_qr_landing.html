@@ -291,7 +291,8 @@
     </div>
   </div>
 
-  {# Documenti #}
+  {# Documenti — mai esposti al QR pubblico: link a file e cartella SharePoint #}
+  {% if not qr_public %}
   <div class="qrl-card">
     <div class="qrl-card-title">Documenti{% if asset_documents %} ({{ asset_documents|length }}){% endif %}</div>
     <div class="qrl-card-body">
@@ -316,6 +317,7 @@
       {% endif %}
     </div>
   </div>
+  {% endif %}
 
   {# Azioni principali — richiedono login (anche via QR pubblico) #}
   <div class="qrl-actions">

@@ -37,7 +37,7 @@ xlrd==2.0.1               # legacy .xls reader (intake export gestionale Specifi
 pydantic==2.13.4          # via django-ninja
 pydantic-core==2.46.4     # via pydantic
 pyjwt==2.12.1             # via msal, pyjwt
-pymupdf==1.27.2.3         # via -r requirements.in
+pymupdf==1.28.0         # via -r requirements.in
 pyodbc==5.3.0             # via -r requirements.in, mssql-django
 pyopenssl==25.1.0         # via -r requirements.in
 pyotp==2.9.0              # via -r requirements.in

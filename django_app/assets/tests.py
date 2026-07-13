@@ -2381,7 +2381,9 @@ class AssetsRoutingTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "AST-QR-PUB")
-        self.assertContains(response, "Documenti")
+        self.assertContains(response, "Interventi aperti")
+        # I documenti dell'asset (file e cartella SharePoint) non sono esposti senza login.
+        self.assertNotContains(response, "Documenti")
         # Nessuna shell applicativa e nessun link alla scheda interna per il visitatore anonimo.
         self.assertNotContains(response, reverse("assets:asset_view", kwargs={"id": asset.id}))
         # L'apertura della segnalazione resta dietro login.
