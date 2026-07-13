@@ -323,7 +323,11 @@ class GanttViewTest(TestCase):
                             {"pianificazione_id": p.id, "giorni_delta": "0"})
         self.assertEqual(r.status_code, 400)
 
-    def test_piano_slittamento_a_catena_solo_conflitti_reali(self):
+    def test_piano_slittamento_niente_catena(self):
+        """Si spostano SOLO i lavori in conflitto col lavoro trascinato. Se lo slittato
+        va a sovrapporsi a un terzo lavoro, quel terzo NON viene trascinato a sua volta:
+        il Gantt lo segnalerà come conflitto (⚠), ma la pianificazione non viene
+        bulldozzata a catena."""
         from datetime import date
         from .views import _piano_slittamento
         d = date(2026, 6, 22)  # lunedì
@@ -333,19 +337,35 @@ class GanttViewTest(TestCase):
         far = Pianificazione.objects.create(macchina=self.m, data=d + timedelta(days=10), turno="giorno", testo_originale="Z", fonte=Pianificazione.FONTE_IMPORT)
         piano = _piano_slittamento(self.m, p0, d + timedelta(days=1), coda=False)
         ids = [r["id"] for r in piano]
-        self.assertIn(b.id, ids)
-        self.assertIn(c.id, ids)
+        self.assertEqual(ids, [p0.id, b.id])  # B slitta (conflitto diretto); C e Z restano
+        self.assertNotIn(c.id, ids)
         self.assertNotIn(far.id, ids)
+
+    def test_piano_slittamento_ignora_conflitto_preesistente(self):
+        """Caso reale (CNC-DM5): un lavoro da 129h occupa 17 giorni lavorativi; il lavoro
+        trascinato ci era GIÀ dentro prima del drag. Spostarlo in avanti non crea né
+        peggiora quel conflitto → il lavoro lungo NON va toccato e non c'è nulla da
+        confermare."""
+        from datetime import date
+        from decimal import Decimal
+        from .views import _piano_slittamento
+        d = date(2026, 6, 22)  # lunedì
+        lungo = Pianificazione.objects.create(macchina=self.m, data=d, turno="giorno", ore=Decimal("129"), testo_originale="18 gimbal 4G 129h", fonte=Pianificazione.FONTE_IMPORT)
+        drag = Pianificazione.objects.create(macchina=self.m, data=d + timedelta(days=1), turno="giorno", ore=Decimal("84"), testo_originale="SGR gimbal 84h", fonte=Pianificazione.FONTE_IMPORT)
+        piano = _piano_slittamento(self.m, drag, d + timedelta(days=8), coda=False)
+        self.assertEqual([r["id"] for r in piano], [drag.id])
+        self.assertNotIn(lungo.id, [r["id"] for r in piano])
 
     def test_piano_slittamento_salta_weekend(self):
         from datetime import date
         from .views import _piano_slittamento
-        ven = date(2026, 6, 26)  # venerdì
-        p0 = Pianificazione.objects.create(macchina=self.m, data=ven, turno="giorno", testo_originale="A", fonte=Pianificazione.FONTE_IMPORT)
+        gio = date(2026, 6, 25)
+        ven = date(2026, 6, 26)
+        p0 = Pianificazione.objects.create(macchina=self.m, data=gio, turno="giorno", testo_originale="A", fonte=Pianificazione.FONTE_IMPORT)
         b = Pianificazione.objects.create(macchina=self.m, data=ven, turno="giorno", testo_originale="B", fonte=Pianificazione.FONTE_IMPORT)
         piano = _piano_slittamento(self.m, p0, ven, coda=False)
         riga_b = next(r for r in piano if r["id"] == b.id)
-        self.assertEqual(riga_b["a"], date(2026, 6, 29))  # lunedì
+        self.assertEqual(riga_b["a"], date(2026, 6, 29))  # lunedì, non sabato 27
         self.assertLess(riga_b["a"].weekday(), 5)
 
     def test_piano_slittamento_coda_sposta_tutta_la_coda(self):
@@ -386,19 +406,6 @@ class GanttViewTest(TestCase):
         piano = _piano_slittamento(self.m, p0, d + timedelta(days=2), coda=True)
         ids = [r["id"] for r in piano]
         self.assertIn(o.id, ids)
-
-    def test_piano_slittamento_orizzonte_saturo_segnala_irrisolto(self):
-        """Quando l'orizzonte di ricerca satura, il conflitto residuo va SEGNALATO
-        (riga con irrisolto=True), non omesso silenziosamente dal piano."""
-        from .views import _piano_slittamento
-        d = date(2026, 6, 22)  # lunedì
-        p0 = Pianificazione.objects.create(macchina=self.m, data=d, turno="giorno", testo_originale="A", fonte=Pianificazione.FONTE_IMPORT)
-        b = Pianificazione.objects.create(macchina=self.m, data=d + timedelta(days=1), turno="giorno", testo_originale="B", fonte=Pianificazione.FONTE_IMPORT)
-        piano = _piano_slittamento(self.m, p0, d + timedelta(days=1), coda=False, orizzonte=1)
-        riga_b = next((r for r in piano if r["id"] == b.id), None)
-        self.assertIsNotNone(riga_b, "il conflitto non risolvibile deve comunque comparire nel piano")
-        self.assertTrue(riga_b["irrisolto"])
-        self.assertEqual(riga_b["a"], b.data)  # non spostato: l'orizzonte non lascia margine
 
     def test_piano_slittamento_riga_normale_non_e_irrisolta(self):
         from .views import _piano_slittamento

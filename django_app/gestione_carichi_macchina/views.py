@@ -178,16 +178,22 @@ def _primo_slot_libero(macchina, data, ore, turno):
     return None
 
 
-def _piano_slittamento(macchina_eff, p, nuova_data, coda=False, orizzonte=60):
+def _piano_slittamento(macchina_eff, p, nuova_data, coda=False):
     """Calcola (senza toccare il DB) i movimenti necessari per spostare `p` a
     `nuova_data` sulla macchina `macchina_eff`.
 
-    Con coda=False: spinge in avanti SOLO i lavori realmente in conflitto, del
-    minimo necessario (in giorni lavorativi), a catena finché nascono nuovi
-    conflitti reali. I lavori non collidenti non vengono toccati.
+    Con coda=False slitta SOLO i conflitti che il drag **crea**, del minimo
+    necessario (in giorni lavorativi). In particolare:
 
-    Ritorna lista ordinata di dict {id, etichetta, macchina, da, a}; la prima
-    riga è sempre `p`.
+    * un lavoro che era GIÀ sovrapposto a `p` prima dello spostamento non viene
+      toccato: il drag non ha creato quel conflitto, non tocca a lui risolverlo
+      (nel foglio reale i lavori lunghi si sovrappongono già fra loro);
+    * NESSUNA catena: se uno slittato finisce sopra un terzo lavoro, il terzo
+      resta dov'è e il Gantt lo segnala come conflitto (⚠). Il modello tollera i
+      conflitti — segnalarli è compito della vista, non della pianificazione.
+
+    Ritorna lista ordinata di dict {id, etichetta, macchina, da, a, irrisolto};
+    la prima riga è sempre `p`.
     """
     def _etichetta(job):
         return (getattr(job, "testo_originale", "") or
@@ -227,10 +233,6 @@ def _piano_slittamento(macchina_eff, p, nuova_data, coda=False, orizzonte=60):
                           "irrisolto": False})
         return piano
 
-    # Risoluzione simulation-aware: lavoriamo su posizioni SIMULATE in memoria (non su
-    # quelle a DB). Così conflitti multipli sullo stesso slot vengono impilati in
-    # sequenza (non ammucchiati sulla stessa data) e i conflitti a catena si rilevano
-    # sulle NUOVE posizioni. `_sovrapposizioni` leggerebbe il DB e non lo permetterebbe.
     from .models import Pianificazione
 
     attivi = list(
@@ -239,55 +241,32 @@ def _piano_slittamento(macchina_eff, p, nuova_data, coda=False, orizzonte=60):
         .exclude(pk=p.pk)
         .select_related("famiglia")
     )
-    sim = {o.id: o.data for o in attivi}  # posizione (data-inizio) simulata corrente
-    limite = _giorni_lavorativi(nuova_data, orizzonte)[-1]
 
-    def _confligge(a, a_data, b, b_data):
+    def _confligge(p_data, o):
         # Stesse regole di _sovrapposizioni: fasce orarie intersecanti + sovrapposizione
-        # degli intervalli in giorni lavorativi, ma su date simulate.
-        if not (Pianificazione.fasce_di(a.turno) & Pianificazione.fasce_di(b.turno)):
+        # degli intervalli in giorni lavorativi, ma su una data-inizio ipotetica di `p`.
+        if not (Pianificazione.fasce_di(p.turno) & Pianificazione.fasce_di(o.turno)):
             return False
-        return a_data < _fine(b_data, b) and b_data < _fine(a_data, a)
+        return p_data < _fine(o.data, o) and o.data < _fine(p_data, p)
 
-    righe = {}  # id -> dict riga nel piano (per aggiornare 'a' se un lavoro è rispinto)
-    frontiera = [(p, nuova_data)]
-    passi = 0
-    while frontiera and passi < 1000:
-        passi += 1
-        job, job_data = frontiera.pop(0)
-        cursor = _primo_lav(_fine(job_data, job))  # primo giorno lav. libero dopo job
-        conflitti = sorted(
-            (o for o in attivi
-             if o.id != job.id and _confligge(job, job_data, o, sim[o.id])),
-            key=lambda o: (sim[o.id], o.id),
-        )
-        for o in conflitti:
-            if sim[o.id] >= cursor:
-                continue  # già oltre la fine del genitore: nessuno spostamento
-            nuova = cursor if cursor <= limite else limite
-            if nuova <= sim[o.id]:
-                # Orizzonte saturo: spostare oltre non guadagna nulla (evita loop). Il
-                # conflitto resta IRRISOLTO: va segnalato nel piano, non omesso in
-                # silenzio (l'utente deve poterlo vedere prima di confermare).
-                if o.id in righe:
-                    righe[o.id]["irrisolto"] = True
-                else:
-                    r = {"id": o.id, "etichetta": _etichetta(o), "macchina": macchina_eff.codice,
-                         "da": o.data, "a": sim[o.id], "irrisolto": True}
-                    righe[o.id] = r
-                    piano.append(r)
-                continue
-            sim[o.id] = nuova
-            if o.id in righe:
-                righe[o.id]["a"] = nuova
-                righe[o.id]["irrisolto"] = False
-            else:
-                r = {"id": o.id, "etichetta": _etichetta(o),
-                     "macchina": macchina_eff.codice, "da": o.data, "a": nuova, "irrisolto": False}
-                righe[o.id] = r
-                piano.append(r)
-            cursor = _primo_lav(_fine(nuova, o))  # impila il prossimo dopo questo
-            frontiera.append((o, nuova))
+    # Conflitti che esistevano GIÀ nella posizione di partenza: non li ha creati il drag,
+    # quindi restano dove sono. (Se il lavoro cambia macchina non ce n'è nessuno.)
+    gia_in_conflitto = (
+        {o.id for o in attivi if _confligge(p.data, o)}
+        if p.macchina_id == macchina_eff.id else set()
+    )
+    nuovi = sorted(
+        (o for o in attivi if o.id not in gia_in_conflitto and _confligge(nuova_data, o)),
+        key=lambda o: (o.data, o.id),
+    )
+
+    # Ogni conflitto nuovo va dopo la fine di `p`, impilato in sequenza sugli altri
+    # slittati (così non si sovrappongono fra loro). Nessuna propagazione oltre.
+    cursor = _primo_lav(_fine(nuova_data, p))
+    for o in nuovi:
+        piano.append({"id": o.id, "etichetta": _etichetta(o), "macchina": macchina_eff.codice,
+                      "da": o.data, "a": cursor, "irrisolto": False})
+        cursor = _primo_lav(_fine(cursor, o))
     return piano
 
 
