@@ -415,6 +415,22 @@ class DipendentiExportTests(TestCase):
                     [r["cognome"] for r in export_rows],
                 )
 
+    def test_export_matches_rows_actually_rendered_by_the_page(self):
+        """Chiude il buco anti-drift: confronta le righe DAVVERO renderizzate
+        dalla pagina (``resp.context["page_obj"]``) con quelle dell'export,
+        non l'helper con se stesso (che passerebbe anche se la view smettesse
+        di richiamare ``build_dipendenti_rows``)."""
+        for querystring in ("", "?q=ross", "?reparto=Officina"):
+            with self.subTest(querystring=querystring):
+                resp = self.client.get(reverse("anagrafica:dipendenti_list") + querystring)
+                self.assertEqual(resp.status_code, 200)
+                page_ids = [int(row.get("id") or 0) for row in resp.context["page_obj"].object_list]
+
+                export_rows = EXPORT_SPECS["dipendenti"].dataset(self._request(querystring), "filtered")
+                export_ids = [int(r["id"]) for r in export_rows]
+
+                self.assertEqual(page_ids, export_ids)
+
     def test_full_scope_ignores_querystring(self):
         request = self._request("?reparto=Officina")
         rows = EXPORT_SPECS["dipendenti"].dataset(request, "full")
