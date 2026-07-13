@@ -1548,15 +1548,18 @@
           if (!data.n_conflicts) { banner.hidden = true; return; }
           // Costruisci la lista
           var html = "";
+          // SEC: course_code/title/stato_display/url provengono dai corsi (testo
+          // libero editor) e finiscono in innerHTML → escape per evitare XSS.
+          var escCorsi = function(v){return String(v==null?'':v).replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];});};
           data.conflicts.forEach(function(c) {
             var range = (c.data_inizio === c.data_fine)
               ? "il " + c.date_label
               : "dal " + c.data_inizio.split("-").reverse().join("/") +
                 " al " + c.data_fine.split("-").reverse().join("/");
             html += "<li><span class='corsi-date'>" + range + "</span>" +
-                    "<a href='" + c.url + "' target='_blank' rel='noopener'>[" +
-                    c.course_code + "] " + c.title + "</a>" +
-                    " <span style='color:#92400e;font-size:11px;'>(" + c.stato_display + ")</span></li>";
+                    "<a href='" + escCorsi(c.url) + "' target='_blank' rel='noopener'>[" +
+                    escCorsi(c.course_code) + "] " + escCorsi(c.title) + "</a>" +
+                    " <span style='color:#92400e;font-size:11px;'>(" + escCorsi(c.stato_display) + ")</span></li>";
           });
           titleEl.textContent = data.n_conflicts === 1
             ? "Attenzione: c'è 1 corso formativo nei giorni richiesti"

@@ -2024,7 +2024,12 @@ def _load_events(
     start: datetime | None = None,
     end: datetime | None = None,
     colors: dict[str, str] | None = None,
+    include_sensitive: bool = False,
 ) -> list[dict]:
+    # SEC/GDPR: `motivazione` e `certificato_medico` (dato sanitario, categoria
+    # speciale) sono inclusi negli eventi del calendario SOLO per chi gestisce a
+    # livello aziendale (AMMINISTRAZIONE). Per i caporeparto/altri il calendario
+    # resta visibile ma senza questi campi (default: esclusi).
     if not _table_exists("assenze"):
         return []
 
@@ -2078,6 +2083,15 @@ def _load_events(
         moderation_status = _as_int(row.get("moderation_status"))
         moderation_label = _moderation_label(moderation_status)
         consenso = moderation_label if moderation_label != "N/D" else _norm_consenso(row.get("consenso"))
+        props = {
+            "tipo": tipo,
+            "consenso": consenso,
+            "moderation_status": moderation_status,
+            "capo": str(row.get("capo") or ""),
+        }
+        if include_sensitive:
+            props["motivazione"] = _strip_tipo_metadata_from_motivazione(row.get("motivazione_richiesta"))
+            props["certificato_medico"] = str(row.get("certificato_medico") or "")
         events.append(
             {
                 "id": row.get("id"),
@@ -2085,14 +2099,7 @@ def _load_events(
                 "start": _to_isoz(row.get("data_inizio")),
                 "end": _to_isoz(row.get("data_fine")),
                 "color": _event_color(tipo, consenso, resolved_colors, moderation_status=moderation_status),
-                "extendedProps": {
-                    "tipo": tipo,
-                    "consenso": consenso,
-                    "moderation_status": moderation_status,
-                    "motivazione": _strip_tipo_metadata_from_motivazione(row.get("motivazione_richiesta")),
-                    "certificato_medico": str(row.get("certificato_medico") or ""),
-                    "capo": str(row.get("capo") or ""),
-                },
+                "extendedProps": props,
             }
         )
     return events
@@ -3890,7 +3897,8 @@ def calendario(request):
 @login_required
 @require_http_methods(["GET"])
 def api_eventi(request):
-    if not _assenze_permissions(request).get("can_view_calendar"):
+    perms = _assenze_permissions(request)
+    if not perms.get("can_view_calendar"):
         return _json_error("Permessi insufficienti: calendario non disponibile per il tuo gruppo.", status=403)
     try:
         user_key = _user_color_key(request)
@@ -3903,7 +3911,13 @@ def api_eventi(request):
         except (TypeError, ValueError):
             limit = 1500
         limit = max(100, min(limit, 8000))
-        return JsonResponse(_load_events(limit=limit, start=start, end=end, colors=user_colors), safe=False)
+        return JsonResponse(
+            _load_events(
+                limit=limit, start=start, end=end, colors=user_colors,
+                include_sensitive=bool(perms.get("can_update_any")),
+            ),
+            safe=False,
+        )
     except Exception as exc:
         return _json_error(str(exc), status=500)
 
@@ -4609,6 +4623,14 @@ def certificazione_presenza(request):
     from .models import CertificazionePresenza
 
     is_admin = user_can_modulo_action(request, "assenze", "admin_assenze")
+    # SEC: la certificazione presenze è una funzione amministrativa. Senza questo
+    # enforcement la pagina elencava TUTTE le CertificazionePresenza e permetteva
+    # create/update/delete (con auto-inserimento di un'assenza già "Approvato",
+    # salta_approvazione=True, per un dipendente arbitrario) a qualsiasi utente
+    # autenticato, scavalcando l'approvazione CAR. Il permesso era già calcolato
+    # ma mai applicato.
+    if not is_admin:
+        return render(request, "core/pages/forbidden.html", status=403)
     perm_ctx = _template_perm_context(request)
 
     # Filtri lista
@@ -4843,10 +4865,12 @@ def api_check_corsi(request):
         except ValueError:
             return JsonResponse({"ok": False, "error": "legacy_id non valido"}, status=400)
         if my_legacy is None or int(my_legacy) != legacy_id:
-            is_admin = bool(request.user.is_superuser or request.user.is_staff)
-            cap = resolve_caporeparto_legacy_user(request.user)
-            if not is_admin and not cap:
-                return JsonResponse({"ok": False, "error": "Non hai i permessi per controllare un altro dipendente"}, status=403)
+            # SEC: per controllare un ALTRO dipendente serve lo scope effettivo
+            # (AMMINISTRAZIONE = tutti, caporeparto = solo il proprio reparto), come
+            # per l'inserimento per altri. Prima bastava essere un caporeparto
+            # qualsiasi → enumerazione dei corsi di qualunque dipendente.
+            if not _can_insert_for_dipendente(request, legacy_id):
+                return JsonResponse({"ok": False, "error": "Non hai i permessi per controllare questo dipendente"}, status=403)
     else:
         if my_legacy is None:
             return JsonResponse({"ok": True, "n_conflicts": 0, "conflicts": []})

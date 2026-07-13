@@ -677,6 +677,9 @@ GESTIONE_SPECIFICHE_COMPOSITO_AUTO = env_bool("GESTIONE_SPECIFICHE_COMPOSITO_AUT
 # share è cache-ato per GESTIONE_SPECIFICHE_SHARE_CACHE_TTL secondi (default 600).
 GESTIONE_SPECIFICHE_SHARE_MAX_DEPTH = int(env("GESTIONE_SPECIFICHE_SHARE_MAX_DEPTH", "2") or "2")
 GESTIONE_SPECIFICHE_SHARE_CACHE_TTL = int(env("GESTIONE_SPECIFICHE_SHARE_CACHE_TTL", "600") or "600")
+# Allegati KICK-OFF/Task e documenti VRF (dati commerciali: client_name, part_number,
+# matrice rischi): storage privato fuori webroot, servito solo da view protette.
+TASKS_PRIVATE_ROOT = Path(env("TASKS_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
 
 # Chiave AES-256 Fernet per cifratura at rest dei file privati.
 # Generare con: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"

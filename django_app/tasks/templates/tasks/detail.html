@@ -693,7 +693,7 @@
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     </div>
                     <div class="task-attach-body">
-                      <a class="task-attachment-link" href="{{ attachment.file.url }}" target="_blank" rel="noopener">{{ attachment.original_name|default:attachment.file.name }}</a>
+                      <a class="task-attachment-link" href="{% url 'tasks:task_attachment_download' attachment.id %}" rel="noopener">{{ attachment.original_name|default:attachment.file.name }}</a>
                       <div class="ts-card-text" style="margin-top:3px;font-size:11px;">
                         {{ attachment.created_at|date:"d-m-Y H:i" }}
                         {% if attachment.uploaded_by %} &middot; {{ attachment.uploaded_by.get_full_name|default:attachment.uploaded_by.username }}{% endif %}
@@ -716,7 +716,7 @@
                 <ul class="task-list-clean">
                   {% for attachment in task.project.attachments.all %}
                     <li class="task-list-card">
-                      <a class="task-attachment-link" href="{{ attachment.file.url }}" target="_blank" rel="noopener">{{ attachment.original_name|default:attachment.file.name }}</a>
+                      <a class="task-attachment-link" href="{% url 'tasks:task_attachment_download' attachment.id %}" rel="noopener">{{ attachment.original_name|default:attachment.file.name }}</a>
                       <div class="ts-card-text" style="margin-top:6px;">
                         {{ attachment.created_at|date:"d-m-Y H:i" }}
                         {% if attachment.uploaded_by %}

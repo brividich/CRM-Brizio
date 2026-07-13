@@ -30,6 +30,12 @@ from twofa.utils import (
 
 logger = logging.getLogger(__name__)
 
+# SEC: lockout anti brute-force per la verifica TOTP. Il ramo email ha già un
+# contatore tentativi (TwoFactorChallenge.attempts); il TOTP no, e con un OTP a 6
+# cifre senza limite il brute-force online è fattibile. Contatore in sessione.
+_TOTP_MAX_ATTEMPTS = 5
+_TOTP_LOCK_SECONDS = 300
+
 
 def _get_next(request) -> str:
     """URL di destinazione post-verifica."""
@@ -64,6 +70,16 @@ def verify(request):
     error = ""
     email_sent = request.session.get("twofa_email_sent", False)
 
+    # Invio automatico del codice email se si arriva qui da un percorso che non ha
+    # chiamato initiate_2fa (es. SSO Windows): ora il middleware è autorevole e può
+    # reindirizzare alla verifica qualunque sessione non verificata. Evita che
+    # l'utente resti su una pagina senza codice. Inviato una sola volta per sessione.
+    if request.method == "GET" and method == "email" and not email_sent:
+        code = generate_email_otp(user, get_client_ip(request))
+        if send_otp_email(user, code):
+            request.session["twofa_email_sent"] = True
+            email_sent = True
+
     if request.method == "POST":
         form = VerifyOTPForm(request.POST)
         action = request.POST.get("action", "verify")
@@ -80,13 +96,30 @@ def verify(request):
             ok = False
 
             if method == "totp":
-                try:
-                    secret = decrypt_totp_secret(u2f.totp_secret_enc)
-                    ok = verify_totp(secret, code)
-                except Exception:
+                import time as _time
+                now_ts = _time.time()
+                lock_until = float(request.session.get("twofa_totp_lock_until", 0) or 0)
+                if lock_until and now_ts < lock_until:
                     ok = False
-                if not ok:
-                    error = "Codice non valido. Riprova."
+                    error = "Troppi tentativi. Riprova tra qualche minuto."
+                else:
+                    try:
+                        secret = decrypt_totp_secret(u2f.totp_secret_enc)
+                        ok = verify_totp(secret, code)
+                    except Exception:
+                        ok = False
+                    if ok:
+                        request.session.pop("twofa_totp_fails", None)
+                        request.session.pop("twofa_totp_lock_until", None)
+                    else:
+                        fails = int(request.session.get("twofa_totp_fails", 0) or 0) + 1
+                        if fails >= _TOTP_MAX_ATTEMPTS:
+                            request.session["twofa_totp_fails"] = 0
+                            request.session["twofa_totp_lock_until"] = now_ts + _TOTP_LOCK_SECONDS
+                            error = "Troppi tentativi. Riprova tra qualche minuto."
+                        else:
+                            request.session["twofa_totp_fails"] = fails
+                            error = f"Codice non valido. Tentativi rimanenti: {_TOTP_MAX_ATTEMPTS - fails}."
             else:  # email
                 ok, error = verify_email_otp(user, code)
 

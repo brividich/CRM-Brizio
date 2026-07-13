@@ -135,7 +135,13 @@ class FornitoreDocumento(models.Model):
     fornitore = models.ForeignKey(Fornitore, on_delete=models.CASCADE, related_name="documenti")
     nome = models.CharField(max_length=200)
     tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, default=TIPO_ALTRO)
-    file = models.FileField(upload_to=_fornitore_documento_upload_to)
+    # SEC: storage PRIVATO fuori webroot + cifratura at-rest. I documenti fornitori
+    # (contratti, visure, certificazioni) NON sono più serviti da /media pubblico:
+    # l'accesso passa dalla view protetta fornitori:fornitore_documento_download.
+    file = models.FileField(
+        upload_to=_fornitore_documento_upload_to,
+        storage=PrivateAnagraficaStorage(),
+    )
     note = models.CharField(max_length=255, blank=True, default="")
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

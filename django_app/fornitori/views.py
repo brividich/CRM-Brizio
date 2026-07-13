@@ -151,6 +151,46 @@ def fornitore_detail(request, fornitore_id):
     })
 
 
+@login_required
+def fornitore_documento_download(request, fornitore_id, doc_id):
+    """Serve un documento fornitore dallo storage PRIVATO (mai da /media pubblico).
+
+    SEC: i documenti (contratti, visure, certificazioni) sono salvati fuori webroot
+    e cifrati at-rest; l'accesso al modulo fornitori è già imposto dal middleware ACL
+    sul prefisso /fornitori/. Il file viene streammato come allegato.
+    """
+    import mimetypes
+    from pathlib import Path as _Path
+
+    from django.http import FileResponse, Http404
+
+    from anagrafica.models import FornitoreDocumento
+
+    doc = get_object_or_404(
+        FornitoreDocumento.objects.select_related("fornitore"),
+        pk=doc_id, fornitore_id=fornitore_id,
+    )
+    if not doc.file or not doc.file.name:
+        raise Http404("Documento non disponibile.")
+    try:
+        fh = doc.file.open("rb")
+    except Exception:
+        log_action(request, "fornitore_doc_download", "fornitori",
+                   {"doc_id": doc.id, "fornitore_id": fornitore_id, "esito": "not_found"})
+        raise Http404("File non trovato.")
+
+    filename = doc.nome or _Path(doc.file.name).name
+    # Neutralizza " e CR/LF nel nome per non corrompere l'header Content-Disposition.
+    safe_name = filename.replace('"', "").replace("\r", "").replace("\n", "").strip() or "documento"
+    content_type = mimetypes.guess_type(safe_name)[0] or "application/octet-stream"
+    log_action(request, "fornitore_doc_download", "fornitori",
+               {"doc_id": doc.id, "fornitore_id": fornitore_id, "esito": "success"})
+    resp = FileResponse(fh, content_type=content_type)
+    resp["Content-Disposition"] = f'attachment; filename="{safe_name}"'
+    resp["X-Content-Type-Options"] = "nosniff"
+    return resp
+
+
 # ---------------------------------------------------------------------------
 # Fornitore — crea / modifica
 # ---------------------------------------------------------------------------

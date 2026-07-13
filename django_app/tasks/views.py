@@ -3118,6 +3118,43 @@ def subtask_toggle(request, task_id: int, subtask_id: int):
     )
 
 
+@task_permissions_required("tasks_view")
+def task_attachment_download(request, attachment_id: int):
+    """Serve un allegato KICK-OFF/Task dallo storage privato (mai da /media pubblico).
+
+    SEC: gli allegati contengono dati commerciali (P/N, riferimenti cliente). Un
+    TaskAttachment può appartenere a un task e/o a un progetto: l'accesso è concesso
+    solo se il task o il progetto rientra nello scope OWN/TEAM dell'utente. Il
+    controllo precede l'accesso al file; out-of-scope → 404 (non rivela l'esistenza).
+    Streaming come allegato, nome file sanificato, nosniff.
+    """
+    import mimetypes
+    from pathlib import Path as _Path
+
+    from django.http import FileResponse, Http404
+
+    attachment = get_object_or_404(TaskAttachment, pk=attachment_id)
+    in_scope = (
+        (attachment.task_id and _scoped_tasks_queryset(request).filter(pk=attachment.task_id).exists())
+        or (attachment.project_id and _scoped_projects_queryset(request).filter(pk=attachment.project_id).exists())
+    )
+    if not in_scope:
+        raise Http404("Allegato non disponibile.")
+    if not attachment.file or not attachment.file.name:
+        raise Http404("Allegato non disponibile.")
+    try:
+        fh = attachment.file.open("rb")
+    except Exception:
+        raise Http404("File non trovato.")
+    filename = attachment.original_name or _Path(attachment.file.name).name
+    safe_name = filename.replace('"', "").replace("\r", "").replace("\n", "").strip() or "allegato"
+    content_type = mimetypes.guess_type(safe_name)[0] or "application/octet-stream"
+    resp = FileResponse(fh, content_type=content_type)
+    resp["Content-Disposition"] = f'attachment; filename="{safe_name}"'
+    resp["X-Content-Type-Options"] = "nosniff"
+    return resp
+
+
 @require_POST
 @task_permissions_required("tasks_view")
 def add_attachment(request, task_id: int):
@@ -4589,7 +4626,11 @@ def _asset_availability_report(
     start,
     end,
     exclude_task_id: int | None = None,
+    scope_task_ids: set[int] | None = None,
 ) -> dict:
+    # SEC: `scope_task_ids` (se fornito) e' l'insieme dei task visibili al richiedente
+    # (scope OWN/TEAM). I conflitti su task fuori scope mostrano solo l'occupazione,
+    # senza titolo (che puo' contenere P/N o riferimenti cliente) ne' link.
     """Calcola il report di disponibilita per un asset nella finestra [start, end].
 
     Il risultato contiene: stato asset, OdL aperti, verifiche periodiche, ticket
@@ -4710,8 +4751,9 @@ def _asset_availability_report(
             if not _windows_overlap(start, end, o_start, o_end):
                 continue
             seen_task_ids.add(ref.task_id)
+            in_scope = scope_task_ids is None or other.id in scope_task_ids
             try:
-                t_url = reverse("tasks:detail", kwargs={"task_id": other.id})
+                t_url = reverse("tasks:detail", kwargs={"task_id": other.id}) if in_scope else ""
             except Exception:
                 t_url = ""
             when_label = o_start.isoformat() if o_start else ""
@@ -4720,8 +4762,11 @@ def _asset_availability_report(
             conflicts.append({
                 "type": "task",
                 "severity": "block",
-                "title": f"Attivita gia' assegnata: {other.title}",
-                "detail": other.get_status_display(),
+                "title": (
+                    f"Attivita gia' assegnata: {other.title}" if in_scope
+                    else "Attivita gia' assegnata (altro team)"
+                ),
+                "detail": other.get_status_display() if in_scope else "",
                 "when": when_label,
                 "url": t_url,
             })
@@ -4899,7 +4944,10 @@ def asset_availability_json(request, asset_id: int):
             exclude_task_id = None
 
     cfg = TaskImpostazioni.get_singleton()
-    report = _asset_availability_report(asset, start, end, exclude_task_id)
+    # SEC: passa gli id dei task visibili (scope OWN/TEAM); i conflitti su task fuori
+    # scope mostreranno l'occupazione senza titolo/link.
+    scope_task_ids = set(_scoped_tasks_queryset(request).values_list("id", flat=True))
+    report = _asset_availability_report(asset, start, end, exclude_task_id, scope_task_ids=scope_task_ids)
     report["ok"] = True
     report["check_enabled"] = bool(cfg.asset_conflict_check_enabled)
     report["block_on_conflict"] = bool(cfg.asset_conflict_block)

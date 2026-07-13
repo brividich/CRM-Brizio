@@ -97,6 +97,12 @@ ANOMALIE_LIST_DEFAULTS = {
     "escalation_supervisori": [],
 }
 ANOMALIE_NON_EMPTY_DEFAULT_KEYS = frozenset({"causali_doc", "stati_superficie", "avanzamenti"})
+# SEC: liste di sola configurazione (email notifica/escalation, destinatari RDC,
+# whitelist autorizzati alla modifica). Vanno esposte solo a chi gestisce la config,
+# non a tutti gli utenti del modulo via il GET di api_anomalie_config_liste.
+_ANOMALIE_SENSITIVE_LIST_KEYS = frozenset({
+    "autorizzati_modifica", "conferma_aggiornamenti", "rdc_segnalazione", "escalation_supervisori",
+})
 # Liste derivate dall'anagrafica: sola lettura, mai persistite nel file JSON.
 ANOMALIE_DERIVED_LIST_KEYS = frozenset({"capi_reparto", "capi_commessa"})
 ANOMALIE_ATTACHMENTS_DIR_DEFAULT = r"media\anomalie_allegati"
@@ -2565,6 +2571,12 @@ def api_seriali_op(request):
     op_id = _safe_text(request.GET.get("op_id"), 100)
     if not op_id:
         return JsonResponse({"seriali": [], "dettagli": {}})
+    # SEC: rispetta lo scope di visibilità per-OP come gli altri endpoint di lettura
+    # (ASSIGNED/OWN): senza questo un utente a scope ristretto enumererebbe i seriali
+    # di qualunque OP. Ritorna lista vuota (no enumerazione) se fuori scope.
+    # NB: si mantiene la chiave `dettagli` anche nei ritorni vuoti, che il client si aspetta.
+    if not _can_view_anomalie_for_op(request, op_id):
+        return JsonResponse({"seriali": [], "dettagli": {}})
     if not _has_table("anomalie"):
         return JsonResponse({"seriali": [], "dettagli": {}})
     # L'autore (created_by_user_id) c'è solo se lo schema legacy ha la colonna.
@@ -3018,10 +3030,14 @@ def anomalie_configurazione_page(request):
 @login_required
 def api_anomalie_config_liste(request):
     if request.method == "GET":
+        lists = _load_anomalie_lists()
+        if not _can_manage_anomalie_config(request):
+            # SEC: nascondi le liste di notifica/whitelist a chi non gestisce la config.
+            lists = {k: v for k, v in lists.items() if k not in _ANOMALIE_SENSITIVE_LIST_KEYS}
         return JsonResponse(
             {
                 "success": True,
-                "lists": _load_anomalie_lists(),
+                "lists": lists,
                 "attachments_dir": _anomalie_attachments_dir_value(),
                 "menu_logo": _load_anomalie_menu_logo(),
             }
@@ -3575,6 +3591,14 @@ _REPORT_REQUIRED_PLACEHOLDER_GROUPS = [
     ("{{ anomalia.id }}", "{{ anomalia.seriale }}", "{{ anomalia.descrizione }}"),
 ]
 _EXTERNAL_SCRIPT_RE = re.compile(r'<script[^>]+src\s*=\s*["\']https?://', re.IGNORECASE)
+# SEC: il template OP viene reso col motore Django e servito a qualsiasi utente che
+# apre il report; un caricatore (anche legacy-admin non superuser) potrebbe iniettare
+# script che colpiscono utenti più privilegiati. Si bloccano in validazione TUTTI gli
+# <script> (inline o esterni), gli handler di evento on*= e gli URI javascript:/data:
+# (i placeholder {{ }} restano consentiti e i dati sono comunque auto-escapati).
+_ANY_SCRIPT_RE = re.compile(r'<\s*script', re.IGNORECASE)
+_EVENT_HANDLER_RE = re.compile(r'<[^>]*\son\w+\s*=', re.IGNORECASE)
+_DANGEROUS_URI_RE = re.compile(r'(?:href|src|action|formaction)\s*=\s*["\']?\s*(?:javascript|data|vbscript):', re.IGNORECASE)
 
 
 def _report_template_path() -> Path:
@@ -3609,8 +3633,12 @@ def _validate_report_template(content: bytes, filename: str) -> list[str]:
             "({{ op.id }}, {{ anomalia.seriale }}, {{ anomalia.descrizione }}) "
             "oppure quelli legacy della singola anomalia."
         )
-    if _EXTERNAL_SCRIPT_RE.search(text):
-        errors.append("Il template non può caricare script da domini esterni (<script src=\"https://...\">).")
+    if _ANY_SCRIPT_RE.search(text):
+        errors.append("Il template non può contenere tag <script> (né inline né esterni).")
+    if _EVENT_HANDLER_RE.search(text):
+        errors.append("Il template non può contenere handler di evento inline (es. onclick=, onerror=).")
+    if _DANGEROUS_URI_RE.search(text):
+        errors.append("Il template non può contenere URI javascript:/data:/vbscript: in href/src.")
     return errors
 
 

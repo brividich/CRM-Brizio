@@ -265,7 +265,14 @@ def capa_create(request: HttpRequest) -> HttpResponse:
             action.source_code = (request.POST.get("source_code") or ActionItem.ORIGINE_MANUALE).strip()[:64]
             action.source_pk = (request.POST.get("source_pk") or "").strip()[:64]
             action.source_label = (request.POST.get("source_label") or "").strip()[:255]
-            action.source_url = (request.POST.get("source_url") or "").strip()[:255]
+            _src_url = (request.POST.get("source_url") or "").strip()[:255]
+            # SEC: source_url è reso in un href nel dettaglio CAPA; consenti solo
+            # http/https o percorsi relativi ('/'), altrimenti scarta. Blocca gli URI
+            # javascript:/data:/vbscript: che eseguirebbero codice al click (stored XSS).
+            _low = _src_url.lower()
+            if not (_low.startswith("http://") or _low.startswith("https://") or _src_url.startswith("/")):
+                _src_url = ""
+            action.source_url = _src_url
             action.created_by = request.user
             action.save()
             if action.responsabile_id:

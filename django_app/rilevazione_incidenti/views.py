@@ -960,26 +960,35 @@ def statistiche(request):
     n_appr = per_stato.get("APPROVATO", 0)
     n_ch = per_stato.get("CHIUSO", 0)
 
-    chart_tipologie = json.dumps({
+    def _safe_json(obj):
+        # SEC: JSON sicuro in contesto <script>. Le label (es. Reparto) possono
+        # contenere input utente non validato: neutralizza la sequenza </script>
+        # e i separatori di riga JS, evitando lo stored XSS (questi blocchi sono
+        # resi nel template con |safe).
+        s = json.dumps(obj)
+        # Neutralizza la sequenza </script> (vettore XSS in contesto <script>).
+        return s.replace("<", "\u003c").replace(">", "\u003e").replace("&", "\u0026")
+
+    chart_tipologie = _safe_json({
         "labels": ["Unsafe Condition", "Unsafe Act", "Near Miss", "Accident"],
         "data": [n_uc, n_ua, n_nm, n_ac],
         "colors": ["#16a34a", "#0369a1", "#ea580c", "#dc2626"],
         "bg": ["#dcfce7", "#e0f2fe", "#fff7ed", "#fee2e2"],
     })
-    chart_stati = json.dumps({
+    chart_stati = _safe_json({
         "labels": ["Aperti", "Approvati", "Chiusi"],
         "data": [n_ap, n_appr, n_ch],
         "colors": ["#eab308", "#22c55e", "#15803d"],
     })
-    chart_trend = json.dumps({
+    chart_trend = _safe_json({
         "labels": mesi_labels,
         "data": mesi_values,
     })
-    chart_reparti = json.dumps({
+    chart_reparti = _safe_json({
         "labels": [r[0] for r in reparto_top],
         "data": [r[1] for r in reparto_top],
     })
-    chart_cause = json.dumps({
+    chart_cause = _safe_json({
         "labels": [c[0] for c in cause_top],
         "data": [c[1] for c in cause_top],
     })

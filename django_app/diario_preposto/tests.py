@@ -276,7 +276,11 @@ class SegnalazioneAllegatoDownloadTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertNotIn("contenuto riservato", response.content.decode(errors="ignore"))
 
-    def test_allegato_download_authenticated_returns_file(self):
+    @patch("core.acl_v2.resolve_acl_access", return_value={"allowed": True})
+    def test_allegato_download_authenticated_returns_file(self, _mock):
+        # L'utente ha accesso al modulo (decisione ACL allow): scarica il file.
+        # Dopo il fix SEC-AUDIT-002 il download segue l'ACL di modulo, non più il
+        # fail-open di _can_write, quindi l'autorizzazione va resa esplicita.
         self.client.force_login(self.user)
         url = reverse("diario_preposto:allegato_download", args=[self.allegato.pk])
         response = self.client.get(url)
@@ -285,20 +289,24 @@ class SegnalazioneAllegatoDownloadTests(TestCase):
         body = b"".join(response.streaming_content) if response.streaming else response.content
         self.assertEqual(body, b"contenuto riservato")
 
-    def test_allegato_download_authenticated_creates_audit_log(self):
+    @patch("core.acl_v2.resolve_acl_access", return_value={"allowed": True})
+    def test_allegato_download_authenticated_creates_audit_log(self, _mock):
         from core.models import AuditLog
 
         self.client.force_login(self.user)
-        before = AuditLog.objects.count()
+        # Conta solo i log dell'azione specifica: il conteggio globale è fragile
+        # (la richiesta può generare altri audit di piattaforma indipendenti).
+        download_logs = lambda: AuditLog.objects.filter(
+            azione="download_allegato", modulo="diario_preposto",
+        )
+        before = download_logs().count()
         url = reverse("diario_preposto:allegato_download", args=[self.allegato.pk])
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, 200)
-        created = AuditLog.objects.filter(
-            azione="download_allegato", modulo="diario_preposto",
-        ).order_by("-id").first()
+        created = download_logs().order_by("-id").first()
         self.assertIsNotNone(created)
-        self.assertEqual(AuditLog.objects.count(), before + 1)
+        self.assertEqual(download_logs().count(), before + 1)
         payload = created.dettaglio or {}
         self.assertEqual(payload.get("esito"), "success")
         self.assertEqual(payload.get("allegato_id"), self.allegato.id)
@@ -389,3 +397,14 @@ class AllegatoDownloadModuleAuthTests(TestCase):
         self.client.force_login(self.user)
         resp = self.client.get(self._url(pk=999999))
         self.assertEqual(resp.status_code, 404)
+
+    @patch("core.acl_v2.resolve_acl_access", return_value={"allowed": False})
+    def test_empty_write_acl_does_not_grant_download(self, _mock):
+        """5. Regressione fail-open: con acl_scrittura VUOTA (default) _can_write
+        è aperto a qualsiasi autenticato. Il download NON deve comunque essere
+        concesso a chi non ha accesso al modulo (la vista segue solo l'ACL di
+        modulo, non la scorciatoia di scrittura)."""
+        DiarioPrepostoImpostazioni.objects.update(acl_scrittura=[])
+        self.client.force_login(self.user)
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 403)
