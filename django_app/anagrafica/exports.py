@@ -27,7 +27,10 @@ class ExportSpec:
     title: str
     columns: list[tuple[str, str]]                      # (etichetta, chiave nel dict riga)
     dataset: Callable[[HttpRequest, str], list[dict]]   # (request, scope) -> righe
-    permission: Callable[[HttpRequest], bool] = lambda request: True
+    # Fail-closed: `permission` è OBBLIGATORIO. Una spec registrata senza gate
+    # sarebbe scaricabile da chiunque abbia `anagrafica.export.use` (cioè tutti i
+    # ruoli): il gate fine è sempre la lista di origine → usa `acl_gate("/…/")`.
+    permission: Callable[[HttpRequest], bool]
     filters_label: Callable[[HttpRequest], str] = lambda request: ""
     sheet_title: str = "Dati"
 
@@ -43,27 +46,49 @@ def register(spec: ExportSpec) -> ExportSpec:
 def acl_gate(list_path: str) -> Callable[[HttpRequest], bool]:
     """Gate riusabile: l'utente può esportare se può accedere alla lista.
 
-    Rispecchia la decisione del middleware ACL sul path della pagina elenco
-    (canonico con fallback legacy), così l'export non diventa una porta di
-    servizio verso dati che l'utente non vedrebbe a schermo.
+    Replica la decisione che l'``ACLMiddleware`` prenderebbe sul path della
+    pagina elenco, **compreso lo strict-mode**: `resolve_acl_access` non applica
+    il deny di ``ACL_STRICT_CANONICAL`` (vive solo nel middleware, vedi
+    `core/middleware.py`), quindi una lista senza `RoutePermissionBinding`
+    canonico verrebbe consentita dal fallback legacy anche dove il middleware la
+    nega. Qui il deny strict è replicato: chi non può aprire la lista non può
+    esportarla, e l'export (che ha un binding canonico proprio, concesso a tutti
+    i ruoli) non diventa una porta di servizio verso dati non visibili a schermo.
     """
 
     def _check(request: HttpRequest) -> bool:
-        from core.acl_v2 import check_acl_access_v2
+        from django.conf import settings
+
+        from core.acl_v2 import resolve_acl_access
         from core.legacy_utils import get_legacy_user, legacy_auth_enabled
+        from core.middleware import is_acl_shared_path, resolve_acl_gate_target_path
 
         user = getattr(request, "user", None)
+        # Stesso ordine di bypass del middleware.
         if getattr(user, "is_superuser", False):
             return True
         if not legacy_auth_enabled():
             return True
+        if is_acl_shared_path(list_path):
+            return True
+
         legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(user)
-        return bool(check_acl_access_v2(
-            path=list_path,
+        decision = resolve_acl_access(
+            path=resolve_acl_gate_target_path(list_path),
             legacy_user=legacy_user,
             django_user=user,
-            request=request,
-        ))
+            request=None,  # la request è quella dell'export, non della lista
+            include_legacy_diagnostic=False,
+        )
+        if not bool(decision.get("allowed", False)):
+            return False
+        # Strict-mode: il fallback legacy non basta (il middleware nega).
+        if (
+            decision.get("decision_source") == "legacy_fallback"
+            and getattr(settings, "ACL_STRICT_CANONICAL", False)
+        ):
+            return False
+        return True
 
     return _check
 
