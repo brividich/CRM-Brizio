@@ -995,3 +995,446 @@ register(ExportSpec(
     filters_label=_no_filters,
     permission=formazione_gate("/anagrafica/formazione/rischi/esposizioni/"),
 ))
+
+
+# ── HR & DOCUMENTI (dati personali) ───────────────────────────────────────────
+# Liste con dati personali dei dipendenti: oltre all'ACL di rotta hanno un gate
+# applicativo HR in-view (`views._check_hr_permission`, singleton
+# AnagraficaHRPermission). L'export lo replica: chi non vede la pagina non può
+# scaricarla. Per `documenti` il gate NON basta: la lista applica anche uno
+# **scoping per riga** (cartelle `solo_admin` invisibili ai non-superuser) che il
+# dataset deve replicare in OGNI scope, `full` compreso.
+
+def hr_gate(list_path: str) -> Callable[[HttpRequest], bool]:
+    """ACL di rotta AND permesso HR applicativo (`_check_hr_permission`)."""
+    base = acl_gate(list_path)
+
+    def _check(request: HttpRequest) -> bool:
+        if not base(request):
+            return False
+        from anagrafica.views import _check_hr_permission  # import locale: evita cicli
+
+        try:
+            return bool(_check_hr_permission(request))
+        except Exception:
+            return False  # fail-closed
+
+    return _check
+
+
+def documenti_gate(list_path: str) -> Callable[[HttpRequest], bool]:
+    """Gate dell'archivio documentale: `is_admin OR _check_hr_permission`.
+
+    Ricalca esattamente ``views.documenti_list`` (che ammette anche l'admin
+    legacy a prescindere dalla configurazione del permesso HR). NB: passare il
+    gate NON dà accesso ai documenti riservati — quelli sono esclusi riga per
+    riga dal dataset (vedi ``_documenti_rows``).
+    """
+    base = acl_gate(list_path)
+
+    def _check(request: HttpRequest) -> bool:
+        if not base(request):
+            return False
+        from anagrafica.views import _check_hr_permission  # import locale: evita cicli
+        from core.legacy_utils import get_legacy_user, is_legacy_admin
+
+        user = getattr(request, "user", None)
+        try:
+            if getattr(user, "is_superuser", False):
+                return True
+            if is_legacy_admin(get_legacy_user(user)):
+                return True
+            return bool(_check_hr_permission(request))
+        except Exception:
+            return False  # fail-closed
+
+    return _check
+
+
+# ── Ex dipendenti ─────────────────────────────────────────────────────────────
+# Fonte unica: `views.build_ex_dipendenti_rows` (stesso perimetro «cessati» e
+# stesso filtro `q` della pagina). PRIVACY: colonne = quelle di
+# `ex_dipendenti_list.html` (Dipendente, Username, Matricola, Contratto, Data
+# assunzione, Data cessazione). Nessun campo aggiuntivo.
+
+def _ex_dipendenti_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from anagrafica.views import build_ex_dipendenti_rows  # import locale: evita cicli
+
+    rows = build_ex_dipendenti_rows(request, apply_filters=(scope == "filtered"))
+    return [
+        {
+            "cognome": str(r.get("cognome") or "").strip(),
+            "nome": str(r.get("nome") or "").strip(),
+            "username": str(r.get("aliasusername") or "").strip(),
+            "matricola": str(r.get("matricola_legacy") or "").strip(),
+            "contratto": str(r.get("tipologia_contratto_display") or "").strip(),
+            "data_assunzione": _fmt_date(r.get("data_assunzione")),
+            "data_cessazione": _fmt_date(r.get("data_cessazione")),
+        }
+        for r in rows
+    ]
+
+
+def _q_filter(request: HttpRequest) -> str:
+    q_text = (request.GET.get("q") or "").strip()
+    return f'Ricerca: "{q_text}"' if q_text else ""
+
+
+register(ExportSpec(
+    key="ex_dipendenti",
+    title="Ex dipendenti",
+    sheet_title="Ex dipendenti",
+    columns=[
+        ("Cognome", "cognome"),
+        ("Nome", "nome"),
+        ("Username", "username"),
+        ("Matricola", "matricola"),
+        ("Contratto", "contratto"),
+        ("Data assunzione", "data_assunzione"),
+        ("Data cessazione", "data_cessazione"),
+    ],
+    dataset=_ex_dipendenti_rows,
+    filters_label=_q_filter,
+    permission=acl_gate("/anagrafica/ex-dipendenti/"),
+))
+
+
+# ── Archivio documenti ────────────────────────────────────────────────────────
+# SICUREZZA (punto critico): la lista esclude sempre le cartelle riservate
+# (`solo_admin`) ai non-superuser. Lo stesso scoping è applicato QUI, riga per
+# riga, e NON dipende dallo scope: `scope=full` fa cadere i filtri di pagina
+# (cartella/anno/ricerca), mai il perimetro di sicurezza. Colonne = intestazioni
+# di `documenti_list.html` (senza la colonna Azioni).
+
+def _documenti_base_qs(request: HttpRequest):
+    from anagrafica.models import DocumentoDipendente
+
+    qs = (
+        DocumentoDipendente.objects
+        .filter(tipo=DocumentoDipendente.Tipo.MANUALE)
+        .select_related("cartella")
+        .order_by("-created_at")
+    )
+    # Perimetro di sicurezza: identico a `views.documenti_list`.
+    if not getattr(getattr(request, "user", None), "is_superuser", False):
+        qs = qs.exclude(cartella__solo_admin=True)
+    return qs
+
+
+def _documenti_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from anagrafica.views import _build_nomi_map  # import locale: evita cicli
+
+    qs = _documenti_base_qs(request)
+
+    filtro_cartella = (request.GET.get("cartella") or "").strip()
+    filtro_cerca = (request.GET.get("q") or "").strip()
+    filtro_anno = (request.GET.get("anno") or "").strip()
+    filtered = scope == "filtered"
+
+    if filtered and filtro_cartella:
+        if filtro_cartella == "__nessuna__":
+            qs = qs.filter(cartella__isnull=True)
+        else:
+            try:
+                qs = qs.filter(cartella_id=int(filtro_cartella))
+            except (ValueError, TypeError):
+                pass
+    if filtered and filtro_anno:
+        try:
+            qs = qs.filter(created_at__year=int(filtro_anno))
+        except (ValueError, TypeError):
+            pass
+
+    nomi_map = _build_nomi_map()
+    # A differenza della pagina (che tronca a 500 righe per la resa a schermo)
+    # l'export scorre tutte le righe consentite: il cap è di presentazione, non
+    # di sicurezza.
+    documenti = list(qs)
+    if filtered and filtro_cerca:
+        q_low = filtro_cerca.lower()
+        documenti = [
+            d for d in documenti
+            if q_low in nomi_map.get(d.legacy_anagrafica_id, "").lower()
+            or q_low in (d.nome_originale or "").lower()
+            or q_low in (d.descrizione or "").lower()
+        ]
+
+    return [
+        {
+            "dipendente": nomi_map.get(d.legacy_anagrafica_id, f"#{d.legacy_anagrafica_id}"),
+            "cartella": d.cartella.nome if d.cartella_id else "Senza cartella",
+            "file": d.nome_originale or "",
+            "descrizione": d.descrizione or "",
+            "caricato": _fmt_date(timezone.localtime(d.created_at).date() if d.created_at else None),
+            "retention": _fmt_date(d.retention_until),
+        }
+        for d in documenti
+    ]
+
+
+def _documenti_filters(request: HttpRequest) -> str:
+    from anagrafica.models import CartellaDocumentoDipendente
+
+    parts: list[str] = []
+    filtro_cartella = (request.GET.get("cartella") or "").strip()
+    if filtro_cartella == "__nessuna__":
+        parts.append("Cartella: senza cartella")
+    elif filtro_cartella.isdigit():
+        nome = (
+            CartellaDocumentoDipendente.objects.filter(pk=int(filtro_cartella))
+            .values_list("nome", flat=True)
+            .first()
+        )
+        if nome:
+            parts.append(f"Cartella: {nome}")
+    q_text = (request.GET.get("q") or "").strip()
+    if q_text:
+        parts.append(f'Ricerca: "{q_text}"')
+    anno = (request.GET.get("anno") or "").strip()
+    if anno:
+        parts.append(f"Anno: {anno}")
+    return " · ".join(parts)
+
+
+register(ExportSpec(
+    key="documenti",
+    title="Archivio documenti dipendenti",
+    sheet_title="Documenti",
+    columns=[
+        ("Dipendente", "dipendente"),
+        ("Cartella", "cartella"),
+        ("File", "file"),
+        ("Descrizione", "descrizione"),
+        ("Caricato", "caricato"),
+        ("Conservare fino al", "retention"),
+    ],
+    dataset=_documenti_rows,
+    filters_label=_documenti_filters,
+    permission=documenti_gate("/anagrafica/documenti/"),
+))
+
+
+# ── Pratiche di onboarding ────────────────────────────────────────────────────
+# Colonne = quelle di `onboarding_list.html` (Dipendente, Reparto, Assunzione,
+# Stato, Avanzamento). Filtro della pagina: `stato`.
+
+def _onboarding_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from anagrafica.models import OnboardingPratica
+    from anagrafica.views import _onboarding_counts  # import locale: evita cicli
+
+    qs = OnboardingPratica.objects.prefetch_related("tasks").all()
+    valid_stati = {choice[0] for choice in OnboardingPratica.STATO_CHOICES}
+    filtro_stato = (request.GET.get("stato") or "").strip()
+    if scope == "filtered" and filtro_stato in valid_stati:
+        qs = qs.filter(stato=filtro_stato)
+
+    rows: list[dict] = []
+    for pratica in qs:
+        counts = _onboarding_counts(pratica)
+        avanzamento = f"{counts['completati']}/{counts['totale']} completati"
+        if counts["eccezioni"]:
+            avanzamento += f" · {counts['eccezioni']} eccezioni"
+        rows.append({
+            "dipendente": (pratica.dipendente_nome or "").strip() or f"#{pratica.legacy_anagrafica_id}",
+            "reparto": pratica.reparto or "",
+            "data_assunzione": _fmt_date(pratica.data_assunzione),
+            "stato": pratica.get_stato_display() if pratica.stato else "",
+            "avanzamento": avanzamento,
+        })
+    return rows
+
+
+def _onboarding_filters(request: HttpRequest) -> str:
+    from anagrafica.models import OnboardingPratica
+
+    filtro_stato = (request.GET.get("stato") or "").strip()
+    stati = dict(OnboardingPratica.STATO_CHOICES)
+    if filtro_stato in stati:
+        return f"Stato: {stati[filtro_stato]}"
+    return ""
+
+
+register(ExportSpec(
+    key="onboarding",
+    title="Pratiche di onboarding",
+    sheet_title="Onboarding",
+    columns=[
+        ("Dipendente", "dipendente"),
+        ("Reparto", "reparto"),
+        ("Assunzione", "data_assunzione"),
+        ("Stato", "stato"),
+        ("Avanzamento", "avanzamento"),
+    ],
+    dataset=_onboarding_rows,
+    filters_label=_onboarding_filters,
+    permission=hr_gate("/anagrafica/onboarding/"),
+))
+
+
+# ── Ratei ferie / ROL / ex-festività ──────────────────────────────────────────
+# NB: la pagina ha già un export XLSX dedicato (`views.ratei_export`, bottone
+# «⬇ Excel» nella barra filtri): resta invariato. Questa spec è AGGIUNTIVA e
+# passa dall'endpoint unico (PDF + Excel, filtrato o tutto). Colonne = quelle
+# della tabella a schermo (Dipendente, Periodo, e le 4 misure × 3 gruppi).
+
+def _ratei_maps() -> tuple[dict, dict]:
+    """(tax_code → «Cognome Nome», legacy_id → reparto): stessa risoluzione della view."""
+    from anagrafica.models import (
+        DipendenteAnagraficaAziendale,
+        DipendenteAnagraficaCivile,
+        SaldoCedolino,
+    )
+    from core.legacy_models import AnagraficaDipendente
+
+    cf_civile: dict[str, int] = {}
+    for c in DipendenteAnagraficaCivile.objects.exclude(codice_fiscale="").values(
+        "codice_fiscale", "legacy_anagrafica_id"
+    ):
+        cf_u = (c["codice_fiscale"] or "").strip().upper()
+        if cf_u:
+            cf_civile[cf_u] = c["legacy_anagrafica_id"]
+
+    cf_to_legacy: dict[str, int | None] = {}
+    for row in SaldoCedolino.objects.values("tax_code", "legacy_anagrafica_id").distinct():
+        cf = (row["tax_code"] or "").strip()
+        if not cf or cf in cf_to_legacy:
+            continue
+        cf_to_legacy[cf] = row["legacy_anagrafica_id"] or cf_civile.get(cf.upper())
+
+    legacy_ids = sorted({lid for lid in cf_to_legacy.values() if lid})
+    dip_qs = list(
+        AnagraficaDipendente.objects.filter(id__in=legacy_ids).values(
+            "id", "cognome", "nome", "reparto"
+        )
+    )
+    id_to_nome = {
+        d["id"]: f'{(d["cognome"] or "").strip()} {(d["nome"] or "").strip()}'.strip()
+        for d in dip_qs
+    }
+    id_to_az_reparto = dict(
+        DipendenteAnagraficaAziendale.objects
+        .filter(legacy_anagrafica_id__in=legacy_ids)
+        .exclude(area="")
+        .values_list("legacy_anagrafica_id", "area")
+    )
+    id_to_reparto = {
+        d["id"]: (d["reparto"] or id_to_az_reparto.get(d["id"], "")).strip() for d in dip_qs
+    }
+
+    cf_to_nome: dict[str, str] = {}
+    for cf, lid in cf_to_legacy.items():
+        cf_to_nome[cf] = (id_to_nome.get(lid) if lid else None) or cf
+    return cf_to_nome, id_to_reparto
+
+
+def _num(value) -> float:
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _ratei_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from datetime import date as _date
+
+    from django.utils.formats import date_format
+
+    from anagrafica.models import SaldoCedolino
+    from anagrafica.ratei_alert import filtro_allerta_q, soglie_ratei
+
+    cf_to_nome, id_to_reparto = _ratei_maps()
+    qs = SaldoCedolino.objects.all().order_by("-data_competenza", "tax_code")
+
+    if scope == "filtered":
+        filtro_periodo = (request.GET.get("periodo") or "").strip()
+        if filtro_periodo:
+            try:
+                anno, mese, giorno = filtro_periodo.split("-")
+                qs = qs.filter(data_competenza=_date(int(anno), int(mese), int(giorno)))
+            except (ValueError, AttributeError):
+                pass
+
+        filtro_reparti = request.GET.getlist("reparto")
+        if filtro_reparti:
+            ids_in_reparto = [lid for lid, rep in id_to_reparto.items() if rep in filtro_reparti]
+            qs = qs.filter(legacy_anagrafica_id__in=ids_in_reparto)
+
+        filtro_dipendenti = request.GET.getlist("dipendente")
+        if not filtro_dipendenti:
+            cf_compat = (request.GET.get("cf") or "").strip().upper()
+            if cf_compat:
+                filtro_dipendenti = [cf_compat]
+        if filtro_dipendenti:
+            qs = qs.filter(tax_code__in=filtro_dipendenti)
+
+        if request.GET.get("allerta", "") == "1":
+            qs = qs.filter(filtro_allerta_q(soglie_ratei()))
+
+    return [
+        {
+            "dipendente": cf_to_nome.get((s.tax_code or "").upper(), s.tax_code or ""),
+            "periodo": date_format(s.data_competenza, "M Y") if s.data_competenza else "",
+            "ferie_anni_prec": _num(s.ferie_anni_prec),
+            "ferie_maturati": _num(s.ferie_maturati),
+            "ferie_goduti": _num(s.ferie_goduti),
+            "ferie_residui": _num(s.ferie_residui),
+            "rol_anni_prec": _num(s.rol_anni_prec),
+            "rol_maturati": _num(s.rol_maturati),
+            "rol_goduti": _num(s.rol_goduti),
+            "rol_residui": _num(s.rol_residui),
+            "ex_fest_anni_prec": _num(s.ex_fest_anni_prec),
+            "ex_fest_maturati": _num(s.ex_fest_maturati),
+            "ex_fest_goduti": _num(s.ex_fest_goduti),
+            "ex_fest_residui": _num(s.ex_fest_residui),
+        }
+        for s in qs
+    ]
+
+
+def _ratei_filters(request: HttpRequest) -> str:
+    parts: list[str] = []
+    filtro_periodo = (request.GET.get("periodo") or "").strip()
+    if filtro_periodo:
+        parts.append(f"Periodo: {filtro_periodo}")
+    filtro_reparti = [r for r in request.GET.getlist("reparto") if r.strip()]
+    if filtro_reparti:
+        parts.append("Reparto: " + ", ".join(filtro_reparti))
+    filtro_dipendenti = [d for d in request.GET.getlist("dipendente") if d.strip()]
+    if not filtro_dipendenti:
+        cf_compat = (request.GET.get("cf") or "").strip().upper()
+        if cf_compat:
+            filtro_dipendenti = [cf_compat]
+    if filtro_dipendenti:
+        cf_to_nome, _reparti = _ratei_maps()
+        parts.append(
+            "Dipendente: " + ", ".join(cf_to_nome.get(cf.upper(), cf) for cf in filtro_dipendenti)
+        )
+    if request.GET.get("allerta", "") == "1":
+        parts.append("Solo in allerta")
+    return " · ".join(parts)
+
+
+register(ExportSpec(
+    key="ratei",
+    title="Ratei ferie / permessi",
+    sheet_title="Ratei",
+    columns=[
+        ("Dipendente", "dipendente"),
+        ("Periodo", "periodo"),
+        ("Ferie anni prec.", "ferie_anni_prec"),
+        ("Ferie maturate", "ferie_maturati"),
+        ("Ferie godute", "ferie_goduti"),
+        ("Ferie residue", "ferie_residui"),
+        ("ROL anni prec.", "rol_anni_prec"),
+        ("ROL maturati", "rol_maturati"),
+        ("ROL goduti", "rol_goduti"),
+        ("ROL residui", "rol_residui"),
+        ("Ex-festività anni prec.", "ex_fest_anni_prec"),
+        ("Ex-festività maturate", "ex_fest_maturati"),
+        ("Ex-festività godute", "ex_fest_goduti"),
+        ("Ex-festività residue", "ex_fest_residui"),
+    ],
+    dataset=_ratei_rows,
+    filters_label=_ratei_filters,
+    permission=hr_gate("/anagrafica/ratei/"),
+))

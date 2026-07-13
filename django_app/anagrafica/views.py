@@ -729,17 +729,18 @@ def dipendenti_list(request):
 # Ex dipendenti — vista dedicata ai rapporti cessati
 # ---------------------------------------------------------------------------
 
-@login_required
-def ex_dipendenti_list(request):
-    """Elenco degli ex dipendenti (rapporto di lavoro cessato).
+def build_ex_dipendenti_rows(request, *, apply_filters: bool = True) -> list[dict]:
+    """Righe dell'elenco ex dipendenti (rapporti cessati), filtrate e ordinate.
 
-    Vista separata dalla lista dipendenti in forza: questi nominativi restano a
-    sistema con il fascicolo completo (documenti, retribuzioni, storico) ma non
-    compaiono tra i dipendenti attivi. Un dipendente è qui quando la sua
-    anagrafica aziendale ha una ``data_cessazione`` valorizzata.
+    Fonte unica condivisa tra la view ``ex_dipendenti_list`` e l'export
+    (``anagrafica.exports``): la fonte è diversa da quella dei dipendenti in
+    forza (qui si parte da tutte le anagrafiche e si tengono SOLO i cessati),
+    quindi il perimetro non va duplicato altrove o le due superfici divergono.
+    Con ``apply_filters=False`` (export «tutto») resta il perimetro dei cessati
+    e cade solo il filtro di ricerca della pagina.
     """
     ensure_anagrafica_schema()
-    q = request.GET.get("q", "").strip()
+    q = (request.GET.get("q") or "").strip() if apply_filters else ""
 
     cessati_ids = _cessati_legacy_ids()
     rows = [
@@ -792,6 +793,21 @@ def ex_dipendenti_list(request):
         str(row.get("cognome") or "").strip().casefold(),
         str(row.get("nome") or "").strip().casefold(),
     ), reverse=True)
+    return rows
+
+
+@login_required
+def ex_dipendenti_list(request):
+    """Elenco degli ex dipendenti (rapporto di lavoro cessato).
+
+    Vista separata dalla lista dipendenti in forza: questi nominativi restano a
+    sistema con il fascicolo completo (documenti, retribuzioni, storico) ma non
+    compaiono tra i dipendenti attivi. Un dipendente è qui quando la sua
+    anagrafica aziendale ha una ``data_cessazione`` valorizzata.
+    """
+    q = request.GET.get("q", "").strip()
+    # Stessa costruzione righe dell'export (`anagrafica.exports._ex_dipendenti_rows`).
+    rows = build_ex_dipendenti_rows(request)
 
     # Pagina unica per filtro/ordinamento client-side completo (vedi dipendenti_list).
     paginator = Paginator(rows, 500)
@@ -800,7 +816,7 @@ def ex_dipendenti_list(request):
     return render(request, "anagrafica/pages/ex_dipendenti_list.html", {
         "page_obj": page,
         "q": q,
-        "n_ex": len(cessati_ids),
+        "n_ex": len(_cessati_legacy_ids()),
     })
 
 

@@ -52,6 +52,7 @@
         </select>
         <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-filter"/></svg>Filtra</button>
         <a href="{% url 'anagrafica:onboarding_list' %}" class="fmd-btn fmd-btn-ghost">Azzera</a>
+        {% include "anagrafica/components/_export_menu.html" with export_key="onboarding" %}
       </form>
 
       {% if page_obj.object_list %}

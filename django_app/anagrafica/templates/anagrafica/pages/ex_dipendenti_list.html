@@ -38,6 +38,7 @@ body.theme-dark .hr-pag span { color:var(--text-light); }
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
 <div class="hr-shell">
 
   <!-- Page header -->
@@ -60,9 +61,10 @@ body.theme-dark .hr-pag span { color:var(--text-light); }
       <label>Cerca per nome</label>
       <input class="hr-input" type="text" name="q" value="{{ q }}" placeholder="Nome, cognome, username o matricola...">
     </div>
-    <div style="display:flex;gap:8px;padding-top:20px;">
+    <div style="display:flex;gap:8px;padding-top:20px;align-items:center;">
       <button class="hr-btn hr-btn-primary" type="submit">Filtra</button>
       <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:ex_dipendenti_list' %}">Reset</a>
+      {% include "anagrafica/components/_export_menu.html" with export_key="ex_dipendenti" %}
     </div>
   </form>
 

@@ -146,6 +146,8 @@
     <div style="display:flex;flex-direction:column;gap:6px;padding-top:18px;">
       <button type="submit" class="rl-btn rl-btn-primary">Filtra</button>
       <button type="button" class="rl-btn rl-btn-ghost" onclick="rlExport()" title="Scarica Excel con i filtri attivi">⬇ Excel</button>
+      {# Endpoint unico di export (Excel + PDF, filtrato o tutto). Il bottone «⬇ Excel» qui sopra resta: usa l'export storico dedicato dei ratei. #}
+      {% include "anagrafica/components/_export_menu.html" with export_key="ratei" %}
       {% if filtro_periodo or filtro_dipendenti or filtro_reparti or filtro_allerta %}
       <a href="{% url 'anagrafica:ratei_list' %}" class="rl-btn rl-btn-ghost">✕ Reset</a>
       {% endif %}

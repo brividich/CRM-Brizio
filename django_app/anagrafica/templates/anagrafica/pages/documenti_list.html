@@ -73,6 +73,7 @@
         <div class="fmd-block-title" style="font-size:14px;"><svg class="fmd-ico"><use href="#i-doc"/></svg>Documenti</div>
         <span class="fmd-spacer"></span>
         <span class="fmd-block-aside">{{ documenti|length }} documento/i{% if documenti|length == 500 %} · limite 500, restringi con i filtri{% endif %}</span>
+        {% include "anagrafica/components/_export_menu.html" with export_key="documenti" %}
       </div>
       {% if documenti %}
       <div class="fmd-tablewrap">

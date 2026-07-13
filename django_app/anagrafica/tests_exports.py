@@ -289,6 +289,14 @@ class ExportAclGateTests(TestCase):
                 resp = self.client.get(reverse("anagrafica:export", args=[key]) + "?format=xlsx")
                 self.assertEqual(resp.status_code, 403)
 
+    def test_export_denied_for_every_hr_key_without_permission(self):
+        """Le 4 chiavi HR/documenti (Task 8) negano l'export a un utente
+        autenticato senza binding ACL sulla lista di origine — end-to-end."""
+        for key in ("ex_dipendenti", "documenti", "onboarding", "ratei"):
+            with self.subTest(key=key):
+                resp = self.client.get(reverse("anagrafica:export", args=[key]) + "?format=xlsx")
+                self.assertEqual(resp.status_code, 403)
+
     def test_export_allowed_when_user_can_open_the_list(self):
         self._grant_list_via_legacy(allowed=True)
         resp = self._export()
@@ -1026,4 +1034,374 @@ class FormazioneExportTests(TestCase):
         html = resp.content.decode()
         base = reverse("anagrafica:export", args=["formazione_corsi"])
         self.assertIn(f'{base}?format=xlsx&amp;scope=filtered&amp;q=antinc"', html)
+        self.assertIn(f'{base}?format=pdf&amp;scope=full"', html)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class HrExportTests(TestCase):
+    """Export delle liste HR e documenti (Task 8) — dati personali dei dipendenti.
+
+    Chiavi: `ex_dipendenti`, `documenti`, `onboarding`, `ratei`.
+    Dati **sintetici** (nessun dato reale). Il test critico è lo scoping per
+    riga dell'archivio documentale: le cartelle riservate (`solo_admin`) non
+    devono finire nell'export di un utente HR non-superuser, nemmeno con
+    `scope=full` (il gate ACL da solo non basta).
+    """
+
+    HR_KEYS = ("ex_dipendenti", "documenti", "onboarding", "ratei")
+
+    def setUp(self):
+        from anagrafica.models import (
+            AnagraficaHRPermission,
+            CartellaDocumentoDipendente,
+            DipendenteAnagraficaCivile,
+            DocumentoDipendente,
+            OnboardingPratica,
+            OnboardingTask,
+            SaldoCedolino,
+        )
+        from anagrafica.tests import _ensure_anagrafica_table
+
+        _ensure_anagrafica_table()
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM anagrafica_dipendenti")
+            for alias, nome, cognome, matricola in (
+                ("m.rossi", "Mario", "Rossi", "M001"),
+                ("c.cessato", "Carlo", "Cessato", "M002"),
+                ("d.uscito", "Dina", "Uscita", "M003"),
+            ):
+                cursor.execute(
+                    """
+                    INSERT INTO anagrafica_dipendenti
+                        (aliasusername, nome, cognome, reparto, mansione, matricola, attivo)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    [alias, nome, cognome, "Officina", "Saldatore", matricola, 1],
+                )
+            cursor.execute(
+                "SELECT id FROM anagrafica_dipendenti WHERE aliasusername = %s", ["m.rossi"]
+            )
+            self.attivo_id = int(cursor.fetchone()[0])
+            cursor.execute(
+                "SELECT id FROM anagrafica_dipendenti WHERE aliasusername = %s", ["c.cessato"]
+            )
+            self.cessato_id = int(cursor.fetchone()[0])
+            cursor.execute(
+                "SELECT id FROM anagrafica_dipendenti WHERE aliasusername = %s", ["d.uscito"]
+            )
+            self.uscita_id = int(cursor.fetchone()[0])
+
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=self.cessato_id,
+            data_cessazione="2024-06-30",
+            data_assunzione_ultima="2019-03-01",
+            tipologia_contratto="INDETERMINATO",
+        )
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=self.uscita_id,
+            data_cessazione="2025-11-15",
+        )
+
+        # Documenti: 1 in cartella normale, 1 in cartella RISERVATA, 1 senza cartella.
+        self.cart_pub = CartellaDocumentoDipendente.objects.create(nome="Contratti")
+        self.cart_ris = CartellaDocumentoDipendente.objects.create(
+            nome="Provvedimenti", solo_admin=True
+        )
+        DocumentoDipendente.objects.create(
+            legacy_anagrafica_id=self.attivo_id,
+            tipo=DocumentoDipendente.Tipo.MANUALE,
+            cartella=self.cart_pub,
+            file="sintetico/contratto.pdf",
+            nome_originale="contratto.pdf",
+            descrizione="Contratto sintetico",
+        )
+        DocumentoDipendente.objects.create(
+            legacy_anagrafica_id=self.attivo_id,
+            tipo=DocumentoDipendente.Tipo.MANUALE,
+            cartella=self.cart_ris,
+            file="sintetico/riservato.pdf",
+            nome_originale="riservato.pdf",
+            descrizione="Documento riservato sintetico",
+        )
+        DocumentoDipendente.objects.create(
+            legacy_anagrafica_id=self.attivo_id,
+            tipo=DocumentoDipendente.Tipo.MANUALE,
+            cartella=None,
+            file="sintetico/libero.pdf",
+            nome_originale="libero.pdf",
+        )
+        # Documento di sistema: mai nell'archivio manuale.
+        DocumentoDipendente.objects.create(
+            legacy_anagrafica_id=self.attivo_id,
+            tipo=DocumentoDipendente.Tipo.DPI_CONSEGNA,
+            file="sintetico/dpi.pdf",
+            nome_originale="dpi.pdf",
+        )
+
+        # Onboarding: 1 in corso (con 1 task completato su 2), 1 chiusa.
+        self.prat_corso = OnboardingPratica.objects.create(
+            legacy_anagrafica_id=self.attivo_id,
+            dipendente_nome="Rossi Mario",
+            reparto="Officina",
+            data_assunzione="2026-01-07",
+            stato=OnboardingPratica.STATO_IN_CORSO,
+        )
+        OnboardingTask.objects.create(
+            pratica=self.prat_corso, codice="ACCOUNT", titolo="Account",
+            stato=OnboardingTask.STATO_COMPLETATO,
+        )
+        OnboardingTask.objects.create(
+            pratica=self.prat_corso, codice="BADGE", titolo="Badge",
+            stato=OnboardingTask.STATO_DA_FARE,
+        )
+        OnboardingPratica.objects.create(
+            legacy_anagrafica_id=self.uscita_id,
+            dipendente_nome="Uscita Dina",
+            stato=OnboardingPratica.STATO_CHIUSA,
+        )
+
+        # Ratei: 2 mensilità per lo stesso dipendente sintetico.
+        DipendenteAnagraficaCivile.objects.create(
+            legacy_anagrafica_id=self.attivo_id, codice_fiscale="RSSMRA80A01H501U"
+        )
+        SaldoCedolino.objects.create(
+            tax_code="RSSMRA80A01H501U", legacy_anagrafica_id=self.attivo_id,
+            data_competenza="2026-05-31", ferie_residui=40, rol_residui=8,
+        )
+        SaldoCedolino.objects.create(
+            tax_code="RSSMRA80A01H501U", legacy_anagrafica_id=self.attivo_id,
+            data_competenza="2026-04-30", ferie_residui=30,
+        )
+
+        # Permesso HR applicativo: aperto a tutti gli autenticati, così esiste un
+        # utente HR NON superuser (il caso critico dello scoping `solo_admin`).
+        perm = AnagraficaHRPermission.get_instance()
+        perm.accesso = AnagraficaHRPermission.ACCESSO_TUTTI
+        perm.save(update_fields=["accesso"])
+
+        self.admin = User.objects.create_superuser("admin_hr", "hr@example.invalid", "x")
+        self.hr_user = User.objects.create_user("hr_no_su", "hr2@example.invalid", "x")
+        UserOnboarding.objects.create(user=self.hr_user, completed=True)
+        self.client.force_login(self.admin)
+
+    def _request(self, path: str = "/anagrafica/documenti/", user=None):
+        request = RequestFactory().get(path)
+        request.user = user or self.admin
+        return request
+
+    def _export_url(self, key: str, **params) -> str:
+        url = reverse("anagrafica:export", args=[key])
+        return url + "?" + "&".join(f"{k}={v}" for k, v in params.items())
+
+    # -- endpoint -----------------------------------------------------------
+    def test_every_hr_key_is_registered(self):
+        for key in self.HR_KEYS:
+            self.assertIn(key, EXPORT_SPECS)
+
+    def test_xlsx_export_ok_for_every_key(self):
+        for key in self.HR_KEYS:
+            with self.subTest(key=key):
+                resp = self.client.get(self._export_url(key, format="xlsx"))
+                self.assertEqual(resp.status_code, 200)
+                self.assertEqual(resp["Content-Type"], XLSX_CT)
+                self.assertIn(key, resp["Content-Disposition"])
+
+    def test_pdf_export_ok_for_every_key(self):
+        for key in self.HR_KEYS:
+            with self.subTest(key=key):
+                resp = self.client.get(self._export_url(key, format="pdf"))
+                self.assertEqual(resp.status_code, 200)
+                self.assertEqual(resp["Content-Type"], "application/pdf")
+                self.assertTrue(resp.content.startswith(b"%PDF"))
+
+    def test_audit_written_with_the_right_key(self):
+        for key in self.HR_KEYS:
+            with self.subTest(key=key):
+                self.client.get(self._export_url(key, format="xlsx"))
+                log = AuditLog.objects.filter(azione="export").latest("id")
+                self.assertEqual(log.modulo, "anagrafica")
+                self.assertEqual(log.dettaglio.get("lista"), key)
+
+    def test_columns_are_filled_by_every_dataset(self):
+        for key in self.HR_KEYS:
+            with self.subTest(key=key):
+                spec = EXPORT_SPECS[key]
+                rows = spec.dataset(self._request(), "full")
+                self.assertTrue(rows)
+                accessors = {accessor for _label, accessor in spec.columns}
+                for row in rows:
+                    self.assertEqual(accessors - set(row), set())
+
+    # -- ex dipendenti ------------------------------------------------------
+    def test_ex_dipendenti_only_cessati_and_columns_mirror_the_page(self):
+        spec = EXPORT_SPECS["ex_dipendenti"]
+        rows = spec.dataset(self._request("/anagrafica/ex-dipendenti/"), "full")
+        self.assertEqual({r["username"] for r in rows}, {"c.cessato", "d.uscito"})
+        cessato = next(r for r in rows if r["username"] == "c.cessato")
+        self.assertEqual(cessato["matricola"], "M002")
+        self.assertEqual(cessato["contratto"], "Tempo indeterminato")
+        self.assertEqual(cessato["data_assunzione"], "01-03-2019")
+        self.assertEqual(cessato["data_cessazione"], "30-06-2024")
+        self.assertEqual(
+            [accessor for _label, accessor in spec.columns],
+            ["cognome", "nome", "username", "matricola", "contratto",
+             "data_assunzione", "data_cessazione"],
+        )
+
+    def test_ex_dipendenti_filtered_scope_reduces_rows(self):
+        spec = EXPORT_SPECS["ex_dipendenti"]
+        request = self._request("/anagrafica/ex-dipendenti/?q=cessato")
+        self.assertEqual(len(spec.dataset(request, "full")), 2)
+        filtered = spec.dataset(request, "filtered")
+        self.assertEqual([r["username"] for r in filtered], ["c.cessato"])
+        self.assertIn("cessato", spec.filters_label(request))
+
+    def test_ex_dipendenti_export_matches_rows_actually_rendered_by_the_page(self):
+        for querystring in ("", "?q=cessato", "?q=usc"):
+            with self.subTest(querystring=querystring):
+                resp = self.client.get(
+                    reverse("anagrafica:ex_dipendenti_list") + querystring
+                )
+                self.assertEqual(resp.status_code, 200)
+                page_users = [
+                    str(row.get("aliasusername") or "")
+                    for row in resp.context["page_obj"].object_list
+                ]
+                export_rows = EXPORT_SPECS["ex_dipendenti"].dataset(
+                    self._request(f"/anagrafica/ex-dipendenti/{querystring}"), "filtered"
+                )
+                self.assertEqual(page_users, [r["username"] for r in export_rows])
+
+    def test_ex_dipendenti_view_context_is_unchanged_by_the_extraction(self):
+        resp = self.client.get(reverse("anagrafica:ex_dipendenti_list") + "?q=cessato")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["n_ex"], 2)                       # pre-filtro
+        self.assertEqual(resp.context["page_obj"].paginator.count, 1)   # filtrati
+        self.assertEqual(resp.context["q"], "cessato")
+
+    # -- documenti: scoping per riga (solo_admin) ----------------------------
+    def test_documenti_solo_admin_rows_are_excluded_for_non_superuser(self):
+        """SICUREZZA: l'utente HR non-superuser non esporta i documenti riservati,
+        nemmeno con `scope=full` (dove i filtri di pagina non si applicano)."""
+        spec = EXPORT_SPECS["documenti"]
+        for scope in ("filtered", "full"):
+            with self.subTest(scope=scope):
+                rows = spec.dataset(
+                    self._request("/anagrafica/documenti/", user=self.hr_user), scope
+                )
+                files = [r["file"] for r in rows]
+                self.assertNotIn("riservato.pdf", files)
+                self.assertIn("contratto.pdf", files)
+                self.assertIn("libero.pdf", files)
+
+    def test_documenti_solo_admin_rows_are_included_for_superuser(self):
+        spec = EXPORT_SPECS["documenti"]
+        rows = spec.dataset(self._request("/anagrafica/documenti/"), "full")
+        files = [r["file"] for r in rows]
+        self.assertIn("riservato.pdf", files)
+        self.assertEqual(len(files), 3)  # i documenti di sistema (DPI) restano fuori
+
+    def test_documenti_solo_admin_rows_excluded_end_to_end_for_non_superuser(self):
+        """Stesso invariante ma via endpoint reale: il gate passa (utente HR) e
+        deve essere il dataset a togliere le righe riservate."""
+        self.client.force_login(self.hr_user)
+        resp = self.client.get(self._export_url("documenti", format="xlsx", scope="full"))
+        self.assertEqual(resp.status_code, 200)
+        log = AuditLog.objects.filter(azione="export").latest("id")
+        self.assertEqual(log.dettaglio.get("n_righe"), 2)  # 3 - 1 riservato
+
+        self.client.force_login(self.admin)
+        resp = self.client.get(self._export_url("documenti", format="xlsx", scope="full"))
+        self.assertEqual(resp.status_code, 200)
+        log = AuditLog.objects.filter(azione="export").latest("id")
+        self.assertEqual(log.dettaglio.get("n_righe"), 3)
+
+    def test_documenti_filtered_scope_reduces_rows(self):
+        spec = EXPORT_SPECS["documenti"]
+        request = self._request(f"/anagrafica/documenti/?cartella={self.cart_pub.pk}")
+        self.assertEqual(len(spec.dataset(request, "full")), 3)
+        filtered = spec.dataset(request, "filtered")
+        self.assertEqual([r["file"] for r in filtered], ["contratto.pdf"])
+        self.assertEqual(filtered[0]["cartella"], "Contratti")
+        self.assertEqual(filtered[0]["dipendente"], "Rossi Mario")
+        self.assertIn("Contratti", spec.filters_label(request))
+
+    def test_documenti_search_filter_matches_the_page(self):
+        spec = EXPORT_SPECS["documenti"]
+        request = self._request("/anagrafica/documenti/?q=libero")
+        filtered = spec.dataset(request, "filtered")
+        self.assertEqual([r["file"] for r in filtered], ["libero.pdf"])
+        self.assertEqual(filtered[0]["cartella"], "Senza cartella")
+
+    # -- onboarding ---------------------------------------------------------
+    def test_onboarding_rows_mirror_the_page(self):
+        rows = EXPORT_SPECS["onboarding"].dataset(self._request("/anagrafica/onboarding/"), "full")
+        by_name = {r["dipendente"]: r for r in rows}
+        self.assertEqual(by_name["Rossi Mario"]["stato"], "In corso")
+        self.assertEqual(by_name["Rossi Mario"]["reparto"], "Officina")
+        self.assertEqual(by_name["Rossi Mario"]["data_assunzione"], "07-01-2026")
+        self.assertEqual(by_name["Rossi Mario"]["avanzamento"], "1/2 completati")
+        self.assertEqual(by_name["Uscita Dina"]["stato"], "Chiusa")
+
+    def test_onboarding_filtered_scope_reduces_rows(self):
+        spec = EXPORT_SPECS["onboarding"]
+        request = self._request("/anagrafica/onboarding/?stato=CHIUSA")
+        self.assertEqual(len(spec.dataset(request, "full")), 2)
+        filtered = spec.dataset(request, "filtered")
+        self.assertEqual([r["dipendente"] for r in filtered], ["Uscita Dina"])
+        self.assertIn("Chiusa", spec.filters_label(request))
+
+    # -- ratei --------------------------------------------------------------
+    def test_ratei_rows_mirror_the_page(self):
+        rows = EXPORT_SPECS["ratei"].dataset(self._request("/anagrafica/ratei/"), "full")
+        self.assertEqual(len(rows), 2)
+        self.assertEqual({r["dipendente"] for r in rows}, {"Rossi Mario"})
+        self.assertEqual(rows[0]["ferie_residui"], 40.0)  # ordine: mensilità più recente
+
+    def test_ratei_filtered_scope_reduces_rows(self):
+        spec = EXPORT_SPECS["ratei"]
+        request = self._request("/anagrafica/ratei/?periodo=2026-04-30")
+        self.assertEqual(len(spec.dataset(request, "full")), 2)
+        filtered = spec.dataset(request, "filtered")
+        self.assertEqual(len(filtered), 1)
+        self.assertEqual(filtered[0]["ferie_residui"], 30.0)
+        self.assertIn("2026-04-30", spec.filters_label(request))
+
+    def test_ratei_dipendente_filter_reduces_rows(self):
+        spec = EXPORT_SPECS["ratei"]
+        request = self._request("/anagrafica/ratei/?dipendente=XXXNONESISTE00A00X000X")
+        self.assertEqual(spec.dataset(request, "filtered"), [])
+        self.assertEqual(len(spec.dataset(request, "full")), 2)
+
+    def test_ratei_dedicated_export_still_works(self):
+        """Non-regressione: l'export XLSX storico dei ratei resta intatto."""
+        resp = self.client.get(reverse("anagrafica:ratei_export"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], XLSX_CT)
+
+    # -- UI: menu export nella toolbar ---------------------------------------
+    def test_hr_pages_show_the_export_menu(self):
+        pages = {
+            "ex_dipendenti": "anagrafica:ex_dipendenti_list",
+            "documenti": "anagrafica:documenti_list",
+            "onboarding": "anagrafica:onboarding_list",
+            "ratei": "anagrafica:ratei_list",
+        }
+        for key, route in pages.items():
+            with self.subTest(key=key):
+                resp = self.client.get(reverse(route))
+                self.assertEqual(resp.status_code, 200)
+                html = resp.content.decode()
+                base = reverse("anagrafica:export", args=[key])
+                self.assertIn("Esporta", html)
+                self.assertIn('href="#i-download"', html)
+                self.assertIn(f'{base}?format=xlsx&amp;scope=filtered"', html)
+                self.assertIn(f'{base}?format=pdf&amp;scope=full"', html)
+
+    def test_ex_dipendenti_page_propagates_querystring_on_filtered_links(self):
+        resp = self.client.get(reverse("anagrafica:ex_dipendenti_list") + "?q=cessato")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        base = reverse("anagrafica:export", args=["ex_dipendenti"])
+        self.assertIn(f'{base}?format=xlsx&amp;scope=filtered&amp;q=cessato"', html)
         self.assertIn(f'{base}?format=pdf&amp;scope=full"', html)
