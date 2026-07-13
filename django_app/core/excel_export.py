@@ -46,8 +46,10 @@ def _brand_header(ws, *, title, subtitle, filters_label, logo):
             from openpyxl.drawing.image import Image as XlImage
 
             img = XlImage(logo_path)
-            img.height = 36
-            img.width = int(img.width * (36 / max(img.height, 1))) if img.height else 90
+            native_w, native_h = img.width, img.height
+            target_h = 36
+            img.height = target_h
+            img.width = int(native_w * (target_h / native_h)) if native_h else 90
             ws.add_image(img, "A1")
             ws.row_dimensions[1].height = 30
         except Exception:  # logo non disegnabile: si prosegue senza (mai eccezione all'utente)
