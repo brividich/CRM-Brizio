@@ -13,7 +13,7 @@
 .mf-header {
   display: flex; align-items: center; gap: 14px;
   margin-bottom: 14px;
-  background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-mid) 100%);
   border-radius: 14px;
   padding: 16px 20px;
   color: #fff;
@@ -30,20 +30,20 @@
 
 /* ── Sections ───────────────────────────────────────────────────────── */
 .mf-section {
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 12px;
   margin-bottom: 12px;
   overflow: hidden;
 }
 .mf-section-head {
-  background: linear-gradient(180deg, #f4f8fd 0%, #eef4fb 100%);
-  border-bottom: 1px solid #e2e8f0;
+  background: var(--surface-alt, #f8fafc);
+  border-bottom: 1px solid var(--border);
   padding: 9px 16px;
   display: flex; align-items: center; gap: 8px;
 }
-.mf-section-head svg { width: 16px; height: 16px; stroke: #64748b; flex-shrink: 0; }
-.mf-section-head span { font-size: .8125rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: .05em; }
+.mf-section-head svg { width: 16px; height: 16px; stroke: var(--text-light); flex-shrink: 0; }
+.mf-section-head span { font-size: .8125rem; font-weight: 700; color: var(--text-mid); text-transform: uppercase; letter-spacing: .05em; }
 .mf-section-body { padding: 14px 16px; }
 
 /* ── Fields ─────────────────────────────────────────────────────────── */
@@ -54,13 +54,13 @@
 .mf-field:last-child { margin-bottom: 0; }
 .mf-label {
   display: flex; align-items: center; gap: 6px;
-  font-size: .8125rem; font-weight: 600; color: #475569; margin-bottom: 5px;
+  font-size: .8125rem; font-weight: 600; color: var(--text-mid); margin-bottom: 5px;
 }
-.mf-label .req { color: #ef4444; }
-.mf-hint { font-size: .75rem; color: #94a3b8; margin-top: 5px; line-height: 1.4; }
+.mf-label .req { color: var(--danger); }
+.mf-hint { font-size: .75rem; color: var(--text-light); margin-top: 5px; line-height: 1.4; }
 .mf-field .input { width: 100%; box-sizing: border-box; }
 .mf-errorlist { list-style: none; padding: 0; margin: 5px 0 0; }
-.mf-errorlist li { font-size: .8rem; color: #dc2626; display: flex; align-items: center; gap: 4px; }
+.mf-errorlist li { font-size: .8rem; color: var(--danger); display: flex; align-items: center; gap: 4px; }
 .mf-errorlist li::before { content: "⚠"; font-size: .7rem; }
 
 /* ── Partecipanti search + tags ─────────────────────────────────────── */
@@ -70,18 +70,18 @@
 .mf-search-box input {
   width: 100%; box-sizing: border-box;
   padding: 9px 12px 9px 36px;
-  border: 1px solid #e2e8f0; border-radius: 8px;
-  font-size: .875rem; color: #1e293b; background: #f8fafc;
+  border: 1px solid var(--border); border-radius: 8px;
+  font-size: .875rem; color: var(--text); background: var(--surface-alt, #f8fafc);
   outline: none; transition: border-color .15s, box-shadow .15s;
 }
-.mf-search-box input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.12); background: #fff; }
+.mf-search-box input:focus { border-color: var(--primary-mid); box-shadow: 0 0 0 3px rgba(37,99,235,.12); background: var(--surface); }
 .mf-search-box .mf-search-icon {
   position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
-  width: 15px; height: 15px; stroke: #94a3b8; pointer-events: none;
+  width: 15px; height: 15px; stroke: var(--text-light); pointer-events: none;
 }
 .mf-search-count {
   position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
-  font-size: .75rem; color: #94a3b8; font-weight: 600;
+  font-size: .75rem; color: var(--text-light); font-weight: 600;
 }
 
 .mf-participant-tags {
@@ -90,16 +90,16 @@
 }
 .mf-ptag {
   display: inline-flex; align-items: center; gap: 5px;
-  background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 99px;
-  padding: 3px 10px 3px 8px; font-size: .8125rem; color: #1e40af; font-weight: 500;
+  background: var(--surface-alt, #f8fafc); border: 1px solid var(--border); border-radius: 99px;
+  padding: 3px 10px 3px 8px; font-size: .8125rem; color: var(--primary-mid); font-weight: 500;
 }
 .mf-ptag-avatar {
   width: 18px; height: 18px; border-radius: 50%;
-  background: #2563eb; color: #fff;
+  background: var(--primary-mid); color: #fff;
   display: flex; align-items: center; justify-content: center;
   font-size: .6rem; font-weight: 700; flex-shrink: 0;
 }
-.mf-ptag-none { font-size: .8125rem; color: #94a3b8; font-style: italic; padding: 4px 0; }
+.mf-ptag-none { font-size: .8125rem; color: var(--text-light); font-style: italic; padding: 4px 0; }
 
 .mf-user-grid {
   display: grid;
@@ -107,85 +107,85 @@
   gap: 4px;
   max-height: 220px;
   overflow-y: auto;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 10px 12px;
-  background: #fafcff;
+  background: var(--surface);
 }
 .mf-user-grid label {
   display: flex; align-items: center; gap: 8px;
-  font-size: .875rem; color: #334155; cursor: pointer;
+  font-size: .875rem; color: var(--text); cursor: pointer;
   padding: 5px 8px; border-radius: 6px;
   transition: background .1s; user-select: none;
 }
-.mf-user-grid label:hover { background: #eff6ff; }
+.mf-user-grid label:hover { background: var(--surface-alt, #f8fafc); }
 .mf-user-grid label.mf-hidden { display: none; }
-.mf-user-grid input[type=checkbox] { accent-color: #2563eb; width: 15px; height: 15px; flex-shrink: 0; }
-.mf-user-grid-empty { font-size: .85rem; color: #94a3b8; text-align: center; padding: 16px; font-style: italic; display: none; }
+.mf-user-grid input[type=checkbox] { accent-color: var(--primary-mid); width: 15px; height: 15px; flex-shrink: 0; }
+.mf-user-grid-empty { font-size: .85rem; color: var(--text-light); text-align: center; padding: 16px; font-style: italic; display: none; }
 
 /* ── Agenda builder ─────────────────────────────────────────────────── */
 .agenda-list { margin-bottom: 12px; }
 .agenda-item {
   display: flex; align-items: flex-start; gap: 10px;
-  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
+  background: var(--surface-alt, #f8fafc); border: 1px solid var(--border); border-radius: 10px;
   padding: 12px 14px; margin-bottom: 8px;
   transition: border-color .15s, box-shadow .15s;
 }
-.agenda-item:hover { border-color: #bfdbfe; box-shadow: 0 1px 4px rgba(37,99,235,.08); }
+.agenda-item:hover { border-color: var(--primary-mid); box-shadow: 0 1px 4px rgba(37,99,235,.08); }
 .agenda-num {
   width: 26px; height: 26px; border-radius: 8px;
-  background: #2563eb; color: #fff;
+  background: var(--primary-mid); color: #fff;
   display: flex; align-items: center; justify-content: center;
   font-size: .75rem; font-weight: 800; flex-shrink: 0; margin-top: 1px;
 }
 .agenda-body { flex: 1; min-width: 0; }
-.agenda-title { font-size: .9rem; font-weight: 600; color: #1e293b; word-break: break-word; }
-.agenda-nota { font-size: .8125rem; color: #64748b; margin-top: 4px; white-space: pre-wrap; }
+.agenda-title { font-size: .9rem; font-weight: 600; color: var(--text); word-break: break-word; }
+.agenda-nota { font-size: .8125rem; color: var(--text-light); margin-top: 4px; white-space: pre-wrap; }
 .agenda-extra-fields {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 6px; margin-top: 8px;
 }
 .agenda-extra-field {
-  background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
   padding: 7px 9px; min-width: 0;
 }
 .agenda-extra-field span {
   display: block; font-size: .68rem; text-transform: uppercase; letter-spacing: .04em;
-  color: #64748b; font-weight: 700; margin-bottom: 2px;
+  color: var(--text-light); font-weight: 700; margin-bottom: 2px;
 }
 .agenda-extra-field strong {
-  display: block; font-size: .8rem; color: #1e293b; font-weight: 600;
+  display: block; font-size: .8rem; color: var(--text); font-weight: 600;
   white-space: pre-wrap; overflow-wrap: anywhere;
 }
 .agenda-task-badge {
   display: inline-flex; align-items: center; gap: 4px;
-  background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 99px;
-  padding: 1px 8px; font-size: .75rem; color: #15803d; font-weight: 500;
+  background: var(--success-bg); border: 1px solid var(--success-bg); border-radius: 99px;
+  padding: 1px 8px; font-size: .75rem; color: var(--success); font-weight: 500;
   margin-left: 8px; white-space: nowrap;
 }
-.agenda-task-badge svg { width: 11px; height: 11px; stroke: #16a34a; }
+.agenda-task-badge svg { width: 11px; height: 11px; stroke: var(--success); }
 .agenda-del {
   display: flex; align-items: center; justify-content: center;
   width: 28px; height: 28px; border-radius: 6px; flex-shrink: 0; cursor: pointer;
-  border: none; background: transparent; color: #94a3b8; transition: background .1s, color .1s;
+  border: none; background: transparent; color: var(--text-light); transition: background .1s, color .1s;
 }
-.agenda-del:hover { background: #fee2e2; color: #dc2626; }
+.agenda-del:hover { background: var(--danger-bg); color: var(--danger); }
 .agenda-del svg { width: 14px; height: 14px; stroke: currentColor; }
 
 .agenda-empty-state {
   text-align: center; padding: 28px 16px;
-  color: #94a3b8; border: 2px dashed #e2e8f0; border-radius: 10px;
+  color: var(--text-light); border: 2px dashed var(--border); border-radius: 10px;
   font-size: .875rem;
 }
-.agenda-empty-state svg { width: 32px; height: 32px; stroke: #cbd5e1; margin: 0 auto 8px; display: block; }
+.agenda-empty-state svg { width: 32px; height: 32px; stroke: var(--border); margin: 0 auto 8px; display: block; }
 
 /* Add form inline */
 .agenda-add-form {
-  background: #f0f7ff; border: 1px solid #bfdbfe; border-radius: 10px;
+  background: var(--surface-alt, #f8fafc); border: 1px solid var(--border); border-radius: 10px;
   padding: 16px; display: none; margin-bottom: 8px;
 }
 .agenda-add-form.open { display: block; }
-.agenda-add-title { font-size: .8125rem; font-weight: 700; color: #1e40af; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+.agenda-add-title { font-size: .8125rem; font-weight: 700; color: var(--primary-mid); margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
 .agenda-add-title svg { width: 14px; height: 14px; stroke: currentColor; }
 .agenda-add-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
 @media (max-width: 580px) { .agenda-add-row { grid-template-columns: 1fr; } }
@@ -194,11 +194,11 @@
 .agenda-custom-head .mf-label { margin: 0; }
 .agenda-custom-btn {
   display: inline-flex; align-items: center; gap: 5px;
-  padding: 6px 10px; border-radius: 7px; border: 1px solid #bfdbfe;
-  background: #eff6ff; color: #2563eb; font-size: .78rem; font-weight: 700;
+  padding: 6px 10px; border-radius: 7px; border: 1px solid var(--border);
+  background: var(--surface-alt, #f8fafc); color: var(--primary-mid); font-size: .78rem; font-weight: 700;
   cursor: pointer;
 }
-.agenda-custom-btn:hover { background: #dbeafe; border-color: #93c5fd; }
+.agenda-custom-btn:hover { background: var(--surface-alt, #f8fafc); border-color: var(--primary-mid); }
 .agenda-custom-btn svg { width: 13px; height: 13px; stroke: currentColor; }
 .agenda-custom-fields { display: grid; gap: 8px; }
 .agenda-custom-row {
@@ -208,62 +208,62 @@
 .agenda-custom-row .input { width: 100%; box-sizing: border-box; }
 .agenda-custom-remove {
   width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
-  border: none; border-radius: 7px; background: transparent; color: #94a3b8; cursor: pointer;
+  border: none; border-radius: 7px; background: transparent; color: var(--text-light); cursor: pointer;
 }
-.agenda-custom-remove:hover { background: #fee2e2; color: #dc2626; }
+.agenda-custom-remove:hover { background: var(--danger-bg); color: var(--danger); }
 .agenda-custom-remove svg { width: 14px; height: 14px; stroke: currentColor; }
 @media (max-width: 580px) { .agenda-custom-row { grid-template-columns: 1fr 1fr 30px; } }
 
 .agenda-btn-add {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 9px 16px; border-radius: 8px; font-size: .875rem; font-weight: 600;
-  border: 1px dashed #bfdbfe; background: #f0f7ff; color: #2563eb; cursor: pointer;
+  border: 1px dashed var(--border); background: var(--surface-alt, #f8fafc); color: var(--primary-mid); cursor: pointer;
   transition: background .15s, border-color .15s;
 }
-.agenda-btn-add:hover { background: #dbeafe; border-color: #93c5fd; }
+.agenda-btn-add:hover { background: var(--surface-alt, #f8fafc); border-color: var(--primary-mid); }
 .agenda-btn-add svg { width: 15px; height: 15px; stroke: currentColor; }
 
 /* Problemi gestiti */
 .mf-issues-list { display: grid; gap: 10px; margin-bottom: 16px; }
 .mf-issue-card {
-  border: 1px solid #fecaca; background: #fff7f7; border-radius: 10px;
+  border: 1px solid var(--danger-bg); background: var(--danger-bg); border-radius: 10px;
   padding: 12px 14px; display: grid; gap: 8px;
 }
-.mf-issue-card.resolved { border-color: #bbf7d0; background: #f0fdf4; }
+.mf-issue-card.resolved { border-color: var(--success-bg); background: var(--success-bg); }
 .mf-issue-top { display: flex; align-items: flex-start; gap: 10px; }
-.mf-issue-check { width: 17px; height: 17px; margin-top: 2px; accent-color: #16a34a; flex-shrink: 0; }
+.mf-issue-check { width: 17px; height: 17px; margin-top: 2px; accent-color: var(--success); flex-shrink: 0; }
 .mf-issue-main { flex: 1; min-width: 0; }
-.mf-issue-title { font-size: .9rem; font-weight: 800; color: #991b1b; overflow-wrap: anywhere; }
-.mf-issue-card.resolved .mf-issue-title { color: #166534; text-decoration: line-through; }
+.mf-issue-title { font-size: .9rem; font-weight: 800; color: var(--danger); overflow-wrap: anywhere; }
+.mf-issue-card.resolved .mf-issue-title { color: var(--success); text-decoration: line-through; }
 .mf-issue-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
 .mf-issue-chip {
   display: inline-flex; align-items: center; gap: 4px; border-radius: 99px;
   padding: 2px 8px; font-size: .72rem; font-weight: 700;
-  background: #fff; border: 1px solid #fecaca; color: #b91c1c;
+  background: var(--surface); border: 1px solid var(--danger-bg); color: var(--danger);
 }
-.mf-issue-card.resolved .mf-issue-chip { border-color: #bbf7d0; color: #15803d; }
-.mf-issue-desc { margin: 3px 0 0; white-space: pre-wrap; font-size: .8125rem; color: #64748b; line-height: 1.45; }
+.mf-issue-card.resolved .mf-issue-chip { border-color: var(--success-bg); color: var(--success); }
+.mf-issue-desc { margin: 3px 0 0; white-space: pre-wrap; font-size: .8125rem; color: var(--text-light); line-height: 1.45; }
 .mf-issue-resolution { display: none; margin-left: 27px; }
 .mf-issue-card.resolved .mf-issue-resolution { display: block; }
 .mf-new-issues { display: grid; gap: 10px; }
 .mf-new-issue-row {
   display: grid; grid-template-columns: minmax(180px, 1fr) minmax(160px, .8fr) 132px 32px;
-  gap: 8px; align-items: start; padding: 10px; border: 1px solid #e2e8f0;
-  border-radius: 10px; background: #f8fafc;
+  gap: 8px; align-items: start; padding: 10px; border: 1px solid var(--border);
+  border-radius: 10px; background: var(--surface-alt, #f8fafc);
 }
 .mf-new-issue-row textarea { min-height: 38px; resize: vertical; }
 .mf-new-issue-remove {
   width: 32px; height: 32px; border: none; border-radius: 7px; background: transparent;
-  color: #94a3b8; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--text-light); cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
 }
-.mf-new-issue-remove:hover { background: #fee2e2; color: #dc2626; }
+.mf-new-issue-remove:hover { background: var(--danger-bg); color: var(--danger); }
 .mf-new-issue-remove svg { width: 15px; height: 15px; stroke: currentColor; }
 @media (max-width: 760px) { .mf-new-issue-row { grid-template-columns: 1fr; } .mf-new-issue-remove { width: 100%; } }
 
 /* ── Collassabile note ODG (legacy) ─────────────────────────────────── */
 .mf-collapsible-toggle {
   display: flex; align-items: center; gap: 6px;
-  font-size: .8rem; color: #64748b; cursor: pointer; user-select: none;
+  font-size: .8rem; color: var(--text-light); cursor: pointer; user-select: none;
   padding: 6px 0; border: none; background: none; font-weight: 500;
 }
 .mf-collapsible-toggle svg { width: 14px; height: 14px; stroke: currentColor; transition: transform .2s; }
@@ -274,17 +274,17 @@
 /* ── Outlook toggle ─────────────────────────────────────────────────── */
 .mf-outlook-toggle {
   display: flex; align-items: center; gap: 12px;
-  padding: 14px 20px; cursor: pointer; border-bottom: 1px solid #e2e8f0;
+  padding: 14px 20px; cursor: pointer; border-bottom: 1px solid var(--border);
 }
 .mf-outlook-toggle-label { flex: 1; }
-.mf-outlook-toggle-label strong { display: block; font-size: .9rem; font-weight: 700; color: #1e293b; }
-.mf-outlook-toggle-label span { font-size: .8rem; color: #64748b; }
+.mf-outlook-toggle-label strong { display: block; font-size: .9rem; font-weight: 700; color: var(--text); }
+.mf-outlook-toggle-label span { font-size: .8rem; color: var(--text-light); }
 .mf-toggle {
   position: relative; width: 42px; height: 24px; flex-shrink: 0;
   -webkit-appearance: none; appearance: none;
-  background: #e2e8f0; border-radius: 999px; cursor: pointer; transition: background .2s;
+  background: var(--border); border-radius: 999px; cursor: pointer; transition: background .2s;
 }
-.mf-toggle:checked { background: #2563eb; }
+.mf-toggle:checked { background: var(--primary-mid); }
 .mf-toggle::before {
   content: ""; position: absolute; top: 3px; left: 3px;
   width: 18px; height: 18px; border-radius: 50%;
@@ -299,15 +299,15 @@
 }
 .mf-outlook-icon svg { width: 20px; height: 20px; fill: #fff; }
 .mf-outlook-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-.mf-outlook-title { font-size: .9rem; font-weight: 700; color: #0f172a; }
-.mf-outlook-sub { font-size: .8rem; color: #64748b; }
+.mf-outlook-title { font-size: .9rem; font-weight: 700; color: var(--text); }
+.mf-outlook-sub { font-size: .8rem; color: var(--text-light); }
 .mf-attendees-preview {
-  background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px;
-  padding: 10px 14px; margin-bottom: 12px; font-size: .8125rem; color: #1e40af;
+  background: var(--surface-alt, #f8fafc); border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 14px; margin-bottom: 12px; font-size: .8125rem; color: var(--primary-mid);
 }
 .mf-at-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
 .mf-at-row:last-child { margin-bottom: 0; }
-.mf-at-dot { width: 6px; height: 6px; border-radius: 50%; background: #3b82f6; flex-shrink: 0; }
+.mf-at-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--primary-mid); flex-shrink: 0; }
 
 /* ── Buttons ─────────────────────────────────────────────────────────── */
 .mf-actions { display: flex; gap: 10px; align-items: center; margin-top: 16px; flex-wrap: wrap; }
@@ -317,52 +317,32 @@
   transition: background .15s, transform .1s;
 }
 .mf-btn svg { width: 16px; height: 16px; stroke: currentColor; }
-.mf-btn.primary { background: #2563eb; color: #fff; }
-.mf-btn.primary:hover { background: #1d4ed8; }
+.mf-btn.primary { background: var(--primary-mid); color: #fff; }
+.mf-btn.primary:hover { background: var(--primary); }
 .mf-btn.primary:active { transform: scale(.98); }
-.mf-btn.ghost { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
-.mf-btn.ghost:hover { background: #e2e8f0; }
+.mf-btn.ghost { background: var(--surface-alt, #f8fafc); color: var(--text-mid); border: 1px solid var(--border); }
+.mf-btn.ghost:hover { background: var(--surface-alt, #f8fafc); }
 .mf-btn-sm {
   padding: 7px 14px; border-radius: 7px; font-size: .825rem; font-weight: 600;
   border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
 }
-.mf-btn-sm.primary { background: #2563eb; color: #fff; }
-.mf-btn-sm.primary:hover { background: #1d4ed8; }
-.mf-btn-sm.ghost { background: #e2e8f0; color: #475569; }
-.mf-btn-sm.ghost:hover { background: #cbd5e1; }
+.mf-btn-sm.primary { background: var(--primary-mid); color: #fff; }
+.mf-btn-sm.primary:hover { background: var(--primary); }
+.mf-btn-sm.ghost { background: var(--surface-alt, #f8fafc); color: var(--text-mid); }
+.mf-btn-sm.ghost:hover { background: var(--border); }
 
 /* ── Dark mode ──────────────────────────────────────────────────────── */
-body.theme-dark .mf-section { background: #1e293b; border-color: #334155; }
-body.theme-dark .mf-section-head { background: #0f172a; border-bottom-color: #334155; }
-body.theme-dark .mf-section-head span { color: #94a3b8; }
 body.theme-dark .mf-header { background: linear-gradient(135deg,#0f172a,#1e3a5f); }
-body.theme-dark .mf-btn.ghost { background: #0f172a; color: #94a3b8; border-color: #334155; }
-body.theme-dark .mf-user-grid { background: #0f172a; border-color: #334155; }
-body.theme-dark .mf-user-grid label { color: #e2e8f0; }
 body.theme-dark .mf-user-grid label:hover { background: rgba(37,99,235,.15); }
-body.theme-dark .mf-search-box input { background: #0f172a; border-color: #334155; color: #e2e8f0; }
 body.theme-dark .mf-ptag { background: rgba(37,99,235,.15); border-color: rgba(59,130,246,.3); color: #93c5fd; }
-body.theme-dark .agenda-item { background: #0f172a; border-color: #334155; }
 body.theme-dark .agenda-item:hover { border-color: rgba(59,130,246,.4); }
-body.theme-dark .agenda-title { color: #e2e8f0; }
-body.theme-dark .agenda-nota { color: #94a3b8; }
-body.theme-dark .agenda-extra-field { background: #111827; border-color: #334155; }
-body.theme-dark .agenda-extra-field span { color: #94a3b8; }
-body.theme-dark .agenda-extra-field strong { color: #e2e8f0; }
-body.theme-dark .agenda-empty-state { border-color: #334155; color: #64748b; }
 body.theme-dark .agenda-add-form { background: rgba(37,99,235,.08); border-color: rgba(59,130,246,.25); }
 body.theme-dark .agenda-custom-btn { background: rgba(37,99,235,.12); border-color: rgba(59,130,246,.3); color: #93c5fd; }
 body.theme-dark .agenda-btn-add { background: rgba(37,99,235,.1); border-color: rgba(59,130,246,.3); color: #93c5fd; }
-body.theme-dark .mf-issue-card { background: rgba(239,68,68,.1); border-color: rgba(239,68,68,.3); }
-body.theme-dark .mf-issue-card.resolved { background: rgba(22,163,74,.1); border-color: rgba(22,163,74,.3); }
 body.theme-dark .mf-issue-title { color: #fca5a5; }
 body.theme-dark .mf-issue-card.resolved .mf-issue-title { color: #86efac; }
-body.theme-dark .mf-issue-chip { background: #0f172a; border-color: rgba(239,68,68,.35); color: #fca5a5; }
-body.theme-dark .mf-issue-card.resolved .mf-issue-chip { border-color: rgba(22,163,74,.35); color: #86efac; }
-body.theme-dark .mf-new-issue-row { background: #0f172a; border-color: #334155; }
-body.theme-dark .mf-collapsible-toggle { color: #94a3b8; }
-body.theme-dark .mf-outlook-toggle { border-bottom-color: #334155; }
-body.theme-dark .mf-outlook-toggle-label strong { color: #e2e8f0; }
+body.theme-dark .mf-issue-chip { color: #fca5a5; }
+body.theme-dark .mf-issue-card.resolved .mf-issue-chip { color: #86efac; }
 body.theme-dark .mf-attendees-preview { background: rgba(37,99,235,.1); border-color: rgba(59,130,246,.3); color: #93c5fd; }
 </style>
 {% endblock %}
@@ -468,7 +448,7 @@ body.theme-dark .mf-attendees-preview { background: rgba(37,99,235,.1); border-c
         {# Email esterne #}
         <div class="mf-field">
           <label class="mf-label" for="{{ form.partecipanti_email_extra.id_for_label }}">
-            <svg fill="none" viewBox="0 0 24 24" stroke-width="2" style="width:13px;height:13px;stroke:#94a3b8"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75"/></svg>
+            <svg fill="none" viewBox="0 0 24 24" stroke-width="2" style="width:13px;height:13px;stroke:var(--text-light)"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75"/></svg>
             Email aggiuntive (esterni)
           </label>
           {{ form.partecipanti_email_extra }}
@@ -503,7 +483,7 @@ body.theme-dark .mf-attendees-preview { background: rgba(37,99,235,.1); border-c
         {# Lista punti strutturati #}
         <div class="mf-field" style="margin-bottom:0">
           <label class="mf-label">
-            <svg fill="none" viewBox="0 0 24 24" stroke-width="2" style="width:13px;height:13px;stroke:#64748b"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z"/></svg>
+            <svg fill="none" viewBox="0 0 24 24" stroke-width="2" style="width:13px;height:13px;stroke:var(--text-light)"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z"/></svg>
             Punti da trattare
           </label>
           <p class="mf-hint" style="margin-bottom:10px">Aggiungi uno o più punti strutturati — puoi opzionalmente collegarli a un'attività del kickoff.</p>
@@ -655,7 +635,7 @@ body.theme-dark .mf-attendees-preview { background: rgba(37,99,235,.1); border-c
           </div>
           <div class="mf-field" style="margin-bottom:0">
             <label class="mf-label" for="{{ form.next_steps.id_for_label }}">
-              <svg fill="none" viewBox="0 0 24 24" stroke-width="2" style="width:13px;height:13px;stroke:#16a34a"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+              <svg fill="none" viewBox="0 0 24 24" stroke-width="2" style="width:13px;height:13px;stroke:var(--success)"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
               Next steps
             </label>
             {{ form.next_steps }}
@@ -688,10 +668,10 @@ body.theme-dark .mf-attendees-preview { background: rgba(37,99,235,.1); border-c
           {% if form.outlook_organizer_email.errors %}<ul class="mf-errorlist">{% for e in form.outlook_organizer_email.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
         </div>
         {% if is_edit and meeting.outlook_event_id %}
-          <div style="font-size:.8125rem;color:#0369a1;background:#e0f2fe;border:1px solid #bae6fd;border-radius:8px;padding:10px 14px;margin-top:12px;">
+          <div style="font-size:.8125rem;color:var(--primary-mid);background:var(--surface-alt, #f8fafc);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-top:12px;">
             Evento Outlook esistente — salvando si aggiorna con i partecipanti attuali.
             {% if meeting.outlook_event_web_link %}
-              <a href="{{ meeting.outlook_event_web_link }}" target="_blank" rel="noopener" style="color:#0369a1;font-weight:700;">Apri in Outlook &rarr;</a>
+              <a href="{{ meeting.outlook_event_web_link }}" target="_blank" rel="noopener" style="color:var(--primary-mid);font-weight:700;">Apri in Outlook &rarr;</a>
             {% endif %}
           </div>
         {% endif %}
@@ -860,7 +840,7 @@ body.theme-dark .mf-attendees-preview { background: rgba(37,99,235,.1); border-c
         ? `<span class="agenda-task-badge"><svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>${esc(item.task_label || ('Task #' + item.task_id))}</span>`
         : '';
       const issueBadge = item.issue_id
-        ? `<span class="agenda-task-badge" style="background:#fff7f7;border-color:#fecaca;color:#b91c1c">Problema tracciato</span>`
+        ? `<span class="agenda-task-badge" style="background:var(--danger-bg);border-color:var(--danger-bg);color:var(--danger)">Problema tracciato</span>`
         : '';
       const nota = item.nota
         ? `<div class="agenda-nota">${esc(item.nota)}</div>`
@@ -926,7 +906,7 @@ body.theme-dark .mf-attendees-preview { background: rgba(37,99,235,.1); border-c
     const taskEl  = document.getElementById('new-agenda-task');
 
     const title = titleEl ? titleEl.value.trim() : '';
-    if (!title) { if (titleEl) { titleEl.focus(); titleEl.style.borderColor='#ef4444'; } return; }
+    if (!title) { if (titleEl) { titleEl.focus(); titleEl.style.borderColor='var(--danger)'; } return; }
     if (titleEl) titleEl.style.borderColor = '';
 
     const taskId = taskEl ? taskEl.value : '';

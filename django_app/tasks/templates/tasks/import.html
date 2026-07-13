@@ -12,7 +12,7 @@
   }
 
   .import-upload-area:focus-within {
-    border-color: #3b82f6;
+    border-color: var(--primary-mid);
   }
 
   .import-upload-icon {
@@ -24,20 +24,20 @@
   .import-upload-title {
     font-size: 16px;
     font-weight: 800;
-    color: #1e293b;
+    color: var(--text);
     margin-bottom: 6px;
   }
 
   .import-upload-sub {
     font-size: 13px;
-    color: #64748b;
+    color: var(--text-light);
     margin-bottom: 18px;
   }
 
   .import-preview-grid {
     overflow-x: auto;
     border-radius: 10px;
-    border: 1px solid #dbe5ef;
+    border: 1px solid var(--border);
   }
 
   .import-table {
@@ -54,8 +54,8 @@
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.07em;
-    color: #64748b;
-    border-bottom: 1px solid #dbe5ef;
+    color: var(--text-light);
+    border-bottom: 1px solid var(--border);
     white-space: nowrap;
   }
 
@@ -64,8 +64,8 @@
 
   .import-table td {
     padding: 8px 12px;
-    border-bottom: 1px solid #f1f5f9;
-    color: #1e293b;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
     max-width: 200px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -91,12 +91,12 @@
     padding: 1px 6px;
     border-radius: 999px;
     font-size: 10px;
-    border: 1px solid #dbe5ef;
-    background: #fff;
-    color: #475569;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-mid);
   }
 
-  .imp-chip .lbl { font-weight: 700; color: #94a3b8; text-transform: uppercase; font-size: 9px; }
+  .imp-chip .lbl { font-weight: 700; color: var(--text-light); text-transform: uppercase; font-size: 9px; }
   .imp-chip.pn { border-color: #c7d2fe; background: #eef2ff; color: #3730a3; }
   .imp-chip.rev { border-color: #bbf7d0; background: #f0fdf4; color: #166534; }
   .imp-chip.ver { border-color: #fed7aa; background: #fff7ed; color: #9a3412; }
@@ -107,15 +107,15 @@
     align-items: center;
     flex-wrap: wrap;
     padding: 16px 20px;
-    background: #fff7ed;
-    border: 1px solid #fed7aa;
+    background: var(--warning-bg);
+    border: 1px solid var(--border);
     border-radius: 12px;
   }
 
   .import-commit-bar .commit-text {
     flex: 1;
     font-size: 13px;
-    color: #92400e;
+    color: var(--warning);
   }
 
   .import-error-list {
@@ -129,11 +129,11 @@
 
   .import-error-list li {
     font-size: 12px;
-    color: #b91c1c;
+    color: var(--danger);
     padding: 4px 10px;
-    background: #fef2f2;
+    background: var(--danger-bg);
     border-radius: 6px;
-    border: 1px solid #fecaca;
+    border: 1px solid var(--danger-bg);
   }
 
   .import-col-legend {
@@ -149,7 +149,7 @@
     padding: 8px 12px;
     background: #f8fbff;
     border-radius: 8px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border);
     font-size: 12px;
   }
 
@@ -161,21 +161,18 @@
     height: 22px;
     border-radius: 6px;
     background: #dbeafe;
-    color: #1d4ed8;
+    color: var(--primary-mid);
     font-size: 10px;
     font-weight: 800;
     flex-shrink: 0;
   }
 
   body.theme-dark .import-upload-area { background:rgba(29,78,216,.08); border-color:rgba(29,78,216,.3); }
-  body.theme-dark .import-upload-title { color:var(--text); }
-  body.theme-dark .import-upload-sub { color:var(--text-light); }
   body.theme-dark .import-preview-grid { border-color:var(--border); }
-  body.theme-dark .import-table thead th { background:var(--thead-bg); border-color:var(--border); color:var(--text-mid); }
-  body.theme-dark .import-table tbody tr:nth-child(even) { background:var(--surface-alt); }
-  body.theme-dark .import-table tbody tr:hover { background:var(--tbody-hover); }
-  body.theme-dark .import-table td { border-color:var(--border); color:var(--text); }
-  body.theme-dark .import-col-item { background:var(--surface-alt); border-color:var(--border); }
+  body.theme-dark .import-table thead th { background:var(--thead-bg, #f8fafc); }
+  body.theme-dark .import-table tbody tr:nth-child(even) { background:var(--surface-alt, #f8fafc); }
+  body.theme-dark .import-table tbody tr:hover { background:var(--tbody-hover, rgba(15,23,42,.03)); }
+  body.theme-dark .import-col-item { background:var(--surface-alt, #f8fafc); }
   body.theme-dark .import-col-idx { background:rgba(29,78,216,.2); color:#93c5fd; }
   body.theme-dark .import-error-list li { background:rgba(185,28,28,.15); border-color:rgba(252,165,165,.2); color:#fca5a5; }
 </style>
@@ -223,7 +220,7 @@
             <div class="import-upload-title">Trascina o seleziona il file .xlsx</div>
             <div class="import-upload-sub">Formato atteso: prima riga intestazioni, dalla seconda riga i dati.</div>
             <input type="file" name="file" id="id_file" accept=".xlsx,.xls" required
-                   style="display:block;margin:0 auto;max-width:340px;padding:8px;background:#fff;border:1px solid #bfdbfe;border-radius:8px;font-size:13px;">
+                   style="display:block;margin:0 auto;max-width:340px;padding:8px;background:var(--surface);border:1px solid #bfdbfe;border-radius:8px;font-size:13px;">
           </div>
           <div class="ts-actions">
             <button type="submit" class="btn">Anteprima import</button>
@@ -296,7 +293,7 @@
             <tbody>
               {% for row in preview_rows %}
                 <tr>
-                  <td style="color:#94a3b8;font-weight:700;">{{ forloop.counter }}</td>
+                  <td style="color:var(--text-light);font-weight:700;">{{ forloop.counter }}</td>
                   <td>
                     <div class="import-identity-cell">
                       <strong>{{ row.progetto|default:"Nome automatico" }}</strong>
