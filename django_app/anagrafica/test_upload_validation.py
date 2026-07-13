@@ -8,13 +8,15 @@ from django.test import SimpleTestCase
 
 from core.upload_mime import UploadMimeValidationError
 
-from .forms import FornitoreDocumentoForm
+from fornitori.forms import FornitoreDocumentoForm
 
 
 class FornitoreDocumentoFormUploadValidationTests(SimpleTestCase):
     def _form(self, file):
         return FornitoreDocumentoForm(
-            data={"nome": "DURC", "tipo": "DURC", "note": ""},
+            # "tipo" deve essere una delle TIPO_CHOICES di FornitoreDocumento
+            # (CONTRATTO/OFFERTA/CERTIFICAZIONE/VISURA/ALTRO): "DURC" non lo e' piu'.
+            data={"nome": "DURC", "tipo": "CERTIFICAZIONE", "note": ""},
             files={"file": file},
         )
 
@@ -42,7 +44,7 @@ class FornitoreDocumentoFormUploadValidationTests(SimpleTestCase):
     def test_accepts_valid_pdf(self):
         f = SimpleUploadedFile("durc.pdf", b"%PDF-1.4", content_type="application/pdf")
         with patch(
-            "anagrafica.forms.validate_extension_and_mime",
+            "fornitori.forms.validate_extension_and_mime",
             return_value="application/pdf",
         ):
             form = self._form(f)

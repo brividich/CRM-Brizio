@@ -238,7 +238,7 @@
                         <span class="ac-meta">Copertura non disponibile</span>
                       {% endif %}
                       {% if row.contract.document and row.contract.document.file %}
-                        <br><a class="ac-meta" href="{{ row.contract.document.file.url }}" target="_blank" rel="noopener">{{ row.contract.document.nome|default:row.contract.document.file.name }}</a>
+                        <br><a class="ac-meta" href="{% url 'fornitori:fornitore_documento_download' row.contract.document.fornitore_id row.contract.document.pk %}" target="_blank" rel="noopener">{{ row.contract.document.nome|default:row.contract.document.file.name }}</a>
                       {% endif %}
                     </td>
                     <td>

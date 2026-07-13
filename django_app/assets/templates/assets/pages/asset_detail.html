@@ -1172,6 +1172,41 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
               {% endfor %}
             </div>
           </div>
+        {% elif card.code == "TICKETS" %}
+          <div class="af-card-body">
+            <div class="af-table-wrap">
+              <table class="af-table">
+                <thead>
+                  <tr>
+                    <th>Ticket</th>
+                    <th>Tipo</th>
+                    <th>Titolo</th>
+                    <th>Stato</th>
+                    <th>Aperto</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in ticket_rows %}
+                    <tr>
+                      <td>
+                        {% if row.detail_url %}
+                          <a href="{{ row.detail_url }}" style="color:#2563eb;text-decoration:none;">{{ row.numero_ticket }}</a>
+                        {% else %}
+                          {{ row.numero_ticket }}
+                        {% endif %}
+                      </td>
+                      <td><span class="af-chip af-chip--ticket">{{ row.tipo_label }}</span></td>
+                      <td>{{ row.titolo }}</td>
+                      <td>{{ row.stato_label }}</td>
+                      <td>{% if row.created_at %}{{ row.created_at|date:"d-m-Y" }}{% else %}-{% endif %}</td>
+                    </tr>
+                  {% empty %}
+                    <tr><td colspan="5" class="af-doc-empty">Nessun ticket collegato a questo asset.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
         {% elif card.code == "MAP" %}
           <div class="af-card-body">
             <div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid #dbe1ea;margin-bottom:12px;background:#eef4ff;">

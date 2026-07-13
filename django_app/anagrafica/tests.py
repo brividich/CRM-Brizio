@@ -764,8 +764,15 @@ class AnagraficaDipendentiViewTests(TestCase):
                 html,
             )
             self.assertNotIn(f"/media/anagrafica/dipendenti/{photo_legacy_id}/foto/", html)
-            self.assertIn("ana-avatar-img", html)
-            self.assertIn("ana-avatar-fallback", html)
+            # Markup avatar attuale (design system fmd-): <span class="fmd-avatar"> con
+            # <img> se c'e' la foto, iniziali come fallback altrimenti.
+            self.assertIn("fmd-avatar", html)
+            self.assertIn(
+                f'<img src="{reverse("anagrafica:foto_dipendente", args=[photo_legacy_id])}"',
+                html,
+            )
+            # Il dipendente senza foto (Bruno Beta) mostra le iniziali.
+            self.assertIn("BB", html)
 
     def test_civil_form_can_upload_employee_photo(self):
         with connection.cursor() as cursor:
@@ -788,11 +795,18 @@ class AnagraficaDipendentiViewTests(TestCase):
             response = self.client.post(
                 reverse("anagrafica:dipendente_civile_save", args=[legacy_id]),
                 {
+                    # Il management form del formset "figli a carico" e' obbligatorio:
+                    # senza, formset.is_valid() e' False e la view NON salva (pur
+                    # rispondendo 302, perche' redirige anche in caso di errore).
+                    "figli-TOTAL_FORMS": "0",
+                    "figli-INITIAL_FORMS": "0",
+                    "figli-MIN_NUM_FORMS": "0",
+                    "figli-MAX_NUM_FORMS": "1000",
                     "foto": SimpleUploadedFile(
                         "profilo.gif",
                         VALID_GIF_1X1,
                         content_type="image/gif",
-                    )
+                    ),
                 },
             )
 
@@ -2171,6 +2185,9 @@ class FormazioneFlussoTests(TestCase):
             "piano": piano.pk, "categoria": cat.pk, "qualifica": tipo.pk,
             "codice": "cx1", "titolo": "Corso X", "durata_ore_teorica": "8",
             "validita_mesi": "12", "stato": "BOZZA", "versione": "1.0",
+            # Il modello ha default=70 ma non blank=True: il ModelForm lo richiede
+            # (nella UI e' precompilato, in un POST "nudo" va passato).
+            "quiz_punteggio_minimo": "70",
         })
         self.assertTrue(form.is_valid(), form.errors)
         corso = form.save()

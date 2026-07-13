@@ -8957,10 +8957,11 @@ def _build_asset_detail_section_cards(
         AssetDetailSectionLayout.SECTION_TICKETS: {
             "code": AssetDetailSectionLayout.SECTION_TICKETS,
             "title": detail_tickets_title,
-            # I ticket collegati sono gia mostrati nel "Registro manutenzione"
-            # (Storico interventi, righe con source=TICKET): card a se rimossa
-            # per evitare duplicazione.
-            "render": False,
+            # Il "Registro manutenzione" include SOLO i ticket MAN con
+            # include_in_maintenance_register=True: i ticket IT (e i MAN non
+            # marcati) non comparirebbero da nessuna parte. La card resta quindi
+            # la vista completa dei ticket collegati all'asset.
+            "render": bool(ticket_rows),
         },
         AssetDetailSectionLayout.SECTION_PROFILE: {
             "code": AssetDetailSectionLayout.SECTION_PROFILE,

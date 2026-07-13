@@ -58,6 +58,23 @@ def _domain_root_dn(*values: str) -> str:
     return ""
 
 
+def _dc_root_from_dn(dn: str) -> str:
+    """Ricava la radice di dominio dalle componenti DC= gia' presenti in un DN.
+
+    Serve quando LDAP_UPN_SUFFIX/LDAP_DOMAIN non sono configurati: il dominio e'
+    comunque scritto nel Base DN sbagliato (es. 'OU=Utenti,DC=CNOVICROM,DC=LOCAL'
+    -> 'DC=CNOVICROM,DC=LOCAL'), quindi il suggerimento resta utile.
+    """
+    parts = [
+        piece.strip()
+        for piece in str(dn or "").split(",")
+        if piece.strip().lower().startswith("dc=")
+    ]
+    if len(parts) < 2:
+        return ""
+    return ",".join(f"DC={piece.split('=', 1)[1].strip().upper()}" for piece in parts)
+
+
 def _format_ldap_search_error(result, *, search_base: str, domain: str, upn_suffix: str) -> str:
     if isinstance(result, dict):
         description = str(result.get("description") or "").strip()
@@ -67,7 +84,7 @@ def _format_ldap_search_error(result, *, search_base: str, domain: str, upn_suff
         message = str(result or "").strip()
 
     if description == "noSuchObject":
-        suggestion = _domain_root_dn(upn_suffix, domain)
+        suggestion = _domain_root_dn(upn_suffix, domain) or _dc_root_from_dn(search_base)
         detail = f" Dettaglio AD: {message}" if message else ""
         if suggestion and suggestion.casefold() != search_base.casefold():
             return (

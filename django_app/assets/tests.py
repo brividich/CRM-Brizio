@@ -2770,13 +2770,26 @@ class AssetsRoutingTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         content = response.content.decode("utf-8")
+        # Tab "config": resta la card di riepilogo, con il rimando all'editor.
         self.assertIn("Menu laterale inventario", content)
-        self.assertIn("Nuova voce sidebar", content)
-        self.assertIn("Impianti", content)
-        self.assertIn("assets-sidebar-target-options", content)
-        self.assertIn("assets-sidebar-active-match-options", content)
-        self.assertIn("django:assets:reports", content)
-        self.assertIn("asset_type=SERVER", content)
+        self.assertIn("Apri editor sidebar", content)
+
+        # L'editor vero e proprio vive ora nel tab dedicato "sidebar".
+        request_editor = self.factory.get(reverse("assets:gestione_admin"), {"tab": "sidebar"})
+        _attach_session(request_editor)
+        request_editor.user = self.user
+        request_editor.legacy_user = None
+        setattr(request_editor, "_messages", FallbackStorage(request_editor))
+
+        response_editor = asset_views.gestione_admin.__wrapped__(request_editor)
+
+        self.assertEqual(response_editor.status_code, 200)
+        editor = response_editor.content.decode("utf-8")
+        self.assertIn("Impianti", editor)
+        self.assertIn("assets-sidebar-target-options", editor)
+        self.assertIn("assets-sidebar-active-match-options", editor)
+        self.assertIn("django:assets:reports", editor)
+        self.assertIn("asset_type=SERVER", editor)
 
     def test_gestione_admin_shows_asset_category_management_tab(self):
         category = AssetCategory.objects.create(
@@ -4434,7 +4447,12 @@ class ImportAssetsCatalogTests(TestCase):
             call_command("import_assets_catalog", str(file_path), dry_run=True)
 
             self.assertEqual(Asset.objects.count(), 0)
-            self.assertEqual(AssetCategory.objects.count(), 0)
+            # Il conteggio globale non e' 0: la data-migration 0073 semina una categoria.
+            # Verifichiamo che il dry-run non abbia creato QUELLE del CSV.
+            self.assertEqual(
+                AssetCategory.objects.filter(label__in=["Sollevamento", "Carroponte"]).count(),
+                0,
+            )
 
     def test_missing_famiglia_is_blocking_error(self):
         with _workspace_temporary_directory("assets-catalog-") as tmpdir:
@@ -7295,14 +7313,18 @@ class AssetMaintenanceStepThreeTests(TestCase):
                 original_name="verbale-audit.pdf",
             )
             self.client.force_login(self.admin)
-            before = AuditLog.objects.count()
+            # Conta solo le righe di QUESTA azione: il totale globale e' inquinabile da
+            # scritture estranee alla richiesta (es. l'auto_insert del singleton
+            # twofa.TwoFactorPolicy, creato pigramente alla prima richiesta che lo tocca).
+            audit_download = AuditLog.objects.filter(
+                azione="download_admin_deadline_attachment", modulo="assets",
+            )
+            before = audit_download.count()
             response = self.client.get(reverse("assets:admin_deadline_attachment_download", args=[attachment.id]))
             self.assertEqual(response.status_code, 200)
-            created = AuditLog.objects.filter(
-                azione="download_admin_deadline_attachment", modulo="assets",
-            ).order_by("-id").first()
+            created = audit_download.order_by("-id").first()
             self.assertIsNotNone(created)
-            self.assertEqual(AuditLog.objects.count(), before + 1)
+            self.assertEqual(audit_download.count(), before + 1)
             payload = created.dettaglio or {}
             self.assertEqual(payload.get("esito"), "success")
             self.assertEqual(payload.get("attachment_id"), attachment.id)

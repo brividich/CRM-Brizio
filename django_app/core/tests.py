@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import tempfile
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -697,7 +698,8 @@ class DashboardRoutingTests(TestCase):
         self.assertEqual(response.redirect_chain, [(reverse("home_portale:index"), 302)])
         self.assertContains(response, "NOVICROM HUB")
         self.assertContains(response, "9.9.9-test")
-        self.assertContains(response, "moduli registrati")
+        # Il footer della home recita "... · N moduli disponibili" (prima: "registrati").
+        self.assertContains(response, "moduli disponibili")
 
     @override_settings(
         APP_VERSION="9.9.9-test",
@@ -2101,12 +2103,20 @@ class SidebarFooterActionsTests(SimpleTestCase):
 
 class PortalBrandingAssetCacheBustTests(TestCase):
     def test_local_media_logo_gets_cache_busting_version(self):
-        SiteConfig.set("brand_logo_full", "/media/portal_branding/logo_full.png", "test")
+        # Il logo locale viene ignorato (stringa vuota) se il file non esiste su
+        # disco: e' la guardia anti-immagine-rotta di _local_media_url_exists.
+        # Il file va quindi creato davvero sotto MEDIA_ROOT.
+        with tempfile.TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            logo_dir = Path(media_root) / "portal_branding"
+            logo_dir.mkdir(parents=True, exist_ok=True)
+            (logo_dir / "logo_full.png").write_bytes(b"\x89PNG\r\n\x1a\n")
 
-        branding = get_portal_branding()
+            SiteConfig.set("brand_logo_full", "/media/portal_branding/logo_full.png", "test")
 
-        self.assertTrue(branding.brand_logo_full.startswith("/media/portal_branding/logo_full.png"))
-        self.assertIn("?v=", branding.brand_logo_full)
+            branding = get_portal_branding()
+
+            self.assertTrue(branding.brand_logo_full.startswith("/media/portal_branding/logo_full.png"))
+            self.assertIn("?v=", branding.brand_logo_full)
 
     def test_external_logo_url_is_not_modified(self):
         SiteConfig.set("brand_logo_full", "https://cdn.example.com/logo.png", "test")

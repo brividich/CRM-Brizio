@@ -893,8 +893,11 @@ def dipendente_create(request):
                         new_id, (data.get("reparto") or "").strip(), saved_by=request.user
                     )
 
-                # Crea automaticamente account portale (solo se non già collegato)
-                if new_id and _alias:
+                # Crea automaticamente account portale (solo se non già collegato).
+                # Solo per dipendenti ATTIVI: un dipendente inserito come inattivo
+                # (storico, cessato, non ancora in forza) non deve ottenere un
+                # account con password iniziale prevedibile che nessuno presidia.
+                if new_id and _alias and bool(data.get("attivo")):
                     if not row.get("utente_id"):
                         try:
                             from django.db.models import Q as _Q

@@ -847,14 +847,18 @@ class TicketDownloadAuditTests(TestCase):
             with override_settings(MEDIA_ROOT=media_root, TICKETS_PRIVATE_ROOT=private_root):
                 allegato = self._make_attachment(media_root)
                 self.client.force_login(self.user)
-                before = AuditLog.objects.count()
+                # Conta solo le righe di QUESTA azione: il totale globale e' inquinabile
+                # da scritture estranee alla richiesta (es. l'auto_insert del singleton
+                # twofa.TwoFactorPolicy, creato pigramente alla prima richiesta).
+                audit_download = AuditLog.objects.filter(
+                    azione="download_allegato", modulo="tickets",
+                )
+                before = audit_download.count()
                 response = self.client.get(reverse("tickets:download_allegato", args=[allegato.pk]))
                 self.assertEqual(response.status_code, 200)
-                created = AuditLog.objects.filter(
-                    azione="download_allegato", modulo="tickets",
-                ).order_by("-id").first()
+                created = audit_download.order_by("-id").first()
                 self.assertIsNotNone(created)
-                self.assertEqual(AuditLog.objects.count(), before + 1)
+                self.assertEqual(audit_download.count(), before + 1)
                 payload = created.dettaglio or {}
                 self.assertEqual(payload.get("esito"), "success")
                 self.assertEqual(payload.get("allegato_id"), allegato.id)

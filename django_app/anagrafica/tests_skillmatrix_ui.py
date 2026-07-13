@@ -84,6 +84,8 @@ class SkillMatrixImpostazioniViewTests(TestCase):
             "finestra_continuita_mesi": 12,
             "preavviso_continuita_mesi": 9,
             "periodicita_refresh_mesi": 6,
+            # Esposto dal form (default 60, non blank): senza, il POST e' invalido.
+            "preavviso_refresh_giorni": 60,
             "etichetta_i": "In formazione",
             "etichetta_l": "Intermedio",
             "etichetta_u": "Autonomo",
