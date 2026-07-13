@@ -44,6 +44,27 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 . "$PSScriptRoot\_lib.ps1"
 
+# ---------------------------------------------------------------------------
+# Export temporaneo del branch: definito subito, cosi' la pulizia e' disponibile
+# da ogni punto dello script (in PowerShell `trap` NON scatta su `exit`, quindi
+# la chiamiamo esplicitamente prima di ogni uscita d'errore: niente cartelle in giro).
+# ---------------------------------------------------------------------------
+$script:RepoRoot = (Resolve-Path "$PSScriptRoot\..\.." -ErrorAction SilentlyContinue).Path
+$script:ExportWorktree = $null
+
+function Remove-ExportWorktree {
+    if ($script:ExportWorktree -and (Test-Path $script:ExportWorktree)) {
+        & git -C $script:RepoRoot worktree remove --force "$script:ExportWorktree" 2>$null | Out-Null
+        if (Test-Path $script:ExportWorktree) {
+            Remove-Item -LiteralPath $script:ExportWorktree -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        & git -C $script:RepoRoot worktree prune 2>$null | Out-Null
+        Write-Log "Export temporaneo del branch rimosso." "INFO"
+        $script:ExportWorktree = $null
+    }
+}
+trap { Remove-ExportWorktree; break }
+
 function Test-IsExcludedByWizardBundleRules {
     param(
         [string]$BaseDir,
@@ -172,6 +193,7 @@ function Invoke-SetupWizardRebuildIfNeeded {
     $pythonExe = Resolve-SetupWizardBuildPython -RootPath $RootPath
     if (-not $pythonExe) {
         Write-Log "Python non trovato: impossibile rigenerare SetupWizard.exe." "ERROR"
+        Remove-ExportWorktree
         exit 1
     }
 
@@ -182,6 +204,7 @@ function Invoke-SetupWizardRebuildIfNeeded {
         $pyInstallerBootstrapDir = Join-Path $RootPath "deployment\pyinstaller_bootstrap"
         if (-not (Test-Path -LiteralPath $pyInstallerBootstrapDir)) {
             Write-Log "Bootstrap PyInstaller non trovato: $pyInstallerBootstrapDir" "ERROR"
+            Remove-ExportWorktree
             exit 1
         }
 
@@ -206,6 +229,7 @@ function Invoke-SetupWizardRebuildIfNeeded {
         }
         if ($LASTEXITCODE -ne 0) {
             Write-Log "Build di SetupWizard.exe fallita con exit code $LASTEXITCODE." "ERROR"
+            Remove-ExportWorktree
             exit 1
         }
     } finally {
@@ -214,6 +238,7 @@ function Invoke-SetupWizardRebuildIfNeeded {
 
     if (-not (Test-Path -LiteralPath $wizardExePath)) {
         Write-Log "Build completata ma SetupWizard.exe non e stato generato." "ERROR"
+        Remove-ExportWorktree
         exit 1
     }
 
@@ -224,29 +249,12 @@ function Invoke-SetupWizardRebuildIfNeeded {
 # ---------------------------------------------------------------------------
 # Risolvi SourcePath (root del repository)
 # ---------------------------------------------------------------------------
-# Lo script è in deployment\scripts\, la root repo è due livelli su
-$script:RepoRoot = (Resolve-Path "$PSScriptRoot\..\.." -ErrorAction SilentlyContinue).Path
-$script:ExportWorktree = $null
-
-function Remove-ExportWorktree {
-    if ($script:ExportWorktree -and (Test-Path $script:ExportWorktree)) {
-        & git -C $script:RepoRoot worktree remove --force "$script:ExportWorktree" 2>$null | Out-Null
-        if (Test-Path $script:ExportWorktree) {
-            Remove-Item -LiteralPath $script:ExportWorktree -Recurse -Force -ErrorAction SilentlyContinue
-        }
-        & git -C $script:RepoRoot worktree prune 2>$null | Out-Null
-        Write-Log "Export temporaneo del branch rimosso." "INFO"
-        $script:ExportWorktree = $null
-    }
-}
-# Qualunque errore: niente cartelle lasciate in giro.
-trap { Remove-ExportWorktree; break }
-
 if ($SourcePath) {
     # Cartella esplicita: l'utente sa cosa sta facendo.
     $resolvedSourcePath = Resolve-Path $SourcePath -ErrorAction SilentlyContinue
     if (-not $resolvedSourcePath) {
         Write-Log "SourcePath non valido: $SourcePath" "ERROR"
+        Remove-ExportWorktree
         exit 1
     }
     $SourcePath = $resolvedSourcePath.Path
@@ -254,6 +262,7 @@ if ($SourcePath) {
 elseif ($FromWorkingTree) {
     if (-not $script:RepoRoot) {
         Write-Log "Impossibile determinare la root del progetto. Specifica -SourcePath." "ERROR"
+        Remove-ExportWorktree
         exit 1
     }
     $SourcePath = $script:RepoRoot
@@ -264,12 +273,14 @@ else {
     # temporanea. Cosi' non conta su quale branch e' il repo, ne' se ha WIP sporco.
     if (-not $script:RepoRoot) {
         Write-Log "Impossibile determinare la root del repository." "ERROR"
+        Remove-ExportWorktree
         exit 1
     }
     & git -C $script:RepoRoot rev-parse --verify --quiet "$Branch" 2>$null | Out-Null
     if ($LASTEXITCODE -ne 0) {
         Write-Log "Branch di release '$Branch' non trovato." "ERROR"
         Write-Log "Usa -Branch <nome> per un altro branch, oppure -FromWorkingTree per impacchettare la cartella corrente." "ERROR"
+        Remove-ExportWorktree
         exit 1
     }
     $commit = (& git -C $script:RepoRoot rev-parse --short "$Branch").Trim()
@@ -278,6 +289,7 @@ else {
     & git -C $script:RepoRoot worktree add --detach --quiet "$script:ExportWorktree" "$Branch" 2>$null | Out-Null
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path $script:ExportWorktree)) {
         Write-Log "Impossibile esportare il branch '$Branch'." "ERROR"
+        Remove-ExportWorktree
         exit 1
     }
     $SourcePath = $script:ExportWorktree
@@ -376,6 +388,7 @@ Invoke-SetupWizardRebuildIfNeeded -RootPath $SourcePath
 $releaseGuard = Join-Path $SourcePath "tools\release_guard.ps1"
 if (-not (Test-Path -LiteralPath $releaseGuard)) {
     Write-Log "release_guard.ps1 non trovato in tools\\." "ERROR"
+    Remove-ExportWorktree
     exit 1
 }
 
@@ -397,6 +410,7 @@ if ($script:ExportWorktree -and $script:RepoRoot) {
         & $repoVenvPython $exportManage migrate --settings=config.settings.test --noinput 2>&1 | Out-Null
         if ($LASTEXITCODE -ne 0) {
             Write-Log "migrate sul DB di test dell'export fallito." "ERROR"
+            Remove-ExportWorktree
             exit 1
         }
         Write-Log "Release guard: uso il Python del venv del repo ($repoVenvPython)." "INFO"
@@ -406,6 +420,7 @@ if ($WithTests) { $guardArgs['WithTests'] = $true }
 & $releaseGuard @guardArgs
 if ($LASTEXITCODE -ne 0) {
     Write-Log "release_guard fallito: correggi i mismatch prima di creare il pacchetto." "ERROR"
+    Remove-ExportWorktree
     exit 1
 }
 Write-Log "release guard completato." "SUCCESS"
@@ -535,6 +550,7 @@ foreach ($dir in $includeDirs) {
     # Robocopy exit code ≤ 7 = success (bit mask)
     if ($LASTEXITCODE -gt 7) {
         Write-Log "Robocopy fallito (dir=$dir) con exit code $LASTEXITCODE" "ERROR"
+        Remove-ExportWorktree
         exit 1
     }
 }
