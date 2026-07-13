@@ -1180,11 +1180,14 @@ def _documenti_filters(request: HttpRequest) -> str:
     if filtro_cartella == "__nessuna__":
         parts.append("Cartella: senza cartella")
     elif filtro_cartella.isdigit():
-        nome = (
-            CartellaDocumentoDipendente.objects.filter(pk=int(filtro_cartella))
-            .values_list("nome", flat=True)
-            .first()
-        )
+        cartelle_qs = CartellaDocumentoDipendente.objects.filter(pk=int(filtro_cartella))
+        # Perimetro di sicurezza: stesso scoping di `_documenti_base_qs`. Se la
+        # cartella è riservata (solo_admin) e l'utente non è superuser, il nome
+        # non deve comparire nell'etichetta filtro (né nell'intestazione del
+        # file né nella riga di audit), anche se il filtro produce 0 righe.
+        if not getattr(getattr(request, "user", None), "is_superuser", False):
+            cartelle_qs = cartelle_qs.exclude(solo_admin=True)
+        nome = cartelle_qs.values_list("nome", flat=True).first()
         if nome:
             parts.append(f"Cartella: {nome}")
     q_text = (request.GET.get("q") or "").strip()

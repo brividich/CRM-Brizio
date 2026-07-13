@@ -1222,6 +1222,24 @@ class HrExportTests(TestCase):
                 self.assertEqual(log.modulo, "anagrafica")
                 self.assertEqual(log.dettaglio.get("lista"), key)
 
+    def test_documenti_and_ratei_denied_without_hr_permission(self):
+        """Gate applicativo (`hr_gate`/`documenti_gate`): in dev/test l'ACL di
+        rotta è neutro (`LEGACY_AUTH_ENABLED=False`), quindi il deny reale è
+        `_check_hr_permission`. Un utente autenticato NON superuser, NON admin
+        legacy, con permesso HR chiuso (`ACCESSO_ADMIN`, il default) deve
+        prendere 403 — non basta essere loggati per scaricare documenti/ratei."""
+        from anagrafica.models import AnagraficaHRPermission
+
+        perm = AnagraficaHRPermission.get_instance()
+        perm.accesso = AnagraficaHRPermission.ACCESSO_ADMIN
+        perm.save(update_fields=["accesso"])
+
+        self.client.force_login(self.hr_user)
+        for key in ("documenti", "ratei"):
+            with self.subTest(key=key):
+                resp = self.client.get(self._export_url(key, format="xlsx"))
+                self.assertEqual(resp.status_code, 403)
+
     def test_columns_are_filled_by_every_dataset(self):
         for key in self.HR_KEYS:
             with self.subTest(key=key):
@@ -1315,6 +1333,39 @@ class HrExportTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         log = AuditLog.objects.filter(azione="export").latest("id")
         self.assertEqual(log.dettaglio.get("n_righe"), 3)
+
+    def test_documenti_reserved_cartella_name_not_disclosed_via_filter_label(self):
+        """SICUREZZA: un utente HR non-superuser che filtra per l'id di una
+        cartella riservata (`solo_admin`) ottiene già 0 righe, ma non deve
+        ricevere il NOME della cartella nell'etichetta filtro — né
+        nell'intestazione del PDF/XLSX né nella riga di audit. Il nome non
+        compare nemmeno nella tendina della pagina (`views.documenti_list`
+        esclude le cartelle solo_admin dal contesto): l'export non deve
+        poterlo enumerare passando l'id a mano."""
+        spec = EXPORT_SPECS["documenti"]
+        request = self._request(
+            f"/anagrafica/documenti/?cartella={self.cart_ris.pk}", user=self.hr_user
+        )
+        rows = spec.dataset(request, "filtered")
+        self.assertEqual(rows, [])
+        label = spec.filters_label(request)
+        self.assertNotIn(self.cart_ris.nome, label)
+        self.assertNotIn("Provvedimenti", label)
+
+        # Stesso invariante via endpoint reale: il nome non deve comparire
+        # nella riga di audit (`filtri`).
+        self.client.force_login(self.hr_user)
+        resp = self.client.get(
+            self._export_url("documenti", format="xlsx", cartella=self.cart_ris.pk)
+        )
+        self.assertEqual(resp.status_code, 200)
+        log = AuditLog.objects.filter(azione="export").latest("id")
+        self.assertNotIn(self.cart_ris.nome, log.dettaglio.get("filtri", ""))
+
+        # Controllo positivo (niente falso positivo nel test): il superuser
+        # continua a vedere il nome della cartella riservata.
+        su_request = self._request(f"/anagrafica/documenti/?cartella={self.cart_ris.pk}")
+        self.assertIn(self.cart_ris.nome, spec.filters_label(su_request))
 
     def test_documenti_filtered_scope_reduces_rows(self):
         spec = EXPORT_SPECS["documenti"]
