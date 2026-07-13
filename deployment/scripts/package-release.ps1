@@ -29,6 +29,12 @@ param(
     [string]$SourcePath = "",
     [string]$OutputDir  = "",
     [string]$VersionOverride = "",
+    # Branch da impacchettare. Di DEFAULT si impacchetta la linea di release, NON
+    # la cartella di lavoro: quest'ultima puo' essere su un branch qualsiasi e avere
+    # modifiche non committate (e' gia' successo di spedire in prod la versione sbagliata).
+    [string]$Branch = "release/prod",
+    # Vecchio comportamento: impacchetta la cartella di lavoro cosi' com'e' (WIP incluso).
+    [switch]$FromWorkingTree,
     # -WithTests passa -WithTests al release_guard per eseguire la test suite.
     # Di default i test sono saltati. Specificare per release con validazione completa.
     [switch]$WithTests
@@ -218,20 +224,63 @@ function Invoke-SetupWizardRebuildIfNeeded {
 # ---------------------------------------------------------------------------
 # Risolvi SourcePath (root del repository)
 # ---------------------------------------------------------------------------
-if (-not $SourcePath) {
-    # Lo script è in deployment\scripts\, la root repo è due livelli su
-    $SourcePath = (Resolve-Path "$PSScriptRoot\..\.." -ErrorAction SilentlyContinue).Path
-    if (-not $SourcePath) {
-        Write-Log "Impossibile determinare la root del progetto. Specifica -SourcePath." "ERROR"
-        exit 1
+# Lo script è in deployment\scripts\, la root repo è due livelli su
+$script:RepoRoot = (Resolve-Path "$PSScriptRoot\..\.." -ErrorAction SilentlyContinue).Path
+$script:ExportWorktree = $null
+
+function Remove-ExportWorktree {
+    if ($script:ExportWorktree -and (Test-Path $script:ExportWorktree)) {
+        & git -C $script:RepoRoot worktree remove --force "$script:ExportWorktree" 2>$null | Out-Null
+        if (Test-Path $script:ExportWorktree) {
+            Remove-Item -LiteralPath $script:ExportWorktree -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        & git -C $script:RepoRoot worktree prune 2>$null | Out-Null
+        Write-Log "Export temporaneo del branch rimosso." "INFO"
+        $script:ExportWorktree = $null
     }
-} else {
+}
+# Qualunque errore: niente cartelle lasciate in giro.
+trap { Remove-ExportWorktree; break }
+
+if ($SourcePath) {
+    # Cartella esplicita: l'utente sa cosa sta facendo.
     $resolvedSourcePath = Resolve-Path $SourcePath -ErrorAction SilentlyContinue
     if (-not $resolvedSourcePath) {
         Write-Log "SourcePath non valido: $SourcePath" "ERROR"
         exit 1
     }
     $SourcePath = $resolvedSourcePath.Path
+}
+elseif ($FromWorkingTree) {
+    if (-not $script:RepoRoot) {
+        Write-Log "Impossibile determinare la root del progetto. Specifica -SourcePath." "ERROR"
+        exit 1
+    }
+    $SourcePath = $script:RepoRoot
+    Write-Log "-FromWorkingTree: impacchetto la CARTELLA DI LAVORO, comprese eventuali modifiche non committate." "WARN"
+}
+else {
+    # DEFAULT: impacchetta il branch di release, esportandolo in una cartella
+    # temporanea. Cosi' non conta su quale branch e' il repo, ne' se ha WIP sporco.
+    if (-not $script:RepoRoot) {
+        Write-Log "Impossibile determinare la root del repository." "ERROR"
+        exit 1
+    }
+    & git -C $script:RepoRoot rev-parse --verify --quiet "$Branch" 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Log "Branch di release '$Branch' non trovato." "ERROR"
+        Write-Log "Usa -Branch <nome> per un altro branch, oppure -FromWorkingTree per impacchettare la cartella corrente." "ERROR"
+        exit 1
+    }
+    $commit = (& git -C $script:RepoRoot rev-parse --short "$Branch").Trim()
+    $script:ExportWorktree = Join-Path ([System.IO.Path]::GetTempPath()) ("pn-pkg-" + [Guid]::NewGuid().ToString("N").Substring(0, 8))
+    Write-Log "Impacchetto il branch '$Branch' (commit $commit) — NON la cartella di lavoro." "INFO"
+    & git -C $script:RepoRoot worktree add --detach --quiet "$script:ExportWorktree" "$Branch" 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $script:ExportWorktree)) {
+        Write-Log "Impossibile esportare il branch '$Branch'." "ERROR"
+        exit 1
+    }
+    $SourcePath = $script:ExportWorktree
 }
 Write-Log "Source path: $SourcePath" "INFO"
 
@@ -491,6 +540,11 @@ if (Test-Path -LiteralPath $tempDir) {
         Write-Log "Pulizia temp non completata: $($_.Exception.Message)" "WARN"
     }
 }
+
+# ---------------------------------------------------------------------------
+# Pulizia: rimuove l'export temporaneo del branch (nessuna cartella lasciata in giro)
+# ---------------------------------------------------------------------------
+Remove-ExportWorktree
 
 # ---------------------------------------------------------------------------
 # Riepilogo
