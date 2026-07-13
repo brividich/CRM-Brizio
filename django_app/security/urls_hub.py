@@ -7,7 +7,7 @@ API REST e mailbox-admin restano fuori (arrivano più avanti).
 from django.http import JsonResponse
 from django.urls import path
 
-from . import views
+from . import views, views_soc
 
 app_name = "security"
 
@@ -29,6 +29,7 @@ urlpatterns = [
     path("alerts/<int:pk>/actions/<slug:action>/", views.alert_action, name="alert_action"),
     path("tickets/", views.tickets_list, name="tickets_list"),
     path("kpis/", views.kpis_page, name="kpis"),
+    path("assets/", views_soc.assets_list, name="assets"),
     # B3 — pipeline (esecuzione sincrona via HTMX POST; nessuna coda/Celery)
     path("pipeline/", views.pipeline_page, name="pipeline"),
     path("pipeline/run/<slug:action>/", views.pipeline_run, name="pipeline_run"),

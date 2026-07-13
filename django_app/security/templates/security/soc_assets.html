@@ -1,0 +1,40 @@
+{% extends "security/_base_soc.html" %}
+{% block title %}Asset di sicurezza · SOC IT - CN{% endblock %}
+{% block soc_content %}
+<section class="sec-panel">
+  <div class="sec-section-head">
+    <h2>Asset di sicurezza</h2>
+    <span class="sec-muted">{{ n_linked }}/{{ n_tot }} collegati al registro HUB</span>
+  </div>
+  <div class="sec-table-wrap">
+    <table class="sec-table">
+      <thead>
+        <tr>
+          <th>Hostname</th><th>IP</th><th>Tipo</th><th>Sorgente</th><th>Asset HUB collegato</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in assets %}
+        <tr>
+          <td class="sec-title-cell"><strong>{{ a.hostname }}</strong>{% if a.owner %}<small>{{ a.owner }}</small>{% endif %}</td>
+          <td>{{ a.ip_address|default:"—" }}</td>
+          <td>{{ a.asset_type|default:"—" }}</td>
+          <td>{{ a.source.name|default:"—" }}</td>
+          <td>
+            {% if a.hub_asset %}
+              <a href="{% url 'assets:asset_view' a.hub_asset.id %}">{{ a.hub_asset.name }}</a>
+              <span class="sec-muted">[{{ a.hub_asset.asset_tag }}]</span>
+            {% else %}
+              <span class="sec-muted">non collegato</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="sec-empty">Nessun asset di sicurezza rilevato. (Popolato dall'ingestione/pipeline.)</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="sec-muted" style="margin-top:12px">Collegamento automatico: <code>manage.py collega_asset_security --apply</code> (match IP↔endpoint, hostname↔nome).</p>
+</section>
+{% endblock %}

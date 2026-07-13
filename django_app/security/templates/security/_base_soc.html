@@ -7,9 +7,14 @@
 {% endblock %}
 {% block content %}
 <div class="soc-module">
-  <nav class="soc-nav" style="display:flex;gap:18px;margin:0 0 18px;border-bottom:1px solid #e3e9f0;padding-bottom:10px">
-    <a href="{% url 'security:dashboard' %}" class="active" style="font-weight:600;text-decoration:none">Dashboard</a>
-    <span style="color:#8a97a6">Alert · Ticket · KPI · Pipeline — in arrivo (B2)</span>
+  <nav class="soc-nav" style="display:flex;gap:16px;flex-wrap:wrap;margin:0 0 16px;padding-bottom:10px;border-bottom:1px solid var(--sec-line)">
+    <a href="{% url 'security:dashboard' %}">Dashboard</a>
+    <a href="{% url 'security:alerts_list' %}">Alert</a>
+    <a href="{% url 'security:tickets_list' %}">Ticket</a>
+    <a href="{% url 'security:kpis' %}">KPI</a>
+    <a href="{% url 'security:pipeline' %}">Pipeline</a>
+    <a href="{% url 'security:assets' %}">Asset</a>
+    <a href="{% url 'security:admin_config' %}">Config</a>
   </nav>
   {% block soc_content %}{% endblock %}
 </div>
