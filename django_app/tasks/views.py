@@ -3321,7 +3321,7 @@ def project_list(request):
     timeline = None
     timeline_undated = []
     if view_mode == "timeline":
-        from django.db.models import Max, Min
+        from django.db.models import Min  # Max e' gia' importato a livello modulo
         from django.db.models.functions import Coalesce
         from tasks.timeline import build_portfolio_timeline
         spans = {
@@ -3365,7 +3365,7 @@ def project_list(request):
 
 @task_permissions_required("tasks_view")
 def incontri_calendario(request):
-    from tasks.models import KickoffMeeting
+    # KickoffMeeting e' gia' importato a livello modulo
     from tasks.calendario import build_meetings_calendar
 
     today = timezone.localdate()
