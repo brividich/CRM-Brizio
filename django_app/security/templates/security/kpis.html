@@ -1,0 +1,45 @@
+{% extends "security/_base_soc.html" %}
+
+{% block title %}KPI e trend | Security Center AI{% endblock %}
+{% block page_icon %}K{% endblock %}
+{% block page_marker %}KPI e trend{% endblock %}
+{% block page_title %}Analisi KPI{% endblock %}
+
+{% block soc_content %}
+<section class="sec-panel">
+  <div class="sec-section-head">
+    <h2>Snapshot KPI</h2>
+    <form class="sec-filters" method="get">
+      <a class="sec-button" href="{% url 'security:kpis' %}?date={{ previous_date|date:'Y-m-d' }}">&lt;</a>
+      <label>Data <input type="date" name="date" value="{{ selected_date|date:'Y-m-d' }}"></label>
+      <button class="sec-button-primary" type="submit">Apri</button>
+      <a class="sec-button" href="{% url 'security:kpis' %}?date={{ next_date|date:'Y-m-d' }}">&gt;</a>
+    </form>
+  </div>
+  <div class="sec-chart" aria-hidden="true">
+    <div class="sec-bars">
+      <span class="sec-bar" style="height:42%"></span><span class="sec-bar" style="height:55%"></span><span class="sec-bar" style="height:38%"></span><span class="sec-bar" style="height:72%"></span><span class="sec-bar" style="height:64%"></span><span class="sec-bar" style="height:86%"></span><span class="sec-bar" style="height:51%"></span><span class="sec-bar" style="height:77%"></span><span class="sec-bar" style="height:69%"></span><span class="sec-bar" style="height:92%"></span>
+    </div>
+  </div>
+</section>
+
+<section class="sec-grid sec-three-col" style="margin-top: 12px;">
+  {% for source_name, snapshots in grouped_kpis.items %}
+    <div class="sec-panel">
+      <div class="sec-section-head"><h3>{{ source_name }}</h3><span class="sec-badge">{{ snapshots|length }} metriche</span></div>
+      <div class="sec-table-wrap">
+        <table class="sec-table">
+          <thead><tr><th>Metrica</th><th>Valore</th><th>Etichette</th><th>Creato</th></tr></thead>
+          <tbody>
+          {% for snapshot in snapshots %}
+            <tr><td>{{ snapshot.name }}</td><td><strong>{{ snapshot.value }}</strong></td><td><pre>{{ snapshot.labels }}</pre></td><td>{{ snapshot.created_at|date:"d M, H:i" }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% empty %}
+    <div class="sec-panel sec-empty">Nessuno snapshot KPI per {{ selected_date|date:"Y-m-d" }}.</div>
+  {% endfor %}
+</section>
+{% endblock %}

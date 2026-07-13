@@ -1,0 +1,35 @@
+{% extends "security/_base_soc.html" %}
+{% block title %}Impostazioni generali / Security Center AI{% endblock %}
+{% block page_marker %}Configurazione{% endblock %}
+{% block page_title %}Impostazioni generali{% endblock %}
+{% block page_icon %}*{% endblock %}
+{% block soc_content %}
+<section class="sec-panel">
+  <div class="sec-section-head"><h2>Impostazioni</h2><a href="{% url 'security:admin_config' %}">Home configurazione</a></div>
+  <div class="sec-table-wrap">
+    <table class="sec-table">
+      <thead><tr><th>Chiave</th><th>Categoria</th><th>Valore</th><th>Descrizione</th><th>Aggiorna</th></tr></thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            <td class="sec-code">{{ row.setting.key }}</td>
+            <td>{{ row.setting.category }}</td>
+            <td>{% if row.setting.is_secret %}<span class="sec-code">{{ row.display_value }}</span>{% else %}{{ row.display_value }}{% endif %}</td>
+            <td>{{ row.setting.description }}</td>
+            <td>
+              <form method="post" class="sec-grid">
+                {% csrf_token %}
+                <input type="hidden" name="setting_id" value="{{ row.setting.pk }}">
+                {{ row.form.as_p }}
+                <button class="sec-button-primary" type="submit">Salva</button>
+              </form>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="sec-empty">Esegui il comando seed per creare valori predefiniti sicuri.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,19 @@
+{% if consumabili %}
+  <table style="margin-top:6px">
+    {% for c in consumabili %}
+      <tr>
+        <td style="width:230px">{{ c.nome }}</td>
+        <td>
+          {% if c.pct is not None %}
+            <div class="bar" style="min-width:160px"><span style="width:{{ c.pct }}%;{% if c.pct <= 15 %}background:var(--danger){% endif %}"></span></div>
+          {% else %}
+            <span class="pos">{{ c.nota|default:"n/d" }}</span>
+          {% endif %}
+        </td>
+        <td class="num" style="width:70px">{% if c.pct is not None %}<strong{% if c.pct <= 15 %} class="neg"{% endif %}>{{ c.pct }}%</strong>{% else %}—{% endif %}</td>
+      </tr>
+    {% endfor %}
+  </table>
+{% else %}
+  <div class="banner">⚠ Lettura consumabili fallita per «{{ macchina.reparto }}»: {{ errore }}</div>
+{% endif %}

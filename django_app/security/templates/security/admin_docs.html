@@ -1,0 +1,28 @@
+{% extends "security/_base_soc.html" %}
+
+{% block title %}Documentazione admin - Security Center AI{% endblock %}
+{% block page_icon %}i{% endblock %}
+{% block page_marker %}Amministrazione Security Center{% endblock %}
+{% block page_title %}Indice documentazione{% endblock %}
+
+{% block soc_content %}
+<section class="sec-panel">
+  <div class="sec-section-head">
+    <div>
+      <h2>Documentazione</h2>
+      <p class="sec-muted">Indice in sola lettura della documentazione operativa e dei moduli in <code>docs/security-center/</code>.</p>
+    </div>
+    <a class="sec-button" href="{% url 'security:admin_config' %}">Configurazione</a>
+  </div>
+  <div class="sec-table-wrap">
+    <table class="sec-table">
+      <thead><tr><th>File</th><th>Argomento</th><th>Quando usarlo</th></tr></thead>
+      <tbody>
+        {% for doc in docs %}
+          <tr><td><code>{{ doc.file }}</code></td><td>{{ doc.title }}</td><td>{{ doc.summary }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "contatori/_base_modulo.html" %}
+{% block modulo %}
+<h1>Nuova lettura</h1>
+<p class="sub">Inserimento manuale di una rilevazione contatori.</p>
+<div class="panel" style="max-width:520px">
+  <form method="post">{% csrf_token %}
+    {{ form.as_p }}
+    <div class="row"><button class="btn" type="submit">Salva lettura</button>
+      <a class="btn ghost" href="{% url 'contatori:dashboard' %}">Annulla</a></div>
+  </form>
+</div>
+<style>form p{margin:0 0 12px} form label{display:block;font-size:12px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px} form input,form select{width:100%}</style>
+{% endblock %}

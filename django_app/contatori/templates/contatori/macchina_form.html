@@ -1,0 +1,24 @@
+{% extends "contatori/_base_modulo.html" %}
+{% block title %}{% if macchina %}Modifica stampante{% else %}Nuova stampante{% endif %}{% endblock %}
+{% block modulo %}
+<h1>{% if macchina %}Modifica stampante{% else %}Nuova stampante{% endif %}</h1>
+<p class="sub">{% if macchina %}{{ macchina.reparto }} · {{ macchina.matricola }}{% else %}Compila i dati della macchina.{% endif %}</p>
+
+<div class="panel" style="max-width:640px">
+  <form method="post">
+    {% csrf_token %}
+    {% for field in form %}
+      <div style="margin-bottom:14px">
+        <label style="display:block;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">{{ field.label }}</label>
+        {{ field }}
+        {% if field.help_text %}<div class="pos" style="font-size:12px;margin-top:3px">{{ field.help_text }}</div>{% endif %}
+        {% for err in field.errors %}<div class="neg" style="font-size:12px;margin-top:3px">{{ err }}</div>{% endfor %}
+      </div>
+    {% endfor %}
+    <div class="row" style="margin-top:18px">
+      <button class="btn" type="submit">Salva</button>
+      <a class="btn ghost" href="{% url 'contatori:macchine' %}">Annulla</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

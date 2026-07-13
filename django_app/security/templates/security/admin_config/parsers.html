@@ -1,0 +1,33 @@
+{% extends "security/_base_soc.html" %}
+{% block title %}Parser / Security Center AI{% endblock %}
+{% block page_marker %}Configurazione{% endblock %}
+{% block page_title %}Configurazione registro parser{% endblock %}
+{% block page_icon %}*{% endblock %}
+{% block soc_content %}
+<div class="sec-grid sec-two-col">
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Parser</h2><a href="{% url 'security:admin_config' %}">Home configurazione</a></div>
+    <div class="sec-table-wrap">
+      <table class="sec-table">
+        <thead><tr><th>Nome</th><th>Stato</th><th>Priorita</th><th>Sorgente</th><th>Input</th><th>Descrizione</th></tr></thead>
+        <tbody>
+          {% for object in objects %}
+            <tr>
+              <td class="sec-code">{{ object.parser_name }}</td>
+              <td><span class="sec-badge {% if object.enabled %}ok{% else %}disabled{% endif %}">{{ object.enabled|yesno:"Attivo,Disattivato" }}</span></td>
+              <td>{{ object.priority }}</td>
+              <td>{{ object.source_type }}</td>
+              <td>{{ object.input_type }}</td>
+              <td>{{ object.description }}</td>
+            </tr>
+          {% empty %}<tr><td colspan="6" class="sec-empty">Nessuna configurazione parser disponibile.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Aggiungi / sostituisci parser</h2></div>
+    <form method="post" class="sec-grid">{% csrf_token %}{{ form.as_p }}<button class="sec-button-primary" type="submit">Salva parser</button></form>
+  </section>
+</div>
+{% endblock %}

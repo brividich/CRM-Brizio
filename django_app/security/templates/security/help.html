@@ -1,0 +1,83 @@
+{% extends "security/_base_soc.html" %}
+
+{% block title %}Guida - Security Center AI{% endblock %}
+{% block page_icon %}?{% endblock %}
+{% block page_marker %}Guida Security Center{% endblock %}
+{% block page_title %}Guida / Operativita{% endblock %}
+
+{% block soc_content %}
+<div class="sec-grid sec-two-col">
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Panoramica</h2></div>
+    <p>Security Center AI e un portale di intelligence sui report. Trasforma report, email e upload in metriche, finding, alert, contenitori evidenze, ticket remediation, dashboard, configurazione admin e diagnostica.</p>
+    <p>Non e un SIEM completo. Si concentra su report operativi ricorrenti e notifiche invece che sulla ricerca in log grezzi ad alto volume.</p>
+  </section>
+
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Checklist primo setup</h2></div>
+    <ul class="sec-doc-list">
+      <li>Esegui <code>python manage.py seed_security_center_config</code>.</li>
+      <li>Verifica sorgenti, parser, regole alert, soppressioni, aspettative backup, notifiche, ticketing e registro audit.</li>
+      <li>Apri la diagnostica e risolvi gli avvisi.</li>
+      <li>Ingerisci campioni validi WatchGuard, Defender e Backup/NAS.</li>
+      <li>Esegui parser, regole e snapshot KPI dalla pagina pipeline.</li>
+    </ul>
+  </section>
+</div>
+
+<section class="sec-panel sec-doc-panel">
+  <div class="sec-section-head"><h2>Workflow principale</h2></div>
+  <p><code>Report/email/upload -&gt; Ingestione -&gt; Motore parser -&gt; Metriche/Finding -&gt; Motore regole -&gt; Alert/Soppressione -&gt; Contenitore evidenze -&gt; Ticket -&gt; Dashboard/Admin</code></p>
+</section>
+
+<div class="sec-grid sec-three-col">
+  <section class="sec-card">
+    <h3>Moduli</h3>
+    <p>Il core e il motore condiviso. Un modulo contiene parser specifici per sorgente, configurazione seed, regole, metriche, dashboard, test e documentazione. Moduli attuali: WatchGuard, Microsoft Defender e Backup/NAS.</p>
+  </section>
+  <section class="sec-card">
+    <h3>Configurazione admin</h3>
+    <p>Usa la <a href="{% url 'security:admin_config' %}">configurazione admin</a> per sorgenti, parser, regole alert, soppressioni, backup, notifiche, ticketing e registro audit.</p>
+  </section>
+  <section class="sec-card">
+    <h3>Diagnostica</h3>
+    <p>Usa la <a href="{% url 'security:admin_diagnostics' %}">diagnostica</a> dopo il setup, modifiche parser, modifiche seed, modifiche notifiche e prima di affidarti a una nuova sorgente.</p>
+  </section>
+</div>
+
+<div class="sec-grid sec-two-col">
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Risoluzione problemi</h2></div>
+    <ul class="sec-doc-list">
+      <li>Nessun parser corrispondente: controlla pattern sorgente, nome parser, stato parser e diagnostica.</li>
+      <li>Nessun alert creato: controlla regole attive, nomi metriche, soglie, cooldown, deduplica e soppressioni.</li>
+      <li>Nessun ticket creato: controlla impostazioni ticket automatico e se un ticket esistente e stato aggiornato.</li>
+      <li>Backup mancante non rilevato: controlla nome job atteso, pianificazione, ore missing-after e ultimo stato visto.</li>
+      <li>Permesso negato: usa un account staff o il permesso <code>manage_security_configuration</code>.</li>
+    </ul>
+  </section>
+
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Checklist operativa</h2></div>
+    <ul class="sec-doc-list">
+      <li>Giornaliera: dashboard, alert critici, ticket CVE Defender, backup falliti o mancanti, avvisi parser.</li>
+      <li>Settimanale: soppressioni, regole rumorose, trend backup, ticket irrisolti.</li>
+      <li>Mensile: soglie, retention evidenze, trend KPI, registro audit, report management.</li>
+    </ul>
+  </section>
+</div>
+
+<section class="sec-panel sec-doc-panel">
+  <div class="sec-section-head"><h2>Riferimenti documentazione</h2></div>
+  <div class="sec-table-wrap">
+    <table class="sec-table">
+      <thead><tr><th>Documento</th><th>Scopo</th></tr></thead>
+      <tbody>
+        {% for doc in docs %}
+          <tr><td><code>{{ doc.file }}</code></td><td>{{ doc.title }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

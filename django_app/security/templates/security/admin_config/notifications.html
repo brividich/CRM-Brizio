@@ -1,0 +1,21 @@
+{% extends "security/_base_soc.html" %}
+{% block title %}Notifiche / Security Center AI{% endblock %}
+{% block page_marker %}Configurazione{% endblock %}
+{% block page_title %}Configurazione notifiche{% endblock %}
+{% block page_icon %}*{% endblock %}
+{% block soc_content %}
+<div class="sec-grid sec-two-col">
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Canali</h2><a href="{% url 'security:admin_config' %}">Home configurazione</a></div>
+    <div class="sec-table-wrap"><table class="sec-table"><thead><tr><th>Nome</th><th>Tipo</th><th>Stato</th><th>Severita</th><th>Destinatari</th><th>Segreto</th><th>Cooldown</th></tr></thead><tbody>
+      {% for object in objects %}
+        <tr><td>{{ object.name }}</td><td>{{ object.channel_type }}</td><td><span class="sec-badge {% if object.enabled %}ok{% else %}disabled{% endif %}">{{ object.enabled|yesno:"Attivo,Disattivato" }}</span></td><td>{{ object.severity_min }}</td><td>{{ object.recipients|linebreaksbr }}</td><td class="sec-code">{{ object.masked_secret }}</td><td>{{ object.cooldown_minutes }}m</td></tr>
+      {% empty %}<tr><td colspan="7" class="sec-empty">Nessun canale di notifica.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Aggiungi canale</h2></div>
+    <form method="post" class="sec-grid">{% csrf_token %}{{ form.as_p }}<button class="sec-button-primary" type="submit">Salva canale</button></form>
+  </section>
+</div>
+{% endblock %}

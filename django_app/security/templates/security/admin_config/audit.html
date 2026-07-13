@@ -1,0 +1,15 @@
+{% extends "security/_base_soc.html" %}
+{% block title %}Registro audit / Security Center AI{% endblock %}
+{% block page_marker %}Configurazione{% endblock %}
+{% block page_title %}Registro audit configurazione{% endblock %}
+{% block page_icon %}*{% endblock %}
+{% block soc_content %}
+<section class="sec-panel">
+  <div class="sec-section-head"><h2>Modifiche recenti</h2><a href="{% url 'security:admin_config' %}">Home configurazione</a></div>
+  <div class="sec-table-wrap"><table class="sec-table"><thead><tr><th>Quando</th><th>Attore</th><th>Azione</th><th>Oggetto</th><th>Campo</th><th>Vecchio</th><th>Nuovo</th></tr></thead><tbody>
+    {% for object in objects %}
+      <tr><td>{{ object.created_at|date:"Y-m-d H:i:s" }}</td><td>{{ object.actor|default:"sistema" }}</td><td>{{ object.action }}</td><td>{{ object.model_name }} {{ object.object_repr }}</td><td>{{ object.field_name }}</td><td class="sec-code">{{ object.old_value }}</td><td class="sec-code">{{ object.new_value }}</td></tr>
+    {% empty %}<tr><td colspan="7" class="sec-empty">Nessuna voce nel registro audit.</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+{% endblock %}

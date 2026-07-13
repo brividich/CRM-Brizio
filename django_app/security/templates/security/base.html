@@ -1,0 +1,70 @@
+{% load static %}
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Security Center AI{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'security/security.css' %}">
+  <script src="{% static 'security/htmx-lite.js' %}" defer></script>
+</head>
+<body class="sec-body">
+  <div class="sec-shell">
+    <aside class="sec-sidebar">
+      <a class="sec-brand" href="{% url 'security:security_dashboard' %}">
+        <span class="sec-brand-mark">SC</span>
+        <span>
+          <strong>Security Center AI</strong>
+          <small>Sala controllo</small>
+        </span>
+      </a>
+      <nav class="sec-nav" aria-label="Navigazione sicurezza">
+        <a class="sec-nav-item {% if request.resolver_match.url_name == 'security_dashboard' %}sec-active{% endif %}" href="{% url 'security:security_dashboard' %}"><span>^</span>Panoramica</a>
+        <a class="sec-nav-item {% if request.resolver_match.url_name == 'alerts_list' %}sec-active{% endif %}" href="{% url 'security:alerts_list' %}"><span>!</span>Coda eventi</a>
+        <a class="sec-nav-item {% if request.resolver_match.url_name == 'alert_detail' %}sec-active{% endif %}" href="{% url 'security:alerts_list' %}"><span>!</span>Alert</a>
+        <a class="sec-nav-item {% if request.resolver_match.url_name == 'tickets_list' %}sec-active{% endif %}" href="{% url 'security:tickets_list' %}"><span>T</span>Rimedi</a>
+        <a class="sec-nav-item {% if request.resolver_match.url_name == 'kpis' %}sec-active{% endif %}" href="{% url 'security:kpis' %}"><span>K</span>Analisi KPI</a>
+        <a class="sec-nav-item {% if request.resolver_match.url_name == 'pipeline' %}sec-active{% endif %}" href="{% url 'security:pipeline' %}"><span>P</span>Pipeline</a>
+        <a class="sec-nav-item {% if request.resolver_match.url_name == 'inbox' or request.resolver_match.url_name == 'upload' or request.resolver_match.url_name == 'reports_upload' %}sec-active{% endif %}" href="{% url 'security:inbox' %}"><span>IN</span>Inbox</a>
+        <a class="sec-nav-item {% if request.resolver_match.url_name|slice:':11' == 'admin_addon' %}sec-active{% endif %}" href="{% url 'security:admin_addons' %}"><span>#</span>Moduli</a>
+        <a class="sec-nav-item {% if request.resolver_match.url_name|slice:':12' == 'admin_config' %}sec-active{% endif %}" href="{% url 'security:admin_config' %}"><span>*</span>Configurazione</a>
+        <a class="sec-nav-item {% if request.resolver_match.url_name == 'admin_diagnostics' %}sec-active{% endif %}" href="{% url 'security:admin_diagnostics' %}"><span>+</span>Diagnostica</a>
+        <a class="sec-nav-item {% if request.resolver_match.url_name == 'help' %}sec-active{% endif %}" href="{% url 'security:help' %}"><span>?</span>Aiuto</a>
+        <a class="sec-nav-item {% if request.resolver_match.url_name == 'admin_docs' %}sec-active{% endif %}" href="{% url 'security:admin_docs' %}"><span>i</span>Documentazione</a>
+        <a class="sec-nav-item" href="/api/"><span>{ }</span>API</a>
+        <a class="sec-nav-item" href="/admin/"><span>A</span>Amministrazione</a>
+      </nav>
+      <div class="sec-sidebar-foot">
+        <span>Ultimo aggiornamento</span>
+        <strong>{% now "d M Y, H:i" %}</strong>
+      </div>
+    </aside>
+
+    <section class="sec-workspace">
+      <header class="sec-topbar">
+        <div class="sec-page-title">
+          <span class="sec-page-icon">{% block page_icon %}# {% endblock %}</span>
+          <div>
+            <p>{% block page_marker %}Panoramica sicurezza{% endblock %}</p>
+            <h1>{% block page_title %}Panoramica / Centro comando{% endblock %}</h1>
+          </div>
+        </div>
+        <div class="sec-topbar-tools">
+          <div class="sec-selectlike"><small>Periodo</small><strong>Ultimi 7 giorni</strong></div>
+          <div class="sec-search">Ricerca globale (asset, utente, IP, evento...)</div>
+          <div class="sec-ingestion"><span></span>Ingestione attiva</div>
+        </div>
+      </header>
+
+      <main class="sec-main">
+        {% if messages %}
+          <div class="sec-message-stack">
+            {% for message in messages %}<div class="sec-panel sec-message">{{ message }}</div>{% endfor %}
+          </div>
+        {% endif %}
+        {% block content %}{% endblock %}
+      </main>
+    </section>
+  </div>
+</body>
+</html>

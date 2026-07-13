@@ -1,0 +1,12 @@
+<tr>
+  <td>{{ row.rule.code }}</td>
+  <td>{% if row.rule.enabled %}attiva{% else %}disattivata{% endif %}</td>
+  <td>{{ row.rule.severity }}</td>
+  <td>{% if row.last_triggered %}{{ row.last_triggered|date:"Y-m-d H:i" }}{% else %}-{% endif %}</td>
+  <td>{{ row.trigger_count }}</td>
+  <td>{{ row.rule.cooldown_minutes }} min</td>
+  <td>{{ row.rule.dedup_window_minutes }} min</td>
+  <td>{{ row.rule.auto_create_ticket|yesno:"si,no" }}</td>
+  <td>{{ row.rule.auto_create_evidence_container|yesno:"si,no" }}</td>
+  <td>{% for flag in row.flags %}<span class="sec-badge warning">{{ flag }}</span> {% empty %}-{% endfor %}</td>
+</tr>

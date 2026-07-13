@@ -1,0 +1,21 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% block title %}Security Center · SOC IT - CN{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'security/security.css' %}">
+<script src="{% static 'security/htmx-lite.js' %}" defer></script>
+{% endblock %}
+{% block content %}
+<div class="soc-module">
+  <nav class="soc-nav" style="display:flex;gap:16px;flex-wrap:wrap;margin:0 0 16px;padding-bottom:10px;border-bottom:1px solid var(--sec-line)">
+    <a href="{% url 'security:dashboard' %}">Dashboard</a>
+    <a href="{% url 'security:alerts_list' %}">Alert</a>
+    <a href="{% url 'security:tickets_list' %}">Ticket</a>
+    <a href="{% url 'security:kpis' %}">KPI</a>
+    <a href="{% url 'security:pipeline' %}">Pipeline</a>
+    <a href="{% url 'security:assets' %}">Asset</a>
+    <a href="{% url 'security:admin_config' %}">Config</a>
+  </nav>
+  {% block soc_content %}{% endblock %}
+</div>
+{% endblock %}
