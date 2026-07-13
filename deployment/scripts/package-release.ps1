@@ -281,6 +281,26 @@ else {
         exit 1
     }
     $SourcePath = $script:ExportWorktree
+
+    # Artefatti di build NON versionati (gitignorati: *.spec, deployment/dist/) ma
+    # necessari alla creazione del pacchetto: li prendiamo dal repo locale, perche'
+    # l'export del branch, per definizione, contiene solo i file committati.
+    # NB: si copia solo lo .spec, NON SetupWizard.exe: l'exe viene rigenerato dallo
+    # script a partire dal setup_wizard.py del branch, cosi' il wizard nel pacchetto
+    # corrisponde davvero al codice che stai rilasciando (un exe vecchio sul disco
+    # non deve finire in produzione).
+    foreach ($relPath in @("deployment\SetupWizard.spec")) {
+        $artifactSrc = Join-Path $script:RepoRoot $relPath
+        if (Test-Path -LiteralPath $artifactSrc) {
+            $artifactDst = Join-Path $SourcePath $relPath
+            $artifactDstDir = Split-Path -Parent $artifactDst
+            if (-not (Test-Path -LiteralPath $artifactDstDir)) {
+                New-Item -ItemType Directory -Path $artifactDstDir -Force | Out-Null
+            }
+            Copy-Item -LiteralPath $artifactSrc -Destination $artifactDst -Force
+            Write-Log "Artefatto non versionato copiato nell'export: $relPath" "INFO"
+        }
+    }
 }
 Write-Log "Source path: $SourcePath" "INFO"
 
