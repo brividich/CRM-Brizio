@@ -21,6 +21,11 @@ from core.pdf import (
 )
 
 
+def _cell_text(value) -> str:
+    """Normalizza un valore di cella come faceva il vecchio _coalesce_str/_clean_string."""
+    return "" if value is None else str(value).strip()
+
+
 def render_table_pdf(*, title: str, headers: list, rows: list, subtitle: str = "") -> bytes:
     theme = PdfTheme.from_branding()
     styles = build_styles(theme)
@@ -37,7 +42,7 @@ def render_table_pdf(*, title: str, headers: list, rows: list, subtitle: str = "
             [Paragraph(escape(str(header)), styles["table_header"]) for header in headers],
             *[
                 [
-                    Paragraph(escape("" if value is None else str(value)).replace("\n", "<br/>"), styles["cell"])
+                    Paragraph(escape(_cell_text(value)).replace("\n", "<br/>"), styles["cell"])
                     for value in row
                 ]
                 for row in rows

@@ -57,12 +57,8 @@ from core.module_branding import (
 from core.module_registry import resolve_module_label
 from core.pdf import (
     PdfTheme,
-    build_styles,
-    data_table,
     draw_canvas_footer,
     draw_canvas_header,
-    header_footer_callback,
-    make_document,
 )
 from core.table_pdf import render_table_pdf as _report_table_pdf
 from core.upload_mime import UploadMimeValidationError, safe_filename, validate_extension_and_mime

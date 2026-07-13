@@ -1,9 +1,28 @@
 from django.test import TestCase
 
-from core.table_pdf import render_table_pdf
+from core.table_pdf import _cell_text, render_table_pdf
+
+
+class CellTextTests(TestCase):
+    def test_strips_whitespace(self):
+        self.assertEqual(_cell_text("  Mario  "), "Mario")
+
+    def test_none_becomes_empty_string(self):
+        self.assertEqual(_cell_text(None), "")
+
+    def test_whitespace_only_collapses_to_empty_string(self):
+        self.assertEqual(_cell_text("   "), "")
 
 
 class RenderTablePdfTests(TestCase):
+    def test_cell_normalization_does_not_raise(self):
+        data = render_table_pdf(
+            title="Normalizzazione celle",
+            headers=["Nome", "Note"],
+            rows=[["  Mario  ", None]],
+        )
+        self.assertTrue(data.startswith(b"%PDF"))
+
     def test_returns_pdf_bytes(self):
         data = render_table_pdf(
             title="Elenco di prova",
