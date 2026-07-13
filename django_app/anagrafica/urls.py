@@ -9,6 +9,9 @@ urlpatterns = [
     # Dashboard
     path("", views.index, name="index"),
 
+    # Export tabellari (PDF/Excel) — endpoint unico parametrico
+    path("esporta/<str:key>/", views.export_view, name="export"),
+
     # Dipendenti (sola lettura)
     path("dipendenti/", views.dipendenti_list, name="dipendenti_list"),
 

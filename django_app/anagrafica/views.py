@@ -15,7 +15,9 @@ from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import IntegrityError, connections, transaction
 from django.db.models import Count, Max, Q, Sum
-from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
+from django.http import (
+    Http404, HttpResponse, HttpResponseForbidden, HttpResponseRedirect, JsonResponse,
+)
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
@@ -5157,6 +5159,32 @@ def dipendenti_report(request):
         "contratto_choices": DipendenteAnagraficaAziendale.CONTRATTO_CHOICES,
         "n_totale": len(all_rows),
     })
+
+
+# ---------------------------------------------------------------------------
+# Export tabellari (PDF/Excel) — endpoint unico parametrico
+# ---------------------------------------------------------------------------
+
+@login_required
+def export_view(request, key: str):
+    """Endpoint unico di export delle liste di anagrafica (PDF/Excel).
+
+    La chiave identifica la ``ExportSpec`` (vedi `anagrafica/exports.py`); il gate
+    ACL della lista di origine è applicato dalla spec, l'audit dall'helper.
+    """
+    from anagrafica.exports import EXPORT_SPECS, build_export_response
+
+    spec = EXPORT_SPECS.get(key)
+    if spec is None:
+        raise Http404("Export non disponibile.")
+    if not spec.permission(request):
+        return HttpResponseForbidden("Permessi insufficienti.")
+    return build_export_response(
+        request,
+        key,
+        request.GET.get("format", "xlsx"),
+        request.GET.get("scope", "filtered"),
+    )
 
 
 # ---------------------------------------------------------------------------
