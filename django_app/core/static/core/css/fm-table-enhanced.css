@@ -137,10 +137,26 @@ body.theme-dark .fm-th-filter.active{color:#93c5fd}
 
 /* ── Menu export delle liste (componente anagrafica/components/_export_menu.html) ── */
 /* Stessa palette (chiaro/scuro) del menu colonne .fm-tbl-menu qui sopra: nessuna
- * palette nuova, solo riuso dei colori già validati per i pop-up di questo file. */
+ * palette nuova, solo riuso dei colori già validati per i pop-up di questo file.
+ * Il bottone (.fmd-export-toggle) è autosufficiente e NON dipende da un antenato
+ * .fmd: alcune pagine che includono il componente (aree_list, ruoli_aziendali_list,
+ * ruoli_operativi, qualifica_sessioni_list) non hanno il wrapper .fmd, quindi le
+ * custom property --fmd-ink/--fmd-line (definite solo su .fmd) non sarebbero
+ * disponibili e .fmd-btn-ghost renderebbe illeggibile in dark (bg #fff fisso). */
 .fmd-export{position:relative;display:inline-block}
 .fmd-export>summary{list-style:none;cursor:pointer}
 .fmd-export>summary::-webkit-details-marker{display:none}
+.fmd-export-toggle{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:9px 15px;font-size:12.5px;font-weight:700;white-space:nowrap;
+  border:1px solid #d1d5db;border-radius:8px;
+  background:#fff;color:#334155;
+}
+.fmd-export-toggle:hover{border-color:#1d4ed8;color:#1d4ed8}
+.fmd-export-toggle .fmd-ico{color:#94a3b8}
+body.theme-dark .fmd-export-toggle{background:#0f172a;border-color:#334155;color:#e2e8f0}
+body.theme-dark .fmd-export-toggle:hover{color:#93c5fd;border-color:#334155}
+body.theme-dark .fmd-export-toggle .fmd-ico{color:#64748b}
 .fmd-export-menu{
   position:absolute;right:0;top:calc(100% + 6px);z-index:30;
   min-width:230px;padding:6px;

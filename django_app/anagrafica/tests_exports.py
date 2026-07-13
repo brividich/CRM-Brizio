@@ -261,6 +261,21 @@ class ExportAclGateTests(TestCase):
         resp = self._export()
         self.assertEqual(resp.status_code, 403)
 
+    def test_export_denied_for_every_support_key_without_permission(self):
+        """Le 5 chiavi delle anagrafiche di supporto (Task 6: aree, ruoli_aziendali,
+        ruoli_operativi, qualifiche, qualifica_sessioni) devono negare l'export a un
+        utente autenticato senza alcun binding ACL sulla lista di origine — end-to-end
+        via ``self.client`` (dispatch reale dell'endpoint), non solo la funzione di
+        gate isolata (vedi ``ExportSpecRegistryTests.test_every_spec_gate_denies_user_without_legacy_binding``
+        che copre lo stesso invariante ma senza passare da URL/view)."""
+        support_keys = (
+            "aree", "ruoli_aziendali", "ruoli_operativi", "qualifiche", "qualifica_sessioni",
+        )
+        for key in support_keys:
+            with self.subTest(key=key):
+                resp = self.client.get(reverse("anagrafica:export", args=[key]) + "?format=xlsx")
+                self.assertEqual(resp.status_code, 403)
+
     def test_export_allowed_when_user_can_open_the_list(self):
         self._grant_list_via_legacy(allowed=True)
         resp = self._export()

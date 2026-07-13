@@ -6,10 +6,16 @@ e che sia servita dall'endpoint unico anagrafica:export (django_app/anagrafica/e
 Il link "risultati filtrati" propaga la querystring corrente della pagina
 (request.GET.urlencode) - Django auto-escapa il valore stampato via le graffe doppie,
 quindi il separatore "&" arriva gia' come "&amp;" nell'HTML prodotto.
+Componente riusabile e AUTOSUFFICIENTE: alcune pagine ospiti (aree_list, ruoli_aziendali_list,
+ruoli_operativi, qualifica_sessioni_list) non hanno un wrapper .fmd (usano i propri namespace
+cat-/ro-/qs-), quindi il bottone NON deve usare classi fmd-btn* che dipendono dalle custom
+property --fmd-ink/--fmd-line dichiarate solo su .fmd (django_app/anagrafica/static/anagrafica/css/formazione_design.css).
+Stile proprio in django_app/core/static/core/css/fm-table-enhanced.css (.fmd-export-toggle),
+caricato globalmente da core/base.html, con palette chiaro/scuro indipendente da .fmd.
 {% endcomment %}
 {% url 'anagrafica:export' export_key as fmd_export_base_url %}
 <details class="fmd-export">
-  <summary class="fmd-btn fmd-btn-ghost" title="Esporta la lista">
+  <summary class="fmd-export-toggle" title="Esporta la lista">
     <svg class="fmd-ico"><use href="#i-download"/></svg>Esporta
   </summary>
   <div class="fmd-export-menu" role="menu">
