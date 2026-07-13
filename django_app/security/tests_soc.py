@@ -69,6 +69,18 @@ class SocPagesRenderTest(_AuthedSuperuserMixin, TestCase):
     def test_addons(self):
         self.assertEqual(self.client.get(reverse("security:admin_addons")).status_code, 200)
 
+    def test_assets_page(self):
+        self.assertEqual(self.client.get(reverse("security:assets")).status_code, 200)
+
+    def test_assets_page_mostra_link_hub(self):
+        from assets.models import Asset
+        from security.models import SecurityAsset
+        a = Asset.objects.create(asset_tag="SOC-ASSET-UI", name="FW-CORE")
+        SecurityAsset.objects.create(hostname="FW-CORE", hub_asset=a)
+        r = self.client.get(reverse("security:assets"))
+        self.assertContains(r, "Asset di sicurezza")
+        self.assertContains(r, "FW-CORE")
+
 
 class SocTasksTest(TestCase):
     def test_background_tasks_import_and_run(self):

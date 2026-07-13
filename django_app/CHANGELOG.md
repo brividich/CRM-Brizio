@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### SOC IT - CN - Follow-up innesto (README, CSS, test subset, UI asset)
+
+- **[docs/style/test/feat] `README.md`, `security/static/security/security.css`, `security/tests/`, `security/views_soc.py` + `templates/security/soc_assets.html`, `security/templates/security/_base_soc.html`, `security/tests_soc.py`**: rifiniture post-programma. (1) Righe moduli contatori/security nel README. (2) `security.css` **scopata sotto `.soc-module`** (niente leak del tema dark sullo shell HUB). (3) Sottoinsieme suite SC-AI che regge (111 test: ai_config/ai_memory/rule_simulation) — esclusi i test di funzioni non wired (API/AI/mailbox/React) e le **fixtures con dati REALI del firewall** (non versionabili). (4) Pagina `/soc/assets/` (lista SecurityAsset + link Asset HUB da D2) + nav con link reali + ACL + 2 test. `check` pulito. API DRF/mailbox-admin restano superfici escluse.
+
 ### SOC IT - CN - Security Center sotto-progetto D2: collegamento SecurityAsset<->Asset
 
 - **[feat/test] `security/models.py` + `migrations/0010_securityasset_hub_asset.py`, `security/management/commands/collega_asset_security.py` [nuovo], `security/tests_soc.py`**: fase D2. FK opzionale `SecurityAsset.hub_asset`→`assets.Asset` (SET_NULL); comando `collega_asset_security` (match ip↔endpoint, hostname↔name; dry-run/apply; **non tocca gli Asset**). Collega i device di sicurezza al registro asset HUB (alert/vulnerabilità → asset fisico). 3 test (`SecurityAssetLinkTest`, 18 totali). Migrazione additiva. Nessuna UI (pagina security-asset non wired).

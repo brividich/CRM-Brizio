@@ -110,6 +110,7 @@ urlpatterns = [
     path("assets/manutenzione/todo/", views.maintenance_todo, name="maintenance_todo"),
     path("assets/<int:asset_id>/meters/", views.asset_meter_update, name="asset_meter_update"),
     path("assets/segnala/", views.asset_quick_report, name="asset_quick_report"),
+    path("assets/qr/pub/<str:public_qr_token>/", views.asset_qr_public_landing, name="asset_qr_public_landing"),
     path("assets/qr/<str:asset_tag>/", views.asset_qr_landing, name="asset_qr_landing"),
     path("assets/reports/", views.reports_dashboard, name="reports"),
     path("assets/reports/manage/", views.report_template_admin, name="report_template_admin"),

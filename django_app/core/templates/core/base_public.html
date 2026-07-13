@@ -1,0 +1,65 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{% block title %}{{ portal_branding.portal_name|default:"NOVICROM HUB" }}{% endblock %}</title>
+  {% if portal_branding.brand_favicon %}
+  <link rel="icon" href="{{ portal_branding.brand_favicon }}">
+  {% endif %}
+  <link rel="stylesheet" href="{% static 'core/vendor/outfit/outfit.css' %}">
+  <link rel="stylesheet" href="{% static 'core/css/theme.css' %}">
+  <style>
+    :root {
+      --primary: {{ portal_branding.brand_primary_color }};
+      --primary-mid: {{ portal_branding.brand_primary_mid_color }};
+      --accent: {{ portal_branding.brand_accent_color }};
+      --accent-light: {{ portal_branding.brand_accent_light_color }};
+      --bg: {{ portal_branding.brand_background_color }};
+    }
+    body {
+      margin: 0;
+      font-family: 'Outfit', sans-serif;
+      background: var(--bg, #f1f5f9);
+      color: var(--text, #0f172a);
+      min-height: 100vh;
+    }
+    .pub-topbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      background: #fff;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .pub-topbar img { height: 28px; width: auto; }
+    .pub-topbar-name { font-weight: 700; font-size: .95rem; color: #0f172a; }
+    .pub-footer {
+      text-align: center;
+      padding: 20px 16px 32px;
+      font-size: .72rem;
+      color: #94a3b8;
+    }
+    @media (prefers-color-scheme: dark) {
+      body { background: #0f172a; color: #e2e8f0; }
+      .pub-topbar { background: #1e293b; border-bottom-color: #334155; }
+      .pub-topbar-name { color: #f1f5f9; }
+    }
+  </style>
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="public-shell">
+  <header class="pub-topbar">
+    {% if portal_branding.brand_logo_compact %}
+      <img src="{{ portal_branding.brand_logo_compact }}" alt="">
+    {% endif %}
+    <span class="pub-topbar-name">{{ portal_branding.portal_name|default:"NOVICROM HUB" }}</span>
+  </header>
+
+  {% block content %}{% endblock %}
+
+  <div class="pub-footer">Pagina di consultazione pubblica &middot; sola lettura</div>
+</body>
+</html>
