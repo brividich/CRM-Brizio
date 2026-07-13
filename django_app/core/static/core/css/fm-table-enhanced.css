@@ -134,3 +134,21 @@ body.theme-dark .fm-th-sort:hover,
 body.theme-dark .fm-th-filter:hover{color:#93c5fd;background:rgba(29,78,216,.15)}
 body.theme-dark .fm-th-sort.active,
 body.theme-dark .fm-th-filter.active{color:#93c5fd}
+
+/* ── Menu export delle liste (componente anagrafica/components/_export_menu.html) ── */
+/* Stessa palette (chiaro/scuro) del menu colonne .fm-tbl-menu qui sopra: nessuna
+ * palette nuova, solo riuso dei colori già validati per i pop-up di questo file. */
+.fmd-export{position:relative;display:inline-block}
+.fmd-export>summary{list-style:none;cursor:pointer}
+.fmd-export>summary::-webkit-details-marker{display:none}
+.fmd-export-menu{
+  position:absolute;right:0;top:calc(100% + 6px);z-index:30;
+  min-width:230px;padding:6px;
+  background:#fff;color:#0f172a;
+  border:1px solid #e2e8f0;border-radius:10px;
+  box-shadow:0 10px 24px -8px rgba(15,23,42,.2);
+}
+.fmd-export-menu a{display:block;padding:8px 10px;border-radius:8px;text-decoration:none;color:inherit;font-size:13px}
+.fmd-export-menu a:hover{background:#f1f5f9}
+body.theme-dark .fmd-export-menu{background:#0f172a;border-color:#334155;color:#e2e8f0;box-shadow:0 18px 44px -8px rgba(0,0,0,.6)}
+body.theme-dark .fmd-export-menu a:hover{background:rgba(148,163,184,.08)}

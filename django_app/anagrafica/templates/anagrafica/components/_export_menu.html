@@ -1,0 +1,21 @@
+{% comment %}
+Menu di export "Esporta ▾" per le liste di anagrafica (Excel/PDF, filtrato o tutto).
+Uso: {% include "anagrafica/components/_export_menu.html" with export_key="mansioni" %}
+Richiede che la pagina includa già anagrafica/components/_fm_icons.html (per #i-download)
+e che sia servita dall'endpoint unico anagrafica:export (django_app/anagrafica/exports.py).
+Il link "risultati filtrati" propaga la querystring corrente della pagina
+(request.GET.urlencode) - Django auto-escapa il valore stampato via le graffe doppie,
+quindi il separatore "&" arriva gia' come "&amp;" nell'HTML prodotto.
+{% endcomment %}
+{% url 'anagrafica:export' export_key as fmd_export_base_url %}
+<details class="fmd-export">
+  <summary class="fmd-btn fmd-btn-ghost" title="Esporta la lista">
+    <svg class="fmd-ico"><use href="#i-download"/></svg>Esporta
+  </summary>
+  <div class="fmd-export-menu" role="menu">
+    <a role="menuitem" href="{{ fmd_export_base_url }}?format=xlsx&amp;scope=filtered{% if request.GET.urlencode %}&amp;{{ request.GET.urlencode }}{% endif %}">Excel — risultati filtrati</a>
+    <a role="menuitem" href="{{ fmd_export_base_url }}?format=xlsx&amp;scope=full">Excel — tutto</a>
+    <a role="menuitem" href="{{ fmd_export_base_url }}?format=pdf&amp;scope=filtered{% if request.GET.urlencode %}&amp;{{ request.GET.urlencode }}{% endif %}">PDF — risultati filtrati</a>
+    <a role="menuitem" href="{{ fmd_export_base_url }}?format=pdf&amp;scope=full">PDF — tutto</a>
+  </div>
+</details>

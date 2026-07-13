@@ -285,3 +285,51 @@ class ExportAclGateTests(TestCase):
         self._grant_list_via_canonical(enabled=True)
         self.assertEqual(self.client.get(MANSIONI_LIST_PATH).status_code, 200)
         self.assertEqual(self._export().status_code, 200)
+
+
+class ExportMenuTemplateTests(TestCase):
+    """Componente UI «Esporta ▾» nella toolbar della lista mansioni.
+
+    NB rispetto al brief: l'URL atteso è costruito con ``reverse()`` (come fa
+    il componente via ``{% url %}``), non concatenando stringhe a mano — il
+    componente non deve mai divergere dal path reale dichiarato in urls.py.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin = User.objects.create_superuser("admin_menu", "admin2@example.invalid", "x")
+        cls.export_base = reverse("anagrafica:export", args=["mansioni"])
+
+    def test_mansioni_list_shows_export_menu_with_no_querystring(self):
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("anagrafica:mansioni_list"))
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        self.assertIn("Esporta", html)
+        # Senza querystring, i link "filtrato" non hanno un "&amp;" a vuoto in coda.
+        self.assertIn(f'{self.export_base}?format=xlsx&amp;scope=filtered"', html)
+        self.assertIn(f'{self.export_base}?format=pdf&amp;scope=filtered"', html)
+        self.assertIn(f'{self.export_base}?format=xlsx&amp;scope=full"', html)
+        self.assertIn(f'{self.export_base}?format=pdf&amp;scope=full"', html)
+
+    def test_filtered_links_propagate_current_querystring_html_escaped(self):
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("anagrafica:mansioni_list") + "?q=vernic&rischio=A")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        # La querystring corrente va propagata SOLO sui link "filtrato", con
+        # '&' correttamente escapato come '&amp;' (HTML valido).
+        self.assertIn(
+            f'{self.export_base}?format=xlsx&amp;scope=filtered&amp;q=vernic&amp;rischio=A"',
+            html,
+        )
+        self.assertIn(
+            f'{self.export_base}?format=pdf&amp;scope=filtered&amp;q=vernic&amp;rischio=A"',
+            html,
+        )
+        # I link "tutto" restano invariati (nessuna propagazione della querystring).
+        self.assertIn(f'{self.export_base}?format=xlsx&amp;scope=full"', html)
+        self.assertIn(f'{self.export_base}?format=pdf&amp;scope=full"', html)
+        self.assertNotIn(
+            f'{self.export_base}?format=xlsx&amp;scope=full&amp;q=vernic', html
+        )
