@@ -2341,7 +2341,7 @@ class AssetsRoutingTests(TestCase):
             f"https://hub.cnovicrom.local{reverse('assets:asset_public_redirect', kwargs={'public_qr_token': asset.public_qr_token})}",
         )
 
-    def test_asset_qr_label_does_not_use_internal_sharepoint_folder_without_public_link(self):
+    def test_asset_qr_label_falls_back_to_public_landing_without_public_sharepoint_link(self):
         asset = Asset.objects.create(
             name="Macchina QR no public",
             asset_type=Asset.TYPE_WORK_MACHINE,
@@ -2357,10 +2357,62 @@ class AssetsRoutingTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertNotEqual(draw_label.call_args.kwargs["target_url"], asset.sharepoint_folder_url)
+        # Il QR non deve mai puntare a una pagina che richiede login: fallback sulla landing pubblica.
         self.assertEqual(
             draw_label.call_args.kwargs["target_url"],
-            response.wsgi_request.build_absolute_uri(reverse("assets:asset_view", kwargs={"id": asset.id})),
+            response.wsgi_request.build_absolute_uri(
+                reverse("assets:asset_qr_public_landing", kwargs={"public_qr_token": asset.public_qr_token})
+            ),
         )
+        self.assertEqual(draw_label.call_args.kwargs["target_label"], "Landing QR pubblica")
+
+    def test_asset_qr_public_landing_is_readable_without_login(self):
+        asset = Asset.objects.create(
+            asset_tag="AST-QR-PUB",
+            name="Macchina QR pubblica",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            reparto="CNC",
+            source_key="manual-wm-qr-public-landing",
+        )
+
+        response = self.client.get(
+            reverse("assets:asset_qr_public_landing", kwargs={"public_qr_token": asset.public_qr_token})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "AST-QR-PUB")
+        self.assertContains(response, "Documenti")
+        # Nessuna shell applicativa e nessun link alla scheda interna per il visitatore anonimo.
+        self.assertNotContains(response, reverse("assets:asset_view", kwargs={"id": asset.id}))
+        # L'apertura della segnalazione resta dietro login.
+        self.assertContains(response, "Accedi e segnala un problema")
+
+    def test_asset_qr_public_landing_unknown_or_disabled_token_404(self):
+        asset = Asset.objects.create(
+            asset_tag="AST-QR-PUB-OFF",
+            name="Macchina QR disattivata",
+            source_key="manual-wm-qr-public-off",
+        )
+        token = asset.public_qr_token
+        Asset.objects.filter(pk=asset.pk).update(public_qr_enabled=False)
+
+        disabled = self.client.get(reverse("assets:asset_qr_public_landing", kwargs={"public_qr_token": token}))
+        unknown = self.client.get(reverse("assets:asset_qr_public_landing", kwargs={"public_qr_token": "missing"}))
+
+        self.assertEqual(disabled.status_code, 404)
+        self.assertEqual(unknown.status_code, 404)
+
+    def test_asset_qr_landing_by_tag_still_requires_login(self):
+        asset = Asset.objects.create(
+            asset_tag="AST-QR-INT",
+            name="Macchina QR interna",
+            source_key="manual-wm-qr-internal-landing",
+        )
+
+        response = self.client.get(reverse("assets:asset_qr_landing", kwargs={"asset_tag": asset.asset_tag}))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse("login"), response["Location"])
 
     def test_asset_qr_label_detail_target_still_points_to_asset_detail(self):
         asset = Asset.objects.create(

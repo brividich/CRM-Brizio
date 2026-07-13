@@ -1,4 +1,4 @@
-{% extends "core/base.html" %}
+{% extends base_template|default:"core/base.html" %}
 {% load static %}
 
 {% block title %}
@@ -247,12 +247,14 @@
                 {% if r.due_date %}&nbsp;&middot;&nbsp;{{ r.due_date|date:"d-m-Y" }}{% endif %}
               </div>
             </div>
-            <a href="{{ r.record_url }}" style="font-size:.75rem; color:#1d4ed8; font-weight:700; text-decoration:none; white-space:nowrap;">Registra &rsaquo;</a>
+            {% if not qr_public %}<a href="{{ r.record_url }}" style="font-size:.75rem; color:#1d4ed8; font-weight:700; text-decoration:none; white-space:nowrap;">Registra &rsaquo;</a>{% endif %}
           </div>
         {% endfor %}
-        <div style="margin-top:10px;">
-          <a href="{{ schedule_url }}" style="font-size:.8rem; color:#1d4ed8; font-weight:600; text-decoration:none;">Scadenzario completo &rarr;</a>
-        </div>
+        {% if not qr_public %}
+          <div style="margin-top:10px;">
+            <a href="{{ schedule_url }}" style="font-size:.8rem; color:#1d4ed8; font-weight:600; text-decoration:none;">Scadenzario completo &rarr;</a>
+          </div>
+        {% endif %}
       {% else %}
         <p class="qrl-empty">Nessuna manutenzione in scadenza.</p>
       {% endif %}
@@ -276,11 +278,13 @@
             </div>
           </div>
         {% endfor %}
-        <div style="margin-top:10px;">
-          <a href="{{ wo_list_url }}" style="font-size:.8rem;color:#1d4ed8;font-weight:600;text-decoration:none;">
-            Vedi tutti gli interventi &rarr;
-          </a>
-        </div>
+        {% if not qr_public %}
+          <div style="margin-top:10px;">
+            <a href="{{ wo_list_url }}" style="font-size:.8rem;color:#1d4ed8;font-weight:600;text-decoration:none;">
+              Vedi tutti gli interventi &rarr;
+            </a>
+          </div>
+        {% endif %}
       {% else %}
         <p class="qrl-empty">Nessun intervento aperto.</p>
       {% endif %}
@@ -313,20 +317,26 @@
     </div>
   </div>
 
-  {# Azioni principali #}
+  {# Azioni principali — richiedono login (anche via QR pubblico) #}
   <div class="qrl-actions">
     <a href="{{ report_url }}" class="qrl-btn qrl-btn--primary">
       <span class="qrl-btn-icon">&#9888;</span>
-      Segnala un problema
+      {% if qr_public %}Accedi e segnala un problema{% else %}Segnala un problema{% endif %}
     </a>
-    <a href="{{ wo_list_url }}" class="qrl-btn qrl-btn--secondary">
-      <span class="qrl-btn-icon">&#128295;</span>
-      Interventi
-    </a>
-    <a href="{{ detail_url }}" class="qrl-btn qrl-btn--detail">
-      <span class="qrl-btn-icon">&#128196;</span>
-      Scheda completa
-    </a>
+    {% if not qr_public %}
+      <a href="{{ wo_list_url }}" class="qrl-btn qrl-btn--secondary">
+        <span class="qrl-btn-icon">&#128295;</span>
+        Interventi
+      </a>
+      <a href="{{ detail_url }}" class="qrl-btn qrl-btn--detail">
+        <span class="qrl-btn-icon">&#128196;</span>
+        Scheda completa
+      </a>
+    {% else %}
+      <p class="qrl-empty" style="text-align:center;">
+        Consultazione in sola lettura. L'apertura di una segnalazione richiede l'accesso al portale.
+      </p>
+    {% endif %}
   </div>
 
 {% endif %}
