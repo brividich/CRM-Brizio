@@ -265,3 +265,37 @@ def ripartizione():
         "a4_pct": round(100 * u["a4"] / tot),
         "a3_pct": round(100 * u["a3"] / tot),
     }
+
+
+def abbina_discovery(trovati):
+    """Incrocia i dispositivi trovati in rete con l'anagrafica Macchine.
+
+    L'abbinamento e' sulla MATRICOLA (numero di serie letto via SNMP): e' l'unico
+    identificatore stabile — l'IP puo' essere cambiato, ed e' proprio quello che
+    vogliamo scoprire.
+
+    Stato per riga:
+      "ok"         gia' in anagrafica, IP coincidente
+      "ip_diverso" gia' in anagrafica ma con IP differente (o mancante) -> da correggere
+      "nuova"      risponde in rete ma non e' in anagrafica
+    """
+    per_matricola = {
+        (m.matricola or "").strip().upper(): m
+        for m in Macchina.objects.select_related("asset")
+        if (m.matricola or "").strip()
+    }
+    righe = []
+    for dev in trovati:
+        matricola = (dev.get("matricola") or "").strip().upper()
+        macchina = per_matricola.get(matricola) if matricola else None
+        if macchina is None:
+            stato = "nuova"
+        elif macchina.host and str(macchina.host) == dev["host"]:
+            stato = "ok"
+        else:
+            stato = "ip_diverso"
+        righe.append({**dev, "macchina": macchina, "stato": stato})
+    # prima le anomalie: sono quelle su cui devi agire
+    ordine = {"ip_diverso": 0, "nuova": 1, "ok": 2}
+    righe.sort(key=lambda r: (ordine[r["stato"]], r["host"]))
+    return righe
