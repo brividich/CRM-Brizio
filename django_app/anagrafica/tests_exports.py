@@ -1456,3 +1456,310 @@ class HrExportTests(TestCase):
         base = reverse("anagrafica:export", args=["ex_dipendenti"])
         self.assertIn(f'{base}?format=xlsx&amp;scope=filtered&amp;q=cessato"', html)
         self.assertIn(f'{base}?format=pdf&amp;scope=full"', html)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class MpqExportTests(TestCase):
+    """Export delle liste MOD.128 / MPQ (Task 9).
+
+    Chiavi: `mpq_vista` (vista MOD.128, gate `anagrafica.mpq.view`) e
+    `mpq_clienti` (clienti/enti qualificanti, gate `anagrafica.mpq.manage`).
+    Dati **sintetici** (nessun dato reale del MOD.128). Le altre rotte `mod128/`
+    non sono elenchi: il cruscotto è una dashboard, il dettaglio processo e i
+    form non sono liste tabellari → nessuna spec.
+    """
+
+    MPQ_KEYS = ("mpq_vista", "mpq_clienti")
+
+    def setUp(self):
+        from anagrafica.models_mpq import (
+            AbilitazioneProcesso,
+            CertificazioneIndividuale,
+            ClienteQualificante,
+            ProcessoQualificato,
+            RiferimentoProcesso,
+        )
+        from anagrafica.tests import _ensure_anagrafica_table, _ensure_utenti_table
+
+        _ensure_anagrafica_table()
+        _ensure_utenti_table()
+
+        self.organismo = ClienteQualificante.objects.create(
+            nome="Organismo Beta", tipo=ClienteQualificante.TIPO_ORGANISMO_CERTIFICAZIONE,
+        )
+        self.cliente_a = ClienteQualificante.objects.create(
+            nome="Cliente Alpha", tipo=ClienteQualificante.TIPO_CLIENTE, codice="ALPHA",
+        )
+        self.ente_gamma = ClienteQualificante.objects.create(
+            nome="Ente Gamma", tipo=ClienteQualificante.TIPO_ENTE_ESTERNO,
+            certificatore=self.organismo, is_active=False,
+        )
+
+        self.reparto = Reparto.objects.create(nome="Officina Test")
+
+        self.proc_attivo = ProcessoQualificato.objects.create(
+            nome="Trattamento termico", cliente=self.cliente_a,
+            regime=ProcessoQualificato.REGIME_NADCAP, livello="LVL2",
+            stato=ProcessoQualificato.STATO_ATTIVO,
+            tipo_validita=ProcessoQualificato.VALIDITA_DATA,
+            data_scadenza="2026-12-31",
+        )
+        self.proc_attivo.reparti.add(self.reparto)
+        RiferimentoProcesso.objects.create(processo=self.proc_attivo, codice="APPR-001")
+
+        self.proc_org = ProcessoQualificato.objects.create(
+            nome="Controllo non distruttivo", cliente=self.cliente_a,
+            regime=ProcessoQualificato.REGIME_PART145,
+            stato=ProcessoQualificato.STATO_ATTIVO,
+            tipo_validita=ProcessoQualificato.VALIDITA_ILLIMITATA,
+            personale_modalita=ProcessoQualificato.MODALITA_ORGANIZZATIVO,
+            riferimento_dichiarazione="DICH-2026-01",
+        )
+        self.proc_sospeso = ProcessoQualificato.objects.create(
+            nome="Saldatura speciale", cliente=self.ente_gamma,
+            regime=ProcessoQualificato.REGIME_SPECIALE,
+            stato=ProcessoQualificato.STATO_SOSPESO,
+            tipo_validita=ProcessoQualificato.VALIDITA_ILLIMITATA,
+        )
+
+        # Persone abilitate: un qualificatore esterno (nominativo) e un interno
+        # non risolvibile (fallback «#<id>», come in pagina).
+        ab_est = AbilitazioneProcesso.objects.create(
+            processo=self.proc_attivo, legacy_anagrafica_id=0,
+            nominativo_esterno="Qualificatore Esterno Test",
+            is_qualificato=True, is_controllore=True,
+        )
+        AbilitazioneProcesso.objects.create(
+            processo=self.proc_attivo, legacy_anagrafica_id=99001,
+            is_qualificato=True, is_addetto=True,
+        )
+        # Abilitazione non attiva: la pagina non la elenca → nemmeno l'export.
+        AbilitazioneProcesso.objects.create(
+            processo=self.proc_attivo, legacy_anagrafica_id=99002,
+            is_qualificato=True, stato=AbilitazioneProcesso.STATO_REVOCATA,
+        )
+        CertificazioneIndividuale.objects.create(
+            abilitazione=ab_est, schema="NDT", numero="C-001",
+            data_scadenza="2026-11-30",
+        )
+
+        self.admin = User.objects.create_superuser("admin_mpq", "mpq@example.invalid", "x")
+        self.plain = User.objects.create_user("mpq_plain", "plain@example.invalid", "x")
+        UserOnboarding.objects.create(user=self.plain, completed=True)
+        self.client.force_login(self.admin)
+
+    def _request(self, path: str = "/anagrafica/mod128/vista/", user=None):
+        request = RequestFactory().get(path)
+        request.user = user or self.admin
+        return request
+
+    def _export_url(self, key: str, **params) -> str:
+        url = reverse("anagrafica:export", args=[key])
+        return url + "?" + "&".join(f"{k}={v}" for k, v in params.items())
+
+    # -- endpoint -----------------------------------------------------------
+    def test_every_mpq_key_is_registered(self):
+        for key in self.MPQ_KEYS:
+            self.assertIn(key, EXPORT_SPECS)
+
+    def test_xlsx_export_ok_for_every_key(self):
+        for key in self.MPQ_KEYS:
+            with self.subTest(key=key):
+                resp = self.client.get(self._export_url(key, format="xlsx"))
+                self.assertEqual(resp.status_code, 200)
+                self.assertEqual(resp["Content-Type"], XLSX_CT)
+                self.assertIn(key, resp["Content-Disposition"])
+
+    def test_pdf_export_ok_for_every_key(self):
+        for key in self.MPQ_KEYS:
+            with self.subTest(key=key):
+                resp = self.client.get(self._export_url(key, format="pdf"))
+                self.assertEqual(resp.status_code, 200)
+                self.assertEqual(resp["Content-Type"], "application/pdf")
+                self.assertTrue(resp.content.startswith(b"%PDF"))
+
+    def test_audit_written_with_the_right_key(self):
+        for key in self.MPQ_KEYS:
+            with self.subTest(key=key):
+                self.client.get(self._export_url(key, format="xlsx"))
+                log = AuditLog.objects.filter(azione="export").latest("id")
+                self.assertEqual(log.modulo, "anagrafica")
+                self.assertEqual(log.dettaglio.get("lista"), key)
+
+    def test_columns_are_filled_by_every_dataset(self):
+        for key in self.MPQ_KEYS:
+            with self.subTest(key=key):
+                spec = EXPORT_SPECS[key]
+                rows = spec.dataset(self._request(), "full")
+                self.assertTrue(rows)
+                accessors = {accessor for _label, accessor in spec.columns}
+                for row in rows:
+                    self.assertEqual(accessors - set(row), set())
+
+    # -- gate ACL + permesso canonico MPQ ------------------------------------
+    def test_denied_without_mpq_permission(self):
+        """In dev/test l'ACL di rotta è neutra (`LEGACY_AUTH_ENABLED=False`): il
+        deny reale è il permesso canonico MPQ. Un utente autenticato senza grant
+        (né superuser né admin legacy) prende 403 su entrambe le liste."""
+        self.client.force_login(self.plain)
+        for key in self.MPQ_KEYS:
+            with self.subTest(key=key):
+                resp = self.client.get(self._export_url(key, format="xlsx"))
+                self.assertEqual(resp.status_code, 403)
+
+    def test_gate_uses_view_for_vista_and_manage_for_clienti(self):
+        """La lista clienti è gated `.manage` (come `views_mpq.mpq_cliente_list`),
+        la vista `.view`: il gate dell'export usa gli stessi codici canonici."""
+        from unittest.mock import patch
+
+        from anagrafica.acl_bootstrap import PERM_MPQ_MANAGE, PERM_MPQ_VIEW
+
+        for key, expected in (("mpq_vista", PERM_MPQ_VIEW), ("mpq_clienti", PERM_MPQ_MANAGE)):
+            with self.subTest(key=key):
+                with patch("anagrafica.views_mpq._check_mpq_permission", return_value=True) as m:
+                    self.assertTrue(EXPORT_SPECS[key].permission(self._request()))
+                self.assertEqual(m.call_args.args[1], expected)
+
+    # -- vista MOD.128: scope filtered vs full -------------------------------
+    def test_vista_filtered_scope_reduces_rows(self):
+        spec = EXPORT_SPECS["mpq_vista"]
+        request = self._request("/anagrafica/mod128/vista/")
+        # `full` = tutto il registro (sospesi compresi); `filtered` = default della
+        # pagina (solo attivi).
+        self.assertEqual(len(spec.dataset(request, "full")), 3)
+        filtered = spec.dataset(request, "filtered")
+        self.assertEqual(
+            sorted(r["processo"] for r in filtered),
+            ["Controllo non distruttivo", "Trattamento termico"],
+        )
+        self.assertIn("Solo processi attivi", spec.filters_label(request))
+
+    def test_vista_tutti_and_cliente_filters(self):
+        spec = EXPORT_SPECS["mpq_vista"]
+        request = self._request("/anagrafica/mod128/vista/?tutti=1")
+        self.assertEqual(len(spec.dataset(request, "filtered")), 3)
+        self.assertIn("Tutti gli stati", spec.filters_label(request))
+
+        request = self._request(
+            f"/anagrafica/mod128/vista/?tutti=1&cliente={self.ente_gamma.pk}"
+        )
+        filtered = spec.dataset(request, "filtered")
+        self.assertEqual([r["processo"] for r in filtered], ["Saldatura speciale"])
+        self.assertEqual(filtered[0]["cliente"], "Ente Gamma")
+        self.assertIn("Ente Gamma", spec.filters_label(request))
+
+    def test_vista_rows_mirror_the_page(self):
+        rows = {
+            r["processo"]: r
+            for r in EXPORT_SPECS["mpq_vista"].dataset(self._request(), "filtered")
+        }
+        att = rows["Trattamento termico"]
+        self.assertEqual(att["cliente"], "Cliente Alpha")
+        self.assertEqual(att["regime"], "NADCAP")
+        self.assertEqual(att["livello"], "LVL2")
+        self.assertEqual(att["stato"], "Attivo")
+        self.assertEqual(att["riferimenti"], "APPR-001")
+        self.assertEqual(att["reparti"], "Officina Test")
+        # Solo le abilitazioni ATTIVE, come in pagina (la revocata non compare).
+        self.assertEqual(att["qualificato"], "Qualificatore Esterno Test; #99001")
+        self.assertEqual(att["addetto"], "#99001")
+        self.assertEqual(att["controllore"], "Qualificatore Esterno Test")
+        self.assertEqual(att["part145"], "")
+        self.assertIn("Processo: 31-12-2026", att["scadenze"])
+        self.assertIn("Qualificatore Esterno Test · NDT C-001: 30-11-2026", att["scadenze"])
+
+    def test_vista_organizzativo_keeps_names_out(self):
+        """Personale organizzativo: in pagina le 4 colonne di ruolo collassano nel
+        rimando alla dichiarazione → l'export non espone nominativi."""
+        rows = {
+            r["processo"]: r
+            for r in EXPORT_SPECS["mpq_vista"].dataset(self._request(), "filtered")
+        }
+        org = rows["Controllo non distruttivo"]
+        self.assertEqual(org["qualificato"], "DICH-2026-01")
+        self.assertEqual(org["addetto"], "")
+        self.assertEqual(org["controllore"], "")
+        self.assertEqual(org["part145"], "")
+
+    # -- anti-drift: export ↔ righe RENDERIZZATE dalla pagina -----------------
+    def test_vista_export_matches_rows_actually_rendered_by_the_page(self):
+        for querystring in ("", "?tutti=1", f"?cliente={self.cliente_a.pk}",
+                            f"?tutti=1&cliente={self.ente_gamma.pk}"):
+            with self.subTest(querystring=querystring):
+                resp = self.client.get(reverse("anagrafica:mpq_vista") + querystring)
+                self.assertEqual(resp.status_code, 200)
+                page_rows = [
+                    (g["cliente"], r["processo"])
+                    for g in resp.context["gruppi"] for r in g["righe"]
+                ]
+                export_rows = EXPORT_SPECS["mpq_vista"].dataset(
+                    self._request(f"/anagrafica/mod128/vista/{querystring}"), "filtered"
+                )
+                self.assertEqual(
+                    page_rows, [(r["cliente"], r["processo"]) for r in export_rows]
+                )
+
+    def test_vista_view_context_is_unchanged_by_the_extraction(self):
+        """Non-regressione: contatori e tendine della pagina restano quelli di prima."""
+        resp = self.client.get(reverse("anagrafica:mpq_vista"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["n_processi"], 2)      # solo attivi (default)
+        self.assertTrue(resp.context["solo_attivi"])
+        self.assertEqual(resp.context["cliente_sel"], "")
+        # Tendina clienti: solo attivi, pre-filtro (Ente Gamma è disattivo).
+        self.assertEqual(
+            [c.nome for c in resp.context["clienti"]], ["Cliente Alpha", "Organismo Beta"]
+        )
+
+        resp = self.client.get(reverse("anagrafica:mpq_vista") + "?tutti=1")
+        self.assertEqual(resp.context["n_processi"], 3)
+        self.assertFalse(resp.context["solo_attivi"])
+
+    # -- clienti / enti qualificanti -----------------------------------------
+    def test_clienti_rows_mirror_the_page(self):
+        rows = EXPORT_SPECS["mpq_clienti"].dataset(self._request(), "full")
+        by_nome = {r["nome"]: r for r in rows}
+        self.assertEqual(len(rows), 3)
+        self.assertEqual(by_nome["Cliente Alpha"]["tipo"], "Cliente")
+        self.assertEqual(by_nome["Cliente Alpha"]["codice"], "ALPHA")
+        self.assertEqual(by_nome["Cliente Alpha"]["certificatore"], "")
+        self.assertEqual(by_nome["Cliente Alpha"]["attivo"], "Sì")
+        self.assertEqual(by_nome["Ente Gamma"]["tipo"], "Ente esterno")
+        self.assertEqual(by_nome["Ente Gamma"]["certificatore"], "Organismo Beta")
+        self.assertEqual(by_nome["Ente Gamma"]["attivo"], "No")
+
+    def test_clienti_export_matches_rows_rendered_by_the_page(self):
+        resp = self.client.get(reverse("anagrafica:mpq_cliente_list"))
+        self.assertEqual(resp.status_code, 200)
+        page_nomi = [c.nome for c in resp.context["clienti"]]
+        export_nomi = [
+            r["nome"] for r in EXPORT_SPECS["mpq_clienti"].dataset(
+                self._request("/anagrafica/mod128/clienti/"), "filtered"
+            )
+        ]
+        self.assertEqual(page_nomi, export_nomi)
+
+    # -- UI: menu export nella toolbar ---------------------------------------
+    def test_mpq_pages_show_the_export_menu(self):
+        pages = {
+            "mpq_vista": "anagrafica:mpq_vista",
+            "mpq_clienti": "anagrafica:mpq_cliente_list",
+        }
+        for key, route in pages.items():
+            with self.subTest(key=key):
+                resp = self.client.get(reverse(route))
+                self.assertEqual(resp.status_code, 200)
+                html = resp.content.decode()
+                base = reverse("anagrafica:export", args=[key])
+                self.assertIn("Esporta", html)
+                self.assertIn('href="#i-download"', html)
+                self.assertIn(f'{base}?format=xlsx&amp;scope=filtered"', html)
+                self.assertIn(f'{base}?format=pdf&amp;scope=full"', html)
+
+    def test_vista_page_propagates_querystring_on_filtered_links(self):
+        resp = self.client.get(reverse("anagrafica:mpq_vista") + "?tutti=1")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        base = reverse("anagrafica:export", args=["mpq_vista"])
+        self.assertIn(f'{base}?format=xlsx&amp;scope=filtered&amp;tutti=1"', html)
+        self.assertIn(f'{base}?format=pdf&amp;scope=full"', html)

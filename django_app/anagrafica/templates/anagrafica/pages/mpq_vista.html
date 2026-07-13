@@ -40,6 +40,7 @@
           <h1><svg class="fmd-ico fmd-cap"><use href="#i-cap"/></svg>Vista MOD.128</h1>
           <p class="fmd-sub">Replica del Mansionario Processi Qualificati: tabella per cliente/ente, personale abilitato per ruolo, scadenze e distribuzione a reparto. {{ n_processi }} process{{ n_processi|pluralize:"o,i" }} · estratto del {{ oggi|date:"d-m-Y" }}.</p>
           <div class="fmd-hero-actions">
+            {% include "anagrafica/components/_export_menu.html" with export_key="mpq_vista" %}
             <a class="fmd-btn-template" href="?{% if cliente_sel %}cliente={{ cliente_sel }}&{% endif %}{% if not solo_attivi %}tutti=1&{% endif %}format=docx">
               <svg class="fmd-ico"><use href="#i-download"/></svg>Scarica .docx (replica-Word)
             </a>

@@ -1441,3 +1441,151 @@ register(ExportSpec(
     filters_label=_ratei_filters,
     permission=hr_gate("/anagrafica/ratei/"),
 ))
+
+
+# ── MOD.128 MPQ (processi qualificati) ────────────────────────────────────────
+# Le pagine MPQ hanno DUE gate: l'ACL di rotta e il permesso canonico MPQ in-view
+# (`views_mpq._check_mpq_permission`, codici `anagrafica.mpq.view` / `.manage`).
+# L'export li replica in AND: chi non apre la pagina non la scarica. Le liste
+# tabellari sotto `mod128/` sono due:
+#   • «Vista MOD.128» (`mod128/vista/`, gate `.view`) — tabella per cliente/ente;
+#   • «Clienti/enti qualificanti» (`mod128/clienti/`, gate `.manage`).
+# Il cruscotto (`mod128/`) è una dashboard (KPI + timeline) e il dettaglio
+# processo non è un elenco: nessuna spec (vedi Task 9).
+
+def mpq_gate(list_path: str, *, manage: bool = False) -> Callable[[HttpRequest], bool]:
+    """ACL di rotta AND permesso canonico MPQ (view oppure manage)."""
+    base = acl_gate(list_path)
+
+    def _check(request: HttpRequest) -> bool:
+        if not base(request):
+            return False
+        from anagrafica.acl_bootstrap import PERM_MPQ_MANAGE, PERM_MPQ_VIEW
+        from anagrafica.views_mpq import _check_mpq_permission  # import locale: evita cicli
+
+        try:
+            return bool(_check_mpq_permission(
+                request, PERM_MPQ_MANAGE if manage else PERM_MPQ_VIEW
+            ))
+        except Exception:
+            return False  # fail-closed
+
+    return _check
+
+
+# ── Clienti / enti qualificanti ───────────────────────────────────────────────
+# Catalogo senza filtri di lista (`scope=filtered` == `scope=full`). Colonne =
+# intestazioni di `mpq_clienti.html` (senza la colonna Azioni).
+
+def _mpq_clienti_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from anagrafica.models_mpq import ClienteQualificante
+
+    qs = ClienteQualificante.objects.select_related("certificatore").order_by("tipo", "nome")
+    return [
+        {
+            "nome": c.nome or "",
+            "tipo": c.get_tipo_display() if c.tipo else "",
+            "codice": c.codice or "",
+            "certificatore": c.certificatore.nome if c.certificatore_id else "",
+            "attivo": _si_no(c.is_active),
+        }
+        for c in qs
+    ]
+
+
+register(ExportSpec(
+    key="mpq_clienti",
+    title="Clienti / enti qualificanti (MOD.128)",
+    sheet_title="Clienti MOD.128",
+    columns=[
+        ("Nome", "nome"),
+        ("Tipo", "tipo"),
+        ("Codice", "codice"),
+        ("Certificatore", "certificatore"),
+        ("Attivo", "attivo"),
+    ],
+    dataset=_mpq_clienti_rows,
+    filters_label=_no_filters,
+    permission=mpq_gate("/anagrafica/mod128/clienti/", manage=True),
+))
+
+
+# ── Vista MOD.128 (processi qualificati per cliente/ente) ─────────────────────
+# Fonte unica: `views_mpq.build_vista_processi_qs` + `views_mpq._build_vista_groups`
+# (la stessa aggregazione della pagina e dell'export .docx → niente drift).
+# L'export appiattisce il raggruppamento: una riga per processo, con la colonna
+# «Cliente/ente» ripetuta. I processi a personale *organizzativo* (che a schermo
+# collassano le 4 colonne di ruolo in un'unica cella con il rimando alla
+# dichiarazione) portano il rimando nella colonna «Personale qualificato» e le
+# altre tre vuote: nessun nominativo, esattamente come in pagina.
+
+def _mpq_vista_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from anagrafica.views_mpq import _build_vista_groups, build_vista_processi_qs
+
+    qs = build_vista_processi_qs(request, apply_filters=(scope == "filtered"))
+    rows: list[dict] = []
+    for gruppo in _build_vista_groups(qs):
+        for r in gruppo["righe"]:
+            organizzativo = bool(r.get("organizzativo"))
+            rows.append({
+                "cliente": gruppo["cliente"],
+                "processo": r.get("processo") or "",
+                "regime": r.get("regime") or "",
+                "livello": r.get("livello") or "",
+                "stato": r.get("stato") or "",
+                "riferimenti": ", ".join(r.get("riferimenti") or []),
+                "qualificato": (
+                    r.get("organizzativo_rif") or ""
+                    if organizzativo
+                    else "; ".join(r.get("qualificato") or [])
+                ),
+                "addetto": "" if organizzativo else "; ".join(r.get("addetto") or []),
+                "controllore": "" if organizzativo else "; ".join(r.get("controllore") or []),
+                "part145": "" if organizzativo else "; ".join(r.get("part145") or []),
+                "scadenze": "; ".join(r.get("scadenze") or []),
+                "reparti": ", ".join(r.get("reparti") or []),
+            })
+    return rows
+
+
+def _mpq_vista_filters(request: HttpRequest) -> str:
+    from anagrafica.models_mpq import ClienteQualificante
+
+    parts: list[str] = []
+    cliente_id = (request.GET.get("cliente") or "").strip()
+    if cliente_id.isdigit():
+        nome = (
+            ClienteQualificante.objects.filter(pk=int(cliente_id))
+            .values_list("nome", flat=True)
+            .first()
+        )
+        if nome:
+            parts.append(f"Cliente/ente: {nome}")
+    parts.append(
+        "Tutti gli stati" if request.GET.get("tutti") == "1" else "Solo processi attivi"
+    )
+    return " · ".join(parts)
+
+
+register(ExportSpec(
+    key="mpq_vista",
+    title="Vista MOD.128 — processi qualificati",
+    sheet_title="Vista MOD.128",
+    columns=[
+        ("Cliente/ente", "cliente"),
+        ("Processo qualificato", "processo"),
+        ("Regime", "regime"),
+        ("Livello", "livello"),
+        ("Stato", "stato"),
+        ("Riferimenti", "riferimenti"),
+        ("Personale qualificato", "qualificato"),
+        ("Addetto", "addetto"),
+        ("Controllore", "controllore"),
+        ("Part 145", "part145"),
+        ("Scadenze", "scadenze"),
+        ("Distribuzione a reparto", "reparti"),
+    ],
+    dataset=_mpq_vista_rows,
+    filters_label=_mpq_vista_filters,
+    permission=mpq_gate("/anagrafica/mod128/vista/"),
+))

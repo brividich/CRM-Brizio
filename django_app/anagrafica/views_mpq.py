@@ -400,6 +400,24 @@ def _build_vista_groups(processi_qs=None):
     return [{"cliente": nome, "righe": righe} for nome, righe in groups_map.items()]
 
 
+def build_vista_processi_qs(request, *, apply_filters: bool = True):
+    """Perimetro dei processi della vista MOD.128 — fonte unica pagina ↔ export.
+
+    Filtri della pagina (``tutti``, ``cliente``); con ``apply_filters=False`` il
+    perimetro è l'intero registro (usato dall'export con ``scope=full``). Nessuno
+    scoping di sicurezza per riga: la visibilità è tutta nel permesso MPQ.
+    """
+    qs = ProcessoQualificato.objects.all()
+    if not apply_filters:
+        return qs
+    if request.GET.get("tutti") != "1":
+        qs = qs.filter(stato=ProcessoQualificato.STATO_ATTIVO)
+    cliente_id = (request.GET.get("cliente") or "").strip()
+    if cliente_id.isdigit():
+        qs = qs.filter(cliente_id=int(cliente_id))
+    return qs
+
+
 @login_required
 def mpq_vista(request):
     """Vista "MOD.128" (F3): tabella 8-col per cliente + export **.docx** (replica-Word).
@@ -415,13 +433,7 @@ def mpq_vista(request):
     solo_attivi = request.GET.get("tutti") != "1"
     cliente_id = (request.GET.get("cliente") or "").strip()
 
-    qs = ProcessoQualificato.objects.all()
-    if solo_attivi:
-        qs = qs.filter(stato=ProcessoQualificato.STATO_ATTIVO)
-    if cliente_id.isdigit():
-        qs = qs.filter(cliente_id=int(cliente_id))
-
-    gruppi = _build_vista_groups(qs)
+    gruppi = _build_vista_groups(build_vista_processi_qs(request))
 
     if request.GET.get("format") == "docx":
         try:
