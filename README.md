@@ -396,6 +396,7 @@ Anagrafica master HR del portale, integrata con Active Directory e tabelle legac
 - **Stats dashboard dipendente** con layout drag&drop salvato per utente
 - **Sync LDAP/AD** con `sync_ldap_users`, paging configurabile, credenziali service account su `config/.env`
 - **Fallback email** automatico `email_notifica` → `email` per notifiche legacy
+- **Export PDF+Excel dalle liste** (`anagrafica/exports.py`, endpoint unico `anagrafica:export` → `/anagrafica/esporta/<key>/?format=xlsx|pdf&scope=filtered|full`): menu **«Esporta ▾»** nella toolbar di 20 liste del modulo (mansioni, dipendenti, ex-dipendenti, documenti, onboarding, ratei, aree, ruoli aziendali, ruoli operativi, qualifiche, sessioni qualifica, piani/corsi/istruttori/sessioni formazione, fattori/categorie/esposizioni di rischio, vista/clienti MOD.128-MPQ), con 4 combinazioni Excel/PDF × risultati filtrati/elenco completo. Riusa `core/table_pdf.py` (PDF landscape brandizzato HUB) e `core/excel_export.py` (intestazione documento negli `.xlsx`: logo, titolo, filtri attivi, numero righe). Le colonne esportate sono le stesse già visibili a schermo; il gate ACL replica lo strict-mode della pagina lista di origine (chi non vede la lista non la esporta) e ogni esportazione è **tracciata in audit** (`core.models.AuditLog`).
 </details>
 
 <details open>
