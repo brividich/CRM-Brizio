@@ -12,9 +12,12 @@ ma non bloccante**.
 """
 from __future__ import annotations
 
-from datetime import timedelta
+import logging
+from datetime import date, timedelta
+from urllib.parse import urlencode
 
 from django.db import transaction
+from django.urls import reverse
 from django.utils import timezone
 
 from ..models import (
@@ -25,6 +28,8 @@ from ..models import (
     LivelloSkm,
     SkillMatrixConfig,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _asset_ids_reparto(reparto: str) -> list[int]:
@@ -47,15 +52,21 @@ def abilitazioni_reparto(reparto: str):
     )
 
 
-def apri_campagna(reparto: str, *, periodo_inizio=None, avviatore_ruolo: str = "",
-                  scadenza=None) -> CampagnaRefresh:
-    """Apre (o riusa) la campagna aperta del reparto. Idempotente."""
+def _get_or_crea_campagna(reparto: str, *, periodo_inizio=None, avviatore_ruolo: str = "",
+                          scadenza=None) -> tuple[CampagnaRefresh, bool]:
     periodo_inizio = periodo_inizio or timezone.localdate()
-    camp, _ = CampagnaRefresh.objects.get_or_create(
+    return CampagnaRefresh.objects.get_or_create(
         reparto=reparto, stato=CampagnaRefresh.STATO_APERTA,
         defaults={"periodo_inizio": periodo_inizio, "avviatore_ruolo": avviatore_ruolo,
                   "scadenza": scadenza},
     )
+
+
+def apri_campagna(reparto: str, *, periodo_inizio=None, avviatore_ruolo: str = "",
+                  scadenza=None) -> CampagnaRefresh:
+    """Apre (o riusa) la campagna aperta del reparto. Idempotente."""
+    camp, _ = _get_or_crea_campagna(reparto, periodo_inizio=periodo_inizio,
+                                    avviatore_ruolo=avviatore_ruolo, scadenza=scadenza)
     return camp
 
 
@@ -144,3 +155,151 @@ def arretrati_reparto(reparto: str, *, oggi=None) -> int:
     """Conteggio abilitazioni con revisione scaduta (arretrato, NON bloccante)."""
     oggi = oggi or timezone.localdate()
     return abilitazioni_reparto(reparto).filter(prossima_revisione__lt=oggi).count()
+
+
+# ---------------------------------------------------------------------------
+# F10 — scadenzario abilitazioni + avvio refresh HR->CAR
+# ---------------------------------------------------------------------------
+def scadenzario_reparti(oggi=None, config: SkillMatrixConfig | None = None) -> list[dict]:
+    """Stato del refresh per reparto (derivato da prossima_revisione, in_lista).
+
+    Un dict per reparto con almeno un'abilitazione in lista su una macchina catalogata.
+    Stati: 'scaduto' (>=1 revisione < oggi), 'in_arrivo' (min non-scaduta <= oggi+preavviso),
+    'ok' altrimenti. Ordinati per urgenza.
+    """
+    oggi = oggi or timezone.localdate()
+    config = config or SkillMatrixConfig.get_instance()
+    soglia = oggi + timedelta(days=int(config.preavviso_refresh_giorni))
+
+    reparto_per_asset = {}
+    for c in (CompetenzaSkm.objects
+              .filter(tipo=CompetenzaSkm.TIPO_MACCHINA, asset__isnull=False)
+              .select_related("asset")):
+        rep = (c.asset.reparto or "").strip()
+        if rep:
+            reparto_per_asset[c.asset_id] = rep
+    if not reparto_per_asset:
+        return []
+
+    agg: dict[str, dict] = {}
+    for a in (AbilitazioneMacchina.objects
+              .filter(in_lista=True, asset_id__in=list(reparto_per_asset.keys()))):
+        rep = reparto_per_asset.get(a.asset_id)
+        if not rep:
+            continue
+        d = agg.setdefault(rep, {"n_totali": 0, "n_scadute": 0, "n_in_arrivo": 0,
+                                 "prossima_revisione": None})
+        d["n_totali"] += 1
+        pr = a.prossima_revisione
+        if pr is not None and pr < oggi:
+            d["n_scadute"] += 1
+        elif pr is not None and pr <= soglia:
+            d["n_in_arrivo"] += 1
+        if pr is not None and (d["prossima_revisione"] is None or pr < d["prossima_revisione"]):
+            d["prossima_revisione"] = pr
+
+    aperte = {c.reparto: c for c in
+              CampagnaRefresh.objects.filter(stato=CampagnaRefresh.STATO_APERTA)}
+
+    out = []
+    for rep, d in agg.items():
+        stato = "scaduto" if d["n_scadute"] else ("in_arrivo" if d["n_in_arrivo"] else "ok")
+        camp = aperte.get(rep)
+        out.append({
+            "reparto": rep,
+            "prossima_revisione": d["prossima_revisione"],
+            "n_totali": d["n_totali"],
+            "n_scadute": d["n_scadute"],
+            "n_in_arrivo": d["n_in_arrivo"],
+            "stato": stato,
+            "campagna_aperta": camp is not None,
+            "campagna_id": camp.id if camp else None,
+            "campagna_periodo_inizio": camp.periodo_inizio if camp else None,
+        })
+
+    rank = {"scaduto": 0, "in_arrivo": 1, "ok": 2}
+    out.sort(key=lambda r: (rank[r["stato"]], -r["n_scadute"],
+                            r["prossima_revisione"] or date.max, r["reparto"]))
+    return out
+
+
+def _risolvi_car(reparto: str) -> tuple[int | None, str]:
+    """(caporeparto_legacy_id, email_notifica) del CAR del reparto, o (None, "")."""
+    from ..models import Reparto
+    rep = Reparto.objects.filter(nome__iexact=(reparto or "").strip()).first()
+    if not rep or not rep.caporeparto_legacy_id:
+        return (None, "")
+    car_id = int(rep.caporeparto_legacy_id)
+    email = ""
+    try:
+        from core.legacy_models import AnagraficaDipendente
+        email = (AnagraficaDipendente.objects
+                 .filter(id=car_id).values_list("email_notifica", flat=True).first()) or ""
+    except Exception:
+        logger.debug("Email CAR non risolta per reparto=%s", reparto, exc_info=True)
+    return (car_id, str(email).strip())
+
+
+def _notifica_car(reparto: str) -> None:
+    """In-app + email best-effort al CAR. Nessun errore propagato."""
+    car_id, car_email = _risolvi_car(reparto)
+    n_da = abilitazioni_reparto(reparto).count()
+    url = reverse("anagrafica:skm_refresh") + "?" + urlencode({"reparto": reparto})
+    if car_id:
+        try:
+            from core.notifiche import invia_notifica
+            invia_notifica(
+                car_id, "skm_refresh",
+                f"Refresh abilitazioni macchina avviato per il reparto «{reparto}»: "
+                f"{n_da} abilitazioni da rivalutare.", url)
+        except Exception:
+            logger.warning("Notifica in-app CAR fallita reparto=%s", reparto, exc_info=True)
+    if car_email:
+        try:
+            from core.email_utils import send_hub_mail
+            send_hub_mail(
+                f"Refresh abilitazioni macchina — reparto {reparto}",
+                f"È stato avviato il refresh semestrale delle abilitazioni macchina del "
+                f"reparto «{reparto}».\n\nAbilitazioni da rivalutare: {n_da}.\n\n"
+                f"Apri la pagina di rivalutazione dal portale NOVICROM HUB.",
+                [car_email], email_type="Anagrafica HR",
+                section_label="Refresh abilitazioni macchina", fail_silently=True)
+        except Exception:
+            logger.warning("Email CAR fallita reparto=%s", reparto, exc_info=True)
+
+
+def avvia_refresh(*, reparto: str, avviatore_ruolo: str = "", avviatore_legacy_id=None,
+                  oggi=None) -> tuple[CampagnaRefresh, bool]:
+    """HR "dà il via": apre la campagna del reparto (idempotente) e, solo se appena
+    creata, notifica il CAR. L'apertura non è mai annullata da un errore di notifica."""
+    reparto = (reparto or "").strip()
+    if not reparto:
+        raise ValueError("reparto obbligatorio")
+    camp, created = _get_or_crea_campagna(reparto, periodo_inizio=oggi,
+                                          avviatore_ruolo=avviatore_ruolo)
+    if created:
+        _notifica_car(reparto)
+    return camp, created
+
+
+def campagne_da_gestire(car_legacy_id) -> list[dict]:
+    """Campagne di refresh APERTE dei reparti di cui il legacy_id è caporeparto (CAR).
+    Read-only, per la home 'Cose da gestire'."""
+    if not car_legacy_id:
+        return []
+    from ..models import Reparto
+    reparti = list(Reparto.objects
+                   .filter(caporeparto_legacy_id=int(car_legacy_id))
+                   .values_list("nome", flat=True))
+    if not reparti:
+        return []
+    out = []
+    for c in CampagnaRefresh.objects.filter(stato=CampagnaRefresh.STATO_APERTA,
+                                            reparto__in=reparti):
+        out.append({
+            "reparto": c.reparto,
+            "campagna_id": c.id,
+            "n_da_rivalutare": abilitazioni_reparto(c.reparto).count(),
+            "url": reverse("anagrafica:skm_refresh") + "?" + urlencode({"reparto": c.reparto}),
+        })
+    return out

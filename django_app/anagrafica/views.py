@@ -514,14 +514,13 @@ def index(request):
 # Dipendenti (sola lettura — dati da legacy SQL Server)
 # ---------------------------------------------------------------------------
 
-@login_required
-def dipendenti_list(request):
-    ensure_anagrafica_schema()
-    q = request.GET.get("q", "").strip()
-    reparto = request.GET.get("reparto", "").strip()
-    area_filter = request.GET.get("area", "").strip()
-    contratto_filter = request.GET.get("tipologia_contratto", "").strip()
+def _dipendenti_base_rows() -> list[dict]:
+    """Righe dell'anagrafica in forza (legacy, deduplicate), pre-filtro.
 
+    Esclude i rapporti cessati e applica il fallback del reparto da
+    ``DipendenteAnagraficaAziendale.area`` quando il campo legacy è vuoto.
+    """
+    ensure_anagrafica_schema()
     rows = fetch_anagrafica_rows(deduplicate=True)
     # Gli ex dipendenti (rapporto cessato) restano a sistema ma non compaiono
     # mai in questa lista: hanno una vista dedicata `ex_dipendenti_list`.
@@ -542,9 +541,16 @@ def dipendenti_list(request):
                 lid = int(row.get("id") or 0)
                 if lid in _az_area_map:
                     row["reparto"] = _az_area_map[lid]
+    return rows
 
-    reparti_list = sorted({str(row.get("reparto") or "").strip() for row in rows if str(row.get("reparto") or "").strip()})
-    n_totale = len(rows)
+
+def _filter_dipendenti_rows(rows: list[dict], request) -> list[dict]:
+    """Filtri della lista dipendenti (q / reparto / area / tipologia_contratto)."""
+    q = request.GET.get("q", "").strip()
+    reparto = request.GET.get("reparto", "").strip()
+    area_filter = request.GET.get("area", "").strip()
+    contratto_filter = request.GET.get("tipologia_contratto", "").strip()
+
     if q:
         q_norm = q.casefold()
         rows = [
@@ -573,13 +579,46 @@ def dipendenti_list(request):
             az_qs = az_qs.filter(tipologia_contratto=contratto_filter)
         allowed_ids = set(az_qs.values_list("legacy_anagrafica_id", flat=True))
         rows = [row for row in rows if int(row.get("id") or 0) in allowed_ids]
+    return rows
 
+
+def _sort_dipendenti_rows(rows: list[dict]) -> list[dict]:
     rows.sort(key=lambda row: (
         str(row.get("cognome") or "").strip().casefold(),
         str(row.get("nome") or "").strip().casefold(),
         str(row.get("aliasusername") or "").strip().casefold(),
         int(row.get("id") or 0),
     ))
+    return rows
+
+
+def build_dipendenti_rows(request, *, apply_filters: bool = True) -> list[dict]:
+    """Righe dell'elenco dipendenti (legacy + fallback reparto), filtrate e ordinate.
+
+    Fonte unica condivisa tra la view ``dipendenti_list`` e l'export
+    (``anagrafica.exports``): il filtro non va duplicato altrove, o le due
+    superfici divergono (drift).
+    """
+    rows = _dipendenti_base_rows()
+    if apply_filters:
+        rows = _filter_dipendenti_rows(rows, request)
+    return _sort_dipendenti_rows(list(rows))
+
+
+@login_required
+def dipendenti_list(request):
+    q = request.GET.get("q", "").strip()
+    reparto = request.GET.get("reparto", "").strip()
+    area_filter = request.GET.get("area", "").strip()
+    contratto_filter = request.GET.get("tipologia_contratto", "").strip()
+
+    rows_all = _dipendenti_base_rows()
+    # NB: `reparti_list` e `n_totale` sono calcolati sulle righe PRE-filtro.
+    reparti_list = sorted({str(row.get("reparto") or "").strip() for row in rows_all if str(row.get("reparto") or "").strip()})
+    n_totale = len(rows_all)
+    cessati_ids = _cessati_legacy_ids()
+
+    rows = _sort_dipendenti_rows(list(_filter_dipendenti_rows(rows_all, request)))
 
     aree_list = sorted(
         DipendenteAnagraficaAziendale.objects.exclude(area="")
@@ -13691,6 +13730,67 @@ def skm_refresh(request):
         "campagna": campagna,
         "arretrati": sum(1 for r in righe if r["arretrata"]),
         "livelli": LivelloSkm.choices,
+        "totale": len(righe),
+    })
+
+
+@login_required
+def skm_scadenzario(request):
+    """Scadenzario abilitazioni macchina per reparto (MOD.187).
+
+    Mostra, per reparto, la prossima revisione, gli arretrati (non bloccanti) e lo
+    stato campagna. HR "dà il via" al refresh (apre la campagna e avvisa il CAR: in-app
+    + email); il merito della rivalutazione resta al CAR (pagina Refresh).
+    Accesso: ``anagrafica.skillmatrix.manage``.
+    """
+    from .acl_bootstrap import PERM_SKM_MANAGE
+    if not _check_skm_permission(request, PERM_SKM_MANAGE):
+        messages.error(request, "Non hai i permessi per lo scadenzario Skill Matrix.")
+        return redirect("anagrafica:index")
+
+    from django.utils import timezone
+    from .services import skillmatrix_refresh as refresh
+
+    if request.method == "POST" and request.POST.get("azione") == "avvia":
+        reparto = (request.POST.get("reparto") or "").strip()
+        if reparto:
+            legacy_user = get_legacy_user(request.user)
+            _, created = refresh.avvia_refresh(
+                reparto=reparto, avviatore_ruolo="HR",
+                avviatore_legacy_id=int(legacy_user.id) if legacy_user else None)
+            if created:
+                messages.success(request, f"Refresh avviato per «{reparto}»: il CAR è stato avvisato.")
+            else:
+                messages.info(request, f"Il reparto «{reparto}» ha già una campagna di refresh aperta.")
+        return redirect("anagrafica:skm_scadenzario")
+
+    oggi = timezone.localdate()
+    tutte = refresh.scadenzario_reparti(oggi=oggi)
+    kpi = {
+        "reparti_scaduti": sum(1 for r in tutte if r["stato"] == "scaduto"),
+        "abil_scadute": sum(r["n_scadute"] for r in tutte),
+        "campagne_aperte": sum(1 for r in tutte if r["campagna_aperta"]),
+    }
+
+    filtro_stato = (request.GET.get("stato") or "").strip()
+    righe = [r for r in tutte if r["stato"] == filtro_stato] if filtro_stato in ("scaduto", "in_arrivo") else tutte
+
+    if request.GET.get("format") == "csv":
+        resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
+        resp["Content-Disposition"] = 'attachment; filename="scadenzario_abilitazioni.csv"'
+        w = csv.writer(resp, delimiter=";")
+        w.writerow(["Reparto", "Prossima revisione", "Totali", "Scadute", "In arrivo", "Stato", "Campagna aperta"])
+        for r in righe:
+            w.writerow([
+                r["reparto"],
+                r["prossima_revisione"].strftime("%d/%m/%Y") if r["prossima_revisione"] else "",
+                r["n_totali"], r["n_scadute"], r["n_in_arrivo"], r["stato"],
+                "Sì" if r["campagna_aperta"] else "No",
+            ])
+        return resp
+
+    return render(request, "anagrafica/pages/skm_scadenzario.html", {
+        "oggi": oggi, "righe": righe, "kpi": kpi, "filtro_stato": filtro_stato,
         "totale": len(righe),
     })
 

@@ -135,6 +135,11 @@ EMAIL_TIMEOUT = int(env("EMAIL_TIMEOUT", "10") or "10")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "") or EMAIL_HOST_USER
 SITE_URL = env("SITE_URL", "")
 SESSION_IDLE_TIMEOUT_SECONDS = int(env("SESSION_IDLE_TIMEOUT_SECONDS", "3600") or "3600")
+# Throttle scrittura del timestamp di attività: il middleware idle-timeout riscrive
+# (e salva la sessione) al più una volta ogni N secondi, non a ogni richiesta. Riduce
+# la finestra della race SessionInterrupted e il carico DB. 0 = scrivi sempre (vecchio
+# comportamento). Tenuto << SESSION_IDLE_TIMEOUT_SECONDS (qui 30s su un timeout di 3600s).
+SESSION_ACTIVITY_WRITE_THROTTLE_SECONDS = int(env("SESSION_ACTIVITY_WRITE_THROTTLE_SECONDS", "30") or "30")
 SESSION_EXPIRE_AT_BROWSER_CLOSE = env_bool("SESSION_EXPIRE_AT_BROWSER_CLOSE", True)
 LEGACY_ACL_CACHE_TTL = int(env("LEGACY_ACL_CACHE_TTL", "120") or "120")
 LEGACY_NAV_CACHE_TTL = int(env("LEGACY_NAV_CACHE_TTL", "120") or "120")
@@ -672,6 +677,9 @@ GESTIONE_SPECIFICHE_COMPOSITO_AUTO = env_bool("GESTIONE_SPECIFICHE_COMPOSITO_AUT
 # share è cache-ato per GESTIONE_SPECIFICHE_SHARE_CACHE_TTL secondi (default 600).
 GESTIONE_SPECIFICHE_SHARE_MAX_DEPTH = int(env("GESTIONE_SPECIFICHE_SHARE_MAX_DEPTH", "2") or "2")
 GESTIONE_SPECIFICHE_SHARE_CACHE_TTL = int(env("GESTIONE_SPECIFICHE_SHARE_CACHE_TTL", "600") or "600")
+# Allegati KICK-OFF/Task e documenti VRF (dati commerciali: client_name, part_number,
+# matrice rischi): storage privato fuori webroot, servito solo da view protette.
+TASKS_PRIVATE_ROOT = Path(env("TASKS_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
 
 # Chiave AES-256 Fernet per cifratura at rest dei file privati.
 # Generare con: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"

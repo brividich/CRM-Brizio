@@ -9,6 +9,69 @@ from .forms import LetturaForm, MacchinaForm, ImpostazioniSNMPForm
 from .models import Macchina, LetturaContatori, ImpostazioniSNMP
 
 
+def discovery(request):
+    """Discovery SNMP di rete: trova le stampanti che rispondono e le abbina all'anagrafica.
+
+    Serve soprattutto a scoprire un IP sbagliato: l'abbinamento e' sulla matricola
+    (numero di serie letto dal dispositivo), non sull'IP.
+    """
+    from .snmp import SNMPError, scansiona_rete
+
+    cfg = ImpostazioniSNMP.get_solo()
+    rete = (request.POST.get("rete") or "").strip()
+    community = (request.POST.get("community") or cfg.community).strip()
+    version = request.POST.get("version") or cfg.version
+    try:
+        timeout = max(1, min(10, int(request.POST.get("timeout") or 2)))
+    except ValueError:
+        timeout = 2
+
+    righe, errore, eseguita = None, "", False
+    if request.method == "POST":
+        eseguita = True
+        try:
+            trovati = scansiona_rete(rete, community=community, port=cfg.port,
+                                     timeout=timeout, version=version)
+            righe = services.abbina_discovery(trovati)
+            if not righe:
+                messages.warning(
+                    request,
+                    "Nessun dispositivo ha risposto. Attenzione: in SNMPv1/v2c una community "
+                    "sbagliata NON da' errore, da' timeout — quindi 'nessuna risposta' puo' "
+                    "voler dire anche 'community errata'. Prova con un'altra community."
+                )
+        except SNMPError as e:
+            errore = str(e)
+
+    return render(request, "contatori/discovery.html", {
+        "rete": rete or "10.0.0.0/24",
+        "community": community,
+        "version": version,
+        "timeout": timeout,
+        "righe": righe,
+        "errore": errore,
+        "eseguita": eseguita,
+        "cfg": cfg,
+    })
+
+
+@require_POST
+def discovery_applica_ip(request, pk):
+    """Scrive sulla macchina l'IP realmente trovato in rete."""
+    macchina = get_object_or_404(Macchina, pk=pk)
+    host = (request.POST.get("host") or "").strip()
+    form = MacchinaForm({**{f: getattr(macchina, f) for f in
+                            ("reparto", "matricola", "modello", "contratto", "fornitore")},
+                         "host": host, "attiva": macchina.attiva,
+                         "asset": macchina.asset_id}, instance=macchina)
+    if form.is_valid():
+        form.save()
+        messages.success(request, f"{macchina.reparto}: IP aggiornato a {host}.")
+    else:
+        messages.error(request, f"{macchina.reparto}: IP non valido ({host}).")
+    return redirect("contatori:discovery")
+
+
 def dashboard(request):
     trimestri = services.trimestri_disponibili()
     ultimo = trimestri[0] if trimestri else None

@@ -56,3 +56,38 @@ class SendMeetingMinuteActionTests(TestCase):
         )
         self.assertEqual(len(mail.outbox), 0)
         self.assertIn(result["status"], ("error", "skipped"))
+
+    def test_minute_action_creates_tasks_from_next_steps(self):
+        from tasks.models import Task
+
+        self.meeting.created_by = self.user
+        self.meeting.next_steps = "Fare A\nFare B"
+        self.meeting.save(update_fields=["created_by", "next_steps"])
+        execute_action(
+            self.action,
+            payload={"id": self.meeting.id, "note": "Verbale ok."},
+            queue_event={"source_code": "tasks_kickoff"},
+        )
+        self.assertEqual(Task.objects.filter(project=self.project).count(), 2)
+
+    def test_invite_action_sends_convocazione(self):
+        invite_rule = AutomationRule.objects.create(
+            code="au53-kickoff-convocazione",
+            name="Convocazione incontro",
+            source_code="tasks_kickoff",
+            operation_type=AutomationRuleOperationType.INSERT,
+        )
+        invite_action = AutomationAction.objects.create(
+            rule=invite_rule,
+            order=1,
+            action_type=AutomationActionType.SEND_MEETING_INVITE,
+            config_json={},
+        )
+        result = execute_action(
+            invite_action,
+            payload={"id": self.meeting.id},
+            queue_event={"source_code": "tasks_kickoff"},
+        )
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("Convocazione", mail.outbox[0].subject)
+        self.assertEqual(result["status"], "success")

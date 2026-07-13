@@ -13,9 +13,13 @@ logger = logging.getLogger(__name__)
 # (anagrafica:skm_impostazioni → manage), così si ri-registra negli ambienti già a v3.
 # Bump alla v5: aggiunge i permessi/binding canonici MOD.128 MPQ (processi qualificati).
 # Bump alla v6: aggiunge i binding delle route di gestione (CRUD) MOD.128 → manage.
-# Bump alla v7: aggiunge permesso/binding canonico dell'endpoint unico di export
-# (anagrafica:export → anagrafica.export.use).
-_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v7"
+# Bump alla v7: due filoni paralleli avevano entrambi scelto la v7 —
+#   (a) binding route dello Scadenzario abilitazioni (F10, anagrafica:skm_scadenzario → manage);
+#   (b) permesso/binding canonico dell'endpoint unico di export (anagrafica:export → anagrafica.export.use).
+# Bump alla v8: unione dei due. La chiave DEVE essere NUOVA: un ambiente gia' arrivato
+#   a "v7" con uno solo dei due filoni non ri-registrerebbe i binding dell'altro, e in
+#   ACL_STRICT_CANONICAL una route non mappata viene NEGATA a tutti i non-superuser (403).
+_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v8"
 
 # ── ACL v2 canonico — Skill Matrix MOD.187 ─────────────────────────────────────
 # Rende le route Skill Matrix governabili da /admin-portale/acl-canonico/ (e
@@ -40,6 +44,7 @@ _SKM_ROUTE_BINDINGS = {
     "anagrafica:skill_matrix_macchina": PERM_SKM_VIEW,
     "anagrafica:skm_match_validazione": PERM_SKM_MANAGE,
     "anagrafica:skm_refresh": PERM_SKM_MANAGE,
+    "anagrafica:skm_scadenzario": PERM_SKM_MANAGE,
     "anagrafica:skm_impostazioni": PERM_SKM_MANAGE,
 }
 

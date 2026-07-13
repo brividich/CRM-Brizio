@@ -4463,14 +4463,104 @@ def execute_action(
 
             outcome = send_meeting_minute(meeting)
             if outcome["sent"]:
+                # Alla pubblicazione della minuta, materializza i task dai next-step (dedup)
+                try:
+                    from tasks.minute_email import create_tasks_from_next_steps
+
+                    n_task = create_tasks_from_next_steps(meeting)
+                except Exception:
+                    n_task = 0
+                cc_txt = f", cc {', '.join(outcome['cc'])}" if outcome.get("cc") else ""
+                task_txt = f"; {n_task} task creati dai next-step" if n_task else ""
                 result_message = (
                     f"Minuta incontro {meeting.numero} (KICK-OFF "
+                    f"{getattr(meeting.project, 'kickoff_number', '')}) inviata a "
+                    f"{', '.join(outcome['recipients'])}{cc_txt}{task_txt}."
+                )
+                status = AutomationActionLogStatus.SUCCESS
+            else:
+                result_message = f"Minuta non inviata (motivo: {outcome['reason']})."
+                status = AutomationActionLogStatus.SKIPPED
+
+            action_log = _create_action_log(
+                run_log=run_log,
+                action=action,
+                status=status,
+                result_message=result_message,
+            )
+            return {"status": status, "result_message": result_message, "action_log": action_log}
+
+        if action.action_type == AutomationActionType.SEND_MEETING_INVITE:
+            from tasks.minute_email import send_meeting_invite
+            from tasks.models import KickoffMeeting
+
+            pk_field = str((source_definition or {}).get("pk_field") or "id")
+            meeting_id = payload_context.get(pk_field)
+            if meeting_id is None:
+                raise ValueError("send_meeting_invite: ID incontro non trovato nel payload.")
+
+            meeting = KickoffMeeting.objects.filter(pk=meeting_id).first()
+            if meeting is None:
+                result_message = f"send_meeting_invite: incontro id={meeting_id} inesistente."
+                action_log = _create_action_log(
+                    run_log=run_log,
+                    action=action,
+                    status=AutomationActionLogStatus.SKIPPED,
+                    result_message=result_message,
+                )
+                return {"status": AutomationActionLogStatus.SKIPPED, "result_message": result_message, "action_log": action_log}
+
+            outcome = send_meeting_invite(meeting)
+            if outcome["sent"]:
+                result_message = (
+                    f"Convocazione incontro {meeting.numero} (KICK-OFF "
                     f"{getattr(meeting.project, 'kickoff_number', '')}) inviata a "
                     f"{', '.join(outcome['recipients'])}."
                 )
                 status = AutomationActionLogStatus.SUCCESS
             else:
-                result_message = f"Minuta non inviata (motivo: {outcome['reason']})."
+                result_message = f"Convocazione non inviata (motivo: {outcome['reason']})."
+                status = AutomationActionLogStatus.SKIPPED
+
+            action_log = _create_action_log(
+                run_log=run_log,
+                action=action,
+                status=status,
+                result_message=result_message,
+            )
+            return {"status": status, "result_message": result_message, "action_log": action_log}
+
+        if action.action_type == AutomationActionType.SEND_PROJECT_ALERT:
+            from tasks.models import Project
+            from tasks.project_alerts import send_project_alert
+
+            pk_field = str((source_definition or {}).get("pk_field") or "id")
+            project_id = payload_context.get(pk_field)
+            if project_id is None:
+                raise ValueError("send_project_alert: ID progetto non trovato nel payload.")
+
+            project = Project.objects.filter(pk=project_id).first()
+            if project is None:
+                result_message = f"send_project_alert: progetto id={project_id} inesistente."
+                action_log = _create_action_log(
+                    run_log=run_log,
+                    action=action,
+                    status=AutomationActionLogStatus.SKIPPED,
+                    result_message=result_message,
+                )
+                return {"status": AutomationActionLogStatus.SKIPPED, "result_message": result_message, "action_log": action_log}
+
+            kind = str(config.get("alert") or "safety").strip()
+            extra_to = config.get("extra_to")
+            outcome = send_project_alert(project, kind, extra_to=extra_to)
+            if outcome["sent"]:
+                result_message = (
+                    f"Alert '{kind}' KICK-OFF {getattr(project, 'kickoff_number', '')} "
+                    f"inviato a {', '.join(outcome['recipients'])}."
+                )
+                status = AutomationActionLogStatus.SUCCESS
+            else:
+                result_message = f"Alert '{kind}' non inviato (motivo: {outcome['reason']})."
                 status = AutomationActionLogStatus.SKIPPED
 
             action_log = _create_action_log(

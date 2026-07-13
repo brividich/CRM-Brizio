@@ -1,0 +1,94 @@
+{% extends "contatori/_base_modulo.html" %}
+{% block title %}Discovery SNMP{% endblock %}
+{% block modulo %}
+<h1>Discovery SNMP</h1>
+<p class="sub">Cerca in rete le stampanti che rispondono in SNMP e le abbina all'anagrafica
+   <strong>per matricola</strong> (il numero di serie letto dal dispositivo). Serve soprattutto a
+   scoprire un <strong>IP sbagliato</strong>: l'IP puo' cambiare, la matricola no. Solo letture: non scrive nulla sulle stampanti.</p>
+
+<div class="panel">
+  <form method="post">
+    {% csrf_token %}
+    <div class="row" style="gap:14px;flex-wrap:wrap;align-items:flex-end">
+      <div>
+        <label style="display:block;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Rete</label>
+        <input type="text" name="rete" value="{{ rete }}" placeholder="10.0.0.0/24" required>
+        <div class="pos" style="font-size:12px;margin-top:3px">Notazione CIDR. Max 512 host (usa /24).</div>
+      </div>
+      <div>
+        <label style="display:block;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Community</label>
+        <input type="text" name="community" value="{{ community }}">
+      </div>
+      <div>
+        <label style="display:block;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Versione</label>
+        <select name="version">
+          <option value="v1" {% if version == 'v1' %}selected{% endif %}>SNMPv1</option>
+          <option value="v2c" {% if version == 'v2c' %}selected{% endif %}>SNMPv2c</option>
+        </select>
+      </div>
+      <div>
+        <label style="display:block;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Timeout (s)</label>
+        <input type="number" name="timeout" value="{{ timeout }}" min="1" max="10" style="width:80px">
+      </div>
+      <button class="btn" type="submit">Scansiona</button>
+    </div>
+  </form>
+  <div class="pos" style="font-size:12px;margin-top:10px">
+    ⚠ In SNMPv1/v2c una <strong>community sbagliata non da' errore: da' timeout</strong>, identico a un host assente.
+    Se non trovi nulla, riprova con un'altra community prima di concludere che le macchine sono irraggiungibili.
+  </div>
+</div>
+
+{% if errore %}
+  <div class="panel"><p class="neg">{{ errore }}</p></div>
+{% endif %}
+
+{% if righe is not None %}
+  <div class="panel">
+    <h2>Dispositivi che rispondono ({{ righe|length }})</h2>
+    {% if righe %}
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>IP</th><th>Matricola (SNMP)</th><th>Descrizione</th>
+          <th>In anagrafica</th><th>Stato</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in righe %}
+        <tr>
+          <td><strong>{{ r.host }}</strong></td>
+          <td>{{ r.matricola|default:"—" }}</td>
+          <td style="max-width:380px">{{ r.descr|default:"—" }}</td>
+          <td>
+            {% if r.macchina %}
+              <a class="plain" href="{% url 'contatori:macchina' r.macchina.pk %}">{{ r.macchina.reparto }}</a>
+              <div class="pos" style="font-size:12px">IP registrato: {{ r.macchina.host|default:"— nessuno —" }}</div>
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% if r.stato == 'ok' %}<span class="pos">OK</span>
+            {% elif r.stato == 'ip_diverso' %}<span class="neg">IP diverso</span>
+            {% else %}<span class="warn">Non in anagrafica</span>{% endif %}
+          </td>
+          <td>
+            {% if r.stato == 'ip_diverso' %}
+              <form method="post" action="{% url 'contatori:discovery_applica_ip' r.macchina.pk %}" style="margin:0">
+                {% csrf_token %}
+                <input type="hidden" name="host" value="{{ r.host }}">
+                <button class="btn" type="submit">Correggi IP → {{ r.host }}</button>
+              </form>
+            {% elif r.stato == 'nuova' %}
+              <a class="btn ghost" href="{% url 'contatori:macchina_nuova' %}">Aggiungi stampante</a>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% elif eseguita %}
+      <p class="pos">Nessun dispositivo ha risposto su questa rete con questa community/versione.</p>
+    {% endif %}
+  </div>
+{% endif %}
+{% endblock %}

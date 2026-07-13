@@ -6,6 +6,8 @@ from django.db import IntegrityError, models, transaction
 from django.db.models import Max
 from django.utils import timezone
 
+from tasks.storage import PrivateTasksStorage
+
 
 def _next_kickoff_number() -> int:
     max_number = Project.objects.aggregate(max_number=Max("kickoff_number")).get("max_number") or 0
@@ -92,7 +94,9 @@ class Project(models.Model):
         max_length=10, choices=ProjectPhase.choices,
         default=ProjectPhase.BOZZA, db_index=True, verbose_name="Fase",
     )
-    vrf_file = models.FileField(upload_to="tasks_vrf/%Y/%m/", null=True, blank=True)
+    # Storage privato (fuori webroot) dalla remediation sicurezza: il VRF contiene
+    # dati commerciali (cliente, P/N, matrice rischi) e va servito solo da view protette.
+    vrf_file = models.FileField(upload_to="tasks_vrf/%Y/%m/", null=True, blank=True, storage=PrivateTasksStorage())
     vrf_original_name = models.CharField(max_length=255, blank=True, default="")
     vrf_uploaded_at = models.DateTimeField(null=True, blank=True)
     vrf_quote_number = models.CharField(max_length=120, blank=True, default="", verbose_name="Preventivo n°")
@@ -426,7 +430,7 @@ class TaskAttachment(models.Model):
         blank=True,
         related_name="task_attachments_uploaded",
     )
-    file = models.FileField(upload_to="tasks_attachments/%Y/%m/")
+    file = models.FileField(upload_to="tasks_attachments/%Y/%m/", storage=PrivateTasksStorage())
     original_name = models.CharField(max_length=255, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 

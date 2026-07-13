@@ -462,6 +462,9 @@ body.theme-dark.timbri-index-page .tim-k { box-shadow:none; }
 
   /* ── Build preview (layout card a 3 colonne, come scheda dipendente) ────── */
   function buildPreview(records) {
+    // SEC: codice/qualifica sono testo libero (editor/CSV) inserito via innerHTML →
+    // escape per evitare XSS verso i viewer privilegiati (admin/HR).
+    const escTimbri = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     if (!records.length) {
       return `<div style="color:#94a3b8;text-align:center;padding:20px;font-size:13px;">
         <svg width="32" height="32" fill="none" stroke="#cbd5e1" stroke-width="1.5" viewBox="0 0 24 24" style="display:block;margin:0 auto 8px;"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
@@ -505,8 +508,8 @@ body.theme-dark.timbri-index-page .tim-k { box-shadow:none; }
       }).join('');
       return `<div class="tim-preview-record">
         <div class="tim-preview-head">
-          <div class="tim-preview-title">${r.codice || '—'}</div>
-          ${r.qualifica ? `<div class="tim-preview-sub">${r.qualifica}</div>` : ''}
+          <div class="tim-preview-title">${escTimbri(r.codice) || '—'}</div>
+          ${r.qualifica ? `<div class="tim-preview-sub">${escTimbri(r.qualifica)}</div>` : ''}
           ${attivoBadge}${tipoBadge}
         </div>
         <div class="tim-preview-images">${slots}</div>

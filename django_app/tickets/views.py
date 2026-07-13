@@ -812,6 +812,22 @@ def ticket_dashboard(request):
     is_gestore  = _can_manage_tickets(request)
 
     qs = Ticket.objects.select_related("asset")
+    kpi_qs = Ticket.objects.all()
+
+    # SEC: chi NON è gestore/admin vede solo i ticket di cui è richiedente.
+    # Senza questo filtro la dashboard esponeva numero/titolo/categoria/asset e
+    # flag "Sicurezza" di TUTTI i ticket a qualsiasi utente autenticato. Si usano
+    # gli identificatori stabili (account Django, id legacy, email); il match
+    # solo-per-nome è escluso di proposito perché ambiguo tra omonimi.
+    if not (is_admin or is_gestore):
+        from django.db.models import Q
+        own = Q(richiedente_user=request.user)
+        if legacy_id:
+            own |= Q(richiedente_legacy_user_id=legacy_id)
+        if email:
+            own |= Q(richiedente_email__iexact=email)
+        qs = qs.filter(own)
+        kpi_qs = kpi_qs.filter(own)
 
     # Filtri GET
     tipo_f   = request.GET.get("tipo", "").strip().upper()
@@ -847,9 +863,9 @@ def ticket_dashboard(request):
         "filtro_prio":   prio_f,
         "filtro_cerca":  cerca_f,
         # KPI
-        "n_aperte":      Ticket.objects.filter(stato=StatoTicket.APERTA).count(),
-        "n_urgenti":     Ticket.objects.filter(priorita=PrioritaTicket.URGENTE, stato__in=[StatoTicket.APERTA, StatoTicket.IN_CARICO]).count(),
-        "n_in_carico":   Ticket.objects.filter(stato=StatoTicket.IN_CARICO).count(),
+        "n_aperte":      kpi_qs.filter(stato=StatoTicket.APERTA).count(),
+        "n_urgenti":     kpi_qs.filter(priorita=PrioritaTicket.URGENTE, stato__in=[StatoTicket.APERTA, StatoTicket.IN_CARICO]).count(),
+        "n_in_carico":   kpi_qs.filter(stato=StatoTicket.IN_CARICO).count(),
     }
     return render(request, "tickets/pages/dashboard.html", ctx)
 
@@ -1242,6 +1258,12 @@ def ticket_gestione_detail(request, pk: int):
     name, email, legacy_id = _legacy_identity(request)
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     is_admin    = bool(legacy_user and is_legacy_admin(legacy_user))
+
+    # SEC: il decoratore garantisce solo "gestore di almeno un tipo". Il dettaglio
+    # gestione (note interne, dati richiedente, costi) deve essere visibile solo al
+    # gestore del TIPO specifico (o admin), non a un gestore di un altro tipo.
+    if not (is_admin or _can_manage_tickets(request, ticket.tipo)):
+        return render(request, "core/pages/forbidden.html", status=403)
 
     cfg         = TicketImpostazioni.get_or_create_for(ticket.tipo)
     fornitori   = _get_fornitori_for_select()
@@ -1654,6 +1676,9 @@ def api_stato(request):
         return _json_err("Stato non valido")
 
     ticket = get_object_or_404(Ticket, pk=ticket_id)
+    denied = _api_require_ticket_access(request, ticket)  # SEC: gestore del TIPO specifico
+    if denied is not None:
+        return denied
     vecchio = ticket.stato
     ticket.stato = nuovo_stato
     now = tz_now()
@@ -1735,6 +1760,9 @@ def api_assegna(request):
         return _json_err("Dati non validi")
 
     ticket = get_object_or_404(Ticket, pk=ticket_id)
+    denied = _api_require_ticket_access(request, ticket)  # SEC: gestore del TIPO specifico
+    if denied is not None:
+        return denied
     ticket.assegnato_a    = assegnato_a
     ticket.assegnato_email= assegnato_email
 
@@ -1847,6 +1875,9 @@ def api_asset(request):
         return _json_err("Dati non validi")
 
     ticket = get_object_or_404(Ticket, pk=ticket_id)
+    denied = _api_require_ticket_access(request, ticket)  # SEC: gestore del TIPO specifico
+    if denied is not None:
+        return denied
 
     asset_obj = None
     if asset_id:
@@ -2367,6 +2398,12 @@ def api_bulk(request):
     if not tickets:
         return _json_err("Ticket non trovati")
 
+    # SEC: opera solo sui ticket di cui l'utente è gestore del TIPO specifico (o
+    # admin). _tickets_gestione_required garantisce solo "gestore di almeno un tipo".
+    tickets = [t for t in tickets if _api_require_ticket_access(request, t) is None]
+    if not tickets:
+        return _json_err("Accesso non consentito ai ticket selezionati", status=403)
+
     name, email, _ = _legacy_identity(request)
     aggiornati = 0
 
@@ -2443,6 +2480,9 @@ def api_ticket_analytics(request):
         return _json_err("Dati non validi")
 
     ticket = get_object_or_404(Ticket, pk=ticket_id)
+    denied = _api_require_ticket_access(request, ticket)  # SEC: gestore del TIPO specifico
+    if denied is not None:
+        return denied
     update_fields = ["updated_at"]
 
     if "componente" in payload:

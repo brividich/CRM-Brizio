@@ -40,6 +40,32 @@ if not CSRF_TRUSTED_ORIGINS or any(
         'DJANGO_CSRF_TRUSTED_ORIGINS="https://cnhub-costruzioninovicrom.msappproxy.net" '
         "nel file .env."
     )
+
+# ── Guard chiave di cifratura documenti ────────────────────────────────────────
+# Gli storage privati (referti medici, contratti, consegne DPI, allegati riservati)
+# cifrano at-rest SOLO se DOCUMENT_ENCRYPTION_KEY è impostata: core.encrypted_storage
+# è fail-open (senza chiave scrive i file IN CHIARO, senza errori). In produzione la
+# chiave DEVE esistere ed essere una chiave Fernet valida, altrimenti i documenti
+# sensibili verrebbero salvati in chiaro silenziosamente. Generazione:
+#   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+from .base import DOCUMENT_ENCRYPTION_KEY  # noqa: E402
+_doc_key = str(DOCUMENT_ENCRYPTION_KEY or "").strip()
+if not _doc_key:
+    raise ImproperlyConfigured(
+        "DOCUMENT_ENCRYPTION_KEY non impostata: i documenti sensibili verrebbero "
+        "salvati in chiaro. Generare una chiave Fernet e aggiungerla al file .env "
+        "come DOCUMENT_ENCRYPTION_KEY=..."
+    )
+try:
+    from cryptography.fernet import Fernet as _Fernet
+    _Fernet(_doc_key.encode())
+except ImproperlyConfigured:
+    raise
+except Exception as _exc:
+    raise ImproperlyConfigured(
+        f"DOCUMENT_ENCRYPTION_KEY non è una chiave Fernet valida: {_exc}"
+    )
+
 DATABASES = {"default": build_database_from_env("sqlserver")}
 
 # â”€â”€ Cache condivisa tra worker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

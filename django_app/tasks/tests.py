@@ -1032,21 +1032,6 @@ class TaskListFiltersTests(TasksBaseTestCase):
         self.assertContains(response, self.t_without_due.title)
         self.assertNotContains(response, self.t_future_low.title)
 
-    def test_filter_without_project(self):
-        self.client.force_login(self.manager)
-        response = self.client.get(
-            reverse("tasks:list"),
-            {
-                "mine": "0",
-                "without_project": "on",
-            },
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, self.t_future_low.title)
-        self.assertContains(response, self.t_unassigned.title)
-        self.assertNotContains(response, self.t_overdue.title)
-
-
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
     def setUp(self):
@@ -1122,13 +1107,24 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         finally:
             workbook.close()
 
-    def test_create_single_task_without_project(self):
+    def test_cannot_create_standalone_task(self):
+        """Modulo solo-kickoff: un nuovo task senza kickoff è rifiutato, anche via POST forzato."""
         self.client.force_login(self.user)
-        payload = self._base_task_payload("Task singola")
+        payload = self._base_task_payload("Task senza kickoff")  # task_scope=single, nessun kickoff
         response = self.client.post(reverse("tasks:create"), payload)
-        self.assertEqual(response.status_code, 302)
-        task = Task.objects.get(title="Task singola")
-        self.assertIsNone(task.project_id)
+        self.assertEqual(response.status_code, 200)  # re-render con errore, nessun redirect
+        self.assertFalse(Task.objects.filter(title="Task senza kickoff").exists())
+
+    def test_edit_legacy_orphan_keeps_no_kickoff(self):
+        """L'edit di un'attività legacy senza kickoff la lascia orfana (nessun kickoff forzato)."""
+        self.client.force_login(self.user)
+        orphan = Task.objects.create(title="Legacy orfano", created_by=self.user)
+        self.assertIsNone(orphan.project_id)
+        payload = self._base_task_payload("Legacy orfano")  # task_scope=single
+        response = self.client.post(reverse("tasks:edit", args=[orphan.id]), payload, follow=True)
+        self.assertEqual(response.status_code, 200)
+        orphan.refresh_from_db()
+        self.assertIsNone(orphan.project_id)
 
     def test_create_task_with_new_project(self):
         self.client.force_login(self.user)
@@ -1458,6 +1454,9 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
             due_date=today + timedelta(days=5),
         )
 
+        conflict_project = Project.objects.create(
+            name="", client_name="Cliente Conf", part_number="PN-CONF-1", created_by=self.user
+        )
         payload = self._base_task_payload("Task nuova con conflitto")
         payload.update(
             {
@@ -1468,7 +1467,7 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
                 "assignment_conflict_action": "keep_priority",
             }
         )
-        response = self.client.post(reverse("tasks:create"), payload, follow=True)
+        response = self.client.post(f"{reverse('tasks:create')}?project={conflict_project.id}", payload, follow=True)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Impegni sovrapposti")
         task = Task.objects.get(title="Task nuova con conflitto")
@@ -1488,6 +1487,9 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
             due_date=today + timedelta(days=4),
         )
 
+        raise_project = Project.objects.create(
+            name="", client_name="Cliente Raise", part_number="PN-RAISE-1", created_by=self.user
+        )
         payload = self._base_task_payload("Task nuova con priorita auto")
         payload.update(
             {
@@ -1498,7 +1500,7 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
                 "assignment_conflict_action": "raise_to_high",
             }
         )
-        response = self.client.post(reverse("tasks:create"), payload, follow=True)
+        response = self.client.post(f"{reverse('tasks:create')}?project={raise_project.id}", payload, follow=True)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Priorita aggiornata automaticamente a High")
         task = Task.objects.get(title="Task nuova con priorita auto")

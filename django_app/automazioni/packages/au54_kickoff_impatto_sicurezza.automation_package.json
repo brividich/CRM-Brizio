@@ -1,0 +1,49 @@
+{
+  "package_version": "2026.07",
+  "input": {
+    "flow_name": "AU54 - KICK-OFF con impatto sicurezza: notifica RSPP/PM"
+  },
+  "source_candidate": {
+    "source_code": "tasks_project",
+    "label": "Progetti KICK-OFF"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "tasks_project"
+  },
+  "proposed_rules": [
+    {
+      "code": "au54-kickoff-impatto-sicurezza",
+      "name": "AU54 - KICK-OFF con impatto sicurezza: notifica RSPP/PM",
+      "description": "Quando un progetto KICK-OFF viene marcato con impatto sulla sicurezza (safety_impact = vero), invia una email di allerta a PM e capo commessa (più eventuali destinatari RSPP/preposto configurati in `extra_to` sull'azione). Importata come bozza: impostare `extra_to` con l'indirizzo RSPP e attivare dal designer.",
+      "source_code": "tasks_project",
+      "operation_type": "update",
+      "trigger_scope": "specific_field",
+      "watched_field": "safety_impact",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "safety_impact",
+          "operator": "is_true",
+          "value": "",
+          "value_type": "bool"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "send_project_alert",
+          "description": "Notifica impatto sicurezza a PM/capo commessa (+ RSPP in extra_to)",
+          "alert": "safety",
+          "extra_to": ""
+        }
+      ]
+    }
+  ]
+}

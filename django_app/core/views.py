@@ -1365,12 +1365,49 @@ def api_onboarding_reset(request, user_id: int):
         return JsonResponse({"ok": True, "stato": "reset"})
 
 
+class _ModuleHidden(Exception):
+    """Sentinella interna: il modulo non è visibile all'utente → salta il blocco."""
+
+
+def _global_search_module_allowed(request, path: str) -> bool:
+    """True se l'utente può vedere il modulo a cui appartiene ``path``, riusando la
+    stessa decisione ACL della navigazione (superuser sempre True). Evita che la
+    ricerca globale esponga dati (nominativi, motivazioni DPI, client_name/part_number
+    KICK-OFF, ecc.) di moduli a cui l'utente non avrebbe accesso. Cache per-request."""
+    if getattr(request.user, "is_superuser", False):
+        return True
+    cache = getattr(request, "_global_search_acl_cache", None)
+    if cache is None:
+        cache = {}
+        setattr(request, "_global_search_acl_cache", cache)
+    if path in cache:
+        return cache[path]
+    allowed = False
+    try:
+        from core.acl_v2 import resolve_acl_access
+        from core.legacy_utils import get_legacy_user
+        legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+        decision = resolve_acl_access(
+            path=path,
+            legacy_user=legacy_user,
+            django_user=request.user,
+            request=request,
+            include_legacy_diagnostic=False,
+        )
+        allowed = bool(decision.get("allowed", False))
+    except Exception:
+        allowed = False
+    cache[path] = allowed
+    return allowed
+
+
 @login_required
 def api_global_search(request):
     """
     GET /api/search/?q=<query>
     Ricerca globale su Dipendenti, Asset, Ticket, Kickoff/Task, Procedure.
     Restituisce risultati raggruppati per tipo, max 5 per gruppo.
+    Ogni blocco è eseguito solo se l'utente ha accesso ACL al modulo relativo.
     """
     q = (request.GET.get("q") or "").strip()
     if len(q) < 2:
@@ -1380,6 +1417,8 @@ def api_global_search(request):
 
     # ── Dipendenti ──────────────────────────────────────────────────────────
     try:
+        if not _global_search_module_allowed(request, "/anagrafica/dipendenti/"):
+            raise _ModuleHidden
         dips = AnagraficaDipendente.objects.filter(
             Q(nome__icontains=q)
             | Q(cognome__icontains=q)
@@ -1404,6 +1443,8 @@ def api_global_search(request):
 
     # ── Asset ────────────────────────────────────────────────────────────────
     try:
+        if not _global_search_module_allowed(request, "/assets/lista/"):
+            raise _ModuleHidden
         from assets.models import Asset as AssetModel
         assets_qs = AssetModel.objects.filter(
             Q(name__icontains=q)
@@ -1428,6 +1469,8 @@ def api_global_search(request):
 
     # ── Ticket ───────────────────────────────────────────────────────────────
     try:
+        if not _global_search_module_allowed(request, "/tickets/"):
+            raise _ModuleHidden
         from tickets.models import Ticket
         tickets_qs = Ticket.objects.filter(
             Q(numero_ticket__icontains=q)
@@ -1451,6 +1494,8 @@ def api_global_search(request):
 
     # ── Kickoff / Progetto ───────────────────────────────────────────────────
     try:
+        if not _global_search_module_allowed(request, "/tasks/projects/"):
+            raise _ModuleHidden
         from tasks.models import Project
         projects_qs = Project.objects.filter(
             Q(name__icontains=q)
@@ -1472,6 +1517,8 @@ def api_global_search(request):
 
     # ── Task / Attività ──────────────────────────────────────────────────────
     try:
+        if not _global_search_module_allowed(request, "/tasks/projects/"):
+            raise _ModuleHidden
         from tasks.models import Task
         tasks_qs = Task.objects.filter(
             Q(title__icontains=q)
@@ -1494,6 +1541,8 @@ def api_global_search(request):
 
     # ── Procedure / Documenti ────────────────────────────────────────────────
     try:
+        if not _global_search_module_allowed(request, "/procedure-refresh/admin/documenti/"):
+            raise _ModuleHidden
         from procedure_refresh.models import ProcedureDocument
         docs_qs = ProcedureDocument.objects.filter(
             Q(code__icontains=q)
@@ -1517,6 +1566,8 @@ def api_global_search(request):
 
     # DPI / Richieste
     try:
+        if not _global_search_module_allowed(request, "/dpi/gestione/"):
+            raise _ModuleHidden
         from dpi.models import RichiestaDPI
         dpi_qs = RichiestaDPI.objects.filter(
             Q(numero__icontains=q)

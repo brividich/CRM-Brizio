@@ -12,9 +12,24 @@ class Macchina(models.Model):
         BASE = "BASE", "BASE SPA"
         COPYLAB = "COPYLAB", "Copylab"
 
+    class Modello(models.TextChoices):
+        """Modelli con una counter_map SNMP verificata (vedi snmp.COUNTER_MAP).
+
+        Validato di proposito: con testo libero si poteva inserire la marca
+        ('CANON') o un typo, e la lookup esatta su COUNTER_MAP falliva a runtime.
+        Aggiungere un modello qui SOLO dopo aver verificato i numeri contatore
+        (management command `snmp_discover`), altrimenti si leggono contatori
+        sbagliati e la riconciliazione fatture ne risente.
+        """
+        C5535I = "iR-ADV C5535i", "Canon iR-ADV C5535i"
+        DX_C5840I = "iR-ADV DX C5840i", "Canon iR-ADV DX C5840i"
+        DX_C3822I = "iR-ADV DX C3822i", "Canon iR-ADV DX C3822i"
+
     reparto = models.CharField(max_length=60)
     matricola = models.CharField(max_length=40, unique=True)
-    modello = models.CharField(max_length=60, blank=True)
+    modello = models.CharField(max_length=60, blank=True, choices=Modello.choices,
+                               help_text="Modello con contatori SNMP mappati. "
+                                         "Non inserire la marca: serve il modello esatto.")
     contratto = models.CharField(max_length=20, blank=True,
                                  help_text="Stesso contratto = fatturazione in pool")
     fornitore = models.CharField(max_length=10, choices=Fornitore.choices,

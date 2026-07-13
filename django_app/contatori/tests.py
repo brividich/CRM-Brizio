@@ -375,3 +375,151 @@ class CollegamentoAssetTest(_AuthedClientMixin, TestCase):
         r = self.client.get(reverse("contatori:macchina", args=[m.pk]))
         self.assertContains(r, "Asset collegato")
         self.assertContains(r, "MFC Collegata")
+
+
+class ModelloValidatoEAssetNelFormTest(_AuthedClientMixin, TestCase):
+    """Fix bug «nessuna counter_map per modello 'CANON'» + aggancio asset dal form.
+
+    Causa radice: `modello` era testo libero, quindi dalla UI si poteva scrivere la
+    marca ('CANON') e la lookup esatta su COUNTER_MAP falliva.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_demo")
+
+    def _payload(self, m, **over):
+        data = {
+            "reparto": m.reparto,
+            "matricola": m.matricola,
+            "modello": m.modello,
+            "contratto": m.contratto,
+            "fornitore": m.fornitore,
+            "host": "",
+            "attiva": "on",
+        }
+        data.update(over)
+        return data
+
+    def test_modello_marca_generica_rifiutato(self):
+        from contatori.forms import MacchinaForm
+        m = Macchina.objects.first()
+        form = MacchinaForm(self._payload(m, modello="CANON"), instance=m)
+        self.assertFalse(form.is_valid())
+        self.assertIn("modello", form.errors)
+
+    def test_modello_mappato_accettato(self):
+        from contatori.forms import MacchinaForm
+        m = Macchina.objects.first()
+        form = MacchinaForm(self._payload(m, modello="iR-ADV DX C5840i"), instance=m)
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_ogni_modello_selezionabile_ha_una_counter_map(self):
+        """Guardia: le choices e COUNTER_MAP non devono divergere."""
+        from contatori.snmp import COUNTER_MAP
+        for valore, _label in Macchina.Modello.choices:
+            self.assertIn(valore, COUNTER_MAP, f"modello selezionabile senza counter_map: {valore}")
+
+    def test_form_espone_asset_e_permette_aggancio(self):
+        from assets.models import Asset
+        from contatori.forms import MacchinaForm
+        self.assertIn("asset", MacchinaForm().fields)
+        m = Macchina.objects.first()
+        a = Asset.objects.create(asset_tag="SOC-FORM-1", name="MFC dal form", serial_number=m.matricola)
+        form = MacchinaForm(self._payload(m, asset=a.pk), instance=m)
+        self.assertTrue(form.is_valid(), form.errors)
+        form.save()
+        m.refresh_from_db()
+        self.assertEqual(m.asset_id, a.pk)
+
+    def test_errore_modello_non_mappato_e_esplicativo(self):
+        from contatori.snmp import leggi_macchina
+        m = Macchina.objects.first()
+        m.modello = "CANON"
+        m.host = "10.0.0.1"
+        with self.assertRaises(SNMPError) as ctx:
+            leggi_macchina(m)
+        msg = str(ctx.exception)
+        self.assertIn("CANON", msg)
+        self.assertIn("iR-ADV", msg)  # deve elencare i modelli mappati
+
+
+class DiscoverySNMPTest(_AuthedClientMixin, TestCase):
+    """Discovery di rete dal portale: trova le stampanti e scopre gli IP sbagliati.
+
+    L'abbinamento e' sulla MATRICOLA (seriale letto dal dispositivo), non sull'IP:
+    e' proprio l'IP quello che puo' essere sbagliato.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_demo")
+
+    # -- validazioni che non toccano la rete -------------------------------
+    def test_rete_non_valida_solleva_errore(self):
+        from contatori.snmp import scansiona_rete
+        with self.assertRaises(SNMPError):
+            scansiona_rete("non-una-rete")
+
+    def test_range_troppo_ampio_rifiutato(self):
+        from contatori.snmp import scansiona_rete
+        with self.assertRaises(SNMPError) as ctx:
+            scansiona_rete("10.0.0.0/16")
+        self.assertIn("troppo ampio", str(ctx.exception))
+
+    # -- logica di abbinamento (pura) --------------------------------------
+    def test_abbina_rileva_ip_diverso(self):
+        m = Macchina.objects.first()
+        m.host = "10.0.0.155"
+        m.save(update_fields=["host"])
+        righe = services.abbina_discovery(
+            [{"host": "10.0.0.77", "descr": "Canon iR-ADV", "nome": "mfc", "matricola": m.matricola}]
+        )
+        self.assertEqual(righe[0]["stato"], "ip_diverso")
+        self.assertEqual(righe[0]["macchina"], m)
+
+    def test_abbina_ip_corretto_e_ok(self):
+        m = Macchina.objects.first()
+        m.host = "10.0.0.77"
+        m.save(update_fields=["host"])
+        righe = services.abbina_discovery(
+            [{"host": "10.0.0.77", "descr": "Canon", "nome": "", "matricola": m.matricola}]
+        )
+        self.assertEqual(righe[0]["stato"], "ok")
+
+    def test_abbina_dispositivo_sconosciuto_e_nuovo(self):
+        righe = services.abbina_discovery(
+            [{"host": "10.0.0.99", "descr": "Canon", "nome": "", "matricola": "SERIALE-IGNOTO"}]
+        )
+        self.assertEqual(righe[0]["stato"], "nuova")
+        self.assertIsNone(righe[0]["macchina"])
+
+    # -- pagina ------------------------------------------------------------
+    def test_pagina_discovery_si_apre(self):
+        r = self.client.get(reverse("contatori:discovery"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Discovery SNMP")
+
+    def test_scansione_mostra_ip_diverso_in_pagina(self):
+        m = Macchina.objects.first()
+        m.host = "10.0.0.155"
+        m.save(update_fields=["host"])
+        finti = [{"host": "10.0.0.77", "descr": "Canon iR-ADV DX C5840i",
+                  "nome": "mfc-amm", "matricola": m.matricola}]
+        with mock.patch("contatori.snmp.scansiona_rete", return_value=finti):
+            r = self.client.post(reverse("contatori:discovery"),
+                                 {"rete": "10.0.0.0/24", "community": "x",
+                                  "version": "v1", "timeout": "2"})
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "IP diverso")
+        self.assertContains(r, "10.0.0.77")
+
+    def test_applica_ip_corregge_la_macchina(self):
+        m = Macchina.objects.first()
+        m.host = "10.0.0.155"
+        m.save(update_fields=["host"])
+        r = self.client.post(reverse("contatori:discovery_applica_ip", args=[m.pk]),
+                             {"host": "10.0.0.77"})
+        self.assertEqual(r.status_code, 302)
+        m.refresh_from_db()
+        self.assertEqual(str(m.host), "10.0.0.77")

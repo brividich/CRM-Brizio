@@ -4,7 +4,7 @@
 {% block tasks_shell_head %}
 <style>
 .meetings-hero {
-  background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-mid) 100%);
   border-radius: 16px;
   padding: 28px 32px 24px;
   margin-bottom: 28px;
@@ -24,17 +24,17 @@
 .meetings-hero-body h2 { font-size: 1.25rem; font-weight: 700; margin: 0 0 4px; }
 .meetings-hero-body p { margin: 0; opacity: .8; font-size: .875rem; }
 .meetings-hero-cta {
-  background: #fff; color: #1e3a5f;
+  background: var(--surface); color: var(--primary);
   padding: 10px 20px; border-radius: 8px;
   font-weight: 600; font-size: .875rem;
   text-decoration: none; white-space: nowrap;
 }
-.meetings-hero-cta:hover { background: #f0f7ff; }
+.meetings-hero-cta:hover { background: var(--surface-alt, #f8fafc); }
 
 .meeting-card {
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-left: 5px solid #2563eb;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 5px solid var(--primary-mid);
   border-radius: 12px;
   padding: 20px 24px;
   margin-bottom: 14px;
@@ -49,13 +49,13 @@
 .meeting-card:hover { box-shadow: 0 6px 24px rgba(37,99,235,.1); transform: translateY(-2px); }
 .meeting-num {
   width: 44px; height: 44px;
-  background: linear-gradient(135deg, #dbeafe, #eff6ff);
+  background: var(--surface-alt, #f8fafc);
   border-radius: 10px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 1.1rem; font-weight: 800; color: #1d4ed8;
+  font-size: 1.1rem; font-weight: 800; color: var(--primary-mid);
 }
-.meeting-body h3 { margin: 0 0 6px; font-size: 1rem; font-weight: 700; color: #1e293b; }
-.meeting-body .meeting-meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: .8125rem; color: #64748b; }
+.meeting-body h3 { margin: 0 0 6px; font-size: 1rem; font-weight: 700; color: var(--text); }
+.meeting-body .meeting-meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: .8125rem; color: var(--text-light); }
 .meeting-meta-item { display: flex; align-items: center; gap: 5px; }
 .meeting-meta-item svg { width: 14px; height: 14px; stroke: currentColor; flex-shrink: 0; }
 .meeting-actions { display: flex; gap: 8px; align-items: center; }
@@ -63,24 +63,17 @@
   padding: 6px 14px; border-radius: 7px; font-size: .8125rem; font-weight: 600;
   text-decoration: none; border: 1px solid transparent; cursor: pointer;
 }
-.meeting-btn.primary { background: #2563eb; color: #fff; }
-.meeting-btn.primary:hover { background: #1d4ed8; }
-.meeting-btn.ghost { background: #f8fafc; color: #475569; border-color: #e2e8f0; }
-.meeting-btn.ghost:hover { background: #f1f5f9; }
-.meeting-btn.danger { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
-.meeting-btn.danger:hover { background: #fee2e2; }
+.meeting-btn.primary { background: var(--primary-mid); color: #fff; }
+.meeting-btn.primary:hover { background: var(--primary); }
+.meeting-btn.ghost { background: var(--surface-alt, #f8fafc); color: var(--text-mid); border-color: var(--border); }
+.meeting-btn.ghost:hover { background: var(--surface-alt, #f8fafc); }
+.meeting-btn.danger { background: var(--danger-bg); color: var(--danger); border-color: var(--danger-bg); }
+.meeting-btn.danger:hover { background: var(--danger-bg); }
 .meeting-empty {
-  text-align: center; padding: 60px 20px; color: #94a3b8;
+  text-align: center; padding: 60px 20px; color: var(--text-light);
 }
-.meeting-empty svg { width: 48px; height: 48px; stroke: #cbd5e1; margin-bottom: 16px; }
+.meeting-empty svg { width: 48px; height: 48px; stroke: var(--border); margin-bottom: 16px; }
 .meeting-empty p { margin: 0 0 20px; font-size: 1rem; }
-
-/* Dark mode */
-body.theme-dark .meeting-card { background: #1e293b; border-color: #334155; border-left-color: #3b82f6; }
-body.theme-dark .meeting-body h3 { color: #f1f5f9; }
-body.theme-dark .meeting-num { background: linear-gradient(135deg,#1e3a5f,#1d4ed8); }
-body.theme-dark .meetings-hero { background: linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%); }
-body.theme-dark .meeting-btn.ghost { background: #0f172a; color: #94a3b8; border-color: #334155; }
 </style>
 {% endblock %}
 
@@ -123,7 +116,7 @@ body.theme-dark .meeting-btn.ghost { background: #0f172a; color: #94a3b8; border
                   </span>
                 {% endif %}
                 {% if meeting.problemi_aperti %}
-                  <span class="meeting-meta-item" style="color:#ef4444;">
+                  <span class="meeting-meta-item" style="color:var(--danger);">
                     <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
                     Problemi aperti
                   </span>

@@ -7,7 +7,7 @@ from django.urls import reverse
 
 from anagrafica.acl_bootstrap import PERM_EXPORT
 from anagrafica.exports import EXPORT_SPECS, ExportSpec, acl_gate
-from anagrafica.models import Mansione
+from anagrafica.models import DipendenteAnagraficaAziendale, Mansione
 from core.legacy_cache import bump_legacy_cache_version
 from core.legacy_models import Permesso, Pulsante, UtenteLegacy
 from core.models import (
@@ -285,3 +285,173 @@ class ExportAclGateTests(TestCase):
         self._grant_list_via_canonical(enabled=True)
         self.assertEqual(self.client.get(MANSIONI_LIST_PATH).status_code, 200)
         self.assertEqual(self._export().status_code, 200)
+
+
+class ExportMenuTemplateTests(TestCase):
+    """Componente UI «Esporta ▾» nella toolbar della lista mansioni.
+
+    NB rispetto al brief: l'URL atteso è costruito con ``reverse()`` (come fa
+    il componente via ``{% url %}``), non concatenando stringhe a mano — il
+    componente non deve mai divergere dal path reale dichiarato in urls.py.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin = User.objects.create_superuser("admin_menu", "admin2@example.invalid", "x")
+        cls.export_base = reverse("anagrafica:export", args=["mansioni"])
+
+    def test_mansioni_list_shows_export_menu_with_no_querystring(self):
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("anagrafica:mansioni_list"))
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        self.assertIn("Esporta", html)
+        # Senza querystring, i link "filtrato" non hanno un "&amp;" a vuoto in coda.
+        self.assertIn(f'{self.export_base}?format=xlsx&amp;scope=filtered"', html)
+        self.assertIn(f'{self.export_base}?format=pdf&amp;scope=filtered"', html)
+        self.assertIn(f'{self.export_base}?format=xlsx&amp;scope=full"', html)
+        self.assertIn(f'{self.export_base}?format=pdf&amp;scope=full"', html)
+
+    def test_filtered_links_propagate_current_querystring_html_escaped(self):
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("anagrafica:mansioni_list") + "?q=vernic&rischio=A")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        # La querystring corrente va propagata SOLO sui link "filtrato", con
+        # '&' correttamente escapato come '&amp;' (HTML valido).
+        self.assertIn(
+            f'{self.export_base}?format=xlsx&amp;scope=filtered&amp;q=vernic&amp;rischio=A"',
+            html,
+        )
+        self.assertIn(
+            f'{self.export_base}?format=pdf&amp;scope=filtered&amp;q=vernic&amp;rischio=A"',
+            html,
+        )
+        # I link "tutto" restano invariati (nessuna propagazione della querystring).
+        self.assertIn(f'{self.export_base}?format=xlsx&amp;scope=full"', html)
+        self.assertIn(f'{self.export_base}?format=pdf&amp;scope=full"', html)
+        self.assertNotIn(
+            f'{self.export_base}?format=xlsx&amp;scope=full&amp;q=vernic', html
+        )
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class DipendentiExportTests(TestCase):
+    """Export della lista dipendenti.
+
+    L'anagrafica vive sul DB legacy: qui la tabella è creata e popolata con
+    dati **sintetici** (nessun dato reale). I test verificano la coerenza
+    view↔export (stesso helper), il perimetro delle colonne (privacy: solo
+    ciò che è già a schermo) e il funzionamento dell'endpoint.
+    """
+
+    def setUp(self):
+        # Helper già usato dai test della lista: crea la tabella legacy.
+        from anagrafica.tests import _ensure_anagrafica_table
+
+        _ensure_anagrafica_table()
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM anagrafica_dipendenti")
+            for alias, nome, cognome, reparto, mansione, email in (
+                ("m.rossi", "Mario", "Rossi", "Officina", "Saldatore", "m.rossi@example.invalid"),
+                ("l.bianchi", "Luca", "Bianchi", "Ufficio", "Impiegato", "l.bianchi@example.invalid"),
+                ("a.verdi", "Anna", "Verdi", "Officina", "Verniciatore", "a.verdi@example.invalid"),
+                ("c.cessato", "Carlo", "Cessato", "Officina", "Saldatore", "c.cessato@example.invalid"),
+            ):
+                cursor.execute(
+                    """
+                    INSERT INTO anagrafica_dipendenti
+                        (aliasusername, nome, cognome, reparto, mansione, email_notifica, attivo)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    [alias, nome, cognome, reparto, mansione, email, 1],
+                )
+            cursor.execute(
+                "SELECT id FROM anagrafica_dipendenti WHERE aliasusername = %s", ["c.cessato"]
+            )
+            cessato_id = int(cursor.fetchone()[0])
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=cessato_id, data_cessazione="2020-01-31"
+        )
+        self.admin = User.objects.create_superuser("admin_dip", "admin3@example.invalid", "x")
+        self.client.force_login(self.admin)
+
+    def _request(self, querystring: str = ""):
+        request = RequestFactory().get(f"/anagrafica/dipendenti/{querystring}")
+        request.user = self.admin
+        return request
+
+    def test_dipendenti_export_xlsx_ok_and_audited(self):
+        url = reverse("anagrafica:export", args=["dipendenti"]) + "?format=xlsx&scope=filtered&reparto=Officina"
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], XLSX_CT)
+        log = AuditLog.objects.filter(azione="export").latest("id")
+        self.assertEqual(log.dettaglio.get("lista"), "dipendenti")
+        self.assertIn("Officina", log.dettaglio.get("filtri", ""))
+        # Rossi + Verdi: il cessato (Officina) resta fuori dalla lista in forza.
+        self.assertEqual(log.dettaglio.get("n_righe"), 2)
+
+    def test_dipendenti_export_pdf(self):
+        resp = self.client.get(
+            reverse("anagrafica:export", args=["dipendenti"]) + "?format=pdf"
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], "application/pdf")
+        self.assertTrue(resp.content.startswith(b"%PDF"))
+
+    def test_export_dataset_matches_view_helper(self):
+        """Fonte unica: export e view producono lo stesso insieme di righe."""
+        from anagrafica.views import build_dipendenti_rows
+
+        for querystring in ("", "?q=ross", "?reparto=Officina", "?q=zzz-nessuno"):
+            with self.subTest(querystring=querystring):
+                request = self._request(querystring)
+                view_rows = build_dipendenti_rows(request, apply_filters=True)
+                export_rows = EXPORT_SPECS["dipendenti"].dataset(request, "filtered")
+                self.assertEqual(len(view_rows), len(export_rows))
+                self.assertEqual(
+                    [str(r.get("cognome") or "") for r in view_rows],
+                    [r["cognome"] for r in export_rows],
+                )
+
+    def test_full_scope_ignores_querystring(self):
+        request = self._request("?reparto=Officina")
+        rows = EXPORT_SPECS["dipendenti"].dataset(request, "full")
+        self.assertEqual(len(rows), 3)
+
+    def test_cessati_are_never_exported(self):
+        request = self._request()
+        rows = EXPORT_SPECS["dipendenti"].dataset(request, "full")
+        self.assertNotIn("Cessato", [r["cognome"] for r in rows])
+
+    def test_columns_are_filled_and_limited_to_what_the_page_shows(self):
+        """Privacy: nessuna colonna oltre a quelle già visibili nella lista."""
+        spec = EXPORT_SPECS["dipendenti"]
+        self.assertEqual(
+            [accessor for _label, accessor in spec.columns],
+            ["id", "cognome", "nome", "reparto", "mansione", "email_notifica"],
+        )
+        rows = spec.dataset(self._request(), "full")
+        self.assertTrue(rows)
+        accessors = {accessor for _label, accessor in spec.columns}
+        for row in rows:
+            self.assertEqual(accessors - set(row), set())
+
+    def test_view_context_is_unchanged_by_the_extraction(self):
+        """Non-regressione: `n_totale`/`reparti` restano pre-filtro."""
+        resp = self.client.get(reverse("anagrafica:dipendenti_list") + "?reparto=Officina")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["n_totale"], 3)          # pre-filtro (senza cessati)
+        self.assertEqual(resp.context["reparti"], ["Officina", "Ufficio"])
+        self.assertEqual(resp.context["n_ex"], 1)
+        self.assertEqual(resp.context["page_obj"].paginator.count, 2)  # filtrati
+
+    def test_dipendenti_list_shows_export_menu(self):
+        resp = self.client.get(reverse("anagrafica:dipendenti_list") + "?q=ross")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        base = reverse("anagrafica:export", args=["dipendenti"])
+        self.assertIn("Esporta", html)
+        self.assertIn(f'{base}?format=xlsx&amp;scope=filtered&amp;q=ross"', html)
+        self.assertIn(f'{base}?format=pdf&amp;scope=full"', html)

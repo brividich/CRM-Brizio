@@ -1,0 +1,15 @@
+{# Stepper del ciclo di vita KICK-OFF. Param: current = anagrafica | vrf | attivita #}
+<div class="kp-steps" role="list" aria-label="Percorso kickoff">
+  <div class="kp-step {% if current == 'anagrafica' %}is-active{% else %}is-done{% endif %}" role="listitem">
+    <span class="kp-step-badge">{% if current == 'anagrafica' %}1{% else %}&#10003;{% endif %}</span>
+    Anagrafica kickoff
+  </div>
+  <div class="kp-step {% if current == 'vrf' %}is-active{% elif current == 'attivita' %}is-done{% endif %}" role="listitem">
+    <span class="kp-step-badge">{% if current == 'attivita' %}&#10003;{% else %}2{% endif %}</span>
+    Scheda VRF
+  </div>
+  <div class="kp-step {% if current == 'attivita' %}is-active{% endif %}" role="listitem">
+    <span class="kp-step-badge">3</span>
+    Attività di lavorazione
+  </div>
+</div>

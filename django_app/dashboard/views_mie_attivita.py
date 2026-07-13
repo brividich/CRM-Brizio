@@ -248,6 +248,27 @@ def _safety_scadenze(request) -> list[dict] | None:
         return []
 
 
+def _my_skm_refresh(legacy_user_id) -> list[dict]:
+    """Refresh abilitazioni macchina da gestire per il CAR (campagne aperte del suo reparto)."""
+    if not legacy_user_id:
+        return []
+    try:
+        from anagrafica.services.skillmatrix_refresh import campagne_da_gestire
+        raw = campagne_da_gestire(legacy_user_id)
+    except Exception:
+        return []
+    out = []
+    for c in raw:
+        out.append({
+            "code": f"REP-{c['campagna_id']}",
+            "title": f"Refresh reparto {c['reparto']}",
+            "meta": f"{c['n_da_rivalutare']} abilitazioni da rivalutare",
+            "status": "Da rivalutare",
+            "url": c["url"],
+        })
+    return out
+
+
 def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
     """Aggrega in un'unica struttura le "cose da gestire" dell'utente corrente,
     attraversando i moduli. Riusato sia dalla pagina dedicata `mie_attivita` sia
@@ -315,6 +336,15 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
             "items": _my_elearning(request),
             "all_url": _safe_url("anagrafica:formazione_online_catalog"),
             "empty": "Nessun corso e-learning da completare.",
+        },
+        {
+            "key": "skm_refresh",
+            "label": "Refresh abilitazioni macchina",
+            "tone": "warning",
+            "icon": "🔧",
+            "items": _my_skm_refresh(legacy_user_id),
+            "all_url": _safe_url("anagrafica:skm_scadenzario"),
+            "empty": "Nessun refresh abilitazioni da gestire.",
         },
     ]
 

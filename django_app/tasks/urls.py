@@ -67,6 +67,7 @@ urlpatterns = [
     path("tasks/<int:task_id>/comments/add/", views.add_comment, name="add_comment"),
     path("tasks/<int:task_id>/subtasks/add/", views.add_subtask, name="add_subtask"),
     path("tasks/<int:task_id>/attachments/add/", views.add_attachment, name="add_attachment"),
+    path("tasks/attachments/<int:attachment_id>/download/", views.task_attachment_download, name="task_attachment_download"),
     path(
         "tasks/<int:task_id>/subtasks/<int:subtask_id>/status/",
         views.edit_subtask_status,

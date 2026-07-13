@@ -4,7 +4,7 @@
 {% block tasks_shell_head %}
 <style>
 .md-hero {
-  background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 60%, #3b82f6 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-mid) 60%, var(--primary-mid) 100%);
   border-radius: 16px;
   padding: 28px 32px;
   margin-bottom: 24px;
@@ -30,8 +30,8 @@
   padding: 8px 18px; border-radius: 8px; font-size: .875rem; font-weight: 600;
   text-decoration: none; border: none; cursor: pointer; display: inline-block;
 }
-.md-btn.white { background: #fff; color: #1e3a5f; }
-.md-btn.white:hover { background: #f0f7ff; }
+.md-btn.white { background: var(--surface); color: var(--primary); }
+.md-btn.white:hover { background: var(--surface-alt, #f8fafc); }
 .md-btn.ghost { background: rgba(255,255,255,.15); color: #fff; border: 1px solid rgba(255,255,255,.3); }
 .md-btn.ghost:hover { background: rgba(255,255,255,.25); }
 .md-btn.danger-ghost { background: rgba(239,68,68,.15); color: #fca5a5; border: 1px solid rgba(239,68,68,.3); }
@@ -45,37 +45,37 @@
 }
 @media (max-width: 768px) { .md-grid { grid-template-columns: 1fr; } }
 .md-card {
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
 }
 .md-card.full { grid-column: 1 / -1; }
 .md-card-head {
-  background: linear-gradient(180deg, #f4f8fd 0%, #eef4fb 100%);
+  background: var(--surface-alt, #f8fafc);
   padding: 12px 18px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border);
   display: flex; align-items: center; gap: 8px;
 }
-.md-card-head svg { width: 16px; height: 16px; stroke: #64748b; }
-.md-card-head span { font-size: .8125rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: .05em; }
+.md-card-head svg { width: 16px; height: 16px; stroke: var(--text-light); }
+.md-card-head span { font-size: .8125rem; font-weight: 700; color: var(--text-mid); text-transform: uppercase; letter-spacing: .05em; }
 .md-card-body { padding: 16px 18px; }
-.md-card-body p { margin: 0; white-space: pre-wrap; font-size: .9125rem; line-height: 1.65; color: #334155; }
-.md-card-body .empty { color: #94a3b8; font-style: italic; }
-.md-problems { border-left-color: #ef4444 !important; }
-.md-problems .md-card-head { background: #fef2f2; border-bottom-color: #fecaca; }
-.md-problems .md-card-head svg { stroke: #ef4444; }
-.md-problems .md-card-head span { color: #b91c1c; }
-.md-nextsteps { border-left-color: #22c55e !important; }
-.md-nextsteps .md-card-head { background: #f0fdf4; border-bottom-color: #bbf7d0; }
-.md-nextsteps .md-card-head svg { stroke: #16a34a; }
-.md-nextsteps .md-card-head span { color: #15803d; }
-.md-card { border-left: 4px solid #2563eb; }
+.md-card-body p { margin: 0; white-space: pre-wrap; font-size: .9125rem; line-height: 1.65; color: var(--text); }
+.md-card-body .empty { color: var(--text-light); font-style: italic; }
+.md-problems { border-left-color: var(--danger) !important; }
+.md-problems .md-card-head { background: var(--danger-bg); border-bottom-color: var(--danger-bg); }
+.md-problems .md-card-head svg { stroke: var(--danger); }
+.md-problems .md-card-head span { color: var(--danger); }
+.md-nextsteps { border-left-color: var(--success) !important; }
+.md-nextsteps .md-card-head { background: var(--success-bg); border-bottom-color: var(--success-bg); }
+.md-nextsteps .md-card-head svg { stroke: var(--success); }
+.md-nextsteps .md-card-head span { color: var(--success); }
+.md-card { border-left: 4px solid var(--primary-mid); }
 
 /* Agenda items */
 .md-agenda-item {
   display: flex; align-items: flex-start; gap: 10px;
-  padding: 10px 0; border-bottom: 1px solid #f1f5f9;
+  padding: 10px 0; border-bottom: 1px solid var(--border);
   transition: opacity .2s;
 }
 .md-agenda-item:last-child { border-bottom: none; padding-bottom: 0; }
@@ -83,96 +83,96 @@
 .md-agenda-item.done-item { opacity: .55; }
 .md-agenda-num {
   width: 24px; height: 24px; border-radius: 7px; flex-shrink: 0; margin-top: 1px;
-  background: #2563eb; color: #fff;
+  background: var(--primary-mid); color: #fff;
   display: flex; align-items: center; justify-content: center;
   font-size: .7rem; font-weight: 800;
 }
-.md-agenda-item.done-item .md-agenda-num { background: #16a34a; }
+.md-agenda-item.done-item .md-agenda-num { background: var(--success); }
 .md-agenda-body { flex: 1; min-width: 0; }
-.md-agenda-title { font-size: .9rem; font-weight: 600; color: #1e293b; word-break: break-word; }
-.md-agenda-item.done-item .md-agenda-title { text-decoration: line-through; color: #64748b; }
-.md-agenda-nota { font-size: .8125rem; color: #64748b; margin-top: 4px; white-space: pre-wrap; }
+.md-agenda-title { font-size: .9rem; font-weight: 600; color: var(--text); word-break: break-word; }
+.md-agenda-item.done-item .md-agenda-title { text-decoration: line-through; color: var(--text-light); }
+.md-agenda-nota { font-size: .8125rem; color: var(--text-light); margin-top: 4px; white-space: pre-wrap; }
 .md-agenda-extra-fields {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 6px; margin-top: 8px;
 }
 .md-agenda-extra-field {
-  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+  background: var(--surface-alt, #f8fafc); border: 1px solid var(--border); border-radius: 8px;
   padding: 7px 9px; min-width: 0;
 }
 .md-agenda-extra-field dt {
   margin: 0 0 2px; font-size: .68rem; text-transform: uppercase; letter-spacing: .04em;
-  color: #64748b; font-weight: 700;
+  color: var(--text-light); font-weight: 700;
 }
 .md-agenda-extra-field dd {
-  margin: 0; font-size: .8rem; color: #1e293b; font-weight: 600;
+  margin: 0; font-size: .8rem; color: var(--text); font-weight: 600;
   white-space: pre-wrap; overflow-wrap: anywhere;
 }
 .md-agenda-task {
   display: inline-flex; align-items: center; gap: 4px;
-  background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 99px;
-  padding: 1px 8px; font-size: .75rem; color: #15803d; font-weight: 500;
+  background: var(--success-bg); border: 1px solid var(--success-bg); border-radius: 99px;
+  padding: 1px 8px; font-size: .75rem; color: var(--success); font-weight: 500;
   margin-left: 8px;
 }
 .md-agenda-toggle {
   display: flex; align-items: center; justify-content: center;
   width: 30px; height: 30px; flex-shrink: 0; margin-top: 0; cursor: pointer;
-  border: 1.5px solid #e2e8f0; border-radius: 8px; background: transparent;
-  color: #94a3b8; transition: all .15s;
+  border: 1.5px solid var(--border); border-radius: 8px; background: transparent;
+  color: var(--text-light); transition: all .15s;
 }
-.md-agenda-toggle:hover { border-color: #16a34a; color: #16a34a; background: #f0fdf4; }
-.md-agenda-toggle.done { border-color: #16a34a; background: #dcfce7; color: #16a34a; }
+.md-agenda-toggle:hover { border-color: var(--success); color: var(--success); background: var(--success-bg); }
+.md-agenda-toggle.done { border-color: var(--success); background: var(--success-bg); color: var(--success); }
 .md-agenda-toggle svg { width: 14px; height: 14px; stroke: currentColor; }
 .md-agenda-done-badge {
   display: inline-flex; align-items: center; gap: 4px;
-  font-size: .75rem; color: #16a34a; font-weight: 600; margin-top: 4px;
+  font-size: .75rem; color: var(--success); font-weight: 600; margin-top: 4px;
 }
 
 /* Next steps con CTA task */
 .md-step-row {
   display: flex; align-items: flex-start; gap: 10px;
-  padding: 8px 0; border-bottom: 1px solid #f1f5f9;
+  padding: 8px 0; border-bottom: 1px solid var(--border);
 }
 .md-step-row:last-child { border-bottom: none; padding-bottom: 0; }
 .md-step-row:first-child { padding-top: 0; }
-.md-step-dot { width: 7px; height: 7px; border-radius: 50%; background: #16a34a; flex-shrink: 0; margin-top: 6px; }
-.md-step-text { flex: 1; font-size: .9rem; color: #334155; line-height: 1.55; word-break: break-word; }
+.md-step-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); flex-shrink: 0; margin-top: 6px; }
+.md-step-text { flex: 1; font-size: .9rem; color: var(--text); line-height: 1.55; word-break: break-word; }
 .md-step-cta {
   display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
   padding: 5px 11px; border-radius: 7px; font-size: .8rem; font-weight: 600;
-  border: 1px solid #bfdbfe; background: #eff6ff; color: #2563eb; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface-alt, #f8fafc); color: var(--primary-mid); cursor: pointer;
   white-space: nowrap; transition: background .15s, border-color .15s;
 }
-.md-step-cta:hover { background: #dbeafe; border-color: #93c5fd; }
+.md-step-cta:hover { background: var(--surface-alt, #f8fafc); border-color: var(--border); }
 .md-step-cta svg { width: 13px; height: 13px; stroke: currentColor; }
-.md-step-cta.created { background: #f0fdf4; border-color: #bbf7d0; color: #15803d; pointer-events: none; }
+.md-step-cta.created { background: var(--success-bg); border-color: var(--success-bg); color: var(--success); pointer-events: none; }
 
 /* Problemi tracciati */
 .md-issue-list { display: grid; gap: 10px; }
 .md-issue {
-  border: 1px solid #fecaca; background: #fff7f7; border-radius: 10px;
+  border: 1px solid var(--danger-bg); background: var(--danger-bg); border-radius: 10px;
   padding: 12px 14px; display: grid; gap: 8px;
 }
-.md-issue.resolved { border-color: #bbf7d0; background: #f0fdf4; }
+.md-issue.resolved { border-color: var(--success-bg); background: var(--success-bg); }
 .md-issue-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.md-issue-title { font-size: .92rem; font-weight: 800; color: #991b1b; overflow-wrap: anywhere; }
-.md-issue.resolved .md-issue-title { color: #166534; text-decoration: line-through; }
+.md-issue-title { font-size: .92rem; font-weight: 800; color: var(--danger); overflow-wrap: anywhere; }
+.md-issue.resolved .md-issue-title { color: var(--success); text-decoration: line-through; }
 .md-issue-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .md-issue-chip {
   display: inline-flex; align-items: center; gap: 4px; border-radius: 99px;
   padding: 2px 8px; font-size: .72rem; font-weight: 700;
-  background: #fff; border: 1px solid #fecaca; color: #b91c1c; text-decoration: none;
+  background: var(--surface); border: 1px solid var(--danger-bg); color: var(--danger); text-decoration: none;
 }
-.md-issue.resolved .md-issue-chip { border-color: #bbf7d0; color: #15803d; }
-.md-issue-desc, .md-issue-resolution-note { margin: 0; white-space: pre-wrap; font-size: .83rem; color: #475569; line-height: 1.5; }
-.md-issue-resolution-note { color: #15803d; }
+.md-issue.resolved .md-issue-chip { border-color: var(--success-bg); color: var(--success); }
+.md-issue-desc, .md-issue-resolution-note { margin: 0; white-space: pre-wrap; font-size: .83rem; color: var(--text-mid); line-height: 1.5; }
+.md-issue-resolution-note { color: var(--success); }
 .md-issue-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; border-top: 1px solid rgba(15,23,42,.08); padding-top: 8px; }
 .md-issue-form .input { flex: 1 1 220px; min-width: 180px; }
 .md-issue-btn {
-  padding: 7px 12px; border-radius: 7px; border: 1px solid #bbf7d0;
-  background: #f0fdf4; color: #15803d; font-size: .8rem; font-weight: 800; cursor: pointer;
+  padding: 7px 12px; border-radius: 7px; border: 1px solid var(--success-bg);
+  background: var(--success-bg); color: var(--success); font-size: .8rem; font-weight: 800; cursor: pointer;
 }
-.md-issue-btn.reopen { border-color: #fecaca; background: #fff7f7; color: #b91c1c; }
+.md-issue-btn.reopen { border-color: var(--danger-bg); background: var(--danger-bg); color: var(--danger); }
 
 /* Modal creazione task */
 .ctm-overlay {
@@ -181,11 +181,11 @@
   padding: 16px;
 }
 .ctm-panel {
-  background: #fff; border-radius: 16px; width: 100%; max-width: 520px;
+  background: var(--surface); border-radius: 16px; width: 100%; max-width: 520px;
   box-shadow: 0 20px 60px rgba(0,0,0,.25); overflow: hidden;
 }
 .ctm-head {
-  background: linear-gradient(135deg, #1e3a5f, #2563eb);
+  background: linear-gradient(135deg, var(--primary), var(--primary-mid));
   padding: 18px 22px; color: #fff;
   display: flex; align-items: center; gap: 10px;
 }
@@ -193,14 +193,14 @@
 .ctm-head h3 { margin: 0; font-size: 1rem; font-weight: 800; }
 .ctm-body { padding: 20px 22px; }
 .ctm-step-preview {
-  background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;
-  padding: 10px 14px; font-size: .875rem; color: #15803d; margin-bottom: 16px;
+  background: var(--success-bg); border: 1px solid var(--success-bg); border-radius: 8px;
+  padding: 10px 14px; font-size: .875rem; color: var(--success); margin-bottom: 16px;
   line-height: 1.5; word-break: break-word;
 }
-.ctm-step-label { font-size: .7rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+.ctm-step-label { font-size: .7rem; font-weight: 700; color: var(--text-light); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
 .ctm-field { margin-bottom: 14px; }
 .ctm-field:last-of-type { margin-bottom: 0; }
-.ctm-field label { display: block; font-size: .8125rem; font-weight: 600; color: #475569; margin-bottom: 5px; }
+.ctm-field label { display: block; font-size: .8125rem; font-weight: 600; color: var(--text-mid); margin-bottom: 5px; }
 .ctm-field .input { width: 100%; box-sizing: border-box; }
 .ctm-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 480px) { .ctm-row { grid-template-columns: 1fr; } }
@@ -210,59 +210,27 @@
   border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
 }
 .ctm-btn svg { width: 15px; height: 15px; stroke: currentColor; }
-.ctm-btn.primary { background: #2563eb; color: #fff; }
-.ctm-btn.primary:hover { background: #1d4ed8; }
-.ctm-btn.ghost { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
-.ctm-btn.ghost:hover { background: #e2e8f0; }
-.ctm-error { font-size: .8rem; color: #dc2626; margin-top: 8px; display: none; }
+.ctm-btn.primary { background: var(--primary-mid); color: #fff; }
+.ctm-btn.primary:hover { background: var(--primary); }
+.ctm-btn.ghost { background: var(--surface-alt, #f8fafc); color: var(--text-mid); border: 1px solid var(--border); }
+.ctm-btn.ghost:hover { background: var(--surface-alt, #f8fafc); }
+.ctm-error { font-size: .8rem; color: var(--danger); margin-top: 8px; display: none; }
 
-body.theme-dark .md-agenda-item { border-bottom-color: #334155; }
-body.theme-dark .md-agenda-title { color: #e2e8f0; }
-body.theme-dark .md-agenda-item.done-item .md-agenda-title { color: #64748b; }
-body.theme-dark .md-agenda-nota { color: #94a3b8; }
-body.theme-dark .md-agenda-extra-field { background: #111827; border-color: #334155; }
-body.theme-dark .md-agenda-extra-field dt { color: #94a3b8; }
-body.theme-dark .md-agenda-extra-field dd { color: #e2e8f0; }
-body.theme-dark .md-agenda-num { background: #1d4ed8; }
-body.theme-dark .md-agenda-item.done-item .md-agenda-num { background: #15803d; }
-body.theme-dark .md-agenda-toggle { border-color: #334155; color: #64748b; }
-body.theme-dark .md-agenda-toggle:hover { border-color: #16a34a; background: rgba(22,163,74,.1); }
-body.theme-dark .md-agenda-toggle.done { border-color: #16a34a; background: rgba(22,163,74,.2); }
-body.theme-dark .md-step-row { border-bottom-color: #334155; }
-body.theme-dark .md-step-text { color: #e2e8f0; }
 body.theme-dark .md-step-cta { background: rgba(37,99,235,.12); border-color: rgba(59,130,246,.3); color: #93c5fd; }
 body.theme-dark .md-step-cta:hover { background: rgba(37,99,235,.22); }
-body.theme-dark .md-issue { background: rgba(239,68,68,.1); border-color: rgba(239,68,68,.3); }
-body.theme-dark .md-issue.resolved { background: rgba(22,163,74,.1); border-color: rgba(22,163,74,.3); }
 body.theme-dark .md-issue-title { color: #fca5a5; }
 body.theme-dark .md-issue.resolved .md-issue-title { color: #86efac; }
-body.theme-dark .md-issue-chip { background: #0f172a; border-color: rgba(239,68,68,.35); color: #fca5a5; }
-body.theme-dark .md-issue.resolved .md-issue-chip { border-color: rgba(22,163,74,.35); color: #86efac; }
-body.theme-dark .md-issue-desc { color: #cbd5e1; }
-body.theme-dark .md-issue-form { border-top-color: #334155; }
-body.theme-dark .ctm-panel { background: #1e293b; }
-body.theme-dark .ctm-step-preview { background: rgba(22,163,74,.1); border-color: rgba(22,163,74,.3); color: #86efac; }
-body.theme-dark .ctm-field label { color: #94a3b8; }
-body.theme-dark .ctm-btn.ghost { background: #0f172a; color: #94a3b8; border-color: #334155; }
+body.theme-dark .md-issue-chip { color: #fca5a5; }
+body.theme-dark .md-issue.resolved .md-issue-chip { color: #86efac; }
+body.theme-dark .ctm-step-preview { color: #86efac; }
 
 .md-nav { display: flex; gap: 10px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
-.md-nav a { font-size: .875rem; color: #2563eb; text-decoration: none; }
+.md-nav a { font-size: .875rem; color: var(--primary-mid); text-decoration: none; }
 .md-nav a:hover { text-decoration: underline; }
-.md-nav .sep { color: #cbd5e1; }
+.md-nav .sep { color: var(--border); }
 
 /* Dark mode */
-body.theme-dark .md-card { background: #1e293b; border-color: #334155; }
-body.theme-dark .md-card-head { background: #0f172a; border-bottom-color: #334155; }
-body.theme-dark .md-card-head span { color: #94a3b8; }
-body.theme-dark .md-card-body p { color: #e2e8f0; }
-body.theme-dark .md-problems { border-left-color: #ef4444 !important; }
-body.theme-dark .md-problems .md-card-head { background: rgba(239,68,68,.1); border-bottom-color: rgba(239,68,68,.3); }
-body.theme-dark .md-nextsteps { border-left-color: #22c55e !important; }
-body.theme-dark .md-nextsteps .md-card-head { background: rgba(34,197,94,.1); border-bottom-color: rgba(34,197,94,.3); }
 body.theme-dark .md-hero { background: linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%); }
-body.theme-dark .md-card-body [style*="background:#eff6ff"] { background: rgba(37,99,235,.15) !important; border-color: rgba(37,99,235,.35) !important; color: #93c5fd !important; }
-body.theme-dark .md-card-body [style*="background:#f0fdf4"] { background: rgba(22,163,74,.15) !important; border-color: rgba(22,163,74,.35) !important; color: #86efac !important; }
-body.theme-dark .md-card-body [style*="border-top:1px solid #e2e8f0"] { border-top-color: #334155 !important; }
 </style>
 {% endblock %}
 
@@ -320,10 +288,10 @@ body.theme-dark .md-card-body [style*="border-top:1px solid #e2e8f0"] { border-t
         <div class="md-card-body" style="padding-top:12px;padding-bottom:14px;">
           {% if portal_users %}
             <div style="margin-bottom:10px;">
-              <div style="font-size:.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Utenti portale</div>
+              <div style="font-size:.75rem;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Utenti portale</div>
               <div style="display:flex;flex-wrap:wrap;gap:6px;">
                 {% for u in portal_users %}
-                  <span style="display:inline-flex;align-items:center;gap:5px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;padding:3px 10px 3px 6px;font-size:.8125rem;color:#1d4ed8;">
+                  <span style="display:inline-flex;align-items:center;gap:5px;background:var(--surface-alt, #f8fafc);border:1px solid var(--border);border-radius:20px;padding:3px 10px 3px 6px;font-size:.8125rem;color:var(--primary-mid);">
                     <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"/></svg>
                     {{ u.get_full_name|default:u.username }}
                   </span>
@@ -333,11 +301,11 @@ body.theme-dark .md-card-body [style*="border-top:1px solid #e2e8f0"] { border-t
           {% endif %}
           {% if meeting.partecipanti_email_extra %}
             <div style="margin-bottom:10px;">
-              <div style="font-size:.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Email aggiuntive</div>
+              <div style="font-size:.75rem;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Email aggiuntive</div>
               <div style="display:flex;flex-wrap:wrap;gap:6px;">
                 {% for line in meeting.partecipanti_email_extra.splitlines %}
                   {% if line %}
-                    <span style="display:inline-flex;align-items:center;gap:5px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:20px;padding:3px 10px 3px 6px;font-size:.8125rem;color:#15803d;">
+                    <span style="display:inline-flex;align-items:center;gap:5px;background:var(--success-bg);border:1px solid var(--success-bg);border-radius:20px;padding:3px 10px 3px 6px;font-size:.8125rem;color:var(--success);">
                       <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75"/></svg>
                       {{ line|lower }}
                     </span>
@@ -348,18 +316,18 @@ body.theme-dark .md-card-body [style*="border-top:1px solid #e2e8f0"] { border-t
           {% endif %}
           {% if meeting.partecipanti_testo %}
             <div>
-              <div style="font-size:.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Note partecipanti</div>
-              <p style="margin:0;white-space:pre-wrap;font-size:.875rem;color:#475569;">{{ meeting.partecipanti_testo }}</p>
+              <div style="font-size:.75rem;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Note partecipanti</div>
+              <p style="margin:0;white-space:pre-wrap;font-size:.875rem;color:var(--text-mid);">{{ meeting.partecipanti_testo }}</p>
             </div>
           {% endif %}
           {% if meeting.outlook_event_id %}
-            <div style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">
+            <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
               <div style="display:flex;align-items:center;gap:8px;">
-                <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="#2563eb"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
-                <span style="font-size:.8125rem;color:#64748b;">Evento Outlook sincronizzato</span>
+                <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="var(--primary-mid)"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
+                <span style="font-size:.8125rem;color:var(--text-light);">Evento Outlook sincronizzato</span>
                 {% if meeting.outlook_event_web_link %}
                   <a href="{{ meeting.outlook_event_web_link }}" target="_blank" rel="noopener"
-                     style="font-size:.8125rem;color:#2563eb;text-decoration:none;display:inline-flex;align-items:center;gap:4px;">
+                     style="font-size:.8125rem;color:var(--primary-mid);text-decoration:none;display:inline-flex;align-items:center;gap:4px;">
                     Apri in Outlook
                     <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/></svg>
                   </a>
@@ -378,7 +346,7 @@ body.theme-dark .md-card-body [style*="border-top:1px solid #e2e8f0"] { border-t
         <div class="md-card-head">
           <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/></svg>
           <span>Ordine del giorno</span>
-          <span id="agenda-progress-label" style="margin-left:auto;font-size:.75rem;color:#94a3b8;font-weight:400;">
+          <span id="agenda-progress-label" style="margin-left:auto;font-size:.75rem;color:var(--text-light);font-weight:400;">
             {{ meeting.agenda_items|length }} punt{% if meeting.agenda_items|length == 1 %}o{% else %}i{% endif %}
           </span>
         </div>
@@ -512,7 +480,7 @@ body.theme-dark .md-card-body [style*="border-top:1px solid #e2e8f0"] { border-t
           <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
           <span>Next steps</span>
           {% if next_steps_lines and can_manage %}
-            <span style="margin-left:auto;font-size:.75rem;color:#15803d;font-weight:500;opacity:.8;">{{ next_steps_lines|length }} rig{% if next_steps_lines|length == 1 %}a{% else %}he{% endif %} · clicca per creare task</span>
+            <span style="margin-left:auto;font-size:.75rem;color:var(--success);font-weight:500;opacity:.8;">{{ next_steps_lines|length }} rig{% if next_steps_lines|length == 1 %}a{% else %}he{% endif %} · clicca per creare task</span>
           {% endif %}
         </div>
         <div class="md-card-body">
@@ -540,7 +508,7 @@ body.theme-dark .md-card-body [style*="border-top:1px solid #e2e8f0"] { border-t
       <div class="md-card full">
         <div class="md-card-body" style="text-align:center;padding:32px 18px;">
           <p class="empty">Nessun contenuto registrato per questo incontro.
-            {% if can_manage %}<a href="{% url 'tasks:project_meeting_edit' project.id meeting.id %}" style="color:#2563eb;">Compila ora</a>{% endif %}
+            {% if can_manage %}<a href="{% url 'tasks:project_meeting_edit' project.id meeting.id %}" style="color:var(--primary-mid);">Compila ora</a>{% endif %}
           </p>
         </div>
       </div>
@@ -564,7 +532,7 @@ body.theme-dark .md-card-body [style*="border-top:1px solid #e2e8f0"] { border-t
       <form id="ctm-form" onsubmit="submitCreateTask(event)">
         {% csrf_token %}
         <div class="ctm-field">
-          <label for="ctm-title">Titolo task <span style="color:#ef4444">*</span></label>
+          <label for="ctm-title">Titolo task <span style="color:var(--danger)">*</span></label>
           <input type="text" id="ctm-title" name="title" class="input" maxlength="200" required>
         </div>
         <div class="ctm-row">
@@ -597,7 +565,7 @@ body.theme-dark .md-card-body [style*="border-top:1px solid #e2e8f0"] { border-t
             Crea task
           </button>
           <button type="button" class="ctm-btn ghost" onclick="closeCreateTaskModal()">Annulla</button>
-          <a id="ctm-view-link" href="#" target="_blank" style="display:none;font-size:.875rem;color:#2563eb;text-decoration:none;margin-left:auto;">
+          <a id="ctm-view-link" href="#" target="_blank" style="display:none;font-size:.875rem;color:var(--primary-mid);text-decoration:none;margin-left:auto;">
             Apri task creato →
           </a>
         </div>

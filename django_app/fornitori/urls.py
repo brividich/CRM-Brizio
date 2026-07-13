@@ -17,6 +17,7 @@ urlpatterns = [
 
     # Documenti
     path("<int:fornitore_id>/documenti/add", views.fornitore_documento_add, name="fornitore_documento_add"),
+    path("<int:fornitore_id>/documenti/<int:doc_id>/download/", views.fornitore_documento_download, name="fornitore_documento_download"),
     path("<int:fornitore_id>/documenti/<int:doc_id>/delete", views.fornitore_documento_delete, name="fornitore_documento_delete"),
 
     # Ordini

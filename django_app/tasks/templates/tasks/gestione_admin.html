@@ -15,23 +15,23 @@
     min-height: 38px;
     padding: 0 14px;
     border-radius: 999px;
-    border: 1px solid #dbe5ef;
-    background: #fff;
-    color: #475569;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-mid);
     text-decoration: none;
     font-size: 13px;
     font-weight: 800;
   }
 
   .admin-tab:hover {
-    color: #1d4ed8;
+    color: var(--primary-mid);
     border-color: #bfdbfe;
   }
 
   .admin-tab.active {
     background: #eff6ff;
     border-color: #bfdbfe;
-    color: #1d4ed8;
+    color: var(--primary-mid);
   }
 
   .admin-log-grid {
@@ -46,12 +46,12 @@
 
   .admin-log-row > span {
     padding: 10px 0;
-    border-bottom: 1px solid #eef2f7;
+    border-bottom: 1px solid var(--border);
     font-size: 12px;
   }
 
   .admin-log-head > span {
-    color: #64748b;
+    color: var(--text-light);
     font-size: 11px;
     font-weight: 800;
     letter-spacing: 0.08em;
@@ -84,7 +84,7 @@
       display: grid;
       gap: 6px;
       padding: 12px 0;
-      border-bottom: 1px solid #eef2f7;
+      border-bottom: 1px solid var(--border);
     }
 
     .admin-log-head {
@@ -92,11 +92,9 @@
     }
   }
 
-  body.theme-dark .admin-tab { background:var(--surface); border-color:var(--border); color:var(--text-mid); }
   body.theme-dark .admin-tab:hover { color:#93c5fd; border-color:rgba(29,78,216,.3); }
   body.theme-dark .admin-tab.active { background:rgba(29,78,216,.15); border-color:rgba(29,78,216,.3); color:#93c5fd; }
-  body.theme-dark .admin-log-row > span { border-color:var(--border); color:var(--text); }
-  body.theme-dark .admin-log-head > span { color:var(--text-light); }
+  body.theme-dark .admin-log-row > span { color:var(--text); }
 </style>
 {% endblock %}
 
@@ -111,7 +109,7 @@
 {% block tasks_shell_actions %}
   <a class="ts-hero-action" href="{% url 'tasks:list' %}">Dashboard attivita</a>
   {% if tasks_shell_can_create %}
-    <a class="ts-hero-action primary" href="{% url 'tasks:create' %}">Nuova attivita</a>
+    <a class="ts-hero-action primary" href="{% url 'tasks:project_create' %}">+ Nuovo kickoff</a>
   {% endif %}
 {% endblock %}
 
@@ -319,7 +317,7 @@
                 <span>{{ entry.created_at|date:"d-m-Y H:i" }}</span>
                 <span>{{ entry.utente_display|default:"-" }}</span>
                 <span>{{ entry.azione }}</span>
-                <span style="color:#64748b;">{{ entry.dettaglio }}</span>
+                <span style="color:var(--text-light);">{{ entry.dettaglio }}</span>
               </div>
             {% endfor %}
           </div>

@@ -194,12 +194,14 @@ function autoFillFromUrl() {
       if (d.effective_date) overwrite('effective_date', d.effective_date);
 
       var lines = [];
-      if (d.file_name)      lines.push('📄 ' + d.file_name);
-      if (d.revision_code)  lines.push('🔖 ' + d.revision_code);
-      if (d.revision_date)  lines.push('📅 ' + d.revision_date);
-      if (d.author)         lines.push('👤 ' + d.author);
-      if (d.file_size_label) lines.push('💾 ' + d.file_size_label);
-      if (d.file_hash)      lines.push('🔑 ' + d.file_hash.substring(0, 16) + '…');
+      // SEC: i metadati (incl. author da Graph/SharePoint) finiscono in innerHTML → escape.
+      var escPR = function(v){return String(v==null?'':v).replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];});};
+      if (d.file_name)      lines.push('📄 ' + escPR(d.file_name));
+      if (d.revision_code)  lines.push('🔖 ' + escPR(d.revision_code));
+      if (d.revision_date)  lines.push('📅 ' + escPR(d.revision_date));
+      if (d.author)         lines.push('👤 ' + escPR(d.author));
+      if (d.file_size_label) lines.push('💾 ' + escPR(d.file_size_label));
+      if (d.file_hash)      lines.push('🔑 ' + escPR(d.file_hash.substring(0, 16)) + '…');
 
       var src = d.graph_ok ? '(dati da Graph API ✓)' : '(dati da URL — credenziali Graph non configurate)';
       status.style.cssText = 'margin-top:6px;font-size:12px;display:block;color:#15803d;line-height:1.7;';
