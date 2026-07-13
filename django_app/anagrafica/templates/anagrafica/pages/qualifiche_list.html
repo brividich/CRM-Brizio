@@ -71,6 +71,7 @@ body.theme-dark .ql-modal-title { color:var(--text); }
         <p class="fmd-ph-sub">Catalogo unico certificazioni e attestati (sicurezza, professionali, gestionali) con tracciamento scadenze.</p>
       </div>
       <div class="fmd-pagehead-actions">
+        {% include "anagrafica/components/_export_menu.html" with export_key="qualifiche" %}
         <a href="{% url 'anagrafica:qualifica_sessioni_list' %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Sessioni di rinnovo</a>
       </div>
     </div>

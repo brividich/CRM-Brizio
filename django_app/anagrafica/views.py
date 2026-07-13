@@ -6438,16 +6438,27 @@ def _build_candidati_qualifica(tipo, oggi) -> list[dict]:
     return out
 
 
+def build_qualifica_sessioni_rows(request, *, apply_filters: bool = True) -> list:
+    """Fonte unica delle sessioni di rinnovo qualifiche (view + export).
+
+    `apply_filters=False` ignora la querystring (export `scope=full`).
+    """
+    qs = QualificaSessione.objects.select_related("tipo").annotate(n_part=Count("qualifiche"))
+    if apply_filters:
+        filtro_tipo = (request.GET.get("tipo") or "").strip()
+        q_text = (request.GET.get("q") or "").strip()
+        if filtro_tipo.isdigit():
+            qs = qs.filter(tipo_id=int(filtro_tipo))
+        if q_text:
+            qs = qs.filter(Q(tipo__nome__icontains=q_text) | Q(ente__icontains=q_text))
+    return list(qs.order_by("-data_conseguimento", "-id"))
+
+
 @login_required
 def qualifica_sessioni_list(request):
-    qs = QualificaSessione.objects.select_related("tipo").annotate(n_part=Count("qualifiche"))
     filtro_tipo = (request.GET.get("tipo") or "").strip()
     q_text = (request.GET.get("q") or "").strip()
-    if filtro_tipo.isdigit():
-        qs = qs.filter(tipo_id=int(filtro_tipo))
-    if q_text:
-        qs = qs.filter(Q(tipo__nome__icontains=q_text) | Q(ente__icontains=q_text))
-    sessioni = list(qs.order_by("-data_conseguimento", "-id"))
+    sessioni = build_qualifica_sessioni_rows(request, apply_filters=True)
     # Tipi con almeno una sessione, per il filtro a tendina.
     tipi_con_sessioni = list(
         TipoQualifica.objects.filter(sessioni__isnull=False).distinct().order_by("nome")

@@ -5,6 +5,8 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
+{# Menu «Esporta ▾»: usa le primitive fmd-btn/fmd-ico di questo foglio. #}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
 <style>
 .cat-page { display:flex; flex-direction:column; gap:20px; }
 .cat-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
@@ -80,6 +82,7 @@ body.theme-dark .cat-input, body.theme-dark .cat-select { background:var(--surfa
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
 <div class="cat-page">
 
   {% include "anagrafica/components/flash_messages.html" %}
@@ -89,7 +92,10 @@ body.theme-dark .cat-input, body.theme-dark .cat-select { background:var(--surfa
       <div class="cat-title">Aree & Reparti</div>
       <div class="cat-sub">Gerarchia aziendale: reparti con le relative aree aziendali e caporeparti</div>
     </div>
-    <a class="cat-btn cat-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Dipendenti</a>
+    <div style="display:flex;gap:8px;align-items:center;">
+      {% include "anagrafica/components/_export_menu.html" with export_key="aree" %}
+      <a class="cat-btn cat-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Dipendenti</a>
+    </div>
   </div>
 
   <!-- ── TAB BAR ── -->

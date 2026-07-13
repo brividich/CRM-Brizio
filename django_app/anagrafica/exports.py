@@ -291,3 +291,274 @@ register(ExportSpec(
     filters_label=_dipendenti_filters,
     permission=acl_gate("/anagrafica/dipendenti/"),
 ))
+
+
+# ── Anagrafiche di supporto ───────────────────────────────────────────────────
+# Cataloghi senza filtri di lista (aree/reparti, ruoli aziendali, ruoli
+# operativi): `scope=filtered` e `scope=full` coincidono per costruzione, e
+# `filters_label` resta vuota. Le colonne sono quelle mostrate a schermo.
+
+
+def _no_filters(request: HttpRequest) -> str:
+    return ""
+
+
+# ── Aree & Reparti (lista annidata → appiattita) ──────────────────────────────
+# La pagina mostra la gerarchia reparto → aree aziendali (più le aree senza
+# reparto). L'export appiattisce: **una riga per area**, con le colonne del
+# reparto (nome + caporeparto) ripetute. I reparti ancora senza aree — che la
+# pagina mostra comunque, come banda — producono una riga con le colonne area
+# vuote, così l'export non perde nulla di ciò che è a schermo.
+
+def _aree_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from anagrafica.models import AreaAziendale, Reparto
+    from anagrafica.views import _dipendenti_picker_rows
+
+    try:
+        dip_map = {item["id"]: item["label"] for item in _dipendenti_picker_rows()}
+    except Exception:  # fail-safe: l'anagrafica legacy non deve bloccare l'export
+        dip_map = {}
+
+    rows: list[dict] = []
+    reparti = Reparto.objects.prefetch_related("aree_aziendali").order_by("nome")
+    for rep in reparti:
+        capo = dip_map.get(rep.caporeparto_legacy_id or 0, "")
+        aree = list(rep.aree_aziendali.all())
+        if not aree:
+            rows.append({
+                "reparto": rep.nome or "",
+                "caporeparto": capo,
+                "area": "",
+                "descrizione": "",
+                "responsabile": "",
+                "stato": "",
+            })
+            continue
+        for area in aree:
+            rows.append({
+                "reparto": rep.nome or "",
+                "caporeparto": capo,
+                "area": area.nome or "",
+                "descrizione": area.descrizione or "",
+                "responsabile": dip_map.get(area.responsabile_legacy_id or 0, ""),
+                "stato": "Attivo" if area.is_active else "Inattivo",
+            })
+
+    for area in AreaAziendale.objects.filter(reparto__isnull=True).order_by("nome"):
+        rows.append({
+            "reparto": "",
+            "caporeparto": "",
+            "area": area.nome or "",
+            "descrizione": area.descrizione or "",
+            "responsabile": dip_map.get(area.responsabile_legacy_id or 0, ""),
+            "stato": "Attivo" if area.is_active else "Inattivo",
+        })
+    return rows
+
+
+register(ExportSpec(
+    key="aree",
+    title="Aree & Reparti",
+    sheet_title="Aree e reparti",
+    columns=[
+        ("Reparto", "reparto"),
+        ("Caporeparto", "caporeparto"),
+        ("Area aziendale", "area"),
+        ("Descrizione", "descrizione"),
+        ("Responsabile", "responsabile"),
+        ("Stato", "stato"),
+    ],
+    dataset=_aree_rows,
+    filters_label=_no_filters,
+    permission=acl_gate("/anagrafica/aree/"),
+))
+
+
+# ── Ruoli aziendali ───────────────────────────────────────────────────────────
+
+def _ruoli_aziendali_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from anagrafica.models import RuoloAziendale
+
+    return [
+        {
+            "nome": r.nome or "",
+            "descrizione": r.descrizione or "",
+            "stato": "Attivo" if r.is_active else "Inattivo",
+        }
+        for r in RuoloAziendale.objects.all().order_by("nome")
+    ]
+
+
+register(ExportSpec(
+    key="ruoli_aziendali",
+    title="Ruoli aziendali",
+    sheet_title="Ruoli aziendali",
+    columns=[
+        ("Nome", "nome"),
+        ("Descrizione", "descrizione"),
+        ("Stato", "stato"),
+    ],
+    dataset=_ruoli_aziendali_rows,
+    filters_label=_no_filters,
+    permission=acl_gate("/anagrafica/ruoli-aziendali/"),
+))
+
+
+# ── Ruoli operativi ───────────────────────────────────────────────────────────
+# La pagina è a schede (non tabella): per ogni ruolo mostra nome, descrizione,
+# numero di dipendenti assegnati e lo stato (badge «Inattivo»).
+
+def _ruoli_operativi_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from django.db.models import Count
+
+    from anagrafica.models import RuoloOperativo
+
+    return [
+        {
+            "nome": r.nome or "",
+            "descrizione": r.descrizione or "",
+            "n_assegnati": r.n_assegnati,
+            "stato": "Attivo" if r.is_active else "Inattivo",
+        }
+        for r in RuoloOperativo.objects.annotate(n_assegnati=Count("assegnazioni")).order_by("nome")
+    ]
+
+
+register(ExportSpec(
+    key="ruoli_operativi",
+    title="Ruoli operativi",
+    sheet_title="Ruoli operativi",
+    columns=[
+        ("Ruolo", "nome"),
+        ("Descrizione", "descrizione"),
+        ("Dipendenti assegnati", "n_assegnati"),
+        ("Stato", "stato"),
+    ],
+    dataset=_ruoli_operativi_rows,
+    filters_label=_no_filters,
+    permission=acl_gate("/anagrafica/ruoli-operativi/"),
+))
+
+
+# ── Catalogo qualifiche ───────────────────────────────────────────────────────
+# La pagina raggruppa il catalogo per categoria (tab `?categoria=`) e mostra
+# Nome qualifica / Durata validità / Assegnazioni / Stato: l'export ripete la
+# categoria come colonna (equivalente piatto del raggruppamento a schermo).
+
+def _qualifiche_cat_filter(request: HttpRequest) -> str:
+    from anagrafica.models import TipoQualifica
+
+    valid = {c for c, _ in TipoQualifica.CATEGORIA_CHOICES}
+    cat = (request.GET.get("categoria") or "").strip().upper()
+    return cat if cat in valid else ""
+
+
+def _qualifiche_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from django.db.models import Count
+
+    from anagrafica.models import TipoQualifica
+
+    qs = TipoQualifica.objects.annotate(n_assegnazioni=Count("assegnazioni")).order_by(
+        "categoria", "nome"
+    )
+    cat = _qualifiche_cat_filter(request) if scope == "filtered" else ""
+    if cat:
+        qs = qs.filter(categoria=cat)
+
+    return [
+        {
+            "categoria": t.get_categoria_display() if t.categoria else "",
+            "nome": t.nome or "",
+            "durata": f"{t.durata_mesi} mesi" if t.durata_mesi else "Nessuna scadenza",
+            "n_assegnazioni": t.n_assegnazioni,
+            "stato": "Attiva" if t.is_active else "Inattiva",
+        }
+        for t in qs
+    ]
+
+
+def _qualifiche_filters(request: HttpRequest) -> str:
+    from anagrafica.models import TipoQualifica
+
+    cat = _qualifiche_cat_filter(request)
+    if not cat:
+        return ""
+    labels = dict(TipoQualifica.CATEGORIA_CHOICES)
+    return f"Categoria: {labels.get(cat, cat)}"
+
+
+register(ExportSpec(
+    key="qualifiche",
+    title="Catalogo qualifiche",
+    sheet_title="Qualifiche",
+    columns=[
+        ("Categoria", "categoria"),
+        ("Nome qualifica", "nome"),
+        ("Durata validità", "durata"),
+        ("Assegnazioni", "n_assegnazioni"),
+        ("Stato", "stato"),
+    ],
+    dataset=_qualifiche_rows,
+    filters_label=_qualifiche_filters,
+    permission=acl_gate("/anagrafica/qualifiche/"),
+))
+
+
+# ── Sessioni di rinnovo qualifiche ────────────────────────────────────────────
+# Fonte unica: `views.build_qualifica_sessioni_rows` (stesso filtro tipo/q della
+# pagina, niente duplicazione → niente drift).
+
+def _fmt_date(value) -> str:
+    return value.strftime("%d-%m-%Y") if value else ""
+
+
+def _qualifica_sessioni_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from anagrafica.views import build_qualifica_sessioni_rows  # import locale: evita cicli
+
+    sessioni = build_qualifica_sessioni_rows(request, apply_filters=(scope == "filtered"))
+    return [
+        {
+            "data": _fmt_date(s.data_conseguimento),
+            "qualifica": s.tipo.nome if s.tipo_id else "",
+            "ente": s.ente or "",
+            "n_part": s.n_part,
+            "scadenza": _fmt_date(s.scadenza_effettiva),
+        }
+        for s in sessioni
+    ]
+
+
+def _qualifica_sessioni_filters(request: HttpRequest) -> str:
+    from anagrafica.models import TipoQualifica
+
+    parts: list[str] = []
+    filtro_tipo = (request.GET.get("tipo") or "").strip()
+    if filtro_tipo.isdigit():
+        nome = (
+            TipoQualifica.objects.filter(pk=int(filtro_tipo))
+            .values_list("nome", flat=True)
+            .first()
+        )
+        if nome:
+            parts.append(f"Qualifica: {nome}")
+    q_text = (request.GET.get("q") or "").strip()
+    if q_text:
+        parts.append(f'Ricerca: "{q_text}"')
+    return " · ".join(parts)
+
+
+register(ExportSpec(
+    key="qualifica_sessioni",
+    title="Sessioni di rinnovo qualifiche",
+    sheet_title="Sessioni qualifiche",
+    columns=[
+        ("Data", "data"),
+        ("Qualifica", "qualifica"),
+        ("Ente", "ente"),
+        ("Partecipanti", "n_part"),
+        ("Scadenza", "scadenza"),
+    ],
+    dataset=_qualifica_sessioni_rows,
+    filters_label=_qualifica_sessioni_filters,
+    permission=acl_gate("/anagrafica/qualifiche/sessioni/"),
+))

@@ -7,7 +7,16 @@ from django.urls import reverse
 
 from anagrafica.acl_bootstrap import PERM_EXPORT
 from anagrafica.exports import EXPORT_SPECS, ExportSpec, acl_gate
-from anagrafica.models import DipendenteAnagraficaAziendale, Mansione
+from anagrafica.models import (
+    AreaAziendale,
+    DipendenteAnagraficaAziendale,
+    Mansione,
+    QualificaSessione,
+    Reparto,
+    RuoloAziendale,
+    RuoloOperativo,
+    TipoQualifica,
+)
 from core.legacy_cache import bump_legacy_cache_version
 from core.legacy_models import Permesso, Pulsante, UtenteLegacy
 from core.models import (
@@ -470,4 +479,219 @@ class DipendentiExportTests(TestCase):
         base = reverse("anagrafica:export", args=["dipendenti"])
         self.assertIn("Esporta", html)
         self.assertIn(f'{base}?format=xlsx&amp;scope=filtered&amp;q=ross"', html)
+        self.assertIn(f'{base}?format=pdf&amp;scope=full"', html)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AnagraficheSupportoExportTests(TestCase):
+    """Export delle anagrafiche di supporto (Task 6).
+
+    Chiavi: `aree` (lista annidata → appiattita), `ruoli_aziendali`,
+    `ruoli_operativi`, `qualifiche`, `qualifica_sessioni`.
+    Dati **sintetici**: nessun dato reale (l'anagrafica legacy è ricreata
+    dall'helper dei test della lista dipendenti).
+    """
+
+    SUPPORT_KEYS = ("aree", "ruoli_aziendali", "ruoli_operativi", "qualifiche", "qualifica_sessioni")
+
+    def setUp(self):
+        from anagrafica.tests import _ensure_anagrafica_table
+
+        _ensure_anagrafica_table()
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM anagrafica_dipendenti")
+            for alias, nome, cognome in (
+                ("m.rossi", "Mario", "Rossi"),
+                ("l.bianchi", "Luca", "Bianchi"),
+            ):
+                cursor.execute(
+                    """
+                    INSERT INTO anagrafica_dipendenti
+                        (aliasusername, nome, cognome, reparto, mansione, attivo)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    """,
+                    [alias, nome, cognome, "Officina", "Saldatore", 1],
+                )
+            cursor.execute(
+                "SELECT id FROM anagrafica_dipendenti WHERE aliasusername = %s", ["m.rossi"]
+            )
+            self.capo_id = int(cursor.fetchone()[0])
+            cursor.execute(
+                "SELECT id FROM anagrafica_dipendenti WHERE aliasusername = %s", ["l.bianchi"]
+            )
+            self.resp_id = int(cursor.fetchone()[0])
+
+        # Aree & reparti: 1 reparto con 2 aree, 1 reparto senza aree, 1 area orfana.
+        self.officina = Reparto.objects.create(nome="Officina", caporeparto_legacy_id=self.capo_id)
+        Reparto.objects.create(nome="Zeta senza aree")
+        AreaAziendale.objects.create(
+            nome="IN1", reparto=self.officina, responsabile_legacy_id=self.resp_id
+        )
+        AreaAziendale.objects.create(
+            nome="IN2", reparto=self.officina, descrizione="Linea 2", is_active=False
+        )
+        AreaAziendale.objects.create(nome="Orfana")
+
+        RuoloAziendale.objects.create(nome="Capoturno", descrizione="Turno notte")
+        RuoloAziendale.objects.create(nome="Responsabile di reparto", is_active=False)
+
+        RuoloOperativo.objects.create(nome="Preposto", descrizione="D.Lgs 81/08")
+        RuoloOperativo.objects.create(nome="RSPP", is_active=False)
+
+        self.t_sic = TipoQualifica.objects.create(
+            nome="Primo soccorso", categoria=TipoQualifica.CAT_SICUREZZA, durata_mesi=36
+        )
+        TipoQualifica.objects.create(
+            nome="Antincendio", categoria=TipoQualifica.CAT_SICUREZZA, durata_mesi=60
+        )
+        self.t_prof = TipoQualifica.objects.create(
+            nome="Patentino carrellista",
+            categoria=TipoQualifica.CAT_PROFESSIONALE,
+            durata_mesi=0,
+        )
+
+        QualificaSessione.objects.create(
+            tipo=self.t_sic, data_conseguimento="2026-01-15", ente="Ente Alfa"
+        )
+        QualificaSessione.objects.create(
+            tipo=self.t_prof, data_conseguimento="2026-02-20", ente="Ente Beta"
+        )
+
+        self.admin = User.objects.create_superuser("admin_sup", "sup@example.invalid", "x")
+        self.client.force_login(self.admin)
+
+    def _request(self, path: str = "/anagrafica/aree/"):
+        request = RequestFactory().get(path)
+        request.user = self.admin
+        return request
+
+    def _export_url(self, key: str, **params) -> str:
+        url = reverse("anagrafica:export", args=[key])
+        return url + "?" + "&".join(f"{k}={v}" for k, v in params.items())
+
+    # -- endpoint -----------------------------------------------------------
+    def test_every_support_key_is_registered(self):
+        for key in self.SUPPORT_KEYS:
+            self.assertIn(key, EXPORT_SPECS)
+
+    def test_xlsx_export_ok_for_every_support_key(self):
+        for key in self.SUPPORT_KEYS:
+            with self.subTest(key=key):
+                resp = self.client.get(self._export_url(key, format="xlsx"))
+                self.assertEqual(resp.status_code, 200)
+                self.assertEqual(resp["Content-Type"], XLSX_CT)
+                self.assertIn(key, resp["Content-Disposition"])
+
+    def test_pdf_export_ok_for_every_support_key(self):
+        for key in self.SUPPORT_KEYS:
+            with self.subTest(key=key):
+                resp = self.client.get(self._export_url(key, format="pdf"))
+                self.assertEqual(resp.status_code, 200)
+                self.assertEqual(resp["Content-Type"], "application/pdf")
+                self.assertTrue(resp.content.startswith(b"%PDF"))
+
+    def test_audit_written_with_the_right_key(self):
+        for key in self.SUPPORT_KEYS:
+            with self.subTest(key=key):
+                self.client.get(self._export_url(key, format="xlsx"))
+                log = AuditLog.objects.filter(azione="export").latest("id")
+                self.assertEqual(log.modulo, "anagrafica")
+                self.assertEqual(log.dettaglio.get("lista"), key)
+
+    def test_columns_are_filled_by_every_dataset(self):
+        for key in self.SUPPORT_KEYS:
+            with self.subTest(key=key):
+                spec = EXPORT_SPECS[key]
+                rows = spec.dataset(self._request(), "full")
+                self.assertTrue(rows)
+                accessors = {accessor for _label, accessor in spec.columns}
+                for row in rows:
+                    self.assertEqual(accessors - set(row), set())
+
+    # -- aree: lista annidata appiattita ------------------------------------
+    def test_aree_rows_are_flattened_with_reparto_repeated(self):
+        rows = EXPORT_SPECS["aree"].dataset(self._request(), "full")
+        officina = [r for r in rows if r["reparto"] == "Officina"]
+        self.assertEqual([r["area"] for r in officina], ["IN1", "IN2"])
+        # Colonna «Reparto» ripetuta su ogni riga area + caporeparto risolto.
+        self.assertEqual({r["caporeparto"] for r in officina}, {"Rossi Mario"})
+        self.assertEqual(officina[0]["responsabile"], "Bianchi Luca")
+        self.assertEqual(officina[1]["stato"], "Inattivo")
+        # Area senza reparto inclusa, con reparto vuoto.
+        orfana = next(r for r in rows if r["area"] == "Orfana")
+        self.assertEqual(orfana["reparto"], "")
+        # Il reparto senza aree resta visibile (come a schermo), con area vuota.
+        vuoto = next(r for r in rows if r["reparto"] == "Zeta senza aree")
+        self.assertEqual(vuoto["area"], "")
+
+    # -- scope filtered vs full ---------------------------------------------
+    def test_qualifiche_filtered_scope_reduces_rows(self):
+        spec = EXPORT_SPECS["qualifiche"]
+        request = self._request("/anagrafica/qualifiche/?categoria=SICUREZZA")
+        self.assertEqual(len(spec.dataset(request, "full")), 3)
+        filtered = spec.dataset(request, "filtered")
+        self.assertEqual(len(filtered), 2)
+        self.assertEqual({r["categoria"] for r in filtered}, {"Sicurezza"})
+        self.assertIn("Sicurezza", spec.filters_label(request))
+
+    def test_qualifiche_durata_column_mirrors_the_page(self):
+        rows = EXPORT_SPECS["qualifiche"].dataset(self._request(), "full")
+        by_name = {r["nome"]: r for r in rows}
+        self.assertEqual(by_name["Primo soccorso"]["durata"], "36 mesi")
+        self.assertEqual(by_name["Patentino carrellista"]["durata"], "Nessuna scadenza")
+
+    def test_qualifica_sessioni_filtered_scope_reduces_rows(self):
+        spec = EXPORT_SPECS["qualifica_sessioni"]
+        request = self._request("/anagrafica/qualifiche/sessioni/?q=Alfa")
+        self.assertEqual(len(spec.dataset(request, "full")), 2)
+        filtered = spec.dataset(request, "filtered")
+        self.assertEqual(len(filtered), 1)
+        self.assertEqual(filtered[0]["ente"], "Ente Alfa")
+        self.assertEqual(filtered[0]["data"], "15-01-2026")
+        # 36 mesi dal conseguimento → scadenza calcolata (come mostra la pagina).
+        self.assertEqual(filtered[0]["scadenza"], "15-01-2029")
+
+    def test_qualifica_sessioni_tipo_filter_matches_the_view(self):
+        from anagrafica.views import build_qualifica_sessioni_rows
+
+        request = self._request(f"/anagrafica/qualifiche/sessioni/?tipo={self.t_prof.id}")
+        view_rows = build_qualifica_sessioni_rows(request, apply_filters=True)
+        export_rows = EXPORT_SPECS["qualifica_sessioni"].dataset(request, "filtered")
+        self.assertEqual(len(view_rows), 1)
+        self.assertEqual([s.tipo.nome for s in view_rows], [r["qualifica"] for r in export_rows])
+        self.assertIn("Patentino carrellista", EXPORT_SPECS["qualifica_sessioni"].filters_label(request))
+
+    def test_qualifica_sessioni_full_scope_ignores_querystring_via_endpoint(self):
+        resp = self.client.get(
+            self._export_url("qualifica_sessioni", format="xlsx", scope="full", q="Alfa")
+        )
+        self.assertEqual(resp.status_code, 200)
+        log = AuditLog.objects.filter(azione="export").latest("id")
+        self.assertEqual(log.dettaglio.get("n_righe"), 2)
+
+    # -- UI: menu export nella toolbar --------------------------------------
+    def test_support_pages_show_the_export_menu(self):
+        pages = {
+            "aree": "anagrafica:aree_list",
+            "ruoli_aziendali": "anagrafica:ruoli_aziendali_list",
+            "ruoli_operativi": "anagrafica:ruoli_operativi_list",
+            "qualifiche": "anagrafica:qualifiche_list",
+            "qualifica_sessioni": "anagrafica:qualifica_sessioni_list",
+        }
+        for key, route in pages.items():
+            with self.subTest(key=key):
+                resp = self.client.get(reverse(route))
+                self.assertEqual(resp.status_code, 200)
+                html = resp.content.decode()
+                base = reverse("anagrafica:export", args=[key])
+                self.assertIn("Esporta", html)
+                self.assertIn(f'{base}?format=xlsx&amp;scope=filtered"', html)
+                self.assertIn(f'{base}?format=pdf&amp;scope=full"', html)
+
+    def test_qualifica_sessioni_page_propagates_querystring_on_filtered_links(self):
+        resp = self.client.get(reverse("anagrafica:qualifica_sessioni_list") + "?q=Alfa")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        base = reverse("anagrafica:export", args=["qualifica_sessioni"])
+        self.assertIn(f'{base}?format=xlsx&amp;scope=filtered&amp;q=Alfa"', html)
         self.assertIn(f'{base}?format=pdf&amp;scope=full"', html)

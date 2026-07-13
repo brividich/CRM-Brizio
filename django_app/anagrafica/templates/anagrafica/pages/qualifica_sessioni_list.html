@@ -1,8 +1,11 @@
 {% extends "core/base.html" %}
+{% load static %}
 {% block title %}Sessioni di rinnovo qualifiche | Anagrafica{% endblock %}
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
+{# Menu «Esporta ▾»: usa le primitive fmd-btn/fmd-ico di questo foglio. #}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
 <style>
 .qs-page { display:flex; flex-direction:column; gap:20px; }
 .qs-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
@@ -31,6 +34,7 @@ body.theme-dark .qs-btn-ghost { background:var(--surface-alt); color:var(--text-
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
 <div class="qs-page">
   {% include "anagrafica/components/flash_messages.html" %}
 
@@ -59,6 +63,7 @@ body.theme-dark .qs-btn-ghost { background:var(--surface-alt); color:var(--text-
     </div>
     <button type="submit" class="qs-btn qs-btn-primary">Filtra</button>
     {% if filtro_tipo or q_text %}<a class="qs-btn qs-btn-ghost" href="{% url 'anagrafica:qualifica_sessioni_list' %}">Azzera</a>{% endif %}
+    {% include "anagrafica/components/_export_menu.html" with export_key="qualifica_sessioni" %}
   </form>
 
   <div class="qs-card">
