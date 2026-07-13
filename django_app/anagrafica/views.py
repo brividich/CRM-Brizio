@@ -13668,6 +13668,67 @@ def skm_refresh(request):
 
 
 @login_required
+def skm_scadenzario(request):
+    """Scadenzario abilitazioni macchina per reparto (MOD.187).
+
+    Mostra, per reparto, la prossima revisione, gli arretrati (non bloccanti) e lo
+    stato campagna. HR "dà il via" al refresh (apre la campagna e avvisa il CAR: in-app
+    + email); il merito della rivalutazione resta al CAR (pagina Refresh).
+    Accesso: ``anagrafica.skillmatrix.manage``.
+    """
+    from .acl_bootstrap import PERM_SKM_MANAGE
+    if not _check_skm_permission(request, PERM_SKM_MANAGE):
+        messages.error(request, "Non hai i permessi per lo scadenzario Skill Matrix.")
+        return redirect("anagrafica:index")
+
+    from django.utils import timezone
+    from .services import skillmatrix_refresh as refresh
+
+    if request.method == "POST" and request.POST.get("azione") == "avvia":
+        reparto = (request.POST.get("reparto") or "").strip()
+        if reparto:
+            legacy_user = get_legacy_user(request.user)
+            _, created = refresh.avvia_refresh(
+                reparto=reparto, avviatore_ruolo="HR",
+                avviatore_legacy_id=int(legacy_user.id) if legacy_user else None)
+            if created:
+                messages.success(request, f"Refresh avviato per «{reparto}»: il CAR è stato avvisato.")
+            else:
+                messages.info(request, f"Il reparto «{reparto}» ha già una campagna di refresh aperta.")
+        return redirect("anagrafica:skm_scadenzario")
+
+    oggi = timezone.localdate()
+    tutte = refresh.scadenzario_reparti(oggi=oggi)
+    kpi = {
+        "reparti_scaduti": sum(1 for r in tutte if r["stato"] == "scaduto"),
+        "abil_scadute": sum(r["n_scadute"] for r in tutte),
+        "campagne_aperte": sum(1 for r in tutte if r["campagna_aperta"]),
+    }
+
+    filtro_stato = (request.GET.get("stato") or "").strip()
+    righe = [r for r in tutte if r["stato"] == filtro_stato] if filtro_stato in ("scaduto", "in_arrivo") else tutte
+
+    if request.GET.get("format") == "csv":
+        resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
+        resp["Content-Disposition"] = 'attachment; filename="scadenzario_abilitazioni.csv"'
+        w = csv.writer(resp, delimiter=";")
+        w.writerow(["Reparto", "Prossima revisione", "Totali", "Scadute", "In arrivo", "Stato", "Campagna aperta"])
+        for r in righe:
+            w.writerow([
+                r["reparto"],
+                r["prossima_revisione"].strftime("%d/%m/%Y") if r["prossima_revisione"] else "",
+                r["n_totali"], r["n_scadute"], r["n_in_arrivo"], r["stato"],
+                "Sì" if r["campagna_aperta"] else "No",
+            ])
+        return resp
+
+    return render(request, "anagrafica/pages/skm_scadenzario.html", {
+        "oggi": oggi, "righe": righe, "kpi": kpi, "filtro_stato": filtro_stato,
+        "totale": len(righe),
+    })
+
+
+@login_required
 def skm_impostazioni(request):
     """Gestione del singleton ``SkillMatrixConfig`` (parametri Skill Matrix MOD.187).
 

@@ -401,6 +401,33 @@ sul refresh, link processo→`TipoQualifica` in continuità.
 **Follow-up a merge:** aggiornare `README.md` (catalogo moduli / sezione anagrafica) con le
 pagine Skill Matrix — rimandato perché `README.md` è in editing parallelo da altre chat.
 
+## F10 — Scadenzario abilitazioni + avvio refresh HR→CAR  ✅ (2026-07-03)
+
+Il refresh diventa una **scadenza gestibile** con un posto esplicito. Nuova pagina
+**Scadenzario abilitazioni** (`/anagrafica/skill-matrix/scadenzario/`, gated
+`anagrafica.skillmatrix.manage`): stato del refresh **per reparto** (prossima revisione,
+arretrati non bloccanti, stato campagna), KPI, filtro stato, export CSV, drill-down alla
+pagina Refresh F6. **HR "dà il via"**: il bottone «Avvia refresh» apre la `CampagnaRefresh`
+(idempotente) e — solo alla prima apertura — **avvisa il CAR** (notifica in-app
+`core.notifiche` + email best-effort `core.email_utils.send_hub_mail`, fail-safe: un errore
+non annulla l'apertura); la campagna aperta compare anche nella home **«Cose da gestire»**
+del CAR (sezione in `dashboard/views_mie_attivita.py`, helper read-only
+`campagne_da_gestire`). Il **merito** della rivalutazione resta al CAR (pagina Refresh).
+
+Additivo, lettura **live** di `AbilitazioneMacchina.prossima_revisione` (nessuna cache),
+Skill Matrix read-only verso gli altri moduli. Nuovo campo config
+**`preavviso_refresh_giorni`** (default 60, in `SkillMatrixConfig` + form + Impostazioni)
+= soglia «in arrivo». Binding ACL route → `manage` (bootstrap cache **v4→v5**); voce subnav
+«Scadenzario abilitazioni» (migration **0076**). Servizio esteso in
+`services/skillmatrix_refresh.py` (`scadenzario_reparti`, `avvia_refresh`, `_risolvi_car`,
+`_notifica_car`, `campagne_da_gestire`; `apri_campagna` refactor con flag `created`).
+
+**Test:** nuovo `tests_skillmatrix_scadenzario.py` (15) — config, aggregazione/ordinamento,
+avvia_refresh idempotente + notifica una-sola-volta, risoluzione CAR, campagne_da_gestire,
+view (render/CSV/POST/accesso negato), binding ACL, voce menu, helper Cose da gestire.
+Suite skill-matrix **85 verdi** (70 + 15); `makemigrations --check` pulito; `check` pulito.
+Spec/piano: `docs/anagrafica/skillmatrix/SPEC_…` / `PLAN_scadenzario_refresh_abilitazioni.md`.
+
 ## Stato fasi
 - [x] F0 Discovery
 - [x] F1 Modelli + migrazione + test modello (12 verdi)
@@ -414,6 +441,7 @@ pagine Skill Matrix — rimandato perché `README.md` è in editing parallelo da
 - [x] F7 ACL + navigazione — voci di menu (migration 0072/0074) **+ ACL canonico** (permessi `anagrafica.skillmatrix.view/.manage`, binding route, grant di default → governabili in /admin-portale/acl-canonico/)
 - [x] F8 Hardening test — suite skill-matrix **70 verdi**, `makemigrations --check` pulito, `check` pulito
 - [x] F9 Chiusura — BUILD_LOG finalizzato; gate residui (F2b `--apply`, sorgente F5) e README a merge
+- [x] F10 Scadenzario abilitazioni + avvio refresh HR→CAR (`/anagrafica/skill-matrix/scadenzario/`, notifica+email CAR, Cose da gestire, config `preavviso_refresh_giorni`, ACL v5, subnav 0076) — 15 test
 
 ## TODO aperti (da confermare in sessione CAR / avvio)
 - Regola totale multivoce (default `MIN`).
