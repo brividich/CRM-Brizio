@@ -2042,8 +2042,6 @@ def task_list(request):
             tasks_qs = tasks_qs.filter(assigned_to__isnull=True)
         if data.get("without_due_date"):
             tasks_qs = tasks_qs.filter(due_date__isnull=True)
-        if data.get("without_project"):
-            tasks_qs = tasks_qs.filter(project__isnull=True)
 
     tasks = _apply_default_ordering(tasks_qs)
     is_scope_admin = _has_task_permission(request, "tasks_admin")
@@ -2082,7 +2080,6 @@ def task_list(request):
         admin_console = {
             "unassigned": stats_qs.filter(assigned_to__isnull=True).count(),
             "without_due_date": stats_qs.filter(due_date__isnull=True).count(),
-            "without_project": stats_qs.filter(project__isnull=True).count(),
             "due_next_7d": stats_qs.filter(
                 status__in=OPEN_STATUSES,
                 due_date__gte=today,
@@ -2729,7 +2726,7 @@ def task_create(request):
             if task.project_id:
                 messages.success(request, f"Attivita kickoff creata nel kickoff '{task.project.name}'.")
             else:
-                messages.success(request, "Attivita singola creata correttamente.")
+                messages.success(request, "Attivita creata correttamente.")
             if form.assignment_conflicts and task.assigned_to_id:
                 assignee_name = task.assigned_to.get_full_name() or task.assigned_to.get_username()
                 messages.warning(

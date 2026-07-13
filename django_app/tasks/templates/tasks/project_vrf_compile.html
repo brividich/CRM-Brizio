@@ -1,6 +1,7 @@
 {% extends "tasks/base_shell.html" %}
 
 {% block tasks_shell_head %}
+{% include "tasks/_percorso_assets.html" %}
 <style>
   /* Barra step wizard — allineata a project_create.html (.kc-*) */
   .kc-wizard-steps {
@@ -22,16 +23,16 @@
   }
   .vrfc-header-grid .row { display: flex; flex-direction: column; }
   .vrfc-header-grid label {
-    font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;
+    font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.05em;
     font-weight: 700; margin-bottom: 3px;
   }
   .vrfc-header-grid .val {
-    padding: 6px 9px; border: 1px solid #e2e8f0; border-radius: 6px;
-    background: #f8fafc; color: #1e293b; font-weight: 600; font-size: 13px; min-height: 32px;
+    padding: 6px 9px; border: 1px solid var(--border); border-radius: 6px;
+    background: #f8fafc; color: var(--text); font-weight: 600; font-size: 13px; min-height: 32px;
   }
-  .vrfc-header-grid .val.empty { color: #94a3b8; font-weight: 400; font-style: italic; }
+  .vrfc-header-grid .val.empty { color: var(--text-light); font-weight: 400; font-style: italic; }
   .vrfc-hint {
-    margin-top: 12px; font-size: 12px; color: #64748b;
+    margin-top: 12px; font-size: 12px; color: var(--text-light);
     padding: 8px 12px; background: #f1f5f9; border-radius: 6px;
   }
 
@@ -42,14 +43,14 @@
 
   .vrfc-matrix {
     width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px;
-    background: #fff;
+    background: var(--surface);
   }
   .vrfc-matrix thead th {
     position: sticky; z-index: 20;
     background: #1e293b; color: #fff;
     padding: 8px 6px; text-align: center; font-weight: 700; font-size: 11px;
     text-transform: uppercase; letter-spacing: 0.04em;
-    border-right: 1px solid #334155;
+    border-right: 1px solid var(--border);
     box-shadow: 0 2px 6px rgba(15, 23, 42, 0.25);
   }
   /* prima riga: subito sotto la topnav / sidebar header del portale */
@@ -68,81 +69,81 @@
     background: #e2e8f0; font-weight: 700;
   }
   .vrfc-matrix .risk-row td {
-    padding: 9px 8px; border-bottom: 2px solid #cbd5e1;
+    padding: 9px 8px; border-bottom: 2px solid var(--border);
     vertical-align: middle;
   }
-  .vrfc-matrix .risk-row .risk-title { font-size: 13px; color: #0f172a; }
+  .vrfc-matrix .risk-row .risk-title { font-size: 13px; color: var(--text); }
   .vrfc-matrix .risk-row .risk-code {
-    display: inline-block; background: #ea580c; color: #fff;
+    display: inline-block; background: var(--accent); color: #fff;
     padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 800;
     margin-right: 8px;
   }
   .vrfc-matrix .risk-row .num-cell { text-align: center; font-variant-numeric: tabular-nums; }
   .vrfc-matrix .risk-row .k-input {
-    width: 44px; padding: 4px 6px; text-align: center; border: 1px solid #94a3b8;
+    width: 44px; padding: 4px 6px; text-align: center; border: 1px solid var(--text-light);
     border-radius: 3px; font-size: 13px; font-weight: 700;
-    background: #fff;
+    background: var(--surface);
   }
   .vrfc-matrix .risk-row .k-input:focus {
-    outline: 2px solid #ea580c; outline-offset: -1px;
+    outline: 2px solid var(--accent); outline-offset: -1px;
   }
 
   .vrfc-matrix .sub-row td {
-    padding: 7px 8px; border-bottom: 1px solid #e2e8f0; background: #fff;
+    padding: 7px 8px; border-bottom: 1px solid var(--border); background: var(--surface);
   }
   .vrfc-matrix .sub-row .sub-label {
     padding-left: 26px; font-size: 12px; color: #334155; line-height: 1.35;
   }
   .vrfc-matrix .sub-row .sub-code {
-    display: inline-block; color: #64748b; font-weight: 700;
+    display: inline-block; color: var(--text-light); font-weight: 700;
     margin-right: 6px; width: 14px;
   }
   .vrfc-matrix .sub-row .num-cell { text-align: center; }
   .vrfc-matrix .sub-row select {
     width: 54px; padding: 4px 6px; text-align: center;
-    border: 1px solid #cbd5e1; border-radius: 3px; font-size: 13px;
-    background: #fff; font-variant-numeric: tabular-nums;
+    border: 1px solid var(--border); border-radius: 3px; font-size: 13px;
+    background: var(--surface); font-variant-numeric: tabular-nums;
   }
   .vrfc-matrix .sub-row select:focus {
-    outline: 2px solid #ea580c; outline-offset: -1px;
+    outline: 2px solid var(--accent); outline-offset: -1px;
   }
 
   .vrfc-pill {
     display: inline-block; padding: 3px 9px; border-radius: 10px;
     font-size: 11px; font-weight: 700; line-height: 1;
   }
-  .vrfc-pill-low  { background: #dcfce7; color: #166534; }
-  .vrfc-pill-med  { background: #fef3c7; color: #92400e; }
-  .vrfc-pill-high { background: #fee2e2; color: #991b1b; }
+  .vrfc-pill-low  { background: var(--success-bg); color: var(--success); }
+  .vrfc-pill-med  { background: var(--warning-bg); color: var(--warning); }
+  .vrfc-pill-high { background: var(--danger-bg); color: var(--danger); }
 
   .vrfc-totals {
     display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
     margin-top: 18px; padding: 18px;
-    background: #fff; border: 2px solid #ea580c; border-radius: 10px;
+    background: var(--surface); border: 2px solid var(--accent); border-radius: 10px;
   }
   .vrfc-totals .card { text-align: center; padding: 10px; }
-  .vrfc-totals .card + .card { border-left: 1px solid #e2e8f0; }
+  .vrfc-totals .card + .card { border-left: 1px solid var(--border); }
   .vrfc-totals .lbl {
-    font-size: 11px; color: #64748b; text-transform: uppercase;
+    font-size: 11px; color: var(--text-light); text-transform: uppercase;
     letter-spacing: 0.05em; font-weight: 700; margin-bottom: 6px;
   }
   .vrfc-totals .val {
-    font-size: 28px; font-weight: 800; color: #0f172a;
+    font-size: 28px; font-weight: 800; color: var(--text);
     font-variant-numeric: tabular-nums; margin-bottom: 4px;
   }
 
   .vrfc-dig {
     margin-top: 14px; padding: 12px 16px;
-    border-left: 4px solid #16a34a; background: #f0fdf4; color: #166534;
+    border-left: 4px solid var(--success); background: var(--success-bg); color: var(--success);
     border-radius: 4px; font-weight: 600; font-size: 13px;
   }
   .vrfc-dig.triggered {
-    border-color: #dc2626; background: #fef2f2; color: #991b1b;
+    border-color: var(--danger); background: var(--danger-bg); color: var(--danger);
   }
 
   .vrfc-legend {
     display: flex; gap: 20px; flex-wrap: wrap;
-    margin-top: 10px; padding: 10px; font-size: 11px; color: #64748b;
+    margin-top: 10px; padding: 10px; font-size: 11px; color: var(--text-light);
     background: #f8fafc; border-radius: 6px;
   }
 
@@ -153,22 +154,15 @@
   .vrfc-actions .right { display: flex; gap: 8px; flex-wrap: wrap; }
 
   body.theme-dark .kc-wizard-steps { background:var(--surface); border-color:var(--border); }
-  body.theme-dark .kc-step { background:var(--surface-alt); border-color:var(--border); color:var(--text-light); }
+  body.theme-dark .kc-step { background:var(--surface-alt, #f8fafc); border-color:var(--border); color:var(--text-light); }
   body.theme-dark .kc-step.done { background:rgba(6,95,70,.2); border-color:rgba(167,243,208,.2); color:#6ee7b7; }
-  body.theme-dark .vrfc-header-grid label { color:var(--text-light); }
-  body.theme-dark .vrfc-header-grid .val { background:var(--surface); border-color:var(--border); color:var(--text); }
-  body.theme-dark .vrfc-hint { background:var(--surface-alt); color:var(--text-light); }
-  body.theme-dark .vrfc-matrix { background:var(--surface); }
-  body.theme-dark .vrfc-matrix .risk-row { background:var(--thead-bg); }
-  body.theme-dark .vrfc-matrix .risk-row td { border-color:var(--border); }
-  body.theme-dark .vrfc-matrix .risk-row .risk-title { color:var(--text); }
-  body.theme-dark .vrfc-totals { background:var(--surface); border-color:rgba(234,88,12,.4); }
-  body.theme-dark .vrfc-totals .lbl { color:var(--text-light); }
-  body.theme-dark .vrfc-totals .val { color:var(--text); }
-  body.theme-dark .vrfc-totals .card + .card { border-color:var(--border); }
-  body.theme-dark .vrfc-dig { background:rgba(22,101,52,.15); border-color:#16a34a; color:#86efac; }
-  body.theme-dark .vrfc-dig.triggered { background:rgba(220,38,38,.15); border-color:#dc2626; color:#fca5a5; }
-  body.theme-dark .vrfc-legend { background:var(--surface-alt); color:var(--text-light); }
+  body.theme-dark .vrfc-header-grid .val { background:var(--surface); }
+  body.theme-dark .vrfc-hint { background:var(--surface-alt, #f8fafc); }
+  body.theme-dark .vrfc-matrix .risk-row { background:var(--thead-bg, #f8fafc); }
+  body.theme-dark .vrfc-totals { border-color:rgba(234,88,12,.4); }
+  body.theme-dark .vrfc-dig { background:rgba(22,101,52,.15); color:#86efac; }
+  body.theme-dark .vrfc-dig.triggered { background:rgba(220,38,38,.15); color:#fca5a5; }
+  body.theme-dark .vrfc-legend { background:var(--surface-alt, #f8fafc); }
 </style>
 {% endblock %}
 
@@ -191,7 +185,7 @@
   {# I messages vanno tutti nel toast fisso in fondo pagina (alto a destra), evita consumo anticipato #}
 
   {% if prefilled_from_xlsx %}
-    <div style="display:flex; gap:12px; align-items:center; padding:12px 16px; border-radius:10px; background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; font-size:13px;">
+    <div style="display:flex; gap:12px; align-items:center; padding:12px 16px; border-radius:10px; background:#eff6ff; border:1px solid #bfdbfe; color:var(--primary-mid); font-size:13px;">
       <span style="font-size:18px;">📥</span>
       <div style="flex:1;">
         I valori mostrati sono stati letti dal file VRF gia' caricato{% if project.vrf_original_name %} (<strong>{{ project.vrf_original_name }}</strong>){% endif %}.
@@ -201,11 +195,7 @@
     </div>
   {% endif %}
 
-  <div class="kc-wizard-steps">
-    <div class="kc-step done"><span class="kc-step-num">Step 1/3</span>Anagrafica kickoff</div>
-    <div class="kc-step active"><span class="kc-step-num">Step 2/3</span>Compila scheda VRF</div>
-    <div class="kc-step"><span class="kc-step-num">Step 3/3</span>Attivita' di lavorazione</div>
-  </div>
+  {% include "tasks/_percorso_lifecycle.html" with current="vrf" %}
 
   <section class="ts-panel">
     <div class="ts-panel-head">
@@ -338,7 +328,7 @@
       <a class="btn btn-secondary" href="{% url 'tasks:project_gantt' project.id %}">Annulla</a>
       <div class="right">
         <button type="submit" class="btn btn-secondary" onclick="document.getElementById('vrfc-action').value='save_draft'">Salva bozza</button>
-        <button type="submit" class="btn btn-secondary" style="background:#fff7ed; border-color:#fed7aa; color:#9a3412;" onclick="document.getElementById('vrfc-action').value='skip_with_reminder'">Prosegui e ricordami VRF</button>
+        <button type="submit" class="btn btn-secondary" style="background:var(--warning-bg); border-color:var(--border); color:var(--warning);" onclick="document.getElementById('vrfc-action').value='skip_with_reminder'">Prosegui e ricordami VRF</button>
         <button type="submit" class="btn" onclick="document.getElementById('vrfc-action').value='confirm'">Conferma e genera xlsx</button>
       </div>
     </div>
@@ -350,7 +340,7 @@
 {% if messages %}
   <div id="vrfc-toast-wrap" aria-live="polite" style="position:fixed; top:72px; right:16px; z-index:9999; display:flex; flex-direction:column; gap:8px;">
     {% for msg in messages %}
-      <div class="vrfc-toast" data-tag="{{ msg.tags }}" style="padding:12px 16px; background:{% if 'error' in msg.tags %}#dc2626{% elif 'warning' in msg.tags %}#f59e0b{% elif 'success' in msg.tags %}#16a34a{% else %}#0ea5e9{% endif %}; color:#fff; border-radius:8px; box-shadow:0 6px 20px rgba(15,23,42,.2); font-size:13px; font-weight:600; max-width:360px;">{{ msg }}</div>
+      <div class="vrfc-toast" data-tag="{{ msg.tags }}" style="padding:12px 16px; background:{% if 'error' in msg.tags %}var(--danger){% elif 'warning' in msg.tags %}var(--warning){% elif 'success' in msg.tags %}var(--success){% else %}var(--primary-mid){% endif %}; color:#fff; border-radius:8px; box-shadow:0 6px 20px rgba(15,23,42,.2); font-size:13px; font-weight:600; max-width:360px;">{{ msg }}</div>
     {% endfor %}
   </div>
   <script>

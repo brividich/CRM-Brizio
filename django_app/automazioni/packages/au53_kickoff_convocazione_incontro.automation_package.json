@@ -1,0 +1,40 @@
+{
+  "package_version": "2026.07",
+  "input": {
+    "flow_name": "AU53 - Convocazione incontro KICK-OFF ai partecipanti"
+  },
+  "source_candidate": {
+    "source_code": "tasks_kickoff",
+    "label": "Incontri KICK-OFF"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "tasks_kickoff"
+  },
+  "proposed_rules": [
+    {
+      "code": "au53-kickoff-convocazione-incontro",
+      "name": "AU53 - Convocazione incontro KICK-OFF ai partecipanti",
+      "description": "Alla creazione di un incontro di kickoff, invia via email la convocazione con l'ordine del giorno (data, ora, luogo) a tutti i partecipanti (utenti portale + email extra). Complementare alla minuta (AU52): la convocazione parte PRIMA dell'incontro, la minuta DOPO. Importata come bozza: rivedere ed attivare dal designer (l'ordine del giorno va compilato prima o alla creazione).",
+      "source_code": "tasks_kickoff",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "watched_field": null,
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [],
+      "actions": [
+        {
+          "action_type": "send_meeting_invite",
+          "description": "Invia la convocazione (ordine del giorno) ai partecipanti"
+        }
+      ]
+    }
+  ]
+}

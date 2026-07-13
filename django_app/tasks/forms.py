@@ -580,7 +580,8 @@ class TaskForm(forms.ModelForm):
             else:
                 self.initial.setdefault("task_scope", self.TASK_SCOPE_SINGLE)
         else:
-            self.initial.setdefault("task_scope", self.TASK_SCOPE_SINGLE)
+            # Ogni NUOVA attività nasce dentro un kickoff (modulo "solo kickoff").
+            self.initial.setdefault("task_scope", self.TASK_SCOPE_PROJECT)
             self.initial.setdefault("project_link_mode", self.PROJECT_LINK_EXISTING)
 
     def _matching_projects_for_new_entry(self, *, part_number: str, revisione: str, versione: str):
@@ -609,6 +610,13 @@ class TaskForm(forms.ModelForm):
         due_date = cleaned_data.get("due_date")
         next_step_due = cleaned_data.get("next_step_due")
         task_scope = cleaned_data.get("task_scope") or self.TASK_SCOPE_SINGLE
+        # Enforcement "solo kickoff": una NUOVA attività non può essere standalone,
+        # nemmeno con un POST forzato scope=single → la trattiamo come "in kickoff",
+        # così la validazione più sotto esige la selezione/creazione del kickoff.
+        # L'edit di un'attività legacy senza kickoff resta invariato (può restare orfana).
+        if not self.instance.pk and task_scope == self.TASK_SCOPE_SINGLE:
+            task_scope = self.TASK_SCOPE_PROJECT
+            cleaned_data["task_scope"] = self.TASK_SCOPE_PROJECT
         raw_project_link_mode = cleaned_data.get("project_link_mode")
         project_choice = cleaned_data.get("project_choice")
         project_new_description = (cleaned_data.get("project_new_description") or "").strip()
@@ -864,7 +872,6 @@ class TaskFilterForm(forms.Form):
     overdue = forms.BooleanField(required=False)
     unassigned = forms.BooleanField(required=False)
     without_due_date = forms.BooleanField(required=False)
-    without_project = forms.BooleanField(required=False)
     due_from = forms.DateField(
         required=False,
         widget=forms.DateInput(attrs={"class": "input", "type": "date"}),
@@ -898,7 +905,6 @@ class TaskFilterForm(forms.Form):
             self.fields["project"].queryset = Project.objects.order_by("name", "id")
         self.fields["unassigned"].label = "Solo non assegnate"
         self.fields["without_due_date"].label = "Senza data prevista"
-        self.fields["without_project"].label = "Attivita singole (senza kickoff)"
 
     def clean(self):
         cleaned_data = super().clean()

@@ -1,6 +1,7 @@
 {% extends "tasks/base_shell.html" %}
 
 {% block tasks_shell_head %}
+{% include "tasks/_percorso_assets.html" %}
 <style>
   .vrf-upload-area {
     border: 2px dashed #bfdbfe;
@@ -12,7 +13,7 @@
   }
 
   .vrf-upload-area:focus-within {
-    border-color: #2563eb;
+    border-color: var(--primary-mid);
   }
 
   .vrf-upload-icon {
@@ -24,13 +25,13 @@
   .vrf-upload-title {
     font-size: 17px;
     font-weight: 800;
-    color: #1e293b;
+    color: var(--text);
     margin-bottom: 6px;
   }
 
   .vrf-upload-sub {
     font-size: 13px;
-    color: #64748b;
+    color: var(--text-light);
     margin-bottom: 20px;
   }
 
@@ -46,15 +47,15 @@
   }
 
   .vrf-status-banner.blocked {
-    background: #fef2f2;
-    border: 1px solid #fecaca;
-    color: #991b1b;
+    background: var(--danger-bg);
+    border: 1px solid var(--danger-bg);
+    color: var(--danger);
   }
 
   .vrf-status-banner.warning {
-    background: #fffbeb;
-    border: 1px solid #fde68a;
-    color: #92400e;
+    background: var(--warning-bg);
+    border: 1px solid var(--warning-bg);
+    color: var(--warning);
   }
 
   .vrf-status-banner.pending {
@@ -64,15 +65,15 @@
   }
 
   .vrf-status-banner.ok {
-    background: #f0fdf4;
-    border: 1px solid #bbf7d0;
-    color: #15803d;
+    background: var(--success-bg);
+    border: 1px solid var(--success-bg);
+    color: var(--success);
   }
 
   .vrf-status-banner.na {
     background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    color: #64748b;
+    border: 1px solid var(--border);
+    color: var(--text-light);
   }
 
   .vrf-status-icon {
@@ -94,7 +95,7 @@
   }
 
   .vrf-preview-table tr {
-    border-bottom: 1px solid #f1f5f9;
+    border-bottom: 1px solid var(--border);
   }
 
   .vrf-preview-table td:first-child {
@@ -104,19 +105,19 @@
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.07em;
-    color: #64748b;
+    color: var(--text-light);
     background: #f8fbff;
     white-space: nowrap;
   }
 
   .vrf-preview-table td:last-child {
     padding: 10px 16px;
-    color: #1e293b;
+    color: var(--text);
     font-weight: 600;
   }
 
   .vrf-preview-table td.empty {
-    color: #94a3b8;
+    color: var(--text-light);
     font-weight: 400;
     font-style: italic;
   }
@@ -127,15 +128,15 @@
     align-items: center;
     flex-wrap: wrap;
     padding: 16px 20px;
-    background: #fff7ed;
-    border: 1px solid #fed7aa;
+    background: var(--warning-bg);
+    border: 1px solid var(--border);
     border-radius: 12px;
   }
 
   .vrf-confirm-bar .confirm-text {
     flex: 1;
     font-size: 13px;
-    color: #92400e;
+    color: var(--warning);
   }
 
   .vrf-identity-row {
@@ -152,15 +153,15 @@
     padding: 3px 10px;
     border-radius: 999px;
     font-size: 11px;
-    border: 1px solid #dbe5ef;
-    background: #fff;
-    color: #475569;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-mid);
     font-weight: 600;
   }
 
   .vrf-id-chip .lbl {
     font-weight: 700;
-    color: #94a3b8;
+    color: var(--text-light);
     text-transform: uppercase;
     font-size: 9px;
     letter-spacing: 0.06em;
@@ -176,22 +177,16 @@
     flex-wrap: wrap;
     margin-top: 16px;
     padding-top: 16px;
-    border-top: 1px solid #e2e8f0;
+    border-top: 1px solid var(--border);
   }
 
   body.theme-dark .vrf-upload-area { background:rgba(29,78,216,.08); border-color:rgba(29,78,216,.3); }
-  body.theme-dark .vrf-upload-title { color:var(--text); }
-  body.theme-dark .vrf-upload-sub { color:var(--text-light); }
-  body.theme-dark .vrf-status-banner.blocked { background:rgba(153,27,27,.15); border-color:rgba(252,165,165,.2); color:#fca5a5; }
-  body.theme-dark .vrf-status-banner.warning { background:rgba(146,64,14,.15); border-color:rgba(253,230,138,.2); color:#fde68a; }
   body.theme-dark .vrf-status-banner.pending { background:rgba(7,89,133,.15); border-color:rgba(186,230,253,.2); color:#7dd3fc; }
-  body.theme-dark .vrf-status-banner.ok { background:rgba(21,128,61,.15); border-color:rgba(187,247,208,.2); color:#86efac; }
-  body.theme-dark .vrf-status-banner.na { background:var(--surface-alt); border-color:var(--border); color:var(--text-light); }
-  body.theme-dark .vrf-id-chip { background:var(--surface-alt); border-color:var(--border); color:var(--text-mid); }
+  body.theme-dark .vrf-status-banner.na { background:var(--surface-alt, #f8fafc); }
+  body.theme-dark .vrf-id-chip { background:var(--surface-alt, #f8fafc); }
   body.theme-dark .vrf-id-chip.pn { background:rgba(55,48,163,.2); border-color:rgba(199,210,254,.2); color:#a5b4fc; }
   body.theme-dark .vrf-id-chip.rev { background:rgba(22,101,52,.2); border-color:rgba(187,247,208,.2); color:#86efac; }
   body.theme-dark .vrf-id-chip.ver { background:rgba(154,52,18,.2); border-color:rgba(254,215,170,.2); color:#fdba74; }
-  body.theme-dark .vrf-skip-actions { border-color:var(--border); }
 </style>
 {% endblock %}
 
@@ -218,6 +213,8 @@
       <div class="ts-note-box {% if 'error' in msg.tags %}danger{% endif %}">{{ msg }}</div>
     {% endfor %}
   {% endif %}
+
+  {% include "tasks/_percorso_lifecycle.html" with current="vrf" %}
 
   {# --- Banner stato VRF attuale --- #}
   {% if vrf_detail.status == 'blocked' %}
@@ -248,17 +245,17 @@
   {% if not preview %}
     {# ===== STEP 1: upload form ===== #}
     {# --- CTA compila online --- #}
-    <section class="ts-panel" style="border-left: 4px solid #ea580c;">
+    <section class="ts-panel" style="border-left: 4px solid var(--accent);">
       <div class="ts-panel-body" style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
         <div style="flex:1; min-width:240px;">
-          <h3 style="margin:0 0 6px 0; font-size:15px; color:#0f172a;">Compila VRF online</h3>
-          <p style="margin:0; font-size:13px; color:#64748b;">Compila la matrice rischi MOD.073 Rev.10 direttamente nel browser (9 rischi, 45 sub-parametri). L'xlsx viene generato automaticamente dal template.</p>
+          <h3 style="margin:0 0 6px 0; font-size:15px; color:var(--text);">Compila VRF online</h3>
+          <p style="margin:0; font-size:13px; color:var(--text-light);">Compila la matrice rischi MOD.073 Rev.10 direttamente nel browser (9 rischi, 45 sub-parametri). L'xlsx viene generato automaticamente dal template.</p>
         </div>
         <a href="{% url 'tasks:project_vrf_compile' project.id %}" class="btn">{% if vrf_detail.status == 'ok' %}Apri compilazione{% else %}Inizia compilazione{% endif %} &rarr;</a>
       </div>
     </section>
 
-    <div style="text-align:center; color:#94a3b8; font-size:11px; text-transform:uppercase; letter-spacing:0.08em; font-weight:700; margin: -6px 0;">oppure</div>
+    <div style="text-align:center; color:var(--text-light); font-size:11px; text-transform:uppercase; letter-spacing:0.08em; font-weight:700; margin: -6px 0;">oppure</div>
 
     <section class="ts-panel">
       <div class="ts-panel-head">
@@ -275,8 +272,8 @@
 
           {# Anagrafica attuale del kickoff #}
           {% if project.client_name or project.part_number or project.revisione or project.versione %}
-            <div style="padding:12px 16px; background:#f8fbff; border-radius:10px; border:1px solid #e2e8f0; font-size:13px; color:#475569;">
-              <strong style="color:#1e293b;">Dati attuali:</strong>
+            <div style="padding:12px 16px; background:var(--surface); border-radius:10px; border:1px solid var(--border); font-size:13px; color:var(--text-mid);">
+              <strong style="color:var(--text);">Dati attuali:</strong>
               {% if project.client_name %} Cliente: <strong>{{ project.client_name }}</strong>{% endif %}
               <div class="vrf-identity-row">
                 {% if project.part_number %}<span class="vrf-id-chip pn"><span class="lbl">P/N</span>{{ project.part_number }}</span>{% endif %}
@@ -291,7 +288,7 @@
             <div class="vrf-upload-title">Trascina o seleziona il file MOD.073 VRF (.xlsx)</div>
             <div class="vrf-upload-sub">Il file deve essere il template standard MOD.073 - VRF. I dati vengono letti dal foglio "VRF".</div>
             <input type="file" name="vrf_file" id="id_vrf_file" accept=".xlsx,.xls" required
-                   style="display:block;margin:0 auto;max-width:360px;padding:8px;background:#fff;border:1px solid #bfdbfe;border-radius:8px;font-size:13px;">
+                   style="display:block;margin:0 auto;max-width:360px;padding:8px;background:var(--surface);border:1px solid #bfdbfe;border-radius:8px;font-size:13px;">
           </div>
 
           <div class="vrf-actions-row">
@@ -301,7 +298,7 @@
 
         {# Opzioni: rimanda o non richiesto #}
         <div class="vrf-skip-actions">
-          <span style="font-size:12px;color:#94a3b8;margin-right:4px;">Oppure:</span>
+          <span style="font-size:12px;color:var(--text-light);margin-right:4px;">Oppure:</span>
           <form method="post" style="display:inline;">
             {% csrf_token %}
             <input type="hidden" name="action" value="later">
@@ -334,7 +331,7 @@
             <td {% if not preview.client_name %}class="empty"{% endif %}>
               {{ preview.client_name|default:"— non trovato nel file" }}
               {% if project.client_name and preview.client_name and project.client_name != preview.client_name %}
-                <span style="font-size:11px;color:#f59e0b;margin-left:8px;">(attuale: {{ project.client_name }})</span>
+                <span style="font-size:11px;color:var(--warning);margin-left:8px;">(attuale: {{ project.client_name }})</span>
               {% endif %}
             </td>
           </tr>
@@ -343,7 +340,7 @@
             <td {% if not preview.part_number %}class="empty"{% endif %}>
               {{ preview.part_number|default:"— non trovato nel file" }}
               {% if project.part_number and preview.part_number and project.part_number != preview.part_number %}
-                <span style="font-size:11px;color:#f59e0b;margin-left:8px;">(attuale: {{ project.part_number }})</span>
+                <span style="font-size:11px;color:var(--warning);margin-left:8px;">(attuale: {{ project.part_number }})</span>
               {% endif %}
             </td>
           </tr>

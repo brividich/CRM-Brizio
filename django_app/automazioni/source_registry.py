@@ -243,6 +243,32 @@ _SOURCE_REGISTRY: dict[str, dict[str, object]] = {
             _field(name="project_id", label="Progetto (ID)", data_type="int", description="Kickoff/progetto collegato.", aliases=["project", "kickoff_id"]),
         ],
     },
+    "tasks_project": {
+        "code": "tasks_project",
+        "label": "Progetti KICK-OFF",
+        "source_app": "tasks",
+        "table_name": "tasks_project",
+        "pk_field": "id",
+        "supported_operations": ["insert", "update"],
+        "description": (
+            "Progetti/commesse KICK-OFF. Alert (impatto sicurezza, VRF non caricato) con "
+            "destinatari PM/capo commessa risolti in Python (azione send_project_alert)."
+        ),
+        "fields": [
+            _field(name="id", label="ID", data_type="int", description="Chiave primaria progetto.", aliases=["project_id", "kickoff_id"]),
+            _field(name="name", label="Nome", data_type="string", description="Nome KICK-OFF.", aliases=["nome", "kickoff_name"]),
+            _field(name="kickoff_number", label="Numero KICK-OFF", data_type="int", description="Numero progressivo KICK-OFF."),
+            _field(name="phase", label="Fase", data_type="string", description="Fase progetto: BOZZA, VRF, EXEC, DONE.", aliases=["fase"]),
+            _field(name="old_phase", label="Fase precedente", data_type="string", description="Valore precedente di `phase` nel payload update.", is_virtual=True, aliases=["previous_phase"]),
+            _field(name="vrf_status", label="Stato VRF", data_type="string", description="Stato documento VRF: PENDING, UPLOADED, NOT_REQUIRED.", aliases=["stato_vrf"]),
+            _field(name="safety_impact", label="Impatto sicurezza", data_type="bool", description="Il progetto ha impatto sulla sicurezza.", aliases=["impatto_sicurezza"]),
+            _field(name="old_safety_impact", label="Impatto sicurezza precedente", data_type="bool", description="Valore precedente di `safety_impact` nel payload update.", is_virtual=True),
+            _field(name="project_manager_id", label="Project manager (ID)", data_type="int", description="PM del progetto.", aliases=["pm_id"]),
+            _field(name="capo_commessa_id", label="Capo commessa (ID)", data_type="int", description="Capo commessa del progetto."),
+            _field(name="part_number", label="Part number", data_type="string", description="Part number del progetto."),
+            _field(name="client_name", label="Cliente", data_type="string", description="Nome cliente.", aliases=["cliente"]),
+        ],
+    },
     "assets": {
         "code": "assets",
         "label": "Assets",
