@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import shutil
+import tempfile
 from io import BytesIO
+from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 from django.test import TestCase
 
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
 
-from core.excel_export import build_xlsx_bytes
+from core.excel_export import _brand_header, build_xlsx_bytes
 
 
 class ExcelExportUtilTests(TestCase):
@@ -62,3 +67,64 @@ class XlsxDocumentHeaderTests(TestCase):
         ws = load_workbook(BytesIO(data)).active
         self.assertEqual(ws["A1"].value, "Nominativo")
         self.assertEqual(ws["A2"].value, "Mario Bianchi")
+
+    def test_header_uses_print_title_rows_for_repeated_header(self):
+        # ws.print_title_rows definisce l'area di stampa con riga header ripetuta:
+        # requisito di progetto, non va rimosso (vedi consegna del task).
+        data = build_xlsx_bytes(
+            columns=["Nominativo"],
+            rows=[["Mario Bianchi"]],
+            title="Elenco dipendenti",
+        )
+        ws = load_workbook(BytesIO(data)).active
+        self.assertEqual(ws.print_title_rows, "$7:$7")
+
+
+class BrandHeaderLogoResizeTests(TestCase):
+    """Copre il bug: img.height veniva sovrascritto PRIMA di calcolare il
+    rapporto d'aspetto per img.width, quindi il logo usciva distorto
+    (larghezza nativa in pixel invece che proporzionale a 36px di altezza).
+    """
+
+    def setUp(self):
+        self._tmpdir = tempfile.mkdtemp(prefix="excel_export_logo_")
+        self.addCleanup(shutil.rmtree, self._tmpdir, ignore_errors=True)
+
+    def _make_logo(self, width, height):
+        from PIL import Image as PILImage
+
+        logo_path = Path(self._tmpdir) / "logo.png"
+        PILImage.new("RGB", (width, height), color="white").save(logo_path)
+        return str(logo_path)
+
+    def test_logo_is_resized_proportionally_not_distorted(self):
+        logo_path = self._make_logo(400, 100)
+        fake_theme = SimpleNamespace(portal_name="NOVICROM HUB", logo_path=logo_path)
+
+        wb = Workbook()
+        ws = wb.active
+
+        with mock.patch("core.pdf.PdfTheme.from_branding", return_value=fake_theme):
+            _brand_header(ws, title="T", subtitle=None, filters_label=None, logo=True)
+
+        self.assertEqual(len(ws._images), 1)
+        img = ws._images[0]
+        # Altezza forzata a 36px; larghezza proporzionale (400 * 36/100 = 144),
+        # non la larghezza nativa (400) come nel bug originale.
+        self.assertEqual(img.height, 36)
+        self.assertEqual(img.width, 144)
+
+    def test_logo_resize_with_different_aspect_ratio(self):
+        # Logo quasi quadrato: 120x100 -> larghezza attesa 43 (120 * 36/100 = 43.2 -> int 43)
+        logo_path = self._make_logo(120, 100)
+        fake_theme = SimpleNamespace(portal_name="NOVICROM HUB", logo_path=logo_path)
+
+        wb = Workbook()
+        ws = wb.active
+
+        with mock.patch("core.pdf.PdfTheme.from_branding", return_value=fake_theme):
+            _brand_header(ws, title="T", subtitle=None, filters_label=None, logo=True)
+
+        img = ws._images[0]
+        self.assertEqual(img.height, 36)
+        self.assertEqual(img.width, 43)
