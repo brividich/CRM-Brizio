@@ -232,3 +232,62 @@ register(ExportSpec(
     filters_label=_mansioni_filters,
     permission=acl_gate("/anagrafica/mansioni/"),
 ))
+
+
+# ── Elenco dipendenti ─────────────────────────────────────────────────────────
+# Fonte unica: `views.build_dipendenti_rows` (stesso filtro della pagina, niente
+# duplicazione → niente drift). PRIVACY (dati personali HR): le colonne sono
+# esattamente quelle già visibili nella lista a schermo (`dipendenti_list.html`:
+# Dipendente + #id, Reparto, Mansione, Email notifica). Nessun campo aggiuntivo
+# (matricola, username, stato account…) va aggiunto qui senza che sia mostrato
+# anche in pagina.
+
+def _dipendenti_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from anagrafica.views import build_dipendenti_rows  # import locale: evita cicli
+
+    rows = build_dipendenti_rows(request, apply_filters=(scope == "filtered"))
+    return [
+        {
+            "id": int(r.get("id") or 0) or "",
+            "cognome": str(r.get("cognome") or "").strip(),
+            "nome": str(r.get("nome") or "").strip(),
+            "reparto": str(r.get("reparto") or "").strip(),
+            "mansione": str(r.get("mansione") or "").strip(),
+            "email_notifica": str(r.get("email_notifica") or "").strip(),
+        }
+        for r in rows
+    ]
+
+
+def _dipendenti_filters(request: HttpRequest) -> str:
+    parts: list[str] = []
+    q_text = (request.GET.get("q") or "").strip()
+    if q_text:
+        parts.append(f'Ricerca: "{q_text}"')
+    for param, label in (
+        ("reparto", "Reparto"),
+        ("area", "Reparto (catalogo)"),
+        ("tipologia_contratto", "Tipo contratto"),
+    ):
+        value = (request.GET.get(param) or "").strip()
+        if value:
+            parts.append(f"{label}: {value}")
+    return " · ".join(parts)
+
+
+register(ExportSpec(
+    key="dipendenti",
+    title="Elenco dipendenti",
+    sheet_title="Dipendenti",
+    columns=[
+        ("ID", "id"),
+        ("Cognome", "cognome"),
+        ("Nome", "nome"),
+        ("Reparto", "reparto"),
+        ("Mansione", "mansione"),
+        ("Email notifica", "email_notifica"),
+    ],
+    dataset=_dipendenti_rows,
+    filters_label=_dipendenti_filters,
+    permission=acl_gate("/anagrafica/dipendenti/"),
+))

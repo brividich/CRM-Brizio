@@ -514,14 +514,13 @@ def index(request):
 # Dipendenti (sola lettura — dati da legacy SQL Server)
 # ---------------------------------------------------------------------------
 
-@login_required
-def dipendenti_list(request):
-    ensure_anagrafica_schema()
-    q = request.GET.get("q", "").strip()
-    reparto = request.GET.get("reparto", "").strip()
-    area_filter = request.GET.get("area", "").strip()
-    contratto_filter = request.GET.get("tipologia_contratto", "").strip()
+def _dipendenti_base_rows() -> list[dict]:
+    """Righe dell'anagrafica in forza (legacy, deduplicate), pre-filtro.
 
+    Esclude i rapporti cessati e applica il fallback del reparto da
+    ``DipendenteAnagraficaAziendale.area`` quando il campo legacy è vuoto.
+    """
+    ensure_anagrafica_schema()
     rows = fetch_anagrafica_rows(deduplicate=True)
     # Gli ex dipendenti (rapporto cessato) restano a sistema ma non compaiono
     # mai in questa lista: hanno una vista dedicata `ex_dipendenti_list`.
@@ -542,9 +541,16 @@ def dipendenti_list(request):
                 lid = int(row.get("id") or 0)
                 if lid in _az_area_map:
                     row["reparto"] = _az_area_map[lid]
+    return rows
 
-    reparti_list = sorted({str(row.get("reparto") or "").strip() for row in rows if str(row.get("reparto") or "").strip()})
-    n_totale = len(rows)
+
+def _filter_dipendenti_rows(rows: list[dict], request) -> list[dict]:
+    """Filtri della lista dipendenti (q / reparto / area / tipologia_contratto)."""
+    q = request.GET.get("q", "").strip()
+    reparto = request.GET.get("reparto", "").strip()
+    area_filter = request.GET.get("area", "").strip()
+    contratto_filter = request.GET.get("tipologia_contratto", "").strip()
+
     if q:
         q_norm = q.casefold()
         rows = [
@@ -573,13 +579,46 @@ def dipendenti_list(request):
             az_qs = az_qs.filter(tipologia_contratto=contratto_filter)
         allowed_ids = set(az_qs.values_list("legacy_anagrafica_id", flat=True))
         rows = [row for row in rows if int(row.get("id") or 0) in allowed_ids]
+    return rows
 
+
+def _sort_dipendenti_rows(rows: list[dict]) -> list[dict]:
     rows.sort(key=lambda row: (
         str(row.get("cognome") or "").strip().casefold(),
         str(row.get("nome") or "").strip().casefold(),
         str(row.get("aliasusername") or "").strip().casefold(),
         int(row.get("id") or 0),
     ))
+    return rows
+
+
+def build_dipendenti_rows(request, *, apply_filters: bool = True) -> list[dict]:
+    """Righe dell'elenco dipendenti (legacy + fallback reparto), filtrate e ordinate.
+
+    Fonte unica condivisa tra la view ``dipendenti_list`` e l'export
+    (``anagrafica.exports``): il filtro non va duplicato altrove, o le due
+    superfici divergono (drift).
+    """
+    rows = _dipendenti_base_rows()
+    if apply_filters:
+        rows = _filter_dipendenti_rows(rows, request)
+    return _sort_dipendenti_rows(list(rows))
+
+
+@login_required
+def dipendenti_list(request):
+    q = request.GET.get("q", "").strip()
+    reparto = request.GET.get("reparto", "").strip()
+    area_filter = request.GET.get("area", "").strip()
+    contratto_filter = request.GET.get("tipologia_contratto", "").strip()
+
+    rows_all = _dipendenti_base_rows()
+    # NB: `reparti_list` e `n_totale` sono calcolati sulle righe PRE-filtro.
+    reparti_list = sorted({str(row.get("reparto") or "").strip() for row in rows_all if str(row.get("reparto") or "").strip()})
+    n_totale = len(rows_all)
+    cessati_ids = _cessati_legacy_ids()
+
+    rows = _sort_dipendenti_rows(list(_filter_dipendenti_rows(rows_all, request)))
 
     aree_list = sorted(
         DipendenteAnagraficaAziendale.objects.exclude(area="")

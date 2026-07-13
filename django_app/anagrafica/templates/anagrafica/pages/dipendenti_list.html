@@ -55,6 +55,7 @@
         {% endif %}
         <button class="fmd-btn fmd-btn-primary" type="submit"><svg class="fmd-ico"><use href="#i-filter"/></svg>Filtra</button>
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">Reset</a>
+        {% include "anagrafica/components/_export_menu.html" with export_key="dipendenti" %}
       </form>
 
       <div class="fmd-tablewrap">
