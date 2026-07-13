@@ -73,6 +73,7 @@ _CATEGORIES = [
     {"key": "plant", "label": "Stabilimento",          "hint": "Asset, planimetria, fornitori"},
     {"key": "comp",  "label": "Compliance",            "hint": "Documenti, rifiuti, audit"},
     {"key": "sys",   "label": "Automazione & sistema", "hint": "Workflow, AI, ACL, amministrazione"},
+    {"key": "secit", "label": "SOC IT - CN",           "hint": "Contatori, sicurezza IT"},
 ]
 
 # url_name: nome URL Django (con namespace se presente), o "#" se non esiste ancora.
@@ -106,6 +107,8 @@ _MODULE_CATALOG: list[dict] = [
     {"id": "hubtools",    "cat": "sys",   "label": "Hub Tools",             "sub": "Branding & pulsanti",        "tone": "info",    "kpi_unit": "strumenti",   "url_name": "hub_tools:hub_index",             "pulsante_aliases": ("hub-tools",)},
     {"id": "admin",       "cat": "sys",   "label": "Admin portale",         "sub": "Utenze e impersonificaz.",   "tone": "info",    "kpi_unit": "riservato",   "url_name": "admin_portale:index",             "pulsante_aliases": ("admin", "admin-portale")},
     {"id": "permessi",    "cat": "sys",   "label": "Permessi e ruoli",      "sub": "ACL v2",                     "tone": "info",    "kpi_unit": "ruoli",       "url_name": "admin_portale:index",             "pulsante_aliases": ("permessi", "acl")},
+    {"id": "contatori",   "cat": "secit", "label": "Contatori MFC",         "sub": "Stampanti, letture, consumabili", "tone": "info", "kpi_unit": "stampanti",   "url_name": "contatori:dashboard",             "pulsante_aliases": ("contatori",)},
+    {"id": "security_center", "cat": "secit", "label": "Security Center",   "sub": "Alert, ticket, KPI sicurezza",    "tone": "danger", "kpi_unit": "alert",     "url_name": "security:dashboard",              "pulsante_aliases": ("security-center", "soc")},
 ]
 
 

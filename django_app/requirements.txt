@@ -57,3 +57,7 @@ typing-inspection==0.4.2  # via pydantic
 urllib3==2.6.3            # via requests
 waitress==3.0.2           # via -r requirements.in
 werkzeug==3.0.3           # via -r requirements.in
+puresnmp==2.0.1
+djangorestframework==3.17.1
+t61codec==1.0.1
+x690==1.0.0.post1

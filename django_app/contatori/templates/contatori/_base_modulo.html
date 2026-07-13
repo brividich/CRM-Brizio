@@ -1,0 +1,9 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'contatori/contatori.css' %}">{% endblock %}
+{% block content %}
+<div class="contatori-module">
+  {% include "contatori/_modulo_nav.html" %}
+  {% block modulo %}{% endblock %}
+</div>
+{% endblock %}

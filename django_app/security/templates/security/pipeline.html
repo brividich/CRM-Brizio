@@ -1,0 +1,33 @@
+{% extends "security/_base_soc.html" %}
+
+{% block title %}Pipeline | Security Center AI{% endblock %}
+{% block page_icon %}P{% endblock %}
+{% block page_marker %}Sala controllo pipeline{% endblock %}
+{% block page_title %}Report / Pipeline{% endblock %}
+
+{% block soc_content %}
+<section class="sec-grid sec-kpi-grid">
+  <div class="sec-kpi-card"><span class="sec-kpi-label">Parser</span><strong class="sec-kpi-value">18</strong><span class="sec-kpi-delta sec-good">Disponibili</span></div>
+  <div class="sec-kpi-card"><span class="sec-kpi-label">Normalizzazione</span><strong class="sec-kpi-value">OK</strong><span class="sec-kpi-delta sec-good">Pronta</span></div>
+  <div class="sec-kpi-card"><span class="sec-kpi-label">Deduplica</span><strong class="sec-kpi-value">ON</strong><span class="sec-kpi-delta sec-good">Attiva</span></div>
+  <div class="sec-kpi-card"><span class="sec-kpi-label">Motore regole</span><strong class="sec-kpi-value">AI</strong><span class="sec-kpi-delta">Supervisionato</span></div>
+  <div class="sec-kpi-card"><span class="sec-kpi-label">KPI</span><strong class="sec-kpi-value">24h</strong><span class="sec-kpi-delta sec-good">Giornaliero</span></div>
+</section>
+
+<section class="sec-grid sec-two-col" style="margin-top: 12px;">
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Operazioni pipeline</h2><span class="sec-badge open">HTMX live</span></div>
+    <div class="sec-actions">
+      <form class="sec-inline" method="post" action="{% url 'security:pipeline_run' 'run-parsers' %}" hx-post="{% url 'security:pipeline_run' 'run-parsers' %}" hx-target="#pipeline-result">{% csrf_token %}<button type="submit">Esegui parser</button></form>
+      <form class="sec-inline" method="post" action="{% url 'security:pipeline_run' 'evaluate-rules' %}" hx-post="{% url 'security:pipeline_run' 'evaluate-rules' %}" hx-target="#pipeline-result">{% csrf_token %}<button type="submit">Valuta regole</button></form>
+      <form class="sec-inline" method="post" action="{% url 'security:pipeline_run' 'build-kpis' %}" hx-post="{% url 'security:pipeline_run' 'build-kpis' %}" hx-target="#pipeline-result">{% csrf_token %}<button type="submit">Genera KPI</button></form>
+      <form class="sec-inline" method="post" action="{% url 'security:pipeline_run' 'full' %}" hx-post="{% url 'security:pipeline_run' 'full' %}" hx-target="#pipeline-result">{% csrf_token %}<button class="sec-button-primary" type="submit">Esegui pipeline completa</button></form>
+    </div>
+    <div class="sec-chart" style="margin-top: 14px;" aria-hidden="true"><span class="sec-chart-line"></span><span class="sec-chart-line"></span><span class="sec-chart-line"></span></div>
+  </div>
+
+  <section class="sec-panel">
+    {% include "security/partials/pipeline_result.html" with last_pipeline_run=last_pipeline_run %}
+  </section>
+</section>
+{% endblock %}

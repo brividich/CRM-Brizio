@@ -1,0 +1,86 @@
+{% extends "contatori/_base_modulo.html" %}
+{% load dictget %}
+{% block title %}Stampanti{% endblock %}
+{% block modulo %}
+<div class="row">
+  <div>
+    <h1>Stampanti</h1>
+    <p class="sub">Configura l'IP di ogni macchina e verifica al volo la lettura SNMP.</p>
+  </div>
+  <div class="spacer"></div>
+  <a class="btn" href="{% url 'contatori:macchina_nuova' %}">+ Nuova stampante</a>
+</div>
+
+<div id="snmp-banner"></div>
+
+<div class="panel">
+  <h2>Parametri SNMP (globali)</h2>
+  <form method="post" class="row" style="gap:18px;align-items:flex-end">
+    {% csrf_token %}
+    <div>
+      <label style="display:block;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">Community</label>
+      {{ snmp_form.community }}
+    </div>
+    <div style="max-width:90px">
+      <label style="display:block;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">Porta</label>
+      {{ snmp_form.port }}
+    </div>
+    <div style="max-width:90px">
+      <label style="display:block;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">Timeout (s)</label>
+      {{ snmp_form.timeout }}
+    </div>
+    <div>
+      <label style="display:block;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">Versione</label>
+      {{ snmp_form.version }}
+    </div>
+    <button class="btn" type="submit">Salva parametri</button>
+    <div class="spacer"></div>
+    <div style="max-width:420px">
+      <span class="k" style="color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.6px">Modelli con mappa contatori nota</span><br>
+      {% for mod in modelli_noti %}<span class="pill ok" style="margin:2px 2px 0 0">{{ mod }}</span>{% empty %}<span class="pos">nessuno</span>{% endfor %}
+    </div>
+  </form>
+</div>
+
+<div class="panel">
+  <table>
+    <thead><tr>
+      <th>Reparto</th><th>Matricola</th><th>Modello</th><th>Contratto</th>
+      <th>IP (host)</th><th>Attiva</th><th>Ultima lettura</th><th>Esito test SNMP</th><th></th>
+    </tr></thead>
+    <tbody>
+    {% for m in macchine %}
+      {% with u=ultime|get:m.id %}
+      <tr>
+        <td><a class="plain" href="{% url 'contatori:macchina' m.pk %}">{{ m.reparto }}</a></td>
+        <td>{{ m.matricola }}</td>
+        <td>{{ m.modello|default:"—" }}</td>
+        <td>{{ m.contratto|default:"—" }}</td>
+        <td>{% if m.host %}<strong>{{ m.host }}</strong>{% else %}<span class="pos">non impostato</span>{% endif %}</td>
+        <td>{% if m.attiva %}<span class="pill ok">sì</span>{% else %}<span class="pill warn">no</span>{% endif %}</td>
+        <td>
+          {% if u.stato == 'mai' %}
+            <span class="pill warn">mai letta</span>
+          {% else %}
+            {{ u.lettura.data }} <span class="pill {{ u.livello }}">{{ u.lettura.get_fonte_display }}</span>
+            <span class="pos">· {% if u.giorni_fa == 0 %}oggi{% else %}{{ u.giorni_fa }} gg fa{% endif %}{% if u.stato == 'da_aggiornare' %} · da aggiornare{% endif %}</span>
+          {% endif %}
+        </td>
+        <td id="esito-{{ m.pk }}" class="pos">
+          <button class="btn ghost"
+                  hx-post="{% url 'contatori:macchina_test_snmp' m.pk %}"
+                  hx-target="#esito-{{ m.pk }}"
+                  hx-swap="innerHTML"
+                  hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                  hx-disabled-elt="this">Testa</button>
+        </td>
+        <td><a class="plain" href="{% url 'contatori:macchina_edit' m.pk %}">Modifica</a></td>
+      </tr>
+      {% endwith %}
+    {% empty %}
+      <tr><td colspan="9" class="pos">Nessuna stampante. Aggiungine una con «+ Nuova stampante».</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

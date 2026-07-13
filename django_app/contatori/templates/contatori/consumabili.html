@@ -1,0 +1,31 @@
+{% extends "contatori/_base_modulo.html" %}
+{% block title %}Consumabili flotta{% endblock %}
+{% block modulo %}
+<h1>Consumabili flotta</h1>
+<p class="sub">Stato consumabili di tutte le stampanti con IP configurato, letto via SNMP.</p>
+
+{% if not macchine %}
+  <div class="panel"><p class="pos">Nessuna stampante con IP impostato. Aggiungi l'host dalle <a class="plain" href="{% url 'contatori:macchine' %}">Stampanti</a>.</p></div>
+{% else %}
+<div class="panel">
+  <table>
+    <thead><tr><th>Reparto</th><th>Modello</th><th>IP</th><th>Stato consumabili</th></tr></thead>
+    <tbody>
+    {% for m in macchine %}
+      <tr>
+        <td><a class="plain" href="{% url 'contatori:macchina' m.pk %}">{{ m.reparto }}</a></td>
+        <td>{{ m.modello|default:"—" }}</td>
+        <td><strong>{{ m.host }}</strong></td>
+        <td hx-get="{% url 'contatori:consumabili_riepilogo' m.pk %}"
+            hx-trigger="load"
+            hx-swap="innerHTML">
+          <span class="pos">lettura in corso…</span>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="pos" style="margin-top:10px">Per il dettaglio completo di una macchina apri la sua scheda.</p>
+</div>
+{% endif %}
+{% endblock %}

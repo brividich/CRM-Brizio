@@ -1,0 +1,15 @@
+{% if valori %}
+  <span class="pill ok">✅ risponde</span>
+  <span class="pos" style="margin-left:6px">A4 BN {{ valori.a4_bn }} · A3 BN {{ valori.a3_bn }} · A4 COL {{ valori.a4_col }} · A3 COL {{ valori.a3_col }}</span>
+{% else %}
+  <span class="pill danger">⚠ {{ errore }}</span>
+{% endif %}
+
+{# Banner di conferma in cima alla pagina (out-of-band) #}
+<div id="snmp-banner" hx-swap-oob="true">
+  {% if valori %}
+    <div class="banner clean">✅ Lettura SNMP riuscita per «{{ macchina.reparto }}» ({{ macchina.host }}) — A4 BN {{ valori.a4_bn }} · A3 BN {{ valori.a3_bn }} · A4 COL {{ valori.a4_col }} · A3 COL {{ valori.a3_col }}</div>
+  {% else %}
+    <div class="banner">⚠ Test SNMP fallito per «{{ macchina.reparto }}»: {{ errore }}</div>
+  {% endif %}
+</div>

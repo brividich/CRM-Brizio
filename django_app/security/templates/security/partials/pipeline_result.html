@@ -1,0 +1,39 @@
+<div id="pipeline-result">
+  <div class="sec-section-head">
+    <h2>Stato pipeline</h2>
+    {% if last_pipeline_run.action %}<span class="sec-badge">{{ last_pipeline_run.action }}</span>{% endif %}
+  </div>
+  {% if last_pipeline_run %}
+    <div class="sec-fact-grid">
+      <div class="sec-fact"><span>Operazione</span><strong>{{ last_pipeline_run.action|default:"-" }}</strong></div>
+      <div class="sec-fact"><span>Stato</span><strong>{% if last_pipeline_run.errors %}Completata con errori{% else %}Successo{% endif %}</strong></div>
+      <div class="sec-fact"><span>Avviata</span><strong>{{ last_pipeline_run.started_at|default:"-" }}</strong></div>
+      <div class="sec-fact"><span>Terminata</span><strong>{{ last_pipeline_run.finished_at|default:"-" }}</strong></div>
+      <div class="sec-fact"><span>Report analizzati</span><strong>{{ last_pipeline_run.reports_parsed|default:0 }}</strong></div>
+      <div class="sec-fact"><span>Regole valutate</span><strong>{{ last_pipeline_run.rules_evaluated|default:0 }}</strong></div>
+      <div class="sec-fact"><span>Alert creati</span><strong>{{ last_pipeline_run.alerts_created|default:0 }}</strong></div>
+      <div class="sec-fact"><span>Deduplicati</span><strong>{{ last_pipeline_run.alerts_deduplicated|default:0 }}</strong></div>
+      <div class="sec-fact"><span>KPI generati</span><strong>{{ last_pipeline_run.kpis_built|default:0 }}</strong></div>
+      <div class="sec-fact"><span>Errori</span><strong>{% if last_pipeline_run.errors %}{{ last_pipeline_run.errors|length }}{% else %}0{% endif %}</strong></div>
+    </div>
+    {% if last_pipeline_run.errors %}<pre style="margin-top: 12px;">{{ last_pipeline_run.errors }}</pre>{% endif %}
+    {% if last_pipeline_run.parsed_reports %}
+      <div style="margin-top: 14px;">
+        <div class="sec-section-head"><h2>Report analizzati</h2><span class="sec-badge">Recenti</span></div>
+        {% for report in last_pipeline_run.parsed_reports %}
+          <div class="sec-fact" style="margin-top: 8px;">
+            <span>{{ report.parser_name|default:"Parser" }} / {{ report.report_type|default:"report" }}</span>
+            <strong>{% if report.period_start %}{{ report.period_start }} - {{ report.period_end|default:"-" }}{% else %}{{ report.report_date|default:"Periodo non disponibile" }}{% endif %}</strong>
+            <div style="margin-top: 8px;">
+              {% for kpi in report.kpis %}<span class="sec-badge">{{ kpi.name|default:"KPI" }}: {{ kpi.value|default:0 }}</span>{% endfor %}
+            </div>
+            <div style="margin-top: 8px;">Record: {{ report.records_count|default:0 }} / Candidati alert: {{ report.alert_candidates|length }}</div>
+            {% if report.parse_warnings %}<pre style="margin-top: 8px;">{{ report.parse_warnings }}</pre>{% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% else %}
+    <p class="sec-empty">No pipeline run yet</p>
+  {% endif %}
+</div>

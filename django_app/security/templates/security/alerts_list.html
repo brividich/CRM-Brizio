@@ -1,0 +1,83 @@
+{% extends "security/_base_soc.html" %}
+{% load security_i18n %}
+
+{% block title %}Coda alert | Security Center AI{% endblock %}
+{% block page_icon %}!{% endblock %}
+{% block page_marker %}Coda alert{% endblock %}
+{% block page_title %}Inbox eventi{% endblock %}
+
+{% block soc_content %}
+<section class="sec-grid sec-two-col">
+  <aside class="sec-panel">
+    <div class="sec-section-head"><h2>Filtri e viste salvate</h2><span>#</span></div>
+    <ul class="sec-mini-list">
+      <li><a href="{% url 'security:alerts_list' %}">Tutti</a><strong>{{ alerts|length }}</strong></li>
+      {% for value, label in severity_choices %}
+        <li><a class="{{ value }}" href="{% url 'security:alerts_list' %}?severity={{ value }}">{{ value|ui_label }}</a><span>severita</span></li>
+      {% endfor %}
+    </ul>
+    <div class="sec-section-head" style="margin-top: 18px;"><h3>Filtri rapidi</h3></div>
+    <form class="sec-filters" method="get">
+      <label>Severita
+        <select name="severity">
+          <option value="">Tutte</option>
+          {% for value, label in severity_choices %}
+            <option value="{{ value }}" {% if filters.severity == value %}selected{% endif %}>{{ value|ui_label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Stato
+        <select name="status">
+          <option value="">Tutti</option>
+          {% for value, label in status_choices %}
+            <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ value|ui_label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Sorgente
+        <select name="source">
+          <option value="">Tutte</option>
+          {% for source in sources %}
+            <option value="{{ source.pk }}" {% if filters.source == source.pk|stringformat:"s" %}selected{% endif %}>{{ source.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Data <input type="date" name="date" value="{{ filters.date }}"></label>
+      <button class="sec-button-primary" type="submit">Filtra</button>
+      <a class="sec-button" href="{% url 'security:alerts_list' %}">Reimposta</a>
+    </form>
+  </aside>
+
+  <section class="sec-panel">
+    <div class="sec-section-head">
+      <h2>Inbox eventi</h2>
+      <div class="sec-actions">
+        <span class="sec-badge">Totale {{ alerts|length }}</span>
+        <span class="sec-badge open">Live</span>
+      </div>
+    </div>
+    <div class="sec-table-wrap">
+      <table class="sec-table">
+        <thead><tr><th></th><th>Severita</th><th>Titolo evento</th><th>Sorgente</th><th>Asset / Utente</th><th>Stato</th><th>Ora</th><th>Responsabile</th><th>Dettagli</th></tr></thead>
+        <tbody>
+        {% for alert in alerts %}
+          <tr>
+            <td><input type="checkbox" aria-label="Seleziona alert"></td>
+            <td><span class="sec-badge {{ alert.severity }}">{{ alert.severity|ui_label }}</span></td>
+            <td class="sec-title-cell"><strong>{{ alert.title }}</strong><small>{{ alert.short_dedup_hash }} - evidenze {{ alert.evidence_count|default:0 }}</small></td>
+            <td>{{ alert.source.name }}</td>
+            <td>{% if alert.event.asset %}{{ alert.event.asset.hostname }}{% else %}<span class="sec-muted">Aggregato</span>{% endif %}</td>
+            <td><span class="sec-badge {{ alert.status }}">{{ alert.status|ui_label }}</span></td>
+            <td>{{ alert.last_seen_at|date:"d M, H:i" }}</td>
+            <td>{{ alert.owner|default:"-" }}</td>
+            <td><a class="sec-button" href="{% url 'security:alert_detail' alert.pk %}">Dettagli</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="9" class="sec-empty">Nessun alert corrisponde ai filtri.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</section>
+{% endblock %}

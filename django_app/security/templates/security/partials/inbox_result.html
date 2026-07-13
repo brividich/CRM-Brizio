@@ -1,0 +1,40 @@
+<div id="inbox-result">
+  <div class="sec-section-head">
+    <h2>Last result</h2>
+    {% if inbox_result.status %}<span class="sec-badge {{ inbox_result.status }}">{{ inbox_result.status }}</span>{% endif %}
+  </div>
+  {% if inbox_result %}
+    <div class="sec-fact-grid">
+      <div class="sec-fact"><span>Status</span><strong>{{ inbox_result.status|default:"-" }}</strong></div>
+      <div class="sec-fact"><span>Mode</span><strong>{{ inbox_result.mode|default:"-" }}</strong></div>
+      <div class="sec-fact"><span>Source detected</span><strong>{{ inbox_result.source_detected|default:"No source matched" }}</strong></div>
+      <div class="sec-fact"><span>Parser used</span><strong>{{ inbox_result.parser_used|default:"-" }}</strong></div>
+      <div class="sec-fact"><span>Report</span><strong>{{ inbox_result.report_reference|default:"-" }}</strong></div>
+      <div class="sec-fact"><span>Metrics</span><strong>{{ inbox_result.metrics_created|default:0 }}</strong></div>
+      <div class="sec-fact"><span>Events</span><strong>{{ inbox_result.events_created|default:0 }}</strong></div>
+      <div class="sec-fact"><span>Alerts</span><strong>{{ inbox_result.alerts_created|default:0 }}</strong></div>
+      <div class="sec-fact"><span>Evidence</span><strong>{{ inbox_result.evidence_created|default:0 }}</strong></div>
+      <div class="sec-fact"><span>Tickets</span><strong>{{ inbox_result.tickets_changed|default:0 }}</strong></div>
+    </div>
+    {% if inbox_result.preview %}
+      <div class="sec-fact" style="margin-top: 12px;">
+        <span>Sanitized preview</span>
+        <strong>{{ inbox_result.preview }}</strong>
+      </div>
+    {% endif %}
+    {% if inbox_result.warnings %}
+      <div class="sec-fact" style="margin-top: 12px;">
+        <span>Warnings</span>
+        {% for warning in inbox_result.warnings %}<strong>{{ warning }}</strong>{% endfor %}
+      </div>
+    {% endif %}
+    {% if inbox_result.errors %}
+      <div class="sec-fact" style="margin-top: 12px;">
+        <span>Errors</span>
+        {% for error in inbox_result.errors %}<strong>{{ error }}</strong>{% endfor %}
+      </div>
+    {% endif %}
+  {% else %}
+    <p class="sec-empty">No inbox run yet</p>
+  {% endif %}
+</div>

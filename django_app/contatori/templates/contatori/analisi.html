@@ -1,0 +1,122 @@
+{% extends "contatori/_base_modulo.html" %}
+{% block title %}Analisi{% endblock %}
+{% block modulo %}
+<div class="row">
+  <div>
+    <h1>Analisi</h1>
+    <p class="sub">Volumi di stampa della flotta: andamento, consumo effettivo per trimestre, mix colore e classifica reparti.</p>
+  </div>
+  <div class="spacer"></div>
+  {% if andamento %}<a class="btn ghost" href="{% url 'contatori:export_analisi' %}">⬇ Esporta .xlsx</a>{% endif %}
+</div>
+
+{% if not andamento %}
+  <div class="panel"><p class="pos">Nessun dato disponibile. Carica letture e fatture.</p></div>
+{% else %}
+
+<div class="cards">
+  <div class="card">
+    <div class="k">Totale copie ({{ ripartizione.trimestre }})</div>
+    <div class="v">{{ ripartizione.totale }}</div>
+  </div>
+  <div class="card">
+    <div class="k">Quota Colore</div>
+    <div class="v" style="color:var(--cyan)">{{ ripartizione.col_pct }}%</div>
+  </div>
+  <div class="card">
+    <div class="k">Quota A3</div>
+    <div class="v" style="color:var(--navy2)">{{ ripartizione.a3_pct }}%</div>
+  </div>
+  <div class="card">
+    <div class="k">Reparti attivi</div>
+    <div class="v">{{ classifica|length }}</div>
+  </div>
+</div>
+
+<!-- Ripartizione -->
+<div class="panel">
+  <h2>Ripartizione (totali cumulati {{ ripartizione.trimestre }})</h2>
+  <div style="margin-bottom:14px">
+    <div class="row" style="justify-content:space-between"><span>Bianco/Nero</span><strong>{{ ripartizione.bn_pct }}%</strong></div>
+    <div class="bar" style="height:14px"><span style="width:{{ ripartizione.bn_pct }}%"></span></div>
+  </div>
+  <div style="margin-bottom:14px">
+    <div class="row" style="justify-content:space-between"><span>Colore</span><strong>{{ ripartizione.col_pct }}%</strong></div>
+    <div class="bar" style="height:14px"><span style="width:{{ ripartizione.col_pct }}%;background:linear-gradient(90deg,var(--cyan),var(--orange))"></span></div>
+  </div>
+  <div style="margin-bottom:14px">
+    <div class="row" style="justify-content:space-between"><span>A4</span><strong>{{ ripartizione.a4_pct }}%</strong></div>
+    <div class="bar" style="height:14px"><span style="width:{{ ripartizione.a4_pct }}%"></span></div>
+  </div>
+  <div>
+    <div class="row" style="justify-content:space-between"><span>A3</span><strong>{{ ripartizione.a3_pct }}%</strong></div>
+    <div class="bar" style="height:14px"><span style="width:{{ ripartizione.a3_pct }}%"></span></div>
+  </div>
+</div>
+
+<!-- Consumo per trimestre (delta) -->
+<div class="panel">
+  <h2>Consumo per trimestre <span class="pos" style="font-weight:400">— copie effettivamente prodotte</span></h2>
+  {% if anomalie_consumo %}<div class="banner">⚠ {{ anomalie_consumo }} calo/i di lettura ignorati nel calcolo (refusi di monotonìa).</div>{% endif %}
+  <table>
+    <thead><tr><th>Trimestre</th><th class="num">BN</th><th class="num">Colore</th><th class="num">Totale prodotto</th><th style="width:40%">Volume</th></tr></thead>
+    <tbody>
+    {% for c in consumo %}
+      <tr>
+        <td><strong>{{ c.trimestre }}</strong></td>
+        <td class="num">{{ c.bn }}</td>
+        <td class="num">{{ c.col }}</td>
+        <td class="num"><strong>{{ c.totale }}</strong></td>
+        <td><div class="bar"><span style="width:{% widthratio c.totale cons_max 100 %}%"></span></div></td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="5" class="pos">Serve almeno un secondo trimestre per calcolare il consumo.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Classifica reparti -->
+<div class="panel">
+  <h2>Classifica reparti <span class="pos" style="font-weight:400">— per volume prodotto</span></h2>
+  <table>
+    <thead><tr><th>#</th><th>Reparto</th><th class="num">BN</th><th class="num">Colore</th><th class="num">Totale</th><th class="num">Quota colore</th><th style="width:30%">Volume</th></tr></thead>
+    <tbody>
+    {% for r in classifica %}
+      <tr>
+        <td class="pos">{{ forloop.counter }}</td>
+        <td>{{ r.reparto }} <span class="pos">({{ r.matricola }})</span></td>
+        <td class="num">{{ r.bn }}</td>
+        <td class="num">{{ r.col }}</td>
+        <td class="num"><strong>{{ r.totale }}</strong></td>
+        <td class="num">{{ r.quota_col }}%</td>
+        <td><div class="bar"><span style="width:{% widthratio r.totale clas_max 100 %}%"></span></div></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Andamento cumulato -->
+<div class="panel">
+  <h2>Andamento cumulato per trimestre</h2>
+  <table>
+    <thead><tr><th>Trimestre</th>
+      <th class="num">A4 BN</th><th class="num">A3 BN</th><th class="num">A4 COL</th><th class="num">A3 COL</th>
+      <th class="num">BN</th><th class="num">Colore</th><th class="num">Totale</th></tr></thead>
+    <tbody>
+    {% for a in andamento %}
+      <tr>
+        <td><strong>{{ a.trimestre }}</strong></td>
+        <td class="num">{{ a.a4_bn }}</td><td class="num">{{ a.a3_bn }}</td>
+        <td class="num">{{ a.a4_col }}</td><td class="num">{{ a.a3_col }}</td>
+        <td class="num">{{ a.bn }}</td><td class="num">{{ a.col }}</td>
+        <td class="num"><strong>{{ a.totale }}</strong></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endif %}
+{% endblock %}
