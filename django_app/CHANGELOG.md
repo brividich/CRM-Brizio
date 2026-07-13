@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### SOC IT - CN - Security Center sotto-progetto D2: collegamento SecurityAsset<->Asset
+
+- **[feat/test] `security/models.py` + `migrations/0010_securityasset_hub_asset.py`, `security/management/commands/collega_asset_security.py` [nuovo], `security/tests_soc.py`**: fase D2. FK opzionale `SecurityAsset.hub_asset`→`assets.Asset` (SET_NULL); comando `collega_asset_security` (match ip↔endpoint, hostname↔name; dry-run/apply; **non tocca gli Asset**). Collega i device di sicurezza al registro asset HUB (alert/vulnerabilità → asset fisico). 3 test (`SecurityAssetLinkTest`, 18 totali). Migrazione additiva. Nessuna UI (pagina security-asset non wired).
+
 ### SOC IT - CN - Contatori sotto-progetto D1: collegamento agli asset dell'HUB
 
 - **[feat/test] `contatori/models.py` + `migrations/0004_macchina_asset.py`, `contatori/management/commands/collega_asset.py` [nuovo], `contatori/templates/contatori/macchina.html`, `contatori/tests.py`**: fase D1 (collegamento asset, post-implementazione). FK opzionale `Macchina.asset`→`assets.Asset` (SET_NULL); comando `collega_asset` (match matricola↔serial e host↔ip, dry-run/apply, **non tocca gli Asset**); pannello "Asset collegato" con link nella scheda macchina. 4 test (`CollegamentoAssetTest`, 36 totali contatori). Migrazione additiva su SQL Server. D2 (Security↔Asset) a seguire.
