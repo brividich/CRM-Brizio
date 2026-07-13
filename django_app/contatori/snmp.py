@@ -27,8 +27,85 @@ COUNTER_MAP = {
 }
 
 
+# Discovery di rete: OID standard per identificare il dispositivo.
+SYS_DESCR = "1.3.6.1.2.1.1.1.0"              # descrizione (contiene il modello)
+SYS_NAME = "1.3.6.1.2.1.1.5.0"               # nome host della stampante
+PRT_SERIAL = "1.3.6.1.2.1.43.5.1.1.17.1"     # Printer-MIB: numero di serie (= matricola)
+
+# Cap di sicurezza: una scansione parte da una richiesta web, non deve poter
+# esplodere su un range enorme.
+MAX_HOST_SCAN = 512
+
+
 class SNMPError(RuntimeError):
     pass
+
+
+def _testo(valore):
+    if isinstance(valore, bytes):
+        return valore.decode("latin-1", "replace").strip()
+    return str(valore).strip() if valore is not None else ""
+
+
+def scansiona_rete(rete, community="novicromprinter", port=161, timeout=2,
+                   version="v1", concurrency=32):
+    """Cerca in rete i dispositivi che rispondono in SNMP.
+
+    Ritorna [{"host", "descr", "nome", "matricola"}] per i soli host che rispondono.
+    Solo letture (GET): non scrive nulla sui dispositivi.
+
+    Un host che non risponde viene semplicemente saltato: in SNMPv1/v2c non si puo'
+    distinguere "assente" da "community sbagliata" — entrambi danno timeout.
+    """
+    import ipaddress
+
+    try:
+        net = ipaddress.ip_network(str(rete).strip(), strict=False)
+    except ValueError as e:
+        raise SNMPError(f"rete non valida ('{rete}'): usa una notazione tipo 10.0.0.0/24") from e
+
+    host_list = [str(h) for h in net.hosts()] or [str(net.network_address)]
+    if len(host_list) > MAX_HOST_SCAN:
+        raise SNMPError(
+            f"range troppo ampio: {len(host_list)} host (massimo {MAX_HOST_SCAN}). "
+            f"Restringi la maschera (es. /24)."
+        )
+
+    try:
+        from puresnmp import Client, V1, V2C, PyWrapper
+        from puresnmp.transport import send_udp
+    except ImportError as e:
+        raise SNMPError("puresnmp non installato (pip install puresnmp)") from e
+
+    cred = V1(community) if version == "v1" else V2C(community)
+
+    async def _sonda(host, sem):
+        async with sem:
+            sender = functools.partial(send_udp, timeout=timeout)
+            client = PyWrapper(Client(host, cred, port=port, sender=sender))
+            try:
+                descr = await client.get(SYS_DESCR)
+            except Exception:
+                return None  # non risponde (assente / SNMP off / community errata)
+            trovato = {"host": host, "descr": _testo(descr), "nome": "", "matricola": ""}
+            for oid, chiave in ((SYS_NAME, "nome"), (PRT_SERIAL, "matricola")):
+                try:
+                    trovato[chiave] = _testo(await client.get(oid))
+                except Exception:
+                    pass  # opzionali: alcuni device non li espongono
+            return trovato
+
+    async def _run():
+        sem = asyncio.Semaphore(max(1, int(concurrency)))
+        esiti = await asyncio.gather(*[_sonda(h, sem) for h in host_list])
+        return [e for e in esiti if e]
+
+    try:
+        return asyncio.run(_run())
+    except SNMPError:
+        raise
+    except Exception as e:
+        raise SNMPError(f"scansione fallita: {e}") from e
 
 
 def _tabella(host, community, port, timeout, version):

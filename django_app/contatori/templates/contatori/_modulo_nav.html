@@ -5,4 +5,5 @@
   <a href="{% url 'contatori:consumabili' %}" class="{% if 'consumabili' in request.resolver_match.url_name %}active{% endif %}">Consumabili</a>
   <a href="{% url 'contatori:importa_lettura' %}" class="{% if request.resolver_match.url_name == 'importa_lettura' %}active{% endif %}">Nuova lettura</a>
   <a href="{% url 'contatori:macchine' %}" class="{% if request.resolver_match.url_name in 'macchine,macchina_nuova,macchina_edit' %}active{% endif %}">Stampanti</a>
+  <a href="{% url 'contatori:discovery' %}" class="{% if 'discovery' in request.resolver_match.url_name %}active{% endif %}">Discovery</a>
 </nav>
