@@ -52,6 +52,9 @@ urlpatterns = [
     path("admin/docs/", views.admin_docs, name="admin_docs"),
     path("admin/addons/", views.admin_addons, name="admin_addons"),
     path("admin/addons/<slug:code>/", views.admin_addon_detail, name="admin_addon_detail"),
+    # mailbox sources (config sola lettura; ingestione Graph/IMAP non wired)
+    path("admin/mailbox/", views.admin_mailbox_sources_list, name="admin_mailbox_sources_list"),
+    path("admin/mailbox/<slug:code>/", views.admin_mailbox_source_detail, name="admin_mailbox_source_detail"),
     # stub API richiesto da addon_registry per il reverse (API reale → fase futura)
     path("api/addons/<slug:code>/", _api_non_montata, name="api_addon_detail"),
 ]
