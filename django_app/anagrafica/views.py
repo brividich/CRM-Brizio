@@ -592,14 +592,22 @@ def _sort_dipendenti_rows(rows: list[dict]) -> list[dict]:
     return rows
 
 
-def build_dipendenti_rows(request, *, apply_filters: bool = True) -> list[dict]:
+def build_dipendenti_rows(
+    request,
+    *,
+    apply_filters: bool = True,
+    base_rows: list[dict] | None = None,
+) -> list[dict]:
     """Righe dell'elenco dipendenti (legacy + fallback reparto), filtrate e ordinate.
 
     Fonte unica condivisa tra la view ``dipendenti_list`` e l'export
     (``anagrafica.exports``): il filtro non va duplicato altrove, o le due
-    superfici divergono (drift).
+    superfici divergono (drift). La view passa ``base_rows`` (le righe
+    pre-filtro già calcolate per ``n_totale``/``reparti``) per evitare un
+    secondo fetch legacy; l'export, che non ha già una base, lascia che
+    l'helper la calcoli da sé.
     """
-    rows = _dipendenti_base_rows()
+    rows = base_rows if base_rows is not None else _dipendenti_base_rows()
     if apply_filters:
         rows = _filter_dipendenti_rows(rows, request)
     return _sort_dipendenti_rows(list(rows))
@@ -618,7 +626,10 @@ def dipendenti_list(request):
     n_totale = len(rows_all)
     cessati_ids = _cessati_legacy_ids()
 
-    rows = _sort_dipendenti_rows(list(_filter_dipendenti_rows(rows_all, request)))
+    # Stessa costruzione righe dell'export (`anagrafica.exports._dipendenti_rows`
+    # → `build_dipendenti_rows`): passare `rows_all` come base evita un secondo
+    # fetch legacy pur restando sull'unica fonte condivisa filtro/ordina.
+    rows = build_dipendenti_rows(request, base_rows=rows_all)
 
     aree_list = sorted(
         DipendenteAnagraficaAziendale.objects.exclude(area="")
