@@ -571,6 +571,7 @@ MIDDLEWARE_EXEMPT_PREFIXES = (
     "/setup/",
     "/admin-portale/hub/",
     "/assets/public/",
+    "/assets/qr/pub/",          # landing QR pubblica (token opaco), sola lettura
     "/monitoring/report-problem/",
     "/admin-portale/automazioni/approvazione/",
     "/automazioni/approvazione/",  # token-based, no login required

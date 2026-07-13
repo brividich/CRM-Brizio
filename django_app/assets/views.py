@@ -2945,20 +2945,22 @@ def _sync_asset_documents_from_sharepoint(asset: Asset, *, apply: bool = True) -
 
 def _asset_qr_target_url(request: HttpRequest, asset: Asset, *, target: str = "detail") -> tuple[str, str]:
     desired = _clean_string(target).lower()
+    public_token = _clean_string(getattr(asset, "public_qr_token", ""))
+    public_qr_enabled = bool(public_token) and getattr(asset, "public_qr_enabled", True)
     if desired == "sharepoint":
         public_url = _clean_string(getattr(asset, "sharepoint_public_url", ""))
         public_enabled = getattr(asset, "sharepoint_public_enabled", False)
-        if (
-            _clean_string(getattr(asset, "public_qr_token", ""))
-            and getattr(asset, "public_qr_enabled", True)
-            and public_enabled
-            and public_url
-        ):
-            public_route = reverse("assets:asset_public_redirect", kwargs={"public_qr_token": asset.public_qr_token})
+        if public_qr_enabled and public_enabled and public_url:
+            public_route = reverse("assets:asset_public_redirect", kwargs={"public_qr_token": public_token})
             return _portal_absolute_uri(request, public_route), "Cartella SharePoint pubblica"
         if public_enabled and public_url:
             return public_url, "Cartella SharePoint pubblica"
-    if desired == "landing":
+    if desired in {"sharepoint", "landing"}:
+        # Landing QR: pubblica (token opaco) quando disponibile, così il QR resta
+        # leggibile da tecnici/ispettori esterni senza login.
+        if public_qr_enabled:
+            public_landing = reverse("assets:asset_qr_public_landing", kwargs={"public_qr_token": public_token})
+            return _portal_absolute_uri(request, public_landing), "Landing QR pubblica"
         landing_url = reverse("assets:asset_qr_landing", kwargs={"asset_tag": asset.asset_tag})
         return _portal_absolute_uri(request, landing_url), "Landing mobile QR"
     detail_url = reverse("assets:asset_view", kwargs={"id": asset.id})
@@ -10045,10 +10047,34 @@ def asset_qr_landing(request: HttpRequest, asset_tag: str) -> HttpResponse:
                 "page_title": "Asset non trovato",
                 "asset": None,
                 "asset_tag": asset_tag,
+                "base_template": "core/base.html",
                 **_assets_shell_context(request, rows=25),
             },
         )
+    return _render_asset_qr_landing(request, asset, public=False)
 
+
+def asset_qr_public_landing(request: HttpRequest, public_qr_token: str) -> HttpResponse:
+    """Landing QR pubblica (token opaco): consultabile senza login da tecnici/ispettori esterni.
+
+    Sola lettura: le azioni (segnalazione, registrazione intervento, scheda interna)
+    restano dietro login tramite i decoratori delle rispettive view.
+    """
+    token = _clean_string(public_qr_token)
+    if not token:
+        raise Http404("Link non disponibile.")
+    asset = (
+        Asset.objects.filter(public_qr_token=token, public_qr_enabled=True)
+        .select_related("asset_category")
+        .first()
+    )
+    if asset is None:
+        raise Http404("Link non disponibile.")
+    return _render_asset_qr_landing(request, asset, public=True)
+
+
+def _render_asset_qr_landing(request: HttpRequest, asset: Asset, *, public: bool) -> HttpResponse:
+    asset_tag = asset.asset_tag
     today = timezone.localdate()
 
     # OdL aperti per questo asset (max 5)
@@ -10066,16 +10092,11 @@ def asset_qr_landing(request: HttpRequest, asset_tag: str) -> HttpResponse:
         .first()
     )
 
-    # Prossima scadenza amministrativa
+    # Prossima scadenza amministrativa (campo corretto: due_date; niente flag 'completed').
     next_deadline = (
-        AssetAdministrativeDeadline.objects.filter(
-            asset=asset,
-            is_active=True,
-            completed=False,
-            expiry_date__isnull=False,
-        )
-        .order_by("expiry_date")
-        .values("id", "title", "expiry_date")
+        AssetAdministrativeDeadline.objects.filter(asset=asset, is_active=True)
+        .order_by("due_date")
+        .values("id", "title", "due_date")
         .first()
     )
 
@@ -10090,24 +10111,27 @@ def asset_qr_landing(request: HttpRequest, asset_tag: str) -> HttpResponse:
     report_url = f"{reverse('assets:asset_quick_report')}?asset={asset.id}"
     wo_list_url = f"{reverse('assets:wo_list')}?asset={asset.id}"
 
-    return render(
-        request,
-        "assets/pages/asset_qr_landing.html",
-        {
-            "page_title": f"{asset.asset_tag} — {asset.name}",
-            "asset": asset,
-            "asset_tag": asset_tag,
-            "open_workorders": open_workorders,
-            "last_wo": last_wo,
-            "next_deadline": next_deadline,
-            "days_since_last": days_since_last,
-            "today": today,
-            "detail_url": detail_url,
-            "report_url": report_url,
-            "wo_list_url": wo_list_url,
-            **_assets_shell_context(request, rows=25),
-        },
-    )
+    context: dict[str, object] = {
+        "page_title": f"{asset.asset_tag} — {asset.name}",
+        "asset": asset,
+        "asset_tag": asset_tag,
+        "open_workorders": open_workorders,
+        "last_wo": last_wo,
+        "next_deadline": next_deadline,
+        "days_since_last": days_since_last,
+        "today": today,
+        "detail_url": detail_url,
+        "report_url": report_url,
+        "wo_list_url": wo_list_url,
+        "qr_public": public,
+    }
+    if public:
+        # Nessuna shell applicativa (sidebar/nav/ACL) per i visitatori non autenticati.
+        context["base_template"] = "core/base_public.html"
+    else:
+        context["base_template"] = "core/base.html"
+        context.update(_assets_shell_context(request, rows=25))
+    return render(request, "assets/pages/asset_qr_landing.html", context)
 
 
 def asset_public_redirect(request: HttpRequest, public_qr_token: str) -> HttpResponse:

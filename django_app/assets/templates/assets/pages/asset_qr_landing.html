@@ -1,4 +1,4 @@
-{% extends "core/base.html" %}
+{% extends base_template|default:"core/base.html" %}
 {% load static %}
 
 {% block title %}
@@ -215,11 +215,9 @@
           <div class="qrl-kv-row">
             <span class="qrl-kv-label">Prossima scadenza</span>
             <span class="qrl-kv-value">
-              {{ next_deadline.expiry_date|date:"d-m-Y" }}
-              {% if next_deadline.expiry_date <= today %}
+              {{ next_deadline.due_date|date:"d-m-Y" }}
+              {% if next_deadline.due_date <= today %}
                 <span class="qrl-badge qrl-badge--alert">Scaduta</span>
-              {% elif next_deadline.expiry_date|timeuntil <= "7 giorni" %}
-                <span class="qrl-badge qrl-badge--warn">Imminente</span>
               {% endif %}
             </span>
           </div>
@@ -245,31 +243,39 @@
             </div>
           </div>
         {% endfor %}
-        <div style="margin-top:10px;">
-          <a href="{{ wo_list_url }}" style="font-size:.8rem;color:#1d4ed8;font-weight:600;text-decoration:none;">
-            Vedi tutti gli interventi &rarr;
-          </a>
-        </div>
+        {% if not qr_public %}
+          <div style="margin-top:10px;">
+            <a href="{{ wo_list_url }}" style="font-size:.8rem;color:#1d4ed8;font-weight:600;text-decoration:none;">
+              Vedi tutti gli interventi &rarr;
+            </a>
+          </div>
+        {% endif %}
       {% else %}
         <p class="qrl-empty">Nessun intervento aperto.</p>
       {% endif %}
     </div>
   </div>
 
-  {# Azioni principali #}
+  {# Azioni principali — richiedono login (anche via QR pubblico) #}
   <div class="qrl-actions">
     <a href="{{ report_url }}" class="qrl-btn qrl-btn--primary">
       <span class="qrl-btn-icon">&#9888;</span>
-      Segnala un problema
+      {% if qr_public %}Accedi e segnala un problema{% else %}Segnala un problema{% endif %}
     </a>
-    <a href="{{ wo_list_url }}" class="qrl-btn qrl-btn--secondary">
-      <span class="qrl-btn-icon">&#128295;</span>
-      Interventi
-    </a>
-    <a href="{{ detail_url }}" class="qrl-btn qrl-btn--detail">
-      <span class="qrl-btn-icon">&#128196;</span>
-      Scheda completa
-    </a>
+    {% if not qr_public %}
+      <a href="{{ wo_list_url }}" class="qrl-btn qrl-btn--secondary">
+        <span class="qrl-btn-icon">&#128295;</span>
+        Interventi
+      </a>
+      <a href="{{ detail_url }}" class="qrl-btn qrl-btn--detail">
+        <span class="qrl-btn-icon">&#128196;</span>
+        Scheda completa
+      </a>
+    {% else %}
+      <p class="qrl-empty" style="text-align:center;">
+        Consultazione in sola lettura. L'apertura di una segnalazione richiede l'accesso al portale.
+      </p>
+    {% endif %}
   </div>
 
 {% endif %}
