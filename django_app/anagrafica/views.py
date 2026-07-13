@@ -10539,6 +10539,33 @@ def formazione_piano_delete(request, piano_id: int):
 # FORMAZIONE HR — Corsi (PATCH-03)
 # ============================================================================
 
+def build_formazione_corsi_rows(request, *, apply_filters: bool = True):
+    """Fonte unica dei corsi formativi (view elenco + export).
+
+    Restituisce il queryset ORDINATO come la pagina (la view lo impagina, l'export
+    lo scorre tutto). `apply_filters=False` ignora la querystring (export
+    `scope=full`). Nessun aggregato pre-filtro qui: i contatori/tendine della
+    pagina (`piani`) restano nella view.
+    """
+    qs = TrainingCourse.objects.select_related("piano").all()
+    if apply_filters:
+        filtro_piano = request.GET.get("piano", "")
+        filtro_stato = request.GET.get("stato", "")
+        filtro_obbligatorio = request.GET.get("obbligatorio", "")
+        q_search = (request.GET.get("q") or "").strip()
+        if filtro_piano:
+            qs = qs.filter(piano_id=filtro_piano)
+        if filtro_stato:
+            qs = qs.filter(stato=filtro_stato)
+        if filtro_obbligatorio == "1":
+            qs = qs.filter(obbligatorio=True)
+        elif filtro_obbligatorio == "0":
+            qs = qs.filter(obbligatorio=False)
+        if q_search:
+            qs = qs.filter(Q(titolo__icontains=q_search) | Q(codice__icontains=q_search))
+    return qs.order_by("piano__nome", "titolo")
+
+
 @login_required
 def formazione_corsi_list(request):
     if not _can_view_formazione(request):
@@ -10551,19 +10578,7 @@ def formazione_corsi_list(request):
     filtro_obbligatorio = request.GET.get("obbligatorio", "")
     q_search = (request.GET.get("q") or "").strip()
 
-    qs = TrainingCourse.objects.select_related("piano").all()
-    if filtro_piano:
-        qs = qs.filter(piano_id=filtro_piano)
-    if filtro_stato:
-        qs = qs.filter(stato=filtro_stato)
-    if filtro_obbligatorio == "1":
-        qs = qs.filter(obbligatorio=True)
-    elif filtro_obbligatorio == "0":
-        qs = qs.filter(obbligatorio=False)
-    if q_search:
-        qs = qs.filter(Q(titolo__icontains=q_search) | Q(codice__icontains=q_search))
-
-    paginator = Paginator(qs.order_by("piano__nome", "titolo"), 50)
+    paginator = Paginator(build_formazione_corsi_rows(request, apply_filters=True), 50)
     page_obj = paginator.get_page(request.GET.get("page"))
     piani = list(TrainingPlan.objects.filter(is_active=True).order_by("nome"))
 
@@ -11167,6 +11182,35 @@ def formazione_istruttore_delete(request, istruttore_id: int):
 # FORMAZIONE HR — Sessioni formative (PATCH-04)
 # ============================================================================
 
+def build_formazione_sessioni_rows(request, *, apply_filters: bool = True):
+    """Fonte unica delle sessioni formative (view elenco + export).
+
+    Restituisce il queryset ORDINATO come la pagina (la view lo impagina, l'export
+    lo scorre tutto). `apply_filters=False` ignora la querystring (export
+    `scope=full`). Le tendine della pagina (`corsi_attivi`, `anni`) restano nella
+    view: sono aggregati pre-filtro e non devono seguire i filtri.
+    """
+    qs = TrainingSession.objects.select_related("corso", "corso__piano", "docente").all()
+    if apply_filters:
+        filtro_corso = request.GET.get("corso", "")
+        filtro_stato = request.GET.get("stato", "")
+        filtro_anno = request.GET.get("anno", "")
+        q_search = (request.GET.get("q") or "").strip()
+        if filtro_corso:
+            qs = qs.filter(corso_id=filtro_corso)
+        if filtro_stato:
+            qs = qs.filter(stato=filtro_stato)
+        if filtro_anno:
+            qs = qs.filter(data_inizio__year=filtro_anno)
+        if q_search:
+            qs = qs.filter(
+                Q(codice_sessione__icontains=q_search) |
+                Q(corso__titolo__icontains=q_search) |
+                Q(sede__icontains=q_search)
+            )
+    return qs.order_by("-data_inizio")
+
+
 @login_required
 def formazione_sessioni_list(request):
     if not _can_view_formazione(request):
@@ -11179,22 +11223,7 @@ def formazione_sessioni_list(request):
     filtro_anno   = request.GET.get("anno", "")
     q_search      = (request.GET.get("q") or "").strip()
 
-    from django.utils import timezone as _tz
-    qs = TrainingSession.objects.select_related("corso", "corso__piano", "docente").all()
-    if filtro_corso:
-        qs = qs.filter(corso_id=filtro_corso)
-    if filtro_stato:
-        qs = qs.filter(stato=filtro_stato)
-    if filtro_anno:
-        qs = qs.filter(data_inizio__year=filtro_anno)
-    if q_search:
-        qs = qs.filter(
-            Q(codice_sessione__icontains=q_search) |
-            Q(corso__titolo__icontains=q_search) |
-            Q(sede__icontains=q_search)
-        )
-
-    paginator = Paginator(qs.order_by("-data_inizio"), 50)
+    paginator = Paginator(build_formazione_sessioni_rows(request, apply_filters=True), 50)
     page_obj  = paginator.get_page(request.GET.get("page"))
 
     corsi_attivi = list(TrainingCourse.objects.filter(is_active=True).order_by("titolo"))

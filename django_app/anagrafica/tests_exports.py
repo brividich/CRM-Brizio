@@ -276,6 +276,19 @@ class ExportAclGateTests(TestCase):
                 resp = self.client.get(reverse("anagrafica:export", args=[key]) + "?format=xlsx")
                 self.assertEqual(resp.status_code, 403)
 
+    def test_export_denied_for_every_formazione_key_without_permission(self):
+        """Le 7 chiavi di formazione (Task 7) negano l'export a un utente
+        autenticato senza binding ACL sulla lista di origine — end-to-end."""
+        formazione_keys = (
+            "formazione_piani", "formazione_corsi", "formazione_istruttori",
+            "formazione_sessioni", "fattori_rischio", "categorie_corso",
+            "esposizioni_rischio",
+        )
+        for key in formazione_keys:
+            with self.subTest(key=key):
+                resp = self.client.get(reverse("anagrafica:export", args=[key]) + "?format=xlsx")
+                self.assertEqual(resp.status_code, 403)
+
     def test_export_allowed_when_user_can_open_the_list(self):
         self._grant_list_via_legacy(allowed=True)
         resp = self._export()
@@ -709,4 +722,308 @@ class AnagraficheSupportoExportTests(TestCase):
         html = resp.content.decode()
         base = reverse("anagrafica:export", args=["qualifica_sessioni"])
         self.assertIn(f'{base}?format=xlsx&amp;scope=filtered&amp;q=Alfa"', html)
+        self.assertIn(f'{base}?format=pdf&amp;scope=full"', html)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class FormazioneExportTests(TestCase):
+    """Export delle liste di FORMAZIONE (Task 7).
+
+    Chiavi: `formazione_piani`, `formazione_corsi`, `formazione_istruttori`,
+    `formazione_sessioni`, `fattori_rischio`, `categorie_corso`,
+    `esposizioni_rischio`.
+
+    Dati **sintetici** (nessun dato reale). Per le due liste con filtri non
+    banali (corsi, sessioni) i test legano l'export alle righe DAVVERO
+    renderizzate dalla pagina, non solo all'helper con se stesso.
+    """
+
+    FORMAZIONE_KEYS = (
+        "formazione_piani",
+        "formazione_corsi",
+        "formazione_istruttori",
+        "formazione_sessioni",
+        "fattori_rischio",
+        "categorie_corso",
+        "esposizioni_rischio",
+    )
+
+    @classmethod
+    def setUpTestData(cls):
+        from anagrafica.models import (
+            CategoriaCorso,
+            EsposizioneRischio,
+            FattoreRischio,
+            TrainingCourse,
+            TrainingInstructor,
+            TrainingPlan,
+            TrainingSession,
+        )
+
+        cls.piano_sic = TrainingPlan.objects.create(
+            codice="SIC", nome="Sicurezza", categoria="OBBLIGATORIA", stato="ATTIVO",
+            provider_esterno=True,
+        )
+        cls.piano_it = TrainingPlan.objects.create(
+            codice="IT", nome="Informatica", categoria="CONSIGLIATA", stato="BOZZA",
+        )
+
+        cls.corso_anti = TrainingCourse.objects.create(
+            piano=cls.piano_sic, codice="ANTINC", titolo="Antincendio base",
+            durata_ore_teorica=8, validita_mesi=36, obbligatorio=True, stato="ATTIVO",
+        )
+        cls.corso_excel = TrainingCourse.objects.create(
+            piano=cls.piano_it, codice="EXCEL", titolo="Excel avanzato",
+            durata_ore_teorica=16, validita_mesi=0, obbligatorio=False, stato="BOZZA",
+        )
+
+        cls.docente_int = TrainingInstructor.objects.create(
+            tipo="INTERNO", nome="Docente Interno Test", email="docente@example.invalid",
+            telefono="000",
+        )
+        TrainingInstructor.objects.create(
+            tipo="ESTERNO", nome="Provider Esterno Test", ragione_sociale="Formazione SRL",
+            is_active=False,
+        )
+
+        cls.sess_2026 = TrainingSession.objects.create(
+            corso=cls.corso_anti, codice_sessione="S-2026-01", stato="COMPLETATA",
+            modalita="IN_SEDE", data_inizio="2026-03-10", data_fine="2026-03-10",
+            sede="Aula A", docente=cls.docente_int,
+        )
+        cls.sess_2025 = TrainingSession.objects.create(
+            corso=cls.corso_excel, codice_sessione="S-2025-09", stato="PIANIFICATA",
+            modalita="REMOTO", data_inizio="2025-09-01", data_fine="2025-09-02",
+            docente_nome="Docente Snapshot",
+        )
+
+        cls.fattore_chim = FattoreRischio.objects.create(
+            codice="CHIM01", nome="Solventi", categoria=FattoreRischio.CAT_CHIMICO,
+            periodicita_formazione_mesi=24, periodicita_sorveglianza_mesi=12,
+            richiede_visita_medica=True, richiede_dpi=True,
+        )
+        FattoreRischio.objects.create(
+            codice="FIS01", nome="Rumore", categoria=FattoreRischio.CAT_FISICO,
+            is_active=False,
+        )
+
+        cat = CategoriaCorso.objects.create(codice="CAT01", nome="Rischio chimico")
+        cat.fattori_rischio.add(cls.fattore_chim)
+        CategoriaCorso.objects.create(codice="CAT02", nome="Generale", is_active=False)
+
+        cls.mansione = Mansione.objects.create(nome="Verniciatore")
+        EsposizioneRischio.objects.create(
+            fattore=cls.fattore_chim, mansione=cls.mansione, note="Cabina"
+        )
+
+        cls.admin = User.objects.create_superuser("admin_form", "form@example.invalid", "x")
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def _request(self, path: str = "/anagrafica/formazione/corsi/"):
+        request = RequestFactory().get(path)
+        request.user = self.admin
+        return request
+
+    def _export_url(self, key: str, **params) -> str:
+        url = reverse("anagrafica:export", args=[key])
+        return url + "?" + "&".join(f"{k}={v}" for k, v in params.items())
+
+    # -- endpoint -----------------------------------------------------------
+    def test_every_formazione_key_is_registered(self):
+        for key in self.FORMAZIONE_KEYS:
+            self.assertIn(key, EXPORT_SPECS)
+
+    def test_xlsx_export_ok_for_every_key(self):
+        for key in self.FORMAZIONE_KEYS:
+            with self.subTest(key=key):
+                resp = self.client.get(self._export_url(key, format="xlsx"))
+                self.assertEqual(resp.status_code, 200)
+                self.assertEqual(resp["Content-Type"], XLSX_CT)
+                self.assertIn(key, resp["Content-Disposition"])
+
+    def test_pdf_export_ok_for_every_key(self):
+        for key in self.FORMAZIONE_KEYS:
+            with self.subTest(key=key):
+                resp = self.client.get(self._export_url(key, format="pdf"))
+                self.assertEqual(resp.status_code, 200)
+                self.assertEqual(resp["Content-Type"], "application/pdf")
+                self.assertTrue(resp.content.startswith(b"%PDF"))
+
+    def test_audit_written_with_the_right_key(self):
+        for key in self.FORMAZIONE_KEYS:
+            with self.subTest(key=key):
+                self.client.get(self._export_url(key, format="xlsx"))
+                log = AuditLog.objects.filter(azione="export").latest("id")
+                self.assertEqual(log.modulo, "anagrafica")
+                self.assertEqual(log.dettaglio.get("lista"), key)
+
+    def test_columns_are_filled_by_every_dataset(self):
+        for key in self.FORMAZIONE_KEYS:
+            with self.subTest(key=key):
+                spec = EXPORT_SPECS[key]
+                rows = spec.dataset(self._request(), "full")
+                self.assertTrue(rows)
+                accessors = {accessor for _label, accessor in spec.columns}
+                for row in rows:
+                    self.assertEqual(accessors - set(row), set())
+
+    # -- scope filtered vs full ---------------------------------------------
+    def test_piani_filtered_scope_reduces_rows(self):
+        spec = EXPORT_SPECS["formazione_piani"]
+        request = self._request("/anagrafica/formazione/piani/?stato=ATTIVO")
+        self.assertEqual(len(spec.dataset(request, "full")), 2)
+        filtered = spec.dataset(request, "filtered")
+        self.assertEqual([r["codice"] for r in filtered], ["SIC"])
+        self.assertEqual(filtered[0]["n_corsi"], 1)
+        self.assertEqual(filtered[0]["provider"], "Sì")
+        self.assertIn("Attivo", spec.filters_label(request))
+
+    def test_corsi_filtered_scope_reduces_rows(self):
+        spec = EXPORT_SPECS["formazione_corsi"]
+        request = self._request("/anagrafica/formazione/corsi/?obbligatorio=1&q=antinc")
+        self.assertEqual(len(spec.dataset(request, "full")), 2)
+        filtered = spec.dataset(request, "filtered")
+        self.assertEqual([r["codice"] for r in filtered], ["ANTINC"])
+        self.assertEqual(filtered[0]["piano"], "Sicurezza")
+        self.assertEqual(filtered[0]["validita"], 36)
+        self.assertEqual(filtered[0]["obbligatorio"], "Sì")
+        label = spec.filters_label(request)
+        self.assertIn("Solo obbligatori", label)
+        self.assertIn("antinc", label)
+
+    def test_corsi_validita_zero_is_una_tantum_like_the_page(self):
+        rows = EXPORT_SPECS["formazione_corsi"].dataset(self._request(), "full")
+        by_code = {r["codice"]: r for r in rows}
+        self.assertEqual(by_code["EXCEL"]["validita"], "una tantum")
+
+    def test_istruttori_filtered_scope_reduces_rows(self):
+        spec = EXPORT_SPECS["formazione_istruttori"]
+        request = self._request("/anagrafica/formazione/istruttori/?tipo=INTERNO")
+        self.assertEqual(len(spec.dataset(request, "full")), 2)
+        filtered = spec.dataset(request, "filtered")
+        self.assertEqual([r["nome"] for r in filtered], ["Docente Interno Test"])
+        self.assertEqual(filtered[0]["tipo"], "Interno")
+        self.assertIn("Interno", spec.filters_label(request))
+
+    def test_sessioni_filtered_scope_reduces_rows(self):
+        spec = EXPORT_SPECS["formazione_sessioni"]
+        request = self._request("/anagrafica/formazione/sessioni/?anno=2026")
+        self.assertEqual(len(spec.dataset(request, "full")), 2)
+        filtered = spec.dataset(request, "filtered")
+        self.assertEqual([r["codice"] for r in filtered], ["S-2026-01"])
+        self.assertEqual(filtered[0]["corso"], "Antincendio base")
+        self.assertEqual(filtered[0]["piano"], "Sicurezza")
+        self.assertEqual(filtered[0]["inizio"], "10-03-2026")
+        self.assertEqual(filtered[0]["docente"], "Docente Interno Test")
+        self.assertIn("2026", spec.filters_label(request))
+
+    def test_sessioni_docente_snapshot_wins_like_the_page(self):
+        rows = EXPORT_SPECS["formazione_sessioni"].dataset(self._request(), "full")
+        by_code = {r["codice"]: r for r in rows}
+        self.assertEqual(by_code["S-2025-09"]["docente"], "Docente Snapshot")
+
+    # -- cataloghi safety senza filtri ---------------------------------------
+    def test_fattori_rischio_rows_mirror_the_page(self):
+        rows = EXPORT_SPECS["fattori_rischio"].dataset(self._request(), "full")
+        by_code = {r["codice"]: r for r in rows}
+        chim = by_code["CHIM01"]
+        self.assertEqual(chim["categoria"], "Chimico")
+        self.assertEqual(chim["period_form"], 24)
+        self.assertEqual(chim["req_med"], "Sì")
+        self.assertEqual(chim["n_categorie"], 1)
+        self.assertEqual(chim["n_esposizioni"], 1)
+        self.assertEqual(by_code["FIS01"]["attivo"], "No")
+        self.assertEqual(by_code["FIS01"]["period_form"], "")
+
+    def test_categorie_corso_rows_list_linked_fattori(self):
+        rows = EXPORT_SPECS["categorie_corso"].dataset(self._request(), "full")
+        by_code = {r["codice"]: r for r in rows}
+        self.assertEqual(by_code["CAT01"]["fattori"], "CHIM01")
+        self.assertEqual(by_code["CAT02"]["fattori"], "")
+        self.assertEqual(by_code["CAT02"]["attivo"], "No")
+
+    def test_esposizioni_rows_mirror_the_page(self):
+        rows = EXPORT_SPECS["esposizioni_rischio"].dataset(self._request(), "full")
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["fattore"], "[CHIM01] Solventi")
+        self.assertEqual(rows[0]["categoria"], "Chimico")
+        self.assertEqual(rows[0]["mansione"], "Verniciatore")
+        self.assertEqual(rows[0]["area"], "")
+
+    # -- anti-drift: export ↔ righe RENDERIZZATE dalla pagina -----------------
+    def test_corsi_export_matches_rows_actually_rendered_by_the_page(self):
+        for querystring in ("", "?q=antinc", "?obbligatorio=0", f"?piano={self.piano_sic.pk}"):
+            with self.subTest(querystring=querystring):
+                resp = self.client.get(
+                    reverse("anagrafica:formazione_corsi_list") + querystring
+                )
+                self.assertEqual(resp.status_code, 200)
+                page_codes = [c.codice for c in resp.context["page_obj"].object_list]
+
+                export_rows = EXPORT_SPECS["formazione_corsi"].dataset(
+                    self._request(f"/anagrafica/formazione/corsi/{querystring}"), "filtered"
+                )
+                self.assertEqual(page_codes, [r["codice"] for r in export_rows])
+
+    def test_sessioni_export_matches_rows_actually_rendered_by_the_page(self):
+        for querystring in ("", "?anno=2026", "?stato=PIANIFICATA", f"?corso={self.corso_anti.pk}"):
+            with self.subTest(querystring=querystring):
+                resp = self.client.get(
+                    reverse("anagrafica:formazione_sessioni_list") + querystring
+                )
+                self.assertEqual(resp.status_code, 200)
+                page_codes = [s.codice_sessione for s in resp.context["page_obj"].object_list]
+
+                export_rows = EXPORT_SPECS["formazione_sessioni"].dataset(
+                    self._request(f"/anagrafica/formazione/sessioni/{querystring}"), "filtered"
+                )
+                self.assertEqual(page_codes, [r["codice"] for r in export_rows])
+
+    def test_view_context_is_unchanged_by_the_extraction(self):
+        """Non-regressione: le tendine (aggregati pre-filtro) non seguono i filtri."""
+        resp = self.client.get(
+            reverse("anagrafica:formazione_sessioni_list") + "?anno=2026"
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["page_obj"].paginator.count, 1)   # filtrate
+        self.assertEqual(sorted(resp.context["anni"]), [2025, 2026])    # pre-filtro
+        self.assertEqual(len(resp.context["corsi_attivi"]), 2)          # pre-filtro
+        self.assertEqual(resp.context["filtro_anno"], "2026")
+
+        resp = self.client.get(reverse("anagrafica:formazione_corsi_list") + "?obbligatorio=1")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["page_obj"].paginator.count, 1)   # filtrati
+        self.assertEqual(len(resp.context["piani"]), 2)                 # pre-filtro
+        self.assertEqual(resp.context["filtro_obbligatorio"], "1")
+
+    # -- UI: menu export nella toolbar ---------------------------------------
+    def test_formazione_pages_show_the_export_menu(self):
+        pages = {
+            "formazione_piani": "anagrafica:formazione_piani_list",
+            "formazione_corsi": "anagrafica:formazione_corsi_list",
+            "formazione_istruttori": "anagrafica:formazione_istruttori_list",
+            "formazione_sessioni": "anagrafica:formazione_sessioni_list",
+            "fattori_rischio": "anagrafica:fattori_rischio_list",
+            "categorie_corso": "anagrafica:categorie_corso_list",
+            "esposizioni_rischio": "anagrafica:esposizioni_rischio_list",
+        }
+        for key, route in pages.items():
+            with self.subTest(key=key):
+                resp = self.client.get(reverse(route))
+                self.assertEqual(resp.status_code, 200)
+                html = resp.content.decode()
+                base = reverse("anagrafica:export", args=[key])
+                self.assertIn("Esporta", html)
+                self.assertIn('href="#i-download"', html)
+                self.assertIn(f'{base}?format=xlsx&amp;scope=filtered"', html)
+                self.assertIn(f'{base}?format=pdf&amp;scope=full"', html)
+
+    def test_corsi_page_propagates_querystring_on_filtered_links(self):
+        resp = self.client.get(reverse("anagrafica:formazione_corsi_list") + "?q=antinc")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        base = reverse("anagrafica:export", args=["formazione_corsi"])
+        self.assertIn(f'{base}?format=xlsx&amp;scope=filtered&amp;q=antinc"', html)
         self.assertIn(f'{base}?format=pdf&amp;scope=full"', html)

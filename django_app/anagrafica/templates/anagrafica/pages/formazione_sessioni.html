@@ -57,6 +57,7 @@
         </select>
         <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-filter"/></svg>Filtra</button>
         <a href="{% url 'anagrafica:formazione_sessioni_list' %}" class="fmd-btn fmd-btn-ghost">Reset</a>
+        {% include "anagrafica/components/_export_menu.html" with export_key="formazione_sessioni" %}
       </form>
 
       {% if page_obj %}

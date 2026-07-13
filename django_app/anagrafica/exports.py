@@ -562,3 +562,436 @@ register(ExportSpec(
     filters_label=_qualifica_sessioni_filters,
     permission=acl_gate("/anagrafica/qualifiche/sessioni/"),
 ))
+
+
+# ── FORMAZIONE ────────────────────────────────────────────────────────────────
+# Le liste di formazione hanno DUE gate: l'ACL di rotta (come ogni altra lista) e
+# il permesso funzionale della sezione (`views._can_view_formazione`, singleton
+# AnagraficaFormazionePermission). L'export deve rispettarli entrambi: chi non
+# vede la sezione a schermo non può scaricarla.
+
+def _si_no(value) -> str:
+    return "Sì" if value else "No"
+
+
+def formazione_gate(list_path: str) -> Callable[[HttpRequest], bool]:
+    base = acl_gate(list_path)
+
+    def _check(request: HttpRequest) -> bool:
+        if not base(request):
+            return False
+        from anagrafica.views import _can_view_formazione  # import locale: evita cicli
+
+        try:
+            return bool(_can_view_formazione(request))
+        except Exception:
+            return False  # fail-closed
+
+    return _check
+
+
+# ── Piani formativi ───────────────────────────────────────────────────────────
+# Colonne = quelle di `formazione_piani.html` (Codice, Nome, Categoria, Stato,
+# Corsi, Provider). Filtri della pagina: `stato`, `categoria`.
+
+def _formazione_piani_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from django.db.models import Count
+
+    from anagrafica.models import TrainingPlan
+
+    qs = TrainingPlan.objects.all()
+    if scope == "filtered":
+        filtro_stato = (request.GET.get("stato") or "").strip()
+        filtro_cat = (request.GET.get("categoria") or "").strip()
+        if filtro_stato:
+            qs = qs.filter(stato=filtro_stato)
+        if filtro_cat:
+            qs = qs.filter(categoria=filtro_cat)
+
+    return [
+        {
+            "codice": p.codice or "",
+            "nome": p.nome or "",
+            "categoria": p.get_categoria_display() if p.categoria else "",
+            "stato": p.get_stato_display() if p.stato else "",
+            "n_corsi": p.n_corsi,
+            "provider": _si_no(p.provider_esterno),
+        }
+        for p in qs.order_by("nome").annotate(n_corsi=Count("corsi"))
+    ]
+
+
+def _formazione_piani_filters(request: HttpRequest) -> str:
+    from anagrafica.models import TrainingPlan
+
+    parts: list[str] = []
+    stati = dict(TrainingPlan.STATO_CHOICES)
+    categorie = dict(TrainingPlan.CATEGORIA_CHOICES)
+    filtro_stato = (request.GET.get("stato") or "").strip()
+    if filtro_stato:
+        parts.append(f"Stato: {stati.get(filtro_stato, filtro_stato)}")
+    filtro_cat = (request.GET.get("categoria") or "").strip()
+    if filtro_cat:
+        parts.append(f"Categoria: {categorie.get(filtro_cat, filtro_cat)}")
+    return " · ".join(parts)
+
+
+register(ExportSpec(
+    key="formazione_piani",
+    title="Piani formativi",
+    sheet_title="Piani formativi",
+    columns=[
+        ("Codice", "codice"),
+        ("Nome", "nome"),
+        ("Categoria", "categoria"),
+        ("Stato", "stato"),
+        ("Corsi", "n_corsi"),
+        ("Provider esterno", "provider"),
+    ],
+    dataset=_formazione_piani_rows,
+    filters_label=_formazione_piani_filters,
+    permission=formazione_gate("/anagrafica/formazione/piani/"),
+))
+
+
+# ── Corsi formativi ───────────────────────────────────────────────────────────
+# Fonte unica: `views.build_formazione_corsi_rows` (stessi filtri q/piano/stato/
+# obbligatorio della pagina, niente duplicazione → niente drift). La pagina è
+# impaginata (50/pagina): l'export scorre tutte le righe filtrate.
+
+def _formazione_corsi_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from anagrafica.views import build_formazione_corsi_rows  # import locale: evita cicli
+
+    corsi = build_formazione_corsi_rows(request, apply_filters=(scope == "filtered"))
+    return [
+        {
+            "codice": c.codice or "",
+            "titolo": c.titolo or "",
+            "piano": c.piano.nome if c.piano_id else "",
+            "stato": c.get_stato_display() if c.stato else "",
+            "durata": str(c.durata_ore_teorica) if c.durata_ore_teorica is not None else "",
+            "validita": c.validita_mesi if c.validita_mesi else "una tantum",
+            "obbligatorio": _si_no(c.obbligatorio),
+        }
+        for c in corsi
+    ]
+
+
+def _formazione_corsi_filters(request: HttpRequest) -> str:
+    from anagrafica.models import TrainingCourse, TrainingPlan
+
+    parts: list[str] = []
+    q_text = (request.GET.get("q") or "").strip()
+    if q_text:
+        parts.append(f'Ricerca: "{q_text}"')
+    filtro_piano = (request.GET.get("piano") or "").strip()
+    if filtro_piano.isdigit():
+        nome = (
+            TrainingPlan.objects.filter(pk=int(filtro_piano))
+            .values_list("nome", flat=True)
+            .first()
+        )
+        if nome:
+            parts.append(f"Piano: {nome}")
+    filtro_stato = (request.GET.get("stato") or "").strip()
+    if filtro_stato:
+        stati = dict(TrainingCourse.STATO_CHOICES)
+        parts.append(f"Stato: {stati.get(filtro_stato, filtro_stato)}")
+    filtro_obbl = (request.GET.get("obbligatorio") or "").strip()
+    if filtro_obbl == "1":
+        parts.append("Solo obbligatori")
+    elif filtro_obbl == "0":
+        parts.append("Solo facoltativi")
+    return " · ".join(parts)
+
+
+register(ExportSpec(
+    key="formazione_corsi",
+    title="Corsi formativi",
+    sheet_title="Corsi",
+    columns=[
+        ("Codice", "codice"),
+        ("Titolo", "titolo"),
+        ("Piano", "piano"),
+        ("Stato", "stato"),
+        ("Durata (h)", "durata"),
+        ("Validità (mesi)", "validita"),
+        ("Obbligatorio", "obbligatorio"),
+    ],
+    dataset=_formazione_corsi_rows,
+    filters_label=_formazione_corsi_filters,
+    permission=formazione_gate("/anagrafica/formazione/corsi/"),
+))
+
+
+# ── Docenti / formatori ───────────────────────────────────────────────────────
+# Colonne = quelle di `formazione_istruttori.html`. Email/telefono sono già a
+# schermo (recapiti professionali del docente): nessun campo aggiuntivo.
+
+def _formazione_istruttori_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from django.db.models import Q
+
+    from anagrafica.models import TrainingInstructor
+
+    qs = TrainingInstructor.objects.all()
+    if scope == "filtered":
+        filtro_tipo = (request.GET.get("tipo") or "").strip()
+        q_search = (request.GET.get("q") or "").strip()
+        if filtro_tipo:
+            qs = qs.filter(tipo=filtro_tipo)
+        if q_search:
+            qs = qs.filter(
+                Q(nome__icontains=q_search) | Q(ragione_sociale__icontains=q_search)
+            )
+
+    return [
+        {
+            "nome": i.nome or "",
+            "tipo": i.get_tipo_display() if i.tipo else "",
+            "ragione_sociale": i.ragione_sociale or "",
+            "email": i.email or "",
+            "telefono": i.telefono or "",
+            "attivo": _si_no(i.is_active),
+        }
+        for i in qs.order_by("nome")
+    ]
+
+
+def _formazione_istruttori_filters(request: HttpRequest) -> str:
+    from anagrafica.models import TrainingInstructor
+
+    parts: list[str] = []
+    q_search = (request.GET.get("q") or "").strip()
+    if q_search:
+        parts.append(f'Ricerca: "{q_search}"')
+    filtro_tipo = (request.GET.get("tipo") or "").strip()
+    if filtro_tipo:
+        tipi = dict(TrainingInstructor.TIPO_CHOICES)
+        parts.append(f"Tipo: {tipi.get(filtro_tipo, filtro_tipo)}")
+    return " · ".join(parts)
+
+
+register(ExportSpec(
+    key="formazione_istruttori",
+    title="Docenti / Formatori",
+    sheet_title="Docenti",
+    columns=[
+        ("Nome", "nome"),
+        ("Tipo", "tipo"),
+        ("Ragione sociale", "ragione_sociale"),
+        ("Email", "email"),
+        ("Telefono", "telefono"),
+        ("Attivo", "attivo"),
+    ],
+    dataset=_formazione_istruttori_rows,
+    filters_label=_formazione_istruttori_filters,
+    permission=formazione_gate("/anagrafica/formazione/istruttori/"),
+))
+
+
+# ── Sessioni formative ────────────────────────────────────────────────────────
+# Fonte unica: `views.build_formazione_sessioni_rows` (stessi filtri corso/stato/
+# anno/q della pagina). Pagina impaginata (50/pagina): l'export scorre tutto.
+
+def _formazione_sessioni_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from anagrafica.views import build_formazione_sessioni_rows  # import locale: evita cicli
+
+    sessioni = build_formazione_sessioni_rows(request, apply_filters=(scope == "filtered"))
+    return [
+        {
+            "codice": s.codice_sessione or "",
+            "corso": s.corso.titolo if s.corso_id else "",
+            "piano": s.corso.piano.nome if s.corso_id and s.corso.piano_id else "",
+            "inizio": _fmt_date(s.data_inizio),
+            "fine": _fmt_date(s.data_fine),
+            "stato": s.get_stato_display() if s.stato else "",
+            "modalita": s.get_modalita_display() if s.modalita else "",
+            "docente": (s.docente_nome or "").strip() or (s.docente.nome if s.docente_id else ""),
+        }
+        for s in sessioni
+    ]
+
+
+def _formazione_sessioni_filters(request: HttpRequest) -> str:
+    from anagrafica.models import TrainingCourse, TrainingSession
+
+    parts: list[str] = []
+    q_search = (request.GET.get("q") or "").strip()
+    if q_search:
+        parts.append(f'Ricerca: "{q_search}"')
+    filtro_corso = (request.GET.get("corso") or "").strip()
+    if filtro_corso.isdigit():
+        titolo = (
+            TrainingCourse.objects.filter(pk=int(filtro_corso))
+            .values_list("titolo", flat=True)
+            .first()
+        )
+        if titolo:
+            parts.append(f"Corso: {titolo}")
+    filtro_stato = (request.GET.get("stato") or "").strip()
+    if filtro_stato:
+        stati = dict(TrainingSession.STATO_CHOICES)
+        parts.append(f"Stato: {stati.get(filtro_stato, filtro_stato)}")
+    filtro_anno = (request.GET.get("anno") or "").strip()
+    if filtro_anno:
+        parts.append(f"Anno: {filtro_anno}")
+    return " · ".join(parts)
+
+
+register(ExportSpec(
+    key="formazione_sessioni",
+    title="Sessioni formative",
+    sheet_title="Sessioni",
+    columns=[
+        ("Codice", "codice"),
+        ("Corso", "corso"),
+        ("Piano", "piano"),
+        ("Inizio", "inizio"),
+        ("Fine", "fine"),
+        ("Stato", "stato"),
+        ("Modalità", "modalita"),
+        ("Docente", "docente"),
+    ],
+    dataset=_formazione_sessioni_rows,
+    filters_label=_formazione_sessioni_filters,
+    permission=formazione_gate("/anagrafica/formazione/sessioni/"),
+))
+
+
+# ── Safety: fattori di rischio / categorie corso / esposizioni ────────────────
+# Tre cataloghi senza filtri di lista (`scope=filtered` == `scope=full`).
+# Colonne = intestazioni delle rispettive tabelle a schermo.
+
+def _fattori_rischio_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from django.db.models import Count
+
+    from anagrafica.models import FattoreRischio
+
+    qs = (
+        FattoreRischio.objects
+        .annotate(
+            n_categorie=Count("categorie_corso", distinct=True),
+            n_esposizioni=Count("esposizioni", distinct=True),
+        )
+        .order_by("categoria", "nome")
+    )
+    return [
+        {
+            "codice": f.codice or "",
+            "nome": f.nome or "",
+            "categoria": f.get_categoria_display() if f.categoria else "",
+            "period_form": f.periodicita_formazione_mesi or "",
+            "period_sorv": f.periodicita_sorveglianza_mesi or "",
+            "req_form": _si_no(f.richiede_formazione),
+            "req_med": _si_no(f.richiede_visita_medica),
+            "req_dpi": _si_no(f.richiede_dpi),
+            "n_categorie": f.n_categorie,
+            "n_esposizioni": f.n_esposizioni,
+            "attivo": _si_no(f.is_active),
+        }
+        for f in qs
+    ]
+
+
+register(ExportSpec(
+    key="fattori_rischio",
+    title="Fattori di rischio",
+    sheet_title="Fattori di rischio",
+    columns=[
+        ("Codice", "codice"),
+        ("Nome", "nome"),
+        ("Categoria", "categoria"),
+        ("Formazione (mesi)", "period_form"),
+        ("Sorveglianza (mesi)", "period_sorv"),
+        ("Richiede formazione", "req_form"),
+        ("Richiede visita medica", "req_med"),
+        ("Richiede DPI", "req_dpi"),
+        ("Categorie collegate", "n_categorie"),
+        ("Esposizioni", "n_esposizioni"),
+        ("Attivo", "attivo"),
+    ],
+    dataset=_fattori_rischio_rows,
+    filters_label=_no_filters,
+    permission=formazione_gate("/anagrafica/formazione/rischi/fattori/"),
+))
+
+
+def _categorie_corso_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from django.db.models import Count
+
+    from anagrafica.models import CategoriaCorso
+
+    qs = (
+        CategoriaCorso.objects
+        .prefetch_related("fattori_rischio")
+        .annotate(n_corsi=Count("corsi", distinct=True))
+        .order_by("nome")
+    )
+    return [
+        {
+            "codice": c.codice or "",
+            "nome": c.nome or "",
+            "descrizione": c.descrizione or "",
+            "fattori": ", ".join(fr.codice for fr in c.fattori_rischio.all()),
+            "n_corsi": c.n_corsi,
+            "attivo": _si_no(c.is_active),
+        }
+        for c in qs
+    ]
+
+
+register(ExportSpec(
+    key="categorie_corso",
+    title="Categorie corso",
+    sheet_title="Categorie corso",
+    columns=[
+        ("Codice", "codice"),
+        ("Nome", "nome"),
+        ("Descrizione", "descrizione"),
+        ("Fattori collegati", "fattori"),
+        ("Corsi", "n_corsi"),
+        ("Attivo", "attivo"),
+    ],
+    dataset=_categorie_corso_rows,
+    filters_label=_no_filters,
+    permission=formazione_gate("/anagrafica/formazione/rischi/categorie/"),
+))
+
+
+def _esposizioni_rischio_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from anagrafica.models import EsposizioneRischio
+
+    qs = (
+        EsposizioneRischio.objects
+        .select_related("fattore", "mansione", "area")
+        .order_by("fattore__categoria", "fattore__nome", "mansione__nome", "area__nome")
+    )
+    return [
+        {
+            "fattore": f"[{e.fattore.codice}] {e.fattore.nome}" if e.fattore_id else "",
+            "categoria": e.fattore.get_categoria_display() if e.fattore_id else "",
+            "mansione": e.mansione.nome if e.mansione_id else "",
+            "area": e.area.nome if e.area_id else "",
+            "note": e.note or "",
+            "attivo": _si_no(e.is_active),
+        }
+        for e in qs
+    ]
+
+
+register(ExportSpec(
+    key="esposizioni_rischio",
+    title="Esposizioni a rischio",
+    sheet_title="Esposizioni",
+    columns=[
+        ("Fattore", "fattore"),
+        ("Categoria fattore", "categoria"),
+        ("Mansione", "mansione"),
+        ("Area", "area"),
+        ("Note", "note"),
+        ("Attivo", "attivo"),
+    ],
+    dataset=_esposizioni_rischio_rows,
+    filters_label=_no_filters,
+    permission=formazione_gate("/anagrafica/formazione/rischi/esposizioni/"),
+))

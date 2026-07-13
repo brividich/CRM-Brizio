@@ -45,6 +45,7 @@
         </select>
         <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-filter"/></svg>Filtra</button>
         <a href="{% url 'anagrafica:formazione_istruttori_list' %}" class="fmd-btn fmd-btn-ghost">Reset</a>
+        {% include "anagrafica/components/_export_menu.html" with export_key="formazione_istruttori" %}
       </form>
 
       {% if istruttori %}

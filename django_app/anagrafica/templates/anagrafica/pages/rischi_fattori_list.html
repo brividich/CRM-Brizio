@@ -12,6 +12,8 @@
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
+{# Sprite icone: serve #i-download del menu di export. #}
+{% include "anagrafica/components/_fm_icons.html" %}
 <div class="hr-shell">
 
   {% include "anagrafica/partials/_safety_subnav.html" with active="fattori" %}
@@ -40,7 +42,8 @@
   <div class="hr-card fm-section">
     <div class="fm-section-head">
       <div class="fm-section-title">Fattori <span class="fm-count">{{ fattori|length }}</span></div>
-      <div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        {% include "anagrafica/components/_export_menu.html" with export_key="fattori_rischio" %}
         <a class="hub-btn hub-btn-sm hub-btn-ghost" href="{% url 'anagrafica:categorie_corso_list' %}">→ Categorie corso</a>
         <a class="hub-btn hub-btn-sm hub-btn-ghost" href="{% url 'anagrafica:esposizioni_rischio_list' %}">→ Esposizioni</a>
       </div>
