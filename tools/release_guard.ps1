@@ -1,5 +1,9 @@
 param(
     [string]$SourcePath = "",
+    # Python da usare per i controlli Django. Serve quando SourcePath non e' il repo
+    # (es. un export temporaneo del branch): li' il .venv non esiste e senza questo
+    # si ripiegherebbe sul Python di sistema, che non ha le dipendenze del progetto.
+    [string]$PythonExe = "",
     [switch]$Quiet,
     [int]$AclMaxMissing = 222,
     [switch]$FailOnDeploymentWarn,
@@ -483,7 +487,11 @@ if ($wizardStaleness -gt $wizardFreshnessGrace) {
     )
 }
 
-$pythonExe = Resolve-Python -RootPath $SourcePath
+if ($PythonExe -and (Test-Path -LiteralPath $PythonExe)) {
+    $pythonExe = $PythonExe
+} else {
+    $pythonExe = Resolve-Python -RootPath $SourcePath
+}
 if (-not $pythonExe) {
     Add-Failure("Python non trovato. Serve per eseguire i controlli Django del release guard.")
 } else {

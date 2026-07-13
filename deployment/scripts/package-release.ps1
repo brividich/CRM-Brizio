@@ -282,14 +282,20 @@ else {
     }
     $SourcePath = $script:ExportWorktree
 
-    # Artefatti di build NON versionati (gitignorati: *.spec, deployment/dist/) ma
-    # necessari alla creazione del pacchetto: li prendiamo dal repo locale, perche'
-    # l'export del branch, per definizione, contiene solo i file committati.
-    # NB: si copia solo lo .spec, NON SetupWizard.exe: l'exe viene rigenerato dallo
-    # script a partire dal setup_wizard.py del branch, cosi' il wizard nel pacchetto
-    # corrisponde davvero al codice che stai rilasciando (un exe vecchio sul disco
-    # non deve finire in produzione).
-    foreach ($relPath in @("deployment\SetupWizard.spec")) {
+    # File NON versionati ma necessari al packaging: l'export del branch contiene
+    # solo i file committati, mentre questi sono gitignorati (`*.spec` e `doc/*`)
+    # pur essendo richiesti — lo .spec per costruire il wizard, i doc dal release_guard.
+    # Li prendiamo quindi dal repo locale.
+    # NB: NON si copia SetupWizard.exe: l'exe viene rigenerato dallo script a partire
+    # dal setup_wizard.py del branch, cosi' il wizard nel pacchetto corrisponde davvero
+    # al codice che stai rilasciando (un exe vecchio sul disco non deve finire in prod).
+    $artifactsDaCopiare = @(
+        "deployment\SetupWizard.spec",
+        "doc\START_HERE.md",
+        "doc\TESTING.md",
+        "doc\ARCHITETTURA_TARGET_E_DISMISSIONE_LEGACY.md"
+    )
+    foreach ($relPath in $artifactsDaCopiare) {
         $artifactSrc = Join-Path $script:RepoRoot $relPath
         if (Test-Path -LiteralPath $artifactSrc) {
             $artifactDst = Join-Path $SourcePath $relPath
@@ -375,6 +381,27 @@ if (-not (Test-Path -LiteralPath $releaseGuard)) {
 
 Write-Log "Esecuzione release guard..." "STEP"
 $guardArgs = @{ SourcePath = $SourcePath }
+# Se stiamo impacchettando un export del branch, li' non c'e' il .venv: passiamo al
+# guard il Python del venv del repo, altrimenti ripiegherebbe su quello di sistema
+# (che non ha le dipendenze del progetto: django_fsm, mssql-django, ...).
+if ($script:ExportWorktree -and $script:RepoRoot) {
+    $repoVenvPython = Join-Path $script:RepoRoot ".venv\Scripts\python.exe"
+    if (Test-Path -LiteralPath $repoVenvPython) {
+        $guardArgs['PythonExe'] = $repoVenvPython
+
+        # L'export non ha il DB di test (runtime.sqlite3 e' gitignorato), mentre i
+        # check ACL del guard (bootstrap_acl_v2, acl_coverage_report) hanno bisogno
+        # dello schema. Lo creiamo qui: migrate e' idempotente e resta nella temp.
+        Write-Log "Inizializzo il DB di test dell'export (migrate)..." "STEP"
+        $exportManage = Join-Path $SourcePath "django_app\manage.py"
+        & $repoVenvPython $exportManage migrate --settings=config.settings.test --noinput 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Log "migrate sul DB di test dell'export fallito." "ERROR"
+            exit 1
+        }
+        Write-Log "Release guard: uso il Python del venv del repo ($repoVenvPython)." "INFO"
+    }
+}
 if ($WithTests) { $guardArgs['WithTests'] = $true }
 & $releaseGuard @guardArgs
 if ($LASTEXITCODE -ne 0) {
