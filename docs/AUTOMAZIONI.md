@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni attive:** 37
+**Totale automazioni attive:** 38
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -211,6 +211,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Cosa fa:** Warmup del modello chat Ollama: pre-carica i pesi in memoria così la prima richiesta utente non paga il cold start (causa principale dei timeout «Timeout dopo Ns durante la risposta di Ollama»). Cadenza < del keep_alive (default 30m): ogni run rinnova il timer, il modello resta sempre caldo SENZA dover toccare l'.env. Fail-safe / no-op se l'AI è disabilitata o il provider è Open WebUI (keep_alive è primitiva Ollama).
 
 ## KICK-OFF · Attività
+
+### `tasks_meeting_issue_reminders`
+
+- **Quando gira:** ogni lun, alle 07:00
+- **Task eseguito:** `tasks.tasks.run_meeting_issue_reminders`
+- **Cosa fa:** KICK-OFF — sollecito ai responsabili sui «problemi aperti» degli incontri scaduti (MeetingIssue OPEN con due_date passata). Email + notifica in-app.
 
 ### `tasks_send_reminders`
 
