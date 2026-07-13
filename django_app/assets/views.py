@@ -64,6 +64,7 @@ from core.pdf import (
     header_footer_callback,
     make_document,
 )
+from core.table_pdf import render_table_pdf as _report_table_pdf
 from core.upload_mime import UploadMimeValidationError, safe_filename, validate_extension_and_mime
 from .forms import (
     AssistanceContractForm,
@@ -13214,50 +13215,6 @@ def work_machine_list(request: HttpRequest) -> HttpResponse:
 # EXPORT: shared helpers
 # ---------------------------------------------------------------------------
 
-def _report_table_pdf(title: str, headers: list, rows: list) -> bytes:
-    theme = PdfTheme.from_branding()
-    styles = build_styles(theme)
-    buf = io.BytesIO()
-    doc = make_document(buf, title=title, landscape=True)
-    elements: list = []
-    gen_date = timezone.localdate().strftime("%d-%m-%Y")
-
-    if not rows:
-        elements.append(Paragraph("Nessun record.", styles["body"]))
-    else:
-        page_w = doc.pagesize[0] - doc.leftMargin - doc.rightMargin
-        col_w = page_w / max(len(headers), 1)
-        table_rows = [
-            [Paragraph(escape(str(header)), styles["table_header"]) for header in headers],
-            *[
-                [
-                    Paragraph(
-                        escape(_coalesce_str(value, "")).replace("\n", "<br/>"),
-                        styles["cell"],
-                    )
-                    for value in row
-                ]
-                for row in rows
-            ],
-        ]
-        elements.append(
-            data_table(
-                table_rows,
-                theme,
-                col_widths=[col_w] * len(headers),
-                repeat_rows=1,
-                extra_style=[
-                    ("FONTSIZE", (0, 0), (-1, -1), 7),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ],
-            )
-        )
-
-    draw = header_footer_callback(theme, title=title.upper(), subtitle=f"Generato il {gen_date}")
-    doc.build(elements, onFirstPage=draw, onLaterPages=draw)
-    return buf.getvalue()
-
-
 def _xl_write_sheet(ws, headers: list, rows: list) -> None:
     import openpyxl.styles as xlst
     fill = xlst.PatternFill(fill_type="solid", fgColor="2563EB")
@@ -13345,7 +13302,7 @@ def asset_list_export(request: HttpRequest) -> HttpResponse:
     rows = [_asset_export_row(a) for a in assets]
 
     if fmt == "pdf":
-        pdf_bytes = _report_table_pdf("Inventario asset", _ASSET_EXPORT_HEADERS, rows)
+        pdf_bytes = _report_table_pdf(title="Inventario asset", headers=_ASSET_EXPORT_HEADERS, rows=rows)
         resp = HttpResponse(pdf_bytes, content_type="application/pdf")
         resp["Content-Disposition"] = f'attachment; filename="asset_{today}.pdf"'
         return resp
@@ -13416,7 +13373,7 @@ def workorder_list_export(request: HttpRequest) -> HttpResponse:
     rows = [_wo_export_row(wo) for wo in workorders]
 
     if fmt == "pdf":
-        pdf_bytes = _report_table_pdf("Interventi / Work Orders", _WO_EXPORT_HEADERS, rows)
+        pdf_bytes = _report_table_pdf(title="Interventi / Work Orders", headers=_WO_EXPORT_HEADERS, rows=rows)
         resp = HttpResponse(pdf_bytes, content_type="application/pdf")
         resp["Content-Disposition"] = f'attachment; filename="workorders_{today}.pdf"'
         return resp
@@ -13486,7 +13443,7 @@ def work_machine_export_pdf(request: HttpRequest) -> HttpResponse:
             str(wm.z_mm) if wm and wm.z_mm else "",
         ])
     today = timezone.localdate().strftime("%Y%m%d")
-    pdf_bytes = _report_table_pdf("Macchine di lavoro", headers, rows)
+    pdf_bytes = _report_table_pdf(title="Macchine di lavoro", headers=headers, rows=rows)
     resp = HttpResponse(pdf_bytes, content_type="application/pdf")
     resp["Content-Disposition"] = f'attachment; filename="macchine_{today}.pdf"'
     return resp
