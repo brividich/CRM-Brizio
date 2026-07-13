@@ -375,3 +375,70 @@ class CollegamentoAssetTest(_AuthedClientMixin, TestCase):
         r = self.client.get(reverse("contatori:macchina", args=[m.pk]))
         self.assertContains(r, "Asset collegato")
         self.assertContains(r, "MFC Collegata")
+
+
+class ModelloValidatoEAssetNelFormTest(_AuthedClientMixin, TestCase):
+    """Fix bug «nessuna counter_map per modello 'CANON'» + aggancio asset dal form.
+
+    Causa radice: `modello` era testo libero, quindi dalla UI si poteva scrivere la
+    marca ('CANON') e la lookup esatta su COUNTER_MAP falliva.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_demo")
+
+    def _payload(self, m, **over):
+        data = {
+            "reparto": m.reparto,
+            "matricola": m.matricola,
+            "modello": m.modello,
+            "contratto": m.contratto,
+            "fornitore": m.fornitore,
+            "host": "",
+            "attiva": "on",
+        }
+        data.update(over)
+        return data
+
+    def test_modello_marca_generica_rifiutato(self):
+        from contatori.forms import MacchinaForm
+        m = Macchina.objects.first()
+        form = MacchinaForm(self._payload(m, modello="CANON"), instance=m)
+        self.assertFalse(form.is_valid())
+        self.assertIn("modello", form.errors)
+
+    def test_modello_mappato_accettato(self):
+        from contatori.forms import MacchinaForm
+        m = Macchina.objects.first()
+        form = MacchinaForm(self._payload(m, modello="iR-ADV DX C5840i"), instance=m)
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_ogni_modello_selezionabile_ha_una_counter_map(self):
+        """Guardia: le choices e COUNTER_MAP non devono divergere."""
+        from contatori.snmp import COUNTER_MAP
+        for valore, _label in Macchina.Modello.choices:
+            self.assertIn(valore, COUNTER_MAP, f"modello selezionabile senza counter_map: {valore}")
+
+    def test_form_espone_asset_e_permette_aggancio(self):
+        from assets.models import Asset
+        from contatori.forms import MacchinaForm
+        self.assertIn("asset", MacchinaForm().fields)
+        m = Macchina.objects.first()
+        a = Asset.objects.create(asset_tag="SOC-FORM-1", name="MFC dal form", serial_number=m.matricola)
+        form = MacchinaForm(self._payload(m, asset=a.pk), instance=m)
+        self.assertTrue(form.is_valid(), form.errors)
+        form.save()
+        m.refresh_from_db()
+        self.assertEqual(m.asset_id, a.pk)
+
+    def test_errore_modello_non_mappato_e_esplicativo(self):
+        from contatori.snmp import leggi_macchina
+        m = Macchina.objects.first()
+        m.modello = "CANON"
+        m.host = "10.0.0.1"
+        with self.assertRaises(SNMPError) as ctx:
+            leggi_macchina(m)
+        msg = str(ctx.exception)
+        self.assertIn("CANON", msg)
+        self.assertIn("iR-ADV", msg)  # deve elencare i modelli mappati

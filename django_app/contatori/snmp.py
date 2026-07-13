@@ -144,7 +144,12 @@ def leggi_macchina(macchina, community="novicromprinter", port=161, timeout=3, v
         raise SNMPError("host non impostato")
     cmap = COUNTER_MAP.get(macchina.modello)
     if not cmap:
-        raise SNMPError(f"nessuna counter_map per modello '{macchina.modello}'")
+        noti = ", ".join(sorted(COUNTER_MAP))
+        raise SNMPError(
+            f"modello '{macchina.modello}' senza counter_map: imposta il modello esatto "
+            f"nella scheda macchina (mappati: {noti}). Se la macchina e' un altro modello, "
+            f"verifica prima i numeri contatore con `manage.py snmp_discover`."
+        )
     tabella = _tabella(macchina.host, community, port, timeout, version)
     if not tabella:
         raise SNMPError("nessun contatore letto (SNMP off o host irraggiungibile)")
