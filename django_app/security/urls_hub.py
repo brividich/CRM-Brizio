@@ -7,7 +7,7 @@ API REST e mailbox-admin restano fuori (arrivano più avanti).
 from django.http import JsonResponse
 from django.urls import path
 
-from . import views, views_soc
+from . import api, views, views_soc
 
 app_name = "security"
 
@@ -52,6 +52,10 @@ urlpatterns = [
     path("admin/docs/", views.admin_docs, name="admin_docs"),
     path("admin/addons/", views.admin_addons, name="admin_addons"),
     path("admin/addons/<slug:code>/", views.admin_addon_detail, name="admin_addon_detail"),
+    # API REST read-only (summary JSON; api_ai e api_configuration ESCLUSI di proposito)
+    path("api/dashboard-summary/", api.DashboardSummaryApiView.as_view(), name="api_dashboard_summary"),
+    path("api/alerts/recent/", api.RecentAlertsApiView.as_view(), name="api_alerts_recent"),
+    path("api/kpis/summary/", api.KpiSummaryApiView.as_view(), name="api_kpis_summary"),
     # mailbox sources (config sola lettura; ingestione Graph/IMAP non wired)
     path("admin/mailbox/", views.admin_mailbox_sources_list, name="admin_mailbox_sources_list"),
     path("admin/mailbox/<slug:code>/", views.admin_mailbox_source_detail, name="admin_mailbox_source_detail"),
