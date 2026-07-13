@@ -21,8 +21,9 @@
     </div>
     <div class="ts-hero-right">
       {% block tasks_shell_actions %}
+        {# Modulo solo-kickoff: le attivita' si creano DENTRO un kickoff, non da qui. #}
         {% if tasks_shell_can_create %}
-          <a class="ts-hero-action primary" href="{% url 'tasks:create' %}">Nuova attivita</a>
+          <a class="ts-hero-action primary" href="{% url 'tasks:project_create' %}">+ Nuovo kickoff</a>
         {% endif %}
       {% endblock %}
     </div>

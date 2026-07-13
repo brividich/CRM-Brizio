@@ -465,8 +465,9 @@
     {% endif %}
     <a class="ts-hero-action" href="{% url 'tasks:project_list' %}">Portfolio kickoff</a>
   {% else %}
+    {# Fuori da un kickoff non si creano attivita': si parte da un kickoff. #}
     {% if can_create %}
-      <a class="ts-hero-action primary" href="{% url 'tasks:create' %}">+ Nuova attivita</a>
+      <a class="ts-hero-action primary" href="{% url 'tasks:project_create' %}">+ Nuovo kickoff</a>
     {% endif %}
     <a class="ts-hero-action" href="{% url 'tasks:project_list' %}">Portfolio kickoff</a>
     {% if tasks_shell_can_admin %}
@@ -997,7 +998,7 @@
               <a class="btn btn-secondary btn-sm" href="{% url 'tasks:list' %}?mine=0">Tutte le attivita in scope</a>
             {% endif %}
             {% if can_create %}
-              <a class="btn btn-sm" href="{% url 'tasks:create' %}">Crea attivita</a>
+              <a class="btn btn-sm" href="{% url 'tasks:project_list' %}">Vai ai kickoff</a>
             {% endif %}
           </div>
         </div>

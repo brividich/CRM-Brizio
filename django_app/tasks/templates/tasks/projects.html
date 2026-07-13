@@ -331,7 +331,6 @@
   <a class="ts-hero-action" href="{% url 'tasks:list' %}">Dashboard attivita</a>
   {% if tasks_shell_can_create %}
     <a class="ts-hero-action" href="{% url 'tasks:import_excel' %}">Import Excel</a>
-    <a class="ts-hero-action" href="{% url 'tasks:create' %}">+ Nuova attivita</a>
     <a class="ts-hero-action primary" href="{% url 'tasks:project_create' %}">+ Nuovo kickoff</a>
   {% endif %}
 {% endblock %}
@@ -513,11 +512,11 @@
     {% else %}
       <div class="ts-empty">
         <strong>Nessun kickoff disponibile nel tuo scope.</strong>
-        <div>Inizia creando un'attivita collegata a un nuovo kickoff oppure importa da Excel.</div>
+        <div>Inizia creando un kickoff (le attivita' si aggiungono dentro il kickoff), oppure importa da Excel.</div>
         {% if tasks_shell_can_create %}
           <div class="ts-actions">
             <a class="btn btn-secondary btn-sm" href="{% url 'tasks:import_excel' %}">Import da Excel</a>
-            <a class="btn btn-sm" href="{% url 'tasks:create' %}">Crea attivita in kickoff</a>
+            <a class="btn btn-sm" href="{% url 'tasks:project_create' %}">+ Nuovo kickoff</a>
           </div>
         {% endif %}
       </div>

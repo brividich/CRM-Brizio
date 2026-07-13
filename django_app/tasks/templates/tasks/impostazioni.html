@@ -155,7 +155,7 @@
   <a class="ts-hero-action" href="{% url 'tasks:list' %}">Dashboard attivita</a>
   <a class="ts-hero-action" href="{% url 'tasks:project_list' %}">Portfolio kickoff</a>
   {% if tasks_shell_can_create %}
-    <a class="ts-hero-action primary" href="{% url 'tasks:create' %}">Nuova attivita</a>
+    <a class="ts-hero-action primary" href="{% url 'tasks:project_create' %}">+ Nuovo kickoff</a>
   {% endif %}
 {% endblock %}
 

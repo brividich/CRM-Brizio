@@ -38,6 +38,24 @@ class PercorsoRenderTests(TestCase):
         # l'agenda builder (JS) resta presente
         self.assertIn('id="agenda-add-btn"', body)
 
+    def test_nessun_entrypoint_globale_per_creare_attivita(self):
+        """Modulo solo-kickoff: nessun bottone «Nuova attività» fuori da un kickoff.
+
+        Ogni link a `tasks:create` deve portare il kickoff nel querystring (?project=),
+        altrimenti si offre di nuovo la creazione di un'attività "sciolta".
+        """
+        from pathlib import Path
+
+        tpl_dir = Path(__file__).resolve().parent / "templates" / "tasks"
+        offenders = []
+        for tpl in sorted(tpl_dir.glob("*.html")):
+            if tpl.name == "form.html":
+                continue  # è il form di creazione stesso, non un entry-point
+            for num, line in enumerate(tpl.read_text(encoding="utf-8").splitlines(), 1):
+                if "url 'tasks:create'" in line and "project=" not in line:
+                    offenders.append(f"{tpl.name}:{num}")
+        self.assertEqual(offenders, [], f"entry-point globali per creare attività: {offenders}")
+
     def test_task_create_form_is_kickoff_only(self):
         resp = self.client.get(reverse("tasks:create"))
         self.assertEqual(resp.status_code, 200)
