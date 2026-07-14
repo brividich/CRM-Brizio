@@ -22,6 +22,36 @@ from django.http import HttpResponse
 
 XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
+# Lista canonica dei prefissi che Excel/Calc interpretano come inizio di formula
+# (CSV/formula injection): oltre a "=" anche "+", "-", "@", TAB e CR.
+FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def write_cell(ws, row, column, value):
+    """Scrive una cella NEUTRALIZZANDO la formula injection, e la ritorna.
+
+    SICUREZZA — openpyxl deduce il tipo dal valore: qualunque *stringa* che
+    inizia con ``=`` viene scritta come formula viva (``data_type == 'f'``,
+    elemento ``<f>`` nel foglio). Nei nostri export le stringhe arrivano dal DB
+    (descrizioni, nomi file…) e perfino dalla querystring (l'etichetta filtri
+    riflette ``?q=``): un link malevolo basterebbe a far scaricare a un utente
+    HR un file con una formula attiva (es. ``=HYPERLINK(...)`` che esfiltra i
+    dati della riga accanto).
+
+    Rimedio: le stringhe sono SEMPRE scritte come testo (``data_type = "s"`` →
+    ``<t>`` inline), senza alterarne il contenuto (nessun apice aggiunto:
+    ``-12,50`` resta ``-12,50``); sui prefissi pericolosi si aggiunge anche il
+    *quote prefix* di Excel ("tratta come testo"), che non fa parte del valore.
+    I valori NON stringa (int, float, Decimal, date/datetime, bool, None)
+    restano tipizzati: la sanitizzazione riguarda solo le stringhe.
+    """
+    cell = ws.cell(row=row, column=column, value=value)
+    if isinstance(value, str):
+        cell.data_type = "s"  # mai 'f': nessuna formula viva nel file prodotto
+        if value[:1] in FORMULA_PREFIXES:
+            cell.quotePrefix = True
+    return cell
+
 
 def _brand_header(ws, *, title, subtitle, filters_label, logo):
     """Scrive il blocco intestazione documento (righe 1..5) e ritorna la riga di header tabella.
@@ -38,7 +68,7 @@ def _brand_header(ws, *, title, subtitle, filters_label, logo):
     navy = "0C2545"
 
     portal_name = getattr(theme, "portal_name", "") or "NOVICROM HUB"
-    ws.cell(row=1, column=2, value=portal_name).font = Font(bold=True, size=11, color=navy)
+    write_cell(ws, 1, 2, str(portal_name)).font = Font(bold=True, size=11, color=navy)
 
     logo_path = getattr(theme, "logo_path", None)
     if logo and logo_path:
@@ -55,11 +85,13 @@ def _brand_header(ws, *, title, subtitle, filters_label, logo):
         except Exception:  # logo non disegnabile: si prosegue senza (mai eccezione all'utente)
             pass
 
-    ws.cell(row=3, column=1, value=str(title)).font = Font(bold=True, size=14, color=navy)
+    # Titolo/sottotitolo/etichetta filtri sono testi riflessi (querystring, DB):
+    # passano da write_cell → mai formule vive nell'intestazione.
+    write_cell(ws, 3, 1, str(title)).font = Font(bold=True, size=14, color=navy)
     if subtitle:
-        ws.cell(row=4, column=1, value=str(subtitle)).font = Font(size=10, color="5B6B7C")
+        write_cell(ws, 4, 1, str(subtitle)).font = Font(size=10, color="5B6B7C")
     if filters_label:
-        ws.cell(row=5, column=1, value=str(filters_label)).font = Font(size=10, color="5B6B7C")
+        write_cell(ws, 5, 1, str(filters_label)).font = Font(size=10, color="5B6B7C")
     return 7
 
 
@@ -99,7 +131,7 @@ def build_xlsx_bytes(
     header_fill = PatternFill("solid", fgColor="0C2545")
     header_font = Font(bold=True, color="FFFFFF")
     for c, col in enumerate(columns, start=1):
-        cell = ws.cell(row=header_row, column=c, value=str(col))
+        cell = write_cell(ws, header_row, c, str(col))
         cell.fill = header_fill
         cell.font = header_font
         cell.alignment = Alignment(vertical="center")
@@ -108,7 +140,7 @@ def build_xlsx_bytes(
     for row in rows:
         r += 1
         for c, val in enumerate(row, start=1):
-            ws.cell(row=r, column=c, value=val)
+            write_cell(ws, r, c, val)
 
     # Larghezze auto (cap 60) sul contenuto.
     for c, col in enumerate(columns, start=1):

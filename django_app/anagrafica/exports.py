@@ -1280,8 +1280,18 @@ register(ExportSpec(
 # passa dall'endpoint unico (PDF + Excel, filtrato o tutto). Colonne = quelle
 # della tabella a schermo (Dipendente, Periodo, e le 4 misure × 3 gruppi).
 
-def _ratei_maps() -> tuple[dict, dict]:
-    """(tax_code → «Cognome Nome», legacy_id → reparto): stessa risoluzione della view."""
+def _ratei_maps(request: HttpRequest | None = None) -> tuple[dict, dict]:
+    """(tax_code → «Cognome Nome», legacy_id → reparto): stessa risoluzione della view.
+
+    PERFORMANCE: la risoluzione scandisce tutti i SaldoCedolino + l'anagrafica
+    legacy. Sia il dataset sia l'etichetta filtri ne hanno bisogno: con `request`
+    valorizzata il risultato è memoizzato sulla request (una volta sola per
+    export invece di due). Senza `request` (chiamata isolata/test) si ricalcola.
+    """
+    cached = getattr(request, "ratei_maps_cache", None) if request is not None else None
+    if cached is not None:
+        return cached
+
     from anagrafica.models import (
         DipendenteAnagraficaAziendale,
         DipendenteAnagraficaCivile,
@@ -1327,7 +1337,11 @@ def _ratei_maps() -> tuple[dict, dict]:
     cf_to_nome: dict[str, str] = {}
     for cf, lid in cf_to_legacy.items():
         cf_to_nome[cf] = (id_to_nome.get(lid) if lid else None) or cf
-    return cf_to_nome, id_to_reparto
+
+    maps = (cf_to_nome, id_to_reparto)
+    if request is not None:
+        request.ratei_maps_cache = maps
+    return maps
 
 
 def _num(value) -> float:
@@ -1345,7 +1359,7 @@ def _ratei_rows(request: HttpRequest, scope: str) -> list[dict]:
     from anagrafica.models import SaldoCedolino
     from anagrafica.ratei_alert import filtro_allerta_q, soglie_ratei
 
-    cf_to_nome, id_to_reparto = _ratei_maps()
+    cf_to_nome, id_to_reparto = _ratei_maps(request)
     qs = SaldoCedolino.objects.all().order_by("-data_competenza", "tax_code")
 
     if scope == "filtered":
@@ -1408,7 +1422,7 @@ def _ratei_filters(request: HttpRequest) -> str:
         if cf_compat:
             filtro_dipendenti = [cf_compat]
     if filtro_dipendenti:
-        cf_to_nome, _reparti = _ratei_maps()
+        cf_to_nome, _reparti = _ratei_maps(request)
         parts.append(
             "Dipendente: " + ", ".join(cf_to_nome.get(cf.upper(), cf) for cf in filtro_dipendenti)
         )

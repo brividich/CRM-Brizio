@@ -80,6 +80,94 @@ class XlsxDocumentHeaderTests(TestCase):
         self.assertEqual(ws.print_title_rows, "$7:$7")
 
 
+class XlsxFormulaInjectionTests(TestCase):
+    """SICUREZZA: nessuna cella del file prodotto deve essere una formula viva.
+
+    openpyxl scrive come formula (``data_type == 'f'``) qualunque stringa che
+    inizia con ``=``: i testi degli export arrivano dal DB e — per l'etichetta
+    filtri — perfino dalla querystring, quindi un link malevolo potrebbe far
+    scaricare a un utente HR un .xlsx con dentro una formula attiva.
+    """
+
+    PAYLOAD = '=HYPERLINK("http://evil.invalid","apri")'
+
+    def _cells(self, data):
+        ws = load_workbook(BytesIO(data)).active
+        return ws
+
+    def test_data_cell_starting_with_equals_is_not_a_formula(self):
+        data = build_xlsx_bytes(columns=["Descrizione"], rows=[[self.PAYLOAD]])
+        cell = self._cells(data)["A2"]
+        self.assertNotEqual(cell.data_type, "f")
+        self.assertEqual(cell.data_type, "s")
+        self.assertEqual(cell.value, self.PAYLOAD)  # valore preservato, come testo
+        self.assertNotIn(b"<f>", self._sheet_xml(data))
+
+    def _sheet_xml(self, data) -> bytes:
+        import zipfile
+
+        with zipfile.ZipFile(BytesIO(data)) as zf:
+            return zf.read("xl/worksheets/sheet1.xml")
+
+    def test_header_block_texts_are_not_formulas(self):
+        data = build_xlsx_bytes(
+            columns=["Nominativo"],
+            rows=[["Mario Bianchi"]],
+            title=f"Titolo {self.PAYLOAD}",
+            subtitle=self.PAYLOAD,
+            filters_label=self.PAYLOAD,  # riflessa dalla querystring (?q=…)
+        )
+        ws = self._cells(data)
+        for ref in ("A3", "A4", "A5"):
+            with self.subTest(ref=ref):
+                self.assertNotEqual(ws[ref].data_type, "f")
+        self.assertEqual(ws["A4"].value, self.PAYLOAD)
+        self.assertEqual(ws["A5"].value, self.PAYLOAD)
+        self.assertNotIn(b"<f>", self._sheet_xml(data))
+
+    def test_all_dangerous_prefixes_are_neutralised(self):
+        payloads = [
+            '=cmd|"/c calc"!A1',
+            "+1+1",
+            "-1+1",
+            "@SUM(A1)",
+            "\t=SUM(A1)",
+            "\r=SUM(A1)",
+        ]
+        data = build_xlsx_bytes(columns=["X"], rows=[[p] for p in payloads])
+        ws = self._cells(data)
+        for i, payload in enumerate(payloads, start=2):
+            with self.subTest(payload=payload):
+                self.assertNotEqual(ws.cell(row=i, column=1).data_type, "f")
+        self.assertNotIn(b"<f>", self._sheet_xml(data))
+
+    def test_column_header_starting_with_equals_is_not_a_formula(self):
+        data = build_xlsx_bytes(columns=[self.PAYLOAD], rows=[["x"]])
+        self.assertNotEqual(self._cells(data)["A1"].data_type, "f")
+
+    def test_legitimate_values_are_not_altered(self):
+        from datetime import date
+        from decimal import Decimal
+
+        data = build_xlsx_bytes(
+            columns=["Testo", "Intero", "Decimale", "Data", "Negativo testo"],
+            rows=[["Cabina di verniciatura", 12, Decimal("10.5"), date(2026, 3, 10), "-12,50"]],
+        )
+        ws = self._cells(data)
+        self.assertEqual(ws["A2"].value, "Cabina di verniciatura")
+        # I NON stringa restano tipizzati (numeri/date, non testo).
+        self.assertEqual(ws["B2"].value, 12)
+        self.assertEqual(ws["B2"].data_type, "n")
+        self.assertEqual(ws["C2"].value, 10.5)
+        self.assertEqual(ws["C2"].data_type, "n")
+        # openpyxl rilegge le date come datetime: resta un valore-data, non testo.
+        self.assertEqual(ws["D2"].value.date(), date(2026, 3, 10))
+        self.assertEqual(ws["D2"].data_type, "d")
+        # Numero negativo passato come STRINGA: resta la stringa originale,
+        # senza apice visibile né altre deturpazioni.
+        self.assertEqual(ws["E2"].value, "-12,50")
+
+
 class BrandHeaderLogoResizeTests(TestCase):
     """Copre il bug: img.height veniva sovrascritto PRIMA di calcolare il
     rapporto d'aspetto per img.width, quindi il logo usciva distorto
