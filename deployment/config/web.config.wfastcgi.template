@@ -105,4 +105,30 @@
       </security>
     </system.webServer>
   </location>
+
+  <!-- Documenti asset e allegati work order: solo view Django (token QR o
+       sessione autenticata), mai URL diretto. L'asset_tag e' prevedibile. -->
+  <location path="media/assets_documents">
+    <system.webServer>
+      <security>
+        <requestFiltering>
+          <denyUrlSequences>
+            <add sequence="." />
+          </denyUrlSequences>
+        </requestFiltering>
+      </security>
+    </system.webServer>
+  </location>
+
+  <location path="media/assets_workorders">
+    <system.webServer>
+      <security>
+        <requestFiltering>
+          <denyUrlSequences>
+            <add sequence="." />
+          </denyUrlSequences>
+        </requestFiltering>
+      </security>
+    </system.webServer>
+  </location>
 </configuration>

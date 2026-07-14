@@ -309,7 +309,7 @@ body.theme-dark .wod-link { color:#60a5fa; }
       <h3 class="wod-section-title">Allegati</h3>
       <div class="wod-attachments">
         {% for attachment in attachments %}
-          <a href="{{ attachment.file.url }}" target="_blank" rel="noopener" class="wod-attachment wod-attachment-link">
+          <a href="{% url 'assets:workorder_attachment_download' attachment.id %}" target="_blank" rel="noopener" class="wod-attachment wod-attachment-link">
             <strong>{{ attachment.original_name|default:attachment.file.name }}</strong><br>
             <span class="wod-log-meta">{{ attachment.created_at|date:"d-m-Y H:i" }}</span>
           </a>

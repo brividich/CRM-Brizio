@@ -85,6 +85,11 @@ urlpatterns = [
     path("assets/view/<int:id>/report.pdf", views.asset_report_pdf, name="asset_report_pdf"),
     path("assets/view/<int:id>/qr-label/", views.asset_qr_label, name="asset_qr_label"),
     path("assets/documenti/<int:document_id>/download/", views.asset_document_download, name="asset_document_download"),
+    path(
+        "assets/workorders/allegati/<int:attachment_id>/download/",
+        views.workorder_attachment_download,
+        name="workorder_attachment_download",
+    ),
     path("assets/labels/", views.asset_label_designer, name="asset_label_designer"),
     path("assets/new/", views.asset_create, name="asset_create"),
     path("assets/edit/", views.asset_edit, name="asset_edit"),
@@ -110,6 +115,12 @@ urlpatterns = [
     path("assets/manutenzione/todo/", views.maintenance_todo, name="maintenance_todo"),
     path("assets/<int:asset_id>/meters/", views.asset_meter_update, name="asset_meter_update"),
     path("assets/segnala/", views.asset_quick_report, name="asset_quick_report"),
+    # Sotto il prefisso esente /assets/qr/pub/: il token QR e' la chiave d'accesso.
+    path(
+        "assets/qr/pub/<str:public_qr_token>/documenti/<int:document_id>/",
+        views.asset_document_qr_download,
+        name="asset_document_qr_download",
+    ),
     path("assets/qr/pub/<str:public_qr_token>/", views.asset_qr_public_landing, name="asset_qr_public_landing"),
     path("assets/qr/<str:asset_tag>/", views.asset_qr_landing, name="asset_qr_landing"),
     path("assets/reports/", views.reports_dashboard, name="reports"),

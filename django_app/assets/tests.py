@@ -1320,6 +1320,18 @@ class AssetsRoutingTests(TestCase):
                 self.assertContains(edit_page, reverse("assets:asset_document_download", args=[upload.id]))
                 self.assertNotContains(edit_page, "/media/assets_documents/")
 
+                # Il download da sessione autenticata e' riservato agli admin asset
+                # (l'accesso di officina passa dal token QR sulla macchina).
+                denied = self.client.get(reverse("assets:asset_document_download", args=[upload.id]))
+                self.assertEqual(denied.status_code, 403)
+
+                admin = User.objects.create_superuser(
+                    username="asset-admin-doc-download",
+                    email="asset-admin-doc-download@test.local",
+                    password="pass12345",
+                )
+                _complete_onboarding(admin)
+                self.client.force_login(admin)
                 download = self.client.get(reverse("assets:asset_document_download", args=[upload.id]))
                 self.assertEqual(download.status_code, 200)
                 self.assertEqual(download["Content-Type"], "application/pdf")
@@ -2382,8 +2394,10 @@ class AssetsRoutingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "AST-QR-PUB")
         self.assertContains(response, "Interventi aperti")
-        # I documenti dell'asset (file e cartella SharePoint) non sono esposti senza login.
-        self.assertNotContains(response, "Documenti")
+        # I documenti sono visibili anche dal QR pubblico (funzione voluta): il token
+        # e' la chiave d'accesso, i file non sono mai serviti da /media/.
+        self.assertContains(response, "Documenti")
+        self.assertNotContains(response, "/media/assets_documents/")
         # Nessuna shell applicativa e nessun link alla scheda interna per il visitatore anonimo.
         self.assertNotContains(response, reverse("assets:asset_view", kwargs={"id": asset.id}))
         # L'apertura della segnalazione resta dietro login.

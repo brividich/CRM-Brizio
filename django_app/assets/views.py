@@ -3099,12 +3099,68 @@ def _build_uploaded_documents_context(asset: Asset | None) -> dict[str, list[Ass
     return grouped
 
 
+# Content-type per cui l'apertura inline e' sicura: nessuno di questi puo'
+# eseguire script nell'origine del portale. Tutto il resto (html, svg, ...) va
+# servito come allegato, altrimenti un upload diventa una XSS same-origin.
+_INLINE_SAFE_CONTENT_TYPES = frozenset(
+    {
+        "application/pdf",
+        "image/png",
+        "image/jpeg",
+        "image/gif",
+        "image/webp",
+        "image/bmp",
+        "text/plain",
+    }
+)
+
+
+def _document_file_response(storage, file_name: str, filename: str) -> FileResponse:
+    """FileResponse con Content-Disposition inline solo per i tipi sicuri."""
+    content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    inline = content_type in _INLINE_SAFE_CONTENT_TYPES
+    response = FileResponse(
+        storage.open(file_name, "rb"),
+        as_attachment=not inline,
+        filename=filename,
+        content_type=content_type,
+    )
+    response["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+def _can_download_asset_document(request: HttpRequest) -> bool:
+    """Chi puo' scaricare un documento asset da sessione autenticata.
+
+    Gate allineato a ``admin_deadline_attachment_download``: senza questo, il
+    solo ``login_required`` rende enumerabile qualunque ``document_id`` (IDOR).
+    L'accesso di officina non passa da qui ma dal token QR sulla macchina
+    (``asset_document_qr_download``). Per riaprire il download a tutti gli
+    utenti autenticati basta allargare questo predicato: e' l'unico punto.
+    """
+    return _is_assets_admin(request)
+
+
 @login_required
 def asset_document_download(request, document_id: int):
     document = get_object_or_404(
         AssetDocument.objects.select_related("asset", "uploaded_by"),
         pk=document_id,
     )
+    if not _can_download_asset_document(request):
+        log_action(
+            request,
+            "download_asset_document",
+            "assets",
+            {
+                "document_id": document.id,
+                "asset_id": document.asset_id,
+                "category": document.category,
+                "esito": "denied",
+                "motivo": "permission_denied",
+            },
+        )
+        return render(request, "core/pages/forbidden.html", status=403)
     storage = document.file.storage if document.file else None
     file_name = document.file.name if document.file else ""
     if not storage or not file_name or not storage.exists(file_name):
@@ -3140,6 +3196,112 @@ def asset_document_download(request, document_id: int):
         filename=filename,
         content_type=content_type,
     )
+
+
+def asset_document_qr_download(request: HttpRequest, public_qr_token: str, document_id: int):
+    """Download di un documento asset tramite il token QR stampato sulla macchina.
+
+    Il token e' la chiave d'accesso: i file NON sono raggiungibili via /media/
+    (deny IIS su media/assets_documents). Nessun filtro di categoria — dal QR si
+    vedono tutti i documenti dell'asset — ma il documento deve appartenere
+    esattamente all'asset di quel token: nessun accesso cross-asset.
+    """
+    token = _clean_string(public_qr_token)
+    if not token:
+        raise Http404("Link non disponibile.")
+    asset = Asset.objects.filter(public_qr_token=token, public_qr_enabled=True).first()
+    if asset is None:
+        raise Http404("Link non disponibile.")
+
+    document = AssetDocument.objects.filter(pk=document_id, asset_id=asset.id).first()
+    if document is None:
+        # Documento inesistente o di un altro asset: stessa risposta, nessun oracolo.
+        log_action(
+            request,
+            "download_asset_document_qr",
+            "assets",
+            {
+                "document_id": document_id,
+                "asset_id": asset.id,
+                "asset_tag": asset.asset_tag,
+                "qr_token_prefix": token[:8],
+                "esito": "denied",
+                "motivo": "document_not_in_asset",
+            },
+        )
+        raise Http404("Documento non disponibile.")
+
+    storage = document.file.storage if document.file else None
+    file_name = document.file.name if document.file else ""
+    if not storage or not file_name or not storage.exists(file_name):
+        log_action(
+            request,
+            "download_asset_document_qr",
+            "assets",
+            {
+                "document_id": document.id,
+                "asset_id": asset.id,
+                "asset_tag": asset.asset_tag,
+                "qr_token_prefix": token[:8],
+                "esito": "not_found",
+            },
+        )
+        raise Http404("Documento non disponibile.")
+
+    filename = document.original_name or Path(file_name).name
+    log_action(
+        request,
+        "download_asset_document_qr",
+        "assets",
+        {
+            "document_id": document.id,
+            "asset_id": asset.id,
+            "asset_tag": asset.asset_tag,
+            "category": document.category,
+            "filename": filename,
+            "qr_token_prefix": token[:8],
+            "esito": "success",
+        },
+    )
+    return _document_file_response(storage, file_name, filename)
+
+
+@login_required
+def workorder_attachment_download(request: HttpRequest, attachment_id: int):
+    """Allegati OdL: serviti solo da qui (deny IIS su media/assets_workorders)."""
+    attachment = get_object_or_404(
+        WorkOrderAttachment.objects.select_related("work_order__asset"),
+        pk=attachment_id,
+    )
+    storage = attachment.file.storage if attachment.file else None
+    file_name = attachment.file.name if attachment.file else ""
+    if not storage or not file_name or not storage.exists(file_name):
+        log_action(
+            request,
+            "download_workorder_attachment",
+            "assets",
+            {
+                "attachment_id": attachment.id,
+                "work_order_id": attachment.work_order_id,
+                "asset_id": attachment.work_order.asset_id,
+                "esito": "not_found",
+            },
+        )
+        return HttpResponse("Allegato non trovato.", status=404)
+    filename = attachment.original_name or Path(file_name).name
+    log_action(
+        request,
+        "download_workorder_attachment",
+        "assets",
+        {
+            "attachment_id": attachment.id,
+            "work_order_id": attachment.work_order_id,
+            "asset_id": attachment.work_order.asset_id,
+            "filename": filename,
+            "esito": "success",
+        },
+    )
+    return _document_file_response(storage, file_name, filename)
 
 
 def _validate_asset_document_uploads(
@@ -8426,7 +8588,24 @@ def asset_list(request: HttpRequest) -> HttpResponse:
         if action == "save_asset_table_layout":
             return _handle_asset_table_layout_request(request, json_payload)
         if action == "import_excel":
+            # L'import crea e (update_existing default=1) SOVRASCRIVE asset in blocco:
+            # e' una scrittura di massa, non un'azione operativa. Solo admin asset,
+            # come tutte le altre azioni di questo dispatcher.
+            if not can_manage_custom_fields:
+                log_action(
+                    request,
+                    "import_assets_excel",
+                    "assets",
+                    {"esito": "denied", "motivo": "permission_denied"},
+                )
+                return render(request, "core/pages/forbidden.html", status=403)
             ok, text = _handle_excel_import_request(request)
+            log_action(
+                request,
+                "import_assets_excel",
+                "assets",
+                {"esito": "success" if ok else "error", "messaggio": text[:500]},
+            )
             if ok:
                 messages.success(request, text)
             else:
@@ -10157,9 +10336,28 @@ def _render_asset_qr_landing(request: HttpRequest, asset: Asset, *, public: bool
     qr_overdue_count = sum(1 for r in qr_schedule_rows if r["status"] == "overdue")
 
     # Documenti dell'asset (manuali, specifiche, interventi) + cartella SharePoint.
+    # I file non sono mai raggiungibili via /media/ (deny IIS): il link passa dalla
+    # view a token per il QR pubblico, dalla view autenticata per l'utente loggato.
     asset_documents = []
+    qr_token = _clean_string(asset.public_qr_token) if asset.public_qr_enabled else ""
     for doc in asset.documents.all()[:15]:
-        open_url = _clean_string(doc.sharepoint_url) or (doc.file.url if doc.file else "")
+        if public:
+            # Il visitatore anonimo ha in mano solo il token: nessun URL SharePoint
+            # interno esposto, solo il download a token dei file locali.
+            open_url = (
+                reverse(
+                    "assets:asset_document_qr_download",
+                    kwargs={"public_qr_token": qr_token, "document_id": doc.id},
+                )
+                if (qr_token and doc.file)
+                else ""
+            )
+        else:
+            open_url = _clean_string(doc.sharepoint_url) or (
+                reverse("assets:asset_document_download", kwargs={"document_id": doc.id})
+                if doc.file
+                else ""
+            )
         asset_documents.append(
             {
                 "name": doc.original_name or "Documento",
@@ -17140,6 +17338,16 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
 def asset_bulk_update(request: HttpRequest) -> JsonResponse:
     if request.method != "POST":
         return JsonResponse({"ok": False, "error": "Metodo non consentito"}, status=405)
+    # Scrittura di massa (stato, categoria, assegnazioni, note) su N asset: solo admin.
+    # Endpoint JSON -> 403 JSON, mai redirect HTML.
+    if not _is_assets_admin(request):
+        log_action(
+            request,
+            "asset_bulk_update",
+            "assets",
+            {"esito": "denied", "motivo": "permission_denied"},
+        )
+        return JsonResponse({"ok": False, "error": "Permessi insufficienti."}, status=403)
     try:
         data = json.loads(request.body)
     except Exception:
@@ -17198,6 +17406,18 @@ def asset_bulk_update(request: HttpRequest) -> JsonResponse:
         return JsonResponse({"ok": False, "error": "ID asset non validi"}, status=400)
 
     updated = Asset.objects.filter(pk__in=clean_ids).update(**update_kwargs)
+    log_action(
+        request,
+        "asset_bulk_update",
+        "assets",
+        {
+            "asset_ids": clean_ids[:200],
+            "asset_count": len(clean_ids),
+            "campi": update_kwargs,
+            "aggiornati": updated,
+            "esito": "success",
+        },
+    )
     return JsonResponse({"ok": True, "updated": updated})
 
 

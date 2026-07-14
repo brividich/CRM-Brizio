@@ -176,6 +176,38 @@
   </location>
 
   <!-- ====================================================================
+       Documenti asset e allegati work order: MAI serviti direttamente.
+       L'asset_tag e' prevedibile, quindi un URL /media/assets_documents/...
+       raggiungibile in anonimo equivale a documenti pubblici. L'accesso passa
+       solo da view Django: token QR (assets:asset_document_qr_download)
+       oppure sessione autenticata (assets:asset_document_download,
+       assets:workorder_attachment_download), entrambe con audit log.
+       ==================================================================== -->
+  <location path="media/assets_documents">
+    <system.webServer>
+      <security>
+        <requestFiltering>
+          <denyUrlSequences>
+            <add sequence="." />
+          </denyUrlSequences>
+        </requestFiltering>
+      </security>
+    </system.webServer>
+  </location>
+
+  <location path="media/assets_workorders">
+    <system.webServer>
+      <security>
+        <requestFiltering>
+          <denyUrlSequences>
+            <add sequence="." />
+          </denyUrlSequences>
+        </requestFiltering>
+      </security>
+    </system.webServer>
+  </location>
+
+  <!-- ====================================================================
        /media_private/ — MAI servita da IIS. Difesa in profondità:
        anche se qualcuno creasse una virtual directory per errore,
        IIS blocca tutte le richieste HTTP a questo path.
