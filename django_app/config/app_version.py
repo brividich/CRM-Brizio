@@ -25,7 +25,13 @@ MODULE_VERSION_ENV_KEYS: tuple[str, ...] = tuple(MODULE_ENV_KEYS_BY_CODE.values(
 
 
 def _normalize(value: str, default: str) -> str:
-    parsed = str(value or "").strip()
+    # `strip()` NON rimuove il BOM (U+FEFF non e' whitespace): un file VERSION
+    # salvato in UTF-8-with-BOM (lo fanno Notepad e PowerShell) produrrebbe la
+    # versione "﻿1.3.0", con un carattere invisibile in testa. Quella stringa
+    # finisce nel footer del portale, nelle chiavi di versione scritte nel .env e
+    # nei confronti di versione, e fa fallire la serializzazione su stdout cp1252
+    # (UnicodeEncodeError in `validate_deployment --format json`).
+    parsed = str(value or "").lstrip("﻿").strip()
     return parsed or default
 
 
@@ -41,7 +47,8 @@ def version_file_path() -> Path:
 def load_app_version(default: str = DEFAULT_APP_VERSION) -> str:
     path = version_file_path()
     try:
-        first_line = path.read_text(encoding="utf-8").splitlines()[0]
+        # utf-8-sig: consuma l'eventuale BOM invece di trascinarlo nel valore.
+        first_line = path.read_text(encoding="utf-8-sig").splitlines()[0]
     except Exception:
         return default
     return _normalize(first_line, default)
