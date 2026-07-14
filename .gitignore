@@ -196,6 +196,11 @@ topbar_dev.json
 django_app/topbar_dev.json
 django_app/acl_report*.json
 django_app/deployment_validation*.json
+# Artefatti rigenerabili del release guard / diagnostica locale.
+django_app/rag_eval.json
+check_dev.json
+# Dump di dati REALI (corsi, dipendenti, visite mediche): mai versionare.
+formazione_export.json
 
 # Local external checkouts / operational imports
 agent-flow/
