@@ -46,6 +46,7 @@ from .maintenance import (
     meter_schedule_payload,
     resolve_asset_maintenance_rules,
     sync_workorder_maintenance_state,
+    upsert_asset_maintenance_rule_state,
 )
 from .services.asset_catalog_import import AssetCatalogImporter
 from .models import (
@@ -8853,3 +8854,148 @@ class WorkOrderOverdueThresholdTests(TestCase):
 
         self.assertEqual(list(response.context["wo_overdue"]), [])
         self.assertNotIn("OdL APERTI", out.getvalue())
+
+
+class MaintenanceExecutionVsGeneratorTests(TestCase):
+    """C1 — l'esecuzione registrata dallo scadenzario e il generatore devono guardare la stessa verità."""
+
+    def setUp(self):
+        User = get_user_model()
+        self.admin = User.objects.create_superuser("gen-admin", "gen-admin@test.local", "pw")
+        self.category = AssetCategory.objects.create(
+            code="cnc-gen", label="CNC generatore", base_asset_type=Asset.TYPE_CNC, sort_order=10,
+        )
+        self.template = MaintenanceInterventionTemplate.objects.create(
+            code="lubrificazione-gen", label="Lubrificazione", asset_category=self.category,
+        )
+        self.rule = MaintenanceRule.objects.create(
+            intervention_template=self.template,
+            asset_category=self.category,
+            threshold_type=MaintenanceRule.THRESHOLD_DAYS,
+            threshold_value=90,
+            warning_days=15,
+        )
+        self.asset = Asset.objects.create(
+            asset_tag="CNC-GEN-001",
+            name="Tornio generatore",
+            asset_type=Asset.TYPE_CNC,
+            asset_category=self.category,
+            status=Asset.STATUS_IN_USE,
+        )
+
+    def _record_execution_from_schedule(self, *, executed_on=None):
+        """Percorso reale: POST allo scadenzario, non una scorciatoia sul modello."""
+        self.client.force_login(self.admin)
+        return self.client.post(
+            reverse("assets:maintenance_schedule"),
+            {
+                "action": "record_maintenance_rule_execution",
+                "asset_id": str(self.asset.id),
+                "base_rule_id": str(self.rule.id),
+                "execution_date": (executed_on or timezone.localdate()).isoformat(),
+                "execution_duration_minutes": "30",
+                "execution_cost_eur": "",
+                "execution_notes": "Lubrificato e verificato.",
+            },
+        )
+
+    def test_execution_recorded_from_schedule_is_seen_by_the_generator(self):
+        response = self._record_execution_from_schedule()
+        self.assertEqual(response.status_code, 302)
+        executed = WorkOrder.objects.get(asset=self.asset, maintenance_rule=self.rule)
+        self.assertEqual(executed.status, WorkOrder.STATUS_DONE)
+
+        call_command("generate_scheduled_workorders", stdout=io.StringIO())
+
+        # La manutenzione è appena stata fatta: il generatore non deve riaprirla.
+        self.assertEqual(
+            WorkOrder.objects.filter(asset=self.asset, maintenance_rule=self.rule).count(),
+            1,
+            "Il generatore ha ricreato un OdL per una manutenzione appena eseguita.",
+        )
+        self.assertFalse(
+            WorkOrder.objects.filter(
+                asset=self.asset, maintenance_rule=self.rule, origin=WorkOrder.ORIGIN_PERIODIC
+            ).exists()
+        )
+
+    def test_generator_still_creates_when_the_last_execution_is_old(self):
+        self._record_execution_from_schedule(
+            executed_on=timezone.localdate() - timedelta(days=200)
+        )
+
+        call_command("generate_scheduled_workorders", stdout=io.StringIO())
+
+        self.assertTrue(
+            WorkOrder.objects.filter(
+                asset=self.asset, maintenance_rule=self.rule, origin=WorkOrder.ORIGIN_PERIODIC
+            ).exists()
+        )
+
+    def test_generator_sees_history_recorded_without_a_workorder(self):
+        # Storico manuale: lo stato è valorizzato ma non esiste alcun OdL da interrogare.
+        upsert_asset_maintenance_rule_state(
+            asset=self.asset,
+            base_rule=self.rule,
+            executed_on=timezone.localdate(),
+        )
+
+        call_command("generate_scheduled_workorders", stdout=io.StringIO())
+
+        self.assertEqual(WorkOrder.objects.filter(asset=self.asset, maintenance_rule=self.rule).count(), 0)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AssetMeterAuditTests(TestCase):
+    """S4 — l'audit dell'aggiornamento contatori si perdeva in silenzio (firma di log_action sbagliata)."""
+
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user("meter-audit", "meter-audit@test.local", "pw")
+        _complete_onboarding(self.user)
+        self.category = AssetCategory.objects.create(
+            code="cnc-audit", label="CNC audit", base_asset_type=Asset.TYPE_CNC, sort_order=10,
+        )
+        self.asset = Asset.objects.create(
+            asset_tag="CNC-AUD-001",
+            name="Tornio audit",
+            asset_type=Asset.TYPE_CNC,
+            asset_category=self.category,
+            status=Asset.STATUS_IN_USE,
+        )
+        self.meter = AssetMeter.objects.create(
+            asset=self.asset, meter_type=AssetMeter.METER_HOURS, current_value=100, unit_label="h",
+        )
+
+    def _audit_rows(self):
+        from core.models import AuditLog
+
+        return AuditLog.objects.filter(azione="asset_meter_update")
+
+    def test_meter_update_is_audited(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("assets:asset_meter_update", args=[self.asset.id]),
+            {"meter_id": str(self.meter.id), "new_value": "480"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        entry = self._audit_rows().get()
+        self.assertEqual(entry.modulo, "assets")
+        self.assertEqual(entry.dettaglio["asset_tag"], "CNC-AUD-001")
+        self.assertEqual(Decimal(entry.dettaglio["old_value"]), Decimal("100"))
+        self.assertEqual(Decimal(entry.dettaglio["new_value"]), Decimal("480"))
+        self.assertEqual(entry.dettaglio["meter_type"], AssetMeter.METER_HOURS)
+
+    def test_invalid_meter_update_is_not_audited(self):
+        self.client.force_login(self.user)
+
+        self.client.post(
+            reverse("assets:asset_meter_update", args=[self.asset.id]),
+            {"meter_id": str(self.meter.id), "new_value": "non-un-numero"},
+        )
+
+        self.assertEqual(self._audit_rows().count(), 0)
+        self.meter.refresh_from_db()
+        self.assertEqual(self.meter.current_value, Decimal("100.00"))
