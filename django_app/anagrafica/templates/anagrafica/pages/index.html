@@ -47,20 +47,6 @@
 .ana-restore-btn { background:#0ea5e9; color:#fff; border:none; border-radius:7px; padding:4px 12px;
   font-size:11px; font-weight:700; cursor:pointer; }
 
-.hr-qa-card { display:flex; flex-direction:column; gap:12px; }
-.hr-qa-head { display:flex; align-items:center; gap:11px; }
-.hr-qa-ico { width:40px; height:40px; border-radius:.8rem; display:flex; align-items:center;
-  justify-content:center; font-size:19px; flex-shrink:0; }
-.hr-qa-ico.blue { background:#eff6ff; } .hr-qa-ico.green { background:#ecfdf5; }
-.hr-qa-stats { display:flex; gap:10px; }
-.hr-qa-stat { flex:1; text-align:center; background:#f8fafc; border:1px solid #e2e8f0;
-  border-radius:.7rem; padding:11px 8px; }
-.hr-qa-stat-v { font-size:21px; font-weight:800; color:#0f172a; }
-.hr-qa-stat-l { font-size:10px; font-weight:700; color:#94a3b8; text-transform:uppercase; margin-top:2px; }
-.hr-qa-tags { display:flex; flex-wrap:wrap; gap:6px; }
-.hr-qa-foot { display:flex; gap:8px; flex-wrap:wrap; }
-body.theme-dark .hr-qa-stat { background:var(--surface-alt); border-color:var(--border); }
-body.theme-dark .hr-qa-stat-v { color:var(--text); }
 </style>
 {% endblock %}
 
@@ -178,72 +164,6 @@ body.theme-dark .hr-qa-stat-v { color:var(--text); }
           <div class="hr-metric-sub"><a href="{% url 'anagrafica:scadenzario' %}?tipo=qualifica&stato=60" style="color:#1f87cd;">Prossimi 60 giorni →</a></div>
         </div>
       </div>
-      <div class="hr-metric">
-        <div class="hr-metric-ico blue">🗂️</div>
-        <div class="hr-metric-body">
-          <div class="hr-metric-top"><span class="hr-metric-lbl">Reparti</span><span class="hr-metric-val">{{ n_reparti }}</span></div>
-          <div class="hr-metric-sub">Con dipendenti assegnati</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── Widget: Moduli ── -->
-  <div class="ana-widget" data-wid="moduli">
-    <div class="ana-widget-bar">
-      <span class="ana-widget-handle" title="Trascina per riordinare">☰</span>
-      <span class="ana-widget-label">Accesso rapido — Dipendenti e Impostazioni</span>
-      <button class="ana-widget-hide" data-wid="moduli" title="Nascondi">✕</button>
-    </div>
-    <div class="hr-grid hr-grid-2">
-
-      <div class="hr-card hr-card-pad hr-qa-card">
-        <div class="hr-qa-head">
-          <div class="hr-qa-ico blue">👥</div>
-          <div>
-            <div class="hr-card-title">Dipendenti</div>
-            <div class="hr-card-desc">Rubrica aziendale + scheda HR completa</div>
-          </div>
-        </div>
-        <div class="hr-qa-stats">
-          <div class="hr-qa-stat"><div class="hr-qa-stat-v">{{ n_dipendenti }}</div><div class="hr-qa-stat-l">In organico</div></div>
-          <div class="hr-qa-stat"><div class="hr-qa-stat-v">{{ n_reparti }}</div><div class="hr-qa-stat-l">Reparti</div></div>
-        </div>
-        <div class="hr-qa-tags">
-          <span class="hr-pill neutral">Da SQL Server legacy</span>
-          <span class="hr-pill blue">Civile + Aziendale</span>
-          <span class="hr-pill ok">Storico contratti</span>
-        </div>
-        <div class="hr-qa-foot">
-          <a class="hr-btn hr-btn-primary" href="{% url 'anagrafica:dipendenti_list' %}">Vedi tutti →</a>
-          <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:dipendente_create' %}">+ Nuovo</a>
-          <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:scadenzario' %}">📅 Scadenzario</a>
-        </div>
-      </div>
-
-      <div class="hr-card hr-card-pad hr-qa-card">
-        <div class="hr-qa-head">
-          <div class="hr-qa-ico green">⚙️</div>
-          <div>
-            <div class="hr-card-title">Impostazioni anagrafica</div>
-            <div class="hr-card-desc">Cataloghi, livelli CCNL, qualifiche, permessi</div>
-          </div>
-        </div>
-        <div class="hr-qa-stats">
-          <div class="hr-qa-stat"><div class="hr-qa-stat-v">{{ n_mansioni }}</div><div class="hr-qa-stat-l">Mansioni</div></div>
-          <div class="hr-qa-stat"><div class="hr-qa-stat-v">{{ n_aree }}</div><div class="hr-qa-stat-l">Reparti</div></div>
-          <div class="hr-qa-stat"><div class="hr-qa-stat-v">{{ n_qualifiche }}</div><div class="hr-qa-stat-l">Qualifiche</div></div>
-        </div>
-        <div class="hr-qa-tags">
-          <span class="hr-pill blue">Livelli CCNL</span>
-          <span class="hr-pill blue">Tipologie contratto</span>
-          <span class="hr-pill ok">Permessi HR</span>
-        </div>
-        <div class="hr-qa-foot">
-          <a class="hr-btn hr-btn-primary" href="{% url 'anagrafica:impostazioni' %}">Apri pannello →</a>
-        </div>
-      </div>
-
     </div>
   </div>
 
@@ -258,7 +178,7 @@ body.theme-dark .hr-qa-stat-v { color:var(--text); }
 <script>
 (function () {
   var STORAGE_KEY = 'ana_dash_prefs_v1';
-  var WIDGET_LABELS = { kpi: 'KPI — Metriche principali', moduli: 'Dipendenti e Impostazioni' };
+  var WIDGET_LABELS = { kpi: 'KPI — Metriche principali' };
 
   var root      = document.getElementById('ana-root');
   var editBar   = document.getElementById('ana-edit-bar');
