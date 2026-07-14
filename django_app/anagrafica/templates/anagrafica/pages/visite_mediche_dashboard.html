@@ -143,6 +143,8 @@ body.theme-dark .tipo-detail-dip a { color:#93c5fd; }
         <a href="?scad=mese_corrente" class="vm-chip{% if filtro_scad == 'mese_corrente' %} active{% endif %}">Mese corrente</a>
         <a href="?scad=prossimo_mese" class="vm-chip{% if filtro_scad == 'prossimo_mese' %} active{% endif %}">Prossimo mese</a>
         <a href="{% url 'anagrafica:visite_mediche_export_scadenze' %}?scad={{ filtro_scad }}" class="vm-excel">↓ Excel</a>
+        {# Export unificato (Excel + PDF) — solo le colonne a schermo, nessun esito sanitario. #}
+        {% include "anagrafica/partials/_export_buttons.html" with export_key="visite_mediche" %}
         <span style="font-size:12px;color:#94a3b8;">{{ scad_o_in_scad|length }} record</span>
         <button class="hr-collapse-btn" onclick="vmToggleCard('card-scad-body', this)" title="Comprimi">▼</button>
       </div>
@@ -198,6 +200,7 @@ body.theme-dark .tipo-detail-dip a { color:#93c5fd; }
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;">
         <a href="{% url 'anagrafica:visite_mediche_export_copertura' %}" class="vm-excel">↓ Excel</a>
+        {% include "anagrafica/partials/_export_buttons.html" with export_key="visite_mediche_copertura" %}
         <a class="hr-btn hr-btn-outline hr-btn-sm" href="{% url 'anagrafica:impostazioni' %}?tab=visite-mediche">⚙️ Catalogo tipi</a>
         <button class="hr-collapse-btn" onclick="vmToggleCard('card-copertura-body', this)" title="Comprimi">▼</button>
       </div>

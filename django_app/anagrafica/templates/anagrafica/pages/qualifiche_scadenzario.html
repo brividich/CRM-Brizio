@@ -75,6 +75,8 @@
            href="?format=csv&stato={{ filtro_stato }}&categoria={{ filtro_categoria }}&tipo={{ filtro_tipo }}&reparto={{ filtro_reparto|urlencode }}">
           <svg class="fmd-ico"><use href="#i-download"/></svg>Esporta CSV
         </a>
+        <span class="fmd-spacer"></span>
+        {% include "anagrafica/partials/_export_buttons.html" with export_key="qualifiche_scadenzario" %}
       </form>
     </div>
 

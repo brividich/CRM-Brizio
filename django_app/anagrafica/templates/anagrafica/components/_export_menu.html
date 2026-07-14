@@ -7,6 +7,7 @@ Il link "risultati filtrati" propaga la querystring corrente della pagina
 (request.GET.urlencode) - Django auto-escapa il valore stampato via le graffe doppie,
 quindi il separatore "&" arriva gia' come "&amp;" nell'HTML prodotto.
 {% endcomment %}
+{% if export_key %}
 {% url 'anagrafica:export' export_key as fmd_export_base_url %}
 <details class="fmd-export">
   <summary class="fmd-btn fmd-btn-ghost" title="Esporta la lista">
@@ -19,3 +20,15 @@ quindi il separatore "&" arriva gia' come "&amp;" nell'HTML prodotto.
     <a role="menuitem" href="{{ fmd_export_base_url }}?format=pdf&amp;scope=full">PDF — tutto</a>
   </div>
 </details>
+{# Chiusura al click fuori: registrato una volta sola anche se la pagina include piu' menu. #}
+<script>
+if (!window.__fmdExportMenuInit) {
+  window.__fmdExportMenuInit = true;
+  document.addEventListener('click', function (ev) {
+    document.querySelectorAll('details.fmd-export[open]').forEach(function (d) {
+      if (!d.contains(ev.target)) { d.removeAttribute('open'); }
+    });
+  });
+}
+</script>
+{% endif %}

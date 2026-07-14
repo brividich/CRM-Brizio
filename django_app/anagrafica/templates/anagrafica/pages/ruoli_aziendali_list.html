@@ -5,6 +5,8 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
+{% include "core/components/_hub_formkit.html" %}
 <style>
 .cat-page { display:flex; flex-direction:column; gap:20px; }
 .cat-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
@@ -32,11 +34,7 @@
 .cat-empty { text-align:center; padding:40px; color:#94a3b8; font-size:14px; }
 .cat-add-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:20px; }
 .cat-add-title { font-size:14px; font-weight:700; color:#1e293b; margin-bottom:14px; }
-.cat-form-row { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
-.cat-field { display:flex; flex-direction:column; gap:4px; flex:1; min-width:180px; }
-.cat-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
-.cat-input { border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; width:100%; box-sizing:border-box; }
-.cat-input:focus { border-color:#1f87cd; background:#fff; }
+/* Campi form (create + modale modifica) = primitiva canonica .hub-field del form-kit. */
 /* Dark */
 body.theme-dark .cat-title { color:var(--text); }
 body.theme-dark .cat-sub { color:var(--text-light); }
@@ -46,14 +44,13 @@ body.theme-dark .cat-table th { background:var(--thead-bg); color:var(--text-lig
 body.theme-dark .cat-table td { border-color:var(--border); color:var(--text-mid); }
 body.theme-dark .cat-table tr:hover td { background:var(--tbody-hover); }
 body.theme-dark .cat-add-title { color:var(--text); }
-body.theme-dark .cat-label { color:var(--text-light); }
-body.theme-dark .cat-input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
 </style>
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
 <div class="cat-page">
 
   {% include "anagrafica/components/flash_messages.html" %}
@@ -63,7 +60,10 @@ body.theme-dark .cat-input { background:var(--surface-alt); border-color:var(--b
       <div class="cat-title">Ruoli aziendali</div>
       <div class="cat-sub">Catalogo dei ruoli selezionabili nell'anagrafica aziendale (distinti dalla mansione CCNL)</div>
     </div>
-    <a class="cat-btn cat-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Dipendenti</a>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      {% include "anagrafica/partials/_export_buttons.html" with export_key="ruoli_aziendali" %}
+      <a class="cat-btn cat-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Dipendenti</a>
+    </div>
   </div>
 
   {% if is_admin %}
@@ -71,16 +71,16 @@ body.theme-dark .cat-input { background:var(--surface-alt); border-color:var(--b
     <div class="cat-add-title">+ Nuovo ruolo aziendale</div>
     <form method="post" action="{% url 'anagrafica:ruolo_aziendale_create' %}">
       {% csrf_token %}
-      <div class="cat-form-row">
-        <div class="cat-field">
-          <label class="cat-label">Nome <span style="color:#ef4444;">*</span></label>
-          <input class="cat-input" type="text" name="nome" maxlength="200" placeholder="Es. Responsabile di reparto, Capoturno..." required>
+      <div class="hub-form-stack">
+        <div class="hub-field">
+          <label>Nome <span class="hub-req">*</span></label>
+          <input type="text" name="nome" maxlength="200" placeholder="Es. Responsabile di reparto, Capoturno..." required>
         </div>
-        <div class="cat-field" style="flex:2;">
-          <label class="cat-label">Descrizione</label>
-          <input class="cat-input" type="text" name="descrizione" placeholder="Descrizione opzionale">
+        <div class="hub-field">
+          <label>Descrizione</label>
+          <input type="text" name="descrizione" placeholder="Descrizione opzionale">
         </div>
-        <div style="padding-bottom:1px;">
+        <div>
           <button type="submit" class="cat-btn cat-btn-primary">Aggiungi</button>
         </div>
       </div>
@@ -144,14 +144,14 @@ body.theme-dark .cat-input { background:var(--surface-alt); border-color:var(--b
     <div style="font-size:15px;font-weight:700;color:#1e293b;margin-bottom:16px;">Modifica ruolo aziendale</div>
     <form method="post" id="edit-form">
       {% csrf_token %}
-      <div style="display:flex;flex-direction:column;gap:12px;">
-        <div class="cat-field">
-          <label class="cat-label">Nome <span style="color:#ef4444;">*</span></label>
-          <input class="cat-input" type="text" name="nome" id="edit-nome" maxlength="200" required>
+      <div class="hub-form-stack">
+        <div class="hub-field">
+          <label>Nome <span class="hub-req">*</span></label>
+          <input type="text" name="nome" id="edit-nome" maxlength="200" required>
         </div>
-        <div class="cat-field">
-          <label class="cat-label">Descrizione</label>
-          <input class="cat-input" type="text" name="descrizione" id="edit-desc">
+        <div class="hub-field">
+          <label>Descrizione</label>
+          <input type="text" name="descrizione" id="edit-desc">
         </div>
         <div>
           <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#334155;cursor:pointer;">

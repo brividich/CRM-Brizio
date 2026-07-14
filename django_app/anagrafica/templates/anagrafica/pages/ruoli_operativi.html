@@ -1,9 +1,11 @@
 {% extends "core/base.html" %}
+{% load static %}
 
 {% block title %}Ruoli Operativi | Anagrafica{% endblock %}
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
 {% include "core/components/_hub_formkit.html" %}
 <style>
 .ro-page { display:flex; flex-direction:column; gap:20px; }
@@ -42,12 +44,7 @@
 .ro-badge-gray { background:#f1f5f9; color:#475569; }
 .ro-badge-red { background:#fee2e2; color:#b91c1c; }
 
-/* Form nuovo ruolo */
-.ro-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-.ro-field { display:flex; flex-direction:column; gap:4px; }
-.ro-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
-.ro-input { border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; width:100%; box-sizing:border-box; }
-.ro-input:focus { border-color:#1f87cd; background:#fff; }
+/* Campi form (create + modale modifica) = primitiva canonica .hub-field del form-kit. */
 
 /* Modal edit */
 .ro-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:1000; align-items:center; justify-content:center; }
@@ -61,7 +58,6 @@
 .ro-swatch:hover, .ro-swatch.selected { border-color:#0f172a; transform:scale(1.15); }
 
 @media (max-width:600px) {
-  .ro-form-grid { grid-template-columns:1fr; }
   .ro-grid { grid-template-columns:1fr; }
 }
 /* ── Dark mode ──────────────────────────────────────────────────────────── */
@@ -80,16 +76,14 @@ body.theme-dark .ro-empty { color:var(--text-light); }
 body.theme-dark .ro-modal-overlay { background:rgba(0,0,0,.65); }
 body.theme-dark .ro-modal { background:var(--surface); }
 body.theme-dark .ro-modal-title { color:var(--text); }
-body.theme-dark .ro-input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
 body.theme-dark .ro-swatch:hover, body.theme-dark .ro-swatch.selected { border-color:#e5e7eb; }
-body.theme-dark .ro-field label { color:var(--text-mid); }
-body.theme-dark .ro-form-label { color:var(--text-mid); }
 </style>
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
 <div class="ro-page">
 
   {% include "anagrafica/components/flash_messages.html" %}
@@ -99,7 +93,10 @@ body.theme-dark .ro-form-label { color:var(--text-mid); }
       <div class="ro-title">🏷 Ruoli Operativi</div>
       <div class="ro-sub">Catalogo ruoli aziendali (preposto, RSPP, squadra antincendio…) assegnabili ai dipendenti</div>
     </div>
-    <a class="ro-btn ro-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Dipendenti</a>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      {% include "anagrafica/partials/_export_buttons.html" with export_key="ruoli_operativi" %}
+      <a class="ro-btn ro-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Dipendenti</a>
+    </div>
   </div>
 
   <!-- Griglia ruoli esistenti -->
@@ -161,22 +158,30 @@ body.theme-dark .ro-form-label { color:var(--text-mid); }
     <div class="ro-card-body">
       <form method="post" action="{% url 'anagrafica:ruolo_operativo_create' %}">
         {% csrf_token %}
-        <div class="hub-form-grid">
-          <div class="hub-field hub-col-full">
-            <label>Nome ruolo <span class="hub-req">*</span></label>
-            <input type="text" name="nome" required placeholder="es. Preposto, RSPP, Squadra antincendio…" maxlength="100">
+        <div class="hub-form-stack">
+          <div class="hub-fsec">
+            <div class="hub-fsec-h">Identità</div>
+            <div class="hub-fsec-d">Nome del ruolo e breve descrizione facoltativa.</div>
+            <div class="hub-field">
+              <label>Nome ruolo <span class="hub-req">*</span></label>
+              <input type="text" name="nome" required placeholder="es. Preposto, RSPP, Squadra antincendio…" maxlength="100">
+            </div>
+            <div class="hub-field">
+              <label>Descrizione</label>
+              <input type="text" name="descrizione" placeholder="Breve descrizione del ruolo (opzionale)" maxlength="200">
+            </div>
           </div>
-          <div class="hub-field hub-col-full">
-            <label>Descrizione</label>
-            <input type="text" name="descrizione" placeholder="Breve descrizione del ruolo (opzionale)" maxlength="200">
-          </div>
-          <div class="hub-field">
-            <label>Colore badge</label>
-            <input type="color" name="colore" value="#1f87cd" style="height:40px;padding:4px 8px;cursor:pointer;">
-          </div>
-          <div class="hub-field">
-            <label>Icona (emoji, opzionale)</label>
-            <input type="text" name="icona" placeholder="es. 🦺 🔥 🚑" maxlength="10">
+          <div class="hub-fsec">
+            <div class="hub-fsec-h">Aspetto del badge</div>
+            <div class="hub-fsec-d">Colore e icona con cui il ruolo appare accanto al dipendente.</div>
+            <div class="hub-field">
+              <label>Colore badge</label>
+              <input type="color" name="colore" value="#1f87cd" style="height:40px;padding:4px 8px;cursor:pointer;">
+            </div>
+            <div class="hub-field">
+              <label>Icona (emoji, opzionale)</label>
+              <input type="text" name="icona" placeholder="es. 🦺 🔥 🚑" maxlength="10">
+            </div>
           </div>
         </div>
         <div style="margin-top:14px;">
@@ -215,24 +220,24 @@ body.theme-dark .ro-form-label { color:var(--text-mid); }
     <div class="ro-modal-title">Modifica ruolo</div>
     <form method="post" id="ro-edit-form" action="">
       {% csrf_token %}
-      <div class="ro-form-grid">
-        <div class="ro-field" style="grid-column:1/-1;">
+      <div class="hub-form-stack">
+        <div class="hub-field">
           <label>Nome *</label>
-          <input class="ro-input" type="text" name="nome" id="edit-nome" required maxlength="100">
+          <input type="text" name="nome" id="edit-nome" required maxlength="100">
         </div>
-        <div class="ro-field" style="grid-column:1/-1;">
+        <div class="hub-field">
           <label>Descrizione</label>
-          <input class="ro-input" type="text" name="descrizione" id="edit-desc" maxlength="200">
+          <input type="text" name="descrizione" id="edit-desc" maxlength="200">
         </div>
-        <div class="ro-field">
+        <div class="hub-field">
           <label>Colore</label>
-          <input class="ro-input" type="color" name="colore" id="edit-colore" style="height:40px;padding:4px 8px;cursor:pointer;">
+          <input type="color" name="colore" id="edit-colore" style="height:40px;padding:4px 8px;cursor:pointer;">
         </div>
-        <div class="ro-field">
+        <div class="hub-field">
           <label>Icona</label>
-          <input class="ro-input" type="text" name="icona" id="edit-icona" maxlength="10" placeholder="emoji opzionale">
+          <input type="text" name="icona" id="edit-icona" maxlength="10" placeholder="emoji opzionale">
         </div>
-        <div class="ro-field" style="grid-column:1/-1;">
+        <div class="hub-field">
           <label style="display:flex;align-items:center;gap:8px;font-size:13px;text-transform:none;letter-spacing:0;">
             <input type="checkbox" name="is_active" value="1" id="edit-active">
             Ruolo attivo (visibile per nuove assegnazioni)

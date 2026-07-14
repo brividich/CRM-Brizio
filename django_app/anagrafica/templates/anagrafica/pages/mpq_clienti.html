@@ -18,6 +18,7 @@
       <div class="fmd-block-head">
         <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Clienti / enti qualificanti (MOD.128)</div>
         <div class="fmd-block-aside">
+          {% include "anagrafica/partials/_export_buttons.html" with export_key="mpq_clienti" %}
           <a href="{% url 'anagrafica:mpq_cliente_create' %}" class="fmd-btn fmd-btn-primary">＋ Nuovo cliente/ente</a>
           <a href="{% url 'anagrafica:mpq_cruscotto' %}" class="fmd-btn fmd-btn-ghost">← Cruscotto</a>
         </div>

@@ -1,9 +1,11 @@
 {% extends "core/base.html" %}
+{% load static %}
 
 {% block title %}Retribuzioni — Vista globale | Anagrafica HR{% endblock %}
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
 <style>
 .rg-page { display:flex; flex-direction:column; gap:14px; }
 .rg-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:11px; font-size:13px; font-weight:700; cursor:pointer; text-decoration:none; border:1px solid transparent; transition:background .15s; }
@@ -63,6 +65,7 @@
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
 <div class="rg-page">
 
   <!-- Header -->
@@ -138,6 +141,8 @@
     <div style="display:flex;flex-direction:column;gap:6px;padding-top:18px;">
       <button type="submit" class="rg-btn rg-btn-primary">Filtra</button>
       <button type="button" class="rg-btn rg-btn-ghost" onclick="rgExport()" title="Scarica Excel con i filtri attivi">⬇ Excel</button>
+      {# Export unificato (Excel + PDF): stessi filtri, celle in formato lungo (una riga per voce). #}
+      {% include "anagrafica/partials/_export_buttons.html" with export_key="retribuzioni_globale" %}
       {% if filtro_periodo or filtro_dipendenti or filtro_reparti or filtro_livelli or filtro_sesso %}
       <a href="{% url 'anagrafica:retribuzioni_globale' %}" class="rg-btn rg-btn-ghost">✕ Reset</a>
       {% endif %}

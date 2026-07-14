@@ -6,6 +6,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
 <style>
 .cr-filters { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; padding:14px 16px; }
 .cr-field { display:flex; flex-direction:column; gap:4px; flex:1; min-width:130px; }
@@ -31,7 +32,7 @@ body.theme-dark .cr-na { background:rgba(100,116,139,.25); color:#cbd5e1; }
   body * { visibility:hidden; }
   .cr-print-area, .cr-print-area * { visibility:visible; }
   .cr-print-area { position:absolute; left:0; top:0; width:100%; }
-  .safnav, .cr-filters, .hr-pagehead .hr-btn { display:none !important; }
+  .safnav, .cr-filters, .hr-pagehead .hr-btn, .hr-pagehead .fmd-export { display:none !important; }
   .cr-badge, .hr-pill, .hr-metric-ico { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   .hr-metric, .hr-card { break-inside:avoid; box-shadow:none !important; }
 }
@@ -41,6 +42,7 @@ body.theme-dark .cr-na { background:rgba(100,116,139,.25); color:#cbd5e1; }
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
 <div class="cr-print-area" style="display:flex;flex-direction:column;gap:20px;">
 
   {% include "anagrafica/components/flash_messages.html" %}
@@ -54,6 +56,7 @@ body.theme-dark .cr-na { background:rgba(100,116,139,.25); color:#cbd5e1; }
       <p class="hr-pagehead-desc">Semaforo di idoneità per ogni dipendente attivo: formazione obbligatoria, visite mediche, qualifiche e DPI.</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      {% include "anagrafica/partials/_export_buttons.html" with export_key="conformita" %}
       <a class="hr-btn hr-btn-outline" href="{% querystring format='csv' page=None %}">⬇ Esporta CSV</a>
       <button type="button" class="hr-btn hr-btn-outline" onclick="window.print();">🖨 Stampa / PDF</button>
       <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:index' %}">← Dashboard</a>

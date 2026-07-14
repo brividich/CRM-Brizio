@@ -5,6 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
 <style>
 /* ── Layout organigramma ────────────────────────────────────────────────── */
 .org-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:14px; }
@@ -73,7 +74,7 @@ body.theme-dark .org-capo-missing { background:rgba(133,77,14,.18); border-color
 
 /* ── Stampa ─────────────────────────────────────────────────────────────── */
 @media print {
-  .hr-pagehead a, .org-filters, .core-topnav, .core-sidebar { display:none !important; }
+  .hr-pagehead a, .hr-pagehead .fmd-export, .org-filters, .core-topnav, .core-sidebar { display:none !important; }
   .org-membri { display:block; }
   .org-membri summary { display:none; }
   .org-membri ul { padding-top:4px; }
@@ -86,6 +87,7 @@ body.theme-dark .org-capo-missing { background:rgba(133,77,14,.18); border-color
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
 <div style="display:flex;flex-direction:column;gap:20px;">
 
   {% include "anagrafica/components/flash_messages.html" %}
@@ -98,6 +100,7 @@ body.theme-dark .org-capo-missing { background:rgba(133,77,14,.18); border-color
       <p class="hr-pagehead-desc">Reparti, aree aziendali, capireparto e dipendenti in forza.</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      {% include "anagrafica/partials/_export_buttons.html" with export_key="organigramma" %}
       <button type="button" class="hr-btn hr-btn-outline" onclick="window.print();">🖨 Stampa</button>
       <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:index' %}">← Dashboard</a>
     </div>

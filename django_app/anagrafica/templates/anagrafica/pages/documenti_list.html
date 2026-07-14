@@ -72,6 +72,7 @@
       <div class="fmd-toolbar" style="border-bottom:1px solid var(--fmd-line-soft);">
         <div class="fmd-block-title" style="font-size:14px;"><svg class="fmd-ico"><use href="#i-doc"/></svg>Documenti</div>
         <span class="fmd-spacer"></span>
+        {% include "anagrafica/partials/_export_buttons.html" with export_key="documenti" %}
         <span class="fmd-block-aside">{{ documenti|length }} documento/i{% if documenti|length == 500 %} · limite 500, restringi con i filtri{% endif %}</span>
       </div>
       {% if documenti %}

@@ -16,11 +16,7 @@
 .ql-btn-ghost:hover { background:#f8fafc; }
 .ql-btn-danger { background:#fff5f5; color:#c53030; border:1px solid #f6cccc; }
 .ql-btn-sm { padding:5px 10px; font-size:12px; border-radius:7px; }
-.ql-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-.ql-field { display:flex; flex-direction:column; gap:4px; }
-.ql-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
-.ql-input { border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; font-size:13px; color:#0f172a; background:#fff; outline:none; width:100%; box-sizing:border-box; }
-.ql-input:focus { border-color:#1f87cd; }
+/* Campi form (create + modale modifica) = primitiva canonica .hub-field del form-kit. */
 .ql-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:1000; align-items:center; justify-content:center; }
 .ql-modal-overlay.open { display:flex; }
 .ql-modal { background:#fff; border-radius:14px; padding:24px; width:100%; max-width:520px; box-shadow:0 8px 32px rgba(0,0,0,.12); max-height:90vh; overflow-y:auto; }
@@ -32,7 +28,6 @@
 .ql-scad-date { font-weight:700; }
 .ql-scad-date-red { color:#c53030; }
 .ql-scad-date-orange { color:#c2410c; }
-@media (max-width:700px){ .ql-form-grid { grid-template-columns:1fr; } }
 
 /* Dark mode — ribalta sfondi/testi hardcodati sui token di theme.css
    (il colore NON va inline nel template, altrimenti vince sul dark). */
@@ -44,8 +39,6 @@ body.theme-dark .fmd .ql-scad-date-red { color:#f87171; }
 body.theme-dark .fmd .ql-scad-date-orange { color:#fb923c; }
 body.theme-dark .ql-btn-ghost { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
 body.theme-dark .ql-btn-ghost:hover { background:var(--surface); }
-body.theme-dark .ql-input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
-body.theme-dark .ql-field label { color:var(--text-light); }
 body.theme-dark .ql-modal { background:var(--surface); }
 body.theme-dark .ql-modal-title { color:var(--text); }
 </style>
@@ -71,6 +64,7 @@ body.theme-dark .ql-modal-title { color:var(--text); }
         <p class="fmd-ph-sub">Catalogo unico certificazioni e attestati (sicurezza, professionali, gestionali) con tracciamento scadenze.</p>
       </div>
       <div class="fmd-pagehead-actions">
+        {% include "anagrafica/partials/_export_buttons.html" with export_key="qualifiche" %}
         <a href="{% url 'anagrafica:qualifica_sessioni_list' %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Sessioni di rinnovo</a>
       </div>
     </div>
@@ -218,24 +212,32 @@ body.theme-dark .ql-modal-title { color:var(--text); }
       <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo tipo di qualifica</div></div>
       <form method="post" action="{% url 'anagrafica:tipo_qualifica_create' %}">
         {% csrf_token %}
-        <div class="hub-form-grid">
-          <div class="hub-field hub-col-full">
-            <label>Nome qualifica <span class="hub-req">*</span></label>
-            <input type="text" name="nome" required placeholder="es. Patentino carrellista, Primo soccorso…" maxlength="150">
+        <div class="hub-form-stack">
+          <div class="hub-fsec">
+            <div class="hub-fsec-h">Identità</div>
+            <div class="hub-fsec-d">Nome del tipo di qualifica e breve descrizione facoltativa.</div>
+            <div class="hub-field">
+              <label>Nome qualifica <span class="hub-req">*</span></label>
+              <input type="text" name="nome" required placeholder="es. Patentino carrellista, Primo soccorso…" maxlength="150">
+            </div>
+            <div class="hub-field">
+              <label>Descrizione (opzionale)</label>
+              <input type="text" name="descrizione" placeholder="Breve descrizione" maxlength="255">
+            </div>
           </div>
-          <div class="hub-field">
-            <label>Categoria</label>
-            <select name="categoria" aria-label="Categoria">
-              {% for val, label in CATEGORIA_CHOICES %}<option value="{{ val }}" {% if val == active_categoria %}selected{% endif %}>{{ label }}</option>{% endfor %}
-            </select>
-          </div>
-          <div class="hub-field">
-            <label>Durata validità (mesi, 0 = nessuna scadenza)</label>
-            <input type="number" name="durata_mesi" value="0" min="0" max="999">
-          </div>
-          <div class="hub-field hub-col-full">
-            <label>Descrizione (opzionale)</label>
-            <input type="text" name="descrizione" placeholder="Breve descrizione" maxlength="255">
+          <div class="hub-fsec">
+            <div class="hub-fsec-h">Classificazione e validità</div>
+            <div class="hub-fsec-d">Categoria e durata: 0 mesi significa nessuna scadenza.</div>
+            <div class="hub-field">
+              <label>Categoria</label>
+              <select name="categoria" aria-label="Categoria">
+                {% for val, label in CATEGORIA_CHOICES %}<option value="{{ val }}" {% if val == active_categoria %}selected{% endif %}>{{ label }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="hub-field">
+              <label>Durata validità (mesi, 0 = nessuna scadenza)</label>
+              <input type="number" name="durata_mesi" value="0" min="0" max="999">
+            </div>
           </div>
         </div>
         <div style="margin-top:14px;"><button type="submit" class="fmd-btn fmd-btn-primary">Crea tipo qualifica</button></div>
@@ -270,26 +272,26 @@ body.theme-dark .ql-modal-title { color:var(--text); }
     <div class="ql-modal-title">Modifica tipo qualifica</div>
     <form method="post" id="ql-edit-form" action="">
       {% csrf_token %}
-      <div class="ql-form-grid">
-        <div class="ql-field" style="grid-column:1/-1;">
+      <div class="hub-form-stack">
+        <div class="hub-field">
           <label>Nome *</label>
-          <input class="ql-input" type="text" name="nome" id="edit-nome" required maxlength="150">
+          <input type="text" name="nome" id="edit-nome" required maxlength="150">
         </div>
-        <div class="ql-field">
+        <div class="hub-field">
           <label>Categoria</label>
-          <select class="ql-input" name="categoria" id="edit-categoria" aria-label="Categoria">
+          <select name="categoria" id="edit-categoria" aria-label="Categoria">
             {% for val, label in CATEGORIA_CHOICES %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
           </select>
         </div>
-        <div class="ql-field">
+        <div class="hub-field">
           <label>Durata validità (mesi)</label>
-          <input class="ql-input" type="number" name="durata_mesi" id="edit-durata" min="0" max="999">
+          <input type="number" name="durata_mesi" id="edit-durata" min="0" max="999">
         </div>
-        <div class="ql-field" style="grid-column:1/-1;">
+        <div class="hub-field">
           <label>Descrizione</label>
-          <input class="ql-input" type="text" name="descrizione" id="edit-desc" maxlength="255">
+          <input type="text" name="descrizione" id="edit-desc" maxlength="255">
         </div>
-        <div class="ql-field" style="grid-column:1/-1;">
+        <div class="hub-field">
           <label style="display:flex;align-items:center;gap:8px;font-size:13px;text-transform:none;letter-spacing:0;">
             <input type="checkbox" name="is_active" value="1" id="edit-active"> Tipo attivo (visibile per nuove assegnazioni)
           </label>

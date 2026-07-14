@@ -424,3 +424,21 @@ body.theme-dark .fmd .fmd-btn-navy{ background:#1c3a63; }
 body.theme-dark .fmd .fmd-alert{
   background: rgba(249,115,22,.08); border-color: rgba(249,115,22,.28);
 }
+
+/* ── Menu di export (Excel/PDF · filtrati o tutto) ────────────────────────────
+   Componente: anagrafica/components/_export_menu.html — un <details> ancorato,
+   usato da tutte le liste di anagrafica. */
+.fmd-export{ position:relative; display:inline-block; }
+.fmd-export > summary{ list-style:none; }
+.fmd-export > summary::-webkit-details-marker{ display:none; }
+.fmd-export-menu{
+  position:absolute; right:0; top:calc(100% + 6px); z-index:60; min-width:230px; padding:6px;
+  display:flex; flex-direction:column; gap:1px;
+  background:var(--surface, #fff); border:1px solid var(--border, #e6ebf3); border-radius:10px;
+  box-shadow:0 18px 40px -16px rgba(8,20,45,.35);
+}
+.fmd-export-menu a{
+  padding:8px 10px; border-radius:7px; text-decoration:none; white-space:nowrap;
+  font-size:12.5px; font-weight:600; color:var(--text, #2d3a55);
+}
+.fmd-export-menu a:hover{ background:var(--surface-alt, #f1f5f9); }

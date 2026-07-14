@@ -1,0 +1,13 @@
+{% comment %}
+Pulsanti di export di una lista di anagrafica (alias di compatibilita').
+
+Il componente reale e' anagrafica/components/_export_menu.html (menu "Esporta"
+con Excel/PDF x risultati filtrati o tutto). Questo partial resta perche' molte
+liste lo includono gia'; per le pagine nuove includi direttamente il componente,
+passando export_key = chiave della ExportSpec registrata in anagrafica/exports.py.
+
+NB: qui serve {% templatetag openblock %} comment {% templatetag closeblock %} e non le graffe-cancelletto: quelle sono
+un commento solo su riga singola, e un blocco multi-riga lascerebbe eseguire i
+tag contenuti (un include di questo stesso file = ricorsione infinita).
+{% endcomment %}
+{% include "anagrafica/components/_export_menu.html" with export_key=export_key %}

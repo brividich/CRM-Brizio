@@ -5,6 +5,8 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
+{% include "core/components/_hub_formkit.html" %}
 <style>
 .cat-page { display:flex; flex-direction:column; gap:20px; }
 .cat-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
@@ -34,14 +36,7 @@
 .cat-empty { text-align:center; padding:40px; color:#94a3b8; font-size:14px; }
 .cat-add-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:20px; }
 .cat-add-title { font-size:14px; font-weight:700; color:#1e293b; margin-bottom:14px; }
-.cat-form-row { display:flex; flex-direction:column; gap:14px; align-items:stretch; }
-.cat-form-row > div[style*="padding-bottom"] { align-self:flex-start; padding-bottom:0 !important; }
-.cat-field { display:flex; flex-direction:column; gap:4px; flex:1; min-width:180px; }
-.cat-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
-.cat-input { border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; width:100%; box-sizing:border-box; }
-.cat-input:focus { border-color:#1f87cd; background:#fff; }
-.cat-select { border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; width:100%; box-sizing:border-box; }
-.cat-select:focus { border-color:#1f87cd; background:#fff; }
+/* Campi form (create reparto/area + modali modifica) = primitiva canonica .hub-field del form-kit. */
 
 /* Reparto band — riga colorata per reparto (ora contenitore di primo livello) */
 .area-band { background:#f0f7ff; border-left:4px solid var(--area-color, #1f87cd); }
@@ -72,14 +67,13 @@ body.theme-dark .cat-table tr:hover td { background:var(--tbody-hover); }
 body.theme-dark .area-band { background:rgba(30,92,145,.12); }
 body.theme-dark .area-band td { color:var(--text); }
 body.theme-dark .cat-add-title { color:var(--text); }
-body.theme-dark .cat-label { color:var(--text-light); }
-body.theme-dark .cat-input, body.theme-dark .cat-select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
 </style>
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
 <div class="cat-page">
 
   {% include "anagrafica/components/flash_messages.html" %}
@@ -89,7 +83,18 @@ body.theme-dark .cat-input, body.theme-dark .cat-select { background:var(--surfa
       <div class="cat-title">Aree & Reparti</div>
       <div class="cat-sub">Gerarchia aziendale: reparti con le relative aree aziendali e caporeparti</div>
     </div>
-    <a class="cat-btn cat-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Dipendenti</a>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      {# Due export distinti: il livello padre (reparti) e il livello figlio (aree aziendali). #}
+      <span style="display:inline-flex;align-items:center;gap:6px;">
+        <span style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">Reparti</span>
+        {% include "anagrafica/partials/_export_buttons.html" with export_key="reparti" %}
+      </span>
+      <span style="display:inline-flex;align-items:center;gap:6px;">
+        <span style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">Aree</span>
+        {% include "anagrafica/partials/_export_buttons.html" with export_key="aree" %}
+      </span>
+      <a class="cat-btn cat-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Dipendenti</a>
+    </div>
   </div>
 
   <!-- ── TAB BAR ── -->
@@ -260,29 +265,29 @@ body.theme-dark .cat-input, body.theme-dark .cat-select { background:var(--surfa
         <div class="cat-add-title">Nuovo reparto</div>
         <form method="post" action="{% url 'anagrafica:area_create' %}">
           {% csrf_token %}
-          <div class="cat-form-row">
-            <div class="cat-field">
-              <label class="cat-label">Nome <span style="color:#ef4444;">*</span></label>
-              <input class="cat-input" type="text" name="nome" maxlength="100" placeholder="Es. UT, Produzione, Magazzino..." required>
+          <div class="hub-form-stack">
+            <div class="hub-field">
+              <label>Nome <span class="hub-req">*</span></label>
+              <input type="text" name="nome" maxlength="100" placeholder="Es. UT, Produzione, Magazzino..." required>
             </div>
-            <div class="cat-field" style="flex:2;">
-              <label class="cat-label">Descrizione</label>
-              <input class="cat-input" type="text" name="descrizione" placeholder="Descrizione opzionale">
+            <div class="hub-field">
+              <label>Descrizione</label>
+              <input type="text" name="descrizione" placeholder="Descrizione opzionale">
             </div>
-            <div class="cat-field" style="flex:0;min-width:100px;">
-              <label class="cat-label">Colore</label>
-              <input class="cat-input" type="color" name="colore" value="#1f87cd" style="padding:4px;height:37px;cursor:pointer;">
+            <div class="hub-field">
+              <label>Colore</label>
+              <input type="color" name="colore" value="#1f87cd" style="padding:4px;height:37px;cursor:pointer;">
             </div>
-            <div class="cat-field" style="flex:3;min-width:240px;">
-              <label class="cat-label">Caporeparto</label>
-              <select class="cat-select" name="caporeparto_legacy_id">
+            <div class="hub-field">
+              <label>Caporeparto</label>
+              <select name="caporeparto_legacy_id">
                 <option value="">— Nessuno —</option>
                 {% for dip in dipendenti_picker %}
                   <option value="{{ dip.id }}">{{ dip.label }}</option>
                 {% endfor %}
               </select>
             </div>
-            <div style="padding-bottom:1px;">
+            <div>
               <button type="submit" class="cat-btn cat-btn-primary">Crea reparto</button>
             </div>
           </div>
@@ -296,34 +301,34 @@ body.theme-dark .cat-input, body.theme-dark .cat-select { background:var(--surfa
         <div class="cat-add-title">Nuova area aziendale</div>
         <form method="post" action="{% url 'anagrafica:area_aziendale_create' %}">
           {% csrf_token %}
-          <div class="cat-form-row">
-            <div class="cat-field">
-              <label class="cat-label">Nome <span style="color:#ef4444;">*</span></label>
-              <input class="cat-input" type="text" name="nome" maxlength="100" placeholder="Es. IN1, IN2, IT, DM..." required>
+          <div class="hub-form-stack">
+            <div class="hub-field">
+              <label>Nome <span class="hub-req">*</span></label>
+              <input type="text" name="nome" maxlength="100" placeholder="Es. IN1, IN2, IT, DM..." required>
             </div>
-            <div class="cat-field" style="flex:2;">
-              <label class="cat-label">Descrizione</label>
-              <input class="cat-input" type="text" name="descrizione" placeholder="Descrizione opzionale">
+            <div class="hub-field">
+              <label>Descrizione</label>
+              <input type="text" name="descrizione" placeholder="Descrizione opzionale">
             </div>
-            <div class="cat-field" style="min-width:200px;">
-              <label class="cat-label">Reparto</label>
-              <select class="cat-select" name="reparto_id">
+            <div class="hub-field">
+              <label>Reparto</label>
+              <select name="reparto_id">
                 <option value="">— Nessuno —</option>
                 {% for rep in reparti %}
                   <option value="{{ rep.pk }}">{{ rep.nome }}</option>
                 {% endfor %}
               </select>
             </div>
-            <div class="cat-field" style="flex:2;min-width:220px;">
-              <label class="cat-label">Responsabile</label>
-              <select class="cat-select" name="responsabile_legacy_id">
+            <div class="hub-field">
+              <label>Responsabile</label>
+              <select name="responsabile_legacy_id">
                 <option value="">— Nessuno —</option>
                 {% for dip in dipendenti_picker %}
                   <option value="{{ dip.id }}">{{ dip.label }}</option>
                 {% endfor %}
               </select>
             </div>
-            <div style="padding-bottom:1px;">
+            <div>
               <button type="submit" class="cat-btn cat-btn-primary">Crea area</button>
             </div>
           </div>
@@ -342,22 +347,22 @@ body.theme-dark .cat-input, body.theme-dark .cat-select { background:var(--surfa
     <div style="font-size:15px;font-weight:700;color:#1e293b;margin-bottom:16px;">Modifica reparto</div>
     <form method="post" id="edit-rep-form">
       {% csrf_token %}
-      <div style="display:flex;flex-direction:column;gap:12px;">
-        <div class="cat-field">
-          <label class="cat-label">Nome <span style="color:#ef4444;">*</span></label>
-          <input class="cat-input" type="text" name="nome" id="edit-rep-nome" maxlength="100" required>
+      <div class="hub-form-stack">
+        <div class="hub-field">
+          <label>Nome <span class="hub-req">*</span></label>
+          <input type="text" name="nome" id="edit-rep-nome" maxlength="100" required>
         </div>
-        <div class="cat-field">
-          <label class="cat-label">Descrizione</label>
-          <input class="cat-input" type="text" name="descrizione" id="edit-rep-desc">
+        <div class="hub-field">
+          <label>Descrizione</label>
+          <input type="text" name="descrizione" id="edit-rep-desc">
         </div>
-        <div class="cat-field" style="flex:0;min-width:100px;">
-          <label class="cat-label">Colore</label>
-          <input class="cat-input" type="color" name="colore" id="edit-rep-colore" style="padding:4px;height:37px;cursor:pointer;">
+        <div class="hub-field">
+          <label>Colore</label>
+          <input type="color" name="colore" id="edit-rep-colore" style="padding:4px;height:37px;cursor:pointer;">
         </div>
-        <div class="cat-field">
-          <label class="cat-label">Caporeparto</label>
-          <select class="cat-select" name="caporeparto_legacy_id" id="edit-rep-capo">
+        <div class="hub-field">
+          <label>Caporeparto</label>
+          <select name="caporeparto_legacy_id" id="edit-rep-capo">
             <option value="">— Nessuno —</option>
             {% for dip in dipendenti_picker %}
               <option value="{{ dip.id }}">{{ dip.label }}</option>
@@ -384,27 +389,27 @@ body.theme-dark .cat-input, body.theme-dark .cat-select { background:var(--surfa
     <div style="font-size:15px;font-weight:700;color:#1e293b;margin-bottom:16px;">Modifica area aziendale</div>
     <form method="post" id="edit-area-form">
       {% csrf_token %}
-      <div style="display:flex;flex-direction:column;gap:12px;">
-        <div class="cat-field">
-          <label class="cat-label">Nome <span style="color:#ef4444;">*</span></label>
-          <input class="cat-input" type="text" name="nome" id="edit-area-nome" maxlength="100" required>
+      <div class="hub-form-stack">
+        <div class="hub-field">
+          <label>Nome <span class="hub-req">*</span></label>
+          <input type="text" name="nome" id="edit-area-nome" maxlength="100" required>
         </div>
-        <div class="cat-field">
-          <label class="cat-label">Descrizione</label>
-          <input class="cat-input" type="text" name="descrizione" id="edit-area-desc">
+        <div class="hub-field">
+          <label>Descrizione</label>
+          <input type="text" name="descrizione" id="edit-area-desc">
         </div>
-        <div class="cat-field">
-          <label class="cat-label">Reparto</label>
-          <select class="cat-select" name="reparto_id" id="edit-area-reparto">
+        <div class="hub-field">
+          <label>Reparto</label>
+          <select name="reparto_id" id="edit-area-reparto">
             <option value="">— Nessuno —</option>
             {% for rep in reparti %}
               <option value="{{ rep.pk }}">{{ rep.nome }}</option>
             {% endfor %}
           </select>
         </div>
-        <div class="cat-field">
-          <label class="cat-label">Responsabile</label>
-          <select class="cat-select" name="responsabile_legacy_id" id="edit-area-responsabile">
+        <div class="hub-field">
+          <label>Responsabile</label>
+          <select name="responsabile_legacy_id" id="edit-area-responsabile">
             <option value="">— Nessuno —</option>
             {% for dip in dipendenti_picker %}
               <option value="{{ dip.id }}">{{ dip.label }}</option>

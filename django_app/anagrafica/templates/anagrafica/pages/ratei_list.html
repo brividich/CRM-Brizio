@@ -146,6 +146,8 @@
     <div style="display:flex;flex-direction:column;gap:6px;padding-top:18px;">
       <button type="submit" class="rl-btn rl-btn-primary">Filtra</button>
       <button type="button" class="rl-btn rl-btn-ghost" onclick="rlExport()" title="Scarica Excel con i filtri attivi">⬇ Excel</button>
+      {# Export unificato (Excel + PDF) sui filtri già applicati nella querystring. #}
+      {% include "anagrafica/partials/_export_buttons.html" with export_key="ratei" %}
       {% if filtro_periodo or filtro_dipendenti or filtro_reparti or filtro_allerta %}
       <a href="{% url 'anagrafica:ratei_list' %}" class="rl-btn rl-btn-ghost">✕ Reset</a>
       {% endif %}

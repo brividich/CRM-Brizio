@@ -7,11 +7,14 @@
 {% include "anagrafica/components/_hr_restyle.html" %}
 {% include "anagrafica/components/_fm_style.html" %}
 {% include "core/components/_hub_formkit.html" %}
+{# Stili/icone dei pulsanti di export (.fmd-*): la pagina non ha una toolbar fmd. #}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
 <div class="hr-shell">
 
   {% include "anagrafica/partials/_safety_subnav.html" with active="esposizioni" %}
@@ -38,9 +41,10 @@
   <div class="hr-card fm-section">
     <div class="fm-section-head">
       <div class="fm-section-title">Esposizioni <span class="fm-count">{{ esposizioni|length }}</span></div>
-      <div>
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
         <a class="hub-btn hub-btn-sm hub-btn-ghost" href="{% url 'anagrafica:fattori_rischio_list' %}">→ Fattori</a>
         <a class="hub-btn hub-btn-sm hub-btn-ghost" href="{% url 'anagrafica:categorie_corso_list' %}">→ Categorie</a>
+        <span class="fmd">{% include "anagrafica/partials/_export_buttons.html" with export_key="esposizioni_rischio" %}</span>
       </div>
     </div>
     {% if esposizioni %}
