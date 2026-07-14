@@ -722,7 +722,7 @@ def get_cose_da_fare_overview(today: date | None = None, limit: int = 6) -> dict
 
     Chiavi restituite:
         wo_open            int   – ordini di lavoro aperti (asset non dismessi)
-        wo_overdue         int   – OdL aperti da oltre 21 giorni
+        wo_overdue         int   – OdL aperti da oltre la soglia di ritardo (SiteConfig)
         deadlines_overdue  int   – scadenze amministrative scadute
         deadlines_30       int   – scadenze amministrative entro 30 giorni
         verifiche_overdue  int   – verifiche periodiche scadute
@@ -730,8 +730,10 @@ def get_cose_da_fare_overview(today: date | None = None, limit: int = 6) -> dict
         items              list  – OdL aperti più vecchi (per la lista breve)
         has_data           bool  – True se c'è almeno un elemento da gestire
     """
+    from assets.maintenance import get_workorder_overdue_days
+
     today = today or timezone.localdate()
-    overdue_threshold = today - timedelta(days=21)
+    overdue_threshold = today - timedelta(days=get_workorder_overdue_days())
     horizon_30 = today + timedelta(days=30)
 
     wo_qs = WorkOrder.objects.filter(status=WorkOrder.STATUS_OPEN).exclude(

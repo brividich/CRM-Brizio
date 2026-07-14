@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from django.db.models import Q
@@ -41,6 +41,48 @@ WORKORDER_SOURCE_LABELS = {
     WORKORDER_SOURCE_REPORTS: "Report manutenzione",
     WORKORDER_SOURCE_LIST: "Lista interventi",
 }
+
+# Un contatore fermo produce una scadenza falsa presentata come verde ("restano 320 h" su un
+# valore vecchio di mesi). Oltre questa soglia il contatore è considerato non aggiornato.
+METER_STALE_DAYS_DEFAULT = 30
+
+# Anzianità oltre la quale un OdL ancora aperto è "in ritardo". Era ricopiata a mano in cinque
+# punti (cockpit, KPI, dashboard macchine, reminder): fonte unica.
+WORKORDER_OVERDUE_DAYS_DEFAULT = 21
+
+
+def get_workorder_overdue_days() -> int:
+    """Giorni oltre i quali un OdL aperto è in ritardo (SiteConfig 'assets_wo_overdue_days')."""
+    from core.models import SiteConfig
+
+    try:
+        value = int(
+            SiteConfig.get("assets_wo_overdue_days", str(WORKORDER_OVERDUE_DAYS_DEFAULT))
+            or WORKORDER_OVERDUE_DAYS_DEFAULT
+        )
+    except (TypeError, ValueError):
+        return WORKORDER_OVERDUE_DAYS_DEFAULT
+    return value if value > 0 else WORKORDER_OVERDUE_DAYS_DEFAULT
+
+
+def get_meter_stale_days() -> int:
+    """Giorni oltre i quali un contatore è considerato fermo (SiteConfig 'assets_meter_stale_days')."""
+    from core.models import SiteConfig
+
+    try:
+        value = int(SiteConfig.get("assets_meter_stale_days", str(METER_STALE_DAYS_DEFAULT)) or METER_STALE_DAYS_DEFAULT)
+    except (TypeError, ValueError):
+        return METER_STALE_DAYS_DEFAULT
+    return value if value > 0 else METER_STALE_DAYS_DEFAULT
+
+
+def meter_days_since_update(updated_at: datetime | None, *, today: date | None = None) -> int | None:
+    """Giorni trascorsi dall'ultimo aggiornamento del contatore (None se sconosciuto)."""
+    if updated_at is None:
+        return None
+    current_day = today or timezone.localdate()
+    updated_day = timezone.localtime(updated_at).date() if timezone.is_aware(updated_at) else updated_at.date()
+    return max(0, (current_day - updated_day).days)
 
 
 def _resolved_rule_row(
@@ -256,10 +298,12 @@ def sync_workorder_maintenance_state(workorder: WorkOrder | None) -> AssetMainte
 
 def _schedule_status_payload(*, due_date: date | None, warning_days: int, today: date) -> dict[str, Any]:
     if due_date is None:
+        # Mai eseguita: il generatore la considera dovuta subito, quindi non è un'informazione
+        # neutra da relegare in fondo alla lista in grigio.
         return {
             "status": SCHEDULE_MISSING,
             "label": "Prima esecuzione da pianificare",
-            "badge_class": "muted",
+            "badge_class": "danger",
             "days_until_due": None,
         }
 
@@ -329,10 +373,12 @@ def meter_schedule_payload(
     """
     unit = (unit_label or "u").strip() or "u"
     if current_value is None:
+        # Senza contatore non si sa nemmeno SE la manutenzione è scaduta: è il caso più
+        # pericoloso, non il meno urgente.
         return {
             "status": SCHEDULE_MISSING,
             "label": f"Contatore {unit} mancante",
-            "badge_class": "muted",
+            "badge_class": "danger",
             "remaining": None,
             "consumed": None,
             "due": False,
@@ -415,11 +461,16 @@ def build_maintenance_schedule_rows(
     }
     # Contatori (ore/km/cicli) correnti per le regole a soglia non-giorni.
     meter_by_asset_type: dict[tuple[int, str], dict[str, Any]] = {
-        (m["asset_id"], m["meter_type"]): {"current_value": m["current_value"], "unit_label": m["unit_label"]}
+        (m["asset_id"], m["meter_type"]): {
+            "current_value": m["current_value"],
+            "unit_label": m["unit_label"],
+            "updated_at": m["updated_at"],
+        }
         for m in AssetMeter.objects.filter(asset_id__in=asset_ids).values(
-            "asset_id", "meter_type", "current_value", "unit_label"
+            "asset_id", "meter_type", "current_value", "unit_label", "updated_at"
         )
     }
+    stale_days_threshold = get_meter_stale_days()
     threshold_labels = dict(MaintenanceRule.THRESHOLD_TYPE_CHOICES)
 
     rows: list[dict[str, Any]] = []
@@ -455,6 +506,10 @@ def build_maintenance_schedule_rows(
                 "meter_unit": "",
                 "meter_current_value": None,
                 "meter_remaining": None,
+                "meter_updated_at": None,
+                "meter_days_since_update": None,
+                "meter_is_stale": False,
+                "meter_stale_days_threshold": stale_days_threshold,
             }
 
             if effective_type == MaintenanceRule.THRESHOLD_DAYS:
@@ -495,6 +550,13 @@ def build_maintenance_schedule_rows(
                     warning_units=resolved_row.get("effective_warning_days") or 0,
                     unit_label=unit_label,
                 )
+                meter_updated_at = meter_info["updated_at"] if meter_info else None
+                days_since_update = meter_days_since_update(meter_updated_at, today=current_day)
+                is_stale = (
+                    current_value is not None
+                    and days_since_update is not None
+                    and days_since_update >= stale_days_threshold
+                )
                 rows.append(
                     {
                         **common,
@@ -503,6 +565,10 @@ def build_maintenance_schedule_rows(
                         "meter_unit": unit_label,
                         "meter_current_value": current_value,
                         "meter_remaining": meter["remaining"],
+                        "meter_updated_at": meter_updated_at,
+                        "meter_days_since_update": days_since_update,
+                        "meter_is_stale": is_stale,
+                        "meter_stale_days_threshold": stale_days_threshold,
                         "schedule_status": meter["status"],
                         "schedule_label": meter["label"],
                         "schedule_badge_class": meter["badge_class"],
@@ -512,11 +578,14 @@ def build_maintenance_schedule_rows(
             else:
                 continue
 
+    # "missing" in cima: contatore assente o manutenzione mai eseguita significa che non
+    # sappiamo nemmeno se è scaduta. Prima stava in fondo, in grigio: il segnale più debole
+    # sul rischio più alto.
     status_order = {
-        SCHEDULE_OVERDUE: 0,
-        SCHEDULE_WARNING: 1,
-        SCHEDULE_UPCOMING: 2,
-        SCHEDULE_MISSING: 3,
+        SCHEDULE_MISSING: 0,
+        SCHEDULE_OVERDUE: 1,
+        SCHEDULE_WARNING: 2,
+        SCHEDULE_UPCOMING: 3,
     }
     rows.sort(
         key=lambda row: (
