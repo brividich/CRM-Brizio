@@ -60,14 +60,21 @@ def export_rows_response(
         from openpyxl import Workbook
         from openpyxl.styles import Font
 
+        # Sanificazione formula injection centralizzata in core.excel_export:
+        # `ws.append` scriverebbe come formula viva qualunque stringa che inizia con "=".
+        from core.excel_export import append_row
+
         wb = Workbook()
         ws = wb.active
         ws.title = "Export"
-        ws.append([label for label, _accessor in columns])
+        append_row(ws, [label for label, _accessor in columns])
         for cell in ws[1]:
             cell.font = Font(bold=True)
         for row in rows:
-            ws.append([_stringify(_resolve_value(row, accessor)) for _label, accessor in columns])
+            append_row(
+                ws,
+                [_stringify(_resolve_value(row, accessor)) for _label, accessor in columns],
+            )
         for col in ws.columns:
             max_len = max(len(_stringify(cell.value)) for cell in col)
             ws.column_dimensions[col[0].column_letter].width = min(max(max_len + 2, 10), 48)
@@ -80,10 +87,13 @@ def export_rows_response(
         response["Content-Disposition"] = f'attachment; filename="{stem}.xlsx"'
         return response
 
+    # Anche il CSV va sanificato: Excel valuta le formule pure aprendo un .csv.
+    from core.csv_export import safe_csv_writer
+
     response = HttpResponse(content_type="text/csv; charset=utf-8-sig")
     response["Content-Disposition"] = f'attachment; filename="{stem}.csv"'
     response.write("\ufeff")
-    writer = csv.writer(response)
+    writer = safe_csv_writer(response)
     writer.writerow([label for label, _accessor in columns])
     for row in rows:
         writer.writerow([_stringify(_resolve_value(row, accessor)) for _label, accessor in columns])

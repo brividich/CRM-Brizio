@@ -19,6 +19,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 from config.env_config import get_first_env_value
+from core.csv_export import safe_csv_writer
 from core.acl import user_can_modulo_action
 from core.caporeparto_utils import resolve_caporeparto_legacy_user
 
@@ -3621,7 +3622,7 @@ def _riconciliazione_csv(items, da, a):
         f'attachment; filename="riconciliazione_presenze_{da:%Y%m%d}_{a:%Y%m%d}.csv"'
     )
     response.write("﻿")  # BOM per Excel
-    writer = csv.writer(response, delimiter=";")
+    writer = safe_csv_writer(response, delimiter=";")
     writer.writerow([
         "Dipendente", "Data presenza", "Ore presenza",
         "Tipo assenza approvata", "ID assenza", "ID presenza",
@@ -4502,7 +4503,7 @@ class _Echo:
 
 
 def _csv_streaming_response(rows_iter, headers: list[str], filename: str) -> StreamingHttpResponse:
-    writer = csv.writer(_Echo())
+    writer = safe_csv_writer(_Echo())
 
     def stream():
         yield writer.writerow(headers)

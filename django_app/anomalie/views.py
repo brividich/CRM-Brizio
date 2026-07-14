@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import csv
 import json
 import logging
 import mimetypes
@@ -23,6 +22,7 @@ from django.utils import timezone as dj_tz
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 from config.env_config import get_first_env_value, update_env_file_values
+from core.csv_export import safe_csv_writer
 from core.acl import user_can_modulo_action
 from core.audit import log_action
 from core.upload_mime import (
@@ -3285,7 +3285,7 @@ def export_anomalie_csv(request):
     )
 
     def stream():
-        writer = csv.writer(_Echo())
+        writer = safe_csv_writer(_Echo())
         yield writer.writerow(wanted)
         for row in rows_data:
             yield writer.writerow([str(v) if v is not None else "" for v in row])
@@ -3570,7 +3570,7 @@ def export_anomalie_csv_filtrato(request):
     )
 
     def stream():
-        writer = csv.writer(_Echo())
+        writer = safe_csv_writer(_Echo())
         yield writer.writerow(wanted)
         for row in rows_data:
             yield writer.writerow([str(v) if v is not None else "" for v in row])

@@ -23,6 +23,7 @@ from django.views.decorators.http import require_POST
 from django.contrib import messages
 
 from config.env_config import get_first_env_value
+from core.csv_export import safe_csv_writer
 from core.audit import log_action
 from core.contact_people import parse_contact_people, primary_contact, serialize_contact_people
 from core.legacy_utils import get_legacy_user, is_legacy_admin
@@ -654,7 +655,7 @@ def _scadenzario_csv(today, sections):
         f'attachment; filename="rentri_scadenzario_{today.strftime("%Y%m%d")}.csv"'
     )
     response.write("﻿")  # BOM per apertura corretta in Excel
-    writer = csv.writer(response, delimiter=";")
+    writer = safe_csv_writer(response, delimiter=";")
     writer.writerow([
         "Adempimento", "Data", "ID Registrazione", "Tipo",
         "Codice EER", "Quantita", "Giorni di giacenza", "Note",
@@ -704,7 +705,7 @@ def _giacenze_csv(rows, today, soglie):
         f'attachment; filename="rentri_giacenze_{today.strftime("%Y%m%d")}.csv"'
     )
     response.write("﻿")  # BOM per apertura corretta in Excel
-    writer = csv.writer(response, delimiter=";")
+    writer = safe_csv_writer(response, delimiter=";")
     writer.writerow([
         "Codice EER", "Pericoloso", "Carichi", "Scarichi",
         "Entrate", "Uscite", "Giacenza", "Primo carico",

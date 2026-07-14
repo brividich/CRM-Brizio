@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import csv
 import logging
 import os
 import re
@@ -16,6 +15,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
+from core.csv_export import safe_csv_writer
 from core.acl import user_can_modulo_action
 from core.audit import log_action
 from core.legacy_anagrafica import ensure_anagrafica_schema
@@ -1332,7 +1332,7 @@ def export_csv(request):
         return HttpResponse(schema_issue, status=503, content_type="text/plain; charset=utf-8")
 
     def stream():
-        writer = csv.writer(_Echo())
+        writer = safe_csv_writer(_Echo())
         headers = [
             "operatore",
             "matricola",

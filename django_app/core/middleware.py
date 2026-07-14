@@ -146,6 +146,64 @@ def resolve_acl_gate_target_path(path: str) -> str:
     return path_norm
 
 
+def enforce_strict_canonical(decision: dict) -> bool:
+    """Applica il deny di ``ACL_STRICT_CANONICAL`` a una decisione ACL. Ritorna True se ha negato.
+
+    `resolve_acl_access` NON conosce lo strict-mode: una route senza
+    ``RoutePermissionBinding`` canonico passa dal fallback legacy e può risultare
+    consentita. Lo strict-mode nega comunque, per forzare la migrazione delle
+    route residue al binding canonico.
+
+    Sede unica della regola: la usano sia l'``ACLMiddleware`` sia i gate che devono
+    decidere "questo utente potrebbe aprire questa pagina?" (es. gli export di
+    anagrafica). Se le due decisioni divergessero, un endpoint diventerebbe più
+    permissivo della pagina che rappresenta.
+    """
+    if decision.get("decision_source") != "legacy_fallback":
+        return False
+    if not getattr(settings, "ACL_STRICT_CANONICAL", False):
+        return False
+    if not bool(decision.get("allowed")):
+        return False
+    decision["allowed"] = False
+    decision["decision_source"] = "legacy_fallback_denied_by_strict"
+    decision["decision_kind"] = "deny"
+    decision["reason"] = (
+        "ACL_STRICT_CANONICAL attivo: route senza RoutePermissionBinding "
+        "canonico — creane uno in /admin-portale/acl-canonico/."
+    )
+    return True
+
+
+def acl_allows_path(path: str, *, django_user, legacy_user=None, request=None) -> bool:
+    """`django_user` potrebbe accedere a `path`? Stessa politica dell'``ACLMiddleware``.
+
+    Replica i bypass del middleware (superuser, auth legacy disattivata, path
+    condivisi), risolve il target del gate e applica lo strict-mode. Da usare nei
+    gate applicativi (export, azioni, API) invece di re-implementare la regola:
+    è così che un endpoint resta allineato alla pagina che rappresenta.
+    """
+    if getattr(django_user, "is_superuser", False):
+        return True
+    if not legacy_auth_enabled():
+        return True
+    if is_acl_shared_path(path):
+        return True
+
+    if legacy_user is None:
+        legacy_user = get_legacy_user(django_user)
+
+    decision = resolve_acl_access(
+        path=resolve_acl_gate_target_path(path),
+        legacy_user=legacy_user,
+        django_user=django_user,
+        request=request,
+        include_legacy_diagnostic=False,
+    )
+    enforce_strict_canonical(decision)
+    return bool(decision.get("allowed", False))
+
+
 def _is_json_request(request) -> bool:
     accept = (request.headers.get("Accept") or "").lower()
     content_type = (request.headers.get("Content-Type") or "").lower()
@@ -312,16 +370,10 @@ class ACLMiddleware:
                     user_id=getattr(getattr(request, "user", None), "id", None),
                     legacy_user_id=(decision.get("legacy_user") or {}).get("id"),
                 )
-            if getattr(settings, "ACL_STRICT_CANONICAL", False) and bool(decision.get("allowed")):
-                # In strict-mode neghiamo anche se il fallback legacy consentirebbe:
-                # forziamo la migrazione delle route residue a binding canonico.
-                decision["allowed"] = False
-                decision["decision_source"] = "legacy_fallback_denied_by_strict"
-                decision["decision_kind"] = "deny"
-                decision["reason"] = (
-                    "ACL_STRICT_CANONICAL attivo: route senza RoutePermissionBinding "
-                    "canonico — creane uno in /admin-portale/acl-canonico/."
-                )
+            # Deny strict-mode: regola condivisa con i gate applicativi (vedi
+            # `enforce_strict_canonical`), così un endpoint non può essere più
+            # permissivo della pagina che rappresenta.
+            if enforce_strict_canonical(decision):
                 _log_acl_once(
                     level="warning",
                     cache_key=f"strict_deny:{path_norm}",

@@ -19,6 +19,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Count, Q
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
+from core.csv_export import safe_csv_writer
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -711,7 +712,7 @@ def storico_export_csv(request, pk: int):
     response = HttpResponse(content_type="text/csv; charset=utf-8")
     response["Content-Disposition"] = f'attachment; filename="storico_{spec.codice}_{spec.revisione or "0"}.csv"'
     response.write("﻿")  # BOM per Excel
-    writer = csv.writer(response, delimiter=";")
+    writer = safe_csv_writer(response, delimiter=";")
     writer.writerow(["timestamp", "stato_da", "stato_a", "trigger", "attore", "payload"])
     for e in spec.eventi.all():
         writer.writerow([

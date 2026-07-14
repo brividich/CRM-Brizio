@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import csv
 import logging
 import os
 import re
@@ -18,6 +17,7 @@ from django.views.decorators.http import require_POST
 
 from django_q.tasks import async_task
 
+from core.csv_export import safe_csv_writer
 from core.audit import log_action
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 from core.module_branding import get_module_branding_context, handle_module_branding_post
@@ -1687,26 +1687,6 @@ class _Echo:
         return value
 
 
-def _csv_cell(value):
-    # SEC (CSV/formula injection): se una cella di testo inizia con un carattere di
-    # formula (= + - @) o di controllo (TAB/CR), anteponi un apostrofo così Excel/
-    # LibreOffice non la interpreta come formula. user_note è input di utenti non
-    # privilegiati, riemesso in un export aperto da manager.
-    if isinstance(value, str) and value[:1] in ("=", "+", "-", "@", "\t", "\r"):
-        return "'" + value
-    return value
-
-
-class _SafeCsvWriter:
-    """Wrapper del csv.writer che sanifica ogni cella contro la formula injection."""
-
-    def __init__(self, writer):
-        self._w = writer
-
-    def writerow(self, row):
-        return self._w.writerow([_csv_cell(c) for c in row])
-
-
 @login_required
 def export_csv(request):
     if not _can_manage(request):
@@ -1715,7 +1695,7 @@ def export_csv(request):
 
     report_type = request.GET.get("type", "assignments")
     campaign_filter = request.GET.get("camp", "").strip()
-    writer = _SafeCsvWriter(csv.writer(_Echo()))
+    writer = safe_csv_writer(_Echo())
 
     if report_type == "assignments":
         headers = [

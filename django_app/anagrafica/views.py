@@ -23,6 +23,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from django.contrib.auth.decorators import login_required
+from core.csv_export import safe_csv_writer
 from core.legacy_anagrafica import (
     count_anagrafica_statuses,
     ensure_anagrafica_schema,
@@ -2577,7 +2578,7 @@ def attestato_report_export(request):
     response = HttpResponse(content_type="text/csv; charset=utf-8")
     response["Content-Disposition"] = 'attachment; filename="attestati_archiviati.csv"'
     response.write("﻿")  # BOM per Excel
-    writer = csv.writer(response, delimiter=";")
+    writer = safe_csv_writer(response, delimiter=";")
     writer.writerow([
         "Documento ID", "Dipendente", "ID anagrafica", "Record completamento",
         "Cartella", "Nome file", "Dimensione (KB)", "Archiviato il", "Conservare fino al",
@@ -2821,7 +2822,7 @@ def formazione_corso_report_iscritti_csv(request, corso_id: int):
     response = HttpResponse(content_type="text/csv; charset=utf-8")
     response["Content-Disposition"] = f'attachment; filename="corso_{corso.codice}_iscritti.csv"'
     response.write("﻿")
-    writer = csv.writer(response, delimiter=";")
+    writer = safe_csv_writer(response, delimiter=";")
     writer.writerow(["Dipendente", "ID anagrafica", "Stato", "Sessioni", "Completamenti",
                      "% presenza", "Idoneo", "Ultimo completamento"])
     for lid, a in sorted(agg.items(), key=lambda kv: nomi.get(kv[0], f"#{kv[0]}").casefold()):
@@ -4440,6 +4441,8 @@ def dipendente_retribuzioni_export_xlsx(request, legacy_id: int):
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
 
+    from core.excel_export import write_cell
+
     can_hr = _check_hr_permission(request)
     if not can_hr:
         messages.error(request, "Accesso riservato agli utenti HR.")
@@ -4524,12 +4527,12 @@ def dipendente_retribuzioni_export_xlsx(request, legacy_id: int):
     fill_manuale_marker = PatternFill(fill_type="solid", fgColor="EDE9FE")
 
     # Intestazione (riga 1)
-    ws.cell(row=1, column=1, value="Data retribuzione").font = font_header
+    write_cell(ws, 1, 1, "Data retribuzione").font = font_header
     ws.cell(row=1, column=1).fill = PatternFill(fill_type="solid", fgColor="F8FAFC")
     ws.cell(row=1, column=1).alignment = Alignment(horizontal="left", vertical="center")
     ws.cell(row=1, column=1).border = border_all
     for ci, col in enumerate(colonne, start=2):
-        c = ws.cell(row=1, column=ci, value=col["label"])
+        c = write_cell(ws, 1, ci, col["label"])
         c.font = font_header
         c.fill = fill_by_cat.get(col["categoria"], PatternFill(fill_type="solid", fgColor="F8FAFC"))
         c.alignment = Alignment(horizontal="right", vertical="center", wrap_text=True)
@@ -4553,7 +4556,7 @@ def dipendente_retribuzioni_export_xlsx(request, legacy_id: int):
         _cell_data_by_date[_date] = row_cells
 
     for ri, _date in enumerate(reversed(_mesi_asc), start=2):
-        c_date = ws.cell(row=ri, column=1, value=_date)
+        c_date = write_cell(ws, ri, 1, _date)  # date: resta tipizzata (non stringa)
         c_date.number_format = "DD/MM/YYYY"
         c_date.font = font_date
         c_date.alignment = Alignment(horizontal="left", vertical="center")
@@ -4584,8 +4587,10 @@ def dipendente_retribuzioni_export_xlsx(request, legacy_id: int):
 
     # Riga riepilogo finale
     summary_row = len(_mesi_asc) + 3
-    ws.cell(row=summary_row, column=1,
-            value=f"Dipendente: {_cognome} {_nome} — {len(_mesi_asc)} mesi · {len(colonne)} voci").font = Font(italic=True, size=9, color="64748B")
+    write_cell(
+        ws, summary_row, 1,
+        f"Dipendente: {_cognome} {_nome} — {len(_mesi_asc)} mesi · {len(colonne)} voci",
+    ).font = Font(italic=True, size=9, color="64748B")
 
     # Output
     buf = io.BytesIO()
@@ -5162,7 +5167,7 @@ def dipendenti_report(request):
         from django.http import HttpResponse
         response = HttpResponse(content_type="text/csv; charset=utf-8-sig")
         response["Content-Disposition"] = 'attachment; filename="dipendenti_report.csv"'
-        writer = csv.writer(response, delimiter=";")
+        writer = safe_csv_writer(response, delimiter=";")
         writer.writerow([
             "ID", "Cognome", "Nome", "Matricola", "Reparto",
             "Area", "Ruolo aziendale", "Tipologia contratto",
@@ -6193,7 +6198,7 @@ def qualifiche_scadenzario(request):
     if export_csv:
         resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
         resp["Content-Disposition"] = 'attachment; filename="scadenzario_qualifiche.csv"'
-        writer = csv.writer(resp, delimiter=";")
+        writer = safe_csv_writer(resp, delimiter=";")
         writer.writerow(["Dipendente", "Reparto", "Qualifica", "Categoria", "N°", "Livello",
                          "Ente", "Conseguimento", "Scadenza", "Giorni", "Stato",
                          "Evidenza", "Verificata"])
@@ -6648,7 +6653,7 @@ def qualifica_sessione_report_csv(request, sessione_id: int):
     fname = f"sessione_qualifica_{sess.tipo.nome}_{sess.data_conseguimento:%Y%m%d}.csv".replace(" ", "_")
     response["Content-Disposition"] = f'attachment; filename="{fname}"'
     response.write("﻿")
-    writer = csv.writer(response, delimiter=";")
+    writer = safe_csv_writer(response, delimiter=";")
     writer.writerow(["Qualifica", "Ente", "Conseguimento", "Scadenza sessione"])
     writer.writerow([
         sess.tipo.nome, sess.ente or "",
@@ -7192,7 +7197,7 @@ def scadenzario(request):
     if export_csv:
         resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
         resp["Content-Disposition"] = 'attachment; filename="scadenzario_anagrafica.csv"'
-        writer = csv.writer(resp, delimiter=";")
+        writer = safe_csv_writer(resp, delimiter=";")
         writer.writerow(["Dipendente", "Reparto", "Tipo entità", "Descrizione", "Scadenza", "Stato"])
         for v in voci:
             stato = "Scaduta" if v["scaduta"] else f"Scade in {v['giorni']} giorni"
@@ -7597,6 +7602,8 @@ def ratei_export(request):
     from openpyxl.styles import PatternFill, Font, Alignment
     from openpyxl.utils import get_column_letter
 
+    from core.excel_export import append_row
+
     can_hr = _check_hr_permission(request)
     if not can_hr:
         messages.error(request, "Accesso non autorizzato ai dati HR.")
@@ -7727,7 +7734,7 @@ def ratei_export(request):
                 anz += f" {s.anzianita_mesi}m"
         else:
             anz = ""
-        ws.append([
+        append_row(ws, [
             nome, reparto, periodo, anz,
             s.ferie_anni_prec, s.ferie_maturati, s.ferie_goduti, s.ferie_residui,
             s.rol_anni_prec, s.rol_maturati, s.rol_goduti, s.rol_residui,
@@ -8072,6 +8079,8 @@ def retribuzioni_globale_export(request):
     from openpyxl.styles import PatternFill, Font, Alignment
     from openpyxl.utils import get_column_letter
 
+    from core.excel_export import append_row, write_cell
+
     can_hr = _check_hr_permission(request)
     if not can_hr:
         messages.error(request, "Accesso non autorizzato ai dati HR.")
@@ -8101,7 +8110,7 @@ def retribuzioni_globale_export(request):
     # Riga 1 — gruppi categoria
     for i, label in enumerate(fixed, 1):
         ws.merge_cells(start_row=1, start_column=i, end_row=2, end_column=i)
-        c = ws.cell(row=1, column=i, value=label)
+        c = write_cell(ws, 1, i, label)
         c.fill = fill_hdr
         c.font = font_b
         c.alignment = c_center
@@ -8110,7 +8119,7 @@ def retribuzioni_globale_export(request):
         start, end = col, col + g["n"] - 1
         if end > start:
             ws.merge_cells(start_row=1, start_column=start, end_row=1, end_column=end)
-        c = ws.cell(row=1, column=start, value=g["label"])
+        c = write_cell(ws, 1, start, g["label"])
         c.fill = _CAT_FILL.get(g["categoria"], fill_hdr)
         c.font = font_b
         c.alignment = c_center
@@ -8118,7 +8127,7 @@ def retribuzioni_globale_export(request):
 
     # Riga 2 — pay_item
     for j, meta in enumerate(colonne):
-        c = ws.cell(row=2, column=n_fixed + 1 + j, value=meta["label"])
+        c = write_cell(ws, 2, n_fixed + 1 + j, meta["label"])
         c.fill = _CAT_FILL.get(meta["categoria"], fill_hdr)
         c.font = font_b
         c.alignment = c_center
@@ -8129,7 +8138,7 @@ def retribuzioni_globale_export(request):
         line = [r["nome"], periodo, r["reparto"], r["livello"], r["sesso"]]
         for cell in r["celle"]:
             line.append(float(cell["importo"]) if cell["importo"] is not None else None)
-        ws.append(line)
+        append_row(ws, line)
 
     ws.column_dimensions["A"].width = 28
     for i in range(2, n_fixed + 1):
@@ -10063,6 +10072,8 @@ def visite_mediche_export_scadenze(request):
     except ImportError:
         return HttpResponse("openpyxl non installato.", status=500)
 
+    from core.excel_export import append_row
+
     import calendar as _cal
     from django.utils import timezone as _tz
 
@@ -10107,7 +10118,7 @@ def visite_mediche_export_scadenze(request):
 
     header = ["Dipendente", "Codice Fiscale", "Tipo visita", "Data svolgimento",
               "Data scadenza", "Giorni a scadenza", "Esito", "Note"]
-    ws.append(header)
+    append_row(ws, header)
     for cell in ws[1]:
         cell.font = Font(bold=True)
         cell.fill = PatternFill("solid", fgColor="E2E8F0")
@@ -10116,7 +10127,7 @@ def visite_mediche_export_scadenze(request):
         nome = nomi_map.get(v.legacy_anagrafica_id, f"#{v.legacy_anagrafica_id}")
         cf = cf_map.get(v.legacy_anagrafica_id, "")
         giorni = (v.data_scadenza - oggi).days if v.data_scadenza else ""
-        ws.append([
+        append_row(ws, [
             nome, cf, v.tipo.nome,
             v.data_svolgimento.strftime("%d-%m-%Y") if v.data_svolgimento else "",
             v.data_scadenza.strftime("%d-%m-%Y") if v.data_scadenza else "",
@@ -10150,6 +10161,8 @@ def visite_mediche_export_copertura(request):
     except ImportError:
         return HttpResponse("openpyxl non installato.", status=500)
 
+    from core.excel_export import append_row
+
     from django.utils import timezone as _tz
 
     oggi = _tz.localdate()
@@ -10180,7 +10193,7 @@ def visite_mediche_export_copertura(request):
     header = ["Tipologia", "Periodicità (mesi)", "Obbligatoria",
               "Ruoli collegati", "Richiesti (ruoli)", "Coperti (ruoli)", "Mancanti (ruoli)",
               "Valide (DB)", "Scadute (DB)"]
-    ws.append(header)
+    append_row(ws, header)
     for cell in ws[1]:
         cell.font = Font(bold=True)
         cell.fill = PatternFill("solid", fgColor="E2E8F0")
@@ -10203,7 +10216,7 @@ def visite_mediche_export_copertura(request):
         mancanti = legacy_ids_richiesti - legacy_ids_coperti
         ruoli_nomi = ", ".join(t.ruoli_operativi.values_list("nome", flat=True)) or "—"
 
-        ws.append([
+        append_row(ws, [
             t.nome, t.durata_mesi, "Sì" if t.obbligatoria else "No",
             ruoli_nomi,
             len(legacy_ids_richiesti),
@@ -13320,7 +13333,7 @@ def matrice_competenze(request):
         _LAB = {"valido": "OK", "in_scadenza": "In scadenza", "scaduto": "SCADUTO", "mancante": "—"}
         resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
         resp["Content-Disposition"] = 'attachment; filename="matrice_competenze.csv"'
-        writer = csv.writer(resp, delimiter=";")
+        writer = safe_csv_writer(resp, delimiter=";")
         writer.writerow(["Dipendente", "Reparto"] + [t.nome for t in tipi])
         for r in righe:
             cells = []
@@ -13598,7 +13611,7 @@ def skill_matrix_macchina(request):
 
         resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
         resp["Content-Disposition"] = 'attachment; filename="skill_matrix_macchina.csv"'
-        writer = csv.writer(resp, delimiter=";")
+        writer = safe_csv_writer(resp, delimiter=";")
         disp_col = f"Disponibilità {data_sel.strftime('%d/%m/%Y')}"
         writer.writerow(
             ["Dipendente", "Reparto", disp_col] + [c.display or c.competenza_key for c in comp_macchine]
@@ -13792,7 +13805,7 @@ def skm_scadenzario(request):
     if request.GET.get("format") == "csv":
         resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
         resp["Content-Disposition"] = 'attachment; filename="scadenzario_abilitazioni.csv"'
-        w = csv.writer(resp, delimiter=";")
+        w = safe_csv_writer(resp, delimiter=";")
         w.writerow(["Reparto", "Prossima revisione", "Totali", "Scadute", "In arrivo", "Stato", "Campagna aperta"])
         for r in righe:
             w.writerow([
@@ -13952,7 +13965,7 @@ def conformita_report(request):
         }
         resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
         resp["Content-Disposition"] = 'attachment; filename="conformita_anagrafica.csv"'
-        writer = csv.writer(resp, delimiter=";")
+        writer = safe_csv_writer(resp, delimiter=";")
         writer.writerow([
             "Dipendente", "Reparto", "Mansione", "Conformità", "Idoneità mansione",
             "Requisiti da soddisfare", "Formazione", "Visite mediche", "Qualifiche", "DPI",
@@ -14504,7 +14517,7 @@ def formazione_elearning_iscritti_csv(request, corso_id: int):
     resp = HttpResponse(content_type="text/csv; charset=utf-8")
     resp["Content-Disposition"] = f'attachment; filename="elearning_{corso.codice}_iscritti.csv"'
     resp.write("﻿")  # BOM per apertura corretta in Excel
-    writer = csv.writer(resp, delimiter=";")
+    writer = safe_csv_writer(resp, delimiter=";")
     writer.writerow(["Dipendente", "ID", "Stato", "Avanzamento slide", "Miglior punteggio %", "Tentativi", "Data completamento"])
     for r in rows:
         writer.writerow([
