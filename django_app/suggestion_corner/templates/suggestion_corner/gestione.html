@@ -9,6 +9,7 @@
         <a href="{% url 'suggestion_corner:home' %}" style="text-decoration:none;color:inherit">← Suggestion Corner</a>
       </span>
       <h1>Gestione modulo</h1>
+      <p class="sc-sub">Coda di classificazione, cadenza dei solleciti e composizione del team SMS.</p>
     </div>
     <a href="{% url 'suggestion_corner:home' %}" class="hub-btn">Vai all'elenco</a>
   </div>
@@ -17,21 +18,27 @@
     {% for m in messages %}<div class="hub-alert hub-alert-{{ m.tags }}">{{ m }}</div>{% endfor %}
   {% endif %}
 
-  {# --- KPI --- #}
+  {# --- KPI: stato delle segnalazioni --- #}
+  <span class="sc-sec-lab">Segnalazioni</span>
   <div class="sc-kpi">
-    <div class="sc-stat"><span class="n">{{ kpi.totali }}</span><span class="l">Totali</span></div>
-    <a href="{% url 'suggestion_corner:home' %}?filtro=tutte" class="sc-stat"><span class="n">{{ kpi.aperte }}</span><span class="l">Aperte</span></a>
-    <a href="{% url 'suggestion_corner:home' %}?filtro=da_gestire" class="sc-stat warn"><span class="n">{{ kpi.da_classificare }}</span><span class="l">Da classificare</span></a>
-    <div class="sc-stat ok"><span class="n">{{ kpi.chiuse }}</span><span class="l">Chiuse</span></div>
-    <a href="{% url 'suggestion_corner:home' %}?filtro=sms_si" class="sc-stat"><span class="n">{{ kpi.sms_si }}</span><span class="l">SMS Sì</span></a>
-    <a href="{% url 'suggestion_corner:home' %}?filtro=sms_no" class="sc-stat"><span class="n">{{ kpi.sms_no }}</span><span class="l">SMS No</span></a>
-    <div class="sc-stat danger"><span class="n">{{ kpi.scaduti_do }}</span><span class="l">DO scaduti</span></div>
-    <div class="sc-stat danger"><span class="n">{{ kpi.scaduti_check }}</span><span class="l">CHECK scaduti</span></div>
+    <div class="sc-stat{% if not kpi.totali %} is-zero{% endif %}"><span class="n">{{ kpi.totali }}</span><span class="l">Totali</span></div>
+    <a href="{% url 'suggestion_corner:home' %}?filtro=tutte" class="sc-stat{% if not kpi.aperte %} is-zero{% endif %}"><span class="n">{{ kpi.aperte }}</span><span class="l">Aperte</span></a>
+    <a href="{% url 'suggestion_corner:home' %}?filtro=da_gestire" class="sc-stat warn{% if not kpi.da_classificare %} is-zero{% endif %}"><span class="n">{{ kpi.da_classificare }}</span><span class="l">Da classificare</span></a>
+    <div class="sc-stat ok{% if not kpi.chiuse %} is-zero{% endif %}"><span class="n">{{ kpi.chiuse }}</span><span class="l">Chiuse</span></div>
+  </div>
+
+  {# --- KPI: esito SMS e ritardi --- #}
+  <span class="sc-sec-lab">Esito SMS e ritardi</span>
+  <div class="sc-kpi">
+    <a href="{% url 'suggestion_corner:home' %}?filtro=sms_si" class="sc-stat{% if not kpi.sms_si %} is-zero{% endif %}"><span class="n">{{ kpi.sms_si }}</span><span class="l">SMS Sì</span></a>
+    <a href="{% url 'suggestion_corner:home' %}?filtro=sms_no" class="sc-stat{% if not kpi.sms_no %} is-zero{% endif %}"><span class="n">{{ kpi.sms_no }}</span><span class="l">SMS No</span></a>
+    <div class="sc-stat danger{% if not kpi.scaduti_do %} is-zero{% endif %}"><span class="n">{{ kpi.scaduti_do }}</span><span class="l">DO scaduti</span></div>
+    <div class="sc-stat danger{% if not kpi.scaduti_check %} is-zero{% endif %}"><span class="n">{{ kpi.scaduti_check }}</span><span class="l">CHECK scaduti</span></div>
   </div>
 
   {# --- Coda di triage --- #}
   <div class="sc-card" style="margin-bottom:var(--space-4)">
-    <div class="sc-card-head">Coda da classificare ({{ da_classificare.count }})</div>
+    <div class="sc-card-head">Coda da classificare <span class="sc-count">{{ da_classificare.count }}</span></div>
     <div class="sc-card-body">
       {% if da_classificare %}
       <ul class="sc-queue">
@@ -46,7 +53,7 @@
         {% endfor %}
       </ul>
       {% else %}
-      <p class="hub-help">Nessuna segnalazione in attesa di classificazione. 👌</p>
+      <div class="sc-blank"><span class="ico">👌</span> Nessuna segnalazione in attesa di classificazione.</div>
       {% endif %}
     </div>
   </div>
@@ -56,19 +63,65 @@
     <div class="sc-card">
       <div class="sc-card-head">Configurazione</div>
       <div class="sc-card-body sc-config">
-        <form method="post" class="hub-form-stack">
+        <form method="post" class="hub-form-stack" id="sc-config-form">
           {% csrf_token %}
           {% if form_config.non_field_errors %}
             <div class="hub-alert hub-alert-error">{{ form_config.non_field_errors }}</div>
           {% endif %}
-          {% for field in form_config %}
-            <div class="hub-field">
-              <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-              {{ field }}
-              {% if field.errors %}<div class="hub-field-error">{{ field.errors }}</div>{% endif %}
+
+          {# Firma della pagina: la cadenza dei promemoria attorno alla scadenza #}
+          <div>
+            <span class="sc-sec-lab">Cadenza promemoria</span>
+            <div class="sc-cadenza">
+              <div class="rail">
+                <span class="mk" style="left:10%"><span class="tx" data-cad="s1">{{ form_config.instance.giorni_sollecito_1 }} gg<small>1° sollecito</small></span><span class="pt"></span></span>
+                <span class="mk" style="left:30%"><span class="tx" data-cad="s2">{{ form_config.instance.giorni_sollecito_2 }} gg<small>2° sollecito</small></span><span class="pt"></span></span>
+                <span class="mk" style="left:50%"><span class="tx" data-cad="s3">{{ form_config.instance.giorni_sollecito_3 }} gg<small>3° sollecito</small></span><span class="pt"></span></span>
+                <span class="mk due" style="left:72%"><span class="tx">Scadenza<small>PLAN / DO / CHECK</small></span><span class="pt"></span></span>
+                <span class="mk esc" style="left:92%"><span class="tx" data-cad="esc">{{ form_config.instance.giorni_escalation_oltre_scadenza }} gg<small>escalation</small></span><span class="pt"></span></span>
+              </div>
             </div>
-          {% endfor %}
-          <button type="submit" class="hub-btn hub-btn-primary">Salva configurazione</button>
+            <p class="hub-help">Giorni prima della scadenza per ogni sollecito; l'escalation parte dopo.</p>
+          </div>
+
+          <div class="sc-grid-3">
+            <div class="hub-field">
+              <label for="{{ form_config.giorni_sollecito_1.id_for_label }}">1° sollecito</label>
+              {{ form_config.giorni_sollecito_1 }}
+              {% if form_config.giorni_sollecito_1.errors %}<div class="hub-field-error">{{ form_config.giorni_sollecito_1.errors }}</div>{% endif %}
+            </div>
+            <div class="hub-field">
+              <label for="{{ form_config.giorni_sollecito_2.id_for_label }}">2° sollecito</label>
+              {{ form_config.giorni_sollecito_2 }}
+              {% if form_config.giorni_sollecito_2.errors %}<div class="hub-field-error">{{ form_config.giorni_sollecito_2.errors }}</div>{% endif %}
+            </div>
+            <div class="hub-field">
+              <label for="{{ form_config.giorni_sollecito_3.id_for_label }}">3° sollecito</label>
+              {{ form_config.giorni_sollecito_3 }}
+              {% if form_config.giorni_sollecito_3.errors %}<div class="hub-field-error">{{ form_config.giorni_sollecito_3.errors }}</div>{% endif %}
+            </div>
+          </div>
+
+          <div class="hub-field">
+            <label for="{{ form_config.giorni_escalation_oltre_scadenza.id_for_label }}">{{ form_config.giorni_escalation_oltre_scadenza.label }}</label>
+            {{ form_config.giorni_escalation_oltre_scadenza }}
+            {% if form_config.giorni_escalation_oltre_scadenza.errors %}<div class="hub-field-error">{{ form_config.giorni_escalation_oltre_scadenza.errors }}</div>{% endif %}
+          </div>
+
+          <div class="hub-field">
+            <label for="{{ form_config.email_responsabile_escalation.id_for_label }}">{{ form_config.email_responsabile_escalation.label }}</label>
+            {{ form_config.email_responsabile_escalation }}
+            {% if form_config.email_responsabile_escalation.errors %}<div class="hub-field-error">{{ form_config.email_responsabile_escalation.errors }}</div>{% endif %}
+            <p class="hub-help">Riceve l'avviso quando una segnalazione supera la scadenza.</p>
+          </div>
+
+          <div class="hub-field">
+            <label for="{{ form_config.sms_team_group_name.id_for_label }}">{{ form_config.sms_team_group_name.label }}</label>
+            {{ form_config.sms_team_group_name }}
+            {% if form_config.sms_team_group_name.errors %}<div class="hub-field-error">{{ form_config.sms_team_group_name.errors }}</div>{% endif %}
+          </div>
+
+          <div><button type="submit" class="hub-btn hub-btn-primary">Salva configurazione</button></div>
         </form>
       </div>
     </div>
@@ -76,28 +129,28 @@
     <div style="display:grid;gap:var(--space-4)">
       {# --- Team SMS --- #}
       <div class="sc-card">
-        <div class="sc-card-head">Team SMS <span class="sc-chip">{{ team_group }}</span></div>
+        <div class="sc-card-head"><span>Team SMS</span> <span class="sc-chip">{{ team_group }}</span></div>
         <div class="sc-card-body">
           {% if team %}
-          <ul class="sc-tags" style="list-style:none;padding:0;display:flex;flex-direction:column;gap:.4rem;margin:0">
+          <ul class="sc-team">
             {% for u in team %}
-            <li style="display:flex;justify-content:space-between;align-items:center;gap:.5rem">
-              <span class="sc-chip">{{ u.get_full_name|default:u.username }}</span>
-              <form method="post" action="{% url 'suggestion_corner:gestione_team_remove' %}" style="margin:0">
+            <li>
+              <span class="av">{{ u.get_full_name|default:u.username|slice:":1"|upper }}</span>
+              <span class="nm">{{ u.get_full_name|default:u.username }}</span>
+              <form method="post" action="{% url 'suggestion_corner:gestione_team_remove' %}">
                 {% csrf_token %}<input type="hidden" name="user_id" value="{{ u.pk }}">
-                <button type="submit" class="hub-btn hub-btn-sm" title="Rimuovi dal team">Rimuovi</button>
+                <button type="submit" class="hub-btn hub-btn-sm hub-btn-danger" title="Rimuovi dal team">Rimuovi</button>
               </form>
             </li>
             {% endfor %}
           </ul>
           {% else %}
-          <p class="hub-help">Nessun membro nel gruppo <strong>{{ team_group }}</strong>.</p>
+          <div class="sc-blank"><span class="ico">👥</span> Nessun membro nel gruppo <strong>{{ team_group }}</strong>.</div>
           {% endif %}
 
-          <form method="post" action="{% url 'suggestion_corner:gestione_team_add' %}"
-                style="margin-top:.75rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+          <form method="post" action="{% url 'suggestion_corner:gestione_team_add' %}" class="sc-addrow">
             {% csrf_token %}
-            <select name="user_id" required style="flex:1;min-width:200px">
+            <select name="user_id" required aria-label="Persona da aggiungere al team">
               <option value="">— aggiungi persona al team —</option>
               {% for c in candidati %}
               <option value="{{ c.pk }}">{{ c.get_full_name|default:c.username }} ({{ c.username }})</option>
@@ -105,13 +158,13 @@
             </select>
             <button type="submit" class="hub-btn hub-btn-primary">Aggiungi</button>
           </form>
-          <p class="hub-help" style="margin-top:.35rem">Chi aggiungi vede tutte le segnalazioni e può gestirle. Effettivo al suo prossimo login.</p>
+          <p class="hub-help" style="margin-top:.5rem">Chi aggiungi vede tutte le segnalazioni e può gestirle. Effettivo al suo prossimo login.</p>
         </div>
       </div>
 
       {# --- Mappature processo --- #}
       <div class="sc-card">
-        <div class="sc-card-head">Mappature processo ({{ mappature.count }})</div>
+        <div class="sc-card-head">Mappature processo <span class="sc-count">{{ mappature.count }}</span></div>
         <div class="sc-card-body">
           {% if mappature %}
           <ul class="sc-queue">
@@ -121,11 +174,31 @@
             {% endfor %}
           </ul>
           {% else %}
-          <p class="hub-help">Nessuna mappatura processo definita.</p>
+          <div class="sc-blank"><span class="ico">🗺️</span> Nessuna mappatura processo definita.</div>
           {% endif %}
         </div>
       </div>
     </div>
   </div>
 </div>
+
+<script>
+  (function () {
+    var form = document.getElementById('sc-config-form');
+    if (!form) return;
+    var mappa = {
+      s1: 'id_giorni_sollecito_1', s2: 'id_giorni_sollecito_2',
+      s3: 'id_giorni_sollecito_3', esc: 'id_giorni_escalation_oltre_scadenza'
+    };
+    Object.keys(mappa).forEach(function (chiave) {
+      var input = document.getElementById(mappa[chiave]);
+      var testo = form.querySelector('[data-cad="' + chiave + '"]');
+      if (!input || !testo) return;
+      var nodo = testo.firstChild;
+      input.addEventListener('input', function () {
+        nodo.nodeValue = (input.value || '0') + ' gg';
+      });
+    });
+  })();
+</script>
 {% endblock %}

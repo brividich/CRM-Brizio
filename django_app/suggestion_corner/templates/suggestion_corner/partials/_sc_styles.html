@@ -99,4 +99,117 @@
   .sc-tags{display:flex;flex-wrap:wrap;gap:.4rem;margin:0}
   .sc-tags .sc-chip{background:var(--accent-light);color:var(--accent);
     border-color:color-mix(in srgb,var(--accent) 25%,transparent)}
+
+  /* ---------------------------------------------------------------
+     Primitive form/bottoni del modulo. I template usano i nomi hub-*
+     ma nessun CSS globale li definisce: valgono solo dove è incluso
+     questo partial (le pagine Suggestion Corner).
+     --------------------------------------------------------------- */
+  .hub-btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;
+    padding:.5rem .9rem;border-radius:8px;border:1px solid var(--border);
+    background:var(--surface);color:var(--text);font:inherit;font-size:var(--fs-sm);
+    font-weight:600;line-height:1.2;cursor:pointer;text-decoration:none;white-space:nowrap;
+    transition:background .15s,border-color .15s,color .15s,box-shadow .15s}
+  .hub-btn:hover{border-color:var(--primary-mid);color:var(--primary-mid)}
+  .hub-btn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-light);border-color:var(--accent)}
+  .hub-btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .hub-btn-primary:hover{background:color-mix(in srgb,var(--accent) 85%,#000);
+    border-color:color-mix(in srgb,var(--accent) 85%,#000);color:#fff}
+  .hub-btn-sm{padding:.3rem .6rem;font-size:var(--fs-xs);border-radius:6px}
+  .hub-btn-danger{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 30%,transparent)}
+  .hub-btn-danger:hover{background:var(--danger-bg);border-color:var(--danger);color:var(--danger)}
+
+  .hub-form-stack{display:flex;flex-direction:column;gap:.85rem;margin:0}
+  .hub-field{display:flex;flex-direction:column;gap:.3rem;min-width:0}
+  .hub-field > label{font-size:var(--fs-sm);font-weight:600;color:var(--text-mid)}
+  .hub-field-error{font-size:var(--fs-xs);color:var(--danger)}
+  .hub-field-error ul{margin:0;padding-left:1rem}
+  .hub-help{font-size:var(--fs-sm);color:var(--text-light);margin:0}
+
+  .sc-card input[type="text"],.sc-card input[type="email"],.sc-card input[type="number"],
+  .sc-card input[type="date"],.sc-card select,.sc-card textarea{
+    width:100%;box-sizing:border-box;padding:.5rem .65rem;border:1px solid var(--border);
+    border-radius:8px;background:var(--surface);color:var(--text);font:inherit;
+    font-size:var(--fs-sm);transition:border-color .15s,box-shadow .15s}
+  .sc-card input:focus,.sc-card select:focus,.sc-card textarea:focus{
+    outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-light)}
+
+  .hub-alert{padding:.6rem .85rem;border-radius:8px;border:1px solid var(--border);
+    background:var(--bg);color:var(--text-mid);font-size:var(--fs-sm);margin-bottom:var(--space-3)}
+  .hub-alert-success{background:var(--success-bg);color:var(--success);
+    border-color:color-mix(in srgb,var(--success) 30%,transparent)}
+  .hub-alert-error,.hub-alert-danger{background:var(--danger-bg);color:var(--danger);
+    border-color:color-mix(in srgb,var(--danger) 30%,transparent)}
+  .hub-alert-warning{background:var(--warning-bg);color:var(--warning);
+    border-color:color-mix(in srgb,var(--warning) 30%,transparent)}
+
+  /* --- Console di gestione: rifinitura --- */
+  .sc-page-head .sc-sub{margin:.3rem 0 0;color:var(--text-mid);font-size:var(--fs-sm)}
+  .sc-sec-lab{display:block;font-size:var(--fs-2xs);font-weight:700;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--text-light);margin:0 0 .5rem}
+  .sc-kpi{margin-bottom:var(--space-4)}
+  .sc-kpi .sc-stat{position:relative;overflow:hidden;padding-left:1.15rem;cursor:default}
+  .sc-kpi .sc-stat::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;
+    background:var(--primary-mid);opacity:.55}
+  .sc-kpi .sc-stat.warn::before{background:var(--warning);opacity:1}
+  .sc-kpi .sc-stat.danger::before{background:var(--danger);opacity:1}
+  .sc-kpi .sc-stat.ok::before{background:var(--success);opacity:1}
+  .sc-kpi a.sc-stat{cursor:pointer}
+  .sc-kpi a.sc-stat:hover{transform:translateY(-1px);border-color:var(--accent)}
+  .sc-kpi .sc-stat.is-zero .n{color:var(--text-light)}
+
+  .sc-card-head{display:flex;align-items:center;justify-content:space-between;gap:.5rem;
+    font-weight:600}
+  .sc-card-head .sc-count{font-size:var(--fs-xs);font-weight:700;color:var(--text-light);
+    background:var(--bg);border:1px solid var(--border);border-radius:999px;padding:.05rem .5rem}
+
+  .sc-blank{display:flex;align-items:center;gap:.6rem;padding:1.1rem;border:1px dashed var(--border);
+    border-radius:8px;color:var(--text-light);font-size:var(--fs-sm)}
+  .sc-blank .ico{font-size:1.2rem;opacity:.6}
+
+  /* Cadenza solleciti: la linea del tempo dei promemoria (firma della pagina) */
+  .sc-cadenza{margin:0 0 .35rem;padding:.2rem 0}
+  .sc-cadenza .rail{position:relative;height:2px;background:var(--border);
+    margin:2.9rem 2.4rem .4rem}
+  .sc-cadenza .mk{position:absolute;top:50%;transform:translate(-50%,-50%);text-align:center;
+    white-space:nowrap;width:9px;height:9px}
+  .sc-cadenza .mk .pt{display:block;width:9px;height:9px;border-radius:999px;
+    background:var(--primary-mid);border:2px solid var(--surface);
+    box-shadow:0 0 0 1px var(--primary-mid);box-sizing:border-box}
+  .sc-cadenza .mk .tx{position:absolute;left:50%;transform:translateX(-50%);bottom:14px;
+    font-size:var(--fs-2xs);font-weight:700;color:var(--text-light);letter-spacing:.03em;
+    line-height:1.35}
+  .sc-cadenza .mk.due .pt{background:var(--accent);box-shadow:0 0 0 1px var(--accent),0 0 0 4px var(--accent-light)}
+  .sc-cadenza .mk.due .tx{color:var(--accent)}
+  .sc-cadenza .mk.esc .pt{background:var(--danger);box-shadow:0 0 0 1px var(--danger)}
+  .sc-cadenza .mk.esc .tx{color:var(--danger)}
+  .sc-cadenza .mk .tx small{display:block;font-weight:600;text-transform:none;letter-spacing:0;
+    color:var(--text-light)}
+  .sc-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem}
+
+  /* Team SMS */
+  .sc-team{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.35rem}
+  .sc-team li{display:flex;align-items:center;gap:.6rem;padding:.4rem .5rem;border-radius:8px;
+    border:1px solid transparent}
+  .sc-team li:hover{background:var(--bg);border-color:var(--border)}
+  .sc-team .av{width:28px;height:28px;flex:0 0 28px;border-radius:999px;display:flex;
+    align-items:center;justify-content:center;font-size:var(--fs-xs);font-weight:700;
+    background:var(--accent-light);color:var(--accent);
+    border:1px solid color-mix(in srgb,var(--accent) 25%,transparent)}
+  .sc-team .nm{flex:1;min-width:0;font-weight:600;font-size:var(--fs-sm);overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap}
+  .sc-team form{margin:0}
+  .sc-addrow{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-top:.75rem}
+  .sc-addrow select{flex:1;min-width:200px}
+
+  /* Pagina di modifica: griglia sezioni + barra azioni persistente */
+  .hub-form-actions{display:flex;gap:.6rem;align-items:center}
+  .sc-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem 1.15rem}
+  @media (max-width:720px){.sc-form-grid{grid-template-columns:1fr}}
+  .sc-form-grid .hub-col-full{grid-column:1/-1}
+  .sc-actions-bar{position:sticky;bottom:0;display:flex;flex-wrap:wrap;align-items:center;
+    justify-content:flex-end;gap:.6rem;padding:.9rem 1.15rem;margin-top:var(--space-4);
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    box-shadow:var(--shadow)}
+  .sc-actions-bar .note{margin-right:auto;color:var(--text-light);font-size:var(--fs-sm)}
 </style>

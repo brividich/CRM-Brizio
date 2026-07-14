@@ -2122,6 +2122,7 @@ def _load_personal(name: str, email: str, limit: int = 20) -> list[dict]:
 
     _note_col = ", note_gestione" if _has_assenze_column("note_gestione") else ""
     _cert_col = ", certificato_medico" if _has_assenze_column("certificato_medico") else ""
+    _creata_col = ", created_datetime" if _has_assenze_column("created_datetime") else ""
     base_sql = f"""
         SELECT
             id,
@@ -2130,7 +2131,7 @@ def _load_personal(name: str, email: str, limit: int = 20) -> list[dict]:
             data_fine,
             consenso,
             motivazione_richiesta,
-            moderation_status{_note_col}{_cert_col}
+            moderation_status{_note_col}{_cert_col}{_creata_col}
         FROM assenze
         WHERE ({' OR '.join(clauses)})
     """
@@ -2161,6 +2162,7 @@ def _load_personal(name: str, email: str, limit: int = 20) -> list[dict]:
                 "note_gestione": str(row.get("note_gestione") or ""),
                 "moderation_status": moderation_status,
                 "moderation_label": moderation_label,
+                "creata_label": _dt_label(row.get("created_datetime")),
             }
         )
     return out
@@ -2328,6 +2330,7 @@ def _load_pending_for_manager(
 
     _cert_col = ", a.certificato_medico" if _has_assenze_column("certificato_medico") else ""
     _utente_col = ", a.utente_id" if _has_assenze_column("utente_id") else ""
+    _creata_col = ", a.created_datetime" if _has_assenze_column("created_datetime") else ""
     base_sql = f"""
         SELECT
             a.id,
@@ -2337,7 +2340,7 @@ def _load_pending_for_manager(
             a.data_fine,
             a.consenso,
             a.moderation_status,
-            a.motivazione_richiesta{_cert_col}{_utente_col}
+            a.motivazione_richiesta{_cert_col}{_utente_col}{_creata_col}
         FROM assenze a
         {join_sql}
         WHERE {manager_where_sql}
@@ -2363,6 +2366,7 @@ def _load_pending_for_manager(
                 "legacy_user_id": row.get("utente_id"),
                 "data_inizio_raw": row.get("data_inizio"),
                 "data_fine_raw":   row.get("data_fine"),
+                "creata_label": _dt_label(row.get("created_datetime")),
             }
         )
     _attach_corsi_conflicts(out)
@@ -2500,6 +2504,7 @@ def _load_all_pending(limit: int = 100) -> list[dict]:
         return []
     _cert_col = ", a.certificato_medico" if _has_assenze_column("certificato_medico") else ""
     _utente_col = ", a.utente_id" if _has_assenze_column("utente_id") else ""
+    _creata_col = ", a.created_datetime" if _has_assenze_column("created_datetime") else ""
     base_sql = f"""
         SELECT
             a.id,
@@ -2509,7 +2514,7 @@ def _load_all_pending(limit: int = 100) -> list[dict]:
             a.data_fine,
             a.consenso,
             a.moderation_status,
-            a.motivazione_richiesta{_cert_col}{_utente_col}
+            a.motivazione_richiesta{_cert_col}{_utente_col}{_creata_col}
         FROM assenze a
         WHERE COALESCE(a.moderation_status, 2) = 2
     """
@@ -2532,6 +2537,7 @@ def _load_all_pending(limit: int = 100) -> list[dict]:
                 "legacy_user_id":  row.get("utente_id"),
                 "data_inizio_raw": row.get("data_inizio"),
                 "data_fine_raw":   row.get("data_fine"),
+                "creata_label": _dt_label(row.get("created_datetime")),
             }
         )
     _attach_corsi_conflicts(out)
@@ -3508,20 +3514,13 @@ def richiesta_assenze(request):
 @login_required
 @ensure_csrf_cookie
 def gestione_assenze(request):
-    can_manage_branding = user_can_modulo_action(request, "assenze", "admin_assenze")
-    if request.method == "POST":
-        if not can_manage_branding:
-            return HttpResponseForbidden("Permessi insufficienti: branding modulo non consentito.")
-        branding_response = handle_module_branding_post(
-            request,
-            module_key="assenze",
-            redirect_to="assenze_gestione",
-            audit_module="assenze",
-            fallback_label="Assenze",
-        )
-        if branding_response is not None:
-            return branding_response
+    """Pagina personale «Le mie richieste» (tutti gli utenti).
 
+    Mostra lo storico delle proprie richieste (con modifica/eliminazione finché in
+    attesa) e, per i soli capi reparto/CAR, la coda «Richieste da approvare» del
+    proprio reparto. Il pannello amministrativo vive nella pagina Impostazioni
+    (`impostazioni_admin`), riservata all'HR-admin.
+    """
     name, email, legacy_id = _legacy_identity(request)
     if _sync_on_page_load_enabled():
         _maybe_pull(force=False)
@@ -3543,6 +3542,7 @@ def gestione_assenze(request):
             manager_email=email,
         )
     richieste_personali = _load_personal(name, email, limit=40)
+
     return render(
         request,
         "assenze/pages/gestione_assenze.html",
@@ -3552,7 +3552,59 @@ def gestione_assenze(request):
             "summary_personali": _summarize_personal_requests(richieste_personali),
             "summary_da_approvare": _summarize_pending_requests(richieste_da_approvare),
             "ruolo_corrente": "",
-            "can_manage_module_branding": can_manage_branding,
+            **get_module_branding_context("assenze", fallback_label="Assenze"),
+            **_template_perm_context(request),
+        },
+    )
+
+
+@login_required
+@ensure_csrf_cookie
+def impostazioni_admin(request):
+    """Pagina «Impostazioni» del modulo assenze — riservata all'HR-admin.
+
+    Contiene il pannello amministrativo (statistiche globali, gestione di TUTTE le
+    assenze con Approva/Rifiuta/Elimina, log attività) e il branding di modulo.
+    Gate: capability ACL `admin_assenze`. I profili non-admin vengono rimandati alla
+    pagina personale «Le mie richieste».
+    """
+    if not user_can_modulo_action(request, "assenze", "admin_assenze"):
+        from django.shortcuts import redirect
+        return redirect("assenze_gestione")
+
+    if request.method == "POST":
+        branding_response = handle_module_branding_post(
+            request,
+            module_key="assenze",
+            redirect_to="assenze_impostazioni",
+            audit_module="assenze",
+            fallback_label="Assenze",
+        )
+        if branding_response is not None:
+            return branding_response
+
+    perms = _assenze_permissions(request)
+    admin_q = (request.GET.get("q_admin") or "").strip()
+    admin_overview = _admin_assenze_overview(admin_q)
+    admin_audit_entries = list(
+        AuditLog.objects.filter(modulo="assenze").order_by("-created_at")[:100]
+    )
+
+    return render(
+        request,
+        "assenze/pages/impostazioni.html",
+        {
+            "is_assenze_admin": True,
+            "can_manage_module_branding": True,
+            "admin_q": admin_q,
+            "admin_tabella_ok": admin_overview.get("tabella_ok", False),
+            "admin_stats": admin_overview.get("stats"),
+            "admin_by_tipo": admin_overview.get("by_tipo"),
+            "admin_sync_info": admin_overview.get("sync_info"),
+            "admin_assenze": admin_overview.get("assenze"),
+            "admin_audit_entries": admin_audit_entries,
+            "admin_can_moderate": perms.get("can_update_any", False),
+            "admin_can_delete": perms.get("can_delete_any", False),
             **get_module_branding_context("assenze", fallback_label="Assenze"),
             **_template_perm_context(request),
         },
@@ -3863,6 +3915,56 @@ def api_car_aggiorna_consenso(request, item_id: int):
         sync_result = _sync_one_to_sharepoint(item_id, force_update=True)
 
     return JsonResponse({"ok": True, "item_id": item_id, "consenso": consenso, "note_gestione": note_gestione, "sync": sync_result})
+
+
+@login_required
+@require_http_methods(["POST"])
+def api_admin_assenza_delete(request, item_id: int):
+    """API admin: elimina una qualsiasi assenza registrando una nota obbligatoria nel log."""
+    perms = _assenze_permissions(request)
+    if not perms.get("can_delete_any"):
+        return _json_error("Permessi insufficienti: solo l'amministrazione può eliminare le assenze.", status=403)
+
+    current = _get_assenza(item_id)
+    if not current:
+        return _json_error("Record non trovato.", status=404)
+
+    payload = _request_json(request)
+    note_raw = (payload.get("note_gestione") if payload else None)
+    if note_raw is None:
+        note_raw = request.POST.get("note_gestione", "")
+    note_gestione = str(note_raw or "").strip()
+    if not note_gestione:
+        return _json_error("La nota è obbligatoria per eliminare un'assenza.", status=400)
+
+    sp_id = str(current.get("sharepoint_item_id") or "").strip()
+    if sp_id and _graph_configured():
+        ok, err = _graph_delete(sp_id)
+        if not ok:
+            return _json_error(f"Errore eliminazione SharePoint: {err}", status=502)
+
+    if not _delete_assenza(item_id):
+        return _json_error("Eliminazione non riuscita.", status=500)
+
+    # --- Audit log ---
+    try:
+        log_action(request, "assenza_eliminata", "assenze", {
+            "item_id": item_id,
+            "dipendente": str(current.get("copia_nome") or ""),
+            "tipo": _tipo_for_display(current.get("tipo_assenza"), current.get("motivazione_richiesta")),
+            "note_gestione": note_gestione,
+        })
+    except Exception:
+        pass
+
+    # Notifica eliminazione (best-effort), coerente con api_evento_delete.
+    if _as_int(current.get("moderation_status")) == 0:
+        try:
+            _notify_assenza_deleted(request, current)
+        except Exception:
+            logger.warning("api_admin_assenza_delete: notifica fallita per id=%s", item_id, exc_info=True)
+
+    return JsonResponse({"ok": True, "item_id": item_id})
 
 
 @login_required
@@ -4518,100 +4620,88 @@ def export_gestione_assenze_csv(request):
     return _csv_streaming_response(row_iter(), headers, "mie_assenze.csv")
 
 
+def _admin_assenze_overview(q: str = "") -> dict:
+    """Panoramica admin del modulo assenze: statistiche globali, distribuzione per
+    tipo e ultimi 100 record (filtrabili per dipendente/tipo).
+
+    Condivisa dal pannello admin unificato nelle Impostazioni assenze.
+    """
+    tabella_ok = _table_exists("assenze")
+    stats = {"total": 0, "in_attesa": 0, "approvate": 0, "rifiutate": 0}
+    by_tipo: list[dict] = []
+    sync_info = {"last_pull": cache.get(_SYNC_PULL_LAST_TS_KEY)}
+    assenze: list[dict] = []
+    if not tabella_ok:
+        return {"tabella_ok": False, "stats": stats, "by_tipo": by_tipo, "sync_info": sync_info, "assenze": assenze}
+
+    def _count_sql(where=""):
+        sql = "SELECT COUNT(*) FROM assenze" + (f" WHERE {where}" if where else "")
+        with connections["default"].cursor() as cur:
+            cur.execute(sql)
+            return cur.fetchone()[0]
+
+    stats["total"] = _count_sql()
+    stats["in_attesa"] = _count_sql("COALESCE(moderation_status, 2) = 2")
+    stats["approvate"] = _count_sql("COALESCE(moderation_status, 2) = 0")
+    stats["rifiutate"] = _count_sql("COALESCE(moderation_status, 2) = 1")
+
+    tipo_sql = _select_limited(
+        "SELECT tipo_assenza, motivazione_richiesta, COUNT(*) AS n FROM assenze GROUP BY tipo_assenza, motivazione_richiesta",
+        "ORDER BY n DESC",
+        30,
+    )
+    by_tipo_counts: dict[str, int] = {}
+    for row in _fetch_all_dict(tipo_sql):
+        tipo_label = _tipo_for_display(row.get("tipo_assenza"), row.get("motivazione_richiesta"))
+        by_tipo_counts[tipo_label] = by_tipo_counts.get(tipo_label, 0) + int(row.get("n") or 0)
+    by_tipo = [
+        {"tipo_assenza": tipo, "n": count}
+        for tipo, count in sorted(by_tipo_counts.items(), key=lambda item: (-item[1], item[0]))
+    ]
+
+    where_parts: list[str] = []
+    params: list = []
+    q = str(q or "").strip()
+    if q:
+        where_parts.append("(UPPER(COALESCE(copia_nome,'')) LIKE UPPER(%s) OR UPPER(COALESCE(tipo_assenza,'')) LIKE UPPER(%s))")
+        params.extend([f"%{q}%", f"%{q}%"])
+    where_clause = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
+    base_sql = f"""
+        SELECT
+            id, copia_nome AS dipendente, tipo_assenza,
+            data_inizio, data_fine, consenso,
+            moderation_status, motivazione_richiesta
+        FROM assenze
+        {where_clause}
+    """
+    # Carichiamo l'intero dataset (cap allineato al limite di merge del sistema
+    # tabelle, 5000 righe): la ricerca/filtri/ordinamento del pannello sono
+    # client-side (fm-table-enhanced), quindi devono avere tutte le righe in
+    # pagina per coprire l'intero storico e non solo gli ultimi record.
+    sql = _select_limited(base_sql, "ORDER BY data_inizio DESC, id DESC", 5000)
+    for row in _fetch_all_dict(sql, params):
+        _, mod_label = _status_from_moderation(row.get("moderation_status"), default_pending=True)
+        assenze.append({
+            "id": row.get("id"),
+            "dipendente": str(row.get("dipendente") or "N/D"),
+            "tipo": _tipo_for_display(row.get("tipo_assenza"), row.get("motivazione_richiesta")),
+            "stato_label": mod_label,
+            "moderation_status": row.get("moderation_status"),
+            "inizio_label": _dt_label(row.get("data_inizio")),
+            "fine_label": _dt_label(row.get("data_fine")),
+            "motivo": _strip_tipo_metadata_from_motivazione(row.get("motivazione_richiesta")),
+        })
+    return {"tabella_ok": True, "stats": stats, "by_tipo": by_tipo, "sync_info": sync_info, "assenze": assenze}
+
+
 @legacy_admin_required
 def gestione_admin(request):
-    """Pagina di gestione interna Assenze — accesso solo admin."""
-    tab = request.GET.get("tab", "riepilogo")
+    """Deprecato: il pannello admin è ora unificato nelle Impostazioni assenze.
 
-    tabella_ok = _table_exists("assenze")
-
-    # --- Statistiche ---
-    stats = {"total": 0, "in_attesa": 0, "approvate": 0, "rifiutate": 0}
-    by_tipo = []
-    sync_info = {
-        "last_pull": cache.get(_SYNC_PULL_LAST_TS_KEY),
-    }
-
-    if tabella_ok:
-        def _count_sql(where=""):
-            sql = "SELECT COUNT(*) FROM assenze" + (f" WHERE {where}" if where else "")
-            with connections["default"].cursor() as cur:
-                cur.execute(sql)
-                return cur.fetchone()[0]
-
-        stats["total"] = _count_sql()
-        stats["in_attesa"] = _count_sql("COALESCE(moderation_status, 2) = 2")
-        stats["approvate"] = _count_sql("COALESCE(moderation_status, 2) = 0")
-        stats["rifiutate"] = _count_sql("COALESCE(moderation_status, 2) = 1")
-
-        tipo_sql = _select_limited(
-            "SELECT tipo_assenza, motivazione_richiesta, COUNT(*) AS n FROM assenze GROUP BY tipo_assenza, motivazione_richiesta",
-            "ORDER BY n DESC",
-            30,
-        )
-        by_tipo_counts: dict[str, int] = {}
-        for row in _fetch_all_dict(tipo_sql):
-            tipo_label = _tipo_for_display(row.get("tipo_assenza"), row.get("motivazione_richiesta"))
-            by_tipo_counts[tipo_label] = by_tipo_counts.get(tipo_label, 0) + int(row.get("n") or 0)
-        by_tipo = [
-            {"tipo_assenza": tipo, "n": count}
-            for tipo, count in sorted(by_tipo_counts.items(), key=lambda item: (-item[1], item[0]))
-        ]
-
-    # --- Record: tutte le assenze ---
-    q = request.GET.get("q", "").strip()
-    assenze = []
-    if tabella_ok:
-        where_parts = []
-        params = []
-        if q:
-            where_parts.append("(UPPER(COALESCE(copia_nome,'')) LIKE UPPER(%s) OR UPPER(COALESCE(tipo_assenza,'')) LIKE UPPER(%s))")
-            params.extend([f"%{q}%", f"%{q}%"])
-        where_clause = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
-        base_sql = f"""
-            SELECT
-                id, copia_nome AS dipendente, tipo_assenza,
-                data_inizio, data_fine, consenso,
-                moderation_status, motivazione_richiesta
-            FROM assenze
-            {where_clause}
-        """
-        sql = _select_limited(base_sql, "ORDER BY data_inizio DESC, id DESC", 100)
-        rows = _fetch_all_dict(sql, params)
-        for row in rows:
-            _, mod_label = _status_from_moderation(row.get("moderation_status"), default_pending=True)
-            assenze.append({
-                "id": row.get("id"),
-                "dipendente": str(row.get("dipendente") or "N/D"),
-                "tipo": _tipo_for_display(row.get("tipo_assenza"), row.get("motivazione_richiesta")),
-                "stato_label": mod_label,
-                "moderation_status": row.get("moderation_status"),
-                "inizio_label": _dt_label(row.get("data_inizio")),
-                "fine_label": _dt_label(row.get("data_fine")),
-                "motivo": _strip_tipo_metadata_from_motivazione(row.get("motivazione_richiesta")),
-            })
-
-    # --- Log ---
-    audit_entries = AuditLog.objects.filter(modulo="assenze").order_by("-created_at")[:100]
-
-    return render(
-        request,
-        "assenze/pages/gestione_admin.html",
-        {
-            "page_title": "Gestione Assenze",
-            "tab": tab,
-            "tabella_ok": tabella_ok,
-            # stats
-            "stats": stats,
-            "by_tipo": by_tipo,
-            "sync_info": sync_info,
-            # records
-            "assenze": assenze,
-            "q": q,
-            # log
-            "audit_entries": audit_entries,
-        },
-    )
+    Mantenuto come redirect per retrocompatibilità di eventuali bookmark/URL.
+    """
+    from django.shortcuts import redirect
+    return redirect("assenze_impostazioni")
 
 
 # ---------------------------------------------------------------------------

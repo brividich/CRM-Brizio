@@ -1,19 +1,41 @@
 {% with current=request.resolver_match.url_name %}
-<div class="subnav">
-  <a class="sub-a{% if current == 'assenze_menu' %} active{% endif %}" href="{% url 'assenze_menu' %}">Menu</a>
-  <div class="sub-sep"></div>
-  <a class="sub-a{% if current == 'assenze_richiesta' %} active{% endif %}" href="{% url 'assenze_richiesta' %}">Nuova richiesta</a>
-  <a class="sub-a{% if current == 'assenze_gestione' %} active{% endif %}" href="{% url 'assenze_gestione' %}">Impostazioni</a>
+<nav class="abs-subnav" aria-label="Navigazione modulo assenze">
+  <a class="abs-subnav-link{% if current == 'assenze_menu' %} active{% endif %}" href="{% url 'assenze_menu' %}">
+    <svg aria-hidden="true"><use href="#abs-i-grid"></use></svg>Menu
+  </a>
+  <span class="abs-subnav-sep"></span>
+  <a class="abs-subnav-link{% if current == 'assenze_richiesta' %} active{% endif %}" href="{% url 'assenze_richiesta' %}">
+    <svg aria-hidden="true"><use href="#abs-i-plus-file"></use></svg>Nuova richiesta
+  </a>
+  <a class="abs-subnav-link{% if current == 'assenze_gestione' %} active{% endif %}" href="{% url 'assenze_gestione' %}">
+    <svg aria-hidden="true"><use href="#abs-i-clipboard"></use></svg>Le mie richieste
+  </a>
   {% if assenze_can_view_calendar %}
-    <a class="sub-a{% if current == 'assenze_calendario' %} active{% endif %}" href="{% url 'assenze_calendario' %}">Calendario</a>
+    <a class="abs-subnav-link{% if current == 'assenze_calendario' %} active{% endif %}" href="{% url 'assenze_calendario' %}">
+      <svg aria-hidden="true"><use href="#abs-i-calendar"></use></svg>Calendario
+    </a>
   {% endif %}
   {% if assenze_can_edit_events %}
-    <a class="sub-a{% if current == 'assenze_car_dashboard' %} active{% endif %}" href="{% url 'assenze_car_dashboard' %}">Segnalazioni{% if car_pending_count %}<span style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:999px;background:#dc2626;color:#fff;font-size:10px;font-weight:700;padding:0 4px;margin-left:5px;vertical-align:middle;">{{ car_pending_count }}</span>{% endif %}</a>
+    <a class="abs-subnav-link{% if current == 'assenze_car_dashboard' %} active{% endif %}" href="{% url 'assenze_car_dashboard' %}">
+      <svg aria-hidden="true"><use href="#abs-i-bell"></use></svg>Segnalazioni{% if car_pending_count %}<span class="abs-subnav-badge">{{ car_pending_count }}</span>{% endif %}
+    </a>
   {% endif %}
-  <a class="sub-a{% if current == 'assenze_certifica_presenza' %} active{% endif %}" href="{% url 'assenze_certifica_presenza' %}">Certifica presenza</a>
+  <a class="abs-subnav-link{% if current == 'assenze_certifica_presenza' %} active{% endif %}" href="{% url 'assenze_certifica_presenza' %}">
+    <svg aria-hidden="true"><use href="#abs-i-user-check"></use></svg>Certifica presenza
+  </a>
   {% if assenze_can_reconcile %}
-    <a class="sub-a{% if current == 'assenze_riconciliazione' %} active{% endif %}" href="{% url 'assenze_riconciliazione' %}">Riconciliazione</a>
+    <a class="abs-subnav-link{% if current == 'assenze_riconciliazione' %} active{% endif %}" href="{% url 'assenze_riconciliazione' %}">
+      <svg aria-hidden="true"><use href="#abs-i-sync"></use></svg>Riconciliazione
+    </a>
   {% endif %}
-  <a class="sub-a" href="{% url 'dashboard_home' %}">Dashboard</a>
-</div>
+  {% if assenze_is_admin %}
+    <a class="abs-subnav-link{% if current == 'assenze_impostazioni' %} active{% endif %}" href="{% url 'assenze_impostazioni' %}">
+      <svg aria-hidden="true"><use href="#abs-i-settings"></use></svg>Impostazioni
+    </a>
+  {% endif %}
+  <span class="abs-subnav-spacer"></span>
+  <a class="abs-subnav-link" href="{% url 'dashboard_home' %}">
+    <svg aria-hidden="true"><use href="#abs-i-chart"></use></svg>Dashboard
+  </a>
+</nav>
 {% endwith %}

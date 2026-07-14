@@ -1,0 +1,7 @@
+{# Campo singolo del form-kit hub-. Uso: {% include "suggestion_corner/partials/_sc_field.html" with field=form.x only %} #}
+<div class="hub-field{% if field.errors %} hub-field-err{% endif %}{% if full %} hub-col-full{% endif %}">
+  <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %}<i class="hub-req">*</i>{% endif %}</label>
+  {{ field }}
+  {% if field.help_text %}<small class="hub-help">{{ field.help_text }}</small>{% endif %}
+  {% for e in field.errors %}<div class="hub-err">{{ e }}</div>{% endfor %}
+</div>

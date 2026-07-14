@@ -5,15 +5,27 @@
 /* ── Card form ────────────────────────────────────────────── */
 .fmd-form-sec{ padding:18px 22px 20px; border-top:1px solid var(--fmd-line-soft,#eef2f7); }
 .fmd-form-sec:first-child{ border-top:none; }
-.fmd-form-sec-h{ display:flex; align-items:center; gap:9px; margin-bottom:15px; }
-.fmd-form-sec-h .fmd-ico{ font-size:16px; color:var(--fmd-cyan,#1f87cd); }
+.fmd-form-sec-h{ display:flex; align-items:center; gap:11px; margin-bottom:15px; }
+/* Chip icona sezione: tinta alternata cyan/orange (identità visiva per sezione,
+   entrambe leggibili in dark mode — niente --fmd-navy qui, è sovraccarico e
+   sparisce su sfondo scuro, vedi nota dark mode più sotto). */
+.fmd-form-sec-h .fmd-ico{
+  font-size:15px; width:30px; height:30px; padding:7px; box-sizing:border-box;
+  border-radius:9px; flex:0 0 auto;
+}
+.fmd-form-sec:nth-of-type(odd) .fmd-form-sec-h .fmd-ico{ background:rgba(31,135,205,.14); color:var(--fmd-cyan,#1f87cd); }
+.fmd-form-sec:nth-of-type(even) .fmd-form-sec-h .fmd-ico{ background:rgba(255,138,31,.14); color:var(--fmd-orange,#ff8a1f); }
 .fmd-form-sec-t{ font-family:var(--fmd-mono,ui-monospace,Consolas,monospace); font-size:11px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--fmd-navy,#0c2545); }
-.fmd-form-sec-n{ margin-left:auto; font-size:11.5px; font-weight:600; color:var(--fmd-muted-2,#94a3b8); }
+.fmd-form-sec-n{ margin-left:auto; padding:2px 9px; border-radius:20px; background:var(--fmd-line-soft,#eef2f7); font-size:11px; font-weight:700; color:var(--fmd-muted,#6b7a90); }
 
 /* ── Griglia campi ────────────────────────────────────────── */
 .fmd-grid{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:15px 18px; }
 .fmd-grid-3{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:15px 18px; }
 .fmd-col-full{ grid-column:1 / -1; }
+/* Stack verticale (una colonna): campi impilati, layout intuitivo per-sezione */
+.fmd-stack{ display:flex; flex-direction:column; gap:14px; }
+/* Descrizione sezione: spiega cosa inserire (sotto l'header di sezione) */
+.fmd-form-sec-d{ margin:-7px 0 14px; font-size:12px; color:var(--fmd-muted,#6b7a90); line-height:1.5; }
 /* I campi con textarea o select multipla occupano l'intera riga (progressive enhancement) */
 .fmd-grid .fmd-field:has(textarea),
 .fmd-grid-3 .fmd-field:has(textarea),
@@ -46,6 +58,7 @@
 .fmd-checks{ display:flex; flex-wrap:wrap; gap:10px; }
 .fmd-check{ display:inline-flex; align-items:center; gap:9px; padding:9px 13px; border:1px solid var(--fmd-line,#e7edf3); border-radius:9px; background:#fafbfd; cursor:pointer; font-size:12.5px; font-weight:600; color:var(--fmd-ink,#2d3a55); transition:border-color .15s, background .15s; }
 .fmd-check:hover{ border-color:#cfd9ea; }
+.fmd-check:has(input:checked){ border-color:var(--fmd-cyan,#1f87cd); background:rgba(31,135,205,.08); }
 .fmd-check input[type=checkbox], .fmd-check input[type=radio]{ width:16px; height:16px; margin:0; accent-color:var(--fmd-cyan,#1f87cd); flex:0 0 auto; }
 
 /* ── Footer azioni ────────────────────────────────────────── */
@@ -74,6 +87,11 @@
 body.theme-dark .fmd-form-sec{ border-top-color:var(--border); }
 body.theme-dark .fmd-form-sec-t,
 body.theme-dark .fmd-modal-head strong{ color:var(--text); }
+/* Chip icona: tinte leggermente più sature per restare leggibili su sfondo scuro */
+body.theme-dark .fmd-form-sec:nth-of-type(odd) .fmd-form-sec-h .fmd-ico{ background:rgba(31,135,205,.22); }
+body.theme-dark .fmd-form-sec:nth-of-type(even) .fmd-form-sec-h .fmd-ico{ background:rgba(255,138,31,.22); }
+body.theme-dark .fmd-form-sec-n{ background:var(--surface-alt,#17222f); color:var(--text-mid,#94a3b8); }
+body.theme-dark .fmd-check:has(input:checked){ background:rgba(31,135,205,.14); }
 body.theme-dark .fmd-field input:not([type=checkbox]):not([type=radio]):not([type=file]),
 body.theme-dark .fmd-field select,
 body.theme-dark .fmd-field textarea{

@@ -1,0 +1,295 @@
+{% load static %}
+{% comment %}
+  Pannello admin unificato del modulo Assenze (ex pagina "Gestione admin").
+  Incluso nelle Impostazioni assenze. Richiede in context:
+    is_assenze_admin, admin_tabella_ok, admin_stats, admin_by_tipo,
+    admin_sync_info, admin_assenze, admin_q, admin_audit_entries,
+    admin_can_moderate, admin_can_delete
+  Le azioni chiamano gli endpoint esistenti (moderazione/eliminazione) via fetch.
+{% endcomment %}
+{% if is_assenze_admin %}
+  <style>
+    /* ── Azioni record ──────────────────────────────────────────────────────── */
+    .ga-row-actions { display:flex; gap:6px; flex-wrap:wrap; }
+    .ga-act { border:1px solid #cbd5e1; background:#fff; color:#0f172a; border-radius:8px; padding:5px 10px; font-size:12px; font-weight:800; cursor:pointer; font-family:inherit; transition:background .15s ease, border-color .15s ease; }
+    .ga-act:hover { background:#f1f5f9; }
+    .ga-act-approve { border-color:#86efac; color:#15803d; }
+    .ga-act-approve:hover { background:#f0fdf4; }
+    .ga-act-reject { border-color:#fca5a5; color:#b91c1c; }
+    .ga-act-reject:hover { background:#fef2f2; }
+    .ga-act-delete { border-color:#e2e8f0; color:#64748b; }
+    .ga-act-delete:hover { background:#f8fafc; }
+
+    .ga-log-row { display:grid; grid-template-columns:140px 120px 150px 1fr; gap:10px; padding:10px 12px; border-bottom:1px solid #eef2f7; font-size:13px; }
+    .ga-log-row:last-child { border-bottom:none; }
+    .ga-log-head { font-size:11px; text-transform:uppercase; letter-spacing:.08em; font-weight:800; color:#94a3b8; background:#f8fafc; }
+
+    /* ── Modal conferma ─────────────────────────────────────────────────────── */
+    #ga-modal-overlay { position:fixed; inset:0; background:rgba(15,23,42,.5); display:none; align-items:center; justify-content:center; padding:20px; z-index:1000; }
+    #ga-modal-overlay.open { display:flex; }
+    #ga-modal { width:100%; max-width:480px; background:#fff; border-radius:16px; overflow:hidden; box-shadow:0 24px 60px rgba(15,23,42,.28); }
+    .ga-modal-head { padding:18px 20px 14px; border-bottom:1px solid #eef2f7; }
+    .ga-modal-head h3 { margin:0; font-size:19px; font-weight:900; color:#0f172a; }
+    .ga-modal-head p { margin:6px 0 0; font-size:13px; color:#64748b; line-height:1.5; }
+    .ga-modal-body { padding:16px 20px 20px; display:grid; gap:12px; }
+    .ga-modal-field { display:grid; gap:6px; }
+    .ga-modal-field label { font-size:12px; font-weight:800; color:#475569; }
+    .ga-modal-field textarea { width:100%; min-height:84px; resize:vertical; border:1px solid #cbd5e1; border-radius:10px; padding:9px 11px; font-family:inherit; font-size:13px; box-sizing:border-box; }
+    .ga-modal-field textarea:focus { outline:none; border-color:#0f766e; box-shadow:0 0 0 3px rgba(15,118,110,.12); }
+    #ga-modal-error { min-height:16px; font-size:12px; font-weight:700; color:#dc2626; }
+    .ga-modal-actions { display:flex; justify-content:flex-end; gap:10px; }
+    .ga-btn { border:none; border-radius:10px; padding:9px 16px; font-size:13px; font-weight:800; cursor:pointer; font-family:inherit; }
+    .ga-btn-cancel { background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; }
+    .ga-btn-confirm { background:#0f766e; color:#fff; }
+    .ga-btn-confirm.is-danger { background:#dc2626; }
+    .ga-btn-confirm:disabled { opacity:.5; cursor:not-allowed; }
+
+    /* ── Dark mode ──────────────────────────────────────────────────────────── */
+    body.theme-dark .ga-log-row { border-color:var(--border); }
+    body.theme-dark .ga-log-head { background:var(--bg); color:var(--text-light); }
+    body.theme-dark .ga-act { background:var(--surface); border-color:var(--border); color:var(--text); }
+    body.theme-dark .ga-act:hover { background:var(--surface-alt); }
+    body.theme-dark #ga-modal { background:var(--surface); }
+    body.theme-dark .ga-modal-head { border-color:var(--border); }
+    body.theme-dark .ga-modal-head h3 { color:var(--text); }
+    body.theme-dark .ga-modal-head p { color:var(--text-light); }
+    body.theme-dark .ga-modal-field label { color:var(--text-mid); }
+    body.theme-dark .ga-modal-field textarea { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+    body.theme-dark .ga-btn-cancel { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
+  </style>
+
+  <section class="abs-panel" id="admin-assenze-panel">
+    <div class="abs-panel-head">
+      <div class="abs-panel-title-wrap">
+        <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-settings"></use></svg>Gestione admin · Tutte le assenze</h2>
+        <p class="abs-panel-subtitle">Vista globale amministrativa: modera o elimina qualsiasi assenza. Ogni azione richiede una nota e viene tracciata nel log.</p>
+      </div>
+      <div class="abs-panel-meta">
+        <span class="abs-panel-badge">{{ admin_stats.total }} totali</span>
+        <span class="abs-panel-badge soft">{{ admin_stats.in_attesa }} in attesa</span>
+      </div>
+    </div>
+    <div class="abs-panel-body">
+      {% if not admin_tabella_ok %}
+        <div class="abs-alert abs-alert-warn">La tabella <strong>assenze</strong> non è disponibile nel database corrente.</div>
+      {% endif %}
+
+      <section class="abs-kpis" style="margin-bottom:14px;">
+        <article class="abs-kpi teal">
+          <div class="abs-kpi-top"><div class="abs-kpi-label">Totali</div><span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-chart"></use></svg></span></div>
+          <div class="abs-kpi-value">{{ admin_stats.total }}</div><div class="abs-kpi-note">Storico complessivo locale.</div>
+        </article>
+        <article class="abs-kpi amber">
+          <div class="abs-kpi-top"><div class="abs-kpi-label">In attesa</div><span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-hourglass"></use></svg></span></div>
+          <div class="abs-kpi-value">{{ admin_stats.in_attesa }}</div><div class="abs-kpi-note">Record da processare.</div>
+        </article>
+        <article class="abs-kpi green">
+          <div class="abs-kpi-top"><div class="abs-kpi-label">Approvate</div><span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-check"></use></svg></span></div>
+          <div class="abs-kpi-value">{{ admin_stats.approvate }}</div><div class="abs-kpi-note">Richieste confermate.</div>
+        </article>
+        <article class="abs-kpi red">
+          <div class="abs-kpi-top"><div class="abs-kpi-label">Rifiutate</div><span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-x"></use></svg></span></div>
+          <div class="abs-kpi-value">{{ admin_stats.rifiutate }}</div><div class="abs-kpi-note">Chiuse negativamente.</div>
+        </article>
+      </section>
+
+      <div class="abs-inline-actions" style="margin-bottom:12px;">
+        <span class="abs-chip">Ultima sync SharePoint</span>
+        {% if admin_sync_info.last_pull %}
+          <span class="abs-chip soft">{{ admin_sync_info.last_pull }}</span>
+        {% else %}
+          <span class="abs-chip soft">Non disponibile</span>
+        {% endif %}
+        <form method="post" action="{% url 'assenze_api_sync_pull' %}" style="display:inline;">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-secondary btn-sm">Sincronizza ora</button>
+        </form>
+      </div>
+
+      {# Nessuna ricerca custom: la barra ricerca/filtri/colonne è quella unica
+         del sistema tabelle (fm-table-enhanced), renderizzata sopra la tabella.
+         Il dataset completo è caricato lato server così la ricerca live copre
+         tutte le assenze. #}
+      <div class="abs-table-wrap">
+        <table class="abs-table">
+          <thead><tr><th>#</th><th>Dipendente</th><th>Tipo</th><th>Dal</th><th>Al</th><th>Stato</th><th>Motivo</th>{% if admin_can_moderate or admin_can_delete %}<th>Azioni</th>{% endif %}</tr></thead>
+          <tbody>
+            {% for a in admin_assenze %}
+              <tr>
+                <td data-label="#"><strong>{{ a.id }}</strong></td>
+                <td data-label="Dipendente">{{ a.dipendente }}</td>
+                <td data-label="Tipo">{{ a.tipo }}</td>
+                <td data-label="Dal">{{ a.inizio_label }}</td>
+                <td data-label="Al">{{ a.fine_label }}</td>
+                <td data-label="Stato">
+                  {% if a.moderation_status == 0 %}
+                    <span class="abs-status abs-status-approved">Approvata</span>
+                  {% elif a.moderation_status == 1 %}
+                    <span class="abs-status abs-status-rejected">Rifiutata</span>
+                  {% else %}
+                    <span class="abs-status abs-status-waiting">In attesa</span>
+                  {% endif %}
+                </td>
+                <td data-label="Motivo">{{ a.motivo|default:"-" }}</td>
+                {% if admin_can_moderate or admin_can_delete %}
+                  <td data-label="Azioni">
+                    <div class="ga-row-actions">
+                      {% if admin_can_moderate %}
+                        <button type="button" class="ga-act ga-act-approve" data-act="approva" data-id="{{ a.id }}" data-dip="{{ a.dipendente }}" data-tipo="{{ a.tipo }}" data-periodo="{{ a.inizio_label }} → {{ a.fine_label }}">Approva</button>
+                        <button type="button" class="ga-act ga-act-reject" data-act="rifiuta" data-id="{{ a.id }}" data-dip="{{ a.dipendente }}" data-tipo="{{ a.tipo }}" data-periodo="{{ a.inizio_label }} → {{ a.fine_label }}">Rifiuta</button>
+                      {% endif %}
+                      {% if admin_can_delete %}
+                        <button type="button" class="ga-act ga-act-delete" data-act="elimina" data-id="{{ a.id }}" data-dip="{{ a.dipendente }}" data-tipo="{{ a.tipo }}" data-periodo="{{ a.inizio_label }} → {{ a.fine_label }}">Elimina</button>
+                      {% endif %}
+                    </div>
+                  </td>
+                {% endif %}
+              </tr>
+            {% empty %}
+              <tr><td colspan="{% if admin_can_moderate or admin_can_delete %}8{% else %}7{% endif %}" class="abs-cell-primary">Nessuna assenza trovata</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="abs-panel">
+    <div class="abs-panel-head">
+      <div class="abs-panel-title-wrap">
+        <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-list-check"></use></svg>Log attività assenze</h2>
+        <p class="abs-panel-subtitle">Ultime 100 azioni registrate sull'ambito assenze (moderazioni, eliminazioni, export…).</p>
+      </div>
+    </div>
+    <div class="abs-panel-body">
+      {% if admin_audit_entries %}
+        <div class="ga-log-row ga-log-head">
+          <span>Data ora</span><span>Utente</span><span>Azione</span><span>Dettaglio</span>
+        </div>
+        {% for entry in admin_audit_entries %}
+          <div class="ga-log-row">
+            <span>{{ entry.created_at|date:"d-m-Y H:i" }}</span>
+            <span>{{ entry.utente_display|default:"-" }}</span>
+            <span>{{ entry.azione }}</span>
+            <span style="color:#64748b;">{{ entry.dettaglio }}</span>
+          </div>
+        {% endfor %}
+      {% else %}
+        <div class="abs-empty-state">
+          <h3 class="abs-empty-title">Nessuna voce di log</h3>
+          <p class="abs-empty-text">Per questo modulo non risultano ancora azioni archiviate nel log.</p>
+        </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <div id="ga-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="ga-modal-title">
+    <div id="ga-modal">
+      {% csrf_token %}
+      <div class="ga-modal-head">
+        <h3 id="ga-modal-title">Conferma</h3>
+        <p id="ga-modal-desc"></p>
+      </div>
+      <div class="ga-modal-body">
+        <div class="ga-modal-field">
+          <label for="ga-modal-note">Nota (obbligatoria)</label>
+          <textarea id="ga-modal-note" placeholder="Motiva l'intervento: verrà registrata nel log delle attività."></textarea>
+        </div>
+        <div id="ga-modal-error" aria-live="polite"></div>
+        <div class="ga-modal-actions">
+          <button type="button" class="ga-btn ga-btn-cancel" id="ga-modal-cancel">Annulla</button>
+          <button type="button" class="ga-btn ga-btn-confirm" id="ga-modal-confirm">Conferma</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    var overlay = document.getElementById("ga-modal-overlay");
+    if (!overlay) return;
+    var titleEl = document.getElementById("ga-modal-title");
+    var descEl = document.getElementById("ga-modal-desc");
+    var noteEl = document.getElementById("ga-modal-note");
+    var errEl = document.getElementById("ga-modal-error");
+    var confirmBtn = document.getElementById("ga-modal-confirm");
+    var cancelBtn = document.getElementById("ga-modal-cancel");
+    var csrfInput = overlay.querySelector("[name=csrfmiddlewaretoken]");
+    var csrf = csrfInput ? csrfInput.value : "";
+    var delTpl = "{% url 'assenze_api_admin_delete' 999999999 %}";
+    var modTpl = "{% url 'assenze_api_car_consenso' 999999999 %}";
+    var state = { id: null, action: null };
+
+    var CFG = {
+      approva: { title: "Approva assenza", verb: "Approvazione", consenso: "Approvato", danger: false, btn: "Approva" },
+      rifiuta: { title: "Rifiuta assenza", verb: "Rifiuto", consenso: "Rifiutato", danger: false, btn: "Rifiuta" },
+      elimina: { title: "Elimina assenza", verb: "Eliminazione", consenso: null, danger: true, btn: "Elimina" }
+    };
+
+    function openModal(btn) {
+      var cfg = CFG[btn.getAttribute("data-act")];
+      if (!cfg) return;
+      state.id = btn.getAttribute("data-id");
+      state.action = btn.getAttribute("data-act");
+      titleEl.textContent = cfg.title;
+      descEl.textContent = cfg.verb + " per " + (btn.getAttribute("data-dip") || "—") +
+        " · " + (btn.getAttribute("data-tipo") || "") + " · " + (btn.getAttribute("data-periodo") || "");
+      noteEl.value = "";
+      errEl.textContent = "";
+      confirmBtn.textContent = cfg.btn;
+      confirmBtn.classList.toggle("is-danger", !!cfg.danger);
+      overlay.classList.add("open");
+      noteEl.focus();
+    }
+
+    function closeModal() {
+      overlay.classList.remove("open");
+      state.id = null;
+      state.action = null;
+    }
+
+    // Delega eventi: un solo listener sul documento regge anche migliaia di
+    // righe/pulsanti senza collegarne uno per bottone.
+    document.addEventListener("click", function (e) {
+      var btn = e.target.closest ? e.target.closest(".ga-act") : null;
+      if (btn) openModal(btn);
+    });
+    cancelBtn.addEventListener("click", closeModal);
+    overlay.addEventListener("click", function (e) { if (e.target === overlay) closeModal(); });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && overlay.classList.contains("open")) closeModal();
+    });
+
+    confirmBtn.addEventListener("click", function () {
+      var note = (noteEl.value || "").trim();
+      if (!note) { errEl.textContent = "La nota è obbligatoria."; noteEl.focus(); return; }
+      var cfg = CFG[state.action];
+      if (!cfg || !state.id) return;
+      var url, body;
+      if (state.action === "elimina") {
+        url = delTpl.replace("999999999", state.id);
+        body = { note_gestione: note };
+      } else {
+        url = modTpl.replace("999999999", state.id);
+        body = { consenso: cfg.consenso, note_gestione: note };
+      }
+      confirmBtn.disabled = true;
+      errEl.textContent = "";
+      fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
+        body: JSON.stringify(body)
+      }).then(function (r) {
+        return r.json().then(function (d) { return { ok: r.ok, d: d }; }, function () { return { ok: r.ok, d: {} }; });
+      }).then(function (res) {
+        confirmBtn.disabled = false;
+        if (res.ok && res.d && res.d.ok) { window.location.reload(); }
+        else { errEl.textContent = (res.d && res.d.error) || "Operazione non riuscita."; }
+      }).catch(function () {
+        confirmBtn.disabled = false;
+        errEl.textContent = "Errore di rete.";
+      });
+    });
+  })();
+  </script>
+{% endif %}

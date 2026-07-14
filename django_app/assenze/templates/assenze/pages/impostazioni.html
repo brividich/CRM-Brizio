@@ -1,0 +1,65 @@
+{% extends "assenze/base_shell.html" %}
+
+{% block title %}Impostazioni {{ module_branding_display_label }} | Portale Applicativo{% endblock %}
+
+{% block assenze_shell_head %}
+  {% include "core/components/module_settings_styles.html" %}
+{% endblock %}
+
+{% block assenze_shell_content %}
+  <form id="gestione-csrf">{% csrf_token %}</form>
+
+  <div id="abs-root">
+    <section class="abs-hero">
+      <div class="abs-hero-copy">
+        <span class="abs-eyebrow">Impostazioni modulo</span>
+        <h1>Impostazioni {{ module_branding_display_label }}</h1>
+        <p>Pannello amministrativo del modulo assenze: gestione di tutte le assenze (moderazione ed eliminazione), log attività e branding. Riservato all'HR-admin.</p>
+        <div class="abs-hero-meta">
+          <span class="abs-hero-pill">{{ admin_stats.total }} assenze totali</span>
+          <span class="abs-hero-pill">{{ admin_stats.in_attesa }} in attesa</span>
+          <span class="abs-hero-pill">{{ admin_audit_entries|length }} log recenti</span>
+        </div>
+      </div>
+      <div class="abs-hero-actions">
+        <a href="{% url 'assenze_gestione' %}" class="abs-hero-action">
+          <svg aria-hidden="true"><use href="#abs-i-clipboard"></use></svg>
+          Le mie richieste
+        </a>
+        <a href="{% url 'assenze_car_export_csv' %}" class="abs-hero-action">
+          <svg aria-hidden="true"><use href="#abs-i-download"></use></svg>
+          Export gestionale
+        </a>
+      </div>
+    </section>
+
+    {% if can_manage_module_branding %}
+      <div class="ms-grid-2">
+        <section class="ms-card">
+          <div class="ms-card-head">
+            <div class="ms-card-title-wrap">
+              <h2 class="ms-card-title">Azioni rapide</h2>
+              <p class="ms-card-subtitle">Collegamenti alle viste operative principali del modulo assenze.</p>
+            </div>
+          </div>
+          <div class="ms-card-body">
+            <div style="display:flex;flex-wrap:wrap;gap:8px;">
+              <a href="{% url 'assenze_richiesta' %}" class="btn btn-primary">Nuova richiesta</a>
+              {% if assenze_can_view_calendar %}
+                <a href="{% url 'assenze_calendario' %}" class="btn btn-secondary">Calendario</a>
+              {% endif %}
+              {% if assenze_can_edit_events %}
+                <a href="{% url 'assenze_car_dashboard' %}" class="btn btn-secondary">Segnalazioni</a>
+              {% endif %}
+              <a href="{% url 'assenze_certifica_presenza' %}" class="btn btn-secondary">Certifica presenza</a>
+            </div>
+            <div class="ms-field-help">Il branding del modulo è disponibile qui accanto solo per i profili con accesso amministrativo al modulo assenze.</div>
+          </div>
+        </section>
+        {% include "core/components/module_branding_card.html" %}
+      </div>
+    {% endif %}
+
+    {% include "assenze/partials/_gestione_admin_panel.html" %}
+  </div>
+{% endblock %}

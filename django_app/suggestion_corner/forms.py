@@ -74,11 +74,34 @@ class ModificaSegnalazioneForm(forms.ModelForm):
             "check_testo", "esito_check", "act_testo",
         ]
         widgets = {
-            "opportunity": forms.Textarea(attrs={"rows": 4}),
+            "opportunity": forms.Textarea(attrs={"rows": 5}),
             "plan_testo": forms.Textarea(attrs={"rows": 3}),
             "do_testo": forms.Textarea(attrs={"rows": 3}),
             "check_testo": forms.Textarea(attrs={"rows": 3}),
             "act_testo": forms.Textarea(attrs={"rows": 3}),
+        }
+        labels = {
+            "reparto_provenienza": "Reparto di provenienza",
+            "area_provenienza": "Area di provenienza",
+            "reparto_destinazione": "Reparto di destinazione",
+            "area_destinazione": "Area di destinazione",
+            "processo_libero": "Processo (testo libero)",
+            "opportunity": "Opportunità di miglioramento",
+            "stato_sms": "Classificazione SMS",
+            "cliente_nome": "Cliente",
+            "cliente_email": "Email cliente",
+            "incaricato": "Incaricato (DO)",
+            "controllore": "Controllore (CHECK)",
+            "plan_testo": "PLAN — piano d'azione",
+            "do_testo": "DO — descrizione esecuzione",
+            "esito_do": "Esito DO",
+            "check_testo": "CHECK — note di controllo",
+            "esito_check": "Esito CHECK",
+            "act_testo": "ACT — standardizzazione",
+        }
+        help_texts = {
+            "processo_libero": "Compilare solo se il processo non è coperto dalle mappature.",
+            "cliente_email": "Usata per la comunicazione al cliente sulle segnalazioni SMS Sì.",
         }
 
     def __init__(self, *args, **kwargs):

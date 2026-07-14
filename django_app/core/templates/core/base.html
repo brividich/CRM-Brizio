@@ -563,5 +563,6 @@ document.addEventListener("htmx:configRequest", function(evt) {
 })();
 </script>
 {% endif %}
+{% if dev_git %}{% include "core/components/_dev_git_badge.html" %}{% endif %}
 </body>
 </html>

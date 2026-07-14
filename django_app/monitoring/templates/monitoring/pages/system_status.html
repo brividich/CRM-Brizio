@@ -30,6 +30,8 @@
     .ss-btn:hover{background:#1769a8}
     .ss-btn.secondary{background:#fff;color:#0c2545;border-color:#cbd5e1}
     .ss-btn.secondary:hover{background:#f1f5f9}
+    .ss-drift{margin:10px 0 4px;padding:10px 14px;border:1px solid #b91c1c;border-left-width:5px;
+      border-radius:8px;background:#fee2e2;color:#7f1d1d;font-size:13.5px;font-weight:600}
   </style>
 
   <div class="ss-actions">
@@ -44,7 +46,46 @@
   </div>
   <p class="ss-note">Le azioni lente (verifica/re-index/qualità) si <strong>accodano</strong> al cluster django-q: l'esito appare al refresh. Avvio/arresto del cluster resta nel Server Dashboard.</p>
 
+  {# Build: da quale commit nasce il codice in esecuzione #}
+  {% if build_info %}
+    {% if build_info.malformed %}
+      <div class="ss-drift">BUILD_INFO.json presente ma illeggibile ({{ build_info.path }}): la provenienza di questo pacchetto non e' verificabile.</div>
+    {% elif build_info.has_drift %}
+      <div class="ss-drift">
+        Questo pacchetto NON corrisponde a un commit pulito del branch di release.
+        {% if build_info.dirty %}E' stato costruito dalla cartella di lavoro, con {{ build_info.dirty_count }} file non committati.{% endif %}
+        {% if build_info.delta_vs_export_branch %}Al momento del build esistevano {{ build_info.delta_vs_export_branch }} commit fuori dal branch esportato.{% endif %}
+      </div>
+    {% endif %}
+  {% endif %}
+
   <div class="ss-grid">
+
+    {# Build #}
+    <div class="ss-card">
+      <h3>Build
+        {% if not build_info %}<span class="ss-badge ss-skip">SVILUPPO</span>
+        {% elif build_info.malformed %}<span class="ss-badge ss-fail">MANIFEST ROTTO</span>
+        {% elif build_info.has_drift %}<span class="ss-badge ss-fail">NON TRACCIABILE</span>
+        {% else %}<span class="ss-badge ss-ok">DA COMMIT</span>{% endif %}
+      </h3>
+      {% if not build_info %}
+        <div class="ss-row"><span class="lbl">Sviluppo — nessun pacchetto</span><span class="ss-badge ss-skip">N/D</span></div>
+        <p class="ss-note">Non stiamo girando da un pacchetto di release: <code>BUILD_INFO.json</code> non esiste.</p>
+      {% elif build_info.malformed %}
+        <p class="ss-note">Il file esiste ma non e' JSON valido. Rigenera il pacchetto.</p>
+      {% else %}
+        <div class="ss-row"><span class="lbl">Commit</span><span>{% if build_info.commit_short %}<code>{{ build_info.commit_short }}</code>{% else %}<span class="ss-badge ss-fail">NESSUNO</span>{% endif %}</span></div>
+        <div class="ss-row"><span class="lbl">Branch</span><span>{{ build_info.branch|default:"—" }}</span></div>
+        <div class="ss-row"><span class="lbl">Sorgente</span><span class="ss-badge {% if build_info.source == 'branch' %}ss-ok{% else %}ss-fail{% endif %}">{{ build_info.source|default:"?"|upper }}</span></div>
+        <div class="ss-row"><span class="lbl">Commit fuori dal branch al build</span>
+          <span class="ss-badge {% if build_info.delta_vs_export_branch is None %}ss-skip{% elif build_info.delta_vs_export_branch %}ss-fail{% else %}ss-ok{% endif %}">{% if build_info.delta_vs_export_branch is None %}N/D{% else %}{{ build_info.delta_vs_export_branch }}{% endif %}</span></div>
+        <div class="ss-row"><span class="lbl">Costruito</span><span style="color:#94a3b8">{{ build_info.built_at|default:"?" }} · {{ build_info.built_by|default:"?" }}</span></div>
+        {% if build_info.dirty_files %}
+          <p class="ss-note">File non committati inclusi nel build: {{ build_info.dirty_count }} (primi 5: {% for f in build_info.dirty_files|slice:":5" %}<code>{{ f }}</code>{% if not forloop.last %}, {% endif %}{% endfor %}).</p>
+        {% endif %}
+      {% endif %}
+    </div>
 
     {# Servizi (readyz) #}
     <div class="ss-card">

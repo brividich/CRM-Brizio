@@ -58,6 +58,7 @@ urlpatterns = [
     path("api/kpis/summary/", api.KpiSummaryApiView.as_view(), name="api_kpis_summary"),
     # mailbox sources (config sola lettura; ingestione Graph/IMAP non wired)
     path("admin/mailbox/", views.admin_mailbox_sources_list, name="admin_mailbox_sources_list"),
+    path("admin/mailbox/run/", views_soc.run_mailbox_ingestion_view, name="run_mailbox_ingestion"),
     path("admin/mailbox/<slug:code>/", views.admin_mailbox_source_detail, name="admin_mailbox_source_detail"),
     # stub API richiesto da addon_registry per il reverse (API reale → fase futura)
     path("api/addons/<slug:code>/", _api_non_montata, name="api_addon_detail"),

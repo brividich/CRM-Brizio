@@ -66,6 +66,7 @@ urlpatterns = [
     path("", include(("planimetria.urls", "planimetria"), namespace="planimetria")),
     path("dpi/", include(("dpi.urls", "dpi"), namespace="dpi")),
     path("procedure-refresh/", include(("procedure_refresh.urls", "procedure_refresh"), namespace="procedure_refresh")),
+    path("schede-sicurezza/", include(("schede_sicurezza.urls", "schede_sicurezza"), namespace="schede_sicurezza")),
     path("contatori/", include(("contatori.urls", "contatori"), namespace="contatori")),
     path("soc/", include(("security.urls_hub", "security"), namespace="security")),
     path("2fa/", include(("twofa.urls", "twofa"), namespace="twofa")),

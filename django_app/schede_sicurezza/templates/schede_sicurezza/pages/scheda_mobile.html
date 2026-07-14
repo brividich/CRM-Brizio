@@ -1,0 +1,96 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ prodotto.nome }} — Scheda sintetica{% endblock %}
+
+{% block extra_head %}
+<style>
+.ss-mobile-wrap { max-width:480px; margin:0 auto; display:flex; flex-direction:column; gap:16px; }
+.ss-mobile-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:16px; }
+.ss-mobile-title { font-size:19px; font-weight:900; }
+.ss-mobile-sub { font-size:13px; color:#64748b; margin-top:2px; }
+.ss-mobile-section-title { font-weight:700; font-size:13px; color:#475569; margin-bottom:8px; text-transform:uppercase; letter-spacing:.03em; }
+.ss-pittogramma { display:inline-block; padding:4px 10px; border-radius:8px; background:#fef3c7; color:#b45309; font-weight:700; font-size:12px; margin:2px; }
+.ss-frase { display:inline-block; padding:3px 9px; border-radius:20px; background:#f1f5f9; color:#475569; font-size:11.5px; margin:2px; }
+.ss-dpi-grid { display:flex; flex-wrap:wrap; gap:10px; }
+.ss-dpi-item { display:flex; flex-direction:column; align-items:center; width:72px; font-size:11px; text-align:center; color:#475569; }
+.ss-dpi-item img { width:48px; height:48px; object-fit:contain; margin-bottom:4px; }
+.ss-alert-box { background:#fee2e2; border-radius:10px; padding:12px; font-size:13px; color:#991b1b; white-space:pre-wrap; }
+.ss-soccorso-box { background:#dcfce7; border-radius:10px; padding:12px; font-size:13px; color:#166534; white-space:pre-wrap; }
+.ss-pv-btn { width:100%; padding:12px; background:#1d4ed8; color:#fff; border:none; border-radius:10px; font-weight:700; font-size:14px; cursor:pointer; }
+.ss-pv-done { width:100%; padding:12px; background:#dcfce7; color:#15803d; border-radius:10px; font-weight:700; font-size:14px; text-align:center; }
+
+body.theme-dark .ss-mobile-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .ss-mobile-title { color:var(--text); }
+body.theme-dark .ss-mobile-sub { color:var(--text-light); }
+body.theme-dark .ss-mobile-section-title { color:var(--text-mid); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ss-mobile-wrap">
+  <div class="ss-mobile-card">
+    <div class="ss-mobile-title">{{ prodotto.nome }}</div>
+    <div class="ss-mobile-sub">{{ prodotto.reparto.nome }} · {{ prodotto.fornitore|default:"—" }}</div>
+    <div class="ss-mobile-sub">Scheda versione {{ scheda.versione|default:"—" }}</div>
+  </div>
+
+  {% if scheda.pittogrammi %}
+    <div class="ss-mobile-card">
+      <div class="ss-mobile-section-title">Pittogrammi</div>
+      {% for p in scheda.pittogrammi %}<span class="ss-pittogramma">{{ p }}</span>{% endfor %}
+    </div>
+  {% endif %}
+
+  {% if scheda.frasi_h or scheda.frasi_p %}
+    <div class="ss-mobile-card">
+      <div class="ss-mobile-section-title">Frasi H / P</div>
+      {% for h in scheda.frasi_h %}<span class="ss-frase">{{ h }}</span>{% endfor %}
+      {% for p in scheda.frasi_p %}<span class="ss-frase">{{ p }}</span>{% endfor %}
+    </div>
+  {% endif %}
+
+  {% if prodotto.dpi_obbligatori.all %}
+    <div class="ss-mobile-card">
+      <div class="ss-mobile-section-title">DPI obbligatori</div>
+      <div class="ss-dpi-grid">
+        {% for cat in prodotto.dpi_obbligatori.all %}
+          <div class="ss-dpi-item">
+            {% if cat.immagine %}
+              <img src="{{ cat.immagine_url }}" alt="{{ cat.nome }}">
+            {% else %}
+              <div style="font-size:32px;">{{ cat.icona_emoji }}</div>
+            {% endif %}
+            {{ cat.nome }}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+
+  {% if scheda.primo_soccorso %}
+    <div class="ss-mobile-card">
+      <div class="ss-mobile-section-title">Primo soccorso</div>
+      <div class="ss-soccorso-box">{{ scheda.primo_soccorso }}</div>
+    </div>
+  {% endif %}
+
+  {% if scheda.incompatibilita %}
+    <div class="ss-mobile-card">
+      <div class="ss-mobile-section-title">Incompatibilità</div>
+      <div class="ss-alert-box">{{ scheda.incompatibilita }}</div>
+    </div>
+  {% endif %}
+
+  <div class="ss-mobile-card">
+    <div class="ss-mobile-section-title">Download</div>
+    <a href="{% url 'schede_sicurezza:scheda_download' pk=scheda.pk %}"
+       style="display:block;text-align:center;padding:10px;background:#f1f5f9;color:#475569;border-radius:10px;text-decoration:none;font-weight:700;">
+      Scarica PDF completo
+    </a>
+  </div>
+
+  <div id="ss-pv-stato" class="ss-mobile-card">
+    {% include "schede_sicurezza/partials/_presa_visione_stato.html" %}
+  </div>
+</div>
+{% endblock %}

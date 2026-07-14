@@ -17,19 +17,14 @@
 .mn-item-desc { font-size:12px; color:#6b7a90; margin-top:3px; line-height:1.45; }
 .mn-item-meta { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:10px; }
 .mn-item-actions { display:flex; gap:7px; margin-top:12px; flex-wrap:wrap; align-items:center; }
-.mn-field { display:flex; flex-direction:column; gap:4px; }
-.mn-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
-.mn-input { border:1px solid #e7edf3; border-radius:8px; padding:8px 12px; font-size:13px; color:#2d3a55; background:#fff; outline:none; width:100%; box-sizing:border-box; }
-.mn-input:focus { border-color:#1f87cd; box-shadow:0 0 0 3px rgba(31,135,205,.12); }
-.mn-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+/* Campi form (create + modale modifica) = primitiva canonica .hub-field del form-kit. */
 .mn-modal-overlay { display:none; position:fixed; inset:0; background:rgba(8,20,45,.5); z-index:1000; align-items:center; justify-content:center; }
 .mn-modal-overlay.open { display:flex; }
 .mn-modal { background:#fff; border-radius:14px; padding:24px; width:100%; max-width:520px; box-shadow:0 24px 60px -20px rgba(8,20,45,.5); }
 .mn-modal-title { font-size:17px; font-weight:800; color:#0c2545; margin-bottom:16px; }
-@media (max-width:600px){ .mn-form-grid { grid-template-columns:1fr; } .mn-grid { grid-template-columns:1fr; } }
+@media (max-width:600px){ .mn-grid { grid-template-columns:1fr; } }
 body.theme-dark .mn-item { background:var(--surface); border-color:var(--border); }
 body.theme-dark .mn-item-name { color:var(--text); }
-body.theme-dark .mn-input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
 body.theme-dark .mn-modal { background:var(--surface); }
 </style>
 {% endblock %}
@@ -146,17 +141,25 @@ body.theme-dark .mn-modal { background:var(--surface); }
     <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuova mansione</div></div>
     <form method="post" action="{% url 'anagrafica:mansione_create' %}">
       {% csrf_token %}
-      <div class="hub-form-grid">
-        <div class="hub-field hub-col-full"><label>Nome mansione <span class="hub-req">*</span></label>
-          <input type="text" name="nome" required placeholder="es. Operaio specializzato, Impiegato tecnico…" maxlength="100"></div>
-        <div class="hub-field"><label>Categoria</label>
-          <select name="categoria" aria-label="Categoria mansione"><option value="">— Nessuna categoria —</option>{% for val, label in CATEGORIA_CHOICES %}<option value="{{ val }}">{{ label }}</option>{% endfor %}</select></div>
-        <div class="hub-field"><label>Livello di rischio (ASR){% info_hint "livello_rischio" %}</label>
-          <select name="livello_rischio" aria-label="Livello di rischio ASR"><option value="">— non definito —</option>{% for val, label in LIVELLO_RISCHIO_CHOICES %}<option value="{{ val }}">{{ label }}</option>{% endfor %}</select></div>
-        <div class="hub-field"><label>Colore badge</label>
-          <input type="color" name="colore" value="#1f87cd" aria-label="Colore badge mansione" style="height:40px;padding:4px 8px;cursor:pointer;"></div>
-        <div class="hub-field hub-col-full"><label>Descrizione (opzionale)</label>
-          <input type="text" name="descrizione" placeholder="Breve descrizione" maxlength="255"></div>
+      <div class="hub-form-stack">
+        <div class="hub-fsec">
+          <div class="hub-fsec-h">Identità</div>
+          <div class="hub-fsec-d">Come si chiama la mansione e una breve descrizione facoltativa.</div>
+          <div class="hub-field"><label>Nome mansione <span class="hub-req">*</span></label>
+            <input type="text" name="nome" required placeholder="es. Operaio specializzato, Impiegato tecnico…" maxlength="100"></div>
+          <div class="hub-field"><label>Descrizione (opzionale)</label>
+            <input type="text" name="descrizione" placeholder="Breve descrizione" maxlength="255"></div>
+        </div>
+        <div class="hub-fsec">
+          <div class="hub-fsec-h">Classificazione e rischio</div>
+          <div class="hub-fsec-d">Categoria organizzativa, livello di rischio ASR e colore del badge.</div>
+          <div class="hub-field"><label>Categoria</label>
+            <select name="categoria" aria-label="Categoria mansione"><option value="">— Nessuna categoria —</option>{% for val, label in CATEGORIA_CHOICES %}<option value="{{ val }}">{{ label }}</option>{% endfor %}</select></div>
+          <div class="hub-field"><label>Livello di rischio (ASR){% info_hint "livello_rischio" %}</label>
+            <select name="livello_rischio" aria-label="Livello di rischio ASR"><option value="">— non definito —</option>{% for val, label in LIVELLO_RISCHIO_CHOICES %}<option value="{{ val }}">{{ label }}</option>{% endfor %}</select></div>
+          <div class="hub-field"><label>Colore badge</label>
+            <input type="color" name="colore" value="#1f87cd" aria-label="Colore badge mansione" style="height:40px;padding:4px 8px;cursor:pointer;"></div>
+        </div>
       </div>
       <div style="margin-top:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
         <button type="submit" class="fmd-btn fmd-btn-primary">Crea mansione</button>
@@ -191,18 +194,18 @@ body.theme-dark .mn-modal { background:var(--surface); }
     <div class="mn-modal-title">Modifica mansione</div>
     <form method="post" id="mn-edit-form" action="">
       {% csrf_token %}
-      <div class="mn-form-grid">
-        <div class="mn-field" style="grid-column:1/-1;"><label>Nome *</label>
-          <input class="mn-input" type="text" name="nome" id="edit-nome" required maxlength="100"></div>
-        <div class="mn-field"><label>Categoria</label>
-          <select class="mn-input" name="categoria" id="edit-categoria" aria-label="Categoria mansione"><option value="">— Nessuna categoria —</option>{% for val, label in CATEGORIA_CHOICES %}<option value="{{ val }}">{{ label }}</option>{% endfor %}</select></div>
-        <div class="mn-field"><label>Livello di rischio (ASR){% info_hint "livello_rischio" %}</label>
-          <select class="mn-input" name="livello_rischio" id="edit-livello" aria-label="Livello di rischio ASR"><option value="">— non definito —</option>{% for val, label in LIVELLO_RISCHIO_CHOICES %}<option value="{{ val }}">{{ label }}</option>{% endfor %}</select></div>
-        <div class="mn-field"><label>Colore</label>
-          <input class="mn-input" type="color" name="colore" id="edit-colore" aria-label="Colore badge mansione" style="height:40px;padding:4px 8px;cursor:pointer;"></div>
-        <div class="mn-field" style="grid-column:1/-1;"><label>Descrizione</label>
-          <input class="mn-input" type="text" name="descrizione" id="edit-desc" maxlength="255"></div>
-        <div class="mn-field" style="grid-column:1/-1;">
+      <div class="hub-form-stack">
+        <div class="hub-field"><label>Nome *</label>
+          <input type="text" name="nome" id="edit-nome" required maxlength="100"></div>
+        <div class="hub-field"><label>Categoria</label>
+          <select name="categoria" id="edit-categoria" aria-label="Categoria mansione"><option value="">— Nessuna categoria —</option>{% for val, label in CATEGORIA_CHOICES %}<option value="{{ val }}">{{ label }}</option>{% endfor %}</select></div>
+        <div class="hub-field"><label>Livello di rischio (ASR){% info_hint "livello_rischio" %}</label>
+          <select name="livello_rischio" id="edit-livello" aria-label="Livello di rischio ASR"><option value="">— non definito —</option>{% for val, label in LIVELLO_RISCHIO_CHOICES %}<option value="{{ val }}">{{ label }}</option>{% endfor %}</select></div>
+        <div class="hub-field"><label>Colore</label>
+          <input type="color" name="colore" id="edit-colore" aria-label="Colore badge mansione" style="height:40px;padding:4px 8px;cursor:pointer;"></div>
+        <div class="hub-field"><label>Descrizione</label>
+          <input type="text" name="descrizione" id="edit-desc" maxlength="255"></div>
+        <div class="hub-field">
           <label style="display:flex;align-items:center;gap:8px;font-size:13px;text-transform:none;letter-spacing:0;">
             <input type="checkbox" name="is_active" value="1" id="edit-active"> Mansione attiva (visibile per assegnazione)
           </label>

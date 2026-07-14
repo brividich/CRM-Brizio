@@ -862,6 +862,19 @@ def ui_prefs_context(request):
     }
 
 
+def dev_git_badge(_request):
+    """Badge di sviluppo: quanto lavoro non e' committato, e quanto non e' in release.
+
+    Attivo solo con DEBUG=True: in produzione ritorna sempre {} e non esegue git.
+    """
+    if not settings.DEBUG:
+        return {}
+    from core.build_info import get_dev_git_state
+
+    state = get_dev_git_state()
+    return {"dev_git": state} if state else {}
+
+
 def app_meta(_request):
     current_release = get_current_release()
     return {

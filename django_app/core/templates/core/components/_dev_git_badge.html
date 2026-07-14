@@ -1,0 +1,54 @@
+{# Badge di sviluppo: incluso solo se dev_git e' valorizzato (context processor attivo con DEBUG=True). #}
+<style>
+  .devgit{position:fixed;top:8px;right:8px;z-index:9999;pointer-events:none;
+    font:600 11px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;max-width:min(420px,calc(100vw - 24px))}
+  .devgit>*{pointer-events:auto}
+  .devgit summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;
+    padding:4px 10px;border-radius:999px;border:1px solid #94a3b8;background:#f1f5f9;color:#334155;
+    box-shadow:0 1px 3px rgba(15,23,42,.18)}
+  .devgit summary::-webkit-details-marker{display:none}
+  .devgit.is-alert summary{border-color:#b91c1c;background:#fee2e2;color:#7f1d1d}
+  .devgit .devgit-sep{opacity:.45}
+  .devgit-panel{margin-top:6px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;
+    background:#fff;color:#334155;box-shadow:0 6px 20px rgba(15,23,42,.16);
+    max-height:60vh;overflow:auto;font-weight:500}
+  .devgit-panel h4{margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#64748b}
+  .devgit-panel ul{margin:0 0 10px;padding-left:16px}
+  .devgit-panel li{margin:1px 0}
+  .devgit-panel .devgit-hint{margin:0;padding-top:8px;border-top:1px solid #e2e8f0;color:#64748b;font-weight:500}
+  @media print{.devgit{display:none}}
+</style>
+<div class="devgit{% if dev_git.alert %} is-alert{% endif %}">
+  <details>
+    <summary>
+      <span>{{ dev_git.branch }}{% if dev_git.detached %} (detached){% endif %}</span>
+      <span class="devgit-sep">·</span>
+      <span>{{ dev_git.dirty_count }} non committat{{ dev_git.dirty_count|pluralize:"o,i" }}</span>
+      <span class="devgit-sep">·</span>
+      <span>{% if dev_git.ahead_count is None %}delta ?{% else %}{{ dev_git.ahead_count }} commit non in {{ dev_git.release_branch }}{% endif %}</span>
+    </summary>
+    <div class="devgit-panel">
+      {% if dev_git.dirty_groups %}
+        <h4>Non committati, per app</h4>
+        <ul>
+          {% for app, count in dev_git.dirty_groups %}
+            <li>{{ app }} — {{ count }}</li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <h4>Working tree pulito</h4>
+      {% endif %}
+      <p class="devgit-hint">
+        {% if dev_git.detached %}
+          HEAD detached: delta rispetto a {{ dev_git.release_branch }} non calcolabile.
+        {% elif dev_git.ahead_count is None %}
+          Delta non calcolabile: {{ dev_git.release_branch }} non esiste in locale.
+        {% elif dev_git.ahead_count %}
+          Questi commit esistono ma NON sono in produzione: il pacchetto nasce da {{ dev_git.release_branch }}.
+        {% else %}
+          Tutto cio' che e' committato e' anche in {{ dev_git.release_branch }}.
+        {% endif %}
+      </p>
+    </div>
+  </details>
+</div>

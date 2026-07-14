@@ -20,3 +20,22 @@ def evaluate_security_rules_task():
     from security.services.rule_engine import evaluate_security_rules
 
     return evaluate_security_rules()
+
+
+def ingest_security_mailboxes_task():
+    """Ingestione delle sorgenti mailbox Graph/IMAP abilitate (per django-q2/Schedule).
+
+    Ritorna il numero di sorgenti processate senza errore. Le credenziali vanno
+    configurate come SecurityCenterSetting (Configuration Studio).
+    """
+    from security.models import SecurityMailboxSource
+    from security.services.mailbox_ingestion import run_mailbox_ingestion
+
+    ok = 0
+    for src in SecurityMailboxSource.objects.filter(enabled=True).exclude(source_type="manual"):
+        try:
+            run_mailbox_ingestion(src)
+            ok += 1
+        except Exception:
+            continue
+    return ok

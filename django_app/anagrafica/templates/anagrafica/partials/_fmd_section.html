@@ -1,0 +1,29 @@
+{% comment %} ─────────────────────────────────────────────────────────────────
+   Sezione form RIUTILIZZABILE (layout verticale, campi impilati). FONTE UNICA:
+   modificando QUESTO file cambi l'aspetto delle sezioni in TUTTI i form che lo usano.
+
+   Uso (una riga per sezione):
+     {% load anagrafica_extras %}
+     {% include "anagrafica/partials/_fmd_section.html" with
+          title="Corso e stato" icon="i-cap" desc="Cosa inserire…"
+          fields=form|section_fields:"corso,codice_sessione,stato,modalita" %}
+
+   Parametri:
+     title  (obbligatorio)  titolo sezione
+     icon   (opz.)          id icona sprite (default i-clipboard)
+     desc   (opz.)          riga descrizione «cosa inserire»
+     count  (opz.)          nota a destra (es. "2 / 5")
+     fields (obbligatorio)  lista bound-field, da  form|section_fields:"a,b,c"
+   Richiede il partial _fmd_form_style.html in pagina (stili .fmd-*).
+   ──────────────────────────────────────────────────────────────────────────── {% endcomment %}
+<div class="fmd-form-sec">
+  <div class="fmd-form-sec-h">
+    <svg class="fmd-ico"><use href="#{{ icon|default:'i-clipboard' }}"/></svg>
+    <span class="fmd-form-sec-t">{{ title }}</span>
+    {% if count %}<span class="fmd-form-sec-n">{{ count }}</span>{% endif %}
+  </div>
+  {% if desc %}<div class="fmd-form-sec-d">{{ desc }}</div>{% endif %}
+  <div class="fmd-stack">
+    {% for field in fields %}{% include "anagrafica/partials/_fmd_field.html" with field=field %}{% endfor %}
+  </div>
+</div>

@@ -1672,7 +1672,10 @@ class ModuleSettingsRouteTests(TestCase):
         self.assertEqual(reverse("rilevazione_incidenti:impostazioni"), "/rilevazione-incidenti/impostazioni/")
         self.assertEqual(reverse("timbri:configurazione"), "/timbri/impostazioni/")
         self.assertEqual(reverse("rentri_impostazioni"), "/rentri/impostazioni/")
-        self.assertEqual(reverse("assenze_gestione"), "/assenze/impostazioni/")
+        # La pagina Impostazioni di assenze e' il pannello HR-admin
+        # (`assenze_impostazioni`). Il vecchio nome `assenze_gestione` identifica
+        # ora la pagina personale «Le mie richieste», non le impostazioni.
+        self.assertEqual(reverse("assenze_impostazioni"), "/assenze/impostazioni/")
         self.assertEqual(reverse("notizie_gestione_admin"), "/notizie/impostazioni/")
         self.assertEqual(reverse("procedure_refresh:admin_dashboard"), "/procedure-refresh/impostazioni/")
         self.assertEqual(reverse("tasks:impostazioni"), "/tasks/impostazioni/")
@@ -1691,9 +1694,11 @@ class ModuleSettingsRouteTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], "/assets/impostazioni/")
 
+        # Il vecchio path porta allo STESSO contenuto di prima, che ora vive su
+        # /assenze/le-mie-richieste/ (i bookmark esistenti non si rompono).
         response = self.client.get("/assenze/gestione_assenze")
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response["Location"], "/assenze/impostazioni/")
+        self.assertEqual(response["Location"], "/assenze/le-mie-richieste/")
 
         response = self.client.get("/procedure-refresh/admin/")
         self.assertEqual(response.status_code, 302)

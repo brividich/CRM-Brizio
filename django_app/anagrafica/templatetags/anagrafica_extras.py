@@ -10,6 +10,25 @@ register = template.Library()
 logger = logging.getLogger(__name__)
 
 
+@register.filter(name="section_fields")
+def section_fields(form, names):
+    """Ritorna i bound-field del form indicati (nomi separati da virgola), nell'ordine.
+
+    Usato con ``partials/_fmd_section.html`` per comporre un form a sezioni
+    verticali dichiarando SOLO quali campi vanno in ogni sezione. Campi non
+    presenti nel form (es. opzionali/condizionali) sono ignorati senza errore.
+    """
+    out = []
+    try:
+        for raw in str(names or "").split(","):
+            n = raw.strip()
+            if n and n in form.fields:
+                out.append(form[n])
+    except Exception:
+        return []
+    return out
+
+
 @register.filter(name="strip_leading_emoji")
 def strip_leading_emoji(label):
     """Rimuove eventuali emoji/simboli iniziali (e spazi) da un'etichetta,

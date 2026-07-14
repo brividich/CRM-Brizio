@@ -340,7 +340,7 @@
           <table class="abs-table" id="table-da-gestire">
             <thead>
               <tr>
-                <th>Dipendente</th><th>Tipo</th><th>Dal</th><th>Al</th><th>Motivo</th><th>Formazione</th><th>Azioni</th>
+                <th>Dipendente</th><th>Tipo</th><th>Dal</th><th>Al</th><th>Motivo</th><th>Inserita il</th><th>Formazione</th><th>Azioni</th>
               </tr>
             </thead>
             <tbody>
@@ -356,6 +356,7 @@
                   <td data-label="Dal">{{ r.inizio_label }}</td>
                   <td data-label="Al">{{ r.fine_label }}</td>
                   <td data-label="Motivo">{{ r.motivo|default:"-" }}</td>
+                  <td data-label="Inserita il">{{ r.creata_label|default:"-" }}</td>
                   <td data-label="Formazione">
                     {% if r.n_corsi_conflitto %}
                       <details class="car-corsi-warn">

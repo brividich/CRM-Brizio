@@ -4518,7 +4518,6 @@ class WizardApp:
         except: pass
         try: self.root.destroy()
         except: pass
-        os._exit(0)
 
     def _cancel(self):
         if messagebox.askyesno("Annulla", "Uscire dal wizard?"): self._close()
@@ -6162,7 +6161,6 @@ class ReleaseApp:
         except: pass
         try: self.root.destroy()
         except: pass
-        os._exit(0)
 
     def _cancel(self):
         if messagebox.askyesno("Annulla", "Uscire da Gestione Release?"): self._close()
@@ -6651,7 +6649,6 @@ class UninstallApp:
         except: pass
         try: self.root.destroy()
         except: pass
-        os._exit(0)
 
     def _cancel(self):
         if messagebox.askyesno("Annulla", "Uscire?"): self._close()
@@ -6720,16 +6717,95 @@ class ServerDashboard:
         self._terminal_proc = None
         self._terminal_running = False
         self._terminal_lock = threading.Lock()
+        # 4-tupla: (etichetta con emoji rischio 🟢/🟡/🔴 in stile RUNBOOK_COMANDI.md,
+        # comando, descrizione breve, placeholder file o None). Il placeholder
+        # "<file>" viene sostituito dal pulsante "Sfoglia file..." nel terminale.
         self._terminal_presets = [
-            ("Django check", "manage.py check --settings=config.settings.prod"),
-            ("Stato migrations", "manage.py showmigrations --settings=config.settings.prod"),
-            ("Migrate", "manage.py migrate --settings=config.settings.prod --noinput"),
-            ("Collectstatic dry-run", "manage.py collectstatic --dry-run --noinput --clear --settings=config.settings.prod -v 0"),
-            ("ACL dry-run", "manage.py bootstrap_acl_v2 --dry-run --settings=config.settings.prod"),
-            ("ACL apply legacy", "manage.py bootstrap_acl_v2 --import-legacy --apply --settings=config.settings.prod"),
-            ("Seed descrizioni pulsanti", "manage.py seed_pulsanti_descrizioni --settings=config.settings.prod"),
-            ("Q - migra django-q", "manage.py migrate django_q --noinput --settings=config.settings.prod"),
-            ("Q - registra schedule", "manage.py setup_q_schedules --settings=config.settings.prod"),
+            # Test & quality gate
+            ("🟢 Test · Django check", "manage.py check --settings=config.settings.prod",
+             "System check (config/modelli)", None),
+            ("🟢 Test · Stato migrations", "manage.py showmigrations --settings=config.settings.prod",
+             "Mostra lo stato delle migrazioni per app", None),
+            ("🟡 Test · Migrate", "manage.py migrate --settings=config.settings.prod --noinput",
+             "Applica le migrazioni pendenti", None),
+            ("🟡 Test · Collectstatic dry-run", "manage.py collectstatic --dry-run --noinput --clear --settings=config.settings.prod -v 0",
+             "Anteprima raccolta static (nessuna scrittura)", None),
+            ("🟢 Test · Migrazioni mancanti", "manage.py makemigrations --check --settings=config.settings.prod",
+             "Verifica che non manchino migrazioni da generare", None),
+            ("🟢 Test · Secret hygiene check", "manage.py secret_hygiene_check --settings=config.settings.prod",
+             "Scansiona i file Git per segreti/path sensibili hardcoded", None),
+            ("🟢 Test · Valida deploy", "manage.py validate_deployment --format json --settings=config.settings.prod",
+             "Valida la configurazione di deploy", None),
+            # ACL v2
+            ("🟢 ACL · Bootstrap dry-run", "manage.py bootstrap_acl_v2 --dry-run --settings=config.settings.prod",
+             "Anteprima bootstrap permessi/binding canonici ACL v2", None),
+            ("🟡 ACL · Bootstrap apply legacy", "manage.py bootstrap_acl_v2 --import-legacy --apply --settings=config.settings.prod",
+             "Applica il bootstrap ACL v2 importando i grant legacy", None),
+            ("🟢 ACL · Route non gated", "manage.py acl_fallback_report --only-unbound --settings=config.settings.prod",
+             "Route senza binding canonico (debito ACL)", None),
+            ("🟢 ACL · Copertura canonica", "manage.py acl_coverage_report --max-missing 222 --settings=config.settings.prod",
+             "Copertura ACL canonica sulle route registrate", None),
+            ("🟢 ACL · Diagnosi route", "manage.py acl_diagnose --settings=config.settings.prod",
+             "Diagnosi accesso route (canonico vs legacy)", None),
+            ("🟢 ACL · Prontezza modalità strict", "manage.py acl_strict_readiness --settings=config.settings.prod",
+             "Verifica prontezza per ACL_STRICT_CANONICAL=True", None),
+            # AI / RAG
+            ("🟢 AI/RAG · Ricostruisci indice SGI", "manage.py index_sgi_documents --settings=config.settings.prod",
+             "Ricostruisce l'indice RAG + warm embeddings del corpus SGI", None),
+            ("🟢 AI/RAG · Valuta recall RAG", "manage.py ai_eval --rag --settings=config.settings.prod",
+             "Valuta recall@k del RAG su golden query", None),
+            ("🟢 AI/RAG · Warmup Ollama", "manage.py warmup_ollama --settings=config.settings.prod",
+             "Pre-carica il modello chat Ollama (evita cold-start)", None),
+            ("🟢 AI/RAG · Health-check AI", "manage.py monitoring_ai_alert --settings=config.settings.prod",
+             "Health-check AI (Ollama/TEI) + alert email su degrado", None),
+            # Presa Visione / corpus SGI
+            ("🟢 SGI · Import da share (dry-run)", "manage.py import_sgi_da_share --settings=config.settings.prod",
+             "Dry-run: scandisce la share SGI e mostra cosa importerebbe", None),
+            ("🟡 SGI · Import da share (apply)", "manage.py import_sgi_da_share --apply --settings=config.settings.prod",
+             "Scrive: registra documenti + revisioni correnti nel DB", None),
+            # MOD.128 MPQ
+            ("🟢 MPQ · Import MOD.128 (dry-run)", "manage.py import_mod128 --pdf <file> --settings=config.settings.prod",
+             "Dry-run: importa il MOD.128 dal PDF nei modelli MPQ", "<file>"),
+            ("🟢 MPQ · Propaga timbri (dry-run)", "manage.py mpq_propaga_timbri --dry-run --settings=config.settings.prod",
+             "Anteprima: sospende/riattiva i timbri collegati alle abilitazioni", None),
+            # Skill Matrix MOD.187
+            ("🟢 Skill Matrix · Report match asset", "manage.py skm_asset_match_report --settings=config.settings.prod",
+             "Report match competenza↔macchina → asset (sola lettura)", None),
+            ("🟡 Skill Matrix · Sincronizza catalogo", "manage.py skm_seed_catalogo --settings=config.settings.prod",
+             "Sincronizza il catalogo competenze dagli asset live", None),
+            # Reminder / digest (schedulati — utile per test manuale)
+            ("🟡 Reminder · Scadenze DPI", "manage.py send_dpi_expiry_reminders --settings=config.settings.prod",
+             "Digest DPI scaduti/in scadenza", None),
+            ("🟡 Reminder · Scadenze formazione", "manage.py send_training_expiry_reminders --settings=config.settings.prod",
+             "Reminder corsi formazione in scadenza", None),
+            ("🟡 Reminder · SLA ticket", "manage.py send_sla_reminders --settings=config.settings.prod",
+             "Reminder ticket con SLA scaduto", None),
+            # Import dati (con file)
+            ("🟢 Import · Dipendenti da Excel (dry-run)", "manage.py import_dipendenti_xlsx <file> --dry-run --settings=config.settings.prod",
+             "Anagrafica dipendenti da Excel — anteprima senza scrivere", "<file>"),
+            ("🟡 Import · Cedolini (dry-run)", "manage.py import_cedolini <file> --dry-run --settings=config.settings.prod",
+             "Saldi ferie/ROL/ex-festività da XLSX — anteprima", "<file>"),
+            ("🟢 Import · SMS storico · converti CSV→JSON", "manage.py converti_sms_storico --file <file> --out %TEMP%\\sms_storico.json --settings=config.settings.prod",
+             "Suggestion Corner: converte il «Registro SMS» storico nel JSON per l'import (sola lettura anagrafica)", "<file>"),
+            ("🟡 Import · SMS storico (dry-run)", "manage.py import_suggestion_corner_legacy --file <file> --settings=config.settings.prod",
+             "Suggestion Corner: importa i record storici dal JSON — anteprima (aggiungi --apply per scrivere)", "<file>"),
+            # Manutenzione / GDPR
+            ("🟢 Manutenzione · Audit media", "manage.py media_audit --settings=config.settings.prod",
+             "Segnala file sensibili in MEDIA_ROOT (servito senza auth)", None),
+            ("🟢 Manutenzione · Reparti orfani", "manage.py report_reparti_orfani --settings=config.settings.prod",
+             "Elenca i dipendenti con reparto legacy orfano", None),
+            ("🟡 Manutenzione · Backup portale", "manage.py backup_portale --settings=config.settings.prod",
+             "Backup DB + config + file del portale", None),
+            # Sincronizzazioni sorgenti esterne
+            ("🟡 Sync · LDAP utenti", "manage.py sync_ldap_users --settings=config.settings.prod",
+             "Importa utenti da LDAP/AD → legacy + auth_user + gruppi", None),
+            # Utility varie
+            ("🟡 Utility · Seed descrizioni pulsanti", "manage.py seed_pulsanti_descrizioni --settings=config.settings.prod",
+             "Popola le descrizioni dei pulsanti/help contestuale", None),
+            ("🟡 Automazioni · Migra django-q", "manage.py migrate django_q --noinput --settings=config.settings.prod",
+             "Applica le migrazioni della coda django-q2", None),
+            ("🟡 Automazioni · Registra schedule", "manage.py setup_q_schedules --settings=config.settings.prod",
+             "Registra/aggiorna gli Schedule django-q2 (reminder/digest)", None),
         ]
         # Servizi Windows — widget refs (impostati in _build)
         self._svc_rows: dict = {}
@@ -7007,14 +7083,14 @@ class ServerDashboard:
 
         term_cmd_row = frame(main, bg="white")
         term_cmd_row.pack(fill="x", pady=(5, 4))
-        preset_values = [label for label, _ in self._terminal_presets]
+        preset_values = [label for label, _cmd, _desc, _file in self._terminal_presets]
         self._terminal_preset_var = tk.StringVar(value=preset_values[0])
         self._terminal_preset = ttk.Combobox(
             term_cmd_row,
             textvariable=self._terminal_preset_var,
             values=preset_values,
             state="readonly",
-            width=24,
+            width=32,
             font=FSM,
         )
         self._terminal_preset.pack(side="left", padx=(0, 8))
@@ -7035,11 +7111,21 @@ class ServerDashboard:
         )
         self._terminal_entry.pack(side="left", fill="x", expand=True, ipady=6, ipadx=8)
         self._terminal_entry.bind("<Return>", lambda _e: self._run_terminal_command())
+        self._terminal_file_btn = SecondaryButton(term_cmd_row, "📎  Sfoglia file…", self._browse_terminal_file)
+        self._terminal_file_btn.pack(side="left", padx=(8, 0))
+        self._terminal_file_btn.set_enabled(False)
         self._terminal_run_btn = PrimaryButton(term_cmd_row, "Esegui", self._run_terminal_command)
         self._terminal_run_btn.pack(side="left", padx=(8, 0))
         self._terminal_stop_btn = SecondaryButton(term_cmd_row, "Stop", self._stop_terminal_command)
         self._terminal_stop_btn.pack(side="left", padx=(8, 0))
         self._terminal_stop_btn.set_enabled(False)
+
+        self._terminal_file_token = None
+        self._terminal_desc_lbl = tk.Label(main, text="", font=FSM, fg=GRAY500,
+                                           bg="white", anchor="w", justify="left",
+                                           wraplength=820)
+        self._terminal_desc_lbl.pack(fill="x", pady=(0, 6))
+        self._on_terminal_preset()
 
         terminal_frame = frame(main, bg=CODE_BG,
                                highlightthickness=1, highlightbackground=GRAY700)
@@ -7616,10 +7702,26 @@ if ($t) {{
 
     def _on_terminal_preset(self, _event=None):
         selected = self._terminal_preset_var.get()
-        for label, command in self._terminal_presets:
+        for label, command, description, file_token in self._terminal_presets:
             if label == selected:
                 self._terminal_cmd_var.set(command)
+                self._terminal_desc_lbl.configure(text=description)
+                self._terminal_file_token = file_token
+                self._terminal_file_btn.set_enabled(file_token is not None)
                 break
+        self._terminal_entry.focus_set()
+        self._terminal_entry.icursor("end")
+
+    def _browse_terminal_file(self):
+        token = self._terminal_file_token
+        if not token:
+            return
+        path = filedialog.askopenfilename()
+        if not path:
+            return
+        command = self._terminal_cmd_var.get()
+        quoted = f'"{path}"' if " " in path else path
+        self._terminal_cmd_var.set(command.replace(token, quoted))
         self._terminal_entry.focus_set()
         self._terminal_entry.icursor("end")
 
@@ -7640,6 +7742,7 @@ if ($t) {{
         state = "disabled" if running else "normal"
         self._terminal_entry.configure(state=state)
         self._terminal_preset.configure(state="disabled" if running else "readonly")
+        self._terminal_file_btn.set_enabled(False if running else self._terminal_file_token is not None)
 
     def _split_terminal_command(self, command: str) -> list[str]:
         try:
@@ -8693,26 +8796,30 @@ def main():
             _ensure_admin("La configurazione IIS (TEST/PROD) richiede diritti di Amministratore.")
         WizardApp(preselect_env=preselect); return
 
-    # ── Nessun argomento → mostra launcher ───────────────────
-    launcher = LauncherApp()
-    choice = launcher.choice()
+    # ── Nessun argomento → mostra il launcher ────────────────
+    # Ogni app (Wizard/Dashboard/Release/Uninstall), una volta chiusa
+    # (X, Annulla o fine flusso), ripresenta il menu di scelta: per uscire
+    # dal programma bisogna chiudere il launcher stesso.
+    while True:
+        launcher = LauncherApp()
+        choice = launcher.choice()
 
-    if choice is None:
-        return  # utente ha chiuso la finestra
+        if choice is None:
+            return  # utente ha chiuso il launcher
 
-    if choice == "install":
-        _ensure_admin("La configurazione IIS (TEST/PROD) richiede diritti di Amministratore.")
-        WizardApp()
+        if choice == "install":
+            _ensure_admin("La configurazione IIS (TEST/PROD) richiede diritti di Amministratore.")
+            WizardApp()
 
-    elif choice == "dashboard":
-        ServerDashboard()
+        elif choice == "dashboard":
+            ServerDashboard()
 
-    elif choice == "release":
-        ReleaseApp()
+        elif choice == "release":
+            ReleaseApp()
 
-    elif choice == "uninstall":
-        _ensure_admin("La disinstallazione richiede diritti di Amministratore.")
-        UninstallApp()
+        elif choice == "uninstall":
+            _ensure_admin("La disinstallazione richiede diritti di Amministratore.")
+            UninstallApp()
 
 if __name__ == "__main__":
     main()

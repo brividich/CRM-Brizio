@@ -81,6 +81,13 @@ No tests are required for documentation-only changes unless project files outsid
 - Do not run `runserver` and the full test suite simultaneously.
 - Prefer `--verbosity 0` when running tests in background to reduce I/O.
 
+## Background Work Guard (ALWAYS)
+
+- Whenever you start a **process, subagent (`Agent`), or background work** (`run_in_background` Bash/PowerShell, `Workflow`, long `Task`, external status polling), immediately arm a `ScheduleWakeup` **guard** so you regain control even if the completion notification never arrives.
+- Cadence ~5 min: use `delaySeconds: 270` (stays inside the 5-min prompt-cache TTL). Re-arm on each wake while the work is still in flight; explicit `reason`.
+- Close the guard (`ScheduleWakeup(stop: true)`) when the work finishes. The guard protects a **real wait** — don't leave hollow wakeups when nothing is running.
+- Rationale: past background waits left the session **stuck**; this is the safety heartbeat.
+
 ## Session Isolation (ALWAYS)
 
 Multiple Claude sessions work on this repo **at the same time**. The branch and the uncommitted files belong to the *folder*, not to the session: if every session works in `C:\Dev\Portale Novicrom`, one session's `git checkout` switches the branch under the others, and one session's `git add` stages another session's WIP (it also silently discards uncommitted edits made there).

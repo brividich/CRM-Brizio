@@ -79,6 +79,10 @@ ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", ["127.0.0.1", "localhost"])
 APP_VERSION = env("APP_VERSION", load_app_version(DEFAULT_APP_VERSION))
 SETUP_WIZARD_REQUIRED = env_bool("SETUP_WIZARD_REQUIRED", True)
 
+# Branch da cui nasce ogni pacchetto di release (package-release.ps1 esporta questo,
+# non la cartella di lavoro). Il codice e' "in produzione" solo se e' qui dentro.
+RELEASE_BRANCH = env("RELEASE_BRANCH", "release/prod")
+
 # ── Branding istanza ──────────────────────────────────────────────────────────
 # INSTANCE_NAME: nome visualizzato nell'interfaccia (es. "NOVICROM HUB").
 # Puoi personalizzarlo per singola installazione senza cambiare il brand documentale.
@@ -304,6 +308,13 @@ OLLAMA_RAG_SGI_MAX_SPECS = int(env("OLLAMA_RAG_SGI_MAX_SPECS", "300") or "300")
 OLLAMA_RAG_SGI_MAX_PROCS = int(env("OLLAMA_RAG_SGI_MAX_PROCS", "300") or "300")
 OLLAMA_RAG_SGI_MAX_PDF_CHARS = int(env("OLLAMA_RAG_SGI_MAX_PDF_CHARS", "200000") or "200000")
 OLLAMA_RAG_SGI_TEXT_CACHE_TTL = int(env("OLLAMA_RAG_SGI_TEXT_CACHE_TTL", "2592000") or "2592000")
+# Schede di Sicurezza (SDS chimici) nel corpus RAG (Ondata 6.2): indicizza le schede
+# CORRENTI leggendo i campi curati in DB (CLP, frasi H/P, DPI sez.8, primo soccorso
+# sez.4, incompatibilita' sez.10, estratto_grezzo) — nessun PDF ri-parsato. Handle
+# citabile `sds:`. Contenuto = sicurezza organizzativa non personale. OPT-OUT con
+# OLLAMA_RAG_SDS_ENABLED=False (gira solo se anche OLLAMA_RAG_SGI_ENABLED e' attivo).
+OLLAMA_RAG_SDS_ENABLED = env_bool("OLLAMA_RAG_SDS_ENABLED", True)
+OLLAMA_RAG_SDS_MAX = int(env("OLLAMA_RAG_SDS_MAX", "500") or "500")
 # Deny-list documenti SGI: codici/titoli che NON devono entrare nel corpus RAG perche'
 # sono roster di persone abilitate/licenziate a una macchina (skill matrix / licensed
 # operators / MOD.187). Sono la fonte di allucinazioni HR "X e' abilitato alla macchina Y"
@@ -465,6 +476,7 @@ INSTALLED_APPS = [
     "dpi.apps.DpiConfig",
     "procedure_refresh.apps.ProcedureRefreshConfig",
     "suggestion_corner.apps.SuggestionCornerConfig",
+    "schede_sicurezza.apps.SchedeSicurezzaConfig",
     "contatori.apps.ContatoriConfig",
     "security.apps.SecurityConfig",
     "django_extensions",
@@ -511,6 +523,7 @@ TEMPLATES = [
                 "core.context_processors.legacy_nav",
                 "core.context_processors.app_meta",
                 "core.context_processors.ui_prefs_context",
+                "core.context_processors.dev_git_badge",
                 "monitoring.context_processors.monitoring_ui",
             ],
         },
@@ -629,6 +642,12 @@ HUB_BACHECA_PRIVATE_ROOT = Path(env("HUB_BACHECA_PRIVATE_ROOT", str(MEDIA_ROOT.p
 # (MEDIA_ROOT=BASE_DIR\media) resta BASE_DIR\media_private, invariato.
 GESTIONE_SPECIFICHE_PRIVATE_ROOT = Path(
     env("GESTIONE_SPECIFICHE_PRIVATE_ROOT", str(MEDIA_ROOT.parent / "media_private"))
+)
+# PDF delle schede di sicurezza (schede_sicurezza): storage privato cifrato, mai esposto
+# da IIS; accessibile solo via view protetta con ACL. Default persistente (fuori da
+# `current`), stesso pattern di GESTIONE_SPECIFICHE_PRIVATE_ROOT: sopravvive ai deploy.
+SCHEDE_SICUREZZA_PRIVATE_ROOT = Path(
+    env("SCHEDE_SICUREZZA_PRIVATE_ROOT", str(MEDIA_ROOT.parent / "media_private"))
 )
 # Radici UNC CONSENTITE per gli allegati "collegati" (modalità share = single source of
 # truth: il PDF resta sul master aziendale, il portale lo serve on-demand). La view di

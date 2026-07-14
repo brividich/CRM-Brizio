@@ -524,7 +524,7 @@ def mpq_processo_create(request):
     else:
         form = ProcessoQualificatoForm()
     qa_piani, qa_categorie = _qa_corso_options()
-    return render(request, "anagrafica/pages/mpq_form.html", {
+    return render(request, "anagrafica/pages/mpq_processo_form.html", {
         "form": form, "titolo": "Nuovo processo qualificato (MOD.128)",
         "back_url": reverse("anagrafica:mpq_cruscotto"),
         "mpq_requisiti": True, "qa_piani": qa_piani, "qa_categorie": qa_categorie,
@@ -547,7 +547,7 @@ def mpq_processo_edit(request, processo_id: int):
     else:
         form = ProcessoQualificatoForm(instance=proc)
     qa_piani, qa_categorie = _qa_corso_options()
-    return render(request, "anagrafica/pages/mpq_form.html", {
+    return render(request, "anagrafica/pages/mpq_processo_form.html", {
         "form": form, "titolo": f"Modifica · {proc.nome}",
         "back_url": reverse("anagrafica:mpq_processo_detail", args=[proc.id]),
         "mpq_requisiti": True, "qa_piani": qa_piani, "qa_categorie": qa_categorie,

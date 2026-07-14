@@ -696,8 +696,7 @@
                 </div>
               </div>
 
-              <div class="abs-fields-2">
-                <div class="abs-field">
+              <div class="abs-field abs-type-field">
                   <label for="tipoassenza">Tipo assenza</label>
                   <div class="abs-type-grid" aria-label="Scelta rapida tipo assenza">
                     <button type="button" class="abs-type-card abs-type-ferie" data-type-card="Ferie">
@@ -735,7 +734,9 @@
                     </select>
                     <div class="abs-field-hint">Puoi usare le card oppure il menu: il valore salvato resta lo stesso.</div>
                   </div>
-                </div>
+              </div>
+
+              <div class="abs-fields-2">
                 <div class="abs-field">
                   <label for="motivazione">Motivazione richiesta</label>
                   <select id="motivazione" name="motivazione" class="abs-select">
@@ -747,13 +748,14 @@
                       <option value="{{ form_data.motivazione }}" selected>{{ form_data.motivazione }}</option>
                     {% endif %}
                   </select>
+                  <div class="abs-field-hint">Voce facoltativa collegata alla richiesta.</div>
                 </div>
-              </div>
 
-              <div class="abs-field" id="certificato-wrap">
-                <label for="certificato_medico">Numero certificato medico</label>
-                <input id="certificato_medico" type="text" name="certificato_medico" class="abs-input" value="{{ form_data.certificato_medico|default:'' }}" placeholder="Inserisci il numero del certificato">
-                <div class="abs-field-hint">Campo opzionale, visibile solo per richieste di malattia.</div>
+                <div class="abs-field" id="certificato-wrap">
+                  <label for="certificato_medico">Numero certificato medico</label>
+                  <input id="certificato_medico" type="text" name="certificato_medico" class="abs-input" value="{{ form_data.certificato_medico|default:'' }}" placeholder="Inserisci il numero del certificato">
+                  <div class="abs-field-hint">Campo opzionale, visibile solo per richieste di malattia.</div>
+                </div>
               </div>
 
               {% if assenze_can_skip_approval %}

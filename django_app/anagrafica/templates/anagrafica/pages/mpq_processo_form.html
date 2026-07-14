@@ -1,0 +1,58 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% load anagrafica_extras %}
+
+{% block title %}{{ titolo }} | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
+{% include "anagrafica/components/_fmd_form_style.html" %}
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  <div class="fmd-wrap" style="max-width:840px;">
+
+    <div class="fmd-pagehead">
+      <div class="fmd-crumb">
+        <a href="{% url 'anagrafica:mpq_cruscotto' %}">Processi qualificati</a>
+        <span class="fmd-sep"> / </span><span class="fmd-cur">{{ titolo }}</span>
+      </div>
+      <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-cap"/></svg>{{ titolo }}</h1>
+      <p class="fmd-ph-sub">Definisci il processo qualificato: cliente/ente, validità, requisiti e distribuzione.</p>
+    </div>
+
+    <form method="post" class="fmd-panel">
+      {% csrf_token %}
+      {% if form.non_field_errors %}
+      <div class="fmd-form-sec"><div class="fmd-ferr">{{ form.non_field_errors }}</div></div>
+      {% endif %}
+
+      {% include "anagrafica/partials/_fmd_section.html" with title="Processo" icon="i-cap" desc="Cliente/ente qualificante, nome del processo, regime e livello." fields=form|section_fields:"cliente,nome,regime,livello" %}
+      {% include "anagrafica/partials/_fmd_section.html" with title="Certificazione" icon="i-check" desc="Ente/organismo certificatore e tipo qualifica di catalogo collegato (opzionali)." fields=form|section_fields:"ente_certificatore,tipo_qualifica" %}
+      {% include "anagrafica/partials/_fmd_section.html" with title="Validità e scadenza" icon="i-cal-clock" desc="Illimitata, a periodo (mesi da conseguimento) o data esplicita." fields=form|section_fields:"tipo_validita,data_conseguimento,durata_mesi,data_scadenza" %}
+      {% include "anagrafica/partials/_fmd_section.html" with title="Personale" icon="i-clipboard" desc="Nominale (elenco persone) oppure organizzativa (rimando a dichiarazione)." fields=form|section_fields:"personale_modalita,riferimento_dichiarazione" %}
+      {% include "anagrafica/partials/_fmd_section.html" with title="Stato" icon="i-alert-tri" desc="Attivo/sospeso/revocato/dismesso, con motivo e riferimento a supporto." fields=form|section_fields:"stato,motivo_stato,riferimento_stato" %}
+      {% include "anagrafica/partials/_fmd_section.html" with title="Requisiti (corsi · DPI · visite)" icon="i-clipboard" desc="Cosa serve per l'idoneità al processo. Usa «+ nuovo» se un corso/visita/DPI non è in elenco." fields=form|section_fields:"corsi_richiesti,dpi_richiesti,visite_richieste" %}
+      {% include "anagrafica/partials/_fmd_section.html" with title="Distribuzione e riconoscimento" icon="i-grid" desc="Reparti a cui è distribuito e clienti/enti che lo riconoscono (condiviso)." fields=form|section_fields:"reparti,clienti_addizionali" %}
+      {% include "anagrafica/partials/_fmd_section.html" with title="Revisione del registro" icon="i-edit" desc="Numero revisione, responsabile qualità e data (registro vivo)." fields=form|section_fields:"numero_revisione,responsabile_qualita,data_revisione" %}
+      {% include "anagrafica/partials/_fmd_section.html" with title="Note" icon="i-clipboard" fields=form|section_fields:"note" %}
+
+      <div class="fmd-form-foot">
+        <span class="fmd-form-hint">I campi con <i class="fmd-req" style="font-style:normal;">*</i> sono obbligatori.</span>
+        <span class="fmd-spacer"></span>
+        <a href="{{ back_url }}" class="fmd-btn fmd-btn-ghost">Annulla</a>
+        <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-check"/></svg>Salva</button>
+      </div>
+
+      {% include "anagrafica/components/_multiselect_picker.html" %}
+      {% include "anagrafica/partials/_mpq_quickadd.html" %}
+    </form>
+
+  </div>
+</div>
+{% endblock %}

@@ -149,7 +149,7 @@
     <div style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:10px;">➕ Inserisci voce retributiva manuale</div>
     <form method="post" action="{% url 'anagrafica:dipendente_retribuzione_voce_add' legacy_id %}">
       {% csrf_token %}
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;">
+      <div style="display:grid;grid-template-columns:1fr;gap:14px;">
         <div>
           <label class="dr-form-label">Mese competenza *</label>
           <input type="date" name="data_competenza" class="dr-input" required title="Indica un giorno qualsiasi del mese (il sistema usa il primo giorno)">

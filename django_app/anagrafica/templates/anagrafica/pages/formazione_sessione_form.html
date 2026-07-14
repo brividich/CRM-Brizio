@@ -1,5 +1,6 @@
 {% extends "core/base.html" %}
 {% load static %}
+{% load anagrafica_extras %}
 
 {% block title %}{% if modo == "crea" %}Nuova sessione{% else %}Modifica sessione{% endif %} | Formazione HR{% endblock %}
 
@@ -36,9 +37,10 @@
       {% if form.non_field_errors %}
       <div class="fmd-form-sec"><div class="fmd-ferr">{{ form.non_field_errors }}</div></div>
       {% endif %}
-      <div class="fmd-form-sec">
-        {% include "anagrafica/partials/_fmd_form_fields.html" with form=form %}
-      </div>
+      {% include "anagrafica/partials/_fmd_section.html" with title="Corso e stato" icon="i-cap" desc="Quale corso viene erogato, con codice, stato e modalità." fields=form|section_fields:"corso,codice_sessione,stato,modalita" %}
+      {% include "anagrafica/partials/_fmd_section.html" with title="Periodo" icon="i-cal-clock" desc="Date di inizio e fine della sessione." fields=form|section_fields:"data_inizio,data_fine" %}
+      {% include "anagrafica/partials/_fmd_section.html" with title="Sede e docente" icon="i-clipboard" desc="Dove si svolge e chi la tiene (docente a catalogo o nominativo libero)." fields=form|section_fields:"sede,docente,docente_nome" %}
+      {% include "anagrafica/partials/_fmd_section.html" with title="Note" icon="i-clipboard" fields=form|section_fields:"note" %}
       <div class="fmd-form-foot">
         <span class="fmd-form-hint">I campi con <i class="fmd-req" style="font-style:normal;">*</i> sono obbligatori.</span>
         <span class="fmd-spacer"></span>

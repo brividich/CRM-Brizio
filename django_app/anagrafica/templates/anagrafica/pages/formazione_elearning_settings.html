@@ -40,7 +40,7 @@
           <span class="fmd-form-sec-t">Default nuovi micro-corsi</span>
           <span class="fmd-form-sec-n">Precompilati alla creazione di un corso e-learning</span>
         </div>
-        <div class="fmd-grid-3">
+        <div class="fmd-stack">
           {% include "anagrafica/partials/_fmd_field.html" with field=form.quiz_punteggio_minimo_default %}
           {% include "anagrafica/partials/_fmd_field.html" with field=form.validita_mesi_default %}
           {% include "anagrafica/partials/_fmd_field.html" with field=form.max_tentativi_quiz %}
@@ -54,7 +54,7 @@
           <span class="fmd-form-sec-t">Import PowerPoint (LibreOffice)</span>
           <span class="fmd-form-sec-n">Necessario solo per convertire i .pptx; i PDF funzionano sempre</span>
         </div>
-        <div class="fmd-grid">
+        <div class="fmd-stack">
           {% include "anagrafica/partials/_fmd_field.html" with field=form.libreoffice_path full=1 %}
         </div>
         <div style="margin-top:8px;">

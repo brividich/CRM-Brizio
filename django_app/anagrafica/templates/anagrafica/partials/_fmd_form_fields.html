@@ -1,7 +1,7 @@
-{# Rende un intero ModelForm con stile .fmd: campi non-checkbox in griglia 2 colonne #}
-{# (textarea/multiselect a tutta riga via CSS), checkbox raggruppati in fondo. #}
+{# Rende un intero ModelForm con stile .fmd: campi non-checkbox impilati in verticale #}
+{# (una colonna, layout intuitivo), checkbox raggruppati in fondo. #}
 {# Uso: includere passando form=form ; richiede il partial _fmd_form_style.html in pagina. #}
-<div class="fmd-grid">
+<div class="fmd-stack">
   {% for field in form %}
     {% if field.field.widget.input_type != "checkbox" %}
       {% include "anagrafica/partials/_fmd_field.html" with field=field %}

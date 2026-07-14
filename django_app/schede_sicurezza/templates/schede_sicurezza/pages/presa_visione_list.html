@@ -1,0 +1,37 @@
+{% extends "core/base.html" %}
+
+{% block title %}Prese visione — {{ scheda }} | Schede Sicurezza{% endblock %}
+
+{% block content %}
+<div style="max-width:720px;display:flex;flex-direction:column;gap:16px;">
+  <div style="font-size:20px;font-weight:900;">Prese visione</div>
+  <div style="font-size:13px;color:#64748b;">{{ scheda.prodotto.nome }} — versione {{ scheda.versione|default:"—" }}</div>
+
+  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow-x:auto;">
+    {% if prese %}
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="text-align:left;color:#475569;background:#f8fafc;">
+            <th style="padding:8px 12px;">Operatore</th>
+            <th style="padding:8px 12px;">Data</th>
+            <th style="padding:8px 12px;">Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for pv in prese %}
+            <tr>
+              <td style="padding:8px 12px;">{{ pv.operatore.get_full_name|default:pv.operatore.username }}</td>
+              <td style="padding:8px 12px;">{{ pv.data_presa_visione|date:"d/m/Y H:i" }}</td>
+              <td style="padding:8px 12px;">{{ pv.note|default:"—" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div style="padding:32px;text-align:center;color:#94a3b8;">Nessuna presa visione registrata per questa versione.</div>
+    {% endif %}
+  </div>
+
+  <a href="{% url 'schede_sicurezza:prodotto_detail' pk=scheda.prodotto_id %}" style="font-size:13px;color:#1d4ed8;text-decoration:none;font-weight:700;">← Torna al prodotto</a>
+</div>
+{% endblock %}

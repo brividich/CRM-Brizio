@@ -190,8 +190,13 @@ def system_status(request):
     except Exception:
         rag_status = None
 
+    # Provenienza del codice in esecuzione: scritta nel pacchetto da package-release.ps1.
+    # Assente = non stiamo girando da un pacchetto (sviluppo locale).
+    from core.build_info import read_build_info
+
     context = {
         "generated_at": now,
+        "build_info": read_build_info(),
         "readyz": readyz,
         "readyz_ok": readyz.status == "ok",
         "ai_issues": ai_issues,

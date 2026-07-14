@@ -1,37 +1,87 @@
 {% extends "core/base.html" %}
+{% block title %}Modifica SC#{{ seg.pk }} — Suggestion Corner{% endblock %}
+{% block extra_head %}
+  {% include "core/components/_hub_formkit.html" %}
+  {% include "suggestion_corner/partials/_sc_styles.html" %}
+{% endblock %}
 {% block content %}
 <div class="content">
-  <p><a href="{% url 'suggestion_corner:dettaglio' seg.pk %}">&larr; Segnalazione SC#{{ seg.pk }}</a></p>
-  <h1>Modifica segnalazione SC#{{ seg.pk }}</h1>
+  <div class="sc-page-head">
+    <div>
+      <span class="sc-eyebrow"><span class="dot"></span>
+        <a href="{% url 'suggestion_corner:dettaglio' seg.pk %}" style="text-decoration:none;color:inherit">← Segnalazione SC#{{ seg.pk }}</a>
+      </span>
+      <h1>Modifica segnalazione SC#{{ seg.pk }}
+        <span class="sc-badge" data-stato="{{ seg.stato }}">{{ seg.stato_label }}</span>
+      </h1>
+    </div>
+  </div>
 
   {% if messages %}
-    {% for m in messages %}
-      <div class="hub-alert hub-alert-{{ m.tags }}">{{ m }}</div>
-    {% endfor %}
+    {% for m in messages %}<div class="hub-alert hub-alert-{{ m.tags }}">{{ m }}</div>{% endfor %}
   {% endif %}
 
-  <p class="hub-help">
-    Correzione amministrativa (reparti, persone, esiti e testi). Lo <strong>stato</strong>
-    del workflow e le date di sistema non si modificano da qui. Ogni salvataggio viene
-    tracciato nello storico.
+  <p class="hub-help" style="margin-bottom:var(--space-4)">
+    Correzione amministrativa (reparti, persone, esiti e testi). Lo <strong>stato</strong> del
+    workflow e le date di sistema non si modificano da qui: si cambiano solo con le azioni PDCA.
+    Ogni salvataggio viene tracciato nello storico.
   </p>
 
-  <form method="post" class="hub-form-stack">
+  <form method="post" novalidate>
     {% csrf_token %}
     {% if form.non_field_errors %}
       <div class="hub-alert hub-alert-error">{{ form.non_field_errors }}</div>
     {% endif %}
-    {% for field in form %}
-      <div class="hub-field">
-        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-        {{ field }}
-        {% if field.help_text %}<small class="hub-help">{{ field.help_text }}</small>{% endif %}
-        {% if field.errors %}<div class="hub-field-error">{{ field.errors }}</div>{% endif %}
+
+    <div class="sc-detail-grid">
+
+      <div class="sc-card">
+        <div class="sc-card-head">Provenienza e destinazione</div>
+        <div class="sc-card-body sc-form-grid">
+          {% include "suggestion_corner/partials/_sc_field.html" with field=form.reparto_provenienza only %}
+          {% include "suggestion_corner/partials/_sc_field.html" with field=form.area_provenienza only %}
+          {% include "suggestion_corner/partials/_sc_field.html" with field=form.reparto_destinazione only %}
+          {% include "suggestion_corner/partials/_sc_field.html" with field=form.area_destinazione only %}
+          {% include "suggestion_corner/partials/_sc_field.html" with field=form.processo_libero full=1 only %}
+        </div>
       </div>
-    {% endfor %}
-    <div class="hub-form-actions">
+
+      <div class="sc-card">
+        <div class="sc-card-head">Segnalazione</div>
+        <div class="sc-card-body sc-form-grid">
+          {% include "suggestion_corner/partials/_sc_field.html" with field=form.opportunity full=1 only %}
+          {% include "suggestion_corner/partials/_sc_field.html" with field=form.stato_sms only %}
+        </div>
+      </div>
+
+      <div class="sc-card">
+        <div class="sc-card-head">Persone</div>
+        <div class="sc-card-body sc-form-grid">
+          {% include "suggestion_corner/partials/_sc_field.html" with field=form.incaricato only %}
+          {% include "suggestion_corner/partials/_sc_field.html" with field=form.controllore only %}
+          {% include "suggestion_corner/partials/_sc_field.html" with field=form.cliente_nome only %}
+          {% include "suggestion_corner/partials/_sc_field.html" with field=form.cliente_email only %}
+        </div>
+      </div>
+
+      <div class="sc-card">
+        <div class="sc-card-head">Ciclo PDCA</div>
+        <div class="sc-card-body sc-form-grid">
+          {% include "suggestion_corner/partials/_sc_field.html" with field=form.plan_testo full=1 only %}
+          {% include "suggestion_corner/partials/_sc_field.html" with field=form.do_testo only %}
+          {% include "suggestion_corner/partials/_sc_field.html" with field=form.esito_do only %}
+          {% include "suggestion_corner/partials/_sc_field.html" with field=form.check_testo only %}
+          {% include "suggestion_corner/partials/_sc_field.html" with field=form.esito_check only %}
+          {% include "suggestion_corner/partials/_sc_field.html" with field=form.act_testo full=1 only %}
+        </div>
+      </div>
+
+    </div>
+
+    <div class="sc-actions-bar">
+      <span class="note">Le modifiche sono registrate nello storico della segnalazione.</span>
+      <a href="{% url 'suggestion_corner:dettaglio' seg.pk %}" class="hub-btn hub-btn-outline">Annulla</a>
       <button type="submit" class="hub-btn hub-btn-primary">Salva modifiche</button>
-      <a href="{% url 'suggestion_corner:dettaglio' seg.pk %}" class="hub-btn">Annulla</a>
     </div>
   </form>
 </div>

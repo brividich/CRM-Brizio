@@ -442,7 +442,7 @@
       <span class="abs-card-icon"><svg aria-hidden="true"><use href="#abs-i-clipboard"></use></svg></span>
       <div class="abs-card-content">
         <div class="abs-card-top">
-          <div class="abs-card-title">Gestione richieste</div>
+          <div class="abs-card-title">Le mie richieste</div>
         </div>
         <div class="abs-card-text">Stato, note, certificati e modifiche rapide.</div>
       </div>
@@ -492,13 +492,13 @@
     {% endif %}
 
     {% if assenze_is_admin %}
-      <a class="abs-card-link abs-menu-card abs-card-admin" href="{% url 'assenze_gestione_admin' %}">
+      <a class="abs-card-link abs-menu-card abs-card-admin" href="{% url 'assenze_impostazioni' %}">
         <span class="abs-card-icon"><svg aria-hidden="true"><use href="#abs-i-settings"></use></svg></span>
         <div class="abs-card-content">
           <div class="abs-card-top">
-            <div class="abs-card-title">Gestione admin</div>
+            <div class="abs-card-title">Impostazioni</div>
           </div>
-          <div class="abs-card-text">Statistiche, record e diagnostica.</div>
+          <div class="abs-card-text">Tutte le assenze, moderazione e log.</div>
         </div>
       </a>
     {% endif %}

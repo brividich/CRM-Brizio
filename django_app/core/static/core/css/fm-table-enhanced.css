@@ -5,24 +5,31 @@
  */
 
 /* ── Barra controlli sopra la tabella ─────────────────────── */
+/* La ricerca globale occupa l'intera larghezza della riga (layout "campo
+ * prominente"): è la ricerca primaria della tabella, i pulsanti Colonne/Reset
+ * restano compatti a destra. Così ogni tabella del portale ha un unico campo
+ * di ricerca ampio invece di uno stretto e sacrificato. */
 .fm-tbl-controls{
-  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
-  padding:8px 10px;margin:0 0 6px;
-  border:1px solid #e2e8f0;border-radius:8px;
-  background:#fafbfc;
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:10px 12px;margin:0 0 10px;
+  border:1px solid #e2e8f0;border-radius:10px;
+  background:#fff;
 }
-.fm-tbl-search{position:relative;flex:1;min-width:200px;max-width:340px}
+.fm-tbl-search{position:relative;flex:1 1 260px;min-width:220px}
 .fm-tbl-search-ico{
-  position:absolute;left:8px;top:50%;transform:translateY(-50%);
-  font-size:13px;color:#94a3b8;pointer-events:none;
+  position:absolute;left:12px;top:50%;transform:translateY(-50%);
+  font-size:14px;color:#94a3b8;pointer-events:none;
 }
 .fm-tbl-search input{
-  width:100%;padding:5px 8px 5px 28px;font-size:12.5px;box-sizing:border-box;
-  border:1px solid #d1d5db;border-radius:5px;background:#fff;color:#0f172a;
+  width:100%;padding:9px 12px 9px 34px;font-size:13.5px;box-sizing:border-box;
+  border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0f172a;
+}
+.fm-tbl-search input:focus{
+  outline:none;border-color:#1d4ed8;box-shadow:0 0 0 3px rgba(29,78,216,.15);
 }
 .fm-tbl-btn{
-  padding:5px 10px;font-size:12px;font-weight:600;
-  border:1px solid #d1d5db;border-radius:5px;background:#fff;color:#334155;
+  padding:8px 13px;font-size:12.5px;font-weight:600;
+  border:1px solid #d1d5db;border-radius:8px;background:#fff;color:#334155;
   cursor:pointer;white-space:nowrap;
 }
 .fm-tbl-btn:hover{border-color:#1d4ed8;color:#1d4ed8}

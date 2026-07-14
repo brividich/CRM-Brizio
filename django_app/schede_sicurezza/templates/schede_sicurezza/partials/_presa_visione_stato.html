@@ -1,0 +1,9 @@
+{% if gia_presa_visione %}
+  <div class="ss-pv-done">✅ Presa visione registrata</div>
+{% else %}
+  <form hx-post="{% url 'schede_sicurezza:presa_visione_conferma' scheda_pk=scheda.pk %}"
+        hx-target="#ss-pv-stato" hx-swap="innerHTML">
+    {% csrf_token %}
+    <button type="submit" class="ss-pv-btn">Confermo di aver letto la scheda</button>
+  </form>
+{% endif %}

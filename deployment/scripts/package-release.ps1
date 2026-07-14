@@ -6,6 +6,11 @@
 .DESCRIPTION
     - Legge la versione dal file VERSION (single source of truth)
     - Fallback legacy: config/app_version.py, poi config/settings/base.py
+    - PRE-FLIGHT: fallisce se il working tree e' sporco (quei file non sono in nessun
+      commit) o se il branch corrente ha commit assenti dal branch di export (quei
+      commit non entreranno nel pacchetto). Bypass esplicito con -Force.
+    - Scrive BUILD_INFO.json alla radice del pacchetto: commit/branch esportati,
+      data, autore, e la traccia di quanto lavoro e' rimasto fuori
     - Crea uno zip con timestamp: portale-novicrom-vX.Y.Z-YYYYMMDD_HHmmss.zip
     - Esclude file non necessari per la produzione
     - Salva lo zip in shared\packages\ (se esiste) o nella directory corrente
@@ -19,10 +24,15 @@
 .PARAMETER VersionOverride
     Forza una versione specifica invece di leggerla dal codice (es. "0.8.6")
 
+.PARAMETER Force
+    Bypassa i controlli pre-flight ed e' obbligatorio con -FromWorkingTree.
+    Il pacchetto risultante e' dichiarato non tracciabile in BUILD_INFO.json.
+
 .EXAMPLE
     .\package-release.ps1
     .\package-release.ps1 -OutputDir "D:\Releases"
     .\package-release.ps1 -VersionOverride "0.8.6"
+    .\package-release.ps1 -FromWorkingTree -Force   # emergenza, non scorciatoia
 #>
 
 param(
@@ -34,7 +44,11 @@ param(
     # modifiche non committate (e' gia' successo di spedire in prod la versione sbagliata).
     [string]$Branch = "release/prod",
     # Vecchio comportamento: impacchetta la cartella di lavoro cosi' com'e' (WIP incluso).
+    # Richiede -Force: e' un'emergenza, non una scorciatoia.
     [switch]$FromWorkingTree,
+    # Bypassa i controlli pre-flight (working tree sporco, commit non presenti nel
+    # branch di export) e abilita -FromWorkingTree. Volontario e rumoroso.
+    [switch]$Force,
     # -WithTests passa -WithTests al release_guard per eseguire la test suite.
     # Di default i test sono saltati. Specificare per release con validazione completa.
     [switch]$WithTests
@@ -244,6 +258,135 @@ function Invoke-SetupWizardRebuildIfNeeded {
 
     $rebuiltWizard = Get-Item -LiteralPath $wizardExePath
     Write-Log "SetupWizard.exe rigenerato: $($rebuiltWizard.LastWriteTimeUtc.ToString('u'))" "SUCCESS"
+}
+
+# ---------------------------------------------------------------------------
+# PRE-FLIGHT: il pacchetto deve corrispondere a un commit del branch di release.
+#
+# Il packager NON esporta la cartella di lavoro: esporta $Branch. Il rischio quindi
+# non e' spedire in prod codice sporco — e' che il lavoro NON ci arrivi mai, e che
+# la divergenza si scopra al deploy. Due controlli, entrambi bypassabili con -Force:
+#
+#   Check A — working tree sporco: quei file non sono in NESSUN commit.
+#   Check B — commit sul branch corrente assenti da $Branch: esistono, ma non nel pacchetto.
+#
+# Ritorna un oggetto con la traccia forense che finisce in BUILD_INFO.json.
+# ---------------------------------------------------------------------------
+function Invoke-PackagingPreflight {
+    param(
+        [string]$RepoRoot,
+        [string]$ExportBranch,
+        [bool]$UseWorkingTree,
+        [bool]$Bypass
+    )
+
+    $result = [ordered]@{
+        CurrentBranch = $null
+        Detached      = $false
+        DirtyFiles    = @()
+        DeltaCommits  = 0
+        DeltaKnown    = $false
+    }
+
+    if (-not $RepoRoot -or -not (Test-Path -LiteralPath (Join-Path $RepoRoot ".git"))) {
+        Write-Log "Repository git non rilevato: pre-flight saltato." "WARN"
+        return $result
+    }
+
+    # Branch corrente (o HEAD detached).
+    $currentBranch = (& git -C $RepoRoot rev-parse --abbrev-ref HEAD 2>$null | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or -not $currentBranch) {
+        Write-Log "Impossibile determinare il branch corrente: pre-flight saltato." "WARN"
+        return $result
+    }
+    $result.CurrentBranch = $currentBranch
+    $result.Detached = ($currentBranch -eq "HEAD")
+
+    # ── Check A — working tree pulito ──────────────────────────────────────
+    $dirty = @(& git -C $RepoRoot status --porcelain 2>$null | Where-Object { $_ -and $_.Trim() })
+    $result.DirtyFiles = $dirty
+    if ($dirty.Count -gt 0) {
+        Write-LogSeparator
+        Write-Log "$($dirty.Count) file NON sono in nessun commit: NON finiranno nel pacchetto." "ERROR"
+        foreach ($line in $dirty) { Write-Log "    $line" "INFO" }
+        Write-Log "Il pacchetto nasce da un commit di '$ExportBranch': tutto cio' che non e' committato non esiste, per il deploy." "ERROR"
+        Write-LogSeparator
+        if (-not $Bypass) {
+            Write-Log "Committa il lavoro (anche su un branch feature) e riprova. Per procedere comunque: -Force." "ERROR"
+            Remove-ExportWorktree
+            exit 1
+        }
+        Write-Log "-Force: procedo comunque, con $($dirty.Count) file non committati fuori dal pacchetto." "WARN"
+    }
+
+    # ── Check B — delta tra il branch corrente e il branch di export ───────
+    # Con -FromWorkingTree il confronto non ha senso: si impacchetta la cartella, non un branch.
+    if ($UseWorkingTree) {
+        return $result
+    }
+    if ($result.Detached) {
+        Write-Log "HEAD detached: delta rispetto a '$ExportBranch' non calcolabile. Verifica a mano cosa stai rilasciando." "WARN"
+        return $result
+    }
+
+    & git -C $RepoRoot rev-parse --verify --quiet "$ExportBranch" 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        # Il branch manca: il controllo di esistenza piu' sotto fallira' comunque con exit 1.
+        Write-Log "Branch di export '$ExportBranch' non presente in locale: delta non calcolabile." "WARN"
+        return $result
+    }
+
+    $deltaRaw = (& git -C $RepoRoot rev-list --count "$ExportBranch..HEAD" 2>$null | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or -not ($deltaRaw -match '^\d+$')) {
+        Write-Log "Delta rispetto a '$ExportBranch' non calcolabile." "WARN"
+        return $result
+    }
+
+    $result.DeltaKnown = $true
+    $result.DeltaCommits = [int]$deltaRaw
+    if ($result.DeltaCommits -eq 0) {
+        Write-Log "Branch '$currentBranch' allineato a '$ExportBranch': nessun commit fuori dal pacchetto." "SUCCESS"
+        return $result
+    }
+
+    $deltaLog = @(& git -C $RepoRoot log --oneline "$ExportBranch..HEAD" 2>$null)
+    $deltaStat = @(& git -C $RepoRoot diff --stat "$ExportBranch..HEAD" 2>$null)
+
+    Write-LogSeparator
+    Write-Log "Il tuo branch '$currentBranch' ha $($result.DeltaCommits) commit che NON sono in '$ExportBranch'. Il pacchetto NON li conterra'." "ERROR"
+    foreach ($line in $deltaLog) { Write-Log "    $line" "INFO" }
+    if ($deltaStat.Count -gt 0) {
+        Write-Log "Differenze di file:" "INFO"
+        foreach ($line in $deltaStat) { Write-Log "    $line" "INFO" }
+    }
+    Write-LogSeparator
+    if (-not $Bypass) {
+        Write-Log "Porta questi commit su '$ExportBranch' (merge) e riprova. Per procedere comunque: -Force." "ERROR"
+        Remove-ExportWorktree
+        exit 1
+    }
+    Write-Log "-Force: procedo comunque, lasciando $($result.DeltaCommits) commit fuori dal pacchetto." "WARN"
+    return $result
+}
+
+if ($FromWorkingTree -and -not $Force) {
+    Write-Log "-FromWorkingTree impacchetterebbe la CARTELLA DI LAVORO: file non committati, di sessioni non revisionate, che nessun commit potra' mai riprodurre." "ERROR"
+    Write-Log "Un pacchetto cosi' non e' ricostruibile ne' tracciabile. Se e' davvero un'emergenza: -FromWorkingTree -Force." "ERROR"
+    exit 1
+}
+
+if ($SourcePath) {
+    # Cartella esplicita: non e' detto che sia il repo, il pre-flight non si applica.
+    Write-Log "-SourcePath esplicito: pre-flight git saltato, il contenuto del pacchetto non e' verificabile contro un commit." "WARN"
+    $script:Preflight = [ordered]@{
+        CurrentBranch = $null; Detached = $false; DirtyFiles = @(); DeltaCommits = 0; DeltaKnown = $false
+    }
+} else {
+    $script:Preflight = Invoke-PackagingPreflight `
+        -RepoRoot $script:RepoRoot `
+        -ExportBranch $Branch `
+        -UseWorkingTree ([bool]$FromWorkingTree) `
+        -Bypass ([bool]$Force)
 }
 
 # ---------------------------------------------------------------------------
@@ -577,6 +720,60 @@ if (Test-Path $logsInApp) { Remove-Item $logsInApp -Recurse -Force }
 Write-Log "File copiati nella temp dir." "SUCCESS"
 
 # ---------------------------------------------------------------------------
+# BUILD_INFO.json — manifest di provenienza, alla radice del pacchetto.
+#
+# Descrive la SORGENTE del pacchetto, non l'invocazione dello script: commit/branch
+# sono quelli effettivamente esportati (risolti dal worktree temporaneo), non HEAD
+# del checkout da cui lanci il comando. Con -FromWorkingTree non esiste alcun commit
+# che riproduca questo pacchetto: commit e branch sono null, e il file lo dichiara.
+# Django lo legge a runtime (core/build_info.py) e lo mostra nella Centrale di comando.
+# ---------------------------------------------------------------------------
+$buildCommit = $null
+$buildCommitShort = $null
+$buildBranch = $null
+$buildSource = "branch"
+$buildDirty = $false
+$buildDirtyFiles = @()
+
+if ($FromWorkingTree) {
+    $buildSource = "working-tree"
+    $buildDirty = $true
+    $buildDirtyFiles = @($script:Preflight.DirtyFiles)
+} elseif ($script:ExportWorktree) {
+    $buildBranch = $Branch
+    $exportHead = (& git -C $script:ExportWorktree rev-parse HEAD 2>$null | Out-String).Trim()
+    if ($LASTEXITCODE -eq 0 -and $exportHead) {
+        $buildCommit = $exportHead
+        $buildCommitShort = $exportHead.Substring(0, [Math]::Min(7, $exportHead.Length))
+    } else {
+        Write-Log "Commit del branch esportato non risolvibile: BUILD_INFO.json lo lascera' vuoto." "WARN"
+    }
+}
+
+$buildInfo = [ordered]@{
+    source                  = $buildSource
+    commit                  = $buildCommit
+    commit_short            = $buildCommitShort
+    branch                  = $buildBranch
+    version                 = $version
+    built_at                = (Get-Date).ToString("o")
+    built_by                = $env:USERNAME
+    dirty                   = $buildDirty
+    dirty_files             = [string[]]$buildDirtyFiles
+    delta_vs_export_branch  = [int]$script:Preflight.DeltaCommits
+}
+
+$buildInfoPath = Join-Path $tempDir "BUILD_INFO.json"
+# UTF-8 SENZA BOM: un BOM in testa rende il JSON illeggibile a chi non se lo aspetta.
+[System.IO.File]::WriteAllText(
+    $buildInfoPath,
+    ($buildInfo | ConvertTo-Json -Depth 3),
+    (New-Object System.Text.UTF8Encoding($false))
+)
+$buildCommitLabel = if ($buildCommitShort) { $buildCommitShort } else { "nessuno" }
+Write-Log "BUILD_INFO.json scritto (source=$buildSource, commit=$buildCommitLabel, delta=$($script:Preflight.DeltaCommits))." "INFO"
+
+# ---------------------------------------------------------------------------
 # Crea zip
 # ---------------------------------------------------------------------------
 Write-Log "Compressione in $zipPath..." "STEP"
@@ -619,7 +816,11 @@ Write-LogSeparator
 Write-Log "Pacchetto creato con successo!" "SUCCESS"
 Write-Log "  File:      $zipPath" "INFO"
 Write-Log "  Versione:  $version" "INFO"
+Write-Log "  Sorgente:  $buildSource$(if ($buildCommitShort) { " ($buildBranch @ $buildCommitShort)" })" "INFO"
 Write-Log "  Dimensione: ${sizeMB} MB" "INFO"
+if ($buildDirty -or $script:Preflight.DeltaCommits -gt 0) {
+    Write-Log "  ATTENZIONE: pacchetto NON tracciabile a un commit pulito di '$Branch' (vedi BUILD_INFO.json)." "WARN"
+}
 Write-Log "" "INFO"
 Write-Log "PROSSIMO: copia il file sul server e lancia:" "STEP"
 Write-Log "  .\deploy-release.ps1 -Environment test -PackagePath '$zipPath'" "INFO"

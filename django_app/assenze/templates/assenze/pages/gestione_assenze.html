@@ -513,9 +513,9 @@
   <div id="abs-root">
     <section class="abs-hero">
       <div class="abs-hero-copy">
-        <span class="abs-eyebrow">Impostazioni modulo</span>
-        <h1>Impostazioni {{ module_branding_display_label }}</h1>
-        <p>Vista amministrativa e operativa del modulo assenze: richieste personali, code approvative, export e branding in un'unica pagina coerente con gli altri moduli.</p>
+        <span class="abs-eyebrow">Le mie richieste</span>
+        <h1>Le mie richieste</h1>
+        <p>Storico delle tue richieste di assenza: stato, note ed esiti. Modifica o elimina quelle ancora in attesa; i capi reparto trovano qui anche la coda del proprio reparto da approvare.</p>
         <div class="abs-hero-meta">
           <span class="abs-hero-pill">{{ summary_personali.total }} richiest{{ summary_personali.total|pluralize:"a,e" }} personal{{ summary_personali.total|pluralize:"e,i" }}</span>
           <span class="abs-hero-pill">{{ summary_da_approvare.total }} da approvare</span>
@@ -575,33 +575,7 @@
       </article>
     </section>
 
-    {% if can_manage_module_branding %}
-      <div class="ms-grid-2">
-        <section class="ms-card">
-          <div class="ms-card-head">
-            <div class="ms-card-title-wrap">
-              <h2 class="ms-card-title">Azioni rapide</h2>
-              <p class="ms-card-subtitle">Collegamenti alle viste operative principali del modulo assenze.</p>
-            </div>
-          </div>
-          <div class="ms-card-body">
-            <div style="display:flex;flex-wrap:wrap;gap:8px;">
-              <a href="{% url 'assenze_richiesta' %}" class="btn btn-primary">Nuova richiesta</a>
-              {% if assenze_can_view_calendar %}
-                <a href="{% url 'assenze_calendario' %}" class="btn btn-secondary">Calendario</a>
-              {% endif %}
-              {% if assenze_can_edit_events %}
-                <a href="{% url 'assenze_car_dashboard' %}" class="btn btn-secondary">Segnalazioni</a>
-              {% endif %}
-              <a href="{% url 'assenze_certifica_presenza' %}" class="btn btn-secondary">Certifica presenza</a>
-            </div>
-            <div class="ms-field-help">Il branding del modulo e disponibile qui accanto solo per i profili con accesso amministrativo al modulo assenze.</div>
-          </div>
-        </section>
-        {% include "core/components/module_branding_card.html" %}
-      </div>
-    {% endif %}
-
+    {% if assenze_can_edit_events %}
     <section class="abs-panel">
       <div class="abs-panel-head">
         <div class="abs-panel-title-wrap">
@@ -633,6 +607,7 @@
                   <th>Inizio</th>
                   <th>Fine</th>
                   <th>Stato</th>
+                  <th>Inserita il</th>
                 </tr>
               </thead>
               <tbody>
@@ -676,6 +651,9 @@
                     <td data-label="Stato">
                       <span class="abs-status abs-status-waiting">{{ r.consenso }}</span>
                     </td>
+                    <td data-label="Inserita il">
+                      <span class="abs-date-sub">{{ r.creata_label|default:"-" }}</span>
+                    </td>
                   </tr>
                 {% endfor %}
               </tbody>
@@ -691,6 +669,7 @@
         {% endif %}
       </div>
     </section>
+    {% endif %}
 
     <section class="abs-panel">
       <div class="abs-panel-head">
@@ -739,7 +718,7 @@
           </div>
 
           <div class="abs-table-wrap">
-            <table id="tabellaRichieste" class="abs-table">
+            <table id="tabellaRichieste" data-fm-hide-search="1" class="abs-table">
               <thead>
                 <tr>
                   <th>Tipo</th>
@@ -765,7 +744,7 @@
                       <td data-label="Tipo" class="abs-cell-primary">
                         <div class="abs-row-main">
                           <div class="abs-row-title">{{ r.tipo }}</div>
-                          <div class="abs-row-sub">ID richiesta #{{ r.id }}</div>
+                          <div class="abs-row-sub">ID richiesta #{{ r.id }}{% if r.creata_label %} &middot; inserita il {{ r.creata_label }}{% endif %}</div>
                           {% if r.certificato_medico %}
                             <div class="abs-note-row">
                               <span class="abs-note-pill cert">Certificato {{ r.certificato_medico }}</span>

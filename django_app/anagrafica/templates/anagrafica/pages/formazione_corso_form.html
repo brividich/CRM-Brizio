@@ -45,7 +45,7 @@
           <span class="fmd-form-sec-t">Identificazione</span>
           <span class="fmd-form-sec-n">Titolo e codice del corso</span>
         </div>
-        <div class="fmd-grid">
+        <div class="fmd-stack">
           {% include "anagrafica/partials/_fmd_field.html" with field=form.titolo full=1 %}
           {% include "anagrafica/partials/_fmd_field.html" with field=form.codice %}
           {% include "anagrafica/partials/_fmd_field.html" with field=form.versione %}
@@ -60,7 +60,7 @@
           <span class="fmd-form-sec-t">Classificazione</span>
           <span class="fmd-form-sec-n">Piano, rischio e qualifica àncora</span>
         </div>
-        <div class="fmd-grid">
+        <div class="fmd-stack">
           {% include "anagrafica/partials/_fmd_field.html" with field=form.piano %}
           {% include "anagrafica/partials/_fmd_field.html" with field=form.categoria %}
           {% include "anagrafica/partials/_fmd_field.html" with field=form.qualifica full=1 %}
@@ -76,7 +76,7 @@
           <span class="fmd-form-sec-t">Durata, validità e costo</span>
           <span class="fmd-form-sec-n">La validità si preimposta dalla qualifica</span>
         </div>
-        <div class="fmd-grid-3">
+        <div class="fmd-stack">
           {% include "anagrafica/partials/_fmd_field.html" with field=form.durata_ore_teorica %}
           {% include "anagrafica/partials/_fmd_field.html" with field=form.validita_mesi %}
           {% include "anagrafica/partials/_fmd_field.html" with field=form.costo_unitario %}
@@ -93,7 +93,7 @@
         <div class="fmd-checks">
           {% include "anagrafica/partials/_fmd_field.html" with field=form.is_elearning %}
         </div>
-        <div class="fmd-grid-3" style="margin-top:8px;">
+        <div class="fmd-stack" style="margin-top:8px;">
           {% include "anagrafica/partials/_fmd_field.html" with field=form.quiz_punteggio_minimo %}
         </div>
         {% if form.instance.pk and form.instance.is_elearning %}
@@ -109,7 +109,7 @@
           <svg class="fmd-ico"><use href="#i-gear"/></svg>
           <span class="fmd-form-sec-t">Pubblicazione e opzioni</span>
         </div>
-        <div class="fmd-grid">
+        <div class="fmd-stack">
           {% include "anagrafica/partials/_fmd_field.html" with field=form.stato %}
           {% include "anagrafica/partials/_fmd_field.html" with field=form.note full=1 %}
         </div>
