@@ -555,6 +555,10 @@ def index(request):
         "n_dipendenti": n_dipendenti,
         "n_reparti": n_reparti,
         "n_mansioni": n_mansioni,
+        # Il catalogo ha due livelli: Reparto (contenitore) e AreaAziendale (figlia,
+        # FK `reparto`). Il KPI «Reparti (catalogo)» mostrava `n_aree`, cioè le aree:
+        # un numero giusto sotto l'etichetta sbagliata.
+        "n_reparti_catalog": n_reparti_catalog,
         "n_aree": n_aree,
         "n_qualifiche": n_qualifiche,
         "n_qualifiche_scadute": n_qualifiche_scadute,

@@ -17,7 +17,9 @@ from core.models import UserOnboarding
 
 from .models import (
     AnagraficaVisiteMedichePermission,
+    AreaAziendale,
     DipendenteQualifica,
+    Reparto,
     TipoQualifica,
     TipoVisitaMedica,
     VisitaMedica,
@@ -124,6 +126,38 @@ class CoseDaGestireTests(TestCase):
             riga["url"],
             reverse("anagrafica:scadenzario") + "?tipo=qualifica&stato=scaduta",
         )
+
+
+class KpiCataloghiTests(TestCase):
+    """Il catalogo struttura ha due livelli: `Reparto` (contenitore) e
+    `AreaAziendale` (figlia, FK `reparto`). Il KPI «Reparti (catalogo)» contava le
+    aree: un numero giusto sotto l'etichetta sbagliata."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+        cls.admin = User.objects.create_superuser(
+            username="kpi_admin", email="kpi_admin@x.local", password="x"
+        )
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+        produzione = Reparto.objects.create(nome="Produzione")
+        Reparto.objects.create(nome="Qualità")
+        Reparto.objects.create(nome="Reparto chiuso", is_active=False)
+        AreaAziendale.objects.create(nome="Cromatura", reparto=produzione)
+        AreaAziendale.objects.create(nome="Rettifica", reparto=produzione)
+        AreaAziendale.objects.create(nome="Collaudo", reparto=produzione)
+        AreaAziendale.objects.create(nome="Area chiusa", is_active=False)
+
+    def test_kpi_reparti_conta_i_reparti_non_le_aree(self):
+        resp = self.client.get(reverse("anagrafica:index"))
+        self.assertEqual(resp.context["n_reparti_catalog"], 2)
+        self.assertEqual(resp.context["n_aree"], 3)
+
+    def test_le_aree_restano_visibili_come_sottotitolo(self):
+        resp = self.client.get(reverse("anagrafica:index"))
+        self.assertContains(resp, "3 aree aziendali")
 
 
 class CoseDaGestireGatingTests(TestCase):
