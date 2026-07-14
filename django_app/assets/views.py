@@ -15539,13 +15539,22 @@ def asset_meter_update(request: HttpRequest, asset_id: int) -> HttpResponse:
         if new_value is not None and meter_id:
             try:
                 meter = AssetMeter.objects.get(pk=meter_id, asset=asset)
-                meter.update_value(new_value, request.user)
-                from core.audit import log_action
+                history = meter.update_value(new_value, request.user)
+                # La firma è log_action(request, azione, modulo, dettaglio): passare
+                # request.user come request faceva fallire l'audit in silenzio (fire-and-forget)
+                # proprio sul dato che pilota la generazione degli OdL a soglia.
                 log_action(
-                    request.user,
+                    request,
                     "asset_meter_update",
-                    f"Contatore {meter.get_meter_type_display()} aggiornato: {meter.current_value} ({asset.asset_tag})",
-                    asset,
+                    "assets",
+                    {
+                        "asset_id": asset.id,
+                        "asset_tag": asset.asset_tag,
+                        "meter_id": meter.id,
+                        "meter_type": meter.meter_type,
+                        "old_value": str(history.old_value),
+                        "new_value": str(history.new_value),
+                    },
                 )
                 meters = list(AssetMeter.objects.filter(asset=asset).order_by("meter_type"))
                 success_message = f"Contatore aggiornato a {new_value}."

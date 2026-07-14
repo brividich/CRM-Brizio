@@ -4,10 +4,11 @@ Schedulare come task Windows quotidiano (suggerito alle 06:00, prima di send_mai
 
     python manage.py generate_scheduled_workorders
 
-Logica per ogni (asset, rule):
-  - threshold_type=DAYS: usa la data dell'ultimo WO DONE + threshold_value giorni.
+Logica per ogni (asset, rule) — l'ultima esecuzione si legge da AssetMaintenanceRuleState,
+la stessa fonte dello scadenzario (qualunque sia l'origine dell'OdL che l'ha registrata):
+  - threshold_type=DAYS: last_execution_date + threshold_value giorni.
   - threshold_type=HOURS/KM/CYCLES: usa il valore corrente di AssetMeter e lo confronta
-    con il valore al momento dell'ultimo WO. Se la differenza >= threshold_value, genera.
+    con il valore al momento dell'ultima esecuzione. Se la differenza >= threshold_value, genera.
   - Controlla override: se l'asset ha un MaintenanceRuleAssetOverride con is_disabled=True, salta.
   - Se esiste già un WO OPEN per quella coppia (asset, rule), salta (nessun duplicato).
   - Se non trovato (mai eseguito): genera subito (next_due = today, oppure per contatori: 0).
@@ -24,7 +25,14 @@ from django.db import transaction
 from django.utils import timezone
 
 from assets.maintenance import copy_template_checklist_to_workorder, meter_schedule_payload
-from assets.models import Asset, AssetMeter, MaintenanceRule, MaintenanceRuleAssetOverride, WorkOrder
+from assets.models import (
+    Asset,
+    AssetMaintenanceRuleState,
+    AssetMeter,
+    MaintenanceRule,
+    MaintenanceRuleAssetOverride,
+    WorkOrder,
+)
 
 _METER_TYPE_MAP = {
     MaintenanceRule.THRESHOLD_HOURS: AssetMeter.METER_HOURS,
@@ -96,6 +104,15 @@ class Command(BaseCommand):
             for m in AssetMeter.objects.values("asset_id", "meter_type", "current_value")
         }
 
+        # Ultima esecuzione per coppia (asset, regola): STESSA fonte dello scadenzario.
+        # Prima il generatore interrogava solo gli OdL con origin=PERIODIC chiusi, quindi non
+        # vedeva né le esecuzioni registrate dallo scadenzario (che nascono MANUAL) né lo
+        # storico registrato senza OdL — e riapriva una manutenzione appena fatta.
+        state_map: dict[tuple[int, int], AssetMaintenanceRuleState] = {
+            (state.asset_id, state.base_rule_id): state
+            for state in AssetMaintenanceRuleState.objects.select_related("last_work_order")
+        }
+
         created = 0
         skipped_disabled = 0
         skipped_open = 0
@@ -137,21 +154,12 @@ class Command(BaseCommand):
                 due = False
                 due_reason = ""
 
+                state = state_map.get((asset.id, rule.id))
+
                 if effective_threshold_type == MaintenanceRule.THRESHOLD_DAYS:
-                    last_wo = (
-                        WorkOrder.objects
-                        .filter(
-                            asset_id=asset.id,
-                            maintenance_rule_id=rule.id,
-                            origin=WorkOrder.ORIGIN_PERIODIC,
-                            status=WorkOrder.STATUS_DONE,
-                        )
-                        .order_by("-closed_at")
-                        .values("closed_at")
-                        .first()
-                    )
-                    if last_wo and last_wo["closed_at"]:
-                        next_due = last_wo["closed_at"].date() + timedelta(days=effective_threshold_value)
+                    last_execution_date = state.last_execution_date if state else None
+                    if last_execution_date:
+                        next_due = last_execution_date + timedelta(days=effective_threshold_value)
                     else:
                         next_due = today
                     horizon = today + timedelta(days=rule.warning_days)
@@ -168,20 +176,14 @@ class Command(BaseCommand):
                     if current_val is None:
                         skipped_no_meter += 1
                         continue
-                    # Valore al momento dell'ultimo WO periodico chiuso
-                    last_wo = (
-                        WorkOrder.objects
-                        .filter(
-                            asset_id=asset.id,
-                            maintenance_rule_id=rule.id,
-                            origin=WorkOrder.ORIGIN_PERIODIC,
-                            status=WorkOrder.STATUS_DONE,
-                        )
-                        .order_by("-closed_at")
-                        .values("meter_value_at_close")
-                        .first()
+                    # Valore del contatore all'ultima esecuzione, dallo stesso stato che legge
+                    # lo scadenzario: anche qui l'origine dell'OdL non deve contare.
+                    last_wo = state.last_work_order if state else None
+                    base_val = (
+                        float(last_wo.meter_value_at_close)
+                        if last_wo is not None and last_wo.meter_value_at_close is not None
+                        else 0.0
                     )
-                    base_val = float(last_wo["meter_value_at_close"]) if (last_wo and last_wo.get("meter_value_at_close") is not None) else 0.0
                     payload = meter_schedule_payload(
                         current_value=current_val,
                         base_value=base_val,
