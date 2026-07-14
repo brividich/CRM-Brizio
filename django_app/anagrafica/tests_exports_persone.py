@@ -317,3 +317,44 @@ class ExportPersoneTests(TestCase):
             self.assertEqual(log.modulo, "anagrafica")
             self.assertEqual(log.dettaglio.get("lista"), key)
             self.assertEqual(log.dettaglio.get("formato"), "xlsx")
+
+
+class ExportDocumentiCartellaRiservataTests(TestCase):
+    """Il NOME di una cartella riservata (`solo_admin`) non deve trapelare.
+
+    Un non-superuser che passa `?cartella=<id riservata>` ottiene gia' 0 righe
+    (la cartella e' esclusa dal queryset), ma non deve ricevere in regalo la
+    denominazione della cartella nell'etichetta dei filtri dell'export.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        from anagrafica.models import CartellaDocumentoDipendente
+
+        User = get_user_model()
+        cls.riservata = CartellaDocumentoDipendente.objects.create(
+            nome="Provvedimenti disciplinari", solo_admin=True,
+        )
+        cls.admin = User.objects.create_superuser(
+            "exp-doc-admin", "exp-doc-admin@test.local", "pass12345",
+        )
+        cls.utente = User.objects.create_user(
+            "exp-doc-user", "exp-doc-user@test.local", "pass12345",
+        )
+
+    def _label(self, user):
+        from anagrafica.exports_persone import _documenti_filters
+
+        request = RequestFactory().get(
+            f"/anagrafica/esporta/documenti/?cartella={self.riservata.pk}"
+        )
+        request.user = user
+        return _documenti_filters(request)
+
+    def test_reserved_cartella_name_not_disclosed_to_non_superuser(self):
+        label = self._label(self.utente)
+        self.assertNotIn("Provvedimenti disciplinari", label)
+        self.assertIn(str(self.riservata.pk), label)
+
+    def test_superuser_still_sees_the_name(self):
+        self.assertIn("Provvedimenti disciplinari", self._label(self.admin))

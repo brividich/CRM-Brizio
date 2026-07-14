@@ -366,12 +366,17 @@ def _documenti_filters(request: HttpRequest) -> str:
     if filtro_cartella == "__nessuna__":
         parts.append("Cartella: senza cartella")
     elif filtro_cartella:
-        nome = (
-            CartellaDocumentoDipendente.objects
-            .filter(pk=filtro_cartella if filtro_cartella.isdigit() else 0)
-            .values_list("nome", flat=True)
-            .first()
+        # SICUREZZA: le cartelle riservate (`solo_admin`) sono gia' escluse dalle
+        # RIGHE per i non-superuser, ma il NOME non deve trapelare nemmeno qui:
+        # passando l'id di una cartella riservata si otterrebbero 0 righe e, in
+        # regalo, la sua denominazione nell'etichetta filtri. Per i non-superuser
+        # la lookup ignora quindi le cartelle riservate e resta l'id grezzo.
+        cartelle_qs = CartellaDocumentoDipendente.objects.filter(
+            pk=filtro_cartella if filtro_cartella.isdigit() else 0
         )
+        if not getattr(request.user, "is_superuser", False):
+            cartelle_qs = cartelle_qs.exclude(solo_admin=True)
+        nome = cartelle_qs.values_list("nome", flat=True).first()
         parts.append(f"Cartella: {nome or filtro_cartella}")
     q_text = (request.GET.get("q") or "").strip()
     if q_text:
