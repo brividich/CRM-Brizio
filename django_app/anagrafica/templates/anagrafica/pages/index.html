@@ -36,6 +36,46 @@
   padding:3px 7px; border-radius:6px; }
 .ana-widget-hide:hover { background:#fee2e2; color:#dc2626; }
 
+/* Cose da gestire — righe azionabili: ogni riga apre lo scadenzario già filtrato */
+.hr-todo { display:flex; flex-direction:column; gap:12px; }
+.hr-todo-head { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+.hr-todo-title { font-size:15px; font-weight:800; color:#0f172a; }
+.hr-todo-all { font-size:12px; font-weight:700; color:#1f87cd; text-decoration:none; white-space:nowrap; }
+.hr-todo-all:hover { text-decoration:underline; }
+.hr-todo-list { display:flex; flex-direction:column; gap:6px; }
+.hr-todo-row { display:flex; align-items:center; gap:10px; text-decoration:none;
+  padding:10px 12px; border-radius:.7rem; border:1px solid #e2e8f0;
+  background:var(--surface-alt, #f8fafc); transition:border-color .15s, background .15s; }
+.hr-todo-row:hover { border-color:#1f87cd; background:#f4f8fc; }
+.hr-todo-row.urgente { border-color:#fed7aa; background:#fff7ed; }
+.hr-todo-row.urgente:hover { border-color:#f97316; }
+.hr-todo-ico { font-size:16px; flex-shrink:0; }
+.hr-todo-lbl { flex:1; font-size:13px; font-weight:600; color:#334155; }
+.hr-todo-row.urgente .hr-todo-lbl { color:#9a3412; }
+.hr-todo-n { font-size:15px; font-weight:800; color:#0f172a; }
+.hr-todo-row.urgente .hr-todo-n { color:#9a3412; }
+.hr-todo-go { font-size:13px; color:#94a3b8; }
+.hr-todo-empty { font-size:13px; color:#64748b; padding:6px 2px; }
+body.theme-dark .hr-todo-title, body.theme-dark .hr-todo-n { color:var(--text); }
+body.theme-dark .hr-todo-row { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .hr-todo-row:hover { background:var(--tbody-hover, var(--surface-alt)); }
+body.theme-dark .hr-todo-lbl { color:var(--text-mid); }
+body.theme-dark .hr-todo-empty { color:var(--text-light); }
+
+/* Vai a — i sottomoduli HR che altrimenti vivono solo nei dropdown della subnav */
+.hr-goto-title { font-size:11px; font-weight:800; color:#94a3b8; text-transform:uppercase;
+  letter-spacing:.06em; margin-bottom:10px; }
+.hr-goto { display:flex; flex-wrap:wrap; gap:8px; }
+.hr-goto-pill { display:inline-flex; align-items:center; gap:7px; text-decoration:none;
+  padding:9px 14px; border-radius:.7rem; border:1px solid #e2e8f0;
+  background:var(--surface-alt, #f8fafc); font-size:13px; font-weight:600; color:#334155;
+  transition:border-color .15s, color .15s, background .15s; }
+.hr-goto-pill:hover { border-color:#1f87cd; color:#0c2545; background:#f4f8fc; }
+.hr-goto-ico { font-size:15px; }
+body.theme-dark .hr-goto-pill { background:var(--surface-alt); border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .hr-goto-pill:hover { color:#93c5fd; }
+body.theme-dark .hr-goto-title { color:var(--text-light); }
+
 #ana-restore-panel { display:none; background:#f0f9ff; border:1px solid #bae6fd;
   border-radius:.8rem; padding:13px 16px; }
 #ana-root.edit-mode #ana-restore-panel.has-hidden { display:block; }
@@ -82,28 +122,6 @@
 
   {% include "anagrafica/components/flash_messages.html" %}
 
-  <!-- Alert banner scadenze urgenti -->
-  {% if n_qualifiche_scadute > 0 or n_visite_scadute > 0 %}
-  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:14px 18px;">
-    <div style="display:flex;align-items:center;gap:10px;">
-      <span style="font-size:20px;">⚠️</span>
-      <div>
-        <div style="font-size:14px;font-weight:700;color:#9a3412;">Scadenze da gestire</div>
-        <div style="font-size:13px;color:#c2410c;margin-top:2px;">
-          {% if n_qualifiche_scadute > 0 %}
-            <strong>{{ n_qualifiche_scadute }}</strong> qualific{% if n_qualifiche_scadute == 1 %}a scaduta{% else %}he scadute{% endif %}
-          {% endif %}
-          {% if n_qualifiche_scadute > 0 and n_visite_scadute > 0 %} · {% endif %}
-          {% if n_visite_scadute > 0 %}
-            <strong>{{ n_visite_scadute }}</strong> visit{% if n_visite_scadute == 1 %}a medica scaduta{% else %}e mediche scadute{% endif %}
-          {% endif %}
-        </div>
-      </div>
-    </div>
-    <a href="{% url 'anagrafica:scadenzario' %}?stato=scaduta" style="background:#9a3412;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap;">Vedi scadenzario →</a>
-  </div>
-  {% endif %}
-
   <!-- Edit bar -->
   <div id="ana-edit-bar">
     <span>✏️ Modalità modifica — nascondi o riordina le sezioni</span>
@@ -111,6 +129,35 @@
       <button class="ana-ebtn ana-ebtn-save"  id="ana-save-btn">✓ Salva</button>
       <button class="ana-ebtn ana-ebtn-reset" id="ana-reset-btn">↺ Reset</button>
       <button class="ana-ebtn ana-ebtn-done"  id="ana-done-btn">Chiudi</button>
+    </div>
+  </div>
+
+  <!-- ── Widget: Cose da gestire ── -->
+  <div class="ana-widget" data-wid="todo">
+    <div class="ana-widget-bar">
+      <span class="ana-widget-handle" title="Trascina per riordinare">☰</span>
+      <span class="ana-widget-label">Cose da gestire</span>
+      <button class="ana-widget-hide" data-wid="todo" title="Nascondi">✕</button>
+    </div>
+    <div class="hr-card hr-card-pad hr-todo">
+      <div class="hr-todo-head">
+        <span class="hr-todo-title">⚠️ Cose da gestire</span>
+        <a class="hr-todo-all" href="{% url 'anagrafica:scadenzario' %}">Scadenzario completo →</a>
+      </div>
+      {% if cose_da_gestire %}
+      <div class="hr-todo-list">
+        {% for riga in cose_da_gestire %}
+        <a class="hr-todo-row{% if riga.urgente %} urgente{% endif %}" href="{{ riga.url }}">
+          <span class="hr-todo-ico">{{ riga.icona }}</span>
+          <span class="hr-todo-lbl">{{ riga.titolo }}</span>
+          <span class="hr-todo-n">{{ riga.count }}</span>
+          <span class="hr-todo-go">→</span>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="hr-todo-empty">Nessuna scadenza entro i prossimi 60 giorni.</div>
+      {% endif %}
     </div>
   </div>
 
@@ -167,6 +214,34 @@
     </div>
   </div>
 
+  <!-- ── Widget: Vai a (sottomoduli HR) ── -->
+  <div class="ana-widget" data-wid="vai">
+    <div class="ana-widget-bar">
+      <span class="ana-widget-handle" title="Trascina per riordinare">☰</span>
+      <span class="ana-widget-label">Vai a — sottomoduli HR</span>
+      <button class="ana-widget-hide" data-wid="vai" title="Nascondi">✕</button>
+    </div>
+    <div class="hr-card hr-card-pad">
+      <div class="hr-goto-title">Vai a</div>
+      <div class="hr-goto">
+        <a class="hr-goto-pill" href="{% url 'anagrafica:scadenzario' %}"><span class="hr-goto-ico">📅</span> Scadenzario</a>
+        <a class="hr-goto-pill" href="{% url 'anagrafica:organigramma' %}"><span class="hr-goto-ico">🏛️</span> Organigramma</a>
+        <a class="hr-goto-pill" href="{% url 'anagrafica:qualifiche_dashboard' %}"><span class="hr-goto-ico">✅</span> Cruscotto qualifiche</a>
+        {% if can_view_formazione %}
+        <a class="hr-goto-pill" href="{% url 'anagrafica:formazione_dashboard' %}"><span class="hr-goto-ico">📘</span> Formazione</a>
+        {% endif %}
+        {% if can_view_visite %}
+        <a class="hr-goto-pill" href="{% url 'anagrafica:visite_mediche_dashboard' %}"><span class="hr-goto-ico">🩺</span> Visite mediche</a>
+        {% endif %}
+        {% if can_view_hr %}
+        <a class="hr-goto-pill" href="{% url 'anagrafica:onboarding_list' %}"><span class="hr-goto-ico">🚀</span> Onboarding</a>
+        <a class="hr-goto-pill" href="{% url 'anagrafica:documenti_list' %}"><span class="hr-goto-ico">📁</span> Documenti</a>
+        {% endif %}
+        <a class="hr-goto-pill" href="{% url 'anagrafica:ex_dipendenti_list' %}"><span class="hr-goto-ico">👤</span> Ex dipendenti</a>
+      </div>
+    </div>
+  </div>
+
   <!-- Restore panel (visibile solo in edit mode se ci sono widget nascosti) -->
   <div id="ana-restore-panel">
     <div class="ana-restore-title">Sezioni nascoste — clicca per ripristinare</div>
@@ -178,7 +253,11 @@
 <script>
 (function () {
   var STORAGE_KEY = 'ana_dash_prefs_v1';
-  var WIDGET_LABELS = { kpi: 'KPI — Metriche principali' };
+  var WIDGET_LABELS = {
+    todo: 'Cose da gestire',
+    kpi:  'KPI — Metriche principali',
+    vai:  'Vai a — sottomoduli HR'
+  };
 
   var root      = document.getElementById('ana-root');
   var editBar   = document.getElementById('ana-edit-bar');

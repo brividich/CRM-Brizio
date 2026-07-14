@@ -453,6 +453,55 @@ def _offboarding_dipendente_nome(dip: dict) -> str:
 # Dashboard anagrafica
 # ---------------------------------------------------------------------------
 
+# Righe del blocco «Cose da gestire»: una per sorgente dello scadenzario, nello
+# stesso ordine in cui vanno affrontate. Il gating per sorgente è già dentro
+# _build_scadenzario_voci — qui non si decide chi vede cosa.
+_COSE_DA_GESTIRE_KINDS = [
+    ("visita",     "🩺", "Visite mediche"),
+    ("qualifica",  "🎓", "Qualifiche"),
+    ("formazione", "📘", "Corsi obbligatori"),
+    ("contratto",  "📄", "Contratti e periodi di prova"),
+]
+
+
+def _build_cose_da_gestire(request, dip_map: dict) -> list[dict]:
+    """Righe azionabili della dashboard HR, contate sulle voci dello scadenzario.
+
+    Ogni riga porta allo scadenzario già filtrato su ciò che ha appena contato:
+    numero e lista vengono dalla stessa funzione, quindi non possono divergere.
+    Le righe a zero non compaiono — una dashboard elenca le cose da fare, non le
+    cose che non ci sono.
+    """
+    voci = _build_scadenzario_voci(request, dip_map=dip_map)
+    base = reverse("anagrafica:scadenzario")
+
+    scadute: list[dict] = []
+    in_scadenza: list[dict] = []
+    for kind, icona, label in _COSE_DA_GESTIRE_KINDS:
+        voci_kind = [v for v in voci if v["kind"] == kind]
+        n_scadute = sum(1 for v in voci_kind if v["scaduta"])
+        # Le voci non scadute che _build_scadenzario_voci restituisce senza filtro
+        # stato sono già solo quelle entro 60 giorni.
+        n_prossime = len(voci_kind) - n_scadute
+        if n_scadute:
+            scadute.append({
+                "icona": icona,
+                "titolo": f"{label} scadute",
+                "count": n_scadute,
+                "urgente": True,
+                "url": f"{base}?tipo={kind}&stato=scaduta",
+            })
+        if n_prossime:
+            in_scadenza.append({
+                "icona": icona,
+                "titolo": f"{label} in scadenza (60 giorni)",
+                "count": n_prossime,
+                "urgente": False,
+                "url": f"{base}?tipo={kind}&stato=60",
+            })
+    return scadute + in_scadenza
+
+
 @login_required
 def index(request):
     ensure_anagrafica_schema()
@@ -497,6 +546,11 @@ def index(request):
             id__in=latest_ids, data_scadenza__lt=oggi
         ).count()
 
+    # Cose da gestire: righe azionabili contate sulle voci dello scadenzario.
+    # `dip_map` riusa le righe legacy già lette a inizio view — nessun secondo fetch.
+    dip_map = {int(row["id"]): row for row in rows if row.get("id")}
+    cose_da_gestire = _build_cose_da_gestire(request, dip_map)
+
     return render(request, "anagrafica/pages/index.html", {
         "n_dipendenti": n_dipendenti,
         "n_reparti": n_reparti,
@@ -507,6 +561,11 @@ def index(request):
         "n_qualifiche_scadenza": n_qualifiche_scadenza,
         "can_view_visite": can_view_visite,
         "n_visite_scadute": n_visite_scadute,
+        "cose_da_gestire": cose_da_gestire,
+        # Fascia «Vai a»: i sottomoduli gated non compaiono a chi vedrebbe solo un
+        # rifiuto. La nav non è un confine di sicurezza — le view restano gated.
+        "can_view_formazione": _can_view_formazione(request),
+        "can_view_hr": _check_hr_permission(request),
     })
 
 
@@ -6976,16 +7035,24 @@ def tipologia_contratto_delete(request, tipologia_id: int):
 # Scadenzario unificato qualifiche + visite mediche
 # ---------------------------------------------------------------------------
 
-@login_required
-def scadenzario(request):
-    """Scadenzario unificato: qualifiche, visite mediche, formazione obbligatoria
-    e contratti/periodi di prova in scadenza o scaduti.
+def _build_scadenzario_voci(
+    request,
+    *,
+    filtro_tipo: str = "",
+    filtro_stato: str = "",
+    filtro_reparto: str = "",
+    dip_map: dict | None = None,
+) -> list[dict]:
+    """Voci dello scadenzario unificato, ordinate per urgenza.
 
-    Accesso: login obbligatorio. Ogni sorgente entra nella lista solo se il
-    rispettivo permesso lo consente: le qualifiche sono visibili a tutti gli
-    utenti autenticati; le visite mediche (dati sanitari) solo se
-    _can_view_visite_mediche; la formazione solo se _can_view_formazione;
-    i contratti (dato HR) solo se _check_hr_permission.
+    Fonte unica per la pagina scadenzario e per il blocco «Cose da gestire» della
+    dashboard: se i due contassero per conto proprio, il numero sulla dashboard e
+    la lista che quel numero apre potrebbero contraddirsi.
+
+    Ogni sorgente entra solo se il permesso lo consente (visite mediche = dato
+    sanitario, formazione e contratti = dato HR), quindi il chiamante non deve
+    rifare il gating. ``dip_map`` evita un secondo fetch legacy quando il
+    chiamante ha già le righe anagrafica.
     """
     from django.utils import timezone as tz
     oggi = tz.localdate()
@@ -6996,14 +7063,9 @@ def scadenzario(request):
     can_view_formazione = _can_view_formazione(request)
     can_view_contratti = _check_hr_permission(request)
 
-    filtro_tipo    = request.GET.get("tipo", "")         # "qualifica" / "visita" / "formazione" / "contratto" / ""
-    filtro_stato   = request.GET.get("stato", "")        # "scaduta" / "30" / "60" / ""
-    filtro_reparto = request.GET.get("reparto", "").strip()
-    export_csv     = request.GET.get("format") == "csv"
-
-    # Mappa ID legacy → dati dipendente (nome, reparto)
-    dip_rows = fetch_anagrafica_rows(deduplicate=True)
-    dip_map  = {int(r["id"]): r for r in dip_rows if r.get("id")}
+    if dip_map is None:
+        dip_rows = fetch_anagrafica_rows(deduplicate=True)
+        dip_map = {int(r["id"]): r for r in dip_rows if r.get("id")}
 
     voci: list[dict] = []
 
@@ -7180,6 +7242,35 @@ def scadenzario(request):
 
     # Ordina per urgenza: prima le più scadute (giorni più negativi), poi le più vicine
     voci.sort(key=lambda x: x["giorni"])
+    return voci
+
+
+@login_required
+def scadenzario(request):
+    """Scadenzario unificato: qualifiche, visite mediche, formazione obbligatoria
+    e contratti/periodi di prova in scadenza o scaduti.
+
+    Accesso: login obbligatorio. Le voci — e con esse il gating per sorgente —
+    arrivano da ``_build_scadenzario_voci``, condiviso con la dashboard.
+    """
+    from django.utils import timezone as tz
+    oggi = tz.localdate()
+
+    can_view_visite = _can_view_visite_mediche(request)
+    can_view_formazione = _can_view_formazione(request)
+    can_view_contratti = _check_hr_permission(request)
+
+    filtro_tipo    = request.GET.get("tipo", "")         # "qualifica" / "visita" / "formazione" / "contratto" / ""
+    filtro_stato   = request.GET.get("stato", "")        # "scaduta" / "30" / "60" / ""
+    filtro_reparto = request.GET.get("reparto", "").strip()
+    export_csv     = request.GET.get("format") == "csv"
+
+    voci = _build_scadenzario_voci(
+        request,
+        filtro_tipo=filtro_tipo,
+        filtro_stato=filtro_stato,
+        filtro_reparto=filtro_reparto,
+    )
 
     # KPI
     n_scadute = sum(1 for v in voci if v["scaduta"])
