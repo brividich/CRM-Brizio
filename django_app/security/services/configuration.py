@@ -3,6 +3,7 @@ import json
 import re
 
 from django.core.exceptions import PermissionDenied
+from django.db import DatabaseError
 from django.forms.models import model_to_dict
 
 from security.models import (
@@ -16,12 +17,38 @@ from security.models import (
 REDACTED = "[redacted]"
 
 
+SECURITY_CONFIG_PERMISSION_CODE = "security.config.view"
+
+
 def can_manage_security_config(user):
-    return bool(
-        user
-        and user.is_authenticated
-        and (user.is_staff or user.has_perm("security.manage_security_configuration"))
-    )
+    """Cancello della configurazione SOC.
+
+    Riconosce tre titoli, in ordine di costo: `is_staff` e il permesso Django
+    `security.manage_security_configuration` (i due ereditati dal progetto
+    standalone Security-Center-AI, tenuti per compatibilita'), e il permesso
+    canonico ACL v2 `security.config.view` — che e' lo stesso confine gia'
+    applicato dall'`ACLMiddleware` alle rotte `/soc/admin/config/`. Senza il
+    terzo, un amministratore del portale passava il middleware e si vedeva poi
+    negare la pagina dalla view: nell'HUB i diritti si concedono via ACL v2, non
+    via `is_staff`. Fail-closed: se l'ACL non e' interrogabile, si nega.
+    """
+    if not (user and getattr(user, "is_authenticated", False)):
+        return False
+    if user.is_staff or user.has_perm("security.manage_security_configuration"):
+        return True
+
+    from core.acl_v2 import evaluate_permission_code_access
+    from core.legacy_utils import get_legacy_user
+
+    try:
+        decision = evaluate_permission_code_access(
+            permission_code=SECURITY_CONFIG_PERMISSION_CODE,
+            legacy_user=get_legacy_user(user),
+            django_user=user,
+        )
+    except DatabaseError:
+        return False
+    return bool(decision.get("allowed"))
 
 
 def require_security_config_access(user):
