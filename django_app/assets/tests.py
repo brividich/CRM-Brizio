@@ -6164,7 +6164,9 @@ class AssetMaintenanceStepThreeTests(TestCase):
         out = StringIO()
         call_command("send_maintenance_reminders", "--dry-run", stdout=out)
         output = out.getvalue()
-        self.assertIn("MANUTENZIONI PROGRAMMATE", output)
+        # Q1: una regola scaduta non sta più fra le "in scadenza": sale nella sezione SCADUTE.
+        self.assertIn("SCADUTE", output)
+        self.assertIn("[SCADUTA] Manutenzione programmata", output)
         self.assertIn(self.asset.asset_tag, output)
 
     def test_quick_record_copies_and_marks_checklist(self):
@@ -8444,3 +8446,410 @@ class DeriveCollaudoRulesTests(TestCase):
             self.assertEqual(MaintenanceRule.objects.filter(asset_category=cat).count(), 0)
             self.assertEqual(AssetMaintenanceRuleState.objects.filter(asset=asset).count(), 0)
             self.assertIn("DRY-RUN", out.getvalue())
+
+
+class MaintenanceReminderCommandTests(TestCase):
+    """Quick win Q1-Q5 — reminder manutenzione: scadute, contatori fermi, legacy, assegnatario, anti-rumore."""
+
+    def setUp(self):
+        self.today = timezone.localdate()
+        self.category = AssetCategory.objects.create(
+            code="cnc-remind", label="CNC reminder", base_asset_type=Asset.TYPE_CNC, sort_order=10,
+        )
+        self.asset = Asset.objects.create(
+            asset_tag="CNC-REM-001",
+            name="Tornio reminder",
+            asset_type=Asset.TYPE_CNC,
+            asset_category=self.category,
+            status=Asset.STATUS_IN_USE,
+        )
+
+    def _run(self, **kwargs):
+        out = io.StringIO()
+        call_command("send_maintenance_reminders", dry_run=True, stdout=out, **kwargs)
+        return out.getvalue()
+
+    def _deadline(self, *, days_from_today: int, title: str = "Revisione periodica"):
+        return AssetAdministrativeDeadline.objects.create(
+            asset=self.asset,
+            deadline_type=AssetAdministrativeDeadline.TYPE_REVISION,
+            title=title,
+            due_date=self.today + timedelta(days=days_from_today),
+        )
+
+    def _verification(self, *, days_from_today: int, name: str = "Verifica sicurezza", is_legacy: bool = False):
+        return PeriodicVerification.objects.create(
+            name=name,
+            frequency_months=12,
+            next_verification_date=self.today + timedelta(days=days_from_today),
+            is_legacy=is_legacy,
+        )
+
+    # Q1 — le scadenze superate restano nel reminder, in cima
+    def test_overdue_admin_deadline_is_reported(self):
+        self._deadline(days_from_today=-10, title="Revisione scaduta")
+
+        output = self._run()
+
+        self.assertIn("SCADUTE", output)
+        self.assertIn("SCADUTA da 10gg", output)
+        self.assertIn("Revisione scaduta", output)
+
+    def test_overdue_periodic_verification_is_reported(self):
+        self._verification(days_from_today=-3, name="Verifica fune scaduta")
+
+        output = self._run()
+
+        self.assertIn("SCADUTA da 3gg", output)
+        self.assertIn("Verifica fune scaduta", output)
+
+    def test_overdue_section_precedes_upcoming_sections(self):
+        self._deadline(days_from_today=-1, title="Scaduta ieri")
+        self._deadline(days_from_today=30, title="Scade tra 30gg")
+
+        output = self._run()
+
+        self.assertLess(output.index("SCADUTE"), output.index("SCADENZE AMMINISTRATIVE nei prossimi"))
+        self.assertIn("Scade tra 30gg", output)
+
+    def test_no_reminder_when_nothing_due(self):
+        self._deadline(days_from_today=400, title="Molto lontana")
+
+        output = self._run()
+
+        self.assertIn("Nessun promemoria da inviare", output)
+
+    # Q5 — anti-rumore: la stessa scadenza non può stare in 30 mail identiche di fila
+    def test_upcoming_cadence_is_entry_day_then_weekly_then_due_day(self):
+        from assets.management.commands.send_maintenance_reminders import should_remind_upcoming
+
+        reminded = [days for days in range(0, 31) if should_remind_upcoming(days, 30)]
+
+        self.assertEqual(reminded, [0, 2, 9, 16, 23, 30])
+
+    def test_overdue_and_meterless_rows_are_always_reminded(self):
+        from assets.management.commands.send_maintenance_reminders import should_remind_upcoming
+
+        self.assertTrue(should_remind_upcoming(-5, 30))
+        self.assertTrue(should_remind_upcoming(None, 30))
+
+    def test_throttled_upcoming_deadline_is_not_in_todays_mail(self):
+        self._deadline(days_from_today=25, title="Fuori cadenza")
+
+        output = self._run()
+
+        self.assertIn("Nessun promemoria da inviare", output)
+
+    def test_no_throttle_includes_every_upcoming_deadline(self):
+        self._deadline(days_from_today=25, title="Fuori cadenza")
+
+        output = self._run(no_throttle=True)
+
+        self.assertIn("Fuori cadenza", output)
+
+    def test_overdue_deadline_is_reminded_every_day_despite_throttle(self):
+        self._deadline(days_from_today=-25, title="Scaduta da un mese")
+
+        output = self._run()
+
+        self.assertIn("Scaduta da un mese", output)
+
+    # Q3 — le verifiche legacy sono già coperte dalle regole: nella mail arrivavano due volte
+    def test_legacy_verifications_are_excluded(self):
+        self._verification(days_from_today=5, name="Verifica gestita da regola", is_legacy=True)
+        self._verification(days_from_today=-5, name="Verifica legacy scaduta", is_legacy=True)
+        self._verification(days_from_today=5, name="Verifica canonica")
+
+        # no_throttle: qui si verifica il filtro legacy, non la cadenza (Q5).
+        output = self._run(no_throttle=True)
+
+        self.assertNotIn("Verifica gestita da regola", output)
+        self.assertNotIn("Verifica legacy scaduta", output)
+        self.assertIn("Verifica canonica", output)
+
+
+class MeterStalenessTests(TestCase):
+    """Quick win Q2 — contatore assente o fermo: una manutenzione a ore invisibile o falsamente verde."""
+
+    def setUp(self):
+        self.category = AssetCategory.objects.create(
+            code="cnc-stale", label="CNC staleness", base_asset_type=Asset.TYPE_CNC, sort_order=10,
+        )
+        self.template = MaintenanceInterventionTemplate.objects.create(
+            code="tagliando-stale", label="Tagliando ore", asset_category=self.category,
+        )
+        self.rule = MaintenanceRule.objects.create(
+            intervention_template=self.template,
+            asset_category=self.category,
+            threshold_type=MaintenanceRule.THRESHOLD_HOURS,
+            threshold_value=500,
+            warning_days=50,
+        )
+        self.asset = Asset.objects.create(
+            asset_tag="CNC-STALE-001",
+            name="Tornio contatore fermo",
+            asset_type=Asset.TYPE_CNC,
+            asset_category=self.category,
+            status=Asset.STATUS_IN_USE,
+        )
+
+    def _set_meter(self, value, *, days_since_update: int = 0):
+        meter = AssetMeter.objects.create(
+            asset=self.asset, meter_type=AssetMeter.METER_HOURS, current_value=value, unit_label="h",
+        )
+        if days_since_update:
+            # update() bypassa auto_now: è l'unico modo per simulare un contatore fermo.
+            AssetMeter.objects.filter(pk=meter.pk).update(
+                updated_at=timezone.now() - timedelta(days=days_since_update)
+            )
+        return meter
+
+    def _rows(self):
+        return build_maintenance_schedule_rows(
+            asset_queryset=Asset.objects.filter(pk=self.asset.id).select_related("asset_category")
+        )
+
+    def test_missing_meter_row_is_danger_not_muted(self):
+        row = self._rows()[0]
+
+        self.assertEqual(row["schedule_status"], "missing")
+        self.assertEqual(row["schedule_badge_class"], "danger")
+
+    def test_missing_rows_sort_before_upcoming(self):
+        other_asset = Asset.objects.create(
+            asset_tag="CNC-STALE-002",
+            name="Tornio con contatore",
+            asset_type=Asset.TYPE_CNC,
+            asset_category=self.category,
+            status=Asset.STATUS_IN_USE,
+        )
+        AssetMeter.objects.create(
+            asset=other_asset, meter_type=AssetMeter.METER_HOURS, current_value=10, unit_label="h",
+        )
+
+        rows = build_maintenance_schedule_rows()
+
+        self.assertEqual(rows[0]["asset"].id, self.asset.id)
+        self.assertEqual(rows[0]["schedule_status"], "missing")
+        self.assertEqual(rows[1]["schedule_status"], "upcoming")
+
+    def test_fresh_meter_is_not_stale(self):
+        self._set_meter(100)
+
+        row = self._rows()[0]
+
+        self.assertFalse(row["meter_is_stale"])
+        self.assertEqual(row["meter_days_since_update"], 0)
+
+    def test_stale_meter_is_flagged_even_when_schedule_is_green(self):
+        self._set_meter(100, days_since_update=45)
+
+        row = self._rows()[0]
+
+        self.assertEqual(row["schedule_status"], "upcoming")
+        self.assertTrue(row["meter_is_stale"])
+        self.assertEqual(row["meter_days_since_update"], 45)
+
+    def test_stale_threshold_is_configurable_via_siteconfig(self):
+        from core.models import SiteConfig
+
+        self._set_meter(100, days_since_update=20)
+        self.assertFalse(self._rows()[0]["meter_is_stale"])
+
+        SiteConfig.objects.create(chiave="assets_meter_stale_days", valore="15")
+
+        self.assertTrue(self._rows()[0]["meter_is_stale"])
+
+    def test_reminder_reports_missing_meter_and_stale_meter(self):
+        out = io.StringIO()
+        call_command("send_maintenance_reminders", dry_run=True, stdout=out)
+        missing_output = out.getvalue()
+
+        self._set_meter(100, days_since_update=45)
+        out = io.StringIO()
+        call_command("send_maintenance_reminders", dry_run=True, stdout=out)
+        stale_output = out.getvalue()
+
+        self.assertIn("NON VALUTABILI", missing_output)
+        self.assertIn("Contatore h mancante", missing_output)
+        self.assertIn("CONTATORI FERMI DA ALMENO 30 GIORNI", stale_output)
+        self.assertIn("45gg senza letture", stale_output)
+        self.assertIn("CNC-STALE-001", stale_output)
+
+
+class WorkOrderAssigneeNotificationTests(TestCase):
+    """Quick win Q4 — assigned_to esisteva ma non riceveva nulla: il push era solo collettivo."""
+
+    TECNICO_LEGACY_ID = 9001
+    ADMIN_LEGACY_ID = 9002
+
+    def setUp(self):
+        from core.models import Profile
+
+        User = get_user_model()
+        self.admin = User.objects.create_superuser("wo-notif-admin", "wo-notif-admin@test.local", "pw")
+        self.tecnico = User.objects.create_user("wo-notif-tecnico", "wo-notif-tecnico@test.local", "pw")
+        Profile.objects.create(user=self.admin, legacy_user_id=self.ADMIN_LEGACY_ID)
+        Profile.objects.create(user=self.tecnico, legacy_user_id=self.TECNICO_LEGACY_ID)
+        self.category = AssetCategory.objects.create(
+            code="cnc-notif", label="CNC notifiche", base_asset_type=Asset.TYPE_CNC, sort_order=10,
+        )
+        self.asset = Asset.objects.create(
+            asset_tag="CNC-NOT-001",
+            name="Tornio notifiche",
+            asset_type=Asset.TYPE_CNC,
+            asset_category=self.category,
+            status=Asset.STATUS_IN_USE,
+        )
+
+    def _notifiche(self, legacy_user_id: int):
+        from core.models import Notifica
+
+        return Notifica.objects.filter(legacy_user_id=legacy_user_id)
+
+    def _create_payload(self, **extra):
+        payload = {
+            "periodic_verification": "",
+            "supplier": "",
+            "kind": WorkOrder.KIND_CORRECTIVE,
+            "status": WorkOrder.STATUS_OPEN,
+            "title": "Sostituzione cuscinetto",
+            "description": "Rumore anomalo",
+            "resolution": "",
+            "downtime_minutes": "0",
+            "cost_eur": "",
+        }
+        payload.update(extra)
+        return payload
+
+    def _open_workorder(self, *, assigned_to=None, days_open: int = 0):
+        workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="Intervento aperto",
+            assigned_to=assigned_to,
+        )
+        if days_open:
+            WorkOrder.objects.filter(pk=workorder.pk).update(
+                opened_at=timezone.now() - timedelta(days=days_open)
+            )
+            workorder.refresh_from_db()
+        return workorder
+
+    def test_create_notifies_the_assignee(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("assets:wo_create", args=[self.asset.id]),
+            self._create_payload(assigned_to=str(self.tecnico.id)),
+        )
+
+        self.assertEqual(response.status_code, 302)
+        workorder = WorkOrder.objects.get()
+        notifica = self._notifiche(self.TECNICO_LEGACY_ID).get()
+        self.assertIn("assegnato", notifica.messaggio)
+        self.assertIn(workorder.title, notifica.messaggio)
+        self.assertEqual(notifica.url_azione, f"/assets/workorders/view/{workorder.pk}/")
+
+    def test_create_does_not_notify_when_assigning_to_yourself(self):
+        self.client.force_login(self.admin)
+
+        self.client.post(
+            reverse("assets:wo_create", args=[self.asset.id]),
+            self._create_payload(assigned_to=str(self.admin.id)),
+        )
+
+        self.assertEqual(self._notifiche(self.ADMIN_LEGACY_ID).count(), 0)
+
+    def test_claim_notifies_the_previous_assignee(self):
+        workorder = self._open_workorder(assigned_to=self.tecnico)
+        self.client.force_login(self.admin)
+
+        response = self.client.post(reverse("assets:wo_claim", args=[workorder.id]))
+
+        self.assertEqual(response.status_code, 302)
+        workorder.refresh_from_db()
+        self.assertEqual(workorder.assigned_to, self.admin)
+        notifica = self._notifiche(self.TECNICO_LEGACY_ID).get()
+        self.assertIn("preso in carico", notifica.messaggio)
+
+    def test_claim_of_unassigned_workorder_notifies_nobody(self):
+        workorder = self._open_workorder()
+        self.client.force_login(self.admin)
+
+        self.client.post(reverse("assets:wo_claim", args=[workorder.id]))
+
+        self.assertEqual(self._notifiche(self.TECNICO_LEGACY_ID).count(), 0)
+        self.assertEqual(self._notifiche(self.ADMIN_LEGACY_ID).count(), 0)
+
+    def test_reminder_notifies_the_assignee_of_an_overdue_workorder(self):
+        workorder = self._open_workorder(assigned_to=self.tecnico, days_open=40)
+        out = io.StringIO()
+
+        call_command(
+            "send_maintenance_reminders",
+            recipients=["manutenzione@test.local"],
+            stdout=out,
+        )
+
+        notifica = self._notifiche(self.TECNICO_LEGACY_ID).get()
+        self.assertIn(f"#{workorder.pk}", notifica.messaggio)
+        self.assertIn("aperto da 40 giorni", notifica.messaggio)
+        self.assertIn("NotificheAssegnatari=1", out.getvalue())
+
+
+class WorkOrderOverdueThresholdTests(TestCase):
+    """Quick win Q6 — la soglia 'OdL in ritardo' era ricopiata a mano in più punti."""
+
+    def setUp(self):
+        from core.models import SiteConfig
+
+        User = get_user_model()
+        self.admin = User.objects.create_superuser("wo-thr-admin", "wo-thr-admin@test.local", "pw")
+        self.category = AssetCategory.objects.create(
+            code="cnc-thr", label="CNC soglia", base_asset_type=Asset.TYPE_CNC, sort_order=10,
+        )
+        self.asset = Asset.objects.create(
+            asset_tag="CNC-THR-001",
+            name="Tornio soglia",
+            asset_type=Asset.TYPE_CNC,
+            asset_category=self.category,
+            status=Asset.STATUS_IN_USE,
+        )
+        self.workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="Aperto da 10 giorni",
+        )
+        WorkOrder.objects.filter(pk=self.workorder.pk).update(
+            opened_at=timezone.now() - timedelta(days=10)
+        )
+        self.SiteConfig = SiteConfig
+
+    def test_default_threshold_is_21_days(self):
+        from assets.maintenance import get_workorder_overdue_days
+
+        self.assertEqual(get_workorder_overdue_days(), 21)
+
+    def test_siteconfig_threshold_drives_cockpit_and_reminder_together(self):
+        self.SiteConfig.objects.create(chiave="assets_wo_overdue_days", valore="7")
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("assets:maintenance_hub"))
+        out = io.StringIO()
+        call_command("send_maintenance_reminders", dry_run=True, stdout=out)
+
+        self.assertEqual(list(response.context["wo_overdue"]), [self.workorder])
+        self.assertIn("OdL APERTI DA PIÙ DI 7 GIORNI", out.getvalue())
+
+    def test_workorder_is_not_overdue_below_the_threshold(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("assets:maintenance_hub"))
+        out = io.StringIO()
+        call_command("send_maintenance_reminders", dry_run=True, stdout=out)
+
+        self.assertEqual(list(response.context["wo_overdue"]), [])
+        self.assertNotIn("OdL APERTI", out.getvalue())

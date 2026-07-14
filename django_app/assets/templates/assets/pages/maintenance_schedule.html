@@ -458,6 +458,10 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
                       <strong>{{ row.due_date|date:"d-m-Y" }}</strong><br>
                     {% endif %}
                     <span class="as-badge as-badge--{{ row.schedule_badge_class }}">{{ row.schedule_label }}</span>
+                    {% if row.meter_is_stale %}
+                      <br><span class="as-badge as-badge--warn">Contatore fermo da {{ row.meter_days_since_update }} gg</span>
+                      <br><span class="ms-meta">Valore non aggiornato: questa scadenza non e' attendibile.</span>
+                    {% endif %}
                     {% if row.schedule_status == "missing" %}
                       <br><span class="ms-meta">Prima esecuzione da pianificare</span>
                     {% endif %}
@@ -626,6 +630,7 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
                 <div class="ms-kcard-mac"><span class="ms-tag2">{{ row.asset.asset_tag }}</span> {{ row.asset.name|truncatechars:22 }}</div>
                 <div class="ms-kcard-foot">
                   <span class="as-badge as-badge--{{ row.schedule_badge_class }}">{{ row.schedule_label }}</span>
+                  {% if row.meter_is_stale %}<span class="as-badge as-badge--warn">Contatore fermo {{ row.meter_days_since_update }} gg</span>{% endif %}
                   {% if row.due_date %}<span class="ms-kcard-date">{{ row.due_date|date:"d-m-y" }}</span>{% endif %}
                   <a class="ms-kcard-act" href="{{ row.workorder_create_url }}">Registra &rsaquo;</a>
                 </div>
