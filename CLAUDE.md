@@ -81,6 +81,17 @@ No tests are required for documentation-only changes unless project files outsid
 - Do not run `runserver` and the full test suite simultaneously.
 - Prefer `--verbosity 0` when running tests in background to reduce I/O.
 
+## Session Isolation (ALWAYS)
+
+Multiple Claude sessions work on this repo **at the same time**. The branch and the uncommitted files belong to the *folder*, not to the session: if every session works in `C:\Dev\Portale Novicrom`, one session's `git checkout` switches the branch under the others, and one session's `git add` stages another session's WIP (it also silently discards uncommitted edits made there).
+
+- **Never work directly in the shared checkout `C:\Dev\Portale Novicrom`**, and never run `git checkout`/`git switch` there. Treat it as a read-only reference.
+- Before producing any commit, create a **dedicated worktree** on a dedicated branch:
+  `git worktree add C:\Dev\pn-<topic> -B <branch> origin/<base-branch>`
+  Work, test, commit and push from there; then `git worktree remove` (if the path is too long for git: `cmd /c rmdir /s /q <path>` + `git worktree prune`).
+- If you must touch a file in the shared checkout, **stage only your own hunks** — never `git add -A` / `git commit -a`: the working tree holds other sessions' WIP.
+- Deploy note: production runs `feature/skill-matrix-mod187`, not `main`. A fix that must reach production has to land on that branch too.
+
 ## Patch Workflow
 
 - Read only the relevant AI doc(s), not the whole `docs/ai` folder.
