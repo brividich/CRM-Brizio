@@ -7,15 +7,17 @@
 {% endblock %}
 {% block content %}
 <div class="soc-module">
-  <nav class="soc-nav" style="display:flex;gap:16px;flex-wrap:wrap;margin:0 0 16px;padding-bottom:10px;border-bottom:1px solid var(--sec-line)">
-    <a href="{% url 'security:dashboard' %}">Dashboard</a>
-    <a href="{% url 'security:alerts_list' %}">Alert</a>
-    <a href="{% url 'security:tickets_list' %}">Ticket</a>
-    <a href="{% url 'security:kpis' %}">KPI</a>
-    <a href="{% url 'security:pipeline' %}">Pipeline</a>
-    <a href="{% url 'security:assets' %}">Asset</a>
-    <a href="{% url 'security:admin_config' %}">Config</a>
+  {% with url_name=request.resolver_match.url_name %}
+  <nav class="soc-nav" aria-label="Navigazione SOC">
+    <a href="{% url 'security:dashboard' %}" {% if url_name == 'dashboard' or url_name == 'security_dashboard' %}class="active"{% endif %}>Dashboard</a>
+    <a href="{% url 'security:alerts_list' %}" {% if url_name == 'alerts_list' or url_name == 'alert_detail' %}class="active"{% endif %}>Alert</a>
+    <a href="{% url 'security:tickets_list' %}" {% if url_name == 'tickets_list' %}class="active"{% endif %}>Ticket</a>
+    <a href="{% url 'security:kpis' %}" {% if url_name == 'kpis' %}class="active"{% endif %}>KPI</a>
+    <a href="{% url 'security:pipeline' %}" {% if url_name == 'pipeline' %}class="active"{% endif %}>Pipeline</a>
+    <a href="{% url 'security:assets' %}" {% if url_name == 'assets' %}class="active"{% endif %}>Asset</a>
+    <a href="{% url 'security:admin_config' %}" {% if url_name|slice:':6' == 'admin_' %}class="active"{% endif %}>Config</a>
   </nav>
+  {% endwith %}
   {% block soc_content %}{% endblock %}
 </div>
 {% endblock %}
