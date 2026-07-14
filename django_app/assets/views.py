@@ -3132,13 +3132,25 @@ def _document_file_response(storage, file_name: str, filename: str) -> FileRespo
 def _can_download_asset_document(request: HttpRequest) -> bool:
     """Chi puo' scaricare un documento asset da sessione autenticata.
 
-    Gate allineato a ``admin_deadline_attachment_download``: senza questo, il
-    solo ``login_required`` rende enumerabile qualunque ``document_id`` (IDOR).
-    L'accesso di officina non passa da qui ma dal token QR sulla macchina
-    (``asset_document_qr_download``). Per riaprire il download a tutti gli
-    utenti autenticati basta allargare questo predicato: e' l'unico punto.
+    Policy: **qualunque utente autenticato**. I documenti asset (manuali,
+    specifiche, procedure di intervento) sono per scelta di prodotto leggibili
+    da chiunque abbia accesso fisico alla macchina, via il token QR stampato
+    sopra (``asset_document_qr_download``, senza login). Il QR e' quindi il
+    *pavimento* dell'accessibilita', non il tetto: un utente autenticato non puo'
+    vedere meno di un anonimo con il QR in mano.
+
+    Cio' che rendeva pericoloso il vecchio ``@login_required`` nudo non era
+    questa apertura, ma il fatto che gli stessi file fossero **anche** serviti da
+    IIS su ``/media/assets_documents/`` in anonimo, senza alcun controllo ne'
+    traccia. Chiuso quello (deny IIS) e passato tutto da view con audit, l'accesso
+    autenticato universale e' una decisione consapevole, non un IDOR.
+
+    Il tetto resta comunque l'ACL di modulo: questa rotta sta sotto ``/assets/``,
+    quindi ``ACLMiddleware`` la gatea con il binding canonico del modulo — chi non
+    ha accesso ad assets non arriva nemmeno qui. Restringere la policy significa
+    toccare solo questo predicato (il diniego e' gia' cablato e auditato).
     """
-    return _is_assets_admin(request)
+    return bool(getattr(request.user, "is_authenticated", False))
 
 
 @login_required
@@ -3177,7 +3189,6 @@ def asset_document_download(request, document_id: int):
         )
         return HttpResponse("Documento non trovato.", status=404)
     filename = document.original_name or Path(file_name).name
-    content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
     log_action(
         request,
         "download_asset_document",
@@ -3190,12 +3201,10 @@ def asset_document_download(request, document_id: int):
             "esito": "success",
         },
     )
-    return FileResponse(
-        storage.open(file_name, "rb"),
-        as_attachment=True,
-        filename=filename,
-        content_type=content_type,
-    )
+    # Stessa resa del QR: anteprima nel browser per i tipi che non possono
+    # eseguire script (era il comportamento con l'URL /media/ diretto), allegato
+    # per tutti gli altri.
+    return _document_file_response(storage, file_name, filename)
 
 
 def asset_document_qr_download(request: HttpRequest, public_qr_token: str, document_id: int):

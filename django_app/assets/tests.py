@@ -1320,18 +1320,6 @@ class AssetsRoutingTests(TestCase):
                 self.assertContains(edit_page, reverse("assets:asset_document_download", args=[upload.id]))
                 self.assertNotContains(edit_page, "/media/assets_documents/")
 
-                # Il download da sessione autenticata e' riservato agli admin asset
-                # (l'accesso di officina passa dal token QR sulla macchina).
-                denied = self.client.get(reverse("assets:asset_document_download", args=[upload.id]))
-                self.assertEqual(denied.status_code, 403)
-
-                admin = User.objects.create_superuser(
-                    username="asset-admin-doc-download",
-                    email="asset-admin-doc-download@test.local",
-                    password="pass12345",
-                )
-                _complete_onboarding(admin)
-                self.client.force_login(admin)
                 download = self.client.get(reverse("assets:asset_document_download", args=[upload.id]))
                 self.assertEqual(download.status_code, 200)
                 self.assertEqual(download["Content-Type"], "application/pdf")

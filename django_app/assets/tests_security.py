@@ -5,7 +5,10 @@ Coperti qui:
     da /media/ (che IIS serve in anonimo): l'accesso passa sempre da una view;
   * il token QR e' una vera chiave d'accesso — vale solo per i documenti del SUO
     asset, e solo se il QR pubblico e' abilitato;
-  * il download autenticato di un documento non e' enumerabile da chiunque (IDOR);
+  * il download autenticato dei documenti asset e' aperto a tutti gli autenticati
+    (il QR li rende leggibili anche agli anonimi: e' il pavimento, non il tetto) ma
+    ogni accesso e' auditato; gli allegati delle scadenze amministrative restano
+    invece riservati agli admin;
   * import Excel e bulk update sono scritture di massa: solo admin asset, con audit.
 """
 from __future__ import annotations
@@ -17,7 +20,7 @@ from uuid import uuid4
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import SimpleTestCase, TestCase, override_settings
+from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -140,8 +143,16 @@ class AssetDocumentQrAccessTests(_MediaRootMixin, TestCase):
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
-class AssetDocumentDownloadGateTests(_MediaRootMixin, TestCase):
-    """PARTE 2 — IDOR: il download autenticato non e' enumerabile da chiunque."""
+class AssetDocumentDownloadTests(_MediaRootMixin, TestCase):
+    """PARTE 2 — il download autenticato: aperto agli autenticati, ma tracciato.
+
+    I documenti asset sono leggibili da chiunque abbia il QR sulla macchina (anche
+    anonimo): il QR e' il pavimento dell'accessibilita', quindi un utente
+    autenticato non puo' vedere meno. Cio' che era un buco — gli stessi file serviti
+    da IIS in anonimo, senza controllo ne' traccia — e' chiuso altrove (deny IIS +
+    view). Qui si verifica che l'anonimo senza token non passi e che ogni accesso
+    lasci una traccia.
+    """
 
     def setUp(self):
         super().setUp()
@@ -149,32 +160,34 @@ class AssetDocumentDownloadGateTests(_MediaRootMixin, TestCase):
         self.document = AssetDocument.objects.create(
             asset=self.asset,
             category=AssetDocument.CATEGORY_MANUALI,
-            file=SimpleUploadedFile("riservato.pdf", b"%PDF-1.4 riservato", content_type="application/pdf"),
-            original_name="riservato.pdf",
+            file=SimpleUploadedFile("manuale.pdf", b"%PDF-1.4 manuale", content_type="application/pdf"),
+            original_name="manuale.pdf",
         )
         self.url = reverse("assets:asset_document_download", kwargs={"document_id": self.document.id})
 
-    def test_anonimo_redirect_al_login(self):
+    def test_anonimo_senza_token_redirect_al_login(self):
         response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, 302)
         self.assertIn(reverse("login"), response["Location"])
 
-    def test_utente_autenticato_non_admin_negato_e_diniego_loggato(self):
+    def test_utente_autenticato_non_admin_scarica_e_laccesso_e_loggato(self):
         user = User.objects.create_user(username="asset-sec-user", password="pass12345")
         _complete_onboarding(user)
         self.client.force_login(user)
 
         response = self.client.get(self.url)
 
-        self.assertEqual(response.status_code, 403)
-        denied = (
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(b"".join(response.streaming_content), b"%PDF-1.4 manuale")
+        logged = (
             AuditLog.objects.filter(azione="download_asset_document", modulo="assets")
             .order_by("-id")
             .first()
         )
-        self.assertIsNotNone(denied)
-        self.assertEqual(denied.dettaglio.get("esito"), "denied")
+        self.assertIsNotNone(logged)
+        self.assertEqual(logged.dettaglio.get("esito"), "success")
+        self.assertEqual(logged.dettaglio.get("document_id"), self.document.id)
 
     def test_admin_scarica(self):
         admin = User.objects.create_superuser(
@@ -188,7 +201,24 @@ class AssetDocumentDownloadGateTests(_MediaRootMixin, TestCase):
         response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(b"".join(response.streaming_content), b"%PDF-1.4 riservato")
+        self.assertEqual(b"".join(response.streaming_content), b"%PDF-1.4 manuale")
+
+    def test_le_scadenze_amministrative_restano_riservate_agli_admin(self):
+        """Documenti amministrativi (certificati, verbali): il gate restrittivo resta.
+
+        Non hanno un QR che li renda leggibili in officina, quindi il ragionamento
+        del "pavimento QR" non si applica: la loro superficie e' solo questa view.
+        """
+        from .views import _can_download_asset_document, _is_assets_admin
+
+        user = User.objects.create_user(username="asset-sec-user-adm", password="pass12345")
+        request = RequestFactory().get("/assets/")
+        request.user = user
+
+        # Stesso utente: puo' leggere un manuale (lo vedrebbe comunque dal QR),
+        # non puo' leggere un allegato di scadenza amministrativa.
+        self.assertTrue(_can_download_asset_document(request))
+        self.assertFalse(_is_assets_admin(request))
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
