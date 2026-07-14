@@ -1,10 +1,16 @@
+import logging
+
+from django.db import IntegrityError, transaction
 from django.db.models import Count
 from django.utils import timezone
 
 from security.models import SecurityAlert, SecurityAlertActionLog, SecurityAlertRuleConfig, SecurityAlertSuppressionRule, SecurityEventRecord, Severity, Status
 from security.services.alert_lifecycle import ACTIVE_ALERT_STATUSES
 from security.services.evidence_builder import build_evidence_container
+from security.services.notifications import notify_alert_created
 from security.services.ticketing import create_backup_ticket, create_or_update_remediation_ticket_for_vulnerability_finding
+
+logger = logging.getLogger(__name__)
 
 
 def evaluate_security_rules():
@@ -23,6 +29,8 @@ def evaluate_security_rules():
             _evaluate_vpn(event)
         elif event.event_type == "watchguard_alert_candidate":
             _evaluate_watchguard_alert_candidate(event)
+        elif event.event_type == "source_silent":
+            _evaluate_source_silent(event)
         else:
             event.decision_trace = {"decision": "kpi_only", "reason": "No alert rule matched"}
             event.save(update_fields=["decision_trace"])
@@ -53,6 +61,14 @@ def _evaluate_vulnerability(event):
     is_critical = _rule_matches(critical_rule, cvss, payload) if critical_rule else (payload.get("severity") == Severity.CRITICAL or cvss >= 9)
     exposed_count = int(payload.get("exposed_devices", 0))
     exposed = _rule_matches(exposed_rule, exposed_count, payload) if exposed_rule else exposed_count > 0
+
+    # Fail-closed: devices are exposed but neither the score nor the severity could be
+    # read. `cvss` above is 0 only because nothing could be parsed - acting on that 0
+    # would silently drop a possibly critical CVE. Raise it for manual review instead.
+    if not is_critical and exposed and payload.get("cvss_unparsed") and payload.get("severity_unrecognized"):
+        _alert_unreadable_vulnerability(event, payload)
+        return
+
     if is_critical and exposed:
         trace = {
             "decision": "alert",
@@ -85,11 +101,91 @@ def _evaluate_vulnerability(event):
             action="alert_created" if alert_created else "alert_reused",
             details=trace,
         )
+        if alert_created:
+            notify_alert_created(alert)
         _mark_rule_triggered(critical_rule)
         _mark_rule_triggered(exposed_rule)
     else:
         event.decision_trace = {"decision": "kpi_only", "reason": "Vulnerability not both critical and exposed"}
         event.save(update_fields=["decision_trace"])
+
+
+def _evaluate_source_silent(event):
+    """A source that stopped reporting is an alert. Nothing else in the system can see it:
+    every other check reasons about data that arrived."""
+    payload = event.payload
+    rule = _get_rule("source_silent_beyond_expected")
+    if rule and not rule.enabled:
+        event.decision_trace = {"decision": "kpi_only", "reason": "Source heartbeat rule disabled", "rule": rule.code}
+        event.save(update_fields=["decision_trace"])
+        return
+
+    trace = {
+        "decision": "alert",
+        "rule": "Source silent beyond expected cadence => alert",
+        "reason": payload.get("detail"),
+        "source_code": payload.get("source_code"),
+        "expected_every_hours": payload.get("expected_every_hours"),
+        "hours_silent": payload.get("hours_silent"),
+        "last_report_at": payload.get("last_report_at"),
+        "last_run_at": payload.get("last_run_at"),
+    }
+    alert, alert_created = _get_or_create_active_alert(
+        source=event.source,
+        event=event,
+        title=f"Source silent: {payload.get('source_name') or payload.get('source_code')}",
+        severity=(rule.severity if rule else Severity.WARNING),
+        dedup_hash=event.dedup_hash,
+        decision_trace=trace,
+    )
+    trace["alert_created"] = alert_created
+    _store_alert_decision_trace(alert, trace, alert_created)
+    event.decision_trace = trace
+    event.save(update_fields=["decision_trace"])
+    build_evidence_container(event.source, alert.title, alert=alert, event=event, decision_trace=trace)
+    SecurityAlertActionLog.objects.create(
+        alert=alert,
+        action="alert_created" if alert_created else "alert_reused",
+        details=trace,
+    )
+    _mark_rule_triggered(rule)
+    if alert_created:
+        notify_alert_created(alert)
+
+
+def _alert_unreadable_vulnerability(event, payload):
+    """Alert on a vulnerability we could not read, rather than scoring it 0 and moving on."""
+    trace = {
+        "decision": "alert",
+        "rule": "Vulnerability data unreadable while devices are exposed => fail-closed manual review",
+        "reason": "Neither CVSS nor severity could be parsed; the score is NOT assumed to be 0",
+        "cve": payload.get("cve"),
+        "exposed_devices": payload.get("exposed_devices"),
+        "cvss_unparsed": True,
+        "severity_unrecognized": True,
+    }
+    alert, alert_created = _get_or_create_active_alert(
+        source=event.source,
+        event=event,
+        title=f"Unreadable vulnerability data for {payload.get('cve') or 'unknown CVE'} (manual review)",
+        severity=Severity.HIGH,
+        dedup_hash=event.dedup_hash,
+        decision_trace=trace,
+    )
+    trace["alert_created"] = alert_created
+    _store_alert_decision_trace(alert, trace, alert_created)
+    event.decision_trace = trace
+    event.save(update_fields=["decision_trace"])
+    # Evidence, so the operator can see the raw excerpt that defeated the parser. No
+    # remediation ticket: the data is not trustworthy enough to drive remediation.
+    build_evidence_container(event.source, alert.title, alert=alert, event=event, decision_trace=trace)
+    SecurityAlertActionLog.objects.create(
+        alert=alert,
+        action="alert_created" if alert_created else "alert_reused",
+        details=trace,
+    )
+    if alert_created:
+        notify_alert_created(alert)
 
 
 def _evaluate_backup(event):
@@ -155,6 +251,8 @@ def _evaluate_vpn(event):
             action="alert_created" if alert_created else "alert_reused",
             details=trace,
         )
+        if alert_created:
+            notify_alert_created(alert)
         event.decision_trace = trace
     else:
         event.decision_trace = {"decision": "kpi_only", "reason": "VPN volume below threshold", "count": count, "threshold": threshold}
@@ -256,27 +354,47 @@ def _mark_rule_triggered(rule):
     rule.save(update_fields=["last_triggered_at", "trigger_count", "updated_at"])
 
 
-def _get_or_create_active_alert(source, event, title, severity, dedup_hash, decision_trace):
-    alert = (
+def _active_alert(source, dedup_hash):
+    return (
         SecurityAlert.objects.filter(source=source, dedup_hash=dedup_hash, status__in=ACTIVE_ALERT_STATUSES)
         .order_by("-updated_at")
         .first()
     )
+
+
+def _get_or_create_active_alert(source, event, title, severity, dedup_hash, decision_trace):
+    """Check-then-create is a race. Let the database settle it.
+
+    Two workers evaluating the same finding concurrently both used to read "no alert yet"
+    and both created one. The partial unique index on (source, dedup_hash) over active
+    statuses now makes the second INSERT fail; losing that race is not an error, it means
+    somebody else just created the alert we were about to create, so we adopt theirs.
+    """
+    alert = _active_alert(source, dedup_hash)
     if alert:
         alert.event = event
         alert.save(update_fields=["event", "updated_at"])
         return alert, False
-    return (
-        SecurityAlert.objects.create(
-            source=source,
-            event=event,
-            title=title,
-            severity=severity,
-            dedup_hash=dedup_hash,
-            decision_trace=decision_trace,
-        ),
-        True,
-    )
+
+    try:
+        with transaction.atomic():
+            alert = SecurityAlert.objects.create(
+                source=source,
+                event=event,
+                title=title,
+                severity=severity,
+                dedup_hash=dedup_hash,
+                decision_trace=decision_trace,
+            )
+        return alert, True
+    except IntegrityError:
+        alert = _active_alert(source, dedup_hash)
+        if alert is None:
+            raise  # the constraint fired for some other reason: do not swallow it
+        logger.info("Lost the alert creation race for dedup %s; adopting the existing alert", dedup_hash[:12])
+        alert.event = event
+        alert.save(update_fields=["event", "updated_at"])
+        return alert, False
 
 
 def _store_alert_decision_trace(alert, trace, alert_created):

@@ -11,7 +11,7 @@ import urllib.parse
 import urllib.request
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime, timezone as dt_timezone
+from datetime import datetime, timedelta, timezone as dt_timezone
 from typing import List, Optional
 
 from django.utils import timezone
@@ -26,6 +26,20 @@ GRAPH_API_BASE_URL = "https://graph.microsoft.com/v1.0"
 GRAPH_SCOPE = "https://graph.microsoft.com/.default"
 GRAPH_TIMEOUT_SECONDS = 30
 GRAPH_WELL_KNOWN_FOLDERS = {"archive", "deleteditems", "drafts", "inbox", "junkemail", "outbox", "sentitems"}
+GRAPH_PAGE_SIZE = 50
+GRAPH_MAX_PAGES = 20
+# Re-read a window before the last success: Graph's clock is not ours, and a message can
+# land with a timestamp slightly before the moment we finished the previous run.
+# Re-fetching is free - the dedup on provider_message_id drops the duplicates.
+INCREMENTAL_OVERLAP_MINUTES = 30
+
+
+def incremental_since(source):
+    """Lower bound for the incremental fetch, or None on the first ever run."""
+    last_success = getattr(source, "last_success_at", None)
+    if not last_success:
+        return None
+    return last_success - timedelta(minutes=INCREMENTAL_OVERLAP_MINUTES)
 
 
 @dataclass
@@ -47,6 +61,10 @@ class MailboxMessage:
     body_text: str
     body_html: str
     attachments: List[MailboxAttachment]
+    # Sender authentication (DKIM/SPF/DMARC) as reported by the receiving mail system.
+    # Defaults are fail-closed: unknown provenance is NOT considered verified.
+    sender_verified: bool = False
+    auth_summary: str = ""
 
 
 class MailboxProvider(ABC):
@@ -97,21 +115,62 @@ class GraphMailboxProvider(MailboxProvider):
         return token
 
     def _get_messages(self, token: str, source, limit: int) -> List[dict]:
-        top = max(1, min(int(limit or 50), 500))
+        """Fetch messages incrementally, oldest first, following Graph pagination.
+
+        The previous implementation asked for the newest N messages and stopped there.
+        If more than ``max_messages_per_run`` mails arrived between two runs (a nightly
+        batch of vendor reports, say), the older ones fell off the window and were never
+        imported: the next run again saw only the newest N. Reports were lost silently.
+
+        Two changes fix that:
+        - ``$filter`` on ``receivedDateTime`` from the last successful run (minus a safety
+          overlap, because Graph timestamps and our clock are not the same clock). Dedup
+          on the provider message id makes the overlap harmless.
+        - ascending order + ``@odata.nextLink`` pagination, so the backlog is drained from
+          the oldest message forward instead of the newest backwards.
+        """
+        page_size = max(1, min(int(limit or 50), GRAPH_PAGE_SIZE))
+        max_messages = max(1, int(limit or 50))
         folder = str(get_setting("GRAPH_MAIL_FOLDER", "") or "").strip() or os.getenv("GRAPH_MAIL_FOLDER", "").strip() or "Inbox"
-        select_fields = "id,internetMessageId,subject,from,toRecipients,receivedDateTime,body,hasAttachments"
-        params = urllib.parse.urlencode(
-            {
-                "$top": top,
-                "$select": select_fields,
-                "$orderby": "receivedDateTime desc",
-            }
-        )
+        # internetMessageHeaders carries Authentication-Results (DKIM/SPF/DMARC), used to
+        # tell a genuine vendor notification from a spoofed look-alike.
+        select_fields = "id,internetMessageId,subject,from,toRecipients,receivedDateTime,body,hasAttachments,internetMessageHeaders"
+        query = {
+            "$top": page_size,
+            "$select": select_fields,
+            # Oldest first: a backlog must be drained from the bottom, never truncated
+            # from the top.
+            "$orderby": "receivedDateTime asc",
+        }
+        since = incremental_since(source)
+        if since:
+            query["$filter"] = f"receivedDateTime ge {since.strftime('%Y-%m-%dT%H:%M:%SZ')}"
+
         mailbox = urllib.parse.quote(source.mailbox_address, safe="")
         folder_part = self._resolve_folder_part(token, mailbox, folder)
-        url = f"{GRAPH_API_BASE_URL}/users/{mailbox}/mailFolders/{folder_part}/messages?{params}"
-        data = _request_json(url, headers=_graph_headers(token))
-        return data.get("value", [])
+        url = f"{GRAPH_API_BASE_URL}/users/{mailbox}/mailFolders/{folder_part}/messages?{urllib.parse.urlencode(query)}"
+
+        items: List[dict] = []
+        pages = 0
+        while url and len(items) < max_messages and pages < GRAPH_MAX_PAGES:
+            data = _request_json(url, headers=_graph_headers(token))
+            items.extend(data.get("value", []))
+            url = data.get("@odata.nextLink") or ""
+            pages += 1
+
+        if url and len(items) < max_messages:
+            # We stopped on the page cap, not because the mailbox was drained.
+            logger.warning(
+                "Graph pagination stopped at %s pages for source %s: more messages remain",
+                GRAPH_MAX_PAGES, source.code,
+            )
+        if len(items) > max_messages:
+            logger.info(
+                "Graph returned %s messages for source %s, capped at max_messages_per_run=%s; "
+                "the remainder will be picked up by the next run",
+                len(items), source.code, max_messages,
+            )
+        return items[:max_messages]
 
     def _resolve_folder_part(self, token: str, mailbox: str, folder: str) -> str:
         folder = folder.strip() or "Inbox"
@@ -231,9 +290,41 @@ def _safe_graph_error(exc: urllib.error.HTTPError) -> str:
     return "graph_error"
 
 
+def evaluate_sender_authentication(headers) -> tuple[bool, str]:
+    """Read Authentication-Results from Graph ``internetMessageHeaders``.
+
+    Returns ``(verified, summary)``. Verified requires DKIM **or** SPF to pass and no
+    explicit DMARC failure. Fail-closed: a missing header means not verified.
+
+    The header is written by the receiving mail system (Exchange Online), not by the
+    sender, so it cannot be forged by whoever composed the message.
+    """
+    raw = ""
+    for header in headers or []:
+        name = str((header or {}).get("name") or "").strip().lower()
+        if name in {"authentication-results", "arc-authentication-results"}:
+            raw += " " + str((header or {}).get("value") or "")
+    text = raw.strip().lower()
+    if not text:
+        return False, ""
+
+    dkim_pass = "dkim=pass" in text
+    spf_pass = "spf=pass" in text
+    dmarc_fail = "dmarc=fail" in text
+    verified = (dkim_pass or spf_pass) and not dmarc_fail
+
+    parts = []
+    for label, ok in (("dkim", dkim_pass), ("spf", spf_pass)):
+        parts.append(f"{label}={'pass' if ok else 'not-pass'}")
+    if dmarc_fail:
+        parts.append("dmarc=fail")
+    return verified, " ".join(parts)
+
+
 def _message_from_graph_item(item: dict, mailbox_address: str, attachments: List[MailboxAttachment]) -> MailboxMessage:
     body = item.get("body") or {}
     sender = ((item.get("from") or {}).get("emailAddress") or {}).get("address") or ""
+    sender_verified, auth_summary = evaluate_sender_authentication(item.get("internetMessageHeaders"))
     recipients = [
         (recipient.get("emailAddress") or {}).get("address")
         for recipient in item.get("toRecipients", [])
@@ -253,4 +344,6 @@ def _message_from_graph_item(item: dict, mailbox_address: str, attachments: List
         body_text=body.get("content") or "",
         body_html="",
         attachments=attachments,
+        sender_verified=sender_verified,
+        auth_summary=auth_summary,
     )

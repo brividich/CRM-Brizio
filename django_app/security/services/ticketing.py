@@ -1,7 +1,9 @@
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from security.models import SecurityAlertActionLog, SecurityRemediationTicket, Severity, Status
 from security.services.dedup import make_hash
+from security.services.notifications import notify_ticket_created
 
 
 ACTIVE_TICKET_STATUSES = [Status.OPEN, Status.IN_PROGRESS, Status.NEW]
@@ -22,23 +24,34 @@ def create_or_update_remediation_ticket_for_vulnerability_finding(source, alert,
     created = ticket is None
     if created:
         cve_ids = [cve] if cve else []
-        ticket = SecurityRemediationTicket.objects.create(
-            source=source,
-            alert=alert,
-            cve=cve,
-            cve_ids=cve_ids,
-            affected_product=affected_product,
-            organization=organization,
-            source_system=source_system,
-            title=_ticket_title(affected_product, cve_ids),
-            severity=severity,
-            max_cvss=cvss,
-            max_exposed_devices=exposed_devices,
-            first_seen_at=timezone.now(),
-            last_seen_at=timezone.now(),
-            occurrence_count=1,
-            dedup_hash=ticket_hash,
-        )
+        try:
+            with transaction.atomic():
+                ticket = SecurityRemediationTicket.objects.create(
+                    source=source,
+                    alert=alert,
+                    cve=cve,
+                    cve_ids=cve_ids,
+                    affected_product=affected_product,
+                    organization=organization,
+                    source_system=source_system,
+                    title=_ticket_title(affected_product, cve_ids),
+                    severity=severity,
+                    max_cvss=cvss,
+                    max_exposed_devices=exposed_devices,
+                    first_seen_at=timezone.now(),
+                    last_seen_at=timezone.now(),
+                    occurrence_count=1,
+                    dedup_hash=ticket_hash,
+                )
+        except IntegrityError:
+            # Lost the race: a concurrent worker created the ticket between our lookup and
+            # our INSERT. Adopt it and fall through to the update branch.
+            ticket = _active_ticket_by_hash(source, ticket_hash)
+            if ticket is None:
+                raise
+            created = False
+
+    if created:
         action = "ticket_created"
     else:
         cve_ids = list(ticket.cve_ids or ([ticket.cve] if ticket.cve else []))
@@ -95,7 +108,18 @@ def create_or_update_remediation_ticket_for_vulnerability_finding(source, alert,
             "evidence_id": str(evidence.id) if evidence else None,
         },
     )
+    if created:
+        notify_ticket_created(ticket)
     return ticket, created
+
+
+def _active_ticket_by_hash(source, dedup_hash):
+    return (
+        SecurityRemediationTicket.objects
+        .filter(source=source, dedup_hash=dedup_hash, status__in=ACTIVE_TICKET_STATUSES)
+        .order_by("-updated_at")
+        .first()
+    )
 
 
 def _find_existing_vulnerability_ticket(source, source_system, organization, affected_product, cve):
@@ -145,13 +169,45 @@ def create_or_update_cve_ticket(source, alert, evidence, cve, affected_product, 
 
 
 def create_backup_ticket(source, alert, evidence, job_name, dedup_hash):
-    ticket = SecurityRemediationTicket.objects.create(
-        source=source,
-        alert=alert,
-        title=f"Investigate backup issue: {job_name}",
-        dedup_hash=dedup_hash,
-    )
+    """One live ticket per failing backup job, not one per night.
+
+    This used to create a ticket unconditionally - the `dedup_hash` argument was stored
+    but never checked - so a job failing every night produced a ticket every night. It
+    now behaves like the vulnerability path: reuse the open ticket and count the
+    recurrence.
+    """
+    existing = _active_ticket_by_hash(source, dedup_hash)
+    if existing:
+        existing.alert = alert or existing.alert
+        existing.last_seen_at = timezone.now()
+        existing.occurrence_count = int(existing.occurrence_count or 0) + 1
+        existing.save(update_fields=["alert", "last_seen_at", "occurrence_count", "updated_at"])
+        if evidence:
+            existing.evidence.add(evidence)
+        SecurityAlertActionLog.objects.create(
+            alert=alert, ticket=existing, action="backup_ticket_recurrence",
+            details={"job_name": job_name, "occurrence_count": existing.occurrence_count},
+        )
+        return existing
+
+    try:
+        with transaction.atomic():
+            ticket = SecurityRemediationTicket.objects.create(
+                source=source,
+                alert=alert,
+                title=f"Investigate backup issue: {job_name}",
+                dedup_hash=dedup_hash,
+            )
+    except IntegrityError:
+        ticket = _active_ticket_by_hash(source, dedup_hash)
+        if ticket is None:
+            raise
+        if evidence:
+            ticket.evidence.add(evidence)
+        return ticket
+
     if evidence:
         ticket.evidence.add(evidence)
     SecurityAlertActionLog.objects.create(alert=alert, ticket=ticket, action="backup_ticket_created")
+    notify_ticket_created(ticket)
     return ticket

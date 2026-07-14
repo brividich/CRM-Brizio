@@ -65,7 +65,9 @@ class Command(BaseCommand):
         if options["source_type"]:
             queryset = queryset.filter(source_type=options["source_type"])
         if options["document_id"]:
-            queryset = queryset.filter(document_id=options["document_id"])
+            # This queryset is over AIKnowledgeDocument: the column is `id`.
+            # `document_id` only exists on AIKnowledgeChunk (see rebuild_embeddings below).
+            queryset = queryset.filter(id=options["document_id"])
 
         counts = {
             "documents_seen": queryset.count(),

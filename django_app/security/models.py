@@ -284,6 +284,7 @@ class SecurityAsset(models.Model):
     ip_address = models.GenericIPAddressField(null=True, blank=True, db_index=True)
     asset_type = models.CharField(max_length=80, blank=True)
     owner = models.CharField(max_length=120, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
     hub_asset = models.ForeignKey(
         "assets.Asset",
         on_delete=models.SET_NULL,
@@ -291,7 +292,6 @@ class SecurityAsset(models.Model):
         related_name="security_assets",
         help_text="Asset del registro HUB collegato (match ip_address↔endpoint IP / hostname↔nome).",
     )
-    metadata = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -351,6 +351,21 @@ class SecurityAlert(models.Model):
         indexes = [
             models.Index(fields=["source", "severity", "status"]),
             models.Index(fields=["dedup_hash", "status"]),
+        ]
+        constraints = [
+            # The dedup was check-then-create with nothing underneath it: two workers
+            # (Celery, `ingest_security_mailbox --loop`, the Inbox Workbench) evaluating
+            # the same finding at the same time both saw "no alert yet" and both created
+            # one. Duplicates therefore appeared precisely during a burst - when the same
+            # report arrives twice - i.e. exactly when dedup is supposed to earn its keep.
+            # A partial unique index makes the database the arbiter: one live alert per
+            # (source, dedup_hash). Closed alerts are exempt, so the same finding can
+            # legitimately re-open later.
+            models.UniqueConstraint(
+                fields=["source", "dedup_hash"],
+                condition=models.Q(status__in=["new", "open", "acknowledged", "in_progress", "snoozed", "muted"]),
+                name="uniq_active_alert_per_source_dedup",
+            ),
         ]
 
     def __str__(self):
@@ -541,6 +556,37 @@ class SecurityNotificationChannel(models.Model):
         return self.name
 
 
+class SecurityNotificationLog(models.Model):
+    """Audit trail of every outbound notification attempt, and the source of truth for
+    channel cooldown. A security tool must be able to answer "were we told, and when?"."""
+
+    class Outcome(models.TextChoices):
+        SENT = "sent", "Sent"
+        FAILED = "failed", "Failed"
+        COOLDOWN = "cooldown", "Suppressed by cooldown"
+
+    channel = models.ForeignKey(SecurityNotificationChannel, on_delete=models.CASCADE, related_name="notification_logs")
+    alert = models.ForeignKey(SecurityAlert, on_delete=models.SET_NULL, null=True, blank=True, related_name="notification_logs")
+    ticket = models.ForeignKey("SecurityRemediationTicket", on_delete=models.SET_NULL, null=True, blank=True, related_name="notification_logs")
+    event_kind = models.CharField(max_length=32, db_index=True)
+    severity = models.CharField(max_length=24, choices=Severity.choices, blank=True, db_index=True)
+    dedup_hash = models.CharField(max_length=64, blank=True, db_index=True)
+    outcome = models.CharField(max_length=16, choices=Outcome.choices, db_index=True)
+    recipients_count = models.PositiveSmallIntegerField(default=0)
+    error_message = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["channel", "dedup_hash", "event_kind", "created_at"]),
+            models.Index(fields=["outcome", "created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.channel_id}:{self.event_kind}:{self.outcome}"
+
+
 class SecurityTicketConfig(models.Model):
     aggregation_strategy = models.CharField(max_length=32, default="per_product")
     default_assignee = models.CharField(max_length=160, blank=True)
@@ -602,6 +648,16 @@ class SecurityRemediationTicket(models.Model):
             models.Index(fields=["source", "cve", "affected_product", "status"]),
             models.Index(fields=["dedup_hash", "status"]),
         ]
+        constraints = [
+            # Same reasoning as SecurityAlert: one live remediation ticket per
+            # (source, dedup_hash). A closed ticket does not block a new one when the
+            # same vulnerability comes back.
+            models.UniqueConstraint(
+                fields=["source", "dedup_hash"],
+                condition=models.Q(status__in=["new", "open", "in_progress"]),
+                name="uniq_active_ticket_per_source_dedup",
+            ),
+        ]
 
     def __str__(self):
         return self.title
@@ -636,11 +692,28 @@ class SecurityMailboxSource(models.Model):
     mailbox_address = models.EmailField(blank=True)
     description = models.TextField(blank=True)
     sender_allowlist_text = models.TextField(blank=True)
+    require_verified_sender = models.BooleanField(
+        default=False,
+        help_text=(
+            "Accept a message only if the receiving mail system authenticated the sender "
+            "(DKIM or SPF pass, no DMARC failure). Requires a provider that exposes the "
+            "Authentication-Results header, e.g. Microsoft Graph. Fail-closed: messages "
+            "without the header are rejected."
+        ),
+    )
     subject_include_text = models.TextField(blank=True)
     subject_exclude_text = models.TextField(blank=True)
     body_include_text = models.TextField(blank=True)
     attachment_extensions = models.CharField(max_length=255, blank=True)
     max_messages_per_run = models.PositiveIntegerField(default=50)
+    expected_every_hours = models.PositiveSmallIntegerField(
+        default=0,
+        help_text=(
+            "How often a report is expected from this source, in hours (0 = no expectation). "
+            "A source that goes quiet raises an alert: the absence of a report is itself a "
+            "signal, and it is the one failure the system cannot see by looking at what arrives."
+        ),
+    )
     mark_as_read_after_import = models.BooleanField(default=False)
     process_attachments = models.BooleanField(default=True)
     process_email_body = models.BooleanField(default=True)

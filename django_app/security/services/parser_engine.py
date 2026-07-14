@@ -1,3 +1,4 @@
+import logging
 from decimal import Decimal
 
 from django.utils import timezone
@@ -16,6 +17,8 @@ from security.models import (
 from security.parsers.load import *  # noqa: F403,F401
 from security.parsers import parser_registry
 from security.services.dedup import make_hash
+
+logger = logging.getLogger(__name__)
 
 
 def run_pending_parsers():
@@ -53,9 +56,20 @@ def run_pending_parsers():
             item.parse_status = ParseStatus.PARSED
             item.save(update_fields=["parse_status"])
             parsed_count += 1
-        except Exception as exc:  # pragma: no cover - management command visibility
+        except Exception as exc:
+            # A parser that starts failing (vendor changed the format) used to be silent:
+            # the item was flagged FAILED in a table nobody reads, the source stopped
+            # producing alerts, and the system looked calm. Make it loud.
+            logger.exception(
+                "Parser %s failed on %s id=%s: %s",
+                getattr(parser, "name", "?"), type(item).__name__, getattr(item, "pk", "?"), exc,
+            )
             item.parse_status = ParseStatus.FAILED
-            item.raw_payload = {**item.raw_payload, "parser_error": str(exc)}
+            item.raw_payload = {
+                **item.raw_payload,
+                "parser_error": str(exc)[:500],
+                "parser_name": getattr(parser, "name", ""),
+            }
             item.save(update_fields=["parse_status", "raw_payload"])
     return parsed_count
 
@@ -94,13 +108,17 @@ def _persist_record(source, report, record):
             payload["affected_product"],
             payload.get("organization"),
         )
-        cvss = payload.get("cvss")
+        cvss_value, cvss_unparsed = _coerce_cvss(payload.get("cvss"))
+        if cvss_unparsed:
+            # The DB column cannot hold "unknown", so it stores 0 - but the payload keeps
+            # the flag, and the rules read the flag, never the bare 0.
+            payload = {**payload, "cvss_unparsed": True}
         finding = SecurityVulnerabilityFinding.objects.create(
             source=source,
             report=report,
             cve=payload["cve"],
             affected_product=payload["affected_product"],
-            cvss=float(cvss) if cvss is not None else 0,
+            cvss=cvss_value,
             exposed_devices=payload["exposed_devices"],
             severity=payload.get("severity", Severity.HIGH),
             dedup_hash=dedup_hash,
@@ -157,6 +175,23 @@ def _create_event(source, report, event_type, severity, dedup_hash, payload, occ
         dedup_hash=dedup_hash,
         payload=payload,
     )
+
+
+def _coerce_cvss(value):
+    """Return ``(score_for_db, unparsed)``.
+
+    A missing or garbled CVSS must never become a confident 0.0: 0.0 means "harmless" to
+    every downstream threshold, which is the opposite of what we know (i.e. nothing).
+    """
+    if value is None:
+        return 0.0, True
+    try:
+        score = float(value)
+    except (TypeError, ValueError):
+        return 0.0, True
+    if not 0.0 <= score <= 10.0:
+        return 0.0, True
+    return score, False
 
 
 def _parse_iso_datetime(value):
