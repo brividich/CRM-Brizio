@@ -90,13 +90,18 @@ class Command(BaseCommand):
             .values_list("asset_id", "base_rule_id")
         )
 
-        # Precarica tutti gli OdL OPEN periodici per evitare query per ogni coppia
-        open_periodic_pairs: set[tuple[int, int]] = set(
-            WorkOrder.objects
-            .filter(status=WorkOrder.STATUS_OPEN, origin=WorkOrder.ORIGIN_PERIODIC)
+        # Lavoro già pendente su una regola: QUALUNQUE OdL aperto, non solo quelli periodici.
+        # La domanda è "c'è già lavoro in corso su questa regola?", e chi ha aperto l'OdL non
+        # c'entra: filtrando origin=PERIODIC il generatore apriva un secondo intervento accanto
+        # a uno che un manutentore aveva già aperto a mano sulla stessa regola.
+        open_pairs: dict[tuple[int, int], int] = {
+            (asset_id, rule_id): workorder_id
+            for workorder_id, asset_id, rule_id in WorkOrder.objects
+            .filter(status=WorkOrder.STATUS_OPEN)
             .exclude(maintenance_rule_id=None)
-            .values_list("asset_id", "maintenance_rule_id")
-        )
+            .order_by("opened_at", "id")
+            .values_list("id", "asset_id", "maintenance_rule_id")
+        }
 
         # Precarica contatori (asset_id, meter_type) -> current_value
         meter_map: dict[tuple[int, str], float] = {
@@ -146,8 +151,15 @@ class Command(BaseCommand):
                     if override.override_intervention_template_id:
                         effective_template = override.override_intervention_template
 
-                if (asset.id, rule.id) in open_periodic_pairs:
+                blocking_workorder_id = open_pairs.get((asset.id, rule.id))
+                if blocking_workorder_id:
                     skipped_open += 1
+                    # Un OdL aperto blocca la rigenerazione finché resta aperto: senza dirlo,
+                    # una regola può smettere di generare per sempre in perfetto silenzio.
+                    self.stdout.write(
+                        f"  Saltata {asset.asset_tag} / regola {rule.id}: "
+                        f"OdL #{blocking_workorder_id} ancora aperto."
+                    )
                     continue
 
                 # --- Valutazione scadenza ---
@@ -231,7 +243,7 @@ class Command(BaseCommand):
                     steps_copied = copy_template_checklist_to_workorder(
                         wo, template_id=getattr(effective_template, "pk", None)
                     )
-                    open_periodic_pairs.add((asset.id, rule.id))
+                    open_pairs[(asset.id, rule.id)] = wo.pk
                     created += 1
                     checklist_suffix = f" (+{steps_copied} step checklist)" if steps_copied else ""
                     self.stdout.write(f"  Creato WO #{wo.pk}: {title}{checklist_suffix}")

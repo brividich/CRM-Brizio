@@ -8999,3 +8999,206 @@ class AssetMeterAuditTests(TestCase):
         self.assertEqual(self._audit_rows().count(), 0)
         self.meter.refresh_from_db()
         self.assertEqual(self.meter.current_value, Decimal("100.00"))
+
+
+class MaintenanceGeneratorDedupTests(TestCase):
+    """Il dedup del generatore deve chiedersi «c'è già lavoro pendente su questa regola?»,
+    non «chi ha creato l'OdL»: filtrare per origin=PERIODIC è un proxy sbagliato."""
+
+    def setUp(self):
+        User = get_user_model()
+        self.admin = User.objects.create_superuser("dedup-admin", "dedup-admin@test.local", "pw")
+        self.category = AssetCategory.objects.create(
+            code="cnc-dedup", label="CNC dedup", base_asset_type=Asset.TYPE_CNC, sort_order=10,
+        )
+        self.template = MaintenanceInterventionTemplate.objects.create(
+            code="lubrificazione-dedup", label="Lubrificazione", asset_category=self.category,
+        )
+        self.rule = MaintenanceRule.objects.create(
+            intervention_template=self.template,
+            asset_category=self.category,
+            threshold_type=MaintenanceRule.THRESHOLD_DAYS,
+            threshold_value=90,
+            warning_days=15,
+        )
+        self.asset = Asset.objects.create(
+            asset_tag="CNC-DED-001",
+            name="Tornio dedup",
+            asset_type=Asset.TYPE_CNC,
+            asset_category=self.category,
+            status=Asset.STATUS_IN_USE,
+        )
+        self.client.force_login(self.admin)
+
+    def _open_manual_workorder(self) -> WorkOrder:
+        """Percorso reale: apertura di un intervento dal form, collegato alla regola."""
+        response = self.client.post(
+            reverse("assets:wo_create", args=[self.asset.id]),
+            {
+                "periodic_verification": "",
+                "maintenance_rule": str(self.rule.id),
+                "supplier": "",
+                "kind": WorkOrder.KIND_PREVENTIVE,
+                "status": WorkOrder.STATUS_OPEN,
+                "title": "Lubrificazione aperta a mano",
+                "description": "Il manutentore l'ha gia' presa in carico.",
+                "resolution": "",
+                "downtime_minutes": "0",
+                "cost_eur": "",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        workorder = WorkOrder.objects.get(asset=self.asset, maintenance_rule=self.rule)
+        self.assertEqual(workorder.origin, WorkOrder.ORIGIN_MANUAL)
+        self.assertEqual(workorder.status, WorkOrder.STATUS_OPEN)
+        return workorder
+
+    def _periodic_workorders(self):
+        return WorkOrder.objects.filter(
+            asset=self.asset, maintenance_rule=self.rule, origin=WorkOrder.ORIGIN_PERIODIC
+        )
+
+    def test_open_manual_workorder_blocks_the_generator(self):
+        self._open_manual_workorder()
+
+        call_command("generate_scheduled_workorders", stdout=io.StringIO())
+
+        self.assertFalse(
+            self._periodic_workorders().exists(),
+            "Il generatore ha aperto un OdL periodico accanto a uno manuale gia' aperto sulla stessa regola.",
+        )
+        self.assertEqual(WorkOrder.objects.filter(asset=self.asset, maintenance_rule=self.rule).count(), 1)
+
+    def test_closed_manual_workorder_releases_the_rule(self):
+        workorder = self._open_manual_workorder()
+
+        response = self.client.post(
+            reverse("assets:wo_close", args=[workorder.id]),
+            {"status": WorkOrder.STATUS_CANCELED, "resolution": "Annullato: non serviva."},
+        )
+        self.assertEqual(response.status_code, 302)
+        workorder.refresh_from_db()
+        self.assertNotEqual(workorder.status, WorkOrder.STATUS_OPEN)
+
+        call_command("generate_scheduled_workorders", stdout=io.StringIO())
+
+        # Nessun lavoro pendente e nessuna esecuzione registrata: il generatore deve ripartire.
+        self.assertTrue(self._periodic_workorders().exists())
+
+    def test_open_periodic_workorder_is_not_duplicated(self):
+        call_command("generate_scheduled_workorders", stdout=io.StringIO())
+        self.assertEqual(self._periodic_workorders().count(), 1)
+
+        call_command("generate_scheduled_workorders", stdout=io.StringIO())
+
+        self.assertEqual(self._periodic_workorders().count(), 1)
+
+
+class ReportOriginProxyDamageTests(TestCase):
+    """Il comando di ricognizione deve vedere il danno che il bug 'origin come proxy' ha lasciato."""
+
+    def setUp(self):
+        self.today = timezone.localdate()
+        self.category = AssetCategory.objects.create(
+            code="cnc-damage", label="CNC danno", base_asset_type=Asset.TYPE_CNC, sort_order=10,
+        )
+        self.template = MaintenanceInterventionTemplate.objects.create(
+            code="lubrificazione-damage", label="Lubrificazione", asset_category=self.category,
+        )
+        self.day_rule = MaintenanceRule.objects.create(
+            intervention_template=self.template,
+            asset_category=self.category,
+            threshold_type=MaintenanceRule.THRESHOLD_DAYS,
+            threshold_value=90,
+            warning_days=15,
+        )
+        self.asset = Asset.objects.create(
+            asset_tag="CNC-DMG-001",
+            name="Tornio danneggiato",
+            asset_type=Asset.TYPE_CNC,
+            asset_category=self.category,
+            status=Asset.STATUS_IN_USE,
+        )
+
+    def _workorder(self, *, origin, status, opened_days_ago, closed_days_ago=None, rule=None, meter_at_close=None):
+        workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            maintenance_rule=rule or self.day_rule,
+            origin=origin,
+            kind=WorkOrder.KIND_PREVENTIVE,
+            status=status,
+            title="Intervento",
+            meter_value_at_close=meter_at_close,
+        )
+        opened_at = timezone.now() - timedelta(days=opened_days_ago)
+        closed_at = timezone.now() - timedelta(days=closed_days_ago) if closed_days_ago is not None else None
+        WorkOrder.objects.filter(pk=workorder.pk).update(opened_at=opened_at, closed_at=closed_at)
+        workorder.refresh_from_db()
+        return workorder
+
+    def _run(self):
+        out = io.StringIO()
+        call_command("report_origin_proxy_damage", "--limit", "0", stdout=out)
+        return out.getvalue()
+
+    def test_reports_periodic_workorder_generated_right_after_a_manual_execution(self):
+        self._workorder(
+            origin=WorkOrder.ORIGIN_MANUAL,
+            status=WorkOrder.STATUS_DONE,
+            opened_days_ago=10,
+            closed_days_ago=10,
+        )
+        spurious = self._workorder(
+            origin=WorkOrder.ORIGIN_PERIODIC,
+            status=WorkOrder.STATUS_OPEN,
+            opened_days_ago=5,
+        )
+
+        output = self._run()
+
+        self.assertIn("OdL periodici sospetti: 1", output)
+        self.assertIn(f"#{spurious.pk}", output)
+        self.assertIn("generato con", output)
+        self.assertIn("gg di anticipo", output)
+
+    def test_reports_periodic_workorder_opened_next_to_an_open_manual_one(self):
+        self._workorder(origin=WorkOrder.ORIGIN_MANUAL, status=WorkOrder.STATUS_OPEN, opened_days_ago=20)
+        self._workorder(origin=WorkOrder.ORIGIN_PERIODIC, status=WorkOrder.STATUS_OPEN, opened_days_ago=10)
+
+        output = self._run()
+
+        self.assertIn("OdL periodici sospetti: 1", output)
+        self.assertIn("era già aperto", output)
+
+    def test_reports_meter_consumption_computed_on_a_zero_baseline(self):
+        meter_rule = MaintenanceRule.objects.create(
+            intervention_template=self.template,
+            asset_category=self.category,
+            threshold_type=MaintenanceRule.THRESHOLD_HOURS,
+            threshold_value=500,
+            warning_days=50,
+        )
+        AssetMeter.objects.create(
+            asset=self.asset, meter_type=AssetMeter.METER_HOURS, current_value=1300, unit_label="h",
+        )
+        executed = self._workorder(
+            origin=WorkOrder.ORIGIN_MANUAL,
+            status=WorkOrder.STATUS_DONE,
+            opened_days_ago=30,
+            closed_days_ago=30,
+            rule=meter_rule,
+            meter_at_close=1000,
+        )
+        AssetMaintenanceRuleState.objects.create(
+            asset=self.asset,
+            base_rule=meter_rule,
+            last_execution_date=self.today - timedelta(days=30),
+            last_work_order=executed,
+        )
+
+        output = self._run()
+
+        self.assertIn("Consumi contatore calcolati su baseline 0: 1", output)
+        self.assertIn("SCATTO FALSO", output)
+        self.assertIn("consumo calcolato dal bug: 1300", output)
+        self.assertIn("consumo reale: 300", output)
