@@ -24,7 +24,7 @@ Sicurezza:
       riesecuzione li ignora.
 
 Modelli target (persona agganciata via legacy_anagrafica_id nei moduli importati):
-formazione, MPQ, skill matrix. Esclusa ``TrainingDeadline`` (derivata): dopo l'--apply
+formazione, MPQ, skill matrix, visite mediche. Esclusa ``TrainingDeadline`` (derivata): dopo l'--apply
 sui record di formazione rigenerare le scadenze con:
     python manage.py refresh_training_deadlines --all --settings=config.settings.prod
 
@@ -63,6 +63,8 @@ TARGET_MODELS = [
     # skill matrix
     "AbilitazioneMacchina", "AbilitazioneMacchinaStorico", "ContinuitaOperativa",
     "SkmCorsiAttivati",
+    # visite mediche
+    "VisitaMedica",
 ]
 
 

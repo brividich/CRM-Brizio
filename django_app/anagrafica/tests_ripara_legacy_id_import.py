@@ -160,6 +160,22 @@ class RiparaLegacyIdImportTest(TestCase):
         out = self._run("--report", path)
         self.assertIn("Nessun conflitto", out)
 
+    def test_remap_visita_medica_orfana(self):
+        from datetime import date
+
+        from .models import TipoVisitaMedica, VisitaMedica
+
+        path = self._export_dev(100, self.CF)  # dev: persona #100, CF
+        _mk_dipendente_legacy(500, "MARIO", "ROSSI")  # in prod la persona e' #500
+        AC.objects.create(legacy_anagrafica_id=500, codice_fiscale=self.CF)
+        tipo = TipoVisitaMedica.objects.create(nome="Visita periodica")
+        v = VisitaMedica.objects.create(
+            legacy_anagrafica_id=100, tipo=tipo, data_svolgimento=date(2024, 1, 10))
+
+        self._run("--import", path, "--apply")
+        v.refresh_from_db()
+        self.assertEqual(v.legacy_anagrafica_id, 500)  # riagganciata alla persona di prod
+
     def test_rifai_scadenze_elimina_orfane(self):
         from datetime import timedelta
 
