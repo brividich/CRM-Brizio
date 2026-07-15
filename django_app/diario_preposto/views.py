@@ -693,209 +693,90 @@ def export_pdf(request, pk):
     allegati = list(segnalazione.allegati.all())
 
     try:
-        from reportlab.lib import colors
-        from reportlab.lib.pagesizes import A4
-        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
         from reportlab.lib.units import mm
-        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+        from reportlab.platypus import Paragraph, Spacer
 
-        buf = BytesIO()
-        generated_at = timezone.localtime(timezone.now())
-        codice = segnalazione.codice_identificativo or f"PK-{segnalazione.pk}"
-        data_segnalazione = (
-            timezone.localtime(segnalazione.data_segnalazione).strftime("%d-%m-%Y %H:%M")
-            if segnalazione.data_segnalazione
-            else "-"
+        from core.pdf import (
+            PdfTheme,
+            build_styles,
+            data_table,
+            header_footer_callback,
+            make_document,
+            section_heading,
         )
-        created_at = timezone.localtime(segnalazione.created_at).strftime("%d-%m-%Y %H:%M")
-        updated_at = timezone.localtime(segnalazione.updated_at).strftime("%d-%m-%Y %H:%M")
-
-        doc = SimpleDocTemplate(
-            buf,
-            pagesize=A4,
-            leftMargin=16 * mm,
-            rightMargin=16 * mm,
-            topMargin=50 * mm,
-            bottomMargin=20 * mm,
-            title=f"Segnalazione {codice}",
-            author="Portale Applicativo - Costruzioni Novicrom SRL",
-        )
-
-        stylesheet = getSampleStyleSheet()
-        title_style = ParagraphStyle(
-            "DpTitle",
-            parent=stylesheet["Heading1"],
-            fontName="Helvetica-Bold",
-            fontSize=18,
-            leading=22,
-            textColor=colors.HexColor("#0f172a"),
-            spaceAfter=6,
-        )
-        body_style = ParagraphStyle(
-            "DpBody",
-            parent=stylesheet["BodyText"],
-            fontName="Helvetica",
-            fontSize=10,
-            leading=15,
-            textColor=colors.HexColor("#1e293b"),
-        )
-        muted_style = ParagraphStyle(
-            "DpMuted",
-            parent=stylesheet["BodyText"],
-            fontName="Helvetica",
-            fontSize=8,
-            leading=10,
-            textColor=colors.HexColor("#64748b"),
-        )
-        value_style = ParagraphStyle(
-            "DpValue",
-            parent=stylesheet["BodyText"],
-            fontName="Helvetica-Bold",
-            fontSize=11,
-            leading=14,
-            textColor=colors.HexColor("#0f172a"),
-        )
-        section_style = ParagraphStyle(
-            "DpSection",
-            parent=stylesheet["Heading2"],
-            fontName="Helvetica-Bold",
-            fontSize=10,
-            leading=12,
-            textColor=colors.HexColor("#0f766e"),
-            spaceAfter=6,
-        )
-
-        def meta_cell(label: str, value: object) -> list[Paragraph]:
-            return [
-                Paragraph(_pdf_safe_text(label).upper(), muted_style),
-                Paragraph(_pdf_safe_text(value), value_style),
-            ]
-
-        story = [
-            Paragraph(_pdf_safe_text(segnalazione.titolo), title_style),
-            Paragraph(
-                "Report della segnalazione di sicurezza con riepilogo dati, descrizione completa e allegati collegati.",
-                body_style,
-            ),
-            Spacer(1, 8 * mm),
-        ]
-
-        meta_table = Table(
-            [
-                [meta_cell("ID segnalazione", codice), meta_cell("Data segnalazione", data_segnalazione)],
-                [meta_cell("Preposto", segnalazione.preposto or "-"), meta_cell("Chi segnala", segnalazione.chi_segnala or "-")],
-                [meta_cell("Creato il", created_at), meta_cell("Ultimo aggiornamento", updated_at)],
-            ],
-            colWidths=[doc.width / 2, doc.width / 2],
-            hAlign="LEFT",
-        )
-        meta_table.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, -1), colors.white),
-                    ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#cbd5e1")),
-                    ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e2e8f0")),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 10),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-                    ("TOPPADDING", (0, 0), (-1, -1), 10),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
-                ]
-            )
-        )
-        story.extend([meta_table, Spacer(1, 8 * mm)])
-
-        story.append(Paragraph("Descrizione della segnalazione", section_style))
-        descrizione_table = Table(
-            [[Paragraph(_pdf_safe_text(segnalazione.descrizione, preserve_breaks=True), body_style)]],
-            colWidths=[doc.width],
-            hAlign="LEFT",
-        )
-        descrizione_table.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")),
-                    ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#dbeafe")),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 12),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 12),
-                    ("TOPPADDING", (0, 0), (-1, -1), 12),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
-                ]
-            )
-        )
-        story.extend([descrizione_table, Spacer(1, 8 * mm)])
-
-        story.append(Paragraph("Allegati", section_style))
-        if allegati:
-            allegati_table = Table(
-                [
-                    [Paragraph(str(index), muted_style), Paragraph(_pdf_safe_text(allegato.nome_file), body_style)]
-                    for index, allegato in enumerate(allegati, start=1)
-                ],
-                colWidths=[12 * mm, doc.width - 12 * mm],
-                hAlign="LEFT",
-            )
-            allegati_table.setStyle(
-                TableStyle(
-                    [
-                        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
-                        ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#cbd5e1")),
-                        ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e2e8f0")),
-                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-                        ("TOPPADDING", (0, 0), (-1, -1), 7),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
-                    ]
-                )
-            )
-            story.append(allegati_table)
-        else:
-            story.append(Paragraph("Nessun allegato associato.", body_style))
-
-        def draw_page(canvas, document):
-            width, height = A4
-            teal = colors.HexColor("#03787C")
-            mint = colors.HexColor("#d1fae5")
-            dark = colors.HexColor("#0f172a")
-            muted = colors.HexColor("#64748b")
-
-            canvas.saveState()
-            canvas.setFillColor(teal)
-            canvas.rect(0, height - 38 * mm, width, 38 * mm, fill=1, stroke=0)
-            canvas.setFillColor(mint)
-            canvas.circle(width - 18 * mm, height - 12 * mm, 10 * mm, fill=1, stroke=0)
-            canvas.circle(width - 34 * mm, height - 23 * mm, 6 * mm, fill=1, stroke=0)
-
-            canvas.setFillColor(colors.white)
-            canvas.setFont("Helvetica-Bold", 18)
-            canvas.drawString(16 * mm, height - 16 * mm, "Diario Preposto")
-            canvas.setFont("Helvetica", 10)
-            canvas.drawString(16 * mm, height - 23 * mm, "Report segnalazione sicurezza")
-            canvas.setFont("Helvetica-Bold", 12)
-            canvas.drawRightString(width - 16 * mm, height - 16 * mm, codice)
-            canvas.setFont("Helvetica", 8)
-            canvas.drawRightString(width - 16 * mm, height - 23 * mm, f"Generato il {generated_at.strftime('%d-%m-%Y %H:%M')}")
-
-            canvas.setStrokeColor(colors.HexColor("#cbd5e1"))
-            canvas.line(16 * mm, 15 * mm, width - 16 * mm, 15 * mm)
-            canvas.setFillColor(muted)
-            canvas.setFont("Helvetica", 8)
-            canvas.drawString(16 * mm, 9 * mm, "Portale Applicativo - Costruzioni Novicrom SRL")
-            canvas.setFillColor(dark)
-            canvas.drawRightString(width - 16 * mm, 9 * mm, f"Pagina {document.page}")
-            canvas.restoreState()
-
-        doc.build(story, onFirstPage=draw_page, onLaterPages=draw_page)
-        buf.seek(0)
-        export_code = codice.lower()
-        filename = f"segnalazione_{export_code}.pdf"
-        response = HttpResponse(buf, content_type="application/pdf")
-        response["Content-Disposition"] = f'inline; filename="{filename}"'
-        return response
-
     except ImportError:
         return HttpResponse("reportlab non disponibile", status=500)
+
+    codice = segnalazione.codice_identificativo or f"PK-{segnalazione.pk}"
+    data_segnalazione = (
+        timezone.localtime(segnalazione.data_segnalazione).strftime("%d-%m-%Y %H:%M")
+        if segnalazione.data_segnalazione
+        else "-"
+    )
+    created_at = timezone.localtime(segnalazione.created_at).strftime("%d-%m-%Y %H:%M")
+    updated_at = timezone.localtime(segnalazione.updated_at).strftime("%d-%m-%Y %H:%M")
+
+    theme = PdfTheme.from_branding()
+    styles = build_styles(theme)
+    buf = BytesIO()
+    doc = make_document(buf, title=f"Segnalazione {codice}")
+    content_width = doc.pagesize[0] - doc.leftMargin - doc.rightMargin
+
+    def meta_cell(label: str, value: object) -> list:
+        return [
+            Paragraph(_pdf_safe_text(label).upper(), styles["label"]),
+            Paragraph(_pdf_safe_text(value), styles["value"]),
+        ]
+
+    story: list = [
+        Paragraph(_pdf_safe_text(segnalazione.titolo), styles["title"]),
+        Paragraph(
+            "Report della segnalazione di sicurezza con riepilogo dati, descrizione completa e allegati collegati.",
+            styles["body"],
+        ),
+        Spacer(1, 4 * mm),
+    ]
+
+    meta_table = data_table(
+        [
+            [meta_cell("ID segnalazione", codice), meta_cell("Data segnalazione", data_segnalazione)],
+            [meta_cell("Preposto", segnalazione.preposto or "-"), meta_cell("Chi segnala", segnalazione.chi_segnala or "-")],
+            [meta_cell("Creato il", created_at), meta_cell("Ultimo aggiornamento", updated_at)],
+        ],
+        theme,
+        col_widths=[content_width / 2, content_width / 2],
+        header=False,
+        extra_style=[("VALIGN", (0, 0), (-1, -1), "TOP")],
+    )
+    story.extend([meta_table, Spacer(1, 6 * mm)])
+
+    story.extend(section_heading("Descrizione della segnalazione", theme, styles))
+    story.append(Paragraph(_pdf_safe_text(segnalazione.descrizione, preserve_breaks=True), styles["body"]))
+    story.append(Spacer(1, 6 * mm))
+
+    story.extend(section_heading("Allegati", theme, styles))
+    if allegati:
+        rows: list = [[
+            Paragraph("#", styles["table_header"]),
+            Paragraph("File", styles["table_header"]),
+        ]]
+        rows.extend(
+            [Paragraph(str(index), styles["cell"]), Paragraph(_pdf_safe_text(allegato.nome_file), styles["cell"])]
+            for index, allegato in enumerate(allegati, start=1)
+        )
+        story.append(
+            data_table(rows, theme, col_widths=[14 * mm, content_width - 14 * mm], header=True)
+        )
+    else:
+        story.append(Paragraph("Nessun allegato associato.", styles["body"]))
+
+    draw = header_footer_callback(theme, title="DIARIO PREPOSTO", subtitle=f"Segnalazione {codice}")
+    doc.build(story, onFirstPage=draw, onLaterPages=draw)
+    buf.seek(0)
+    filename = f"segnalazione_{codice.lower()}.pdf"
+    response = HttpResponse(buf, content_type="application/pdf")
+    response["Content-Disposition"] = f'inline; filename="{filename}"'
+    return response
 
 
 # ---------------------------------------------------------------------------
