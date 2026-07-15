@@ -76,6 +76,13 @@ class Asset(models.Model):
     purchase_date = models.DateField(null=True, blank=True)
     production_date = models.DateField(null=True, blank=True)
     notes = models.TextField(blank=True, default="")
+    foto_targhetta = models.ImageField(
+        upload_to="assets/targhette/",
+        null=True,
+        blank=True,
+        verbose_name="Foto targhetta",
+        help_text="Foto della targhetta identificativa della macchina, mostrata in cima alla scheda dell'asset.",
+    )
     sharepoint_folder_url = models.CharField(max_length=1000, blank=True, default="")
     sharepoint_folder_path = models.CharField(max_length=500, blank=True, default="")
     sharepoint_drive_id = models.CharField(max_length=255, blank=True, default="")

@@ -2756,7 +2756,7 @@ def formazione_allegato_upload(request, sessione_id: int):
         messages.error(request, f"Formato non consentito ({suffix}). Ammessi: PDF, immagini, DOC/XLS.")
         return _back()
     if uploaded.size > _MAX_DOC_SIZE:
-        messages.error(request, f"File troppo grande ({uploaded.size // (1024*1024)} MB). Limite: 20 MB.")
+        messages.error(request, f"File troppo grande ({uploaded.size // (1024*1024)} MB). Limite: 50 MB.")
         return _back()
     try:
         from core.upload_mime import sniff_mime
@@ -3996,8 +3996,8 @@ def dipendente_qualifica_add(request, legacy_id: int):
         if suffix not in allowed:
             messages.error(request, "Formato evidenza non ammesso (usa PDF o immagine).")
             return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
-        if documento.size > 15 * 1024 * 1024:
-            messages.error(request, "Evidenza troppo grande (max 15 MB).")
+        if documento.size > 50 * 1024 * 1024:
+            messages.error(request, "Evidenza troppo grande (max 50 MB).")
             return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
         documento_nome = documento.name
 
@@ -9217,7 +9217,7 @@ _ALLOWED_DOC_MIMES = {
     "image/webp",
 }
 _ALLOWED_DOC_EXTENSIONS = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".jpeg", ".png", ".webp"}
-_MAX_DOC_SIZE = 20 * 1024 * 1024  # 20 MB
+_MAX_DOC_SIZE = 50 * 1024 * 1024  # 50 MB
 
 
 @login_required
@@ -9243,7 +9243,7 @@ def documento_dipendente_upload(request, legacy_id: int):
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
     if uploaded.size > _MAX_DOC_SIZE:
-        messages.error(request, f"File troppo grande ({uploaded.size // (1024*1024)} MB). Limite: 20 MB.")
+        messages.error(request, f"File troppo grande ({uploaded.size // (1024*1024)} MB). Limite: 50 MB.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
     try:
@@ -11906,7 +11906,7 @@ def formazione_iscrizione_attestato_upload(request, sessione_id: int, iscrizione
         messages.error(request, f"Formato non consentito ({suffix}). Ammessi: PDF, immagini, DOC/XLS.")
         return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
     if uploaded.size > _MAX_DOC_SIZE:
-        messages.error(request, f"File troppo grande ({uploaded.size // (1024*1024)} MB). Limite: 20 MB.")
+        messages.error(request, f"File troppo grande ({uploaded.size // (1024*1024)} MB). Limite: 50 MB.")
         return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
     try:
         from core.upload_mime import sniff_mime

@@ -10463,7 +10463,7 @@ def asset_create(request: HttpRequest) -> HttpResponse:
     list_suggestions = _build_asset_list_suggestions()
     assignment_kwargs = _assignment_form_kwargs()
     if request.method == "POST":
-        form = AssetForm(request.POST, custom_fields=custom_fields, list_suggestions=list_suggestions, **assignment_kwargs)
+        form = AssetForm(request.POST, request.FILES, custom_fields=custom_fields, list_suggestions=list_suggestions, **assignment_kwargs)
         if form.is_valid():
             asset = form.save()
             if form.cleaned_data.get("include_in_plant_layout"):
@@ -10513,6 +10513,7 @@ def asset_edit(request: HttpRequest, id: int | None = None) -> HttpResponse:
     if request.method == "POST":
         form = AssetForm(
             request.POST,
+            request.FILES,
             instance=asset,
             custom_fields=custom_fields,
             list_suggestions=list_suggestions,
@@ -14605,6 +14606,9 @@ def work_machine_create(request: HttpRequest) -> HttpResponse:
         form = WorkMachineAssetForm(request.POST, list_suggestions=list_suggestions, **assignment_kwargs)
         if form.is_valid() and not upload_errors:
             asset = form.save()
+            if "foto_targhetta" in request.FILES:
+                asset.foto_targhetta = request.FILES["foto_targhetta"]
+                asset.save(update_fields=["foto_targhetta"])
             if form.cleaned_data.get("include_in_plant_layout"):
                 marker_warning = _ensure_asset_plant_layout_marker(asset)
                 if marker_warning:
@@ -14697,6 +14701,14 @@ def work_machine_edit(request: HttpRequest, id: int | None = None) -> HttpRespon
                 marker_warning = _ensure_asset_plant_layout_marker(asset)
                 if marker_warning:
                     messages.warning(request, marker_warning)
+            if request.POST.get("clear_foto_targhetta") == "1":
+                if asset.foto_targhetta:
+                    asset.foto_targhetta.delete(save=False)
+                asset.foto_targhetta = None
+                asset.save(update_fields=["foto_targhetta"])
+            elif "foto_targhetta" in request.FILES:
+                asset.foto_targhetta = request.FILES["foto_targhetta"]
+                asset.save(update_fields=["foto_targhetta"])
             wm = getattr(asset, "work_machine", None)
             if wm:
                 if request.POST.get("clear_photo") == "1":

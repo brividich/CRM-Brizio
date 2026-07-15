@@ -499,6 +499,53 @@ class AssetsRoutingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Ubicazione Rack")
 
+    def test_asset_detail_shows_foto_targhetta_only_when_present(self):
+        self.client.force_login(self.user)
+        with _workspace_temporary_directory("assets-targhetta-") as tmpdir:
+            with override_settings(MEDIA_ROOT=Path(tmpdir)):
+                con_foto = Asset.objects.create(
+                    asset_tag="CNC-TARGA-1",
+                    name="Tornio con targhetta",
+                    asset_type=Asset.TYPE_CNC,
+                    foto_targhetta=_valid_png_upload("targhetta.png"),
+                )
+                senza_foto = Asset.objects.create(
+                    asset_tag="CNC-TARGA-2",
+                    name="Tornio senza targhetta",
+                    asset_type=Asset.TYPE_CNC,
+                )
+
+                resp_con = self.client.get(reverse("assets:asset_view", args=[con_foto.id]))
+                self.assertEqual(resp_con.status_code, 200)
+                # Il markup dell'<img> (non la sola classe CSS, sempre presente) prova il render.
+                self.assertContains(resp_con, 'img class="af-targhetta"')
+
+                resp_senza = self.client.get(reverse("assets:asset_view", args=[senza_foto.id]))
+                self.assertEqual(resp_senza.status_code, 200)
+                # "se vuota, non si vede": nessuno slot immagine quando manca la targhetta.
+                self.assertNotContains(resp_senza, 'img class="af-targhetta"')
+
+    def test_work_machine_create_saves_foto_targhetta(self):
+        self.client.force_login(self.user)
+        with _workspace_temporary_directory("assets-wm-targhetta-") as tmpdir:
+            with override_settings(MEDIA_ROOT=Path(tmpdir)):
+                response = self.client.post(
+                    reverse("assets:work_machine_create"),
+                    {
+                        "name": "Fresa con targhetta",
+                        "reparto": "CN5",
+                        "status": Asset.STATUS_IN_USE,
+                        "documents_specs_payload": json.dumps([]),
+                        "documents_manuals_payload": json.dumps([]),
+                        "documents_interventions_payload": json.dumps([]),
+                        "foto_targhetta": _valid_png_upload("targhetta.png"),
+                    },
+                )
+                self.assertEqual(response.status_code, 302)
+                asset = Asset.objects.get(name="Fresa con targhetta")
+                self.assertTrue(asset.foto_targhetta)
+                self.assertTrue(Path(asset.foto_targhetta.path).exists())
+
     def test_asset_list_firewall_context_uses_common_default_columns(self):
         firewall_asset = Asset.objects.create(
             asset_tag="IT-FW-001",

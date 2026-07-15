@@ -370,6 +370,7 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
             "assignment_reparto",
             "assignment_location",
             "notes",
+            "foto_targhetta",
         ]
         labels = {
             "asset_tag": "Tag bene",
@@ -389,15 +390,30 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
             "assignment_reparto": "Reparto assegnazione",
             "assignment_location": "Posizione assegnazione",
             "notes": "Note",
+            "foto_targhetta": "Foto targhetta",
         }
         widgets = {
             "notes": forms.Textarea(attrs={"rows": 4}),
             "purchase_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
             "production_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "foto_targhetta": forms.ClearableFileInput(attrs={"accept": "image/*"}),
         }
 
     def clean_asset_tag(self):
         return (self.cleaned_data.get("asset_tag") or "").strip()
+
+    def clean_foto_targhetta(self):
+        upload = self.cleaned_data.get("foto_targhetta")
+        # Se non e' un nuovo upload (campo invariato o rimozione), non validare oltre.
+        if not upload or not hasattr(upload, "name"):
+            return upload
+        ext = Path(getattr(upload, "name", "") or "").suffix.lower()
+        if ext not in {".png", ".jpg", ".jpeg", ".webp"}:
+            raise forms.ValidationError("Carica un'immagine PNG, JPG o WEBP.")
+        size = int(getattr(upload, "size", 0) or 0)
+        if size > 10 * 1024 * 1024:
+            raise forms.ValidationError("La foto targhetta non puo superare 10 MB.")
+        return upload
 
     def clean_sharepoint_folder_url(self):
         value = (self.cleaned_data.get("sharepoint_folder_url") or "").strip()

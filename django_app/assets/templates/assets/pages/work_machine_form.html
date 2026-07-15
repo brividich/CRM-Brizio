@@ -208,6 +208,38 @@
     <article class="wmf-card">
       <div class="wmf-card-head">
         <div>
+          <h2>Foto targhetta</h2>
+          <p>Foto della targhetta identificativa, mostrata in cima alla scheda dell'asset.</p>
+        </div>
+      </div>
+      <div class="wmf-card-body">
+        <div style="display:flex; align-items:flex-start; gap:16px; flex-wrap:wrap;">
+          {% if asset and asset.foto_targhetta %}
+          <div>
+            <img src="{{ asset.foto_targhetta.url }}" alt="Targhetta {{ asset.name }}"
+                 style="width:160px; height:110px; object-fit:contain; border-radius:10px; border:1px solid #dbe1ea; background:#fff; padding:4px; display:block;">
+            <label style="display:flex; align-items:center; gap:6px; margin-top:8px; font-size:13px; color:#64748b; cursor:pointer;">
+              <input type="checkbox" name="clear_foto_targhetta" value="1">
+              Rimuovi targhetta
+            </label>
+          </div>
+          {% else %}
+          <div style="width:160px; height:110px; border-radius:10px; border:2px dashed #dbe1ea; background:#f8fafc; display:flex; align-items:center; justify-content:center; color:#cbd5e1; font-size:12px; font-weight:700; text-align:center; flex-shrink:0;">
+            Nessuna targhetta
+          </div>
+          {% endif %}
+          <div class="wmf-field" style="flex:1; min-width:220px;">
+            <label for="id_foto_targhetta">{% if asset and asset.foto_targhetta %}Sostituisci targhetta{% else %}Carica targhetta{% endif %}</label>
+            <input type="file" name="foto_targhetta" id="id_foto_targhetta" accept="image/*" class="input">
+            <div class="wmf-help">Formati supportati: JPG, PNG, WEBP. Max 10 MB.</div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <article class="wmf-card">
+      <div class="wmf-card-head">
+        <div>
           <h2>Responsabile e note</h2>
           <p>Informazioni operative e di assegnazione.</p>
         </div>
@@ -379,7 +411,7 @@
                     multiple
                     accept=".pdf,.doc,.docx,.xls,.xlsx,.xlsm,.csv,.jpg,.jpeg,.png,.webp"
                   >
-                  <div class="wmf-help">Max 20 MB per file.</div>
+                  <div class="wmf-help">Max 50 MB per file.</div>
                 </div>
               </div>
             </section>

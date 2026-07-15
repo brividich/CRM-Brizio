@@ -10,7 +10,7 @@
     <a href="{% if asset %}{% url 'assets:asset_view' asset.id %}{% else %}{% url 'assets:asset_list' %}{% endif %}" class="as-backlink">&larr; Indietro</a>
   </header>
 
-  <form method="post" style="display:grid;gap:10px;border:1px solid #dbe1ea;border-radius:14px;background:#fff;padding:16px;">
+  <form method="post" enctype="multipart/form-data" style="display:grid;gap:10px;border:1px solid #dbe1ea;border-radius:14px;background:#fff;padding:16px;">
     {% csrf_token %}
     {% if form.non_field_errors %}
       <div style="padding:10px;border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;border-radius:10px;">

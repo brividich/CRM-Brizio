@@ -33,6 +33,12 @@
   background:#0f172a; color:#fff; font-size:var(--fs-title-lg); font-weight:800;
   box-shadow:0 12px 24px rgba(15,23,42,.18);
 }
+.af-targhetta {
+  width:180px; height:120px; flex:0 0 auto; object-fit:contain;
+  border:1px solid #e2e8f0; border-radius:10px; background:#fff; padding:5px;
+  box-shadow:0 8px 20px rgba(15,23,42,.10); margin-left:auto;
+}
+body.theme-dark .af-targhetta { background:#0b1220; border-color:var(--border); }
 .af-title-copy { display:grid; gap:4px; min-width:0; }
 .af-hero-kicker { color:#64748b; font-size:var(--fs-xs); font-weight:800; text-transform:uppercase; letter-spacing:.08em; }
 .af-title { margin: 0; font-size: var(--fs-display-lg); line-height: 1.12; letter-spacing: 0; color: #0f172a; }
@@ -519,6 +525,9 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
             {% if asset.internal_number %}<span class="af-title-code">N.{{ asset.internal_number }}</span>{% endif %}
           </div>
         </div>
+        {% if asset.foto_targhetta %}
+          <img class="af-targhetta" src="{{ asset.foto_targhetta.url }}" alt="Targhetta {{ asset.name }}" loading="lazy">
+        {% endif %}
       </div>
       <div class="af-sub">
         <span class="af-pill {% if asset_status.badge_class == 'ok' %}af-pill--ok{% elif asset_status.badge_class == 'danger' %}af-pill--danger{% else %}af-pill--warn{% endif %}">{{ asset_status.label }}</span>
@@ -1265,7 +1274,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
                     accept=".pdf,.doc,.docx,.xls,.xlsx,.xlsm,.csv,.jpg,.jpeg,.png,.webp,.msg"
                     data-doc-file
                   >
-                  <span data-doc-drop-text>Clicca per caricare o trascina i file (massimo 20 MB)</span>
+                  <span data-doc-drop-text>Clicca per caricare o trascina i file (massimo 50 MB)</span>
                 </label>
                 <input
                   class="af-file-input"
