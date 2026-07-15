@@ -10179,8 +10179,12 @@ def visite_mediche_nuova_sessione(request):
 def visite_mediche_api_cerca_dipendente(request):
     """Ricerca live dipendenti per il popup '+Aggiungi dipendente' nella sessione.
 
-    GET ?q=QUERY&exclude=ID1,ID2,...
-    Ritorna JSON {results: [{legacy_id, nome}, ...]}
+    GET ?q=QUERY&exclude=ID1,ID2,...&tipo_id=N
+    Ritorna JSON {results: [{legacy_id, nome, pertinente}, ...]}.
+
+    ``pertinente`` = il tipo è richiesto al dipendente da ruoli operativi o
+    processi MOD.128; se il tipo non ha vincoli configurati la pertinenza non
+    è valutabile e vale sempre ``true``. I cessati non compaiono mai.
     """
     if not _can_view_visite_mediche(request):
         return JsonResponse({"error": "Forbidden"}, status=403)
@@ -10195,6 +10199,19 @@ def visite_mediche_api_cerca_dipendente(request):
             exclude_ids.add(int(s.strip()))
         except (ValueError, TypeError):
             pass
+    exclude_ids |= _cessati_legacy_ids()
+
+    pertinenti: set[int] | None = None
+    tipo_id_raw = request.GET.get("tipo_id", "").strip()
+    if tipo_id_raw:
+        try:
+            tipo = TipoVisitaMedica.objects.get(pk=int(tipo_id_raw))
+        except (TipoVisitaMedica.DoesNotExist, ValueError, TypeError):
+            tipo = None
+        if tipo is not None:
+            req = _requisiti_tipo_visita(tipo)
+            if req["ha_vincoli"]:
+                pertinenti = req["da_ruoli"] | req["da_processi"]
 
     qs = (
         AnagraficaDipendente.objects
@@ -10206,7 +10223,11 @@ def visite_mediche_api_cerca_dipendente(request):
     for d in qs:
         cog = (getattr(d, "cognome", "") or "").strip()
         nom = (getattr(d, "nome", "") or "").strip()
-        results.append({"legacy_id": d.id, "nome": f"{cog} {nom}".strip() or f"#{d.id}"})
+        results.append({
+            "legacy_id": d.id,
+            "nome": f"{cog} {nom}".strip() or f"#{d.id}",
+            "pertinente": True if pertinenti is None else (d.id in pertinenti),
+        })
     return JsonResponse({"results": results})
 
 

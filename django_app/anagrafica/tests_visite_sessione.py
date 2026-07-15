@@ -229,3 +229,60 @@ class CandidatiSessioneTests(TestCase):
             data_svolgimento=self.oggi - timedelta(days=10),
         )
         self.assertEqual(self._candidati_ids(), set())
+
+
+class ApiCercaDipendenteTests(TestCase):
+    def setUp(self):
+        from .tests import _ensure_anagrafica_table
+        _ensure_anagrafica_table()
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM anagrafica_dipendenti")
+            cursor.execute(
+                "INSERT INTO anagrafica_dipendenti (aliasusername, nome, cognome, attivo)"
+                " VALUES (%s, %s, %s, %s)",
+                ["m.verdi", "Marco", "Verdi", 1],
+            )
+            cursor.execute(
+                "SELECT id FROM anagrafica_dipendenti WHERE aliasusername = %s",
+                ["m.verdi"],
+            )
+            self.legacy_id = int(cursor.fetchone()[0])
+        self.user_super = User.objects.create_superuser(
+            username="su-api-visite", email="su-api-visite@test.local", password="x"
+        )
+        self.ruolo = RuoloOperativo.objects.create(nome="Carrellista")
+        self.tipo = TipoVisitaMedica.objects.create(nome="Carrelli", durata_mesi=12)
+        self.tipo.ruoli_operativi.add(self.ruolo)
+
+    def _get(self, **params):
+        from .views import visite_mediche_api_cerca_dipendente
+        rf = RequestFactory()
+        request = rf.get("/anagrafica/visite-mediche/api/cerca-dipendente/", params)
+        request.user = self.user_super
+        resp = visite_mediche_api_cerca_dipendente(request)
+        return json.loads(resp.content)
+
+    def test_flag_pertinente_false_se_tipo_non_richiesto(self):
+        data = self._get(q="verdi", tipo_id=str(self.tipo.pk))
+        self.assertEqual(len(data["results"]), 1)
+        self.assertFalse(data["results"][0]["pertinente"])
+
+    def test_flag_pertinente_true_se_ruolo_collegato(self):
+        DipendenteRuoloOperativo.objects.create(
+            legacy_anagrafica_id=self.legacy_id, ruolo=self.ruolo,
+        )
+        data = self._get(q="verdi", tipo_id=str(self.tipo.pk))
+        self.assertTrue(data["results"][0]["pertinente"])
+
+    def test_tipo_senza_vincoli_sempre_pertinente(self):
+        tipo_libero = TipoVisitaMedica.objects.create(nome="Libera api", durata_mesi=12)
+        data = self._get(q="verdi", tipo_id=str(tipo_libero.pk))
+        self.assertTrue(data["results"][0]["pertinente"])
+
+    def test_cessato_escluso_dalla_ricerca(self):
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=self.legacy_id,
+            data_cessazione=timezone.localdate() - timedelta(days=10),
+        )
+        data = self._get(q="verdi", tipo_id=str(self.tipo.pk))
+        self.assertEqual(data["results"], [])
