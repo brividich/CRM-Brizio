@@ -1552,3 +1552,66 @@ class RiconciliazioneViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("text/csv", response["Content-Type"])
         self.assertIn("Dipendente", response.content.decode("utf-8-sig"))
+
+
+class AssenzeCaporepartoEscalationTests(TestCase):
+    """Fase 3: caporeparto autoritativo + escalation al superiore se assente."""
+
+    def _capi(self):
+        return [
+            {"Value": "Capo A", "Email": "capoa@example.com", "LookupId": "legacy_user:77",
+             "LegacyUserId": "77", "AnagraficaLegacyId": "501"},
+            {"Value": "Super B", "Email": "superb@example.com", "LookupId": "legacy_user:88",
+             "LegacyUserId": "88", "AnagraficaLegacyId": "999"},
+        ]
+
+    def test_superior_capo_option_resolves_capo_of_capo(self):
+        from anagrafica.models import DipendenteAnagraficaAziendale
+        from assenze.views import _superior_capo_option
+
+        # Il caporeparto (anagrafica 501) ha come proprio caporeparto l'anagrafica 999.
+        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=501, caporeparto_legacy_id=999)
+        self.assertEqual(_superior_capo_option(501, self._capi()), "superb@example.com")
+
+    @patch("assenze.views._resolve_default_capo_for_user", return_value="capoa@example.com")
+    @patch("assenze.views._capo_absent_on", return_value=False)
+    def test_no_escalation_when_capo_present(self, _mock_absent, _mock_base):
+        from datetime import date
+        from assenze.views import _effective_capo_option
+
+        opt, escalated = _effective_capo_option(
+            name="X", email="x@e.com", username="x", legacy_user_id=1,
+            capi=self._capi(), request_day=date(2026, 7, 15),
+        )
+        self.assertEqual(opt, "capoa@example.com")
+        self.assertFalse(escalated)
+
+    @patch("assenze.views._resolve_default_capo_for_user", return_value="capoa@example.com")
+    @patch("assenze.views._capo_absent_on", return_value=True)
+    def test_escalates_to_superior_when_capo_absent(self, _mock_absent, _mock_base):
+        from datetime import date
+        from anagrafica.models import DipendenteAnagraficaAziendale
+        from assenze.views import _effective_capo_option
+
+        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=501, caporeparto_legacy_id=999)
+        opt, escalated = _effective_capo_option(
+            name="X", email="x@e.com", username="x", legacy_user_id=1,
+            capi=self._capi(), request_day=date(2026, 7, 15),
+        )
+        self.assertEqual(opt, "superb@example.com")
+        self.assertTrue(escalated)
+
+    @patch("assenze.views._resolve_default_capo_for_user", return_value="capoa@example.com")
+    @patch("assenze.views._capo_absent_on", return_value=True)
+    def test_fallback_no_escalation_when_superior_missing(self, _mock_absent, _mock_base):
+        from datetime import date
+        from assenze.views import _effective_capo_option
+
+        # Nessun DipendenteAnagraficaAziendale per il capo → superiore non risolvibile
+        # → fail-safe: resta il caporeparto assegnato, nessuna escalation.
+        opt, escalated = _effective_capo_option(
+            name="X", email="x@e.com", username="x", legacy_user_id=1,
+            capi=self._capi(), request_day=date(2026, 7, 15),
+        )
+        self.assertEqual(opt, "capoa@example.com")
+        self.assertFalse(escalated)
