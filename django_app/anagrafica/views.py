@@ -13056,11 +13056,19 @@ def _forbid_json_or_redirect(request, msg: str):
 def organigramma(request):
     """Organigramma navigabile SSR: reparti, aree aziendali, capi e membri.
 
-    Gli stessi dati (nomi/reparti) sono già visibili in `dipendenti_list`,
-    quindi basta il login. I disallineamenti emergono di proposito: i
-    dipendenti il cui reparto legacy non corrisponde a nessun `Reparto`
-    censito finiscono nel bucket "Non mappati".
+    Il reparto di ogni dipendente è risolto dalla **fonte unica canonica**
+    (`dipendente → area_aziendale → reparto`, via
+    :func:`anagrafica.services.reparto_canonico.build_reparto_canonico_map`),
+    con fallback al testo legacy finché la copertura canonica non è completa.
+    I dipendenti che non si risolvono per nessuna via finiscono nel bucket
+    "Non mappati", che resta come spia dei residui da bonificare.
     """
+    from anagrafica.services.reparto_canonico import (
+        build_area_canonica_map,
+        build_reparto_canonico_map,
+        resolve_reparto_for_row,
+    )
+
     ensure_anagrafica_schema()
     filtro_reparto = (request.GET.get("reparto") or "").strip()
 
@@ -13074,11 +13082,17 @@ def organigramma(request):
     )
     reparto_by_name = {r.nome.strip().casefold(): r for r in reparti}
 
+    legacy_ids = list(dip_map.keys())
+    canonico_map = build_reparto_canonico_map(legacy_ids)
+    area_map = build_area_canonica_map(legacy_ids)
+
     membri_per_reparto: dict[int, list[dict]] = {}
     non_mappati: list[dict] = []
     for row in dip_rows:
-        nome_rep = str(row.get("reparto") or "").strip()
-        rep = reparto_by_name.get(nome_rep.casefold()) if nome_rep else None
+        rep = resolve_reparto_for_row(row, canonico_map=canonico_map, reparto_by_name=reparto_by_name)
+        # Area aziendale canonica del membro (per la vista); None se non assegnata.
+        area = area_map.get(int(row.get("id") or 0))
+        row["area_aziendale_nome"] = area.nome if area is not None else ""
         if rep is None:
             non_mappati.append(row)
         else:

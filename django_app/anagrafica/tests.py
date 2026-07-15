@@ -4515,3 +4515,60 @@ class AreeRepartiCrudTests(TestCase):
         content = resp.content.decode()
         self.assertIn("UT", content)
         self.assertIn("IN1", content)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class OrganigrammaRepartoCanonicoTests(TestCase):
+    """L'organigramma colloca i dipendenti per reparto CANONICO
+    (dipendente → area_aziendale → reparto), con fallback al testo legacy."""
+
+    def setUp(self):
+        _ensure_anagrafica_table()
+        self.user = User.objects.create_superuser(
+            username="org-canonico", email="org@example.com", password="pass12345",
+        )
+
+    def _insert_legacy(self, *, nome, cognome, reparto_testo) -> int:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO anagrafica_dipendenti (aliasusername, nome, cognome, reparto, attivo) "
+                "VALUES (%s, %s, %s, %s, %s)",
+                [f"{nome}.{cognome}".lower(), nome, cognome, reparto_testo, 1],
+            )
+            cursor.execute(
+                "SELECT id FROM anagrafica_dipendenti WHERE nome = %s AND cognome = %s",
+                [nome, cognome],
+            )
+            return int(cursor.fetchone()[0])
+
+    def test_reparto_canonico_vince_sul_testo_legacy(self):
+        from .models import AreaAziendale, DipendenteAnagraficaAziendale, Reparto
+
+        produzione = Reparto.objects.create(nome="PRODUZIONE")
+        ufficio = Reparto.objects.create(nome="UFFICIO")
+        area_cnc = AreaAziendale.objects.create(nome="CNC", reparto=produzione)
+
+        # A: testo legacy SBAGLIATO, ma area canonica sotto PRODUZIONE → PRODUZIONE.
+        id_a = self._insert_legacy(nome="Anna", cognome="Bianchi", reparto_testo="ZZZ-SBAGLIATO")
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=id_a, area_aziendale=area_cnc,
+        )
+        # B: nessun canonico, testo legacy = UFFICIO → fallback UFFICIO.
+        id_b = self._insert_legacy(nome="Bruno", cognome="Verdi", reparto_testo="UFFICIO")
+        # C: nessun canonico, testo legacy inesistente → Non mappati.
+        self._insert_legacy(nome="Carla", cognome="Neri", reparto_testo="REPARTO-FANTASMA")
+
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("anagrafica:organigramma"))
+        self.assertEqual(resp.status_code, 200)
+        blocchi = {b["reparto"].nome: b for b in resp.context["blocchi"]}
+
+        membri_prod = {int(m["id"]) for m in blocchi["PRODUZIONE"]["membri"]}
+        membri_uff = {int(m["id"]) for m in blocchi["UFFICIO"]["membri"]}
+        non_mappati = {int(m["id"]) for m in resp.context["non_mappati"]}
+
+        self.assertIn(id_a, membri_prod)   # canonico vince sul testo sbagliato
+        self.assertNotIn(id_a, non_mappati)
+        self.assertIn(id_b, membri_uff)    # fallback sul testo legacy
+        # Carla Neri (testo fantasma, nessun canonico) resta non mappata.
+        self.assertTrue(any(m["cognome"] == "Neri" for m in resp.context["non_mappati"]))

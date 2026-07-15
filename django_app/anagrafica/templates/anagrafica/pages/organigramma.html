@@ -180,7 +180,7 @@ body.theme-dark .org-capo-missing { background:rgba(133,77,14,.18); border-color
             {% for m in b.membri %}
             <li>
               <a href="{% url 'anagrafica:dipendente_detail' m.id %}">{{ m.cognome }} {{ m.nome }}</a>
-              {% if m.mansione %}<span class="org-mansione"> · {{ m.mansione }}</span>{% endif %}
+              {% if m.area_aziendale_nome %}<span class="org-mansione"> · {{ m.area_aziendale_nome }}</span>{% elif m.mansione %}<span class="org-mansione"> · {{ m.mansione }}</span>{% endif %}
             </li>
             {% endfor %}
           </ul>
