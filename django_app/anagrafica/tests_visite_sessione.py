@@ -286,3 +286,71 @@ class ApiCercaDipendenteTests(TestCase):
         )
         data = self._get(q="verdi", tipo_id=str(self.tipo.pk))
         self.assertEqual(data["results"], [])
+
+
+class SessioneBatchPostTests(TestCase):
+    def setUp(self):
+        self.user_super = User.objects.create_superuser(
+            username="su-batch-visite", email="su-batch-visite@test.local", password="x"
+        )
+        self.oggi = timezone.localdate()
+        self.ruolo = RuoloOperativo.objects.create(nome="Molatore")
+        self.tipo = TipoVisitaMedica.objects.create(nome="Molatura", durata_mesi=12)
+        self.tipo.ruoli_operativi.add(self.ruolo)
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=60, ruolo=self.ruolo)
+
+    def _post(self, data):
+        from .views import visite_mediche_nuova_sessione
+        rf = RequestFactory()
+        request = rf.post("/anagrafica/visite-mediche/nuova-sessione/", data)
+        request.user = self.user_super
+        request.session = SessionStore()
+        request._messages = FallbackStorage(request)
+        return visite_mediche_nuova_sessione(request)
+
+    def _base_step2(self, **extra):
+        data = {
+            "step": "2",
+            "tipo_id": str(self.tipo.pk),
+            "data_svolgimento": (self.oggi - timedelta(days=1)).isoformat(),
+            "medico_competente": "Dr. Test",
+            "dipendenti_selezionati": ["60"],
+            "esito_60": "IDONEO",
+            "prescrizioni_60": "DPI UDITO",
+            "note_60": "nota di prova",
+        }
+        data.update(extra)
+        return data
+
+    def test_creazione_con_prescrizioni_e_note_separate(self):
+        resp = self._post(self._base_step2())
+        self.assertEqual(resp.status_code, 302)
+        v = VisitaMedica.objects.get(legacy_anagrafica_id=60)
+        self.assertEqual(v.prescrizioni, "DPI UDITO")
+        self.assertEqual(v.note, "nota di prova")
+        self.assertEqual(v.medico_competente, "Dr. Test")
+
+    def test_doppione_stessa_data_saltato(self):
+        self._post(self._base_step2())
+        self._post(self._base_step2())
+        self.assertEqual(
+            VisitaMedica.objects.filter(legacy_anagrafica_id=60).count(), 1,
+        )
+
+    def test_data_futura_respinta(self):
+        self._post(self._base_step2(
+            data_svolgimento=(self.oggi + timedelta(days=3)).isoformat(),
+        ))
+        self.assertEqual(VisitaMedica.objects.count(), 0)
+
+    def test_referto_per_riga_creato_e_agganciato(self):
+        pdf = SimpleUploadedFile(
+            "referto.pdf", b"%PDF-1.4 stub", content_type="application/pdf",
+        )
+        self._post(self._base_step2(referto_60=pdf))
+        v = VisitaMedica.objects.get(legacy_anagrafica_id=60)
+        self.assertIsNotNone(v.referto_documento_id)
+        self.assertEqual(
+            v.referto_documento.tipo, DocumentoDipendente.Tipo.VISITA_MEDICA_REFERTO,
+        )
+        self.assertEqual(v.referto_documento.legacy_anagrafica_id, 60)

@@ -8980,6 +8980,28 @@ def _ensure_admin(request):
     return legacy_user, (request.user.is_superuser or is_legacy_admin(legacy_user))
 
 
+def _salva_referto_visita(request, visita: VisitaMedica, referto_file) -> DocumentoDipendente:
+    """Crea il ``DocumentoDipendente`` VISITA_MEDICA_REFERTO (storage privato)
+    e lo aggancia a ``visita.referto_documento``. Percorso unico per form
+    singolo e sessione batch."""
+    doc = DocumentoDipendente(
+        legacy_anagrafica_id=visita.legacy_anagrafica_id,
+        tipo=DocumentoDipendente.Tipo.VISITA_MEDICA_REFERTO,
+        nome_originale=getattr(referto_file, "name", "") or "referto",
+        tipo_mime=getattr(referto_file, "content_type", "") or "",
+        dimensione_bytes=getattr(referto_file, "size", 0) or 0,
+        descrizione=f"Referto visita {visita.tipo.nome} del {visita.data_svolgimento}",
+        oggetto_riferimento_tipo="anagrafica.visitamedica",
+        oggetto_riferimento_id=visita.pk,
+        created_by=request.user,
+        created_by_display=request.user.get_full_name() or request.user.username,
+    )
+    doc.file.save(referto_file.name, referto_file, save=True)
+    visita.referto_documento = doc
+    visita.save(update_fields=["referto_documento", "updated_at"])
+    return doc
+
+
 @login_required
 @require_POST
 def dipendente_visita_add(request, legacy_id: int):
@@ -9001,21 +9023,7 @@ def dipendente_visita_add(request, legacy_id: int):
 
     referto_file = form.cleaned_data.get("referto_file")
     if referto_file:
-        doc = DocumentoDipendente(
-            legacy_anagrafica_id=legacy_id,
-            tipo=DocumentoDipendente.Tipo.VISITA_MEDICA_REFERTO,
-            nome_originale=getattr(referto_file, "name", "") or "referto",
-            tipo_mime=getattr(referto_file, "content_type", "") or "",
-            dimensione_bytes=getattr(referto_file, "size", 0) or 0,
-            descrizione=f"Referto visita {visita.tipo.nome} del {visita.data_svolgimento}",
-            oggetto_riferimento_tipo="anagrafica.visitamedica",
-            oggetto_riferimento_id=visita.pk,
-            created_by=request.user,
-            created_by_display=request.user.get_full_name() or request.user.username,
-        )
-        doc.file.save(referto_file.name, referto_file, save=True)
-        visita.referto_documento = doc
-        visita.save(update_fields=["referto_documento", "updated_at"])
+        _salva_referto_visita(request, visita, referto_file)
 
     try:
         from core.audit import log_action
@@ -9055,23 +9063,11 @@ def dipendente_visita_edit(request, legacy_id: int, v_id: int):
             try:
                 visita.referto_documento.delete()
             except Exception:
-                logger.warning("Impossibile rimuovere referto precedente di visita %s", v_id, exc_info=True)
+                logger.warning(
+                    "Impossibile rimuovere referto precedente di visita %s", v_id, exc_info=True,
+                )
             visita.referto_documento = None
-        doc = DocumentoDipendente(
-            legacy_anagrafica_id=legacy_id,
-            tipo=DocumentoDipendente.Tipo.VISITA_MEDICA_REFERTO,
-            nome_originale=getattr(referto_file, "name", "") or "referto",
-            tipo_mime=getattr(referto_file, "content_type", "") or "",
-            dimensione_bytes=getattr(referto_file, "size", 0) or 0,
-            descrizione=f"Referto visita {visita.tipo.nome} del {visita.data_svolgimento}",
-            oggetto_riferimento_tipo="anagrafica.visitamedica",
-            oggetto_riferimento_id=visita.pk,
-            created_by=request.user,
-            created_by_display=request.user.get_full_name() or request.user.username,
-        )
-        doc.file.save(referto_file.name, referto_file, save=True)
-        visita.referto_documento = doc
-        visita.save(update_fields=["referto_documento", "updated_at"])
+        _salva_referto_visita(request, visita, referto_file)
 
     try:
         from core.audit import log_action
@@ -10072,12 +10068,22 @@ def visite_mediche_nuova_sessione(request):
             messages.error(request, "Data non valida.")
             return redirect("anagrafica:visite_mediche_nuova_sessione")
 
+        if data_svolgimento > oggi:
+            messages.error(request, "La data di svolgimento non può essere nel futuro.")
+            return redirect("anagrafica:visite_mediche_nuova_sessione")
+
         selected_ids = request.POST.getlist("dipendenti_selezionati")
         if not selected_ids:
             messages.warning(request, "Nessun dipendente selezionato.")
             return redirect("anagrafica:visite_mediche_nuova_sessione")
 
+        req = _requisiti_tipo_visita(tipo)
+        pertinenti = (req["da_ruoli"] | req["da_processi"]) if req["ha_vincoli"] else None
+
         creati = 0
+        doppioni = 0
+        fuori_requisito = 0
+        retrodatate = 0
         errori = []
         for legacy_id_str in selected_ids:
             try:
@@ -10087,18 +10093,39 @@ def visite_mediche_nuova_sessione(request):
             esito = request.POST.get(f"esito_{legacy_id}", VisitaMedica.Esito.IDONEO)
             if esito not in VisitaMedica.Esito.values:
                 esito = VisitaMedica.Esito.IDONEO
+            prescrizioni = request.POST.get(f"prescrizioni_{legacy_id}", "").strip()
             note = request.POST.get(f"note_{legacy_id}", "").strip()
             try:
-                VisitaMedica.objects.create(
+                # Anti-doppione: stessa persona, stesso tipo, stessa data.
+                if VisitaMedica.objects.filter(
+                    legacy_anagrafica_id=legacy_id, tipo=tipo,
+                    data_svolgimento=data_svolgimento,
+                ).exists():
+                    doppioni += 1
+                    continue
+                visita = VisitaMedica.objects.create(
                     legacy_anagrafica_id=legacy_id,
                     tipo=tipo,
                     data_svolgimento=data_svolgimento,
                     esito=esito,
-                    prescrizioni=note,
+                    prescrizioni=prescrizioni,
+                    note=note,
                     medico_competente=medico,
                     created_by=request.user,
                     updated_by=request.user,
                 )
+                referto_file = request.FILES.get(f"referto_{legacy_id}")
+                if referto_file:
+                    _salva_referto_visita(request, visita, referto_file)
+                if pertinenti is not None and legacy_id not in pertinenti:
+                    fuori_requisito += 1
+                # Retro-registrazione: esiste già una visita più recente del
+                # tipo — la riga è valida (storico) ma non diventa la corrente.
+                if VisitaMedica.objects.filter(
+                    legacy_anagrafica_id=legacy_id, tipo=tipo,
+                    data_svolgimento__gt=data_svolgimento,
+                ).exists():
+                    retrodatate += 1
                 creati += 1
             except Exception:
                 logger.exception("Errore creazione VisitaMedica per legacy_id=%s", legacy_id)
@@ -10110,7 +10137,9 @@ def visite_mediche_nuova_sessione(request):
                 request,
                 "VISITA_MEDICA_BATCH_CREATA",
                 "anagrafica",
-                f"Sessione {tipo.nome} del {data_svolgimento}: {creati} visite registrate.",
+                f"Sessione {tipo.nome} del {data_svolgimento}: {creati} visite registrate, "
+                f"{doppioni} doppioni saltati, {fuori_requisito} fuori requisito, "
+                f"{retrodatate} retrodatate.",
             )
         except Exception:
             logger.warning("Audit VISITA_MEDICA_BATCH_CREATA fallito", exc_info=True)
@@ -10118,7 +10147,17 @@ def visite_mediche_nuova_sessione(request):
         if errori:
             messages.warning(request, f"{creati} visite registrate. Errori per: {', '.join(errori)}.")
         else:
-            messages.success(request, f"{creati} visite registrate per {tipo.nome} del {data_svolgimento.strftime('%d-%m-%Y')}.")
+            msg = f"{creati} visite registrate per {tipo.nome} del {data_svolgimento.strftime('%d-%m-%Y')}."
+            if doppioni:
+                msg += f" {doppioni} già registrate in pari data: saltate."
+            if fuori_requisito:
+                msg += f" {fuori_requisito} fuori requisito (tipo non richiesto per il dipendente)."
+            if retrodatate:
+                msg += (
+                    f" {retrodatate} retrodatate: esiste già una visita più recente,"
+                    " le scadenze correnti non cambiano."
+                )
+            messages.success(request, msg)
         return redirect("anagrafica:visite_mediche_dashboard")
 
     # ---- Step 1: carica candidati ----------------------------------------
@@ -10151,13 +10190,37 @@ def visite_mediche_nuova_sessione(request):
                 messages.error(request, "Data non valida.")
                 step = 1
             else:
-                candidati = _build_candidati_sessione(tipo_selezionato, oggi)
-                if not candidati:
-                    messages.info(
-                        request,
-                        f"Nessun dipendente risulta in scadenza per '{tipo_selezionato.nome}' "
-                        f"nei prossimi 90 giorni.",
-                    )
+                if data_svolgimento_parsed > oggi:
+                    messages.error(request, "La data di svolgimento non può essere nel futuro.")
+                    step = 1
+                else:
+                    candidati = _build_candidati_sessione(tipo_selezionato, oggi)
+                    if not candidati:
+                        messages.info(
+                            request,
+                            f"Nessun dipendente risulta in scadenza per '{tipo_selezionato.nome}' "
+                            f"nei prossimi 90 giorni.",
+                        )
+
+    nuova_scadenza_preview = None
+    tipo_senza_vincoli = False
+    if step == 2 and tipo_selezionato and data_svolgimento_str:
+        try:
+            _data_sessione = date.fromisoformat(data_svolgimento_str)
+        except (TypeError, ValueError):
+            _data_sessione = None
+        if _data_sessione and (tipo_selezionato.durata_mesi or 0) > 0:
+            from .models import _add_months
+            nuova_scadenza_preview = _add_months(_data_sessione, tipo_selezionato.durata_mesi)
+        tipo_senza_vincoli = not _requisiti_tipo_visita(tipo_selezionato)["ha_vincoli"]
+
+    medici_precedenti = list(
+        VisitaMedica.objects
+        .exclude(medico_competente="")
+        .order_by("medico_competente")
+        .values_list("medico_competente", flat=True)
+        .distinct()[:20]
+    )
 
     return render(request, "anagrafica/pages/visite_mediche_nuova_sessione.html", {
         "tipi_attivi": tipi_attivi,
@@ -10168,6 +10231,10 @@ def visite_mediche_nuova_sessione(request):
         "candidati": candidati,
         "esiti": VisitaMedica.Esito.choices,
         "esito_default": VisitaMedica.Esito.IDONEO,
+        "oggi": oggi,
+        "nuova_scadenza_preview": nuova_scadenza_preview,
+        "tipo_senza_vincoli": tipo_senza_vincoli,
+        "medici_precedenti": medici_precedenti,
     })
 
 
