@@ -84,3 +84,68 @@ class UltimeVisiteCorrentiIdsTests(TestCase):
         )
         self.assertEqual(ultime_visite_correnti_ids(legacy_ids=[4]), {v1.pk})
         self.assertEqual(ultime_visite_correnti_ids(tipo_ids=[self.tipo_b.pk]), {v2.pk})
+
+
+class DashboardScadenzeConfermateTests(TestCase):
+    """Dopo la registrazione di una nuova visita la vecchia scadenza è
+    "confermata": non deve più comparire come scaduta nella dashboard."""
+
+    def setUp(self):
+        self.user_super = User.objects.create_superuser(
+            username="su-visite-dash", email="su-visite-dash@test.local", password="x"
+        )
+        self.tipo = TipoVisitaMedica.objects.create(nome="Periodica coerenza", durata_mesi=12)
+        self.oggi = timezone.localdate()
+
+    def _dashboard_body(self) -> str:
+        from .views import visite_mediche_dashboard
+        rf = RequestFactory()
+        request = rf.get("/anagrafica/visite-mediche/")
+        request.user = self.user_super
+        request.session = SessionStore()
+        request._messages = FallbackStorage(request)
+        resp = visite_mediche_dashboard(request)
+        self.assertEqual(resp.status_code, 200)
+        return resp.content.decode("utf-8", errors="ignore")
+
+    def test_scadenza_superata_sparisce_dopo_nuova_visita(self):
+        # Visita del 10-03-2024 → scadenza 10-03-2025 (passata).
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=70, tipo=self.tipo,
+            data_svolgimento=date(2024, 3, 10),
+        )
+        body = self._dashboard_body()
+        # Da sola è la visita corrente: la scadenza vecchia compare sia nella
+        # tabella "scadute o in scadenza" sia nel log "ultime registrazioni".
+        self.assertGreaterEqual(body.count("10-03-2025"), 2)
+
+        # Rinnovo: la vecchia riga resta SOLO nel log "ultime registrazioni"
+        # (storico delle registrazioni), non più tra scadute/KPI/per-tipo.
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=70, tipo=self.tipo,
+            data_svolgimento=self.oggi - timedelta(days=5),
+        )
+        body = self._dashboard_body()
+        self.assertEqual(body.count("10-03-2025"), 1)
+
+
+class DigestVisiteCorrentiTests(TestCase):
+    def test_digest_esclude_righe_superate(self):
+        from io import StringIO
+        from django.core.management import call_command
+
+        tipo = TipoVisitaMedica.objects.create(nome="Digest corrente", durata_mesi=12)
+        oggi = timezone.localdate()
+        # Riga vecchia: scadrebbe tra ~20 giorni (dentro la finestra 60gg)...
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=90, tipo=tipo,
+            data_svolgimento=oggi - timedelta(days=345),
+        )
+        # ...ma è stata rinnovata ieri: la corrente scade tra ~1 anno.
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=90, tipo=tipo,
+            data_svolgimento=oggi - timedelta(days=1),
+        )
+        out = StringIO()
+        call_command("send_visite_mediche_digest", "--dry-run", stdout=out)
+        self.assertIn("Nessuna visita medica in scadenza", out.getvalue())

@@ -129,7 +129,7 @@ from .services.dpi_ingresso import (
     crea_consegne_iniziali,
     proposta_righe_iniziali,
 )
-from .services.visite import stato_visite, visite_storico
+from .services.visite import stato_visite, ultime_visite_correnti_ids, visite_storico
 from .services import conformita as conformita_service
 from .services import onboarding as onboarding_service
 from .services import mansionario as mansionario_service
@@ -536,15 +536,8 @@ def index(request):
     can_view_visite = _can_view_visite_mediche(request)
     n_visite_scadute = 0
     if can_view_visite:
-        latest_ids = (
-            VisitaMedica.objects
-            .filter(data_scadenza__isnull=False)
-            .values("legacy_anagrafica_id", "tipo_id")
-            .annotate(max_id=Max("id"))
-            .values_list("max_id", flat=True)
-        )
         n_visite_scadute = VisitaMedica.objects.filter(
-            id__in=latest_ids, data_scadenza__lt=oggi
+            id__in=ultime_visite_correnti_ids(), data_scadenza__lt=oggi
         ).count()
 
     # Cose da gestire: righe azionabili contate sulle voci dello scadenzario.
@@ -7128,14 +7121,9 @@ def _build_scadenzario_voci(
 
     # ── Visite mediche (gated) ───────────────────────────────────────────────
     if can_view_visite and filtro_tipo in ("", "visita"):
-        latest_ids = (
-            VisitaMedica.objects
-            .filter(data_scadenza__isnull=False)
-            .values("legacy_anagrafica_id", "tipo_id")
-            .annotate(max_id=Max("id"))
-            .values_list("max_id", flat=True)
+        qs_v = VisitaMedica.objects.select_related("tipo").filter(
+            id__in=ultime_visite_correnti_ids(), data_scadenza__isnull=False
         )
-        qs_v = VisitaMedica.objects.select_related("tipo").filter(id__in=latest_ids)
         if filtro_stato == "scaduta":
             qs_v = qs_v.filter(data_scadenza__lt=oggi)
         elif filtro_stato == "30":
@@ -9724,11 +9712,15 @@ def visite_mediche_dashboard(request):
     # Map legacy_id -> "Cognome Nome" da AnagraficaDipendente (lookup unico)
     nomi_map = _build_nomi_map()
 
-    # KPI globali (sempre sull'intero dataset, non influenzati dal filtro)
-    kpi_scadute = VisitaMedica.objects.filter(
+    # Fonte unica "visite correnti" (l'ultima per dipendente+tipo): le righe
+    # storiche superate non contano più come scadute/in scadenza.
+    correnti_qs = VisitaMedica.objects.filter(id__in=ultime_visite_correnti_ids())
+
+    # KPI globali (sulle visite correnti dell'intero dataset, non filtrato per mese)
+    kpi_scadute = correnti_qs.filter(
         data_scadenza__isnull=False, data_scadenza__lt=oggi
     ).count()
-    kpi_in_scad = VisitaMedica.objects.filter(
+    kpi_in_scad = correnti_qs.filter(
         data_scadenza__isnull=False, data_scadenza__range=[oggi, soglia_avviso]
     ).count()
     kpi_visite_totali = VisitaMedica.objects.count()
@@ -9754,7 +9746,7 @@ def visite_mediche_dashboard(request):
         _, last_day_n = _calendar.monthrange(oggi.year, oggi.month)
         _range_start = oggi.replace(day=1)
         _range_end = oggi.replace(day=last_day_n)
-        scad_qs = VisitaMedica.objects.filter(
+        scad_qs = correnti_qs.filter(
             data_scadenza__isnull=False,
             data_scadenza__range=[_range_start, _range_end],
         )
@@ -9764,13 +9756,13 @@ def visite_mediche_dashboard(request):
         _, last_day_n = _calendar.monthrange(pm_y, pm_m)
         _range_start = date(pm_y, pm_m, 1)
         _range_end = date(pm_y, pm_m, last_day_n)
-        scad_qs = VisitaMedica.objects.filter(
+        scad_qs = correnti_qs.filter(
             data_scadenza__isnull=False,
             data_scadenza__range=[_range_start, _range_end],
         )
     else:
         filtro_scad = "tutti"
-        scad_qs = VisitaMedica.objects.filter(
+        scad_qs = correnti_qs.filter(
             data_scadenza__isnull=False, data_scadenza__lte=soglia_avviso
         )
 
@@ -9783,10 +9775,10 @@ def visite_mediche_dashboard(request):
         else:
             v.mese_label = "Senza scadenza"
 
-    # Pre-aggrega conteggi DB per tipo (evita N query nel loop)
+    # Pre-aggrega conteggi DB per tipo (evita N query nel loop) — solo visite correnti
     _valide_per_tipo = {
         row["tipo_id"]: row["n"]
-        for row in VisitaMedica.objects
+        for row in correnti_qs
         .filter(data_scadenza__gte=oggi)
         .order_by()
         .values("tipo_id")
@@ -9794,7 +9786,7 @@ def visite_mediche_dashboard(request):
     }
     _scadute_per_tipo = {
         row["tipo_id"]: row["n"]
-        for row in VisitaMedica.objects
+        for row in correnti_qs
         .filter(data_scadenza__lt=oggi)
         .order_by()
         .values("tipo_id")
@@ -9815,7 +9807,7 @@ def visite_mediche_dashboard(request):
         else:
             legacy_ids_richiesti = set()
         legacy_ids_coperti = set(
-            VisitaMedica.objects
+            correnti_qs
             .filter(tipo=t, data_scadenza__gte=oggi)
             .values_list("legacy_anagrafica_id", flat=True)
         )
@@ -9836,16 +9828,9 @@ def visite_mediche_dashboard(request):
     from collections import defaultdict as _defaultdict
     _all_tipo_ids = [row["tipo"].pk for row in tipologie_stats]
     if _all_tipo_ids:
-        _latest_ids_bulk = (
-            VisitaMedica.objects
-            .filter(tipo_id__in=_all_tipo_ids)
-            .values("tipo_id", "legacy_anagrafica_id")
-            .annotate(max_id=Max("id"))
-            .values_list("max_id", flat=True)
-        )
         _latest_sessions_bulk = list(
-            VisitaMedica.objects
-            .filter(id__in=_latest_ids_bulk)
+            correnti_qs
+            .filter(tipo_id__in=_all_tipo_ids)
             .select_related("tipo")
             .order_by("tipo_id", "legacy_anagrafica_id")
         )
@@ -10188,10 +10173,12 @@ def visite_mediche_export_scadenze(request):
 
     oggi = _tz.localdate()
     filtro = request.GET.get("scad", "tutti").strip()
+    correnti_ids = ultime_visite_correnti_ids()
 
     if filtro == "mese_corrente":
         _, ld = _cal.monthrange(oggi.year, oggi.month)
         qs = VisitaMedica.objects.filter(
+            id__in=correnti_ids,
             data_scadenza__isnull=False,
             data_scadenza__range=[oggi.replace(day=1), oggi.replace(day=ld)],
         )
@@ -10201,12 +10188,14 @@ def visite_mediche_export_scadenze(request):
         pm_m = 1 if oggi.month == 12 else oggi.month + 1
         _, ld = _cal.monthrange(pm_y, pm_m)
         qs = VisitaMedica.objects.filter(
+            id__in=correnti_ids,
             data_scadenza__isnull=False,
             data_scadenza__range=[date(pm_y, pm_m, 1), date(pm_y, pm_m, ld)],
         )
         label = f"prossimo_mese_{pm_y}{pm_m:02d}"
     else:
         qs = VisitaMedica.objects.filter(
+            id__in=correnti_ids,
             data_scadenza__isnull=False, data_scadenza__lte=oggi + _timedelta(days=60)
         )
         label = "scadenze_60gg"
@@ -10275,10 +10264,11 @@ def visite_mediche_export_copertura(request):
     from django.utils import timezone as _tz
 
     oggi = _tz.localdate()
+    correnti_qs = VisitaMedica.objects.filter(id__in=ultime_visite_correnti_ids())
 
     _valide_per_tipo = {
         row["tipo_id"]: row["n"]
-        for row in VisitaMedica.objects
+        for row in correnti_qs
         .filter(data_scadenza__gte=oggi)
         .order_by()
         .values("tipo_id")
@@ -10286,7 +10276,7 @@ def visite_mediche_export_copertura(request):
     }
     _scadute_per_tipo = {
         row["tipo_id"]: row["n"]
-        for row in VisitaMedica.objects
+        for row in correnti_qs
         .filter(data_scadenza__lt=oggi)
         .order_by()
         .values("tipo_id")
@@ -10318,7 +10308,7 @@ def visite_mediche_export_copertura(request):
         else:
             legacy_ids_richiesti = set()
         legacy_ids_coperti = set(
-            VisitaMedica.objects
+            correnti_qs
             .filter(tipo=t, data_scadenza__gte=oggi)
             .values_list("legacy_anagrafica_id", flat=True)
         )

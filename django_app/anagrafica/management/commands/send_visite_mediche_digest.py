@@ -20,6 +20,7 @@ from django.utils import timezone
 
 from anagrafica.models import VisitaMedica
 from anagrafica.services.email_digest import digest_fragment, scadenza_badge
+from anagrafica.services.visite import ultime_visite_correnti_ids
 
 
 def _get_recipients(override: list[str] | None) -> list[str]:
@@ -57,6 +58,7 @@ class Command(BaseCommand):
 
         in_scadenza = list(
             VisitaMedica.objects.filter(
+                id__in=ultime_visite_correnti_ids(),
                 data_scadenza__isnull=False,
                 data_scadenza__gte=today,
                 data_scadenza__lte=horizon,
