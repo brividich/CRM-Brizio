@@ -505,7 +505,10 @@ class CoseDaGestireTests(TestCase):
             data = ma.build_cose_da_gestire(self._req())
 
         keys = [s["key"] for s in data["sections"]]
-        self.assertEqual(set(keys), {"approvazioni", "ticket", "anomalie", "procedure", "dpi"})
+        self.assertEqual(
+            set(keys),
+            {"approvazioni", "ticket", "anomalie", "procedure", "dpi", "elearning", "skm_refresh"},
+        )
         self.assertIn("total", data)
 
     def test_total_counts_items_across_sections(self):
