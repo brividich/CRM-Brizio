@@ -97,7 +97,16 @@ Multiple Claude sessions work on this repo **at the same time**. The branch and 
   `git worktree add C:\Dev\pn-<topic> -B <branch> origin/<base-branch>`
   Work, test, commit and push from there; then `git worktree remove` (if the path is too long for git: `cmd /c rmdir /s /q <path>` + `git worktree prune`).
 - If you must touch a file in the shared checkout, **stage only your own hunks** — never `git add -A` / `git commit -a`: the working tree holds other sessions' WIP.
-- Deploy note: production runs `feature/skill-matrix-mod187`, not `main`. A fix that must reach production has to land on that branch too.
+
+## Disciplina git di sessione (ALWAYS)
+
+Il server di sviluppo serve la **cartella di lavoro**: il codice "funziona" anche quando non è committato. Il packager invece esporta un **commit del branch di release**. Un file non committato quindi funziona in locale e non esiste per la produzione — e la divergenza si scopre al deploy.
+
+- **Ogni sessione APRE con `git status`.** Se il tree è già sporco, il lavoro precedente va chiuso prima: non si costruisce sopra il WIP di un altro.
+- **Ogni sessione CHIUDE con un commit** su branch feature (`feature/<area>-<tema>`), nel worktree dedicato di cui sopra. Nessuna sessione termina con working tree sporco.
+- **Committare non è deployare.** Un commit WIP su branch feature è al sicuro, recuperabile e visibile in `git branch` — ma **non è in produzione**. Il codice è in produzione solo quando è in **`release/prod`**: è da lì che `package-release.ps1` esporta. Non c'è alcun motivo per lasciare lavoro fuori da git, e nessuna garanzia che un commit fuori da `release/prod` arrivi mai sul server.
+- **Il pacchetto si produce SOLO da un commit.** Il pre-flight di `package-release.ps1` fallisce se il tree è sporco o se il branch corrente ha commit assenti da `release/prod`. `-FromWorkingTree -Force` è un'emergenza, non una scorciatoia: il pacchetto che ne esce si dichiara non tracciabile in `BUILD_INFO.json` e la Centrale di comando lo mostra in rosso.
+- In sviluppo (`DEBUG=True`) il badge in alto a destra tiene i due numeri sotto gli occhi: file non committati e commit non ancora in `release/prod`.
 
 ## Patch Workflow
 

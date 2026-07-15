@@ -322,6 +322,7 @@ Superficie di monitoring del portale, issue tracking interno e segnalazioni uten
 - **Monitor automazioni** con health card della queue
 - **Segnalazioni utente** dirette all'admin
 - **Liveness/readiness probe** runtime (`/healthz`, `/readyz`) con check su DB, cache, Graph, LDAP, SMTP e queue automazioni; risultato memoizzato in cache, IP allowlist via `HEALTHZ_ALLOWED_IPS`. Riusabili da `validate_deployment --with-integration` per coerenza tra deploy validation e runtime
+- **Provenienza della build** nella Centrale di comando (`/admin-portale/monitoring/status/`): commit, branch, autore e data letti dal `BUILD_INFO.json` scritto nel pacchetto da `package-release.ps1`, con banner rosso se il codice in esecuzione non corrisponde a un commit pulito del branch di release. Manifest assente = "sviluppo — nessun pacchetto"
 - CSS dedicato in `static/monitoring/css/monitoring.css` verificato in `collectstatic`
 </details>
 
@@ -336,6 +337,7 @@ Anagrafica master HR del portale, integrata con Active Directory e tabelle legac
 
 - **Topbar a «pilastri» (Proposta A)** (subnav DB-driven, migration `0069`/`0070`, gestibile da Impostazioni → Navigazione): **Dashboard · Scadenzario · Persone ▾ · Competenze ▾ · Compliance ▾ · Amministrazione ▾ · ⚙ Impostazioni**. Due meccanismi nuovi: (1) **pilastro = link + sottomenu** — la categoria ha una *landing* (`landing_url_type`/`landing_url_value`): cliccando il testo si va alla dashboard del sotto-modulo, il caret/hover apre il dropdown; (2) **mega-menu a colonne** — il campo `gruppo` sui link crea sezioni (Competenze fonde Formazione + Qualifiche + Trasversale). **Scadenzario unico** verso `/anagrafica/scadenzario/` (già filtrabile via `?tipo=`); doppioni e cataloghi struttura nascosti dalla topbar (restano in Impostazioni). Dettaglio in `docs/anagrafica/LINKS_ANAGRAFICA.md`.
 
+- **Dashboard HR** (`/anagrafica/`): hero con organico e qualifiche in scadenza, KPI dei cataloghi, e due blocchi personalizzabili (nascondibili/riordinabili con «Personalizza», preferenze in `localStorage`). **Cose da gestire**: righe azionabili — visite mediche, qualifiche, corsi obbligatori, contratti e periodi di prova — separate tra *scadute* e *in scadenza entro 60 giorni*; ogni riga apre lo scadenzario già filtrato (`?tipo=…&stato=…`) su ciò che ha contato, perché conteggio e lista vengono dalla **stessa** funzione (`_build_scadenzario_voci`) e non possono divergere. Il gating per sorgente è quello dello scadenzario: chi non può vedere le visite mediche non ne vede nemmeno il numero. **Vai a**: collegamenti diretti ai sottomoduli (Scadenzario, Organigramma, Cruscotto qualifiche, Formazione, Visite mediche, Onboarding, Documenti, Ex dipendenti), che altrimenti vivono solo nei dropdown della topbar; le voci gated non compaiono a chi vedrebbe solo un rifiuto.
 - **Export PDF + Excel su tutte le liste** (29 viste): ogni elenco del modulo ha in toolbar il menu **«Esporta ▾»** con quattro voci — Excel/PDF × *risultati filtrati* o *tutto*. L'export **replica i filtri attivi della pagina** (esporta quello che vedi, righe di tutte le pagine e non solo di quella corrente) e le **sole colonne già visibili in lista**. Endpoint unico parametrico `/anagrafica/esporta/<key>/?format=xlsx|pdf&scope=filtered|full`; ogni lista dichiara una `ExportSpec` nel registry (`anagrafica/exports.py` + i moduli d'area `exports_persone/formazione/qualifiche/hr.py`), il PDF usa il template grafico condiviso `core/table_pdf.py` e l'Excel il blocco intestazione di `core/excel_export.py`. **Autorizzazione fail-closed**: l'export riusa il gate ACL della lista di origine (chi non può aprirla non può scaricarla, strict-mode incluso) più il permesso HR dove la pagina lo impone (documenti, onboarding, conformità, ratei, retribuzioni, visite mediche); ogni download è tracciato nell'audit trail. Copertura: Persone (dipendenti, ex dipendenti, documenti, onboarding, scadenzario, conformità, organigramma), Formazione (corsi, sessioni, piani, istruttori, scadenzario, fattori di rischio, categorie, esposizioni), Competenze (qualifiche, scadenzario qualifiche, sessioni, matrice competenze, clienti MOD.128), Cataloghi/HR (reparti, aree, ruoli aziendali, ruoli operativi, ratei, retribuzioni globale, visite mediche). Gli export XLSX/CSV storici delle singole pagine restano disponibili.
 - **Bridge pattern**: `DipendenteAnagraficaCivile` e `DipendenteAnagraficaAziendale` referenziano la tabella legacy `anagrafica_dipendenti` tramite `legacy_anagrafica_id` — nessuna modifica alle tabelle legacy
 - **Anagrafica civile** (admin): dati nascita/genere, **provincia di nascita** (sigla), **nazionalità**, residenza completa, domicilio, titolo di studio, contatti privati, patente — inline editabile dalla scheda dipendente
@@ -1087,6 +1089,18 @@ python manage.py createcachetable --settings=config.settings.prod
 ```
 
 Guida completa: [`deployment/README_DEPLOY_IIS_WINDOWS.md`](deployment/README_DEPLOY_IIS_WINDOWS.md)
+
+### Creazione del pacchetto di release
+
+`deployment\scripts\package-release.ps1` esporta il **branch di release** (`release/prod` di default, `-Branch` per cambiarlo), **non** la cartella di lavoro: il codice non committato non finisce mai in un pacchetto.
+
+Un **pre-flight** lo rende esplicito invece di lasciarlo scoprire al deploy:
+
+- **working tree sporco** → `exit 1`, con la lista dei file che *non sono in nessun commit* e quindi non finiranno nel pacchetto;
+- **commit assenti dal branch di export** (`git rev-list --count release/prod..HEAD`) → `exit 1`, elencandoli: esistono, ma il pacchetto non li conterrà;
+- `-FromWorkingTree` richiede `-Force` (emergenza, non scorciatoia); `-Force` bypassa entrambi i controlli.
+
+Ogni pacchetto contiene un **`BUILD_INFO.json`** alla radice (commit e branch effettivamente esportati, data, autore, `source: branch | working-tree`, `delta_vs_export_branch`). Il portale lo legge a runtime e ne mostra il contenuto in **Centrale di comando** (`/admin-portale/monitoring/status/`), con banner rosso se il pacchetto non corrisponde a un commit pulito. In sviluppo (`DEBUG=True`) un badge in alto a destra tiene sotto gli occhi i file non committati e i commit non ancora in `release/prod`.
 
 ---
 
