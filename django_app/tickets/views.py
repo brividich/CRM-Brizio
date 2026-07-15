@@ -26,6 +26,8 @@ from reportlab.platypus import Paragraph
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_LEFT
 
+from core.pdf import PdfTheme, draw_canvas_footer, draw_canvas_header
+
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 from core.audit import log_action
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
@@ -497,18 +499,26 @@ def _pdf_wrap(text: str, max_chars: int) -> list[str]:
     return result or ["-"]
 
 
+def _pdf_theme(pdf: canvas.Canvas) -> PdfTheme:
+    """Tema PDF del portale, calcolato una volta e memorizzato sul canvas."""
+    theme = getattr(pdf, "_hub_theme", None)
+    if theme is None:
+        theme = PdfTheme.from_branding()
+        pdf._hub_theme = theme
+    return theme
+
+
 def _pdf_footer(pdf: canvas.Canvas, ticket: Ticket, page_num: int, page_width: float) -> None:
-    """Disegna il footer su ogni pagina."""
-    y = _PDF_FOOTER_H
-    pdf.setStrokeColor(_PDF_COLOR_BORDER)
-    pdf.setLineWidth(0.5)
-    pdf.line(_PDF_MARGIN, y, page_width - _PDF_MARGIN, y)
-    pdf.setFont("Helvetica", 7.5)
-    pdf.setFillColor(_PDF_COLOR_GRAY)
-    from django.utils.timezone import localtime, now as tz_now_pdf
-    gen_date = localtime(tz_now_pdf()).strftime("%d-%m-%Y %H:%M")
-    pdf.drawString(_PDF_MARGIN, y - 4 * mm, f"Documento generato il {gen_date}  ·  {ticket.numero_ticket}")
-    pdf.drawRightString(page_width - _PDF_MARGIN, y - 4 * mm, f"Pag. {page_num}")
+    """Footer standard del portale (nome portale + numero pagina)."""
+    draw_canvas_footer(
+        pdf,
+        theme=_pdf_theme(pdf),
+        page_width=page_width,
+        left_margin=_PDF_MARGIN,
+        right_margin=_PDF_MARGIN,
+        baseline_y=_PDF_FOOTER_H - 4 * mm,
+        page_number=page_num,
+    )
 
 
 def _pdf_new_page(pdf: canvas.Canvas, ticket: Ticket, page_num: int, page_width: float, page_height: float) -> tuple[float, int]:
@@ -516,17 +526,18 @@ def _pdf_new_page(pdf: canvas.Canvas, ticket: Ticket, page_num: int, page_width:
     _pdf_footer(pdf, ticket, page_num, page_width)
     pdf.showPage()
     page_num += 1
-    accent = _pdf_accent(ticket)
-    # mini header di continuazione
-    y = page_height - 12 * mm
-    pdf.setFillColor(accent)
-    pdf.rect(_PDF_MARGIN, y, page_width - 2 * _PDF_MARGIN, 8 * mm, fill=1, stroke=0)
-    pdf.setFillColor(white)
-    pdf.setFont("Helvetica-Bold", 8)
-    pdf.drawString(_PDF_MARGIN + 4 * mm, y + 2.5 * mm, ticket.numero_ticket)
-    pdf.setFont("Helvetica", 8)
-    pdf.drawRightString(page_width - _PDF_MARGIN - 4 * mm, y + 2.5 * mm, ticket.titolo[:70])
-    return y - 8 * mm, page_num
+    # Header di continuazione standard (logo/monogramma + numero ticket).
+    content_y = draw_canvas_header(
+        pdf,
+        theme=_pdf_theme(pdf),
+        page_width=page_width,
+        page_height=page_height,
+        left_margin=_PDF_MARGIN,
+        right_margin=_PDF_MARGIN,
+        title=ticket.numero_ticket,
+        subtitle=(ticket.titolo or "")[:70],
+    )
+    return content_y, page_num
 
 
 def _pdf_check_space(pdf, ticket, y, needed, page_num, page_width, page_height):
@@ -596,40 +607,24 @@ def _ticket_pdf_response(ticket: Ticket, *, commenti, allegati, include_internal
     mx       = _PDF_MARGIN
     bw       = page_width - 2 * mx
     page_num = 1
-
-    # ── HEADER PAGINA 1 ───────────────────────────────────────────────────────
-    # Band superiore alta
-    header_h = 32 * mm
-    y_top = page_height - 10 * mm
-    pdf.setFillColor(accent)
-    pdf.rect(mx, y_top - header_h, bw, header_h, fill=1, stroke=0)
-
-    # Titolo documento
-    pdf.setFillColor(white)
-    pdf.setFont("Helvetica-Bold", 20)
     tipo_label = "RAPPORTO DI INTERVENTO IT" if ticket.tipo == "IT" else "RAPPORTO DI MANUTENZIONE"
-    pdf.drawString(mx + 5 * mm, y_top - 12 * mm, tipo_label)
-    pdf.setFont("Helvetica", 10)
-    pdf.drawString(mx + 5 * mm, y_top - 19 * mm, "Costruzioni Novicrom S.r.l.  ·  Portale Applicativo")
 
-    # Numero ticket in box bianco a destra
-    box_w = 48 * mm
-    box_x = mx + bw - box_w - 2 * mm
-    pdf.setFillColor(white)
-    pdf.setFillAlpha(0.15)
-    pdf.rect(box_x, y_top - header_h + 4 * mm, box_w, header_h - 8 * mm, fill=1, stroke=0)
-    pdf.setFillAlpha(1)
-    pdf.setFillColor(white)
-    pdf.setFont("Helvetica-Bold", 13)
-    pdf.drawCentredString(box_x + box_w / 2, y_top - 16 * mm, ticket.numero_ticket)
-    pdf.setFont("Helvetica", 8)
-    pdf.drawCentredString(box_x + box_w / 2, y_top - 22 * mm, "N. DOCUMENTO")
+    # ── HEADER PAGINA 1 (template standard del portale) ───────────────────────
+    y = draw_canvas_header(
+        pdf,
+        theme=_pdf_theme(pdf),
+        page_width=page_width,
+        page_height=page_height,
+        left_margin=mx,
+        right_margin=mx,
+        title=tipo_label,
+        subtitle="Costruzioni Novicrom S.r.l. · Portale Applicativo",
+        right_title=ticket.numero_ticket,
+        right_subtitle="Rapporto intervento",
+    )
+    y -= 3 * mm
 
-    # Striscia colorata sottile come separatore
-    y = y_top - header_h - 3 * mm
-
-    # Titolo ticket in grande
-    y -= 7 * mm
+    # Titolo ticket in grande (corpo)
     pdf.setFillColor(_PDF_COLOR_DARK)
     pdf.setFont("Helvetica-Bold", 14)
     # wrap titolo su più righe se lungo

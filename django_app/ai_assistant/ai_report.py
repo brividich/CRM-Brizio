@@ -120,15 +120,14 @@ def render_report_pdf(report: dict, *, autore: str = "") -> bytes:
     from reportlab.lib.units import mm
     from reportlab.pdfgen import canvas
 
-    NAVY = HexColor("#0c2545")
+    from core.pdf import PdfTheme, draw_canvas_footer, draw_canvas_header
+
     CYAN = HexColor("#1f87cd")
-    ORANGE = HexColor("#ff6b00")
     DARK = HexColor("#0f172a")
-    GRAY = HexColor("#64748b")
-    BORDER = HexColor("#e2e8f0")
     M = 16 * mm
     FOOTER_H = 12 * mm
 
+    theme = PdfTheme.from_branding()
     buffer = io.BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=A4)
     page_width, page_height = A4
@@ -161,30 +160,27 @@ def render_report_pdf(report: dict, *, autore: str = "") -> bytes:
         return out or [""]
 
     def footer(page_num: int) -> None:
-        pdf.setStrokeColor(BORDER)
-        pdf.setLineWidth(0.5)
-        pdf.line(M, FOOTER_H, page_width - M, FOOTER_H)
-        pdf.setFont("Helvetica", 7)
-        pdf.setFillColor(GRAY)
-        pdf.drawString(M, FOOTER_H - 4 * mm, f"NOVICROM HUB · Report AI · generato il {generato}")
-        pdf.drawRightString(page_width - M, FOOTER_H - 4 * mm, f"Pag. {page_num}")
+        draw_canvas_footer(
+            pdf, theme=theme, page_width=page_width,
+            left_margin=M, right_margin=M,
+            baseline_y=FOOTER_H - 4 * mm, page_number=page_num,
+        )
+        # Disclaimer AI (specifico del report): riga sotto il footer standard.
         pdf.setFillColor(HexColor("#94a3b8"))
+        pdf.setFont("Helvetica", 7)
         pdf.drawString(M, FOOTER_H - 7.5 * mm, disclaimer[:150])
 
     def new_page(page_num: int) -> tuple[float, int]:
         footer(page_num)
         pdf.showPage()
         page_num += 1
-        # mini header di continuazione (band navy sottile)
-        y = page_height - 12 * mm
-        pdf.setFillColor(NAVY)
-        pdf.rect(M, y, content_w, 8 * mm, fill=1, stroke=0)
-        pdf.setFillColor(white)
-        pdf.setFont("Helvetica-Bold", 8)
-        pdf.drawString(M + 3 * mm, y + 2.5 * mm, "NOVICROM HUB · Report AI")
-        pdf.setFont("Helvetica", 8)
-        pdf.drawRightString(page_width - M - 3 * mm, y + 2.5 * mm, titolo[:70])
-        return y - 7 * mm, page_num
+        # Header di continuazione standard del portale.
+        y = draw_canvas_header(
+            pdf, theme=theme, page_width=page_width, page_height=page_height,
+            left_margin=M, right_margin=M,
+            title="Report AI", subtitle=titolo[:70],
+        )
+        return y, page_num
 
     def check(y: float, needed: float, page_num: int) -> tuple[float, int]:
         if y - needed < FOOTER_H + 8 * mm:
@@ -221,28 +217,21 @@ def render_report_pdf(report: dict, *, autore: str = "") -> bytes:
             first = False
         return y - 1 * mm, page_num
 
-    # ── Header prima pagina (band navy + accento orange + titolo) ──
-    band_h = 24 * mm
-    by = page_height - band_h
-    pdf.setFillColor(NAVY)
-    pdf.rect(0, by, page_width, band_h, fill=1, stroke=0)
-    pdf.setFillColor(ORANGE)
-    pdf.rect(0, by - 1.4 * mm, page_width, 1.4 * mm, fill=1, stroke=0)  # accento
-    pdf.setFillColor(white)
-    pdf.setFont("Helvetica-Bold", 15)
-    pdf.drawString(M, by + band_h - 10 * mm, "NOVICROM HUB")
-    pdf.setFont("Helvetica", 9)
-    pdf.setFillColor(HexColor("#9fb6d6"))
-    pdf.drawString(M, by + band_h - 15 * mm, "Assistente AI · Report")
-    pdf.setFillColor(white)
-    pdf.setFont("Helvetica", 8.5)
-    meta = f"Generato il {generato}" + (f"  ·  Richiesto da {_plain(autore)[:40]}" if autore else "")
-    pdf.drawRightString(page_width - M, by + band_h - 10 * mm, meta)
-
-    y = by - 8 * mm
+    # ── Header prima pagina (template standard del portale) ──
+    header_subtitle = "Assistente AI · Report" + (
+        f" · Richiesto da {_plain(autore)[:40]}" if autore else ""
+    )
+    y = draw_canvas_header(
+        pdf, theme=theme, page_width=page_width, page_height=page_height,
+        left_margin=M, right_margin=M,
+        title=(titolo or "Report AI")[:48],
+        subtitle=header_subtitle,
+        right_subtitle=f"Generato il {generato}",
+    )
+    y -= 2 * mm
     page_num = 1
-    # Titolo del report (navy, wrap su max 2 righe)
-    pdf.setFillColor(NAVY)
+    # Titolo del report (colore brand, wrap su max 2 righe)
+    pdf.setFillColor(theme.c_primary())
     for ln in wrap(titolo, "Helvetica-Bold", 16, content_w)[:2]:
         pdf.setFont("Helvetica-Bold", 16)
         pdf.drawString(M, y - 6 * mm, ln)

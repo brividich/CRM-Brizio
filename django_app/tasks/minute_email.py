@@ -121,39 +121,53 @@ def build_invite_email(meeting) -> tuple[str, str, str]:
 
 
 def build_minute_pdf(meeting) -> bytes:
-    """Genera un PDF A4 della minuta con reportlab (già in requirements)."""
+    """Genera un PDF A4 della minuta col template PDF standard del portale."""
     import io
+    from html import escape
 
-    from reportlab.lib import colors
-    from reportlab.lib.enums import TA_LEFT
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import mm
-    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from reportlab.platypus import Paragraph, Spacer
 
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(
-        buffer, pagesize=A4,
-        leftMargin=18 * mm, rightMargin=18 * mm, topMargin=16 * mm, bottomMargin=16 * mm,
-        title="Minuta incontro KICK-OFF",
+    from core.pdf import (
+        PdfTheme,
+        build_styles,
+        data_table,
+        header_footer_callback,
+        make_document,
+        section_heading,
     )
-    styles = getSampleStyleSheet()
-    h_style = ParagraphStyle("H", parent=styles["Heading2"], spaceBefore=10, spaceAfter=4)
-    body_style = ParagraphStyle("B", parent=styles["BodyText"], alignment=TA_LEFT, leading=14)
 
-    kickoff = getattr(meeting.project, "kickoff_number", "") or ""
-    story = [Paragraph(f"Minuta incontro — KICK-OFF {kickoff}", styles["Title"]), Spacer(1, 6)]
+    theme = PdfTheme.from_branding()
+    styles = build_styles(theme)
+    buffer = io.BytesIO()
 
-    fact_rows = [[k, v] for k, v in _facts(meeting)]
-    table = Table(fact_rows, colWidths=[40 * mm, 130 * mm])
-    table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (0, -1), colors.whitesmoke),
-        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-        ("GRID", (0, 0), (-1, -1), 0.4, colors.lightgrey),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("FONTSIZE", (0, 0), (-1, -1), 9),
-    ]))
-    story += [table, Spacer(1, 8)]
+    kickoff = str(getattr(meeting.project, "kickoff_number", "") or "").strip()
+    doc = make_document(buffer, title=f"Minuta incontro KICK-OFF {kickoff}".strip())
+    content_width = doc.pagesize[0] - doc.leftMargin - doc.rightMargin
+
+    story: list = [
+        Paragraph(f"Minuta incontro — KICK-OFF {kickoff}".strip(" —"), styles["title"]),
+        Spacer(1, 3 * mm),
+    ]
+
+    fact_rows = [
+        [
+            Paragraph(escape(str(k)), styles["label"]),
+            Paragraph(escape(str(v)).replace("\n", "<br/>"), styles["value"]),
+        ]
+        for k, v in _facts(meeting)
+    ]
+    if fact_rows:
+        story.append(
+            data_table(
+                fact_rows,
+                theme,
+                col_widths=[45 * mm, content_width - 45 * mm],
+                header=False,
+                extra_style=[("VALIGN", (0, 0), (-1, -1), "TOP")],
+            )
+        )
+        story.append(Spacer(1, 5 * mm))
 
     for label, value in [
         ("Ordine del giorno", meeting.ordine_del_giorno),
@@ -164,12 +178,14 @@ def build_minute_pdf(meeting) -> bytes:
         value = (value or "").strip()
         if not value:
             continue
-        story.append(Paragraph(label, h_style))
+        story.extend(section_heading(label, theme, styles))
         for line in value.splitlines() or [value]:
-            safe = (line or " ").replace("&", "&amp;").replace("<", "&lt;")
-            story.append(Paragraph(safe, body_style))
+            story.append(Paragraph(escape(line or " "), styles["body"]))
 
-    doc.build(story)
+    draw = header_footer_callback(
+        theme, title="MINUTA INCONTRO", subtitle=f"KICK-OFF {kickoff}".strip(),
+    )
+    doc.build(story, onFirstPage=draw, onLaterPages=draw)
     return buffer.getvalue()
 
 
