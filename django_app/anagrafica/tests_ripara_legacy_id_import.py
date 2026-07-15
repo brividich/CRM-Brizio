@@ -202,6 +202,15 @@ class RiparaLegacyIdImportTest(TestCase):
         self.assertEqual(TrainingDeadline.objects.filter(legacy_anagrafica_id=398).count(), 0)
         self.assertIn("cache ricostruita", out2)
 
+    def test_scan_conta_orfani(self):
+        _mk_dipendente_legacy(500, "MARIO", "ROSSI")  # unico dipendente di prod
+        ContinuitaOperativa.objects.create(legacy_anagrafica_id=999, processo=self.processo)  # orfano
+        ContinuitaOperativa.objects.create(legacy_anagrafica_id=500, processo=ProcessoCriticoContinuita.objects.create(nome="Altro"))  # valido
+        out = self._run("--scan")
+        self.assertIn("SCAN ORFANI", out)
+        self.assertIn("ContinuitaOperativa", out)
+        self.assertIn("ORFANI", out)  # almeno un modello con orfani
+
     def test_esterno_id_zero_saltato(self):
         path = self._export_dev(100, self.CF)
         _mk_dipendente_legacy(500, "MARIO", "ROSSI")

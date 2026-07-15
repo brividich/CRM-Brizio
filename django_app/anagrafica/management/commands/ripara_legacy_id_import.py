@@ -98,20 +98,27 @@ class Command(BaseCommand):
             help="Ricostruisce da zero la cache scadenze formazione (TrainingDeadline): "
                  "elimina le righe stantie con l'ID sbagliato e rigenera dai record corretti. "
                  "Da lanciare DOPO l'--import.")
+        parser.add_argument(
+            "--scan", action="store_true",
+            help="SOLA LETTURA: passa in rassegna TUTTI i modelli di anagrafica con "
+                 "legacy_anagrafica_id e conta gli orfani (ID inesistenti in prod) per ciascuno. "
+                 "Serve a scoprire quali moduli sono ancora mal-agganciati dall'import.")
 
     def handle(self, *args, **o):
-        azioni = sum(bool(o.get(k)) for k in ("export", "imp", "report", "rifai"))
+        azioni = sum(bool(o.get(k)) for k in ("export", "imp", "report", "rifai", "scan"))
         if azioni != 1:
             raise CommandError(
-                "Specifica ESATTAMENTE una tra --export, --import, --report e --rifai-scadenze.")
+                "Specifica ESATTAMENTE una tra --export, --import, --report, --rifai-scadenze e --scan.")
         if o.get("export"):
             self._export(o["export"])
         elif o.get("imp"):
             self._import(o["imp"], apply=o["apply"])
         elif o.get("report"):
             self._report(o["report"])
-        else:
+        elif o.get("rifai"):
             self._rifai_scadenze(apply=o["apply"])
+        else:
+            self._scan()
 
     # ── DEV ────────────────────────────────────────────────────────────────
     def _export(self, path):
@@ -336,3 +343,36 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f"FATTO: cache ricostruita. Scadenze ora: {dopo} (rigenerate {rigenerate}, "
             f"eliminate {prima} vecchie di cui {orfane} orfane)."))
+
+    # ── PROD (audit sola lettura) ───────────────────────────────────────────
+    def _scan(self):
+        """Passa in rassegna TUTTI i modelli dell'app anagrafica con un campo
+        legacy_anagrafica_id e conta, per ciascuno, le persone il cui ID non esiste tra i
+        dipendenti di prod (orfani = tipico segno di un import fatto col legacy_id di dev).
+        I modelli identita' (civile/aziendale) e quelli nativi risultano a 0."""
+        prod_ids = set(_nomi_legacy())
+        self.stdout.write("=== SCAN ORFANI — modelli anagrafica con legacy_anagrafica_id (SOLA LETTURA) ===")
+        righe = []
+        for M in apps.get_app_config("anagrafica").get_models():
+            if not any(getattr(f, "name", None) == "legacy_anagrafica_id" for f in M._meta.get_fields()):
+                continue
+            ids = set(
+                M.objects.exclude(legacy_anagrafica_id__isnull=True)
+                .values_list("legacy_anagrafica_id", flat=True)
+            )
+            ids.discard(0)
+            orfani = sum(1 for i in ids if i not in prod_ids)
+            righe.append((M.__name__, M.objects.count(), len(ids), orfani))
+        righe.sort(key=lambda r: -r[3])
+        for name, tot, npers, norf in righe:
+            flag = self.style.WARNING("  <-- ORFANI (da valutare)") if norf else ""
+            self.stdout.write(f"  {name}: record {tot} | persone {npers} | orfane {norf}{flag}")
+        tot_orf = sum(r[3] for r in righe)
+        if tot_orf == 0:
+            self.stdout.write(self.style.SUCCESS(
+                "Nessun modello con orfani: tutti gli agganci persona risolvono in prod."))
+        else:
+            self.stdout.write(self.style.WARNING(
+                f"{tot_orf} persone-orfane totali su {sum(1 for r in righe if r[3])} modelli. "
+                "I modelli formazione/visite/MPQ/skill-matrix sono coperti dal remap; per gli altri "
+                "valutare se erano importati da dev (allora vanno rimappati) o sono dato nativo di prod."))
