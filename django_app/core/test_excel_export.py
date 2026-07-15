@@ -192,3 +192,118 @@ class XlsxFormulaInjectionTests(TestCase):
         cell = ws.cell(row=5, column=1)
         self.assertEqual(cell.data_type, "s")
         self.assertFalse(cell.quotePrefix)
+
+
+EVIL = '=HYPERLINK("http://evil.test","x")'
+
+
+def assert_no_live_formula(testcase, content: bytes, sheets=None):
+    """Nessuna cella del file scaricato deve essere una formula viva ('f')."""
+    wb = load_workbook(BytesIO(content))
+    for ws in wb.worksheets:
+        if sheets is not None and ws.title not in sheets:
+            continue
+        for row in ws.iter_rows():
+            for cell in row:
+                testcase.assertNotEqual(
+                    cell.data_type, "f",
+                    f"{ws.title}!{cell.coordinate} scritta come formula: {cell.value!r}",
+                )
+    return wb
+
+
+class WriteHelpersTests(TestCase):
+    """`write_row` / `append_row` / `write_cell_at`: API di comodo sopra `write_cell`.
+
+    Sono la sede unica della sanificazione per i writer che non passano da
+    `build_xlsx_bytes` (export di anagrafica, assets, tasks, diario_preposto,
+    contatori, core.exporting).
+    """
+
+    def _ws(self):
+        return Workbook().active
+
+    def test_write_row_neutralizes_strings_and_keeps_numbers_typed(self):
+        from core.excel_export import write_row
+
+        ws = self._ws()
+        cells = write_row(ws, 3, [EVIL, 42, 3.5])
+        self.assertEqual(len(cells), 3)
+        self.assertEqual(ws.cell(row=3, column=1).data_type, "s")
+        self.assertTrue(ws.cell(row=3, column=1).quotePrefix)
+        self.assertEqual(ws.cell(row=3, column=1).value, EVIL)  # contenuto invariato
+        self.assertEqual(ws.cell(row=3, column=2).value, 42)
+        self.assertEqual(ws.cell(row=3, column=2).data_type, "n")
+        self.assertEqual(ws.cell(row=3, column=3).data_type, "n")
+
+    def test_write_row_start_col(self):
+        from core.excel_export import write_row
+
+        ws = self._ws()
+        write_row(ws, 1, ["x"], start_col=4)
+        self.assertEqual(ws.cell(row=1, column=4).value, "x")
+
+    def test_append_row_advances_like_openpyxl_append(self):
+        from core.excel_export import append_row
+
+        ws = self._ws()
+        append_row(ws, ["h1", "h2"])
+        append_row(ws, [EVIL, 1])
+        append_row(ws)  # riga vuota spaziatrice: consuma comunque la riga
+        append_row(ws, ["dopo"])
+        self.assertEqual(ws.cell(row=1, column=1).value, "h1")
+        self.assertEqual(ws.cell(row=2, column=1).value, EVIL)
+        self.assertNotEqual(ws.cell(row=2, column=1).data_type, "f")
+        self.assertEqual(ws.cell(row=2, column=2).value, 1)
+        self.assertEqual(ws.cell(row=4, column=1).value, "dopo")
+
+    def test_write_cell_at_uses_excel_coordinates(self):
+        from core.excel_export import write_cell_at
+
+        ws = self._ws()
+        cell = write_cell_at(ws, "C2", EVIL)
+        self.assertEqual(cell.coordinate, "C2")
+        self.assertEqual(ws["C2"].data_type, "s")
+        self.assertTrue(ws["C2"].quotePrefix)
+
+    def test_write_cell_with_none_clears_the_cell(self):
+        from core.excel_export import write_cell
+
+        ws = self._ws()
+        ws["A1"] = "vecchio"
+        write_cell(ws, 1, 1, None)
+        self.assertIsNone(ws["A1"].value)
+
+
+class ExportRowsResponseInjectionTests(TestCase):
+    """`core.exporting.export_rows_response(fmt="xlsx")` — writer condiviso da
+    admin_portale (log/utenti): il testo esportato arriva dal DB."""
+
+    COLUMNS = (("Nome", "nome"), ("Qta", "qta"))
+
+    def _resp(self, rows, fmt="xlsx"):
+        from core.exporting import export_rows_response
+
+        return export_rows_response(
+            rows=rows, columns=self.COLUMNS, filename="export.xlsx", fmt=fmt
+        )
+
+    def test_malicious_string_is_not_a_live_formula(self):
+        resp = self._resp([{"nome": EVIL, "qta": 3}])
+        self.assertEqual(resp.status_code, 200)
+        wb = assert_no_live_formula(self, resp.content)
+        cell = wb.active.cell(row=2, column=1)
+        self.assertEqual(cell.value, EVIL)
+        self.assertTrue(cell.quotePrefix)
+
+    def test_export_still_works_and_header_is_intact(self):
+        resp = self._resp([{"nome": "Mario Rossi", "qta": 3}])
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("spreadsheetml", resp["Content-Type"])
+        ws = load_workbook(BytesIO(resp.content)).active
+        self.assertEqual(ws.title, "Export")
+        self.assertEqual(ws["A1"].value, "Nome")
+        self.assertEqual(ws["B1"].value, "Qta")
+        self.assertEqual(ws["A2"].value, "Mario Rossi")
+        # _stringify normalizza tutto a stringa: comportamento invariato.
+        self.assertEqual(ws["B2"].value, "3")

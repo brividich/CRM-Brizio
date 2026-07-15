@@ -13450,18 +13450,22 @@ def work_machine_list(request: HttpRequest) -> HttpResponse:
 
 def _xl_write_sheet(ws, headers: list, rows: list) -> None:
     import openpyxl.styles as xlst
+
+    # Nomi/note/descrizioni degli asset sono testo libero: le celle passano da
+    # core.excel_export (sede unica) per non finire scritte come formula viva.
+    from core.excel_export import write_cell, write_row
+
     fill = xlst.PatternFill(fill_type="solid", fgColor="2563EB")
     hfont = xlst.Font(bold=True, color="FFFFFF", name="Calibri", size=10)
     halign = xlst.Alignment(horizontal="center", vertical="center", wrap_text=True)
     for ci, h in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=ci, value=h)
+        cell = write_cell(ws, 1, ci, h)
         cell.fill = fill
         cell.font = hfont
         cell.alignment = halign
     ws.row_dimensions[1].height = 20
     for ri, row in enumerate(rows, 2):
-        for ci, val in enumerate(row, 1):
-            ws.cell(row=ri, column=ci, value=val)
+        write_row(ws, ri, row)
     for col in ws.columns:
         ws.column_dimensions[col[0].column_letter].width = min(max(len(str(col[0].value or "")) + 3, 10), 50)
 
@@ -13689,6 +13693,8 @@ def work_machine_export_excel(request: HttpRequest) -> HttpResponse:
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment
 
+    from core.excel_export import write_cell, write_row
+
     form = WorkMachineFilterForm(request.GET or None)
     machines_qs = Asset.objects.filter(asset_type__in=PRODUCTION_ASSET_TYPES).select_related("work_machine")
 
@@ -13739,7 +13745,7 @@ def work_machine_export_excel(request: HttpRequest) -> HttpResponse:
     header_font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
 
     for col_idx, header in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col_idx, value=header)
+        cell = write_cell(ws, 1, col_idx, header)
         cell.fill = header_fill
         cell.font = header_font
         cell.alignment = Alignment(horizontal="center", vertical="center")
@@ -13770,8 +13776,7 @@ def work_machine_export_excel(request: HttpRequest) -> HttpResponse:
             str(wm.pressure_bar) if wm and wm.pressure_bar else "",
             wm.accuracy_from if wm and wm.accuracy_from else "",
         ]
-        for col_idx, val in enumerate(values, 1):
-            ws.cell(row=row_idx, column=col_idx, value=val)
+        write_row(ws, row_idx, values)
 
     for col in ws.columns:
         max_len = max((len(str(cell.value or "")) for cell in col), default=0)
@@ -16684,6 +16689,8 @@ def asset_detail_export_xlsx(request: HttpRequest, id: int) -> HttpResponse:
     import openpyxl
     import openpyxl.styles as xlst
 
+    from core.excel_export import write_cell
+
     asset = get_object_or_404(
         Asset.objects.select_related("asset_category", "it_details", "work_machine"),
         pk=id,
@@ -16702,7 +16709,7 @@ def asset_detail_export_xlsx(request: HttpRequest, id: int) -> HttpResponse:
 
     r = 1
     for ci, h in enumerate(["Attributo", "Valore"], 1):
-        cell = ws.cell(row=r, column=ci, value=h)
+        cell = write_cell(ws, r, ci, h)
         cell.fill = hfill
         cell.font = hfont
         cell.alignment = xlst.Alignment(horizontal="center", vertical="center")
@@ -16710,7 +16717,7 @@ def asset_detail_export_xlsx(request: HttpRequest, id: int) -> HttpResponse:
 
     def _sec(label):
         nonlocal r
-        c = ws.cell(row=r, column=1, value=label)
+        c = write_cell(ws, r, 1, label)
         ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=2)
         c.fill = sfill
         c.font = sfont
@@ -16718,8 +16725,8 @@ def asset_detail_export_xlsx(request: HttpRequest, id: int) -> HttpResponse:
 
     def _kv(key, val):
         nonlocal r
-        ws.cell(row=r, column=1, value=key).font = kfont
-        ws.cell(row=r, column=2, value=str(val) if val is not None else "").font = vfont
+        write_cell(ws, r, 1, key).font = kfont
+        write_cell(ws, r, 2, str(val) if val is not None else "").font = vfont
         r += 1
 
     _sec("Anagrafica")

@@ -523,3 +523,71 @@ class DiscoverySNMPTest(_AuthedClientMixin, TestCase):
         self.assertEqual(r.status_code, 302)
         m.refresh_from_db()
         self.assertEqual(str(m.host), "10.0.0.77")
+
+
+class ExportXlsxInjectionTest(_AuthedClientMixin, TestCase):
+    """Formula injection: descrizioni/reparti dei contatori sono testo libero e
+    finiscono nell'.xlsx scaricabile. Devono restare TESTO, mai formule vive.
+    Dati sintetici (services mockati: nessun dato reale).
+    """
+
+    RIGA_EVIL = {
+        "contratto": '=HYPERLINK("http://evil.test","clicca")',
+        "descrizione": "@SUM(A1:A9)",
+        "pool": False,
+        "contatore": "A4 BN",
+        "fornitore": 100,
+        "ns": 100,
+        "scarto": 0,
+        "esito": "OK",
+        "livello": "ok",
+    }
+    RIEP = {"contatori": 1, "anomalie": 0, "ok": True}
+
+    def _assert_no_formula(self, content):
+        from io import BytesIO
+        from openpyxl import load_workbook
+
+        wb = load_workbook(BytesIO(content))
+        for ws in wb.worksheets:
+            for row in ws.iter_rows():
+                for cell in row:
+                    self.assertNotEqual(
+                        cell.data_type, "f",
+                        f"{ws.title}!{cell.coordinate} = {cell.value!r} scritta come formula",
+                    )
+        return wb
+
+    def test_riconciliazione_non_produce_formule(self):
+        with mock.patch.object(services, "riconcilia",
+                               return_value=([self.RIGA_EVIL], self.RIEP)):
+            r = self.client.get(reverse("contatori:export_riconciliazione",
+                                        args=["2026-Q2"]))
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("spreadsheetml", r["Content-Type"])
+        wb = self._assert_no_formula(r.content)
+        ws = wb.worksheets[0]
+        self.assertEqual(ws.cell(row=2, column=1).value, self.RIGA_EVIL["contratto"])
+        self.assertTrue(ws.cell(row=2, column=1).quotePrefix)
+        self.assertTrue(ws.cell(row=2, column=2).quotePrefix)
+        # non-regressione: i numeri restano numeri
+        self.assertEqual(ws.cell(row=2, column=6).value, 100)
+        self.assertEqual(ws.cell(row=2, column=6).data_type, "n")
+
+    def test_analisi_non_produce_formule(self):
+        evil = '=cmd|\' /c calc\'!A1'
+        with mock.patch.object(services, "andamento_trimestri", return_value=[]), \
+             mock.patch.object(services, "consumo_per_trimestre", return_value=([], 0)), \
+             mock.patch.object(services, "classifica_reparti", return_value=[
+                 {"reparto": evil, "matricola": "SN-TEST", "bn": 10, "col": 5,
+                  "totale": 15, "quota_col": 33.3}]), \
+             mock.patch.object(services, "ripartizione", return_value={
+                 "trimestre": "2026-Q2", "totale": 15, "bn_pct": 66.7,
+                 "col_pct": 33.3, "a4_pct": 90.0, "a3_pct": 10.0}):
+            r = self.client.get(reverse("contatori:export_analisi"))
+        self.assertEqual(r.status_code, 200)
+        wb = self._assert_no_formula(r.content)
+        ws = wb["Classifica reparti"]
+        self.assertEqual(ws.cell(row=2, column=2).value, evil)
+        self.assertTrue(ws.cell(row=2, column=2).quotePrefix)
+        self.assertEqual(ws.cell(row=2, column=4).value, 10)  # numeri intatti

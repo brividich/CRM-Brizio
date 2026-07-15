@@ -5741,13 +5741,15 @@ def download_excel_template(request):
     import openpyxl
     from django.http import HttpResponse
 
+    from core.excel_export import write_cell, write_cell_at, write_row
+
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Kickoff Import"
 
     # Header row
     for col_idx, col_name in enumerate(_IMPORT_COLUMNS, start=1):
-        cell = ws.cell(row=1, column=col_idx, value=col_name)
+        cell = write_cell(ws, 1, col_idx, col_name)
         cell.font = openpyxl.styles.Font(bold=True)
 
     # Example row
@@ -5767,12 +5769,11 @@ def download_excel_template(request):
         "",
         "",
     ]
-    for col_idx, val in enumerate(example, start=1):
-        ws.cell(row=2, column=col_idx, value=val)
+    write_row(ws, 2, example)
 
     # Istruzioni foglio
     ws_info = wb.create_sheet("Istruzioni")
-    ws_info["A1"] = "Istruzioni import attivita kickoff"
+    write_cell_at(ws_info, "A1", "Istruzioni import attivita kickoff")
     ws_info["A1"].font = openpyxl.styles.Font(bold=True, size=13)
     instructions = [
         ("Kickoff / Riferimento", "Riferimento libero per raggruppare piu righe nello stesso kickoff quando il P/N non e disponibile."),
@@ -5790,13 +5791,12 @@ def download_excel_template(request):
         ("Data fine (YYYY-MM-DD)", "Data fine prevista (due_date). Formato: 2025-04-30."),
         ("Tag", "Etichette separate da virgola."),
     ]
-    ws_info["A3"] = "Campo"
-    ws_info["B3"] = "Descrizione"
+    write_cell_at(ws_info, "A3", "Campo")
+    write_cell_at(ws_info, "B3", "Descrizione")
     ws_info["A3"].font = openpyxl.styles.Font(bold=True)
     ws_info["B3"].font = openpyxl.styles.Font(bold=True)
     for row_idx, (field, desc) in enumerate(instructions, start=4):
-        ws_info.cell(row=row_idx, column=1, value=field)
-        ws_info.cell(row=row_idx, column=2, value=desc)
+        write_row(ws_info, row_idx, [field, desc])
     ws_info.column_dimensions["A"].width = 28
     ws_info.column_dimensions["B"].width = 80
 

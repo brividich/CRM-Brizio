@@ -3378,3 +3378,85 @@ class PortfolioTimelineRenderTests(TestCase):
         r = self.client.get(reverse("tasks:project_list"))
         assert r.status_code == 200
         assert b"ptl-timeline" not in r.content
+
+
+class VrfXlsxFormulaInjectionTests(TestCase):
+    """Il generatore VRF (MOD.073) scrive nel template i campi del progetto
+    (P/N, descrizione, cliente): sono testo libero, quindi `ws[cell] = valore`
+    li scriverebbe come formula viva. Le formule ORIGINALI del template (K x R,
+    totali) devono invece restare intatte. Dati sintetici.
+    """
+
+    EVIL = '=HYPERLINK("http://evil.test","x")'
+
+    def _build(self, **project_kwargs):
+        from types import SimpleNamespace
+
+        from openpyxl import load_workbook
+
+        from tasks import vrf_catalog
+        from tasks.vrf_generator import build_vrf_xlsx
+
+        defaults = {
+            "vrf_quote_number": "Q-001",
+            "versione": "1.0",
+            "part_number": "PN-001",
+            "vrf_description": "Descrizione sintetica",
+            "vrf_esp": "ESP-1",
+            "client_name": "Cliente Demo SRL",
+        }
+        defaults.update(project_kwargs)
+        data = build_vrf_xlsx(SimpleNamespace(**defaults), None)
+        wb = load_workbook(io.BytesIO(data))
+        return wb[vrf_catalog.TEMPLATE_SHEET], vrf_catalog
+
+    def test_header_fields_are_not_live_formulas(self):
+        ws, catalog = self._build(part_number=self.EVIL, vrf_description="@SUM(A1)",
+                                  client_name="+1+1", vrf_esp="-2+3")
+        for key in ("part_number", "vrf_description", "client_name", "vrf_esp"):
+            cell = ws[catalog.HEADER_CELLS[key]]
+            self.assertNotEqual(cell.data_type, "f", f"{key} scritto come formula")
+            self.assertTrue(cell.quotePrefix, f"{key} senza quote prefix")
+        self.assertEqual(ws[catalog.HEADER_CELLS["part_number"]].value, self.EVIL)
+
+    def test_template_formulas_and_benign_values_survive(self):
+        ws, catalog = self._build()
+        self.assertEqual(ws[catalog.HEADER_CELLS["part_number"]].value, "PN-001")
+        self.assertFalse(ws[catalog.HEADER_CELLS["part_number"]].quotePrefix)
+        # Non-regressione: le formule del template (totali TR) restano vive.
+        tr_cell = ws[catalog.TR_CELLS["p"]]
+        self.assertEqual(tr_cell.data_type, "f")
+
+
+class ImportTemplateXlsxTests(TestCase):
+    """Il template di import kickoff resta scaricabile e con le celle testuali."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_superuser(
+            username="tasks-xlsx-template",
+            email="tasks-xlsx-template@example.invalid",
+            password="pwd12345",
+        )
+        self.client.force_login(self.user)
+
+    def test_template_download_has_no_live_formula(self):
+        from openpyxl import load_workbook
+
+        response = self.client.get(reverse("tasks:download_excel_template"))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("spreadsheetml", response["Content-Type"])
+        wb = load_workbook(io.BytesIO(response.content))
+        try:
+            for ws in wb.worksheets:
+                for row in ws.iter_rows():
+                    for cell in row:
+                        self.assertNotEqual(cell.data_type, "f", f"{ws.title}!{cell.coordinate}")
+            ws = wb["Kickoff Import"]
+            self.assertEqual(ws["A1"].value, "Kickoff / Riferimento")
+            self.assertTrue(ws["A1"].font.bold)
+            self.assertEqual(ws["A2"].value, "Rif. kickoff Alfa")
+            self.assertEqual(wb["Istruzioni"]["A1"].value, "Istruzioni import attivita kickoff")
+            self.assertEqual(wb["Istruzioni"]["A3"].value, "Campo")
+            self.assertEqual(wb["Istruzioni"]["A4"].value, "Kickoff / Riferimento")
+        finally:
+            wb.close()

