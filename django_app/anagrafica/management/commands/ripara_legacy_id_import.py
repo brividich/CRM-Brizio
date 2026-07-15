@@ -35,8 +35,15 @@ Uso:
     python manage.py ripara_legacy_id_import --import mappa_cf.json --settings=config.settings.prod
     # su PROD — esegui:
     python manage.py ripara_legacy_id_import --import mappa_cf.json --apply --settings=config.settings.prod
+    # su PROD — report SOLA LETTURA degli errori silenziosi (record 'gia' validi' col CF di un altro):
+    python manage.py ripara_legacy_id_import --report mappa_cf.json --settings=config.settings.prod
+    # su PROD — DOPO l'--import: ricostruisce la cache scadenze (toglie i "#ID" dallo scadenzario):
+    python manage.py ripara_legacy_id_import --rifai-scadenze --apply --settings=config.settings.prod
 
 Nota deploy: metti il JSON in un percorso ASSOLUTO fuori da ``current\\``.
+Nota scadenzario: lo scadenzario legge ``TrainingDeadline`` (cache derivata). Dopo
+l'``--import`` va rigenerata con ``--rifai-scadenze --apply`` (equivale a svuotarla e
+rilanciare ``refresh_training_deadlines --all``), altrimenti restano le voci "#ID" vecchie.
 """
 import json
 
@@ -80,14 +87,29 @@ class Command(BaseCommand):
         parser.add_argument("--export", metavar="FILE", help="Estrai da DEV la mappa numero->CF.")
         parser.add_argument("--import", dest="imp", metavar="FILE", help="Applica il remap in PROD.")
         parser.add_argument("--apply", action="store_true", help="Esegui davvero (default: dry-run).")
+        parser.add_argument(
+            "--report", metavar="FILE",
+            help="Report SOLA LETTURA degli errori silenziosi: record 'gia' validi' il cui "
+                 "codice fiscale risale a un'ALTRA persona in prod.")
+        parser.add_argument(
+            "--rifai-scadenze", dest="rifai", action="store_true",
+            help="Ricostruisce da zero la cache scadenze formazione (TrainingDeadline): "
+                 "elimina le righe stantie con l'ID sbagliato e rigenera dai record corretti. "
+                 "Da lanciare DOPO l'--import.")
 
     def handle(self, *args, **o):
-        if bool(o.get("export")) == bool(o.get("imp")):
-            raise CommandError("Specifica ESATTAMENTE uno tra --export e --import.")
+        azioni = sum(bool(o.get(k)) for k in ("export", "imp", "report", "rifai"))
+        if azioni != 1:
+            raise CommandError(
+                "Specifica ESATTAMENTE una tra --export, --import, --report e --rifai-scadenze.")
         if o.get("export"):
             self._export(o["export"])
-        else:
+        elif o.get("imp"):
             self._import(o["imp"], apply=o["apply"])
+        elif o.get("report"):
+            self._report(o["report"])
+        else:
+            self._rifai_scadenze(apply=o["apply"])
 
     # ── DEV ────────────────────────────────────────────────────────────────
     def _export(self, path):
@@ -219,3 +241,96 @@ class Command(BaseCommand):
         self.stdout.write(self.style.WARNING(
             "Ricorda: sui record di formazione rigenera le scadenze derivate con "
             "'refresh_training_deadlines --all'."))
+
+    # ── PROD (sola lettura) ─────────────────────────────────────────────────
+    def _report(self, path):
+        """Elenca i record NON orfani (legacy_id valido in prod) il cui codice fiscale,
+        secondo la mappa di dev, appartiene a un'ALTRA persona di prod: possibile
+        attribuzione silenziosamente sbagliata (non mostra "#ID", ma e' della persona
+        sbagliata). NON scrive nulla: sono casi da valutare a mano, perche' un record
+        su #L potrebbe essere legittimo di #L (uso nativo in prod) oppure importato da
+        dev e appartenere a #P."""
+        from anagrafica.models import DipendenteAnagraficaCivile
+
+        with open(path, encoding="utf-8") as fh:
+            payload = json.load(fh)
+        devmap = {r["dev_id"]: r for r in payload.get("map", [])}
+
+        prod_cf = {}
+        for c in DipendenteAnagraficaCivile.objects.values("legacy_anagrafica_id", "codice_fiscale"):
+            cf = _norm_cf(c["codice_fiscale"])
+            if cf:
+                prod_cf.setdefault(cf, c["legacy_anagrafica_id"])
+        nomi_prod = _nomi_legacy()
+        prod_ids = set(nomi_prod)
+
+        self.stdout.write("=== REPORT CONFLITTI (possibili errori silenziosi — SOLA LETTURA) ===")
+        tot_record = 0
+        coppie = set()
+        esempi = []
+        for name in TARGET_MODELS:
+            M = apps.get_model("anagrafica", name)
+            pair_count = {}
+            for r in M.objects.all():
+                L = r.legacy_anagrafica_id
+                if L is None or L == 0 or L not in prod_ids:
+                    continue  # orfani e esterni: gestiti da --import, non sono errori silenziosi
+                info = devmap.get(L)
+                cf = _norm_cf(info["cf"]) if info else ""
+                if not cf:
+                    continue
+                P = prod_cf.get(cf)
+                if P is None or P == L:
+                    continue  # coerente: il CF su #L e' proprio di #L
+                pair_count[(L, P)] = pair_count.get((L, P), 0) + 1
+            n_rec = sum(pair_count.values())
+            if n_rec:
+                tot_record += n_rec
+                coppie |= set(pair_count)
+                self.stdout.write(f"  {name}: {n_rec} record su {len(pair_count)} persone")
+                for (L, P), c in sorted(pair_count.items(), key=lambda x: -x[1])[:10]:
+                    dev_nome = (devmap.get(L) or {}).get("nome", "?")
+                    esempi.append(
+                        f"    {name}: ora #{L} ({nomi_prod.get(L, '?')}) — {c} record — "
+                        f"il CF risale a #{P} ({nomi_prod.get(P, '?')}) [persona dev: {dev_nome}]")
+
+        self.stdout.write(f"TOTALE record potenzialmente attribuiti alla persona sbagliata: "
+                          f"{tot_record} ({len(coppie)} coppie persona)")
+        for e in esempi[:60]:
+            self.stdout.write(e)
+        if tot_record == 0:
+            self.stdout.write(self.style.SUCCESS(
+                "Nessun conflitto: i record 'gia' validi' sono coerenti col codice fiscale."))
+        else:
+            self.stdout.write(self.style.WARNING(
+                "Questi record NON mostrano #ID ma potrebbero essere della persona sbagliata. "
+                "Vanno valutati a mano: un record su #L puo' essere legittimo di #L (uso nativo "
+                "in prod) oppure importato da dev e appartenere a #P."))
+
+    # ── PROD (ricostruzione cache scadenze) ─────────────────────────────────
+    def _rifai_scadenze(self, *, apply):
+        """La scadenza formazione (TrainingDeadline) e' una cache DERIVATA: la sua unica
+        fonte e' refresh_deadlines(). Dopo il remap dei record sorgente, il servizio
+        rigenera le righe corrette ma NON cancella quelle vecchie (update_or_create) ->
+        restano le scadenze "#ID" stantie accanto alle nuove. Qui si ricostruisce da zero:
+        elimina l'intera cache e la rigenera dai record ormai corretti."""
+        from anagrafica.models_formazione import TrainingDeadline
+        from anagrafica.services.training_deadline_service import refresh_deadlines
+
+        prima = TrainingDeadline.objects.count()
+        prod_ids = set(_nomi_legacy())
+        orfane = TrainingDeadline.objects.exclude(legacy_anagrafica_id__in=prod_ids).count()
+        self.stdout.write("=== RIFAI SCADENZE FORMAZIONE (TrainingDeadline) — %s ==="
+                          % ("APPLY" if apply else "DRY-RUN"))
+        self.stdout.write(f"Scadenze attuali: {prima} | di cui orfane (mostrano #ID): {orfane}")
+        if not apply:
+            self.stdout.write(self.style.NOTICE(
+                "DRY-RUN: nulla scritto. Rilancia con --apply per ricostruire (cancella e rigenera)."))
+            return
+        with transaction.atomic():
+            TrainingDeadline.objects.all().delete()
+            rigenerate = refresh_deadlines()
+        dopo = TrainingDeadline.objects.count()
+        self.stdout.write(self.style.SUCCESS(
+            f"FATTO: cache ricostruita. Scadenze ora: {dopo} (rigenerate {rigenerate}, "
+            f"eliminate {prima} vecchie di cui {orfane} orfane)."))
