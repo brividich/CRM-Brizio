@@ -5,9 +5,29 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from anagrafica.models import Reparto
+from suggestion_corner.forms import PlanForm
 from suggestion_corner.models import SuggestionCorner
 
 User = get_user_model()
+
+
+class SuggestionCornerDropdownLabelTest(TestCase):
+    """I dropdown persona mostrano "Nome Cognome", non lo username (P0.3)."""
+
+    def test_planform_incaricato_mostra_nome_cognome(self):
+        con_nome = User.objects.create(username="mrossi", first_name="Mario", last_name="Rossi")
+        senza_nome = User.objects.create(username="solouser")
+        form = PlanForm()
+        labels = {
+            user.pk: label
+            for user, label in [
+                (obj, form.fields["incaricato"].label_from_instance(obj))
+                for obj in [con_nome, senza_nome]
+            ]
+        }
+        self.assertEqual(labels[con_nome.pk], "Mario Rossi")
+        # Fallback allo username quando nome/cognome mancano.
+        self.assertEqual(labels[senza_nome.pk], "solouser")
 
 
 class SuggestionCornerCleanTest(TestCase):

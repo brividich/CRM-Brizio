@@ -9,6 +9,7 @@ from django.contrib.auth import get_user_model
 from django import forms
 
 from anagrafica.models import AreaAziendale, Reparto
+from core.form_fields import UserChoiceField, user_display_label
 from .models import SuggestionCorner
 
 User = get_user_model()
@@ -114,7 +115,8 @@ class ModificaSegnalazioneForm(forms.ModelForm):
                   "reparto_destinazione", "area_destinazione"):
             self.fields[f].required = False
         for f in ("incaricato", "controllore"):
-            self.fields[f].queryset = User.objects.filter(is_active=True).order_by("username")
+            self.fields[f].queryset = User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
+            self.fields[f].label_from_instance = user_display_label
 
     def clean(self):
         cleaned = super().clean()
@@ -171,12 +173,12 @@ class ClassificaForm(forms.Form):
 
 
 class PlanForm(forms.Form):
-    incaricato = forms.ModelChoiceField(
-        queryset=User.objects.filter(is_active=True).order_by("username"),
+    incaricato = UserChoiceField(
+        queryset=User.objects.filter(is_active=True).order_by("first_name", "last_name", "username"),
         label="Incaricato (DO)",
     )
-    controllore = forms.ModelChoiceField(
-        queryset=User.objects.filter(is_active=True).order_by("username"),
+    controllore = UserChoiceField(
+        queryset=User.objects.filter(is_active=True).order_by("first_name", "last_name", "username"),
         label="Controllore (CHECK)",
     )
     data_limite_esecuzione = forms.DateField(

@@ -7,6 +7,7 @@ from django.contrib.auth import get_user_model
 from django.db import DatabaseError
 from django.db.models import Q
 
+from core.form_fields import user_display_label
 from core.legacy_models import UtenteLegacy
 from core.upload_mime import (
     UploadMimeValidationError,
@@ -205,6 +206,8 @@ class ProjectKickoffForm(forms.ModelForm):
         self.fields["project_manager"].queryset = _users_for_role(TaskRoleType.PROJECT_MANAGER)
         self.fields["capo_commessa"].queryset   = _users_for_capo_commessa()
         self.fields["programmer"].queryset      = _users_for_role(TaskRoleType.PROGRAMMER)
+        for _name in ("project_manager", "capo_commessa", "programmer"):
+            self.fields[_name].label_from_instance = user_display_label
         for name in ("part_number", "revisione", "versione",
                      "description", "control_method", "vrf_quote_number",
                      "vrf_description", "vrf_esp"):
@@ -487,8 +490,10 @@ class TaskForm(forms.ModelForm):
 
         self.fields["assigned_to"].required = False
         self.fields["assigned_to"].queryset = users_qs
+        self.fields["assigned_to"].label_from_instance = user_display_label
         self.fields["subscribers"].required = False
         self.fields["subscribers"].queryset = users_qs
+        self.fields["subscribers"].label_from_instance = user_display_label
         self.fields["progress"].required = False
         self.fields["progress"].initial = 0
         self.fields["project_choice"].queryset = project_qs
@@ -899,6 +904,7 @@ class TaskFilterForm(forms.Form):
     def __init__(self, *args, user=None, project_queryset=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["assigned_to"].queryset = User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
+        self.fields["assigned_to"].label_from_instance = user_display_label
         if project_queryset is not None:
             self.fields["project"].queryset = project_queryset
         else:
@@ -949,6 +955,7 @@ class TaskCommentForm(forms.ModelForm):
             self.fields["target_user"].queryset = notify_user_queryset
         else:
             self.fields["target_user"].queryset = User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
+        self.fields["target_user"].label_from_instance = user_display_label
 
 
 class ProjectCommentForm(forms.ModelForm):
@@ -967,6 +974,7 @@ class ProjectCommentForm(forms.ModelForm):
             self.fields["target_user"].queryset = notify_user_queryset
         else:
             self.fields["target_user"].queryset = User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
+        self.fields["target_user"].label_from_instance = user_display_label
 
 
 class SubTaskForm(forms.ModelForm):
@@ -984,6 +992,7 @@ class SubTaskForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["assigned_to"].required = False
         self.fields["assigned_to"].queryset = User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
+        self.fields["assigned_to"].label_from_instance = user_display_label
 
 
 class SubTaskStatusForm(forms.ModelForm):
