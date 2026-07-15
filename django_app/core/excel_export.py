@@ -43,12 +43,48 @@ def write_cell(ws, row, column, value):
     ("tratta come testo"), che non fa parte del valore. I valori NON stringa
     (int, float, Decimal, date, bool, None) restano tipizzati.
     """
-    cell = ws.cell(row=row, column=column, value=value)
+    cell = ws.cell(row=row, column=column)
+    cell.value = value  # assegnazione esplicita: con None ripulisce la cella
     if isinstance(value, str):
         cell.data_type = "s"  # mai 'f': nessuna formula viva nel file prodotto
         if value[:1] in FORMULA_PREFIXES:
             cell.quotePrefix = True
     return cell
+
+
+def write_cell_at(ws, coordinate, value):
+    """Come `write_cell` ma con coordinata Excel ("B3"). Ritorna la cella.
+
+    Serve dove si scriveva `ws["B3"] = valore` (assegnazione che passa dal type
+    guessing di openpyxl, quindi vulnerabile alla formula injection).
+    """
+    from openpyxl.utils.cell import coordinate_to_tuple
+
+    row, column = coordinate_to_tuple(coordinate)
+    return write_cell(ws, row, column, value)
+
+
+def write_row(ws, row, values, start_col: int = 1):
+    """Scrive una riga di celle sanificate. Ritorna la lista delle celle scritte
+    (cosi' il chiamante puo' continuare ad applicare font/fill/border)."""
+    return [
+        write_cell(ws, row, col, value)
+        for col, value in enumerate(values, start=start_col)
+    ]
+
+
+def append_row(ws, values=(), start_col: int = 1):
+    """Equivalente sanificato di `ws.append([...])`. Ritorna le celle scritte.
+
+    Replica la semantica di openpyxl (`Worksheet.append` scrive sulla riga
+    `_current_row + 1` e la avanza anche quando la riga e' vuota, es. `ws.append([])`
+    usato come spaziatore).
+    """
+    row = getattr(ws, "_current_row", ws.max_row) + 1
+    cells = write_row(ws, row, values, start_col=start_col)
+    if getattr(ws, "_current_row", 0) < row:
+        ws._current_row = row  # riga vuota: nessuna cella scritta, ma la riga si consuma
+    return cells
 
 
 def _brand_header(ws, *, title, subtitle, filters_label, logo):

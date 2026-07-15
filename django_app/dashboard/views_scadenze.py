@@ -13,6 +13,7 @@ from typing import Any
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.http import HttpRequest, HttpResponse
+from core.csv_export import BOM, CSV_CONTENT_TYPE, safe_csv_writer
 from django.shortcuts import render
 
 from .scadenze_providers import (
@@ -85,9 +86,10 @@ def scadenze_globali(request: HttpRequest) -> HttpResponse:
 
 
 def _export_csv(voci) -> HttpResponse:
-    resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
+    resp = HttpResponse(content_type=CSV_CONTENT_TYPE)
     resp["Content-Disposition"] = 'attachment; filename="scadenzario_globale.csv"'
-    writer = csv.writer(resp, delimiter=";")
+    resp.write(BOM)  # una volta sola: Excel riconosce l'UTF-8
+    writer = safe_csv_writer(resp, delimiter=";")
     writer.writerow(["Sorgente", "Tipo", "Soggetto", "Reparto", "Descrizione", "Scadenza", "Stato"])
     for v in voci:
         if v.scaduta:

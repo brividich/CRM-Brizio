@@ -647,8 +647,10 @@ class ScadenzeGlobaliTests(TestCase):
         self._make_asset_deadline(days=15, title="Taratura strumenti")
         response = self.client.get(reverse("scadenze_globali") + "?sorgente=asset&format=csv")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response["Content-Type"], "text/csv; charset=utf-8-sig")
-        self.assertIn("Taratura strumenti", response.content.decode("utf-8-sig"))
+        self.assertEqual(response["Content-Type"], "text/csv; charset=utf-8")
+        body = response.content.decode("utf-8-sig")
+        self.assertEqual(body.count("﻿"), 0)  # BOM una volta sola, non per riga
+        self.assertIn("Taratura strumenti", body)
 
     def test_collect_all_isolates_failing_provider(self):
         from dashboard import scadenze_providers as sp

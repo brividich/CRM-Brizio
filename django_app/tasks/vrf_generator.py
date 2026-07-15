@@ -17,6 +17,8 @@ from typing import Any
 
 from openpyxl import load_workbook
 
+from core.excel_export import write_cell_at
+
 from . import vrf_catalog
 
 _TEMPLATE_PATH = Path(__file__).parent / "vrf_template" / vrf_catalog.TEMPLATE_FILENAME
@@ -48,8 +50,12 @@ def build_vrf_xlsx(project, assessment) -> bytes:
         "vrf_esp":          getattr(project, "vrf_esp", "") or "",
         "client_name":      getattr(project, "client_name", "") or "",
     }
+    # Header: testo libero dal progetto (P/N, descrizione, cliente...). Passa da
+    # core.excel_export.write_cell_at: `ws[cell] = "=..."` lo scriverebbe come
+    # formula viva nel file scaricato (formula injection). I K/R sotto restano
+    # int/None, quindi non sono iniettabili e conservano le formule del template.
     for key, cell in vrf_catalog.HEADER_CELLS.items():
-        ws[cell] = _coerce_header_value(key, header_values.get(key))
+        write_cell_at(ws, cell, _coerce_header_value(key, header_values.get(key)))
 
     data = (assessment.data if assessment else None) or {}
     risks_data = data.get("risks") or {}

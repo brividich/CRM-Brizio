@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import csv
 import re
 from collections import Counter, defaultdict
 
@@ -14,6 +13,7 @@ from django.urls import URLPattern, URLResolver, get_resolver, reverse
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from admin_portale.decorators import is_legacy_admin_bypass_view, legacy_admin_required
+from core.csv_export import safe_csv_writer
 from core.acl_v2 import (
     PERMISSION_CODE_FORMAT_HINT,
     normalize_binding_path_pattern,
@@ -1152,7 +1152,7 @@ def acl_route_coverage(request):
     if export_format == "csv":
         response = HttpResponse(content_type="text/csv")
         response["Content-Disposition"] = 'attachment; filename="acl_route_coverage.csv"'
-        writer = csv.writer(response)
+        writer = safe_csv_writer(response)
         writer.writerow(
             [
                 "status",

@@ -14,6 +14,7 @@ from django.db import models
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
+from core.csv_export import safe_csv_writer
 from core.audit import log_action
 from core.graph_utils import acquire_graph_token
 from core.legacy_utils import get_legacy_user, is_legacy_admin
@@ -1179,7 +1180,7 @@ def export_csv(request):
     response["Content-Disposition"] = 'attachment; filename="rilevazioni_sicurezza.csv"'
     response.write("\ufeff")  # BOM per Excel
 
-    writer = csv_module.writer(response)
+    writer = safe_csv_writer(response)
     writer.writerow([
         "ID", "Stato", "Tipologia", "Nominativo", "Reparto", "Data segnalazione",
         "Causa evento", "Persone coinvolte", "Utilizzo DPI", "Usa macchina",

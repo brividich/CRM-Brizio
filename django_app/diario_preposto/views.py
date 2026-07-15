@@ -582,6 +582,10 @@ def export_excel(request):
         from openpyxl import Workbook
         from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
+        # Titolo/descrizione/preposto sono testo libero: senza sanificazione
+        # openpyxl li scriverebbe come formula viva (formula injection).
+        from core.excel_export import write_cell
+
         qs = SegnalazionePreposto.objects.all()
 
         q = request.GET.get("q", "").strip()
@@ -626,7 +630,7 @@ def export_excel(request):
         )
 
         for col_num, header in enumerate(headers, start=1):
-            cell = ws.cell(row=1, column=col_num, value=header)
+            cell = write_cell(ws, 1, col_num, header)
             cell.font = header_font
             cell.fill = header_fill
             cell.alignment = header_alignment
@@ -642,16 +646,16 @@ def export_excel(request):
             updated_at = timezone.localtime(segnalazione.updated_at).strftime("%d-%m-%Y %H:%M")
             creato_da = segnalazione.creato_da.get_full_name() if segnalazione.creato_da else ""
 
-            ws.cell(row=row_num, column=1, value=segnalazione.codice_identificativo or "")
-            ws.cell(row=row_num, column=2, value=data_segnalazione)
-            ws.cell(row=row_num, column=3, value=segnalazione.titolo or "")
-            ws.cell(row=row_num, column=4, value=segnalazione.descrizione or "")
-            ws.cell(row=row_num, column=5, value=segnalazione.preposto or "")
-            ws.cell(row=row_num, column=6, value=segnalazione.chi_segnala or "")
-            ws.cell(row=row_num, column=7, value=creato_da)
-            ws.cell(row=row_num, column=8, value=segnalazione.allegati.count())
-            ws.cell(row=row_num, column=9, value=created_at)
-            ws.cell(row=row_num, column=10, value=updated_at)
+            write_cell(ws, row_num, 1, segnalazione.codice_identificativo or "")
+            write_cell(ws, row_num, 2, data_segnalazione)
+            write_cell(ws, row_num, 3, segnalazione.titolo or "")
+            write_cell(ws, row_num, 4, segnalazione.descrizione or "")
+            write_cell(ws, row_num, 5, segnalazione.preposto or "")
+            write_cell(ws, row_num, 6, segnalazione.chi_segnala or "")
+            write_cell(ws, row_num, 7, creato_da)
+            write_cell(ws, row_num, 8, segnalazione.allegati.count())
+            write_cell(ws, row_num, 9, created_at)
+            write_cell(ws, row_num, 10, updated_at)
 
             for col_num in range(1, 11):
                 cell = ws.cell(row=row_num, column=col_num)

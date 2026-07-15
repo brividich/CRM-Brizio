@@ -3539,8 +3539,11 @@ class ConformitaReportTests(TestCase):
     def test_report_csv_export(self):
         resp = self.client.get(reverse("anagrafica:conformita_report"), {"format": "csv"})
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp["Content-Type"], "text/csv; charset=utf-8-sig")
+        # charset utf-8 + BOM scritto una volta sola (con utf-8-sig Django lo
+        # anteponeva a ogni riga, finendo dentro la prima cella in Excel).
+        self.assertEqual(resp["Content-Type"], "text/csv; charset=utf-8")
         body = resp.content.decode("utf-8-sig")
+        self.assertEqual(body.count("﻿"), 0)
         self.assertIn("Conformità", body)
         self.assertIn("Rossi Mario", body)
         self.assertIn("Non conforme", body)

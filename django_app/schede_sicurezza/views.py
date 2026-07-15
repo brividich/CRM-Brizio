@@ -13,6 +13,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from core.csv_export import safe_csv_writer
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 
 from .models import SCADENZA_SDS_GIORNI, PresaVisioneScheda, ProdottoChimico, SchedaSicurezza
@@ -376,7 +377,7 @@ def report_compliance(request):
 def _csv_gap_sds(prodotti):
     response = HttpResponse(content_type="text/csv")
     response["Content-Disposition"] = 'attachment; filename="schede_sicurezza_gap_sds.csv"'
-    writer = csv.writer(response)
+    writer = safe_csv_writer(response)
     writer.writerow(["Prodotto", "Reparto", "Fornitore"])
     for p in prodotti:
         writer.writerow([p.nome, p.reparto.nome, p.fornitore])
@@ -386,7 +387,7 @@ def _csv_gap_sds(prodotti):
 def _csv_matrice_presa_visione(reparti):
     response = HttpResponse(content_type="text/csv")
     response["Content-Disposition"] = 'attachment; filename="schede_sicurezza_matrice_presa_visione.csv"'
-    writer = csv.writer(response)
+    writer = safe_csv_writer(response)
     writer.writerow(["Reparto", "Prodotto", "Versione scheda", "Dipendenti totali", "Confermati", "Percentuale"])
     for reparto in reparti:
         for riga in reparto.righe:
