@@ -8,7 +8,7 @@ di verità.
 from __future__ import annotations
 
 from datetime import timedelta
-from typing import Any
+from typing import Any, Iterable
 
 from django.db.models import Max
 from django.utils import timezone
@@ -150,3 +150,48 @@ def visite_storico(legacy_id: int) -> list[VisitaMedica]:
         .select_related("tipo", "referto_documento")
         .order_by("-data_svolgimento", "-id")
     )
+
+
+def ultime_visite_correnti_ids(
+    legacy_ids: Iterable[int] | None = None,
+    tipo_ids: Iterable[int] | None = None,
+) -> set[int]:
+    """Id delle ``VisitaMedica`` **correnti**: l'ultima per coppia
+    ``(legacy_anagrafica_id, tipo_id)``.
+
+    Definizione canonica per tutto il portale: massima ``data_svolgimento``,
+    a parità di data vince il ``pk`` più alto (stessa regola di
+    ``ultime_visite_per_tipo``, qui in versione bulk). Le righe storiche
+    superate NON sono "correnti": una scadenza superata da una visita più
+    recente non deve più comparire come scaduta in nessuna vista.
+
+    SQL Server-safe: niente window function, due query in tutto.
+    """
+    qs = VisitaMedica.objects.all()
+    if legacy_ids is not None:
+        qs = qs.filter(legacy_anagrafica_id__in=list(legacy_ids))
+    if tipo_ids is not None:
+        qs = qs.filter(tipo_id__in=list(tipo_ids))
+
+    max_data = {
+        (row["legacy_anagrafica_id"], row["tipo_id"]): row["max_data"]
+        for row in (
+            qs.order_by()
+            .values("legacy_anagrafica_id", "tipo_id")
+            .annotate(max_data=Max("data_svolgimento"))
+        )
+    }
+    if not max_data:
+        return set()
+
+    correnti: dict[tuple[int, int], int] = {}
+    for pk, lid, tid, data in qs.order_by().values_list(
+        "id", "legacy_anagrafica_id", "tipo_id", "data_svolgimento"
+    ):
+        chiave = (lid, tid)
+        if max_data.get(chiave) != data:
+            continue
+        prev = correnti.get(chiave)
+        if prev is None or pk > prev:
+            correnti[chiave] = pk
+    return set(correnti.values())
