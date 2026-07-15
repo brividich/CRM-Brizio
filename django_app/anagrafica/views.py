@@ -581,9 +581,16 @@ def index(request):
 def _dipendenti_base_rows() -> list[dict]:
     """Righe dell'anagrafica in forza (legacy, deduplicate), pre-filtro.
 
-    Esclude i rapporti cessati e applica il fallback del reparto da
-    ``DipendenteAnagraficaAziendale.area`` quando il campo legacy è vuoto.
+    Esclude i rapporti cessati e risolve il reparto dalla **fonte unica
+    canonica** (``dipendente → area_aziendale → reparto``): il reparto
+    canonico ha **precedenza sul testo legacy**, così le tabelle non mostrano
+    più il vecchio reparto quando l'assegnazione canonica è cambiata. Se non
+    c'è canonico si tiene il testo legacy della riga; se anche quello è vuoto
+    si ripiega su ``DipendenteAnagraficaAziendale.area``. Ogni riga riceve
+    anche ``area_aziendale_nome`` (l'accoppiata reparto + area).
     """
+    from anagrafica.services.reparto_canonico import enrich_rows_reparto_canonico
+
     ensure_anagrafica_schema()
     rows = fetch_anagrafica_rows(deduplicate=True)
     # Gli ex dipendenti (rapporto cessato) restano a sistema ma non compaiono
@@ -591,10 +598,14 @@ def _dipendenti_base_rows() -> list[dict]:
     cessati_ids = _cessati_legacy_ids()
     rows = [row for row in rows if int(row.get("id") or 0) not in cessati_ids]
 
-    # Fallback: se il campo reparto legacy è vuoto, usa DipendenteAnagraficaAziendale.area
+    # Reparto/area CANONICI (precedenza sul testo legacy stantio).
+    enrich_rows_reparto_canonico(rows)
+
+    # Fallback finale: testo `.area` sull'aziendale, solo per chi non ha né
+    # canonico (reparto non toccato dall'enricher) né testo legacy sulla riga.
     _ids_no_reparto = [int(r.get("id") or 0) for r in rows if not str(r.get("reparto") or "").strip()]
     if _ids_no_reparto:
-        _az_area_map = dict(
+        _az_area_text = dict(
             DipendenteAnagraficaAziendale.objects
             .filter(legacy_anagrafica_id__in=_ids_no_reparto)
             .exclude(area="")
@@ -603,8 +614,8 @@ def _dipendenti_base_rows() -> list[dict]:
         for row in rows:
             if not str(row.get("reparto") or "").strip():
                 lid = int(row.get("id") or 0)
-                if lid in _az_area_map:
-                    row["reparto"] = _az_area_map[lid]
+                if lid in _az_area_text:
+                    row["reparto"] = _az_area_text[lid]
     return rows
 
 

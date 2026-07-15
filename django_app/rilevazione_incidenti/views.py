@@ -92,6 +92,20 @@ def _get_impostazioni() -> SicurezzaImpostazioni:
 
 
 def _get_reparti() -> list[str]:
+    # Fonte unica: catalogo Reparto canonico (anagrafica). Le nuove segnalazioni
+    # scelgono da qui, non più da liste legacy di modulo. Fallback alla config
+    # di modulo / lista statica solo se il catalogo canonico è vuoto.
+    try:
+        from anagrafica.models import Reparto
+        canonici = list(
+            Reparto.objects.filter(is_active=True)
+            .order_by("nome")
+            .values_list("nome", flat=True)
+        )
+        if canonici:
+            return canonici
+    except Exception:
+        logger.warning("rilevazione_incidenti: catalogo Reparto canonico non leggibile", exc_info=True)
     cfg = _get_impostazioni()
     return list(cfg.reparti_custom) if cfg.reparti_custom else REPARTI
 
@@ -494,11 +508,16 @@ def lista(request):
     _stati_cnt = Counter(f["stato"] for f in items)
     _tipi_cnt = Counter((f.get("Tipologia_scheda") or "").strip() for f in items)
     _eventi_cnt = Counter(normalize_tipo_evento(f.get("Tipo_evento") or f.get("Tipologia_scheda")) for f in items)
-    all_reparti = sorted({
-        (f.get("Reparto") or f.get("Reparto_txt") or "").strip()
-        for f in items
-        if (f.get("Reparto") or f.get("Reparto_txt") or "").strip()
-    })
+    # Filtro reparto = valori canonici (catalogo) UNITI ai testi storici dei
+    # record esistenti, così si può filtrare sia i nuovi (canonici) sia lo storico.
+    all_reparti = sorted(
+        {
+            (f.get("Reparto") or f.get("Reparto_txt") or "").strip()
+            for f in items
+            if (f.get("Reparto") or f.get("Reparto_txt") or "").strip()
+        }
+        | set(_get_reparti())
+    )
     stats = {
         "totale": len(items),
         "aperti": _stati_cnt.get("APERTO", 0),

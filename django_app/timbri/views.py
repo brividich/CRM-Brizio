@@ -529,6 +529,10 @@ def index(request):
     q = str(request.GET.get("q") or "").strip()
     reparto = str(request.GET.get("reparto") or "").strip()
     rows = _legacy_employee_rows()
+    # Reparto CANONICO (dipendente → area_aziendale → reparto): ha precedenza sul
+    # testo legacy, così colonna e filtro non mostrano più i vecchi reparti.
+    from anagrafica.services.reparto_canonico import enrich_rows_reparto_canonico
+    enrich_rows_reparto_canonico(rows)
     reparti = sorted({_field_to_text(row.get("reparto")) for row in rows if _field_to_text(row.get("reparto"))})
     if q:
         q_norm = q.casefold()

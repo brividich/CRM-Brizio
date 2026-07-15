@@ -42,6 +42,31 @@ def build_reparto_canonico_map(legacy_ids: list[int] | None = None) -> dict[int,
     return result
 
 
+def enrich_rows_reparto_canonico(rows: list[dict], *, id_key: str = "id") -> list[dict]:
+    """Arricchisce (in place) righe legacy con il reparto/area canonici.
+
+    Per ogni riga con un'assegnazione canonica: sovrascrive ``row["reparto"]``
+    col nome del :class:`Reparto` canonico (così le tabelle non mostrano più il
+    testo legacy stantio) e imposta ``row["area_aziendale_nome"]``. Le righe
+    senza canonico restano invariate (il chiamante decide i propri fallback).
+    Ritorna la stessa lista per comodità di concatenamento.
+    """
+    all_ids = [int(r.get(id_key) or 0) for r in rows if int(r.get(id_key) or 0) > 0]
+    canonico = build_reparto_canonico_map(all_ids)
+    aree = build_area_canonica_map(all_ids)
+    for row in rows:
+        try:
+            lid = int(row.get(id_key) or 0)
+        except (TypeError, ValueError):
+            lid = 0
+        area = aree.get(lid)
+        row["area_aziendale_nome"] = area.nome if area is not None else ""
+        rep = canonico.get(lid)
+        if rep is not None:
+            row["reparto"] = rep.nome
+    return rows
+
+
 def resolve_reparto_for_row(
     row: dict,
     *,

@@ -543,14 +543,16 @@ class TimbriDownloadAuditTests(TestCase):
                 )
                 image.save()
                 self.client.force_login(self.admin)
-                before = AuditLog.objects.count()
+                # NB: si conta l'azione SPECIFICA, non il totale globale di
+                # AuditLog: altri insert (es. policy 2FA) rendono fragile un
+                # assert sul count complessivo.
+                view_audit_qs = AuditLog.objects.filter(azione="timbri_image_view", modulo="timbri")
+                before = view_audit_qs.count()
                 response = self.client.get(reverse("timbri:serve_image", args=[image.pk]))
                 self.assertEqual(response.status_code, 200)
-                created = AuditLog.objects.filter(
-                    azione="timbri_image_view", modulo="timbri",
-                ).order_by("-id").first()
+                created = view_audit_qs.order_by("-id").first()
                 self.assertIsNotNone(created)
-                self.assertEqual(AuditLog.objects.count(), before + 1)
+                self.assertEqual(view_audit_qs.count(), before + 1)
                 payload = created.dettaglio or {}
                 self.assertEqual(payload.get("image_id"), image.id)
                 serialized = repr(payload)
