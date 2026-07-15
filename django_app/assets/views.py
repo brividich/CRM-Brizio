@@ -135,11 +135,13 @@ from .maintenance import (
     copy_template_checklist_to_workorder,
     get_applicable_assistance_contracts,
     get_primary_assistance_contract,
+    get_workorder_overdue_days,
     normalize_workorder_source,
     resolve_asset_maintenance_rules,
     sync_workorder_maintenance_state,
     upsert_asset_maintenance_rule_state,
 )
+from .notifications import notify_workorder_assigned, notify_workorder_taken_over
 from .services.dashboard_kpi import (
     get_asset_maintenance_costs,
     get_downtime_by_family,
@@ -8881,7 +8883,7 @@ def asset_list(request: HttpRequest) -> HttpResponse:
     open_wo_count = _kpi_wo_qs.filter(status=WorkOrder.STATUS_OPEN).count()
     maintenance_due_count = _kpi_wo_qs.filter(
         status=WorkOrder.STATUS_OPEN,
-        opened_at__lt=timezone.now() - timedelta(days=21),
+        opened_at__lt=timezone.now() - timedelta(days=get_workorder_overdue_days()),
     ).count()
     work_machine_total = Asset.objects.filter(asset_type__in=PRODUCTION_ASSET_TYPES).count()
 
@@ -13812,7 +13814,8 @@ def work_machine_dashboard(request: HttpRequest) -> HttpResponse:
         workorders_base = workorders_base.filter(asset__reparto=reparto_filter)
 
     open_workorders = workorders_base.filter(status=WorkOrder.STATUS_OPEN).order_by("opened_at", "id")
-    overdue_workorders = open_workorders.filter(opened_at__lt=now - timedelta(days=21))
+    wo_overdue_days = get_workorder_overdue_days()
+    overdue_workorders = open_workorders.filter(opened_at__lt=now - timedelta(days=wo_overdue_days))
     recent_done_workorders = workorders_base.filter(
         status=WorkOrder.STATUS_DONE,
         closed_at__gte=now - timedelta(days=60),
@@ -13903,6 +13906,7 @@ def work_machine_dashboard(request: HttpRequest) -> HttpResponse:
             "open_count": open_workorders.count(),
             "overdue_workorders": overdue_workorders[:10],
             "overdue_count": overdue_workorders.count(),
+            "wo_overdue_days": wo_overdue_days,
             "overdue_workorder_ids": set(overdue_workorders.values_list("id", flat=True)),
             "recent_done_workorders": recent_done_workorders[:10],
             "recent_done_count": recent_done_workorders.count(),
@@ -15172,6 +15176,10 @@ def workorder_create(request: HttpRequest, id: int | None = None) -> HttpRespons
                         note=log_note,
                         author=request.user if request.user.is_authenticated else None,
                     )
+                notify_workorder_assigned(
+                    workorder,
+                    actor=request.user if request.user.is_authenticated else None,
+                )
                 messages.success(request, "Intervento creato.")
                 return redirect("assets:wo_view", id=workorder.id)
     else:
@@ -15384,6 +15392,7 @@ def workorder_claim(request: HttpRequest, id: int) -> HttpResponse:
         messages.info(request, f"Intervento #{workorder.id} già assegnato a te.")
         return redirect(next_url)
 
+    previous_assignee = workorder.assigned_to
     workorder.assigned_to = request.user
     workorder.save(update_fields=["assigned_to"])
     actor = request.user.get_full_name() or request.user.username
@@ -15392,6 +15401,7 @@ def workorder_claim(request: HttpRequest, id: int) -> HttpResponse:
         note=f"Preso in carico da {actor}.",
         author=request.user if request.user.is_authenticated else None,
     )
+    notify_workorder_taken_over(workorder, previous_assignee=previous_assignee, actor=request.user)
     messages.success(request, f"Intervento #{workorder.id} preso in carico.")
     return redirect(next_url)
 
@@ -15529,13 +15539,22 @@ def asset_meter_update(request: HttpRequest, asset_id: int) -> HttpResponse:
         if new_value is not None and meter_id:
             try:
                 meter = AssetMeter.objects.get(pk=meter_id, asset=asset)
-                meter.update_value(new_value, request.user)
-                from core.audit import log_action
+                history = meter.update_value(new_value, request.user)
+                # La firma è log_action(request, azione, modulo, dettaglio): passare
+                # request.user come request faceva fallire l'audit in silenzio (fire-and-forget)
+                # proprio sul dato che pilota la generazione degli OdL a soglia.
                 log_action(
-                    request.user,
+                    request,
                     "asset_meter_update",
-                    f"Contatore {meter.get_meter_type_display()} aggiornato: {meter.current_value} ({asset.asset_tag})",
-                    asset,
+                    "assets",
+                    {
+                        "asset_id": asset.id,
+                        "asset_tag": asset.asset_tag,
+                        "meter_id": meter.id,
+                        "meter_type": meter.meter_type,
+                        "old_value": str(history.old_value),
+                        "new_value": str(history.new_value),
+                    },
                 )
                 meters = list(AssetMeter.objects.filter(asset=asset).order_by("meter_type"))
                 success_message = f"Contatore aggiornato a {new_value}."
@@ -15718,7 +15737,8 @@ def maintenance_hub(request: HttpRequest) -> HttpResponse:
     horizon_7  = today + timedelta(days=7)
     horizon_14 = today + timedelta(days=14)
     horizon_30 = today + timedelta(days=30)
-    overdue_threshold = today - timedelta(days=21)
+    wo_overdue_days = get_workorder_overdue_days()
+    overdue_threshold = today - timedelta(days=wo_overdue_days)
     is_admin = _is_assets_admin(request)
 
     # Il Centro Manutenzione è ora solo cockpit "Da fare": lo scadenzario unico
@@ -15767,7 +15787,7 @@ def maintenance_hub(request: HttpRequest) -> HttpResponse:
         status=WorkOrder.STATUS_OPEN,
         reparto=reparto_filter,
         assigned=assigned_filter,
-        open_age=21,
+        open_age=wo_overdue_days,
     )
     wo_done_url = _workorder_list_page_url(
         status=WorkOrder.STATUS_DONE,

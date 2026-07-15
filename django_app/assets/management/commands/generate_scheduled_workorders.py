@@ -4,10 +4,11 @@ Schedulare come task Windows quotidiano (suggerito alle 06:00, prima di send_mai
 
     python manage.py generate_scheduled_workorders
 
-Logica per ogni (asset, rule):
-  - threshold_type=DAYS: usa la data dell'ultimo WO DONE + threshold_value giorni.
+Logica per ogni (asset, rule) — l'ultima esecuzione si legge da AssetMaintenanceRuleState,
+la stessa fonte dello scadenzario (qualunque sia l'origine dell'OdL che l'ha registrata):
+  - threshold_type=DAYS: last_execution_date + threshold_value giorni.
   - threshold_type=HOURS/KM/CYCLES: usa il valore corrente di AssetMeter e lo confronta
-    con il valore al momento dell'ultimo WO. Se la differenza >= threshold_value, genera.
+    con il valore al momento dell'ultima esecuzione. Se la differenza >= threshold_value, genera.
   - Controlla override: se l'asset ha un MaintenanceRuleAssetOverride con is_disabled=True, salta.
   - Se esiste già un WO OPEN per quella coppia (asset, rule), salta (nessun duplicato).
   - Se non trovato (mai eseguito): genera subito (next_due = today, oppure per contatori: 0).
@@ -24,7 +25,14 @@ from django.db import transaction
 from django.utils import timezone
 
 from assets.maintenance import copy_template_checklist_to_workorder, meter_schedule_payload
-from assets.models import Asset, AssetMeter, MaintenanceRule, MaintenanceRuleAssetOverride, WorkOrder
+from assets.models import (
+    Asset,
+    AssetMaintenanceRuleState,
+    AssetMeter,
+    MaintenanceRule,
+    MaintenanceRuleAssetOverride,
+    WorkOrder,
+)
 
 _METER_TYPE_MAP = {
     MaintenanceRule.THRESHOLD_HOURS: AssetMeter.METER_HOURS,
@@ -82,18 +90,32 @@ class Command(BaseCommand):
             .values_list("asset_id", "base_rule_id")
         )
 
-        # Precarica tutti gli OdL OPEN periodici per evitare query per ogni coppia
-        open_periodic_pairs: set[tuple[int, int]] = set(
-            WorkOrder.objects
-            .filter(status=WorkOrder.STATUS_OPEN, origin=WorkOrder.ORIGIN_PERIODIC)
+        # Lavoro già pendente su una regola: QUALUNQUE OdL aperto, non solo quelli periodici.
+        # La domanda è "c'è già lavoro in corso su questa regola?", e chi ha aperto l'OdL non
+        # c'entra: filtrando origin=PERIODIC il generatore apriva un secondo intervento accanto
+        # a uno che un manutentore aveva già aperto a mano sulla stessa regola.
+        open_pairs: dict[tuple[int, int], int] = {
+            (asset_id, rule_id): workorder_id
+            for workorder_id, asset_id, rule_id in WorkOrder.objects
+            .filter(status=WorkOrder.STATUS_OPEN)
             .exclude(maintenance_rule_id=None)
-            .values_list("asset_id", "maintenance_rule_id")
-        )
+            .order_by("opened_at", "id")
+            .values_list("id", "asset_id", "maintenance_rule_id")
+        }
 
         # Precarica contatori (asset_id, meter_type) -> current_value
         meter_map: dict[tuple[int, str], float] = {
             (m["asset_id"], m["meter_type"]): float(m["current_value"])
             for m in AssetMeter.objects.values("asset_id", "meter_type", "current_value")
+        }
+
+        # Ultima esecuzione per coppia (asset, regola): STESSA fonte dello scadenzario.
+        # Prima il generatore interrogava solo gli OdL con origin=PERIODIC chiusi, quindi non
+        # vedeva né le esecuzioni registrate dallo scadenzario (che nascono MANUAL) né lo
+        # storico registrato senza OdL — e riapriva una manutenzione appena fatta.
+        state_map: dict[tuple[int, int], AssetMaintenanceRuleState] = {
+            (state.asset_id, state.base_rule_id): state
+            for state in AssetMaintenanceRuleState.objects.select_related("last_work_order")
         }
 
         created = 0
@@ -129,29 +151,27 @@ class Command(BaseCommand):
                     if override.override_intervention_template_id:
                         effective_template = override.override_intervention_template
 
-                if (asset.id, rule.id) in open_periodic_pairs:
+                blocking_workorder_id = open_pairs.get((asset.id, rule.id))
+                if blocking_workorder_id:
                     skipped_open += 1
+                    # Un OdL aperto blocca la rigenerazione finché resta aperto: senza dirlo,
+                    # una regola può smettere di generare per sempre in perfetto silenzio.
+                    self.stdout.write(
+                        f"  Saltata {asset.asset_tag} / regola {rule.id}: "
+                        f"OdL #{blocking_workorder_id} ancora aperto."
+                    )
                     continue
 
                 # --- Valutazione scadenza ---
                 due = False
                 due_reason = ""
 
+                state = state_map.get((asset.id, rule.id))
+
                 if effective_threshold_type == MaintenanceRule.THRESHOLD_DAYS:
-                    last_wo = (
-                        WorkOrder.objects
-                        .filter(
-                            asset_id=asset.id,
-                            maintenance_rule_id=rule.id,
-                            origin=WorkOrder.ORIGIN_PERIODIC,
-                            status=WorkOrder.STATUS_DONE,
-                        )
-                        .order_by("-closed_at")
-                        .values("closed_at")
-                        .first()
-                    )
-                    if last_wo and last_wo["closed_at"]:
-                        next_due = last_wo["closed_at"].date() + timedelta(days=effective_threshold_value)
+                    last_execution_date = state.last_execution_date if state else None
+                    if last_execution_date:
+                        next_due = last_execution_date + timedelta(days=effective_threshold_value)
                     else:
                         next_due = today
                     horizon = today + timedelta(days=rule.warning_days)
@@ -168,20 +188,14 @@ class Command(BaseCommand):
                     if current_val is None:
                         skipped_no_meter += 1
                         continue
-                    # Valore al momento dell'ultimo WO periodico chiuso
-                    last_wo = (
-                        WorkOrder.objects
-                        .filter(
-                            asset_id=asset.id,
-                            maintenance_rule_id=rule.id,
-                            origin=WorkOrder.ORIGIN_PERIODIC,
-                            status=WorkOrder.STATUS_DONE,
-                        )
-                        .order_by("-closed_at")
-                        .values("meter_value_at_close")
-                        .first()
+                    # Valore del contatore all'ultima esecuzione, dallo stesso stato che legge
+                    # lo scadenzario: anche qui l'origine dell'OdL non deve contare.
+                    last_wo = state.last_work_order if state else None
+                    base_val = (
+                        float(last_wo.meter_value_at_close)
+                        if last_wo is not None and last_wo.meter_value_at_close is not None
+                        else 0.0
                     )
-                    base_val = float(last_wo["meter_value_at_close"]) if (last_wo and last_wo.get("meter_value_at_close") is not None) else 0.0
                     payload = meter_schedule_payload(
                         current_value=current_val,
                         base_value=base_val,
@@ -229,7 +243,7 @@ class Command(BaseCommand):
                     steps_copied = copy_template_checklist_to_workorder(
                         wo, template_id=getattr(effective_template, "pk", None)
                     )
-                    open_periodic_pairs.add((asset.id, rule.id))
+                    open_pairs[(asset.id, rule.id)] = wo.pk
                     created += 1
                     checklist_suffix = f" (+{steps_copied} step checklist)" if steps_copied else ""
                     self.stdout.write(f"  Creato WO #{wo.pk}: {title}{checklist_suffix}")
