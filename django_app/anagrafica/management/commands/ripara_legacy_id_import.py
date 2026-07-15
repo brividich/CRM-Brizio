@@ -103,12 +103,18 @@ class Command(BaseCommand):
             help="SOLA LETTURA: passa in rassegna TUTTI i modelli di anagrafica con "
                  "legacy_anagrafica_id e conta gli orfani (ID inesistenti in prod) per ciascuno. "
                  "Serve a scoprire quali moduli sono ancora mal-agganciati dall'import.")
+        parser.add_argument(
+            "--purge-doppioni", dest="purge", metavar="FILE",
+            help="Cancella i record orfani che sono DOPPIONI: un orfano viene eliminato solo se "
+                 "esiste gia' il 'gemello' corretto agganciato alla persona giusta (via CF). "
+                 "Gli orfani senza gemello NON vengono toccati. Dry-run di default.")
 
     def handle(self, *args, **o):
-        azioni = sum(bool(o.get(k)) for k in ("export", "imp", "report", "rifai", "scan"))
+        azioni = sum(bool(o.get(k)) for k in ("export", "imp", "report", "rifai", "scan", "purge"))
         if azioni != 1:
             raise CommandError(
-                "Specifica ESATTAMENTE una tra --export, --import, --report, --rifai-scadenze e --scan.")
+                "Specifica ESATTAMENTE una tra --export, --import, --report, --rifai-scadenze, "
+                "--scan e --purge-doppioni.")
         if o.get("export"):
             self._export(o["export"])
         elif o.get("imp"):
@@ -117,6 +123,8 @@ class Command(BaseCommand):
             self._report(o["report"])
         elif o.get("rifai"):
             self._rifai_scadenze(apply=o["apply"])
+        elif o.get("purge"):
+            self._purge_doppioni(o["purge"], apply=o["apply"])
         else:
             self._scan()
 
@@ -343,6 +351,84 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f"FATTO: cache ricostruita. Scadenze ora: {dopo} (rigenerate {rigenerate}, "
             f"eliminate {prima} vecchie di cui {orfane} orfane)."))
+
+    # ── PROD (cancellazione doppioni orfani) ────────────────────────────────
+    def _purge_doppioni(self, path, *, apply):
+        """Cancella i record ORFANI che sono DOPPIONI di uno gia' corretto. Un orfano
+        (legacy_id assente in prod) viene eliminato solo se, risalendo il suo CF al numero
+        di prod P, esiste gia' un 'gemello' con lo stesso vincolo di unicita' agganciato a
+        P: sono i record che il remap ha saltato per collisione (la persona ha gia'
+        l'iscrizione corretta). Gli orfani SENZA gemello (o senza CF) NON vengono toccati."""
+        from anagrafica.models import DipendenteAnagraficaCivile
+
+        with open(path, encoding="utf-8") as fh:
+            payload = json.load(fh)
+        devmap = {r["dev_id"]: r for r in payload.get("map", [])}
+
+        prod_cf = {}
+        for c in DipendenteAnagraficaCivile.objects.values("legacy_anagrafica_id", "codice_fiscale"):
+            cf = _norm_cf(c["codice_fiscale"])
+            if cf:
+                prod_cf.setdefault(cf, c["legacy_anagrafica_id"])
+        nomi_prod = _nomi_legacy()
+        prod_ids = set(nomi_prod)
+
+        self.stdout.write("=== PURGE DOPPIONI ORFANI (via codice fiscale) — %s ==="
+                          % ("APPLY" if apply else "DRY-RUN"))
+        da_cancellare = []      # (Model, pk)
+        senza_gemello = 0
+        esempi = []
+        for name in TARGET_MODELS:
+            M = apps.get_model("anagrafica", name)
+            uniq_sets = self._uniq_sets(M)
+            if not uniq_sets:
+                continue  # senza vincolo di unicita' non esiste il concetto di "doppione"
+            other_attnames = {
+                us: [M._meta.get_field(f).attname for f in us if f != "legacy_anagrafica_id"]
+                for us in uniq_sets
+            }
+            n_mod = 0
+            for r in M.objects.all():
+                L = r.legacy_anagrafica_id
+                if L is None or L == 0 or L in prod_ids:
+                    continue  # non orfano
+                info = devmap.get(L)
+                cf = _norm_cf(info["cf"]) if info else ""
+                if not cf:
+                    continue  # senza CF: non decidibile, si lascia
+                P = prod_cf.get(cf)
+                if P is None:
+                    continue
+                gemello = False
+                for us in uniq_sets:
+                    filt = {a: getattr(r, a) for a in other_attnames[us]}
+                    if M.objects.filter(legacy_anagrafica_id=P, **filt).exclude(pk=r.pk).exists():
+                        gemello = True
+                        break
+                if gemello:
+                    da_cancellare.append((M, r.pk))
+                    n_mod += 1
+                    if len(esempi) < 40:
+                        esempi.append(f"    {name}: elimino orfano #{L} "
+                                      f"({(info or {}).get('nome', '?')}) — gemello gia' su #{P}")
+                else:
+                    senza_gemello += 1
+            if n_mod:
+                self.stdout.write(f"  {name}: {n_mod} doppioni orfani da cancellare")
+
+        self.stdout.write(f"TOTALE doppioni da cancellare: {len(da_cancellare)} "
+                          f"| orfani SENZA gemello (non toccati): {senza_gemello}")
+        for e in esempi:
+            self.stdout.write(e)
+        if not apply:
+            self.stdout.write(self.style.NOTICE("DRY-RUN: nulla cancellato. Rilancia con --apply per eseguire."))
+            return
+        with transaction.atomic():
+            for M, pk in da_cancellare:
+                M.objects.filter(pk=pk).delete()
+        self.stdout.write(self.style.SUCCESS(f"FATTO: {len(da_cancellare)} doppioni orfani cancellati."))
+        self.stdout.write(self.style.WARNING(
+            "Se hai cancellato doppioni di formazione, rilancia '--rifai-scadenze --apply'."))
 
     # ── PROD (audit sola lettura) ───────────────────────────────────────────
     def _scan(self):

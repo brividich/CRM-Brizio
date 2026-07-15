@@ -202,6 +202,26 @@ class RiparaLegacyIdImportTest(TestCase):
         self.assertEqual(TrainingDeadline.objects.filter(legacy_anagrafica_id=398).count(), 0)
         self.assertIn("cache ricostruita", out2)
 
+    def test_purge_doppioni_cancella_solo_col_gemello(self):
+        path = self._export_dev(100, self.CF)  # dev: persona #100, CF
+        _mk_dipendente_legacy(500, "MARIO", "ROSSI")
+        AC.objects.create(legacy_anagrafica_id=500, codice_fiscale=self.CF)
+        # gemello corretto (persona #500) + doppione orfano (#100) sullo stesso processo
+        buono = ContinuitaOperativa.objects.create(legacy_anagrafica_id=500, processo=self.processo)
+        doppione = ContinuitaOperativa.objects.create(legacy_anagrafica_id=100, processo=self.processo)
+        # un orfano SENZA gemello: stesso #100 ma su un ALTRO processo (nessun gemello su #500)
+        altro = ProcessoCriticoContinuita.objects.create(nome="Solo orfano")
+        orfano_solo = ContinuitaOperativa.objects.create(legacy_anagrafica_id=100, processo=altro)
+
+        out = self._run("--purge-doppioni", path)  # dry-run
+        self.assertIn("TOTALE doppioni da cancellare: 1", out)
+        self.assertEqual(ContinuitaOperativa.objects.count(), 3)  # dry-run non tocca
+
+        self._run("--purge-doppioni", path, "--apply")
+        self.assertFalse(ContinuitaOperativa.objects.filter(pk=doppione.pk).exists())  # cancellato
+        self.assertTrue(ContinuitaOperativa.objects.filter(pk=buono.pk).exists())      # gemello resta
+        self.assertTrue(ContinuitaOperativa.objects.filter(pk=orfano_solo.pk).exists())  # senza gemello: resta
+
     def test_scan_conta_orfani(self):
         _mk_dipendente_legacy(500, "MARIO", "ROSSI")  # unico dipendente di prod
         ContinuitaOperativa.objects.create(legacy_anagrafica_id=999, processo=self.processo)  # orfano
