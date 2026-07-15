@@ -67,3 +67,31 @@ class _SafeCsvWriter:
 def safe_csv_writer(fileobj, **kwargs):
     """Come ``csv.writer(fileobj, **kwargs)``, ma con celle sanificate."""
     return _SafeCsvWriter(csv.writer(fileobj, **kwargs))
+
+
+# Content-type dei CSV scaricabili. NON usare ``charset=utf-8-sig``: Django
+# codifica OGNI ``write()`` (e ogni chunk di una StreamingHttpResponse) con il
+# charset dichiarato, e il codec ``utf-8-sig`` antepone il BOM a *ciascuno* —
+# risultato: un BOM all'inizio di ogni riga, che in Excel finisce dentro la prima
+# cella. Il BOM (che serve a Excel per riconoscere l'UTF-8) va scritto UNA volta.
+CSV_CONTENT_TYPE = "text/csv; charset=utf-8"
+BOM = "﻿"
+
+
+def csv_download_response(filename: str, *, delimiter: str = ","):
+    """HttpResponse CSV pronta (BOM una volta) + writer sanificato.
+
+    Ritorna la coppia ``(response, writer)``.
+    """
+    from django.http import HttpResponse
+
+    response = HttpResponse(content_type=CSV_CONTENT_TYPE)
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    response.write(BOM)
+    return response, safe_csv_writer(response, delimiter=delimiter)
+
+
+def bom_first(chunks):
+    """Antepone il BOM al primo chunk di un CSV in streaming (una volta sola)."""
+    yield BOM
+    yield from chunks

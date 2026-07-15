@@ -17,7 +17,7 @@ from django.views.decorators.http import require_POST
 
 from django_q.tasks import async_task
 
-from core.csv_export import safe_csv_writer
+from core.csv_export import CSV_CONTENT_TYPE, bom_first, safe_csv_writer
 from core.audit import log_action
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 from core.module_branding import get_module_branding_context, handle_module_branding_post
@@ -1786,7 +1786,7 @@ def export_csv(request):
                     pending,
                 ])
 
-    resp = StreamingHttpResponse(rows(), content_type="text/csv; charset=utf-8-sig")
+    resp = StreamingHttpResponse(bom_first(rows()), content_type=CSV_CONTENT_TYPE)
     resp["Content-Disposition"] = (
         f'attachment; filename="procedure_refresh_{report_type}.csv"'
     )

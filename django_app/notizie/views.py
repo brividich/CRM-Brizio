@@ -15,7 +15,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 
 from admin_portale.decorators import legacy_admin_required
-from core.csv_export import safe_csv_writer
+from core.csv_export import CSV_CONTENT_TYPE, bom_first, safe_csv_writer
 from core.acl import check_permesso, user_can_modulo_action
 from core.audit import log_action
 from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_auth_enabled
@@ -183,7 +183,7 @@ def _csv_streaming_response(rows_iter, headers: list[str], filename: str) -> Str
         for row in rows_iter:
             yield writer.writerow(row)
 
-    resp = StreamingHttpResponse(stream(), content_type="text/csv; charset=utf-8-sig")
+    resp = StreamingHttpResponse(bom_first(stream()), content_type=CSV_CONTENT_TYPE)
     resp["Content-Disposition"] = f'attachment; filename="{filename}"'
     return resp
 

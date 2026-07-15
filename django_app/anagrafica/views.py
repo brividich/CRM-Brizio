@@ -23,7 +23,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from django.contrib.auth.decorators import login_required
-from core.csv_export import safe_csv_writer
+from core.csv_export import BOM, CSV_CONTENT_TYPE, safe_csv_writer
 from core.legacy_anagrafica import (
     count_anagrafica_statuses,
     ensure_anagrafica_schema,
@@ -5165,8 +5165,9 @@ def dipendenti_report(request):
     if fmt == "csv":
         import csv
         from django.http import HttpResponse
-        response = HttpResponse(content_type="text/csv; charset=utf-8-sig")
+        response = HttpResponse(content_type=CSV_CONTENT_TYPE)
         response["Content-Disposition"] = 'attachment; filename="dipendenti_report.csv"'
+        response.write(BOM)  # una volta sola: Excel riconosce l'UTF-8
         writer = safe_csv_writer(response, delimiter=";")
         writer.writerow([
             "ID", "Cognome", "Nome", "Matricola", "Reparto",
@@ -6196,8 +6197,9 @@ def qualifiche_scadenzario(request):
         })
 
     if export_csv:
-        resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
+        resp = HttpResponse(content_type=CSV_CONTENT_TYPE)
         resp["Content-Disposition"] = 'attachment; filename="scadenzario_qualifiche.csv"'
+        resp.write(BOM)  # una volta sola: Excel riconosce l'UTF-8
         writer = safe_csv_writer(resp, delimiter=";")
         writer.writerow(["Dipendente", "Reparto", "Qualifica", "Categoria", "N°", "Livello",
                          "Ente", "Conseguimento", "Scadenza", "Giorni", "Stato",
@@ -7195,8 +7197,9 @@ def scadenzario(request):
 
     # Export CSV
     if export_csv:
-        resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
+        resp = HttpResponse(content_type=CSV_CONTENT_TYPE)
         resp["Content-Disposition"] = 'attachment; filename="scadenzario_anagrafica.csv"'
+        resp.write(BOM)  # una volta sola: Excel riconosce l'UTF-8
         writer = safe_csv_writer(resp, delimiter=";")
         writer.writerow(["Dipendente", "Reparto", "Tipo entità", "Descrizione", "Scadenza", "Stato"])
         for v in voci:
@@ -13331,8 +13334,9 @@ def matrice_competenze(request):
 
     if export_csv:
         _LAB = {"valido": "OK", "in_scadenza": "In scadenza", "scaduto": "SCADUTO", "mancante": "—"}
-        resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
+        resp = HttpResponse(content_type=CSV_CONTENT_TYPE)
         resp["Content-Disposition"] = 'attachment; filename="matrice_competenze.csv"'
+        resp.write(BOM)  # una volta sola: Excel riconosce l'UTF-8
         writer = safe_csv_writer(resp, delimiter=";")
         writer.writerow(["Dipendente", "Reparto"] + [t.nome for t in tipi])
         for r in righe:
@@ -13609,8 +13613,9 @@ def skill_matrix_macchina(request):
                 return "da confermare"
             return ""
 
-        resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
+        resp = HttpResponse(content_type=CSV_CONTENT_TYPE)
         resp["Content-Disposition"] = 'attachment; filename="skill_matrix_macchina.csv"'
+        resp.write(BOM)  # una volta sola: Excel riconosce l'UTF-8
         writer = safe_csv_writer(resp, delimiter=";")
         disp_col = f"Disponibilità {data_sel.strftime('%d/%m/%Y')}"
         writer.writerow(
@@ -13803,8 +13808,9 @@ def skm_scadenzario(request):
     righe = [r for r in tutte if r["stato"] == filtro_stato] if filtro_stato in ("scaduto", "in_arrivo") else tutte
 
     if request.GET.get("format") == "csv":
-        resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
+        resp = HttpResponse(content_type=CSV_CONTENT_TYPE)
         resp["Content-Disposition"] = 'attachment; filename="scadenzario_abilitazioni.csv"'
+        resp.write(BOM)  # una volta sola: Excel riconosce l'UTF-8
         w = safe_csv_writer(resp, delimiter=";")
         w.writerow(["Reparto", "Prossima revisione", "Totali", "Scadute", "In arrivo", "Stato", "Campagna aperta"])
         for r in righe:
@@ -13963,8 +13969,9 @@ def conformita_report(request):
             conformita_service.ESITO_KO: "Non idoneo",
             conformita_service.ESITO_NA: "Non valutabile",
         }
-        resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
+        resp = HttpResponse(content_type=CSV_CONTENT_TYPE)
         resp["Content-Disposition"] = 'attachment; filename="conformita_anagrafica.csv"'
+        resp.write(BOM)  # una volta sola: Excel riconosce l'UTF-8
         writer = safe_csv_writer(resp, delimiter=";")
         writer.writerow([
             "Dipendente", "Reparto", "Mansione", "Conformità", "Idoneità mansione",

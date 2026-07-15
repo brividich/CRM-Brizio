@@ -73,6 +73,23 @@ class ExportRowsResponseCsvTests(SimpleTestCase):
         self.assertEqual(rows[0], ["Nome", "Note"])
         self.assertEqual(rows[1], ["Mario", '\'=HYPERLINK("http://evil","apri")'])
 
+    def test_bom_is_written_once_not_on_every_row(self):
+        # Regressione: con `charset=utf-8-sig` Django antepone il BOM a OGNI write,
+        # quindi ogni riga iniziava con U+FEFF e in Excel finiva nella prima cella.
+        from core.exporting import export_rows_response
+
+        response = export_rows_response(
+            rows=[{"nome": "Anna"}, {"nome": "Bruno"}],
+            columns=[("Nome", "nome")],
+            filename="export.csv",
+            fmt="csv",
+        )
+        body = b"".join(response).decode("utf-8")
+        self.assertEqual(body.count("﻿"), 1)
+        self.assertTrue(body.startswith("﻿"))
+        rows = list(csv.reader(io.StringIO(body.lstrip("﻿"))))
+        self.assertEqual([r[0] for r in rows], ["Nome", "Anna", "Bruno"])
+
     def test_csv_branch_keeps_legitimate_values(self):
         from core.exporting import export_rows_response
 

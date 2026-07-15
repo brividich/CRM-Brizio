@@ -22,7 +22,7 @@ from django.utils import timezone as dj_tz
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 from config.env_config import get_first_env_value, update_env_file_values
-from core.csv_export import safe_csv_writer
+from core.csv_export import CSV_CONTENT_TYPE, bom_first, safe_csv_writer
 from core.acl import user_can_modulo_action
 from core.audit import log_action
 from core.upload_mime import (
@@ -3290,7 +3290,7 @@ def export_anomalie_csv(request):
         for row in rows_data:
             yield writer.writerow([str(v) if v is not None else "" for v in row])
 
-    resp = StreamingHttpResponse(stream(), content_type="text/csv; charset=utf-8-sig")
+    resp = StreamingHttpResponse(bom_first(stream()), content_type=CSV_CONTENT_TYPE)
     resp["Content-Disposition"] = 'attachment; filename="anomalie.csv"'
     return resp
 
@@ -3575,7 +3575,7 @@ def export_anomalie_csv_filtrato(request):
         for row in rows_data:
             yield writer.writerow([str(v) if v is not None else "" for v in row])
 
-    resp = StreamingHttpResponse(stream(), content_type="text/csv; charset=utf-8-sig")
+    resp = StreamingHttpResponse(bom_first(stream()), content_type=CSV_CONTENT_TYPE)
     resp["Content-Disposition"] = 'attachment; filename="anomalie_export.csv"'
     return resp
 

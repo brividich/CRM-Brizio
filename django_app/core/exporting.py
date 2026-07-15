@@ -88,9 +88,9 @@ def export_rows_response(
         return response
 
     # Anche il CSV va sanificato: Excel valuta le formule pure aprendo un .csv.
-    from core.csv_export import safe_csv_writer
+    from core.csv_export import CSV_CONTENT_TYPE, safe_csv_writer
 
-    response = HttpResponse(content_type="text/csv; charset=utf-8-sig")
+    response = HttpResponse(content_type=CSV_CONTENT_TYPE)
     response["Content-Disposition"] = f'attachment; filename="{stem}.csv"'
     response.write("\ufeff")
     writer = safe_csv_writer(response)
