@@ -9899,43 +9899,95 @@ def _build_nomi_map() -> dict[int, str]:
     return nomi
 
 
-def _build_candidati_sessione(tipo: TipoVisitaMedica, oggi) -> list[dict]:
-    """Ritorna lista dipendenti candidati per una sessione di visita del tipo dato.
+def _cessati_legacy_ids() -> set[int]:
+    """Id legacy dei dipendenti cessati (``data_cessazione`` valorizzata)."""
+    return set(
+        DipendenteAnagraficaAziendale.objects
+        .filter(data_cessazione__isnull=False)
+        .values_list("legacy_anagrafica_id", flat=True)
+    )
 
-    Vengono inclusi i dipendenti:
-    - con almeno un ruolo operativo collegato al tipo (o tutti gli attivi se nessun ruolo configurato)
-    - la cui ultima visita del tipo è scaduta, in scadenza ≤90gg, oppure mai effettuata
+
+def _requisiti_tipo_visita(tipo: TipoVisitaMedica) -> dict:
+    """Chi è tenuto alla visita ``tipo`` e da dove nasce l'obbligo.
+
+    Ritorna ``{"da_ruoli": set, "da_processi": set, "ha_vincoli": bool}``.
+    ``ha_vincoli`` = il tipo ha ruoli operativi o processi MOD.128 COLLEGATI
+    in configurazione (anche se nessuna persona li possiede): governa il
+    fallback storico e la valutazione di pertinenza. Cessati NON filtrati qui.
     """
-    from django.utils import timezone as _tz
-
-    soglia = oggi + _timedelta(days=90)
-
-    # Determina il pool di legacy_id candidati
     ruolo_ids = list(tipo.ruoli_operativi.values_list("id", flat=True))
+    da_ruoli: set[int] = set()
     if ruolo_ids:
-        pool_ids = set(
+        da_ruoli = set(
             DipendenteRuoloOperativo.objects
             .filter(ruolo_id__in=ruolo_ids)
             .values_list("legacy_anagrafica_id", flat=True)
         )
-    else:
-        # Tipo senza ruoli → tutti i dipendenti attivi
-        pool_ids = set(
-            DipendenteAnagraficaAziendale.objects
-            .filter(data_cessazione__isnull=True)
-            .values_list("legacy_anagrafica_id", flat=True)
+    da_processi: set[int] = set()
+    ha_processi = False
+    try:
+        from .models_mpq import AbilitazioneProcesso
+        ha_processi = tipo.processi_richiedenti.exists()
+        if ha_processi:
+            da_processi = set(
+                AbilitazioneProcesso.objects
+                .filter(
+                    stato=AbilitazioneProcesso.STATO_ATTIVA,
+                    processo__visite_richieste=tipo,
+                )
+                .exclude(legacy_anagrafica_id=0)
+                .values_list("legacy_anagrafica_id", flat=True)
+            )
+    except Exception:
+        logger.warning(
+            "Lookup requisiti MOD.128 per tipo visita %s fallito", tipo.pk, exc_info=True,
         )
+    return {
+        "da_ruoli": da_ruoli,
+        "da_processi": da_processi,
+        "ha_vincoli": bool(ruolo_ids) or ha_processi,
+    }
+
+
+def _build_candidati_sessione(tipo: TipoVisitaMedica, oggi) -> list[dict]:
+    """Dipendenti candidati per una sessione di visita del tipo dato.
+
+    Il tipo è "consono" quando è richiesto dai ruoli operativi del dipendente
+    o da un processo MOD.128 a cui è abilitato; se il tipo non ha vincoli
+    configurati si propone chi ha quel tipo nello storico (stato calcolato
+    sull'ultima visita). Cessati sempre esclusi.
+
+    Candidato = ultima visita del tipo scaduta, in scadenza entro 90 giorni,
+    oppure mai effettuata (solo pool ruoli/processi). Un'ultima visita senza
+    scadenza (durata 0) è valida per sempre: non viene riproposta.
+    """
+    soglia = oggi + _timedelta(days=90)
+    cessati = _cessati_legacy_ids()
+    req = _requisiti_tipo_visita(tipo)
+    da_ruoli, da_processi = req["da_ruoli"], req["da_processi"]
+
+    if req["ha_vincoli"]:
+        pool_ids = (da_ruoli | da_processi) - cessati
+    else:
+        # Tipo non collegato a ruoli/processi: si propone chi ha quel tipo
+        # nello storico, non tutta l'azienda.
+        pool_ids = set(
+            VisitaMedica.objects
+            .filter(tipo=tipo)
+            .values_list("legacy_anagrafica_id", flat=True)
+        ) - cessati
 
     if not pool_ids:
         return []
 
-    # Ultima visita del tipo per ogni legacy_id
-    ultima_per_id: dict[int, "VisitaMedica"] = {}
+    # Ultima visita del tipo per ogni candidato (spareggio: pk più alto).
+    ultima_per_id: dict[int, VisitaMedica] = {}
     for v in (
         VisitaMedica.objects
         .filter(tipo=tipo, legacy_anagrafica_id__in=pool_ids)
         .select_related("tipo")
-        .order_by("legacy_anagrafica_id", "-data_svolgimento")
+        .order_by("legacy_anagrafica_id", "-data_svolgimento", "-pk")
     ):
         if v.legacy_anagrafica_id not in ultima_per_id:
             ultima_per_id[v.legacy_anagrafica_id] = v
@@ -9948,21 +10000,32 @@ def _build_candidati_sessione(tipo: TipoVisitaMedica, oggi) -> list[dict]:
         if ultima is None:
             status = "mai_effettuata"
             giorni = None
-        elif ultima.data_scadenza is None or ultima.data_scadenza < oggi:
+        elif ultima.data_scadenza is None:
+            continue  # valida senza scadenza: non riproporre
+        elif ultima.data_scadenza < oggi:
             status = "scaduta"
-            giorni = (ultima.data_scadenza - oggi).days if ultima.data_scadenza else None
+            giorni = (ultima.data_scadenza - oggi).days
         elif ultima.data_scadenza <= soglia:
             status = "in_scadenza"
             giorni = (ultima.data_scadenza - oggi).days
         else:
-            continue  # Visita ancora valida, non proporre
+            continue  # ancora valida oltre la soglia dei 90 giorni
+
+        if lid in da_ruoli:
+            origine = "ruolo"
+        elif lid in da_processi:
+            origine = "processo"
+        else:
+            origine = "storico"
 
         candidati.append({
             "legacy_id": lid,
             "nome": nomi_map.get(lid, f"#{lid}"),
             "ultima_visita": ultima,
+            "data_scadenza": ultima.data_scadenza if ultima else None,
             "status": status,
             "giorni_a_scadenza": giorni,
+            "origine": origine,
         })
 
     # Ordine: in_scadenza → scaduta → mai_effettuata; poi alfabetico per nome

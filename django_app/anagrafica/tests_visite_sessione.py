@@ -149,3 +149,83 @@ class DigestVisiteCorrentiTests(TestCase):
         out = StringIO()
         call_command("send_visite_mediche_digest", "--dry-run", stdout=out)
         self.assertIn("Nessuna visita medica in scadenza", out.getvalue())
+
+
+class CandidatiSessioneTests(TestCase):
+    def setUp(self):
+        self.oggi = timezone.localdate()
+        self.ruolo = RuoloOperativo.objects.create(nome="Verniciatore")
+        self.tipo = TipoVisitaMedica.objects.create(nome="Vernici", durata_mesi=12)
+        self.tipo.ruoli_operativi.add(self.ruolo)
+
+    def _candidati(self, tipo=None):
+        from .views import _build_candidati_sessione
+        return _build_candidati_sessione(tipo or self.tipo, self.oggi)
+
+    def _candidati_ids(self, tipo=None):
+        return {c["legacy_id"] for c in self._candidati(tipo)}
+
+    def test_mai_effettuata_proposta_per_ruolo(self):
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=20, ruolo=self.ruolo)
+        cand = self._candidati()
+        self.assertEqual({c["legacy_id"] for c in cand}, {20})
+        self.assertEqual(cand[0]["origine"], "ruolo")
+        self.assertEqual(cand[0]["status"], "mai_effettuata")
+
+    def test_cessato_escluso(self):
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=21, ruolo=self.ruolo)
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=21,
+            data_cessazione=self.oggi - timedelta(days=30),
+        )
+        self.assertEqual(self._candidati_ids(), set())
+
+    def test_abilitato_processo_mod128_incluso(self):
+        from .models_mpq import (
+            AbilitazioneProcesso, ClienteQualificante, ProcessoQualificato,
+        )
+        cliente = ClienteQualificante.objects.create(nome="Cliente MPQ test")
+        proc = ProcessoQualificato.objects.create(nome="Saldatura speciale", cliente=cliente)
+        proc.visite_richieste.add(self.tipo)
+        AbilitazioneProcesso.objects.create(legacy_anagrafica_id=22, processo=proc)
+        cand = [c for c in self._candidati() if c["legacy_id"] == 22]
+        self.assertEqual(len(cand), 1)
+        self.assertEqual(cand[0]["origine"], "processo")
+
+    def test_ruolo_configurato_senza_assegnatari_non_degrada_a_storico(self):
+        # Il tipo HA un ruolo collegato ma nessuno lo possiede: chi ha solo
+        # storico (senza ruolo) NON va proposto.
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=33, tipo=self.tipo,
+            data_svolgimento=self.oggi - timedelta(days=400),
+        )
+        self.assertEqual(self._candidati_ids(), set())
+
+    def test_tipo_senza_vincoli_propone_solo_storico(self):
+        tipo_libero = TipoVisitaMedica.objects.create(nome="Libera", durata_mesi=12)
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=40, tipo=tipo_libero,
+            data_svolgimento=self.oggi - timedelta(days=400),
+        )
+        cand = self._candidati(tipo_libero)
+        self.assertEqual({c["legacy_id"] for c in cand}, {40})
+        self.assertEqual(cand[0]["origine"], "storico")
+        self.assertEqual(cand[0]["data_scadenza"], cand[0]["ultima_visita"].data_scadenza)
+
+    def test_visita_senza_scadenza_non_riproposta(self):
+        tipo0 = TipoVisitaMedica.objects.create(nome="Una tantum", durata_mesi=0)
+        tipo0.ruoli_operativi.add(self.ruolo)
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=50, ruolo=self.ruolo)
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=50, tipo=tipo0,
+            data_svolgimento=self.oggi - timedelta(days=1000),
+        )
+        self.assertEqual(self._candidati_ids(tipo0), set())
+
+    def test_visita_valida_oltre_soglia_non_proposta(self):
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=51, ruolo=self.ruolo)
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=51, tipo=self.tipo,
+            data_svolgimento=self.oggi - timedelta(days=10),
+        )
+        self.assertEqual(self._candidati_ids(), set())
