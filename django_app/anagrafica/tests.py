@@ -4572,3 +4572,42 @@ class OrganigrammaRepartoCanonicoTests(TestCase):
         self.assertIn(id_b, membri_uff)    # fallback sul testo legacy
         # Carla Neri (testo fantasma, nessun canonico) resta non mappata.
         self.assertTrue(any(m["cognome"] == "Neri" for m in resp.context["non_mappati"]))
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class RuoliUnificatiFase2Tests(TestCase):
+    """Fase 2: catalogo ruoli unificato con certificazione + gerarchia."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            username="ruoli-admin", email="ruoli@example.com", password="pass12345",
+        )
+        self.client.force_login(self.admin)
+
+    def test_create_ruolo_con_certificazione_e_riporta_a(self):
+        capo = RuoloOperativo.objects.create(nome="Coordinamento")
+        self.client.post(reverse("anagrafica:ruolo_operativo_create"), {
+            "nome": "Caporeparto CNC",
+            "descrizione": "Capo del reparto CNC",
+            "certificazione_competenza": "Attestato preposto",
+            "riporta_a": str(capo.id),
+        })
+        r = RuoloOperativo.objects.get(nome="Caporeparto CNC")
+        self.assertEqual(r.certificazione_competenza, "Attestato preposto")
+        self.assertEqual(r.riporta_a_id, capo.id)
+
+    def test_edit_riporta_a_ciclo_rifiutato(self):
+        a = RuoloOperativo.objects.create(nome="Ruolo A")
+        b = RuoloOperativo.objects.create(nome="Ruolo B", riporta_a=a)  # B → A
+        # A → B chiuderebbe il ciclo A→B→A: deve essere rifiutato (riporta_a resta vuoto).
+        self.client.post(reverse("anagrafica:ruolo_operativo_edit", args=[a.id]), {
+            "nome": "Ruolo A", "riporta_a": str(b.id), "is_active": "1",
+        })
+        a.refresh_from_db()
+        self.assertIsNone(a.riporta_a_id)
+        b.refresh_from_db()
+        self.assertEqual(b.riporta_a_id, a.id)  # la relazione valida resta
+
+    def test_ruoli_aziendali_list_redirects_to_unificato(self):
+        resp = self.client.get(reverse("anagrafica:ruoli_aziendali_list"))
+        self.assertRedirects(resp, reverse("anagrafica:ruoli_operativi_list"))

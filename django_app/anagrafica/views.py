@@ -3079,12 +3079,48 @@ def dipendente_ruolo_rimuovi(request, legacy_id: int, assegnazione_id: int):
 # Ruoli operativi — gestione catalogo
 # ---------------------------------------------------------------------------
 
+def _parse_role_id(raw) -> int | None:
+    """Interpreta l'id di un ruolo da POST (``None`` se assente/non valido)."""
+    try:
+        value = int(str(raw or "").strip())
+    except (TypeError, ValueError):
+        return None
+    return value if value > 0 else None
+
+
+def _riporta_a_valido(ruolo_id: int | None, riporta_a_id: int | None) -> bool:
+    """True se assegnare ``riporta_a`` non crea un ciclo (né un self-loop).
+
+    Risale la catena ``riporta_a`` a partire dal candidato: se incontra
+    ``ruolo_id`` la relazione chiuderebbe un ciclo → non valida.
+    """
+    if not riporta_a_id:
+        return True
+    if riporta_a_id == ruolo_id:
+        return False
+    seen: set[int] = set()
+    current = RuoloOperativo.objects.filter(pk=riporta_a_id).select_related("riporta_a").first()
+    while current is not None and current.pk not in seen:
+        if current.pk == ruolo_id:
+            return False
+        seen.add(current.pk)
+        current = current.riporta_a
+    return True
+
+
 @login_required
 def ruoli_operativi_list(request):
     legacy_user = get_legacy_user(request.user)
     is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
 
-    ruoli = RuoloOperativo.objects.annotate(n_assegnati=Count("assegnazioni")).order_by("nome")
+    ruoli = (
+        RuoloOperativo.objects
+        .annotate(n_assegnati=Count("assegnazioni"))
+        .select_related("riporta_a")
+        .order_by("nome")
+    )
+    # Catalogo per il dropdown «riporta a» (tutti i ruoli, incluso lo storico).
+    ruoli_catalogo = list(RuoloOperativo.objects.order_by("nome").values("id", "nome"))
     ruoli_suggeriti = [
         "Preposto", "RSPP", "ASPP", "RLS",
         "Squadra antincendio", "Squadra primo soccorso",
@@ -3092,6 +3128,7 @@ def ruoli_operativi_list(request):
     ]
     return render(request, "anagrafica/pages/ruoli_operativi.html", {
         "ruoli": ruoli,
+        "ruoli_catalogo": ruoli_catalogo,
         "is_admin": is_admin,
         "ruoli_suggeriti": ruoli_suggeriti,
     })
@@ -3110,16 +3147,21 @@ def ruolo_operativo_create(request):
         messages.error(request, "Il nome del ruolo è obbligatorio.")
         return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
 
-    _, created = RuoloOperativo.objects.get_or_create(
+    ruolo, created = RuoloOperativo.objects.get_or_create(
         nome__iexact=nome,
         defaults={
             "nome": nome,
             "descrizione": (request.POST.get("descrizione") or "").strip(),
             "colore": (request.POST.get("colore") or "#64748b").strip()[:7],
             "icona": (request.POST.get("icona") or "").strip()[:10],
+            "certificazione_competenza": (request.POST.get("certificazione_competenza") or "").strip()[:200],
         },
     )
     if created:
+        riporta_a_id = _parse_role_id(request.POST.get("riporta_a"))
+        if riporta_a_id and _riporta_a_valido(ruolo.pk, riporta_a_id):
+            ruolo.riporta_a_id = riporta_a_id
+            ruolo.save(update_fields=["riporta_a"])
         messages.success(request, f'Ruolo "{nome}" creato.')
     else:
         messages.warning(request, f'Esiste già un ruolo con il nome "{nome}".')
@@ -3144,6 +3186,14 @@ def ruolo_operativo_edit(request, ruolo_id: int):
     ruolo.descrizione = (request.POST.get("descrizione") or "").strip()
     ruolo.colore = (request.POST.get("colore") or "#64748b").strip()[:7]
     ruolo.icona = (request.POST.get("icona") or "").strip()[:10]
+    ruolo.certificazione_competenza = (request.POST.get("certificazione_competenza") or "").strip()[:200]
+    riporta_a_id = _parse_role_id(request.POST.get("riporta_a"))
+    if riporta_a_id and _riporta_a_valido(ruolo.pk, riporta_a_id):
+        ruolo.riporta_a_id = riporta_a_id
+    else:
+        if riporta_a_id and not _riporta_a_valido(ruolo.pk, riporta_a_id):
+            messages.warning(request, "Relazione «riporta a» ignorata: creerebbe un ciclo nella gerarchia.")
+        ruolo.riporta_a = None
     ruolo.is_active = request.POST.get("is_active") == "1"
     ruolo.save()
     messages.success(request, f'Ruolo "{ruolo.nome}" aggiornato.')
@@ -5837,13 +5887,13 @@ def area_delete(request, area_id: int):
 
 @login_required
 def ruoli_aziendali_list(request):
-    legacy_user = get_legacy_user(request.user)
-    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
-    ruoli = list(RuoloAziendale.objects.all().order_by("nome"))
-    return render(request, "anagrafica/pages/ruoli_aziendali_list.html", {
-        "ruoli": ruoli,
-        "is_admin": is_admin,
-    })
+    # Fase 2: «Ruoli aziendali» e «Ruoli operativi» sono un catalogo unico.
+    # La pagina dedicata è confluita in quella unificata dei Ruoli.
+    messages.info(
+        request,
+        "I ruoli aziendali e operativi sono ora un catalogo unico: gestiscili da qui.",
+    )
+    return redirect("anagrafica:ruoli_operativi_list")
 
 
 @login_required
