@@ -12,7 +12,7 @@ from django.db import IntegrityError, models
 from django.utils import timezone
 from django.utils.text import slugify
 
-from .storage import PrivateAssetAdministrativeDeadlineStorage
+from .storage import PrivateAssetAdministrativeDeadlineStorage, PrivateAssetDocumentStorage
 
 
 class Asset(models.Model):
@@ -1508,7 +1508,7 @@ class AssetDocument(models.Model):
     # Codice della cartella documento: una delle CATEGORY_CHOICES di base oppure
     # lo slug di una AssetCategoryDocumentFolder extra configurata sulla categoria.
     category = models.CharField(max_length=60, choices=CATEGORY_CHOICES, default=CATEGORY_SPECIFICHE, db_index=True)
-    file = models.FileField(upload_to=_asset_document_upload_to)
+    file = models.FileField(upload_to=_asset_document_upload_to, storage=PrivateAssetDocumentStorage())
     original_name = models.CharField(max_length=255, blank=True, default="")
     relative_folder = models.CharField(
         max_length=400,
@@ -2091,7 +2091,7 @@ def _workorder_attachment_upload_to(instance, filename: str) -> str:
 
 class WorkOrderAttachment(models.Model):
     work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE, related_name="attachments")
-    file = models.FileField(upload_to=_workorder_attachment_upload_to)
+    file = models.FileField(upload_to=_workorder_attachment_upload_to, storage=PrivateAssetDocumentStorage())
     original_name = models.CharField(max_length=255, blank=True, default="")
     notes = models.CharField(max_length=255, blank=True, default="")
     uploaded_by = models.ForeignKey(

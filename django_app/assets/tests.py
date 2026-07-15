@@ -9292,3 +9292,85 @@ class AssetXlsxFormulaInjectionTests(TestCase):
             self.assertFalse(sheet["A2"].quotePrefix)  # valore benigno: nessun quote prefix
         finally:
             workbook.close()
+
+
+class AssetPrivateMediaStorageWiringTests(TestCase):
+    """I documenti asset e gli allegati OdL devono usare lo storage privato cifrato
+    (ASSETS_PRIVATE_ROOT), come gia' fanno le scadenze — non lo storage di default su
+    MEDIA_ROOT. Regressione del 404 in produzione: i file cifrati vivono in media_private/
+    ma i campi li cercavano in media/, quindi il download non li trovava. Dati sintetici.
+    """
+
+    def _key(self):
+        from cryptography.fernet import Fernet
+
+        return Fernet.generate_key().decode()
+
+    def test_asset_document_stored_encrypted_in_private_root_and_served_via_qr(self):
+        from .models import AssetDocument
+
+        asset = Asset.objects.create(
+            asset_tag="AST-DOCPRIV-1",
+            name="Doc privato",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            source_key="manual-docpriv-1",
+        )
+        with (
+            _workspace_temporary_directory("assets-media-") as media_root,
+            _workspace_temporary_directory("assets-private-") as private_root,
+            override_settings(
+                MEDIA_ROOT=media_root,
+                ASSETS_PRIVATE_ROOT=private_root,
+                DOCUMENT_ENCRYPTION_KEY=self._key(),
+            ),
+        ):
+            doc = AssetDocument.objects.create(
+                asset=asset,
+                category=AssetDocument.CATEGORY_MANUALI,
+                file=SimpleUploadedFile("manuale.pdf", b"%PDF-1.4 corpo manuale", content_type="application/pdf"),
+                original_name="manuale.pdf",
+            )
+            on_disk = Path(private_root) / doc.file.name
+            self.assertTrue(on_disk.exists(), "il documento deve stare nell'area privata")
+            self.assertFalse((Path(media_root) / doc.file.name).exists(), "non deve stare in MEDIA_ROOT")
+            self.assertTrue(on_disk.read_bytes().startswith(b"NCENC1\n"), "deve essere cifrato at-rest")
+
+            resp = self.client.get(
+                reverse(
+                    "assets:asset_document_qr_download",
+                    kwargs={"public_qr_token": asset.public_qr_token, "document_id": doc.id},
+                )
+            )
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(b"".join(resp.streaming_content), b"%PDF-1.4 corpo manuale")
+
+    def test_workorder_attachment_stored_encrypted_in_private_root(self):
+        from .models import WorkOrder, WorkOrderAttachment
+
+        asset = Asset.objects.create(
+            asset_tag="AST-WOPRIV-1",
+            name="OdL privato",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            source_key="manual-wopriv-1",
+        )
+        wo = WorkOrder.objects.create(asset=asset, title="OdL con allegato", kind=WorkOrder.KIND_CORRECTIVE)
+        with (
+            _workspace_temporary_directory("assets-media-") as media_root,
+            _workspace_temporary_directory("assets-private-") as private_root,
+            override_settings(
+                MEDIA_ROOT=media_root,
+                ASSETS_PRIVATE_ROOT=private_root,
+                DOCUMENT_ENCRYPTION_KEY=self._key(),
+            ),
+        ):
+            att = WorkOrderAttachment.objects.create(
+                work_order=wo,
+                file=SimpleUploadedFile("rapporto.pdf", b"%PDF-1.4 rapporto intervento", content_type="application/pdf"),
+            )
+            on_disk = Path(private_root) / att.file.name
+            self.assertTrue(on_disk.exists(), "l'allegato OdL deve stare nell'area privata")
+            self.assertFalse((Path(media_root) / att.file.name).exists(), "non deve stare in MEDIA_ROOT")
+            self.assertTrue(on_disk.read_bytes().startswith(b"NCENC1\n"), "deve essere cifrato at-rest")
+            self.assertTrue(att.file.storage.exists(att.file.name))
+            with att.file.storage.open(att.file.name, "rb") as fh:
+                self.assertEqual(fh.read(), b"%PDF-1.4 rapporto intervento")

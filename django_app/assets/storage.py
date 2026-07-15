@@ -10,11 +10,13 @@ from django.core.files.storage import FileSystemStorage
 from core.encrypted_storage import EncryptedStorageMixin
 
 
-class PrivateAssetAdministrativeDeadlineStorage(EncryptedStorageMixin, FileSystemStorage):
-    """
-    Storage privato per gli allegati dei completamenti scadenze asset.
-    I nuovi file vengono salvati in ASSETS_PRIVATE_ROOT e non espongono URL diretti.
-    I file legacy rimasti in MEDIA_ROOT restano leggibili solo tramite view protetta.
+class _PrivateEncryptedAssetStorage(EncryptedStorageMixin, FileSystemStorage):
+    """Base degli storage privati del modulo assets.
+
+    I nuovi file sono cifrati at-rest e salvati in ``ASSETS_PRIVATE_ROOT`` (fuori
+    dal webroot), senza URL diretti: l'accesso passa sempre da una view protetta.
+    I file legacy rimasti in ``MEDIA_ROOT`` restano leggibili in modo trasparente
+    (fallback), cosi' la migrazione verso l'area privata non rompe i download.
     """
 
     @property
@@ -72,5 +74,23 @@ class PrivateAssetAdministrativeDeadlineStorage(EncryptedStorageMixin, FileSyste
 
     def url(self, name):
         raise NotImplementedError(
+            "Gli storage privati asset non espongono URL diretti: usa la view di download dedicata."
+        )
+
+
+class PrivateAssetAdministrativeDeadlineStorage(_PrivateEncryptedAssetStorage):
+    """Storage privato per gli allegati dei completamenti scadenze asset."""
+
+    def url(self, name):
+        raise NotImplementedError(
             "Usa reverse('assets:admin_deadline_attachment_download', args=[id]) al posto di .file.url"
         )
+
+
+class PrivateAssetDocumentStorage(_PrivateEncryptedAssetStorage):
+    """Storage privato per i documenti asset (manuali, specifiche, interventi) e per
+    gli allegati degli ordini di lavoro. Stesso trattamento delle scadenze: i file
+    sensibili non sono mai serviti da ``/media/`` (deny IIS), l'accesso passa dalle
+    view ``asset_document_qr_download`` / ``asset_document_download`` /
+    ``workorder_attachment_download``, con audit.
+    """
