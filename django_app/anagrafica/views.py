@@ -7317,6 +7317,36 @@ def _build_scadenzario_voci(
     return voci
 
 
+def _raggruppa_scadenze_per_tipo(voci: list[dict]) -> list[dict]:
+    """Raggruppa le voci scadenzario per (kind, tipo_nome) — per la vista a
+    gruppi espandibili. Ogni gruppo espone i conteggi e le voci ordinate coi
+    più urgenti in cima; i gruppi sono ordinati con gli scaduti/urgenti prima.
+    """
+    from collections import OrderedDict
+
+    buckets: "OrderedDict[tuple, list[dict]]" = OrderedDict()
+    for v in voci:
+        buckets.setdefault((v.get("kind"), v.get("tipo_nome") or "—"), []).append(v)
+
+    gruppi: list[dict] = []
+    for (kind, tipo_nome), gv in buckets.items():
+        gv_sorted = sorted(gv, key=lambda x: (not x.get("scaduta"), x.get("giorni", 9999)))
+        n_scadute = sum(1 for x in gv if x.get("scaduta"))
+        worst = min((x.get("giorni", 9999) for x in gv), default=9999)
+        gruppi.append({
+            "kind": kind,
+            "kind_label": gv[0].get("kind_label", ""),
+            "tipo_nome": tipo_nome,
+            "voci": gv_sorted,
+            "n_totale": len(gv),
+            "n_scadute": n_scadute,
+            "worst_giorni": worst,
+            "has_scadute": n_scadute > 0,
+        })
+    gruppi.sort(key=lambda g: (not g["has_scadute"], g["worst_giorni"], g["tipo_nome"].lower()))
+    return gruppi
+
+
 @login_required
 def scadenzario(request):
     """Scadenzario unificato: qualifiche, visite mediche, formazione obbligatoria
@@ -7348,6 +7378,10 @@ def scadenzario(request):
     n_scadute = sum(1 for v in voci if v["scaduta"])
     n_30gg    = sum(1 for v in voci if not v["scaduta"] and v["giorni"] <= 30)
     n_60gg    = sum(1 for v in voci if not v["scaduta"] and 30 < v["giorni"] <= 60)
+
+    # Raggruppamento per TIPO (con espansione dei dipendenti): un gruppo per
+    # (kind, tipo_nome), ordinato con i più urgenti (scaduti / meno giorni) in alto.
+    gruppi = _raggruppa_scadenze_per_tipo(voci)
 
     reparti = sorted({v["reparto"] for v in voci if v["reparto"]})
 
@@ -7398,6 +7432,7 @@ def scadenzario(request):
         "filtro_stato":  filtro_stato,
         "filtro_reparto": filtro_reparto,
         "reparti":       reparti,
+        "gruppi":        gruppi,
         "can_view_visite": can_view_visite,
         "totale":        len(voci),
         "can_view_formazione": can_view_formazione,

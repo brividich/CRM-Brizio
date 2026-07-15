@@ -4611,3 +4611,45 @@ class RuoliUnificatiFase2Tests(TestCase):
     def test_ruoli_aziendali_list_redirects_to_unificato(self):
         resp = self.client.get(reverse("anagrafica:ruoli_aziendali_list"))
         self.assertRedirects(resp, reverse("anagrafica:ruoli_operativi_list"))
+
+
+class ScadenzarioRaggruppaPerTipoTests(TestCase):
+    """Fase 4 P4.2: raggruppamento scadenzario per tipo con espansione."""
+
+    def _voce(self, kind, tipo_nome, giorni, scaduta, cognome="X"):
+        return {
+            "kind": kind, "kind_label": kind.capitalize(), "tipo_nome": tipo_nome,
+            "giorni": giorni, "scaduta": scaduta, "cognome": cognome, "nome": "Y",
+            "reparto": "CNC", "legacy_id": 1, "data_scadenza": None,
+        }
+
+    def test_raggruppa_e_ordina_urgenti_in_cima(self):
+        from anagrafica.views import _raggruppa_scadenze_per_tipo
+
+        voci = [
+            self._voce("visita", "Videoterminalisti", 45, False),
+            self._voce("visita", "Videoterminalisti", -3, True),   # scaduta
+            self._voce("qualifica", "Saldatura", 20, False),
+        ]
+        gruppi = _raggruppa_scadenze_per_tipo(voci)
+        # Due gruppi: (visita, Videoterminalisti) e (qualifica, Saldatura).
+        self.assertEqual(len(gruppi), 2)
+        # Il gruppo con una scaduta va in cima.
+        self.assertEqual(gruppi[0]["tipo_nome"], "Videoterminalisti")
+        self.assertTrue(gruppi[0]["has_scadute"])
+        self.assertEqual(gruppi[0]["n_scadute"], 1)
+        self.assertEqual(gruppi[0]["n_totale"], 2)
+        # Dentro il gruppo, la voce scaduta è prima.
+        self.assertTrue(gruppi[0]["voci"][0]["scaduta"])
+        # Il gruppo senza scadute resta dopo.
+        self.assertEqual(gruppi[1]["tipo_nome"], "Saldatura")
+        self.assertFalse(gruppi[1]["has_scadute"])
+
+    def test_scadenzario_page_renders(self):
+        # Valida la sintassi del template raggruppato (Django compila tutti i rami).
+        admin = User.objects.create_superuser(
+            username="scad-admin", email="scad@example.com", password="pass12345",
+        )
+        self.client.force_login(admin)
+        resp = self.client.get(reverse("anagrafica:scadenzario"))
+        self.assertEqual(resp.status_code, 200)
