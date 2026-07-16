@@ -5657,6 +5657,11 @@ def _sync_aziendale_from_reparto(
         area = AreaAziendale.objects.filter(pk=area_aziendale_id, reparto_id=rep.id).first()
         if area is not None:
             area_id_valido = area.id
+            # Responsabile effettivo: il responsabile dell'AREA aziendale vince
+            # sul caporeparto del REPARTO quando differisce (fallback al capo
+            # reparto se l'area non ha responsabile). Fonte unica nel service.
+            from anagrafica.services.reparto_canonico import resolve_responsabile_effettivo
+            capo_id = resolve_responsabile_effettivo(area=area, reparto=rep)
 
     az, _ = DipendenteAnagraficaAziendale.objects.get_or_create(
         legacy_anagrafica_id=legacy_id,

@@ -41,3 +41,30 @@ class ResponsabileEffettivoTests(TestCase):
         )
         m = build_responsabile_effettivo_map([100, 101])
         self.assertEqual(m, {100: 20, 101: 10})
+
+
+class SyncResponsabileEffettivoTests(TestCase):
+    def setUp(self):
+        self.rep = Reparto.objects.create(nome="RepX", caporeparto_legacy_id=10)
+        self.area = AreaAziendale.objects.create(
+            nome="AreaX", reparto=self.rep, responsabile_legacy_id=20,
+        )
+
+    def test_sync_scrive_responsabile_area_non_capo_reparto(self):
+        from anagrafica.views import _sync_aziendale_from_reparto
+        _sync_aziendale_from_reparto(
+            legacy_id=100, reparto_nome="RepX",
+            area_aziendale_id=self.area.id, saved_by=None,
+        )
+        az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=100)
+        self.assertEqual(az.caporeparto_legacy_id, 20)  # area vince
+
+    def test_sync_fallback_capo_reparto_se_area_senza_responsabile(self):
+        area2 = AreaAziendale.objects.create(nome="AreaY", reparto=self.rep)
+        from anagrafica.views import _sync_aziendale_from_reparto
+        _sync_aziendale_from_reparto(
+            legacy_id=101, reparto_nome="RepX",
+            area_aziendale_id=area2.id, saved_by=None,
+        )
+        az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=101)
+        self.assertEqual(az.caporeparto_legacy_id, 10)
