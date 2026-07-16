@@ -699,3 +699,37 @@ class GiornataRenderTests(TestCase):
         resp = self._get(tipo=str(self.tipo.pk))
         body = resp.content.decode()
         self.assertIn(f'name="sel_66_{self.tipo.pk}"', body)
+
+
+class ScadenzarioRinnovoVisiteTests(TestCase):
+    def setUp(self):
+        from .tests import _ensure_anagrafica_table
+        _ensure_anagrafica_table()
+        self.user_super = User.objects.create_superuser(
+            username="su-scad-rin", email="su-scad-rin@test.local", password="x"
+        )
+        self.oggi = timezone.localdate()
+        self.tipo = TipoVisitaMedica.objects.create(nome="ScadRinT", durata_mesi=12)
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=111, tipo=self.tipo,
+            data_svolgimento=self.oggi - timedelta(days=400),  # scaduta
+        )
+
+    def test_voce_visita_porta_tipo_id(self):
+        from .views import _build_scadenzario_voci
+        from django.test import RequestFactory
+        rf = RequestFactory()
+        request = rf.get("/anagrafica/scadenzario/")
+        request.user = self.user_super
+        voci = _build_scadenzario_voci(request, filtro_tipo="visita", filtro_stato="", filtro_reparto="")
+        vis = [v for v in voci if v["kind"] == "visita"]
+        self.assertTrue(vis)
+        self.assertEqual(vis[0]["tipo_id"], self.tipo.pk)
+
+    def test_gruppo_visita_ha_pulsante_rinnovo(self):
+        from django.urls import reverse
+        self.client.force_login(self.user_super)
+        resp = self.client.get(reverse("anagrafica:scadenzario"), {"tipo": "visita"})
+        self.assertEqual(resp.status_code, 200)
+        body = resp.content.decode()
+        self.assertIn(f"nuova-sessione/?tipo={self.tipo.pk}", body)
