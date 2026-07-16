@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from io import StringIO
 from unittest.mock import MagicMock, patch
 from types import SimpleNamespace
@@ -37,6 +37,7 @@ from .views import (
     _sync_on_page_load_enabled,
     _tipo_for_display,
     _tipo_for_storage,
+    _validate_business_rules,
 )
 
 User = get_user_model()
@@ -1615,3 +1616,98 @@ class AssenzeCaporepartoEscalationTests(TestCase):
         )
         self.assertEqual(opt, "capoa@example.com")
         self.assertFalse(escalated)
+
+
+class AssenzeRegoleDurataTests(SimpleTestCase):
+    def _dt(self, s):
+        return datetime.strptime(s, "%Y-%m-%d %H:%M")
+
+    # --- Permesso: 30min-8h, stesso giorno -------------------------------
+    def test_permesso_oltre_8h_respinto(self):
+        err, _ = _validate_business_rules(
+            tipo="Permesso",
+            dt_start=self._dt("2026-03-10 08:00"),
+            dt_end=self._dt("2026-03-10 17:00"),  # 9h
+        )
+        self.assertTrue(err)
+        self.assertIn("8 ore", err)
+
+    def test_permesso_sotto_30min_respinto(self):
+        err, _ = _validate_business_rules(
+            tipo="Permesso",
+            dt_start=self._dt("2026-03-10 08:00"),
+            dt_end=self._dt("2026-03-10 08:20"),  # 20min
+        )
+        self.assertTrue(err)
+
+    def test_permesso_4h_ok(self):
+        err, _ = _validate_business_rules(
+            tipo="Permesso",
+            dt_start=self._dt("2026-03-10 08:00"),
+            dt_end=self._dt("2026-03-10 12:00"),
+        )
+        self.assertEqual(err, "")
+
+    def test_permesso_multi_giorno_respinto(self):
+        err, _ = _validate_business_rules(
+            tipo="Permesso",
+            dt_start=self._dt("2026-03-10 08:00"),
+            dt_end=self._dt("2026-03-11 09:00"),
+        )
+        self.assertTrue(err)
+
+    # --- Ferie: piu di 1 giorno -----------------------------------------
+    def test_ferie_un_giorno_respinta(self):
+        err, _ = _validate_business_rules(
+            tipo="Ferie",
+            dt_start=self._dt("2026-03-12 00:00"),
+            dt_end=self._dt("2026-03-12 23:59"),
+        )
+        self.assertTrue(err)
+        self.assertIn("un giorno", err)
+
+    def test_ferie_due_giorni_ok(self):
+        err, _ = _validate_business_rules(
+            tipo="Ferie",
+            dt_start=self._dt("2026-03-12 00:00"),
+            dt_end=self._dt("2026-03-13 23:59"),
+        )
+        self.assertEqual(err, "")
+
+    # --- Durata rapida: solo la data ------------------------------------
+    def test_durata_rapida_orario_alterato_respinto(self):
+        err, _ = _validate_business_rules(
+            tipo="Permesso",
+            dt_start=self._dt("2026-03-10 06:00"),
+            dt_end=self._dt("2026-03-10 15:00"),  # preset mattina = 06:00-14:00
+            shortcut="mattina",
+        )
+        self.assertTrue(err)
+        self.assertIn("solo la data", err)
+
+    def test_durata_rapida_solo_data_ok(self):
+        err, _ = _validate_business_rules(
+            tipo="Permesso",
+            dt_start=self._dt("2026-03-10 06:00"),
+            dt_end=self._dt("2026-03-10 14:00"),  # combacia col preset mattina (8h)
+            shortcut="mattina",
+        )
+        self.assertEqual(err, "")
+
+    def test_durata_rapida_multi_giorno_respinto(self):
+        err, _ = _validate_business_rules(
+            tipo="Permesso",
+            dt_start=self._dt("2026-03-10 06:00"),
+            dt_end=self._dt("2026-03-11 14:00"),
+            shortcut="mattina",
+        )
+        self.assertTrue(err)
+
+    def test_custom_permesso_orario_libero_ok(self):
+        err, _ = _validate_business_rules(
+            tipo="Permesso",
+            dt_start=self._dt("2026-03-10 09:15"),
+            dt_end=self._dt("2026-03-10 13:45"),  # 4h30
+            shortcut="custom",
+        )
+        self.assertEqual(err, "")
