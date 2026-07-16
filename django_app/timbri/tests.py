@@ -646,3 +646,80 @@ class TimbriDownloadImageHostAllowlistTests(TestCase):
                 with self.assertRaises(RuntimeError):
                     timbri_views._download_image(bad_url)
             mock_get.assert_not_called()
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class TimbriQualificaFilterTests(TestCase):
+    """La lista timbri può filtrare i dipendenti per qualifica dei loro registri."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            username="timbri-qual-admin",
+            email="timbri-qual-admin@test.local",
+            password="pass12345",
+        )
+        _ensure_anagrafica_table()
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM anagrafica_dipendenti")
+            vendor = connection.vendor
+            if vendor == "sqlite":
+                cursor.execute(
+                    """
+                    INSERT INTO anagrafica_dipendenti
+                        (aliasusername, nome, cognome, mansione, reparto, ruolo, matricola, attivo, email, email_notifica, utente_id)
+                    VALUES
+                        ('m.rossi', 'Mario', 'Rossi', 'OP', 'Cromatura', 'OP', 'MR001', 1, 'm.rossi@test.local', 'm.rossi@example.com', NULL)
+                    """
+                )
+                self.legacy_id = int(cursor.lastrowid)
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO anagrafica_dipendenti
+                        (aliasusername, nome, cognome, mansione, reparto, ruolo, matricola, attivo, email, email_notifica, utente_id)
+                    OUTPUT INSERTED.id
+                    VALUES
+                        ('m.rossi', 'Mario', 'Rossi', 'OP', 'Cromatura', 'OP', 'MR001', 1, 'm.rossi@test.local', 'm.rossi@example.com', NULL)
+                    """
+                )
+                self.legacy_id = int(cursor.fetchone()[0])
+        self.operatore = OperatoreTimbri.objects.create(
+            legacy_anagrafica_id=self.legacy_id,
+            nome="Mario",
+            cognome="Rossi",
+            matricola="MR001",
+            reparto="Cromatura",
+        )
+        # Stesso operatore, due registri con qualifiche diverse.
+        RegistroTimbro.objects.create(
+            operatore=self.operatore, codice_timbro="CNO CROM", qualifica="Cromatore", is_attivo=True
+        )
+        RegistroTimbro.objects.create(
+            operatore=self.operatore, codice_timbro="CNO RETT", qualifica="Rettificatore", is_attivo=True
+        )
+
+    def test_filter_by_owned_qualifica_includes_employee(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("timbri:index"), {"qualifica": "Cromatore"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Rossi Mario")
+
+    def test_filter_by_owned_qualifica_is_case_insensitive(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("timbri:index"), {"qualifica": "cromatore"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Rossi Mario")
+
+    def test_filter_by_missing_qualifica_excludes_employee(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("timbri:index"), {"qualifica": "Saldatore"})
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Rossi Mario")
+
+    def test_qualifiche_options_are_offered_in_the_filter(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("timbri:index"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'name="qualifica"')
+        self.assertContains(response, "Cromatore")
+        self.assertContains(response, "Rettificatore")
