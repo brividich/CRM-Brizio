@@ -3,9 +3,11 @@ from datetime import timedelta
 from django.contrib.auth import get_user_model
 from django.contrib.sessions.backends.db import SessionStore
 from django.test import RequestFactory, TestCase
+from django.urls import reverse
 from django.utils import timezone
 from anagrafica.models import (
-    DipendenteQualifica, DipendenteRuoloOperativo, RuoloOperativo, TipoQualifica,
+    AreaAziendale, DipendenteQualifica, DipendenteRuoloOperativo, Reparto,
+    RuoloOperativo, TipoQualifica,
 )
 from anagrafica.services.organigramma_albero import (
     build_certificazione_copertura, build_ruolo_albero,
@@ -101,3 +103,23 @@ class OrganigrammaAlberoCoperturaViewTests(TestCase):
         # Overlay: copertura per-nodo (0 su 1) e badge stato "mancante".
         self.assertIn("0/1", body)
         self.assertIn("Mancante", body)
+
+
+class OrganigrammaGrigliaResponsabileEffettivoTests(TestCase):
+    def setUp(self):
+        self.su = User.objects.create_superuser("su-grid", "su-grid@test.local", "x")
+        self.rep = Reparto.objects.create(nome="RepGrid", caporeparto_legacy_id=10)
+        self.area = AreaAziendale.objects.create(
+            nome="AreaGrid", reparto=self.rep, responsabile_legacy_id=20,
+        )
+
+    def test_blocco_espone_responsabile_effettivo_area(self):
+        self.client.force_login(self.su)
+        resp = self.client.get(reverse("anagrafica:organigramma"))
+        self.assertEqual(resp.status_code, 200)
+        blocco = next(b for b in resp.context["blocchi"] if b["reparto"].nome == "RepGrid")
+        aree = {a.nome: a for a in blocco["aree_aziendali"]}
+        area = aree["AreaGrid"]
+        # L'area vince sul caporeparto (10) quando ha un responsabile proprio (20).
+        self.assertEqual(area.responsabile_effettivo_id, 20)
+        self.assertTrue(area.responsabile_distinto)

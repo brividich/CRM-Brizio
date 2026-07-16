@@ -19,6 +19,7 @@
 .org-rep-count { font-size:11.5px; color:#94a3b8; font-weight:600; }
 .org-aree { display:flex; flex-wrap:wrap; gap:4px; margin:4px 14px 0; }
 .org-area-chip { font-size:10.5px; font-weight:700; color:#1e40af; background:#dbeafe; border-radius:999px; padding:2px 8px; }
+.org-area-resp { font-weight:600; color:#1d4ed8; opacity:.85; }
 .org-capo {
   display:flex; align-items:center; gap:8px;
   margin:8px 14px 10px; padding:7px 10px;
@@ -64,6 +65,7 @@ body.theme-dark .org-nm-rep { color:#fbbf24; }
 body.theme-dark .org-rep { background:var(--surface); border-color:var(--border); }
 body.theme-dark .org-rep-name { color:var(--text); }
 body.theme-dark .org-area-chip { background:rgba(29,78,216,.22); color:#bfdbfe; }
+body.theme-dark .org-area-resp { color:#93c5fd; }
 body.theme-dark .org-capo { background:rgba(29,78,216,.12); border-color:rgba(29,78,216,.3); }
 body.theme-dark .org-capo a { color:var(--text); }
 body.theme-dark .org-membri summary { color:var(--text-light); }
@@ -162,7 +164,7 @@ body.theme-dark .org-capo-missing { background:rgba(133,77,14,.18); border-color
         {% if b.aree_aziendali %}
         <div class="org-aree">
           {% for area in b.aree_aziendali %}
-          <span class="org-area-chip">{{ area.nome }}</span>
+          <span class="org-area-chip"{% if area.responsabile_distinto and area.responsabile_effettivo_label %} title="Responsabile: {{ area.responsabile_effettivo_label }}"{% endif %}>{{ area.nome }}{% if area.responsabile_distinto and area.responsabile_effettivo_label %} <span class="org-area-resp">· {{ area.responsabile_effettivo_label }}</span>{% endif %}</span>
           {% endfor %}
         </div>
         {% endif %}

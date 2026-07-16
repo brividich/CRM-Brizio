@@ -13353,6 +13353,7 @@ def organigramma(request):
         build_area_canonica_map,
         build_reparto_canonico_map,
         resolve_reparto_for_row,
+        resolve_responsabile_effettivo,
     )
 
     ensure_anagrafica_schema()
@@ -13392,11 +13393,28 @@ def organigramma(request):
         membri = sorted(membri_per_reparto.get(rep.id, []), key=_sort_key)
         if capo:
             membri = [m for m in membri if int(m.get("id") or 0) != int(capo.get("id") or 0)]
+        aree = list(rep.aree_aziendali.filter(is_active=True).order_by("nome"))
+        # Responsabile effettivo per AREA: il responsabile dell'area vince sul
+        # caporeparto del reparto quando differisce (dominio: "caporeparto
+        # dall'area aziendale se differisce"). Il capo del blocco resta il
+        # caporeparto del reparto come fallback complessivo.
+        for area in aree:
+            rid = resolve_responsabile_effettivo(area=area, reparto=rep)
+            area.responsabile_effettivo_id = rid
+            resp_row = dip_map.get(rid or 0)
+            area.responsabile_effettivo_label = (
+                f"{resp_row.get('cognome', '')} {resp_row.get('nome', '')}".strip()
+                if resp_row else ""
+            )
+            area.responsabile_distinto = bool(
+                area.responsabile_legacy_id
+                and area.responsabile_legacy_id != (rep.caporeparto_legacy_id or 0)
+            )
         return {
             "reparto": rep,
             "capo": capo,
             "membri": membri,
-            "aree_aziendali": list(rep.aree_aziendali.filter(is_active=True).order_by("nome")),
+            "aree_aziendali": aree,
             "n_totale": len(membri) + (1 if capo else 0),
         }
 
