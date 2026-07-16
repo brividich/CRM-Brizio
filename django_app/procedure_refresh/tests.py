@@ -805,6 +805,11 @@ class AssignUsersNotificaTests(TestCase):
             due_date=date(2026, 12, 31),
             created_by=self.manager,
         )
+        # La sessione deve contenere il documento: l'assegnazione ora copre tutti
+        # i documenti della campagna (niente più select revisione).
+        ProcedureCampaignDocument.objects.create(
+            campaign=self.campaign, revision=self.rev, is_mandatory=True
+        )
 
     def test_assign_crea_notifica_in_app(self):
         from core.models import Notifica
@@ -813,22 +818,21 @@ class AssignUsersNotificaTests(TestCase):
         url = reverse("procedure_refresh:assign_users", kwargs={"pk": self.campaign.pk})
         resp = self.client.post(url, {
             "user_ids": [str(self.reader.pk)],
-            "revision_id": str(self.rev.pk),
         })
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(
             ProcedureAssignment.objects.filter(campaign=self.campaign, user=self.reader).count(), 1
         )
-        notifiche = Notifica.objects.filter(messaggio__contains="MT-ASSIGN-001")
+        # La notifica è generica sulla sessione (una per utente).
+        notifiche = Notifica.objects.filter(messaggio__contains="Assign Campaign")
         self.assertEqual(notifiche.count(), 1)
         self.assertEqual(len(mail.outbox), 0)  # nessuna mail automatica all'assegnazione
 
-        # Ri-assegnazione stessa revisione: nessuna nuova notifica
+        # Ri-assegnazione identica: nessuna nuova notifica
         self.client.post(url, {
             "user_ids": [str(self.reader.pk)],
-            "revision_id": str(self.rev.pk),
         })
-        self.assertEqual(Notifica.objects.filter(messaggio__contains="MT-ASSIGN-001").count(), 1)
+        self.assertEqual(Notifica.objects.filter(messaggio__contains="Assign Campaign").count(), 1)
 
     def test_campaign_detail_espone_elenco_destinatari(self):
         ProcedureAssignment.objects.create(
@@ -1512,3 +1516,66 @@ class CampaignAddDocumentMultiTests(TestCase):
         self.assertEqual(
             ProcedureCampaignDocument.objects.filter(campaign=self.campaign).count(), 1
         )
+
+
+class AssignUsersAllDocumentsTests(TestCase):
+    """L'assegnazione copre TUTTI i documenti della sessione (niente più select revisione)."""
+
+    def setUp(self):
+        self.manager = User.objects.create_user(username="alldocmgr", password="pw", is_superuser=True)
+        self.reader1 = User.objects.create_user(username="alldoc-r1", password="pw", first_name="Uno", last_name="Rossi")
+        self.reader2 = User.objects.create_user(username="alldoc-r2", password="pw", first_name="Due", last_name="Verdi")
+        self.campaign = ProcedureCampaign.objects.create(
+            name="Sessione Multi",
+            status=CampaignStatus.PUBLISHED,
+            start_date=date(2026, 1, 1),
+            due_date=date(2026, 12, 31),
+            created_by=self.manager,
+        )
+        self.revs = []
+        for i in range(2):
+            doc = ProcedureDocument.objects.create(
+                code=f"MT-ALLDOC-{i}", title=f"Doc {i}", document_type="MT", is_active=True
+            )
+            rev = ProcedureRevision.objects.create(
+                document=doc, revision_code="Rev.01", revision_date=date(2026, 1, 1),
+                effective_date=date(2026, 1, 1), source_type=SourceType.SHAREPOINT,
+                source_url=f"https://example.sharepoint.com/alldoc-{i}.pdf",
+                file_name=f"alldoc-{i}.pdf", is_current=True,
+            )
+            ProcedureCampaignDocument.objects.create(campaign=self.campaign, revision=rev, is_mandatory=True)
+            self.revs.append(rev)
+
+    def test_assign_without_revision_covers_all_documents(self):
+        self.client.force_login(self.manager)
+        url = reverse("procedure_refresh:assign_users", kwargs={"pk": self.campaign.pk})
+        resp = self.client.post(url, {"user_ids": [str(self.reader1.pk), str(self.reader2.pk)]})
+        self.assertEqual(resp.status_code, 302)
+        # 2 utenti × 2 documenti = 4 assegnazioni.
+        self.assertEqual(ProcedureAssignment.objects.filter(campaign=self.campaign).count(), 4)
+
+    def test_assign_is_idempotent(self):
+        self.client.force_login(self.manager)
+        url = reverse("procedure_refresh:assign_users", kwargs={"pk": self.campaign.pk})
+        payload = {"user_ids": [str(self.reader1.pk), str(self.reader2.pk)]}
+        self.client.post(url, payload)
+        self.client.post(url, payload)  # secondo POST identico
+        self.assertEqual(ProcedureAssignment.objects.filter(campaign=self.campaign).count(), 4)
+
+    def test_campaign_without_documents_errors_and_creates_nothing(self):
+        from django.contrib.messages import get_messages
+
+        empty_campaign = ProcedureCampaign.objects.create(
+            name="Sessione Vuota",
+            status=CampaignStatus.PUBLISHED,
+            start_date=date(2026, 1, 1),
+            due_date=date(2026, 12, 31),
+            created_by=self.manager,
+        )
+        self.client.force_login(self.manager)
+        url = reverse("procedure_refresh:assign_users", kwargs={"pk": empty_campaign.pk})
+        resp = self.client.post(url, {"user_ids": [str(self.reader1.pk)]})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(ProcedureAssignment.objects.filter(campaign=empty_campaign).count(), 0)
+        msgs = [str(m).lower() for m in get_messages(resp.wsgi_request)]
+        self.assertTrue(any("document" in m for m in msgs), msgs)
