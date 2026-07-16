@@ -121,12 +121,12 @@ body.theme-dark .pr-empty { color:var(--text-light); }
       {% if campaign.status == 'draft' %}
         <form method="post" action="{% url 'procedure_refresh:campaign_publish' pk=campaign.pk %}">
           {% csrf_token %}
-          <button type="submit" class="pr-hbtn pr-hbtn-white" onclick="return confirm('Pubblicare la campagna?')">Pubblica</button>
+          <button type="submit" class="pr-hbtn pr-hbtn-white" onclick="return confirm('Pubblicare la sessione?')">Pubblica</button>
         </form>
       {% elif campaign.status == 'published' %}
         <form method="post" action="{% url 'procedure_refresh:campaign_close' pk=campaign.pk %}">
           {% csrf_token %}
-          <button type="submit" class="pr-hbtn pr-hbtn-outline" onclick="return confirm('Chiudere la campagna?')">Chiudi campagna</button>
+          <button type="submit" class="pr-hbtn pr-hbtn-outline" onclick="return confirm('Chiudere la sessione?')">Chiudi sessione</button>
         </form>
       {% endif %}
       <a href="{% url 'procedure_refresh:campaign_edit' pk=campaign.pk %}" class="pr-hbtn pr-hbtn-outline">Modifica</a>
@@ -150,32 +150,35 @@ body.theme-dark .pr-empty { color:var(--text-light); }
     </div>
     <div class="pr-kpi">
       <div class="pr-kpi-val">{{ campaign_docs|length }}</div>
-      <div class="pr-kpi-lbl">Documenti in campagna</div>
+      <div class="pr-kpi-lbl">Documenti in sessione</div>
     </div>
   </div>
 
   <div class="pr-grid">
 
-    <!-- Documenti campagna -->
+    <!-- Documenti sessione -->
     <div class="pr-card">
-      <div class="pr-card-title">Documenti in campagna</div>
+      <div class="pr-card-title">Documenti in sessione</div>
 
       {% if campaign.status == 'draft' %}
         <form method="post" action="{% url 'procedure_refresh:campaign_add_document' pk=campaign.pk %}"
               class="pr-form-inline" style="margin-bottom:14px;">
           {% csrf_token %}
-          <input type="text" id="pr-picker-search" placeholder="Filtra documenti…" autocomplete="off"
-                 style="flex:1;min-width:160px;padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:12px;">
-          <select name="revision_id" id="pr-picker-select" required style="flex:1;min-width:180px;">
-            <option value="">— Seleziona revisione —</option>
-            {% for rev in available_revisions %}
-              <option value="{{ rev.pk }}" data-search="{{ rev.document.code|lower }} {{ rev.document.title|lower }} {{ rev.document.document_type|lower }}">[{{ rev.document.document_type }}] {{ rev.document.code }} rev.{{ rev.revision_code }} — {{ rev.document.title|truncatechars:60 }}</option>
-            {% endfor %}
-          </select>
+          <div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:220px;">
+            <input type="text" id="pr-picker-search" placeholder="Filtra procedure…" autocomplete="off"
+                   style="padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:12px;">
+            <select name="revision_ids" id="pr-picker-select" multiple required size="6"
+                    style="min-width:220px;padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:12px;">
+              {% for rev in available_revisions %}
+                <option value="{{ rev.pk }}" data-search="{{ rev.document.code|lower }} {{ rev.document.title|lower }} {{ rev.document.document_type|lower }}">[{{ rev.document.document_type }}] {{ rev.document.code }} rev.{{ rev.revision_code }} — {{ rev.document.title|truncatechars:60 }}</option>
+              {% endfor %}
+            </select>
+            <span style="font-size:11px;color:#64748b;">Tieni Ctrl (o ⌘) per selezionarne più di una.</span>
+          </div>
           <label style="font-size:12px;display:flex;align-items:center;gap:4px;">
-            <input type="checkbox" name="is_mandatory" value="1" checked> Obbligatoria
+            <input type="checkbox" name="is_mandatory" value="1" checked> Obbligatorie
           </label>
-          <button type="submit">Aggiungi</button>
+          <button type="submit">Aggiungi selezionate</button>
         </form>
         <script>
         (function () {
@@ -187,11 +190,9 @@ body.theme-dark .pr-empty { color:var(--text-light); }
             var opts = sel.options;
             for (var i = 0; i < opts.length; i++) {
               var o = opts[i];
-              if (!o.value) { continue; }  // placeholder sempre visibile
               var hay = o.getAttribute('data-search') || o.text.toLowerCase();
               o.hidden = q !== '' && hay.indexOf(q) === -1;
             }
-            if (sel.selectedOptions.length && sel.selectedOptions[0].hidden) { sel.value = ''; }
           });
         })();
         </script>
@@ -246,20 +247,54 @@ body.theme-dark .pr-empty { color:var(--text-light); }
                    style="width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:12px;">
           </div>
           <div style="margin-bottom:10px;">
-            <label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px;">Utenti (tieni Ctrl per selezionare più utenti)</label>
-            <select name="user_ids" multiple required
-                    style="width:100%;height:140px;padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:12px;">
-              {% for u in users %}
-                <option value="{{ u.pk }}">{{ u.get_full_name|default:u.username }}</option>
+            <label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px;">Utenti — per reparto, con ricerca</label>
+            <input type="text" id="pr-user-search" placeholder="Cerca per nome…" autocomplete="off"
+                   style="width:100%;margin-bottom:6px;padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:12px;">
+            <select name="user_ids" id="pr-user-select" multiple required size="10"
+                    style="width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:12px;">
+              {% for grp in users_grouped %}
+              <optgroup label="{{ grp.reparto }}" data-reparto="{{ grp.reparto|lower }}">
+                {% for u in grp.users %}
+                  <option value="{{ u.pk }}" data-search="{{ u.get_full_name|default:u.username|lower }} {{ grp.reparto|lower }}">{{ u.get_full_name|default:u.username }}</option>
+                {% endfor %}
+              </optgroup>
               {% endfor %}
             </select>
+            <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
+              <button type="button" id="pr-user-selall" style="font-size:11px;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;background:#f8fafc;cursor:pointer;">Seleziona visibili</button>
+              <button type="button" id="pr-user-clear" style="font-size:11px;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;background:#f8fafc;cursor:pointer;">Deseleziona tutti</button>
+              <span style="font-size:11px;color:#64748b;">Ctrl/⌘ per multipla; «Seleziona visibili» rispetta il filtro/reparto.</span>
+            </div>
           </div>
+          <script>
+          (function () {
+            var box = document.getElementById('pr-user-search');
+            var sel = document.getElementById('pr-user-select');
+            if (!box || !sel) return;
+            function eachOpt(fn) {
+              for (var i = 0; i < sel.options.length; i++) { fn(sel.options[i]); }
+            }
+            box.addEventListener('input', function () {
+              var q = box.value.trim().toLowerCase();
+              eachOpt(function (o) {
+                var hay = o.getAttribute('data-search') || o.text.toLowerCase();
+                o.hidden = q !== '' && hay.indexOf(q) === -1;
+              });
+            });
+            document.getElementById('pr-user-selall').addEventListener('click', function () {
+              eachOpt(function (o) { if (!o.hidden) { o.selected = true; } });
+            });
+            document.getElementById('pr-user-clear').addEventListener('click', function () {
+              eachOpt(function (o) { o.selected = false; });
+            });
+          })();
+          </script>
           <button type="submit" style="padding:7px 16px;background:#15803d;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;">
             Assegna selezionati
           </button>
         </form>
       {% else %}
-        <p style="font-size:13px;color:#64748b;">Campagna chiusa — assegnazioni non modificabili.</p>
+        <p style="font-size:13px;color:#64748b;">Sessione chiusa — assegnazioni non modificabili.</p>
       {% endif %}
     </div>
   </div>

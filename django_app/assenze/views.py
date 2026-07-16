@@ -3252,6 +3252,110 @@ def _resolve_default_capo_for_user(
     return ""
 
 
+def _find_capo_dict_for_option(option: str, capi: list[dict]) -> dict | None:
+    """Ritrova il dict del caporeparto (in ``capi``) data la sua option (email/lookup)."""
+    key = _norm_text_key(option)
+    if not key:
+        return None
+    for capo in capi:
+        candidates = {
+            _norm_text_key(_capo_option_value(capo)),
+            _norm_text_key(capo.get("Email")),
+            _norm_text_key(capo.get("LookupId")),
+        }
+        candidates.discard("")
+        if key in candidates:
+            return capo
+    return None
+
+
+def _capo_absent_on(capo: dict, day) -> bool:
+    """True se il caporeparto ha un'assenza APPROVATA che copre ``day``.
+
+    «Approvata» = ``moderation_status = 0`` (0=Approvato, 1=Rifiutato, 2=In attesa).
+    Il match avviene per nome/email (come il resto del modulo assenze).
+    Fail-safe: qualunque incertezza o errore → ``False`` (nessuna escalation).
+    """
+    if not _table_exists("assenze"):
+        return False
+    name = str(capo.get("Value") or "").strip()
+    email = str(capo.get("Email") or "").strip()
+    clauses: list[str] = []
+    params: list = []
+    if name:
+        clauses.append("UPPER(COALESCE(copia_nome,'')) = UPPER(%s)")
+        params.append(name)
+    if email:
+        clauses.append("UPPER(COALESCE(email_esterna,'')) = UPPER(%s)")
+        params.append(email)
+    if not clauses:
+        return False
+    day_start = datetime.combine(day, datetime.min.time())
+    day_end = datetime.combine(day, datetime.max.time())
+    base_sql = (
+        "SELECT 1 FROM assenze WHERE (" + " OR ".join(clauses) + ") "
+        "AND COALESCE(moderation_status, 2) = 0 "
+        "AND data_inizio <= %s AND data_fine >= %s"
+    )
+    params.extend([day_end, day_start])
+    try:
+        rows = _fetch_all_dict(_select_limited(base_sql, "", 1), params)
+        return bool(rows)
+    except Exception:
+        return False
+
+
+def _superior_capo_option(capo_anagrafica_id: int | None, capi: list[dict]) -> str:
+    """Option del superiore del caporeparto = il suo stesso ``caporeparto_legacy_id``.
+
+    È il «capo del capo» dedotto dall'assegnazione gerarchica (coerente con la
+    gestione ruoli/gerarchia). Mappato su una capo-option via ``AnagraficaLegacyId``.
+    """
+    if not capo_anagrafica_id:
+        return ""
+    try:
+        from anagrafica.models import DipendenteAnagraficaAziendale
+
+        az = (
+            DipendenteAnagraficaAziendale.objects
+            .filter(legacy_anagrafica_id=int(capo_anagrafica_id))
+            .only("caporeparto_legacy_id")
+            .first()
+        )
+        sup_id = _as_int(getattr(az, "caporeparto_legacy_id", None)) if az else None
+        if not sup_id:
+            return ""
+        for capo in capi:
+            if _as_int(capo.get("AnagraficaLegacyId")) == sup_id:
+                return _capo_option_value(capo)
+    except Exception:
+        return ""
+    return ""
+
+
+def _effective_capo_option(
+    *, name: str, email: str, username: str, legacy_user_id: int | None,
+    capi: list[dict], request_day,
+) -> tuple[str, bool]:
+    """Caporeparto autoritativo per la richiesta: ``(option, escalated)``.
+
+    Risolve il caporeparto ASSEGNATO al dipendente e, **se e solo se** quel
+    caporeparto risulta assente (assenza approvata) nel giorno della richiesta,
+    lo sostituisce col superiore. Fail-safe: in caso di dubbio ritorna il
+    caporeparto assegnato senza escalation.
+    """
+    base = _resolve_default_capo_for_user(
+        name=name, email=email, username=username, capi=capi, legacy_user_id=legacy_user_id,
+    )
+    if not base:
+        return "", False
+    capo = _find_capo_dict_for_option(base, capi)
+    if capo is None or not _capo_absent_on(capo, request_day):
+        return base, False
+    sup = _superior_capo_option(_as_int(capo.get("AnagraficaLegacyId")), capi)
+    return (sup, True) if sup else (base, False)
+
+
 def _resolve_capo_email_from_lookup(lookup_id: int | None, capi: list[dict]) -> str:
     if lookup_id is None:
         return ""
@@ -4389,14 +4493,30 @@ def invio_placeholder(request):
     if err_msg:
         return _render_richiesta(request, error=err_msg, form_data=request.POST.dict())
 
+    # Caporeparto AUTORITATIVO lato server: quello assegnato al dipendente (il
+    # campo del form è bloccato). Se quel caporeparto è assente nel giorno di
+    # inizio, l'approvazione passa al suo superiore. Fallback al valore del form
+    # solo se il server non riesce a risolvere (compatibilità).
+    capi_options = _load_capi_options()
+    capo_username = "" if inserting_for_other else request.user.get_username()
+    capo_effective, capo_escalated = _effective_capo_option(
+        name=display_name,
+        email=email,
+        username=capo_username,
+        legacy_user_id=legacy_id,
+        capi=capi_options,
+        request_day=dt_start.date(),
+    )
+    capo_final = capo_effective or capo_raw
+
     payload = {
         "sharepoint_item_id": None,
         "nome_lookup_id": _resolve_nome_lookup_id(legacy_id, display_name),
         "copia_nome": display_name,
         "email_esterna": email,
         "tipo_assenza": tipo,
-        "capo_reparto_id": _resolve_capo_local_id(capo_raw),
-        "capo_reparto_lookup_id": _resolve_capo_lookup_id(capo_raw),
+        "capo_reparto_id": _resolve_capo_local_id(capo_final),
+        "capo_reparto_lookup_id": _resolve_capo_lookup_id(capo_final),
         "data_inizio": dt_start,
         "data_fine": dt_end,
         "motivazione_richiesta": motivazione,
@@ -4423,6 +4543,14 @@ def invio_placeholder(request):
             "assenza_inserita_per_conto",
             "assenze",
             {"local_id": local_id, "for_dipendente": display_name, "by": inserter_name},
+        )
+
+    if capo_escalated:
+        log_action(
+            request,
+            "assenza_escalation_caporeparto",
+            "assenze",
+            {"local_id": local_id, "motivo": "caporeparto assente nel giorno", "capo_effettivo": capo_final},
         )
 
     sync_msg = "Sincronizzazione SharePoint non configurata."

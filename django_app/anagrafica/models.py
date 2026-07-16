@@ -314,17 +314,39 @@ class FornitoreAsset(models.Model):
 # ---------------------------------------------------------------------------
 
 class RuoloOperativo(models.Model):
+    """Catalogo unico dei ruoli aziendali/operativi (Fase 2: unificazione).
+
+    Assorbe i vecchi «Ruoli aziendali»: è la fonte unica dei ruoli, con la
+    gerarchia interna (``riporta_a``) e la certificazione di competenza
+    opzionale. NON è una primitiva ACL — resta un ruolo funzionale.
+    """
     nome = models.CharField(max_length=100, unique=True)
     descrizione = models.TextField(blank=True, default="")
     colore = models.CharField(max_length=7, default="#64748b", help_text="Colore esadecimale es. #1d4ed8")
     icona = models.CharField(max_length=10, blank=True, default="", help_text="Emoji o testo breve")
+    certificazione_competenza = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        verbose_name="Certificazione di competenza",
+        help_text="Certificazione/qualifica associata al ruolo (opzionale).",
+    )
+    riporta_a = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="riporti",
+        verbose_name="Riporta a",
+        help_text="Ruolo sovraordinato nella gerarchia (es. i capireparto riportano al coordinamento). Relazione tra RUOLI, non tra persone.",
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["nome"]
-        verbose_name = "Ruolo Operativo"
-        verbose_name_plural = "Ruoli Operativi"
+        verbose_name = "Ruolo"
+        verbose_name_plural = "Ruoli"
 
     def __str__(self) -> str:
         return self.nome

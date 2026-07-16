@@ -1,6 +1,6 @@
 {% extends "core/base.html" %}
 
-{% block title %}{% if campaign %}Modifica campagna{% else %}Nuova campagna{% endif %} | Portale{% endblock %}
+{% block title %}{% if campaign %}Modifica sessione{% else %}Nuova sessione{% endif %} | Portale{% endblock %}
 
 {% block body_class %}{{ block.super }} pr-workspace-page pr-campaign-form-page{% endblock %}
 
@@ -32,7 +32,7 @@ body.theme-dark .pr-btn-cancel { background:var(--surface-alt); color:var(--text
 
 {% block content %}
 <div id="pr-root">
-  <a href="{% url 'procedure_refresh:campaign_list' %}" style="font-size:13px;color:#64748b;text-decoration:none;">← Torna alle campagne</a>
+  <a href="{% url 'procedure_refresh:campaign_list' %}" style="font-size:13px;color:#64748b;text-decoration:none;">← Torna alle sessioni</a>
 
   {% if messages %}
     {% for msg in messages %}
@@ -41,13 +41,13 @@ body.theme-dark .pr-btn-cancel { background:var(--surface-alt); color:var(--text
   {% endif %}
 
   <div class="pr-card">
-    <div class="pr-card-title">{% if campaign %}Modifica campagna{% else %}Nuova campagna{% endif %}</div>
+    <div class="pr-card-title">{% if campaign %}Modifica sessione{% else %}Nuova sessione{% endif %}</div>
 
     <form method="post">
       {% csrf_token %}
 
       <div class="pr-form-group">
-        <label for="name">Nome campagna *</label>
+        <label for="name">Nome sessione *</label>
         <input type="text" id="name" name="name" value="{{ campaign.name|default:'' }}"
                placeholder="es. Refresh procedure Q1 2026" maxlength="200" required>
       </div>
@@ -55,7 +55,7 @@ body.theme-dark .pr-btn-cancel { background:var(--surface-alt); color:var(--text
       <div class="pr-form-group">
         <label for="description">Descrizione</label>
         <textarea id="description" name="description" rows="3"
-                  placeholder="Obiettivo e contesto della campagna (facoltativo)">{{ campaign.description|default:'' }}</textarea>
+                  placeholder="Obiettivo e contesto della sessione (facoltativo)">{{ campaign.description|default:'' }}</textarea>
       </div>
 
       <div class="pr-form-row">
@@ -72,7 +72,7 @@ body.theme-dark .pr-btn-cancel { background:var(--surface-alt); color:var(--text
       </div>
 
       <div style="display:flex;gap:10px;margin-top:8px;">
-        <button type="submit" class="pr-btn-save">Salva campagna</button>
+        <button type="submit" class="pr-btn-save">Salva sessione</button>
         <a href="{% url 'procedure_refresh:campaign_list' %}" class="pr-btn-cancel">Annulla</a>
       </div>
     </form>

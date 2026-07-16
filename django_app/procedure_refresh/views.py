@@ -817,9 +817,9 @@ def document_toggle_ack(request, pk: int):
     """Marca/smarca un documento come «soggetto a presa visione».
 
     Nella lista unica il flag ``requires_acknowledgement`` è solo un **marcatore**
-    informativo (badge): il picker campagna mostra comunque tutti i documenti. Il
+    informativo (badge): il picker sessione mostra comunque tutti i documenti. Il
     marcatore alimenta il report dei documenti da mettere in presa visione ma non
-    ancora coperti da una campagna. Requisito ISO: la marcatura resta una decisione
+    ancora coperti da una sessione. Requisito ISO: la marcatura resta una decisione
     umana tracciata.
     """
     if not _can_manage(request):
@@ -1017,7 +1017,7 @@ def campaign_form(request, pk: int | None = None):
 
         errors = []
         if not name:
-            errors.append("Il nome campagna è obbligatorio.")
+            errors.append("Il nome sessione è obbligatorio.")
         if not start_date_str:
             errors.append("La data inizio è obbligatoria.")
         if not due_date_str:
@@ -1054,9 +1054,9 @@ def campaign_form(request, pk: int | None = None):
                 request,
                 action,
                 "procedure_refresh",
-                _audit_detail("Campagna salvata", campaign_id=campaign.pk, name=name),
+                _audit_detail("Sessione salvata", campaign_id=campaign.pk, name=name),
             )
-            messages.success(request, "Campagna salvata.")
+            messages.success(request, "Sessione salvata.")
             return redirect("procedure_refresh:campaign_detail", pk=campaign.pk)
 
     return render(request, "procedure_refresh/pages/campaign_form.html", {
@@ -1080,7 +1080,7 @@ def campaign_detail(request, pk: int):
 
     already_in = [cd.revision_id for cd in campaign_docs]
     # Tutte le revisioni CORRENTI dei documenti attivi: la scelta di cosa mettere in
-    # campagna la fa il gestore al momento (il template offre una ricerca client-side,
+    # sessione la fa il gestore al momento (il template offre una ricerca client-side,
     # sono centinaia dopo l'import SGI). Non filtriamo su requires_acknowledgement.
     available_revisions = (
         ProcedureRevision.objects.filter(
@@ -1093,6 +1093,17 @@ def campaign_detail(request, pk: int):
     )
 
     users = User.objects.filter(is_active=True).order_by("last_name", "first_name")
+    # Assegnazione «per reparto + lista + cerca»: raggruppa gli utenti per reparto
+    # così il template può offrire optgroup per reparto, ricerca e «seleziona tutto
+    # il reparto». Il backend (`assign_users`) accetta già più `user_ids`.
+    _dept_map = _user_department_map(users)
+    _grouped: dict[str, list] = {}
+    for _u in users:
+        _grouped.setdefault(_dept_map.get(_u.pk, "Senza reparto"), []).append(_u)
+    users_grouped = [
+        {"reparto": _rep, "users": _us}
+        for _rep, _us in sorted(_grouped.items(), key=lambda kv: (kv[0] == "Senza reparto", kv[0].lower()))
+    ]
 
     n_total = assignments.count()
     n_confirmed = assignments.filter(status=AssignmentStatus.READ_CONFIRMED).count()
@@ -1131,6 +1142,7 @@ def campaign_detail(request, pk: int):
         "assignments": assignments,
         "available_revisions": available_revisions,
         "users": users,
+        "users_grouped": users_grouped,
         "n_total": n_total,
         "n_confirmed": n_confirmed,
         "n_pending": n_pending,
@@ -1150,38 +1162,52 @@ def campaign_add_document(request, pk: int):
         return redirect("procedure_refresh:my_assignments")
 
     campaign = get_object_or_404(ProcedureCampaign, pk=pk)
-    revision_id = request.POST.get("revision_id", "").strip()
+    # Multi-scelta: accetta più revisioni (`revision_ids`); retro-compatibile con
+    # il singolo `revision_id`.
+    revision_ids = [r.strip() for r in request.POST.getlist("revision_ids") if r.strip()]
+    single = request.POST.get("revision_id", "").strip()
+    if single and single not in revision_ids:
+        revision_ids.append(single)
 
-    if not revision_id:
-        messages.error(request, "Seleziona una revisione.")
-        return redirect("procedure_refresh:campaign_detail", pk=pk)
-
-    try:
-        revision = ProcedureRevision.objects.select_related("document").get(
-            pk=int(revision_id)
-        )
-    except (ProcedureRevision.DoesNotExist, ValueError):
-        messages.error(request, "Revisione non trovata.")
+    if not revision_ids:
+        messages.error(request, "Seleziona almeno una procedura.")
         return redirect("procedure_refresh:campaign_detail", pk=pk)
 
     is_mandatory = bool(request.POST.get("is_mandatory"))
-    _, created = ProcedureCampaignDocument.objects.get_or_create(
-        campaign=campaign,
-        revision=revision,
-        defaults={"is_mandatory": is_mandatory},
-    )
-    if created:
+    added = 0
+    skipped = 0
+    for rid in revision_ids:
+        try:
+            revision = ProcedureRevision.objects.select_related("document").get(pk=int(rid))
+        except (ProcedureRevision.DoesNotExist, ValueError):
+            skipped += 1
+            continue
+        _, created = ProcedureCampaignDocument.objects.get_or_create(
+            campaign=campaign,
+            revision=revision,
+            defaults={"is_mandatory": is_mandatory},
+        )
+        if created:
+            added += 1
+        else:
+            skipped += 1
+
+    if added:
         log_action(
             request, "aggiungi", "procedure_refresh",
             _audit_detail(
-                "Documento aggiunto a campagna",
+                "Procedure aggiunte a sessione",
                 campaign_id=campaign.pk,
-                revision_id=revision.pk,
+                added=added,
             )
         )
-        messages.success(request, "Documento aggiunto alla campagna.")
+        messages.success(
+            request,
+            f"{added} procedur{'a' if added == 1 else 'e'} aggiunt{'a' if added == 1 else 'e'} alla sessione."
+            + (f" {skipped} già presenti o non valide." if skipped else ""),
+        )
     else:
-        messages.warning(request, "Documento già presente nella campagna.")
+        messages.warning(request, "Nessuna procedura aggiunta (già presenti o non valide).")
     return redirect("procedure_refresh:campaign_detail", pk=pk)
 
 
@@ -1198,13 +1224,13 @@ def campaign_remove_document(request, pk: int, cd_pk: int):
     log_action(
         request, "rimuovi", "procedure_refresh",
         _audit_detail(
-            "Documento rimosso da campagna",
+            "Documento rimosso da sessione",
             campaign_id=pk,
             campaign_document_id=cd_pk,
             revision=str(rev_str),
         )
     )
-    messages.success(request, "Documento rimosso dalla campagna.")
+    messages.success(request, "Documento rimosso dalla sessione.")
     return redirect("procedure_refresh:campaign_detail", pk=pk)
 
 
@@ -1217,7 +1243,7 @@ def campaign_publish(request, pk: int):
 
     campaign = get_object_or_404(ProcedureCampaign, pk=pk)
     if campaign.status != CampaignStatus.DRAFT:
-        messages.error(request, "Solo le campagne in bozza possono essere pubblicate.")
+        messages.error(request, "Solo le sessioni in bozza possono essere pubblicate.")
         return redirect("procedure_refresh:campaign_detail", pk=pk)
 
     campaign.status = CampaignStatus.PUBLISHED
@@ -1227,9 +1253,9 @@ def campaign_publish(request, pk: int):
         request,
         "pubblica",
         "procedure_refresh",
-        _audit_detail("Campagna pubblicata", campaign_id=campaign.pk, name=campaign.name),
+        _audit_detail("Sessione pubblicata", campaign_id=campaign.pk, name=campaign.name),
     )
-    messages.success(request, "Campagna pubblicata.")
+    messages.success(request, "Sessione pubblicata.")
     return redirect("procedure_refresh:campaign_detail", pk=pk)
 
 
@@ -1242,7 +1268,7 @@ def campaign_close(request, pk: int):
 
     campaign = get_object_or_404(ProcedureCampaign, pk=pk)
     if campaign.status != CampaignStatus.PUBLISHED:
-        messages.error(request, "Solo le campagne pubblicate possono essere chiuse.")
+        messages.error(request, "Solo le sessioni pubblicate possono essere chiuse.")
         return redirect("procedure_refresh:campaign_detail", pk=pk)
 
     campaign.status = CampaignStatus.CLOSED
@@ -1252,9 +1278,9 @@ def campaign_close(request, pk: int):
         request,
         "chiudi",
         "procedure_refresh",
-        _audit_detail("Campagna chiusa", campaign_id=campaign.pk, name=campaign.name),
+        _audit_detail("Sessione chiusa", campaign_id=campaign.pk, name=campaign.name),
     )
-    messages.success(request, "Campagna chiusa.")
+    messages.success(request, "Sessione chiusa.")
     return redirect("procedure_refresh:campaign_detail", pk=pk)
 
 
@@ -1324,7 +1350,7 @@ def assign_users(request, pk: int):
                 "presa_visione",
                 (
                     f"Nuovo documento in presa visione: {revision.document.code} "
-                    f"(campagna {campaign.name}, scadenza {scad_str})."
+                    f"(sessione {campaign.name}, scadenza {scad_str})."
                 ),
                 url_azione="/procedure-refresh/",
             )
@@ -1699,7 +1725,7 @@ def export_csv(request):
 
     if report_type == "assignments":
         headers = [
-            "ID", "Utente", "Email", "Campagna",
+            "ID", "Utente", "Email", "Sessione",
             "Documento", "Codice doc", "Tipo doc", "Revisione",
             "Stato", "Assegnato il", "Scadenza",
             "Prima apertura", "Ultima apertura", "Confermato il",
@@ -1734,7 +1760,7 @@ def export_csv(request):
 
     elif report_type == "matrix":
         headers = [
-            "Campagna", "Documento", "Codice doc", "Revisione",
+            "Sessione", "Documento", "Codice doc", "Revisione",
             "Reparto", "Assegnati", "Confermati", "Completamento %",
         ]
 
@@ -1761,7 +1787,7 @@ def export_csv(request):
 
     else:
         headers = [
-            "ID", "Campagna", "Stato", "Inizio", "Scadenza",
+            "ID", "Sessione", "Stato", "Inizio", "Scadenza",
             "Totale", "Confermati", "In attesa",
         ]
 

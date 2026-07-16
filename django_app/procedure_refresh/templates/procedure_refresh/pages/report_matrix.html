@@ -63,7 +63,7 @@ body.theme-dark .pr-muted, body.theme-dark .pr-kpi-lbl, body.theme-dark .pr-empt
     <div class="pr-report-tabs">
       <a href="{% url 'procedure_refresh:report_user' %}" class="pr-tab">Per utente</a>
       <a href="{% url 'procedure_refresh:report_document' %}" class="pr-tab">Per documento</a>
-      <a href="{% url 'procedure_refresh:report_campaign' %}" class="pr-tab">Per campagna</a>
+      <a href="{% url 'procedure_refresh:report_campaign' %}" class="pr-tab">Per sessione</a>
       <a href="{% url 'procedure_refresh:report_matrix' %}" class="pr-tab active">Matrice reparti</a>
     </div>
   </div>
@@ -71,7 +71,7 @@ body.theme-dark .pr-muted, body.theme-dark .pr-kpi-lbl, body.theme-dark .pr-empt
   <div class="pr-filter-card">
     <form method="get" class="pr-filter-row">
       <select name="camp_id">
-        <option value="">Seleziona campagna</option>
+        <option value="">Seleziona sessione</option>
         {% for camp in campaigns %}
         <option value="{{ camp.pk }}"{% if selected_camp and selected_camp.pk == camp.pk %} selected{% endif %}>{{ camp.name }} ({{ camp.get_status_display }})</option>
         {% endfor %}
@@ -79,7 +79,7 @@ body.theme-dark .pr-muted, body.theme-dark .pr-kpi-lbl, body.theme-dark .pr-empt
       <button type="submit" class="pr-filter-btn">Visualizza</button>
       {% if selected_camp %}
       <a href="{% url 'procedure_refresh:export_csv' %}?type=matrix&camp={{ selected_camp.pk }}" class="pr-link-btn">Export CSV audit</a>
-      <a href="{% url 'procedure_refresh:campaign_detail' pk=selected_camp.pk %}" class="pr-link-btn">Apri campagna</a>
+      <a href="{% url 'procedure_refresh:campaign_detail' pk=selected_camp.pk %}" class="pr-link-btn">Apri sessione</a>
       {% endif %}
     </form>
   </div>
@@ -150,7 +150,7 @@ body.theme-dark .pr-muted, body.theme-dark .pr-kpi-lbl, body.theme-dark .pr-empt
       </tbody>
     </table>
     {% else %}
-    <div class="pr-empty">La campagna non ha ancora assegnazioni con reparto rilevabile.</div>
+    <div class="pr-empty">La sessione non ha ancora assegnazioni con reparto rilevabile.</div>
     {% endif %}
   </div>
   {% elif selected_camp %}

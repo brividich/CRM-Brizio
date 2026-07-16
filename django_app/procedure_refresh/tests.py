@@ -1465,3 +1465,50 @@ class AssignmentLifecycleTests(TestCase):
             self.assertEqual(
                 len([m for m in mail.outbox if "qualita@test.local" in m.to]), 1
             )
+
+
+class CampaignAddDocumentMultiTests(TestCase):
+    """Fase 4 P4.3: aggiunta MULTI-scelta di procedure a una sessione."""
+
+    def setUp(self):
+        self.manager = User.objects.create_user(
+            username="multimgr", password="pw", is_superuser=True
+        )
+        self.campaign = ProcedureCampaign.objects.create(
+            name="Multi", status=CampaignStatus.DRAFT,
+            start_date=date(2026, 1, 1), due_date=date(2026, 12, 31),
+            created_by=self.manager,
+        )
+        self.revs = []
+        for i in range(2):
+            doc = ProcedureDocument.objects.create(
+                code=f"MT-MULTI-{i}", title=f"D{i}", document_type="MT", is_active=True
+            )
+            rev = ProcedureRevision.objects.create(
+                document=doc, revision_code="Rev.01", revision_date=date(2026, 1, 1),
+                effective_date=date(2026, 1, 1), source_type=SourceType.SHAREPOINT,
+                source_url=f"https://example.sharepoint.com/{i}.pdf",
+                file_name=f"{i}.pdf", is_current=True,
+            )
+            self.revs.append(rev)
+
+    def test_add_multiple_revisions_at_once(self):
+        self.client.force_login(self.manager)
+        url = reverse("procedure_refresh:campaign_add_document", kwargs={"pk": self.campaign.pk})
+        resp = self.client.post(url, {
+            "revision_ids": [str(r.pk) for r in self.revs],
+            "is_mandatory": "1",
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(
+            ProcedureCampaignDocument.objects.filter(campaign=self.campaign).count(), 2
+        )
+
+    def test_single_revision_id_still_supported(self):
+        self.client.force_login(self.manager)
+        url = reverse("procedure_refresh:campaign_add_document", kwargs={"pk": self.campaign.pk})
+        resp = self.client.post(url, {"revision_id": str(self.revs[0].pk), "is_mandatory": "1"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(
+            ProcedureCampaignDocument.objects.filter(campaign=self.campaign).count(), 1
+        )

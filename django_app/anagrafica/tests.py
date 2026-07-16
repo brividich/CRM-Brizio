@@ -4572,3 +4572,111 @@ class OrganigrammaRepartoCanonicoTests(TestCase):
         self.assertIn(id_b, membri_uff)    # fallback sul testo legacy
         # Carla Neri (testo fantasma, nessun canonico) resta non mappata.
         self.assertTrue(any(m["cognome"] == "Neri" for m in resp.context["non_mappati"]))
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class RuoliUnificatiFase2Tests(TestCase):
+    """Fase 2: catalogo ruoli unificato con certificazione + gerarchia."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            username="ruoli-admin", email="ruoli@example.com", password="pass12345",
+        )
+        self.client.force_login(self.admin)
+
+    def test_create_ruolo_con_certificazione_e_riporta_a(self):
+        capo = RuoloOperativo.objects.create(nome="Coordinamento")
+        self.client.post(reverse("anagrafica:ruolo_operativo_create"), {
+            "nome": "Caporeparto CNC",
+            "descrizione": "Capo del reparto CNC",
+            "certificazione_competenza": "Attestato preposto",
+            "riporta_a": str(capo.id),
+        })
+        r = RuoloOperativo.objects.get(nome="Caporeparto CNC")
+        self.assertEqual(r.certificazione_competenza, "Attestato preposto")
+        self.assertEqual(r.riporta_a_id, capo.id)
+
+    def test_edit_riporta_a_ciclo_rifiutato(self):
+        a = RuoloOperativo.objects.create(nome="Ruolo A")
+        b = RuoloOperativo.objects.create(nome="Ruolo B", riporta_a=a)  # B → A
+        # A → B chiuderebbe il ciclo A→B→A: deve essere rifiutato (riporta_a resta vuoto).
+        self.client.post(reverse("anagrafica:ruolo_operativo_edit", args=[a.id]), {
+            "nome": "Ruolo A", "riporta_a": str(b.id), "is_active": "1",
+        })
+        a.refresh_from_db()
+        self.assertIsNone(a.riporta_a_id)
+        b.refresh_from_db()
+        self.assertEqual(b.riporta_a_id, a.id)  # la relazione valida resta
+
+    def test_ruoli_aziendali_list_redirects_to_unificato(self):
+        resp = self.client.get(reverse("anagrafica:ruoli_aziendali_list"))
+        self.assertRedirects(resp, reverse("anagrafica:ruoli_operativi_list"))
+
+
+class ScadenzarioRaggruppaPerTipoTests(TestCase):
+    """Fase 4 P4.2: raggruppamento scadenzario per tipo con espansione."""
+
+    def _voce(self, kind, tipo_nome, giorni, scaduta, cognome="X"):
+        return {
+            "kind": kind, "kind_label": kind.capitalize(), "tipo_nome": tipo_nome,
+            "giorni": giorni, "scaduta": scaduta, "cognome": cognome, "nome": "Y",
+            "reparto": "CNC", "legacy_id": 1, "data_scadenza": None,
+        }
+
+    def test_raggruppa_e_ordina_urgenti_in_cima(self):
+        from anagrafica.views import _raggruppa_scadenze_per_tipo
+
+        voci = [
+            self._voce("visita", "Videoterminalisti", 45, False),
+            self._voce("visita", "Videoterminalisti", -3, True),   # scaduta
+            self._voce("qualifica", "Saldatura", 20, False),
+        ]
+        gruppi = _raggruppa_scadenze_per_tipo(voci)
+        # Due gruppi: (visita, Videoterminalisti) e (qualifica, Saldatura).
+        self.assertEqual(len(gruppi), 2)
+        # Il gruppo con una scaduta va in cima.
+        self.assertEqual(gruppi[0]["tipo_nome"], "Videoterminalisti")
+        self.assertTrue(gruppi[0]["has_scadute"])
+        self.assertEqual(gruppi[0]["n_scadute"], 1)
+        self.assertEqual(gruppi[0]["n_totale"], 2)
+        # Dentro il gruppo, la voce scaduta è prima.
+        self.assertTrue(gruppi[0]["voci"][0]["scaduta"])
+        # Il gruppo senza scadute resta dopo.
+        self.assertEqual(gruppi[1]["tipo_nome"], "Saldatura")
+        self.assertFalse(gruppi[1]["has_scadute"])
+
+    def test_scadenzario_page_renders(self):
+        # Valida la sintassi del template raggruppato (Django compila tutti i rami).
+        admin = User.objects.create_superuser(
+            username="scad-admin", email="scad@example.com", password="pass12345",
+        )
+        self.client.force_login(admin)
+        resp = self.client.get(reverse("anagrafica:scadenzario"))
+        self.assertEqual(resp.status_code, 200)
+
+
+class QualificheScadenzarioRenderTests(TestCase):
+    """Fase 4 P4.2: la vista raggruppata di qualifiche_scadenzario renderizza."""
+
+    def test_qualifiche_scadenzario_page_renders(self):
+        admin = User.objects.create_superuser(
+            username="qual-scad-admin", email="qs@example.com", password="pass12345",
+        )
+        self.client.force_login(admin)
+        resp = self.client.get(reverse("anagrafica:qualifiche_scadenzario"))
+        self.assertEqual(resp.status_code, 200)
+
+
+class FormazioneCorsoWizardRenderTests(TestCase):
+    """Fase 4 P4.1: il form di creazione corso è reso come wizard «percorso» kp-."""
+
+    def test_corso_create_page_renders_wizard(self):
+        admin = User.objects.create_superuser(
+            username="corso-admin", email="corso@example.com", password="pass12345",
+        )
+        self.client.force_login(admin)
+        resp = self.client.get(reverse("anagrafica:formazione_corso_create") + "?elearning=1")
+        self.assertEqual(resp.status_code, 200)
+        # Struttura del componente percorso kp- presente.
+        self.assertContains(resp, "data-kp-root")
+        self.assertContains(resp, "kp-station")

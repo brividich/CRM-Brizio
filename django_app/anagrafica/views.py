@@ -3072,12 +3072,48 @@ def dipendente_ruolo_rimuovi(request, legacy_id: int, assegnazione_id: int):
 # Ruoli operativi — gestione catalogo
 # ---------------------------------------------------------------------------
 
+def _parse_role_id(raw) -> int | None:
+    """Interpreta l'id di un ruolo da POST (``None`` se assente/non valido)."""
+    try:
+        value = int(str(raw or "").strip())
+    except (TypeError, ValueError):
+        return None
+    return value if value > 0 else None
+
+
+def _riporta_a_valido(ruolo_id: int | None, riporta_a_id: int | None) -> bool:
+    """True se assegnare ``riporta_a`` non crea un ciclo (né un self-loop).
+
+    Risale la catena ``riporta_a`` a partire dal candidato: se incontra
+    ``ruolo_id`` la relazione chiuderebbe un ciclo → non valida.
+    """
+    if not riporta_a_id:
+        return True
+    if riporta_a_id == ruolo_id:
+        return False
+    seen: set[int] = set()
+    current = RuoloOperativo.objects.filter(pk=riporta_a_id).select_related("riporta_a").first()
+    while current is not None and current.pk not in seen:
+        if current.pk == ruolo_id:
+            return False
+        seen.add(current.pk)
+        current = current.riporta_a
+    return True
+
+
 @login_required
 def ruoli_operativi_list(request):
     legacy_user = get_legacy_user(request.user)
     is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
 
-    ruoli = RuoloOperativo.objects.annotate(n_assegnati=Count("assegnazioni")).order_by("nome")
+    ruoli = (
+        RuoloOperativo.objects
+        .annotate(n_assegnati=Count("assegnazioni"))
+        .select_related("riporta_a")
+        .order_by("nome")
+    )
+    # Catalogo per il dropdown «riporta a» (tutti i ruoli, incluso lo storico).
+    ruoli_catalogo = list(RuoloOperativo.objects.order_by("nome").values("id", "nome"))
     ruoli_suggeriti = [
         "Preposto", "RSPP", "ASPP", "RLS",
         "Squadra antincendio", "Squadra primo soccorso",
@@ -3085,6 +3121,7 @@ def ruoli_operativi_list(request):
     ]
     return render(request, "anagrafica/pages/ruoli_operativi.html", {
         "ruoli": ruoli,
+        "ruoli_catalogo": ruoli_catalogo,
         "is_admin": is_admin,
         "ruoli_suggeriti": ruoli_suggeriti,
     })
@@ -3103,16 +3140,21 @@ def ruolo_operativo_create(request):
         messages.error(request, "Il nome del ruolo è obbligatorio.")
         return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
 
-    _, created = RuoloOperativo.objects.get_or_create(
+    ruolo, created = RuoloOperativo.objects.get_or_create(
         nome__iexact=nome,
         defaults={
             "nome": nome,
             "descrizione": (request.POST.get("descrizione") or "").strip(),
             "colore": (request.POST.get("colore") or "#64748b").strip()[:7],
             "icona": (request.POST.get("icona") or "").strip()[:10],
+            "certificazione_competenza": (request.POST.get("certificazione_competenza") or "").strip()[:200],
         },
     )
     if created:
+        riporta_a_id = _parse_role_id(request.POST.get("riporta_a"))
+        if riporta_a_id and _riporta_a_valido(ruolo.pk, riporta_a_id):
+            ruolo.riporta_a_id = riporta_a_id
+            ruolo.save(update_fields=["riporta_a"])
         messages.success(request, f'Ruolo "{nome}" creato.')
     else:
         messages.warning(request, f'Esiste già un ruolo con il nome "{nome}".')
@@ -3137,6 +3179,14 @@ def ruolo_operativo_edit(request, ruolo_id: int):
     ruolo.descrizione = (request.POST.get("descrizione") or "").strip()
     ruolo.colore = (request.POST.get("colore") or "#64748b").strip()[:7]
     ruolo.icona = (request.POST.get("icona") or "").strip()[:10]
+    ruolo.certificazione_competenza = (request.POST.get("certificazione_competenza") or "").strip()[:200]
+    riporta_a_id = _parse_role_id(request.POST.get("riporta_a"))
+    if riporta_a_id and _riporta_a_valido(ruolo.pk, riporta_a_id):
+        ruolo.riporta_a_id = riporta_a_id
+    else:
+        if riporta_a_id and not _riporta_a_valido(ruolo.pk, riporta_a_id):
+            messages.warning(request, "Relazione «riporta a» ignorata: creerebbe un ciclo nella gerarchia.")
+        ruolo.riporta_a = None
     ruolo.is_active = request.POST.get("is_active") == "1"
     ruolo.save()
     messages.success(request, f'Ruolo "{ruolo.nome}" aggiornato.')
@@ -5830,13 +5880,13 @@ def area_delete(request, area_id: int):
 
 @login_required
 def ruoli_aziendali_list(request):
-    legacy_user = get_legacy_user(request.user)
-    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
-    ruoli = list(RuoloAziendale.objects.all().order_by("nome"))
-    return render(request, "anagrafica/pages/ruoli_aziendali_list.html", {
-        "ruoli": ruoli,
-        "is_admin": is_admin,
-    })
+    # Fase 2: «Ruoli aziendali» e «Ruoli operativi» sono un catalogo unico.
+    # La pagina dedicata è confluita in quella unificata dei Ruoli.
+    messages.info(
+        request,
+        "I ruoli aziendali e operativi sono ora un catalogo unico: gestiscili da qui.",
+    )
+    return redirect("anagrafica:ruoli_operativi_list")
 
 
 @login_required
@@ -6184,6 +6234,36 @@ def qualifiche_dashboard(request):
     })
 
 
+def _raggruppa_voci_per_tipo(voci, *, tipo_of, scaduta_of, giorni_of):
+    """Raggruppa voci di scadenzario per «tipo» (vista a gruppi espandibili).
+
+    Generico: ``tipo_of``/``scaduta_of``/``giorni_of`` estraggono da ogni voce
+    il nome-tipo, il flag «scaduta» e i giorni residui. Ordina le voci coi più
+    urgenti in cima e i gruppi con scadute per primi. Riusato dagli scadenzari
+    qualifiche e skill-matrix (lo scadenzario anagrafica ha il proprio helper).
+    """
+    from collections import OrderedDict
+
+    buckets = OrderedDict()
+    for v in voci:
+        buckets.setdefault(tipo_of(v) or "—", []).append(v)
+    gruppi = []
+    for tipo_nome, gv in buckets.items():
+        gv_sorted = sorted(gv, key=lambda x: (not scaduta_of(x), giorni_of(x)))
+        n_scadute = sum(1 for x in gv if scaduta_of(x))
+        worst = min((giorni_of(x) for x in gv), default=99999)
+        gruppi.append({
+            "tipo_nome": tipo_nome,
+            "voci": gv_sorted,
+            "n_totale": len(gv),
+            "n_scadute": n_scadute,
+            "worst_giorni": worst,
+            "has_scadute": n_scadute > 0,
+        })
+    gruppi.sort(key=lambda g: (not g["has_scadute"], g["worst_giorni"], str(g["tipo_nome"]).lower()))
+    return gruppi
+
+
 @login_required
 def qualifiche_scadenzario(request):
     """Scadenzario dedicato alle sole qualifiche/certificazioni.
@@ -6287,9 +6367,17 @@ def qualifiche_scadenzario(request):
     reparti = sorted({str(r.get("reparto") or "").strip() for r in dip_rows if str(r.get("reparto") or "").strip()})
     tipi_opts = list(TipoQualifica.objects.order_by("categoria", "nome").values("id", "nome"))
 
+    gruppi = _raggruppa_voci_per_tipo(
+        voci,
+        tipo_of=lambda v: v["tipo_nome"],
+        scaduta_of=lambda v: v["stato"] == "scaduta",
+        giorni_of=lambda v: v["giorni"] if v["giorni"] is not None else 99999,
+    )
+
     return render(request, "anagrafica/pages/qualifiche_scadenzario.html", {
         "oggi": oggi,
         "voci": voci,
+        "gruppi": gruppi,
         "counts": counts,
         "totale": len(voci),
         "filtro_stato": filtro_stato,
@@ -7255,6 +7343,36 @@ def _build_scadenzario_voci(
     return voci
 
 
+def _raggruppa_scadenze_per_tipo(voci: list[dict]) -> list[dict]:
+    """Raggruppa le voci scadenzario per (kind, tipo_nome) — per la vista a
+    gruppi espandibili. Ogni gruppo espone i conteggi e le voci ordinate coi
+    più urgenti in cima; i gruppi sono ordinati con gli scaduti/urgenti prima.
+    """
+    from collections import OrderedDict
+
+    buckets: "OrderedDict[tuple, list[dict]]" = OrderedDict()
+    for v in voci:
+        buckets.setdefault((v.get("kind"), v.get("tipo_nome") or "—"), []).append(v)
+
+    gruppi: list[dict] = []
+    for (kind, tipo_nome), gv in buckets.items():
+        gv_sorted = sorted(gv, key=lambda x: (not x.get("scaduta"), x.get("giorni", 9999)))
+        n_scadute = sum(1 for x in gv if x.get("scaduta"))
+        worst = min((x.get("giorni", 9999) for x in gv), default=9999)
+        gruppi.append({
+            "kind": kind,
+            "kind_label": gv[0].get("kind_label", ""),
+            "tipo_nome": tipo_nome,
+            "voci": gv_sorted,
+            "n_totale": len(gv),
+            "n_scadute": n_scadute,
+            "worst_giorni": worst,
+            "has_scadute": n_scadute > 0,
+        })
+    gruppi.sort(key=lambda g: (not g["has_scadute"], g["worst_giorni"], g["tipo_nome"].lower()))
+    return gruppi
+
+
 @login_required
 def scadenzario(request):
     """Scadenzario unificato: qualifiche, visite mediche, formazione obbligatoria
@@ -7286,6 +7404,10 @@ def scadenzario(request):
     n_scadute = sum(1 for v in voci if v["scaduta"])
     n_30gg    = sum(1 for v in voci if not v["scaduta"] and v["giorni"] <= 30)
     n_60gg    = sum(1 for v in voci if not v["scaduta"] and 30 < v["giorni"] <= 60)
+
+    # Raggruppamento per TIPO (con espansione dei dipendenti): un gruppo per
+    # (kind, tipo_nome), ordinato con i più urgenti (scaduti / meno giorni) in alto.
+    gruppi = _raggruppa_scadenze_per_tipo(voci)
 
     reparti = sorted({v["reparto"] for v in voci if v["reparto"]})
 
@@ -7336,6 +7458,7 @@ def scadenzario(request):
         "filtro_stato":  filtro_stato,
         "filtro_reparto": filtro_reparto,
         "reparti":       reparti,
+        "gruppi":        gruppi,
         "can_view_visite": can_view_visite,
         "totale":        len(voci),
         "can_view_formazione": can_view_formazione,

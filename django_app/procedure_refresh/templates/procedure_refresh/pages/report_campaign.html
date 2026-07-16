@@ -1,6 +1,6 @@
 {% extends "core/base.html" %}
 
-{% block title %}Report per campagna | Presa Visione{% endblock %}
+{% block title %}Report per sessione | Presa Visione{% endblock %}
 
 {% block body_class %}{{ block.super }} pr-workspace-page pr-report-page pr-report-campaign-page{% endblock %}
 
@@ -76,7 +76,7 @@ body.theme-dark .pr-empty { color:var(--text-light); }
     <div class="pr-report-tabs">
       <a href="{% url 'procedure_refresh:report_user' %}" class="pr-tab">Per utente</a>
       <a href="{% url 'procedure_refresh:report_document' %}" class="pr-tab">Per documento</a>
-      <a href="{% url 'procedure_refresh:report_campaign' %}" class="pr-tab active">Per campagna</a>
+      <a href="{% url 'procedure_refresh:report_campaign' %}" class="pr-tab active">Per sessione</a>
       <a href="{% url 'procedure_refresh:report_matrix' %}" class="pr-tab">Matrice reparti</a>
     </div>
   </div>
@@ -84,7 +84,7 @@ body.theme-dark .pr-empty { color:var(--text-light); }
   <div class="pr-filter-card">
     <form method="get" class="pr-filter-row">
       <select name="camp_id">
-        <option value="">— Seleziona campagna —</option>
+        <option value="">— Seleziona sessione —</option>
         {% for camp in campaigns %}
           <option value="{{ camp.pk }}" {% if selected_camp and selected_camp.pk == camp.pk %}selected{% endif %}>
             {{ camp.name }} ({{ camp.get_status_display }})
@@ -99,7 +99,7 @@ body.theme-dark .pr-empty { color:var(--text-light); }
         </a>
         <a href="{% url 'procedure_refresh:campaign_detail' pk=selected_camp.pk %}"
            style="padding:8px 14px;background:#dbeafe;color:#1d4ed8;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">
-          Gestisci campagna
+          Gestisci sessione
         </a>
       {% endif %}
     </form>
@@ -167,7 +167,7 @@ body.theme-dark .pr-empty { color:var(--text-light); }
           </tbody>
         </table>
       {% else %}
-        <div class="pr-empty">Nessuna assegnazione per questa campagna.</div>
+        <div class="pr-empty">Nessuna assegnazione per questa sessione.</div>
       {% endif %}
     </div>
   {% endif %}

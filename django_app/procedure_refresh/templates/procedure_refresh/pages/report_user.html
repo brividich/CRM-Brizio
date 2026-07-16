@@ -74,7 +74,7 @@ body.theme-dark .pr-empty { color:var(--text-light); }
     <div class="pr-report-tabs">
       <a href="{% url 'procedure_refresh:report_user' %}" class="pr-tab active">Per utente</a>
       <a href="{% url 'procedure_refresh:report_document' %}" class="pr-tab">Per documento</a>
-      <a href="{% url 'procedure_refresh:report_campaign' %}" class="pr-tab">Per campagna</a>
+      <a href="{% url 'procedure_refresh:report_campaign' %}" class="pr-tab">Per sessione</a>
       <a href="{% url 'procedure_refresh:report_matrix' %}" class="pr-tab">Matrice reparti</a>
     </div>
   </div>
@@ -110,7 +110,7 @@ body.theme-dark .pr-empty { color:var(--text-light); }
         <table class="pr-table">
           <thead>
             <tr>
-              <th>Campagna</th>
+              <th>Sessione</th>
               <th>Documento</th>
               <th>Tipo</th>
               <th>Revisione</th>

@@ -69,7 +69,7 @@
       </div>
     {% endif %}
 
-    {% include "core/components/module_settings_hero.html" with settings_title="Impostazioni "|add:module_branding_display_label settings_subtitle="KPI, accessi rapidi, campagne recenti e branding del modulo procedure MT / MTSI." %}
+    {% include "core/components/module_settings_hero.html" with settings_title="Impostazioni "|add:module_branding_display_label settings_subtitle="KPI, accessi rapidi, sessioni recenti e branding del modulo procedure MT / MTSI." %}
 
     <div class="pr-kpi-row">
       <div class="pr-kpi pr-kpi-blue">
@@ -78,11 +78,11 @@
       </div>
       <div class="pr-kpi pr-kpi-blue">
         <div class="pr-kpi-val">{{ n_campaigns }}</div>
-        <div class="pr-kpi-lbl">Campagne totali</div>
+        <div class="pr-kpi-lbl">Sessioni totali</div>
       </div>
       <div class="pr-kpi pr-kpi-blue">
         <div class="pr-kpi-val">{{ n_published }}</div>
-        <div class="pr-kpi-lbl">Campagne attive</div>
+        <div class="pr-kpi-lbl">Sessioni attive</div>
       </div>
       <div class="pr-kpi">
         <div class="pr-kpi-val">{{ n_assignments }}</div>
@@ -111,14 +111,14 @@
         <div class="pr-card-title">Accesso rapido</div>
         <div class="pr-quick-links">
           <a href="{% url 'procedure_refresh:document_list' %}" class="pr-ql">Documenti</a>
-          <a href="{% url 'procedure_refresh:campaign_list' %}" class="pr-ql">Campagne</a>
+          <a href="{% url 'procedure_refresh:campaign_list' %}" class="pr-ql">Sessioni</a>
           <a href="{% url 'procedure_refresh:report_user' %}" class="pr-ql">Report per utente</a>
           <a href="{% url 'procedure_refresh:report_document' %}" class="pr-ql">Report per documento</a>
-          <a href="{% url 'procedure_refresh:report_campaign' %}" class="pr-ql">Report per campagna</a>
+          <a href="{% url 'procedure_refresh:report_campaign' %}" class="pr-ql">Report per sessione</a>
           <a href="{% url 'procedure_refresh:report_matrix' %}" class="pr-ql">Matrice formazione</a>
           <a href="{% url 'procedure_refresh:export_csv' %}?type=assignments" class="pr-ql">Export CSV assegnazioni</a>
           <a href="{% url 'procedure_refresh:export_csv' %}?type=matrix" class="pr-ql">Export CSV matrice</a>
-          <a href="{% url 'procedure_refresh:export_csv' %}?type=campaigns" class="pr-ql">Export CSV campagne</a>
+          <a href="{% url 'procedure_refresh:export_csv' %}?type=campaigns" class="pr-ql">Export CSV sessioni</a>
         </div>
       </div>
       {% include "core/components/module_branding_card.html" %}
@@ -215,7 +215,7 @@
     </div>
 
     <div class="pr-card">
-      <div class="pr-card-title">Ultime campagne</div>
+      <div class="pr-card-title">Ultime sessioni</div>
       {% if recent_campaigns %}
         <table class="pr-table">
           <thead>
@@ -250,7 +250,7 @@
           </tbody>
         </table>
       {% else %}
-        <p style="color:#64748b;font-size:13px;">Nessuna campagna ancora.</p>
+        <p style="color:#64748b;font-size:13px;">Nessuna sessione ancora.</p>
       {% endif %}
     </div>
   </div>
