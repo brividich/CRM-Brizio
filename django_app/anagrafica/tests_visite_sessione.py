@@ -466,3 +466,92 @@ class CandidatiGiornataTests(TestCase):
             data_cessazione=self.oggi - timedelta(days=10),
         )
         self.assertEqual(self._giornata(), [])
+
+
+class SessioniHubTests(TestCase):
+    def setUp(self):
+        self.user_super = User.objects.create_superuser(
+            username="su-hub", email="su-hub@test.local", password="x"
+        )
+        self.oggi = timezone.localdate()
+        self.ruolo = RuoloOperativo.objects.create(nome="HubR")
+        self.tipo = TipoVisitaMedica.objects.create(nome="HubT", durata_mesi=12)
+        self.tipo.ruoli_operativi.add(self.ruolo)
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=77, ruolo=self.ruolo)
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=77, tipo=self.tipo,
+            data_svolgimento=self.oggi - timedelta(days=400),  # scaduta
+        )
+
+    def test_hub_mostra_proposta_e_deeplink(self):
+        from .views import visite_mediche_sessioni
+        rf = RequestFactory()
+        request = rf.get("/anagrafica/visite-mediche/sessioni/")
+        request.user = self.user_super
+        request.session = SessionStore()
+        request._messages = FallbackStorage(request)
+        resp = visite_mediche_sessioni(request)
+        self.assertEqual(resp.status_code, 200)
+        body = resp.content.decode()
+        self.assertIn("HubT", body)
+        self.assertIn(f"nuova-sessione/?tipo={self.tipo.pk}", body)
+
+
+class SessioneDetailTests(TestCase):
+    def setUp(self):
+        self.user_super = User.objects.create_superuser(
+            username="su-det", email="su-det@test.local", password="x"
+        )
+        self.oggi = timezone.localdate()
+        self.tipo = TipoVisitaMedica.objects.create(nome="DetT", durata_mesi=12)
+
+    def _mk_sess(self):
+        from .models import VisitaSessione
+        sess = VisitaSessione.objects.create(data_svolgimento=self.oggi, medico_competente="Dr. Det")
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=88, tipo=self.tipo,
+            data_svolgimento=self.oggi, sessione=sess,
+        )
+        return sess
+
+    def test_dettaglio_render(self):
+        from .views import visite_mediche_sessione_detail
+        sess = self._mk_sess()
+        rf = RequestFactory()
+        request = rf.get(f"/anagrafica/visite-mediche/sessioni/{sess.pk}/")
+        request.user = self.user_super
+        request.session = SessionStore()
+        request._messages = FallbackStorage(request)
+        resp = visite_mediche_sessione_detail(request, sess.pk)
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("Dr. Det", resp.content.decode())
+
+    def test_aggiungi_partecipante_crea_visita_nella_sessione(self):
+        from .views import visite_mediche_sessione_partecipante_add
+        sess = self._mk_sess()
+        rf = RequestFactory()
+        request = rf.post(
+            f"/anagrafica/visite-mediche/sessioni/{sess.pk}/partecipante/aggiungi/",
+            {"legacy_id": "99", "tipo_id": str(self.tipo.pk), "esito": "IDONEO"},
+        )
+        request.user = self.user_super
+        request.session = SessionStore()
+        request._messages = FallbackStorage(request)
+        resp = visite_mediche_sessione_partecipante_add(request, sess.pk)
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(
+            VisitaMedica.objects.filter(legacy_anagrafica_id=99, sessione=sess).exists()
+        )
+
+    def test_elimina_sessione_conserva_visite(self):
+        from .views import visite_mediche_sessione_delete
+        from .models import VisitaSessione
+        sess = self._mk_sess()
+        rf = RequestFactory()
+        request = rf.post(f"/anagrafica/visite-mediche/sessioni/{sess.pk}/elimina/")
+        request.user = self.user_super
+        request.session = SessionStore()
+        request._messages = FallbackStorage(request)
+        visite_mediche_sessione_delete(request, sess.pk)
+        self.assertFalse(VisitaSessione.objects.filter(pk=sess.pk).exists())
+        self.assertTrue(VisitaMedica.objects.filter(legacy_anagrafica_id=88).exists())

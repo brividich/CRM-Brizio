@@ -103,6 +103,10 @@ urlpatterns = [
     path("visite-mediche/export/scadenze.xlsx", views.visite_mediche_export_scadenze, name="visite_mediche_export_scadenze"),
     path("visite-mediche/export/copertura.xlsx", views.visite_mediche_export_copertura, name="visite_mediche_export_copertura"),
     path("visite-mediche/api/cerca-dipendente/", views.visite_mediche_api_cerca_dipendente, name="visite_mediche_api_cerca_dipendente"),
+    path("visite-mediche/sessioni/", views.visite_mediche_sessioni, name="visite_mediche_sessioni"),
+    path("visite-mediche/sessioni/<int:sessione_id>/", views.visite_mediche_sessione_detail, name="visite_mediche_sessione_detail"),
+    path("visite-mediche/sessioni/<int:sessione_id>/partecipante/aggiungi/", views.visite_mediche_sessione_partecipante_add, name="visite_mediche_sessione_partecipante_add"),
+    path("visite-mediche/sessioni/<int:sessione_id>/elimina/", views.visite_mediche_sessione_delete, name="visite_mediche_sessione_delete"),
 
     # Visite mediche dipendente
     path("dipendenti/<int:legacy_id>/visite/add", views.dipendente_visita_add, name="dipendente_visita_add"),

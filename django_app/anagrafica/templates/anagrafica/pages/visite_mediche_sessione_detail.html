@@ -1,0 +1,42 @@
+{% extends "core/base.html" %}
+{% block title %}Giornata {{ sess.data_svolgimento|date:"d-m-Y" }} · {{ INSTANCE_NAME|default:"NOVICROM HUB" }}{% endblock %}
+{% block extra_head %}{% include "anagrafica/components/_hr_restyle.html" %}{% endblock %}
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+{% block content %}
+<div style="display:flex;flex-direction:column;gap:16px;margin-top:14px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+    <h1 style="font-size:22px;font-weight:800;color:#0f172a;margin:0;">Giornata visite — {{ sess.data_svolgimento|date:"d-m-Y" }}</h1>
+    <a href="{% url 'anagrafica:visite_mediche_sessioni' %}" style="font-size:13px;color:#1f87cd;font-weight:600;">← Sessioni</a>
+  </div>
+  <div style="font-size:14px;color:#475569;">Medico: <strong>{{ sess.medico_competente|default:"—" }}</strong>{% if sess.luogo %} · Luogo: {{ sess.luogo }}{% endif %}</div>
+
+  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;">
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead><tr style="border-bottom:2px solid #e2e8f0;background:#f8fafc;"><th style="text-align:left;padding:9px;color:#94a3b8;font-size:11px;text-transform:uppercase;">Dipendente</th><th style="text-align:left;padding:9px;color:#94a3b8;font-size:11px;text-transform:uppercase;">Tipo</th><th style="text-align:left;padding:9px;color:#94a3b8;font-size:11px;text-transform:uppercase;">Esito</th><th style="text-align:left;padding:9px;color:#94a3b8;font-size:11px;text-transform:uppercase;">Scadenza</th></tr></thead>
+      <tbody>
+        {% for v in visite %}
+        <tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:8px;font-weight:600;">{{ v.dipendente_nome }}</td><td style="padding:8px;">{{ v.tipo.nome }}</td><td style="padding:8px;color:#475569;">{{ v.get_esito_display }}</td><td style="padding:8px;color:#475569;">{% if v.data_scadenza %}{{ v.data_scadenza|date:"d-m-Y" }}{% else %}—{% endif %}</td></tr>
+        {% empty %}
+        <tr><td colspan="4" style="padding:14px;text-align:center;color:#94a3b8;">Nessuna visita in questa giornata.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if is_admin %}
+  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px;display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between;">
+    <form method="post" action="{% url 'anagrafica:visite_mediche_sessione_partecipante_add' sess.pk %}" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+      {% csrf_token %}
+      <div><label style="display:block;font-size:11px;color:#475569;font-weight:700;text-transform:uppercase;">ID dipendente</label><input type="number" name="legacy_id" required style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;"></div>
+      <div><label style="display:block;font-size:11px;color:#475569;font-weight:700;text-transform:uppercase;">Tipo</label><select name="tipo_id" required style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;">{% for t in tipi_attivi %}<option value="{{ t.pk }}">{{ t.nome }}</option>{% endfor %}</select></div>
+      <div><label style="display:block;font-size:11px;color:#475569;font-weight:700;text-transform:uppercase;">Esito</label><select name="esito" style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;">{% for val, label in esiti %}<option value="{{ val }}"{% if val == esito_default %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+      <button type="submit" style="padding:8px 16px;background:#1f87cd;color:#fff;border:none;border-radius:7px;font-weight:700;cursor:pointer;">+ Aggiungi</button>
+    </form>
+    <form method="post" action="{% url 'anagrafica:visite_mediche_sessione_delete' sess.pk %}" onsubmit="return confirm('Eliminare la giornata? Le visite restano.');">
+      {% csrf_token %}
+      <button type="submit" style="padding:8px 16px;background:#fee2e2;color:#b91c1c;border:1px solid #fecaca;border-radius:7px;font-weight:700;cursor:pointer;">Elimina giornata</button>
+    </form>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

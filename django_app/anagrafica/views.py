@@ -10445,6 +10445,104 @@ def visite_mediche_api_cerca_dipendente(request):
 
 
 # ---------------------------------------------------------------------------
+# Sessioni visite (VisitaSessione): hub proposte, dettaglio, aggiungi, elimina
+# ---------------------------------------------------------------------------
+
+@login_required
+def visite_mediche_sessioni(request):
+    """Hub: proposte di rinnovo per tipo (da rinnovare = ultima visita corrente
+    scaduta/in scadenza) + elenco delle giornate salvate."""
+    if not _can_view_visite_mediche(request):
+        messages.error(request, "Non hai i permessi per le visite mediche.")
+        return redirect("anagrafica:index")
+    from django.utils import timezone as _tz
+    from .models import VisitaSessione
+    oggi = _tz.localdate()
+    soglia = oggi + _timedelta(days=60)
+    correnti = VisitaMedica.objects.filter(id__in=ultime_visite_correnti_ids())
+    proposte = []
+    for t in TipoVisitaMedica.objects.filter(is_active=True).order_by("nome"):
+        n_scad = correnti.filter(tipo=t, data_scadenza__lt=oggi).count()
+        n_insc = correnti.filter(tipo=t, data_scadenza__gte=oggi, data_scadenza__lte=soglia).count()
+        if n_scad or n_insc:
+            proposte.append({"tipo": t, "n_scadute": n_scad, "n_in_scadenza": n_insc})
+    sessioni = list(
+        VisitaSessione.objects.annotate(n_visite=Count("visite")).order_by("-data_svolgimento", "-id")[:50]
+    )
+    return render(request, "anagrafica/pages/visite_mediche_sessioni.html", {
+        "proposte": proposte, "sessioni": sessioni, "oggi": oggi,
+        "tot_da_rinnovare": sum(p["n_scadute"] + p["n_in_scadenza"] for p in proposte),
+    })
+
+
+@login_required
+def visite_mediche_sessione_detail(request, sessione_id: int):
+    if not _can_view_visite_mediche(request):
+        messages.error(request, "Non hai i permessi per le visite mediche.")
+        return redirect("anagrafica:index")
+    from .models import VisitaSessione
+    sess = get_object_or_404(VisitaSessione, pk=sessione_id)
+    nomi = _build_nomi_map()
+    visite = list(sess.visite.select_related("tipo").order_by("tipo__nome"))
+    for v in visite:
+        v.dipendente_nome = nomi.get(v.legacy_anagrafica_id, f"#{v.legacy_anagrafica_id}")
+    _, is_admin = _ensure_admin(request)
+    return render(request, "anagrafica/pages/visite_mediche_sessione_detail.html", {
+        "sess": sess, "visite": visite, "is_admin": is_admin,
+        "tipi_attivi": list(TipoVisitaMedica.objects.filter(is_active=True).order_by("nome")),
+        "esiti": VisitaMedica.Esito.choices, "esito_default": VisitaMedica.Esito.IDONEO,
+    })
+
+
+@login_required
+@require_POST
+def visite_mediche_sessione_partecipante_add(request, sessione_id: int):
+    if not _can_view_visite_mediche(request):
+        messages.error(request, "Permessi insufficienti.")
+        return redirect("anagrafica:visite_mediche_sessione_detail", sessione_id=sessione_id)
+    from .models import VisitaSessione
+    sess = get_object_or_404(VisitaSessione, pk=sessione_id)
+    try:
+        legacy_id = int(request.POST.get("legacy_id") or 0)
+        tipo = TipoVisitaMedica.objects.get(pk=request.POST.get("tipo_id"), is_active=True)
+    except (ValueError, TypeError, TipoVisitaMedica.DoesNotExist):
+        messages.error(request, "Dipendente o tipo non validi.")
+        return redirect("anagrafica:visite_mediche_sessione_detail", sessione_id=sessione_id)
+    esito = request.POST.get("esito", VisitaMedica.Esito.IDONEO)
+    if esito not in VisitaMedica.Esito.values:
+        esito = VisitaMedica.Esito.IDONEO
+    if VisitaMedica.objects.filter(
+        legacy_anagrafica_id=legacy_id, tipo=tipo, data_svolgimento=sess.data_svolgimento
+    ).exists():
+        messages.warning(request, "Visita già presente in pari data: non aggiunta.")
+    else:
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=legacy_id, tipo=tipo, data_svolgimento=sess.data_svolgimento,
+            esito=esito, medico_competente=sess.medico_competente, sessione=sess,
+            created_by=request.user, updated_by=request.user,
+        )
+        messages.success(request, "Partecipante aggiunto alla giornata.")
+    return redirect("anagrafica:visite_mediche_sessione_detail", sessione_id=sessione_id)
+
+
+@login_required
+@require_POST
+def visite_mediche_sessione_delete(request, sessione_id: int):
+    if not _can_view_visite_mediche(request):
+        messages.error(request, "Permessi insufficienti.")
+        return redirect("anagrafica:visite_mediche_sessioni")
+    _, is_admin = _ensure_admin(request)
+    if not is_admin:
+        messages.error(request, "Solo gli amministratori possono eliminare una giornata.")
+        return redirect("anagrafica:visite_mediche_sessione_detail", sessione_id=sessione_id)
+    from .models import VisitaSessione
+    sess = get_object_or_404(VisitaSessione, pk=sessione_id)
+    sess.delete()  # SET_NULL: le visite restano
+    messages.success(request, "Giornata eliminata (le visite registrate sono conservate).")
+    return redirect("anagrafica:visite_mediche_sessioni")
+
+
+# ---------------------------------------------------------------------------
 # Export Excel: copertura per tipologia e visite in scadenza
 # ---------------------------------------------------------------------------
 
