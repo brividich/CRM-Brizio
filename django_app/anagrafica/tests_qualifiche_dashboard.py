@@ -197,3 +197,42 @@ class QualificheFase2Tests(TestCase):
         resp = self.client.get(reverse("anagrafica:qualifiche_dashboard"))
         self.assertEqual(resp.context["n_con_evidenza"], 1)
         self.assertEqual(resp.context["n_da_verificare"], 1)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class QualificheChipProcessiTests(TestCase):
+    """Task 3 (stream 3): chip virtuale 'Processi qualificati' (MOD.128) accanto
+    alle categorie reali di TipoQualifica. Pseudo-categoria non persistita sul
+    modello: riusa i ProcessoQualificato già caricati in `qualifiche_list`."""
+
+    def setUp(self):
+        _ensure_anagrafica_table()
+        _ensure_utenti_table()
+        self.su = User.objects.create_superuser(
+            username="su-ql", email="su-ql@test.local", password="x",
+        )
+        self.client.force_login(self.su)
+        from .models_mpq import ClienteQualificante, ProcessoQualificato
+        cli = ClienteQualificante.objects.create(nome="ACME")
+        ProcessoQualificato.objects.create(nome="Saldatura X", cliente=cli)
+        TipoQualifica.objects.create(
+            nome="RSPP", categoria=TipoQualifica.CAT_SICUREZZA, durata_mesi=60,
+        )
+
+    def _get(self, **q):
+        return self.client.get(reverse("anagrafica:qualifiche_list"), q)
+
+    def test_chip_processi_presente_con_conteggio(self):
+        body = self._get().content.decode()
+        self.assertIn("Processi qualificati", body)
+        self.assertIn("categoria=PROCESSI", body)  # href della chip
+
+    def test_filtro_processi_mostra_solo_mod128(self):
+        body = self._get(categoria="PROCESSI").content.decode()
+        self.assertIn("Saldatura X", body)   # sezione MOD.128 visibile
+        self.assertNotIn("RSPP", body)       # catalogo tipi nascosto
+
+    def test_filtro_categoria_reale_nasconde_processi(self):
+        body = self._get(categoria="SICUREZZA").content.decode()
+        self.assertIn("RSPP", body)
+        self.assertNotIn("Saldatura X", body)  # MOD.128 nascosto sotto altra categoria
