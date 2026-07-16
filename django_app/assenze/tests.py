@@ -1769,3 +1769,25 @@ class AssenzeInvioRegoleDurataTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         mock_insert.assert_not_called()
         self.assertIn("8 ore", mock_render.call_args.kwargs["error"])
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AssenzeRichiestaShortcutRenderTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="assenze-ui-user", password="pass12345")
+        UserOnboarding.objects.create(user=self.user, completed=True, completed_at=timezone.now())
+
+    @patch("assenze.views._template_perm_context", return_value={})
+    @patch("assenze.views._load_motivazioni_local", return_value=["Motivo"])
+    @patch("assenze.views._graph_get_motivazioni", return_value=[])
+    @patch("assenze.views._load_capi_options", return_value=[])
+    @patch("assenze.views._resolve_default_capo_for_user", return_value="")
+    @patch("assenze.views._legacy_identity", return_value=("Mario Rossi", "mario@example.com", 77))
+    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
+    def test_form_espone_shortcut_e_campi_orario(self, *_mocks):
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("assenze_richiesta"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'name="shortcut"')
+        self.assertContains(resp, 'id="time_start"')
+        self.assertContains(resp, 'id="time_end"')
