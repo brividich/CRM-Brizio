@@ -84,9 +84,6 @@ Set-ItemProperty "IIS:\AppPools\$appPoolName" -Name "startMode"              -Va
 Set-ItemProperty "IIS:\AppPools\$appPoolName" -Name "autoStart"              -Value $true
 Set-ItemProperty "IIS:\AppPools\$appPoolName" -Name "processModel.idleTimeout" -Value ([TimeSpan]::Zero)
 Set-ItemProperty "IIS:\AppPools\$appPoolName" -Name "recycling.periodicRestart.time" -Value ([TimeSpan]::Zero)
-# Restart giornaliero alle 3:00 di notte
-$recycleTime = [Microsoft.Web.Administration.ConfigurationElement]@{}
-$appPool = Get-Item "IIS:\AppPools\$appPoolName"
 Write-Log "App pool configurato (No Managed Code, AlwaysRunning)." "SUCCESS"
 
 # ---------------------------------------------------------------------------
