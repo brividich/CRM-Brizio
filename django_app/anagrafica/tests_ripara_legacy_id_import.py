@@ -124,6 +124,113 @@ class RiparaLegacyIdImportTest(TestCase):
         self.assertIn("collisioni 1", out)
         self.assertIn("FATTO: 0", out)
 
+    def test_report_conflitti_errore_silenzioso(self):
+        # DEV: la persona SARA ha dev_id 398, CF noto.
+        cf_sara = "GNTSRA80A41H501W"
+        _mk_dipendente_legacy(398, "SARA", "GENTILE")
+        AC.objects.create(legacy_anagrafica_id=398, codice_fiscale=cf_sara)
+        fd, path = tempfile.mkstemp(suffix=".json")
+        os.close(fd)
+        self.addCleanup(lambda: os.path.exists(path) and os.remove(path))
+        self._run("--export", path)
+        AC.objects.filter(legacy_anagrafica_id=398).delete()
+        with connection.cursor() as cur:
+            cur.execute("DELETE FROM anagrafica_dipendenti WHERE id = %s", [398])
+
+        # PROD: SARA ha id 200; #398 in prod e' MARIO (un'ALTRA persona reale).
+        _mk_dipendente_legacy(200, "SARA", "GENTILE")
+        _mk_dipendente_legacy(398, "MARIO", "ROSSI")
+        AC.objects.create(legacy_anagrafica_id=200, codice_fiscale=cf_sara)
+        # record importato da dev sotto #398 (non orfano: 398 esiste in prod come MARIO)
+        rec = ContinuitaOperativa.objects.create(legacy_anagrafica_id=398, processo=self.processo)
+
+        out = self._run("--report", path)
+        self.assertIn("#398", out)
+        self.assertIn("#200", out)
+        self.assertIn("persona sbagliata", out)
+        # sola lettura: non tocca niente
+        rec.refresh_from_db()
+        self.assertEqual(rec.legacy_anagrafica_id, 398)
+
+    def test_report_nessun_conflitto(self):
+        path = self._export_dev(100, self.CF)
+        _mk_dipendente_legacy(500, "MARIO", "ROSSI")
+        AC.objects.create(legacy_anagrafica_id=500, codice_fiscale=self.CF)
+        ContinuitaOperativa.objects.create(legacy_anagrafica_id=500, processo=self.processo)
+        out = self._run("--report", path)
+        self.assertIn("Nessun conflitto", out)
+
+    def test_remap_visita_medica_orfana(self):
+        from datetime import date
+
+        from .models import TipoVisitaMedica, VisitaMedica
+
+        path = self._export_dev(100, self.CF)  # dev: persona #100, CF
+        _mk_dipendente_legacy(500, "MARIO", "ROSSI")  # in prod la persona e' #500
+        AC.objects.create(legacy_anagrafica_id=500, codice_fiscale=self.CF)
+        tipo = TipoVisitaMedica.objects.create(nome="Visita periodica")
+        v = VisitaMedica.objects.create(
+            legacy_anagrafica_id=100, tipo=tipo, data_svolgimento=date(2024, 1, 10))
+
+        self._run("--import", path, "--apply")
+        v.refresh_from_db()
+        self.assertEqual(v.legacy_anagrafica_id, 500)  # riagganciata alla persona di prod
+
+    def test_rifai_scadenze_elimina_orfane(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from .models_formazione import TrainingCourse, TrainingDeadline, TrainingPlan
+
+        piano = TrainingPlan.objects.create(codice="P1", nome="Piano test")
+        corso = TrainingCourse.objects.create(piano=piano, codice="C1", titolo="Sicurezza",
+                                              durata_ore_teorica=4)
+        # prod: esiste il dipendente 500; NON esiste il 398 (scadenza orfana = "#398")
+        _mk_dipendente_legacy(500, "MARIO", "ROSSI")
+        TrainingDeadline.objects.create(
+            corso=corso, legacy_anagrafica_id=398,
+            data_scadenza=timezone.localdate() + timedelta(days=10),
+            stato_scadenza="IN_SCADENZA_30", giorni_alla_scadenza=10, is_required=True)
+
+        out = self._run("--rifai-scadenze")  # dry-run
+        self.assertIn("orfane (mostrano #ID): 1", out)
+        self.assertEqual(TrainingDeadline.objects.count(), 1)  # dry-run non tocca
+
+        out2 = self._run("--rifai-scadenze", "--apply")
+        # senza record sorgente la rigenerazione non ricrea nulla -> la cache resta pulita
+        self.assertEqual(TrainingDeadline.objects.filter(legacy_anagrafica_id=398).count(), 0)
+        self.assertIn("cache ricostruita", out2)
+
+    def test_purge_doppioni_cancella_solo_col_gemello(self):
+        path = self._export_dev(100, self.CF)  # dev: persona #100, CF
+        _mk_dipendente_legacy(500, "MARIO", "ROSSI")
+        AC.objects.create(legacy_anagrafica_id=500, codice_fiscale=self.CF)
+        # gemello corretto (persona #500) + doppione orfano (#100) sullo stesso processo
+        buono = ContinuitaOperativa.objects.create(legacy_anagrafica_id=500, processo=self.processo)
+        doppione = ContinuitaOperativa.objects.create(legacy_anagrafica_id=100, processo=self.processo)
+        # un orfano SENZA gemello: stesso #100 ma su un ALTRO processo (nessun gemello su #500)
+        altro = ProcessoCriticoContinuita.objects.create(nome="Solo orfano")
+        orfano_solo = ContinuitaOperativa.objects.create(legacy_anagrafica_id=100, processo=altro)
+
+        out = self._run("--purge-doppioni", path)  # dry-run
+        self.assertIn("TOTALE doppioni da cancellare: 1", out)
+        self.assertEqual(ContinuitaOperativa.objects.count(), 3)  # dry-run non tocca
+
+        self._run("--purge-doppioni", path, "--apply")
+        self.assertFalse(ContinuitaOperativa.objects.filter(pk=doppione.pk).exists())  # cancellato
+        self.assertTrue(ContinuitaOperativa.objects.filter(pk=buono.pk).exists())      # gemello resta
+        self.assertTrue(ContinuitaOperativa.objects.filter(pk=orfano_solo.pk).exists())  # senza gemello: resta
+
+    def test_scan_conta_orfani(self):
+        _mk_dipendente_legacy(500, "MARIO", "ROSSI")  # unico dipendente di prod
+        ContinuitaOperativa.objects.create(legacy_anagrafica_id=999, processo=self.processo)  # orfano
+        ContinuitaOperativa.objects.create(legacy_anagrafica_id=500, processo=ProcessoCriticoContinuita.objects.create(nome="Altro"))  # valido
+        out = self._run("--scan")
+        self.assertIn("SCAN ORFANI", out)
+        self.assertIn("ContinuitaOperativa", out)
+        self.assertIn("ORFANI", out)  # almeno un modello con orfani
+
     def test_esterno_id_zero_saltato(self):
         path = self._export_dev(100, self.CF)
         _mk_dipendente_legacy(500, "MARIO", "ROSSI")
