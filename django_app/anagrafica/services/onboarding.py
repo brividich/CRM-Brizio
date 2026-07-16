@@ -241,7 +241,15 @@ def genera_task_pratica(pratica: OnboardingPratica, *, ruolo_ids: Iterable[int] 
 
 
 def _caporeparto_emails(reparto_nome: str) -> list[str]:
-    """Email di notifica del caporeparto del reparto (CAR), se presente."""
+    """Email di notifica del caporeparto del reparto (CAR), se presente.
+
+    NB responsabile effettivo: quando un'area aziendale ha un responsabile
+    diverso dal caporeparto, la fonte preferenziale a valle è il denormalizzato
+    ``DipendenteAnagraficaAziendale.caporeparto_legacy_id`` (già scritto dal
+    responsabile effettivo in :func:`anagrafica.views._sync_aziendale_from_reparto`).
+    Questo helper resta a livello di reparto: notifica il CAR del reparto, dato
+    che riceve solo il nome reparto (nessuna area nel contesto).
+    """
     if not reparto_nome:
         return []
     try:

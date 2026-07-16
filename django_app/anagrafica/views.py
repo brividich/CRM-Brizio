@@ -5222,18 +5222,24 @@ def dipendenti_report(request):
             )
         ]
 
-    # Filtro per reparto (da legacy)
+    # Reparto/area canonici: sovrascrive row["reparto"] col Reparto canonico
+    # (fallback al testo legacy per i non ancora mappati) e valorizza
+    # row["area_aziendale_nome"]. Da qui il filtro reparto è sul canonico.
+    from anagrafica.services.reparto_canonico import enrich_rows_reparto_canonico
+    enrich_rows_reparto_canonico(all_rows)
+
+    # Filtro per reparto (canonico)
     if reparto_filter:
         all_rows = [
             row for row in all_rows
             if str(row.get("reparto") or "").strip().casefold() == reparto_filter.casefold()
         ]
 
-    # Filtri su campi Django: area e tipologia_contratto
+    # Filtri su campi Django: area aziendale canonica e tipologia_contratto
     django_filter_ids: set[int] | None = None
     az_qs = DipendenteAnagraficaAziendale.objects.all()
     if area_filter:
-        az_qs = az_qs.filter(area__iexact=area_filter)
+        az_qs = az_qs.filter(area_aziendale__nome__iexact=area_filter)
     if contratto_filter:
         az_qs = az_qs.filter(tipologia_contratto=contratto_filter)
     if consenso_filter == "si":
@@ -5288,7 +5294,7 @@ def dipendenti_report(request):
         writer = safe_csv_writer(response, delimiter=";")
         writer.writerow([
             "ID", "Cognome", "Nome", "Matricola", "Reparto",
-            "Area", "Ruolo aziendale", "Tipologia contratto",
+            "Area aziendale", "Ruolo aziendale", "Tipologia contratto",
             "Livello inquadramento", "Data prima assunzione",
             "Consenso privacy", "Email aziendale", "Telefono aziendale",
         ])
@@ -5300,7 +5306,7 @@ def dipendenti_report(request):
                 row.get("nome", ""),
                 row.get("matricola", ""),
                 row.get("reparto", ""),
-                getattr(az, "area", "") or "",
+                row.get("area_aziendale_nome", "") or "",
                 getattr(az, "ruolo_aziendale", "") or "",
                 getattr(az, "get_tipologia_contratto_display", lambda: "")() if az else "",
                 getattr(az, "livello_inquadramento", "") or "",
@@ -5311,12 +5317,12 @@ def dipendenti_report(request):
             ])
         return response
 
-    reparti_list = sorted({str(r.get("reparto") or "").strip() for r in fetch_anagrafica_rows(deduplicate=True) if str(r.get("reparto") or "").strip()})
-    aree_list = sorted(
-        DipendenteAnagraficaAziendale.objects.exclude(area="")
-        .values_list("area", flat=True)
-        .distinct()
-        .order_by("area")
+    # Filtri dai cataloghi canonici (non più dal testo legacy).
+    reparti_list = list(
+        Reparto.objects.filter(is_active=True).order_by("nome").values_list("nome", flat=True)
+    )
+    aree_list = list(
+        AreaAziendale.objects.filter(is_active=True).order_by("nome").values_list("nome", flat=True)
     )
 
     paginator = Paginator(all_rows, 50)
@@ -5657,6 +5663,11 @@ def _sync_aziendale_from_reparto(
         area = AreaAziendale.objects.filter(pk=area_aziendale_id, reparto_id=rep.id).first()
         if area is not None:
             area_id_valido = area.id
+            # Responsabile effettivo: il responsabile dell'AREA aziendale vince
+            # sul caporeparto del REPARTO quando differisce (fallback al capo
+            # reparto se l'area non ha responsabile). Fonte unica nel service.
+            from anagrafica.services.reparto_canonico import resolve_responsabile_effettivo
+            capo_id = resolve_responsabile_effettivo(area=area, reparto=rep)
 
     az, _ = DipendenteAnagraficaAziendale.objects.get_or_create(
         legacy_anagrafica_id=legacy_id,
@@ -13342,6 +13353,7 @@ def organigramma(request):
         build_area_canonica_map,
         build_reparto_canonico_map,
         resolve_reparto_for_row,
+        resolve_responsabile_effettivo,
     )
 
     ensure_anagrafica_schema()
@@ -13381,11 +13393,28 @@ def organigramma(request):
         membri = sorted(membri_per_reparto.get(rep.id, []), key=_sort_key)
         if capo:
             membri = [m for m in membri if int(m.get("id") or 0) != int(capo.get("id") or 0)]
+        aree = list(rep.aree_aziendali.filter(is_active=True).order_by("nome"))
+        # Responsabile effettivo per AREA: il responsabile dell'area vince sul
+        # caporeparto del reparto quando differisce (dominio: "caporeparto
+        # dall'area aziendale se differisce"). Il capo del blocco resta il
+        # caporeparto del reparto come fallback complessivo.
+        for area in aree:
+            rid = resolve_responsabile_effettivo(area=area, reparto=rep)
+            area.responsabile_effettivo_id = rid
+            resp_row = dip_map.get(rid or 0)
+            area.responsabile_effettivo_label = (
+                f"{resp_row.get('cognome', '')} {resp_row.get('nome', '')}".strip()
+                if resp_row else ""
+            )
+            area.responsabile_distinto = bool(
+                area.responsabile_legacy_id
+                and area.responsabile_legacy_id != (rep.caporeparto_legacy_id or 0)
+            )
         return {
             "reparto": rep,
             "capo": capo,
             "membri": membri,
-            "aree_aziendali": list(rep.aree_aziendali.filter(is_active=True).order_by("nome")),
+            "aree_aziendali": aree,
             "n_totale": len(membri) + (1 if capo else 0),
         }
 
@@ -13406,6 +13435,25 @@ def organigramma(request):
         "n_dipendenti": n_dipendenti,
         "n_reparti": len(reparti),
         "n_non_mappati": len(non_mappati),
+    })
+
+
+@login_required
+def organigramma_albero(request):
+    """Organigramma ad albero: gerarchia dei RUOLI (RuoloOperativo.riporta_a),
+    persone come foglie titolari. Con ?certificazione=<TipoQualifica.pk> mostra
+    la copertura ad albero della certificazione (chi la possiede). La gerarchia
+    è SEMPRE tra ruoli, mai tra persone."""
+    from anagrafica.services.organigramma_albero import (
+        build_ruolo_albero, build_certificazione_copertura,
+    )
+    raw = (request.GET.get("certificazione") or "").strip()
+    cert_id = int(raw) if raw.isdigit() else None
+    albero = build_certificazione_copertura(cert_id) if cert_id else build_ruolo_albero()
+    return render(request, "anagrafica/pages/organigramma_albero.html", {
+        "albero": albero,
+        "cert_id": cert_id,
+        "certificazioni": TipoQualifica.objects.filter(is_active=True).order_by("nome"),
     })
 
 

@@ -1,0 +1,36 @@
+{# Nodo ricorsivo dell'organigramma ad albero. Riceve: nodo, cert_id (only). #}
+<div class="orgt-node">
+  <div class="orgt-role">
+    <span class="orgt-role-name">{{ nodo.ruolo.nome }}</span>
+    {% if cert_id %}
+      <span class="orgt-cov" title="Titolari coperti (certificazione valida) sul totale del ruolo">{{ nodo.n_copertura }}/{{ nodo.n_totale }}</span>
+    {% endif %}
+  </div>
+
+  {% if nodo.titolari %}
+    <ul class="orgt-titolari">
+      {% for t in nodo.titolari %}
+        <li class="orgt-tit">
+          <span class="orgt-tit-name">{{ t.nome|default:t.legacy_id }}</span>
+          {% if cert_id and t.stato %}
+            {% if t.stato == "posseduta_valida" %}
+              <span class="orgt-badge orgt-badge-valida">Valida</span>
+            {% elif t.stato == "scaduta" %}
+              <span class="orgt-badge orgt-badge-scaduta">Scaduta</span>
+            {% else %}
+              <span class="orgt-badge orgt-badge-mancante">Mancante</span>
+            {% endif %}
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  {% if nodo.figli %}
+    <div class="orgt-children">
+      {% for figlio in nodo.figli %}
+        {% include "anagrafica/partials/_org_nodo.html" with nodo=figlio cert_id=cert_id only %}
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
