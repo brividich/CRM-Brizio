@@ -19,6 +19,11 @@
 .orgt-tit-name { color:#334155; }
 .orgt-children { display:flex; flex-direction:column; gap:10px; margin-top:6px; }
 .orgt-empty { font-size:12px; color:#94a3b8; font-style:italic; }
+.orgt-cov { font-size:11.5px; font-weight:700; color:#475569; background:#f1f5f9; border-radius:999px; padding:2px 9px; }
+.orgt-badge { font-size:10.5px; font-weight:700; border-radius:999px; padding:2px 8px; text-transform:uppercase; letter-spacing:.03em; }
+.orgt-badge-valida { color:#166534; background:#dcfce7; }
+.orgt-badge-scaduta { color:#991b1b; background:#fee2e2; }
+.orgt-badge-mancante { color:#475569; background:#e2e8f0; }
 
 /* ── Dark mode ──────────────────────────────────────────────────────────── */
 body.theme-dark .orgt-lbl { color:var(--text-light); }
@@ -27,6 +32,10 @@ body.theme-dark .orgt-node { border-color:var(--border); }
 body.theme-dark .orgt-role-name { color:var(--text); }
 body.theme-dark .orgt-tit, body.theme-dark .orgt-tit-name { color:var(--text-light); }
 body.theme-dark .orgt-empty { color:var(--text-light); }
+body.theme-dark .orgt-cov { color:var(--text-mid); background:rgba(255,255,255,.08); }
+body.theme-dark .orgt-badge-valida { color:#86efac; background:rgba(21,128,61,.22); }
+body.theme-dark .orgt-badge-scaduta { color:#fca5a5; background:rgba(153,27,27,.28); }
+body.theme-dark .orgt-badge-mancante { color:var(--text-mid); background:rgba(255,255,255,.1); }
 </style>
 {% endblock %}
 

@@ -78,3 +78,26 @@ class OrganigrammaAlberoViewTests(TestCase):
         body = resp.content.decode()
         self.assertIn("CoordView", body)
         self.assertIn("CaporepView", body)
+
+
+class OrganigrammaAlberoCoperturaViewTests(TestCase):
+    def setUp(self):
+        self.su = User.objects.create_superuser("su-cov", "su-cov@test.local", "x")
+        self.ruolo = RuoloOperativo.objects.create(nome="SaldView")
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=1, ruolo=self.ruolo)
+        self.cert = TipoQualifica.objects.create(nome="CertView")
+
+    def test_render_copertura_certificazione(self):
+        from anagrafica.views import organigramma_albero
+        rf = RequestFactory()
+        request = rf.get("/anagrafica/organigramma/albero/", {"certificazione": str(self.cert.pk)})
+        request.user = self.su
+        request.session = SessionStore()
+        resp = organigramma_albero(request)
+        self.assertEqual(resp.status_code, 200)
+        body = resp.content.decode()
+        self.assertIn("CertView", body)   # selettore selezionato
+        self.assertIn("SaldView", body)
+        # Overlay: copertura per-nodo (0 su 1) e badge stato "mancante".
+        self.assertIn("0/1", body)
+        self.assertIn("Mancante", body)
