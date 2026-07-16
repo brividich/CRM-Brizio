@@ -425,7 +425,11 @@ class GanttViewTest(TestCase):
         self.assertEqual(j["irrisolti"], 1)
         self.assertEqual(j["avvisi"][0]["etichetta"], "lungo")
         drag.refresh_from_db(); lungo.refresh_from_db()
-        self.assertEqual(drag.data, d + timedelta(days=8))
+        # giorni_delta=7 è in giorni LAVORATIVI (colonne del Gantt): da martedì 23/06
+        # +7 lavorativi = giovedì 02/07 (saltando sab 27 e dom 28), non il 30/06 che
+        # dava il vecchio conteggio in giorni di calendario.
+        self.assertEqual(drag.data, date(2026, 7, 2))
+        self.assertLess(drag.data.weekday(), 5)      # mai di weekend
         self.assertEqual(lungo.data, d)              # il lavoro lungo non si è mosso
 
     def test_piano_slittamento_ignora_conflitto_preesistente(self):
