@@ -272,12 +272,21 @@ body.theme-dark.timbri-index-page .tim-k { box-shadow:none; }
           {% endfor %}
         </select>
       </div>
+      <div class="tim-field" style="max-width:200px;">
+        <label>Qualifica</label>
+        <select class="tim-input" name="qualifica">
+          <option value="">Tutte le qualifiche</option>
+          {% for item in qualifiche %}
+            <option value="{{ item }}"{% if item == qualifica %} selected{% endif %}>{{ item }}</option>
+          {% endfor %}
+        </select>
+      </div>
       <div style="display:flex;gap:8px;">
         <button class="tim-btn tim-btn-main" type="submit">
           <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           Filtra
         </button>
-        {% if q or reparto %}<a class="tim-btn tim-btn-ghost" href="{% url 'timbri:index' %}">Reset</a>{% endif %}
+        {% if q or reparto or qualifica %}<a class="tim-btn tim-btn-ghost" href="{% url 'timbri:index' %}">Reset</a>{% endif %}
       </div>
     </div>
   </form>

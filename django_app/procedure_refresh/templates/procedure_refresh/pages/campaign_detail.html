@@ -232,15 +232,9 @@ body.theme-dark .pr-empty { color:var(--text-light); }
       {% if campaign.status == 'published' or campaign.status == 'draft' %}
         <form method="post" action="{% url 'procedure_refresh:assign_users' pk=campaign.pk %}">
           {% csrf_token %}
-          <div style="margin-bottom:10px;">
-            <label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px;">Revisione da assegnare</label>
-            <select name="revision_id" required style="width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:12px;">
-              <option value="">— Seleziona —</option>
-              {% for cd in campaign_docs %}
-                <option value="{{ cd.revision.pk }}">[{{ cd.revision.document.document_type }}] {{ cd.revision.document.code }} rev.{{ cd.revision.revision_code }}</option>
-              {% endfor %}
-            </select>
-          </div>
+          <p style="font-size:12px;color:#64748b;margin:0 0 10px;">
+            Gli utenti selezionati verranno assegnati a <strong>tutti i documenti</strong> della sessione.
+          </p>
           <div style="margin-bottom:10px;">
             <label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px;">Scadenza (opzionale)</label>
             <input type="date" name="due_date" value="{{ campaign.due_date|date:'Y-m-d' }}"

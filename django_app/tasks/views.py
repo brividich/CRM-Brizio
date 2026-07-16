@@ -986,6 +986,10 @@ def _project_scope_filter_q(request) -> Q:
         | Q(tasks__created_by=user)
         | Q(tasks__assigned_to=user)
         | Q(tasks__subscribers=user)
+        # I kickoff programmati devono comparire a chi vi partecipa o li ha creati,
+        # anche senza task nel progetto (bug: sparivano dalla dashboard).
+        | Q(meetings__partecipanti_utenti=user)
+        | Q(meetings__created_by=user)
     )
     role_map = _request_task_role_access_map(request)
     if _task_access_allows_read(role_map.get(TaskRoleType.PROJECT_MANAGER)):

@@ -1293,17 +1293,20 @@ def assign_users(request, pk: int):
 
     campaign = get_object_or_404(ProcedureCampaign, pk=pk)
     user_ids = request.POST.getlist("user_ids")
-    revision_id = request.POST.get("revision_id", "").strip()
     due_date_str = request.POST.get("due_date", "").strip()
 
-    if not user_ids or not revision_id:
-        messages.error(request, "Seleziona almeno un utente e una revisione.")
+    if not user_ids:
+        messages.error(request, "Seleziona almeno un utente.")
         return redirect("procedure_refresh:campaign_detail", pk=pk)
 
-    try:
-        revision = ProcedureRevision.objects.select_related("document").get(pk=int(revision_id))
-    except (ProcedureRevision.DoesNotExist, ValueError):
-        messages.error(request, "Revisione non trovata.")
+    # L'assegnazione copre TUTTI i documenti della sessione: le revisioni sono
+    # quelle collegate alla campagna (niente più selezione della singola revisione).
+    revisions = [
+        cd.revision
+        for cd in campaign.campaign_documents.select_related("revision__document")
+    ]
+    if not revisions:
+        messages.error(request, "La sessione non contiene documenti da assegnare.")
         return redirect("procedure_refresh:campaign_detail", pk=pk)
 
     due_date = None
@@ -1320,22 +1323,27 @@ def assign_users(request, pk: int):
             user = User.objects.get(pk=int(uid), is_active=True)
         except (User.DoesNotExist, ValueError):
             continue
-        _, created = ProcedureAssignment.objects.get_or_create(
-            campaign=campaign,
-            revision=revision,
-            user=user,
-            defaults={
-                "assigned_by": request.user,
-                "due_date": due_date or campaign.due_date,
-                "status": AssignmentStatus.ASSIGNED,
-            },
-        )
-        if created:
-            created_count += 1
+        user_created = 0
+        for revision in revisions:
+            _, created = ProcedureAssignment.objects.get_or_create(
+                campaign=campaign,
+                revision=revision,
+                user=user,
+                defaults={
+                    "assigned_by": request.user,
+                    "due_date": due_date or campaign.due_date,
+                    "status": AssignmentStatus.ASSIGNED,
+                },
+            )
+            if created:
+                created_count += 1
+                user_created += 1
+        if user_created:
             notified_user_ids.append(user.pk)
 
-    # Notifica in-app agli assegnati (una per utente per azione). La comunicazione
-    # email iniziale resta manuale (supporto IT): qui solo il campanellino portale.
+    # Notifica in-app agli assegnati (una per utente per azione, testo generico
+    # sulla sessione). La comunicazione email iniziale resta manuale (supporto IT):
+    # qui solo il campanellino portale.
     if notified_user_ids:
         from core.notifiche import invia_notifica
 
@@ -1344,13 +1352,14 @@ def assign_users(request, pk: int):
         legacy_map = _legacy_id_map(notified_user_ids)
         scad = due_date or campaign.due_date
         scad_str = scad.strftime("%d/%m/%Y") if scad else "-"
+        doc_count = len(revisions)
         for uid in notified_user_ids:
             invia_notifica(
                 legacy_map.get(uid),
                 "presa_visione",
                 (
-                    f"Nuovo documento in presa visione: {revision.document.code} "
-                    f"(sessione {campaign.name}, scadenza {scad_str})."
+                    f"{doc_count} documenti della sessione «{campaign.name}» "
+                    f"da prendere in visione (scadenza {scad_str})."
                 ),
                 url_azione="/procedure-refresh/",
             )

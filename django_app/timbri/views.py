@@ -515,6 +515,8 @@ def index(request):
                 q=str(request.GET.get("q") or "").strip(),
                 reparto=str(request.GET.get("reparto") or "").strip(),
                 reparti=[],
+                qualifica=str(request.GET.get("qualifica") or "").strip(),
+                qualifiche=[],
                 schema_issue=schema_issue,
                 stats={
                     "dipendenti": 0,
@@ -528,12 +530,23 @@ def index(request):
 
     q = str(request.GET.get("q") or "").strip()
     reparto = str(request.GET.get("reparto") or "").strip()
+    qualifica = str(request.GET.get("qualifica") or "").strip()
     rows = _legacy_employee_rows()
     # Reparto CANONICO (dipendente → area_aziendale → reparto): ha precedenza sul
     # testo legacy, così colonna e filtro non mostrano più i vecchi reparti.
     from anagrafica.services.reparto_canonico import enrich_rows_reparto_canonico
     enrich_rows_reparto_canonico(rows)
     reparti = sorted({_field_to_text(row.get("reparto")) for row in rows if _field_to_text(row.get("reparto"))})
+    # Qualifiche disponibili dai registri timbro (per il filtro dedicato).
+    qualifiche = sorted(
+        {
+            str(value).strip()
+            for value in RegistroTimbro.objects.exclude(qualifica="")
+            .values_list("qualifica", flat=True)
+            .distinct()
+            if str(value).strip()
+        }
+    )
     if q:
         q_norm = q.casefold()
         rows = [
@@ -553,6 +566,16 @@ def index(request):
         ]
     if reparto:
         rows = [row for row in rows if _field_to_text(row.get("reparto")).casefold() == reparto.casefold()]
+    if qualifica:
+        qualified_legacy_ids = {
+            int(lid)
+            for lid in OperatoreTimbri.objects.filter(
+                registri__qualifica__iexact=qualifica,
+                legacy_anagrafica_id__isnull=False,
+            ).values_list("legacy_anagrafica_id", flat=True)
+            if lid
+        }
+        rows = [row for row in rows if int(row.get("id") or 0) in qualified_legacy_ids]
 
     legacy_ids = [int(row.get("id") or 0) for row in rows if int(row.get("id") or 0) > 0]
     bridge_map = {
@@ -581,6 +604,8 @@ def index(request):
             q=q,
             reparto=reparto,
             reparti=reparti,
+            qualifica=qualifica,
+            qualifiche=qualifiche,
             stats={
                 "dipendenti": len(rows),
                 "con_timbri": sum(1 for item in entries if item["timbri_count"] > 0),

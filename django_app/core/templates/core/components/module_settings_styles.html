@@ -165,4 +165,16 @@
   @media (max-width: 980px) {
     .ms-grid-2 { grid-template-columns: 1fr; }
   }
+  /* Modificatori opt-in "compatti" (branding meno ingombrante). Non alterano
+     le regole base: si applicano solo con settings_variant="compact" /
+     branding_compact=True. */
+  .ms-hero--compact { padding: 18px 22px; }
+  .ms-hero--compact h1 { font-size: 22px; }
+  .ms-hero--compact p { font-size: 13px; }
+  .ms-card--compact .ms-brand-mark {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    font-size: 18px;
+  }
 </style>

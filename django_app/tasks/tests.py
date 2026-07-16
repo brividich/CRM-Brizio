@@ -435,12 +435,20 @@ class TaskAdminSettingsTests(TasksBaseTestCase):
         response = self.client.get(reverse("tasks:gestione_admin"))
         self.assertRedirects(response, f"{reverse('tasks:impostazioni')}?tab=riepilogo")
 
+    def test_settings_config_tab_is_slimmer_with_compact_branding(self):
+        self.client.force_login(self.admin_user)
+        response = self.client.get(reverse("tasks:impostazioni"), {"tab": "config"})
+        self.assertEqual(response.status_code, 200)
+        # Blocco ridondante rimosso (titolo + callout).
+        self.assertNotContains(response, "Tutte le impostazioni modificabili")
+        # Branding card in variante compatta (modificatore condiviso del Task 4).
+        self.assertContains(response, "ms-card--compact")
+
     def test_settings_page_shows_and_saves_all_editable_fields(self):
         self.client.force_login(self.admin_user)
 
         response = self.client.get(reverse("tasks:impostazioni"), {"tab": "config"})
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Tutte le impostazioni modificabili del modulo sono in questa tab")
         self.assertContains(response, 'name="responsabile_email"', html=False)
         self.assertContains(response, 'name="notifiche_scadenza_attive"', html=False)
         self.assertContains(response, 'name="giorni_preavviso"', html=False)
@@ -3460,3 +3468,89 @@ class ImportTemplateXlsxTests(TestCase):
             self.assertEqual(wb["Istruzioni"]["A4"].value, "Kickoff / Riferimento")
         finally:
             wb.close()
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class KickoffMeetingProjectScopeTests(TasksBaseTestCase):
+    """I kickoff programmati compaiono ai partecipanti anche senza task nel progetto."""
+
+    def setUp(self):
+        super().setUp()
+        _ensure_role(1, "admin")
+        _ensure_role(2, "utente")
+        _grant_role_actions(2, ["tasks_view", "tasks_create", "tasks_edit", "tasks_comment"])
+        self._refresh_acl_cache()
+
+        self.owner = _create_user_with_legacy(
+            username="ko_scope_owner", legacy_user_id=9701, role_id=2, role_name="utente"
+        )
+        # Partecipante: NON admin, NON full-read, senza task nel progetto e non PM/capo/programmer.
+        self.partecipante = _create_user_with_legacy(
+            username="ko_scope_part", legacy_user_id=9702, role_id=2, role_name="utente"
+        )
+
+        # NB: Project.save() auto-genera "KICK-OFF N" se il nome è vuoto; passando
+        # sia name che kickoff_number il nome custom viene preservato.
+        self.project_kickoff = Project.objects.create(
+            name="Commessa con kickoff ZZ1", kickoff_number=9101, created_by=self.owner
+        )
+        self.project_estraneo = Project.objects.create(
+            name="Commessa estranea ZZ2", kickoff_number=9102, created_by=self.owner
+        )
+
+        meeting = KickoffMeeting.objects.create(
+            project=self.project_kickoff, numero=1, data=timezone.localdate()
+        )
+        meeting.partecipanti_utenti.add(self.partecipante)
+
+    def test_participant_sees_kickoff_project_in_list(self):
+        self.client.force_login(self.partecipante)
+        response = self.client.get(reverse("tasks:project_list"))
+        self.assertEqual(response.status_code, 200)
+        # Il progetto dell'incontro a cui partecipa deve comparire...
+        self.assertContains(response, "Commessa con kickoff ZZ1")
+        # ...mentre un progetto estraneo (nessun kickoff/task suoi) resta escluso.
+        self.assertNotContains(response, "Commessa estranea ZZ2")
+
+    def test_meeting_creator_sees_project_in_list(self):
+        creatore = _create_user_with_legacy(
+            username="ko_scope_creator", legacy_user_id=9703, role_id=2, role_name="utente"
+        )
+        KickoffMeeting.objects.create(
+            project=self.project_estraneo, numero=1, data=timezone.localdate(), created_by=creatore
+        )
+        self.client.force_login(creatore)
+        response = self.client.get(reverse("tasks:project_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Commessa estranea ZZ2")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class MeetingCreateTaskButtonTests(TasksBaseTestCase):
+    """Dalla pagina dell'incontro si può creare/assegnare un'attività anche senza next steps."""
+
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "tasks")
+        _grant_role_actions(2, ["tasks_view", "tasks_create", "tasks_edit"])
+        self._refresh_acl_cache()
+        self.user = _create_user_with_legacy(
+            username="mtg-manager", legacy_user_id=9801, role_id=2, role_name="tasks"
+        )
+        # created_by == user → can_manage True.
+        self.project = Project.objects.create(name="Progetto incontro", created_by=self.user)
+        self.meeting = KickoffMeeting.objects.create(
+            project=self.project, numero=1, data=timezone.localdate(), created_by=self.user
+        )
+
+    def test_meeting_without_next_steps_shows_create_task_trigger(self):
+        # Incontro privo di next steps: il trigger deve comparire lo stesso.
+        self.assertEqual(self.meeting.next_steps, "")
+        self.client.force_login(self.user)
+        response = self.client.get(
+            reverse("tasks:project_meeting_detail", args=[self.project.id, self.meeting.id])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Crea / assegna attività")
+        self.assertContains(response, 'id="ctm-overlay"')
+        self.assertContains(response, 'name="assigned_to"')

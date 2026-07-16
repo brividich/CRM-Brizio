@@ -4007,14 +4007,52 @@ def _sharepoint_form_preview_config(*, is_work_machine: bool = False) -> dict[st
     }
 
 
+def _resolve_asset_plant_layout(asset: Asset) -> tuple["PlantLayout | None", bool]:
+    """Sceglie la planimetria attiva più coerente con il reparto dell'asset.
+
+    Ritorna ``(layout, is_specific)``:
+      - (a) layout attivo la cui ``category`` coincide col reparto dell'asset;
+      - (b) layout attivo con un'area il cui ``reparto_code`` coincide col reparto;
+      - (c) fallback: primo layout attivo per (category, name, id).
+    ``is_specific`` è True solo per (a)/(b). ``layout`` è ``None`` se non esiste
+    alcuna planimetria attiva.
+    """
+    active = PlantLayout.objects.filter(is_active=True)
+    reparto = _clean_string(getattr(asset, "reparto", ""))
+    if reparto:
+        specific = active.filter(category__iexact=reparto).order_by("category", "name", "id").first()
+        if specific is not None:
+            return specific, True
+        by_area = (
+            active.filter(areas__reparto_code__iexact=reparto)
+            .order_by("category", "name", "id")
+            .first()
+        )
+        if by_area is not None:
+            return by_area, True
+    return active.order_by("category", "name", "id").first(), False
+
+
 def _ensure_asset_plant_layout_marker(asset: Asset) -> str:
-    layout = (
-        PlantLayout.objects.filter(is_active=True)
-        .order_by("category", "name", "id")
-        .first()
-    )
+    layout, is_specific = _resolve_asset_plant_layout(asset)
     if layout is None:
         return "Asset salvato, ma non inserito in piantina: nessuna planimetria attiva disponibile."
+
+    # Se la risoluzione è specifica per reparto e l'asset ha già un marker su un
+    # layout diverso, spostalo su quello corretto (rispettando il vincolo unico
+    # layout+asset).
+    if is_specific:
+        strays = list(PlantLayoutMarker.objects.filter(asset=asset).exclude(layout=layout))
+        if strays:
+            target_exists = PlantLayoutMarker.objects.filter(layout=layout, asset=asset).exists()
+            if not target_exists:
+                moved = strays.pop(0)
+                moved.layout = layout
+                moved.is_visible = True
+                moved.save(update_fields=["layout", "is_visible", "updated_at"])
+            for stray in strays:
+                stray.delete()
+
     marker, created = PlantLayoutMarker.objects.get_or_create(
         layout=layout,
         asset=asset,
