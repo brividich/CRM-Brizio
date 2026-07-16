@@ -9,8 +9,11 @@ evita i redirect https durante i test.
 from __future__ import annotations
 
 from django.contrib.auth import get_user_model
+from django.db import connection
 from django.test import TestCase, override_settings
 from django.urls import reverse
+
+from .tests import _ensure_anagrafica_table, _ensure_utenti_table
 
 User = get_user_model()
 
@@ -54,3 +57,38 @@ class MansionePopupRenderTests(TestCase):
         # Marker della rifinitura: chiusura canonica (× header + Annulla) e corpo scrollabile
         self.assertIn("data-close-modal", body)
         self.assertIn("mn-modal-body", body)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class ElearningManageFormRenderTests(TestCase):
+    """Task 5 — il box 'Assegna dipendenti' della cabina e-learning non usa più gli
+    inline style grezzi ma classi del design-system. Render-only: il POST è invariato."""
+
+    def setUp(self):
+        _ensure_anagrafica_table()
+        _ensure_utenti_table()
+        with connection.cursor() as cur:
+            cur.execute("DELETE FROM anagrafica_dipendenti")
+            cur.execute(
+                "INSERT INTO anagrafica_dipendenti (id, nome, cognome, reparto, attivo) "
+                "VALUES (1, 'Mario', 'Rossi', 'Produzione', 1)"
+            )
+        self.su = User.objects.create_superuser("su-el", "su-el@test.local", "x")
+        self.client.force_login(self.su)
+        from .models import DipendenteAnagraficaAziendale
+        from .models_formazione import TrainingCourse, TrainingPlan
+        piano = TrainingPlan.objects.create(codice="PEL", nome="Piano e-learning")
+        self.corso = TrainingCourse.objects.create(
+            piano=piano, codice="EL1", titolo="Corso EL",
+            durata_ore_teorica=1, is_elearning=True,
+        )
+        # Un dipendente attivo → alimenta il pool `assegnabili` (box renderizzato).
+        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=1)
+
+    def test_form_assegna_pulito(self):
+        body = self.client.get(reverse("anagrafica:formazione_elearning_manage",
+                                       args=[self.corso.pk])).content.decode()
+        self.assertIn("Assegna dipendenti", body)
+        self.assertIn("fm-assign-list", body)  # box renderizzato (assegnabili presenti)
+        # Marker: gli inline style grezzi del box sono sostituiti da classi
+        self.assertNotIn('style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end', body)

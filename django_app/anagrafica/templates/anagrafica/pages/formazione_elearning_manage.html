@@ -6,6 +6,19 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
+<style>
+/* Box "Assegna dipendenti": classi al posto degli inline style grezzi (stream 3, Task 5).
+   Token con fallback + override tema scuro per la label di sezione. */
+.fm-assign-form { margin-top:14px; }
+.fm-assign-title { font-size:13px; margin-bottom:10px; }
+.fm-assign-row { display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end; margin-bottom:10px; }
+.fm-assign-field { margin:0; }
+.fm-assign-field > span { display:block; font-size:12px; font-weight:700; color:var(--fmd-navy,#0c2545); margin-bottom:4px; }
+.fm-assign-date { max-width:180px; }
+.fm-assign-search { flex:1; min-width:220px; }
+.fm-assign-submit { margin-top:10px; }
+body.theme-dark .fm-assign-field > span { color:var(--text,#e5e7eb); }
+</style>
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -136,16 +149,16 @@
       {% endif %}
 
       {% if is_editor %}
-      <form method="post" action="{% url 'anagrafica:formazione_elearning_assign' corso.pk %}" class="fm-add-box" style="margin-top:14px;">
+      <form method="post" action="{% url 'anagrafica:formazione_elearning_assign' corso.pk %}" class="fm-add-box fm-assign-form">
         {% csrf_token %}
-        <div class="fmd-block-title" style="font-size:13px;margin-bottom:10px;"><svg class="fmd-ico"><use href="#i-plus"/></svg> Assegna dipendenti</div>
+        <div class="fmd-block-title fm-assign-title"><svg class="fmd-ico"><use href="#i-plus"/></svg> Assegna dipendenti</div>
         {% if assegnabili %}
-        <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px;">
-          <label class="fmd-field" style="margin:0;">
-            <span style="display:block;font-size:12px;font-weight:700;color:var(--fmd-navy);margin-bottom:4px;">Scadenza (opzionale)</span>
-            <input type="date" name="due_date" class="fm-input" style="max-width:180px;">
+        <div class="fm-assign-row">
+          <label class="fmd-field fm-assign-field">
+            <span>Scadenza (opzionale)</span>
+            <input type="date" name="due_date" class="fm-input fm-assign-date">
           </label>
-          <span class="fmd-search" style="flex:1;min-width:220px;">
+          <span class="fmd-search fm-assign-search">
             <svg class="fmd-ico"><use href="#i-search"/></svg>
             <input type="text" id="fm-assign-filter" placeholder="Filtra dipendenti…" autocomplete="off">
           </span>
@@ -157,7 +170,7 @@
           </label>
           {% endfor %}
         </div>
-        <button type="submit" class="fmd-btn fmd-btn-primary" style="margin-top:10px;"><svg class="fmd-ico"><use href="#i-check"/></svg>Assegna selezionati</button>
+        <button type="submit" class="fmd-btn fmd-btn-primary fm-assign-submit"><svg class="fmd-ico"><use href="#i-check"/></svg>Assegna selezionati</button>
         {% else %}
         <p class="fmd-muted" style="margin:0;">Tutti i dipendenti attivi sono già assegnati (o l'elenco anagrafica non è disponibile in questo ambiente).</p>
         {% endif %}
