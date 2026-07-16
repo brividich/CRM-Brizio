@@ -1140,7 +1140,10 @@ def reschedule(request):
     conferma = request.POST.get("conferma_slittamento") in ("1", "true", "on")
     versione_client = (request.POST.get("versione") or "").strip()
     macchina_eff = target or p.macchina
-    nuova_data = p.data + timedelta(days=delta)
+    # giorni_delta = numero di colonne del Gantt, che mostra SOLO giorni lavorativi
+    # (weekend nascosti). Va quindi applicato in giorni LAVORATIVI, non di calendario:
+    # sommarlo secco (timedelta) faceva "contare" sabato/domenica e atterrare nel weekend.
+    nuova_data = _sposta_giorni_lavorativi(p.data, delta)
 
     # `coda` (sposta tutta la coda) vale solo per gli spostamenti temporali: con cambio
     # macchina slittiamo soltanto i conflitti reali sulla destinazione.

@@ -75,6 +75,24 @@ class GanttViewTest(TestCase):
         self.assertEqual(p.data, date(2026, 6, 26))
         self.assertEqual(p.fonte, Pianificazione.FONTE_MANUALE)
 
+    def test_reschedule_non_conta_il_weekend(self):
+        # Bug capo (CARICHI MACCHINA): trascinando una barra lo spostamento
+        # conteggiava sabato/domenica, benché non mostrati. Il Gantt ha SOLO
+        # colonne lavorative: giorni_delta è in giorni LAVORATIVI, non calendario.
+        self.client.force_login(self.user)
+        p = Pianificazione.objects.create(
+            macchina=self.m, data=date(2026, 6, 25), turno="giorno",  # giovedì
+            testo_originale="x", fonte=Pianificazione.FONTE_IMPORT,
+        )
+        # drag di 2 colonne: giovedì -> venerdì -> lunedì (2 giorni lavorativi)
+        r = self.client.post(reverse("gestione_carichi_macchina:reschedule"),
+                             {"pianificazione_id": p.id, "giorni_delta": "2"})
+        self.assertEqual(r.status_code, 200)
+        p.refresh_from_db()
+        # buggato: 25/06 + 2 calendario = sabato 27/06 (weekday 5, mai mostrato)
+        self.assertLess(p.data.weekday(), 5, "la nuova data non deve cadere di weekend")
+        self.assertEqual(p.data, date(2026, 6, 29))  # lunedì: 2 giorni lavorativi dopo giovedì
+
     def test_piano_slittamento_spinge_solo_conflitto_minimo(self):
         from datetime import date
         from .views import _piano_slittamento
