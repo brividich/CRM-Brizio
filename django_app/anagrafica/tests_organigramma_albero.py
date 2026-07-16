@@ -1,6 +1,13 @@
+from datetime import timedelta
+
 from django.test import TestCase
-from anagrafica.models import RuoloOperativo, DipendenteRuoloOperativo
-from anagrafica.services.organigramma_albero import build_ruolo_albero
+from django.utils import timezone
+from anagrafica.models import (
+    DipendenteQualifica, DipendenteRuoloOperativo, RuoloOperativo, TipoQualifica,
+)
+from anagrafica.services.organigramma_albero import (
+    build_certificazione_copertura, build_ruolo_albero,
+)
 
 
 class RuoloAlberoTests(TestCase):
@@ -23,3 +30,25 @@ class RuoloAlberoTests(TestCase):
         self.assertEqual({t["legacy_id"] for t in figlio["titolari"]}, {1})
         # i titolari non hanno "figli": sono foglie, mai gerarchia tra persone
         self.assertNotIn("figli", figlio["titolari"][0])
+
+
+class CertificazioneCoperturaTests(TestCase):
+    def setUp(self):
+        self.oggi = timezone.localdate()
+        self.ruolo = RuoloOperativo.objects.create(nome="Saldatore")
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=1, ruolo=self.ruolo)
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=2, ruolo=self.ruolo)
+        self.cert = TipoQualifica.objects.create(nome="Patentino saldatura")
+        DipendenteQualifica.objects.create(
+            legacy_anagrafica_id=1, tipo=self.cert,
+            data_scadenza=self.oggi + timedelta(days=100),
+        )
+
+    def test_copertura_valida_scaduta_mancante(self):
+        albero = build_certificazione_copertura(self.cert.pk)
+        nodo = next(n for n in albero if n["ruolo"].nome == "Saldatore")
+        stati = {t["legacy_id"]: t["stato"] for t in nodo["titolari"]}
+        self.assertEqual(stati[1], "posseduta_valida")
+        self.assertEqual(stati[2], "mancante")
+        self.assertEqual(nodo["n_totale"], 2)
+        self.assertEqual(nodo["n_copertura"], 1)

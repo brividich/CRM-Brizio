@@ -76,3 +76,51 @@ def build_ruolo_albero() -> list[dict]:
         if nodo is not None:
             radici.append(nodo)
     return radici
+
+
+def build_certificazione_copertura(tipo_qualifica_id: int, oggi=None) -> list[dict]:
+    """Come :func:`build_ruolo_albero`, con overlay di copertura per una singola
+    certificazione (``TipoQualifica``).
+
+    Ogni titolare riceve ``stato`` ∈ ``{"posseduta_valida", "scaduta",
+    "mancante"}`` (valida se la qualifica è assente di scadenza o non ancora
+    scaduta; scaduta se ``data_scadenza < oggi``; mancante se non la possiede).
+    Ogni nodo riceve ``n_totale`` (titolari diretti) e ``n_copertura`` (quanti
+    la possiedono valida). Conteggio per-nodo diretto, non aggregato sui figli.
+    """
+    from anagrafica.models import DipendenteQualifica
+
+    if oggi is None:
+        from django.utils import timezone
+
+        oggi = timezone.localdate()
+
+    # legacy_id → stato per questa certificazione (una valida vince su scaduta
+    # in caso di rinnovi multipli sullo stesso tipo).
+    stato_per_id: dict[int, str] = {}
+    for legacy_id, scad in (
+        DipendenteQualifica.objects.filter(tipo_id=int(tipo_qualifica_id))
+        .values_list("legacy_anagrafica_id", "data_scadenza")
+    ):
+        stato = "posseduta_valida" if (scad is None or scad >= oggi) else "scaduta"
+        if stato_per_id.get(legacy_id) == "posseduta_valida":
+            continue
+        stato_per_id[legacy_id] = stato
+
+    albero = build_ruolo_albero()
+
+    def _annota(nodo: dict) -> None:
+        n_cop = 0
+        for titolare in nodo["titolari"]:
+            st = stato_per_id.get(titolare["legacy_id"], "mancante")
+            titolare["stato"] = st
+            if st == "posseduta_valida":
+                n_cop += 1
+        nodo["n_totale"] = len(nodo["titolari"])
+        nodo["n_copertura"] = n_cop
+        for figlio in nodo["figli"]:
+            _annota(figlio)
+
+    for radice in albero:
+        _annota(radice)
+    return albero
