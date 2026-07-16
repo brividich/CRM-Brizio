@@ -8,6 +8,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Added
+
+- **Anagrafica · Scadenzario — layout, viste e rinnovi** (`django_app/anagrafica/views.py`, `django_app/anagrafica/urls.py`, `django_app/anagrafica/templates/anagrafica/pages/scadenzario.html`, `.../formazione_scadenzario.html`, `django_app/anagrafica/tests_scadenzario_layout.py` [nuovo]). Lo scadenzario HR guadagna un **toggle di vista** (Gruppi · Calendario · Affiancata): «Calendario» è una griglia mensile delle scadenze, «Affiancata» due colonne Visite│Formazione. Le **visite mediche sono collassate di default**; la **formazione è ora inline** (tabella per corso con selezione dipendenti) invece del solo link alla pagina dedicata. Nuovo pulsante **«↻ Rinnovo» per singola visita** (deep-link alla Giornata visite). Sul lato **formazione**, «**seleziona dipendenti → sessione di rinnovo**»: dallo scadenzario si scelgono i dipendenti e si entra nel **flusso standard** di creazione sessione (`formazione_sessione_create`), che al salvataggio li iscrive in blocco; più «**scadenzario = plan**» (toggle vista calendario riusando `formazione_plan?view=calendario`). Nessuna migrazione; gating e privacy invariati. Verifica: suite `anagrafica` verde.
+
 ### Fixed
 
 - **Deploy · `configure-iis-site.ps1` non si fermava più sull'app-pool** (`deployment/scripts/configure-iis-site.ps1`). La configurazione dell'application pool falliva con `Impossibile trovare il tipo [Microsoft.Web.Administration.ConfigurationElement]`: era codice morto — un `$recycleTime = [Microsoft.Web.Administration.ConfigurationElement]@{}` (tipo non caricato in sessione da `Import-Module WebAdministration`) seguito da un `$appPool = Get-Item ...` mai usato, residuo di un "restart giornaliero alle 3:00" mai completato. Righe rimosse: il pool resta `AlwaysRunning` con `idleTimeout`/`periodicRestart.time` a zero (nessun recycle periodico, coerente con l'app sempre attiva). Nessun'altra logica toccata. Parse-check PowerShell verde.
