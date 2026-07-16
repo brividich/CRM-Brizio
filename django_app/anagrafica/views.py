@@ -10153,6 +10153,29 @@ def _build_candidati_sessione(tipo: TipoVisitaMedica, oggi) -> list[dict]:
     return candidati
 
 
+def _build_candidati_giornata(oggi, tipo_id=None) -> list[dict]:
+    """Righe candidate per una "giornata visite" multi-tipo: per ogni tipo di
+    visita attivo (o solo ``tipo_id`` se dato) prende i candidati "consoni" da
+    ``_build_candidati_sessione`` e li appiattisce in righe ``(persona, tipo)``.
+    Chi ha più tipi dovuti compare in più righe (= più visite nel giorno)."""
+    if tipo_id:
+        tipi = list(TipoVisitaMedica.objects.filter(pk=tipo_id, is_active=True))
+    else:
+        tipi = list(TipoVisitaMedica.objects.filter(is_active=True).order_by("nome"))
+
+    righe: list[dict] = []
+    for tipo in tipi:
+        for c in _build_candidati_sessione(tipo, oggi):
+            righe.append({
+                **c,
+                "tipo": tipo,
+                "preselect": c["status"] in ("scaduta", "in_scadenza"),
+            })
+    _status_order = {"in_scadenza": 0, "scaduta": 1, "mai_effettuata": 2}
+    righe.sort(key=lambda r: (_status_order.get(r["status"], 9), r["nome"].casefold(), r["tipo"].nome))
+    return righe
+
+
 # ---------------------------------------------------------------------------
 # View: registrazione nuova sessione batch visite mediche
 # ---------------------------------------------------------------------------

@@ -424,3 +424,45 @@ class VisitaSessioneModelTests(TestCase):
         sess.delete()
         v.refresh_from_db()
         self.assertIsNone(v.sessione_id)  # SET_NULL: la visita resta
+
+
+class CandidatiGiornataTests(TestCase):
+    def setUp(self):
+        self.oggi = timezone.localdate()
+        self.ruolo = RuoloOperativo.objects.create(nome="Multi")
+        self.tipo_a = TipoVisitaMedica.objects.create(nome="VDT", durata_mesi=12)
+        self.tipo_b = TipoVisitaMedica.objects.create(nome="Rumore", durata_mesi=12)
+        self.tipo_a.ruoli_operativi.add(self.ruolo)
+        self.tipo_b.ruoli_operativi.add(self.ruolo)
+        # legacy 30 ha il ruolo → entrambi i tipi dovuti (mai effettuati)
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=30, ruolo=self.ruolo)
+
+    def _giornata(self, tipo_id=None):
+        from .views import _build_candidati_giornata
+        return _build_candidati_giornata(self.oggi, tipo_id=tipo_id)
+
+    def test_persona_con_due_tipi_dovuti_due_righe(self):
+        righe = [r for r in self._giornata() if r["legacy_id"] == 30]
+        self.assertEqual(len(righe), 2)
+        self.assertEqual({r["tipo"].nome for r in righe}, {"VDT", "Rumore"})
+
+    def test_filtro_tipo_id_limita_a_un_tipo(self):
+        righe = self._giornata(tipo_id=self.tipo_a.pk)
+        self.assertTrue(all(r["tipo"].pk == self.tipo_a.pk for r in righe))
+        self.assertEqual({r["legacy_id"] for r in righe}, {30})
+
+    def test_preselect_su_scaduta_e_in_scadenza(self):
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=30, tipo=self.tipo_a,
+            data_svolgimento=self.oggi - timedelta(days=400),
+        )
+        riga_a = next(r for r in self._giornata(tipo_id=self.tipo_a.pk) if r["legacy_id"] == 30)
+        self.assertEqual(riga_a["status"], "scaduta")
+        self.assertTrue(riga_a["preselect"])
+
+    def test_cessato_escluso(self):
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=30,
+            data_cessazione=self.oggi - timedelta(days=10),
+        )
+        self.assertEqual(self._giornata(), [])
