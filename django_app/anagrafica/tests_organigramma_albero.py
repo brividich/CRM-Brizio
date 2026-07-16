@@ -1,6 +1,8 @@
 from datetime import timedelta
 
-from django.test import TestCase
+from django.contrib.auth import get_user_model
+from django.contrib.sessions.backends.db import SessionStore
+from django.test import RequestFactory, TestCase
 from django.utils import timezone
 from anagrafica.models import (
     DipendenteQualifica, DipendenteRuoloOperativo, RuoloOperativo, TipoQualifica,
@@ -8,6 +10,8 @@ from anagrafica.models import (
 from anagrafica.services.organigramma_albero import (
     build_certificazione_copertura, build_ruolo_albero,
 )
+
+User = get_user_model()
 
 
 class RuoloAlberoTests(TestCase):
@@ -52,3 +56,25 @@ class CertificazioneCoperturaTests(TestCase):
         self.assertEqual(stati[2], "mancante")
         self.assertEqual(nodo["n_totale"], 2)
         self.assertEqual(nodo["n_copertura"], 1)
+
+
+class OrganigrammaAlberoViewTests(TestCase):
+    def setUp(self):
+        self.su = User.objects.create_superuser("su-org", "su-org@test.local", "x")
+        self.capo = RuoloOperativo.objects.create(nome="CoordView")
+        self.sub = RuoloOperativo.objects.create(nome="CaporepView", riporta_a=self.capo)
+
+    def _get(self, **params):
+        from anagrafica.views import organigramma_albero
+        rf = RequestFactory()
+        request = rf.get("/anagrafica/organigramma/albero/", params)
+        request.user = self.su
+        request.session = SessionStore()
+        return organigramma_albero(request)
+
+    def test_render_albero_ruoli(self):
+        resp = self._get()
+        self.assertEqual(resp.status_code, 200)
+        body = resp.content.decode()
+        self.assertIn("CoordView", body)
+        self.assertIn("CaporepView", body)

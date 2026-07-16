@@ -1,0 +1,75 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Organigramma ad albero | Anagrafica{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<style>
+/* ── Organigramma ad albero (gerarchia RUOLI) ───────────────────────────── */
+.orgt-toolbar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.orgt-lbl { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
+.orgt-select { border:1px solid #e2e8f0; border-radius:9px; padding:8px 12px; font-size:13px; background:#f8fafc; font-family:inherit; min-width:240px; }
+.orgt-tree { display:flex; flex-direction:column; gap:12px; }
+.orgt-node { border-left:2px solid #e2e8f0; padding-left:14px; }
+.orgt-role { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:6px 0; }
+.orgt-role-name { font-size:14px; font-weight:800; color:#0c2545; }
+.orgt-titolari { list-style:none; margin:2px 0 6px; padding:0; display:flex; flex-direction:column; gap:2px; }
+.orgt-tit { display:flex; align-items:center; gap:8px; padding:3px 0; font-size:13px; color:#334155; }
+.orgt-tit-name { color:#334155; }
+.orgt-children { display:flex; flex-direction:column; gap:10px; margin-top:6px; }
+.orgt-empty { font-size:12px; color:#94a3b8; font-style:italic; }
+
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .orgt-lbl { color:var(--text-light); }
+body.theme-dark .orgt-select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .orgt-node { border-color:var(--border); }
+body.theme-dark .orgt-role-name { color:var(--text); }
+body.theme-dark .orgt-tit, body.theme-dark .orgt-tit-name { color:var(--text-light); }
+body.theme-dark .orgt-empty { color:var(--text-light); }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div style="display:flex;flex-direction:column;gap:20px;">
+
+  {% include "anagrafica/components/flash_messages.html" %}
+
+  {# Header #}
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">Anagrafica HR</div>
+      <h1 class="hr-pagehead-title">Organigramma ad albero</h1>
+      <p class="hr-pagehead-desc">Gerarchia dei ruoli operativi; le persone sono foglie titolari del ruolo.</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:organigramma' %}">▦ Vista griglia</a>
+      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:index' %}">← Dashboard</a>
+    </div>
+  </div>
+
+  {# Selettore copertura certificazione (GET) #}
+  <form method="get" class="orgt-toolbar">
+    <label class="orgt-lbl" for="certificazione">Copertura certificazione</label>
+    <select id="certificazione" name="certificazione" class="orgt-select" onchange="this.form.submit()">
+      <option value="">— Nessuna (solo gerarchia) —</option>
+      {% for c in certificazioni %}
+        <option value="{{ c.pk }}" {% if cert_id == c.pk %}selected{% endif %}>{{ c.nome }}</option>
+      {% endfor %}
+    </select>
+    <noscript><button type="submit" class="hr-btn hr-btn-outline">Applica</button></noscript>
+  </form>
+
+  {# Albero #}
+  <div class="orgt-tree">
+    {% for nodo in albero %}
+      {% include "anagrafica/partials/_org_nodo.html" with nodo=nodo cert_id=cert_id only %}
+    {% empty %}
+      <p class="orgt-empty">Nessun ruolo a catalogo.</p>
+    {% endfor %}
+  </div>
+
+</div>
+{% endblock %}

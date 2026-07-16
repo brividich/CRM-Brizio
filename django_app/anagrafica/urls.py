@@ -236,6 +236,7 @@ urlpatterns = [
 
     # Organigramma visuale (aree → reparti → capi → dipendenti)
     path("organigramma/", views.organigramma, name="organigramma"),
+    path("organigramma/albero/", views.organigramma_albero, name="organigramma_albero"),
 
     # Report conformità "idoneità alla mansione" (semaforo per dominio)
     path("conformita/", views.conformita_report, name="conformita_report"),

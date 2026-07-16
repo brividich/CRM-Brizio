@@ -13420,6 +13420,25 @@ def organigramma(request):
     })
 
 
+@login_required
+def organigramma_albero(request):
+    """Organigramma ad albero: gerarchia dei RUOLI (RuoloOperativo.riporta_a),
+    persone come foglie titolari. Con ?certificazione=<TipoQualifica.pk> mostra
+    la copertura ad albero della certificazione (chi la possiede). La gerarchia
+    è SEMPRE tra ruoli, mai tra persone."""
+    from anagrafica.services.organigramma_albero import (
+        build_ruolo_albero, build_certificazione_copertura,
+    )
+    raw = (request.GET.get("certificazione") or "").strip()
+    cert_id = int(raw) if raw.isdigit() else None
+    albero = build_certificazione_copertura(cert_id) if cert_id else build_ruolo_albero()
+    return render(request, "anagrafica/pages/organigramma_albero.html", {
+        "albero": albero,
+        "cert_id": cert_id,
+        "certificazioni": TipoQualifica.objects.filter(is_active=True).order_by("nome"),
+    })
+
+
 # ---------------------------------------------------------------------------
 # Fascicolo conformità — "il dipendente è in regola con la sua mansione?"
 # (H2: semaforo aggregato formazione + visite + qualifiche + DPI)
