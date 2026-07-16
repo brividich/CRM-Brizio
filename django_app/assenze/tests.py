@@ -639,7 +639,7 @@ class AssenzeSubmitTokenTests(TestCase):
                 "tipoassenza": "Ferie",
                 "motivazione": "Ferie",
                 "date_start": "2026-03-12",
-                "date_end": "2026-03-12",
+                "date_end": "2026-03-13",
                 "time_start": "08:00",
                 "time_end": "12:00",
                 "caporeparto": "",
@@ -1711,3 +1711,61 @@ class AssenzeRegoleDurataTests(SimpleTestCase):
             shortcut="custom",
         )
         self.assertEqual(err, "")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AssenzeInvioRegoleDurataTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="assenze-regole-user", password="pass12345")
+        UserOnboarding.objects.create(user=self.user, completed=True, completed_at=timezone.now())
+
+    def _token(self):
+        session = self.client.session
+        request = type("Req", (), {"user": self.user, "session": session})()
+        return _build_submit_token(request, "assenze_invio")
+
+    @patch("assenze.views._render_richiesta", return_value=HttpResponse("error"))
+    @patch("assenze.views._insert_assenza", return_value=1)
+    @patch("assenze.views._table_exists", return_value=True)
+    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
+    def test_invio_durata_rapida_orario_manomesso_respinto(
+        self, _mock_perms, _mock_table_exists, mock_insert, mock_render,
+    ):
+        self.client.force_login(self.user)
+        resp = self.client.post(reverse("assenze_invio"), {
+            "submit_token": self._token(),
+            "tipoassenza": "Permesso",
+            "motivazione": "Motivo",
+            "shortcut": "mattina",          # preset 06:00-14:00
+            "date_start": "2026-03-10",
+            "date_end": "2026-03-10",
+            "time_start": "06:00",
+            "time_end": "15:00",            # orario alterato
+            "caporeparto": "",
+        })
+        self.assertEqual(resp.status_code, 200)
+        mock_insert.assert_not_called()
+        self.assertIn("solo la data", mock_render.call_args.kwargs["error"])
+
+    @patch("assenze.views._render_richiesta", return_value=HttpResponse("error"))
+    @patch("assenze.views._insert_assenza", return_value=1)
+    @patch("assenze.views._table_exists", return_value=True)
+    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
+    def test_invio_permesso_oltre_8h_respinto(
+        self, _mock_perms, _mock_table_exists, mock_insert, mock_render,
+    ):
+        self.client.force_login(self.user)
+        resp = self.client.post(reverse("assenze_invio"), {
+            "submit_token": self._token(),
+            "tipoassenza": "Permesso",
+            "motivazione": "Motivo",
+            "shortcut": "custom",
+            "date_start": "2026-03-10",
+            "date_end": "2026-03-10",
+            "time_start": "08:00",
+            "time_end": "17:00",            # 9h
+            "caporeparto": "",
+        })
+        self.assertEqual(resp.status_code, 200)
+        mock_insert.assert_not_called()
+        self.assertIn("8 ore", mock_render.call_args.kwargs["error"])

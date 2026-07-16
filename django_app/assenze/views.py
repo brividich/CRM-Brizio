@@ -4451,6 +4451,7 @@ def invio_placeholder(request):
     time_start = str(request.POST.get("time_start") or "00:00").strip() or "00:00"
     time_end = str(request.POST.get("time_end") or "23:59").strip() or "23:59"
     capo_raw = str(request.POST.get("caporeparto") or "").strip()
+    shortcut = str(request.POST.get("shortcut") or "").strip()
     salta_approvazione = bool(_as_bool(request.POST.get("salta_approvazione"))) if perms.get("can_skip_approval") else False
     tipo_ui = _norm_tipo(tipo)
 
@@ -4512,6 +4513,7 @@ def invio_placeholder(request):
         dt_end=dt_end,
         person_name=display_name,
         person_email=email,
+        shortcut=shortcut,
     )
     if err_msg:
         return _render_richiesta(request, error=err_msg, form_data=request.POST.dict())
