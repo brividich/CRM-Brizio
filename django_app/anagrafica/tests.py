@@ -2973,7 +2973,7 @@ class QualificheCatalogoTests(TestCase):
         self.assertIn("Carrellista ASR", body)
         self.assertIn("Saldatore certificato", body)
         self.assertEqual(resp.context["active_categoria"], "")
-        self.assertEqual(len(resp.context["tabs"]), 5)  # Tutte + 4 categorie
+        self.assertEqual(len(resp.context["tabs"]), 6)  # Tutte + 4 categorie + Processi qualificati (chip MOD.128, stream Formazione UI)
 
     def test_vista_filtrata_sicurezza_esclude_altre_categorie(self):
         self.client.force_login(self.admin)
