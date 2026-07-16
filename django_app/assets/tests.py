@@ -525,6 +525,38 @@ class AssetsRoutingTests(TestCase):
                 # "se vuota, non si vede": nessuno slot immagine quando manca la targhetta.
                 self.assertNotContains(resp_senza, 'img class="af-targhetta"')
 
+    def test_asset_detail_targhetta_is_lightbox_enabled(self):
+        self.client.force_login(self.user)
+        with _workspace_temporary_directory("assets-lightbox-") as tmpdir:
+            with override_settings(MEDIA_ROOT=Path(tmpdir)):
+                con_foto = Asset.objects.create(
+                    asset_tag="CNC-LIGHT-1",
+                    name="Tornio lightbox",
+                    asset_type=Asset.TYPE_CNC,
+                    foto_targhetta=_valid_png_upload("targhetta.png"),
+                )
+                senza_foto = Asset.objects.create(
+                    asset_tag="CNC-LIGHT-2",
+                    name="Tornio senza foto",
+                    asset_type=Asset.TYPE_CNC,
+                )
+
+                resp_con = self.client.get(reverse("assets:asset_view", args=[con_foto.id]))
+                self.assertEqual(resp_con.status_code, 200)
+                # Overlay lightbox + trigger cliccabile che porta la src dell'immagine.
+                # NB: 'data-lightbox-src="' (doppio apice) è solo nel markup; il JS usa
+                # getAttribute('data-lightbox-src') con apici singoli.
+                self.assertContains(resp_con, 'id="af-lightbox"')
+                self.assertContains(resp_con, 'class="af-targhetta-trigger"')
+                self.assertContains(resp_con, 'data-lightbox-src="')
+
+                resp_senza = self.client.get(reverse("assets:asset_view", args=[senza_foto.id]))
+                self.assertEqual(resp_senza.status_code, 200)
+                # L'overlay è sempre iniettato; il trigger no (nessuna immagine da aprire).
+                self.assertContains(resp_senza, 'id="af-lightbox"')
+                self.assertNotContains(resp_senza, 'class="af-targhetta-trigger"')
+                self.assertNotContains(resp_senza, 'data-lightbox-src="')
+
     def test_work_machine_create_saves_foto_targhetta(self):
         self.client.force_login(self.user)
         with _workspace_temporary_directory("assets-wm-targhetta-") as tmpdir:

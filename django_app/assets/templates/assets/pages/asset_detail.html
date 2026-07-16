@@ -526,7 +526,9 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
           </div>
         </div>
         {% if asset.foto_targhetta %}
-          <img class="af-targhetta" src="{{ asset.foto_targhetta.url }}" alt="Targhetta {{ asset.name }}" loading="lazy">
+          <button type="button" class="af-targhetta-trigger" data-lightbox-src="{{ asset.foto_targhetta.url }}" aria-label="Ingrandisci targhetta {{ asset.name }}">
+            <img class="af-targhetta" src="{{ asset.foto_targhetta.url }}" alt="Targhetta {{ asset.name }}" loading="lazy">
+          </button>
         {% endif %}
       </div>
       <div class="af-sub">
@@ -1464,6 +1466,68 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
   {% endif %}
 
 </section>
+
+{# Lightbox targhetta: popup leggero, senza librerie, coerente col tema. #}
+<div id="af-lightbox" class="af-lightbox" hidden aria-hidden="true">
+  <img class="af-lightbox-img" src="" alt="Targhetta ingrandita">
+</div>
+<style>
+  .af-targhetta-trigger {
+    background: none;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    line-height: 0;
+    display: inline-block;
+    cursor: zoom-in;
+  }
+  .af-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+    background: rgba(2, 6, 23, .82);
+    cursor: zoom-out;
+  }
+  .af-lightbox[hidden] { display: none; }
+  .af-lightbox-img {
+    max-width: min(92vw, 1100px);
+    max-height: 90vh;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, .5);
+  }
+</style>
+<script>
+(function () {
+  var overlay = document.getElementById('af-lightbox');
+  if (!overlay) { return; }
+  var img = overlay.querySelector('.af-lightbox-img');
+  function openLightbox(src) {
+    if (!src) { return; }
+    img.setAttribute('src', src);
+    overlay.hidden = false;
+    overlay.setAttribute('aria-hidden', 'false');
+  }
+  function closeLightbox() {
+    overlay.hidden = true;
+    overlay.setAttribute('aria-hidden', 'true');
+    img.setAttribute('src', '');
+  }
+  document.querySelectorAll('.af-targhetta-trigger').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      openLightbox(btn.getAttribute('data-lightbox-src'));
+    });
+  });
+  overlay.addEventListener('click', closeLightbox);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !overlay.hidden) { closeLightbox(); }
+  });
+})();
+</script>
 {% endblock %}
 
 {% block assets_shell_scripts %}
