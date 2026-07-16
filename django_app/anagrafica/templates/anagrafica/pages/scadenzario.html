@@ -25,6 +25,14 @@
         <p class="fmd-ph-sub">Qualifiche, visite mediche, formazione obbligatoria e contratti scaduti o in scadenza nei prossimi 60 giorni.</p>
       </div>
       <div class="fmd-pagehead-actions">
+        <div class="fmd-viewtoggle" style="display:inline-flex;gap:4px;" role="group" aria-label="Vista scadenzario">
+          <a class="fmd-btn fmd-btn-ghost{% if layout == 'gruppi' %} fmd-btn-primary{% endif %}"
+             href="?{% for k,v in request.GET.items %}{% if k != 'layout' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}layout=gruppi">Gruppi</a>
+          <a class="fmd-btn fmd-btn-ghost{% if layout == 'calendario' %} fmd-btn-primary{% endif %}"
+             href="?{% for k,v in request.GET.items %}{% if k != 'layout' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}layout=calendario">Calendario</a>
+          <a class="fmd-btn fmd-btn-ghost{% if layout == 'affiancata' %} fmd-btn-primary{% endif %}"
+             href="?{% for k,v in request.GET.items %}{% if k != 'layout' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}layout=affiancata">Affiancata</a>
+        </div>
         {% if can_view_contratti %}<a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:conformita_report' %}"><svg class="fmd-ico"><use href="#i-check"/></svg>Conformità mansione</a>{% endif %}
         <a class="fmd-btn fmd-btn-ghost" href="?{% for k,v in request.GET.items %}{% if k != 'format' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}format=csv"><svg class="fmd-ico"><use href="#i-download"/></svg>Esporta CSV</a>
       </div>
@@ -41,6 +49,7 @@
     {# ── Tabella + filtri ───────────────────────────────────────────────── #}
     <section class="fmd-panel">
       <form method="get" action="" class="fmd-toolbar">
+        <input type="hidden" name="layout" value="{{ layout }}">
         <select name="tipo" class="fmd-select" aria-label="Filtra per tipo" onchange="this.form.submit()">
           <option value="" {% if not filtro_tipo %}selected{% endif %}>Tutti i tipi</option>
           <option value="qualifica" {% if filtro_tipo == "qualifica" %}selected{% endif %}>Solo qualifiche</option>
@@ -66,11 +75,13 @@
         {% include "anagrafica/partials/_export_buttons.html" with export_key="scadenzario" %}
       </form>
 
+      {% if layout == "gruppi" %}
       {% if page_obj.object_list %}
       {# Vista PRIMARIA raggruppata per tipo, con espansione dei dipendenti. #}
       <div class="scad-groups" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
         {% for g in gruppi %}
-        <details class="scad-group"{% if g.has_scadute %} open{% endif %} style="border:1px solid #e6ecf3;border-radius:10px;background:#fff;overflow:hidden;">
+        {# Le visite mediche restano collassate anche se scadute: dato sanitario, apertura esplicita. #}
+        <details class="scad-group"{% if g.has_scadute and g.kind != "visita" %} open{% endif %} style="border:1px solid #e6ecf3;border-radius:10px;background:#fff;overflow:hidden;">
           <summary style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;font-weight:700;color:var(--fmd-navy);">
             {% if g.kind == "qualifica" %}<span class="fmd-badge fmd-plain fmd-b-cyan">Qualifica</span>
             {% elif g.kind == "formazione" %}<span class="fmd-badge fmd-plain fmd-b-orange">Formazione</span>
@@ -94,6 +105,9 @@
                     <div class="fmd-person">
                       <span class="fmd-avatar{% if v.scaduta %}" style="background:#fff5f5;color:#c53030;{% endif %}">{{ v.cognome|slice:":1" }}{{ v.nome|slice:":1" }}</span>
                       <a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' v.legacy_id %}">{{ v.cognome }} {{ v.nome }}</a>
+                      {% if v.kind == "visita" and can_view_visite and v.tipo_id %}
+                        <a href="{% url 'anagrafica:visite_mediche_nuova_sessione' %}?tipo={{ v.tipo_id }}" title="Crea una giornata di rinnovo per questa visita" style="margin-left:8px;font-size:11px;font-weight:700;color:#059669;text-decoration:none;white-space:nowrap;">↻ Rinnovo</a>
+                      {% endif %}
                     </div>
                   </td>
                   <td>{% if v.reparto %}<span class="fmd-badge fmd-b-cyan">{{ v.reparto }}</span>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
@@ -148,6 +162,9 @@
                 {% if v.kind == "qualifica" and is_qual_admin and v.tipo_id %}
                   <a href="{% url 'anagrafica:qualifica_sessione_create' %}?tipo={{ v.tipo_id }}" title="Crea una sessione di rinnovo" style="margin-left:8px;font-size:11px;font-weight:700;color:var(--fmd-cyan);text-decoration:none;white-space:nowrap;">↻ Rinnova</a>
                 {% endif %}
+                {% if v.kind == "visita" and can_view_visite and v.tipo_id %}
+                  <a href="{% url 'anagrafica:visite_mediche_nuova_sessione' %}?tipo={{ v.tipo_id }}" title="Crea una giornata di rinnovo per questa visita" style="margin-left:8px;font-size:11px;font-weight:700;color:#059669;text-decoration:none;white-space:nowrap;">↻ Rinnovo</a>
+                {% endif %}
               </td>
               <td class="fmd-nowrap fmd-num" data-sort-value="{{ v.data_scadenza|date:'Y-m-d' }}">{{ v.data_scadenza|date:"d-m-Y" }}</td>
               <td>
@@ -181,21 +198,114 @@
         <span class="fmd-em">Nessun risultato con i filtri selezionati.</span>
       </div>
       {% endif %}
+      {% elif layout == "affiancata" %}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:6px;">
+        <div class="col-visite">
+          <h3 style="font-size:14px;font-weight:800;color:var(--fmd-navy);">Visite mediche</h3>
+          {% if can_view_visite %}
+          <div style="overflow-x:auto;">
+          <table class="fmd-table" style="margin:0;"><tbody>
+            {% for v in voci_visite %}
+            <tr>
+              <td>{{ v.cognome }} {{ v.nome }}</td>
+              <td>{{ v.tipo_nome }}</td>
+              <td class="fmd-nowrap fmd-num">{{ v.data_scadenza|date:"d-m-Y" }}</td>
+              <td>{% if v.tipo_id %}<a href="{% url 'anagrafica:visite_mediche_nuova_sessione' %}?tipo={{ v.tipo_id }}" style="color:#059669;font-weight:700;font-size:11px;text-decoration:none;white-space:nowrap;">↻ Rinnovo</a>{% endif %}</td>
+            </tr>
+            {% empty %}<tr><td colspan="4" class="fmd-muted">Nessuna visita in scadenza.</td></tr>{% endfor %}
+          </tbody></table>
+          </div>
+          {% else %}<div class="fmd-muted">Visite mediche non visibili col tuo accesso.</div>{% endif %}
+        </div>
+        <div class="col-formazione">
+          <h3 style="font-size:14px;font-weight:800;color:var(--fmd-navy);">Formazione</h3>
+          {% if can_view_formazione %}
+          <div style="overflow-x:auto;">
+          <table class="fmd-table" style="margin:0;"><tbody>
+            {% for v in voci_formazione %}
+            <tr>
+              <td>{{ v.cognome }} {{ v.nome }}</td>
+              <td>{{ v.tipo_nome }}</td>
+              <td class="fmd-nowrap fmd-num">{{ v.data_scadenza|date:"d-m-Y" }}</td>
+            </tr>
+            {% empty %}<tr><td colspan="3" class="fmd-muted">Nessuna scadenza formazione.</td></tr>{% endfor %}
+          </tbody></table>
+          </div>
+          {% else %}<div class="fmd-muted">Formazione non visibile col tuo accesso.</div>{% endif %}
+        </div>
+      </div>
+      {% elif layout == "calendario" %}
+      <div style="margin-top:6px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <a class="fmd-btn fmd-btn-ghost" href="?layout=calendario&anno={{ cal_prev|date:'Y' }}&mese={{ cal_prev|date:'n' }}">‹ Mese prec.</a>
+          <strong>{{ cal_label }}</strong>
+          <a class="fmd-btn fmd-btn-ghost" href="?layout=calendario&anno={{ cal_next|date:'Y' }}&mese={{ cal_next|date:'n' }}">Mese succ. ›</a>
+        </div>
+        <table class="cal-grid" style="width:100%;border-collapse:collapse;table-layout:fixed;">
+          <thead><tr>{% for d in "LMMGVSD"|make_list %}<th style="padding:4px;font-size:11px;color:var(--fmd-muted);">{{ d }}</th>{% endfor %}</tr></thead>
+          <tbody>
+            {% for settimana in cal_settimane %}
+            <tr>
+              {% for giorno in settimana %}
+              <td style="border:1px solid #eef2f7;vertical-align:top;height:80px;padding:3px;{% if not giorno.in_mese %}background:#f8fafc;{% endif %}{% if giorno.is_oggi %}outline:2px solid var(--fmd-cyan);{% endif %}">
+                <div style="font-size:11px;color:var(--fmd-muted);">{{ giorno.data|date:"j" }}</div>
+                {% for v in giorno.voci %}
+                <div style="font-size:10px;margin-top:2px;padding:1px 4px;border-radius:4px;{% if v.scaduta %}background:#fee2e2;color:#b91c1c;{% else %}background:#fff7ed;color:#9a3412;{% endif %}" title="{{ v.cognome }} {{ v.nome }} — {{ v.tipo_nome }}">{{ v.kind_label|slice:":3" }} · {{ v.cognome }}</div>
+                {% endfor %}
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
     </section>
 
-    {# ── Sezione formazione ─────────────────────────────────────────────── #}
+    {# ── Sezione formazione INLINE: seleziona dipendenti → sessione di rinnovo ── #}
     {% if can_view_formazione %}
     <section class="fmd-panel fmd-block">
       <div class="fmd-block-head">
         <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-cap"/></svg>Scadenzario formazione</div>
-        <a href="{% url 'anagrafica:formazione_scadenzario' %}" class="fmd-mtr-link">Apri scadenzario formazione <svg class="fmd-ico"><use href="#i-arrow-right"/></svg></a>
+        <div style="display:flex;gap:8px;">
+          <a href="{% url 'anagrafica:formazione_plan' %}?view=calendario" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-calendar"/></svg>Vista calendario (plan)</a>
+          <a href="{% url 'anagrafica:formazione_scadenzario' %}" class="fmd-mtr-link">Apri pagina dedicata <svg class="fmd-ico"><use href="#i-arrow-right"/></svg></a>
+        </div>
       </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
         <span class="fmd-pill fmd-pill-red"><span class="fmd-pn">{{ fm_n_scaduti }}</span> Scaduti</span>
         <span class="fmd-pill fmd-pill-orange"><span class="fmd-pn">{{ fm_n_30gg }}</span> Entro 30gg</span>
         <span class="fmd-pill fmd-pill-amber"><span class="fmd-pn">{{ fm_n_90gg }}</span> Entro 90gg</span>
         {% if fm_is_cache_empty %}<span class="fmd-pill fmd-pill-grey">Cache formazione vuota — refresh_training_deadlines --all</span>{% endif %}
       </div>
+      {% regroup voci_formazione by tipo_nome as corsi_group %}
+      {% for cg in corsi_group %}
+      <form method="post" action="{% url 'anagrafica:formazione_rinnovo_da_scadenzario' %}" style="border:1px solid #e6ecf3;border-radius:10px;margin-bottom:10px;padding:10px 14px;">
+        {% csrf_token %}
+        <input type="hidden" name="corso_id" value="{{ cg.list.0.corso_id }}">
+        <input type="hidden" name="back" value="anagrafica:scadenzario">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+          <strong>{{ cg.grouper }}</strong>
+          {% if can_view_formazione %}<button type="submit" class="fmd-btn fmd-btn-primary" style="font-size:12px;"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Crea sessione di rinnovo con i selezionati</button>{% endif %}
+        </div>
+        <div style="overflow-x:auto;margin-top:8px;">
+          <table class="fmd-table" style="margin:0;">
+            <tbody>
+              {% for v in cg.list %}
+              <tr>
+                <td style="width:36px;text-align:center;"><input type="checkbox" name="dipendenti_selezionati" value="{{ v.legacy_id }}"{% if v.scaduta %} checked{% endif %}></td>
+                <td>{{ v.cognome }} {{ v.nome }}</td>
+                <td class="fmd-nowrap fmd-num">{{ v.data_scadenza|date:"d-m-Y" }}</td>
+                <td>{% if v.scaduta %}<span class="fmd-badge fmd-b-red">Scaduta</span>{% else %}<span class="fmd-badge fmd-b-amber">{{ v.giorni }}gg</span>{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </form>
+      {% empty %}
+      <div class="fmd-muted">Nessuna scadenza formazione con i filtri correnti.</div>
+      {% endfor %}
     </section>
     {% endif %}
 

@@ -7282,6 +7282,7 @@ def _build_scadenzario_voci(
                 "nome":         str(dip.get("nome") or "").strip(),
                 "reparto":      reparto,
                 "tipo_nome":    d.corso.titolo,
+                "corso_id":     d.corso_id,
                 "categoria":    "Corso obbligatorio",
                 "data_scadenza": d.data_scadenza,
                 "giorni":       delta,
@@ -7461,6 +7462,47 @@ def scadenzario(request):
         except Exception:
             logger.exception("Errore caricamento KPI formazione per scadenzario")
 
+    # Toggle di vista: gruppi (default), calendario (griglia mensile),
+    # affiancata (due colonne Visite | Formazione). Valore ignoto → gruppi.
+    layout = request.GET.get("layout", "gruppi")
+    if layout not in ("gruppi", "calendario", "affiancata"):
+        layout = "gruppi"
+
+    voci_visite = [v for v in voci if v["kind"] == "visita"]
+    voci_formazione = [v for v in voci if v["kind"] == "formazione"]
+
+    cal_settimane = cal_label = cal_prev = cal_next = None
+    if layout == "calendario":
+        try:
+            cal_anno = int(request.GET.get("anno") or oggi.year)
+            cal_mese = int(request.GET.get("mese") or oggi.month)
+        except (TypeError, ValueError):
+            cal_anno, cal_mese = oggi.year, oggi.month
+        if not 1 <= cal_mese <= 12:
+            cal_mese = oggi.month
+        primo = date(cal_anno, cal_mese, 1)
+        per_giorno: dict = {}
+        for v in voci:
+            ds = v["data_scadenza"]
+            if ds and ds.year == cal_anno and ds.month == cal_mese:
+                per_giorno.setdefault(ds.day, []).append(v)
+        settimane = []
+        for week in calendar.Calendar(firstweekday=0).monthdatescalendar(cal_anno, cal_mese):
+            giorni = []
+            for gg in week:
+                in_mese = (gg.month == cal_mese)
+                giorni.append({
+                    "data": gg,
+                    "in_mese": in_mese,
+                    "voci": per_giorno.get(gg.day, []) if in_mese else [],
+                    "is_oggi": gg == oggi,
+                })
+            settimane.append(giorni)
+        cal_settimane = settimane
+        cal_label = primo.strftime("%B %Y").capitalize()
+        cal_prev = _add_months(primo, -1)
+        cal_next = _add_months(primo, 1)
+
     return render(request, "anagrafica/pages/scadenzario.html", {
         "page_obj":      page_obj,
         "n_scadute":     n_scadute,
@@ -7481,6 +7523,13 @@ def scadenzario(request):
         "fm_n_30gg":     fm_n_30gg,
         "fm_n_90gg":     fm_n_90gg,
         "fm_is_cache_empty": fm_is_cache_empty,
+        "layout":        layout,
+        "voci_visite":   voci_visite,
+        "voci_formazione": voci_formazione,
+        "cal_settimane": cal_settimane,
+        "cal_label":     cal_label,
+        "cal_prev":      cal_prev,
+        "cal_next":      cal_next,
     })
 
 
@@ -11686,6 +11735,37 @@ def formazione_sessioni_list(request):
 
 
 @login_required
+@require_POST
+def formazione_rinnovo_da_scadenzario(request):
+    """Punto d'ingresso «seleziona dipendenti → sessione di rinnovo»: raccoglie i
+    dipendenti selezionati per un corso e li porta nel FLUSSO STANDARD di creazione
+    sessione (``formazione_sessione_create``). Gli id restano in ``request.session``
+    e vengono iscritti in blocco al salvataggio della sessione."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per creare sessioni di rinnovo.")
+        return redirect("anagrafica:formazione_scadenzario")
+    try:
+        corso = TrainingCourse.objects.get(pk=request.POST.get("corso_id"), is_active=True)
+    except (TrainingCourse.DoesNotExist, ValueError, TypeError):
+        messages.error(request, "Corso non valido.")
+        return redirect("anagrafica:formazione_scadenzario")
+    ids, seen = [], set()
+    for raw in request.POST.getlist("dipendenti_selezionati"):
+        s = str(raw).strip()
+        if s.isdigit():
+            lid = int(s)
+            if lid > 0 and lid not in seen:
+                seen.add(lid)
+                ids.append(lid)
+    if not ids:
+        messages.warning(request, "Nessun dipendente selezionato.")
+        return redirect(request.POST.get("back") or "anagrafica:scadenzario")
+    request.session["rinnovo_preselect"] = {"corso": corso.pk, "ids": ids}
+    messages.info(request, f"{len(ids)} dipendenti pronti per il rinnovo: compila la sessione.")
+    return redirect(f"{reverse('anagrafica:formazione_sessione_create')}?corso={corso.pk}")
+
+
+@login_required
 def formazione_sessione_create(request):
     if not _can_edit_formazione(request):
         messages.error(request, "Non hai i permessi per creare sessioni formative.")
@@ -11696,6 +11776,21 @@ def formazione_sessione_create(request):
             sessione = form.save(commit=False)
             sessione.created_by = request.user
             sessione.save()
+            # Rinnovo dallo scadenzario: se ci sono dipendenti pre-selezionati per
+            # QUESTO corso, iscrivili in blocco (idempotente) e vai agli iscritti.
+            pre = request.session.get("rinnovo_preselect")
+            if pre and pre.get("corso") == sessione.corso_id and pre.get("ids"):
+                n_new = 0
+                for lid in pre["ids"]:
+                    _, created = TrainingEnrollment.objects.get_or_create(
+                        sessione=sessione, legacy_anagrafica_id=lid,
+                        defaults={"stato": "ISCRITTO", "iscritto_da": request.user},
+                    )
+                    if created:
+                        n_new += 1
+                request.session.pop("rinnovo_preselect", None)
+                messages.success(request, f'Sessione "{sessione.codice_sessione}" creata; {n_new} dipendenti iscritti per il rinnovo.')
+                return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione.pk)
             messages.success(request, f'Sessione "{sessione.codice_sessione}" creata.')
             return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione.pk)
     else:
