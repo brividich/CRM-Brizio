@@ -64,3 +64,30 @@ class VociScadenzarioIdsTests(TestCase):
         gruppi = _raggruppa_scadenze_per_tipo(self._voci(filtro_tipo="visita"))
         g = next(x for x in gruppi if x["kind"] == "visita")
         self.assertEqual(g["tipo_id"], self.tipo.pk)
+
+
+class LayoutContextTests(TestCase):
+    def setUp(self):
+        from .tests import _ensure_anagrafica_table
+        _ensure_anagrafica_table()
+        self.su = User.objects.create_superuser("su-lay", "su-lay@test.local", "x")
+        self.client.force_login(self.su)
+
+    def test_layout_default_gruppi(self):
+        resp = self.client.get(reverse("anagrafica:scadenzario"))
+        self.assertEqual(resp.context["layout"], "gruppi")
+
+    def test_layout_ignora_valore_ignoto(self):
+        resp = self.client.get(reverse("anagrafica:scadenzario"), {"layout": "pippo"})
+        self.assertEqual(resp.context["layout"], "gruppi")
+
+    def test_layout_affiancata_espone_colonne(self):
+        resp = self.client.get(reverse("anagrafica:scadenzario"), {"layout": "affiancata"})
+        self.assertEqual(resp.context["layout"], "affiancata")
+        self.assertIn("voci_visite", resp.context)
+        self.assertIn("voci_formazione", resp.context)
+
+    def test_layout_calendario_espone_griglia(self):
+        resp = self.client.get(reverse("anagrafica:scadenzario"), {"layout": "calendario"})
+        self.assertEqual(resp.context["layout"], "calendario")
+        self.assertIn("cal_settimane", resp.context)

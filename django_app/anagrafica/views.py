@@ -7451,6 +7451,47 @@ def scadenzario(request):
         except Exception:
             logger.exception("Errore caricamento KPI formazione per scadenzario")
 
+    # Toggle di vista: gruppi (default), calendario (griglia mensile),
+    # affiancata (due colonne Visite | Formazione). Valore ignoto → gruppi.
+    layout = request.GET.get("layout", "gruppi")
+    if layout not in ("gruppi", "calendario", "affiancata"):
+        layout = "gruppi"
+
+    voci_visite = [v for v in voci if v["kind"] == "visita"]
+    voci_formazione = [v for v in voci if v["kind"] == "formazione"]
+
+    cal_settimane = cal_label = cal_prev = cal_next = None
+    if layout == "calendario":
+        try:
+            cal_anno = int(request.GET.get("anno") or oggi.year)
+            cal_mese = int(request.GET.get("mese") or oggi.month)
+        except (TypeError, ValueError):
+            cal_anno, cal_mese = oggi.year, oggi.month
+        if not 1 <= cal_mese <= 12:
+            cal_mese = oggi.month
+        primo = date(cal_anno, cal_mese, 1)
+        per_giorno: dict = {}
+        for v in voci:
+            ds = v["data_scadenza"]
+            if ds and ds.year == cal_anno and ds.month == cal_mese:
+                per_giorno.setdefault(ds.day, []).append(v)
+        settimane = []
+        for week in calendar.Calendar(firstweekday=0).monthdatescalendar(cal_anno, cal_mese):
+            giorni = []
+            for gg in week:
+                in_mese = (gg.month == cal_mese)
+                giorni.append({
+                    "data": gg,
+                    "in_mese": in_mese,
+                    "voci": per_giorno.get(gg.day, []) if in_mese else [],
+                    "is_oggi": gg == oggi,
+                })
+            settimane.append(giorni)
+        cal_settimane = settimane
+        cal_label = primo.strftime("%B %Y").capitalize()
+        cal_prev = _add_months(primo, -1)
+        cal_next = _add_months(primo, 1)
+
     return render(request, "anagrafica/pages/scadenzario.html", {
         "page_obj":      page_obj,
         "n_scadute":     n_scadute,
@@ -7471,6 +7512,13 @@ def scadenzario(request):
         "fm_n_30gg":     fm_n_30gg,
         "fm_n_90gg":     fm_n_90gg,
         "fm_is_cache_empty": fm_is_cache_empty,
+        "layout":        layout,
+        "voci_visite":   voci_visite,
+        "voci_formazione": voci_formazione,
+        "cal_settimane": cal_settimane,
+        "cal_label":     cal_label,
+        "cal_prev":      cal_prev,
+        "cal_next":      cal_next,
     })
 
 
