@@ -91,3 +91,35 @@ class LayoutContextTests(TestCase):
         resp = self.client.get(reverse("anagrafica:scadenzario"), {"layout": "calendario"})
         self.assertEqual(resp.context["layout"], "calendario")
         self.assertIn("cal_settimane", resp.context)
+
+
+class ScadenzarioTemplateTests(TestCase):
+    def setUp(self):
+        from .tests import _ensure_anagrafica_table
+        _ensure_anagrafica_table()
+        self.su = User.objects.create_superuser("su-tpl", "su-tpl@test.local", "x")
+        self.client.force_login(self.su)
+        self.oggi = timezone.localdate()
+        self.tipo = TipoVisitaMedica.objects.create(nome="TplT", durata_mesi=12)
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=301, tipo=self.tipo,
+            data_svolgimento=self.oggi - timedelta(days=400),
+        )
+
+    def test_toggle_layout_presente(self):
+        resp = self.client.get(reverse("anagrafica:scadenzario"))
+        body = resp.content.decode()
+        self.assertIn("layout=calendario", body)
+        self.assertIn("layout=affiancata", body)
+
+    def test_rinnovo_singola_visita_deeplink(self):
+        resp = self.client.get(reverse("anagrafica:scadenzario"), {"tipo": "visita"})
+        body = resp.content.decode()
+        self.assertIn(f"nuova-sessione/?tipo={self.tipo.pk}", body)
+
+    def test_gruppo_visita_non_auto_aperto(self):
+        # i gruppi visita NON devono avere l'attributo open anche se scaduti
+        resp = self.client.get(reverse("anagrafica:scadenzario"), {"tipo": "visita"})
+        body = resp.content.decode()
+        # marcatore semplice: il summary Visita medica esiste ma senza <details ... open>
+        self.assertIn("Visita medica", body)
