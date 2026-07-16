@@ -1579,3 +1579,17 @@ class AssignUsersAllDocumentsTests(TestCase):
         self.assertEqual(ProcedureAssignment.objects.filter(campaign=empty_campaign).count(), 0)
         msgs = [str(m).lower() for m in get_messages(resp.wsgi_request)]
         self.assertTrue(any("document" in m for m in msgs), msgs)
+
+
+class AdminDashboardSettingsTests(TestCase):
+    """Impostazioni procedure_refresh: niente «Accesso rapido», hero compatto."""
+
+    def setUp(self):
+        self.manager = User.objects.create_user(username="pr-set-mgr", password="pw", is_superuser=True)
+
+    def test_admin_dashboard_removes_quick_access_and_uses_compact_hero(self):
+        self.client.force_login(self.manager)
+        resp = self.client.get(reverse("procedure_refresh:admin_dashboard"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(resp, "Accesso rapido")
+        self.assertContains(resp, "ms-hero--compact")
