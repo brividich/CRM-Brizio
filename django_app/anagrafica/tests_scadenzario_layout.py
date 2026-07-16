@@ -160,3 +160,30 @@ class RinnovoFormazioneEndpointTests(TestCase):
         )
         # _can_edit_formazione nega → redirect (no stash)
         self.assertNotIn("rinnovo_preselect", self.client.session)
+
+
+class SessioneCreateConsumaPreselectTests(TestCase):
+    def setUp(self):
+        self.su = User.objects.create_superuser("su-cre", "su-cre@test.local", "x")
+        self.client.force_login(self.su)
+        self.corso = _mk_corso("C-CRE", "Corso Cre")
+
+    def test_salvataggio_iscrive_i_preselezionati(self):
+        from .models_formazione import TrainingSession, TrainingEnrollment
+        s = self.client.session
+        s["rinnovo_preselect"] = {"corso": self.corso.pk, "ids": [51, 52]}
+        s.save()
+        oggi = timezone.localdate().isoformat()
+        resp = self.client.post(reverse("anagrafica:formazione_sessione_create"), {
+            "corso": str(self.corso.pk), "codice_sessione": "SESS-CRE-1",
+            "stato": "PIANIFICATA", "modalita": "IN_SEDE",
+            "data_inizio": oggi, "data_fine": oggi,
+        })
+        self.assertEqual(resp.status_code, 302)
+        sess = TrainingSession.objects.get(codice_sessione="SESS-CRE-1")
+        self.assertEqual(
+            set(TrainingEnrollment.objects.filter(sessione=sess).values_list("legacy_anagrafica_id", flat=True)),
+            {51, 52},
+        )
+        self.assertNotIn("rinnovo_preselect", self.client.session)  # pulito
+        self.assertIn(f"/formazione/sessioni/{sess.pk}/iscritti/", resp["Location"])

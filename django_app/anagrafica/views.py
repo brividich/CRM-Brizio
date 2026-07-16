@@ -11689,6 +11689,21 @@ def formazione_sessione_create(request):
             sessione = form.save(commit=False)
             sessione.created_by = request.user
             sessione.save()
+            # Rinnovo dallo scadenzario: se ci sono dipendenti pre-selezionati per
+            # QUESTO corso, iscrivili in blocco (idempotente) e vai agli iscritti.
+            pre = request.session.get("rinnovo_preselect")
+            if pre and pre.get("corso") == sessione.corso_id and pre.get("ids"):
+                n_new = 0
+                for lid in pre["ids"]:
+                    _, created = TrainingEnrollment.objects.get_or_create(
+                        sessione=sessione, legacy_anagrafica_id=lid,
+                        defaults={"stato": "ISCRITTO", "iscritto_da": request.user},
+                    )
+                    if created:
+                        n_new += 1
+                request.session.pop("rinnovo_preselect", None)
+                messages.success(request, f'Sessione "{sessione.codice_sessione}" creata; {n_new} dipendenti iscritti per il rinnovo.')
+                return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione.pk)
             messages.success(request, f'Sessione "{sessione.codice_sessione}" creata.')
             return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione.pk)
     else:
