@@ -6,7 +6,8 @@ from types import SimpleNamespace
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.http import HttpResponse
-from django.test import Client, SimpleTestCase, TestCase, override_settings
+from django.template.loader import render_to_string
+from django.test import Client, RequestFactory, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -1791,3 +1792,23 @@ class AssenzeRichiestaShortcutRenderTests(TestCase):
         self.assertContains(resp, 'name="shortcut"')
         self.assertContains(resp, 'id="time_start"')
         self.assertContains(resp, 'id="time_end"')
+
+
+class AssenzeSubnavTests(SimpleTestCase):
+    def test_subnav_non_mostra_riconciliazione(self):
+        rf = RequestFactory()
+        request = rf.get("/assenze/")
+        # request nel context (non come kwarg request=) per evitare i context
+        # processor che interrogano il DB: SimpleTestCase li vieta.
+        html = render_to_string(
+            "assenze/components/subnav.html",
+            {
+                "request": request,
+                "assenze_can_reconcile": True,
+                "assenze_can_view_calendar": True,
+                "assenze_can_edit_events": True,
+                "assenze_is_admin": True,
+            },
+        )
+        self.assertNotIn("Riconciliazione", html)
+        self.assertNotIn("assenze_riconciliazione", html)

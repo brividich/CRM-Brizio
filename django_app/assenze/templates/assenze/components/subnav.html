@@ -23,11 +23,6 @@
   <a class="abs-subnav-link{% if current == 'assenze_certifica_presenza' %} active{% endif %}" href="{% url 'assenze_certifica_presenza' %}">
     <svg aria-hidden="true"><use href="#abs-i-user-check"></use></svg>Certifica presenza
   </a>
-  {% if assenze_can_reconcile %}
-    <a class="abs-subnav-link{% if current == 'assenze_riconciliazione' %} active{% endif %}" href="{% url 'assenze_riconciliazione' %}">
-      <svg aria-hidden="true"><use href="#abs-i-sync"></use></svg>Riconciliazione
-    </a>
-  {% endif %}
   {% if assenze_is_admin %}
     <a class="abs-subnav-link{% if current == 'assenze_impostazioni' %} active{% endif %}" href="{% url 'assenze_impostazioni' %}">
       <svg aria-hidden="true"><use href="#abs-i-settings"></use></svg>Impostazioni
