@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from io import StringIO
 from unittest.mock import MagicMock, patch
 from types import SimpleNamespace
@@ -6,7 +6,8 @@ from types import SimpleNamespace
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.http import HttpResponse
-from django.test import Client, SimpleTestCase, TestCase, override_settings
+from django.template.loader import render_to_string
+from django.test import Client, RequestFactory, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -37,6 +38,7 @@ from .views import (
     _sync_on_page_load_enabled,
     _tipo_for_display,
     _tipo_for_storage,
+    _validate_business_rules,
 )
 
 User = get_user_model()
@@ -638,7 +640,7 @@ class AssenzeSubmitTokenTests(TestCase):
                 "tipoassenza": "Ferie",
                 "motivazione": "Ferie",
                 "date_start": "2026-03-12",
-                "date_end": "2026-03-12",
+                "date_end": "2026-03-13",
                 "time_start": "08:00",
                 "time_end": "12:00",
                 "caporeparto": "",
@@ -1615,3 +1617,198 @@ class AssenzeCaporepartoEscalationTests(TestCase):
         )
         self.assertEqual(opt, "capoa@example.com")
         self.assertFalse(escalated)
+
+
+class AssenzeRegoleDurataTests(SimpleTestCase):
+    def _dt(self, s):
+        return datetime.strptime(s, "%Y-%m-%d %H:%M")
+
+    # --- Permesso: 30min-8h, stesso giorno -------------------------------
+    def test_permesso_oltre_8h_respinto(self):
+        err, _ = _validate_business_rules(
+            tipo="Permesso",
+            dt_start=self._dt("2026-03-10 08:00"),
+            dt_end=self._dt("2026-03-10 17:00"),  # 9h
+        )
+        self.assertTrue(err)
+        self.assertIn("8 ore", err)
+
+    def test_permesso_sotto_30min_respinto(self):
+        err, _ = _validate_business_rules(
+            tipo="Permesso",
+            dt_start=self._dt("2026-03-10 08:00"),
+            dt_end=self._dt("2026-03-10 08:20"),  # 20min
+        )
+        self.assertTrue(err)
+
+    def test_permesso_4h_ok(self):
+        err, _ = _validate_business_rules(
+            tipo="Permesso",
+            dt_start=self._dt("2026-03-10 08:00"),
+            dt_end=self._dt("2026-03-10 12:00"),
+        )
+        self.assertEqual(err, "")
+
+    def test_permesso_multi_giorno_respinto(self):
+        err, _ = _validate_business_rules(
+            tipo="Permesso",
+            dt_start=self._dt("2026-03-10 08:00"),
+            dt_end=self._dt("2026-03-11 09:00"),
+        )
+        self.assertTrue(err)
+
+    # --- Ferie: piu di 1 giorno -----------------------------------------
+    def test_ferie_un_giorno_respinta(self):
+        err, _ = _validate_business_rules(
+            tipo="Ferie",
+            dt_start=self._dt("2026-03-12 00:00"),
+            dt_end=self._dt("2026-03-12 23:59"),
+        )
+        self.assertTrue(err)
+        self.assertIn("un giorno", err)
+
+    def test_ferie_due_giorni_ok(self):
+        err, _ = _validate_business_rules(
+            tipo="Ferie",
+            dt_start=self._dt("2026-03-12 00:00"),
+            dt_end=self._dt("2026-03-13 23:59"),
+        )
+        self.assertEqual(err, "")
+
+    # --- Durata rapida: solo la data ------------------------------------
+    def test_durata_rapida_orario_alterato_respinto(self):
+        err, _ = _validate_business_rules(
+            tipo="Permesso",
+            dt_start=self._dt("2026-03-10 06:00"),
+            dt_end=self._dt("2026-03-10 15:00"),  # preset mattina = 06:00-14:00
+            shortcut="mattina",
+        )
+        self.assertTrue(err)
+        self.assertIn("solo la data", err)
+
+    def test_durata_rapida_solo_data_ok(self):
+        err, _ = _validate_business_rules(
+            tipo="Permesso",
+            dt_start=self._dt("2026-03-10 06:00"),
+            dt_end=self._dt("2026-03-10 14:00"),  # combacia col preset mattina (8h)
+            shortcut="mattina",
+        )
+        self.assertEqual(err, "")
+
+    def test_durata_rapida_multi_giorno_respinto(self):
+        err, _ = _validate_business_rules(
+            tipo="Permesso",
+            dt_start=self._dt("2026-03-10 06:00"),
+            dt_end=self._dt("2026-03-11 14:00"),
+            shortcut="mattina",
+        )
+        self.assertTrue(err)
+
+    def test_custom_permesso_orario_libero_ok(self):
+        err, _ = _validate_business_rules(
+            tipo="Permesso",
+            dt_start=self._dt("2026-03-10 09:15"),
+            dt_end=self._dt("2026-03-10 13:45"),  # 4h30
+            shortcut="custom",
+        )
+        self.assertEqual(err, "")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AssenzeInvioRegoleDurataTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="assenze-regole-user", password="pass12345")
+        UserOnboarding.objects.create(user=self.user, completed=True, completed_at=timezone.now())
+
+    def _token(self):
+        session = self.client.session
+        request = type("Req", (), {"user": self.user, "session": session})()
+        return _build_submit_token(request, "assenze_invio")
+
+    @patch("assenze.views._render_richiesta", return_value=HttpResponse("error"))
+    @patch("assenze.views._insert_assenza", return_value=1)
+    @patch("assenze.views._table_exists", return_value=True)
+    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
+    def test_invio_durata_rapida_orario_manomesso_respinto(
+        self, _mock_perms, _mock_table_exists, mock_insert, mock_render,
+    ):
+        self.client.force_login(self.user)
+        resp = self.client.post(reverse("assenze_invio"), {
+            "submit_token": self._token(),
+            "tipoassenza": "Permesso",
+            "motivazione": "Motivo",
+            "shortcut": "mattina",          # preset 06:00-14:00
+            "date_start": "2026-03-10",
+            "date_end": "2026-03-10",
+            "time_start": "06:00",
+            "time_end": "15:00",            # orario alterato
+            "caporeparto": "",
+        })
+        self.assertEqual(resp.status_code, 200)
+        mock_insert.assert_not_called()
+        self.assertIn("solo la data", mock_render.call_args.kwargs["error"])
+
+    @patch("assenze.views._render_richiesta", return_value=HttpResponse("error"))
+    @patch("assenze.views._insert_assenza", return_value=1)
+    @patch("assenze.views._table_exists", return_value=True)
+    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
+    def test_invio_permesso_oltre_8h_respinto(
+        self, _mock_perms, _mock_table_exists, mock_insert, mock_render,
+    ):
+        self.client.force_login(self.user)
+        resp = self.client.post(reverse("assenze_invio"), {
+            "submit_token": self._token(),
+            "tipoassenza": "Permesso",
+            "motivazione": "Motivo",
+            "shortcut": "custom",
+            "date_start": "2026-03-10",
+            "date_end": "2026-03-10",
+            "time_start": "08:00",
+            "time_end": "17:00",            # 9h
+            "caporeparto": "",
+        })
+        self.assertEqual(resp.status_code, 200)
+        mock_insert.assert_not_called()
+        self.assertIn("8 ore", mock_render.call_args.kwargs["error"])
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AssenzeRichiestaShortcutRenderTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="assenze-ui-user", password="pass12345")
+        UserOnboarding.objects.create(user=self.user, completed=True, completed_at=timezone.now())
+
+    @patch("assenze.views._template_perm_context", return_value={})
+    @patch("assenze.views._load_motivazioni_local", return_value=["Motivo"])
+    @patch("assenze.views._graph_get_motivazioni", return_value=[])
+    @patch("assenze.views._load_capi_options", return_value=[])
+    @patch("assenze.views._resolve_default_capo_for_user", return_value="")
+    @patch("assenze.views._legacy_identity", return_value=("Mario Rossi", "mario@example.com", 77))
+    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
+    def test_form_espone_shortcut_e_campi_orario(self, *_mocks):
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("assenze_richiesta"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'name="shortcut"')
+        self.assertContains(resp, 'id="time_start"')
+        self.assertContains(resp, 'id="time_end"')
+
+
+class AssenzeSubnavTests(SimpleTestCase):
+    def test_subnav_non_mostra_riconciliazione(self):
+        rf = RequestFactory()
+        request = rf.get("/assenze/")
+        # request nel context (non come kwarg request=) per evitare i context
+        # processor che interrogano il DB: SimpleTestCase li vieta.
+        html = render_to_string(
+            "assenze/components/subnav.html",
+            {
+                "request": request,
+                "assenze_can_reconcile": True,
+                "assenze_can_view_calendar": True,
+                "assenze_can_edit_events": True,
+                "assenze_is_admin": True,
+            },
+        )
+        self.assertNotIn("Riconciliazione", html)
+        self.assertNotIn("assenze_riconciliazione", html)

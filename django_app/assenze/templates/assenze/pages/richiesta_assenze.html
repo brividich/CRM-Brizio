@@ -1094,6 +1094,15 @@
       }
     }
 
+    function applyShortcutLock() {
+      var checked = document.querySelector('input[name="shortcut"]:checked');
+      var isCustom = !checked || checked.value === "custom";
+      // Ferie gestisce gia i propri orari (readOnly) in applyTypeDefaults().
+      if (isFerie()) return;
+      if (startInput) startInput.readOnly = !isCustom;
+      if (endInput) endInput.readOnly = !isCustom;
+    }
+
     function formatDateLabel(value) {
       if (!value) return "";
       var parts = String(value).split("-");
@@ -1326,6 +1335,7 @@
         certificatoWrap.classList.toggle("visible", isMalattia());
       }
       applyTypeDefaults();
+      applyShortcutLock();
       updateDynamicPreview();
     }
 
@@ -1351,9 +1361,13 @@
           return;
         }
         var p = presets[this.value];
-        if (!p || !startInput || !endInput) return;
+        if (!p || !startInput || !endInput) {
+          applyShortcutLock();
+          return;
+        }
         startInput.value = p[0];
         endInput.value = p[1];
+        applyShortcutLock();
         updateDynamicPreview();
       });
     });
@@ -1381,6 +1395,7 @@
     });
 
     updateDynamicPreview();
+    applyShortcutLock();
 
     if (!form) return;
 

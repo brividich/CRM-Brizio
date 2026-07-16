@@ -30,7 +30,14 @@ from core.legacy_utils import get_legacy_user, legacy_table_columns, legacy_tabl
 from core.models import AuditLog
 from core.module_branding import get_module_branding_context, handle_module_branding_post
 
-from .constants import TIPI_ASSENZA_STORAGE, TIPI_ASSENZA_UI
+from .constants import (
+    TIPI_ASSENZA_STORAGE,
+    TIPI_ASSENZA_UI,
+    SHORTCUT_PRESETS,
+    SHORTCUT_CUSTOM,
+    PERMESSO_MIN_MINUTES,
+    PERMESSO_MAX_HOURS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1014,19 +1021,35 @@ def _validate_business_rules(
     person_name: str = "",
     person_email: str = "",
     exclude_item_id: int | None = None,
+    shortcut=None,
 ) -> tuple[str, str]:
     if dt_start is None or dt_end is None:
         return "Compila data e ora inizio/fine.", ""
     if dt_end <= dt_start:
         return "La data/ora di fine deve essere successiva all'inizio.", ""
 
+    # Durata rapida: l'utente può cambiare solo la data, non l'orario.
+    shortcut_key = str(shortcut or "").strip().lower()
+    if shortcut_key and shortcut_key != SHORTCUT_CUSTOM:
+        preset = SHORTCUT_PRESETS.get(shortcut_key)
+        if preset is None:
+            return "Durata rapida non valida.", ""
+        if dt_start.date() != dt_end.date():
+            return "Con una durata rapida la richiesta deve restare nello stesso giorno.", ""
+        if (dt_start.strftime("%H:%M"), dt_end.strftime("%H:%M")) != preset:
+            return "Con una durata rapida puoi modificare solo la data, non l'orario.", ""
+
     tipo_ui = _norm_tipo(tipo)
     warning = ""
-    if tipo_ui == "Permesso" and dt_start.date() != dt_end.date():
-        return "Il permesso deve iniziare e finire nello stesso giorno.", ""
+    if tipo_ui == "Permesso":
+        if dt_start.date() != dt_end.date():
+            return "Il permesso deve iniziare e finire nello stesso giorno.", ""
+        minutes = (dt_end - dt_start).total_seconds() / 60.0
+        if minutes < PERMESSO_MIN_MINUTES or minutes > PERMESSO_MAX_HOURS * 60:
+            return "Il permesso deve durare tra 30 minuti e 8 ore.", ""
     if tipo_ui == "Ferie":
-        if dt_end.date() < dt_start.date():
-            return "La data fine ferie non puo essere precedente alla data inizio.", ""
+        if dt_end.date() <= dt_start.date():
+            return "Le ferie devono coprire più di un giorno.", ""
         if (dt_start.hour, dt_start.minute, dt_end.hour, dt_end.minute) != (0, 0, 23, 59):
             return "Le ferie devono coprire giornate intere: orario 00:00-23:59.", ""
     if tipo_ui == "Flessibilità":
@@ -4428,6 +4451,7 @@ def invio_placeholder(request):
     time_start = str(request.POST.get("time_start") or "00:00").strip() or "00:00"
     time_end = str(request.POST.get("time_end") or "23:59").strip() or "23:59"
     capo_raw = str(request.POST.get("caporeparto") or "").strip()
+    shortcut = str(request.POST.get("shortcut") or "").strip()
     salta_approvazione = bool(_as_bool(request.POST.get("salta_approvazione"))) if perms.get("can_skip_approval") else False
     tipo_ui = _norm_tipo(tipo)
 
@@ -4489,6 +4513,7 @@ def invio_placeholder(request):
         dt_end=dt_end,
         person_name=display_name,
         person_email=email,
+        shortcut=shortcut,
     )
     if err_msg:
         return _render_richiesta(request, error=err_msg, form_data=request.POST.dict())
