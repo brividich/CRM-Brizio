@@ -3460,3 +3460,58 @@ class ImportTemplateXlsxTests(TestCase):
             self.assertEqual(wb["Istruzioni"]["A4"].value, "Kickoff / Riferimento")
         finally:
             wb.close()
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class KickoffMeetingProjectScopeTests(TasksBaseTestCase):
+    """I kickoff programmati compaiono ai partecipanti anche senza task nel progetto."""
+
+    def setUp(self):
+        super().setUp()
+        _ensure_role(1, "admin")
+        _ensure_role(2, "utente")
+        _grant_role_actions(2, ["tasks_view", "tasks_create", "tasks_edit", "tasks_comment"])
+        self._refresh_acl_cache()
+
+        self.owner = _create_user_with_legacy(
+            username="ko_scope_owner", legacy_user_id=9701, role_id=2, role_name="utente"
+        )
+        # Partecipante: NON admin, NON full-read, senza task nel progetto e non PM/capo/programmer.
+        self.partecipante = _create_user_with_legacy(
+            username="ko_scope_part", legacy_user_id=9702, role_id=2, role_name="utente"
+        )
+
+        # NB: Project.save() auto-genera "KICK-OFF N" se il nome è vuoto; passando
+        # sia name che kickoff_number il nome custom viene preservato.
+        self.project_kickoff = Project.objects.create(
+            name="Commessa con kickoff ZZ1", kickoff_number=9101, created_by=self.owner
+        )
+        self.project_estraneo = Project.objects.create(
+            name="Commessa estranea ZZ2", kickoff_number=9102, created_by=self.owner
+        )
+
+        meeting = KickoffMeeting.objects.create(
+            project=self.project_kickoff, numero=1, data=timezone.localdate()
+        )
+        meeting.partecipanti_utenti.add(self.partecipante)
+
+    def test_participant_sees_kickoff_project_in_list(self):
+        self.client.force_login(self.partecipante)
+        response = self.client.get(reverse("tasks:project_list"))
+        self.assertEqual(response.status_code, 200)
+        # Il progetto dell'incontro a cui partecipa deve comparire...
+        self.assertContains(response, "Commessa con kickoff ZZ1")
+        # ...mentre un progetto estraneo (nessun kickoff/task suoi) resta escluso.
+        self.assertNotContains(response, "Commessa estranea ZZ2")
+
+    def test_meeting_creator_sees_project_in_list(self):
+        creatore = _create_user_with_legacy(
+            username="ko_scope_creator", legacy_user_id=9703, role_id=2, role_name="utente"
+        )
+        KickoffMeeting.objects.create(
+            project=self.project_estraneo, numero=1, data=timezone.localdate(), created_by=creatore
+        )
+        self.client.force_login(creatore)
+        response = self.client.get(reverse("tasks:project_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Commessa estranea ZZ2")
