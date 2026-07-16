@@ -89,3 +89,25 @@ def resolve_reparto_for_row(
         return rep
     nome_rep = str(row.get("reparto") or "").strip()
     return reparto_by_name.get(nome_rep.casefold()) if nome_rep else None
+
+
+def resolve_responsabile_effettivo(*, area, reparto) -> int | None:
+    """Responsabile effettivo di un dipendente: il responsabile dell'AREA
+    AZIENDALE vince sul caporeparto del REPARTO quando differisce; il capo
+    reparto è il fallback. ``None`` se nessuno dei due è valorizzato."""
+    if area is not None and area.responsabile_legacy_id:
+        return int(area.responsabile_legacy_id)
+    if reparto is not None and reparto.caporeparto_legacy_id:
+        return int(reparto.caporeparto_legacy_id)
+    return None
+
+
+def build_responsabile_effettivo_map(legacy_ids: list[int] | None = None) -> dict[int, int]:
+    """``legacy_anagrafica_id`` → id legacy del responsabile effettivo."""
+    result: dict[int, int] = {}
+    for legacy_id, area in build_area_canonica_map(legacy_ids).items():
+        rep = area.reparto if area.reparto_id else None
+        resp = resolve_responsabile_effettivo(area=area, reparto=rep)
+        if resp is not None:
+            result[legacy_id] = resp
+    return result
