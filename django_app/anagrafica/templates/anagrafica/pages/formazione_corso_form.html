@@ -32,11 +32,14 @@
       </div>
     </div>
 
-    <form method="post" class="fmd-panel" id="corso-form">
+    {# Il wizard kp- porta già le proprie card (una per tappa): il form NON è
+       una .fmd-panel, altrimenti si avrebbero card dentro card. Stesso schema
+       pulito del KICK-OFF (project_create): .kp-layout diretto nel form. #}
+    <form method="post" id="corso-form">
       {% csrf_token %}
 
       {% if form.non_field_errors %}
-      <div class="fmd-form-sec"><div class="fmd-ferr">{{ form.non_field_errors }}</div></div>
+      <div class="fmd-panel" style="padding:14px 18px;margin-bottom:16px;"><div class="fmd-ferr">{{ form.non_field_errors }}</div></div>
       {% endif %}
 
       {# Wizard «percorso»: rail a tappe + stazioni. Riusa il componente kp- del
@@ -137,7 +140,8 @@
         </div>{# .kp-stations #}
       </div>{# .kp-layout #}
 
-      <div class="fmd-form-foot">
+      {# Footer come barra arrotondata a sé (il form non è più una card che lo contenga). Scoped inline: nessun impatto sugli altri form fmd. #}
+      <div class="fmd-form-foot" style="border:1px solid var(--fmd-line,#e7edf3);border-radius:14px;margin-top:16px;">
         <span class="fmd-form-hint">I campi con <i class="fmd-req" style="font-style:normal;">*</i> sono obbligatori.</span>
         <span class="fmd-spacer"></span>
         <a href="{% url 'anagrafica:formazione_corsi_list' %}" class="fmd-btn fmd-btn-ghost">Annulla</a>

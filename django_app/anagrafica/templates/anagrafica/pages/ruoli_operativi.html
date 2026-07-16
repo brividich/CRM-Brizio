@@ -158,7 +158,7 @@ body.theme-dark .ro-swatch:hover, body.theme-dark .ro-swatch.selected { border-c
   <!-- Form nuovo ruolo (solo admin) -->
   {% if is_admin %}
   <div class="ro-card">
-    <div class="ro-card-head"><div class="ro-card-title">+ Nuovo ruolo operativo</div></div>
+    <div class="ro-card-head"><div class="ro-card-title">+ Nuovo ruolo</div></div>
     <div class="ro-card-body">
       <form method="post" action="{% url 'anagrafica:ruolo_operativo_create' %}">
         {% csrf_token %}

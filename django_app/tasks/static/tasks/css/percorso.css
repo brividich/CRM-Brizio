@@ -115,3 +115,40 @@
   .kp-node:not(:last-child)::before { display: none; }
   .kp-grid { grid-template-columns: 1fr; }
 }
+
+/* ===========================================================================
+   Polish estetico — additivo, solo token del tema (dark-safe).
+   Vale per tutti i wizard del componente (KICK-OFF + corso e-learning).
+   NB: --surface-alt / --success-bg esistono in dark; in chiaro si usa il
+   fallback esplicito (vedi nota theme_token_surface_alt_solo_dark).
+   =========================================================================== */
+.kp-station { box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 6px 16px rgba(15, 23, 42, .045); }
+.kp-station.is-current { box-shadow: 0 0 0 3px var(--accent-light), 0 8px 22px rgba(15, 23, 42, .08); }
+
+/* Testata tappa: tinta di superficie, verde a tappa completata, accent a tappa corrente */
+.kp-station-head { background: var(--surface-alt, #f8fafc); }
+.kp-station.is-done .kp-station-head { background: var(--success-bg, #ecfdf5); }
+.kp-station.is-current .kp-station-head { background: var(--accent-light); }
+
+/* Nodo del rail: affordance al passaggio del mouse + spunta ✓ sulle tappe fatte */
+.kp-node .kp-dot { position: relative; }
+.kp-node:not(.is-done):hover .kp-dot { border-color: var(--accent); color: var(--accent); }
+.kp-node.is-done .kp-dot { color: transparent; }
+.kp-node.is-done .kp-dot::after {
+  content: "✓"; position: absolute; inset: 0; display: flex;
+  align-items: center; justify-content: center; color: #fff; font-size: 14px; font-weight: 800;
+}
+
+/* Numero tappa: ✓ verde quando la stazione è completata */
+.kp-num { position: relative; }
+.kp-station.is-done .kp-num { color: transparent; }
+.kp-station.is-done .kp-num::after {
+  content: "✓"; position: absolute; inset: 0; display: flex;
+  align-items: center; justify-content: center; color: var(--success); font-size: 15px; font-weight: 800;
+}
+
+/* Contatore avanzamento come pill */
+.kp-progress-count {
+  display: inline-block; padding: 1px 9px; border-radius: 999px;
+  background: var(--surface-alt, #eef2f7); color: var(--text-mid);
+}
