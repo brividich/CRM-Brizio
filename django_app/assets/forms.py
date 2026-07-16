@@ -371,6 +371,7 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
             "assignment_location",
             "notes",
             "foto_targhetta",
+            "part_145",
         ]
         labels = {
             "asset_tag": "Tag bene",
@@ -391,6 +392,7 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
             "assignment_location": "Posizione assegnazione",
             "notes": "Note",
             "foto_targhetta": "Foto targhetta",
+            "part_145": "Rientra in PART 145",
         }
         widgets = {
             "notes": forms.Textarea(attrs={"rows": 4}),
@@ -1358,6 +1360,7 @@ class WorkMachineAssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin,
             "assignment_reparto",
             "assignment_location",
             "notes",
+            "part_145",
         ]
         labels = {
             "name": "Nome macchina",
@@ -1375,6 +1378,7 @@ class WorkMachineAssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin,
             "assignment_reparto": "Reparto assegnazione",
             "assignment_location": "Posizione",
             "notes": "Note",
+            "part_145": "Rientra in PART 145",
         }
         widgets = {
             "notes": forms.Textarea(attrs={"rows": 4}),

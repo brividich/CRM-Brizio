@@ -83,6 +83,11 @@ class Asset(models.Model):
         verbose_name="Foto targhetta",
         help_text="Foto della targhetta identificativa della macchina, mostrata in cima alla scheda dell'asset.",
     )
+    part_145 = models.BooleanField(
+        default=False,
+        verbose_name="Rientra in PART 145",
+        help_text="Indica se l'asset rientra nel regolamento aeronautico PART 145.",
+    )
     sharepoint_folder_url = models.CharField(max_length=1000, blank=True, default="")
     sharepoint_folder_path = models.CharField(max_length=500, blank=True, default="")
     sharepoint_drive_id = models.CharField(max_length=255, blank=True, default="")

@@ -578,6 +578,59 @@ class AssetsRoutingTests(TestCase):
                 self.assertTrue(asset.foto_targhetta)
                 self.assertTrue(Path(asset.foto_targhetta.path).exists())
 
+    def test_work_machine_create_saves_part_145(self):
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("assets:work_machine_create"),
+            {
+                "name": "Fresa PART 145",
+                "reparto": "CN5",
+                "status": Asset.STATUS_IN_USE,
+                "documents_specs_payload": json.dumps([]),
+                "documents_manuals_payload": json.dumps([]),
+                "documents_interventions_payload": json.dumps([]),
+                "part_145": "on",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        asset = Asset.objects.get(name="Fresa PART 145")
+        self.assertTrue(asset.part_145)
+
+    def test_asset_detail_shows_part_145_badge_only_when_flagged(self):
+        self.client.force_login(self.user)
+        flagged = Asset.objects.create(asset_tag="AST-P145-B1", name="Con centoquarantacinque", part_145=True)
+        normal = Asset.objects.create(asset_tag="AST-P145-B2", name="Senza flag", part_145=False)
+
+        # NB: la stringa "PART 145" compare anche nella sidebar (voce di navigazione),
+        # quindi si asserisce sul markup specifico del badge dell'header.
+        resp_yes = self.client.get(reverse("assets:asset_view", args=[flagged.id]))
+        self.assertEqual(resp_yes.status_code, 200)
+        self.assertContains(resp_yes, 'class="af-pill af-pill--part145"')
+
+        resp_no = self.client.get(reverse("assets:asset_view", args=[normal.id]))
+        self.assertEqual(resp_no.status_code, 200)
+        self.assertNotContains(resp_no, 'class="af-pill af-pill--part145"')
+
+    def test_part_145_list_gated_and_shows_only_flagged(self):
+        # Gated come le altre viste asset: l'anonimo non ottiene la pagina.
+        resp_anon = self.client.get(reverse("assets:part_145_list"))
+        self.assertNotEqual(resp_anon.status_code, 200)
+
+        self.client.force_login(self.user)
+        flagged = Asset.objects.create(asset_tag="AST-P145-L1", name="Aeromobile Uno", part_145=True)
+        Asset.objects.create(asset_tag="AST-P145-L2", name="Muletto Due", part_145=False)
+        resp = self.client.get(reverse("assets:part_145_list"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Aeromobile Uno")
+        self.assertNotContains(resp, "Muletto Due")
+
+    def test_part_145_nav_item_is_data_driven_in_sidebar(self):
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("assets:asset_list"))
+        self.assertEqual(resp.status_code, 200)
+        # La voce di navigazione (seed AssetSidebarButton) linka la sezione PART 145.
+        self.assertContains(resp, reverse("assets:part_145_list"))
+
     def test_asset_list_firewall_context_uses_common_default_columns(self):
         firewall_asset = Asset.objects.create(
             asset_tag="IT-FW-001",
@@ -9528,3 +9581,33 @@ class AssetPlantLayoutResolveTests(TestCase):
             markers = PlantLayoutMarker.objects.filter(asset=asset)
             self.assertEqual(markers.count(), 1)
             self.assertEqual(markers.first().layout_id, cromatura.id)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AssetPart145ModelTests(TestCase):
+    """Flag PART 145 sull'asset: si salva e si legge, default False."""
+
+    def test_part_145_defaults_false(self):
+        asset = Asset.objects.create(asset_tag="AST-P145-DEF", name="Macchina normale")
+        asset.refresh_from_db()
+        self.assertFalse(asset.part_145)
+
+    def test_part_145_persists_true(self):
+        asset = Asset.objects.create(asset_tag="AST-P145-ON", name="Macchina PART 145", part_145=True)
+        asset.refresh_from_db()
+        self.assertTrue(asset.part_145)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AssetPart145FormTests(TestCase):
+    """Il flag PART 145 è esposto nei form di creazione/modifica asset."""
+
+    def test_asset_form_exposes_part_145(self):
+        from assets.forms import AssetForm
+
+        self.assertIn("part_145", AssetForm.Meta.fields)
+
+    def test_work_machine_form_exposes_part_145(self):
+        from assets.forms import WorkMachineAssetForm
+
+        self.assertIn("part_145", WorkMachineAssetForm.Meta.fields)

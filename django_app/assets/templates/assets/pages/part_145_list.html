@@ -1,0 +1,41 @@
+{% extends "assets/base_shell.html" %}
+
+{% block assets_shell_title %}Asset PART 145{% endblock %}
+{% block assets_shell_subtitle %}<p>Elenco degli asset che rientrano nel regolamento aeronautico PART 145.</p>{% endblock %}
+
+{% block assets_shell_content %}
+  {% if part_145_assets %}
+    <div style="overflow-x:auto;">
+      <table class="table" style="width:100%; border-collapse:collapse;">
+        <thead>
+          <tr>
+            <th>Asset</th>
+            <th>Tag</th>
+            <th>Stato</th>
+            <th>Categoria</th>
+            <th>Reparto</th>
+            <th>Produttore</th>
+            <th>Modello</th>
+            <th>Seriale</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for asset in part_145_assets %}
+            <tr data-row-href="{% url 'assets:asset_view' asset.id %}">
+              <td>{{ asset.name }}</td>
+              <td>#{{ asset.asset_tag }}</td>
+              <td>{{ asset.get_status_display }}</td>
+              <td>{{ asset.category_label }}</td>
+              <td>{{ asset.reparto|default:"—" }}</td>
+              <td>{{ asset.manufacturer|default:"—" }}</td>
+              <td>{{ asset.model|default:"—" }}</td>
+              <td>{{ asset.serial_number|default:"—" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="as-note">Nessun asset marcato PART 145.</p>
+  {% endif %}
+{% endblock %}

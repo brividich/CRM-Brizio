@@ -8613,6 +8613,21 @@ def _build_assets_admin_snapshot() -> dict:
 
 
 @login_required
+def asset_part_145_list(request: HttpRequest) -> HttpResponse:
+    """Sezione dedicata: elenco degli asset che rientrano in PART 145."""
+    part_145_assets = (
+        Asset.objects.filter(part_145=True)
+        .select_related("asset_category")
+        .order_by("name", "asset_tag", "id")
+    )
+    context = {
+        "page_title": "Asset PART 145",
+        "part_145_assets": part_145_assets,
+    }
+    return render(request, "assets/pages/part_145_list.html", context)
+
+
+@login_required
 def asset_list(request: HttpRequest) -> HttpResponse:
     can_manage_custom_fields = _is_assets_admin(request)
 

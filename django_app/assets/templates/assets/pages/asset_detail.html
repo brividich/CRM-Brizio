@@ -67,6 +67,7 @@ body.theme-dark .af-targhetta { background:#0b1220; border-color:var(--border); 
 .af-pill--ok { background: #d1fae5; color: #047857; }
 .af-pill--warn { background: #fef3c7; color: #92400e; }
 .af-pill--danger { background: #fee2e2; color: #b91c1c; }
+.af-pill--part145 { background: #dbeafe; color: #1d4ed8; }
 .af-header-actions { display: grid; gap: 8px; grid-template-columns:repeat(2,minmax(0,1fr)); align-items: stretch; }
 .af-header-actions > .af-btn-primary:first-child { grid-column:1 / -1; }
 .af-header-actions .af-btn, .af-header-actions .af-export-menu > summary { width:100%; }
@@ -388,6 +389,7 @@ body.theme-dark .af-sub { color:var(--text-light); }
 body.theme-dark .af-pill--ok { background:rgba(4,120,87,.2); color:#6ee7b7; }
 body.theme-dark .af-pill--warn { background:rgba(146,64,14,.2); color:#fde68a; }
 body.theme-dark .af-pill--danger { background:rgba(185,28,28,.2); color:#fca5a5; }
+body.theme-dark .af-pill--part145 { background:rgba(29,78,216,.22); color:#93c5fd; }
 body.theme-dark .af-btn { background:var(--surface); border-color:var(--border); color:var(--text); }
 body.theme-dark .af-btn-secondary { background:rgba(29,78,216,.1); border-color:rgba(29,78,216,.25); color:#93c5fd; }
 body.theme-dark .af-btn-danger { background:rgba(185,28,28,.15); border-color:rgba(252,165,165,.2); color:#fca5a5; }
@@ -533,6 +535,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
       </div>
       <div class="af-sub">
         <span class="af-pill {% if asset_status.badge_class == 'ok' %}af-pill--ok{% elif asset_status.badge_class == 'danger' %}af-pill--danger{% else %}af-pill--warn{% endif %}">{{ asset_status.label }}</span>
+        {% if asset.part_145 %}<span class="af-pill af-pill--part145" title="Rientra nel regolamento aeronautico PART 145">PART 145</span>{% endif %}
         {% if asset_completeness %}
           <span class="af-pill {% if asset_completeness.pct >= 90 %}af-pill--ok{% elif asset_completeness.pct >= 60 %}af-pill--warn{% else %}af-pill--danger{% endif %}"
                 {% if asset_completeness.missing %}title="Dati mancanti: {{ asset_completeness.missing|join:', ' }}"{% endif %}>
