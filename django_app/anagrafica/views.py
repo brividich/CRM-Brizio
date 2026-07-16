@@ -7246,6 +7246,7 @@ def _build_scadenzario_voci(
                 "nome":         str(dip.get("nome") or "").strip(),
                 "reparto":      reparto,
                 "tipo_nome":    v.tipo.nome,
+                "tipo_id":      v.tipo_id,
                 "categoria":    "Visita medica",
                 "data_scadenza": v.data_scadenza,
                 "giorni":       delta,
@@ -7374,6 +7375,7 @@ def _raggruppa_scadenze_per_tipo(voci: list[dict]) -> list[dict]:
             "kind": kind,
             "kind_label": gv[0].get("kind_label", ""),
             "tipo_nome": tipo_nome,
+            "tipo_id": gv[0].get("tipo_id"),
             "voci": gv_sorted,
             "n_totale": len(gv),
             "n_scadute": n_scadute,
@@ -10164,6 +10166,29 @@ def _build_candidati_sessione(tipo: TipoVisitaMedica, oggi) -> list[dict]:
     return candidati
 
 
+def _build_candidati_giornata(oggi, tipo_id=None) -> list[dict]:
+    """Righe candidate per una "giornata visite" multi-tipo: per ogni tipo di
+    visita attivo (o solo ``tipo_id`` se dato) prende i candidati "consoni" da
+    ``_build_candidati_sessione`` e li appiattisce in righe ``(persona, tipo)``.
+    Chi ha più tipi dovuti compare in più righe (= più visite nel giorno)."""
+    if tipo_id:
+        tipi = list(TipoVisitaMedica.objects.filter(pk=tipo_id, is_active=True))
+    else:
+        tipi = list(TipoVisitaMedica.objects.filter(is_active=True).order_by("nome"))
+
+    righe: list[dict] = []
+    for tipo in tipi:
+        for c in _build_candidati_sessione(tipo, oggi):
+            righe.append({
+                **c,
+                "tipo": tipo,
+                "preselect": c["status"] in ("scaduta", "in_scadenza"),
+            })
+    _status_order = {"in_scadenza": 0, "scaduta": 1, "mai_effettuata": 2}
+    righe.sort(key=lambda r: (_status_order.get(r["status"], 9), r["nome"].casefold(), r["tipo"].nome))
+    return righe
+
+
 # ---------------------------------------------------------------------------
 # View: registrazione nuova sessione batch visite mediche
 # ---------------------------------------------------------------------------
@@ -10184,53 +10209,61 @@ def visite_mediche_nuova_sessione(request):
     oggi = _tz.localdate()
     tipi_attivi = list(TipoVisitaMedica.objects.filter(is_active=True).order_by("nome"))
 
-    # ---- Step 2: salva i record -----------------------------------------
-    if request.method == "POST" and request.POST.get("step") == "2":
-        tipo_id = request.POST.get("tipo_id", "").strip()
+    # ---- POST: salva la giornata (sessione + visite multi-tipo) -----------
+    if request.method == "POST":
         data_str = request.POST.get("data_svolgimento", "").strip()
         medico = request.POST.get("medico_competente", "").strip()
-
-        try:
-            tipo = TipoVisitaMedica.objects.get(pk=tipo_id, is_active=True)
-        except (TipoVisitaMedica.DoesNotExist, ValueError):
-            messages.error(request, "Tipo visita non valido.")
-            return redirect("anagrafica:visite_mediche_nuova_sessione")
+        luogo = request.POST.get("luogo", "").strip()
+        note_sess = request.POST.get("note", "").strip()
 
         try:
             data_svolgimento = date.fromisoformat(data_str)
         except (ValueError, TypeError):
             messages.error(request, "Data non valida.")
             return redirect("anagrafica:visite_mediche_nuova_sessione")
-
         if data_svolgimento > oggi:
             messages.error(request, "La data di svolgimento non può essere nel futuro.")
             return redirect("anagrafica:visite_mediche_nuova_sessione")
 
-        selected_ids = request.POST.getlist("dipendenti_selezionati")
-        if not selected_ids:
-            messages.warning(request, "Nessun dipendente selezionato.")
-            return redirect("anagrafica:visite_mediche_nuova_sessione")
-
-        req = _requisiti_tipo_visita(tipo)
-        pertinenti = (req["da_ruoli"] | req["da_processi"]) if req["ha_vincoli"] else None
-
-        creati = 0
-        doppioni = 0
-        fuori_requisito = 0
-        retrodatate = 0
-        errori = []
-        for legacy_id_str in selected_ids:
+        # Righe selezionate: campo sel_<legacy>_<tipo> presente.
+        selezioni: list[tuple[int, int]] = []
+        for key in request.POST.keys():
+            if not key.startswith("sel_"):
+                continue
+            parts = key.split("_")
+            if len(parts) != 3:
+                continue
             try:
-                legacy_id = int(legacy_id_str)
+                selezioni.append((int(parts[1]), int(parts[2])))
             except (ValueError, TypeError):
                 continue
-            esito = request.POST.get(f"esito_{legacy_id}", VisitaMedica.Esito.IDONEO)
+        if not selezioni:
+            messages.warning(request, "Nessuna visita selezionata.")
+            return redirect("anagrafica:visite_mediche_nuova_sessione")
+
+        from .models import VisitaSessione
+        sess = VisitaSessione.objects.create(
+            data_svolgimento=data_svolgimento, medico_competente=medico,
+            luogo=luogo, note=note_sess, created_by=request.user,
+        )
+
+        tipi_cache: dict[int, TipoVisitaMedica] = {}
+        creati = 0
+        doppioni = 0
+        errori = []
+        for legacy_id, tipo_id in selezioni:
+            tipo = tipi_cache.get(tipo_id)
+            if tipo is None:
+                tipo = TipoVisitaMedica.objects.filter(pk=tipo_id, is_active=True).first()
+                tipi_cache[tipo_id] = tipo
+            if tipo is None:
+                continue
+            esito = request.POST.get(f"esito_{legacy_id}_{tipo_id}", VisitaMedica.Esito.IDONEO)
             if esito not in VisitaMedica.Esito.values:
                 esito = VisitaMedica.Esito.IDONEO
-            prescrizioni = request.POST.get(f"prescrizioni_{legacy_id}", "").strip()
-            note = request.POST.get(f"note_{legacy_id}", "").strip()
+            prescrizioni = request.POST.get(f"prescrizioni_{legacy_id}_{tipo_id}", "").strip()
+            note = request.POST.get(f"note_{legacy_id}_{tipo_id}", "").strip()
             try:
-                # Anti-doppione: stessa persona, stesso tipo, stessa data.
                 if VisitaMedica.objects.filter(
                     legacy_anagrafica_id=legacy_id, tipo=tipo,
                     data_svolgimento=data_svolgimento,
@@ -10238,136 +10271,65 @@ def visite_mediche_nuova_sessione(request):
                     doppioni += 1
                     continue
                 visita = VisitaMedica.objects.create(
-                    legacy_anagrafica_id=legacy_id,
-                    tipo=tipo,
-                    data_svolgimento=data_svolgimento,
-                    esito=esito,
-                    prescrizioni=prescrizioni,
-                    note=note,
-                    medico_competente=medico,
-                    created_by=request.user,
-                    updated_by=request.user,
+                    legacy_anagrafica_id=legacy_id, tipo=tipo,
+                    data_svolgimento=data_svolgimento, esito=esito,
+                    prescrizioni=prescrizioni, note=note, medico_competente=medico,
+                    sessione=sess, created_by=request.user, updated_by=request.user,
                 )
-                referto_file = request.FILES.get(f"referto_{legacy_id}")
+                referto_file = request.FILES.get(f"referto_{legacy_id}_{tipo_id}")
                 if referto_file:
                     _salva_referto_visita(request, visita, referto_file)
-                if pertinenti is not None and legacy_id not in pertinenti:
-                    fuori_requisito += 1
-                # Retro-registrazione: esiste già una visita più recente del
-                # tipo — la riga è valida (storico) ma non diventa la corrente.
-                if VisitaMedica.objects.filter(
-                    legacy_anagrafica_id=legacy_id, tipo=tipo,
-                    data_svolgimento__gt=data_svolgimento,
-                ).exists():
-                    retrodatate += 1
                 creati += 1
             except Exception:
-                logger.exception("Errore creazione VisitaMedica per legacy_id=%s", legacy_id)
-                errori.append(legacy_id_str)
+                logger.exception("Errore creazione VisitaMedica giornata legacy=%s tipo=%s", legacy_id, tipo_id)
+                errori.append(f"{legacy_id}/{tipo_id}")
+
+        if creati == 0:
+            sess.delete()  # nessuna visita creata: non lasciare sessioni vuote
 
         try:
             from core.audit import log_action
             log_action(
-                request,
-                "VISITA_MEDICA_BATCH_CREATA",
-                "anagrafica",
-                f"Sessione {tipo.nome} del {data_svolgimento}: {creati} visite registrate, "
-                f"{doppioni} doppioni saltati, {fuori_requisito} fuori requisito, "
-                f"{retrodatate} retrodatate.",
+                request, "VISITA_MEDICA_BATCH_CREATA", "anagrafica",
+                f"Giornata visite del {data_svolgimento} (sessione {sess.pk if creati else '—'}): "
+                f"{creati} visite registrate, {doppioni} doppioni saltati.",
             )
         except Exception:
             logger.warning("Audit VISITA_MEDICA_BATCH_CREATA fallito", exc_info=True)
 
         if errori:
-            messages.warning(request, f"{creati} visite registrate. Errori per: {', '.join(errori)}.")
+            messages.warning(request, f"{creati} visite registrate. Errori: {', '.join(errori)}.")
+        elif creati == 0:
+            messages.info(request, "Nessuna visita registrata (tutte già presenti in pari data).")
+            return redirect("anagrafica:visite_mediche_nuova_sessione")
         else:
-            msg = f"{creati} visite registrate per {tipo.nome} del {data_svolgimento.strftime('%d-%m-%Y')}."
+            msg = f"Giornata del {data_svolgimento.strftime('%d-%m-%Y')}: {creati} visite registrate."
             if doppioni:
-                msg += f" {doppioni} già registrate in pari data: saltate."
-            if fuori_requisito:
-                msg += f" {fuori_requisito} fuori requisito (tipo non richiesto per il dipendente)."
-            if retrodatate:
-                msg += (
-                    f" {retrodatate} retrodatate: esiste già una visita più recente,"
-                    " le scadenze correnti non cambiano."
-                )
+                msg += f" {doppioni} già presenti in pari data: saltate."
             messages.success(request, msg)
-        return redirect("anagrafica:visite_mediche_dashboard")
+        return redirect("anagrafica:visite_mediche_sessione_detail", sessione_id=sess.pk)
 
-    # ---- Step 1: carica candidati ----------------------------------------
-    candidati = []
-    tipo_selezionato = None
-    data_svolgimento_str = ""
-    medico_competente = ""
-    step = 1
-
-    if request.method == "POST" and request.POST.get("step") == "1":
-        tipo_id = request.POST.get("tipo_id", "").strip()
-        data_svolgimento_str = request.POST.get("data_svolgimento", "").strip()
-        medico_competente = request.POST.get("medico_competente", "").strip()
-        step = 2
-
-        try:
-            tipo_selezionato = TipoVisitaMedica.objects.get(pk=tipo_id, is_active=True)
-        except (TipoVisitaMedica.DoesNotExist, ValueError):
-            messages.error(request, "Seleziona un tipo di visita valido.")
-            step = 1
-
-        if step == 2 and not data_svolgimento_str:
-            messages.error(request, "Inserisci la data di svolgimento.")
-            step = 1
-
-        if step == 2:
-            try:
-                data_svolgimento_parsed = date.fromisoformat(data_svolgimento_str)
-            except (ValueError, TypeError):
-                messages.error(request, "Data non valida.")
-                step = 1
-            else:
-                if data_svolgimento_parsed > oggi:
-                    messages.error(request, "La data di svolgimento non può essere nel futuro.")
-                    step = 1
-                else:
-                    candidati = _build_candidati_sessione(tipo_selezionato, oggi)
-                    if not candidati:
-                        messages.info(
-                            request,
-                            f"Nessun dipendente risulta in scadenza per '{tipo_selezionato.nome}' "
-                            f"nei prossimi 90 giorni.",
-                        )
-
-    nuova_scadenza_preview = None
-    tipo_senza_vincoli = False
-    if step == 2 and tipo_selezionato and data_svolgimento_str:
-        try:
-            _data_sessione = date.fromisoformat(data_svolgimento_str)
-        except (TypeError, ValueError):
-            _data_sessione = None
-        if _data_sessione and (tipo_selezionato.durata_mesi or 0) > 0:
-            from .models import _add_months
-            nuova_scadenza_preview = _add_months(_data_sessione, tipo_selezionato.durata_mesi)
-        tipo_senza_vincoli = not _requisiti_tipo_visita(tipo_selezionato)["ha_vincoli"]
-
-    medici_precedenti = list(
-        VisitaMedica.objects
-        .exclude(medico_competente="")
-        .order_by("medico_competente")
-        .values_list("medico_competente", flat=True)
-        .distinct()[:20]
+    # ---- GET: pagina Giornata visite (reattiva) --------------------------
+    pre_tipo_id = (request.GET.get("tipo") or "").strip()
+    tipo_pre = None
+    if pre_tipo_id.isdigit():
+        tipo_pre = TipoVisitaMedica.objects.filter(pk=int(pre_tipo_id), is_active=True).first()
+    righe = (
+        _build_candidati_giornata(oggi, tipo_id=(tipo_pre.pk if tipo_pre else None))
+        if (tipo_pre or request.GET.get("all")) else []
     )
-
+    medici_precedenti = list(
+        VisitaMedica.objects.exclude(medico_competente="")
+        .order_by("medico_competente").values_list("medico_competente", flat=True).distinct()[:20]
+    )
     return render(request, "anagrafica/pages/visite_mediche_nuova_sessione.html", {
         "tipi_attivi": tipi_attivi,
-        "step": step,
-        "tipo_selezionato": tipo_selezionato,
-        "data_svolgimento_str": data_svolgimento_str,
-        "medico_competente": medico_competente,
-        "candidati": candidati,
+        "tipo_pre": tipo_pre,
+        "righe": righe,
+        "n_pre": sum(1 for r in righe if r["preselect"]),
+        "oggi": oggi,
         "esiti": VisitaMedica.Esito.choices,
         "esito_default": VisitaMedica.Esito.IDONEO,
-        "oggi": oggi,
-        "nuova_scadenza_preview": nuova_scadenza_preview,
-        "tipo_senza_vincoli": tipo_senza_vincoli,
         "medici_precedenti": medici_precedenti,
     })
 
@@ -10430,6 +10392,122 @@ def visite_mediche_api_cerca_dipendente(request):
             "pertinente": True if pertinenti is None else (d.id in pertinenti),
         })
     return JsonResponse({"results": results})
+
+
+@login_required
+def visite_mediche_candidati(request):
+    """Partial HTMX: righe candidate della giornata per il tipo selezionato
+    (o tutti i tipi se ``tipo`` assente). Popola la tabella senza reload."""
+    if not _can_view_visite_mediche(request):
+        return HttpResponse(status=403)
+    from django.utils import timezone as _tz
+    raw = (request.GET.get("tipo") or "").strip()
+    tipo_id = int(raw) if raw.isdigit() else None
+    righe = _build_candidati_giornata(_tz.localdate(), tipo_id=tipo_id)
+    return render(request, "anagrafica/partials/_visite_candidati.html", {
+        "righe": righe,
+        "esiti": VisitaMedica.Esito.choices,
+        "esito_default": VisitaMedica.Esito.IDONEO,
+        "n_pre": sum(1 for r in righe if r["preselect"]),
+    })
+
+
+# ---------------------------------------------------------------------------
+# Sessioni visite (VisitaSessione): hub proposte, dettaglio, aggiungi, elimina
+# ---------------------------------------------------------------------------
+
+@login_required
+def visite_mediche_sessioni(request):
+    """Hub: proposte di rinnovo per tipo (da rinnovare = ultima visita corrente
+    scaduta/in scadenza) + elenco delle giornate salvate."""
+    if not _can_view_visite_mediche(request):
+        messages.error(request, "Non hai i permessi per le visite mediche.")
+        return redirect("anagrafica:index")
+    from django.utils import timezone as _tz
+    from .models import VisitaSessione
+    oggi = _tz.localdate()
+    soglia = oggi + _timedelta(days=60)
+    correnti = VisitaMedica.objects.filter(id__in=ultime_visite_correnti_ids())
+    proposte = []
+    for t in TipoVisitaMedica.objects.filter(is_active=True).order_by("nome"):
+        n_scad = correnti.filter(tipo=t, data_scadenza__lt=oggi).count()
+        n_insc = correnti.filter(tipo=t, data_scadenza__gte=oggi, data_scadenza__lte=soglia).count()
+        if n_scad or n_insc:
+            proposte.append({"tipo": t, "n_scadute": n_scad, "n_in_scadenza": n_insc})
+    sessioni = list(
+        VisitaSessione.objects.annotate(n_visite=Count("visite")).order_by("-data_svolgimento", "-id")[:50]
+    )
+    return render(request, "anagrafica/pages/visite_mediche_sessioni.html", {
+        "proposte": proposte, "sessioni": sessioni, "oggi": oggi,
+        "tot_da_rinnovare": sum(p["n_scadute"] + p["n_in_scadenza"] for p in proposte),
+    })
+
+
+@login_required
+def visite_mediche_sessione_detail(request, sessione_id: int):
+    if not _can_view_visite_mediche(request):
+        messages.error(request, "Non hai i permessi per le visite mediche.")
+        return redirect("anagrafica:index")
+    from .models import VisitaSessione
+    sess = get_object_or_404(VisitaSessione, pk=sessione_id)
+    nomi = _build_nomi_map()
+    visite = list(sess.visite.select_related("tipo").order_by("tipo__nome"))
+    for v in visite:
+        v.dipendente_nome = nomi.get(v.legacy_anagrafica_id, f"#{v.legacy_anagrafica_id}")
+    _, is_admin = _ensure_admin(request)
+    return render(request, "anagrafica/pages/visite_mediche_sessione_detail.html", {
+        "sess": sess, "visite": visite, "is_admin": is_admin,
+        "tipi_attivi": list(TipoVisitaMedica.objects.filter(is_active=True).order_by("nome")),
+        "esiti": VisitaMedica.Esito.choices, "esito_default": VisitaMedica.Esito.IDONEO,
+    })
+
+
+@login_required
+@require_POST
+def visite_mediche_sessione_partecipante_add(request, sessione_id: int):
+    if not _can_view_visite_mediche(request):
+        messages.error(request, "Permessi insufficienti.")
+        return redirect("anagrafica:visite_mediche_sessione_detail", sessione_id=sessione_id)
+    from .models import VisitaSessione
+    sess = get_object_or_404(VisitaSessione, pk=sessione_id)
+    try:
+        legacy_id = int(request.POST.get("legacy_id") or 0)
+        tipo = TipoVisitaMedica.objects.get(pk=request.POST.get("tipo_id"), is_active=True)
+    except (ValueError, TypeError, TipoVisitaMedica.DoesNotExist):
+        messages.error(request, "Dipendente o tipo non validi.")
+        return redirect("anagrafica:visite_mediche_sessione_detail", sessione_id=sessione_id)
+    esito = request.POST.get("esito", VisitaMedica.Esito.IDONEO)
+    if esito not in VisitaMedica.Esito.values:
+        esito = VisitaMedica.Esito.IDONEO
+    if VisitaMedica.objects.filter(
+        legacy_anagrafica_id=legacy_id, tipo=tipo, data_svolgimento=sess.data_svolgimento
+    ).exists():
+        messages.warning(request, "Visita già presente in pari data: non aggiunta.")
+    else:
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=legacy_id, tipo=tipo, data_svolgimento=sess.data_svolgimento,
+            esito=esito, medico_competente=sess.medico_competente, sessione=sess,
+            created_by=request.user, updated_by=request.user,
+        )
+        messages.success(request, "Partecipante aggiunto alla giornata.")
+    return redirect("anagrafica:visite_mediche_sessione_detail", sessione_id=sessione_id)
+
+
+@login_required
+@require_POST
+def visite_mediche_sessione_delete(request, sessione_id: int):
+    if not _can_view_visite_mediche(request):
+        messages.error(request, "Permessi insufficienti.")
+        return redirect("anagrafica:visite_mediche_sessioni")
+    _, is_admin = _ensure_admin(request)
+    if not is_admin:
+        messages.error(request, "Solo gli amministratori possono eliminare una giornata.")
+        return redirect("anagrafica:visite_mediche_sessione_detail", sessione_id=sessione_id)
+    from .models import VisitaSessione
+    sess = get_object_or_404(VisitaSessione, pk=sessione_id)
+    sess.delete()  # SET_NULL: le visite restano
+    messages.success(request, "Giornata eliminata (le visite registrate sono conservate).")
+    return redirect("anagrafica:visite_mediche_sessioni")
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,34 @@
+<tbody id="tbody-candidati">
+  {% for r in righe %}
+  <tr style="border-bottom:1px solid #f1f5f9;" id="row-{{ r.legacy_id }}-{{ r.tipo.pk }}">
+    <td style="padding:8px 10px;text-align:center;">
+      <input type="checkbox" name="sel_{{ r.legacy_id }}_{{ r.tipo.pk }}" value="1"
+        class="candidato-check"{% if r.preselect %} checked{% endif %}
+        style="width:16px;height:16px;cursor:pointer;">
+    </td>
+    <td style="padding:8px 10px;font-weight:600;color:#1e293b;">
+      {{ r.nome }}
+      {% if r.origine == "ruolo" %}<span style="margin-left:6px;padding:1px 7px;background:#eff6ff;color:#1d4ed8;border-radius:999px;font-size:10px;font-weight:700;">Ruolo</span>
+      {% elif r.origine == "processo" %}<span style="margin-left:6px;padding:1px 7px;background:#ede9fe;color:#5b21b6;border-radius:999px;font-size:10px;font-weight:700;">MOD.128</span>
+      {% else %}<span style="margin-left:6px;padding:1px 7px;background:#f1f5f9;color:#64748b;border-radius:999px;font-size:10px;font-weight:700;">Storico</span>{% endif %}
+    </td>
+    <td style="padding:8px 10px;font-weight:600;color:#0f172a;">{{ r.tipo.nome }}</td>
+    <td style="padding:8px 10px;color:#475569;">{% if r.data_scadenza %}{{ r.data_scadenza|date:"d-m-Y" }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
+    <td style="padding:8px 10px;">
+      {% if r.status == "in_scadenza" %}<span style="padding:2px 9px;background:#fff7ed;color:#9a3412;border-radius:999px;font-size:11px;font-weight:700;">In scadenza{% if r.giorni_a_scadenza %} ({{ r.giorni_a_scadenza }}gg){% endif %}</span>
+      {% elif r.status == "scaduta" %}<span style="padding:2px 9px;background:#fee2e2;color:#b91c1c;border-radius:999px;font-size:11px;font-weight:700;">Scaduta</span>
+      {% else %}<span style="padding:2px 9px;background:#f1f5f9;color:#64748b;border-radius:999px;font-size:11px;font-weight:700;">Mai effettuata</span>{% endif %}
+    </td>
+    <td style="padding:8px 10px;">
+      <select name="esito_{{ r.legacy_id }}_{{ r.tipo.pk }}" style="width:100%;padding:6px 8px;border:1px solid #cbd5e1;border-radius:7px;font-size:13px;background:#fff;color:#1e293b;">
+        {% for val, label in esiti %}<option value="{{ val }}"{% if val == esito_default %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </td>
+    <td style="padding:8px 10px;"><input type="text" name="prescrizioni_{{ r.legacy_id }}_{{ r.tipo.pk }}" placeholder="prescrizioni" style="width:100%;padding:6px 8px;border:1px solid #cbd5e1;border-radius:7px;font-size:13px;box-sizing:border-box;"></td>
+    <td style="padding:8px 10px;"><input type="text" name="note_{{ r.legacy_id }}_{{ r.tipo.pk }}" placeholder="note" style="width:100%;padding:6px 8px;border:1px solid #cbd5e1;border-radius:7px;font-size:13px;box-sizing:border-box;"></td>
+    <td style="padding:8px 10px;"><input type="file" name="referto_{{ r.legacy_id }}_{{ r.tipo.pk }}" accept=".pdf,image/*" style="width:150px;font-size:11px;color:#475569;"></td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="9" style="padding:16px;text-align:center;color:#94a3b8;font-size:13px;">Scegli un tipo (o «Tutti») per vedere i dipendenti da rinnovare.</td></tr>
+  {% endfor %}
+</tbody>

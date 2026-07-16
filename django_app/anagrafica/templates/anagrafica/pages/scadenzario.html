@@ -77,6 +77,11 @@
             {% elif g.kind == "contratto" %}<span class="fmd-badge fmd-plain fmd-b-grey">Contratto</span>
             {% else %}<span class="fmd-badge fmd-plain fmd-b-violet">Visita medica</span>{% endif %}
             <span style="flex:1 1 auto;">{{ g.tipo_nome }}</span>
+            {% if g.kind == "visita" and can_view_visite and g.tipo_id %}
+              <a href="{% url 'anagrafica:visite_mediche_nuova_sessione' %}?tipo={{ g.tipo_id }}" title="Crea una giornata di rinnovo per questo tipo" style="font-size:11px;font-weight:700;color:#059669;text-decoration:none;white-space:nowrap;">↻ Rinnovo</a>
+            {% elif g.kind == "qualifica" and is_qual_admin and g.tipo_id %}
+              <a href="{% url 'anagrafica:qualifica_sessione_create' %}?tipo={{ g.tipo_id }}" title="Crea una sessione di rinnovo" style="font-size:11px;font-weight:700;color:var(--fmd-cyan);text-decoration:none;white-space:nowrap;">↻ Rinnovo</a>
+            {% endif %}
             {% if g.n_scadute %}<span class="fmd-badge fmd-b-red">{{ g.n_scadute }} scadut{{ g.n_scadute|pluralize:"a,e" }}</span>{% endif %}
             <span class="fmd-badge fmd-b-cyan">{{ g.n_totale }} dipendent{{ g.n_totale|pluralize:"e,i" }}</span>
           </summary>

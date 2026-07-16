@@ -2173,6 +2173,32 @@ class TipoVisitaMedica(models.Model):
         return self.nome
 
 
+class VisitaSessione(models.Model):
+    """Giornata di visite del medico competente: data + medico + un elenco di
+    visite (di tipi anche diversi) registrate insieme. Le ``VisitaMedica`` vi si
+    collegano via FK ``sessione`` (nullable): eliminare la sessione NON elimina
+    le visite (SET_NULL), lo storico clinico resta."""
+
+    data_svolgimento = models.DateField()
+    medico_competente = models.CharField(max_length=200, blank=True, default="")
+    luogo = models.CharField(max_length=200, blank=True, default="")
+    note = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="visite_sessioni_create",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-data_svolgimento", "-id"]
+        verbose_name = "Sessione visite mediche"
+        verbose_name_plural = "Sessioni visite mediche"
+
+    def __str__(self) -> str:
+        return f"Giornata {self.data_svolgimento} — {self.medico_competente or '—'}"
+
+
 class VisitaMedica(models.Model):
     """Registrazione di una visita medica effettuata da un dipendente."""
 
@@ -2208,6 +2234,13 @@ class VisitaMedica(models.Model):
         on_delete=models.SET_NULL,
         related_name="+",
         help_text="DocumentoDipendente di tipo VISITA_MEDICA_REFERTO collegato.",
+    )
+    sessione = models.ForeignKey(
+        VisitaSessione,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="visite",
+        help_text="Giornata visite in cui è stata registrata (opzionale).",
     )
 
     created_at = models.DateTimeField(auto_now_add=True)

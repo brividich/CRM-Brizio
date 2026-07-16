@@ -1,19 +1,12 @@
 {% extends "core/base.html" %}
-
-{% block title %}Nuova sessione visite mediche · {{ INSTANCE_NAME|default:"NOVICROM HUB" }}{% endblock %}
-
-{% block extra_head %}
-{% include "anagrafica/components/_hr_restyle.html" %}
-{% endblock %}
-
+{% block title %}Giornata visite · {{ INSTANCE_NAME|default:"NOVICROM HUB" }}{% endblock %}
+{% block extra_head %}{% include "anagrafica/components/_hr_restyle.html" %}{% endblock %}
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
-
 {% block content %}
-<div style="display:flex;flex-direction:column;gap:18px;margin-top:14px;">
-
+<div style="display:flex;flex-direction:column;gap:16px;margin-top:14px;">
   <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-    <h1 style="font-size:24px;font-weight:800;color:#0f172a;margin:0;">Registra sessione visite mediche</h1>
-    <a href="{% url 'anagrafica:visite_mediche_dashboard' %}" style="font-size:13px;color:#1f87cd;font-weight:600;">← Dashboard visite</a>
+    <h1 style="font-size:24px;font-weight:800;color:#0f172a;margin:0;">Giornata visite</h1>
+    <a href="{% url 'anagrafica:visite_mediche_sessioni' %}" style="font-size:13px;color:#1f87cd;font-weight:600;">← Sessioni &amp; proposte</a>
   </div>
 
   {% if messages %}
@@ -23,446 +16,71 @@
       {% if msg.tags == 'error' %}background:#fee2e2;color:#b91c1c;border:1px solid #fecaca;
       {% elif msg.tags == 'warning' %}background:#fff7ed;color:#9a3412;border:1px solid #fed7aa;
       {% elif msg.tags == 'success' %}background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;
-      {% else %}background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;{% endif %}">
-      {{ msg }}
-    </div>
+      {% else %}background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;{% endif %}">{{ msg }}</div>
     {% endfor %}
   </div>
   {% endif %}
 
-  {# ---- STEP 1: parametri sessione ---------------------------------------- #}
-  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;">
-    <div style="padding:14px 20px;border-bottom:1px solid #f1f5f9;">
-      <div style="font-size:15px;font-weight:700;color:#1e293b;">Parametri sessione</div>
-    </div>
-    <div style="padding:20px;">
-      <form method="post" id="form-step1">
-        {% csrf_token %}
-        <input type="hidden" name="step" value="1">
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;align-items:end;">
-          <div>
-            <label style="display:block;font-size:12px;font-weight:700;color:#475569;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;">Tipo visita *</label>
-            <select name="tipo_id" required style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;color:#1e293b;background:#fff;">
-              <option value="">— Seleziona —</option>
-              {% for t in tipi_attivi %}
-              <option value="{{ t.pk }}"{% if tipo_selezionato and tipo_selezionato.pk == t.pk %} selected{% endif %}>{{ t.nome }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div>
-            <label style="display:block;font-size:12px;font-weight:700;color:#475569;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;">Data svolgimento *</label>
-            <input type="date" name="data_svolgimento" value="{{ data_svolgimento_str }}" required max="{{ oggi|date:'Y-m-d' }}"
-              style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;color:#1e293b;background:#fff;box-sizing:border-box;">
-          </div>
-          <div>
-            <label style="display:block;font-size:12px;font-weight:700;color:#475569;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;">Medico competente</label>
-            <input type="text" name="medico_competente" value="{{ medico_competente }}" placeholder="es. Dr. Rossi" list="medici-precedenti"
-              style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;color:#1e293b;background:#fff;box-sizing:border-box;">
-            <datalist id="medici-precedenti">
-              {% for m in medici_precedenti %}<option value="{{ m }}"></option>{% endfor %}
-            </datalist>
-          </div>
-        </div>
-        <div style="margin-top:16px;">
-          <button type="submit" style="padding:9px 20px;background:#1f87cd;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">
-            Carica dipendenti →
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  {# ---- STEP 2: tabella dipendenti candidati ------------------------------ #}
-  {% if step == 2 %}
-
-  {% if tipo_senza_vincoli %}
-  <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:12px 16px;font-size:13px;color:#9a3412;">
-    ⚠️ <strong>{{ tipo_selezionato.nome }}</strong> non è collegato a ruoli operativi né a processi MOD.128:
-    i candidati sono proposti dallo storico delle visite di questo tipo. Collega i ruoli dal catalogo tipologie per una proposta completa.
-  </div>
-  {% endif %}
-
-  {% if candidati or True %}{# mostra sempre il form se step 2 è attivo #}
-  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;" id="tabella-candidati-wrap">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #f1f5f9;flex-wrap:wrap;gap:10px;">
+  <form method="post" enctype="multipart/form-data" id="form-giornata">
+    {% csrf_token %}
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:20px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px;align-items:end;">
       <div>
-        <div style="font-size:15px;font-weight:700;color:#1e293b;">Dipendenti candidati — {{ tipo_selezionato.nome }}</div>
-        <div style="font-size:12px;color:#64748b;margin-top:3px;">
-          <span id="label-candidati-iniziali">{{ candidati|length }} in scadenza / mai effettuata</span>
-          · Data: {{ data_svolgimento_str|slice:"8:10" }}/{{ data_svolgimento_str|slice:"5:7" }}/{{ data_svolgimento_str|slice:"0:4" }}{% if medico_competente %} · {{ medico_competente }}{% endif %}
-          · Nuova scadenza: <strong>{% if nuova_scadenza_preview %}{{ nuova_scadenza_preview|date:"d-m-Y" }}{% else %}— (tipo senza periodicità){% endif %}</strong>
-          <span style="font-size:10px;color:#94a3b8;margin-left:8px;">Ordine: in scadenza → scaduta → mai effettuata</span>
-        </div>
+        <label style="display:block;font-size:12px;font-weight:700;color:#475569;margin-bottom:5px;text-transform:uppercase;">Data *</label>
+        <input type="date" name="data_svolgimento" value="{{ oggi|date:'Y-m-d' }}" required max="{{ oggi|date:'Y-m-d' }}" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;box-sizing:border-box;">
       </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button type="button" onclick="selectAll(true)" style="padding:6px 13px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;color:#475569;">Seleziona tutti</button>
-        <button type="button" onclick="selectAll(false)" style="padding:6px 13px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;color:#475569;">Deseleziona tutti</button>
-        <button type="button" onclick="openAggiungiModal()" style="padding:6px 13px;background:#1f87cd;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;">+ Aggiungi dipendente</button>
+      <div>
+        <label style="display:block;font-size:12px;font-weight:700;color:#475569;margin-bottom:5px;text-transform:uppercase;">Medico competente</label>
+        <input type="text" name="medico_competente" list="medici-precedenti" placeholder="es. Dr. Rossi" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;box-sizing:border-box;">
+        <datalist id="medici-precedenti">{% for m in medici_precedenti %}<option value="{{ m }}"></option>{% endfor %}</datalist>
+      </div>
+      <div>
+        <label style="display:block;font-size:12px;font-weight:700;color:#475569;margin-bottom:5px;text-transform:uppercase;">Luogo</label>
+        <input type="text" name="luogo" placeholder="es. Infermeria" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;box-sizing:border-box;">
+      </div>
+      <div>
+        <label style="display:block;font-size:12px;font-weight:700;color:#475569;margin-bottom:5px;text-transform:uppercase;">Filtra per tipo</label>
+        <select name="_tipo_filtro"
+          hx-get="{% url 'anagrafica:visite_mediche_candidati' %}"
+          hx-target="#tbody-candidati" hx-swap="outerHTML" hx-trigger="change"
+          style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;background:#fff;">
+          <option value="">— Tutti i tipi (giornata completa) —</option>
+          {% for t in tipi_attivi %}<option value="{{ t.pk }}"{% if tipo_pre and tipo_pre.pk == t.pk %} selected{% endif %}>{{ t.nome }}</option>{% endfor %}
+        </select>
       </div>
     </div>
 
-    <form method="post" id="form-step2" enctype="multipart/form-data">
-      {% csrf_token %}
-      <input type="hidden" name="step" value="2">
-      <input type="hidden" name="tipo_id" value="{{ tipo_selezionato.pk }}">
-      <input type="hidden" name="data_svolgimento" value="{{ data_svolgimento_str }}">
-      <input type="hidden" name="medico_competente" value="{{ medico_competente }}">
-
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;margin-top:16px;">
       <div style="overflow-x:auto;">
-        <table style="width:100%;border-collapse:collapse;font-size:13px;" id="tabella-candidati">
-          <thead>
-            <tr style="border-bottom:2px solid #e2e8f0;background:#f8fafc;">
-              <th style="text-align:center;padding:9px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;width:44px;">Sel.</th>
-              <th style="text-align:left;padding:9px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Dipendente</th>
-              <th style="text-align:left;padding:9px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Ultima visita</th>
-              <th style="text-align:left;padding:9px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Scadenza attuale</th>
-              <th style="text-align:left;padding:9px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Stato</th>
-              <th style="text-align:left;padding:9px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;min-width:180px;">Esito</th>
-              <th style="text-align:left;padding:9px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;min-width:160px;">Prescrizioni</th>
-              <th style="text-align:left;padding:9px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;min-width:140px;">Note</th>
-              <th style="text-align:left;padding:9px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Referto</th>
-            </tr>
-          </thead>
-          <tbody id="tbody-candidati">
-            {% for c in candidati %}
-            <tr style="border-bottom:1px solid #f1f5f9;" id="row-{{ c.legacy_id }}">
-              <td style="padding:8px 10px;text-align:center;">
-                <input type="checkbox" name="dipendenti_selezionati" value="{{ c.legacy_id }}"
-                  class="candidato-check" checked
-                  style="width:16px;height:16px;cursor:pointer;"
-                  onchange="toggleRow({{ c.legacy_id }}, this.checked)">
-              </td>
-              <td style="padding:8px 10px;font-weight:600;color:#1e293b;">
-                <a href="{% url 'anagrafica:dipendente_detail' c.legacy_id %}#visite-mediche"
-                   target="_blank" style="color:#1f87cd;text-decoration:none;">{{ c.nome }}</a>
-                {% if c.origine == "ruolo" %}<span style="display:inline-block;margin-left:6px;padding:1px 7px;background:#eff6ff;color:#1d4ed8;border-radius:999px;font-size:10px;font-weight:700;">Ruolo</span>
-                {% elif c.origine == "processo" %}<span style="display:inline-block;margin-left:6px;padding:1px 7px;background:#ede9fe;color:#5b21b6;border-radius:999px;font-size:10px;font-weight:700;">MOD.128</span>
-                {% else %}<span style="display:inline-block;margin-left:6px;padding:1px 7px;background:#f1f5f9;color:#64748b;border-radius:999px;font-size:10px;font-weight:700;">Storico</span>{% endif %}
-              </td>
-              <td style="padding:8px 10px;color:#475569;">
-                {% if c.ultima_visita %}
-                {{ c.ultima_visita.data_svolgimento|date:"d-m-Y" }}<br>
-                <span style="font-size:11px;color:#94a3b8;">{{ c.ultima_visita.get_esito_display }}</span>
-                {% else %}
-                <span style="color:#94a3b8;font-style:italic;">mai effettuata</span>
-                {% endif %}
-              </td>
-              <td style="padding:8px 10px;color:#475569;">
-                {% if c.data_scadenza %}{{ c.data_scadenza|date:"d-m-Y" }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}
-              </td>
-              <td style="padding:8px 10px;">
-                {% if c.status == "in_scadenza" %}
-                <span style="display:inline-block;padding:2px 9px;background:#fff7ed;color:#9a3412;border-radius:999px;font-size:11px;font-weight:700;">
-                  In scadenza{% if c.giorni_a_scadenza %} ({{ c.giorni_a_scadenza }}gg){% endif %}
-                </span>
-                {% elif c.status == "scaduta" %}
-                <span style="display:inline-block;padding:2px 9px;background:#fee2e2;color:#b91c1c;border-radius:999px;font-size:11px;font-weight:700;">
-                  Scaduta{% if c.giorni_a_scadenza %} ({{ c.giorni_a_scadenza|floatformat:"0" }}gg){% endif %}
-                </span>
-                {% else %}
-                <span style="display:inline-block;padding:2px 9px;background:#f1f5f9;color:#64748b;border-radius:999px;font-size:11px;font-weight:700;">
-                  Mai effettuata
-                </span>
-                {% endif %}
-              </td>
-              <td style="padding:8px 10px;">
-                <select name="esito_{{ c.legacy_id }}" class="row-input-{{ c.legacy_id }}"
-                  style="width:100%;padding:6px 8px;border:1px solid #cbd5e1;border-radius:7px;font-size:13px;background:#fff;color:#1e293b;">
-                  {% for val, label in esiti %}
-                  <option value="{{ val }}"{% if val == esito_default %} selected{% endif %}>{{ label }}</option>
-                  {% endfor %}
-                </select>
-              </td>
-              <td style="padding:8px 10px;">
-                <input type="text" name="prescrizioni_{{ c.legacy_id }}" placeholder="es. D.P.I. UDITO"
-                  class="row-input-{{ c.legacy_id }}"
-                  style="width:100%;padding:6px 8px;border:1px solid #cbd5e1;border-radius:7px;font-size:13px;background:#fff;color:#1e293b;box-sizing:border-box;">
-              </td>
-              <td style="padding:8px 10px;">
-                <input type="text" name="note_{{ c.legacy_id }}" placeholder="note interne"
-                  class="row-input-{{ c.legacy_id }}"
-                  style="width:100%;padding:6px 8px;border:1px solid #cbd5e1;border-radius:7px;font-size:13px;background:#fff;color:#1e293b;box-sizing:border-box;">
-              </td>
-              <td style="padding:8px 10px;">
-                <input type="file" name="referto_{{ c.legacy_id }}" accept=".pdf,image/*"
-                  class="row-input-{{ c.legacy_id }}"
-                  style="width:150px;font-size:11px;color:#475569;">
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead><tr style="border-bottom:2px solid #e2e8f0;background:#f8fafc;">
+            <th style="width:44px;padding:9px 10px;font-size:11px;color:#94a3b8;text-transform:uppercase;">Sel.</th>
+            <th style="text-align:left;padding:9px 10px;font-size:11px;color:#94a3b8;text-transform:uppercase;">Dipendente</th>
+            <th style="text-align:left;padding:9px 10px;font-size:11px;color:#94a3b8;text-transform:uppercase;">Tipo</th>
+            <th style="text-align:left;padding:9px 10px;font-size:11px;color:#94a3b8;text-transform:uppercase;">Scadenza</th>
+            <th style="text-align:left;padding:9px 10px;font-size:11px;color:#94a3b8;text-transform:uppercase;">Stato</th>
+            <th style="text-align:left;padding:9px 10px;font-size:11px;color:#94a3b8;text-transform:uppercase;">Esito</th>
+            <th style="text-align:left;padding:9px 10px;font-size:11px;color:#94a3b8;text-transform:uppercase;">Prescrizioni</th>
+            <th style="text-align:left;padding:9px 10px;font-size:11px;color:#94a3b8;text-transform:uppercase;">Note</th>
+            <th style="text-align:left;padding:9px 10px;font-size:11px;color:#94a3b8;text-transform:uppercase;">Referto</th>
+          </tr></thead>
+          {% include "anagrafica/partials/_visite_candidati.html" %}
         </table>
       </div>
+    </div>
 
-      <div style="padding:16px 20px;border-top:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-        <div id="selected-count" style="font-size:13px;color:#475569;font-weight:600;">
-          {{ candidati|length }} selezionati
-        </div>
-        <div style="display:flex;gap:10px;">
-          <a href="{% url 'anagrafica:visite_mediche_dashboard' %}" style="padding:9px 18px;background:#f1f5f9;color:#475569;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none;">Annulla</a>
-          <button type="submit" id="btn-registra"
-            style="padding:9px 22px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">
-            Registra visite selezionate
-          </button>
-        </div>
+    <div style="position:sticky;bottom:0;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 18px;display:flex;justify-content:space-between;align-items:center;gap:12px;box-shadow:0 -4px 12px rgba(0,0,0,.05);margin-top:16px;">
+      <div style="display:flex;gap:8px;">
+        <button type="button" onclick="selVisite(true)" style="padding:6px 13px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;color:#475569;">Tutti</button>
+        <button type="button" onclick="selVisite(false)" style="padding:6px 13px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;color:#475569;">Nessuno</button>
       </div>
-    </form>
-  </div>
-
-  {% if not candidati %}
-  <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:14px;padding:20px;font-size:14px;color:#0369a1;">
-    Nessun dipendente risulta in scadenza per <strong>{{ tipo_selezionato.nome }}</strong> nei prossimi 90 giorni.
-    Puoi comunque aggiungere dipendenti manualmente con il tasto <strong>+ Aggiungi dipendente</strong> qui sopra.
-  </div>
-  {% endif %}
-
-  {% endif %}{# /candidati or True #}
-  {% endif %}{# /step 2 #}
-
-</div>{# /container #}
-
-{# ---- Modal: aggiungi dipendente ---------------------------------------- #}
-<div id="modal-aggiungi" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:9000;align-items:center;justify-content:center;">
-  <div style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:460px;box-shadow:0 20px 60px rgba(0,0,0,.2);margin:16px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <div style="font-size:16px;font-weight:800;color:#0f172a;">Aggiungi dipendente</div>
-      <button onclick="closeAggiungiModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8;line-height:1;">×</button>
+      <button type="submit" style="padding:10px 24px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">Registra giornata (<span id="cnt">{{ n_pre }}</span>)</button>
     </div>
-    <input type="text" id="cerca-dip-input" placeholder="Cerca per nome o cognome…" autocomplete="off"
-      style="width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;color:#1e293b;box-sizing:border-box;margin-bottom:10px;"
-      oninput="cercaDipendente(this.value)">
-    <div id="cerca-dip-results" style="max-height:280px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px;display:none;"></div>
-    <div id="cerca-dip-empty" style="display:none;font-size:13px;color:#94a3b8;padding:8px 0;">Nessun risultato.</div>
-    <div style="margin-top:14px;font-size:11px;color:#94a3b8;">
-      I dipendenti già presenti nella lista non vengono mostrati.
-    </div>
-  </div>
+  </form>
 </div>
-
 <script>
-// ---------------------------------------------------------------------------
-// Riga selezionata / deselezionata
-// ---------------------------------------------------------------------------
-function toggleRow(legacyId, checked) {
-  document.querySelectorAll('.row-input-' + legacyId).forEach(function(el) {
-    el.disabled = !checked;
-    var tr = el.closest('tr');
-    if (tr) tr.style.opacity = checked ? '1' : '0.4';
-  });
-  updateCount();
-}
-
-function selectAll(state) {
-  document.querySelectorAll('.candidato-check').forEach(function(cb) {
-    cb.checked = state;
-    var id = cb.value;
-    document.querySelectorAll('.row-input-' + id).forEach(function(el) {
-      el.disabled = !state;
-      var tr = el.closest('tr');
-      if (tr) tr.style.opacity = state ? '1' : '0.4';
-    });
-  });
-  updateCount();
-}
-
-function updateCount() {
-  var n = document.querySelectorAll('.candidato-check:checked').length;
-  var el = document.getElementById('selected-count');
-  if (el) el.textContent = n + ' selezionati';
-  var btn = document.getElementById('btn-registra');
-  if (btn) {
-    btn.disabled = n === 0;
-    btn.style.opacity = n === 0 ? '0.5' : '1';
-    btn.style.cursor = n === 0 ? 'not-allowed' : 'pointer';
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Modal + ricerca live dipendente
-// ---------------------------------------------------------------------------
-var _searchTimer = null;
-var _esiti = {{ esiti|safe }};
-var _esito_default = "{{ esito_default }}";
-
-function _currentExcludedIds() {
-  var ids = [];
-  document.querySelectorAll('.candidato-check').forEach(function(cb) {
-    ids.push(cb.value);
-  });
-  return ids.join(',');
-}
-
-function openAggiungiModal() {
-  document.getElementById('modal-aggiungi').style.display = 'flex';
-  document.getElementById('cerca-dip-input').value = '';
-  document.getElementById('cerca-dip-results').style.display = 'none';
-  document.getElementById('cerca-dip-results').innerHTML = '';
-  document.getElementById('cerca-dip-empty').style.display = 'none';
-  setTimeout(function() { document.getElementById('cerca-dip-input').focus(); }, 80);
-}
-
-function closeAggiungiModal() {
-  document.getElementById('modal-aggiungi').style.display = 'none';
-}
-
-document.getElementById('modal-aggiungi').addEventListener('click', function(e) {
-  if (e.target === this) closeAggiungiModal();
-});
-
-document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape') closeAggiungiModal();
-});
-
-function cercaDipendente(q) {
-  clearTimeout(_searchTimer);
-  var resDiv = document.getElementById('cerca-dip-results');
-  var emptyDiv = document.getElementById('cerca-dip-empty');
-  if (q.length < 2) {
-    resDiv.style.display = 'none';
-    emptyDiv.style.display = 'none';
-    resDiv.innerHTML = '';
-    return;
-  }
-  _searchTimer = setTimeout(function() {
-    var exclude = _currentExcludedIds();
-    var url = '{% url "anagrafica:visite_mediche_api_cerca_dipendente" %}?q=' + encodeURIComponent(q)
-      + '&exclude=' + encodeURIComponent(exclude)
-      + '&tipo_id={{ tipo_selezionato.pk }}';
-    fetch(url)
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        var results = data.results || [];
-        resDiv.innerHTML = '';
-        if (results.length === 0) {
-          resDiv.style.display = 'none';
-          emptyDiv.style.display = 'block';
-        } else {
-          emptyDiv.style.display = 'none';
-          results.forEach(function(item) {
-            var div = document.createElement('div');
-            div.style.cssText = 'padding:10px 14px;cursor:pointer;font-size:13px;font-weight:600;color:#1e293b;border-bottom:1px solid #f1f5f9;';
-            div.textContent = item.nome;
-            div.addEventListener('mouseenter', function() { this.style.background = '#f8fafc'; });
-            div.addEventListener('mouseleave', function() { this.style.background = ''; });
-            div.addEventListener('click', function() { aggiungiDipendente(item); });
-            resDiv.appendChild(div);
-          });
-          resDiv.style.display = 'block';
-        }
-      })
-      .catch(function() {
-        resDiv.style.display = 'none';
-        emptyDiv.style.display = 'none';
-      });
-  }, 250);
-}
-
-function _buildEsitoSelect(legacyId) {
-  var sel = document.createElement('select');
-  sel.name = 'esito_' + legacyId;
-  sel.className = 'row-input-' + legacyId;
-  sel.style.cssText = 'width:100%;padding:6px 8px;border:1px solid #cbd5e1;border-radius:7px;font-size:13px;background:#fff;color:#1e293b;';
-  _esiti.forEach(function(pair) {
-    var opt = document.createElement('option');
-    opt.value = pair[0];
-    opt.textContent = pair[1];
-    if (pair[0] === _esito_default) opt.selected = true;
-    sel.appendChild(opt);
-  });
-  return sel;
-}
-
-function aggiungiDipendente(item) {
-  closeAggiungiModal();
-  var legacyId = item.legacy_id;
-  var nome = item.nome;
-  if (document.getElementById('row-' + legacyId)) return; // già presente
-
-  var tbody = document.getElementById('tbody-candidati');
-  var tr = document.createElement('tr');
-  tr.id = 'row-' + legacyId;
-  tr.style.cssText = 'border-bottom:1px solid #f1f5f9;background:#f0fdf4;';
-
-  // Checkbox
-  var tdCb = document.createElement('td');
-  tdCb.style.cssText = 'padding:8px 10px;text-align:center;';
-  var cb = document.createElement('input');
-  cb.type = 'checkbox'; cb.name = 'dipendenti_selezionati'; cb.value = legacyId;
-  cb.className = 'candidato-check'; cb.checked = true;
-  cb.style.cssText = 'width:16px;height:16px;cursor:pointer;';
-  cb.addEventListener('change', function() { toggleRow(legacyId, this.checked); });
-  tdCb.appendChild(cb);
-
-  // Nome (+ avviso pertinenza)
-  var tdNome = document.createElement('td');
-  tdNome.style.cssText = 'padding:8px 10px;font-weight:600;color:#1e293b;';
-  tdNome.textContent = nome;
-  if (item.pertinente === false) {
-    var warn = document.createElement('span');
-    warn.style.cssText = 'display:inline-block;margin-left:6px;padding:1px 7px;background:#fef2f2;color:#b91c1c;border-radius:999px;font-size:10px;font-weight:700;';
-    warn.textContent = '⚠ tipo non richiesto';
-    warn.title = 'Questo tipo di visita non è richiesto dai ruoli/processi del dipendente.';
-    tdNome.appendChild(warn);
-  }
-
-  // Ultima visita
-  var tdUlt = document.createElement('td');
-  tdUlt.style.cssText = 'padding:8px 10px;color:#94a3b8;font-style:italic;font-size:12px;';
-  tdUlt.textContent = 'Aggiunto manualmente';
-
-  // Scadenza attuale
-  var tdScad = document.createElement('td');
-  tdScad.style.cssText = 'padding:8px 10px;color:#94a3b8;';
-  tdScad.textContent = '—';
-
-  // Stato
-  var tdStato = document.createElement('td');
-  tdStato.style.cssText = 'padding:8px 10px;';
-  var span = document.createElement('span');
-  span.style.cssText = 'display:inline-block;padding:2px 9px;background:#f0fdf4;color:#166534;border-radius:999px;font-size:11px;font-weight:700;';
-  span.textContent = 'Aggiunto';
-  tdStato.appendChild(span);
-
-  // Esito select
-  var tdEsito = document.createElement('td');
-  tdEsito.style.cssText = 'padding:8px 10px;';
-  tdEsito.appendChild(_buildEsitoSelect(legacyId));
-
-  // Prescrizioni
-  var tdPrescr = document.createElement('td');
-  tdPrescr.style.cssText = 'padding:8px 10px;';
-  var inpP = document.createElement('input');
-  inpP.type = 'text'; inpP.name = 'prescrizioni_' + legacyId;
-  inpP.placeholder = 'es. D.P.I. UDITO';
-  inpP.className = 'row-input-' + legacyId;
-  inpP.style.cssText = 'width:100%;padding:6px 8px;border:1px solid #cbd5e1;border-radius:7px;font-size:13px;background:#fff;color:#1e293b;box-sizing:border-box;';
-  tdPrescr.appendChild(inpP);
-
-  // Note
-  var tdNote = document.createElement('td');
-  tdNote.style.cssText = 'padding:8px 10px;';
-  var inpN = document.createElement('input');
-  inpN.type = 'text'; inpN.name = 'note_' + legacyId;
-  inpN.placeholder = 'note interne';
-  inpN.className = 'row-input-' + legacyId;
-  inpN.style.cssText = 'width:100%;padding:6px 8px;border:1px solid #cbd5e1;border-radius:7px;font-size:13px;background:#fff;color:#1e293b;box-sizing:border-box;';
-  tdNote.appendChild(inpN);
-
-  // Referto
-  var tdRef = document.createElement('td');
-  tdRef.style.cssText = 'padding:8px 10px;';
-  var inpF = document.createElement('input');
-  inpF.type = 'file'; inpF.name = 'referto_' + legacyId;
-  inpF.accept = '.pdf,image/*';
-  inpF.className = 'row-input-' + legacyId;
-  inpF.style.cssText = 'width:150px;font-size:11px;color:#475569;';
-  tdRef.appendChild(inpF);
-
-  tr.appendChild(tdCb); tr.appendChild(tdNome); tr.appendChild(tdUlt);
-  tr.appendChild(tdScad); tr.appendChild(tdStato); tr.appendChild(tdEsito);
-  tr.appendChild(tdPrescr); tr.appendChild(tdNote); tr.appendChild(tdRef);
-  tbody.appendChild(tr);
-  updateCount();
-}
+function selVisite(state){document.querySelectorAll('.candidato-check').forEach(function(cb){cb.checked=state;});updCnt();}
+function updCnt(){var n=document.querySelectorAll('.candidato-check:checked').length;var el=document.getElementById('cnt');if(el)el.textContent=n;}
+document.addEventListener('change',function(e){if(e.target.classList&&e.target.classList.contains('candidato-check'))updCnt();});
+document.body.addEventListener('htmx:afterSwap',function(){updCnt();});
 </script>
 {% endblock %}
