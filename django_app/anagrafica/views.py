@@ -11648,6 +11648,37 @@ def formazione_sessioni_list(request):
 
 
 @login_required
+@require_POST
+def formazione_rinnovo_da_scadenzario(request):
+    """Punto d'ingresso «seleziona dipendenti → sessione di rinnovo»: raccoglie i
+    dipendenti selezionati per un corso e li porta nel FLUSSO STANDARD di creazione
+    sessione (``formazione_sessione_create``). Gli id restano in ``request.session``
+    e vengono iscritti in blocco al salvataggio della sessione."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per creare sessioni di rinnovo.")
+        return redirect("anagrafica:formazione_scadenzario")
+    try:
+        corso = TrainingCourse.objects.get(pk=request.POST.get("corso_id"), is_active=True)
+    except (TrainingCourse.DoesNotExist, ValueError, TypeError):
+        messages.error(request, "Corso non valido.")
+        return redirect("anagrafica:formazione_scadenzario")
+    ids, seen = [], set()
+    for raw in request.POST.getlist("dipendenti_selezionati"):
+        s = str(raw).strip()
+        if s.isdigit():
+            lid = int(s)
+            if lid > 0 and lid not in seen:
+                seen.add(lid)
+                ids.append(lid)
+    if not ids:
+        messages.warning(request, "Nessun dipendente selezionato.")
+        return redirect(request.POST.get("back") or "anagrafica:scadenzario")
+    request.session["rinnovo_preselect"] = {"corso": corso.pk, "ids": ids}
+    messages.info(request, f"{len(ids)} dipendenti pronti per il rinnovo: compila la sessione.")
+    return redirect(f"{reverse('anagrafica:formazione_sessione_create')}?corso={corso.pk}")
+
+
+@login_required
 def formazione_sessione_create(request):
     if not _can_edit_formazione(request):
         messages.error(request, "Non hai i permessi per creare sessioni formative.")

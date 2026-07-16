@@ -123,3 +123,40 @@ class ScadenzarioTemplateTests(TestCase):
         body = resp.content.decode()
         # marcatore semplice: il summary Visita medica esiste ma senza <details ... open>
         self.assertIn("Visita medica", body)
+
+
+class RinnovoFormazioneEndpointTests(TestCase):
+    def setUp(self):
+        self.su = User.objects.create_superuser("su-rin", "su-rin@test.local", "x")
+        self.plain = User.objects.create_user("plain-rin", "plain-rin@test.local", "x")
+        self.corso = _mk_corso("C-RIN", "Corso Rin")
+
+    def test_post_stasha_e_redirige_a_create(self):
+        self.client.force_login(self.su)
+        resp = self.client.post(
+            reverse("anagrafica:formazione_rinnovo_da_scadenzario"),
+            {"corso_id": str(self.corso.pk), "dipendenti_selezionati": ["10", "11", "10"]},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn(f"?corso={self.corso.pk}", resp["Location"])
+        stash = self.client.session["rinnovo_preselect"]
+        self.assertEqual(stash["corso"], self.corso.pk)
+        self.assertEqual(sorted(stash["ids"]), [10, 11])  # dedup
+
+    def test_nessun_selezionato_warning(self):
+        self.client.force_login(self.su)
+        resp = self.client.post(
+            reverse("anagrafica:formazione_rinnovo_da_scadenzario"),
+            {"corso_id": str(self.corso.pk)},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertNotIn("rinnovo_preselect", self.client.session)
+
+    def test_403_senza_permesso_editor(self):
+        self.client.force_login(self.plain)
+        resp = self.client.post(
+            reverse("anagrafica:formazione_rinnovo_da_scadenzario"),
+            {"corso_id": str(self.corso.pk), "dipendenti_selezionati": ["10"]},
+        )
+        # _can_edit_formazione nega → redirect (no stash)
+        self.assertNotIn("rinnovo_preselect", self.client.session)

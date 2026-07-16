@@ -199,19 +199,50 @@
       {% endif %}
     </section>
 
-    {# ── Sezione formazione ─────────────────────────────────────────────── #}
+    {# ── Sezione formazione INLINE: seleziona dipendenti → sessione di rinnovo ── #}
     {% if can_view_formazione %}
     <section class="fmd-panel fmd-block">
       <div class="fmd-block-head">
         <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-cap"/></svg>Scadenzario formazione</div>
-        <a href="{% url 'anagrafica:formazione_scadenzario' %}" class="fmd-mtr-link">Apri scadenzario formazione <svg class="fmd-ico"><use href="#i-arrow-right"/></svg></a>
+        <div style="display:flex;gap:8px;">
+          <a href="{% url 'anagrafica:formazione_plan' %}?view=calendario" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-calendar"/></svg>Vista calendario (plan)</a>
+          <a href="{% url 'anagrafica:formazione_scadenzario' %}" class="fmd-mtr-link">Apri pagina dedicata <svg class="fmd-ico"><use href="#i-arrow-right"/></svg></a>
+        </div>
       </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
         <span class="fmd-pill fmd-pill-red"><span class="fmd-pn">{{ fm_n_scaduti }}</span> Scaduti</span>
         <span class="fmd-pill fmd-pill-orange"><span class="fmd-pn">{{ fm_n_30gg }}</span> Entro 30gg</span>
         <span class="fmd-pill fmd-pill-amber"><span class="fmd-pn">{{ fm_n_90gg }}</span> Entro 90gg</span>
         {% if fm_is_cache_empty %}<span class="fmd-pill fmd-pill-grey">Cache formazione vuota — refresh_training_deadlines --all</span>{% endif %}
       </div>
+      {% regroup voci_formazione by tipo_nome as corsi_group %}
+      {% for cg in corsi_group %}
+      <form method="post" action="{% url 'anagrafica:formazione_rinnovo_da_scadenzario' %}" style="border:1px solid #e6ecf3;border-radius:10px;margin-bottom:10px;padding:10px 14px;">
+        {% csrf_token %}
+        <input type="hidden" name="corso_id" value="{{ cg.list.0.corso_id }}">
+        <input type="hidden" name="back" value="anagrafica:scadenzario">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+          <strong>{{ cg.grouper }}</strong>
+          {% if can_view_formazione %}<button type="submit" class="fmd-btn fmd-btn-primary" style="font-size:12px;"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Crea sessione di rinnovo con i selezionati</button>{% endif %}
+        </div>
+        <div style="overflow-x:auto;margin-top:8px;">
+          <table class="fmd-table" style="margin:0;">
+            <tbody>
+              {% for v in cg.list %}
+              <tr>
+                <td style="width:36px;text-align:center;"><input type="checkbox" name="dipendenti_selezionati" value="{{ v.legacy_id }}"{% if v.scaduta %} checked{% endif %}></td>
+                <td>{{ v.cognome }} {{ v.nome }}</td>
+                <td class="fmd-nowrap fmd-num">{{ v.data_scadenza|date:"d-m-Y" }}</td>
+                <td>{% if v.scaduta %}<span class="fmd-badge fmd-b-red">Scaduta</span>{% else %}<span class="fmd-badge fmd-b-amber">{{ v.giorni }}gg</span>{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </form>
+      {% empty %}
+      <div class="fmd-muted">Nessuna scadenza formazione con i filtri correnti.</div>
+      {% endfor %}
     </section>
     {% endif %}
 
