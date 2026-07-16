@@ -8448,9 +8448,21 @@ def impostazioni(request):
     ruoli_aziendali = list(RuoloAziendale.objects.all().order_by("nome"))
 
     # --- Ruoli operativi sicurezza ---
-    ruoli_operativi = RuoloOperativo.objects.annotate(
-        n_assegnati=Count("assegnazioni")
-    ).order_by("nome")
+    # select_related("riporta_a") + catalogo/suggeriti: il pannello "Ruoli" inline
+    # di impostazioni.html riusa il partial _ruoli_operativi_body.html e ha bisogno
+    # dello stesso context della pagina autonoma ruoli_operativi_list.
+    ruoli_operativi = (
+        RuoloOperativo.objects
+        .annotate(n_assegnati=Count("assegnazioni"))
+        .select_related("riporta_a")
+        .order_by("nome")
+    )
+    ruoli_catalogo = list(RuoloOperativo.objects.order_by("nome").values("id", "nome"))
+    ruoli_suggeriti = [
+        "Preposto", "RSPP", "ASPP", "RLS",
+        "Squadra antincendio", "Squadra primo soccorso",
+        "Addetto emergenze", "Rappresentante sicurezza",
+    ]
 
     # --- Qualifiche professionali ---
     tipi_qualifica = list(
@@ -8611,6 +8623,8 @@ def impostazioni(request):
         "ruoli_aziendali": ruoli_aziendali,
         # Ruoli operativi
         "ruoli_operativi": ruoli_operativi,
+        "ruoli_catalogo": ruoli_catalogo,
+        "ruoli_suggeriti": ruoli_suggeriti,
         # Qualifiche
         "tipi_qualifica": tipi_qualifica,
         "QUAL_CATEGORIA_CHOICES": TipoQualifica.CATEGORIA_CHOICES,

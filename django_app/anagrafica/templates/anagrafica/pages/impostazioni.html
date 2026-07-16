@@ -207,13 +207,10 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
         <span class="imp-tab-icon">🏢</span> Reparti
         <span class="imp-tab-count">{{ aree|length }}</span>
       </button>
-      {# Fase 2: «Ruoli aziendali» e «Ruoli operativi» sono un catalogo unico.
-         Il tab aziendali è stato ritirato; la gestione (con gerarchia e
-         certificazione) vive nella pagina Ruoli. #}
-      <a class="imp-tab" href="{% url 'anagrafica:ruoli_operativi_list' %}" style="text-decoration:none;">
+      <button class="imp-tab" data-tab="ruoli" type="button">
         <span class="imp-tab-icon">🏷</span> Ruoli
         <span class="imp-tab-count">{{ ruoli_operativi|length }}</span>
-      </a>
+      </button>
       <button class="imp-tab" data-tab="qualifiche" type="button">
         <span class="imp-tab-icon">🎓</span> Qualifiche
         <span class="imp-tab-count">{{ tipi_qualifica|length }}</span>
@@ -256,6 +253,11 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
 
     <!-- Content -->
     <div class="imp-content">
+
+      <!-- ============= RUOLI (inline, partial riusabile) ============= -->
+      <section class="imp-panel" data-panel="ruoli" id="tab-ruoli">
+        {% include "anagrafica/partials/_ruoli_operativi_body.html" with ruoli=ruoli_operativi %}
+      </section>
 
       <!-- ============= MANSIONI ============= -->
       <section class="imp-panel" data-panel="mansioni" id="tab-mansioni">

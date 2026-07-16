@@ -92,3 +92,39 @@ class ElearningManageFormRenderTests(TestCase):
         self.assertIn("fm-assign-list", body)  # box renderizzato (assegnabili presenti)
         # Marker: gli inline style grezzi del box sono sostituiti da classi
         self.assertNotIn('style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end', body)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class ImpostazioniRuoliInlineTests(TestCase):
+    """Task 6 (stream 3, funzionale): il tab 'Ruoli' in Impostazioni è un pannello
+    inline (button data-tab), non più un link a una pagina esterna."""
+
+    def setUp(self):
+        _ensure_anagrafica_table()
+        _ensure_utenti_table()
+        self.su = User.objects.create_superuser("su-imp", "su-imp@test.local", "x")
+        self.client.force_login(self.su)
+        from .models import RuoloOperativo
+        RuoloOperativo.objects.create(nome="Preposto")
+
+    def test_tab_ruoli_e_inline_non_link(self):
+        body = self.client.get(reverse("anagrafica:impostazioni")).content.decode()
+        url_list = reverse("anagrafica:ruoli_operativi_list")
+        url_create = reverse("anagrafica:ruolo_operativo_create")
+        # Il tab Ruoli è un button data-tab, NON un <a href> verso la pagina esterna
+        self.assertIn('data-tab="ruoli"', body)
+        self.assertNotIn(f'href="{url_list}"', body)
+        # Pannello inline presente col form "+ Nuovo ruolo" e la griglia ruoli
+        self.assertIn('data-panel="ruoli"', body)
+        self.assertIn(f'action="{url_create}"', body)
+        self.assertIn("Preposto", body)
+
+    def test_pagina_standalone_ruoli_ancora_valida(self):
+        # Retro-compatibilità: la pagina autonoma continua a rendere il partial
+        # (link diretti / bookmark restano validi).
+        resp = self.client.get(reverse("anagrafica:ruoli_operativi_list"))
+        self.assertEqual(resp.status_code, 200)
+        body = resp.content.decode()
+        self.assertIn("Preposto", body)
+        self.assertIn(reverse("anagrafica:ruolo_operativo_create"), body)
+        self.assertIn('id="ro-modal"', body)
