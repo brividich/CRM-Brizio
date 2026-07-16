@@ -555,3 +555,147 @@ class SessioneDetailTests(TestCase):
         visite_mediche_sessione_delete(request, sess.pk)
         self.assertFalse(VisitaSessione.objects.filter(pk=sess.pk).exists())
         self.assertTrue(VisitaMedica.objects.filter(legacy_anagrafica_id=88).exists())
+
+
+class GiornataPostTests(TestCase):
+    def setUp(self):
+        self.user_super = User.objects.create_superuser(
+            username="su-giornata", email="su-giornata@test.local", password="x"
+        )
+        self.oggi = timezone.localdate()
+        self.ruolo = RuoloOperativo.objects.create(nome="MultiG")
+        self.tipo_a = TipoVisitaMedica.objects.create(nome="VDT-G", durata_mesi=12)
+        self.tipo_b = TipoVisitaMedica.objects.create(nome="Rumore-G", durata_mesi=12)
+        self.tipo_a.ruoli_operativi.add(self.ruolo)
+        self.tipo_b.ruoli_operativi.add(self.ruolo)
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=41, ruolo=self.ruolo)
+
+    def _post(self, data):
+        from .views import visite_mediche_nuova_sessione
+        rf = RequestFactory()
+        request = rf.post("/anagrafica/visite-mediche/nuova-sessione/", data)
+        request.user = self.user_super
+        request.session = SessionStore()
+        request._messages = FallbackStorage(request)
+        return visite_mediche_nuova_sessione(request)
+
+    def test_giornata_crea_sessione_e_visite_di_tipi_misti(self):
+        from .models import VisitaSessione
+        a, b = self.tipo_a.pk, self.tipo_b.pk
+        data = {
+            "data_svolgimento": (self.oggi - timedelta(days=1)).isoformat(),
+            "medico_competente": "Dr. Giornata", "luogo": "Infermeria",
+            f"sel_41_{a}": "1", f"esito_41_{a}": "IDONEO",
+            f"prescrizioni_41_{a}": "DPI", f"note_41_{a}": "",
+            f"sel_41_{b}": "1", f"esito_41_{b}": "IDONEO",
+            f"prescrizioni_41_{b}": "", f"note_41_{b}": "",
+        }
+        resp = self._post(data)
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(VisitaSessione.objects.count(), 1)
+        sess = VisitaSessione.objects.get()
+        self.assertEqual(sess.medico_competente, "Dr. Giornata")
+        self.assertEqual(sess.visite.count(), 2)
+        self.assertEqual({v.tipo_id for v in sess.visite.all()}, {a, b})
+
+    def test_data_futura_respinta_nessuna_sessione(self):
+        from .models import VisitaSessione
+        a = self.tipo_a.pk
+        self._post({
+            "data_svolgimento": (self.oggi + timedelta(days=3)).isoformat(),
+            "medico_competente": "X",
+            f"sel_41_{a}": "1", f"esito_41_{a}": "IDONEO",
+        })
+        self.assertEqual(VisitaSessione.objects.count(), 0)
+        self.assertEqual(VisitaMedica.objects.count(), 0)
+
+    def test_doppione_saltato(self):
+        a = self.tipo_a.pk
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=41, tipo=self.tipo_a,
+            data_svolgimento=self.oggi - timedelta(days=1),
+        )
+        self._post({
+            "data_svolgimento": (self.oggi - timedelta(days=1)).isoformat(),
+            "medico_competente": "X",
+            f"sel_41_{a}": "1", f"esito_41_{a}": "IDONEO",
+        })
+        self.assertEqual(
+            VisitaMedica.objects.filter(legacy_anagrafica_id=41, tipo=self.tipo_a).count(), 1
+        )
+
+
+class CandidatiHtmxTests(TestCase):
+    def setUp(self):
+        self.user_super = User.objects.create_superuser(
+            username="su-htmx", email="su-htmx@test.local", password="x"
+        )
+        self.user_plain = User.objects.create_user(
+            username="plain-htmx", email="plain-htmx@test.local", password="x"
+        )
+        self.oggi = timezone.localdate()
+        self.ruolo = RuoloOperativo.objects.create(nome="HtmxR")
+        self.tipo = TipoVisitaMedica.objects.create(nome="HtmxT", durata_mesi=12)
+        self.tipo.ruoli_operativi.add(self.ruolo)
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=55, ruolo=self.ruolo)
+
+    def _get(self, user, **params):
+        from .views import visite_mediche_candidati
+        rf = RequestFactory()
+        request = rf.get("/anagrafica/visite-mediche/candidati/", params)
+        request.user = user
+        request.session = SessionStore()
+        return visite_mediche_candidati(request)
+
+    def test_403_senza_permesso(self):
+        from .models import AnagraficaVisiteMedichePermission
+        perm = AnagraficaVisiteMedichePermission.get_instance()
+        perm.accesso = AnagraficaVisiteMedichePermission.ACCESSO_ADMIN
+        perm.save()
+        resp = self._get(self.user_plain, tipo=str(self.tipo.pk))
+        self.assertEqual(resp.status_code, 403)
+
+    def test_rende_righe_per_tipo(self):
+        resp = self._get(self.user_super, tipo=str(self.tipo.pk))
+        self.assertEqual(resp.status_code, 200)
+        body = resp.content.decode()
+        self.assertIn(f'name="sel_55_{self.tipo.pk}"', body)
+        self.assertIn("HtmxT", body)
+
+
+class GiornataRenderTests(TestCase):
+    def setUp(self):
+        self.user_super = User.objects.create_superuser(
+            username="su-grender", email="su-grender@test.local", password="x"
+        )
+        self.oggi = timezone.localdate()
+        self.ruolo = RuoloOperativo.objects.create(nome="GRR")
+        self.tipo = TipoVisitaMedica.objects.create(nome="GRT", durata_mesi=12)
+        self.tipo.ruoli_operativi.add(self.ruolo)
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=66, ruolo=self.ruolo)
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=66, tipo=self.tipo,
+            data_svolgimento=self.oggi - timedelta(days=400),
+        )
+
+    def _get(self, **params):
+        from .views import visite_mediche_nuova_sessione
+        rf = RequestFactory()
+        request = rf.get("/anagrafica/visite-mediche/nuova-sessione/", params)
+        request.user = self.user_super
+        request.session = SessionStore()
+        request._messages = FallbackStorage(request)
+        return visite_mediche_nuova_sessione(request)
+
+    def test_pagina_ha_form_multipart_e_htmx(self):
+        resp = self._get()
+        self.assertEqual(resp.status_code, 200)
+        body = resp.content.decode()
+        self.assertIn('enctype="multipart/form-data"', body)
+        self.assertIn("visite-mediche/candidati", body)
+        self.assertIn("Giornata visite", body)
+
+    def test_deeplink_tipo_rende_candidati_server_side(self):
+        resp = self._get(tipo=str(self.tipo.pk))
+        body = resp.content.decode()
+        self.assertIn(f'name="sel_66_{self.tipo.pk}"', body)
