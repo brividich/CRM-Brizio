@@ -20,12 +20,16 @@
 /* Campi form (create + modale modifica) = primitiva canonica .hub-field del form-kit. */
 .mn-modal-overlay { display:none; position:fixed; inset:0; background:rgba(8,20,45,.5); z-index:1000; align-items:center; justify-content:center; }
 .mn-modal-overlay.open { display:flex; }
-.mn-modal { background:#fff; border-radius:14px; padding:24px; width:100%; max-width:520px; box-shadow:0 24px 60px -20px rgba(8,20,45,.5); }
-.mn-modal-title { font-size:17px; font-weight:800; color:#0c2545; margin-bottom:16px; }
+.mn-modal { background:#fff; border-radius:14px; padding:24px; width:100%; max-width:520px; max-height:92vh; overflow-y:auto; box-shadow:0 24px 60px -20px rgba(8,20,45,.5); }
+.mn-modal-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:16px; }
+.mn-modal-title { font-size:17px; font-weight:800; color:#0c2545; margin-bottom:0; }
+.mn-modal-x { background:none; border:none; font-size:22px; line-height:1; cursor:pointer; color:var(--hub-muted-2,#94a3b8); padding:0 2px; }
+.mn-modal-body { max-height:64vh; overflow-y:auto; }
 @media (max-width:600px){ .mn-grid { grid-template-columns:1fr; } }
 body.theme-dark .mn-item { background:var(--surface); border-color:var(--border); }
 body.theme-dark .mn-item-name { color:var(--text); }
 body.theme-dark .mn-modal { background:var(--surface); }
+body.theme-dark .mn-modal-title { color:#93c5fd; }
 </style>
 {% endblock %}
 
@@ -191,9 +195,13 @@ body.theme-dark .mn-modal { background:var(--surface); }
 {% if is_admin %}
 <div class="mn-modal-overlay" id="mn-modal">
   <div class="mn-modal">
-    <div class="mn-modal-title">Modifica mansione</div>
+    <div class="mn-modal-head">
+      <div class="mn-modal-title">Modifica mansione</div>
+      <button type="button" class="mn-modal-x" data-close-modal="mn-modal" onclick="closeEdit()" aria-label="Chiudi">×</button>
+    </div>
     <form method="post" id="mn-edit-form" action="">
       {% csrf_token %}
+      <div class="mn-modal-body">
       <div class="hub-form-stack">
         <div class="hub-field"><label>Nome *</label>
           <input type="text" name="nome" id="edit-nome" required maxlength="100"></div>
@@ -215,8 +223,9 @@ body.theme-dark .mn-modal { background:var(--surface); }
         DPI e visite mediche richieste si gestiscono in
         <a id="edit-requisiti-link" href="#" style="color:#1f87cd;font-weight:700;text-decoration:none;">Requisiti della mansione</a>.
       </div>
+      </div>{# /.mn-modal-body #}
       <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
-        <button type="button" class="fmd-btn fmd-btn-ghost" onclick="closeEdit()">Annulla</button>
+        <button type="button" class="fmd-btn fmd-btn-ghost" data-close-modal="mn-modal" onclick="closeEdit()">Annulla</button>
         <button type="submit" class="fmd-btn fmd-btn-primary">Salva modifiche</button>
       </div>
     </form>
@@ -238,6 +247,7 @@ function openEdit(id, nome, desc, colore, categoria, livello, isActive) {
 }
 function closeEdit() { document.getElementById('mn-modal').classList.remove('open'); }
 document.getElementById('mn-modal').addEventListener('click', function(e){ if (e.target === this) closeEdit(); });
+document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeEdit(); });
 </script>
 {% endif %}
 {% endblock %}

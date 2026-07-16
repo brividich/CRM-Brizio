@@ -119,7 +119,8 @@ body.theme-dark .ql-modal-title { color:var(--text); }
     </section>
     {% endif %}
 
-    {# ── Catalogo per categoria ─────────────────────────────────────────── #}
+    {# ── Catalogo per categoria (nascosto in vista solo-Processi) ────────── #}
+    {% if not solo_processi %}
     {% if tipi_grouped %}
       {% for cat_code, cat_label, items in tipi_grouped %}
       <section class="fmd-panel fmd-block">
@@ -177,9 +178,10 @@ body.theme-dark .ql-modal-title { color:var(--text); }
       </div>
     </div>
     {% endif %}
+    {% endif %}{# /not solo_processi #}
 
     {# ── Processi qualificati (MOD.128) ─────────────────────────────────── #}
-    {% if processi_qualificati %}
+    {% if mostra_processi and processi_qualificati %}
     <section class="fmd-panel fmd-block">
       <div class="fmd-block-head">
         <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-cap"/></svg>Processi qualificati (MOD.128) <span class="fmd-count">{{ processi_qualificati|length }}</span></div>

@@ -5971,7 +5971,11 @@ def qualifiche_list(request):
     # Catalogo unico, viste filtrate per categoria: la pagina è la "casa" delle
     # qualifiche (modulo Formazione) ma può aprirsi già filtrata (es. Salute e
     # Sicurezza → ?categoria=SICUREZZA).
-    valid_cats = {c for c, _ in TipoQualifica.CATEGORIA_CHOICES}
+    # Pseudo-categoria virtuale per i Processi qualificati MOD.128: NON è una choice
+    # del modello (riusa i ProcessoQualificato caricati più sotto), quindi vive solo
+    # come voce di tab + flag di visibilità. Nessuna migrazione (stream 3).
+    CAT_PROCESSI, LBL_PROCESSI = "PROCESSI", "Processi qualificati"
+    valid_cats = {c for c, _ in TipoQualifica.CATEGORIA_CHOICES} | {CAT_PROCESSI}
     cat_filter = (request.GET.get("categoria") or "").strip().upper()
     if cat_filter not in valid_cats:
         cat_filter = ""
@@ -6066,10 +6070,21 @@ def qualifiche_list(request):
     except Exception:
         processi_qualificati = []
 
+    # Chip virtuale "Processi qualificati": voce di tab (con conteggio MOD.128) +
+    # flag di visibilità. `mostra_processi` regge la sezione MOD.128 (Tutte + filtro
+    # PROCESSI); `solo_processi` nasconde il catalogo tipi quando si filtra su PROCESSI.
+    # Con cat_filter == "PROCESSI" il blocco `if cat_filter:` ha già svuotato
+    # tipi_grouped e scadenze (nessun gruppo/scadenza ha quella categoria).
+    tabs.append((CAT_PROCESSI, LBL_PROCESSI, len(processi_qualificati)))
+    mostra_processi = cat_filter in ("", CAT_PROCESSI)
+    solo_processi = cat_filter == CAT_PROCESSI
+
     return render(request, "anagrafica/pages/qualifiche_list.html", {
         "tipi": tipi,
         "tipi_grouped": tipi_grouped,
         "processi_qualificati": processi_qualificati,
+        "mostra_processi": mostra_processi,
+        "solo_processi": solo_processi,
         "scadenze": scadenze,
         "is_admin": is_admin,
         "oggi": oggi,
@@ -6077,7 +6092,7 @@ def qualifiche_list(request):
         "tipi_suggeriti": tipi_suggeriti,
         "tabs": tabs,
         "active_categoria": cat_filter,
-        "active_categoria_label": cat_labels_q.get(cat_filter, ""),
+        "active_categoria_label": LBL_PROCESSI if cat_filter == CAT_PROCESSI else cat_labels_q.get(cat_filter, ""),
         "is_safety_view": cat_filter == TipoQualifica.CAT_SICUREZZA,
     })
 
@@ -8495,9 +8510,21 @@ def impostazioni(request):
     ruoli_aziendali = list(RuoloAziendale.objects.all().order_by("nome"))
 
     # --- Ruoli operativi sicurezza ---
-    ruoli_operativi = RuoloOperativo.objects.annotate(
-        n_assegnati=Count("assegnazioni")
-    ).order_by("nome")
+    # select_related("riporta_a") + catalogo/suggeriti: il pannello "Ruoli" inline
+    # di impostazioni.html riusa il partial _ruoli_operativi_body.html e ha bisogno
+    # dello stesso context della pagina autonoma ruoli_operativi_list.
+    ruoli_operativi = (
+        RuoloOperativo.objects
+        .annotate(n_assegnati=Count("assegnazioni"))
+        .select_related("riporta_a")
+        .order_by("nome")
+    )
+    ruoli_catalogo = list(RuoloOperativo.objects.order_by("nome").values("id", "nome"))
+    ruoli_suggeriti = [
+        "Preposto", "RSPP", "ASPP", "RLS",
+        "Squadra antincendio", "Squadra primo soccorso",
+        "Addetto emergenze", "Rappresentante sicurezza",
+    ]
 
     # --- Qualifiche professionali ---
     tipi_qualifica = list(
@@ -8658,6 +8685,8 @@ def impostazioni(request):
         "ruoli_aziendali": ruoli_aziendali,
         # Ruoli operativi
         "ruoli_operativi": ruoli_operativi,
+        "ruoli_catalogo": ruoli_catalogo,
+        "ruoli_suggeriti": ruoli_suggeriti,
         # Qualifiche
         "tipi_qualifica": tipi_qualifica,
         "QUAL_CATEGORIA_CHOICES": TipoQualifica.CATEGORIA_CHOICES,
