@@ -4665,3 +4665,18 @@ class QualificheScadenzarioRenderTests(TestCase):
         self.client.force_login(admin)
         resp = self.client.get(reverse("anagrafica:qualifiche_scadenzario"))
         self.assertEqual(resp.status_code, 200)
+
+
+class FormazioneCorsoWizardRenderTests(TestCase):
+    """Fase 4 P4.1: il form di creazione corso è reso come wizard «percorso» kp-."""
+
+    def test_corso_create_page_renders_wizard(self):
+        admin = User.objects.create_superuser(
+            username="corso-admin", email="corso@example.com", password="pass12345",
+        )
+        self.client.force_login(admin)
+        resp = self.client.get(reverse("anagrafica:formazione_corso_create") + "?elearning=1")
+        self.assertEqual(resp.status_code, 200)
+        # Struttura del componente percorso kp- presente.
+        self.assertContains(resp, "data-kp-root")
+        self.assertContains(resp, "kp-station")
