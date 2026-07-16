@@ -354,3 +354,42 @@ class SessioneBatchPostTests(TestCase):
             v.referto_documento.tipo, DocumentoDipendente.Tipo.VISITA_MEDICA_REFERTO,
         )
         self.assertEqual(v.referto_documento.legacy_anagrafica_id, 60)
+
+
+class SessioneStep2RenderTests(TestCase):
+    def setUp(self):
+        self.user_super = User.objects.create_superuser(
+            username="su-render-visite", email="su-render-visite@test.local", password="x"
+        )
+        self.oggi = timezone.localdate()
+        self.ruolo = RuoloOperativo.objects.create(nome="Fonditore")
+        self.tipo = TipoVisitaMedica.objects.create(nome="Fonderia", durata_mesi=12)
+        self.tipo.ruoli_operativi.add(self.ruolo)
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=80, ruolo=self.ruolo)
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=80, tipo=self.tipo,
+            data_svolgimento=self.oggi - timedelta(days=400),
+        )
+
+    def test_step2_mostra_nuove_colonne_e_campi(self):
+        from .views import visite_mediche_nuova_sessione
+        rf = RequestFactory()
+        request = rf.post("/anagrafica/visite-mediche/nuova-sessione/", {
+            "step": "1",
+            "tipo_id": str(self.tipo.pk),
+            "data_svolgimento": self.oggi.isoformat(),
+            "medico_competente": "",
+        })
+        request.user = self.user_super
+        request.session = SessionStore()
+        request._messages = FallbackStorage(request)
+        resp = visite_mediche_nuova_sessione(request)
+        self.assertEqual(resp.status_code, 200)
+        body = resp.content.decode("utf-8", errors="ignore")
+        self.assertIn("Scadenza attuale", body)
+        self.assertIn('name="prescrizioni_80"', body)
+        self.assertIn('name="note_80"', body)
+        self.assertIn('name="referto_80"', body)
+        self.assertIn('enctype="multipart/form-data"', body)
+        self.assertIn("Nuova scadenza", body)
+        self.assertIn("Ruolo", body)  # badge origine

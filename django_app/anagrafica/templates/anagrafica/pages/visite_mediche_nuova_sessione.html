@@ -51,13 +51,16 @@
           </div>
           <div>
             <label style="display:block;font-size:12px;font-weight:700;color:#475569;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;">Data svolgimento *</label>
-            <input type="date" name="data_svolgimento" value="{{ data_svolgimento_str }}" required
+            <input type="date" name="data_svolgimento" value="{{ data_svolgimento_str }}" required max="{{ oggi|date:'Y-m-d' }}"
               style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;color:#1e293b;background:#fff;box-sizing:border-box;">
           </div>
           <div>
             <label style="display:block;font-size:12px;font-weight:700;color:#475569;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;">Medico competente</label>
-            <input type="text" name="medico_competente" value="{{ medico_competente }}" placeholder="es. Dr. Rossi"
+            <input type="text" name="medico_competente" value="{{ medico_competente }}" placeholder="es. Dr. Rossi" list="medici-precedenti"
               style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;color:#1e293b;background:#fff;box-sizing:border-box;">
+            <datalist id="medici-precedenti">
+              {% for m in medici_precedenti %}<option value="{{ m }}"></option>{% endfor %}
+            </datalist>
           </div>
         </div>
         <div style="margin-top:16px;">
@@ -72,6 +75,13 @@
   {# ---- STEP 2: tabella dipendenti candidati ------------------------------ #}
   {% if step == 2 %}
 
+  {% if tipo_senza_vincoli %}
+  <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:12px 16px;font-size:13px;color:#9a3412;">
+    ⚠️ <strong>{{ tipo_selezionato.nome }}</strong> non è collegato a ruoli operativi né a processi MOD.128:
+    i candidati sono proposti dallo storico delle visite di questo tipo. Collega i ruoli dal catalogo tipologie per una proposta completa.
+  </div>
+  {% endif %}
+
   {% if candidati or True %}{# mostra sempre il form se step 2 è attivo #}
   <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;" id="tabella-candidati-wrap">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #f1f5f9;flex-wrap:wrap;gap:10px;">
@@ -80,6 +90,7 @@
         <div style="font-size:12px;color:#64748b;margin-top:3px;">
           <span id="label-candidati-iniziali">{{ candidati|length }} in scadenza / mai effettuata</span>
           · Data: {{ data_svolgimento_str|slice:"8:10" }}/{{ data_svolgimento_str|slice:"5:7" }}/{{ data_svolgimento_str|slice:"0:4" }}{% if medico_competente %} · {{ medico_competente }}{% endif %}
+          · Nuova scadenza: <strong>{% if nuova_scadenza_preview %}{{ nuova_scadenza_preview|date:"d-m-Y" }}{% else %}— (tipo senza periodicità){% endif %}</strong>
           <span style="font-size:10px;color:#94a3b8;margin-left:8px;">Ordine: in scadenza → scaduta → mai effettuata</span>
         </div>
       </div>
@@ -90,7 +101,7 @@
       </div>
     </div>
 
-    <form method="post" id="form-step2">
+    <form method="post" id="form-step2" enctype="multipart/form-data">
       {% csrf_token %}
       <input type="hidden" name="step" value="2">
       <input type="hidden" name="tipo_id" value="{{ tipo_selezionato.pk }}">
@@ -104,9 +115,12 @@
               <th style="text-align:center;padding:9px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;width:44px;">Sel.</th>
               <th style="text-align:left;padding:9px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Dipendente</th>
               <th style="text-align:left;padding:9px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Ultima visita</th>
+              <th style="text-align:left;padding:9px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Scadenza attuale</th>
               <th style="text-align:left;padding:9px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Stato</th>
-              <th style="text-align:left;padding:9px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;min-width:220px;">Esito</th>
-              <th style="text-align:left;padding:9px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;min-width:220px;">Note / Prescrizioni</th>
+              <th style="text-align:left;padding:9px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;min-width:180px;">Esito</th>
+              <th style="text-align:left;padding:9px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;min-width:160px;">Prescrizioni</th>
+              <th style="text-align:left;padding:9px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;min-width:140px;">Note</th>
+              <th style="text-align:left;padding:9px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Referto</th>
             </tr>
           </thead>
           <tbody id="tbody-candidati">
@@ -121,6 +135,9 @@
               <td style="padding:8px 10px;font-weight:600;color:#1e293b;">
                 <a href="{% url 'anagrafica:dipendente_detail' c.legacy_id %}#visite-mediche"
                    target="_blank" style="color:#1f87cd;text-decoration:none;">{{ c.nome }}</a>
+                {% if c.origine == "ruolo" %}<span style="display:inline-block;margin-left:6px;padding:1px 7px;background:#eff6ff;color:#1d4ed8;border-radius:999px;font-size:10px;font-weight:700;">Ruolo</span>
+                {% elif c.origine == "processo" %}<span style="display:inline-block;margin-left:6px;padding:1px 7px;background:#ede9fe;color:#5b21b6;border-radius:999px;font-size:10px;font-weight:700;">MOD.128</span>
+                {% else %}<span style="display:inline-block;margin-left:6px;padding:1px 7px;background:#f1f5f9;color:#64748b;border-radius:999px;font-size:10px;font-weight:700;">Storico</span>{% endif %}
               </td>
               <td style="padding:8px 10px;color:#475569;">
                 {% if c.ultima_visita %}
@@ -129,6 +146,9 @@
                 {% else %}
                 <span style="color:#94a3b8;font-style:italic;">mai effettuata</span>
                 {% endif %}
+              </td>
+              <td style="padding:8px 10px;color:#475569;">
+                {% if c.data_scadenza %}{{ c.data_scadenza|date:"d-m-Y" }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}
               </td>
               <td style="padding:8px 10px;">
                 {% if c.status == "in_scadenza" %}
@@ -154,9 +174,19 @@
                 </select>
               </td>
               <td style="padding:8px 10px;">
-                <input type="text" name="note_{{ c.legacy_id }}" placeholder="es. D.P.I. UDITO"
+                <input type="text" name="prescrizioni_{{ c.legacy_id }}" placeholder="es. D.P.I. UDITO"
                   class="row-input-{{ c.legacy_id }}"
                   style="width:100%;padding:6px 8px;border:1px solid #cbd5e1;border-radius:7px;font-size:13px;background:#fff;color:#1e293b;box-sizing:border-box;">
+              </td>
+              <td style="padding:8px 10px;">
+                <input type="text" name="note_{{ c.legacy_id }}" placeholder="note interne"
+                  class="row-input-{{ c.legacy_id }}"
+                  style="width:100%;padding:6px 8px;border:1px solid #cbd5e1;border-radius:7px;font-size:13px;background:#fff;color:#1e293b;box-sizing:border-box;">
+              </td>
+              <td style="padding:8px 10px;">
+                <input type="file" name="referto_{{ c.legacy_id }}" accept=".pdf,image/*"
+                  class="row-input-{{ c.legacy_id }}"
+                  style="width:150px;font-size:11px;color:#475569;">
               </td>
             </tr>
             {% endfor %}
@@ -295,7 +325,9 @@ function cercaDipendente(q) {
   }
   _searchTimer = setTimeout(function() {
     var exclude = _currentExcludedIds();
-    var url = '{% url "anagrafica:visite_mediche_api_cerca_dipendente" %}?q=' + encodeURIComponent(q) + '&exclude=' + encodeURIComponent(exclude);
+    var url = '{% url "anagrafica:visite_mediche_api_cerca_dipendente" %}?q=' + encodeURIComponent(q)
+      + '&exclude=' + encodeURIComponent(exclude)
+      + '&tipo_id={{ tipo_selezionato.pk }}';
     fetch(url)
       .then(function(r) { return r.json(); })
       .then(function(data) {
@@ -312,7 +344,7 @@ function cercaDipendente(q) {
             div.textContent = item.nome;
             div.addEventListener('mouseenter', function() { this.style.background = '#f8fafc'; });
             div.addEventListener('mouseleave', function() { this.style.background = ''; });
-            div.addEventListener('click', function() { aggiungiDipendente(item.legacy_id, item.nome); });
+            div.addEventListener('click', function() { aggiungiDipendente(item); });
             resDiv.appendChild(div);
           });
           resDiv.style.display = 'block';
@@ -340,8 +372,10 @@ function _buildEsitoSelect(legacyId) {
   return sel;
 }
 
-function aggiungiDipendente(legacyId, nome) {
+function aggiungiDipendente(item) {
   closeAggiungiModal();
+  var legacyId = item.legacy_id;
+  var nome = item.nome;
   if (document.getElementById('row-' + legacyId)) return; // già presente
 
   var tbody = document.getElementById('tbody-candidati');
@@ -359,18 +393,27 @@ function aggiungiDipendente(legacyId, nome) {
   cb.addEventListener('change', function() { toggleRow(legacyId, this.checked); });
   tdCb.appendChild(cb);
 
-  // Nome
+  // Nome (+ avviso pertinenza)
   var tdNome = document.createElement('td');
   tdNome.style.cssText = 'padding:8px 10px;font-weight:600;color:#1e293b;';
-  var a = document.createElement('a');
-  a.href = '#'; a.target = '_blank'; a.style.cssText = 'color:#1f87cd;text-decoration:none;';
-  a.textContent = nome;
-  tdNome.appendChild(a);
+  tdNome.textContent = nome;
+  if (item.pertinente === false) {
+    var warn = document.createElement('span');
+    warn.style.cssText = 'display:inline-block;margin-left:6px;padding:1px 7px;background:#fef2f2;color:#b91c1c;border-radius:999px;font-size:10px;font-weight:700;';
+    warn.textContent = '⚠ tipo non richiesto';
+    warn.title = 'Questo tipo di visita non è richiesto dai ruoli/processi del dipendente.';
+    tdNome.appendChild(warn);
+  }
 
   // Ultima visita
   var tdUlt = document.createElement('td');
   tdUlt.style.cssText = 'padding:8px 10px;color:#94a3b8;font-style:italic;font-size:12px;';
   tdUlt.textContent = 'Aggiunto manualmente';
+
+  // Scadenza attuale
+  var tdScad = document.createElement('td');
+  tdScad.style.cssText = 'padding:8px 10px;color:#94a3b8;';
+  tdScad.textContent = '—';
 
   // Stato
   var tdStato = document.createElement('td');
@@ -385,18 +428,39 @@ function aggiungiDipendente(legacyId, nome) {
   tdEsito.style.cssText = 'padding:8px 10px;';
   tdEsito.appendChild(_buildEsitoSelect(legacyId));
 
+  // Prescrizioni
+  var tdPrescr = document.createElement('td');
+  tdPrescr.style.cssText = 'padding:8px 10px;';
+  var inpP = document.createElement('input');
+  inpP.type = 'text'; inpP.name = 'prescrizioni_' + legacyId;
+  inpP.placeholder = 'es. D.P.I. UDITO';
+  inpP.className = 'row-input-' + legacyId;
+  inpP.style.cssText = 'width:100%;padding:6px 8px;border:1px solid #cbd5e1;border-radius:7px;font-size:13px;background:#fff;color:#1e293b;box-sizing:border-box;';
+  tdPrescr.appendChild(inpP);
+
   // Note
   var tdNote = document.createElement('td');
   tdNote.style.cssText = 'padding:8px 10px;';
-  var inp = document.createElement('input');
-  inp.type = 'text'; inp.name = 'note_' + legacyId;
-  inp.placeholder = 'es. D.P.I. UDITO';
-  inp.className = 'row-input-' + legacyId;
-  inp.style.cssText = 'width:100%;padding:6px 8px;border:1px solid #cbd5e1;border-radius:7px;font-size:13px;background:#fff;color:#1e293b;box-sizing:border-box;';
-  tdNote.appendChild(inp);
+  var inpN = document.createElement('input');
+  inpN.type = 'text'; inpN.name = 'note_' + legacyId;
+  inpN.placeholder = 'note interne';
+  inpN.className = 'row-input-' + legacyId;
+  inpN.style.cssText = 'width:100%;padding:6px 8px;border:1px solid #cbd5e1;border-radius:7px;font-size:13px;background:#fff;color:#1e293b;box-sizing:border-box;';
+  tdNote.appendChild(inpN);
+
+  // Referto
+  var tdRef = document.createElement('td');
+  tdRef.style.cssText = 'padding:8px 10px;';
+  var inpF = document.createElement('input');
+  inpF.type = 'file'; inpF.name = 'referto_' + legacyId;
+  inpF.accept = '.pdf,image/*';
+  inpF.className = 'row-input-' + legacyId;
+  inpF.style.cssText = 'width:150px;font-size:11px;color:#475569;';
+  tdRef.appendChild(inpF);
 
   tr.appendChild(tdCb); tr.appendChild(tdNome); tr.appendChild(tdUlt);
-  tr.appendChild(tdStato); tr.appendChild(tdEsito); tr.appendChild(tdNote);
+  tr.appendChild(tdScad); tr.appendChild(tdStato); tr.appendChild(tdEsito);
+  tr.appendChild(tdPrescr); tr.appendChild(tdNote); tr.appendChild(tdRef);
   tbody.appendChild(tr);
   updateCount();
 }
