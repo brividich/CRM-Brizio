@@ -187,3 +187,28 @@ class SessioneCreateConsumaPreselectTests(TestCase):
         )
         self.assertNotIn("rinnovo_preselect", self.client.session)  # pulito
         self.assertIn(f"/formazione/sessioni/{sess.pk}/iscritti/", resp["Location"])
+
+
+class LayoutRenderTests(TestCase):
+    def setUp(self):
+        from .tests import _ensure_anagrafica_table
+        _ensure_anagrafica_table()
+        self.su = User.objects.create_superuser("su-lr", "su-lr@test.local", "x")
+        self.client.force_login(self.su)
+        self.oggi = timezone.localdate()
+        self.tipo = TipoVisitaMedica.objects.create(nome="LrT", durata_mesi=12)
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=401, tipo=self.tipo,
+            data_svolgimento=self.oggi - timedelta(days=400),
+        )
+
+    def test_affiancata_due_colonne(self):
+        resp = self.client.get(reverse("anagrafica:scadenzario"), {"layout": "affiancata"})
+        body = resp.content.decode()
+        self.assertIn("col-visite", body)
+        self.assertIn("col-formazione", body)
+
+    def test_calendario_intestazione_mese(self):
+        resp = self.client.get(reverse("anagrafica:scadenzario"), {"layout": "calendario"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("cal-grid", resp.content.decode())

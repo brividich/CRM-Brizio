@@ -193,9 +193,67 @@
         <span class="fmd-em">Nessun risultato con i filtri selezionati.</span>
       </div>
       {% endif %}
-      {% else %}
-      {# Le viste Affiancata e Calendario arrivano nel Task 7; placeholder temporaneo. #}
-      <div class="fmd-muted" style="padding:24px;text-align:center;">Vista in arrivo</div>
+      {% elif layout == "affiancata" %}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:6px;">
+        <div class="col-visite">
+          <h3 style="font-size:14px;font-weight:800;color:var(--fmd-navy);">Visite mediche</h3>
+          {% if can_view_visite %}
+          <div style="overflow-x:auto;">
+          <table class="fmd-table" style="margin:0;"><tbody>
+            {% for v in voci_visite %}
+            <tr>
+              <td>{{ v.cognome }} {{ v.nome }}</td>
+              <td>{{ v.tipo_nome }}</td>
+              <td class="fmd-nowrap fmd-num">{{ v.data_scadenza|date:"d-m-Y" }}</td>
+              <td>{% if v.tipo_id %}<a href="{% url 'anagrafica:visite_mediche_nuova_sessione' %}?tipo={{ v.tipo_id }}" style="color:#059669;font-weight:700;font-size:11px;text-decoration:none;white-space:nowrap;">↻ Rinnovo</a>{% endif %}</td>
+            </tr>
+            {% empty %}<tr><td colspan="4" class="fmd-muted">Nessuna visita in scadenza.</td></tr>{% endfor %}
+          </tbody></table>
+          </div>
+          {% else %}<div class="fmd-muted">Visite mediche non visibili col tuo accesso.</div>{% endif %}
+        </div>
+        <div class="col-formazione">
+          <h3 style="font-size:14px;font-weight:800;color:var(--fmd-navy);">Formazione</h3>
+          {% if can_view_formazione %}
+          <div style="overflow-x:auto;">
+          <table class="fmd-table" style="margin:0;"><tbody>
+            {% for v in voci_formazione %}
+            <tr>
+              <td>{{ v.cognome }} {{ v.nome }}</td>
+              <td>{{ v.tipo_nome }}</td>
+              <td class="fmd-nowrap fmd-num">{{ v.data_scadenza|date:"d-m-Y" }}</td>
+            </tr>
+            {% empty %}<tr><td colspan="3" class="fmd-muted">Nessuna scadenza formazione.</td></tr>{% endfor %}
+          </tbody></table>
+          </div>
+          {% else %}<div class="fmd-muted">Formazione non visibile col tuo accesso.</div>{% endif %}
+        </div>
+      </div>
+      {% elif layout == "calendario" %}
+      <div style="margin-top:6px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <a class="fmd-btn fmd-btn-ghost" href="?layout=calendario&anno={{ cal_prev|date:'Y' }}&mese={{ cal_prev|date:'n' }}">‹ Mese prec.</a>
+          <strong>{{ cal_label }}</strong>
+          <a class="fmd-btn fmd-btn-ghost" href="?layout=calendario&anno={{ cal_next|date:'Y' }}&mese={{ cal_next|date:'n' }}">Mese succ. ›</a>
+        </div>
+        <table class="cal-grid" style="width:100%;border-collapse:collapse;table-layout:fixed;">
+          <thead><tr>{% for d in "LMMGVSD"|make_list %}<th style="padding:4px;font-size:11px;color:var(--fmd-muted);">{{ d }}</th>{% endfor %}</tr></thead>
+          <tbody>
+            {% for settimana in cal_settimane %}
+            <tr>
+              {% for giorno in settimana %}
+              <td style="border:1px solid #eef2f7;vertical-align:top;height:80px;padding:3px;{% if not giorno.in_mese %}background:#f8fafc;{% endif %}{% if giorno.is_oggi %}outline:2px solid var(--fmd-cyan);{% endif %}">
+                <div style="font-size:11px;color:var(--fmd-muted);">{{ giorno.data|date:"j" }}</div>
+                {% for v in giorno.voci %}
+                <div style="font-size:10px;margin-top:2px;padding:1px 4px;border-radius:4px;{% if v.scaduta %}background:#fee2e2;color:#b91c1c;{% else %}background:#fff7ed;color:#9a3412;{% endif %}" title="{{ v.cognome }} {{ v.nome }} — {{ v.tipo_nome }}">{{ v.kind_label|slice:":3" }} · {{ v.cognome }}</div>
+                {% endfor %}
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
       {% endif %}
     </section>
 
