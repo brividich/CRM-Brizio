@@ -1,0 +1,42 @@
+{# Campi istruttore — fonte unica per i modali Crea e Modifica (stream 3, Task 2). #}
+{# I campi sono statici in stile design-system .hub-field; il modale Modifica ne #}
+{# popola i value via JS (openEditModal), come mn-modal/ro-modal. #}
+{# Parametri include: id_prefix (obbligatorio, distingue crea/edit e gli id); #}
+{#                    check_active (bool, spunta iniziale "Attivo" — solo nel Crea). #}
+{# Richiede nel context: TIPO_CHOICES. #}
+<div class="hub-form-stack">
+  <div class="hub-field">
+    <label for="{{ id_prefix }}tipo">Tipo</label>
+    <select name="tipo" id="{{ id_prefix }}tipo">
+      {% for code, label in TIPO_CHOICES %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="hub-field">
+    <label for="{{ id_prefix }}nome">Nome <span class="hub-req">*</span></label>
+    <input type="text" name="nome" id="{{ id_prefix }}nome" maxlength="200" required>
+  </div>
+  <div class="hub-field">
+    <label for="{{ id_prefix }}ragione_sociale">Ragione sociale</label>
+    <input type="text" name="ragione_sociale" id="{{ id_prefix }}ragione_sociale" maxlength="300">
+  </div>
+  <div class="hub-field">
+    <label for="{{ id_prefix }}email">Email</label>
+    <input type="email" name="email" id="{{ id_prefix }}email" maxlength="254">
+  </div>
+  <div class="hub-field">
+    <label for="{{ id_prefix }}telefono">Telefono</label>
+    <input type="text" name="telefono" id="{{ id_prefix }}telefono" maxlength="30">
+  </div>
+  <div class="hub-field">
+    <label for="{{ id_prefix }}legacy_anagrafica_id">Legacy ID dipendente</label>
+    <input type="number" name="legacy_anagrafica_id" id="{{ id_prefix }}legacy_anagrafica_id" min="1">
+  </div>
+  <div class="hub-field">
+    <label for="{{ id_prefix }}qualification_notes">Note di qualifica</label>
+    <textarea name="qualification_notes" id="{{ id_prefix }}qualification_notes" rows="2"></textarea>
+  </div>
+  <label class="hub-check" for="{{ id_prefix }}is_active">
+    <input type="checkbox" name="is_active" value="True" id="{{ id_prefix }}is_active"{% if check_active %} checked{% endif %}>
+    Attivo
+  </label>
+</div>

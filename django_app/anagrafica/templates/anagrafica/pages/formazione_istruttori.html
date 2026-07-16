@@ -6,6 +6,7 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
+{% include "core/components/_hub_formkit.html" %}
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -24,7 +25,7 @@
       </div>
       {% if is_editor %}
       <div class="fmd-pagehead-actions">
-        <button type="button" class="fmd-btn fmd-btn-primary" onclick="document.getElementById('modal-crea-istr').style.display='flex'">
+        <button type="button" class="fmd-btn fmd-btn-primary" onclick="openIstrModal('modal-crea-istr')">
           <svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo istruttore
         </button>
       </div>
@@ -81,7 +82,7 @@
               <td class="fmd-nowrap">
                 {% if is_editor %}
                 <button type="button" class="fmd-btn fmd-btn-ghost" style="padding:6px 12px;"
-                        onclick="openEditModal({{ i.pk }}, '{{ i.tipo }}', '{{ i.nome|escapejs }}', '{{ i.ragione_sociale|escapejs }}', '{{ i.email|escapejs }}', '{{ i.telefono|escapejs }}', {{ i.legacy_anagrafica_id|default:'null' }}, {{ i.is_active|yesno:'true,false' }})">
+                        onclick="openEditModal({{ i.pk }}, '{{ i.tipo }}', '{{ i.nome|escapejs }}', '{{ i.ragione_sociale|escapejs }}', '{{ i.email|escapejs }}', '{{ i.telefono|escapejs }}', {{ i.legacy_anagrafica_id|default:'null' }}, {{ i.is_active|yesno:'true,false' }}, '{{ i.qualification_notes|escapejs }}')">
                   Modifica
                 </button>
                 <form method="post" action="{% url 'anagrafica:formazione_istruttore_delete' i.pk %}" style="display:inline;"
@@ -108,40 +109,40 @@
   </div>{# .fmd-wrap #}
 </div>{# .fmd #}
 
-{# ── Modali (logica invariata) ───────────────────────────────────────────── #}
+{# ── Modali (pattern canonico .hub-modal; logica POST invariata) ──────────── #}
 {% if is_editor %}
-<div id="modal-crea-istr" style="display:none;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;background:rgba(0,0,0,.4);">
-  <div style="background:#fff;border-radius:12px;padding:28px 32px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
-      <strong style="font-size:16px;">Nuovo istruttore</strong>
-      <button onclick="document.getElementById('modal-crea-istr').style.display='none'"
-              style="background:none;border:none;font-size:20px;cursor:pointer;">×</button>
+<div id="modal-crea-istr" class="hub-modal" data-istr-modal>
+  <div class="hub-modal-card">
+    <div class="hub-modal-head">
+      <strong>Nuovo istruttore</strong>
+      <button type="button" class="hub-modal-x" data-close-modal="modal-crea-istr" aria-label="Chiudi">×</button>
     </div>
     <form method="post" action="{% url 'anagrafica:formazione_istruttore_create' %}">
       {% csrf_token %}
-      {% include "anagrafica/partials/_fm_form_fields.html" with form=form %}
-      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px;">
-        <button type="button" class="fmd-btn fmd-btn-ghost"
-                onclick="document.getElementById('modal-crea-istr').style.display='none'">Annulla</button>
+      <div class="hub-modal-body">
+        {% include "anagrafica/partials/_istruttore_fields.html" with id_prefix="crea-istr-" check_active=True %}
+      </div>
+      <div class="hub-modal-foot">
+        <button type="button" class="fmd-btn fmd-btn-ghost" data-close-modal="modal-crea-istr">Annulla</button>
         <button type="submit" class="fmd-btn fmd-btn-primary">Crea</button>
       </div>
     </form>
   </div>
 </div>
 
-<div id="modal-edit-istr" style="display:none;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;background:rgba(0,0,0,.4);">
-  <div style="background:#fff;border-radius:12px;padding:28px 32px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
-      <strong style="font-size:16px;">Modifica istruttore</strong>
-      <button onclick="document.getElementById('modal-edit-istr').style.display='none'"
-              style="background:none;border:none;font-size:20px;cursor:pointer;">×</button>
+<div id="modal-edit-istr" class="hub-modal" data-istr-modal>
+  <div class="hub-modal-card">
+    <div class="hub-modal-head">
+      <strong>Modifica istruttore</strong>
+      <button type="button" class="hub-modal-x" data-close-modal="modal-edit-istr" aria-label="Chiudi">×</button>
     </div>
     <form id="form-edit-istr" method="post" action="">
       {% csrf_token %}
-      <div id="edit-istr-fields">{# popolato via JS #}</div>
-      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px;">
-        <button type="button" class="fmd-btn fmd-btn-ghost"
-                onclick="document.getElementById('modal-edit-istr').style.display='none'">Annulla</button>
+      <div class="hub-modal-body">
+        {% include "anagrafica/partials/_istruttore_fields.html" with id_prefix="edit-istr-" %}
+      </div>
+      <div class="hub-modal-foot">
+        <button type="button" class="fmd-btn fmd-btn-ghost" data-close-modal="modal-edit-istr">Annulla</button>
         <button type="submit" class="fmd-btn fmd-btn-primary">Salva</button>
       </div>
     </form>
@@ -149,30 +150,34 @@
 </div>
 
 <script>
-function openEditModal(pk, tipo, nome, ragSoc, email, tel, legacyId, isActive) {
-  const action = `/anagrafica/formazione/istruttori/${pk}/modifica`;
-  document.getElementById('form-edit-istr').action = action;
-  const tipoOpts = [{% for c, l in TIPO_CHOICES %}{ v:'{{ c }}', l:'{{ l }}' },{% endfor %}];
-  const tipoSel = tipoOpts.map(o => `<option value="${o.v}"${o.v===tipo?' selected':''}>${o.l}</option>`).join('');
-  document.getElementById('edit-istr-fields').innerHTML = `
-    <div style="margin-bottom:10px;"><label class="fm-label">Tipo</label>
-      <select name="tipo" class="fm-input fm-select">${tipoSel}</select></div>
-    <div style="margin-bottom:10px;"><label class="fm-label">Nome *</label>
-      <input name="nome" class="fm-input" value="${nome.replace(/"/g,'&quot;')}" required></div>
-    <div style="margin-bottom:10px;"><label class="fm-label">Ragione sociale</label>
-      <input name="ragione_sociale" class="fm-input" value="${ragSoc.replace(/"/g,'&quot;')}"></div>
-    <div style="margin-bottom:10px;"><label class="fm-label">Email</label>
-      <input name="email" type="email" class="fm-input" value="${email}"></div>
-    <div style="margin-bottom:10px;"><label class="fm-label">Telefono</label>
-      <input name="telefono" class="fm-input" value="${tel}"></div>
-    <div style="margin-bottom:10px;"><label class="fm-label">Legacy ID dipendente</label>
-      <input name="legacy_anagrafica_id" type="number" class="fm-input" min="1" value="${legacyId||''}"></div>
-    <div style="margin-bottom:10px;"><label><input name="is_active" type="checkbox" value="True"${isActive?' checked':''}>
-      Attivo</label></div>
-  `;
-  document.getElementById('modal-edit-istr').style.display = 'flex';
+function openIstrModal(id) { document.getElementById(id).classList.add('open'); }
+function closeIstrModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function openEditModal(pk, tipo, nome, ragSoc, email, tel, legacyId, isActive, notes) {
+  document.getElementById('form-edit-istr').action = `/anagrafica/formazione/istruttori/${pk}/modifica`;
+  document.getElementById('edit-istr-tipo').value = tipo;
+  document.getElementById('edit-istr-nome').value = nome;
+  document.getElementById('edit-istr-ragione_sociale').value = ragSoc;
+  document.getElementById('edit-istr-email').value = email;
+  document.getElementById('edit-istr-telefono').value = tel;
+  document.getElementById('edit-istr-legacy_anagrafica_id').value = legacyId || '';
+  document.getElementById('edit-istr-qualification_notes').value = notes || '';
+  document.getElementById('edit-istr-is_active').checked = isActive;
+  openIstrModal('modal-edit-istr');
 }
+
+// Chiusura canonica: pulsanti data-close-modal, click sull'overlay, tasto ESC.
+document.querySelectorAll('[data-close-modal]').forEach(function (btn) {
+  btn.addEventListener('click', function () { closeIstrModal(btn.getAttribute('data-close-modal')); });
+});
+document.querySelectorAll('[data-istr-modal]').forEach(function (ov) {
+  ov.addEventListener('click', function (e) { if (e.target === ov) closeIstrModal(ov.id); });
+});
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('[data-istr-modal].open').forEach(function (ov) { ov.classList.remove('open'); });
+  }
+});
 </script>
-<style>.fm-label{display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:3px;}</style>
 {% endif %}
 {% endblock %}
