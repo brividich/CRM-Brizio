@@ -35,3 +35,22 @@ class IstruttorePopupRenderTests(TestCase):
         self.assertIn("hub-field", body)
         # La vecchia label ad hoc .fm-label non è più usata (fonte campi unificata)
         self.assertNotIn('class="fm-label"', body)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class MansionePopupRenderTests(TestCase):
+    """Task 4 — il popup 'Modifica mansione' è rifinito (header con ×, chiusura
+    canonica) senza toccare campi/openEdit/action."""
+
+    def setUp(self):
+        self.su = User.objects.create_superuser("su-mn", "su-mn@test.local", "x")
+        self.client.force_login(self.su)
+
+    def test_modale_modifica_mansione_rifinito(self):
+        body = self.client.get(reverse("anagrafica:mansioni_list")).content.decode()
+        self.assertIn('id="mn-modal"', body)
+        self.assertIn("Modifica mansione", body)
+        self.assertIn("hub-form-stack", body)     # campi design-system (invariati)
+        # Marker della rifinitura: chiusura canonica (× header + Annulla) e corpo scrollabile
+        self.assertIn("data-close-modal", body)
+        self.assertIn("mn-modal-body", body)
