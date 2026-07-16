@@ -1,6 +1,6 @@
 {% extends "core/base.html" %}
 
-{% block title %}Campagne Presa Visione | Portale{% endblock %}
+{% block title %}Sessioni Presa Visione | Portale{% endblock %}
 
 {% block body_class %}{{ block.super }} pr-workspace-page pr-campaign-list-page{% endblock %}
 
@@ -64,8 +64,8 @@ body.theme-dark .pr-empty { color:var(--text-light); }
   {% endif %}
 
   <div class="pr-header-row">
-    <div class="pr-page-title">Campagne refresh</div>
-    <a href="{% url 'procedure_refresh:campaign_create' %}" class="pr-btn">+ Nuova campagna</a>
+    <div class="pr-page-title">Sessioni refresh</div>
+    <a href="{% url 'procedure_refresh:campaign_create' %}" class="pr-btn">+ Nuova sessione</a>
   </div>
 
   <div class="pr-table-wrap">
@@ -73,7 +73,7 @@ body.theme-dark .pr-empty { color:var(--text-light); }
       <table class="pr-table">
         <thead>
           <tr>
-            <th>Nome campagna</th>
+            <th>Nome sessione</th>
             <th>Stato</th>
             <th>Inizio</th>
             <th>Scadenza</th>
@@ -108,7 +108,7 @@ body.theme-dark .pr-empty { color:var(--text-light); }
         </tbody>
       </table>
     {% else %}
-      <div class="pr-empty">Nessuna campagna. <a href="{% url 'procedure_refresh:campaign_create' %}">Creane una</a>.</div>
+      <div class="pr-empty">Nessuna sessione. <a href="{% url 'procedure_refresh:campaign_create' %}">Creane una</a>.</div>
     {% endif %}
   </div>
 </div>

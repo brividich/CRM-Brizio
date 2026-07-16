@@ -4653,3 +4653,15 @@ class ScadenzarioRaggruppaPerTipoTests(TestCase):
         self.client.force_login(admin)
         resp = self.client.get(reverse("anagrafica:scadenzario"))
         self.assertEqual(resp.status_code, 200)
+
+
+class QualificheScadenzarioRenderTests(TestCase):
+    """Fase 4 P4.2: la vista raggruppata di qualifiche_scadenzario renderizza."""
+
+    def test_qualifiche_scadenzario_page_renders(self):
+        admin = User.objects.create_superuser(
+            username="qual-scad-admin", email="qs@example.com", password="pass12345",
+        )
+        self.client.force_login(admin)
+        resp = self.client.get(reverse("anagrafica:qualifiche_scadenzario"))
+        self.assertEqual(resp.status_code, 200)

@@ -6241,6 +6241,36 @@ def qualifiche_dashboard(request):
     })
 
 
+def _raggruppa_voci_per_tipo(voci, *, tipo_of, scaduta_of, giorni_of):
+    """Raggruppa voci di scadenzario per «tipo» (vista a gruppi espandibili).
+
+    Generico: ``tipo_of``/``scaduta_of``/``giorni_of`` estraggono da ogni voce
+    il nome-tipo, il flag «scaduta» e i giorni residui. Ordina le voci coi più
+    urgenti in cima e i gruppi con scadute per primi. Riusato dagli scadenzari
+    qualifiche e skill-matrix (lo scadenzario anagrafica ha il proprio helper).
+    """
+    from collections import OrderedDict
+
+    buckets = OrderedDict()
+    for v in voci:
+        buckets.setdefault(tipo_of(v) or "—", []).append(v)
+    gruppi = []
+    for tipo_nome, gv in buckets.items():
+        gv_sorted = sorted(gv, key=lambda x: (not scaduta_of(x), giorni_of(x)))
+        n_scadute = sum(1 for x in gv if scaduta_of(x))
+        worst = min((giorni_of(x) for x in gv), default=99999)
+        gruppi.append({
+            "tipo_nome": tipo_nome,
+            "voci": gv_sorted,
+            "n_totale": len(gv),
+            "n_scadute": n_scadute,
+            "worst_giorni": worst,
+            "has_scadute": n_scadute > 0,
+        })
+    gruppi.sort(key=lambda g: (not g["has_scadute"], g["worst_giorni"], str(g["tipo_nome"]).lower()))
+    return gruppi
+
+
 @login_required
 def qualifiche_scadenzario(request):
     """Scadenzario dedicato alle sole qualifiche/certificazioni.
@@ -6344,9 +6374,17 @@ def qualifiche_scadenzario(request):
     reparti = sorted({str(r.get("reparto") or "").strip() for r in dip_rows if str(r.get("reparto") or "").strip()})
     tipi_opts = list(TipoQualifica.objects.order_by("categoria", "nome").values("id", "nome"))
 
+    gruppi = _raggruppa_voci_per_tipo(
+        voci,
+        tipo_of=lambda v: v["tipo_nome"],
+        scaduta_of=lambda v: v["stato"] == "scaduta",
+        giorni_of=lambda v: v["giorni"] if v["giorni"] is not None else 99999,
+    )
+
     return render(request, "anagrafica/pages/qualifiche_scadenzario.html", {
         "oggi": oggi,
         "voci": voci,
+        "gruppi": gruppi,
         "counts": counts,
         "totale": len(voci),
         "filtro_stato": filtro_stato,

@@ -90,6 +90,42 @@
       </div>
 
       {% if voci %}
+      {# Vista PRIMARIA raggruppata per tipo di qualifica, con espansione dei dipendenti. #}
+      <div class="scad-groups" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+        {% for g in gruppi %}
+        <details class="scad-group"{% if g.has_scadute %} open{% endif %} style="border:1px solid #e6ecf3;border-radius:10px;background:#fff;overflow:hidden;">
+          <summary style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;font-weight:700;color:var(--fmd-navy);">
+            <span style="flex:1 1 auto;">{{ g.tipo_nome }}</span>
+            {% if g.n_scadute %}<span class="fmd-badge fmd-b-red">{{ g.n_scadute }} scadut{{ g.n_scadute|pluralize:"a,e" }}</span>{% endif %}
+            <span class="fmd-badge fmd-b-cyan">{{ g.n_totale }} dipendent{{ g.n_totale|pluralize:"e,i" }}</span>
+          </summary>
+          <div style="border-top:1px solid #eef2f7;overflow-x:auto;">
+            <table class="fmd-table" style="margin:0;">
+              <tbody>
+                {% for v in g.voci %}
+                <tr>
+                  <td><a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' v.legacy_id %}">{{ v.dipendente }}</a></td>
+                  <td class="fmd-muted">{{ v.reparto|default:"—" }}</td>
+                  <td class="fmd-nowrap fmd-muted">{% if v.data_scadenza %}{{ v.data_scadenza|date:"d-m-Y" }}{% else %}—{% endif %}</td>
+                  <td>
+                    {% if v.stato == "scaduta" %}<span class="fmd-badge fmd-b-red">Scaduta</span>
+                    {% elif v.stato == "s30" %}<span class="fmd-badge fmd-b-orange">≤30gg</span>
+                    {% elif v.stato == "s60" %}<span class="fmd-badge fmd-b-amber">≤60gg</span>
+                    {% elif v.stato == "permanente" %}<span class="fmd-badge fmd-b-cyan">Permanente</span>
+                    {% else %}<span class="fmd-badge fmd-b-green">Valida</span>{% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </details>
+        {% endfor %}
+      </div>
+
+      <details style="margin-bottom:10px;">
+        <summary style="cursor:pointer;color:var(--fmd-cyan);font-weight:700;font-size:13px;">Vista elenco completo (ordinabile / filtrabile)</summary>
+        <div style="margin-top:10px;">
       <div class="fmd-tablewrap" style="margin:0 -22px;">
         <table class="fmd-table">
           <thead>
@@ -151,6 +187,8 @@
           </tbody>
         </table>
       </div>
+        </div>
+      </details>
       {% else %}
       <div class="fmd-empty">Nessuna qualifica corrisponde ai filtri selezionati.</div>
       {% endif %}

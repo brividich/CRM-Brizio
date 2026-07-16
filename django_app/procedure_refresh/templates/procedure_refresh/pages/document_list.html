@@ -96,7 +96,7 @@ body.theme-dark .pr-empty { color:var(--text-light); }
 
   <div style="padding:10px 14px;border-radius:10px;background:#eff6ff;color:#1e40af;font-size:12.5px;line-height:1.5;">
     Lista <strong>unica</strong>: ogni documento può essere insieme indicizzato dall'<strong>AI</strong> e soggetto a <strong>presa visione</strong> — sono cose indipendenti.
-    Nelle campagne puoi selezionare <strong>qualsiasi</strong> documento; il badge «Presa visione» è solo un promemoria di cosa va tenuto sotto presa visione.
+    Nelle sessioni puoi selezionare <strong>qualsiasi</strong> documento; il badge «Presa visione» è solo un promemoria di cosa va tenuto sotto presa visione.
   </div>
 
   <div class="pr-table-wrap">
@@ -180,7 +180,7 @@ body.theme-dark .pr-empty { color:var(--text-light); }
                   {% if doc.requires_acknowledgement %}
                     <form method="post" action="{% url 'procedure_refresh:document_toggle_ack' pk=doc.pk %}">
                       {% csrf_token %}
-                      <button type="submit" class="pr-btn pr-btn-sm pr-btn-gray" title="Rimuovi il marcatore «presa visione» (resta comunque selezionabile in campagna)">Smarca PV</button>
+                      <button type="submit" class="pr-btn pr-btn-sm pr-btn-gray" title="Rimuovi il marcatore «presa visione» (resta comunque selezionabile in sessione)">Smarca PV</button>
                     </form>
                   {% else %}
                     <form method="post" action="{% url 'procedure_refresh:document_toggle_ack' pk=doc.pk %}"
