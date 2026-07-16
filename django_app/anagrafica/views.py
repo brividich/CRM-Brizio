@@ -5222,18 +5222,24 @@ def dipendenti_report(request):
             )
         ]
 
-    # Filtro per reparto (da legacy)
+    # Reparto/area canonici: sovrascrive row["reparto"] col Reparto canonico
+    # (fallback al testo legacy per i non ancora mappati) e valorizza
+    # row["area_aziendale_nome"]. Da qui il filtro reparto è sul canonico.
+    from anagrafica.services.reparto_canonico import enrich_rows_reparto_canonico
+    enrich_rows_reparto_canonico(all_rows)
+
+    # Filtro per reparto (canonico)
     if reparto_filter:
         all_rows = [
             row for row in all_rows
             if str(row.get("reparto") or "").strip().casefold() == reparto_filter.casefold()
         ]
 
-    # Filtri su campi Django: area e tipologia_contratto
+    # Filtri su campi Django: area aziendale canonica e tipologia_contratto
     django_filter_ids: set[int] | None = None
     az_qs = DipendenteAnagraficaAziendale.objects.all()
     if area_filter:
-        az_qs = az_qs.filter(area__iexact=area_filter)
+        az_qs = az_qs.filter(area_aziendale__nome__iexact=area_filter)
     if contratto_filter:
         az_qs = az_qs.filter(tipologia_contratto=contratto_filter)
     if consenso_filter == "si":
@@ -5288,7 +5294,7 @@ def dipendenti_report(request):
         writer = safe_csv_writer(response, delimiter=";")
         writer.writerow([
             "ID", "Cognome", "Nome", "Matricola", "Reparto",
-            "Area", "Ruolo aziendale", "Tipologia contratto",
+            "Area aziendale", "Ruolo aziendale", "Tipologia contratto",
             "Livello inquadramento", "Data prima assunzione",
             "Consenso privacy", "Email aziendale", "Telefono aziendale",
         ])
@@ -5300,7 +5306,7 @@ def dipendenti_report(request):
                 row.get("nome", ""),
                 row.get("matricola", ""),
                 row.get("reparto", ""),
-                getattr(az, "area", "") or "",
+                row.get("area_aziendale_nome", "") or "",
                 getattr(az, "ruolo_aziendale", "") or "",
                 getattr(az, "get_tipologia_contratto_display", lambda: "")() if az else "",
                 getattr(az, "livello_inquadramento", "") or "",
@@ -5311,12 +5317,12 @@ def dipendenti_report(request):
             ])
         return response
 
-    reparti_list = sorted({str(r.get("reparto") or "").strip() for r in fetch_anagrafica_rows(deduplicate=True) if str(r.get("reparto") or "").strip()})
-    aree_list = sorted(
-        DipendenteAnagraficaAziendale.objects.exclude(area="")
-        .values_list("area", flat=True)
-        .distinct()
-        .order_by("area")
+    # Filtri dai cataloghi canonici (non più dal testo legacy).
+    reparti_list = list(
+        Reparto.objects.filter(is_active=True).order_by("nome").values_list("nome", flat=True)
+    )
+    aree_list = list(
+        AreaAziendale.objects.filter(is_active=True).order_by("nome").values_list("nome", flat=True)
     )
 
     paginator = Paginator(all_rows, 50)
