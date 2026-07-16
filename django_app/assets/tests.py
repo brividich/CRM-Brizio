@@ -9453,3 +9453,78 @@ class AssetPrivateMediaStorageWiringTests(TestCase):
             self.assertTrue(att.file.storage.exists(att.file.name))
             with att.file.storage.open(att.file.name, "rb") as fh:
                 self.assertEqual(fh.read(), b"%PDF-1.4 rapporto intervento")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AssetPlantLayoutResolveTests(TestCase):
+    """La 'posizione in officina' usa la planimetria reale del reparto dell'asset."""
+
+    def test_marker_goes_to_layout_matching_asset_reparto(self):
+        with _workspace_temporary_directory("assets-resolve-") as tmpdir, override_settings(MEDIA_ROOT=Path(tmpdir)):
+            officina = PlantLayout.objects.create(
+                category="Officina", name="Officina", image=_valid_png_upload("o.png"), is_active=True
+            )
+            cromatura = PlantLayout.objects.create(
+                category="Reparto Cromatura", name="Cromatura", image=_valid_png_upload("c.png"), is_active=True
+            )
+            asset = Asset.objects.create(asset_tag="AST-CROM-1", name="Vasca cromatura", reparto="Reparto Cromatura")
+            msg = asset_views._ensure_asset_plant_layout_marker(asset)
+            self.assertEqual(msg, "")
+            marker = PlantLayoutMarker.objects.get(asset=asset)
+            # Sul layout del reparto, NON sull'alfabeticamente primo (Officina).
+            self.assertEqual(marker.layout_id, cromatura.id)
+            self.assertNotEqual(marker.layout_id, officina.id)
+
+    def test_marker_resolves_via_area_reparto_code(self):
+        with _workspace_temporary_directory("assets-resolve-area-") as tmpdir, override_settings(MEDIA_ROOT=Path(tmpdir)):
+            officina = PlantLayout.objects.create(
+                category="Officina", name="Officina", image=_valid_png_upload("o.png"), is_active=True
+            )
+            # Category "Zincatura" viene DOPO "Officina": il fallback sceglierebbe Officina.
+            zincatura = PlantLayout.objects.create(
+                category="Zincatura", name="Zincatura", image=_valid_png_upload("z.png"), is_active=True
+            )
+            PlantLayoutArea.objects.create(layout=zincatura, name="Zona Nichel", reparto_code="Nichelatura")
+            asset = Asset.objects.create(asset_tag="AST-NIC-1", name="Impianto nichel", reparto="Nichelatura")
+            asset_views._ensure_asset_plant_layout_marker(asset)
+            marker = PlantLayoutMarker.objects.get(asset=asset)
+            self.assertEqual(marker.layout_id, zincatura.id)
+            self.assertNotEqual(marker.layout_id, officina.id)
+
+    def test_marker_falls_back_to_first_active_layout_when_reparto_unmapped(self):
+        with _workspace_temporary_directory("assets-resolve-fb-") as tmpdir, override_settings(MEDIA_ROOT=Path(tmpdir)):
+            officina = PlantLayout.objects.create(
+                category="Officina", name="Officina", image=_valid_png_upload("o.png"), is_active=True
+            )
+            PlantLayout.objects.create(
+                category="TVCC", name="TVCC", image=_valid_png_upload("t.png"), is_active=True
+            )
+            asset = Asset.objects.create(asset_tag="AST-FB-1", name="Macchina orfana", reparto="Reparto Inesistente")
+            msg = asset_views._ensure_asset_plant_layout_marker(asset)
+            self.assertEqual(msg, "")
+            marker = PlantLayoutMarker.objects.get(asset=asset)
+            # Fallback: primo layout attivo per (category, name, id) = Officina.
+            self.assertEqual(marker.layout_id, officina.id)
+
+    def test_no_active_layout_returns_message_without_marker(self):
+        asset = Asset.objects.create(asset_tag="AST-NONE-1", name="Nessuna piantina", reparto="Officina")
+        msg = asset_views._ensure_asset_plant_layout_marker(asset)
+        self.assertIn("nessuna planimetria attiva", msg.lower())
+        self.assertFalse(PlantLayoutMarker.objects.filter(asset=asset).exists())
+
+    def test_existing_marker_is_moved_to_reparto_layout(self):
+        with _workspace_temporary_directory("assets-resolve-move-") as tmpdir, override_settings(MEDIA_ROOT=Path(tmpdir)):
+            officina = PlantLayout.objects.create(
+                category="Officina", name="Officina", image=_valid_png_upload("o.png"), is_active=True
+            )
+            cromatura = PlantLayout.objects.create(
+                category="Reparto Cromatura", name="Cromatura", image=_valid_png_upload("c.png"), is_active=True
+            )
+            asset = Asset.objects.create(asset_tag="AST-MOVE-1", name="Vasca", reparto="Reparto Cromatura")
+            # Marker preesistente sul layout SBAGLIATO (Officina).
+            PlantLayoutMarker.objects.create(layout=officina, asset=asset, label="vecchio", x_percent=10, y_percent=10)
+            msg = asset_views._ensure_asset_plant_layout_marker(asset)
+            self.assertEqual(msg, "")
+            markers = PlantLayoutMarker.objects.filter(asset=asset)
+            self.assertEqual(markers.count(), 1)
+            self.assertEqual(markers.first().layout_id, cromatura.id)
