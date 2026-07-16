@@ -3515,3 +3515,34 @@ class KickoffMeetingProjectScopeTests(TasksBaseTestCase):
         response = self.client.get(reverse("tasks:project_list"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Commessa estranea ZZ2")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class MeetingCreateTaskButtonTests(TasksBaseTestCase):
+    """Dalla pagina dell'incontro si può creare/assegnare un'attività anche senza next steps."""
+
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "tasks")
+        _grant_role_actions(2, ["tasks_view", "tasks_create", "tasks_edit"])
+        self._refresh_acl_cache()
+        self.user = _create_user_with_legacy(
+            username="mtg-manager", legacy_user_id=9801, role_id=2, role_name="tasks"
+        )
+        # created_by == user → can_manage True.
+        self.project = Project.objects.create(name="Progetto incontro", created_by=self.user)
+        self.meeting = KickoffMeeting.objects.create(
+            project=self.project, numero=1, data=timezone.localdate(), created_by=self.user
+        )
+
+    def test_meeting_without_next_steps_shows_create_task_trigger(self):
+        # Incontro privo di next steps: il trigger deve comparire lo stesso.
+        self.assertEqual(self.meeting.next_steps, "")
+        self.client.force_login(self.user)
+        response = self.client.get(
+            reverse("tasks:project_meeting_detail", args=[self.project.id, self.meeting.id])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Crea / assegna attività")
+        self.assertContains(response, 'id="ctm-overlay"')
+        self.assertContains(response, 'name="assigned_to"')
