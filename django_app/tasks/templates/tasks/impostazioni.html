@@ -206,27 +206,17 @@
     {% if tab == "config" %}
       <section class="ts-grid-2">
         <article class="ts-panel">
-          <div class="ts-panel-head">
-            <div class="ts-panel-title-wrap">
-              <h2 class="ts-panel-title">Tutte le impostazioni modificabili</h2>
-              <p class="ts-panel-subtitle">La vecchia area Gestione e ora confluita qui: configurazione, branding, record e log stanno dentro un unico punto admin.</p>
-            </div>
-          </div>
           <div class="ts-panel-body">
-            <div class="inline-actions" style="margin-bottom:12px;">
+            <div class="inline-actions">
               <a href="{% url 'tasks:list' %}" class="btn btn-secondary btn-sm">Dashboard attivita</a>
               <a href="{% url 'tasks:project_list' %}" class="btn btn-secondary btn-sm">Portfolio kickoff</a>
               <a href="?tab=record" class="btn btn-secondary btn-sm">Apri record</a>
               <a href="?tab=log" class="btn btn-secondary btn-sm">Apri log</a>
             </div>
-            <div class="ts-note-box">
-              <strong>Tutte le impostazioni modificabili del modulo sono in questa tab:</strong>
-              branding nome/logo, email responsabile, notifiche scadenza, giorni di preavviso, note interne e soglie VRF.
-            </div>
           </div>
         </article>
 
-        {% include "core/components/module_branding_card.html" %}
+        {% include "core/components/module_branding_card.html" with branding_compact=True %}
       </section>
 
       <form method="post">

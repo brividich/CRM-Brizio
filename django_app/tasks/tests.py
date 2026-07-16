@@ -435,12 +435,20 @@ class TaskAdminSettingsTests(TasksBaseTestCase):
         response = self.client.get(reverse("tasks:gestione_admin"))
         self.assertRedirects(response, f"{reverse('tasks:impostazioni')}?tab=riepilogo")
 
+    def test_settings_config_tab_is_slimmer_with_compact_branding(self):
+        self.client.force_login(self.admin_user)
+        response = self.client.get(reverse("tasks:impostazioni"), {"tab": "config"})
+        self.assertEqual(response.status_code, 200)
+        # Blocco ridondante rimosso (titolo + callout).
+        self.assertNotContains(response, "Tutte le impostazioni modificabili")
+        # Branding card in variante compatta (modificatore condiviso del Task 4).
+        self.assertContains(response, "ms-card--compact")
+
     def test_settings_page_shows_and_saves_all_editable_fields(self):
         self.client.force_login(self.admin_user)
 
         response = self.client.get(reverse("tasks:impostazioni"), {"tab": "config"})
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Tutte le impostazioni modificabili del modulo sono in questa tab")
         self.assertContains(response, 'name="responsabile_email"', html=False)
         self.assertContains(response, 'name="notifiche_scadenza_attive"', html=False)
         self.assertContains(response, 'name="giorni_preavviso"', html=False)
