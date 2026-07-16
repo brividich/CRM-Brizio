@@ -212,3 +212,25 @@ class LayoutRenderTests(TestCase):
         resp = self.client.get(reverse("anagrafica:scadenzario"), {"layout": "calendario"})
         self.assertEqual(resp.status_code, 200)
         self.assertIn("cal-grid", resp.content.decode())
+
+
+class FormazioneScadenzarioPlanTests(TestCase):
+    def setUp(self):
+        self.su = User.objects.create_superuser("su-fsp", "su-fsp@test.local", "x")
+        self.client.force_login(self.su)
+        self.corso = _mk_corso("C-FSP", "Corso Fsp")
+        TrainingDeadline.objects.create(
+            legacy_anagrafica_id=61, corso=self.corso, is_required=True,
+            data_scadenza=timezone.localdate() - timedelta(days=5), stato_scadenza="SCADUTO",
+        )
+
+    def test_toggle_calendario_plan_presente(self):
+        resp = self.client.get(reverse("anagrafica:formazione_scadenzario"))
+        self.assertIn("view=calendario", resp.content.decode())
+
+    def test_seleziona_dipendenti_form_presente(self):
+        # le checkbox si mostrano solo con un corso filtrato (batch per-corso)
+        resp = self.client.get(reverse("anagrafica:formazione_scadenzario"), {"corso": self.corso.pk})
+        body = resp.content.decode()
+        self.assertIn('name="dipendenti_selezionati"', body)
+        self.assertIn("formazione/rinnovo-da-scadenzario", body)

@@ -23,6 +23,7 @@
         <p class="fmd-ph-sub">Corsi scaduti, in scadenza e mai frequentati.</p>
       </div>
       <div class="fmd-pagehead-actions">
+        <a href="{% url 'anagrafica:formazione_plan' %}?view=calendario" class="fmd-btn fmd-btn-ghost" title="Vista calendario (plan)"><svg class="fmd-ico"><use href="#i-calendar"/></svg>Calendario (plan)</a>
         {% if is_editor and filtro_corso %}
         <a href="{% url 'anagrafica:formazione_sessione_create' %}?corso={{ filtro_corso }}" class="fmd-btn fmd-btn-primary"
            title="Crea una nuova edizione di questo corso; in iscritti potrai iscrivere in blocco i candidati da rinnovare">
@@ -93,10 +94,21 @@
       </form>
 
       {% if page_obj.object_list %}
+      {% if is_editor and filtro_corso %}
+      {# Selezione dipendenti → sessione di rinnovo (batch per-corso: richiede un corso filtrato). #}
+      <form method="post" action="{% url 'anagrafica:formazione_rinnovo_da_scadenzario' %}">
+        {% csrf_token %}
+        <input type="hidden" name="corso_id" value="{{ filtro_corso }}">
+        <input type="hidden" name="back" value="anagrafica:formazione_scadenzario">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+          <button type="submit" class="fmd-btn fmd-btn-primary" style="font-size:12px;"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Crea sessione di rinnovo con i selezionati</button>
+        </div>
+      {% endif %}
       <div class="fmd-tablewrap">
         <table class="fmd-table" data-table-id="formazione.scadenzario">
           <thead>
             <tr>
+              {% if is_editor and filtro_corso %}<th class="fmd-c" data-col-nosort="1">Sel.</th>{% endif %}
               <th data-col="dipendente" data-col-label="Dipendente" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Dipendente</th>
               <th data-col="corso" data-col-label="Corso" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Corso</th>
               <th data-col="piano" data-col-label="Piano" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Piano</th>
@@ -110,6 +122,7 @@
           <tbody>
             {% for sc in page_obj.object_list %}
             <tr>
+              {% if is_editor and filtro_corso %}<td class="fmd-c"><input type="checkbox" name="dipendenti_selezionati" value="{{ sc.legacy_anagrafica_id }}"{% if sc.stato_scadenza == "SCADUTO" %} checked{% endif %}></td>{% endif %}
               <td><a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' sc.legacy_anagrafica_id %}">{{ sc.nome_dip }}</a></td>
               <td>
                 <a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' sc.corso.pk %}" title="{{ sc.corso.titolo }}">{{ sc.corso.codice }}</a>
@@ -140,6 +153,7 @@
           </tbody>
         </table>
       </div>
+      {% if is_editor and filtro_corso %}</form>{% endif %}
 
       <div class="fmd-tfoot">
         <span class="fmd-info">Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }} · {{ totale }} risultati</span>
