@@ -393,3 +393,34 @@ class SessioneStep2RenderTests(TestCase):
         self.assertIn('enctype="multipart/form-data"', body)
         self.assertIn("Nuova scadenza", body)
         self.assertIn("Ruolo", body)  # badge origine
+
+
+class VisitaSessioneModelTests(TestCase):
+    def setUp(self):
+        self.oggi = timezone.localdate()
+        self.tipo = TipoVisitaMedica.objects.create(nome="Giornata VDT", durata_mesi=12)
+
+    def test_crea_sessione_e_collega_visita(self):
+        from .models import VisitaSessione
+        sess = VisitaSessione.objects.create(
+            data_svolgimento=self.oggi, medico_competente="Dr. Test",
+        )
+        v = VisitaMedica.objects.create(
+            legacy_anagrafica_id=1, tipo=self.tipo,
+            data_svolgimento=self.oggi, sessione=sess,
+        )
+        self.assertEqual(v.sessione_id, sess.pk)
+        self.assertEqual(list(sess.visite.all()), [v])
+
+    def test_elimina_sessione_conserva_visite(self):
+        from .models import VisitaSessione
+        sess = VisitaSessione.objects.create(
+            data_svolgimento=self.oggi, medico_competente="Dr. Test",
+        )
+        v = VisitaMedica.objects.create(
+            legacy_anagrafica_id=2, tipo=self.tipo,
+            data_svolgimento=self.oggi, sessione=sess,
+        )
+        sess.delete()
+        v.refresh_from_db()
+        self.assertIsNone(v.sessione_id)  # SET_NULL: la visita resta
