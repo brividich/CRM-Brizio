@@ -54,3 +54,25 @@ class DocsIndexTests(TestCase):
         self.client.force_login(self.admin)
         resp = self.client.get(reverse("security:help"))
         self.assertContains(resp, reverse("security:doc_detail", args=[dr.slug_for(dr.DOC_FILES[0])]))
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False)
+class ConfigSectionHelpTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin = User.objects.create_superuser("soc_admin3", "soc3@example.org", "pw-Test-12345")
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def test_each_config_section_shows_help(self):
+        names = [
+            "admin_config_general", "admin_config_sources", "admin_config_parsers",
+            "admin_config_alert_rules", "admin_config_suppressions", "admin_config_backups",
+            "admin_config_notifications", "admin_config_ticketing", "admin_config_audit",
+        ]
+        for name in names:
+            resp = self.client.get(reverse(f"security:{name}"))
+            self.assertEqual(resp.status_code, 200, name)
+            self.assertContains(resp, "sec-section-help", msg_prefix=name)
+            self.assertContains(resp, "Apri guida", msg_prefix=name)

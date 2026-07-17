@@ -336,7 +336,7 @@ def admin_config_general(request):
         if setting.is_secret:
             form.initial["value"] = ""
         rows.append({"setting": setting, "display_value": masked_setting_value(setting), "form": form})
-    return render(request, "security/admin_config/general.html", {"rows": rows})
+    return render(request, "security/admin_config/general.html", {"rows": rows, "section_help": CONFIG_SECTION_HELP["general"]})
 
 
 @ensure_csrf_cookie
@@ -363,12 +363,12 @@ def admin_config_sources(request):
                 audit_model_form_changes(request.user, obj, old, snapshot_instance(obj), request=request)
                 messages.success(request, "Configurazione sorgente salvata.")
                 return redirect("security:admin_config_sources")
-    return render(request, "security/admin_config/sources.html", {"objects": SecuritySourceConfig.objects.order_by("vendor", "name"), "form": form, "test_result": test_result})
+    return render(request, "security/admin_config/sources.html", {"objects": SecuritySourceConfig.objects.order_by("vendor", "name"), "form": form, "test_result": test_result, "section_help": CONFIG_SECTION_HELP["sources"]})
 
 
 @ensure_csrf_cookie
 def admin_config_parsers(request):
-    return _config_model_page(request, SecurityParserConfig, SecurityParserConfigForm, "security/admin_config/parsers.html", "admin_config_parsers", extra_context=_parser_stats())
+    return _config_model_page(request, SecurityParserConfig, SecurityParserConfigForm, "security/admin_config/parsers.html", "admin_config_parsers", extra_context={**_parser_stats(), "section_help": CONFIG_SECTION_HELP["parsers"]})
 
 
 @ensure_csrf_cookie
@@ -387,17 +387,17 @@ def admin_config_alert_rules(request):
             test_result = {"error": "Campione metriche JSON non valido."}
     elif request.method == "POST":
         return _save_config_form(request, SecurityAlertRuleConfig, SecurityAlertRuleConfigForm, "admin_config_alert_rules")
-    return render(request, "security/admin_config/alert_rules.html", {"objects": SecurityAlertRuleConfig.objects.order_by("source_type", "code"), "form": SecurityAlertRuleConfigForm(), "test_result": test_result})
+    return render(request, "security/admin_config/alert_rules.html", {"objects": SecurityAlertRuleConfig.objects.order_by("source_type", "code"), "form": SecurityAlertRuleConfigForm(), "test_result": test_result, "section_help": CONFIG_SECTION_HELP["alert_rules"]})
 
 
 @ensure_csrf_cookie
 def admin_config_suppressions(request):
-    return _config_model_page(request, SecurityAlertSuppressionRule, SecurityAlertSuppressionRuleForm, "security/admin_config/suppressions.html", "admin_config_suppressions")
+    return _config_model_page(request, SecurityAlertSuppressionRule, SecurityAlertSuppressionRuleForm, "security/admin_config/suppressions.html", "admin_config_suppressions", extra_context={"section_help": CONFIG_SECTION_HELP["suppressions"]})
 
 
 @ensure_csrf_cookie
 def admin_config_backups(request):
-    extra = {"last_seen": {obj.pk: last_seen_backup_status(obj) for obj in BackupExpectedJobConfig.objects.all()}}
+    extra = {"last_seen": {obj.pk: last_seen_backup_status(obj) for obj in BackupExpectedJobConfig.objects.all()}, "section_help": CONFIG_SECTION_HELP["backups"]}
     return _config_model_page(request, BackupExpectedJobConfig, BackupExpectedJobConfigForm, "security/admin_config/backups.html", "admin_config_backups", extra_context=extra)
 
 
@@ -419,19 +419,19 @@ def admin_config_notifications(request):
             audit_model_form_changes(request.user, obj, old, snapshot_instance(obj), request=request, secret_fields={"webhook_url_secret_ref"})
             messages.success(request, "Canale notifica salvato.")
             return redirect("security:admin_config_notifications")
-    return render(request, "security/admin_config/notifications.html", {"objects": SecurityNotificationChannel.objects.order_by("channel_type", "name"), "form": SecurityNotificationChannelForm()})
+    return render(request, "security/admin_config/notifications.html", {"objects": SecurityNotificationChannel.objects.order_by("channel_type", "name"), "form": SecurityNotificationChannelForm(), "section_help": CONFIG_SECTION_HELP["notifications"]})
 
 
 @ensure_csrf_cookie
 def admin_config_ticketing(request):
-    return _config_model_page(request, SecurityTicketConfig, SecurityTicketConfigForm, "security/admin_config/ticketing.html", "admin_config_ticketing")
+    return _config_model_page(request, SecurityTicketConfig, SecurityTicketConfigForm, "security/admin_config/ticketing.html", "admin_config_ticketing", extra_context={"section_help": CONFIG_SECTION_HELP["ticketing"]})
 
 
 @ensure_csrf_cookie
 def admin_config_audit(request):
     if not can_manage_security_config(request.user):
         return _security_config_denied(request)
-    return render(request, "security/admin_config/audit.html", {"objects": SecurityConfigurationAuditLog.objects.select_related("actor").order_by("-created_at")[:200]})
+    return render(request, "security/admin_config/audit.html", {"objects": SecurityConfigurationAuditLog.objects.select_related("actor").order_by("-created_at")[:200], "section_help": CONFIG_SECTION_HELP["audit"]})
 
 
 @ensure_csrf_cookie
@@ -859,6 +859,66 @@ SECURITY_CENTER_DOCS = [
     {"file": f, "slug": slug_for(f), "title": _DOC_META[f][0], "summary": _DOC_META[f][1]}
     for f in _DOC_FILES
 ]
+
+# Help contestuale per le sezioni della Configuration Studio. Presentation-only:
+# intro + link al documento di guida pertinente + suggerimenti. doc_slug deve
+# corrispondere a uno slug in SECURITY_CENTER_DOCS.
+CONFIG_SECTION_HELP = {
+    "general": {
+        "title": "Impostazioni generali",
+        "intro": "Chiavi di configurazione globali del Security Center (soglie, finestre, comportamenti). Le voci marcate segrete non mostrano il valore.",
+        "doc_slug": "08-configuration-guide",
+        "tips": ["Dopo un seed_security_center_config rivedi qui le chiavi.", "Le modifiche sono tracciate nel registro audit."],
+    },
+    "sources": {
+        "title": "Sorgenti",
+        "intro": "Definisci da dove arrivano i report (email/PDF/CSV/API/manuale), i pattern mittente/oggetto e la cadenza attesa.",
+        "doc_slug": "02-admin-guide",
+        "tips": ["Imposta la cadenza attesa: l'assenza di un report genera un alert (heartbeat).", "Usa la Diagnostica per provare il match mittente/oggetto."],
+    },
+    "parsers": {
+        "title": "Parser",
+        "intro": "Abilita e ordina i parser che trasformano i report in metriche e finding. Priorita' piu' bassa = valutato prima.",
+        "doc_slug": "02-admin-guide",
+        "tips": ["Un parser disattivato non produce metriche.", "Verifica il nome parser sulla sorgente."],
+    },
+    "alert_rules": {
+        "title": "Regole alert",
+        "intro": "Condizioni su metriche che generano alert, con severita', cooldown e finestra di deduplica.",
+        "doc_slug": "07-alert-lifecycle",
+        "tips": ["Il campo Test accetta un JSON di metriche e mostra se la regola scatterebbe, senza creare alert.", "Cooldown e dedup evitano alert ripetuti sullo stesso finding."],
+    },
+    "suppressions": {
+        "title": "Regole di soppressione",
+        "intro": "Silenzia eventi noti/rumorosi per tipo, severita' o condizioni, con validita' temporale.",
+        "doc_slug": "07-alert-lifecycle",
+        "tips": ["Una soppressione attiva riduce il rumore ma puo' nascondere segnali: rivedila periodicamente.", "Imposta una scadenza quando possibile."],
+    },
+    "backups": {
+        "title": "Monitoraggio backup",
+        "intro": "Job di backup attesi e regole per rilevare backup mancanti, falliti o anomali per durata/dimensione.",
+        "doc_slug": "06-backup-addon",
+        "tips": ["Un job atteso non visto oltre le ore limite genera un alert 'mancante'.", "Marca come critici i job la cui assenza deve allertare subito."],
+    },
+    "notifications": {
+        "title": "Notifiche",
+        "intro": "Canali in uscita (email/Teams/dashboard), severita' minima e cooldown per canale. Ogni invio e' tracciato.",
+        "doc_slug": "02-admin-guide",
+        "tips": ["Prova un canale con send_security_test_notification prima di affidarti alle notifiche.", "Il cooldown evita raffiche sullo stesso alert."],
+    },
+    "ticketing": {
+        "title": "Ticketing",
+        "intro": "Come gli alert diventano ticket di remediation: strategia di aggregazione, assegnatario, SLA per severita'.",
+        "doc_slug": "05-defender-addon",
+        "tips": ["L'aggregazione per prodotto raggruppa CVE dello stesso prodotto.", "Gli SLA per severita' guidano gli avvisi di scadenza."],
+    },
+    "audit": {
+        "title": "Registro audit",
+        "intro": "Traccia in sola lettura di ogni modifica di configurazione: attore, oggetto, campo, valori.",
+        "doc_slug": "08-configuration-guide",
+        "tips": ["Usalo per capire chi ha cambiato cosa e quando.", "E' la fonte di verita' per gli audit di conformita'."],
+    },
+}
 
 
 @ensure_csrf_cookie

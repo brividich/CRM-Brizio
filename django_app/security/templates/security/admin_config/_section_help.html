@@ -1,0 +1,19 @@
+{% if section_help %}
+<section class="sec-panel sec-section-help">
+  <div class="sec-section-head">
+    <div>
+      <h2>{{ section_help.title }}</h2>
+      <p class="sec-muted">{{ section_help.intro }}</p>
+    </div>
+    <div class="sec-section-help-actions">
+      <a class="sec-button sec-button-primary" href="{% url 'security:doc_detail' section_help.doc_slug %}">Apri guida</a>
+      <a class="sec-button" href="{% url 'security:admin_diagnostics' %}">Diagnostica</a>
+    </div>
+  </div>
+  {% if section_help.tips %}
+  <ul class="sec-doc-list">
+    {% for tip in section_help.tips %}<li>{{ tip }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+</section>
+{% endif %}

@@ -4,6 +4,7 @@
 {% block page_title %}Configurazione regole alert{% endblock %}
 {% block page_icon %}*{% endblock %}
 {% block soc_content %}
+{% include "security/admin_config/_section_help.html" %}
 <div class="sec-grid sec-two-col">
   <section class="sec-panel">
     <div class="sec-section-head"><h2>Regole</h2><a href="{% url 'security:admin_config' %}">Home configurazione</a></div>
@@ -18,7 +19,16 @@
               <td>{{ object.metric_name }}</td><td>{{ object.condition_operator }} {{ object.threshold_value }}</td>
               <td><span class="sec-badge {{ object.severity }}">{{ object.severity }}</span></td>
               <td>{{ object.trigger_count }}{% if object.last_triggered_at %}<br><small>{{ object.last_triggered_at|date:"Y-m-d H:i" }}</small>{% endif %}</td>
-              <td><form method="post" class="sec-grid">{% csrf_token %}<input type="hidden" name="action" value="test-rule"><input type="hidden" name="rule_id" value="{{ object.pk }}"><input name="metrics_json" value="{&quot;value&quot;: 1}"><button type="submit">Test</button></form></td>
+              <td>
+                <form method="post" class="sec-grid">{% csrf_token %}
+                  <input type="hidden" name="action" value="test-rule">
+                  <input type="hidden" name="rule_id" value="{{ object.pk }}">
+                  <label class="sec-muted" for="metrics_json_{{ object.pk }}">Metriche JSON</label>
+                  <input id="metrics_json_{{ object.pk }}" name="metrics_json" value="{&quot;value&quot;: 1}" aria-label="Metriche di test in JSON">
+                  <button type="submit">Test</button>
+                </form>
+                <small class="sec-muted">Simula la regola su metriche fittizie (es. <code>{&quot;value&quot;: 1}</code>): mostra se scatterebbe, senza creare alert.</small>
+              </td>
             </tr>
           {% empty %}<tr><td colspan="8" class="sec-empty">Nessuna regola alert disponibile.</td></tr>{% endfor %}
         </tbody>
