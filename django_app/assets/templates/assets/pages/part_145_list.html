@@ -1,41 +1,168 @@
 {% extends "assets/base_shell.html" %}
 
+{% block title %}Asset PART 145{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.p145-page { display:grid; gap:16px; }
+
+/* Hero: identità PART 145 (rosso) + conteggio */
+.p145-hero {
+  position:relative; overflow:hidden;
+  border:1px solid #f1c9c9; border-radius:14px;
+  background:linear-gradient(135deg,#fff 0%,#fff5f5 100%);
+  padding:18px 20px 18px 24px;
+  display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+  box-shadow:0 10px 24px rgba(220,38,38,.06);
+}
+.p145-hero:before { content:""; position:absolute; left:0; top:0; bottom:0; width:5px; background:#dc2626; }
+.p145-hero-main { display:flex; align-items:center; gap:16px; min-width:0; }
+.p145-badge {
+  flex:0 0 auto; display:inline-flex; align-items:center; gap:8px;
+  background:#dc2626; color:#fff; border-radius:12px; padding:10px 14px;
+  font-weight:800; letter-spacing:.04em; box-shadow:0 6px 16px rgba(220,38,38,.25);
+}
+.p145-count { display:grid; gap:2px; }
+.p145-count b { font-size:var(--fs-display-xl,1.9rem); font-weight:800; color:#0f172a; line-height:1; }
+.p145-count span { color:#64748b; font-size:var(--fs-sm); font-weight:600; }
+.p145-actions { display:flex; gap:8px; flex-wrap:wrap; }
+
+/* Card tabella */
+.p145-card { border:1px solid #dbe1ea; border-radius:14px; background:#fff; overflow:hidden; box-shadow:0 10px 24px rgba(15,23,42,.045); }
+.p145-card-head { padding:14px 16px; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; background:linear-gradient(90deg,#fff5f5 0%,#fff 60%); }
+.p145-card-head h2 { margin:0; font-size:var(--fs-display-sm,1.1rem); font-weight:800; color:#0f172a; display:flex; align-items:center; gap:8px; }
+.p145-card-head h2:before { content:""; width:8px; height:18px; border-radius:4px; background:#dc2626; }
+
+.p145-table-wrap { overflow-x:auto; }
+.p145-table { width:100%; min-width:820px; border-collapse:separate; border-spacing:0; }
+.p145-table th, .p145-table td { padding:11px 14px; text-align:left; border-bottom:1px solid #eef2f7; vertical-align:middle; }
+.p145-table th { position:sticky; top:0; background:#fef2f2; color:#9b1c1c; font-size:var(--fs-xs); text-transform:uppercase; font-weight:800; letter-spacing:.04em; }
+.p145-table tbody tr { cursor:pointer; transition:background .15s; }
+.p145-table tbody tr:hover { background:#fff7f7; }
+.p145-name { font-weight:800; color:#0f172a; }
+.p145-tag { color:#64748b; font-size:var(--fs-xs); font-weight:700; }
+.p145-muted { color:#94a3b8; }
+.p145-status { display:inline-flex; border-radius:999px; padding:3px 9px; font-size:var(--fs-2xs,.7rem); font-weight:800; background:#f1f5f9; color:#475569; white-space:nowrap; }
+
+/* Empty */
+.p145-empty { padding:56px 20px; text-align:center; }
+.p145-empty-icon { font-size:40px; opacity:.25; }
+.p145-empty-text { margin-top:8px; font-size:var(--fs-md,1rem); font-weight:800; color:#334155; }
+.p145-empty-sub { margin-top:4px; color:#94a3b8; font-size:var(--fs-base); }
+
+/* Export dialog */
+.p145-export-dlg { border:1px solid #dbe1ea; border-radius:14px; padding:20px; min-width:280px; box-shadow:0 8px 32px rgba(15,23,42,.15); }
+.p145-export-dlg h3 { margin:0 0 12px; font-size:1rem; font-weight:800; color:#7f1d1d; }
+.p145-export-links { display:flex; gap:8px; margin-bottom:12px; }
+.p145-export-links a { flex:1; text-align:center; border-radius:10px; padding:9px 14px; font-weight:700; text-decoration:none; font-size:.875rem; color:#fff; }
+.p145-xlsx { background:#16a34a; border:1px solid #16a34a; }
+.p145-pdf { background:#dc2626; border:1px solid #dc2626; }
+.p145-export-close { width:100%; background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; border-radius:8px; padding:7px; font-weight:600; cursor:pointer; font-family:inherit; font-size:.875rem; }
+
+/* Dark mode */
+body.theme-dark .p145-hero { background:linear-gradient(135deg,var(--surface) 0%,rgba(220,38,38,.08) 100%); border-color:rgba(220,38,38,.35); }
+body.theme-dark .p145-count b { color:var(--text); }
+body.theme-dark .p145-count span { color:var(--text-light); }
+body.theme-dark .p145-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .p145-card-head { background:linear-gradient(90deg,rgba(220,38,38,.06) 0%,rgba(255,255,255,.01) 60%); border-bottom-color:var(--border); }
+body.theme-dark .p145-card-head h2 { color:var(--text); }
+body.theme-dark .p145-table th { background:rgba(220,38,38,.12); color:#fca5a5; }
+body.theme-dark .p145-table th, body.theme-dark .p145-table td { border-bottom-color:var(--border); }
+body.theme-dark .p145-table tbody tr:hover { background:rgba(220,38,38,.08); }
+body.theme-dark .p145-name { color:var(--text); }
+body.theme-dark .p145-status { background:rgba(255,255,255,.06); color:var(--text-light); }
+body.theme-dark .p145-export-dlg { background:var(--surface); border-color:var(--border); }
+
+@media (max-width:640px) {
+  .p145-hero { flex-direction:column; align-items:flex-start; }
+}
+</style>
+{% endblock %}
+
 {% block assets_shell_title %}Asset PART 145{% endblock %}
-{% block assets_shell_subtitle %}<p>Elenco degli asset che rientrano nel regolamento aeronautico PART 145.</p>{% endblock %}
+{% block assets_shell_subtitle %}<p>Asset che rientrano nel regolamento aeronautico PART 145.</p>{% endblock %}
+
+{% block assets_shell_toolbar %}
+<a class="btn btn-secondary" href="{% url 'assets:asset_list' %}">Inventario completo</a>
+{% endblock %}
 
 {% block assets_shell_content %}
-  {% if part_145_assets %}
-    <div style="overflow-x:auto;">
-      <table class="table" style="width:100%; border-collapse:collapse;">
+<section class="p145-page">
+
+  <div class="p145-hero">
+    <div class="p145-hero-main">
+      <span class="p145-badge">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2 3 6v6c0 5 3.8 8.4 9 10 5.2-1.6 9-5 9-10V6l-9-4Z" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg>
+        PART 145
+      </span>
+      <div class="p145-count">
+        <b>{{ part_145_total }}</b>
+        <span>{% if part_145_total == 1 %}asset marcato PART 145{% else %}asset marcati PART 145{% endif %}</span>
+      </div>
+    </div>
+    <div class="p145-actions">
+      <button type="button" class="btn" onclick="document.getElementById('p145ExportDlg').showModal()">&#8595; Esporta</button>
+    </div>
+  </div>
+
+  <article class="p145-card">
+    <div class="p145-card-head">
+      <h2>Elenco asset</h2>
+      <span class="p145-tag">Ordinati per nome</span>
+    </div>
+    {% if part_145_assets %}
+    <div class="p145-table-wrap">
+      <table class="p145-table">
         <thead>
           <tr>
-            <th>Asset</th>
-            <th>Tag</th>
-            <th>Stato</th>
-            <th>Categoria</th>
-            <th>Reparto</th>
-            <th>Produttore</th>
-            <th>Modello</th>
-            <th>Seriale</th>
+            <th>Asset</th><th>Tag</th><th>Stato</th><th>Categoria</th>
+            <th>Reparto</th><th>Produttore</th><th>Modello</th><th>Seriale</th>
           </tr>
         </thead>
         <tbody>
           {% for asset in part_145_assets %}
-            <tr data-row-href="{% url 'assets:asset_view' asset.id %}">
-              <td>{{ asset.name }}</td>
-              <td>#{{ asset.asset_tag }}</td>
-              <td>{{ asset.get_status_display }}</td>
-              <td>{{ asset.category_label }}</td>
-              <td>{{ asset.reparto|default:"—" }}</td>
-              <td>{{ asset.manufacturer|default:"—" }}</td>
-              <td>{{ asset.model|default:"—" }}</td>
-              <td>{{ asset.serial_number|default:"—" }}</td>
-            </tr>
+          <tr data-href="{% url 'assets:asset_view' asset.id %}">
+            <td><div class="p145-name">{{ asset.name }}</div></td>
+            <td><span class="p145-tag">#{{ asset.asset_tag }}</span></td>
+            <td><span class="p145-status">{{ asset.get_status_display }}</span></td>
+            <td>{{ asset.category_label|default:"—" }}</td>
+            <td>{{ asset.reparto|default:"—" }}</td>
+            <td>{{ asset.manufacturer|default:"—" }}</td>
+            <td>{{ asset.model|default:"—" }}</td>
+            <td><span class="p145-muted">{{ asset.serial_number|default:"—" }}</span></td>
+          </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
-  {% else %}
-    <p class="as-note">Nessun asset marcato PART 145.</p>
-  {% endif %}
+    {% else %}
+    <div class="p145-empty">
+      <div class="p145-empty-icon">🛩️</div>
+      <div class="p145-empty-text">Nessun asset marcato PART 145</div>
+      <div class="p145-empty-sub">Attiva «Rientra in PART 145» nella scheda o nel form di un asset per vederlo qui.</div>
+    </div>
+    {% endif %}
+  </article>
+
+</section>
+
+<dialog id="p145ExportDlg" class="p145-export-dlg">
+  <h3>Esporta elenco PART 145</h3>
+  <div class="p145-export-links">
+    <a class="p145-xlsx" href="{% url 'assets:part_145_export_excel' %}">&#8595; XLSX</a>
+    <a class="p145-pdf" href="{% url 'assets:part_145_export_pdf' %}">&#8595; PDF</a>
+  </div>
+  <button type="button" class="p145-export-close" onclick="document.getElementById('p145ExportDlg').close()">Chiudi</button>
+</dialog>
+{% endblock %}
+
+{% block assets_shell_scripts %}
+<script>
+document.querySelectorAll('.p145-table tbody tr[data-href]').forEach(function (row) {
+  row.addEventListener('click', function (event) {
+    if (event.target.closest('a,button')) return;
+    window.location.href = row.getAttribute('data-href');
+  });
+});
+</script>
 {% endblock %}

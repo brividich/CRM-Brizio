@@ -8623,8 +8623,89 @@ def asset_part_145_list(request: HttpRequest) -> HttpResponse:
     context = {
         "page_title": "Asset PART 145",
         "part_145_assets": part_145_assets,
+        "part_145_total": part_145_assets.count(),
+        # Shell context: senza questo la sidebar del modulo asset resta vuota.
+        **_assets_shell_context(request, search_action=reverse("assets:asset_list")),
     }
     return render(request, "assets/pages/part_145_list.html", context)
+
+
+def _part_145_export_dataset() -> tuple[list[str], list[list[str]]]:
+    """Header + righe (stringhe) per l'export PART 145; stesso ordine della lista."""
+    assets = (
+        Asset.objects.filter(part_145=True)
+        .select_related("asset_category")
+        .order_by("name", "asset_tag", "id")
+    )
+    headers = ["Asset", "Tag", "Stato", "Categoria", "Reparto", "Produttore", "Modello", "Seriale"]
+    rows = [
+        [
+            a.name or "",
+            a.asset_tag or "",
+            a.get_status_display(),
+            a.category_label or "",
+            a.reparto or "",
+            a.manufacturer or "",
+            a.model or "",
+            a.serial_number or "",
+        ]
+        for a in assets
+    ]
+    return headers, rows
+
+
+@login_required
+def asset_part_145_export_pdf(request: HttpRequest) -> HttpResponse:
+    """Esporta l'elenco PART 145 in PDF (report tabellare standard)."""
+    headers, rows = _part_145_export_dataset()
+    today = timezone.localdate().strftime("%Y%m%d")
+    pdf_bytes = _report_table_pdf(title="Asset PART 145", headers=headers, rows=rows)
+    resp = HttpResponse(pdf_bytes, content_type="application/pdf")
+    resp["Content-Disposition"] = f'attachment; filename="asset_part145_{today}.pdf"'
+    return resp
+
+
+@login_required
+def asset_part_145_export_excel(request: HttpRequest) -> HttpResponse:
+    """Esporta l'elenco PART 145 in Excel (.xlsx)."""
+    import io
+
+    import openpyxl
+    from openpyxl.styles import Alignment, Font, PatternFill
+
+    from core.excel_export import write_cell, write_row
+
+    headers, rows = _part_145_export_dataset()
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Asset PART 145"
+
+    header_fill = PatternFill(fill_type="solid", fgColor="DC2626")
+    header_font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
+    for col_idx, header in enumerate(headers, 1):
+        cell = write_cell(ws, 1, col_idx, header)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 20
+
+    for row_idx, values in enumerate(rows, 2):
+        write_row(ws, row_idx, values)
+
+    for col in ws.columns:
+        max_len = max((len(str(cell.value or "")) for cell in col), default=0)
+        ws.column_dimensions[col[0].column_letter].width = min(max(max_len + 3, 10), 45)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    today_str = timezone.localdate().strftime("%Y%m%d")
+    resp = HttpResponse(
+        buf.read(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    resp["Content-Disposition"] = f'attachment; filename="asset_part145_{today_str}.xlsx"'
+    return resp
 
 
 @login_required
@@ -9930,12 +10011,30 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
     collection_url = reverse("assets:work_machine_list") if asset.asset_type == Asset.TYPE_WORK_MACHINE else reverse("assets:asset_list")
     collection_label = "Macchine di lavoro" if asset.asset_type == Asset.TYPE_WORK_MACHINE else "Inventario"
 
-    map_marker = (
-        PlantLayoutMarker.objects.filter(asset=asset, layout__is_active=True)
-        .select_related("layout")
-        .order_by("layout__category", "layout__name", "id")
-        .first()
-    )
+    # Planimetria della scheda: mostra quella COERENTE COL REPARTO dell'asset,
+    # non un marker qualunque. Gli asset con marker su una planimetria non
+    # coerente (storici / creati prima del riallineamento al reparto) vengono
+    # auto-riparati qui, spostando il marker sul layout corretto (idempotente).
+    resolved_layout, layout_is_specific = _resolve_asset_plant_layout(asset)
+    if resolved_layout is not None and layout_is_specific:
+        has_marker = PlantLayoutMarker.objects.filter(asset=asset, layout__is_active=True).exists()
+        on_resolved = PlantLayoutMarker.objects.filter(asset=asset, layout=resolved_layout).exists()
+        if has_marker and not on_resolved:
+            _ensure_asset_plant_layout_marker(asset)
+    map_marker = None
+    if resolved_layout is not None:
+        map_marker = (
+            PlantLayoutMarker.objects.filter(asset=asset, layout=resolved_layout, layout__is_active=True)
+            .select_related("layout")
+            .first()
+        )
+    if map_marker is None:
+        map_marker = (
+            PlantLayoutMarker.objects.filter(asset=asset, layout__is_active=True)
+            .select_related("layout")
+            .order_by("layout__category", "layout__name", "id")
+            .first()
+        )
     if map_marker:
         map_url = reverse("assets:plant_layout_map") + f"?asset={asset.id}&category={quote(map_marker.layout.category)}"
     else:

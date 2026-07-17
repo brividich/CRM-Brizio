@@ -641,6 +641,51 @@ class AssetsRoutingTests(TestCase):
         # La voce di navigazione (seed AssetSidebarButton) linka la sezione PART 145.
         self.assertContains(resp, reverse("assets:part_145_list"))
 
+    def test_part_145_list_includes_module_sidebar_context(self):
+        # Regressione: la sezione PART 145 non passava il context della shell asset
+        # -> sidebar del modulo VUOTA. Ora deve includerlo (assets_sidebar_groups).
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("assets:part_145_list"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("assets_sidebar_groups", resp.context)
+        self.assertIsNotNone(resp.context["assets_sidebar_groups"])
+
+    def test_part_145_export_excel_and_pdf(self):
+        self.client.force_login(self.user)
+        Asset.objects.create(asset_tag="AST-P145-X1", name="Aeromobile Export", part_145=True)
+        xlsx = self.client.get(reverse("assets:part_145_export_excel"))
+        self.assertEqual(xlsx.status_code, 200)
+        self.assertIn("spreadsheetml", xlsx["Content-Type"])
+        self.assertIn("attachment", xlsx["Content-Disposition"])
+        pdf = self.client.get(reverse("assets:part_145_export_pdf"))
+        self.assertEqual(pdf.status_code, 200)
+        self.assertEqual(pdf["Content-Type"], "application/pdf")
+
+    def test_asset_detail_plant_layout_uses_reparto_layout_not_default(self):
+        # Bug: la scheda mostrava sempre la piantina di DEFAULT (primo layout attivo),
+        # non quella del reparto dell'asset. Il marker storico va auto-riallineato.
+        self.client.force_login(self.user)
+        with _workspace_temporary_directory("assets-p145-map-") as tmpdir:
+            with override_settings(MEDIA_ROOT=Path(tmpdir)):
+                officina = PlantLayout.objects.create(
+                    category="Officina", name="Officina", image=_valid_png_upload("o.png"), is_active=True
+                )
+                cromatura = PlantLayout.objects.create(
+                    category="Reparto Cromatura", name="Cromatura", image=_valid_png_upload("c.png"), is_active=True
+                )
+                asset = Asset.objects.create(asset_tag="AST-MAP-1", name="Vasca", reparto="Reparto Cromatura")
+                # Marker "storico" sul layout SBAGLIATO (default Officina).
+                PlantLayoutMarker.objects.create(
+                    layout=officina, asset=asset, x_percent=10, y_percent=10, is_visible=True
+                )
+                resp = self.client.get(reverse("assets:asset_view", args=[asset.id]))
+                self.assertEqual(resp.status_code, 200)
+                # La scheda mostra il layout del REPARTO, non quello di default.
+                self.assertEqual(resp.context["map_marker"].layout_id, cromatura.id)
+                # Self-heal: il marker è stato spostato sul layout corretto.
+                self.assertTrue(PlantLayoutMarker.objects.filter(asset=asset, layout=cromatura).exists())
+                self.assertFalse(PlantLayoutMarker.objects.filter(asset=asset, layout=officina).exists())
+
     def test_asset_list_firewall_context_uses_common_default_columns(self):
         firewall_asset = Asset.objects.create(
             asset_tag="IT-FW-001",
