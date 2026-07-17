@@ -36,6 +36,7 @@ urlpatterns = [
     # B3 — inbox & help
     path("inbox/", views.inbox_page, name="inbox"),
     path("help/", views.help_page, name="help"),
+    path("docs/<slug:slug>/", views.doc_detail, name="doc_detail"),
     # B3 — admin / config (Configuration Studio)
     path("admin/config/", views.admin_config_dashboard, name="admin_config"),
     path("admin/config/general/", views.admin_config_general, name="admin_config_general"),

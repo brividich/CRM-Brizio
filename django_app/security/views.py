@@ -74,6 +74,7 @@ from .services.ingestion import get_or_create_source, ingest_mailbox_message, in
 from .services.addon_registry import get_addon_detail, get_addon_registry
 from .services.diagnostics import build_diagnostics_context
 from .services.security_inbox_pipeline import process_mailbox_message, process_source_file
+from .docs_render import DOC_FILES as _DOC_FILES, load_doc, slug_for
 
 
 INBOX_ALLOWED_EXTENSIONS = {".pdf", ".csv", ".txt", ".eml", ".log"}
@@ -241,6 +242,18 @@ def help_page(request):
     if not request.user.is_authenticated:
         return redirect_to_login(request.get_full_path(), login_url="/admin/login/")
     return render(request, "security/help.html", {"docs": SECURITY_CENTER_DOCS})
+
+
+@ensure_csrf_cookie
+def doc_detail(request, slug):
+    if not request.user.is_authenticated:
+        return redirect_to_login(request.get_full_path(), login_url="/admin/login/")
+    if not can_view_security_center(request.user):
+        return _security_config_denied(request)
+    doc = load_doc(slug)
+    if doc is None:
+        raise Http404("Documento sconosciuto.")
+    return render(request, "security/doc_detail.html", {"doc": doc, "docs": SECURITY_CENTER_DOCS})
 
 
 @require_POST
@@ -827,20 +840,24 @@ def _parse_snooze_until(value):
     return parsed
 
 
+_DOC_META = {
+    "00_START_HERE.md": ("Da qui", "Ambito MVP, checklist primo setup e primi 30 minuti."),
+    "01_ARCHITECTURE.md": ("Architettura", "Motore core, parser, regole, evidenze, KPI, configurazione admin, diagnostica e moduli."),
+    "02_ADMIN_GUIDE.md": ("Guida admin", "Sorgenti, parser, regole alert, soppressioni, backup, notifiche, ticketing e registro audit."),
+    "03_ADDONS.md": ("Moduli", "Modello core rispetto ai moduli e architettura target dei moduli."),
+    "04_WATCHGUARD_ADDON.md": ("Modulo WatchGuard", "Input WatchGuard supportati, metriche, regole, riduzione rumore e limiti."),
+    "05_DEFENDER_ADDON.md": ("Modulo Microsoft Defender", "Email vulnerabilita, evidenze CVE, deduplica ticket e ricorrenze."),
+    "06_BACKUP_ADDON.md": ("Modulo Backup/NAS", "Sorgente Synology Active Backup, job attesi, logica backup mancanti e salute backup."),
+    "07_ALERT_LIFECYCLE.md": ("Ciclo vita alert", "Stati alert e differenze tra presa in carico, posticipo, silenziamento, soppressione, risoluzione, falso positivo e chiusura."),
+    "08_CONFIGURATION_GUIDE.md": ("Guida configurazione", "Configurazione seed e impostazioni DB per sorgenti, parser, regole, soppressioni, backup, notifiche e ticketing."),
+    "09_TROUBLESHOOTING.md": ("Risoluzione problemi", "Problemi comuni su parser, sorgenti, alert, ticket, backup, notifiche, seed e permessi."),
+    "10_DEVELOPER_GUIDE.md": ("Guida sviluppo", "Purezza parser, struttura output, avvisi, test, configurazione seed, regole alert e visibilita dashboard."),
+    "11_OPERATIONS_RUNBOOK.md": ("Runbook operativo", "Checklist operative giornaliere, settimanali e mensili."),
+    "MAILBOX_INGESTION.md": ("Mailbox Ingestion", "Ingestion schedulata da mailbox, provider, deduplicazione, configurazione e troubleshooting."),
+}
 SECURITY_CENTER_DOCS = [
-    {"file": "00_START_HERE.md", "title": "Da qui", "summary": "Ambito MVP, checklist primo setup e primi 30 minuti."},
-    {"file": "01_ARCHITECTURE.md", "title": "Architettura", "summary": "Motore core, parser, regole, evidenze, KPI, configurazione admin, diagnostica e moduli."},
-    {"file": "02_ADMIN_GUIDE.md", "title": "Guida admin", "summary": "Sorgenti, parser, regole alert, soppressioni, backup, notifiche, ticketing e registro audit."},
-    {"file": "03_ADDONS.md", "title": "Moduli", "summary": "Modello core rispetto ai moduli e architettura target dei moduli."},
-    {"file": "04_WATCHGUARD_ADDON.md", "title": "Modulo WatchGuard", "summary": "Input WatchGuard supportati, metriche, regole, riduzione rumore e limiti."},
-    {"file": "05_DEFENDER_ADDON.md", "title": "Modulo Microsoft Defender", "summary": "Email vulnerabilita, evidenze CVE, deduplica ticket e ricorrenze."},
-    {"file": "06_BACKUP_ADDON.md", "title": "Modulo Backup/NAS", "summary": "Sorgente Synology Active Backup, job attesi, logica backup mancanti e salute backup."},
-    {"file": "07_ALERT_LIFECYCLE.md", "title": "Ciclo vita alert", "summary": "Stati alert e differenze tra presa in carico, posticipo, silenziamento, soppressione, risoluzione, falso positivo e chiusura."},
-    {"file": "08_CONFIGURATION_GUIDE.md", "title": "Guida configurazione", "summary": "Configurazione seed e impostazioni DB per sorgenti, parser, regole, soppressioni, backup, notifiche e ticketing."},
-    {"file": "09_TROUBLESHOOTING.md", "title": "Risoluzione problemi", "summary": "Problemi comuni su parser, sorgenti, alert, ticket, backup, notifiche, seed e permessi."},
-    {"file": "10_DEVELOPER_GUIDE.md", "title": "Guida sviluppo", "summary": "Purezza parser, struttura output, avvisi, test, configurazione seed, regole alert e visibilita dashboard."},
-    {"file": "11_OPERATIONS_RUNBOOK.md", "title": "Runbook operativo", "summary": "Checklist operative giornaliere, settimanali e mensili."},
-    {"file": "MAILBOX_INGESTION.md", "title": "Mailbox Ingestion", "summary": "Ingestion schedulata da mailbox, provider, deduplicazione, configurazione e troubleshooting."},
+    {"file": f, "slug": slug_for(f), "title": _DOC_META[f][0], "summary": _DOC_META[f][1]}
+    for f in _DOC_FILES
 ]
 
 

@@ -35,7 +35,7 @@
 
 **Modificati:**
 - `django_app/security/views.py` — `SECURITY_CENTER_DOCS` con `slug`; view `doc_detail`; dict `CONFIG_SECTION_HELP`; `section_help` nel context delle 9 view `admin_config_*`.
-- `django_app/security/urls.py` — route `doc_detail`.
+- `django_app/security/urls_hub.py` — route `doc_detail` (URLconf realmente montata su `/soc/`; NON `urls.py`, che e' la legacy DRF/AI non inclusa).
 - `django_app/security/templates/security/admin_docs.html`, `help.html` — righe clickabili; nota percorso aggiornata.
 - `django_app/security/templates/security/_base_soc.html` — voce nav "Guida".
 - Le 9 `django_app/security/templates/security/admin_config/*.html` — include `_section_help`; `alert_rules.html` fix test-regola/empty-state.
@@ -534,11 +534,11 @@ def doc_detail(request, slug):
 ```
 (Verifica che `Http404`, `redirect_to_login`, `ensure_csrf_cookie` siano gia' importati in `views.py`; lo sono per le view vicine.)
 
-- [ ] **Step 3b: Route** in `urls.py`
+- [ ] **Step 3b: Route** in `urls_hub.py` (la URLconf montata su `/soc/`; `urls.py` e' la legacy non inclusa)
 
-Dopo `path("security/help/", views.help_page, name="help"),` aggiungi:
+Dopo `path("help/", views.help_page, name="help"),` aggiungi:
 ```python
-    path("security/docs/<slug:slug>/", views.doc_detail, name="doc_detail"),
+    path("docs/<slug:slug>/", views.doc_detail, name="doc_detail"),
 ```
 
 - [ ] **Step 3c: Template** `django_app/security/templates/security/doc_detail.html`

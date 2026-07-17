@@ -1,0 +1,26 @@
+{% extends "security/_base_soc.html" %}
+{% block title %}{{ doc.title }} - Guida Security Center{% endblock %}
+{% block page_marker %}Guida Security Center{% endblock %}
+{% block page_title %}{{ doc.title }}{% endblock %}
+{% block page_icon %}i{% endblock %}
+{% block soc_content %}
+<div class="sec-grid sec-two-col sec-doc-layout">
+  <aside class="sec-panel sec-doc-toc">
+    <div class="sec-section-head"><h2>Indice</h2><a href="{% url 'security:admin_docs' %}">Tutti i documenti</a></div>
+    <ul class="sec-doc-list">
+      {% for item in doc.toc %}
+        <li class="sec-toc-l{{ item.level }}"><a href="#{{ item.slug }}">{{ item.text }}</a></li>
+      {% empty %}
+        <li class="sec-muted">Nessuna sezione.</li>
+      {% endfor %}
+    </ul>
+    <p style="margin-top:12px">
+      <a class="sec-button" href="{% url 'security:admin_diagnostics' %}">Diagnostica</a>
+      <a class="sec-button" href="{% url 'security:admin_config' %}">Configurazione</a>
+    </p>
+  </aside>
+  <article class="sec-panel sec-doc-body">
+    {{ doc.html }}
+  </article>
+</div>
+{% endblock %}
