@@ -10,7 +10,7 @@
   <div class="sec-section-head">
     <div>
       <h2>Documentazione</h2>
-      <p class="sec-muted">Indice in sola lettura della documentazione operativa e dei moduli in <code>docs/security-center/</code>.</p>
+      <p class="sec-muted">Documentazione operativa e dei moduli integrata nel modulo. Clicca un documento per aprirlo.</p>
     </div>
     <a class="sec-button" href="{% url 'security:admin_config' %}">Configurazione</a>
   </div>
@@ -19,7 +19,7 @@
       <thead><tr><th>File</th><th>Argomento</th><th>Quando usarlo</th></tr></thead>
       <tbody>
         {% for doc in docs %}
-          <tr><td><code>{{ doc.file }}</code></td><td>{{ doc.title }}</td><td>{{ doc.summary }}</td></tr>
+          <tr><td><a href="{% url 'security:doc_detail' doc.slug %}"><code>{{ doc.file }}</code></a></td><td>{{ doc.title }}</td><td>{{ doc.summary }}</td></tr>
         {% endfor %}
       </tbody>
     </table>

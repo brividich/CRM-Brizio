@@ -35,3 +35,22 @@ class DocDetailViewTests(TestCase):
         for d in SECURITY_CENTER_DOCS:
             self.assertIn("slug", d)
             self.assertEqual(dr.filename_for(d["slug"]), d["file"])
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False)
+class DocsIndexTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin = User.objects.create_superuser("soc_admin2", "soc2@example.org", "pw-Test-12345")
+
+    def test_admin_docs_rows_link_to_detail(self):
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("security:admin_docs"))
+        self.assertEqual(resp.status_code, 200)
+        first = reverse("security:doc_detail", args=[dr.slug_for(dr.DOC_FILES[0])])
+        self.assertContains(resp, f'href="{first}"')
+
+    def test_help_links_to_detail(self):
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("security:help"))
+        self.assertContains(resp, reverse("security:doc_detail", args=[dr.slug_for(dr.DOC_FILES[0])]))

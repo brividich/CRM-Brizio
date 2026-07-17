@@ -74,7 +74,7 @@
       <thead><tr><th>Documento</th><th>Scopo</th></tr></thead>
       <tbody>
         {% for doc in docs %}
-          <tr><td><code>{{ doc.file }}</code></td><td>{{ doc.title }}</td></tr>
+          <tr><td><a href="{% url 'security:doc_detail' doc.slug %}"><code>{{ doc.file }}</code></a></td><td>{{ doc.title }}</td></tr>
         {% endfor %}
       </tbody>
     </table>
