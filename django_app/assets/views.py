@@ -8818,9 +8818,17 @@ def asset_list(request: HttpRequest) -> HttpResponse:
     # e' confluita qui. ?group=production restringe l'inventario ai soli asset
     # di produzione (CNC / macchine di lavoro / carroponte), riusando la stessa
     # lista, colonne e ricerca degli altri tipi.
+    # IMPORTANTE: il filtro di gruppo vale solo per la VISTA di navigazione
+    # (nessuna ricerca). Appena c'e' una query testuale la ricerca deve spaziare
+    # su TUTTO l'inventario: l'utente cerca un asset ovunque sia classificato,
+    # anche se il suo tipo non e' di produzione (es. una macchina registrata con
+    # tipo generico). Confinare la ricerca al gruppo nasconderebbe risultati.
     production_group = _clean_string(request.GET.get("group")).lower() == "production"
+    search_active = bool(_clean_string(request.GET.get("q")))
     if production_group:
-        assets = assets.filter(asset_type__in=PRODUCTION_ASSET_TYPES).select_related("work_machine")
+        assets = assets.select_related("work_machine")
+        if not search_active:
+            assets = assets.filter(asset_type__in=PRODUCTION_ASSET_TYPES)
 
     if form.is_valid():
         q = _clean_string(form.cleaned_data.get("q"))

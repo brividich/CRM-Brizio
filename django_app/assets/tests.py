@@ -999,6 +999,29 @@ class AssetsRoutingTests(TestCase):
         self.assertContains(response, "Centro CNC")
         self.assertNotContains(response, "Tornio manuale")
 
+    def test_asset_list_production_group_search_spans_all_assets(self):
+        # Con una ricerca attiva il gruppo produzione NON deve confinare i
+        # risultati: un asset registrato con tipo generico (non di produzione)
+        # deve comunque essere trovato cercando per N. interno.
+        Asset.objects.create(
+            asset_tag="GEN-188",
+            name="Macchina registrata come Altro",
+            asset_type=Asset.TYPE_OTHER,
+            reparto="OFF",
+            internal_number="188",
+            source_key="manual-generic-188",
+        )
+        self.client.force_login(self.user)
+        # Senza ricerca: la vista di navigazione mostra solo i tipi di produzione.
+        landing = self.client.get(reverse("assets:asset_list"), {"group": "production"})
+        self.assertNotContains(landing, "Macchina registrata come Altro")
+        # Con ricerca: spazia su tutto e trova anche l'asset non di produzione.
+        found = self.client.get(
+            reverse("assets:asset_list"), {"group": "production", "q": "188"}
+        )
+        self.assertEqual(found.status_code, 200)
+        self.assertContains(found, "Macchina registrata come Altro")
+
     def test_device_list_uses_common_asset_table_columns(self):
         Asset.objects.create(
             asset_tag="IT-PC-001",
