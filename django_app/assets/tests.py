@@ -2459,6 +2459,23 @@ class AssetsRoutingTests(TestCase):
         self.assertEqual(response["Content-Type"], "application/pdf")
         self.assertTrue(response.content.startswith(b"%PDF"))
 
+    def test_asset_report_snapshot_includes_part_145(self):
+        from assets.views import _build_asset_report_snapshot
+
+        asset = Asset.objects.create(asset_tag="AST-P145-RPT", name="Aeromobile Report", part_145=True)
+        snapshot = _build_asset_report_snapshot(asset)
+        self.assertIn(("PART 145", "Sì"), snapshot["summary_rows"])
+
+    def test_asset_report_pdf_renders_for_part_145_asset(self):
+        # Il report riscritto col template standard (platypus) deve generare un PDF
+        # valido anche col banner PART 145 in evidenza.
+        self.client.force_login(self.user)
+        asset = Asset.objects.create(asset_tag="AST-P145-RPT2", name="Vasca PART 145", part_145=True)
+        response = self.client.get(reverse("assets:asset_report_pdf", kwargs={"id": asset.id}))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        self.assertTrue(response.content.startswith(b"%PDF"))
+
     def test_asset_qr_label_returns_pdf(self):
         asset = Asset.objects.create(
             name="Macchina QR",

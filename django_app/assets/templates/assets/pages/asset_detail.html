@@ -15,7 +15,7 @@
 .as-page-head h1 .af-shell-back:hover { background:#eff6ff; border-color:#bfdbfe; }
 .af-page { display: grid; gap: 12px; width: 100%; max-width: 1480px; margin: 0 auto; }
 .af-header {
-  position:relative; overflow:hidden;
+  position:relative; overflow:visible; z-index:3;
   display:grid; grid-template-columns:minmax(0,1fr) minmax(300px,390px); align-items:stretch; gap:0;
   border:1px solid #d9e2ef; border-radius:10px;
   background:linear-gradient(135deg,#ffffff 0%,#f8fafc 58%,#ecfdf5 100%);
@@ -24,6 +24,7 @@
 .af-header:before {
   content:""; position:absolute; left:0; top:0; bottom:0; width:6px;
   background:linear-gradient(180deg,#2563eb 0%,#14b8a6 55%,#f59e0b 100%);
+  border-radius:10px 0 0 10px;
 }
 .af-hero-main { padding:16px 18px 16px 24px; display:grid; gap:10px; min-width:0; }
 .af-title-row { display:flex; gap:12px; align-items:flex-start; min-width:0; }
@@ -58,6 +59,7 @@ body.theme-dark .af-targhetta { background:#0b1220; border-color:var(--border); 
 .af-action-panel {
   border-left:1px solid #dbe3ef; background:rgba(255,255,255,.76);
   padding:14px; display:grid; align-content:center; gap:9px;
+  border-radius:0 10px 10px 0;
 }
 .af-action-title { color:#64748b; font-size:var(--fs-xs); font-weight:800; text-transform:uppercase; letter-spacing:.08em; }
 .af-pill {
@@ -352,7 +354,7 @@ body.theme-dark .af-targhetta { background:#0b1220; border-color:var(--border); 
   .af-page { max-width: 980px; }
   .af-sections { column-count: 1; }
   .af-header { grid-template-columns:1fr; }
-  .af-action-panel { border-left:none; border-top:1px solid #dbe3ef; }
+  .af-action-panel { border-left:none; border-top:1px solid #dbe3ef; border-radius:0 0 10px 10px; }
 }
 @media (max-width: 980px) {
   .af-span-third, .af-span-half, .af-span-wide { grid-column: span 6; }
@@ -572,6 +574,17 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
             >{{ button.label }}</button>
           {% endif %}
         {% endfor %}
+        {% if can_retire_asset %}
+          {% if asset_is_retired %}
+            <button type="button" class="af-btn af-btn-secondary" id="af-retire-btn"
+              data-target-status="IN_USE"
+              data-confirm="Riportare «{{ asset.name }}» in uso?">Riattiva</button>
+          {% else %}
+            <button type="button" class="af-btn af-btn-danger" id="af-retire-btn"
+              data-target-status="RETIRED"
+              data-confirm="Mettere fuori uso «{{ asset.name }}»? Verrà segnato come «Dismesso» e nascosto dagli elenchi (reversibile con «Riattiva»).">Metti fuori uso</button>
+          {% endif %}
+        {% endif %}
         <details class="af-export-menu">
           <summary class="af-btn af-btn-secondary">Esporta / Altro &#9662;</summary>
           <div class="af-export-pop">
@@ -1672,6 +1685,30 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
       if (!menu.contains(event.target)) menu.removeAttribute("open");
     });
   });
+
+  // "Metti fuori uso" / "Riattiva": cambia lo stato via l'endpoint bulk (admin).
+  var retireBtn = document.getElementById("af-retire-btn");
+  if (retireBtn) {
+    retireBtn.addEventListener("click", function () {
+      var msg = retireBtn.getAttribute("data-confirm") || "Confermare l'operazione?";
+      if (!window.confirm(msg)) return;
+      var targetStatus = retireBtn.getAttribute("data-target-status");
+      var csrf = (document.cookie.split(";").map(function (c) { return c.trim(); })
+        .filter(function (c) { return c.indexOf("csrftoken=") === 0; })[0] || "").split("=")[1] || "";
+      retireBtn.disabled = true;
+      fetch("{{ asset_bulk_update_url }}", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
+        body: JSON.stringify({ ids: [{{ asset.id }}], fields: { status: targetStatus } })
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data && data.ok) { window.location.reload(); }
+          else { window.alert("Operazione non riuscita: " + ((data && data.error) || "errore")); retireBtn.disabled = false; }
+        })
+        .catch(function () { window.alert("Errore di rete. Riprova."); retireBtn.disabled = false; });
+    });
+  }
 })();
 </script>
 

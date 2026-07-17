@@ -1995,6 +1995,7 @@ def _build_asset_report_snapshot(asset: Asset) -> dict[str, object]:
         ("Categoria", _coalesce_str(asset.category_label, "-")),
         ("Tipologia", _coalesce_str(asset.get_asset_type_display(), "-")),
         ("Stato", _coalesce_str(asset.get_status_display(), "-")),
+        ("PART 145", "Sì" if getattr(asset, "part_145", False) else "No"),
         ("Reparto", _coalesce_str(asset.reparto, "-")),
         ("Produttore", _coalesce_str(asset.manufacturer, "-")),
         ("Modello", _coalesce_str(asset.model, "-")),
@@ -2096,140 +2097,104 @@ def _build_asset_report_snapshot(asset: Asset) -> dict[str, object]:
     }
 
 
-def _draw_asset_report_pdf(
-    pdf: canvas.Canvas,
-    *,
-    theme: PdfTheme,
-    asset: Asset,
-    snapshot: dict[str, object],
-    generated_at: datetime,
-    template_name: str = "",
-) -> None:
-    page_width, page_height = A4
-    margin_x = 14 * mm
-    top_y = page_height - (12 * mm)
-    bottom_y = 15 * mm
-    current_y = top_y
-    page_number = 1
+def render_asset_report_pdf(asset: Asset, snapshot: dict[str, object], *, template_name: str = "") -> bytes:
+    """Report PDF della scheda asset col template standard del portale (``core.pdf``).
 
-    def draw_header() -> None:
-        nonlocal current_y
-        subtitle = f"{_coalesce_str(asset.asset_tag, '-')} - {_coalesce_str(asset.name, '-')}"
-        if template_name:
-            subtitle = f"{subtitle} | Template: {template_name}"
-        current_y = draw_canvas_header(
-            pdf,
-            theme=theme,
-            page_width=page_width,
-            page_height=page_height,
-            left_margin=margin_x,
-            right_margin=margin_x,
-            title="Report asset",
-            subtitle=subtitle,
-            right_subtitle=f'Generato il {generated_at.strftime("%d-%m-%Y %H:%M")}',
+    Allinea la veste a tutti gli altri report (header/footer branded via
+    ``header_footer_callback``, tabelle zebra col colore primario) e mette in
+    evidenza il flag PART 145.
+    """
+    import io as _io
+    from html import escape as _escape
+
+    from reportlab.lib import colors as _colors
+    from reportlab.lib.styles import ParagraphStyle as _ParagraphStyle
+    from reportlab.lib.units import mm as _mm
+    from reportlab.platypus import Paragraph as _Paragraph, Spacer as _Spacer, Table as _Table, TableStyle as _TableStyle
+
+    from core.pdf import build_styles, data_table, header_footer_callback, make_document, section_heading
+
+    theme = PdfTheme.from_branding()
+    styles = build_styles(theme)
+    buf = _io.BytesIO()
+    doc = make_document(buf, title=f"Report asset {asset.asset_tag or ''}".strip())
+    page_w = doc.pagesize[0] - doc.leftMargin - doc.rightMargin
+    story: list = []
+
+    # Evidenza PART 145 (rosso) in testa quando applicabile.
+    if getattr(asset, "part_145", False):
+        badge_style = _ParagraphStyle(
+            "p145Badge", fontName="Helvetica-Bold", fontSize=11, textColor=_colors.white, alignment=1,
         )
-
-    def draw_footer() -> None:
-        draw_canvas_footer(
-            pdf,
-            theme=theme,
-            page_width=page_width,
-            left_margin=margin_x,
-            right_margin=margin_x,
-            baseline_y=bottom_y,
-            page_number=page_number,
+        note_style = _ParagraphStyle(
+            "p145Note", fontName="Helvetica-Bold", fontSize=9.5, textColor=_colors.HexColor("#7f1d1d"),
         )
+        banner = _Table(
+            [[
+                _Paragraph("PART 145", badge_style),
+                _Paragraph("Asset soggetto al regolamento aeronautico PART 145", note_style),
+            ]],
+            colWidths=[30 * _mm, page_w - 30 * _mm],
+        )
+        banner.setStyle(_TableStyle([
+            ("BACKGROUND", (0, 0), (0, 0), _colors.HexColor("#dc2626")),
+            ("BACKGROUND", (1, 0), (1, 0), _colors.HexColor("#fef2f2")),
+            ("BOX", (0, 0), (-1, -1), 0.8, _colors.HexColor("#dc2626")),
+            ("INNERGRID", (0, 0), (-1, -1), 0.8, _colors.HexColor("#dc2626")),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 7),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+        ]))
+        story.append(banner)
+        story.append(_Spacer(1, 5 * _mm))
 
-    def ensure_space(height_needed: float) -> None:
-        nonlocal current_y, page_number
-        if current_y - height_needed >= bottom_y + (8 * mm):
-            return
-        draw_footer()
-        pdf.showPage()
-        page_number += 1
-        draw_header()
-
-    def draw_key_value_section(title: str, rows: list[tuple[str, str]]) -> None:
-        nonlocal current_y
+    def kv_section(title: str, rows) -> None:
+        rows = list(rows or [])
         if not rows:
             return
-        ensure_space(22)
-        pdf.setFillColor(theme.c_primary())
-        pdf.setFont("Helvetica-Bold", 12)
-        pdf.drawString(margin_x, current_y, title)
-        current_y -= 8
-        row_height = 11
-        total_width = page_width - (margin_x * 2)
-        key_width = 54 * mm
-        for key, value in rows:
-            ensure_space(row_height + 4)
-            pdf.setFillColor(HexColor("#ffffff"))
-            pdf.setStrokeColor(theme.c_border())
-            pdf.roundRect(margin_x, current_y - row_height + 2, total_width, row_height + 2, 4, fill=1, stroke=1)
-            pdf.setFillColor(theme.c_muted())
-            pdf.setFont("Helvetica-Bold", 8)
-            pdf.drawString(margin_x + 6, current_y - 5, _truncate_pdf_text(pdf, key, font_name="Helvetica-Bold", font_size=8, max_width=key_width - 12))
-            pdf.setFillColor(theme.c_text())
-            pdf.setFont("Helvetica", 8.5)
-            pdf.drawString(
-                margin_x + key_width,
-                current_y - 5,
-                _truncate_pdf_text(
-                    pdf,
-                    _coalesce_str(value, "-"),
-                    font_name="Helvetica",
-                    font_size=8.5,
-                    max_width=total_width - key_width - 10,
-                ),
-            )
-            current_y -= row_height + 2
-        current_y -= 6
+        story.extend(section_heading(title, theme, styles))
+        table_rows = [
+            [
+                _Paragraph(_escape(str(key)), styles["label"]),
+                _Paragraph(_escape(str(value)).replace("\n", "<br/>"), styles["value"]),
+            ]
+            for key, value in rows
+        ]
+        story.append(data_table(table_rows, theme, header=False, col_widths=[54 * _mm, page_w - 54 * _mm]))
+        story.append(_Spacer(1, 3 * _mm))
 
-    def draw_list_section(title: str, headers: list[str], rows: list[tuple[str, ...]]) -> None:
-        nonlocal current_y
+    def list_section(title: str, headers, rows) -> None:
+        rows = list(rows or [])
         if not rows:
             return
-        ensure_space(28)
-        pdf.setFillColor(theme.c_primary())
-        pdf.setFont("Helvetica-Bold", 12)
-        pdf.drawString(margin_x, current_y, title)
-        current_y -= 8
-        total_width = page_width - (margin_x * 2)
-        col_width = total_width / max(1, len(headers))
-        pdf.setFillColor(theme.c_primary())
-        pdf.setStrokeColor(theme.c_primary())
-        pdf.rect(margin_x, current_y - 10, total_width, 12, fill=1, stroke=1)
-        for idx, header in enumerate(headers):
-            pdf.setFillColor(HexColor("#ffffff"))
-            pdf.setFont("Helvetica-Bold", 8)
-            pdf.drawString(margin_x + (idx * col_width) + 4, current_y - 2, header.upper())
-        current_y -= 14
+        story.extend(section_heading(title, theme, styles))
+        col_w = page_w / max(1, len(headers))
+        table_rows = [[_Paragraph(_escape(str(h)), styles["table_header"]) for h in headers]]
         for row in rows:
-            ensure_space(14)
-            pdf.setFillColor(HexColor("#ffffff"))
-            pdf.setStrokeColor(theme.c_border())
-            pdf.rect(margin_x, current_y - 9, total_width, 11, fill=1, stroke=1)
-            for idx, value in enumerate(row):
-                pdf.setFillColor(theme.c_text())
-                pdf.setFont("Helvetica", 8)
-                pdf.drawString(
-                    margin_x + (idx * col_width) + 4,
-                    current_y - 2,
-                    _truncate_pdf_text(pdf, _coalesce_str(value, "-"), font_name="Helvetica", font_size=8, max_width=col_width - 8),
-                )
-            current_y -= 12
-        current_y -= 6
+            table_rows.append([_Paragraph(_escape(str(cell)), styles["cell"]) for cell in row])
+        story.append(data_table(table_rows, theme, col_widths=[col_w] * len(headers), repeat_rows=1))
+        story.append(_Spacer(1, 3 * _mm))
 
-    draw_header()
-    draw_key_value_section("Riepilogo asset", list(snapshot.get("summary_rows") or []))
-    draw_key_value_section("Dati tecnici", list(snapshot.get("technical_rows") or []))
-    draw_key_value_section("Campi categoria", list(snapshot.get("category_rows") or []))
-    draw_key_value_section("Campi personalizzati", list(snapshot.get("custom_rows") or []))
-    draw_list_section("Documenti", ["Categoria", "File", "Data", "Peso"], list(snapshot.get("document_rows") or []))
-    draw_list_section("Work order recenti", ["Data", "Tipo", "Titolo", "Stato"], list(snapshot.get("workorder_rows") or []))
-    draw_list_section("Ticket collegati", ["Ticket", "Tipo", "Titolo", "Stato"], list(snapshot.get("ticket_rows") or []))
-    draw_list_section("Manutenzione periodica", ["Piano", "Prossima data", "Fornitore"], list(snapshot.get("periodic_rows") or []))
-    draw_footer()
+    kv_section("Riepilogo asset", snapshot.get("summary_rows"))
+    kv_section("Dati tecnici", snapshot.get("technical_rows"))
+    kv_section("Campi categoria", snapshot.get("category_rows"))
+    kv_section("Campi personalizzati", snapshot.get("custom_rows"))
+    list_section("Documenti", ["Categoria", "File", "Data", "Peso"], snapshot.get("document_rows"))
+    list_section("Work order recenti", ["Data", "Tipo", "Titolo", "Stato"], snapshot.get("workorder_rows"))
+    list_section("Ticket collegati", ["Ticket", "Tipo", "Titolo", "Stato"], snapshot.get("ticket_rows"))
+    list_section("Manutenzione periodica", ["Piano", "Prossima data", "Fornitore"], snapshot.get("periodic_rows"))
+
+    if not story:
+        story.append(_Paragraph("Nessun dato disponibile per questo asset.", styles["body"]))
+
+    subtitle = f"{asset.asset_tag or '-'} — {asset.name or '-'}"
+    if template_name:
+        subtitle = f"{subtitle} | Template: {template_name}"
+    draw = header_footer_callback(theme, title="REPORT ASSET", subtitle=subtitle)
+    doc.build(story, onFirstPage=draw, onLaterPages=draw)
+    return buf.getvalue()
 
 
 def _sharepoint_runtime_value(*env_keys: str, setting_keys: tuple[str, ...] = ()) -> tuple[str, str]:
@@ -9981,6 +9946,8 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
     )
     asset_status = _asset_status_payload(asset)
     can_manage_asset_maintenance_rules = _is_assets_admin(request)
+    # "Metti fuori uso"/"Riattiva": riusa l'endpoint gated asset_bulk_update (solo admin).
+    can_retire_asset = _is_assets_admin(request)
     asset_assign_url = reverse("assets:asset_assign", kwargs={"id": asset.id})
 
     buttons_by_zone = _build_action_buttons_for_asset(asset, create_workorder_url=asset_create_workorder_url)
@@ -10242,6 +10209,9 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             ),
             "map_marker": map_marker,
             "map_url": map_url,
+            "can_retire_asset": can_retire_asset,
+            "asset_is_retired": asset.status == Asset.STATUS_RETIRED,
+            "asset_bulk_update_url": reverse("assets:asset_bulk_update"),
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25), **shell_kwargs),
         },
     )
@@ -16841,30 +16811,15 @@ def asset_report_pdf(request: HttpRequest, id: int | None = None) -> HttpRespons
         ),
         pk=id,
     )
-    generated_at = timezone.localtime()
     active_template = _active_asset_report_template(AssetReportTemplate.REPORT_ASSET_DETAIL)
     snapshot = _build_asset_report_snapshot(asset)
-
-    response = HttpResponse(content_type="application/pdf")
-    response["Content-Disposition"] = f'inline; filename="{asset.asset_tag or "asset"}-report.pdf"'
-
-    buffer = io.BytesIO()
-    theme = PdfTheme.from_branding()
-    pdf = canvas.Canvas(buffer, pagesize=A4)
-    pdf.setTitle(f'Report asset {asset.asset_tag}')
-    pdf.setAuthor(theme.portal_name)
-    pdf.setSubject(f'Scheda PDF asset {asset.asset_tag}')
-    _draw_asset_report_pdf(
-        pdf,
-        theme=theme,
-        asset=asset,
-        snapshot=snapshot,
-        generated_at=generated_at,
+    pdf_bytes = render_asset_report_pdf(
+        asset,
+        snapshot,
         template_name=active_template.name if active_template else "",
     )
-    pdf.showPage()
-    pdf.save()
-    response.write(buffer.getvalue())
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = f'inline; filename="{asset.asset_tag or "asset"}-report.pdf"'
     return response
 
 
