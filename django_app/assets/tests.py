@@ -596,6 +596,16 @@ class AssetsRoutingTests(TestCase):
         asset = Asset.objects.get(name="Fresa PART 145")
         self.assertTrue(asset.part_145)
 
+    def test_work_machine_form_renders_part_145_checkbox(self):
+        # Il campo è in Meta.fields (quindi si salva), ma il template macchine
+        # renderizza i campi per gruppi: senza inserirlo nel blocco checkbox non
+        # compariva a video pur essendo un campo valido del form.
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("assets:work_machine_create"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'name="part_145"')
+        self.assertContains(resp, "Rientra in PART 145")
+
     def test_asset_detail_shows_part_145_badge_only_when_flagged(self):
         self.client.force_login(self.user)
         flagged = Asset.objects.create(asset_tag="AST-P145-B1", name="Con centoquarantacinque", part_145=True)

@@ -159,7 +159,7 @@
         </div>
         <div class="wmf-checks">
           {% for field in form %}
-            {% if field.name == 'tcr_enabled' or field.name == 'cnc_controlled' or field.name == 'five_axes' %}
+            {% if field.name == 'tcr_enabled' or field.name == 'cnc_controlled' or field.name == 'five_axes' or field.name == 'part_145' %}
               <label class="wmf-check" for="{{ field.id_for_label }}">
                 {{ field }}
                 <span>{{ field.label }}</span>
