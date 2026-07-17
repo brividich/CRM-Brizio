@@ -412,6 +412,11 @@ class AnagraficaStatPermission(models.Model):
         blank=True,
         help_text="Lista ruolo_id ACL legacy abilitati (usato solo se accesso=RUOLI)",
     )
+    utente_ids = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Lista UtenteLegacy.id sempre abilitati (concessione additiva a admin/ruoli)",
+    )
 
     class Meta:
         verbose_name = "Permessi statistiche anagrafica"
@@ -1573,6 +1578,11 @@ class AnagraficaHRPermission(models.Model):
         blank=True,
         help_text="Lista ruolo_id ACL legacy abilitati (usato solo se accesso=RUOLI)",
     )
+    utente_ids = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Lista UtenteLegacy.id sempre abilitati (concessione additiva a admin/ruoli)",
+    )
 
     class Meta:
         verbose_name = "Permessi dati HR riservati"
@@ -2317,6 +2327,11 @@ class AnagraficaVisiteMedichePermission(models.Model):
         default=list,
         blank=True,
         help_text="Lista ruolo_id ACL legacy abilitati (usato solo se accesso=RUOLI)",
+    )
+    utente_ids = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Lista UtenteLegacy.id sempre abilitati (concessione additiva a admin/ruoli)",
     )
 
     class Meta:

@@ -132,6 +132,34 @@
 .imp-workflow-checks { display:flex; gap:10px; flex-wrap:wrap; align-items:center; font-size:12px; color:#475569; }
 .imp-workflow-note { grid-column:1 / -1; }
 .imp-workflow-source { font-family:ui-monospace, SFMono-Regular, Consolas, monospace; font-size:11px; color:#64748b; }
+/* Allow-list per-utente (concessione additiva) dentro le imp-perm-card */
+.imp-perm-utenti-head { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin:12px 0 4px; }
+.imp-perm-hint { font-weight:500; text-transform:none; letter-spacing:0; color:#94a3b8; }
+.imp-perm-search { width:100%; box-sizing:border-box; padding:5px 8px; font-size:12px; border:1px solid #e2e8f0; border-radius:7px; margin-bottom:6px; }
+.imp-perm-utenti { display:flex; flex-direction:column; gap:4px; padding:10px; background:#fff; border:1px solid #e2e8f0; border-radius:8px; max-height:180px; overflow-y:auto; }
+.imp-perm-utenti label { display:flex; align-items:center; gap:8px; font-size:12px; color:#1e293b; cursor:pointer; padding:3px 4px; border-radius:5px; }
+.imp-perm-utenti label:hover { background:#f1f5f9; }
+.imp-perm-utenti label.hidden { display:none; }
+/* Matrice permessi canonici ACL v2 (write-through) */
+.imp-acl-scroll { overflow-x:auto; border:1px solid #e2e8f0; border-radius:10px; }
+.imp-acl-table { border-collapse:collapse; width:100%; font-size:12px; }
+.imp-acl-table th, .imp-acl-table td { border-bottom:1px solid #f1f5f9; padding:8px 10px; text-align:center; }
+.imp-acl-table thead th { background:#f8fafc; color:#475569; font-weight:700; position:sticky; top:0; }
+.imp-acl-table th:first-child, .imp-acl-role { text-align:left; }
+.imp-acl-role { font-weight:600; color:#0f172a; white-space:nowrap; }
+.imp-acl-cell input { transform:scale(1.1); }
+.imp-acl-users { margin-top:18px; }
+.imp-acl-ov-form { display:flex; flex-direction:column; gap:10px; max-width:640px; }
+.imp-acl-ov-perms { display:flex; flex-direction:column; gap:6px; }
+.imp-acl-ov-perm { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:6px 8px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; }
+.imp-acl-ov-code { flex:1 1 220px; font-weight:600; color:#1e293b; }
+.imp-acl-ov-opt { display:flex; align-items:center; gap:4px; font-size:12px; color:#475569; }
+.imp-acl-ov-list { margin-top:14px; display:flex; flex-direction:column; gap:8px; }
+.imp-acl-ov-user { border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; }
+.imp-acl-ov-user-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.imp-acl-ov-badge { font-size:10px; font-weight:700; padding:2px 7px; border-radius:999px; }
+.imp-acl-ov-badge.ok { background:#dcfce7; color:#166534; }
+.imp-acl-ov-badge.no { background:#fee2e2; color:#991b1b; }
 
 @media (max-width:900px) {
   .imp-layout { grid-template-columns:1fr; }
@@ -168,6 +196,18 @@ body.theme-dark .imp-perm-ruoli label { color:var(--text-mid); }
 body.theme-dark .imp-perm-ruoli label:hover { background:var(--surface-alt); }
 body.theme-dark .imp-workflow-checks { color:var(--text-mid); }
 body.theme-dark .imp-workflow-source { color:var(--text-light); }
+body.theme-dark .imp-perm-utenti-head { color:var(--text-light); }
+body.theme-dark .imp-perm-search { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .imp-perm-utenti { background:var(--surface); border-color:var(--border); }
+body.theme-dark .imp-perm-utenti label { color:var(--text-mid); }
+body.theme-dark .imp-perm-utenti label:hover { background:var(--surface-alt); }
+body.theme-dark .imp-acl-scroll, body.theme-dark .imp-acl-ov-user { border-color:var(--border); }
+body.theme-dark .imp-acl-table th, body.theme-dark .imp-acl-table td { border-color:var(--border); }
+body.theme-dark .imp-acl-table thead th { background:var(--surface-alt); color:var(--text-mid); }
+body.theme-dark .imp-acl-role { color:var(--text); }
+body.theme-dark .imp-acl-ov-perm { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .imp-acl-ov-code { color:var(--text); }
+body.theme-dark .imp-acl-ov-opt { color:var(--text-mid); }
 </style>
 {% endblock %}
 
@@ -2146,6 +2186,23 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                     <div class="imp-empty">Nessun ruolo ACL disponibile.</div>
                   {% endif %}
                 </div>
+
+                <div class="imp-perm-utenti-head">👤 Utenti sempre abilitati <span class="imp-perm-hint">(in aggiunta a admin/ruoli)</span></div>
+                {% if utenti_acl %}
+                <input type="text" class="imp-perm-search" placeholder="Filtra utenti…" data-perm-search="stat">
+                <div class="imp-perm-utenti" data-perm-utenti="stat">
+                  {% for u in utenti_acl %}
+                    <label data-uname="{{ u.nome|default:u.email|lower }}">
+                      <input type="checkbox" name="stat_utente_ids" value="{{ u.id }}"
+                             {% if u.id in stat_perm.utente_ids %}checked{% endif %}
+                             {% if not is_admin %}disabled{% endif %}>
+                      {{ u.nome|default:u.email }}
+                    </label>
+                  {% endfor %}
+                </div>
+                {% else %}
+                <div class="imp-empty">Nessun utente attivo.</div>
+                {% endif %}
               </div>
 
               <!-- HR permissions -->
@@ -2180,6 +2237,23 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                     <div class="imp-empty">Nessun ruolo ACL disponibile.</div>
                   {% endif %}
                 </div>
+
+                <div class="imp-perm-utenti-head">👤 Utenti sempre abilitati <span class="imp-perm-hint">(in aggiunta a admin/ruoli)</span></div>
+                {% if utenti_acl %}
+                <input type="text" class="imp-perm-search" placeholder="Filtra utenti…" data-perm-search="hr">
+                <div class="imp-perm-utenti" data-perm-utenti="hr">
+                  {% for u in utenti_acl %}
+                    <label data-uname="{{ u.nome|default:u.email|lower }}">
+                      <input type="checkbox" name="hr_utente_ids" value="{{ u.id }}"
+                             {% if u.id in hr_perm.utente_ids %}checked{% endif %}
+                             {% if not is_admin %}disabled{% endif %}>
+                      {{ u.nome|default:u.email }}
+                    </label>
+                  {% endfor %}
+                </div>
+                {% else %}
+                <div class="imp-empty">Nessun utente attivo.</div>
+                {% endif %}
               </div>
 
               <!-- Visite mediche permissions -->
@@ -2214,6 +2288,23 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                     <div class="imp-empty">Nessun ruolo ACL disponibile.</div>
                   {% endif %}
                 </div>
+
+                <div class="imp-perm-utenti-head">👤 Utenti sempre abilitati <span class="imp-perm-hint">(in aggiunta a admin/ruoli)</span></div>
+                {% if utenti_acl %}
+                <input type="text" class="imp-perm-search" placeholder="Filtra utenti…" data-perm-search="visite">
+                <div class="imp-perm-utenti" data-perm-utenti="visite">
+                  {% for u in utenti_acl %}
+                    <label data-uname="{{ u.nome|default:u.email|lower }}">
+                      <input type="checkbox" name="visite_utente_ids" value="{{ u.id }}"
+                             {% if u.id in visite_perm.utente_ids %}checked{% endif %}
+                             {% if not is_admin %}disabled{% endif %}>
+                      {{ u.nome|default:u.email }}
+                    </label>
+                  {% endfor %}
+                </div>
+                {% else %}
+                <div class="imp-empty">Nessun utente attivo.</div>
+                {% endif %}
               </div>
             </div>
 
@@ -2223,6 +2314,112 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
             </div>
             {% endif %}
           </form>
+        </div>
+
+        <!-- Permessi canonici ACL v2 del modulo (write-through sulle stesse tabelle) -->
+        <div class="imp-card" style="margin-top:18px;">
+          <div class="imp-card-head" style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+            <div>
+              <div class="imp-card-title">🛡️ Permessi avanzati (ACL v2 canonico)</div>
+              <div class="imp-card-sub">Permessi canonici del modulo (Skill Matrix, MOD.128 MPQ, export). Le modifiche qui scrivono sulle <strong>stesse tabelle</strong> di ACL v2 canonico: è la stessa cosa.</div>
+            </div>
+            {% if is_admin %}
+            <a class="imp-btn imp-btn-ghost" href="{% url 'admin_portale:acl_canonico' %}" target="_blank" rel="noopener">Apri in ACL v2 canonico ↗</a>
+            {% endif %}
+          </div>
+
+          {% if acl_perms %}
+          <!-- Matrice ruoli × permessi canonici -->
+          <form method="post" action="{% url 'anagrafica:impostazioni_acl_role_grants_save' %}">
+            {% csrf_token %}
+            <div class="imp-acl-scroll">
+              <table class="imp-acl-table">
+                <thead>
+                  <tr>
+                    <th>Ruolo</th>
+                    {% for p in acl_perms %}<th title="{{ p.code }}{% if p.description %} — {{ p.description }}{% endif %}">{{ p.label }}</th>{% endfor %}
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in acl_role_matrix %}
+                  <tr>
+                    <td class="imp-acl-role">{{ row.role.nome }}</td>
+                    {% for cell in row.cells %}
+                    <td class="imp-acl-cell">
+                      <input type="checkbox" name="grant_{{ row.role.id }}" value="{{ cell.code }}"
+                             {% if cell.enabled %}checked{% endif %} {% if not is_admin %}disabled{% endif %}>
+                    </td>
+                    {% endfor %}
+                  </tr>
+                  {% empty %}
+                  <tr><td colspan="{{ acl_perms|length|add:1 }}" class="imp-empty">Nessun ruolo ACL disponibile.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            {% if is_admin %}
+            <div style="margin-top:12px; display:flex; justify-content:flex-end;">
+              <button type="submit" class="imp-btn imp-btn-primary">💾 Salva grant ruoli</button>
+            </div>
+            {% endif %}
+          </form>
+
+          <!-- Override per singolo utente (precede il ruolo) -->
+          <div class="imp-acl-users">
+            <div class="imp-card-title" style="font-size:13px;">Override per singolo utente</div>
+            <p style="font-size:12px; color:#64748b; margin:2px 0 10px;">Consenti/nega un permesso a un utente specifico: ha la precedenza sul ruolo. Lascia “eredita” per usare il grant di ruolo.</p>
+
+            {% if is_admin %}
+            <form method="post" action="{% url 'anagrafica:impostazioni_acl_user_override_save' %}" class="imp-acl-ov-form">
+              {% csrf_token %}
+              <select name="legacy_user_id" class="imp-select" required>
+                <option value="">— scegli utente —</option>
+                {% for u in utenti_acl %}<option value="{{ u.id }}">{{ u.nome|default:u.email }}</option>{% endfor %}
+              </select>
+              <div class="imp-acl-ov-perms">
+                {% for p in acl_perms %}
+                <div class="imp-acl-ov-perm">
+                  <span class="imp-acl-ov-code" title="{{ p.code }}">{{ p.label }}</span>
+                  <label class="imp-acl-ov-opt"><input type="radio" name="ov_{{ p.code }}" value="inherit" checked> eredita</label>
+                  <label class="imp-acl-ov-opt"><input type="radio" name="ov_{{ p.code }}" value="allow"> consenti</label>
+                  <label class="imp-acl-ov-opt"><input type="radio" name="ov_{{ p.code }}" value="deny"> nega</label>
+                </div>
+                {% endfor %}
+              </div>
+              <div style="display:flex; justify-content:flex-end;">
+                <button type="submit" class="imp-btn imp-btn-primary">💾 Salva override utente</button>
+              </div>
+            </form>
+            {% endif %}
+
+            {% if acl_user_overrides %}
+            <div class="imp-acl-ov-list">
+              {% for grp in acl_user_overrides %}
+              <div class="imp-acl-ov-user">
+                <div class="imp-acl-ov-user-head">
+                  <strong>{{ grp.user_label }}</strong>
+                  {% if is_admin %}
+                  <form method="post" action="{% url 'anagrafica:impostazioni_acl_user_override_save' %}" onsubmit="return confirm('Rimuovere tutti gli override anagrafica di {{ grp.user_label|escapejs }}?');">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="legacy_user_id" value="{{ grp.legacy_user_id }}">
+                    <button type="submit" class="imp-btn imp-btn-danger" style="font-size:11px; padding:4px 8px;">Rimuovi</button>
+                  </form>
+                  {% endif %}
+                </div>
+                <div style="margin-top:6px; display:flex; flex-wrap:wrap; gap:6px;">
+                  {% for it in grp.items %}
+                  <span class="imp-acl-ov-badge {% if it.enabled %}ok{% else %}no{% endif %}" title="{{ it.code }}">{% if it.enabled %}consenti{% else %}nega{% endif %}: {{ it.perm_label }}</span>
+                  {% endfor %}
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
+          {% else %}
+          <div class="imp-empty">Nessun permesso canonico registrato per il modulo anagrafica. Esegui il bootstrap ACL (riavvio app) o aprilo in ACL v2 canonico.</div>
+          {% endif %}
         </div>
       </section>
 
@@ -2303,6 +2500,19 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
       var box = root.querySelector('[data-perm-ruoli="' + group + '"]');
       if (!box) return;
       box.classList.toggle('open', radio.value === '{{ ACCESSO_RUOLI }}' && radio.checked);
+    });
+  });
+
+  // Permessi: filtro-ricerca sulla allow-list per-utente
+  root.querySelectorAll('[data-perm-search]').forEach(function (input) {
+    input.addEventListener('input', function () {
+      var box = root.querySelector('[data-perm-utenti="' + input.dataset.permSearch + '"]');
+      if (!box) return;
+      var q = input.value.trim().toLowerCase();
+      box.querySelectorAll('label').forEach(function (lbl) {
+        var name = lbl.dataset.uname || '';
+        lbl.classList.toggle('hidden', q !== '' && name.indexOf(q) === -1);
+      });
     });
   });
 
