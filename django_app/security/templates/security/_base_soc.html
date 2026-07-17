@@ -16,6 +16,7 @@
     <a href="{% url 'security:pipeline' %}" {% if url_name == 'pipeline' %}class="active"{% endif %}>Pipeline</a>
     <a href="{% url 'security:assets' %}" {% if url_name == 'assets' %}class="active"{% endif %}>Asset</a>
     <a href="{% url 'security:admin_config' %}" {% if url_name|slice:':6' == 'admin_' %}class="active"{% endif %}>Config</a>
+    <a href="{% url 'security:help' %}" {% if url_name == 'help' or url_name == 'doc_detail' %}class="active"{% endif %}>Guida</a>
   </nav>
   {% endwith %}
   {% block soc_content %}{% endblock %}

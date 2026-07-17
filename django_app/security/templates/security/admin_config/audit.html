@@ -4,6 +4,7 @@
 {% block page_title %}Registro audit configurazione{% endblock %}
 {% block page_icon %}*{% endblock %}
 {% block soc_content %}
+{% include "security/admin_config/_section_help.html" %}
 <section class="sec-panel">
   <div class="sec-section-head"><h2>Modifiche recenti</h2><a href="{% url 'security:admin_config' %}">Home configurazione</a></div>
   <div class="sec-table-wrap"><table class="sec-table"><thead><tr><th>Quando</th><th>Attore</th><th>Azione</th><th>Oggetto</th><th>Campo</th><th>Vecchio</th><th>Nuovo</th></tr></thead><tbody>

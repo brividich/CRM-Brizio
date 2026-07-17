@@ -74,6 +74,7 @@ from .services.ingestion import get_or_create_source, ingest_mailbox_message, in
 from .services.addon_registry import get_addon_detail, get_addon_registry
 from .services.diagnostics import build_diagnostics_context
 from .services.security_inbox_pipeline import process_mailbox_message, process_source_file
+from .docs_render import DOC_FILES as _DOC_FILES, load_doc, slug_for
 
 
 INBOX_ALLOWED_EXTENSIONS = {".pdf", ".csv", ".txt", ".eml", ".log"}
@@ -243,6 +244,18 @@ def help_page(request):
     return render(request, "security/help.html", {"docs": SECURITY_CENTER_DOCS})
 
 
+@ensure_csrf_cookie
+def doc_detail(request, slug):
+    if not request.user.is_authenticated:
+        return redirect_to_login(request.get_full_path(), login_url="/admin/login/")
+    if not can_view_security_center(request.user):
+        return _security_config_denied(request)
+    doc = load_doc(slug)
+    if doc is None:
+        raise Http404("Documento sconosciuto.")
+    return render(request, "security/doc_detail.html", {"doc": doc, "docs": SECURITY_CENTER_DOCS})
+
+
 @require_POST
 def pipeline_run(request, action):
     started_at = timezone.now()
@@ -323,7 +336,7 @@ def admin_config_general(request):
         if setting.is_secret:
             form.initial["value"] = ""
         rows.append({"setting": setting, "display_value": masked_setting_value(setting), "form": form})
-    return render(request, "security/admin_config/general.html", {"rows": rows})
+    return render(request, "security/admin_config/general.html", {"rows": rows, "section_help": CONFIG_SECTION_HELP["general"]})
 
 
 @ensure_csrf_cookie
@@ -350,12 +363,12 @@ def admin_config_sources(request):
                 audit_model_form_changes(request.user, obj, old, snapshot_instance(obj), request=request)
                 messages.success(request, "Configurazione sorgente salvata.")
                 return redirect("security:admin_config_sources")
-    return render(request, "security/admin_config/sources.html", {"objects": SecuritySourceConfig.objects.order_by("vendor", "name"), "form": form, "test_result": test_result})
+    return render(request, "security/admin_config/sources.html", {"objects": SecuritySourceConfig.objects.order_by("vendor", "name"), "form": form, "test_result": test_result, "section_help": CONFIG_SECTION_HELP["sources"]})
 
 
 @ensure_csrf_cookie
 def admin_config_parsers(request):
-    return _config_model_page(request, SecurityParserConfig, SecurityParserConfigForm, "security/admin_config/parsers.html", "admin_config_parsers", extra_context=_parser_stats())
+    return _config_model_page(request, SecurityParserConfig, SecurityParserConfigForm, "security/admin_config/parsers.html", "admin_config_parsers", extra_context={**_parser_stats(), "section_help": CONFIG_SECTION_HELP["parsers"]})
 
 
 @ensure_csrf_cookie
@@ -374,17 +387,17 @@ def admin_config_alert_rules(request):
             test_result = {"error": "Campione metriche JSON non valido."}
     elif request.method == "POST":
         return _save_config_form(request, SecurityAlertRuleConfig, SecurityAlertRuleConfigForm, "admin_config_alert_rules")
-    return render(request, "security/admin_config/alert_rules.html", {"objects": SecurityAlertRuleConfig.objects.order_by("source_type", "code"), "form": SecurityAlertRuleConfigForm(), "test_result": test_result})
+    return render(request, "security/admin_config/alert_rules.html", {"objects": SecurityAlertRuleConfig.objects.order_by("source_type", "code"), "form": SecurityAlertRuleConfigForm(), "test_result": test_result, "section_help": CONFIG_SECTION_HELP["alert_rules"]})
 
 
 @ensure_csrf_cookie
 def admin_config_suppressions(request):
-    return _config_model_page(request, SecurityAlertSuppressionRule, SecurityAlertSuppressionRuleForm, "security/admin_config/suppressions.html", "admin_config_suppressions")
+    return _config_model_page(request, SecurityAlertSuppressionRule, SecurityAlertSuppressionRuleForm, "security/admin_config/suppressions.html", "admin_config_suppressions", extra_context={"section_help": CONFIG_SECTION_HELP["suppressions"]})
 
 
 @ensure_csrf_cookie
 def admin_config_backups(request):
-    extra = {"last_seen": {obj.pk: last_seen_backup_status(obj) for obj in BackupExpectedJobConfig.objects.all()}}
+    extra = {"last_seen": {obj.pk: last_seen_backup_status(obj) for obj in BackupExpectedJobConfig.objects.all()}, "section_help": CONFIG_SECTION_HELP["backups"]}
     return _config_model_page(request, BackupExpectedJobConfig, BackupExpectedJobConfigForm, "security/admin_config/backups.html", "admin_config_backups", extra_context=extra)
 
 
@@ -406,19 +419,19 @@ def admin_config_notifications(request):
             audit_model_form_changes(request.user, obj, old, snapshot_instance(obj), request=request, secret_fields={"webhook_url_secret_ref"})
             messages.success(request, "Canale notifica salvato.")
             return redirect("security:admin_config_notifications")
-    return render(request, "security/admin_config/notifications.html", {"objects": SecurityNotificationChannel.objects.order_by("channel_type", "name"), "form": SecurityNotificationChannelForm()})
+    return render(request, "security/admin_config/notifications.html", {"objects": SecurityNotificationChannel.objects.order_by("channel_type", "name"), "form": SecurityNotificationChannelForm(), "section_help": CONFIG_SECTION_HELP["notifications"]})
 
 
 @ensure_csrf_cookie
 def admin_config_ticketing(request):
-    return _config_model_page(request, SecurityTicketConfig, SecurityTicketConfigForm, "security/admin_config/ticketing.html", "admin_config_ticketing")
+    return _config_model_page(request, SecurityTicketConfig, SecurityTicketConfigForm, "security/admin_config/ticketing.html", "admin_config_ticketing", extra_context={"section_help": CONFIG_SECTION_HELP["ticketing"]})
 
 
 @ensure_csrf_cookie
 def admin_config_audit(request):
     if not can_manage_security_config(request.user):
         return _security_config_denied(request)
-    return render(request, "security/admin_config/audit.html", {"objects": SecurityConfigurationAuditLog.objects.select_related("actor").order_by("-created_at")[:200]})
+    return render(request, "security/admin_config/audit.html", {"objects": SecurityConfigurationAuditLog.objects.select_related("actor").order_by("-created_at")[:200], "section_help": CONFIG_SECTION_HELP["audit"]})
 
 
 @ensure_csrf_cookie
@@ -827,21 +840,85 @@ def _parse_snooze_until(value):
     return parsed
 
 
+_DOC_META = {
+    "00_START_HERE.md": ("Da qui", "Ambito MVP, checklist primo setup e primi 30 minuti."),
+    "01_ARCHITECTURE.md": ("Architettura", "Motore core, parser, regole, evidenze, KPI, configurazione admin, diagnostica e moduli."),
+    "02_ADMIN_GUIDE.md": ("Guida admin", "Sorgenti, parser, regole alert, soppressioni, backup, notifiche, ticketing e registro audit."),
+    "03_ADDONS.md": ("Moduli", "Modello core rispetto ai moduli e architettura target dei moduli."),
+    "04_WATCHGUARD_ADDON.md": ("Modulo WatchGuard", "Input WatchGuard supportati, metriche, regole, riduzione rumore e limiti."),
+    "05_DEFENDER_ADDON.md": ("Modulo Microsoft Defender", "Email vulnerabilita, evidenze CVE, deduplica ticket e ricorrenze."),
+    "06_BACKUP_ADDON.md": ("Modulo Backup/NAS", "Sorgente Synology Active Backup, job attesi, logica backup mancanti e salute backup."),
+    "07_ALERT_LIFECYCLE.md": ("Ciclo vita alert", "Stati alert e differenze tra presa in carico, posticipo, silenziamento, soppressione, risoluzione, falso positivo e chiusura."),
+    "08_CONFIGURATION_GUIDE.md": ("Guida configurazione", "Configurazione seed e impostazioni DB per sorgenti, parser, regole, soppressioni, backup, notifiche e ticketing."),
+    "09_TROUBLESHOOTING.md": ("Risoluzione problemi", "Problemi comuni su parser, sorgenti, alert, ticket, backup, notifiche, seed e permessi."),
+    "10_DEVELOPER_GUIDE.md": ("Guida sviluppo", "Purezza parser, struttura output, avvisi, test, configurazione seed, regole alert e visibilita dashboard."),
+    "11_OPERATIONS_RUNBOOK.md": ("Runbook operativo", "Checklist operative giornaliere, settimanali e mensili."),
+    "MAILBOX_INGESTION.md": ("Mailbox Ingestion", "Ingestion schedulata da mailbox, provider, deduplicazione, configurazione e troubleshooting."),
+}
 SECURITY_CENTER_DOCS = [
-    {"file": "00_START_HERE.md", "title": "Da qui", "summary": "Ambito MVP, checklist primo setup e primi 30 minuti."},
-    {"file": "01_ARCHITECTURE.md", "title": "Architettura", "summary": "Motore core, parser, regole, evidenze, KPI, configurazione admin, diagnostica e moduli."},
-    {"file": "02_ADMIN_GUIDE.md", "title": "Guida admin", "summary": "Sorgenti, parser, regole alert, soppressioni, backup, notifiche, ticketing e registro audit."},
-    {"file": "03_ADDONS.md", "title": "Moduli", "summary": "Modello core rispetto ai moduli e architettura target dei moduli."},
-    {"file": "04_WATCHGUARD_ADDON.md", "title": "Modulo WatchGuard", "summary": "Input WatchGuard supportati, metriche, regole, riduzione rumore e limiti."},
-    {"file": "05_DEFENDER_ADDON.md", "title": "Modulo Microsoft Defender", "summary": "Email vulnerabilita, evidenze CVE, deduplica ticket e ricorrenze."},
-    {"file": "06_BACKUP_ADDON.md", "title": "Modulo Backup/NAS", "summary": "Sorgente Synology Active Backup, job attesi, logica backup mancanti e salute backup."},
-    {"file": "07_ALERT_LIFECYCLE.md", "title": "Ciclo vita alert", "summary": "Stati alert e differenze tra presa in carico, posticipo, silenziamento, soppressione, risoluzione, falso positivo e chiusura."},
-    {"file": "08_CONFIGURATION_GUIDE.md", "title": "Guida configurazione", "summary": "Configurazione seed e impostazioni DB per sorgenti, parser, regole, soppressioni, backup, notifiche e ticketing."},
-    {"file": "09_TROUBLESHOOTING.md", "title": "Risoluzione problemi", "summary": "Problemi comuni su parser, sorgenti, alert, ticket, backup, notifiche, seed e permessi."},
-    {"file": "10_DEVELOPER_GUIDE.md", "title": "Guida sviluppo", "summary": "Purezza parser, struttura output, avvisi, test, configurazione seed, regole alert e visibilita dashboard."},
-    {"file": "11_OPERATIONS_RUNBOOK.md", "title": "Runbook operativo", "summary": "Checklist operative giornaliere, settimanali e mensili."},
-    {"file": "MAILBOX_INGESTION.md", "title": "Mailbox Ingestion", "summary": "Ingestion schedulata da mailbox, provider, deduplicazione, configurazione e troubleshooting."},
+    {"file": f, "slug": slug_for(f), "title": _DOC_META[f][0], "summary": _DOC_META[f][1]}
+    for f in _DOC_FILES
 ]
+
+# Help contestuale per le sezioni della Configuration Studio. Presentation-only:
+# intro + link al documento di guida pertinente + suggerimenti. doc_slug deve
+# corrispondere a uno slug in SECURITY_CENTER_DOCS.
+CONFIG_SECTION_HELP = {
+    "general": {
+        "title": "Impostazioni generali",
+        "intro": "Chiavi di configurazione globali del Security Center (soglie, finestre, comportamenti). Le voci marcate segrete non mostrano il valore.",
+        "doc_slug": "08-configuration-guide",
+        "tips": ["Dopo un seed_security_center_config rivedi qui le chiavi.", "Le modifiche sono tracciate nel registro audit."],
+    },
+    "sources": {
+        "title": "Sorgenti",
+        "intro": "Definisci da dove arrivano i report (email/PDF/CSV/API/manuale), i pattern mittente/oggetto e la cadenza attesa.",
+        "doc_slug": "02-admin-guide",
+        "tips": ["Imposta la cadenza attesa: l'assenza di un report genera un alert (heartbeat).", "Usa la Diagnostica per provare il match mittente/oggetto."],
+    },
+    "parsers": {
+        "title": "Parser",
+        "intro": "Abilita e ordina i parser che trasformano i report in metriche e finding. Priorita' piu' bassa = valutato prima.",
+        "doc_slug": "02-admin-guide",
+        "tips": ["Un parser disattivato non produce metriche.", "Verifica il nome parser sulla sorgente."],
+    },
+    "alert_rules": {
+        "title": "Regole alert",
+        "intro": "Condizioni su metriche che generano alert, con severita', cooldown e finestra di deduplica.",
+        "doc_slug": "07-alert-lifecycle",
+        "tips": ["Il campo Test accetta un JSON di metriche e mostra se la regola scatterebbe, senza creare alert.", "Cooldown e dedup evitano alert ripetuti sullo stesso finding."],
+    },
+    "suppressions": {
+        "title": "Regole di soppressione",
+        "intro": "Silenzia eventi noti/rumorosi per tipo, severita' o condizioni, con validita' temporale.",
+        "doc_slug": "07-alert-lifecycle",
+        "tips": ["Una soppressione attiva riduce il rumore ma puo' nascondere segnali: rivedila periodicamente.", "Imposta una scadenza quando possibile."],
+    },
+    "backups": {
+        "title": "Monitoraggio backup",
+        "intro": "Job di backup attesi e regole per rilevare backup mancanti, falliti o anomali per durata/dimensione.",
+        "doc_slug": "06-backup-addon",
+        "tips": ["Un job atteso non visto oltre le ore limite genera un alert 'mancante'.", "Marca come critici i job la cui assenza deve allertare subito."],
+    },
+    "notifications": {
+        "title": "Notifiche",
+        "intro": "Canali in uscita (email/Teams/dashboard), severita' minima e cooldown per canale. Ogni invio e' tracciato.",
+        "doc_slug": "02-admin-guide",
+        "tips": ["Prova un canale con send_security_test_notification prima di affidarti alle notifiche.", "Il cooldown evita raffiche sullo stesso alert."],
+    },
+    "ticketing": {
+        "title": "Ticketing",
+        "intro": "Come gli alert diventano ticket di remediation: strategia di aggregazione, assegnatario, SLA per severita'.",
+        "doc_slug": "05-defender-addon",
+        "tips": ["L'aggregazione per prodotto raggruppa CVE dello stesso prodotto.", "Gli SLA per severita' guidano gli avvisi di scadenza."],
+    },
+    "audit": {
+        "title": "Registro audit",
+        "intro": "Traccia in sola lettura di ogni modifica di configurazione: attore, oggetto, campo, valori.",
+        "doc_slug": "08-configuration-guide",
+        "tips": ["Usalo per capire chi ha cambiato cosa e quando.", "E' la fonte di verita' per gli audit di conformita'."],
+    },
+}
 
 
 @ensure_csrf_cookie
