@@ -902,7 +902,19 @@ class AssetsRoutingTests(TestCase):
         self.assertContains(shell_response, "closeOtherGroups", html=False)
         self.assertNotContains(shell_response, "localStorage.setItem(storageKey", html=False)
 
-    def test_work_machine_list_200_when_logged(self):
+    def test_work_machine_list_redirects_to_production_group(self):
+        # La pagina dedicata "Asset produzione" e' confluita nell'inventario
+        # unico: la vecchia rotta reindirizza a asset_list?group=production
+        # preservando la ricerca.
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("assets:work_machine_list"), {"q": "Tornio"})
+        self.assertEqual(response.status_code, 302)
+        target = reverse("assets:asset_list")
+        self.assertTrue(response["Location"].startswith(target))
+        self.assertIn("group=production", response["Location"])
+        self.assertIn("q=Tornio", response["Location"])
+
+    def test_work_machine_list_shows_machine_after_redirect(self):
         asset = Asset.objects.create(
             name="Tornio parallelo",
             asset_type=Asset.TYPE_WORK_MACHINE,
@@ -911,12 +923,81 @@ class AssetsRoutingTests(TestCase):
         )
         WorkMachine.objects.create(asset=asset, source_key="manual-wm-test-list", year=2021, cnc_controlled=True)
         self.client.force_login(self.user)
-        response = self.client.get(reverse("assets:work_machine_list"))
+        response = self.client.get(reverse("assets:work_machine_list"), follow=True)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'class="wm-table"', html=False)
-        self.assertContains(response, "Responsabile")
-        self.assertContains(response, "Collocazione")
+        self.assertContains(response, "Asset produzione")
         self.assertContains(response, "Tornio parallelo")
+
+    def test_asset_list_production_group_excludes_it_assets(self):
+        machine = Asset.objects.create(
+            name="Fresa CNC produzione",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            reparto="OFF",
+            source_key="manual-prod-machine",
+        )
+        WorkMachine.objects.create(asset=machine, source_key="manual-prod-machine", year=2021)
+        Asset.objects.create(
+            asset_tag="IT-PC-PROD",
+            name="PC ufficio produzione",
+            asset_type=Asset.TYPE_PC,
+            reparto="OFF",
+            source_key="manual-prod-pc",
+        )
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("assets:asset_list"), {"group": "production"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Fresa CNC produzione")
+        self.assertNotContains(response, "PC ufficio produzione")
+
+    def test_asset_list_production_group_search_matches_internal_number(self):
+        match = Asset.objects.create(
+            name="Tornio con N.INT",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            reparto="OFF",
+            internal_number="INT-9001",
+            source_key="manual-wm-search-int-match",
+        )
+        WorkMachine.objects.create(asset=match, source_key="manual-wm-search-int-match", year=2020)
+        other = Asset.objects.create(
+            name="Fresa senza match",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            reparto="OFF",
+            internal_number="INT-7777",
+            source_key="manual-wm-search-int-other",
+        )
+        WorkMachine.objects.create(asset=other, source_key="manual-wm-search-int-other", year=2020)
+
+        self.client.force_login(self.user)
+        response = self.client.get(
+            reverse("assets:asset_list"), {"group": "production", "q": "INT-9001"}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Tornio con N.INT")
+        self.assertNotContains(response, "Fresa senza match")
+
+    def test_asset_list_production_group_cnc_filter(self):
+        cnc = Asset.objects.create(
+            name="Centro CNC",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            reparto="OFF",
+            source_key="manual-cnc-yes",
+        )
+        WorkMachine.objects.create(asset=cnc, source_key="manual-cnc-yes", year=2021, cnc_controlled=True)
+        manual = Asset.objects.create(
+            name="Tornio manuale",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            reparto="OFF",
+            source_key="manual-cnc-no",
+        )
+        WorkMachine.objects.create(asset=manual, source_key="manual-cnc-no", year=2021, cnc_controlled=False)
+        self.client.force_login(self.user)
+        response = self.client.get(
+            reverse("assets:asset_list"), {"group": "production", "cnc_only": "on"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Centro CNC")
+        self.assertNotContains(response, "Tornio manuale")
 
     def test_device_list_uses_common_asset_table_columns(self):
         Asset.objects.create(

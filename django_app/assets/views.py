@@ -5668,6 +5668,10 @@ def _is_sidebar_button_active(request: HttpRequest, button: AssetSidebarButton, 
         return False
     if parsed.path == asset_list_path and "asset_category" not in target_qs and _clean_string(request.GET.get("asset_category")):
         return False
+    # "Asset produzione" (?group=production) e' una lista a se': un target
+    # asset_list senza group non deve risultare attivo quando il gruppo e' attivo.
+    if parsed.path == asset_list_path and "group" not in target_qs and _clean_string(request.GET.get("group")):
+        return False
 
     for key, values in target_qs.items():
         current_value = request.GET.get(key, "")
@@ -5730,7 +5734,7 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
     maintenance_schedule = reverse("assets:maintenance_schedule")
     assistance_contracts = reverse("assets:assistance_contract_list")
     software_licenses = reverse("assets:software_license_list")
-    work_machine_list = reverse("assets:work_machine_list")
+    production_assets_url = f"{reverse('assets:asset_list')}?group=production"
     work_machine_dashboard = reverse("assets:work_machine_dashboard")
     it_periodic_verifications = f"{reverse('assets:periodic_verifications')}?scope=it"
     production_periodic_verifications = f"{reverse('assets:periodic_verifications')}?scope=production"
@@ -5742,6 +5746,7 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
     asset_quick_report = reverse("assets:asset_quick_report")
     maintenance_todo = reverse("assets:maintenance_todo")
     current_type = _clean_string(request.GET.get("asset_type"))
+    current_group = _clean_string(request.GET.get("group")).lower()
     current_route = getattr(getattr(request, "resolver_match", None), "url_name", "")
     current_report_scope = _normalize_reports_scope(request.GET.get("scope")) if current_route == "reports" else ""
     current_periodic_scope = _normalize_reports_scope(request.GET.get("scope")) if current_route == "periodic_verifications" else ""
@@ -5868,9 +5873,10 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
         {
             "section": AssetSidebarButton.SECTION_MAIN,
             "label": "Macchine di lavoro",
-            "url": work_machine_list,
+            "url": production_assets_url,
             "is_subitem": False,
-            "active": current_route in {"work_machine_list", "work_machine_create", "work_machine_edit"},
+            "active": (current_route == "asset_list" and current_group == "production")
+            or current_route in {"work_machine_list", "work_machine_create", "work_machine_edit"},
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
@@ -6006,8 +6012,10 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "code": "work_machines",
             "section": AssetSidebarButton.SECTION_MAIN,
             "label": "Macchine di lavoro",
-            "target_url": "django:assets:work_machine_list",
-            "active_match": "/assets/work-machines/",
+            # Confluita nell'inventario unico: stessa pagina/lista, filtrata al
+            # gruppo produzione (?group=production).
+            "target_url": "django:assets:asset_list?group=production&rows={rows}",
+            "active_match": "group=production",
             "is_subitem": False,
             "parent_code": "",
             "sort_order": 60,
@@ -8806,6 +8814,14 @@ def asset_list(request: HttpRequest) -> HttpResponse:
     form = AssetFilterForm(request.GET or None)
     assets = Asset.objects.select_related("asset_category").all().prefetch_related("endpoints")
 
+    # Contesto "Asset produzione": la vecchia pagina dedicata (work_machine_list)
+    # e' confluita qui. ?group=production restringe l'inventario ai soli asset
+    # di produzione (CNC / macchine di lavoro / carroponte), riusando la stessa
+    # lista, colonne e ricerca degli altri tipi.
+    production_group = _clean_string(request.GET.get("group")).lower() == "production"
+    if production_group:
+        assets = assets.filter(asset_type__in=PRODUCTION_ASSET_TYPES).select_related("work_machine")
+
     if form.is_valid():
         q = _clean_string(form.cleaned_data.get("q"))
         asset_type = _clean_string(form.cleaned_data.get("asset_type"))
@@ -8813,6 +8829,9 @@ def asset_list(request: HttpRequest) -> HttpResponse:
         reparto = _clean_string(form.cleaned_data.get("reparto"))
         vlan = form.cleaned_data.get("vlan")
         ip = _clean_string(form.cleaned_data.get("ip"))
+        cnc_only = bool(form.cleaned_data.get("cnc_only"))
+        five_axes_only = bool(form.cleaned_data.get("five_axes_only"))
+        tcr_only = bool(form.cleaned_data.get("tcr_only"))
 
         if q:
             assets = assets.filter(
@@ -8837,6 +8856,14 @@ def asset_list(request: HttpRequest) -> HttpResponse:
             assets = assets.filter(endpoints__vlan=vlan)
         if ip:
             assets = assets.filter(endpoints__ip__icontains=ip)
+        # Filtri di produzione (capability del profilo WorkMachine): attivi solo
+        # quando l'utente li spunta, indipendentemente dal gruppo selezionato.
+        if cnc_only:
+            assets = assets.filter(work_machine__cnc_controlled=True)
+        if five_axes_only:
+            assets = assets.filter(work_machine__five_axes=True)
+        if tcr_only:
+            assets = assets.filter(work_machine__tcr_enabled=True)
 
     assets_filtered = assets.distinct().order_by("name", "asset_tag")
 
@@ -8879,6 +8906,8 @@ def asset_list(request: HttpRequest) -> HttpResponse:
     current_asset_type = _clean_string(request.GET.get("asset_type"))
     selected_asset_category = form.cleaned_data.get("asset_category") if form.is_valid() else None
     asset_list_context_key, asset_list_context_label = _asset_list_context(current_asset_type)
+    if production_group:
+        asset_list_context_label = "Asset produzione"
     custom_fields = list(AssetCustomField.objects.filter(is_active=True).order_by("sort_order", "id"))
     all_custom_fields = list(AssetCustomField.objects.order_by("sort_order", "id"))
     list_layouts_by_context = {
@@ -9065,7 +9094,8 @@ def asset_list(request: HttpRequest) -> HttpResponse:
         request,
         "assets/pages/asset_list.html",
         {
-            "page_title": "Inventario asset",
+            "page_title": "Asset produzione" if production_group else "Inventario asset",
+            "production_group": production_group,
             "filters_form": form,
             "assets": assets,
             "total_assets": total_assets,
@@ -13423,150 +13453,19 @@ def _machine_availability_map(asset_ids: list[int]) -> dict[int, str]:
 
 @login_required
 def work_machine_list(request: HttpRequest) -> HttpResponse:
-    form = WorkMachineFilterForm(request.GET or None)
+    # La pagina "Asset produzione" e' confluita nell'inventario unico
+    # (asset_list?group=production): stessa lista, colonne, ricerca rapida e
+    # scheda. Manteniamo la rotta come redirect permanente per link, preferiti
+    # e voci di navigazione esistenti, inoltrando i filtri compatibili.
+    params: list[tuple[str, str]] = [("group", "production")]
+    for key in ("q", "reparto", "cnc_only", "five_axes_only", "tcr_only"):
+        value = _clean_string(request.GET.get(key))
+        if value:
+            params.append((key, value))
     asset_type_filter = _clean_string(request.GET.get("asset_type"))
     if asset_type_filter in PRODUCTION_ASSET_TYPES:
-        machines_qs = Asset.objects.filter(asset_type=asset_type_filter).select_related("work_machine")
-    else:
-        machines_qs = Asset.objects.filter(asset_type__in=PRODUCTION_ASSET_TYPES).select_related("work_machine")
-
-    if form.is_valid():
-        q = _clean_string(form.cleaned_data.get("q"))
-        reparto = _clean_string(form.cleaned_data.get("reparto"))
-        status = _clean_string(form.cleaned_data.get("status"))
-        cnc_only = bool(form.cleaned_data.get("cnc_only"))
-        five_axes_only = bool(form.cleaned_data.get("five_axes_only"))
-        tcr_only = bool(form.cleaned_data.get("tcr_only"))
-
-        if q:
-            machines_qs = machines_qs.filter(
-                Q(asset_tag__icontains=q)
-                | Q(name__icontains=q)
-                | Q(reparto__icontains=q)
-                | Q(manufacturer__icontains=q)
-                | Q(model__icontains=q)
-                | Q(serial_number__icontains=q)
-                | Q(work_machine__accuracy_from__icontains=q)
-            )
-        if reparto:
-            machines_qs = machines_qs.filter(reparto__icontains=reparto)
-        if status:
-            machines_qs = machines_qs.filter(status=status)
-        if cnc_only:
-            machines_qs = machines_qs.filter(work_machine__cnc_controlled=True)
-        if five_axes_only:
-            machines_qs = machines_qs.filter(work_machine__five_axes=True)
-        if tcr_only:
-            machines_qs = machines_qs.filter(work_machine__tcr_enabled=True)
-
-    machines_filtered = machines_qs.order_by("reparto", "name", "asset_tag")
-
-    allowed_rows = [10, 25, 50, 100]
-    rows = _as_int(request.GET.get("rows"), default=25)
-    if rows not in allowed_rows:
-        rows = 25
-    paginator = Paginator(machines_filtered, rows)
-    page_number = _as_int(request.GET.get("page"), default=1)
-    page_obj = paginator.get_page(page_number)
-    machines = page_obj.object_list
-    visible_count = machines_filtered.count()
-    page_start = ((page_obj.number - 1) * rows + 1) if visible_count else 0
-    page_end = (page_start + len(machines) - 1) if visible_count else 0
-
-    rows_options = [
-        {
-            "value": value,
-            "active": value == rows,
-            "url": _query_url(request, rows=value, page=1),
-        }
-        for value in allowed_rows
-    ]
-
-    page_links = []
-    if paginator.num_pages > 0:
-        start_page = max(1, page_obj.number - 2)
-        end_page = min(paginator.num_pages, page_obj.number + 2)
-        for number in range(start_page, end_page + 1):
-            page_links.append(
-                {
-                    "number": number,
-                    "active": number == page_obj.number,
-                    "url": _query_url(request, page=number, rows=rows),
-                }
-            )
-
-    prev_page_url = _query_url(request, page=page_obj.previous_page_number(), rows=rows) if page_obj.has_previous() else ""
-    next_page_url = _query_url(request, page=page_obj.next_page_number(), rows=rows) if page_obj.has_next() else ""
-
-    if asset_type_filter in PRODUCTION_ASSET_TYPES:
-        machine_base_qs = Asset.objects.filter(asset_type=asset_type_filter).select_related("work_machine")
-    else:
-        machine_base_qs = Asset.objects.filter(asset_type__in=PRODUCTION_ASSET_TYPES).select_related("work_machine")
-    machine_total = machine_base_qs.count()
-    reparto_totals = list(
-        machine_base_qs.exclude(reparto="")
-        .values("reparto")
-        .annotate(total=Count("id"))
-        .order_by("reparto")
-    )
-    reparto_suggestions = [row["reparto"] for row in reparto_totals if _clean_string(row.get("reparto"))]
-    cnc_total = machine_base_qs.filter(work_machine__cnc_controlled=True).count()
-    five_axes_total = machine_base_qs.filter(work_machine__five_axes=True).count()
-    tcr_total = machine_base_qs.filter(work_machine__tcr_enabled=True).count()
-
-    active_layouts = list(_plant_layout_queryset().filter(is_active=True).order_by("category", "name", "id"))
-    selected_preview_category = _preferred_plant_layout_category(active_layouts)
-    active_layout = next(
-        (row for row in active_layouts if _clean_string(row.category).casefold() == _clean_string(selected_preview_category).casefold()),
-        active_layouts[0] if active_layouts else None,
-    )
-    plant_layout_payload = _plant_layout_public_payload(active_layout)
-
-    machine_ids = [m.pk for m in machines]
-    availability_map = _machine_availability_map(machine_ids)
-
-    wm_bulk_list_options = list(AssetListOption.objects.filter(is_active=True).order_by("field_key", "sort_order", "value", "id"))
-    wm_bulk_asset_categories = list(AssetCategory.objects.filter(is_active=True).order_by("sort_order", "label", "id"))
-    return render(
-        request,
-        "assets/pages/work_machine_list.html",
-        {
-            "page_title": "Asset produzione",
-            "filters_form": form,
-            "selected_asset_type": asset_type_filter,
-            "machines": machines,
-            "availability_map": availability_map,
-            "visible_count": visible_count,
-            "machine_total": machine_total,
-            "cnc_total": cnc_total,
-            "five_axes_total": five_axes_total,
-            "tcr_total": tcr_total,
-            "reparto_totals": reparto_totals,
-            "reparto_suggestions": reparto_suggestions,
-            "today": timezone.localdate(),
-            "rows": rows,
-            "rows_options": rows_options,
-            "page_obj": page_obj,
-            "page_links": page_links,
-            "prev_page_url": prev_page_url,
-            "next_page_url": next_page_url,
-            "page_start": page_start,
-            "page_end": page_end,
-            "active_layout": active_layout,
-            "plant_layout_payload": plant_layout_payload,
-            "bulk_list_options": wm_bulk_list_options,
-            "bulk_asset_categories": wm_bulk_asset_categories,
-            "asset_type_choices": Asset.TYPE_CHOICES,
-            **_assets_shell_context(
-                request,
-                rows=rows,
-                search_action=reverse("assets:work_machine_list"),
-                new_url=reverse("assets:work_machine_create"),
-                new_label="+ Nuova macchina",
-                search_placeholder="Ricerca rapida per macchina, tag, reparto o seriale",
-            ),
-        },
-    )
+        params.append(("asset_type", asset_type_filter))
+    return redirect(f"{reverse('assets:asset_list')}?{urlencode(params)}")
 
 
 # ---------------------------------------------------------------------------

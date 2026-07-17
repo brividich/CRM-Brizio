@@ -666,6 +666,11 @@ class AssetFilterForm(forms.Form):
     reparto = forms.CharField(required=False, label="Reparto")
     vlan = forms.IntegerField(required=False, label="VLAN", min_value=1)
     ip = forms.CharField(required=False, label="IP")
+    # Filtri di produzione: rilevanti solo nel contesto "Asset produzione"
+    # (?group=production), operano sul profilo WorkMachine collegato.
+    cnc_only = forms.BooleanField(required=False, label="Solo CNC")
+    five_axes_only = forms.BooleanField(required=False, label="Solo 5 assi")
+    tcr_only = forms.BooleanField(required=False, label="Solo TCR")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -679,6 +684,8 @@ class AssetFilterForm(forms.Form):
             "id",
         )
         _attach_input_css(self)
+        for field_name in ["cnc_only", "five_axes_only", "tcr_only"]:
+            self.fields[field_name].widget.attrs["class"] = ""
 
 
 class WorkMachineFilterForm(forms.Form):

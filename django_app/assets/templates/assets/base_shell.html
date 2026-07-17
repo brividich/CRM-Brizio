@@ -411,6 +411,7 @@ body.theme-dark tr[data-row-href]:hover > td { background: rgba(96,165,250,.10);
   <main class="as-main">
     <header class="as-top">
       <form method="get" action="{{ assets_shell_search_action|default:'' }}" style="flex:1;">
+        {% if request.GET.group %}<input type="hidden" name="group" value="{{ request.GET.group }}">{% endif %}
         <div class="as-search"><span class="as-search-icon">&#128269;</span><input name="q" value="{{ request.GET.q|default:'' }}" placeholder="{{ assets_shell_search_placeholder|default:'Ricerca rapida per asset, seriali o utenti (Ctrl + K)' }}"></div>
       </form>
       <a class="as-tool" href="{% url 'assets:wo_list' %}" title="Avvisi">&#128276;</a>

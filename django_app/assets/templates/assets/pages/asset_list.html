@@ -544,6 +544,7 @@ body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid);
         <input type="hidden" name="asset_type" value="{{ request.GET.asset_type|default:'' }}">
         <input type="hidden" name="asset_category" value="{{ request.GET.asset_category|default:'' }}">
         <input type="hidden" name="reparto" value="{{ request.GET.reparto|default:'' }}">
+        {% if production_group %}<input type="hidden" name="group" value="production">{% endif %}
         <input type="hidden" name="rows" value="{{ rows }}">
         <input type="hidden" name="page" value="1">
         <div class="search"><span style="color:#8da0bc;">&#128269;</span><input id="id_q" name="q" value="{{ request.GET.q|default:'' }}" placeholder="Ricerca rapida per asset, seriali o utenti (Ctrl + K)"></div>
@@ -661,10 +662,11 @@ body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid);
           <button type="button" class="admin-close" id="bulkDeselectBtn">Deseleziona tutti</button>
         </div>
 
-        <details id="advancedFiltersCard" class="f" {% if request.GET.asset_type or request.GET.asset_category or request.GET.reparto %}open{% endif %}>
+        <details id="advancedFiltersCard" class="f" {% if request.GET.asset_type or request.GET.asset_category or request.GET.reparto or request.GET.cnc_only or request.GET.five_axes_only or request.GET.tcr_only %}open{% endif %}>
           <summary class="text-base font-semibold" style="cursor:pointer;color:#4d6890;">Filtri avanzati</summary>
           <form method="get" style="margin-top:8px;">
             <input type="hidden" name="q" value="{{ request.GET.q|default:'' }}">
+            {% if production_group %}<input type="hidden" name="group" value="production">{% endif %}
             <input type="hidden" name="rows" value="{{ rows }}">
             <input type="hidden" name="page" value="1">
             <div class="fg">
@@ -672,9 +674,25 @@ body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid);
               <div class="field"><label for="{{ filters_form.asset_category.id_for_label }}">Categoria</label>{{ filters_form.asset_category }}</div>
               <div class="field"><label for="{{ filters_form.reparto.id_for_label }}">Reparto</label>{{ filters_form.reparto }}</div>
             </div>
-            <div class="fa"><a class="btn btn-secondary" href="{% url 'assets:asset_list' %}">Reimposta</a><button class="btn" type="submit">Applica</button></div>
+            {% if production_group %}
+            <div class="fg" style="margin-top:8px;">
+              <label class="checkline">{{ filters_form.cnc_only }} Solo CNC</label>
+              <label class="checkline">{{ filters_form.five_axes_only }} Solo 5 assi</label>
+              <label class="checkline">{{ filters_form.tcr_only }} Solo TCR</label>
+            </div>
+            {% endif %}
+            <div class="fa"><a class="btn btn-secondary" href="{% url 'assets:asset_list' %}{% if production_group %}?group=production{% endif %}">Reimposta</a><button class="btn" type="submit">Applica</button></div>
           </form>
         </details>
+
+        {% if production_group %}
+        <div class="prod-context-bar" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0;padding:8px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;">
+          <span style="font-weight:700;color:#1e3a5f;">Asset produzione</span>
+          <span class="muted text-sm" style="flex:1;min-width:160px;">CNC, macchine di lavoro e carroponti — stessa lista, ricerca e scheda dell'inventario.</span>
+          <a class="btn btn-secondary text-sm" href="{% url 'assets:work_machine_dashboard' %}">Dashboard officina</a>
+          <a class="btn btn-secondary text-sm" href="{% url 'assets:plant_layout_map' %}">Planimetrie</a>
+        </div>
+        {% endif %}
 
         <div class="tw">
           <table class="tbl" data-fm-hide-search="1">
