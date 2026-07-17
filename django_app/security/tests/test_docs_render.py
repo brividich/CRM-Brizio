@@ -86,3 +86,18 @@ class LoadDocTests(SimpleTestCase):
         self.assertIn("html", doc)
         self.assertIn("toc", doc)
         self.assertTrue(doc["title"])
+
+
+class GuideFilesRenderTests(SimpleTestCase):
+    def test_core_docs_present_and_render(self):
+        core = [
+            "00_START_HERE.md", "01_ARCHITECTURE.md", "02_ADMIN_GUIDE.md",
+            "07_ALERT_LIFECYCLE.md", "08_CONFIGURATION_GUIDE.md",
+            "09_TROUBLESHOOTING.md", "11_OPERATIONS_RUNBOOK.md", "MAILBOX_INGESTION.md",
+        ]
+        for f in core:
+            path = dr.GUIDE_DIR / f
+            self.assertTrue(path.exists(), f"manca {f}")
+            doc = dr.load_doc(dr.slug_for(f))
+            self.assertNotIn("non e' ancora stato scritto", doc["html"])
+            self.assertGreater(len(doc["html"]), 200, f)
