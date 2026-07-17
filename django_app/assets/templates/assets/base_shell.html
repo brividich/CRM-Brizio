@@ -245,9 +245,20 @@
 .as-form-grid-5 { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; }
 .as-dl-grid { display:grid; grid-template-columns:160px 1fr; gap:8px; margin:0; }
 
-@media (max-width: 980px) {
+@media (max-width: 860px) {
   .as-shell { grid-template-columns: 1fr; }
-  .as-side { border-right: none; border-bottom: 1px solid #dbe3f0; }
+  /* In colonna singola la sidebar NON deve restare sticky/100vh: altrimenti si
+     fissa a schermo intero e il contenuto ci scorre sotto (sovrapposizione).
+     Diventa un blocco statico in cima, con altezza propria e scroll interno. */
+  .as-side {
+    position: static;
+    height: auto;
+    max-height: 46vh;
+    overflow-y: auto;
+    border-right: none;
+    border-bottom: 1px solid #dbe3f0;
+  }
+  .as-nav { overflow-y: visible; }
   .as-user { display: none; }
   .as-form-grid-3, .as-form-grid-4, .as-form-grid-5 { grid-template-columns: repeat(2, minmax(0,1fr)); }
 }

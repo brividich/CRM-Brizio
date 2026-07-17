@@ -606,6 +606,33 @@ class AssetsRoutingTests(TestCase):
         self.assertContains(resp, 'name="part_145"')
         self.assertContains(resp, "Rientra in PART 145")
 
+    def test_work_machine_form_renders_internal_number(self):
+        # Il "Numero interno" (N.INT) era esposto nel form asset generico ma NON
+        # nel form Macchine di lavoro -> incoerenza fra asset. Ora c'è in entrambi.
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("assets:work_machine_create"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'name="internal_number"')
+        self.assertContains(resp, "Numero interno")
+
+    def test_work_machine_create_saves_internal_number(self):
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("assets:work_machine_create"),
+            {
+                "name": "Fresa con N.INT",
+                "reparto": "CN5",
+                "status": Asset.STATUS_IN_USE,
+                "internal_number": "INT-4567",
+                "documents_specs_payload": json.dumps([]),
+                "documents_manuals_payload": json.dumps([]),
+                "documents_interventions_payload": json.dumps([]),
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        asset = Asset.objects.get(name="Fresa con N.INT")
+        self.assertEqual(asset.internal_number, "INT-4567")
+
     def test_asset_detail_shows_part_145_badge_only_when_flagged(self):
         self.client.force_login(self.user)
         flagged = Asset.objects.create(asset_tag="AST-P145-B1", name="Con centoquarantacinque", part_145=True)

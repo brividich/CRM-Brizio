@@ -1345,6 +1345,7 @@ class WorkMachineAssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin,
         model = Asset
         fields = [
             "asset_tag",
+            "internal_number",
             "name",
             "asset_category",
             "reparto",
@@ -1363,6 +1364,7 @@ class WorkMachineAssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin,
             "part_145",
         ]
         labels = {
+            "internal_number": "Numero interno",
             "name": "Nome macchina",
             "asset_category": "Categoria macchina",
             "reparto": "Reparto",
@@ -1388,6 +1390,7 @@ class WorkMachineAssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin,
 
     asset_field_names = [
         "asset_tag",
+        "internal_number",
         "name",
         "asset_category",
         "reparto",
