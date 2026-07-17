@@ -239,7 +239,7 @@ def _render_inline(text: str) -> str:
     def link_sub(m: re.Match) -> str:
         label, url = m.group(1), m.group(2)
         if not _SAFE_SCHEME.match(url):
-            return html.escape(m.group(0))
+            return stash(html.escape(label))  # schema non consentito: solo testo
         external = not url.startswith(("#", "/", ".", "mailto:"))
         attrs = ' target="_blank" rel="noopener"' if external else ""
         return stash(f'<a href="{html.escape(url, quote=True)}"{attrs}>{html.escape(label)}</a>')
