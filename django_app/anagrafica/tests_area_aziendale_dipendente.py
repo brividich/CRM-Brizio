@@ -234,6 +234,65 @@ class DipendenteDetailAreaAziendaleUITests(TestCase):
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class DipendenteCreateFormA2Tests(TestCase):
+    """A2 / punto 1.4: il form 'nuovo dipendente' espone Area aziendale (accanto al
+    reparto) e Ruolo, e NON mostra più i 'Ruoli operativi di sicurezza'."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+        cls.admin = User.objects.create_superuser(
+            username="create_a2_admin", email="create_a2_admin@x.local", password="x"
+        )
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM anagrafica_dipendenti")
+
+    def test_get_mostra_area_aziendale_e_ruolo_nasconde_ruoli_operativi(self):
+        rep = Reparto.objects.create(nome="UT")
+        AreaAziendale.objects.create(nome="IN1", reparto=rep)
+        resp = self.client.get(reverse("anagrafica:dipendente_create"))
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode()
+        self.assertIn('name="area_aziendale"', content)
+        self.assertIn('name="ruolo"', content)
+        self.assertNotIn("Ruoli operativi di sicurezza", content)
+
+    def test_post_crea_dipendente_con_area_aziendale_del_reparto(self):
+        rep = Reparto.objects.create(nome="UT")
+        area = AreaAziendale.objects.create(nome="IN1", reparto=rep)
+        resp = self.client.post(reverse("anagrafica:dipendente_create"), {
+            "nome": "Alfa", "cognome": "Test", "aliasusername": "a.test",
+            "reparto": "UT", "area_aziendale": str(area.pk),
+            "mansione": "", "ruolo": "Caposquadra",
+            # niente "attivo": evita la creazione automatica dell'account portale.
+        })
+        self.assertEqual(resp.status_code, 302)
+        with connection.cursor() as cur:
+            cur.execute("SELECT id FROM anagrafica_dipendenti WHERE aliasusername=%s", ["a.test"])
+            legacy_id = int(cur.fetchone()[0])
+        az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=legacy_id)
+        self.assertEqual(az.area_aziendale_id, area.pk)
+
+    def test_post_area_di_altro_reparto_viene_azzerata(self):
+        Reparto.objects.create(nome="UT")
+        rep_mag = Reparto.objects.create(nome="MAG")
+        area_mag = AreaAziendale.objects.create(nome="ZONA1", reparto=rep_mag)
+        resp = self.client.post(reverse("anagrafica:dipendente_create"), {
+            "nome": "Beta", "cognome": "Test", "aliasusername": "b.test",
+            "reparto": "UT", "area_aziendale": str(area_mag.pk), "mansione": "", "ruolo": "",
+        })
+        self.assertEqual(resp.status_code, 302)
+        with connection.cursor() as cur:
+            cur.execute("SELECT id FROM anagrafica_dipendenti WHERE aliasusername=%s", ["b.test"])
+            legacy_id = int(cur.fetchone()[0])
+        az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=legacy_id)
+        self.assertIsNone(az.area_aziendale_id)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class TrainingEligibilityAreaAziendaleFkTests(TestCase):
     """Le regole di formazione obbligatoria per Area aziendale matchano per FK,
     non più per nome sul CharField rimosso."""

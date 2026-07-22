@@ -955,10 +955,15 @@ def dipendente_create(request):
                             civ.figli_a_carico = ha_figli
                             civ.save(update_fields=["figli_a_carico"])
 
-                # Reparto effettivo: sincronizza area aziendale e caporeparto dal catalogo
+                # Reparto effettivo: sincronizza area aziendale e caporeparto dal catalogo.
+                # L'area aziendale scelta nel form (accanto al reparto) è validata dal
+                # service (deve appartenere al reparto) o azzerata.
                 if new_id:
+                    _area_az_raw = (request.POST.get("area_aziendale") or "").strip()
+                    _area_az_id = int(_area_az_raw) if _area_az_raw.isdigit() else None
                     _sync_aziendale_from_reparto(
-                        new_id, (data.get("reparto") or "").strip(), saved_by=request.user
+                        new_id, (data.get("reparto") or "").strip(),
+                        area_aziendale_id=_area_az_id, saved_by=request.user,
                     )
 
                 # Crea automaticamente account portale (solo se non già collegato).
