@@ -23,7 +23,10 @@ logger = logging.getLogger(__name__)
 #   sezioni admin della scheda). Vedi _SEZIONI_CANONICAL: sono permessi "solo
 #   definizione", senza RoutePermissionBinding, per non cambiare l'enforcement
 #   del middleware su route oggi raggiungibili.
-_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v9"
+# Bump alla v10: aggiunge il permesso delle statistiche della scheda dipendente.
+#   La chiave DEVE essere nuova: un ambiente gia' passato da "v9" non
+#   registrerebbe il permesso aggiunto dopo.
+_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v10"
 
 # ── ACL v2 canonico — Skill Matrix MOD.187 ─────────────────────────────────────
 # Rende le route Skill Matrix governabili da /admin-portale/acl-canonico/ (e
@@ -153,6 +156,7 @@ PERM_VISITE_VIEW = "anagrafica.visite.view"
 PERM_FORMAZIONE_VIEW = "anagrafica.formazione.view"
 PERM_FORMAZIONE_MANAGE = "anagrafica.formazione.manage"
 PERM_SCHEDA_MANAGE = "anagrafica.scheda.manage"
+PERM_STATISTICHE_VIEW = "anagrafica.statistiche.view"
 
 _SEZIONI_CANONICAL = {
     PERM_HR_VIEW: {
@@ -185,6 +189,13 @@ _SEZIONI_CANONICAL = {
             "aziendale, reparto, username, qualifiche) e cataloghi anagrafica."
         ),
     },
+    PERM_STATISTICHE_VIEW: {
+        "label": "Anagrafica - Statistiche scheda dipendente",
+        "description": (
+            "Widget statistiche della scheda dipendente (ticket, anomalie, "
+            "assenze, DPI): conteggi aggregati sull'attivita' della persona."
+        ),
+    },
 }
 
 # Grant di default (CREATE-ONLY: non sovrascrive le scelte fatte in ACL canonico).
@@ -194,7 +205,7 @@ _SEZIONI_CANONICAL = {
 _SEZIONI_ROLE_GRANTS = {
     "admin": {
         PERM_HR_VIEW, PERM_VISITE_VIEW, PERM_FORMAZIONE_VIEW,
-        PERM_FORMAZIONE_MANAGE, PERM_SCHEDA_MANAGE,
+        PERM_FORMAZIONE_MANAGE, PERM_SCHEDA_MANAGE, PERM_STATISTICHE_VIEW,
     },
 }
 

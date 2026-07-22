@@ -27,12 +27,14 @@ from .acl_bootstrap import (
     PERM_FORMAZIONE_VIEW,
     PERM_HR_VIEW,
     PERM_SCHEDA_MANAGE,
+    PERM_STATISTICHE_VIEW,
     PERM_VISITE_VIEW,
     bootstrap_anagrafica_acl_endpoints,
 )
 from .views import (
     _can_edit_formazione,
     _can_view_formazione,
+    _can_view_stats,
     _can_view_visite_mediche,
     _check_hr_permission,
     _is_anagrafica_admin,
@@ -106,7 +108,8 @@ class SezioniAnagraficaAclV2Test(TestCase):
         from core.models import PermissionDefinition
 
         for code in (PERM_HR_VIEW, PERM_VISITE_VIEW, PERM_FORMAZIONE_VIEW,
-                     PERM_FORMAZIONE_MANAGE, PERM_SCHEDA_MANAGE):
+                     PERM_FORMAZIONE_MANAGE, PERM_SCHEDA_MANAGE,
+                     PERM_STATISTICHE_VIEW):
             self.assertTrue(
                 PermissionDefinition.objects.filter(code=code, is_active=True).exists(),
                 f"permesso canonico mancante: {code}",
@@ -151,6 +154,15 @@ class SezioniAnagraficaAclV2Test(TestCase):
 
         self.assertTrue(_can_edit_formazione(self._request()))
 
+    # ── statistiche della scheda dipendente ──────────────────────────────────
+    def test_grant_statistiche_apre_i_widget(self):
+        self._grant(PERM_STATISTICHE_VIEW)
+
+        self.assertTrue(_can_view_stats(self._request()))
+
+    def test_senza_grant_le_statistiche_restano_chiuse(self):
+        self.assertFalse(_can_view_stats(self._request()))
+
     # ── sezioni admin della scheda dipendente ────────────────────────────────
     def test_grant_scheda_apre_le_sezioni_admin(self):
         self._grant(PERM_SCHEDA_MANAGE)
@@ -172,6 +184,7 @@ class SezioniAnagraficaAclV2Test(TestCase):
         self.assertTrue(_can_view_formazione(request))
         self.assertTrue(_can_edit_formazione(request))
         self.assertTrue(_is_anagrafica_admin(request))
+        self.assertTrue(_can_view_stats(request))
 
     # ── la view reale deve usare il gate, non il vecchio in-line ─────────────
     # NB: si isola il gate IN-VIEW dal middleware ACL (che governa se la rotta è
@@ -210,3 +223,4 @@ class SezioniAnagraficaAclV2Test(TestCase):
         self.assertTrue(_can_view_formazione(request))
         self.assertTrue(_can_edit_formazione(request))
         self.assertTrue(_is_anagrafica_admin(request))
+        self.assertTrue(_can_view_stats(request))

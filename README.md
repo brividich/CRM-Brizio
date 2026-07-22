@@ -817,6 +817,7 @@ Permessi di sezione dell'anagrafica:
 | `anagrafica.visite.view` | Visite mediche e idoneità (dato sanitario) |
 | `anagrafica.formazione.view` / `.manage` | Formazione: consultazione / gestione catalogo |
 | `anagrafica.scheda.manage` | Sezioni di gestione della scheda dipendente e cataloghi anagrafica |
+| `anagrafica.statistiche.view` | Widget statistiche della scheda dipendente (ticket, anomalie, assenze, DPI) |
 
 Sono **additivi**: superuser e admin legacy passano come prima, e i grant nascono
 spenti per tutti gli altri ruoli — dati personali e sanitari si concedono

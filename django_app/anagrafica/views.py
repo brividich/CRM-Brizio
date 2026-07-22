@@ -138,6 +138,7 @@ from .acl_bootstrap import (
     PERM_FORMAZIONE_VIEW,
     PERM_HR_VIEW,
     PERM_SCHEDA_MANAGE,
+    PERM_STATISTICHE_VIEW,
     PERM_VISITE_VIEW,
 )
 
@@ -1320,6 +1321,9 @@ def _can_view_stats(request) -> bool:
         return True
     legacy_user = get_legacy_user(request.user)
     if is_legacy_admin(legacy_user):
+        return True
+    # ACL v2 canonico: governabile da /admin-portale/acl-canonico/ (additivo).
+    if _has_canonical_grant(request, PERM_STATISTICHE_VIEW, legacy_user=legacy_user):
         return True
     if perm.accesso == AnagraficaStatPermission.ACCESSO_ADMIN:
         return False
