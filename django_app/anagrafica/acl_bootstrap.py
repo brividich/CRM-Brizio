@@ -19,7 +19,11 @@ logger = logging.getLogger(__name__)
 # Bump alla v8: unione dei due. La chiave DEVE essere NUOVA: un ambiente gia' arrivato
 #   a "v7" con uno solo dei due filoni non ri-registrerebbe i binding dell'altro, e in
 #   ACL_STRICT_CANONICAL una route non mappata viene NEGATA a tutti i non-superuser (403).
-_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v8"
+# Bump alla v9: permessi canonici delle SEZIONI riservate (HR, visite, formazione,
+#   sezioni admin della scheda). Vedi _SEZIONI_CANONICAL: sono permessi "solo
+#   definizione", senza RoutePermissionBinding, per non cambiare l'enforcement
+#   del middleware su route oggi raggiungibili.
+_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v9"
 
 # ── ACL v2 canonico — Skill Matrix MOD.187 ─────────────────────────────────────
 # Rende le route Skill Matrix governabili da /admin-portale/acl-canonico/ (e
@@ -130,8 +134,100 @@ _EXPORT_ROUTE_BINDINGS = {
 }
 
 
+# ── ACL v2 canonico — sezioni riservate della scheda dipendente ───────────────
+# I cancelli di queste sezioni (dati HR riservati, visite mediche, formazione,
+# blocchi "admin" della scheda) storicamente guardavano solo `is_superuser` o
+# `is_legacy_admin()`. Quest'ultimo e' vero soltanto per i ruoli il cui NOME e' in
+# PORTAL_ADMIN_ROLE_NAMES (default {"admin"}, mai valorizzato): un ruolo come
+# DIREZIONE non poteva essere abilitato in alcun modo, perche' /admin-portale/
+# non governava affatto queste sezioni. Qui si registrano i permessi canonici che
+# rendono quelle sezioni concedibili da /admin-portale/acl-canonico/.
+#
+# NOTA DELIBERATA — nessun RoutePermissionBinding:
+# questi permessi affiancano i cancelli in-view, non spostano l'enforcement sul
+# middleware. Un binding di route, con ACL_STRICT_CANONICAL=True, farebbe NEGARE
+# le route a tutti i ruoli senza grant esplicito: una regressione di accesso.
+# Il gate resta dentro la view (vedi anagrafica/views.py) e resta ADDITIVO.
+PERM_HR_VIEW = "anagrafica.hr.view"
+PERM_VISITE_VIEW = "anagrafica.visite.view"
+PERM_FORMAZIONE_VIEW = "anagrafica.formazione.view"
+PERM_FORMAZIONE_MANAGE = "anagrafica.formazione.manage"
+PERM_SCHEDA_MANAGE = "anagrafica.scheda.manage"
+
+_SEZIONI_CANONICAL = {
+    PERM_HR_VIEW: {
+        "label": "Anagrafica - Dati HR riservati",
+        "description": (
+            "Dati personali riservati del dipendente (IBAN, codice fiscale, "
+            "disabilita', contratti, retribuzioni). Dato personale: concedere "
+            "solo ai ruoli con necessita' effettiva."
+        ),
+    },
+    PERM_VISITE_VIEW: {
+        "label": "Anagrafica - Visite mediche",
+        "description": (
+            "Visite mediche e idoneita' (dato sanitario). Concedere solo ai ruoli "
+            "autorizzati al trattamento dei dati sanitari."
+        ),
+    },
+    PERM_FORMAZIONE_VIEW: {
+        "label": "Anagrafica - Formazione (visualizza)",
+        "description": "Libretto formativo, attestati, piani e scadenzario formazione, sola lettura.",
+    },
+    PERM_FORMAZIONE_MANAGE: {
+        "label": "Anagrafica - Formazione (gestisci)",
+        "description": "Modifica catalogo formazione: piani, corsi, sessioni, istruttori, attestati.",
+    },
+    PERM_SCHEDA_MANAGE: {
+        "label": "Anagrafica - Gestione schede e cataloghi",
+        "description": (
+            "Sezioni di gestione della scheda dipendente (anagrafica civile e "
+            "aziendale, reparto, username, qualifiche) e cataloghi anagrafica."
+        ),
+    },
+}
+
+# Grant di default (CREATE-ONLY: non sovrascrive le scelte fatte in ACL canonico).
+# Solo "admin", che passerebbe comunque dal bypass legacy: gli altri ruoli nascono
+# a `enabled=False` e si accendono da /admin-portale/acl-canonico/. Dati personali
+# e sanitari non si concedono per default.
+_SEZIONI_ROLE_GRANTS = {
+    "admin": {
+        PERM_HR_VIEW, PERM_VISITE_VIEW, PERM_FORMAZIONE_VIEW,
+        PERM_FORMAZIONE_MANAGE, PERM_SCHEDA_MANAGE,
+    },
+}
+
+
 def _norm(value: str) -> str:
     return str(value or "").strip().lower()
+
+
+def _bootstrap_sezioni_canonical() -> bool:
+    """Registra i permessi canonici delle sezioni riservate + grant di default."""
+    from core.legacy_models import Ruolo
+    from core.models import PermissionDefinition, RolePermissionGrant
+
+    changed = False
+    with transaction.atomic():
+        for code, payload in _SEZIONI_CANONICAL.items():
+            _, created = PermissionDefinition.objects.get_or_create(
+                code=code,
+                defaults={"module": MODULE, "label": payload["label"],
+                          "description": payload["description"], "is_active": True},
+            )
+            changed = changed or created
+
+        roles = {int(r.id): _norm(r.nome) for r in Ruolo.objects.all()}
+        for rid, rname in roles.items():
+            grants = _SEZIONI_ROLE_GRANTS.get(rname, set())
+            for code in _SEZIONI_CANONICAL:
+                _, created = RolePermissionGrant.objects.get_or_create(
+                    legacy_role_id=rid, permission_id=code,
+                    defaults={"enabled": code in grants, "note": "[SEZIONI_BOOTSTRAP] default"},
+                )
+                changed = changed or created
+    return changed
 
 
 def _bootstrap_export_canonical() -> bool:
@@ -273,11 +369,12 @@ def _bootstrap_mpq_canonical() -> bool:
 
 
 def _bootstrap_anagrafica_canonical() -> bool:
-    """Bootstrap canonico delle aree anagrafica governate da ACL v2 (SKM + MPQ + export)."""
+    """Bootstrap canonico delle aree anagrafica governate da ACL v2 (SKM + MPQ + export + sezioni)."""
     changed_skm = _bootstrap_skillmatrix_canonical()
     changed_mpq = _bootstrap_mpq_canonical()
     changed_export = _bootstrap_export_canonical()
-    return bool(changed_skm or changed_mpq or changed_export)
+    changed_sezioni = _bootstrap_sezioni_canonical()
+    return bool(changed_skm or changed_mpq or changed_export or changed_sezioni)
 
 _PULSANTI_DEFINITIONS = [
     {"modulo": "anagrafica", "codice": "anagrafica_index", "label": "Anagrafica - Dashboard", "url": "/anagrafica/", "hide": False},
