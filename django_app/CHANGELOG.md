@@ -6,6 +6,12 @@
 
 - **[style] `assets/templates/assets/pages/asset_detail.html`**: (punto 3.4) la sezione **"Storico interventi"** della scheda asset è rinominata **"Interventi straordinari"** (solo etichetta, stessi dati mostrati — scelta confermata).
 
+### Remediation gestionale — numerazione incrementale (1.7 + 3.3, §5.3)
+
+- **[feat/test] `core/numbering.py` [nuovo], `core/tests_numbering.py` [nuovo]**: servizio di numerazione condiviso (funzioni pure `max_numeric`/`next_numeric`/`next_suffix`/`next_code`), riusato da asset e formazione.
+- **[feat/test] `assets/models.py` (`Asset.save`), `assets/tests_numbering_p3.py` [nuovo]**: (punto 3.3) **N. interno asset progressivo** — se lasciato vuoto alla creazione viene assegnato `max numerico + 1` (i numeri interni legacy alfanumerici sono ignorati). Nota: campo non unique → progressivo "suggerito", non chiave.
+- **[feat/test] `anagrafica/views.py` (`formazione_corso_codice_suggest`), `anagrafica/templates/anagrafica/pages/formazione_corso_form.html`, `anagrafica/tests_numbering_p3.py` [nuovo]**: (punto 1.7) **codice corso gerarchico** `<codice piano>-<N>` (N progressivo per piano); il form suggerisce il codice al cambio piano. Le lezioni restano numerate a parte via `TrainingLesson.numero`. Fallback storico (base dal titolo) senza piano.
+
 ### Remediation gestionale — 1.2 (nome al posto dell'ID nelle tabelle)
 
 - **[style] `anagrafica/templates/anagrafica/pages/{formazione_dashboard,qualifiche_dashboard,qualifiche_scadenzario,formazione_corso_detail,formazione_piano_detail}.html` + `partials/{_formazione_search_results,_safety_search_results,_formazione_search_suggest,_safety_search_suggest}.html`**: (punto 1.2) rimossi i tag `#id` secondari accanto ai nomi nelle tabelle/ricerche utente (il **nome** era già la voce primaria). **Invariati** i documenti di stampa (libretto/print, dove l'ID legacy è metadato) e le schermate admin/diagnostica. Le griglie Skill Matrix / MOD.128 / DPI risolvevano già i nomi (nessun ID grezzo).

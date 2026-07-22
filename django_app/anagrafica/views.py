@@ -11226,13 +11226,24 @@ def formazione_quickadd_docente(request):
 
 @login_required
 def formazione_corso_codice_suggest(request):
-    """Suggerisce un codice corso UNIVOCO a partire dal titolo (JSON).
+    """Suggerisce un codice corso UNIVOCO (JSON).
 
-    Base: alfanumerico maiuscolo del titolo (iniziali delle parole se lungo);
-    se già usato accoda un progressivo. Usato dal form corso per precompilare il
-    codice quando l'utente non lo digita."""
+    Punto 1.7 — numerazione gerarchica: se è indicato il PIANO, il codice è
+    ``<codice piano>-<N>`` con N progressivo per piano (le lezioni restano numerate
+    a parte via ``TrainingLesson.numero``). In assenza di piano si ripiega sulla base
+    derivata dal titolo (comportamento storico). Usato dal form corso per precompilare
+    il codice quando l'utente non lo digita."""
     if not _can_edit_formazione(request):
         return JsonResponse({"ok": False}, status=403)
+    from core.numbering import next_code
+    piano_id = request.GET.get("piano_id") or request.GET.get("piano")
+    piano = TrainingPlan.objects.filter(pk=piano_id).first() if piano_id else None
+    if piano and (piano.codice or "").strip():
+        codice = next_code(
+            TrainingCourse.objects.filter(piano=piano).values_list("codice", flat=True),
+            piano.codice.strip(),
+        )
+        return JsonResponse({"ok": True, "codice": codice})
     import re
     titolo = (request.GET.get("titolo") or "").strip()
     parole = re.findall(r"[A-Za-z0-9]+", titolo)
