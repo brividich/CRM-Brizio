@@ -6,7 +6,8 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
-<link rel="stylesheet" href="{% static 'anagrafica/css/recruiting.css' %}?v=1">
+{% include "core/components/_hub_formkit.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/recruiting.css' %}?v=2">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -87,31 +88,31 @@
         </table>
       </div>
 
-      <p class="rcr-sec-note" style="margin-top:14px;">
+      <p class="hub-fsec-d rcr-lead">
         La somma dei pesi non deve necessariamente fare 100: il punteggio è normalizzato sulla somma
         dei pesi effettivamente valorizzati, così resta sulla scala 1-5 anche con criteri disattivati
         o valutazioni parziali.
       </p>
     </section>
 
-    <section class="fmd-panel">
-      <form method="post" action="" class="rcr-form" novalidate>
+    <section class="fmd-panel fmd-block">
+      <form method="post" action="" novalidate>
         {% csrf_token %}
-        <div class="rcr-sec">
-          <div class="rcr-sec-head"><svg class="fmd-ico"><use href="#i-plus"/></svg>Aggiungi o aggiorna un criterio</div>
-          <p class="rcr-sec-note">
+        <div class="hub-fsec">
+          <div class="hub-fsec-h"><svg class="fmd-ico"><use href="#i-plus"/></svg>Aggiungi o aggiorna un criterio</div>
+          <p class="hub-fsec-d">
             Inserendo un <em>codice</em> già esistente il criterio viene sostituito. Al salvataggio i
             punteggi ponderati delle schede ancora aperte vengono ricalcolati.
           </p>
           {% if form.non_field_errors %}<div class="fmd-alert">{{ form.non_field_errors }}</div>{% endif %}
-          <div class="rcr-grid">
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.codice %}
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.label %}
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.peso_percentuale %}
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.ordine %}
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.is_active %}
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.descrizione wide=1 %}
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.rubrica wide=1 %}
+          <div class="hub-form-grid">
+            {% include "core/forms/_field.html" with field=form.codice %}
+            {% include "core/forms/_field.html" with field=form.label %}
+            {% include "core/forms/_field.html" with field=form.peso_percentuale %}
+            {% include "core/forms/_field.html" with field=form.ordine %}
+            {% include "core/forms/_field.html" with field=form.is_active %}
+            <div class="hub-col-full">{% include "core/forms/_field.html" with field=form.descrizione %}</div>
+            <div class="hub-col-full">{% include "core/forms/_field.html" with field=form.rubrica %}</div>
           </div>
         </div>
         <div class="rcr-actions">
@@ -125,13 +126,13 @@
       <div class="fmd-block-head">
         <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-shield"/></svg>Accesso alla sezione</div>
       </div>
-      <p class="rcr-sec-note" style="margin:0;">
+      <p class="hub-fsec-d">
         Impostazione corrente: <strong>{{ permessi.get_accesso_display }}</strong>.
         Le schede contengono età, cittadinanza e note libere che possono riportare situazioni
         familiari o di salute: l'accesso si governa dal permesso canonico
         <span class="fmd-code">anagrafica.recruiting.view</span> /
-        <span class="fmd-code">anagrafica.recruiting.manage</span> in ACL canonico, e da questo
-        singleton nel pannello di amministrazione.
+        <span class="fmd-code">anagrafica.recruiting.manage</span> in ACL canonico, e da
+        <a href="{% url 'anagrafica:impostazioni' %}?tab=permessi">Impostazioni → Permessi</a>.
       </p>
     </section>
 

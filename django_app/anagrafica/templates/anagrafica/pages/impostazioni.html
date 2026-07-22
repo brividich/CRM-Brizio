@@ -120,6 +120,8 @@
 .imp-perm-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px,1fr)); gap:16px; }
 .imp-perm-card { background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; }
 .imp-perm-title { font-size:13px; font-weight:800; color:#0f172a; margin-bottom:10px; }
+.imp-perm-desc { font-size:12px; color:#64748b; margin:0 0 10px; line-height:1.45; }
+.imp-perm-note { font-size:11.5px; color:#64748b; margin:10px 0 0; line-height:1.45; padding-top:9px; border-top:1px solid #e2e8f0; }
 .imp-perm-row { display:flex; align-items:center; gap:8px; padding:6px 0; font-size:13px; color:#1e293b; }
 .imp-perm-row input[type=radio] { transform:scale(1.05); }
 .imp-perm-ruoli { display:none; flex-direction:column; gap:6px; margin-top:8px; padding:10px; background:#fff; border:1px solid #e2e8f0; border-radius:8px; max-height:200px; overflow-y:auto; }
@@ -163,6 +165,8 @@ body.theme-dark .imp-noperm { background:rgba(146,64,14,.2); color:#fcd34d; bord
 body.theme-dark .imp-perm-card { background:var(--surface-alt); border-color:var(--border); }
 body.theme-dark .imp-perm-title { color:var(--text); }
 body.theme-dark .imp-perm-row { color:var(--text-mid); }
+body.theme-dark .imp-perm-desc, body.theme-dark .imp-perm-note { color:var(--text-light); }
+body.theme-dark .imp-perm-note { border-color:var(--border); }
 body.theme-dark .imp-perm-ruoli { background:var(--surface); border-color:var(--border); }
 body.theme-dark .imp-perm-ruoli label { color:var(--text-mid); }
 body.theme-dark .imp-perm-ruoli label:hover { background:var(--surface-alt); }
@@ -2106,115 +2110,16 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
           <div class="imp-card-head">
             <div>
               <div class="imp-card-title">Permessi visibilità sezioni anagrafica</div>
-              <div class="imp-card-sub">Configura chi può vedere statistiche e dati HR riservati nella scheda dipendente</div>
+              <div class="imp-card-sub">Chi può vedere le sezioni con dati riservati: statistiche, dati HR, visite mediche, schede di selezione</div>
             </div>
           </div>
 
           <form method="post" action="{% url 'anagrafica:impostazioni_permessi_save' %}">
             {% csrf_token %}
             <div class="imp-perm-grid">
-
-              <!-- Stat permissions -->
-              <div class="imp-perm-card">
-                <div class="imp-perm-title">📊 Widget statistiche</div>
-                <p style="font-size:12px; color:#64748b; margin:0 0 10px;">Chi può vedere la sezione statistiche attività nella scheda dipendente</p>
-
-                <label class="imp-perm-row">
-                  <input type="radio" name="stat_accesso" value="{{ ACCESSO_TUTTI }}" {% if stat_perm.accesso == ACCESSO_TUTTI %}checked{% endif %} data-perm-radio="stat" {% if not is_admin %}disabled{% endif %}>
-                  Tutti gli utenti autenticati
-                </label>
-                <label class="imp-perm-row">
-                  <input type="radio" name="stat_accesso" value="{{ ACCESSO_ADMIN }}" {% if stat_perm.accesso == ACCESSO_ADMIN %}checked{% endif %} data-perm-radio="stat" {% if not is_admin %}disabled{% endif %}>
-                  Solo amministratori
-                </label>
-                <label class="imp-perm-row">
-                  <input type="radio" name="stat_accesso" value="{{ ACCESSO_RUOLI }}" {% if stat_perm.accesso == ACCESSO_RUOLI %}checked{% endif %} data-perm-radio="stat" {% if not is_admin %}disabled{% endif %}>
-                  Ruoli ACL specifici
-                </label>
-
-                <div class="imp-perm-ruoli {% if stat_perm.accesso == ACCESSO_RUOLI %}open{% endif %}" data-perm-ruoli="stat">
-                  {% if ruoli_acl %}
-                    {% for r in ruoli_acl %}
-                      <label>
-                        <input type="checkbox" name="stat_ruolo_ids" value="{{ r.id }}"
-                               {% if r.id in stat_perm.ruolo_ids %}checked{% endif %}
-                               {% if not is_admin %}disabled{% endif %}>
-                        {{ r.nome }}
-                      </label>
-                    {% endfor %}
-                  {% else %}
-                    <div class="imp-empty">Nessun ruolo ACL disponibile.</div>
-                  {% endif %}
-                </div>
-              </div>
-
-              <!-- HR permissions -->
-              <div class="imp-perm-card">
-                <div class="imp-perm-title">🔐 Dati HR riservati</div>
-                <p style="font-size:12px; color:#64748b; margin:0 0 10px;">Chi può vedere IBAN, codice fiscale, percentuale disabilità nelle schede</p>
-
-                <label class="imp-perm-row">
-                  <input type="radio" name="hr_accesso" value="{{ ACCESSO_TUTTI }}" {% if hr_perm.accesso == ACCESSO_TUTTI %}checked{% endif %} data-perm-radio="hr" {% if not is_admin %}disabled{% endif %}>
-                  Tutti gli utenti autenticati
-                </label>
-                <label class="imp-perm-row">
-                  <input type="radio" name="hr_accesso" value="{{ ACCESSO_ADMIN }}" {% if hr_perm.accesso == ACCESSO_ADMIN %}checked{% endif %} data-perm-radio="hr" {% if not is_admin %}disabled{% endif %}>
-                  Solo amministratori
-                </label>
-                <label class="imp-perm-row">
-                  <input type="radio" name="hr_accesso" value="{{ ACCESSO_RUOLI }}" {% if hr_perm.accesso == ACCESSO_RUOLI %}checked{% endif %} data-perm-radio="hr" {% if not is_admin %}disabled{% endif %}>
-                  Ruoli ACL specifici
-                </label>
-
-                <div class="imp-perm-ruoli {% if hr_perm.accesso == ACCESSO_RUOLI %}open{% endif %}" data-perm-ruoli="hr">
-                  {% if ruoli_acl %}
-                    {% for r in ruoli_acl %}
-                      <label>
-                        <input type="checkbox" name="hr_ruolo_ids" value="{{ r.id }}"
-                               {% if r.id in hr_perm.ruolo_ids %}checked{% endif %}
-                               {% if not is_admin %}disabled{% endif %}>
-                        {{ r.nome }}
-                      </label>
-                    {% endfor %}
-                  {% else %}
-                    <div class="imp-empty">Nessun ruolo ACL disponibile.</div>
-                  {% endif %}
-                </div>
-              </div>
-
-              <!-- Visite mediche permissions -->
-              <div class="imp-perm-card">
-                <div class="imp-perm-title">🩺 Visite mediche</div>
-                <p style="font-size:12px; color:#64748b; margin:0 0 10px;">Chi può vedere e registrare le visite mediche (dato sanitario sensibile — default: solo admin)</p>
-
-                <label class="imp-perm-row">
-                  <input type="radio" name="visite_accesso" value="{{ ACCESSO_TUTTI }}" {% if visite_perm.accesso == ACCESSO_TUTTI %}checked{% endif %} data-perm-radio="visite" {% if not is_admin %}disabled{% endif %}>
-                  Tutti gli utenti autenticati
-                </label>
-                <label class="imp-perm-row">
-                  <input type="radio" name="visite_accesso" value="{{ ACCESSO_ADMIN }}" {% if visite_perm.accesso == ACCESSO_ADMIN %}checked{% endif %} data-perm-radio="visite" {% if not is_admin %}disabled{% endif %}>
-                  Solo amministratori
-                </label>
-                <label class="imp-perm-row">
-                  <input type="radio" name="visite_accesso" value="{{ ACCESSO_RUOLI }}" {% if visite_perm.accesso == ACCESSO_RUOLI %}checked{% endif %} data-perm-radio="visite" {% if not is_admin %}disabled{% endif %}>
-                  Ruoli ACL specifici
-                </label>
-
-                <div class="imp-perm-ruoli {% if visite_perm.accesso == ACCESSO_RUOLI %}open{% endif %}" data-perm-ruoli="visite">
-                  {% if ruoli_acl %}
-                    {% for r in ruoli_acl %}
-                      <label>
-                        <input type="checkbox" name="visite_ruolo_ids" value="{{ r.id }}"
-                               {% if r.id in visite_perm.ruolo_ids %}checked{% endif %}
-                               {% if not is_admin %}disabled{% endif %}>
-                        {{ r.nome }}
-                      </label>
-                    {% endfor %}
-                  {% else %}
-                    <div class="imp-empty">Nessun ruolo ACL disponibile.</div>
-                  {% endif %}
-                </div>
-              </div>
+              {% for card in permessi_cards %}
+                {% include "anagrafica/partials/_imp_perm_card.html" %}
+              {% endfor %}
             </div>
 
             {% if is_admin %}

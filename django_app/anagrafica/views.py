@@ -62,6 +62,7 @@ from .models import (
     AnagraficaHRPermission,
     AnagraficaStatPermission,
     AnagraficaVisiteMedichePermission,
+    RecruitingPermission,
     AreaAziendale,
     Reparto,
     CartellaDocumentoDipendente,
@@ -8543,10 +8544,44 @@ def impostazioni(request):
     # --- Tipologie contratto ---
     tipologie = list(TipologiaContratto.objects.all().order_by("ordine", "codice"))
 
-    # --- Permessi HR / widget statistiche (singleton) ---
-    stat_perm = AnagraficaStatPermission.get_instance()
-    hr_perm = AnagraficaHRPermission.get_instance()
-    visite_perm = AnagraficaVisiteMedichePermission.get_instance()
+    # --- Permessi di sezione (singleton TUTTI/ADMIN/RUOLI) ---
+    # Una sola lista descrittiva: il template cicla su `permessi_cards` e
+    # `impostazioni_permessi_save` salva sugli stessi prefissi. Aggiungere un
+    # permesso significa aggiungere una riga qui, non un blocco di markup.
+    permessi_cards = [
+        {
+            "prefix": "stat",
+            "icona": "📊",
+            "titolo": "Widget statistiche",
+            "descrizione": "Chi può vedere la sezione statistiche attività nella scheda dipendente",
+            "perm": AnagraficaStatPermission.get_instance(),
+        },
+        {
+            "prefix": "hr",
+            "icona": "🔐",
+            "titolo": "Dati HR riservati",
+            "descrizione": "Chi può vedere IBAN, codice fiscale, percentuale disabilità nelle schede",
+            "perm": AnagraficaHRPermission.get_instance(),
+        },
+        {
+            "prefix": "visite",
+            "icona": "🩺",
+            "titolo": "Visite mediche",
+            "descrizione": "Chi può vedere e registrare le visite mediche (dato sanitario sensibile — default: solo admin)",
+            "perm": AnagraficaVisiteMedichePermission.get_instance(),
+        },
+        {
+            "prefix": "recruiting",
+            "icona": "🧭",
+            "titolo": "Recruiting (MOD. 05-01)",
+            "descrizione": "Chi può vedere e gestire le schede candidato: contengono età, cittadinanza e note libere (default: solo admin)",
+            "perm": RecruitingPermission.get_instance(),
+            "nota": (
+                "Questo permesso restringe, non concede: serve comunque il permesso canonico "
+                "anagrafica.recruiting.view / .manage in ACL canonico."
+            ),
+        },
+    ]
     try:
         from core.legacy_models import Ruolo
         ruoli_acl = list(Ruolo.objects.order_by("nome"))
@@ -8704,9 +8739,7 @@ def impostazioni(request):
         "dpi_modelli": dpi_modelli,
         "dpi_taglie": dpi_taglie,
         # Permessi
-        "stat_perm": stat_perm,
-        "hr_perm": hr_perm,
-        "visite_perm": visite_perm,
+        "permessi_cards": permessi_cards,
         "ruoli_acl": ruoli_acl,
         "ACCESSO_TUTTI": AnagraficaStatPermission.ACCESSO_TUTTI,
         "ACCESSO_ADMIN": AnagraficaStatPermission.ACCESSO_ADMIN,
@@ -8747,20 +8780,18 @@ def impostazioni_permessi_save(request):
         raw = request.POST.getlist(f"{prefix}_ruolo_ids")
         return [int(r) for r in raw if str(r).isdigit()]
 
-    stat_perm = AnagraficaStatPermission.get_instance()
-    stat_perm.accesso = _parse_accesso("stat")
-    stat_perm.ruolo_ids = _parse_ruoli("stat")
-    stat_perm.save()
-
-    hr_perm = AnagraficaHRPermission.get_instance()
-    hr_perm.accesso = _parse_accesso("hr")
-    hr_perm.ruolo_ids = _parse_ruoli("hr")
-    hr_perm.save()
-
-    visite_perm = AnagraficaVisiteMedichePermission.get_instance()
-    visite_perm.accesso = _parse_accesso("visite")
-    visite_perm.ruolo_ids = _parse_ruoli("visite")
-    visite_perm.save()
+    # Stessi prefissi delle card costruite in `impostazioni`: aggiungere un
+    # permesso di sezione significa aggiungere una riga là e una qui.
+    for prefix, modello in (
+        ("stat", AnagraficaStatPermission),
+        ("hr", AnagraficaHRPermission),
+        ("visite", AnagraficaVisiteMedichePermission),
+        ("recruiting", RecruitingPermission),
+    ):
+        perm = modello.get_instance()
+        perm.accesso = _parse_accesso(prefix)
+        perm.ruolo_ids = _parse_ruoli(prefix)
+        perm.save()
 
     messages.success(request, "Permessi salvati.")
     return _redirect_impostazioni("permessi")

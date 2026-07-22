@@ -6,7 +6,8 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
-<link rel="stylesheet" href="{% static 'anagrafica/css/recruiting.css' %}?v=1">
+{% include "core/components/_hub_formkit.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/recruiting.css' %}?v=2">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -27,123 +28,126 @@
       </div>
     </div>
 
-    <form method="post" action="" class="rcr-form" novalidate>
+    <form method="post" action="" novalidate>
       {% csrf_token %}
-      {% if form.non_field_errors %}<div class="fmd-alert">{{ form.non_field_errors }}</div>{% endif %}
 
-      <section class="fmd-panel">
+      <section class="fmd-panel fmd-block">
+        {% if form.non_field_errors %}<div class="fmd-alert">{{ form.non_field_errors }}</div>{% endif %}
 
-        <div class="rcr-sec">
-          <div class="rcr-sec-head"><svg class="fmd-ico"><use href="#i-users"/></svg>Anagrafica e provenienza</div>
-          <p class="rcr-sec-note">Dati identificativi del candidato e canale da cui è arrivato il curriculum.</p>
-          <div class="rcr-grid">
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.cognome %}
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.nome %}
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.cellulare %}
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.email %}
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.localita %}
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.provincia %}
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.canale_provenienza %}
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.canale_dettaglio %}
-          </div>
-        </div>
+        <div class="hub-form-stack">
 
-        <div class="rcr-sec">
-          <div class="rcr-sec-head"><svg class="fmd-ico"><use href="#i-building"/></svg>Situazione professionale</div>
-          <div class="rcr-grid">
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.mansione_cercata %}
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.azienda_attuale %}
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.mansione_attuale %}
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.livello_contratto_attuale %}
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.occupato_attualmente %}
-          </div>
-        </div>
-
-        <div class="rcr-sec">
-          <div class="rcr-sec-head"><svg class="fmd-ico"><use href="#i-doc"/></svg>Dati informativi</div>
-          <p class="rcr-sec-note">
-            Questi campi servono a HR ma <strong>non entrano in alcun modo nel punteggio</strong>:
-            il ponderato legge solo i criteri di valutazione qui sotto.
-          </p>
-          <div class="rcr-grid">
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.eta %}
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.titolo_studio %}
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.cittadinanza %}
-          </div>
-        </div>
-
-        <div class="rcr-sec">
-          <div class="rcr-sec-head"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Esito C.V. e primo colloquio</div>
-          <div class="rcr-grid">
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.data_primo_colloquio %}
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.cv_esito %}
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.colloquio_effettuato %}
-          </div>
-        </div>
-
-        <div class="rcr-sec">
-          <div class="rcr-sec-head"><svg class="fmd-ico"><use href="#i-award"/></svg>Valutazione a criteri pesati</div>
-          <p class="rcr-sec-note">
-            Scala 1-5 per criterio. Il punteggio qui sotto è un'anteprima: il valore salvato
-            è sempre quello ricalcolato dal server.
-          </p>
-
-          {% if righe_criteri %}
-          <div class="rcr-crit">
-            {% for riga in righe_criteri %}
-            <div class="rcr-crit-row">
-              <div>
-                <div class="rcr-crit-name">{{ riga.criterio.label }} <span class="rcr-crit-peso">{{ riga.criterio.peso_percentuale }}%</span></div>
-                {% if riga.criterio.descrizione %}<div class="rcr-crit-desc">{{ riga.criterio.descrizione }}</div>{% endif %}
-                {% if riga.criterio.rubrica %}<div class="rcr-crit-desc">{{ riga.criterio.rubrica|linebreaksbr }}</div>{% endif %}
-              </div>
-              <div class="rcr-scale">
-                {% for n in scala %}
-                <input type="radio" id="crit{{ riga.criterio.id }}-{{ n }}" name="criterio_{{ riga.criterio.id }}" value="{{ n }}"
-                       data-peso="{{ riga.criterio.peso_percentuale }}"
-                       {% if riga.valore == n %}checked{% endif %}>
-                <label for="crit{{ riga.criterio.id }}-{{ n }}">{{ n }}</label>
-                {% endfor %}
-                <input type="radio" id="crit{{ riga.criterio.id }}-none" name="criterio_{{ riga.criterio.id }}" value="" data-peso="0"
-                       {% if not riga.valore %}checked{% endif %}>
-                <label for="crit{{ riga.criterio.id }}-none" class="rcr-clear">—</label>
-              </div>
+          <div class="hub-fsec">
+            <div class="hub-fsec-h"><svg class="fmd-ico"><use href="#i-users"/></svg>Anagrafica e provenienza</div>
+            <p class="hub-fsec-d">Dati identificativi del candidato e canale da cui è arrivato il curriculum.</p>
+            <div class="hub-form-grid">
+              {% include "core/forms/_field.html" with field=form.cognome %}
+              {% include "core/forms/_field.html" with field=form.nome %}
+              {% include "core/forms/_field.html" with field=form.cellulare %}
+              {% include "core/forms/_field.html" with field=form.email %}
+              {% include "core/forms/_field.html" with field=form.localita %}
+              {% include "core/forms/_field.html" with field=form.provincia %}
+              {% include "core/forms/_field.html" with field=form.canale_provenienza %}
+              {% include "core/forms/_field.html" with field=form.canale_dettaglio %}
             </div>
-            {% endfor %}
           </div>
 
-          <div class="rcr-score">
-            <span class="rcr-score-val" id="rcr-preview">—</span>
-            <span class="rcr-score-lbl">Punteggio medio ponderato (anteprima)</span>
+          <div class="hub-fsec">
+            <div class="hub-fsec-h"><svg class="fmd-ico"><use href="#i-building"/></svg>Situazione professionale</div>
+            <div class="hub-form-grid">
+              {% include "core/forms/_field.html" with field=form.mansione_cercata %}
+              {% include "core/forms/_field.html" with field=form.azienda_attuale %}
+              {% include "core/forms/_field.html" with field=form.mansione_attuale %}
+              {% include "core/forms/_field.html" with field=form.livello_contratto_attuale %}
+              {% include "core/forms/_field.html" with field=form.occupato_attualmente %}
+            </div>
           </div>
-          {% else %}
-          <div class="fmd-empty">
-            <span class="fmd-et">Nessun criterio attivo</span>
-            <span class="fmd-em">Configura i criteri di valutazione prima di valutare i candidati.</span>
-          </div>
-          {% endif %}
-        </div>
 
-        <div class="rcr-sec">
-          <div class="rcr-sec-head"><svg class="fmd-ico"><use href="#i-mic"/></svg>Altri elementi di valutazione</div>
-          <div class="rcr-grid">
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.lingua_inglese_livello %}
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.disponibilita %}
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.idoneita_tirocinio %}
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.idoneita_apprendistato %}
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.rischio_abbandono %}
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.giudizio_finale %}
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.stato %}
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.motivo_cambio_lavoro wide=1 %}
-            {% include "anagrafica/partials/_rcr_field.html" with field=form.note wide=1 %}
+          <div class="hub-fsec">
+            <div class="hub-fsec-h"><svg class="fmd-ico"><use href="#i-doc"/></svg>Dati informativi</div>
+            <p class="hub-fsec-d">
+              Servono a HR ma <strong>non entrano in alcun modo nel punteggio</strong>:
+              il ponderato legge solo i criteri di valutazione qui sotto.
+            </p>
+            <div class="hub-form-grid">
+              {% include "core/forms/_field.html" with field=form.eta %}
+              {% include "core/forms/_field.html" with field=form.titolo_studio %}
+              {% include "core/forms/_field.html" with field=form.cittadinanza %}
+            </div>
           </div>
+
+          <div class="hub-fsec">
+            <div class="hub-fsec-h"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Esito C.V. e primo colloquio</div>
+            <div class="hub-form-grid">
+              {% include "core/forms/_field.html" with field=form.data_primo_colloquio %}
+              {% include "core/forms/_field.html" with field=form.cv_esito %}
+              {% include "core/forms/_field.html" with field=form.colloquio_effettuato %}
+            </div>
+          </div>
+
+          <div class="hub-fsec">
+            <div class="hub-fsec-h"><svg class="fmd-ico"><use href="#i-award"/></svg>Valutazione a criteri pesati</div>
+            <p class="hub-fsec-d">
+              Scala 1-5 per criterio. Il punteggio qui sotto è un'anteprima: il valore salvato
+              è sempre quello ricalcolato dal server.
+            </p>
+
+            {% if righe_criteri %}
+            <div class="rcr-crit">
+              {% for riga in righe_criteri %}
+              <div class="rcr-crit-row">
+                <div>
+                  <div class="rcr-crit-name">{{ riga.criterio.label }} <span class="rcr-crit-peso">{{ riga.criterio.peso_percentuale }}%</span></div>
+                  {% if riga.criterio.descrizione %}<div class="rcr-crit-desc">{{ riga.criterio.descrizione }}</div>{% endif %}
+                  {% if riga.criterio.rubrica %}<div class="rcr-crit-desc">{{ riga.criterio.rubrica|linebreaksbr }}</div>{% endif %}
+                </div>
+                <div class="rcr-scale">
+                  {% for n in scala %}
+                  <input type="radio" id="crit{{ riga.criterio.id }}-{{ n }}" name="criterio_{{ riga.criterio.id }}" value="{{ n }}"
+                         data-peso="{{ riga.criterio.peso_percentuale }}"
+                         {% if riga.valore == n %}checked{% endif %}>
+                  <label for="crit{{ riga.criterio.id }}-{{ n }}">{{ n }}</label>
+                  {% endfor %}
+                  <input type="radio" id="crit{{ riga.criterio.id }}-none" name="criterio_{{ riga.criterio.id }}" value="" data-peso="0"
+                         {% if not riga.valore %}checked{% endif %}>
+                  <label for="crit{{ riga.criterio.id }}-none" class="rcr-clear">—</label>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+
+            <div class="rcr-score">
+              <span class="rcr-score-val" id="rcr-preview">—</span>
+              <span class="rcr-score-lbl">Punteggio medio ponderato (anteprima)</span>
+            </div>
+            {% else %}
+            <div class="fmd-empty">
+              <span class="fmd-et">Nessun criterio attivo</span>
+              <span class="fmd-em">Configura i criteri di valutazione prima di valutare i candidati.</span>
+            </div>
+            {% endif %}
+          </div>
+
+          <div class="hub-fsec">
+            <div class="hub-fsec-h"><svg class="fmd-ico"><use href="#i-mic"/></svg>Altri elementi di valutazione</div>
+            <div class="hub-form-grid">
+              {% include "core/forms/_field.html" with field=form.lingua_inglese_livello %}
+              {% include "core/forms/_field.html" with field=form.disponibilita %}
+              {% include "core/forms/_field.html" with field=form.idoneita_tirocinio %}
+              {% include "core/forms/_field.html" with field=form.idoneita_apprendistato %}
+              {% include "core/forms/_field.html" with field=form.rischio_abbandono %}
+              {% include "core/forms/_field.html" with field=form.giudizio_finale %}
+              {% include "core/forms/_field.html" with field=form.stato %}
+              <div class="hub-col-full">{% include "core/forms/_field.html" with field=form.motivo_cambio_lavoro %}</div>
+              <div class="hub-col-full">{% include "core/forms/_field.html" with field=form.note %}</div>
+            </div>
+          </div>
+
         </div>
 
         <div class="rcr-actions">
           <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-check"/></svg>Salva scheda</button>
           <a href="{% if candidato %}{% url 'anagrafica:recruiting_detail' candidato.id %}{% else %}{% url 'anagrafica:recruiting_list' %}{% endif %}" class="fmd-btn fmd-btn-ghost">Annulla</a>
         </div>
-
       </section>
     </form>
 
@@ -155,9 +159,9 @@
   // Anteprima del ponderato: stessa formula del server (media pesata sui pesi
   // effettivamente valorizzati), ma il valore salvato resta quello ricalcolato
   // lato server al submit.
-  var form = document.querySelector('.rcr-form');
   var out = document.getElementById('rcr-preview');
-  if (!form || !out) { return; }
+  var form = out ? out.closest('form') : null;
+  if (!form) { return; }
 
   function aggiorna() {
     var totale = 0, pesoTotale = 0;

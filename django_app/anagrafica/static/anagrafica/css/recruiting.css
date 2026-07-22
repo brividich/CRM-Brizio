@@ -1,148 +1,127 @@
-/* Recruiting MOD. 05-01 — componenti specifici della selezione risorse.
+/* Recruiting MOD. 05-01 — solo i componenti che il design-system non ha già.
  *
- * Estende il design system `fmd-` delle pagine HR (formazione_design.css):
- * qui stanno solo i pezzi che non esistono altrove — la griglia di valutazione
- * 1-5, il form a sezioni e la timeline delle modifiche tracciate.
- * Dark mode gestita in coda, sullo stesso schema di formazione_design.css.
+ * Le pagine usano il guscio `fmd-` delle altre pagine HR (formazione_design.css)
+ * e il **form-kit canonico** `hub-` (core/components/_hub_formkit.html) per
+ * campi, bottoni e sezioni di form — stesso schema di `qualifiche_list`.
+ * Qui restano soltanto i pezzi realmente nuovi: la scala di valutazione 1-5,
+ * la lettura del punteggio, il pannello di conformità e la timeline delle
+ * modifiche tracciate. Tutto sui token `--hub-*`, così un ritocco al tema
+ * propaga anche qui.
  */
 
-/* ── Form a sezioni ─────────────────────────────────────────────────────── */
-.rcr-form .rcr-sec { padding: 20px 22px 22px; border-top: 1px solid #e6ebf3; }
-.rcr-form .rcr-sec:first-child { border-top: 0; }
-.rcr-sec-head {
-  display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px;
-  font-size: 15px; font-weight: 800; color: #16324f;
-}
-.rcr-sec-note {
-  font-size: 12px; font-weight: 600; color: #64748b; margin: 0 0 16px;
-}
-.rcr-grid {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px;
-}
-.rcr-grid .rcr-wide { grid-column: 1 / -1; }
-.rcr-f { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.rcr-f > label {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 10px; font-weight: 700; letter-spacing: .06em;
-  text-transform: uppercase; color: #94a3b8;
-}
-.rcr-form input[type=text], .rcr-form input[type=email], .rcr-form input[type=number],
-.rcr-form input[type=date], .rcr-form select, .rcr-form textarea {
-  width: 100%; border: 1px solid #e6ebf3; border-radius: 8px; padding: 9px 11px;
-  font: inherit; font-size: 13px; color: #0f172a; background: #fff; outline: none;
-}
-.rcr-form textarea { resize: vertical; }
-.rcr-form input:focus, .rcr-form select:focus, .rcr-form textarea:focus {
-  border-color: #1f87cd; box-shadow: 0 0 0 3px rgba(31, 135, 205, .12);
-}
-.rcr-f-check { flex-direction: row; align-items: center; gap: 9px; }
-.rcr-f-check > label { text-transform: none; letter-spacing: 0; font-size: 12.5px; color: #334155; }
-.rcr-err { font-size: 11.5px; font-weight: 700; color: #b91c1c; }
-.rcr-help { font-size: 11.5px; color: #64748b; }
-.rcr-actions {
-  display: flex; align-items: center; gap: 10px; padding: 16px 22px;
-  border-top: 1px solid #e6ebf3;
-}
-
-/* ── Griglia di valutazione 1-5 ─────────────────────────────────────────── */
+/* ── Scala di valutazione 1-5 ───────────────────────────────────────────── */
 .rcr-crit { display: flex; flex-direction: column; gap: 10px; }
 .rcr-crit-row {
   display: grid; grid-template-columns: minmax(180px, 2fr) auto; gap: 14px;
   align-items: center; padding: 12px 14px;
-  border: 1px solid #e6ebf3; border-radius: 10px; background: #fbfdff;
+  border: 1px solid var(--hub-line); border-radius: var(--hub-radius);
+  background: var(--hub-wash);
 }
-.rcr-crit-name { font-size: 13.5px; font-weight: 700; color: #16324f; }
+.rcr-crit-name { font-size: 13.5px; font-weight: 700; color: var(--hub-navy); }
 .rcr-crit-peso {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px; font-weight: 700; color: #1f87cd;
+  font-family: var(--hub-mono); font-size: 11px; font-weight: 700; color: var(--hub-cyan);
 }
-.rcr-crit-desc { font-size: 11.5px; color: #64748b; margin-top: 3px; }
+.rcr-crit-desc { font-size: 11.5px; color: var(--hub-muted); margin-top: 3px; line-height: 1.45; }
+
 .rcr-scale { display: flex; gap: 6px; }
 .rcr-scale input { position: absolute; opacity: 0; pointer-events: none; }
 .rcr-scale label {
   display: inline-flex; align-items: center; justify-content: center;
   width: 38px; height: 38px; border-radius: 9px; cursor: pointer;
-  border: 1px solid #e6ebf3; background: #fff;
-  font-size: 13px; font-weight: 800; color: #64748b;
+  border: 1px solid var(--hub-line); background: var(--hub-surface);
+  font-size: 13px; font-weight: 800; color: var(--hub-muted);
   transition: border-color .12s, background .12s, color .12s;
 }
-.rcr-scale label:hover { border-color: #cfd9ea; }
-.rcr-scale input:checked + label { background: #1f87cd; border-color: #1f87cd; color: #fff; }
+.rcr-scale label:hover { border-color: var(--hub-neu-bd); }
+.rcr-scale input:checked + label {
+  background: var(--hub-cyan); border-color: var(--hub-cyan); color: #fff;
+}
 .rcr-scale input:focus-visible + label { box-shadow: 0 0 0 3px rgba(31, 135, 205, .28); }
-.rcr-scale .rcr-clear { font-size: 11px; font-weight: 700; width: auto; padding: 0 10px; }
+.rcr-scale .rcr-clear { width: auto; padding: 0 10px; font-size: 11px; }
 
+/* ── Lettura del punteggio ponderato ────────────────────────────────────── */
 .rcr-score {
   display: flex; align-items: baseline; gap: 10px; margin-top: 14px;
-  padding: 14px 16px; border-radius: 10px;
-  background: #eff8ff; border: 1px solid #cde5f7;
+  padding: 14px 16px; border-radius: var(--hub-radius);
+  background: var(--hub-blue-bg); border: 1px solid var(--hub-blue-bd);
 }
-.rcr-score-val { font-size: 26px; font-weight: 800; color: #16324f; line-height: 1; }
-.rcr-score-lbl { font-size: 12px; font-weight: 700; color: #476282; }
+.rcr-score-val { font-size: 26px; font-weight: 800; color: var(--hub-navy); line-height: 1; }
+.rcr-score-lbl { font-size: 12px; font-weight: 700; color: var(--hub-blue-fg); }
 
-/* ── Avviso di conformità (UNI/PdR 125) ─────────────────────────────────── */
+/* ── Pannello di conformità (UNI/PdR 125) ───────────────────────────────── */
 .rcr-note {
-  padding: 16px 18px; border-radius: 10px;
-  background: #fffbeb; border: 1px solid #fde68a;
+  padding: 16px 18px; border-radius: var(--hub-radius);
+  background: var(--hub-warn-bg); border: 1px solid var(--hub-warn-bd);
 }
-.rcr-note h3 { margin: 0 0 8px; font-size: 13.5px; font-weight: 800; color: #92400e; }
+.rcr-note h3 { margin: 0 0 8px; font-size: 13.5px; font-weight: 800; color: var(--hub-warn-fg); }
 .rcr-note ul { margin: 0; padding-left: 18px; }
-.rcr-note li { font-size: 12.5px; color: #78350f; margin-bottom: 6px; line-height: 1.5; }
+.rcr-note li { font-size: 12.5px; color: var(--hub-warn-fg); margin-bottom: 6px; line-height: 1.5; }
 
 /* ── Timeline delle modifiche tracciate ─────────────────────────────────── */
-.rcr-log { display: flex; flex-direction: column; gap: 0; }
+.rcr-log { display: flex; flex-direction: column; }
 .rcr-log-row {
   display: grid; grid-template-columns: 140px 1fr; gap: 14px;
-  padding: 10px 0; border-bottom: 1px solid #eef2f7;
+  padding: 10px 0; border-bottom: 1px solid var(--hub-line-soft);
 }
 .rcr-log-row:last-child { border-bottom: 0; }
-.rcr-log-when {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px; color: #94a3b8;
-}
-.rcr-log-what { font-size: 12.5px; color: #334155; }
-.rcr-log-what b { color: #16324f; }
-.rcr-log-who { font-size: 11.5px; color: #64748b; }
-.rcr-log-arrow { color: #94a3b8; padding: 0 4px; }
+.rcr-log-when { font-family: var(--hub-mono); font-size: 11px; color: var(--hub-muted-2); }
+.rcr-log-what { font-size: 12.5px; color: var(--hub-slate); }
+.rcr-log-what b { color: var(--hub-navy); }
+.rcr-log-who { font-size: 11.5px; color: var(--hub-muted); }
+.rcr-log-arrow { color: var(--hub-muted-2); padding: 0 4px; }
 
-/* ── Riepilogo in scheda ────────────────────────────────────────────────── */
+/* ── Riepilogo a coppie etichetta/valore ────────────────────────────────── */
 .rcr-dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
 .rcr-dl div { min-width: 0; }
 .rcr-dl dt {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 10px; font-weight: 700; letter-spacing: .06em;
-  text-transform: uppercase; color: #94a3b8; margin-bottom: 4px;
+  font-family: var(--hub-mono); font-size: 10px; font-weight: 700; letter-spacing: .05em;
+  text-transform: uppercase; color: #6b7a90; margin-bottom: 4px;
 }
-.rcr-dl dd { margin: 0; font-size: 13px; color: #0f172a; word-break: break-word; }
+.rcr-dl dd { margin: 0; font-size: 13px; color: var(--hub-ink); word-break: break-word; }
+.rcr-dl-full { grid-template-columns: 1fr; }
+.rcr-dl-gap { margin-top: 18px; }
 
-/* ── Dark mode ──────────────────────────────────────────────────────────── */
-body.theme-dark .fmd .rcr-form .rcr-sec,
-body.theme-dark .fmd .rcr-actions { border-color: var(--border); }
-body.theme-dark .fmd .rcr-sec-head,
-body.theme-dark .fmd .rcr-crit-name,
-body.theme-dark .fmd .rcr-score-val,
-body.theme-dark .fmd .rcr-dl dd,
-body.theme-dark .fmd .rcr-log-what b { color: var(--text); }
-body.theme-dark .fmd .rcr-form input[type=text],
-body.theme-dark .fmd .rcr-form input[type=email],
-body.theme-dark .fmd .rcr-form input[type=number],
-body.theme-dark .fmd .rcr-form input[type=date],
-body.theme-dark .fmd .rcr-form select,
-body.theme-dark .fmd .rcr-form textarea,
-body.theme-dark .fmd .rcr-crit-row,
-body.theme-dark .fmd .rcr-scale label {
-  background: var(--surface); border-color: var(--border); color: var(--text);
+/* Testo introduttivo di un blocco: riusa la tipografia di .hub-fsec-d, che
+   però nasce sotto un'intestazione di sezione e ha un margine negativo. */
+.rcr-lead { margin: 14px 0 0; }
+
+/* Varianti di layout del guscio fmd-, estratte dagli inline style (audit dark
+   mode: niente colori/geometrie hardcoded nel markup). */
+.rcr-kpi-3 { grid-template-columns: repeat(3, 1fr); }
+.rcr-filterbar-flush { padding: 0; }
+.rcr-ebadge { background: var(--hub-line-soft); color: var(--hub-muted-2); }
+body.theme-dark .rcr-ebadge { background: var(--surface-alt, #1e293b); color: var(--text-mid, #94a3b8); }
+
+/* Le due azioni di fine iter, affiancate su desktop e impilate su mobile. */
+.rcr-esito { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; }
+@media (max-width: 720px) { .rcr-esito { grid-template-columns: 1fr; } }
+
+/* Azioni in coda a un form dentro un pannello fmd- */
+.rcr-actions {
+  display: flex; align-items: center; gap: 10px; margin-top: 18px;
+  padding-top: 16px; border-top: 1px solid var(--hub-line-soft);
 }
-body.theme-dark .fmd .rcr-scale input:checked + label {
-  background: #1f87cd; border-color: #1f87cd; color: #fff;
+
+/* ── Dark mode (stesso schema del form-kit: token core, non colori fissi) ── */
+body.theme-dark .rcr-crit-row,
+body.theme-dark .rcr-scale label {
+  background: var(--surface-alt, #1e293b); border-color: var(--border); color: var(--text);
 }
-body.theme-dark .fmd .rcr-score {
+body.theme-dark .rcr-scale input:checked + label {
+  background: var(--hub-cyan); border-color: var(--hub-cyan); color: #fff;
+}
+body.theme-dark .rcr-crit-name,
+body.theme-dark .rcr-score-val,
+body.theme-dark .rcr-dl dd,
+body.theme-dark .rcr-log-what b { color: var(--text); }
+body.theme-dark .rcr-log-what { color: var(--text-mid, #cbd5e1); }
+body.theme-dark .rcr-score {
   background: rgba(31, 135, 205, .12); border-color: rgba(31, 135, 205, .35);
 }
-body.theme-dark .fmd .rcr-note {
+body.theme-dark .rcr-note {
   background: rgba(245, 158, 11, .10); border-color: rgba(245, 158, 11, .35);
 }
-body.theme-dark .fmd .rcr-note h3,
-body.theme-dark .fmd .rcr-note li { color: #fcd34d; }
-body.theme-dark .fmd .rcr-log-row { border-color: var(--border); }
-body.theme-dark .fmd .rcr-log-what,
-body.theme-dark .fmd .rcr-f-check > label { color: var(--text-muted, #94a3b8); }
+body.theme-dark .rcr-note h3,
+body.theme-dark .rcr-note li { color: #fcd34d; }
+body.theme-dark .rcr-log-row,
+body.theme-dark .rcr-actions { border-color: var(--border); }

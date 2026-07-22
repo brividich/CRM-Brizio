@@ -6,7 +6,7 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
-<link rel="stylesheet" href="{% static 'anagrafica/css/recruiting.css' %}?v=1">
+<link rel="stylesheet" href="{% static 'anagrafica/css/recruiting.css' %}?v=2">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -34,7 +34,7 @@
       </div>
     </section>
 
-    <section class="fmd-kpi" style="grid-template-columns:repeat(3,1fr);">
+    <section class="fmd-kpi rcr-kpi-3">
       <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clipboard"/></svg></span><span class="fmd-mtr-val">{{ n_in_corso }}</span></div><div class="fmd-mtr-lbl">Iter aperti</div><div class="fmd-mtr-sub">Selezioni in corso</div></div>
       <div class="fmd-mtr fmd-t-green"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ n_assunti }}</span></div><div class="fmd-mtr-lbl">Assunti</div><div class="fmd-mtr-sub">Passati a onboarding</div></div>
       <div class="fmd-mtr fmd-t-violet"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-award"/></svg></span><span class="fmd-mtr-val">{{ n_in_database }}</span></div><div class="fmd-mtr-lbl">In database</div><div class="fmd-mtr-sub">Profili per future opportunità</div></div>
@@ -52,7 +52,7 @@
         </div>
       </div>
 
-      <form method="get" action="" class="fmd-filterbar" style="padding:0;">
+      <form method="get" action="" class="fmd-filterbar rcr-filterbar-flush">
         <div class="fmd-filtf">
           <label for="f-q">Ricerca libera</label>
           <input type="text" id="f-q" name="q" value="{{ filtri.q }}" placeholder="Nome, mansione, azienda…">
@@ -166,7 +166,7 @@
 
       {% else %}
       <div class="fmd-empty">
-        <span class="fmd-ebadge" style="background:#eef2f7;color:#94a3b8;"><svg class="fmd-ico"><use href="#i-users"/></svg></span>
+        <span class="fmd-ebadge rcr-ebadge"><svg class="fmd-ico"><use href="#i-users"/></svg></span>
         <span class="fmd-et">Nessun candidato</span>
         <span class="fmd-em">{% if can_manage %}Crea la prima scheda dal pulsante «Nuovo candidato».{% else %}Nessuna scheda corrisponde ai filtri impostati.{% endif %}</span>
       </div>

@@ -1,0 +1,49 @@
+{% comment %}
+Card di un permesso di sezione (singleton TUTTI/ADMIN/RUOLI) del tab Permessi.
+Fonte unica: le card erano tre blocchi identici copiati, e ogni nuovo permesso
+ne aggiungeva un quarto. Ora la pagina cicla su `permessi_cards` costruita in
+`views.impostazioni`.
+
+Parametri include: card (dict con prefix/titolo/descrizione/perm), ruoli_acl,
+is_admin, ACCESSO_TUTTI, ACCESSO_ADMIN, ACCESSO_RUOLI.
+{% endcomment %}
+<div class="imp-perm-card">
+  <div class="imp-perm-title">{{ card.icona }} {{ card.titolo }}</div>
+  <p class="imp-perm-desc">{{ card.descrizione }}</p>
+
+  <label class="imp-perm-row">
+    <input type="radio" name="{{ card.prefix }}_accesso" value="{{ ACCESSO_TUTTI }}"
+           {% if card.perm.accesso == ACCESSO_TUTTI %}checked{% endif %}
+           data-perm-radio="{{ card.prefix }}" {% if not is_admin %}disabled{% endif %}>
+    Tutti gli utenti autenticati
+  </label>
+  <label class="imp-perm-row">
+    <input type="radio" name="{{ card.prefix }}_accesso" value="{{ ACCESSO_ADMIN }}"
+           {% if card.perm.accesso == ACCESSO_ADMIN %}checked{% endif %}
+           data-perm-radio="{{ card.prefix }}" {% if not is_admin %}disabled{% endif %}>
+    Solo amministratori
+  </label>
+  <label class="imp-perm-row">
+    <input type="radio" name="{{ card.prefix }}_accesso" value="{{ ACCESSO_RUOLI }}"
+           {% if card.perm.accesso == ACCESSO_RUOLI %}checked{% endif %}
+           data-perm-radio="{{ card.prefix }}" {% if not is_admin %}disabled{% endif %}>
+    Ruoli ACL specifici
+  </label>
+
+  <div class="imp-perm-ruoli {% if card.perm.accesso == ACCESSO_RUOLI %}open{% endif %}" data-perm-ruoli="{{ card.prefix }}">
+    {% if ruoli_acl %}
+      {% for r in ruoli_acl %}
+        <label>
+          <input type="checkbox" name="{{ card.prefix }}_ruolo_ids" value="{{ r.id }}"
+                 {% if r.id in card.perm.ruolo_ids %}checked{% endif %}
+                 {% if not is_admin %}disabled{% endif %}>
+          {{ r.nome }}
+        </label>
+      {% endfor %}
+    {% else %}
+      <div class="imp-empty">Nessun ruolo ACL disponibile.</div>
+    {% endif %}
+  </div>
+
+  {% if card.nota %}<p class="imp-perm-note">{{ card.nota }}</p>{% endif %}
+</div>

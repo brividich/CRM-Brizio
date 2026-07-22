@@ -6,7 +6,8 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
-<link rel="stylesheet" href="{% static 'anagrafica/css/recruiting.css' %}?v=1">
+{% include "core/components/_hub_formkit.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/recruiting.css' %}?v=2">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -100,7 +101,7 @@
       <div class="fmd-empty"><span class="fmd-et">Nessun criterio attivo</span></div>
       {% endif %}
 
-      <dl class="rcr-dl" style="margin-top:18px;">
+      <dl class="rcr-dl rcr-dl-gap">
         <div><dt>Giudizio finale</dt><dd>
           {% if candidato.giudizio_finale == "POSITIVO" %}<span class="fmd-badge fmd-b-green">Positivo</span>
           {% elif candidato.giudizio_finale == "NEGATIVO" %}<span class="fmd-badge fmd-b-red">Negativo</span>
@@ -113,7 +114,7 @@
       </dl>
 
       {% if candidato.motivo_cambio_lavoro or candidato.note %}
-      <dl class="rcr-dl" style="margin-top:14px;grid-template-columns:1fr;">
+      <dl class="rcr-dl rcr-dl-full rcr-dl-gap">
         {% if candidato.motivo_cambio_lavoro %}<div><dt>Motivo del cambio lavoro</dt><dd>{{ candidato.motivo_cambio_lavoro|linebreaksbr }}</dd></div>{% endif %}
         {% if candidato.note %}<div><dt>Note</dt><dd>{{ candidato.note|linebreaksbr }}</dd></div>{% endif %}
       </dl>
@@ -130,15 +131,15 @@
       </div>
 
       {% if can_manage %}
-      <form method="post" action="{% url 'anagrafica:recruiting_step2' candidato.id %}" class="rcr-form">
+      <form method="post" action="{% url 'anagrafica:recruiting_step2' candidato.id %}">
         {% csrf_token %}
-        <div class="rcr-grid">
-          {% include "anagrafica/partials/_rcr_field.html" with field=step2_form.data_secondo_colloquio %}
-          {% include "anagrafica/partials/_rcr_field.html" with field=step2_form.comunicazione_esito %}
-          {% include "anagrafica/partials/_rcr_field.html" with field=step2_form.data_assunzione %}
-          {% include "anagrafica/partials/_rcr_field.html" with field=step2_form.note_secondo_colloquio wide=1 %}
+        <div class="hub-form-grid">
+          {% include "core/forms/_field.html" with field=step2_form.data_secondo_colloquio %}
+          {% include "core/forms/_field.html" with field=step2_form.comunicazione_esito %}
+          {% include "core/forms/_field.html" with field=step2_form.data_assunzione %}
+          <div class="hub-col-full">{% include "core/forms/_field.html" with field=step2_form.note_secondo_colloquio %}</div>
         </div>
-        <div style="margin-top:14px;">
+        <div class="rcr-actions">
           <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-check"/></svg>Salva secondo colloquio</button>
         </div>
       </form>
@@ -160,7 +161,7 @@
       </div>
 
       {% if candidato.onboarding_pratica %}
-      <p class="rcr-sec-note">
+      <p class="hub-fsec-d rcr-lead">
         Candidato assunto: dipendente creato in anagrafica (id legacy {{ candidato.legacy_anagrafica_id }})
         e pratica di onboarding avviata.
       </p>
@@ -168,27 +169,25 @@
         <svg class="fmd-ico"><use href="#i-arrow-right"/></svg>Apri la pratica di onboarding
       </a>
       {% else %}
-      <div class="fmd-split" style="gap:14px;align-items:flex-start;">
-        <form method="post" action="{% url 'anagrafica:recruiting_assumi' candidato.id %}" class="rcr-form" style="flex:1;">
+      <div class="rcr-esito">
+        <form method="post" action="{% url 'anagrafica:recruiting_assumi' candidato.id %}">
           {% csrf_token %}
-          <p class="rcr-sec-note">
+          <p class="hub-fsec-d rcr-lead">
             Crea il dipendente in anagrafica riusando i dati già raccolti e avvia la checklist
             di inserimento. Nessuna doppia immissione.
           </p>
-          <div class="rcr-grid">
-            <div class="rcr-f">
-              <label for="rcr-reparto">Reparto di destinazione</label>
-              <input type="text" id="rcr-reparto" name="reparto" placeholder="Facoltativo">
-            </div>
+          <div class="hub-field">
+            <label for="rcr-reparto">Reparto di destinazione</label>
+            <input type="text" id="rcr-reparto" name="reparto" placeholder="Facoltativo">
           </div>
-          <div style="margin-top:14px;">
+          <div class="rcr-actions">
             <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-check"/></svg>Assunto → invia a Onboarding</button>
           </div>
         </form>
 
-        <form method="post" action="{% url 'anagrafica:recruiting_archivia' candidato.id %}" style="flex:1;">
+        <form method="post" action="{% url 'anagrafica:recruiting_archivia' candidato.id %}">
           {% csrf_token %}
-          <p class="rcr-sec-note">
+          <p class="hub-fsec-d rcr-lead">
             Chiude l'iter mantenendo il profilo consultabile per future opportunità,
             filtrabile per mansione, punteggio ed esito.
           </p>

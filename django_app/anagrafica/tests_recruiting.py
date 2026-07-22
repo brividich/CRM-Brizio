@@ -321,6 +321,100 @@ class GatingTests(TestCase):
         self.assertEqual(self.client.get(reverse("anagrafica:recruiting_list")).status_code, 302)
 
 
+class SubnavTests(TestCase):
+    """Il modulo deve stare nel menu di Anagrafica, non solo nella pill «Vai a»."""
+
+    def test_voce_recruiting_nel_pilastro_persone(self):
+        from .models import SubnavLinkAnagrafica
+
+        link = SubnavLinkAnagrafica.objects.filter(
+            url_value="anagrafica:recruiting_list",
+        ).first()
+        self.assertIsNotNone(link, "voce di subnav Recruiting mancante")
+        self.assertTrue(link.is_active)
+        self.assertEqual(link.etichetta, "Recruiting")
+        self.assertEqual(getattr(link.categoria, "nome", ""), "Persone")
+
+    def test_precede_onboarding_nel_menu(self):
+        """La selezione viene prima dell'inserimento: l'ordine segue il processo."""
+        from .models import SubnavLinkAnagrafica
+
+        recruiting = SubnavLinkAnagrafica.objects.get(url_value="anagrafica:recruiting_list")
+        onboarding = SubnavLinkAnagrafica.objects.filter(
+            url_value="anagrafica:onboarding_list",
+        ).first()
+        if onboarding is None:
+            self.skipTest("voce Onboarding non presente in questo ambiente")
+        self.assertLess(recruiting.ordine, onboarding.ordine)
+
+    def test_tutte_le_pagine_evidenziano_la_voce(self):
+        from .models import SubnavLinkAnagrafica
+        from .urls import urlpatterns
+
+        link = SubnavLinkAnagrafica.objects.get(url_value="anagrafica:recruiting_list")
+        attivi = {t.strip() for t in (link.active_view_names or "").split(",") if t.strip()}
+        dichiarate = {
+            f"anagrafica:{p.name}"
+            for p in urlpatterns
+            if getattr(p, "name", "") and p.name.startswith("recruiting_")
+        }
+        # Le route POST-only (azioni) non hanno una pagina da evidenziare.
+        azioni = {
+            "anagrafica:recruiting_step2",
+            "anagrafica:recruiting_assumi",
+            "anagrafica:recruiting_archivia",
+        }
+        self.assertEqual(dichiarate - azioni - attivi, set())
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class ImpostazioniPermessiTests(TestCase):
+    """La sezione Recruiting deve essere configurabile da Impostazioni → Permessi."""
+
+    def setUp(self):
+        _ensure_anagrafica_table()
+        _ensure_utenti_table()
+        self.admin = User.objects.create_superuser(
+            username="hr-imp", email="hr-imp@example.com", password="pass12345",
+        )
+        self.client.force_login(self.admin)
+
+    def test_card_recruiting_presente_tra_i_permessi(self):
+        resp = self.client.get(reverse("anagrafica:impostazioni"))
+        self.assertEqual(resp.status_code, 200)
+        prefissi = {card["prefix"] for card in resp.context["permessi_cards"]}
+        self.assertEqual(prefissi, {"stat", "hr", "visite", "recruiting"})
+        self.assertContains(resp, 'name="recruiting_accesso"')
+
+    def test_salvataggio_permesso_recruiting(self):
+        resp = self.client.post(reverse("anagrafica:impostazioni_permessi_save"), {
+            "stat_accesso": RecruitingPermission.ACCESSO_ADMIN,
+            "hr_accesso": RecruitingPermission.ACCESSO_ADMIN,
+            "visite_accesso": RecruitingPermission.ACCESSO_ADMIN,
+            "recruiting_accesso": RecruitingPermission.ACCESSO_RUOLI,
+            "recruiting_ruolo_ids": ["3", "7"],
+        })
+        self.assertEqual(resp.status_code, 302)
+        perm = RecruitingPermission.get_instance()
+        self.assertEqual(perm.accesso, RecruitingPermission.ACCESSO_RUOLI)
+        self.assertEqual(perm.ruolo_ids, [3, 7])
+
+    def test_le_altre_card_non_vengono_azzerate(self):
+        """Il salvataggio scrive tutti i prefissi: nessuno resta indietro."""
+        self.client.post(reverse("anagrafica:impostazioni_permessi_save"), {
+            "stat_accesso": RecruitingPermission.ACCESSO_TUTTI,
+            "hr_accesso": RecruitingPermission.ACCESSO_ADMIN,
+            "visite_accesso": RecruitingPermission.ACCESSO_ADMIN,
+            "recruiting_accesso": RecruitingPermission.ACCESSO_ADMIN,
+        })
+        from .models import AnagraficaStatPermission
+
+        self.assertEqual(
+            AnagraficaStatPermission.get_instance().accesso,
+            AnagraficaStatPermission.ACCESSO_TUTTI,
+        )
+
+
 class AclBootstrapTests(TestCase):
     """Con ACL_STRICT_CANONICAL una route non mappata viene negata a tutti.
 
@@ -373,6 +467,25 @@ class ViewsTests(TestCase):
             username="hr-view", email="hr-view@example.com", password="pass12345",
         )
         self.client.force_login(self.admin)
+
+    def test_form_nuovo_candidato_si_rende_col_form_kit(self):
+        """Le pagine usano il form-kit canonico `hub-`, non un namespace ad-hoc."""
+        resp = self.client.get(reverse("anagrafica:recruiting_create"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "hub-form-grid")
+        self.assertContains(resp, "hub-field")
+        self.assertContains(resp, "rcr-scale")          # scala 1-5, componente proprio
+        self.assertNotContains(resp, "rcr-form")        # namespace duplicato rimosso
+
+    def test_form_modifica_preseleziona_i_voti(self):
+        candidato = Candidato.objects.create(cognome="Preself", nome="T")
+        recruiting_service.salva_punteggi(candidato, {self.criteri["sintonia"].id: 4})
+        resp = self.client.get(reverse("anagrafica:recruiting_edit", args=[candidato.id]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(
+            resp, f'id="crit{self.criteri["sintonia"].id}-4"', msg_prefix="radio del voto assente",
+        )
+        self.assertContains(resp, "checked")
 
     def test_creazione_calcola_il_punteggio_lato_server(self):
         resp = self.client.post(reverse("anagrafica:recruiting_create"), {

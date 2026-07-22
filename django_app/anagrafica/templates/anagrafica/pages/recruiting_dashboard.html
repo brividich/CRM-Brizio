@@ -6,7 +6,7 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
-<link rel="stylesheet" href="{% static 'anagrafica/css/recruiting.css' %}?v=1">
+<link rel="stylesheet" href="{% static 'anagrafica/css/recruiting.css' %}?v=2">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -64,13 +64,13 @@
       </form>
     </section>
 
-    <section class="fmd-kpi" style="grid-template-columns:repeat(3,1fr);">
+    <section class="fmd-kpi rcr-kpi-3">
       <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ kpi.totale }}</span></div><div class="fmd-mtr-lbl">Candidati</div><div class="fmd-mtr-sub">Nel perimetro selezionato</div></div>
       <div class="fmd-mtr fmd-t-navy"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-award"/></svg></span><span class="fmd-mtr-val">{{ kpi.media_ponderata|floatformat:2|default:"—" }}</span></div><div class="fmd-mtr-lbl">Punteggio medio</div><div class="fmd-mtr-sub">Media dei ponderati (scala 1-5)</div></div>
       <div class="fmd-mtr fmd-t-green"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ kpi.tasso_assunzione }}%</span></div><div class="fmd-mtr-lbl">Tasso di assunzione</div><div class="fmd-mtr-sub">{{ kpi.assunti }} assunti su {{ kpi.totale }}</div></div>
     </section>
 
-    <section class="fmd-kpi" style="grid-template-columns:repeat(3,1fr);">
+    <section class="fmd-kpi rcr-kpi-3">
       <div class="fmd-mtr fmd-t-green"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ kpi.pct_positivi }}%</span></div><div class="fmd-mtr-lbl">Esiti positivi</div><div class="fmd-mtr-sub">{{ kpi.positivi }} giudizi positivi</div></div>
       <div class="fmd-mtr fmd-t-orange"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ kpi.pct_negativi }}%</span></div><div class="fmd-mtr-lbl">Esiti negativi</div><div class="fmd-mtr-sub">{{ kpi.negativi }} giudizi negativi</div></div>
       <div class="fmd-mtr fmd-t-violet"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ kpi.giorni_medi_tra_colloqui|default:"—" }}</span></div><div class="fmd-mtr-lbl">Giorni tra i colloqui</div><div class="fmd-mtr-sub">Media 1° → 2° colloquio</div></div>
