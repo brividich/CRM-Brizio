@@ -148,7 +148,6 @@
             <tr>
               <td>
                 <a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' v.legacy_id %}">{{ v.dipendente }}</a>
-                <span class="fmd-code" style="margin-left:5px;">#{{ v.legacy_id }}</span>
               </td>
               <td class="fmd-muted">{{ v.reparto|default:"—" }}</td>
               <td>{{ v.tipo_nome }}{% if v.numero %} <span class="fmd-code">{{ v.numero }}</span>{% endif %}{% if v.livello %} <span class="fmd-muted">· {{ v.livello }}</span>{% endif %}</td>
