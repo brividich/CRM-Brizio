@@ -61,3 +61,28 @@ class ProfiloRischioPanelTests(TestCase):
         body = resp.content.decode()
         self.assertIn("Esposizioni dirette", body)
         self.assertIn("Rumore A2", body)
+
+    def test_admin_aggiunge_esposizione_diretta(self):
+        fattore = FattoreRischio.objects.create(codice="X1", nome="Fattore X1")
+        resp = self.client.post(
+            reverse("anagrafica:dipendente_esposizione_rischio_add", args=[self.legacy_id]),
+            {"fattore_id": str(fattore.pk), "note": "assegnazione manuale"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(
+            EsposizioneRischio.objects.filter(
+                legacy_anagrafica_id=self.legacy_id, fattore=fattore
+            ).exists()
+        )
+        self.assertIn("Fattore X1", resp.content.decode())
+
+    def test_admin_rimuove_esposizione_diretta(self):
+        fattore = FattoreRischio.objects.create(codice="X2", nome="Fattore X2")
+        esp = EsposizioneRischio.objects.create(
+            fattore=fattore, legacy_anagrafica_id=self.legacy_id
+        )
+        resp = self.client.post(
+            reverse("anagrafica:dipendente_esposizione_rischio_remove", args=[self.legacy_id, esp.pk])
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(EsposizioneRischio.objects.filter(pk=esp.pk).exists())

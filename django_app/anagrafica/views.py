@@ -13678,6 +13678,14 @@ def dipendente_conformita_panel(request, legacy_id: int):
     Mai esiti/prescrizioni. La logica privacy è applicata dal service via
     ``include_visite_dettaglio``.
     """
+    return render(
+        request, "anagrafica/partials/conformita_panel.html",
+        _build_conformita_panel_ctx(request, legacy_id),
+    )
+
+
+def _build_conformita_panel_ctx(request, legacy_id: int) -> dict:
+    """Context del pannello conformità + profilo di rischio derivato (A2)."""
     can_view_visite = _can_view_visite_mediche(request)
     mansione_nome = (
         AnagraficaDipendente.objects
@@ -13697,13 +13705,14 @@ def dipendente_conformita_panel(request, legacy_id: int):
     requisiti_rischio = mansionario_service.requisiti_dipendente(
         legacy_id, mansione_nome=mansione_nome
     )
-    from .models_rischi import EsposizioneRischio
+    from .models_rischi import EsposizioneRischio, FattoreRischio
     esposizioni_dirette = list(
         EsposizioneRischio.objects
         .filter(legacy_anagrafica_id=legacy_id, is_active=True)
         .select_related("fattore")
     )
-    return render(request, "anagrafica/partials/conformita_panel.html", {
+    _, is_admin = _ensure_admin(request)
+    return {
         "legacy_id": legacy_id,
         "stato": stato,
         "mansione_nome": mansione_nome,
@@ -13711,7 +13720,55 @@ def dipendente_conformita_panel(request, legacy_id: int):
         "can_view_visite": can_view_visite,
         "requisiti_rischio": requisiti_rischio,
         "esposizioni_dirette": esposizioni_dirette,
-    })
+        "is_admin": is_admin,
+        "fattori_disponibili": (
+            list(FattoreRischio.objects.filter(is_active=True).order_by("nome"))
+            if is_admin else []
+        ),
+    }
+
+
+@login_required
+@require_POST
+def dipendente_esposizione_rischio_add(request, legacy_id: int):
+    """(1.9) Assegna un'esposizione a rischio DIRETTAMENTE a un dipendente (admin).
+    Ri-renderizza il pannello conformità (HTMX)."""
+    _, is_admin = _ensure_admin(request)
+    if not is_admin:
+        return HttpResponse(status=403)
+    from .models_rischi import EsposizioneRischio, FattoreRischio
+    try:
+        fattore = FattoreRischio.objects.get(pk=request.POST.get("fattore_id"), is_active=True)
+    except (FattoreRischio.DoesNotExist, ValueError, TypeError):
+        return render(
+            request, "anagrafica/partials/conformita_panel.html",
+            _build_conformita_panel_ctx(request, legacy_id),
+        )
+    EsposizioneRischio.objects.get_or_create(
+        fattore=fattore, legacy_anagrafica_id=legacy_id,
+        defaults={"note": (request.POST.get("note") or "").strip(), "is_active": True},
+    )
+    return render(
+        request, "anagrafica/partials/conformita_panel.html",
+        _build_conformita_panel_ctx(request, legacy_id),
+    )
+
+
+@login_required
+@require_POST
+def dipendente_esposizione_rischio_remove(request, legacy_id: int, esp_id: int):
+    """(1.9) Rimuove un'esposizione diretta di un dipendente (admin). Ri-renderizza il pannello."""
+    _, is_admin = _ensure_admin(request)
+    if not is_admin:
+        return HttpResponse(status=403)
+    from .models_rischi import EsposizioneRischio
+    EsposizioneRischio.objects.filter(
+        pk=esp_id, legacy_anagrafica_id=legacy_id
+    ).delete()
+    return render(
+        request, "anagrafica/partials/conformita_panel.html",
+        _build_conformita_panel_ctx(request, legacy_id),
+    )
 
 
 @login_required

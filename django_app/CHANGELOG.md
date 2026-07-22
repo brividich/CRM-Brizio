@@ -11,6 +11,7 @@
 
 - **[feat/test] `anagrafica/views.py`, `anagrafica/templates/anagrafica/pages/dipendente_create.html`, `anagrafica/tests_area_aziendale_dipendente.py`**: (punto 1.4) il form di creazione dipendente ora espone **Area aziendale** (accanto a Reparto, validata contro il reparto da `_sync_aziendale_from_reparto`) e **Ruolo**; le sezioni **"Ruoli operativi di sicurezza"** e la DPI-all'ingresso ad esse accoppiata sono **nascoste** (il profilo di rischio deriva dalla mansione, non dai ruoli operativi). Nuovo `DipendenteCreateFormA2Tests`.
 - **[feat/test] `anagrafica/views.py` (`dipendente_conformita_panel`), `anagrafica/templates/anagrafica/partials/conformita_panel.html`, `anagrafica/tests_mansione_rischio_a2.py`**: (A2.2) pannello **"Profilo di rischio"** derivato (sola lettura) nella card Conformità della scheda dipendente — fattori/DPI/visite da `requisiti_dipendente()` + elenco esposizioni dirette. Nuovo `ProfiloRischioPanelTests`.
+- **[feat/test] `anagrafica/views.py`, `anagrafica/urls.py`, `anagrafica/templates/anagrafica/partials/conformita_panel.html`, `anagrafica/tests_mansione_rischio_a2.py`**: (A2.2 / punto 1.9) mini-form **admin** nel pannello per **assegnare/rimuovere un'esposizione di rischio direttamente al dipendente** (HTMX, ri-renderizza il pannello). Context del pannello estratto in `_build_conformita_panel_ctx`. Nuovi test add/remove.
 
 ### Epica A / A3 — richiesta DPI filtrata per mansione di rischio (punto 2.1)
 
