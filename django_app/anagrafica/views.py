@@ -7188,6 +7188,10 @@ def _build_scadenzario_voci(
     soglia_30 = oggi + _timedelta(days=30)
     soglia_60 = oggi + _timedelta(days=60)
 
+    # Gli ex dipendenti (rapporto cessato) non devono comparire nello scadenzario
+    # in NESSUNA sorgente: il filtro va applicato a monte, non solo ai contratti.
+    cessati = _cessati_legacy_ids()
+
     can_view_visite = _can_view_visite_mediche(request)
     can_view_formazione = _can_view_formazione(request)
     can_view_contratti = _check_hr_permission(request)
@@ -7202,7 +7206,7 @@ def _build_scadenzario_voci(
     if filtro_tipo in ("", "qualifica"):
         qs_q = DipendenteQualifica.objects.select_related("tipo").filter(
             data_scadenza__isnull=False
-        )
+        ).exclude(legacy_anagrafica_id__in=cessati)
         if filtro_stato == "scaduta":
             qs_q = qs_q.filter(data_scadenza__lt=oggi)
         elif filtro_stato == "30":
@@ -7237,7 +7241,7 @@ def _build_scadenzario_voci(
     if can_view_visite and filtro_tipo in ("", "visita"):
         qs_v = VisitaMedica.objects.select_related("tipo").filter(
             id__in=ultime_visite_correnti_ids(), data_scadenza__isnull=False
-        )
+        ).exclude(legacy_anagrafica_id__in=cessati)
         if filtro_stato == "scaduta":
             qs_v = qs_v.filter(data_scadenza__lt=oggi)
         elif filtro_stato == "30":
@@ -7273,6 +7277,7 @@ def _build_scadenzario_voci(
         qs_f = (
             TrainingDeadline.objects.select_related("corso")
             .filter(is_required=True, data_scadenza__isnull=False)
+            .exclude(legacy_anagrafica_id__in=cessati)
         )
         if filtro_stato == "scaduta":
             qs_f = qs_f.filter(data_scadenza__lt=oggi)
@@ -7306,11 +7311,7 @@ def _build_scadenzario_voci(
 
     # ── Contratti a termine e periodi di prova (gated: dato HR) ─────────────
     if can_view_contratti and filtro_tipo in ("", "contratto"):
-        cessati = set(
-            DipendenteAnagraficaAziendale.objects
-            .filter(data_cessazione__isnull=False)
-            .values_list("legacy_anagrafica_id", flat=True)
-        )
+        # `cessati` è già calcolato a monte (usato da tutte le sorgenti).
         # Solo l'ultimo contratto per dipendente: i precedenti sono storia chiusa.
         ultimo_contratto: dict[int, StoricoContratto] = {}
         for c in (

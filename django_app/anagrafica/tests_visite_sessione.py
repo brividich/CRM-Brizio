@@ -593,6 +593,16 @@ class GiornataRenderTests(TestCase):
         body = resp.content.decode()
         self.assertIn(f'name="sel_66_{self.tipo.pk}"', body)
 
+    def test_filtro_tipo_usa_param_letto_dalla_view(self):
+        # Bug 1.1: il select "Filtra per tipo" inviava name="_tipo_filtro" ma la
+        # view `visite_mediche_candidati` legge ?tipo → cambiando tipo la lista
+        # non si riaggiornava mai. Il name del filtro deve combaciare col param
+        # consumato dall'endpoint HTMX (tipo).
+        resp = self._get()
+        body = resp.content.decode()
+        self.assertIn('name="tipo"', body)
+        self.assertNotIn("_tipo_filtro", body)
+
 
 class ScadenzarioRinnovoVisiteTests(TestCase):
     def setUp(self):
@@ -626,6 +636,63 @@ class ScadenzarioRinnovoVisiteTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         body = resp.content.decode()
         self.assertIn(f"nuova-sessione/?tipo={self.tipo.pk}", body)
+
+
+class ScadenzarioCessatiTests(TestCase):
+    """Bug 1.3: gli ex dipendenti (cessati) NON devono comparire nello scadenzario,
+    in NESSUNA sorgente (qualifiche, visite, formazione). Prima del fix il filtro
+    cessati era applicato solo al ramo contratti."""
+
+    def setUp(self):
+        from .tests import _ensure_anagrafica_table
+        _ensure_anagrafica_table()
+        self.user_super = User.objects.create_superuser(
+            username="su-cess", email="su-cess@test.local", password="x"
+        )
+        self.oggi = timezone.localdate()
+        self.soon = self.oggi + timedelta(days=20)
+        # 910 = cessato, 911 = attivo (controllo anti sovra-esclusione)
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=910, data_cessazione=self.oggi - timedelta(days=5),
+        )
+
+    def _voci_ids(self):
+        from .views import _build_scadenzario_voci
+        request = RequestFactory().get("/anagrafica/scadenzario/")
+        request.user = self.user_super
+        voci = _build_scadenzario_voci(request)
+        return {(v["kind"], v["legacy_id"]) for v in voci}
+
+    def test_cessato_escluso_da_qualifiche_visite_formazione(self):
+        from .models import DipendenteQualifica, TipoQualifica
+        from .models_formazione import TrainingCourse, TrainingDeadline, TrainingPlan
+        tipo_q = TipoQualifica.objects.create(nome="Q-cess")
+        tipo_v = TipoVisitaMedica.objects.create(nome="V-cess", durata_mesi=12)
+        plan = TrainingPlan.objects.create(codice="P-CESS", nome="Piano cess")
+        corso = TrainingCourse.objects.create(
+            piano=plan, codice="C-CESS", titolo="Corso cess", durata_ore_teorica=1,
+        )
+        for lid in (910, 911):
+            DipendenteQualifica.objects.create(
+                legacy_anagrafica_id=lid, tipo=tipo_q, data_scadenza=self.soon,
+            )
+            VisitaMedica.objects.create(
+                legacy_anagrafica_id=lid, tipo=tipo_v,
+                data_svolgimento=self.soon - timedelta(days=365),
+            )
+            TrainingDeadline.objects.create(
+                corso=corso, legacy_anagrafica_id=lid,
+                data_scadenza=self.soon, is_required=True,
+            )
+        ids = self._voci_ids()
+        # Il cessato 910 non deve comparire in nessuna sorgente.
+        self.assertNotIn(("qualifica", 910), ids)
+        self.assertNotIn(("visita", 910), ids)
+        self.assertNotIn(("formazione", 910), ids)
+        # Il dipendente attivo 911 deve invece comparire (nessuna sovra-esclusione).
+        self.assertIn(("qualifica", 911), ids)
+        self.assertIn(("visita", 911), ids)
+        self.assertIn(("formazione", 911), ids)
 
 
 class DashboardLinkHubTests(TestCase):
