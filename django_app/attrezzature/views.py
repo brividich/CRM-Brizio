@@ -14,8 +14,11 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 from django.utils import timezone
 
+from core.acl_v2 import request_has_permission_code
 from core.audit import log_action
 from core.legacy_utils import get_legacy_user, is_legacy_admin
+
+from .acl_bootstrap import PERM_ATTREZZATURE_DELETE
 
 from .forms import (
     AttrezzaturaForm,
@@ -78,8 +81,14 @@ def _base_context(active: str = "list") -> dict:
 def _can_delete_attrezzature(request) -> bool:
     if bool(getattr(request.user, "is_superuser", False)):
         return True
-    legacy_user = get_legacy_user(request)
-    return bool(legacy_user and is_legacy_admin(legacy_user))
+    # `get_legacy_user` vuole lo *user*, non la request: passandole la request
+    # ritornava sempre None, quindi nemmeno gli admin legacy passavano di qui.
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    if legacy_user and is_legacy_admin(legacy_user):
+        return True
+    # Il permesso canonico esiste da sempre nel bootstrap del modulo: ora conta
+    # davvero, ed e' concedibile per ruolo da /admin-portale/acl-canonico/.
+    return request_has_permission_code(request, PERM_ATTREZZATURE_DELETE)
 
 
 def _admin_required_response(request):

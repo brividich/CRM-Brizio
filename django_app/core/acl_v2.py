@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from urllib.parse import urlsplit
 
@@ -20,6 +21,8 @@ from core.models import (
     UserPermissionOverride,
     UserPermissionGrant,
 )
+
+logger = logging.getLogger(__name__)
 
 _PERMISSION_CODE_SANITIZE_RE = re.compile(r"[^a-z0-9._:-]+")
 _PERMISSION_CODE_CANONICAL_RE = re.compile(
@@ -521,6 +524,39 @@ def evaluate_permission_code_access(
         else f"Override utente canonico su '{permission.code}' nega accesso."
     )
     return result
+
+
+def request_has_permission_code(request, permission_code: str) -> bool:
+    """True se la request ha il permesso canonico ``permission_code``.
+
+    Helper per i cancelli IN-VIEW: quelli scritti come
+    ``is_superuser or is_legacy_admin(...)`` non sono governabili dal modulo
+    permessi, perche' `is_legacy_admin` e' vero solo per i ruoli il cui nome sta
+    in ``PORTAL_ADMIN_ROLE_NAMES`` (default ``{"admin"}``, mai valorizzato).
+
+    `evaluate_permission_code_access` include gia' il bypass superuser e admin
+    legacy: affiancare questo helper a un cancello storico e' quindi sempre
+    ADDITIVO — concede, non toglie. Fail-closed se la valutazione solleva.
+    """
+    user = getattr(request, "user", None)
+    if not getattr(user, "is_authenticated", False):
+        return False
+
+    legacy_user = getattr(request, "legacy_user", None)
+    if legacy_user is None:
+        from core.legacy_utils import get_legacy_user
+        try:
+            legacy_user = get_legacy_user(user)
+        except Exception:
+            legacy_user = None
+
+    try:
+        return bool(evaluate_permission_code_access(
+            permission_code=permission_code, legacy_user=legacy_user, django_user=user,
+        ).get("allowed"))
+    except Exception:
+        logger.exception("Valutazione ACL canonico fallita per %s", permission_code)
+        return False
 
 
 def resolve_canonical_target(

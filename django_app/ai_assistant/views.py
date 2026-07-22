@@ -12,8 +12,11 @@ from django.shortcuts import render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from core.acl_v2 import request_has_permission_code
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 from core.audit import log_action
+
+from .acl_bootstrap import PERM_KNOWLEDGE_MANAGE
 
 from .models import AiChatFeedback, AiKnowledgeEntry
 from .services import (
@@ -87,7 +90,10 @@ def _can_manage_knowledge(request) -> bool:
         return True
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(user)
     request.legacy_user = legacy_user
-    return bool(legacy_user and is_legacy_admin(legacy_user))
+    if legacy_user and is_legacy_admin(legacy_user):
+        return True
+    # ACL v2 canonico: concedibile per ruolo da /admin-portale/acl-canonico/.
+    return request_has_permission_code(request, PERM_KNOWLEDGE_MANAGE)
 
 
 def _runtime_audit_summary(runtime_audit: dict | None) -> dict:
