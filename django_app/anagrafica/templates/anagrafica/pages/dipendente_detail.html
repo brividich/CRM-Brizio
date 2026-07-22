@@ -513,7 +513,7 @@ body.theme-dark .dp-link-ok { color:#86efac; }
       <div class="dp-hero-meta">
         {% if dip.mansione %}{{ dip.mansione }}{% endif %}
         {% if dip.reparto %} &middot; <span class="dp-pill dp-pill-blue">{{ dip.reparto }}</span>{% endif %}
-        {% if dip.matricola %} &middot; Matricola: <strong>{{ dip.matricola }}</strong>{% endif %}
+        {% if dip.matricola %} &middot; Matricola: <strong>{{ dip.matricola|matricola_fmt }}</strong>{% endif %}
       </div>
       <div style="margin-top:6px;">
         {% if dip.attivo %}

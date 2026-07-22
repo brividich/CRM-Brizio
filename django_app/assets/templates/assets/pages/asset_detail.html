@@ -552,6 +552,8 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
         {% if asset.manufacturer %}<span class="af-hero-tag"><span>Produttore</span>{{ asset.manufacturer }}</span>{% endif %}
         {% if asset.model %}<span class="af-hero-tag"><span>Modello</span>{{ asset.model }}</span>{% endif %}
         {% if asset.serial_number %}<span class="af-hero-tag"><span>Seriale</span>{{ asset.serial_number }}</span>{% endif %}
+        {% if asset.purchase_date %}<span class="af-hero-tag"><span>Data acquisto</span>{{ asset.purchase_date|date:"d-m-Y" }}</span>{% endif %}
+        {% if asset.production_date %}<span class="af-hero-tag"><span>Data fabbricazione</span>{{ asset.production_date|date:"d-m-Y" }}</span>{% endif %}
       </div>
     </div>
     <div class="af-action-panel">

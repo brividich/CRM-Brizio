@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Remediation gestionale — quick-win P2 (date asset, matricola)
+
+- **[feat/test] `assets/forms.py`, `assets/templates/assets/pages/asset_detail.html`, `assets/tests_quickwin_p2.py`**: (punto 3.2) i campi **Data acquisto** (`purchase_date`) e **Data fabbricazione** (`production_date`, prima etichettato "Data produzione") sono ora mostrati nella scheda asset (hero-tag) oltre che nei form. Nuovo `AssetDataFabbricazioneTests`.
+- **[feat/test] `anagrafica/templatetags/anagrafica_extras.py`, `anagrafica/templates/anagrafica/pages/{dipendente_detail,dipendenti_report}.html`, `anagrafica/tests_quickwin_p2.py`**: (punto 1.15) filtro `matricola_fmt` che rimuove gli **zeri di padding** dalla matricola **solo in visualizzazione** e **solo se numerica** (le matricole alfanumeriche restano invariate). Applicato a scheda dipendente e report. Nuovo `MatricolaFmtTests`.
+
 ### SOC IT - CN - mailbox-admin + API DRF read-only
 
 - **[feat/test] `security/urls_hub.py`, `security/templates/security/{admin_mailbox_sources_list,admin_mailbox_source_detail}.html`, `security/tests_soc.py`**: montate le ultime superfici escluse. (1) **mailbox-admin**: pagine config sorgenti mailbox (sola lettura) su `/soc/admin/mailbox/` — l'ingestione Graph/IMAP resta fuori (serve credenziali + scheduling). (2) **API DRF read-only**: `/soc/api/{dashboard-summary,alerts/recent,kpis/summary}/` (JSON, `permission_classes=[CanViewSecurityCenter]`, ACL-gated). **Esclusi di proposito**: `api_ai.py` (AI NVIDIA di SC-AI → contraddice la convergenza su Ollama del sotto-progetto C) e `api_configuration.py` (config wizard della SPA React droppata). ACL: 31 permessi `security.*` (grant admin). 22 test `tests_soc` verdi. `check` pulito.
