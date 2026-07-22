@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Remediation gestionale — 1.10 / 1.11 (ratei con operatori, KPI assenze)
+
+- **[feat/test] `anagrafica/ratei_alert.py` (`saldo_filter_q`, `SALDO_CAMPI`, `SALDO_OPERATORI`), `anagrafica/views.py` (`ratei_list`, `ratei_export`), `anagrafica/templates/anagrafica/pages/ratei_list.html`, `anagrafica/tests_ratei_filtri.py` [nuovo]**: (punto 1.10) nella lista **Ratei ferie** aggiunto il filtro **per valore del saldo con operatore di confronto** (`<`, `>`, `=`) su Ferie residue / ROL residui / Ex-festività residue. Whitelist esplicita dei campi filtrabili; stesso filtro replicato nell'**export XLSX** per coerenza lista/export. Nessuna migrazione.
+- **[feat/test] `anagrafica/views.py` (`_assenze_kpi_annuali`, `dipendente_detail`), `anagrafica/templates/anagrafica/pages/dipendente_detail.html`, `anagrafica/tests_assenze_kpi.py` [nuovo]**: (punto 1.11) nella scheda dipendente, sezione **Assenze**, aggiunti **KPI annuali**: conteggio delle **richieste per tipologia** (ferie, malattia, permesso…) per ciascun anno presente (corrente + precedente, tutte le moderazioni). Complementare al riepilogo giorni-anno-corrente-approvate già esistente. Nessuna migrazione.
+
 ### Remediation gestionale — 3.4 (rinomina sezione asset)
 
 - **[style] `assets/templates/assets/pages/asset_detail.html`**: (punto 3.4) la sezione **"Storico interventi"** della scheda asset è rinominata **"Interventi straordinari"** (solo etichetta, stessi dati mostrati — scelta confermata).

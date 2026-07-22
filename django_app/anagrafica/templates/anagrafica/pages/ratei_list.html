@@ -143,12 +143,33 @@
       <div class="rl-dip-hint">negativo o ≥ {{ soglie.ore_warn|floatformat:0 }}h</div>
     </div>
 
+    <!-- Saldo per valore (1.10 — operatori di confronto) -->
+    <div>
+      <label class="rl-filter-label">Saldo (ore)</label>
+      <div style="display:flex;gap:4px;align-items:center;">
+        <select name="saldo_campo" class="rl-filter-input" style="flex:1 1 auto;">
+          <option value="">—</option>
+          {% for val, lbl in saldo_campi_options.items %}
+          <option value="{{ val }}" {% if filtro_saldo_campo == val %}selected{% endif %}>{{ lbl }}</option>
+          {% endfor %}
+        </select>
+        <select name="saldo_op" class="rl-filter-input" style="flex:0 0 52px;">
+          {% for val, sym in saldo_operatori_options.items %}
+          <option value="{{ val }}" {% if filtro_saldo_op == val %}selected{% endif %}>{{ sym }}</option>
+          {% endfor %}
+        </select>
+        <input type="number" step="0.01" name="saldo_val" value="{{ filtro_saldo_val }}"
+               class="rl-filter-input" style="flex:0 0 78px;" placeholder="valore">
+      </div>
+      <div class="rl-dip-hint">es. Ferie residue &gt; 40</div>
+    </div>
+
     <div style="display:flex;flex-direction:column;gap:6px;padding-top:18px;">
       <button type="submit" class="rl-btn rl-btn-primary">Filtra</button>
       <button type="button" class="rl-btn rl-btn-ghost" onclick="rlExport()" title="Scarica Excel con i filtri attivi">⬇ Excel</button>
       {# Export unificato (Excel + PDF) sui filtri già applicati nella querystring. #}
       {% include "anagrafica/partials/_export_buttons.html" with export_key="ratei" %}
-      {% if filtro_periodo or filtro_dipendenti or filtro_reparti or filtro_allerta %}
+      {% if filtro_periodo or filtro_dipendenti or filtro_reparti or filtro_allerta or filtro_saldo_val %}
       <a href="{% url 'anagrafica:ratei_list' %}" class="rl-btn rl-btn-ghost">✕ Reset</a>
       {% endif %}
     </div>

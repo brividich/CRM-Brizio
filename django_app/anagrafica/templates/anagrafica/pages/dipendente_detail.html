@@ -373,6 +373,22 @@ body.theme-dark .dp-sum-stat-lbl { color:var(--text-light); }
 .dp-abs-card.dp-abs-congedo  { border-left-color:#8b5cf6; }
 .dp-abs-card.dp-abs-altro    { border-left-color:#94a3b8; }
 
+/* 1.11 — KPI annuali: conteggio richieste per anno × tipologia */
+.dp-abs-kpi { display:flex; flex-direction:column; gap:10px; margin-bottom:18px; }
+.dp-abs-kpi-head { display:flex; align-items:baseline; gap:8px; margin-bottom:6px; }
+.dp-abs-kpi-anno { font-size:13px; font-weight:800; color:#0c2545; }
+.dp-abs-kpi-tot { font-size:11px; font-weight:600; color:#94a3b8; white-space:nowrap; }
+.dp-abs-kpi-chips { display:flex; flex-wrap:wrap; gap:7px; }
+.dp-abs-kpi-chip { display:inline-flex; align-items:center; gap:6px; background:#f8fafc; border:1px solid #e2e8f0; border-left:3px solid #cbd5e1; border-radius:9px; padding:5px 10px; }
+.dp-abs-kpi-ic { font-size:14px; line-height:1; }
+.dp-abs-kpi-n { font-size:15px; font-weight:800; color:#0c2545; font-variant-numeric:tabular-nums; }
+.dp-abs-kpi-tipo { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.03em; }
+.dp-abs-kpi-chip.dp-abs-ferie    { border-left-color:#f59e0b; }
+.dp-abs-kpi-chip.dp-abs-malattia { border-left-color:#ef4444; }
+.dp-abs-kpi-chip.dp-abs-permesso { border-left-color:#3b82f6; }
+.dp-abs-kpi-chip.dp-abs-congedo  { border-left-color:#8b5cf6; }
+.dp-abs-kpi-chip.dp-abs-altro    { border-left-color:#94a3b8; }
+
 .dp-abs-list-title { font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; margin-bottom:10px; }
 /* Cronologia assenze raggruppata per anno */
 .dp-abs-year { display:flex; align-items:baseline; gap:8px; margin:16px 0 8px; }
@@ -407,6 +423,10 @@ body.theme-dark .dp-abs-summary-tot { color:var(--text); }
 body.theme-dark .dp-abs-card { background:var(--surface-alt); border-color:var(--border); }
 body.theme-dark .dp-abs-card-num { color:var(--text); }
 body.theme-dark .dp-abs-card-tipo { color:var(--text-light); }
+body.theme-dark .dp-abs-kpi-anno { color:var(--text); }
+body.theme-dark .dp-abs-kpi-chip { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .dp-abs-kpi-n { color:var(--text); }
+body.theme-dark .dp-abs-kpi-tipo { color:var(--text-light); }
 body.theme-dark .dp-abs-year-num { color:var(--text); }
 body.theme-dark .dp-abs-year-line { background:var(--border); }
 body.theme-dark .dp-abs-month { color:var(--text-light); }
@@ -1592,6 +1612,27 @@ body.theme-dark .dp-link-ok { color:#86efac; }
             <div>
               <div class="dp-abs-card-num">{{ s.giorni }}<span>gg</span></div>
               <div class="dp-abs-card-tipo">{{ s.tipo }}</div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if assenze_kpi_annuali %}
+        <div class="dp-abs-kpi">
+          {% for k in assenze_kpi_annuali %}
+          <div class="dp-abs-kpi-year">
+            <div class="dp-abs-kpi-head">
+              <span class="dp-abs-kpi-anno">{{ k.anno }}</span>
+              <span class="dp-abs-kpi-tot">{{ k.totale }} richiest{{ k.totale|pluralize:"a,e" }}</span>
+            </div>
+            <div class="dp-abs-kpi-chips">
+              {% for t in k.tipi %}
+              <span class="dp-abs-kpi-chip dp-abs-{{ t.accent }}" title="{{ t.tipo }}">
+                <span class="dp-abs-kpi-ic">{{ t.icona }}</span>
+                <span class="dp-abs-kpi-n">{{ t.conteggio }}</span>
+                <span class="dp-abs-kpi-tipo">{{ t.tipo }}</span>
+              </span>
+              {% endfor %}
             </div>
           </div>
           {% endfor %}
