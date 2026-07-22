@@ -12,6 +12,7 @@ derivazione scadenze (arriva in PATCH-RISK-03). Decisioni R1-R5 validate il
 """
 from __future__ import annotations
 
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
@@ -153,6 +154,10 @@ class EsposizioneRischio(models.Model):
         "anagrafica.AreaAziendale", null=True, blank=True,
         on_delete=models.CASCADE, related_name="esposizioni_rischio",
     )
+    legacy_anagrafica_id = models.IntegerField(
+        null=True, blank=True, db_index=True,
+        help_text="Esposizione assegnata direttamente a un singolo dipendente (1.9).",
+    )
     note      = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -164,8 +169,22 @@ class EsposizioneRischio(models.Model):
             models.Index(fields=["fattore", "is_active"]),
             models.Index(fields=["mansione", "is_active"]),
             models.Index(fields=["area", "is_active"]),
+            models.Index(fields=["legacy_anagrafica_id", "is_active"]),
         ]
 
+    def clean(self):
+        if not (self.mansione_id or self.area_id or self.legacy_anagrafica_id):
+            raise ValidationError(
+                "Specificare almeno un target: mansione, area o dipendente."
+            )
+
     def __str__(self) -> str:
-        target = self.mansione or self.area or "—"
+        if self.mansione_id:
+            target = self.mansione
+        elif self.area_id:
+            target = self.area
+        elif self.legacy_anagrafica_id:
+            target = f"dip #{self.legacy_anagrafica_id}"
+        else:
+            target = "—"
         return f"{target} → {self.fattore.codice}"

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Epica A / A1 — mansione di rischio: modello + resolver
+
+- **[feat/test] `anagrafica/models_rischi.py`, `anagrafica/admin.py`, `anagrafica/migrations/0087_esposizionerischio_legacy_anagrafica_id_and_more.py`, `anagrafica/tests_mansione_rischio_a1.py`**: (punto 1.9) `EsposizioneRischio` può ora puntare anche a un **singolo dipendente** (`legacy_anagrafica_id`), oltre a mansione/area; `clean()` esige almeno un target. Migrazione additiva (AddField + AddIndex). Fondazione dell'Epica A ("mansione di rischio" a vista); nessuna UI.
+
 ### SOC IT - CN - mailbox-admin + API DRF read-only
 
 - **[feat/test] `security/urls_hub.py`, `security/templates/security/{admin_mailbox_sources_list,admin_mailbox_source_detail}.html`, `security/tests_soc.py`**: montate le ultime superfici escluse. (1) **mailbox-admin**: pagine config sorgenti mailbox (sola lettura) su `/soc/admin/mailbox/` — l'ingestione Graph/IMAP resta fuori (serve credenziali + scheduling). (2) **API DRF read-only**: `/soc/api/{dashboard-summary,alerts/recent,kpis/summary}/` (JSON, `permission_classes=[CanViewSecurityCenter]`, ACL-gated). **Esclusi di proposito**: `api_ai.py` (AI NVIDIA di SC-AI → contraddice la convergenza su Ollama del sotto-progetto C) e `api_configuration.py` (config wizard della SPA React droppata). ACL: 31 permessi `security.*` (grant admin). 22 test `tests_soc` verdi. `check` pulito.
