@@ -1,0 +1,148 @@
+/* Recruiting MOD. 05-01 — componenti specifici della selezione risorse.
+ *
+ * Estende il design system `fmd-` delle pagine HR (formazione_design.css):
+ * qui stanno solo i pezzi che non esistono altrove — la griglia di valutazione
+ * 1-5, il form a sezioni e la timeline delle modifiche tracciate.
+ * Dark mode gestita in coda, sullo stesso schema di formazione_design.css.
+ */
+
+/* ── Form a sezioni ─────────────────────────────────────────────────────── */
+.rcr-form .rcr-sec { padding: 20px 22px 22px; border-top: 1px solid #e6ebf3; }
+.rcr-form .rcr-sec:first-child { border-top: 0; }
+.rcr-sec-head {
+  display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px;
+  font-size: 15px; font-weight: 800; color: #16324f;
+}
+.rcr-sec-note {
+  font-size: 12px; font-weight: 600; color: #64748b; margin: 0 0 16px;
+}
+.rcr-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px;
+}
+.rcr-grid .rcr-wide { grid-column: 1 / -1; }
+.rcr-f { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.rcr-f > label {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: #94a3b8;
+}
+.rcr-form input[type=text], .rcr-form input[type=email], .rcr-form input[type=number],
+.rcr-form input[type=date], .rcr-form select, .rcr-form textarea {
+  width: 100%; border: 1px solid #e6ebf3; border-radius: 8px; padding: 9px 11px;
+  font: inherit; font-size: 13px; color: #0f172a; background: #fff; outline: none;
+}
+.rcr-form textarea { resize: vertical; }
+.rcr-form input:focus, .rcr-form select:focus, .rcr-form textarea:focus {
+  border-color: #1f87cd; box-shadow: 0 0 0 3px rgba(31, 135, 205, .12);
+}
+.rcr-f-check { flex-direction: row; align-items: center; gap: 9px; }
+.rcr-f-check > label { text-transform: none; letter-spacing: 0; font-size: 12.5px; color: #334155; }
+.rcr-err { font-size: 11.5px; font-weight: 700; color: #b91c1c; }
+.rcr-help { font-size: 11.5px; color: #64748b; }
+.rcr-actions {
+  display: flex; align-items: center; gap: 10px; padding: 16px 22px;
+  border-top: 1px solid #e6ebf3;
+}
+
+/* ── Griglia di valutazione 1-5 ─────────────────────────────────────────── */
+.rcr-crit { display: flex; flex-direction: column; gap: 10px; }
+.rcr-crit-row {
+  display: grid; grid-template-columns: minmax(180px, 2fr) auto; gap: 14px;
+  align-items: center; padding: 12px 14px;
+  border: 1px solid #e6ebf3; border-radius: 10px; background: #fbfdff;
+}
+.rcr-crit-name { font-size: 13.5px; font-weight: 700; color: #16324f; }
+.rcr-crit-peso {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px; font-weight: 700; color: #1f87cd;
+}
+.rcr-crit-desc { font-size: 11.5px; color: #64748b; margin-top: 3px; }
+.rcr-scale { display: flex; gap: 6px; }
+.rcr-scale input { position: absolute; opacity: 0; pointer-events: none; }
+.rcr-scale label {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px; border-radius: 9px; cursor: pointer;
+  border: 1px solid #e6ebf3; background: #fff;
+  font-size: 13px; font-weight: 800; color: #64748b;
+  transition: border-color .12s, background .12s, color .12s;
+}
+.rcr-scale label:hover { border-color: #cfd9ea; }
+.rcr-scale input:checked + label { background: #1f87cd; border-color: #1f87cd; color: #fff; }
+.rcr-scale input:focus-visible + label { box-shadow: 0 0 0 3px rgba(31, 135, 205, .28); }
+.rcr-scale .rcr-clear { font-size: 11px; font-weight: 700; width: auto; padding: 0 10px; }
+
+.rcr-score {
+  display: flex; align-items: baseline; gap: 10px; margin-top: 14px;
+  padding: 14px 16px; border-radius: 10px;
+  background: #eff8ff; border: 1px solid #cde5f7;
+}
+.rcr-score-val { font-size: 26px; font-weight: 800; color: #16324f; line-height: 1; }
+.rcr-score-lbl { font-size: 12px; font-weight: 700; color: #476282; }
+
+/* ── Avviso di conformità (UNI/PdR 125) ─────────────────────────────────── */
+.rcr-note {
+  padding: 16px 18px; border-radius: 10px;
+  background: #fffbeb; border: 1px solid #fde68a;
+}
+.rcr-note h3 { margin: 0 0 8px; font-size: 13.5px; font-weight: 800; color: #92400e; }
+.rcr-note ul { margin: 0; padding-left: 18px; }
+.rcr-note li { font-size: 12.5px; color: #78350f; margin-bottom: 6px; line-height: 1.5; }
+
+/* ── Timeline delle modifiche tracciate ─────────────────────────────────── */
+.rcr-log { display: flex; flex-direction: column; gap: 0; }
+.rcr-log-row {
+  display: grid; grid-template-columns: 140px 1fr; gap: 14px;
+  padding: 10px 0; border-bottom: 1px solid #eef2f7;
+}
+.rcr-log-row:last-child { border-bottom: 0; }
+.rcr-log-when {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px; color: #94a3b8;
+}
+.rcr-log-what { font-size: 12.5px; color: #334155; }
+.rcr-log-what b { color: #16324f; }
+.rcr-log-who { font-size: 11.5px; color: #64748b; }
+.rcr-log-arrow { color: #94a3b8; padding: 0 4px; }
+
+/* ── Riepilogo in scheda ────────────────────────────────────────────────── */
+.rcr-dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+.rcr-dl div { min-width: 0; }
+.rcr-dl dt {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: #94a3b8; margin-bottom: 4px;
+}
+.rcr-dl dd { margin: 0; font-size: 13px; color: #0f172a; word-break: break-word; }
+
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .fmd .rcr-form .rcr-sec,
+body.theme-dark .fmd .rcr-actions { border-color: var(--border); }
+body.theme-dark .fmd .rcr-sec-head,
+body.theme-dark .fmd .rcr-crit-name,
+body.theme-dark .fmd .rcr-score-val,
+body.theme-dark .fmd .rcr-dl dd,
+body.theme-dark .fmd .rcr-log-what b { color: var(--text); }
+body.theme-dark .fmd .rcr-form input[type=text],
+body.theme-dark .fmd .rcr-form input[type=email],
+body.theme-dark .fmd .rcr-form input[type=number],
+body.theme-dark .fmd .rcr-form input[type=date],
+body.theme-dark .fmd .rcr-form select,
+body.theme-dark .fmd .rcr-form textarea,
+body.theme-dark .fmd .rcr-crit-row,
+body.theme-dark .fmd .rcr-scale label {
+  background: var(--surface); border-color: var(--border); color: var(--text);
+}
+body.theme-dark .fmd .rcr-scale input:checked + label {
+  background: #1f87cd; border-color: #1f87cd; color: #fff;
+}
+body.theme-dark .fmd .rcr-score {
+  background: rgba(31, 135, 205, .12); border-color: rgba(31, 135, 205, .35);
+}
+body.theme-dark .fmd .rcr-note {
+  background: rgba(245, 158, 11, .10); border-color: rgba(245, 158, 11, .35);
+}
+body.theme-dark .fmd .rcr-note h3,
+body.theme-dark .fmd .rcr-note li { color: #fcd34d; }
+body.theme-dark .fmd .rcr-log-row { border-color: var(--border); }
+body.theme-dark .fmd .rcr-log-what,
+body.theme-dark .fmd .rcr-f-check > label { color: var(--text-muted, #94a3b8); }

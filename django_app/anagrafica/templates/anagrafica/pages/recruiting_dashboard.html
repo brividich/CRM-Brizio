@@ -1,0 +1,154 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Cruscotto Recruiting | Anagrafica{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
+<link rel="stylesheet" href="{% static 'anagrafica/css/recruiting.css' %}?v=1">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  <div class="fmd-wrap">
+
+    {% include "anagrafica/components/flash_messages.html" %}
+
+    <section class="fmd-hero">
+      <div class="fmd-hero-bg" aria-hidden="true"></div>
+      <div class="fmd-hero-inner">
+        <div>
+          <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Recruiting</div>
+          <h1><svg class="fmd-ico fmd-cap"><use href="#i-grid"/></svg>Cruscotto di processo</h1>
+          <p class="fmd-sub">KPI della selezione: volumi, punteggi, esiti, tempi e tasso di trasformazione in assunzione.</p>
+        </div>
+        <div class="fmd-hero-actions">
+          <a href="{% url 'anagrafica:recruiting_list' %}" class="fmd-btn fmd-btn-ghost">Elenco candidati</a>
+        </div>
+      </div>
+    </section>
+
+    {# Filtri: gli stessi dell'elenco, così i KPI seguono il perimetro scelto #}
+    <section class="fmd-panel">
+      <form method="get" action="" class="fmd-filterbar">
+        <div class="fmd-filtf">
+          <label for="k-dal">1° colloquio dal</label>
+          <input type="date" id="k-dal" name="dal" value="{{ filtri.dal }}">
+        </div>
+        <div class="fmd-filtf">
+          <label for="k-al">al</label>
+          <input type="date" id="k-al" name="al" value="{{ filtri.al }}">
+        </div>
+        <div class="fmd-filtf">
+          <label for="k-canale">Canale</label>
+          <select id="k-canale" name="canale">
+            <option value="">Tutti</option>
+            {% for value, label in canale_choices %}
+            <option value="{{ value }}" {% if filtri.canale == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="fmd-filtf">
+          <label for="k-mansione">Mansione</label>
+          <input type="text" id="k-mansione" name="mansione" value="{{ filtri.mansione }}">
+        </div>
+        <div class="fmd-filtf fmd-go">
+          <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-filter"/></svg>Applica</button>
+          <a href="{% url 'anagrafica:recruiting_dashboard' %}" class="fmd-btn fmd-btn-ghost">Azzera</a>
+        </div>
+      </form>
+    </section>
+
+    <section class="fmd-kpi" style="grid-template-columns:repeat(3,1fr);">
+      <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ kpi.totale }}</span></div><div class="fmd-mtr-lbl">Candidati</div><div class="fmd-mtr-sub">Nel perimetro selezionato</div></div>
+      <div class="fmd-mtr fmd-t-navy"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-award"/></svg></span><span class="fmd-mtr-val">{{ kpi.media_ponderata|floatformat:2|default:"—" }}</span></div><div class="fmd-mtr-lbl">Punteggio medio</div><div class="fmd-mtr-sub">Media dei ponderati (scala 1-5)</div></div>
+      <div class="fmd-mtr fmd-t-green"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ kpi.tasso_assunzione }}%</span></div><div class="fmd-mtr-lbl">Tasso di assunzione</div><div class="fmd-mtr-sub">{{ kpi.assunti }} assunti su {{ kpi.totale }}</div></div>
+    </section>
+
+    <section class="fmd-kpi" style="grid-template-columns:repeat(3,1fr);">
+      <div class="fmd-mtr fmd-t-green"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ kpi.pct_positivi }}%</span></div><div class="fmd-mtr-lbl">Esiti positivi</div><div class="fmd-mtr-sub">{{ kpi.positivi }} giudizi positivi</div></div>
+      <div class="fmd-mtr fmd-t-orange"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ kpi.pct_negativi }}%</span></div><div class="fmd-mtr-lbl">Esiti negativi</div><div class="fmd-mtr-sub">{{ kpi.negativi }} giudizi negativi</div></div>
+      <div class="fmd-mtr fmd-t-violet"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ kpi.giorni_medi_tra_colloqui|default:"—" }}</span></div><div class="fmd-mtr-lbl">Giorni tra i colloqui</div><div class="fmd-mtr-sub">Media 1° → 2° colloquio</div></div>
+    </section>
+
+    <div class="fmd-split">
+      <section class="fmd-panel fmd-block">
+        <div class="fmd-block-head">
+          <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-filter"/></svg>Per canale di provenienza</div>
+        </div>
+        {% if kpi.per_canale %}
+        <div class="fmd-tablewrap">
+          <table class="fmd-table">
+            <thead><tr><th>Canale</th><th class="fmd-nowrap">Candidati</th><th class="fmd-nowrap">Punteggio medio</th></tr></thead>
+            <tbody>
+              {% for riga in kpi.per_canale %}
+              <tr>
+                <td>{{ riga.label }}</td>
+                <td class="fmd-num">{{ riga.n }}</td>
+                <td class="fmd-num">{{ riga.media|floatformat:2|default:"—" }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}<div class="fmd-empty"><span class="fmd-et">Nessun dato</span></div>{% endif %}
+      </section>
+
+      <section class="fmd-panel fmd-block">
+        <div class="fmd-block-head">
+          <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Per mansione cercata</div>
+        </div>
+        {% if kpi.per_mansione %}
+        <div class="fmd-tablewrap">
+          <table class="fmd-table">
+            <thead><tr><th>Mansione</th><th class="fmd-nowrap">Candidati</th><th class="fmd-nowrap">Punteggio medio</th></tr></thead>
+            <tbody>
+              {% for riga in kpi.per_mansione %}
+              <tr>
+                <td>{{ riga.mansione_cercata }}</td>
+                <td class="fmd-num">{{ riga.n }}</td>
+                <td class="fmd-num">{{ riga.media|floatformat:2|default:"—" }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}<div class="fmd-empty"><span class="fmd-et">Nessun dato</span></div>{% endif %}
+      </section>
+    </div>
+
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>Distribuzione per stato dell'iter</div>
+      </div>
+      {% if kpi.per_stato %}
+      <div class="fmd-chips">
+        {% for riga in kpi.per_stato %}
+        <span class="fmd-chip">{{ riga.label }} · {{ riga.n }}</span>
+        {% endfor %}
+      </div>
+      {% else %}<div class="fmd-empty"><span class="fmd-et">Nessun dato</span></div>{% endif %}
+    </section>
+
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-award"/></svg>Criteri in uso</div>
+        <span class="fmd-block-aside">Configurazione corrente</span>
+      </div>
+      <div class="fmd-chips">
+        {% for criterio in criteri %}
+        <span class="fmd-chip">{{ criterio.label }} · {{ criterio.peso_percentuale }}%</span>
+        {% empty %}
+        <span class="fmd-muted">Nessun criterio attivo.</span>
+        {% endfor %}
+      </div>
+    </section>
+
+  </div>{# .fmd-wrap #}
+</div>{# .fmd #}
+{% endblock %}

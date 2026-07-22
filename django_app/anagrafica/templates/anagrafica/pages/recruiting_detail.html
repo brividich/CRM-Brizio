@@ -1,0 +1,230 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ candidato.nominativo }} | Recruiting{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
+<link rel="stylesheet" href="{% static 'anagrafica/css/recruiting.css' %}?v=1">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  <div class="fmd-wrap">
+
+    {% include "anagrafica/components/flash_messages.html" %}
+
+    <div class="fmd-pagehead">
+      <div class="fmd-crumb">
+        <a href="{% url 'anagrafica:recruiting_list' %}">Recruiting</a>
+        <span>/</span>
+        <span>{{ candidato.nominativo }}</span>
+      </div>
+      <div class="fmd-pagehead-actions">
+        {% if can_manage %}
+        <a href="{% url 'anagrafica:recruiting_edit' candidato.id %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-edit"/></svg>Modifica scheda</a>
+        {% endif %}
+      </div>
+    </div>
+
+    {# Riepilogo #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-users"/></svg>{{ candidato.nominativo }}</div>
+        <div>
+          {% if candidato.stato == "ASSUNTO" %}<span class="fmd-badge fmd-b-green">Assunto</span>
+          {% elif candidato.stato == "IN_DATABASE" %}<span class="fmd-badge fmd-b-violet">In database</span>
+          {% elif candidato.stato == "SCARTATO" %}<span class="fmd-badge fmd-b-grey">Non idoneo</span>
+          {% elif candidato.stato == "RINUNCIA" %}<span class="fmd-badge fmd-b-grey">Rinuncia</span>
+          {% else %}<span class="fmd-badge fmd-b-cyan">{{ candidato.get_stato_display }}</span>{% endif %}
+        </div>
+      </div>
+
+      <dl class="rcr-dl">
+        <div><dt>Mansione cercata</dt><dd>{{ candidato.mansione_cercata|default:"—" }}</dd></div>
+        <div><dt>Canale</dt><dd>{{ candidato.get_canale_provenienza_display }}{% if candidato.canale_dettaglio %} · {{ candidato.canale_dettaglio }}{% endif %}</dd></div>
+        <div><dt>Contatti</dt><dd>{{ candidato.cellulare|default:"—" }}{% if candidato.email %}<br>{{ candidato.email }}{% endif %}</dd></div>
+        <div><dt>Località</dt><dd>{{ candidato.localita|default:"—" }}{% if candidato.provincia %} ({{ candidato.provincia }}){% endif %}</dd></div>
+        <div><dt>Azienda attuale</dt><dd>{{ candidato.azienda_attuale|default:"—" }}</dd></div>
+        <div><dt>Mansione attuale</dt><dd>{{ candidato.mansione_attuale|default:"—" }}</dd></div>
+        <div><dt>Livello / contratto</dt><dd>{{ candidato.livello_contratto_attuale|default:"—" }}</dd></div>
+        <div><dt>Occupato</dt><dd>{% if candidato.occupato_attualmente is None %}—{% elif candidato.occupato_attualmente %}Sì{% else %}No{% endif %}</dd></div>
+        <div><dt>Titolo di studio</dt><dd>{{ candidato.titolo_studio|default:"—" }}</dd></div>
+        <div><dt>Inglese</dt><dd>{{ candidato.lingua_inglese_livello|default:"—" }}</dd></div>
+        <div><dt>Esito C.V.</dt><dd>{{ candidato.get_cv_esito_display|default:"—" }}</dd></div>
+        <div><dt>1° colloquio</dt><dd>{{ candidato.data_primo_colloquio|date:"d-m-Y"|default:"—" }}</dd></div>
+      </dl>
+    </section>
+
+    {# Valutazione pesata #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-award"/></svg>Valutazione a criteri pesati</div>
+        <span class="fmd-count">{{ righe_criteri|length }} criteri attivi</span>
+      </div>
+
+      {% if righe_criteri %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table">
+          <thead>
+            <tr><th>Criterio</th><th class="fmd-nowrap">Peso</th><th class="fmd-nowrap">Voto (1-5)</th></tr>
+          </thead>
+          <tbody>
+            {% for riga in righe_criteri %}
+            <tr>
+              <td>
+                {{ riga.criterio.label }}
+                {% if riga.criterio.descrizione %}<div class="fmd-cell-sub">{{ riga.criterio.descrizione }}</div>{% endif %}
+              </td>
+              <td class="fmd-num">{{ riga.criterio.peso_percentuale }}%</td>
+              <td class="fmd-num">{% if riga.valore %}{{ riga.valore }}{% else %}<span class="fmd-muted">non valutato</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="rcr-score">
+        <span class="rcr-score-val">{{ candidato.punteggio_ponderato|default:"—" }}</span>
+        <span class="rcr-score-lbl">
+          Punteggio medio ponderato
+          {% if candidato.punteggio_aggiornato_il %}· calcolato il {{ candidato.punteggio_aggiornato_il|date:"d-m-Y H:i" }}{% endif %}
+        </span>
+      </div>
+      {% else %}
+      <div class="fmd-empty"><span class="fmd-et">Nessun criterio attivo</span></div>
+      {% endif %}
+
+      <dl class="rcr-dl" style="margin-top:18px;">
+        <div><dt>Giudizio finale</dt><dd>
+          {% if candidato.giudizio_finale == "POSITIVO" %}<span class="fmd-badge fmd-b-green">Positivo</span>
+          {% elif candidato.giudizio_finale == "NEGATIVO" %}<span class="fmd-badge fmd-b-red">Negativo</span>
+          {% else %}—{% endif %}
+        </dd></div>
+        <div><dt>Rischio di abbandono</dt><dd>{{ candidato.rischio_abbandono|default:"—" }}{% if candidato.rischio_abbandono %} / 10{% endif %}</dd></div>
+        <div><dt>Idoneo a tirocinio</dt><dd>{% if candidato.idoneita_tirocinio is None %}—{% elif candidato.idoneita_tirocinio %}Sì{% else %}No{% endif %}</dd></div>
+        <div><dt>Idoneo ad apprendistato</dt><dd>{% if candidato.idoneita_apprendistato is None %}—{% elif candidato.idoneita_apprendistato %}Sì{% else %}No{% endif %}</dd></div>
+        <div><dt>Disponibilità</dt><dd>{{ candidato.disponibilita|default:"—" }}</dd></div>
+      </dl>
+
+      {% if candidato.motivo_cambio_lavoro or candidato.note %}
+      <dl class="rcr-dl" style="margin-top:14px;grid-template-columns:1fr;">
+        {% if candidato.motivo_cambio_lavoro %}<div><dt>Motivo del cambio lavoro</dt><dd>{{ candidato.motivo_cambio_lavoro|linebreaksbr }}</dd></div>{% endif %}
+        {% if candidato.note %}<div><dt>Note</dt><dd>{{ candidato.note|linebreaksbr }}</dd></div>{% endif %}
+      </dl>
+      {% endif %}
+    </section>
+
+    {# Secondo colloquio #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-calendar"/></svg>Secondo colloquio</div>
+        {% if candidato.giorni_tra_colloqui is not None %}
+        <span class="fmd-count">{{ candidato.giorni_tra_colloqui }} giorni dal primo</span>
+        {% endif %}
+      </div>
+
+      {% if can_manage %}
+      <form method="post" action="{% url 'anagrafica:recruiting_step2' candidato.id %}" class="rcr-form">
+        {% csrf_token %}
+        <div class="rcr-grid">
+          {% include "anagrafica/partials/_rcr_field.html" with field=step2_form.data_secondo_colloquio %}
+          {% include "anagrafica/partials/_rcr_field.html" with field=step2_form.comunicazione_esito %}
+          {% include "anagrafica/partials/_rcr_field.html" with field=step2_form.data_assunzione %}
+          {% include "anagrafica/partials/_rcr_field.html" with field=step2_form.note_secondo_colloquio wide=1 %}
+        </div>
+        <div style="margin-top:14px;">
+          <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-check"/></svg>Salva secondo colloquio</button>
+        </div>
+      </form>
+      {% else %}
+      <dl class="rcr-dl">
+        <div><dt>Data</dt><dd>{{ candidato.data_secondo_colloquio|date:"d-m-Y"|default:"—" }}</dd></div>
+        <div><dt>Comunicazione esito</dt><dd>{{ candidato.get_comunicazione_esito_display|default:"—" }}</dd></div>
+        <div><dt>Data assunzione</dt><dd>{{ candidato.data_assunzione|date:"d-m-Y"|default:"—" }}</dd></div>
+        <div><dt>Note</dt><dd>{{ candidato.note_secondo_colloquio|linebreaksbr|default:"—" }}</dd></div>
+      </dl>
+      {% endif %}
+    </section>
+
+    {# Esito dell'iter #}
+    {% if can_manage %}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-arrow-right"/></svg>Esito dell'iter</div>
+      </div>
+
+      {% if candidato.onboarding_pratica %}
+      <p class="rcr-sec-note">
+        Candidato assunto: dipendente creato in anagrafica (id legacy {{ candidato.legacy_anagrafica_id }})
+        e pratica di onboarding avviata.
+      </p>
+      <a href="{% url 'anagrafica:onboarding_detail' candidato.onboarding_pratica.id %}" class="fmd-btn fmd-btn-primary">
+        <svg class="fmd-ico"><use href="#i-arrow-right"/></svg>Apri la pratica di onboarding
+      </a>
+      {% else %}
+      <div class="fmd-split" style="gap:14px;align-items:flex-start;">
+        <form method="post" action="{% url 'anagrafica:recruiting_assumi' candidato.id %}" class="rcr-form" style="flex:1;">
+          {% csrf_token %}
+          <p class="rcr-sec-note">
+            Crea il dipendente in anagrafica riusando i dati già raccolti e avvia la checklist
+            di inserimento. Nessuna doppia immissione.
+          </p>
+          <div class="rcr-grid">
+            <div class="rcr-f">
+              <label for="rcr-reparto">Reparto di destinazione</label>
+              <input type="text" id="rcr-reparto" name="reparto" placeholder="Facoltativo">
+            </div>
+          </div>
+          <div style="margin-top:14px;">
+            <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-check"/></svg>Assunto → invia a Onboarding</button>
+          </div>
+        </form>
+
+        <form method="post" action="{% url 'anagrafica:recruiting_archivia' candidato.id %}" style="flex:1;">
+          {% csrf_token %}
+          <p class="rcr-sec-note">
+            Chiude l'iter mantenendo il profilo consultabile per future opportunità,
+            filtrabile per mansione, punteggio ed esito.
+          </p>
+          <button type="submit" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-book"/></svg>Mantieni in database Recruiting</button>
+        </form>
+      </div>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    {# Tracciabilità delle decisioni #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clock"/></svg>Modifiche tracciate</div>
+        <span class="fmd-block-aside">Evidenza per audit</span>
+      </div>
+
+      {% if log %}
+      <div class="rcr-log">
+        {% for riga in log %}
+        <div class="rcr-log-row">
+          <span class="rcr-log-when">{{ riga.at|date:"d-m-Y H:i" }}</span>
+          <span class="rcr-log-what">
+            <b>{{ riga.campo }}</b>:
+            {{ riga.valore_prima|default:"—" }}<span class="rcr-log-arrow">→</span>{{ riga.valore_dopo|default:"—" }}
+            {% if riga.note %}<div class="rcr-log-who">{{ riga.note }}</div>{% endif %}
+            <div class="rcr-log-who">{{ riga.user_display|default:"utente non registrato" }}</div>
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="fmd-empty"><span class="fmd-et">Nessuna modifica registrata</span></div>
+      {% endif %}
+    </section>
+
+  </div>{# .fmd-wrap #}
+</div>{# .fmd #}
+{% endblock %}

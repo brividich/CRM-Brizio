@@ -19,7 +19,8 @@ logger = logging.getLogger(__name__)
 # Bump alla v8: unione dei due. La chiave DEVE essere NUOVA: un ambiente gia' arrivato
 #   a "v7" con uno solo dei due filoni non ri-registrerebbe i binding dell'altro, e in
 #   ACL_STRICT_CANONICAL una route non mappata viene NEGATA a tutti i non-superuser (403).
-_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v8"
+# Bump alla v9: permessi/binding canonici del Recruiting MOD. 05-01.
+_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v9"
 
 # ── ACL v2 canonico — Skill Matrix MOD.187 ─────────────────────────────────────
 # Rende le route Skill Matrix governabili da /admin-portale/acl-canonico/ (e
@@ -102,6 +103,45 @@ _MPQ_ROLE_GRANTS = {
     "amministrazione": {PERM_MPQ_VIEW, PERM_MPQ_MANAGE},
     "qualita": {PERM_MPQ_VIEW, PERM_MPQ_MANAGE},
     "caporeparto": {PERM_MPQ_VIEW},
+}
+
+
+# ── ACL v2 canonico — Recruiting MOD. 05-01 (selezione risorse) ───────────────
+# Le schede candidato contengono età, cittadinanza e note libere che possono
+# riportare situazioni familiari o di salute: il grant di default è ristretto
+# (nessun ruolo oltre admin/amministrazione), e in view si somma il singleton
+# `RecruitingPermission` (default ADMIN), come per le visite mediche.
+PERM_RECR_VIEW = "anagrafica.recruiting.view"
+PERM_RECR_MANAGE = "anagrafica.recruiting.manage"
+
+_RECR_CANONICAL = {
+    PERM_RECR_VIEW: {
+        "label": "Recruiting MOD. 05-01 - Visualizza",
+        "description": "Schede candidato, valutazioni di selezione e cruscotto KPI, sola lettura.",
+    },
+    PERM_RECR_MANAGE: {
+        "label": "Recruiting MOD. 05-01 - Gestisci",
+        "description": "Data-entry schede/valutazioni, secondo colloquio, transizione a onboarding, criteri.",
+    },
+}
+
+_RECR_ROUTE_BINDINGS = {
+    "anagrafica:recruiting_list": PERM_RECR_VIEW,
+    "anagrafica:recruiting_detail": PERM_RECR_VIEW,
+    "anagrafica:recruiting_dashboard": PERM_RECR_VIEW,
+    # Data-entry e decisioni → manage
+    "anagrafica:recruiting_create": PERM_RECR_MANAGE,
+    "anagrafica:recruiting_edit": PERM_RECR_MANAGE,
+    "anagrafica:recruiting_step2": PERM_RECR_MANAGE,
+    "anagrafica:recruiting_assumi": PERM_RECR_MANAGE,
+    "anagrafica:recruiting_archivia": PERM_RECR_MANAGE,
+    "anagrafica:recruiting_criteri": PERM_RECR_MANAGE,
+}
+
+# Grant di default (CREATE-ONLY: non sovrascrive le scelte fatte in ACL canonico).
+_RECR_ROLE_GRANTS = {
+    "admin": {PERM_RECR_VIEW, PERM_RECR_MANAGE},
+    "amministrazione": {PERM_RECR_VIEW, PERM_RECR_MANAGE},
 }
 
 
@@ -272,12 +312,62 @@ def _bootstrap_mpq_canonical() -> bool:
     return changed
 
 
+def _bootstrap_recruiting_canonical() -> bool:
+    """Registra permessi canonici Recruiting MOD. 05-01 + binding route + grant.
+
+    Stesso pattern conservativo di Skill Matrix/MPQ. I binding sono obbligatori:
+    con ``ACL_STRICT_CANONICAL`` una route non mappata viene NEGATA a tutti i
+    non-superuser.
+    """
+    from core.legacy_models import Ruolo
+    from core.models import (
+        PermissionDefinition, RolePermissionGrant, RoutePermissionBinding,
+    )
+
+    changed = False
+    with transaction.atomic():
+        for code, payload in _RECR_CANONICAL.items():
+            _, created = PermissionDefinition.objects.get_or_create(
+                code=code,
+                defaults={"module": MODULE, "label": payload["label"],
+                          "description": payload["description"], "is_active": True},
+            )
+            changed = changed or created
+
+        for route_name, code in _RECR_ROUTE_BINDINGS.items():
+            binding, created = RoutePermissionBinding.objects.get_or_create(
+                route_name=route_name, path_pattern="",
+                defaults={"match_strategy": RoutePermissionBinding.MATCH_EXACT,
+                          "permission_id": code, "source_app": MODULE,
+                          "note": "[RECR_BOOTSTRAP] binding Recruiting MOD. 05-01",
+                          "priority": 80, "is_active": True},
+            )
+            changed = changed or created
+            if not created and (binding.permission_id != code or not binding.is_active):
+                binding.permission_id = code
+                binding.is_active = True
+                binding.save(update_fields=["permission", "is_active", "updated_at"])
+                changed = True
+
+        roles = {int(r.id): _norm(r.nome) for r in Ruolo.objects.all()}
+        for rid, rname in roles.items():
+            grants = _RECR_ROLE_GRANTS.get(rname, set())
+            for code in (PERM_RECR_VIEW, PERM_RECR_MANAGE):
+                _, created = RolePermissionGrant.objects.get_or_create(
+                    legacy_role_id=rid, permission_id=code,
+                    defaults={"enabled": code in grants, "note": "[RECR_BOOTSTRAP] default"},
+                )
+                changed = changed or created
+    return changed
+
+
 def _bootstrap_anagrafica_canonical() -> bool:
-    """Bootstrap canonico delle aree anagrafica governate da ACL v2 (SKM + MPQ + export)."""
+    """Bootstrap canonico delle aree anagrafica governate da ACL v2 (SKM + MPQ + Recruiting + export)."""
     changed_skm = _bootstrap_skillmatrix_canonical()
     changed_mpq = _bootstrap_mpq_canonical()
+    changed_recr = _bootstrap_recruiting_canonical()
     changed_export = _bootstrap_export_canonical()
-    return bool(changed_skm or changed_mpq or changed_export)
+    return bool(changed_skm or changed_mpq or changed_recr or changed_export)
 
 _PULSANTI_DEFINITIONS = [
     {"modulo": "anagrafica", "codice": "anagrafica_index", "label": "Anagrafica - Dashboard", "url": "/anagrafica/", "hide": False},

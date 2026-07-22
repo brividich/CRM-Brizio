@@ -21,6 +21,13 @@ from .models import (
     VisitaMedica,
     VoceRetributiva,
 )
+from .models_recruiting import (
+    Candidato,
+    CandidatoLog,
+    CandidatoPunteggio,
+    RecruitingCriterio,
+    RecruitingPermission,
+)
 from .models_rischi import (
     CategoriaCorso,
     EsposizioneRischio,
@@ -645,4 +652,64 @@ class MpqStoricoAdmin(admin.ModelAdmin):
         return False
 
     def has_change_permission(self, request, obj=None):
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Recruiting MOD. 05-01 — selezione risorse
+# ---------------------------------------------------------------------------
+
+@admin.register(RecruitingCriterio)
+class RecruitingCriterioAdmin(admin.ModelAdmin):
+    list_display = ("label", "codice", "peso_percentuale", "ordine", "is_active")
+    list_filter = ("is_active",)
+    search_fields = ("codice", "label")
+    readonly_fields = ("created_at", "updated_at")
+
+
+class CandidatoPunteggioInline(admin.TabularInline):
+    model = CandidatoPunteggio
+    extra = 0
+    readonly_fields = ("peso_snapshot", "created_at", "updated_at")
+
+
+@admin.register(Candidato)
+class CandidatoAdmin(admin.ModelAdmin):
+    list_display = (
+        "cognome", "nome", "mansione_cercata", "canale_provenienza",
+        "data_primo_colloquio", "punteggio_ponderato", "giudizio_finale", "stato",
+    )
+    list_filter = ("stato", "canale_provenienza", "giudizio_finale", "cv_esito")
+    search_fields = ("cognome", "nome", "mansione_cercata", "azienda_attuale", "localita")
+    # Il ponderato lo scrive solo services.recruiting: modificarlo a mano
+    # renderebbe il valore non difendibile in audit.
+    readonly_fields = (
+        "punteggio_ponderato", "punteggio_aggiornato_il",
+        "created_at", "updated_at", "created_by", "updated_by",
+    )
+    inlines = [CandidatoPunteggioInline]
+
+
+@admin.register(CandidatoLog)
+class CandidatoLogAdmin(admin.ModelAdmin):
+    list_display = ("at", "candidato", "tipo", "campo", "valore_prima", "valore_dopo", "user_display")
+    list_filter = ("tipo",)
+    search_fields = ("campo", "candidato__cognome", "candidato__nome")
+    readonly_fields = ("at",)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(RecruitingPermission)
+class RecruitingPermissionAdmin(admin.ModelAdmin):
+    list_display = ("accesso",)
+
+    def has_add_permission(self, request):
+        return not RecruitingPermission.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
         return False

@@ -2345,3 +2345,5 @@ from .models_formazione import *  # noqa: E402, F401, F403
 from .models_skillmatrix import *  # noqa: E402, F401, F403
 # MOD.128 MPQ — Mansionario Processi Qualificati (strato additivo).
 from .models_mpq import *  # noqa: E402, F401, F403
+# Recruiting MOD. 05-01 — Valutazione Selezione Risorse (strato additivo).
+from .models_recruiting import *  # noqa: E402, F401, F403

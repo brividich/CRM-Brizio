@@ -2,6 +2,7 @@ from django.urls import path
 
 from . import views
 from . import views_mpq
+from . import views_recruiting
 
 app_name = "anagrafica"
 
@@ -264,6 +265,17 @@ urlpatterns = [
     path("onboarding/<int:pratica_id>/task/<int:task_id>/update", views.onboarding_task_update, name="onboarding_task_update"),
     path("onboarding/<int:pratica_id>/chiudi", views.onboarding_chiudi, name="onboarding_chiudi"),
     path("onboarding/<int:pratica_id>/annulla", views.onboarding_annulla, name="onboarding_annulla"),
+
+    # ── Recruiting MOD. 05-01 (selezione risorse, a monte dell'onboarding) ──
+    path("recruiting/", views_recruiting.recruiting_list, name="recruiting_list"),
+    path("recruiting/cruscotto/", views_recruiting.recruiting_dashboard, name="recruiting_dashboard"),
+    path("recruiting/criteri/", views_recruiting.recruiting_criteri, name="recruiting_criteri"),
+    path("recruiting/nuovo/", views_recruiting.recruiting_create, name="recruiting_create"),
+    path("recruiting/<int:candidato_id>/", views_recruiting.recruiting_detail, name="recruiting_detail"),
+    path("recruiting/<int:candidato_id>/modifica/", views_recruiting.recruiting_edit, name="recruiting_edit"),
+    path("recruiting/<int:candidato_id>/secondo-colloquio/", views_recruiting.recruiting_step2, name="recruiting_step2"),
+    path("recruiting/<int:candidato_id>/assumi/", views_recruiting.recruiting_assumi, name="recruiting_assumi"),
+    path("recruiting/<int:candidato_id>/archivia/", views_recruiting.recruiting_archivia, name="recruiting_archivia"),
 
     # ── Formazione HR — Dashboard ──────────────────────────────────────────
     path("formazione/", views.formazione_dashboard, name="formazione_dashboard"),

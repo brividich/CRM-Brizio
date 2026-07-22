@@ -234,6 +234,7 @@ body.theme-dark .hr-goto-title { color:var(--text-light); }
         <a class="hr-goto-pill" href="{% url 'anagrafica:visite_mediche_dashboard' %}"><span class="hr-goto-ico">🩺</span> Visite mediche</a>
         {% endif %}
         {% if can_view_hr %}
+        <a class="hr-goto-pill" href="{% url 'anagrafica:recruiting_list' %}"><span class="hr-goto-ico">🧭</span> Recruiting</a>
         <a class="hr-goto-pill" href="{% url 'anagrafica:onboarding_list' %}"><span class="hr-goto-ico">🚀</span> Onboarding</a>
         <a class="hr-goto-pill" href="{% url 'anagrafica:documenti_list' %}"><span class="hr-goto-ico">📁</span> Documenti</a>
         {% endif %}

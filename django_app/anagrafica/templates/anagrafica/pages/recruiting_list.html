@@ -1,0 +1,178 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Recruiting | Anagrafica{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
+<link rel="stylesheet" href="{% static 'anagrafica/css/recruiting.css' %}?v=1">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  <div class="fmd-wrap">
+
+    {% include "anagrafica/components/flash_messages.html" %}
+
+    <section class="fmd-hero">
+      <div class="fmd-hero-bg" aria-hidden="true"></div>
+      <div class="fmd-hero-inner">
+        <div>
+          <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Recruiting</div>
+          <h1><svg class="fmd-ico fmd-cap"><use href="#i-users"/></svg>Selezione risorse — MOD. 05-01</h1>
+          <p class="fmd-sub">Schede candidato, valutazione a criteri pesati, secondo colloquio ed esito dell'iter.</p>
+        </div>
+        <div class="fmd-hero-side">
+          <div class="fmd-hero-tile"><span class="fmd-corner"></span><span class="fmd-bignum">{{ n_in_corso }}</span><span class="fmd-lbl">Iter aperti</span></div>
+          <div class="fmd-hero-tile fmd-alt"><span class="fmd-corner"></span><span class="fmd-bignum">{{ n_in_database }}</span><span class="fmd-lbl">In database</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="fmd-kpi" style="grid-template-columns:repeat(3,1fr);">
+      <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clipboard"/></svg></span><span class="fmd-mtr-val">{{ n_in_corso }}</span></div><div class="fmd-mtr-lbl">Iter aperti</div><div class="fmd-mtr-sub">Selezioni in corso</div></div>
+      <div class="fmd-mtr fmd-t-green"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ n_assunti }}</span></div><div class="fmd-mtr-lbl">Assunti</div><div class="fmd-mtr-sub">Passati a onboarding</div></div>
+      <div class="fmd-mtr fmd-t-violet"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-award"/></svg></span><span class="fmd-mtr-val">{{ n_in_database }}</span></div><div class="fmd-mtr-lbl">In database</div><div class="fmd-mtr-sub">Profili per future opportunità</div></div>
+    </section>
+
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-filter"/></svg>Ricerca e filtri</div>
+        <div class="fmd-cat-actions">
+          <a href="{% url 'anagrafica:recruiting_dashboard' %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-grid"/></svg>Cruscotto KPI</a>
+          {% if can_manage %}
+          <a href="{% url 'anagrafica:recruiting_criteri' %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-gear"/></svg>Criteri</a>
+          <a href="{% url 'anagrafica:recruiting_create' %}" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo candidato</a>
+          {% endif %}
+        </div>
+      </div>
+
+      <form method="get" action="" class="fmd-filterbar" style="padding:0;">
+        <div class="fmd-filtf">
+          <label for="f-q">Ricerca libera</label>
+          <input type="text" id="f-q" name="q" value="{{ filtri.q }}" placeholder="Nome, mansione, azienda…">
+        </div>
+        <div class="fmd-filtf">
+          <label for="f-stato">Stato</label>
+          <select id="f-stato" name="stato">
+            <option value="">Tutti</option>
+            {% for value, label in stato_choices %}
+            <option value="{{ value }}" {% if filtri.stato == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="fmd-filtf">
+          <label for="f-canale">Canale</label>
+          <select id="f-canale" name="canale">
+            <option value="">Tutti</option>
+            {% for value, label in canale_choices %}
+            <option value="{{ value }}" {% if filtri.canale == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="fmd-filtf">
+          <label for="f-giudizio">Giudizio</label>
+          <select id="f-giudizio" name="giudizio">
+            <option value="">Tutti</option>
+            {% for value, label in giudizio_choices %}
+            <option value="{{ value }}" {% if filtri.giudizio == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="fmd-filtf">
+          <label for="f-mansione">Mansione cercata</label>
+          <input type="text" id="f-mansione" name="mansione" value="{{ filtri.mansione }}">
+        </div>
+        <div class="fmd-filtf">
+          <label for="f-pmin">Punteggio min.</label>
+          <input type="text" id="f-pmin" name="punteggio_min" value="{{ filtri.punteggio_min }}" placeholder="3,5">
+        </div>
+        <div class="fmd-filtf">
+          <label for="f-dal">1° colloquio dal</label>
+          <input type="date" id="f-dal" name="dal" value="{{ filtri.dal }}">
+        </div>
+        <div class="fmd-filtf">
+          <label for="f-al">al</label>
+          <input type="date" id="f-al" name="al" value="{{ filtri.al }}">
+        </div>
+        <div class="fmd-filtf fmd-go">
+          <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-search"/></svg>Filtra</button>
+          <a href="{% url 'anagrafica:recruiting_list' %}" class="fmd-btn fmd-btn-ghost">Azzera</a>
+        </div>
+      </form>
+    </section>
+
+    <section class="fmd-panel fmd-block">
+      {% if page_obj.object_list %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table" data-table-id="anagrafica.recruiting">
+          <thead>
+            <tr>
+              <th>Candidato</th>
+              <th>Mansione cercata</th>
+              <th>Canale</th>
+              <th class="fmd-nowrap">1° colloquio</th>
+              <th class="fmd-nowrap">Punteggio</th>
+              <th>Giudizio</th>
+              <th>Stato</th>
+              <th class="fmd-r">Azioni</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in page_obj.object_list %}
+            <tr>
+              <td>
+                <a class="fmd-data-link" href="{% url 'anagrafica:recruiting_detail' c.id %}">{{ c.nominativo|default:"—" }}</a>
+                {% if c.localita %}<div class="fmd-cell-sub">{{ c.localita }}{% if c.provincia %} ({{ c.provincia }}){% endif %}</div>{% endif %}
+              </td>
+              <td>{{ c.mansione_cercata|default:"—" }}</td>
+              <td class="fmd-muted">{{ c.get_canale_provenienza_display }}</td>
+              <td class="fmd-nowrap fmd-muted">{{ c.data_primo_colloquio|date:"d-m-Y"|default:"—" }}</td>
+              <td class="fmd-num">{% if c.punteggio_ponderato %}{{ c.punteggio_ponderato }}{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+              <td>
+                {% if c.giudizio_finale == "POSITIVO" %}<span class="fmd-badge fmd-b-green">Positivo</span>
+                {% elif c.giudizio_finale == "NEGATIVO" %}<span class="fmd-badge fmd-b-red">Negativo</span>
+                {% else %}<span class="fmd-muted">—</span>{% endif %}
+              </td>
+              <td>
+                {% if c.stato == "ASSUNTO" %}<span class="fmd-badge fmd-b-green">Assunto</span>
+                {% elif c.stato == "IN_DATABASE" %}<span class="fmd-badge fmd-b-violet">In database</span>
+                {% elif c.stato == "SCARTATO" %}<span class="fmd-badge fmd-b-grey">Non idoneo</span>
+                {% elif c.stato == "RINUNCIA" %}<span class="fmd-badge fmd-b-grey">Rinuncia</span>
+                {% else %}<span class="fmd-badge fmd-b-cyan">{{ c.get_stato_display }}</span>{% endif %}
+              </td>
+              <td class="fmd-r"><a href="{% url 'anagrafica:recruiting_detail' c.id %}" class="fmd-btn-mini">Apri <svg class="fmd-ico"><use href="#i-arrow-right"/></svg></a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="fmd-tfoot">
+        <span class="fmd-info">Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }} · {{ totale }} candidati</span>
+        {% if page_obj.has_other_pages %}
+        <div class="fmd-pager">
+          {% if page_obj.has_previous %}<a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}">‹</a>{% endif %}
+          <span class="fmd-page fmd-on">{{ page_obj.number }}</span>
+          {% if page_obj.has_next %}<a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}">›</a>{% endif %}
+        </div>
+        {% endif %}
+      </div>
+
+      {% else %}
+      <div class="fmd-empty">
+        <span class="fmd-ebadge" style="background:#eef2f7;color:#94a3b8;"><svg class="fmd-ico"><use href="#i-users"/></svg></span>
+        <span class="fmd-et">Nessun candidato</span>
+        <span class="fmd-em">{% if can_manage %}Crea la prima scheda dal pulsante «Nuovo candidato».{% else %}Nessuna scheda corrisponde ai filtri impostati.{% endif %}</span>
+      </div>
+      {% endif %}
+    </section>
+
+  </div>{# .fmd-wrap #}
+</div>{# .fmd #}
+{% endblock %}

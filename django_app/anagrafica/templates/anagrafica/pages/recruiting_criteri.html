@@ -1,0 +1,140 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Criteri di valutazione | Recruiting{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
+<link rel="stylesheet" href="{% static 'anagrafica/css/recruiting.css' %}?v=1">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  <div class="fmd-wrap">
+
+    {% include "anagrafica/components/flash_messages.html" %}
+
+    <div class="fmd-pagehead">
+      <div class="fmd-crumb">
+        <a href="{% url 'anagrafica:recruiting_list' %}">Recruiting</a>
+        <span>/</span>
+        <span>Criteri di valutazione</span>
+      </div>
+    </div>
+
+    {# Punti che il modulo NON decide al posto di HR #}
+    <section class="fmd-panel fmd-block">
+      <div class="rcr-note">
+        <h3>Da validare con HR prima di congelare lo schema (UNI/PdR 125)</h3>
+        <ul>
+          <li>
+            <strong>Sintonia</strong> e <strong>Vicinanza</strong> sono criteri soggettivi rispetto a
+            «Competenze tecniche» o «Esperienze pregresse». Per essere difendibili in audit dovrebbero
+            avere una definizione operativa: usa il campo <em>rubrica</em> per descrivere cosa significa
+            ciascun livello da 1 a 5, con esempi.
+          </li>
+          <li>
+            <strong>Vicinanza</strong> (distanza casa-lavoro) può essere un proxy indiretto di
+            caratteristiche protette. Da confermare con HR se resta un criterio a punteggio o diventa
+            un'informazione logistica separata: per escluderlo dal calcolo basta disattivarlo qui,
+            senza perdere lo storico.
+          </li>
+          <li>
+            <strong>Età e cittadinanza</strong> restano informativi. Non è possibile farli pesare
+            sull'esito nemmeno indirettamente: il punteggio ponderato legge solo i criteri di questa
+            pagina.
+          </li>
+          <li>
+            <strong>Tracciabilità.</strong> Ogni cambio di punteggio o giudizio è registrato con autore,
+            istante e valore precedente, e resta consultabile nella scheda del candidato.
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-award"/></svg>Criteri configurati</div>
+        <span class="fmd-count">Somma pesi attivi: {{ peso_totale_attivi }}%</span>
+      </div>
+
+      <div class="fmd-tablewrap">
+        <table class="fmd-table">
+          <thead>
+            <tr><th>Criterio</th><th class="fmd-nowrap">Peso</th><th class="fmd-nowrap">Ordine</th><th>Stato</th><th>Rubrica</th></tr>
+          </thead>
+          <tbody>
+            {% for criterio in criteri %}
+            <tr>
+              <td>
+                <strong>{{ criterio.label }}</strong>
+                <div class="fmd-cell-sub"><span class="fmd-code">{{ criterio.codice }}</span>{% if criterio.descrizione %} · {{ criterio.descrizione }}{% endif %}</div>
+              </td>
+              <td class="fmd-num">{{ criterio.peso_percentuale }}%</td>
+              <td class="fmd-num">{{ criterio.ordine }}</td>
+              <td>{% if criterio.is_active %}<span class="fmd-badge fmd-b-green">Attivo</span>{% else %}<span class="fmd-badge fmd-b-grey">Disattivato</span>{% endif %}</td>
+              <td class="fmd-muted">{% if criterio.rubrica %}Definita{% else %}<span class="fmd-badge fmd-b-amber">Da definire</span>{% endif %}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5"><span class="fmd-muted">Nessun criterio configurato.</span></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <p class="rcr-sec-note" style="margin-top:14px;">
+        La somma dei pesi non deve necessariamente fare 100: il punteggio è normalizzato sulla somma
+        dei pesi effettivamente valorizzati, così resta sulla scala 1-5 anche con criteri disattivati
+        o valutazioni parziali.
+      </p>
+    </section>
+
+    <section class="fmd-panel">
+      <form method="post" action="" class="rcr-form" novalidate>
+        {% csrf_token %}
+        <div class="rcr-sec">
+          <div class="rcr-sec-head"><svg class="fmd-ico"><use href="#i-plus"/></svg>Aggiungi o aggiorna un criterio</div>
+          <p class="rcr-sec-note">
+            Inserendo un <em>codice</em> già esistente il criterio viene sostituito. Al salvataggio i
+            punteggi ponderati delle schede ancora aperte vengono ricalcolati.
+          </p>
+          {% if form.non_field_errors %}<div class="fmd-alert">{{ form.non_field_errors }}</div>{% endif %}
+          <div class="rcr-grid">
+            {% include "anagrafica/partials/_rcr_field.html" with field=form.codice %}
+            {% include "anagrafica/partials/_rcr_field.html" with field=form.label %}
+            {% include "anagrafica/partials/_rcr_field.html" with field=form.peso_percentuale %}
+            {% include "anagrafica/partials/_rcr_field.html" with field=form.ordine %}
+            {% include "anagrafica/partials/_rcr_field.html" with field=form.is_active %}
+            {% include "anagrafica/partials/_rcr_field.html" with field=form.descrizione wide=1 %}
+            {% include "anagrafica/partials/_rcr_field.html" with field=form.rubrica wide=1 %}
+          </div>
+        </div>
+        <div class="rcr-actions">
+          <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-check"/></svg>Salva criterio</button>
+          <a href="{% url 'anagrafica:recruiting_list' %}" class="fmd-btn fmd-btn-ghost">Torna all'elenco</a>
+        </div>
+      </form>
+    </section>
+
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-shield"/></svg>Accesso alla sezione</div>
+      </div>
+      <p class="rcr-sec-note" style="margin:0;">
+        Impostazione corrente: <strong>{{ permessi.get_accesso_display }}</strong>.
+        Le schede contengono età, cittadinanza e note libere che possono riportare situazioni
+        familiari o di salute: l'accesso si governa dal permesso canonico
+        <span class="fmd-code">anagrafica.recruiting.view</span> /
+        <span class="fmd-code">anagrafica.recruiting.manage</span> in ACL canonico, e da questo
+        singleton nel pannello di amministrazione.
+      </p>
+    </section>
+
+  </div>{# .fmd-wrap #}
+</div>{# .fmd #}
+{% endblock %}
