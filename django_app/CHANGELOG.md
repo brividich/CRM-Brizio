@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Remediation gestionale — 3.4 (rinomina sezione asset)
+
+- **[style] `assets/templates/assets/pages/asset_detail.html`**: (punto 3.4) la sezione **"Storico interventi"** della scheda asset è rinominata **"Interventi straordinari"** (solo etichetta, stessi dati mostrati — scelta confermata).
+
 ### SOC IT - CN - mailbox-admin + API DRF read-only
 
 - **[feat/test] `security/urls_hub.py`, `security/templates/security/{admin_mailbox_sources_list,admin_mailbox_source_detail}.html`, `security/tests_soc.py`**: montate le ultime superfici escluse. (1) **mailbox-admin**: pagine config sorgenti mailbox (sola lettura) su `/soc/admin/mailbox/` — l'ingestione Graph/IMAP resta fuori (serve credenziali + scheduling). (2) **API DRF read-only**: `/soc/api/{dashboard-summary,alerts/recent,kpis/summary}/` (JSON, `permission_classes=[CanViewSecurityCenter]`, ACL-gated). **Esclusi di proposito**: `api_ai.py` (AI NVIDIA di SC-AI → contraddice la convergenza su Ollama del sotto-progetto C) e `api_configuration.py` (config wizard della SPA React droppata). ACL: 31 permessi `security.*` (grant admin). 22 test `tests_soc` verdi. `check` pulito.
