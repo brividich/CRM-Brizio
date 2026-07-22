@@ -6,6 +6,7 @@
 
 - **[feat/test] `assets/forms.py`, `assets/templates/assets/pages/asset_detail.html`, `assets/tests_quickwin_p2.py`**: (punto 3.2) i campi **Data acquisto** (`purchase_date`) e **Data fabbricazione** (`production_date`, prima etichettato "Data produzione") sono ora mostrati nella scheda asset (hero-tag) oltre che nei form. Nuovo `AssetDataFabbricazioneTests`.
 - **[feat/test] `anagrafica/templatetags/anagrafica_extras.py`, `anagrafica/templates/anagrafica/pages/{dipendente_detail,dipendenti_report}.html`, `anagrafica/tests_quickwin_p2.py`**: (punto 1.15) filtro `matricola_fmt` che rimuove gli **zeri di padding** dalla matricola **solo in visualizzazione** e **solo se numerica** (le matricole alfanumeriche restano invariate). Applicato a scheda dipendente e report. Nuovo `MatricolaFmtTests`.
+- **[feat/test] `anagrafica/templates/anagrafica/pages/formazione_corsi.html`, `anagrafica/tests_quickwin_p2.py`**: (punto 1.6) colonna **"Creato il"** nel catalogo corsi. Le altre tabelle formazione avevano già la data: la scheda dipendente mostra "Completato il" + "Scadenza", le sessioni "Inizio/Fine". Nuovo `FormazioneCorsiDataTests`.
 
 ### SOC IT - CN - mailbox-admin + API DRF read-only
 
