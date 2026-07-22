@@ -614,12 +614,57 @@ def mpq_cliente_edit(request, cliente_id: int):
     })
 
 
-def _abilitazione_form_ctx(form, processo, titolo):
+def _abilitazione_form_ctx(form, processo, titolo, *, multi_select=False):
     return {
         "form": form, "titolo": titolo, "processo": processo,
         "dipendenti": _dipendenti_scelte(),
+        "multi_select": multi_select,
         "back_url": reverse("anagrafica:mpq_processo_detail", args=[processo.id]),
     }
+
+
+def bulk_abilita_processo(processo, legacy_ids, *, ruoli, stato,
+                          data_ingresso=None, note=""):
+    """1.8 — Crea in blocco N ``AbilitazioneProcesso`` (dipendenti interni).
+
+    Idempotente sul vincolo unico (persona×processo) e deduplica gli id ripetuti
+    in ingresso. Ritorna ``(creati: list[AbilitazioneProcesso], gia_presenti: int)``.
+    I ruoli e i metadati (stato/data/note) sono comuni a tutte le abilitazioni
+    create nel batch. Non tocca le abilitazioni già esistenti.
+    """
+    from django.db import transaction
+
+    creati: list = []
+    gia = 0
+    seen: set = set()
+    with transaction.atomic():
+        for lid in legacy_ids:
+            try:
+                lid = int(lid)
+            except (TypeError, ValueError):
+                continue
+            if lid in seen:
+                continue
+            seen.add(lid)
+            ab, created = AbilitazioneProcesso.objects.get_or_create(
+                legacy_anagrafica_id=lid,
+                nominativo_esterno="",
+                processo=processo,
+                defaults={
+                    "is_qualificato": ruoli.get("is_qualificato", True),
+                    "is_addetto": ruoli.get("is_addetto", False),
+                    "is_controllore": ruoli.get("is_controllore", False),
+                    "is_part145": ruoli.get("is_part145", False),
+                    "stato": stato,
+                    "data_ingresso": data_ingresso,
+                    "note": note,
+                },
+            )
+            if created:
+                creati.append(ab)
+            else:
+                gia += 1
+    return creati, gia
 
 
 @login_required
@@ -632,30 +677,54 @@ def mpq_abilitazione_add(request, processo_id: int):
         form = AbilitazioneProcessoForm(request.POST)
         if form.is_valid():
             cd = form.cleaned_data
-            ab, created = AbilitazioneProcesso.objects.get_or_create(
-                legacy_anagrafica_id=cd["legacy_anagrafica_id"],
-                nominativo_esterno=cd.get("nominativo_esterno", ""),
-                processo=proc,
-                defaults={
-                    "is_qualificato": cd.get("is_qualificato", True),
-                    "is_addetto": cd.get("is_addetto", False),
-                    "is_controllore": cd.get("is_controllore", False),
-                    "is_part145": cd.get("is_part145", False),
-                    "stato": cd.get("stato", AbilitazioneProcesso.STATO_ATTIVA),
-                    "data_ingresso": cd.get("data_ingresso"),
-                    "note": cd.get("note", ""),
-                },
-            )
-            if created:
-                _mpq_log(request, processo=proc, abilitazione=ab, evento="Aggiunta abilitazione")
-                messages.success(request, "Abilitazione aggiunta.")
+            ruoli = {
+                "is_qualificato": cd.get("is_qualificato", True),
+                "is_addetto": cd.get("is_addetto", False),
+                "is_controllore": cd.get("is_controllore", False),
+                "is_part145": cd.get("is_part145", False),
+            }
+            stato = cd.get("stato", AbilitazioneProcesso.STATO_ATTIVA)
+            if cd.get("tipo_persona") == AbilitazioneProcessoForm.TIPO_ESTERNO:
+                # Qualificatore esterno: una persona per nominativo (nessun bulk).
+                ab, created = AbilitazioneProcesso.objects.get_or_create(
+                    legacy_anagrafica_id=0,
+                    nominativo_esterno=cd.get("nominativo_esterno", ""),
+                    processo=proc,
+                    defaults={**ruoli, "stato": stato,
+                              "data_ingresso": cd.get("data_ingresso"),
+                              "note": cd.get("note", "")},
+                )
+                if created:
+                    _mpq_log(request, processo=proc, abilitazione=ab, evento="Aggiunta abilitazione")
+                    messages.success(request, "Abilitazione aggiunta.")
+                else:
+                    messages.warning(request, "La persona è già abilitata su questo processo.")
             else:
-                messages.warning(request, "La persona è già abilitata su questo processo.")
+                # 1.8 — Dipendenti interni: selezione multipla → creazione in blocco.
+                legacy_ids = request.POST.getlist("dipendente")
+                creati, gia = bulk_abilita_processo(
+                    proc, legacy_ids, ruoli=ruoli, stato=stato,
+                    data_ingresso=cd.get("data_ingresso"), note=cd.get("note", ""),
+                )
+                for ab in creati:
+                    _mpq_log(request, processo=proc, abilitazione=ab, evento="Aggiunta abilitazione")
+                if creati:
+                    messages.success(
+                        request,
+                        "Abilitazione aggiunta." if len(creati) == 1
+                        else f"{len(creati)} abilitazioni aggiunte.",
+                    )
+                if gia:
+                    messages.warning(
+                        request,
+                        f"{gia} già abilitat{'a' if gia == 1 else 'e'} su questo processo (saltat{'a' if gia == 1 else 'e'}).",
+                    )
             return redirect("anagrafica:mpq_processo_detail", processo_id=proc.id)
     else:
         form = AbilitazioneProcessoForm()
     return render(request, "anagrafica/pages/mpq_abilitazione_form.html",
-                  _abilitazione_form_ctx(form, proc, "Aggiungi persona abilitata"))
+                  _abilitazione_form_ctx(form, proc, "Aggiungi persone abilitate",
+                                         multi_select=True))
 
 
 @login_required

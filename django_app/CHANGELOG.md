@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Remediation gestionale — 1.8 (abilitazione MPQ multi-dipendente)
+
+- **[feat/test] `anagrafica/views_mpq.py` (`bulk_abilita_processo`, `mpq_abilitazione_add`, `_abilitazione_form_ctx`), `anagrafica/templates/anagrafica/pages/mpq_abilitazione_form.html`, `anagrafica/tests_mpq_bulk.py` [nuovo]**: (punto 1.8) nella scheda **Processo qualificato (MOD.128)**, l'aggiunta di persone abilitate consente ora la **selezione multipla di dipendenti interni** → crea in blocco N `AbilitazioneProcesso` in un'unica transazione (idempotente sul vincolo persona×processo, deduplica gli id ripetuti). Il caso **qualificatore esterno** resta a persona singola. La modifica (edit) di una singola abilitazione resta invariata. 4 test. Nessuna migrazione.
+
 ### Remediation gestionale — 1.10 / 1.11 (ratei con operatori, KPI assenze)
 
 - **[feat/test] `anagrafica/ratei_alert.py` (`saldo_filter_q`, `SALDO_CAMPI`, `SALDO_OPERATORI`), `anagrafica/views.py` (`ratei_list`, `ratei_export`), `anagrafica/templates/anagrafica/pages/ratei_list.html`, `anagrafica/tests_ratei_filtri.py` [nuovo]**: (punto 1.10) nella lista **Ratei ferie** aggiunto il filtro **per valore del saldo con operatore di confronto** (`<`, `>`, `=`) su Ferie residue / ROL residui / Ex-festività residue. Whitelist esplicita dei campi filtrabili; stesso filtro replicato nell'**export XLSX** per coerenza lista/export. Nessuna migrazione.
