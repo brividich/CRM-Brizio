@@ -5,6 +5,7 @@
 ### Epica A / A1 — mansione di rischio: modello + resolver
 
 - **[feat/test] `anagrafica/models_rischi.py`, `anagrafica/admin.py`, `anagrafica/migrations/0087_esposizionerischio_legacy_anagrafica_id_and_more.py`, `anagrafica/tests_mansione_rischio_a1.py`**: (punto 1.9) `EsposizioneRischio` può ora puntare anche a un **singolo dipendente** (`legacy_anagrafica_id`), oltre a mansione/area; `clean()` esige almeno un target. Migrazione additiva (AddField + AddIndex). Fondazione dell'Epica A ("mansione di rischio" a vista); nessuna UI.
+- **[feat/test] `anagrafica/services/mansionario.py`**: nuova `requisiti_dipendente(legacy_id)` — requisiti effettivi del dipendente come **unione** di mansione lavorativa + esposizioni di area + esposizioni dirette (dedup). Fonte unica riusata da A2 (pannello scheda) e A3 (filtro DPI). Refactor DRY del derivatore fattori→requisiti (`_requisiti_da_fattori`/`_corsi_per_categoria`), condiviso col resolver mansione esistente.
 
 ### SOC IT - CN - mailbox-admin + API DRF read-only
 
