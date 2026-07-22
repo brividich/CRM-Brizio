@@ -13692,12 +13692,25 @@ def dipendente_conformita_panel(request, legacy_id: int):
         Mansione.objects.filter(nome__iexact=mansione_nome.strip()).only("id").first()
         if mansione_nome else None
     )
+    # Profilo di rischio DERIVATO ("mansione di rischio" a vista): unione dei requisiti
+    # della mansione lavorativa + esposizioni di area + esposizioni dirette al dipendente.
+    requisiti_rischio = mansionario_service.requisiti_dipendente(
+        legacy_id, mansione_nome=mansione_nome
+    )
+    from .models_rischi import EsposizioneRischio
+    esposizioni_dirette = list(
+        EsposizioneRischio.objects
+        .filter(legacy_anagrafica_id=legacy_id, is_active=True)
+        .select_related("fattore")
+    )
     return render(request, "anagrafica/partials/conformita_panel.html", {
         "legacy_id": legacy_id,
         "stato": stato,
         "mansione_nome": mansione_nome,
         "mansione_id": mansione_obj.id if mansione_obj else None,
         "can_view_visite": can_view_visite,
+        "requisiti_rischio": requisiti_rischio,
+        "esposizioni_dirette": esposizioni_dirette,
     })
 
 
