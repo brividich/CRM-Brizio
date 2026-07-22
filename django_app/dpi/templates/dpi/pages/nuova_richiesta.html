@@ -51,6 +51,8 @@
 .dpi-cat-card-emoji { font-size:42px; line-height:1; }
 .dpi-cat-card-name { font-size:13px; font-weight:700; color:#0f172a; line-height:1.3; }
 .dpi-cat-card-vita { font-size:11px; color:#64748b; }
+.dpi-cat-hidden { display:none; }
+.dpi-cat-profilo { font-size:10px; font-weight:700; color:#166534; margin-top:2px; }
 
 /* Form fields */
 .dpi-field { margin-bottom:18px; }
@@ -125,13 +127,21 @@ body.theme-dark .dpi-btn-back:hover { background:var(--surface); }
           DPI selezionato: <span id="selected-nome"></span>
         </div>
 
+        {% if profilo_attivo %}
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#64748b;margin:2px 0 12px;">
+          <input type="checkbox" id="toggle-fuori-profilo" onclick="toggleFuoriProfilo(this)">
+          Mostra anche i DPI fuori dal profilo di rischio della mansione (richiede una motivazione)
+        </label>
+        {% endif %}
+
         <div class="dpi-picker-grid" id="dpi-picker">
           {% for cat in categorie %}
-          <div class="dpi-cat-card"
+          <div class="dpi-cat-card{% if profilo_attivo and not cat.in_profilo %} dpi-cat-hidden fuori-profilo{% endif %}"
                data-id="{{ cat.pk }}"
                data-nome="{{ cat.nome }}"
                data-um="{{ cat.unita_misura }}"
                data-vita="{{ cat.vita_utile_giorni|default:'' }}"
+               data-in-profilo="{% if cat.in_profilo %}1{% else %}0{% endif %}"
                onclick="selectDPI(this)">
             {% if cat.immagine %}
               <img class="dpi-cat-card-img" src="{{ cat.immagine.url }}" alt="{{ cat.nome }}">
@@ -139,6 +149,7 @@ body.theme-dark .dpi-btn-back:hover { background:var(--surface); }
               <div class="dpi-cat-card-emoji">{{ cat.icona_emoji }}</div>
             {% endif %}
             <div class="dpi-cat-card-name">{{ cat.nome }}</div>
+            {% if profilo_attivo and cat.in_profilo %}<div class="dpi-cat-profilo">✓ Profilo mansione</div>{% endif %}
             {% if cat.vita_utile_giorni %}
             <div class="dpi-cat-card-vita">Vita utile: {{ cat.vita_utile_giorni }} gg</div>
             {% endif %}
@@ -203,6 +214,11 @@ body.theme-dark .dpi-btn-back:hover { background:var(--surface); }
 </div>
 
 <script>
+function toggleFuoriProfilo(cb) {
+  document.querySelectorAll('.dpi-cat-card.fuori-profilo').forEach(function(el) {
+    el.classList.toggle('dpi-cat-hidden', !cb.checked);
+  });
+}
 function selectDPI(el) {
   document.querySelectorAll('.dpi-cat-card').forEach(c => c.classList.remove('selected'));
   el.classList.add('selected');

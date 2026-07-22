@@ -399,6 +399,19 @@ def nuova_richiesta(request):
         return redirect("dpi:dashboard")
     catalog_options = _active_catalog_options()
 
+    # Punto 2.1: filtra le categorie al profilo di rischio del richiedente (mansione di
+    # rischio a vista). Fuori profilo resta richiedibile con override + motivazione.
+    from anagrafica.services import mansionario
+    _req_legacy = _legacy_id(request)
+    _profilo = (
+        mansionario.requisiti_dipendente(_req_legacy) if _req_legacy
+        else mansionario.requisiti_vuoti()
+    )
+    profilo_ids = {c.pk for c in _profilo["dpi"]}
+    profilo_attivo = bool(profilo_ids)  # se vuoto, nessun filtro reale (mostra tutto)
+    for c in categorie:
+        c.in_profilo = c.pk in profilo_ids
+
     if request.method == "POST":
         quantita_raw = request.POST.get("quantita", "1").strip()
         motivazione = request.POST.get("motivazione", "").strip()
@@ -408,6 +421,15 @@ def nuova_richiesta(request):
             quantita = max(1, int(quantita_raw))
         except (ValueError, TypeError):
             quantita = 1
+
+        fuori_profilo = (
+            profilo_attivo and categoria is not None and categoria.pk not in profilo_ids
+        )
+        if fuori_profilo and not motivazione:
+            errors.append(
+                "Questo DPI è fuori dal profilo di rischio della tua mansione: "
+                "indica una motivazione per richiederlo comunque."
+            )
 
         if errors:
             for e in errors:
@@ -426,6 +448,7 @@ def nuova_richiesta(request):
                 richiedente_nome=info["nome"],
                 richiedente_email=info["email"],
                 richiedente_reparto=info["reparto"],
+                note_gestione=("[Richiesta fuori profilo di rischio]" if fuori_profilo else ""),
                 created_by=request.user,
             )
             log_action(request, "crea", "dpi", f"Nuova richiesta DPI {r.numero} — {r.categoria}")
@@ -434,6 +457,7 @@ def nuova_richiesta(request):
 
     return render(request, "dpi/pages/nuova_richiesta.html", {
         "categorie": categorie,
+        "profilo_attivo": profilo_attivo,
         **catalog_options,
     })
 
