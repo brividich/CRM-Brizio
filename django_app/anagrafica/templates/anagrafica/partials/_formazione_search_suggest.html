@@ -39,7 +39,7 @@
     {% for d in risultati.dipendenti|slice:":4" %}
     <a class="fmd-suggest-item" href="{% url 'anagrafica:dipendente_libretto_formativo' d.legacy_id %}">
       <span class="fmd-suggest-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span>
-      <span class="fmd-suggest-body"><span class="fmd-suggest-t">{{ d.nome }}</span><span class="fmd-suggest-m">#{{ d.legacy_id }} · libretto formativo</span></span>
+      <span class="fmd-suggest-body"><span class="fmd-suggest-t">{{ d.nome }}</span><span class="fmd-suggest-m">libretto formativo</span></span>
     </a>
     {% endfor %}
   {% endif %}

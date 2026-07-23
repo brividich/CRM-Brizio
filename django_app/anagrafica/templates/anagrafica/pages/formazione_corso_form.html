@@ -163,6 +163,7 @@
 (function(){
   const titolo    = document.querySelector('[name="titolo"]');
   const codice    = document.querySelector('[name="codice"]');
+  const piano     = document.querySelector('[name="piano"]');
   const qualifica = document.querySelector('[name="qualifica"]');
   const validita  = document.querySelector('[name="validita_mesi"]');
   const URL_COD = "{% url 'anagrafica:formazione_corso_codice_suggest' %}";
@@ -178,12 +179,14 @@
 
   let t = null;
   async function suggerisciCodice(){
-    if (!titolo || !codice) return;
+    if (!codice) return;
     if (codiceTouched || codice.value.trim()) return;
-    const v = titolo.value.trim();
-    if (v.length < 2) return;
+    const v = titolo ? titolo.value.trim() : "";
+    const pid = piano ? piano.value : "";
+    // 1.7: col piano selezionato si suggerisce <codice piano>-<N> anche senza titolo.
+    if (!pid && v.length < 2) return;
     try {
-      const r = await fetch(URL_COD + "?titolo=" + encodeURIComponent(v));
+      const r = await fetch(URL_COD + "?piano_id=" + encodeURIComponent(pid) + "&titolo=" + encodeURIComponent(v));
       const d = await r.json();
       if (d.ok && d.codice && !codiceTouched && !codice.value.trim()) {
         codice.value = d.codice;
@@ -194,6 +197,9 @@
   if (titolo) {
     titolo.addEventListener('input', function(){ clearTimeout(t); t = setTimeout(suggerisciCodice, 450); });
     titolo.addEventListener('blur', suggerisciCodice);
+  }
+  if (piano) {
+    piano.addEventListener('change', suggerisciCodice);
   }
 
   if (qualifica && validita) {

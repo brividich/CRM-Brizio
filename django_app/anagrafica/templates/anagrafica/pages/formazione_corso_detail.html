@@ -298,7 +298,7 @@
                 {% if r.area %}<span class="muted">Area:</span> {{ r.area.nome }}{% endif %}
                 {% if r.ruolo_operativo %}<span class="muted">Ruolo:</span> {{ r.ruolo_operativo.nome }}{% endif %}
                 {% if r.legacy_anagrafica_id %}
-                  <span class="muted">Dip.</span> #{{ r.legacy_anagrafica_id }}{% if r.dipendente_nome %} ({{ r.dipendente_nome }}){% endif %}
+                  <span class="muted">Dip.</span> {% if r.dipendente_nome %}{{ r.dipendente_nome }}{% else %}#{{ r.legacy_anagrafica_id }}{% endif %}
                 {% endif %}
               </td>
               <td>{% if r.is_mandatory %}<span class="fm-pill fm-pill-enrolled">Sì</span>{% else %}<span class="muted">—</span>{% endif %}</td>
@@ -486,7 +486,6 @@
         <tr>
           <td>
             <a class="fm-link" href="{% url 'anagrafica:dipendente_detail' d.legacy_id %}">{{ d.nome }}</a>
-            <span class="muted" style="font-size:10.5px;">#{{ d.legacy_id }}</span>
           </td>
           <td><span class="fm-pill fm-pill-{{ d.stato_sint|lower }}">{{ d.stato_sint|default:"—" }}</span></td>
           <td class="num">{{ d.n_sessioni }}</td>

@@ -956,10 +956,15 @@ def dipendente_create(request):
                             civ.figli_a_carico = ha_figli
                             civ.save(update_fields=["figli_a_carico"])
 
-                # Reparto effettivo: sincronizza area aziendale e caporeparto dal catalogo
+                # Reparto effettivo: sincronizza area aziendale e caporeparto dal catalogo.
+                # L'area aziendale scelta nel form (accanto al reparto) è validata dal
+                # service (deve appartenere al reparto) o azzerata.
                 if new_id:
+                    _area_az_raw = (request.POST.get("area_aziendale") or "").strip()
+                    _area_az_id = int(_area_az_raw) if _area_az_raw.isdigit() else None
                     _sync_aziendale_from_reparto(
-                        new_id, (data.get("reparto") or "").strip(), saved_by=request.user
+                        new_id, (data.get("reparto") or "").strip(),
+                        area_aziendale_id=_area_az_id, saved_by=request.user,
                     )
 
                 # Crea automaticamente account portale (solo se non già collegato).
@@ -1635,6 +1640,39 @@ def _assenze_cronologia(assenze_list: list[dict]) -> list[dict]:
     return crono
 
 
+def _assenze_kpi_annuali(assenze_list: list[dict]) -> list[dict]:
+    """1.11 — Conteggio richieste assenza per anno × tipologia.
+
+    A differenza di ``assenze_summary_anno`` (che somma i *giorni* dell'anno
+    corrente delle sole approvate), qui si conta il **numero di richieste** per
+    tipologia su ciascun anno presente in ``assenze_list`` (anno corrente +
+    precedente, tutte le moderazioni). Ritorna
+    ``[{anno, totale, tipi: [{tipo, conteggio, icona, accent}]}]`` con anni in
+    ordine decrescente e tipologie ordinate per conteggio desc.
+    """
+    per_anno: dict[int, dict[str, int]] = {}
+    for _a in assenze_list:
+        _d_i = _a.get("data_inizio")
+        if not _d_i:
+            continue
+        try:
+            _year = _d_i.year if hasattr(_d_i, "year") else int(str(_d_i)[:4])
+        except (TypeError, ValueError):
+            continue
+        _tipo = str(_a.get("tipo_assenza") or "Altro").strip() or "Altro"
+        per_anno.setdefault(_year, {})
+        per_anno[_year][_tipo] = per_anno[_year].get(_tipo, 0) + 1
+
+    kpi: list[dict] = []
+    for _year in sorted(per_anno, reverse=True):
+        tipi: list[dict] = []
+        for _tipo, _n in sorted(per_anno[_year].items(), key=lambda kv: kv[1], reverse=True):
+            _ic, _acc = _assenza_tipo_meta(_tipo)
+            tipi.append({"tipo": _tipo, "conteggio": _n, "icona": _ic, "accent": _acc})
+        kpi.append({"anno": _year, "totale": sum(per_anno[_year].values()), "tipi": tipi})
+    return kpi
+
+
 # ---------------------------------------------------------------------------
 # Scheda dettaglio dipendente
 # ---------------------------------------------------------------------------
@@ -1985,6 +2023,9 @@ def dipendente_detail(request, legacy_id: int):
     # Storico come cronologia raggruppata Anno → Mese
     assenze_cronologia = _assenze_cronologia(assenze_list)
 
+    # 1.11 — KPI annuali: conteggio richieste per anno × tipologia (tutte le moderazioni)
+    assenze_kpi_annuali = _assenze_kpi_annuali(assenze_list)
+
     # Storico cambiamenti organizzativi (mansione, reparto, area, ruolo aziendale) — solo admin
     storico_cambiamenti: list = []
     if is_admin:
@@ -2236,6 +2277,7 @@ def dipendente_detail(request, legacy_id: int):
         "assenze_list": assenze_list,
         "assenze_summary_anno": assenze_summary_anno,
         "assenze_tot_anno": assenze_tot_anno,
+        "assenze_kpi_annuali": assenze_kpi_annuali,
         "assenze_cronologia": assenze_cronologia,
         "assenze_no_link": assenze_no_link,
         # Formazione
@@ -7189,6 +7231,10 @@ def _build_scadenzario_voci(
     soglia_30 = oggi + _timedelta(days=30)
     soglia_60 = oggi + _timedelta(days=60)
 
+    # Gli ex dipendenti (rapporto cessato) non devono comparire nello scadenzario
+    # in NESSUNA sorgente: il filtro va applicato a monte, non solo ai contratti.
+    cessati = _cessati_legacy_ids()
+
     can_view_visite = _can_view_visite_mediche(request)
     can_view_formazione = _can_view_formazione(request)
     can_view_contratti = _check_hr_permission(request)
@@ -7203,7 +7249,7 @@ def _build_scadenzario_voci(
     if filtro_tipo in ("", "qualifica"):
         qs_q = DipendenteQualifica.objects.select_related("tipo").filter(
             data_scadenza__isnull=False
-        )
+        ).exclude(legacy_anagrafica_id__in=cessati)
         if filtro_stato == "scaduta":
             qs_q = qs_q.filter(data_scadenza__lt=oggi)
         elif filtro_stato == "30":
@@ -7238,7 +7284,7 @@ def _build_scadenzario_voci(
     if can_view_visite and filtro_tipo in ("", "visita"):
         qs_v = VisitaMedica.objects.select_related("tipo").filter(
             id__in=ultime_visite_correnti_ids(), data_scadenza__isnull=False
-        )
+        ).exclude(legacy_anagrafica_id__in=cessati)
         if filtro_stato == "scaduta":
             qs_v = qs_v.filter(data_scadenza__lt=oggi)
         elif filtro_stato == "30":
@@ -7274,6 +7320,7 @@ def _build_scadenzario_voci(
         qs_f = (
             TrainingDeadline.objects.select_related("corso")
             .filter(is_required=True, data_scadenza__isnull=False)
+            .exclude(legacy_anagrafica_id__in=cessati)
         )
         if filtro_stato == "scaduta":
             qs_f = qs_f.filter(data_scadenza__lt=oggi)
@@ -7307,11 +7354,7 @@ def _build_scadenzario_voci(
 
     # ── Contratti a termine e periodi di prova (gated: dato HR) ─────────────
     if can_view_contratti and filtro_tipo in ("", "contratto"):
-        cessati = set(
-            DipendenteAnagraficaAziendale.objects
-            .filter(data_cessazione__isnull=False)
-            .values_list("legacy_anagrafica_id", flat=True)
-        )
+        # `cessati` è già calcolato a monte (usato da tutte le sorgenti).
         # Solo l'ultimo contratto per dipendente: i precedenti sono storia chiusa.
         ultimo_contratto: dict[int, StoricoContratto] = {}
         for c in (
@@ -7834,6 +7877,10 @@ def ratei_list(request):
             filtro_dipendenti = [cf_compat]
     filtro_reparti: list = request.GET.getlist("reparto")
     filtro_allerta: bool = request.GET.get("allerta", "") == "1"
+    # 1.10 — filtro per valore del saldo con operatore di confronto (< > =)
+    filtro_saldo_campo = request.GET.get("saldo_campo", "")
+    filtro_saldo_op = request.GET.get("saldo_op", "")
+    filtro_saldo_val = request.GET.get("saldo_val", "").strip()
 
     qs = SaldoCedolino.objects.all().order_by("-data_competenza", "tax_code")
 
@@ -7853,7 +7900,18 @@ def ratei_list(request):
         qs = qs.filter(tax_code__in=filtro_dipendenti)
 
     # AB1-D — semaforo/alert residuo ferie (solo HR/amministrazione)
-    from .ratei_alert import filtro_allerta_q, soglie_ratei, valuta_residuo_ferie
+    from .ratei_alert import (
+        SALDO_CAMPI,
+        SALDO_OPERATORI,
+        filtro_allerta_q,
+        saldo_filter_q,
+        soglie_ratei,
+        valuta_residuo_ferie,
+    )
+
+    _saldo_q = saldo_filter_q(filtro_saldo_campo, filtro_saldo_op, filtro_saldo_val)
+    if _saldo_q is not None:
+        qs = qs.filter(_saldo_q)
     soglie = soglie_ratei()
     # KPI sul set filtrato (periodo/dipendente/reparto), prima del toggle allerta
     n_negativi = qs.filter(ferie_residui__lt=0).count()
@@ -7876,6 +7934,11 @@ def ratei_list(request):
         "filtro_dipendenti": filtro_dipendenti,
         "filtro_reparti": filtro_reparti,
         "filtro_allerta": filtro_allerta,
+        "filtro_saldo_campo": filtro_saldo_campo,
+        "filtro_saldo_op": filtro_saldo_op,
+        "filtro_saldo_val": filtro_saldo_val,
+        "saldo_campi_options": SALDO_CAMPI,
+        "saldo_operatori_options": SALDO_OPERATORI,
         "dipendenti_options": dipendenti_options,
         "reparti_options": reparti_options,
         "can_hr": can_hr,
@@ -7970,6 +8033,15 @@ def ratei_export(request):
         qs = qs.filter(legacy_anagrafica_id__in=ids_in_reparto)
     if filtro_dipendenti:
         qs = qs.filter(tax_code__in=filtro_dipendenti)
+    # 1.10 — stesso filtro per valore/operatore della lista, per coerenza export
+    from .ratei_alert import saldo_filter_q as _saldo_filter_q
+    _saldo_q = _saldo_filter_q(
+        request.GET.get("saldo_campo", ""),
+        request.GET.get("saldo_op", ""),
+        request.GET.get("saldo_val", "").strip(),
+    )
+    if _saldo_q is not None:
+        qs = qs.filter(_saldo_q)
     if filtro_allerta:
         from .ratei_alert import filtro_allerta_q, soglie_ratei
         qs = qs.filter(filtro_allerta_q(soglie_ratei()))
@@ -11257,13 +11329,24 @@ def formazione_quickadd_docente(request):
 
 @login_required
 def formazione_corso_codice_suggest(request):
-    """Suggerisce un codice corso UNIVOCO a partire dal titolo (JSON).
+    """Suggerisce un codice corso UNIVOCO (JSON).
 
-    Base: alfanumerico maiuscolo del titolo (iniziali delle parole se lungo);
-    se già usato accoda un progressivo. Usato dal form corso per precompilare il
-    codice quando l'utente non lo digita."""
+    Punto 1.7 — numerazione gerarchica: se è indicato il PIANO, il codice è
+    ``<codice piano>-<N>`` con N progressivo per piano (le lezioni restano numerate
+    a parte via ``TrainingLesson.numero``). In assenza di piano si ripiega sulla base
+    derivata dal titolo (comportamento storico). Usato dal form corso per precompilare
+    il codice quando l'utente non lo digita."""
     if not _can_edit_formazione(request):
         return JsonResponse({"ok": False}, status=403)
+    from core.numbering import next_code
+    piano_id = request.GET.get("piano_id") or request.GET.get("piano")
+    piano = TrainingPlan.objects.filter(pk=piano_id).first() if piano_id else None
+    if piano and (piano.codice or "").strip():
+        codice = next_code(
+            TrainingCourse.objects.filter(piano=piano).values_list("codice", flat=True),
+            piano.codice.strip(),
+        )
+        return JsonResponse({"ok": True, "codice": codice})
     import re
     titolo = (request.GET.get("titolo") or "").strip()
     parole = re.findall(r"[A-Za-z0-9]+", titolo)
@@ -13704,6 +13787,14 @@ def dipendente_conformita_panel(request, legacy_id: int):
     Mai esiti/prescrizioni. La logica privacy è applicata dal service via
     ``include_visite_dettaglio``.
     """
+    return render(
+        request, "anagrafica/partials/conformita_panel.html",
+        _build_conformita_panel_ctx(request, legacy_id),
+    )
+
+
+def _build_conformita_panel_ctx(request, legacy_id: int) -> dict:
+    """Context del pannello conformità + profilo di rischio derivato (A2)."""
     can_view_visite = _can_view_visite_mediche(request)
     mansione_nome = (
         AnagraficaDipendente.objects
@@ -13718,13 +13809,75 @@ def dipendente_conformita_panel(request, legacy_id: int):
         Mansione.objects.filter(nome__iexact=mansione_nome.strip()).only("id").first()
         if mansione_nome else None
     )
-    return render(request, "anagrafica/partials/conformita_panel.html", {
+    # Profilo di rischio DERIVATO ("mansione di rischio" a vista): unione dei requisiti
+    # della mansione lavorativa + esposizioni di area + esposizioni dirette al dipendente.
+    requisiti_rischio = mansionario_service.requisiti_dipendente(
+        legacy_id, mansione_nome=mansione_nome
+    )
+    from .models_rischi import EsposizioneRischio, FattoreRischio
+    esposizioni_dirette = list(
+        EsposizioneRischio.objects
+        .filter(legacy_anagrafica_id=legacy_id, is_active=True)
+        .select_related("fattore")
+    )
+    _, is_admin = _ensure_admin(request)
+    return {
         "legacy_id": legacy_id,
         "stato": stato,
         "mansione_nome": mansione_nome,
         "mansione_id": mansione_obj.id if mansione_obj else None,
         "can_view_visite": can_view_visite,
-    })
+        "requisiti_rischio": requisiti_rischio,
+        "esposizioni_dirette": esposizioni_dirette,
+        "is_admin": is_admin,
+        "fattori_disponibili": (
+            list(FattoreRischio.objects.filter(is_active=True).order_by("nome"))
+            if is_admin else []
+        ),
+    }
+
+
+@login_required
+@require_POST
+def dipendente_esposizione_rischio_add(request, legacy_id: int):
+    """(1.9) Assegna un'esposizione a rischio DIRETTAMENTE a un dipendente (admin).
+    Ri-renderizza il pannello conformità (HTMX)."""
+    _, is_admin = _ensure_admin(request)
+    if not is_admin:
+        return HttpResponse(status=403)
+    from .models_rischi import EsposizioneRischio, FattoreRischio
+    try:
+        fattore = FattoreRischio.objects.get(pk=request.POST.get("fattore_id"), is_active=True)
+    except (FattoreRischio.DoesNotExist, ValueError, TypeError):
+        return render(
+            request, "anagrafica/partials/conformita_panel.html",
+            _build_conformita_panel_ctx(request, legacy_id),
+        )
+    EsposizioneRischio.objects.get_or_create(
+        fattore=fattore, legacy_anagrafica_id=legacy_id,
+        defaults={"note": (request.POST.get("note") or "").strip(), "is_active": True},
+    )
+    return render(
+        request, "anagrafica/partials/conformita_panel.html",
+        _build_conformita_panel_ctx(request, legacy_id),
+    )
+
+
+@login_required
+@require_POST
+def dipendente_esposizione_rischio_remove(request, legacy_id: int, esp_id: int):
+    """(1.9) Rimuove un'esposizione diretta di un dipendente (admin). Ri-renderizza il pannello."""
+    _, is_admin = _ensure_admin(request)
+    if not is_admin:
+        return HttpResponse(status=403)
+    from .models_rischi import EsposizioneRischio
+    EsposizioneRischio.objects.filter(
+        pk=esp_id, legacy_anagrafica_id=legacy_id
+    ).delete()
+    return render(
+        request, "anagrafica/partials/conformita_panel.html",
+        _build_conformita_panel_ctx(request, legacy_id),
+    )
 
 
 @login_required

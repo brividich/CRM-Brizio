@@ -10,6 +10,16 @@ register = template.Library()
 logger = logging.getLogger(__name__)
 
 
+@register.filter(name="matricola_fmt")
+def matricola_fmt(value):
+    """Rimuove gli zeri di padding dalla matricola SOLO in visualizzazione, e solo
+    se è puramente numerica (le matricole alfanumeriche restano invariate)."""
+    s = str(value or "").strip()
+    if s.isdigit():
+        return s.lstrip("0") or "0"
+    return s
+
+
 @register.filter(name="section_fields")
 def section_fields(form, names):
     """Ritorna i bound-field del form indicati (nomi separati da virgola), nell'ordine.

@@ -82,4 +82,62 @@ body.theme-dark .cf-badge-na { background:rgba(100,116,139,.25); color:#cbd5e1; 
   {% include "anagrafica/partials/_conformita_dom.html" with dom=stato.qualifiche titolo="Qualifiche" icon="🎓" %}
   {% include "anagrafica/partials/_conformita_dom.html" with dom=stato.dpi titolo="DPI" icon="🦺" %}
 </div>
+
+{% if requisiti_rischio.fattori or requisiti_rischio.dpi or requisiti_rischio.visite or is_admin %}
+<div class="cf-dom" style="margin-top:14px;border-left:4px solid #7c3aed;">
+  <div class="cf-dom-head">
+    <span class="cf-dom-title">⚠️ Profilo di rischio (mansione di rischio)</span>
+  </div>
+  <div style="font-size:12px;color:#64748b;margin:2px 0 8px;">Derivato dalla mansione lavorativa, dall'area e dalle esposizioni dirette. Sola lettura.</div>
+  {% if requisiti_rischio.fattori %}
+  <div style="font-size:12px;color:#334155;font-weight:700;margin-top:6px;">Fattori di rischio</div>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">
+    {% for f in requisiti_rischio.fattori %}<span class="cf-badge cf-badge-na">{{ f.nome }}</span>{% endfor %}
+  </div>
+  {% endif %}
+  {% if requisiti_rischio.dpi %}
+  <div style="font-size:12px;color:#334155;font-weight:700;margin-top:8px;">DPI richiesti</div>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">
+    {% for d in requisiti_rischio.dpi %}<span class="cf-badge cf-badge-ok">🦺 {{ d.nome }}</span>{% endfor %}
+  </div>
+  {% endif %}
+  {% if requisiti_rischio.visite %}
+  <div style="font-size:12px;color:#334155;font-weight:700;margin-top:8px;">Visite mediche</div>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">
+    {% for v in requisiti_rischio.visite %}<span class="cf-badge cf-badge-na">🏥 {{ v.nome }}</span>{% endfor %}
+  </div>
+  {% endif %}
+  {% if esposizioni_dirette or is_admin %}
+  <div style="font-size:12px;color:#334155;font-weight:700;margin-top:10px;">Esposizioni dirette a questo dipendente</div>
+  {% if esposizioni_dirette %}
+  <ul class="cf-dettagli" style="list-style:none;padding-left:0;">
+    {% for e in esposizioni_dirette %}
+    <li style="display:flex;align-items:center;gap:8px;">
+      <span>• {{ e.fattore.nome }}{% if e.note %} — {{ e.note }}{% endif %}</span>
+      {% if is_admin %}
+      <form hx-post="{% url 'anagrafica:dipendente_esposizione_rischio_remove' legacy_id e.id %}" hx-target="#conformita-panel" hx-swap="outerHTML" style="display:inline;margin:0;">
+        {% csrf_token %}
+        <button type="submit" title="Rimuovi" style="border:none;background:none;color:#ef4444;cursor:pointer;font-size:12px;line-height:1;">✕</button>
+      </form>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% elif is_admin %}
+  <div class="cf-dettagli" style="padding-left:0;">Nessuna esposizione diretta.</div>
+  {% endif %}
+  {% if is_admin and fattori_disponibili %}
+  <form hx-post="{% url 'anagrafica:dipendente_esposizione_rischio_add' legacy_id %}" hx-target="#conformita-panel" hx-swap="outerHTML" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;align-items:center;">
+    {% csrf_token %}
+    <select name="fattore_id" required style="font-size:12px;padding:4px 8px;border:1px solid #cbd5e1;border-radius:6px;">
+      <option value="">Aggiungi esposizione…</option>
+      {% for f in fattori_disponibili %}<option value="{{ f.id }}">{{ f.nome }}</option>{% endfor %}
+    </select>
+    <input type="text" name="note" placeholder="note (opz.)" style="font-size:12px;padding:4px 8px;border:1px solid #cbd5e1;border-radius:6px;">
+    <button type="submit" style="font-size:12px;padding:4px 12px;border:none;border-radius:6px;background:#7c3aed;color:#fff;cursor:pointer;font-weight:700;">+ Aggiungi</button>
+  </form>
+  {% endif %}
+  {% endif %}
+</div>
+{% endif %}
 </div>

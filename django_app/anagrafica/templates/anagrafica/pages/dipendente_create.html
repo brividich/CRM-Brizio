@@ -171,6 +171,16 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
               {% if legacy_form.reparto.errors %}<div class="dc-error">{{ legacy_form.reparto.errors|join:", " }}</div>{% endif %}
             </div>
             <div class="dc-field">
+              <label class="dc-label" for="id_area_aziendale">Area aziendale</label>
+              <select id="id_area_aziendale" name="area_aziendale" class="dc-input">
+                <option value="">— Nessuna —</option>
+                {% for area in form_aziendale.area_aziendale.field.queryset %}
+                  <option value="{{ area.id }}" {% if request.POST.area_aziendale == area.id|stringformat:"s" %}selected{% endif %}>{{ area.nome }}{% if area.reparto %} · {{ area.reparto.nome }}{% endif %}</option>
+                {% endfor %}
+              </select>
+              <span style="font-size:11px;color:#94a3b8;">Sotto-articolazione del reparto (deve appartenere al reparto scelto).</span>
+            </div>
+            <div class="dc-field">
               <label class="dc-label" for="{{ legacy_form.mansione.id_for_label }}">Mansione</label>
               <select id="{{ legacy_form.mansione.id_for_label }}" name="mansione" class="dc-input {% if legacy_form.mansione.errors %}has-error{% endif %}">
                 <option value="">— Nessuna —</option>
@@ -179,6 +189,11 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
                 {% endfor %}
               </select>
               {% if legacy_form.mansione.errors %}<div class="dc-error">{{ legacy_form.mansione.errors|join:", " }}</div>{% endif %}
+            </div>
+            <div class="dc-field">
+              <label class="dc-label" for="{{ legacy_form.ruolo.id_for_label }}">Ruolo</label>
+              <input id="{{ legacy_form.ruolo.id_for_label }}" name="ruolo" type="text" class="dc-input {% if legacy_form.ruolo.errors %}has-error{% endif %}" value="{{ legacy_form.ruolo.value|default:'' }}" placeholder="Es. Responsabile linea">
+              {% if legacy_form.ruolo.errors %}<div class="dc-error">{{ legacy_form.ruolo.errors|join:", " }}</div>{% endif %}
             </div>
           </div>
         </div>
@@ -240,6 +255,13 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
           </div>
         </div>
 
+        {% comment %}
+        Ruoli operativi / di sicurezza e DPI-all'ingresso nascosti dal form (punto 1.4):
+        il profilo di rischio (visite/DPI) deriva dalla MANSIONE (mansione di rischio a
+        vista), non più dalla selezione dei ruoli operativi in fase di creazione.
+        Blocco conservato per riferimento, non renderizzato.
+        {% endcomment %}
+        {% comment %}
         <!-- Ruoli operativi (preposto, RSPP, antincendio, ...) -->
         <div class="dc-area">
           <div class="dc-area-title">Ruoli operativi di sicurezza</div>
@@ -281,6 +303,7 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
             <em style="color:#94a3b8;">Seleziona uno o più ruoli operativi per vedere le proposte.</em>
           </div>
         </div>
+        {% endcomment %}
 
         <!-- Contratto e inquadramento -->
         <div class="dc-area">

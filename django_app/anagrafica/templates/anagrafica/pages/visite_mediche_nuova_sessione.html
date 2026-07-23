@@ -39,7 +39,7 @@
       </div>
       <div>
         <label style="display:block;font-size:12px;font-weight:700;color:#475569;margin-bottom:5px;text-transform:uppercase;">Filtra per tipo</label>
-        <select name="_tipo_filtro"
+        <select name="tipo"
           hx-get="{% url 'anagrafica:visite_mediche_candidati' %}"
           hx-target="#tbody-candidati" hx-swap="outerHTML" hx-trigger="change"
           style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;background:#fff;">

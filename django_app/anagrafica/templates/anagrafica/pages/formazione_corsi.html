@@ -75,6 +75,7 @@
                   data-col-sortable="1" data-col-filterable="1">Stato</th>
               <th class="fmd-r" data-col="durata" data-col-label="Durata (h)" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Durata (h)</th>
               <th class="fmd-r" data-col="validita" data-col-label="Validità (m)" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Validità (m)</th>
+              <th class="fmd-nowrap" data-col="creato" data-col-label="Creato il" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Creato il</th>
               <th class="fmd-c" data-col="obbligatorio" data-col-label="Obbligatorio" data-col-type="bool" data-col-sortable="1" data-col-filterable="1">Obblig.</th>
               <th class="fmd-nowrap">Azioni</th>
             </tr>
@@ -97,6 +98,7 @@
               </td>
               <td class="fmd-r fmd-num" data-sort-value="{{ c.durata_ore_teorica }}">{{ c.durata_ore_teorica }}</td>
               <td class="fmd-r fmd-num" data-sort-value="{{ c.validita_mesi|default:0 }}">{% if c.validita_mesi %}{{ c.validita_mesi }}{% else %}<span class="fmd-muted" style="font-weight:400;">una tantum</span>{% endif %}</td>
+              <td class="fmd-nowrap fmd-muted" data-sort-value="{{ c.created_at|date:'Y-m-d' }}">{{ c.created_at|date:"d-m-Y" }}</td>
               <td class="fmd-c">{% if c.obbligatorio %}<span class="fmd-badge fmd-b-orange">Sì</span>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
               <td class="fmd-nowrap"><a href="{% url 'anagrafica:formazione_corso_detail' c.pk %}" class="fmd-btn fmd-btn-ghost" style="padding:6px 12px;">Apri</a></td>
             </tr>

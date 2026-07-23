@@ -37,10 +37,10 @@
         <div style="display:flex;gap:16px;">{{ form.tipo_persona }}</div>
         {% if form.tipo_persona.errors %}<div class="mpqf-err">{{ form.tipo_persona.errors }}</div>{% endif %}
 
-        <label class="mpqf-lbl" for="id_dipendente">Dipendente interno</label>
+        <label class="mpqf-lbl" for="id_dipendente">Dipendente interno{% if multi_select %} <span style="font-weight:400;color:#64748b;">(selezione multipla — Ctrl/⌘+clic)</span>{% endif %}</label>
         <input type="text" id="dip-filter" class="fm-input" placeholder="🔎 Filtra per cognome/nome…" autocomplete="off" style="margin-bottom:6px;">
-        <select name="dipendente" id="id_dipendente" class="fm-input fm-select" size="8">
-          <option value="">— Seleziona dipendente —</option>
+        <select name="dipendente" id="id_dipendente" class="fm-input fm-select" size="8"{% if multi_select %} multiple{% endif %}>
+          {% if not multi_select %}<option value="">— Seleziona dipendente —</option>{% endif %}
           {% for lid, label in dipendenti %}
           <option value="{{ lid }}"{% if form.dipendente.value|stringformat:'s' == lid|stringformat:'s' %} selected{% endif %}>{{ label }}</option>
           {% endfor %}

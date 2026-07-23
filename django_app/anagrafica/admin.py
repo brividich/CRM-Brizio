@@ -389,9 +389,9 @@ class CategoriaCorsoAdmin(admin.ModelAdmin):
 
 @admin.register(EsposizioneRischio)
 class EsposizioneRischioAdmin(admin.ModelAdmin):
-    list_display = ("fattore", "mansione", "area", "is_active", "created_at")
+    list_display = ("fattore", "mansione", "area", "legacy_anagrafica_id", "is_active", "created_at")
     list_filter = ("is_active", "fattore__categoria")
-    search_fields = ("fattore__codice", "fattore__nome", "mansione__nome", "area__nome")
+    search_fields = ("fattore__codice", "fattore__nome", "mansione__nome", "area__nome", "legacy_anagrafica_id")
     autocomplete_fields = ("fattore",)
     raw_id_fields = ("mansione", "area")
     readonly_fields = ("created_at",)

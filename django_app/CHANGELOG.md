@@ -2,6 +2,56 @@
 
 ## [Unreleased]
 
+### Remediation gestionale — 1.8 (abilitazione MPQ multi-dipendente)
+
+- **[feat/test] `anagrafica/views_mpq.py` (`bulk_abilita_processo`, `mpq_abilitazione_add`, `_abilitazione_form_ctx`), `anagrafica/templates/anagrafica/pages/mpq_abilitazione_form.html`, `anagrafica/tests_mpq_bulk.py` [nuovo]**: (punto 1.8) nella scheda **Processo qualificato (MOD.128)**, l'aggiunta di persone abilitate consente ora la **selezione multipla di dipendenti interni** → crea in blocco N `AbilitazioneProcesso` in un'unica transazione (idempotente sul vincolo persona×processo, deduplica gli id ripetuti). Il caso **qualificatore esterno** resta a persona singola. La modifica (edit) di una singola abilitazione resta invariata. 4 test. Nessuna migrazione.
+
+### Remediation gestionale — 1.10 / 1.11 (ratei con operatori, KPI assenze)
+
+- **[feat/test] `anagrafica/ratei_alert.py` (`saldo_filter_q`, `SALDO_CAMPI`, `SALDO_OPERATORI`), `anagrafica/views.py` (`ratei_list`, `ratei_export`), `anagrafica/templates/anagrafica/pages/ratei_list.html`, `anagrafica/tests_ratei_filtri.py` [nuovo]**: (punto 1.10) nella lista **Ratei ferie** aggiunto il filtro **per valore del saldo con operatore di confronto** (`<`, `>`, `=`) su Ferie residue / ROL residui / Ex-festività residue. Whitelist esplicita dei campi filtrabili; stesso filtro replicato nell'**export XLSX** per coerenza lista/export. Nessuna migrazione.
+- **[feat/test] `anagrafica/views.py` (`_assenze_kpi_annuali`, `dipendente_detail`), `anagrafica/templates/anagrafica/pages/dipendente_detail.html`, `anagrafica/tests_assenze_kpi.py` [nuovo]**: (punto 1.11) nella scheda dipendente, sezione **Assenze**, aggiunti **KPI annuali**: conteggio delle **richieste per tipologia** (ferie, malattia, permesso…) per ciascun anno presente (corrente + precedente, tutte le moderazioni). Complementare al riepilogo giorni-anno-corrente-approvate già esistente. Nessuna migrazione.
+
+### Remediation gestionale — 3.4 (rinomina sezione asset)
+
+- **[style] `assets/templates/assets/pages/asset_detail.html`**: (punto 3.4) la sezione **"Storico interventi"** della scheda asset è rinominata **"Interventi straordinari"** (solo etichetta, stessi dati mostrati — scelta confermata).
+
+### Remediation gestionale — numerazione incrementale (1.7 + 3.3, §5.3)
+
+- **[feat/test] `core/numbering.py` [nuovo], `core/tests_numbering.py` [nuovo]**: servizio di numerazione condiviso (funzioni pure `max_numeric`/`next_numeric`/`next_suffix`/`next_code`), riusato da asset e formazione.
+- **[feat/test] `assets/models.py` (`Asset.save`), `assets/tests_numbering_p3.py` [nuovo]**: (punto 3.3) **N. interno asset progressivo** — se lasciato vuoto alla creazione viene assegnato `max numerico + 1` (i numeri interni legacy alfanumerici sono ignorati). Nota: campo non unique → progressivo "suggerito", non chiave.
+- **[feat/test] `anagrafica/views.py` (`formazione_corso_codice_suggest`), `anagrafica/templates/anagrafica/pages/formazione_corso_form.html`, `anagrafica/tests_numbering_p3.py` [nuovo]**: (punto 1.7) **codice corso gerarchico** `<codice piano>-<N>` (N progressivo per piano); il form suggerisce il codice al cambio piano. Le lezioni restano numerate a parte via `TrainingLesson.numero`. Fallback storico (base dal titolo) senza piano.
+
+### Remediation gestionale — 1.2 (nome al posto dell'ID nelle tabelle)
+
+- **[style] `anagrafica/templates/anagrafica/pages/{formazione_dashboard,qualifiche_dashboard,qualifiche_scadenzario,formazione_corso_detail,formazione_piano_detail}.html` + `partials/{_formazione_search_results,_safety_search_results,_formazione_search_suggest,_safety_search_suggest}.html`**: (punto 1.2) rimossi i tag `#id` secondari accanto ai nomi nelle tabelle/ricerche utente (il **nome** era già la voce primaria). **Invariati** i documenti di stampa (libretto/print, dove l'ID legacy è metadato) e le schermate admin/diagnostica. Le griglie Skill Matrix / MOD.128 / DPI risolvevano già i nomi (nessun ID grezzo).
+
+### Epica A / A1 — mansione di rischio: modello + resolver
+
+- **[feat/test] `anagrafica/models_rischi.py`, `anagrafica/admin.py`, `anagrafica/migrations/0087_esposizionerischio_legacy_anagrafica_id_and_more.py`, `anagrafica/tests_mansione_rischio_a1.py`**: (punto 1.9) `EsposizioneRischio` può ora puntare anche a un **singolo dipendente** (`legacy_anagrafica_id`), oltre a mansione/area; `clean()` esige almeno un target. Migrazione additiva (AddField + AddIndex). Fondazione dell'Epica A ("mansione di rischio" a vista); nessuna UI.
+- **[feat/test] `anagrafica/services/mansionario.py`**: nuova `requisiti_dipendente(legacy_id)` — requisiti effettivi del dipendente come **unione** di mansione lavorativa + esposizioni di area + esposizioni dirette (dedup). Fonte unica riusata da A2 (pannello scheda) e A3 (filtro DPI). Refactor DRY del derivatore fattori→requisiti (`_requisiti_da_fattori`/`_corsi_per_categoria`), condiviso col resolver mansione esistente.
+
+### Epica A / A2.1 — form "nuovo dipendente" (punto 1.4)
+
+- **[feat/test] `anagrafica/views.py`, `anagrafica/templates/anagrafica/pages/dipendente_create.html`, `anagrafica/tests_area_aziendale_dipendente.py`**: (punto 1.4) il form di creazione dipendente ora espone **Area aziendale** (accanto a Reparto, validata contro il reparto da `_sync_aziendale_from_reparto`) e **Ruolo**; le sezioni **"Ruoli operativi di sicurezza"** e la DPI-all'ingresso ad esse accoppiata sono **nascoste** (il profilo di rischio deriva dalla mansione, non dai ruoli operativi). Nuovo `DipendenteCreateFormA2Tests`.
+- **[feat/test] `anagrafica/views.py` (`dipendente_conformita_panel`), `anagrafica/templates/anagrafica/partials/conformita_panel.html`, `anagrafica/tests_mansione_rischio_a2.py`**: (A2.2) pannello **"Profilo di rischio"** derivato (sola lettura) nella card Conformità della scheda dipendente — fattori/DPI/visite da `requisiti_dipendente()` + elenco esposizioni dirette. Nuovo `ProfiloRischioPanelTests`.
+- **[feat/test] `anagrafica/views.py`, `anagrafica/urls.py`, `anagrafica/templates/anagrafica/partials/conformita_panel.html`, `anagrafica/tests_mansione_rischio_a2.py`**: (A2.2 / punto 1.9) mini-form **admin** nel pannello per **assegnare/rimuovere un'esposizione di rischio direttamente al dipendente** (HTMX, ri-renderizza il pannello). Context del pannello estratto in `_build_conformita_panel_ctx`. Nuovi test add/remove.
+
+### Epica A / A3 — richiesta DPI filtrata per mansione di rischio (punto 2.1)
+
+- **[feat/test] `dpi/views.py` (`nuova_richiesta`), `dpi/templates/dpi/pages/nuova_richiesta.html`, `dpi/tests_profilo_rischio.py`**: (punto 2.1) la richiesta DPI mostra come disponibili **solo i DPI del profilo di rischio** del richiedente (mansione + esposizioni, via `requisiti_dipendente()`), con badge "✓ Profilo mansione". Un toggle **"Mostra anche i DPI fuori profilo"** consente comunque la richiesta con **motivazione obbligatoria** (registrata + nota `[Richiesta fuori profilo di rischio]` auditabile). Profilo vuoto = nessun filtro. Nuovo `NuovaRichiestaProfiloRischioTests`.
+
+### Remediation gestionale — quick-win P1 (bug filtro visite, cessati scadenzario, tag PART145)
+
+- **[fix/test] `anagrafica/templates/anagrafica/pages/visite_mediche_nuova_sessione.html`, `anagrafica/tests_visite_sessione.py`**: (punto 1.1) nel flusso "Giornata visite / Nuova sessione" il select "Filtra per tipo" inviava `name="_tipo_filtro"` mentre la view `visite_mediche_candidati` legge `?tipo` → cambiando la tipologia di visita la lista sottostante non si riaggiornava mai. Rinominato il campo in `tipo`. Aggiunto test di contratto in `GiornataRenderTests`.
+- **[fix/test] `anagrafica/views.py`, `anagrafica/tests_visite_sessione.py`**: (punto 1.3) gli ex dipendenti (rapporto cessato) comparivano ancora nello scadenzario nei rami **qualifiche / visite / formazione**: il filtro `_cessati_legacy_ids()` era applicato solo al ramo contratti. Ora è calcolato a monte in `_build_scadenzario_voci` ed escluso da tutte le sorgenti (`.exclude(legacy_anagrafica_id__in=cessati)`). Nuovo `ScadenzarioCessatiTests`.
+- **[style] `assets/templates/assets/pages/asset_detail.html`**: (punto 3.1) il tag "PART 145" nella scheda asset passa da rosso a **blu** con testo bianco (`#1d4ed8` light / `#2563eb` dark), coerente con il blu accent del tema.
+
+### Remediation gestionale — quick-win P2 (date asset, matricola)
+
+- **[feat/test] `assets/forms.py`, `assets/templates/assets/pages/asset_detail.html`, `assets/tests_quickwin_p2.py`**: (punto 3.2) i campi **Data acquisto** (`purchase_date`) e **Data fabbricazione** (`production_date`, prima etichettato "Data produzione") sono ora mostrati nella scheda asset (hero-tag) oltre che nei form. Nuovo `AssetDataFabbricazioneTests`.
+- **[feat/test] `anagrafica/templatetags/anagrafica_extras.py`, `anagrafica/templates/anagrafica/pages/{dipendente_detail,dipendenti_report}.html`, `anagrafica/tests_quickwin_p2.py`**: (punto 1.15) filtro `matricola_fmt` che rimuove gli **zeri di padding** dalla matricola **solo in visualizzazione** e **solo se numerica** (le matricole alfanumeriche restano invariate). Applicato a scheda dipendente e report. Nuovo `MatricolaFmtTests`.
+- **[feat/test] `anagrafica/templates/anagrafica/pages/formazione_corsi.html`, `anagrafica/tests_quickwin_p2.py`**: (punto 1.6) colonna **"Creato il"** nel catalogo corsi. Le altre tabelle formazione avevano già la data: la scheda dipendente mostra "Completato il" + "Scadenza", le sessioni "Inizio/Fine". Nuovo `FormazioneCorsiDataTests`.
+
 ### SOC IT - CN - mailbox-admin + API DRF read-only
 
 - **[feat/test] `security/urls_hub.py`, `security/templates/security/{admin_mailbox_sources_list,admin_mailbox_source_detail}.html`, `security/tests_soc.py`**: montate le ultime superfici escluse. (1) **mailbox-admin**: pagine config sorgenti mailbox (sola lettura) su `/soc/admin/mailbox/` — l'ingestione Graph/IMAP resta fuori (serve credenziali + scheduling). (2) **API DRF read-only**: `/soc/api/{dashboard-summary,alerts/recent,kpis/summary}/` (JSON, `permission_classes=[CanViewSecurityCenter]`, ACL-gated). **Esclusi di proposito**: `api_ai.py` (AI NVIDIA di SC-AI → contraddice la convergenza su Ollama del sotto-progetto C) e `api_configuration.py` (config wizard della SPA React droppata). ACL: 31 permessi `security.*` (grant admin). 22 test `tests_soc` verdi. `check` pulito.
