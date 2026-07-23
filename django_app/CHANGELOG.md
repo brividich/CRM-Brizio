@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+### Remediation gestionale — 1.8 (abilitazione MPQ multi-dipendente)
+
+- **[feat/test] `anagrafica/views_mpq.py` (`bulk_abilita_processo`, `mpq_abilitazione_add`, `_abilitazione_form_ctx`), `anagrafica/templates/anagrafica/pages/mpq_abilitazione_form.html`, `anagrafica/tests_mpq_bulk.py` [nuovo]**: (punto 1.8) nella scheda **Processo qualificato (MOD.128)**, l'aggiunta di persone abilitate consente ora la **selezione multipla di dipendenti interni** → crea in blocco N `AbilitazioneProcesso` in un'unica transazione (idempotente sul vincolo persona×processo, deduplica gli id ripetuti). Il caso **qualificatore esterno** resta a persona singola. La modifica (edit) di una singola abilitazione resta invariata. 4 test. Nessuna migrazione.
+
+### Remediation gestionale — 1.10 / 1.11 (ratei con operatori, KPI assenze)
+
+- **[feat/test] `anagrafica/ratei_alert.py` (`saldo_filter_q`, `SALDO_CAMPI`, `SALDO_OPERATORI`), `anagrafica/views.py` (`ratei_list`, `ratei_export`), `anagrafica/templates/anagrafica/pages/ratei_list.html`, `anagrafica/tests_ratei_filtri.py` [nuovo]**: (punto 1.10) nella lista **Ratei ferie** aggiunto il filtro **per valore del saldo con operatore di confronto** (`<`, `>`, `=`) su Ferie residue / ROL residui / Ex-festività residue. Whitelist esplicita dei campi filtrabili; stesso filtro replicato nell'**export XLSX** per coerenza lista/export. Nessuna migrazione.
+- **[feat/test] `anagrafica/views.py` (`_assenze_kpi_annuali`, `dipendente_detail`), `anagrafica/templates/anagrafica/pages/dipendente_detail.html`, `anagrafica/tests_assenze_kpi.py` [nuovo]**: (punto 1.11) nella scheda dipendente, sezione **Assenze**, aggiunti **KPI annuali**: conteggio delle **richieste per tipologia** (ferie, malattia, permesso…) per ciascun anno presente (corrente + precedente, tutte le moderazioni). Complementare al riepilogo giorni-anno-corrente-approvate già esistente. Nessuna migrazione.
+
+### Remediation gestionale — 3.4 (rinomina sezione asset)
+
+- **[style] `assets/templates/assets/pages/asset_detail.html`**: (punto 3.4) la sezione **"Storico interventi"** della scheda asset è rinominata **"Interventi straordinari"** (solo etichetta, stessi dati mostrati — scelta confermata).
+
+### Remediation gestionale — numerazione incrementale (1.7 + 3.3, §5.3)
+
+- **[feat/test] `core/numbering.py` [nuovo], `core/tests_numbering.py` [nuovo]**: servizio di numerazione condiviso (funzioni pure `max_numeric`/`next_numeric`/`next_suffix`/`next_code`), riusato da asset e formazione.
+- **[feat/test] `assets/models.py` (`Asset.save`), `assets/tests_numbering_p3.py` [nuovo]**: (punto 3.3) **N. interno asset progressivo** — se lasciato vuoto alla creazione viene assegnato `max numerico + 1` (i numeri interni legacy alfanumerici sono ignorati). Nota: campo non unique → progressivo "suggerito", non chiave.
+- **[feat/test] `anagrafica/views.py` (`formazione_corso_codice_suggest`), `anagrafica/templates/anagrafica/pages/formazione_corso_form.html`, `anagrafica/tests_numbering_p3.py` [nuovo]**: (punto 1.7) **codice corso gerarchico** `<codice piano>-<N>` (N progressivo per piano); il form suggerisce il codice al cambio piano. Le lezioni restano numerate a parte via `TrainingLesson.numero`. Fallback storico (base dal titolo) senza piano.
+
+### Remediation gestionale — 1.2 (nome al posto dell'ID nelle tabelle)
+
+- **[style] `anagrafica/templates/anagrafica/pages/{formazione_dashboard,qualifiche_dashboard,qualifiche_scadenzario,formazione_corso_detail,formazione_piano_detail}.html` + `partials/{_formazione_search_results,_safety_search_results,_formazione_search_suggest,_safety_search_suggest}.html`**: (punto 1.2) rimossi i tag `#id` secondari accanto ai nomi nelle tabelle/ricerche utente (il **nome** era già la voce primaria). **Invariati** i documenti di stampa (libretto/print, dove l'ID legacy è metadato) e le schermate admin/diagnostica. Le griglie Skill Matrix / MOD.128 / DPI risolvevano già i nomi (nessun ID grezzo).
+
 ### SOC IT - CN - mailbox-admin + API DRF read-only
 
 - **[feat/test] `security/urls_hub.py`, `security/templates/security/{admin_mailbox_sources_list,admin_mailbox_source_detail}.html`, `security/tests_soc.py`**: montate le ultime superfici escluse. (1) **mailbox-admin**: pagine config sorgenti mailbox (sola lettura) su `/soc/admin/mailbox/` — l'ingestione Graph/IMAP resta fuori (serve credenziali + scheduling). (2) **API DRF read-only**: `/soc/api/{dashboard-summary,alerts/recent,kpis/summary}/` (JSON, `permission_classes=[CanViewSecurityCenter]`, ACL-gated). **Esclusi di proposito**: `api_ai.py` (AI NVIDIA di SC-AI → contraddice la convergenza su Ollama del sotto-progetto C) e `api_configuration.py` (config wizard della SPA React droppata). ACL: 31 permessi `security.*` (grant admin). 22 test `tests_soc` verdi. `check` pulito.

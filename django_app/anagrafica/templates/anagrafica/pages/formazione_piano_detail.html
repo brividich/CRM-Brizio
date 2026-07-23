@@ -127,7 +127,7 @@
             <td>{{ r.mansione.nome|default:"—" }}</td>
             <td>{{ r.area.nome|default:"—" }}</td>
             <td>{{ r.ruolo_operativo.nome|default:"—" }}</td>
-            <td class="muted">{% if r.legacy_anagrafica_id %}#{{ r.legacy_anagrafica_id }}{% if r.dipendente_nome %} {{ r.dipendente_nome }}{% endif %}{% else %}—{% endif %}</td>
+            <td class="muted">{% if r.dipendente_nome %}{{ r.dipendente_nome }}{% elif r.legacy_anagrafica_id %}#{{ r.legacy_anagrafica_id }}{% else %}—{% endif %}</td>
             <td>{% if r.is_mandatory %}<span class="fm-pill fm-pill-enrolled">Sì</span>{% else %}<span class="muted">—</span>{% endif %}</td>
             <td class="muted">{{ r.note|truncatechars:50|default:"—" }}</td>
           </tr>

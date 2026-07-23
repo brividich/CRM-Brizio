@@ -58,3 +58,32 @@ def filtro_allerta_q(soglie: dict[str, float]):
     from django.db.models import Q
 
     return Q(ferie_residui__lt=0) | Q(ferie_residui__gte=soglie["ore_warn"])
+
+
+# 1.10 — Filtro per valore del saldo con operatore di confronto (< > =).
+# Whitelist esplicita: solo i saldi "residui" (ferie/ROL/ex-festività) sono
+# filtrabili per valore, per evitare lookup arbitrari su campi del modello.
+SALDO_CAMPI: dict[str, str] = {
+    "ferie_residui": "Ferie residue",
+    "rol_residui": "ROL residui",
+    "ex_fest_residui": "Ex-festività residue",
+}
+SALDO_OPERATORI: dict[str, str] = {"lt": "<", "eq": "=", "gt": ">"}
+_SALDO_LOOKUP = {"lt": "__lt", "eq": "", "gt": "__gt"}
+
+
+def saldo_filter_q(campo: str, operatore: str, valore):
+    """Q di confronto sul saldo (``campo`` ``operatore`` ``valore``).
+
+    Ritorna ``None`` se ``campo`` non è nella whitelist, l'operatore non è
+    riconosciuto o il valore non è numerico — il chiamante ignora il filtro.
+    """
+    from django.db.models import Q
+
+    if campo not in SALDO_CAMPI or operatore not in _SALDO_LOOKUP:
+        return None
+    try:
+        v = float(str(valore).strip().replace(",", "."))
+    except (TypeError, ValueError):
+        return None
+    return Q(**{f"{campo}{_SALDO_LOOKUP[operatore]}": v})
