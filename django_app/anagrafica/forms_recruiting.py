@@ -18,7 +18,8 @@ class CandidatoForm(forms.ModelForm):
         model = Candidato
         fields = [
             # Anagrafica e provenienza
-            "cognome", "nome", "cellulare", "email", "localita", "provincia",
+            "cognome", "nome", "codice_riferimento",
+            "cellulare", "email", "localita", "provincia",
             "canale_provenienza", "canale_dettaglio",
             "mansione_cercata", "azienda_attuale", "mansione_attuale",
             "livello_contratto_attuale", "occupato_attualmente",
@@ -43,7 +44,20 @@ class CandidatoForm(forms.ModelForm):
             "cittadinanza": "Cittadinanza (informativo)",
             "cv_esito": "Esito C.V.",
             "rischio_abbandono": "Rischio di abbandono (1-10)",
+            "codice_riferimento": "Riferimento (riga file)",
         }
+        help_texts = {
+            "codice_riferimento": "Progressivo del foglio HR, per riconciliare una scheda importata anonima.",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Nome e cognome restano opzionali: una scheda può essere importata
+        # anonima e completata dopo. Il modello li ha già blank=True (quindi il
+        # form non li impone), ma lo si rende esplicito per non regredire se un
+        # domani qualcuno rimette blank=False sul modello.
+        self.fields["cognome"].required = False
+        self.fields["nome"].required = False
 
     def clean_provincia(self):
         return (self.cleaned_data.get("provincia") or "").strip().upper()

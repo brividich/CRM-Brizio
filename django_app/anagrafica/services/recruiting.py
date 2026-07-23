@@ -302,6 +302,54 @@ def archivia_in_database(candidato: Candidato, *, user=None) -> None:
     )
 
 
+def annulla_scheda(candidato: Candidato, *, user=None, motivo: str = "") -> None:
+    """Annulla/archivia una scheda: la toglie dalle liste operative senza cancellarla.
+
+    Distinto dagli esiti reali del processo: serve per le schede inserite per
+    errore o ritirate amministrativamente. Dati e log restano — la cancellazione
+    fisica (che distruggerebbe la traccia di audit) resta riservata a Django
+    admin. Il motivo, se dato, finisce nel log come evidenza.
+    """
+    stato_prima = candidato.stato
+    candidato.stato = Candidato.STATO_ANNULLATO
+    candidato.updated_by = user if (user and getattr(user, "is_authenticated", False)) else None
+    candidato.save(update_fields=["stato", "updated_by", "updated_at"])
+    nota = "Scheda annullata/archiviata."
+    if motivo.strip():
+        nota += f" Motivo: {motivo.strip()[:180]}"
+    registra_cambio_stato(candidato, stato_prima, candidato.stato, user=user, note=nota)
+
+
+def _stato_aperto_dedotto(candidato: Candidato) -> str:
+    """Stato aperto coerente coi dati già presenti, per la riapertura dell'iter."""
+    if candidato.data_secondo_colloquio:
+        return Candidato.STATO_COLLOQUIO_2
+    if candidato.data_primo_colloquio or candidato.colloquio_effettuato:
+        return Candidato.STATO_COLLOQUIO_1
+    if candidato.cv_esito:
+        return Candidato.STATO_CV_VALUTATO
+    return Candidato.STATO_NUOVO
+
+
+def riapri_iter(candidato: Candidato, *, user=None) -> str:
+    """Riporta una scheda chiusa a uno stato aperto, tracciando la riapertura.
+
+    Rimettere mano a una decisione già presa deve essere un gesto esplicito e
+    visibile in audit, non un effetto collaterale della modifica. Il legame con
+    l'eventuale pratica di onboarding **non** viene toccato: riaprire serve a
+    correggere la scheda, non a disfare un'assunzione già avviata. Ritorna il
+    nuovo stato.
+    """
+    stato_prima = candidato.stato
+    candidato.stato = _stato_aperto_dedotto(candidato)
+    candidato.updated_by = user if (user and getattr(user, "is_authenticated", False)) else None
+    candidato.save(update_fields=["stato", "updated_by", "updated_at"])
+    registra_cambio_stato(
+        candidato, stato_prima, candidato.stato, user=user, note="Iter riaperto.",
+    )
+    return candidato.stato
+
+
 # ---------------------------------------------------------------------------
 # KPI di processo
 # ---------------------------------------------------------------------------

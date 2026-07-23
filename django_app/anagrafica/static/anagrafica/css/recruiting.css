@@ -92,6 +92,31 @@
 .rcr-ebadge { background: var(--hub-line-soft); color: var(--hub-muted-2); }
 body.theme-dark .rcr-ebadge { background: var(--surface-alt, #1e293b); color: var(--text-mid, #94a3b8); }
 
+/* Banner in cima alla lista/scheda: schede da completare (ambra) e iter in
+   sola lettura (neutro). Stessa impaginazione, colori diversi. */
+.rcr-todo-banner, .rcr-lock-banner {
+  display: flex; align-items: center; gap: 12px; padding: 13px 18px; margin-bottom: 14px;
+  border-radius: var(--hub-radius); font-size: 13px;
+}
+.rcr-todo-banner { background: var(--hub-warn-bg); border: 1px solid var(--hub-warn-bd); color: var(--hub-warn-fg); }
+.rcr-lock-banner { background: var(--hub-neu-bg); border: 1px solid var(--hub-neu-bd); color: var(--hub-slate); }
+.rcr-todo-banner .fmd-ico, .rcr-lock-banner .fmd-ico { flex: 0 0 auto; width: 18px; height: 18px; }
+.rcr-todo-banner span, .rcr-lock-banner span { flex: 1; min-width: 0; }
+.rcr-todo-banner form, .rcr-lock-banner form { margin: 0; }
+.rcr-todo-link { flex: 0 0 auto; white-space: nowrap; }
+body.theme-dark .rcr-todo-banner { background: rgba(245,158,11,.10); border-color: rgba(245,158,11,.35); color: #fcd34d; }
+body.theme-dark .rcr-lock-banner { background: var(--surface-alt, #1e293b); border-color: var(--border); color: var(--text-mid, #cbd5e1); }
+
+/* Riga «Annulla scheda» in coda alla sezione esito. */
+.rcr-annulla-row { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--hub-line-soft); }
+.rcr-annulla-row form { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0; }
+.rcr-annulla-motivo {
+  flex: 1; min-width: 180px; max-width: 360px; height: 32px;
+  border: 1px solid var(--hub-line); border-radius: 8px; padding: 0 10px; font: inherit; font-size: 12.5px;
+}
+body.theme-dark .rcr-annulla-row { border-color: var(--border); }
+body.theme-dark .rcr-annulla-motivo { background: var(--surface-alt, #1e293b); border-color: var(--border); color: var(--text); }
+
 /* Azioni per riga nella tabella dei criteri: i <form> di POST non devono
    spezzare la fila di pulsanti. */
 .rcr-rowacts { display: flex; align-items: center; justify-content: flex-end; gap: 5px; flex-wrap: wrap; }

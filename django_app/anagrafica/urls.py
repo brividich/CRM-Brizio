@@ -279,6 +279,8 @@ urlpatterns = [
     path("recruiting/<int:candidato_id>/secondo-colloquio/", views_recruiting.recruiting_step2, name="recruiting_step2"),
     path("recruiting/<int:candidato_id>/assumi/", views_recruiting.recruiting_assumi, name="recruiting_assumi"),
     path("recruiting/<int:candidato_id>/archivia/", views_recruiting.recruiting_archivia, name="recruiting_archivia"),
+    path("recruiting/<int:candidato_id>/annulla/", views_recruiting.recruiting_annulla, name="recruiting_annulla"),
+    path("recruiting/<int:candidato_id>/riapri/", views_recruiting.recruiting_riapri, name="recruiting_riapri"),
 
     # ── Formazione HR — Dashboard ──────────────────────────────────────────
     path("formazione/", views.formazione_dashboard, name="formazione_dashboard"),

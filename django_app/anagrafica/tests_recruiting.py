@@ -496,6 +496,153 @@ class ImportXlsxTests(TestCase):
         self.assertIn("Colonna misteriosa", sconosciute)
 
 
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class CicloVitaTests(TestCase):
+    """Annullamento, riapertura, sola-lettura degli iter chiusi."""
+
+    def setUp(self):
+        _ensure_anagrafica_table()
+        _ensure_utenti_table()
+        self.admin = User.objects.create_superuser(
+            username="hr-vita", email="hr-vita@example.com", password="pass12345",
+        )
+        self.client.force_login(self.admin)
+        self.candidato = Candidato.objects.create(
+            cognome="Rossi", nome="Test", data_primo_colloquio=date(2026, 3, 1),
+            cv_esito=Candidato.CV_OK,
+        )
+
+    def test_annulla_toglie_dalle_liste_ma_conserva_log(self):
+        resp = self.client.post(reverse("anagrafica:recruiting_annulla", args=[self.candidato.id]), {
+            "motivo": "Inserita per errore",
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.candidato.refresh_from_db()
+        self.assertEqual(self.candidato.stato, Candidato.STATO_ANNULLATO)
+        # Log preservato, con il motivo.
+        riga = CandidatoLog.objects.filter(
+            candidato=self.candidato, tipo=CandidatoLog.TIPO_STATO,
+        ).latest("id")
+        self.assertIn("Inserita per errore", riga.note)
+        # Fuori dalle liste operative di default...
+        resp = self.client.get(reverse("anagrafica:recruiting_list"))
+        self.assertNotIn(self.candidato, resp.context["page_obj"].object_list)
+        # ...ma visibile filtrando per stato.
+        resp = self.client.get(reverse("anagrafica:recruiting_list"), {"stato": "ANNULLATO"})
+        self.assertIn(self.candidato, resp.context["page_obj"].object_list)
+
+    def test_ricerca_trova_anche_gli_annullati(self):
+        recruiting_service.annulla_scheda(self.candidato, user=self.admin)
+        resp = self.client.get(reverse("anagrafica:recruiting_list"), {"q": "Rossi"})
+        self.assertIn(self.candidato, resp.context["page_obj"].object_list)
+
+    def test_modifica_bloccata_su_iter_chiuso(self):
+        self.candidato.stato = Candidato.STATO_SCARTATO
+        self.candidato.save(update_fields=["stato"])
+        resp = self.client.get(reverse("anagrafica:recruiting_edit", args=[self.candidato.id]))
+        self.assertEqual(resp.status_code, 302)  # redirect a detail
+        # E la scheda è marcata sola-lettura nel context del dettaglio.
+        resp = self.client.get(reverse("anagrafica:recruiting_detail", args=[self.candidato.id]))
+        self.assertTrue(resp.context["sola_lettura"])
+
+    def test_riapertura_deduce_lo_stato_e_traccia(self):
+        self.candidato.stato = Candidato.STATO_SCARTATO
+        self.candidato.save(update_fields=["stato"])
+        resp = self.client.post(reverse("anagrafica:recruiting_riapri", args=[self.candidato.id]))
+        self.assertEqual(resp.status_code, 302)
+        self.candidato.refresh_from_db()
+        # Ha una data di primo colloquio ma non il secondo → COLLOQUIO_1.
+        self.assertEqual(self.candidato.stato, Candidato.STATO_COLLOQUIO_1)
+        self.assertFalse(self.candidato.iter_chiuso)
+        self.assertTrue(CandidatoLog.objects.filter(
+            candidato=self.candidato, tipo=CandidatoLog.TIPO_STATO, note="Iter riaperto.",
+        ).exists())
+
+    def test_riapertura_non_scollega_onboarding(self):
+        pratica = recruiting_service.assumi_e_avvia_onboarding(self.candidato, user=self.admin)
+        recruiting_service.riapri_iter(self.candidato, user=self.admin)
+        self.candidato.refresh_from_db()
+        self.assertEqual(self.candidato.onboarding_pratica_id, pratica.id)
+        self.assertTrue(self.candidato.legacy_anagrafica_id)
+
+    def test_annulla_negato_a_chi_non_gestisce(self):
+        utente = User.objects.create_user(username="hr-novita", password="pass12345")
+        self.client.force_login(utente)
+        self.client.post(reverse("anagrafica:recruiting_annulla", args=[self.candidato.id]))
+        self.candidato.refresh_from_db()
+        self.assertNotEqual(self.candidato.stato, Candidato.STATO_ANNULLATO)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class SchedaAnonimaTests(TestCase):
+    """Import senza nominativi e completamento dal portale."""
+
+    def setUp(self):
+        _ensure_anagrafica_table()
+        _ensure_utenti_table()
+        self.admin = User.objects.create_superuser(
+            username="hr-anon", email="hr-anon@example.com", password="pass12345",
+        )
+        self.client.force_login(self.admin)
+
+    def test_scheda_anonima_e_da_completare(self):
+        c = Candidato.objects.create(cognome="", nome="", codice_riferimento="12")
+        self.assertTrue(c.anagrafica_da_completare)
+        self.assertEqual(c.etichetta, "Da completare · rif. 12")
+
+    def test_contatore_e_filtro_da_completare(self):
+        Candidato.objects.create(cognome="", nome="", codice_riferimento="1")
+        Candidato.objects.create(cognome="Bianchi", nome="Ann", codice_riferimento="2")
+        resp = self.client.get(reverse("anagrafica:recruiting_list"))
+        self.assertEqual(resp.context["n_da_completare"], 1)
+        resp = self.client.get(reverse("anagrafica:recruiting_list"), {"da_completare": "1"})
+        etichette = [c.etichetta for c in resp.context["page_obj"].object_list]
+        self.assertEqual(etichette, ["Da completare · rif. 1"])
+
+    def test_una_anonima_non_si_puo_assumere(self):
+        c = Candidato.objects.create(cognome="", nome="", codice_riferimento="9")
+        with self.assertRaises(recruiting_service.TransizioneError):
+            recruiting_service.assumi_e_avvia_onboarding(c, user=self.admin)
+
+    def test_completamento_nominativo_via_form(self):
+        c = Candidato.objects.create(cognome="", nome="", codice_riferimento="7")
+        resp = self.client.post(reverse("anagrafica:recruiting_edit", args=[c.id]), {
+            "cognome": "Neri", "nome": "Luca",
+            "codice_riferimento": "7",
+            "canale_provenienza": Candidato.CANALE_AUTOCANDIDATURA,
+            "stato": Candidato.STATO_NUOVO,
+        })
+        self.assertEqual(resp.status_code, 302)
+        c.refresh_from_db()
+        self.assertFalse(c.anagrafica_da_completare)
+        self.assertEqual(c.nominativo, "Neri Luca")
+
+    def test_import_anonimo_riconosce_riferimento_e_significativita(self):
+        from anagrafica.management.commands.import_recruiting_xlsx import Command
+
+        cmd = Command()
+        mappa = {"codice_riferimento": 0, "mansione_cercata": 1, "data_primo_colloquio": 2}
+        # Riga con dati ma senza nome → significativa; codice dal file.
+        valori = cmd._leggi(["7", "Operatore", "15/03/2026"], mappa, numero_riga=5)
+        self.assertEqual(valori["codice_riferimento"], "7")
+        self.assertEqual(valori["cognome"], "")
+        self.assertTrue(cmd._riga_significativa(valori, ["7", "Operatore", "15/03/2026"], []))
+        # Riga del tutto vuota → non significativa; riferimento = numero riga.
+        vuota = cmd._leggi([None, None, None], mappa, numero_riga=9)
+        self.assertEqual(vuota["codice_riferimento"], "riga 9")
+        self.assertFalse(cmd._riga_significativa(vuota, [None, None, None], []))
+
+    def test_dedup_anonima_su_riferimento(self):
+        from anagrafica.management.commands.import_recruiting_xlsx import Command
+
+        cmd = Command()
+        Candidato.objects.create(cognome="", nome="", codice_riferimento="42")
+        self.assertTrue(cmd._esiste({"cognome": "", "nome": "", "codice_riferimento": "42"}))
+        self.assertFalse(cmd._esiste({"cognome": "", "nome": "", "codice_riferimento": "99"}))
+        # Il fallback "riga N" non deduplica (non è stabile).
+        self.assertFalse(cmd._esiste({"cognome": "", "nome": "", "codice_riferimento": "riga 3"}))
+
+
 class SubnavTests(TestCase):
     """Il modulo deve stare nel menu di Anagrafica, non solo nella pill «Vai a»."""
 
@@ -538,6 +685,8 @@ class SubnavTests(TestCase):
             "anagrafica:recruiting_step2",
             "anagrafica:recruiting_assumi",
             "anagrafica:recruiting_archivia",
+            "anagrafica:recruiting_annulla",
+            "anagrafica:recruiting_riapri",
             "anagrafica:recruiting_criterio_toggle",
             "anagrafica:recruiting_criterio_delete",
             "anagrafica:recruiting_criterio_move",

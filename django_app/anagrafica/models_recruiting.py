@@ -141,6 +141,7 @@ class Candidato(models.Model):
     STATO_IN_DATABASE = "IN_DATABASE"
     STATO_SCARTATO = "SCARTATO"
     STATO_RINUNCIA = "RINUNCIA"
+    STATO_ANNULLATO = "ANNULLATO"
 
     STATO_CHOICES = [
         (STATO_NUOVO, "Nuovo (CV ricevuto)"),
@@ -151,9 +152,17 @@ class Candidato(models.Model):
         (STATO_IN_DATABASE, "In database per future opportunità"),
         (STATO_SCARTATO, "Non idoneo"),
         (STATO_RINUNCIA, "Rinuncia del candidato"),
+        (STATO_ANNULLATO, "Annullato / archiviato"),
     ]
     # Stati che chiudono l'iter: nessuna valutazione ulteriore attesa.
-    STATI_CHIUSI = (STATO_ASSUNTO, STATO_IN_DATABASE, STATO_SCARTATO, STATO_RINUNCIA)
+    STATI_CHIUSI = (
+        STATO_ASSUNTO, STATO_IN_DATABASE, STATO_SCARTATO, STATO_RINUNCIA, STATO_ANNULLATO,
+    )
+    # Stati "archiviati": tolti dalle liste operative di default (la scheda resta
+    # a DB coi suoi log, ma non inquina il lavoro corrente). ANNULLATO è distinto
+    # dagli esiti reali del processo (assunto/non idoneo/rinuncia): serve per le
+    # schede inserite per errore o ritirate amministrativamente.
+    STATI_ARCHIVIATI = (STATO_ANNULLATO,)
 
     # --- Canale di provenienza del CV --------------------------------------
     CANALE_AUTOCANDIDATURA = "AUTOCANDIDATURA"
@@ -197,8 +206,18 @@ class Candidato(models.Model):
     ]
 
     # --- Anagrafica e provenienza ------------------------------------------
-    cognome = models.CharField(max_length=120, db_index=True)
-    nome = models.CharField(max_length=120, db_index=True)
+    # Nome e cognome sono opzionali di proposito: il Mod. 05-01 di HR arriva
+    # spesso **senza nominativi** (rimossi alla fonte per privacy) e viene
+    # importato "anonimo", con l'anagrafica completata a mano dal portale in un
+    # secondo momento. Una scheda senza nominativo è riconoscibile (badge «Da
+    # completare») e non può essere assunta finché resta tale.
+    cognome = models.CharField(max_length=120, blank=True, default="", db_index=True)
+    nome = models.CharField(max_length=120, blank=True, default="", db_index=True)
+    # Riferimento alla riga di origine (progressivo del foglio HR o numero riga
+    # all'import): permette di riconciliare una scheda anonima con la fonte
+    # cartacea quando poi si inseriscono i nominativi, e di deduplicare al
+    # reimport quando manca il nome.
+    codice_riferimento = models.CharField(max_length=60, blank=True, default="", db_index=True)
     cellulare = models.CharField(max_length=40, blank=True, default="")
     email = models.EmailField(max_length=254, blank=True, default="")
     localita = models.CharField(max_length=120, blank=True, default="")
@@ -301,15 +320,36 @@ class Candidato(models.Model):
         ]
 
     def __str__(self) -> str:
-        return f"{self.cognome} {self.nome}".strip() or f"Candidato #{self.pk}"
+        return self.nominativo or (
+            f"Candidato {self.codice_riferimento}" if self.codice_riferimento
+            else f"Candidato #{self.pk}"
+        )
 
     @property
     def nominativo(self) -> str:
         return f"{self.cognome} {self.nome}".strip()
 
     @property
+    def anagrafica_da_completare(self) -> bool:
+        """True se manca il nominativo (scheda importata anonima da completare)."""
+        return not self.cognome.strip() and not self.nome.strip()
+
+    @property
+    def etichetta(self) -> str:
+        """Nome mostrabile in lista/scheda, con fallback per le schede anonime."""
+        if self.nominativo:
+            return self.nominativo
+        if self.codice_riferimento:
+            return f"Da completare · rif. {self.codice_riferimento}"
+        return "Da completare"
+
+    @property
     def iter_chiuso(self) -> bool:
         return self.stato in self.STATI_CHIUSI
+
+    @property
+    def is_annullato(self) -> bool:
+        return self.stato == self.STATO_ANNULLATO
 
     @property
     def giorni_tra_colloqui(self) -> int | None:

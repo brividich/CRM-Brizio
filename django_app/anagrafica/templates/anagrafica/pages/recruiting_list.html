@@ -40,6 +40,15 @@
       <div class="fmd-mtr fmd-t-violet"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-award"/></svg></span><span class="fmd-mtr-val">{{ n_in_database }}</span></div><div class="fmd-mtr-lbl">In database</div><div class="fmd-mtr-sub">Profili per future opportunità</div></div>
     </section>
 
+    {% if n_da_completare %}
+    <section class="fmd-panel rcr-todo-banner">
+      <svg class="fmd-ico"><use href="#i-alert-tri"/></svg>
+      <span><strong>{{ n_da_completare }}</strong> schede importate senza nominativo, da completare.
+      Aprile e inserisci nome e cognome.</span>
+      <a href="?da_completare=1" class="fmd-btn-mini rcr-todo-link">Mostra solo queste</a>
+    </section>
+    {% endif %}
+
     <section class="fmd-panel fmd-block">
       <div class="fmd-block-head">
         <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-filter"/></svg>Ricerca e filtri</div>
@@ -127,7 +136,8 @@
             {% for c in page_obj.object_list %}
             <tr>
               <td>
-                <a class="fmd-data-link" href="{% url 'anagrafica:recruiting_detail' c.id %}">{{ c.nominativo|default:"—" }}</a>
+                <a class="fmd-data-link" href="{% url 'anagrafica:recruiting_detail' c.id %}">{{ c.etichetta }}</a>
+                {% if c.anagrafica_da_completare %}<span class="fmd-badge fmd-b-amber">Da completare</span>{% endif %}
                 {% if c.localita %}<div class="fmd-cell-sub">{{ c.localita }}{% if c.provincia %} ({{ c.provincia }}){% endif %}</div>{% endif %}
               </td>
               <td>{{ c.mansione_cercata|default:"—" }}</td>
@@ -144,6 +154,7 @@
                 {% elif c.stato == "IN_DATABASE" %}<span class="fmd-badge fmd-b-violet">In database</span>
                 {% elif c.stato == "SCARTATO" %}<span class="fmd-badge fmd-b-grey">Non idoneo</span>
                 {% elif c.stato == "RINUNCIA" %}<span class="fmd-badge fmd-b-grey">Rinuncia</span>
+                {% elif c.stato == "ANNULLATO" %}<span class="fmd-badge fmd-b-grey">Annullato</span>
                 {% else %}<span class="fmd-badge fmd-b-cyan">{{ c.get_stato_display }}</span>{% endif %}
               </td>
               <td class="fmd-r"><a href="{% url 'anagrafica:recruiting_detail' c.id %}" class="fmd-btn-mini">Apri <svg class="fmd-ico"><use href="#i-arrow-right"/></svg></a></td>

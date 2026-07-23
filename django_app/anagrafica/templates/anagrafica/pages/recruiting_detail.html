@@ -24,24 +24,50 @@
       <div class="fmd-crumb">
         <a href="{% url 'anagrafica:recruiting_list' %}">Recruiting</a>
         <span>/</span>
-        <span>{{ candidato.nominativo }}</span>
+        <span>{{ candidato.etichetta }}</span>
       </div>
       <div class="fmd-pagehead-actions">
-        {% if can_manage %}
+        {% if can_manage and not sola_lettura %}
         <a href="{% url 'anagrafica:recruiting_edit' candidato.id %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-edit"/></svg>Modifica scheda</a>
         {% endif %}
       </div>
     </div>
 
+    {% if candidato.anagrafica_da_completare %}
+    <section class="fmd-panel rcr-todo-banner">
+      <svg class="fmd-ico"><use href="#i-alert-tri"/></svg>
+      <span>Scheda importata <strong>senza nominativo</strong>{% if candidato.codice_riferimento %} (rif. {{ candidato.codice_riferimento }}){% endif %}.
+      {% if can_manage and not sola_lettura %}Aprila in modifica e inserisci nome e cognome.{% endif %}</span>
+      {% if can_manage and not sola_lettura %}
+      <a href="{% url 'anagrafica:recruiting_edit' candidato.id %}" class="fmd-btn-mini rcr-todo-link">Completa ora</a>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    {% if sola_lettura %}
+    <section class="fmd-panel rcr-lock-banner">
+      <svg class="fmd-ico"><use href="#i-shield"/></svg>
+      <span>Iter chiuso ({{ candidato.get_stato_display }}): la scheda è in <strong>sola lettura</strong>.
+      {% if can_manage %}Per modificarla, riapri l'iter.{% endif %}</span>
+      {% if can_manage %}
+      <form method="post" action="{% url 'anagrafica:recruiting_riapri' candidato.id %}">
+        {% csrf_token %}
+        <button type="submit" class="fmd-btn-mini rcr-todo-link"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Riapri iter</button>
+      </form>
+      {% endif %}
+    </section>
+    {% endif %}
+
     {# Riepilogo #}
     <section class="fmd-panel fmd-block">
       <div class="fmd-block-head">
-        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-users"/></svg>{{ candidato.nominativo }}</div>
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-users"/></svg>{{ candidato.etichetta }}</div>
         <div>
           {% if candidato.stato == "ASSUNTO" %}<span class="fmd-badge fmd-b-green">Assunto</span>
           {% elif candidato.stato == "IN_DATABASE" %}<span class="fmd-badge fmd-b-violet">In database</span>
           {% elif candidato.stato == "SCARTATO" %}<span class="fmd-badge fmd-b-grey">Non idoneo</span>
           {% elif candidato.stato == "RINUNCIA" %}<span class="fmd-badge fmd-b-grey">Rinuncia</span>
+          {% elif candidato.stato == "ANNULLATO" %}<span class="fmd-badge fmd-b-grey">Annullato</span>
           {% else %}<span class="fmd-badge fmd-b-cyan">{{ candidato.get_stato_display }}</span>{% endif %}
         </div>
       </div>
@@ -130,7 +156,7 @@
         {% endif %}
       </div>
 
-      {% if can_manage %}
+      {% if can_manage and not sola_lettura %}
       <form method="post" action="{% url 'anagrafica:recruiting_step2' candidato.id %}">
         {% csrf_token %}
         <div class="hub-form-grid">
@@ -154,7 +180,7 @@
     </section>
 
     {# Esito dell'iter #}
-    {% if can_manage %}
+    {% if can_manage and not sola_lettura %}
     <section class="fmd-panel fmd-block">
       <div class="fmd-block-head">
         <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-arrow-right"/></svg>Esito dell'iter</div>
@@ -169,6 +195,9 @@
         <svg class="fmd-ico"><use href="#i-arrow-right"/></svg>Apri la pratica di onboarding
       </a>
       {% else %}
+      {% if candidato.anagrafica_da_completare %}
+      <p class="hub-fsec-d rcr-lead">Inserisci nome e cognome prima di assumere il candidato.</p>
+      {% endif %}
       <div class="rcr-esito">
         <form method="post" action="{% url 'anagrafica:recruiting_assumi' candidato.id %}">
           {% csrf_token %}
@@ -181,7 +210,7 @@
             <input type="text" id="rcr-reparto" name="reparto" placeholder="Facoltativo">
           </div>
           <div class="rcr-actions">
-            <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-check"/></svg>Assunto → invia a Onboarding</button>
+            <button type="submit" class="fmd-btn fmd-btn-primary"{% if candidato.anagrafica_da_completare %} disabled title="Serve il nominativo"{% endif %}><svg class="fmd-ico"><use href="#i-check"/></svg>Assunto → invia a Onboarding</button>
           </div>
         </form>
 
@@ -192,6 +221,15 @@
             filtrabile per mansione, punteggio ed esito.
           </p>
           <button type="submit" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-book"/></svg>Mantieni in database Recruiting</button>
+        </form>
+      </div>
+
+      <div class="rcr-annulla-row">
+        <form method="post" action="{% url 'anagrafica:recruiting_annulla' candidato.id %}"
+              onsubmit="return confirm('Annullare questa scheda? Resterà consultabile ma fuori dalle liste operative.');">
+          {% csrf_token %}
+          <input type="text" name="motivo" class="rcr-annulla-motivo" maxlength="180" placeholder="Motivo (facoltativo)">
+          <button type="submit" class="fmd-btn-mini rcr-danger"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg>Annulla scheda</button>
         </form>
       </div>
       {% endif %}

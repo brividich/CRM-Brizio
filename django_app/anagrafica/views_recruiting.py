@@ -129,6 +129,11 @@ def _filtra_candidati(request):
     stato = (request.GET.get("stato") or "").strip()
     if stato in {c[0] for c in Candidato.STATO_CHOICES}:
         qs = qs.filter(stato=stato)
+    elif not q:
+        # In navigazione le schede annullate/archiviate sono fuori dal lavoro
+        # corrente: compaiono solo selezionandole dal filtro stato. Una ricerca
+        # testuale (q) invece le trova comunque — chi cerca un nome deve trovarlo.
+        qs = qs.exclude(stato__in=Candidato.STATI_ARCHIVIATI)
 
     canale = (request.GET.get("canale") or "").strip()
     if canale in {c[0] for c in Candidato.CANALE_CHOICES}:
@@ -141,6 +146,9 @@ def _filtra_candidati(request):
     mansione = (request.GET.get("mansione") or "").strip()
     if mansione:
         qs = qs.filter(mansione_cercata__icontains=mansione)
+
+    if (request.GET.get("da_completare") or "").strip() == "1":
+        qs = qs.filter(cognome="", nome="")
 
     punteggio_min = (request.GET.get("punteggio_min") or "").strip()
     if punteggio_min:
@@ -194,6 +202,11 @@ def recruiting_list(request):
         "n_in_corso": Candidato.objects.exclude(stato__in=Candidato.STATI_CHIUSI).count(),
         "n_in_database": Candidato.objects.filter(stato=Candidato.STATO_IN_DATABASE).count(),
         "n_assunti": Candidato.objects.filter(stato=Candidato.STATO_ASSUNTO).count(),
+        # Schede importate anonime, ancora senza nominativo (badge «Da completare»).
+        "n_da_completare": Candidato.objects
+            .filter(cognome="", nome="")
+            .exclude(stato__in=Candidato.STATI_ARCHIVIATI)
+            .count(),
     })
 
 
@@ -283,6 +296,8 @@ def recruiting_detail(request, candidato_id: int):
         "log": list(candidato.log_modifiche.all()[:50]),
         "can_manage": _can_manage_recruiting(request),
         "peso_totale": sum((c.peso_percentuale for c in criteri), start=0),
+        # A iter chiuso la scheda è in sola lettura finché non si riapre l'iter.
+        "sola_lettura": candidato.iter_chiuso,
     })
 
 
@@ -293,6 +308,15 @@ def recruiting_edit(request, candidato_id: int):
         return _denied(request, "modificare le schede candidato")
 
     candidato = get_object_or_404(Candidato, pk=candidato_id)
+    # Una scheda a iter chiuso è in sola lettura: modificarla significa rimettere
+    # mano a una decisione presa, e deve passare per «Riapri iter» (tracciato).
+    if candidato.iter_chiuso:
+        messages.warning(
+            request,
+            "La scheda è a iter chiuso. Riapri l'iter prima di modificarla.",
+        )
+        return redirect("anagrafica:recruiting_detail", candidato_id=candidato.pk)
+
     criteri = recruiting_service.criteri_attivi()
 
     if request.method == "POST":
@@ -417,6 +441,48 @@ def recruiting_archivia(request, candidato_id: int):
     recruiting_service.archivia_in_database(candidato, user=request.user)
     _audit(request, "RECRUITING_CANDIDATO_ARCHIVIATO", {"candidato_id": candidato.pk})
     messages.success(request, "Profilo mantenuto nel database Recruiting.")
+    return redirect("anagrafica:recruiting_detail", candidato_id=candidato.pk)
+
+
+@login_required
+@require_POST
+def recruiting_annulla(request, candidato_id: int):
+    """Annulla/archivia la scheda: la toglie dalle liste operative senza cancellarla."""
+    if not _can_manage_recruiting(request):
+        return _denied(request, "annullare le schede candidato")
+
+    candidato = get_object_or_404(Candidato, pk=candidato_id)
+    recruiting_service.annulla_scheda(
+        candidato, user=request.user, motivo=(request.POST.get("motivo") or ""),
+    )
+    _audit(request, "RECRUITING_CANDIDATO_ANNULLATO", {"candidato_id": candidato.pk})
+    messages.success(
+        request,
+        "Scheda annullata. Resta consultabile filtrando per stato «Annullato».",
+    )
+    return redirect("anagrafica:recruiting_detail", candidato_id=candidato.pk)
+
+
+@login_required
+@require_POST
+def recruiting_riapri(request, candidato_id: int):
+    """Riapre un iter chiuso, riportando la scheda a uno stato modificabile."""
+    if not _can_manage_recruiting(request):
+        return _denied(request, "riaprire le schede candidato")
+
+    candidato = get_object_or_404(Candidato, pk=candidato_id)
+    if not candidato.iter_chiuso:
+        messages.info(request, "L'iter è già aperto.")
+        return redirect("anagrafica:recruiting_detail", candidato_id=candidato.pk)
+
+    nuovo = recruiting_service.riapri_iter(candidato, user=request.user)
+    _audit(request, "RECRUITING_CANDIDATO_RIAPERTO", {
+        "candidato_id": candidato.pk, "stato": nuovo,
+    })
+    avviso = "Iter riaperto: la scheda è di nuovo modificabile."
+    if candidato.onboarding_pratica_id:
+        avviso += " La pratica di onboarding collegata resta invariata."
+    messages.success(request, avviso)
     return redirect("anagrafica:recruiting_detail", candidato_id=candidato.pk)
 
 

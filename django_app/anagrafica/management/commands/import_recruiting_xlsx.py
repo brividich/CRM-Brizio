@@ -53,6 +53,7 @@ def _norm(value) -> str:
 # campo modello -> sinonimi di intestazione (già normalizzati).
 # Il primo che matcha vince; il match è esatto oppure "l'intestazione inizia con".
 COLONNE = {
+    "codice_riferimento": ["riferimento", "progressivo", "rif", "n candidato", "n"],
     "data_primo_colloquio": ["data 1 colloquio", "data primo colloquio", "data colloquio", "data"],
     "canale_provenienza": ["provenienza", "canale", "canale cv", "provenienza cv", "fonte"],
     "canale_dettaglio": ["agenzia", "dettaglio provenienza", "segnalato da"],
@@ -299,10 +300,22 @@ class Command(BaseCommand):
         mappa, mappa_criteri, ignorate, sconosciute = self._analizza(intestazioni)
         self._stampa_mappatura(mappa, mappa_criteri, ignorate, sconosciute)
 
-        if not mappa.get("cognome") and not mappa.get("nome"):
-            raise CommandError(
-                "Nessuna colonna nome/cognome riconosciuta: controlla --header-row e --sheet."
-            )
+        anonimo = not mappa.get("cognome") and not mappa.get("nome")
+        if anonimo:
+            # Il Mod. 05-01 di HR arriva spesso senza nominativi (rimossi alla
+            # fonte per privacy): non è un errore, è un import da completare a
+            # mano. Serve però qualcosa che distingua una riga vera da una vuota.
+            if not mappa.get("data_primo_colloquio") and not mappa.get("mansione_cercata") \
+                    and not mappa_criteri:
+                raise CommandError(
+                    "Nessuna colonna nome/cognome né dati riconoscibili (data colloquio, "
+                    "mansione, punteggi): controlla --header-row e --sheet."
+                )
+            self.stdout.write(self.style.WARNING(
+                "Import ANONIMO: nessuna colonna nominativo. Le schede saranno create "
+                "«Da completare» — inserisci nome e cognome dal portale. Riconciliazione "
+                "tramite la colonna di riferimento se presente, altrimenti il numero di riga."
+            ))
 
         dati_righe = righe[indice_header + 1:]
         if opts["limit"]:
@@ -310,8 +323,8 @@ class Command(BaseCommand):
 
         creati = saltati = vuote = 0
         for offset, riga in enumerate(dati_righe, start=indice_header + 2):
-            valori = self._leggi(riga, mappa)
-            if not valori.get("cognome") and not valori.get("nome"):
+            valori = self._leggi(riga, mappa, numero_riga=offset)
+            if not self._riga_significativa(valori, riga, mappa_criteri):
                 vuote += 1
                 continue
 
@@ -340,8 +353,9 @@ class Command(BaseCommand):
 
         wb.close()
         prefisso = "[dry-run] " if opts["dry_run"] else ""
+        coda = " (da completare col nominativo)" if anonimo else ""
         self.stdout.write(self.style.SUCCESS(
-            f"{prefisso}candidati importati: {creati} · già presenti: {saltati} · righe vuote: {vuote}"
+            f"{prefisso}candidati importati: {creati}{coda} · già presenti: {saltati} · righe vuote: {vuote}"
         ))
         if opts["dry_run"]:
             self.stdout.write("Nessuna scrittura eseguita. Rilancia senza --dry-run per importare.")
@@ -407,17 +421,24 @@ class Command(BaseCommand):
 
     # -- lettura riga --------------------------------------------------------
 
-    def _leggi(self, riga, mappa) -> dict:
+    def _leggi(self, riga, mappa, *, numero_riga: int) -> dict:
         def cella(campo):
             indice = mappa.get(campo)
             if indice is None or indice >= len(riga):
                 return None
             return riga[indice]
 
+        # Riferimento: la colonna del foglio se c'è, altrimenti il numero di riga
+        # del file — così una scheda anonima resta agganciabile alla sua origine.
+        riferimento = _testo(cella("codice_riferimento"), 60)
+        if not riferimento:
+            riferimento = f"riga {numero_riga}"
+
         canale, dettaglio = _canale(cella("canale_provenienza"))
         dati = {
             "cognome": _testo(cella("cognome"), 120),
             "nome": _testo(cella("nome"), 120),
+            "codice_riferimento": riferimento,
             "cellulare": _testo(cella("cellulare"), 40),
             "email": _testo(cella("email"), 254),
             "localita": _testo(cella("localita"), 120),
@@ -461,16 +482,40 @@ class Command(BaseCommand):
                 voti.append((criterio, voto))
         return voti
 
-    def _esiste(self, valori) -> bool:
-        """Duplicato = stesso nominativo e stessa data di primo colloquio.
+    def _riga_significativa(self, valori, riga, mappa_criteri) -> bool:
+        """Distingue una riga vera da una vuota o di separazione.
 
-        Senza la data (righe storiche incomplete) basta il nominativo: meglio
-        saltare una riga in più che creare doppioni in un database consultato
-        per le ricerche future.
+        Con nominativo basta quello; per gli import anonimi serve almeno un dato
+        di sostanza (data colloquio, mansione, età, o un voto), così le righe
+        vuote/di totale non diventano schede fantasma.
         """
-        query = Candidato.objects.filter(
-            cognome__iexact=valori["cognome"], nome__iexact=valori["nome"],
-        )
-        if valori.get("data_primo_colloquio"):
-            query = query.filter(data_primo_colloquio=valori["data_primo_colloquio"])
-        return query.exists()
+        if valori.get("cognome") or valori.get("nome"):
+            return True
+        if valori.get("data_primo_colloquio") or valori.get("mansione_cercata") \
+                or valori.get("eta") or valori.get("giudizio_finale"):
+            return True
+        return bool(self._leggi_voti(riga, mappa_criteri))
+
+    def _esiste(self, valori) -> bool:
+        """Duplicato: per le schede con nominativo, nome + data 1° colloquio;
+        per quelle anonime, il codice di riferimento (colonna del foglio se c'era).
+
+        Meglio saltare una riga in più che creare doppioni in un database
+        consultato per le ricerche future. Il fallback ``riga N`` NON deduplica
+        (cambia se il file cambia): al reimport di un file anonimo senza colonna
+        di riferimento, usare ``--limit``/una tantum per non duplicare.
+        """
+        cognome = valori.get("cognome") or ""
+        nome = valori.get("nome") or ""
+        if cognome or nome:
+            query = Candidato.objects.filter(cognome__iexact=cognome, nome__iexact=nome)
+            if valori.get("data_primo_colloquio"):
+                query = query.filter(data_primo_colloquio=valori["data_primo_colloquio"])
+            return query.exists()
+
+        riferimento = valori.get("codice_riferimento") or ""
+        if riferimento and not riferimento.startswith("riga "):
+            return Candidato.objects.filter(
+                cognome="", nome="", codice_riferimento=riferimento,
+            ).exists()
+        return False

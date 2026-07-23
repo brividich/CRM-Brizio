@@ -24,7 +24,8 @@ logger = logging.getLogger(__name__)
 #   (toggle/elimina/sposta). Chiave NUOVA: un ambiente già a v9 non
 #   ri-registrerebbe i binding nuovi e in ACL_STRICT_CANONICAL le tre route
 #   verrebbero negate a tutti i non-superuser.
-_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v10"
+# Bump alla v11: binding delle azioni ciclo di vita scheda (annulla/riapri).
+_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v11"
 
 # ── ACL v2 canonico — Skill Matrix MOD.187 ─────────────────────────────────────
 # Rende le route Skill Matrix governabili da /admin-portale/acl-canonico/ (e
@@ -139,6 +140,8 @@ _RECR_ROUTE_BINDINGS = {
     "anagrafica:recruiting_step2": PERM_RECR_MANAGE,
     "anagrafica:recruiting_assumi": PERM_RECR_MANAGE,
     "anagrafica:recruiting_archivia": PERM_RECR_MANAGE,
+    "anagrafica:recruiting_annulla": PERM_RECR_MANAGE,
+    "anagrafica:recruiting_riapri": PERM_RECR_MANAGE,
     "anagrafica:recruiting_criteri": PERM_RECR_MANAGE,
     "anagrafica:recruiting_criterio_toggle": PERM_RECR_MANAGE,
     "anagrafica:recruiting_criterio_delete": PERM_RECR_MANAGE,
