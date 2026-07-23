@@ -1,5 +1,6 @@
 {% extends "core/base.html" %}
 {% load static %}
+{% load anagrafica_extras %}
 
 {% block title %}Report dipendenti | Anagrafica{% endblock %}
 
@@ -163,7 +164,7 @@ body.theme-dark .ana-badge-count { background:var(--surface-alt); color:var(--te
           {% for row in page_obj %}
           {% with az=row.az %}
           <tr>
-            <td>{{ row.matricola|default:"—" }}</td>
+            <td>{{ row.matricola|matricola_fmt|default:"—" }}</td>
             <td>
               <a href="{% url 'anagrafica:dipendente_detail' row.id %}" style="font-weight:700;color:#1e293b;text-decoration:none;">
                 {{ row.cognome }} {{ row.nome }}
