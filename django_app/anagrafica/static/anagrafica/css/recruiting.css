@@ -92,6 +92,15 @@
 .rcr-ebadge { background: var(--hub-line-soft); color: var(--hub-muted-2); }
 body.theme-dark .rcr-ebadge { background: var(--surface-alt, #1e293b); color: var(--text-mid, #94a3b8); }
 
+/* Azioni per riga nella tabella dei criteri: i <form> di POST non devono
+   spezzare la fila di pulsanti. */
+.rcr-rowacts { display: flex; align-items: center; justify-content: flex-end; gap: 5px; flex-wrap: wrap; }
+.rcr-rowacts form { display: inline; margin: 0; }
+.rcr-rowacts .fmd-btn-mini[disabled] { opacity: .45; cursor: not-allowed; }
+.rcr-danger { color: var(--hub-bad-fg); border-color: var(--hub-bad-bd); }
+.rcr-danger:hover { background: var(--hub-bad-bg); }
+body.theme-dark .rcr-danger { color: #fca5a5; border-color: rgba(248, 113, 113, .4); }
+
 /* Le due azioni di fine iter, affiancate su desktop e impilate su mobile. */
 .rcr-esito { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; }
 @media (max-width: 720px) { .rcr-esito { grid-template-columns: 1fr; } }

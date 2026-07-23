@@ -17,11 +17,13 @@ from __future__ import annotations
 
 import logging
 from datetime import date
+from decimal import Decimal
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Count, Q
+from django.db.models.deletion import ProtectedError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
@@ -485,13 +487,43 @@ def recruiting_criteri(request):
 
     criteri = list(RecruitingCriterio.objects.all())
     return render(request, "anagrafica/pages/recruiting_criteri.html", {
-        "criteri": criteri,
+        "criteri": _righe_configurazione(criteri),
         "form": form,
         "peso_totale_attivi": sum(
             (c.peso_percentuale for c in criteri if c.is_active), start=0,
         ),
         "permessi": RecruitingPermission.get_instance(),
     })
+
+
+def _righe_configurazione(criteri: list[RecruitingCriterio]) -> list[dict]:
+    """Criteri con peso effettivo, usi e posizione, pronti per la tabella.
+
+    Il **peso effettivo** è quello che conta davvero: il punteggio è normalizzato
+    sulla somma dei pesi attivi, quindi un criterio al 25% su un totale di 80 pesa
+    il 31%. Mostrare solo il peso nominale nasconde questo effetto — ed è la prima
+    cosa che confonde quando si disattiva un criterio.
+    """
+    attivi = [c for c in criteri if c.is_active]
+    totale = sum((c.peso_percentuale for c in attivi), start=Decimal("0"))
+    usi = {
+        riga["criterio"]: riga["n"]
+        for riga in CandidatoPunteggio.objects.values("criterio").annotate(n=Count("id"))
+    }
+
+    righe = []
+    for indice, criterio in enumerate(criteri):
+        effettivo = None
+        if criterio.is_active and totale > 0:
+            effettivo = (criterio.peso_percentuale * 100 / totale).quantize(Decimal("0.1"))
+        righe.append({
+            "criterio": criterio,
+            "peso_effettivo": effettivo,
+            "usi": usi.get(criterio.pk, 0),
+            "is_first": indice == 0,
+            "is_last": indice == len(criteri) - 1,
+        })
+    return righe
 
 
 def _ricalcola_tutti() -> int:
@@ -501,3 +533,105 @@ def _ricalcola_tutti() -> int:
         recruiting_service.ricalcola_punteggio(candidato)
         aggiornati += 1
     return aggiornati
+
+
+@login_required
+@require_POST
+def recruiting_criterio_toggle(request, criterio_id: int):
+    """Attiva/disattiva un criterio senza passare dal form.
+
+    È la leva prevista dalle note UNI/PdR 125: togliere «Vicinanza» dal punteggio
+    non cancella nulla, i voti già espressi restano e tornano a contare se il
+    criterio viene riattivato.
+    """
+    if not _can_manage_recruiting(request):
+        return _denied(request, "configurare i criteri di valutazione")
+
+    criterio = get_object_or_404(RecruitingCriterio, pk=criterio_id)
+    criterio.is_active = not criterio.is_active
+    criterio.save(update_fields=["is_active", "updated_at"])
+    _ricalcola_tutti()
+
+    _audit(request, "RECRUITING_CRITERIO_TOGGLE", {
+        "criterio_id": criterio.pk, "codice": criterio.codice, "attivo": criterio.is_active,
+    })
+    stato = "attivato" if criterio.is_active else "disattivato"
+    messages.success(request, f"Criterio «{criterio.label}» {stato}. Punteggi ricalcolati.")
+    return redirect("anagrafica:recruiting_criteri")
+
+
+@login_required
+@require_POST
+def recruiting_criterio_delete(request, criterio_id: int):
+    """Elimina un criterio mai usato.
+
+    Se esistono già valutazioni la FK è PROTECT e la cancellazione va rifiutata:
+    cancellare un criterio votato falsificherebbe lo storico delle decisioni.
+    In quel caso la strada è disattivarlo.
+    """
+    if not _can_manage_recruiting(request):
+        return _denied(request, "configurare i criteri di valutazione")
+
+    criterio = get_object_or_404(RecruitingCriterio, pk=criterio_id)
+    label = criterio.label
+
+    if CandidatoPunteggio.objects.filter(criterio=criterio).exists():
+        messages.error(
+            request,
+            f"«{label}» è già stato usato in almeno una valutazione: non si può "
+            "eliminare senza falsare lo storico. Disattivalo per toglierlo dal punteggio.",
+        )
+        return redirect("anagrafica:recruiting_criteri")
+
+    try:
+        criterio.delete()
+    except ProtectedError:
+        messages.error(request, f"«{label}» è referenziato da valutazioni esistenti: disattivalo.")
+        return redirect("anagrafica:recruiting_criteri")
+
+    _ricalcola_tutti()
+    _audit(request, "RECRUITING_CRITERIO_ELIMINATO", {"criterio_id": criterio_id, "label": label})
+    messages.success(request, f"Criterio «{label}» eliminato.")
+    return redirect("anagrafica:recruiting_criteri")
+
+
+@login_required
+@require_POST
+def recruiting_criterio_move(request, criterio_id: int):
+    """Sposta un criterio su/giù nell'ordine di comparsa in scheda.
+
+    Scambia il campo ``ordine`` col vicino invece di riscriverlo a mano: l'ordine
+    non incide sul punteggio, solo su come si presenta la valutazione.
+    """
+    if not _can_manage_recruiting(request):
+        return _denied(request, "configurare i criteri di valutazione")
+
+    direzione = (request.POST.get("direzione") or "").strip()
+    if direzione not in ("su", "giu"):
+        messages.error(request, "Direzione di spostamento non valida.")
+        return redirect("anagrafica:recruiting_criteri")
+
+    criterio = get_object_or_404(RecruitingCriterio, pk=criterio_id)
+    ordinati = list(RecruitingCriterio.objects.all())
+    posizione = next((i for i, c in enumerate(ordinati) if c.pk == criterio.pk), None)
+    if posizione is None:
+        return redirect("anagrafica:recruiting_criteri")
+
+    vicino_pos = posizione - 1 if direzione == "su" else posizione + 1
+    if not (0 <= vicino_pos < len(ordinati)):
+        return redirect("anagrafica:recruiting_criteri")
+
+    vicino = ordinati[vicino_pos]
+    # Se i due condividono lo stesso `ordine` lo scambio non muoverebbe nulla:
+    # in quel caso si separano di un punto nella direzione richiesta.
+    if criterio.ordine == vicino.ordine:
+        criterio.ordine = vicino.ordine + (-1 if direzione == "su" else 1)
+    else:
+        criterio.ordine, vicino.ordine = vicino.ordine, criterio.ordine
+        vicino.save(update_fields=["ordine", "updated_at"])
+    criterio.save(update_fields=["ordine", "updated_at"])
+
+    _audit(request, "RECRUITING_CRITERIO_RIORDINATO", {
+        "criterio_id": criterio.pk, "direzione": direzione,
+    })
+    return redirect("anagrafica:recruiting_criteri")
