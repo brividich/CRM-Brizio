@@ -321,6 +321,181 @@ class GatingTests(TestCase):
         self.assertEqual(self.client.get(reverse("anagrafica:recruiting_list")).status_code, 302)
 
 
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class CriteriAzioniTests(TestCase):
+    """Le azioni per riga: modificare un criterio non deve richiedere di ridigitarlo."""
+
+    def setUp(self):
+        _ensure_anagrafica_table()
+        _ensure_utenti_table()
+        self.criteri = _crea_criteri()
+        self.admin = User.objects.create_superuser(
+            username="hr-crit", email="hr-crit@example.com", password="pass12345",
+        )
+        self.client.force_login(self.admin)
+
+    def test_tabella_espone_le_azioni_per_riga(self):
+        resp = self.client.get(reverse("anagrafica:recruiting_criteri"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "rcr-edit")
+        self.assertContains(resp, reverse(
+            "anagrafica:recruiting_criterio_toggle", args=[self.criteri["sintonia"].id],
+        ))
+        self.assertContains(resp, reverse(
+            "anagrafica:recruiting_criterio_move", args=[self.criteri["sintonia"].id],
+        ))
+
+    def test_peso_effettivo_e_normalizzato_sui_soli_attivi(self):
+        """Sintonia è al 20% nominale, ma con tutti i criteri attivi (100) resta 20%."""
+        resp = self.client.get(reverse("anagrafica:recruiting_criteri"))
+        righe = {r["criterio"].codice: r for r in resp.context["criteri"]}
+        self.assertEqual(righe["sintonia"]["peso_effettivo"], Decimal("20.0"))
+
+        # Disattivando «Competenze tecniche» (20) il totale attivo scende a 80:
+        # Sintonia pesa ora 20/80 = 25%.
+        self.client.post(reverse(
+            "anagrafica:recruiting_criterio_toggle", args=[self.criteri["competenze_tecniche"].id],
+        ))
+        resp = self.client.get(reverse("anagrafica:recruiting_criteri"))
+        righe = {r["criterio"].codice: r for r in resp.context["criteri"]}
+        self.assertEqual(righe["sintonia"]["peso_effettivo"], Decimal("25.0"))
+        self.assertIsNone(righe["competenze_tecniche"]["peso_effettivo"])
+
+    def test_toggle_ricalcola_i_punteggi(self):
+        candidato = Candidato.objects.create(cognome="Toggle", nome="T")
+        recruiting_service.salva_punteggi(candidato, {
+            self.criteri["sintonia"].id: 5,
+            self.criteri["vicinanza"].id: 1,
+        })
+        candidato.refresh_from_db()
+        self.assertNotEqual(candidato.punteggio_ponderato, Decimal("5.00"))
+
+        self.client.post(reverse(
+            "anagrafica:recruiting_criterio_toggle", args=[self.criteri["vicinanza"].id],
+        ))
+        candidato.refresh_from_db()
+        self.assertEqual(candidato.punteggio_ponderato, Decimal("5.00"))
+
+    def test_eliminazione_criterio_mai_usato(self):
+        criterio = RecruitingCriterio.objects.create(
+            codice="sperimentale", label="Sperimentale", peso_percentuale=Decimal("10"),
+        )
+        resp = self.client.post(reverse("anagrafica:recruiting_criterio_delete", args=[criterio.id]))
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(RecruitingCriterio.objects.filter(pk=criterio.pk).exists())
+
+    def test_criterio_gia_votato_non_si_elimina(self):
+        """Cancellare un criterio già usato falsificherebbe lo storico delle decisioni."""
+        candidato = Candidato.objects.create(cognome="Usato", nome="T")
+        recruiting_service.salva_punteggi(candidato, {self.criteri["sintonia"].id: 4})
+
+        self.client.post(reverse(
+            "anagrafica:recruiting_criterio_delete", args=[self.criteri["sintonia"].id],
+        ))
+        self.assertTrue(RecruitingCriterio.objects.filter(pk=self.criteri["sintonia"].pk).exists())
+
+    def test_riordino_scambia_la_posizione(self):
+        primo = self.criteri["sintonia"]        # ordine 10
+        secondo = self.criteri["vicinanza"]     # ordine 20
+        self.client.post(
+            reverse("anagrafica:recruiting_criterio_move", args=[secondo.id]), {"direzione": "su"},
+        )
+        primo.refresh_from_db()
+        secondo.refresh_from_db()
+        self.assertLess(secondo.ordine, primo.ordine)
+
+    def test_riordino_non_esce_dai_bordi(self):
+        primo = self.criteri["sintonia"]
+        ordine_prima = primo.ordine
+        self.client.post(
+            reverse("anagrafica:recruiting_criterio_move", args=[primo.id]), {"direzione": "su"},
+        )
+        primo.refresh_from_db()
+        self.assertEqual(primo.ordine, ordine_prima)
+
+    def test_azioni_negate_a_chi_non_gestisce(self):
+        utente = User.objects.create_user(username="hr-nogest", password="pass12345")
+        self.client.force_login(utente)
+        resp = self.client.post(reverse(
+            "anagrafica:recruiting_criterio_toggle", args=[self.criteri["sintonia"].id],
+        ))
+        self.assertEqual(resp.status_code, 302)
+        self.criteri["sintonia"].refresh_from_db()
+        self.assertTrue(self.criteri["sintonia"].is_active)
+
+
+class ImportXlsxTests(TestCase):
+    """Riconoscimento delle intestazioni e conversioni del comando di import."""
+
+    def test_intestazioni_riconosciute_con_sinonimi_e_accenti(self):
+        from anagrafica.management.commands.import_recruiting_xlsx import _match_colonna
+
+        self.assertEqual(_match_colonna("Data 1° colloquio"), "data_primo_colloquio")
+        self.assertEqual(_match_colonna("MANSIONE PRIMARIA CERCATA"), "mansione_cercata")
+        self.assertEqual(_match_colonna("Località"), "localita")
+        self.assertEqual(_match_colonna("Rischio di abbandono"), "rischio_abbandono")
+        self.assertEqual(_match_colonna("C.V."), "cv_esito")
+        self.assertIsNone(_match_colonna("Colonna inventata"))
+
+    def test_canale_non_riconosciuto_finisce_in_altro_senza_perdere_il_testo(self):
+        from anagrafica.management.commands.import_recruiting_xlsx import _canale
+
+        self.assertEqual(_canale("Autocandidatura")[0], Candidato.CANALE_AUTOCANDIDATURA)
+        self.assertEqual(_canale("Agenzia interinale")[0], Candidato.CANALE_AGENZIA)
+        codice, dettaglio = _canale("Fiera del lavoro 2026")
+        self.assertEqual(codice, Candidato.CANALE_ALTRO)
+        self.assertEqual(dettaglio, "Fiera del lavoro 2026")
+
+    def test_conversioni_di_valore(self):
+        from anagrafica.management.commands.import_recruiting_xlsx import (
+            _booleano, _cv_esito, _data, _giudizio, _intero,
+        )
+
+        self.assertEqual(_data("15/03/2026"), date(2026, 3, 15))
+        self.assertIsNone(_data("non una data"))
+        self.assertTrue(_booleano("SI"))
+        self.assertFalse(_booleano("no"))
+        self.assertIsNone(_booleano(""))
+        self.assertEqual(_cv_esito("OK"), Candidato.CV_OK)
+        self.assertEqual(_cv_esito("0"), Candidato.CV_KO)
+        self.assertEqual(_giudizio("POSITIVO"), Candidato.GIUDIZIO_POSITIVO)
+        self.assertEqual(_giudizio(""), "")
+        self.assertIsNone(_intero("9", 1, 5))   # voto fuori scala
+        self.assertEqual(_intero("4", 1, 5), 4)
+
+    def test_stato_dedotto_dai_dati(self):
+        from anagrafica.management.commands.import_recruiting_xlsx import _stato_iniziale
+
+        self.assertEqual(_stato_iniziale({"data_assunzione": date.today()}), Candidato.STATO_ASSUNTO)
+        self.assertEqual(
+            _stato_iniziale({"giudizio_finale": Candidato.GIUDIZIO_NEGATIVO}),
+            Candidato.STATO_SCARTATO,
+        )
+        self.assertEqual(
+            _stato_iniziale({"data_secondo_colloquio": date.today()}),
+            Candidato.STATO_COLLOQUIO_2,
+        )
+        self.assertEqual(_stato_iniziale({}), Candidato.STATO_NUOVO)
+
+    def test_le_colonne_di_punteggio_seguono_i_criteri_a_db(self):
+        """Un criterio rinominato da HR resta riconoscibile senza toccare il codice."""
+        from anagrafica.management.commands.import_recruiting_xlsx import Command
+
+        criteri = _crea_criteri()
+        criteri["sintonia"].label = "Sintonia con il team"
+        criteri["sintonia"].save(update_fields=["label"])
+
+        mappa, mappa_criteri, ignorate, sconosciute = Command()._analizza([
+            "Cognome", "Nome", "Sintonia con il team", "Vicinanza",
+            "Punteggio medio totale ponderato", "Colonna misteriosa",
+        ])
+        self.assertEqual(mappa["cognome"], 0)
+        etichette = {c.codice for c, _ in mappa_criteri}
+        self.assertEqual(etichette, {"sintonia", "vicinanza"})
+        self.assertIn("Punteggio medio totale ponderato", ignorate)
+        self.assertIn("Colonna misteriosa", sconosciute)
+
+
 class SubnavTests(TestCase):
     """Il modulo deve stare nel menu di Anagrafica, non solo nella pill «Vai a»."""
 
@@ -363,6 +538,9 @@ class SubnavTests(TestCase):
             "anagrafica:recruiting_step2",
             "anagrafica:recruiting_assumi",
             "anagrafica:recruiting_archivia",
+            "anagrafica:recruiting_criterio_toggle",
+            "anagrafica:recruiting_criterio_delete",
+            "anagrafica:recruiting_criterio_move",
         }
         self.assertEqual(dichiarate - azioni - attivi, set())
 

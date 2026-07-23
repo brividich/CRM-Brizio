@@ -20,7 +20,11 @@ logger = logging.getLogger(__name__)
 #   a "v7" con uno solo dei due filoni non ri-registrerebbe i binding dell'altro, e in
 #   ACL_STRICT_CANONICAL una route non mappata viene NEGATA a tutti i non-superuser (403).
 # Bump alla v9: permessi/binding canonici del Recruiting MOD. 05-01.
-_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v9"
+# Bump alla v10: binding delle azioni per riga sui criteri Recruiting
+#   (toggle/elimina/sposta). Chiave NUOVA: un ambiente già a v9 non
+#   ri-registrerebbe i binding nuovi e in ACL_STRICT_CANONICAL le tre route
+#   verrebbero negate a tutti i non-superuser.
+_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v10"
 
 # ── ACL v2 canonico — Skill Matrix MOD.187 ─────────────────────────────────────
 # Rende le route Skill Matrix governabili da /admin-portale/acl-canonico/ (e
@@ -136,6 +140,9 @@ _RECR_ROUTE_BINDINGS = {
     "anagrafica:recruiting_assumi": PERM_RECR_MANAGE,
     "anagrafica:recruiting_archivia": PERM_RECR_MANAGE,
     "anagrafica:recruiting_criteri": PERM_RECR_MANAGE,
+    "anagrafica:recruiting_criterio_toggle": PERM_RECR_MANAGE,
+    "anagrafica:recruiting_criterio_delete": PERM_RECR_MANAGE,
+    "anagrafica:recruiting_criterio_move": PERM_RECR_MANAGE,
 }
 
 # Grant di default (CREATE-ONLY: non sovrascrive le scelte fatte in ACL canonico).

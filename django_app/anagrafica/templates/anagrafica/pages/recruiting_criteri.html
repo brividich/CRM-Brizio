@@ -67,22 +67,80 @@
       <div class="fmd-tablewrap">
         <table class="fmd-table">
           <thead>
-            <tr><th>Criterio</th><th class="fmd-nowrap">Peso</th><th class="fmd-nowrap">Ordine</th><th>Stato</th><th>Rubrica</th></tr>
+            <tr>
+              <th>Criterio</th>
+              <th class="fmd-nowrap">Peso</th>
+              <th class="fmd-nowrap">Peso effettivo</th>
+              <th>Stato</th>
+              <th>Rubrica</th>
+              <th class="fmd-nowrap">Valutazioni</th>
+              <th class="fmd-r">Azioni</th>
+            </tr>
           </thead>
           <tbody>
-            {% for criterio in criteri %}
+            {% for riga in criteri %}
             <tr>
               <td>
-                <strong>{{ criterio.label }}</strong>
-                <div class="fmd-cell-sub"><span class="fmd-code">{{ criterio.codice }}</span>{% if criterio.descrizione %} · {{ criterio.descrizione }}{% endif %}</div>
+                <strong>{{ riga.criterio.label }}</strong>
+                <div class="fmd-cell-sub"><span class="fmd-code">{{ riga.criterio.codice }}</span>{% if riga.criterio.descrizione %} · {{ riga.criterio.descrizione }}{% endif %}</div>
               </td>
-              <td class="fmd-num">{{ criterio.peso_percentuale }}%</td>
-              <td class="fmd-num">{{ criterio.ordine }}</td>
-              <td>{% if criterio.is_active %}<span class="fmd-badge fmd-b-green">Attivo</span>{% else %}<span class="fmd-badge fmd-b-grey">Disattivato</span>{% endif %}</td>
-              <td class="fmd-muted">{% if criterio.rubrica %}Definita{% else %}<span class="fmd-badge fmd-b-amber">Da definire</span>{% endif %}</td>
+              <td class="fmd-num">{{ riga.criterio.peso_percentuale }}%</td>
+              <td class="fmd-num">
+                {% if riga.peso_effettivo is not None %}<strong>{{ riga.peso_effettivo }}%</strong>
+                {% else %}<span class="fmd-muted">—</span>{% endif %}
+              </td>
+              <td>{% if riga.criterio.is_active %}<span class="fmd-badge fmd-b-green">Attivo</span>{% else %}<span class="fmd-badge fmd-b-grey">Disattivato</span>{% endif %}</td>
+              <td class="fmd-muted">{% if riga.criterio.rubrica %}Definita{% else %}<span class="fmd-badge fmd-b-amber">Da definire</span>{% endif %}</td>
+              <td class="fmd-num fmd-muted">{{ riga.usi }}</td>
+              <td class="fmd-r">
+                <div class="rcr-rowacts">
+                  <button type="button" class="fmd-btn-mini rcr-edit"
+                          data-id="{{ riga.criterio.id }}"
+                          data-codice="{{ riga.criterio.codice }}"
+                          data-label="{{ riga.criterio.label }}"
+                          data-descrizione="{{ riga.criterio.descrizione }}"
+                          data-rubrica="{{ riga.criterio.rubrica }}"
+                          data-peso="{{ riga.criterio.peso_percentuale }}"
+                          data-ordine="{{ riga.criterio.ordine }}"
+                          data-attivo="{% if riga.criterio.is_active %}1{% else %}0{% endif %}">
+                    <svg class="fmd-ico"><use href="#i-edit"/></svg>Modifica
+                  </button>
+
+                  <form method="post" action="{% url 'anagrafica:recruiting_criterio_toggle' riga.criterio.id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="fmd-btn-mini">
+                      {% if riga.criterio.is_active %}Disattiva{% else %}Attiva{% endif %}
+                    </button>
+                  </form>
+
+                  <form method="post" action="{% url 'anagrafica:recruiting_criterio_move' riga.criterio.id %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="direzione" value="su">
+                    <button type="submit" class="fmd-btn-mini" title="Sposta su" aria-label="Sposta su"
+                            {% if riga.is_first %}disabled{% endif %}>↑</button>
+                  </form>
+                  <form method="post" action="{% url 'anagrafica:recruiting_criterio_move' riga.criterio.id %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="direzione" value="giu">
+                    <button type="submit" class="fmd-btn-mini" title="Sposta giù" aria-label="Sposta giù"
+                            {% if riga.is_last %}disabled{% endif %}>↓</button>
+                  </form>
+
+                  {% if riga.usi == 0 %}
+                  <form method="post" action="{% url 'anagrafica:recruiting_criterio_delete' riga.criterio.id %}"
+                        onsubmit="return confirm('Eliminare il criterio «{{ riga.criterio.label|escapejs }}»?');">
+                    {% csrf_token %}
+                    <button type="submit" class="fmd-btn-mini rcr-danger">Elimina</button>
+                  </form>
+                  {% else %}
+                  <button type="button" class="fmd-btn-mini" disabled
+                          title="Già usato in {{ riga.usi }} valutazioni: disattivalo invece di eliminarlo">Elimina</button>
+                  {% endif %}
+                </div>
+              </td>
             </tr>
             {% empty %}
-            <tr><td colspan="5"><span class="fmd-muted">Nessun criterio configurato.</span></td></tr>
+            <tr><td colspan="7"><span class="fmd-muted">Nessun criterio configurato.</span></td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -90,19 +148,26 @@
 
       <p class="hub-fsec-d rcr-lead">
         La somma dei pesi non deve necessariamente fare 100: il punteggio è normalizzato sulla somma
-        dei pesi effettivamente valorizzati, così resta sulla scala 1-5 anche con criteri disattivati
-        o valutazioni parziali.
+        dei pesi attivi, così resta sulla scala 1-5 anche con criteri disattivati o valutazioni
+        parziali. Il <strong>peso effettivo</strong> è quanto quel criterio pesa davvero una volta
+        normalizzato — è quello che sposta il punteggio, e cambia da solo quando ne attivi o
+        disattivi un altro.
       </p>
     </section>
 
-    <section class="fmd-panel fmd-block">
+    <section class="fmd-panel fmd-block" id="rcr-criterio-form">
       <form method="post" action="" novalidate>
         {% csrf_token %}
+        <input type="hidden" name="criterio_id" id="rcr-criterio-id" value="">
         <div class="hub-fsec">
-          <div class="hub-fsec-h"><svg class="fmd-ico"><use href="#i-plus"/></svg>Aggiungi o aggiorna un criterio</div>
+          <div class="hub-fsec-h">
+            <svg class="fmd-ico"><use href="#i-plus"/></svg>
+            <span id="rcr-form-titolo">Aggiungi un criterio</span>
+          </div>
           <p class="hub-fsec-d">
-            Inserendo un <em>codice</em> già esistente il criterio viene sostituito. Al salvataggio i
-            punteggi ponderati delle schede ancora aperte vengono ricalcolati.
+            Usa <strong>Modifica</strong> in tabella per cambiare un criterio esistente: il form si
+            precompila. Al salvataggio i punteggi ponderati delle schede ancora aperte vengono
+            ricalcolati.
           </p>
           {% if form.non_field_errors %}<div class="fmd-alert">{{ form.non_field_errors }}</div>{% endif %}
           <div class="hub-form-grid">
@@ -117,6 +182,7 @@
         </div>
         <div class="rcr-actions">
           <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-check"/></svg>Salva criterio</button>
+          <button type="button" class="fmd-btn fmd-btn-ghost" id="rcr-annulla-edit" hidden>Annulla modifica</button>
           <a href="{% url 'anagrafica:recruiting_list' %}" class="fmd-btn fmd-btn-ghost">Torna all'elenco</a>
         </div>
       </form>
@@ -138,4 +204,51 @@
 
   </div>{# .fmd-wrap #}
 </div>{# .fmd #}
+
+<script>
+(function () {
+  // «Modifica» precompila il form sottostante invece di aprire un modale: la
+  // rubrica è un testo lungo e si scrive meglio a piena larghezza. Stesso
+  // principio di openEdit in mansioni_list, senza il modale.
+  var form = document.getElementById('rcr-criterio-form');
+  if (!form) { return; }
+
+  var campoId = document.getElementById('rcr-criterio-id');
+  var titolo = document.getElementById('rcr-form-titolo');
+  var annulla = document.getElementById('rcr-annulla-edit');
+
+  function campo(nome) { return form.querySelector('[name="' + nome + '"]'); }
+
+  function riempi(dati) {
+    campoId.value = dati.id || '';
+    if (campo('codice')) { campo('codice').value = dati.codice || ''; }
+    if (campo('label')) { campo('label').value = dati.label || ''; }
+    if (campo('descrizione')) { campo('descrizione').value = dati.descrizione || ''; }
+    if (campo('rubrica')) { campo('rubrica').value = dati.rubrica || ''; }
+    if (campo('peso_percentuale')) { campo('peso_percentuale').value = dati.peso || ''; }
+    if (campo('ordine')) { campo('ordine').value = dati.ordine || ''; }
+    if (campo('is_active')) { campo('is_active').checked = dati.attivo === '1'; }
+
+    var inModifica = Boolean(dati.id);
+    titolo.textContent = inModifica ? 'Modifica «' + (dati.label || '') + '»' : 'Aggiungi un criterio';
+    annulla.hidden = !inModifica;
+    // Il codice identifica il criterio: in modifica si lascia in sola lettura
+    // per non trasformare per sbaglio una modifica in una creazione.
+    if (campo('codice')) { campo('codice').readOnly = inModifica; }
+  }
+
+  document.querySelectorAll('.rcr-edit').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      riempi(btn.dataset);
+      form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (campo('peso_percentuale')) { campo('peso_percentuale').focus(); }
+    });
+  });
+
+  annulla.addEventListener('click', function () {
+    form.querySelector('form').reset();
+    riempi({});
+  });
+})();
+</script>
 {% endblock %}
