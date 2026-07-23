@@ -50,6 +50,40 @@ def _dedup(seq: Iterable[Any]) -> list[Any]:
     return out
 
 
+def _corsi_per_categoria(categoria_ids: set[int]) -> dict[int, list[TrainingCourse]]:
+    """Corsi attivi raggruppati per categoria (per derivare i corsi dai fattori)."""
+    out: dict[int, list[TrainingCourse]] = {}
+    if categoria_ids:
+        for corso in (
+            TrainingCourse.objects
+            .filter(categoria_id__in=categoria_ids, is_active=True)
+            .select_related("piano")
+        ):
+            out.setdefault(corso.categoria_id, []).append(corso)
+    return out
+
+
+def _requisiti_da_fattori(fattori, corsi_per_categoria) -> dict[str, list]:
+    """DPI/visite/corsi/fattori derivati da una lista di FattoreRischio attivi.
+
+    Helper condiviso fra il resolver mansione (``_resolve``) e il resolver
+    dipendente (``requisiti_dipendente``): unica implementazione fattore→requisiti.
+    """
+    dpi, visite, corsi, out_fattori = [], [], [], []
+    for fattore in fattori:
+        if fattore is None or not fattore.is_active:
+            continue
+        out_fattori.append(fattore)
+        visite.extend(fattore.tipi_visita.all())
+        try:
+            dpi.extend(fattore.categorie_dpi.all())
+        except Exception:
+            pass
+        for categoria in fattore.categorie_corso.all():
+            corsi.extend(corsi_per_categoria.get(categoria.pk, []))
+    return {"dpi": dpi, "visite": visite, "corsi": corsi, "fattori": out_fattori}
+
+
 def _resolve(
     mansioni: list[Mansione],
     *,
@@ -72,19 +106,16 @@ def _resolve(
             pass
         visite.extend(mansione.visite_richieste.all())
 
-        # 2) requisiti ereditati dai fattori di rischio esposti
-        for esp in mansione.esposizioni_rischio.all():
-            if not esp.is_active or esp.fattore is None or not esp.fattore.is_active:
-                continue
-            fattore = esp.fattore
-            fattori.append(fattore)
-            visite.extend(fattore.tipi_visita.all())
-            try:
-                dpi.extend(fattore.categorie_dpi.all())
-            except Exception:
-                pass
-            for categoria in fattore.categorie_corso.all():
-                corsi.extend(corsi_per_categoria.get(categoria.pk, []))
+        # 2) requisiti ereditati dai fattori di rischio esposti (helper condiviso)
+        fattori_esposti = [
+            esp.fattore for esp in mansione.esposizioni_rischio.all()
+            if esp.is_active and esp.fattore and esp.fattore.is_active
+        ]
+        parziale = _requisiti_da_fattori(fattori_esposti, corsi_per_categoria)
+        dpi.extend(parziale["dpi"])
+        visite.extend(parziale["visite"])
+        corsi.extend(parziale["corsi"])
+        fattori.extend(parziale["fattori"])
 
         # 3) formazione obbligatoria diretta (corso o piano)
         for rule in rules_per_mansione.get(mansione.pk, []):
@@ -112,14 +143,7 @@ def _supplementi(mansioni: list[Mansione]) -> tuple[dict[int, list], dict[int, l
                 for categoria in esp.fattore.categorie_corso.all():
                     categoria_ids.add(categoria.pk)
 
-    corsi_per_categoria: dict[int, list[TrainingCourse]] = {}
-    if categoria_ids:
-        for corso in (
-            TrainingCourse.objects
-            .filter(categoria_id__in=categoria_ids, is_active=True)
-            .select_related("piano")
-        ):
-            corsi_per_categoria.setdefault(corso.categoria_id, []).append(corso)
+    corsi_per_categoria = _corsi_per_categoria(categoria_ids)
 
     mansione_ids = [m.pk for m in mansioni]
     rules_per_mansione: dict[int, list[TrainingRequirementRule]] = {}
@@ -176,3 +200,74 @@ def requisiti_per_nome_mansione(nome: str) -> dict[str, list]:
     return requisiti_per_nome([nome]).get(
         str(nome or "").strip().casefold(), requisiti_vuoti()
     )
+
+
+def _mansione_nome_legacy(legacy_id: int) -> str:
+    """Nome mansione dalla riga legacy anagrafica (campo stringa ``mansione``)."""
+    try:
+        from core.legacy_anagrafica import fetch_anagrafica_rows
+        for row in fetch_anagrafica_rows(deduplicate=True):
+            if int(row.get("id") or 0) == int(legacy_id):
+                return str(row.get("mansione") or "").strip()
+    except Exception:
+        pass
+    return ""
+
+
+def requisiti_dipendente(
+    legacy_id: int, *, mansione_nome: str | None = None, area_id: int | None = None
+) -> dict[str, list]:
+    """Requisiti effettivi di un dipendente ("mansione di rischio" a vista).
+
+    Unione di tre fonti, con dedup:
+      1) requisiti della **mansione lavorativa** (resolver esistente, per nome);
+      2) esposizioni di **area** (``EsposizioneRischio.area`` = area del dipendente);
+      3) esposizioni **dirette** (``EsposizioneRischio.legacy_anagrafica_id``).
+
+    ``mansione_nome`` / ``area_id`` opzionali: se assenti sono risolti dal DB
+    (``DipendenteAnagraficaAziendale`` per l'area; riga legacy per la mansione).
+    Passarli evita il fetch quando il chiamante li ha già. Ritorna
+    ``{dpi, visite, corsi, piani, fattori}``.
+    """
+    from ..models_rischi import EsposizioneRischio
+
+    if area_id is None or mansione_nome is None:
+        from ..models import DipendenteAnagraficaAziendale
+        az = DipendenteAnagraficaAziendale.objects.filter(
+            legacy_anagrafica_id=legacy_id
+        ).first()
+        if area_id is None and az is not None:
+            area_id = az.area_aziendale_id
+        if mansione_nome is None:
+            mansione_nome = _mansione_nome_legacy(legacy_id)
+
+    # Fonte 1: mansione lavorativa.
+    base = (
+        requisiti_per_nome_mansione(mansione_nome) if mansione_nome else requisiti_vuoti()
+    )
+
+    # Fonti 2+3: esposizioni di area + dirette al dipendente.
+    esposizioni = (
+        EsposizioneRischio.objects
+        .filter(is_active=True)
+        .select_related("fattore")
+        .prefetch_related(
+            "fattore__tipi_visita", "fattore__categorie_dpi", "fattore__categorie_corso",
+        )
+    )
+    q_area = esposizioni.filter(area_id=area_id) if area_id else esposizioni.none()
+    q_dir = esposizioni.filter(legacy_anagrafica_id=legacy_id)
+    fattori = [e.fattore for e in list(q_area) + list(q_dir)]
+
+    categoria_ids = {
+        c.pk for f in fattori if f and f.is_active for c in f.categorie_corso.all()
+    }
+    extra = _requisiti_da_fattori(fattori, _corsi_per_categoria(categoria_ids))
+
+    return {
+        "dpi": _dedup(base["dpi"] + extra["dpi"]),
+        "visite": _dedup(base["visite"] + extra["visite"]),
+        "corsi": _dedup(base["corsi"] + extra["corsi"]),
+        "piani": _dedup(base["piani"]),
+        "fattori": _dedup(base["fattori"] + extra["fattori"]),
+    }
