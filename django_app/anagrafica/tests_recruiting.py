@@ -427,6 +427,32 @@ class CriteriAzioniTests(TestCase):
 class ImportXlsxTests(TestCase):
     """Riconoscimento delle intestazioni e conversioni del comando di import."""
 
+    def test_rileva_riga_header_salta_la_testata(self):
+        """Il Mod. 05-01 ha una testata (logo/codice) sopra le intestazioni: la
+        riga giusta è quella che riconosce più colonne, non la prima."""
+        from anagrafica.management.commands.import_recruiting_xlsx import Command
+
+        _crea_criteri()
+        righe = [
+            ["NOVICROM S.r.l.", None, None, "Mod. 05-01"],          # 0 → testata
+            ["Valutazione Selezione Risorse", None, None, None],     # 1 → testata
+            [None, None, None, None],                                # 2 → vuota
+            ["Data 1° colloquio", "Mansione primaria cercata",       # 3 → intestazioni
+             "Sintonia", "Vicinanza"],
+            ["15/03/2026", "Operatore CNC", 5, 3],                   # 4 → dati
+        ]
+        idx, n = Command()._rileva_riga_header(righe)
+        self.assertEqual(idx, 3)   # 0-based → riga 4
+        self.assertGreaterEqual(n, 4)
+
+    def test_rileva_riga_header_nessuna_intestazione(self):
+        from anagrafica.management.commands.import_recruiting_xlsx import Command
+
+        _crea_criteri()
+        idx, n = Command()._rileva_riga_header([["foo", "bar"], ["baz", None]])
+        self.assertIsNone(idx)
+        self.assertEqual(n, 0)
+
     def test_intestazioni_riconosciute_con_sinonimi_e_accenti(self):
         from anagrafica.management.commands.import_recruiting_xlsx import _match_colonna
 

@@ -269,13 +269,25 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("percorso", help="Percorso del file .xlsx")
         parser.add_argument("--sheet", default=None, help="Nome del foglio (default: il primo)")
-        parser.add_argument("--header-row", type=int, default=1, help="Riga delle intestazioni (default: 1)")
+        parser.add_argument(
+            "--header-row", type=int, default=None,
+            help="Riga delle intestazioni (1-based). Se omesso, viene rilevata automaticamente "
+                 "(il Mod. 05-01 ha una testata sopra le intestazioni).",
+        )
         parser.add_argument("--limit", type=int, default=0, help="Importa solo le prime N righe dati")
         parser.add_argument("--dry-run", action="store_true", help="Non scrive nulla: mostra mappatura ed esito")
+        parser.add_argument(
+            "--scan", action="store_true",
+            help="Diagnostica: per le prime righe mostra quante colonne verrebbero riconosciute, "
+                 "così si individua la riga delle intestazioni. Non importa nulla.",
+        )
         parser.add_argument(
             "--allow-duplicates", action="store_true",
             help="Non saltare i candidati già presenti (cognome+nome+data 1° colloquio)",
         )
+
+    # Quante righe in cima esaminare per trovare le intestazioni.
+    RIGHE_SCANSIONE = 25
 
     def handle(self, *args, **opts):
         try:
@@ -292,11 +304,35 @@ class Command(BaseCommand):
         self.stdout.write(f"Foglio: {ws.title}")
 
         righe = list(ws.iter_rows(values_only=True))
-        indice_header = max(0, opts["header_row"] - 1)
-        if indice_header >= len(righe):
-            raise CommandError("Riga di intestazione oltre la fine del foglio.")
-        intestazioni = list(righe[indice_header])
+        if not righe:
+            raise CommandError("Foglio vuoto.")
 
+        # Modalità diagnostica: mostra dove sono le intestazioni e basta.
+        if opts["scan"]:
+            self._scan_intestazioni(righe)
+            wb.close()
+            return
+
+        if opts["header_row"] is not None:
+            indice_header = max(0, opts["header_row"] - 1)
+            if indice_header >= len(righe):
+                raise CommandError("Riga di intestazione oltre la fine del foglio.")
+        else:
+            # Auto-detect: il Mod. 05-01 ha una testata (logo/codice/revisione)
+            # sopra le intestazioni di colonna, che quindi NON sono sulla riga 1.
+            indice_header, riconosciute = self._rileva_riga_header(righe)
+            if indice_header is None:
+                raise CommandError(
+                    "Nessuna riga di intestazioni riconosciuta nelle prime "
+                    f"{self.RIGHE_SCANSIONE} righe. Controlla --sheet, oppure indica la riga "
+                    "a mano con --header-row N (usa --scan per individuarla)."
+                )
+            self.stdout.write(self.style.SUCCESS(
+                f"Intestazioni rilevate alla riga {indice_header + 1} "
+                f"({riconosciute} colonne riconosciute)."
+            ))
+
+        intestazioni = list(righe[indice_header])
         mappa, mappa_criteri, ignorate, sconosciute = self._analizza(intestazioni)
         self._stampa_mappatura(mappa, mappa_criteri, ignorate, sconosciute)
 
@@ -359,6 +395,53 @@ class Command(BaseCommand):
         ))
         if opts["dry_run"]:
             self.stdout.write("Nessuna scrittura eseguita. Rilancia senza --dry-run per importare.")
+
+    # -- rilevamento della riga di intestazioni ------------------------------
+
+    def _riconoscibili(self, intestazioni) -> int:
+        """Quante colonne (campi + criteri) verrebbero riconosciute da questa riga."""
+        mappa, mappa_criteri, _ignorate, _sconosciute = self._analizza(intestazioni)
+        return len(mappa) + len(mappa_criteri)
+
+    def _rileva_riga_header(self, righe):
+        """(indice_riga_migliore, n_colonne) tra le prime righe; (None, 0) se nessuna.
+
+        Sceglie la riga che massimizza le colonne riconosciute — così una testata
+        di documento (logo/codice/revisione) sopra le intestazioni non inganna.
+        A parità di conteggio vince la più in alto (la vera riga di intestazioni
+        precede i dati).
+        """
+        migliore_idx, migliore_n = None, 0
+        for idx in range(min(self.RIGHE_SCANSIONE, len(righe))):
+            n = self._riconoscibili(list(righe[idx]))
+            if n > migliore_n:
+                migliore_idx, migliore_n = idx, n
+        return migliore_idx, migliore_n
+
+    def _scan_intestazioni(self, righe):
+        """Diagnostica --scan: per ogni riga in cima, quante colonne riconoscerebbe."""
+        self.stdout.write(f"Scansione delle prime {self.RIGHE_SCANSIONE} righe:\n")
+        migliore_idx, migliore_n = None, 0
+        for idx in range(min(self.RIGHE_SCANSIONE, len(righe))):
+            n = self._riconoscibili(list(righe[idx]))
+            marca = ""
+            if n > migliore_n:
+                migliore_idx, migliore_n = idx, n
+            if n > 0:
+                marca = f"  <-- {n} colonne riconosciute"
+            self.stdout.write(f"  riga {idx + 1:>2}: {n} colonne{marca}")
+        self.stdout.write("")
+        if migliore_idx is None:
+            self.stdout.write(self.style.WARNING(
+                "Nessuna riga riconosciuta: le intestazioni potrebbero usare nomi molto diversi "
+                "dai sinonimi attesi, oppure stare oltre la finestra di scansione."
+            ))
+        else:
+            self.stdout.write(self.style.SUCCESS(
+                f"Riga di intestazioni più probabile: {migliore_idx + 1} "
+                f"({migliore_n} colonne). Importa con:  --header-row {migliore_idx + 1}  "
+                f"(oppure senza --header-row: viene rilevata da sola)."
+            ))
 
     # -- analisi intestazioni ------------------------------------------------
 
