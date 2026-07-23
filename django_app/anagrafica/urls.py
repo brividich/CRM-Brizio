@@ -429,6 +429,9 @@ urlpatterns = [
     # Pannello impostazioni — catalogo cataloghi e permessi del modulo anagrafica
     path("impostazioni/", views.impostazioni, name="impostazioni"),
     path("impostazioni/permessi/salva", views.impostazioni_permessi_save, name="impostazioni_permessi_save"),
+    # Permessi canonici ACL v2 del modulo (write-through su tabelle core)
+    path("impostazioni/permessi/acl/ruoli/salva", views.impostazioni_acl_role_grants_save, name="impostazioni_acl_role_grants_save"),
+    path("impostazioni/permessi/acl/utente/salva", views.impostazioni_acl_user_override_save, name="impostazioni_acl_user_override_save"),
     path("impostazioni/workflow/campi/nuovo", views.workflow_campo_create, name="workflow_campo_create"),
     path("impostazioni/workflow/campi/<int:campo_id>/salva", views.workflow_campo_update, name="workflow_campo_update"),
     path("impostazioni/workflow/campi/<int:campo_id>/elimina", views.workflow_campo_delete, name="workflow_campo_delete"),

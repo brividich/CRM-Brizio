@@ -4,8 +4,9 @@ Fonte unica: le card erano tre blocchi identici copiati, e ogni nuovo permesso
 ne aggiungeva un quarto. Ora la pagina cicla su `permessi_cards` costruita in
 `views.impostazioni`.
 
-Parametri include: card (dict con prefix/titolo/descrizione/perm), ruoli_acl,
-is_admin, ACCESSO_TUTTI, ACCESSO_ADMIN, ACCESSO_RUOLI.
+Parametri include: card (dict con prefix/titolo/descrizione/perm + supporta_utenti/
+utente_ids per l'allow-list per-utente), ruoli_acl, utenti_acl, is_admin,
+ACCESSO_TUTTI, ACCESSO_ADMIN, ACCESSO_RUOLI.
 {% endcomment %}
 <div class="imp-perm-card">
   <div class="imp-perm-title">{{ card.icona }} {{ card.titolo }}</div>
@@ -44,6 +45,25 @@ is_admin, ACCESSO_TUTTI, ACCESSO_ADMIN, ACCESSO_RUOLI.
       <div class="imp-empty">Nessun ruolo ACL disponibile.</div>
     {% endif %}
   </div>
+
+  {% if card.supporta_utenti %}
+  <div class="imp-perm-utenti-head">👤 Utenti sempre abilitati <span class="imp-perm-hint">(in aggiunta a admin/ruoli)</span></div>
+  {% if utenti_acl %}
+  <input type="text" class="imp-perm-search" placeholder="Filtra utenti…" data-perm-search="{{ card.prefix }}">
+  <div class="imp-perm-utenti" data-perm-utenti="{{ card.prefix }}">
+    {% for u in utenti_acl %}
+      <label data-uname="{{ u.nome|default:u.email|lower }}">
+        <input type="checkbox" name="{{ card.prefix }}_utente_ids" value="{{ u.id }}"
+               {% if u.id in card.utente_ids %}checked{% endif %}
+               {% if not is_admin %}disabled{% endif %}>
+        {{ u.nome|default:u.email }}
+      </label>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="imp-empty">Nessun utente attivo.</div>
+  {% endif %}
+  {% endif %}
 
   {% if card.nota %}<p class="imp-perm-note">{{ card.nota }}</p>{% endif %}
 </div>

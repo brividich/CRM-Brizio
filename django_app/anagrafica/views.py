@@ -1311,6 +1311,21 @@ STAT_WIDGETS = [
 _WIDGET_DEFAULT_ORDER = [w["id"] for w in STAT_WIDGETS]
 
 
+def _user_in_utente_allowlist(legacy_user, perm) -> bool:
+    """True se l'utente legacy è nella allow-list per-utente del permesso.
+
+    Concessione *additiva* (Feature per-utente interna al modulo): gli utenti
+    nominati vedono sempre la sezione, in aggiunta ad admin/ruoli. Non toglie mai
+    accesso a chi già lo ha.
+    """
+    if not legacy_user:
+        return False
+    uid = int(getattr(legacy_user, "id", 0) or 0)
+    if not uid:
+        return False
+    return uid in [int(u) for u in (getattr(perm, "utente_ids", None) or [])]
+
+
 def _can_view_stats(request) -> bool:
     """Verifica se l'utente corrente può visualizzare la sezione statistiche."""
     if request.user.is_superuser:
@@ -1319,6 +1334,8 @@ def _can_view_stats(request) -> bool:
     if perm.accesso == AnagraficaStatPermission.ACCESSO_TUTTI:
         return True
     legacy_user = get_legacy_user(request.user)
+    if _user_in_utente_allowlist(legacy_user, perm):
+        return True
     if is_legacy_admin(legacy_user):
         return True
     if perm.accesso == AnagraficaStatPermission.ACCESSO_ADMIN:
@@ -1337,6 +1354,8 @@ def _check_hr_permission(request) -> bool:
     if perm.accesso == AnagraficaHRPermission.ACCESSO_TUTTI:
         return True
     legacy_user = get_legacy_user(request.user)
+    if _user_in_utente_allowlist(legacy_user, perm):
+        return True
     if is_legacy_admin(legacy_user):
         if perm.accesso in (AnagraficaHRPermission.ACCESSO_ADMIN, AnagraficaHRPermission.ACCESSO_TUTTI):
             return True
@@ -1379,6 +1398,8 @@ def _can_view_visite_mediche(request) -> bool:
     if perm.accesso == AnagraficaVisiteMedichePermission.ACCESSO_TUTTI:
         return True
     legacy_user = get_legacy_user(request.user)
+    if _user_in_utente_allowlist(legacy_user, perm):
+        return True
     if is_legacy_admin(legacy_user):
         if perm.accesso in (
             AnagraficaVisiteMedichePermission.ACCESSO_ADMIN,
@@ -8620,7 +8641,7 @@ def impostazioni(request):
     # Una sola lista descrittiva: il template cicla su `permessi_cards` e
     # `impostazioni_permessi_save` salva sugli stessi prefissi. Aggiungere un
     # permesso significa aggiungere una riga qui, non un blocco di markup.
-    permessi_cards = [
+    _permessi_defs = [
         {
             "prefix": "stat",
             "icona": "📊",
@@ -8654,11 +8675,85 @@ def impostazioni(request):
             ),
         },
     ]
+    # L'allow-list per-utente (utente_ids) esiste su Stat/HR/Visite; RecruitingPermission
+    # è arrivato dopo e non la espone → la card non mostra la sezione utenti.
+    permessi_cards = []
+    for _d in _permessi_defs:
+        _perm = _d["perm"]
+        _d["supporta_utenti"] = hasattr(_perm, "utente_ids")
+        _d["utente_ids"] = list(getattr(_perm, "utente_ids", []) or [])
+        permessi_cards.append(_d)
     try:
         from core.legacy_models import Ruolo
         ruoli_acl = list(Ruolo.objects.order_by("nome"))
     except Exception:
         ruoli_acl = []
+    # Utenti legacy attivi: allow-list per-utente (singleton) + override canonici.
+    try:
+        utenti_acl = list(UtenteLegacy.objects.filter(attivo=True).order_by("nome"))
+    except Exception:
+        utenti_acl = []
+
+    # --- Permessi canonici ACL v2 del modulo (write-through su tabelle core) ---
+    # Vista/gestione inline dei permessi anagrafica governati da /admin-portale/
+    # acl-canonico/: si legge/scrive DIRETTAMENTE su PermissionDefinition/
+    # RolePermissionGrant/UserPermissionGrant → "la solita cosa", nessuna copia.
+    acl_perms: list = []
+    acl_role_matrix: list = []
+    acl_user_overrides: list = []
+    try:
+        from core.models import (
+            PermissionDefinition, RolePermissionGrant, UserPermissionGrant,
+        )
+        acl_perms = list(
+            PermissionDefinition.objects
+            .filter(module="anagrafica", is_active=True)
+            .order_by("code")
+        )
+        _perm_codes = [p.code for p in acl_perms]
+        if _perm_codes:
+            _grant_map = {
+                (int(g.legacy_role_id), g.permission_id): bool(g.enabled)
+                for g in RolePermissionGrant.objects.filter(permission_id__in=_perm_codes)
+            }
+            for _r in ruoli_acl:
+                acl_role_matrix.append({
+                    "role": _r,
+                    "cells": [
+                        {"code": p.code, "enabled": _grant_map.get((int(_r.id), p.code), False)}
+                        for p in acl_perms
+                    ],
+                })
+            _overrides = list(
+                UserPermissionGrant.objects
+                .filter(permission_id__in=_perm_codes)
+                .select_related("permission")
+                .order_by("legacy_user_id", "permission_id")
+            )
+            _uids = {int(o.legacy_user_id) for o in _overrides}
+            _users_by_id = (
+                {u.id: u for u in UtenteLegacy.objects.filter(id__in=_uids)} if _uids else {}
+            )
+            _grouped: dict[int, dict] = {}
+            for o in _overrides:
+                uid = int(o.legacy_user_id)
+                grp = _grouped.get(uid)
+                if grp is None:
+                    _u = _users_by_id.get(uid)
+                    _label = (
+                        (getattr(_u, "nome", "") or getattr(_u, "email", "")).strip()
+                        if _u else ""
+                    ) or f"utente #{uid}"
+                    grp = {"legacy_user_id": uid, "user_label": _label, "items": []}
+                    _grouped[uid] = grp
+                grp["items"].append({
+                    "code": o.permission_id,
+                    "perm_label": o.permission.label,
+                    "enabled": bool(o.enabled),
+                })
+            acl_user_overrides = list(_grouped.values())
+    except Exception:
+        acl_perms, acl_role_matrix, acl_user_overrides = [], [], []
 
     # --- Tipi visita medica ---
     tipi_visita = list(
@@ -8813,9 +8908,14 @@ def impostazioni(request):
         # Permessi
         "permessi_cards": permessi_cards,
         "ruoli_acl": ruoli_acl,
+        "utenti_acl": utenti_acl,
         "ACCESSO_TUTTI": AnagraficaStatPermission.ACCESSO_TUTTI,
         "ACCESSO_ADMIN": AnagraficaStatPermission.ACCESSO_ADMIN,
         "ACCESSO_RUOLI": AnagraficaStatPermission.ACCESSO_RUOLI,
+        # Permessi canonici ACL v2 del modulo (write-through)
+        "acl_perms": acl_perms,
+        "acl_role_matrix": acl_role_matrix,
+        "acl_user_overrides": acl_user_overrides,
         # Cartelle documenti
         "cartelle_documenti": cartelle_documenti,
         # Subnav navigazione
@@ -8833,7 +8933,11 @@ def impostazioni(request):
 @login_required
 @require_POST
 def impostazioni_permessi_save(request):
-    """Salvataggio combinato dei permessi statistiche e dati HR riservati."""
+    """Salvataggio combinato dei permessi statistiche, dati HR e visite mediche.
+
+    Oltre a modalità (TUTTI/ADMIN/RUOLI) e lista ruoli, salva la allow-list
+    per-utente ``utente_ids`` (concessione additiva, chiave = UtenteLegacy.id).
+    """
     ok, resp = _impostazioni_admin_check(request, "permessi")
     if not ok:
         return resp
@@ -8852,8 +8956,19 @@ def impostazioni_permessi_save(request):
         raw = request.POST.getlist(f"{prefix}_ruolo_ids")
         return [int(r) for r in raw if str(r).isdigit()]
 
+    def _parse_utenti(prefix: str) -> list[int]:
+        raw = request.POST.getlist(f"{prefix}_utente_ids")
+        # dedup preservando l'ordine
+        seen: dict[int, None] = {}
+        for u in raw:
+            if str(u).isdigit():
+                seen.setdefault(int(u), None)
+        return list(seen.keys())
+
     # Stessi prefissi delle card costruite in `impostazioni`: aggiungere un
-    # permesso di sezione significa aggiungere una riga là e una qui.
+    # permesso di sezione significa aggiungere una riga là e una qui. La
+    # allow-list per-utente (utente_ids) si salva solo sui permessi che espongono
+    # quel campo: RecruitingPermission è arrivato dopo e per ora non lo ha.
     for prefix, modello in (
         ("stat", AnagraficaStatPermission),
         ("hr", AnagraficaHRPermission),
@@ -8863,9 +8978,85 @@ def impostazioni_permessi_save(request):
         perm = modello.get_instance()
         perm.accesso = _parse_accesso(prefix)
         perm.ruolo_ids = _parse_ruoli(prefix)
+        if hasattr(perm, "utente_ids"):
+            perm.utente_ids = _parse_utenti(prefix)
         perm.save()
 
     messages.success(request, "Permessi salvati.")
+    return _redirect_impostazioni("permessi")
+
+
+@login_required
+@require_POST
+def impostazioni_acl_role_grants_save(request):
+    """Feature A — salva la matrice ruoli × permessi canonici del modulo.
+
+    Write-through su ``core.RolePermissionGrant`` (le STESSE tabelle di
+    ``/admin-portale/acl-canonico/``): editare da qui equivale a editare lì.
+    Scope = solo i permessi ``module=anagrafica``. Un checkbox per cella con
+    ``name="grant_<role_id>"`` e ``value=<permission_code>``.
+    """
+    ok, resp = _impostazioni_admin_check(request, "permessi")
+    if not ok:
+        return resp
+    from core.models import PermissionDefinition
+    from core.legacy_models import Ruolo
+    from core.acl_v2 import apply_role_grants
+
+    perms = list(PermissionDefinition.objects.filter(module="anagrafica", is_active=True))
+    perm_codes = {p.code for p in perms}
+    tot_created = tot_updated = 0
+    for rid in Ruolo.objects.values_list("id", flat=True):
+        selected = {c for c in request.POST.getlist(f"grant_{int(rid)}") if c in perm_codes}
+        created, updated = apply_role_grants(int(rid), perms, selected)
+        tot_created += created
+        tot_updated += updated
+    messages.success(
+        request,
+        f"Permessi canonici (ruoli) aggiornati: creati {tot_created}, modificati {tot_updated}.",
+    )
+    return _redirect_impostazioni("permessi")
+
+
+@login_required
+@require_POST
+def impostazioni_acl_user_override_save(request):
+    """Feature A — override per-utente sui permessi canonici del modulo.
+
+    Write-through su ``core.UserPermissionGrant``. Azioni:
+      - default: upsert override per l'utente scelto (``ov_allow`` / ``ov_deny``
+        per permesso; permessi non citati → override rimosso = eredita dal ruolo);
+      - ``action=delete``: rimuove tutti gli override anagrafica dell'utente.
+    """
+    ok, resp = _impostazioni_admin_check(request, "permessi")
+    if not ok:
+        return resp
+    from core.models import PermissionDefinition
+    from core.acl_v2 import apply_user_overrides
+
+    perms = list(PermissionDefinition.objects.filter(module="anagrafica", is_active=True))
+    perm_codes = {p.code for p in perms}
+    uid_raw = (request.POST.get("legacy_user_id") or "").strip()
+    if not uid_raw.isdigit():
+        messages.error(request, "Utente non valido.")
+        return _redirect_impostazioni("permessi")
+    uid = int(uid_raw)
+
+    if (request.POST.get("action") or "").strip() == "delete":
+        apply_user_overrides(uid, perms, [], [])
+        messages.success(request, f"Override utente #{uid} rimossi (eredita dai ruoli).")
+        return _redirect_impostazioni("permessi")
+
+    # Un radio per permesso: name="ov_<code>", value in inherit|allow|deny.
+    allow, deny = [], []
+    for p in perms:
+        choice = (request.POST.get(f"ov_{p.code}") or "inherit").strip()
+        if choice == "allow":
+            allow.append(p.code)
+        elif choice == "deny":
+            deny.append(p.code)
+    changed = apply_user_overrides(uid, perms, allow, deny)
+    messages.success(request, f"Override utente #{uid} salvati: {changed} permessi.")
     return _redirect_impostazioni("permessi")
 
 

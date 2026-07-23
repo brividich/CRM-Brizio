@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from urllib.parse import urlsplit
 
-from django.db import DatabaseError
+from django.db import DatabaseError, transaction
 from django.urls import NoReverseMatch, Resolver404, resolve, reverse
 
 from core.acl import (
@@ -51,6 +51,79 @@ def normalize_permission_code(raw_value: str) -> str:
     while ".." in value:
         value = value.replace("..", ".")
     return value.strip("._:-")
+
+
+def apply_role_grants(role_id, permissions, enabled_codes) -> tuple[int, int]:
+    """Allinea i RolePermissionGrant di un ruolo su un insieme (scope) di permessi.
+
+    Stessa semantica del ramo ``role_grants_save`` di
+    ``admin_portale.acl_v2_views.acl_canonico``, ma riusabile: per ogni permesso in
+    ``permissions`` (iterable di ``PermissionDefinition``) il grant viene
+    creato/aggiornato a ``enabled = (code in enabled_codes)``. I permessi fuori dallo
+    scope non vengono toccati. Scrive sulle stesse tabelle di ACL v2 canonico
+    (``legacy_role_id`` + ``permission_code``), quindi il dato è condiviso.
+    Ritorna ``(created, updated)``.
+    """
+    enabled_set = {normalize_permission_code(c) for c in (enabled_codes or [])}
+    perms = list(permissions)
+    existing = {
+        g.permission_id: g
+        for g in RolePermissionGrant.objects.filter(
+            legacy_role_id=int(role_id),
+            permission_id__in=[p.code for p in perms],
+        )
+    }
+    created = updated = 0
+    with transaction.atomic():
+        for p in perms:
+            desired = p.code in enabled_set
+            current = existing.get(p.code)
+            if current is None:
+                RolePermissionGrant.objects.create(
+                    legacy_role_id=int(role_id), permission_id=p.code, enabled=desired,
+                )
+                created += 1
+            elif bool(current.enabled) != desired:
+                current.enabled = desired
+                current.save(update_fields=["enabled", "updated_at"])
+                updated += 1
+    return created, updated
+
+
+def apply_user_overrides(user_id, permissions, allow_codes, deny_codes, note: str = "") -> int:
+    """Allinea gli UserPermissionGrant (override per-utente) su uno scope di permessi.
+
+    Stessa semantica del ramo ``user_overrides_bulk_save`` di ``acl_canonico``: per
+    ogni permesso in ``permissions`` → ``allow`` (enabled=True) / ``deny``
+    (enabled=False) / altrimenti l'override viene rimosso (eredita dal ruolo).
+    Scrive sulle stesse tabelle di ACL v2 canonico. Ritorna il numero di record
+    modificati.
+    """
+    allow = {normalize_permission_code(c) for c in (allow_codes or [])}
+    deny = {normalize_permission_code(c) for c in (deny_codes or [])}
+    perms = list(permissions)
+    changed = 0
+    with transaction.atomic():
+        for p in perms:
+            if p.code in allow:
+                UserPermissionGrant.objects.update_or_create(
+                    legacy_user_id=int(user_id), permission_id=p.code,
+                    defaults={"enabled": True, "note": note},
+                )
+                changed += 1
+            elif p.code in deny:
+                UserPermissionGrant.objects.update_or_create(
+                    legacy_user_id=int(user_id), permission_id=p.code,
+                    defaults={"enabled": False, "note": note},
+                )
+                changed += 1
+            else:
+                deleted, _ = UserPermissionGrant.objects.filter(
+                    legacy_user_id=int(user_id), permission_id=p.code,
+                ).delete()
+                if deleted:
+                    changed += 1
+    return changed
 
 
 def validate_permission_code(code: str) -> tuple[bool, str]:
