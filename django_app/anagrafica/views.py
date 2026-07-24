@@ -134,6 +134,14 @@ from .services.visite import stato_visite, ultime_visite_correnti_ids, visite_st
 from .services import conformita as conformita_service
 from .services import onboarding as onboarding_service
 from .services import mansionario as mansionario_service
+from .acl_bootstrap import (
+    PERM_FORMAZIONE_MANAGE,
+    PERM_FORMAZIONE_VIEW,
+    PERM_HR_VIEW,
+    PERM_SCHEDA_MANAGE,
+    PERM_STATISTICHE_VIEW,
+    PERM_VISITE_VIEW,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -332,8 +340,7 @@ def _offboarding_task_definitions(restituzioni_codes: list[str]) -> list[dict]:
 
 
 def _offboarding_is_admin(request) -> bool:
-    legacy_user = get_legacy_user(request.user)
-    return bool(request.user.is_superuser or is_legacy_admin(legacy_user))
+    return _is_anagrafica_admin(request)
 
 
 def _workflow_task_code(field_key: str) -> str:
@@ -881,7 +888,7 @@ def ex_dipendenti_list(request):
 def dipendente_create(request):
     ensure_anagrafica_schema()
     legacy_user = get_legacy_user(request.user)
-    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    is_admin = _is_anagrafica_admin(request)
     if not is_admin:
         messages.error(request, "Non hai i permessi per creare un dipendente.")
         return redirect("anagrafica:dipendenti_list")
@@ -1338,6 +1345,9 @@ def _can_view_stats(request) -> bool:
         return True
     if is_legacy_admin(legacy_user):
         return True
+    # ACL v2 canonico: governabile da /admin-portale/acl-canonico/ (additivo).
+    if _has_canonical_grant(request, PERM_STATISTICHE_VIEW, legacy_user=legacy_user):
+        return True
     if perm.accesso == AnagraficaStatPermission.ACCESSO_ADMIN:
         return False
     # ACCESSO_RUOLI: controlla se il ruolo dell'utente è nella lista
@@ -1360,6 +1370,9 @@ def _check_hr_permission(request) -> bool:
         if perm.accesso in (AnagraficaHRPermission.ACCESSO_ADMIN, AnagraficaHRPermission.ACCESSO_TUTTI):
             return True
         # ACCESSO_RUOLI: legacy admin controlla comunque la lista ruoli
+    # ACL v2 canonico: governabile da /admin-portale/acl-canonico/ (additivo).
+    if _has_canonical_grant(request, PERM_HR_VIEW, legacy_user=legacy_user):
+        return True
     if perm.accesso == AnagraficaHRPermission.ACCESSO_ADMIN:
         return False
     if legacy_user and legacy_user.ruolo_id is not None:
@@ -1386,6 +1399,42 @@ def _check_skm_permission(request, code: str) -> bool:
     ).get("allowed"))
 
 
+def _has_canonical_grant(request, code: str, legacy_user=None) -> bool:
+    """True se l'utente ha il permesso canonico ACL v2 ``code``.
+
+    `evaluate_permission_code_access` include già il bypass superuser e admin
+    legacy, quindi questo helper è sempre ADDITIVO rispetto ai cancelli storici:
+    concede, non toglie. Fail-closed se la valutazione esplode.
+    """
+    from core.acl_v2 import evaluate_permission_code_access
+    try:
+        if legacy_user is None:
+            legacy_user = get_legacy_user(request.user)
+    except Exception:
+        legacy_user = None
+    try:
+        return bool(evaluate_permission_code_access(
+            permission_code=code, legacy_user=legacy_user, django_user=request.user,
+        ).get("allowed"))
+    except Exception:
+        logger.exception("Valutazione ACL canonico fallita per %s", code)
+        return False
+
+
+def _is_anagrafica_admin(request) -> bool:
+    """Sostituisce il vecchio `is_superuser or is_legacy_admin(...)` in-line.
+
+    Cancello delle sezioni di gestione della scheda dipendente e dei cataloghi.
+    `is_legacy_admin` è vero solo per i ruoli il cui nome è in
+    PORTAL_ADMIN_ROLE_NAMES (default {"admin"}): senza il grant canonico
+    ``anagrafica.scheda.manage`` nessun altro ruolo poteva essere abilitato.
+    """
+    legacy_user = get_legacy_user(request.user)
+    if request.user.is_superuser or is_legacy_admin(legacy_user):
+        return True
+    return _has_canonical_grant(request, PERM_SCHEDA_MANAGE, legacy_user=legacy_user)
+
+
 def _can_view_visite_mediche(request) -> bool:
     """Verifica se l'utente può vedere/registrare le visite mediche.
 
@@ -1407,6 +1456,9 @@ def _can_view_visite_mediche(request) -> bool:
         ):
             return True
         # ACCESSO_RUOLI: legacy admin controlla comunque la lista ruoli
+    # ACL v2 canonico: governabile da /admin-portale/acl-canonico/ (additivo).
+    if _has_canonical_grant(request, PERM_VISITE_VIEW, legacy_user=legacy_user):
+        return True
     if perm.accesso == AnagraficaVisiteMedichePermission.ACCESSO_ADMIN:
         return False
     if legacy_user and legacy_user.ruolo_id is not None:
@@ -1431,6 +1483,9 @@ def _can_view_formazione(request) -> bool:
         ):
             return True
         # ACCESSO_RUOLI: legacy admin controlla comunque la lista ruoli
+    # ACL v2 canonico: governabile da /admin-portale/acl-canonico/ (additivo).
+    if _has_canonical_grant(request, PERM_FORMAZIONE_VIEW, legacy_user=legacy_user):
+        return True
     if perm.accesso_visualizzazione == AnagraficaFormazionePermission.ACCESSO_ADMIN:
         return False
     if legacy_user and legacy_user.ruolo_id is not None:
@@ -1709,7 +1764,7 @@ def dipendente_detail(request, legacy_id: int):
 
     can_stats = _can_view_stats(request)
     legacy_user = get_legacy_user(request.user)
-    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    is_admin = _is_anagrafica_admin(request)
     can_hr = _check_hr_permission(request)
 
     # Anagrafica civile e aziendale estese
@@ -3099,7 +3154,7 @@ def api_dipendente_widget_layout(request):
 @require_POST
 def dipendente_ruolo_assegna(request, legacy_id: int):
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Non hai i permessi per assegnare ruoli operativi.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
@@ -3121,7 +3176,7 @@ def dipendente_ruolo_assegna(request, legacy_id: int):
 @require_POST
 def dipendente_ruolo_rimuovi(request, legacy_id: int, assegnazione_id: int):
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Non hai i permessi per rimuovere ruoli operativi.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
@@ -3168,7 +3223,7 @@ def _riporta_a_valido(ruolo_id: int | None, riporta_a_id: int | None) -> bool:
 @login_required
 def ruoli_operativi_list(request):
     legacy_user = get_legacy_user(request.user)
-    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    is_admin = _is_anagrafica_admin(request)
 
     ruoli = (
         RuoloOperativo.objects
@@ -3195,7 +3250,7 @@ def ruoli_operativi_list(request):
 @require_POST
 def ruolo_operativo_create(request):
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Non hai i permessi per creare ruoli operativi.")
         return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
 
@@ -3229,7 +3284,7 @@ def ruolo_operativo_create(request):
 @require_POST
 def ruolo_operativo_edit(request, ruolo_id: int):
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Non hai i permessi per modificare ruoli operativi.")
         return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
 
@@ -3261,7 +3316,7 @@ def ruolo_operativo_edit(request, ruolo_id: int):
 @require_POST
 def ruolo_operativo_delete(request, ruolo_id: int):
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Non hai i permessi per eliminare ruoli operativi.")
         return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
 
@@ -3288,7 +3343,7 @@ def ruolo_operativo_delete(request, ruolo_id: int):
 @login_required
 def widget_permissions(request):
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Accesso riservato agli amministratori.")
         return redirect("anagrafica:index")
 
@@ -3395,7 +3450,7 @@ def _notifica_gap_idoneita(legacy_id: int, dip: dict, mansione_nome: str, user=N
 @require_POST
 def dipendente_mansione_set(request, legacy_id: int):
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Non hai i permessi per modificare la mansione.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
@@ -3444,7 +3499,7 @@ def dipendente_mansione_set(request, legacy_id: int):
 def dipendente_reparto_set(request, legacy_id: int):
     """Modifica il reparto di un dipendente con storicizzazione e auto-fill area/caporeparto."""
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Non hai i permessi per modificare il reparto.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
@@ -3494,7 +3549,7 @@ def dipendente_reparto_set(request, legacy_id: int):
 @require_POST
 def dipendente_username_set(request, legacy_id: int):
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Non hai i permessi per modificare lo username.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
@@ -3593,7 +3648,7 @@ def dipendente_username_set(request, legacy_id: int):
 @require_POST
 def dipendente_toggle_active(request, legacy_id: int):
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Non hai i permessi per modificare lo stato del dipendente.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
@@ -3909,7 +3964,7 @@ def dipendente_offboarding_chiudi(request, legacy_id: int, pratica_id: int):
 @require_POST
 def dipendente_rimetti_in_forza(request, legacy_id: int):
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Non hai i permessi per rimettere in forza il dipendente.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
@@ -4066,7 +4121,7 @@ def _upsert_dipendente_qualifica(legacy_id, tipo, data_conseguimento, data_scade
 @require_POST
 def dipendente_qualifica_add(request, legacy_id: int):
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Non hai i permessi per aggiungere qualifiche.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
@@ -4136,7 +4191,7 @@ def dipendente_qualifica_add(request, legacy_id: int):
 @require_POST
 def dipendente_qualifica_delete(request, legacy_id: int, q_id: int):
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Non hai i permessi per rimuovere qualifiche.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
@@ -4152,7 +4207,7 @@ def dipendente_qualifica_evidenza(request, legacy_id: int, q_id: int):
     """Serve l'evidenza documentale di una qualifica da storage privato (fuori
     webroot). ACL: admin legacy / superuser / HR (può contenere dati personali)."""
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user) or _check_hr_permission(request)):
+    if not (_is_anagrafica_admin(request) or _check_hr_permission(request)):
         return HttpResponse(status=403)
     q = get_object_or_404(DipendenteQualifica, pk=q_id, legacy_anagrafica_id=legacy_id)
     if not q.documento:
@@ -4181,7 +4236,7 @@ def dipendente_qualifica_storico_evidenza(request, legacy_id: int, q_id: int, st
     """Serve l'evidenza documentale storicizzata di un rinnovo (storage privato).
     ACL: admin legacy / superuser / HR (come l'evidenza corrente)."""
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user) or _check_hr_permission(request)):
+    if not (_is_anagrafica_admin(request) or _check_hr_permission(request)):
         return HttpResponse(status=403)
     from anagrafica.models import DipendenteQualificaStorico
     s = get_object_or_404(
@@ -4214,7 +4269,7 @@ def dipendente_qualifica_storico_evidenza(request, legacy_id: int, q_id: int, st
 def dipendente_qualifica_verifica(request, legacy_id: int, q_id: int):
     """Toggle del flag «verificata» (controllo HR dell'evidenza). ACL: admin/HR."""
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user) or _check_hr_permission(request)):
+    if not (_is_anagrafica_admin(request) or _check_hr_permission(request)):
         messages.error(request, "Permessi insufficienti per verificare la qualifica.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
     q = get_object_or_404(DipendenteQualifica, pk=q_id, legacy_anagrafica_id=legacy_id)
@@ -4242,7 +4297,7 @@ def dipendente_qualifica_verifica(request, legacy_id: int, q_id: int):
 @require_POST
 def dipendente_anagrafica_civile_save(request, legacy_id: int):
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Non hai i permessi per modificare l'anagrafica civile.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
@@ -4279,7 +4334,7 @@ def dipendente_anagrafica_civile_save(request, legacy_id: int):
 @require_POST
 def dipendente_anagrafica_aziendale_save(request, legacy_id: int):
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Non hai i permessi per modificare l'anagrafica aziendale.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
@@ -4437,7 +4492,7 @@ def _import_csv_retribuzioni(file_obj, user, file_nome: str = "") -> Importazion
 def retribuzioni_import(request):
     """Pagina importazione CSV retributivo (solo admin)."""
     legacy_user = get_legacy_user(request.user)
-    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    is_admin = _is_anagrafica_admin(request)
     if not is_admin:
         messages.error(request, "Accesso riservato agli amministratori.")
         return redirect("anagrafica:dipendenti_list")
@@ -4596,7 +4651,7 @@ def dipendente_retribuzioni(request, legacy_id: int):
         })
 
     legacy_user = get_legacy_user(request.user)
-    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    is_admin = _is_anagrafica_admin(request)
 
     return render(request, "anagrafica/pages/dipendente_retribuzioni.html", {
         "dip": dip,
@@ -4838,7 +4893,7 @@ def dipendente_retribuzione_voce_add(request, legacy_id: int):
     """Aggiunge una voce retributiva manuale (HR + admin)."""
     can_hr = _check_hr_permission(request)
     legacy_user = get_legacy_user(request.user)
-    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    is_admin = _is_anagrafica_admin(request)
     if not (can_hr or is_admin):
         messages.error(request, "Accesso riservato agli utenti HR.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
@@ -4888,7 +4943,7 @@ def dipendente_retribuzione_voce_edit(request, legacy_id: int, voce_id: int):
     """Modifica una voce retributiva (solo voci con flag manuale=True)."""
     can_hr = _check_hr_permission(request)
     legacy_user = get_legacy_user(request.user)
-    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    is_admin = _is_anagrafica_admin(request)
     if not (can_hr or is_admin):
         messages.error(request, "Accesso riservato agli utenti HR.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
@@ -4932,7 +4987,7 @@ def dipendente_retribuzione_voce_delete(request, legacy_id: int, voce_id: int):
     """Elimina una voce retributiva (solo voci con flag manuale=True)."""
     can_hr = _check_hr_permission(request)
     legacy_user = get_legacy_user(request.user)
-    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    is_admin = _is_anagrafica_admin(request)
     if not (can_hr or is_admin):
         messages.error(request, "Accesso riservato agli utenti HR.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
@@ -5098,7 +5153,7 @@ def _import_csv_contratti(file_obj, user) -> tuple[int, int, int]:
 def contratti_import(request):
     """Pagina importazione CSV contratti (solo admin)."""
     legacy_user = get_legacy_user(request.user)
-    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    is_admin = _is_anagrafica_admin(request)
     if not is_admin:
         messages.error(request, "Accesso riservato agli amministratori.")
         return redirect("anagrafica:dipendenti_list")
@@ -5260,7 +5315,7 @@ def dipendente_contratto_edit(request, legacy_id: int, contratto_id: int):
 @login_required
 def dipendenti_report(request):
     legacy_user = get_legacy_user(request.user)
-    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    is_admin = _is_anagrafica_admin(request)
     if not is_admin:
         messages.error(request, "Accesso riservato agli amministratori.")
         return redirect("anagrafica:dipendenti_list")
@@ -5440,7 +5495,7 @@ def export_view(request, key: str):
 @login_required
 def mansioni_list(request):
     legacy_user = get_legacy_user(request.user)
-    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    is_admin = _is_anagrafica_admin(request)
     can_view_requisiti = _can_view_formazione(request)
 
     filtro_rischio = (request.GET.get("rischio") or "").strip().upper()
@@ -5539,7 +5594,7 @@ def mansioni_list(request):
 @require_POST
 def mansione_create(request):
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Non hai i permessi per creare mansioni.")
         return _back_to_caller(request, "anagrafica:mansioni_list")
 
@@ -5571,7 +5626,7 @@ def mansione_create(request):
 @require_POST
 def mansione_edit(request, mansione_id: int):
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Non hai i permessi per modificare mansioni.")
         return _back_to_caller(request, "anagrafica:mansioni_list")
 
@@ -5597,7 +5652,7 @@ def mansione_edit(request, mansione_id: int):
 @require_POST
 def mansione_delete(request, mansione_id: int):
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Non hai i permessi per eliminare mansioni.")
         return _back_to_caller(request, "anagrafica:mansioni_list")
 
@@ -5747,7 +5802,7 @@ def _sync_aziendale_from_reparto(
 @login_required
 def aree_list(request):
     legacy_user = get_legacy_user(request.user)
-    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    is_admin = _is_anagrafica_admin(request)
     reparti = list(Reparto.objects.prefetch_related("aree_aziendali").order_by("nome"))
     aree_senza_reparto = list(AreaAziendale.objects.filter(reparto__isnull=True).order_by("nome"))
     dipendenti = _dipendenti_picker_rows()
@@ -5772,7 +5827,7 @@ def aree_list(request):
 @require_POST
 def area_aziendale_create(request):
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Non hai i permessi per creare aree aziendali.")
         return _back_to_caller(request, "anagrafica:aree_list")
     nome = (request.POST.get("nome") or "").strip()[:100]
@@ -5806,7 +5861,7 @@ def area_aziendale_create(request):
 @require_POST
 def area_aziendale_edit(request, area_id: int):
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Non hai i permessi per modificare aree aziendali.")
         return _back_to_caller(request, "anagrafica:aree_list")
     area = get_object_or_404(AreaAziendale, pk=area_id)
@@ -5835,7 +5890,7 @@ def area_aziendale_edit(request, area_id: int):
 @require_POST
 def area_aziendale_delete(request, area_id: int):
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Non hai i permessi per eliminare aree aziendali.")
         return _back_to_caller(request, "anagrafica:aree_list")
     area = get_object_or_404(AreaAziendale, pk=area_id)
@@ -5881,7 +5936,7 @@ def _sync_reparto_capo_mapping(rep) -> None:
 @require_POST
 def area_create(request):
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Non hai i permessi per creare reparti.")
         return _back_to_caller(request, "anagrafica:aree_list")
     nome = (request.POST.get("nome") or "").strip()[:100]
@@ -5910,7 +5965,7 @@ def area_create(request):
 @require_POST
 def area_edit(request, area_id: int):
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Non hai i permessi per modificare reparti.")
         return _back_to_caller(request, "anagrafica:aree_list")
     rep = get_object_or_404(Reparto, pk=area_id)
@@ -5936,7 +5991,7 @@ def area_edit(request, area_id: int):
 @require_POST
 def area_delete(request, area_id: int):
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Non hai i permessi per eliminare reparti.")
         return _back_to_caller(request, "anagrafica:aree_list")
     rep = get_object_or_404(Reparto, pk=area_id)
@@ -5968,7 +6023,7 @@ def ruoli_aziendali_list(request):
 @require_POST
 def ruolo_aziendale_create(request):
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Non hai i permessi per creare ruoli aziendali.")
         return _back_to_caller(request, "anagrafica:ruoli_aziendali_list")
     nome = (request.POST.get("nome") or "").strip()[:200]
@@ -5990,7 +6045,7 @@ def ruolo_aziendale_create(request):
 @require_POST
 def ruolo_aziendale_edit(request, ruolo_id: int):
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Non hai i permessi per modificare ruoli aziendali.")
         return _back_to_caller(request, "anagrafica:ruoli_aziendali_list")
     ruolo = get_object_or_404(RuoloAziendale, pk=ruolo_id)
@@ -6010,7 +6065,7 @@ def ruolo_aziendale_edit(request, ruolo_id: int):
 @require_POST
 def ruolo_aziendale_delete(request, ruolo_id: int):
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Non hai i permessi per eliminare ruoli aziendali.")
         return _back_to_caller(request, "anagrafica:ruoli_aziendali_list")
     ruolo = get_object_or_404(RuoloAziendale, pk=ruolo_id)
@@ -6030,7 +6085,7 @@ def qualifiche_list(request):
     from django.utils import timezone as tz
 
     legacy_user = get_legacy_user(request.user)
-    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    is_admin = _is_anagrafica_admin(request)
 
     # Catalogo unico, viste filtrate per categoria: la pagina è la "casa" delle
     # qualifiche (modulo Formazione) ma può aprirsi già filtrata (es. Salute e
@@ -6195,7 +6250,7 @@ def qualifiche_dashboard(request):
     oggi = _tz.localdate()
     soglia_30 = oggi + timedelta(days=30)
     soglia_60 = oggi + timedelta(days=60)
-    is_admin = request.user.is_superuser or is_legacy_admin(get_legacy_user(request.user))
+    is_admin = _is_anagrafica_admin(request)
 
     tipi_attivi = TipoQualifica.objects.filter(is_active=True).count()
 
@@ -6564,7 +6619,7 @@ def tipo_qualifica_detail(request, tipo_id: int):
 @require_POST
 def tipo_qualifica_create(request):
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Non hai i permessi per creare tipi di qualifica.")
         return _back_to_caller(request, "anagrafica:qualifiche_list")
 
@@ -6599,7 +6654,7 @@ def tipo_qualifica_create(request):
 @require_POST
 def tipo_qualifica_edit(request, tipo_id: int):
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Non hai i permessi per modificare tipi di qualifica.")
         return _back_to_caller(request, "anagrafica:qualifiche_list")
 
@@ -6629,7 +6684,7 @@ def tipo_qualifica_edit(request, tipo_id: int):
 @require_POST
 def tipo_qualifica_delete(request, tipo_id: int):
     legacy_user = get_legacy_user(request.user)
-    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+    if not _is_anagrafica_admin(request):
         messages.error(request, "Non hai i permessi per eliminare tipi di qualifica.")
         return _back_to_caller(request, "anagrafica:qualifiche_list")
 
@@ -6656,7 +6711,7 @@ def tipo_qualifica_delete(request, tipo_id: int):
 # ---------------------------------------------------------------------------
 
 def _qualifiche_can_edit(request) -> bool:
-    return request.user.is_superuser or is_legacy_admin(get_legacy_user(request.user))
+    return _is_anagrafica_admin(request)
 
 
 def _build_candidati_qualifica(tipo, oggi) -> list[dict]:
@@ -6945,7 +7000,7 @@ def _back_to_caller(request, fallback_view_name: str):
 def _impostazioni_admin_check(request, tab: str | None = None):
     """Restituisce (is_admin, redirect_response_or_None)."""
     legacy_user = get_legacy_user(request.user)
-    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    is_admin = _is_anagrafica_admin(request)
     if not is_admin:
         messages.error(request, "Permessi insufficienti.")
         return False, _redirect_impostazioni(tab)
@@ -7779,7 +7834,7 @@ def _import_xlsx_cedolini(file_obj, user, file_nome: str) -> ImportazioneCedolin
 def cedolini_import(request):
     """Pagina importazione XLSX cedolini (solo admin)."""
     legacy_user = get_legacy_user(request.user)
-    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    is_admin = _is_anagrafica_admin(request)
     if not is_admin:
         messages.error(request, "Accesso riservato agli amministratori.")
         return redirect("anagrafica:dipendenti_list")
@@ -7822,7 +7877,7 @@ def ratei_list(request):
     """Lista aggregata saldi cedolini con filtro per periodo e dipendente (solo HR)."""
     from core.legacy_models import UtenteLegacy
     legacy_user = get_legacy_user(request.user)
-    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    is_admin = _is_anagrafica_admin(request)
     can_hr = _check_hr_permission(request)
 
     if not can_hr:
@@ -8432,7 +8487,7 @@ def retribuzioni_globale(request):
         return redirect("anagrafica:index")
 
     legacy_user = get_legacy_user(request.user)
-    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    is_admin = _is_anagrafica_admin(request)
 
     ctx = _retribuzioni_globale_context(request)
 
@@ -8560,7 +8615,7 @@ def impostazioni(request):
     from django.utils import timezone as tz
 
     legacy_user = get_legacy_user(request.user)
-    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    is_admin = _is_anagrafica_admin(request)
 
     active_tab = (request.GET.get("tab") or "mansioni").strip().lower()
 
@@ -9485,7 +9540,7 @@ def dpi_taglia_delete(request, pk: int):
 def _ensure_admin(request):
     """Ritorna (legacy_user, is_admin). Riusa la convenzione del modulo."""
     legacy_user = get_legacy_user(request.user)
-    return legacy_user, (request.user.is_superuser or is_legacy_admin(legacy_user))
+    return legacy_user, _is_anagrafica_admin(request)
 
 
 def _salva_referto_visita(request, visita: VisitaMedica, referto_file) -> DocumentoDipendente:
@@ -9627,7 +9682,7 @@ def documento_dipendente_download(request, doc_id: int):
             return HttpResponse(status=403)
     else:
         legacy_user = get_legacy_user(request.user)
-        if not (request.user.is_superuser or is_legacy_admin(legacy_user) or _check_hr_permission(request)):
+        if not (_is_anagrafica_admin(request) or _check_hr_permission(request)):
             return HttpResponse(status=403)
 
     if not doc.file:
@@ -9804,7 +9859,7 @@ def documento_dipendente_upload(request, legacy_id: int):
 def documenti_list(request):
     """Lista di tutti i documenti caricati manualmente, filtrabile per dipendente/cartella."""
     legacy_user = get_legacy_user(request.user)
-    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    is_admin = _is_anagrafica_admin(request)
     hr_ok = _check_hr_permission(request)
 
     if not (is_admin or hr_ok):
@@ -9873,7 +9928,7 @@ def documento_sposta_cartella(request, doc_id: int):
 
     Gestione del container: stessa autorizzazione dell'archivio (HR/admin)."""
     legacy_user = get_legacy_user(request.user)
-    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    is_admin = _is_anagrafica_admin(request)
     if not (is_admin or _check_hr_permission(request)):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("anagrafica:documenti_list")
@@ -11248,6 +11303,9 @@ def _can_edit_formazione(request) -> bool:
             AnagraficaFormazionePermission.ACCESSO_ADMIN,
             AnagraficaFormazionePermission.ACCESSO_TUTTI,
         )
+    # ACL v2 canonico: governabile da /admin-portale/acl-canonico/ (additivo).
+    if _has_canonical_grant(request, PERM_FORMAZIONE_MANAGE, legacy_user=legacy_user):
+        return True
     if perm.accesso_modifica == AnagraficaFormazionePermission.ACCESSO_ADMIN:
         return False
     if legacy_user and legacy_user.ruolo_id is not None:

@@ -802,6 +802,30 @@ La navigazione segue la stessa logica: se una `NavigationItem` espone
 unmapped. Gli override `UserNavigationOverride` sono hide-only: possono
 nascondere una voce gia consentita, non mostrarne una negata.
 
+### Permessi di sezione (gate in-view, senza route binding)
+
+Alcune sezioni non sono una rotta a sé ma un **blocco dentro una pagina** (i dati
+HR riservati nella scheda dipendente, le visite mediche, la formazione, i blocchi
+di gestione). Per queste il permesso canonico esiste ed è concedibile per ruolo da
+`/admin-portale/acl-canonico/`, ma **non ha un `RoutePermissionBinding`**: il
+controllo resta dentro la view. È deliberato — con `ACL_STRICT_CANONICAL=True` un
+binding di route negherebbe l'intera pagina a chi non ha il grant, invece di
+limitarsi a nascondere la sezione.
+
+Permessi di sezione dell'anagrafica:
+
+| Permission code | Cosa apre |
+|---|---|
+| `anagrafica.hr.view` | Dati HR riservati (IBAN, codice fiscale, contratti, retribuzioni) |
+| `anagrafica.visite.view` | Visite mediche e idoneità (dato sanitario) |
+| `anagrafica.formazione.view` / `.manage` | Formazione: consultazione / gestione catalogo |
+| `anagrafica.scheda.manage` | Sezioni di gestione della scheda dipendente e cataloghi anagrafica |
+| `anagrafica.statistiche.view` | Widget statistiche della scheda dipendente (ticket, anomalie, assenze, DPI) |
+
+Sono **additivi**: superuser e admin legacy passano come prima, e i grant nascono
+spenti per tutti gli altri ruoli — dati personali e sanitari si concedono
+esplicitamente, mai per default.
+
 Il report `/admin-portale/acl-route-coverage/` usa il binding canonico effettivo
 (route o path piu specifico) e distingue le route protette da
 `@legacy_admin_required` con il flag `Admin bypass`, senza contarle come
