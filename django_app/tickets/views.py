@@ -28,6 +28,7 @@ from reportlab.lib.enums import TA_LEFT
 
 from core.pdf import PdfTheme, draw_canvas_footer, draw_canvas_header
 
+from core.acl_v2 import request_has_permission_code
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 from core.audit import log_action
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
@@ -1324,10 +1325,26 @@ def ticket_gestione_detail(request, pk: int):
 # Impostazioni admin
 # ---------------------------------------------------------------------------
 
+def _can_manage_settings(request) -> bool:
+    """Gate dell'area impostazioni tickets.
+
+    Additivo: superuser, admin legacy o il grant canonico
+    `tickets.impostazioni.manage` (concedibile da /admin-portale/acl-canonico/,
+    fail-closed). Prima era `is_legacy_admin` puro — vero solo per il ruolo
+    "admin" e senza bypass superuser.
+    """
+    if getattr(request.user, "is_superuser", False):
+        return True
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    if legacy_user and is_legacy_admin(legacy_user):
+        return True
+    from .acl_bootstrap import PERM_IMPOSTAZIONI_MANAGE
+    return request_has_permission_code(request, PERM_IMPOSTAZIONI_MANAGE)
+
+
 @login_required
 def ticket_impostazioni(request):
-    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
-    if not (legacy_user and is_legacy_admin(legacy_user)):
+    if not _can_manage_settings(request):
         return render(request, "core/pages/forbidden.html", status=403)
 
     if request.method == "POST":
@@ -1938,8 +1955,7 @@ def api_assets_autocomplete(request):
 @require_POST
 @login_required
 def api_impostazioni(request):
-    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
-    if not (legacy_user and is_legacy_admin(legacy_user)):
+    if not _can_manage_settings(request):
         return _json_err("Non autorizzato", 403)
 
     try:
@@ -1978,8 +1994,7 @@ def api_impostazioni(request):
 
 @login_required
 def api_cerca_utenti(request):
-    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
-    if not (legacy_user and is_legacy_admin(legacy_user)):
+    if not _can_manage_settings(request):
         return _json_err("Non autorizzato", 403)
 
     q = (request.GET.get("q") or "").strip()
@@ -2037,8 +2052,7 @@ def api_cerca_utenti(request):
 @require_POST
 @login_required
 def api_test_sp(request):
-    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
-    if not (legacy_user and is_legacy_admin(legacy_user)):
+    if not _can_manage_settings(request):
         return _json_err("Non autorizzato", 403)
 
     try:
@@ -2168,8 +2182,7 @@ def _resolve_asset_by_name(name: str, all_assets: list) -> "object | None":
 def api_import_csv(request):
     from django.utils.timezone import make_aware
 
-    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
-    if not (legacy_user and is_legacy_admin(legacy_user)):
+    if not _can_manage_settings(request):
         return _json_err("Non autorizzato", 403)
 
     csv_file = request.FILES.get("csv_file")

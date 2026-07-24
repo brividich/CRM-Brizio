@@ -844,6 +844,23 @@ governabile dal modulo permessi**: `is_legacy_admin` è vero solo per i ruoli il
 cui nome è in `PORTAL_ADMIN_ROLE_NAMES` (default `{"admin"}`, non valorizzato).
 Se un ruolo va abilitato da UI, serve un permission code.
 
+Permessi di gestione di modulo cablati con questo helper:
+
+| Permission code | Gate | Cosa apre |
+|---|---|---|
+| `attrezzature.attrezzature.delete` | `_can_delete_attrezzature` | Eliminazione attrezzature |
+| `diario_preposto.impostazioni.manage` | `_can_manage_settings` | Impostazioni Diario Preposto |
+| `ai_assistant.knowledge.manage` | (view knowledge) | Gestione knowledge base AI |
+| `dpi.gestione.manage` | `_is_gestore` | Richieste/consegne/storico/impostazioni DPI |
+| `rentri.registro.manage` | `_can_manage_rentri` | Scrittura sul registro RENTRI |
+| `rilevazione_incidenti.impostazioni.manage` | `_can_manage_settings` | Impostazioni Rilevazione Incidenti |
+| `anomalie.configurazione.manage` | `_can_manage_anomalie_config` | Configurazione anomalie (campi, notifiche, sync) |
+| `tickets.impostazioni.manage` | `_can_manage_settings` | Impostazioni tickets (tipi, ACL, SharePoint, import) |
+
+Restano correttamente **admin-only** (nessun permission code, è l'intento) le
+utility genuinamente amministrative: impersonation, reset onboarding, gestione
+account.
+
 Il report `/admin-portale/acl-route-coverage/` usa il binding canonico effettivo
 (route o path piu specifico) e distingue le route protette da
 `@legacy_admin_required` con il flag `Admin bypass`, senza contarle come

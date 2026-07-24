@@ -24,6 +24,7 @@ from django.views.decorators.http import require_POST
 from config.env_config import get_first_env_value, update_env_file_values
 from core.csv_export import CSV_CONTENT_TYPE, bom_first, safe_csv_writer
 from core.acl import user_can_modulo_action
+from core.acl_v2 import request_has_permission_code
 from core.audit import log_action
 from core.upload_mime import (
     UploadMimeValidationError,
@@ -1344,9 +1345,12 @@ def _can_manage_anomalie_config(request) -> bool:
     if bool(getattr(request.user, "is_superuser", False)):
         return True
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
-    if not legacy_user:
-        return False
-    return bool(is_legacy_admin(legacy_user))
+    if legacy_user and is_legacy_admin(legacy_user):
+        return True
+    # ACL v2 canonico: concedibile per ruolo da /admin-portale/acl-canonico/
+    # (additivo, fail-closed).
+    from .acl_bootstrap import PERM_ANOMALIE_CONFIG
+    return request_has_permission_code(request, PERM_ANOMALIE_CONFIG)
 
 
 def _anomalie_ruoli_anagrafica_url() -> str:
