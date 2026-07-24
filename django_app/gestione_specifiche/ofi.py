@@ -97,6 +97,11 @@ def crea_ofi_da_riga(riga: RigaMOD133, *, attore=None, ofi_numero: int | None = 
     cfg = getattr(settings, "GESTIONE_SPECIFICHE", {}) or {}
     modo = cfg.get("APPROVAZIONE_DOC_CN_MODE", C.APPROV_CAR_FLOW)
 
+    # Voce del registro OFI centralizzato (4.2): una per riga (idempotente),
+    # condivisa da tutte le azioni-documento della riga.
+    from . import registro_ofi as _reg
+    voce_registro = _reg.registro_da_riga(riga, numero=numero)
+
     spec = riga.mod133.specifica
     azioni: list[AzioneOFI] = []
     for doc in documenti:
@@ -105,6 +110,7 @@ def crea_ofi_da_riga(riga: RigaMOD133, *, attore=None, ofi_numero: int | None = 
             defaults={
                 "ofi": numero, "tipo_azione": "modifica_documento_cn",
                 "stato": C.AZIONE_OFI_BOZZA, "modo_approvazione": modo,
+                "registro": voce_registro,
             },
         )
         azioni.append(azione)

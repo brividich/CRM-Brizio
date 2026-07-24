@@ -13,6 +13,8 @@ from datetime import date
 
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
@@ -368,6 +370,109 @@ class RigaMOD133Documento(models.Model):
         return self.codice_documento
 
 
+class RegistroOFI(models.Model):
+    """Registro OFI/NC centralizzato con ciclo PDCA (allineato al MOD.174, 4.2).
+
+    Hub **trasversale multi-modulo** delle Opportunità di Miglioramento / Non
+    Conformità: numero di registro, normative di riferimento, processo/area,
+    descrizione, ciclo PLAN-DO-CHECK-ACT, priorità, proprietario e owner di
+    processo, scadenza con reminder. Le righe MOD.133 con impatto (4.1)
+    confluiscono qui creando la voce; le ``AzioneOFI`` vi si collegano via FK.
+    Aggancio da altri moduli via riferimento generico (``content_type``/``object_id``).
+    """
+
+    TIPO_OFI = "OFI"
+    TIPO_NC = "NC"
+    TIPO_CHOICES = [
+        (TIPO_OFI, "Opportunità di miglioramento"),
+        (TIPO_NC, "Non conformità"),
+    ]
+
+    FASE_PLAN = "PLAN"
+    FASE_DO = "DO"
+    FASE_CHECK = "CHECK"
+    FASE_ACT = "ACT"
+    FASE_CHIUSO = "CHIUSO"
+    FASE_CHOICES = [
+        (FASE_PLAN, "Plan (pianifica)"),
+        (FASE_DO, "Do (attua)"),
+        (FASE_CHECK, "Check (verifica)"),
+        (FASE_ACT, "Act (consolida)"),
+        (FASE_CHIUSO, "Chiuso"),
+    ]
+
+    PRIORITA_BASSA = "BASSA"
+    PRIORITA_MEDIA = "MEDIA"
+    PRIORITA_ALTA = "ALTA"
+    PRIORITA_CHOICES = [
+        (PRIORITA_BASSA, "Bassa"),
+        (PRIORITA_MEDIA, "Media"),
+        (PRIORITA_ALTA, "Alta"),
+    ]
+
+    numero = models.PositiveIntegerField("N. OFI", unique=True, db_index=True)
+    ref = models.CharField("REF", max_length=100, blank=True, default="")
+    data_apertura = models.DateField("Data apertura")
+    tipo = models.CharField(max_length=4, choices=TIPO_CHOICES, default=TIPO_OFI)
+
+    # Normative di riferimento (MOD.174).
+    norma_iso27001 = models.BooleanField("ISO 27001", default=False)
+    norma_iso45001 = models.BooleanField("ISO 45001", default=False)
+    norma_en9100 = models.BooleanField("EN 9100", default=False)
+    rif_norma = models.CharField("Rif. norma/paragrafo", max_length=200, blank=True, default="")
+
+    processo = models.CharField("Processo/area", max_length=200, blank=True, default="")
+    opportunita = models.TextField("Opportunità / descrizione", blank=True, default="")
+
+    # Ciclo PDCA.
+    fase = models.CharField(max_length=8, choices=FASE_CHOICES, default=FASE_PLAN, db_index=True)
+    plan = models.TextField("PLAN", blank=True, default="")
+    do = models.TextField("DO", blank=True, default="")
+    verifica = models.TextField("CHECK", blank=True, default="")
+    act = models.TextField("ACT", blank=True, default="")
+    allegato_link = models.CharField("Allegato/link", max_length=500, blank=True, default="")
+
+    priorita = models.CharField(max_length=6, choices=PRIORITA_CHOICES, default=PRIORITA_MEDIA)
+    proprietario = models.CharField("Proprietario OFI", max_length=150, blank=True, default="")
+    owner_processo = models.CharField("Owner di processo", max_length=150, blank=True, default="")
+
+    data_richiesta = models.DateField("Data richiesta chiusura", null=True, blank=True)
+    data_chiusura = models.DateField("Data chiusura", null=True, blank=True)
+    reminder_attivo = models.BooleanField(default=True)
+    reminder_inviato = models.BooleanField(default=False)
+
+    # Origine trasversale (le OFI non nascono solo da MOD.133).
+    modulo_origine = models.CharField(max_length=60, blank=True, default="")
+    content_type = models.ForeignKey(
+        ContentType, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    object_id = models.PositiveIntegerField(null=True, blank=True)
+    origine = GenericForeignKey("content_type", "object_id")
+
+    note = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-numero"]
+        verbose_name = "Voce registro OFI (MOD.174)"
+        verbose_name_plural = "Registro OFI (MOD.174)"
+
+    def __str__(self) -> str:
+        return f"OFI {self.numero}"
+
+    @property
+    def is_chiuso(self) -> bool:
+        return self.fase == self.FASE_CHIUSO or self.data_chiusura is not None
+
+    @property
+    def is_scaduto(self) -> bool:
+        """Scaduta: data richiesta passata e voce ancora aperta."""
+        if self.is_chiuso or self.data_richiesta is None:
+            return False
+        return self.data_richiesta < timezone.localdate()
+
+
 class AzioneOFI(models.Model):
     """Sotto-flusso di modifica documento CN generato da una riga MOD.133 (F5)."""
 
@@ -376,6 +481,11 @@ class AzioneOFI(models.Model):
     )
     # Numero OFI nel registro MOD.174 (vedi nota su RigaMOD133.ofi / BLOCKER B1).
     ofi = models.PositiveIntegerField("Numero OFI (MOD.174)", null=True, blank=True)
+    # Voce del registro OFI centralizzato (4.2): risolve il BLOCKER B1 storico.
+    registro = models.ForeignKey(
+        RegistroOFI, on_delete=models.SET_NULL, null=True, blank=True, related_name="azioni",
+        verbose_name="Voce registro OFI",
+    )
     # Registro documenti CN inesistente → CharField col codice documento.
     documento_cn = models.CharField("Documento CN", max_length=150, blank=True, default="")
     tipo_azione = models.CharField("Tipo azione", max_length=100, blank=True, default="")

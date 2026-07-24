@@ -24,6 +24,7 @@ urlpatterns = [
     path("<int:pk>/mod133/riga/<int:riga_id>/documento/", views.riga_documento_add, name="riga_documento_add"),
     path("<int:pk>/mod133/documento/<int:documento_id>/elimina/", views.riga_documento_delete, name="riga_documento_delete"),
     path("azione-ofi/<int:azione_id>/approva/", views.azione_ofi_approva, name="azione_ofi_approva"),
+    path("ofi-registro/", views.ofi_registro, name="ofi_registro"),
     path("<int:pk>/distribuisci/", views.distribuzione_nuova, name="distribuzione_nuova"),
     # F6b-1 — anteprima composito ufficiale (nessuna scrittura sulla share)
     path("<int:pk>/composito/anteprima/", views.composito_preview, name="composito_preview"),
