@@ -1,0 +1,72 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ titolo }} | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
+<style>
+  .mpqf-lbl{display:block;font-size:12px;font-weight:600;color:#475569;margin:10px 0 4px;}
+  .fm-input,.fm-select{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #d7e0ea;border-radius:8px;background:#fff;font:inherit;color:#0b1b2e;}
+  .fm-input:focus,.fm-select:focus{outline:none;border-color:#1f87cd;box-shadow:0 0 0 3px rgba(31,135,205,.15);}
+  .mpqf-err{color:#c53030;font-size:12px;margin-top:3px;}
+  .mpqf-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;}
+  .mpqf-check{display:flex;align-items:center;gap:8px;margin-top:14px;font-size:13px;color:#334155;}
+  body.theme-dark .fm-input,body.theme-dark .fm-select{background:var(--surface);border-color:var(--border);color:var(--text);}
+  body.theme-dark .mpqf-lbl,body.theme-dark .mpqf-check{color:var(--text-mid);}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  <div class="fmd-wrap">
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-check"/></svg>{{ titolo }}</div>
+        <div class="fmd-block-aside">Processo: {{ processo.nome }}</div>
+      </div>
+      <form method="post">
+        {% csrf_token %}
+        {% if form.non_field_errors %}<div class="mpqf-err">{{ form.non_field_errors }}</div>{% endif %}
+
+        <div class="mpqf-grid">
+          <div><label class="mpqf-lbl" for="{{ form.tipo.id_for_label }}">Tipo requisito</label>{{ form.tipo }}
+            {% if form.tipo.errors %}<div class="mpqf-err">{{ form.tipo.errors }}</div>{% endif %}</div>
+          <div><label class="mpqf-lbl" for="{{ form.stato.id_for_label }}">Stato</label>{{ form.stato }}
+            {% if form.stato.errors %}<div class="mpqf-err">{{ form.stato.errors }}</div>{% endif %}</div>
+        </div>
+
+        <label class="mpqf-lbl" for="{{ form.descrizione.id_for_label }}">Descrizione</label>
+        {{ form.descrizione }}
+        {% if form.descrizione.errors %}<div class="mpqf-err">{{ form.descrizione.errors }}</div>{% endif %}
+
+        <label class="mpqf-lbl" for="{{ form.rif_normativo.id_for_label }}">Riferimento normativo</label>
+        {{ form.rif_normativo }}
+
+        <div class="mpqf-grid">
+          <div><label class="mpqf-lbl" for="{{ form.data_conseguimento.id_for_label }}">Data conseguimento</label>{{ form.data_conseguimento }}</div>
+          <div><label class="mpqf-lbl" for="{{ form.periodicita_mesi.id_for_label }}">Periodicità (mesi)</label>{{ form.periodicita_mesi }}</div>
+          <div><label class="mpqf-lbl" for="{{ form.data_scadenza.id_for_label }}">Data scadenza</label>{{ form.data_scadenza }}</div>
+        </div>
+
+        <label class="mpqf-lbl" for="{{ form.evidenza_url.id_for_label }}">Evidenza (link/riferimento)</label>
+        {{ form.evidenza_url }}
+
+        <label class="mpqf-lbl" for="{{ form.note.id_for_label }}">Note</label>
+        {{ form.note }}
+
+        <label class="mpqf-check">{{ form.obbligatorio }} Obbligatorio (se disattivato, la voce è informativa e non degrada l'esito di conformità)</label>
+
+        <div style="margin-top:18px;display:flex;gap:8px;">
+          <button type="submit" class="fmd-btn fmd-btn-primary">Salva</button>
+          <a href="{% url 'anagrafica:mpq_processo_detail' processo.id %}" class="fmd-btn fmd-btn-ghost">Annulla</a>
+        </div>
+      </form>
+    </section>
+  </div>
+</div>
+{% endblock %}

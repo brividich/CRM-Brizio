@@ -54,6 +54,7 @@ _SKM_CANONICAL = {
 
 _SKM_ROUTE_BINDINGS = {
     "anagrafica:skill_matrix_macchina": PERM_SKM_VIEW,
+    "anagrafica:skm_copertura": PERM_SKM_VIEW,
     "anagrafica:skm_match_validazione": PERM_SKM_MANAGE,
     "anagrafica:skm_refresh": PERM_SKM_MANAGE,
     "anagrafica:skm_scadenzario": PERM_SKM_MANAGE,
@@ -106,6 +107,9 @@ _MPQ_ROUTE_BINDINGS = {
     "anagrafica:mpq_certificazione_delete": PERM_MPQ_MANAGE,
     "anagrafica:mpq_riferimento_add": PERM_MPQ_MANAGE,
     "anagrafica:mpq_riferimento_delete": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_requisito_add": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_requisito_edit": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_requisito_delete": PERM_MPQ_MANAGE,
 }
 
 # Grant di default (CREATE-ONLY: non sovrascrive le scelte fatte in ACL canonico).

@@ -137,6 +137,47 @@
     </section>
     {% endif %}
 
+    {# ── Requisiti generici tipizzati (audit/certificato/esame/…) ─────────── #}
+    {% if requisiti_generici or can_manage %}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-check"/></svg>Requisiti di qualifica</div>
+        <div class="fmd-block-aside">Requisiti tipizzati con scadenza/evidenza propria (audit, certificato, esame, esperienza…)</div>
+      </div>
+      {% if requisiti_generici %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table">
+          <thead><tr><th>Tipo</th><th>Descrizione</th><th>Obbl.</th><th>Stato</th><th>Scadenza</th><th>Evidenza</th>{% if can_manage %}<th>Azioni</th>{% endif %}</tr></thead>
+          <tbody>
+          {% for r in requisiti_generici %}
+            <tr{% if not r.attivo %} class="fmd-muted" style="opacity:.55;"{% endif %}>
+              <td><span class="fmd-badge fmd-b-slate">{{ r.get_tipo_display }}</span></td>
+              <td>{{ r.descrizione }}{% if r.rif_normativo %}<div class="fmd-muted" style="font-size:11px;">{{ r.rif_normativo }}</div>{% endif %}</td>
+              <td>{% if r.obbligatorio %}Sì{% else %}<span class="fmd-muted">No</span>{% endif %}</td>
+              <td>
+                {% if r.stato == 'SODDISFATTO' and not r.is_scaduto %}<span class="fmd-badge fmd-b-green">Soddisfatto</span>
+                {% elif r.is_scaduto %}<span class="fmd-badge fmd-b-red">Scaduto</span>
+                {% elif r.stato == 'NON_APPLICABILE' %}<span class="fmd-badge fmd-b-slate">N/A</span>
+                {% else %}<span class="fmd-badge fmd-b-amber">Da verificare</span>{% endif %}
+              </td>
+              <td>{% if r.data_scadenza %}{{ r.data_scadenza|date:"d/m/Y" }}{% if r.periodicita_mesi %} <span class="fmd-muted" style="font-size:11px;">(ogni {{ r.periodicita_mesi }} m)</span>{% endif %}{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+              <td>{% if r.evidenza_url %}<a href="{{ r.evidenza_url }}" target="_blank" rel="noopener">apri</a>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+              {% if can_manage %}
+              <td style="white-space:nowrap;">
+                <a href="{% url 'anagrafica:mpq_requisito_edit' r.id %}" title="Modifica">✎</a>
+                <form method="post" action="{% url 'anagrafica:mpq_requisito_delete' r.id %}" style="display:inline;" onsubmit="return confirm('Rimuovere il requisito «{{ r.descrizione|escapejs }}»?');">{% csrf_token %}<button type="submit" title="Rimuovi" style="border:0;background:none;color:#c53030;cursor:pointer;padding:0 0 0 6px;font:inherit;">×</button></form>
+              </td>
+              {% endif %}
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}<div class="fmd-muted" style="padding:6px 2px;">Nessun requisito tipizzato.</div>{% endif %}
+      {% if can_manage %}<div style="margin-top:10px;"><a class="fmd-btn fmd-btn-sm" href="{% url 'anagrafica:mpq_requisito_add' processo.id %}">+ Aggiungi requisito</a></div>{% endif %}
+    </section>
+    {% endif %}
+
     {# ── Personale abilitato ────────────────────────────────────────────── #}
     <section class="fmd-panel fmd-block">
       <div class="fmd-block-head">

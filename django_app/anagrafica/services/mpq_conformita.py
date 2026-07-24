@@ -92,16 +92,43 @@ def verifica_requisiti(processo, legacy_id: int, *, oggi=None) -> dict:
                 stato = "mancante"
             voci.append({"tipo": "DPI", "nome": getattr(cat, "nome", str(cat)), "stato": stato})
 
-    stati = [v["stato"] for v in voci]
+    # Requisiti generici tipizzati (1.14): a livello processo, stato/scadenza propri.
+    # Sono valutati sul requisito (uguale per tutti gli abilitati), non per-persona.
+    from ..models import RequisitoQualifica
+    for req in processo.requisiti.filter(attivo=True):
+        scaduto = (
+            req.stato == RequisitoQualifica.STATO_SCADUTO
+            or (req.data_scadenza is not None and req.data_scadenza < oggi)
+        )
+        if req.stato == RequisitoQualifica.STATO_NON_APPLICABILE:
+            stato = "na"
+        elif scaduto:
+            stato = "scaduto"
+        elif req.stato == RequisitoQualifica.STATO_SODDISFATTO:
+            if req.data_scadenza is not None and (req.data_scadenza - oggi).days <= _SOGLIA_WARN:
+                stato = "in_scadenza"
+            else:
+                stato = "ok"
+        else:  # DA_VERIFICARE
+            stato = "mancante"
+        voci.append({
+            "tipo": req.get_tipo_display(), "nome": req.descrizione,
+            "stato": stato, "obbligatorio": req.obbligatorio,
+        })
+
+    # Le voci non obbligatorie sono informative: compaiono ma non degradano l'esito.
+    stati_obbl = [v["stato"] for v in voci if v.get("obbligatorio", True)]
     if not voci:
         esito = "nessuno"
-    elif "scaduto" in stati:
+    elif "scaduto" in stati_obbl:
         esito = "ko"
-    elif "mancante" in stati:
+    elif "mancante" in stati_obbl:
         esito = "incompleto"
-    elif "in_scadenza" in stati:
+    elif "in_scadenza" in stati_obbl:
         esito = "warn"
     else:
         esito = "ok"
-    n_mancanti = sum(1 for s in stati if s in ("scaduto", "mancante"))
+    n_mancanti = sum(
+        1 for v in voci if v.get("obbligatorio", True) and v["stato"] in ("scaduto", "mancante")
+    )
     return {"esito": esito, "voci": voci, "n_mancanti": n_mancanti}

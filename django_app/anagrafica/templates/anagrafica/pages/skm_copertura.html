@@ -1,0 +1,85 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Copertura minima — Skill Matrix MOD.187{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<style>
+.sc-kpis { display:flex; flex-wrap:wrap; gap:10px; margin:0 0 16px; }
+.sc-chip { border:1px solid #e2e8f0; border-radius:999px; padding:6px 12px; font-size:12.5px; font-weight:700; color:#475569; background:#fff; }
+.sc-chip b { color:#0c2545; }
+.sc-chip.warn { border-color:#fcd34d; background:#fef9c3; color:#854d0e; }
+.sc-chip.bad { border-color:#fca5a5; background:#fee2e2; color:#991b1b; }
+.sc-table { border-collapse:collapse; width:100%; font-size:13px; }
+.sc-table th, .sc-table td { border-bottom:1px solid #eef2f7; padding:7px 9px; text-align:left; vertical-align:middle; }
+.sc-table thead th { background:#0c2545; color:#fff; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+.sc-table tbody tr:hover { background:#f8fafc; }
+.sc-badge { display:inline-block; font-size:10.5px; font-weight:800; border-radius:5px; padding:2px 7px; }
+.sc-badge.ok { color:#166534; background:#dcfce7; }
+.sc-badge.gap { color:#991b1b; background:#fee2e2; }
+.sc-badge.na { color:#475569; background:#e2e8f0; }
+.sc-num { text-align:center; font-weight:700; }
+.sc-empty { text-align:center; padding:40px 16px; color:#475569; }
+.sc-cert { font-size:11px; color:#64748b; }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">
+        <a href="{% url 'anagrafica:index' %}" class="fm-crumb">Anagrafica</a>
+        <span class="fm-crumb-sep">›</span> Skill Matrix MOD.187
+      </div>
+      <h2 class="hr-pagehead-title">🛡️ Verifica copertura minima (AS/EN 9100)</h2>
+      <p class="hr-pagehead-desc">Soglie configurabili di personale qualificato (min. N abilitati ≥ livello X) per asset/processo/ambito critico, confrontate con gli abilitati operativi. Le soglie non sono imposte da uno standard fisso: le definisce l'organizzazione o il flow-down cliente.</p>
+    </div>
+    <a href="{% url 'anagrafica:skill_matrix_macchina' %}" class="hr-btn hr-btn-outline">↩ Torna alla matrice</a>
+  </div>
+
+  <div class="sc-kpis">
+    <span class="sc-chip">Soglie configurate <b>{{ kpi.totali }}</b></span>
+    <span class="sc-chip {% if kpi.scoperte %}bad{% endif %}">Non coperte <b>{{ kpi.scoperte }}</b></span>
+    <span class="sc-chip {% if kpi.gap_totale %}warn{% endif %}">Gap totale (persone) <b>{{ kpi.gap_totale }}</b></span>
+    {% if kpi.non_valutabili %}<span class="sc-chip">Ambiti manuali <b>{{ kpi.non_valutabili }}</b></span>{% endif %}
+  </div>
+
+  {% if righe %}
+  <table class="sc-table">
+    <thead>
+      <tr><th>Soglia</th><th>Ambito</th><th>Certificazione</th><th>Liv. min.</th><th>Richiesti</th><th>Disponibili</th><th>Gap</th><th>Stato</th></tr>
+    </thead>
+    <tbody>
+      {% for r in righe %}
+      <tr>
+        <td><b>{{ r.soglia.nome }}</b>{% if r.soglia.rif_normativo %}<div class="sc-cert">{{ r.soglia.rif_normativo }}</div>{% endif %}</td>
+        <td>{{ r.soglia.ambito_display }}</td>
+        <td class="sc-cert">{{ r.soglia.certificazione|default:"—" }}</td>
+        <td>{% if r.soglia.asset_id %}{{ r.soglia.get_livello_minimo_display }}{% else %}<span class="sc-cert">—</span>{% endif %}</td>
+        <td class="sc-num">{{ r.minimo }}</td>
+        <td class="sc-num">{% if r.disponibili is None %}<span class="sc-cert">n/d</span>{% else %}{{ r.disponibili }}{% endif %}</td>
+        <td class="sc-num">{% if r.gap %}{{ r.gap }}{% elif r.gap == 0 %}0{% else %}—{% endif %}</td>
+        <td>
+          {% if r.coperta is None %}<span class="sc-badge na">Manuale</span>
+          {% elif r.coperta %}<span class="sc-badge ok">Coperta</span>
+          {% else %}<span class="sc-badge gap">Scoperta −{{ r.gap }}</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="sc-empty">
+    Nessuna soglia di copertura configurata.<br>
+    Le soglie si definiscono da <b>Amministrazione → Anagrafica → Soglie copertura minima</b> (per asset, processo qualificato o ambito, con certificazione e livello minimo).
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

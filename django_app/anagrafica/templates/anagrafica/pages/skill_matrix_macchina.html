@@ -65,6 +65,7 @@ body.theme-dark .sm-table th.name, body.theme-dark .sm-table td.name { backgroun
     </div>
     <div style="display:flex;gap:8px;">
       {% if can_manage %}<a href="{% url 'anagrafica:skm_impostazioni' %}" class="hr-btn hr-btn-outline" title="Soglia operativa, CAR, uomo-solo, etichette">⚙️ Impostazioni</a>{% endif %}
+      <a href="{% url 'anagrafica:skm_copertura' %}" class="hr-btn hr-btn-outline" title="Verifica copertura minima (AS/EN 9100)">🛡️ Copertura minima</a>
       <a href="{% url 'anagrafica:skm_match_validazione' %}" class="hr-btn hr-btn-outline" title="Valida l'abbinamento competenza→asset (gate F2a)">🔧 Validazione match</a>
       <a href="?{% if filtro_reparto %}reparto={{ filtro_reparto|urlencode }}&{% endif %}data={{ data_sel|date:'Y-m-d' }}&format=csv" class="hr-btn hr-btn-outline">⬇ CSV</a>
     </div>
@@ -126,6 +127,10 @@ body.theme-dark .sm-table th.name, body.theme-dark .sm-table td.name { backgroun
           <tr>
             <th class="name">Dipendente</th>
             {% for c in macchine %}<th class="rot" title="{{ c.display }}"><div>{{ c.competenza_key }}</div></th>{% endfor %}
+          </tr>
+          <tr class="sm-counts">
+            <th class="name" style="font-size:9.5px;font-weight:600;text-transform:none;letter-spacing:0;">Operativi ≥ soglia</th>
+            {% for c in macchine %}<th title="Abilitati operativi (≥ {{ config.soglia_operativa }}) su {{ c.display|default:c.competenza_key }}" style="font-size:11px;font-weight:700;{% if c.operativi_count == 0 %}color:#fca5a5;{% endif %}">{{ c.operativi_count }}</th>{% endfor %}
           </tr>
         </thead>
         <tbody>

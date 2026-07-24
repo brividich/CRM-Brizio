@@ -208,6 +208,8 @@ urlpatterns = [
     path("mod128/abilitazione/<int:ab_id>/certificazione/aggiungi/", views_mpq.mpq_certificazione_add, name="mpq_certificazione_add"),
     path("mod128/certificazione/<int:cert_id>/elimina/", views_mpq.mpq_certificazione_delete, name="mpq_certificazione_delete"),
     path("mod128/riferimento/<int:rif_id>/elimina/", views_mpq.mpq_riferimento_delete, name="mpq_riferimento_delete"),
+    path("mod128/requisito/<int:req_id>/modifica/", views_mpq.mpq_requisito_edit, name="mpq_requisito_edit"),
+    path("mod128/requisito/<int:req_id>/elimina/", views_mpq.mpq_requisito_delete, name="mpq_requisito_delete"),
     path("mod128/quick-add/corso/", views_mpq.mpq_quickadd_corso, name="mpq_quickadd_corso"),
     path("mod128/quick-add/visita/", views_mpq.mpq_quickadd_visita, name="mpq_quickadd_visita"),
     path("mod128/quick-add/dpi/", views_mpq.mpq_quickadd_dpi, name="mpq_quickadd_dpi"),
@@ -216,6 +218,7 @@ urlpatterns = [
     path("mod128/<int:processo_id>/elimina/", views_mpq.mpq_processo_delete, name="mpq_processo_delete"),
     path("mod128/<int:processo_id>/abilitazione/aggiungi/", views_mpq.mpq_abilitazione_add, name="mpq_abilitazione_add"),
     path("mod128/<int:processo_id>/riferimento/aggiungi/", views_mpq.mpq_riferimento_add, name="mpq_riferimento_add"),
+    path("mod128/<int:processo_id>/requisito/aggiungi/", views_mpq.mpq_requisito_add, name="mpq_requisito_add"),
 
     # Voci retributive — importazione CSV e storico dipendente
     path("retribuzioni/", views.retribuzioni_import, name="retribuzioni_import"),
@@ -258,6 +261,7 @@ urlpatterns = [
     path("skill-matrix/match/", views.skm_match_validazione, name="skm_match_validazione"),
     path("skill-matrix/refresh/", views.skm_refresh, name="skm_refresh"),
     path("skill-matrix/scadenzario/", views.skm_scadenzario, name="skm_scadenzario"),
+    path("skill-matrix/copertura/", views.skm_copertura, name="skm_copertura"),
     path("skill-matrix/impostazioni/", views.skm_impostazioni, name="skm_impostazioni"),
 
     # Onboarding strutturato (pratica + checklist, speculare a offboarding)

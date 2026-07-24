@@ -713,3 +713,31 @@ class RecruitingPermissionAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+from .models_skillmatrix import CompetenzaSkm, SogliaCopertura  # noqa: E402
+
+
+@admin.register(CompetenzaSkm)
+class CompetenzaSkmAdmin(admin.ModelAdmin):
+    """Catalogo competenze Skill Matrix — permette di impostare il corso
+    qualificante per macchina (gate I→L, punto 1.12)."""
+
+    list_display = ("competenza_key", "display", "tipo", "asset", "corso_qualificante")
+    list_filter = ("tipo", "match_confermato")
+    search_fields = ("competenza_key", "display", "alias_storici")
+    raw_id_fields = ("asset", "tipo_qualifica", "corso_qualificante")
+    list_select_related = ("asset", "corso_qualificante")
+
+
+@admin.register(SogliaCopertura)
+class SogliaCoperturaAdmin(admin.ModelAdmin):
+    """Soglie di copertura minima (AS/EN 9100, punto 1.13): configurabili per
+    asset/processo/ambito, attribuibili a una certificazione."""
+
+    list_display = ("nome", "ambito_display", "livello_minimo", "minimo_abilitati",
+                    "certificazione", "attiva")
+    list_filter = ("attiva", "certificazione", "livello_minimo")
+    search_fields = ("nome", "descrizione_ambito", "certificazione", "rif_normativo")
+    raw_id_fields = ("asset", "processo")
+    list_select_related = ("asset", "processo")
