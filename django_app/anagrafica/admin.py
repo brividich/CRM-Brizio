@@ -713,3 +713,18 @@ class RecruitingPermissionAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+from .models_skillmatrix import CompetenzaSkm  # noqa: E402
+
+
+@admin.register(CompetenzaSkm)
+class CompetenzaSkmAdmin(admin.ModelAdmin):
+    """Catalogo competenze Skill Matrix — permette di impostare il corso
+    qualificante per macchina (gate I→L, punto 1.12)."""
+
+    list_display = ("competenza_key", "display", "tipo", "asset", "corso_qualificante")
+    list_filter = ("tipo", "match_confermato")
+    search_fields = ("competenza_key", "display", "alias_storici")
+    raw_id_fields = ("asset", "tipo_qualifica", "corso_qualificante")
+    list_select_related = ("asset", "corso_qualificante")

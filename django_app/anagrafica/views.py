@@ -14654,6 +14654,13 @@ def skill_matrix_macchina(request):
     from .acl_bootstrap import PERM_SKM_MANAGE
     n_assenti = sum(1 for r in righe if r["disp_stato"] == "assente")
     n_da_confermare = sum(1 for r in righe if r["disp_stato"] == "da_confermare")
+
+    # Contatore abilitati operativi per macchina (header colonna, 1.12).
+    from .services import skillmatrix_qualifica as skm_q
+    col_counts = skm_q.conta_operativi_per_asset(asset_ids)
+    for c in comp_macchine:
+        c.operativi_count = col_counts.get(c.asset_id, 0)
+
     return render(request, "anagrafica/pages/skill_matrix_macchina.html", {
         "macchine": comp_macchine,
         "righe": righe,

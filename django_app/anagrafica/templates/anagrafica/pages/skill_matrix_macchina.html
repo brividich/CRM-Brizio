@@ -127,6 +127,10 @@ body.theme-dark .sm-table th.name, body.theme-dark .sm-table td.name { backgroun
             <th class="name">Dipendente</th>
             {% for c in macchine %}<th class="rot" title="{{ c.display }}"><div>{{ c.competenza_key }}</div></th>{% endfor %}
           </tr>
+          <tr class="sm-counts">
+            <th class="name" style="font-size:9.5px;font-weight:600;text-transform:none;letter-spacing:0;">Operativi ≥ soglia</th>
+            {% for c in macchine %}<th title="Abilitati operativi (≥ {{ config.soglia_operativa }}) su {{ c.display|default:c.competenza_key }}" style="font-size:11px;font-weight:700;{% if c.operativi_count == 0 %}color:#fca5a5;{% endif %}">{{ c.operativi_count }}</th>{% endfor %}
+          </tr>
         </thead>
         <tbody>
           {% for r in righe %}

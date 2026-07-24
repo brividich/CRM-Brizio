@@ -167,6 +167,13 @@ class CompetenzaSkm(models.Model):
         related_name="competenze_skm",
         help_text="Qualifica collegata (solo tipo=processo, se corrispondente).",
     )
+    # Corso qualificante (1.12): il livello ≥ L (INTERMEDIO) su questa macchina
+    # richiede il corso completato e valido. Vuoto = nessun gate formativo.
+    corso_qualificante = models.ForeignKey(
+        "anagrafica.TrainingCourse", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="competenze_qualificate",
+        help_text="Corso richiesto per superare il livello «In formazione» (I→L).",
+    )
     alias_storici = models.TextField(blank=True, default="")
     note = models.TextField(blank=True, default="")
 
