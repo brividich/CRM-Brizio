@@ -9,8 +9,18 @@ from django.contrib import admin
 
 from .models import (
     AzioneOFI, ClienteCartellaShare, ConfigPresaVisione, Distribuzione, EventoSpecifica,
-    MOD133, RigaMOD133, Specifica,
+    MOD133, RigaMOD133, RigaMOD133Documento, Specifica,
 )
+
+
+@admin.register(RigaMOD133Documento)
+class RigaMOD133DocumentoAdmin(admin.ModelAdmin):
+    """Documenti CN ulteriori impattati da una riga MOD.133 (4.1)."""
+
+    list_display = ("codice_documento", "riga", "rif_paragrafo", "ordine")
+    search_fields = ("codice_documento", "rif_paragrafo")
+    raw_id_fields = ("riga",)
+    list_select_related = ("riga",)
 
 
 @admin.register(ClienteCartellaShare)

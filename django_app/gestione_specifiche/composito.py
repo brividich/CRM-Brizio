@@ -68,7 +68,12 @@ def dati_mod133_da_spec(spec) -> dict:
         "argomenti_cn": r.descrizione_modifiche,
     } for r in righe_qs]
 
-    docs_cn = sorted({r.rif_doc_cn for r in righe_qs if r.rif_doc_cn})
+    # Documenti CN impattati: primario (rif_doc_cn) + eventuali documenti figli (4.1).
+    from .ofi import documenti_riga
+    _docs = set()
+    for r in righe_qs:
+        _docs.update(documenti_riga(r))
+    docs_cn = sorted(_docs)
     data = ""
     if mod is not None:
         d = mod.data_approvazione or mod.data_chiusura_compilazione

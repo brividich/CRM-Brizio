@@ -341,6 +341,33 @@ class RigaMOD133(models.Model):
         return f"Riga {self.ordine} — {self.argomento or self.rif_paragrafo}"
 
 
+class RigaMOD133Documento(models.Model):
+    """Documento CN **ulteriore** impattato da una riga MOD.133 (4.1, ≥0).
+
+    Il documento **primario** resta ``RigaMOD133.rif_doc_cn`` (invariato: form,
+    validazione e composito continuano a funzionare); questa tabella figlia
+    aggiunge gli **altri** documenti impattati dalla stessa riga. La generazione
+    OFI produce una azione per ciascun documento impattato (primario + figli).
+    """
+
+    riga = models.ForeignKey(
+        RigaMOD133, on_delete=models.CASCADE, related_name="documenti",
+        verbose_name="Riga MOD.133",
+    )
+    codice_documento = models.CharField("Documento CN", max_length=150)
+    rif_paragrafo = models.CharField("Rif. paragrafo CN", max_length=100, blank=True, default="")
+    note = models.CharField("Note", max_length=255, blank=True, default="")
+    ordine = models.PositiveSmallIntegerField("Ordine", default=0)
+
+    class Meta:
+        verbose_name = "Documento CN riga MOD.133"
+        verbose_name_plural = "Documenti CN riga MOD.133"
+        ordering = ["riga", "ordine", "id"]
+
+    def __str__(self) -> str:
+        return self.codice_documento
+
+
 class AzioneOFI(models.Model):
     """Sotto-flusso di modifica documento CN generato da una riga MOD.133 (F5)."""
 

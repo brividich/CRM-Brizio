@@ -85,6 +85,35 @@
     </div>
   </form>
 
+  {# ── Documenti CN ulteriori impattati (4.1): oltre al doc. primario per riga ── #}
+  {% if mod and mod.righe.all %}
+  <div class="gs-panel" style="margin-top:16px;">
+    <div class="gs-panel__head"><h2 class="gs-panel__title">Documenti CN ulteriori impattati</h2><span class="gs-panel__meta">salva prima la riga, poi aggiungi altri documenti</span></div>
+    <div style="padding:6px 4px;">
+      {% for riga in mod.righe.all %}
+      <div style="padding:10px 8px; border-bottom:1px solid #eef2f7;">
+        <div style="font-size:12.5px; font-weight:700; color:#0c2545;">{{ riga.rif_paragrafo }} {{ riga.argomento|default:"(riga senza argomento)" }}</div>
+        <div style="font-size:11.5px; color:#7c8aa2; margin:3px 0 6px;">Primario: <strong style="color:#1665a3;">{{ riga.rif_doc_cn|default:"—" }}</strong></div>
+        <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
+          {% for d in riga.documenti.all %}
+          <span class="gs-tag is-blue" style="display:inline-flex; align-items:center; gap:5px;">{{ d.codice_documento }}
+            <form method="post" action="{% url 'gestione_specifiche:riga_documento_delete' spec.pk d.pk %}" style="display:inline;" onsubmit="return confirm('Rimuovere il documento {{ d.codice_documento|escapejs }}?');">{% csrf_token %}<button type="submit" style="border:0; background:none; color:#c53030; cursor:pointer; padding:0; font:inherit;">×</button></form>
+          </span>
+          {% empty %}<span style="font-size:11.5px; color:#92a0b5;">nessun documento aggiuntivo</span>{% endfor %}
+        </div>
+        {% if spec.stato == C.STATO_FLOW_DOWN %}
+        <form method="post" action="{% url 'gestione_specifiche:riga_documento_add' spec.pk riga.pk %}" style="display:flex; gap:6px; margin-top:8px; max-width:520px;">{% csrf_token %}
+          <input type="text" name="codice_documento" placeholder="Codice documento CN" maxlength="150" style="flex:1; padding:6px 9px; border:1px solid #d7e0ea; border-radius:8px; font:inherit;">
+          <input type="text" name="rif_paragrafo" placeholder="Rif. §" maxlength="100" style="width:110px; padding:6px 9px; border:1px solid #d7e0ea; border-radius:8px; font:inherit;">
+          <button type="submit" class="gs-btn gs-btn--cyan" style="min-height:32px; padding:0 12px; font-size:12px;">+ Aggiungi</button>
+        </form>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
   {% if spec.stato == C.STATO_FLOW_DOWN %}
   <div class="gs-actions" style="margin-top:14px;">
     {% if mod.data_chiusura_compilazione %}

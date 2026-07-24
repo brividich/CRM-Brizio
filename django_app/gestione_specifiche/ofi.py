@@ -51,39 +51,69 @@ def _prossimo_numero_ofi() -> int:
     return max(massimo, _OFI_BASE) + 1
 
 
+def documenti_riga(riga: RigaMOD133) -> list[str]:
+    """Documenti CN impattati da una riga: primario (``rif_doc_cn``) + figli (4.1).
+
+    Dedup preservando l'ordine, con il primario per primo. Lista vuota se nessun
+    documento è indicato.
+    """
+    out: list[str] = []
+    seen: set[str] = set()
+    primario = (riga.rif_doc_cn or "").strip()
+    if primario:
+        out.append(primario)
+        seen.add(primario)
+    for d in riga.documenti.all():
+        cod = (d.codice_documento or "").strip()
+        if cod and cod not in seen:
+            out.append(cod)
+            seen.add(cod)
+    return out
+
+
 @transaction.atomic
 def crea_ofi_da_riga(riga: RigaMOD133, *, attore=None, ofi_numero: int | None = None) -> AzioneOFI:
     """Crea l'OFI per una riga con impatto (genera_ofi=True), **su conferma**.
 
-    Idempotente: se l'OFI per la riga esiste già, restituisce l'azione esistente
-    senza duplicare. Crea l'`AzioneOFI` (sotto-flusso documento CN) con
-    `modo_approvazione` di default da `APPROVAZIONE_DOC_CN_MODE`.
+    Crea **una azione OFI per ciascun documento CN impattato** (primario +
+    ulteriori, 4.1), tutte con lo **stesso numero OFI** (la riga ha un solo numero
+    di registro). Idempotente **per documento**: rieseguendo non duplica le azioni
+    già presenti. `modo_approvazione` di default da `APPROVAZIONE_DOC_CN_MODE`.
+    Ritorna l'azione del documento primario (compatibilità storica).
     """
     if not riga.genera_ofi:
         raise ValidationError("La riga non è marcata per generare un OFI (genera_ofi=False).")
 
     riga = RigaMOD133.objects.select_for_update().get(pk=riga.pk)
 
-    esistente = AzioneOFI.objects.filter(riga_mod133=riga).first()
-    if esistente is not None:
-        return esistente  # idempotenza: nessuna doppia creazione
+    documenti = documenti_riga(riga) or [""]  # almeno una azione (documento vuoto = compat)
 
-    numero = ofi_numero if ofi_numero is not None else _prossimo_numero_ofi()
-    riga.ofi = numero
-    riga.save(update_fields=["ofi"])
+    # Numero OFI: uno per riga. Riusa quello già assegnato (idempotenza), altrimenti nuovo.
+    numero = ofi_numero if ofi_numero is not None else (riga.ofi or _prossimo_numero_ofi())
+    if riga.ofi != numero:
+        riga.ofi = numero
+        riga.save(update_fields=["ofi"])
 
     cfg = getattr(settings, "GESTIONE_SPECIFICHE", {}) or {}
     modo = cfg.get("APPROVAZIONE_DOC_CN_MODE", C.APPROV_CAR_FLOW)
 
-    azione = AzioneOFI.objects.create(
-        riga_mod133=riga, ofi=numero, documento_cn=riga.rif_doc_cn,
-        tipo_azione="modifica_documento_cn", stato=C.AZIONE_OFI_BOZZA,
-        modo_approvazione=modo,
-    )
-
     spec = riga.mod133.specifica
-    _log_evento(spec, "ofi_creato", {"ofi": numero, "riga_id": riga.id, "modo": modo}, attore)
-    return azione
+    azioni: list[AzioneOFI] = []
+    for doc in documenti:
+        azione, created = AzioneOFI.objects.get_or_create(
+            riga_mod133=riga, documento_cn=doc,
+            defaults={
+                "ofi": numero, "tipo_azione": "modifica_documento_cn",
+                "stato": C.AZIONE_OFI_BOZZA, "modo_approvazione": modo,
+            },
+        )
+        azioni.append(azione)
+        if created:
+            _log_evento(spec, "ofi_creato",
+                        {"ofi": numero, "riga_id": riga.id, "documento": doc, "modo": modo}, attore)
+
+    # Ritorna l'azione del documento primario (prima della lista) per compatibilità.
+    return azioni[0]
 
 
 def invia_in_approvazione(azione: AzioneOFI) -> AzioneOFI:

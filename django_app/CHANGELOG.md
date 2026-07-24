@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Epica C / 4.1 — MOD.133: più documenti impattanti sulla stessa riga
+
+- **[feat/test] `gestione_specifiche/models.py` (`RigaMOD133Documento` [nuovo modello]), `gestione_specifiche/migrations/0012_rigamod133documento.py` [nuovo], `gestione_specifiche/ofi.py` (`documenti_riga`, `crea_ofi_da_riga`), `gestione_specifiche/composito.py`, `gestione_specifiche/views.py` (`riga_documento_add/delete`, `dettaglio`), `gestione_specifiche/urls.py`, `gestione_specifiche/admin.py`, `gestione_specifiche/templates/gestione_specifiche/{dettaglio,mod133_compila}.html`, `gestione_specifiche/tests/test_ofi_multidoc.py` [nuovo]**: (punto 4.1) una riga MOD.133 può impattare **più documenti CN**. Il documento **primario** resta `RigaMOD133.rif_doc_cn` (form, validazione e composito invariati); la nuova tabella figlia `RigaMOD133Documento` elenca i documenti **ulteriori** (nessuna migrazione dati). La generazione OFI (`crea_ofi_da_riga`) crea ora **una azione OFI per documento impattato** (primario + figli), tutte con lo **stesso numero OFI** della riga, **idempotente per documento**; il caso storico a documento singolo resta identico. Il composito MOD.133 e la modale/scheda OFI elencano tutti i documenti impattati. Gestione documenti aggiuntivi dalla pagina di compilazione (solo in flow-down) e da admin. Migrazione additiva. 13 test (helper/OFI/composito + 2 view).
+
 ### Remediation gestionale — 1.8 (abilitazione MPQ multi-dipendente)
 
 - **[feat/test] `anagrafica/views_mpq.py` (`bulk_abilita_processo`, `mpq_abilitazione_add`, `_abilitazione_form_ctx`), `anagrafica/templates/anagrafica/pages/mpq_abilitazione_form.html`, `anagrafica/tests_mpq_bulk.py` [nuovo]**: (punto 1.8) nella scheda **Processo qualificato (MOD.128)**, l'aggiunta di persone abilitate consente ora la **selezione multipla di dipendenti interni** → crea in blocco N `AbilitazioneProcesso` in un'unica transazione (idempotente sul vincolo persona×processo, deduplica gli id ripetuti). Il caso **qualificatore esterno** resta a persona singola. La modifica (edit) di una singola abilitazione resta invariata. 4 test. Nessuna migrazione.

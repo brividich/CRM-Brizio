@@ -176,6 +176,7 @@
             </div>
             <div style="display:flex; gap:7px; margin-top:8px; flex-wrap:wrap; align-items:center;">
               {% if r.impatto_documenti %}<span class="gs-tag is-blue">Impatto doc{% if r.rif_doc_cn %} · {{ r.rif_doc_cn }}{% endif %}</span>{% endif %}
+              {% for d in r.documenti.all %}<span class="gs-tag is-blue">+ {{ d.codice_documento }}</span>{% endfor %}
               {% if r.impatto_operativo %}<span class="gs-tag is-green">Impatto operativo</span>{% endif %}
               {% if r.tag_processo %}<span class="gs-tag">{% include "gestione_specifiche/partials/_icon.html" with name="tag" size=12 %} {{ r.tag_processo }}</span>{% endif %}
               {% if r.ofi %}<span class="gs-tag is-orange">OFI #{{ r.ofi }} → MOD.174</span>
@@ -321,7 +322,7 @@
             {% if r.rif_paragrafo %}<span style="font-size:12.5px; font-weight:800; color:#0c2545;">{{ r.rif_paragrafo }}</span>{% endif %}
             <span style="font-size:12.5px; color:#1c2b42;">{{ r.argomento|default:"—" }}</span>
           </div>
-          {% if r.rif_doc_cn %}<div style="font-size:11.5px; color:#7c8aa2; margin-top:4px;">Documento CN impattato: <strong style="color:#1665a3;">{{ r.rif_doc_cn }}</strong></div>{% endif %}
+          {% if r.rif_doc_cn or r.documenti.all %}<div style="font-size:11.5px; color:#7c8aa2; margin-top:4px;">Documenti CN impattati: <strong style="color:#1665a3;">{{ r.rif_doc_cn }}{% for d in r.documenti.all %}{% if r.rif_doc_cn or not forloop.first %}, {% endif %}{{ d.codice_documento }}{% endfor %}</strong> <span style="color:#92a0b5;">(una azione OFI per documento)</span></div>{% endif %}
         </div>
         <form method="post" action="{% url 'gestione_specifiche:riga_genera_ofi' spec.pk r.pk %}">{% csrf_token %}
           <button class="gs-btn gs-btn--orange" type="submit" style="min-height:34px; padding:0 13px; font-size:12px;">{% include "gestione_specifiche/partials/_icon.html" with name="check" size=14 %} Genera</button>
