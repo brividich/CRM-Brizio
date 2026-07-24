@@ -9,8 +9,46 @@ from django.contrib import admin
 
 from .models import (
     AzioneOFI, ClienteCartellaShare, ConfigPresaVisione, Distribuzione, EventoSpecifica,
-    MOD133, RigaMOD133, Specifica,
+    MOD133, RegistroOFI, RigaMOD133, RigaMOD133Documento, Specifica,
 )
+
+
+@admin.register(RigaMOD133Documento)
+class RigaMOD133DocumentoAdmin(admin.ModelAdmin):
+    """Documenti CN ulteriori impattati da una riga MOD.133 (4.1)."""
+
+    list_display = ("codice_documento", "riga", "rif_paragrafo", "ordine")
+    search_fields = ("codice_documento", "rif_paragrafo")
+    raw_id_fields = ("riga",)
+    list_select_related = ("riga",)
+
+
+@admin.register(RegistroOFI)
+class RegistroOFIAdmin(admin.ModelAdmin):
+    """Registro OFI centralizzato PDCA (MOD.174, 4.2): gestione voci OFI/NC,
+    ciclo PLAN-DO-CHECK-ACT, priorità, owner, scadenza/reminder."""
+
+    list_display = ("numero", "tipo", "processo", "fase", "priorita",
+                    "owner_processo", "data_richiesta", "data_chiusura", "reminder_attivo")
+    list_filter = ("tipo", "fase", "priorita", "reminder_attivo",
+                   "norma_en9100", "norma_iso45001", "norma_iso27001")
+    search_fields = ("numero", "ref", "processo", "opportunita",
+                     "proprietario", "owner_processo")
+    readonly_fields = ("created_at", "updated_at", "modulo_origine",
+                       "content_type", "object_id")
+    fieldsets = (
+        ("Identificazione", {"fields": (
+            "numero", "ref", "data_apertura", "tipo",
+            ("norma_en9100", "norma_iso45001", "norma_iso27001"), "rif_norma",
+            "processo", "opportunita")}),
+        ("Ciclo PDCA", {"fields": ("fase", "plan", "do", "verifica", "act", "allegato_link")}),
+        ("Gestione", {"fields": (
+            "priorita", "proprietario", "owner_processo",
+            "data_richiesta", "data_chiusura",
+            ("reminder_attivo", "reminder_inviato"), "note")}),
+        ("Origine", {"fields": ("modulo_origine", "content_type", "object_id",
+                                "created_at", "updated_at")}),
+    )
 
 
 @admin.register(ClienteCartellaShare)

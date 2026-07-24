@@ -28,6 +28,9 @@
           {% include "gestione_specifiche/partials/_icon.html" with name="shield" size=16 %} Amministrazione
         </a>
         {% endif %}
+        <a href="{% url 'gestione_specifiche:ofi_registro' %}?modulo=gestione_specifiche" class="gs-btn" style="height:42px;" title="Registro OFI di questo modulo (MOD.174)">
+          {% include "gestione_specifiche/partials/_icon.html" with name="filecheck" size=16 %} Registro OFI
+        </a>
         <a href="{% url 'gestione_specifiche:guida' %}" target="_blank" class="gs-btn" style="height:42px;" title="Guida operativa (si apre in una nuova scheda)">
           {% include "gestione_specifiche/partials/_icon.html" with name="file" size=16 %} Guida
         </a>
