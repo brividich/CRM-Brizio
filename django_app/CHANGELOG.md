@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fix — Registro OFI 500 su SQL Server (dev/prod), non su SQLite (test)
+
+- **[fix] `gestione_specifiche/registro_ofi.py` (`conta_pdca`, `moduli_presenti`)**: la pagina Registro OFI andava in **500 su SQL Server** (dev/prod) mentre i test SQLite passavano. Causa: `RegistroOFI.Meta.ordering = ["-numero"]` veniva iniettato nell'`ORDER BY` di una **GROUP BY** (`.values("fase").annotate(...)`) e di una **DISTINCT** (`.values_list("modulo_origine").distinct()`); SQL Server rifiuta un `ORDER BY` su colonna non raggruppata/non selezionata (errore 8127), SQLite lo tollera. Fix: `.order_by()` per azzerare l'ordinamento ereditato su quelle due query aggregate.
+
+
 ### Epica B / 1.13 — Skill Matrix: verifica copertura minima (AS/EN 9100)
 
 - **[feat/test] `anagrafica/models_skillmatrix.py` (`SogliaCopertura` [nuovo modello]), `anagrafica/migrations/0095_sogliacopertura.py` [nuovo], `anagrafica/services/skillmatrix_copertura.py` [nuovo], `anagrafica/views.py` (`skm_copertura`), `anagrafica/urls.py`, `anagrafica/acl_bootstrap.py`, `anagrafica/admin.py` (`SogliaCoperturaAdmin`), `anagrafica/templates/anagrafica/pages/{skm_copertura,skill_matrix_macchina}.html`, `anagrafica/tests_skillmatrix_copertura.py` [nuovo]**: (punto 1.13) nuova sezione **«Verifica copertura minima»** della Skill Matrix. Il modello `SogliaCopertura` definisce soglie **configurabili** — «servono almeno N abilitati ≥ livello X» — su **asset**, **processo qualificato** o **ambito libero** (ruolo/processo critico), attribuibili a una **certificazione** (es. AS/EN 9100, NADCAP AC7101). La vista confronta ogni soglia con gli abilitati **operativi** disponibili (riuso resolver skill matrix per gli asset, abilitazioni MPQ attive per i processi) ed **evidenzia i gap**. Terminologia UI corretta: «AS/EN 9100», non «ISO 9100» (che non esiste); nessuna percentuale fissa imposta (soglie da organizzazione/flow-down cliente). Gestione soglie da admin. Route gated `anagrafica.skillmatrix.view`. Migrazione additiva. 9 test (7 servizio + 2 view).

@@ -30,8 +30,11 @@ def modulo_label(key: str) -> str:
 def moduli_presenti() -> list[tuple[str, str]]:
     """[(chiave, etichetta)] dei moduli con almeno una voce, per il filtro."""
     from .models import RegistroOFI
+    # .order_by() azzera l'ordinamento di Meta (-numero): su SQL Server un DISTINCT
+    # con ORDER BY su una colonna non selezionata è errore (8127).
     chiavi = (RegistroOFI.objects
               .exclude(modulo_origine="")
+              .order_by()
               .values_list("modulo_origine", flat=True).distinct())
     return [(k, modulo_label(k)) for k in sorted(set(chiavi))]
 
@@ -81,7 +84,9 @@ def conta_pdca(qs=None) -> dict:
         RegistroOFI.FASE_CHECK: "check", RegistroOFI.FASE_ACT: "act",
         RegistroOFI.FASE_CHIUSO: "chiuso",
     }
-    for row in qs.values("fase").annotate(n=models.Count("id")):
+    # .order_by() azzera l'ordinamento di Meta (-numero): su SQL Server una GROUP BY
+    # (values+annotate) con ORDER BY su colonna non raggruppata è errore (8127).
+    for row in qs.order_by().values("fase").annotate(n=models.Count("id")):
         key = mapping.get(row["fase"])
         if key:
             out[key] = row["n"]
