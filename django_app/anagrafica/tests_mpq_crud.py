@@ -15,6 +15,7 @@ from .models import (
     CertificazioneIndividuale,
     ClienteQualificante,
     ProcessoQualificato,
+    RequisitoQualifica,
     RiferimentoProcesso,
 )
 from .tests import _ensure_anagrafica_table, _ensure_utenti_table
@@ -199,3 +200,56 @@ class MpqQuickAddTests(MpqCrudBase):
         # negato (302 redirect middleware o 403 gate in-view); comunque NON creato
         self.assertIn(resp.status_code, (302, 403))
         self.assertFalse(CategoriaDPI.objects.filter(nome="X Negato").exists())
+
+
+class MpqRequisitoCrudTests(MpqCrudBase):
+    """CRUD requisiti generici tipizzati del processo (1.14)."""
+
+    def test_add_get_ok(self):
+        resp = self.client.get(reverse("anagrafica:mpq_requisito_add", args=[self.proc.id]))
+        self.assertEqual(resp.status_code, 200)
+
+    def test_add_post(self):
+        resp = self.client.post(
+            reverse("anagrafica:mpq_requisito_add", args=[self.proc.id]), {
+                "tipo": RequisitoQualifica.TIPO_AUDIT,
+                "descrizione": "Audit annuale AC7004",
+                "stato": RequisitoQualifica.STATO_DA_VERIFICARE,
+                "obbligatorio": "on",
+            })
+        self.assertEqual(resp.status_code, 302)
+        req = RequisitoQualifica.objects.get(processo=self.proc)
+        self.assertEqual(req.tipo, RequisitoQualifica.TIPO_AUDIT)
+        self.assertTrue(req.obbligatorio)
+
+    def test_edit_post(self):
+        req = RequisitoQualifica.objects.create(
+            processo=self.proc, tipo=RequisitoQualifica.TIPO_CERTIFICATO,
+            descrizione="Cert vecchio")
+        resp = self.client.post(
+            reverse("anagrafica:mpq_requisito_edit", args=[req.id]), {
+                "tipo": RequisitoQualifica.TIPO_CERTIFICATO,
+                "descrizione": "Cert aggiornato",
+                "stato": RequisitoQualifica.STATO_SODDISFATTO,
+            })
+        self.assertEqual(resp.status_code, 302)
+        req.refresh_from_db()
+        self.assertEqual(req.descrizione, "Cert aggiornato")
+        self.assertEqual(req.stato, RequisitoQualifica.STATO_SODDISFATTO)
+
+    def test_delete_post(self):
+        req = RequisitoQualifica.objects.create(
+            processo=self.proc, tipo=RequisitoQualifica.TIPO_ALTRO, descrizione="Da rimuovere")
+        resp = self.client.post(reverse("anagrafica:mpq_requisito_delete", args=[req.id]))
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(RequisitoQualifica.objects.filter(pk=req.id).exists())
+
+    def test_add_negato_senza_manage(self):
+        u = User.objects.create_user(username="req-plain", email="rq@example.com", password="pass12345")
+        self.client.force_login(u)
+        resp = self.client.post(
+            reverse("anagrafica:mpq_requisito_add", args=[self.proc.id]),
+            {"tipo": RequisitoQualifica.TIPO_AUDIT, "descrizione": "Non deve entrare",
+             "stato": RequisitoQualifica.STATO_DA_VERIFICARE})
+        self.assertIn(resp.status_code, (302, 403))
+        self.assertFalse(RequisitoQualifica.objects.filter(descrizione="Non deve entrare").exists())

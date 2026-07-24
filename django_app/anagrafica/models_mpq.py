@@ -35,6 +35,7 @@ __all__ = [
     "ClienteQualificante",
     "ProcessoQualificato",
     "RiferimentoProcesso",
+    "RequisitoQualifica",
     "AbilitazioneProcesso",
     "CertificazioneIndividuale",
     "MpqStorico",
@@ -275,6 +276,111 @@ class RiferimentoProcesso(models.Model):
 
     def __str__(self) -> str:
         return self.codice
+
+
+# ---------------------------------------------------------------------------
+# Requisito generico tipizzato del processo (1-N, ampliamento oltre i 3 M2M)
+# ---------------------------------------------------------------------------
+class RequisitoQualifica(models.Model):
+    """Requisito generico tipizzato di un processo qualificato (≥0 per processo).
+
+    Estende i tre M2M fissi (``corsi_richiesti``/``dpi_richiesti``/
+    ``visite_richieste``) con requisiti liberi tipizzati che hanno scadenza/stato
+    propri ed evidenza allegabile: audit, certificato, esame, esperienza, test
+    visivo, DPI, riferimento normativo, altro (Part 145 / EN 9100 / NADCAP:
+    qualifica = insieme di requisiti verificati con evidenza).
+
+    Sono requisiti a livello **processo** (attestazione unica valida per tutti gli
+    abilitati, non per-persona): la conformità li valuta sullo stato/scadenza del
+    requisito, insieme ai requisiti per-persona (corsi/visite/DPI). L'FK opzionale
+    ``tipo_qualifica`` collega il requisito al catalogo qualifiche.
+    """
+
+    TIPO_AUDIT = "audit"
+    TIPO_CORSO = "corso"
+    TIPO_CERTIFICATO = "certificato"
+    TIPO_ESAME = "esame"
+    TIPO_ESPERIENZA = "esperienza"
+    TIPO_VISIONE = "visione"
+    TIPO_DPI = "dpi"
+    TIPO_RIF_NORMATIVO = "rif_normativo"
+    TIPO_ALTRO = "altro"
+    TIPO_CHOICES = [
+        (TIPO_AUDIT, "Audit"),
+        (TIPO_CORSO, "Corso/Formazione"),
+        (TIPO_CERTIFICATO, "Certificato"),
+        (TIPO_ESAME, "Esame"),
+        (TIPO_ESPERIENZA, "Esperienza"),
+        (TIPO_VISIONE, "Test visivo"),
+        (TIPO_DPI, "DPI"),
+        (TIPO_RIF_NORMATIVO, "Riferimento normativo"),
+        (TIPO_ALTRO, "Altro"),
+    ]
+
+    STATO_DA_VERIFICARE = "DA_VERIFICARE"
+    STATO_SODDISFATTO = "SODDISFATTO"
+    STATO_SCADUTO = "SCADUTO"
+    STATO_NON_APPLICABILE = "NON_APPLICABILE"
+    STATO_CHOICES = [
+        (STATO_DA_VERIFICARE, "Da verificare"),
+        (STATO_SODDISFATTO, "Soddisfatto"),
+        (STATO_SCADUTO, "Scaduto"),
+        (STATO_NON_APPLICABILE, "Non applicabile"),
+    ]
+
+    processo = models.ForeignKey(
+        ProcessoQualificato, on_delete=models.CASCADE, related_name="requisiti",
+    )
+    tipo_qualifica = models.ForeignKey(
+        "anagrafica.TipoQualifica", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="requisiti_catalogo",
+        help_text="Tipo qualifica di catalogo collegato (opzionale).",
+    )
+    tipo = models.CharField(max_length=16, choices=TIPO_CHOICES, default=TIPO_ALTRO)
+    descrizione = models.CharField(max_length=255)
+    obbligatorio = models.BooleanField(
+        default=True, help_text="Se falso, la voce è informativa e non degrada l'esito.",
+    )
+    rif_normativo = models.CharField(max_length=200, blank=True, default="")
+
+    # Scadenza/periodicità propria del requisito (indipendente dal processo).
+    stato = models.CharField(
+        max_length=16, choices=STATO_CHOICES, default=STATO_DA_VERIFICARE, db_index=True,
+    )
+    data_conseguimento = models.DateField(null=True, blank=True)
+    periodicita_mesi = models.PositiveSmallIntegerField(
+        null=True, blank=True, help_text="Ricorrenza in mesi (vuoto = una tantum).",
+    )
+    data_scadenza = models.DateField(null=True, blank=True)
+
+    # Evidenza allegabile (link a documento/registro; nessun upload obbligatorio).
+    evidenza_url = models.CharField(
+        max_length=500, blank=True, default="",
+        help_text="Link/riferimento all'evidenza (documento, registro, attestato).",
+    )
+    note = models.TextField(blank=True, default="")
+    ordine = models.PositiveSmallIntegerField(default=0)
+    attivo = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["processo", "ordine", "id"]
+        verbose_name = "Requisito qualifica (MPQ)"
+        verbose_name_plural = "Requisiti qualifica (MPQ)"
+
+    def __str__(self) -> str:
+        return f"{self.get_tipo_display()} — {self.descrizione}"
+
+    @property
+    def is_scaduto(self) -> bool:
+        """Scaduto per stato esplicito o per ``data_scadenza`` passata."""
+        if self.stato == self.STATO_SCADUTO:
+            return True
+        if self.data_scadenza is not None:
+            return self.data_scadenza < timezone.localdate()
+        return False
 
 
 # ---------------------------------------------------------------------------

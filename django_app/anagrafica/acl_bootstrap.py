@@ -100,6 +100,9 @@ _MPQ_ROUTE_BINDINGS = {
     "anagrafica:mpq_certificazione_delete": PERM_MPQ_MANAGE,
     "anagrafica:mpq_riferimento_add": PERM_MPQ_MANAGE,
     "anagrafica:mpq_riferimento_delete": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_requisito_add": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_requisito_edit": PERM_MPQ_MANAGE,
+    "anagrafica:mpq_requisito_delete": PERM_MPQ_MANAGE,
 }
 
 # Grant di default (CREATE-ONLY: non sovrascrive le scelte fatte in ACL canonico).

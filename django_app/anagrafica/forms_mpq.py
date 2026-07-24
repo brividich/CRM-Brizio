@@ -14,6 +14,7 @@ from .models_mpq import (
     CertificazioneIndividuale,
     ClienteQualificante,
     ProcessoQualificato,
+    RequisitoQualifica,
     RiferimentoProcesso,
 )
 
@@ -117,6 +118,36 @@ class RiferimentoProcessoForm(forms.ModelForm):
             "tipo": forms.Select(attrs=_FM_SELECT),
             "note": forms.TextInput(attrs=_FM),
         }
+
+
+class RequisitoQualificaForm(forms.ModelForm):
+    """Requisito generico tipizzato di un processo (1.14): audit/certificato/…"""
+
+    class Meta:
+        model = RequisitoQualifica
+        fields = [
+            "tipo", "descrizione", "obbligatorio", "rif_normativo",
+            "stato", "data_conseguimento", "periodicita_mesi", "data_scadenza",
+            "evidenza_url", "note",
+        ]
+        widgets = {
+            "tipo": forms.Select(attrs=_FM_SELECT),
+            "descrizione": forms.TextInput(attrs=_FM),
+            "obbligatorio": forms.CheckboxInput(attrs=_FM_CHECK),
+            "rif_normativo": forms.TextInput(attrs=_FM),
+            "stato": forms.Select(attrs=_FM_SELECT),
+            "data_conseguimento": forms.DateInput(attrs=_FM_DATE),
+            "periodicita_mesi": forms.NumberInput(attrs=_FM_NUM),
+            "data_scadenza": forms.DateInput(attrs=_FM_DATE),
+            "evidenza_url": forms.TextInput(attrs=_FM),
+            "note": forms.Textarea(attrs=_FM_TEXTAREA),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for f in ("rif_normativo", "data_conseguimento", "periodicita_mesi",
+                  "data_scadenza", "evidenza_url", "note"):
+            self.fields[f].required = False
 
 
 class CertificazioneIndividualeForm(forms.ModelForm):

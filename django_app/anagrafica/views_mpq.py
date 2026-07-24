@@ -264,7 +264,10 @@ def mpq_processo_detail(request, processo_id: int):
     corsi_req = list(processo.corsi_richiesti.all())
     dpi_req = list(processo.dpi_richiesti.all())
     visite_req = list(processo.visite_richieste.all())
-    ha_requisiti = bool(corsi_req or dpi_req or visite_req)
+    # Requisiti generici tipizzati (1.14): audit/certificato/esame/… con stato proprio.
+    requisiti_generici = list(processo.requisiti.all())
+    ha_requisiti = bool(corsi_req or dpi_req or visite_req
+                        or any(r.attivo for r in requisiti_generici))
     from .services.mpq_conformita import verifica_requisiti
 
     ab_stato_labels = dict(AbilitazioneProcesso.STATO_CHOICES)
@@ -317,6 +320,7 @@ def mpq_processo_detail(request, processo_id: int):
         "corsi_req": corsi_req,
         "dpi_req": dpi_req,
         "visite_req": visite_req,
+        "requisiti_generici": requisiti_generici,
         "ha_requisiti": ha_requisiti,
         "abilitazioni": righe,
         "storico": list(processo.storico.select_related("registrato_da")[:50]),
@@ -845,6 +849,71 @@ def mpq_riferimento_delete(request, rif_id: int):
     rif.delete()
     messages.success(request, "Riferimento rimosso.")
     return redirect("anagrafica:mpq_processo_detail", processo_id=pid)
+
+
+# ── Requisiti generici tipizzati del processo (1.14) ──────────────────────────
+
+@login_required
+def mpq_requisito_add(request, processo_id: int):
+    if not _check_manage(request):
+        return _mpq_denied(request)
+    from .forms_mpq import RequisitoQualificaForm
+    proc = get_object_or_404(ProcessoQualificato, pk=processo_id)
+    if request.method == "POST":
+        form = RequisitoQualificaForm(request.POST)
+        if form.is_valid():
+            req = form.save(commit=False)
+            req.processo = proc
+            req.save()
+            _mpq_log(request, processo=proc, evento="Requisito aggiunto",
+                     dettaglio=f"{req.get_tipo_display()}: {req.descrizione}")
+            messages.success(request, "Requisito aggiunto.")
+            return redirect("anagrafica:mpq_processo_detail", processo_id=proc.id)
+        messages.error(request, "Dati requisito non validi.")
+    else:
+        form = RequisitoQualificaForm()
+    return render(request, "anagrafica/pages/mpq_requisito_form.html", {
+        "form": form, "processo": proc, "titolo": "Nuovo requisito",
+    })
+
+
+@login_required
+def mpq_requisito_edit(request, req_id: int):
+    if not _check_manage(request):
+        return _mpq_denied(request)
+    from .forms_mpq import RequisitoQualificaForm
+    from .models_mpq import RequisitoQualifica
+    req = get_object_or_404(RequisitoQualifica.objects.select_related("processo"), pk=req_id)
+    proc = req.processo
+    if request.method == "POST":
+        form = RequisitoQualificaForm(request.POST, instance=req)
+        if form.is_valid():
+            form.save()
+            _mpq_log(request, processo=proc, evento="Requisito modificato",
+                     dettaglio=f"{req.get_tipo_display()}: {req.descrizione}")
+            messages.success(request, "Requisito aggiornato.")
+            return redirect("anagrafica:mpq_processo_detail", processo_id=proc.id)
+        messages.error(request, "Dati requisito non validi.")
+    else:
+        form = RequisitoQualificaForm(instance=req)
+    return render(request, "anagrafica/pages/mpq_requisito_form.html", {
+        "form": form, "processo": proc, "titolo": "Modifica requisito",
+    })
+
+
+@login_required
+@require_POST
+def mpq_requisito_delete(request, req_id: int):
+    if not _check_manage(request):
+        return _mpq_denied(request)
+    from .models_mpq import RequisitoQualifica
+    req = get_object_or_404(RequisitoQualifica.objects.select_related("processo"), pk=req_id)
+    proc = req.processo
+    dettaglio = f"{req.get_tipo_display()}: {req.descrizione}"
+    req.delete()
+    _mpq_log(request, processo=proc, evento="Requisito rimosso", dettaglio=dettaglio)
+    messages.success(request, "Requisito rimosso.")
+    return redirect("anagrafica:mpq_processo_detail", processo_id=proc.id)
 
 
 # ── Crea-al-volo (JSON) di corso/visita/DPI dal form processo (gated manage) ──
