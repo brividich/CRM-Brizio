@@ -14845,6 +14845,31 @@ def skm_scadenzario(request):
 
 
 @login_required
+def skm_copertura(request):
+    """Verifica **copertura minima** (AS/EN 9100): soglie configurate vs abilitati
+    operativi disponibili, con evidenza dei gap. Riuso del resolver skill matrix
+    per gli asset e delle abilitazioni MPQ attive per i processi. Sola lettura;
+    le soglie si gestiscono da admin. Accesso: ``anagrafica.skillmatrix.view``.
+    """
+    from .acl_bootstrap import PERM_SKM_VIEW
+    if not _check_skm_permission(request, PERM_SKM_VIEW):
+        messages.error(request, "Non hai i permessi per la Skill Matrix.")
+        return redirect("anagrafica:index")
+
+    from .services import skillmatrix_copertura as cov
+    righe = cov.valuta_copertura()
+    kpi = {
+        "totali": len(righe),
+        "scoperte": sum(1 for r in righe if r["coperta"] is False),
+        "gap_totale": sum((r["gap"] or 0) for r in righe),
+        "non_valutabili": sum(1 for r in righe if r["coperta"] is None),
+    }
+    return render(request, "anagrafica/pages/skm_copertura.html", {
+        "righe": righe, "kpi": kpi,
+    })
+
+
+@login_required
 def skm_impostazioni(request):
     """Gestione del singleton ``SkillMatrixConfig`` (parametri Skill Matrix MOD.187).
 

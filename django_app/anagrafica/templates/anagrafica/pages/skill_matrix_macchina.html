@@ -65,6 +65,7 @@ body.theme-dark .sm-table th.name, body.theme-dark .sm-table td.name { backgroun
     </div>
     <div style="display:flex;gap:8px;">
       {% if can_manage %}<a href="{% url 'anagrafica:skm_impostazioni' %}" class="hr-btn hr-btn-outline" title="Soglia operativa, CAR, uomo-solo, etichette">⚙️ Impostazioni</a>{% endif %}
+      <a href="{% url 'anagrafica:skm_copertura' %}" class="hr-btn hr-btn-outline" title="Verifica copertura minima (AS/EN 9100)">🛡️ Copertura minima</a>
       <a href="{% url 'anagrafica:skm_match_validazione' %}" class="hr-btn hr-btn-outline" title="Valida l'abbinamento competenza→asset (gate F2a)">🔧 Validazione match</a>
       <a href="?{% if filtro_reparto %}reparto={{ filtro_reparto|urlencode }}&{% endif %}data={{ data_sel|date:'Y-m-d' }}&format=csv" class="hr-btn hr-btn-outline">⬇ CSV</a>
     </div>

@@ -715,7 +715,7 @@ class RecruitingPermissionAdmin(admin.ModelAdmin):
         return False
 
 
-from .models_skillmatrix import CompetenzaSkm  # noqa: E402
+from .models_skillmatrix import CompetenzaSkm, SogliaCopertura  # noqa: E402
 
 
 @admin.register(CompetenzaSkm)
@@ -728,3 +728,16 @@ class CompetenzaSkmAdmin(admin.ModelAdmin):
     search_fields = ("competenza_key", "display", "alias_storici")
     raw_id_fields = ("asset", "tipo_qualifica", "corso_qualificante")
     list_select_related = ("asset", "corso_qualificante")
+
+
+@admin.register(SogliaCopertura)
+class SogliaCoperturaAdmin(admin.ModelAdmin):
+    """Soglie di copertura minima (AS/EN 9100, punto 1.13): configurabili per
+    asset/processo/ambito, attribuibili a una certificazione."""
+
+    list_display = ("nome", "ambito_display", "livello_minimo", "minimo_abilitati",
+                    "certificazione", "attiva")
+    list_filter = ("attiva", "certificazione", "livello_minimo")
+    search_fields = ("nome", "descrizione_ambito", "certificazione", "rif_normativo")
+    raw_id_fields = ("asset", "processo")
+    list_select_related = ("asset", "processo")

@@ -515,3 +515,78 @@ class SkmCorsiAttivati(models.Model):
 
     def __str__(self) -> str:
         return f"[{self.legacy_anagrafica_id}] {self.numero}"
+
+
+# ---------------------------------------------------------------------------
+# Copertura minima (AS/EN 9100) — soglie configurabili (1.13)
+# ---------------------------------------------------------------------------
+class SogliaCopertura(models.Model):
+    """Soglia di copertura minima **configurabile** per un ambito critico.
+
+    Gli standard aeronautici (AS/EN 9100, Nadcap AC7xxx, EN 4179) impongono
+    personale qualificato e competenza verificata ma **non** una percentuale/
+    numero minimo fisso: le soglie sono definite dall'organizzazione o dal
+    flow-down cliente. Qui una soglia dichiara «servono almeno ``minimo_abilitati``
+    persone a livello ≥ ``livello_minimo`` su questo asset/processo/ambito»,
+    attribuibile a una certificazione. La vista confronta soglia vs abilitati
+    operativi (riuso resolver skill matrix) ed evidenzia i gap.
+
+    (Terminologia UI: «AS/EN 9100», non «ISO 9100» che non esiste.)
+    """
+
+    nome = models.CharField(max_length=200)
+    # Target: uno tra asset (macchina), processo qualificato o ambito libero
+    # (ruolo/processo critico). ``clean()`` esige almeno un target.
+    asset = models.ForeignKey(
+        "assets.Asset", on_delete=models.CASCADE, null=True, blank=True,
+        related_name="soglie_copertura",
+    )
+    processo = models.ForeignKey(
+        "anagrafica.ProcessoQualificato", on_delete=models.CASCADE, null=True, blank=True,
+        related_name="soglie_copertura",
+    )
+    descrizione_ambito = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Ambito libero (ruolo/processo critico) quando non è un asset/processo.",
+    )
+
+    livello_minimo = models.CharField(
+        max_length=1, choices=LivelloSkm.choices, default=LivelloSkm.AUTONOMO,
+        help_text="Livello minimo (≥) che conta come «coperto» (solo per soglie su asset).",
+    )
+    minimo_abilitati = models.PositiveSmallIntegerField(
+        default=2, help_text="Numero minimo di persone abilitate richiesto.",
+    )
+    certificazione = models.CharField(
+        max_length=150, blank=True, default="",
+        help_text="Certificazione/standard di riferimento (es. «AS/EN 9100», «NADCAP AC7101»).",
+    )
+    rif_normativo = models.CharField(max_length=200, blank=True, default="")
+    attiva = models.BooleanField(default=True)
+    ordine = models.PositiveSmallIntegerField(default=0)
+    note = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["ordine", "nome"]
+        verbose_name = "Soglia copertura minima"
+        verbose_name_plural = "Soglie copertura minima"
+
+    def __str__(self) -> str:
+        return self.nome
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if not (self.asset_id or self.processo_id or (self.descrizione_ambito or "").strip()):
+            raise ValidationError(
+                "Indicare un target: asset, processo qualificato oppure un ambito libero."
+            )
+
+    @property
+    def ambito_display(self) -> str:
+        if self.asset_id:
+            return f"Macchina: {self.asset}"
+        if self.processo_id:
+            return f"Processo: {self.processo}"
+        return self.descrizione_ambito or "—"
