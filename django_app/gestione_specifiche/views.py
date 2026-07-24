@@ -609,9 +609,14 @@ def ofi_registro(request):
 
     fase = (request.GET.get("fase") or "").strip().upper()
     priorita = (request.GET.get("priorita") or "").strip().upper()
+    modulo = (request.GET.get("modulo") or "").strip()
     solo_scaduti = request.GET.get("scaduti") == "1"
 
+    # Registro trasversale: nessun filtro modulo = registro UNICO (tutti i moduli);
+    # ?modulo=<chiave> = il registro del singolo modulo.
     qs = RegistroOFI.objects.all().select_related("content_type")
+    if modulo:
+        qs = qs.filter(modulo_origine=modulo)
     if fase in dict(RegistroOFI.FASE_CHOICES):
         qs = qs.filter(fase=fase)
     if priorita in dict(RegistroOFI.PRIORITA_CHOICES):
@@ -620,11 +625,16 @@ def ofi_registro(request):
     if solo_scaduti:
         voci = [v for v in voci if v.is_scaduto]
 
+    # Contatori/scaduti coerenti con il filtro modulo (il "mio" registro vs unico).
+    base = RegistroOFI.objects.filter(modulo_origine=modulo) if modulo else RegistroOFI.objects.all()
+
     return render(request, "gestione_specifiche/ofi_registro.html", {
         "voci": voci,
-        "counters": reg.conta_pdca(),
-        "n_scaduti": sum(1 for v in RegistroOFI.objects.all() if v.is_scaduto),
+        "counters": reg.conta_pdca(base),
+        "n_scaduti": sum(1 for v in base if v.is_scaduto),
         "fase": fase, "priorita": priorita, "solo_scaduti": solo_scaduti,
+        "modulo": modulo, "modulo_label": reg.modulo_label(modulo) if modulo else "",
+        "moduli_opts": reg.moduli_presenti(),
         "FASE_CHOICES": RegistroOFI.FASE_CHOICES,
         "PRIORITA_CHOICES": RegistroOFI.PRIORITA_CHOICES,
         "C": C,

@@ -171,3 +171,21 @@ class RegistroViewTests(RegistroBase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Registro OFI")
         self.assertContains(resp, "Trattamenti")
+
+    def test_filtro_per_modulo(self):
+        oggi = timezone.localdate()
+        RegistroOFI.objects.create(
+            numero=R.prossimo_numero(), data_apertura=oggi,
+            modulo_origine="gestione_specifiche", processo="Da MOD.133")
+        RegistroOFI.objects.create(
+            numero=R.prossimo_numero(), data_apertura=oggi,
+            modulo_origine="altro_modulo", processo="Da altrove")
+        # registro unico: entrambe
+        r_all = self.client.get(reverse("gestione_specifiche:ofi_registro"))
+        self.assertContains(r_all, "Da MOD.133")
+        self.assertContains(r_all, "Da altrove")
+        # registro del modulo: solo la sua
+        r_mod = self.client.get(
+            reverse("gestione_specifiche:ofi_registro"), {"modulo": "gestione_specifiche"})
+        self.assertContains(r_mod, "Da MOD.133")
+        self.assertNotContains(r_mod, "Da altrove")

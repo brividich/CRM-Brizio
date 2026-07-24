@@ -15,6 +15,26 @@ from django.utils import timezone
 
 _OFI_BASE = 1000  # coerente con gestione_specifiche.ofi._OFI_BASE
 
+# Etichette leggibili dei moduli d'origine (registro trasversale multi-modulo).
+# Estendibile quando altri moduli inizieranno a generare OFI.
+MODULO_LABELS = {
+    "gestione_specifiche": "Specifiche / MOD.133",
+}
+
+
+def modulo_label(key: str) -> str:
+    """Etichetta leggibile del modulo d'origine (fallback alla chiave)."""
+    return MODULO_LABELS.get(key or "", key or "—")
+
+
+def moduli_presenti() -> list[tuple[str, str]]:
+    """[(chiave, etichetta)] dei moduli con almeno una voce, per il filtro."""
+    from .models import RegistroOFI
+    chiavi = (RegistroOFI.objects
+              .exclude(modulo_origine="")
+              .values_list("modulo_origine", flat=True).distinct())
+    return [(k, modulo_label(k)) for k in sorted(set(chiavi))]
+
 
 def prossimo_numero() -> int:
     """Prossimo numero di registro OFI, senza collisione con l'OFI legacy."""

@@ -29,9 +29,9 @@
   <section class="gs-hero">
     <div class="gs-hero__row">
       <div style="flex:1; min-width:280px;">
-        <div class="gs-hero__eyebrow"><i></i>MOD.174 · Registro OFI/NC</div>
-        <h1>Registro OFI centralizzato</h1>
-        <p class="gs-hero__sub">Opportunità di miglioramento e non conformità con ciclo PLAN-DO-CHECK-ACT, priorità, proprietario/owner di processo, scadenza e reminder. Le voci nascono dalle righe MOD.133 con impatto e sono agganciabili da altri moduli. Gestione dei campi PDCA da Amministrazione.</p>
+        <div class="gs-hero__eyebrow"><i></i>MOD.174 · Registro OFI/NC · {% if modulo %}Modulo: {{ modulo_label }}{% else %}Registro unico (tutti i moduli){% endif %}</div>
+        <h1>Registro OFI{% if modulo %} — {{ modulo_label }}{% else %} centralizzato{% endif %}</h1>
+        <p class="gs-hero__sub">Registro trasversale delle Opportunità di miglioramento e non conformità con ciclo PLAN-DO-CHECK-ACT, priorità, proprietario/owner di processo, scadenza e reminder. Le voci nascono dai moduli del portale (oggi dalle righe MOD.133 con impatto). {% if modulo %}<a href="{% url 'gestione_specifiche:ofi_registro' %}">← Torna al registro unico</a>{% else %}Filtra per modulo per vedere il registro del singolo modulo.{% endif %} Gestione dei campi PDCA da Amministrazione.</p>
       </div>
     </div>
   </section>
@@ -47,6 +47,13 @@
   </div>
 
   <form method="get" class="ofi-toolbar">
+    {% if moduli_opts %}
+    <label style="font-size:12px;color:#64748b;font-weight:700;">Modulo</label>
+    <select name="modulo" onchange="this.form.submit()">
+      <option value="">Tutti (registro unico)</option>
+      {% for val, lab in moduli_opts %}<option value="{{ val }}" {% if modulo == val %}selected{% endif %}>{{ lab }}</option>{% endfor %}
+    </select>
+    {% endif %}
     <label style="font-size:12px;color:#64748b;font-weight:700;">Fase</label>
     <select name="fase" onchange="this.form.submit()">
       <option value="">Tutte</option>
@@ -64,12 +71,13 @@
   <div class="gs-panel gs-panel--pad">
     <table class="ofi-table">
       <thead>
-        <tr><th>N.</th><th>Tipo</th><th>Processo</th><th>Opportunità</th><th>Fase</th><th>Priorità</th><th>Owner</th><th>Scadenza</th></tr>
+        <tr><th>N.</th>{% if not modulo %}<th>Modulo</th>{% endif %}<th>Tipo</th><th>Processo</th><th>Opportunità</th><th>Fase</th><th>Priorità</th><th>Owner</th><th>Scadenza</th></tr>
       </thead>
       <tbody>
         {% for v in voci %}
         <tr>
           <td><b>{{ v.numero }}</b>{% if v.ref %}<div style="font-size:11px;color:#7c8aa2;">{{ v.ref }}</div>{% endif %}</td>
+          {% if not modulo %}<td style="font-size:11.5px;color:#5b6b82;">{{ v.modulo_display }}</td>{% endif %}
           <td>{{ v.get_tipo_display }}</td>
           <td>{{ v.processo|default:"—" }}</td>
           <td style="max-width:320px;">{{ v.opportunita|truncatechars:160|default:"—" }}</td>

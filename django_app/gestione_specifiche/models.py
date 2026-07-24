@@ -472,6 +472,12 @@ class RegistroOFI(models.Model):
             return False
         return self.data_richiesta < timezone.localdate()
 
+    @property
+    def modulo_display(self) -> str:
+        """Etichetta leggibile del modulo d'origine (registro trasversale)."""
+        from .registro_ofi import modulo_label  # lazy: evita import ciclico
+        return modulo_label(self.modulo_origine)
+
 
 class AzioneOFI(models.Model):
     """Sotto-flusso di modifica documento CN generato da una riga MOD.133 (F5)."""
