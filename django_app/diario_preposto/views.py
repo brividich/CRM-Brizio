@@ -21,6 +21,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from core.acl_v2 import request_has_permission_code
 from core.module_branding import get_module_branding_context, handle_module_branding_post
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 from core.models import ChecklistEsecuzione, ChecklistRisposta, ChecklistVoce
@@ -30,6 +31,7 @@ from core.upload_mime import (
     validate_extension_and_mime,
 )
 
+from .acl_bootstrap import PERM_IMPOSTAZIONI_MANAGE
 from .forms import SegnalazioneForm
 from .models import DiarioPrepostoImpostazioni, SegnalazioneAllegato, SegnalazionePreposto
 
@@ -181,7 +183,10 @@ def _can_manage_settings(request) -> bool:
     if not request.user.is_authenticated:
         return False
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
-    return bool(getattr(request.user, "is_superuser", False) or (legacy_user and is_legacy_admin(legacy_user)))
+    if getattr(request.user, "is_superuser", False) or (legacy_user and is_legacy_admin(legacy_user)):
+        return True
+    # ACL v2 canonico: concedibile per ruolo da /admin-portale/acl-canonico/.
+    return request_has_permission_code(request, PERM_IMPOSTAZIONI_MANAGE)
 
 
 def _can_view(request) -> bool:
@@ -908,8 +913,7 @@ def api_cerca_utenti(request):
     Stesso contratto di ``tickets.api_cerca_utenti``: ritorna nome, username
     (aliasusername legacy = fonte unica username) ed email di login aziendale.
     """
-    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
-    if not (legacy_user and is_legacy_admin(legacy_user)):
+    if not _can_manage_settings(request):
         return _json_err("Non autorizzato", 403)
 
     q = (request.GET.get("q") or "").strip()
@@ -953,9 +957,8 @@ def api_cerca_utenti(request):
 
 @login_required
 def impostazioni(request):
-    """Impostazioni modulo Diario Preposto — solo admin legacy."""
-    legacy_user = get_legacy_user(request.user)
-    if not (legacy_user and is_legacy_admin(legacy_user)):
+    """Impostazioni modulo Diario Preposto — admin o grant canonico."""
+    if not _can_manage_settings(request):
         return render(request, "core/pages/forbidden.html", status=403)
 
     cfg = DiarioPrepostoImpostazioni.objects.filter(pk=1).first()

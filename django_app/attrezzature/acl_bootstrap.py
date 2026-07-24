@@ -112,6 +112,10 @@ _PULSANTI_DEFINITIONS = [
     },
 ]
 
+# Esportato per i gate in-view (vedi views._can_delete_attrezzature): il codice
+# canonico e' la fonte unica, non una stringa ripetuta a mano nelle view.
+PERM_ATTREZZATURE_DELETE = "attrezzature.attrezzature.delete"
+
 _CANONICAL_PERMISSION_DEFINITIONS = {
     "attrezzature.attrezzature.view": {
         "label": "Gestione Attrezzatura - Vede attrezzature",

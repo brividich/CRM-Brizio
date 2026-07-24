@@ -15,11 +15,14 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from core.acl_v2 import request_has_permission_code
 from core.audit import log_action
 from core.legacy_anagrafica import ensure_anagrafica_schema, fetch_anagrafica_rows
 from core.contact_people import parse_contact_people, primary_contact, serialize_contact_people
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
+
+from .acl_bootstrap import PERM_DPI_MANAGE
 
 from .models import (
     CategoriaDPI,
@@ -55,9 +58,15 @@ DPI_MIME_POLICY_FIELDS = {"CategoriaDPI.immagine", "ModelloDPI.immagine"}
 # ---------------------------------------------------------------------------
 
 def _is_gestore(request) -> bool:
-    from core.legacy_models import UtenteLegacy
-    legacy_user = get_legacy_user(request.user)
-    return request.user.is_superuser or is_legacy_admin(legacy_user)
+    if request.user.is_superuser:
+        return True
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    if legacy_user and is_legacy_admin(legacy_user):
+        return True
+    # ACL v2 canonico: concedibile per ruolo da /admin-portale/acl-canonico/
+    # (additivo, fail-closed). Prima il gate era binario e nessun ruolo diverso
+    # da "admin" poteva gestire il modulo DPI.
+    return request_has_permission_code(request, PERM_DPI_MANAGE)
 
 
 def _archivia_pdf_consegna(request, consegna: ConsegnaDPI) -> None:

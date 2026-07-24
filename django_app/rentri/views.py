@@ -23,12 +23,15 @@ from django.views.decorators.http import require_POST
 from django.contrib import messages
 
 from config.env_config import get_first_env_value
+from core.acl_v2 import request_has_permission_code
 from core.csv_export import safe_csv_writer
 from core.audit import log_action
 from core.contact_people import parse_contact_people, primary_contact, serialize_contact_people
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 from core.module_branding import get_module_branding_context, handle_module_branding_post
 from core.upload_mime import safe_filename, validate_filename, UploadMimeValidationError
+
+from .acl_bootstrap import PERM_RENTRI_MANAGE
 
 
 _RENTRI_CSV_MAX_BYTES = 5 * 1024 * 1024
@@ -276,13 +279,17 @@ def _get_username(request) -> str:
 def _can_manage_rentri(request) -> bool:
     """SEC-PREPROD-02 (M3): gate scrittura registro RENTRI (dato a valenza legale).
 
-    Consentito a superuser e amministratori legacy; gli altri utenti con accesso
-    al modulo restano in sola lettura.
+    Consentito a superuser, amministratori legacy e ai ruoli con il grant
+    canonico `rentri.registro.manage` (concedibile da /admin-portale/acl-canonico/,
+    additivo e fail-closed); gli altri utenti con accesso al modulo restano in
+    sola lettura.
     """
     if getattr(request.user, "is_superuser", False):
         return True
-    legacy_user = get_legacy_user(request.user)
-    return bool(legacy_user and is_legacy_admin(legacy_user))
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    if legacy_user and is_legacy_admin(legacy_user):
+        return True
+    return request_has_permission_code(request, PERM_RENTRI_MANAGE)
 
 
 def _require_rentri_manager(request):
@@ -1274,9 +1281,8 @@ def api_sync_pull(request):
 
 @login_required
 def impostazioni(request):
-    """Impostazioni modulo Rentri — solo admin legacy."""
-    legacy_user = get_legacy_user(request.user)
-    if not (legacy_user and is_legacy_admin(legacy_user)):
+    """Impostazioni modulo Rentri — superuser, admin legacy o grant canonico."""
+    if not _can_manage_rentri(request):
         from django.http import HttpResponseForbidden
         return HttpResponseForbidden()
 

@@ -826,6 +826,41 @@ Sono **additivi**: superuser e admin legacy passano come prima, e i grant nascon
 spenti per tutti gli altri ruoli — dati personali e sanitari si concedono
 esplicitamente, mai per default.
 
+### Cancelli in-view: `request_has_permission_code`
+
+Non tutto è una rotta: certe decisioni sono **dentro** una view (un pulsante di
+eliminazione, una sezione della pagina, un'API di supporto). Per queste si usa
+`core.acl_v2.request_has_permission_code(request, code)`, che affianca il
+cancello storico invece di sostituirlo — `evaluate_permission_code_access`
+contiene già il bypass superuser/admin legacy, quindi l'helper **concede e non
+toglie mai** un accesso già esistente, ed è fail-closed se la valutazione solleva.
+
+Per questi permessi **non** si registra un `RoutePermissionBinding`: con
+`ACL_STRICT_CANONICAL=True` un binding negherebbe l'intera rotta a chi non ha il
+grant, invece di limitare la singola azione.
+
+⚠️ Un cancello scritto come `is_superuser or is_legacy_admin(...)` **non è
+governabile dal modulo permessi**: `is_legacy_admin` è vero solo per i ruoli il
+cui nome è in `PORTAL_ADMIN_ROLE_NAMES` (default `{"admin"}`, non valorizzato).
+Se un ruolo va abilitato da UI, serve un permission code.
+
+Permessi di gestione di modulo cablati con questo helper:
+
+| Permission code | Gate | Cosa apre |
+|---|---|---|
+| `attrezzature.attrezzature.delete` | `_can_delete_attrezzature` | Eliminazione attrezzature |
+| `diario_preposto.impostazioni.manage` | `_can_manage_settings` | Impostazioni Diario Preposto |
+| `ai_assistant.knowledge.manage` | (view knowledge) | Gestione knowledge base AI |
+| `dpi.gestione.manage` | `_is_gestore` | Richieste/consegne/storico/impostazioni DPI |
+| `rentri.registro.manage` | `_can_manage_rentri` | Scrittura sul registro RENTRI |
+| `rilevazione_incidenti.impostazioni.manage` | `_can_manage_settings` | Impostazioni Rilevazione Incidenti |
+| `anomalie.configurazione.manage` | `_can_manage_anomalie_config` | Configurazione anomalie (campi, notifiche, sync) |
+| `tickets.impostazioni.manage` | `_can_manage_settings` | Impostazioni tickets (tipi, ACL, SharePoint, import) |
+
+Restano correttamente **admin-only** (nessun permission code, è l'intento) le
+utility genuinamente amministrative: impersonation, reset onboarding, gestione
+account.
+
 Il report `/admin-portale/acl-route-coverage/` usa il binding canonico effettivo
 (route o path piu specifico) e distingue le route protette da
 `@legacy_admin_required` con il flag `Admin bypass`, senza contarle come

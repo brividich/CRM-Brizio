@@ -14,11 +14,14 @@ from django.db import models
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
+from core.acl_v2 import request_has_permission_code
 from core.csv_export import safe_csv_writer
 from core.audit import log_action
 from core.graph_utils import acquire_graph_token
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 from core.module_branding import get_module_branding_context, handle_module_branding_post
+
+from .acl_bootstrap import PERM_IMPOSTAZIONI_MANAGE
 
 from .models import RilevazioneIncidente, SicurezzaImpostazioni, TipoEventoSicurezza
 from .services import EVENT_TYPE_LABELS, get_safety_kpis, normalize_tipo_evento
@@ -173,8 +176,14 @@ def _can_manage_rspp(request) -> bool:
 def _can_manage_settings(request) -> bool:
     if not request.user.is_authenticated:
         return False
+    if getattr(request.user, "is_superuser", False):
+        return True
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
-    return bool(getattr(request.user, "is_superuser", False) or (legacy_user and is_legacy_admin(legacy_user)))
+    if legacy_user and is_legacy_admin(legacy_user):
+        return True
+    # ACL v2 canonico: concedibile per ruolo da /admin-portale/acl-canonico/
+    # (additivo, fail-closed).
+    return request_has_permission_code(request, PERM_IMPOSTAZIONI_MANAGE)
 
 
 @login_required
@@ -1108,8 +1117,7 @@ def heatmap(request):
 
 @login_required
 def impostazioni(request):
-    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
-    if not (request.user.is_superuser or (legacy_user and is_legacy_admin(legacy_user))):
+    if not _can_manage_settings(request):
         return render(request, "core/pages/forbidden.html", status=403)
 
     cfg = _get_impostazioni()
