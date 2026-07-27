@@ -603,6 +603,11 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
     </div>
   </div>
 
+  {% if asset.asset_type == "PRODOTTO_CHIMICO" %}
+    {% include "assets/partials/_chemical_detail.html" %}
+  {% endif %}
+
+  {% if asset.asset_type != "PRODOTTO_CHIMICO" %}
   {% if asset_status_band %}
     <section class="af-statusband">
       {% with c=asset_status_band.coverage %}
@@ -1482,6 +1487,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
     </div>
   </section>
   {% endif %}
+  {% endif %}{# /asset_type != PRODOTTO_CHIMICO — corpo standard nascosto per i chimici #}
 
 </section>
 

@@ -101,3 +101,28 @@ class ChemicalAssetViewTests(TestCase):
         resp = self.client.get(reverse("assets:asset_create") + "?asset_type=PRODOTTO_CHIMICO")
         self.assertRedirects(resp, reverse("assets:chemical_create"),
                              fetch_redirect_response=False)
+
+    def test_chemical_detail_shows_sds_and_hides_maintenance(self):
+        rep = Reparto.objects.create(nome="Chimica")
+        p = ProdottoChimico.objects.create(nome="Acetone", reparto=rep, ubicazione="Scaffale A")
+        a = Asset.objects.create(
+            asset_tag="CHEM-3", name="Acetone",
+            asset_type=Asset.TYPE_CHEMICAL, prodotto_chimico=p,
+        )
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("assets:asset_view", args=[a.id]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Scaffale A")        # logistica dal prodotto
+        self.assertContains(resp, "Pittogrammi")       # blocco pericolosità
+        # Il corpo standard (manutenzione/scadenze/assistenza) è nascosto: la sua
+        # sezione contenitore non deve comparire per i chimici. Si ancora su
+        # class="af-sections" (l'elemento HTML), non sulla stringa "af-sections"
+        # che compare anche nelle regole CSS .af-sections del blocco <style>.
+        self.assertNotContains(resp, 'class="af-sections"')
+
+    def test_non_chemical_detail_still_shows_maintenance(self):
+        a = Asset.objects.create(asset_tag="IT-1", name="PC", asset_type=Asset.TYPE_PC)
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("assets:asset_view", args=[a.id]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'class="af-sections"')  # non-chimico: corpo standard presente

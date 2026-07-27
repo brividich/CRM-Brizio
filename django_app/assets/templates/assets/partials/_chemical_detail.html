@@ -1,0 +1,95 @@
+{# Schermata dedicata asset "Prodotto chimico": riusa i dati SDS da schede_sicurezza
+   (fonte unica). prodotto_chimico e scheda_corrente arrivano dal context. #}
+{% if not prodotto_chimico %}
+  <section class="af-card" style="margin-top:18px;">
+    <div style="padding:16px 20px;color:#b91c1c;">
+      Prodotto chimico non collegato. Collega l'asset a un prodotto in
+      <a href="{% url 'assets:chemical_edit' asset.id %}">modifica</a>.
+    </div>
+  </section>
+{% else %}
+  <section class="af-card" style="margin-top:18px;">
+    <div class="af-card-head">
+      <div>
+        <div class="af-card-kicker">PRODOTTO CHIMICO</div>
+        <h3 class="af-card-title">{{ prodotto_chimico.nome }}</h3>
+      </div>
+      <a class="af-btn af-btn-secondary" href="{% url 'schede_sicurezza:prodotto_detail' prodotto_chimico.pk %}">
+        Apri in Schede di sicurezza →
+      </a>
+    </div>
+
+    <div style="padding:16px 20px;display:grid;gap:18px;">
+
+      {# ── Pericolosità: pittogrammi + scheda ─────────────────────────── #}
+      <div>
+        <div class="af-card-kicker" style="margin-bottom:8px;">Pittogrammi &amp; pericolosità</div>
+        {% if scheda_corrente %}
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+            {% for p in scheda_corrente.pittogrammi %}
+              <span class="af-hero-tag">{{ p }}</span>
+            {% empty %}
+              <span style="color:#64748b;">Nessun pittogramma registrato.</span>
+            {% endfor %}
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <span class="af-hero-tag"><span>Scheda</span>v.{{ scheda_corrente.versione|default:"?" }}</span>
+            {% if scheda_corrente.scaduta %}
+              <span class="af-pill af-pill--part145">SDS da rivedere</span>
+            {% else %}
+              <span class="af-hero-tag"><span>Stato</span>corrente</span>
+            {% endif %}
+            {% if scheda_corrente.data_revisione_fornitore %}
+              <span class="af-hero-tag"><span>Revisione</span>{{ scheda_corrente.data_revisione_fornitore|date:"d-m-Y" }}</span>
+            {% endif %}
+          </div>
+          {% if scheda_corrente.classificazione_clp %}
+            <div style="margin-top:10px;"><strong>Classificazione CLP:</strong> {{ scheda_corrente.classificazione_clp }}</div>
+          {% endif %}
+          {% if scheda_corrente.frasi_h %}
+            <div style="margin-top:6px;"><strong>Frasi H:</strong> {{ scheda_corrente.frasi_h|join:", " }}</div>
+          {% endif %}
+          {% if scheda_corrente.frasi_p %}
+            <div style="margin-top:6px;"><strong>Frasi P:</strong> {{ scheda_corrente.frasi_p|join:", " }}</div>
+          {% endif %}
+        {% else %}
+          <div style="color:#64748b;">SDS non disponibile per questo prodotto.</div>
+        {% endif %}
+      </div>
+
+      {# ── Sicurezza operativa ────────────────────────────────────────── #}
+      <div>
+        <div class="af-card-kicker" style="margin-bottom:8px;">Sicurezza operativa</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+          {% for dpi in prodotto_chimico.dpi_obbligatori.all %}
+            <span class="af-hero-tag">{{ dpi.nome }}</span>
+          {% empty %}
+            <span style="color:#64748b;">Nessun DPI obbligatorio indicato.</span>
+          {% endfor %}
+        </div>
+        {% if scheda_corrente.primo_soccorso %}
+          <div style="margin-top:6px;"><strong>Primo soccorso:</strong> {{ scheda_corrente.primo_soccorso|linebreaksbr }}</div>
+        {% endif %}
+        {% if scheda_corrente.incompatibilita %}
+          <div style="margin-top:6px;"><strong>Incompatibilità:</strong> {{ scheda_corrente.incompatibilita|linebreaksbr }}</div>
+        {% endif %}
+      </div>
+
+      {# ── Logistica chimica ──────────────────────────────────────────── #}
+      <div>
+        <div class="af-card-kicker" style="margin-bottom:8px;">Logistica</div>
+        <div class="af-hero-tags">
+          {% if prodotto_chimico.ubicazione %}<span class="af-hero-tag"><span>Ubicazione</span>{{ prodotto_chimico.ubicazione }}</span>{% endif %}
+          {% if prodotto_chimico.quantita_presente %}<span class="af-hero-tag"><span>Quantità</span>{{ prodotto_chimico.quantita_presente }}</span>{% endif %}
+          {% if prodotto_chimico.numero_interno %}<span class="af-hero-tag"><span>N. interno</span>{{ prodotto_chimico.numero_interno }}</span>{% endif %}
+          {% if prodotto_chimico.codice_prodotto %}<span class="af-hero-tag"><span>Codice</span>{{ prodotto_chimico.codice_prodotto }}</span>{% endif %}
+          {% if prodotto_chimico.fornitore %}<span class="af-hero-tag"><span>Fornitore</span>{{ prodotto_chimico.fornitore }}</span>{% endif %}
+          {% if prodotto_chimico.produttore %}<span class="af-hero-tag"><span>Produttore</span>{{ prodotto_chimico.produttore }}</span>{% endif %}
+          {% if prodotto_chimico.famiglia %}<span class="af-hero-tag"><span>Famiglia</span>{{ prodotto_chimico.famiglia }}</span>{% endif %}
+          {% if prodotto_chimico.sottocategoria %}<span class="af-hero-tag"><span>Sottocategoria</span>{{ prodotto_chimico.sottocategoria }}</span>{% endif %}
+        </div>
+      </div>
+
+    </div>
+  </section>
+{% endif %}

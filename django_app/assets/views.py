@@ -9408,7 +9408,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
     if id is None:
         return redirect("assets:asset_list")
     asset = get_object_or_404(
-        Asset.objects.select_related("asset_category", "it_details", "work_machine").prefetch_related(
+        Asset.objects.select_related("asset_category", "it_details", "work_machine", "prodotto_chimico", "prodotto_chimico__reparto").prefetch_related(
             "components",
             "administrative_deadlines",
             "administrative_deadlines__component",
@@ -10152,6 +10152,8 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
         {
             "page_title": f"Dettaglio asset {asset.asset_tag}",
             "asset": asset,
+            "prodotto_chimico": asset.prodotto_chimico,
+            "scheda_corrente": asset.prodotto_chimico.scheda_corrente() if asset.prodotto_chimico_id else None,
             "asset_completeness": asset.completeness(),
             "asset_status": asset_status,
             "recent_workorders": recent_workorders,
