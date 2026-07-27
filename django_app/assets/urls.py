@@ -60,6 +60,7 @@ urlpatterns = [
     path("assets/view/<int:id>/export.xlsx", views.asset_detail_export_xlsx, name="asset_detail_export_xlsx"),
     path("assets/work-machines/new/", views.work_machine_create, name="work_machine_create"),
     path("assets/work-machines/edit/<int:id>/", views.work_machine_edit, name="work_machine_edit"),
+    path("assets/internal-number/next/", views.asset_internal_number_next, name="internal_number_next"),
     path("assets/public/<str:public_qr_token>/", views.asset_public_redirect, name="asset_public_redirect"),
     path("assets/view/", views.asset_detail, name="asset_view"),
     path("assets/view/<int:id>/", views.asset_detail, name="asset_view"),

@@ -10616,6 +10616,16 @@ def asset_qr_label(request: HttpRequest, id: int | None = None) -> HttpResponse:
 
 
 @login_required
+def asset_internal_number_next(request: HttpRequest) -> JsonResponse:
+    """Prossimo numero interno progressivo (opt-in): il form lo richiede solo su
+    click del bottone "Assegna progressivo". Non è una chiave univoca."""
+    from core.numbering import next_numeric
+
+    value = next_numeric(Asset.objects.values_list("internal_number", flat=True))
+    return JsonResponse({"next": value})
+
+
+@login_required
 def asset_create(request: HttpRequest) -> HttpResponse:
     if _clean_string(request.GET.get("asset_type")) == Asset.TYPE_WORK_MACHINE:
         return redirect("assets:work_machine_create")

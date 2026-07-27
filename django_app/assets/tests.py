@@ -633,6 +633,13 @@ class AssetsRoutingTests(TestCase):
         asset = Asset.objects.get(name="Fresa con N.INT")
         self.assertEqual(asset.internal_number, "INT-4567")
 
+    def test_internal_number_next_returns_max_plus_one(self):
+        Asset.objects.create(asset_tag="N-INT-1", name="a", internal_number="188")
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("assets:internal_number_next"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["next"], 189)
+
     def test_asset_detail_shows_part_145_badge_only_when_flagged(self):
         self.client.force_login(self.user)
         flagged = Asset.objects.create(asset_tag="AST-P145-B1", name="Con centoquarantacinque", part_145=True)

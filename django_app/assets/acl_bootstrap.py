@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from core.acl_bootstrap_base import run_bootstrap
 
-_BOOTSTRAP_CACHE_KEY = "assets_acl_bootstrap_v6"
+_BOOTSTRAP_CACHE_KEY = "assets_acl_bootstrap_v7"
 
 _PULSANTI_DEFINITIONS = [
     {"modulo": "assets", "codice": "assets_list", "label": "Assets - Lista asset", "url": "/assets/", "hide": False},
@@ -42,6 +42,7 @@ _PULSANTI_DEFINITIONS = [
     {"modulo": "assets", "codice": "assets_bulk_update", "label": "Assets - Bulk update", "url": "/assets/bulk-update/", "hide": True},
     {"modulo": "assets", "codice": "assets_wm_map_editor", "label": "Assets - Editor planimetria", "url": "/assets/work-machines/map/editor/", "hide": True},
     {"modulo": "assets", "codice": "assets_wm_create", "label": "Assets - Nuovo macchinario", "url": "/assets/work-machines/new/", "hide": True},
+    {"modulo": "assets", "codice": "assets_internal_number_next", "label": "Assets - Prossimo numero interno", "url": "/assets/internal-number/next/", "hide": True},
     {"modulo": "assets", "codice": "assets_view_layout", "label": "Assets - Configurazione layout dettaglio", "url": "/assets/view-layout/", "hide": True},
     {"modulo": "assets", "codice": "assets_assign", "label": "Assets - Assegna asset", "url": "/assets/assign/", "hide": True},
     {"modulo": "assets", "codice": "assets_wo_view", "label": "Assets - Dettaglio work order", "url": "/assets/workorders/view/", "hide": True},
