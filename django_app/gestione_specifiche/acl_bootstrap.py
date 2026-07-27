@@ -19,7 +19,7 @@ from core.acl_bootstrap_base import run_bootstrap
 logger = logging.getLogger(__name__)
 
 MODULE = "gestione_specifiche"
-_BOOTSTRAP_CACHE_KEY = "gestione_specifiche_acl_bootstrap_v16"
+_BOOTSTRAP_CACHE_KEY = "gestione_specifiche_acl_bootstrap_v17"
 
 # --- Permessi canonici --------------------------------------------------------
 PERM_VIEW = "gestione_specifiche.specifica.view"
@@ -31,6 +31,8 @@ PERM_ANNULLA = "gestione_specifiche.specifica.annulla"
 PERM_DEROGA = "gestione_specifiche.distribuzione.deroga"
 PERM_DISTRIBUISCI = "gestione_specifiche.distribuzione.distribuisci"
 PERM_ADMIN = "gestione_specifiche.admin"
+# Registro OFI standalone (MOD.174): inserimento/modifica manuale di una voce.
+PERM_OFI_ADD = "gestione_specifiche.registroofi.add"
 
 _CANONICAL = {
     PERM_VIEW: {"label": "Specifiche - Visualizza", "description": "Accesso elenco/dettaglio/storico specifiche e API."},
@@ -42,6 +44,7 @@ _CANONICAL = {
     PERM_DEROGA: {"label": "Specifiche - Deroga copie", "description": "Deroga giustificata sulla regola copie cartacee."},
     PERM_DISTRIBUISCI: {"label": "Specifiche - Distribuisci", "description": "Creazione e tracciamento distribuzioni."},
     PERM_ADMIN: {"label": "Specifiche - Amministrazione", "description": "Sezione admin del modulo: mappatura cartelle, timbri, auto-approvazione, notifiche."},
+    PERM_OFI_ADD: {"label": "Registro OFI - Inserisci/Modifica", "description": "Inserimento e modifica manuale delle voci del registro OFI/NC (MOD.174)."},
 }
 
 # Binding route -> permesso (esteso man mano che le rotte vengono aggiunte).
@@ -63,7 +66,11 @@ _ROUTE_BINDINGS = {
     "gestione_specifiche:azione_ofi_approva": PERM_APPROVA,
     "gestione_specifiche:riga_documento_add": PERM_COMPILA,
     "gestione_specifiche:riga_documento_delete": PERM_COMPILA,
-    "gestione_specifiche:ofi_registro": PERM_VIEW,
+    # Registro OFI standalone (namespace registro_ofi, montato a /ofi-registro/).
+    "registro_ofi:lista": PERM_VIEW,
+    "registro_ofi:dettaglio": PERM_VIEW,
+    "registro_ofi:nuovo": PERM_OFI_ADD,
+    "registro_ofi:modifica": PERM_OFI_ADD,
     "gestione_specifiche:distribuzione_nuova": PERM_DISTRIBUISCI,
     "gestione_specifiche:scheda_storico": PERM_VIEW,
     "gestione_specifiche:storico_export_csv": PERM_VIEW,
@@ -116,6 +123,7 @@ _LEGACY_ACTIONS = {
     "gs_deroga": PERM_DEROGA,
     "gs_distribuisci": PERM_DISTRIBUISCI,
     "gs_admin": PERM_ADMIN,
+    "gs_ofi_add": PERM_OFI_ADD,
 }
 
 _PULSANTI_DEFINITIONS = [

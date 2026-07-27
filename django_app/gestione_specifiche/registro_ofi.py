@@ -94,6 +94,34 @@ def conta_pdca(qs=None) -> dict:
     return out
 
 
+def conta_pdca_cumulativo(qs=None) -> dict:
+    """Contatori CUMULATIVI P/D/C/A + % completamento, fedeli al MOD.174.
+
+    Nell'Excel P/D/C/A sono 4 caselle "X" cumulative (spuntate in ordine) e la
+    riga 2 conta per colonna: P = voci arrivate almeno a PLAN (tutte), D = arrivate
+    almeno a DO, ecc.; il KPI è ``A/P`` (>=90% = ok). Qui la fase è un enum
+    ordinato PLAN<DO<CHECK<ACT(≤CHIUSO), quindi il "raggiunto almeno" si deriva.
+    Ritorna ``{p, d, c, a, tot, pct, over90}``.
+    """
+    from .models import RegistroOFI
+    if qs is None:
+        qs = RegistroOFI.objects.all()
+    per_fase: dict[str, int] = {}
+    # .order_by() azzera Meta.ordering (-numero): su SQL Server la GROUP BY con
+    # ORDER BY su colonna non raggruppata è errore 8127 (vedi conta_pdca).
+    for row in qs.order_by().values("fase").annotate(n=models.Count("id")):
+        per_fase[row["fase"]] = row["n"]
+    F = RegistroOFI
+    tot = sum(per_fase.values())
+    d = (per_fase.get(F.FASE_DO, 0) + per_fase.get(F.FASE_CHECK, 0)
+         + per_fase.get(F.FASE_ACT, 0) + per_fase.get(F.FASE_CHIUSO, 0))
+    c = (per_fase.get(F.FASE_CHECK, 0) + per_fase.get(F.FASE_ACT, 0)
+         + per_fase.get(F.FASE_CHIUSO, 0))
+    a = per_fase.get(F.FASE_ACT, 0) + per_fase.get(F.FASE_CHIUSO, 0)
+    pct = round(a / tot * 100) if tot else 0
+    return {"p": tot, "d": d, "c": c, "a": a, "tot": tot, "pct": pct, "over90": pct >= 90}
+
+
 def voci_da_sollecitare(oggi=None, *, giorni: int = 0):
     """Voci aperte con reminder attivo e scadenza entro ``giorni`` (default: già
     scadute), non ancora sollecitate. Ordinate per scadenza."""

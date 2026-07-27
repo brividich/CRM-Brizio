@@ -5,7 +5,7 @@ from django import forms
 from django.forms import inlineformset_factory
 
 from . import constants as C
-from .models import MOD133, RigaMOD133, Specifica
+from .models import MOD133, RegistroOFI, RigaMOD133, Specifica
 
 _TXT = {"class": "gs-input"}
 _AREA = {"class": "gs-input", "rows": 2}
@@ -149,3 +149,64 @@ class DistribuzioneForm(forms.Form):
         super().__init__(*args, **kwargs)
         from anagrafica.models import Reparto
         self.fields["destinatari"].queryset = Reparto.objects.filter(is_active=True).order_by("nome")
+
+
+class RegistroOFIForm(forms.ModelForm):
+    """Inserimento/modifica manuale di una voce del registro OFI (MOD.174).
+
+    Campi fedeli al MOD.174 SGI. ``numero`` NON è nel form: viene assegnato in
+    view da ``registro_ofi.prossimo_numero()`` (spazio numeri condiviso con l'OFI
+    legacy). L'origine resta vuota (voce del registro unico inserita a mano).
+    """
+
+    class Meta:
+        model = RegistroOFI
+        fields = [
+            "ref", "data_apertura", "tipo", "modulo_origine",
+            "norma_iso27001", "norma_iso45001", "norma_en9100", "rif_norma",
+            "processo", "opportunita",
+            "fase", "plan", "allegato_link", "do", "verifica", "act",
+            "data_richiesta", "data_chiusura",
+            "proprietario", "owner_processo", "priorita",
+            "reminder_attivo", "note",
+        ]
+        widgets = {
+            "ref": forms.TextInput(attrs=_TXT),
+            "modulo_origine": forms.TextInput(attrs={
+                **_TXT, "list": "ofi-moduli",
+                "placeholder": "es. produzione, qualità… (o scegli tra i già presenti)"}),
+            "data_apertura": forms.DateInput(attrs={**_TXT, "type": "date"}, format="%Y-%m-%d"),
+            "tipo": forms.Select(attrs=_TXT),
+            "rif_norma": forms.TextInput(attrs=_TXT),
+            "processo": forms.TextInput(attrs=_TXT),
+            "opportunita": forms.Textarea(attrs=_AREA),
+            "fase": forms.Select(attrs=_TXT),
+            "plan": forms.Textarea(attrs=_AREA),
+            "allegato_link": forms.TextInput(attrs=_TXT),
+            "do": forms.Textarea(attrs=_AREA),
+            "verifica": forms.Textarea(attrs=_AREA),
+            "act": forms.Textarea(attrs=_AREA),
+            "data_richiesta": forms.DateInput(attrs={**_TXT, "type": "date"}, format="%Y-%m-%d"),
+            "data_chiusura": forms.DateInput(attrs={**_TXT, "type": "date"}, format="%Y-%m-%d"),
+            "proprietario": forms.TextInput(attrs=_TXT),
+            "owner_processo": forms.TextInput(attrs=_TXT),
+            "priorita": forms.Select(attrs=_TXT),
+            "note": forms.Textarea(attrs=_AREA),
+        }
+        labels = {
+            "ref": "REF", "data_apertura": "DATA", "tipo": "OFI / NC",
+            "modulo_origine": "Modulo di competenza",
+            "rif_norma": "REF NORMA", "processo": "PROCESSO", "opportunita": "OPPORTUNITY",
+            "fase": "Fase PDCA (P/D/C/A)", "plan": "PLAN", "allegato_link": "Allegato / Link",
+            "do": "DO", "verifica": "CHECK", "act": "ACT",
+            "data_richiesta": "DATA REQUIRED", "data_chiusura": "DATA CLOSED",
+            "proprietario": "Proprietario", "owner_processo": "OWNER",
+            "priorita": "Priorità", "reminder_attivo": "Reminder scadenza attivo",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # data_apertura obbligatoria; default a oggi in inserimento (mai in modifica).
+        if not self.instance.pk and not self.initial.get("data_apertura"):
+            from django.utils import timezone
+            self.fields["data_apertura"].initial = timezone.localdate()

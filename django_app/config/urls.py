@@ -43,6 +43,8 @@ urlpatterns = [
     path("", include(("tasks.urls", "tasks"), namespace="tasks")),
     path("carichi-macchina/", include(("gestione_carichi_macchina.urls", "gestione_carichi_macchina"), namespace="gestione_carichi_macchina")),
     path("gestione-specifiche/", include(("gestione_specifiche.urls", "gestione_specifiche"), namespace="gestione_specifiche")),
+    # Registro OFI/NC (MOD.174) — strumento trasversale del portale, al top-level.
+    path("ofi-registro/", include(("gestione_specifiche.urls_ofi", "registro_ofi"), namespace="registro_ofi")),
     path("suggestion-corner/", include(("suggestion_corner.urls", "suggestion_corner"), namespace="suggestion_corner")),
     path("notizie/", include("notizie.urls")),
     path(

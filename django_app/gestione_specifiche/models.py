@@ -478,6 +478,24 @@ class RegistroOFI(models.Model):
         from .registro_ofi import modulo_label  # lazy: evita import ciclico
         return modulo_label(self.modulo_origine)
 
+    # --- Rappresentazione PDCA fedele al MOD.174 (colonne P/D/C/A + TOT) -------
+    # Nell'Excel P/D/C/A sono 4 caselle "X" cumulative spuntate in ordine, e la
+    # colonna TOT deriva la fase corrente dal loro numero (1=P,2=D,3=C,4=A). Qui
+    # la fase è un enum ordinato: le X cumulative e la lettera TOT si ricavano.
+    _FASE_RANK = {FASE_PLAN: 1, FASE_DO: 2, FASE_CHECK: 3, FASE_ACT: 4, FASE_CHIUSO: 5}
+
+    @property
+    def pdca_marks(self) -> dict:
+        """{p,d,c,a}: True quando la fase ha raggiunto almeno quella tappa (X cumulative)."""
+        r = self._FASE_RANK.get(self.fase, 0)
+        return {"p": r >= 1, "d": r >= 2, "c": r >= 3, "a": r >= 4}
+
+    @property
+    def tot_letter(self) -> str:
+        """Lettera della colonna TOT del MOD.174 (P/D/C/A; ✓ se chiuso)."""
+        return {self.FASE_PLAN: "P", self.FASE_DO: "D", self.FASE_CHECK: "C",
+                self.FASE_ACT: "A", self.FASE_CHIUSO: "✓"}.get(self.fase, "")
+
 
 class AzioneOFI(models.Model):
     """Sotto-flusso di modifica documento CN generato da una riga MOD.133 (F5)."""
