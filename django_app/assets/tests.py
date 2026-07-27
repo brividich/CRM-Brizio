@@ -640,6 +640,13 @@ class AssetsRoutingTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()["next"], 189)
 
+    def test_asset_form_shows_assegna_progressivo_button(self):
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("assets:asset_create"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Assegna progressivo")
+        self.assertContains(resp, reverse("assets:internal_number_next"))
+
     def test_asset_detail_shows_part_145_badge_only_when_flagged(self):
         self.client.force_login(self.user)
         flagged = Asset.objects.create(asset_tag="AST-P145-B1", name="Con centoquarantacinque", part_145=True)

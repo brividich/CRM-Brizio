@@ -23,6 +23,11 @@
           <div style="{% if field.name == 'notes' %}grid-column:1/-1;{% endif %}">
             <label for="{{ field.id_for_label }}">{{ field.label }}</label>
             {{ field }}
+            {% if field.name == 'internal_number' %}
+              <button type="button" class="af-btn af-btn-ghost" id="assign-internal-number"
+                      data-url="{% url 'assets:internal_number_next' %}" style="margin-top:6px;">Assegna progressivo</button>
+              <div class="as-help" style="margin-top:4px;">Opzionale: lascia vuoto per nessun numero, oppure assegna il prossimo progressivo.</div>
+            {% endif %}
             {% if field.help_text %}
               <div class="as-help" style="margin-top:4px;">{{ field.help_text }}</div>
             {% endif %}
@@ -32,6 +37,17 @@
           </div>
         {% endif %}
       {% endfor %}
+      <script>
+        document.getElementById("assign-internal-number")?.addEventListener("click", async (ev) => {
+          try {
+            const r = await fetch(ev.target.dataset.url, {headers: {"X-Requested-With": "XMLHttpRequest"}});
+            if (!r.ok) return;
+            const data = await r.json();
+            const input = document.querySelector('[name="internal_number"]');
+            if (input) input.value = data.next;
+          } catch (e) { /* no-op */ }
+        });
+      </script>
 
       <div style="grid-column:1/-1;border-top:1px solid #e2e8f0;padding-top:12px;margin-top:2px;">
         <h3 class="as-section-title" style="margin-bottom:10px;">Assegnazione</h3>
