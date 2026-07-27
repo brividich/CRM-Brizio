@@ -70,6 +70,7 @@ from .forms import (
     AssetFilterForm,
     AssetForm,
     AssetLabelTemplateForm,
+    ChemicalAssetForm,
     MaintenanceChecklistStepFormSet,
     MaintenanceInterventionTemplateForm,
     MaintenanceRuleForm,
@@ -10626,9 +10627,62 @@ def asset_internal_number_next(request: HttpRequest) -> JsonResponse:
 
 
 @login_required
+def chemical_asset_create(request: HttpRequest) -> HttpResponse:
+    if request.method == "POST":
+        form = ChemicalAssetForm(request.POST)
+        if form.is_valid():
+            asset = form.save()
+            messages.success(request, "Asset prodotto chimico creato.")
+            return redirect("assets:asset_view", id=asset.id)
+    else:
+        form = ChemicalAssetForm()
+    return render(
+        request,
+        "assets/pages/chemical_asset_form.html",
+        {
+            "page_title": "Nuovo prodotto chimico",
+            "form": form,
+            "is_edit": False,
+            **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
+        },
+    )
+
+
+@login_required
+def chemical_asset_edit(request: HttpRequest, id: int | None = None) -> HttpResponse:
+    if id is None:
+        return redirect("assets:asset_list")
+    asset = get_object_or_404(Asset, pk=id)
+    if request.method == "POST":
+        form = ChemicalAssetForm(request.POST, instance=asset)
+        if form.is_valid():
+            asset = form.save()
+            messages.success(request, "Asset prodotto chimico aggiornato.")
+            return redirect("assets:asset_view", id=asset.id)
+    else:
+        initial = {}
+        if asset.prodotto_chimico_id:
+            initial = {"prodotto_mode": "existing", "prodotto_chimico": asset.prodotto_chimico_id}
+        form = ChemicalAssetForm(instance=asset, initial=initial)
+    return render(
+        request,
+        "assets/pages/chemical_asset_form.html",
+        {
+            "page_title": f"Modifica {asset.asset_tag}",
+            "form": form,
+            "asset": asset,
+            "is_edit": True,
+            **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
+        },
+    )
+
+
+@login_required
 def asset_create(request: HttpRequest) -> HttpResponse:
     if _clean_string(request.GET.get("asset_type")) == Asset.TYPE_WORK_MACHINE:
         return redirect("assets:work_machine_create")
+    if _clean_string(request.GET.get("asset_type")) == Asset.TYPE_CHEMICAL:
+        return redirect("assets:chemical_create")
     custom_fields = list(AssetCustomField.objects.filter(is_active=True).order_by("sort_order", "id"))
     list_suggestions = _build_asset_list_suggestions()
     assignment_kwargs = _assignment_form_kwargs()
@@ -10677,6 +10731,8 @@ def asset_edit(request: HttpRequest, id: int | None = None) -> HttpResponse:
     asset = get_object_or_404(Asset, pk=id)
     if asset.asset_type == Asset.TYPE_WORK_MACHINE:
         return redirect("assets:work_machine_edit", id=asset.id)
+    if asset.asset_type == Asset.TYPE_CHEMICAL:
+        return redirect("assets:chemical_edit", id=asset.id)
     custom_fields = list(AssetCustomField.objects.filter(is_active=True).order_by("sort_order", "id"))
     list_suggestions = _build_asset_list_suggestions()
     assignment_kwargs = _assignment_form_kwargs(asset)

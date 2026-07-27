@@ -10,6 +10,7 @@ from schede_sicurezza.models import ProdottoChimico
 
 from .forms import ChemicalAssetForm
 from .models import Asset
+from .tests import _complete_onboarding
 
 User = get_user_model()
 
@@ -68,3 +69,35 @@ class ChemicalAssetFormTests(TestCase):
             "name": "X", "status": Asset.STATUS_IN_STOCK, "prodotto_mode": "new",
         })
         self.assertFalse(form.is_valid())
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class ChemicalAssetViewTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="chem-user", password="pass12345")
+        _complete_onboarding(self.user)
+
+    def test_chemical_create_view_get_200(self):
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("assets:chemical_create"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Prodotto chimico")
+
+    def test_chemical_create_view_creates_asset(self):
+        rep = Reparto.objects.create(nome="Chimica")
+        self.client.force_login(self.user)
+        resp = self.client.post(reverse("assets:chemical_create"), {
+            "name": "Diluente", "status": Asset.STATUS_IN_STOCK,
+            "prodotto_mode": "new", "nuovo_nome": "Diluente X",
+            "reparto_prodotto": rep.id,
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(
+            Asset.objects.filter(name="Diluente", asset_type=Asset.TYPE_CHEMICAL).exists()
+        )
+
+    def test_asset_create_redirects_chemical_type(self):
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("assets:asset_create") + "?asset_type=PRODOTTO_CHIMICO")
+        self.assertRedirects(resp, reverse("assets:chemical_create"),
+                             fetch_redirect_response=False)
