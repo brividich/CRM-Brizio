@@ -41,6 +41,33 @@ class UploadMimeValidationTest(TestCase):
         self.assertEqual(self.prodotto.schede.count(), 1)
 
 
+class DoppioIngressoAssetTest(TestCase):
+    def setUp(self):
+        self.reparto = Reparto.objects.create(nome="Produzione")
+        self.admin = User.objects.create_user(username="admin3", password="x", is_superuser=True, is_staff=True)
+        self.client.force_login(self.admin)
+
+    def test_prodotto_form_crea_asset_collegato(self):
+        from assets.models import Asset
+
+        resp = self.client.post(reverse("schede_sicurezza:prodotto_nuovo"), {
+            "nome": "Acido", "reparto": self.reparto.id, "crea_asset": "on",
+        })
+        self.assertEqual(resp.status_code, 302)
+        p = ProdottoChimico.objects.get(nome="Acido")
+        asset = getattr(p, "asset_container", None)
+        self.assertIsNotNone(asset)
+        self.assertEqual(asset.asset_type, Asset.TYPE_CHEMICAL)
+
+    def test_prodotto_form_senza_toggle_non_crea_asset(self):
+        resp = self.client.post(reverse("schede_sicurezza:prodotto_nuovo"), {
+            "nome": "Base", "reparto": self.reparto.id,
+        })
+        self.assertEqual(resp.status_code, 302)
+        p = ProdottoChimico.objects.get(nome="Base")
+        self.assertIsNone(getattr(p, "asset_container", None))
+
+
 class QrCodeTest(TestCase):
     def setUp(self):
         self.reparto = Reparto.objects.create(nome="Produzione")

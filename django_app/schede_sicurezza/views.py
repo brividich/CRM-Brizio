@@ -170,6 +170,18 @@ def prodotto_form(request, pk: int | None = None):
             dpi_ids = request.POST.getlist("dpi_obbligatori")
             prodotto.dpi_obbligatori.set(dpi_ids) if dpi_ids else prodotto.dpi_obbligatori.clear()
 
+            # Doppio ingresso: in creazione si può generare anche l'asset di
+            # inventario collegato (tipo "Prodotto chimico"). Import in-funzione
+            # per non creare una dipendenza dura schede_sicurezza -> assets.
+            if pk is None and request.POST.get("crea_asset") and not getattr(prodotto, "asset_container", None):
+                from assets.models import Asset
+
+                Asset.objects.create(
+                    name=prodotto.nome,
+                    asset_type=Asset.TYPE_CHEMICAL,
+                    prodotto_chimico=prodotto,
+                )
+
             messages.success(request, "Prodotto salvato.")
             return redirect("schede_sicurezza:prodotto_detail", pk=prodotto.pk)
 

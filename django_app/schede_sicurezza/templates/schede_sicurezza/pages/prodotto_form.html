@@ -92,6 +92,13 @@
       Attivo
     </label>
 
+    {% if not prodotto %}
+    <label style="display:flex;align-items:center;gap:8px;">
+      <input type="checkbox" name="crea_asset">
+      Crea anche l'asset in inventario (tipo "Prodotto chimico")
+    </label>
+    {% endif %}
+
     <div style="display:flex;gap:10px;">
       <button type="submit" style="padding:9px 18px;background:#1d4ed8;color:#fff;border:none;border-radius:10px;font-weight:700;cursor:pointer;">Salva</button>
       <a href="{% url 'schede_sicurezza:prodotto_list' %}" style="padding:9px 18px;background:#f1f5f9;color:#475569;border-radius:10px;text-decoration:none;font-weight:700;">Annulla</a>
