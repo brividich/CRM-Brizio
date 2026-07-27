@@ -11,7 +11,8 @@ from django import forms
 from django.db import transaction
 from django.db.models import Q
 
-from anagrafica.models import Fornitore, FornitoreDocumento
+from anagrafica.models import Fornitore, FornitoreDocumento, Reparto
+from schede_sicurezza.models import ProdottoChimico
 
 from .maintenance import build_workorder_prefill_payload, get_applicable_assistance_contracts, resolve_asset_maintenance_rules
 from .models import (
@@ -1314,6 +1315,113 @@ class MaintenanceRuleAssetOverrideForm(forms.ModelForm):
                 )
 
         return cleaned_data
+
+
+class ChemicalAssetForm(forms.ModelForm):
+    """Form dedicato all'asset di tipo "Prodotto chimico".
+
+    Doppio comportamento: si aggancia un ``ProdottoChimico`` esistente (fonte unica
+    in schede_sicurezza) oppure se ne crea uno nuovo inline. I dati chimici/SDS
+    restano in schede_sicurezza; qui si porta solo l'identità asset + il link 1:1.
+    """
+
+    prodotto_mode = forms.ChoiceField(
+        choices=[("existing", "Prodotto esistente"), ("new", "Nuovo prodotto")],
+        initial="existing",
+        label="Prodotto chimico",
+    )
+    prodotto_chimico = forms.ModelChoiceField(
+        queryset=ProdottoChimico.objects.none(),
+        required=False,
+        label="Seleziona prodotto",
+    )
+    reparto_prodotto = forms.ModelChoiceField(
+        queryset=Reparto.objects.none(),
+        required=False,
+        label="Reparto",
+    )
+    nuovo_nome = forms.CharField(required=False, label="Nome prodotto")
+    nuovo_fornitore = forms.CharField(required=False, label="Fornitore")
+    nuovo_produttore = forms.CharField(required=False, label="Produttore")
+    nuovo_ubicazione = forms.CharField(required=False, label="Ubicazione")
+    nuovo_quantita = forms.CharField(required=False, label="Quantità presente")
+    nuovo_codice = forms.CharField(required=False, label="Codice prodotto")
+
+    class Meta:
+        model = Asset
+        fields = ["asset_tag", "name", "status", "purchase_date", "notes"]
+        labels = {
+            "asset_tag": "Tag bene",
+            "name": "Nome asset",
+            "status": "Stato",
+            "purchase_date": "Data acquisto",
+            "notes": "Note",
+        }
+        widgets = {
+            "notes": forms.Textarea(attrs={"rows": 3}),
+            "purchase_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["asset_tag"].required = False
+        self.fields["prodotto_chimico"].queryset = ProdottoChimico.objects.filter(
+            attivo=True
+        ).order_by("nome")
+        self.fields["reparto_prodotto"].queryset = Reparto.objects.filter(
+            is_active=True
+        ).order_by("nome")
+
+    def clean_asset_tag(self):
+        return (self.cleaned_data.get("asset_tag") or "").strip()
+
+    def clean(self):
+        cleaned = super().clean()
+        mode = cleaned.get("prodotto_mode")
+        if mode == "existing":
+            prodotto = cleaned.get("prodotto_chimico")
+            if not prodotto:
+                self.add_error("prodotto_chimico", "Seleziona un prodotto chimico.")
+            else:
+                linked = getattr(prodotto, "asset_container", None)
+                if linked and linked.pk != self.instance.pk:
+                    self.add_error(
+                        "prodotto_chimico",
+                        "Questo prodotto è già collegato a un altro asset.",
+                    )
+        elif mode == "new":
+            if not (cleaned.get("nuovo_nome") or "").strip():
+                self.add_error("nuovo_nome", "Il nome del nuovo prodotto è obbligatorio.")
+            if not cleaned.get("reparto_prodotto"):
+                self.add_error("reparto_prodotto", "Il reparto è obbligatorio per un nuovo prodotto.")
+        return cleaned
+
+    def save(self, commit=True):
+        asset = super().save(commit=False)
+        asset.asset_type = Asset.TYPE_CHEMICAL
+        mode = self.cleaned_data.get("prodotto_mode")
+        if mode == "new":
+            reparto = self.cleaned_data["reparto_prodotto"]
+            prodotto = ProdottoChimico.objects.create(
+                nome=(self.cleaned_data.get("nuovo_nome") or "").strip(),
+                reparto=reparto,
+                fornitore=(self.cleaned_data.get("nuovo_fornitore") or "").strip(),
+                produttore=(self.cleaned_data.get("nuovo_produttore") or "").strip(),
+                ubicazione=(self.cleaned_data.get("nuovo_ubicazione") or "").strip(),
+                quantita_presente=(self.cleaned_data.get("nuovo_quantita") or "").strip(),
+                codice_prodotto=(self.cleaned_data.get("nuovo_codice") or "").strip(),
+            )
+            asset.prodotto_chimico = prodotto
+        else:
+            prodotto = self.cleaned_data.get("prodotto_chimico")
+            asset.prodotto_chimico = prodotto
+        # Allinea il reparto (testo libero) dell'asset a quello del prodotto, se vuoto.
+        if asset.prodotto_chimico and not (asset.reparto or "").strip():
+            rep = asset.prodotto_chimico.reparto
+            asset.reparto = rep.nome if rep else ""
+        if commit:
+            asset.save()
+        return asset
 
 
 class WorkMachineAssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.ModelForm):
