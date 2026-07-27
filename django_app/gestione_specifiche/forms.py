@@ -162,7 +162,7 @@ class RegistroOFIForm(forms.ModelForm):
     class Meta:
         model = RegistroOFI
         fields = [
-            "ref", "data_apertura", "tipo",
+            "ref", "data_apertura", "tipo", "modulo_origine",
             "norma_iso27001", "norma_iso45001", "norma_en9100", "rif_norma",
             "processo", "opportunita",
             "fase", "plan", "allegato_link", "do", "verifica", "act",
@@ -172,6 +172,9 @@ class RegistroOFIForm(forms.ModelForm):
         ]
         widgets = {
             "ref": forms.TextInput(attrs=_TXT),
+            "modulo_origine": forms.TextInput(attrs={
+                **_TXT, "list": "ofi-moduli",
+                "placeholder": "es. produzione, qualità… (o scegli tra i già presenti)"}),
             "data_apertura": forms.DateInput(attrs={**_TXT, "type": "date"}, format="%Y-%m-%d"),
             "tipo": forms.Select(attrs=_TXT),
             "rif_norma": forms.TextInput(attrs=_TXT),
@@ -192,6 +195,7 @@ class RegistroOFIForm(forms.ModelForm):
         }
         labels = {
             "ref": "REF", "data_apertura": "DATA", "tipo": "OFI / NC",
+            "modulo_origine": "Modulo di competenza",
             "rif_norma": "REF NORMA", "processo": "PROCESSO", "opportunita": "OPPORTUNITY",
             "fase": "Fase PDCA (P/D/C/A)", "plan": "PLAN", "allegato_link": "Allegato / Link",
             "do": "DO", "verifica": "CHECK", "act": "ACT",

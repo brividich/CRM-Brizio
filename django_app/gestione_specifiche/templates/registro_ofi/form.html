@@ -39,6 +39,13 @@
       <div class="ofi-grid">
         <div class="ofi-fld">{{ form.data_apertura.label_tag }}{{ form.data_apertura }}{{ form.data_apertura.errors }}</div>
         <div class="ofi-fld">{{ form.tipo.label_tag }}{{ form.tipo }}{{ form.tipo.errors }}</div>
+        <div class="ofi-fld">
+          {{ form.modulo_origine.label_tag }}{{ form.modulo_origine }}{{ form.modulo_origine.errors }}
+          <datalist id="ofi-moduli">
+            {% for val, lab in moduli_esistenti %}<option value="{{ val }}">{{ lab }}</option>{% endfor %}
+          </datalist>
+          <div style="font-size:11px;color:#94a3b8;margin-top:3px;">Da dove nasce l'OFI. Vuoto = solo registro unico.</div>
+        </div>
         <div class="ofi-fld">{{ form.ref.label_tag }}{{ form.ref }}{{ form.ref.errors }}</div>
         <div class="ofi-fld">{{ form.rif_norma.label_tag }}{{ form.rif_norma }}{{ form.rif_norma.errors }}</div>
         <div class="ofi-fld full">

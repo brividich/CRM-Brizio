@@ -91,6 +91,7 @@ def nuovo(request):
         form = RegistroOFIForm()
     return render(request, "registro_ofi/form.html", {
         "form": form, "voce": None, "numero_preview": reg.prossimo_numero(),
+        "moduli_esistenti": reg.moduli_presenti(),
     })
 
 
@@ -108,6 +109,7 @@ def modifica(request, pk: int):
         form = RegistroOFIForm(instance=voce)
     return render(request, "registro_ofi/form.html", {
         "form": form, "voce": voce, "numero_preview": voce.numero,
+        "moduli_esistenti": reg.moduli_presenti(),
     })
 
 

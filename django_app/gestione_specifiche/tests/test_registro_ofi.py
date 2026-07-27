@@ -281,6 +281,36 @@ class InserimentoOFITests(RegistroBase):
         self.assertEqual(v.processo, "Collaudo")
         self.assertTrue(v.norma_en9100)
 
+    def test_form_ha_campo_modulo_con_datalist(self):
+        resp = self.client.get(reverse("registro_ofi:nuovo"))
+        self.assertContains(resp, 'name="modulo_origine"')
+        self.assertContains(resp, 'list="ofi-moduli"')
+        self.assertContains(resp, '<datalist id="ofi-moduli"')
+
+    def test_datalist_propone_moduli_esistenti(self):
+        RegistroOFI.objects.create(
+            numero=R.prossimo_numero(), data_apertura=timezone.localdate(),
+            modulo_origine="gestione_specifiche")
+        resp = self.client.get(reverse("registro_ofi:nuovo"))
+        # l'etichetta leggibile è proposta nel datalist
+        self.assertContains(resp, 'value="gestione_specifiche"')
+        self.assertContains(resp, "Specifiche / MOD.133")
+
+    def test_post_con_modulo_libero(self):
+        atteso = R.prossimo_numero()
+        resp = self.client.post(reverse("registro_ofi:nuovo"), {
+            "tipo": RegistroOFI.TIPO_OFI,
+            "data_apertura": timezone.localdate().isoformat(),
+            "processo": "Verniciatura",
+            "opportunita": "x",
+            "fase": RegistroOFI.FASE_PLAN,
+            "priorita": RegistroOFI.PRIORITA_MEDIA,
+            "modulo_origine": "produzione",
+        })
+        self.assertEqual(resp.status_code, 302)
+        v = RegistroOFI.objects.get(numero=atteso)
+        self.assertEqual(v.modulo_origine, "produzione")
+
     def test_dettaglio_render(self):
         v = RegistroOFI.objects.create(
             numero=R.prossimo_numero(), data_apertura=timezone.localdate(),
