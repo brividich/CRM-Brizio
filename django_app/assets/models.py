@@ -28,6 +28,7 @@ class Asset(models.Model):
     TYPE_CARROPONTE = "CARROPONTE"
     TYPE_CCTV = "CCTV"
     TYPE_FONIA = "FONIA"
+    TYPE_CHEMICAL = "PRODOTTO_CHIMICO"
     TYPE_OTHER = "OTHER"
 
     TYPE_CHOICES = [
@@ -43,6 +44,7 @@ class Asset(models.Model):
         (TYPE_WORK_MACHINE, "Macchina di lavoro"),
         (TYPE_CARROPONTE, "Carroponte"),
         (TYPE_CCTV, "Videosorveglianza"),
+        (TYPE_CHEMICAL, "Prodotto chimico"),
         (TYPE_OTHER, "Altro"),
     ]
 
@@ -61,6 +63,15 @@ class Asset(models.Model):
     internal_number = models.CharField(max_length=64, blank=True, default="", db_index=True)
     name = models.CharField(max_length=255)
     asset_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default=TYPE_OTHER)
+    # Link 1:1 all'anagrafica chimica (fonte unica in schede_sicurezza) per gli asset
+    # di tipo "Prodotto chimico". String-ref per evitare cicli di import.
+    prodotto_chimico = models.OneToOneField(
+        "schede_sicurezza.ProdottoChimico",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="asset_container",
+    )
     asset_category = models.ForeignKey(
         "AssetCategory",
         on_delete=models.SET_NULL,
