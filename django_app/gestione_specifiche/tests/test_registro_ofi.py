@@ -167,7 +167,7 @@ class RegistroViewTests(RegistroBase):
         RegistroOFI.objects.create(
             numero=R.prossimo_numero(), data_apertura=timezone.localdate(),
             processo="Trattamenti", opportunita="Migliorare X")
-        resp = self.client.get(reverse("gestione_specifiche:ofi_registro"))
+        resp = self.client.get(reverse("registro_ofi:lista"))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Registro OFI")
         self.assertContains(resp, "Trattamenti")
@@ -181,11 +181,137 @@ class RegistroViewTests(RegistroBase):
             numero=R.prossimo_numero(), data_apertura=oggi,
             modulo_origine="altro_modulo", processo="Da altrove")
         # registro unico: entrambe
-        r_all = self.client.get(reverse("gestione_specifiche:ofi_registro"))
+        r_all = self.client.get(reverse("registro_ofi:lista"))
         self.assertContains(r_all, "Da MOD.133")
         self.assertContains(r_all, "Da altrove")
         # registro del modulo: solo la sua
         r_mod = self.client.get(
-            reverse("gestione_specifiche:ofi_registro"), {"modulo": "gestione_specifiche"})
+            reverse("registro_ofi:lista"), {"modulo": "gestione_specifiche"})
         self.assertContains(r_mod, "Da MOD.133")
         self.assertNotContains(r_mod, "Da altrove")
+
+
+class TopLevelUrlTests(TestCase):
+    def test_lista_e_montata_al_top_level(self):
+        """La rotta OFI è /ofi-registro/, non /gestione-specifiche/ofi-registro/."""
+        self.assertEqual(reverse("registro_ofi:lista"), "/ofi-registro/")
+        self.assertEqual(reverse("registro_ofi:nuovo"), "/ofi-registro/nuovo/")
+
+
+class ReplicaMOD174Tests(RegistroBase):
+    """La lista replica ESATTAMENTE il MOD.174 (intestazione, colonne, KPI)."""
+
+    def setUp(self):
+        super().setUp()
+        self.su = get_user_model().objects.create_superuser("su_174", "s@x.it", "x")
+        self.client.force_login(self.su)
+
+    def test_intestazione_e_colonne_mod174(self):
+        oggi = timezone.localdate()
+        RegistroOFI.objects.create(
+            numero=R.prossimo_numero(), data_apertura=oggi,
+            processo="Trattamenti", opportunita="Migliorare X",
+            norma_en9100=True, rif_norma="8.5.1")
+        resp = self.client.get(reverse("registro_ofi:lista"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "MOD.174")
+        # colonne fedeli all'Excel
+        for col in ("REF", "OFI", "NC", "REF NORMA", "PROCESSO", "OPPORTUNITY",
+                    "PLAN", "DO", "CHECK", "ACT", "OWNER", "TOT"):
+            self.assertContains(resp, col)
+
+    def test_kpi_over90(self):
+        oggi = timezone.localdate()
+        # 10 voci, 9 in ACT → A/P = 90% → ">90%"
+        for _ in range(9):
+            RegistroOFI.objects.create(numero=R.prossimo_numero(), data_apertura=oggi,
+                                       fase=RegistroOFI.FASE_ACT)
+        RegistroOFI.objects.create(numero=R.prossimo_numero(), data_apertura=oggi,
+                                   fase=RegistroOFI.FASE_PLAN)
+        resp = self.client.get(reverse("registro_ofi:lista"))
+        self.assertContains(resp, "90%")
+
+
+class ContatoriCumulativiTests(RegistroBase):
+    def test_conta_pdca_cumulativo(self):
+        oggi = timezone.localdate()
+        for fase in (RegistroOFI.FASE_PLAN, RegistroOFI.FASE_DO,
+                     RegistroOFI.FASE_CHECK, RegistroOFI.FASE_ACT):
+            RegistroOFI.objects.create(numero=R.prossimo_numero(), data_apertura=oggi, fase=fase)
+        c = R.conta_pdca_cumulativo()
+        # P = tutte (raggiunte almeno PLAN), D = raggiunte almeno DO, ...
+        self.assertEqual(c["p"], 4)
+        self.assertEqual(c["d"], 3)
+        self.assertEqual(c["c"], 2)
+        self.assertEqual(c["a"], 1)
+        self.assertEqual(c["tot"], 4)
+        self.assertEqual(c["pct"], 25)  # 1/4
+
+
+class InserimentoOFITests(RegistroBase):
+    def setUp(self):
+        super().setUp()
+        self.su = get_user_model().objects.create_superuser("su_ins", "i@x.it", "x")
+        self.client.force_login(self.su)
+
+    def test_form_render_campi_mod174(self):
+        resp = self.client.get(reverse("registro_ofi:nuovo"))
+        self.assertEqual(resp.status_code, 200)
+        # campi del MOD.174 presenti nel form
+        for name in ("tipo", "data_apertura", "rif_norma", "processo",
+                     "opportunita", "plan", "do", "verifica", "act",
+                     "allegato_link", "owner_processo", "fase"):
+            self.assertContains(resp, f'name="{name}"')
+
+    def test_post_crea_voce_con_numero_automatico(self):
+        atteso = R.prossimo_numero()
+        resp = self.client.post(reverse("registro_ofi:nuovo"), {
+            "tipo": RegistroOFI.TIPO_OFI,
+            "data_apertura": timezone.localdate().isoformat(),
+            "processo": "Collaudo",
+            "opportunita": "Ridurre gli scarti",
+            "fase": RegistroOFI.FASE_PLAN,
+            "priorita": RegistroOFI.PRIORITA_MEDIA,
+            "norma_en9100": "on",
+            "rif_norma": "8.7",
+            "owner_processo": "Rossi",
+        })
+        self.assertEqual(resp.status_code, 302)
+        v = RegistroOFI.objects.get(numero=atteso)
+        self.assertEqual(v.processo, "Collaudo")
+        self.assertTrue(v.norma_en9100)
+
+    def test_dettaglio_render(self):
+        v = RegistroOFI.objects.create(
+            numero=R.prossimo_numero(), data_apertura=timezone.localdate(),
+            processo="Saldatura", opportunita="Rivedere il WPS",
+            fase=RegistroOFI.FASE_CHECK)
+        resp = self.client.get(reverse("registro_ofi:dettaglio", args=[v.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Saldatura")
+        self.assertContains(resp, "MOD.174")
+
+    def test_post_modifica_aggiorna(self):
+        v = RegistroOFI.objects.create(
+            numero=R.prossimo_numero(), data_apertura=timezone.localdate(),
+            processo="Vecchio", fase=RegistroOFI.FASE_PLAN)
+        resp = self.client.post(reverse("registro_ofi:modifica", args=[v.pk]), {
+            "tipo": RegistroOFI.TIPO_OFI,
+            "data_apertura": timezone.localdate().isoformat(),
+            "processo": "Nuovo",
+            "opportunita": "x",
+            "fase": RegistroOFI.FASE_DO,
+            "priorita": RegistroOFI.PRIORITA_ALTA,
+        })
+        self.assertEqual(resp.status_code, 302)
+        v.refresh_from_db()
+        self.assertEqual(v.processo, "Nuovo")
+        self.assertEqual(v.fase, RegistroOFI.FASE_DO)
+
+
+class AclBindingTests(TestCase):
+    def test_rotte_ofi_hanno_binding_canonico(self):
+        from gestione_specifiche import acl_bootstrap as B
+        self.assertEqual(B._ROUTE_BINDINGS["registro_ofi:lista"], B.PERM_VIEW)
+        self.assertEqual(B._ROUTE_BINDINGS["registro_ofi:nuovo"], B.PERM_OFI_ADD)
+        self.assertEqual(B._ROUTE_BINDINGS["registro_ofi:modifica"], B.PERM_OFI_ADD)

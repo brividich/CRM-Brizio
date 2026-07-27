@@ -1,0 +1,83 @@
+{% extends "core/base.html" %}
+
+{% block title %}OFI {{ voce.numero }} · MOD.174{% endblock %}
+
+{% block extra_head %}
+<style>
+.ofi-det-wrap{width:min(100%,980px);margin:0 auto;}
+.ofi-det-head{background:#0c2545;color:#fff;border-radius:12px;padding:14px 20px;margin:0 0 14px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;}
+.ofi-det-head h1{font-size:18px;margin:2px 0 0;font-weight:800;}
+.ofi-det-head .brand{font-size:12px;letter-spacing:.08em;text-transform:uppercase;opacity:.8;}
+.ofi-sec{background:#fff;border:1px solid #e6ebf2;border-radius:12px;padding:16px 18px;margin:0 0 14px;}
+.ofi-sec h2{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#64748b;margin:0 0 12px;font-weight:800;}
+.ofi-dl{display:grid;grid-template-columns:170px 1fr;gap:8px 16px;font-size:13.5px;}
+.ofi-dl dt{color:#64748b;font-weight:700;}
+.ofi-dl dd{margin:0;color:#0f172a;white-space:pre-wrap;}
+.ofi-badge{display:inline-block;font-size:11px;font-weight:800;border-radius:5px;padding:2px 8px;}
+.ofi-badge.OFI{color:#166534;background:#dcfce7;} .ofi-badge.NC{color:#991b1b;background:#fee2e2;}
+.ofi-btn{background:#0c2545;color:#fff;border:0;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;text-decoration:none;}
+.ofi-btn.sec{background:#e2e8f0;color:#334155;}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ofi-det-wrap">
+  <div class="ofi-det-head">
+    <div>
+      <div class="brand">Costruzioni Novicrom · MOD.174 – SGI Registro OFI/NC</div>
+      <h1>OFI n. {{ voce.numero }} — <span class="ofi-badge {{ voce.tipo }}">{{ voce.get_tipo_display }}</span></h1>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <a href="{% url 'registro_ofi:lista' %}" class="ofi-btn sec">← Registro</a>
+      {% if can_add %}<a href="{% url 'registro_ofi:modifica' voce.pk %}" class="ofi-btn">Modifica</a>{% endif %}
+    </div>
+  </div>
+
+  <div class="ofi-sec">
+    <h2>Identificazione</h2>
+    <dl class="ofi-dl">
+      <dt>Data apertura</dt><dd>{{ voce.data_apertura|date:"d/m/Y" }}</dd>
+      <dt>REF</dt><dd>{{ voce.ref|default:"—" }}</dd>
+      <dt>Modulo d'origine</dt><dd>{{ voce.modulo_display }}</dd>
+      <dt>Normative</dt><dd>{% if voce.norma_iso27001 %}ISO 27001 {% endif %}{% if voce.norma_iso45001 %}ISO 45001 {% endif %}{% if voce.norma_en9100 %}EN 9100{% endif %}{% if not voce.norma_iso27001 and not voce.norma_iso45001 and not voce.norma_en9100 %}—{% endif %}</dd>
+      <dt>Rif. norma</dt><dd>{{ voce.rif_norma|default:"—" }}</dd>
+      <dt>Processo/area</dt><dd>{{ voce.processo|default:"—" }}</dd>
+      <dt>Opportunità</dt><dd>{{ voce.opportunita|default:"—" }}</dd>
+    </dl>
+  </div>
+
+  <div class="ofi-sec">
+    <h2>Ciclo PDCA · fase {{ voce.get_fase_display }} (TOT {{ voce.tot_letter }})</h2>
+    <dl class="ofi-dl">
+      <dt>PLAN</dt><dd>{{ voce.plan|default:"—" }}</dd>
+      <dt>Allegato/Link</dt><dd>{% if voce.allegato_link %}<a href="{{ voce.allegato_link }}" target="_blank" rel="noopener">{{ voce.allegato_link }}</a>{% else %}—{% endif %}</dd>
+      <dt>DO</dt><dd>{{ voce.do|default:"—" }}</dd>
+      <dt>CHECK</dt><dd>{{ voce.verifica|default:"—" }}</dd>
+      <dt>ACT</dt><dd>{{ voce.act|default:"—" }}</dd>
+    </dl>
+  </div>
+
+  <div class="ofi-sec">
+    <h2>Gestione e scadenza</h2>
+    <dl class="ofi-dl">
+      <dt>Owner di processo</dt><dd>{{ voce.owner_processo|default:"—" }}</dd>
+      <dt>Proprietario</dt><dd>{{ voce.proprietario|default:"—" }}</dd>
+      <dt>Priorità</dt><dd>{{ voce.get_priorita_display }}</dd>
+      <dt>Data richiesta</dt><dd>{% if voce.data_richiesta %}<span class="{% if voce.is_scaduto %}ofi-scad{% endif %}">{{ voce.data_richiesta|date:"d/m/Y" }}</span>{% else %}—{% endif %}</dd>
+      <dt>Data chiusura</dt><dd>{{ voce.data_chiusura|date:"d/m/Y"|default:"—" }}</dd>
+      <dt>Note</dt><dd>{{ voce.note|default:"—" }}</dd>
+    </dl>
+  </div>
+
+  {% if voce.azioni.all %}
+  <div class="ofi-sec">
+    <h2>Azioni collegate ({{ voce.azioni.all|length }})</h2>
+    <dl class="ofi-dl">
+      {% for az in voce.azioni.all %}
+      <dt>{{ az.documento_cn|default:"Azione" }}</dt><dd>{{ az.get_stato_display }}{% if az.tipo_azione %} · {{ az.tipo_azione }}{% endif %}</dd>
+      {% endfor %}
+    </dl>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

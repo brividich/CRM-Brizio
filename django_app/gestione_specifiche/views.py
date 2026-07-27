@@ -596,52 +596,6 @@ def riga_documento_delete(request, pk: int, documento_id: int):
 
 
 @login_required
-def ofi_registro(request):
-    """Registro OFI centralizzato (PDCA, MOD.174 — 4.2).
-
-    Elenco delle voci OFI/NC con fase PLAN-DO-CHECK-ACT, priorità, scadenza e
-    reminder; contatori P/D/C/A/TOT in testa. Le voci nascono dalle righe MOD.133
-    con impatto e restano agganciabili da altri moduli; la gestione dei campi PDCA
-    è da admin. Sola lettura qui.
-    """
-    from . import registro_ofi as reg
-    from .models import RegistroOFI
-
-    fase = (request.GET.get("fase") or "").strip().upper()
-    priorita = (request.GET.get("priorita") or "").strip().upper()
-    modulo = (request.GET.get("modulo") or "").strip()
-    solo_scaduti = request.GET.get("scaduti") == "1"
-
-    # Registro trasversale: nessun filtro modulo = registro UNICO (tutti i moduli);
-    # ?modulo=<chiave> = il registro del singolo modulo.
-    qs = RegistroOFI.objects.all().select_related("content_type")
-    if modulo:
-        qs = qs.filter(modulo_origine=modulo)
-    if fase in dict(RegistroOFI.FASE_CHOICES):
-        qs = qs.filter(fase=fase)
-    if priorita in dict(RegistroOFI.PRIORITA_CHOICES):
-        qs = qs.filter(priorita=priorita)
-    voci = list(qs)
-    if solo_scaduti:
-        voci = [v for v in voci if v.is_scaduto]
-
-    # Contatori/scaduti coerenti con il filtro modulo (il "mio" registro vs unico).
-    base = RegistroOFI.objects.filter(modulo_origine=modulo) if modulo else RegistroOFI.objects.all()
-
-    return render(request, "gestione_specifiche/ofi_registro.html", {
-        "voci": voci,
-        "counters": reg.conta_pdca(base),
-        "n_scaduti": sum(1 for v in base if v.is_scaduto),
-        "fase": fase, "priorita": priorita, "solo_scaduti": solo_scaduti,
-        "modulo": modulo, "modulo_label": reg.modulo_label(modulo) if modulo else "",
-        "moduli_opts": reg.moduli_presenti(),
-        "FASE_CHOICES": RegistroOFI.FASE_CHOICES,
-        "PRIORITA_CHOICES": RegistroOFI.PRIORITA_CHOICES,
-        "C": C,
-    })
-
-
-@login_required
 @require_POST
 def azione_ofi_approva(request, azione_id: int):
     """Approva/respinge il sotto-flusso documento CN (modo da APPROVAZIONE_DOC_CN_MODE)."""
