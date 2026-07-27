@@ -168,15 +168,9 @@ class Asset(models.Model):
             self.source_key = None
         if self.public_qr_enabled and not self.public_qr_token:
             self.public_qr_token = uuid.uuid4().hex
-        # 3.3: N. interno progressivo assegnato alla creazione se lasciato vuoto.
-        # Ignora i numeri interni legacy alfanumerici (parte dal max NUMERICO + 1).
-        # Nota: internal_number non è unique → sotto concorrenza estrema è possibile
-        # un duplicato; l'assegnazione resta un progressivo "suggerito", non una chiave.
-        if self._state.adding and not (self.internal_number or "").strip():
-            from core.numbering import next_numeric
-            self.internal_number = str(
-                next_numeric(type(self).objects.values_list("internal_number", flat=True))
-            )
+        # N. interno opt-in: nessuna auto-assegnazione. Il progressivo si "prende"
+        # su richiesta esplicita dal form (bottone "Assegna progressivo", endpoint
+        # assets:internal_number_next). Campo vuoto → salva vuoto.
         if self.asset_tag:
             return super().save(*args, **kwargs)
         for _ in range(3):
