@@ -4,161 +4,146 @@
 {% block title %}Registro OFI · MOD.174{% endblock %}
 
 {% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
+{% include "core/components/_hub_formkit.html" %}
 <style>
-/* Registro OFI (MOD.174) — layout a tutta larghezza, fedele all'Excel SGI. */
-.ofi-page{width:100%;}
-.ofi-head{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
-  background:#0c2545;color:#fff;border-radius:12px;padding:14px 20px;margin:0 0 14px;}
-.ofi-head .brand{font-size:12px;letter-spacing:.08em;text-transform:uppercase;opacity:.8;}
-.ofi-head h1{font-size:19px;margin:2px 0 0;font-weight:800;letter-spacing:.01em;}
-.ofi-head .scope{font-size:12.5px;opacity:.9;}
-.ofi-kpis{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 14px;align-items:center;}
-.ofi-chip{border:1px solid #e2e8f0;border-radius:999px;padding:6px 12px;font-size:12.5px;font-weight:700;color:#475569;background:#fff;}
-.ofi-chip b{color:#0c2545;}
-.ofi-chip.kpi.ok{border-color:#86efac;background:#dcfce7;color:#166534;}
-.ofi-chip.kpi.ko{border-color:#fca5a5;background:#fee2e2;color:#991b1b;}
-.ofi-chip.bad{border-color:#fca5a5;background:#fee2e2;color:#991b1b;}
-.ofi-toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 14px;}
-.ofi-toolbar label{font-size:12px;color:#64748b;font-weight:700;}
-.ofi-toolbar select{padding:6px 8px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px;}
-.ofi-btn{display:inline-flex;align-items:center;gap:6px;background:#0c2545;color:#fff;border:0;border-radius:8px;
-  padding:8px 14px;font-size:13px;font-weight:700;text-decoration:none;cursor:pointer;margin-left:auto;}
-.ofi-btn:hover{background:#123156;}
-.ofi-tablewrap{overflow-x:auto;border:1px solid #e6ebf2;border-radius:12px;background:#fff;}
-.ofi-table{border-collapse:collapse;width:100%;font-size:12.5px;min-width:1400px;}
-.ofi-table th,.ofi-table td{border-bottom:1px solid #eef2f7;border-right:1px solid #f2f5f9;padding:6px 8px;text-align:left;vertical-align:top;}
-.ofi-table thead th{background:#0c2545;color:#fff;font-size:10.5px;text-transform:uppercase;letter-spacing:.02em;position:sticky;top:0;white-space:nowrap;}
-.ofi-table thead th.pdca{background:#123156;text-align:center;width:30px;}
-.ofi-table td.pdca{text-align:center;font-weight:800;color:#166534;}
-.ofi-table td.tot{text-align:center;font-weight:800;background:#f8fafc;}
-.ofi-txt{max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.ofi-badge{display:inline-block;font-size:10px;font-weight:800;border-radius:5px;padding:1px 6px;margin:1px 2px 1px 0;}
-.ofi-badge.n{color:#3730a3;background:#e0e7ff;}
-.ofi-badge.OFI{color:#166534;background:#dcfce7;} .ofi-badge.NC{color:#991b1b;background:#fee2e2;}
-.ofi-scad{color:#991b1b;font-weight:800;}
-.ofi-ref{font-weight:800;color:#0c2545;text-decoration:none;}
-.ofi-ref:hover{text-decoration:underline;}
-.ofi-edit{color:#64748b;text-decoration:none;font-weight:800;}
-.ofi-empty{text-align:center;padding:44px 16px;color:#475569;background:#fff;border:1px solid #e6ebf2;border-radius:12px;}
+/* Registro OFI — colonne larghe del MOD.174: tabella a scorrimento + celle PDCA. */
+.ofi-table{ min-width:1560px; }
+.ofi-table td.ofi-txt{ max-width:210px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ofi-table th.ofi-pdca, .ofi-table td.ofi-pdca{ text-align:center; width:30px; padding-left:5px; padding-right:5px; }
+.ofi-table td.ofi-pdca{ font-weight:800; color:#166534; }
+.ofi-norma{ display:inline-flex; gap:3px; flex-wrap:wrap; }
+.ofi-legend{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="ofi-page">
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
 
-  <div class="ofi-head">
-    <div>
-      <div class="brand">Costruzioni Novicrom</div>
-      <h1>MOD.174 – SGI Registro OFI/NC Rev.0</h1>
+  {# ── Hero ───────────────────────────────────────────────────────────── #}
+  <section class="fmd-hero">
+    <div class="fmd-hero-bg" aria-hidden="true"></div>
+    <div class="fmd-hero-inner">
+      <div>
+        <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Qualità / SGI · Costruzioni Novicrom · MOD.174 Rev.0</div>
+        <h1><svg class="fmd-ico fmd-cap"><use href="#i-clipboard"/></svg>Registro OFI / NC{% if modulo %} — {{ modulo_label }}{% endif %}</h1>
+        <p class="fmd-sub">Registro trasversale delle Opportunità di miglioramento e non conformità con ciclo <strong>PLAN-DO-CHECK-ACT</strong>, normative, priorità, owner di processo e scadenza con reminder. {% if modulo %}<a href="{% url 'registro_ofi:lista' %}">← Registro unico (tutti i moduli)</a>{% else %}Filtra per modulo per vedere il registro del singolo modulo.{% endif %}</p>
+      </div>
+      <div class="fmd-hero-side">
+        <div class="fmd-hero-tile"><span class="fmd-corner"></span><span class="fmd-bignum">{{ counters.tot }}</span><span class="fmd-lbl">Voci OFI</span></div>
+        <div class="fmd-hero-tile fmd-alt"><span class="fmd-corner"></span><span class="fmd-bignum">{{ counters.pct }}%</span><span class="fmd-lbl">Completamento</span></div>
+      </div>
     </div>
-    <div class="scope">
-      {% if modulo %}Registro del modulo: <b>{{ modulo_label }}</b> · <a href="{% url 'registro_ofi:lista' %}" style="color:#a5c8ff;">registro unico</a>
-      {% else %}Registro unico · tutti i moduli del portale{% endif %}
+  </section>
+
+  {# ── Toolbar filtri ─────────────────────────────────────────────────── #}
+  <section class="fmd-panel" style="margin-bottom:16px;">
+    <form method="get" class="fmd-toolbar">
+      {% if moduli_opts %}
+      <select class="fmd-select" name="modulo" onchange="this.form.submit()" aria-label="Filtra per modulo">
+        <option value="">Tutti i moduli (registro unico)</option>
+        {% for val, lab in moduli_opts %}<option value="{{ val }}" {% if modulo == val %}selected{% endif %}>{{ lab }}</option>{% endfor %}
+      </select>
+      {% endif %}
+      <select class="fmd-select" name="fase" onchange="this.form.submit()" aria-label="Filtra per fase">
+        <option value="">Tutte le fasi</option>
+        {% for val, lab in FASE_CHOICES %}<option value="{{ val }}" {% if fase == val %}selected{% endif %}>{{ lab }}</option>{% endfor %}
+      </select>
+      <select class="fmd-select" name="priorita" onchange="this.form.submit()" aria-label="Filtra per priorità">
+        <option value="">Tutte le priorità</option>
+        {% for val, lab in PRIORITA_CHOICES %}<option value="{{ val }}" {% if priorita == val %}selected{% endif %}>{{ lab }}</option>{% endfor %}
+      </select>
+      <label class="fmd-chip{% if solo_scaduti %} fmd-on{% endif %}" style="cursor:pointer;">
+        <input type="checkbox" name="scaduti" value="1" {% if solo_scaduti %}checked{% endif %} onchange="this.form.submit()" style="margin-right:6px;">Solo scaduti
+      </label>
+      <span class="fmd-spacer"></span>
+      {% if can_add %}<a href="{% url 'registro_ofi:nuovo' %}" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo OFI</a>{% endif %}
+    </form>
+  </section>
+
+  {# ── Registro (tabella MOD.174) ─────────────────────────────────────── #}
+  <section class="fmd-panel fmd-block">
+    <div class="fmd-block-head">
+      <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>Registro (MOD.174) <span class="fmd-count">{{ voci|length }}</span></div>
+      <div class="fmd-block-aside ofi-legend">
+        <span class="hub-pill info">P {{ counters.p }}</span>
+        <span class="hub-pill info">D {{ counters.d }}</span>
+        <span class="hub-pill info">C {{ counters.c }}</span>
+        <span class="hub-pill ok">A {{ counters.a }}</span>
+        <span class="hub-pill {% if counters.over90 %}ok{% else %}hot{% endif %}">A/P {{ counters.pct }}% · {% if counters.over90 %}&ge;90%{% else %}&lt;90%{% endif %}</span>
+        <span class="hub-pill {% if n_scaduti %}bad{% else %}neutral{% endif %}">Scaduti {{ n_scaduti }}</span>
+      </div>
     </div>
-  </div>
 
-  <div class="ofi-kpis">
-    <span class="ofi-chip">Totali <b>{{ counters.tot }}</b></span>
-    <span class="ofi-chip">P <b>{{ counters.p }}</b></span>
-    <span class="ofi-chip">D <b>{{ counters.d }}</b></span>
-    <span class="ofi-chip">C <b>{{ counters.c }}</b></span>
-    <span class="ofi-chip">A <b>{{ counters.a }}</b></span>
-    <span class="ofi-chip kpi {% if counters.over90 %}ok{% else %}ko{% endif %}">Completamento (A/P) <b>{{ counters.pct }}%</b> · {% if counters.over90 %}&ge;90%{% else %}&lt;90%{% endif %}</span>
-    <span class="ofi-chip {% if n_scaduti %}bad{% endif %}">Scaduti <b>{{ n_scaduti }}</b></span>
-  </div>
-
-  <form method="get" class="ofi-toolbar">
-    {% if moduli_opts %}
-    <label>Modulo</label>
-    <select name="modulo" onchange="this.form.submit()">
-      <option value="">Tutti (registro unico)</option>
-      {% for val, lab in moduli_opts %}<option value="{{ val }}" {% if modulo == val %}selected{% endif %}>{{ lab }}</option>{% endfor %}
-    </select>
+    {% if voci %}
+    <div class="fmd-tablewrap">
+      <table class="fmd-table ofi-table">
+        <thead>
+          <tr>
+            <th>REF</th>
+            {% if not modulo %}<th>Modulo</th>{% endif %}
+            <th class="fmd-nowrap">DATA</th>
+            <th>OFI/NC</th>
+            <th>Normative</th>
+            <th>REF NORMA</th>
+            <th>PROCESSO</th>
+            <th>OPPORTUNITY</th>
+            <th>PLAN</th>
+            <th>Allegato/Link</th>
+            <th>DO</th>
+            <th>CHECK</th>
+            <th>ACT</th>
+            <th class="fmd-nowrap">DATA REQUIRED</th>
+            <th class="fmd-nowrap">DATA CLOSED</th>
+            <th>OWNER</th>
+            <th class="ofi-pdca" title="Plan">P</th>
+            <th class="ofi-pdca" title="Do">D</th>
+            <th class="ofi-pdca" title="Check">C</th>
+            <th class="ofi-pdca" title="Act">A</th>
+            <th class="ofi-pdca" title="Totale (fase)">TOT</th>
+            {% if can_add %}<th class="fmd-r">Azioni</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in voci %}
+          <tr>
+            <td><a class="fmd-data-link" href="{% url 'registro_ofi:dettaglio' v.pk %}">{{ v.numero }}</a>{% if v.ref %}<div class="fmd-cell-sub">{{ v.ref }}</div>{% endif %}</td>
+            {% if not modulo %}<td class="fmd-muted">{{ v.modulo_display }}</td>{% endif %}
+            <td class="fmd-nowrap fmd-muted">{{ v.data_apertura|date:"d-m-Y" }}</td>
+            <td>{% if v.tipo == "OFI" %}<span class="fmd-badge fmd-b-green">OFI</span>{% else %}<span class="fmd-badge fmd-b-red">NC</span>{% endif %}</td>
+            <td><span class="ofi-norma">{% if v.norma_iso27001 %}<span class="fmd-badge fmd-b-cyan">27001</span>{% endif %}{% if v.norma_iso45001 %}<span class="fmd-badge fmd-b-cyan">45001</span>{% endif %}{% if v.norma_en9100 %}<span class="fmd-badge fmd-b-cyan">9100</span>{% endif %}</span></td>
+            <td class="ofi-txt">{{ v.rif_norma|default:"—" }}</td>
+            <td class="ofi-txt">{{ v.processo|default:"—" }}</td>
+            <td class="ofi-txt" title="{{ v.opportunita }}">{{ v.opportunita|default:"—" }}</td>
+            <td class="ofi-txt" title="{{ v.plan }}">{{ v.plan|default:"—" }}</td>
+            <td class="ofi-txt">{% if v.allegato_link %}<a class="fmd-data-link" href="{{ v.allegato_link }}" target="_blank" rel="noopener">link</a>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+            <td class="ofi-txt" title="{{ v.do }}">{{ v.do|default:"—" }}</td>
+            <td class="ofi-txt" title="{{ v.verifica }}">{{ v.verifica|default:"—" }}</td>
+            <td class="ofi-txt" title="{{ v.act }}">{{ v.act|default:"—" }}</td>
+            <td class="fmd-nowrap">{% if v.data_richiesta %}{% if v.is_scaduto %}<span class="fmd-badge fmd-b-red">{{ v.data_richiesta|date:"d-m-Y" }}</span>{% else %}<span class="fmd-muted">{{ v.data_richiesta|date:"d-m-Y" }}</span>{% endif %}{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+            <td class="fmd-nowrap fmd-muted">{{ v.data_chiusura|date:"d-m-Y"|default:"—" }}</td>
+            <td class="ofi-txt">{{ v.owner_processo|default:v.proprietario|default:"—" }}</td>
+            <td class="ofi-pdca">{% if v.pdca_marks.p %}X{% endif %}</td>
+            <td class="ofi-pdca">{% if v.pdca_marks.d %}X{% endif %}</td>
+            <td class="ofi-pdca">{% if v.pdca_marks.c %}X{% endif %}</td>
+            <td class="ofi-pdca">{% if v.pdca_marks.a %}X{% endif %}</td>
+            <td class="ofi-pdca">{% if v.fase == "PLAN" %}<span class="fmd-badge fmd-b-cyan">P</span>{% elif v.fase == "DO" %}<span class="fmd-badge fmd-b-orange">D</span>{% elif v.fase == "CHECK" %}<span class="fmd-badge fmd-b-violet">C</span>{% elif v.fase == "ACT" %}<span class="fmd-badge fmd-b-green">A</span>{% else %}<span class="fmd-badge fmd-b-grey">✓</span>{% endif %}</td>
+            {% if can_add %}<td class="fmd-r"><a class="fmd-btn-mini" href="{% url 'registro_ofi:modifica' v.pk %}">Modifica <svg class="fmd-ico"><use href="#i-edit"/></svg></a></td>{% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="fmd-empty">
+      <span class="fmd-ebadge" style="background:#eef2f7;color:#94a3b8;"><svg class="fmd-ico"><use href="#i-clipboard"/></svg></span>
+      <span class="fmd-et">Nessuna voce nel registro OFI{% if fase or priorita or solo_scaduti or modulo %} con questi filtri{% endif %}</span>
+      <span class="fmd-em">Le voci nascono generando un OFI da una riga MOD.133 con impatto{% if can_add %}, oppure con «Nuovo OFI»{% endif %}.</span>
+    </div>
     {% endif %}
-    <label>Fase</label>
-    <select name="fase" onchange="this.form.submit()">
-      <option value="">Tutte</option>
-      {% for val, lab in FASE_CHOICES %}<option value="{{ val }}" {% if fase == val %}selected{% endif %}>{{ lab }}</option>{% endfor %}
-    </select>
-    <label>Priorità</label>
-    <select name="priorita" onchange="this.form.submit()">
-      <option value="">Tutte</option>
-      {% for val, lab in PRIORITA_CHOICES %}<option value="{{ val }}" {% if priorita == val %}selected{% endif %}>{{ lab }}</option>{% endfor %}
-    </select>
-    <label><input type="checkbox" name="scaduti" value="1" onchange="this.form.submit()" {% if solo_scaduti %}checked{% endif %}> solo scaduti</label>
-    {% if modulo %}<input type="hidden" name="modulo" value="{{ modulo }}">{% endif %}
-    {% if can_add %}<a href="{% url 'registro_ofi:nuovo' %}" class="ofi-btn">+ Nuovo OFI</a>{% endif %}
-  </form>
-
-  {% if voci %}
-  <div class="ofi-tablewrap">
-    <table class="ofi-table">
-      <thead>
-        <tr>
-          <th>REF</th>
-          {% if not modulo %}<th>Modulo</th>{% endif %}
-          <th>DATA</th>
-          <th>OFI/NC</th>
-          <th>Normative</th>
-          <th>REF NORMA</th>
-          <th>PROCESSO</th>
-          <th>OPPORTUNITY</th>
-          <th>PLAN</th>
-          <th>Allegato/Link</th>
-          <th>DO</th>
-          <th>CHECK</th>
-          <th>ACT</th>
-          <th>DATA REQUIRED</th>
-          <th>DATA CLOSED</th>
-          <th>OWNER</th>
-          <th class="pdca" title="Plan">P</th>
-          <th class="pdca" title="Do">D</th>
-          <th class="pdca" title="Check">C</th>
-          <th class="pdca" title="Act">A</th>
-          <th class="pdca" title="Totale (fase corrente)">TOT</th>
-          {% if can_add %}<th></th>{% endif %}
-        </tr>
-      </thead>
-      <tbody>
-        {% for v in voci %}
-        <tr>
-          <td><a class="ofi-ref" href="{% url 'registro_ofi:dettaglio' v.pk %}">{{ v.numero }}</a>{% if v.ref %}<div style="font-size:10.5px;color:#7c8aa2;">{{ v.ref }}</div>{% endif %}</td>
-          {% if not modulo %}<td class="ofi-txt" style="color:#5b6b82;">{{ v.modulo_display }}</td>{% endif %}
-          <td>{{ v.data_apertura|date:"d/m/y" }}</td>
-          <td><span class="ofi-badge {{ v.tipo }}">{{ v.tipo }}</span></td>
-          <td>
-            {% if v.norma_iso27001 %}<span class="ofi-badge n">27001</span>{% endif %}
-            {% if v.norma_iso45001 %}<span class="ofi-badge n">45001</span>{% endif %}
-            {% if v.norma_en9100 %}<span class="ofi-badge n">9100</span>{% endif %}
-          </td>
-          <td class="ofi-txt">{{ v.rif_norma|default:"—" }}</td>
-          <td class="ofi-txt">{{ v.processo|default:"—" }}</td>
-          <td class="ofi-txt" title="{{ v.opportunita }}">{{ v.opportunita|default:"—" }}</td>
-          <td class="ofi-txt" title="{{ v.plan }}">{{ v.plan|default:"—" }}</td>
-          <td class="ofi-txt">{% if v.allegato_link %}<a href="{{ v.allegato_link }}" target="_blank" rel="noopener">link</a>{% else %}—{% endif %}</td>
-          <td class="ofi-txt" title="{{ v.do }}">{{ v.do|default:"—" }}</td>
-          <td class="ofi-txt" title="{{ v.verifica }}">{{ v.verifica|default:"—" }}</td>
-          <td class="ofi-txt" title="{{ v.act }}">{{ v.act|default:"—" }}</td>
-          <td>{% if v.data_richiesta %}<span class="{% if v.is_scaduto %}ofi-scad{% endif %}">{{ v.data_richiesta|date:"d/m/y" }}</span>{% if v.is_scaduto %} ⚠{% endif %}{% else %}—{% endif %}</td>
-          <td>{{ v.data_chiusura|date:"d/m/y"|default:"—" }}</td>
-          <td class="ofi-txt">{{ v.owner_processo|default:v.proprietario|default:"—" }}</td>
-          <td class="pdca">{% if v.pdca_marks.p %}X{% endif %}</td>
-          <td class="pdca">{% if v.pdca_marks.d %}X{% endif %}</td>
-          <td class="pdca">{% if v.pdca_marks.c %}X{% endif %}</td>
-          <td class="pdca">{% if v.pdca_marks.a %}X{% endif %}</td>
-          <td class="tot">{{ v.tot_letter }}</td>
-          {% if can_add %}<td><a class="ofi-edit" href="{% url 'registro_ofi:modifica' v.pk %}" title="Modifica">✎</a></td>{% endif %}
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% else %}
-  <div class="ofi-empty">
-    Nessuna voce nel registro OFI{% if fase or priorita or solo_scaduti or modulo %} con questi filtri{% endif %}.<br>
-    Le voci nascono generando un OFI da una riga MOD.133 con impatto{% if can_add %}, oppure con <b>+ Nuovo OFI</b>{% endif %}.
-  </div>
-  {% endif %}
+  </section>
 
 </div>
 {% endblock %}

@@ -170,28 +170,32 @@ class RegistroOFIForm(forms.ModelForm):
             "proprietario", "owner_processo", "priorita",
             "reminder_attivo", "note",
         ]
+        # Nessuna classe sui widget: lo stile viene dal form-kit canonico `hub-`
+        # (core/components/_hub_formkit.html), che stila input/select/textarea
+        # dentro `.hub-field` per elemento. Qui solo gli attrs funzionali.
+        _area = {"rows": 3}
         widgets = {
-            "ref": forms.TextInput(attrs=_TXT),
+            "ref": forms.TextInput(),
             "modulo_origine": forms.TextInput(attrs={
-                **_TXT, "list": "ofi-moduli",
+                "list": "ofi-moduli",
                 "placeholder": "es. produzione, qualità… (o scegli tra i già presenti)"}),
-            "data_apertura": forms.DateInput(attrs={**_TXT, "type": "date"}, format="%Y-%m-%d"),
-            "tipo": forms.Select(attrs=_TXT),
-            "rif_norma": forms.TextInput(attrs=_TXT),
-            "processo": forms.TextInput(attrs=_TXT),
-            "opportunita": forms.Textarea(attrs=_AREA),
-            "fase": forms.Select(attrs=_TXT),
-            "plan": forms.Textarea(attrs=_AREA),
-            "allegato_link": forms.TextInput(attrs=_TXT),
-            "do": forms.Textarea(attrs=_AREA),
-            "verifica": forms.Textarea(attrs=_AREA),
-            "act": forms.Textarea(attrs=_AREA),
-            "data_richiesta": forms.DateInput(attrs={**_TXT, "type": "date"}, format="%Y-%m-%d"),
-            "data_chiusura": forms.DateInput(attrs={**_TXT, "type": "date"}, format="%Y-%m-%d"),
-            "proprietario": forms.TextInput(attrs=_TXT),
-            "owner_processo": forms.TextInput(attrs=_TXT),
-            "priorita": forms.Select(attrs=_TXT),
-            "note": forms.Textarea(attrs=_AREA),
+            "data_apertura": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "tipo": forms.Select(),
+            "rif_norma": forms.TextInput(),
+            "processo": forms.TextInput(),
+            "opportunita": forms.Textarea(attrs=_area),
+            "fase": forms.Select(),
+            "plan": forms.Textarea(attrs=_area),
+            "allegato_link": forms.TextInput(),
+            "do": forms.Textarea(attrs=_area),
+            "verifica": forms.Textarea(attrs=_area),
+            "act": forms.Textarea(attrs=_area),
+            "data_richiesta": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "data_chiusura": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "proprietario": forms.TextInput(),
+            "owner_processo": forms.TextInput(),
+            "priorita": forms.Select(),
+            "note": forms.Textarea(attrs=_area),
         }
         labels = {
             "ref": "REF", "data_apertura": "DATA", "tipo": "OFI / NC",
