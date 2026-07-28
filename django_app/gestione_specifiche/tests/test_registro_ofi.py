@@ -56,6 +56,22 @@ class RegistroModelTests(RegistroBase):
         self.assertFalse(v.is_scaduto)
         self.assertTrue(v.is_chiuso)
 
+    def test_pdca_steps_marca_fase_corrente(self):
+        v = RegistroOFI.objects.create(
+            numero=R.prossimo_numero(), data_apertura=timezone.localdate(),
+            fase=RegistroOFI.FASE_CHECK)
+        steps = v.pdca_steps
+        self.assertEqual([s["letter"] for s in steps], ["P", "D", "C", "A"])
+        # CHECK: Plan/Do completate, Check corrente, Act ancora da fare.
+        self.assertEqual([s["state"] for s in steps],
+                         ["done", "done", "current", "todo"])
+
+    def test_pdca_steps_chiuso_tutte_done(self):
+        v = RegistroOFI.objects.create(
+            numero=R.prossimo_numero(), data_apertura=timezone.localdate(),
+            fase=RegistroOFI.FASE_CHIUSO, data_chiusura=timezone.localdate())
+        self.assertEqual([s["state"] for s in v.pdca_steps], ["done"] * 4)
+
 
 class NumerazioneTests(RegistroBase):
     def test_numeri_progressivi_senza_collisione(self):
@@ -231,6 +247,20 @@ class ReplicaMOD174Tests(RegistroBase):
         resp = self.client.get(reverse("registro_ofi:lista"))
         self.assertContains(resp, "90%")
 
+    def test_lista_a_tutta_larghezza(self):
+        resp = self.client.get(reverse("registro_ofi:lista"))
+        # override del cap di .content per far entrare le 21 colonne del MOD.174
+        self.assertContains(resp, "width:100%; max-width:100%")
+
+    def test_lista_evidenzia_fase_corrente(self):
+        RegistroOFI.objects.create(
+            numero=R.prossimo_numero(), data_apertura=timezone.localdate(),
+            fase=RegistroOFI.FASE_CHECK, processo="Trattamenti")
+        resp = self.client.get(reverse("registro_ofi:lista"))
+        self.assertContains(resp, "ofi-fase")          # colonna FASE parlante
+        self.assertContains(resp, "ofi-pdca-current")  # cella PDCA corrente evidenziata
+        self.assertContains(resp, ">Check<")           # etichetta della fase
+
 
 class ContatoriCumulativiTests(RegistroBase):
     def test_conta_pdca_cumulativo(self):
@@ -320,6 +350,15 @@ class InserimentoOFITests(RegistroBase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Saldatura")
         self.assertContains(resp, "MOD.174")
+
+    def test_dettaglio_mostra_stepper_pdca(self):
+        v = RegistroOFI.objects.create(
+            numero=R.prossimo_numero(), data_apertura=timezone.localdate(),
+            processo="Saldatura", fase=RegistroOFI.FASE_CHECK)
+        resp = self.client.get(reverse("registro_ofi:dettaglio", args=[v.pk]))
+        self.assertContains(resp, "Stato PDCA")            # pannello dedicato
+        self.assertContains(resp, "pdca-step current")     # la fase corrente è marcata
+        self.assertContains(resp, "Fase attuale:")         # riepilogo testuale
 
     def test_post_modifica_aggiorna(self):
         v = RegistroOFI.objects.create(

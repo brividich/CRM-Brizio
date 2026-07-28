@@ -496,6 +496,25 @@ class RegistroOFI(models.Model):
         return {self.FASE_PLAN: "P", self.FASE_DO: "D", self.FASE_CHECK: "C",
                 self.FASE_ACT: "A", self.FASE_CHIUSO: "✓"}.get(self.fase, "")
 
+    # tappe PLAN→DO→CHECK→ACT per lo stepper della UI.
+    _PDCA_TAPPE = ((FASE_PLAN, "Plan", "P"), (FASE_DO, "Do", "D"),
+                   (FASE_CHECK, "Check", "C"), (FASE_ACT, "Act", "A"))
+
+    @property
+    def pdca_steps(self) -> list:
+        """Stepper PDCA per la UI: per ogni tappa uno stato ``done``/``current``/``todo``.
+
+        Le tappe con rank inferiore alla fase corrente sono ``done``, quella pari
+        alla fase è ``current``, le successive ``todo``. Un OFI **chiuso** (rank 5)
+        ha tutte le tappe ``done`` (nessuna corrente).
+        """
+        rank = self._FASE_RANK.get(self.fase, 0)
+        steps = []
+        for i, (key, label, letter) in enumerate(self._PDCA_TAPPE, start=1):
+            state = "done" if i < rank else ("current" if i == rank else "todo")
+            steps.append({"key": key, "label": label, "letter": letter, "state": state})
+        return steps
+
 
 class AzioneOFI(models.Model):
     """Sotto-flusso di modifica documento CN generato da una riga MOD.133 (F5)."""

@@ -14,6 +14,30 @@
 .ofi-dl dd{ margin:0; color:#22314f; white-space:pre-wrap; }
 body.theme-dark .ofi-dl dd{ color:var(--text); }
 @media (max-width:640px){ .ofi-dl{ grid-template-columns:1fr; gap:2px 0; } .ofi-dl dt{ margin-top:8px; } }
+
+/* ── Stepper PDCA: dove si trova adesso l'OFI (P→D→C→A) ─────────────── */
+.pdca-steps{ display:flex; align-items:flex-start; margin:4px 2px 2px; }
+.pdca-step{ flex:1; position:relative; display:flex; flex-direction:column; align-items:center; gap:8px; padding:6px 4px 2px; text-align:center; }
+.pdca-step::before{ content:""; position:absolute; top:20px; left:-50%; width:100%; height:3px; background:#e2e8f0; z-index:0; }
+.pdca-step:first-child::before{ display:none; }
+.pdca-dot{ position:relative; z-index:1; width:40px; height:40px; border-radius:50%; display:flex; align-items:center;
+  justify-content:center; font-weight:800; font-size:15px; border:2px solid #cbd5e1; color:#94a3b8; background:#fff; }
+.pdca-lbl{ position:relative; z-index:1; font-size:11.5px; font-weight:700; color:#64748b; }
+.pdca-cap{ position:relative; z-index:1; font-family:var(--hub-mono,monospace); font-size:9.5px; font-weight:700;
+  letter-spacing:.06em; text-transform:uppercase; color:#94a3b8; }
+.pdca-step.done .pdca-dot{ border-color:#16a34a; color:#16a34a; background:#ecfdf3; }
+.pdca-step.done::before{ background:#16a34a; }
+.pdca-step.done .pdca-lbl{ color:#15803d; }
+.pdca-step.done .pdca-cap{ color:#16a34a; }
+.pdca-step.current .pdca-dot{ border-color:#ff8a1f; color:#fff; background:#ff8a1f; box-shadow:0 0 0 5px rgba(255,138,31,.18); }
+.pdca-step.current .pdca-lbl{ color:#c2410c; }
+.pdca-step.current .pdca-cap{ color:#ea580c; }
+.pdca-now{ display:inline-flex; align-items:center; gap:7px; padding:5px 12px; border-radius:999px; font-size:12.5px;
+  font-weight:800; background:#fff3e6; color:#c2410c; }
+.pdca-now.is-chiuso{ background:#ecfdf3; color:#15803d; }
+.pdca-now .pdca-now-dot{ width:8px; height:8px; border-radius:50%; background:currentColor; }
+body.theme-dark .pdca-dot{ background:var(--surface,#0e1a2c); }
+body.theme-dark .pdca-step.done .pdca-dot{ background:rgba(22,163,74,.14); }
 </style>
 {% endblock %}
 
@@ -35,6 +59,26 @@ body.theme-dark .ofi-dl dd{ color:var(--text); }
           <a href="{% url 'registro_ofi:lista' %}" class="fmd-btn fmd-btn-ghost">← Registro</a>
           {% if can_add %}<a href="{% url 'registro_ofi:modifica' voce.pk %}" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-edit"/></svg>Modifica</a>{% endif %}
         </div>
+      </div>
+    </section>
+
+    {# ── Stato PDCA: dove si trova adesso ──────────────────────────────── #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Stato PDCA</div>
+        <div class="fmd-block-aside">
+          {% if voce.is_chiuso %}<span class="pdca-now is-chiuso"><span class="pdca-now-dot"></span>Chiuso</span>
+          {% else %}<span class="pdca-now"><span class="pdca-now-dot"></span>Fase attuale: {{ voce.get_fase_display }}</span>{% endif %}
+        </div>
+      </div>
+      <div class="pdca-steps">
+        {% for s in voce.pdca_steps %}
+        <div class="pdca-step {{ s.state }}">
+          <span class="pdca-dot">{% if s.state == "done" %}✓{% else %}{{ s.letter }}{% endif %}</span>
+          <span class="pdca-lbl">{{ s.label }}</span>
+          <span class="pdca-cap">{% if s.state == "done" %}completata{% elif s.state == "current" %}in corso{% else %}da fare{% endif %}</span>
+        </div>
+        {% endfor %}
       </div>
     </section>
 

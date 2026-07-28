@@ -8,13 +8,30 @@
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
 {% include "core/components/_hub_formkit.html" %}
 <style>
+/* Registro OFI: pagina a TUTTA LARGHEZZA — il MOD.174 ha 21 colonne, il cap
+   di .content (min(100%,1680px)) le comprimeva. Override solo per questa pagina. */
+.content{ width:100%; max-width:100%; }
 /* Registro OFI — colonne larghe del MOD.174: tabella a scorrimento + celle PDCA. */
 .ofi-table{ min-width:1560px; }
 .ofi-table td.ofi-txt{ max-width:210px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .ofi-table th.ofi-pdca, .ofi-table td.ofi-pdca{ text-align:center; width:30px; padding-left:5px; padding-right:5px; }
-.ofi-table td.ofi-pdca{ font-weight:800; color:#166534; }
+.ofi-table td.ofi-pdca{ font-weight:800; }
+.ofi-table td.ofi-pdca-done{ color:#16a34a; }
+.ofi-table td.ofi-pdca-current .ofi-cur{ display:inline-flex; min-width:20px; height:20px; align-items:center;
+  justify-content:center; padding:0 4px; background:#ff8a1f; color:#fff; border-radius:6px; font-weight:800;
+  box-shadow:0 0 0 3px rgba(255,138,31,.16); }
 .ofi-norma{ display:inline-flex; gap:3px; flex-wrap:wrap; }
 .ofi-legend{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+/* colonna «Fase» con etichetta parlante dello stato corrente */
+.ofi-fase{ display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px;
+  font-size:11px; font-weight:800; letter-spacing:.02em; white-space:nowrap; }
+.ofi-fase .ofi-fase-dot{ width:7px; height:7px; border-radius:50%; background:currentColor; }
+.ofi-fase.f-plan{ background:#e8f3fb; color:#1f5fb3; }
+.ofi-fase.f-do{ background:#fff3e6; color:#c2410c; }
+.ofi-fase.f-check{ background:#f1ecfb; color:#6d28d9; }
+.ofi-fase.f-act{ background:#ecfdf3; color:#15803d; }
+.ofi-fase.f-chiuso{ background:#eef2f7; color:#475569; }
+body.theme-dark .ofi-fase{ filter:brightness(1.08); }
 </style>
 {% endblock %}
 
@@ -86,6 +103,7 @@
             {% if not modulo %}<th>Modulo</th>{% endif %}
             <th class="fmd-nowrap">DATA</th>
             <th>OFI/NC</th>
+            <th class="fmd-nowrap">FASE</th>
             <th>Normative</th>
             <th>REF NORMA</th>
             <th>PROCESSO</th>
@@ -113,6 +131,7 @@
             {% if not modulo %}<td class="fmd-muted">{{ v.modulo_display }}</td>{% endif %}
             <td class="fmd-nowrap fmd-muted">{{ v.data_apertura|date:"d-m-Y" }}</td>
             <td>{% if v.tipo == "OFI" %}<span class="fmd-badge fmd-b-green">OFI</span>{% else %}<span class="fmd-badge fmd-b-red">NC</span>{% endif %}</td>
+            <td class="fmd-nowrap">{% if v.fase == "PLAN" %}<span class="ofi-fase f-plan"><span class="ofi-fase-dot"></span>Plan</span>{% elif v.fase == "DO" %}<span class="ofi-fase f-do"><span class="ofi-fase-dot"></span>Do</span>{% elif v.fase == "CHECK" %}<span class="ofi-fase f-check"><span class="ofi-fase-dot"></span>Check</span>{% elif v.fase == "ACT" %}<span class="ofi-fase f-act"><span class="ofi-fase-dot"></span>Act</span>{% else %}<span class="ofi-fase f-chiuso"><span class="ofi-fase-dot"></span>Chiuso</span>{% endif %}</td>
             <td><span class="ofi-norma">{% if v.norma_iso27001 %}<span class="fmd-badge fmd-b-cyan">27001</span>{% endif %}{% if v.norma_iso45001 %}<span class="fmd-badge fmd-b-cyan">45001</span>{% endif %}{% if v.norma_en9100 %}<span class="fmd-badge fmd-b-cyan">9100</span>{% endif %}</span></td>
             <td class="ofi-txt">{{ v.rif_norma|default:"—" }}</td>
             <td class="ofi-txt">{{ v.processo|default:"—" }}</td>
@@ -125,10 +144,7 @@
             <td class="fmd-nowrap">{% if v.data_richiesta %}{% if v.is_scaduto %}<span class="fmd-badge fmd-b-red">{{ v.data_richiesta|date:"d-m-Y" }}</span>{% else %}<span class="fmd-muted">{{ v.data_richiesta|date:"d-m-Y" }}</span>{% endif %}{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
             <td class="fmd-nowrap fmd-muted">{{ v.data_chiusura|date:"d-m-Y"|default:"—" }}</td>
             <td class="ofi-txt">{{ v.owner_processo|default:v.proprietario|default:"—" }}</td>
-            <td class="ofi-pdca">{% if v.pdca_marks.p %}X{% endif %}</td>
-            <td class="ofi-pdca">{% if v.pdca_marks.d %}X{% endif %}</td>
-            <td class="ofi-pdca">{% if v.pdca_marks.c %}X{% endif %}</td>
-            <td class="ofi-pdca">{% if v.pdca_marks.a %}X{% endif %}</td>
+            {% for s in v.pdca_steps %}<td class="ofi-pdca ofi-pdca-{{ s.state }}" title="{{ s.label }}">{% if s.state == "current" %}<span class="ofi-cur">{{ s.letter }}</span>{% elif s.state == "done" %}X{% endif %}</td>{% endfor %}
             <td class="ofi-pdca">{% if v.fase == "PLAN" %}<span class="fmd-badge fmd-b-cyan">P</span>{% elif v.fase == "DO" %}<span class="fmd-badge fmd-b-orange">D</span>{% elif v.fase == "CHECK" %}<span class="fmd-badge fmd-b-violet">C</span>{% elif v.fase == "ACT" %}<span class="fmd-badge fmd-b-green">A</span>{% else %}<span class="fmd-badge fmd-b-grey">✓</span>{% endif %}</td>
             {% if can_add %}<td class="fmd-r"><a class="fmd-btn-mini" href="{% url 'registro_ofi:modifica' v.pk %}">Modifica <svg class="fmd-ico"><use href="#i-edit"/></svg></a></td>{% endif %}
           </tr>
