@@ -633,12 +633,22 @@ class AssetsRoutingTests(TestCase):
         asset = Asset.objects.get(name="Fresa con N.INT")
         self.assertEqual(asset.internal_number, "INT-4567")
 
-    def test_internal_number_next_returns_max_plus_one(self):
-        Asset.objects.create(asset_tag="N-INT-1", name="a", internal_number="188")
+    def test_internal_number_next_segue_convenzione_int(self):
+        # Convenzione storica "Int.NNN": il bottone propone max+1 col prefisso.
+        Asset.objects.create(asset_tag="N-INT-1", name="a", internal_number="Int.262")
+        Asset.objects.create(asset_tag="N-INT-2", name="b", internal_number="Int.188A")
         self.client.force_login(self.user)
         resp = self.client.get(reverse("assets:internal_number_next"))
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.json()["next"], 189)
+        self.assertEqual(resp.json()["next"], "Int.263")
+
+    def test_internal_number_next_assorbe_valori_nudi_legacy(self):
+        # I valori nudi legacy (es. 196/197) entrano nella stessa sequenza.
+        Asset.objects.create(asset_tag="N-INT-3", name="c", internal_number="196")
+        Asset.objects.create(asset_tag="N-INT-4", name="d", internal_number="197")
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("assets:internal_number_next"))
+        self.assertEqual(resp.json()["next"], "Int.198")
 
     def test_asset_form_shows_assegna_progressivo_button(self):
         self.client.force_login(self.user)

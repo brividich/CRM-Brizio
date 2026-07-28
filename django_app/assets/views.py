@@ -10618,13 +10618,27 @@ def asset_qr_label(request: HttpRequest, id: int | None = None) -> HttpResponse:
     return response
 
 
+#: Convenzione storica del numero interno asset in produzione: "Int.NNN".
+INTERNAL_NUMBER_PREFIX = "Int"
+INTERNAL_NUMBER_SEP = "."
+INTERNAL_NUMBER_PAD = 3
+
+
 @login_required
 def asset_internal_number_next(request: HttpRequest) -> JsonResponse:
     """Prossimo numero interno progressivo (opt-in): il form lo richiede solo su
-    click del bottone "Assegna progressivo". Non è una chiave univoca."""
-    from core.numbering import next_numeric
+    click del bottone "Assegna progressivo". Non è una chiave univoca.
 
-    value = next_numeric(Asset.objects.values_list("internal_number", flat=True))
+    Segue la convenzione storica "Int.NNN" (es. Int.263 = max Int.262 + 1),
+    assorbendo nella stessa sequenza gli eventuali valori nudi legacy (es. 196/197)."""
+    from core.numbering import next_prefixed
+
+    value = next_prefixed(
+        Asset.objects.values_list("internal_number", flat=True),
+        prefix=INTERNAL_NUMBER_PREFIX,
+        sep=INTERNAL_NUMBER_SEP,
+        pad=INTERNAL_NUMBER_PAD,
+    )
     return JsonResponse({"next": value})
 
 

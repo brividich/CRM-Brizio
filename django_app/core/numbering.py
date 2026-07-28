@@ -34,14 +34,17 @@ def next_numeric(values: Iterable) -> int:
     return max_numeric(values) + 1
 
 
-def next_suffix(codes: Iterable, prefix: str) -> int:
-    """Prossimo N tale che ``f'{prefix}-{N}'`` sia libero, guardando i ``codes`` che
-    iniziano con ``f'{prefix}-'`` e hanno coda numerica. Ritorna 1 se nessuno.
+def next_suffix(codes: Iterable, prefix: str, sep: str = "-") -> int:
+    """Prossimo N tale che ``f'{prefix}{sep}{N}'`` sia libero, guardando i ``codes``
+    che iniziano con ``f'{prefix}{sep}'`` e hanno coda numerica. Ritorna 1 se nessuno.
+
+    ``sep`` è configurabile (default ``'-'`` per retro-compatibilità); es. ``sep='.'``
+    per la convenzione asset ``Int.NNN``.
 
     Es. prefix='SIC', codes=['SIC-1','SIC-3','ALTRO-9'] -> 4.
     """
     best = 0
-    p = f"{prefix}-"
+    p = f"{prefix}{sep}"
     for c in codes:
         s = str(c or "").strip()
         if s.startswith(p):
@@ -53,6 +56,37 @@ def next_suffix(codes: Iterable, prefix: str) -> int:
     return best + 1
 
 
-def next_code(codes: Iterable, prefix: str) -> str:
-    """Codice completo ``f'{prefix}-{N}'`` col prossimo N libero per quel prefix."""
-    return f"{prefix}-{next_suffix(codes, prefix)}"
+def next_code(codes: Iterable, prefix: str, sep: str = "-", pad: int = 0) -> str:
+    """Codice completo ``f'{prefix}{sep}{N}'`` col prossimo N libero per quel prefix.
+
+    ``pad`` zero-riempie N a larghezza minima (default 0 = nessun padding); es.
+    ``sep='.', pad=3`` -> ``'Int.002'``.
+    """
+    return f"{prefix}{sep}{next_suffix(codes, prefix, sep):0{pad}d}"
+
+
+def next_prefixed(values: Iterable, prefix: str, sep: str = "-", pad: int = 0) -> str:
+    """Prossimo codice ``f'{prefix}{sep}{N:0{pad}d}'`` per una sequenza mista.
+
+    Considera come un'unica sequenza numerica sia i codici già prefissati (coda
+    numerica dopo ``prefix+sep``) sia i valori **interamente numerici** senza prefisso
+    (legacy). Ignora le code non interamente numeriche (es. ``'Int.188A'``). Emette
+    **sempre** il prefisso, così i valori nudi legacy non vengono mai riproposti nudi.
+
+    Es. prefix='Int', sep='.', pad=3, values=['196','197','Int.262','Int.188A']
+    -> 'Int.263' (262 è il massimo; 196/197 sono sotto; '188A' ignorato).
+    """
+    best = 0
+    head = f"{prefix}{sep}"
+    for v in values:
+        s = str(v or "").strip()
+        n = None
+        if s.startswith(head):
+            tail = s[len(head):]
+            if tail.isdigit():
+                n = int(tail)
+        elif s.isdigit():
+            n = int(s)
+        if n is not None and n > best:
+            best = n
+    return f"{prefix}{sep}{best + 1:0{pad}d}"
