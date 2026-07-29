@@ -6,7 +6,7 @@ from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q
+from django.db.models import Count, Prefetch, Q
 from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -16,9 +16,10 @@ from django.views.decorators.http import require_POST
 from core.csv_export import safe_csv_writer
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 
+from . import pittogrammi as ghs
 from .models import SCADENZA_SDS_GIORNI, PresaVisioneScheda, ProdottoChimico, SchedaSicurezza
 from .reports import matrice_presa_visione, prodotti_senza_scheda_corrente
-from .services.ingestion import estrai_sds
+from .services.ingestion import estrai_sds, pittogrammi_proposti
 from .services.qr import genera_qr_png
 
 logger = logging.getLogger(__name__)
@@ -70,6 +71,38 @@ def _can_gestire(request) -> bool:
 # Lista + dettaglio prodotto
 # ---------------------------------------------------------------------------
 
+# Stato SDS del prodotto: pilota il colore della barra d'accento della card e
+# il badge. Unico posto in cui i tre stati sono definiti.
+STATO_ACCENTO = {"ok": "#22c55e", "warn": "#f59e0b", "bad": "#ef4444"}
+
+
+def _card_prodotto(prodotto) -> dict:
+    """Prepara i dati di una card prodotto per il template.
+
+    La scheda corrente arriva dal ``Prefetch`` ``schede_correnti``: il template
+    non deve chiamare ``prodotto.scheda_corrente()``, che costerebbe una query
+    per riga (due, visto che i template Django non memorizzano il risultato).
+    """
+    correnti = getattr(prodotto, "schede_correnti", None) or []
+    scheda = correnti[0] if correnti else None
+    if scheda is None:
+        stato = "bad"
+    elif scheda.scaduta:
+        stato = "warn"
+    else:
+        stato = "ok"
+    codici = ghs.normalizza(scheda.pittogrammi if scheda else [])
+    return {
+        "prodotto": prodotto,
+        "scheda": scheda,
+        "stato": stato,
+        "accento": STATO_ACCENTO[stato],
+        "pittogrammi": ghs.dettaglio(codici),
+        "codici": set(codici),
+        "n_dpi": getattr(prodotto, "n_dpi", 0),
+    }
+
+
 @login_required
 def prodotto_list(request):
     if not _can_view(request):
@@ -82,11 +115,19 @@ def prodotto_list(request):
     reparto_id = request.GET.get("reparto", "").strip()
     famiglia = request.GET.get("famiglia", "").strip()
     stato = request.GET.get("stato", "").strip()
+    pittogramma = request.GET.get("pittogramma", "").strip().upper()
 
     qs = (
         ProdottoChimico.objects.filter(attivo=True)
         .select_related("reparto")
-        .order_by("nome")
+        .annotate(n_dpi=Count("dpi_obbligatori", distinct=True))
+        .prefetch_related(Prefetch(
+            "schede",
+            queryset=SchedaSicurezza.objects.filter(is_corrente=True),
+            to_attr="schede_correnti",
+        ))
+        # Ordinamento a due livelli: le card sono raggruppate per reparto.
+        .order_by("reparto__nome", "nome")
     )
     if query:
         qs = qs.filter(
@@ -98,20 +139,57 @@ def prodotto_list(request):
         qs = qs.filter(reparto_id=reparto_id)
     if famiglia:
         qs = qs.filter(famiglia=famiglia)
+    # Sottoquery invece di join + distinct: con l'annotate sopra, DISTINCT +
+    # ORDER BY su colonna joinata e' la combinazione che fa scattare l'errore
+    # 8127 su SQL Server (SQLite la tollera, quindi non si vedrebbe in dev).
     if stato == "senza_scheda":
         qs = qs.filter(pk__in=prodotti_senza_scheda_corrente())
     elif stato == "con_scheda":
-        qs = qs.filter(schede__is_corrente=True).distinct()
+        qs = qs.filter(pk__in=SchedaSicurezza.objects.filter(
+            is_corrente=True).values("prodotto_id"))
     elif stato == "da_rivedere":
         soglia = timezone.now() - timedelta(days=SCADENZA_SDS_GIORNI)
-        qs = qs.filter(schede__is_corrente=True, schede__data_caricamento__lt=soglia).distinct()
+        qs = qs.filter(pk__in=SchedaSicurezza.objects.filter(
+            is_corrente=True, data_caricamento__lt=soglia).values("prodotto_id"))
+
+    cards = [_card_prodotto(prodotto) for prodotto in qs]
+
+    # Conteggi della rastrelliera: calcolati prima del filtro per pittogramma,
+    # cosi' i numeri non collassano appena se ne seleziona uno.
+    conteggi = dict.fromkeys(ghs.CODICI_NOTI, 0)
+    for card in cards:
+        for codice in card["codici"] & ghs.CODICI_NOTI:
+            conteggi[codice] += 1
+
+    if pittogramma:
+        cards = [card for card in cards if pittogramma in card["codici"]]
+
+    # Raggruppamento per reparto in Python: la queryset e' gia' ordinata per
+    # reparto, e il filtro per pittogramma non e' esprimibile in SQL in modo
+    # portabile (JSONField: `contains` non esiste su SQLite).
+    gruppi: list[dict] = []
+    for card in cards:
+        nome_reparto = card["prodotto"].reparto.nome
+        if not gruppi or gruppi[-1]["reparto"] != nome_reparto:
+            gruppi.append({"reparto": nome_reparto, "cards": [], "n_senza_scheda": 0})
+        gruppi[-1]["cards"].append(card)
+        if card["stato"] == "bad":
+            gruppi[-1]["n_senza_scheda"] += 1
 
     return render(request, "schede_sicurezza/pages/prodotto_list.html", {
-        "prodotti": qs,
+        "gruppi": gruppi,
+        "n_mostrati": len(cards),
+        "n_senza_scheda": sum(1 for c in cards if c["stato"] == "bad"),
+        "n_da_rivedere": sum(1 for c in cards if c["stato"] == "warn"),
+        "rastrelliera": [
+            {"codice": codice, "nome": nome, "n": conteggi[codice], "attivo": codice == pittogramma}
+            for codice, nome in ghs.PITTOGRAMMI_GHS
+        ],
         "query": query,
         "reparto_selezionato": reparto_id,
         "famiglia_selezionata": famiglia,
         "stato_selezionato": stato,
+        "pittogramma_selezionato": pittogramma,
         "reparti_options": Reparto.objects.filter(is_active=True).order_by("nome"),
         "famiglie_options": (
             ProdottoChimico.objects.exclude(famiglia="")
@@ -214,7 +292,13 @@ def prodotto_detail(request, pk: int):
             def _parse_lista(valore: str) -> list[str]:
                 return [v.strip() for v in valore.split(",") if v.strip()]
 
-            scheda_corrente.pittogrammi = _parse_lista(request.POST.get("pittogrammi", ""))
+            # Il selettore invia un valore per ogni simbolo spuntato; il vecchio
+            # campo a testo libero ne inviava uno solo, con le virgole dentro.
+            # Entrambe le forme restano accettate.
+            selezionati = request.POST.getlist("pittogrammi")
+            if len(selezionati) == 1:
+                selezionati = _parse_lista(selezionati[0])
+            scheda_corrente.pittogrammi = ghs.normalizza(selezionati)
             scheda_corrente.frasi_h = _parse_lista(request.POST.get("frasi_h", ""))
             scheda_corrente.frasi_p = _parse_lista(request.POST.get("frasi_p", ""))
             scheda_corrente.classificazione_clp = request.POST.get("classificazione_clp", "").strip()
@@ -262,10 +346,18 @@ def prodotto_detail(request, pk: int):
         return redirect("schede_sicurezza:prodotto_detail", pk=pk)
 
     schede = prodotto.schede.order_by("-data_caricamento")
+    scheda_corrente = prodotto.scheda_corrente()
     return render(request, "schede_sicurezza/pages/prodotto_detail.html", {
         "prodotto": prodotto,
         "schede": schede,
-        "scheda_corrente": prodotto.scheda_corrente(),
+        "scheda_corrente": scheda_corrente,
+        "catalogo_pittogrammi": ghs.catalogo(
+            selezionati=scheda_corrente.pittogrammi if scheda_corrente else [],
+            proposti=pittogrammi_proposti(scheda_corrente) if scheda_corrente else [],
+        ),
+        "pittogrammi_correnti": ghs.dettaglio(
+            scheda_corrente.pittogrammi if scheda_corrente else []
+        ),
         "can_gestire": _can_gestire(request),
         "qr_url": request.build_absolute_uri(
             reverse("schede_sicurezza:scheda_mobile", args=[str(prodotto.uuid)])
@@ -308,6 +400,7 @@ def scheda_mobile(request, uuid):
     return render(request, "schede_sicurezza/pages/scheda_mobile.html", {
         "prodotto": prodotto,
         "scheda": scheda,
+        "pittogrammi": ghs.dettaglio(scheda.pittogrammi),
         "gia_presa_visione": gia_presa_visione,
     })
 

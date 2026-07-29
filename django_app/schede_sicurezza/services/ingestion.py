@@ -117,6 +117,17 @@ def _extract_pittogrammi(section2_text: str) -> list[str]:
     return sorted({m.upper() for m in _GHS_RE.findall(section2_text)})
 
 
+def pittogrammi_proposti(scheda) -> list[str]:
+    """I pittogrammi che l'estrazione ha individuato nella sezione 2 del PDF.
+
+    Ricalcolati dall'estratto grezzo, non da un campo dedicato: i pittogrammi
+    curati possono essere stati corretti a mano, questi restano la traccia di
+    cosa proponeva il documento del fornitore.
+    """
+    sezione2 = (getattr(scheda, "estratto_grezzo", None) or {}).get("2", "")
+    return _extract_pittogrammi(sezione2) if sezione2 else []
+
+
 def _extract_frasi_h(section2_text: str) -> list[str]:
     found = {m.upper() for m in _H_PHRASE_RE.findall(section2_text)}
     found |= {m.upper() for m in _EUH_PHRASE_RE.findall(section2_text)}

@@ -1,0 +1,17 @@
+{% comment %}
+Rende una lista di pittogrammi (output di `pittogrammi.dettaglio`).
+Contesto: `pittogrammi` (lista di dict), `size` (lato in px, default 38).
+Richiede lo sprite `schede_sicurezza/components/_ghs_icons.html` nella pagina.
+{% endcomment %}
+{% for p in pittogrammi %}
+  {% if p.noto %}
+    <svg class="ss-ghs" width="{{ size|default:38 }}" height="{{ size|default:38 }}" role="img"
+         aria-label="{{ p.codice }} {{ p.nome }}"><title>{{ p.codice }} — {{ p.nome }}</title><use href="#{{ p.codice|lower }}"/></svg>
+  {% else %}
+    {# Codice fuori catalogo (estrazione sporca, simbolo interno): resta visibile
+       come testo invece di sparire. Stile inline: il partial e' usato anche su
+       pagine che non caricano il design-system fmd-. #}
+    <span title="Codice fuori dal catalogo CLP"
+          style="display:inline-block;padding:3px 9px;border-radius:999px;background:#eef2f7;color:#5a6580;font-size:11px;font-weight:700;">{{ p.codice }}</span>
+  {% endif %}
+{% endfor %}

@@ -9,7 +9,7 @@
 .ss-mobile-title { font-size:19px; font-weight:900; }
 .ss-mobile-sub { font-size:13px; color:#64748b; margin-top:2px; }
 .ss-mobile-section-title { font-weight:700; font-size:13px; color:#475569; margin-bottom:8px; text-transform:uppercase; letter-spacing:.03em; }
-.ss-pittogramma { display:inline-block; padding:4px 10px; border-radius:8px; background:#fef3c7; color:#b45309; font-weight:700; font-size:12px; margin:2px; }
+.ss-pitto-grid { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
 .ss-frase { display:inline-block; padding:3px 9px; border-radius:20px; background:#f1f5f9; color:#475569; font-size:11.5px; margin:2px; }
 .ss-dpi-grid { display:flex; flex-wrap:wrap; gap:10px; }
 .ss-dpi-item { display:flex; flex-direction:column; align-items:center; width:72px; font-size:11px; text-align:center; color:#475569; }
@@ -27,6 +27,7 @@ body.theme-dark .ss-mobile-section-title { color:var(--text-mid); }
 {% endblock %}
 
 {% block content %}
+{% include "schede_sicurezza/components/_ghs_icons.html" %}
 <div class="ss-mobile-wrap">
   <div class="ss-mobile-card">
     <div class="ss-mobile-title">{{ prodotto.nome }}</div>
@@ -34,10 +35,14 @@ body.theme-dark .ss-mobile-section-title { color:var(--text-mid); }
     <div class="ss-mobile-sub">Scheda versione {{ scheda.versione|default:"—" }}</div>
   </div>
 
-  {% if scheda.pittogrammi %}
+  {% if pittogrammi %}
     <div class="ss-mobile-card">
       <div class="ss-mobile-section-title">Pittogrammi</div>
-      {% for p in scheda.pittogrammi %}<span class="ss-pittogramma">{{ p }}</span>{% endfor %}
+      {# A 64px il rombo resta leggibile a braccio teso, che e' come si guarda
+         questa pagina: telefono in mano davanti al contenitore. #}
+      <div class="ss-pitto-grid">
+        {% include "schede_sicurezza/partials/_pittogrammi.html" with pittogrammi=pittogrammi size=64 %}
+      </div>
     </div>
   {% endif %}
 
