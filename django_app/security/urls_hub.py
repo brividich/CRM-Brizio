@@ -48,6 +48,10 @@ urlpatterns = [
     path("admin/config/notifications/", views.admin_config_notifications, name="admin_config_notifications"),
     path("admin/config/ticketing/", views.admin_config_ticketing, name="admin_config_ticketing"),
     path("admin/config/audit/", views.admin_config_audit, name="admin_config_audit"),
+    # B3 — autoconfigurazione (piano + fix guidati dalla diagnostica)
+    path("admin/autoconfig/", views.admin_autoconfig, name="admin_autoconfig"),
+    path("admin/autoconfig/apply/", views.admin_autoconfig_apply, name="admin_autoconfig_apply"),
+    path("admin/autoconfig/fix/<slug:code>/", views.admin_autoconfig_fix, name="admin_autoconfig_fix"),
     # B3 — diagnostica / docs / addons
     path("admin/diagnostics/", views.admin_diagnostics, name="admin_diagnostics"),
     path("admin/docs/", views.admin_docs, name="admin_docs"),

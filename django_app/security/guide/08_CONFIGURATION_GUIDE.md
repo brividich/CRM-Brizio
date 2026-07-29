@@ -2,13 +2,22 @@
 
 Questa è la guida di riferimento per configurare il Security Center. Copre il seed iniziale, ogni sezione della Configuration Studio con i campi principali e i valori consigliati, i permessi e l'audit. Tutti gli esempi sono **sintetici**.
 
-## Seed iniziale
+## Seed iniziale (autoconfigurazione)
 
-Il comando popola sorgenti, parser, regole, soppressioni, aspettative di backup, notifiche e ticketing con una base sensata. È **idempotente**: rilanciarlo non duplica nulla.
+Il seed popola impostazioni generali, sorgenti, parser, regole, aspettative di backup, notifiche e ticketing con una base sensata. È **idempotente**: rilanciarlo non duplica nulla.
 
-```
-python manage.py seed_security_center_config
-```
+Due strade, stessa fonte di verità (`security/services/autoconfig.py`):
+
+- **Da browser** — `/soc/admin/autoconfig/`. Mostra prima il piano (quanto manca, quanto è difforme dai default, quanto è già allineato) e poi applica. È **additiva**: crea ciò che manca e non tocca mai i valori che hai personalizzato. Il riallineamento ai default è un'azione separata ed esplicita ("Riallinea ai default").
+- **Da shell** — `python manage.py seed_security_center_config`. Opzioni: `--dry-run` (solo piano), `--only <sezione>`, `--no-overwrite` (non riallinea i valori personalizzati), `--reset` (svuota la sezione e riparte dai default).
+
+Sezioni: `general`, `sources`, `parsers`, `alert_rules`, `notifications`, `ticketing`, `backups`.
+
+Ogni scrittura finisce nel registro audit (`autoconfig_create` / `autoconfig_align`) con l'utente che l'ha lanciata.
+
+### Correzioni suggerite
+
+La stessa pagina espone come pulsante le correzioni che la diagnostica sa risolvere da sola: riattivare sorgenti o parser disattivati, creare il canale notifiche di dashboard o la configurazione ticketing mancante, riabilitare i ticket automatici sulle regole critiche Defender, disattivare le soppressioni scadute. Compaiono **solo** quando il relativo controllo diagnostico non è "ok" e nessuna di esse cancella dati.
 
 Dopo il seed, apri `/soc/admin/config/` e rivedi le 9 sezioni. Il seed è un punto di partenza, non la configurazione definitiva: le soglie vanno tarate sul tuo ambiente.
 

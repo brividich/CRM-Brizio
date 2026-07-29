@@ -2,9 +2,13 @@
 
 Questa guida descrive le 9 sezioni della **Configuration Studio** (`/soc/admin/config/`). Per la configurazione servono il permesso ACL `security.config.view` e uno tra `security.manage_security_configuration` o `is_staff`. Ogni modifica finisce nel registro audit.
 
+## Autoconfigurazione
+
+`/soc/admin/autoconfig/` (link in testa alla Configuration Studio) è il punto di partenza: mostra il piano di configurazione — cosa manca, cosa è difforme dai default, cosa è già allineato — e permette di seminare la base senza shell. Applica anche, come pulsanti, le correzioni che la diagnostica sa risolvere da sola. Dettagli in [Guida alla configurazione](/soc/docs/08-configuration-guide/).
+
 ## Generali
 
-Chiavi di configurazione globali (soglie, finestre temporali, comportamenti di default). Le chiavi marcate come **segrete** non mostrano il valore in chiaro: lasciando il campo vuoto si conserva il valore esistente. Dopo un `seed_security_center_config` è qui che si rivedono i default.
+Chiavi di configurazione globali (soglie, finestre temporali, comportamenti di default). Le chiavi marcate come **segrete** non mostrano il valore in chiaro: lasciando il campo vuoto si conserva il valore esistente. Dopo un'autoconfigurazione (o un `seed_security_center_config`) è qui che si rivedono i default.
 
 ## Sorgenti
 

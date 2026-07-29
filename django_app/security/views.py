@@ -4,7 +4,7 @@ from django import forms
 from django.contrib import messages
 from django.contrib.auth.views import redirect_to_login
 from django.db.models import Count
-from django.http import Http404, HttpResponseForbidden
+from django.http import Http404, HttpResponseBadRequest, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -72,7 +72,14 @@ from .services.configuration import (
 )
 from .services.ingestion import get_or_create_source, ingest_mailbox_message, ingest_source_file
 from .services.addon_registry import get_addon_detail, get_addon_registry
-from .services.diagnostics import build_diagnostics_context
+from .services.autoconfig import (
+    apply_autoconfig,
+    apply_fix,
+    available_fixes,
+    plan_autoconfig,
+    plan_summary,
+)
+from .services.diagnostics import build_diagnostics_context, run_security_center_diagnostics
 from .services.security_inbox_pipeline import process_mailbox_message, process_source_file
 from .docs_render import DOC_FILES as _DOC_FILES, load_doc, slug_for
 
@@ -446,6 +453,63 @@ def admin_diagnostics(request):
             "body": request.POST.get("body", "")[:5000],
         }
     return render(request, "security/admin_diagnostics.html", build_diagnostics_context(match_input))
+
+
+def _autoconfig_context(applied=None):
+    plan = plan_autoconfig()
+    diagnostics = run_security_center_diagnostics()
+    return {
+        "plan": plan,
+        "summary": plan_summary(plan),
+        "fixes": available_fixes(diagnostics),
+        "diagnostics_status": diagnostics["status"],
+        "applied": applied,
+    }
+
+
+@ensure_csrf_cookie
+def admin_autoconfig(request):
+    """Autoconfigurazione: piano, applicazione e fix guidati dalla diagnostica."""
+    if not can_manage_security_config(request.user):
+        return _security_config_denied(request)
+    return render(request, "security/admin_autoconfig.html", _autoconfig_context())
+
+
+@require_POST
+def admin_autoconfig_apply(request):
+    if not can_manage_security_config(request.user):
+        return _security_config_denied(request)
+    section = request.POST.get("section") or None
+    overwrite = request.POST.get("overwrite") == "1"
+    try:
+        result = apply_autoconfig([section] if section else None, actor=request.user, request=request, overwrite=overwrite)
+    except ValueError as exc:
+        return HttpResponseBadRequest(str(exc))
+    applied = {
+        "kind": "seed",
+        "label": "Riallineamento ai default" if overwrite else "Completamento configurazione",
+        "message": f"{result['created']} elementi creati, {result['updated']} riallineati, {result['skipped']} lasciati invariati.",
+        "sections": result["sections"],
+    }
+    if request.headers.get("HX-Request"):
+        return render(request, "security/partials/autoconfig_result.html", _autoconfig_context(applied))
+    messages.success(request, applied["message"])
+    return redirect("security:admin_autoconfig")
+
+
+@require_POST
+def admin_autoconfig_fix(request, code):
+    if not can_manage_security_config(request.user):
+        return _security_config_denied(request)
+    try:
+        result = apply_fix(code, actor=request.user, request=request)
+    except ValueError as exc:
+        raise Http404(str(exc))
+    applied = {"kind": "fix", "label": result["label"], "message": result["message"], "sections": []}
+    if request.headers.get("HX-Request"):
+        return render(request, "security/partials/autoconfig_result.html", _autoconfig_context(applied))
+    messages.success(request, f"{result['label']}: {result['message']}")
+    return redirect("security:admin_autoconfig")
 
 
 @ensure_csrf_cookie

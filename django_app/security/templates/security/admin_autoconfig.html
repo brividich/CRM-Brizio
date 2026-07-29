@@ -1,0 +1,25 @@
+{% extends "security/_base_soc.html" %}
+
+{% block title %}Autoconfigurazione | Security Center AI{% endblock %}
+{% block page_marker %}Autoconfigurazione{% endblock %}
+{% block page_title %}Autoconfigurazione{% endblock %}
+{% block page_icon %}A{% endblock %}
+
+{% block soc_content %}
+<section class="sec-panel">
+  <div class="sec-section-head">
+    <h2>Cosa fa</h2>
+    <a href="{% url 'security:admin_diagnostics' %}">Diagnostica completa</a>
+  </div>
+  <p class="sec-muted">
+    Porta il Security Center dalla configurazione vuota a quella operativa senza passare dalla shell del server:
+    semina impostazioni, sorgenti, parser, regole di alert, notifiche, ticketing e job di backup attesi, e applica le
+    correzioni che la diagnostica sa risolvere da sola. Le stesse operazioni restano disponibili da riga di comando con
+    <code>manage.py seed_security_center_config</code>.
+  </p>
+</section>
+
+<div id="autoconfig-live" style="margin-top:12px">
+  {% include "security/partials/autoconfig_result.html" %}
+</div>
+{% endblock %}
