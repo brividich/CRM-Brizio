@@ -19,13 +19,24 @@
 .ofi-table td.ofi-pdca{ font-weight:800; color:#cbd5e1; }
 .ofi-table td.ofi-pdca.ofi-on{ color:#16a34a; }
 .ofi-norma{ display:inline-flex; gap:3px; flex-wrap:wrap; }
-/* indicatore PDCA compatto in testa: TUTTE e quattro le tappe P·D·C·A a colpo d'occhio */
+/* indicatore PDCA compatto in testa: TUTTE e quattro le tappe P·D·C·A a colpo d'occhio.
+   Colori FISSI per lettera come nel MOD.174: P azzurro · D rosso · C giallo · A verde.
+   Tappa raggiunta = colore pieno; tappa da fare = tinta chiara della stessa lettera. */
 .ofi-mini{ display:inline-flex; gap:3px; }
 .ofi-mini-s{ display:inline-flex; align-items:center; justify-content:center; width:21px; height:21px;
   border-radius:6px; font-size:11px; font-weight:800; border:1.5px solid #d5dce6; color:#9aa7b8; background:#fff; }
-.ofi-mini-s.ofi-mini-done{ border-color:#16a34a; color:#fff; background:#16a34a; }
-.ofi-mini-s.ofi-mini-current{ border-color:#16a34a; color:#fff; background:#16a34a; box-shadow:0 0 0 2.5px rgba(255,138,31,.9); }
-body.theme-dark .ofi-mini-s{ background:transparent; }
+/* raggiunte (done + current): pieno col colore della lettera */
+.ofi-mini-done.ofi-k-p, .ofi-mini-current.ofi-k-p{ background:#2ea3d6; border-color:#2ea3d6; color:#fff; }
+.ofi-mini-done.ofi-k-d, .ofi-mini-current.ofi-k-d{ background:#e5484d; border-color:#e5484d; color:#fff; }
+.ofi-mini-done.ofi-k-c, .ofi-mini-current.ofi-k-c{ background:#f2c31c; border-color:#e0b016; color:#5a4600; }
+.ofi-mini-done.ofi-k-a, .ofi-mini-current.ofi-k-a{ background:#16a34a; border-color:#16a34a; color:#fff; }
+/* da fare (todo): tinta chiara della stessa lettera, così il colore resta leggibile */
+.ofi-mini-todo.ofi-k-p{ background:#e8f5fb; border-color:#c3e4f2; color:#7cb9d6; }
+.ofi-mini-todo.ofi-k-d{ background:#fdecec; border-color:#f6cccd; color:#dc9294; }
+.ofi-mini-todo.ofi-k-c{ background:#fef7db; border-color:#f1e3a3; color:#c8a83f; }
+.ofi-mini-todo.ofi-k-a{ background:#e9f7ef; border-color:#c6e7d3; color:#78ba95; }
+/* la tappa in corso: stesso colore pieno + anello arancio per dire «sei qui» */
+.ofi-mini-current{ box-shadow:0 0 0 2.5px rgba(255,138,31,.9); }
 .ofi-legend{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
 </style>
 {% endblock %}
@@ -126,7 +137,7 @@ body.theme-dark .ofi-mini-s{ background:transparent; }
             {% if not modulo %}<td class="fmd-muted">{{ v.modulo_display }}</td>{% endif %}
             <td class="fmd-nowrap fmd-muted">{{ v.data_apertura|date:"d-m-Y" }}</td>
             <td>{% if v.tipo == "OFI" %}<span class="fmd-badge fmd-b-amber">OFI</span>{% else %}<span class="fmd-badge fmd-b-red">NC</span>{% endif %}</td>
-            <td class="fmd-nowrap"><span class="ofi-mini">{% for s in v.pdca_steps %}<span class="ofi-mini-s ofi-mini-{{ s.state }}" title="{{ s.label }} — {% if s.state == 'done' %}completata{% elif s.state == 'current' %}in corso{% else %}da fare{% endif %}">{{ s.letter }}</span>{% endfor %}</span></td>
+            <td class="fmd-nowrap"><span class="ofi-mini">{% for s in v.pdca_steps %}<span class="ofi-mini-s ofi-mini-{{ s.state }} ofi-k-{{ s.letter|lower }}" title="{{ s.label }} — {% if s.state == 'done' %}completata{% elif s.state == 'current' %}in corso{% else %}da fare{% endif %}">{{ s.letter }}</span>{% endfor %}</span></td>
             <td><span class="ofi-norma">{% if v.norma_iso27001 %}<span class="fmd-badge fmd-b-cyan">27001</span>{% endif %}{% if v.norma_iso45001 %}<span class="fmd-badge fmd-b-cyan">45001</span>{% endif %}{% if v.norma_en9100 %}<span class="fmd-badge fmd-b-cyan">9100</span>{% endif %}</span></td>
             <td class="ofi-txt">{{ v.rif_norma|default:"—" }}</td>
             <td class="ofi-txt">{{ v.processo|default:"—" }}</td>

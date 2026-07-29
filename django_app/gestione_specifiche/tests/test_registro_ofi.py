@@ -279,6 +279,11 @@ class ReplicaMOD174Tests(RegistroBase):
         self.assertContains(resp, 'ofi-mini-s ofi-mini-done', count=2)
         self.assertContains(resp, 'ofi-mini-s ofi-mini-current', count=1)
         self.assertContains(resp, 'ofi-mini-s ofi-mini-todo', count=1)
+        # colori fissi per lettera come nel MOD.174: P azzurro, D rosso, C giallo, A verde
+        self.assertContains(resp, 'ofi-mini-done ofi-k-p')      # P raggiunta
+        self.assertContains(resp, 'ofi-mini-done ofi-k-d')      # D raggiunta
+        self.assertContains(resp, 'ofi-mini-current ofi-k-c')   # C in corso
+        self.assertContains(resp, 'ofi-mini-todo ofi-k-a')      # A da fare
 
     def test_lista_badge_ofi_giallo_nc_rosso(self):
         oggi = timezone.localdate()
