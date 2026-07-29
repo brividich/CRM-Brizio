@@ -331,6 +331,8 @@ urlpatterns = [
     path("formazione/corsi/<int:corso_id>/regole-obbligo/<int:rule_id>/rimuovi", views.formazione_corso_req_rule_delete, name="formazione_corso_req_rule_delete"),
     # Assegnazione dipendenti al corso (TrainingAssignment) — primo anello corso→sessione
     path("formazione/corsi/<int:corso_id>/assegna", views.formazione_corso_assegna, name="formazione_corso_assegna"),
+    # Completamento registrato senza sessione (corso frequentato altrove / storico)
+    path("formazione/corsi/<int:corso_id>/completamento-diretto", views.formazione_corso_completamento_diretto, name="formazione_corso_completamento_diretto"),
 
     # ── Formazione HR — E-learning (micro-corsi: slide + quiz) ─────────────
     # Hub di gestione (autori/HR)
@@ -373,6 +375,8 @@ urlpatterns = [
     path("formazione/sessioni/<int:sessione_id>/elimina", views.formazione_sessione_delete, name="formazione_sessione_delete"),
     # Lezioni inline nella sessione
     path("formazione/sessioni/<int:sessione_id>/lezioni/add", views.formazione_lezione_add, name="formazione_lezione_add"),
+    # Generatore giornate: una lezione per giorno dell'intervallo, orario-tipo comune
+    path("formazione/sessioni/<int:sessione_id>/lezioni/genera", views.formazione_lezioni_genera, name="formazione_lezioni_genera"),
     path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/modifica", views.formazione_lezione_edit, name="formazione_lezione_edit"),
     path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/elimina", views.formazione_lezione_delete, name="formazione_lezione_delete"),
     # Presenze per lezione

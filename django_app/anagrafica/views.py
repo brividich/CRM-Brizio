@@ -42,6 +42,7 @@ from .forms import (
     ElearningConfigForm,
     FiglioACaricoFormSet,
     DipendenteLegacyForm,
+    TrainingCompletamentoDirettoForm,
     TrainingCompletionRuleForm,
     TrainingCourseDependencyForm,
     TrainingCourseForm,
@@ -50,8 +51,10 @@ from .forms import (
     TrainingInstructorForm,
     TrainingLessonAttendanceForm,
     TrainingLessonForm,
+    TrainingLezioniGeneraForm,
     TrainingPlanForm,
     TrainingRequirementRuleForm,
+    TrainingSessioneUnicaForm,
     TrainingSessionForm,
     TrainingSlideForm,
     TrainingQuizQuestionForm,
@@ -11483,11 +11486,40 @@ def formazione_corso_create(request):
         return redirect("anagrafica:formazione_corsi_list")
     if request.method == "POST":
         form = TrainingCourseForm(request.POST)
-        if form.is_valid():
+        sess_form = TrainingSessioneUnicaForm(request.POST, prefix="sess")
+        # Il blocco «Programmazione» è opzionale: si valida sempre (per non perdere
+        # gli errori quando è acceso) ma vincola il salvataggio solo se spuntato.
+        sess_ok = sess_form.is_valid()
+        if form.is_valid() and sess_ok:
             corso = form.save(commit=False)
             corso.created_by = request.user
             corso.save()
             form.salva_processi(corso)
+            sessione = None
+            if sess_form.cleaned_data.get("pianifica"):
+                from .services.formazione_pianificazione import crea_sessione_unica
+                cd = sess_form.cleaned_data
+                sessione = crea_sessione_unica(
+                    corso,
+                    data_inizio=cd["data_inizio"],
+                    data_fine=cd.get("data_fine"),
+                    ora_inizio=cd.get("ora_inizio"),
+                    ora_fine=cd.get("ora_fine"),
+                    pausa_minuti=cd.get("pausa_minuti") or 0,
+                    sede=cd.get("sede") or "",
+                    docente=cd.get("docente"),
+                    modalita=cd.get("modalita") or "IN_SEDE",
+                    salta_weekend=bool(cd.get("salta_weekend")),
+                    user=request.user,
+                )
+            if sessione is not None:
+                n_lez = sessione.lezioni.count()
+                messages.success(
+                    request,
+                    f'Corso "{corso.titolo}" creato con la sessione {sessione.codice_sessione} '
+                    f'({n_lez} giornat{"a" if n_lez == 1 else "e"}, {sessione.ore_pianificate:g} ore formative).',
+                )
+                return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione.pk)
             messages.success(request, f'Corso "{corso.titolo}" creato.')
             return redirect("anagrafica:formazione_corso_detail", corso_id=corso.pk)
     else:
@@ -11503,8 +11535,10 @@ def formazione_corso_create(request):
             if cfg.validita_mesi_default:
                 initial["validita_mesi"] = cfg.validita_mesi_default
         form = TrainingCourseForm(initial=initial)
+        sess_form = TrainingSessioneUnicaForm(prefix="sess")
     return render(request, "anagrafica/pages/formazione_corso_form.html", {
         "form": form,
+        "sess_form": sess_form,
         "modo": "crea",
     })
 
@@ -11744,6 +11778,18 @@ def formazione_corso_detail(request, corso_id: int):
             c for c in _res["idonei"] if c["legacy_id"] not in _gia_assegnati
         ]
 
+    # Registrazione diretta del completamento (corso senza sessione): pool completo
+    # dei dipendenti attivi, come nel form di iscrizione manuale.
+    from django.utils import timezone as _tz
+    completamento_form = None
+    dipendenti_pool: list = []
+    if is_editor:
+        completamento_form = TrainingCompletamentoDirettoForm(initial={
+            "data_completamento": _tz.localdate(),
+            "idoneo": True,
+        })
+        dipendenti_pool = sorted(_build_nomi_map().items(), key=lambda x: x[1].casefold())
+
     return render(request, "anagrafica/pages/formazione_corso_detail.html", {
         "corso": corso,
         "prerequisiti": prerequisiti,
@@ -11765,6 +11811,8 @@ def formazione_corso_detail(request, corso_id: int):
         "tutti_corsi": TrainingCourse.objects.exclude(pk=corso_id).filter(is_active=True).order_by("titolo"),
         "candidati_assegnazione": candidati_assegnazione,
         "assegnazione_pool_filtrato": assegnazione_pool_filtrato,
+        "completamento_form": completamento_form,
+        "dipendenti_pool": dipendenti_pool,
     })
 
 
@@ -12233,6 +12281,20 @@ def formazione_sessione_detail(request, sessione_id: int):
 
     edit_form   = TrainingSessionForm(instance=sessione)
     lezione_form = TrainingLessonForm(sessione=sessione)
+    # Generatore giornate: propone l'orario-tipo dell'ultima lezione già inserita,
+    # così allungare una sessione non fa ridigitare orari e pausa.
+    _ultima = lezioni[-1] if lezioni else None
+    genera_form = TrainingLezioniGeneraForm(initial={
+        "ora_inizio":   _ultima.ora_inizio if _ultima else "08:00",
+        "ora_fine":     _ultima.ora_fine if _ultima else "17:00",
+        "pausa_minuti": _ultima.pausa_minuti if _ultima else 60,
+    })
+
+    # Monte ore pianificato vs durata teorica del corso: lo scostamento è il primo
+    # segnale che il calendario non regge (pausa dimenticata, giornata mancante).
+    ore_pianificate = round(sum(lz.durata_ore for lz in lezioni), 2)
+    ore_teoriche = float(sessione.corso.durata_ore_teorica or 0)
+    ore_scostamento = round(ore_pianificate - ore_teoriche, 2) if ore_teoriche else 0.0
 
     return render(request, "anagrafica/pages/formazione_sessione_detail.html", {
         "sessione":     sessione,
@@ -12240,6 +12302,10 @@ def formazione_sessione_detail(request, sessione_id: int):
         "n_iscritti":   n_iscritti,
         "edit_form":    edit_form,
         "lezione_form": lezione_form,
+        "genera_form":  genera_form,
+        "ore_pianificate": ore_pianificate,
+        "ore_teoriche":    ore_teoriche,
+        "ore_scostamento": ore_scostamento,
         "is_editor":    is_editor,
         "allegati_sessione": allegati_sessione,
         "ATTACH_TIPI":  TrainingAttachment.Tipo.choices,
@@ -12339,6 +12405,53 @@ def formazione_lezione_delete(request, sessione_id: int, lezione_id: int):
     num = lezione.numero
     lezione.delete()
     messages.success(request, f'Lezione {num} eliminata.')
+    return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+
+
+@login_required
+@require_POST
+def formazione_lezioni_genera(request, sessione_id: int):
+    """Genera in blocco le giornate della sessione con un orario-tipo comune.
+
+    Una lezione per ogni giorno dell'intervallo (weekend escludibile), pausa
+    scalata dalle ore formative. Salta i giorni che hanno già una lezione, così
+    si può rilanciare dopo aver allungato la sessione."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare sessioni formative.")
+        return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+    sessione = get_object_or_404(TrainingSession.objects.select_related("corso"), pk=sessione_id)
+    form = TrainingLezioniGeneraForm(request.POST)
+    if not form.is_valid():
+        for field_errors in form.errors.values():
+            for err in field_errors:
+                messages.error(request, err)
+        return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+
+    from .services.formazione_pianificazione import genera_lezioni
+    cd = form.cleaned_data
+    creati = genera_lezioni(
+        sessione,
+        ora_inizio=cd["ora_inizio"],
+        ora_fine=cd["ora_fine"],
+        pausa_minuti=cd.get("pausa_minuti") or 0,
+        argomento=cd.get("argomento") or "",
+        docente=cd.get("docente"),
+        salta_weekend=bool(cd.get("salta_weekend")),
+        user=request.user,
+    )
+    if creati:
+        ore = round(sum(lz.durata_ore for lz in creati), 2)
+        messages.success(
+            request,
+            f'{len(creati)} giornat{"a" if len(creati) == 1 else "e"} generat'
+            f'{"a" if len(creati) == 1 else "e"} ({ore:g} ore formative).',
+        )
+    else:
+        messages.info(
+            request,
+            "Nessuna giornata da generare: i giorni dell'intervallo hanno già una lezione "
+            "(o cadono tutti nel weekend).",
+        )
     return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
 
 
@@ -12478,16 +12591,27 @@ def _crea_employee_record(enrollment: TrainingEnrollment, created_by) -> Trainin
         },
     )
 
+    _post_completamento(record, created_by)
+    return record
+
+
+def _post_completamento(record: TrainingEmployeeRecord, created_by) -> None:
+    """Effetti collaterali comuni a OGNI completamento, da qualunque strada arrivi
+    (iscrizione a sessione, e-learning, registrazione diretta senza sessione):
+    invalidazione/ricalcolo scadenze, allineamento qualifica, archiviazione
+    attestato. Tutti fail-safe: un errore qui non deve annullare il completamento."""
+    corso = record.corso
+
     # Invalida cache scadenze per questo dipendente × corso
     TrainingDeadline.objects.filter(
         corso=corso,
-        legacy_anagrafica_id=enrollment.legacy_anagrafica_id,
+        legacy_anagrafica_id=record.legacy_anagrafica_id,
     ).update(needs_refresh=True)
 
     # Tenta ricalcolo immediato (stub — NON lancia eccezione se non ancora implementato)
     try:
         from .services.training_deadline_service import refresh_deadlines
-        refresh_deadlines(legacy_id=enrollment.legacy_anagrafica_id, corso_id=corso.pk)
+        refresh_deadlines(legacy_id=record.legacy_anagrafica_id, corso_id=corso.pk)
     except NotImplementedError:
         pass  # PATCH-06 implementerà il ricalcolo completo
 
@@ -12521,7 +12645,112 @@ def _crea_employee_record(enrollment: TrainingEnrollment, created_by) -> Trainin
     except Exception:
         logger.exception("Archiviazione automatica attestato fallita per record %s", record.pk)
 
+
+def _crea_record_diretto(
+    corso, legacy_id: int, data_completamento, ore_frequentate,
+    idoneo: bool, erogato_da: str, note: str, created_by,
+) -> TrainingEmployeeRecord | None:
+    """Completamento **senza sessione**: corso frequentato altrove o storico.
+
+    ``TrainingEmployeeRecord.sessione`` è nullable proprio per questo caso: si va
+    a libretto senza inventare una sessione e un registro presenze mai esistiti.
+    Idempotente su (corso, dipendente, data): ritorna None se il record c'è già."""
+    if TrainingEmployeeRecord.objects.filter(
+        corso=corso, legacy_anagrafica_id=legacy_id, data_completamento=data_completamento,
+    ).exists():
+        return None
+
+    data_scadenza = None
+    if corso.validita_mesi:
+        data_scadenza = _add_months(data_completamento, corso.validita_mesi)
+
+    ore = ore_frequentate if ore_frequentate is not None else (corso.durata_ore_teorica or 0)
+    record = TrainingEmployeeRecord.objects.create(
+        corso=corso,
+        sessione=None,
+        enrollment=None,
+        legacy_anagrafica_id=legacy_id,
+        data_completamento=data_completamento,
+        ore_frequentate=ore,
+        percentuale_presenza=None,
+        idoneo=idoneo,
+        data_scadenza=data_scadenza,
+        note=note or "",
+        validato_da=created_by,
+        validato_il=data_completamento,
+        # Snapshot storici (nessuna sessione: il codice edizione resta vuoto)
+        course_code_snapshot=corso.codice,
+        course_title_snapshot=corso.titolo,
+        course_version_snapshot=corso.versione,
+        plan_code_snapshot=corso.piano.codice if corso.piano_id else "",
+        plan_name_snapshot=corso.piano.nome if corso.piano_id else "",
+        duration_hours_snapshot=corso.durata_ore_teorica,
+        validity_months_snapshot=corso.validita_mesi,
+        session_code_snapshot="",
+        teacher_name_snapshot=(erogato_da or "")[:200],
+        completion_calculation_snapshot_json={
+            "origine": "REGISTRAZIONE_DIRETTA",
+            "ore_frequentate": str(ore),
+        },
+    )
+    _post_completamento(record, created_by)
     return record
+
+
+@login_required
+@require_POST
+def formazione_corso_completamento_diretto(request, corso_id: int):
+    """Registra il completamento del corso per i dipendenti selezionati **senza
+    creare una sessione**: corso già frequentato presso un ente esterno, o storico
+    recuperato. Il record finisce a libretto e nello scadenzario come gli altri."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per registrare completamenti.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    corso = get_object_or_404(TrainingCourse.objects.select_related("piano"), pk=corso_id)
+
+    form = TrainingCompletamentoDirettoForm(request.POST)
+    ids: list[int] = []
+    seen: set[int] = set()
+    for raw in request.POST.getlist("dipendenti_selezionati"):
+        s = str(raw).strip()
+        if s.isdigit():
+            lid = int(s)
+            if lid > 0 and lid not in seen:
+                seen.add(lid)
+                ids.append(lid)
+
+    if not form.is_valid():
+        for field_errors in form.errors.values():
+            for err in field_errors:
+                messages.error(request, err)
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    if not ids:
+        messages.warning(request, "Nessun dipendente selezionato.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+
+    cd = form.cleaned_data
+    n_new = 0
+    for lid in ids:
+        rec = _crea_record_diretto(
+            corso, lid,
+            data_completamento=cd["data_completamento"],
+            ore_frequentate=cd.get("ore_frequentate"),
+            idoneo=bool(cd.get("idoneo")),
+            erogato_da=cd.get("erogato_da") or "",
+            note=cd.get("note") or "",
+            created_by=request.user,
+        )
+        if rec is not None:
+            n_new += 1
+    if n_new:
+        messages.success(
+            request,
+            f"{n_new} completament{'o' if n_new == 1 else 'i'} registrat"
+            f"{'o' if n_new == 1 else 'i'} senza sessione.",
+        )
+    else:
+        messages.info(request, "Nessun nuovo completamento: erano già tutti a libretto per quella data.")
+    return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
 
 
 def _candidati_rinnovo_corso(corso, sessione=None) -> list[dict]:

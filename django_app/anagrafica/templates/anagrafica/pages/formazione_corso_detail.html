@@ -404,9 +404,81 @@
   <div class="fm-empty">Mostrate le 100 sessioni più recenti su {{ n_sessioni }} totali.</div>
   {% endif %}
   {% else %}
-  <div class="fm-empty">Nessuna sessione registrata per questo corso.</div>
+  <div class="fm-empty">
+    Nessuna sessione registrata per questo corso — e non è un problema:
+    un corso può restare a catalogo, oppure essere stato frequentato altrove.
+    In quel caso registra il completamento qui sotto, senza sessione né registro presenze.
+  </div>
   {% endif %}
 </div>
+
+{# ── Completamento senza sessione (corso frequentato altrove / storico) ──── #}
+{% if is_editor and completamento_form %}
+<div class="hr-card fm-section">
+  <div class="fm-section-head">
+    <div class="fm-section-title">✅ Registra completamento senza sessione</div>
+    <div class="muted" style="font-size:11px;">
+      Per corsi già frequentati presso enti esterni o recuperati dallo storico:
+      il record va a libretto e nello scadenzario come gli altri, senza inventare
+      una sessione e un registro presenze mai esistiti.
+    </div>
+  </div>
+  <form method="post" action="{% url 'anagrafica:formazione_corso_completamento_diretto' corso.pk %}">
+    {% csrf_token %}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;padding:4px 0 12px;">
+      <div class="fm-f">
+        <label>Data completamento *</label>{{ completamento_form.data_completamento }}
+      </div>
+      <div class="fm-f">
+        <label>Ore frequentate</label>{{ completamento_form.ore_frequentate }}
+        <div class="muted" style="font-size:11px;">Vuoto = {{ corso.durata_ore_teorica|floatformat:"-2" }}h (durata teorica).</div>
+      </div>
+      <div class="fm-f">
+        <label>Ente / docente erogatore</label>{{ completamento_form.erogato_da }}
+      </div>
+      <div class="fm-f" style="justify-content:flex-end;">
+        <label style="display:flex;align-items:center;gap:8px;">
+          {{ completamento_form.idoneo }} <span>Esito positivo (idoneo)</span>
+        </label>
+      </div>
+      <div class="fm-f" style="grid-column:1/-1;">
+        <label>Note</label>{{ completamento_form.note }}
+      </div>
+    </div>
+
+    <div class="fm-f" style="margin-bottom:8px;">
+      <label>Dipendenti</label>
+      <input type="search" class="fm-input" placeholder="Filtra per nome…"
+             oninput="var v=this.value.toLowerCase();document.querySelectorAll('#compl-pool tr').forEach(function(r){r.hidden = v && r.dataset.nome.indexOf(v)===-1;});">
+    </div>
+    <div class="fm-table-wrap" style="max-height:300px;overflow:auto;">
+      <table class="fm-table">
+        <thead>
+          <tr>
+            <th style="width:40px;text-align:center;">
+              <input type="checkbox" onclick="var on=this.checked;document.querySelectorAll('#compl-pool tr:not([hidden]) .compl-cb').forEach(function(c){c.checked=on;});">
+            </th>
+            <th>Dipendente</th>
+          </tr>
+        </thead>
+        <tbody id="compl-pool">
+          {% for lid, nome in dipendenti_pool %}
+          <tr data-nome="{{ nome|lower }}">
+            <td style="text-align:center;"><input type="checkbox" class="compl-cb" name="dipendenti_selezionati" value="{{ lid }}"></td>
+            <td>{{ nome }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="2" class="muted">Nessun dipendente disponibile.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+      <button type="submit" class="hr-btn hr-btn-primary">✅ Registra completamento</button>
+    </div>
+  </form>
+</div>
+{% endif %}
 
 {# ── Assegna dipendenti al corso (primo anello corso→sessione) ──────────── #}
 {% if is_editor %}

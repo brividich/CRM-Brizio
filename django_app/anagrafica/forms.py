@@ -626,13 +626,28 @@ class TrainingSessionForm(forms.ModelForm):
         )
         self.fields["docente"].queryset = TrainingInstructor.objects.filter(is_active=True).order_by("nome")
         self.fields["docente"].required = False
+        # Codice edizione e data di fine sono ricavabili: lasciarli vuoti non deve
+        # bloccare il salvataggio (codice = <CORSO>-E<N>, fine = inizio per la
+        # sessione di un solo giorno). Vedi services.formazione_pianificazione.
+        self.fields["codice_sessione"].required = False
+        self.fields["codice_sessione"].help_text = (
+            "Vuoto = generato dal codice corso (es. SIC-01-E1)."
+        )
+        self.fields["data_fine"].required = False
+        self.fields["data_fine"].help_text = "Vuoto = sessione di un solo giorno."
 
     def clean(self):
         cd = super().clean()
         d_inizio = cd.get("data_inizio")
         d_fine   = cd.get("data_fine")
+        if d_inizio and not d_fine:
+            cd["data_fine"] = d_fine = d_inizio
         if d_inizio and d_fine and d_fine < d_inizio:
             raise forms.ValidationError("La data di fine non può essere precedente alla data di inizio.")
+        # Codice edizione automatico dal corso quando non digitato.
+        if not (cd.get("codice_sessione") or "").strip() and cd.get("corso"):
+            from .services.formazione_pianificazione import genera_codice_sessione
+            cd["codice_sessione"] = genera_codice_sessione(cd["corso"])
         # Snapshot nome docente dal FK se non compilato manualmente
         docente = cd.get("docente")
         if docente and not cd.get("docente_nome"):
@@ -646,6 +661,189 @@ class TrainingSessionForm(forms.ModelForm):
         if commit:
             instance.save()
         return instance
+
+
+class _TrainingOrarioMixin(forms.Form):
+    """Orario-tipo di una giornata d'aula: inizio, fine e pausa non formativa.
+
+    Le ore **formative** sono al netto della pausa (08:00–17:00 con 60′ = 8 ore):
+    la stessa regola di ``TrainingLesson.durata_ore``, applicata qui prima ancora
+    che la lezione esista."""
+
+    ora_inizio = forms.TimeField(
+        label="Ora inizio", required=False, initial="08:00",
+        widget=forms.TimeInput(attrs={**_FM, "type": "time"}, format="%H:%M"),
+    )
+    ora_fine = forms.TimeField(
+        label="Ora fine", required=False, initial="17:00",
+        widget=forms.TimeInput(attrs={**_FM, "type": "time"}, format="%H:%M"),
+    )
+    pausa_minuti = forms.IntegerField(
+        label="Pausa (minuti)", required=False, initial=60, min_value=0, max_value=480,
+        help_text="Interruzione non formativa (pausa pranzo): viene scalata dalle ore del corso.",
+        widget=forms.NumberInput(attrs={**_FM_NUMBER, "step": "15", "min": "0", "max": "480"}),
+    )
+
+    def _valida_orario(self, cd: dict) -> None:
+        """Coerenza inizio/fine/pausa. Non impone la presenza degli orari: chi
+        estende decide se sono obbligatori."""
+        t_i, t_f = cd.get("ora_inizio"), cd.get("ora_fine")
+        pausa = cd.get("pausa_minuti") or 0
+        if t_i and t_f and t_f <= t_i:
+            self.add_error("ora_fine", "L'ora di fine deve essere successiva all'ora di inizio.")
+            return
+        if t_i and t_f and pausa:
+            minuti_aula = (t_f.hour * 60 + t_f.minute) - (t_i.hour * 60 + t_i.minute)
+            if pausa >= minuti_aula:
+                self.add_error(
+                    "pausa_minuti",
+                    f"La pausa ({pausa}′) non può coprire tutta la giornata ({minuti_aula}′ in aula).",
+                )
+
+
+class TrainingSessioneUnicaForm(_TrainingOrarioMixin):
+    """Blocco «Programmazione» del wizard nuovo corso: la sessione unica.
+
+    Opzionale per costruzione — se ``pianifica`` è spento il corso nasce senza
+    edizioni (corso a catalogo, o corso esterno di cui si registrerà solo il
+    completamento). Se acceso, corso + sessione + giornate nascono insieme.
+    Usare con ``prefix='sess'`` per non collidere coi campi del corso."""
+
+    pianifica = forms.BooleanField(
+        label="Pianifica subito la sessione unica", required=False,
+        help_text="Crea insieme al corso la sua unica edizione, con le giornate già a calendario.",
+        widget=forms.CheckboxInput(attrs=_FM_CHECK),
+    )
+    data_inizio = forms.DateField(
+        label="Data", required=False,
+        widget=forms.DateInput(attrs=_FM_DATE),
+    )
+    data_fine = forms.DateField(
+        label="Data fine", required=False,
+        help_text="Vuoto = corso di un solo giorno.",
+        widget=forms.DateInput(attrs=_FM_DATE),
+    )
+    modalita = forms.ChoiceField(
+        label="Modalità", required=False, initial="IN_SEDE",
+        choices=TrainingSession.MODALITA_CHOICES,
+        widget=forms.Select(attrs=_FM_SELECT),
+    )
+    sede = forms.CharField(
+        label="Sede", required=False, max_length=200,
+        help_text="Aula, indirizzo o link remoto.",
+        widget=forms.TextInput(attrs=_FM),
+    )
+    docente = forms.ModelChoiceField(
+        label="Docente", required=False, queryset=TrainingInstructor.objects.none(),
+        widget=forms.Select(attrs=_FM_SELECT),
+    )
+    salta_weekend = forms.BooleanField(
+        label="Salta sabato e domenica", required=False, initial=True,
+        widget=forms.CheckboxInput(attrs=_FM_CHECK),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["docente"].queryset = TrainingInstructor.objects.filter(is_active=True).order_by("nome")
+        self.fields["docente"].empty_label = "— Nessuno —"
+
+    def clean(self):
+        cd = super().clean()
+        if not cd.get("pianifica"):
+            return cd
+        if not cd.get("data_inizio"):
+            self.add_error("data_inizio", "Indica la data della sessione (o togli la spunta «Pianifica subito»).")
+        if not cd.get("ora_inizio") or not cd.get("ora_fine"):
+            self.add_error("ora_fine", "Indica l'orario della giornata (o togli la spunta «Pianifica subito»).")
+        d_i, d_f = cd.get("data_inizio"), cd.get("data_fine")
+        if d_i and not d_f:
+            cd["data_fine"] = d_f = d_i
+        if d_i and d_f and d_f < d_i:
+            self.add_error("data_fine", "La data di fine non può essere precedente alla data di inizio.")
+        self._valida_orario(cd)
+        return cd
+
+    @property
+    def ore_giornata(self) -> float:
+        """Ore formative di una giornata secondo i dati validati (0 se incompleti)."""
+        cd = getattr(self, "cleaned_data", None) or {}
+        if not cd.get("ora_inizio") or not cd.get("ora_fine"):
+            return 0.0
+        from .services.formazione_pianificazione import ore_nette
+        return ore_nette(cd["ora_inizio"], cd["ora_fine"], cd.get("pausa_minuti") or 0)
+
+
+class TrainingLezioniGeneraForm(_TrainingOrarioMixin):
+    """Generatore di giornate su una sessione già esistente.
+
+    Sforna una lezione per giorno dell'intervallo della sessione con lo stesso
+    orario-tipo: sostituisce l'inserimento a mano di dieci giornate identiche."""
+
+    argomento = forms.CharField(
+        label="Argomento", required=False, max_length=500,
+        help_text="Vuoto = titolo del corso.",
+        widget=forms.TextInput(attrs=_FM),
+    )
+    docente = forms.ModelChoiceField(
+        label="Docente", required=False, queryset=TrainingInstructor.objects.none(),
+        widget=forms.Select(attrs=_FM_SELECT),
+    )
+    salta_weekend = forms.BooleanField(
+        label="Salta sabato e domenica", required=False, initial=True,
+        widget=forms.CheckboxInput(attrs=_FM_CHECK),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["docente"].queryset = TrainingInstructor.objects.filter(is_active=True).order_by("nome")
+        self.fields["docente"].empty_label = "— Come la sessione —"
+
+    def clean(self):
+        cd = super().clean()
+        if not cd.get("ora_inizio") or not cd.get("ora_fine"):
+            raise forms.ValidationError("Indica l'orario di inizio e di fine della giornata-tipo.")
+        self._valida_orario(cd)
+        return cd
+
+
+class TrainingCompletamentoDirettoForm(forms.Form):
+    """Completamento registrato **senza sessione** (corso già frequentato altrove).
+
+    Non tutti i corsi passano dall'aula interna: un attestato preso presso un ente
+    esterno, o un corso storico, va a libretto senza inventare una sessione e un
+    registro presenze fittizi. ``TrainingEmployeeRecord.sessione`` è nullable
+    proprio per questo. I dipendenti arrivano dal POST (``dipendenti_selezionati``)
+    come nel resto della sezione."""
+
+    data_completamento = forms.DateField(
+        label="Data completamento",
+        widget=forms.DateInput(attrs=_FM_DATE),
+    )
+    ore_frequentate = forms.DecimalField(
+        label="Ore frequentate", required=False, min_value=0, max_digits=7, decimal_places=2,
+        help_text="Vuoto = durata teorica del corso.",
+        widget=forms.NumberInput(attrs={**_FM_NUMBER, "step": "0.5", "min": "0"}),
+    )
+    erogato_da = forms.CharField(
+        label="Ente / docente erogatore", required=False, max_length=200,
+        help_text="Chi ha erogato il corso (resta a storico sull'attestato).",
+        widget=forms.TextInput(attrs=_FM),
+    )
+    idoneo = forms.BooleanField(
+        label="Esito positivo (idoneo)", required=False, initial=True,
+        widget=forms.CheckboxInput(attrs=_FM_CHECK),
+    )
+    note = forms.CharField(
+        label="Note", required=False,
+        widget=forms.Textarea(attrs={**_FM_TEXTAREA, "rows": 2}),
+    )
+
+    def clean_data_completamento(self):
+        from django.utils import timezone as _tz
+        data = self.cleaned_data["data_completamento"]
+        if data > _tz.localdate():
+            raise forms.ValidationError("La data di completamento non può essere nel futuro.")
+        return data
 
 
 class TrainingEnrollmentEditForm(forms.ModelForm):
@@ -689,7 +887,7 @@ class TrainingLessonForm(forms.ModelForm):
     class Meta:
         model = TrainingLesson
         fields = [
-            "numero", "data", "ora_inizio", "ora_fine",
+            "numero", "data", "ora_inizio", "ora_fine", "pausa_minuti",
             "argomento", "docente", "docente_nome", "note",
         ]
         widgets = {
@@ -697,11 +895,13 @@ class TrainingLessonForm(forms.ModelForm):
             "data":        forms.DateInput(attrs=_FM_DATE),
             "ora_inizio":  forms.TimeInput(attrs={**_FM, "type": "time"}),
             "ora_fine":    forms.TimeInput(attrs={**_FM, "type": "time"}),
+            "pausa_minuti": forms.NumberInput(attrs={**_FM_NUMBER, "step": "15", "min": "0", "max": "480"}),
             "argomento":   forms.TextInput(attrs=_FM),
             "docente":     forms.Select(attrs=_FM_SELECT),
             "docente_nome": forms.TextInput(attrs=_FM),
             "note":        forms.Textarea(attrs=_FM_TEXTAREA),
         }
+        labels = {"pausa_minuti": "Pausa (minuti)"}
 
     def __init__(self, *args, sessione=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -715,6 +915,15 @@ class TrainingLessonForm(forms.ModelForm):
         t_fine   = cd.get("ora_fine")
         if t_inizio and t_fine and t_fine <= t_inizio:
             self.add_error("ora_fine", "L'ora di fine deve essere successiva all'ora di inizio.")
+        # La pausa non può divorare l'intera lezione (durata formativa nulla).
+        pausa = cd.get("pausa_minuti") or 0
+        if t_inizio and t_fine and t_fine > t_inizio and pausa:
+            minuti_aula = (t_fine.hour * 60 + t_fine.minute) - (t_inizio.hour * 60 + t_inizio.minute)
+            if pausa >= minuti_aula:
+                self.add_error(
+                    "pausa_minuti",
+                    f"La pausa ({pausa}′) non può coprire tutta la lezione ({minuti_aula}′ in aula).",
+                )
         # Verifica che la data ricada nell'intervallo della sessione
         if self.sessione and cd.get("data"):
             if cd["data"] < self.sessione.data_inizio or cd["data"] > self.sessione.data_fine:

@@ -48,7 +48,7 @@
         <aside class="kp-rail" aria-label="Percorso di creazione corso">
           <div class="kp-rail-title">Percorso</div>
           <div class="kp-rail-nodes"></div>
-          <div class="kp-progress">Tappe completate <span class="kp-progress-count">0/5</span></div>
+          <div class="kp-progress">Tappe completate <span class="kp-progress-count">0/{% if sess_form %}6{% else %}5{% endif %}</span></div>
         </aside>
 
         <div class="kp-stations">
@@ -98,9 +98,50 @@
             </div>
           </section>
 
-          <section class="kp-station" data-title="E-learning">
+          {% if sess_form %}
+          <section class="kp-station" data-title="Programmazione" id="kp-programmazione">
             <div class="kp-station-head">
               <span class="kp-num">4</span>
+              <div class="kp-station-titles">
+                <h3>Programmazione (facoltativa)</h3>
+                <p>Il corso può nascere già con la sua unica edizione a calendario.</p>
+              </div>
+            </div>
+            <div class="kp-body">
+              <div class="fmd-checks">
+                {% include "anagrafica/partials/_fmd_field.html" with field=sess_form.pianifica %}
+              </div>
+              <div class="kp-help" style="margin-top:8px;">
+                Lasciala spenta se il corso è solo a catalogo, o se è stato frequentato altrove:
+                in quel caso il completamento si registra direttamente dalla scheda del corso,
+                senza sessione né registro presenze.
+              </div>
+
+              <div id="sess-blocco" style="margin-top:14px;" hidden>
+                <div class="fmd-stack">
+                  {% include "anagrafica/partials/_fmd_field.html" with field=sess_form.data_inizio %}
+                  {% include "anagrafica/partials/_fmd_field.html" with field=sess_form.data_fine %}
+                  {% include "anagrafica/partials/_fmd_field.html" with field=sess_form.ora_inizio %}
+                  {% include "anagrafica/partials/_fmd_field.html" with field=sess_form.ora_fine %}
+                  {% include "anagrafica/partials/_fmd_field.html" with field=sess_form.pausa_minuti %}
+                  {% include "anagrafica/partials/_fmd_field.html" with field=sess_form.modalita %}
+                  {% include "anagrafica/partials/_fmd_field.html" with field=sess_form.sede full=1 %}
+                  {% include "anagrafica/partials/_fmd_field.html" with field=sess_form.docente full=1 %}
+                </div>
+                <div class="fmd-checks" style="margin-top:10px;">
+                  {% include "anagrafica/partials/_fmd_field.html" with field=sess_form.salta_weekend %}
+                </div>
+                {# Anteprima del calcolo: è il punto che l'utente sbaglia più spesso
+                   (08:00–17:00 non sono 9 ore formative se c'è un'ora di pausa). #}
+                <div class="kp-help" id="sess-riepilogo" style="margin-top:12px;font-weight:600;"></div>
+              </div>
+            </div>
+          </section>
+          {% endif %}
+
+          <section class="kp-station" data-title="E-learning">
+            <div class="kp-station-head">
+              <span class="kp-num">{% if sess_form %}5{% else %}4{% endif %}</span>
               <div class="kp-station-titles"><h3>E-learning</h3><p>Micro-corso interno con slide e quiz finale.</p></div>
             </div>
             <div class="kp-body">
@@ -122,7 +163,7 @@
 
           <section class="kp-station" data-title="Pubblicazione">
             <div class="kp-station-head">
-              <span class="kp-num">5</span>
+              <span class="kp-num">{% if sess_form %}6{% else %}5{% endif %}</span>
               <div class="kp-station-titles"><h3>Pubblicazione e opzioni</h3><p>Stato, note e flag operativi.</p></div>
             </div>
             <div class="kp-body">
@@ -219,5 +260,83 @@
     validita.addEventListener('input', function(){ validita.classList.remove('fmd-autofill'); });
   }
 })();
+
+{% if sess_form %}
+/* Tappa «Programmazione»: mostra il blocco solo se la sessione unica è richiesta,
+   calcola le ORE FORMATIVE (aula meno pausa: 08:00–17:00 con 60' = 8h, non 9) e
+   preimposta con quelle la durata teorica del corso se ancora vuota. Un corso
+   e-learning non ha aula: la tappa si spegne da sola. */
+(function(){
+  const q = (n) => document.querySelector('[name="sess-' + n + '"]');
+  const pianifica = q('pianifica');
+  const blocco    = document.getElementById('sess-blocco');
+  const riepilogo = document.getElementById('sess-riepilogo');
+  const station   = document.getElementById('kp-programmazione');
+  if (!pianifica || !blocco) return;
+
+  const dIni = q('data_inizio'), dFin = q('data_fine');
+  const oIni = q('ora_inizio'),  oFin = q('ora_fine');
+  const pausa = q('pausa_minuti'), weekend = q('salta_weekend');
+  const durata = document.querySelector('[name="durata_ore_teorica"]');
+  const elearning = document.querySelector('[name="is_elearning"]');
+
+  function minutiDa(v){
+    const m = /^(\d{1,2}):(\d{2})/.exec(v || '');
+    return m ? (parseInt(m[1],10)*60 + parseInt(m[2],10)) : null;
+  }
+  function giornate(){
+    if (!dIni || !dIni.value) return 0;
+    const a = new Date(dIni.value + 'T00:00:00');
+    const b = new Date(((dFin && dFin.value) || dIni.value) + 'T00:00:00');
+    if (isNaN(a) || isNaN(b) || b < a) return 0;
+    let n = 0;
+    for (let d = new Date(a); d <= b; d.setDate(d.getDate() + 1)) {
+      const wd = d.getDay();
+      if (weekend && weekend.checked && (wd === 0 || wd === 6)) continue;
+      n++;
+    }
+    return n;
+  }
+  function aggiorna(){
+    const on = pianifica.checked;
+    blocco.hidden = !on;
+    if (!on) { if (riepilogo) riepilogo.textContent = ''; return; }
+    const mi = minutiDa(oIni && oIni.value), mf = minutiDa(oFin && oFin.value);
+    const pz = Math.max(0, parseInt((pausa && pausa.value) || '0', 10) || 0);
+    if (mi === null || mf === null || mf <= mi) {
+      if (riepilogo) riepilogo.textContent = 'Indica un orario di inizio e di fine per vedere le ore formative.';
+      return;
+    }
+    const oreGiorno = Math.max(0, (mf - mi - pz)) / 60;
+    const n = giornate();
+    const tot = Math.round(oreGiorno * n * 100) / 100;
+    if (riepilogo) {
+      riepilogo.textContent =
+        n + (n === 1 ? ' giornata' : ' giornate') + ' × ' +
+        (Math.round(oreGiorno*100)/100) + 'h formative' +
+        (pz ? ' (pausa ' + pz + '′ già scalata)' : '') +
+        ' = ' + tot + ' ore totali.';
+    }
+    // Preimposta la durata teorica solo se l'utente non l'ha ancora toccata.
+    if (durata && tot > 0 && !String(durata.value || '').trim()) {
+      durata.value = tot;
+      durata.classList.add('fmd-autofill');
+    }
+  }
+  [pianifica, dIni, dFin, oIni, oFin, pausa, weekend].forEach(function(el){
+    if (el) { el.addEventListener('change', aggiorna); el.addEventListener('input', aggiorna); }
+  });
+  if (durata) durata.addEventListener('input', function(){ durata.classList.remove('fmd-autofill'); });
+
+  function sincronizzaElearning(){
+    if (!elearning || !station) return;
+    const off = elearning.checked;
+    station.hidden = off;                       // niente aula per un micro-corso online
+    if (off && pianifica.checked) { pianifica.checked = false; aggiorna(); }
+  }
+  if (elearning) { elearning.addEventListener('change', sincronizzaElearning); sincronizzaElearning(); }
+  aggiorna();
+})();
+{% endif %}
 </script>
 {% endblock %}

@@ -78,10 +78,18 @@
       <div class="hr-metric-ico green">📖</div>
       <div class="hr-metric-body">
         <div class="hr-metric-top">
-          <span class="hr-metric-lbl">Lezioni</span>
-          <span class="hr-metric-val">{{ lezioni|length }}</span>
+          <span class="hr-metric-lbl">Ore formative</span>
+          <span class="hr-metric-val">{{ ore_pianificate|floatformat:"-2" }}h</span>
         </div>
-        <div class="hr-metric-sub">Lezioni pianificate</div>
+        <div class="hr-metric-sub">
+          {{ lezioni|length }} lezion{{ lezioni|length|pluralize:"e,i" }}, pause escluse
+          {% if ore_teoriche %}
+            &nbsp;·&nbsp;
+            {% if ore_scostamento == 0 %}<span style="color:#16a34a;">in linea con le {{ ore_teoriche|floatformat:"-2" }}h teoriche</span>
+            {% elif ore_scostamento > 0 %}<span style="color:#b45309;">+{{ ore_scostamento|floatformat:"-2" }}h sulle {{ ore_teoriche|floatformat:"-2" }}h teoriche</span>
+            {% else %}<span style="color:#b91c1c;">{{ ore_scostamento|floatformat:"-2" }}h sulle {{ ore_teoriche|floatformat:"-2" }}h teoriche</span>{% endif %}
+          {% endif %}
+        </div>
       </div>
     </div>
     <div class="hr-metric">
@@ -101,13 +109,50 @@
     <div class="fm-section-head">
       <div class="fm-section-title">📖 Lezioni <span class="fm-count">{{ lezioni|length }}</span></div>
       {% if is_editor %}
-      <button class="hr-btn hr-btn-sm"
-              onclick="document.getElementById('panel-add-lezione').style.display=
-                document.getElementById('panel-add-lezione').style.display==='none'?'block':'none'">
-        + Aggiungi lezione
-      </button>
+      <div style="display:flex;gap:8px;">
+        <button class="hr-btn hr-btn-sm"
+                onclick="document.getElementById('panel-genera-lezioni').style.display=
+                  document.getElementById('panel-genera-lezioni').style.display==='none'?'block':'none'">
+          ⚡ Genera giornate
+        </button>
+        <button class="hr-btn hr-btn-sm"
+                onclick="document.getElementById('panel-add-lezione').style.display=
+                  document.getElementById('panel-add-lezione').style.display==='none'?'block':'none'">
+          + Aggiungi lezione
+        </button>
+      </div>
       {% endif %}
     </div>
+
+    {% if is_editor %}
+    {# Generatore: una lezione per giorno dell'intervallo con lo stesso orario-tipo.
+       Salta i giorni che hanno già una lezione, quindi è rilanciabile. #}
+    <div id="panel-genera-lezioni" style="display:none;padding:0 16px 16px;">
+      <div style="font-size:12px;color:#64748b;margin-bottom:8px;">
+        Crea una lezione per ogni giorno da <strong>{{ sessione.data_inizio|date:"d-m-Y" }}</strong>
+        a <strong>{{ sessione.data_fine|date:"d-m-Y" }}</strong> con lo stesso orario.
+        La <strong>pausa</strong> viene scalata dalle ore formative: 08:00–17:00 con 60′ di pausa
+        vale 8 ore, non 9. I giorni che hanno già una lezione vengono saltati.
+      </div>
+      <form method="post" action="{% url 'anagrafica:formazione_lezioni_genera' sessione.pk %}"
+            class="fm-inline-form" style="flex-direction:column;align-items:stretch;">
+        {% csrf_token %}
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+          <div class="fm-f"><label>Ora inizio *</label>{{ genera_form.ora_inizio }}</div>
+          <div class="fm-f"><label>Ora fine *</label>{{ genera_form.ora_fine }}</div>
+          <div class="fm-f"><label>Pausa (minuti)</label>{{ genera_form.pausa_minuti }}</div>
+          <div class="fm-f" style="grid-column:1/3;"><label>Argomento</label>{{ genera_form.argomento }}</div>
+          <div class="fm-f"><label>Docente</label>{{ genera_form.docente }}</div>
+        </div>
+        <label class="fm-f" style="flex-direction:row;align-items:center;gap:8px;margin-top:10px;">
+          {{ genera_form.salta_weekend }} <span>Salta sabato e domenica</span>
+        </label>
+        <div style="display:flex;justify-content:flex-end;margin-top:8px;">
+          <button type="submit" class="hr-btn hr-btn-primary">⚡ Genera le giornate</button>
+        </div>
+      </form>
+    </div>
+    {% endif %}
 
     {% if lezioni %}
     <div class="fm-table-wrap">
@@ -118,7 +163,8 @@
             <th data-col="data" data-col-label="Data" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Data</th>
             <th data-col="ora_inizio" data-col-label="Ora inizio" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Ora inizio</th>
             <th data-col="ora_fine" data-col-label="Ora fine" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Ora fine</th>
-            <th class="num" data-col="durata" data-col-label="Durata" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Durata</th>
+            <th class="num" data-col="pausa" data-col-label="Pausa" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Pausa</th>
+            <th class="num" data-col="durata" data-col-label="Ore formative" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Ore formative</th>
             <th data-col="argomento" data-col-label="Argomento" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Argomento</th>
             <th data-col="docente" data-col-label="Docente" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Docente</th>
             <th class="nowrap">Presenze / Registro</th>
@@ -132,7 +178,8 @@
             <td class="nowrap">{{ lz.data|date:"d-m-Y" }}</td>
             <td class="nowrap muted">{{ lz.ora_inizio|time:"H:i" }}</td>
             <td class="nowrap muted">{{ lz.ora_fine|time:"H:i" }}</td>
-            <td class="num muted">{{ lz.durata_ore }}h</td>
+            <td class="num muted">{% if lz.pausa_minuti %}−{{ lz.pausa_minuti }}′{% else %}—{% endif %}</td>
+            <td class="num"><strong>{{ lz.durata_ore }}h</strong>{% if lz.pausa_minuti %}<span class="muted" style="font-size:11px;"> su {{ lz.durata_ore_lorde }}h in aula</span>{% endif %}</td>
             <td>{{ lz.argomento }}</td>
             <td class="muted">{{ lz.docente_nome|default:lz.docente|default:"—" }}</td>
             <td class="nowrap">
@@ -154,7 +201,8 @@
                         {{ lz.pk }}, {{ lz.numero }}, '{{ lz.data|date:'Y-m-d' }}',
                         '{{ lz.ora_inizio|time:'H:i' }}', '{{ lz.ora_fine|time:'H:i' }}',
                         '{{ lz.argomento|escapejs }}', {{ lz.docente_id|default:'null' }},
-                        '{{ lz.docente_nome|escapejs }}', '{{ lz.note|escapejs }}'
+                        '{{ lz.docente_nome|escapejs }}', '{{ lz.note|escapejs }}',
+                        {{ lz.pausa_minuti|default:0 }}
                       )">Modifica</button>
               <form method="post"
                     action="{% url 'anagrafica:formazione_lezione_delete' sessione.pk lz.pk %}"
@@ -202,6 +250,11 @@
           <div class="fm-f">
             <label>Ora fine *</label>
             <input type="time" name="ora_fine" required>
+          </div>
+          <div class="fm-f">
+            <label>Pausa (minuti)</label>
+            <input type="number" name="pausa_minuti" min="0" max="480" step="15" value="0"
+                   title="Interruzione non formativa: viene scalata dalle ore della lezione.">
           </div>
           <div class="fm-f">
             <label>Docente</label>
@@ -334,14 +387,15 @@
 </div>
 
 <script>
-function openEditLezioneModal(pk, numero, data, oraInizio, oraFine, argomento, docenteId, docenteNome, note) {
+function openEditLezioneModal(pk, numero, data, oraInizio, oraFine, argomento, docenteId, docenteNome, note, pausaMinuti) {
   const sessId = {{ sessione.pk }};
   document.getElementById('form-edit-lezione').action = `/anagrafica/formazione/sessioni/${sessId}/lezioni/${pk}/modifica`;
   const instrOpts = [{% for instr in lezione_form.fields.docente.queryset %}{ pk:{{ instr.pk }}, nome:'{{ instr.nome|escapejs }}' },{% endfor %}];
   const docenteSel = instrOpts.map(o => `<option value="${o.pk}"${o.pk===docenteId?' selected':''}>${o.nome}</option>`).join('');
   const dMin = '{{ sessione.data_inizio|date:"Y-m-d" }}';
   const dMax = '{{ sessione.data_fine|date:"Y-m-d" }}';
-  document.getElementById('edit-lezione-fields').innerHTML = `
+  const wrap = document.getElementById('edit-lezione-fields');
+  wrap.innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
       <div><label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:3px;">Numero *</label>
         <input name="numero" type="number" min="1" value="${numero}" required class="fm-input"></div>
@@ -351,6 +405,9 @@ function openEditLezioneModal(pk, numero, data, oraInizio, oraFine, argomento, d
         <input name="ora_inizio" type="time" value="${oraInizio}" required class="fm-input"></div>
       <div><label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:3px;">Ora fine *</label>
         <input name="ora_fine" type="time" value="${oraFine}" required class="fm-input"></div>
+      <div><label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:3px;">Pausa (minuti)</label>
+        <input name="pausa_minuti" type="number" min="0" max="480" step="15" value="${pausaMinuti || 0}" class="fm-input"></div>
+      <div style="display:flex;align-items:center;font-size:12px;color:#64748b;" id="edit-lezione-ore"></div>
     </div>
     <div style="margin-bottom:10px;"><label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:3px;">Argomento *</label>
       <input name="argomento" value="${argomento.replace(/"/g,'&quot;')}" required maxlength="500" class="fm-input"></div>
@@ -361,6 +418,21 @@ function openEditLezioneModal(pk, numero, data, oraInizio, oraFine, argomento, d
     <div><label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:3px;">Note</label>
       <textarea name="note" rows="2" class="fm-input">${note}</textarea></div>
   `;
+  // Anteprima ore formative (aula meno pausa): il conto che sbaglia chi guarda solo l'orario.
+  const oreBox = wrap.querySelector('#edit-lezione-ore');
+  function ricalcola() {
+    const min = (v) => { const m = /^(\d{1,2}):(\d{2})/.exec(v || ''); return m ? +m[1]*60 + +m[2] : null; };
+    const a = min(wrap.querySelector('[name="ora_inizio"]').value);
+    const b = min(wrap.querySelector('[name="ora_fine"]').value);
+    const p = Math.max(0, parseInt(wrap.querySelector('[name="pausa_minuti"]').value || '0', 10) || 0);
+    if (a === null || b === null || b <= a) { oreBox.textContent = ''; return; }
+    const ore = Math.round(Math.max(0, b - a - p) / 60 * 100) / 100;
+    oreBox.textContent = '= ' + ore + 'h formative';
+  }
+  ['ora_inizio', 'ora_fine', 'pausa_minuti'].forEach(function (n) {
+    wrap.querySelector('[name="' + n + '"]').addEventListener('input', ricalcola);
+  });
+  ricalcola();
   document.getElementById('modal-edit-lezione').style.display = 'flex';
 }
 </script>

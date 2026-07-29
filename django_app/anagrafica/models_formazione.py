@@ -630,6 +630,11 @@ class TrainingSession(models.Model):
             models.Index(fields=["data_inizio", "data_fine"]),
         ]
 
+    @property
+    def ore_pianificate(self) -> float:
+        """Monte ore formative della sessione = somma delle durate nette delle lezioni."""
+        return round(sum(lz.durata_ore for lz in self.lezioni.all()), 2)
+
     def __str__(self) -> str:
         return f"[{self.codice_sessione}] {self.corso.titolo} — {self.data_inizio}"
 
@@ -646,6 +651,11 @@ class TrainingLesson(models.Model):
     data         = models.DateField()
     ora_inizio   = models.TimeField()
     ora_fine     = models.TimeField()
+    pausa_minuti = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Minuti di interruzione non formativa (pausa pranzo, intervalli) da scalare "
+                  "dalla durata. Es. 08:00–17:00 con 60' di pausa = 8 ore formative.",
+    )
     argomento    = models.CharField(max_length=500)
     docente      = models.ForeignKey(
         TrainingInstructor, null=True, blank=True,
@@ -666,11 +676,22 @@ class TrainingLesson(models.Model):
         verbose_name_plural = "Lezioni"
 
     @property
-    def durata_ore(self) -> float:
+    def durata_ore_lorde(self) -> float:
+        """Ore dalla presenza in aula (ora_fine - ora_inizio), pausa inclusa."""
         from datetime import datetime, date as _date
         dt_inizio = datetime.combine(_date.today(), self.ora_inizio)
         dt_fine   = datetime.combine(_date.today(), self.ora_fine)
         return round((dt_fine - dt_inizio).total_seconds() / 3600, 2)
+
+    @property
+    def durata_ore(self) -> float:
+        """Ore **formative** della lezione: durata in aula meno la pausa.
+
+        È il valore usato ovunque (monte ore sessione, percentuale di presenza,
+        registro, attestato): una giornata 08:00–17:00 con 60' di pausa pranzo
+        vale 8 ore, non 9. Non scende mai sotto zero.
+        """
+        return round(max(0.0, self.durata_ore_lorde - (self.pausa_minuti or 0) / 60), 2)
 
     def __str__(self) -> str:
         return f"Lezione {self.numero} — {self.sessione.codice_sessione} — {self.data}"
