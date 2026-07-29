@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}{% if voce %}Modifica OFI {{ voce.numero }}{% else %}Nuovo OFI{% endif %} · MOD.174{% endblock %}
+{% block title %}{% if voce %}Modifica voce {{ voce.numero }}{% else %}Nuovo inserimento{% endif %} · MOD.174{% endblock %}
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
@@ -19,8 +19,8 @@
       <div class="fmd-hero-inner">
         <div>
           <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Qualità / SGI · Costruzioni Novicrom · MOD.174 Rev.0</div>
-          <h1><svg class="fmd-ico fmd-cap"><use href="#i-clipboard"/></svg>{% if voce %}Modifica OFI n. {{ voce.numero }}{% else %}Nuovo OFI · n. {{ numero_preview }}{% endif %}</h1>
-          <p class="fmd-sub">Compila la voce del registro OFI/NC secondo il MOD.174 SGI.</p>
+          <h1><svg class="fmd-ico fmd-cap"><use href="#i-clipboard"/></svg>{% if voce %}Modifica voce n. {{ voce.numero }}{% else %}Nuovo inserimento · n. {{ numero_preview }}{% endif %}</h1>
+          <p class="fmd-sub">Compila la voce del registro OFI/NC secondo il MOD.174 SGI. Scegli se è una <strong>Opportunità di miglioramento (OFI)</strong> o una <strong>Non conformità (NC)</strong>.</p>
         </div>
       </div>
     </section>
@@ -35,8 +35,11 @@
             <div class="hub-fsec-h">Identificazione</div>
             <div class="hub-fsec-d">Data, tipo, modulo di competenza e riferimenti normativi.</div>
             <div class="hub-form-grid">
+              <div class="hub-field hub-col-full"><label>{{ form.tipo.label }} <span class="hub-req">*</span></label>{{ form.tipo }}
+                <div class="hub-help">Opportunità di miglioramento (OFI) oppure Non conformità (NC).</div>
+                {% for e in form.tipo.errors %}<div class="hub-err">{{ e }}</div>{% endfor %}
+              </div>
               <div class="hub-field"><label>{{ form.data_apertura.label }} <span class="hub-req">*</span></label>{{ form.data_apertura }}{% for e in form.data_apertura.errors %}<div class="hub-err">{{ e }}</div>{% endfor %}</div>
-              <div class="hub-field"><label>{{ form.tipo.label }}</label>{{ form.tipo }}</div>
               <div class="hub-field"><label>{{ form.modulo_origine.label }}</label>{{ form.modulo_origine }}
                 <datalist id="ofi-moduli">{% for val, lab in moduli_esistenti %}<option value="{{ val }}">{{ lab }}</option>{% endfor %}</datalist>
                 <div class="hub-help">Da dove nasce l'OFI. Vuoto = solo registro unico.</div>
@@ -85,7 +88,7 @@
 
         <div style="margin-top:18px;display:flex;gap:9px;justify-content:flex-end;flex-wrap:wrap;">
           <a href="{% url 'registro_ofi:lista' %}" class="fmd-btn fmd-btn-ghost">Annulla</a>
-          <button type="submit" class="fmd-btn fmd-btn-primary">{% if voce %}Salva modifiche{% else %}Crea OFI{% endif %}</button>
+          <button type="submit" class="fmd-btn fmd-btn-primary">{% if voce %}Salva modifiche{% else %}Crea voce{% endif %}</button>
         </div>
       </form>
     </section>

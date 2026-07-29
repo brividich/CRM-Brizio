@@ -252,14 +252,32 @@ class ReplicaMOD174Tests(RegistroBase):
         # override del cap di .content per far entrare le 21 colonne del MOD.174
         self.assertContains(resp, "width:100%; max-width:100%")
 
-    def test_lista_evidenzia_fase_corrente(self):
+    def test_lista_pdca_cumulative_come_excel(self):
+        """Come l'Excel MOD.174: le colonne P/D/C/A mostrano le X CUMULATIVE —
+        una voce in CHECK ha la X in P, D e C (non solo nella fase corrente)."""
         RegistroOFI.objects.create(
             numero=R.prossimo_numero(), data_apertura=timezone.localdate(),
             fase=RegistroOFI.FASE_CHECK, processo="Trattamenti")
         resp = self.client.get(reverse("registro_ofi:lista"))
-        self.assertContains(resp, "ofi-fase")          # colonna FASE parlante
-        self.assertContains(resp, "ofi-pdca-current")  # cella PDCA corrente evidenziata
-        self.assertContains(resp, ">Check<")           # etichetta della fase
+        # 3 celle marcate (P, D, C); A ancora da fare
+        self.assertContains(resp, "ofi-pdca ofi-on", count=3)
+        # niente più la vecchia colonna «FASE» a stato singolo
+        self.assertNotContains(resp, "ofi-fase")
+        self.assertNotContains(resp, "ofi-pdca-current")
+
+    def test_lista_badge_ofi_giallo_nc_rosso(self):
+        oggi = timezone.localdate()
+        RegistroOFI.objects.create(numero=R.prossimo_numero(), data_apertura=oggi,
+                                   tipo=RegistroOFI.TIPO_OFI, processo="A")
+        RegistroOFI.objects.create(numero=R.prossimo_numero(), data_apertura=oggi,
+                                   tipo=RegistroOFI.TIPO_NC, processo="B")
+        resp = self.client.get(reverse("registro_ofi:lista"))
+        self.assertContains(resp, 'fmd-b-amber">OFI')  # OFI = giallo/ambra
+        self.assertContains(resp, 'fmd-b-red">NC')     # NC = rosso
+
+    def test_lista_bottone_nuovo_inserimento(self):
+        resp = self.client.get(reverse("registro_ofi:lista"))
+        self.assertContains(resp, "Nuovo inserimento")
 
 
 class ContatoriCumulativiTests(RegistroBase):
@@ -292,6 +310,14 @@ class InserimentoOFITests(RegistroBase):
                      "opportunita", "plan", "do", "verifica", "act",
                      "allegato_link", "owner_processo", "fase"):
             self.assertContains(resp, f'name="{name}"')
+
+    def test_form_titolo_neutro_e_scelta_ofi_nc(self):
+        """Il form del bottone «Nuovo inserimento» è neutro (non «Nuovo OFI»)
+        e contiene la scelta OFI/NC come primo campo."""
+        resp = self.client.get(reverse("registro_ofi:nuovo"))
+        self.assertContains(resp, "Nuovo inserimento")   # coerente col bottone
+        self.assertNotContains(resp, "Nuovo OFI")        # niente più titolo OFI-only
+        self.assertContains(resp, 'name="tipo"')          # scelta OFI/NC nel form
 
     def test_post_crea_voce_con_numero_automatico(self):
         atteso = R.prossimo_numero()
@@ -350,6 +376,13 @@ class InserimentoOFITests(RegistroBase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Saldatura")
         self.assertContains(resp, "MOD.174")
+
+    def test_dettaglio_badge_ofi_giallo(self):
+        v = RegistroOFI.objects.create(
+            numero=R.prossimo_numero(), data_apertura=timezone.localdate(),
+            tipo=RegistroOFI.TIPO_OFI, processo="Saldatura")
+        resp = self.client.get(reverse("registro_ofi:dettaglio", args=[v.pk]))
+        self.assertContains(resp, 'fmd-b-amber">OFI')  # OFI = giallo/ambra
 
     def test_dettaglio_mostra_stepper_pdca(self):
         v = RegistroOFI.objects.create(

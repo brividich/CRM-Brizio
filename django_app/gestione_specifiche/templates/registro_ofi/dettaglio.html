@@ -51,8 +51,8 @@ body.theme-dark .pdca-step.done .pdca-dot{ background:rgba(22,163,74,.14); }
       <div class="fmd-hero-inner">
         <div>
           <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Qualità / SGI · Costruzioni Novicrom · MOD.174 Rev.0</div>
-          <h1><svg class="fmd-ico fmd-cap"><use href="#i-clipboard"/></svg>OFI n. {{ voce.numero }}
-            {% if voce.tipo == "OFI" %}<span class="fmd-badge fmd-b-green">OFI</span>{% else %}<span class="fmd-badge fmd-b-red">NC</span>{% endif %}</h1>
+          <h1><svg class="fmd-ico fmd-cap"><use href="#i-clipboard"/></svg>{% if voce.tipo == "OFI" %}OFI{% else %}NC{% endif %} n. {{ voce.numero }}
+            {% if voce.tipo == "OFI" %}<span class="fmd-badge fmd-b-amber">OFI</span>{% else %}<span class="fmd-badge fmd-b-red">NC</span>{% endif %}</h1>
           <p class="fmd-sub">Modulo d'origine: <strong>{{ voce.modulo_display }}</strong> · Fase {{ voce.get_fase_display }} (TOT {{ voce.tot_letter }}).</p>
         </div>
         <div class="fmd-hero-side">
