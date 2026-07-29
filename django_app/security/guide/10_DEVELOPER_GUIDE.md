@@ -17,8 +17,10 @@ Nomi delle metriche coerenti sono fondamentali: le regole alert fanno match sul 
 
 ## Aggiungere una regola o un seed
 
-- Le regole si configurano da UI (Regole alert) oppure via seed in `seed_security_center_config`.
+- Le regole si configurano da UI (Regole alert) oppure via seed.
+- I default del seed vivono in **un solo posto**: `security/services/autoconfig.py` (costanti `GENERAL_SETTINGS`, `SOURCES`, `ALERT_RULES`, …). Il comando `seed_security_center_config` e la pagina `/soc/admin/autoconfig/` sono due facce dello stesso servizio: aggiungere un default lì li aggiorna entrambi.
 - Il seed è **idempotente**: scrivilo in modo che rilanciarlo non crei duplicati.
+- Una correzione automatica si aggiunge nella lista `FIXES` dello stesso modulo, agganciata al `check_code` della diagnostica che deve chiudere. Regola: nessun fix cancella dati.
 
 ## Dove aggiungere i test
 

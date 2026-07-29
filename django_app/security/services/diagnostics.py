@@ -1,8 +1,8 @@
 import fnmatch
 import re
 
-from django.core.management import call_command
 from django.db import connection
+from django.db.migrations.executor import MigrationExecutor
 from django.db.models import Max, Q
 from django.utils import timezone
 
@@ -264,12 +264,20 @@ def _database_check():
 
 
 def _migrations_check():
+    """Migrazioni pendenti sul database in uso.
+
+    Qui si chiamava ``migrate --check --dry-run``: ``dry_run`` non e' un'opzione
+    di ``migrate``, quindi la chiamata sollevava sempre ``TypeError`` e il check
+    segnalava migrazioni pendenti anche a database perfettamente allineato.
+    """
     try:
-        call_command("migrate", check=True, dry_run=True, verbosity=0)
-    except SystemExit as exc:
-        return _check("migrations", "Migrazioni", "warning", "Migrazioni pendenti o non valide rilevate.", {"exit_code": exc.code}, "Esegui python manage.py migrate dopo aver verificato lo stato migrazioni.")
-    except Exception as exc:
-        return _check("migrations", "Migrazioni", "warning", "Migrazioni pendenti o non valide rilevate.", {"error": str(exc)}, "Esegui python manage.py migrate dopo aver verificato lo stato migrazioni.")
+        executor = MigrationExecutor(connection)
+        plan = executor.migration_plan(executor.loader.graph.leaf_nodes())
+    except Exception as exc:  # pragma: no cover - defensive diagnostics
+        return _check("migrations", "Migrazioni", "warning", "Stato migrazioni non verificabile.", {"error": str(exc)}, "Verifica lo stato con python manage.py showmigrations.")
+    if plan:
+        pending = [f"{migration.app_label}.{migration.name}" for migration, _backwards in plan]
+        return _check("migrations", "Migrazioni", "warning", f"{len(pending)} migrazioni pendenti.", {"count": len(pending), "pending": pending[:20]}, "Esegui python manage.py migrate.")
     return _check("migrations", "Migrazioni", "ok", "Nessuna migrazione pendente rilevata.")
 
 

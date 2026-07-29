@@ -16,7 +16,7 @@
   <section class="sec-panel">
     <div class="sec-section-head"><h2>Checklist primo setup</h2></div>
     <ul class="sec-doc-list">
-      <li>Esegui <code>python manage.py seed_security_center_config</code>.</li>
+      <li>Apri l'<a href="{% url 'security:admin_autoconfig' %}">autoconfigurazione</a> e completa la configurazione (equivalente shell: <code>python manage.py seed_security_center_config</code>).</li>
       <li>Verifica sorgenti, parser, regole alert, soppressioni, aspettative backup, notifiche, ticketing e registro audit.</li>
       <li>Apri la diagnostica e risolvi gli avvisi.</li>
       <li>Ingerisci campioni validi WatchGuard, Defender e Backup/NAS.</li>

@@ -4,6 +4,11 @@
 {% block page_title %}Configurazione{% endblock %}
 {% block page_icon %}*{% endblock %}
 {% block soc_content %}
+<section class="sec-panel" style="margin-bottom:12px">
+  <div class="sec-section-head"><h2>Autoconfigurazione</h2><span class="sec-badge open">Assistita</span></div>
+  <p class="sec-muted">Semina la configurazione mancante e applica le correzioni suggerite dalla diagnostica, senza riga di comando.</p>
+  <a class="sec-button sec-button-primary" href="{% url 'security:admin_autoconfig' %}">Apri autoconfigurazione</a>
+</section>
 <div class="sec-grid sec-three-col">
   {% for card in cards %}
     <section class="sec-card">

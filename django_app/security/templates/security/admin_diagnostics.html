@@ -9,7 +9,10 @@
 <section class="sec-panel">
   <div class="sec-section-head">
     <h2>Controllo salute</h2>
-    {% if diagnostics.status %}<span class="sec-badge {{ diagnostics.status }}">{{ diagnostics.status|ui_label }}</span>{% endif %}
+    <span>
+      <a class="sec-button" href="{% url 'security:admin_autoconfig' %}">Correggi con l'autoconfigurazione</a>
+      {% if diagnostics.status %}<span class="sec-badge {{ diagnostics.status }}">{{ diagnostics.status|ui_label }}</span>{% endif %}
+    </span>
   </div>
   <div class="sec-grid sec-three-col">
     {% for card in health_cards %}

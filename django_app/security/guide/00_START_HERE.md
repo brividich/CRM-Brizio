@@ -11,13 +11,13 @@ Il Security Center è un **portale di intelligence sui report ricorrenti**. Pren
 ## Prerequisiti
 
 - Accesso al modulo `/soc/` con permesso ACL `security.config.view` (per la configurazione serve anche `security.manage_security_configuration` o `is_staff`).
-- I comandi `manage.py` vanno lanciati sul server applicativo (in produzione l'app-pool gira come utente dedicato; in sviluppo dal proprio venv).
+- I comandi `manage.py` vanno lanciati sul server applicativo (in produzione l'app-pool gira come utente dedicato; in sviluppo dal proprio venv). Il primo setup **non richiede la shell**: la pagina `/soc/admin/autoconfig/` fa le stesse cose dal browser.
 
 ## Primo setup in 30 minuti
 
-1. Esegui il seed della configurazione di base (idempotente): `python manage.py seed_security_center_config`.
+1. Apri `/soc/admin/autoconfig/` e premi **Completa la configurazione**: semina la configurazione di base (idempotente, tracciata nell'audit). Equivalente da shell: `python manage.py seed_security_center_config`.
 2. Apri `/soc/admin/config/` e passa in rassegna le 9 sezioni: Generali, Sorgenti, Parser, Regole alert, Soppressioni, Backup, Notifiche, Ticketing, Audit.
-3. Lancia la diagnostica: `python manage.py security_center_diagnostics` (o la pagina `/soc/admin/diagnostics/`) e risolvi gli avvisi.
+3. Lancia la diagnostica: `python manage.py security_center_diagnostics` (o la pagina `/soc/admin/diagnostics/`) e risolvi gli avvisi — quelli risolvibili in automatico compaiono come **correzioni suggerite** nella pagina di autoconfigurazione.
 4. Ingerisci qualche campione valido per prendere confidenza: `python manage.py ingest_sample_security_data`.
 5. Esegui la pipeline dalla pagina `/soc/pipeline/` (oppure `run_security_parsers`, `evaluate_security_rules`, `build_daily_kpi_snapshots`).
 6. Verifica che compaiano alert, ticket e KPI nella dashboard `/soc/`.

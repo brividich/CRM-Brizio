@@ -20,7 +20,7 @@ Il Security Center separa il **core** (motore condiviso) dai **moduli** (integra
 Un modulo tipicamente fornisce:
 
 1. Uno o più **parser** che leggono il formato del vendor.
-2. Una **configurazione seed** (sorgenti, regole, aspettative) applicata da `seed_security_center_config`.
+2. Una **configurazione seed** (sorgenti, regole, aspettative) applicata dall'autoconfigurazione (`/soc/admin/autoconfig/` o `seed_security_center_config`).
 3. Le **regole alert** e le metriche di riferimento.
 4. La documentazione dedicata (come questa).
 

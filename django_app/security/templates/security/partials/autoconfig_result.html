@@ -1,0 +1,119 @@
+{% load security_i18n %}
+{% if applied %}
+  <div class="sec-fact" style="margin-bottom:12px">
+    <span>{{ applied.label }}</span>
+    <strong>{{ applied.message }}</strong>
+    {% for section in applied.sections %}
+      {% if section.created or section.updated or section.skipped %}
+        <p class="sec-muted">
+          {{ section.label }}:
+          {% if section.created %}creati {{ section.created|join:", " }}.{% endif %}
+          {% if section.updated %} riallineati {{ section.updated|join:", " }}.{% endif %}
+          {% if section.skipped %} lasciati invariati (personalizzati) {{ section.skipped|join:", " }}.{% endif %}
+        </p>
+      {% endif %}
+    {% endfor %}
+  </div>
+{% endif %}
+
+<section class="sec-panel">
+  <div class="sec-section-head">
+    <h2>Piano di configurazione</h2>
+    <span class="sec-badge {% if summary.to_create %}warning{% else %}ok{% endif %}">
+      {% if summary.to_create %}{{ summary.to_create }} da creare{% else %}completa{% endif %}
+    </span>
+  </div>
+  <div class="sec-grid sec-three-col">
+    <div class="sec-fact"><span>Da creare</span><strong>{{ summary.to_create }}</strong></div>
+    <div class="sec-fact"><span>Difformi dai default</span><strong>{{ summary.to_align }}</strong></div>
+    <div class="sec-fact"><span>Gia allineati</span><strong>{{ summary.aligned }}</strong></div>
+  </div>
+
+  <div class="sec-actions" style="margin-top:12px">
+    <form class="sec-inline" method="post" action="{% url 'security:admin_autoconfig_apply' %}"
+          hx-post="{% url 'security:admin_autoconfig_apply' %}" hx-target="#autoconfig-live">
+      {% csrf_token %}
+      <button class="sec-button sec-button-primary" type="submit" {% if not summary.to_create %}disabled{% endif %}>
+        Completa la configurazione
+      </button>
+    </form>
+    <form class="sec-inline" method="post" action="{% url 'security:admin_autoconfig_apply' %}"
+          hx-post="{% url 'security:admin_autoconfig_apply' %}" hx-target="#autoconfig-live">
+      {% csrf_token %}
+      <input type="hidden" name="overwrite" value="1">
+      <button class="sec-button" type="submit" {% if not summary.to_align and not summary.to_create %}disabled{% endif %}>
+        Riallinea ai default
+      </button>
+    </form>
+  </div>
+  <p class="sec-muted" style="margin-top:8px">
+    «Completa» crea solo cio' che manca e non tocca i record esistenti. «Riallinea» sovrascrive anche i valori
+    personalizzati riportandoli ai default: usalo solo se vuoi ripartire dalla configurazione di fabbrica.
+  </p>
+
+  <div class="sec-table-wrap" style="margin-top:12px">
+    <table class="sec-table">
+      <thead><tr><th>Stato</th><th>Sezione</th><th>Contenuto</th><th>Da creare</th><th>Difformi</th><th>Allineati</th><th>Azione</th></tr></thead>
+      <tbody>
+        {% for row in plan %}
+          <tr>
+            <td><span class="sec-badge {% if row.status == 'ok' %}ok{% else %}warning{% endif %}">{% if row.status == 'ok' %}ok{% elif row.status == 'missing' %}incompleta{% else %}difforme{% endif %}</span></td>
+            <td>{{ row.label }}</td>
+            <td class="sec-muted">{{ row.description }}</td>
+            <td>{{ row.to_create|length }}</td>
+            <td>{{ row.to_align|length }}</td>
+            <td>{{ row.aligned|length }}</td>
+            <td>
+              {% if row.to_create %}
+                <form class="sec-inline" method="post" action="{% url 'security:admin_autoconfig_apply' %}"
+                      hx-post="{% url 'security:admin_autoconfig_apply' %}" hx-target="#autoconfig-live">
+                  {% csrf_token %}
+                  <input type="hidden" name="section" value="{{ row.key }}">
+                  <button type="submit">Crea i mancanti</button>
+                </form>
+              {% else %}-{% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="7" class="sec-empty">Nessuna sezione di configurazione disponibile.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head">
+    <h2>Correzioni suggerite dalla diagnostica</h2>
+    <span class="sec-badge {{ diagnostics_status }}">{{ diagnostics_status|ui_label }}</span>
+  </div>
+  <div class="sec-table-wrap">
+    <table class="sec-table">
+      <thead><tr><th>Stato</th><th>Controllo</th><th>Correzione</th><th>Effetto</th><th>Azione</th></tr></thead>
+      <tbody>
+        {% for fix in fixes %}
+          <tr>
+            <td><span class="sec-badge {{ fix.check_status }}">{{ fix.check_status|ui_label }}</span></td>
+            <td>{{ fix.check_label }}<p class="sec-muted">{{ fix.check_message }}</p></td>
+            <td>{{ fix.label }}</td>
+            <td class="sec-muted">{{ fix.description }}</td>
+            <td>
+              <form class="sec-inline" method="post" action="{% url 'security:admin_autoconfig_fix' fix.code %}"
+                    hx-post="{% url 'security:admin_autoconfig_fix' fix.code %}" hx-target="#autoconfig-live">
+                {% csrf_token %}
+                <button class="sec-button sec-button-primary" type="submit">Applica</button>
+              </form>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="sec-empty">Nessuna correzione automatica pendente: i controlli auto-risolvibili sono a posto.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="sec-muted" style="margin-top:8px">
+    Compaiono solo i controlli non «ok» per cui esiste una correzione sicura e idempotente. Ogni applicazione finisce
+    nel <a href="{% url 'security:admin_config_audit' %}">registro audit</a> con il tuo utente. Restano manuali le
+    scelte che richiedono una decisione (soglie, destinatari, segreti).
+  </p>
+</section>
