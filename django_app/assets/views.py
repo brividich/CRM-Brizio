@@ -10146,6 +10146,11 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
         asset_assistance_contracts_url=_assistance_contracts_page_url(asset_id=asset.id),
         asset_administrative_deadline_list_url=_asset_administrative_deadline_page_url(asset_id=asset.id),
     )
+    # Import in-funzione: assets non deve dipendere staticamente da
+    # schede_sicurezza, che resta la fonte unica dei dati chimici.
+    from schede_sicurezza import pittogrammi as ghs
+
+    scheda_chimica = asset.prodotto_chimico.scheda_corrente() if asset.prodotto_chimico_id else None
     return render(
         request,
         "assets/pages/asset_detail.html",
@@ -10153,7 +10158,8 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "page_title": f"Dettaglio asset {asset.asset_tag}",
             "asset": asset,
             "prodotto_chimico": asset.prodotto_chimico,
-            "scheda_corrente": asset.prodotto_chimico.scheda_corrente() if asset.prodotto_chimico_id else None,
+            "scheda_corrente": scheda_chimica,
+            "pittogrammi_clp": ghs.dettaglio(scheda_chimica.pittogrammi) if scheda_chimica else [],
             "asset_completeness": asset.completeness(),
             "asset_status": asset_status,
             "recent_workorders": recent_workorders,

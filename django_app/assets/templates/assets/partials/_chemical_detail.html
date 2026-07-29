@@ -8,6 +8,7 @@
     </div>
   </section>
 {% else %}
+  {% include "schede_sicurezza/components/_ghs_icons.html" %}
   <section class="af-card" style="margin-top:18px;">
     <div class="af-card-head">
       <div>
@@ -25,12 +26,14 @@
       <div>
         <div class="af-card-kicker" style="margin-bottom:8px;">Pittogrammi &amp; pericolosità</div>
         {% if scheda_corrente %}
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
-            {% for p in scheda_corrente.pittogrammi %}
-              <span class="af-hero-tag">{{ p }}</span>
-            {% empty %}
+          {# Stessi rombi CLP di schede_sicurezza (sprite incluso in asset_detail.html):
+             il simbolo si riconosce a colpo d'occhio, il codice no. #}
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
+            {% if pittogrammi_clp %}
+              {% include "schede_sicurezza/partials/_pittogrammi.html" with pittogrammi=pittogrammi_clp size=52 %}
+            {% else %}
               <span style="color:#64748b;">Nessun pittogramma registrato.</span>
-            {% endfor %}
+            {% endif %}
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
             <span class="af-hero-tag"><span>Scheda</span>v.{{ scheda_corrente.versione|default:"?" }}</span>

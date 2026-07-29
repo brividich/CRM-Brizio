@@ -120,6 +120,39 @@ class ChemicalAssetViewTests(TestCase):
         # che compare anche nelle regole CSS .af-sections del blocco <style>.
         self.assertNotContains(resp, 'class="af-sections"')
 
+    def test_chemical_detail_rende_i_pittogrammi_come_simboli(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from schede_sicurezza.models import SchedaSicurezza
+
+        rep = Reparto.objects.create(nome="Chimica")
+        p = ProdottoChimico.objects.create(nome="Diluente", reparto=rep)
+        SchedaSicurezza.objects.create(
+            prodotto=p, versione="1", is_corrente=True,
+            pdf=SimpleUploadedFile("sds.pdf", b"%PDF-1.4\n%finto\n", content_type="application/pdf"),
+            pittogrammi=["GHS02", "GHS07"],
+        )
+        a = Asset.objects.create(
+            asset_tag="CHEM-4", name="Diluente",
+            asset_type=Asset.TYPE_CHEMICAL, prodotto_chimico=p,
+        )
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("assets:asset_view", args=[a.id]))
+        # Gli stessi rombi CLP di schede_sicurezza, non il codice come testo.
+        self.assertContains(resp, 'href="#ghs02"')
+        self.assertContains(resp, 'href="#ghs07"')
+
+    def test_chemical_detail_senza_pittogrammi_lo_dice(self):
+        rep = Reparto.objects.create(nome="Chimica")
+        p = ProdottoChimico.objects.create(nome="Acqua demi", reparto=rep)
+        a = Asset.objects.create(
+            asset_tag="CHEM-5", name="Acqua demi",
+            asset_type=Asset.TYPE_CHEMICAL, prodotto_chimico=p,
+        )
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("assets:asset_view", args=[a.id]))
+        self.assertContains(resp, "SDS non disponibile")
+
     def test_non_chemical_detail_still_shows_maintenance(self):
         a = Asset.objects.create(asset_tag="IT-1", name="PC", asset_type=Asset.TYPE_PC)
         self.client.force_login(self.user)
