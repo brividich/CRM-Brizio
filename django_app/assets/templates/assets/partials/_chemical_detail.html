@@ -25,16 +25,17 @@
       {# ── Pericolosità: pittogrammi + scheda ─────────────────────────── #}
       <div>
         <div class="af-card-kicker" style="margin-bottom:8px;">Pittogrammi &amp; pericolosità</div>
+        {# Stessi rombi CLP di schede_sicurezza (sprite incluso in asset_detail.html):
+           il simbolo si riconosce a colpo d'occhio, il codice no. Fuori dal ramo
+           "scheda corrente": valgono anche quelli dichiarati sul prodotto. #}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
+          {% if pittogrammi_clp %}
+            {% include "schede_sicurezza/partials/_pittogrammi.html" with pittogrammi=pittogrammi_clp size=52 %}
+          {% else %}
+            <span style="color:#64748b;">Nessun pittogramma registrato.</span>
+          {% endif %}
+        </div>
         {% if scheda_corrente %}
-          {# Stessi rombi CLP di schede_sicurezza (sprite incluso in asset_detail.html):
-             il simbolo si riconosce a colpo d'occhio, il codice no. #}
-          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
-            {% if pittogrammi_clp %}
-              {% include "schede_sicurezza/partials/_pittogrammi.html" with pittogrammi=pittogrammi_clp size=52 %}
-            {% else %}
-              <span style="color:#64748b;">Nessun pittogramma registrato.</span>
-            {% endif %}
-          </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
             <span class="af-hero-tag"><span>Scheda</span>v.{{ scheda_corrente.versione|default:"?" }}</span>
             {% if scheda_corrente.scaduta %}

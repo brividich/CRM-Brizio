@@ -1,0 +1,100 @@
+{% comment %}
+Campi anagrafici del prodotto chimico — blocco unico condiviso.
+
+Contesto: `pcform` (schede_sicurezza.forms.ProdottoChimicoForm).
+Va incluso dentro un <form>; il csrf, i pulsanti e l'eventuale identita' asset
+restano alla pagina ospite. Richiede lo sprite `components/_ghs_icons.html`.
+
+Questo file e' l'unico posto in cui si decide *come* si presentano i dati del
+prodotto: la schermata di schede_sicurezza e il form dell'asset chimico lo
+includono entrambi, quindi non possono piu' divergere.
+{% endcomment %}
+<style>
+.pc-sez { border:1px solid #e2e8f0; border-radius:14px; background:#fff; padding:14px 16px 16px; display:flex; flex-direction:column; gap:12px; }
+.pc-sez + .pc-sez { margin-top:12px; }
+/* Variante per chi include il blocco dentro una card gia' sua (form asset):
+   niente scatole dentro le scatole, solo separatori. */
+.pc-flat .pc-sez { border:none; border-radius:0; background:transparent; padding:0; }
+.pc-flat .pc-sez + .pc-sez { margin-top:14px; padding-top:14px; border-top:1px solid #e2e8f0; }
+.pc-sez-tit { font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:#64748b; }
+.pc-griglia { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px; }
+.pc-campo { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.pc-campo > label { font-size:12px; font-weight:700; color:#475569; }
+.pc-req { color:#dc2626; }
+.pc-input, .pc-campo select, .pc-campo input[type="text"] { width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:8px; background:#fff; color:inherit; font:inherit; }
+.pc-campo--errore .pc-input, .pc-campo--errore select { border-color:#dc2626; }
+.pc-help { font-size:11.5px; color:#94a3b8; }
+.pc-errore { font-size:12px; font-weight:600; color:#dc2626; }
+.pc-avviso { padding:10px; border:1px solid #fde68a; background:#fffbeb; border-radius:8px; font-size:12.5px; color:#92400e; }
+.pc-chips { display:flex; flex-wrap:wrap; gap:8px; }
+/* Il widget CheckboxSelectMultiple annida le opzioni in <div> (o <ul>/<li> nelle
+   versioni piu' vecchie): `display:contents` le fa cadere direttamente nel flex. */
+.pc-chips ul, .pc-chips li, .pc-chips > div, .pc-chips div div { display:contents; list-style:none; margin:0; padding:0; }
+.pc-chips label { display:inline-flex; align-items:center; gap:7px; padding:7px 12px; border:1.5px solid #e2e8f0; border-radius:999px; font-size:12.5px; font-weight:600; color:#475569; cursor:pointer; background:#fff; }
+.pc-chips label:has(input:checked) { border-color:#1d4ed8; background:rgba(29,78,216,.06); color:#1d4ed8; }
+.pc-flag { display:inline-flex; align-items:center; gap:8px; font-size:13px; font-weight:600; color:#475569; }
+body.theme-dark .pc-sez { background:var(--surface); border-color:var(--border); }
+body.theme-dark .pc-input, body.theme-dark .pc-campo select, body.theme-dark .pc-chips label { background:var(--surface); border-color:var(--border); color:var(--text); }
+body.theme-dark .pc-campo > label, body.theme-dark .pc-flag { color:var(--text-mid); }
+</style>
+
+{% if pcform.non_field_errors %}
+  <div class="pc-errore">{{ pcform.non_field_errors }}</div>
+{% endif %}
+
+<section class="pc-sez">
+  <div class="pc-sez-tit">Identificazione</div>
+  <div class="pc-griglia">
+    {% include "schede_sicurezza/partials/_pc_campo.html" with campo=pcform.nome %}
+    {% include "schede_sicurezza/partials/_pc_campo.html" with campo=pcform.reparto %}
+    {% include "schede_sicurezza/partials/_pc_campo.html" with campo=pcform.fornitore %}
+    {% include "schede_sicurezza/partials/_pc_campo.html" with campo=pcform.produttore %}
+  </div>
+  {% if not pcform.reparto.field.queryset.exists %}
+    <div class="pc-avviso">
+      Nessun reparto disponibile.
+      <a href="{% url 'anagrafica:aree_list' %}" style="color:#1d4ed8;font-weight:700;">Vai a Reparti &amp; Aree</a> per crearne uno.
+    </div>
+  {% endif %}
+</section>
+
+<section class="pc-sez">
+  <div class="pc-sez-tit">Classificazione interna</div>
+  <div class="pc-griglia">
+    {% include "schede_sicurezza/partials/_pc_campo.html" with campo=pcform.famiglia %}
+    {% include "schede_sicurezza/partials/_pc_campo.html" with campo=pcform.sottocategoria %}
+  </div>
+</section>
+
+<section class="pc-sez">
+  <div class="pc-sez-tit">Logistica</div>
+  <div class="pc-griglia">
+    {% include "schede_sicurezza/partials/_pc_campo.html" with campo=pcform.numero_interno %}
+    {% include "schede_sicurezza/partials/_pc_campo.html" with campo=pcform.codice_prodotto %}
+    {% include "schede_sicurezza/partials/_pc_campo.html" with campo=pcform.ubicazione %}
+    {% include "schede_sicurezza/partials/_pc_campo.html" with campo=pcform.quantita_presente %}
+  </div>
+</section>
+
+<section class="pc-sez">
+  <div class="pc-sez-tit">Pericolosità</div>
+  <fieldset style="border:none;padding:0;margin:0;">
+    <legend style="padding:0;font-size:12px;font-weight:700;color:#475569;">{{ pcform.pittogrammi.label }}</legend>
+    <div class="pc-help" style="margin:2px 0 10px;">
+      I nove simboli sono fissati dal regolamento CLP: si selezionano, non si caricano.
+      Quando carichi la SDS, i pittogrammi confermati sulla scheda hanno la precedenza.
+    </div>
+    {% include "schede_sicurezza/components/_ghs_picker.html" with catalogo=pcform.catalogo_pittogrammi nome_campo=pcform.pittogrammi.html_name %}
+    {% for errore in pcform.pittogrammi.errors %}<div class="pc-errore">{{ errore }}</div>{% endfor %}
+  </fieldset>
+  <div>
+    <div style="font-size:12px;font-weight:700;color:#475569;margin-bottom:6px;">{{ pcform.dpi_obbligatori.label }}</div>
+    <div class="pc-chips">{{ pcform.dpi_obbligatori }}</div>
+    {% for errore in pcform.dpi_obbligatori.errors %}<div class="pc-errore">{{ errore }}</div>{% endfor %}
+  </div>
+</section>
+
+<section class="pc-sez">
+  <div class="pc-sez-tit">Stato</div>
+  <label class="pc-flag">{{ pcform.attivo }} {{ pcform.attivo.label }}</label>
+</section>

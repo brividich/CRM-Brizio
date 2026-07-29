@@ -5,7 +5,8 @@
 {% block assets_shell_title %}{% if is_edit %}Modifica prodotto chimico{% else %}Nuovo prodotto chimico{% endif %}{% endblock %}
 
 {% block assets_shell_content %}
-<section style="max-width:820px;display:grid;gap:14px;">
+{% include "schede_sicurezza/components/_ghs_icons.html" %}
+<section style="max-width:860px;display:grid;gap:14px;">
   <header>
     <a href="{% if asset %}{% url 'assets:asset_view' asset.id %}{% else %}{% url 'assets:asset_list' %}{% endif %}" class="as-backlink">&larr; Indietro</a>
   </header>
@@ -60,39 +61,10 @@
         <div class="as-help" style="margin-top:4px;">L'anagrafica chimica (SDS, DPI, classificazione) si gestisce in Schede di sicurezza.</div>
       </div>
 
-      <div data-chem-block="new" style="margin-top:12px;" hidden>
-        <div class="as-form-grid-3">
-          <div>
-            <label for="{{ form.nuovo_nome.id_for_label }}">{{ form.nuovo_nome.label }}</label>
-            {{ form.nuovo_nome }}
-            {% if form.nuovo_nome.errors %}<div class="as-error">{{ form.nuovo_nome.errors }}</div>{% endif %}
-          </div>
-          <div>
-            <label for="{{ form.reparto_prodotto.id_for_label }}">{{ form.reparto_prodotto.label }}</label>
-            {{ form.reparto_prodotto }}
-            {% if form.reparto_prodotto.errors %}<div class="as-error">{{ form.reparto_prodotto.errors }}</div>{% endif %}
-          </div>
-          <div>
-            <label for="{{ form.nuovo_codice.id_for_label }}">{{ form.nuovo_codice.label }}</label>
-            {{ form.nuovo_codice }}
-          </div>
-          <div>
-            <label for="{{ form.nuovo_fornitore.id_for_label }}">{{ form.nuovo_fornitore.label }}</label>
-            {{ form.nuovo_fornitore }}
-          </div>
-          <div>
-            <label for="{{ form.nuovo_produttore.id_for_label }}">{{ form.nuovo_produttore.label }}</label>
-            {{ form.nuovo_produttore }}
-          </div>
-          <div>
-            <label for="{{ form.nuovo_ubicazione.id_for_label }}">{{ form.nuovo_ubicazione.label }}</label>
-            {{ form.nuovo_ubicazione }}
-          </div>
-          <div>
-            <label for="{{ form.nuovo_quantita.id_for_label }}">{{ form.nuovo_quantita.label }}</label>
-            {{ form.nuovo_quantita }}
-          </div>
-        </div>
+      {# Stesso blocco anagrafico della schermata "Schede di sicurezza": un solo
+         file, quindi i due form non possono chiedere cose diverse. #}
+      <div data-chem-block="new" class="pc-flat" style="margin-top:12px;" hidden>
+        {% include "schede_sicurezza/partials/_prodotto_fields.html" with pcform=form.prodotto_form %}
       </div>
     </div>
 
@@ -109,7 +81,14 @@
     function sync() {
       var mode = modeField ? modeField.value : "existing";
       document.querySelectorAll("[data-chem-block]").forEach(function (block) {
-        block.hidden = block.getAttribute("data-chem-block") !== mode;
+        var attivo = block.getAttribute("data-chem-block") === mode;
+        block.hidden = !attivo;
+        // I campi del blocco nascosto vanno disabilitati, non solo nascosti:
+        // un input `required` invisibile blocca l'invio del form nel browser
+        // (e i suoi valori non devono finire nel POST del ramo non scelto).
+        block.querySelectorAll("input, select, textarea").forEach(function (el) {
+          el.disabled = !attivo;
+        });
       });
     }
     if (modeField) { modeField.addEventListener("change", sync); sync(); }

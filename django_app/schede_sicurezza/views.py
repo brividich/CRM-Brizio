@@ -17,6 +17,7 @@ from core.csv_export import safe_csv_writer
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 
 from . import pittogrammi as ghs
+from .forms import ProdottoChimicoForm
 from .models import SCADENZA_SDS_GIORNI, PresaVisioneScheda, ProdottoChimico, SchedaSicurezza
 from .reports import matrice_presa_visione, prodotti_senza_scheda_corrente
 from .services.ingestion import estrai_sds, pittogrammi_proposti
@@ -91,7 +92,9 @@ def _card_prodotto(prodotto) -> dict:
         stato = "warn"
     else:
         stato = "ok"
-    codici = ghs.normalizza(scheda.pittogrammi if scheda else [])
+    # Senza scheda (o con una scheda senza simboli) restano i pittogrammi
+    # dichiarati sul prodotto: la card non si svuota in attesa della SDS.
+    codici = ghs.normalizza(prodotto.pittogrammi_effettivi(scheda))
     return {
         "prodotto": prodotto,
         "scheda": scheda,
@@ -205,48 +208,12 @@ def prodotto_form(request, pk: int | None = None):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("schede_sicurezza:prodotto_list")
 
-    from anagrafica.models import Reparto
-    from dpi.models import CategoriaDPI
-
     prodotto = get_object_or_404(ProdottoChimico, pk=pk) if pk else None
 
     if request.method == "POST":
-        nome = request.POST.get("nome", "").strip()
-        reparto_id = request.POST.get("reparto", "").strip()
-
-        errors = []
-        if not nome:
-            errors.append("Il nome è obbligatorio.")
-        reparto = None
-        if reparto_id:
-            try:
-                reparto = Reparto.objects.get(pk=int(reparto_id))
-            except (Reparto.DoesNotExist, ValueError):
-                errors.append("Reparto non valido.")
-        else:
-            errors.append("Il reparto è obbligatorio.")
-
-        if errors:
-            for e in errors:
-                messages.error(request, e)
-        else:
-            if prodotto is None:
-                prodotto = ProdottoChimico()
-            prodotto.nome = nome
-            prodotto.reparto = reparto
-            prodotto.fornitore = request.POST.get("fornitore", "").strip()
-            prodotto.produttore = request.POST.get("produttore", "").strip()
-            prodotto.famiglia = request.POST.get("famiglia", "").strip()
-            prodotto.sottocategoria = request.POST.get("sottocategoria", "").strip()
-            prodotto.numero_interno = request.POST.get("numero_interno", "").strip()
-            prodotto.codice_prodotto = request.POST.get("codice_prodotto", "").strip()
-            prodotto.ubicazione = request.POST.get("ubicazione", "").strip()
-            prodotto.quantita_presente = request.POST.get("quantita_presente", "").strip()
-            prodotto.attivo = bool(request.POST.get("attivo"))
-            prodotto.save()
-
-            dpi_ids = request.POST.getlist("dpi_obbligatori")
-            prodotto.dpi_obbligatori.set(dpi_ids) if dpi_ids else prodotto.dpi_obbligatori.clear()
+        form = ProdottoChimicoForm(request.POST, instance=prodotto)
+        if form.is_valid():
+            prodotto = form.save()
 
             # Doppio ingresso: in creazione si può generare anche l'asset di
             # inventario collegato (tipo "Prodotto chimico"). Import in-funzione
@@ -262,11 +229,14 @@ def prodotto_form(request, pk: int | None = None):
 
             messages.success(request, "Prodotto salvato.")
             return redirect("schede_sicurezza:prodotto_detail", pk=prodotto.pk)
+        messages.error(request, "Controlla i campi evidenziati.")
+    else:
+        form = ProdottoChimicoForm(instance=prodotto)
 
     return render(request, "schede_sicurezza/pages/prodotto_form.html", {
         "prodotto": prodotto,
-        "reparti": Reparto.objects.filter(is_active=True).order_by("nome"),
-        "categorie_dpi": CategoriaDPI.objects.filter(is_active=True).order_by("order_index", "nome"),
+        "form": form,
+        "crea_asset_checked": bool(request.POST.get("crea_asset")) if request.method == "POST" else False,
     })
 
 
@@ -309,6 +279,11 @@ def prodotto_detail(request, pk: int):
                 "pittogrammi", "frasi_h", "frasi_p", "classificazione_clp",
                 "dpi_testo", "primo_soccorso", "incompatibilita",
             ])
+            # Ricopia sul prodotto: e' il set che il form prodotto ripropone e
+            # quello che resta visibile se in futuro la scheda viene sostituita.
+            if list(prodotto.pittogrammi or []) != list(scheda_corrente.pittogrammi):
+                prodotto.pittogrammi = list(scheda_corrente.pittogrammi)
+                prodotto.save(update_fields=["pittogrammi"])
             messages.success(request, "Campi estratti aggiornati.")
             return redirect("schede_sicurezza:prodotto_detail", pk=pk)
 
@@ -355,9 +330,7 @@ def prodotto_detail(request, pk: int):
             selezionati=scheda_corrente.pittogrammi if scheda_corrente else [],
             proposti=pittogrammi_proposti(scheda_corrente) if scheda_corrente else [],
         ),
-        "pittogrammi_correnti": ghs.dettaglio(
-            scheda_corrente.pittogrammi if scheda_corrente else []
-        ),
+        "pittogrammi_correnti": ghs.dettaglio(prodotto.pittogrammi_effettivi(scheda_corrente)),
         "can_gestire": _can_gestire(request),
         "qr_url": request.build_absolute_uri(
             reverse("schede_sicurezza:scheda_mobile", args=[str(prodotto.uuid)])

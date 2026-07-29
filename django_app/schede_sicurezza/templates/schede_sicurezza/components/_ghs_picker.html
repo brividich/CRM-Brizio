@@ -1,0 +1,42 @@
+{% comment %}
+Selettore dei nove pittogrammi CLP (catalogo chiuso: si scelgono, non si caricano).
+
+Contesto:
+  catalogo    lista da `pittogrammi.catalogo` (codice, nome, selezionato, proposto)
+  nome_campo  name degli input (default "pittogrammi")
+  con_legenda mostra la legenda del pallino "proposto dall'estrazione" (default off)
+
+Richiede lo sprite `schede_sicurezza/components/_ghs_icons.html` nella pagina.
+Gli stili stanno qui e non nelle pagine: il selettore e' identico ovunque
+compaia (scheda prodotto, form prodotto, form asset chimico).
+{% endcomment %}
+<style>
+/* Il rombo resta a colori pieni solo quando e' selezionato: gli altri restano
+   in grigio, leggibili ma chiaramente spenti. */
+.ssp-picker { display:grid; grid-template-columns:repeat(auto-fill, minmax(110px, 1fr)); gap:9px; }
+.ssp-pick { position:relative; border:1.5px solid #e2e8f0; border-radius:11px; padding:10px 6px 9px; display:flex; flex-direction:column; align-items:center; gap:5px; text-align:center; cursor:pointer; background:#fff; filter:grayscale(1); opacity:.42; transition:opacity .14s, filter .14s, border-color .14s; }
+.ssp-pick:hover { opacity:.85; filter:grayscale(.3); }
+.ssp-pick:focus-within { outline:2px solid #1d4ed8; outline-offset:2px; }
+.ssp-pick input { position:absolute; opacity:0; width:0; height:0; }
+.ssp-pick.ssp-on, .ssp-pick:has(input:checked) { opacity:1; filter:none; border-color:#E0231A; background:rgba(224,35,26,.05); }
+.ssp-code { font-size:10px; font-weight:800; letter-spacing:.05em; color:#475569; }
+.ssp-nome { font-size:10.5px; color:#94a3b8; line-height:1.25; }
+.ssp-auto { position:absolute; top:6px; right:7px; width:7px; height:7px; border-radius:50%; background:#1d4ed8; }
+.ssp-legend { margin-top:12px; font-size:11.5px; color:#94a3b8; display:flex; align-items:center; gap:6px; }
+.ssp-legend i { width:7px; height:7px; border-radius:50%; background:#1d4ed8; display:inline-block; }
+body.theme-dark .ssp-pick { background:var(--surface); border-color:var(--border); }
+body.theme-dark .ssp-code { color:var(--text-mid); }
+@media (prefers-reduced-motion: reduce) { .ssp-pick { transition:none; } }
+</style>
+<div class="ssp-picker">
+  {% for p in catalogo %}
+    <label class="ssp-pick{% if p.selezionato %} ssp-on{% endif %}">
+      <input type="checkbox" name="{{ nome_campo|default:'pittogrammi' }}" value="{{ p.codice }}" {% if p.selezionato %}checked{% endif %}>
+      {% if p.proposto %}<span class="ssp-auto" title="Proposto dall'estrazione del PDF"></span>{% endif %}
+      <svg width="50" height="50" role="img" aria-label="{{ p.codice }} {{ p.nome }}"><use href="#{{ p.codice|lower }}"/></svg>
+      <span class="ssp-code">{{ p.codice }}</span>
+      <span class="ssp-nome">{{ p.nome }}</span>
+    </label>
+  {% endfor %}
+</div>
+{% if con_legenda %}<div class="ssp-legend"><i></i>proposto dall'estrazione del PDF</div>{% endif %}

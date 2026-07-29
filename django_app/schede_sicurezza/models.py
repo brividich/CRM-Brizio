@@ -45,6 +45,16 @@ class ProdottoChimico(models.Model):
     uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     attivo = models.BooleanField(default=True)
 
+    # Pittogrammi CLP dichiarati sul prodotto in fase di inserimento, quando la
+    # SDS non e' (ancora) caricata: la scheda corrente resta la fonte quando
+    # esiste e ne porta di suoi. Vedi `pittogrammi_effettivi`.
+    pittogrammi = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="Pittogrammi di pericolo",
+        help_text="Codici GHS dichiarati sul prodotto (la scheda corrente, se presente, ha la precedenza).",
+    )
+
     dpi_obbligatori = models.ManyToManyField(
         "dpi.CategoriaDPI",
         blank=True,
@@ -65,6 +75,20 @@ class ProdottoChimico(models.Model):
 
     def scheda_corrente(self) -> "SchedaSicurezza | None":
         return self.schede.filter(is_corrente=True).first()
+
+    def pittogrammi_effettivi(self, scheda: "SchedaSicurezza | None" = None) -> list[str]:
+        """I codici GHS da mostrare per questo prodotto.
+
+        Precedenza alla scheda corrente (dato normativo, estratto e confermato
+        sul PDF); il set dichiarato a mano sul prodotto copre il periodo in cui
+        la SDS non e' ancora stata caricata. ``scheda`` si passa quando la si ha
+        gia' in mano (prefetch), per non rifare la query.
+        """
+        if scheda is None:
+            scheda = self.scheda_corrente()
+        if scheda is not None and scheda.pittogrammi:
+            return list(scheda.pittogrammi)
+        return list(self.pittogrammi or [])
 
 
 # ---------------------------------------------------------------------------

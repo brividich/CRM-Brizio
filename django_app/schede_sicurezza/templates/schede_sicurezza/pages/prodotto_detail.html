@@ -4,25 +4,11 @@
 
 {% block extra_head %}
 <style>
-/* Selettore dei nove pittogrammi CLP. Il rombo resta a colori pieni solo quando
-   e' selezionato: gli altri restano in grigio, leggibili ma chiaramente spenti. */
-.ssp-picker { display:grid; grid-template-columns:repeat(auto-fill, minmax(110px, 1fr)); gap:9px; }
-.ssp-pick { position:relative; border:1.5px solid #e2e8f0; border-radius:11px; padding:10px 6px 9px; display:flex; flex-direction:column; align-items:center; gap:5px; text-align:center; cursor:pointer; background:#fff; filter:grayscale(1); opacity:.42; transition:opacity .14s, filter .14s, border-color .14s; }
-.ssp-pick:hover { opacity:.85; filter:grayscale(.3); }
-.ssp-pick:focus-within { outline:2px solid #1d4ed8; outline-offset:2px; }
-.ssp-pick input { position:absolute; opacity:0; width:0; height:0; }
-.ssp-pick.ssp-on, .ssp-pick:has(input:checked) { opacity:1; filter:none; border-color:#E0231A; background:rgba(224,35,26,.05); }
-.ssp-code { font-size:10px; font-weight:800; letter-spacing:.05em; color:#475569; }
-.ssp-nome { font-size:10.5px; color:#94a3b8; line-height:1.25; }
-.ssp-auto { position:absolute; top:6px; right:7px; width:7px; height:7px; border-radius:50%; background:#1d4ed8; }
-.ssp-legend { margin-top:12px; font-size:11.5px; color:#94a3b8; display:flex; align-items:center; gap:6px; }
-.ssp-legend i { width:7px; height:7px; border-radius:50%; background:#1d4ed8; display:inline-block; }
+/* Vista (non selettore) dei pittogrammi: gli stili del selettore vivono nel
+   componente `components/_ghs_picker.html`, unico posto in cui sono definiti. */
 .ssp-vista { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
 .ssp-vuoto { display:inline-flex; align-items:center; gap:8px; font-size:12px; color:#94a3b8; }
 .ssp-vuoto svg { width:30px; height:30px; }
-body.theme-dark .ssp-pick { background:var(--surface); border-color:var(--border); }
-body.theme-dark .ssp-code { color:var(--text-mid); }
-@media (prefers-reduced-motion: reduce) { .ssp-pick { transition:none; } }
 </style>
 {% endblock %}
 
@@ -61,16 +47,6 @@ body.theme-dark .ssp-code { color:var(--text-mid); }
           Stato estrazione: <strong>{{ scheda_corrente.get_estrazione_stato_display }}</strong><br>
           Caricata il {{ scheda_corrente.data_caricamento|date:"d/m/Y H:i" }}
         </div>
-        <div style="margin-top:12px;">
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b;margin-bottom:6px;">Pittogrammi di pericolo</div>
-          <div class="ssp-vista">
-            {% if pittogrammi_correnti %}
-              {% include "schede_sicurezza/partials/_pittogrammi.html" with pittogrammi=pittogrammi_correnti size=52 %}
-            {% else %}
-              <span class="ssp-vuoto"><svg><use href="#ghs-vuoto"/></svg>Nessun pittogramma confermato su questa scheda.</span>
-            {% endif %}
-          </div>
-        </div>
         <div style="display:flex;gap:8px;margin-top:12px;">
           <a href="{% url 'schede_sicurezza:scheda_download' pk=scheda_corrente.pk %}"
              style="padding:7px 14px;background:#1d4ed8;color:#fff;border-radius:8px;text-decoration:none;font-size:12px;font-weight:700;">Scarica PDF</a>
@@ -82,6 +58,19 @@ body.theme-dark .ssp-code { color:var(--text-mid); }
       {% else %}
         <div style="color:#94a3b8;font-size:13px;">Nessuna scheda caricata.</div>
       {% endif %}
+
+      {# Fuori dal ramo "scheda corrente": i simboli dichiarati sul prodotto
+         valgono anche prima che la SDS venga caricata. #}
+      <div style="margin-top:12px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b;margin-bottom:6px;">Pittogrammi di pericolo</div>
+        <div class="ssp-vista">
+          {% if pittogrammi_correnti %}
+            {% include "schede_sicurezza/partials/_pittogrammi.html" with pittogrammi=pittogrammi_correnti size=52 %}
+          {% else %}
+            <span class="ssp-vuoto"><svg><use href="#ghs-vuoto"/></svg>Nessun pittogramma indicato per questo prodotto.</span>
+          {% endif %}
+        </div>
+      </div>
     </div>
   </div>
 
@@ -110,18 +99,7 @@ body.theme-dark .ssp-code { color:var(--text-mid); }
             I nove simboli sono fissati dal regolamento CLP: si selezionano, non si caricano.
             Il pallino blu segna quelli riconosciuti nel PDF dall'estrazione automatica.
           </div>
-          <div class="ssp-picker">
-            {% for p in catalogo_pittogrammi %}
-              <label class="ssp-pick{% if p.selezionato %} ssp-on{% endif %}">
-                <input type="checkbox" name="pittogrammi" value="{{ p.codice }}" {% if p.selezionato %}checked{% endif %}>
-                {% if p.proposto %}<span class="ssp-auto" title="Proposto dall'estrazione del PDF"></span>{% endif %}
-                <svg width="50" height="50" role="img" aria-label="{{ p.codice }} {{ p.nome }}"><use href="#{{ p.codice|lower }}"/></svg>
-                <span class="ssp-code">{{ p.codice }}</span>
-                <span class="ssp-nome">{{ p.nome }}</span>
-              </label>
-            {% endfor %}
-          </div>
-          <div class="ssp-legend"><i></i>proposto dall'estrazione del PDF</div>
+          {% include "schede_sicurezza/components/_ghs_picker.html" with catalogo=catalogo_pittogrammi con_legenda=1 %}
         </fieldset>
         <div style="display:flex;gap:12px;">
           <label style="flex:1;">Frasi H (separate da virgola)

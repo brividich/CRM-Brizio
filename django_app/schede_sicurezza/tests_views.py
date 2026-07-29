@@ -275,6 +275,62 @@ class ModificaCampiEstrattiTest(TestCase):
         self.assertNotContains(resp, "Modifica campi estratti")
 
 
+class FormProdottoUnificatoTest(TestCase):
+    """Il form prodotto e' uno solo: stessi campi e stesso selettore CLP ovunque."""
+
+    def setUp(self):
+        self.reparto = Reparto.objects.create(nome="Produzione")
+        self.admin = User.objects.create_user(username="admin_form_unico", password="x", is_superuser=True, is_staff=True)
+        self.client.force_login(self.admin)
+
+    def test_selettore_pittogrammi_presente_in_creazione(self):
+        resp = self.client.get(reverse("schede_sicurezza:prodotto_nuovo"))
+        self.assertContains(resp, 'name="pittogrammi"')
+        self.assertContains(resp, 'value="GHS09"')
+
+    def test_salva_pittogrammi_dichiarati_sul_prodotto(self):
+        resp = self.client.post(reverse("schede_sicurezza:prodotto_nuovo"), {
+            "nome": "Acido nitrico", "reparto": self.reparto.id,
+            "pittogrammi": ["GHS05", "GHS03"], "attivo": "on",
+        })
+        self.assertEqual(resp.status_code, 302)
+        p = ProdottoChimico.objects.get(nome="Acido nitrico")
+        self.assertEqual(p.pittogrammi, ["GHS05", "GHS03"])
+        self.assertEqual(p.pittogrammi_effettivi(), ["GHS05", "GHS03"])
+
+    def test_form_invalido_non_crea_e_resta_in_pagina(self):
+        resp = self.client.post(reverse("schede_sicurezza:prodotto_nuovo"), {"nome": "Senza reparto"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(ProdottoChimico.objects.filter(nome="Senza reparto").exists())
+
+    def test_modifica_prodotto_propaga_i_pittogrammi_alla_scheda_corrente(self):
+        prodotto = ProdottoChimico.objects.create(nome="Diluente", reparto=self.reparto)
+        scheda = SchedaSicurezza.objects.create(
+            prodotto=prodotto, versione="1", is_corrente=True,
+            pdf=SimpleUploadedFile("sds.pdf", b"%PDF-1.4\n", content_type="application/pdf"),
+            pittogrammi=["GHS02"],
+        )
+        resp = self.client.post(
+            reverse("schede_sicurezza:prodotto_modifica", args=[prodotto.pk]),
+            {"nome": "Diluente", "reparto": self.reparto.id,
+             "pittogrammi": ["GHS02", "GHS07"], "attivo": "on"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        scheda.refresh_from_db()
+        self.assertEqual(scheda.pittogrammi, ["GHS02", "GHS07"])
+
+    def test_scheda_corrente_ha_la_precedenza_sui_pittogrammi_del_prodotto(self):
+        prodotto = ProdottoChimico.objects.create(
+            nome="Solvente", reparto=self.reparto, pittogrammi=["GHS07"],
+        )
+        SchedaSicurezza.objects.create(
+            prodotto=prodotto, versione="2", is_corrente=True,
+            pdf=SimpleUploadedFile("sds2.pdf", b"%PDF-1.4\n", content_type="application/pdf"),
+            pittogrammi=["GHS02", "GHS08"],
+        )
+        self.assertEqual(prodotto.pittogrammi_effettivi(), ["GHS02", "GHS08"])
+
+
 class RepartoMancanteCtaTest(TestCase):
     def setUp(self):
         self.admin = User.objects.create_user(username="admin_reparto_cta", password="x", is_superuser=True, is_staff=True)

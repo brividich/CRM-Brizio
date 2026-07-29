@@ -1,0 +1,8 @@
+{% comment %}Un campo del form prodotto chimico: label, widget, errori, aiuto.
+Contesto: `campo` (BoundField), `aiuto` (testo opzionale che sostituisce help_text).{% endcomment %}
+<div class="pc-campo{% if campo.errors %} pc-campo--errore{% endif %}">
+  <label for="{{ campo.id_for_label }}">{{ campo.label }}{% if campo.field.required %} <span class="pc-req">*</span>{% endif %}</label>
+  {{ campo }}
+  {% if aiuto %}<div class="pc-help">{{ aiuto }}</div>{% endif %}
+  {% for errore in campo.errors %}<div class="pc-errore">{{ errore }}</div>{% endfor %}
+</div>

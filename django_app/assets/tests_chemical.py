@@ -32,8 +32,8 @@ class ChemicalAssetFormTests(TestCase):
         rep = Reparto.objects.create(nome="Chimica")
         form = ChemicalAssetForm(data={
             "name": "Acetone", "status": Asset.STATUS_IN_STOCK,
-            "prodotto_mode": "new", "nuovo_nome": "Acetone 99%",
-            "reparto_prodotto": rep.id, "nuovo_ubicazione": "Scaffale A",
+            "prodotto_mode": "new", "pc-nome": "Acetone 99%",
+            "pc-reparto": rep.id, "pc-ubicazione": "Scaffale A",
         })
         self.assertTrue(form.is_valid(), form.errors)
         asset = form.save()
@@ -41,6 +41,27 @@ class ChemicalAssetFormTests(TestCase):
         self.assertEqual(asset.prodotto_chimico.nome, "Acetone 99%")
         self.assertEqual(asset.prodotto_chimico.ubicazione, "Scaffale A")
         self.assertTrue(asset.asset_tag)  # autogenerato
+
+    def test_chemical_form_salva_i_campi_prima_esclusivi_di_schede_sicurezza(self):
+        """Il ramo "nuovo prodotto" chiede gli stessi dati della schermata SDS."""
+        rep = Reparto.objects.create(nome="Chimica")
+        form = ChemicalAssetForm(data={
+            "name": "Sgrassante", "status": Asset.STATUS_IN_STOCK,
+            "prodotto_mode": "new", "pc-nome": "Sgrassante K", "pc-reparto": rep.id,
+            "pc-famiglia": "Detergenti", "pc-sottocategoria": "Alcalini",
+            "pc-numero_interno": "CH-014", "pc-codice_prodotto": "SK-9",
+            "pc-quantita_presente": "20 L", "pc-attivo": "on",
+            "pc-pittogrammi": ["GHS05", "GHS07"],
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+        prodotto = form.save().prodotto_chimico
+        self.assertEqual(prodotto.famiglia, "Detergenti")
+        self.assertEqual(prodotto.sottocategoria, "Alcalini")
+        self.assertEqual(prodotto.numero_interno, "CH-014")
+        self.assertEqual(prodotto.codice_prodotto, "SK-9")
+        self.assertEqual(prodotto.quantita_presente, "20 L")
+        self.assertEqual(prodotto.pittogrammi, ["GHS05", "GHS07"])
+        self.assertTrue(prodotto.attivo)
 
     def test_chemical_form_links_existing_prodotto(self):
         rep = Reparto.objects.create(nome="Chimica")
@@ -83,13 +104,19 @@ class ChemicalAssetViewTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Prodotto chimico")
 
+    def test_chemical_create_view_mostra_il_selettore_pittogrammi(self):
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("assets:chemical_create"))
+        self.assertContains(resp, 'name="pc-pittogrammi"')
+        self.assertContains(resp, 'value="GHS02"')
+
     def test_chemical_create_view_creates_asset(self):
         rep = Reparto.objects.create(nome="Chimica")
         self.client.force_login(self.user)
         resp = self.client.post(reverse("assets:chemical_create"), {
             "name": "Diluente", "status": Asset.STATUS_IN_STOCK,
-            "prodotto_mode": "new", "nuovo_nome": "Diluente X",
-            "reparto_prodotto": rep.id,
+            "prodotto_mode": "new", "pc-nome": "Diluente X",
+            "pc-reparto": rep.id,
         })
         self.assertEqual(resp.status_code, 302)
         self.assertTrue(
@@ -141,6 +168,17 @@ class ChemicalAssetViewTests(TestCase):
         # Gli stessi rombi CLP di schede_sicurezza, non il codice come testo.
         self.assertContains(resp, 'href="#ghs02"')
         self.assertContains(resp, 'href="#ghs07"')
+
+    def test_chemical_detail_mostra_i_pittogrammi_dichiarati_senza_sds(self):
+        rep = Reparto.objects.create(nome="Chimica")
+        p = ProdottoChimico.objects.create(nome="Soda", reparto=rep, pittogrammi=["GHS05"])
+        a = Asset.objects.create(
+            asset_tag="CHEM-6", name="Soda",
+            asset_type=Asset.TYPE_CHEMICAL, prodotto_chimico=p,
+        )
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("assets:asset_view", args=[a.id]))
+        self.assertContains(resp, 'href="#ghs05"')
 
     def test_chemical_detail_senza_pittogrammi_lo_dice(self):
         rep = Reparto.objects.create(nome="Chimica")

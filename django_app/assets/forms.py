@@ -12,6 +12,7 @@ from django.db import transaction
 from django.db.models import Q
 
 from anagrafica.models import Fornitore, FornitoreDocumento, Reparto
+from schede_sicurezza.forms import ProdottoChimicoForm
 from schede_sicurezza.models import ProdottoChimico
 
 from .maintenance import build_workorder_prefill_payload, get_applicable_assistance_contracts, resolve_asset_maintenance_rules
@@ -1322,8 +1323,15 @@ class ChemicalAssetForm(forms.ModelForm):
 
     Doppio comportamento: si aggancia un ``ProdottoChimico`` esistente (fonte unica
     in schede_sicurezza) oppure se ne crea uno nuovo inline. I dati chimici/SDS
-    restano in schede_sicurezza; qui si porta solo l'identità asset + il link 1:1.
+    restano in schede_sicurezza; qui si porta l'identità asset + il link 1:1.
+
+    Il ramo "nuovo prodotto" non ridichiara i campi chimici: monta
+    ``ProdottoChimicoForm`` con prefisso ``pc-``, cosi' i due ingressi (questo e
+    la schermata di schede_sicurezza) chiedono esattamente gli stessi dati,
+    pittogrammi CLP compresi.
     """
+
+    PRODOTTO_PREFIX = "pc"
 
     prodotto_mode = forms.ChoiceField(
         choices=[("existing", "Prodotto esistente"), ("new", "Nuovo prodotto")],
@@ -1335,17 +1343,6 @@ class ChemicalAssetForm(forms.ModelForm):
         required=False,
         label="Seleziona prodotto",
     )
-    reparto_prodotto = forms.ModelChoiceField(
-        queryset=Reparto.objects.none(),
-        required=False,
-        label="Reparto",
-    )
-    nuovo_nome = forms.CharField(required=False, label="Nome prodotto")
-    nuovo_fornitore = forms.CharField(required=False, label="Fornitore")
-    nuovo_produttore = forms.CharField(required=False, label="Produttore")
-    nuovo_ubicazione = forms.CharField(required=False, label="Ubicazione")
-    nuovo_quantita = forms.CharField(required=False, label="Quantità presente")
-    nuovo_codice = forms.CharField(required=False, label="Codice prodotto")
 
     class Meta:
         model = Asset
@@ -1368,9 +1365,11 @@ class ChemicalAssetForm(forms.ModelForm):
         self.fields["prodotto_chimico"].queryset = ProdottoChimico.objects.filter(
             attivo=True
         ).order_by("nome")
-        self.fields["reparto_prodotto"].queryset = Reparto.objects.filter(
-            is_active=True
-        ).order_by("nome")
+        # Sotto-form condiviso con schede_sicurezza: bound solo se lo e' questo.
+        self.prodotto_form = ProdottoChimicoForm(
+            self.data if self.is_bound else None,
+            prefix=self.PRODOTTO_PREFIX,
+        )
 
     def clean_asset_tag(self):
         return (self.cleaned_data.get("asset_tag") or "").strip()
@@ -1390,10 +1389,10 @@ class ChemicalAssetForm(forms.ModelForm):
                         "Questo prodotto è già collegato a un altro asset.",
                     )
         elif mode == "new":
-            if not (cleaned.get("nuovo_nome") or "").strip():
-                self.add_error("nuovo_nome", "Il nome del nuovo prodotto è obbligatorio.")
-            if not cleaned.get("reparto_prodotto"):
-                self.add_error("reparto_prodotto", "Il reparto è obbligatorio per un nuovo prodotto.")
+            # Gli errori di dettaglio restano sui campi del sotto-form, che il
+            # template rende accanto a ciascun campo.
+            if not self.prodotto_form.is_valid():
+                self.add_error(None, "Completa i dati del nuovo prodotto chimico.")
         return cleaned
 
     def save(self, commit=True):
@@ -1401,16 +1400,7 @@ class ChemicalAssetForm(forms.ModelForm):
         asset.asset_type = Asset.TYPE_CHEMICAL
         mode = self.cleaned_data.get("prodotto_mode")
         if mode == "new":
-            reparto = self.cleaned_data["reparto_prodotto"]
-            prodotto = ProdottoChimico.objects.create(
-                nome=(self.cleaned_data.get("nuovo_nome") or "").strip(),
-                reparto=reparto,
-                fornitore=(self.cleaned_data.get("nuovo_fornitore") or "").strip(),
-                produttore=(self.cleaned_data.get("nuovo_produttore") or "").strip(),
-                ubicazione=(self.cleaned_data.get("nuovo_ubicazione") or "").strip(),
-                quantita_presente=(self.cleaned_data.get("nuovo_quantita") or "").strip(),
-                codice_prodotto=(self.cleaned_data.get("nuovo_codice") or "").strip(),
-            )
+            prodotto = self.prodotto_form.save()
             asset.prodotto_chimico = prodotto
         else:
             prodotto = self.cleaned_data.get("prodotto_chimico")

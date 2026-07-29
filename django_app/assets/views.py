@@ -10159,7 +10159,11 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "asset": asset,
             "prodotto_chimico": asset.prodotto_chimico,
             "scheda_corrente": scheda_chimica,
-            "pittogrammi_clp": ghs.dettaglio(scheda_chimica.pittogrammi) if scheda_chimica else [],
+            # Senza SDS restano i pittogrammi dichiarati sul prodotto.
+            "pittogrammi_clp": (
+                ghs.dettaglio(asset.prodotto_chimico.pittogrammi_effettivi(scheda_chimica))
+                if asset.prodotto_chimico_id else []
+            ),
             "asset_completeness": asset.completeness(),
             "asset_status": asset_status,
             "recent_workorders": recent_workorders,
