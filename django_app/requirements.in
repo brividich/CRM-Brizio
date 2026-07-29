@@ -2,11 +2,11 @@
 # Dopo la modifica: pip-compile requirements.in -o requirements.txt --strip-extras --annotation-style=line
 
 # --- Framework principale ---
-Django>=5.2,<6.0
+Django>=5.2.16,<6.0
 waitress>=3.0,<4                # WSGI server per IIS via HttpPlatformHandler
 
 # --- Database ---
-mssql-django==1.6               # backend SQL Server; versione fissa per compat pyodbc
+mssql-django==1.7.3               # backend SQL Server; versione fissa per compat pyodbc
 pyodbc>=5.2.0                   # driver ODBC; 5.2+ richiesto per Python 3.11 su Windows
 
 # --- Auth / Identity ---
@@ -27,18 +27,18 @@ pymupdf>=1.28.0                   # rendering PDF->PNG (import slide e-learning 
 
 # --- Task queue ---
 django-q2>=1.7,<2               # code automazioni e task asincroni
-croniter>=2.0                   # richiesto da django-q2 per gli Schedule di tipo CRON (report scadenze)
+croniter>=6.2.4                   # richiesto da django-q2 per gli Schedule di tipo CRON (report scadenze)
 
 # --- Utilità runtime ---
 cachetools>=5.3                 # TTLCache per _SPNEGO_CONTEXTS
-Pillow>=12.0                    # elaborazione immagini (upload, fotocard)
+Pillow>=12.3.0                    # elaborazione immagini (upload, fotocard)
 
 # --- MIME validation (upload hardening) ---
 python-magic-bin>=0.4.14; platform_system=="Windows"
 python-magic>=0.4.14; platform_system!="Windows"
 
 # --- 2FA ---
-pyotp>=2.9                      # TOTP/HOTP per app authenticator
+pyotp>=2.10.0                      # TOTP/HOTP per app authenticator
 qrcode[pil]>=7.4                # generazione QR code (setup TOTP)
 
 # --- State machine / API (app gestione_specifiche) ---
