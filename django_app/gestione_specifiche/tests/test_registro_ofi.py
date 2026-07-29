@@ -265,6 +265,21 @@ class ReplicaMOD174Tests(RegistroBase):
         self.assertNotContains(resp, "ofi-fase")
         self.assertNotContains(resp, "ofi-pdca-current")
 
+    def test_lista_indicatore_pdca_compatto_in_testa(self):
+        """La tabella mostra, IN TESTA (senza scorrere fino alle colonne MOD.174 in
+        fondo), un indicatore compatto con TUTTE e quattro le tappe P/D/C/A."""
+        RegistroOFI.objects.create(
+            numero=R.prossimo_numero(), data_apertura=timezone.localdate(),
+            fase=RegistroOFI.FASE_CHECK, processo="Trattamenti")
+        resp = self.client.get(reverse("registro_ofi:lista"))
+        # classi con lo SPAZIO: compaiono solo negli attributi HTML delle celle,
+        # non nel CSS inline (che usa il punto), quindi il conteggio è pulito.
+        self.assertContains(resp, 'ofi-mini-s ofi-mini-', count=4)          # tutte e 4 le tappe P/D/C/A
+        # CHECK: P e D completate (2), C in corso (1) → 3 tappe raggiunte, A da fare
+        self.assertContains(resp, 'ofi-mini-s ofi-mini-done', count=2)
+        self.assertContains(resp, 'ofi-mini-s ofi-mini-current', count=1)
+        self.assertContains(resp, 'ofi-mini-s ofi-mini-todo', count=1)
+
     def test_lista_badge_ofi_giallo_nc_rosso(self):
         oggi = timezone.localdate()
         RegistroOFI.objects.create(numero=R.prossimo_numero(), data_apertura=oggi,
