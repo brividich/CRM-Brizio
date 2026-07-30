@@ -8,7 +8,9 @@ toccare il modello dati esistente:
 2. **sessione unica**: :func:`crea_sessione_unica` crea in un colpo solo sessione +
    giornate, così un corso "una tantum" non richiede tre passaggi separati;
 3. **calendario multi-giorno**: :func:`genera_lezioni` sforna una lezione per giorno
-   lavorativo dell'intervallo, con orari e pausa uguali per tutti;
+   lavorativo dell'intervallo, con orari e pausa uguali per tutti — filtrabile per
+   giorni della settimana (es. solo Mar e Gio) o sostituibile con un elenco di
+   date puntuali per calendari non regolari;
 4. **gruppi logistici**: :func:`dividi_in_gruppi` divide gli iscritti già presenti
    in una sessione fra più sessioni "gemelle" (stessa ``edizione``, ciascuna con la
    propria copia del programma) — il caso «10 iscritti, ma per l'aula si dividono
@@ -76,14 +78,29 @@ def ore_nette(ora_inizio: time, ora_fine: time, pausa_minuti: int = 0) -> float:
     return round(max(0, minuti - max(0, int(pausa_minuti or 0))) / 60, 2)
 
 
-def giorni_pianificabili(data_inizio: date, data_fine: date, salta_weekend: bool = True) -> list[date]:
-    """Giorni dell'intervallo (estremi inclusi), opzionalmente senza sabato/domenica."""
+def giorni_pianificabili(
+    data_inizio: date,
+    data_fine: date,
+    salta_weekend: bool = True,
+    giorni_settimana: set[int] | None = None,
+) -> list[date]:
+    """Giorni dell'intervallo (estremi inclusi).
+
+    Con ``giorni_settimana`` valorizzato (insieme di ``date.weekday()``, 0=lunedì
+    … 6=domenica) restano solo quei giorni della settimana — es. ``{1, 3}`` per un
+    corso che si tiene solo il martedì e il giovedì. Se ``None``, ripiega sul
+    comportamento storico: tutti i giorni, weekend escludibile con ``salta_weekend``.
+    """
     if data_fine < data_inizio:
         return []
     giorni: list[date] = []
     giorno = data_inizio
     while giorno <= data_fine:
-        if not (salta_weekend and giorno.weekday() >= 5):
+        if giorni_settimana is not None:
+            ammesso = giorno.weekday() in giorni_settimana
+        else:
+            ammesso = not (salta_weekend and giorno.weekday() >= 5)
+        if ammesso:
             giorni.append(giorno)
         giorno += timedelta(days=1)
     return giorni
@@ -97,12 +114,23 @@ def genera_lezioni(
     argomento: str = "",
     docente=None,
     salta_weekend: bool = True,
+    giorni_settimana: set[int] | None = None,
+    date_puntuali: list[date] | None = None,
     user=None,
 ) -> list[TrainingLesson]:
     """Crea una lezione per ogni giorno pianificabile della sessione.
 
+    Tre modalità, in ordine di priorità:
+
+    - ``date_puntuali``: elenco esplicito di date (calendario non regolare, es.
+      lezioni sparse su due mesi) — ignora l'intervallo e i giorni della settimana;
+    - ``giorni_settimana``: solo quei giorni della settimana dentro l'intervallo
+      della sessione (corso settimanale ricorrente, es. solo Mar+Gio);
+    - default: ogni giorno dell'intervallo, weekend escludibile con ``salta_weekend``
+      (comportamento storico).
+
     **Idempotente sui giorni**: salta le date che hanno già una lezione, così
-    rilanciare la generazione dopo aver allungato la sessione aggiunge solo i
+    rilanciare la generazione — anche con parametri diversi — aggiunge solo i
     giorni nuovi. La numerazione riparte dal massimo esistente.
     """
     esistenti = list(sessione.lezioni.all())
@@ -114,8 +142,15 @@ def genera_lezioni(
     if docente is None and sessione.docente_id:
         docente = sessione.docente
 
+    if date_puntuali:
+        giorni_da_creare = sorted(set(date_puntuali))
+    else:
+        giorni_da_creare = giorni_pianificabili(
+            sessione.data_inizio, sessione.data_fine, salta_weekend, giorni_settimana
+        )
+
     creati: list[TrainingLesson] = []
-    for giorno in giorni_pianificabili(sessione.data_inizio, sessione.data_fine, salta_weekend):
+    for giorno in giorni_da_creare:
         if giorno in date_occupate:
             continue
         numero += 1
@@ -138,7 +173,7 @@ def genera_lezioni(
 
 def crea_sessione_unica(
     corso,
-    data_inizio: date,
+    data_inizio: date | None,
     data_fine: date | None = None,
     ora_inizio: time | None = None,
     ora_fine: time | None = None,
@@ -147,6 +182,8 @@ def crea_sessione_unica(
     docente=None,
     modalita: str = "IN_SEDE",
     salta_weekend: bool = True,
+    giorni_settimana: set[int] | None = None,
+    date_puntuali: list[date] | None = None,
     genera_giornate: bool = True,
     user=None,
 ) -> TrainingSession:
@@ -154,7 +191,14 @@ def crea_sessione_unica(
 
     Pensata per il corso "una tantum" (una data, un'aula, un docente): evita il
     triplo passaggio corso → sessione → lezioni. Il codice edizione è automatico.
+
+    Con ``date_puntuali`` valorizzato, ``data_inizio``/``data_fine`` si ricavano
+    dal min/max delle date indicate (il chiamante non deve calcolarli a mano).
     """
+    if date_puntuali:
+        date_puntuali = sorted(set(date_puntuali))
+        data_inizio = date_puntuali[0]
+        data_fine = date_puntuali[-1]
     sessione = TrainingSession.objects.create(
         corso=corso,
         codice_sessione=genera_codice_sessione(corso),
@@ -176,6 +220,8 @@ def crea_sessione_unica(
             argomento=corso.titolo,
             docente=docente,
             salta_weekend=salta_weekend,
+            giorni_settimana=giorni_settimana,
+            date_puntuali=date_puntuali,
             user=user,
         )
     return sessione

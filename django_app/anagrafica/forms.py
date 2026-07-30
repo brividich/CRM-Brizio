@@ -701,6 +701,39 @@ class _TrainingOrarioMixin(forms.Form):
                 )
 
 
+GIORNI_SETTIMANA_CHOICES = [
+    ("0", "Lun"), ("1", "Mar"), ("2", "Mer"), ("3", "Gio"),
+    ("4", "Ven"), ("5", "Sab"), ("6", "Dom"),
+]
+_GIORNI_FERIALI = ["0", "1", "2", "3", "4"]
+
+
+def _parse_date_puntuali(testo: str) -> list:
+    """Converte «una data per riga» (gg/mm/aaaa, aaaa-mm-gg o gg-mm-aaaa) in date.
+
+    Righe vuote ignorate. Solleva ``ValueError`` col testo della riga incriminata,
+    così il chiamante può segnalare quale riga non si capisce.
+    """
+    import datetime as _dt
+
+    date_lista = []
+    for riga in (testo or "").splitlines():
+        riga = riga.strip()
+        if not riga:
+            continue
+        parsed = None
+        for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
+            try:
+                parsed = _dt.datetime.strptime(riga, fmt).date()
+                break
+            except ValueError:
+                continue
+        if parsed is None:
+            raise ValueError(riga)
+        date_lista.append(parsed)
+    return sorted(set(date_lista))
+
+
 class TrainingSessioneUnicaForm(_TrainingOrarioMixin):
     """Blocco «Programmazione» del wizard nuovo corso: la sessione unica.
 
@@ -737,9 +770,18 @@ class TrainingSessioneUnicaForm(_TrainingOrarioMixin):
         label="Docente", required=False, queryset=TrainingInstructor.objects.none(),
         widget=forms.Select(attrs=_FM_SELECT),
     )
-    salta_weekend = forms.BooleanField(
-        label="Salta sabato e domenica", required=False, initial=True,
-        widget=forms.CheckboxInput(attrs=_FM_CHECK),
+    giorni_settimana = forms.MultipleChoiceField(
+        label="Giorni della settimana", required=False, choices=GIORNI_SETTIMANA_CHOICES,
+        initial=_GIORNI_FERIALI,
+        help_text="Solo questi giorni, dentro l'intervallo sopra, generano una lezione — utile "
+                  "per un corso settimanale (es. solo Mar e Gio). Ignorato se compili «Date puntuali».",
+        widget=forms.CheckboxSelectMultiple,
+    )
+    date_puntuali = forms.CharField(
+        label="Date puntuali (facoltativo)", required=False,
+        help_text="Una data per riga (gg/mm/aaaa), per lezioni non consecutive: sostituisce "
+                  "l'intervallo e i giorni della settimana sopra.",
+        widget=forms.Textarea(attrs={**_FM, "rows": 3, "placeholder": "06/06/2026\n13/06/2026\n02/07/2026"}),
     )
     n_gruppi = forms.IntegerField(
         label="Numero di gruppi", required=False, initial=1, min_value=1, max_value=10,
@@ -758,15 +800,30 @@ class TrainingSessioneUnicaForm(_TrainingOrarioMixin):
         cd = super().clean()
         if not cd.get("pianifica"):
             return cd
-        if not cd.get("data_inizio"):
-            self.add_error("data_inizio", "Indica la data della sessione (o togli la spunta «Pianifica subito»).")
+        try:
+            cd["date_puntuali_lista"] = _parse_date_puntuali(cd.get("date_puntuali") or "")
+        except ValueError as exc:
+            self.add_error("date_puntuali", f"Data non valida: «{exc}». Usa il formato gg/mm/aaaa.")
+            cd["date_puntuali_lista"] = []
+        usa_date_puntuali = bool(cd["date_puntuali_lista"])
+        if not usa_date_puntuali and not cd.get("data_inizio"):
+            self.add_error(
+                "data_inizio",
+                "Indica la data della sessione, elenca le date puntuali, o togli la spunta «Pianifica subito».",
+            )
         if not cd.get("ora_inizio") or not cd.get("ora_fine"):
             self.add_error("ora_fine", "Indica l'orario della giornata (o togli la spunta «Pianifica subito»).")
         d_i, d_f = cd.get("data_inizio"), cd.get("data_fine")
-        if d_i and not d_f:
-            cd["data_fine"] = d_f = d_i
-        if d_i and d_f and d_f < d_i:
-            self.add_error("data_fine", "La data di fine non può essere precedente alla data di inizio.")
+        if not usa_date_puntuali:
+            if d_i and not d_f:
+                cd["data_fine"] = d_f = d_i
+            if d_i and d_f and d_f < d_i:
+                self.add_error("data_fine", "La data di fine non può essere precedente alla data di inizio.")
+            if not cd.get("giorni_settimana"):
+                self.add_error(
+                    "giorni_settimana",
+                    "Seleziona almeno un giorno della settimana, o elenca le date puntuali.",
+                )
         self._valida_orario(cd)
         return cd
 
@@ -795,9 +852,18 @@ class TrainingLezioniGeneraForm(_TrainingOrarioMixin):
         label="Docente", required=False, queryset=TrainingInstructor.objects.none(),
         widget=forms.Select(attrs=_FM_SELECT),
     )
-    salta_weekend = forms.BooleanField(
-        label="Salta sabato e domenica", required=False, initial=True,
-        widget=forms.CheckboxInput(attrs=_FM_CHECK),
+    giorni_settimana = forms.MultipleChoiceField(
+        label="Giorni della settimana", required=False, choices=GIORNI_SETTIMANA_CHOICES,
+        initial=_GIORNI_FERIALI,
+        help_text="Solo questi giorni, dentro l'intervallo già impostato sulla sessione, generano "
+                  "una lezione. Ignorato se compili «Date puntuali».",
+        widget=forms.CheckboxSelectMultiple,
+    )
+    date_puntuali = forms.CharField(
+        label="Date puntuali (facoltativo)", required=False,
+        help_text="Una data per riga (gg/mm/aaaa): aggiunge solo quelle giornate, anche fuori "
+                  "dall'intervallo attuale della sessione (che si allarga di conseguenza).",
+        widget=forms.Textarea(attrs={**_FM, "rows": 3, "placeholder": "06/06/2026\n13/06/2026"}),
     )
 
     def __init__(self, *args, **kwargs):
@@ -809,6 +875,16 @@ class TrainingLezioniGeneraForm(_TrainingOrarioMixin):
         cd = super().clean()
         if not cd.get("ora_inizio") or not cd.get("ora_fine"):
             raise forms.ValidationError("Indica l'orario di inizio e di fine della giornata-tipo.")
+        try:
+            cd["date_puntuali_lista"] = _parse_date_puntuali(cd.get("date_puntuali") or "")
+        except ValueError as exc:
+            self.add_error("date_puntuali", f"Data non valida: «{exc}». Usa il formato gg/mm/aaaa.")
+            cd["date_puntuali_lista"] = []
+        if not cd["date_puntuali_lista"] and not cd.get("giorni_settimana"):
+            self.add_error(
+                "giorni_settimana",
+                "Seleziona almeno un giorno della settimana, o elenca le date puntuali.",
+            )
         self._valida_orario(cd)
         return cd
 

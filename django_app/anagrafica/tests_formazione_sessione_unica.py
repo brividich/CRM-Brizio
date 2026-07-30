@@ -162,6 +162,11 @@ class GeneraLezioniTests(TestCase):
         tutti = giorni_pianificabili(date(2026, 9, 3), date(2026, 9, 8), salta_weekend=False)
         self.assertEqual(len(tutti), 6)
 
+    def test_giorni_pianificabili_con_giorni_settimana_specifici(self):
+        # 2026-09-03=giovedì(3) .. 2026-09-08=martedì(1): solo Mar+Gio nell'intervallo.
+        giorni = giorni_pianificabili(date(2026, 9, 3), date(2026, 9, 8), giorni_settimana={1, 3})
+        self.assertEqual(giorni, [date(2026, 9, 3), date(2026, 9, 8)])
+
     def test_genera_una_lezione_per_giorno_feriale(self):
         creati = genera_lezioni(self.sess, time(8, 0), time(17, 0), pausa_minuti=60)
         self.assertEqual(len(creati), 4)
@@ -185,6 +190,30 @@ class GeneraLezioniTests(TestCase):
         self.assertEqual(nuovi[0].data, date(2026, 9, 9))
         self.assertEqual(nuovi[0].numero, 5)
 
+    def test_genera_lezioni_con_giorni_settimana_specifici(self):
+        # Solo Gio(3): nell'intervallo 3-8/9 c'è solo il 3.
+        creati = genera_lezioni(self.sess, time(8, 0), time(17, 0), pausa_minuti=60, giorni_settimana={3})
+        self.assertEqual(len(creati), 1)
+        self.assertEqual(creati[0].data, date(2026, 9, 3))
+
+    def test_genera_lezioni_con_date_puntuali_ignora_intervallo_e_settimana(self):
+        # Le date puntuali possono anche cadere fuori dall'intervallo data_inizio/data_fine
+        # della sessione (qui si estende oltre l'8/9): genera_lezioni non lo impedisce.
+        date_scelte = [date(2026, 9, 3), date(2026, 9, 20)]
+        creati = genera_lezioni(
+            self.sess, time(8, 0), time(17, 0), pausa_minuti=60, date_puntuali=date_scelte,
+        )
+        self.assertEqual([lz.data for lz in creati], date_scelte)
+
+    def test_genera_lezioni_con_date_puntuali_resta_idempotente(self):
+        date_scelte = [date(2026, 9, 3), date(2026, 9, 20)]
+        genera_lezioni(self.sess, time(8, 0), time(17, 0), pausa_minuti=60, date_puntuali=date_scelte)
+        di_nuovo = genera_lezioni(
+            self.sess, time(8, 0), time(17, 0), pausa_minuti=60, date_puntuali=date_scelte,
+        )
+        self.assertEqual(di_nuovo, [])
+        self.assertEqual(self.sess.lezioni.count(), 2)
+
 
 class CreaSessioneUnicaTests(TestCase):
     def test_sessione_unica_di_un_giorno(self):
@@ -203,6 +232,19 @@ class CreaSessioneUnicaTests(TestCase):
         corso = _corso(codice="UNI-02")
         sess = crea_sessione_unica(corso, data_inizio=date(2026, 9, 10))
         self.assertEqual(sess.lezioni.count(), 0)
+
+    def test_sessione_con_date_puntuali_deriva_intervallo_dal_min_max(self):
+        corso = _corso(codice="UNI-03")
+        date_scelte = [date(2026, 9, 20), date(2026, 9, 6), date(2026, 9, 13)]
+        sess = crea_sessione_unica(
+            corso, data_inizio=None,
+            ora_inizio=time(8, 0), ora_fine=time(17, 0), pausa_minuti=60,
+            date_puntuali=date_scelte,
+        )
+        self.assertEqual(sess.data_inizio, date(2026, 9, 6))
+        self.assertEqual(sess.data_fine, date(2026, 9, 20))
+        self.assertEqual(sess.lezioni.count(), 3)
+        self.assertEqual([lz.data for lz in sess.lezioni.order_by("data")], sorted(date_scelte))
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
@@ -240,7 +282,7 @@ class CorsoCreateConSessioneUnicaTests(TestCase):
             "sess-pausa_minuti": "60",
             "sess-modalita": "IN_SEDE",
             "sess-sede": "Aula A",
-            "sess-salta_weekend": "on",
+            "sess-giorni_settimana": ["0", "1", "2", "3", "4"],
         })
         self.assertEqual(resp.status_code, 302)
         corso = TrainingCourse.objects.get(codice="WIZ-01")
@@ -251,6 +293,50 @@ class CorsoCreateConSessioneUnicaTests(TestCase):
         self.assertEqual(sess.ore_pianificate, 8.0)
         # Si atterra sulla sessione appena creata, non sul corso
         self.assertIn(f"/sessioni/{sess.pk}/", resp["Location"])
+
+    def test_corso_con_giorni_settimana_ristretti(self):
+        # 2026-09-01 (Mar) .. 2026-09-14 (Lun), solo Mar+Gio: 4 lezioni (1,3,8,10 sett.).
+        resp = self._post_corso(**{
+            "sess-pianifica": "on",
+            "sess-data_inizio": "2026-09-01",
+            "sess-data_fine": "2026-09-14",
+            "sess-ora_inizio": "08:00",
+            "sess-ora_fine": "17:00",
+            "sess-pausa_minuti": "60",
+            "sess-modalita": "IN_SEDE",
+            "sess-giorni_settimana": ["1", "3"],
+        })
+        self.assertEqual(resp.status_code, 302)
+        sess = TrainingCourse.objects.get(codice="WIZ-01").sessioni.get()
+        self.assertEqual(sess.lezioni.count(), 4)
+        self.assertEqual(sess.ore_pianificate, 32.0)
+
+    def test_corso_senza_giorni_settimana_ne_date_puntuali_blocca_il_salvataggio(self):
+        resp = self._post_corso(**{
+            "sess-pianifica": "on",
+            "sess-data_inizio": "2026-09-10",
+            "sess-ora_inizio": "08:00",
+            "sess-ora_fine": "17:00",
+            "sess-giorni_settimana": [],
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(TrainingCourse.objects.filter(codice="WIZ-01").exists())
+
+    def test_corso_con_date_puntuali_deriva_intervallo_e_ignora_giorni_settimana(self):
+        resp = self._post_corso(**{
+            "sess-pianifica": "on",
+            "sess-ora_inizio": "08:00",
+            "sess-ora_fine": "17:00",
+            "sess-pausa_minuti": "60",
+            "sess-giorni_settimana": [],
+            "sess-date_puntuali": "06/09/2026\n13/09/2026\n20/09/2026",
+        })
+        self.assertEqual(resp.status_code, 302)
+        corso = TrainingCourse.objects.get(codice="WIZ-01")
+        sess = corso.sessioni.get()
+        self.assertEqual(sess.data_inizio, date(2026, 9, 6))
+        self.assertEqual(sess.data_fine, date(2026, 9, 20))
+        self.assertEqual(sess.lezioni.count(), 3)
 
     def test_programmazione_senza_data_blocca_il_salvataggio(self):
         resp = self._post_corso(**{
@@ -282,7 +368,7 @@ class GeneraLezioniViewTests(TestCase):
         resp = self.client.post(
             reverse("anagrafica:formazione_lezioni_genera", args=[self.sess.pk]),
             {"ora_inizio": "08:00", "ora_fine": "17:00", "pausa_minuti": "60",
-             "salta_weekend": "on"},
+             "giorni_settimana": ["0", "1", "2", "3", "4"]},
         )
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(self.sess.lezioni.count(), 2)
@@ -294,6 +380,20 @@ class GeneraLezioniViewTests(TestCase):
             {"ora_inizio": "17:00", "ora_fine": "08:00", "pausa_minuti": "0"},
         )
         self.assertEqual(self.sess.lezioni.count(), 0)
+
+    def test_genera_con_date_puntuali_fuori_intervallo_allarga_la_sessione(self):
+        # La sessione nasce 3-4/9; una data puntuale al 20/9 è fuori range: la vista
+        # deve allargare sessione.data_fine per restare coerente con le lezioni create.
+        resp = self.client.post(
+            reverse("anagrafica:formazione_lezioni_genera", args=[self.sess.pk]),
+            {"ora_inizio": "08:00", "ora_fine": "17:00", "pausa_minuti": "60",
+             "date_puntuali": "20/09/2026"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.sess.refresh_from_db()
+        self.assertEqual(self.sess.lezioni.count(), 1)
+        self.assertEqual(self.sess.data_inizio, date(2026, 9, 3))
+        self.assertEqual(self.sess.data_fine, date(2026, 9, 20))
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
