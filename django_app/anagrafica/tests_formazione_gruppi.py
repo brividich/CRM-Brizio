@@ -257,7 +257,7 @@ class WizardCorsoConGruppiTests(TestCase):
             "sess-ora_fine": "17:00",
             "sess-pausa_minuti": "60",
             "sess-modalita": "IN_SEDE",
-            "sess-salta_weekend": "on",
+            "sess-giorni_settimana": ["0", "1", "2", "3", "4"],
             "sess-n_gruppi": "3",
         })
         self.assertEqual(resp.status_code, 302)
@@ -279,7 +279,7 @@ class WizardCorsoConGruppiTests(TestCase):
             "sess-ora_fine": "17:00",
             "sess-pausa_minuti": "60",
             "sess-modalita": "IN_SEDE",
-            "sess-salta_weekend": "on",
+            "sess-giorni_settimana": ["0", "1", "2", "3", "4"],
         })
         self.assertEqual(resp.status_code, 302)
         corso = TrainingCourse.objects.get(codice="WGR-02")

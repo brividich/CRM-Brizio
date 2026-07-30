@@ -11500,9 +11500,11 @@ def formazione_corso_create(request):
             if sess_form.cleaned_data.get("pianifica"):
                 from .services.formazione_pianificazione import crea_sessione_unica
                 cd = sess_form.cleaned_data
+                date_puntuali = cd.get("date_puntuali_lista") or []
+                giorni_settimana = None if date_puntuali else {int(g) for g in cd.get("giorni_settimana") or []}
                 sessione = crea_sessione_unica(
                     corso,
-                    data_inizio=cd["data_inizio"],
+                    data_inizio=cd.get("data_inizio"),
                     data_fine=cd.get("data_fine"),
                     ora_inizio=cd.get("ora_inizio"),
                     ora_fine=cd.get("ora_fine"),
@@ -11510,7 +11512,8 @@ def formazione_corso_create(request):
                     sede=cd.get("sede") or "",
                     docente=cd.get("docente"),
                     modalita=cd.get("modalita") or "IN_SEDE",
-                    salta_weekend=bool(cd.get("salta_weekend")),
+                    giorni_settimana=giorni_settimana,
+                    date_puntuali=date_puntuali or None,
                     user=request.user,
                 )
             if sessione is not None:
@@ -12430,9 +12433,10 @@ def formazione_lezione_delete(request, sessione_id: int, lezione_id: int):
 def formazione_lezioni_genera(request, sessione_id: int):
     """Genera in blocco le giornate della sessione con un orario-tipo comune.
 
-    Una lezione per ogni giorno dell'intervallo (weekend escludibile), pausa
-    scalata dalle ore formative. Salta i giorni che hanno già una lezione, così
-    si può rilanciare dopo aver allungato la sessione."""
+    Una lezione per ogni giorno dell'intervallo che cade nei giorni della
+    settimana selezionati (o per ogni data puntuale indicata), pausa scalata
+    dalle ore formative. Salta i giorni che hanno già una lezione, così si può
+    rilanciare dopo aver allungato la sessione."""
     if not _can_edit_formazione(request):
         messages.error(request, "Non hai i permessi per modificare sessioni formative.")
         return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
@@ -12446,6 +12450,8 @@ def formazione_lezioni_genera(request, sessione_id: int):
 
     from .services.formazione_pianificazione import genera_lezioni
     cd = form.cleaned_data
+    date_puntuali = cd.get("date_puntuali_lista") or []
+    giorni_settimana = None if date_puntuali else {int(g) for g in cd.get("giorni_settimana") or []}
     creati = genera_lezioni(
         sessione,
         ora_inizio=cd["ora_inizio"],
@@ -12453,9 +12459,22 @@ def formazione_lezioni_genera(request, sessione_id: int):
         pausa_minuti=cd.get("pausa_minuti") or 0,
         argomento=cd.get("argomento") or "",
         docente=cd.get("docente"),
-        salta_weekend=bool(cd.get("salta_weekend")),
+        giorni_settimana=giorni_settimana,
+        date_puntuali=date_puntuali or None,
         user=request.user,
     )
+    if date_puntuali:
+        # Date puntuali possono cadere fuori dall'intervallo attuale: lo si allarga
+        # per tenerlo coerente con le lezioni effettivamente a calendario.
+        aggiorna = {}
+        if min(date_puntuali) < sessione.data_inizio:
+            aggiorna["data_inizio"] = min(date_puntuali)
+        if max(date_puntuali) > sessione.data_fine:
+            aggiorna["data_fine"] = max(date_puntuali)
+        if aggiorna:
+            for campo, valore in aggiorna.items():
+                setattr(sessione, campo, valore)
+            sessione.save(update_fields=list(aggiorna.keys()))
     if creati:
         ore = round(sum(lz.durata_ore for lz in creati), 2)
         messages.success(
@@ -12466,8 +12485,8 @@ def formazione_lezioni_genera(request, sessione_id: int):
     else:
         messages.info(
             request,
-            "Nessuna giornata da generare: i giorni dell'intervallo hanno già una lezione "
-            "(o cadono tutti nel weekend).",
+            "Nessuna giornata da generare: i giorni scelti hanno già una lezione "
+            "(o non cadono nei giorni della settimana selezionati).",
         )
     return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
 

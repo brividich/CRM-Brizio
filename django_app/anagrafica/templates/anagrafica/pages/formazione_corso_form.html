@@ -133,8 +133,18 @@
                   {% include "anagrafica/partials/_fmd_field.html" with field=sess_form.docente full=1 %}
                   {% include "anagrafica/partials/_fmd_field.html" with field=sess_form.n_gruppi %}
                 </div>
-                <div class="fmd-checks" style="margin-top:10px;">
-                  {% include "anagrafica/partials/_fmd_field.html" with field=sess_form.salta_weekend %}
+                <div class="fmd-field fmd-col-full{% if sess_form.giorni_settimana.errors %} fmd-field-err{% endif %}" style="margin-top:10px;">
+                  <label>{{ sess_form.giorni_settimana.label }}</label>
+                  <div class="fmd-checks" style="flex-wrap:wrap;">
+                    {% for scelta in sess_form.giorni_settimana %}
+                      <label class="fmd-check">{{ scelta.tag }}<span>{{ scelta.choice_label }}</span></label>
+                    {% endfor %}
+                  </div>
+                  {% if sess_form.giorni_settimana.help_text %}<div class="fmd-fhelp">{{ sess_form.giorni_settimana.help_text }}</div>{% endif %}
+                  {% for err in sess_form.giorni_settimana.errors %}<div class="fmd-ferr">{{ err }}</div>{% endfor %}
+                </div>
+                <div class="fmd-stack" style="margin-top:10px;">
+                  {% include "anagrafica/partials/_fmd_field.html" with field=sess_form.date_puntuali full=1 %}
                 </div>
                 {% comment %}
                 Anteprima del calcolo: è il punto che l'utente sbaglia più spesso
@@ -285,7 +295,8 @@
 
   const dIni = q('data_inizio'), dFin = q('data_fine');
   const oIni = q('ora_inizio'),  oFin = q('ora_fine');
-  const pausa = q('pausa_minuti'), weekend = q('salta_weekend'), nGruppi = q('n_gruppi');
+  const pausa = q('pausa_minuti'), nGruppi = q('n_gruppi');
+  const datePuntuali = q('date_puntuali');
   const durata = document.querySelector('[name="durata_ore_teorica"]');
   const elearning = document.querySelector('[name="is_elearning"]');
 
@@ -293,16 +304,32 @@
     const m = /^(\d{1,2}):(\d{2})/.exec(v || '');
     return m ? (parseInt(m[1],10)*60 + parseInt(m[2],10)) : null;
   }
+  function giorniSettimanaScelti(){
+    const out = new Set();
+    document.querySelectorAll('input[name="sess-giorni_settimana"]:checked').forEach(function(el){
+      out.add(parseInt(el.value, 10));
+    });
+    return out;
+  }
+  function contaDatePuntuali(){
+    if (!datePuntuali) return 0;
+    return datePuntuali.value.split('\n').map(function(s){ return s.trim(); })
+      .filter(function(s){ return s.length > 0; }).length;
+  }
   function giornate(){
+    // Le date puntuali, se compilate, sostituiscono intervallo e giorni della settimana.
+    if (datePuntuali && datePuntuali.value.trim()) return contaDatePuntuali();
     if (!dIni || !dIni.value) return 0;
+    const ammessi = giorniSettimanaScelti();
+    if (!ammessi.size) return 0;
     const a = new Date(dIni.value + 'T00:00:00');
     const b = new Date(((dFin && dFin.value) || dIni.value) + 'T00:00:00');
     if (isNaN(a) || isNaN(b) || b < a) return 0;
     let n = 0;
     for (let d = new Date(a); d <= b; d.setDate(d.getDate() + 1)) {
-      const wd = d.getDay();
-      if (weekend && weekend.checked && (wd === 0 || wd === 6)) continue;
-      n++;
+      // JS getDay(): Dom=0…Sab=6. Python weekday(): Lun=0…Dom=6 (usato dai checkbox).
+      const wdPy = (d.getDay() + 6) % 7;
+      if (ammessi.has(wdPy)) n++;
     }
     return n;
   }
@@ -335,8 +362,11 @@
       durata.classList.add('fmd-autofill');
     }
   }
-  [pianifica, dIni, dFin, oIni, oFin, pausa, weekend, nGruppi].forEach(function(el){
+  [pianifica, dIni, dFin, oIni, oFin, pausa, nGruppi, datePuntuali].forEach(function(el){
     if (el) { el.addEventListener('change', aggiorna); el.addEventListener('input', aggiorna); }
+  });
+  document.querySelectorAll('input[name="sess-giorni_settimana"]').forEach(function(el){
+    el.addEventListener('change', aggiorna);
   });
   if (durata) durata.addEventListener('input', function(){ durata.classList.remove('fmd-autofill'); });
 

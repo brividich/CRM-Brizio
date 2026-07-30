@@ -192,9 +192,10 @@
     <div id="panel-genera-lezioni" style="display:none;padding:0 16px 16px;">
       <div style="font-size:12px;color:#64748b;margin-bottom:8px;">
         Crea una lezione per ogni giorno da <strong>{{ sessione.data_inizio|date:"d-m-Y" }}</strong>
-        a <strong>{{ sessione.data_fine|date:"d-m-Y" }}</strong> con lo stesso orario.
-        La <strong>pausa</strong> viene scalata dalle ore formative: 08:00–17:00 con 60′ di pausa
-        vale 8 ore, non 9. I giorni che hanno già una lezione vengono saltati.
+        a <strong>{{ sessione.data_fine|date:"d-m-Y" }}</strong> che cade nei giorni della settimana
+        scelti sotto (o per ogni data puntuale indicata). La <strong>pausa</strong> viene scalata
+        dalle ore formative: 08:00–17:00 con 60′ di pausa vale 8 ore, non 9. I giorni che hanno
+        già una lezione vengono saltati, quindi si può rilanciare più volte.
       </div>
       <form method="post" action="{% url 'anagrafica:formazione_lezioni_genera' sessione.pk %}"
             class="fm-inline-form" style="flex-direction:column;align-items:stretch;">
@@ -206,9 +207,21 @@
           <div class="fm-f" style="grid-column:1/3;"><label>Argomento</label>{{ genera_form.argomento }}</div>
           <div class="fm-f"><label>Docente</label>{{ genera_form.docente }}</div>
         </div>
-        <label class="fm-f" style="flex-direction:row;align-items:center;gap:8px;margin-top:10px;">
-          {{ genera_form.salta_weekend }} <span>Salta sabato e domenica</span>
-        </label>
+        <div class="fm-f" style="margin-top:10px;">
+          <label>{{ genera_form.giorni_settimana.label }}</label>
+          <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:4px;">
+            {% for scelta in genera_form.giorni_settimana %}
+              <label style="display:flex;align-items:center;gap:4px;font-weight:400;">{{ scelta.tag }}{{ scelta.choice_label }}</label>
+            {% endfor %}
+          </div>
+          {% if genera_form.giorni_settimana.errors %}<div style="color:#b91c1c;font-size:12px;">{{ genera_form.giorni_settimana.errors }}</div>{% endif %}
+        </div>
+        <div class="fm-f" style="margin-top:10px;">
+          <label>{{ genera_form.date_puntuali.label }}</label>
+          {{ genera_form.date_puntuali }}
+          <div style="font-size:11px;color:#94a3b8;margin-top:2px;">{{ genera_form.date_puntuali.help_text }}</div>
+          {% if genera_form.date_puntuali.errors %}<div style="color:#b91c1c;font-size:12px;">{{ genera_form.date_puntuali.errors }}</div>{% endif %}
+        </div>
         <div style="display:flex;justify-content:flex-end;margin-top:8px;">
           <button type="submit" class="hr-btn hr-btn-primary">⚡ Genera le giornate</button>
         </div>
