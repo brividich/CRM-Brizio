@@ -884,7 +884,7 @@ def _parse_csv_rows(content: str) -> tuple[list[dict], list[dict]]:
     rows: list[dict] = []
     errors: list[dict] = []
 
-    reader = csv.reader(io.StringIO(content))
+    reader = csv.reader(io.StringIO(content), delimiter=";")
     try:
         next(reader)  # salta intestazione
     except StopIteration:
