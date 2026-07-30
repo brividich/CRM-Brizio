@@ -6,6 +6,30 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 {% include "anagrafica/components/_fm_style.html" %}
+<style>
+/* Calendario multi-data (date puntuali, pannello "Genera giornate"): il
+   textarea sottostante resta come riepilogo/fallback compilabile a mano.
+   Scope su .inline: gli altri date-picker del portale sono popup, non li tocca. */
+.fm-f textarea.js-datepicker-multi{ min-height:0; max-height:60px; font-size:11.5px; }
+.flatpickr-calendar.inline{ margin-top:8px; box-shadow:none; border:1px solid #e2e8f0; border-radius:10px; }
+body.theme-dark .flatpickr-calendar.inline{ background:#0f172a; border-color:#334155; }
+body.theme-dark .flatpickr-calendar.inline .flatpickr-months,
+body.theme-dark .flatpickr-calendar.inline .flatpickr-innerContainer,
+body.theme-dark .flatpickr-calendar.inline .flatpickr-rContainer,
+body.theme-dark .flatpickr-calendar.inline .flatpickr-days,
+body.theme-dark .flatpickr-calendar.inline .flatpickr-weekdays,
+body.theme-dark .flatpickr-calendar.inline .dayContainer{ background:#0f172a; }
+body.theme-dark .flatpickr-calendar.inline .flatpickr-current-month,
+body.theme-dark .flatpickr-calendar.inline .flatpickr-weekday,
+body.theme-dark .flatpickr-calendar.inline .flatpickr-day,
+body.theme-dark .flatpickr-calendar.inline .numInput{ color:#e2e8f0; }
+body.theme-dark .flatpickr-calendar.inline .flatpickr-day.flatpickr-disabled,
+body.theme-dark .flatpickr-calendar.inline .flatpickr-day.prevMonthDay,
+body.theme-dark .flatpickr-calendar.inline .flatpickr-day.nextMonthDay{ color:#64748b; }
+body.theme-dark .flatpickr-calendar.inline .flatpickr-day:hover{ background:#1e293b; }
+body.theme-dark .flatpickr-calendar.inline .flatpickr-prev-month svg,
+body.theme-dark .flatpickr-calendar.inline .flatpickr-next-month svg{ fill:#e2e8f0; }
+</style>
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}

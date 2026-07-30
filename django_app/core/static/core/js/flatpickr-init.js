@@ -30,11 +30,36 @@
     }
   }
 
+  function initOneMulti(el) {
+    if (el.dataset.fpInit === "1" || typeof flatpickr === "undefined") return;
+    el.dataset.fpInit = "1";
+    try {
+      flatpickr(el, {
+        locale: flatpickr.l10ns && flatpickr.l10ns.it ? "it" : "default",
+        mode: "multiple",
+        dateFormat: "d/m/Y", // stesso formato accettato dal parser lato server
+        conjunction: "\n", // una data per riga, invariato per chi scrive a mano
+        inline: true,
+        allowInput: true,
+        // Flatpickr non genera un evento nativo sui click: lo simuliamo per chi
+        // ascolta "input"/"change" sul campo (es. l'anteprima ore del wizard).
+        onChange: function () {
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+          el.dispatchEvent(new Event("change", { bubbles: true }));
+        },
+      });
+    } catch (e) {
+      el.dataset.fpInit = "";
+    }
+  }
+
   function initAll(root) {
     if (typeof flatpickr === "undefined") return;
     var scope = root && root.querySelectorAll ? root : document;
     scope.querySelectorAll("input.js-datepicker, input.js-daterange").forEach(initOne);
     if (root && root.matches && root.matches("input.js-datepicker, input.js-daterange")) initOne(root);
+    scope.querySelectorAll("input.js-datepicker-multi, textarea.js-datepicker-multi").forEach(initOneMulti);
+    if (root && root.matches && root.matches("input.js-datepicker-multi, textarea.js-datepicker-multi")) initOneMulti(root);
   }
 
   document.addEventListener("DOMContentLoaded", function () {

@@ -61,6 +61,33 @@
 .fmd-check:has(input:checked){ border-color:var(--fmd-cyan,#1f87cd); background:rgba(31,135,205,.08); }
 .fmd-check input[type=checkbox], .fmd-check input[type=radio]{ width:16px; height:16px; margin:0; accent-color:var(--fmd-cyan,#1f87cd); flex:0 0 auto; }
 
+/* ── Calendario multi-data (date puntuali) ───────────────────
+   Flatpickr in mode:"multiple"+inline: il textarea sottostante resta come
+   riepilogo/fallback compilabile a mano (progressive enhancement, invariato
+   senza JS). Scope su .inline: gli altri date-picker del portale sono popup,
+   non vengono toccati. */
+.fmd-field textarea.js-datepicker-multi{ min-height:0; max-height:60px; font-family:var(--fmd-mono,ui-monospace,Consolas,monospace); font-size:11.5px; }
+.flatpickr-calendar.inline{ margin-top:8px; box-shadow:none; border:1px solid var(--fmd-line,#e7edf3); border-radius:10px; }
+body.theme-dark .flatpickr-calendar.inline{ background:var(--surface); border-color:var(--border); }
+body.theme-dark .flatpickr-calendar.inline .flatpickr-months,
+body.theme-dark .flatpickr-calendar.inline .flatpickr-innerContainer,
+body.theme-dark .flatpickr-calendar.inline .flatpickr-rContainer,
+body.theme-dark .flatpickr-calendar.inline .flatpickr-days,
+body.theme-dark .flatpickr-calendar.inline .flatpickr-weekdays,
+body.theme-dark .flatpickr-calendar.inline .dayContainer{ background:var(--surface); }
+body.theme-dark .flatpickr-calendar.inline .flatpickr-current-month,
+body.theme-dark .flatpickr-calendar.inline .flatpickr-weekday,
+body.theme-dark .flatpickr-calendar.inline .flatpickr-day{ color:var(--text); }
+body.theme-dark .flatpickr-calendar.inline .flatpickr-day.flatpickr-disabled,
+body.theme-dark .flatpickr-calendar.inline .flatpickr-day.prevMonthDay,
+body.theme-dark .flatpickr-calendar.inline .flatpickr-day.nextMonthDay{ color:var(--text-mid,#94a3b8); }
+body.theme-dark .flatpickr-calendar.inline .flatpickr-day:hover{ background:var(--surface-alt,#17222f); }
+body.theme-dark .flatpickr-calendar.inline .numInputWrapper span.arrowUp:after{ border-bottom-color:var(--text); }
+body.theme-dark .flatpickr-calendar.inline .numInputWrapper span.arrowDown:after{ border-top-color:var(--text); }
+body.theme-dark .flatpickr-calendar.inline .flatpickr-prev-month svg,
+body.theme-dark .flatpickr-calendar.inline .flatpickr-next-month svg{ fill:var(--text); }
+body.theme-dark .flatpickr-calendar.inline .numInput{ color:var(--text); }
+
 /* ── Footer azioni ────────────────────────────────────────── */
 .fmd-form-foot{ display:flex; align-items:center; justify-content:flex-end; gap:9px; padding:16px 22px; border-top:1px solid var(--fmd-line,#e7edf3); background:#fafbfd; }
 .fmd-form-foot .fmd-spacer{ flex:1; }

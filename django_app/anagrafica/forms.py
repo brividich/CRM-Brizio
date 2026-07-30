@@ -779,9 +779,12 @@ class TrainingSessioneUnicaForm(_TrainingOrarioMixin):
     )
     date_puntuali = forms.CharField(
         label="Date puntuali (facoltativo)", required=False,
-        help_text="Una data per riga (gg/mm/aaaa), per lezioni non consecutive: sostituisce "
-                  "l'intervallo e i giorni della settimana sopra.",
-        widget=forms.Textarea(attrs={**_FM, "rows": 3, "placeholder": "06/06/2026\n13/06/2026\n02/07/2026"}),
+        help_text="Clicca le giornate sul calendario (selezione multipla), per lezioni non "
+                  "consecutive: sostituisce l'intervallo e i giorni della settimana sopra.",
+        widget=forms.Textarea(attrs={
+            **_FM, "class": _FM["class"] + " js-datepicker-multi", "rows": 2,
+            "placeholder": "06/06/2026\n13/06/2026\n02/07/2026",
+        }),
     )
     n_gruppi = forms.IntegerField(
         label="Numero di gruppi", required=False, initial=1, min_value=1, max_value=10,
@@ -861,9 +864,12 @@ class TrainingLezioniGeneraForm(_TrainingOrarioMixin):
     )
     date_puntuali = forms.CharField(
         label="Date puntuali (facoltativo)", required=False,
-        help_text="Una data per riga (gg/mm/aaaa): aggiunge solo quelle giornate, anche fuori "
+        help_text="Clicca le giornate sul calendario: aggiunge solo quelle, anche fuori "
                   "dall'intervallo attuale della sessione (che si allarga di conseguenza).",
-        widget=forms.Textarea(attrs={**_FM, "rows": 3, "placeholder": "06/06/2026\n13/06/2026"}),
+        widget=forms.Textarea(attrs={
+            **_FM, "class": _FM["class"] + " js-datepicker-multi", "rows": 2,
+            "placeholder": "06/06/2026\n13/06/2026",
+        }),
     )
 
     def __init__(self, *args, **kwargs):
