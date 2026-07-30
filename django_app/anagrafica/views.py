@@ -47,6 +47,7 @@ from .forms import (
     TrainingCourseDependencyForm,
     TrainingCourseForm,
     TrainingCourseVersionForm,
+    TrainingDividiGruppiForm,
     TrainingEnrollmentEditForm,
     TrainingInstructorForm,
     TrainingLessonAttendanceForm,
@@ -11513,11 +11514,16 @@ def formazione_corso_create(request):
                     user=request.user,
                 )
             if sessione is not None:
+                n_gruppi = sess_form.cleaned_data.get("n_gruppi") or 1
+                if n_gruppi > 1:
+                    from .services.formazione_pianificazione import dividi_in_gruppi
+                    dividi_in_gruppi(sessione, n_gruppi=n_gruppi, user=request.user)
                 n_lez = sessione.lezioni.count()
+                extra_gruppi = f' in {n_gruppi} gruppi paralleli' if n_gruppi > 1 else ""
                 messages.success(
                     request,
-                    f'Corso "{corso.titolo}" creato con la sessione {sessione.codice_sessione} '
-                    f'({n_lez} giornat{"a" if n_lez == 1 else "e"}, {sessione.ore_pianificate:g} ore formative).',
+                    f'Corso "{corso.titolo}" creato con la sessione {sessione.codice_sessione}{extra_gruppi} '
+                    f'({n_lez} giornat{"a" if n_lez == 1 else "e"} a gruppo, {sessione.ore_pianificate:g} ore formative).',
                 )
                 return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione.pk)
             messages.success(request, f'Corso "{corso.titolo}" creato.')
@@ -12296,6 +12302,15 @@ def formazione_sessione_detail(request, sessione_id: int):
     ore_teoriche = float(sessione.corso.durata_ore_teorica or 0)
     ore_scostamento = round(ore_pianificate - ore_teoriche, 2) if ore_teoriche else 0.0
 
+    # Gruppi gemelli della stessa edizione (corso diviso per motivi logistici):
+    # ogni gruppo È una sessione a sé, l'edizione li tiene solo collegati in UI.
+    gruppi_gemelli = list(
+        sessione.sessioni_gemelle()
+        .select_related("docente")
+        .annotate(n_iscritti_gruppo=Count("iscrizioni", distinct=True))
+    )
+    dividi_form = TrainingDividiGruppiForm(initial={"n_gruppi": 2})
+
     return render(request, "anagrafica/pages/formazione_sessione_detail.html", {
         "sessione":     sessione,
         "lezioni":      lezioni,
@@ -12309,6 +12324,8 @@ def formazione_sessione_detail(request, sessione_id: int):
         "is_editor":    is_editor,
         "allegati_sessione": allegati_sessione,
         "ATTACH_TIPI":  TrainingAttachment.Tipo.choices,
+        "gruppi_gemelli": gruppi_gemelli,
+        "dividi_form":    dividi_form,
     })
 
 
@@ -12452,6 +12469,49 @@ def formazione_lezioni_genera(request, sessione_id: int):
             "Nessuna giornata da generare: i giorni dell'intervallo hanno già una lezione "
             "(o cadono tutti nel weekend).",
         )
+    return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+
+
+@login_required
+@require_POST
+def formazione_sessione_dividi_gruppi(request, sessione_id: int):
+    """Divide gli iscritti già presenti nella sessione in più gruppi logistici.
+
+    Caso reale: 10 iscritti su un'unica sessione, ma l'aula (o il turno) non li
+    contiene tutti insieme — servono 2 gruppi da 5, ciascuno con il proprio
+    calendario. Ogni gruppo È una sessione a sé (stesso corso, programma clonato);
+    l'``edizione`` è solo l'etichetta che li tiene collegati in UI. Vedi
+    services.formazione_pianificazione.dividi_in_gruppi."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare sessioni formative.")
+        return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+    sessione = get_object_or_404(TrainingSession.objects.select_related("corso"), pk=sessione_id)
+    form = TrainingDividiGruppiForm(request.POST)
+    if not form.is_valid():
+        for field_errors in form.errors.values():
+            for err in field_errors:
+                messages.error(request, err)
+        return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+
+    from .services.formazione_pianificazione import dividi_in_gruppi
+    cd = form.cleaned_data
+    try:
+        gruppi = dividi_in_gruppi(
+            sessione,
+            n_gruppi=cd["n_gruppi"],
+            edizione=cd.get("edizione") or "",
+            giorni_tra_gruppi=cd.get("giorni_tra_gruppi") or 0,
+            user=request.user,
+        )
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+
+    codici = ", ".join(g.codice_sessione for g in gruppi)
+    messages.success(
+        request,
+        f'Divisa in {len(gruppi)} gruppi (edizione «{gruppi[0].edizione}»): {codici}.',
+    )
     return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
 
 

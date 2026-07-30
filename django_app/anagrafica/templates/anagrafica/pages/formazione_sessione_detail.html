@@ -39,6 +39,12 @@
       <a href="{% url 'anagrafica:formazione_sessione_iscritti' sessione.pk %}" class="hr-btn hr-btn-ghost"
          title="Iscritti, presenze e attestati">👥 Iscritti & presenze</a>
       {% if is_editor %}
+      <button class="hr-btn hr-btn-ghost"
+              onclick="document.getElementById('panel-dividi-gruppi').style.display=
+                document.getElementById('panel-dividi-gruppi').style.display==='none'?'block':'none'"
+              title="Divide gli iscritti già presenti in più gruppi, ciascuno col proprio calendario">
+        ⑂ Dividi in gruppi
+      </button>
       <button class="hr-btn hr-btn-primary"
               onclick="document.getElementById('modal-edit-sessione').style.display='flex'">
         Modifica sessione
@@ -51,6 +57,56 @@
       {% endif %}
     </div>
   </div>
+
+  {# ── Edizione / gruppi gemelli: stesso corso erogato a più gruppi in parallelo ── #}
+  {% if sessione.edizione %}
+  <div class="hr-card" style="padding:12px 18px;margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+    <span class="fm-pill fm-pill-enrolled">Edizione: {{ sessione.edizione }}</span>
+    {% if gruppi_gemelli %}
+    <span class="muted" style="font-size:12px;">
+      Questo gruppo: {{ n_iscritti }} iscritt{{ n_iscritti|pluralize:"o,i" }} &nbsp;·&nbsp; altri gruppi:
+    </span>
+    {% for g in gruppi_gemelli %}
+    <a class="hr-btn hr-btn-sm hr-btn-outline" href="{% url 'anagrafica:formazione_sessione_detail' g.pk %}">
+      {{ g.codice_sessione }} <span class="muted">({{ g.n_iscritti_gruppo }} iscritt{{ g.n_iscritti_gruppo|pluralize:"o,i" }})</span>
+    </a>
+    {% endfor %}
+    {% else %}
+    <span class="muted" style="font-size:12px;">Nessun altro gruppo per ora in questa edizione.</span>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if is_editor %}
+  {# Divide gli iscritti già presenti fra N gruppi: ognuno diventa una sessione a
+     sé con il programma clonato. Blocca (messaggio d'errore) se ci sono già
+     presenze registrate — a quel punto spostare qualcuno romperebbe il registro. #}
+  <div id="panel-dividi-gruppi" class="hr-card fm-section" style="display:none;margin-bottom:16px;">
+    <div class="fm-section-head">
+      <div class="fm-section-title">⑂ Dividi in gruppi</div>
+    </div>
+    <div style="padding:8px 16px 4px;font-size:12px;color:#64748b;">
+      Utile quando l'aula (o il turno) non contiene tutti gli iscritti insieme: crea N−1 sessioni
+      gemelle con lo stesso programma di lezioni e vi sposta gli iscritti (a rotazione). Questa
+      sessione resta il primo gruppo. Va fatto <strong>prima</strong> di registrare le presenze.
+    </div>
+    <form method="post" action="{% url 'anagrafica:formazione_sessione_dividi_gruppi' sessione.pk %}"
+          class="fm-inline-form" style="flex-direction:column;align-items:stretch;padding:0 16px 16px;">
+      {% csrf_token %}
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+        <div class="fm-f"><label>Numero di gruppi *</label>{{ dividi_form.n_gruppi }}</div>
+        <div class="fm-f"><label>Edizione</label>{{ dividi_form.edizione }}</div>
+        <div class="fm-f"><label>Sfasamento (giorni)</label>{{ dividi_form.giorni_tra_gruppi }}</div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:8px;">
+        <button type="submit" class="hr-btn hr-btn-primary"
+                onclick="return confirm('Dividere gli iscritti attuali di questa sessione in più gruppi?')">
+          ⑂ Dividi
+        </button>
+      </div>
+    </form>
+  </div>
+  {% endif %}
 
   {# ── KPI mini ────────────────────────────────────────────────────────────── #}
   <div class="hr-metric-grid" style="margin-bottom:20px;">

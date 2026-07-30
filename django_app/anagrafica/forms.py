@@ -741,6 +741,13 @@ class TrainingSessioneUnicaForm(_TrainingOrarioMixin):
         label="Salta sabato e domenica", required=False, initial=True,
         widget=forms.CheckboxInput(attrs=_FM_CHECK),
     )
+    n_gruppi = forms.IntegerField(
+        label="Numero di gruppi", required=False, initial=1, min_value=1, max_value=10,
+        help_text="Più di 1 = il corso nasce già diviso in gruppi paralleli (stesso programma, "
+                  "iscritti separati) — utile quando l'aula non li contiene tutti insieme. "
+                  "Le date dei gruppi successivi si aggiustano dal dettaglio sessione.",
+        widget=forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "1", "max": "10"}),
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -804,6 +811,36 @@ class TrainingLezioniGeneraForm(_TrainingOrarioMixin):
             raise forms.ValidationError("Indica l'orario di inizio e di fine della giornata-tipo.")
         self._valida_orario(cd)
         return cd
+
+
+class TrainingDividiGruppiForm(forms.Form):
+    """Divide gli iscritti già presenti in una sessione fra più gruppi logistici.
+
+    Il caso che risolve: un corso apre con 10 iscritti su un'unica sessione, ma
+    l'aula (o il turno di lavoro) non li contiene tutti insieme — servono 2 gruppi
+    da 5, ciascuno con il proprio calendario. Vedi
+    ``services.formazione_pianificazione.dividi_in_gruppi``."""
+
+    n_gruppi = forms.IntegerField(
+        label="Numero di gruppi", min_value=2, max_value=10, initial=2,
+        widget=forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "2", "max": "10"}),
+    )
+    edizione = forms.CharField(
+        label="Edizione", required=False, max_length=80,
+        help_text="Etichetta che collega i gruppi (es. «2026 · 1° semestre»). Vuota = generata automaticamente.",
+        widget=forms.TextInput(attrs=_FM),
+    )
+    giorni_tra_gruppi = forms.IntegerField(
+        label="Sfasamento fra un gruppo e il successivo (giorni)", required=False, initial=0,
+        min_value=0, max_value=365,
+        help_text="0 = stesse date per tutti i gruppi (cambia solo aula/turno). "
+                  "Un valore > 0 sposta ogni gruppo successivo di quel numero di giorni "
+                  "rispetto al precedente, lezioni comprese.",
+        widget=forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "0"}),
+    )
+
+    def clean_edizione(self):
+        return (self.cleaned_data.get("edizione") or "").strip()
 
 
 class TrainingCompletamentoDirettoForm(forms.Form):
