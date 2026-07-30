@@ -1398,6 +1398,10 @@ class ChemicalAssetForm(forms.ModelForm):
     def save(self, commit=True):
         asset = super().save(commit=False)
         asset.asset_type = Asset.TYPE_CHEMICAL
+        if not asset.asset_category_id:
+            default_category = Asset.default_chemical_category()
+            if default_category:
+                asset.asset_category = default_category
         mode = self.cleaned_data.get("prodotto_mode")
         if mode == "new":
             prodotto = self.prodotto_form.save()

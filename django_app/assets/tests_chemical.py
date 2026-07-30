@@ -9,7 +9,7 @@ from anagrafica.models import Reparto
 from schede_sicurezza.models import ProdottoChimico
 
 from .forms import ChemicalAssetForm
-from .models import Asset
+from .models import Asset, AssetCategory
 from .tests import _complete_onboarding
 
 User = get_user_model()
@@ -90,6 +90,22 @@ class ChemicalAssetFormTests(TestCase):
             "name": "X", "status": Asset.STATUS_IN_STOCK, "prodotto_mode": "new",
         })
         self.assertFalse(form.is_valid())
+
+    def test_chemical_form_aggancia_la_categoria_prodotti_chimici(self):
+        """Senza categoria assegnata l'asset ricadeva sulla label del tipo
+        ("Prodotto chimico", singolare) invece della vera AssetCategory."""
+        categoria = AssetCategory.objects.create(
+            code="prodotti-chimici", label="Prodotti chimici", base_asset_type=Asset.TYPE_CHEMICAL,
+        )
+        rep = Reparto.objects.create(nome="Chimica")
+        form = ChemicalAssetForm(data={
+            "name": "Acetone", "status": Asset.STATUS_IN_STOCK,
+            "prodotto_mode": "new", "pc-nome": "Acetone 99%", "pc-reparto": rep.id,
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+        asset = form.save()
+        self.assertEqual(asset.asset_category_id, categoria.id)
+        self.assertEqual(asset.category_label, "Prodotti chimici")
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)

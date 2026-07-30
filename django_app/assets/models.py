@@ -137,6 +137,20 @@ class Asset(models.Model):
         label = self.category_label
         return label[:1].upper() if label else "A"
 
+    @classmethod
+    def default_chemical_category(cls) -> "AssetCategory | None":
+        """Categoria asset da agganciare agli asset di tipo "Prodotto chimico".
+
+        Senza asset_category, category_label ricade su get_asset_type_display()
+        (l'etichetta del tipo, es. "Prodotto chimico" al singolare) invece della
+        categoria reale creata in "Impostazioni asset" (es. "Prodotti chimici").
+        """
+        return (
+            AssetCategory.objects.filter(is_active=True, base_asset_type=cls.TYPE_CHEMICAL)
+            .order_by("sort_order", "label", "id")
+            .first()
+        )
+
     def _asset_tag_prefix(self) -> str:
         if self.asset_type in {
             self.TYPE_PC,

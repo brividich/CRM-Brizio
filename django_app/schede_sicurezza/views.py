@@ -225,6 +225,7 @@ def prodotto_form(request, pk: int | None = None):
                     name=prodotto.nome,
                     asset_type=Asset.TYPE_CHEMICAL,
                     prodotto_chimico=prodotto,
+                    asset_category=Asset.default_chemical_category(),
                 )
 
             messages.success(request, "Prodotto salvato.")
