@@ -108,7 +108,7 @@ class Command(BaseCommand):
         errors = []
 
         with open(csv_path, encoding="utf-8-sig", newline="") as f:
-            reader = csv.reader(f)
+            reader = csv.reader(f, delimiter=";")
             header = next(reader)  # salta intestazione
             self.stdout.write(f"Colonne trovate: {len(header)}")
 
