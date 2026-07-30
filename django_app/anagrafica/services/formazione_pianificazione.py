@@ -1,17 +1,30 @@
 """Pianificazione sessioni e lezioni della formazione HR — NOVICROM HUB.
 
-Tre attriti storici del flusso «nuovo corso» si risolvono qui, senza toccare il
-modello dati esistente:
+Quattro attriti storici del flusso «nuovo corso» si risolvono qui, senza
+toccare il modello dati esistente:
 
 1. **codice sessione a mano**: :func:`genera_codice_sessione` lo deriva dal codice
    corso (``<CORSO>-E1``, ``-E2``, …), come già si fa per il codice corso dal piano;
 2. **sessione unica**: :func:`crea_sessione_unica` crea in un colpo solo sessione +
    giornate, così un corso "una tantum" non richiede tre passaggi separati;
 3. **calendario multi-giorno**: :func:`genera_lezioni` sforna una lezione per giorno
-   lavorativo dell'intervallo, con orari e pausa uguali per tutti.
+   lavorativo dell'intervallo, con orari e pausa uguali per tutti;
+4. **gruppi logistici**: :func:`dividi_in_gruppi` divide gli iscritti già presenti
+   in una sessione fra più sessioni "gemelle" (stessa ``edizione``, ciascuna con la
+   propria copia del programma) — il caso «10 iscritti, ma per l'aula si dividono
+   in 2 gruppi da 5» senza inventare un'entità nuova nel modello dati.
 
 Le ore **formative** sono sempre al netto della pausa (vedi
 ``TrainingLesson.durata_ore``): 08:00–17:00 con 60′ di pausa = 8 ore.
+
+**Perché "gruppo" non è un modello nuovo.** Ogni gruppo logistico È una
+``TrainingSession`` con le proprie lezioni: il denominatore della percentuale di
+presenza (``_calcola_percentuale_presenza`` in ``views.py``) è già scoped sulle
+lezioni della sessione dell'iscritto, quindi resta corretto per costruzione anche
+quando un corso viene erogato a più gruppi — non serve toccare quel calcolo.
+``edizione`` è solo l'etichetta che tiene insieme i gruppi della stessa erogazione
+per la UI (di rado quella tenuta separata in ``TrainingEnrollmentLesson``, i
+"turni" mattina/pomeriggio sulla STESSA sessione, che restano un caso diverso).
 """
 from __future__ import annotations
 
@@ -25,6 +38,7 @@ __all__ = [
     "giorni_pianificabili",
     "genera_lezioni",
     "crea_sessione_unica",
+    "dividi_in_gruppi",
 ]
 
 
@@ -165,3 +179,102 @@ def crea_sessione_unica(
             user=user,
         )
     return sessione
+
+
+def dividi_in_gruppi(
+    sessione_sorgente: TrainingSession,
+    n_gruppi: int,
+    edizione: str = "",
+    giorni_tra_gruppi: int = 0,
+    user=None,
+) -> list[TrainingSession]:
+    """Divide gli iscritti già presenti in ``sessione_sorgente`` fra ``n_gruppi`` sessioni.
+
+    Caso reale: un corso apre con 10 iscritti su un'unica sessione, ma per motivi
+    logistici (aula, turni di lavoro) va erogato a **2 gruppi da 5**, ciascuno con
+    il proprio calendario di lezioni. Non serve un'entità "gruppo" nel modello: si
+    creano ``n_gruppi - 1`` sessioni gemelle che clonano il programma di lezioni
+    della sorgente (stesso orario/pausa/docente/argomento; la data si sposta di
+    ``giorni_tra_gruppi × indice`` — 0 = stesse date, utile se i gruppi cambiano
+    solo aula o turno) e vi si spostano gli iscritti del proprio gruppo
+    (round-robin sull'elenco ordinato per ``legacy_anagrafica_id``).
+
+    La sessione sorgente **resta il primo gruppo**: non viene ricreata, i suoi
+    iscritti del bucket 0 restano lì. Tutte le sessioni risultanti condividono
+    ``edizione`` (etichetta esplicita, o quella già sulla sorgente, o generata
+    automaticamente) così restano collegate in UI (:meth:`TrainingSession.sessioni_gemelle`).
+
+    Solleva ``ValueError`` se la sorgente ha già presenze registrate: spostare un
+    iscritto dopo che ha firmato una lezione lo scollegherebbe dal proprio
+    registro. Va quindi usata **prima** di iniziare le lezioni, appena si sa come
+    si dividono i gruppi — non a corso già partito.
+    """
+    from ..models_formazione import TrainingEnrollment, TrainingEnrollmentLesson, TrainingLessonAttendance
+
+    n_gruppi = int(n_gruppi)
+    if n_gruppi < 2:
+        raise ValueError("Servono almeno 2 gruppi per dividere una sessione.")
+
+    if TrainingLessonAttendance.objects.filter(lezione__sessione=sessione_sorgente).exists():
+        raise ValueError(
+            "Questa sessione ha già presenze registrate: dividerla ora sposterebbe "
+            "iscritti su lezioni diverse da quelle in cui sono stati firmati presenti. "
+            "Dividi i gruppi prima di iniziare a registrare le presenze."
+        )
+
+    corso = sessione_sorgente.corso
+    etichetta = (edizione or "").strip() or sessione_sorgente.edizione or (
+        f"{corso.codice} · gruppi {date.today():%d-%m-%Y}"
+    )
+    if sessione_sorgente.edizione != etichetta:
+        sessione_sorgente.edizione = etichetta[:80]
+        sessione_sorgente.save(update_fields=["edizione"])
+
+    lezioni_sorgente = list(sessione_sorgente.lezioni.order_by("data", "ora_inizio"))
+    iscrizioni = list(
+        TrainingEnrollment.objects.filter(sessione=sessione_sorgente)
+        .order_by("legacy_anagrafica_id")
+    )
+    # Bucket 0 = resta sulla sorgente; i successivi vanno ai gruppi nuovi.
+    secchi: list[list[TrainingEnrollment]] = [[] for _ in range(n_gruppi)]
+    for i, iscrizione in enumerate(iscrizioni):
+        secchi[i % n_gruppi].append(iscrizione)
+
+    gruppi = [sessione_sorgente]
+    for indice in range(1, n_gruppi):
+        offset = timedelta(days=giorni_tra_gruppi * indice)
+        nuovo = TrainingSession.objects.create(
+            corso=corso,
+            codice_sessione=genera_codice_sessione(corso),
+            stato="PIANIFICATA",
+            modalita=sessione_sorgente.modalita,
+            data_inizio=sessione_sorgente.data_inizio + offset,
+            data_fine=sessione_sorgente.data_fine + offset,
+            sede=sessione_sorgente.sede,
+            docente=sessione_sorgente.docente,
+            docente_nome=sessione_sorgente.docente_nome,
+            edizione=etichetta[:80],
+            created_by=user,
+        )
+        for lz in lezioni_sorgente:
+            TrainingLesson.objects.create(
+                sessione=nuovo,
+                numero=lz.numero,
+                data=lz.data + offset,
+                ora_inizio=lz.ora_inizio,
+                ora_fine=lz.ora_fine,
+                pausa_minuti=lz.pausa_minuti,
+                argomento=lz.argomento,
+                docente=lz.docente,
+                docente_nome=lz.docente_nome,
+                updated_by=user,
+            )
+        for iscrizione in secchi[indice]:
+            # I turni erano riferiti alle lezioni della sorgente: non hanno più senso
+            # sul nuovo gruppo (invariante lezione.sessione_id == enrollment.sessione_id).
+            TrainingEnrollmentLesson.objects.filter(enrollment=iscrizione).delete()
+            iscrizione.sessione = nuovo
+            iscrizione.save(update_fields=["sessione"])
+        gruppi.append(nuovo)
+
+    return gruppi

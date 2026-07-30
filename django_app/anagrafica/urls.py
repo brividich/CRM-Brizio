@@ -377,6 +377,8 @@ urlpatterns = [
     path("formazione/sessioni/<int:sessione_id>/lezioni/add", views.formazione_lezione_add, name="formazione_lezione_add"),
     # Generatore giornate: una lezione per giorno dell'intervallo, orario-tipo comune
     path("formazione/sessioni/<int:sessione_id>/lezioni/genera", views.formazione_lezioni_genera, name="formazione_lezioni_genera"),
+    # Divide gli iscritti già presenti in più gruppi logistici (edizione condivisa)
+    path("formazione/sessioni/<int:sessione_id>/dividi-gruppi", views.formazione_sessione_dividi_gruppi, name="formazione_sessione_dividi_gruppi"),
     path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/modifica", views.formazione_lezione_edit, name="formazione_lezione_edit"),
     path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/elimina", views.formazione_lezione_delete, name="formazione_lezione_delete"),
     # Presenze per lezione

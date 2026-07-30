@@ -364,6 +364,7 @@
       <thead>
         <tr>
           <th data-col="codice" data-col-label="Codice" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Codice</th>
+          <th data-col="edizione" data-col-label="Edizione" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Edizione</th>
           <th data-col="inizio" data-col-label="Inizio" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Data inizio</th>
           <th data-col="fine" data-col-label="Fine" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Data fine</th>
           <th data-col="modalita" data-col-label="Modalità" data-col-type="select"
@@ -384,6 +385,7 @@
           <td class="mono">
             <a class="fm-link" href="{% url 'anagrafica:formazione_sessione_detail' s.pk %}">{{ s.codice_sessione }}</a>
           </td>
+          <td class="muted">{{ s.edizione|default:"—" }}</td>
           <td class="nowrap">{{ s.data_inizio|date:"d-m-Y" }}</td>
           <td class="nowrap muted">{{ s.data_fine|date:"d-m-Y" }}</td>
           <td class="muted">{{ s.get_modalita_display }}</td>

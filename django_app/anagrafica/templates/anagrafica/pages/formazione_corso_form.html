@@ -104,7 +104,7 @@
               <span class="kp-num">4</span>
               <div class="kp-station-titles">
                 <h3>Programmazione (facoltativa)</h3>
-                <p>Il corso può nascere già con la sua unica edizione a calendario.</p>
+                <p>Il corso può nascere già con la sua sessione a calendario — anche divisa in più gruppi.</p>
               </div>
             </div>
             <div class="kp-body">
@@ -127,12 +127,15 @@
                   {% include "anagrafica/partials/_fmd_field.html" with field=sess_form.modalita %}
                   {% include "anagrafica/partials/_fmd_field.html" with field=sess_form.sede full=1 %}
                   {% include "anagrafica/partials/_fmd_field.html" with field=sess_form.docente full=1 %}
+                  {% include "anagrafica/partials/_fmd_field.html" with field=sess_form.n_gruppi %}
                 </div>
                 <div class="fmd-checks" style="margin-top:10px;">
                   {% include "anagrafica/partials/_fmd_field.html" with field=sess_form.salta_weekend %}
                 </div>
                 {# Anteprima del calcolo: è il punto che l'utente sbaglia più spesso
-                   (08:00–17:00 non sono 9 ore formative se c'è un'ora di pausa). #}
+                   (08:00–17:00 non sono 9 ore formative se c'è un'ora di pausa). Con più
+                   di un gruppo, il totale "ore formative" resta quello DI UN GRUPPO — ogni
+                   iscritto fa comunque il programma per intero, i gruppi lo erogano in parallelo. #}
                 <div class="kp-help" id="sess-riepilogo" style="margin-top:12px;font-weight:600;"></div>
               </div>
             </div>
@@ -276,7 +279,7 @@
 
   const dIni = q('data_inizio'), dFin = q('data_fine');
   const oIni = q('ora_inizio'),  oFin = q('ora_fine');
-  const pausa = q('pausa_minuti'), weekend = q('salta_weekend');
+  const pausa = q('pausa_minuti'), weekend = q('salta_weekend'), nGruppi = q('n_gruppi');
   const durata = document.querySelector('[name="durata_ore_teorica"]');
   const elearning = document.querySelector('[name="is_elearning"]');
 
@@ -310,20 +313,23 @@
     const oreGiorno = Math.max(0, (mf - mi - pz)) / 60;
     const n = giornate();
     const tot = Math.round(oreGiorno * n * 100) / 100;
+    const gruppi = Math.max(1, parseInt((nGruppi && nGruppi.value) || '1', 10) || 1);
     if (riepilogo) {
       riepilogo.textContent =
         n + (n === 1 ? ' giornata' : ' giornate') + ' × ' +
         (Math.round(oreGiorno*100)/100) + 'h formative' +
         (pz ? ' (pausa ' + pz + '′ già scalata)' : '') +
-        ' = ' + tot + ' ore totali.';
+        ' = ' + tot + ' ore totali' +
+        (gruppi > 1 ? ' per ciascuno dei ' + gruppi + ' gruppi (stesso programma, iscritti separati).' : '.');
     }
-    // Preimposta la durata teorica solo se l'utente non l'ha ancora toccata.
+    // Preimposta la durata teorica solo se l'utente non l'ha ancora toccata: resta
+    // quella DI UN GRUPPO, non si moltiplica per il numero di gruppi paralleli.
     if (durata && tot > 0 && !String(durata.value || '').trim()) {
       durata.value = tot;
       durata.classList.add('fmd-autofill');
     }
   }
-  [pianifica, dIni, dFin, oIni, oFin, pausa, weekend].forEach(function(el){
+  [pianifica, dIni, dFin, oIni, oFin, pausa, weekend, nGruppi].forEach(function(el){
     if (el) { el.addEventListener('change', aggiorna); el.addEventListener('input', aggiorna); }
   });
   if (durata) durata.addEventListener('input', function(){ durata.classList.remove('fmd-autofill'); });

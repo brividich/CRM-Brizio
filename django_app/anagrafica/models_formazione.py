@@ -608,6 +608,13 @@ class TrainingSession(models.Model):
     data_inizio     = models.DateField()
     data_fine       = models.DateField()
     sede            = models.CharField(max_length=200, blank=True, help_text="Aula, indirizzo o link remoto")
+    edizione        = models.CharField(
+        max_length=80, blank=True, default="", db_index=True,
+        help_text="Etichetta libera che collega più sessioni della stessa erogazione del corso: "
+                  "un corso diviso in più gruppi per motivi logistici (stesso programma, iscritti "
+                  "diversi), o lo stesso corso ripetuto nel tempo. Vuota = sessione autonoma, "
+                  "non collegata ad altre. Vedi services.formazione_pianificazione.dividi_in_gruppi.",
+    )
     docente         = models.ForeignKey(
         TrainingInstructor, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="sessioni",
@@ -628,12 +635,27 @@ class TrainingSession(models.Model):
         indexes = [
             models.Index(fields=["corso", "stato"]),
             models.Index(fields=["data_inizio", "data_fine"]),
+            models.Index(fields=["corso", "edizione"]),
         ]
 
     @property
     def ore_pianificate(self) -> float:
         """Monte ore formative della sessione = somma delle durate nette delle lezioni."""
         return round(sum(lz.durata_ore for lz in self.lezioni.all()), 2)
+
+    def sessioni_gemelle(self):
+        """Le altre sessioni della stessa ``edizione`` (stesso corso), sé esclusa.
+
+        Vuoto se la sessione non appartiene a un'edizione, o se è l'unico gruppo.
+        Ordinate per data così l'ordinale "Gruppo N" mostrato in UI è stabile.
+        """
+        if not self.edizione:
+            return TrainingSession.objects.none()
+        return (
+            TrainingSession.objects.filter(corso_id=self.corso_id, edizione=self.edizione)
+            .exclude(pk=self.pk)
+            .order_by("data_inizio", "id")
+        )
 
     def __str__(self) -> str:
         return f"[{self.codice_sessione}] {self.corso.titolo} — {self.data_inizio}"
