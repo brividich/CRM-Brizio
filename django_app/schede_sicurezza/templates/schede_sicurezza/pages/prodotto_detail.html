@@ -59,8 +59,10 @@
         <div style="color:#94a3b8;font-size:13px;">Nessuna scheda caricata.</div>
       {% endif %}
 
-      {# Fuori dal ramo "scheda corrente": i simboli dichiarati sul prodotto
-         valgono anche prima che la SDS venga caricata. #}
+      {% comment %}
+      Fuori dal ramo "scheda corrente": i simboli dichiarati sul prodotto
+      valgono anche prima che la SDS venga caricata.
+      {% endcomment %}
       <div style="margin-top:12px;">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b;margin-bottom:6px;">Pittogrammi di pericolo</div>
         <div class="ssp-vista">

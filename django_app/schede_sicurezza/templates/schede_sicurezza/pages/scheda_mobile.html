@@ -38,8 +38,10 @@ body.theme-dark .ss-mobile-section-title { color:var(--text-mid); }
   {% if pittogrammi %}
     <div class="ss-mobile-card">
       <div class="ss-mobile-section-title">Pittogrammi</div>
-      {# A 64px il rombo resta leggibile a braccio teso, che e' come si guarda
-         questa pagina: telefono in mano davanti al contenitore. #}
+      {% comment %}
+      A 64px il rombo resta leggibile a braccio teso, che e' come si guarda
+      questa pagina: telefono in mano davanti al contenitore.
+      {% endcomment %}
       <div class="ss-pitto-grid">
         {% include "schede_sicurezza/partials/_pittogrammi.html" with pittogrammi=pittogrammi size=64 %}
       </div>

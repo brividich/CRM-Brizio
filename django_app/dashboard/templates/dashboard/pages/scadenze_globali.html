@@ -1,16 +1,16 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{# ===================================================================
-   scadenze_globali.html — Scadenzario Globale Unificato.
-   Context (vedi dashboard/views_scadenze.py):
-     page_obj        Page[ScadenzaItem]
-     totale          int
-     n_scadute/n_30gg/n_60gg  int
-     reparti         list[str]
-     sorgenti        list[(code,label)]
-     filtro_sorgente/filtro_stato/filtro_reparto  str
-   =================================================================== #}
+{% comment %}
+scadenze_globali.html — Scadenzario Globale Unificato.
+Context (vedi dashboard/views_scadenze.py):
+  page_obj        Page[ScadenzaItem]
+  totale          int
+  n_scadute/n_30gg/n_60gg  int
+  reparti         list[str]
+  sorgenti        list[(code,label)]
+  filtro_sorgente/filtro_stato/filtro_reparto  str
+{% endcomment %}
 
 {% block title %}Scadenzario globale · {{ block.super }}{% endblock %}
 

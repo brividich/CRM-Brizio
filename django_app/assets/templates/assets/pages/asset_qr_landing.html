@@ -291,10 +291,12 @@
     </div>
   </div>
 
-  {# Documenti — visibili anche dal QR pubblico (funzione voluta: il tecnico in
-     officina legge manuali e schede dal QR sulla macchina). I file NON sono
-     serviti da /media/: il link e' sempre una view Django, a token quando il
-     visitatore e' anonimo. La cartella SharePoint resta ai soli autenticati. #}
+  {% comment %}
+  Documenti — visibili anche dal QR pubblico (funzione voluta: il tecnico in
+  officina legge manuali e schede dal QR sulla macchina). I file NON sono
+  serviti da /media/: il link e' sempre una view Django, a token quando il
+  visitatore e' anonimo. La cartella SharePoint resta ai soli autenticati.
+  {% endcomment %}
   <div class="qrl-card">
     <div class="qrl-card-title">Documenti{% if asset_documents %} ({{ asset_documents|length }}){% endif %}</div>
     <div class="qrl-card-body">

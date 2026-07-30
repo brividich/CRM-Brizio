@@ -1,7 +1,9 @@
 {% extends "core/base.html" %}
 
-{# capa_form.html — Crea/Modifica azione CAPA.
-   Context: form, is_edit, torna, source_code/source_pk/source_label/source_url (solo create). #}
+{% comment %}
+capa_form.html — Crea/Modifica azione CAPA.
+Context: form, is_edit, torna, source_code/source_pk/source_label/source_url (solo create).
+{% endcomment %}
 
 {% block title %}{% if is_edit %}Modifica CAPA #{{ a.pk }}{% else %}Nuova azione CAPA{% endif %} · {{ block.super }}{% endblock %}
 

@@ -1,7 +1,9 @@
-{# Una riga (form) del formset MOD.133 — card design HUB. Usato anche per
-   l'empty_form (HTMX add): __prefix__ è sostituito lato server con l'indice.
-   #7: le righe GIA' SALVATE (form.instance.pk) partono COMPRESSE (sommario cliccabile);
-   le righe nuove partono espanse. I campi restano nel DOM anche se compressi (si inviano). #}
+{% comment %}
+Una riga (form) del formset MOD.133 — card design HUB. Usato anche per
+l'empty_form (HTMX add): __prefix__ è sostituito lato server con l'indice.
+#7: le righe GIA' SALVATE (form.instance.pk) partono COMPRESSE (sommario cliccabile);
+le righe nuove partono espanse. I campi restano nel DOM anche se compressi (si inviano).
+{% endcomment %}
 <div class="gs-row133 gs-riga{% if form.instance.pk %} is-collapsed{% endif %}" data-riga>
   {{ form.id }}{{ form.ordine }}
 

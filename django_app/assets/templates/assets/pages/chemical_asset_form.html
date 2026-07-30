@@ -61,8 +61,10 @@
         <div class="as-help" style="margin-top:4px;">L'anagrafica chimica (SDS, DPI, classificazione) si gestisce in Schede di sicurezza.</div>
       </div>
 
-      {# Stesso blocco anagrafico della schermata "Schede di sicurezza": un solo
-         file, quindi i due form non possono chiedere cose diverse. #}
+      {% comment %}
+      Stesso blocco anagrafico della schermata "Schede di sicurezza": un solo
+      file, quindi i due form non possono chiedere cose diverse.
+      {% endcomment %}
       <div data-chem-block="new" class="pc-flat" style="margin-top:12px;" hidden>
         {% include "schede_sicurezza/partials/_prodotto_fields.html" with pcform=form.prodotto_form %}
       </div>

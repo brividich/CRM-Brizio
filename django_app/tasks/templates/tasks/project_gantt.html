@@ -1,7 +1,9 @@
 {% extends "tasks/base_shell.html" %}
 
-{# Larghezza piena per il Gantt (opt-in, senza toccare il core): la regola
-   body.tk-wide .content sta in tasks.css. #}
+{% comment %}
+Larghezza piena per il Gantt (opt-in, senza toccare il core): la regola
+body.tk-wide .content sta in tasks.css.
+{% endcomment %}
 {% block body_class %}{{ block.super }} tk-wide{% endblock %}
 
 {% block tasks_shell_head %}

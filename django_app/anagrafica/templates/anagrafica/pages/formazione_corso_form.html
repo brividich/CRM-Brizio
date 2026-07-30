@@ -32,9 +32,11 @@
       </div>
     </div>
 
-    {# Il wizard kp- porta già le proprie card (una per tappa): il form NON è
-       una .fmd-panel, altrimenti si avrebbero card dentro card. Stesso schema
-       pulito del KICK-OFF (project_create): .kp-layout diretto nel form. #}
+    {% comment %}
+    Il wizard kp- porta già le proprie card (una per tappa): il form NON è
+    una .fmd-panel, altrimenti si avrebbero card dentro card. Stesso schema
+    pulito del KICK-OFF (project_create): .kp-layout diretto nel form.
+    {% endcomment %}
     <form method="post" id="corso-form">
       {% csrf_token %}
 
@@ -42,8 +44,10 @@
       <div class="fmd-panel" style="padding:14px 18px;margin-bottom:16px;"><div class="fmd-ferr">{{ form.non_field_errors }}</div></div>
       {% endif %}
 
-      {# Wizard «percorso»: rail a tappe + stazioni. Riusa il componente kp- del
-         KICK-OFF; progressive enhancement (senza JS resta a sezioni verticali). #}
+      {% comment %}
+      Wizard «percorso»: rail a tappe + stazioni. Riusa il componente kp- del
+      KICK-OFF; progressive enhancement (senza JS resta a sezioni verticali).
+      {% endcomment %}
       <div class="kp-layout" data-kp-root>
         <aside class="kp-rail" aria-label="Percorso di creazione corso">
           <div class="kp-rail-title">Percorso</div>
@@ -132,10 +136,12 @@
                 <div class="fmd-checks" style="margin-top:10px;">
                   {% include "anagrafica/partials/_fmd_field.html" with field=sess_form.salta_weekend %}
                 </div>
-                {# Anteprima del calcolo: è il punto che l'utente sbaglia più spesso
-                   (08:00–17:00 non sono 9 ore formative se c'è un'ora di pausa). Con più
-                   di un gruppo, il totale "ore formative" resta quello DI UN GRUPPO — ogni
-                   iscritto fa comunque il programma per intero, i gruppi lo erogano in parallelo. #}
+                {% comment %}
+                Anteprima del calcolo: è il punto che l'utente sbaglia più spesso
+                (08:00–17:00 non sono 9 ore formative se c'è un'ora di pausa). Con più
+                di un gruppo, il totale "ore formative" resta quello DI UN GRUPPO — ogni
+                iscritto fa comunque il programma per intero, i gruppi lo erogano in parallelo.
+                {% endcomment %}
                 <div class="kp-help" id="sess-riepilogo" style="margin-top:12px;font-weight:600;"></div>
               </div>
             </div>
