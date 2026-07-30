@@ -67,6 +67,24 @@ class DoppioIngressoAssetTest(TestCase):
         p = ProdottoChimico.objects.get(nome="Base")
         self.assertIsNone(getattr(p, "asset_container", None))
 
+    def test_prodotto_form_crea_asset_aggancia_categoria_prodotti_chimici(self):
+        """L'asset generato deve finire nella AssetCategory reale (es. "Prodotti
+        chimici"), non restare senza categoria con la label del tipo (singolare,
+        "Prodotto chimico") come unico fallback visivo."""
+        from assets.models import Asset, AssetCategory
+
+        categoria = AssetCategory.objects.create(
+            code="prodotti-chimici", label="Prodotti chimici", base_asset_type=Asset.TYPE_CHEMICAL,
+        )
+        resp = self.client.post(reverse("schede_sicurezza:prodotto_nuovo"), {
+            "nome": "Solvente", "reparto": self.reparto.id, "crea_asset": "on",
+        })
+        self.assertEqual(resp.status_code, 302)
+        p = ProdottoChimico.objects.get(nome="Solvente")
+        asset = p.asset_container
+        self.assertEqual(asset.asset_category_id, categoria.id)
+        self.assertEqual(asset.category_label, "Prodotti chimici")
+
 
 class QrCodeTest(TestCase):
     def setUp(self):
