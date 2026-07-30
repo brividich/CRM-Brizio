@@ -1,5 +1,7 @@
-{# Sottoelenco espandibile di un corso: edizioni (sessioni) → lezioni.
-   Atteso: c = TrainingCourse con sessioni+lezioni prefetchate. Classi fmd-. #}
+{% comment %}
+Sottoelenco espandibile di un corso: edizioni (sessioni) → lezioni.
+Atteso: c = TrainingCourse con sessioni+lezioni prefetchate. Classi fmd-.
+{% endcomment %}
 {% with sess=c.sessioni.all %}
 {% if sess %}
 <details class="fmd-corso-det">

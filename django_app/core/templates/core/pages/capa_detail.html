@@ -1,7 +1,9 @@
 {% extends "core/base.html" %}
 
-{# capa_detail.html — Dettaglio + workflow di un'azione CAPA.
-   Context (vedi core/views_capa.py::capa_detail): a, can_manage, can_close, giorni. #}
+{% comment %}
+capa_detail.html — Dettaglio + workflow di un'azione CAPA.
+Context (vedi core/views_capa.py::capa_detail): a, can_manage, can_close, giorni.
+{% endcomment %}
 
 {% block title %}CAPA #{{ a.pk }} · {{ block.super }}{% endblock %}
 

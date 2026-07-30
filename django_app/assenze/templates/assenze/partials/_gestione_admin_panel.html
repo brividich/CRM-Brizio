@@ -106,10 +106,12 @@
         </form>
       </div>
 
-      {# Nessuna ricerca custom: la barra ricerca/filtri/colonne è quella unica
-         del sistema tabelle (fm-table-enhanced), renderizzata sopra la tabella.
-         Il dataset completo è caricato lato server così la ricerca live copre
-         tutte le assenze. #}
+      {% comment %}
+      Nessuna ricerca custom: la barra ricerca/filtri/colonne è quella unica
+      del sistema tabelle (fm-table-enhanced), renderizzata sopra la tabella.
+      Il dataset completo è caricato lato server così la ricerca live copre
+      tutte le assenze.
+      {% endcomment %}
       <div class="abs-table-wrap">
         <table class="abs-table">
           <thead><tr><th>#</th><th>Dipendente</th><th>Tipo</th><th>Dal</th><th>Al</th><th>Stato</th><th>Motivo</th>{% if admin_can_moderate or admin_can_delete %}<th>Azioni</th>{% endif %}</tr></thead>

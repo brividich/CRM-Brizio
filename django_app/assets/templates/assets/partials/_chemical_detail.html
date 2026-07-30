@@ -1,5 +1,7 @@
-{# Schermata dedicata asset "Prodotto chimico": riusa i dati SDS da schede_sicurezza
-   (fonte unica). prodotto_chimico e scheda_corrente arrivano dal context. #}
+{% comment %}
+Schermata dedicata asset "Prodotto chimico": riusa i dati SDS da schede_sicurezza
+(fonte unica). prodotto_chimico e scheda_corrente arrivano dal context.
+{% endcomment %}
 {% if not prodotto_chimico %}
   <section class="af-card" style="margin-top:18px;">
     <div style="padding:16px 20px;color:#b91c1c;">
@@ -25,9 +27,11 @@
       {# ── Pericolosità: pittogrammi + scheda ─────────────────────────── #}
       <div>
         <div class="af-card-kicker" style="margin-bottom:8px;">Pittogrammi &amp; pericolosità</div>
-        {# Stessi rombi CLP di schede_sicurezza (sprite incluso in asset_detail.html):
-           il simbolo si riconosce a colpo d'occhio, il codice no. Fuori dal ramo
-           "scheda corrente": valgono anche quelli dichiarati sul prodotto. #}
+        {% comment %}
+        Stessi rombi CLP di schede_sicurezza (sprite incluso in asset_detail.html):
+        il simbolo si riconosce a colpo d'occhio, il codice no. Fuori dal ramo
+        "scheda corrente": valgono anche quelli dichiarati sul prodotto.
+        {% endcomment %}
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
           {% if pittogrammi_clp %}
             {% include "schede_sicurezza/partials/_pittogrammi.html" with pittogrammi=pittogrammi_clp size=52 %}

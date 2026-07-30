@@ -1,5 +1,7 @@
-{# Riga voce retributiva — voce CSV o manuale, con eventuali pulsanti edit/delete inline.
-   Parametri attesi: v (VoceRetributiva), can_edit, legacy_id, categorie_voce, mese_data, is_totale (bool opt) #}
+{% comment %}
+Riga voce retributiva — voce CSV o manuale, con eventuali pulsanti edit/delete inline.
+Parametri attesi: v (VoceRetributiva), can_edit, legacy_id, categorie_voce, mese_data, is_totale (bool opt)
+{% endcomment %}
 <tr>
   <td class="dr-voce-name"{% if is_totale %} style="font-weight:700;"{% endif %}>
     {{ v.pay_item }}

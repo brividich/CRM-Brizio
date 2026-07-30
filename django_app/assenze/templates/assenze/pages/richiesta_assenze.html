@@ -684,8 +684,10 @@
                 </div>
                 <div class="abs-field">
                   <label for="caporeparto">Capo reparto</label>
-                  {# Campo bloccato: il caporeparto è quello ASSEGNATO al dipendente
-                     (fonte autoritativa lato server). L'utente non lo sceglie. #}
+                  {% comment %}
+                  Campo bloccato: il caporeparto è quello ASSEGNATO al dipendente
+                  (fonte autoritativa lato server). L'utente non lo sceglie.
+                  {% endcomment %}
                   <select id="caporeparto" name="caporeparto" class="abs-select" disabled aria-readonly="true">
                     <option value="">-- Assegnato automaticamente --</option>
                     {% for capo in capi %}
