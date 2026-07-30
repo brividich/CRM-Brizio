@@ -862,21 +862,30 @@ def _parse_num_it(raw: str):
         return None
 
 
-def _parse_pericolosita_csv(raw: str) -> str:
-    """Estrae codici HP (HP04, HP05…) da stringa JSON array."""
+def _split_sp_multivalue_csv(raw: str) -> list[str]:
+    """Spezza un campo multi-valore SharePoint (formato ``valore;#id;#valore;#id``)."""
     raw = raw.strip()
     if not raw:
-        return ""
-    try:
-        items = json.loads(raw)
-        codes = []
-        for item in items:
-            m = re.match(r"(HP\d+)", str(item))
-            if m:
-                codes.append(m.group(1))
+        return []
+    return [p.lstrip("#").strip() for p in raw.split(";") if p.lstrip("#").strip()]
+
+
+def _parse_pericolosita_csv(raw: str) -> str:
+    """Estrae codici HP (HP04, HP05…) dal campo multi-valore SharePoint."""
+    parts = _split_sp_multivalue_csv(raw)
+    codes = [m.group(1) for p in parts if (m := re.match(r"(HP\d+)", p))]
+    if codes:
         return ", ".join(codes)[:100]
-    except Exception:
-        return raw[:100]
+    return raw.strip()[:100]
+
+
+def _parse_rif_op_csv(raw: str) -> str:
+    """Estrae i riferimenti (ID Registrazione) dal campo lookup multi-valore SharePoint."""
+    parts = _split_sp_multivalue_csv(raw)
+    refs = [p for p in parts if "/" in p]
+    if refs:
+        return ", ".join(refs)[:200]
+    return raw.strip()[:200]
 
 
 def _parse_csv_rows(content: str) -> tuple[list[dict], list[dict]]:
@@ -890,10 +899,12 @@ def _parse_csv_rows(content: str) -> tuple[list[dict], list[dict]]:
     except StopIteration:
         return [], [{"riga": 0, "msg": "File vuoto o senza intestazione"}]
 
+    # Colonne 10-11 ("Elemento";"Lists/RENTRI") sono metadati SharePoint
+    # (tipo di contenuto e percorso lista), non dati: ignorate.
     for line_no, row in enumerate(reader, start=2):
         if not any(cell.strip() for cell in row):
             continue
-        if len(row) < 12:
+        if len(row) < 10:
             errors.append({"riga": line_no, "msg": f"Colonne insufficienti ({len(row)})"})
             continue
         try:
@@ -916,10 +927,13 @@ def _parse_csv_rows(content: str) -> tuple[list[dict], list[dict]]:
             quantita = _parse_num_it(row[4])
             rettifica = _parse_num_it(row[5])
             note = row[7].strip()
-            rentri_si_no = row[8].strip().lower() in ("vero", "true", "1")
-            arrivo_fir = row[9].strip()
-            inserito_da = row[10].strip()
-            rif_op = row[11].strip()
+            # Il CSV non ha una colonna "Rentri SI/NO" dedicata: resta al default (False).
+            rentri_si_no = False
+            # Il testo libero contiene il riferimento FIR solo per gli scarichi (O/M);
+            # se presente lo si duplica anche in arrivo_fir (letto dallo scadenzario).
+            arrivo_fir = note if "FIR" in note.upper() else ""
+            inserito_da = row[8].strip()
+            rif_op = _parse_rif_op_csv(row[9])
 
             esiste = RegistroRifiuti.objects.filter(id_registrazione=id_reg, tipo=tipo).exists()
 

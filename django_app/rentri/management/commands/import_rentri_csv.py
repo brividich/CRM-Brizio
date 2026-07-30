@@ -9,7 +9,6 @@ Opzioni:
     --clear     Cancella tutti i record esistenti prima di importare
 """
 import csv
-import json
 import re
 from datetime import datetime
 from pathlib import Path
@@ -25,7 +24,8 @@ TIPO_MAP = {
     "R - Rettifica scarico": "R",
 }
 
-# Indici colonne CSV (0-based)
+# Indici colonne CSV (0-based). Le colonne 10-11 ("Elemento";"Lists/RENTRI")
+# sono metadati SharePoint (tipo di contenuto e percorso lista), non dati.
 COL_DATA = 0
 COL_ID_REG = 1
 COL_CODICE = 2
@@ -34,10 +34,8 @@ COL_QUANTITA = 4
 COL_RETTIFICA = 5
 COL_TIPO = 6
 COL_NOTE = 7
-COL_RENTRI = 8
-COL_ARRIVO_FIR = 9
-COL_MODIFICATO = 10
-COL_RIF_OP = 11
+COL_MODIFICATO = 8
+COL_RIF_OP = 9
 
 
 def _parse_number(raw: str):
@@ -51,25 +49,30 @@ def _parse_number(raw: str):
         return None
 
 
-def _parse_bool(raw: str) -> bool:
-    return raw.strip().lower() in ("vero", "true", "1", "yes", "si")
+def _split_sp_multivalue(raw: str) -> list[str]:
+    """Spezza un campo multi-valore SharePoint (formato ``valore;#id;#valore;#id``)."""
+    raw = raw.strip()
+    if not raw:
+        return []
+    return [p.lstrip("#").strip() for p in raw.split(";") if p.lstrip("#").strip()]
 
 
 def _parse_pericolosita(raw: str) -> str:
     """Estrae i codici HP (es. HP04, HP05) come stringa compatta max 100 char."""
-    raw = raw.strip()
-    if not raw:
-        return ""
-    try:
-        items = json.loads(raw)
-        codes = []
-        for item in items:
-            m = re.match(r"(HP\d+)", str(item))
-            if m:
-                codes.append(m.group(1))
+    parts = _split_sp_multivalue(raw)
+    codes = [m.group(1) for p in parts if (m := re.match(r"(HP\d+)", p))]
+    if codes:
         return ", ".join(codes)[:100]
-    except Exception:
-        return raw[:100]
+    return raw.strip()[:100]
+
+
+def _parse_rif_op(raw: str) -> str:
+    """Estrae i riferimenti (ID Registrazione) dal campo lookup multi-valore SharePoint."""
+    parts = _split_sp_multivalue(raw)
+    refs = [p for p in parts if "/" in p]
+    if refs:
+        return ", ".join(refs)[:200]
+    return raw.strip()[:200]
 
 
 class Command(BaseCommand):
@@ -155,12 +158,14 @@ class Command(BaseCommand):
                     # --- Pericolosità ---
                     pericolosita = _parse_pericolosita(row[COL_PERIC])
 
-                    # --- Booleans / stringhe ---
-                    rentri_si_no = _parse_bool(row[COL_RENTRI])
-                    arrivo_fir = row[COL_ARRIVO_FIR].strip()
+                    # --- Note / riferimenti ---
+                    # Il CSV non ha una colonna "Rentri SI/NO" dedicata: resta al default (False).
                     note_rentri = row[COL_NOTE].strip()
+                    # Il testo libero contiene il riferimento FIR solo per gli scarichi (O/M);
+                    # se presente lo si duplica anche in arrivo_fir (letto dallo scadenzario).
+                    arrivo_fir = note_rentri if "FIR" in note_rentri.upper() else ""
                     inserito_da = row[COL_MODIFICATO].strip()
-                    rif_op = row[COL_RIF_OP].strip()
+                    rif_op = _parse_rif_op(row[COL_RIF_OP])
 
                     registro = RegistroRifiuti(
                         tipo=tipo,
@@ -170,7 +175,6 @@ class Command(BaseCommand):
                         quantita=quantita,
                         rettifica_scarico=rettifica,
                         carico_scarico=tipo,
-                        rentri_si_no=rentri_si_no,
                         note_rentri=note_rentri,
                         pericolosita=pericolosita,
                         arrivo_fir=arrivo_fir,
