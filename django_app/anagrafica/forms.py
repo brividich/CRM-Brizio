@@ -86,7 +86,10 @@ class AnagraficaCivileForm(forms.ModelForm):
         exclude = ["legacy_anagrafica_id", "updated_by", "updated_at"]
         widgets = {
             "foto": PrivateClearableFileInput(attrs={"class": "dp-input", "accept": "image/*"}),
-            "data_nascita": forms.DateInput(attrs={"class": "dp-input", "type": "date"}),
+            # format="%Y-%m-%d": input HTML5 type="date" richiede ISO per precompilarsi,
+            # altrimenti Django renderizza in formato locale (gg/mm/aaaa) e il browser
+            # mostra il campo vuoto pur con il dato presente.
+            "data_nascita": forms.DateInput(attrs={"class": "dp-input", "type": "date"}, format="%Y-%m-%d"),
             "luogo_nascita": forms.TextInput(attrs={"class": "dp-input", "placeholder": "Comune di nascita"}),
             "provincia_nascita": forms.TextInput(attrs={"class": "dp-input", "placeholder": "Es. PI oppure PISA", "style": "text-transform:uppercase"}),
             "nazionalita": forms.TextInput(attrs={"class": "dp-input", "placeholder": "Es. Italiana"}),
@@ -151,12 +154,14 @@ class AnagraficaAziendaleForm(forms.ModelForm):
             "taglia_scarpe": forms.TextInput(attrs={"class": "dp-input", "placeholder": "Es. 42"}),
             "taglia_pantalone": forms.TextInput(attrs={"class": "dp-input", "placeholder": "Es. 48 oppure 50/34"}),
             "taglia_maglia": forms.Select(attrs={"class": "dp-input"}),
-            "data_consenso_privacy": forms.DateInput(attrs={"class": "dp-input", "type": "date"}),
-            "data_prima_assunzione": forms.DateInput(attrs={"class": "dp-input", "type": "date"}),
-            "data_assunzione_ultima": forms.DateInput(attrs={"class": "dp-input", "type": "date"}),
-            "data_cessazione": forms.DateInput(attrs={"class": "dp-input", "type": "date"}),
-            "prova_data_inizio": forms.DateInput(attrs={"class": "dp-input", "type": "date"}),
-            "prova_data_fine": forms.DateInput(attrs={"class": "dp-input", "type": "date"}),
+            # format="%Y-%m-%d": vedi nota in AnagraficaCivileForm — senza ISO esplicito
+            # l'input type="date" appare vuoto anche con il valore presente.
+            "data_consenso_privacy": forms.DateInput(attrs={"class": "dp-input", "type": "date"}, format="%Y-%m-%d"),
+            "data_prima_assunzione": forms.DateInput(attrs={"class": "dp-input", "type": "date"}, format="%Y-%m-%d"),
+            "data_assunzione_ultima": forms.DateInput(attrs={"class": "dp-input", "type": "date"}, format="%Y-%m-%d"),
+            "data_cessazione": forms.DateInput(attrs={"class": "dp-input", "type": "date"}, format="%Y-%m-%d"),
+            "prova_data_inizio": forms.DateInput(attrs={"class": "dp-input", "type": "date"}, format="%Y-%m-%d"),
+            "prova_data_fine": forms.DateInput(attrs={"class": "dp-input", "type": "date"}, format="%Y-%m-%d"),
             "email_aziendale": forms.EmailInput(attrs={"class": "dp-input"}),
             "telefono_aziendale": forms.TextInput(attrs={"class": "dp-input", "placeholder": "+39 ..."}),
         }
