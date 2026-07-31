@@ -8393,6 +8393,8 @@ class ClassifyAssetTypeTests(TestCase):
             "Carroponti": Asset.TYPE_CARROPONTE,
             "Macchine CNC": Asset.TYPE_CNC,
             "Macchine utensili": Asset.TYPE_WORK_MACHINE,
+            "Prodotti Chimici": Asset.TYPE_CHEMICAL,
+            "Prodotto chimico": Asset.TYPE_CHEMICAL,
             "Bruciatori": Asset.TYPE_OTHER,
             "": Asset.TYPE_OTHER,
         }
