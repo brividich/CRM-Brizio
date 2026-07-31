@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Anagrafica — modifica matricola per dipendente già esistente
+
+- **[feat/test] `anagrafica/views.py` (`dipendente_matricola_set`), `anagrafica/urls.py`, `anagrafica/models.py` (`DipendenteCambiamentoOrganizzativo.TIPO_MATRICOLA`), `anagrafica/migrations/0098_alter_dipendentecambiamentoorganizzativo_tipo.py` [nuovo], `anagrafica/templates/anagrafica/pages/dipendente_detail.html`, `anagrafica/tests_area_aziendale_dipendente.py`**: la matricola era scrivibile **solo in fase di creazione** del dipendente — nessun punto di modifica successivo. Copre due casi reali: **preinserimento** (il dipendente viene creato prima che gli venga assegnata la matricola aziendale) e **recruiting** (un colloquiante può già esistere come dipendente in anagrafica, senza matricola, prima dell'assunzione formale). Aggiunto mini-form «✏» accanto al campo Matricola nella card «Anagrafica aziendale» (tab Anagrafica, gated `is_admin`, stesso pattern UI di Mansione/Reparto/Username), endpoint `dipendenti/<id>/matricola/set` che aggiorna il campo legacy preservando gli altri campi (`upsert_anagrafica_dipendente`) e registra il cambio in `DipendenteCambiamentoOrganizzativo` (nuovo tipo `MATRICOLA`, migrazione additiva sulle sole `choices`, nessuna modifica di schema). 3 nuovi test (assegnazione, storico cambiamento, permesso negato a non-admin).
+
 ### Fix — scheda dipendente: Area aziendale sempre «—» in «In sintesi» + form Modifica anagrafica civile/aziendale con campi data vuoti
 
 - **[fix] `anagrafica/templates/anagrafica/pages/dipendente_detail.html`**: la card «In sintesi» mostrava sempre «—» per «Area aziendale» perché il template leggeva `aziendale.area_aziendale_nome`, un attributo **inesistente** sul modello `DipendenteAnagraficaAziendale` (si risolveva silenziosamente a vuoto) — anche quando l'area era assegnata correttamente. Corretto in `aziendale.area_aziendale.nome`, lo stesso path già usato correttamente nella card «Anagrafica aziendale».

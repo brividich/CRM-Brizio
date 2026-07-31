@@ -1643,12 +1643,14 @@ class DipendenteCambiamentoOrganizzativo(models.Model):
     TIPO_REPARTO = "REPARTO"
     TIPO_AREA = "AREA"
     TIPO_RUOLO_AZIENDALE = "RUOLO_AZIENDALE"
+    TIPO_MATRICOLA = "MATRICOLA"
 
     TIPO_CHOICES = [
         (TIPO_MANSIONE, "Mansione"),
         (TIPO_REPARTO, "Reparto (legacy)"),
         (TIPO_AREA, "Reparto"),
         (TIPO_RUOLO_AZIENDALE, "Ruolo aziendale"),
+        (TIPO_MATRICOLA, "Matricola"),
     ]
 
     TIPO_COLORI = {
@@ -1656,6 +1658,7 @@ class DipendenteCambiamentoOrganizzativo(models.Model):
         TIPO_REPARTO: "#0891b2",
         TIPO_AREA: "#7c3aed",
         TIPO_RUOLO_AZIENDALE: "#db2777",
+        TIPO_MATRICOLA: "#ea580c",
     }
 
     legacy_anagrafica_id = models.IntegerField(db_index=True)

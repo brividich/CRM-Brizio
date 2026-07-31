@@ -152,6 +152,68 @@ class DipendenteRepartoSetAreaAziendaleTests(TestCase):
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class DipendenteMatricolaSetTests(TestCase):
+    """Modifica della matricola per un dipendente già presente in anagrafica:
+    preinserimento prima dell'assegnazione, o candidato importato dal recruiting."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+        cls.admin = User.objects.create_superuser(
+            username="matricola_set_admin", email="matricola_set_admin@x.local", password="x"
+        )
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM anagrafica_dipendenti")
+            cursor.execute(
+                "INSERT INTO anagrafica_dipendenti (aliasusername, nome, cognome, attivo) "
+                "VALUES (%s, %s, %s, %s)",
+                ["p.bianchi", "Paolo", "Bianchi", 1],
+            )
+            cursor.execute("SELECT id FROM anagrafica_dipendenti WHERE aliasusername = %s", ["p.bianchi"])
+            self.legacy_id = int(cursor.fetchone()[0])
+
+    def _matricola(self):
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT matricola FROM anagrafica_dipendenti WHERE id = %s", [self.legacy_id])
+            row = cursor.fetchone()
+            return row[0] if row else None
+
+    def test_assegna_matricola_a_dipendente_senza_matricola(self):
+        resp = self.client.post(
+            reverse("anagrafica:dipendente_matricola_set", args=[self.legacy_id]),
+            {"matricola": "CNO 0042"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(self._matricola(), "CNO 0042")
+
+    def test_matricola_registra_storico_cambiamento(self):
+        from .models import DipendenteCambiamentoOrganizzativo
+        self.client.post(
+            reverse("anagrafica:dipendente_matricola_set", args=[self.legacy_id]),
+            {"matricola": "CNO 0099"},
+        )
+        storico = DipendenteCambiamentoOrganizzativo.objects.filter(
+            legacy_anagrafica_id=self.legacy_id,
+            tipo=DipendenteCambiamentoOrganizzativo.TIPO_MATRICOLA,
+        ).first()
+        self.assertIsNotNone(storico)
+        self.assertEqual(storico.valore_nuovo, "CNO 0099")
+
+    def test_non_admin_non_puo_modificare(self):
+        user = User.objects.create_user(username="matricola_plain_user", password="x")
+        self.client.force_login(user)
+        resp = self.client.post(
+            reverse("anagrafica:dipendente_matricola_set", args=[self.legacy_id]),
+            {"matricola": "CNO 0001"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn(self._matricola(), (None, ""))
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class AnagraficaAziendaleFormAreaAziendaleTests(TestCase):
     """Il form completo 'Modifica dati aziendali' include ora la FK area_aziendale,
     corretta/azzerata da _sync_aziendale_from_reparto se incoerente col reparto."""

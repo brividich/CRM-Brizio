@@ -852,7 +852,25 @@ body.theme-dark .dp-link-ok { color:#86efac; }
       <div class="dp-info-grid">
         <div class="dp-info-item"><div class="dp-info-label">Nome</div><div class="dp-info-value">{{ dip.nome|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Cognome</div><div class="dp-info-value">{{ dip.cognome|default:"—" }}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Matricola</div><div class="dp-info-value">{{ dip.matricola|default:"—" }}</div></div>
+        <div class="dp-info-item">
+          <div class="dp-info-label">Matricola
+            {% if is_admin %}<button type="button" onclick="toggleMatricolaForm()" style="background:none;border:none;cursor:pointer;color:#1f87cd;font-size:11px;font-weight:700;padding:0 4px;vertical-align:middle;" title="Cambia matricola">✏</button>{% endif %}
+          </div>
+          <div class="dp-info-value">{{ dip.matricola|default:"—" }}</div>
+          {% if is_admin %}
+          <div class="dp-mansione-form" id="matricola-form">
+            <form method="post" action="{% url 'anagrafica:dipendente_matricola_set' legacy_id %}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              {% csrf_token %}
+              <input type="text" name="matricola" class="dp-select" value="{{ dip.matricola|default:'' }}" maxlength="100" placeholder="Es. CNO 0001" style="min-width:180px;" autocomplete="off">
+              <button type="submit" class="dp-btn dp-btn-primary dp-btn-xs">Salva</button>
+              <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" onclick="toggleMatricolaForm()">Annulla</button>
+            </form>
+            <div style="font-size:11px;color:#94a3b8;margin-top:2px;">
+              Utile per i preinserimenti (dipendente creato prima dell'assegnazione matricola) e per i candidati importati dal recruiting.
+            </div>
+          </div>
+          {% endif %}
+        </div>
         <div class="dp-info-item"><div class="dp-info-label">Badge</div><div class="dp-info-value">{{ aziendale.badge|default:"—" }}</div></div>
         <div class="dp-info-item">
           <div class="dp-info-label">Reparto
@@ -2627,6 +2645,11 @@ function toggleRepartoForm() {
 
 function toggleUsernameForm() {
   const f = document.getElementById('username-form');
+  if (f) f.classList.toggle('open');
+}
+
+function toggleMatricolaForm() {
+  const f = document.getElementById('matricola-form');
   if (f) f.classList.toggle('open');
 }
 
