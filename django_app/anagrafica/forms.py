@@ -258,7 +258,7 @@ class VisitaMedicaForm(forms.ModelForm):
 _FM = {"class": "fm-input"}
 _FM_SELECT = {"class": "fm-input fm-select"}
 _FM_TEXTAREA = {"class": "fm-input", "rows": 3}
-_FM_DATE = {"class": "fm-input", "type": "date"}
+_FM_DATE = {"class": "fm-input js-datepicker", "type": "date"}
 _FM_NUMBER = {"class": "fm-input"}
 _FM_CHECK = {"class": "fm-check"}
 
