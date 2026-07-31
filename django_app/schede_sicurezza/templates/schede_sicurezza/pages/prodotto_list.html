@@ -144,6 +144,10 @@ body.theme-dark .ss-rail a .ss-n { background:#93c5fd; color:#0b1220; }
             <div class="ss-hazard">
               {% if card.pittogrammi %}
                 {% include "schede_sicurezza/partials/_pittogrammi.html" with pittogrammi=card.pittogrammi size=38 %}
+              {% elif card.scheda and card.estrazione_ok %}
+                <span class="ss-hazard-none" style="color:#94a3b8;">
+                  <svg><use href="#ghs-vuoto"/></svg>Nessun pittogramma indicato
+                </span>
               {% elif card.scheda %}
                 <span class="ss-hazard-none" style="color:#94a3b8;">
                   <svg><use href="#ghs-vuoto"/></svg>Pittogrammi da confermare

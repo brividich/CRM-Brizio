@@ -248,6 +248,29 @@ class ProdottoListFiltriTest(TestCase):
         resp = self.client.get(reverse("schede_sicurezza:prodotto_list"))
         self.assertContains(resp, "Da rivedere")
 
+    def test_zero_pittogrammi_con_estrazione_ok_non_dice_da_confermare(self):
+        """Estrazione riuscita (stato OK) con zero pittogrammi e' un esito
+        confermato (nessun pericolo dichiarato sulla SDS), non un'estrazione
+        ancora da rivedere: la card non deve suggerire un'azione mancante."""
+        from .models import EstrazioneStato
+
+        prodotto = ProdottoChimico.objects.create(nome="Ardrox 9812", reparto=self.reparto_a)
+        SchedaSicurezza.objects.create(
+            prodotto=prodotto, pdf=_valid_pdf_upload(), versione="5",
+            is_corrente=True, estrazione_stato=EstrazioneStato.OK, pittogrammi=[],
+        )
+        resp = self.client.get(reverse("schede_sicurezza:prodotto_list"))
+        self.assertContains(resp, "Nessun pittogramma indicato")
+
+    def test_zero_pittogrammi_con_estrazione_non_ok_dice_da_confermare(self):
+        prodotto = ProdottoChimico.objects.create(nome="Solvente Ignoto", reparto=self.reparto_a)
+        SchedaSicurezza.objects.create(
+            prodotto=prodotto, pdf=_valid_pdf_upload(), versione="1",
+            is_corrente=True, pittogrammi=[],  # estrazione_stato di default: non_eseguita
+        )
+        resp = self.client.get(reverse("schede_sicurezza:prodotto_list"))
+        self.assertContains(resp, "Pittogrammi da confermare")
+
 
 class ModificaCampiEstrattiTest(TestCase):
     def setUp(self):

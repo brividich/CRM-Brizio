@@ -18,7 +18,7 @@ from core.upload_mime import UploadMimeValidationError, validate_extension_and_m
 
 from . import pittogrammi as ghs
 from .forms import ProdottoChimicoForm
-from .models import SCADENZA_SDS_GIORNI, PresaVisioneScheda, ProdottoChimico, SchedaSicurezza
+from .models import SCADENZA_SDS_GIORNI, EstrazioneStato, PresaVisioneScheda, ProdottoChimico, SchedaSicurezza
 from .reports import matrice_presa_visione, prodotti_senza_scheda_corrente
 from .services.ingestion import estrai_sds, pittogrammi_proposti
 from .services.qr import genera_qr_png
@@ -103,6 +103,10 @@ def _card_prodotto(prodotto) -> dict:
         "pittogrammi": ghs.dettaglio(codici),
         "codici": set(codici),
         "n_dpi": getattr(prodotto, "n_dpi", 0),
+        # Zero pittogrammi con estrazione OK e' un esito confermato (nessun
+        # pericolo dichiarato), non un'estrazione ancora da rivedere: la card
+        # non deve implicare un'azione da fare quando non ce n'e' una.
+        "estrazione_ok": bool(scheda and scheda.estrazione_stato == EstrazioneStato.OK),
     }
 
 
