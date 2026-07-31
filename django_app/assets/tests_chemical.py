@@ -8,7 +8,7 @@ from django.urls import reverse
 from anagrafica.models import Reparto
 from schede_sicurezza.models import ProdottoChimico
 
-from .forms import ChemicalAssetForm
+from .forms import AssetForm, ChemicalAssetForm
 from .models import Asset, AssetCategory
 from .tests import _complete_onboarding
 
@@ -287,3 +287,111 @@ class BackfillChemicalAssetCategoryCommandTests(TestCase):
         self._asset_senza_categoria("CHEM-BF5", "Acido")
         with self.assertRaises(CommandError):
             call_command("backfill_chemical_asset_category")
+
+
+class AssetFormEsclusioneCategoriaChimicaTests(TestCase):
+    """La categoria chimica ha un form dedicato (ChemicalAssetForm): il form Assets
+    generico non deve poterla assegnare, altrimenti l'asset prende il trattamento
+    da asset di produzione (numero interno, manutenzione, contratti) invece della
+    scheda dedicata SDS — il bug segnalato su "MOBIL VACTRA OIL NO. 2"."""
+
+    def setUp(self):
+        self.categoria_chimica = AssetCategory.objects.create(
+            code="prodotti-chimici", label="Prodotti chimici", base_asset_type=Asset.TYPE_CHEMICAL,
+        )
+        self.categoria_normale = AssetCategory.objects.create(
+            code="altimetri", label="Altimetri", base_asset_type=Asset.TYPE_OTHER,
+        )
+        self.user = User.objects.create_superuser("form-chem-su", "form-chem-su@test.local", "x")
+        self.client.force_login(self.user)
+
+    def test_dropdown_esclude_la_categoria_chimica(self):
+        form = AssetForm()
+        ids = set(form.fields["asset_category"].queryset.values_list("id", flat=True))
+        self.assertNotIn(self.categoria_chimica.id, ids)
+        self.assertIn(self.categoria_normale.id, ids)
+
+    def _payload(self, **overrides):
+        payload = {
+            "asset_tag": "", "name": "Bidone olio", "asset_category": "",
+            "reparto": "", "manufacturer": "", "model": "", "serial_number": "",
+            "status": Asset.STATUS_IN_USE, "sharepoint_folder_url": "", "sharepoint_folder_path": "",
+            "assignment_to": "", "assignment_reparto": "", "assignment_location": "", "notes": "",
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_rifiuta_la_categoria_chimica_forzata_via_post(self):
+        """Il campo la esclude gia' dal queryset (test sopra): forzando l'id via
+        POST diretto, Django la rifiuta a livello di campo prima ancora del
+        clean() del form (stesso comportamento gia' in uso per le Macchine di
+        lavoro) — non crea comunque l'asset con quella categoria."""
+        resp = self.client.post(
+            reverse("assets:asset_create"),
+            self._payload(asset_category=str(self.categoria_chimica.id)),
+        )
+        self.assertEqual(resp.status_code, 200)  # form ri-renderizzato, non redirect
+        self.assertFalse(Asset.objects.filter(name="Bidone olio").exists())
+
+    def test_accetta_una_categoria_normale(self):
+        resp = self.client.post(
+            reverse("assets:asset_create"),
+            self._payload(asset_category=str(self.categoria_normale.id)),
+        )
+        self.assertEqual(resp.status_code, 302)
+        asset = Asset.objects.get(name="Bidone olio")
+        self.assertEqual(asset.asset_category_id, self.categoria_normale.id)
+
+
+class DeclassifyGenericAssetsFromChemicalCategoryCommandTests(TestCase):
+    """Comando one-shot per gli asset non-chimici finiti nella categoria chimica
+    prima che il form Assets la escludesse (es. "MOBIL VACTRA OIL NO. 2")."""
+
+    def setUp(self):
+        self.categoria = AssetCategory.objects.create(
+            code="prodotti-chimici", label="Prodotti Chimici", base_asset_type=Asset.TYPE_CHEMICAL,
+        )
+
+    def test_dry_run_non_modifica_nulla(self):
+        from django.core.management import call_command
+
+        a = Asset.objects.create(
+            asset_tag="OBA-003", name="Mobil Vactra Oil No. 2",
+            asset_type=Asset.TYPE_OTHER, asset_category=self.categoria,
+        )
+        call_command("declassify_generic_assets_from_chemical_category", "--dry-run")
+        a.refresh_from_db()
+        self.assertEqual(a.asset_category_id, self.categoria.id)
+
+    def test_scategorizza_solo_i_non_chimici_della_categoria_chimica(self):
+        from django.core.management import call_command
+
+        rep = Reparto.objects.create(nome="Chimica")
+        non_chimico = Asset.objects.create(
+            asset_tag="OBA-003", name="Mobil Vactra Oil No. 2",
+            asset_type=Asset.TYPE_OTHER, asset_category=self.categoria,
+        )
+        p = ProdottoChimico.objects.create(nome="Bonderite", reparto=rep)
+        chimico_vero = Asset.objects.create(
+            asset_tag="CHEM-DC1", name="Bonderite", asset_type=Asset.TYPE_CHEMICAL,
+            asset_category=self.categoria, prodotto_chimico=p,
+        )
+        altra_categoria = AssetCategory.objects.create(code="altro-cat", label="Altro reparto")
+        non_toccato = Asset.objects.create(
+            asset_tag="IT-DC1", name="PC ufficio", asset_type=Asset.TYPE_PC, asset_category=altra_categoria,
+        )
+
+        call_command("declassify_generic_assets_from_chemical_category")
+
+        non_chimico.refresh_from_db()
+        chimico_vero.refresh_from_db()
+        non_toccato.refresh_from_db()
+        self.assertIsNone(non_chimico.asset_category_id)
+        self.assertEqual(chimico_vero.asset_category_id, self.categoria.id)  # non toccato: e' chimico vero
+        self.assertEqual(non_toccato.asset_category_id, altra_categoria.id)  # non toccato: altra categoria
+
+    def test_senza_categoria_chimica_non_fa_nulla(self):
+        from django.core.management import call_command
+
+        self.categoria.delete()
+        call_command("declassify_generic_assets_from_chemical_category")  # non deve sollevare
