@@ -61,6 +61,7 @@ def compact_key(value: Any) -> str:
 # I keyword usano la radice (stem) per intercettare singolare e plurale sul
 # nome compattato: es. "portatil" copre "portatile"/"portatili".
 _ASSET_TYPE_KEYWORD_RULES: tuple[tuple[str, str], ...] = (
+    ("chimic", Asset.TYPE_CHEMICAL),
     ("carropont", Asset.TYPE_CARROPONTE),
     ("carripont", Asset.TYPE_CARROPONTE),
     ("videosorveglianz", Asset.TYPE_CCTV),

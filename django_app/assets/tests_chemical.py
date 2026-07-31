@@ -107,6 +107,25 @@ class ChemicalAssetFormTests(TestCase):
         self.assertEqual(asset.asset_category_id, categoria.id)
         self.assertEqual(asset.category_label, "Prodotti chimici")
 
+    def test_chemical_form_aggancia_per_nome_se_base_asset_type_non_configurato(self):
+        """Caso reale: la categoria "Prodotti Chimici" esiste ma è stata creata
+        con `base_asset_type` di default ("Altro"), perché nessuna euristica di
+        classificazione riconosceva "chimic*" come parola chiave prima di questo
+        fix. Il match per `base_asset_type` da solo non trova nulla: deve
+        ripiegare sul nome della categoria, non lasciare l'asset senza categoria."""
+        categoria = AssetCategory.objects.create(
+            code="prodotti-chimici-2", label="Prodotti Chimici", base_asset_type=Asset.TYPE_OTHER,
+        )
+        rep = Reparto.objects.create(nome="Chimica")
+        form = ChemicalAssetForm(data={
+            "name": "Diluente", "status": Asset.STATUS_IN_STOCK,
+            "prodotto_mode": "new", "pc-nome": "Diluente X", "pc-reparto": rep.id,
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+        asset = form.save()
+        self.assertEqual(asset.asset_category_id, categoria.id)
+        self.assertEqual(asset.category_label, "Prodotti Chimici")
+
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class ChemicalAssetViewTests(TestCase):
@@ -213,3 +232,58 @@ class ChemicalAssetViewTests(TestCase):
         resp = self.client.get(reverse("assets:asset_view", args=[a.id]))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'class="af-sections"')  # non-chimico: corpo standard presente
+
+
+class BackfillChemicalAssetCategoryCommandTests(TestCase):
+    """Comando one-shot per gli asset chimici gia' esistenti rimasti senza categoria."""
+
+    def setUp(self):
+        self.rep = Reparto.objects.create(nome="Chimica")
+        self.categoria = AssetCategory.objects.create(
+            code="prodotti-chimici", label="Prodotti Chimici", base_asset_type=Asset.TYPE_OTHER,
+        )
+
+    def _asset_senza_categoria(self, tag: str, nome: str) -> Asset:
+        p = ProdottoChimico.objects.create(nome=nome, reparto=self.rep)
+        return Asset.objects.create(asset_tag=tag, name=nome, asset_type=Asset.TYPE_CHEMICAL, prodotto_chimico=p)
+
+    def test_dry_run_non_modifica_nulla(self):
+        from django.core.management import call_command
+
+        a = self._asset_senza_categoria("CHEM-BF1", "Acetone")
+        call_command("backfill_chemical_asset_category", "--dry-run")
+        a.refresh_from_db()
+        self.assertIsNone(a.asset_category_id)
+
+    def test_aggiorna_solo_gli_asset_chimici_senza_categoria(self):
+        from django.core.management import call_command
+
+        a1 = self._asset_senza_categoria("CHEM-BF2", "Diluente")
+        a2 = self._asset_senza_categoria("CHEM-BF3", "Solvente")
+        altro_gia_categorizzato = AssetCategory.objects.create(code="altro-cat", label="Altro")
+        p3 = ProdottoChimico.objects.create(nome="Soda", reparto=self.rep)
+        a3 = Asset.objects.create(
+            asset_tag="CHEM-BF4", name="Soda", asset_type=Asset.TYPE_CHEMICAL,
+            prodotto_chimico=p3, asset_category=altro_gia_categorizzato,
+        )
+        non_chimico = Asset.objects.create(asset_tag="IT-BF1", name="PC", asset_type=Asset.TYPE_PC)
+
+        call_command("backfill_chemical_asset_category")
+
+        a1.refresh_from_db()
+        a2.refresh_from_db()
+        a3.refresh_from_db()
+        non_chimico.refresh_from_db()
+        self.assertEqual(a1.asset_category_id, self.categoria.id)
+        self.assertEqual(a2.asset_category_id, self.categoria.id)
+        self.assertEqual(a3.asset_category_id, altro_gia_categorizzato.id)  # non toccato: gia' categorizzato
+        self.assertIsNone(non_chimico.asset_category_id)  # non e' un asset chimico
+
+    def test_senza_categoria_chimica_disponibile_alza_errore(self):
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+
+        self.categoria.delete()
+        self._asset_senza_categoria("CHEM-BF5", "Acido")
+        with self.assertRaises(CommandError):
+            call_command("backfill_chemical_asset_category")

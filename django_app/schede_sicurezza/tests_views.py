@@ -85,6 +85,24 @@ class DoppioIngressoAssetTest(TestCase):
         self.assertEqual(asset.asset_category_id, categoria.id)
         self.assertEqual(asset.category_label, "Prodotti chimici")
 
+    def test_prodotto_form_crea_asset_aggancia_per_nome_se_base_asset_type_non_configurato(self):
+        """Caso reale osservato in prod: la categoria "Prodotti Chimici" esiste
+        con `base_asset_type` di default ("Altro"), non "Prodotto chimico" —
+        il match deve ripiegare sul nome della categoria."""
+        from assets.models import Asset, AssetCategory
+
+        categoria = AssetCategory.objects.create(
+            code="prodotti-chimici-2", label="Prodotti Chimici", base_asset_type=Asset.TYPE_OTHER,
+        )
+        resp = self.client.post(reverse("schede_sicurezza:prodotto_nuovo"), {
+            "nome": "Ardrox", "reparto": self.reparto.id, "crea_asset": "on",
+        })
+        self.assertEqual(resp.status_code, 302)
+        p = ProdottoChimico.objects.get(nome="Ardrox")
+        asset = p.asset_container
+        self.assertEqual(asset.asset_category_id, categoria.id)
+        self.assertEqual(asset.category_label, "Prodotti Chimici")
+
 
 class QrCodeTest(TestCase):
     def setUp(self):

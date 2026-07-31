@@ -144,9 +144,25 @@ class Asset(models.Model):
         Senza asset_category, category_label ricade su get_asset_type_display()
         (l'etichetta del tipo, es. "Prodotto chimico" al singolare) invece della
         categoria reale creata in "Impostazioni asset" (es. "Prodotti chimici").
+
+        Cerca prima per `base_asset_type` (fonte autoritativa se la categoria è
+        stata configurata esplicitamente). Se nessuna categoria lo ha impostato
+        — caso reale: `classify_asset_type` non riconosceva "chimic*" come
+        parola chiave, quindi una categoria "Prodotti Chimici" creata prima di
+        quel fix resta con `base_asset_type` di default ("Altro") — ripiega
+        sul nome della categoria, per non lasciare l'asset senza categoria solo
+        perché un campo di configurazione non è stato (o non poteva essere)
+        impostato correttamente a monte.
         """
-        return (
+        by_type = (
             AssetCategory.objects.filter(is_active=True, base_asset_type=cls.TYPE_CHEMICAL)
+            .order_by("sort_order", "label", "id")
+            .first()
+        )
+        if by_type:
+            return by_type
+        return (
+            AssetCategory.objects.filter(is_active=True, label__icontains="chimic")
             .order_by("sort_order", "label", "id")
             .first()
         )
