@@ -3551,6 +3551,56 @@ def dipendente_reparto_set(request, legacy_id: int):
 
 @login_required
 @require_POST
+def dipendente_matricola_set(request, legacy_id: int):
+    """Modifica la matricola di un dipendente già presente in anagrafica.
+
+    Serve per i preinserimenti (dipendente creato prima dell'assegnazione
+    della matricola aziendale) e per i candidati importati dal modulo
+    recruiting, che possono già esistere come dipendente senza matricola.
+    """
+    legacy_user = get_legacy_user(request.user)
+    if not _is_anagrafica_admin(request):
+        messages.error(request, "Non hai i permessi per modificare la matricola.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    matricola_nuova = (request.POST.get("matricola") or "").strip()[:100]
+
+    rows = fetch_anagrafica_rows(ids=[legacy_id])
+    if not rows:
+        messages.error(request, "Dipendente non trovato.")
+        return redirect("anagrafica:dipendenti_list")
+    dip = rows[0]
+    matricola_vecchia = (dip.get("matricola") or "").strip()
+
+    try:
+        upsert_anagrafica_dipendente(
+            row_id=legacy_id,
+            aliasusername=dip.get("aliasusername") or "",
+            nome=dip.get("nome") or "",
+            cognome=dip.get("cognome") or "",
+            reparto=dip.get("reparto") or "",
+            mansione=dip.get("mansione") or "",
+            ruolo=dip.get("ruolo") or "",
+            matricola=matricola_nuova,
+            email=dip.get("email") or "",
+            email_notifica=dip.get("email_notifica") or "",
+            attivo=bool(dip.get("attivo", True)),
+        )
+        _registra_cambiamento(
+            legacy_id,
+            DipendenteCambiamentoOrganizzativo.TIPO_MATRICOLA,
+            matricola_vecchia, matricola_nuova,
+            request.user,
+        )
+        messages.success(request, f'Matricola aggiornata a "{matricola_nuova}".' if matricola_nuova else "Matricola rimossa.")
+    except Exception:
+        logger.exception("Errore aggiornamento matricola dipendente %s", legacy_id)
+        messages.error(request, "Errore durante l'aggiornamento della matricola.")
+    return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+
+@login_required
+@require_POST
 def dipendente_username_set(request, legacy_id: int):
     legacy_user = get_legacy_user(request.user)
     if not _is_anagrafica_admin(request):

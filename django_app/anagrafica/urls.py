@@ -67,6 +67,8 @@ urlpatterns = [
     path("dipendenti/<int:legacy_id>/mansione/set", views.dipendente_mansione_set, name="dipendente_mansione_set"),
     # Reparto dipendente (aggiorna campo legacy)
     path("dipendenti/<int:legacy_id>/reparto/set", views.dipendente_reparto_set, name="dipendente_reparto_set"),
+    # Matricola dipendente (aggiorna campo legacy; preinserimento/recruiting)
+    path("dipendenti/<int:legacy_id>/matricola/set", views.dipendente_matricola_set, name="dipendente_matricola_set"),
     # Username dipendente (aliasusername)
     path("dipendenti/<int:legacy_id>/username/set", views.dipendente_username_set, name="dipendente_username_set"),
     # Attiva/disattiva dipendente (campo attivo)
