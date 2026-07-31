@@ -14,6 +14,7 @@ urlpatterns = [
     path("<int:pk>/modifica/", views.prodotto_form, name="prodotto_modifica"),
     path("<int:pk>/qr/", views.prodotto_qr, name="prodotto_qr"),
     path("s/<uuid:uuid>/", views.scheda_mobile, name="scheda_mobile"),
+    path("s/<uuid:uuid>/pdf/", views.scheda_mobile_pdf, name="scheda_mobile_pdf"),
     path("scheda/<int:pk>/download/", views.scheda_download, name="scheda_download"),
     path("scheda/<int:scheda_pk>/presa-visione/", views.presa_visione_conferma, name="presa_visione_conferma"),
     path("scheda/<int:scheda_pk>/presa-visione/elenco/", views.presa_visione_list, name="presa_visione_list"),

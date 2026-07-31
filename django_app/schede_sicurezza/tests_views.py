@@ -166,11 +166,16 @@ class AclGatingTest(TestCase):
         )
         self.utente_senza_permesso = User.objects.create_user(username="senza_permesso", password="x")
 
-    def test_scheda_mobile_negata_a_utente_senza_permesso(self):
+    def test_scheda_mobile_e_pubblica_anche_senza_permesso(self):
+        """scheda_mobile e' la landing del QR fisico sul contenitore: deve
+        restare raggiungibile anche da un utente senza alcun grant ACL (e da un
+        visitatore anonimo, vedi SchedaMobilePubblicaTest) — e' la scelta di
+        prodotto voluta, non una falla: MIDDLEWARE_EXEMPT_PREFIXES esenta
+        esplicitamente /schede-sicurezza/s/."""
         self.client.force_login(self.utente_senza_permesso)
         url = reverse("schede_sicurezza:scheda_mobile", args=[str(self.prodotto.uuid)])
         resp = self.client.get(url)
-        self.assertNotEqual(resp.status_code, 200)
+        self.assertEqual(resp.status_code, 200)
 
     def test_prodotto_list_negata_a_utente_senza_permesso(self):
         self.client.force_login(self.utente_senza_permesso)
@@ -403,3 +408,63 @@ class RepartoMancanteCtaTest(TestCase):
         Reparto.objects.create(nome="Produzione")
         resp = self.client.get(reverse("schede_sicurezza:prodotto_nuovo"))
         self.assertNotContains(resp, reverse("anagrafica:aree_list"))
+
+
+class SchedaMobilePubblicaTest(TestCase):
+    """La scheda mobile (QR fisico sul contenitore) e' consultabile senza login:
+    chi scansiona non ha per forza un account (es. un contrattista in officina)."""
+
+    def setUp(self):
+        self.reparto = Reparto.objects.create(nome="Produzione")
+        self.prodotto = ProdottoChimico.objects.create(nome="Bonderite M-CR 871 AERO", reparto=self.reparto)
+        self.scheda = SchedaSicurezza.objects.create(
+            prodotto=self.prodotto, pdf=_valid_pdf_upload(), versione="1", is_corrente=True,
+            pittogrammi=["GHS05"],
+        )
+
+    def test_accessibile_senza_login(self):
+        resp = self.client.get(reverse("schede_sicurezza:scheda_mobile", args=[self.prodotto.uuid]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Bonderite M-CR 871 AERO")
+
+    def test_incrementa_il_contatore_visite(self):
+        url = reverse("schede_sicurezza:scheda_mobile", args=[self.prodotto.uuid])
+        self.assertEqual(self.prodotto.visite_qr, 0)
+        self.client.get(url)
+        self.client.get(url)
+        self.prodotto.refresh_from_db()
+        self.assertEqual(self.prodotto.visite_qr, 2)
+        resp = self.client.get(url)
+        self.assertContains(resp, "Visite: 3")
+
+    def test_visitatore_anonimo_non_vede_la_presa_visione(self):
+        resp = self.client.get(reverse("schede_sicurezza:scheda_mobile", args=[self.prodotto.uuid]))
+        self.assertNotContains(resp, "Confermo di aver letto")
+
+    def test_utente_autenticato_vede_ancora_la_presa_visione(self):
+        user = User.objects.create_user(username="op-sds", password="x")
+        self.client.force_login(user)
+        resp = self.client.get(reverse("schede_sicurezza:scheda_mobile", args=[self.prodotto.uuid]))
+        self.assertContains(resp, "Confermo di aver letto")
+
+    def test_prodotto_disattivato_404(self):
+        self.prodotto.attivo = False
+        self.prodotto.save(update_fields=["attivo"])
+        resp = self.client.get(reverse("schede_sicurezza:scheda_mobile", args=[self.prodotto.uuid]))
+        self.assertEqual(resp.status_code, 404)
+
+    def test_senza_scheda_corrente_404(self):
+        prodotto_senza_scheda = ProdottoChimico.objects.create(nome="Senza SDS", reparto=self.reparto)
+        resp = self.client.get(reverse("schede_sicurezza:scheda_mobile", args=[prodotto_senza_scheda.uuid]))
+        self.assertEqual(resp.status_code, 404)
+
+    def test_download_pdf_pubblico_senza_login(self):
+        resp = self.client.get(reverse("schede_sicurezza:scheda_mobile_pdf", args=[self.prodotto.uuid]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], "application/pdf")
+
+    def test_download_pdf_prodotto_disattivato_404(self):
+        self.prodotto.attivo = False
+        self.prodotto.save(update_fields=["attivo"])
+        resp = self.client.get(reverse("schede_sicurezza:scheda_mobile_pdf", args=[self.prodotto.uuid]))
+        self.assertEqual(resp.status_code, 404)

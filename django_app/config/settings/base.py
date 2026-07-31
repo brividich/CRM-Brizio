@@ -746,6 +746,7 @@ MIDDLEWARE_EXEMPT_PREFIXES = (
     "/admin-portale/hub/",
     "/assets/public/",
     "/assets/qr/pub/",          # landing QR pubblica (token opaco), sola lettura
+    "/schede-sicurezza/s/",     # scheda SDS mobile via QR fisico, sola lettura, no login
     "/monitoring/report-problem/",
     "/admin-portale/automazioni/approvazione/",
     "/automazioni/approvazione/",  # token-based, no login required

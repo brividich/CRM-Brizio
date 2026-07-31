@@ -1,4 +1,4 @@
-{% extends "core/base.html" %}
+{% extends base_template|default:"core/base.html" %}
 
 {% block title %}{{ prodotto.nome }} — Scheda sintetica{% endblock %}
 
@@ -33,6 +33,7 @@ body.theme-dark .ss-mobile-section-title { color:var(--text-mid); }
     <div class="ss-mobile-title">{{ prodotto.nome }}</div>
     <div class="ss-mobile-sub">{{ prodotto.reparto.nome }} · {{ prodotto.fornitore|default:"—" }}</div>
     <div class="ss-mobile-sub">Scheda versione {{ scheda.versione|default:"—" }}</div>
+    <div class="ss-mobile-sub">Visite: {{ prodotto.visite_qr }}</div>
   </div>
 
   {% if pittogrammi %}
@@ -90,14 +91,16 @@ body.theme-dark .ss-mobile-section-title { color:var(--text-mid); }
 
   <div class="ss-mobile-card">
     <div class="ss-mobile-section-title">Download</div>
-    <a href="{% url 'schede_sicurezza:scheda_download' pk=scheda.pk %}"
+    <a href="{% url 'schede_sicurezza:scheda_mobile_pdf' uuid=prodotto.uuid %}"
        style="display:block;text-align:center;padding:10px;background:#f1f5f9;color:#475569;border-radius:10px;text-decoration:none;font-weight:700;">
       Scarica PDF completo
     </a>
   </div>
 
+  {% if request.user.is_authenticated %}
   <div id="ss-pv-stato" class="ss-mobile-card">
     {% include "schede_sicurezza/partials/_presa_visione_stato.html" %}
   </div>
+  {% endif %}
 </div>
 {% endblock %}
