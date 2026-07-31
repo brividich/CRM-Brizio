@@ -750,7 +750,7 @@ body.theme-dark .dp-link-ok { color:#86efac; }
         <div class="dp-info-item"><div class="dp-info-label">Reparto</div><div class="dp-info-value">{% if dip.reparto %}{{ dip.reparto }}{% elif aziendale.area %}{{ aziendale.area }}{% else %}—{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Mansione</div><div class="dp-info-value">{{ dip.mansione|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Caporeparto</div><div class="dp-info-value">{% if caporeparto_label %}{{ caporeparto_label }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Area aziendale</div><div class="dp-info-value">{{ aziendale.area_aziendale_nome|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Area aziendale</div><div class="dp-info-value">{{ aziendale.area_aziendale.nome|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Assunto il</div><div class="dp-info-value">{{ aziendale.data_prima_assunzione|date:"d-m-Y"|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Email notifica</div><div class="dp-info-value">{% if dip.email_notifica %}<a href="mailto:{{ dip.email_notifica }}" style="color:#1f87cd;">{{ dip.email_notifica }}</a>{% else %}—{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Username</div><div class="dp-info-value">{{ dip.aliasusername|default:"—" }}</div></div>
