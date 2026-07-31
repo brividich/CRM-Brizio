@@ -6,7 +6,7 @@ from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count, Prefetch, Q
+from django.db.models import Count, F, Prefetch, Q
 from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -358,29 +358,50 @@ def prodotto_qr(request, pk: int):
 # Vista mobile (QR) + download PDF + presa visione
 # ---------------------------------------------------------------------------
 
-@login_required
 def scheda_mobile(request, uuid):
-    # Gated dietro login + ACL v2 (default sicuro, vedi RECON §5): un'eventuale
-    # variante a token pubblico non indicizzabile per scansione da dispositivo
-    # non loggato è predisposta a livello di URL (uuid, non PK) ma non attivata.
-    if not _can_view(request):
-        messages.error(request, "Accesso non autorizzato.")
-        return redirect("dashboard:dashboard")
-
+    # Pubblica, senza login: e' il punto d'arrivo del QR fisico sul contenitore
+    # (anche per chi non ha un account, es. un contrattista in officina). Nessuna
+    # shell applicativa (sidebar/nav/ACL) per i visitatori anonimi — vedi
+    # core/base_public.html. L'uuid (non un PK sequenziale) resta l'unica
+    # protezione contro l'enumerazione; la pagina e' `noindex, nofollow`.
     prodotto = get_object_or_404(ProdottoChimico, uuid=uuid, attivo=True)
     scheda = prodotto.scheda_corrente()
     if scheda is None:
         raise Http404("Nessuna scheda di sicurezza corrente per questo prodotto.")
 
-    gia_presa_visione = PresaVisioneScheda.objects.filter(
-        scheda=scheda, operatore=request.user
-    ).exists()
+    # Contatore visite: incremento atomico lato DB, poi rispecchiato in memoria
+    # solo per il render di questa risposta (nessuna query di rilettura).
+    ProdottoChimico.objects.filter(pk=prodotto.pk).update(visite_qr=F("visite_qr") + 1)
+    prodotto.visite_qr += 1
+
+    # La presa visione e' un atto di un operatore identificato: non ha senso per
+    # un visitatore anonimo, che non vede quel blocco (vedi template).
+    gia_presa_visione = (
+        request.user.is_authenticated
+        and PresaVisioneScheda.objects.filter(scheda=scheda, operatore=request.user).exists()
+    )
     return render(request, "schede_sicurezza/pages/scheda_mobile.html", {
         "prodotto": prodotto,
         "scheda": scheda,
         "pittogrammi": ghs.dettaglio(scheda.pittogrammi),
         "gia_presa_visione": gia_presa_visione,
+        "base_template": "core/base.html" if request.user.is_authenticated else "core/base_public.html",
     })
+
+
+def scheda_mobile_pdf(request, uuid):
+    """Download pubblico del PDF corrente, con lo stesso scoping ad uuid della
+    scheda mobile: mai un accesso a PK sequenziale (nessuna enumerazione)."""
+    prodotto = get_object_or_404(ProdottoChimico, uuid=uuid, attivo=True)
+    scheda = prodotto.scheda_corrente()
+    if scheda is None:
+        raise Http404("Nessuna scheda di sicurezza corrente per questo prodotto.")
+    try:
+        fh = scheda.pdf.open("rb")
+    except Exception:
+        raise Http404("File non disponibile.")
+    filename = f"{scheda.prodotto.nome}_v{scheda.versione or scheda.pk}.pdf"
+    return FileResponse(fh, content_type="application/pdf", filename=filename)
 
 
 @login_required
