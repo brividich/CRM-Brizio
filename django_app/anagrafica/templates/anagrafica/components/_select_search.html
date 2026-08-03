@@ -1,0 +1,189 @@
+{% comment %}
+Tasto «cerca» sulle tendine lunghe dei form — progressive enhancement.
+
+Compagno di _quick_add.html: quello aggiunge «+ nuovo» per creare al volo
+l'entità mancante, questo aggiunge «cerca» per trovarla quando le opzioni sono
+troppe per scorrerle a mano (corso, piano, categoria, qualifica, docente).
+
+La <select> nativa resta la FONTE DI VERITÀ: il pannello si limita a impostarne
+il valore e a emettere `change` (gli assist dei form — codice suggerito, durata
+dalla qualifica, riepilogo ore — continuano a funzionare). Senza JS la tendina
+nativa resta intatta.
+
+Aggancio: per nome campo (anche col prefisso `sess-`) oppure, per qualsiasi
+altra tendina, quando le opzioni superano la soglia. Escluse le select
+multiple (hanno già _multiselect_picker.html) e quelle con `data-no-search`.
+
+Idempotente; si ri-aggancia al contenuto caricato via HTMX.
+Includere UNA sola volta per pagina, DOPO _quick_add.html.
+{% endcomment %}
+<style>
+.fss-tools{ position:relative; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.fss-btn{ display:inline-flex; align-items:center; gap:5px; padding:5px 11px; font:inherit;
+  font-size:11.5px; font-weight:700; line-height:1; color:#1565a8; background:#e8f3fb;
+  border:1px solid #bfdded; border-radius:7px; cursor:pointer; }
+.fss-btn:hover{ background:#dcecf8; }
+.fss-btn svg{ width:12px; height:12px; flex:0 0 auto; }
+.fss-tools .fmd-qa-add{ margin-top:0 !important; align-self:auto !important; }
+
+.fss-pop{ position:absolute; top:calc(100% + 6px); left:0; z-index:60;
+  width:min(420px,100%); min-width:240px; background:#fff;
+  border:1px solid var(--fmd-line,#e7edf3); border-radius:10px;
+  box-shadow:0 12px 28px rgba(12,37,69,.14); overflow:hidden; }
+.fss-pop[hidden]{ display:none; }
+.fss-q{ width:100%; box-sizing:border-box; border:none; border-bottom:1px solid #eef2f7;
+  padding:9px 11px 9px 32px; font:inherit; font-size:13px; color:#2d3a55; outline:none;
+  background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.4'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M21 21l-4.3-4.3'/%3E%3C/svg%3E") no-repeat 11px center; }
+.fss-list{ max-height:240px; overflow-y:auto; padding:4px; }
+.fss-opt{ display:block; width:100%; text-align:left; padding:7px 9px; border:none; border-radius:7px;
+  background:none; font:inherit; font-size:13px; color:#2d3a55; cursor:pointer; }
+.fss-opt small{ display:block; font-size:11px; color:#94a3b8; margin-top:1px; }
+.fss-opt:hover, .fss-opt.fss-on{ background:#f0f7fd; }
+.fss-opt[aria-selected="true"]{ font-weight:700; color:#1565a8; }
+.fss-opt.fss-hid{ display:none; }
+.fss-none{ padding:14px; text-align:center; font-size:12px; color:#94a3b8; }
+body.theme-dark .fss-btn{ color:#8fc7ec; background:rgba(31,135,205,.16); border-color:rgba(31,135,205,.35); }
+body.theme-dark .fss-pop{ background:var(--surface); border-color:var(--border); }
+body.theme-dark .fss-q{ background-color:transparent; color:var(--text); border-color:var(--border); }
+body.theme-dark .fss-opt{ color:var(--text-mid); }
+body.theme-dark .fss-opt:hover, body.theme-dark .fss-opt.fss-on{ background:var(--surface-alt,rgba(255,255,255,.06)); }
+</style>
+<script>
+(function () {
+  /* Campi che meritano sempre il tasto: sono catalogo, crescono nel tempo.
+     Il prefisso `sess-` è quello della sessione inline nel form corso. */
+  var NOMI = ['corso', 'piano', 'categoria', 'qualifica', 'docente'];
+  var SOGLIA = 10;                       // altre tendine: solo se davvero lunghe
+
+  function norm(s) {
+    s = (s || '').toLowerCase();
+    /* Ricerca tollerante agli accenti: «qualita» trova «qualità». */
+    try { return s.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch (e) { return s; }
+  }
+  function daAgganciare(sel) {
+    if (sel.multiple || sel.disabled) return false;
+    if (sel.hasAttribute('data-no-search') || sel.hasAttribute('data-picker')) return false;
+    var nome = (sel.name || '').replace(/^sess-/, '');
+    if (NOMI.indexOf(nome) >= 0) return true;
+    return sel.options.length >= SOGLIA;
+  }
+
+  function build(sel) {
+    if (sel.dataset.fssBound) return;
+    sel.dataset.fssBound = '1';
+
+    var tools = document.createElement('div');
+    tools.className = 'fss-tools';
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'fss-btn';
+    btn.setAttribute('aria-expanded', 'false');
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" '
+      + 'stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>cerca';
+    tools.appendChild(btn);
+
+    var pop = document.createElement('div');
+    pop.className = 'fss-pop'; pop.hidden = true;
+    var q = document.createElement('input');
+    q.type = 'text'; q.className = 'fss-q'; q.autocomplete = 'off';
+    q.placeholder = 'Cerca ' + ((sel.name || '').replace(/^sess-/, '') || 'voce') + '…';
+    q.setAttribute('aria-label', q.placeholder);
+    var list = document.createElement('div');
+    list.className = 'fss-list'; list.setAttribute('role', 'listbox');
+    var none = document.createElement('div');
+    none.className = 'fss-none'; none.textContent = 'Nessun risultato'; none.hidden = true;
+    pop.appendChild(q); pop.appendChild(list); pop.appendChild(none);
+    tools.appendChild(pop);
+
+    sel.insertAdjacentElement('afterend', tools);
+    /* «+ nuovo» di _quick_add.html: se c'è, entra nella stessa riga di strumenti. */
+    var qa = tools.nextElementSibling;
+    if (qa && qa.classList.contains('fmd-qa-add')) tools.insertBefore(qa, pop);
+
+    var righe = Array.prototype.map.call(sel.options, function (o) {
+      var r = document.createElement('button');
+      r.type = 'button'; r.className = 'fss-opt'; r.setAttribute('role', 'option');
+      var gruppo = (o.parentNode && o.parentNode.tagName === 'OPTGROUP') ? o.parentNode.label : '';
+      r.textContent = o.textContent;
+      if (gruppo) { var s = document.createElement('small'); s.textContent = gruppo; r.appendChild(s); }
+      r.__opt = o;
+      r.__testo = norm(o.textContent + ' ' + gruppo);
+      r.addEventListener('click', function () { scegli(o); });
+      list.appendChild(r);
+      return r;
+    });
+
+    var attiva = -1;
+    function visibili() { return righe.filter(function (r) { return !r.classList.contains('fss-hid'); }); }
+    function evidenzia(i) {
+      var v = visibili();
+      righe.forEach(function (r) { r.classList.remove('fss-on'); });
+      if (!v.length) { attiva = -1; return; }
+      attiva = Math.max(0, Math.min(i, v.length - 1));
+      v[attiva].classList.add('fss-on');
+      v[attiva].scrollIntoView({ block: 'nearest' });
+    }
+    function filtra() {
+      var t = norm(q.value), trovato = false;
+      righe.forEach(function (r) {
+        var ok = !t || r.__testo.indexOf(t) >= 0;
+        r.classList.toggle('fss-hid', !ok);
+        if (ok) trovato = true;
+      });
+      none.hidden = trovato;
+      evidenzia(0);
+    }
+    function scegli(o) {
+      sel.value = o.value;
+      /* La select resta la fonte di verità: gli assist dei form ascoltano `change`. */
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+      chiudi(); btn.focus();
+    }
+    function segnaCorrente() {
+      righe.forEach(function (r) { r.setAttribute('aria-selected', r.__opt.selected ? 'true' : 'false'); });
+    }
+    function apri() {
+      chiudiAltri();
+      pop.hidden = false; btn.setAttribute('aria-expanded', 'true');
+      q.value = ''; segnaCorrente(); filtra(); q.focus();
+    }
+    function chiudi() {
+      pop.hidden = true; btn.setAttribute('aria-expanded', 'false');
+    }
+
+    btn.addEventListener('click', function () { pop.hidden ? apri() : chiudi(); });
+    q.addEventListener('input', filtra);
+    pop.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { e.preventDefault(); chiudi(); btn.focus(); return; }
+      if (e.key === 'ArrowDown') { e.preventDefault(); evidenzia(attiva + 1); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); evidenzia(attiva - 1); return; }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        var v = visibili();
+        if (v[attiva]) scegli(v[attiva].__opt);
+      }
+    });
+    document.addEventListener('click', function (e) {
+      if (!pop.hidden && !tools.contains(e.target)) chiudi();
+    });
+    tools.__chiudi = chiudi;
+  }
+
+  function chiudiAltri() {
+    document.querySelectorAll('.fss-tools').forEach(function (t) { if (t.__chiudi) t.__chiudi(); });
+  }
+
+  function init(root) {
+    (root || document).querySelectorAll('select').forEach(function (sel) {
+      if (daAgganciare(sel)) build(sel);
+    });
+  }
+  /* Dopo _quick_add.html (stesso evento, listener registrato prima): così il suo
+     «+ nuovo» esiste già e viene adottato nella riga strumenti. */
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { init(); });
+  } else { init(); }
+  document.addEventListener('htmx:afterSwap', function (e) { init(e.target || document); });
+})();
+</script>
