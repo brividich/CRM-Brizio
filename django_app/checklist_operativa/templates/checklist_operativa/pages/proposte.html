@@ -1,0 +1,40 @@
+{% extends "core/base.html" %}
+
+{% block title %}Proposte checklist chiusura | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+#co-root { display:flex; flex-direction:column; gap:20px; }
+.co-section { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:18px 22px; }
+.co-table { width:100%; border-collapse:collapse; font-size:13px; }
+.co-table th { text-align:left; font-size:11px; text-transform:uppercase; color:#64748b; padding:8px 10px; border-bottom:1px solid #e2e8f0; }
+.co-table td { padding:9px 10px; border-bottom:1px solid #f1f5f9; }
+.co-a { color:#0369a1; font-weight:600; text-decoration:none; }
+body.theme-dark .co-section { background:#1e293b; border-color:#334155; }
+body.theme-dark .co-table th { color:#94a3b8; border-color:#334155; }
+body.theme-dark .co-table td { border-color:#334155; color:#e2e8f0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="co-root">
+  <div class="co-section">
+    <h2>Proposte in attesa</h2>
+    <table class="co-table">
+      <tr><th>Descrizione</th><th>Evento</th><th>Proposta da</th><th>Responsabile suggerito</th><th>Il</th><th></th></tr>
+      {% for p in proposte %}
+      <tr>
+        <td>{{ p.descrizione|truncatechars:90 }}</td>
+        <td>{{ p.evento|default:"—" }}</td>
+        <td>{{ p.proposto_da }}</td>
+        <td>{{ p.responsabile_suggerito|default:"—" }}</td>
+        <td>{{ p.proposto_il|date:"d/m/Y H:i" }}</td>
+        <td><a class="co-a" href="{% url 'checklist_operativa:proposta_decidi' p.pk %}">Valuta</a></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6">Nessuna proposta in attesa.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% endblock %}

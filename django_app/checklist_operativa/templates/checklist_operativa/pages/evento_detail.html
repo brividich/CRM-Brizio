@@ -1,0 +1,79 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ evento.nome }} | Checklist Operativa{% endblock %}
+
+{% block extra_head %}
+<style>
+#co-root { display:flex; flex-direction:column; gap:20px; }
+.co-section { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:18px 22px; }
+.co-section h2 { font-size:15px; margin:0 0 12px; display:flex; align-items:center; justify-content:space-between; }
+.co-table { width:100%; border-collapse:collapse; font-size:13px; }
+.co-table th { text-align:left; font-size:11px; text-transform:uppercase; color:#64748b; padding:8px 10px; border-bottom:1px solid #e2e8f0; }
+.co-table td { padding:9px 10px; border-bottom:1px solid #f1f5f9; }
+.co-badge { display:inline-block; padding:2px 9px; border-radius:99px; font-size:11px; font-weight:700; }
+.co-badge-on { background:#dcfce7; color:#166534; }
+.co-badge-off { background:#f1f5f9; color:#94a3b8; }
+.co-a { color:#0369a1; font-weight:600; text-decoration:none; }
+.co-link-btn { font-size:12px; font-weight:700; background:#0369a1; color:#fff; padding:7px 14px; border-radius:8px; text-decoration:none; }
+.co-btn-danger { font-size:12px; font-weight:700; background:#dc2626; color:#fff; padding:7px 14px; border-radius:8px; border:none; cursor:pointer; }
+body.theme-dark .co-section { background:#1e293b; border-color:#334155; }
+body.theme-dark .co-table th { color:#94a3b8; border-color:#334155; }
+body.theme-dark .co-table td { border-color:#334155; color:#e2e8f0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="co-root">
+  <div class="co-section">
+    <h2>
+      {{ evento.nome }} — {{ evento.data_inizio|date:"d/m/Y" }}{% if evento.data_fine %} → {{ evento.data_fine|date:"d/m/Y" }}{% endif %}
+      <span>
+        {% if evento.stato == "aperta" %}<span class="co-badge co-badge-on">Aperta</span>{% else %}<span class="co-badge co-badge-off">Chiusa</span>{% endif %}
+      </span>
+    </h2>
+    <p>Completamento: {{ evento.voci_confermate }}/{{ evento.voci_totali }} ({{ evento.percentuale_completamento }}%)</p>
+    {% if evento.stato == "aperta" %}
+    <a class="co-link-btn" href="{% url 'checklist_operativa:voce_nuova' evento.pk %}">+ Aggiungi voce</a>
+    <form method="post" action="{% url 'checklist_operativa:evento_chiudi' evento.pk %}" style="display:inline">
+      {% csrf_token %}
+      <button type="submit" class="co-btn-danger" onclick="return confirm('Chiudere e archiviare questo evento? Non sarà più modificabile da Gestione.');">Chiudi evento</button>
+    </form>
+    {% endif %}
+  </div>
+
+  <div class="co-section">
+    <h2>Voci</h2>
+    <table class="co-table">
+      <tr><th>Ord.</th><th>Descrizione</th><th>Responsabile</th><th>Stato</th><th>Confermato da</th><th></th></tr>
+      {% for v in voci %}
+      <tr>
+        <td>{{ v.ordine }}</td>
+        <td>{{ v.descrizione|truncatechars:90 }}</td>
+        <td>{{ v.responsabile|default:"—" }}</td>
+        <td>{% if v.confermato %}<span class="co-badge co-badge-on">Confermato</span>{% else %}<span class="co-badge co-badge-off">In attesa</span>{% endif %}</td>
+        <td>{% if v.confermato %}{{ v.confermato_da }} — {{ v.confermato_il|date:"d/m/Y H:i" }}{% else %}—{% endif %}</td>
+        <td><a class="co-a" href="{% url 'checklist_operativa:voce_modifica' evento.pk v.pk %}">Modifica</a></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6">Nessuna voce.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  {% if proposte %}
+  <div class="co-section">
+    <h2>Proposte legate a questo evento</h2>
+    <table class="co-table">
+      <tr><th>Descrizione</th><th>Da</th><th>Stato</th></tr>
+      {% for p in proposte %}
+      <tr>
+        <td>{{ p.descrizione|truncatechars:90 }}</td>
+        <td>{{ p.proposto_da }}</td>
+        <td>{{ p.get_stato_display }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

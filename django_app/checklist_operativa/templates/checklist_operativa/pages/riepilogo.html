@@ -1,0 +1,48 @@
+{% extends "core/base.html" %}
+
+{% block title %}Riepilogo chiusure aziendali | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+#co-root { display:flex; flex-direction:column; gap:20px; }
+.co-section { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:18px 22px; }
+.co-table { width:100%; border-collapse:collapse; font-size:13px; }
+.co-table th { text-align:left; font-size:11px; text-transform:uppercase; color:#64748b; padding:8px 10px; border-bottom:1px solid #e2e8f0; }
+.co-table td { padding:9px 10px; border-bottom:1px solid #f1f5f9; }
+.co-badge { display:inline-block; padding:2px 9px; border-radius:99px; font-size:11px; font-weight:700; }
+.co-badge-on { background:#dcfce7; color:#166534; }
+.co-badge-off { background:#f1f5f9; color:#94a3b8; }
+.co-a { color:#0369a1; font-weight:600; text-decoration:none; }
+.co-progress { display:inline-block; width:80px; height:8px; background:#f1f5f9; border-radius:99px; overflow:hidden; vertical-align:middle; margin-right:6px; }
+.co-progress-bar { height:100%; background:#16a34a; }
+body.theme-dark .co-section { background:#1e293b; border-color:#334155; }
+body.theme-dark .co-table th { color:#94a3b8; border-color:#334155; }
+body.theme-dark .co-table td { border-color:#334155; color:#e2e8f0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="co-root">
+  <div class="co-section">
+    <h2>Storico chiusure aziendali</h2>
+    <table class="co-table">
+      <tr><th>Nome</th><th>Dal</th><th>Al</th><th>Stato</th><th>Completamento</th><th></th></tr>
+      {% for e in eventi %}
+      <tr>
+        <td>{{ e.nome }}</td>
+        <td>{{ e.data_inizio|date:"d/m/Y" }}</td>
+        <td>{{ e.data_fine|date:"d/m/Y"|default:"—" }}</td>
+        <td>{% if e.stato == "aperta" %}<span class="co-badge co-badge-on">Aperta</span>{% else %}<span class="co-badge co-badge-off">Chiusa</span>{% endif %}</td>
+        <td>
+          <span class="co-progress"><span class="co-progress-bar" style="width:{{ e.percentuale_completamento }}%"></span></span>
+          {{ e.voci_confermate }}/{{ e.voci_totali }}
+        </td>
+        <td><a class="co-a" href="{% url 'checklist_operativa:riepilogo_detail' e.pk %}">Dettaglio</a></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6">Nessun evento di chiusura registrato.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% endblock %}

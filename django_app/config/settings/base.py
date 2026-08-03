@@ -479,6 +479,7 @@ INSTALLED_APPS = [
     "schede_sicurezza.apps.SchedeSicurezzaConfig",
     "contatori.apps.ContatoriConfig",
     "security.apps.SecurityConfig",
+    "checklist_operativa.apps.ChecklistOperativaConfig",
     "django_extensions",
     "django_q",
     "django_htmx",

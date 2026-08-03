@@ -1,0 +1,25 @@
+{% extends "core/base.html" %}
+
+{% block title %}Mansione checklist chiusura | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+.co-form { max-width:560px; background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:20px 24px; display:flex; flex-direction:column; gap:12px; }
+.co-form label { font-size:12px; font-weight:700; color:#64748b; display:flex; flex-direction:column; gap:4px; }
+.co-form .hub-input, .co-form .hub-select { padding:8px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px; }
+.co-btn-confirm { padding:9px 18px; border-radius:8px; font-size:13px; font-weight:700; background:#16a34a; color:#fff; border:none; cursor:pointer; align-self:flex-start; }
+body.theme-dark .co-form { background:#1e293b; border-color:#334155; }
+</style>
+{% endblock %}
+
+{% block content %}
+<form class="co-form" method="post">
+  {% csrf_token %}
+  {% for field in form %}
+  <label>{{ field.label }}{% if field.errors %} — {{ field.errors|striptags }}{% endif %}
+    {{ field }}
+  </label>
+  {% endfor %}
+  <button type="submit" class="co-btn-confirm">Salva</button>
+</form>
+{% endblock %}
