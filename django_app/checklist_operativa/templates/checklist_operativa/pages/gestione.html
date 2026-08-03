@@ -1,0 +1,124 @@
+{% extends "core/base.html" %}
+
+{% block title %}Checklist Operativa | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+#co-root { display:flex; flex-direction:column; gap:20px; max-width:960px; }
+.co-hero { background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 60%,#2563eb 100%); border-radius:16px; padding:24px 28px; color:#fff; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; }
+.co-hero-title { font-size:22px; font-weight:900; }
+.co-hero-sub { font-size:12px; opacity:.75; margin-top:2px; }
+.co-hero-links a { color:#fff; font-size:12px; font-weight:700; text-decoration:none; background:rgba(255,255,255,.15); padding:7px 14px; border-radius:8px; margin-left:8px; }
+.co-hero-links a:hover { background:rgba(255,255,255,.28); }
+
+.co-switch { display:flex; gap:8px; align-items:center; font-size:13px; }
+.co-switch select { padding:6px 10px; border-radius:8px; border:1px solid #cbd5e1; }
+
+.co-empty { padding:40px; text-align:center; color:#94a3b8; font-size:14px; background:#f8fafc; border:1px dashed #cbd5e1; border-radius:14px; }
+
+.co-list { display:flex; flex-direction:column; gap:10px; }
+.co-item { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px 18px; display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.co-item.co-done { background:#f0fdf4; border-color:#bbf7d0; }
+.co-item-desc { font-size:14px; font-weight:600; color:#1e293b; white-space:pre-line; }
+.co-item-meta { font-size:11px; color:#64748b; margin-top:4px; }
+.co-item-actions form { display:inline-flex; gap:6px; align-items:center; }
+.co-btn { padding:7px 14px; border-radius:8px; font-size:12px; font-weight:700; border:none; cursor:pointer; }
+.co-btn-confirm { background:#16a34a; color:#fff; }
+.co-btn-confirm:hover { background:#15803d; }
+.co-btn-undo { background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; }
+.co-btn-undo:hover { background:#e2e8f0; }
+.co-note-input { padding:6px 8px; border:1px solid #cbd5e1; border-radius:6px; font-size:12px; width:160px; }
+
+.co-badge-done { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; color:#166534; background:#dcfce7; padding:3px 9px; border-radius:99px; }
+
+.co-propose { background:#f8fafc; border:1px solid #e2e8f0; border-radius:14px; padding:16px 20px; }
+.co-propose h3 { margin:0 0 10px; font-size:14px; }
+.co-propose textarea, .co-propose select { width:100%; padding:8px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px; margin-bottom:8px; }
+
+body.theme-dark .co-item { background:#1e293b; border-color:#334155; }
+body.theme-dark .co-item.co-done { background:#052e1a; border-color:#166534; }
+body.theme-dark .co-item-desc { color:#e2e8f0; }
+body.theme-dark .co-empty, body.theme-dark .co-propose { background:#0f172a; border-color:#334155; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="co-root">
+  <div class="co-hero">
+    <div>
+      <div class="co-hero-title">Checklist Operativa - Chiusure aziendali</div>
+      <div class="co-hero-sub">
+        {% if evento %}{{ evento.nome }} — dal {{ evento.data_inizio|date:"d/m/Y" }}{% if evento.data_fine %} al {{ evento.data_fine|date:"d/m/Y" }}{% endif %}{% else %}Nessuna chiusura aperta al momento{% endif %}
+      </div>
+    </div>
+    {% if can_configure %}
+    <div class="co-hero-links">
+      <a href="{% url 'checklist_operativa:configurazione' %}">Configurazione</a>
+      <a href="{% url 'checklist_operativa:riepilogo' %}">Riepilogo</a>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if altri_eventi.count > 1 %}
+  <form class="co-switch" method="get">
+    <label for="co-evento-select">Chiusura:</label>
+    <select id="co-evento-select" name="evento" onchange="this.form.submit()">
+      {% for e in altri_eventi %}
+      <option value="{{ e.pk }}" {% if evento and evento.pk == e.pk %}selected{% endif %}>{{ e.nome }} ({{ e.data_inizio|date:"d/m/Y" }})</option>
+      {% endfor %}
+    </select>
+  </form>
+  {% endif %}
+
+  {% if not evento %}
+  <div class="co-empty">Nessuna chiusura aziendale attiva al momento.</div>
+  {% elif not dipendente %}
+  <div class="co-empty">Il tuo account non risulta collegato a un'anagrafica dipendente: nessun task da mostrare.</div>
+  {% elif not voci %}
+  <div class="co-empty">Non hai mansioni assegnate per questa chiusura.</div>
+  {% else %}
+  <div class="co-list">
+    {% for voce in voci %}
+    <div class="co-item {% if voce.confermato %}co-done{% endif %}">
+      <div>
+        <div class="co-item-desc">{{ voce.descrizione }}</div>
+        {% if voce.confermato %}
+        <div class="co-item-meta">Confermato da {{ voce.confermato_da }} il {{ voce.confermato_il|date:"d/m/Y H:i" }}{% if voce.note %} — nota: {{ voce.note }}{% endif %}</div>
+        {% endif %}
+      </div>
+      <div class="co-item-actions">
+        {% if voce.confermato %}
+        <span class="co-badge-done">Confermato</span>
+        <form method="post" action="{% url 'checklist_operativa:conferma' voce.pk %}">
+          {% csrf_token %}
+          <input type="hidden" name="azione" value="annulla">
+          <button type="submit" class="co-btn co-btn-undo">Annulla</button>
+        </form>
+        {% else %}
+        <form method="post" action="{% url 'checklist_operativa:conferma' voce.pk %}">
+          {% csrf_token %}
+          <input type="hidden" name="azione" value="conferma">
+          <input type="text" name="note" class="co-note-input" placeholder="Nota (opzionale)">
+          <button type="submit" class="co-btn co-btn-confirm">Confermo</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if evento %}
+  <div class="co-propose">
+    <h3>Proponi una nuova voce per questa checklist</h3>
+    <form method="post" action="{% url 'checklist_operativa:proponi' %}">
+      {% csrf_token %}
+      <input type="hidden" name="evento_id" value="{{ evento.pk }}">
+      {{ proposta_form.descrizione }}
+      {{ proposta_form.responsabile_suggerito }}
+      <button type="submit" class="co-btn co-btn-confirm">Invia proposta</button>
+    </form>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -387,6 +387,16 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # CHECKLIST OPERATIVA — promemoria in-app ai responsabili con task non
+        # confermati per le chiusure aziendali in arrivo (soglie 7/3/1/0 giorni).
+        "name": "checklist_chiusura_reminders",
+        "func": "checklist_operativa.tasks.run_checklist_chiusura_reminders",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "15 7 * * *",       # ogni mattina alle 07:15
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # RENTRI — alert registri non confermati/inviati oltre soglia, agli admin.
         # Da attivare dove il modulo RENTRI è operativo.
         "name": "rentri_scadenze_check",
