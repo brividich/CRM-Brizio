@@ -435,7 +435,7 @@ class SchedaMobilePubblicaTest(TestCase):
         self.prodotto.refresh_from_db()
         self.assertEqual(self.prodotto.visite_qr, 2)
         resp = self.client.get(url)
-        self.assertContains(resp, "Visite: 3")
+        self.assertContains(resp, "Aperture QR: 3")
 
     def test_visitatore_anonimo_non_vede_la_presa_visione(self):
         resp = self.client.get(reverse("schede_sicurezza:scheda_mobile", args=[self.prodotto.uuid]))
@@ -468,3 +468,129 @@ class SchedaMobilePubblicaTest(TestCase):
         self.prodotto.save(update_fields=["attivo"])
         resp = self.client.get(reverse("schede_sicurezza:scheda_mobile_pdf", args=[self.prodotto.uuid]))
         self.assertEqual(resp.status_code, 404)
+
+
+class SchedaMobileRobustezzaTest(TestCase):
+    """Il perimetro pubblico del QR: cosa può e cosa non può uscire da qui."""
+
+    def setUp(self):
+        self.reparto = Reparto.objects.create(nome="Produzione")
+        self.prodotto = ProdottoChimico.objects.create(nome="Solvente Alfa", reparto=self.reparto)
+        self.scheda = SchedaSicurezza.objects.create(
+            prodotto=self.prodotto,
+            pdf=SimpleUploadedFile("alfa.pdf", b"%PDF-1.4\nSDS ALFA\n", content_type="application/pdf"),
+            versione="1", is_corrente=True,
+        )
+        self.altro = ProdottoChimico.objects.create(nome="Solvente Beta", reparto=self.reparto)
+        self.scheda_altro = SchedaSicurezza.objects.create(
+            prodotto=self.altro,
+            pdf=SimpleUploadedFile("beta.pdf", b"%PDF-1.4\nSDS BETA\n", content_type="application/pdf"),
+            versione="1", is_corrente=True,
+        )
+
+    def _url(self, prodotto, nome="schede_sicurezza:scheda_mobile"):
+        return reverse(nome, args=[prodotto.uuid])
+
+    # -- risoluzione del prodotto -------------------------------------------
+
+    def test_uuid_inesistente_404(self):
+        sconosciuto = "00000000-0000-4000-8000-000000000000"
+        for nome in ("schede_sicurezza:scheda_mobile", "schede_sicurezza:scheda_mobile_pdf"):
+            with self.subTest(vista=nome):
+                self.assertEqual(self.client.get(reverse(nome, args=[sconosciuto])).status_code, 404)
+
+    def test_pk_sequenziale_non_e_una_chiave_valida(self):
+        """L'unico identificatore accettato è l'uuid: il PK non entra nell'URL."""
+        resp = self.client.get(f"/schede-sicurezza/s/{self.prodotto.pk}/")
+        self.assertEqual(resp.status_code, 404)
+
+    def test_prodotto_senza_scheda_404_su_entrambe_le_viste(self):
+        orfano = ProdottoChimico.objects.create(nome="Senza scheda", reparto=self.reparto)
+        for nome in ("schede_sicurezza:scheda_mobile", "schede_sicurezza:scheda_mobile_pdf"):
+            with self.subTest(vista=nome):
+                self.assertEqual(self.client.get(self._url(orfano, nome)).status_code, 404)
+
+    # -- header --------------------------------------------------------------
+
+    def test_header_di_sicurezza_sulle_risposte_pubbliche(self):
+        attesi = {
+            "X-Robots-Tag": "noindex, nofollow, noarchive",
+            "Referrer-Policy": "no-referrer",
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "no-store, max-age=0",
+        }
+        for nome in ("schede_sicurezza:scheda_mobile", "schede_sicurezza:scheda_mobile_pdf"):
+            resp = self.client.get(self._url(self.prodotto, nome))
+            self.assertEqual(resp.status_code, 200)
+            for header, valore in attesi.items():
+                with self.subTest(vista=nome, header=header):
+                    self.assertEqual(resp[header], valore)
+
+    # -- download ------------------------------------------------------------
+
+    def test_download_serve_solo_la_sds_del_prodotto_richiesto(self):
+        resp = self.client.get(self._url(self.prodotto, "schede_sicurezza:scheda_mobile_pdf"))
+        self.assertEqual(b"".join(resp.streaming_content), b"%PDF-1.4\nSDS ALFA\n")
+
+        resp_altro = self.client.get(self._url(self.altro, "schede_sicurezza:scheda_mobile_pdf"))
+        self.assertEqual(b"".join(resp_altro.streaming_content), b"%PDF-1.4\nSDS BETA\n")
+
+    def test_nome_file_anomalo_normalizzato_nel_content_disposition(self):
+        self.prodotto.nome = '../../etc/passwd"; rm -rf /'
+        self.prodotto.save(update_fields=["nome"])
+        resp = self.client.get(self._url(self.prodotto, "schede_sicurezza:scheda_mobile_pdf"))
+
+        # `inline` e' voluto: la SDS si apre nel visualizzatore del telefono di
+        # chi ha appena scansionato il QR, non si scarica.
+        disposition = resp["Content-Disposition"]
+        self.assertEqual(disposition, 'inline; filename="....etcpasswd_rm_-rf__v1.pdf"')
+        nome_file = disposition.split("filename=", 1)[1].strip('"')
+        for pericoloso in ('"', "/", "\\", ";"):
+            with self.subTest(carattere=pericoloso):
+                self.assertNotIn(pericoloso, nome_file)
+
+    def test_nome_prodotto_tutto_da_scartare_ha_comunque_un_nome_file(self):
+        self.prodotto.nome = "///"
+        self.prodotto.save(update_fields=["nome"])
+        self.scheda.versione = "/"
+        self.scheda.save(update_fields=["versione"])
+        resp = self.client.get(self._url(self.prodotto, "schede_sicurezza:scheda_mobile_pdf"))
+        self.assertIn("scheda-sicurezza.pdf", resp["Content-Disposition"])
+
+    def test_content_type_dichiarato_esplicitamente(self):
+        """Il tipo non si deduce dall'estensione: lo si impone, con nosniff."""
+        resp = self.client.get(self._url(self.prodotto, "schede_sicurezza:scheda_mobile_pdf"))
+        self.assertEqual(resp["Content-Type"], "application/pdf")
+
+    # -- contatore -----------------------------------------------------------
+
+    def test_incremento_contatore_e_atomico(self):
+        """L'incremento passa da un UPDATE ... SET x = x + 1: nessun valore
+        letto in Python, quindi nessun aggiornamento perso fra due scansioni."""
+        ProdottoChimico.objects.filter(pk=self.prodotto.pk).update(visite_qr=41)
+        # Istanza "stantia" (visite_qr=0 in memoria) come sarebbe quella di una
+        # richiesta partita prima dell'aggiornamento altrui.
+        self.client.get(self._url(self.prodotto))
+        self.prodotto.refresh_from_db()
+        self.assertEqual(self.prodotto.visite_qr, 42)
+
+    def test_il_download_non_incrementa_il_contatore(self):
+        self.client.get(self._url(self.prodotto, "schede_sicurezza:scheda_mobile_pdf"))
+        self.prodotto.refresh_from_db()
+        self.assertEqual(self.prodotto.visite_qr, 0)
+
+    # -- perimetro autenticato invariato -------------------------------------
+
+    def test_accesso_anonimo_ancora_consentito(self):
+        self.assertEqual(self.client.get(self._url(self.prodotto)).status_code, 200)
+
+    def test_presa_visione_resta_riservata_agli_autenticati(self):
+        url = reverse("schede_sicurezza:presa_visione_conferma", args=[self.scheda.pk])
+        resp = self.client.post(url, {"note": ""})
+        self.assertIn(resp.status_code, (302, 403))
+        self.assertEqual(PresaVisioneScheda.objects.count(), 0)
+
+        operatore = User.objects.create_user(username="op-pv", password="x", is_superuser=True)
+        self.client.force_login(operatore)
+        self.client.post(url, {"note": ""})
+        self.assertEqual(PresaVisioneScheda.objects.filter(scheda=self.scheda).count(), 1)

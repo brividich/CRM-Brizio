@@ -45,8 +45,10 @@ class ProdottoChimico(models.Model):
     uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     attivo = models.BooleanField(default=True)
 
-    # Conta le visite alla scheda mobile pubblica (QR senza login, vedi
-    # views.scheda_mobile): incrementato ad ogni GET, mai decrementato.
+    # Conta le APERTURE della scheda mobile pubblica (QR senza login, vedi
+    # views.scheda_mobile): incrementato ad ogni GET, mai decrementato. Non sono
+    # visitatori unici — la stessa persona che riapre la pagina conta due volte:
+    # non c'e' (per scelta) nessun fingerprint, cookie o IP con cui distinguerli.
     visite_qr = models.PositiveIntegerField(default=0, verbose_name="Visite QR pubblico")
 
     # Pittogrammi CLP dichiarati sul prodotto in fase di inserimento, quando la

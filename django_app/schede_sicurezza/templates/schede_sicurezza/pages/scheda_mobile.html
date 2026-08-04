@@ -33,7 +33,8 @@ body.theme-dark .ss-mobile-section-title { color:var(--text-mid); }
     <div class="ss-mobile-title">{{ prodotto.nome }}</div>
     <div class="ss-mobile-sub">{{ prodotto.reparto.nome }} · {{ prodotto.fornitore|default:"—" }}</div>
     <div class="ss-mobile-sub">Scheda versione {{ scheda.versione|default:"—" }}</div>
-    <div class="ss-mobile-sub">Visite: {{ prodotto.visite_qr }}</div>
+    {# Aperture, non visitatori: la stessa persona che riapre la pagina conta due volte. #}
+    <div class="ss-mobile-sub" title="Numero di aperture di questa scheda dal QR, non di persone diverse">Aperture QR: {{ prodotto.visite_qr }}</div>
   </div>
 
   {% if pittogrammi %}
