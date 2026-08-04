@@ -32,12 +32,16 @@ from __future__ import annotations
 
 from datetime import date, time, timedelta
 
+from django.db import transaction
+from django.utils import timezone
+
 from ..models_formazione import TrainingLesson, TrainingSession
 
 __all__ = [
     "genera_codice_sessione",
     "ore_nette",
     "giorni_pianificabili",
+    "giorni_da_pianificare",
     "genera_lezioni",
     "crea_sessione_unica",
     "dividi_in_gruppi",
@@ -106,6 +110,26 @@ def giorni_pianificabili(
     return giorni
 
 
+def giorni_da_pianificare(
+    sessione: TrainingSession,
+    salta_weekend: bool = True,
+    giorni_settimana: set[int] | None = None,
+    date_puntuali: list[date] | None = None,
+) -> list[date]:
+    """Le date che la generazione prenderebbe in considerazione, ordinate e senza doppioni.
+
+    Stessa gerarchia di :func:`genera_lezioni` (date puntuali > giorni della
+    settimana > intervallo). Esposta a parte perché la view ne ha bisogno per
+    dire quante giornate erano *già presenti*: senza, il conto delle saltate si
+    ricostruirebbe duplicando questa scelta a tre rami.
+    """
+    if date_puntuali:
+        return sorted(set(date_puntuali))
+    return giorni_pianificabili(
+        sessione.data_inizio, sessione.data_fine, salta_weekend, giorni_settimana
+    )
+
+
 def genera_lezioni(
     sessione: TrainingSession,
     ora_inizio: time,
@@ -131,44 +155,54 @@ def genera_lezioni(
 
     **Idempotente sui giorni**: salta le date che hanno già una lezione, così
     rilanciare la generazione — anche con parametri diversi — aggiunge solo i
-    giorni nuovi. La numerazione riparte dal massimo esistente.
+    giorni nuovi. La numerazione riparte dal massimo esistente. Non cancella e
+    non riscrive mai una lezione esistente: quello che è già stato compilato a
+    mano (argomento, note, presenze, firme) sopravvive a ogni rigenerazione.
+
+    **Tutto o niente, e una alla volta**: la creazione sta in una transazione
+    con lock di riga sulla sessione. Senza, due «Genera giornate» simultanei
+    leggerebbero lo stesso `numero` massimo e la stessa lista di date occupate,
+    e finirebbero o con giornate doppie o con un `IntegrityError` sul vincolo
+    ``(sessione, numero)`` — cioè un 500 in faccia al secondo utente.
     """
-    esistenti = list(sessione.lezioni.all())
-    date_occupate = {lz.data for lz in esistenti}
-    numero = max((lz.numero for lz in esistenti), default=0)
+    with transaction.atomic():
+        # Il lock si prende sulla riga sessione: e' il punto di serializzazione
+        # naturale, dato che numero e date occupate si contano sulle sue lezioni.
+        TrainingSession.objects.select_for_update().get(pk=sessione.pk)
 
-    argomento = (argomento or "").strip() or sessione.corso.titolo
-    docente_nome = docente.nome if docente is not None else (sessione.docente_nome or "")
-    if docente is None and sessione.docente_id:
-        docente = sessione.docente
+        esistenti = list(sessione.lezioni.all())
+        date_occupate = {lz.data for lz in esistenti}
+        numero = max((lz.numero for lz in esistenti), default=0)
 
-    if date_puntuali:
-        giorni_da_creare = sorted(set(date_puntuali))
-    else:
-        giorni_da_creare = giorni_pianificabili(
-            sessione.data_inizio, sessione.data_fine, salta_weekend, giorni_settimana
+        argomento = (argomento or "").strip() or sessione.corso.titolo
+        docente_nome = docente.nome if docente is not None else (sessione.docente_nome or "")
+        if docente is None and sessione.docente_id:
+            docente = sessione.docente
+
+        giorni_da_creare = giorni_da_pianificare(
+            sessione, salta_weekend, giorni_settimana, date_puntuali,
         )
 
-    creati: list[TrainingLesson] = []
-    for giorno in giorni_da_creare:
-        if giorno in date_occupate:
-            continue
-        numero += 1
-        creati.append(
-            TrainingLesson.objects.create(
-                sessione=sessione,
-                numero=numero,
-                data=giorno,
-                ora_inizio=ora_inizio,
-                ora_fine=ora_fine,
-                pausa_minuti=max(0, int(pausa_minuti or 0)),
-                argomento=argomento[:500],
-                docente=docente,
-                docente_nome=(docente_nome or "")[:200],
-                updated_by=user,
+        creati: list[TrainingLesson] = []
+        for giorno in giorni_da_creare:
+            if giorno in date_occupate:
+                continue
+            numero += 1
+            creati.append(
+                TrainingLesson.objects.create(
+                    sessione=sessione,
+                    numero=numero,
+                    data=giorno,
+                    ora_inizio=ora_inizio,
+                    ora_fine=ora_fine,
+                    pausa_minuti=max(0, int(pausa_minuti or 0)),
+                    argomento=argomento[:500],
+                    docente=docente,
+                    docente_nome=(docente_nome or "")[:200],
+                    updated_by=user,
+                )
             )
-        )
-    return creati
+        return creati
 
 
 def crea_sessione_unica(
@@ -194,36 +228,49 @@ def crea_sessione_unica(
 
     Con ``date_puntuali`` valorizzato, ``data_inizio``/``data_fine`` si ricavano
     dal min/max delle date indicate (il chiamante non deve calcolarli a mano).
+
+    Solleva ``ValueError`` se non c'è nessuna data utilizzabile o se l'intervallo
+    è rovesciato: il form lo verifica già, ma questo è il punto in cui una
+    sessione incoerente entrerebbe nel database (e ``data_inizio=None`` sarebbe
+    un ``IntegrityError``, cioè un 500, invece di un messaggio).
     """
     if date_puntuali:
         date_puntuali = sorted(set(date_puntuali))
         data_inizio = date_puntuali[0]
         data_fine = date_puntuali[-1]
-    sessione = TrainingSession.objects.create(
-        corso=corso,
-        codice_sessione=genera_codice_sessione(corso),
-        stato="PIANIFICATA",
-        modalita=modalita or "IN_SEDE",
-        data_inizio=data_inizio,
-        data_fine=data_fine or data_inizio,
-        sede=(sede or "")[:200],
-        docente=docente,
-        docente_nome=(docente.nome if docente is not None else "")[:200],
-        created_by=user,
-    )
-    if genera_giornate and ora_inizio and ora_fine:
-        genera_lezioni(
-            sessione,
-            ora_inizio=ora_inizio,
-            ora_fine=ora_fine,
-            pausa_minuti=pausa_minuti,
-            argomento=corso.titolo,
-            docente=docente,
-            salta_weekend=salta_weekend,
-            giorni_settimana=giorni_settimana,
-            date_puntuali=date_puntuali,
-            user=user,
+    if data_inizio is None:
+        raise ValueError(
+            "Serve una data: indica la data della sessione oppure un elenco di date puntuali."
         )
+    if data_fine and data_fine < data_inizio:
+        raise ValueError("La data di fine non può precedere la data di inizio.")
+
+    with transaction.atomic():
+        sessione = TrainingSession.objects.create(
+            corso=corso,
+            codice_sessione=genera_codice_sessione(corso),
+            stato="PIANIFICATA",
+            modalita=modalita or "IN_SEDE",
+            data_inizio=data_inizio,
+            data_fine=data_fine or data_inizio,
+            sede=(sede or "")[:200],
+            docente=docente,
+            docente_nome=(docente.nome if docente is not None else "")[:200],
+            created_by=user,
+        )
+        if genera_giornate and ora_inizio and ora_fine:
+            genera_lezioni(
+                sessione,
+                ora_inizio=ora_inizio,
+                ora_fine=ora_fine,
+                pausa_minuti=pausa_minuti,
+                argomento=corso.titolo,
+                docente=docente,
+                salta_weekend=salta_weekend,
+                giorni_settimana=giorni_settimana,
+                date_puntuali=date_puntuali,
+                user=user,
+            )
     return sessione
 
 
@@ -270,57 +317,61 @@ def dividi_in_gruppi(
 
     corso = sessione_sorgente.corso
     etichetta = (edizione or "").strip() or sessione_sorgente.edizione or (
-        f"{corso.codice} · gruppi {date.today():%d-%m-%Y}"
+        f"{corso.codice} · gruppi {timezone.localdate():%d-%m-%Y}"
     )
-    if sessione_sorgente.edizione != etichetta:
-        sessione_sorgente.edizione = etichetta[:80]
-        sessione_sorgente.save(update_fields=["edizione"])
 
-    lezioni_sorgente = list(sessione_sorgente.lezioni.order_by("data", "ora_inizio"))
-    iscrizioni = list(
-        TrainingEnrollment.objects.filter(sessione=sessione_sorgente)
-        .order_by("legacy_anagrafica_id")
-    )
-    # Bucket 0 = resta sulla sorgente; i successivi vanno ai gruppi nuovi.
-    secchi: list[list[TrainingEnrollment]] = [[] for _ in range(n_gruppi)]
-    for i, iscrizione in enumerate(iscrizioni):
-        secchi[i % n_gruppi].append(iscrizione)
+    # Sessioni nuove, lezioni clonate e iscritti spostati sono un'unica mossa:
+    # a metà strada resterebbero gruppi senza calendario o iscritti senza turni.
+    with transaction.atomic():
+        if sessione_sorgente.edizione != etichetta:
+            sessione_sorgente.edizione = etichetta[:80]
+            sessione_sorgente.save(update_fields=["edizione"])
 
-    gruppi = [sessione_sorgente]
-    for indice in range(1, n_gruppi):
-        offset = timedelta(days=giorni_tra_gruppi * indice)
-        nuovo = TrainingSession.objects.create(
-            corso=corso,
-            codice_sessione=genera_codice_sessione(corso),
-            stato="PIANIFICATA",
-            modalita=sessione_sorgente.modalita,
-            data_inizio=sessione_sorgente.data_inizio + offset,
-            data_fine=sessione_sorgente.data_fine + offset,
-            sede=sessione_sorgente.sede,
-            docente=sessione_sorgente.docente,
-            docente_nome=sessione_sorgente.docente_nome,
-            edizione=etichetta[:80],
-            created_by=user,
+        lezioni_sorgente = list(sessione_sorgente.lezioni.order_by("data", "ora_inizio"))
+        iscrizioni = list(
+            TrainingEnrollment.objects.filter(sessione=sessione_sorgente)
+            .order_by("legacy_anagrafica_id")
         )
-        for lz in lezioni_sorgente:
-            TrainingLesson.objects.create(
-                sessione=nuovo,
-                numero=lz.numero,
-                data=lz.data + offset,
-                ora_inizio=lz.ora_inizio,
-                ora_fine=lz.ora_fine,
-                pausa_minuti=lz.pausa_minuti,
-                argomento=lz.argomento,
-                docente=lz.docente,
-                docente_nome=lz.docente_nome,
-                updated_by=user,
+        # Bucket 0 = resta sulla sorgente; i successivi vanno ai gruppi nuovi.
+        secchi: list[list[TrainingEnrollment]] = [[] for _ in range(n_gruppi)]
+        for i, iscrizione in enumerate(iscrizioni):
+            secchi[i % n_gruppi].append(iscrizione)
+
+        gruppi = [sessione_sorgente]
+        for indice in range(1, n_gruppi):
+            offset = timedelta(days=giorni_tra_gruppi * indice)
+            nuovo = TrainingSession.objects.create(
+                corso=corso,
+                codice_sessione=genera_codice_sessione(corso),
+                stato="PIANIFICATA",
+                modalita=sessione_sorgente.modalita,
+                data_inizio=sessione_sorgente.data_inizio + offset,
+                data_fine=sessione_sorgente.data_fine + offset,
+                sede=sessione_sorgente.sede,
+                docente=sessione_sorgente.docente,
+                docente_nome=sessione_sorgente.docente_nome,
+                edizione=etichetta[:80],
+                created_by=user,
             )
-        for iscrizione in secchi[indice]:
-            # I turni erano riferiti alle lezioni della sorgente: non hanno più senso
-            # sul nuovo gruppo (invariante lezione.sessione_id == enrollment.sessione_id).
-            TrainingEnrollmentLesson.objects.filter(enrollment=iscrizione).delete()
-            iscrizione.sessione = nuovo
-            iscrizione.save(update_fields=["sessione"])
-        gruppi.append(nuovo)
+            for lz in lezioni_sorgente:
+                TrainingLesson.objects.create(
+                    sessione=nuovo,
+                    numero=lz.numero,
+                    data=lz.data + offset,
+                    ora_inizio=lz.ora_inizio,
+                    ora_fine=lz.ora_fine,
+                    pausa_minuti=lz.pausa_minuti,
+                    argomento=lz.argomento,
+                    docente=lz.docente,
+                    docente_nome=lz.docente_nome,
+                    updated_by=user,
+                )
+            for iscrizione in secchi[indice]:
+                # I turni erano riferiti alle lezioni della sorgente: non hanno più senso
+                # sul nuovo gruppo (invariante lezione.sessione_id == enrollment.sessione_id).
+                TrainingEnrollmentLesson.objects.filter(enrollment=iscrizione).delete()
+                iscrizione.sessione = nuovo
+                iscrizione.save(update_fields=["sessione"])
+            gruppi.append(nuovo)
 
     return gruppi
