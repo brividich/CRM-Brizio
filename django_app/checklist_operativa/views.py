@@ -22,6 +22,16 @@ from .forms import (
     ChiusuraVoceForm,
 )
 from .models import ChecklistTaskTemplate, ChiusuraEvento, ChiusuraProposta, ChiusuraVoce
+from .services import (
+    ChecklistStatoError,
+    annulla_conferma_voce,
+    chiudi_evento,
+    conferma_voce,
+    crea_evento_con_voci,
+    decidi_proposta,
+    eventi_con_progresso,
+    salva_voce,
+)
 
 
 def _can_configure(request) -> bool:
@@ -52,20 +62,6 @@ def _current_dipendente(request) -> AnagraficaDipendente | None:
     if not request.user.is_authenticated:
         return None
     return AnagraficaDipendente.objects.filter(utente_id=request.user.id).first()
-
-
-def _genera_voci_da_template(evento: ChiusuraEvento) -> int:
-    count = 0
-    for template in ChecklistTaskTemplate.objects.filter(attivo=True).order_by("ordine", "id"):
-        ChiusuraVoce.objects.create(
-            evento=evento,
-            template=template,
-            ordine=template.ordine,
-            descrizione=template.descrizione,
-            responsabile=template.responsabile,
-        )
-        count += 1
-    return count
 
 
 # ---------------------------------------------------------------------------
@@ -121,12 +117,15 @@ def gestione_conferma(request, voce_id: int):
         return render(request, "core/pages/forbidden.html", status=403)
 
     azione = request.POST.get("azione", "conferma")
-    if azione == "annulla":
-        voce.annulla_conferma()
-        messages.info(request, "Conferma annullata.")
-    else:
-        voce.conferma(dipendente, note=request.POST.get("note", "").strip())
-        messages.success(request, "Task confermato.")
+    try:
+        if azione == "annulla":
+            annulla_conferma_voce(voce.pk)
+            messages.info(request, "Conferma annullata.")
+        else:
+            conferma_voce(voce.pk, dipendente, note=request.POST.get("note", "").strip())
+            messages.success(request, "Task confermato.")
+    except ChecklistStatoError as exc:
+        messages.error(request, str(exc))
 
     url = reverse("checklist_operativa:gestione")
     if voce.evento_id:
@@ -163,7 +162,7 @@ def gestione_proposta_nuova(request):
 def configurazione_home(request):
     context = {
         "templates": ChecklistTaskTemplate.objects.all().select_related("responsabile"),
-        "eventi": ChiusuraEvento.objects.all()[:20],
+        "eventi": eventi_con_progresso()[:20],
         "proposte_in_attesa": ChiusuraProposta.objects.filter(
             stato=ChiusuraProposta.STATO_IN_ATTESA
         ).count(),
@@ -203,10 +202,7 @@ def configurazione_evento_nuovo(request):
     if request.method == "POST":
         form = ChiusuraEventoForm(request.POST)
         if form.is_valid():
-            evento = form.save(commit=False)
-            evento.creato_da = request.user
-            evento.save()
-            count = _genera_voci_da_template(evento)
+            evento, count = crea_evento_con_voci(form.save(commit=False), user=request.user)
             messages.success(request, f"Evento creato con {count} mansioni generate dal template.")
             return redirect("checklist_operativa:evento_detail", pk=evento.pk)
     else:
@@ -217,12 +213,12 @@ def configurazione_evento_nuovo(request):
 
 @configurazione_required
 def configurazione_evento_detail(request, pk: int):
-    evento = get_object_or_404(ChiusuraEvento, pk=pk)
+    evento = get_object_or_404(eventi_con_progresso(), pk=pk)
     voci = evento.voci.select_related("responsabile", "confermato_da").order_by("ordine", "id")
     context = {
         "evento": evento,
         "voci": voci,
-        "proposte": evento.proposte.order_by("-proposto_il"),
+        "proposte": evento.proposte.select_related("proposto_da").order_by("-proposto_il"),
     }
     return render(request, "checklist_operativa/pages/evento_detail.html", context)
 
@@ -231,9 +227,10 @@ def configurazione_evento_detail(request, pk: int):
 @require_POST
 def configurazione_evento_chiudi(request, pk: int):
     evento = get_object_or_404(ChiusuraEvento, pk=pk)
-    evento.stato = ChiusuraEvento.STATO_CHIUSA
-    evento.save(update_fields=["stato"])
-    messages.success(request, f"Evento '{evento.nome}' chiuso e archiviato.")
+    if chiudi_evento(evento.pk):
+        messages.success(request, f"Evento '{evento.nome}' chiuso e archiviato.")
+    else:
+        messages.info(request, f"Evento '{evento.nome}' era già chiuso: nessuna modifica.")
     return redirect("checklist_operativa:riepilogo_detail", pk=evento.pk)
 
 
@@ -241,12 +238,19 @@ def configurazione_evento_chiudi(request, pk: int):
 def configurazione_voce_edit(request, evento_pk: int, pk: int | None = None):
     evento = get_object_or_404(ChiusuraEvento, pk=evento_pk)
     instance = get_object_or_404(ChiusuraVoce, pk=pk, evento=evento) if pk else None
+    # Un evento archiviato non riceve né modifica voci: si blocca già qui, così
+    # non si apre nemmeno un form che poi non potrebbe salvare.
+    if evento.is_chiusa:
+        messages.error(request, f"La chiusura «{evento.nome}» è archiviata: non è più modificabile.")
+        return redirect("checklist_operativa:evento_detail", pk=evento.pk)
     if request.method == "POST":
         form = ChiusuraVoceForm(request.POST, instance=instance)
         if form.is_valid():
-            voce = form.save(commit=False)
-            voce.evento = evento
-            voce.save()
+            try:
+                salva_voce(evento, form.save(commit=False))
+            except ChecklistStatoError as exc:
+                messages.error(request, str(exc))
+                return redirect("checklist_operativa:evento_detail", pk=evento.pk)
             messages.success(request, "Voce salvata.")
             return redirect("checklist_operativa:evento_detail", pk=evento.pk)
     else:
@@ -272,39 +276,22 @@ def configurazione_proposta_decidi(request, pk: int):
     if request.method == "POST":
         form = ChiusuraPropostaDecisioneForm(request.POST)
         if form.is_valid():
-            decisione = form.cleaned_data["decisione"]
-            proposta.note_admin = form.cleaned_data["note_admin"]
-            proposta.gestito_da = request.user
-            proposta.gestito_il = timezone.now()
-
-            if decisione == "approva":
-                proposta.stato = ChiusuraProposta.STATO_APPROVATA
-                proposta.aggiungi_al_template = form.cleaned_data["aggiungi_al_template"]
-
-                if proposta.aggiungi_al_template:
-                    nuovo_template = ChecklistTaskTemplate.objects.create(
-                        descrizione=proposta.descrizione,
-                        responsabile=proposta.responsabile_suggerito,
-                        creato_da=request.user,
-                        note=f"Da proposta #{proposta.pk} di {proposta.proposto_da}",
-                    )
-                    proposta.template_generato = nuovo_template
-
-                if proposta.evento_id:
-                    nuova_voce = ChiusuraVoce.objects.create(
-                        evento=proposta.evento,
-                        template=proposta.template_generato,
-                        descrizione=proposta.descrizione,
-                        responsabile=proposta.responsabile_suggerito,
-                    )
-                    proposta.voce_generata = nuova_voce
-
+            approva = form.cleaned_data["decisione"] == "approva"
+            try:
+                decidi_proposta(
+                    proposta.pk,
+                    approva=approva,
+                    note_admin=form.cleaned_data["note_admin"],
+                    aggiungi_al_template=form.cleaned_data["aggiungi_al_template"],
+                    user=request.user,
+                )
+            except ChecklistStatoError as exc:
+                messages.error(request, str(exc))
+                return redirect("checklist_operativa:proposte")
+            if approva:
                 messages.success(request, "Proposta approvata.")
             else:
-                proposta.stato = ChiusuraProposta.STATO_RIFIUTATA
                 messages.info(request, "Proposta rifiutata.")
-
-            proposta.save()
             return redirect("checklist_operativa:proposte")
     else:
         form = ChiusuraPropostaDecisioneForm()
@@ -320,13 +307,14 @@ def configurazione_proposta_decidi(request, pk: int):
 
 @configurazione_required
 def riepilogo_list(request):
-    eventi = ChiusuraEvento.objects.all()
-    return render(request, "checklist_operativa/pages/riepilogo.html", {"eventi": eventi})
+    return render(
+        request, "checklist_operativa/pages/riepilogo.html", {"eventi": eventi_con_progresso()},
+    )
 
 
 @configurazione_required
 def riepilogo_detail(request, pk: int):
-    evento = get_object_or_404(ChiusuraEvento, pk=pk)
+    evento = get_object_or_404(eventi_con_progresso(), pk=pk)
     voci = evento.voci.select_related("responsabile", "confermato_da").order_by("ordine", "id")
     return render(
         request, "checklist_operativa/pages/riepilogo_dettaglio.html", {"evento": evento, "voci": voci},

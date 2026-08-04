@@ -46,6 +46,13 @@ class ChiusuraEventoForm(forms.ModelForm):
             "note": forms.Textarea(attrs={"rows": 2, "class": "hub-input"}),
         }
 
+    def clean(self):
+        cd = super().clean()
+        data_inizio, data_fine = cd.get("data_inizio"), cd.get("data_fine")
+        if data_inizio and data_fine and data_fine < data_inizio:
+            self.add_error("data_fine", "La data di fine non può precedere la data di inizio.")
+        return cd
+
 
 class ChiusuraVoceForm(forms.ModelForm):
     class Meta:

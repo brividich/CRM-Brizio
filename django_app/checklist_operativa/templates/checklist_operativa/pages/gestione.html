@@ -70,6 +70,10 @@ body.theme-dark .co-empty, body.theme-dark .co-propose { background:#0f172a; bor
   </form>
   {% endif %}
 
+  {% if evento.is_chiusa %}
+  <div class="co-empty">Questa chiusura è archiviata: le mansioni restano consultabili ma non sono più modificabili.</div>
+  {% endif %}
+
   {% if not evento %}
   <div class="co-empty">Nessuna chiusura aziendale attiva al momento.</div>
   {% elif not dipendente %}
@@ -87,7 +91,9 @@ body.theme-dark .co-empty, body.theme-dark .co-propose { background:#0f172a; bor
         {% endif %}
       </div>
       <div class="co-item-actions">
-        {% if voce.confermato %}
+        {% if evento.is_chiusa %}
+        {% if voce.confermato %}<span class="co-badge-done">Confermato</span>{% endif %}
+        {% elif voce.confermato %}
         <span class="co-badge-done">Confermato</span>
         <form method="post" action="{% url 'checklist_operativa:conferma' voce.pk %}">
           {% csrf_token %}
@@ -108,7 +114,7 @@ body.theme-dark .co-empty, body.theme-dark .co-propose { background:#0f172a; bor
   </div>
   {% endif %}
 
-  {% if evento %}
+  {% if evento and not evento.is_chiusa %}
   <div class="co-propose">
     <h3>Proponi una nuova voce per questa checklist</h3>
     <form method="post" action="{% url 'checklist_operativa:proponi' %}">
