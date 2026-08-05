@@ -77,8 +77,10 @@ Alternativa: inserimento manuale da `/admin-portale/navigation-builder/`.
   - uno o piu asset coinvolti
 - Ogni asset puo appartenere a piu piani di manutenzione periodica contemporaneamente.
 - La selezione della manutenzione periodica e disponibile anche nei form `Nuovo/Modifica asset` e `Nuova/Modifica macchina di lavoro`, oltre che nella scheda dettaglio asset.
-- La schermata di gestione include layout selezionabile lato utente (`Compatta`, `Bilanciata`, `Ampia`) memorizzato nel browser.
-- La selezione asset supporta ricerca live per tag/nome e azioni rapide `Seleziona visibili` / `Pulisci`.
+- La schermata apre sui piani `Attivi`, ordinati per urgenza, e offre le viste rapide con contatori `Da gestire`, `Pianificate` e `Archivio / regole`.
+- La ricerca principale trova piano, fornitore e asset; quando la pagina viene aperta nel contesto di un asset mostra soltanto i piani realmente collegati.
+- `Registra esecuzione` e' disponibile direttamente sulla riga dei piani operativi. Storico, sincronizzazione Outlook, conversione in regola e cancellazione restano nel pannello `Dettagli e storico`.
+- Il form di configurazione non occupa piu stabilmente la pagina: si apre da `+ Nuovo piano` o `Modifica`. La selezione asset mantiene ricerca live e azioni `Seleziona visibili` / `Pulisci`.
 
 ## Interventi / Work order
 - Le pagine operative di manutenzione, scadenzario, interventi, report e template report condividono una sotto-navigazione con breadcrumb e tab `Da fare`, `Scadenzario`, `Interventi`, `Report`, `Template report`, `Impostazioni`, piu azioni rapide per `Nuovo intervento`, export OdL e impostazioni, cosi l'utente resta orientato tra consultazione e azioni operative.

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Assets - manutenzione periodica come lista operativa
+
+- **[ux/test] `assets/views.py`, `assets/templates/assets/pages/periodic_verification_list.html`, `assets/tests.py`**: la pagina dei piani periodici apre sulle attivita correnti ordinate per urgenza, con viste contate `Attive`, `Da gestire`, `Pianificate` e `Archivio / regole`. Ricerca e contesto asset riducono realmente l'elenco; il form di configurazione compare soltanto per creazione, modifica o errori. L'esecuzione e' l'azione primaria della riga, mentre storico, Outlook, conversione e cancellazione sono raccolti nel dettaglio. Rimossi selettori griglia/layout e banner legacy permanente. Nessuna migration o modifica ad ACL, permessi, URL e routing globale.
+
 ### Assets - lista interventi come coda operativa
 
 - **[ux/test] `assets/views.py`, `assets/templates/assets/pages/workorder_list.html`, `assets/tests.py`**: il registro OdL non mescola piu tutto al primo accesso. La vista predefinita mostra gli aperti e quattro tab con contatori separano `Aperti`, `Assegnati a me`, `Non assegnati` e archivio `Chiusi`. La ricerca resta sempre visibile, gli otto filtri amministrativi sono raccolti in un pannello espandibile e i chip continuano a preservare la vista corrente. La tabella e' ridotta da nove a cinque colonne operative; costi e contratto restano nel dettaglio e negli export. Aggiunta presa in carico POST direttamente dalla riga per gli OdL non assegnati. I deep-link storici con `status=DONE/CANCELED` aprono automaticamente l'archivio chiusi e gli export lanciati dalla UI rispettano la vista attiva. Nessuna migration o modifica ad ACL, permessi, URL e routing globale.

@@ -1215,7 +1215,7 @@ class AssetsRoutingTests(TestCase):
         self.assertEqual(verification.frequency_months, 3)
         self.assertIsNotNone(verification.next_verification_date)
 
-    def test_periodic_verification_page_contains_layout_controls_and_asset_search(self):
+    def test_periodic_verification_page_prioritizes_list_and_opens_form_on_request(self):
         admin = User.objects.create_superuser(
             username="asset-periodic-layout-admin",
             email="asset-periodic-layout-admin@test.local",
@@ -1232,11 +1232,107 @@ class AssetsRoutingTests(TestCase):
         response = self.client.get(reverse("assets:periodic_verifications") + "?scope=production")
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Cerca asset coinvolti per tag o nome")
-        self.assertContains(response, "Compatta")
-        self.assertContains(response, "Bilanciata")
-        self.assertContains(response, "Ampia")
-        self.assertContains(response, "Seleziona visibili")
+        self.assertContains(response, "Attive")
+        self.assertContains(response, "Da gestire")
+        self.assertContains(response, "Pianificate")
+        self.assertContains(response, "Archivio / regole")
+        self.assertContains(response, "+ Nuovo piano")
+        self.assertNotContains(response, "Cerca asset coinvolti per tag o nome")
+        self.assertNotContains(response, "Compatta")
+        self.assertNotContains(response, "Bilanciata")
+        self.assertNotContains(response, "Ampia")
+
+        create_response = self.client.get(
+            reverse("assets:periodic_verifications") + "?scope=production&create=1"
+        )
+        self.assertContains(create_response, "Cerca asset coinvolti per tag o nome")
+        self.assertContains(create_response, "Seleziona visibili")
+
+    def test_periodic_verification_operational_views_and_asset_context(self):
+        admin = User.objects.create_superuser(
+            username="asset-periodic-queue-admin",
+            email="asset-periodic-queue@test.local",
+            password="pass12345",
+        )
+        asset = Asset.objects.create(
+            asset_tag="PV-QUEUE-01",
+            name="Centro periodico principale",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            reparto="OFF",
+            source_key="periodic-queue-main",
+        )
+        other_asset = Asset.objects.create(
+            asset_tag="PV-QUEUE-02",
+            name="Centro periodico secondario",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            reparto="MAN",
+            source_key="periodic-queue-other",
+        )
+        supplier = Fornitore.objects.create(
+            ragione_sociale="Service Periodico Queue",
+            categoria=Fornitore.CATEGORIA_MANUTENZIONE,
+        )
+        due = PeriodicVerification.objects.create(
+            name="Lubrificazione scaduta",
+            supplier=supplier,
+            frequency_months=3,
+            next_verification_date=timezone.localdate() - timedelta(days=2),
+            is_active=True,
+        )
+        planned = PeriodicVerification.objects.create(
+            name="Controllo pianificato",
+            frequency_months=6,
+            next_verification_date=timezone.localdate() + timedelta(days=60),
+            is_active=True,
+        )
+        legacy = PeriodicVerification.objects.create(
+            name="Piano gestito da regola",
+            frequency_months=12,
+            is_active=True,
+            is_legacy=True,
+        )
+        inactive = PeriodicVerification.objects.create(
+            name="Piano disattivato",
+            frequency_months=12,
+            is_active=False,
+        )
+        unrelated = PeriodicVerification.objects.create(
+            name="Piano altro asset",
+            frequency_months=4,
+            next_verification_date=timezone.localdate() + timedelta(days=45),
+            is_active=True,
+        )
+        for verification in (due, planned, legacy, inactive):
+            verification.assets.add(asset)
+        unrelated.assets.add(other_asset)
+        self.client.force_login(admin)
+        base_url = reverse("assets:periodic_verifications")
+
+        active_response = self.client.get(base_url, {"scope": "production"})
+        self.assertEqual(active_response.context["periodic_view"], "active")
+        self.assertContains(active_response, due.name)
+        self.assertContains(active_response, planned.name)
+        self.assertNotContains(active_response, legacy.name)
+        self.assertNotContains(active_response, inactive.name)
+        self.assertContains(active_response, "Registra esecuzione")
+        self.assertContains(active_response, "Dettagli e storico")
+
+        attention_response = self.client.get(base_url, {"scope": "production", "view": "attention"})
+        self.assertContains(attention_response, due.name)
+        self.assertNotContains(attention_response, planned.name)
+
+        archive_response = self.client.get(base_url, {"scope": "production", "view": "archive"})
+        self.assertContains(archive_response, legacy.name)
+        self.assertContains(archive_response, inactive.name)
+        self.assertNotContains(archive_response, 'data-pv-record-toggle="', html=False)
+
+        asset_response = self.client.get(
+            base_url,
+            {"scope": "production", "asset": str(asset.id), "q": "Service Periodico"},
+        )
+        self.assertContains(asset_response, due.name)
+        self.assertNotContains(asset_response, planned.name)
+        self.assertNotContains(asset_response, unrelated.name)
 
     def test_legacy_periodic_verification_url_redirects_to_maintenance_route(self):
         admin = User.objects.create_superuser(

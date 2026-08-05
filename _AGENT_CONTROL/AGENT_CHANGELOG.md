@@ -2,6 +2,21 @@
 
 ## 2026-08-05 - Codex
 
+- Area: `django_app/assets`, manutenzione periodica ordinaria.
+- Richiesta: proseguire la semplificazione dell'area manutenzione rendendo comprensibile e operativa la lista dei piani periodici.
+- File modificati: `django_app/assets/views.py`, `django_app/assets/templates/assets/pages/periodic_verification_list.html`, `django_app/assets/tests.py`, `django_app/assets/README.md`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente. Nessuna modifica ad ACL, middleware, settings, autenticazione, permessi, URL, routing globale o navigazione globale.
+- Motivo tecnico: pagina sovraccarica di form permanente, KPI, avviso legacy, selettori di layout e azioni annidate, senza una separazione operativa tra urgenze, pianificati e archivio.
+- Modifica: default `Attive` ordinato per urgenza; viste con contatori `Da gestire`, `Pianificate`, `Archivio / regole`; ricerca primaria; contesto asset realmente filtrante; form mostrato solo per nuova/modifica/errori; esecuzione come azione primaria e strumenti secondari nei dettagli.
+- Impatto previsto: il manutentore individua subito i piani da eseguire e registra l'attivita con meno passaggi, senza perdere storico o strumenti amministrativi.
+- Rischi residui: verifica visuale autenticata non disponibile nel runtime browser; possibili micro-regolazioni con quantita e nomi dei dati reali.
+- Test/check: 6 test mirati su viste, ricerca/contesto asset, creazione, conversione legacy, Outlook ed esecuzione con avanzamento piano OK; `manage.py check assets` e template load OK; `git diff --check` OK.
+- Backup creati: nessuno.
+- README/CHANGELOG: aggiornati `README.md`, `django_app/assets/README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`.
+- Note operative: lavoro isolato nel worktree `C:\Dev\pn-assets-periodic-list-ux`; checkout condiviso e modifiche non correlate preservati.
+
+## 2026-08-05 - Codex
+
 - Area: `django_app/assets`, lista interventi.
 - Richiesta: semplificare prima la lista OdL per manutentori interni, separando aperti e chiusi, alleggerendo la tabella e consentendo la presa in carico rapida.
 - File modificati: `django_app/assets/views.py`, `django_app/assets/templates/assets/pages/workorder_list.html`, `django_app/assets/tests.py`, `django_app/assets/README.md`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.

@@ -4,6 +4,14 @@ Data: 2026-08-05
 
 Ultime voci viste/aggiunte in questa sessione:
 
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-08-05 - Codex` (Assets: manutenzione periodica come lista operativa).
+- `django_app/assets/views.py` -> viste `active/attention/planned/archive`, ordinamento per urgenza, ricerca e filtro reale per asset, form configurazione on demand.
+- `django_app/assets/templates/assets/pages/periodic_verification_list.html` -> tab con contatori, ricerca, azioni primarie e dettagli secondari; rimossi controlli layout e banner legacy permanente.
+- `django_app/assets/tests.py` -> regressioni su gerarchia, viste operative, contesto asset, creazione, conversione, Outlook e registrazione esecuzione.
+- Documentazione: `README.md`, `django_app/assets/README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` aggiornati.
+- Test/check: 6 test mirati OK; `manage.py check assets` e template load OK; `git diff --check` OK.
+- Note: nessun file critico, migration o backup; nessuna modifica ad ACL/URL/routing; verifica visuale autenticata non disponibile; checkout condiviso con file non correlati preservato.
+
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-08-05 - Codex` (Assets: lista interventi come coda operativa).
 - `django_app/assets/views.py` -> vista predefinita aperti, code `mine/unassigned/closed`, contatori e coerenza export/deep-link.
 - `django_app/assets/templates/assets/pages/workorder_list.html` -> quattro viste rapide, ricerca primaria, filtri avanzati, tabella a cinque colonne e presa in carico dalla riga.

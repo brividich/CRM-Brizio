@@ -987,6 +987,9 @@ def _periodic_verifications_page_url(
     edit_id: int = 0,
     scope: str = "",
     window: str = "",
+    view: str = "",
+    q: str = "",
+    create: bool = False,
 ) -> str:
     params: list[str] = []
     scope_value = _normalize_reports_scope(scope) if scope else ""
@@ -1000,6 +1003,14 @@ def _periodic_verifications_page_url(
         normalized_window = _normalize_periodic_execution_window(window)
         if normalized_window != PERIODIC_EXECUTION_WINDOW_DEFAULT:
             params.append(f"window={quote(normalized_window)}")
+    view_value = _clean_string(view).lower()
+    if view_value in {"active", "attention", "planned", "archive"} and view_value != "active":
+        params.append(f"view={quote(view_value)}")
+    q_value = _clean_string(q)
+    if q_value:
+        params.append(f"q={quote(q_value)}")
+    if create:
+        params.append("create=1")
     base_url = reverse("assets:periodic_verifications")
     return f"{base_url}?{'&'.join(params)}" if params else base_url
 
@@ -4165,6 +4176,8 @@ def _periodic_verification_redirect_from_request(request: HttpRequest) -> str:
         edit_id=_as_int(request.POST.get("filter_edit"), default=0),
         scope=_clean_string(request.POST.get("filter_scope") or request.POST.get("scope")),
         window=_clean_string(request.POST.get("filter_window")),
+        view=_clean_string(request.POST.get("filter_view")),
+        q=_clean_string(request.POST.get("filter_q")),
     )
 
 
@@ -14101,6 +14114,10 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
     scope_asset_queryset = Asset.objects.filter(asset_type__in=periodic_asset_types)
     execution_window = _normalize_periodic_execution_window(request.GET.get("window"))
     execution_cutoff = _periodic_execution_window_cutoff(execution_window, today=today)
+    periodic_view = _clean_string(request.GET.get("view")).lower()
+    if periodic_view not in {"active", "attention", "planned", "archive"}:
+        periodic_view = "active"
+    periodic_q = _clean_string(request.GET.get("q"))
 
     if "scope" not in request.GET and request.method == "GET":
         query = request.GET.copy()
@@ -14419,13 +14436,17 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
                     verification_event_map[entry.periodic_verification_id].append(entry)
 
     default_calendar_user_id = _asset_calendar_default_user_id(selected_asset, calendar_user_details)
-    for verification in (
+    verification_queryset = (
         PeriodicVerification.objects.select_related("supplier", "created_by")
         .prefetch_related("assets")
         .filter(assets__asset_type__in=periodic_asset_types)
         .distinct()
         .order_by("-is_active", "next_verification_date", "name", "id")
-    ):
+    )
+    if selected_asset is not None:
+        verification_queryset = verification_queryset.filter(assets=selected_asset)
+
+    for verification in verification_queryset:
         linked_assets = [asset for asset in verification.assets.all() if asset.asset_type in periodic_asset_types]
         is_selected_asset_linked = bool(selected_asset and any(asset.id == selected_asset.id for asset in linked_assets))
         execution_rows = _periodic_execution_rows_for_verification(
@@ -14472,6 +14493,8 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
                     edit_id=verification.id,
                     scope=periodic_scope,
                     window=execution_window,
+                    view=periodic_view,
+                    q=periodic_q,
                 ),
                 "execution_rows": execution_rows,
                 "execution_count": len(execution_rows),
@@ -14479,8 +14502,79 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
             }
         )
 
+    state_priority = {"overdue": 0, "warning": 1, "missing": 2, "ok": 3, "inactive": 4}
+    verification_rows.sort(
+        key=lambda row: (
+            bool(row["is_legacy"]),
+            state_priority.get(row["state"]["status"], 9),
+            row["verification"].next_verification_date or date.max,
+            row["verification"].name.lower(),
+        )
+    )
+    periodic_counts = {
+        "active": sum(
+            1 for row in verification_rows if row["verification"].is_active and not row["is_legacy"]
+        ),
+        "attention": sum(
+            1
+            for row in verification_rows
+            if row["verification"].is_active
+            and not row["is_legacy"]
+            and row["state"]["status"] in {"overdue", "warning", "missing"}
+        ),
+        "planned": sum(
+            1
+            for row in verification_rows
+            if row["verification"].is_active
+            and not row["is_legacy"]
+            and row["state"]["status"] == "ok"
+        ),
+        "archive": sum(
+            1 for row in verification_rows if row["is_legacy"] or not row["verification"].is_active
+        ),
+    }
+    verification_total_count = len(verification_rows)
+    legacy_verification_count = sum(1 for row in verification_rows if row["is_legacy"])
+
+    def row_matches_view(row) -> bool:
+        if periodic_view == "attention":
+            return bool(
+                row["verification"].is_active
+                and not row["is_legacy"]
+                and row["state"]["status"] in {"overdue", "warning", "missing"}
+            )
+        if periodic_view == "planned":
+            return bool(
+                row["verification"].is_active
+                and not row["is_legacy"]
+                and row["state"]["status"] == "ok"
+            )
+        if periodic_view == "archive":
+            return bool(row["is_legacy"] or not row["verification"].is_active)
+        return bool(row["verification"].is_active and not row["is_legacy"])
+
+    verification_rows = [row for row in verification_rows if row_matches_view(row)]
+    if periodic_q:
+        search_term = periodic_q.casefold()
+        verification_rows = [
+            row
+            for row in verification_rows
+            if search_term
+            in " ".join(
+                [
+                    row["verification"].name,
+                    str(row["verification"].supplier or ""),
+                    row["verification"].notes or "",
+                    *[
+                        f"{asset.asset_tag} {asset.name} {asset.reparto}"
+                        for asset in row["linked_assets"]
+                    ],
+                ]
+            ).casefold()
+        ]
+
     selected_asset_linked_count = (
-        sum(1 for row in verification_rows if row["is_selected_asset_linked"])
+        verification_total_count
         if selected_asset is not None
         else 0
     )
@@ -14496,12 +14590,43 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
             "periodic_base_url": _periodic_verifications_page_url(scope=periodic_scope),
             "form": form,
             "verification_rows": verification_rows,
-            "verification_total": len(verification_rows),
-            "active_verification_count": sum(1 for row in verification_rows if row["verification"].is_active),
-            "due_verification_count": sum(
-                1 for row in verification_rows if row["state"]["status"] in {"overdue", "warning"}
+            "verification_total": verification_total_count,
+            "active_verification_count": periodic_counts["active"],
+            "due_verification_count": periodic_counts["attention"],
+            "legacy_verification_count": legacy_verification_count,
+            "periodic_counts": periodic_counts,
+            "periodic_view": periodic_view,
+            "periodic_q": periodic_q,
+            "periodic_view_urls": {
+                view_key: _periodic_verifications_page_url(
+                    asset_id=selected_asset.id if selected_asset else 0,
+                    scope=periodic_scope,
+                    view=view_key,
+                )
+                for view_key in ("active", "attention", "planned", "archive")
+            },
+            "periodic_current_view_url": _periodic_verifications_page_url(
+                asset_id=selected_asset.id if selected_asset else 0,
+                scope=periodic_scope,
+                view=periodic_view,
+                q=periodic_q,
             ),
-            "legacy_verification_count": sum(1 for row in verification_rows if row["verification"].is_legacy),
+            "periodic_clear_url": _periodic_verifications_page_url(
+                asset_id=selected_asset.id if selected_asset else 0,
+                scope=periodic_scope,
+                view=periodic_view,
+            ),
+            "periodic_create_url": _periodic_verifications_page_url(
+                asset_id=selected_asset.id if selected_asset else 0,
+                scope=periodic_scope,
+                view=periodic_view,
+                q=periodic_q,
+                create=True,
+            ),
+            "show_periodic_form": bool(
+                can_manage_periodic_verifications
+                and (edit_verification is not None or request.GET.get("create") == "1" or form.errors)
+            ),
             "selected_asset": selected_asset,
             "selected_asset_linked_count": selected_asset_linked_count,
             "execution_window": execution_window,

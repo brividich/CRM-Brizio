@@ -5,6 +5,17 @@
 {% block assets_shell_head %}
 <style>
 .pv-page { display:grid; gap:14px; }
+.pv-views { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; }
+.pv-view-link { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:54px; padding:10px 13px; border:1px solid #dbe1ea; border-radius:11px; background:#fff; color:#334155; font-size:var(--fs-base); font-weight:800; text-decoration:none; }
+.pv-view-link:hover { border-color:#93c5fd; background:#f8fbff; color:#1d4ed8; }
+.pv-view-link.is-active { border-color:#2563eb; background:#eff6ff; color:#1d4ed8; }
+.pv-view-link-count { display:inline-grid; place-items:center; min-width:28px; height:28px; padding:0 7px; border-radius:999px; background:#e2e8f0; color:#334155; font-size:var(--fs-sm); }
+.pv-view-link.is-active .pv-view-link-count { background:#2563eb; color:#fff; }
+.pv-system-note { border:1px solid #dbe1ea; border-radius:11px; background:#fff; }
+.pv-system-note summary { padding:11px 14px; cursor:pointer; color:#475569; font-size:var(--fs-sm); font-weight:800; }
+.pv-system-note-body { padding:0 14px 13px; color:#64748b; font-size:var(--fs-sm); line-height:1.5; }
+.pv-list-controls { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:8px; align-items:center; margin-top:12px; }
+.pv-list-controls input { width:100%; min-height:42px; border:1px solid #cbd5e1; border-radius:10px; padding:9px 12px; font:inherit; }
 .pv-kpis { display:grid; gap:10px; grid-template-columns:repeat(3, minmax(0, 1fr)); }
 .pv-kpi {
   border:1px solid #e2e8f0;
@@ -66,7 +77,7 @@
 .pv-grid {
   display:grid;
   gap:14px;
-  grid-template-columns:minmax(700px, 1.2fr) minmax(360px, 1fr);
+  grid-template-columns:1fr;
   align-items:start;
 }
 .pv-grid[data-pv-layout="compact"] {
@@ -255,6 +266,7 @@
   display:grid;
   gap:10px;
 }
+.pv-item-primary-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding-top:2px; }
 .pv-item-collapse-body {
   display:none;
   grid-column:1 / -1;
@@ -572,6 +584,14 @@ body.theme-dark .pv-kpi.pv-kpi--ok { background:#0d2e18; border-color:#14532d; }
 body.theme-dark .pv-kpi.pv-kpi--warn { background:#2d2008; border-color:#78350f; }
 body.theme-dark .pv-kpi.pv-kpi--danger { background:#2d1515; border-color:#7f1d1d; }
 body.theme-dark .pv-kpi.pv-kpi--blue { background:#0d1f3c; border-color:#1e3a5f; }
+body.theme-dark .pv-view-link,body.theme-dark .pv-system-note { background:var(--surface); border-color:var(--border); color:var(--text-light); }
+body.theme-dark .pv-view-link:hover,body.theme-dark .pv-view-link.is-active { background:rgba(37,99,235,.14); border-color:rgba(96,165,250,.45); color:#bfdbfe; }
+body.theme-dark .pv-view-link-count { background:var(--surface-alt); color:var(--text-light); }
+body.theme-dark .pv-view-link.is-active .pv-view-link-count { background:#2563eb; color:#fff; }
+body.theme-dark .pv-system-note-body { color:var(--text-light); }
+body.theme-dark .pv-list-controls input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+@media(max-width:900px){.pv-views{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.pv-views{grid-template-columns:1fr}.pv-list-controls{grid-template-columns:1fr 1fr}.pv-list-controls input{grid-column:1/-1}}
 
 /* Breadcrumb pannello */
 .pv-back-link { font-size:var(--fs-sm); color:#64748b; text-decoration:none; display:inline-flex; align-items:center; gap:4px; }
@@ -588,41 +608,22 @@ body.theme-dark .pv-kpi.pv-kpi--blue { background:#0d1f3c; border-color:#1e3a5f;
   {% if selected_asset %}
     <a class="btn" href="{% url 'assets:asset_view' selected_asset.id %}">Torna all'asset</a>
   {% endif %}
-  {% if is_edit %}
-    <a class="btn btn-secondary" href="{{ periodic_base_url }}{% if selected_asset %}&asset={{ selected_asset.id }}{% endif %}">Nuovo piano</a>
-  {% endif %}
+  {% if can_manage_periodic_verifications %}<a class="btn btn-primary" href="{{ periodic_create_url }}">+ Nuovo piano</a>{% endif %}
 {% endblock %}
 
 {% block assets_shell_content %}
 <section class="pv-page">
-  <section class="pv-kpis">
-    <article class="pv-kpi pv-kpi--blue">
-      <div class="pv-kpi-label">Totale piani</div>
-      <div class="pv-kpi-value">{{ verification_total }}</div>
-      <div class="pv-kpi-meta">{{ active_verification_count }} attivi</div>
-    </article>
-    <article class="pv-kpi {% if due_verification_count %}pv-kpi--danger{% else %}pv-kpi--ok{% endif %}">
-      <div class="pv-kpi-label">In scadenza / scadute</div>
-      <div class="pv-kpi-value">{{ due_verification_count }}</div>
-      <div class="pv-kpi-meta">{% if due_verification_count %}da controllare{% else %}tutto nei tempi{% endif %}</div>
-    </article>
-    <article class="pv-kpi {% if legacy_verification_count %}pv-kpi--warn{% else %}pv-kpi--ok{% endif %}">
-      <div class="pv-kpi-label">Piani legacy</div>
-      <div class="pv-kpi-value">{{ legacy_verification_count }}</div>
-      <div class="pv-kpi-meta">{% if legacy_verification_count %}migrati a regole{% else %}nessuno{% endif %}</div>
-    </article>
-  </section>
+  <nav class="pv-views" aria-label="Viste manutenzione periodica">
+    <a class="pv-view-link{% if periodic_view == 'active' %} is-active{% endif %}" href="{{ periodic_view_urls.active }}"><span>Attive</span><span class="pv-view-link-count">{{ periodic_counts.active }}</span></a>
+    <a class="pv-view-link{% if periodic_view == 'attention' %} is-active{% endif %}" href="{{ periodic_view_urls.attention }}"><span>Da gestire</span><span class="pv-view-link-count">{{ periodic_counts.attention }}</span></a>
+    <a class="pv-view-link{% if periodic_view == 'planned' %} is-active{% endif %}" href="{{ periodic_view_urls.planned }}"><span>Pianificate</span><span class="pv-view-link-count">{{ periodic_counts.planned }}</span></a>
+    <a class="pv-view-link{% if periodic_view == 'archive' %} is-active{% endif %}" href="{{ periodic_view_urls.archive }}"><span>Archivio / regole</span><span class="pv-view-link-count">{{ periodic_counts.archive }}</span></a>
+  </nav>
 
-  <article class="pv-banner pv-banner-deprecation">
-    <div class="pv-banner-title">&#9888;&#xFE0F; Sezione in transizione</div>
-    <div class="pv-banner-text">
-      Il sistema di manutenzione periodica basato su cadenza mensile verrà progressivamente sostituito dalle <strong>Regole di manutenzione</strong> (cadenza in giorni/ore/km), gestite dalla generazione automatica degli Ordini di Lavoro.
-    </div>
-    <div class="pv-banner-note">
-      I piani esistenti rimangono come <strong>riferimento fornitore</strong> e collegamento agli OdL storici. Per ogni piano, quando il trigger temporale è stato migrato a una Regola di manutenzione, si può impostare "Migrato a regola" tramite il comando <code>migrate_periodic_to_rules</code>. I piani già migrati (<code>is_legacy=True</code>) rimangono visibili ma non generano nuovi OdL automatici.
-      {% if legacy_verification_count %} — <strong>{{ legacy_verification_count }} pian{% if legacy_verification_count == 1 %}o{% else %}i{% endif %} già migrato{% if legacy_verification_count != 1 %}i{% endif %}</strong> in questa categoria.{% endif %}
-    </div>
-  </article>
+  <details class="pv-system-note">
+    <summary>Informazioni sul passaggio alle regole di manutenzione</summary>
+    <div class="pv-system-note-body">I piani mensili convertiti restano consultabili in <strong>Archivio / regole</strong> come riferimento fornitore e storico. Il nuovo trigger temporale viene gestito dalle regole in giorni, ore o chilometri e dagli Ordini di Lavoro automatici.</div>
+  </details>
 
   {% if selected_asset %}
     <article class="pv-banner">
@@ -635,20 +636,13 @@ body.theme-dark .pv-kpi.pv-kpi--blue { background:#0d1f3c; border-color:#1e3a5f;
     </article>
   {% endif %}
 
-  <section class="pv-grid" data-pv-layout-root data-pv-layout="wide">
-    {% if can_manage_periodic_verifications %}
+  <section class="pv-grid">
+    {% if show_periodic_form %}
       <article class="pv-card">
         <div class="pv-card-head">
           <div>
             <h2>{% if is_edit %}Modifica piano{% else %}Nuovo piano{% endif %}</h2>
-            <p>Form piu compatto: il layout della scheda resta salvato sul browser.</p>
-          </div>
-          <div class="pv-card-head-tools">
-            <div class="pv-layout-switch" aria-label="Layout form">
-              <button class="pv-layout-btn" type="button" data-pv-layout-btn="compact">Compatta</button>
-              <button class="pv-layout-btn" type="button" data-pv-layout-btn="balanced">Bilanciata</button>
-              <button class="pv-layout-btn" type="button" data-pv-layout-btn="wide">Ampia</button>
-            </div>
+            <p>{% if is_edit %}Aggiorna cadenza, date e asset collegati.{% else %}Definisci il piano e collega gli asset coinvolti.{% endif %}</p>
           </div>
         </div>
         <div class="pv-card-body">
@@ -737,7 +731,9 @@ body.theme-dark .pv-kpi.pv-kpi--blue { background:#0d1f3c; border-color:#1e3a5f;
             <div class="pv-form-actions">
               <button class="btn btn-primary" type="submit">{% if is_edit %}Salva modifica{% else %}Crea piano{% endif %}</button>
               {% if is_edit %}
-                <a class="btn" href="{{ periodic_base_url }}{% if selected_asset %}&asset={{ selected_asset.id }}{% endif %}">Annulla</a>
+                <a class="btn" href="{{ periodic_current_view_url }}">Annulla</a>
+              {% else %}
+                <a class="btn" href="{{ periodic_current_view_url }}">Annulla</a>
               {% endif %}
             </div>
           </form>
@@ -748,23 +744,27 @@ body.theme-dark .pv-kpi.pv-kpi--blue { background:#0d1f3c; border-color:#1e3a5f;
     <article class="pv-card">
       <div class="pv-card-head">
         <div>
-          <h2>Piani registrati</h2>
+          <h2>{% if periodic_view == 'attention' %}Manutenzioni da gestire{% elif periodic_view == 'planned' %}Manutenzioni pianificate{% elif periodic_view == 'archive' %}Archivio e piani gestiti da regola{% else %}Manutenzioni periodiche attive{% endif %}</h2>
           <p>
-            Ogni asset puo comparire in piu piani di manutenzione periodica.
+            Le scadenze piu urgenti sono mostrate per prime.
             {% if can_manage_outlook_calendar and not selected_asset %}
               Per creare eventi Outlook filtra prima la pagina su un singolo asset.
             {% endif %}
           </p>
-          <div class="pv-card-head-tools" style="margin-top:8px;">
-            <div class="pv-view-switch" aria-label="Modalita visualizzazione">
-              <button class="pv-view-btn" type="button" data-pv-view-btn="grid">Griglia</button>
-              <button class="pv-view-btn" type="button" data-pv-view-btn="list">Elenco</button>
-            </div>
-          </div>
+          <form class="pv-list-controls" method="get">
+            <input type="hidden" name="scope" value="{{ periodic_scope }}">
+            <input type="hidden" name="view" value="{{ periodic_view }}">
+            {% if selected_asset %}<input type="hidden" name="asset" value="{{ selected_asset.id }}">{% endif %}
+            <input type="search" name="q" value="{{ periodic_q }}" placeholder="Cerca piano, fornitore o asset" aria-label="Cerca manutenzioni periodiche">
+            <button class="btn btn-primary" type="submit">Cerca</button>
+            {% if periodic_q %}<a class="btn" href="{{ periodic_clear_url }}">Pulisci</a>{% else %}<span></span>{% endif %}
+          </form>
           <div class="pv-window-bar" style="margin-top:8px;">
             <span class="pv-history-title">Storico esecuzioni:</span>
             <form method="get" action="{% url 'assets:periodic_verifications' %}">
               <input type="hidden" name="scope" value="{{ periodic_scope }}">
+              <input type="hidden" name="view" value="{{ periodic_view }}">
+              {% if periodic_q %}<input type="hidden" name="q" value="{{ periodic_q }}">{% endif %}
               {% if selected_asset %}<input type="hidden" name="asset" value="{{ selected_asset.id }}">{% endif %}
               {% if edit_verification %}<input type="hidden" name="edit" value="{{ edit_verification.id }}">{% endif %}
               <select name="window" onchange="this.form.submit()" aria-label="Finestra storico">
@@ -786,7 +786,7 @@ body.theme-dark .pv-kpi.pv-kpi--blue { background:#0d1f3c; border-color:#1e3a5f;
         {% endif %}
       </div>
       <div class="pv-card-body">
-        <div class="pv-list" data-pv-list-root data-pv-view="grid">
+        <div class="pv-list" data-pv-list-root data-pv-view="list">
           {% for row in verification_rows %}
             <article class="pv-item" data-pv-item="{{ row.verification.id }}">
               <div class="pv-item-top">
@@ -799,13 +799,17 @@ body.theme-dark .pv-kpi.pv-kpi--blue { background:#0d1f3c; border-color:#1e3a5f;
                 <div class="pv-item-top-right">
                   {% if row.is_legacy %}<span class="pv-pill muted" title="Trigger temporale gestito da una regola di manutenzione">Gestita da regola</span>{% endif %}
                   <span class="pv-pill {% if row.state.status == 'overdue' %}danger{% elif row.state.status == 'warning' %}warn{% elif row.state.status == 'ok' %}ok{% else %}muted{% endif %}">{{ row.state.label }}</span>
-                  <button class="pv-item-toggle" type="button" data-pv-item-toggle="{{ row.verification.id }}" aria-expanded="false" aria-label="Espandi piano">&#9660;</button>
                 </div>
               </div>
               <div class="pv-meta">
                 <span><strong>Cadenza:</strong> {{ row.verification.frequency_months }} mesi</span>
                 <span><strong>Prossima:</strong> {% if row.verification.next_verification_date %}{{ row.verification.next_verification_date|date:"d-m-Y" }}{% else %}-{% endif %}</span>
                 <span><strong>Asset:</strong> {{ row.linked_assets_count }}</span>
+              </div>
+              <div class="pv-item-primary-actions">
+                {% if can_manage_periodic_verifications and row.execution_assets and row.verification.is_active and not row.is_legacy %}<button class="btn btn-primary" type="button" data-pv-record-toggle="{{ row.verification.id }}">Registra esecuzione</button>{% endif %}
+                <button class="btn" type="button" data-pv-item-toggle="{{ row.verification.id }}" aria-expanded="false">Dettagli e storico</button>
+                {% if can_manage_periodic_verifications %}<a class="btn" href="{{ row.edit_url }}">Modifica</a>{% endif %}
               </div>
               <div class="pv-item-collapse-body" data-pv-item-body="{{ row.verification.id }}">
                 <div class="pv-assets">
@@ -822,7 +826,6 @@ body.theme-dark .pv-kpi.pv-kpi--blue { background:#0d1f3c; border-color:#1e3a5f;
                 {% endif %}
                 {% if can_manage_periodic_verifications %}
                   <div class="pv-inline-actions">
-                    <a class="btn btn-secondary" href="{{ row.edit_url }}">Modifica</a>
                     {% if row.can_convert_to_rule %}
                     <form class="pv-convert-form" method="post" onsubmit="return confirm('Convertire questo piano in una regola di manutenzione? Il trigger temporale passera alle regole e il piano resta come riferimento fornitore.');">
                       {% csrf_token %}
@@ -859,6 +862,8 @@ body.theme-dark .pv-kpi.pv-kpi--blue { background:#0d1f3c; border-color:#1e3a5f;
                         <input type="hidden" name="filter_asset" value="{{ selected_asset.id }}">
                         <input type="hidden" name="filter_edit" value="{% if edit_verification %}{{ edit_verification.id }}{% endif %}">
                         <input type="hidden" name="filter_scope" value="{{ periodic_scope }}">
+                        <input type="hidden" name="filter_view" value="{{ periodic_view }}">
+                        <input type="hidden" name="filter_q" value="{{ periodic_q }}">
                         <select class="pv-inline-select" name="target_legacy_user_id" required>
                           <option value="">Seleziona utente calendario</option>
                           {% for user_id, user_label in calendar_user_choices %}
@@ -919,16 +924,15 @@ body.theme-dark .pv-kpi.pv-kpi--blue { background:#0d1f3c; border-color:#1e3a5f;
                   {% else %}
                     <div class="pv-empty">Nessuna esecuzione registrata nel periodo selezionato.</div>
                   {% endif %}
-                  {% if can_manage_periodic_verifications and row.execution_assets %}
-                    <div>
-                      <button class="pv-record-toggle is-secondary" type="button" data-pv-record-toggle="{{ row.verification.id }}">+ Registra esecuzione</button>
-                    </div>
+                  {% if can_manage_periodic_verifications and row.execution_assets and row.verification.is_active and not row.is_legacy %}
                     <form method="post" class="pv-record-form" data-pv-record-form="{{ row.verification.id }}" enctype="multipart/form-data">
                       {% csrf_token %}
                       <input type="hidden" name="action" value="record_periodic_verification_execution">
                       <input type="hidden" name="verification_id" value="{{ row.verification.id }}">
                       <input type="hidden" name="filter_asset" value="{% if selected_asset %}{{ selected_asset.id }}{% endif %}">
                       <input type="hidden" name="filter_scope" value="{{ periodic_scope }}">
+                      <input type="hidden" name="filter_view" value="{{ periodic_view }}">
+                      <input type="hidden" name="filter_q" value="{{ periodic_q }}">
                       <input type="hidden" name="filter_edit" value="{% if edit_verification %}{{ edit_verification.id }}{% endif %}">
                       <input type="hidden" name="filter_window" value="{{ execution_window }}">
                       <div class="pv-record-full">
@@ -987,37 +991,6 @@ body.theme-dark .pv-kpi.pv-kpi--blue { background:#0d1f3c; border-color:#1e3a5f;
 {% block assets_shell_scripts %}
 <script>
 (() => {
-  const layoutRoot = document.querySelector("[data-pv-layout-root]");
-  const layoutButtons = Array.from(document.querySelectorAll("[data-pv-layout-btn]"));
-  const layoutStorageKey = "assets.periodic-verifications.layout";
-
-  const applyLayout = (layout) => {
-    if (!layoutRoot) return;
-    const normalized = ["compact", "balanced", "wide"].includes(layout) ? layout : "wide";
-    layoutRoot.dataset.pvLayout = normalized;
-    layoutButtons.forEach((button) => {
-      button.classList.toggle("is-active", button.dataset.pvLayoutBtn === normalized);
-    });
-    try {
-      window.localStorage.setItem(layoutStorageKey, normalized);
-    } catch (error) {
-      void error;
-    }
-  };
-
-  if (layoutRoot && layoutButtons.length) {
-    let savedLayout = "wide";
-    try {
-      savedLayout = window.localStorage.getItem(layoutStorageKey) || "wide";
-    } catch (error) {
-      void error;
-    }
-    applyLayout(savedLayout);
-    layoutButtons.forEach((button) => {
-      button.addEventListener("click", () => applyLayout(button.dataset.pvLayoutBtn || "wide"));
-    });
-  }
-
   const assetSearchInput = document.querySelector("[data-pv-asset-search]");
   const assetSelect = document.querySelector("[data-pv-asset-select]");
   const assetCount = document.querySelector("[data-pv-asset-count]");
@@ -1076,35 +1049,18 @@ body.theme-dark .pv-kpi.pv-kpi--blue { background:#0d1f3c; border-color:#1e3a5f;
     const planId = toggle.dataset.pvRecordToggle;
     const form = document.querySelector(`[data-pv-record-form="${planId}"]`);
     const cancel = document.querySelector(`[data-pv-record-cancel="${planId}"]`);
+    const body = document.querySelector(`[data-pv-item-body="${planId}"]`);
+    const detailToggle = document.querySelector(`[data-pv-item-toggle="${planId}"]`);
     if (!form) return;
     toggle.addEventListener("click", () => {
+      body?.classList.add("is-open");
+      detailToggle?.setAttribute("aria-expanded", "true");
       form.classList.toggle("is-open");
     });
     cancel?.addEventListener("click", () => {
       form.classList.remove("is-open");
     });
   });
-
-  const listRoot = document.querySelector("[data-pv-list-root]");
-  const viewButtons = Array.from(document.querySelectorAll("[data-pv-view-btn]"));
-  const viewStorageKey = "assets.periodic-verifications.view";
-  const applyView = (view) => {
-    if (!listRoot) return;
-    const normalized = ["grid", "list"].includes(view) ? view : "grid";
-    listRoot.dataset.pvView = normalized;
-    viewButtons.forEach((button) => {
-      button.classList.toggle("is-active", button.dataset.pvViewBtn === normalized);
-    });
-    try { window.localStorage.setItem(viewStorageKey, normalized); } catch (error) { void error; }
-  };
-  if (listRoot && viewButtons.length) {
-    let savedView = "grid";
-    try { savedView = window.localStorage.getItem(viewStorageKey) || "grid"; } catch (error) { void error; }
-    applyView(savedView);
-    viewButtons.forEach((button) => {
-      button.addEventListener("click", () => applyView(button.dataset.pvViewBtn || "grid"));
-    });
-  }
 
   document.querySelectorAll("[data-pv-execution-toggle-all]").forEach((checkbox) => {
     const planId = checkbox.dataset.pvExecutionToggleAll;
