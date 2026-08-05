@@ -24,10 +24,12 @@ from django.db import transaction
 from django.utils.text import slugify
 
 from assets.models import (
+    AssetMaintenanceRuleState,
     AssetCategory,
     MaintenanceInterventionTemplate,
     MaintenanceRule,
     PeriodicVerification,
+    WorkOrder,
 )
 
 
@@ -46,48 +48,51 @@ def plan_periodic_verification_migration(pv: PeriodicVerification) -> dict[str, 
     if not assets:
         return {"ok": False, "reason": "no_asset", "message": "Nessun asset collegato al piano."}
 
-    category_ids = {asset.asset_category_id for asset in assets}
-    if None in category_ids or len(category_ids) > 1:
+    if any(asset.asset_category_id is None for asset in assets):
         return {
             "ok": False,
-            "reason": "multi_category",
-            "message": "Gli asset del piano devono appartenere a un'unica categoria asset.",
+            "reason": "no_category",
+            "message": "Assegna una categoria a tutti gli asset prima di inglobare il piano.",
         }
 
-    category_id = next(iter(category_ids))
-    category = AssetCategory.objects.filter(pk=category_id).first()
-    if category is None:
+    category_ids = sorted({asset.asset_category_id for asset in assets})
+    categories = {row.id: row for row in AssetCategory.objects.filter(pk__in=category_ids)}
+    if len(categories) != len(category_ids):
         return {"ok": False, "reason": "no_category", "message": "Categoria asset non trovata."}
+    category_groups = [
+        {
+            "category": categories[category_id],
+            "category_id": category_id,
+            "assets": [asset for asset in assets if asset.asset_category_id == category_id],
+        }
+        for category_id in category_ids
+    ]
 
     threshold_days = months_to_days(pv.frequency_months)
     template_label = (pv.name or "Manutenzione periodica")[:120]
 
-    existing_template = (
-        MaintenanceInterventionTemplate.objects.filter(
-            label=template_label, asset_category_id=category_id
-        ).first()
-        or MaintenanceInterventionTemplate.objects.filter(
-            label=template_label, asset_category__isnull=True
-        ).first()
-    )
-    existing_rule = None
-    if existing_template:
-        existing_rule = MaintenanceRule.objects.filter(
-            intervention_template=existing_template,
-            asset_category_id=category_id,
-            threshold_type=MaintenanceRule.THRESHOLD_DAYS,
+    template_category_id = category_ids[0] if len(category_ids) == 1 else None
+    existing_template = MaintenanceInterventionTemplate.objects.filter(
+        label=template_label,
+        asset_category_id=template_category_id,
+    ).first()
+    if existing_template is None and template_category_id is not None:
+        existing_template = MaintenanceInterventionTemplate.objects.filter(
+            label=template_label,
+            asset_category__isnull=True,
         ).first()
 
     return {
         "ok": True,
         "reason": "",
         "message": "",
-        "category": category,
-        "category_id": category_id,
+        "category": category_groups[0]["category"],
+        "category_id": category_groups[0]["category_id"],
+        "category_groups": category_groups,
+        "template_category_id": template_category_id,
         "threshold_days": threshold_days,
         "template_label": template_label,
         "existing_template": existing_template,
-        "existing_rule": existing_rule,
     }
 
 
@@ -112,23 +117,76 @@ def migrate_periodic_verification_to_rule(pv: PeriodicVerification) -> dict[str,
                 code=code,
                 label=plan["template_label"],
                 description=pv.notes or "",
-                asset_category_id=plan["category_id"],
+                asset_category_id=plan["template_category_id"],
                 is_active=True,
             )
             created_template = True
 
-        rule = plan["existing_rule"]
-        created_rule = False
-        if not rule:
-            rule = MaintenanceRule.objects.create(
-                intervention_template=template,
-                asset_category_id=plan["category_id"],
-                threshold_type=MaintenanceRule.THRESHOLD_DAYS,
-                threshold_value=plan["threshold_days"],
-                warning_days=max(7, plan["threshold_days"] // 10),
-                is_active=True,
-            )
-            created_rule = True
+        rules = []
+        created_rules = 0
+        for group in plan["category_groups"]:
+            rule = MaintenanceRule.objects.filter(
+                legacy_periodic_verifications=pv,
+                asset_category_id=group["category_id"],
+            ).first()
+            if rule is None and pv.is_legacy:
+                rule = MaintenanceRule.objects.filter(
+                    intervention_template=template,
+                    asset_category_id=group["category_id"],
+                    threshold_type=MaintenanceRule.THRESHOLD_DAYS,
+                    threshold_value=plan["threshold_days"],
+                ).first()
+            if rule is None:
+                rule = MaintenanceRule.objects.create(
+                    intervention_template=template,
+                    asset_category_id=group["category_id"],
+                    scope_type=MaintenanceRule.SCOPE_ASSETS,
+                    threshold_type=MaintenanceRule.THRESHOLD_DAYS,
+                    threshold_value=plan["threshold_days"],
+                    warning_days=max(7, plan["threshold_days"] // 10),
+                    execution_mode=(
+                        MaintenanceRule.MODE_EXTERNAL if pv.supplier_id else MaintenanceRule.MODE_INTERNAL
+                    ),
+                    supplier=pv.supplier,
+                    first_due_date=pv.next_verification_date,
+                    is_active=pv.is_active,
+                )
+                rule.assets.set(group["assets"])
+                created_rules += 1
+            rule.legacy_periodic_verifications.add(pv)
+            rules.append(rule)
+
+            asset_ids = [asset.id for asset in group["assets"]]
+            WorkOrder.objects.filter(
+                periodic_verification=pv,
+                asset_id__in=asset_ids,
+                maintenance_rule__isnull=True,
+            ).update(maintenance_rule=rule)
+            for asset in group["assets"]:
+                latest_workorder = (
+                    WorkOrder.objects.filter(
+                        periodic_verification=pv,
+                        asset=asset,
+                        status=WorkOrder.STATUS_DONE,
+                    )
+                    .order_by("-closed_at", "-id")
+                    .first()
+                )
+                executed_on = (
+                    latest_workorder.closed_at.date()
+                    if latest_workorder is not None and latest_workorder.closed_at is not None
+                    else pv.last_verification_date
+                )
+                if executed_on is not None or latest_workorder is not None:
+                    AssetMaintenanceRuleState.objects.update_or_create(
+                        asset=asset,
+                        base_rule=rule,
+                        defaults={
+                            "last_execution_date": executed_on,
+                            "last_work_order": latest_workorder,
+                            "notes": "Storico inglobato dal precedente piano periodico.",
+                        },
+                    )
 
         if not pv.is_legacy:
             pv.is_legacy = True
@@ -141,7 +199,9 @@ def migrate_periodic_verification_to_rule(pv: PeriodicVerification) -> dict[str,
         "category": plan["category"],
         "threshold_days": plan["threshold_days"],
         "template": template,
-        "rule": rule,
+        "rule": rules[0],
+        "rules": rules,
         "created_template": created_template,
-        "created_rule": created_rule,
+        "created_rule": bool(created_rules),
+        "created_rules": created_rules,
     }

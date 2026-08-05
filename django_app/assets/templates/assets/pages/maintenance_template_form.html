@@ -1,6 +1,6 @@
 {% extends "assets/base_shell.html" %}
 
-{% block title %}{% if is_edit %}Modifica template manutenzione{% else %}Nuovo template manutenzione{% endif %}{% endblock %}
+{% block title %}{% if is_edit %}Modifica tipo di attivita{% else %}Nuovo tipo di attivita{% endif %}{% endblock %}
 
 {% block assets_shell_head %}
 <style>
@@ -22,9 +22,9 @@ body.theme-dark .mtf-cta a { color:#60a5fa; }
 </style>
 {% endblock %}
 
-{% block assets_shell_title %}{% if is_edit %}Modifica template manutenzione{% else %}Nuovo template manutenzione{% endif %}{% endblock %}
+{% block assets_shell_title %}{% if is_edit %}Modifica tipo di attivita{% else %}Nuovo tipo di attivita{% endif %}{% endblock %}
 {% block assets_shell_subtitle %}
-<p>Definisci il tipo standard di intervento e la sua checklist, da riusare nelle regole manutentive.</p>
+<p>Crea una procedura aziendale riutilizzabile. Asset, frequenza e responsabile verranno definiti nel piano.</p>
 {% endblock %}
 
 {% block assets_shell_content %}
@@ -44,7 +44,7 @@ body.theme-dark .mtf-cta a { color:#60a5fa; }
 
     <div class="as-form-grid-3" style="border:1px solid #dbe1ea;border-radius:14px;background:#fff;padding:16px;">
       {% for field in form %}
-        <div style="{% if field.name == 'description' %}grid-column:1/-1;{% endif %}">
+        <div style="{% if field.name == 'description' or field.name == 'required_materials' %}grid-column:1/-1;{% endif %}">
           {% if field.field.widget.input_type == 'checkbox' %}
             <label style="display:flex;gap:8px;align-items:center;min-height:44px;">
               {{ field }} <span>{{ field.label }}</span>
@@ -64,8 +64,8 @@ body.theme-dark .mtf-cta a { color:#60a5fa; }
     </div>
 
     <fieldset class="mtf-checklist">
-      <legend>Checklist intervento</legend>
-      <div class="as-help">Gli step vengono copiati automaticamente in ogni ordine di lavoro generato da questo template (lascia vuoto il numero per assegnarlo in automatico).</div>
+      <legend>Procedura e controlli</legend>
+      <div class="as-help">Gli step vengono copiati in ogni OdL generato da questo tipo di attivita e registrano chi li completa e quando.</div>
       {{ checklist_formset.management_form }}
       {% if checklist_formset.non_form_errors %}
         <div class="as-error">{{ checklist_formset.non_form_errors }}</div>
@@ -102,7 +102,7 @@ body.theme-dark .mtf-cta a { color:#60a5fa; }
     {% if is_edit and rule_create_url %}
     <div class="mtf-cta">
       <span>Prossimo passo:</span>
-      <a href="{{ rule_create_url }}">Crea una regola che applica questo template a una categoria &rsaquo;</a>
+      <a href="{{ rule_create_url }}">Crea un piano per assegnare questa attivita agli asset &rsaquo;</a>
     </div>
     {% endif %}
 

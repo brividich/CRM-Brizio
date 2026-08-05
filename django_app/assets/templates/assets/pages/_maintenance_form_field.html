@@ -1,0 +1,12 @@
+<div{% if full_width %} style="grid-column:1/-1;"{% endif %}>
+  {% if field.field.widget.input_type == 'checkbox' %}
+    <label style="display:flex;gap:8px;align-items:center;min-height:44px;">
+      {{ field }} <span>{{ field.label }}</span>
+    </label>
+  {% else %}
+    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+    {{ field }}
+  {% endif %}
+  {% if field.help_text %}<div class="as-help" style="margin-top:4px;">{{ field.help_text }}</div>{% endif %}
+  {% if field.errors %}<div class="as-error">{{ field.errors }}</div>{% endif %}
+</div>

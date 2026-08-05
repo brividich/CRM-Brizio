@@ -2,6 +2,21 @@
 
 ## 2026-08-05 - Codex
 
+- Area: `django_app/assets`, centro manutenzione aziendale.
+- Richiesta: trasformare manutenzione ordinaria in hub unico, mantenendo invariato il flusso ticket, separando catalogo attivita e piani e inglobando i vecchi piani periodici.
+- File modificati: modelli/form/engine/servizi/command/view/URL/template/test di `django_app/assets`, migration `0088` e `0089`, `README.md`, `django_app/assets/README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/10_MAINTENANCE_MODERNIZATION.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: `django_app/assets/urls.py` (nuova rotta autenticata `maintenance_history`) e navigazione locale manutenzione in `django_app/assets/views.py`; modifica strettamente necessaria e autorizzata dalla richiesta di hub unico. Nessuna modifica ad ACL, middleware, settings, autenticazione, permessi o navigazione globale registry; `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente.
+- Motivo tecnico: il precedente doppio modello `MaintenanceRule`/`PeriodicVerification` separava definizione, pianificazione e storico e rendeva poco chiaro il governo della manutenzione ordinaria.
+- Modifica: catalogo attivita con famiglia/durata/materiali; piani con scope categoria o asset, prima scadenza, responsabile/fornitore e automazione; ingestione conservativa dei piani legacy con storico; storico aziendale OdL + ticket MAN in sola lettura; hub e navigazione riorganizzati.
+- Impatto previsto: un unico punto per governare manutenzione ordinaria e lavoro corrente, mantenendo i ticket nel loro flusso attuale e rendendo leggibili responsabilita, copertura e storico.
+- Rischi residui: migration dati da applicare in deploy; i piani legacy senza asset o con asset privi di categoria restano pendenti; verifica visuale autenticata sui dati reali raccomandata.
+- Test/check: 34 test mirati manutenzione OK; `manage.py check assets` OK; `makemigrations --check --dry-run` OK; caricamento dei cinque template principali OK; `git diff --check` OK.
+- Backup creati: nessuno; migrazioni additive e dati legacy non eliminati.
+- README/CHANGELOG: aggiornati `README.md`, `django_app/assets/README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` e piano AI manutenzione.
+- Note operative: applicare `manage.py migrate`; checkout condiviso e modifiche non correlate preservati.
+
+## 2026-08-05 - Codex
+
 - Area: `django_app/assets`, manutenzione periodica ordinaria.
 - Richiesta: proseguire la semplificazione dell'area manutenzione rendendo comprensibile e operativa la lista dei piani periodici.
 - File modificati: `django_app/assets/views.py`, `django_app/assets/templates/assets/pages/periodic_verification_list.html`, `django_app/assets/tests.py`, `django_app/assets/README.md`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.

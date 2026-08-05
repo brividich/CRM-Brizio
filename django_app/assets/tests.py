@@ -4080,12 +4080,13 @@ class AssetsRoutingTests(TestCase):
         self.assertContains(hub_response, ">Manutenzione<", html=False)
         self.assertContains(
             hub_response,
-            f'class="as-section-tab active" href="{reverse("assets:maintenance_hub")}" aria-current="page">Da fare</a>',
+            f'class="as-section-tab active" href="{reverse("assets:maintenance_hub")}" aria-current="page">Oggi</a>',
             html=False,
         )
         self.assertContains(hub_response, f'href="{reverse("assets:maintenance_schedule")}">Scadenzario</a>', html=False)
         self.assertContains(hub_response, f'href="{reverse("assets:wo_list")}">Interventi</a>', html=False)
-        self.assertContains(hub_response, f'href="{reverse("assets:report_template_admin")}">Template report</a>', html=False)
+        self.assertContains(hub_response, f'href="{reverse("assets:maintenance_history")}">Storico</a>', html=False)
+        self.assertContains(hub_response, f'href="{reverse("assets:maintenance_impostazioni")}">Catalogo e piani</a>', html=False)
         self.assertContains(
             hub_response,
             f'class="as-section-action as-section-action--primary" href="{reverse("assets:wo_list")}?create=1" data-as-section-action="new-workorder">+ Nuovo intervento</a>',
@@ -4098,7 +4099,7 @@ class AssetsRoutingTests(TestCase):
         )
         self.assertContains(
             hub_response,
-            f'href="{reverse("assets:maintenance_impostazioni")}" data-as-section-action="settings">Impostazioni</a>',
+            f'href="{reverse("assets:maintenance_rule_create")}" data-as-section-action="new-plan">+ Nuovo piano</a>',
             html=False,
         )
 
@@ -4126,7 +4127,7 @@ class AssetsRoutingTests(TestCase):
         self.assertEqual(report_templates_response.status_code, 200)
         self.assertContains(
             report_templates_response,
-            f'class="as-section-tab active" href="{reverse("assets:report_template_admin")}" aria-current="page">Template report</a>',
+            f'class="as-section-tab active" href="{reverse("assets:reports")}?scope=production" aria-current="page">Report</a>',
             html=False,
         )
 
@@ -4150,6 +4151,10 @@ class AssetsRoutingTests(TestCase):
         self.assertContains(response, "Interventi da gestire")
         self.assertContains(response, "Agenda 7 giorni")
         self.assertContains(response, "Apri il registro completo")
+        self.assertContains(response, "Centro manutenzione aziendale")
+        self.assertContains(response, "Piani ordinari")
+        self.assertContains(response, "Catalogo attivita")
+        self.assertContains(response, "Storico")
         self.assertNotContains(response, '<section class="oc-cockpit"', html=False)
         self.assertNotContains(response, '<div class="mh-actions-list">', html=False)
         self.assertNotContains(response, "Mese corrente")
@@ -5952,7 +5957,7 @@ class WorkOrderFlowTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["maintenance_rule_counts"]["missing"], 1)
-        self.assertContains(response, "Regole manutenzione critiche")
+        self.assertContains(response, "Piani ordinari da gestire")
         self.assertContains(response, self.asset.asset_tag)
         self.assertContains(response, "Controllo hub critico")
         self.assertContains(response, "Prima esecuzione")
@@ -6220,6 +6225,71 @@ class AssetMaintenanceStepTwoTests(TestCase):
         self.assertEqual(rule.threshold_value, 90)
         self.assertTrue(rule.is_active)
 
+    def test_targeted_plan_generates_only_selected_asset_and_assigns_owner(self):
+        template = MaintenanceInterventionTemplate.objects.create(
+            code="targeted-plan-step-two",
+            label="Controllo sicurezza guidato",
+            maintenance_type=MaintenanceInterventionTemplate.TYPE_SAFETY,
+            estimated_duration_minutes=45,
+            asset_category=self.category,
+        )
+        selected_asset = Asset.objects.create(
+            asset_tag="ML-TARGET-001",
+            name="Macchina inclusa",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            asset_category=self.category,
+            status=Asset.STATUS_IN_USE,
+        )
+        excluded_asset = Asset.objects.create(
+            asset_tag="ML-TARGET-002",
+            name="Macchina esclusa",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            asset_category=self.category,
+            status=Asset.STATUS_IN_USE,
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("assets:maintenance_rule_create"),
+            {
+                "intervention_template": str(template.id),
+                "asset_category": str(self.category.id),
+                "scope_type": MaintenanceRule.SCOPE_ASSETS,
+                "assets": [str(selected_asset.id)],
+                "threshold_type": MaintenanceRule.THRESHOLD_DAYS,
+                "threshold_value": "30",
+                "warning_days": "7",
+                "first_due_date": timezone.localdate().isoformat(),
+                "execution_mode": MaintenanceRule.MODE_INTERNAL,
+                "assigned_to": str(self.admin.id),
+                "auto_generate_workorders": "on",
+                "sort_order": "10",
+                "is_active": "on",
+                "notes": "Solo sulla macchina inclusa",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        rule = MaintenanceRule.objects.get(intervention_template=template)
+        self.assertEqual(list(rule.assets.values_list("id", flat=True)), [selected_asset.id])
+        call_command("generate_scheduled_workorders", stdout=io.StringIO())
+        workorder = WorkOrder.objects.get(maintenance_rule=rule)
+        self.assertEqual(workorder.asset, selected_asset)
+        self.assertEqual(workorder.assigned_to, self.admin)
+        self.assertEqual(workorder.kind, WorkOrder.KIND_SAFETY)
+        self.assertFalse(WorkOrder.objects.filter(maintenance_rule=rule, asset=excluded_asset).exists())
+
+    def test_activity_form_exposes_operational_catalog_fields(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("assets:maintenance_template_create"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Famiglia")
+        self.assertContains(response, "Durata prevista (minuti)")
+        self.assertContains(response, "Materiali e attrezzature")
+        self.assertContains(response, "Procedura e controlli")
+
     def test_maintenance_rule_create_view_shows_template_management_when_templates_missing(self):
         self.client.force_login(self.admin)
 
@@ -6291,27 +6361,29 @@ class AssetMaintenanceStepTwoTests(TestCase):
 
         self.client.force_login(self.admin)
 
-        # Le vecchie liste standalone ora redirigono (301) alla vista unica
-        # "Interventi & Regole" in Impostazioni manutenzione.
+        # Le vecchie liste standalone redirigono alle sezioni canoniche.
         settings_url = reverse("assets:maintenance_impostazioni")
 
         template_list_response = self.client.get(reverse("assets:maintenance_template_list"))
         self.assertEqual(template_list_response.status_code, 301)
         self.assertIn(settings_url, template_list_response["Location"])
-        self.assertIn("tab=interventi", template_list_response["Location"])
+        self.assertIn("tab=catalogo", template_list_response["Location"])
 
         rule_list_response = self.client.get(reverse("assets:maintenance_rule_list"))
         self.assertEqual(rule_list_response.status_code, 301)
         self.assertIn(settings_url, rule_list_response["Location"])
-        self.assertIn("tab=interventi", rule_list_response["Location"])
+        self.assertIn("tab=piani", rule_list_response["Location"])
 
-        # La vista unica mostra template e regole insieme (accordion), con la
-        # categoria e i suoi interventi.
-        settings_response = self.client.get(settings_url + "?tab=interventi&active=all")
+        settings_response = self.client.get(settings_url + "?tab=catalogo&active=all")
         self.assertEqual(settings_response.status_code, 200)
-        self.assertContains(settings_response, "Interventi &amp; Regole")
+        self.assertContains(settings_response, "Catalogo attivita")
         self.assertContains(settings_response, general_template.label)
         self.assertContains(settings_response, category_template.label)
+
+        plans_response = self.client.get(settings_url + "?tab=piani&active=all")
+        self.assertEqual(plans_response.status_code, 200)
+        self.assertContains(plans_response, "Piani ordinari")
+        self.assertContains(plans_response, category_template.label)
         self.assertContains(settings_response, self.category.label)
 
     def test_maintenance_form_accepts_global_template_for_category_rule(self):
@@ -6545,7 +6617,7 @@ class PeriodicVerificationConvergenceTests(TestCase):
         self.pv.refresh_from_db()
         self.assertTrue(self.pv.is_legacy)
 
-    def test_service_blocks_multi_category(self):
+    def test_service_splits_multi_category_plan_without_expanding_scope(self):
         from assets.services.periodic_migration import migrate_periodic_verification_to_rule
 
         other_cat = AssetCategory.objects.create(
@@ -6557,10 +6629,15 @@ class PeriodicVerificationConvergenceTests(TestCase):
         )
         self.pv.assets.add(other_asset)
         result = migrate_periodic_verification_to_rule(self.pv)
-        self.assertFalse(result["ok"])
-        self.assertEqual(result["reason"], "multi_category")
+        self.assertTrue(result["ok"])
+        self.assertEqual(len(result["rules"]), 2)
+        self.assertTrue(all(rule.scope_type == MaintenanceRule.SCOPE_ASSETS for rule in result["rules"]))
+        self.assertEqual(
+            {asset_id for rule in result["rules"] for asset_id in rule.assets.values_list("id", flat=True)},
+            {self.asset.id, other_asset.id},
+        )
         self.pv.refresh_from_db()
-        self.assertFalse(self.pv.is_legacy)
+        self.assertTrue(self.pv.is_legacy)
 
     def test_ui_convert_action_creates_rule_and_marks_legacy(self):
         self.client.force_login(self.admin)
@@ -6580,6 +6657,28 @@ class PeriodicVerificationConvergenceTests(TestCase):
                 asset_category=self.category, threshold_type=MaintenanceRule.THRESHOLD_DAYS
             ).exists()
         )
+
+    def test_ingestion_links_existing_history_and_initializes_plan_state(self):
+        from assets.services.periodic_migration import migrate_periodic_verification_to_rule
+
+        closed_at = timezone.now() - timedelta(days=12)
+        workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            periodic_verification=self.pv,
+            origin=WorkOrder.ORIGIN_PERIODIC,
+            kind=WorkOrder.KIND_PREVENTIVE,
+            status=WorkOrder.STATUS_DONE,
+            title="Storico verifica fune",
+            closed_at=closed_at,
+        )
+
+        result = migrate_periodic_verification_to_rule(self.pv)
+
+        workorder.refresh_from_db()
+        self.assertEqual(workorder.maintenance_rule, result["rule"])
+        state = AssetMaintenanceRuleState.objects.get(asset=self.asset, base_rule=result["rule"])
+        self.assertEqual(state.last_work_order, workorder)
+        self.assertEqual(state.last_execution_date, closed_at.date())
 
     def test_second_convert_is_idempotent(self):
         from assets.services.periodic_migration import migrate_periodic_verification_to_rule
@@ -8302,6 +8401,41 @@ class AssetMaintenanceRegisterTicketTests(TestCase):
         # Verifica che entrambi appaiano nel registro manutenzione
         self.assertContains(response, wo.title)
         self.assertContains(response, ticket.numero_ticket)
+
+    def test_company_maintenance_history_combines_closed_workorders_and_man_tickets(self):
+        workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            title="Sostituzione cuscinetto conclusa",
+            status=WorkOrder.STATUS_DONE,
+            closed_at=timezone.now(),
+            intervention_duration_minutes=90,
+            cost_eur=Decimal("125.50"),
+        )
+        ticket = Ticket.objects.create(
+            tipo=TipoTicket.MAN,
+            titolo="Rumore anomalo risolto",
+            descrizione="Segnalazione operatore",
+            categoria="MECCANICA",
+            priorita=PrioritaTicket.MEDIA,
+            stato=StatoTicket.CHIUSO,
+            closed_at=timezone.now(),
+            asset=self.asset,
+            richiedente_nome="Test User",
+            richiedente_email="test@example.com",
+            include_in_maintenance_register=True,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("assets:maintenance_history"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, workorder.title)
+        self.assertContains(response, ticket.titolo)
+        self.assertContains(response, "OdL")
+        self.assertContains(response, "Ticket MAN")
+        self.assertEqual(response.context["history_workorder_count"], 1)
+        self.assertEqual(response.context["history_ticket_count"], 1)
 
 
 class AssetMaintenanceRegisterUnifiedTests(TestCase):

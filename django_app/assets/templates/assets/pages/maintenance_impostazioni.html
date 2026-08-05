@@ -1,10 +1,14 @@
 {% extends "assets/base_shell.html" %}
 
-{% block title %}Impostazioni manutenzione{% endblock %}
+{% block title %}Catalogo e piani manutenzione{% endblock %}
 
 {% block assets_shell_head %}
 <style>
 .mi-page { display:grid; gap:20px; }
+.mi-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.mi-summary-card { border:1px solid #dbe1ea; border-radius:12px; background:#fff; padding:13px 15px; }
+.mi-summary-value { font-size:var(--fs-display-lg); font-weight:850; color:#0f172a; }
+.mi-summary-label { color:#64748b; font-size:var(--fs-sm); margin-top:3px; }
 
 /* ── Tab bar ───────────────────────────────────────────────────────── */
 .mi-tabs {
@@ -239,22 +243,26 @@ body.theme-dark .mi-pill.blue     { background:rgba(37,99,235,.25); color:#93c5f
 body.theme-dark .mi-pill.danger   { background:rgba(185,28,28,.25); color:#fca5a5; }
 body.theme-dark .mi-tab-badge { background:#1e3a5f; color:#93c5fd; }
 body.theme-dark .mi-rule-label { color:#475569; }
+body.theme-dark .mi-summary-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .mi-summary-value { color:var(--text); }
 
 /* ── Responsive ────────────────────────────────────────────────────── */
 @media (max-width:600px) {
   .mi-tab  { padding:8px 10px; font-size:var(--fs-xs); }
   .mi-card-head { gap:8px; }
 }
+@media (max-width:800px) { .mi-summary { grid-template-columns:1fr; } }
 </style>
 {% endblock %}
 
-{% block assets_shell_title %}Impostazioni manutenzione{% endblock %}
+{% block assets_shell_title %}Catalogo e piani manutenzione{% endblock %}
 {% block assets_shell_subtitle %}
-<p>Configura template di intervento, regole di manutenzione programmata e associazioni.</p>
+<p>Definisci cosa fare, su quali asset, con quale frequenza e chi ne e responsabile.</p>
 {% endblock %}
 {% block assets_shell_toolbar %}
   <a class="btn" href="{{ url_hub }}">&#8592; Hub manutenzione</a>
   <a class="btn" href="{{ url_scadenzario }}">Scadenzario</a>
+  <a class="btn" href="{% url 'assets:maintenance_history' %}">Storico</a>
 {% endblock %}
 
 {% block assets_shell_content %}
@@ -262,22 +270,30 @@ body.theme-dark .mi-rule-label { color:#475569; }
 
   <!-- TAB BAR ──────────────────────────────────────────────────────── -->
   <div class="mi-tabs">
-    <a href="?tab=interventi" class="mi-tab {% if active_tab == 'interventi' %}is-active{% endif %}">
-      Interventi &amp; Regole
+    <a href="?tab=catalogo" class="mi-tab {% if active_tab == 'catalogo' %}is-active{% endif %}">
+      Catalogo attivita
       <span class="mi-tab-badge">{{ template_count }}</span>
     </a>
-    <a href="?tab=piano" class="mi-tab {% if active_tab == 'piano' %}is-active{% endif %}">
-      Piano per categoria
+    <a href="?tab=piani" class="mi-tab {% if active_tab == 'piani' %}is-active{% endif %}">
+      Piani ordinari
+      <span class="mi-tab-badge">{{ maintenance_plan_count }}</span>
+    </a>
+    <a href="?tab=copertura" class="mi-tab {% if active_tab == 'copertura' %}is-active{% endif %}">
+      Copertura
       {% if plan_category_count %}<span class="mi-tab-badge">{{ plan_category_count }}</span>{% endif %}
     </a>
   </div>
 
-  <!-- TAB: INTERVENTI E REGOLE ─────────────────────────────────────── -->
-  {% if active_tab == 'interventi' %}
+  <section class="mi-summary" aria-label="Sintesi configurazione manutenzione">
+    <article class="mi-summary-card"><div class="mi-summary-value">{{ template_count }}</div><div class="mi-summary-label">tipi di attivita visibili</div></article>
+    <article class="mi-summary-card"><div class="mi-summary-value">{{ maintenance_plan_count }}</div><div class="mi-summary-label">piani ordinari visibili</div></article>
+    <article class="mi-summary-card"><div class="mi-summary-value">{{ ingested_periodic_count }}</div><div class="mi-summary-label">vecchi piani inglobati{% if pending_periodic_count %} · {{ pending_periodic_count }} da completare{% endif %}</div></article>
+  </section>
 
   <!-- Barra filtri integrata (sostituisce le vecchie pagine "Vista avanzata") -->
+  {% if active_tab != 'copertura' %}
   <form method="get" class="mi-filters" role="search">
-    <input type="hidden" name="tab" value="interventi">
+    <input type="hidden" name="tab" value="{{ active_tab }}">
     <select name="category" class="mi-filter-field" aria-label="Filtra per categoria">
       <option value="">Tutte le categorie</option>
       {% for cat in category_options %}
@@ -301,52 +317,48 @@ body.theme-dark .mi-rule-label { color:#475569; }
       <a href="{{ clear_filters_url }}" class="mi-link">Azzera</a>
     {% endif %}
   </form>
+  {% endif %}
+
+  <!-- TAB: CATALOGO ATTIVITA ───────────────────────────────────────── -->
+  {% if active_tab == 'catalogo' %}
 
   <details class="mi-card as-collapse as-collapse--cap" open>
     <summary class="mi-card-head">
-      <span class="mi-card-title">Interventi di manutenzione &amp; regole programmate</span>
-      <a href="{{ url_suppliers }}" class="mi-link">Fornitori manutenzione &rsaquo;</a>
-      <a href="{% url 'assets:maintenance_template_create' %}" class="mi-new-btn">+ Nuovo intervento</a>
+      <span class="mi-card-title">Tipi di attivita riutilizzabili</span>
+      <a href="{% url 'assets:maintenance_template_create' %}" class="mi-new-btn">+ Nuovo tipo</a>
     </summary>
+    <div class="mi-plan-intro">Il tipo descrive il lavoro: istruzioni, checklist, durata prevista e materiali. La frequenza e gli asset appartengono invece al piano.</div>
     <div class="mi-table-wrap as-collapse-body">
       <table class="mi-table">
         <thead><tr>
-          <th scope="col" aria-label="Espandi"></th>
-          <th scope="col">Template</th>
+          <th scope="col">Attivita</th>
+          <th scope="col">Famiglia</th>
           <th scope="col">Categoria</th>
-          <th scope="col">Codice</th>
-          <th scope="col">Regole attive</th>
+          <th scope="col">Durata</th>
+          <th scope="col">Piani</th>
           <th scope="col">Stato</th>
           <th scope="col" aria-label="Azioni"></th>
         </tr></thead>
+        <tbody>
         {% if template_rows %}
           {% for row in template_rows %}
-          <tbody>
-            <tr class="mi-tmpl-row" data-mi-tmpl="{{ row.t.id }}"{% if not row.rules %} data-mi-no-expand{% endif %}>
-              <td>
-                {% if row.rules %}
-                  <span class="mi-tmpl-expand" aria-hidden="true">&#9660;</span>
-                {% else %}
-                  <span class="mi-placeholder-cell"></span>
-                {% endif %}
-              </td>
+            <tr>
               <td>
                 <strong>{{ row.t.label }}</strong>
-                {% if row.t.description %}
-                  <span class="mi-desc">{{ row.t.description|truncatechars:70 }}</span>
-                {% endif %}
+                <span class="mi-desc"><span class="mi-tag">{{ row.t.code }}</span>{% if row.t.description %} · {{ row.t.description|truncatechars:75 }}{% endif %}</span>
               </td>
+              <td><span class="mi-badge">{{ row.t.get_maintenance_type_display }}</span></td>
               <td>
                 {% if row.t.asset_category %}
                   <span class="mi-badge">{{ row.t.asset_category.label }}</span>
                 {% else %}
-                  <span class="mi-muted">—</span>
+                  <span class="mi-muted">Generale</span>
                 {% endif %}
               </td>
-              <td><span class="mi-tag">{{ row.t.code }}</span></td>
+              <td>{% if row.t.estimated_duration_minutes %}{{ row.t.estimated_duration_minutes }} min{% else %}<span class="mi-muted">Da definire</span>{% endif %}</td>
               <td>
                 {% if row.rules_count %}
-                  <span class="mi-badge">{{ row.rules_count }} regor{% if row.rules_count == 1 %}a{% else %}ole{% endif %}</span>
+                  <span class="mi-badge">{{ row.rules_count }}</span>
                 {% else %}
                   <span class="mi-muted">Nessuna</span>
                 {% endif %}
@@ -358,68 +370,64 @@ body.theme-dark .mi-rule-label { color:#475569; }
               </td>
               <td>
                 <a href="{% url 'assets:maintenance_template_edit' row.t.id %}" class="mi-link">Modifica</a>
+                <span class="mi-muted">·</span>
+                <a href="{% url 'assets:maintenance_rule_create' %}?template={{ row.t.id }}" class="mi-link">Crea piano</a>
               </td>
             </tr>
-          </tbody>
-          {% if row.rules %}
-          <tbody class="mi-rules-tbody" data-mi-rules="{{ row.t.id }}">
-            {% for rule in row.rules %}
-            <tr class="mi-rule-row">
-              <td></td>
-              <td>
-                <span class="mi-rule-label">Regola</span>
-                <span class="mi-rule-name">{{ rule.asset_category.label }} — {{ rule.threshold_value }} {{ rule.get_threshold_type_display }}
-                  {% if rule.is_external %}<span class="mi-ext-badge">Esterna{% if rule.supplier %} · {{ rule.supplier }}{% endif %}</span>{% endif %}
-                </span>
-              </td>
-              <td>
-                <span class="mi-tag">{{ rule.asset_category.label }}</span>
-              </td>
-              <td class="mi-muted">—</td>
-              <td>
-                <span class="mi-badge">{{ rule.threshold_value }} {{ rule.get_threshold_type_display }}</span>
-                {% if rule.warning_days %}
-                  <span class="mi-muted mi-rule-warning">avviso {{ rule.warning_days }}gg prima</span>
-                {% endif %}
-              </td>
-              <td>
-                <span class="mi-pill {% if rule.is_active %}active{% else %}inactive{% endif %}">
-                  {% if rule.is_active %}Attiva{% else %}Inattiva{% endif %}
-                </span>
-              </td>
-              <td>
-                <a href="{% url 'assets:maintenance_rule_edit' rule.id %}" class="mi-link">Modifica</a>
-              </td>
-            </tr>
-            {% endfor %}
-            <tr class="mi-rule-row">
-              <td colspan="7">
-                <a href="{% url 'assets:maintenance_rule_create' %}?template={{ row.t.id }}" class="mi-link mi-rule-add-link">+ Aggiungi regola a questo template</a>
-              </td>
-            </tr>
-          </tbody>
-          {% endif %}
           {% endfor %}
         {% else %}
-          <tbody>
             <tr>
               <td colspan="7" class="mi-empty">
                 {% if has_active_filters %}
-                  Nessun intervento corrisponde ai filtri. <a href="{{ clear_filters_url }}" class="mi-link">Azzera i filtri</a>.
+                  Nessun tipo corrisponde ai filtri. <a href="{{ clear_filters_url }}" class="mi-link">Azzera i filtri</a>.
                 {% else %}
-                  Nessun intervento configurato. <a href="{% url 'assets:maintenance_template_create' %}" class="mi-link">Crea il primo.</a>
+                  Nessun tipo configurato. <a href="{% url 'assets:maintenance_template_create' %}" class="mi-link">Crea il primo.</a>
                 {% endif %}
               </td>
             </tr>
-          </tbody>
         {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+  {% endif %}
+
+  <!-- TAB: PIANI ORDINARI ─────────────────────────────────────────── -->
+  {% if active_tab == 'piani' %}
+  <details class="mi-card as-collapse as-collapse--cap" open>
+    <summary class="mi-card-head">
+      <span class="mi-card-title">Piani ordinari</span>
+      <a href="{{ url_suppliers }}" class="mi-link">Fornitori &rsaquo;</a>
+      <a href="{% url 'assets:maintenance_rule_create' %}" class="mi-new-btn">+ Nuovo piano</a>
+    </summary>
+    <div class="mi-plan-intro">Il piano applica un tipo di attivita agli asset, stabilisce frequenza, prima scadenza, responsabile e apertura automatica dell'OdL.</div>
+    <div class="mi-table-wrap as-collapse-body">
+      <table class="mi-table">
+        <thead><tr><th>Attivita</th><th>Asset coinvolti</th><th>Frequenza</th><th>Responsabile</th><th>Automazione</th><th>Storico</th><th></th></tr></thead>
+        <tbody>
+        {% for row in maintenance_plan_rows %}
+          {% with rule=row.rule %}
+          <tr>
+            <td><strong>{{ rule.intervention_template.label }}</strong><span class="mi-desc">{{ rule.asset_category.label }}{% if row.legacy_count %} · {{ row.legacy_count }} piano precedente inglobato{% endif %}</span></td>
+            <td><span class="mi-badge">{{ row.asset_count }} asset</span><span class="mi-desc">{{ rule.get_scope_type_display }}</span></td>
+            <td><strong>{{ rule.threshold_value }} {{ rule.get_threshold_type_display }}</strong><span class="mi-desc">{% if rule.first_due_date %}prima scadenza {{ rule.first_due_date|date:"d/m/Y" }}{% else %}dall'ultima esecuzione{% endif %}</span></td>
+            <td>{% if rule.is_external %}<span class="mi-ext-badge">Esterna</span><span class="mi-desc">{{ rule.supplier|default:"Ditta da assegnare" }}</span>{% elif rule.assigned_to %}{{ rule.assigned_to.get_full_name|default:rule.assigned_to.username }}{% else %}Da assegnare{% endif %}</td>
+            <td>{% if rule.auto_generate_workorders %}<span class="mi-pill active">OdL automatici</span>{% else %}<span class="mi-pill warn">Apertura manuale</span>{% endif %}<span class="mi-desc">{% if rule.is_active %}Piano attivo{% else %}Piano disattivato{% endif %}</span></td>
+            <td><a class="mi-link" href="{% url 'assets:maintenance_history' %}?q={{ rule.intervention_template.label|urlencode }}">{{ rule.completed_count }} completati</a><span class="mi-desc">{{ rule.history_count }} OdL totali</span></td>
+            <td><a href="{% url 'assets:maintenance_rule_edit' rule.id %}" class="mi-link">Modifica</a></td>
+          </tr>
+          {% endwith %}
+        {% empty %}
+          <tr><td colspan="7" class="mi-empty">Nessun piano corrisponde ai filtri. <a href="{% url 'assets:maintenance_rule_create' %}" class="mi-link">Crea il primo piano</a>.</td></tr>
+        {% endfor %}
+        </tbody>
       </table>
     </div>
   </details>
   {% endif %}
 
   <!-- TAB: PIANO PER CATEGORIA ──────────────────────────────────────── -->
-  {% if active_tab == 'piano' %}
+  {% if active_tab == 'copertura' %}
   <details class="mi-card as-collapse as-collapse--cap" open>
     <summary class="mi-card-head">
       <span class="mi-card-title">Piano di manutenzione per categoria</span>

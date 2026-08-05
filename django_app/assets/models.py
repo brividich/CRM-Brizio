@@ -357,7 +357,6 @@ class AssetCategory(models.Model):
     def __str__(self) -> str:
         return self.label
 
-
 class AssetListOption(models.Model):
     FIELD_REPARTO = "reparto"
     FIELD_MANUFACTURER = "manufacturer"
@@ -925,9 +924,45 @@ class AssetAdministrativeDeadlineCompletionAttachment(models.Model):
 
 
 class MaintenanceInterventionTemplate(models.Model):
+    TYPE_ROUTINE = "ROUTINE"
+    TYPE_INSPECTION = "INSPECTION"
+    TYPE_LUBRICATION = "LUBRICATION"
+    TYPE_CLEANING = "CLEANING"
+    TYPE_REPLACEMENT = "REPLACEMENT"
+    TYPE_ADJUSTMENT = "ADJUSTMENT"
+    TYPE_SAFETY = "SAFETY"
+    TYPE_CALIBRATION = "CALIBRATION"
+    TYPE_OTHER = "OTHER"
+    MAINTENANCE_TYPE_CHOICES = [
+        (TYPE_ROUTINE, "Manutenzione ordinaria"),
+        (TYPE_INSPECTION, "Controllo / ispezione"),
+        (TYPE_LUBRICATION, "Lubrificazione"),
+        (TYPE_CLEANING, "Pulizia tecnica"),
+        (TYPE_REPLACEMENT, "Sostituzione programmata"),
+        (TYPE_ADJUSTMENT, "Regolazione / taratura meccanica"),
+        (TYPE_SAFETY, "Sicurezza"),
+        (TYPE_CALIBRATION, "Taratura strumento"),
+        (TYPE_OTHER, "Altro"),
+    ]
+
     code = models.SlugField(max_length=80, unique=True)
     label = models.CharField(max_length=120)
+    maintenance_type = models.CharField(
+        max_length=24,
+        choices=MAINTENANCE_TYPE_CHOICES,
+        default=TYPE_ROUTINE,
+        db_index=True,
+    )
     description = models.TextField(blank=True, default="")
+    estimated_duration_minutes = models.PositiveIntegerField(
+        default=0,
+        help_text="Durata indicativa usata per pianificare il carico di lavoro.",
+    )
+    required_materials = models.TextField(
+        blank=True,
+        default="",
+        help_text="Ricambi, consumabili o attrezzature normalmente necessari.",
+    )
     asset_category = models.ForeignKey(
         AssetCategory,
         on_delete=models.SET_NULL,
@@ -953,8 +988,17 @@ class MaintenanceInterventionTemplate(models.Model):
     def clean(self):
         self.label = (self.label or "").strip()
         self.description = (self.description or "").strip()
+        self.required_materials = (self.required_materials or "").strip()
         if not self.label:
             raise ValidationError({"label": "Inserisci il nome del template intervento."})
+
+    @property
+    def workorder_kind(self) -> str:
+        if self.maintenance_type == self.TYPE_SAFETY:
+            return "SAFETY"
+        if self.maintenance_type == self.TYPE_CALIBRATION:
+            return "CALIBRATION"
+        return "PREVENTIVE"
 
 
 class MaintenanceChecklistStep(models.Model):
@@ -997,6 +1041,13 @@ class MaintenanceRule(models.Model):
         (MODE_EXTERNAL, "Esterna (ditta terza)"),
     ]
 
+    SCOPE_CATEGORY = "CATEGORY"
+    SCOPE_ASSETS = "ASSETS"
+    SCOPE_CHOICES = [
+        (SCOPE_CATEGORY, "Tutti gli asset della categoria"),
+        (SCOPE_ASSETS, "Solo asset selezionati"),
+    ]
+
     intervention_template = models.ForeignKey(
         "MaintenanceInterventionTemplate",
         on_delete=models.PROTECT,
@@ -1006,6 +1057,18 @@ class MaintenanceRule(models.Model):
         AssetCategory,
         on_delete=models.CASCADE,
         related_name="maintenance_rules",
+    )
+    scope_type = models.CharField(
+        max_length=16,
+        choices=SCOPE_CHOICES,
+        default=SCOPE_CATEGORY,
+        db_index=True,
+    )
+    assets = models.ManyToManyField(
+        Asset,
+        blank=True,
+        related_name="maintenance_plans",
+        help_text="Usati solo quando l'ambito del piano e 'Solo asset selezionati'.",
     )
     # In Step 2 i threshold a ore/km/cicli sono modellati ma non ancora pienamente operativi.
     threshold_type = models.CharField(max_length=20, choices=THRESHOLD_TYPE_CHOICES, default=THRESHOLD_DAYS, db_index=True)
@@ -1026,6 +1089,30 @@ class MaintenanceRule(models.Model):
         blank=True,
         related_name="maintenance_rules",
         help_text="Ditta esterna che esegue l'intervento (solo per manutenzioni esterne).",
+    )
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="assigned_maintenance_plans",
+        help_text="Manutentore interno predefinito per gli OdL generati dal piano.",
+    )
+    first_due_date = models.DateField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Prima scadenza del piano quando non esistono ancora esecuzioni.",
+    )
+    auto_generate_workorders = models.BooleanField(
+        default=True,
+        db_index=True,
+        help_text="Genera automaticamente l'OdL quando il piano entra nella finestra di preavviso.",
+    )
+    legacy_periodic_verifications = models.ManyToManyField(
+        "PeriodicVerification",
+        blank=True,
+        related_name="maintenance_rules",
     )
     sort_order = models.IntegerField(default=100)
     is_active = models.BooleanField(default=True, db_index=True)
@@ -1066,6 +1153,13 @@ class MaintenanceRule(models.Model):
                     )
                 }
         )
+
+    def applies_to_asset(self, asset: Asset | None) -> bool:
+        if asset is None or asset.asset_category_id != self.asset_category_id:
+            return False
+        if self.scope_type == self.SCOPE_ASSETS:
+            return self.assets.filter(pk=asset.pk).exists()
+        return True
 
 
 class MaintenanceRuleAssetOverride(models.Model):

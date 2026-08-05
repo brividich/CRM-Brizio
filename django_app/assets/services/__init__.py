@@ -184,11 +184,13 @@ def generate_workorders_for_rule(rule: Any, user: Any = None) -> list[Any]:
     rule_id = getattr(rule, "id", "unknown")
     reference_batch = f"BATCH_{rule_id}_{timestamp}"
 
-    # Trova tutti gli asset della categoria
+    # Trova gli asset coperti dal piano (intera categoria oppure selezione esplicita).
     assets = Asset.objects.filter(
         asset_category_id=rule.asset_category_id,
         status=Asset.STATUS_IN_USE
     ).select_related("asset_category")
+    if rule.scope_type == rule.SCOPE_ASSETS:
+        assets = assets.filter(pk__in=rule.assets.values("pk"))
 
     created_workorders = []
     for asset in assets:
@@ -208,10 +210,12 @@ def generate_workorders_for_rule(rule: Any, user: Any = None) -> list[Any]:
             maintenance_rule=rule,
             origin=WorkOrder.ORIGIN_PERIODIC,
             reference_batch=reference_batch,
-            kind=WorkOrder.KIND_PREVENTIVE,
+            kind=getattr(rule.intervention_template, "workorder_kind", WorkOrder.KIND_PREVENTIVE),
             status=WorkOrder.STATUS_OPEN,
             title=f"{rule.intervention_template.label} - {asset.asset_tag}",
             description=rule.intervention_template.description or "",
+            assigned_to=rule.assigned_to,
+            supplier=rule.supplier,
             notes=f"Generato da regola {rule.id} - batch {reference_batch}",
             executed_by=user,
             opened_at=timezone.now(),
