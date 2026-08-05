@@ -4155,6 +4155,13 @@ class AssetsRoutingTests(TestCase):
         self.assertContains(response, "Piani ordinari")
         self.assertContains(response, "Catalogo attivita")
         self.assertContains(response, "Storico")
+        expected_create_url = f'{reverse("assets:wo_list")}?create=1'
+        self.assertEqual(response.context["url_wo_create"], expected_create_url)
+        self.assertContains(
+            response,
+            f'href="{expected_create_url}">+ Nuovo intervento</a>',
+            html=False,
+        )
         self.assertNotContains(response, '<section class="oc-cockpit"', html=False)
         self.assertNotContains(response, '<div class="mh-actions-list">', html=False)
         self.assertNotContains(response, "Mese corrente")
@@ -5237,6 +5244,17 @@ class WorkOrderFlowTests(TestCase):
             f"?kind={WorkOrder.KIND_CORRECTIVE}&source=workorder_list"
         )
         self.assertRedirects(response, expected_url, fetch_redirect_response=False)
+
+    def test_global_workorder_create_without_asset_opens_asset_selector(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("assets:wo_create"))
+
+        self.assertRedirects(
+            response,
+            f'{reverse("assets:wo_list")}?create=1',
+            fetch_redirect_response=False,
+        )
 
     def test_workorder_list_defaults_to_open_operational_queue(self):
         open_workorder = WorkOrder.objects.create(

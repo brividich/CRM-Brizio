@@ -4,6 +4,13 @@ Data: 2026-08-05
 
 Ultime voci viste/aggiunte in questa sessione:
 
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-08-05 - Codex` (fix ingresso `+ Nuovo intervento` dall'hub manutenzione).
+- `django_app/assets/views.py` -> hub e fallback della route globale OdL convergono su `/assets/workorders/?create=1`, selettore asset canonico.
+- `django_app/assets/templates/assets/pages/_operational_cockpit.html` -> corretto lo stesso CTA globale nel cruscotto Assets.
+- `django_app/assets/tests.py` -> regressioni su redirect senza asset, selettore, hub e sotto-navigazione.
+- Documentazione: `README.md`, `django_app/assets/README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/ASSET_MAINTENANCE_PLAN.md` aggiornati.
+- Test/check: 5 test mirati OK; `git diff --check` OK. Browser autenticato non disponibile; nessuna migration, ACL o modifica dati.
+
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-08-05 - Codex` (Assets: centro manutenzione aziendale, catalogo attivita, piani ordinari e storico unico).
 - `django_app/assets/models.py` + migration `0088` -> catalogo attivita arricchito e piano canonico con scope categoria/asset, prima scadenza, responsabile, fornitore e automazione.
 - migration `0089` + `assets/services/periodic_migration.py` -> ingestione conservativa dei `PeriodicVerification`, anche multi-categoria, preservando OdL e baseline; eccezioni senza asset/categoria lasciate pendenti.

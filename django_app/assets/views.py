@@ -15495,7 +15495,9 @@ def workorder_create(request: HttpRequest, id: int | None = None) -> HttpRespons
             target_url = reverse("assets:wo_create", kwargs={"id": selected_asset_id})
             query_string = query.urlencode()
             return redirect(f"{target_url}?{query_string}" if query_string else target_url)
-        return redirect("assets:wo_list")
+        # Un OdL richiede sempre un asset: un ingresso globale deve aprire il
+        # selettore canonico, non arrestarsi sulla lista interventi.
+        return redirect(_workorder_list_page_url(create=1))
     asset = get_object_or_404(Asset, pk=id)
     source = normalize_workorder_source(request.GET.get("source"))
     back_to_list = source == "workorder_list"
@@ -16553,7 +16555,7 @@ def maintenance_hub(request: HttpRequest) -> HttpResponse:
             "url_wo_open": wo_open_url,
             "url_wo_overdue": wo_overdue_url,
             "url_wo_done": wo_done_url,
-            "url_wo_create": reverse("assets:wo_create"),
+            "url_wo_create": _workorder_list_page_url(create=1),
             "url_hub_scadenze": _url_deadlines,
             "url_hub_verifiche": _url_verifications,
             "url_hub_contratti": reverse("assets:assistance_contract_list"),

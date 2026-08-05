@@ -2,6 +2,21 @@
 
 ## 2026-08-05 - Codex
 
+- Area: `django_app/assets`, ingresso creazione intervento.
+- Richiesta: ripristinare il collegamento operativo `+ Nuovo intervento` dall'hub manutenzione dopo il consolidamento dell'area.
+- File modificati: `django_app/assets/views.py`, `django_app/assets/templates/assets/pages/_operational_cockpit.html`, `django_app/assets/tests.py`, `README.md`, `django_app/assets/README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/ASSET_MAINTENANCE_PLAN.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; nessuna modifica a URL, routing, ACL, middleware, settings, autenticazione, permessi o navigazione globale. `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente.
+- Motivo tecnico: `WorkOrder` richiede un asset, ma il CTA dell'hub puntava alla route globale `/assets/workorders/new/`; senza asset la view reindirizzava alla lista senza `?create=1`, lasciando chiuso il selettore e interrompendo il flusso.
+- Modifica: hub e cockpit puntano a `/assets/workorders/?create=1`; la route globale senza asset usa lo stesso fallback, mentre la selezione continua nel form guidato `/assets/workorders/new/<asset>/` esistente.
+- Impatto previsto: da qualsiasi CTA globale si apre subito la scelta asset e si puo registrare l'intervento senza rimbalzi inerti.
+- Rischi residui: verifica visuale autenticata non eseguita per backend browser chiuso/non disponibile; comportamento coperto con client Django autenticato e test sul markup/autoreindirizzamento.
+- Test/check: 5 test mirati OK; `git diff --check` OK.
+- Backup creati: nessuno; nessuna migration o modifica dati.
+- README/CHANGELOG: aggiornati.
+- Note operative: lavoro isolato nel worktree `C:\Dev\pn-maintenance-new-intervention-fix`; modifiche non correlate del checkout condiviso preservate.
+
+## 2026-08-05 - Codex
+
 - Area: `django_app/assets`, centro manutenzione aziendale.
 - Richiesta: trasformare manutenzione ordinaria in hub unico, mantenendo invariato il flusso ticket, separando catalogo attivita e piani e inglobando i vecchi piani periodici.
 - File modificati: modelli/form/engine/servizi/command/view/URL/template/test di `django_app/assets`, migration `0088` e `0089`, `README.md`, `django_app/assets/README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/10_MAINTENANCE_MODERNIZATION.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.

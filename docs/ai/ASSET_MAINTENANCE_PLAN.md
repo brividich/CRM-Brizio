@@ -36,6 +36,8 @@ Tre tessuti connettivi da introdurre:
 2. **Servizio KPI unico** (`maintenance_kpi`) consumato da hub, cruscotto e report.
 3. **Navigazione guidata** template → regola → stato iniziale → OdL → report.
 
+Contratto di ingresso OdL: un `WorkOrder` richiede sempre un asset. Ogni CTA globale `+ Nuovo intervento` deve quindi aprire `/assets/workorders/?create=1`, che mostra il selettore asset; solo dopo la scelta si entra in `/assets/workorders/new/<asset>/`. La route senza id resta un fallback compatibile e deve convergere sul selettore, mai sulla lista inerte.
+
 ## 3. Spunti da CMMS open-source / commerciali
 
 - **Odoo Maintenance / Frappe-ERPNext**: il *Maintenance Plan* è un oggetto a sé con calendario; KPI MTBF/MTTR/availability in Kanban.
