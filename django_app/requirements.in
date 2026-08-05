@@ -41,6 +41,9 @@ python-magic>=0.4.14; platform_system!="Windows"
 pyotp>=2.10.0                      # TOTP/HOTP per app authenticator
 qrcode[pil]>=7.4                # generazione QR code (setup TOTP)
 
+# --- Lettura codici (QR/barcode) da documenti scansionati ---
+zxing-cpp>=2.2                  # decodifica QR e codici a barre (rientro fogli firme e documenti stampati)
+
 # --- State machine / API (app gestione_specifiche) ---
 django-fsm-2>=4.0,<5            # macchina a stati Specifica (FSMField/@transition)
 django-ninja>=1.0,<2            # API REST elenco/ricerca/transizioni gestione_specifiche

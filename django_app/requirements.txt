@@ -61,3 +61,4 @@ typing-inspection==0.4.2  # via pydantic
 urllib3==2.6.3            # via requests
 waitress==3.0.2           # via -r requirements.in
 werkzeug==3.0.3           # via -r requirements.in
+zxing-cpp==3.1.1          # via -r requirements.in (lettura QR/barcode da scansioni)

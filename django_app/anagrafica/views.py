@@ -124,6 +124,7 @@ from .models_formazione import (
     TrainingRequirementRule,
     TrainingSession,
     TrainingSessionArgomento,
+    TrainingScanLog,
     TrainingSignatureSheet,
     TrainingSlide,
     TrainingQuizQuestion,
@@ -13719,39 +13720,86 @@ def formazione_registro_scansione(request, sessione_id: int, lezione_id: int):
     indietro = redirect("anagrafica:formazione_lezione_presenze",
                         sessione_id=sessione_id, lezione_id=lezione_id)
 
-    token = (request.POST.get("token") or "").strip().upper()
     caricato = request.FILES.get("scansione")
-    if not token or not caricato:
-        messages.error(request, "Servono il token del foglio e il file della scansione.")
+    if not caricato:
+        messages.error(request, "Serve il file della scansione.")
+        return indietro
+
+    from .services.archivio_scansioni import archivia_scansione, registra_lettura
+
+    contenuto = caricato.read()
+
+    # Si archivia PRIMA di provare a leggere. Se la lettura fallisce, il file
+    # deve restare da qualche parte dove qualcuno possa andarlo a guardare:
+    # senza, dell'errore resta solo la frase a schermo, che non è una diagnosi.
+    percorso, dimensione = archivia_scansione(contenuto, caricato.name)
+    comune = {
+        "request": request, "lezione": lezione, "nome_file": caricato.name,
+        "percorso": percorso, "dimensione": dimensione,
+    }
+
+    # Il token si decodifica dal QR stampato sul foglio; resta digitabile perché
+    # un QR strappato, piegato o macchiato capita, e la strada a mano costa zero.
+    token_digitato = (request.POST.get("token") or "").strip().upper()
+    token_letto = ""
+    if not token_digitato:
+        from core.qr import leggi_codici
+
+        for codice in leggi_codici(contenuto, caricato.name):
+            candidato = codice.strip().upper()[:16]
+            if TrainingSignatureSheet.objects.filter(token=candidato).exists():
+                token_letto = candidato
+                break
+
+    token = token_digitato or token_letto
+    if not token:
+        motivo = (
+            "Non ho trovato nessun QR leggibile nella scansione e non è stato indicato "
+            "un codice. Digita il codice stampato sotto il QR e riprova."
+        )
+        registra_lettura(**comune, esito="RIFIUTATO", messaggio=motivo)
+        messages.error(request, motivo + " Il file è comunque archiviato nel registro letture.")
         return indietro
 
     # Il foglio deve essere di QUESTA giornata: un token valido ma di un'altra
     # lezione porterebbe presenze sulla giornata sbagliata.
     foglio = TrainingSignatureSheet.objects.filter(token=token, lezione=lezione).first()
     if foglio is None:
-        messages.error(
-            request,
-            f"Nessun foglio con token «{token}» risulta emesso per questa giornata. "
-            "Controlla il codice stampato sotto il QR.",
+        motivo = (
+            f"Nessun foglio con codice «{token}» risulta emesso per questa giornata. "
+            "Controlla il codice stampato sotto il QR."
         )
+        registra_lettura(**comune, token_digitato=token_digitato, token_letto=token_letto,
+                         esito="RIFIUTATO", messaggio=motivo)
+        messages.error(request, motivo + " Il file è comunque archiviato nel registro letture.")
         return indietro
 
+    comune["foglio"] = foglio
     from .services.lettura_foglio_firme import ErroreLettura, analizza_scansione
 
     try:
-        esito = analizza_scansione(foglio, caricato.read(), caricato.name)
+        esito = analizza_scansione(foglio, contenuto, caricato.name)
     except ErroreLettura as exc:
-        messages.error(request, str(exc))
+        registra_lettura(**comune, token_digitato=token_digitato, token_letto=token_letto,
+                         esito="ERRORE", messaggio=str(exc))
+        messages.error(request, f"{exc} Il file è archiviato nel registro letture.")
         return indietro
     except Exception:
         logger.exception("Lettura scansione foglio firme fallita (foglio %s)", foglio.pk)
-        messages.error(request, "Non sono riuscito a leggere la scansione. Riprova con un file diverso.")
+        motivo = "Non sono riuscito a leggere la scansione. Riprova con un file diverso."
+        registra_lettura(**comune, token_digitato=token_digitato, token_letto=token_letto,
+                         esito="ERRORE", messaggio=motivo)
+        messages.error(request, motivo + " Il file è archiviato nel registro letture.")
         return indietro
+
+    registra_lettura(**comune, token_digitato=token_digitato, token_letto=token_letto,
+                     esito="OK", esito_lettura=esito)
 
     _audit_formazione(request, "scansione_registro_letta", {
         "sessione_id": sessione_id, "lezione_id": lezione_id,
         "token": foglio.token, "righe": len(esito["righe"]),
         "firmati": esito["n_firmati"], "dubbie": esito["n_dubbie"],
+        "token_da_qr": bool(token_letto),
     })
 
     return render(request, "anagrafica/pages/formazione_scansione_esito.html", {
@@ -13760,7 +13808,86 @@ def formazione_registro_scansione(request, sessione_id: int, lezione_id: int):
         "foglio": foglio,
         "esito": esito,
         "nome_file": caricato.name,
+        "token_da_qr": token_letto,
     })
+
+
+@login_required
+def formazione_scansioni_log(request):
+    """Registro delle scansioni caricate: cosa è arrivato e dov'è finito.
+
+    Esiste per il caso in cui la lettura fallisce. Il messaggio d'errore a
+    schermo dice *che* è andata male, non *perché*: qui c'è il file vero, con
+    il percorso in cui è stato archiviato, da riaprire e guardare.
+    """
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per gestire la formazione.")
+        return redirect("anagrafica:formazione_home")
+
+    righe = (
+        TrainingScanLog.objects
+        .select_related("lezione", "lezione__sessione", "lezione__sessione__corso",
+                        "foglio", "creato_da")
+    )
+
+    esito = (request.GET.get("esito") or "").strip().upper()
+    if esito in {"OK", "ERRORE", "RIFIUTATO"}:
+        righe = righe.filter(esito=esito)
+
+    cerca = (request.GET.get("q") or "").strip()
+    if cerca:
+        righe = righe.filter(
+            Q(nome_file__icontains=cerca)
+            | Q(token_digitato__icontains=cerca)
+            | Q(token_letto__icontains=cerca)
+            | Q(lezione__sessione__corso__titolo__icontains=cerca)
+        )
+
+    conteggi = {
+        "tutte": TrainingScanLog.objects.count(),
+        "ok": TrainingScanLog.objects.filter(esito="OK").count(),
+        "errore": TrainingScanLog.objects.filter(esito="ERRORE").count(),
+        "rifiutato": TrainingScanLog.objects.filter(esito="RIFIUTATO").count(),
+    }
+
+    from core.qr import disponibile as qr_disponibile
+
+    return render(request, "anagrafica/pages/formazione_scansioni_log.html", {
+        "righe": righe[:300],
+        "esito": esito,
+        "cerca": cerca,
+        "conteggi": conteggi,
+        "lettore_qr_attivo": qr_disponibile(),
+    })
+
+
+@login_required
+def formazione_scansione_scarica(request, log_id: int):
+    """Riscarica il file archiviato di una lettura.
+
+    L'archivio è privato e cifrato a riposo: non si apre da Esplora risorse, si
+    passa di qui — dove ci sono permessi e traccia — perché il foglio contiene
+    nomi e firme autografe.
+    """
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per gestire la formazione.")
+        return redirect("anagrafica:formazione_home")
+
+    riga = get_object_or_404(TrainingScanLog, pk=log_id)
+    from .services.archivio_scansioni import apri_archiviata
+
+    f = apri_archiviata(riga.percorso)
+    if f is None:
+        messages.error(request, "Il file archiviato non è più disponibile.")
+        return redirect("anagrafica:formazione_scansioni_log")
+
+    _audit_formazione(request, "scansione_archiviata_scaricata", {
+        "log_id": riga.pk, "percorso": riga.percorso, "nome_file": riga.nome_file,
+    })
+
+    from django.http import FileResponse
+
+    return FileResponse(f, as_attachment=True, filename=riga.nome_file or "scansione")
 
 
 @login_required

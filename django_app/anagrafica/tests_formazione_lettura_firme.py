@@ -260,7 +260,7 @@ class EndpointScansioneTests(TestCase):
         }, follow=True)
 
         testi = [str(m) for m in get_messages(r.wsgi_request)]
-        self.assertTrue(any("Nessun foglio con token" in t for t in testi), testi)
+        self.assertTrue(any("Nessun foglio con codice" in t for t in testi), testi)
         self.assertNotContains(r, "Conferma le presenze")
 
     def test_scansione_illeggibile_riporta_l_errore_all_utente(self):
@@ -271,11 +271,12 @@ class EndpointScansioneTests(TestCase):
         self.assertNotContains(r, "Conferma le presenze")
 
     def test_campi_mancanti(self):
+        """Il codice del foglio è facoltativo — si legge dal QR. Il file no."""
         from django.contrib.messages import get_messages
 
         r = self.client.post(self._url(), {"token": self.foglio.token}, follow=True)
         testi = [str(m) for m in get_messages(r.wsgi_request)]
-        self.assertTrue(any("Servono il token" in t for t in testi), testi)
+        self.assertTrue(any("Serve il file della scansione" in t for t in testi), testi)
         self.assertNotContains(r, "Conferma le presenze")
 
     def test_non_editor_non_legge(self):

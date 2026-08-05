@@ -25,7 +25,7 @@ body.theme-dark .sc-dubbia{background:#2c2415}
       <h1 style="margin:6px 0 4px;font-size:24px;">{{ sessione.corso.titolo }}</h1>
       <div style="opacity:.85;font-size:13px;">
         {{ sessione.codice_sessione }} · Giornata {{ lezione.numero }} · {{ lezione.data|date:"d-m-Y" }}
-        · foglio <strong>{{ foglio.token }}</strong>
+        · foglio <strong>{{ foglio.token }}</strong>{% if token_da_qr %} <span style="opacity:.75;">(riconosciuto dal QR)</span>{% endif %}
       </div>
     </div>
   </div>

@@ -1148,6 +1148,107 @@ class TrainingSignatureSheet(models.Model):
         return len(self.righe or [])
 
 
+class TrainingScanLog(models.Model):
+    """Registro delle scansioni caricate: cosa è arrivato, dov'è finito, com'è andata.
+
+    Nasce dal caso che conta davvero, cioè quando la lettura **fallisce**. Senza
+    registro, il file caricato spariva e restava solo un messaggio d'errore a
+    schermo: nessun modo di guardare cosa fosse arrivato davvero, e la persona
+    che aveva scansionato doveva rifare tutto per farlo vedere a qualcuno.
+
+    Perciò il file viene archiviato *sempre*, riuscita o fallita che sia la
+    lettura, e qui resta scritto il percorso. Su un esito riuscito serve a
+    confrontare la proposta con l'originale; su un errore è l'unica cosa che
+    permetta di capire perché.
+
+    Non sostituisce l'allegato «registro firmato» della giornata: quello è la
+    prova documentale scelta da una persona, questo è la traccia tecnica di
+    cosa ha masticato il portale.
+    """
+
+    ESITO_CHOICES = [
+        ("OK",       "Letto"),
+        ("ERRORE",   "Errore di lettura"),
+        ("RIFIUTATO", "Foglio non riconosciuto"),
+    ]
+    ORIGINE_CHOICES = [
+        ("WEB",      "Caricamento dalla pagina"),
+        ("CARTELLA", "Cartella di acquisizione"),
+    ]
+
+    lezione = models.ForeignKey(
+        "anagrafica.TrainingLesson", null=True, blank=True,
+        on_delete=models.CASCADE, related_name="scansioni_log",
+        help_text="Vuoto quando il foglio non è stato riconosciuto: il file resta "
+                  "comunque archiviato e ispezionabile.",
+    )
+    foglio = models.ForeignKey(
+        "anagrafica.TrainingSignatureSheet", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="letture",
+    )
+
+    nome_file = models.CharField(max_length=255, blank=True, default="")
+    percorso  = models.CharField(
+        max_length=500, blank=True, default="",
+        help_text="Dove è stato archiviato il file caricato, relativo allo storage "
+                  "privato dell'anagrafica.",
+    )
+    dimensione = models.PositiveIntegerField(default=0, help_text="Byte del file caricato.")
+
+    token_digitato = models.CharField(max_length=16, blank=True, default="")
+    token_letto    = models.CharField(
+        max_length=16, blank=True, default="",
+        help_text="Token decodificato dal QR. Vuoto se il codice non è stato letto "
+                  "e l'operatore ha digitato a mano.",
+    )
+
+    esito     = models.CharField(max_length=10, choices=ESITO_CHOICES, default="OK")
+    origine   = models.CharField(max_length=10, choices=ORIGINE_CHOICES, default="WEB")
+    messaggio = models.TextField(
+        blank=True, default="",
+        help_text="Motivo dell'errore, nelle stesse parole mostrate a chi ha caricato.",
+    )
+
+    n_righe   = models.PositiveIntegerField(default=0)
+    n_firmati = models.PositiveIntegerField(default=0)
+    n_dubbie  = models.PositiveIntegerField(default=0)
+    inclinazione = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text="Gradi di rotazione rilevati nella scansione.",
+    )
+
+    creato_il = models.DateTimeField(auto_now_add=True, db_index=True)
+    creato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+
+    class Meta:
+        ordering = ["-creato_il", "-id"]
+        verbose_name = "Lettura di scansione"
+        verbose_name_plural = "Registro letture scansioni"
+        indexes = [
+            models.Index(fields=["esito", "-creato_il"]),
+            models.Index(fields=["lezione", "-creato_il"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.get_esito_display()} — {self.nome_file or 'senza nome'} ({self.creato_il:%d-%m-%Y %H:%M})"
+
+    @property
+    def riuscita(self) -> bool:
+        return self.esito == "OK"
+
+    @property
+    def dimensione_leggibile(self) -> str:
+        n = self.dimensione or 0
+        if n < 1024:
+            return f"{n} B"
+        if n < 1024 * 1024:
+            return f"{n / 1024:.0f} KB"
+        return f"{n / (1024 * 1024):.1f} MB"
+
+
 # ─────────────────────────────────────────────────────────────
 # VALUTAZIONE DI EFFICACIA (catena dell'evidenza, anello 8)
 # ─────────────────────────────────────────────────────────────
