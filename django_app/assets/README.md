@@ -70,6 +70,7 @@ Alternativa: inserimento manuale da `/admin-portale/navigation-builder/`.
 - In `/assets/manutenzione/impostazioni/` il **Catalogo attivita** definisce cosa fare (famiglia, istruzioni, durata, materiali, checklist); i **Piani ordinari** stabiliscono su quali asset, con quale cadenza, responsabile/fornitore e se generare automaticamente gli OdL.
 - Un piano puo coprire tutta una categoria oppure una selezione puntuale di asset della categoria. La prima scadenza e opzionale; senza data e senza esecuzioni il piano compare subito da pianificare.
 - `/assets/manutenzione/storico/` offre lo storico aziendale unico di OdL conclusi e ticket MAN inclusi nel registro. I ticket continuano a essere creati e chiusi nel modulo ticket esistente.
+- Da `/assets/manutenzione/prossime/`, ogni riga della tabella `Manutenzioni periodiche pianificate` consente di creare l'OdL relativo: asset e piano sono gia selezionati e il form propone tipo preventiva, titolo, note e fornitore.
 - Le migration `0088` e `0089` aggiungono i nuovi attributi e inglobano i vecchi `PeriodicVerification` convertibili in piani asset-specifici, preservando storico e baseline. Piani senza asset o con asset privi di categoria restano nell'archivio da completare.
 - La pagina canonica `/assets/manutenzione/verifiche/` consente di configurare i piani di manutenzione periodica collegati agli asset. Il vecchio percorso `/assets/verifiche-periodiche/` resta disponibile come redirect compatibile.
 - Per ogni piano puoi gestire:

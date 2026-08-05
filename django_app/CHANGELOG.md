@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Assets - crea OdL dalla scadenza periodica
+
+- **[feat/fix/ux/test] `assets/views.py`, `assets/forms.py`, `assets/templates/assets/pages/maintenance_schedule.html`, `assets/tests.py`**: la tabella `Manutenzioni periodiche pianificate` dello scadenzario non costringe piu ad aprire il piano per registrare il lavoro. Il nuovo CTA `Crea intervento` apre il form OdL asset-specifico passando il `PeriodicVerification`; vengono proposti piano, tipo preventiva, titolo, note e fornitore. L'OdL salvato conserva la FK al piano e `origin=PERIODIC`. Gli ingressi da `MaintenanceRule` vengono anch'essi salvati con origine periodica coerente.
+
 ### Assets - fix creazione intervento dall'hub
 
 - **[fix/ux/test] `assets/views.py`, `assets/templates/assets/pages/_operational_cockpit.html`, `assets/tests.py`**: i pulsanti globali `+ Nuovo intervento` non puntano piu alla route OdL priva dell'asset obbligatorio. Hub manutenzione e cockpit aprono `/assets/workorders/?create=1`, dove il selettore asset compare automaticamente; la route legacy `/assets/workorders/new/` senza asset applica lo stesso fallback. Dopo la scelta continua il form guidato asset-specifico gia esistente.

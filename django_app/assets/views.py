@@ -1217,10 +1217,18 @@ def _maintenance_schedule_page_url(
     return f"{base_url}?{'&'.join(params)}" if params else base_url
 
 
-def _workorder_create_page_url(*, asset_id: int, rule_id: int = 0, source: str = "") -> str:
+def _workorder_create_page_url(
+    *,
+    asset_id: int,
+    rule_id: int = 0,
+    periodic_verification_id: int = 0,
+    source: str = "",
+) -> str:
     params: list[str] = []
     if rule_id:
         params.append(f"rule={int(rule_id)}")
+    if periodic_verification_id:
+        params.append(f"periodic={int(periodic_verification_id)}")
     normalized_source = normalize_workorder_source(source)
     if normalized_source and normalized_source != "manual":
         params.append(f"source={quote(normalized_source)}")
@@ -12271,6 +12279,11 @@ def _maintenance_schedule_periodic_rows(
                         edit_id=verification.id,
                     ),
                     "open_url": _periodic_verifications_page_url(asset_id=local_asset.id),
+                    "workorder_create_url": _workorder_create_page_url(
+                        asset_id=local_asset.id,
+                        periodic_verification_id=verification.id,
+                        source="maintenance_schedule",
+                    ),
                 }
             )
     rows.sort(
@@ -15508,6 +15521,29 @@ def workorder_create(request: HttpRequest, id: int | None = None) -> HttpRespons
         base_rule_id=_as_int(request.GET.get("rule"), default=0),
         source=source,
     )
+    selected_periodic_verification = None
+    periodic_verification_id = _as_int(request.GET.get("periodic"), default=0)
+    if periodic_verification_id:
+        selected_periodic_verification = get_object_or_404(
+            PeriodicVerification.objects.select_related("supplier").filter(
+                is_active=True,
+                assets=asset,
+            ),
+            pk=periodic_verification_id,
+        )
+        prefill_payload["periodic_verification"] = selected_periodic_verification
+        prefill_payload["title"] = (selected_periodic_verification.name or "Manutenzione periodica").strip()
+        prefill_payload["description"] = (selected_periodic_verification.notes or "").strip()
+        prefill_payload["kind"] = WorkOrder.KIND_PREVENTIVE
+        prefill_payload["supplier"] = selected_periodic_verification.supplier
+        suggested_contract = prefill_payload.get("contract")
+        if (
+            suggested_contract is not None
+            and selected_periodic_verification.supplier_id
+            and suggested_contract.supplier_id != selected_periodic_verification.supplier_id
+        ):
+            prefill_payload["contract"] = None
+            prefill_payload["covered_by_contract"] = False
     selected_rule_id = getattr(prefill_payload.get("maintenance_rule"), "id", 0)
     form_kwargs = {
         "asset": asset,
@@ -15523,6 +15559,11 @@ def workorder_create(request: HttpRequest, id: int | None = None) -> HttpRespons
             workorder = form.save(commit=False)
             workorder.asset = asset
             workorder.status = WorkOrder.STATUS_OPEN
+            workorder.origin = (
+                WorkOrder.ORIGIN_PERIODIC
+                if workorder.periodic_verification_id or workorder.maintenance_rule_id
+                else WorkOrder.ORIGIN_MANUAL
+            )
             if not workorder.opened_at:
                 workorder.opened_at = timezone.now()
             try:

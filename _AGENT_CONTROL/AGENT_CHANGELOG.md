@@ -2,6 +2,21 @@
 
 ## 2026-08-05 - Codex
 
+- Area: `django_app/assets`, scadenzario manutenzioni periodiche.
+- Richiesta: creare dalla riga della manutenzione in scadenza l'intervento realmente collegato a quella manutenzione.
+- File modificati: `django_app/assets/views.py`, `django_app/assets/forms.py`, `django_app/assets/templates/assets/pages/maintenance_schedule.html`, `django_app/assets/tests.py`, `README.md`, `django_app/assets/README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/ASSET_MAINTENANCE_PLAN.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; nessuna modifica a URL, routing, ACL, middleware, settings, autenticazione, permessi o navigazione globale. `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente.
+- Motivo tecnico: nella tabella `Verifiche periodiche pianificate` erano disponibili solo apertura/configurazione del piano; mancava il passaggio contestuale `asset + PeriodicVerification` al form OdL.
+- Modifica: aggiunto CTA `Crea intervento`; helper URL supporta `periodic=<id>`; view e form precompilano relazione, preventiva, titolo, note e fornitore; salvataggio assegna origine periodica quando e' presente un piano o una regola manutentiva.
+- Impatto previsto: il manutentore trasforma direttamente una scadenza periodica in OdL tracciato senza riselezionare asset o piano.
+- Rischi residui: nessuna verifica browser autenticata per backend non disponibile; copertura end-to-end tramite client Django. I piani legacy gia inglobati possono comparire anche come regole finche il dato legacy resta attivo, comportamento preesistente.
+- Test/check: 3 test mirati (scadenzario -> form -> OdL periodico, prefill regola, fallback globale) OK; `manage.py check assets`, `makemigrations --check --dry-run`, caricamento template e `git diff --check` OK.
+- Backup creati: nessuno; nessuna migration.
+- README/CHANGELOG: aggiornati.
+- Note operative: lavoro nel worktree isolato `C:\Dev\pn-maintenance-new-intervention-fix`; modifiche non correlate del checkout condiviso preservate.
+
+## 2026-08-05 - Codex
+
 - Area: `django_app/assets`, ingresso creazione intervento.
 - Richiesta: ripristinare il collegamento operativo `+ Nuovo intervento` dall'hub manutenzione dopo il consolidamento dell'area.
 - File modificati: `django_app/assets/views.py`, `django_app/assets/templates/assets/pages/_operational_cockpit.html`, `django_app/assets/tests.py`, `README.md`, `django_app/assets/README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/ASSET_MAINTENANCE_PLAN.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.

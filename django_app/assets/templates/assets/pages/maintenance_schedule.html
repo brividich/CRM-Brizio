@@ -335,8 +335,8 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
     <details class="ms-card as-collapse">
       <summary class="ms-card-head">
         <div>
-          <h2>Verifiche periodiche pianificate</h2>
-          <p>Piani di manutenzione periodica (es. cambio olio, taratura) collegati agli asset filtrati. Per registrare un'esecuzione apri la <a href="{% url 'assets:periodic_verifications' %}">pagina verifiche</a>.</p>
+          <h2>Manutenzioni periodiche pianificate</h2>
+          <p>Apri direttamente un intervento gia collegato al piano e all'asset della riga, oppure consulta la configurazione del piano.</p>
         </div>
       </summary>
       <div class="ms-card-body">
@@ -377,8 +377,8 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
                   </td>
                   <td>
                     <div class="ms-actions-row">
-                      <a class="btn btn-primary" href="{{ row.edit_url }}">Apri piano</a>
-                      <a class="btn btn-secondary" href="{{ row.open_url }}">Vai alla pagina verifiche</a>
+                      <a class="btn btn-primary" href="{{ row.workorder_create_url }}">Crea intervento</a>
+                      <a class="btn btn-secondary" href="{{ row.edit_url }}">Apri piano</a>
                     </div>
                   </td>
                 </tr>

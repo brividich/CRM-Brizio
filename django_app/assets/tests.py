@@ -7874,9 +7874,45 @@ class AssetMaintenanceStepThreeTests(TestCase):
 
         page = self.client.get(reverse("assets:maintenance_schedule") + f"?asset={self.asset.id}")
         self.assertEqual(page.status_code, 200)
-        self.assertContains(page, "Verifiche periodiche pianificate")
+        self.assertContains(page, "Manutenzioni periodiche pianificate")
         self.assertContains(page, "Verifica manometri")
+        expected_create_url = (
+            reverse("assets:wo_create", args=[self.asset.id])
+            + f"?periodic={plan.id}&source=maintenance_schedule"
+        )
+        periodic_row = next(row for row in page.context["periodic_schedule_rows"] if row["verification"].id == plan.id)
+        self.assertEqual(periodic_row["workorder_create_url"], expected_create_url)
+        self.assertContains(page, "Crea intervento")
         self.assertContains(page, "Apri piano")
+
+        form_page = self.client.get(expected_create_url)
+        self.assertEqual(form_page.status_code, 200)
+        form = form_page.context["form"]
+        self.assertEqual(int(form["periodic_verification"].value()), plan.id)
+        self.assertEqual(form["kind"].value(), WorkOrder.KIND_PREVENTIVE)
+        self.assertEqual(form["title"].value(), plan.name)
+        self.assertEqual(int(form["supplier"].value()), supplier.id)
+
+        create_response = self.client.post(
+            expected_create_url,
+            {
+                "periodic_verification": str(plan.id),
+                "maintenance_rule": "",
+                "supplier": str(supplier.id),
+                "assistance_contract": "",
+                "kind": WorkOrder.KIND_PREVENTIVE,
+                "status": WorkOrder.STATUS_OPEN,
+                "title": plan.name,
+                "description": "Controllo periodico programmato",
+                "resolution": "",
+                "downtime_minutes": "0",
+                "assigned_to": "",
+            },
+        )
+        self.assertEqual(create_response.status_code, 302, create_response.content[:400])
+        workorder = WorkOrder.objects.get(periodic_verification=plan, asset=self.asset)
+        self.assertEqual(workorder.origin, WorkOrder.ORIGIN_PERIODIC)
+        self.assertEqual(workorder.supplier, supplier)
 
     def test_complete_administrative_deadline_with_next_due_renews_record(self):
         deadline = AssetAdministrativeDeadline.objects.create(

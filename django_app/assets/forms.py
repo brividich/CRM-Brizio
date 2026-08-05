@@ -2851,13 +2851,17 @@ class WorkOrderForm(forms.ModelForm):
 
     def _apply_prefill_defaults(self) -> None:
         payload = self.prefill_payload or {}
+        preferred_verification = payload.get("periodic_verification")
         preferred_rule = payload.get("maintenance_rule")
         preferred_contract = payload.get("contract") or (self.contract_rows[0] if self.contract_rows else None)
         preferred_supplier = payload.get("supplier")
 
+        if preferred_verification is not None:
+            self.initial.setdefault("periodic_verification", preferred_verification.id)
         if preferred_rule is not None:
             self.initial.setdefault("maintenance_rule", preferred_rule.id)
-            self.initial.setdefault("kind", payload.get("kind") or WorkOrder.KIND_PREVENTIVE)
+        if payload.get("kind"):
+            self.initial.setdefault("kind", payload["kind"])
         if payload.get("title"):
             self.initial.setdefault("title", payload["title"])
         if payload.get("description"):

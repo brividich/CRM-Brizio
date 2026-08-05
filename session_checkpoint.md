@@ -4,6 +4,13 @@ Data: 2026-08-05
 
 Ultime voci viste/aggiunte in questa sessione:
 
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-08-05 - Codex` (OdL contestuale dalla manutenzione periodica in scadenza).
+- `django_app/assets/views.py`, `forms.py` -> parametro `periodic=<id>`, prefill del piano/fornitore/titolo e salvataggio con origine periodica.
+- `django_app/assets/templates/assets/pages/maintenance_schedule.html` -> `Crea intervento` nella tabella `Manutenzioni periodiche pianificate`.
+- `django_app/assets/tests.py` -> percorso end-to-end da scadenzario a OdL collegato.
+- Documentazione operativa e AI aggiornata; nessuna migration, ACL o modifica dati.
+- Test/check: 3 test mirati, Django check, migration check, template load e `git diff --check` OK.
+
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-08-05 - Codex` (fix ingresso `+ Nuovo intervento` dall'hub manutenzione).
 - `django_app/assets/views.py` -> hub e fallback della route globale OdL convergono su `/assets/workorders/?create=1`, selettore asset canonico.
 - `django_app/assets/templates/assets/pages/_operational_cockpit.html` -> corretto lo stesso CTA globale nel cruscotto Assets.

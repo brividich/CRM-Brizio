@@ -38,6 +38,8 @@ Tre tessuti connettivi da introdurre:
 
 Contratto di ingresso OdL: un `WorkOrder` richiede sempre un asset. Ogni CTA globale `+ Nuovo intervento` deve quindi aprire `/assets/workorders/?create=1`, che mostra il selettore asset; solo dopo la scelta si entra in `/assets/workorders/new/<asset>/`. La route senza id resta un fallback compatibile e deve convergere sul selettore, mai sulla lista inerte.
 
+Contratto contestuale dello scadenzario: una riga `MaintenanceRule` passa `rule=<id>`; una riga `PeriodicVerification` passa `periodic=<id>`. In entrambi i casi il form OdL deve precompilare la relazione reale e salvare `origin=PERIODIC`, non limitarsi a copiare il titolo.
+
 ## 3. Spunti da CMMS open-source / commerciali
 
 - **Odoo Maintenance / Frappe-ERPNext**: il *Maintenance Plan* è un oggetto a sé con calendario; KPI MTBF/MTTR/availability in Kanban.
