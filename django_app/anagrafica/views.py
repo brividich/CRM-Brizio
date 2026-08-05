@@ -124,6 +124,7 @@ from .models_formazione import (
     TrainingRequirementRule,
     TrainingSession,
     TrainingSessionArgomento,
+    TrainingSignatureSheet,
     TrainingSlide,
     TrainingQuizQuestion,
     TrainingQuizOption,
@@ -13697,6 +13698,69 @@ def formazione_presenza_set(request, sessione_id: int, lezione_id: int):
             for err in field_errors:
                 messages.error(request, err)
     return redirect("anagrafica:formazione_lezione_presenze", sessione_id=sessione_id, lezione_id=lezione_id)
+
+
+@login_required
+@require_POST
+def formazione_registro_scansione(request, sessione_id: int, lezione_id: int):
+    """Legge la scansione di un foglio con QR e **propone** le presenze.
+
+    Non scrive nulla: mostra una pagina di conferma le cui spunte finiscono
+    nell'autocompilazione già esistente. La presenza a un corso è un atto con
+    valore legale: la decide una persona, non una misura di pixel.
+    """
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per gestire le presenze.")
+        return redirect("anagrafica:formazione_lezione_presenze",
+                        sessione_id=sessione_id, lezione_id=lezione_id)
+
+    sessione = get_object_or_404(TrainingSession.objects.select_related("corso"), pk=sessione_id)
+    lezione = get_object_or_404(TrainingLesson, pk=lezione_id, sessione=sessione)
+    indietro = redirect("anagrafica:formazione_lezione_presenze",
+                        sessione_id=sessione_id, lezione_id=lezione_id)
+
+    token = (request.POST.get("token") or "").strip().upper()
+    caricato = request.FILES.get("scansione")
+    if not token or not caricato:
+        messages.error(request, "Servono il token del foglio e il file della scansione.")
+        return indietro
+
+    # Il foglio deve essere di QUESTA giornata: un token valido ma di un'altra
+    # lezione porterebbe presenze sulla giornata sbagliata.
+    foglio = TrainingSignatureSheet.objects.filter(token=token, lezione=lezione).first()
+    if foglio is None:
+        messages.error(
+            request,
+            f"Nessun foglio con token «{token}» risulta emesso per questa giornata. "
+            "Controlla il codice stampato sotto il QR.",
+        )
+        return indietro
+
+    from .services.lettura_foglio_firme import ErroreLettura, analizza_scansione
+
+    try:
+        esito = analizza_scansione(foglio, caricato.read(), caricato.name)
+    except ErroreLettura as exc:
+        messages.error(request, str(exc))
+        return indietro
+    except Exception:
+        logger.exception("Lettura scansione foglio firme fallita (foglio %s)", foglio.pk)
+        messages.error(request, "Non sono riuscito a leggere la scansione. Riprova con un file diverso.")
+        return indietro
+
+    _audit_formazione(request, "scansione_registro_letta", {
+        "sessione_id": sessione_id, "lezione_id": lezione_id,
+        "token": foglio.token, "righe": len(esito["righe"]),
+        "firmati": esito["n_firmati"], "dubbie": esito["n_dubbie"],
+    })
+
+    return render(request, "anagrafica/pages/formazione_scansione_esito.html", {
+        "sessione": sessione,
+        "lezione": lezione,
+        "foglio": foglio,
+        "esito": esito,
+        "nome_file": caricato.name,
+    })
 
 
 @login_required

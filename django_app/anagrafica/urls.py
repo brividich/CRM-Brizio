@@ -399,6 +399,7 @@ urlpatterns = [
     path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/registro/", views.formazione_lezione_registro, name="formazione_lezione_registro"),
     # Foglio firme tracciato: elenco congelato, QR con token, marcatori d'angolo
     path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/registro-qr/", views.formazione_lezione_registro_qr, name="formazione_lezione_registro_qr"),
+    path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/registro-scansione", views.formazione_registro_scansione, name="formazione_registro_scansione"),
     # Allegati formazione (registro firme firmato / materiale): livello sessione o lezione
     path("formazione/sessioni/<int:sessione_id>/allegati/upload", views.formazione_allegato_upload, name="formazione_allegato_upload"),
     path("formazione/allegati/<int:attachment_id>/elimina", views.formazione_allegato_delete, name="formazione_allegato_delete"),

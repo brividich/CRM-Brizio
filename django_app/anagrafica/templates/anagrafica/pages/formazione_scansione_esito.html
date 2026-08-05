@@ -1,0 +1,100 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Lettura registro — Lezione {{ lezione.numero }} | {{ sessione.codice_sessione }} | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<style>
+.sc-riga td{vertical-align:middle}
+.sc-dubbia{background:#fffbeb}
+body.theme-dark .sc-dubbia{background:#2c2415}
+.sc-mis{font-family:ui-monospace,Consolas,monospace;font-size:11px;color:#94a3b8}
+.sc-si{color:#065f46;font-weight:700}
+.sc-no{color:#94a3b8}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="hr-shell" id="ana-root">
+
+  <div class="hr-hero">
+    <div>
+      <div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;opacity:.75;">Lettura del registro firmato</div>
+      <h1 style="margin:6px 0 4px;font-size:24px;">{{ sessione.corso.titolo }}</h1>
+      <div style="opacity:.85;font-size:13px;">
+        {{ sessione.codice_sessione }} · Giornata {{ lezione.numero }} · {{ lezione.data|date:"d-m-Y" }}
+        · foglio <strong>{{ foglio.token }}</strong>
+      </div>
+    </div>
+  </div>
+
+  <div class="hr-card" style="padding:16px 20px;">
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
+      <div><strong>{{ esito.n_firmati }}</strong> righe con almeno una firma su {{ esito.righe|length }}</div>
+      {% if esito.n_dubbie %}
+      <div style="color:#a97114;"><strong>{{ esito.n_dubbie }}</strong> celle dubbie, evidenziate sotto</div>
+      {% endif %}
+      <div class="sc-mis">file: {{ nome_file }} · inclinazione rilevata {{ esito.inclinazione }}°{% if esito.inclinazione_residua != esito.inclinazione %} · residua dopo raddrizzamento {{ esito.inclinazione_residua }}°{% endif %}</div>
+    </div>
+
+    <p style="font-size:12.5px;color:#64748b;margin:0 0 14px;">
+      Questa è una <strong>proposta</strong> letta dalla scansione, non una registrazione.
+      Controlla le spunte — in particolare le righe evidenziate, dove il segno è troppo debole per
+      decidere — e conferma. Chi resta senza spunte <strong>non viene modificato</strong>.
+    </p>
+
+    <form method="post" action="{% url 'anagrafica:formazione_registro_autocompila' sessione.pk lezione.pk %}">
+      {% csrf_token %}
+      <div style="overflow-x:auto;border:1px solid #e2e8f0;border-radius:8px;">
+        <table class="hr-table" style="margin:0;">
+          <thead>
+            <tr>
+              <th style="width:40px;">#</th>
+              <th>Nominativo</th>
+              <th style="width:120px;">Firma ingresso</th>
+              <th style="width:120px;">Firma uscita</th>
+              <th style="width:150px;">Inchiostro rilevato</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in esito.righe %}
+            <tr class="sc-riga{% if r.dubbia %} sc-dubbia{% endif %}">
+              <td class="muted">{{ r.riga }}</td>
+              <td>{{ r.nome }}</td>
+              <td>
+                <label style="display:inline-flex;align-items:center;gap:6px;">
+                  <input type="checkbox" name="ingresso_{{ r.legacy_id }}" value="1"{% if r.ingresso %} checked{% endif %}>
+                  <span class="{% if r.ingresso %}sc-si{% else %}sc-no{% endif %}">{% if r.ingresso %}firmata{% else %}vuota{% endif %}</span>
+                </label>
+              </td>
+              <td>
+                <label style="display:inline-flex;align-items:center;gap:6px;">
+                  <input type="checkbox" name="uscita_{{ r.legacy_id }}" value="1"{% if r.uscita %} checked{% endif %}>
+                  <span class="{% if r.uscita %}sc-si{% else %}sc-no{% endif %}">{% if r.uscita %}firmata{% else %}vuota{% endif %}</span>
+                </label>
+              </td>
+              <td class="sc-mis">ing {{ r.frazione_ingresso }} · usc {{ r.frazione_uscita }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="fm-empty">Il foglio non aveva iscritti.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px;">
+        <a class="hr-btn" href="{% url 'anagrafica:formazione_lezione_presenze' sessione.pk lezione.pk %}">Annulla</a>
+        <button type="submit" class="hr-btn hr-btn-primary">Conferma le presenze</button>
+      </div>
+    </form>
+  </div>
+
+  <p style="font-size:12px;color:#94a3b8;margin-top:12px;">
+    Ricorda di allegare comunque la scansione alla giornata come <strong>registro firmato</strong>:
+    il documento cartaceo resta la prova, questa lettura è solo il modo di non ribattere le presenze a mano.
+  </p>
+
+</div>
+{% endblock %}

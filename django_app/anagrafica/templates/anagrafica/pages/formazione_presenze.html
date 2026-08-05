@@ -102,6 +102,33 @@ body.theme-dark .fm-form-panel{background:rgba(148,163,184,.06);border-color:#33
     </div>
   </div>
 
+  {# ── Lettura della scansione del foglio con QR ───────────────────────────── #}
+  {% if is_editor %}
+  <div class="hr-card" style="padding:16px 20px;margin-bottom:16px;">
+    <div style="font-size:13px;font-weight:700;color:#334155;margin-bottom:4px;">▣ Leggi il foglio firme scansionato</div>
+    <p style="font-size:12px;color:#64748b;margin:0 0 12px;">
+      Carica la scansione di un <strong>foglio con QR</strong> emesso per questa giornata e indica il
+      <strong>token</strong> stampato sotto il codice. Il portale riconosce quali celle sono state firmate e
+      <strong>propone</strong> le presenze: la conferma resta tua.
+    </p>
+    <form method="post" enctype="multipart/form-data"
+          action="{% url 'anagrafica:formazione_registro_scansione' sessione.pk lezione.pk %}"
+          style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+      {% csrf_token %}
+      <div class="fm-f" style="width:170px;">
+        <label>Token del foglio</label>
+        <input type="text" name="token" required maxlength="16" placeholder="es. K7MQ2XR4TB"
+               style="text-transform:uppercase;font-family:ui-monospace,Consolas,monospace;">
+      </div>
+      <div class="fm-f" style="flex:1;min-width:220px;">
+        <label>Scansione (PDF o immagine)</label>
+        <input type="file" name="scansione" required accept=".pdf,image/*">
+      </div>
+      <button type="submit" class="hr-btn hr-btn-primary">Leggi</button>
+    </form>
+  </div>
+  {% endif %}
+
   {# ── Pannello autocompilazione dal registro firmato ──────────────────────── #}
   {% if is_editor and righe %}
   <div id="panel-autocompila" style="display:none;margin-bottom:16px;">
