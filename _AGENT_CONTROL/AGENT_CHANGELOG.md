@@ -1,5 +1,65 @@
 # Agent Changelog
 
+## 2026-08-05 - Codex
+
+- Area: `django_app/assets`, lista interventi.
+- Richiesta: semplificare prima la lista OdL per manutentori interni, separando aperti e chiusi, alleggerendo la tabella e consentendo la presa in carico rapida.
+- File modificati: `django_app/assets/views.py`, `django_app/assets/templates/assets/pages/workorder_list.html`, `django_app/assets/tests.py`, `django_app/assets/README.md`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente. Nessuna modifica ad ACL, middleware, settings, autenticazione, permessi, URL, routing globale o navigazione globale.
+- Motivo tecnico: la pagina mostrava dieci controlli filtro prima dei dati e nove colonne con pari evidenza per informazioni operative e amministrative, mescolando aperti, chiusi e annullati.
+- Modifica: vista predefinita `Aperti`; tab con contatori `Aperti`, `Assegnati a me`, `Non assegnati`, `Chiusi`; ricerca primaria, filtri secondari espandibili, chip che preservano la vista; tabella ridotta a cinque colonne; presa in carico POST dalla riga; archivio chiusi separato; export UI coerente con la vista attiva.
+- Impatto previsto: il manutentore vede subito il lavoro da svolgere e puo assegnarselo senza aprire la scheda; costi/copertura restano consultabili nel dettaglio e negli export.
+- Rischi residui: verifica visuale autenticata non disponibile; il browser locale raggiunge correttamente il login ma non dispone di una sessione autenticata condivisa. Possibili micro-regolazioni con dati reali.
+- Test/check: `manage.py check assets` OK; template load OK; 5 test mirati su default aperti, viste, claim rapido, filtri/deep-link, export e link hub OK; `git diff --check` OK.
+- Backup creati: nessuno.
+- README/CHANGELOG: aggiornati `README.md`, `django_app/assets/README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`.
+- Note operative: lavoro isolato nel worktree `C:\Dev\pn-assets-workorder-list-ux`; modifiche non correlate nel checkout condiviso preservate.
+
+## 2026-08-05 - Codex
+
+- Area: `django_app/assets`, chiusura formale interventi.
+- Richiesta: trattare la chiusura come quella di un ticket; consentire piu giorni di esecuzione opzionali, tempo totale indicativo, data/ora di chiusura modificabile e sia creazione normale sia creazione con chiusura immediata.
+- File modificati: `django_app/assets/models.py`, `django_app/assets/migrations/0087_workorderexecutionday.py`, `django_app/assets/forms.py`, `django_app/assets/views.py`, `django_app/assets/templates/assets/pages/workorder_form.html`, `workorder_close.html`, `workorder_detail.html`, `django_app/assets/tests.py`, `django_app/assets/README.md`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente. Nessuna modifica ad ACL, middleware, settings, autenticazione, permessi, URL, routing globale o navigazione globale.
+- Motivo tecnico: la precedente chiusura appariva come un semplice gruppo di note e numeri, senza un atto esplicito, timestamp controllabile o registrazione strutturata delle giornate lavorate.
+- Modifica: nuovo modello `WorkOrderExecutionDay` con vincolo univoco per OdL/data; `WorkOrder.close()` accetta il timestamp; form e pagina di chiusura guidano esito, timestamp, giornate, ore/minuti, risoluzione, persone, allegati e costi; doppia CTA nel form di creazione; dettaglio aggiornato.
+- Impatto previsto: chiusura chiara e auditabile, adatta sia a lavori su una giornata sia su piu giornate; vecchie POST in minuti compatibili.
+- Rischi residui: la migration `0087` deve essere applicata negli ambienti prima dell'uso; verifica visuale autenticata non eseguita per indisponibilita del runtime browser integrato.
+- Test/check: `manage.py check assets` OK; `makemigrations --check --dry-run` OK; 6 test mirati su creazione+chiusura, rendering formale, timestamp/giornate/tempi, allegati/costi, contratti e sincronizzazione manutentiva OK; `git diff --check` OK.
+- Backup creati: nessuno.
+- README/CHANGELOG: aggiornati `README.md`, `django_app/assets/README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`.
+- Note operative: lavoro isolato nel worktree `C:\Dev\pn-assets-workorder-close`; modifiche locali non correlate del checkout condiviso preservate.
+
+## 2026-08-05 - Codex
+
+- Area: `django_app/assets`, form nuovo intervento.
+- Richiesta: rendere comprensibile la schermata `/assets/workorders/new/<asset>/?source=workorder_list`, utilizzabile sia per guasto sia per manutenzione pianificata; lasciare la risoluzione compilabile subito.
+- File modificati: `django_app/assets/views.py`, `django_app/assets/templates/assets/pages/workorder_form.html`, `django_app/assets/tests.py`, `django_app/assets/README.md`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente. Nessuna modifica ad ACL, middleware, settings, autenticazione, permessi, URL, routing globale o navigazione globale.
+- Motivo tecnico: il form esponeva prima del titolo regola, manutenzione periodica, fornitore e contratto; mostrava inoltre breadcrumb, tab e azioni globali durante la compilazione, senza gerarchia tra dati essenziali e avanzati.
+- Modifica: sotto-nav rimossa server-side per questa view; contesto asset reso esplicito; flusso guidato `Cosa devi registrare?` e `Impatto operativo`; titolo e descrizione anticipati; risoluzione visibile e opzionale; allegati separati; dettagli manutentivi/contrattuali raccolti in `Pianificazione e copertura`, con apertura automatica per tipo preventivo, regola/contratto precompilati o errori.
+- Impatto previsto: compilazione piu rapida e leggibile per guasti e manutenzioni pianificate, senza variazioni ai dati salvati o ai flussi backend.
+- Rischi residui: verifica visuale autenticata non eseguita tramite browser integrato, non esposto nella sessione; la resa e coperta da render test e template check.
+- Test/check: `manage.py check assets` OK; template load OK; test UI guidata OK; test prefill da scadenzario e creazione preventiva con fornitore/allegato OK; `git diff --check` OK.
+- Backup creati: nessuno.
+- README/CHANGELOG: aggiornati `README.md`, `django_app/assets/README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`.
+- Note operative: lavoro isolato nel worktree `C:\Dev\pn-assets-workorder-form-ux`; modifiche locali non correlate del checkout condiviso preservate.
+
+## 2026-08-05 - Codex
+
+- Area: `django_app/assets`.
+- Richiesta: rendere `Asset -> Manutenzione` molto piu fruibile, eliminando la sensazione di pagina costruita per accumulo.
+- File modificati in questa sessione: `django_app/assets/views.py`, `django_app/assets/templates/assets/pages/maintenance_hub.html`, `django_app/assets/tests.py`, `django_app/assets/README.md`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente nella workspace. Nessuna modifica a ACL, middleware, settings, autenticazione, permessi, routing globale o navigazione globale.
+- Motivo tecnico: l'hub mostrava in sequenza un cruscotto condiviso a due pannelli, sei KPI, filtri, molte card operative e un rail di azioni che duplicava toolbar e sotto-navigazione; gerarchia e percorsi competevano sullo stesso livello.
+- Modifica: introdotta una sola fascia compatta di priorita (interventi aperti, scaduti, attivita in avvicinamento, completati); aggiunta intestazione `Lavoro operativo`; mantenuti filtri, OdL, scadenze, regole, macchine e ticket; rail ridotto a `Agenda 7 giorni` con link ai registri; rimosso dall'hub il partial del cruscotto condiviso e il relativo calcolo di aggregazioni inutilizzate. Il cruscotto Assets continua a usare il partial invariato.
+- Impatto previsto: meno duplicazioni, ordine di lettura immediato e azioni globali in un solo punto; nessun cambiamento a dati o flussi operativi.
+- Rischi residui: verifica visuale autenticata non eseguita perche' il runtime browser richiesto dal plugin non era esposto; rendering e struttura coperti dai test Django. Resta un warning test preesistente su `WorkOrder.closed_at` naive, non introdotto dalla modifica.
+- Test/check: `python -B django_app\manage.py check assets --settings=config.settings.test` OK; test mirati su gerarchia UX, sotto-navigazione e regole critiche OK (3 test); rerun finale dopo rimozione query inutilizzate OK (2 test); `git diff --check` OK.
+- Backup creati: nessuno.
+- README/CHANGELOG: `README.md`, `django_app/assets/README.md`, `CHANGELOG.md` e `django_app/CHANGELOG.md` aggiornati.
+- Note operative: lavoro isolato nel worktree `C:\Dev\pn-assets-maintenance-ux`, branch `feature/assets-maintenance-ux`; il checkout condiviso aveva modifiche preesistenti non correlate (`docs/prompt-claude-code-rag-sgi-ampliamento.md`, `remediation-plan.md`) che non sono state toccate.
+
 ## 2026-06-17 - Codex
 
 - Area: `django_app/admin_portale`, `django_app/core`, gestione template PDF condiviso.

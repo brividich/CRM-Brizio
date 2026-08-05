@@ -3,13 +3,14 @@ from __future__ import annotations
 from collections import defaultdict
 import json
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
 from django import forms
 from django.db import transaction
 from django.db.models import Q
+from django.utils import timezone
 
 from anagrafica.models import Fornitore, FornitoreDocumento, Reparto
 from schede_sicurezza.forms import ProdottoChimicoForm
@@ -2872,9 +2873,20 @@ class WorkOrderCloseForm(forms.Form):
         initial=WorkOrder.STATUS_DONE,
         label="Esito finale",
     )
+    closed_at = forms.DateTimeField(
+        required=False,
+        label="Data e ora chiusura",
+        input_formats=["%Y-%m-%dT%H:%M"],
+        widget=forms.DateTimeInput(format="%Y-%m-%dT%H:%M", attrs={"type": "datetime-local"}),
+    )
+    execution_days = forms.CharField(required=False, widget=forms.HiddenInput())
     resolution = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 4}), label="Risoluzione")
-    intervention_duration_minutes = forms.IntegerField(required=False, min_value=0, label="Durata intervento (minuti)")
-    downtime_minutes = forms.IntegerField(required=False, min_value=0, label="Fermo impianto (minuti)")
+    intervention_duration_hours = forms.IntegerField(required=False, min_value=0, label="Ore")
+    intervention_duration_remainder = forms.IntegerField(required=False, min_value=0, max_value=59, label="Minuti")
+    intervention_duration_minutes = forms.IntegerField(required=False, min_value=0, widget=forms.HiddenInput())
+    downtime_hours = forms.IntegerField(required=False, min_value=0, label="Ore")
+    downtime_remainder = forms.IntegerField(required=False, min_value=0, max_value=59, label="Minuti")
+    downtime_minutes = forms.IntegerField(required=False, min_value=0, widget=forms.HiddenInput())
     labor_cost_eur = forms.DecimalField(
         required=False,
         min_value=0,
@@ -2931,11 +2943,71 @@ class WorkOrderCloseForm(forms.Form):
         self.fields["executed_by"].queryset = user_qs
         self.fields["executed_by"].help_text = "Chi ha fisicamente eseguito il lavoro."
         self.fields["cost_eur"].help_text = "Opzionale: se compilato sostituisce la somma manodopera + materiali."
+        if not self.is_bound:
+            close_value = getattr(self.workorder, "closed_at", None) or timezone.now()
+            self.initial.setdefault("closed_at", timezone.localtime(close_value).strftime("%Y-%m-%dT%H:%M"))
+            duration = int(self.initial.get("intervention_duration_minutes") or 0)
+            downtime = int(self.initial.get("downtime_minutes") or 0)
+            self.initial.setdefault("intervention_duration_hours", duration // 60)
+            self.initial.setdefault("intervention_duration_remainder", duration % 60)
+            self.initial.setdefault("downtime_hours", downtime // 60)
+            self.initial.setdefault("downtime_remainder", downtime % 60)
+            if not self.initial.get("execution_days"):
+                existing_days = []
+                if self.workorder is not None and self.workorder.pk:
+                    existing_days = list(
+                        self.workorder.execution_days.order_by("execution_date").values_list("execution_date", flat=True)
+                    )
+                self.initial["execution_days"] = ",".join(day.isoformat() for day in existing_days)
         _attach_input_css(self)
         self.fields["covered_by_contract"].widget.attrs["class"] = ""
 
     def clean(self):
         cleaned_data = super().clean()
+        status = cleaned_data.get("status")
+        resolution = (cleaned_data.get("resolution") or "").strip()
+        if status == WorkOrder.STATUS_DONE and not resolution:
+            self.add_error("resolution", "Descrivi la risoluzione prima di chiudere l'intervento.")
+
+        closed_at = cleaned_data.get("closed_at") or timezone.now()
+        cleaned_data["closed_at"] = closed_at
+        if closed_at and closed_at > timezone.now() + timedelta(minutes=5):
+            self.add_error("closed_at", "La chiusura non puo essere registrata nel futuro.")
+
+        raw_days = str(cleaned_data.get("execution_days") or "")
+        execution_days = []
+        for raw_day in raw_days.split(","):
+            raw_day = raw_day.strip()
+            if not raw_day:
+                continue
+            try:
+                execution_day = date.fromisoformat(raw_day)
+            except ValueError:
+                self.add_error("execution_days", "Una delle date di esecuzione non e valida.")
+                continue
+            if execution_day not in execution_days:
+                execution_days.append(execution_day)
+        execution_days.sort()
+        if closed_at:
+            closure_day = timezone.localtime(closed_at).date()
+            if any(day > closure_day for day in execution_days):
+                self.add_error("execution_days", "I giorni di esecuzione non possono essere successivi alla chiusura.")
+        cleaned_data["execution_days_list"] = execution_days
+
+        duration_hours = int(cleaned_data.get("intervention_duration_hours") or 0)
+        duration_remainder = int(cleaned_data.get("intervention_duration_remainder") or 0)
+        if duration_hours or duration_remainder:
+            cleaned_data["intervention_duration_minutes"] = duration_hours * 60 + duration_remainder
+        else:
+            cleaned_data["intervention_duration_minutes"] = int(cleaned_data.get("intervention_duration_minutes") or 0)
+
+        downtime_hours = int(cleaned_data.get("downtime_hours") or 0)
+        downtime_remainder = int(cleaned_data.get("downtime_remainder") or 0)
+        if downtime_hours or downtime_remainder:
+            cleaned_data["downtime_minutes"] = downtime_hours * 60 + downtime_remainder
+        else:
+            cleaned_data["downtime_minutes"] = int(cleaned_data.get("downtime_minutes") or 0)
+
         assistance_contract = cleaned_data.get("assistance_contract")
         if cleaned_data.get("covered_by_contract") and assistance_contract is None:
             self.add_error("covered_by_contract", "Seleziona un contratto per indicare la copertura.")

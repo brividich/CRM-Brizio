@@ -4034,6 +4034,30 @@ class AssetsRoutingTests(TestCase):
             html=False,
         )
 
+    def test_maintenance_hub_has_one_clear_operational_hierarchy(self):
+        admin = User.objects.create_superuser(
+            username="asset-maintenance-ux-admin",
+            email="asset-maintenance-ux@test.local",
+            password="pass12345",
+        )
+        self.client.force_login(admin)
+
+        response = self.client.get(reverse("assets:maintenance_hub"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            '<section class="mh-priority-strip" aria-label="Priorità manutenzione">',
+            html=False,
+        )
+        self.assertContains(response, "Lavoro operativo")
+        self.assertContains(response, "Interventi da gestire")
+        self.assertContains(response, "Agenda 7 giorni")
+        self.assertContains(response, "Apri il registro completo")
+        self.assertNotContains(response, '<section class="oc-cockpit"', html=False)
+        self.assertNotContains(response, '<div class="mh-actions-list">', html=False)
+        self.assertNotContains(response, "Mese corrente")
+
     def test_superuser_can_create_custom_report_definition(self):
         admin = User.objects.create_superuser(
             username="asset-report-definition-admin",
@@ -5113,7 +5137,68 @@ class WorkOrderFlowTests(TestCase):
         )
         self.assertRedirects(response, expected_url, fetch_redirect_response=False)
 
-    def test_workorder_create_from_list_uses_compact_ui_and_back_link(self):
+    def test_workorder_list_defaults_to_open_operational_queue(self):
+        open_workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="Guasto da prendere in carico",
+        )
+        closed_workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            kind=WorkOrder.KIND_PREVENTIVE,
+            status=WorkOrder.STATUS_DONE,
+            title="Intervento gia chiuso",
+            closed_at=timezone.now(),
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("assets:wo_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["workorder_view"], "open")
+        self.assertContains(response, "Interventi aperti")
+        self.assertContains(response, "Assegnati a me")
+        self.assertContains(response, "Non assegnati")
+        self.assertContains(response, "Altri filtri")
+        self.assertContains(response, open_workorder.title)
+        self.assertNotContains(response, closed_workorder.title)
+        self.assertContains(response, "Prendi in carico")
+        self.assertContains(response, reverse("assets:wo_claim", args=[open_workorder.id]))
+        self.assertNotContains(response, "<th>Copertura</th>", html=False)
+        self.assertNotContains(response, "<th>Costi</th>", html=False)
+
+        closed_response = self.client.get(reverse("assets:wo_list"), {"view": "closed"})
+        self.assertContains(closed_response, "Archivio interventi chiusi")
+        self.assertContains(closed_response, closed_workorder.title)
+        self.assertNotContains(closed_response, open_workorder.title)
+
+    def test_workorder_list_mine_view_and_quick_claim(self):
+        workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="Intervento interno",
+        )
+        self.client.force_login(self.user)
+
+        claim_response = self.client.post(
+            reverse("assets:wo_claim", args=[workorder.id]),
+            {"next": f"{reverse('assets:wo_list')}?view=unassigned"},
+        )
+
+        self.assertRedirects(
+            claim_response,
+            f"{reverse('assets:wo_list')}?view=unassigned",
+            fetch_redirect_response=False,
+        )
+        workorder.refresh_from_db()
+        self.assertEqual(workorder.assigned_to, self.user)
+        mine_response = self.client.get(reverse("assets:wo_list"), {"view": "mine"})
+        self.assertContains(mine_response, workorder.title)
+        self.assertContains(mine_response, "In carico a te")
+
+    def test_workorder_create_from_list_uses_guided_ui_and_back_link(self):
         self.client.force_login(self.user)
 
         response = self.client.get(
@@ -5125,16 +5210,106 @@ class WorkOrderFlowTests(TestCase):
         self.assertEqual(response.context["workorder_back_url"], reverse("assets:wo_list"))
         self.assertContains(response, "Lista interventi")
         self.assertContains(response, "Torna agli interventi")
-        self.assertContains(response, "Dati intervento")
+        self.assertContains(response, "Cosa devi registrare?")
+        self.assertContains(response, "Impatto operativo")
+        self.assertContains(response, "Risoluzione gia applicata")
+        self.assertContains(response, "Pianificazione e copertura")
         self.assertContains(response, 'class="wof-form-body"', html=False)
         self.assertContains(response, 'class="wof-context"', html=False)
         self.assertContains(response, ".as-main > .as-top", html=False)
-        self.assertContains(response, "max-width: 1180px", html=False)
+        self.assertContains(response, ".as-section-nav", html=False)
+        self.assertContains(response, "max-width: 1260px", html=False)
         self.assertContains(response, 'class="wof-section wof-section--main"', html=False)
-        self.assertContains(response, 'class="wof-section wof-section--notes"', html=False)
         self.assertContains(response, 'class="wof-section wof-section--attachments"', html=False)
+        self.assertContains(response, 'class="wof-advanced" id="maintenanceAdvanced"', html=False)
         self.assertNotContains(response, 'class="wof-side-card"', html=False)
-        self.assertContains(response, ">+<", html=False)
+        self.assertNotContains(response, 'class="as-section-nav"', html=False)
+        html = response.content.decode("utf-8")
+        self.assertLess(html.index('for="id_title"'), html.index('for="id_maintenance_rule"'))
+
+    def test_workorder_create_can_continue_to_formal_closure(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("assets:wo_create", args=[self.asset.id]),
+            {
+                "periodic_verification": "",
+                "supplier": "",
+                "kind": WorkOrder.KIND_CORRECTIVE,
+                "status": WorkOrder.STATUS_OPEN,
+                "title": "Intervento da consuntivare",
+                "description": "Attivita gia eseguita.",
+                "resolution": "",
+                "downtime_minutes": "0",
+                "cost_eur": "",
+                "submit_action": "close",
+            },
+        )
+
+        workorder = WorkOrder.objects.get(title="Intervento da consuntivare")
+        self.assertEqual(workorder.status, WorkOrder.STATUS_OPEN)
+        self.assertRedirects(
+            response,
+            reverse("assets:wo_close", args=[workorder.id]),
+            fetch_redirect_response=False,
+        )
+
+    def test_workorder_close_page_is_a_formal_guided_flow(self):
+        workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="Intervento aperto",
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("assets:wo_close", args=[workorder.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Esito e chiusura")
+        self.assertContains(response, "Giorni di esecuzione")
+        self.assertContains(response, "Tempo indicativo totale")
+        self.assertContains(response, 'id="id_closed_at"', html=False)
+        self.assertContains(response, 'name="intervention_duration_hours"', html=False)
+        self.assertContains(response, "Chiudi definitivamente")
+        self.assertNotContains(response, 'class="as-section-nav"', html=False)
+
+    def test_formal_closure_records_days_time_and_editable_timestamp(self):
+        workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="Intervento su piu giornate",
+        )
+        closed_at = timezone.localtime(timezone.now() - timedelta(hours=1)).replace(second=0, microsecond=0)
+        first_day = (closed_at.date() - timedelta(days=1)).isoformat()
+        second_day = closed_at.date().isoformat()
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("assets:wo_close", args=[workorder.id]),
+            {
+                "status": WorkOrder.STATUS_DONE,
+                "closed_at": closed_at.strftime("%Y-%m-%dT%H:%M"),
+                "execution_days": f"{first_day},{second_day}",
+                "resolution": "Ripristinato e verificato il corretto funzionamento.",
+                "intervention_duration_hours": "2",
+                "intervention_duration_remainder": "30",
+                "downtime_hours": "1",
+                "downtime_remainder": "15",
+            },
+        )
+
+        self.assertRedirects(response, reverse("assets:wo_view", args=[workorder.id]), fetch_redirect_response=False)
+        workorder.refresh_from_db()
+        self.assertEqual(workorder.status, WorkOrder.STATUS_DONE)
+        self.assertEqual(timezone.localtime(workorder.closed_at), closed_at)
+        self.assertEqual(workorder.intervention_duration_minutes, 150)
+        self.assertEqual(workorder.downtime_minutes, 75)
+        self.assertEqual(
+            list(workorder.execution_days.values_list("execution_date", flat=True)),
+            [date.fromisoformat(first_day), date.fromisoformat(second_day)],
+        )
 
     def test_preventive_workorder_uses_periodic_verification_supplier_and_attachment(self):
         supplier = Fornitore.objects.create(
@@ -5403,6 +5578,11 @@ class WorkOrderFlowTests(TestCase):
         self.assertTrue(form.initial["covered_by_contract"])
         self.assertContains(response, "Prossime manutenzioni")
         self.assertContains(response, "Contratto suggerito")
+        self.assertContains(
+            response,
+            '<details class="wof-advanced" id="maintenanceAdvanced" open>',
+            html=False,
+        )
         self.assertNotContains(response, "Stato iniziale")
 
     def test_close_workorder_rejects_incompatible_contract(self):
@@ -5587,7 +5767,7 @@ class WorkOrderFlowTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Registro interventi")
+        self.assertContains(response, "Archivio interventi chiusi")
         self.assertContains(response, 'class="wo-filter-summary"', html=False)
         self.assertContains(response, "Ricerca: Tagliando")
         self.assertContains(response, "Stato: Chiusa")
@@ -5601,14 +5781,13 @@ class WorkOrderFlowTests(TestCase):
         self.assertContains(response, self.asset.asset_tag)
         self.assertContains(response, "Categoria Operativa")
         self.assertContains(response, "Mario Rossi")
-        self.assertContains(response, "Coperto")
-        self.assertContains(response, contract.title)
-        self.assertContains(response, "Costi")
-        self.assertContains(response, "EUR")
+        self.assertNotContains(response, "<th>Copertura</th>", html=False)
+        self.assertNotContains(response, "<th>Costi</th>", html=False)
         self.assertEqual(list(response.context["workorders"])[0].resolved_total_cost_eur, Decimal("120.00"))
         status_chip = next(chip for chip in response.context["active_filter_chips"] if chip["label"] == "Stato")
         self.assertNotIn("status=", status_chip["remove_url"])
         self.assertIn("origin=PERIODIC", status_chip["remove_url"])
+        self.assertIn("view=closed", status_chip["remove_url"])
         self.assertNotContains(response, "Intervento fuori filtro")
 
         age_response = self.client.get(

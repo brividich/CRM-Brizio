@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### Assets - lista interventi come coda operativa
+
+- **[ux/test] `assets/views.py`, `assets/templates/assets/pages/workorder_list.html`, `assets/tests.py`**: il registro OdL non mescola piu tutto al primo accesso. La vista predefinita mostra gli aperti e quattro tab con contatori separano `Aperti`, `Assegnati a me`, `Non assegnati` e archivio `Chiusi`. La ricerca resta sempre visibile, gli otto filtri amministrativi sono raccolti in un pannello espandibile e i chip continuano a preservare la vista corrente. La tabella e' ridotta da nove a cinque colonne operative; costi e contratto restano nel dettaglio e negli export. Aggiunta presa in carico POST direttamente dalla riga per gli OdL non assegnati. I deep-link storici con `status=DONE/CANCELED` aprono automaticamente l'archivio chiusi e gli export lanciati dalla UI rispettano la vista attiva. Nessuna migration o modifica ad ACL, permessi, URL e routing globale.
+
+### Assets - chiusura intervento formale
+
+- **[feat/ux/test] `assets/models.py`, `assets/migrations/0087_workorderexecutionday.py`, `assets/forms.py`, `assets/views.py`, template WorkOrder e `assets/tests.py`**: introdotto il registro normalizzato delle giornate effettive di esecuzione (zero, una o piu date per OdL). La pagina di chiusura e' un flusso formale con esito, data/ora editabile precompilata a ora, giornate opzionali, durata totale e fermo in ore/minuti, risoluzione obbligatoria per lo stato completato, persone/allegati e costi avanzati. Il form nuovo intervento offre sia creazione ordinaria sia `Crea e vai alla chiusura`; il dettaglio espone giornate e tempi leggibili. Le vecchie POST con durate in minuti e senza timestamp esplicito restano compatibili. Nessuna modifica ad ACL, permessi, URL o routing globale.
+
+### Assets - nuovo intervento come flusso guidato
+
+- **[ux/test] `assets/views.py`, `assets/templates/assets/pages/workorder_form.html`, `assets/tests.py`**: il form OdL rimuove la sotto-nav transazionale, rende evidente l'asset, porta tipo/titolo/descrizione in testa, mantiene la risoluzione subito compilabile ma opzionale e separa impatto operativo e allegati. Regola, piano periodico, fornitore, contratto e copertura sono raccolti in un pannello avanzato che si apre automaticamente per manutenzioni preventive o dati precompilati. Salvataggio e modello dati invariati.
+
+### Assets - hub manutenzione con gerarchia operativa unica
+
+- **[ux/test] `assets/views.py`, `assets/templates/assets/pages/maintenance_hub.html`, `assets/tests.py`**: `/assets/manutenzione/` elimina il cruscotto duplicato e il rail di azioni gia presenti in toolbar/sotto-nav. Una sola fascia compatta riassume interventi aperti, scaduti, attivita entro 30 giorni e completati; il contenuto principale dichiara la priorita di lettura e il rail mostra solo l'agenda a 7 giorni con accessi diretti ai registri. La view non calcola piu le due aggregazioni del cruscotto rimosso; layout responsive e dark mode coperti; dati, ACL, URL e routing invariati.
+
 ### Anagrafica — modifica matricola per dipendente già esistente
 
 - **[feat/test] `anagrafica/views.py` (`dipendente_matricola_set`), `anagrafica/urls.py`, `anagrafica/models.py` (`DipendenteCambiamentoOrganizzativo.TIPO_MATRICOLA`), `anagrafica/migrations/0098_alter_dipendentecambiamentoorganizzativo_tipo.py` [nuovo], `anagrafica/templates/anagrafica/pages/dipendente_detail.html`, `anagrafica/tests_area_aziendale_dipendente.py`**: la matricola era scrivibile **solo in fase di creazione** del dipendente — nessun punto di modifica successivo. Copre due casi reali: **preinserimento** (il dipendente viene creato prima che gli venga assegnata la matricola aziendale) e **recruiting** (un colloquiante può già esistere come dipendente in anagrafica, senza matricola, prima dell'assunzione formale). Aggiunto mini-form «✏» accanto al campo Matricola nella card «Anagrafica aziendale» (tab Anagrafica, gated `is_admin`, stesso pattern UI di Mansione/Reparto/Username), endpoint `dipendenti/<id>/matricola/set` che aggiorna il campo legacy preservando gli altri campi (`upsert_anagrafica_dipendente`) e registra il cambio in `DipendenteCambiamentoOrganizzativo` (nuovo tipo `MATRICOLA`, migrazione additiva sulle sole `choices`, nessuna modifica di schema). 3 nuovi test (assegnazione, storico cambiamento, permesso negato a non-admin).

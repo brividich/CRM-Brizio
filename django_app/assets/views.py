@@ -13,7 +13,7 @@ from decimal import Decimal
 from html import escape
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
-from urllib.parse import parse_qs, quote, urlencode, urlsplit
+from urllib.parse import parse_qs, quote, urlencode, urlsplit, urlunsplit
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 import requests
@@ -134,6 +134,7 @@ from .models import (
     WorkOrder,
     WorkOrderAttachment,
     WorkOrderChecklist,
+    WorkOrderExecutionDay,
     WorkOrderLog,
 )
 from .maintenance import (
@@ -13752,6 +13753,12 @@ def workorder_list_export(request: HttpRequest) -> HttpResponse:
     scope = request.GET.get("scope", "filtered")
     fmt = request.GET.get("format", "xlsx")
     qs = _apply_workorder_list_filters(request.GET, include_filters=(scope == "filtered"))
+    if scope == "filtered" and _clean_string(request.GET.get("view")):
+        qs = _apply_workorder_operational_view(
+            qs,
+            operational_view=_resolve_workorder_operational_view(request.GET),
+            user=request.user,
+        )
     workorders = list(qs.order_by("-opened_at"))
     today = timezone.localdate().strftime("%Y%m%d")
     rows = [_wo_export_row(wo) for wo in workorders]
@@ -15124,6 +15131,28 @@ def _apply_workorder_list_filters(get_params, *, include_filters: bool = True):
     return qs
 
 
+def _resolve_workorder_operational_view(get_params) -> str:
+    requested_view = _clean_string(get_params.get("view")).lower()
+    if requested_view in {"open", "mine", "unassigned", "closed", "all"}:
+        return requested_view
+    requested_status = _clean_string(get_params.get("status"))
+    if requested_status in {WorkOrder.STATUS_DONE, WorkOrder.STATUS_CANCELED}:
+        return "closed"
+    return "open"
+
+
+def _apply_workorder_operational_view(qs, *, operational_view: str, user):
+    if operational_view == "mine":
+        return qs.filter(status=WorkOrder.STATUS_OPEN, assigned_to=user)
+    if operational_view == "unassigned":
+        return qs.filter(status=WorkOrder.STATUS_OPEN, assigned_to__isnull=True)
+    if operational_view == "closed":
+        return qs.filter(status__in=[WorkOrder.STATUS_DONE, WorkOrder.STATUS_CANCELED])
+    if operational_view == "all":
+        return qs
+    return qs.filter(status=WorkOrder.STATUS_OPEN)
+
+
 def _workorder_list_filter_remove_url(get_params, filter_key: str) -> str:
     query = get_params.copy()
     for key in (filter_key, "page", "create", "export"):
@@ -15157,6 +15186,7 @@ def _workorder_list_filter_chips(
     assigned_id: int,
     open_age_days: int,
     q: str,
+    operational_view: str,
     category_options,
     user_options,
 ) -> list[dict[str, str]]:
@@ -15175,11 +15205,25 @@ def _workorder_list_filter_chips(
         value = _clean_string(value)
         if not value:
             return
+        remove_url = _workorder_list_filter_remove_url(request.GET, filter_key)
+        if "view" not in request.GET:
+            parsed_remove_url = urlsplit(remove_url)
+            remove_query = parse_qs(parsed_remove_url.query)
+            remove_query["view"] = [operational_view]
+            remove_url = urlunsplit(
+                (
+                    parsed_remove_url.scheme,
+                    parsed_remove_url.netloc,
+                    parsed_remove_url.path,
+                    urlencode(remove_query, doseq=True),
+                    parsed_remove_url.fragment,
+                )
+            )
         chips.append(
             {
                 "label": label,
                 "value": value,
-                "remove_url": _workorder_list_filter_remove_url(request.GET, filter_key),
+                "remove_url": remove_url,
             }
         )
 
@@ -15218,8 +15262,20 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
     assigned_id = _as_int(request.GET.get("assigned"), default=0)
     open_age_days = _as_int(request.GET.get("open_age"), default=0)
     q = _clean_string(request.GET.get("q"))
+    operational_view = _resolve_workorder_operational_view(request.GET)
 
-    workorders = _apply_workorder_list_filters(request.GET).order_by("-opened_at", "-id")
+    workorders = _apply_workorder_operational_view(
+        _apply_workorder_list_filters(request.GET),
+        operational_view=operational_view,
+        user=request.user,
+    ).order_by("-opened_at", "-id")
+    count_source = WorkOrder.objects.all()
+    operational_counts = {
+        "open": count_source.filter(status=WorkOrder.STATUS_OPEN).count(),
+        "mine": count_source.filter(status=WorkOrder.STATUS_OPEN, assigned_to=request.user).count(),
+        "unassigned": count_source.filter(status=WorkOrder.STATUS_OPEN, assigned_to__isnull=True).count(),
+        "closed": count_source.filter(status__in=[WorkOrder.STATUS_DONE, WorkOrder.STATUS_CANCELED]).count(),
+    }
     reparto_options = list(
         Asset.objects.exclude(reparto="")
         .order_by("reparto")
@@ -15241,6 +15297,7 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
         assigned_id=assigned_id,
         open_age_days=open_age_days,
         q=q,
+        operational_view=operational_view,
         category_options=category_options,
         user_options=user_options,
     )
@@ -15260,6 +15317,23 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
             "assigned_filter": assigned_id,
             "open_age_filter": open_age_days,
             "q_filter": q,
+            "workorder_view": operational_view,
+            "workorder_view_url": _workorder_list_page_url(view=operational_view),
+            "operational_counts": operational_counts,
+            "workorder_view_urls": {
+                view_key: _workorder_list_page_url(view=view_key)
+                for view_key in ("open", "mine", "unassigned", "closed", "all")
+            },
+            "advanced_filters_open": bool(
+                kind
+                or origin
+                or coverage != "all"
+                or reparto
+                or category_id
+                or assigned_id
+                or open_age_days
+                or status
+            ),
             "status_choices": WorkOrder.STATUS_CHOICES,
             "kind_choices": WorkOrder.KIND_CHOICES,
             "origin_choices": WorkOrder.ORIGIN_CHOICES,
@@ -15342,6 +15416,8 @@ def workorder_create(request: HttpRequest, id: int | None = None) -> HttpRespons
                     actor=request.user if request.user.is_authenticated else None,
                 )
                 messages.success(request, "Intervento creato.")
+                if request.POST.get("submit_action") == "close":
+                    return redirect("assets:wo_close", id=workorder.id)
                 return redirect("assets:wo_view", id=workorder.id)
     else:
         initial = {"status": WorkOrder.STATUS_OPEN}
@@ -15386,6 +15462,9 @@ def workorder_create(request: HttpRequest, id: int | None = None) -> HttpRespons
             "maintenance_rule_suggestion_map_json": json.dumps(maintenance_rule_suggestion_map),
             "contract_suggestion_map_json": json.dumps(contract_suggestion_map),
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
+            # Il form e' un flusso transazionale: evita tab e azioni globali
+            # duplicate mentre l'utente sta compilando l'intervento.
+            "assets_section_nav": None,
         },
     )
 
@@ -15422,6 +15501,9 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
     attachments = workorder.attachments.all()
     checklist_items = list(workorder.checklist_items.select_related("done_by").order_by("step_number", "id"))
     checklist_done_count = sum(1 for it in checklist_items if it.is_done)
+    execution_days = list(workorder.execution_days.order_by("execution_date"))
+    duration_hours, duration_remainder = divmod(max(0, int(workorder.intervention_duration_minutes or 0)), 60)
+    downtime_hours, downtime_remainder = divmod(max(0, int(workorder.downtime_minutes or 0)), 60)
     return render(
         request,
         "assets/pages/workorder_detail.html",
@@ -15433,6 +15515,11 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
             "checklist_items": checklist_items,
             "checklist_done_count": checklist_done_count,
             "checklist_total": len(checklist_items),
+            "execution_days": execution_days,
+            "duration_hours": duration_hours,
+            "duration_remainder": duration_remainder,
+            "downtime_hours": downtime_hours,
+            "downtime_remainder": downtime_remainder,
             "is_open": workorder.status == WorkOrder.STATUS_OPEN,
             "workorder_asset_url": reverse("assets:asset_view", kwargs={"id": workorder.asset_id}),
             "workorder_rule_url": (
@@ -15595,6 +15682,7 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
             try:
                 workorder.close(
                     status=form.cleaned_data["status"],
+                    closed_at=form.cleaned_data.get("closed_at"),
                     resolution=form.cleaned_data.get("resolution") or "",
                     intervention_duration=form.cleaned_data.get("intervention_duration_minutes"),
                     downtime=form.cleaned_data.get("downtime_minutes"),
@@ -15607,10 +15695,20 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
             except ValidationError as exc:
                 _add_form_validation_errors(form, exc)
             else:
+                execution_days = form.cleaned_data.get("execution_days_list") or []
+                workorder.execution_days.all().delete()
+                WorkOrderExecutionDay.objects.bulk_create(
+                    [
+                        WorkOrderExecutionDay(work_order=workorder, execution_date=execution_day)
+                        for execution_day in execution_days
+                    ]
+                )
                 if workorder.status == WorkOrder.STATUS_DONE and workorder.maintenance_rule_id:
                     sync_workorder_maintenance_state(workorder)
                 log_note = _clean_string(form.cleaned_data.get("log_note"))
                 closure_note = "Intervento chiuso." if workorder.status == WorkOrder.STATUS_DONE else "Intervento annullato."
+                if execution_days:
+                    closure_note = f"{closure_note} Giorni esecuzione: {', '.join(day.strftime('%d/%m/%Y') for day in execution_days)}."
                 if log_note:
                     closure_note = f"{closure_note} {log_note}"
                 if uploads:
@@ -15669,6 +15767,7 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
             "attachment_accept": _workorder_attachment_accept_attr(),
             "attachment_max_mb": int(ASSET_DOCUMENT_MAX_BYTES / (1024 * 1024)),
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
+            "assets_section_nav": None,
         },
     )
 
@@ -15882,14 +15981,10 @@ def _due_state(due_date, today):
 
 @login_required
 def maintenance_hub(request: HttpRequest) -> HttpResponse:
-    """Centro Manutenzione unificato a tab.
+    """Centro operativo per priorita, OdL e scadenze di manutenzione.
 
-    Consolida le tre vecchie dashboard (hub / to-do / scadenzario):
-    - tab "da_fare": KPI, interventi aperti, scadenze/verifiche urgenti,
-      macchine in scadenza, ticket MAN, prossimi 7gg, azioni rapide.
-    - tab "scadenzario": tabelle Verifiche periodiche / Scadenze amm. / Contratti.
-
-    Le vecchie URL /scadenzario/ e /todo/ ora rimandano qui (redirect 301).
+    Lo scadenzario canonico vive in ``maintenance_schedule``; i vecchi
+    deep-link ``?tab=scadenzario`` vi confluiscono senza duplicarne la UI.
     """
     from datetime import timedelta
     from .models import AssistanceContract, WorkMachine
@@ -16156,21 +16251,11 @@ def maintenance_hub(request: HttpRequest) -> HttpResponse:
     if scad_sub not in ("verifiche", "scadenze", "contratti"):
         scad_sub = "verifiche"
 
-    # ── Cruscotto operativo (cose da fare + segnalazioni arrivate) ─────────
-    from assets.services.dashboard_kpi import (
-        get_cose_da_fare_overview,
-        get_segnalazioni_overview,
-    )
-    cose_da_fare = get_cose_da_fare_overview(today=today)
-    segnalazioni = get_segnalazioni_overview(today=today)
-
     return render(
         request,
         "assets/pages/maintenance_hub.html",
         {
             **_assets_shell_context(request),
-            "cose_da_fare": cose_da_fare,
-            "segnalazioni": segnalazioni,
             "page_title": "Manutenzione",
             "today": today,
             "is_admin": is_admin,

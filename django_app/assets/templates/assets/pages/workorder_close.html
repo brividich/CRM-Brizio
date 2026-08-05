@@ -1,177 +1,201 @@
 {% extends "assets/base_shell.html" %}
 
 {% block title %}Chiudi intervento{% endblock %}
+{% block assets_shell_title %}Chiudi intervento #{{ workorder.id }}{% endblock %}
+{% block assets_shell_subtitle %}<p>{{ workorder.asset.asset_tag }} · {{ workorder.title }}</p>{% endblock %}
+{% block assets_shell_toolbar %}
+  <a class="btn" href="{% url 'assets:wo_view' workorder.id %}">&larr; Torna all'intervento</a>
+{% endblock %}
 
 {% block assets_shell_head %}
 <style>
-.woc-page { max-width:980px; display:grid; gap:14px; }
-.woc-card {
-  border:1px solid #dbe1ea;
-  border-radius:16px;
-  background:#fff;
-  box-shadow:0 10px 24px rgba(15, 23, 42, .05);
-}
+.as-main > .as-top,
+.as-section-nav { display:none; }
+.as-main { gap:10px; padding-top:10px; }
+.as-page-head { min-height:0; padding:10px 14px; border-radius:10px; }
+.woc-page { width:min(100%,1180px); margin:0 auto; display:grid; gap:14px; }
+.woc-form { display:grid; gap:14px; }
+.woc-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(320px,380px); gap:14px; align-items:start; }
+.woc-main,.woc-side { display:grid; gap:14px; align-content:start; }
+.woc-card { border:1px solid #dbe1ea; border-radius:13px; background:#fff; box-shadow:0 8px 24px rgba(15,23,42,.045); overflow:hidden; }
 .woc-card-body { padding:18px; display:grid; gap:16px; }
-.woc-summary {
-  display:grid;
-  gap:12px;
-  padding-bottom:16px;
-  border-bottom:1px solid #e5e7eb;
-}
-.woc-chip-row { display:flex; gap:8px; flex-wrap:wrap; }
-.woc-title { margin:0; font-size:var(--fs-display-md); color:#0f172a; }
-.woc-sub { margin:0; color:#64748b; }
-.woc-grid { display:grid; gap:14px; grid-template-columns:repeat(2, minmax(0, 1fr)); }
-.woc-field { display:grid; gap:6px; }
+.woc-summary { border-left:4px solid #2563eb; }
+.woc-summary .woc-card-body { grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:14px; }
+.woc-summary-title { margin:0; color:#0f172a; font-size:var(--fs-title-md); }
+.woc-summary-sub { margin:4px 0 0; color:#64748b; font-size:var(--fs-sm); }
+.woc-chip-row { display:flex; justify-content:flex-end; gap:6px; flex-wrap:wrap; }
+.woc-section-head { display:flex; align-items:flex-start; gap:10px; }
+.woc-step { width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto; background:#1d4ed8; color:#fff; font-weight:900; font-size:var(--fs-xs); }
+.woc-section-head h3 { margin:0; color:#0f172a; font-size:var(--fs-title-sm); }
+.woc-section-head p { margin:3px 0 0; color:#64748b; font-size:var(--fs-sm); }
+.woc-grid { display:grid; gap:12px; grid-template-columns:repeat(2,minmax(0,1fr)); }
+.woc-field { display:grid; gap:6px; min-width:0; }
 .woc-field--full { grid-column:1/-1; }
-.woc-field label { font-weight:700; color:#24364f; }
-.woc-field textarea,
-.woc-field input,
-.woc-field select { width:100%; }
-.woc-meta-grid { display:grid; gap:10px; grid-template-columns:repeat(3, minmax(0, 1fr)); }
-.woc-meta {
-  border:1px solid #e2e8f0;
-  border-radius:12px;
-  padding:12px 14px;
-  background:#fcfdff;
-}
-.woc-meta span { display:block; color:#64748b; font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.08em; font-weight:800; }
-.woc-meta strong { display:block; margin-top:6px; color:#0f172a; font-size:var(--fs-title-lg); }
-.woc-actions { display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
-@media (max-width: 760px) {
-  .woc-grid,
-  .woc-meta-grid { grid-template-columns:1fr; }
-}
-
-body.theme-dark .woc-card { background:var(--surface); border-color:var(--border); }
-body.theme-dark .woc-summary { border-bottom-color:var(--border); }
-body.theme-dark .woc-title { color:var(--text); }
-body.theme-dark .woc-sub { color:var(--text-light); }
-body.theme-dark .woc-meta { background:var(--surface-alt); border-color:var(--border); }
-body.theme-dark .woc-meta span { color:var(--text-light); }
-body.theme-dark .woc-meta strong { color:var(--text); }
-body.theme-dark .woc-field label { color:var(--text); }
-body.theme-dark .woc-field input,
-body.theme-dark .woc-field select,
-body.theme-dark .woc-field textarea { background:var(--surface); border-color:var(--border); color:var(--text); }
+.woc-field label { font-weight:800; color:#24364f; font-size:var(--fs-sm); }
+.woc-field input,.woc-field select,.woc-field textarea { width:100%; min-height:42px; padding:9px 11px; font-size:var(--fs-base); }
+.woc-field textarea { min-height:112px; resize:vertical; }
+.woc-note { color:#64748b; font-size:var(--fs-xs); line-height:1.35; }
+.woc-required { color:#b91c1c; font-weight:900; }
+.woc-error { color:#b91c1c; font-size:var(--fs-sm); }
+.woc-time-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.woc-days { display:grid; gap:8px; }
+.woc-day-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; align-items:center; }
+.woc-day-remove { width:36px; height:36px; border:1px solid #fecaca; border-radius:9px; background:#fff5f5; color:#b91c1c; cursor:pointer; font-size:var(--fs-lg); }
+.woc-add-day { justify-self:start; border:0; background:transparent; color:#1d4ed8; font-weight:800; cursor:pointer; padding:2px 0; }
+.woc-details { border:1px solid #dbe1ea; border-radius:13px; background:#fff; overflow:hidden; box-shadow:0 8px 24px rgba(15,23,42,.04); }
+.woc-details summary { list-style:none; cursor:pointer; padding:14px 16px; display:flex; gap:9px; align-items:center; color:#183153; font-weight:850; }
+.woc-details summary::-webkit-details-marker { display:none; }
+.woc-details summary:before { content:"+"; width:24px; height:24px; border-radius:7px; display:inline-flex; align-items:center; justify-content:center; background:#eff6ff; color:#1d4ed8; font-size:var(--fs-lg); }
+.woc-details[open] summary:before { content:"−"; }
+.woc-details-body { display:grid; gap:12px; padding:14px 16px 16px; border-top:1px solid #edf2f7; }
+.woc-actions { position:sticky; bottom:10px; z-index:4; display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px 14px; border:1px solid #dbe1ea; border-radius:12px; background:#fff; box-shadow:0 14px 34px rgba(15,23,42,.13); }
+.woc-actions-copy { color:#64748b; font-size:var(--fs-sm); }
+.woc-actions-buttons { display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
+@media(max-width:980px){.woc-layout{grid-template-columns:1fr}.woc-side{grid-template-columns:repeat(2,minmax(0,1fr))}.woc-details{grid-column:1/-1}}
+@media(max-width:700px){.woc-grid,.woc-side,.woc-summary .woc-card-body{grid-template-columns:1fr}.woc-chip-row{justify-content:flex-start}.woc-actions{align-items:stretch;flex-direction:column}.woc-actions-buttons{justify-content:stretch}.woc-actions-buttons .btn{flex:1}}
+body.theme-dark .woc-card,body.theme-dark .woc-details,body.theme-dark .woc-actions{background:var(--surface);border-color:var(--border);box-shadow:none}
+body.theme-dark .woc-summary-title,body.theme-dark .woc-section-head h3,body.theme-dark .woc-field label,body.theme-dark .woc-details summary{color:var(--text)}
+body.theme-dark .woc-summary-sub,body.theme-dark .woc-section-head p,body.theme-dark .woc-note,body.theme-dark .woc-actions-copy{color:var(--text-light)}
+body.theme-dark .woc-field input,body.theme-dark .woc-field select,body.theme-dark .woc-field textarea{background:var(--surface-alt);border-color:var(--border);color:var(--text)}
+body.theme-dark .woc-details-body{border-color:var(--border)}
 </style>
 {% endblock %}
 
-{% block assets_shell_title %}Chiudi intervento #{{ workorder.id }}{% endblock %}
-
 {% block assets_shell_content %}
 <section class="woc-page">
-  <header>
-    <a href="{% url 'assets:wo_view' workorder.id %}" class="as-backlink">&larr; Torna all'intervento</a>
-  </header>
-
-  <form method="post" enctype="multipart/form-data" class="woc-card">
-    {% csrf_token %}
+  <section class="woc-card woc-summary">
     <div class="woc-card-body">
-      {% if form.non_field_errors %}
-        <div class="assets-message assets-message-error">{{ form.non_field_errors }}</div>
-      {% endif %}
-      <section class="woc-summary">
-        <div class="woc-chip-row">
-          <span class="as-badge as-badge--{{ workorder_status.badge_class }}">{{ workorder_status.label }}</span>
-          <span class="as-badge as-badge--{{ workorder_kind.badge_class }}">{{ workorder_kind.label }}</span>
-          <span class="as-badge as-badge--{{ workorder_coverage.badge_class }}">{{ workorder_coverage.label }}</span>
-        </div>
-        <h2 class="woc-title">{{ workorder.title }}</h2>
-        <p class="woc-sub">{{ workorder.asset.asset_tag }} - {{ workorder.asset.name }}</p>
-        <div class="woc-meta-grid">
-          <div class="woc-meta"><span>Regola manutenzione</span><strong>{% if workorder.maintenance_rule %}{{ workorder.maintenance_rule.intervention_template.label }}{% else %}-{% endif %}</strong></div>
-          <div class="woc-meta"><span>Fornitore</span><strong>{% if workorder.supplier %}{{ workorder.supplier }}{% else %}-{% endif %}</strong></div>
-          <div class="woc-meta"><span>Contratto attuale</span><strong>{% if workorder.assistance_contract %}{{ workorder.assistance_contract.title }}{% else %}-{% endif %}</strong></div>
-        </div>
-      </section>
+      <div>
+        <h2 class="woc-summary-title">{{ workorder.title }}</h2>
+        <p class="woc-summary-sub">{{ workorder.asset.asset_tag }} · {{ workorder.asset.name }}</p>
+      </div>
+      <div class="woc-chip-row">
+        <span class="as-badge as-badge--{{ workorder_status.badge_class }}">{{ workorder_status.label }}</span>
+        <span class="as-badge as-badge--{{ workorder_kind.badge_class }}">{{ workorder_kind.label }}</span>
+        <span class="as-badge as-badge--{{ workorder_coverage.badge_class }}">{{ workorder_coverage.label }}</span>
+      </div>
+    </div>
+  </section>
 
-      <section class="woc-grid">
-        <div class="woc-field">
-          <label for="{{ form.status.id_for_label }}">{{ form.status.label }}</label>
-          {{ form.status }}
-          {% if form.status.errors %}<div class="as-error">{{ form.status.errors }}</div>{% endif %}
-        </div>
+  <form method="post" enctype="multipart/form-data" class="woc-form">
+    {% csrf_token %}
+    {{ form.execution_days }}
+    {{ form.intervention_duration_minutes }}
+    {{ form.downtime_minutes }}
+    {% if form.non_field_errors %}<div class="assets-message assets-message-error">{{ form.non_field_errors }}</div>{% endif %}
 
-        <div class="woc-field">
-          <label for="{{ form.assistance_contract.id_for_label }}">{{ form.assistance_contract.label }}</label>
-          {{ form.assistance_contract }}
-          {% if form.assistance_contract.help_text %}<div class="as-note">{{ form.assistance_contract.help_text }}</div>{% endif %}
-          {% if form.assistance_contract.errors %}<div class="as-error">{{ form.assistance_contract.errors }}</div>{% endif %}
-        </div>
+    <div class="woc-layout">
+      <div class="woc-main">
+        <section class="woc-card">
+          <div class="woc-card-body">
+            <div class="woc-section-head">
+              <span class="woc-step">1</span>
+              <div><h3>Esito e chiusura</h3><p>Questo passaggio cambia formalmente lo stato dell'intervento.</p></div>
+            </div>
+            <div class="woc-grid">
+              <div class="woc-field">
+                <label for="{{ form.status.id_for_label }}">{{ form.status.label }}</label>
+                {{ form.status }}
+                {% if form.status.errors %}<div class="woc-error">{{ form.status.errors }}</div>{% endif %}
+              </div>
+              <div class="woc-field">
+                <label for="{{ form.closed_at.id_for_label }}">{{ form.closed_at.label }}</label>
+                {{ form.closed_at }}
+                <div class="woc-note">Preimpostata adesso, ma modificabile per registrazioni successive.</div>
+                {% if form.closed_at.errors %}<div class="woc-error">{{ form.closed_at.errors }}</div>{% endif %}
+              </div>
+            </div>
+          </div>
+        </section>
 
-        <div class="woc-field woc-field--full">
-          <label for="{{ form.covered_by_contract.id_for_label }}">{{ form.covered_by_contract.label }}</label>
-          {{ form.covered_by_contract }}
-          {% if form.covered_by_contract.help_text %}<div class="as-note">{{ form.covered_by_contract.help_text }}</div>{% endif %}
-          {% if form.covered_by_contract.errors %}<div class="as-error">{{ form.covered_by_contract.errors }}</div>{% endif %}
-        </div>
+        <section class="woc-card">
+          <div class="woc-card-body">
+            <div class="woc-section-head">
+              <span class="woc-step">2</span>
+              <div><h3>Quando e per quanto tempo</h3><p>I giorni sono facoltativi e possono essere piu di uno. Il tempo e totale e indicativo.</p></div>
+            </div>
+            <div class="woc-grid">
+              <div class="woc-field woc-field--full">
+                <label>Giorni di esecuzione <span class="woc-note">opzionali</span></label>
+                <div class="woc-days" id="executionDaysList"></div>
+                <button class="woc-add-day" id="addExecutionDay" type="button">+ Aggiungi un altro giorno</button>
+                {% if form.execution_days.errors %}<div class="woc-error">{{ form.execution_days.errors }}</div>{% endif %}
+              </div>
+              <div class="woc-field">
+                <label>Tempo indicativo totale</label>
+                <div class="woc-time-grid">
+                  <div>{{ form.intervention_duration_hours }}<div class="woc-note">ore</div></div>
+                  <div>{{ form.intervention_duration_remainder }}<div class="woc-note">minuti</div></div>
+                </div>
+                {% if form.intervention_duration_hours.errors %}<div class="woc-error">{{ form.intervention_duration_hours.errors }}</div>{% endif %}
+                {% if form.intervention_duration_remainder.errors %}<div class="woc-error">{{ form.intervention_duration_remainder.errors }}</div>{% endif %}
+              </div>
+              <div class="woc-field">
+                <label>Fermo impianto totale</label>
+                <div class="woc-time-grid">
+                  <div>{{ form.downtime_hours }}<div class="woc-note">ore</div></div>
+                  <div>{{ form.downtime_remainder }}<div class="woc-note">minuti</div></div>
+                </div>
+                {% if form.downtime_hours.errors %}<div class="woc-error">{{ form.downtime_hours.errors }}</div>{% endif %}
+                {% if form.downtime_remainder.errors %}<div class="woc-error">{{ form.downtime_remainder.errors }}</div>{% endif %}
+              </div>
+            </div>
+          </div>
+        </section>
 
-        <div class="woc-field">
-          <label for="{{ form.assigned_to.id_for_label }}">{{ form.assigned_to.label }}</label>
-          {{ form.assigned_to }}
-          {% if form.assigned_to.help_text %}<div class="as-note">{{ form.assigned_to.help_text }}</div>{% endif %}
-          {% if form.assigned_to.errors %}<div class="as-error">{{ form.assigned_to.errors }}</div>{% endif %}
-        </div>
+        <section class="woc-card">
+          <div class="woc-card-body">
+            <div class="woc-section-head">
+              <span class="woc-step">3</span>
+              <div><h3>Risoluzione</h3><p>Descrivi cosa e stato fatto e il risultato ottenuto.</p></div>
+            </div>
+            <div class="woc-field">
+              <label for="{{ form.resolution.id_for_label }}">{{ form.resolution.label }} <span class="woc-required">*</span></label>
+              {{ form.resolution }}
+              <div class="woc-note">Obbligatoria quando l'esito e “Chiusa”.</div>
+              {% if form.resolution.errors %}<div class="woc-error">{{ form.resolution.errors }}</div>{% endif %}
+            </div>
+            <div class="woc-field">
+              <label for="{{ form.log_note.id_for_label }}">{{ form.log_note.label }} <span class="woc-note">opzionale</span></label>
+              {{ form.log_note }}
+              {% if form.log_note.errors %}<div class="woc-error">{{ form.log_note.errors }}</div>{% endif %}
+            </div>
+          </div>
+        </section>
+      </div>
 
-        <div class="woc-field">
-          <label for="{{ form.executed_by.id_for_label }}">{{ form.executed_by.label }}</label>
-          {{ form.executed_by }}
-          {% if form.executed_by.help_text %}<div class="as-note">{{ form.executed_by.help_text }}</div>{% endif %}
-          {% if form.executed_by.errors %}<div class="as-error">{{ form.executed_by.errors }}</div>{% endif %}
-        </div>
+      <aside class="woc-side" aria-label="Dettagli chiusura intervento">
+        <section class="woc-card">
+          <div class="woc-card-body">
+            <div class="woc-section-head"><div><h3>Persone</h3><p>Responsabile ed esecutore effettivo.</p></div></div>
+            <div class="woc-field"><label for="{{ form.assigned_to.id_for_label }}">{{ form.assigned_to.label }}</label>{{ form.assigned_to }}{% if form.assigned_to.errors %}<div class="woc-error">{{ form.assigned_to.errors }}</div>{% endif %}</div>
+            <div class="woc-field"><label for="{{ form.executed_by.id_for_label }}">{{ form.executed_by.label }}</label>{{ form.executed_by }}{% if form.executed_by.errors %}<div class="woc-error">{{ form.executed_by.errors }}</div>{% endif %}</div>
+          </div>
+        </section>
 
-        <div class="woc-field">
-          <label for="{{ form.intervention_duration_minutes.id_for_label }}">{{ form.intervention_duration_minutes.label }}</label>
-          {{ form.intervention_duration_minutes }}
-          {% if form.intervention_duration_minutes.errors %}<div class="as-error">{{ form.intervention_duration_minutes.errors }}</div>{% endif %}
-        </div>
+        <section class="woc-card">
+          <div class="woc-card-body">
+            <div class="woc-section-head"><div><h3>Allegati finali</h3><p>Rapportini, foto o verbali.</p></div></div>
+            <div class="woc-field"><input id="id_close_attachments" type="file" name="close_attachments" multiple accept="{{ attachment_accept }}"><div class="woc-note">Massimo {{ attachment_max_mb }} MB per file.</div></div>
+          </div>
+        </section>
 
-        <div class="woc-field">
-          <label for="{{ form.downtime_minutes.id_for_label }}">{{ form.downtime_minutes.label }}</label>
-          {{ form.downtime_minutes }}
-          {% if form.downtime_minutes.errors %}<div class="as-error">{{ form.downtime_minutes.errors }}</div>{% endif %}
-        </div>
+        <details class="woc-details"{% if form.assistance_contract.value or form.covered_by_contract.value or form.labor_cost_eur.value or form.materials_cost_eur.value or form.cost_eur.value %} open{% endif %}>
+          <summary>Costi e copertura</summary>
+          <div class="woc-details-body">
+            <div class="woc-field"><label for="{{ form.assistance_contract.id_for_label }}">{{ form.assistance_contract.label }}</label>{{ form.assistance_contract }}{% if form.assistance_contract.errors %}<div class="woc-error">{{ form.assistance_contract.errors }}</div>{% endif %}</div>
+            <div class="woc-field"><label for="{{ form.covered_by_contract.id_for_label }}">{{ form.covered_by_contract.label }}</label>{{ form.covered_by_contract }}{% if form.covered_by_contract.errors %}<div class="woc-error">{{ form.covered_by_contract.errors }}</div>{% endif %}</div>
+            <div class="woc-field"><label for="{{ form.labor_cost_eur.id_for_label }}">{{ form.labor_cost_eur.label }}</label>{{ form.labor_cost_eur }}{% if form.labor_cost_eur.errors %}<div class="woc-error">{{ form.labor_cost_eur.errors }}</div>{% endif %}</div>
+            <div class="woc-field"><label for="{{ form.materials_cost_eur.id_for_label }}">{{ form.materials_cost_eur.label }}</label>{{ form.materials_cost_eur }}{% if form.materials_cost_eur.errors %}<div class="woc-error">{{ form.materials_cost_eur.errors }}</div>{% endif %}</div>
+            <div class="woc-field"><label for="{{ form.cost_eur.id_for_label }}">{{ form.cost_eur.label }}</label>{{ form.cost_eur }}<div class="woc-note">{{ form.cost_eur.help_text }}</div>{% if form.cost_eur.errors %}<div class="woc-error">{{ form.cost_eur.errors }}</div>{% endif %}</div>
+          </div>
+        </details>
+      </aside>
+    </div>
 
-        <div class="woc-field">
-          <label for="{{ form.labor_cost_eur.id_for_label }}">{{ form.labor_cost_eur.label }}</label>
-          {{ form.labor_cost_eur }}
-          {% if form.labor_cost_eur.errors %}<div class="as-error">{{ form.labor_cost_eur.errors }}</div>{% endif %}
-        </div>
-
-        <div class="woc-field">
-          <label for="{{ form.materials_cost_eur.id_for_label }}">{{ form.materials_cost_eur.label }}</label>
-          {{ form.materials_cost_eur }}
-          {% if form.materials_cost_eur.errors %}<div class="as-error">{{ form.materials_cost_eur.errors }}</div>{% endif %}
-        </div>
-
-        <div class="woc-field woc-field--full">
-          <label for="{{ form.cost_eur.id_for_label }}">{{ form.cost_eur.label }}</label>
-          {{ form.cost_eur }}
-          {% if form.cost_eur.help_text %}<div class="as-note">{{ form.cost_eur.help_text }}</div>{% endif %}
-          {% if form.cost_eur.errors %}<div class="as-error">{{ form.cost_eur.errors }}</div>{% endif %}
-        </div>
-
-        <div class="woc-field woc-field--full">
-          <label for="{{ form.resolution.id_for_label }}">{{ form.resolution.label }}</label>
-          {{ form.resolution }}
-          {% if form.resolution.errors %}<div class="as-error">{{ form.resolution.errors }}</div>{% endif %}
-        </div>
-
-        <div class="woc-field woc-field--full">
-          <label for="{{ form.log_note.id_for_label }}">{{ form.log_note.label }}</label>
-          {{ form.log_note }}
-          {% if form.log_note.errors %}<div class="as-error">{{ form.log_note.errors }}</div>{% endif %}
-        </div>
-
-        <div class="woc-field woc-field--full">
-          <label for="id_close_attachments">Allegati chiusura</label>
-          <input id="id_close_attachments" type="file" name="close_attachments" multiple accept="{{ attachment_accept }}">
-          <div class="as-note">Verbali, rapportini, foto o documenti tecnici. Dimensione massima {{ attachment_max_mb }} MB per file.</div>
-        </div>
-      </section>
-
-      <div class="woc-actions">
+    <div class="woc-actions">
+      <div class="woc-actions-copy">La conferma registra stato, data/ora, giorni eseguiti e storico dell'intervento.</div>
+      <div class="woc-actions-buttons">
         <a class="btn" href="{% url 'assets:wo_view' workorder.id %}">Annulla</a>
         <button class="btn btn-primary" id="workorderCloseSubmit" type="submit">{{ close_submit_label }}</button>
       </div>
@@ -182,34 +206,44 @@ body.theme-dark .woc-field textarea { background:var(--surface); border-color:va
 
 {% block assets_shell_scripts %}
 <script>
-(function () {
-  const statusField = document.getElementById("id_status");
-  const contractField = document.getElementById("id_assistance_contract");
-  const coveredField = document.getElementById("id_covered_by_contract");
-  const submitButton = document.getElementById("workorderCloseSubmit");
+(function(){
+  "use strict";
+  const statusField=document.getElementById("id_status");
+  const closedAtField=document.getElementById("id_closed_at");
+  const contractField=document.getElementById("id_assistance_contract");
+  const coveredField=document.getElementById("id_covered_by_contract");
+  const submitButton=document.getElementById("workorderCloseSubmit");
+  const daysHidden=document.getElementById("id_execution_days");
+  const daysList=document.getElementById("executionDaysList");
+  const addDayButton=document.getElementById("addExecutionDay");
 
-  function syncSubmitLabel() {
-    if (!statusField || !submitButton) return;
-    submitButton.textContent = statusField.value === "CANCELED" ? "Conferma annullamento" : "Conferma chiusura";
+  function closureDate(){return closedAtField&&closedAtField.value?closedAtField.value.slice(0,10):"";}
+  function syncDays(){
+    if(!daysHidden||!daysList)return;
+    const values=Array.from(daysList.querySelectorAll("input[type=date]"))
+      .map(function(input){return input.value;}).filter(Boolean);
+    daysHidden.value=Array.from(new Set(values)).join(",");
   }
+  function addDay(value){
+    if(!daysList)return;
+    const row=document.createElement("div"); row.className="woc-day-row";
+    const input=document.createElement("input"); input.type="date"; input.value=value||""; input.max=closureDate(); input.setAttribute("aria-label","Giorno esecuzione");
+    const remove=document.createElement("button"); remove.type="button"; remove.className="woc-day-remove"; remove.setAttribute("aria-label","Rimuovi giorno"); remove.textContent="×";
+    input.addEventListener("change",syncDays); remove.addEventListener("click",function(){row.remove();syncDays();});
+    row.appendChild(input); row.appendChild(remove); daysList.appendChild(row);
+  }
+  function syncDayLimits(){if(!daysList)return;daysList.querySelectorAll("input[type=date]").forEach(function(input){input.max=closureDate();});syncDays();}
+  function syncSubmitLabel(){if(!statusField||!submitButton)return;submitButton.textContent=statusField.value==="CANCELED"?"Conferma annullamento":"Chiudi definitivamente";}
+  function syncCoverage(){if(!coveredField)return;const active=Boolean(String(contractField?contractField.value:"").trim());coveredField.disabled=!active;if(!active)coveredField.checked=false;}
 
-  function syncCoverageAvailability() {
-    if (!coveredField) return;
-    const hasContract = Boolean(String(contractField ? contractField.value : "").trim());
-    coveredField.disabled = !hasContract;
-    if (!hasContract) {
-      coveredField.checked = false;
-    }
-  }
-
-  if (statusField) {
-    statusField.addEventListener("change", syncSubmitLabel);
-  }
-  if (contractField) {
-    contractField.addEventListener("change", syncCoverageAvailability);
-  }
-  syncSubmitLabel();
-  syncCoverageAvailability();
+  const initialDays=daysHidden&&daysHidden.value?daysHidden.value.split(",").filter(Boolean):[];
+  initialDays.forEach(addDay);
+  if(!initialDays.length)addDay("");
+  if(addDayButton)addDayButton.addEventListener("click",function(){addDay("");});
+  if(closedAtField)closedAtField.addEventListener("change",syncDayLimits);
+  if(statusField)statusField.addEventListener("change",syncSubmitLabel);
+  if(contractField)contractField.addEventListener("change",syncCoverage);
+  syncSubmitLabel(); syncCoverage(); syncDayLimits();
 })();
 </script>
 {% endblock %}

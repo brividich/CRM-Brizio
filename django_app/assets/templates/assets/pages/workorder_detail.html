@@ -276,6 +276,12 @@ body.theme-dark .wod-link { color:#60a5fa; }
                   <span class="wod-row-label">Chiuso il</span>
                   <span class="wod-row-value">{% if workorder.closed_at %}{{ workorder.closed_at|date:"d-m-Y H:i" }}{% else %}&mdash;{% endif %}</span>
                 </div>
+                {% if execution_days %}
+                <div class="wod-row">
+                  <span class="wod-row-label">Giorni di esecuzione</span>
+                  <span class="wod-row-value">{% for execution_day in execution_days %}{{ execution_day.execution_date|date:"d-m-Y" }}{% if not forloop.last %} &middot; {% endif %}{% endfor %}</span>
+                </div>
+                {% endif %}
               </div>
             </div>
           </div>
@@ -285,11 +291,11 @@ body.theme-dark .wod-link { color:#60a5fa; }
         <aside class="wod-stats">
           <div class="wod-stat">
             <span>Durata intervento</span>
-            <strong>{% if workorder.intervention_duration_minutes %}{{ workorder.intervention_duration_minutes }} min{% else %}&mdash;{% endif %}</strong>
+            <strong>{% if duration_hours %}{{ duration_hours }} h{% if duration_remainder %} {{ duration_remainder }} min{% endif %}{% elif duration_remainder %}{{ duration_remainder }} min{% else %}&mdash;{% endif %}</strong>
           </div>
           <div class="wod-stat">
             <span>Fermo impianto</span>
-            <strong>{{ workorder.downtime_minutes|default:"0" }} min</strong>
+            <strong>{% if downtime_hours %}{{ downtime_hours }} h{% if downtime_remainder %} {{ downtime_remainder }} min{% endif %}{% elif downtime_remainder %}{{ downtime_remainder }} min{% else %}0 min{% endif %}</strong>
           </div>
           <div class="wod-stat">
             <span>Costo registrato</span>
