@@ -127,6 +127,7 @@ from .models import (
     WorkOrder,
     WorkOrderAttachment,
     WorkOrderChecklist,
+    WorkOrderExecutionDay,
     WorkOrderLog,
 )
 from .maintenance import (
@@ -15319,6 +15320,8 @@ def workorder_create(request: HttpRequest, id: int | None = None) -> HttpRespons
                     actor=request.user if request.user.is_authenticated else None,
                 )
                 messages.success(request, "Intervento creato.")
+                if request.POST.get("submit_action") == "close":
+                    return redirect("assets:wo_close", id=workorder.id)
                 return redirect("assets:wo_view", id=workorder.id)
     else:
         initial = {"status": WorkOrder.STATUS_OPEN}
@@ -15402,6 +15405,9 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
     attachments = workorder.attachments.all()
     checklist_items = list(workorder.checklist_items.select_related("done_by").order_by("step_number", "id"))
     checklist_done_count = sum(1 for it in checklist_items if it.is_done)
+    execution_days = list(workorder.execution_days.order_by("execution_date"))
+    duration_hours, duration_remainder = divmod(max(0, int(workorder.intervention_duration_minutes or 0)), 60)
+    downtime_hours, downtime_remainder = divmod(max(0, int(workorder.downtime_minutes or 0)), 60)
     return render(
         request,
         "assets/pages/workorder_detail.html",
@@ -15413,6 +15419,11 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
             "checklist_items": checklist_items,
             "checklist_done_count": checklist_done_count,
             "checklist_total": len(checklist_items),
+            "execution_days": execution_days,
+            "duration_hours": duration_hours,
+            "duration_remainder": duration_remainder,
+            "downtime_hours": downtime_hours,
+            "downtime_remainder": downtime_remainder,
             "is_open": workorder.status == WorkOrder.STATUS_OPEN,
             "workorder_asset_url": reverse("assets:asset_view", kwargs={"id": workorder.asset_id}),
             "workorder_rule_url": (
@@ -15575,6 +15586,7 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
             try:
                 workorder.close(
                     status=form.cleaned_data["status"],
+                    closed_at=form.cleaned_data.get("closed_at"),
                     resolution=form.cleaned_data.get("resolution") or "",
                     intervention_duration=form.cleaned_data.get("intervention_duration_minutes"),
                     downtime=form.cleaned_data.get("downtime_minutes"),
@@ -15587,10 +15599,20 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
             except ValidationError as exc:
                 _add_form_validation_errors(form, exc)
             else:
+                execution_days = form.cleaned_data.get("execution_days_list") or []
+                workorder.execution_days.all().delete()
+                WorkOrderExecutionDay.objects.bulk_create(
+                    [
+                        WorkOrderExecutionDay(work_order=workorder, execution_date=execution_day)
+                        for execution_day in execution_days
+                    ]
+                )
                 if workorder.status == WorkOrder.STATUS_DONE and workorder.maintenance_rule_id:
                     sync_workorder_maintenance_state(workorder)
                 log_note = _clean_string(form.cleaned_data.get("log_note"))
                 closure_note = "Intervento chiuso." if workorder.status == WorkOrder.STATUS_DONE else "Intervento annullato."
+                if execution_days:
+                    closure_note = f"{closure_note} Giorni esecuzione: {', '.join(day.strftime('%d/%m/%Y') for day in execution_days)}."
                 if log_note:
                     closure_note = f"{closure_note} {log_note}"
                 if uploads:
@@ -15649,6 +15671,7 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
             "attachment_accept": _workorder_attachment_accept_attr(),
             "attachment_max_mb": int(ASSET_DOCUMENT_MAX_BYTES / (1024 * 1024)),
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
+            "assets_section_nav": None,
         },
     )
 

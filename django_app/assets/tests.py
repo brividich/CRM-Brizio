@@ -5166,6 +5166,90 @@ class WorkOrderFlowTests(TestCase):
         html = response.content.decode("utf-8")
         self.assertLess(html.index('for="id_title"'), html.index('for="id_maintenance_rule"'))
 
+    def test_workorder_create_can_continue_to_formal_closure(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("assets:wo_create", args=[self.asset.id]),
+            {
+                "periodic_verification": "",
+                "supplier": "",
+                "kind": WorkOrder.KIND_CORRECTIVE,
+                "status": WorkOrder.STATUS_OPEN,
+                "title": "Intervento da consuntivare",
+                "description": "Attivita gia eseguita.",
+                "resolution": "",
+                "downtime_minutes": "0",
+                "cost_eur": "",
+                "submit_action": "close",
+            },
+        )
+
+        workorder = WorkOrder.objects.get(title="Intervento da consuntivare")
+        self.assertEqual(workorder.status, WorkOrder.STATUS_OPEN)
+        self.assertRedirects(
+            response,
+            reverse("assets:wo_close", args=[workorder.id]),
+            fetch_redirect_response=False,
+        )
+
+    def test_workorder_close_page_is_a_formal_guided_flow(self):
+        workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="Intervento aperto",
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("assets:wo_close", args=[workorder.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Esito e chiusura")
+        self.assertContains(response, "Giorni di esecuzione")
+        self.assertContains(response, "Tempo indicativo totale")
+        self.assertContains(response, 'id="id_closed_at"', html=False)
+        self.assertContains(response, 'name="intervention_duration_hours"', html=False)
+        self.assertContains(response, "Chiudi definitivamente")
+        self.assertNotContains(response, 'class="as-section-nav"', html=False)
+
+    def test_formal_closure_records_days_time_and_editable_timestamp(self):
+        workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="Intervento su piu giornate",
+        )
+        closed_at = timezone.localtime(timezone.now() - timedelta(hours=1)).replace(second=0, microsecond=0)
+        first_day = (closed_at.date() - timedelta(days=1)).isoformat()
+        second_day = closed_at.date().isoformat()
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("assets:wo_close", args=[workorder.id]),
+            {
+                "status": WorkOrder.STATUS_DONE,
+                "closed_at": closed_at.strftime("%Y-%m-%dT%H:%M"),
+                "execution_days": f"{first_day},{second_day}",
+                "resolution": "Ripristinato e verificato il corretto funzionamento.",
+                "intervention_duration_hours": "2",
+                "intervention_duration_remainder": "30",
+                "downtime_hours": "1",
+                "downtime_remainder": "15",
+            },
+        )
+
+        self.assertRedirects(response, reverse("assets:wo_view", args=[workorder.id]), fetch_redirect_response=False)
+        workorder.refresh_from_db()
+        self.assertEqual(workorder.status, WorkOrder.STATUS_DONE)
+        self.assertEqual(timezone.localtime(workorder.closed_at), closed_at)
+        self.assertEqual(workorder.intervention_duration_minutes, 150)
+        self.assertEqual(workorder.downtime_minutes, 75)
+        self.assertEqual(
+            list(workorder.execution_days.values_list("execution_date", flat=True)),
+            [date.fromisoformat(first_day), date.fromisoformat(second_day)],
+        )
+
     def test_preventive_workorder_uses_periodic_verification_supplier_and_attachment(self):
         supplier = Fornitore.objects.create(
             ragione_sociale="Fornitore Manutenzione Srl",

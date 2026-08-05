@@ -2,6 +2,21 @@
 
 ## 2026-08-05 - Codex
 
+- Area: `django_app/assets`, chiusura formale interventi.
+- Richiesta: trattare la chiusura come quella di un ticket; consentire piu giorni di esecuzione opzionali, tempo totale indicativo, data/ora di chiusura modificabile e sia creazione normale sia creazione con chiusura immediata.
+- File modificati: `django_app/assets/models.py`, `django_app/assets/migrations/0087_workorderexecutionday.py`, `django_app/assets/forms.py`, `django_app/assets/views.py`, `django_app/assets/templates/assets/pages/workorder_form.html`, `workorder_close.html`, `workorder_detail.html`, `django_app/assets/tests.py`, `django_app/assets/README.md`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente. Nessuna modifica ad ACL, middleware, settings, autenticazione, permessi, URL, routing globale o navigazione globale.
+- Motivo tecnico: la precedente chiusura appariva come un semplice gruppo di note e numeri, senza un atto esplicito, timestamp controllabile o registrazione strutturata delle giornate lavorate.
+- Modifica: nuovo modello `WorkOrderExecutionDay` con vincolo univoco per OdL/data; `WorkOrder.close()` accetta il timestamp; form e pagina di chiusura guidano esito, timestamp, giornate, ore/minuti, risoluzione, persone, allegati e costi; doppia CTA nel form di creazione; dettaglio aggiornato.
+- Impatto previsto: chiusura chiara e auditabile, adatta sia a lavori su una giornata sia su piu giornate; vecchie POST in minuti compatibili.
+- Rischi residui: la migration `0087` deve essere applicata negli ambienti prima dell'uso; verifica visuale autenticata non eseguita per indisponibilita del runtime browser integrato.
+- Test/check: `manage.py check assets` OK; `makemigrations --check --dry-run` OK; 6 test mirati su creazione+chiusura, rendering formale, timestamp/giornate/tempi, allegati/costi, contratti e sincronizzazione manutentiva OK; `git diff --check` OK.
+- Backup creati: nessuno.
+- README/CHANGELOG: aggiornati `README.md`, `django_app/assets/README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`.
+- Note operative: lavoro isolato nel worktree `C:\Dev\pn-assets-workorder-close`; modifiche locali non correlate del checkout condiviso preservate.
+
+## 2026-08-05 - Codex
+
 - Area: `django_app/assets`, form nuovo intervento.
 - Richiesta: rendere comprensibile la schermata `/assets/workorders/new/<asset>/?source=workorder_list`, utilizzabile sia per guasto sia per manutenzione pianificata; lasciare la risoluzione compilabile subito.
 - File modificati: `django_app/assets/views.py`, `django_app/assets/templates/assets/pages/workorder_form.html`, `django_app/assets/tests.py`, `django_app/assets/README.md`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.

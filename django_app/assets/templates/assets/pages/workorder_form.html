@@ -604,7 +604,8 @@ body.theme-dark .wof-advanced-body { border-color:var(--border); }
       <div class="wof-actions-copy"><span class="wof-required">*</span> Campi obbligatori. Gli altri dati possono essere aggiunti anche dopo la creazione.</div>
       <div class="wof-actions-cta">
         <a class="btn" href="{{ workorder_back_url }}">Annulla</a>
-        <button type="submit" class="btn btn-primary">Crea intervento</button>
+        <button type="submit" class="btn" name="submit_action" value="close">Crea e vai alla chiusura</button>
+        <button type="submit" class="btn btn-primary" name="submit_action" value="open">Crea intervento</button>
       </div>
     </div>
   </form>

@@ -2043,6 +2043,7 @@ class WorkOrder(models.Model):
         self,
         *,
         status: str = STATUS_DONE,
+        closed_at=None,
         resolution: str = "",
         downtime: int | None = None,
         cost: Decimal | None = None,
@@ -2053,7 +2054,7 @@ class WorkOrder(models.Model):
         assistance_contract: "AssistanceContract" | None = None,
     ):
         self.status = status
-        self.closed_at = timezone.now()
+        self.closed_at = closed_at or timezone.now()
         if resolution:
             self.resolution = resolution
         if intervention_duration is not None:
@@ -2132,6 +2133,32 @@ class WorkOrder(models.Model):
                         wm.save(update_fields=["next_maintenance_date"])
             except Exception:
                 pass
+
+
+class WorkOrderExecutionDay(models.Model):
+    """Giorno effettivo in cui e' stata svolta attivita per un OdL."""
+
+    work_order = models.ForeignKey(
+        WorkOrder,
+        on_delete=models.CASCADE,
+        related_name="execution_days",
+    )
+    execution_date = models.DateField(db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["execution_date", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["work_order", "execution_date"],
+                name="assets_wo_execution_day_unique",
+            ),
+        ]
+        verbose_name = "Giorno esecuzione intervento"
+        verbose_name_plural = "Giorni esecuzione interventi"
+
+    def __str__(self) -> str:
+        return f"WO#{self.work_order_id} - {self.execution_date:%d-%m-%Y}"
 
 
 def _workorder_attachment_upload_to(instance, filename: str) -> str:

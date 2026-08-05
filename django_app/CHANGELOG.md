@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Assets - chiusura intervento formale
+
+- **[feat/ux/test] `assets/models.py`, `assets/migrations/0087_workorderexecutionday.py`, `assets/forms.py`, `assets/views.py`, template WorkOrder e `assets/tests.py`**: introdotto il registro normalizzato delle giornate effettive di esecuzione (zero, una o piu date per OdL). La pagina di chiusura e' un flusso formale con esito, data/ora editabile precompilata a ora, giornate opzionali, durata totale e fermo in ore/minuti, risoluzione obbligatoria per lo stato completato, persone/allegati e costi avanzati. Il form nuovo intervento offre sia creazione ordinaria sia `Crea e vai alla chiusura`; il dettaglio espone giornate e tempi leggibili. Le vecchie POST con durate in minuti e senza timestamp esplicito restano compatibili. Nessuna modifica ad ACL, permessi, URL o routing globale.
+
 ### Assets - nuovo intervento come flusso guidato
 
 - **[ux/test] `assets/views.py`, `assets/templates/assets/pages/workorder_form.html`, `assets/tests.py`**: il form OdL rimuove la sotto-nav transazionale, rende evidente l'asset, porta tipo/titolo/descrizione in testa, mantiene la risoluzione subito compilabile ma opzionale e separa impatto operativo e allegati. Regola, piano periodico, fornitore, contratto e copertura sono raccolti in un pannello avanzato che si apre automaticamente per manutenzioni preventive o dati precompilati. Salvataggio e modello dati invariati.
