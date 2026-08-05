@@ -32,6 +32,7 @@ __all__ = [
     "conferma_voce",
     "annulla_conferma_voce",
     "chiudi_evento",
+    "riapri_evento",
     "decidi_proposta",
 ]
 
@@ -157,6 +158,23 @@ def chiudi_evento(evento_id: int) -> bool:
     if evento.stato == ChiusuraEvento.STATO_CHIUSA:
         return False
     evento.stato = ChiusuraEvento.STATO_CHIUSA
+    evento.save(update_fields=["stato"])
+    return True
+
+
+@transaction.atomic
+def riapri_evento(evento_id: int) -> bool:
+    """Riporta l'evento «aperta». Ritorna ``False`` se era già aperto.
+
+    Contropartita necessaria dell'archiviazione: chiudere è irreversibile dalla
+    UI, e senza questa azione un evento chiuso per sbaglio si recupererebbe solo
+    dall'admin Django. Le conferme già registrate **non** vengono toccate: si
+    riapre il registro, non lo si azzera.
+    """
+    evento = _evento_bloccato(evento_id)
+    if evento.stato == ChiusuraEvento.STATO_APERTA:
+        return False
+    evento.stato = ChiusuraEvento.STATO_APERTA
     evento.save(update_fields=["stato"])
     return True
 

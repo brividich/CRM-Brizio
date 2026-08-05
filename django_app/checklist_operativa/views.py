@@ -4,12 +4,15 @@ from functools import wraps
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.text import get_valid_filename
 from django.views.decorators.http import require_POST
 
 from core.acl_v2 import request_has_permission_code
+from core.audit import log_action
 from core.legacy_models import AnagraficaDipendente
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 
@@ -30,6 +33,7 @@ from .services import (
     crea_evento_con_voci,
     decidi_proposta,
     eventi_con_progresso,
+    riapri_evento,
     salva_voce,
 )
 
@@ -235,6 +239,27 @@ def configurazione_evento_chiudi(request, pk: int):
 
 
 @configurazione_required
+@require_POST
+def configurazione_evento_riapri(request, pk: int):
+    """Riapre un evento archiviato per sbaglio, tracciando chi l'ha fatto.
+
+    Sta dietro lo stesso ACL della chiusura: è l'unica strada per tornare
+    indietro senza passare dall'admin Django.
+    """
+    evento = get_object_or_404(ChiusuraEvento, pk=pk)
+    if riapri_evento(evento.pk):
+        log_action(
+            request, "riapri_evento_chiusura", "checklist_operativa",
+            {"evento": evento.nome, "data_inizio": str(evento.data_inizio)},
+            oggetto=evento,
+        )
+        messages.success(request, f"Evento '{evento.nome}' riaperto: le conferme registrate restano.")
+    else:
+        messages.info(request, f"Evento '{evento.nome}' era già aperto: nessuna modifica.")
+    return redirect("checklist_operativa:evento_detail", pk=evento.pk)
+
+
+@configurazione_required
 def configurazione_voce_edit(request, evento_pk: int, pk: int | None = None):
     evento = get_object_or_404(ChiusuraEvento, pk=evento_pk)
     instance = get_object_or_404(ChiusuraVoce, pk=pk, evento=evento) if pk else None
@@ -319,3 +344,48 @@ def riepilogo_detail(request, pk: int):
     return render(
         request, "checklist_operativa/pages/riepilogo_dettaglio.html", {"evento": evento, "voci": voci},
     )
+
+
+@configurazione_required
+def riepilogo_detail_pdf(request, pk: int):
+    """Il riepilogo di una chiusura come PDF, da archiviare.
+
+    Il modulo ha sostituito un foglio Excel che veniva stampato e messo agli
+    atti: senza un export, per un'evidenza d'audit resterebbe lo screenshot.
+    """
+    from core.table_pdf import render_table_pdf
+
+    evento = get_object_or_404(eventi_con_progresso(), pk=pk)
+    voci = evento.voci.select_related("responsabile", "confermato_da").order_by("ordine", "id")
+
+    righe = [
+        [
+            voce.ordine,
+            voce.descrizione,
+            str(voce.responsabile) if voce.responsabile_id else "—",
+            "Confermato" if voce.confermato else "Da fare",
+            str(voce.confermato_da) if voce.confermato_da_id else "—",
+            timezone.localtime(voce.confermato_il).strftime("%d/%m/%Y %H:%M") if voce.confermato_il else "—",
+            voce.note or "",
+        ]
+        for voce in voci
+    ]
+    periodo = f"{evento.data_inizio:%d/%m/%Y}"
+    if evento.data_fine:
+        periodo += f" → {evento.data_fine:%d/%m/%Y}"
+    sottotitolo = (
+        f"{periodo} · {evento.get_stato_display()} · "
+        f"completamento {evento.voci_confermate}/{evento.voci_totali} "
+        f"({evento.percentuale_completamento}%)"
+    )
+
+    pdf = render_table_pdf(
+        title=f"Checklist chiusura — {evento.nome}",
+        subtitle=sottotitolo,
+        headers=["Ord.", "Mansione", "Responsabile", "Stato", "Confermato da", "Quando", "Note"],
+        rows=righe,
+    )
+    nome_file = get_valid_filename(f"checklist_{evento.nome}_{evento.data_inizio:%Y%m%d}") or "checklist"
+    response = HttpResponse(pdf, content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{nome_file}.pdf"'
+    return response
