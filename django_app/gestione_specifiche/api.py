@@ -11,6 +11,7 @@ from typing import List, Optional
 
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from django_fsm import TransitionNotAllowed
 from django.core.exceptions import ValidationError
 from ninja import NinjaAPI, Schema
@@ -171,7 +172,7 @@ def transizione_specifica(request, spec_id: int, payload: TransizioneIn):
 
     kwargs = {"attore": request.user}
     if payload.azione == "sospendi":
-        kwargs.update(motivo=payload.motivo, data=date.today())
+        kwargs.update(motivo=payload.motivo, data=timezone.localdate())
     elif payload.azione in ("ripristina", "annulla", "respingi_flow_down"):
         kwargs.update(motivo=payload.motivo)
     elif payload.azione == "errore_tecnico":

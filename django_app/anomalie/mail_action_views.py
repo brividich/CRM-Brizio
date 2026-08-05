@@ -17,6 +17,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
 from core.audit import log_action
+from core.public_headers import risposta_pubblica
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ _ACTION_TO_AVANZAMENTO = {
 }
 
 
+@risposta_pubblica
 @require_http_methods(["GET", "POST"])
 def mail_action_view(request: HttpRequest, token: str) -> HttpResponse:
     """Pagina portale raggiunta dal link email con token anomalie. Nessun login richiesto."""
@@ -245,6 +247,7 @@ def _handle_post(request: HttpRequest, token_obj, anomalie_live: list[dict]) -> 
     return redirect(reverse("anomalie_mail_action_done", kwargs={"token": token_obj.token}))
 
 
+@risposta_pubblica
 @require_http_methods(["GET"])
 def mail_action_done_view(request: HttpRequest, token: str) -> HttpResponse:
     """Pagina di conferma dopo azione completata. Nessun login richiesto."""

@@ -6,6 +6,7 @@ from io import StringIO
 from unittest import mock
 
 from django.contrib.auth import get_user_model
+from django.core import mail
 from django.core.management import call_command
 from django.db import IntegrityError, connection, transaction
 from django.test import TestCase, override_settings
@@ -175,6 +176,56 @@ class ReminderCommandTests(TestCase):
         self.assertEqual(Notifica.objects.filter(legacy_user_id=user.id).count(), 1)
 
 
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class ReminderEmailTests(TestCase):
+    """Il canale email: una sola mail per responsabile, non una per voce."""
+
+    def setUp(self):
+        self.user, self.dipendente = _crea_utente_con_dipendente("co-mail", "Rita", "Gialli")
+        self.dipendente.email_notifica = "rita.gialli@example.local"
+        self.dipendente.save(update_fields=["email_notifica"])
+        self.evento = ChiusuraEvento.objects.create(
+            nome="Chiusura con mail", data_inizio=timezone.localdate() + timedelta(days=3),
+        )
+        for i in range(3):
+            ChiusuraVoce.objects.create(
+                evento=self.evento, ordine=i, descrizione=f"Task {i}", responsabile=self.dipendente,
+            )
+
+    def test_una_sola_email_con_tutte_le_voci(self):
+        call_command("send_checklist_chiusura_reminders", stdout=StringIO())
+
+        self.assertEqual(len(mail.outbox), 1, "Una mail per riga sarebbe il modo piu' rapido per farsi ignorare.")
+        messaggio = mail.outbox[0]
+        self.assertEqual(messaggio.to, ["rita.gialli@example.local"])
+        for i in range(3):
+            self.assertIn(f"Task {i}", messaggio.body)
+        # Le notifiche in-app restano invece una per voce.
+        self.assertEqual(Notifica.objects.filter(legacy_user_id=self.user.id).count(), 3)
+
+    def test_senza_email_notifica_resta_solo_la_notifica(self):
+        """In anagrafica_dipendenti `email` e' il login legacy: si usa `email_notifica`."""
+        self.dipendente.email_notifica = ""
+        self.dipendente.save(update_fields=["email_notifica"])
+
+        call_command("send_checklist_chiusura_reminders", stdout=StringIO())
+
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertEqual(Notifica.objects.filter(legacy_user_id=self.user.id).count(), 3)
+
+    def test_solo_notifiche_salta_le_email(self):
+        call_command("send_checklist_chiusura_reminders", "--solo-notifiche", stdout=StringIO())
+
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertEqual(Notifica.objects.filter(legacy_user_id=self.user.id).count(), 3)
+
+    def test_dry_run_non_invia_nulla(self):
+        call_command("send_checklist_chiusura_reminders", "--dry-run", stdout=StringIO())
+
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertEqual(Notifica.objects.filter(legacy_user_id=self.user.id).count(), 0)
+
+
 # ---------------------------------------------------------------------------
 # Regole di stato: un evento chiuso e' un registro storico, non si tocca piu'
 # ---------------------------------------------------------------------------
@@ -260,6 +311,51 @@ class EventoChiusoTests(TestCase):
         self.assertFalse(chiudi_evento(self.evento.pk))
         self.evento.refresh_from_db()
         self.assertEqual(self.evento.stato, ChiusuraEvento.STATO_CHIUSA)
+
+    def test_riapertura_riporta_l_evento_modificabile(self):
+        """Contropartita della chiusura: un evento archiviato per sbaglio si recupera."""
+        self.client.force_login(self.admin)
+        self.client.post(reverse("checklist_operativa:evento_chiudi", args=[self.evento.pk]))
+
+        response = self.client.post(reverse("checklist_operativa:evento_riapri", args=[self.evento.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.evento.refresh_from_db()
+        self.assertEqual(self.evento.stato, ChiusuraEvento.STATO_APERTA)
+
+        # E torna davvero utilizzabile: il responsabile riesce a confermare.
+        self.client.force_login(self.user)
+        self.client.post(
+            reverse("checklist_operativa:conferma", args=[self.voce.pk]), {"azione": "conferma"},
+        )
+        self.voce.refresh_from_db()
+        self.assertTrue(self.voce.confermato)
+
+    def test_riapertura_non_azzera_le_conferme(self):
+        self.client.force_login(self.user)
+        self.client.post(
+            reverse("checklist_operativa:conferma", args=[self.voce.pk]), {"azione": "conferma"},
+        )
+        self.client.force_login(self.admin)
+        self.client.post(reverse("checklist_operativa:evento_chiudi", args=[self.evento.pk]))
+        self.client.post(reverse("checklist_operativa:evento_riapri", args=[self.evento.pk]))
+
+        self.voce.refresh_from_db()
+        self.assertTrue(self.voce.confermato, "Si riapre il registro, non lo si azzera.")
+
+    def test_riapertura_di_evento_gia_aperto_non_scrive(self):
+        from .services import riapri_evento
+
+        self.assertFalse(riapri_evento(self.evento.pk))
+
+    def test_riapertura_tracciata_nell_audit(self):
+        from core.audit import storico_oggetto
+
+        self.client.force_login(self.admin)
+        self.client.post(reverse("checklist_operativa:evento_chiudi", args=[self.evento.pk]))
+        self.client.post(reverse("checklist_operativa:evento_riapri", args=[self.evento.pk]))
+
+        azioni = [v.azione for v in storico_oggetto(self.evento)]
+        self.assertIn("riapri_evento_chiusura", azioni)
 
     def test_chiusura_dalla_view_e_idempotente(self):
         self.client.force_login(self.admin)
@@ -454,3 +550,53 @@ class RiepilogoQueryCountTests(TestCase):
         self.assertEqual(semplice.voci_totali, 3)
         self.assertEqual(semplice.voci_confermate, 1)
         self.assertEqual(semplice.percentuale_completamento, 33)
+
+
+# ---------------------------------------------------------------------------
+# Export PDF del riepilogo: il modulo ha sostituito un Excel che si archiviava
+# ---------------------------------------------------------------------------
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class RiepilogoPdfTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser(username="co-pdf", password="pass12345")
+        _, self.dipendente = _crea_utente_con_dipendente("co-pdf-resp", "Ada", "Neri")
+        self.evento = ChiusuraEvento.objects.create(
+            nome="Ferie da archiviare", data_inizio=timezone.localdate(),
+            data_fine=timezone.localdate() + timedelta(days=10),
+        )
+        ChiusuraVoce.objects.create(
+            evento=self.evento, ordine=1, descrizione="Chiudere il gas",
+            responsabile=self.dipendente, confermato=True,
+            confermato_da=self.dipendente, confermato_il=timezone.now(), note="fatto alle 18",
+        )
+        ChiusuraVoce.objects.create(evento=self.evento, ordine=2, descrizione="Spegnere le luci")
+
+    def test_pdf_scaricabile_da_chi_configura(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(
+            reverse("checklist_operativa:riepilogo_detail_pdf", args=[self.evento.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        self.assertTrue(response.content.startswith(b"%PDF"))
+        self.assertIn("attachment;", response["Content-Disposition"])
+        self.assertIn("Ferie", response["Content-Disposition"])
+
+    def test_pdf_negato_senza_permesso(self):
+        self.client.force_login(_crea_utente("co-pdf-nope"))
+        response = self.client.get(
+            reverse("checklist_operativa:riepilogo_detail_pdf", args=[self.evento.pk])
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_nome_file_normalizzato(self):
+        self.evento.nome = 'Ferie "estive"/2026'
+        self.evento.save(update_fields=["nome"])
+        self.client.force_login(self.admin)
+        response = self.client.get(
+            reverse("checklist_operativa:riepilogo_detail_pdf", args=[self.evento.pk])
+        )
+        disposition = response["Content-Disposition"]
+        for pericoloso in ('"/', "\\"):
+            self.assertNotIn(pericoloso, disposition.split("filename=", 1)[1].strip('"'))

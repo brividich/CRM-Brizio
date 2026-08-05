@@ -20,6 +20,7 @@ from django.views.decorators.http import require_GET, require_POST, require_http
 
 from admin_portale.decorators import legacy_admin_required
 from core.audit import log_action
+from core.public_headers import risposta_pubblica
 from monitoring.models import AutomationJob, AutomationExecution
 from monitoring.services import detect_missed_jobs, detect_stuck_jobs
 
@@ -5897,6 +5898,7 @@ def api_test_rule_ajax(request, rule_id: int):
 # Approval Decision Views (accessibili senza login, protetti da token UUID)
 # ─────────────────────────────────────────────────────────────────────────────
 
+@risposta_pubblica
 @csrf_exempt
 def approval_decision_page(request, token: str, decision: str):
     """
@@ -5985,6 +5987,7 @@ def approval_decision_page(request, token: str, decision: str):
     })
 
 
+@risposta_pubblica
 def approval_status_page(request, token: str):
     """Stato attuale di una richiesta di approvazione (link publico tramite token)."""
     from .models import AutomationApproval
@@ -6036,6 +6039,7 @@ def _extract_approver_identity(request) -> str:
     return ""
 
 
+@risposta_pubblica
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
 def approval_proxy_approve(request, token):
@@ -6043,6 +6047,7 @@ def approval_proxy_approve(request, token):
     return _handle_approval_proxy(request, token, "approved")
 
 
+@risposta_pubblica
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
 def approval_proxy_reject(request, token):

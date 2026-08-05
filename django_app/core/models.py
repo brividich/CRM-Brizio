@@ -575,8 +575,30 @@ class AuditLog(models.Model):
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
+    # Aggancio al record toccato. Senza questi due campi l'audit risponde solo a
+    # "chi ha fatto cosa, in quale modulo", mai a "cosa è successo a QUESTO
+    # record" — la domanda che si fa davanti a una scheda. Sono testo e non una
+    # FK generica di proposito: buona parte del portale lavora su tabelle legacy
+    # senza modello Django, e un `ContentType` le lascerebbe fuori.
+    oggetto_tipo = models.CharField(
+        max_length=100, blank=True, default="", db_index=True,
+        help_text="Etichetta del modello (es. «tickets.ticket») o chiave legacy concordata.",
+    )
+    oggetto_id = models.CharField(
+        max_length=64, blank=True, default="", db_index=True,
+        help_text="Chiave primaria del record, come testo (le tabelle legacy non usano solo interi).",
+    )
+
     class Meta:
         ordering = ["-created_at"]
+        indexes = [
+            # La query dello storico è sempre "questo oggetto, dal più recente":
+            # senza l'indice composito diventa una scansione al crescere del log.
+            models.Index(
+                fields=["oggetto_tipo", "oggetto_id", "-created_at"],
+                name="core_audit_oggetto_recenti",
+            ),
+        ]
 
     def __str__(self) -> str:
         return f"AuditLog<{self.azione} {self.modulo} user={self.legacy_user_id}>"

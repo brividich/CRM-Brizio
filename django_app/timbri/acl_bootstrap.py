@@ -135,7 +135,10 @@ def _bootstrap_navigation() -> bool:
         try:
             bump_navigation_registry_version()
         except Exception:
-            pass
+            # Senza il bump, i permessi sono cambiati ma il menu resta quello di
+            # prima finche' la cache non scade da sola: sintomo classico di
+            # "ho dato il permesso e non lo vede".
+            logger.exception("Timbri: bump della versione del navigation registry fallito")
     return changed
 
 

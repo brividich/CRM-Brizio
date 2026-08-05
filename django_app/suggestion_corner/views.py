@@ -16,6 +16,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 from django_fsm import TransitionNotAllowed
 
+from core.public_headers import risposta_pubblica
+
 from . import forms as sc_forms
 from .models import SuggestionCorner
 from .permissions import (
@@ -370,6 +372,7 @@ def _log_modifica_manuale(seg, user, changed_fields):
 # Route ESCLUSA dal gate ACL/login/onboarding via MIDDLEWARE_EXEMPT_PREFIXES
 # ("/suggestion-corner/nuova/"). Unica superficie pubblica non autenticata.
 
+@risposta_pubblica
 def nuova(request):
     """Form pubblico: crea una segnalazione (INSERITA→DA_CLASSIFICARE).
 

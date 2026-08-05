@@ -19,6 +19,7 @@ urlpatterns = [
     path("configurazione/eventi/nuovo/", views.configurazione_evento_nuovo, name="evento_nuovo"),
     path("configurazione/eventi/<int:pk>/", views.configurazione_evento_detail, name="evento_detail"),
     path("configurazione/eventi/<int:pk>/chiudi/", views.configurazione_evento_chiudi, name="evento_chiudi"),
+    path("configurazione/eventi/<int:pk>/riapri/", views.configurazione_evento_riapri, name="evento_riapri"),
     path("configurazione/eventi/<int:evento_pk>/voce/nuova/", views.configurazione_voce_edit, name="voce_nuova"),
     path("configurazione/eventi/<int:evento_pk>/voce/<int:pk>/modifica/", views.configurazione_voce_edit, name="voce_modifica"),
 
@@ -27,4 +28,5 @@ urlpatterns = [
 
     path("riepilogo/", views.riepilogo_list, name="riepilogo"),
     path("riepilogo/<int:pk>/", views.riepilogo_detail, name="riepilogo_detail"),
+    path("riepilogo/<int:pk>/pdf/", views.riepilogo_detail_pdf, name="riepilogo_detail_pdf"),
 ]

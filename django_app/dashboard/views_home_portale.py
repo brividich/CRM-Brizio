@@ -11,6 +11,7 @@ Dati: riusa _board_data_tasks(), _board_data_anomalie(), _board_data_assenze_da_
 
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
 from typing import Any
 
@@ -37,6 +38,8 @@ from dashboard.views import (
     _pulsanti_ui_meta_map,
     _visible_pulsanti_for_request,
 )
+
+logger = logging.getLogger(__name__)
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -195,8 +198,10 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
         out["anomalie"] = [
             {"value": len(raw), "unit": "aperte", "tone": "danger"},
         ]
+    # Un riquadro che si rompe non deve far cadere la home — ma se sparisce in
+    # silenzio e' indistinguibile da "nessun dato", e nessuno lo scopre mai.
     except Exception:
-        pass
+        logger.exception("Home: riquadro «Anomalie» non calcolato")
 
     # ── TICKET ────────────────────────────────────────────────────────
     try:
@@ -211,7 +216,7 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
             {"value": attivi, "unit": "attivi", "tone": "warning"},
         ]
     except Exception:
-        pass
+        logger.exception("Home: riquadro «Ticket» non calcolato")
 
     # ── TASK ──────────────────────────────────────────────────────────
     try:
@@ -224,7 +229,7 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
             {"value": scaduti, "unit": "scaduti", "tone": "danger" if scaduti else "info"},
         ]
     except Exception:
-        pass
+        logger.exception("Home: riquadro «Task» non calcolato")
 
     # ── DIARIO PREPOSTO ───────────────────────────────────────────────
     try:
@@ -236,7 +241,7 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
              "unit": "questa settimana", "tone": "warning"},
         ]
     except Exception:
-        pass
+        logger.exception("Home: riquadro «Diario preposto» non calcolato")
 
     # ── INCIDENTI ─────────────────────────────────────────────────────
     try:
@@ -250,7 +255,7 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
             {"value": anno, "unit": str(today.year), "tone": "warning"},
         ]
     except Exception:
-        pass
+        logger.exception("Home: riquadro «Incidenti» non calcolato")
 
     # ── PROCEDURE REFRESH ─────────────────────────────────────────────
     try:
@@ -264,7 +269,7 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
             {"value": campagne, "unit": "campagne attive", "tone": "info"},
         ]
     except Exception:
-        pass
+        logger.exception("Home: riquadro «Procedure» non calcolato")
 
     # ── ANAGRAFICA HR ─────────────────────────────────────────────────
     # Solo admin: conta tutti i dipendenti attivi. Per non-admin il tile
@@ -279,7 +284,7 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
                 {"value": row[0] if row else None, "unit": "in forza", "tone": "info"},
             ]
         except Exception:
-            pass
+            logger.exception("Home: riquadro «Anagrafica» non calcolato")
 
     # ── ASSENZE ───────────────────────────────────────────────────────
     try:
@@ -288,7 +293,7 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
             {"value": len(pending), "unit": "in approvazione", "tone": "warning"},
         ]
     except Exception:
-        pass
+        logger.exception("Home: riquadro «Assenze» non calcolato")
 
     # ── TIMBRI ────────────────────────────────────────────────────────
     try:
@@ -298,7 +303,7 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
              "unit": "badge attivi", "tone": "success"},
         ]
     except Exception:
-        pass
+        logger.exception("Home: riquadro «Timbri» non calcolato")
 
     # ── FORMAZIONE ────────────────────────────────────────────────────
     # Solo admin: dati HR aggregati (qualifiche scadute di tutti i dipendenti).
@@ -314,7 +319,7 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
                 {"value": in_scad, "unit": "in scadenza 30gg", "tone": "warning"},
             ]
         except Exception:
-            pass
+            logger.exception("Home: riquadro «Formazione» non calcolato")
 
     # ── VISITE MEDICHE (sicurezza) ────────────────────────────────────
     # Solo admin: dati sanitari aggregati su tutti i dipendenti.
@@ -330,7 +335,7 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
                 {"value": in_scad_v, "unit": "in scadenza 30gg", "tone": "warning"},
             ]
         except Exception:
-            pass
+            logger.exception("Home: riquadro «Visite mediche» non calcolato")
 
     # ── NOTIZIE ───────────────────────────────────────────────────────
     try:
@@ -342,7 +347,7 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
             {"value": nuove, "unit": "ultima settimana", "tone": "success" if nuove else "info"},
         ]
     except Exception:
-        pass
+        logger.exception("Home: riquadro «Notizie» non calcolato")
 
     # ── ASSET (attrezzature) ──────────────────────────────────────────
     try:
@@ -360,7 +365,7 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
                 {"value": qs_mine.filter(status="IN_USE").count(), "unit": "in uso", "tone": "info"},
             ]
     except Exception:
-        pass
+        logger.exception("Home: riquadro «Asset» non calcolato")
 
     # ── FORNITORI ─────────────────────────────────────────────────────
     try:
@@ -369,7 +374,7 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
             {"value": Fornitore.objects.filter(is_active=True).count(), "unit": "attivi", "tone": "info"},
         ]
     except Exception:
-        pass
+        logger.exception("Home: riquadro «Fornitori» non calcolato")
 
     # ── AUTOMAZIONI ───────────────────────────────────────────────────
     try:
@@ -383,7 +388,7 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
             {"value": eseguiti, "unit": "eseguiti oggi", "tone": "info"},
         ]
     except Exception:
-        pass
+        logger.exception("Home: riquadro «Automazioni» non calcolato")
 
     # ── RENTRI ────────────────────────────────────────────────────────
     try:
@@ -398,7 +403,7 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
             {"value": fir, "unit": "FIR mancanti", "tone": "danger" if fir else "info"},
         ]
     except Exception:
-        pass
+        logger.exception("Home: riquadro «RENTRI» non calcolato")
 
     # ── PLANIMETRIA ───────────────────────────────────────────────────
     try:
@@ -407,7 +412,7 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
             {"value": Reparto.objects.count(), "unit": "reparti", "tone": "info"},
         ]
     except Exception:
-        pass
+        logger.exception("Home: riquadro «Planimetria» non calcolato")
 
     # ── UTENTI (admin) ────────────────────────────────────────────────
     try:
@@ -417,7 +422,7 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
             {"value": User.objects.filter(is_active=True).count(), "unit": "utenti attivi", "tone": "info"},
         ]
     except Exception:
-        pass
+        logger.exception("Home: riquadro «Utenti» non calcolato")
 
     # ── PULSANTI (hubtools) ───────────────────────────────────────────
     try:
@@ -427,7 +432,7 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
              "unit": "pulsanti attivi", "tone": "info"},
         ]
     except Exception:
-        pass
+        logger.exception("Home: riquadro «Pulsanti» non calcolato")
 
     return out
 
@@ -672,9 +677,7 @@ def _documenti_collegamenti(request, preview: bool = True) -> list[dict]:
                 "items": [{**it, "icon": ""} for it in proc["items"]],
             })
     except Exception:
-        import logging
-
-        logging.getLogger(__name__).exception("home: gruppo bacheca Procedure SGI non disponibile")
+        logger.exception("Home: gruppo bacheca Procedure SGI non disponibile")
     return out
 
 

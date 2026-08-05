@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import calendar
+import logging
 import re
 import uuid
 from pathlib import Path
@@ -13,6 +14,8 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from .storage import PrivateAssetAdministrativeDeadlineStorage, PrivateAssetDocumentStorage
+
+logger = logging.getLogger(__name__)
 
 
 class Asset(models.Model):
@@ -2132,7 +2135,9 @@ class WorkOrder(models.Model):
                         wm.next_maintenance_date = closed_date + timedelta(days=rule.threshold_value)
                         wm.save(update_fields=["next_maintenance_date"])
             except Exception:
-                pass
+                # La prossima manutenzione non viene ricalcolata: la macchina
+                # sparisce dalle scadenze senza che nessuno lo noti.
+                logger.exception("Assets: ricalcolo della prossima manutenzione fallito")
 
 
 class WorkOrderExecutionDay(models.Model):

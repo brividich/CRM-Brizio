@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from datetime import date
 
+from django.utils import timezone
+
 
 def _compute_stato(
     data_scadenza: date | None,
@@ -49,7 +51,10 @@ def refresh_deadlines(
         TrainingRequirementRule,
     )
 
-    today = date.today()
+    # localdate() e non date.today(): la seconda legge la data del sistema
+    # operativo, che sotto IIS puo' essere UTC — a cavallo di mezzanotte una
+    # scadenza risulterebbe ancora aperta (o gia' scaduta) di un giorno.
+    today = timezone.localdate()
     updated = 0
 
     # ── 1. Ricalcola da record completamento ────────────────────────────────

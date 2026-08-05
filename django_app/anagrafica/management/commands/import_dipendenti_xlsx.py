@@ -26,6 +26,7 @@ from pathlib import Path
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.db.models import Q
+from django.utils import timezone
 
 from anagrafica.models import (
     DipendenteAnagraficaAziendale,
@@ -597,7 +598,7 @@ class Command(BaseCommand):
                 ruolo_utente = Ruolo.objects.filter(nome__iexact="utente").first()
                 data_nascita = _parse_date(cell(raw_row, "data_nascita"))
                 anno_nascita = data_nascita.year if data_nascita else None
-                pwd_iniziale = str(anno_nascita) if anno_nascita else f"Portale{date.today().year}"
+                pwd_iniziale = str(anno_nascita) if anno_nascita else f"Portale{timezone.localdate().year}"
                 nome_completo = f"{cognome} {nome}".strip()
                 nuovo_utente = UtenteLegacy.objects.create(
                     nome=nome_completo,

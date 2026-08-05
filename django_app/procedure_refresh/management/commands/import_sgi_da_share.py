@@ -40,6 +40,7 @@ from pathlib import Path
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from django.utils import timezone
 
 from procedure_refresh.models import DocumentType, ProcedureDocument, ProcedureRevision, SourceType
 
@@ -281,7 +282,7 @@ def upsert_candidate(info: dict) -> tuple[str, bool]:
         file_date = date.fromtimestamp(stat.st_mtime)
         file_hash = _sha256(path)
     except OSError:
-        file_date = date.today()
+        file_date = timezone.localdate()
         file_hash = ""
 
     rev, rev_created = ProcedureRevision.objects.get_or_create(

@@ -104,7 +104,7 @@ class NotiziaAllegato(models.Model):
                     self.dimensione_bytes = self.file.tell()
                     self.file.seek(0)
             except Exception:
-                pass
+                logger.exception("Notizie: hash/dimensione dell'allegato non calcolati")
         super().save(*args, **kwargs)
 
 

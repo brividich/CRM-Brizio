@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from django.core.cache import cache
+from django.utils import timezone
 
 from .saturazione import calcola_saturazione
 
@@ -52,7 +53,7 @@ def saturazione_finestra(start: date, giorni_n: int, *, usa_cache: bool = True) 
 def aggiorna_saturazione_cache(start_iso: str | None = None, giorni_n: int = 21) -> dict:
     """Task django-q2: precalcola e mette in cache la saturazione della finestra."""
     start = date.fromisoformat(start_iso) if start_iso else (
-        date.today() - timedelta(days=date.today().weekday())
+        timezone.localdate() - timedelta(days=timezone.localdate().weekday())
     )
     result = _calcola(start, giorni_n)
     cache.set(_cache_key(start, giorni_n), result, timeout=_CACHE_TTL)

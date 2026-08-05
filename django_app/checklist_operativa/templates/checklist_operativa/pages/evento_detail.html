@@ -38,6 +38,13 @@ body.theme-dark .co-table td { border-color:#334155; color:#e2e8f0; }
       {% csrf_token %}
       <button type="submit" class="co-btn-danger" onclick="return confirm('Chiudere e archiviare questo evento? Non sarà più modificabile da Gestione.');">Chiudi evento</button>
     </form>
+    {% else %}
+    {# Contropartita della chiusura: senza, un evento archiviato per sbaglio si
+       recupererebbe solo dall'admin Django. #}
+    <form method="post" action="{% url 'checklist_operativa:evento_riapri' evento.pk %}" style="display:inline">
+      {% csrf_token %}
+      <button type="submit" class="co-link-btn" style="border:none;cursor:pointer;" onclick="return confirm('Riaprire questo evento? Le conferme già registrate restano.');">Riapri evento</button>
+    </form>
     {% endif %}
   </div>
 

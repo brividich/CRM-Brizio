@@ -43,6 +43,7 @@ from operator import or_
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.db.models import Count, Q
+from django.utils import timezone
 
 # Per ogni colonna ASR: (alias per riconoscere un TipoQualifica GIÀ a catalogo,
 # nome canonico da creare se nessun alias matcha, durata_mesi rinnovo).
@@ -344,7 +345,7 @@ class Command(BaseCommand):
                 defaults={
                     "sessione": sess, "enrollment": enroll, "ore_frequentate": ore,
                     "idoneo": True, "data_scadenza": scad,
-                    "validato_da": assegnatore, "validato_il": date.today(),
+                    "validato_da": assegnatore, "validato_il": timezone.localdate(),
                     "course_code_snapshot": corso.codice[:30],
                     "course_title_snapshot": corso.titolo[:300],
                     "plan_code_snapshot": (corso.piano.codice if corso.piano_id else "")[:20],

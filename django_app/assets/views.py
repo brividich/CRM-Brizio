@@ -44,7 +44,14 @@ from reportlab.platypus import Paragraph
 from admin_portale.decorators import legacy_admin_required
 from config.env_config import get_first_env_value, load_env_file_values, resolve_env_value, update_env_file_values
 from core.acl import user_can_modulo_action
-from core.audit import log_action
+from core.public_headers import risposta_pubblica
+from core.audit import log_action, storico_oggetto
+
+# Etichetta con cui le voci di audit si agganciano all'asset: e' la stessa che
+# `core.audit.storico_oggetto` usa per ripescarle sulla scheda. Costante e non
+# stringa sparsa perche' un refuso qui non romperebbe nulla — semplicemente la
+# voce non comparirebbe mai nello storico, e non se ne accorgerebbe nessuno.
+AUDIT_OGGETTO_ASSET = "assets.asset"
 from core.graph_utils import acquire_graph_token, is_placeholder_value
 from core.legacy_models import AnagraficaDipendente, UtenteLegacy
 from core.legacy_utils import get_legacy_user, is_legacy_admin
@@ -3187,6 +3194,7 @@ def asset_document_download(request, document_id: int):
     return _document_file_response(storage, file_name, filename)
 
 
+@risposta_pubblica
 def asset_document_qr_download(request: HttpRequest, public_qr_token: str, document_id: int):
     """Download di un documento asset tramite il token QR stampato sulla macchina.
 
@@ -10180,6 +10188,11 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             ),
             "asset_completeness": asset.completeness(),
             "asset_status": asset_status,
+            # Chi ha toccato QUESTO asset, e quando. Vedi core.audit.storico_oggetto:
+            # compaiono le voci agganciate all'asset, non tutte quelle del modulo.
+            "storico_audit": storico_oggetto(
+                oggetto_tipo=AUDIT_OGGETTO_ASSET, oggetto_id=asset.id, limit=25,
+            ),
             "recent_workorders": recent_workorders,
             "custom_fields": custom_fields,
             "unmapped_extra": unmapped_extra,
@@ -10452,6 +10465,7 @@ def asset_qr_landing(request: HttpRequest, asset_tag: str) -> HttpResponse:
     return _render_asset_qr_landing(request, asset, public=False)
 
 
+@risposta_pubblica
 def asset_qr_public_landing(request: HttpRequest, public_qr_token: str) -> HttpResponse:
     """Landing QR pubblica (token opaco): consultabile senza login da tecnici/ispettori esterni.
 
@@ -10600,6 +10614,7 @@ def _render_asset_qr_landing(request: HttpRequest, asset: Asset, *, public: bool
     return render(request, "assets/pages/asset_qr_landing.html", context)
 
 
+@risposta_pubblica
 def asset_public_redirect(request: HttpRequest, public_qr_token: str) -> HttpResponse:
     token = _clean_string(public_qr_token)
     if not token:
@@ -11073,6 +11088,8 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
                             "target_email": entry.target_email,
                             "graph_event_id": entry.graph_event_id,
                         },
+                        oggetto_tipo=AUDIT_OGGETTO_ASSET,
+                        oggetto_id=deadline.asset_id,
                     )
                     messages.success(
                         request,
@@ -11186,6 +11203,8 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
                     "duration_minutes": duration_minutes,
                     "attachments": attachments_total,
                 },
+                oggetto_tipo=AUDIT_OGGETTO_ASSET,
+                oggetto_id=deadline.asset_id,
             )
             attach_suffix = f" ({attachments_total} allegati)" if attachments_total else ""
             if next_due_date is not None:
@@ -11420,6 +11439,8 @@ def asset_administrative_deadline_create(request: HttpRequest) -> HttpResponse:
                     "deadline_type": deadline.deadline_type,
                     "due_date": deadline.due_date.isoformat() if deadline.due_date else "",
                 },
+                oggetto_tipo=AUDIT_OGGETTO_ASSET,
+                oggetto_id=deadline.asset_id,
             )
             messages.success(request, "Scadenza salvata correttamente.")
             return redirect(
@@ -11498,6 +11519,8 @@ def asset_administrative_deadline_edit(request: HttpRequest, id: int | None = No
                     "deadline_type": deadline.deadline_type,
                     "due_date": deadline.due_date.isoformat() if deadline.due_date else "",
                 },
+                oggetto_tipo=AUDIT_OGGETTO_ASSET,
+                oggetto_id=deadline.asset_id,
             )
             messages.success(request, "Scadenza aggiornata.")
             return redirect(

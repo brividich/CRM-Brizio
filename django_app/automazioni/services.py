@@ -1513,7 +1513,7 @@ def evaluate_condition(condition: AutomationCondition, payload: Any, old_payload
                 threshold = int(str(condition.expected_value).strip())
             except (TypeError, ValueError):
                 return False
-            delta_days = (field_date - date.today()).days
+            delta_days = (field_date - timezone.localdate()).days
             if operator == AutomationConditionOperator.DAYS_FROM_NOW_LTE:
                 return delta_days <= threshold
             return delta_days >= threshold
@@ -3663,7 +3663,7 @@ def _count_source(
         where_parts.append(f"{filter_field} = ?")
         params.append(filter_value)
     if window_field and window_days:
-        threshold = (date.today() - timedelta(days=int(window_days))).isoformat()
+        threshold = (timezone.localdate() - timedelta(days=int(window_days))).isoformat()
         where_parts.append(f"{window_field} >= ?")
         params.append(threshold)
 

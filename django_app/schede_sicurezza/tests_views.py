@@ -453,10 +453,13 @@ class SchedaMobilePubblicaTest(TestCase):
         resp = self.client.get(reverse("schede_sicurezza:scheda_mobile", args=[self.prodotto.uuid]))
         self.assertEqual(resp.status_code, 404)
 
-    def test_senza_scheda_corrente_404(self):
+    def test_senza_scheda_corrente_pagina_utile_non_404(self):
+        """Chi scansiona e' davanti al contenitore: un 404 sarebbe un vicolo cieco."""
         prodotto_senza_scheda = ProdottoChimico.objects.create(nome="Senza SDS", reparto=self.reparto)
         resp = self.client.get(reverse("schede_sicurezza:scheda_mobile", args=[prodotto_senza_scheda.uuid]))
-        self.assertEqual(resp.status_code, 404)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Senza SDS")
+        self.assertContains(resp, "Scheda di sicurezza non disponibile")
 
     def test_download_pdf_pubblico_senza_login(self):
         resp = self.client.get(reverse("schede_sicurezza:scheda_mobile_pdf", args=[self.prodotto.uuid]))
@@ -504,11 +507,11 @@ class SchedaMobileRobustezzaTest(TestCase):
         resp = self.client.get(f"/schede-sicurezza/s/{self.prodotto.pk}/")
         self.assertEqual(resp.status_code, 404)
 
-    def test_prodotto_senza_scheda_404_su_entrambe_le_viste(self):
+    def test_prodotto_senza_scheda_404_solo_sul_pdf(self):
+        """Il PDF non c'e' davvero (404); la pagina invece informa (200)."""
         orfano = ProdottoChimico.objects.create(nome="Senza scheda", reparto=self.reparto)
-        for nome in ("schede_sicurezza:scheda_mobile", "schede_sicurezza:scheda_mobile_pdf"):
-            with self.subTest(vista=nome):
-                self.assertEqual(self.client.get(self._url(orfano, nome)).status_code, 404)
+        self.assertEqual(self.client.get(self._url(orfano, "schede_sicurezza:scheda_mobile_pdf")).status_code, 404)
+        self.assertEqual(self.client.get(self._url(orfano)).status_code, 200)
 
     # -- header --------------------------------------------------------------
 
@@ -583,6 +586,46 @@ class SchedaMobileRobustezzaTest(TestCase):
 
     def test_accesso_anonimo_ancora_consentito(self):
         self.assertEqual(self.client.get(self._url(self.prodotto)).status_code, 200)
+
+    def test_pagina_senza_sds_mostra_i_pittogrammi_dichiarati(self):
+        """L'unica informazione di pericolo che il portale possiede in quello stato."""
+        orfano = ProdottoChimico.objects.create(
+            nome="Chimico senza scheda", reparto=self.reparto, pittogrammi=["GHS02"],
+        )
+        resp = self.client.get(self._url(orfano))
+        self.assertContains(resp, "Pericoli dichiarati sul prodotto")
+
+    def test_pagina_senza_sds_resta_blindata(self):
+        orfano = ProdottoChimico.objects.create(nome="Orfano header", reparto=self.reparto)
+        resp = self.client.get(self._url(orfano))
+        self.assertEqual(resp["Referrer-Policy"], "no-referrer")
+        self.assertIn("no-store", resp["Cache-Control"])
+
+    def test_pagina_senza_sds_conta_l_apertura(self):
+        orfano = ProdottoChimico.objects.create(nome="Orfano contatore", reparto=self.reparto)
+        self.client.get(self._url(orfano))
+        orfano.refresh_from_db()
+        self.assertEqual(orfano.visite_qr, 1)
+
+    def test_segnalazione_riservata_agli_autenticati(self):
+        from core.audit import storico_oggetto
+
+        orfano = ProdottoChimico.objects.create(nome="Orfano segnalabile", reparto=self.reparto)
+        url = self._url(orfano)
+
+        # Anonimo: nessun pulsante e nessuna scrittura anche forzando la POST.
+        self.assertNotContains(self.client.get(url), "Segnala scheda mancante")
+        self.client.post(url, {"segnala": "1"})
+        self.assertEqual(list(storico_oggetto(orfano)), [])
+
+        operatore = User.objects.create_user(username="op-segnala", password="x")
+        self.client.force_login(operatore)
+        self.assertContains(self.client.get(url), "Segnala scheda mancante")
+        resp = self.client.post(url, {"segnala": "1"})
+        self.assertContains(resp, "Segnalazione registrata")
+        self.assertEqual(
+            [v.azione for v in storico_oggetto(orfano)], ["segnalazione_sds_mancante"],
+        )
 
     def test_presa_visione_resta_riservata_agli_autenticati(self):
         url = reverse("schede_sicurezza:presa_visione_conferma", args=[self.scheda.pk])

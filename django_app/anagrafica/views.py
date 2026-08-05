@@ -20,6 +20,9 @@ from django.http import (
 )
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+# Alias esplicito: in questo file `timezone` è già importato dentro varie
+# funzioni (come `tz`/`_tz`) e `datetime.timezone` è un'altra cosa ancora.
+from django.utils import timezone as django_timezone
 from django.views.decorators.http import require_POST
 
 from django.contrib.auth.decorators import login_required
@@ -1000,7 +1003,7 @@ def dipendente_create(request):
                                     _dn = form_civile.cleaned_data.get("data_nascita")
                                     if _dn:
                                         _anno_nascita = _dn.year
-                                _pwd_iniziale = str(_anno_nascita) if _anno_nascita else f"Portale{date.today().year}"
+                                _pwd_iniziale = str(_anno_nascita) if _anno_nascita else f"Portale{django_timezone.localdate().year}"
                                 _nome_completo = f"{data.get('cognome', '')} {data.get('nome', '')}".strip()
                                 _nuovo_utente = UtenteLegacy.objects.create(
                                     nome=_nome_completo,
@@ -4687,7 +4690,7 @@ def dipendente_retribuzioni(request, legacy_id: int):
         }
 
     # Raggruppo per anno (anno decrescente, mesi decrescenti dentro l'anno)
-    _today = date.today()
+    _today = django_timezone.localdate()
     _anni_default_aperti = {_today.year, _today.year - 1}
     _by_year: dict = {}
     for _date in _mesi_asc:
@@ -4887,7 +4890,7 @@ def dipendente_retribuzioni_export_xlsx(request, legacy_id: int):
     wb.save(buf)
     buf.seek(0)
 
-    today = date.today().strftime("%Y%m%d")
+    today = django_timezone.localdate().strftime("%Y%m%d")
     safe_name = "".join(ch for ch in f"{_cognome}_{_nome}" if ch.isalnum() or ch in ("_", "-")).strip("_") or str(legacy_id)
     filename = f"storico_retributivo_{safe_name}_{today}.xlsx"
 
@@ -9961,7 +9964,7 @@ def documenti_list(request):
     for d in documenti:
         d.nome_dipendente = nomi_map.get(d.legacy_anagrafica_id, f"#{d.legacy_anagrafica_id}")
 
-    _oggi = __import__("datetime").date.today()
+    _oggi = django_timezone.localdate()
     return render(request, "anagrafica/pages/documenti_list.html", {
         "is_admin": is_admin,
         "documenti": documenti,
@@ -13745,7 +13748,7 @@ def formazione_plan(request, legacy_id: int | None = None):
     import calendar as _calendar
     from collections import OrderedDict, defaultdict
 
-    today = date.today()
+    today = django_timezone.localdate()
     view_mode = (request.GET.get("view") or "mese").lower()
     if view_mode not in {"mese", "calendario", "matrice"}:
         view_mode = "mese"

@@ -9,6 +9,8 @@ from __future__ import annotations
 from datetime import date, timedelta
 from math import ceil
 
+from django.utils import timezone
+
 FONTE_CICLO = "ciclo"      # tempo di ciclo x pezzi (alta confidenza)
 FONTE_STORICO = "storico"  # media storica famiglia x macchina (media)
 FONTE_FAMIGLIA = "famiglia"  # media storica della famiglia su qualunque macchina (bassa)
@@ -272,7 +274,7 @@ def costruisci_indice_recency(oggi: date | None = None, *, mezza_vita_giorni: in
     """
     from .models import MacchinaFamigliaAffinita
 
-    oggi = oggi or date.today()
+    oggi = oggi or timezone.localdate()
     out: dict[tuple[int, int], float] = {}
     qs = MacchinaFamigliaAffinita.objects.filter(ultima_data__isnull=False).only(
         "macchina_id", "famiglia_id", "ultima_data"
@@ -307,7 +309,7 @@ def costruisci_indice_carico(giorni: int = 14, *, oggi: date | None = None) -> d
     from .models import Macchina, Pianificazione
     from .saturazione import calcola_saturazione
 
-    oggi = oggi or date.today()
+    oggi = oggi or timezone.localdate()
     finestra = [oggi + timedelta(days=i) for i in range(max(1, giorni))]
     macchine = list(Macchina.objects.filter(attivo=True))
     pians = list(

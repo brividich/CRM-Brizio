@@ -1246,8 +1246,8 @@ def export_pdf(request):
     doc.build([table], onFirstPage=_draw_page, onLaterPages=_draw_page)
 
     buffer.seek(0)
-    anno_str = q_anno or datetime.now().strftime("%Y")
-    filename = f"rentri_{anno_str}_{datetime.now().strftime('%Y%m%d')}.pdf"
+    anno_str = q_anno or timezone.localdate().strftime("%Y")
+    filename = f"rentri_{anno_str}_{timezone.localdate().strftime('%Y%m%d')}.pdf"
     response = HttpResponse(buffer.read(), content_type="application/pdf")
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response

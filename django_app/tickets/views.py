@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import logging
 import mimetypes
 import os
 from io import BytesIO
@@ -50,6 +51,8 @@ from .models import (
     TipoTicket,
     get_categorie,
 )
+
+logger = logging.getLogger(__name__)
 
 TICKET_ALLOWED_UPLOAD_EXTENSIONS = {
     ".pdf", ".jpg", ".jpeg", ".png", ".gif", ".bmp",
@@ -1494,8 +1497,10 @@ def _push_ticket_to_sharepoint(ticket: Ticket) -> None:
             sp_id = str(data.get("d", {}).get("ID") or data.get("ID") or "")
             if sp_id:
                 Ticket.objects.filter(pk=ticket.pk).update(sharepoint_item_id=sp_id)
+    # Lo specchio SharePoint non deve far fallire l'operazione sul ticket, ma se
+    # diverge in silenzio nessuno se ne accorge finche' qualcuno non lo confronta.
     except Exception:
-        pass
+        logger.exception("Ticket %s: creazione dell'elemento SharePoint fallita", ticket.pk)
 
 
 def _update_ticket_sharepoint(ticket: Ticket) -> None:
@@ -1603,7 +1608,7 @@ def api_commento(request):
         try:
             _update_ticket_sharepoint(ticket)
         except Exception:
-            pass
+            logger.exception("Ticket %s: sincronizzazione SharePoint fallita", ticket.pk)
 
     return JsonResponse({
         "ok": True,
@@ -1750,7 +1755,7 @@ def api_stato(request):
     try:
         _update_ticket_sharepoint(ticket)
     except Exception:
-        pass
+        logger.exception("Ticket %s: sincronizzazione SharePoint fallita", ticket.pk)
 
     return JsonResponse({"ok": True, "stato": nuovo_stato, "label": label_stato})
 
@@ -1805,7 +1810,7 @@ def api_assegna(request):
     try:
         _update_ticket_sharepoint(ticket)
     except Exception:
-        pass
+        logger.exception("Ticket %s: sincronizzazione SharePoint fallita", ticket.pk)
 
     return JsonResponse({
         "ok": True,
@@ -2442,7 +2447,7 @@ def api_bulk(request):
             try:
                 _update_ticket_sharepoint(t)
             except Exception:
-                pass
+                logger.exception("Ticket %s: sincronizzazione SharePoint fallita (bulk)", t.pk)
             aggiornati += 1
 
     # ── Assegna tecnico ───────────────────────────────────────────────────────
@@ -2463,7 +2468,7 @@ def api_bulk(request):
             try:
                 _update_ticket_sharepoint(t)
             except Exception:
-                pass
+                logger.exception("Ticket %s: sincronizzazione SharePoint fallita (bulk)", t.pk)
             aggiornati += 1
 
     else:
