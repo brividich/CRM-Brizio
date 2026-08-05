@@ -12948,6 +12948,15 @@ def _post_completamento(record: TrainingEmployeeRecord, created_by) -> None:
     except NotImplementedError:
         pass  # PATCH-06 implementerà il ricalcolo completo
 
+    # Valutazione di efficacia: se il corso la prevede, il completamento apre la
+    # pendenza datata. Qui perché è il punto unico attraversato da tutte le
+    # strade del completamento (aula, e-learning, registrazione diretta).
+    try:
+        from .services.formazione_efficacia import pianifica_valutazione_efficacia
+        pianifica_valutazione_efficacia(record)
+    except Exception:
+        pass  # fail-safe: non deve mai annullare un completamento
+
     # Allineamento qualifica (competency management): se il corso rilascia/rinnova una
     # qualifica e il completamento è idoneo, crea/aggiorna la DipendenteQualifica corrente
     # collegandola al record (la prova formativa). Riusa la convenzione "una qualifica

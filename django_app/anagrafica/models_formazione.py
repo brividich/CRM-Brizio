@@ -401,6 +401,14 @@ class TrainingCompletionRule(models.Model):
     richiede_firma_presenza = models.BooleanField(default=True)
     richiede_attestato      = models.BooleanField(default=False)
     richiede_validazione_hr = models.BooleanField(default=False)
+    # Valutazione di efficacia (catena dell'evidenza, anello 8): ISO 45001 §7.2 e
+    # ISO 9001 §7.2 non chiedono di aver erogato la formazione, chiedono di
+    # sapere se ha prodotto competenza. 0 = non richiesta.
+    valutazione_efficacia_mesi = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Dopo quanti mesi dal completamento va verificato sul campo se la "
+                  "formazione è stata efficace. 0 = valutazione non richiesta.",
+    )
     rule_json               = models.JSONField(default=dict, blank=True, help_text="Estensioni future regola")
     valid_from              = models.DateField(null=True, blank=True)
     valid_to                = models.DateField(null=True, blank=True)
@@ -832,6 +840,13 @@ class TrainingEnrollment(models.Model):
         ("RITIRATO",   "Ritirato"),
     ]
 
+    MODALITA_VERIFICA_CHOICES = [
+        ("TEST",         "Test scritto"),
+        ("ORALE",        "Colloquio orale"),
+        ("PRATICA",      "Prova pratica"),
+        ("OSSERVAZIONE", "Osservazione sul campo"),
+    ]
+
     sessione             = models.ForeignKey(TrainingSession, on_delete=models.CASCADE, related_name="iscrizioni")
     legacy_anagrafica_id = models.IntegerField(db_index=True)
     assignment           = models.ForeignKey(
@@ -847,6 +862,22 @@ class TrainingEnrollment(models.Model):
     # corsi la cui regola di superamento ha richiede_esame_finale=True. Null = non registrata.
     verifica_superata    = models.BooleanField(null=True, blank=True)
     data_verifica        = models.DateField(null=True, blank=True)
+    # Evidenza della verifica (catena dell'evidenza, anello 7). Prima c'era solo
+    # il segno di spunta: per l'e-learning il quiz conserva punteggio e risposte,
+    # per l'aula non restava nulla. Un flag non dimostra un apprendimento.
+    modalita_verifica    = models.CharField(
+        max_length=12, choices=MODALITA_VERIFICA_CHOICES, blank=True, default="",
+        help_text="Come è stato verificato l'apprendimento.",
+    )
+    punteggio            = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text="Punteggio conseguito, in percentuale.",
+    )
+    punteggio_minimo     = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text="Soglia applicata a questa verifica. Serve a rileggere l'esito "
+                  "anni dopo con il criterio di allora, non con quello di oggi.",
+    )
     data_completamento   = models.DateField(null=True, blank=True)
     note                 = models.TextField(blank=True)
     iscritto_da          = models.ForeignKey(
@@ -1046,6 +1077,80 @@ class TrainingEmployeeRecord(models.Model):
 
     def __str__(self) -> str:
         return f"[{self.legacy_anagrafica_id}] {self.corso.codice} — {self.data_completamento}"
+
+
+# ─────────────────────────────────────────────────────────────
+# VALUTAZIONE DI EFFICACIA (catena dell'evidenza, anello 8)
+# ─────────────────────────────────────────────────────────────
+# Il modulo sapeva raccontare benissimo *che* la formazione era stata erogata.
+# Non diceva nulla su *cosa avesse prodotto*. È la differenza fra «abbiamo fatto
+# il corso» e «le persone sono competenti», ed è ciò che ISO 45001 §7.2 e
+# ISO 9001 §7.2 chiedono per nome.
+#
+# È una FK e non un uno-a-uno di proposito: dopo un esito «non efficace» si
+# concorda un'azione e si rivaluta. Le due valutazioni sono entrambe storia.
+
+class TrainingEfficacia(models.Model):
+    """Verifica sul campo, a distanza di mesi, che la formazione abbia prodotto
+    competenza. Nasce «attesa» al completamento e viene compilata dal preposto."""
+
+    ESITO_CHOICES = [
+        ("EFFICACE",     "Efficace"),
+        ("PARZIALE",     "Parzialmente efficace"),
+        ("NON_EFFICACE", "Non efficace"),
+    ]
+
+    record       = models.ForeignKey(
+        "anagrafica.TrainingEmployeeRecord", on_delete=models.CASCADE,
+        related_name="valutazioni_efficacia",
+    )
+    # Denormalizzato dal record: la valutazione si cerca per persona, e la
+    # ricerca deve restare diretta anche quando il record verrà archiviato.
+    legacy_anagrafica_id = models.IntegerField(db_index=True)
+    attesa_dal   = models.DateField(
+        db_index=True,
+        help_text="Data dalla quale la valutazione è dovuta (completamento + mesi previsti).",
+    )
+    valutata_il  = models.DateField(null=True, blank=True)
+    valutata_da  = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    valutatore_nome = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Snapshot di chi ha valutato: resta leggibile anche se l'utenza sparisce.",
+    )
+    esito        = models.CharField(max_length=14, choices=ESITO_CHOICES, blank=True, default="")
+    azione       = models.TextField(
+        blank=True,
+        help_text="Cosa si è deciso di fare quando l'esito non è pieno: affiancamento, "
+                  "ripetizione, cambio mansione.",
+    )
+    note         = models.TextField(blank=True)
+    created_at   = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["attesa_dal", "id"]
+        verbose_name = "Valutazione di efficacia"
+        verbose_name_plural = "Valutazioni di efficacia"
+        indexes = [
+            models.Index(fields=["legacy_anagrafica_id", "attesa_dal"]),
+            models.Index(fields=["esito"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"[{self.legacy_anagrafica_id}] efficacia attesa dal {self.attesa_dal}"
+
+    @property
+    def in_attesa(self) -> bool:
+        return not self.valutata_il
+
+    @property
+    def scaduta(self) -> bool:
+        """Dovuta e non ancora compilata: è la riga che deve comparire nei solleciti."""
+        from django.utils import timezone as _tz
+
+        return self.in_attesa and self.attesa_dal <= _tz.localdate()
 
 
 # ─────────────────────────────────────────────────────────────

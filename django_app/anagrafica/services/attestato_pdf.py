@@ -718,12 +718,20 @@ def build_fascicolo_sessione_pdf_bytes(sessione) -> bytes:
         head = ["Dipendente", "Stato", "% Pres.", "Verifica", "Idoneo", "Completam."]
         rows = [[Paragraph(h, styles["table_header"]) for h in head]]
         for i in iscrizioni:
+            # La verifica non e' piu' un si'/no: dove c'e' evidenza si mostra,
+            # perche' un segno di spunta non dimostra un apprendimento.
             if i.verifica_superata is True:
                 verif = "Superata"
             elif i.verifica_superata is False:
-                verif = "No"
+                verif = "Non superata"
             else:
                 verif = "-"
+            if i.punteggio is not None:
+                verif += f" {i.punteggio}"
+                if i.punteggio_minimo is not None:
+                    verif += f"/{i.punteggio_minimo}"
+            if i.modalita_verifica:
+                verif += f" ({i.get_modalita_verifica_display()})"
             rows.append([
                 Paragraph(nomi.get(i.legacy_anagrafica_id, f"#{i.legacy_anagrafica_id}"), styles["cell"]),
                 Paragraph(i.get_stato_display(), styles["cell"]),
@@ -732,7 +740,7 @@ def build_fascicolo_sessione_pdf_bytes(sessione) -> bytes:
                 Paragraph("Si" if i.idoneo else ("No" if i.idoneo is False else "-"), styles["cell"]),
                 Paragraph(f"{i.data_completamento:%d-%m-%Y}" if i.data_completamento else "-", styles["cell"]),
             ])
-        story.append(data_table(rows, theme, col_widths=[None, 58, 42, 54, 40, 62], repeat_rows=1))
+        story.append(data_table(rows, theme, col_widths=[None, 54, 40, 96, 34, 58], repeat_rows=1))
     else:
         story.append(Paragraph("Nessun iscritto.", styles["body"]))
     story.append(Spacer(1, 4 * mm))
@@ -816,6 +824,27 @@ def build_fascicolo_sessione_pdf_bytes(sessione) -> bytes:
     else:
         controlli.append(("Programma didattico dichiarato", "Mancante"))
     controlli.append(("Docente indicato", "Completo" if docente != "-" else "Mancante"))
+    # Efficacia: si dichiara solo se il corso la prevede, altrimenti la riga
+    # sarebbe un rimprovero per un adempimento che nessuno ha chiesto.
+    try:
+        from anagrafica.services.formazione_efficacia import mesi_efficacia_richiesti
+
+        mesi_eff = mesi_efficacia_richiesti(corso)
+    except Exception:
+        mesi_eff = 0
+    if mesi_eff:
+        from anagrafica.models_formazione import TrainingEfficacia
+
+        val = TrainingEfficacia.objects.filter(record__sessione=sessione)
+        attese = val.filter(valutata_il__isnull=True).count()
+        fatte = val.exclude(valutata_il__isnull=True).count()
+        if fatte and not attese:
+            esito_eff = f"Completo ({fatte} valutazioni)"
+        elif fatte or attese:
+            esito_eff = f"{fatte} fatte, {attese} ancora attese (a {mesi_eff} mesi)"
+        else:
+            esito_eff = f"Da aprire al completamento (a {mesi_eff} mesi)"
+        controlli.append(("Valutazione di efficacia sul campo", esito_eff))
     if iscrizioni:
         senza_esito = sum(1 for i in iscrizioni if i.idoneo is None)
         controlli.append((
