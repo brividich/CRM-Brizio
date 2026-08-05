@@ -253,6 +253,88 @@ body.theme-dark .flatpickr-calendar.inline .flatpickr-next-month svg{ fill:#e2e8
     </div>
     {% endif %}
 
+    {# ── Programma dell'edizione e copertura ─────────────────────────────── #}
+    <div class="hr-card fm-section" style="margin-bottom:16px;">
+      <div class="fm-section-head">
+        <div class="fm-section-title">
+          📚 Programma dell'edizione <span class="fm-count">{{ programma|length }}</span>
+          {% if programma_scoperti %}<span class="fm-pill fm-pill-warn" style="margin-left:8px;">{{ programma_scoperti }} non svolti</span>{% endif %}
+        </div>
+        {% if is_editor %}
+        <form method="post" action="{% url 'anagrafica:formazione_sessione_programma_riprendi' sessione.pk %}"
+              onsubmit="return confirm('Riprendere il programma dal corso? Gli argomenti integrati da questa edizione restano.')" style="display:inline;">
+          {% csrf_token %}
+          <button type="submit" class="hr-btn hr-btn-sm">↻ Riprendi dal corso</button>
+        </form>
+        {% endif %}
+      </div>
+      {% if programma %}
+      <div class="fm-table-wrap">
+      <table class="fm-table">
+        <thead><tr><th class="num">#</th><th>Argomento</th><th class="num">Ore</th><th>Riferimento</th><th>Svolto nelle giornate</th>{% if is_editor %}<th class="nowrap"></th>{% endif %}</tr></thead>
+        <tbody>
+          {% for a in programma %}
+          <tr>
+            <td class="num muted">{{ forloop.counter }}</td>
+            <td>{{ a.argomento }}{% if a.aggiunto %} <span class="fm-pill">integrato</span>{% endif %}</td>
+            <td class="num">{% if a.ore_previste %}{{ a.ore_previste }}{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td class="muted">{{ a.riferimento|default:"—" }}</td>
+            <td>
+              {% if is_editor and lezioni %}
+              <form method="post" action="{% url 'anagrafica:formazione_sessione_argomento_giornate' sessione.pk a.pk %}"
+                    style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+                {% csrf_token %}
+                {% for s in a.scelte_giornate %}
+                <label style="display:inline-flex;align-items:center;gap:3px;font-weight:400;font-size:12px;">
+                  <input type="checkbox" name="lezioni" value="{{ s.lezione.pk }}"{% if s.segnata %} checked{% endif %}>
+                  {{ s.lezione.numero }}
+                </label>
+                {% endfor %}
+                <button type="submit" class="hr-btn hr-btn-sm">Salva</button>
+              </form>
+              {% elif a.giornate_svolte %}
+                {{ a.giornate_svolte|join:", " }}
+              {% else %}
+                <span class="fm-pill fm-pill-warn">non svolto</span>
+              {% endif %}
+            </td>
+            {% if is_editor %}
+            <td class="nowrap">
+              <form method="post" action="{% url 'anagrafica:formazione_sessione_argomento_delete' sessione.pk a.pk %}"
+                    onsubmit="return confirm('Rimuovere questo argomento dal programma dell&#39;edizione?')" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">✕</button>
+              </form>
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% else %}
+      <div class="fm-empty">Nessun programma: il fascicolo lo segnalerà come mancante. Dichiaralo sul corso e riprendilo qui.</div>
+      {% endif %}
+      {% if is_editor %}
+      <form method="post" action="{% url 'anagrafica:formazione_sessione_argomento_add' sessione.pk %}" class="fm-inline-form">
+        {% csrf_token %}
+        <div class="fm-f" style="flex:2;min-width:200px;">
+          <label>Integra un argomento</label>
+          <input type="text" name="argomento" maxlength="300" required placeholder="es. Prova pratica su estintore">
+        </div>
+        <div class="fm-f" style="width:90px;">
+          <label>Ore</label>
+          <input type="number" name="ore_previste" step="0.5" min="0">
+        </div>
+        <div class="fm-f" style="flex:1;min-width:150px;">
+          <label>Riferimento</label>
+          <input type="text" name="riferimento" maxlength="200">
+        </div>
+        <button type="submit" class="hr-btn hr-btn-sm hr-btn-primary">Integra</button>
+      </form>
+      {% endif %}
+    </div>
+
     {% if lezioni %}
     <div class="fm-table-wrap">
       <table class="fm-table" data-table-id="formazione.sessione.lezioni">

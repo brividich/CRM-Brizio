@@ -323,6 +323,13 @@ urlpatterns = [
     # Prerequisiti
     path("formazione/corsi/<int:corso_id>/prerequisiti/add", views.formazione_corso_dep_add, name="formazione_corso_dep_add"),
     path("formazione/corsi/<int:corso_id>/prerequisiti/<int:dep_id>/rimuovi", views.formazione_corso_dep_delete, name="formazione_corso_dep_delete"),
+    # Programma didattico: previsto sul corso, erogato sull'edizione
+    path("formazione/corsi/<int:corso_id>/programma/add", views.formazione_corso_argomento_add, name="formazione_corso_argomento_add"),
+    path("formazione/corsi/<int:corso_id>/programma/<int:arg_id>/rimuovi", views.formazione_corso_argomento_delete, name="formazione_corso_argomento_delete"),
+    path("formazione/sessioni/<int:sessione_id>/programma/add", views.formazione_sessione_argomento_add, name="formazione_sessione_argomento_add"),
+    path("formazione/sessioni/<int:sessione_id>/programma/<int:arg_id>/rimuovi", views.formazione_sessione_argomento_delete, name="formazione_sessione_argomento_delete"),
+    path("formazione/sessioni/<int:sessione_id>/programma/riprendi", views.formazione_sessione_programma_riprendi, name="formazione_sessione_programma_riprendi"),
+    path("formazione/sessioni/<int:sessione_id>/programma/<int:arg_id>/giornate", views.formazione_sessione_argomento_giornate, name="formazione_sessione_argomento_giornate"),
     # Versioni
     path("formazione/corsi/<int:corso_id>/versioni/add", views.formazione_corso_version_add, name="formazione_corso_version_add"),
     path("formazione/corsi/<int:corso_id>/versioni/<int:ver_id>/rimuovi", views.formazione_corso_version_delete, name="formazione_corso_version_delete"),

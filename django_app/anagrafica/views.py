@@ -109,6 +109,7 @@ from .models_formazione import (
     TrainingCertificate,
     TrainingCompletionRule,
     TrainingCourse,
+    TrainingCourseArgomento,
     TrainingCourseDependency,
     TrainingCourseModule,
     TrainingCourseVersion,
@@ -122,6 +123,7 @@ from .models_formazione import (
     TrainingPlan,
     TrainingRequirementRule,
     TrainingSession,
+    TrainingSessionArgomento,
     TrainingSlide,
     TrainingQuizQuestion,
     TrainingQuizOption,
@@ -11883,6 +11885,7 @@ def formazione_corso_detail(request, corso_id: int):
     return render(request, "anagrafica/pages/formazione_corso_detail.html", {
         "corso": corso,
         "prerequisiti": prerequisiti,
+        "programma": list(corso.programma.all()),
         "moduli": moduli,
         "versioni": versioni,
         "regole": regole,
@@ -11986,6 +11989,132 @@ def formazione_corso_dep_delete(request, corso_id: int, dep_id: int):
     dep.delete()
     messages.success(request, "Prerequisito rimosso.")
     return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+
+
+# ── Programma didattico ─────────────────────────────────────────────────────
+# Sul corso è il previsto; sull'edizione è ciò che è stato davvero erogato.
+# Le due liste sono indipendenti per costruzione (vedi copia_programma_dal_corso).
+
+def _ore_da_post(request, campo: str = "ore_previste"):
+    """Ore previste dal POST: vuoto o non numerico valgono «non dichiarate»."""
+    grezzo = (request.POST.get(campo) or "").strip().replace(",", ".")
+    if not grezzo:
+        return None
+    try:
+        return Decimal(grezzo)
+    except (InvalidOperation, ValueError):
+        return None
+
+
+@login_required
+@require_POST
+def formazione_corso_argomento_add(request, corso_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare corsi formativi.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    corso = get_object_or_404(TrainingCourse, pk=corso_id)
+    argomento = (request.POST.get("argomento") or "").strip()
+    if not argomento:
+        messages.error(request, "L'argomento non può essere vuoto.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    ultimo = corso.programma.order_by("-ordine").values_list("ordine", flat=True).first() or 0
+    TrainingCourseArgomento.objects.create(
+        corso=corso,
+        ordine=ultimo + 1,
+        argomento=argomento[:300],
+        ore_previste=_ore_da_post(request),
+        riferimento=(request.POST.get("riferimento") or "").strip()[:200],
+    )
+    messages.success(request, "Argomento aggiunto al programma del corso.")
+    return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+
+
+@login_required
+@require_POST
+def formazione_corso_argomento_delete(request, corso_id: int, arg_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare corsi formativi.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    voce = get_object_or_404(TrainingCourseArgomento, pk=arg_id, corso_id=corso_id)
+    voce.delete()
+    messages.success(request, "Argomento rimosso dal programma del corso. "
+                              "Le edizioni già erogate non sono state toccate.")
+    return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+
+
+@login_required
+@require_POST
+def formazione_sessione_argomento_add(request, sessione_id: int):
+    """Argomento integrato dall'edizione: nasce con ``aggiunto=True`` e per questo
+    sopravvive a una ricopiatura del programma dal corso."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare sessioni formative.")
+        return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+    sessione = get_object_or_404(TrainingSession, pk=sessione_id)
+    argomento = (request.POST.get("argomento") or "").strip()
+    if not argomento:
+        messages.error(request, "L'argomento non può essere vuoto.")
+        return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+    ultimo = sessione.programma.order_by("-ordine").values_list("ordine", flat=True).first() or 0
+    TrainingSessionArgomento.objects.create(
+        sessione=sessione,
+        ordine=ultimo + 1,
+        argomento=argomento[:300],
+        ore_previste=_ore_da_post(request),
+        riferimento=(request.POST.get("riferimento") or "").strip()[:200],
+        aggiunto=True,
+    )
+    messages.success(request, "Argomento integrato nel programma dell'edizione.")
+    return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+
+
+@login_required
+@require_POST
+def formazione_sessione_argomento_delete(request, sessione_id: int, arg_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare sessioni formative.")
+        return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+    voce = get_object_or_404(TrainingSessionArgomento, pk=arg_id, sessione_id=sessione_id)
+    voce.delete()
+    messages.success(request, "Argomento rimosso dal programma dell'edizione.")
+    return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+
+
+@login_required
+@require_POST
+def formazione_sessione_programma_riprendi(request, sessione_id: int):
+    """Riporta nell'edizione il programma del corso. Le integrazioni restano."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare sessioni formative.")
+        return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+    sessione = get_object_or_404(TrainingSession, pk=sessione_id)
+    from .services.formazione_pianificazione import copia_programma_dal_corso
+
+    creati = copia_programma_dal_corso(sessione, forza=True)
+    if creati:
+        messages.success(request, f"{creati} argomenti ripresi dal programma del corso.")
+    else:
+        messages.info(request, "Il corso non ha un programma da riprendere.")
+    return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+
+
+@login_required
+@require_POST
+def formazione_sessione_argomento_giornate(request, sessione_id: int, arg_id: int):
+    """In quali giornate l'argomento è stato svolto: è il confronto previsto/erogato."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare sessioni formative.")
+        return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+    voce = get_object_or_404(TrainingSessionArgomento, pk=arg_id, sessione_id=sessione_id)
+    try:
+        scelte = [int(x) for x in request.POST.getlist("lezioni")]
+    except (TypeError, ValueError):
+        scelte = []
+    # Solo giornate di QUESTA edizione: un id arrivato da fuori non deve passare.
+    valide = list(TrainingLesson.objects.filter(sessione_id=sessione_id, pk__in=scelte))
+    voce.lezioni.set(valide)
+    messages.success(request, f'Argomento "{voce.argomento[:40]}": {len(valide)} giornate segnate.')
+    return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
 
 
 # ── Versioni corso ───────────────────────────────────────────────────────────
@@ -12377,6 +12506,19 @@ def formazione_sessione_detail(request, sessione_id: int):
         lz.n_presenze = presenze_per_lezione.get(lz.pk, 0)
         lz.allegati_list = allegati_per_lezione.get(lz.pk, [])
 
+    # Programma dell'edizione con la copertura: per ogni argomento, in quali
+    # giornate è stato svolto. È il confronto fra previsto ed erogato.
+    programma = list(sessione.programma.prefetch_related("lezioni"))
+    for voce in programma:
+        svolte = {lz.pk for lz in voce.lezioni.all()}
+        voce.giornate_svolte = sorted(
+            lz.numero for lz in lezioni if lz.pk in svolte
+        )
+        voce.scelte_giornate = [
+            {"lezione": lz, "segnata": lz.pk in svolte} for lz in lezioni
+        ]
+    programma_scoperti = sum(1 for v in programma if not v.giornate_svolte)
+
     edit_form   = TrainingSessionForm(instance=sessione)
     lezione_form = TrainingLessonForm(sessione=sessione)
     # Generatore giornate: propone l'orario-tipo dell'ultima lezione già inserita,
@@ -12413,6 +12555,8 @@ def formazione_sessione_detail(request, sessione_id: int):
         "ore_pianificate": ore_pianificate,
         "ore_teoriche":    ore_teoriche,
         "ore_scostamento": ore_scostamento,
+        "programma":          programma,
+        "programma_scoperti": programma_scoperti,
         "is_editor":    is_editor,
         "allegati_sessione": allegati_sessione,
         "ATTACH_TIPI":  TrainingAttachment.Tipo.choices,
