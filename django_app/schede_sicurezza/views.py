@@ -16,6 +16,7 @@ from django.utils.text import get_valid_filename
 from django.views.decorators.http import require_POST
 
 from core.csv_export import safe_csv_writer
+from core.public_headers import blinda_risposta_pubblica
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 
 from . import pittogrammi as ghs
@@ -99,17 +100,14 @@ def _nome_file_sds(scheda) -> str:
 def _risposta_pubblica(response):
     """Header delle due view raggiungibili dal QR, senza login.
 
-    Fuori dal perimetro autenticato non c'è middleware che ci pensi (e non è
-    questo il posto per aggiungerne uno globale): gli header si applicano qui,
-    view per view. ``no-store`` è deliberato — una SDS viene sostituita quando
-    il fornitore la revisiona, e una copia in cache del browser sopravvissuta
-    alla revisione è esattamente il documento che non deve essere consultato.
+    Da quando le superfici pubbliche del portale sono più d'una, la definizione
+    degli header vive in ``core.public_headers``: qui resta solo il nome locale
+    già usato dalle due view. ``no-store`` è deliberato — una SDS viene
+    sostituita quando il fornitore la revisiona, e una copia in cache del
+    browser sopravvissuta alla revisione è esattamente il documento che non
+    deve essere consultato.
     """
-    response["X-Robots-Tag"] = "noindex, nofollow, noarchive"
-    response["Referrer-Policy"] = "no-referrer"
-    response["X-Content-Type-Options"] = "nosniff"
-    response["Cache-Control"] = "no-store, max-age=0"
-    return response
+    return blinda_risposta_pubblica(response)
 
 
 # ---------------------------------------------------------------------------

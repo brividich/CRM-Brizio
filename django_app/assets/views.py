@@ -44,6 +44,7 @@ from reportlab.platypus import Paragraph
 from admin_portale.decorators import legacy_admin_required
 from config.env_config import get_first_env_value, load_env_file_values, resolve_env_value, update_env_file_values
 from core.acl import user_can_modulo_action
+from core.public_headers import risposta_pubblica
 from core.audit import log_action, storico_oggetto
 
 # Etichetta con cui le voci di audit si agganciano all'asset: e' la stessa che
@@ -3181,6 +3182,7 @@ def asset_document_download(request, document_id: int):
     return _document_file_response(storage, file_name, filename)
 
 
+@risposta_pubblica
 def asset_document_qr_download(request: HttpRequest, public_qr_token: str, document_id: int):
     """Download di un documento asset tramite il token QR stampato sulla macchina.
 
@@ -10449,6 +10451,7 @@ def asset_qr_landing(request: HttpRequest, asset_tag: str) -> HttpResponse:
     return _render_asset_qr_landing(request, asset, public=False)
 
 
+@risposta_pubblica
 def asset_qr_public_landing(request: HttpRequest, public_qr_token: str) -> HttpResponse:
     """Landing QR pubblica (token opaco): consultabile senza login da tecnici/ispettori esterni.
 
@@ -10597,6 +10600,7 @@ def _render_asset_qr_landing(request: HttpRequest, asset: Asset, *, public: bool
     return render(request, "assets/pages/asset_qr_landing.html", context)
 
 
+@risposta_pubblica
 def asset_public_redirect(request: HttpRequest, public_qr_token: str) -> HttpResponse:
     token = _clean_string(public_qr_token)
     if not token:
