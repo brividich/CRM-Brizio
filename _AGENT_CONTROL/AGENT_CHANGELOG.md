@@ -1,5 +1,20 @@
 # Agent Changelog
 
+## 2026-08-05 - Codex
+
+- Area: `django_app/assets`.
+- Richiesta: rendere `Asset -> Manutenzione` molto piu fruibile, eliminando la sensazione di pagina costruita per accumulo.
+- File modificati in questa sessione: `django_app/assets/views.py`, `django_app/assets/templates/assets/pages/maintenance_hub.html`, `django_app/assets/tests.py`, `django_app/assets/README.md`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente nella workspace. Nessuna modifica a ACL, middleware, settings, autenticazione, permessi, routing globale o navigazione globale.
+- Motivo tecnico: l'hub mostrava in sequenza un cruscotto condiviso a due pannelli, sei KPI, filtri, molte card operative e un rail di azioni che duplicava toolbar e sotto-navigazione; gerarchia e percorsi competevano sullo stesso livello.
+- Modifica: introdotta una sola fascia compatta di priorita (interventi aperti, scaduti, attivita in avvicinamento, completati); aggiunta intestazione `Lavoro operativo`; mantenuti filtri, OdL, scadenze, regole, macchine e ticket; rail ridotto a `Agenda 7 giorni` con link ai registri; rimosso dall'hub il partial del cruscotto condiviso e il relativo calcolo di aggregazioni inutilizzate. Il cruscotto Assets continua a usare il partial invariato.
+- Impatto previsto: meno duplicazioni, ordine di lettura immediato e azioni globali in un solo punto; nessun cambiamento a dati o flussi operativi.
+- Rischi residui: verifica visuale autenticata non eseguita perche' il runtime browser richiesto dal plugin non era esposto; rendering e struttura coperti dai test Django. Resta un warning test preesistente su `WorkOrder.closed_at` naive, non introdotto dalla modifica.
+- Test/check: `python -B django_app\manage.py check assets --settings=config.settings.test` OK; test mirati su gerarchia UX, sotto-navigazione e regole critiche OK (3 test); rerun finale dopo rimozione query inutilizzate OK (2 test); `git diff --check` OK.
+- Backup creati: nessuno.
+- README/CHANGELOG: `README.md`, `django_app/assets/README.md`, `CHANGELOG.md` e `django_app/CHANGELOG.md` aggiornati.
+- Note operative: lavoro isolato nel worktree `C:\Dev\pn-assets-maintenance-ux`, branch `feature/assets-maintenance-ux`; il checkout condiviso aveva modifiche preesistenti non correlate (`docs/prompt-claude-code-rag-sgi-ampliamento.md`, `remediation-plan.md`) che non sono state toccate.
+
 ## 2026-06-17 - Codex
 
 - Area: `django_app/admin_portale`, `django_app/core`, gestione template PDF condiviso.

@@ -6,6 +6,51 @@
 <style>
 .mh-page { display:grid; gap:18px; }
 
+/* La testata deve orientare, non replicare tutti i registri del modulo. */
+.mh-priority-strip {
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  border:1px solid #dbe1ea;
+  border-radius:12px;
+  background:#fff;
+  overflow:hidden;
+  box-shadow:0 10px 24px rgba(15,23,42,.04);
+}
+.mh-priority-card {
+  min-width:0;
+  padding:14px 16px;
+  display:grid;
+  grid-template-columns:auto 1fr;
+  column-gap:11px;
+  align-items:center;
+  color:inherit;
+  text-decoration:none;
+  border-right:1px solid #e5e7eb;
+  transition:background .12s ease;
+}
+.mh-priority-card:last-child { border-right:0; }
+.mh-priority-card:hover { background:#f8fafc; }
+.mh-priority-value {
+  grid-row:1 / span 2;
+  min-width:42px;
+  font-size:1.75rem;
+  line-height:1;
+  font-weight:900;
+  color:#2563eb;
+  text-align:center;
+}
+.mh-priority-card.is-danger .mh-priority-value { color:#dc2626; }
+.mh-priority-card.is-warning .mh-priority-value { color:#d97706; }
+.mh-priority-card.is-ok .mh-priority-value { color:#15803d; }
+.mh-priority-label { font-size:var(--fs-sm); font-weight:800; color:#0f172a; }
+.mh-priority-note { font-size:var(--fs-xs); color:#64748b; }
+.mh-workspace-head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-top:2px; }
+.mh-workspace-title { margin:0; font-size:1.05rem; color:#0f172a; }
+.mh-workspace-note { margin:3px 0 0; color:#64748b; font-size:var(--fs-sm); }
+.mh-workspace-link { color:#1d4ed8; font-size:var(--fs-sm); font-weight:750; text-decoration:none; white-space:nowrap; }
+.mh-workspace-link:hover { text-decoration:underline; }
+.mh-agenda-links { display:flex; gap:10px; flex-wrap:wrap; padding-top:2px; }
+
 /* ── KPI strip ─────────────────────────────────────────────── */
 .mh-kpis {
   display:grid;
@@ -99,7 +144,7 @@
 .mh-body {
   display:grid;
   gap:14px;
-  grid-template-columns:1fr 340px;
+  grid-template-columns:minmax(0,1fr) 300px;
   align-items:start;
 }
 .mh-col-left  { display:grid; gap:14px; }
@@ -457,10 +502,18 @@ body.theme-dark .sc-days-badge.muted { background:rgba(255,255,255,.07); color:#
 @media (max-width:1100px) {
   .mh-body  { grid-template-columns:1fr; }
   .mh-kpis  { grid-template-columns:repeat(3, minmax(0, 1fr)); }
+  .mh-priority-strip { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .mh-priority-card:nth-child(2) { border-right:0; }
+  .mh-priority-card:nth-child(-n+2) { border-bottom:1px solid #e5e7eb; }
 }
 @media (max-width:600px) {
   .mh-kpis  { grid-template-columns:1fr 1fr; }
   .mh-tab   { padding:8px 12px; font-size:var(--fs-sm); }
+  .mh-priority-strip { grid-template-columns:1fr; }
+  .mh-priority-card,
+  .mh-priority-card:nth-child(2) { border-right:0; border-bottom:1px solid #e5e7eb; }
+  .mh-priority-card:last-child { border-bottom:0; }
+  .mh-workspace-head { align-items:flex-start; flex-direction:column; gap:6px; }
 }
 
 /* Cockpit refresh */
@@ -529,6 +582,13 @@ body.theme-dark .mh-card-head,
 body.theme-dark .sc-card-head {
   background:linear-gradient(90deg,rgba(255,255,255,.04) 0%,rgba(255,255,255,.01) 100%);
 }
+body.theme-dark .mh-priority-strip { background:var(--surface); border-color:var(--border); box-shadow:none; }
+body.theme-dark .mh-priority-card { border-color:var(--border); }
+body.theme-dark .mh-priority-card:hover { background:rgba(255,255,255,.04); }
+body.theme-dark .mh-priority-label,
+body.theme-dark .mh-workspace-title { color:var(--text); }
+body.theme-dark .mh-priority-note,
+body.theme-dark .mh-workspace-note { color:var(--text-light); }
 </style>
 {% endblock %}
 
@@ -545,50 +605,40 @@ body.theme-dark .sc-card-head {
 {% block assets_shell_content %}
 <div class="mh-page">
 
-  <!-- ═══ KPI ═════════════════════════════════════════════════════════════ -->
-  <div class="mh-kpis">
-    <a class="mh-kpi {% if wo_overdue %}red{% elif wo_recent %}amber{% elif wo_total %}blue{% else %}green{% endif %}" href="{{ url_wo_open }}">
-      <span class="mh-kpi-label">Interventi aperti</span>
-      <span class="mh-kpi-value">{{ wo_total }}</span>
-      <span class="mh-kpi-sub">{% if wo_overdue|length %}{{ wo_overdue|length }} in ritardo{% elif wo_recent|length %}{{ wo_recent|length }} recenti{% else %}nessun ritardo{% endif %}</span>
+  <!-- Una sola fascia di orientamento: priorità, non un secondo cruscotto. -->
+  <section class="mh-priority-strip" aria-label="Priorità manutenzione">
+    <a class="mh-priority-card {% if wo_overdue %}is-danger{% elif wo_total %}is-warning{% else %}is-ok{% endif %}" href="{{ url_wo_open }}">
+      <span class="mh-priority-value">{{ wo_total }}</span>
+      <span class="mh-priority-label">Interventi aperti</span>
+      <span class="mh-priority-note">{% if wo_overdue %}{{ wo_overdue|length }} oltre soglia{% else %}nessuno oltre soglia{% endif %}</span>
     </a>
-    <a class="mh-kpi {% if overdue_deadlines_count %}red{% elif upcoming_deadlines_count %}amber{% else %}green{% endif %}" href="{{ url_hub_scadenze }}">
-      <span class="mh-kpi-label">Scadenze amm.</span>
-      <span class="mh-kpi-value">{{ upcoming_deadlines_count }}</span>
-      <span class="mh-kpi-sub">entro 30gg{% if overdue_deadlines_count %} · {{ overdue_deadlines_count }} scadute{% endif %}</span>
+    <a class="mh-priority-card {% if overdue_deadlines_count or overdue_verifications_count %}is-danger{% else %}is-ok{% endif %}" href="{{ url_maintenance_schedule }}?status=due">
+      <span class="mh-priority-value">{{ overdue_deadlines_count|add:overdue_verifications_count }}</span>
+      <span class="mh-priority-label">Scadute</span>
+      <span class="mh-priority-note">scadenze e verifiche da recuperare</span>
     </a>
-    <a class="mh-kpi {% if overdue_verifications_count %}red{% elif upcoming_verifications_count %}amber{% else %}green{% endif %}" href="{{ url_hub_verifiche }}">
-      <span class="mh-kpi-label">Verifiche</span>
-      <span class="mh-kpi-value">{{ upcoming_verifications_count }}</span>
-      <span class="mh-kpi-sub">entro 30gg{% if overdue_verifications_count %} · {{ overdue_verifications_count }} scadute{% endif %}</span>
+    <a class="mh-priority-card {% if upcoming_deadlines_count or upcoming_verifications_count or maintenance_rule_counts.warning %}is-warning{% else %}is-ok{% endif %}" href="{{ url_maintenance_schedule }}">
+      <span class="mh-priority-value">{{ upcoming_deadlines_count|add:upcoming_verifications_count|add:maintenance_rule_counts.warning }}</span>
+      <span class="mh-priority-label">In avvicinamento</span>
+      <span class="mh-priority-note">entro 30 giorni</span>
     </a>
-    <a class="mh-kpi {% if contracts_expiring_count %}amber{% else %}green{% endif %}" href="{{ url_hub_contratti }}">
-      <span class="mh-kpi-label">Contratti</span>
-      <span class="mh-kpi-value">{{ contracts_count }}</span>
-      <span class="mh-kpi-sub">attivi{% if contracts_expiring_count %} · {{ contracts_expiring_count }} in scadenza{% endif %}</span>
+    <a class="mh-priority-card is-ok" href="{{ url_wo_done }}">
+      <span class="mh-priority-value">{{ closed_recent_count }}</span>
+      <span class="mh-priority-label">Completati</span>
+      <span class="mh-priority-note">negli ultimi 30 giorni</span>
     </a>
-    <a class="mh-kpi {% if maintenance_rule_counts.overdue %}red{% elif maintenance_rule_counts.warning or maintenance_rule_counts.missing %}amber{% else %}green{% endif %}" href="{{ url_maintenance_schedule }}">
-      <span class="mh-kpi-label">Regole manut.</span>
-      <span class="mh-kpi-value">{{ maintenance_rule_critical_count }}</span>
-      <span class="mh-kpi-sub">
-        {% if maintenance_rule_counts.overdue %}{{ maintenance_rule_counts.overdue }} scadute
-        {% elif maintenance_rule_counts.warning %}{{ maintenance_rule_counts.warning }} in warning
-        {% elif maintenance_rule_counts.missing %}{{ maintenance_rule_counts.missing }} da avviare
-        {% else %}{{ rules_count }} attive{% endif %}
-      </span>
-    </a>
-    <a class="mh-kpi green" href="{{ url_wo_done }}">
-      <span class="mh-kpi-label">Chiusi (30gg)</span>
-      <span class="mh-kpi-value">{{ closed_recent_count }}</span>
-      <span class="mh-kpi-sub">interventi completati</span>
-    </a>
-  </div>
+  </section>
 
   {% if active_tab == 'da_fare' %}
   <!-- ═══════════════════════ TAB: DA FARE ════════════════════════════════ -->
 
-  <!-- Cruscotto operativo: cose da fare + segnalazioni arrivate -->
-  {% include "assets/pages/_operational_cockpit.html" %}
+  <div class="mh-workspace-head">
+    <div>
+      <h2 class="mh-workspace-title">Lavoro operativo</h2>
+      <p class="mh-workspace-note">Prima gli interventi oltre soglia, poi scadenze e attività pianificate.</p>
+    </div>
+    <a class="mh-workspace-link" href="{{ url_wo_list }}">Apri il registro completo &rsaquo;</a>
+  </div>
 
   <!-- Filtri -->
   <form method="get" class="mh-filters">
@@ -623,7 +673,7 @@ body.theme-dark .sc-card-head {
       <!-- Interventi aperti -->
       <div class="mh-card {% if wo_overdue %}is-urgent{% elif wo_recent %}is-warn{% endif %}">
         <div class="mh-card-head">
-          <span class="mh-card-head-title">Interventi aperti</span>
+          <span class="mh-card-head-title">Interventi da gestire</span>
           {% if wo_overdue %}<span class="mh-card-head-badge mh-badge-red">{{ wo_overdue|length }} in ritardo</span>{% endif %}
           {% if wo_recent %}<span class="mh-card-head-badge mh-badge-amber">{{ wo_recent|length }} recenti</span>{% endif %}
           {% if not wo_overdue and not wo_recent and wo_total %}<span class="mh-card-head-badge mh-badge-green">{{ wo_total }} ok</span>{% endif %}
@@ -843,58 +893,14 @@ body.theme-dark .sc-card-head {
     <!-- ── Colonna destra ──────────────────────────────────────────────── -->
     <div class="mh-side">
 
-      <!-- Azioni rapide -->
-      <div class="mh-card">
-        <div class="mh-card-head"><span class="mh-card-head-title">Azioni rapide</span></div>
-        <div class="mh-card-body">
-          <div class="mh-actions-list">
-            <a href="{{ url_wo_create }}" class="mh-action-btn primary">
-              <span class="mh-action-icon">+</span>
-              <div class="mh-action-body">
-                <div>Nuovo intervento</div>
-                <div class="mh-action-sub">Crea un ordine di lavoro</div>
-              </div>
-            </a>
-            <a href="{{ url_maintenance_schedule }}" class="mh-action-btn secondary">
-              <span class="mh-action-icon">&#128197;</span>
-              <div class="mh-action-body">
-                <div>Scadenzario</div>
-                <div class="mh-action-sub">Manutenzioni · verifiche · scadenze amm.</div>
-              </div>
-            </a>
-            <a href="{{ url_maintenance_schedule }}" class="mh-action-btn secondary">
-              <span class="mh-action-icon">M</span>
-              <div class="mh-action-body">
-                <div>Prossime manutenzioni</div>
-                <div class="mh-action-sub">Regole effettive per asset</div>
-              </div>
-            </a>
-            <a href="{{ url_impostazioni }}" class="mh-action-btn secondary">
-              <span class="mh-action-icon">&#9881;</span>
-              <div class="mh-action-body">
-                <div>Impostazioni</div>
-                <div class="mh-action-sub">Template · regole · override asset</div>
-              </div>
-            </a>
-            <a href="{{ url_wo_list }}" class="mh-action-btn secondary">
-              <span class="mh-action-icon">&#128203;</span>
-              <div class="mh-action-body">
-                <div>Tutti gli interventi</div>
-                <div class="mh-action-sub">Storico OdL aperto/chiuso/annullato</div>
-              </div>
-            </a>
-          </div>
-        </div>
-      </div>
-
       <!-- Prossimi 7 giorni -->
-      {% if next7_items %}
       <div class="mh-card">
         <div class="mh-card-head">
-          <span class="mh-card-head-title">Prossimi 7 giorni</span>
-          <span class="mh-card-head-badge mh-badge-blue">{{ next7_items|length }}</span>
+          <span class="mh-card-head-title">Agenda 7 giorni</span>
+          {% if next7_items %}<span class="mh-card-head-badge mh-badge-blue">{{ next7_items|length }}</span>{% endif %}
         </div>
         <div class="mh-card-body">
+          {% if next7_items %}
           <div class="mh-next-list">
             {% for item in next7_items %}
               <div class="mh-next-item">
@@ -904,30 +910,13 @@ body.theme-dark .sc-card-head {
               </div>
             {% endfor %}
           </div>
-        </div>
-      </div>
-      {% endif %}
-
-      <!-- Statistiche mese -->
-      <div class="mh-card">
-        <div class="mh-card-head"><span class="mh-card-head-title">Mese corrente</span></div>
-        <div class="mh-card-body">
-          <div class="mh-next-list">
-            <div class="mh-next-item">
-              <span class="mh-next-date mh-stat-label">Chiusi</span>
-              <span class="mh-next-label">interventi completati</span>
-              <span class="mh-next-type t-green">{{ closed_recent_count }}</span>
-            </div>
-            <div class="mh-next-item">
-              <span class="mh-next-date mh-stat-label">Aperti</span>
-              <span class="mh-next-label">in attesa di chiusura</span>
-              <span class="mh-next-type {% if wo_total %}t-scadenza{% else %}t-green{% endif %}">{{ wo_total }}</span>
-            </div>
-            <div class="mh-next-item">
-              <span class="mh-next-date mh-stat-label">Regole</span>
-              <span class="mh-next-label">attive per categoria</span>
-              <span class="mh-next-type t-blue">{{ rules_count }}</span>
-            </div>
+          {% else %}
+          <span class="mh-empty">Nessuna scadenza nei prossimi 7 giorni.</span>
+          {% endif %}
+          <div class="mh-agenda-links" aria-label="Registri scadenze">
+            <a href="{{ url_maintenance_schedule }}" class="mh-card-body-link">Scadenzario</a>
+            <a href="{{ url_hub_scadenze }}" class="mh-card-body-link">Scadenze amministrative</a>
+            <a href="{{ url_hub_verifiche }}" class="mh-card-body-link">Verifiche</a>
           </div>
         </div>
       </div>

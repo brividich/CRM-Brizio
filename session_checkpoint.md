@@ -1,8 +1,16 @@
 # Session Checkpoint
 
-Data: 2026-06-17
+Data: 2026-08-05
 
 Ultime voci viste/aggiunte in questa sessione:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-08-05 - Codex` (Assets: hub manutenzione con gerarchia operativa unica).
+- `django_app/assets/templates/assets/pages/maintenance_hub.html` -> eliminati cruscotto e rail azioni duplicati; introdotte fascia priorita, intestazione lavoro operativo e agenda laterale unica a 7 giorni.
+- `django_app/assets/views.py` -> rimosse dall'hub le aggregazioni `cose_da_fare`/`segnalazioni` non piu renderizzate; cruscotto principale Assets invariato.
+- `django_app/assets/tests.py` -> regressione dedicata sulla gerarchia unica e sull'assenza dei blocchi duplicati.
+- `README.md`, `django_app/assets/README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentato il nuovo assetto della pagina manutenzione.
+- Test/check: check Assets OK; test mirati UX/navigazione/regole critiche OK; `git diff --check` OK.
+- Note: nessun file critico modificato, nessun backup, nessuna modifica ad ACL, middleware, settings, autenticazione, permessi, routing globale o navigazione globale; browser autenticato non disponibile nella sessione.
 
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-06-17 - Codex` (Admin Portale/Core: gestione template PDF condiviso)
 - `django_app/core/pdf.py` -> `PdfTheme.from_branding()` legge le nuove chiavi `SiteConfig` `pdf_template_*` per logo PDF, colori primario/accento, testo footer, visibilita data/ora e numerazione pagina; fallback al branding portale quando i valori PDF sono vuoti.

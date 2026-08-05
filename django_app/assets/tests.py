@@ -4034,6 +4034,30 @@ class AssetsRoutingTests(TestCase):
             html=False,
         )
 
+    def test_maintenance_hub_has_one_clear_operational_hierarchy(self):
+        admin = User.objects.create_superuser(
+            username="asset-maintenance-ux-admin",
+            email="asset-maintenance-ux@test.local",
+            password="pass12345",
+        )
+        self.client.force_login(admin)
+
+        response = self.client.get(reverse("assets:maintenance_hub"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            '<section class="mh-priority-strip" aria-label="Priorità manutenzione">',
+            html=False,
+        )
+        self.assertContains(response, "Lavoro operativo")
+        self.assertContains(response, "Interventi da gestire")
+        self.assertContains(response, "Agenda 7 giorni")
+        self.assertContains(response, "Apri il registro completo")
+        self.assertNotContains(response, '<section class="oc-cockpit"', html=False)
+        self.assertNotContains(response, '<div class="mh-actions-list">', html=False)
+        self.assertNotContains(response, "Mese corrente")
+
     def test_superuser_can_create_custom_report_definition(self):
         admin = User.objects.create_superuser(
             username="asset-report-definition-admin",

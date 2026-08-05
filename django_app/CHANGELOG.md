@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Assets - hub manutenzione con gerarchia operativa unica
+
+- **[ux/test] `assets/views.py`, `assets/templates/assets/pages/maintenance_hub.html`, `assets/tests.py`**: `/assets/manutenzione/` elimina il cruscotto duplicato e il rail di azioni gia presenti in toolbar/sotto-nav. Una sola fascia compatta riassume interventi aperti, scaduti, attivita entro 30 giorni e completati; il contenuto principale dichiara la priorita di lettura e il rail mostra solo l'agenda a 7 giorni con accessi diretti ai registri. La view non calcola piu le due aggregazioni del cruscotto rimosso; layout responsive e dark mode coperti; dati, ACL, URL e routing invariati.
+
 ### Anagrafica — modifica matricola per dipendente già esistente
 
 - **[feat/test] `anagrafica/views.py` (`dipendente_matricola_set`), `anagrafica/urls.py`, `anagrafica/models.py` (`DipendenteCambiamentoOrganizzativo.TIPO_MATRICOLA`), `anagrafica/migrations/0098_alter_dipendentecambiamentoorganizzativo_tipo.py` [nuovo], `anagrafica/templates/anagrafica/pages/dipendente_detail.html`, `anagrafica/tests_area_aziendale_dipendente.py`**: la matricola era scrivibile **solo in fase di creazione** del dipendente — nessun punto di modifica successivo. Copre due casi reali: **preinserimento** (il dipendente viene creato prima che gli venga assegnata la matricola aziendale) e **recruiting** (un colloquiante può già esistere come dipendente in anagrafica, senza matricola, prima dell'assunzione formale). Aggiunto mini-form «✏» accanto al campo Matricola nella card «Anagrafica aziendale» (tab Anagrafica, gated `is_admin`, stesso pattern UI di Mansione/Reparto/Username), endpoint `dipendenti/<id>/matricola/set` che aggiorna il campo legacy preservando gli altri campi (`upsert_anagrafica_dipendente`) e registra il cambio in `DipendenteCambiamentoOrganizzativo` (nuovo tipo `MATRICOLA`, migrazione additiva sulle sole `choices`, nessuna modifica di schema). 3 nuovi test (assegnazione, storico cambiamento, permesso negato a non-admin).

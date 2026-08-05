@@ -15859,14 +15859,10 @@ def _due_state(due_date, today):
 
 @login_required
 def maintenance_hub(request: HttpRequest) -> HttpResponse:
-    """Centro Manutenzione unificato a tab.
+    """Centro operativo per priorita, OdL e scadenze di manutenzione.
 
-    Consolida le tre vecchie dashboard (hub / to-do / scadenzario):
-    - tab "da_fare": KPI, interventi aperti, scadenze/verifiche urgenti,
-      macchine in scadenza, ticket MAN, prossimi 7gg, azioni rapide.
-    - tab "scadenzario": tabelle Verifiche periodiche / Scadenze amm. / Contratti.
-
-    Le vecchie URL /scadenzario/ e /todo/ ora rimandano qui (redirect 301).
+    Lo scadenzario canonico vive in ``maintenance_schedule``; i vecchi
+    deep-link ``?tab=scadenzario`` vi confluiscono senza duplicarne la UI.
     """
     from datetime import timedelta
     from .models import AssistanceContract, WorkMachine
@@ -16133,21 +16129,11 @@ def maintenance_hub(request: HttpRequest) -> HttpResponse:
     if scad_sub not in ("verifiche", "scadenze", "contratti"):
         scad_sub = "verifiche"
 
-    # ── Cruscotto operativo (cose da fare + segnalazioni arrivate) ─────────
-    from assets.services.dashboard_kpi import (
-        get_cose_da_fare_overview,
-        get_segnalazioni_overview,
-    )
-    cose_da_fare = get_cose_da_fare_overview(today=today)
-    segnalazioni = get_segnalazioni_overview(today=today)
-
     return render(
         request,
         "assets/pages/maintenance_hub.html",
         {
             **_assets_shell_context(request),
-            "cose_da_fare": cose_da_fare,
-            "segnalazioni": segnalazioni,
             "page_title": "Manutenzione",
             "today": today,
             "is_admin": is_admin,
