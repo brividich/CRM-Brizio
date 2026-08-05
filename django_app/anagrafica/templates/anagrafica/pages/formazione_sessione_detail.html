@@ -368,6 +368,11 @@ body.theme-dark .flatpickr-calendar.inline .flatpickr-next-month svg{ fill:#e2e8
                  title="Registra/vedi presenze">📋 Presenze{% if lz.n_presenze %} ({{ lz.n_presenze }}){% endif %}</a>
               <a class="hr-btn hr-btn-sm" href="{% url 'anagrafica:formazione_lezione_registro' sessione.pk lz.pk %}"
                  target="_blank" rel="noopener" title="Foglio firme stampabile">🖨 Foglio firme</a>
+              {% if is_editor %}
+              <a class="hr-btn hr-btn-sm" href="{% url 'anagrafica:formazione_lezione_registro_qr' sessione.pk lz.pk %}"
+                 target="_blank" rel="noopener"
+                 title="Foglio firme tracciato: elenco congelato alla stampa e QR che riaggancia la scansione a questa giornata">▣ Foglio con QR</a>
+              {% endif %}
               {% if lz.allegati_list %}
                 {% for a in lz.allegati_list %}
                 <a class="hr-btn hr-btn-sm hr-btn-outline" href="{% url 'anagrafica:formazione_allegato_download' a.pk %}"

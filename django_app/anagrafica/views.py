@@ -13602,6 +13602,48 @@ def formazione_lezione_registro(request, sessione_id: int, lezione_id: int):
 
 
 @login_required
+def formazione_lezione_registro_qr(request, sessione_id: int, lezione_id: int):
+    """Emette il **foglio firme tracciato**: elenco congelato, QR con il token e
+    marcatori d'angolo.
+
+    Differenza dal foglio classico: qui la stampa è un fatto registrato. L'elenco
+    resta quello del momento — se domani si aggiunge un iscritto, la riga 7 della
+    scansione continua a essere la persona di allora — e la geometria delle celle
+    viene salvata, così rileggere la scansione sarà una misura su rettangoli noti
+    e non un tentativo di interpretare la scrittura.
+    """
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per emettere fogli firme.")
+        return redirect("anagrafica:formazione_lezione_presenze",
+                        sessione_id=sessione_id, lezione_id=lezione_id)
+
+    sessione = get_object_or_404(TrainingSession.objects.select_related("corso"), pk=sessione_id)
+    lezione  = get_object_or_404(TrainingLesson, pk=lezione_id, sessione=sessione)
+
+    from .services.foglio_firme import emetti_foglio_firme
+    foglio, pdf = emetti_foglio_firme(lezione, user=request.user)
+
+    try:
+        TrainingExportLog.objects.create(
+            tipo="REPORT_FIRMA",
+            filtri_json={
+                "sessione_id": sessione.pk, "lezione_id": lezione.pk,
+                "formato": "foglio_firme_qr", "token": foglio.token,
+            },
+            righe_esportate=foglio.n_righe,
+            generato_da=request.user,
+            ip_address=request.META.get("REMOTE_ADDR") or None,
+        )
+    except Exception:
+        logger.exception("Errore TrainingExportLog per foglio firme QR %s", lezione_id)
+
+    fname = f"Foglio_firme_{foglio.token}.pdf"
+    resp = HttpResponse(pdf, content_type="application/pdf")
+    resp["Content-Disposition"] = f'inline; filename="{fname}"'
+    return resp
+
+
+@login_required
 @require_POST
 def formazione_presenza_set(request, sessione_id: int, lezione_id: int):
     if not _can_edit_formazione(request):

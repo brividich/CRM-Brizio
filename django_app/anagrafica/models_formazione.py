@@ -1080,6 +1080,75 @@ class TrainingEmployeeRecord(models.Model):
 
 
 # ─────────────────────────────────────────────────────────────
+# FOGLIO FIRME EMESSO (catena dell'evidenza, anello 6)
+# ─────────────────────────────────────────────────────────────
+# Il registro cartaceo resta l'unico documento che un ispettore accetta senza
+# discutere. L'idea è farlo diventare anche il modo di compilare il portale,
+# invece di essere una seconda cosa da fare dopo.
+#
+# Perché serve un record e non basta ristampare al volo: al momento della
+# stampa l'elenco viene CONGELATO. Se dopo si aggiunge un iscritto, l'ordine
+# delle righe cambierebbe e la riga 7 del foglio scansionato non sarebbe più la
+# stessa persona della riga 7 ricalcolata. Il foglio emesso è un fatto storico.
+#
+# La geometria delle celle firma viene registrata alla generazione: rende il
+# riconoscimento della scansione una misura su rettangoli di posizione nota,
+# invece di un problema di lettura della scrittura.
+
+class TrainingSignatureSheet(models.Model):
+    """Foglio firme emesso per una giornata: elenco congelato + geometria."""
+
+    STATO_CHOICES = [
+        ("EMESSO",    "Emesso"),
+        ("ACQUISITO", "Scansione acquisita"),
+        ("ANNULLATO", "Annullato"),
+    ]
+
+    lezione    = models.ForeignKey(
+        "anagrafica.TrainingLesson", on_delete=models.CASCADE, related_name="fogli_firme",
+    )
+    token      = models.CharField(
+        max_length=16, unique=True, db_index=True,
+        help_text="Identificativo stampato nel QR: riaggancia la scansione alla giornata "
+                  "senza che nessuno debba sceglierla a mano.",
+    )
+    stato      = models.CharField(max_length=10, choices=STATO_CHOICES, default="EMESSO")
+    righe      = models.JSONField(
+        default=list, blank=True,
+        help_text="Elenco congelato alla stampa: [{n, legacy_id, nome}]. È ciò che "
+                  "rende la riga 7 della scansione la stessa persona di allora.",
+    )
+    geometria  = models.JSONField(
+        default=dict, blank=True,
+        help_text="Posizione in mm delle celle firma sulla pagina, dall'angolo in alto "
+                  "a sinistra. Serve a leggere la scansione senza interpretare la scrittura.",
+    )
+    emesso_il  = models.DateTimeField(auto_now_add=True)
+    emesso_da  = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    scansione  = models.ForeignKey(
+        "anagrafica.TrainingAttachment", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="fogli_firme",
+    )
+    acquisito_il = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-emesso_il", "-id"]
+        verbose_name = "Foglio firme emesso"
+        verbose_name_plural = "Fogli firme emessi"
+        indexes = [models.Index(fields=["lezione", "stato"])]
+
+    def __str__(self) -> str:
+        return f"Foglio {self.token} — lezione {self.lezione_id}"
+
+    @property
+    def n_righe(self) -> int:
+        return len(self.righe or [])
+
+
+# ─────────────────────────────────────────────────────────────
 # VALUTAZIONE DI EFFICACIA (catena dell'evidenza, anello 8)
 # ─────────────────────────────────────────────────────────────
 # Il modulo sapeva raccontare benissimo *che* la formazione era stata erogata.
