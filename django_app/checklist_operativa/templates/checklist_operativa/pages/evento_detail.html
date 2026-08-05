@@ -52,7 +52,7 @@ body.theme-dark .co-table td { border-color:#334155; color:#e2e8f0; }
         <td>{{ v.responsabile|default:"—" }}</td>
         <td>{% if v.confermato %}<span class="co-badge co-badge-on">Confermato</span>{% else %}<span class="co-badge co-badge-off">In attesa</span>{% endif %}</td>
         <td>{% if v.confermato %}{{ v.confermato_da }} — {{ v.confermato_il|date:"d/m/Y H:i" }}{% else %}—{% endif %}</td>
-        <td><a class="co-a" href="{% url 'checklist_operativa:voce_modifica' evento.pk v.pk %}">Modifica</a></td>
+        <td>{% if evento.stato == "aperta" %}<a class="co-a" href="{% url 'checklist_operativa:voce_modifica' evento.pk v.pk %}">Modifica</a>{% endif %}</td>
       </tr>
       {% empty %}
       <tr><td colspan="6">Nessuna voce.</td></tr>

@@ -11542,45 +11542,57 @@ def formazione_corso_create(request):
         # gli errori quando è acceso) ma vincola il salvataggio solo se spuntato.
         sess_ok = sess_form.is_valid()
         if form.is_valid() and sess_ok:
-            corso = form.save(commit=False)
-            corso.created_by = request.user
-            corso.save()
-            form.salva_processi(corso)
             sessione = None
-            if sess_form.cleaned_data.get("pianifica"):
-                from .services.formazione_pianificazione import crea_sessione_unica
-                cd = sess_form.cleaned_data
-                date_puntuali = cd.get("date_puntuali_lista") or []
-                giorni_settimana = None if date_puntuali else {int(g) for g in cd.get("giorni_settimana") or []}
-                sessione = crea_sessione_unica(
-                    corso,
-                    data_inizio=cd.get("data_inizio"),
-                    data_fine=cd.get("data_fine"),
-                    ora_inizio=cd.get("ora_inizio"),
-                    ora_fine=cd.get("ora_fine"),
-                    pausa_minuti=cd.get("pausa_minuti") or 0,
-                    sede=cd.get("sede") or "",
-                    docente=cd.get("docente"),
-                    modalita=cd.get("modalita") or "IN_SEDE",
-                    giorni_settimana=giorni_settimana,
-                    date_puntuali=date_puntuali or None,
-                    user=request.user,
-                )
-            if sessione is not None:
-                n_gruppi = sess_form.cleaned_data.get("n_gruppi") or 1
-                if n_gruppi > 1:
-                    from .services.formazione_pianificazione import dividi_in_gruppi
-                    dividi_in_gruppi(sessione, n_gruppi=n_gruppi, user=request.user)
-                n_lez = sessione.lezioni.count()
-                extra_gruppi = f' in {n_gruppi} gruppi paralleli' if n_gruppi > 1 else ""
-                messages.success(
-                    request,
-                    f'Corso "{corso.titolo}" creato con la sessione {sessione.codice_sessione}{extra_gruppi} '
-                    f'({n_lez} giornat{"a" if n_lez == 1 else "e"} a gruppo, {sessione.ore_pianificate:g} ore formative).',
-                )
-                return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione.pk)
-            messages.success(request, f'Corso "{corso.titolo}" creato.')
-            return redirect("anagrafica:formazione_corso_detail", corso_id=corso.pk)
+            n_gruppi = sess_form.cleaned_data.get("n_gruppi") or 1
+            try:
+                # Corso, sessione, giornate e gruppi nascono in un colpo solo: se
+                # la programmazione fallisce non deve restare a terra un corso a
+                # meta' che l'utente non ha chiesto.
+                with transaction.atomic():
+                    corso = form.save(commit=False)
+                    corso.created_by = request.user
+                    corso.save()
+                    form.salva_processi(corso)
+                    if sess_form.cleaned_data.get("pianifica"):
+                        from .services.formazione_pianificazione import crea_sessione_unica
+                        cd = sess_form.cleaned_data
+                        date_puntuali = cd.get("date_puntuali_lista") or []
+                        giorni_settimana = (
+                            None if date_puntuali else {int(g) for g in cd.get("giorni_settimana") or []}
+                        )
+                        sessione = crea_sessione_unica(
+                            corso,
+                            data_inizio=cd.get("data_inizio"),
+                            data_fine=cd.get("data_fine"),
+                            ora_inizio=cd.get("ora_inizio"),
+                            ora_fine=cd.get("ora_fine"),
+                            pausa_minuti=cd.get("pausa_minuti") or 0,
+                            sede=cd.get("sede") or "",
+                            docente=cd.get("docente"),
+                            modalita=cd.get("modalita") or "IN_SEDE",
+                            giorni_settimana=giorni_settimana,
+                            date_puntuali=date_puntuali or None,
+                            user=request.user,
+                        )
+                        if n_gruppi > 1:
+                            from .services.formazione_pianificazione import dividi_in_gruppi
+                            dividi_in_gruppi(sessione, n_gruppi=n_gruppi, user=request.user)
+            except ValueError as exc:
+                # Il form copre gia' questi casi: ci si arriva solo con una POST
+                # costruita a mano. Meglio un messaggio comprensibile di un 500.
+                messages.error(request, str(exc))
+            else:
+                if sessione is not None:
+                    n_lez = sessione.lezioni.count()
+                    extra_gruppi = f' in {n_gruppi} gruppi paralleli' if n_gruppi > 1 else ""
+                    messages.success(
+                        request,
+                        f'Corso "{corso.titolo}" creato con la sessione {sessione.codice_sessione}{extra_gruppi} '
+                        f'({n_lez} giornat{"a" if n_lez == 1 else "e"} a gruppo, {sessione.ore_pianificate:g} ore formative).',
+                    )
+                    return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione.pk)
+                messages.success(request, f'Corso "{corso.titolo}" creato.')
+                return redirect("anagrafica:formazione_corso_detail", corso_id=corso.pk)
     else:
         initial = {}
         if request.GET.get("piano"):
@@ -12498,39 +12510,49 @@ def formazione_lezioni_genera(request, sessione_id: int):
                 messages.error(request, err)
         return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
 
-    from .services.formazione_pianificazione import genera_lezioni
+    from .services.formazione_pianificazione import genera_lezioni, giorni_da_pianificare
     cd = form.cleaned_data
     date_puntuali = cd.get("date_puntuali_lista") or []
     giorni_settimana = None if date_puntuali else {int(g) for g in cd.get("giorni_settimana") or []}
-    creati = genera_lezioni(
-        sessione,
-        ora_inizio=cd["ora_inizio"],
-        ora_fine=cd["ora_fine"],
-        pausa_minuti=cd.get("pausa_minuti") or 0,
-        argomento=cd.get("argomento") or "",
-        docente=cd.get("docente"),
-        giorni_settimana=giorni_settimana,
-        date_puntuali=date_puntuali or None,
-        user=request.user,
-    )
-    if date_puntuali:
-        # Date puntuali possono cadere fuori dall'intervallo attuale: lo si allarga
-        # per tenerlo coerente con le lezioni effettivamente a calendario.
-        aggiorna = {}
-        if min(date_puntuali) < sessione.data_inizio:
-            aggiorna["data_inizio"] = min(date_puntuali)
-        if max(date_puntuali) > sessione.data_fine:
-            aggiorna["data_fine"] = max(date_puntuali)
-        if aggiorna:
-            for campo, valore in aggiorna.items():
-                setattr(sessione, campo, valore)
-            sessione.save(update_fields=list(aggiorna.keys()))
+    # Generazione e allargamento dell'intervallo sono un'unica mossa: un errore a
+    # meta' non deve lasciare lezioni fuori dalle date dichiarate dalla sessione.
+    with transaction.atomic():
+        richiesti = giorni_da_pianificare(
+            sessione, giorni_settimana=giorni_settimana, date_puntuali=date_puntuali or None,
+        )
+        creati = genera_lezioni(
+            sessione,
+            ora_inizio=cd["ora_inizio"],
+            ora_fine=cd["ora_fine"],
+            pausa_minuti=cd.get("pausa_minuti") or 0,
+            argomento=cd.get("argomento") or "",
+            docente=cd.get("docente"),
+            giorni_settimana=giorni_settimana,
+            date_puntuali=date_puntuali or None,
+            user=request.user,
+        )
+        if date_puntuali:
+            # Date puntuali possono cadere fuori dall'intervallo attuale: lo si allarga
+            # per tenerlo coerente con le lezioni effettivamente a calendario.
+            aggiorna = {}
+            if min(date_puntuali) < sessione.data_inizio:
+                aggiorna["data_inizio"] = min(date_puntuali)
+            if max(date_puntuali) > sessione.data_fine:
+                aggiorna["data_fine"] = max(date_puntuali)
+            if aggiorna:
+                for campo, valore in aggiorna.items():
+                    setattr(sessione, campo, valore)
+                sessione.save(update_fields=list(aggiorna.keys()))
+    gia_presenti = len(richiesti) - len(creati)
     if creati:
         ore = round(sum(lz.durata_ore for lz in creati), 2)
+        # Generazione parziale: dire quante erano gia' a calendario evita che
+        # "3 giornate generate" su 5 richieste sembri una perdita di dati.
+        extra = f' {gia_presenti} erano già a calendario.' if gia_presenti else ""
         messages.success(
             request,
             f'{len(creati)} giornat{"a" if len(creati) == 1 else "e"} generat'
-            f'{"a" if len(creati) == 1 else "e"} ({ore:g} ore formative).',
+            f'{"a" if len(creati) == 1 else "e"} ({ore:g} ore formative).{extra}',
         )
     else:
         messages.info(

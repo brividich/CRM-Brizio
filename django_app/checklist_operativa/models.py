@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.conf import settings
 from django.db import models
+from django.db.models import F, Q
 from django.utils import timezone
 
 
@@ -60,17 +61,33 @@ class ChiusuraEvento(models.Model):
         ordering = ["-data_inizio", "-id"]
         verbose_name = "Evento chiusura aziendale"
         verbose_name_plural = "Eventi chiusura aziendale"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(data_fine__isnull=True) | Q(data_fine__gte=F("data_inizio")),
+                name="co_evento_data_fine_gte_data_inizio",
+            ),
+        ]
 
     def __str__(self) -> str:
         return f"{self.nome} ({self.data_inizio:%d/%m/%Y})"
 
     @property
+    def is_chiusa(self) -> bool:
+        return self.stato == self.STATO_CHIUSA
+
+    # Le tre proprietà sotto leggono l'annotazione preparata da
+    # ``services.eventi_con_progresso`` quando c'è (liste: una query in tutto) e
+    # ricadono sul conteggio puntuale quando non c'è (dettaglio, chiamanti terzi).
+
+    @property
     def voci_totali(self) -> int:
-        return self.voci.count()
+        annotato = getattr(self, "n_voci_totali", None)
+        return annotato if annotato is not None else self.voci.count()
 
     @property
     def voci_confermate(self) -> int:
-        return self.voci.filter(confermato=True).count()
+        annotato = getattr(self, "n_voci_confermate", None)
+        return annotato if annotato is not None else self.voci.filter(confermato=True).count()
 
     @property
     def percentuale_completamento(self) -> int:
@@ -107,6 +124,19 @@ class ChiusuraVoce(models.Model):
         ordering = ["ordine", "id"]
         verbose_name = "Voce checklist chiusura"
         verbose_name_plural = "Voci checklist chiusura"
+        constraints = [
+            # Una mansione del template compare una volta sola per evento: se la
+            # generazione parte due volte (doppio click, richieste concorrenti) il
+            # database rifiuta il doppione invece di sdoppiare la checklist. Le voci
+            # aggiunte a mano hanno ``template`` NULL e restano fuori dal vincolo —
+            # da cui l'indice filtrato, necessario anche perché su SQL Server un
+            # indice unique considera uguali fra loro tutti i NULL.
+            models.UniqueConstraint(
+                fields=["evento", "template"],
+                condition=Q(template__isnull=False),
+                name="co_voce_unica_per_evento_e_template",
+            ),
+        ]
 
     def __str__(self) -> str:
         return f"{self.evento.nome} - [{self.ordine}] {self.descrizione[:60]}"

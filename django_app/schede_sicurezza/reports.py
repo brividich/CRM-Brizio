@@ -66,9 +66,11 @@ def _user_ids_attivi_per_reparto(reparto_id: int) -> set[int]:
 
 def matrice_presa_visione() -> list[RepartoMatricePresaVisione]:
     """Un elemento per ogni Reparto con almeno un prodotto attivo con scheda corrente."""
+    from django.db.models import Count, Prefetch
+
     from anagrafica.models import Reparto
 
-    from .models import PresaVisioneScheda, ProdottoChimico
+    from .models import PresaVisioneScheda, ProdottoChimico, SchedaSicurezza
 
     risultato: list[RepartoMatricePresaVisione] = []
     reparti = (
@@ -81,14 +83,35 @@ def matrice_presa_visione() -> list[RepartoMatricePresaVisione]:
     )
     for reparto in reparti:
         user_ids = _user_ids_attivi_per_reparto(reparto.id)
-        prodotti = (
+        # Schede correnti in prefetch e conferme in un colpo solo per reparto:
+        # a corpo di ciclo, ogni prodotto costava due query (scheda corrente +
+        # conteggio prese visione).
+        prodotti = list(
             ProdottoChimico.objects.filter(reparto=reparto, attivo=True, schede__is_corrente=True)
             .distinct()
             .order_by("nome")
+            .prefetch_related(Prefetch(
+                "schede",
+                queryset=SchedaSicurezza.objects.filter(is_corrente=True),
+                to_attr="schede_correnti",
+            ))
         )
+        schede_ids = [p.schede_correnti[0].id for p in prodotti if p.schede_correnti]
+        conferme: dict[int, int] = {}
+        if user_ids and schede_ids:
+            conferme = dict(
+                PresaVisioneScheda.objects.filter(
+                    scheda_id__in=schede_ids, operatore_id__in=user_ids
+                )
+                # order_by() esplicito: l'ordinamento di Meta finirebbe nel
+                # GROUP BY e SQL Server rifiuterebbe la query (errore 8127).
+                .order_by()
+                .values_list("scheda_id")
+                .annotate(n=Count("id"))
+            )
         righe: list[RigaMatricePresaVisione] = []
         for prodotto in prodotti:
-            scheda = prodotto.scheda_corrente()
+            scheda = prodotto.schede_correnti[0] if prodotto.schede_correnti else None
             if scheda is None:
                 continue
             totale = len(user_ids)
@@ -96,9 +119,7 @@ def matrice_presa_visione() -> list[RepartoMatricePresaVisione]:
                 confermati = 0
                 percentuale = None
             else:
-                confermati = PresaVisioneScheda.objects.filter(
-                    scheda=scheda, operatore_id__in=user_ids
-                ).count()
+                confermati = conferme.get(scheda.id, 0)
                 percentuale = round((confermati / totale) * 100)
             righe.append(RigaMatricePresaVisione(
                 prodotto_id=prodotto.id,

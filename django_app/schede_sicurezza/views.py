@@ -6,11 +6,13 @@ from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import SuspiciousFileOperation
 from django.db.models import Count, F, Prefetch, Q
 from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.text import get_valid_filename
 from django.views.decorators.http import require_POST
 
 from core.csv_export import safe_csv_writer
@@ -66,6 +68,48 @@ def _can_gestire(request) -> bool:
         ).get("allowed"))
     except Exception:
         return bool(getattr(request, "user", None) and request.user.is_superuser)
+
+
+# ---------------------------------------------------------------------------
+# Risposte pubbliche (QR): nome file e header
+# ---------------------------------------------------------------------------
+
+def _nome_file_sds(scheda) -> str:
+    """Nome file dell'allegato per il ``Content-Disposition``, normalizzato.
+
+    Il nome del prodotto è testo libero d'anagrafica: può contenere virgolette,
+    barre o caratteri non ASCII. Django costruisce già l'header in modo sicuro
+    (RFC 6266, niente header injection), ma passare da ``get_valid_filename``
+    dà un nome prevedibile e salvabile su qualunque filesystem, invece di un
+    ``filename*=utf-8''…`` illeggibile.
+    """
+    def _pulisci(valore: str) -> str:
+        try:
+            return get_valid_filename(valore)
+        except SuspiciousFileOperation:
+            # Nome interamente composto da caratteri scartati (o "."/".."): non
+            # e' un errore da propagare, e' un nome da rimpiazzare.
+            return ""
+
+    base = _pulisci(scheda.prodotto.nome) or "scheda-sicurezza"
+    versione = _pulisci(str(scheda.versione or scheda.pk))
+    return f"{base}_v{versione}.pdf" if versione else f"{base}.pdf"
+
+
+def _risposta_pubblica(response):
+    """Header delle due view raggiungibili dal QR, senza login.
+
+    Fuori dal perimetro autenticato non c'è middleware che ci pensi (e non è
+    questo il posto per aggiungerne uno globale): gli header si applicano qui,
+    view per view. ``no-store`` è deliberato — una SDS viene sostituita quando
+    il fornitore la revisiona, e una copia in cache del browser sopravvissuta
+    alla revisione è esattamente il documento che non deve essere consultato.
+    """
+    response["X-Robots-Tag"] = "noindex, nofollow, noarchive"
+    response["Referrer-Policy"] = "no-referrer"
+    response["X-Content-Type-Options"] = "nosniff"
+    response["Cache-Control"] = "no-store, max-age=0"
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -325,8 +369,10 @@ def prodotto_detail(request, pk: int):
         messages.success(request, "Nuova versione della scheda caricata.")
         return redirect("schede_sicurezza:prodotto_detail", pk=pk)
 
-    schede = prodotto.schede.order_by("-data_caricamento")
-    scheda_corrente = prodotto.scheda_corrente()
+    # Lo storico versioni contiene già la scheda corrente: la si pesca da lì
+    # invece di rifare la query dedicata (`scheda_corrente()`).
+    schede = list(prodotto.schede.order_by("-data_caricamento"))
+    scheda_corrente = next((s for s in schede if s.is_corrente), None)
     return render(request, "schede_sicurezza/pages/prodotto_detail.html", {
         "prodotto": prodotto,
         "schede": schede,
@@ -364,13 +410,20 @@ def scheda_mobile(request, uuid):
     # shell applicativa (sidebar/nav/ACL) per i visitatori anonimi — vedi
     # core/base_public.html. L'uuid (non un PK sequenziale) resta l'unica
     # protezione contro l'enumerazione; la pagina e' `noindex, nofollow`.
-    prodotto = get_object_or_404(ProdottoChimico, uuid=uuid, attivo=True)
+    prodotto = get_object_or_404(
+        ProdottoChimico.objects.select_related("reparto").prefetch_related("dpi_obbligatori"),
+        uuid=uuid,
+        attivo=True,
+    )
     scheda = prodotto.scheda_corrente()
     if scheda is None:
         raise Http404("Nessuna scheda di sicurezza corrente per questo prodotto.")
 
-    # Contatore visite: incremento atomico lato DB, poi rispecchiato in memoria
-    # solo per il render di questa risposta (nessuna query di rilettura).
+    # Contatore aperture del QR: incremento atomico lato DB (nessun read-modify-write,
+    # quindi nessun aggiornamento perso fra due scansioni simultanee), poi rispecchiato
+    # in memoria solo per il render di questa risposta (nessuna query di rilettura).
+    # Conta le APERTURE, non i visitatori: la stessa persona che riapre la pagina conta
+    # due volte. Deliberato: nessun fingerprint, nessun cookie, nessun IP registrato.
     ProdottoChimico.objects.filter(pk=prodotto.pk).update(visite_qr=F("visite_qr") + 1)
     prodotto.visite_qr += 1
 
@@ -380,19 +433,24 @@ def scheda_mobile(request, uuid):
         request.user.is_authenticated
         and PresaVisioneScheda.objects.filter(scheda=scheda, operatore=request.user).exists()
     )
-    return render(request, "schede_sicurezza/pages/scheda_mobile.html", {
+    return _risposta_pubblica(render(request, "schede_sicurezza/pages/scheda_mobile.html", {
         "prodotto": prodotto,
         "scheda": scheda,
         "pittogrammi": ghs.dettaglio(scheda.pittogrammi),
         "gia_presa_visione": gia_presa_visione,
         "base_template": "core/base.html" if request.user.is_authenticated else "core/base_public.html",
-    })
+    }))
 
 
 def scheda_mobile_pdf(request, uuid):
     """Download pubblico del PDF corrente, con lo stesso scoping ad uuid della
-    scheda mobile: mai un accesso a PK sequenziale (nessuna enumerazione)."""
-    prodotto = get_object_or_404(ProdottoChimico, uuid=uuid, attivo=True)
+    scheda mobile: mai un accesso a PK sequenziale (nessuna enumerazione).
+
+    Il file servito è **solo** quello della scheda corrente del prodotto
+    indicato: non c'è nessun parametro di percorso o di nome file che il
+    chiamante possa influenzare, quindi nessuna superficie di path traversal.
+    """
+    prodotto = get_object_or_404(ProdottoChimico.objects.select_related("reparto"), uuid=uuid, attivo=True)
     scheda = prodotto.scheda_corrente()
     if scheda is None:
         raise Http404("Nessuna scheda di sicurezza corrente per questo prodotto.")
@@ -400,8 +458,9 @@ def scheda_mobile_pdf(request, uuid):
         fh = scheda.pdf.open("rb")
     except Exception:
         raise Http404("File non disponibile.")
-    filename = f"{scheda.prodotto.nome}_v{scheda.versione or scheda.pk}.pdf"
-    return FileResponse(fh, content_type="application/pdf", filename=filename)
+    return _risposta_pubblica(
+        FileResponse(fh, content_type="application/pdf", filename=_nome_file_sds(scheda))
+    )
 
 
 @login_required
@@ -413,8 +472,7 @@ def scheda_download(request, pk: int):
         fh = scheda.pdf.open("rb")
     except Exception:
         raise Http404("File non disponibile.")
-    filename = f"{scheda.prodotto.nome}_v{scheda.versione or scheda.pk}.pdf"
-    return FileResponse(fh, content_type="application/pdf", filename=filename)
+    return FileResponse(fh, content_type="application/pdf", filename=_nome_file_sds(scheda))
 
 
 @login_required

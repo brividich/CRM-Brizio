@@ -712,6 +712,10 @@ GIORNI_SETTIMANA_CHOICES = [
 ]
 _GIORNI_FERIALI = ["0", "1", "2", "3", "4"]
 
+# Tetto alle date puntuali: dal calendario non ne escono mai tante, ma il campo
+# e' un textarea e una POST costruita a mano genererebbe una lezione per riga.
+MAX_DATE_PUNTUALI = 200
+
 
 def _parse_date_puntuali(testo: str) -> list:
     """Converte «una data per riga» (gg/mm/aaaa, aaaa-mm-gg o gg-mm-aaaa) in date.
@@ -813,6 +817,12 @@ class TrainingSessioneUnicaForm(_TrainingOrarioMixin):
         except ValueError as exc:
             self.add_error("date_puntuali", f"Data non valida: «{exc}». Usa il formato gg/mm/aaaa.")
             cd["date_puntuali_lista"] = []
+        if len(cd["date_puntuali_lista"]) > MAX_DATE_PUNTUALI:
+            self.add_error(
+                "date_puntuali",
+                f"Troppe date puntuali ({len(cd['date_puntuali_lista'])}): il massimo è "
+                f"{MAX_DATE_PUNTUALI}. Usa l'intervallo con i giorni della settimana.",
+            )
         usa_date_puntuali = bool(cd["date_puntuali_lista"])
         if not usa_date_puntuali and not cd.get("data_inizio"):
             self.add_error(
@@ -891,6 +901,12 @@ class TrainingLezioniGeneraForm(_TrainingOrarioMixin):
         except ValueError as exc:
             self.add_error("date_puntuali", f"Data non valida: «{exc}». Usa il formato gg/mm/aaaa.")
             cd["date_puntuali_lista"] = []
+        if len(cd["date_puntuali_lista"]) > MAX_DATE_PUNTUALI:
+            self.add_error(
+                "date_puntuali",
+                f"Troppe date puntuali ({len(cd['date_puntuali_lista'])}): il massimo è "
+                f"{MAX_DATE_PUNTUALI}. Usa l'intervallo con i giorni della settimana.",
+            )
         if not cd["date_puntuali_lista"] and not cd.get("giorni_settimana"):
             self.add_error(
                 "giorni_settimana",
