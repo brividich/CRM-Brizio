@@ -29,7 +29,7 @@ click==8.3.3
     # via pip-tools
 coverage==7.13.5
     # via pytest-cov
-croniter==6.2.2
+croniter==6.2.4
     # via -r requirements.in
 cryptography==44.0.3
     # via
@@ -39,7 +39,7 @@ cryptography==44.0.3
     #   pyspnego
 distlib==0.4.0
     # via virtualenv
-django==5.2.13
+django==5.2.16
     # via
     #   -r requirements.in
     #   django-axes
@@ -50,6 +50,7 @@ django==5.2.13
     #   django-picklefield
     #   django-q2
     #   django-stubs-ext
+    #   djangorestframework
     #   model-bakery
     #   mssql-django
 django-axes==7.1.0
@@ -68,6 +69,8 @@ django-q2==1.9.0
     # via -r requirements.in
 django-stubs-ext==6.0.6
     # via django-fsm-2
+djangorestframework==3.17.1
+    # via -r requirements.in
 et-xmlfile==2.0.0
     # via openpyxl
 factory-boy==3.3.3
@@ -92,7 +95,7 @@ model-bakery==1.24.0
     # via -r requirements-dev.in
 msal==1.36.0
     # via -r requirements.in
-mssql-django==1.6
+mssql-django==1.7.4
     # via -r requirements.in
 nodeenv==1.10.0
     # via pre-commit
@@ -103,7 +106,7 @@ packaging==26.2
     #   build
     #   pytest
     #   wheel
-pillow==12.2.0
+pillow==12.3.0
     # via
     #   -r requirements.in
     #   qrcode
@@ -120,6 +123,8 @@ pluggy==1.6.0
     #   pytest-cov
 pre-commit==4.6.0
     # via -r requirements-dev.in
+puresnmp==2.0.1
+    # via -r requirements.in
 pyasn1==0.6.3
     # via ldap3
 pycparser==3.0
@@ -142,7 +147,7 @@ pyodbc==5.3.0
     #   mssql-django
 pyopenssl==25.1.0
     # via -r requirements.in
-pyotp==2.9.0
+pyotp==2.10.0
     # via -r requirements.in
 pyproject-hooks==1.2.0
     # via
@@ -180,8 +185,12 @@ ruff==0.15.15
     # via -r requirements-dev.in
 six==1.17.0
     # via python-dateutil
+snowballstemmer==3.1.1
+    # via -r requirements.in
 sqlparse==0.5.5
     # via django
+t61codec==1.0.1
+    # via x690
 typing-extensions==4.15.0
     # via
     #   django-stubs-ext
@@ -200,6 +209,10 @@ werkzeug==3.1.8
     # via -r requirements.in
 wheel==0.47.0
     # via pip-tools
+x690==1.0.0.post1
+    # via puresnmp
+xlrd==2.0.2
+    # via -r requirements.in
 
 # The following packages are considered to be unsafe in a requirements file:
 # pip
