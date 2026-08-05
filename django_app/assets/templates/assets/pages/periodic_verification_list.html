@@ -622,7 +622,7 @@ body.theme-dark .pv-list-controls input { background:var(--surface-alt); border-
 
   <details class="pv-system-note">
     <summary>Informazioni sul passaggio alle regole di manutenzione</summary>
-    <div class="pv-system-note-body">I piani mensili convertiti restano consultabili in <strong>Archivio / regole</strong> come riferimento fornitore e storico. Il nuovo trigger temporale viene gestito dalle regole in giorni, ore o chilometri e dagli Ordini di Lavoro automatici.</div>
+    <div class="pv-system-note-body">I piani mensili inglobati restano consultabili in <strong>Archivio / regole</strong> come riferimento. Attivita, asset, ricorrenza e storico sono ora governati dai Piani ordinari del centro manutenzione.</div>
   </details>
 
   {% if selected_asset %}
@@ -797,7 +797,7 @@ body.theme-dark .pv-list-controls input { background:var(--surface-alt); border-
                   </div>
                 </div>
                 <div class="pv-item-top-right">
-                  {% if row.is_legacy %}<span class="pv-pill muted" title="Trigger temporale gestito da una regola di manutenzione">Gestita da regola</span>{% endif %}
+                  {% if row.is_legacy %}<span class="pv-pill muted" title="Attivita e ricorrenza trasferite nei piani ordinari">Inglobata</span>{% endif %}
                   <span class="pv-pill {% if row.state.status == 'overdue' %}danger{% elif row.state.status == 'warning' %}warn{% elif row.state.status == 'ok' %}ok{% else %}muted{% endif %}">{{ row.state.label }}</span>
                 </div>
               </div>
@@ -833,10 +833,10 @@ body.theme-dark .pv-list-controls input { background:var(--surface-alt); border-
                       <input type="hidden" name="scope" value="{{ periodic_scope }}">
                       <input type="hidden" name="verification_id" value="{{ row.verification.id }}">
                       <input type="hidden" name="asset_id" value="{% if selected_asset %}{{ selected_asset.id }}{% endif %}">
-                      <button class="btn" type="submit" title="Crea template + regola a giorni e marca il piano come gestito da regola">Converti in regola</button>
+                      <button class="btn" type="submit" title="Crea il tipo di attivita e i piani sugli asset preservando lo storico">Ingloba nei piani ordinari</button>
                     </form>
                     {% elif row.convert_block_reason %}
-                    <span class="pv-inline-note" title="{{ row.convert_block_reason }}">Conversione non disponibile</span>
+                    <span class="pv-inline-note" title="{{ row.convert_block_reason }}">Inglobamento non disponibile</span>
                     {% endif %}
                     <form class="pv-delete-form" method="post" onsubmit="return confirm('Eliminare questa manutenzione periodica?');">
                       {% csrf_token %}

@@ -1071,10 +1071,10 @@ def _asset_administrative_deadline_create_page_url(*, asset_id: int = 0, compone
     return f"{base_url}?{'&'.join(params)}" if params else base_url
 
 
-def _maintenance_settings_page_url(request: HttpRequest | None = None) -> str:
-    """URL della vista unica Impostazioni manutenzione (tab Interventi & Regole),
-    preservando i filtri categoria/attivo/ricerca eventualmente presenti nella query."""
-    params: list[str] = ["tab=interventi"]
+def _maintenance_settings_page_url(request: HttpRequest | None = None, *, tab: str = "catalogo") -> str:
+    """URL del governo manutenzione, preservando i filtri principali."""
+    tab_value = tab if tab in {"catalogo", "piani", "copertura"} else "catalogo"
+    params: list[str] = [f"tab={tab_value}"]
     if request is not None:
         category_id = _as_int(request.GET.get("category"), default=0)
         if category_id:
@@ -5839,7 +5839,7 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
                 "maintenance_hub",
                 "maintenance_template_list", "maintenance_template_create", "maintenance_template_edit",
                 "maintenance_rule_list", "maintenance_rule_create", "maintenance_rule_edit",
-                "maintenance_schedule", "maintenance_todo",
+                "maintenance_schedule", "maintenance_todo", "maintenance_history",
                 "wo_list", "wo_view", "wo_create", "wo_close",
                 "assistance_contract_list",
             },
@@ -5867,21 +5867,21 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Template manutenzione",
+            "label": "Catalogo attivita",
             "url": maintenance_templates,
             "is_subitem": True,
             "active": current_route in {"maintenance_template_list", "maintenance_template_create", "maintenance_template_edit"},
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Regole manutenzione",
+            "label": "Piani ordinari",
             "url": maintenance_rules,
             "is_subitem": True,
             "active": current_route in {"maintenance_rule_list", "maintenance_rule_create", "maintenance_rule_edit"},
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Manutenzione periodica IT",
+            "label": "Archivio piani IT",
             "url": it_periodic_verifications,
             "is_subitem": True,
             "active": current_route == "periodic_verifications" and current_periodic_scope == "it",
@@ -5917,7 +5917,7 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Manutenzione periodica produzione",
+            "label": "Archivio piani produzione",
             "url": production_periodic_verifications,
             "is_subitem": True,
             "active": current_route == "periodic_verifications" and current_periodic_scope == "production",
@@ -6092,7 +6092,7 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "code": "manutenzione_hub",
             "section": AssetSidebarButton.SECTION_MAIN,
             "label": "Manutenzione",
-            "target_url": "django:assets:maintenance_template_list",
+            "target_url": "django:assets:maintenance_hub",
             "active_match": "/assets/manutenzione/",
             "is_subitem": False,
             "parent_code": "",
@@ -6102,7 +6102,7 @@ def _default_sidebar_seed_rows() -> list[dict]:
         {
             "code": "maintenance_templates",
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Template manutenzione",
+            "label": "Catalogo attivita",
             "target_url": "django:assets:maintenance_template_list",
             "active_match": "/assets/manutenzione/templates/",
             "is_subitem": True,
@@ -6113,7 +6113,7 @@ def _default_sidebar_seed_rows() -> list[dict]:
         {
             "code": "maintenance_rules",
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Regole manutenzione",
+            "label": "Piani ordinari",
             "target_url": "django:assets:maintenance_rule_list",
             "active_match": "/assets/manutenzione/regole/",
             "is_subitem": True,
@@ -6802,6 +6802,7 @@ def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
         "maintenance_todo": "todo",
         "maintenance_schedule": "schedule",
         "maintenance_scadenzario": "schedule",
+        "maintenance_history": "history",
         "wo_list": "workorders",
         "wo_view": "workorders",
         "wo_create": "workorders",
@@ -6824,6 +6825,13 @@ def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
         "assistance_contract_list": "settings",
     }
     active_item = route_to_item.get(current_route)
+    if current_route == "wo_list" and (
+        _clean_string(request.GET.get("view")).lower() == "closed"
+        or _clean_string(request.GET.get("status")).upper() in {WorkOrder.STATUS_DONE, WorkOrder.STATUS_CANCELED}
+    ):
+        active_item = "history"
+    if active_item == "report_templates":
+        active_item = "reports"
     if active_item is None:
         return None
 
@@ -6833,7 +6841,7 @@ def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
     items = [
         {
             "key": "todo",
-            "label": "Da fare",
+            "label": "Oggi",
             "url": reverse("assets:maintenance_hub"),
         },
         {
@@ -6847,19 +6855,19 @@ def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
             "url": workorders_url,
         },
         {
-            "key": "reports",
-            "label": "Report",
-            "url": f"{reverse('assets:reports')}?scope={report_scope}",
-        },
-        {
-            "key": "report_templates",
-            "label": "Template report",
-            "url": reverse("assets:report_template_admin"),
+            "key": "history",
+            "label": "Storico",
+            "url": reverse("assets:maintenance_history"),
         },
         {
             "key": "settings",
-            "label": "Impostazioni",
+            "label": "Catalogo e piani",
             "url": settings_url,
+        },
+        {
+            "key": "reports",
+            "label": "Report",
+            "url": f"{reverse('assets:reports')}?scope={report_scope}",
         },
         {
             "key": "suppliers",
@@ -6894,9 +6902,9 @@ def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
                 "kind": "secondary",
             },
             {
-                "key": "settings",
-                "label": "Impostazioni",
-                "url": settings_url,
+                "key": "new-plan",
+                "label": "+ Nuovo piano",
+                "url": reverse("assets:maintenance_rule_create"),
                 "kind": "secondary",
             },
         ],
@@ -11565,7 +11573,7 @@ def maintenance_template_list(request: HttpRequest) -> HttpResponse:
     if not _is_assets_admin(request):
         messages.error(request, "Solo admin puo gestire i template manutenzione.")
         return redirect("assets:asset_list")
-    return redirect(_maintenance_settings_page_url(request), permanent=True)
+    return redirect(_maintenance_settings_page_url(request, tab="catalogo"), permanent=True)
 
 
 def _save_template_checklist_formset(formset, template) -> None:
@@ -11622,7 +11630,7 @@ def maintenance_template_create(request: HttpRequest) -> HttpResponse:
             )
             messages.success(
                 request,
-                "Template manutenzione creato. Definisci ora una regola che lo applichi a una categoria asset.",
+                "Tipo di attivita creato. Definisci ora il piano che lo applica agli asset.",
             )
             return redirect(_template_next_step_rule_url(template))
     else:
@@ -11633,7 +11641,7 @@ def maintenance_template_create(request: HttpRequest) -> HttpResponse:
         request,
         "assets/pages/maintenance_template_form.html",
         {
-            "page_title": "Nuovo template manutenzione",
+            "page_title": "Nuovo tipo di attivita",
             "form": form,
             "checklist_formset": checklist_formset,
             "is_edit": False,
@@ -11643,8 +11651,8 @@ def maintenance_template_create(request: HttpRequest) -> HttpResponse:
                 rows=_as_int(request.GET.get("rows"), default=25),
                 search_action=reverse("assets:maintenance_template_list"),
                 new_url=reverse("assets:maintenance_template_create"),
-                new_label="+ Nuovo template",
-                search_placeholder="Ricerca rapida per template manutenzione, codice o categoria",
+                new_label="+ Nuovo tipo",
+                search_placeholder="Ricerca rapida per attivita, codice o categoria",
             ),
         },
     )
@@ -11671,7 +11679,7 @@ def maintenance_template_edit(request: HttpRequest, id: int | None = None) -> Ht
                 "assets",
                 {"template_id": template.id, "code": template.code, "asset_category_id": template.asset_category_id},
             )
-            messages.success(request, "Template manutenzione aggiornato.")
+            messages.success(request, "Tipo di attivita aggiornato.")
             return redirect(_maintenance_template_list_page_url(category_id=template.asset_category_id or 0))
     else:
         form = MaintenanceInterventionTemplateForm(instance=template)
@@ -11681,7 +11689,7 @@ def maintenance_template_edit(request: HttpRequest, id: int | None = None) -> Ht
         request,
         "assets/pages/maintenance_template_form.html",
         {
-            "page_title": f"Modifica template {template.label}",
+            "page_title": f"Modifica attivita {template.label}",
             "form": form,
             "checklist_formset": checklist_formset,
             "template": template,
@@ -11693,8 +11701,8 @@ def maintenance_template_edit(request: HttpRequest, id: int | None = None) -> Ht
                 rows=_as_int(request.GET.get("rows"), default=25),
                 search_action=reverse("assets:maintenance_template_list"),
                 new_url=reverse("assets:maintenance_template_create"),
-                new_label="+ Nuovo template",
-                search_placeholder="Ricerca rapida per template manutenzione, codice o categoria",
+                new_label="+ Nuovo tipo",
+                search_placeholder="Ricerca rapida per attivita, codice o categoria",
             ),
         },
     )
@@ -11707,7 +11715,7 @@ def maintenance_rule_list(request: HttpRequest) -> HttpResponse:
     if not _is_assets_admin(request):
         messages.error(request, "Solo admin puo gestire le regole manutenzione.")
         return redirect("assets:asset_list")
-    return redirect(_maintenance_settings_page_url(request), permanent=True)
+    return redirect(_maintenance_settings_page_url(request, tab="piani"), permanent=True)
 
 
 @login_required
@@ -11740,7 +11748,7 @@ def maintenance_rule_create(request: HttpRequest) -> HttpResponse:
                     "threshold_value": rule.threshold_value,
                 },
             )
-            messages.success(request, "Regola manutenzione creata.")
+            messages.success(request, "Piano di manutenzione creato.")
             return redirect(
                 _maintenance_rule_list_page_url(
                     category_id=rule.asset_category_id,
@@ -11756,7 +11764,7 @@ def maintenance_rule_create(request: HttpRequest) -> HttpResponse:
         request,
         "assets/pages/maintenance_rule_form.html",
         {
-            "page_title": "Nuova regola manutenzione",
+            "page_title": "Nuovo piano manutenzione",
             "form": form,
             "maintenance_rule_form_state": form_state,
             "is_edit": False,
@@ -11769,8 +11777,8 @@ def maintenance_rule_create(request: HttpRequest) -> HttpResponse:
                 rows=_as_int(request.GET.get("rows"), default=25),
                 search_action=reverse("assets:maintenance_rule_list"),
                 new_url=reverse("assets:maintenance_rule_create"),
-                new_label="+ Nuova regola",
-                search_placeholder="Ricerca rapida per regola, template o categoria",
+                new_label="+ Nuovo piano",
+                search_placeholder="Ricerca rapida per piano, attivita o categoria",
             ),
         },
     )
@@ -11804,7 +11812,7 @@ def maintenance_rule_edit(request: HttpRequest, id: int | None = None) -> HttpRe
                     "threshold_value": rule.threshold_value,
                 },
             )
-            messages.success(request, "Regola manutenzione aggiornata.")
+            messages.success(request, "Piano di manutenzione aggiornato.")
             return redirect(
                 _maintenance_rule_list_page_url(
                     category_id=rule.asset_category_id,
@@ -11820,7 +11828,7 @@ def maintenance_rule_edit(request: HttpRequest, id: int | None = None) -> HttpRe
         request,
         "assets/pages/maintenance_rule_form.html",
         {
-            "page_title": f"Modifica regola {rule.intervention_template.label}",
+            "page_title": f"Modifica piano {rule.intervention_template.label}",
             "form": form,
             "maintenance_rule_form_state": form_state,
             "rule": rule,
@@ -11834,8 +11842,8 @@ def maintenance_rule_edit(request: HttpRequest, id: int | None = None) -> HttpRe
                 rows=_as_int(request.GET.get("rows"), default=25),
                 search_action=reverse("assets:maintenance_rule_list"),
                 new_url=reverse("assets:maintenance_rule_create"),
-                new_label="+ Nuova regola",
-                search_placeholder="Ricerca rapida per regola, template o categoria",
+                new_label="+ Nuovo piano",
+                search_placeholder="Ricerca rapida per piano, attivita o categoria",
             ),
         },
     )
@@ -14363,7 +14371,7 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
         if action == "convert_periodic_to_rule":
             redirect_url = _periodic_verification_redirect_from_request(request)
             if not can_manage_periodic_verifications:
-                messages.error(request, "Solo admin puo convertire la manutenzione periodica in regola.")
+                messages.error(request, "Solo admin puo inglobare la manutenzione periodica nei piani ordinari.")
                 return redirect(redirect_url)
             verification_id = _as_int(request.POST.get("verification_id"), default=0)
             verification = (
@@ -14381,7 +14389,7 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
 
             result = migrate_periodic_verification_to_rule(verification)
             if not result.get("ok"):
-                messages.error(request, result.get("message") or "Conversione non possibile per questo piano.")
+                messages.error(request, result.get("message") or "Inglobamento non possibile per questo piano.")
                 return redirect(redirect_url)
             log_action(
                 request,
@@ -14398,8 +14406,8 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
             )
             messages.success(
                 request,
-                f"Piano convertito in regola ({result['threshold_days']} giorni). "
-                "Il trigger temporale e ora gestito dalle regole di manutenzione.",
+                f"Piano inglobato in {len(result.get('rules') or [result['rule']])} piano/i ordinari "
+                f"({result['threshold_days']} giorni), con asset e storico preservati.",
             )
             return redirect(redirect_url)
 
@@ -16105,6 +16113,123 @@ def _due_state(due_date, today):
 
 
 @login_required
+def maintenance_history(request: HttpRequest) -> HttpResponse:
+    """Storico aziendale unico: OdL conclusi e ticket MAN, senza alterarne i flussi."""
+    from tickets.models import StatoTicket, Ticket, TipoTicket
+
+    q = _clean_string(request.GET.get("q"))
+    source = _clean_string(request.GET.get("source")).lower() or "all"
+    if source not in {"all", "workorders", "tickets"}:
+        source = "all"
+
+    def parsed_date(name: str) -> date | None:
+        raw = _clean_string(request.GET.get(name))
+        try:
+            return date.fromisoformat(raw) if raw else None
+        except ValueError:
+            return None
+
+    date_from = parsed_date("date_from")
+    date_to = parsed_date("date_to")
+    rows: list[dict[str, object]] = []
+
+    if source in {"all", "workorders"}:
+        workorders = WorkOrder.objects.filter(
+            status__in=[WorkOrder.STATUS_DONE, WorkOrder.STATUS_CANCELED]
+        ).select_related(
+            "asset", "executed_by", "assigned_to", "supplier", "maintenance_rule__intervention_template"
+        )
+        if q:
+            workorders = workorders.filter(
+                Q(title__icontains=q)
+                | Q(description__icontains=q)
+                | Q(resolution__icontains=q)
+                | Q(asset__asset_tag__icontains=q)
+                | Q(asset__name__icontains=q)
+                | Q(maintenance_rule__intervention_template__label__icontains=q)
+            )
+        if date_from:
+            workorders = workorders.filter(closed_at__date__gte=date_from)
+        if date_to:
+            workorders = workorders.filter(closed_at__date__lte=date_to)
+        for workorder in workorders.order_by("-closed_at", "-id")[:500]:
+            technician = workorder.executed_by or workorder.assigned_to
+            rows.append(
+                {
+                    "source": "workorder",
+                    "source_label": "OdL",
+                    "date": workorder.closed_at or workorder.opened_at,
+                    "title": workorder.title,
+                    "asset": workorder.asset,
+                    "type_label": workorder.get_kind_display(),
+                    "status_label": workorder.get_status_display(),
+                    "technician": technician.get_full_name() or technician.username if technician else "-",
+                    "duration_minutes": workorder.intervention_duration_minutes,
+                    "cost": workorder.resolved_total_cost_eur,
+                    "url": reverse("assets:wo_view", kwargs={"id": workorder.id}),
+                }
+            )
+
+    if source in {"all", "tickets"}:
+        tickets = Ticket.objects.filter(
+            tipo=TipoTicket.MAN,
+            include_in_maintenance_register=True,
+            stato__in=[StatoTicket.RISOLTO, StatoTicket.CHIUSO, StatoTicket.ANNULLATO],
+        ).select_related("asset")
+        if q:
+            tickets = tickets.filter(
+                Q(titolo__icontains=q)
+                | Q(descrizione__icontains=q)
+                | Q(numero_ticket__icontains=q)
+                | Q(asset__asset_tag__icontains=q)
+                | Q(asset__name__icontains=q)
+            )
+        if date_from:
+            tickets = tickets.filter(closed_at__date__gte=date_from)
+        if date_to:
+            tickets = tickets.filter(closed_at__date__lte=date_to)
+        for ticket in tickets.order_by("-closed_at", "-id")[:500]:
+            rows.append(
+                {
+                    "source": "ticket",
+                    "source_label": "Ticket MAN",
+                    "date": ticket.closed_at or ticket.created_at,
+                    "title": ticket.titolo,
+                    "asset": ticket.asset,
+                    "type_label": ticket.label_categoria,
+                    "status_label": ticket.label_stato,
+                    "technician": ticket.risolto_da_nome or ticket.assegnato_a or "-",
+                    "duration_minutes": 0,
+                    "cost": None,
+                    "url": reverse("tickets:detail", kwargs={"pk": ticket.id}),
+                }
+            )
+
+    rows.sort(key=lambda row: row["date"] or timezone.now(), reverse=True)
+    total_duration = sum(int(row["duration_minutes"] or 0) for row in rows)
+    total_cost = sum((row["cost"] or Decimal("0")) for row in rows)
+
+    return render(
+        request,
+        "assets/pages/maintenance_history.html",
+        {
+            **_assets_shell_context(request),
+            "page_title": "Storico manutenzione aziendale",
+            "history_rows": rows[:500],
+            "history_total": len(rows),
+            "history_workorder_count": sum(1 for row in rows if row["source"] == "workorder"),
+            "history_ticket_count": sum(1 for row in rows if row["source"] == "ticket"),
+            "history_duration_hours": round(total_duration / 60, 1),
+            "history_total_cost": total_cost,
+            "q": q,
+            "source": source,
+            "date_from": date_from,
+            "date_to": date_to,
+        },
+    )
+
+
+@login_required
 def maintenance_hub(request: HttpRequest) -> HttpResponse:
     """Centro operativo per priorita, OdL e scadenze di manutenzione.
 
@@ -16170,11 +16295,7 @@ def maintenance_hub(request: HttpRequest) -> HttpResponse:
         assigned=assigned_filter,
         open_age=wo_overdue_days,
     )
-    wo_done_url = _workorder_list_page_url(
-        status=WorkOrder.STATUS_DONE,
-        reparto=reparto_filter,
-        assigned=assigned_filter,
-    )
+    wo_done_url = reverse("assets:maintenance_history")
 
     # ── KPI condivisi (count) ──────────────────────────────────────────────
     upcoming_deadlines_count = AssetAdministrativeDeadline.objects.filter(
@@ -16574,9 +16695,7 @@ def _maintenance_plan_by_category_rows() -> list[dict[str, object]]:
 
 @login_required
 def maintenance_impostazioni(request: HttpRequest) -> HttpResponse:
-    """Impostazioni manutenzione: unica vista Interventi & Regole (con filtri integrati)
-    + Piano per categoria. Le vecchie tab 'templates'/'rules' e le pagine standalone
-    'Vista avanzata' sono confluite qui."""
+    """Catalogo attivita, piani ordinari e copertura: centro di governo manutenzione."""
     # I fornitori hanno ora una pagina dedicata (nav di sezione): vecchi link ?tab=fornitori lì.
     if _clean_string(request.GET.get("tab")) == "fornitori":
         return redirect("assets:maintenance_suppliers")
@@ -16623,12 +16742,15 @@ def maintenance_impostazioni(request: HttpRequest) -> HttpResponse:
             )
         return redirect(piano_url)
 
-    active_tab = _clean_string(request.GET.get("tab")) or "interventi"
-    # Compat: vecchie tab (templates/rules) e vecchie URL -> tab unica "interventi".
-    if active_tab in ("templates", "rules"):
-        active_tab = "interventi"
-    if active_tab not in ("interventi", "piano"):
-        active_tab = "interventi"
+    active_tab = _clean_string(request.GET.get("tab")) or "catalogo"
+    active_tab = {
+        "interventi": "catalogo",
+        "templates": "catalogo",
+        "rules": "piani",
+        "piano": "copertura",
+    }.get(active_tab, active_tab)
+    if active_tab not in ("catalogo", "piani", "copertura"):
+        active_tab = "catalogo"
     is_admin = _is_assets_admin(request)
 
     from .models import MaintenanceInterventionTemplate
@@ -16685,7 +16807,66 @@ def maintenance_impostazioni(request: HttpRequest) -> HttpResponse:
         selected_category is not None or q or active_filter != "active" or execution_filter != "all"
     )
 
-    plan_rows = _maintenance_plan_by_category_rows() if active_tab == "piano" else []
+    maintenance_plan_qs = (
+        MaintenanceRule.objects.select_related(
+            "intervention_template", "asset_category", "supplier", "assigned_to"
+        )
+        .prefetch_related("assets", "legacy_periodic_verifications")
+        .annotate(
+            history_count=Count("workorders", distinct=True),
+            completed_count=Count(
+                "workorders",
+                filter=Q(workorders__status=WorkOrder.STATUS_DONE),
+                distinct=True,
+            ),
+        )
+        .order_by("asset_category__label", "sort_order", "intervention_template__label", "id")
+    )
+    if selected_category is not None:
+        maintenance_plan_qs = maintenance_plan_qs.filter(asset_category=selected_category)
+    if active_filter == "active":
+        maintenance_plan_qs = maintenance_plan_qs.filter(is_active=True)
+    elif active_filter == "inactive":
+        maintenance_plan_qs = maintenance_plan_qs.filter(is_active=False)
+    if execution_filter == "external":
+        maintenance_plan_qs = maintenance_plan_qs.filter(execution_mode=MaintenanceRule.MODE_EXTERNAL)
+    elif execution_filter == "internal":
+        maintenance_plan_qs = maintenance_plan_qs.filter(execution_mode=MaintenanceRule.MODE_INTERNAL)
+    if q:
+        maintenance_plan_qs = maintenance_plan_qs.filter(
+            Q(intervention_template__label__icontains=q)
+            | Q(intervention_template__code__icontains=q)
+            | Q(asset_category__label__icontains=q)
+            | Q(assets__asset_tag__icontains=q)
+            | Q(assets__name__icontains=q)
+            | Q(supplier__ragione_sociale__icontains=q)
+            | Q(assigned_to__username__icontains=q)
+            | Q(assigned_to__first_name__icontains=q)
+            | Q(assigned_to__last_name__icontains=q)
+        ).distinct()
+
+    category_asset_counts = dict(
+        Asset.objects.filter(status=Asset.STATUS_IN_USE, asset_category_id__isnull=False)
+        .values_list("asset_category_id")
+        .annotate(total=Count("id"))
+    )
+    maintenance_plan_rows = []
+    for rule in maintenance_plan_qs:
+        targeted_assets = list(rule.assets.all())
+        maintenance_plan_rows.append(
+            {
+                "rule": rule,
+                "asset_count": (
+                    len(targeted_assets)
+                    if rule.scope_type == MaintenanceRule.SCOPE_ASSETS
+                    else category_asset_counts.get(rule.asset_category_id, 0)
+                ),
+                "targeted_assets": targeted_assets,
+                "legacy_count": len(rule.legacy_periodic_verifications.all()),
+            }
+        )
+
+    plan_rows = _maintenance_plan_by_category_rows() if active_tab == "copertura" else []
     plan_totals = {
         "overdue": sum(int(r["overdue"]) for r in plan_rows),
         "warning": sum(int(r["warning"]) for r in plan_rows),
@@ -16704,11 +16885,19 @@ def maintenance_impostazioni(request: HttpRequest) -> HttpResponse:
         "assets/pages/maintenance_impostazioni.html",
         {
             **_assets_shell_context(request),
-            "page_title": "Impostazioni manutenzione",
+            "page_title": "Catalogo e piani manutenzione",
             "active_tab": active_tab,
             "is_admin": is_admin,
             "template_rows": template_rows,
             "template_count": len(template_rows),
+            "maintenance_plan_rows": maintenance_plan_rows,
+            "maintenance_plan_count": len(maintenance_plan_rows),
+            "ingested_periodic_count": PeriodicVerification.objects.filter(
+                maintenance_rules__isnull=False
+            ).distinct().count(),
+            "pending_periodic_count": PeriodicVerification.objects.filter(
+                maintenance_rules__isnull=True
+            ).count(),
             "plan_rows": plan_rows,
             "plan_category_count": plan_category_count,
             "plan_totals": plan_totals,
@@ -16719,7 +16908,7 @@ def maintenance_impostazioni(request: HttpRequest) -> HttpResponse:
             "execution_filter": execution_filter,
             "q": q,
             "has_active_filters": has_active_filters,
-            "clear_filters_url": reverse("assets:maintenance_impostazioni") + "?tab=interventi",
+            "clear_filters_url": reverse("assets:maintenance_impostazioni") + f"?tab={active_tab}",
             "url_suppliers": reverse("assets:maintenance_suppliers"),
             "url_hub": reverse("assets:maintenance_hub"),
             "url_scadenzario": reverse("assets:maintenance_scadenzario"),

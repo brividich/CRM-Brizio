@@ -355,16 +355,19 @@ class AssetMeter(models.Model):
 - [x] Banner di deprecation visibile in `periodic_verification_list` con conteggio piani già migrati
 - [x] Management command `migrate_periodic_to_rules` creato con `--dry-run`, `--apply`, `--pv-id`, `--only-legacy`
 - [x] Command idempotente: non crea duplicati di template/regole su esecuzioni multiple
-- [x] Salta piani senza asset o con categorie miste (segnalazione chiara in output)
+- [x] Suddivide i piani multi-categoria in piani asset-specifici per categoria
+- [x] Preserva storico OdL e baseline ultima esecuzione; lascia pendenti solo piani senza asset o con asset non categorizzati
 - [x] CHANGELOG aggiornato
 
-**Stato**: ✅ Completato — 2026-05-08
+**Stato**: ✅ Consolidato — 2026-08-05
 
 - `assets/models.py:PeriodicVerification`: campo `is_legacy` aggiunto
 - `assets/migrations/0062_periodicverification_is_legacy.py`: migrazione generata
 - `assets/management/commands/migrate_periodic_to_rules.py`: creato (nuovo file)
 - `assets/templates/assets/pages/periodic_verification_list.html`: banner deprecation giallo aggiunto
 - `assets/views.py:periodic_verification_list`: `legacy_verification_count` nel contesto
+- `assets/migrations/0088_*` / `0089_ingest_periodic_verifications_into_plans.py`: `MaintenanceRule` promosso a piano canonico con scope categoria/asset, responsabile, prima scadenza e automazione; ingestione dati automatica e conservativa.
+- `/assets/manutenzione/impostazioni/`: catalogo attivita, piani ordinari e copertura separati; il vecchio archivio resta accessibile solo per eccezioni e tracciabilita.
 
 ---
 

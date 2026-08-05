@@ -1,0 +1,48 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Storico manutenzione aziendale{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.mhs-page{display:grid;gap:14px}.mhs-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}.mhs-kpi,.mhs-card{border:1px solid #dbe1ea;border-radius:12px;background:#fff}.mhs-kpi{padding:12px 14px}.mhs-kpi strong{display:block;font-size:var(--fs-display-lg);color:#0f172a}.mhs-kpi span{color:#64748b;font-size:var(--fs-sm)}.mhs-filters{display:grid;grid-template-columns:minmax(220px,1fr) 180px 150px 150px auto;gap:8px;padding:12px}.mhs-filters input,.mhs-filters select{min-height:40px;border:1px solid #cbd5e1;border-radius:9px;padding:8px 10px;font:inherit;background:#fff}.mhs-table-wrap{overflow:auto}.mhs-table{width:100%;border-collapse:collapse}.mhs-table th{padding:9px 12px;text-align:left;background:#f8fafc;color:#64748b;font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.05em}.mhs-table td{padding:11px 12px;border-top:1px solid #eef2f7;vertical-align:top;font-size:var(--fs-sm)}.mhs-title{font-weight:800;color:#0f172a;text-decoration:none}.mhs-meta{display:block;color:#64748b;font-size:var(--fs-xs);margin-top:3px}.mhs-source{display:inline-flex;padding:2px 7px;border-radius:999px;background:#dbeafe;color:#1d4ed8;font-size:var(--fs-xs);font-weight:800}.mhs-source.ticket{background:#fef3c7;color:#92400e}.mhs-empty{text-align:center;color:#64748b;padding:30px!important}body.theme-dark .mhs-kpi,body.theme-dark .mhs-card{background:var(--surface);border-color:var(--border)}body.theme-dark .mhs-kpi strong,body.theme-dark .mhs-title{color:var(--text)}body.theme-dark .mhs-filters input,body.theme-dark .mhs-filters select{background:var(--surface-alt);border-color:var(--border);color:var(--text)}body.theme-dark .mhs-table th{background:var(--surface-alt)}body.theme-dark .mhs-table td{border-color:var(--border)}@media(max-width:900px){.mhs-summary{grid-template-columns:repeat(2,1fr)}.mhs-filters{grid-template-columns:1fr 1fr}}@media(max-width:560px){.mhs-summary,.mhs-filters{grid-template-columns:1fr}}
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Storico manutenzione aziendale{% endblock %}
+{% block assets_shell_subtitle %}<p>Un'unica cronologia per OdL conclusi e ticket MAN, senza cambiare il flusso dei ticket.</p>{% endblock %}
+{% block assets_shell_toolbar %}<a class="btn" href="{% url 'assets:maintenance_hub' %}">&larr; Centro manutenzione</a><a class="btn btn-primary" href="{% url 'assets:wo_list' %}?create=1">+ Nuovo intervento</a>{% endblock %}
+
+{% block assets_shell_content %}
+<section class="mhs-page">
+  <div class="mhs-summary">
+    <article class="mhs-kpi"><strong>{{ history_total }}</strong><span>attivita concluse</span></article>
+    <article class="mhs-kpi"><strong>{{ history_workorder_count }}</strong><span>ordini di lavoro</span></article>
+    <article class="mhs-kpi"><strong>{{ history_ticket_count }}</strong><span>ticket manutenzione</span></article>
+    <article class="mhs-kpi"><strong>{{ history_duration_hours }} h</strong><span>tempo consuntivato · {{ history_total_cost|floatformat:2 }} €</span></article>
+  </div>
+  <form class="mhs-card mhs-filters" method="get">
+    <input type="search" name="q" value="{{ q }}" placeholder="Cerca attivita, asset o ticket" aria-label="Cerca nello storico">
+    <select name="source" aria-label="Origine"><option value="all"{% if source == 'all' %} selected{% endif %}>OdL + ticket MAN</option><option value="workorders"{% if source == 'workorders' %} selected{% endif %}>Solo OdL</option><option value="tickets"{% if source == 'tickets' %} selected{% endif %}>Solo ticket MAN</option></select>
+    <input type="date" name="date_from" value="{% if date_from %}{{ date_from|date:'Y-m-d' }}{% endif %}" aria-label="Dal giorno">
+    <input type="date" name="date_to" value="{% if date_to %}{{ date_to|date:'Y-m-d' }}{% endif %}" aria-label="Al giorno">
+    <button class="btn btn-primary" type="submit">Filtra</button>
+  </form>
+  <article class="mhs-card mhs-table-wrap">
+    <table class="mhs-table">
+      <thead><tr><th>Data</th><th>Origine</th><th>Attivita e asset</th><th>Tipo / esito</th><th>Tecnico</th><th>Tempo / costo</th></tr></thead>
+      <tbody>
+      {% for row in history_rows %}
+        <tr data-row-href="{{ row.url }}">
+          <td>{{ row.date|date:"d/m/Y H:i" }}</td>
+          <td><span class="mhs-source{% if row.source == 'ticket' %} ticket{% endif %}">{{ row.source_label }}</span></td>
+          <td><a class="mhs-title" href="{{ row.url }}">{{ row.title }}</a>{% if row.asset %}<span class="mhs-meta">{{ row.asset.asset_tag }} · {{ row.asset.name }}</span>{% endif %}</td>
+          <td>{{ row.type_label }}<span class="mhs-meta">{{ row.status_label }}</span></td>
+          <td>{{ row.technician }}</td>
+          <td>{% if row.duration_minutes %}{{ row.duration_minutes }} min{% else %}<span class="mhs-meta">tempo non indicato</span>{% endif %}{% if row.cost != None %}<span class="mhs-meta">{{ row.cost|floatformat:2 }} €</span>{% endif %}</td>
+        </tr>
+      {% empty %}<tr><td colspan="6" class="mhs-empty">Nessuna manutenzione conclusa corrisponde ai filtri.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </article>
+</section>
+{% endblock %}

@@ -72,8 +72,9 @@ class Command(BaseCommand):
 
         rules_qs = (
             MaintenanceRule.objects
-            .filter(is_active=True)
-            .select_related("intervention_template", "asset_category")
+            .filter(is_active=True, auto_generate_workorders=True)
+            .select_related("intervention_template", "asset_category", "assigned_to", "supplier")
+            .prefetch_related("assets")
         )
         if category_id:
             rules_qs = rules_qs.filter(asset_category_id=category_id)
@@ -125,11 +126,13 @@ class Command(BaseCommand):
         skipped_no_meter = 0
 
         for rule in rules:
-            assets = list(
-                Asset.objects
-                .filter(asset_category_id=rule.asset_category_id, status=Asset.STATUS_IN_USE)
-                .only("id", "asset_tag", "name")
+            assets_qs = Asset.objects.filter(
+                asset_category_id=rule.asset_category_id,
+                status=Asset.STATUS_IN_USE,
             )
+            if rule.scope_type == MaintenanceRule.SCOPE_ASSETS:
+                assets_qs = assets_qs.filter(pk__in=rule.assets.values("pk"))
+            assets = list(assets_qs.only("id", "asset_tag", "name"))
 
             for asset in assets:
                 if limit and created >= limit:
@@ -173,7 +176,7 @@ class Command(BaseCommand):
                     if last_execution_date:
                         next_due = last_execution_date + timedelta(days=effective_threshold_value)
                     else:
-                        next_due = today
+                        next_due = rule.first_due_date or today
                     horizon = today + timedelta(days=rule.warning_days)
                     if next_due <= horizon:
                         due = True
@@ -233,10 +236,12 @@ class Command(BaseCommand):
                         asset=asset,
                         maintenance_rule=rule,
                         origin=WorkOrder.ORIGIN_PERIODIC,
-                        kind=WorkOrder.KIND_PREVENTIVE,
+                        kind=getattr(effective_template, "workorder_kind", WorkOrder.KIND_PREVENTIVE),
                         status=WorkOrder.STATUS_OPEN,
                         title=title,
                         description=getattr(effective_template, "description", "") or "",
+                        assigned_to=rule.assigned_to,
+                        supplier=rule.supplier,
                         reference_batch=f"auto-{today:%Y%m%d}",
                     )
                     wo.save()

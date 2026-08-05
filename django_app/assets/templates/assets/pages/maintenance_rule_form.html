@@ -1,6 +1,6 @@
 {% extends "assets/base_shell.html" %}
 
-{% block title %}{% if is_edit %}Modifica regola manutenzione{% else %}Nuova regola manutenzione{% endif %}{% endblock %}
+{% block title %}{% if is_edit %}Modifica piano manutenzione{% else %}Nuovo piano manutenzione{% endif %}{% endblock %}
 {% block assets_shell_head %}
 <style>
 .mrf-support-card,
@@ -9,6 +9,12 @@
   border-radius: 14px;
   background: #fff;
 }
+.mrf-section { border:0; border-top:1px solid #e5e7eb; padding:14px 0 2px; margin:0; }
+.mrf-section:first-of-type { border-top:0; padding-top:0; }
+.mrf-section legend { padding:0 8px 0 0; font-size:var(--fs-md); font-weight:850; color:#0f172a; }
+.mrf-section-note { color:#64748b; font-size:var(--fs-sm); margin:-2px 0 10px; }
+body.theme-dark .mrf-section { border-color:var(--border); }
+body.theme-dark .mrf-section legend { color:var(--text); }
 .mrf-support-card {
   padding: 14px 16px;
   display: grid;
@@ -75,9 +81,9 @@
 }
 </style>
 {% endblock %}
-{% block assets_shell_title %}{% if is_edit %}Modifica regola manutenzione{% else %}Nuova regola manutenzione{% endif %}{% endblock %}
+{% block assets_shell_title %}{% if is_edit %}Modifica piano manutenzione{% else %}Nuovo piano manutenzione{% endif %}{% endblock %}
 {% block assets_shell_subtitle %}
-<p>Policy standard per categoria asset, basata su un template intervento e una soglia.</p>
+<p>Applica un tipo di attivita agli asset e definisci frequenza, responsabilita e automazione.</p>
 {% endblock %}
 
 {% block assets_shell_content %}
@@ -86,20 +92,12 @@
     <a href="{{ back_url }}" class="as-backlink">&larr; Indietro</a>
   </header>
 
-  <article style="border:1px solid #dbe1ea;border-radius:14px;background:#f8fbff;padding:14px 16px;">
-    <div style="font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.05em;color:#1d4ed8;font-weight:800;">Nota operativa</div>
-    <div class="as-note" style="margin-top:6px;color:#365b9d;">
-      Le soglie a giorni sono immediatamente utilizzabili; ore, km e cicli vengono modellati ora
-      per preparare gli step successivi senza introdurre ancora calcoli operativi completi.
-    </div>
-  </article>
-
   <article class="mrf-support-card">
     <div class="mrf-support-top">
       <div>
-        <div style="font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.05em;color:#1d4ed8;font-weight:800;">Template e categorie</div>
+        <div style="font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.05em;color:#1d4ed8;font-weight:800;">Catalogo attivita</div>
         <div class="as-note" style="margin-top:6px;">
-          Il template definisce il tipo di intervento; la regola aggiunge soglia, warning e ordine operativo.
+          Se il lavoro da svolgere non esiste ancora, crealo prima nel catalogo e poi torna al piano.
         </div>
       </div>
       <div class="mrf-support-actions">
@@ -108,13 +106,13 @@
           class="btn"
           href="{{ maintenance_rule_form_state.template_list_url }}"
           data-base-url="{{ maintenance_rule_form_state.template_list_base_url }}"
-        >Apri template</a>
+        >Apri catalogo</a>
         <a
           id="maintenance-template-create-link"
           class="btn btn-primary"
           href="{{ maintenance_rule_form_state.template_create_url }}"
           data-base-url="{{ maintenance_rule_form_state.template_create_base_url }}"
-        >Nuovo template</a>
+        >Nuovo tipo</a>
         <a class="btn btn-secondary" href="{{ maintenance_rule_form_state.category_admin_url }}">Gestisci categorie asset</a>
       </div>
     </div>
@@ -151,26 +149,44 @@
       </div>
     {% endif %}
 
-    <div class="as-form-grid-3">
-      {% for field in form %}
-        <div style="{% if field.name == 'notes' %}grid-column:1/-1;{% endif %}">
-          {% if field.field.widget.input_type == 'checkbox' %}
-            <label style="display:flex;gap:8px;align-items:center;min-height:44px;">
-              {{ field }} <span>{{ field.label }}</span>
-            </label>
-          {% else %}
-            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-            {{ field }}
-          {% endif %}
-          {% if field.help_text %}
-            <div class="as-help" style="margin-top:4px;">{{ field.help_text }}</div>
-          {% endif %}
-          {% if field.errors %}
-            <div class="as-error">{{ field.errors }}</div>
-          {% endif %}
-        </div>
-      {% endfor %}
-    </div>
+    <fieldset class="mrf-section">
+      <legend>1. Cosa e dove</legend>
+      <div class="mrf-section-note">Scegli l'attivita dal catalogo e gli asset a cui applicarla.</div>
+      <div class="as-form-grid-3">
+        {% include "assets/pages/_maintenance_form_field.html" with field=form.intervention_template %}
+        {% include "assets/pages/_maintenance_form_field.html" with field=form.asset_category %}
+        {% include "assets/pages/_maintenance_form_field.html" with field=form.scope_type %}
+        {% include "assets/pages/_maintenance_form_field.html" with field=form.assets full_width=True %}
+      </div>
+    </fieldset>
+    <fieldset class="mrf-section">
+      <legend>2. Quando</legend>
+      <div class="mrf-section-note">Imposta la ricorrenza e decidi se aprire automaticamente gli ordini di lavoro.</div>
+      <div class="as-form-grid-3">
+        {% include "assets/pages/_maintenance_form_field.html" with field=form.threshold_type %}
+        {% include "assets/pages/_maintenance_form_field.html" with field=form.threshold_value %}
+        {% include "assets/pages/_maintenance_form_field.html" with field=form.warning_days %}
+        {% include "assets/pages/_maintenance_form_field.html" with field=form.first_due_date %}
+        {% include "assets/pages/_maintenance_form_field.html" with field=form.auto_generate_workorders %}
+      </div>
+    </fieldset>
+    <fieldset class="mrf-section">
+      <legend>3. Chi la esegue</legend>
+      <div class="mrf-section-note">Per le attivita interne assegna il manutentore; per quelle esterne indica la ditta.</div>
+      <div class="as-form-grid-3">
+        {% include "assets/pages/_maintenance_form_field.html" with field=form.execution_mode %}
+        {% include "assets/pages/_maintenance_form_field.html" with field=form.assigned_to %}
+        {% include "assets/pages/_maintenance_form_field.html" with field=form.supplier %}
+      </div>
+    </fieldset>
+    <fieldset class="mrf-section">
+      <legend>4. Note e stato</legend>
+      <div class="as-form-grid-3">
+        {% include "assets/pages/_maintenance_form_field.html" with field=form.notes full_width=True %}
+        {% include "assets/pages/_maintenance_form_field.html" with field=form.sort_order %}
+        {% include "assets/pages/_maintenance_form_field.html" with field=form.is_active %}
+      </div>
+    </fieldset>
 
     <div class="mrf-form-actions">
       {% if maintenance_rule_form_state.disable_submit %}
@@ -193,6 +209,11 @@
   const categorySelect = document.getElementById("{{ form.asset_category.id_for_label }}");
   const listLink = document.getElementById("maintenance-template-list-link");
   const createLink = document.getElementById("maintenance-template-create-link");
+  const scopeSelect = document.getElementById("{{ form.scope_type.id_for_label }}");
+  const assetsSelect = document.getElementById("{{ form.assets.id_for_label }}");
+  const executionSelect = document.getElementById("{{ form.execution_mode.id_for_label }}");
+  const supplierSelect = document.getElementById("{{ form.supplier.id_for_label }}");
+  const assignedSelect = document.getElementById("{{ form.assigned_to.id_for_label }}");
   if (!categorySelect || !listLink || !createLink) return;
 
   const listBaseUrl = listLink.getAttribute("data-base-url") || listLink.getAttribute("href");
@@ -206,6 +227,25 @@
 
   categorySelect.addEventListener("change", syncTemplateLinks);
   syncTemplateLinks();
+
+  function syncScope() {
+    if (!scopeSelect || !assetsSelect) return;
+    const targeted = scopeSelect.value === "ASSETS";
+    const holder = assetsSelect.closest("div");
+    if (holder) holder.hidden = !targeted;
+  }
+  function syncExecution() {
+    if (!executionSelect) return;
+    const external = executionSelect.value === "EXTERNAL";
+    const supplierHolder = supplierSelect ? supplierSelect.closest("div") : null;
+    const assignedHolder = assignedSelect ? assignedSelect.closest("div") : null;
+    if (supplierHolder) supplierHolder.hidden = !external;
+    if (assignedHolder) assignedHolder.hidden = external;
+  }
+  scopeSelect?.addEventListener("change", syncScope);
+  executionSelect?.addEventListener("change", syncExecution);
+  syncScope();
+  syncExecution();
 })();
 </script>
 {% endblock %}

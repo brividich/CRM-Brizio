@@ -980,21 +980,29 @@ class MaintenanceInterventionTemplateForm(forms.ModelForm):
         fields = [
             "code",
             "label",
+            "maintenance_type",
             "description",
+            "estimated_duration_minutes",
+            "required_materials",
             "asset_category",
             "sort_order",
             "is_active",
         ]
         labels = {
             "code": "Codice",
-            "label": "Nome template",
-            "description": "Descrizione",
+            "label": "Nome attivita",
+            "maintenance_type": "Famiglia",
+            "description": "Istruzioni operative",
+            "estimated_duration_minutes": "Durata prevista (minuti)",
+            "required_materials": "Materiali e attrezzature",
             "asset_category": "Categoria asset",
             "sort_order": "Ordine",
             "is_active": "Attivo",
         }
         widgets = {
             "description": forms.Textarea(attrs={"rows": 4}),
+            "required_materials": forms.Textarea(attrs={"rows": 3}),
+            "estimated_duration_minutes": forms.NumberInput(attrs={"min": 0, "step": 5}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -1008,7 +1016,14 @@ class MaintenanceInterventionTemplateForm(forms.ModelForm):
         self.fields["asset_category"].required = False
         self.fields["asset_category"].queryset = category_qs
         self.fields["asset_category"].help_text = "Lascia vuoto per un template generale riutilizzabile su piu categorie."
-        self.fields["description"].help_text = "Descrizione standard del tipo di intervento manutentivo."
+        self.fields["description"].help_text = "Cosa deve essere fatto e quale risultato e atteso."
+        self.fields["estimated_duration_minutes"].help_text = "Valore indicativo per organizzare il carico del team."
+        self.fields["required_materials"].help_text = "Un elemento per riga, se utile."
+        self.fields["maintenance_type"].required = False
+        self.fields["maintenance_type"].initial = (
+            self.fields["maintenance_type"].initial or MaintenanceInterventionTemplate.TYPE_ROUTINE
+        )
+        self.fields["estimated_duration_minutes"].required = False
         _attach_input_css(self)
 
     def clean_code(self):
@@ -1019,6 +1034,15 @@ class MaintenanceInterventionTemplateForm(forms.ModelForm):
 
     def clean_description(self):
         return (self.cleaned_data.get("description") or "").strip()
+
+    def clean_maintenance_type(self):
+        return self.cleaned_data.get("maintenance_type") or MaintenanceInterventionTemplate.TYPE_ROUTINE
+
+    def clean_estimated_duration_minutes(self):
+        return int(self.cleaned_data.get("estimated_duration_minutes") or 0)
+
+    def clean_required_materials(self):
+        return (self.cleaned_data.get("required_materials") or "").strip()
 
 
 class MaintenanceChecklistStepForm(forms.ModelForm):
@@ -1061,29 +1085,41 @@ class MaintenanceRuleForm(forms.ModelForm):
         fields = [
             "intervention_template",
             "asset_category",
+            "scope_type",
+            "assets",
             "threshold_type",
             "threshold_value",
             "warning_days",
+            "first_due_date",
             "execution_mode",
             "supplier",
+            "assigned_to",
+            "auto_generate_workorders",
             "sort_order",
             "is_active",
             "notes",
         ]
         labels = {
-            "intervention_template": "Template intervento",
+            "intervention_template": "Tipo di attivita",
             "asset_category": "Categoria asset",
+            "scope_type": "Asset coinvolti",
+            "assets": "Seleziona gli asset",
             "threshold_type": "Tipo soglia",
-            "threshold_value": "Valore soglia",
-            "warning_days": "Warning (giorni)",
+            "threshold_value": "Frequenza",
+            "warning_days": "Preavviso (giorni)",
+            "first_due_date": "Prima scadenza",
             "execution_mode": "Esecuzione",
             "supplier": "Ditta esterna (se esterna)",
+            "assigned_to": "Manutentore responsabile",
+            "auto_generate_workorders": "Genera automaticamente gli OdL",
             "sort_order": "Ordine",
             "is_active": "Attiva",
             "notes": "Note",
         }
         widgets = {
             "notes": forms.Textarea(attrs={"rows": 4}),
+            "first_due_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "assets": forms.SelectMultiple(attrs={"size": 10}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -1117,6 +1153,23 @@ class MaintenanceRuleForm(forms.ModelForm):
 
         self.fields["asset_category"].queryset = category_qs
         self.fields["intervention_template"].queryset = template_qs
+        current_asset_ids = list(self.instance.assets.values_list("pk", flat=True)) if self.instance.pk else []
+        asset_qs = Asset.objects.filter(
+            Q(status=Asset.STATUS_IN_USE) | Q(pk__in=current_asset_ids)
+        ).select_related("asset_category")
+        self.fields["assets"].queryset = asset_qs.order_by("name", "asset_tag", "id")
+        self.fields["assets"].required = False
+        self.fields["assets"].help_text = "Usato solo con 'Solo asset selezionati'. Ctrl/Cmd per selezioni multiple."
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+        current_assigned_id = getattr(self.instance, "assigned_to_id", None)
+        self.fields["assigned_to"].queryset = User.objects.filter(
+            Q(is_active=True) | Q(pk=current_assigned_id)
+        ).order_by("last_name", "first_name", "username")
+        self.fields["assigned_to"].required = False
+        self.fields["scope_type"].required = False
+        self.fields["scope_type"].initial = self.fields["scope_type"].initial or MaintenanceRule.SCOPE_CATEGORY
         self.fields["warning_days"].required = False
         self.fields["intervention_template"].help_text = (
             "Sono disponibili i template generali e quelli della categoria selezionata."
@@ -1126,6 +1179,12 @@ class MaintenanceRuleForm(forms.ModelForm):
             "(AssetMeter) dell'asset; serve un contatore del tipo corrispondente."
         )
         self.fields["warning_days"].help_text = "Giorni di preallerta prima della scadenza operativa."
+        self.fields["first_due_date"].required = False
+        self.fields["first_due_date"].help_text = "Se vuota, un piano mai eseguito risulta subito da pianificare."
+        self.fields["auto_generate_workorders"].required = False
+        self.fields["auto_generate_workorders"].help_text = (
+            "Se disattivato, il piano resta nello scadenzario ma l'OdL viene aperto manualmente."
+        )
         self.fields["notes"].help_text = "Note operative o eccezioni della policy standard."
         # Interna/esterna: default INTERNA se non specificato (backward-compatible con i
         # POST/import che non inviano il campo). Fornitore sempre opzionale.
@@ -1145,6 +1204,9 @@ class MaintenanceRuleForm(forms.ModelForm):
     def clean_execution_mode(self):
         return self.cleaned_data.get("execution_mode") or MaintenanceRule.MODE_INTERNAL
 
+    def clean_scope_type(self):
+        return self.cleaned_data.get("scope_type") or MaintenanceRule.SCOPE_CATEGORY
+
     def clean_warning_days(self):
         value = self.cleaned_data.get("warning_days")
         if value in (None, ""):
@@ -1161,6 +1223,15 @@ class MaintenanceRuleForm(forms.ModelForm):
                     "intervention_template",
                     "Il template selezionato appartiene a una categoria diversa dalla regola.",
                 )
+        scope_type = cleaned_data.get("scope_type") or MaintenanceRule.SCOPE_CATEGORY
+        assets = cleaned_data.get("assets")
+        if scope_type == MaintenanceRule.SCOPE_ASSETS:
+            if not assets:
+                self.add_error("assets", "Seleziona almeno un asset per questo piano.")
+            elif category is not None and any(asset.asset_category_id != category.id for asset in assets):
+                self.add_error("assets", "Tutti gli asset selezionati devono appartenere alla categoria scelta.")
+        else:
+            cleaned_data["assets"] = self.fields["assets"].queryset.none()
         return cleaned_data
 
 

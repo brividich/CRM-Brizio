@@ -4,6 +4,15 @@ Data: 2026-08-05
 
 Ultime voci viste/aggiunte in questa sessione:
 
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-08-05 - Codex` (Assets: centro manutenzione aziendale, catalogo attivita, piani ordinari e storico unico).
+- `django_app/assets/models.py` + migration `0088` -> catalogo attivita arricchito e piano canonico con scope categoria/asset, prima scadenza, responsabile, fornitore e automazione.
+- migration `0089` + `assets/services/periodic_migration.py` -> ingestione conservativa dei `PeriodicVerification`, anche multi-categoria, preservando OdL e baseline; eccezioni senza asset/categoria lasciate pendenti.
+- `django_app/assets/views.py`, `urls.py` e template -> hub unico, navigazione `Oggi / Scadenzario / Interventi / Storico / Catalogo e piani / Report`, storico aziendale OdL + ticket MAN senza modificare il flusso ticket.
+- `django_app/assets/tests.py` -> copertura catalogo, piani mirati, owner, tipo OdL, ingestione storico, hub/navigazione e registro aziendale.
+- Documentazione: `README.md`, `django_app/assets/README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/10_MAINTENANCE_MODERNIZATION.md` aggiornati.
+- Test/check: 34 test mirati OK dopo la correzione della mappatura famiglia -> tipo OdL; `manage.py check assets`, `makemigrations --check --dry-run`, piano migration, caricamento template e `git diff --check` OK.
+- Note: nuova rotta autenticata locale assets; nessuna modifica ACL/settings; nessun backup; dati legacy non eliminati; modifiche non correlate del checkout condiviso preservate.
+
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-08-05 - Codex` (Assets: manutenzione periodica come lista operativa).
 - `django_app/assets/views.py` -> viste `active/attention/planned/archive`, ordinamento per urgenza, ricerca e filtro reale per asset, form configurazione on demand.
 - `django_app/assets/templates/assets/pages/periodic_verification_list.html` -> tab con contatori, ricerca, azioni primarie e dettagli secondari; rimossi controlli layout e banner legacy permanente.

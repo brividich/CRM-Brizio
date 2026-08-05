@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Assets - centro manutenzione aziendale e piani ordinari
+
+- **[feat/ux/data/test] `assets/models.py`, migration `0088`/`0089`, `assets/forms.py`, `assets/maintenance.py`, generatore/servizi OdL, `assets/views.py`, `assets/urls.py`, template manutenzione e `assets/tests.py`**: l'area manutenzione e' ora un hub unico, mantenendo invariato il ciclo di vita dei ticket MAN. Il catalogo delle attivita gestisce famiglia, istruzioni, durata prevista, materiali e checklist; i piani ordinari applicano un'attivita a tutta una categoria o a specifici asset e definiscono prima scadenza, cadenza giorni/contatore, interno/esterno, fornitore o manutentore e generazione automatica OdL. Sicurezza e taratura generano il tipo OdL coerente. La nuova pagina `/assets/manutenzione/storico/` combina in sola lettura OdL conclusi e ticket MAN inclusi nel registro, con ricerca, date, tempi e costi. La migration dati `0089` ingloba i `PeriodicVerification` convertibili in piani asset-specifici, anche su categorie multiple, preservando collegamenti storici e stato dell'ultima esecuzione; record senza asset o con asset senza categoria restano pendenti. Navigazione manutenzione aggiornata a `Oggi / Scadenzario / Interventi / Storico / Catalogo e piani / Report`; nessuna modifica ad ACL o comportamento ticket.
+
 ### Assets - manutenzione periodica come lista operativa
 
 - **[ux/test] `assets/views.py`, `assets/templates/assets/pages/periodic_verification_list.html`, `assets/tests.py`**: la pagina dei piani periodici apre sulle attivita correnti ordinate per urgenza, con viste contate `Attive`, `Da gestire`, `Pianificate` e `Archivio / regole`. Ricerca e contesto asset riducono realmente l'elenco; il form di configurazione compare soltanto per creazione, modifica o errori. L'esecuzione e' l'azione primaria della riga, mentre storico, Outlook, conversione e cancellazione sono raccolti nel dettaglio. Rimossi selettori griglia/layout e banner legacy permanente. Nessuna migration o modifica ad ACL, permessi, URL e routing globale.

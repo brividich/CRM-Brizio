@@ -141,6 +141,8 @@ def resolve_asset_maintenance_rules(asset: Asset) -> list[dict[str, Any]]:
     base_rules = list(
         MaintenanceRule.objects.select_related("asset_category", "intervention_template")
         .filter(asset_category_id=asset.asset_category_id)
+        .filter(Q(scope_type=MaintenanceRule.SCOPE_CATEGORY) | Q(assets=asset))
+        .distinct()
         .order_by("sort_order", "id")
     )
     overrides = list(
@@ -222,7 +224,7 @@ def build_workorder_prefill_payload(
         "notes": rule_notes,
         "title": (getattr(template, "label", "") or "").strip(),
         "description": "\n\n".join(description_parts).strip(),
-        "kind": WorkOrder.KIND_PREVENTIVE if rule_row is not None else "",
+        "kind": getattr(template, "workorder_kind", WorkOrder.KIND_PREVENTIVE) if rule_row is not None else "",
         "contract": contract,
         "covered_by_contract": bool(contract),
         "supplier": getattr(contract, "supplier", None),
@@ -434,12 +436,16 @@ def build_maintenance_schedule_rows(
     category_ids = {asset.asset_category_id for asset in assets if asset.asset_category_id}
     base_rules = list(
         MaintenanceRule.objects.select_related("asset_category", "intervention_template", "supplier")
+        .prefetch_related("assets")
         .filter(asset_category_id__in=category_ids)
         .order_by("asset_category__sort_order", "sort_order", "id")
     )
     base_rules_by_category: dict[int, list[MaintenanceRule]] = {}
+    targeted_asset_ids_by_rule: dict[int, set[int]] = {}
     for base_rule in base_rules:
         base_rules_by_category.setdefault(base_rule.asset_category_id, []).append(base_rule)
+        if base_rule.scope_type == MaintenanceRule.SCOPE_ASSETS:
+            targeted_asset_ids_by_rule[base_rule.id] = {asset.id for asset in base_rule.assets.all()}
 
     overrides = list(
         MaintenanceRuleAssetOverride.objects.select_related(
@@ -476,6 +482,11 @@ def build_maintenance_schedule_rows(
     rows: list[dict[str, Any]] = []
     for asset in assets:
         for base_rule in base_rules_by_category.get(asset.asset_category_id, []):
+            if (
+                base_rule.scope_type == MaintenanceRule.SCOPE_ASSETS
+                and asset.id not in targeted_asset_ids_by_rule.get(base_rule.id, set())
+            ):
+                continue
             override = override_by_asset_rule.get((asset.id, base_rule.id))
             resolved_row = _resolved_rule_row(
                 asset=asset,
@@ -516,6 +527,8 @@ def build_maintenance_schedule_rows(
                 due_date = None
                 if last_execution_date is not None:
                     due_date = last_execution_date + timedelta(days=int(resolved_row["effective_threshold_value"] or 0))
+                elif base_rule.first_due_date is not None:
+                    due_date = base_rule.first_due_date
                 schedule = _schedule_status_payload(
                     due_date=due_date,
                     warning_days=int(resolved_row.get("effective_warning_days") or 0),

@@ -589,17 +589,26 @@ body.theme-dark .mh-priority-label,
 body.theme-dark .mh-workspace-title { color:var(--text); }
 body.theme-dark .mh-priority-note,
 body.theme-dark .mh-workspace-note { color:var(--text-light); }
+.mh-core-nav { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+.mh-core-link { display:grid; gap:4px; min-height:84px; padding:13px 15px; border:1px solid #dbe1ea; border-radius:12px; background:#fff; color:#0f172a; text-decoration:none; }
+.mh-core-link:hover { border-color:#93c5fd; background:#f8fbff; }
+.mh-core-link strong { font-size:var(--fs-base); }
+.mh-core-link span { color:#64748b; font-size:var(--fs-sm); line-height:1.35; }
+body.theme-dark .mh-core-link { background:var(--surface); border-color:var(--border); color:var(--text); }
+body.theme-dark .mh-core-link span { color:var(--text-light); }
+@media(max-width:900px){.mh-core-nav{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.mh-core-nav{grid-template-columns:1fr}}
 </style>
 {% endblock %}
 
-{% block assets_shell_title %}Manutenzione{% endblock %}
+{% block assets_shell_title %}Centro manutenzione aziendale{% endblock %}
 {% block assets_shell_subtitle %}
-<p>Stato operativo, scadenze e accesso rapido a tutte le funzioni di manutenzione.</p>
+<p>Ticket, interventi, piani ordinari, scadenze e storico in un unico punto operativo.</p>
 {% endblock %}
 {% block assets_shell_toolbar %}
   <a class="btn" href="{% url 'assets:asset_dashboard' %}">&#8592; Asset</a>
   <a class="btn btn-primary" href="{{ url_wo_create }}">+ Nuovo intervento</a>
-  <a class="btn" href="{{ url_impostazioni }}">Impostazioni</a>
+  <a class="btn" href="{{ url_impostazioni }}">Catalogo e piani</a>
 {% endblock %}
 
 {% block assets_shell_content %}
@@ -628,6 +637,13 @@ body.theme-dark .mh-workspace-note { color:var(--text-light); }
       <span class="mh-priority-note">negli ultimi 30 giorni</span>
     </a>
   </section>
+
+  <nav class="mh-core-nav" aria-label="Aree del centro manutenzione">
+    <a class="mh-core-link" href="{{ url_wo_open }}"><strong>Interventi</strong><span>Coda operativa, assegnazioni e chiusure.</span></a>
+    <a class="mh-core-link" href="{{ url_impostazioni }}?tab=piani"><strong>Piani ordinari</strong><span>Asset, frequenze, responsabili e automazione OdL.</span></a>
+    <a class="mh-core-link" href="{{ url_impostazioni }}?tab=catalogo"><strong>Catalogo attivita</strong><span>Procedure, checklist, tempi e materiali standard.</span></a>
+    <a class="mh-core-link" href="{{ url_wo_done }}"><strong>Storico</strong><span>Esecuzioni concluse, esiti, tecnici, tempi e costi.</span></a>
+  </nav>
 
   {% if active_tab == 'da_fare' %}
   <!-- ═══════════════════════ TAB: DA FARE ════════════════════════════════ -->
@@ -769,7 +785,7 @@ body.theme-dark .mh-workspace-note { color:var(--text-light); }
       {% if maintenance_rule_rows %}
       <div class="mh-card {% if maintenance_rule_counts.overdue %}is-urgent{% else %}is-warn{% endif %}">
         <div class="mh-card-head">
-          <span class="mh-card-head-title">Regole manutenzione critiche</span>
+          <span class="mh-card-head-title">Piani ordinari da gestire</span>
           {% if maintenance_rule_counts.overdue %}<span class="mh-card-head-badge mh-badge-red">{{ maintenance_rule_counts.overdue }} scadute</span>{% endif %}
           {% if maintenance_rule_counts.warning %}<span class="mh-card-head-badge mh-badge-amber">{{ maintenance_rule_counts.warning }} in warning</span>{% endif %}
           {% if maintenance_rule_counts.missing %}<span class="mh-card-head-badge mh-badge-muted">{{ maintenance_rule_counts.missing }} da avviare</span>{% endif %}
