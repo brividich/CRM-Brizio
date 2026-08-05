@@ -38,6 +38,7 @@ from django.utils import timezone
 from ..models_formazione import TrainingLesson, TrainingSession
 
 __all__ = [
+    "copia_programma_dal_corso",
     "genera_codice_sessione",
     "ore_nette",
     "giorni_pianificabili",
@@ -70,6 +71,50 @@ def genera_codice_sessione(corso) -> str:
         n += 1
         codice = f"{prefix}{n}"[:40]
     return codice
+
+
+def copia_programma_dal_corso(sessione, forza: bool = False) -> int:
+    """Porta il programma didattico del corso dentro l'edizione, come copia.
+
+    **Copia, non collegamento**: l'edizione deve poter documentare ciò che ha
+    davvero erogato anche quando il corso, mesi dopo, cambia programma. È la
+    stessa scelta già fatta per il nome del docente e il titolo del corso.
+
+    Idempotente: se l'edizione ha già un programma non tocca nulla, così
+    rilanciarla non cancella integrazioni fatte a mano. Con ``forza=True``
+    sostituisce, ma conserva le voci **aggiunte** dall'edizione (quelle che non
+    vengono dal corso): sono lavoro umano, non si butta.
+
+    Ritorna quante voci sono state create.
+    """
+    from ..models_formazione import TrainingSessionArgomento
+
+    esistenti = sessione.programma.all()
+    if esistenti.exists():
+        if not forza:
+            return 0
+        esistenti.filter(aggiunto=False).delete()
+
+    da_copiare = list(sessione.corso.programma.all()) if sessione.corso_id else []
+    if not da_copiare:
+        return 0
+
+    gia = set(sessione.programma.values_list("origine_id", flat=True))
+    creati = 0
+    for voce in da_copiare:
+        if voce.pk in gia:
+            continue
+        TrainingSessionArgomento.objects.create(
+            sessione=sessione,
+            ordine=voce.ordine,
+            argomento=voce.argomento,
+            ore_previste=voce.ore_previste,
+            riferimento=voce.riferimento,
+            origine=voce,
+            aggiunto=False,
+        )
+        creati += 1
+    return creati
 
 
 def ore_nette(ora_inizio: time, ora_fine: time, pausa_minuti: int = 0) -> float:
@@ -258,6 +303,7 @@ def crea_sessione_unica(
             docente_nome=(docente.nome if docente is not None else "")[:200],
             created_by=user,
         )
+        copia_programma_dal_corso(sessione)
         if genera_giornate and ora_inizio and ora_fine:
             genera_lezioni(
                 sessione,
@@ -302,7 +348,10 @@ def dividi_in_gruppi(
     registro. Va quindi usata **prima** di iniziare le lezioni, appena si sa come
     si dividono i gruppi — non a corso già partito.
     """
-    from ..models_formazione import TrainingEnrollment, TrainingEnrollmentLesson, TrainingLessonAttendance
+    from ..models_formazione import (
+        TrainingEnrollment, TrainingEnrollmentLesson,
+        TrainingLessonAttendance, TrainingSessionArgomento,
+    )
 
     n_gruppi = int(n_gruppi)
     if n_gruppi < 2:
@@ -353,6 +402,15 @@ def dividi_in_gruppi(
                 edizione=etichetta[:80],
                 created_by=user,
             )
+            # Il gruppo eredita il programma della sessione sorgente, non quello
+            # del corso: se la sorgente l'aveva integrato, i gruppi devono avere
+            # lo stesso programma, perché sono la stessa erogazione divisa.
+            for voce in sessione_sorgente.programma.all():
+                TrainingSessionArgomento.objects.create(
+                    sessione=nuovo, ordine=voce.ordine, argomento=voce.argomento,
+                    ore_previste=voce.ore_previste, riferimento=voce.riferimento,
+                    origine=voce.origine, aggiunto=voce.aggiunto,
+                )
             for lz in lezioni_sorgente:
                 TrainingLesson.objects.create(
                     sessione=nuovo,

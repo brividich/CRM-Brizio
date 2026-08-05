@@ -737,6 +737,29 @@ def build_fascicolo_sessione_pdf_bytes(sessione) -> bytes:
         story.append(Paragraph("Nessun iscritto.", styles["body"]))
     story.append(Spacer(1, 4 * mm))
 
+    # Programma dichiarato e copertura: è la differenza fra «abbiamo fatto il
+    # corso» e «abbiamo coperto i contenuti che dovevamo coprire».
+    programma = list(sessione.programma.all())
+    if programma:
+        coperti: dict = {}
+        for lz in lezioni:
+            for voce in lz.argomenti_svolti.all():
+                coperti.setdefault(voce.pk, []).append(lz.numero)
+        story += section_heading("Programma dichiarato e copertura", theme, styles)
+        head = ["#", "Argomento", "Ore", "Riferimento", "Svolto nelle giornate"]
+        rows = [[Paragraph(h, styles["table_header"]) for h in head]]
+        for n, voce in enumerate(programma, start=1):
+            giorni = coperti.get(voce.pk) or []
+            rows.append([
+                Paragraph(str(n), styles["cell"]),
+                Paragraph(voce.argomento + (" (integrato)" if voce.aggiunto else ""), styles["cell"]),
+                Paragraph(f"{voce.ore_previste}" if voce.ore_previste is not None else "-", styles["cell_right"]),
+                Paragraph(voce.riferimento or "-", styles["cell"]),
+                Paragraph(", ".join(str(g) for g in sorted(set(giorni))) or "NON svolto", styles["cell"]),
+            ])
+        story.append(data_table(rows, theme, col_widths=[18, None, 34, 100, 96], repeat_rows=1))
+        story.append(Spacer(1, 4 * mm))
+
     # Evidenza della presenza, giornata per giornata
     story += section_heading("Evidenza delle presenze", theme, styles)
     if lezioni:
@@ -784,6 +807,14 @@ def build_fascicolo_sessione_pdf_bytes(sessione) -> bytes:
         else:
             esito_reg = f"Mancante su {senza_reg} di {len(lezioni)}"
         controlli.append(("Registro firmato allegato", esito_reg))
+    if programma:
+        scoperti = sum(1 for v in programma if not coperti.get(v.pk))
+        controlli.append((
+            "Programma coperto dalle giornate",
+            "Completo" if scoperti == 0 else f"{scoperti} argomenti su {len(programma)} non svolti",
+        ))
+    else:
+        controlli.append(("Programma didattico dichiarato", "Mancante"))
     controlli.append(("Docente indicato", "Completo" if docente != "-" else "Mancante"))
     if iscrizioni:
         senza_esito = sum(1 for i in iscrizioni if i.idoneo is None)

@@ -12310,6 +12310,10 @@ def formazione_sessione_create(request):
             sessione = form.save(commit=False)
             sessione.created_by = request.user
             sessione.save()
+            # L'edizione parte dal programma del corso, come copia modificabile:
+            # documenterà ciò che ha davvero erogato anche se il corso cambierà.
+            from .services.formazione_pianificazione import copia_programma_dal_corso
+            copia_programma_dal_corso(sessione)
             # Rinnovo dallo scadenzario: se ci sono dipendenti pre-selezionati per
             # QUESTO corso, iscrivili in blocco (idempotente) e vai agli iscritti.
             pre = request.session.get("rinnovo_preselect")

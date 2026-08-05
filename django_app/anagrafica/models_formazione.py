@@ -458,6 +458,70 @@ class TrainingCourseModule(models.Model):
 
 
 # ─────────────────────────────────────────────────────────────
+# PROGRAMMA DIDATTICO (catena dell'evidenza, anello 3)
+# ─────────────────────────────────────────────────────────────
+# Per la formazione dei lavoratori i contenuti minimi sono normati: senza un
+# programma dichiarato non si dimostra di averli coperti. Il programma vive su
+# due livelli, come deve:
+#   - sul CORSO è il previsto, valido nel tempo;
+#   - sulla SESSIONE è ciò che quell'edizione ha davvero erogato. Viene copiato
+#     dal corso alla creazione (non collegato) e resta modificabile: se il corso
+#     cambia domani, l'edizione continua a documentare com'era allora. È la
+#     stessa logica degli snapshot già usati per docente e titolo.
+
+class TrainingCourseArgomento(models.Model):
+    """Voce del programma didattico previsto dal corso."""
+
+    corso        = models.ForeignKey(TrainingCourse, on_delete=models.CASCADE, related_name="programma")
+    ordine       = models.PositiveSmallIntegerField(default=0)
+    argomento    = models.CharField(max_length=300)
+    ore_previste = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    riferimento  = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Punto della fonte che impone il contenuto: es. «Allegato A, punto 3».",
+    )
+
+    class Meta:
+        ordering = ["ordine", "id"]
+        verbose_name = "Argomento del corso"
+        verbose_name_plural = "Programma del corso"
+
+    def __str__(self) -> str:
+        return f"{self.corso.codice} · {self.argomento[:60]}"
+
+
+class TrainingSessionArgomento(models.Model):
+    """Programma effettivo dell'edizione: copia del corso, poi modificabile.
+
+    ``origine`` resta solo come traccia della provenienza: se l'argomento del
+    corso viene cancellato, la riga dell'edizione sopravvive (SET_NULL) perché
+    documenta un fatto già accaduto.
+    """
+
+    sessione     = models.ForeignKey("anagrafica.TrainingSession", on_delete=models.CASCADE, related_name="programma")
+    ordine       = models.PositiveSmallIntegerField(default=0)
+    argomento    = models.CharField(max_length=300)
+    ore_previste = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    riferimento  = models.CharField(max_length=200, blank=True, default="")
+    origine      = models.ForeignKey(
+        TrainingCourseArgomento, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    aggiunto     = models.BooleanField(
+        default=False,
+        help_text="Vero se l'edizione ha integrato un argomento non previsto dal corso.",
+    )
+
+    class Meta:
+        ordering = ["ordine", "id"]
+        verbose_name = "Argomento dell'edizione"
+        verbose_name_plural = "Programma dell'edizione"
+
+    def __str__(self) -> str:
+        return f"{self.sessione.codice_sessione} · {self.argomento[:60]}"
+
+
+# ─────────────────────────────────────────────────────────────
 # REGOLA OBBLIGATORIETÀ (D4)
 # ─────────────────────────────────────────────────────────────
 
@@ -705,6 +769,13 @@ class TrainingLesson(models.Model):
                   "dalla durata. Es. 08:00–17:00 con 60' di pausa = 8 ore formative.",
     )
     argomento    = models.CharField(max_length=500)
+    # Quali voci del programma dell'edizione sono state coperte in questa
+    # giornata: è il collegamento che permette di confrontare previsto ed
+    # erogato, cioè la domanda che segue subito «cosa insegna il corso».
+    argomenti_svolti = models.ManyToManyField(
+        TrainingSessionArgomento, blank=True, related_name="lezioni",
+        verbose_name="Argomenti del programma svolti",
+    )
     docente      = models.ForeignKey(
         TrainingInstructor, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="lezioni",
