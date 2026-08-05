@@ -81,6 +81,7 @@ from .forms import (
     WorkMachineAssetForm,
     DeviceFilterForm,
     IT_DEVICE_TYPES,
+    NON_IT_ASSET_TYPES,
     PRODUCTION_ASSET_TYPES,
     WorkMachineFilterForm,
     WorkOrderCloseForm,
@@ -5716,11 +5717,15 @@ def _periodic_scope_context(scope: str) -> dict[str, object]:
             "subtitle": "Piani ricorrenti filtrati su PC, server, rete, fonia, TVCC e dispositivi IT.",
             "asset_types": IT_DEVICE_TYPES,
         }
+    # Lo scope "production" e' il complemento di quello IT: ogni asset non IT
+    # deve poter avere un piano di manutenzione periodica, impianti generici e
+    # prodotti chimici inclusi. Stessa semantica dello scadenzario
+    # (`exclude(assets__asset_type__in=IT_DEVICE_TYPES)`).
     return {
         "scope": "production",
         "title": "Manutenzione periodica asset produzione",
-        "subtitle": "Piani ricorrenti filtrati su CNC, macchine utensili e carroponti.",
-        "asset_types": PRODUCTION_ASSET_TYPES,
+        "subtitle": "Piani ricorrenti su tutti gli asset non IT: CNC, macchine utensili, carroponti, impianti e altri asset.",
+        "asset_types": NON_IT_ASSET_TYPES,
     }
 
 
@@ -14101,9 +14106,15 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
         return redirect(f"{reverse('assets:periodic_verifications')}?{query.urlencode()}")
 
     if selected_asset is not None and selected_asset.asset_type not in periodic_asset_types:
-        query = request.GET.copy()
-        query["scope"] = "it" if selected_asset.asset_type in IT_DEVICE_TYPES else "production"
-        return redirect(f"{reverse('assets:periodic_verifications')}?{query.urlencode()}")
+        target_scope = "it" if selected_asset.asset_type in IT_DEVICE_TYPES else "production"
+        # Rimbalzare sullo scope da cui si arriva significherebbe redirigere
+        # sulla stessa URL all'infinito (ERR_TOO_MANY_REDIRECTS): si redirige
+        # solo verso uno scope diverso, altrimenti si resta e si mostra la
+        # pagina con il filtro asset attivo.
+        if target_scope != periodic_scope:
+            query = request.GET.copy()
+            query["scope"] = target_scope
+            return redirect(f"{reverse('assets:periodic_verifications')}?{query.urlencode()}")
 
     edit_id = _as_int(request.POST.get("edit_id") or request.GET.get("edit"), default=0)
     edit_verification = None

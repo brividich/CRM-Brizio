@@ -67,6 +67,7 @@ Alternativa: inserimento manuale da `/admin-portale/navigation-builder/`.
 
 ## Manutenzione periodica
 - La pagina canonica `/assets/manutenzione/verifiche/` consente di configurare i piani di manutenzione periodica collegati agli asset. Il vecchio percorso `/assets/verifiche-periodiche/` resta disponibile come redirect compatibile.
+- La pagina ha due scope, selezionabili da sidebar o da `?scope=`: `it` (i tipi di `IT_DEVICE_TYPES`) e `production`, che è il **complemento** del primo (`NON_IT_ASSET_TYPES`). Ogni asset non IT può quindi avere un piano di manutenzione periodica — CNC, macchine, carroponti, ma anche impianti generici (`OTHER`) e prodotti chimici — e i tipi aggiunti in futuro a `Asset.TYPE_CHOICES` vi rientrano automaticamente. Il filtro `?asset=<id>` redirige allo scope di appartenenza dell'asset solo se diverso da quello corrente.
 - Per ogni piano puoi gestire:
   - nome piano
   - fornitore responsabile (`anagrafica.Fornitore`)
