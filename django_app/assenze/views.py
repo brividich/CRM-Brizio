@@ -4036,7 +4036,7 @@ def api_car_aggiorna_consenso(request, item_id: int):
                 url_azione="/assenze/richiesta_assenze",
             )
     except Exception:
-        pass
+        logger.exception("Assenze: notifica al richiedente non creata")
 
     sync_result: dict = {"ok": False, "reason": "not_configured"}
     if _graph_configured():
@@ -5042,7 +5042,7 @@ def certificazione_presenza(request):
                                 try:
                                     _sync_push(limit_rows=5, include_updates=False)
                                 except Exception:
-                                    pass
+                                    logger.exception("Assenze: push best-effort verso SharePoint fallito")
                         except Exception as exc:
                             logger.warning("certifica_presenza: errore auto-push assenze: %s", exc)
 

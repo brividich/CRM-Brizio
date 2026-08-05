@@ -315,7 +315,9 @@ def _save_dashboard_acl_roles(selected_role_ids: set[int]) -> tuple[int, int]:
             try:
                 bump_legacy_cache_version()
             except Exception:
-                pass
+                # Permessi salvati ma cache non invalidata: l'utente continua a
+                # vedere i vecchi finche' la cache non scade.
+                logger.exception("Notizie: invalidazione della cache permessi legacy fallita")
     except Exception:
         return 0, 0
 

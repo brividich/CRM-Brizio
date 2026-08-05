@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import json
+import logging
 import re
 import unicodedata
 from collections import Counter
@@ -23,6 +24,8 @@ from django.views.decorators.http import require_POST
 from core.acl import user_can_modulo_action
 from core.legacy_models import Permesso, Pulsante
 from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_table_columns
+
+logger = logging.getLogger(__name__)
 
 MAX_LAYOUT_MODULES = 300
 ALLOWED_STATS_KEYS = {"total", "approved", "rejected", "pending"}
@@ -276,8 +279,10 @@ def _ensure_is_padre_column() -> None:
                 row = cursor.fetchone()
                 if not row or row[0] is None:
                     cursor.execute("ALTER TABLE ui_pulsanti_meta ADD is_padre BIT NOT NULL DEFAULT 0")
+    # Auto-riparazione dello schema legacy: se fallisce, falliranno anche le query
+    # che contano su quella colonna — meglio saperlo qui che a valle.
     except Exception:
-        pass
+        logger.exception("Dashboard: colonna ui_pulsanti_meta.is_padre non verificabile/creabile")
 
 
 def _pulsanti_ui_meta_map() -> dict[int, dict[str, Any]]:
@@ -646,7 +651,7 @@ def _base_dashboard_context(request) -> dict[str, Any]:
             ultima = personale[0] if personale else None
             ctx_widget = {"tipo": "operaio", "ultima_richiesta": ultima}
     except Exception:
-        pass
+        logger.exception("Dashboard: widget richieste assenze non costruito")
 
     return {
         "page_title": "Dashboard",
@@ -1344,7 +1349,7 @@ def _board_data_profilo(legacy_user: Any, legacy_user_id: int | None) -> dict:
             data["reparto"] = str(ana.reparto or "")
             data["email_notifica"] = str(ana.email_notifica or "")
     except Exception:
-        pass
+        logger.exception("Dashboard: dati anagrafici dell'utente non recuperati")
     try:
         from core.models import UserExtraInfo
         extra = UserExtraInfo.objects.filter(legacy_user_id=legacy_user_id).first()
@@ -1355,7 +1360,7 @@ def _board_data_profilo(legacy_user: Any, legacy_user_id: int | None) -> dict:
             data["cellulare"] = str(extra.cellulare or "")
             data["macchina"] = str(extra.macchina or "")
     except Exception:
-        pass
+        logger.exception("Dashboard: UserExtraInfo dell'utente non recuperata")
     return data
 
 
@@ -2033,8 +2038,10 @@ def _hub_kpi_cards(ctx: dict, request=None) -> list[dict]:
             "icon": "ANO",
             "icon_class": "red",
         })
+    # Stessa regola dei riquadri della home: la tessera puo' mancare, ma non in
+    # silenzio — un KPI assente si legge come "zero", che e' l'errore peggiore.
     except Exception:
-        pass
+        logger.exception("Dashboard: KPI «anomalie» non calcolato")
 
     # ── Ticket ──
     try:
@@ -2050,7 +2057,7 @@ def _hub_kpi_cards(ctx: dict, request=None) -> list[dict]:
             "icon_class": "blue",
         })
     except Exception:
-        pass
+        logger.exception("Dashboard: KPI «ticket» non calcolato")
 
     # ── Asset ──
     try:
@@ -2066,7 +2073,7 @@ def _hub_kpi_cards(ctx: dict, request=None) -> list[dict]:
             "icon_class": "green",
         })
     except Exception:
-        pass
+        logger.exception("Dashboard: KPI «asset» non calcolato")
 
     # ── Task / KICK-OFF ──
     try:
@@ -2083,7 +2090,7 @@ def _hub_kpi_cards(ctx: dict, request=None) -> list[dict]:
             "icon_class": "blue",
         })
     except Exception:
-        pass
+        logger.exception("Dashboard: KPI «task» non calcolato")
 
     # ── DPI richieste in attesa ──
     try:
@@ -2099,7 +2106,7 @@ def _hub_kpi_cards(ctx: dict, request=None) -> list[dict]:
                 "icon_class": "yellow",
             })
     except Exception:
-        pass
+        logger.exception("Dashboard: KPI «dpi» non calcolato")
 
     # ── Scadenze imminenti asset ──
     try:
@@ -2122,7 +2129,7 @@ def _hub_kpi_cards(ctx: dict, request=None) -> list[dict]:
             "icon_class": "red" if totale_scad else "green",
         })
     except Exception:
-        pass
+        logger.exception("Dashboard: KPI «scadenze» non calcolato")
 
     # ── Diario preposto ──
     try:
@@ -2140,7 +2147,7 @@ def _hub_kpi_cards(ctx: dict, request=None) -> list[dict]:
             "icon_class": "blue",
         })
     except Exception:
-        pass
+        logger.exception("Dashboard: KPI «diario preposto» non calcolato")
 
     # ── Rilevazione incidenti ──
     try:
@@ -2158,7 +2165,7 @@ def _hub_kpi_cards(ctx: dict, request=None) -> list[dict]:
             "icon_class": "red" if n_incidenti else "green",
         })
     except Exception:
-        pass
+        logger.exception("Dashboard: KPI «incidenti» non calcolato")
 
     # ── Notizie da leggere ──
     try:
@@ -2187,7 +2194,7 @@ def _hub_kpi_cards(ctx: dict, request=None) -> list[dict]:
                 "icon_class": "yellow" if da_leggere else "green",
             })
     except Exception:
-        pass
+        logger.exception("Dashboard: KPI «notizie» non calcolato")
 
     # ── Procedure refresh da confermare ──
     try:
@@ -2207,7 +2214,7 @@ def _hub_kpi_cards(ctx: dict, request=None) -> list[dict]:
                 "icon_class": "yellow" if da_confermare else "green",
             })
     except Exception:
-        pass
+        logger.exception("Dashboard: KPI «procedure» non calcolato")
 
     # ── Applica overrides da SiteConfig ──
     try:
@@ -2235,7 +2242,7 @@ def _hub_kpi_cards(ctx: dict, request=None) -> list[dict]:
             filtered.append(kpi)
         kpis = filtered
     except Exception:
-        pass
+        logger.exception("Dashboard: personalizzazioni dei KPI non applicate")
 
     return kpis
 
@@ -2260,21 +2267,21 @@ def dashboard_hub_preview(request):
         for row in SiteConfig.objects.filter(key__in=branding_keys).values("key", "value"):
             hub_branding[row["key"]] = row["value"] or ""
     except Exception:
-        pass
+        logger.exception("Hub preview: branding non caricato")
 
     maintenance_by_family: list = []
     try:
         from assets.services.dashboard_kpi import get_maintenance_status_by_family
         maintenance_by_family = get_maintenance_status_by_family()
     except Exception:
-        pass
+        logger.exception("Hub preview: stato manutenzioni per famiglia non caricato")
 
     safety_kpis = {}
     try:
         from rilevazione_incidenti.services import get_safety_kpis
         safety_kpis = get_safety_kpis()
     except Exception:
-        pass
+        logger.exception("Hub preview: KPI sicurezza non caricati")
 
     ctx.update({
         "page_title": "Hub Preview",

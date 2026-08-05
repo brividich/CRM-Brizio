@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import logging
+
 from django.db import transaction
 
 from core.acl_bootstrap_base import run_bootstrap
+
+logger = logging.getLogger(__name__)
 
 # Bump alla v4: permesso canonico dell'area gestione DPI. Prima il gate
 # `_is_gestore` guardava solo `is_superuser or is_legacy_admin()` — vero
@@ -134,7 +138,8 @@ def _bootstrap_navigation() -> bool:
         try:
             bump_navigation_registry_version()
         except Exception:
-            pass
+            # Come in timbri: senza bump i permessi cambiano ma il menu no.
+            logger.exception("DPI: bump della versione del navigation registry fallito")
     return changed
 
 

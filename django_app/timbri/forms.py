@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from django import forms
 
 from core.upload_mime import (
@@ -9,6 +11,8 @@ from core.upload_mime import (
 )
 
 from .models import PNG_MAX_SIZE, RegistroTimbro, RegistroTimbroImmagine
+
+logger = logging.getLogger(__name__)
 
 
 class RegistroTimbroForm(forms.ModelForm):
@@ -117,7 +121,8 @@ def save_variant_image(*, registro: RegistroTimbro, variante: str, uploaded_file
         try:
             image_obj.image.delete(save=False)
         except Exception:
-            pass
+            # File vecchio non rimosso: resta orfano sul disco, non blocca il salvataggio.
+            logger.exception("Timbri: rimozione dell'immagine precedente fallita")
     image_obj.image = uploaded_file
     image_obj.source_url = ""
     image_obj.original_filename = str(getattr(uploaded_file, "name", "") or "")[:255]
