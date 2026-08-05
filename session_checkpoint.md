@@ -1,8 +1,32 @@
 # Session Checkpoint
 
-Data: 2026-06-17
+Data: 2026-08-05
 
 Ultime voci viste/aggiunte in questa sessione:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-08-05 - Codex` (Assets: chiusura intervento formale con giornate e consuntivo tempi).
+- `django_app/assets/models.py` + migration `0087_workorderexecutionday.py` -> giornate effettive multiple e opzionali per WorkOrder; timestamp esplicito accettato da `close()`.
+- `django_app/assets/forms.py`, `views.py`, template WorkOrder -> esito formale, data/ora editabile, giorni dinamici, ore/minuti, doppio percorso crea oppure crea+chiudi e dettaglio consuntivo leggibile.
+- `django_app/assets/tests.py` -> copertura creazione+chiusura, UI formale, timestamp editabile, giornate multiple, conversione ore/minuti e regressioni esistenti.
+- Documentazione: `README.md`, `django_app/assets/README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` aggiornati.
+- Test/check: `manage.py check assets` OK; `makemigrations --check --dry-run` OK; 6 test mirati OK; `git diff --check` OK.
+- Note: migration `0087` da applicare negli ambienti; nessun file critico o backup; nessuna modifica ad ACL/URL/routing; checkout condiviso con file non correlati preservato.
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-08-05 - Codex` (Assets: nuovo intervento come flusso guidato).
+- `django_app/assets/templates/assets/pages/workorder_form.html` -> asset in evidenza, ordine tipo/titolo/descrizione/risoluzione, impatto e allegati separati, pannello avanzato per pianificazione e copertura.
+- `django_app/assets/views.py` -> sotto-navigazione locale rimossa server-side dalla sola pagina di creazione OdL.
+- `django_app/assets/tests.py` -> regressioni su gerarchia del form, ordine titolo prima della regola, assenza sotto-nav e apertura pannello avanzato per prefill pianificato.
+- Documentazione: `README.md`, `django_app/assets/README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` aggiornati.
+- Test/check: check Assets OK; template load OK; 3 test mirati OK; `git diff --check` OK.
+- Note: nessun file critico, backup o modifica a modelli/ACL/URL/routing; checkout condiviso con file non correlati preservato.
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-08-05 - Codex` (Assets: hub manutenzione con gerarchia operativa unica).
+- `django_app/assets/templates/assets/pages/maintenance_hub.html` -> eliminati cruscotto e rail azioni duplicati; introdotte fascia priorita, intestazione lavoro operativo e agenda laterale unica a 7 giorni.
+- `django_app/assets/views.py` -> rimosse dall'hub le aggregazioni `cose_da_fare`/`segnalazioni` non piu renderizzate; cruscotto principale Assets invariato.
+- `django_app/assets/tests.py` -> regressione dedicata sulla gerarchia unica e sull'assenza dei blocchi duplicati.
+- `README.md`, `django_app/assets/README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentato il nuovo assetto della pagina manutenzione.
+- Test/check: check Assets OK; test mirati UX/navigazione/regole critiche OK; `git diff --check` OK.
+- Note: nessun file critico modificato, nessun backup, nessuna modifica ad ACL, middleware, settings, autenticazione, permessi, routing globale o navigazione globale; browser autenticato non disponibile nella sessione.
 
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-06-17 - Codex` (Admin Portale/Core: gestione template PDF condiviso)
 - `django_app/core/pdf.py` -> `PdfTheme.from_branding()` legge le nuove chiavi `SiteConfig` `pdf_template_*` per logo PDF, colori primario/accento, testo footer, visibilita data/ora e numerazione pagina; fallback al branding portale quando i valori PDF sono vuoti.
