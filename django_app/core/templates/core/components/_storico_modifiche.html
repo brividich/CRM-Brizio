@@ -1,0 +1,59 @@
+{% comment %}
+Storico modifiche di un singolo record (audit trail per oggetto).
+
+Uso, dalla view che gia' ha in mano l'istanza:
+
+    from core.audit import storico_oggetto
+    ...
+    "storico": storico_oggetto(ticket),
+
+e nel template della scheda:
+
+    {% include "core/components/_storico_modifiche.html" with storico=storico %}
+
+Parametri opzionali: `titolo` (default «Storico modifiche»), `vuoto` (testo
+mostrato quando non c'e' nulla). Nessuno stile nuovo: usa i token del tema
+(`--surface`, `--border`, `--text-mid`, `--text-light`) come il resto del portale.
+{% endcomment %}
+<div class="audit-storico">
+  <div class="audit-storico-head">{{ titolo|default:"Storico modifiche" }}</div>
+  {% if storico %}
+    <ol class="audit-storico-list">
+      {% for voce in storico %}
+        <li class="audit-storico-item">
+          <div class="audit-storico-riga">
+            <span class="audit-storico-azione">{{ voce.azione }}</span>
+            <span class="audit-storico-quando">{{ voce.created_at|date:"d/m/Y H:i" }}</span>
+          </div>
+          <div class="audit-storico-meta">
+            {{ voce.utente_display|default:"—" }}
+            {% if voce.modulo %} · {{ voce.modulo }}{% endif %}
+          </div>
+          {% if voce.dettaglio %}
+            <div class="audit-storico-dettaglio">
+              {% for chiave, valore in voce.dettaglio.items %}
+                {% if not chiave|slice:":1" == "_" %}<span class="audit-storico-tag">{{ chiave }}: {{ valore|truncatechars:60 }}</span>{% endif %}
+              {% endfor %}
+            </div>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ol>
+  {% else %}
+    <div class="audit-storico-vuoto">{{ vuoto|default:"Nessuna modifica registrata per questo record." }}</div>
+  {% endif %}
+</div>
+
+<style>
+.audit-storico { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+.audit-storico-head { font-size: 13px; font-weight: 700; margin-bottom: 10px; }
+.audit-storico-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.audit-storico-item { border-left: 2px solid var(--border); padding-left: 10px; }
+.audit-storico-riga { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
+.audit-storico-azione { font-weight: 600; }
+.audit-storico-quando { color: var(--text-light); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.audit-storico-meta { font-size: 11px; color: var(--text-mid); margin-top: 2px; }
+.audit-storico-dettaglio { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.audit-storico-tag { font-size: 10px; color: var(--text-mid); border: 1px solid var(--border); border-radius: 99px; padding: 1px 7px; }
+.audit-storico-vuoto { font-size: 12px; color: var(--text-light); }
+</style>

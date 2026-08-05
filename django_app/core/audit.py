@@ -10,7 +10,30 @@ from core.impersonation import display_name_for_user
 logger = logging.getLogger(__name__)
 
 
-def log_action(request, azione: str, modulo: str, dettaglio: dict | str | None = None) -> None:
+def _riferimento_oggetto(oggetto, oggetto_tipo: str, oggetto_id: str) -> tuple[str, str]:
+    """Normalizza il riferimento al record: da istanza, o esplicito.
+
+    Passare l'istanza (``oggetto=ticket``) evita di scrivere a mano l'etichetta e
+    di sbagliarla; i due parametri espliciti restano per le tabelle **legacy**,
+    che non hanno un modello Django da cui dedurla.
+    """
+    if oggetto is not None:
+        meta = getattr(oggetto, "_meta", None)
+        etichetta = getattr(meta, "label_lower", "") if meta is not None else ""
+        return (etichetta or oggetto_tipo)[:100], str(getattr(oggetto, "pk", "") or oggetto_id)[:64]
+    return (oggetto_tipo or "")[:100], str(oggetto_id or "")[:64]
+
+
+def log_action(
+    request,
+    azione: str,
+    modulo: str,
+    dettaglio: dict | str | None = None,
+    *,
+    oggetto=None,
+    oggetto_tipo: str = "",
+    oggetto_id: str = "",
+) -> None:
     """Registra un'azione nell'AuditLog Django.
 
     Chiamata fire-and-forget: eventuali errori DB sono loggati ma non propagati.
@@ -19,6 +42,12 @@ def log_action(request, azione: str, modulo: str, dettaglio: dict | str | None =
     ``str`` viene incapsulata in ``{"dettaglio": ...}``, ``None``/vuoto dà ``{}``.
     Molte call-site storiche passano una stringa: senza questo wrap ``dict("...")``
     solleverebbe ``ValueError`` e l'audit andava perso silenziosamente.
+
+    ``oggetto`` (o la coppia ``oggetto_tipo``/``oggetto_id`` per il legacy) aggancia
+    la voce al record toccato, ed è ciò che rende possibile lo storico mostrato
+    sulla scheda — vedi :func:`storico_oggetto`. È **opzionale**: le chiamate
+    storiche che non lo passano continuano a funzionare identiche, semplicemente
+    restano fuori dagli storici per record.
     """
     try:
         from core.models import AuditLog
@@ -48,6 +77,7 @@ def log_action(request, azione: str, modulo: str, dettaglio: dict | str | None =
                     ),
                 },
             )
+        tipo, identificativo = _riferimento_oggetto(oggetto, oggetto_tipo, oggetto_id)
         AuditLog.objects.create(
             legacy_user_id=actor_legacy_user.id if actor_legacy_user else None,
             utente_display=actor_display,
@@ -55,9 +85,27 @@ def log_action(request, azione: str, modulo: str, dettaglio: dict | str | None =
             modulo=modulo,
             dettaglio=payload,
             ip_address=_get_client_ip(request),
+            oggetto_tipo=tipo,
+            oggetto_id=identificativo,
         )
     except Exception:
         logger.exception("audit log fallito: azione=%s modulo=%s", azione, modulo)
+
+
+def storico_oggetto(oggetto=None, *, oggetto_tipo: str = "", oggetto_id: str = "", limit: int = 50):
+    """Le voci di audit di un singolo record, dalla più recente.
+
+    Restituisce sempre un queryset (vuoto se il riferimento non è determinabile),
+    così il chiamante non deve difendersi dal ``None``.
+    """
+    from core.models import AuditLog
+
+    tipo, identificativo = _riferimento_oggetto(oggetto, oggetto_tipo, oggetto_id)
+    if not tipo or not identificativo:
+        return AuditLog.objects.none()
+    return AuditLog.objects.filter(
+        oggetto_tipo=tipo, oggetto_id=identificativo
+    ).order_by("-created_at")[:limit]
 
 
 def _get_client_ip(request) -> str | None:

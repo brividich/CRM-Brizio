@@ -1489,6 +1489,11 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
   {% endif %}
   {% endif %}{# /asset_type != PRODOTTO_CHIMICO — corpo standard nascosto per i chimici #}
 
+  {# Storico audit dell'asset: risponde a "chi ha modificato questa scadenza". #}
+  <section class="af-card af-span-full" style="margin-top:18px;" id="asset-storico-section">
+    {% include "core/components/_storico_modifiche.html" with storico=storico_audit titolo="Storico modifiche dell'asset" vuoto="Nessuna modifica tracciata per questo asset." %}
+  </section>
+
 </section>
 
 {# Lightbox targhetta: popup leggero, senza librerie, coerente col tema. #}
