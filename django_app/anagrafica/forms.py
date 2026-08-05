@@ -346,6 +346,7 @@ class TrainingCourseForm(forms.ModelForm):
             "piano", "categoria", "qualifica", "codice", "titolo", "descrizione",
             "durata_ore_teorica", "validita_mesi",
             "obbligatorio", "costo_unitario",
+            "fonte_obbligo", "riferimento_fonte", "articolo_fonte",
             "is_elearning", "quiz_punteggio_minimo",
             "stato", "note", "versione", "is_active",
         ]
@@ -353,6 +354,9 @@ class TrainingCourseForm(forms.ModelForm):
             "piano":              forms.Select(attrs=_FM_SELECT),
             "categoria":          forms.Select(attrs=_FM_SELECT),
             "qualifica":          forms.Select(attrs=_FM_SELECT),
+            "fonte_obbligo":      forms.Select(attrs=_FM_SELECT),
+            "riferimento_fonte":  forms.TextInput(attrs={**_FM, "placeholder": "es. Accordo Stato-Regioni 21/12/2011"}),
+            "articolo_fonte":     forms.TextInput(attrs={**_FM, "placeholder": "es. art. 37 c. 2"}),
             "codice":             forms.TextInput(attrs=_FM),
             "titolo":             forms.TextInput(attrs=_FM),
             "descrizione":        forms.Textarea(attrs=_FM_TEXTAREA),
@@ -381,6 +385,12 @@ class TrainingCourseForm(forms.ModelForm):
         self.fields["qualifica"].queryset = TipoQualifica.objects.filter(is_active=True).order_by("categoria", "nome")
         self.fields["qualifica"].required = False
         self.fields["qualifica"].empty_label = "— Nessuna (corso non legato a qualifica) —"
+
+        # Origine dell'obbligo: mai bloccante, i corsi storici non la compilano.
+        self.fields["fonte_obbligo"].required = False
+        self.fields["fonte_obbligo"].widget.choices = (
+            [("", "— Non specificata —")] + list(TrainingCourse.FONTE_OBBLIGO_CHOICES)
+        )
 
         # Dropdown qualifica raggruppato per tipologia (optgroups per categoria).
         from itertools import groupby

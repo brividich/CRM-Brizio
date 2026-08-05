@@ -258,6 +258,14 @@ class TrainingCourse(models.Model):
         ("ARCHIVIATO", "Archiviato"),
     ]
 
+    FONTE_OBBLIGO_CHOICES = [
+        ("LEGGE",    "Norma di legge"),
+        ("ACCORDO",  "Accordo Stato-Regioni"),
+        ("CLIENTE",  "Specifica cliente"),
+        ("NORMA",    "Norma di sistema (ISO, EN, AS…)"),
+        ("INTERNO",  "Decisione interna"),
+    ]
+
     piano              = models.ForeignKey(TrainingPlan, on_delete=models.PROTECT, related_name="corsi")
     categoria          = models.ForeignKey(
         "anagrafica.CategoriaCorso", null=True, blank=True,
@@ -281,6 +289,24 @@ class TrainingCourse(models.Model):
         help_text="0 = una tantum, altrimenti durata in mesi prima del rinnovo",
     )
     obbligatorio   = models.BooleanField(default=False)
+    # ── Origine dell'obbligo (catena dell'evidenza, anello 1) ────────────────
+    # Da dove nasce il dovere di erogare il corso. Storicamente il riferimento
+    # finiva dentro il titolo come testo libero ("Rif. 9070Q", "AWPS004Q rev. B"),
+    # quindi non interrogabile: in audit la domanda "mostrami tutti i corsi che
+    # discendono dall'Accordo Stato-Regioni" non aveva risposta.
+    # Campi NON bloccanti: i corsi storici restano validi senza compilarli.
+    fonte_obbligo     = models.CharField(
+        max_length=12, choices=FONTE_OBBLIGO_CHOICES, blank=True, default="", db_index=True,
+        help_text="Da cosa discende l'obbligo di questo corso. Lasciare vuoto se non pertinente.",
+    )
+    riferimento_fonte = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Estremi della fonte: es. «D.Lgs 81/08», «Accordo Stato-Regioni 21/12/2011», «Avio 9070Q».",
+    )
+    articolo_fonte    = models.CharField(
+        max_length=100, blank=True, default="",
+        help_text="Punto specifico, se utile: es. «art. 37 c. 2», «§ 4.3».",
+    )
     # ── E-learning (micro-corso interno: slide sequenziali + quiz finale) ─────
     # Un corso e-learning si fruisce in autonomia dal portale: niente sessione
     # d'aula, niente registro presenze. Gli altri corsi restano "d'aula".

@@ -75,7 +75,7 @@
           <section class="kp-station" data-title="Classificazione">
             <div class="kp-station-head">
               <span class="kp-num">2</span>
-              <div class="kp-station-titles"><h3>Classificazione</h3><p>Piano, rischio e qualifica àncora.</p></div>
+              <div class="kp-station-titles"><h3>Classificazione</h3><p>Piano, rischio, qualifica àncora e origine dell'obbligo.</p></div>
             </div>
             <div class="kp-body">
               <div class="fmd-stack">
@@ -83,6 +83,12 @@
                 {% include "anagrafica/partials/_fmd_field.html" with field=form.categoria %}
                 {% include "anagrafica/partials/_fmd_field.html" with field=form.qualifica full=1 %}
                 {% if form.processi_richiedenti %}{% include "anagrafica/partials/_fmd_field.html" with field=form.processi_richiedenti full=1 %}{% endif %}
+              </div>
+              <p class="kp-hint" style="margin:14px 0 6px;">Da cosa discende l'obbligo di erogare questo corso. Serve a rispondere in audit a «mostrami tutti i corsi che nascono da…»: si può lasciare vuoto.</p>
+              <div class="fmd-stack">
+                {% include "anagrafica/partials/_fmd_field.html" with field=form.fonte_obbligo %}
+                {% include "anagrafica/partials/_fmd_field.html" with field=form.riferimento_fonte %}
+                {% include "anagrafica/partials/_fmd_field.html" with field=form.articolo_fonte full=1 %}
               </div>
               {% include "anagrafica/components/_multiselect_picker.html" %}
             </div>

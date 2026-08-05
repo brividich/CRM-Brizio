@@ -11344,6 +11344,25 @@ def formazione_ricerca(request):
     })
 
 
+def _audit_formazione(request, azione: str, dettaglio: dict | None = None) -> None:
+    """Registra nel registro audit del portale un gesto irreversibile o sensibile.
+
+    Si tracciano solo i gesti che in verifica ispettiva sollevano la domanda
+    "chi l'ha fatto e quando": cancellazioni e ritocchi a una presenza già
+    firmata. Le registrazioni ordinarie non finiscono qui, altrimenti il
+    registro diventa illeggibile.
+
+    Fire-and-forget: un errore di audit non deve mai far fallire l'operazione
+    dell'utente (``core.audit.log_action`` già inghiotte le eccezioni).
+    """
+    try:
+        from core.audit import log_action
+
+        log_action(request, azione, "anagrafica.formazione", dettaglio or {})
+    except Exception:  # pragma: no cover - difesa in profondità
+        pass
+
+
 def _can_edit_formazione(request) -> bool:
     """Verifica permesso di modifica sezione formazione (modifica catalogo piani/corsi/istruttori)."""
     if request.user.is_superuser:
@@ -11918,7 +11937,11 @@ def formazione_corso_delete(request, corso_id: int):
         return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
     piano_id = corso.piano_id
     nome = corso.titolo
+    codice = corso.codice
     corso.delete()
+    _audit_formazione(request, "corso_eliminato", {
+        "corso_id": corso_id, "codice": codice, "titolo": nome, "piano_id": piano_id,
+    })
     messages.success(request, f'Corso "{nome}" eliminato.')
     return redirect("anagrafica:formazione_piano_detail", piano_id=piano_id)
 
@@ -12428,7 +12451,12 @@ def formazione_sessione_delete(request, sessione_id: int):
         return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
     corso_id = sessione.corso_id
     codice   = sessione.codice_sessione
+    n_lezioni = sessione.lezioni.count()
     sessione.delete()
+    _audit_formazione(request, "sessione_eliminata", {
+        "sessione_id": sessione_id, "codice_sessione": codice,
+        "corso_id": corso_id, "lezioni_eliminate": n_lezioni,
+    })
     messages.success(request, f'Sessione "{codice}" eliminata.')
     return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
 
@@ -12485,7 +12513,13 @@ def formazione_lezione_delete(request, sessione_id: int, lezione_id: int):
         return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
     lezione = get_object_or_404(TrainingLesson, pk=lezione_id, sessione_id=sessione_id)
     num = lezione.numero
+    n_presenze = lezione.presenze.count()
+    data = lezione.data.isoformat() if lezione.data else ""
     lezione.delete()
+    _audit_formazione(request, "lezione_eliminata", {
+        "sessione_id": sessione_id, "lezione_id": lezione_id,
+        "numero": num, "data": data, "presenze_eliminate": n_presenze,
+    })
     messages.success(request, f'Lezione {num} eliminata.')
     return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
 
@@ -13426,16 +13460,28 @@ def formazione_presenza_set(request, sessione_id: int, lezione_id: int):
         messages.error(request, "ID dipendente non valido.")
         return redirect("anagrafica:formazione_lezione_presenze", sessione_id=sessione_id, lezione_id=lezione_id)
 
-    presenza, _ = TrainingLessonAttendance.objects.get_or_create(
+    presenza, creata = TrainingLessonAttendance.objects.get_or_create(
         lezione=lezione,
         legacy_anagrafica_id=legacy_id,
         defaults={"registrato_da": request.user},
     )
+    # Stato precedente: serve per capire se questa è una prima registrazione
+    # oppure il ritocco di una presenza già firmata (che va tracciato).
+    stato_prima = presenza.stato_presenza
+    firma_prima = presenza.signature_status
     form = TrainingLessonAttendanceForm(request.POST, instance=presenza)
     if form.is_valid():
         p = form.save(commit=False)
         p.registrato_da = request.user
         p.save()
+
+        if not creata and (p.stato_presenza != stato_prima or firma_prima == "FIRMATO"):
+            _audit_formazione(request, "presenza_modificata", {
+                "sessione_id": sessione_id, "lezione_id": lezione_id,
+                "legacy_anagrafica_id": legacy_id,
+                "stato_precedente": stato_prima, "stato_nuovo": p.stato_presenza,
+                "firma_precedente": firma_prima, "firma_attuale": p.signature_status,
+            })
 
         # Aggiorna ore_frequentate e percentuale nell'iscrizione
         try:
