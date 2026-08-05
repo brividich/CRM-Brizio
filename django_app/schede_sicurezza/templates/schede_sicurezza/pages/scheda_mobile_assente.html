@@ -1,0 +1,79 @@
+{% extends base_template|default:"core/base.html" %}
+
+{% comment %}
+Prodotto identificato dal QR, ma senza scheda di sicurezza corrente.
+
+Prima qui c'era un 404 secco. Chi legge questa pagina è in piedi davanti al
+contenitore col telefono in mano: il caso in cui l'informazione manca è proprio
+quello in cui serve una risposta. La pagina dice QUALE prodotto è (l'etichetta
+sul fusto potrebbe essere illeggibile), dichiara che la SDS non è disponibile e
+mostra i pittogrammi dichiarati sul prodotto se ci sono — l'unica informazione
+di pericolo che il portale possiede in questo stato.
+{% endcomment %}
+
+{% block title %}{{ prodotto.nome }} — Scheda non disponibile{% endblock %}
+
+{% block extra_head %}
+<style>
+.ss-mobile-wrap { max-width:480px; margin:0 auto; display:flex; flex-direction:column; gap:16px; }
+.ss-mobile-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:16px; }
+.ss-mobile-title { font-size:19px; font-weight:900; }
+.ss-mobile-sub { font-size:13px; color:#64748b; margin-top:2px; }
+.ss-mobile-section-title { font-weight:700; font-size:13px; color:#475569; margin-bottom:8px; text-transform:uppercase; letter-spacing:.03em; }
+.ss-pitto-grid { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.ss-alert-box { background:#fef3c7; border-radius:10px; padding:12px; font-size:13px; color:#92400e; }
+.ss-nota { font-size:12px; color:#64748b; }
+
+body.theme-dark .ss-mobile-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .ss-mobile-title { color:var(--text); }
+body.theme-dark .ss-mobile-sub { color:var(--text-light); }
+body.theme-dark .ss-mobile-section-title { color:var(--text-mid); }
+</style>
+{% endblock %}
+
+{% block content %}
+{% include "schede_sicurezza/components/_ghs_icons.html" %}
+<div class="ss-mobile-wrap">
+  <div class="ss-mobile-card">
+    <div class="ss-mobile-title">{{ prodotto.nome }}</div>
+    <div class="ss-mobile-sub">{{ prodotto.reparto.nome }} · {{ prodotto.fornitore|default:"—" }}</div>
+  </div>
+
+  <div class="ss-mobile-card">
+    <div class="ss-alert-box">
+      <strong>Scheda di sicurezza non disponibile.</strong><br>
+      Per questo prodotto non risulta caricata una scheda corrente. Prima di
+      manipolarlo, chiedi al preposto di reparto o al servizio di prevenzione e
+      protezione.
+    </div>
+  </div>
+
+  {% if pittogrammi %}
+  <div class="ss-mobile-card">
+    <div class="ss-mobile-section-title">Pericoli dichiarati sul prodotto</div>
+    <div class="ss-pitto-grid">
+      {% include "schede_sicurezza/partials/_pittogrammi.html" with pittogrammi=pittogrammi size=52 %}
+    </div>
+    <p class="ss-nota">Indicazione registrata a inventario, non sostituisce la scheda di sicurezza.</p>
+  </div>
+  {% endif %}
+
+  {% if segnalazione_inviata %}
+  <div class="ss-mobile-card">
+    <div class="ss-mobile-sub">Segnalazione registrata: grazie. Il responsabile la vedrà nel report di conformità.</div>
+  </div>
+  {% elif user.is_authenticated %}
+  <div class="ss-mobile-card">
+    <form method="post">
+      {% csrf_token %}
+      <div class="ss-mobile-section-title">Segnala la mancanza</div>
+      <p class="ss-nota">Registra che questo prodotto è stato cercato e la sua scheda non c'era.</p>
+      <button type="submit" name="segnala" value="1" class="ss-pv-btn"
+              style="width:100%;padding:12px;background:#1d4ed8;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;">
+        Segnala scheda mancante
+      </button>
+    </form>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

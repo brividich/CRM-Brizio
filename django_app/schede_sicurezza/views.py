@@ -15,6 +15,7 @@ from django.utils import timezone
 from django.utils.text import get_valid_filename
 from django.views.decorators.http import require_POST
 
+from core.audit import log_action
 from core.csv_export import safe_csv_writer
 from core.public_headers import blinda_risposta_pubblica
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
@@ -415,7 +416,9 @@ def scheda_mobile(request, uuid):
     )
     scheda = prodotto.scheda_corrente()
     if scheda is None:
-        raise Http404("Nessuna scheda di sicurezza corrente per questo prodotto.")
+        # Niente 404: chi legge è davanti al contenitore col telefono in mano, e
+        # il caso in cui l'informazione manca è quello in cui serve una risposta.
+        return _scheda_mobile_assente(request, prodotto)
 
     # Contatore aperture del QR: incremento atomico lato DB (nessun read-modify-write,
     # quindi nessun aggiornamento perso fra due scansioni simultanee), poi rispecchiato
@@ -436,6 +439,35 @@ def scheda_mobile(request, uuid):
         "scheda": scheda,
         "pittogrammi": ghs.dettaglio(scheda.pittogrammi),
         "gia_presa_visione": gia_presa_visione,
+        "base_template": "core/base.html" if request.user.is_authenticated else "core/base_public.html",
+    }))
+
+
+def _scheda_mobile_assente(request, prodotto):
+    """Pagina per un prodotto senza scheda corrente, con segnalazione facoltativa.
+
+    La segnalazione è un'annotazione nell'audit trail agganciata al prodotto
+    (vedi ``core.audit``): nessun modello nuovo, e il gap compare nello storico
+    del prodotto accanto al report di conformità che già lo conta. Riservata
+    agli utenti autenticati — una segnalazione anonima non sarebbe attribuibile
+    a nessuno, e aprirebbe una scrittura senza identità su una rotta pubblica.
+    """
+    segnalazione_inviata = False
+    if request.method == "POST" and request.POST.get("segnala") and request.user.is_authenticated:
+        log_action(
+            request, "segnalazione_sds_mancante", "schede_sicurezza",
+            {"prodotto": prodotto.nome, "reparto": prodotto.reparto.nome},
+            oggetto=prodotto,
+        )
+        segnalazione_inviata = True
+
+    ProdottoChimico.objects.filter(pk=prodotto.pk).update(visite_qr=F("visite_qr") + 1)
+    prodotto.visite_qr += 1
+
+    return _risposta_pubblica(render(request, "schede_sicurezza/pages/scheda_mobile_assente.html", {
+        "prodotto": prodotto,
+        "pittogrammi": ghs.dettaglio(prodotto.pittogrammi_effettivi(None)),
+        "segnalazione_inviata": segnalazione_inviata,
         "base_template": "core/base.html" if request.user.is_authenticated else "core/base_public.html",
     }))
 
