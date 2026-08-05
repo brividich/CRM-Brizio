@@ -20,6 +20,9 @@
 .as-main > .as-top {
   display: none;
 }
+.as-section-nav {
+  display: none;
+}
 .as-page-head {
   min-height: 0;
   padding: 8px 10px 8px 14px;
@@ -249,6 +252,121 @@
 .wof-actions-copy { color: #64748b; font-size: var(--fs-sm); }
 .wof-actions-cta { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 
+/* Guided work-order form: one clear sequence, optional technical depth. */
+.wof-page { max-width: 1260px; }
+.wof-context {
+  display:grid;
+  grid-template-columns:44px minmax(0,1fr) auto;
+  gap:12px;
+  padding:12px 14px;
+  margin-bottom:12px;
+  border-left-width:4px;
+  border-radius:12px;
+}
+.wof-asset-icon {
+  width:44px;
+  height:44px;
+  border-radius:11px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  background:#e8f1ff;
+  color:#1d4ed8;
+  font-weight:900;
+  font-size:var(--fs-lg);
+}
+.wof-context-main { min-width:0; display:grid; gap:2px; }
+.wof-context-title { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.wof-context-title strong { font-size:var(--fs-base); }
+.wof-context-meta { color:#64748b; font-size:var(--fs-sm); }
+.wof-context-chips { display:flex; justify-content:flex-end; align-items:center; gap:6px; flex-wrap:wrap; }
+.wof-form { gap:12px; }
+.wof-form-body {
+  grid-template-columns:minmax(0,1fr) minmax(320px,380px);
+  gap:14px;
+}
+.wof-primary,
+.wof-secondary { display:grid; gap:14px; align-content:start; }
+.wof-section {
+  gap:14px;
+  padding:18px;
+  border-radius:12px;
+  box-shadow:0 8px 24px rgba(15,23,42,.045);
+}
+.wof-section--main { grid-row:auto; }
+.wof-section-head { align-items:center; }
+.wof-section-title { display:flex; align-items:flex-start; gap:10px; }
+.wof-step {
+  width:26px;
+  height:26px;
+  border-radius:8px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  flex:0 0 auto;
+  background:#1d4ed8;
+  color:#fff;
+  font-size:var(--fs-xs);
+  font-weight:900;
+}
+.wof-grid { gap:12px; }
+.wof-field { gap:6px; }
+.wof-field input,
+.wof-field select,
+.wof-field textarea {
+  min-height:42px;
+  padding:9px 11px;
+  font-size:var(--fs-base);
+}
+.wof-field textarea { min-height:108px; }
+.wof-field--resolution textarea { min-height:88px; }
+.wof-required { color:#b91c1c; font-weight:900; }
+.wof-optional { color:#64748b; font-weight:600; font-size:var(--fs-xs); }
+.wof-advanced {
+  border:1px solid #d8e2ef;
+  border-radius:12px;
+  background:#fff;
+  overflow:hidden;
+  box-shadow:0 8px 24px rgba(15,23,42,.04);
+}
+.wof-advanced summary {
+  list-style:none;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:14px 16px;
+  cursor:pointer;
+  color:#183153;
+  font-weight:850;
+}
+.wof-advanced summary::-webkit-details-marker { display:none; }
+.wof-advanced summary:before {
+  content:"+";
+  width:24px;
+  height:24px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:7px;
+  background:#eff6ff;
+  color:#1d4ed8;
+  font-size:var(--fs-lg);
+  font-weight:900;
+}
+.wof-advanced[open] summary:before { content:"−"; }
+.wof-advanced-summary { display:grid; gap:2px; }
+.wof-advanced-summary small { color:#64748b; font-size:var(--fs-xs); font-weight:500; }
+.wof-advanced-body { display:grid; gap:12px; padding:0 16px 16px; border-top:1px solid #edf2f7; padding-top:14px; }
+.wof-upload { padding:12px; }
+.wof-actions {
+  position:sticky;
+  bottom:10px;
+  z-index:4;
+  padding:12px 14px;
+  border-radius:12px;
+  box-shadow:0 14px 34px rgba(15,23,42,.12);
+}
+
 @media (max-width: 980px) {
   .wof-form-body { grid-template-columns: 1fr; }
   .wof-section--main { grid-row: auto; }
@@ -262,6 +380,9 @@
   .wof-page { gap: 10px; }
   .wof-actions { padding-left: 10px; padding-right: 10px; }
   .wof-section { padding: 10px; }
+  .wof-context { grid-template-columns:38px minmax(0,1fr); }
+  .wof-asset-icon { width:38px; height:38px; }
+  .wof-context-chips { grid-column:1 / -1; justify-content:flex-start; }
 }
 
 body.theme-dark .wof-context { background:var(--surface); border-color:var(--border); }
@@ -289,22 +410,36 @@ body.theme-dark .wof-upload-copy span { color:var(--text-light); }
 body.theme-dark .wof-upload-status { background:var(--surface); color:var(--text); }
 body.theme-dark .wof-actions { background:var(--surface); border-top-color:var(--border); }
 body.theme-dark .wof-actions-copy { color:var(--text-light); }
+body.theme-dark .wof-asset-icon { background:rgba(29,78,216,.2); color:#93c5fd; }
+body.theme-dark .wof-context-meta { color:var(--text-light); }
+body.theme-dark .wof-advanced { background:var(--surface-alt); border-color:var(--border); box-shadow:none; }
+body.theme-dark .wof-advanced summary { color:var(--text); }
+body.theme-dark .wof-advanced summary:before { background:rgba(29,78,216,.2); color:#93c5fd; }
+body.theme-dark .wof-advanced-summary small { color:var(--text-light); }
+body.theme-dark .wof-advanced-body { border-color:var(--border); }
 </style>
 {% endblock %}
 
 {% block assets_shell_content %}
 <section class="wof-page">
   <div class="wof-context">
-    <span class="wof-source">{{ workorder_prefill.source_label }}</span>
-    <strong>{{ asset.asset_tag }}</strong>
-    <span class="wof-context-text">{{ asset.name }}</span>
-    <span class="wof-chip">{{ asset.get_asset_type_display }}</span>
-    <span class="wof-chip">{{ asset.get_status_display }}</span>
-    {% if workorder_prefill.maintenance_template %}
-      <span class="wof-chip">{{ workorder_prefill.maintenance_template.label }}</span>
-    {% elif initial_contract %}
-      <span class="wof-chip">{{ initial_contract.supplier }}</span>
-    {% endif %}
+    <span class="wof-asset-icon" aria-hidden="true">{{ asset.asset_tag|slice:":2" }}</span>
+    <div class="wof-context-main">
+      <div class="wof-context-title">
+        <strong>{{ asset.asset_tag }} · {{ asset.name }}</strong>
+        <span class="wof-source">{{ workorder_prefill.source_label }}</span>
+      </div>
+      <span class="wof-context-meta">Stai aprendo un intervento su questo asset. Controlla che sia quello corretto prima di salvare.</span>
+    </div>
+    <div class="wof-context-chips">
+      <span class="wof-chip">{{ asset.get_asset_type_display }}</span>
+      <span class="wof-chip">{{ asset.get_status_display }}</span>
+      {% if workorder_prefill.maintenance_template %}
+        <span class="wof-chip">{{ workorder_prefill.maintenance_template.label }}</span>
+      {% elif initial_contract %}
+        <span class="wof-chip">{{ initial_contract.supplier }}</span>
+      {% endif %}
+    </div>
   </div>
 
   <form method="post" enctype="multipart/form-data" class="wof-form">
@@ -317,158 +452,156 @@ body.theme-dark .wof-actions-copy { color:var(--text-light); }
     {% endif %}
 
     <div class="wof-form-body">
-      <section class="wof-section wof-section--main">
-        <div class="wof-section-head">
-          <div>
-            <h3>Dati intervento</h3>
-            <p>Tipo, collegamenti manutentivi, copertura e assegnazione.</p>
+      <div class="wof-primary">
+        <section class="wof-section wof-section--main">
+          <div class="wof-section-head">
+            <div class="wof-section-title">
+              <span class="wof-step">1</span>
+              <div>
+                <h3>Cosa devi registrare?</h3>
+                <p>Va bene sia per un guasto sia per una manutenzione pianificata.</p>
+              </div>
+            </div>
           </div>
-        </div>
-        <div class="wof-grid">
+          <div class="wof-grid">
+            <div class="wof-field">
+              <label for="{{ form.kind.id_for_label }}">Tipo intervento <span class="wof-required" aria-label="obbligatorio">*</span></label>
+              {{ form.kind }}
+              <div class="wof-helper">Scegli la voce che descrive meglio il motivo dell'apertura.</div>
+              {% if form.kind.errors %}<div class="wof-error">{{ form.kind.errors }}</div>{% endif %}
+            </div>
+
+            <div class="wof-field">
+              <label for="{{ form.assigned_to.id_for_label }}">Assegnato a <span class="wof-optional">opzionale</span></label>
+              {{ form.assigned_to }}
+              <div class="wof-helper">Puoi assegnarlo ora oppure lasciarlo da prendere in carico.</div>
+              {% if form.assigned_to.errors %}<div class="wof-error">{{ form.assigned_to.errors }}</div>{% endif %}
+            </div>
+
+            <div class="wof-field wof-field--full">
+              <label for="{{ form.title.id_for_label }}">Titolo <span class="wof-required" aria-label="obbligatorio">*</span></label>
+              {{ form.title }}
+              <div class="wof-helper{% if workorder_prefill.title %} is-highlight{% endif %}" id="titleSuggestion">
+                {% if workorder_prefill.title %}Titolo proposto dal piano manutentivo.{% else %}Esempio: Perdita olio mandrino oppure Controllo annuale sicurezza.{% endif %}
+              </div>
+              {% if form.title.errors %}<div class="wof-error">{{ form.title.errors }}</div>{% endif %}
+            </div>
+
+            <div class="wof-field wof-field--full">
+              <label for="{{ form.description.id_for_label }}">Descrizione <span class="wof-optional">consigliata</span></label>
+              {{ form.description }}
+              <div class="wof-helper{% if workorder_prefill.description %} is-highlight{% endif %}" id="descriptionSuggestion">
+                {% if workorder_prefill.description %}Descrizione proposta dal piano manutentivo.{% else %}Descrivi il problema, l'attivita richiesta o i controlli da eseguire.{% endif %}
+              </div>
+              {% if form.description.errors %}<div class="wof-error">{{ form.description.errors }}</div>{% endif %}
+            </div>
+
+            <div class="wof-field wof-field--full wof-field--resolution">
+              <label for="{{ form.resolution.id_for_label }}">Risoluzione gia applicata <span class="wof-optional">opzionale</span></label>
+              {{ form.resolution }}
+              <div class="wof-helper">Compilala subito se il problema e gia stato risolto; potrai aggiornarla anche in seguito.</div>
+              {% if form.resolution.errors %}<div class="wof-error">{{ form.resolution.errors }}</div>{% endif %}
+            </div>
+          </div>
+        </section>
+
+        <section class="wof-section wof-section--operations">
+          <div class="wof-section-head">
+            <div class="wof-section-title">
+              <span class="wof-step">2</span>
+              <div>
+                <h3>Impatto operativo</h3>
+                <p>Indica il fermo solo se l'asset e rimasto indisponibile.</p>
+              </div>
+            </div>
+          </div>
+          <div class="wof-grid">
+            <div class="wof-field">
+              <label for="{{ form.downtime_minutes.id_for_label }}">Fermo impianto <span class="wof-optional">minuti</span></label>
+              {{ form.downtime_minutes }}
+              <div class="wof-helper">Lascia 0 se non c'e stato fermo.</div>
+              {% if form.downtime_minutes.errors %}<div class="wof-error">{{ form.downtime_minutes.errors }}</div>{% endif %}
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <aside class="wof-secondary" aria-label="Dettagli facoltativi intervento">
+        <section class="wof-section wof-section--attachments">
+          <div class="wof-section-head">
+            <div>
+              <h3>Allegati <span class="wof-optional">opzionali</span></h3>
+              <p>Foto, report, preventivi o verbali.</p>
+            </div>
+          </div>
           <div class="wof-field">
-            <label for="{{ form.kind.id_for_label }}">{{ form.kind.label }}</label>
-            {{ form.kind }}
-            {% if form.kind.errors %}<div class="wof-error">{{ form.kind.errors }}</div>{% endif %}
-          </div>
-
-          <div class="wof-field" id="periodicVerificationField">
-            <label for="{{ form.periodic_verification.id_for_label }}">{{ form.periodic_verification.label }}</label>
-            {{ form.periodic_verification }}
-            <div class="wof-helper">
-              {% if form.periodic_verification.help_text %}{{ form.periodic_verification.help_text }}{% endif %}
-            </div>
-            {% if form.periodic_verification.errors %}<div class="wof-error">{{ form.periodic_verification.errors }}</div>{% endif %}
-          </div>
-
-          <div class="wof-field">
-            <label for="{{ form.maintenance_rule.id_for_label }}">{{ form.maintenance_rule.label }}</label>
-            {{ form.maintenance_rule }}
-            <div class="wof-helper{% if workorder_prefill.maintenance_template %} is-highlight{% endif %}" id="maintenanceRuleSuggestion">
-              {% if workorder_prefill.maintenance_template %}
-                Template suggerito: {{ workorder_prefill.maintenance_template.label }}
-              {% elif form.maintenance_rule.help_text %}
-                {{ form.maintenance_rule.help_text }}
-              {% endif %}
-            </div>
-            {% if form.maintenance_rule.errors %}<div class="wof-error">{{ form.maintenance_rule.errors }}</div>{% endif %}
-          </div>
-
-          <div class="wof-field" id="supplierField">
-            <label for="{{ form.supplier.id_for_label }}">{{ form.supplier.label }}</label>
-            {{ form.supplier }}
-            <div class="wof-helper" id="supplierSuggestion">
-              {% if form.supplier.help_text %}{{ form.supplier.help_text }}{% endif %}
-            </div>
-            {% if form.supplier.errors %}<div class="wof-error">{{ form.supplier.errors }}</div>{% endif %}
-          </div>
-
-          <div class="wof-field">
-            <label for="{{ form.assistance_contract.id_for_label }}">{{ form.assistance_contract.label }}</label>
-            {{ form.assistance_contract }}
-            <div class="wof-helper{% if initial_contract %} is-highlight{% endif %}" id="contractSuggestion">
-              {% if initial_contract %}
-                Contratto suggerito: {{ initial_contract.title }}{% if initial_contract.supplier %} con {{ initial_contract.supplier }}{% endif %}
-              {% elif form.assistance_contract.help_text %}
-                {{ form.assistance_contract.help_text }}
-              {% endif %}
-            </div>
-            {% if form.assistance_contract.errors %}<div class="wof-error">{{ form.assistance_contract.errors }}</div>{% endif %}
-          </div>
-
-          <div class="wof-field wof-field--check">
-            <label for="{{ form.covered_by_contract.id_for_label }}">{{ form.covered_by_contract.label }}</label>
-            {{ form.covered_by_contract }}
-            {% if form.covered_by_contract.help_text %}<div class="wof-helper">{{ form.covered_by_contract.help_text }}</div>{% endif %}
-            {% if form.covered_by_contract.errors %}<div class="wof-error">{{ form.covered_by_contract.errors }}</div>{% endif %}
-          </div>
-
-          <div class="wof-field">
-            <label for="{{ form.assigned_to.id_for_label }}">{{ form.assigned_to.label }}</label>
-            {{ form.assigned_to }}
-            <div class="wof-helper">{{ form.assigned_to.help_text }}</div>
-            {% if form.assigned_to.errors %}<div class="wof-error">{{ form.assigned_to.errors }}</div>{% endif %}
-          </div>
-
-          <div class="wof-field wof-field--full">
-            <label for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>
-            {{ form.title }}
-            <div class="wof-helper{% if workorder_prefill.title %} is-highlight{% endif %}" id="titleSuggestion">
-              {% if workorder_prefill.title %}
-                Titolo proposto dal template manutentivo.
-              {% else %}
-                Puoi usare un titolo libero oppure lasciare quello suggerito dalla regola.
-              {% endif %}
-            </div>
-            {% if form.title.errors %}<div class="wof-error">{{ form.title.errors }}</div>{% endif %}
-          </div>
-        </div>
-      </section>
-
-      <section class="wof-section wof-section--notes">
-        <div class="wof-section-head">
-          <div>
-            <h3>Descrizione e risoluzione</h3>
-            <p>Descrivi il problema, i controlli eseguiti e l'eventuale soluzione.</p>
-          </div>
-        </div>
-        <div class="wof-grid">
-          <div class="wof-field wof-field--full">
-            <label for="{{ form.description.id_for_label }}">{{ form.description.label }}</label>
-            {{ form.description }}
-            <div class="wof-helper{% if workorder_prefill.description %} is-highlight{% endif %}" id="descriptionSuggestion">
-              {% if workorder_prefill.description %}
-                Descrizione precompilata dal template e dalle note operative della regola.
-              {% else %}
-                Descrivi attivita, controlli o anomalia riscontrata.
-              {% endif %}
-            </div>
-            {% if form.description.errors %}<div class="wof-error">{{ form.description.errors }}</div>{% endif %}
-          </div>
-
-          <div class="wof-field wof-field--full">
-            <label for="{{ form.resolution.id_for_label }}">{{ form.resolution.label }}</label>
-            {{ form.resolution }}
-            <div class="wof-helper">Puoi lasciare il campo vuoto se l'intervento e ancora aperto.</div>
-            {% if form.resolution.errors %}<div class="wof-error">{{ form.resolution.errors }}</div>{% endif %}
-          </div>
-        </div>
-      </section>
-
-      <section class="wof-section wof-section--attachments">
-        <div class="wof-section-head">
-          <div>
-            <h3>Allegati</h3>
-            <p>Aggiungi documentazione tecnica, report di intervento o foto.</p>
-          </div>
-        </div>
-        <div class="wof-grid">
-          <div class="wof-field wof-field--full">
-            <label for="id_attachments">Allegati</label>
             <label class="wof-upload" for="id_attachments">
               <span class="wof-upload-main">
                 <span class="wof-upload-icon">+</span>
                 <span class="wof-upload-copy">
-                  <strong>Carica report, foto, preventivi o verbali</strong>
-                  <span>Formati supportati: PDF, Office, CSV e immagini. Puoi selezionare piu file in una sola volta.</span>
+                  <strong>Scegli uno o piu file</strong>
+                  <span>PDF, Office, CSV e immagini fino a {{ attachment_max_mb }} MB per file.</span>
                 </span>
               </span>
               <span class="wof-upload-status" id="attachmentsStatus">Nessun file selezionato</span>
             </label>
             <input class="wof-upload-input" id="id_attachments" type="file" name="attachments" multiple accept="{{ attachment_accept }}">
-            <div class="wof-helper">Dimensione massima {{ attachment_max_mb }} MB per file.</div>
           </div>
+        </section>
 
-          <div class="wof-field">
-            <label for="{{ form.downtime_minutes.id_for_label }}">{{ form.downtime_minutes.label }}</label>
-            {{ form.downtime_minutes }}
-            {% if form.downtime_minutes.errors %}<div class="wof-error">{{ form.downtime_minutes.errors }}</div>{% endif %}
+        <details class="wof-advanced" id="maintenanceAdvanced"{% if selected_rule_id or initial_contract or form.periodic_verification.value or form.supplier.value or form.maintenance_rule.errors or form.periodic_verification.errors or form.supplier.errors or form.assistance_contract.errors %} open{% endif %}>
+          <summary>
+            <span class="wof-advanced-summary">
+              Pianificazione e copertura
+              <small>Regola, piano periodico, fornitore e contratto</small>
+            </span>
+          </summary>
+          <div class="wof-advanced-body">
+            <div class="wof-field" id="periodicVerificationField">
+              <label for="{{ form.periodic_verification.id_for_label }}">{{ form.periodic_verification.label }}</label>
+              {{ form.periodic_verification }}
+              <div class="wof-helper">{{ form.periodic_verification.help_text }}</div>
+              {% if form.periodic_verification.errors %}<div class="wof-error">{{ form.periodic_verification.errors }}</div>{% endif %}
+            </div>
+
+            <div class="wof-field">
+              <label for="{{ form.maintenance_rule.id_for_label }}">{{ form.maintenance_rule.label }}</label>
+              {{ form.maintenance_rule }}
+              <div class="wof-helper{% if workorder_prefill.maintenance_template %} is-highlight{% endif %}" id="maintenanceRuleSuggestion">
+                {% if workorder_prefill.maintenance_template %}Template suggerito: {{ workorder_prefill.maintenance_template.label }}{% else %}{{ form.maintenance_rule.help_text }}{% endif %}
+              </div>
+              {% if form.maintenance_rule.errors %}<div class="wof-error">{{ form.maintenance_rule.errors }}</div>{% endif %}
+            </div>
+
+            <div class="wof-field" id="supplierField">
+              <label for="{{ form.supplier.id_for_label }}">{{ form.supplier.label }}</label>
+              {{ form.supplier }}
+              <div class="wof-helper" id="supplierSuggestion">{{ form.supplier.help_text }}</div>
+              {% if form.supplier.errors %}<div class="wof-error">{{ form.supplier.errors }}</div>{% endif %}
+            </div>
+
+            <div class="wof-field">
+              <label for="{{ form.assistance_contract.id_for_label }}">{{ form.assistance_contract.label }}</label>
+              {{ form.assistance_contract }}
+              <div class="wof-helper{% if initial_contract %} is-highlight{% endif %}" id="contractSuggestion">
+                {% if initial_contract %}Contratto suggerito: {{ initial_contract.title }}{% if initial_contract.supplier %} con {{ initial_contract.supplier }}{% endif %}{% else %}{{ form.assistance_contract.help_text }}{% endif %}
+              </div>
+              {% if form.assistance_contract.errors %}<div class="wof-error">{{ form.assistance_contract.errors }}</div>{% endif %}
+            </div>
+
+            <div class="wof-field wof-field--check">
+              <label for="{{ form.covered_by_contract.id_for_label }}">{{ form.covered_by_contract.label }}</label>
+              {{ form.covered_by_contract }}
+              {% if form.covered_by_contract.help_text %}<div class="wof-helper">{{ form.covered_by_contract.help_text }}</div>{% endif %}
+              {% if form.covered_by_contract.errors %}<div class="wof-error">{{ form.covered_by_contract.errors }}</div>{% endif %}
+            </div>
           </div>
-        </div>
-      </section>
+        </details>
+      </aside>
     </div>
 
     <div class="wof-actions">
-      <div class="wof-actions-copy">I campi possono essere completati subito o aggiornati in seguito dal dettaglio intervento.</div>
+      <div class="wof-actions-copy"><span class="wof-required">*</span> Campi obbligatori. Gli altri dati possono essere aggiunti anche dopo la creazione.</div>
       <div class="wof-actions-cta">
         <a class="btn" href="{{ workorder_back_url }}">Annulla</a>
         <button type="submit" class="btn btn-primary">Crea intervento</button>
@@ -484,6 +617,7 @@ body.theme-dark .wof-actions-copy { color:var(--text-light); }
   "use strict";
 
   const verificationField = document.getElementById("periodicVerificationField");
+  const advancedDetails = document.getElementById("maintenanceAdvanced");
   const supplierField = document.getElementById("supplierField");
   const kindEl = document.getElementById("id_kind");
   const verificationEl = document.getElementById("id_periodic_verification");
@@ -513,6 +647,9 @@ body.theme-dark .wof-actions-copy { color:var(--text-light); }
     if (!verificationField || !kindEl) return;
     const isPreventive = kindEl.value === "PREVENTIVE";
     verificationField.hidden = !isPreventive;
+    if (isPreventive && advancedDetails) {
+      advancedDetails.open = true;
+    }
     if (supplierField) {
       supplierField.classList.toggle("wof-field--full", !isPreventive);
     }

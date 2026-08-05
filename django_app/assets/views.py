@@ -15363,6 +15363,9 @@ def workorder_create(request: HttpRequest, id: int | None = None) -> HttpRespons
             "maintenance_rule_suggestion_map_json": json.dumps(maintenance_rule_suggestion_map),
             "contract_suggestion_map_json": json.dumps(contract_suggestion_map),
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
+            # Il form e' un flusso transazionale: evita tab e azioni globali
+            # duplicate mentre l'utente sta compilando l'intervento.
+            "assets_section_nav": None,
         },
     )
 

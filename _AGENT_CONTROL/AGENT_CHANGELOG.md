@@ -2,6 +2,21 @@
 
 ## 2026-08-05 - Codex
 
+- Area: `django_app/assets`, form nuovo intervento.
+- Richiesta: rendere comprensibile la schermata `/assets/workorders/new/<asset>/?source=workorder_list`, utilizzabile sia per guasto sia per manutenzione pianificata; lasciare la risoluzione compilabile subito.
+- File modificati: `django_app/assets/views.py`, `django_app/assets/templates/assets/pages/workorder_form.html`, `django_app/assets/tests.py`, `django_app/assets/README.md`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente. Nessuna modifica ad ACL, middleware, settings, autenticazione, permessi, URL, routing globale o navigazione globale.
+- Motivo tecnico: il form esponeva prima del titolo regola, manutenzione periodica, fornitore e contratto; mostrava inoltre breadcrumb, tab e azioni globali durante la compilazione, senza gerarchia tra dati essenziali e avanzati.
+- Modifica: sotto-nav rimossa server-side per questa view; contesto asset reso esplicito; flusso guidato `Cosa devi registrare?` e `Impatto operativo`; titolo e descrizione anticipati; risoluzione visibile e opzionale; allegati separati; dettagli manutentivi/contrattuali raccolti in `Pianificazione e copertura`, con apertura automatica per tipo preventivo, regola/contratto precompilati o errori.
+- Impatto previsto: compilazione piu rapida e leggibile per guasti e manutenzioni pianificate, senza variazioni ai dati salvati o ai flussi backend.
+- Rischi residui: verifica visuale autenticata non eseguita tramite browser integrato, non esposto nella sessione; la resa e coperta da render test e template check.
+- Test/check: `manage.py check assets` OK; template load OK; test UI guidata OK; test prefill da scadenzario e creazione preventiva con fornitore/allegato OK; `git diff --check` OK.
+- Backup creati: nessuno.
+- README/CHANGELOG: aggiornati `README.md`, `django_app/assets/README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`.
+- Note operative: lavoro isolato nel worktree `C:\Dev\pn-assets-workorder-form-ux`; modifiche locali non correlate del checkout condiviso preservate.
+
+## 2026-08-05 - Codex
+
 - Area: `django_app/assets`.
 - Richiesta: rendere `Asset -> Manutenzione` molto piu fruibile, eliminando la sensazione di pagina costruita per accumulo.
 - File modificati in questa sessione: `django_app/assets/views.py`, `django_app/assets/templates/assets/pages/maintenance_hub.html`, `django_app/assets/tests.py`, `django_app/assets/README.md`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.

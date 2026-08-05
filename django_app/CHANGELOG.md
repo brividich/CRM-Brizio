@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Assets - nuovo intervento come flusso guidato
+
+- **[ux/test] `assets/views.py`, `assets/templates/assets/pages/workorder_form.html`, `assets/tests.py`**: il form OdL rimuove la sotto-nav transazionale, rende evidente l'asset, porta tipo/titolo/descrizione in testa, mantiene la risoluzione subito compilabile ma opzionale e separa impatto operativo e allegati. Regola, piano periodico, fornitore, contratto e copertura sono raccolti in un pannello avanzato che si apre automaticamente per manutenzioni preventive o dati precompilati. Salvataggio e modello dati invariati.
+
 ### Assets - hub manutenzione con gerarchia operativa unica
 
 - **[ux/test] `assets/views.py`, `assets/templates/assets/pages/maintenance_hub.html`, `assets/tests.py`**: `/assets/manutenzione/` elimina il cruscotto duplicato e il rail di azioni gia presenti in toolbar/sotto-nav. Una sola fascia compatta riassume interventi aperti, scaduti, attivita entro 30 giorni e completati; il contenuto principale dichiara la priorita di lettura e il rail mostra solo l'agenda a 7 giorni con accessi diretti ai registri. La view non calcola piu le due aggregazioni del cruscotto rimosso; layout responsive e dark mode coperti; dati, ACL, URL e routing invariati.

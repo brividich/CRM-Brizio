@@ -5137,7 +5137,7 @@ class WorkOrderFlowTests(TestCase):
         )
         self.assertRedirects(response, expected_url, fetch_redirect_response=False)
 
-    def test_workorder_create_from_list_uses_compact_ui_and_back_link(self):
+    def test_workorder_create_from_list_uses_guided_ui_and_back_link(self):
         self.client.force_login(self.user)
 
         response = self.client.get(
@@ -5149,16 +5149,22 @@ class WorkOrderFlowTests(TestCase):
         self.assertEqual(response.context["workorder_back_url"], reverse("assets:wo_list"))
         self.assertContains(response, "Lista interventi")
         self.assertContains(response, "Torna agli interventi")
-        self.assertContains(response, "Dati intervento")
+        self.assertContains(response, "Cosa devi registrare?")
+        self.assertContains(response, "Impatto operativo")
+        self.assertContains(response, "Risoluzione gia applicata")
+        self.assertContains(response, "Pianificazione e copertura")
         self.assertContains(response, 'class="wof-form-body"', html=False)
         self.assertContains(response, 'class="wof-context"', html=False)
         self.assertContains(response, ".as-main > .as-top", html=False)
-        self.assertContains(response, "max-width: 1180px", html=False)
+        self.assertContains(response, ".as-section-nav", html=False)
+        self.assertContains(response, "max-width: 1260px", html=False)
         self.assertContains(response, 'class="wof-section wof-section--main"', html=False)
-        self.assertContains(response, 'class="wof-section wof-section--notes"', html=False)
         self.assertContains(response, 'class="wof-section wof-section--attachments"', html=False)
+        self.assertContains(response, 'class="wof-advanced" id="maintenanceAdvanced"', html=False)
         self.assertNotContains(response, 'class="wof-side-card"', html=False)
-        self.assertContains(response, ">+<", html=False)
+        self.assertNotContains(response, 'class="as-section-nav"', html=False)
+        html = response.content.decode("utf-8")
+        self.assertLess(html.index('for="id_title"'), html.index('for="id_maintenance_rule"'))
 
     def test_preventive_workorder_uses_periodic_verification_supplier_and_attachment(self):
         supplier = Fornitore.objects.create(
@@ -5427,6 +5433,11 @@ class WorkOrderFlowTests(TestCase):
         self.assertTrue(form.initial["covered_by_contract"])
         self.assertContains(response, "Prossime manutenzioni")
         self.assertContains(response, "Contratto suggerito")
+        self.assertContains(
+            response,
+            '<details class="wof-advanced" id="maintenanceAdvanced" open>',
+            html=False,
+        )
         self.assertNotContains(response, "Stato iniziale")
 
     def test_close_workorder_rejects_incompatible_contract(self):
