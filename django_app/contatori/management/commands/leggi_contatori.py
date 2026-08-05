@@ -1,6 +1,6 @@
 """Legge i contatori via SNMP e salva le letture del trimestre corrente."""
-import datetime as dt
 from django.core.management.base import BaseCommand
+from django.utils import timezone
 from contatori.models import Macchina, LetturaContatori
 from contatori.snmp import leggi_macchina, SNMPError
 
@@ -14,7 +14,7 @@ class Command(BaseCommand):
         parser.add_argument("--version", default="v1", choices=["v1", "v2c"])
 
     def handle(self, *args, **o):
-        oggi = dt.date.today()
+        oggi = timezone.localdate()
         trim = f"{oggi.year}-Q{(oggi.month-1)//3+1}"
         ok = 0
         for m in Macchina.objects.filter(attiva=True).exclude(host__isnull=True):

@@ -1160,7 +1160,7 @@ def _board_data_assenze_future(legacy_user: Any, params: dict) -> list[dict]:
         email = getattr(legacy_user, "email", "") or ""
         if not nome and not email:
             return []
-        today_str = date.today().isoformat()
+        today_str = timezone.localdate().isoformat()
         clauses = []
         params_sql: list = []
         if nome:

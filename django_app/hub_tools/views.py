@@ -28,6 +28,7 @@ from django.contrib import messages
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.http import FileResponse, HttpResponse, Http404, JsonResponse
+from django.utils import timezone
 from django.shortcuts import render
 from django.utils.text import slugify
 from django.views.decorators.clickjacking import xframe_options_exempt
@@ -790,7 +791,7 @@ def api_db_stats(request):
 def api_db_backup(request):
     engine = _get_db_engine()
     _BACKUP_DIR.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = timezone.localtime().strftime("%Y%m%d_%H%M%S")
 
     try:
         if engine == "sqlite":

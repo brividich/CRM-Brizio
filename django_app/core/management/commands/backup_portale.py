@@ -27,12 +27,12 @@ Pianificazione automatica (Windows Task Scheduler — configurata dal wizard):
 import shutil
 import subprocess
 import sys
-from datetime import datetime
 from pathlib import Path
 import re
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
+from django.utils import timezone
 
 TIMESTAMP_DIR_RE = re.compile(r"^\d{8}_\d{6}$")
 
@@ -55,7 +55,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        ts = timezone.localtime().strftime("%Y%m%d_%H%M%S")
         configured_retention = int(getattr(settings, "BACKUP_RETENTION", 10) or 10)
         retention = options["retention"] if options["retention"] is not None else configured_retention
         if retention < 1:
@@ -81,7 +81,7 @@ class Command(BaseCommand):
             line = f"  {icon} {msg}"
             self.stdout.write(line)
             with open(log_file, "a", encoding="utf-8") as f:
-                f.write(f"[{datetime.now():%H:%M:%S}] [{level}] {msg}\n")
+                f.write(f"[{timezone.localtime():%H:%M:%S}] [{level}] {msg}\n")
 
         self.stdout.write(
             self.style.MIGRATE_HEADING(f"\nBackup Portale Novicrom — {ts}")

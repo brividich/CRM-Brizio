@@ -15,6 +15,7 @@ from dataclasses import dataclass, replace
 from datetime import date, datetime
 
 from django.db import transaction
+from django.utils import timezone
 
 from .asset_resolver import (
     CONF_ALTA, IndiceAsset, normalizza_codice_attacco, risolvi,
@@ -97,7 +98,7 @@ def _parse_title_date(title: str) -> date | None:
     if m:
         d, mth, y = m.group(1), m.group(2), m.group(3)
         try:
-            anno = int(y) if y else date.today().year
+            anno = int(y) if y else timezone.localdate().year
             if anno < 100:
                 anno += 2000
             return date(anno, int(mth), int(d))
@@ -108,7 +109,7 @@ def _parse_title_date(title: str) -> date | None:
     mm = _RE_TITLE_MESE.search(t)
     if mm:
         try:
-            return date(date.today().year, _MESI_IT[mm.group(2).lower()], int(mm.group(1)))
+            return date(timezone.localdate().year, _MESI_IT[mm.group(2).lower()], int(mm.group(1)))
         except ValueError:
             return None
     return None

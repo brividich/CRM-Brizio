@@ -8,6 +8,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from django.core.management.base import BaseCommand
+from django.utils import timezone
 
 from ...previsioni import carico_settimanale
 
@@ -24,9 +25,9 @@ class Command(BaseCommand):
             try:
                 start = date.fromisoformat(opts["start"])
             except ValueError:
-                start = date.today()
+                start = timezone.localdate()
         else:
-            start = date.today()
+            start = timezone.localdate()
         start = start - timedelta(days=start.weekday())  # lunedi'
 
         self.stdout.write(self.style.MIGRATE_HEADING(

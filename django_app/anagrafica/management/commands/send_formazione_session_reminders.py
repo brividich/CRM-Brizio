@@ -9,7 +9,7 @@ errori sul singolo invio non bloccano gli altri.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone as dt_timezone
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
@@ -27,7 +27,9 @@ def _build_ics(sess) -> str:
         dt_s = sess.data_inizio.strftime("%Y%m%d")
         dt_e = (sess.data_fine + timedelta(days=1)).strftime("%Y%m%d")
         dt_fmt = ";VALUE=DATE"
-    stamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    # utcnow() e' deprecato da Python 3.12 e restituisce un datetime naive:
+    # timezone.now() e' gia' aware, e la "Z" resta corretta convertendo a UTC.
+    stamp = timezone.now().astimezone(dt_timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
     def esc(s: str) -> str:
         return (s or "").replace("\\", "\\\\").replace(",", "\\,").replace(";", "\\;").replace("\n", " ")

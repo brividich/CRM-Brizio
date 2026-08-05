@@ -9,7 +9,6 @@ Macchina a stati su `Specifica.stato` (FSMField, protected) — le transizioni
 """
 from __future__ import annotations
 
-from datetime import date
 
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
@@ -166,7 +165,7 @@ class Specifica(models.Model):
             raise ValidationError("Compilatore e approvatore del MOD.133 sono obbligatori.")
         if mod.compilatore_id == mod.approvatore_id:
             raise ValidationError("L'approvatore deve essere diverso dal compilatore.")
-        self.data_verifica = date.today() + relativedelta(months=_verifica_periodica_mesi())
+        self.data_verifica = timezone.localdate() + relativedelta(months=_verifica_periodica_mesi())
         # Side-effect: superamento automatico della revisione precedente in validità.
         prev = self.revisione_precedente
         if prev is not None and prev.stato == C.STATO_IN_VALIDITA:

@@ -2131,8 +2131,8 @@ class DocumentoDipendente(models.Model):
                 except Exception:
                     pass
             # Per record già esistenti usa created_at; per i nuovi (pk non ancora
-            # assegnato) created_at non è ancora scritto → usa date.today().
-            base = self.created_at.date() if self.pk and self.created_at else date.today()
+            # assegnato) created_at non è ancora scritto → usa la data di oggi.
+            base = self.created_at.date() if self.pk and self.created_at else timezone.localdate()
             self.retention_until = _add_months(base, anni * 12)
         super().save(*args, **kwargs)
 

@@ -10,6 +10,7 @@ from datetime import date, datetime, timedelta
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseForbidden
 from django.shortcuts import redirect, render
+from django.utils import timezone
 
 from .views import (
     _assenze_permissions,
@@ -23,7 +24,7 @@ def _parse_mese(mese_str: str) -> date:
     try:
         return datetime.strptime(str(mese_str or "").strip(), "%Y-%m").date().replace(day=1)
     except (ValueError, TypeError):
-        return date.today().replace(day=1)
+        return timezone.localdate().replace(day=1)
 
 
 def _month_nav_ctx(d: date) -> dict:

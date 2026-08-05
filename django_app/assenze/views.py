@@ -3838,7 +3838,7 @@ def car_dashboard(request):
         capo_diag["manager_email"] = manager_email
         capo_diag["legacy_user_id"] = legacy_user_id
 
-    now = datetime.now()
+    now = timezone.localtime()
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     today_end = today_start + timedelta(days=1)
     monday = today_start - timedelta(days=today_start.weekday())
@@ -4116,7 +4116,7 @@ def calendario(request):
         )
     from .htmx_views import _month_nav_ctx, _parse_mese
     from datetime import date
-    mese_date = _parse_mese(request.GET.get("mese", date.today().strftime("%Y-%m")))
+    mese_date = _parse_mese(request.GET.get("mese", timezone.localdate().strftime("%Y-%m")))
     return render(request, "assenze/pages/calendario.html", {
         "eventi_preview": eventi_preview,
         **_month_nav_ctx(mese_date),
