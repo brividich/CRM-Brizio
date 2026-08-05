@@ -13,7 +13,7 @@ from decimal import Decimal
 from html import escape
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
-from urllib.parse import parse_qs, quote, urlencode, urlsplit
+from urllib.parse import parse_qs, quote, urlencode, urlsplit, urlunsplit
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 import requests
@@ -13730,6 +13730,12 @@ def workorder_list_export(request: HttpRequest) -> HttpResponse:
     scope = request.GET.get("scope", "filtered")
     fmt = request.GET.get("format", "xlsx")
     qs = _apply_workorder_list_filters(request.GET, include_filters=(scope == "filtered"))
+    if scope == "filtered" and _clean_string(request.GET.get("view")):
+        qs = _apply_workorder_operational_view(
+            qs,
+            operational_view=_resolve_workorder_operational_view(request.GET),
+            user=request.user,
+        )
     workorders = list(qs.order_by("-opened_at"))
     today = timezone.localdate().strftime("%Y%m%d")
     rows = [_wo_export_row(wo) for wo in workorders]
@@ -15102,6 +15108,28 @@ def _apply_workorder_list_filters(get_params, *, include_filters: bool = True):
     return qs
 
 
+def _resolve_workorder_operational_view(get_params) -> str:
+    requested_view = _clean_string(get_params.get("view")).lower()
+    if requested_view in {"open", "mine", "unassigned", "closed", "all"}:
+        return requested_view
+    requested_status = _clean_string(get_params.get("status"))
+    if requested_status in {WorkOrder.STATUS_DONE, WorkOrder.STATUS_CANCELED}:
+        return "closed"
+    return "open"
+
+
+def _apply_workorder_operational_view(qs, *, operational_view: str, user):
+    if operational_view == "mine":
+        return qs.filter(status=WorkOrder.STATUS_OPEN, assigned_to=user)
+    if operational_view == "unassigned":
+        return qs.filter(status=WorkOrder.STATUS_OPEN, assigned_to__isnull=True)
+    if operational_view == "closed":
+        return qs.filter(status__in=[WorkOrder.STATUS_DONE, WorkOrder.STATUS_CANCELED])
+    if operational_view == "all":
+        return qs
+    return qs.filter(status=WorkOrder.STATUS_OPEN)
+
+
 def _workorder_list_filter_remove_url(get_params, filter_key: str) -> str:
     query = get_params.copy()
     for key in (filter_key, "page", "create", "export"):
@@ -15135,6 +15163,7 @@ def _workorder_list_filter_chips(
     assigned_id: int,
     open_age_days: int,
     q: str,
+    operational_view: str,
     category_options,
     user_options,
 ) -> list[dict[str, str]]:
@@ -15153,11 +15182,25 @@ def _workorder_list_filter_chips(
         value = _clean_string(value)
         if not value:
             return
+        remove_url = _workorder_list_filter_remove_url(request.GET, filter_key)
+        if "view" not in request.GET:
+            parsed_remove_url = urlsplit(remove_url)
+            remove_query = parse_qs(parsed_remove_url.query)
+            remove_query["view"] = [operational_view]
+            remove_url = urlunsplit(
+                (
+                    parsed_remove_url.scheme,
+                    parsed_remove_url.netloc,
+                    parsed_remove_url.path,
+                    urlencode(remove_query, doseq=True),
+                    parsed_remove_url.fragment,
+                )
+            )
         chips.append(
             {
                 "label": label,
                 "value": value,
-                "remove_url": _workorder_list_filter_remove_url(request.GET, filter_key),
+                "remove_url": remove_url,
             }
         )
 
@@ -15196,8 +15239,20 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
     assigned_id = _as_int(request.GET.get("assigned"), default=0)
     open_age_days = _as_int(request.GET.get("open_age"), default=0)
     q = _clean_string(request.GET.get("q"))
+    operational_view = _resolve_workorder_operational_view(request.GET)
 
-    workorders = _apply_workorder_list_filters(request.GET).order_by("-opened_at", "-id")
+    workorders = _apply_workorder_operational_view(
+        _apply_workorder_list_filters(request.GET),
+        operational_view=operational_view,
+        user=request.user,
+    ).order_by("-opened_at", "-id")
+    count_source = WorkOrder.objects.all()
+    operational_counts = {
+        "open": count_source.filter(status=WorkOrder.STATUS_OPEN).count(),
+        "mine": count_source.filter(status=WorkOrder.STATUS_OPEN, assigned_to=request.user).count(),
+        "unassigned": count_source.filter(status=WorkOrder.STATUS_OPEN, assigned_to__isnull=True).count(),
+        "closed": count_source.filter(status__in=[WorkOrder.STATUS_DONE, WorkOrder.STATUS_CANCELED]).count(),
+    }
     reparto_options = list(
         Asset.objects.exclude(reparto="")
         .order_by("reparto")
@@ -15219,6 +15274,7 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
         assigned_id=assigned_id,
         open_age_days=open_age_days,
         q=q,
+        operational_view=operational_view,
         category_options=category_options,
         user_options=user_options,
     )
@@ -15238,6 +15294,23 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
             "assigned_filter": assigned_id,
             "open_age_filter": open_age_days,
             "q_filter": q,
+            "workorder_view": operational_view,
+            "workorder_view_url": _workorder_list_page_url(view=operational_view),
+            "operational_counts": operational_counts,
+            "workorder_view_urls": {
+                view_key: _workorder_list_page_url(view=view_key)
+                for view_key in ("open", "mine", "unassigned", "closed", "all")
+            },
+            "advanced_filters_open": bool(
+                kind
+                or origin
+                or coverage != "all"
+                or reparto
+                or category_id
+                or assigned_id
+                or open_age_days
+                or status
+            ),
             "status_choices": WorkOrder.STATUS_CHOICES,
             "kind_choices": WorkOrder.KIND_CHOICES,
             "origin_choices": WorkOrder.ORIGIN_CHOICES,

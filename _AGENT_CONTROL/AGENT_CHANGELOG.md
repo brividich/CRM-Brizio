@@ -2,6 +2,21 @@
 
 ## 2026-08-05 - Codex
 
+- Area: `django_app/assets`, lista interventi.
+- Richiesta: semplificare prima la lista OdL per manutentori interni, separando aperti e chiusi, alleggerendo la tabella e consentendo la presa in carico rapida.
+- File modificati: `django_app/assets/views.py`, `django_app/assets/templates/assets/pages/workorder_list.html`, `django_app/assets/tests.py`, `django_app/assets/README.md`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente. Nessuna modifica ad ACL, middleware, settings, autenticazione, permessi, URL, routing globale o navigazione globale.
+- Motivo tecnico: la pagina mostrava dieci controlli filtro prima dei dati e nove colonne con pari evidenza per informazioni operative e amministrative, mescolando aperti, chiusi e annullati.
+- Modifica: vista predefinita `Aperti`; tab con contatori `Aperti`, `Assegnati a me`, `Non assegnati`, `Chiusi`; ricerca primaria, filtri secondari espandibili, chip che preservano la vista; tabella ridotta a cinque colonne; presa in carico POST dalla riga; archivio chiusi separato; export UI coerente con la vista attiva.
+- Impatto previsto: il manutentore vede subito il lavoro da svolgere e puo assegnarselo senza aprire la scheda; costi/copertura restano consultabili nel dettaglio e negli export.
+- Rischi residui: verifica visuale autenticata non disponibile; il browser locale raggiunge correttamente il login ma non dispone di una sessione autenticata condivisa. Possibili micro-regolazioni con dati reali.
+- Test/check: `manage.py check assets` OK; template load OK; 5 test mirati su default aperti, viste, claim rapido, filtri/deep-link, export e link hub OK; `git diff --check` OK.
+- Backup creati: nessuno.
+- README/CHANGELOG: aggiornati `README.md`, `django_app/assets/README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`.
+- Note operative: lavoro isolato nel worktree `C:\Dev\pn-assets-workorder-list-ux`; modifiche non correlate nel checkout condiviso preservate.
+
+## 2026-08-05 - Codex
+
 - Area: `django_app/assets`, chiusura formale interventi.
 - Richiesta: trattare la chiusura come quella di un ticket; consentire piu giorni di esecuzione opzionali, tempo totale indicativo, data/ora di chiusura modificabile e sia creazione normale sia creazione con chiusura immediata.
 - File modificati: `django_app/assets/models.py`, `django_app/assets/migrations/0087_workorderexecutionday.py`, `django_app/assets/forms.py`, `django_app/assets/views.py`, `django_app/assets/templates/assets/pages/workorder_form.html`, `workorder_close.html`, `workorder_detail.html`, `django_app/assets/tests.py`, `django_app/assets/README.md`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.

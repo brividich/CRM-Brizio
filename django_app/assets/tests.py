@@ -5137,6 +5137,67 @@ class WorkOrderFlowTests(TestCase):
         )
         self.assertRedirects(response, expected_url, fetch_redirect_response=False)
 
+    def test_workorder_list_defaults_to_open_operational_queue(self):
+        open_workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="Guasto da prendere in carico",
+        )
+        closed_workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            kind=WorkOrder.KIND_PREVENTIVE,
+            status=WorkOrder.STATUS_DONE,
+            title="Intervento gia chiuso",
+            closed_at=timezone.now(),
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("assets:wo_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["workorder_view"], "open")
+        self.assertContains(response, "Interventi aperti")
+        self.assertContains(response, "Assegnati a me")
+        self.assertContains(response, "Non assegnati")
+        self.assertContains(response, "Altri filtri")
+        self.assertContains(response, open_workorder.title)
+        self.assertNotContains(response, closed_workorder.title)
+        self.assertContains(response, "Prendi in carico")
+        self.assertContains(response, reverse("assets:wo_claim", args=[open_workorder.id]))
+        self.assertNotContains(response, "<th>Copertura</th>", html=False)
+        self.assertNotContains(response, "<th>Costi</th>", html=False)
+
+        closed_response = self.client.get(reverse("assets:wo_list"), {"view": "closed"})
+        self.assertContains(closed_response, "Archivio interventi chiusi")
+        self.assertContains(closed_response, closed_workorder.title)
+        self.assertNotContains(closed_response, open_workorder.title)
+
+    def test_workorder_list_mine_view_and_quick_claim(self):
+        workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="Intervento interno",
+        )
+        self.client.force_login(self.user)
+
+        claim_response = self.client.post(
+            reverse("assets:wo_claim", args=[workorder.id]),
+            {"next": f"{reverse('assets:wo_list')}?view=unassigned"},
+        )
+
+        self.assertRedirects(
+            claim_response,
+            f"{reverse('assets:wo_list')}?view=unassigned",
+            fetch_redirect_response=False,
+        )
+        workorder.refresh_from_db()
+        self.assertEqual(workorder.assigned_to, self.user)
+        mine_response = self.client.get(reverse("assets:wo_list"), {"view": "mine"})
+        self.assertContains(mine_response, workorder.title)
+        self.assertContains(mine_response, "In carico a te")
+
     def test_workorder_create_from_list_uses_guided_ui_and_back_link(self):
         self.client.force_login(self.user)
 
@@ -5706,7 +5767,7 @@ class WorkOrderFlowTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Registro interventi")
+        self.assertContains(response, "Archivio interventi chiusi")
         self.assertContains(response, 'class="wo-filter-summary"', html=False)
         self.assertContains(response, "Ricerca: Tagliando")
         self.assertContains(response, "Stato: Chiusa")
@@ -5720,14 +5781,13 @@ class WorkOrderFlowTests(TestCase):
         self.assertContains(response, self.asset.asset_tag)
         self.assertContains(response, "Categoria Operativa")
         self.assertContains(response, "Mario Rossi")
-        self.assertContains(response, "Coperto")
-        self.assertContains(response, contract.title)
-        self.assertContains(response, "Costi")
-        self.assertContains(response, "EUR")
+        self.assertNotContains(response, "<th>Copertura</th>", html=False)
+        self.assertNotContains(response, "<th>Costi</th>", html=False)
         self.assertEqual(list(response.context["workorders"])[0].resolved_total_cost_eur, Decimal("120.00"))
         status_chip = next(chip for chip in response.context["active_filter_chips"] if chip["label"] == "Stato")
         self.assertNotIn("status=", status_chip["remove_url"])
         self.assertIn("origin=PERIODIC", status_chip["remove_url"])
+        self.assertIn("view=closed", status_chip["remove_url"])
         self.assertNotContains(response, "Intervento fuori filtro")
 
         age_response = self.client.get(

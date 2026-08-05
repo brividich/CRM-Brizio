@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Assets - lista interventi come coda operativa
+
+- **[ux/test] `assets/views.py`, `assets/templates/assets/pages/workorder_list.html`, `assets/tests.py`**: il registro OdL non mescola piu tutto al primo accesso. La vista predefinita mostra gli aperti e quattro tab con contatori separano `Aperti`, `Assegnati a me`, `Non assegnati` e archivio `Chiusi`. La ricerca resta sempre visibile, gli otto filtri amministrativi sono raccolti in un pannello espandibile e i chip continuano a preservare la vista corrente. La tabella e' ridotta da nove a cinque colonne operative; costi e contratto restano nel dettaglio e negli export. Aggiunta presa in carico POST direttamente dalla riga per gli OdL non assegnati. I deep-link storici con `status=DONE/CANCELED` aprono automaticamente l'archivio chiusi e gli export lanciati dalla UI rispettano la vista attiva. Nessuna migration o modifica ad ACL, permessi, URL e routing globale.
+
 ### Assets - chiusura intervento formale
 
 - **[feat/ux/test] `assets/models.py`, `assets/migrations/0087_workorderexecutionday.py`, `assets/forms.py`, `assets/views.py`, template WorkOrder e `assets/tests.py`**: introdotto il registro normalizzato delle giornate effettive di esecuzione (zero, una o piu date per OdL). La pagina di chiusura e' un flusso formale con esito, data/ora editabile precompilata a ora, giornate opzionali, durata totale e fermo in ore/minuti, risoluzione obbligatoria per lo stato completato, persone/allegati e costi avanzati. Il form nuovo intervento offre sia creazione ordinaria sia `Crea e vai alla chiusura`; il dettaglio espone giornate e tempi leggibili. Le vecchie POST con durate in minuti e senza timestamp esplicito restano compatibili. Nessuna modifica ad ACL, permessi, URL o routing globale.

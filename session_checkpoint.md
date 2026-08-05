@@ -4,6 +4,14 @@ Data: 2026-08-05
 
 Ultime voci viste/aggiunte in questa sessione:
 
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-08-05 - Codex` (Assets: lista interventi come coda operativa).
+- `django_app/assets/views.py` -> vista predefinita aperti, code `mine/unassigned/closed`, contatori e coerenza export/deep-link.
+- `django_app/assets/templates/assets/pages/workorder_list.html` -> quattro viste rapide, ricerca primaria, filtri avanzati, tabella a cinque colonne e presa in carico dalla riga.
+- `django_app/assets/tests.py` -> regressioni su default aperti, archivio chiusi, vista personale, presa in carico, filtri ed export.
+- Documentazione: `README.md`, `django_app/assets/README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` aggiornati.
+- Test/check: `manage.py check assets` OK; template load OK; 5 test mirati OK; `git diff --check` OK.
+- Note: nessun file critico, migration o backup; nessuna modifica ad ACL/URL/routing; browser locale fermo al login senza sessione autenticata; checkout condiviso con file non correlati preservato.
+
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-08-05 - Codex` (Assets: chiusura intervento formale con giornate e consuntivo tempi).
 - `django_app/assets/models.py` + migration `0087_workorderexecutionday.py` -> giornate effettive multiple e opzionali per WorkOrder; timestamp esplicito accettato da `close()`.
 - `django_app/assets/forms.py`, `views.py`, template WorkOrder -> esito formale, data/ora editabile, giorni dinamici, ore/minuti, doppio percorso crea oppure crea+chiudi e dettaglio consuntivo leggibile.
