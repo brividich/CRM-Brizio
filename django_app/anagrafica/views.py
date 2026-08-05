@@ -112,6 +112,7 @@ from .models_formazione import (
     TrainingCertificate,
     TrainingCompletionRule,
     TrainingCourse,
+    TrainingCourseArgomento,
     TrainingCourseDependency,
     TrainingCourseModule,
     TrainingCourseVersion,
@@ -125,6 +126,9 @@ from .models_formazione import (
     TrainingPlan,
     TrainingRequirementRule,
     TrainingSession,
+    TrainingSessionArgomento,
+    TrainingScanLog,
+    TrainingSignatureSheet,
     TrainingSlide,
     TrainingQuizQuestion,
     TrainingQuizOption,
@@ -11347,6 +11351,25 @@ def formazione_ricerca(request):
     })
 
 
+def _audit_formazione(request, azione: str, dettaglio: dict | None = None) -> None:
+    """Registra nel registro audit del portale un gesto irreversibile o sensibile.
+
+    Si tracciano solo i gesti che in verifica ispettiva sollevano la domanda
+    "chi l'ha fatto e quando": cancellazioni e ritocchi a una presenza già
+    firmata. Le registrazioni ordinarie non finiscono qui, altrimenti il
+    registro diventa illeggibile.
+
+    Fire-and-forget: un errore di audit non deve mai far fallire l'operazione
+    dell'utente (``core.audit.log_action`` già inghiotte le eccezioni).
+    """
+    try:
+        from core.audit import log_action
+
+        log_action(request, azione, "anagrafica.formazione", dettaglio or {})
+    except Exception:  # pragma: no cover - difesa in profondità
+        pass
+
+
 def _can_edit_formazione(request) -> bool:
     """Verifica permesso di modifica sezione formazione (modifica catalogo piani/corsi/istruttori)."""
     if request.user.is_superuser:
@@ -11867,6 +11890,7 @@ def formazione_corso_detail(request, corso_id: int):
     return render(request, "anagrafica/pages/formazione_corso_detail.html", {
         "corso": corso,
         "prerequisiti": prerequisiti,
+        "programma": list(corso.programma.all()),
         "moduli": moduli,
         "versioni": versioni,
         "regole": regole,
@@ -11921,7 +11945,11 @@ def formazione_corso_delete(request, corso_id: int):
         return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
     piano_id = corso.piano_id
     nome = corso.titolo
+    codice = corso.codice
     corso.delete()
+    _audit_formazione(request, "corso_eliminato", {
+        "corso_id": corso_id, "codice": codice, "titolo": nome, "piano_id": piano_id,
+    })
     messages.success(request, f'Corso "{nome}" eliminato.')
     return redirect("anagrafica:formazione_piano_detail", piano_id=piano_id)
 
@@ -11966,6 +11994,132 @@ def formazione_corso_dep_delete(request, corso_id: int, dep_id: int):
     dep.delete()
     messages.success(request, "Prerequisito rimosso.")
     return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+
+
+# ── Programma didattico ─────────────────────────────────────────────────────
+# Sul corso è il previsto; sull'edizione è ciò che è stato davvero erogato.
+# Le due liste sono indipendenti per costruzione (vedi copia_programma_dal_corso).
+
+def _ore_da_post(request, campo: str = "ore_previste"):
+    """Ore previste dal POST: vuoto o non numerico valgono «non dichiarate»."""
+    grezzo = (request.POST.get(campo) or "").strip().replace(",", ".")
+    if not grezzo:
+        return None
+    try:
+        return Decimal(grezzo)
+    except (InvalidOperation, ValueError):
+        return None
+
+
+@login_required
+@require_POST
+def formazione_corso_argomento_add(request, corso_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare corsi formativi.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    corso = get_object_or_404(TrainingCourse, pk=corso_id)
+    argomento = (request.POST.get("argomento") or "").strip()
+    if not argomento:
+        messages.error(request, "L'argomento non può essere vuoto.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    ultimo = corso.programma.order_by("-ordine").values_list("ordine", flat=True).first() or 0
+    TrainingCourseArgomento.objects.create(
+        corso=corso,
+        ordine=ultimo + 1,
+        argomento=argomento[:300],
+        ore_previste=_ore_da_post(request),
+        riferimento=(request.POST.get("riferimento") or "").strip()[:200],
+    )
+    messages.success(request, "Argomento aggiunto al programma del corso.")
+    return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+
+
+@login_required
+@require_POST
+def formazione_corso_argomento_delete(request, corso_id: int, arg_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare corsi formativi.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    voce = get_object_or_404(TrainingCourseArgomento, pk=arg_id, corso_id=corso_id)
+    voce.delete()
+    messages.success(request, "Argomento rimosso dal programma del corso. "
+                              "Le edizioni già erogate non sono state toccate.")
+    return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+
+
+@login_required
+@require_POST
+def formazione_sessione_argomento_add(request, sessione_id: int):
+    """Argomento integrato dall'edizione: nasce con ``aggiunto=True`` e per questo
+    sopravvive a una ricopiatura del programma dal corso."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare sessioni formative.")
+        return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+    sessione = get_object_or_404(TrainingSession, pk=sessione_id)
+    argomento = (request.POST.get("argomento") or "").strip()
+    if not argomento:
+        messages.error(request, "L'argomento non può essere vuoto.")
+        return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+    ultimo = sessione.programma.order_by("-ordine").values_list("ordine", flat=True).first() or 0
+    TrainingSessionArgomento.objects.create(
+        sessione=sessione,
+        ordine=ultimo + 1,
+        argomento=argomento[:300],
+        ore_previste=_ore_da_post(request),
+        riferimento=(request.POST.get("riferimento") or "").strip()[:200],
+        aggiunto=True,
+    )
+    messages.success(request, "Argomento integrato nel programma dell'edizione.")
+    return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+
+
+@login_required
+@require_POST
+def formazione_sessione_argomento_delete(request, sessione_id: int, arg_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare sessioni formative.")
+        return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+    voce = get_object_or_404(TrainingSessionArgomento, pk=arg_id, sessione_id=sessione_id)
+    voce.delete()
+    messages.success(request, "Argomento rimosso dal programma dell'edizione.")
+    return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+
+
+@login_required
+@require_POST
+def formazione_sessione_programma_riprendi(request, sessione_id: int):
+    """Riporta nell'edizione il programma del corso. Le integrazioni restano."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare sessioni formative.")
+        return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+    sessione = get_object_or_404(TrainingSession, pk=sessione_id)
+    from .services.formazione_pianificazione import copia_programma_dal_corso
+
+    creati = copia_programma_dal_corso(sessione, forza=True)
+    if creati:
+        messages.success(request, f"{creati} argomenti ripresi dal programma del corso.")
+    else:
+        messages.info(request, "Il corso non ha un programma da riprendere.")
+    return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+
+
+@login_required
+@require_POST
+def formazione_sessione_argomento_giornate(request, sessione_id: int, arg_id: int):
+    """In quali giornate l'argomento è stato svolto: è il confronto previsto/erogato."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare sessioni formative.")
+        return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+    voce = get_object_or_404(TrainingSessionArgomento, pk=arg_id, sessione_id=sessione_id)
+    try:
+        scelte = [int(x) for x in request.POST.getlist("lezioni")]
+    except (TypeError, ValueError):
+        scelte = []
+    # Solo giornate di QUESTA edizione: un id arrivato da fuori non deve passare.
+    valide = list(TrainingLesson.objects.filter(sessione_id=sessione_id, pk__in=scelte))
+    voce.lezioni.set(valide)
+    messages.success(request, f'Argomento "{voce.argomento[:40]}": {len(valide)} giornate segnate.')
+    return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
 
 
 # ── Versioni corso ───────────────────────────────────────────────────────────
@@ -12290,6 +12444,10 @@ def formazione_sessione_create(request):
             sessione = form.save(commit=False)
             sessione.created_by = request.user
             sessione.save()
+            # L'edizione parte dal programma del corso, come copia modificabile:
+            # documenterà ciò che ha davvero erogato anche se il corso cambierà.
+            from .services.formazione_pianificazione import copia_programma_dal_corso
+            copia_programma_dal_corso(sessione)
             # Rinnovo dallo scadenzario: se ci sono dipendenti pre-selezionati per
             # QUESTO corso, iscrivili in blocco (idempotente) e vai agli iscritti.
             pre = request.session.get("rinnovo_preselect")
@@ -12353,6 +12511,19 @@ def formazione_sessione_detail(request, sessione_id: int):
         lz.n_presenze = presenze_per_lezione.get(lz.pk, 0)
         lz.allegati_list = allegati_per_lezione.get(lz.pk, [])
 
+    # Programma dell'edizione con la copertura: per ogni argomento, in quali
+    # giornate è stato svolto. È il confronto fra previsto ed erogato.
+    programma = list(sessione.programma.prefetch_related("lezioni"))
+    for voce in programma:
+        svolte = {lz.pk for lz in voce.lezioni.all()}
+        voce.giornate_svolte = sorted(
+            lz.numero for lz in lezioni if lz.pk in svolte
+        )
+        voce.scelte_giornate = [
+            {"lezione": lz, "segnata": lz.pk in svolte} for lz in lezioni
+        ]
+    programma_scoperti = sum(1 for v in programma if not v.giornate_svolte)
+
     edit_form   = TrainingSessionForm(instance=sessione)
     lezione_form = TrainingLessonForm(sessione=sessione)
     # Generatore giornate: propone l'orario-tipo dell'ultima lezione già inserita,
@@ -12389,6 +12560,8 @@ def formazione_sessione_detail(request, sessione_id: int):
         "ore_pianificate": ore_pianificate,
         "ore_teoriche":    ore_teoriche,
         "ore_scostamento": ore_scostamento,
+        "programma":          programma,
+        "programma_scoperti": programma_scoperti,
         "is_editor":    is_editor,
         "allegati_sessione": allegati_sessione,
         "ATTACH_TIPI":  TrainingAttachment.Tipo.choices,
@@ -12431,7 +12604,12 @@ def formazione_sessione_delete(request, sessione_id: int):
         return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
     corso_id = sessione.corso_id
     codice   = sessione.codice_sessione
+    n_lezioni = sessione.lezioni.count()
     sessione.delete()
+    _audit_formazione(request, "sessione_eliminata", {
+        "sessione_id": sessione_id, "codice_sessione": codice,
+        "corso_id": corso_id, "lezioni_eliminate": n_lezioni,
+    })
     messages.success(request, f'Sessione "{codice}" eliminata.')
     return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
 
@@ -12488,7 +12666,13 @@ def formazione_lezione_delete(request, sessione_id: int, lezione_id: int):
         return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
     lezione = get_object_or_404(TrainingLesson, pk=lezione_id, sessione_id=sessione_id)
     num = lezione.numero
+    n_presenze = lezione.presenze.count()
+    data = lezione.data.isoformat() if lezione.data else ""
     lezione.delete()
+    _audit_formazione(request, "lezione_eliminata", {
+        "sessione_id": sessione_id, "lezione_id": lezione_id,
+        "numero": num, "data": data, "presenze_eliminate": n_presenze,
+    })
     messages.success(request, f'Lezione {num} eliminata.')
     return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
 
@@ -12768,6 +12952,15 @@ def _post_completamento(record: TrainingEmployeeRecord, created_by) -> None:
         refresh_deadlines(legacy_id=record.legacy_anagrafica_id, corso_id=corso.pk)
     except NotImplementedError:
         pass  # PATCH-06 implementerà il ricalcolo completo
+
+    # Valutazione di efficacia: se il corso la prevede, il completamento apre la
+    # pendenza datata. Qui perché è il punto unico attraversato da tutte le
+    # strade del completamento (aula, e-learning, registrazione diretta).
+    try:
+        from .services.formazione_efficacia import pianifica_valutazione_efficacia
+        pianifica_valutazione_efficacia(record)
+    except Exception:
+        pass  # fail-safe: non deve mai annullare un completamento
 
     # Allineamento qualifica (competency management): se il corso rilascia/rinnova una
     # qualifica e il completamento è idoneo, crea/aggiorna la DipendenteQualifica corrente
@@ -13414,6 +13607,48 @@ def formazione_lezione_registro(request, sessione_id: int, lezione_id: int):
 
 
 @login_required
+def formazione_lezione_registro_qr(request, sessione_id: int, lezione_id: int):
+    """Emette il **foglio firme tracciato**: elenco congelato, QR con il token e
+    marcatori d'angolo.
+
+    Differenza dal foglio classico: qui la stampa è un fatto registrato. L'elenco
+    resta quello del momento — se domani si aggiunge un iscritto, la riga 7 della
+    scansione continua a essere la persona di allora — e la geometria delle celle
+    viene salvata, così rileggere la scansione sarà una misura su rettangoli noti
+    e non un tentativo di interpretare la scrittura.
+    """
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per emettere fogli firme.")
+        return redirect("anagrafica:formazione_lezione_presenze",
+                        sessione_id=sessione_id, lezione_id=lezione_id)
+
+    sessione = get_object_or_404(TrainingSession.objects.select_related("corso"), pk=sessione_id)
+    lezione  = get_object_or_404(TrainingLesson, pk=lezione_id, sessione=sessione)
+
+    from .services.foglio_firme import emetti_foglio_firme
+    foglio, pdf = emetti_foglio_firme(lezione, user=request.user)
+
+    try:
+        TrainingExportLog.objects.create(
+            tipo="REPORT_FIRMA",
+            filtri_json={
+                "sessione_id": sessione.pk, "lezione_id": lezione.pk,
+                "formato": "foglio_firme_qr", "token": foglio.token,
+            },
+            righe_esportate=foglio.n_righe,
+            generato_da=request.user,
+            ip_address=request.META.get("REMOTE_ADDR") or None,
+        )
+    except Exception:
+        logger.exception("Errore TrainingExportLog per foglio firme QR %s", lezione_id)
+
+    fname = f"Foglio_firme_{foglio.token}.pdf"
+    resp = HttpResponse(pdf, content_type="application/pdf")
+    resp["Content-Disposition"] = f'inline; filename="{fname}"'
+    return resp
+
+
+@login_required
 @require_POST
 def formazione_presenza_set(request, sessione_id: int, lezione_id: int):
     if not _can_edit_formazione(request):
@@ -13429,16 +13664,28 @@ def formazione_presenza_set(request, sessione_id: int, lezione_id: int):
         messages.error(request, "ID dipendente non valido.")
         return redirect("anagrafica:formazione_lezione_presenze", sessione_id=sessione_id, lezione_id=lezione_id)
 
-    presenza, _ = TrainingLessonAttendance.objects.get_or_create(
+    presenza, creata = TrainingLessonAttendance.objects.get_or_create(
         lezione=lezione,
         legacy_anagrafica_id=legacy_id,
         defaults={"registrato_da": request.user},
     )
+    # Stato precedente: serve per capire se questa è una prima registrazione
+    # oppure il ritocco di una presenza già firmata (che va tracciato).
+    stato_prima = presenza.stato_presenza
+    firma_prima = presenza.signature_status
     form = TrainingLessonAttendanceForm(request.POST, instance=presenza)
     if form.is_valid():
         p = form.save(commit=False)
         p.registrato_da = request.user
         p.save()
+
+        if not creata and (p.stato_presenza != stato_prima or firma_prima == "FIRMATO"):
+            _audit_formazione(request, "presenza_modificata", {
+                "sessione_id": sessione_id, "lezione_id": lezione_id,
+                "legacy_anagrafica_id": legacy_id,
+                "stato_precedente": stato_prima, "stato_nuovo": p.stato_presenza,
+                "firma_precedente": firma_prima, "firma_attuale": p.signature_status,
+            })
 
         # Aggiorna ore_frequentate e percentuale nell'iscrizione
         try:
@@ -13455,6 +13702,195 @@ def formazione_presenza_set(request, sessione_id: int, lezione_id: int):
             for err in field_errors:
                 messages.error(request, err)
     return redirect("anagrafica:formazione_lezione_presenze", sessione_id=sessione_id, lezione_id=lezione_id)
+
+
+@login_required
+@require_POST
+def formazione_registro_scansione(request, sessione_id: int, lezione_id: int):
+    """Legge la scansione di un foglio con QR e **propone** le presenze.
+
+    Non scrive nulla: mostra una pagina di conferma le cui spunte finiscono
+    nell'autocompilazione già esistente. La presenza a un corso è un atto con
+    valore legale: la decide una persona, non una misura di pixel.
+    """
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per gestire le presenze.")
+        return redirect("anagrafica:formazione_lezione_presenze",
+                        sessione_id=sessione_id, lezione_id=lezione_id)
+
+    sessione = get_object_or_404(TrainingSession.objects.select_related("corso"), pk=sessione_id)
+    lezione = get_object_or_404(TrainingLesson, pk=lezione_id, sessione=sessione)
+    indietro = redirect("anagrafica:formazione_lezione_presenze",
+                        sessione_id=sessione_id, lezione_id=lezione_id)
+
+    caricato = request.FILES.get("scansione")
+    if not caricato:
+        messages.error(request, "Serve il file della scansione.")
+        return indietro
+
+    from .services.archivio_scansioni import archivia_scansione, registra_lettura
+
+    contenuto = caricato.read()
+
+    # Si archivia PRIMA di provare a leggere. Se la lettura fallisce, il file
+    # deve restare da qualche parte dove qualcuno possa andarlo a guardare:
+    # senza, dell'errore resta solo la frase a schermo, che non è una diagnosi.
+    percorso, dimensione = archivia_scansione(contenuto, caricato.name)
+    comune = {
+        "request": request, "lezione": lezione, "nome_file": caricato.name,
+        "percorso": percorso, "dimensione": dimensione,
+    }
+
+    # Il token si decodifica dal QR stampato sul foglio; resta digitabile perché
+    # un QR strappato, piegato o macchiato capita, e la strada a mano costa zero.
+    token_digitato = (request.POST.get("token") or "").strip().upper()
+    token_letto = ""
+    if not token_digitato:
+        from core.qr import leggi_codici
+
+        for codice in leggi_codici(contenuto, caricato.name):
+            candidato = codice.strip().upper()[:16]
+            if TrainingSignatureSheet.objects.filter(token=candidato).exists():
+                token_letto = candidato
+                break
+
+    token = token_digitato or token_letto
+    if not token:
+        motivo = (
+            "Non ho trovato nessun QR leggibile nella scansione e non è stato indicato "
+            "un codice. Digita il codice stampato sotto il QR e riprova."
+        )
+        registra_lettura(**comune, esito="RIFIUTATO", messaggio=motivo)
+        messages.error(request, motivo + " Il file è comunque archiviato nel registro letture.")
+        return indietro
+
+    # Il foglio deve essere di QUESTA giornata: un token valido ma di un'altra
+    # lezione porterebbe presenze sulla giornata sbagliata.
+    foglio = TrainingSignatureSheet.objects.filter(token=token, lezione=lezione).first()
+    if foglio is None:
+        motivo = (
+            f"Nessun foglio con codice «{token}» risulta emesso per questa giornata. "
+            "Controlla il codice stampato sotto il QR."
+        )
+        registra_lettura(**comune, token_digitato=token_digitato, token_letto=token_letto,
+                         esito="RIFIUTATO", messaggio=motivo)
+        messages.error(request, motivo + " Il file è comunque archiviato nel registro letture.")
+        return indietro
+
+    comune["foglio"] = foglio
+    from .services.lettura_foglio_firme import ErroreLettura, analizza_scansione
+
+    try:
+        esito = analizza_scansione(foglio, contenuto, caricato.name)
+    except ErroreLettura as exc:
+        registra_lettura(**comune, token_digitato=token_digitato, token_letto=token_letto,
+                         esito="ERRORE", messaggio=str(exc))
+        messages.error(request, f"{exc} Il file è archiviato nel registro letture.")
+        return indietro
+    except Exception:
+        logger.exception("Lettura scansione foglio firme fallita (foglio %s)", foglio.pk)
+        motivo = "Non sono riuscito a leggere la scansione. Riprova con un file diverso."
+        registra_lettura(**comune, token_digitato=token_digitato, token_letto=token_letto,
+                         esito="ERRORE", messaggio=motivo)
+        messages.error(request, motivo + " Il file è archiviato nel registro letture.")
+        return indietro
+
+    registra_lettura(**comune, token_digitato=token_digitato, token_letto=token_letto,
+                     esito="OK", esito_lettura=esito)
+
+    _audit_formazione(request, "scansione_registro_letta", {
+        "sessione_id": sessione_id, "lezione_id": lezione_id,
+        "token": foglio.token, "righe": len(esito["righe"]),
+        "firmati": esito["n_firmati"], "dubbie": esito["n_dubbie"],
+        "token_da_qr": bool(token_letto),
+    })
+
+    return render(request, "anagrafica/pages/formazione_scansione_esito.html", {
+        "sessione": sessione,
+        "lezione": lezione,
+        "foglio": foglio,
+        "esito": esito,
+        "nome_file": caricato.name,
+        "token_da_qr": token_letto,
+    })
+
+
+@login_required
+def formazione_scansioni_log(request):
+    """Registro delle scansioni caricate: cosa è arrivato e dov'è finito.
+
+    Esiste per il caso in cui la lettura fallisce. Il messaggio d'errore a
+    schermo dice *che* è andata male, non *perché*: qui c'è il file vero, con
+    il percorso in cui è stato archiviato, da riaprire e guardare.
+    """
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per gestire la formazione.")
+        return redirect("anagrafica:formazione_home")
+
+    righe = (
+        TrainingScanLog.objects
+        .select_related("lezione", "lezione__sessione", "lezione__sessione__corso",
+                        "foglio", "creato_da")
+    )
+
+    esito = (request.GET.get("esito") or "").strip().upper()
+    if esito in {"OK", "ERRORE", "RIFIUTATO"}:
+        righe = righe.filter(esito=esito)
+
+    cerca = (request.GET.get("q") or "").strip()
+    if cerca:
+        righe = righe.filter(
+            Q(nome_file__icontains=cerca)
+            | Q(token_digitato__icontains=cerca)
+            | Q(token_letto__icontains=cerca)
+            | Q(lezione__sessione__corso__titolo__icontains=cerca)
+        )
+
+    conteggi = {
+        "tutte": TrainingScanLog.objects.count(),
+        "ok": TrainingScanLog.objects.filter(esito="OK").count(),
+        "errore": TrainingScanLog.objects.filter(esito="ERRORE").count(),
+        "rifiutato": TrainingScanLog.objects.filter(esito="RIFIUTATO").count(),
+    }
+
+    from core.qr import disponibile as qr_disponibile
+
+    return render(request, "anagrafica/pages/formazione_scansioni_log.html", {
+        "righe": righe[:300],
+        "esito": esito,
+        "cerca": cerca,
+        "conteggi": conteggi,
+        "lettore_qr_attivo": qr_disponibile(),
+    })
+
+
+@login_required
+def formazione_scansione_scarica(request, log_id: int):
+    """Riscarica il file archiviato di una lettura.
+
+    L'archivio è privato e cifrato a riposo: non si apre da Esplora risorse, si
+    passa di qui — dove ci sono permessi e traccia — perché il foglio contiene
+    nomi e firme autografe.
+    """
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per gestire la formazione.")
+        return redirect("anagrafica:formazione_home")
+
+    riga = get_object_or_404(TrainingScanLog, pk=log_id)
+    from .services.archivio_scansioni import apri_archiviata
+
+    f = apri_archiviata(riga.percorso)
+    if f is None:
+        messages.error(request, "Il file archiviato non è più disponibile.")
+        return redirect("anagrafica:formazione_scansioni_log")
+
+    _audit_formazione(request, "scansione_archiviata_scaricata", {
+        "log_id": riga.pk, "percorso": riga.percorso, "nome_file": riga.nome_file,
+    })
+
+    from django.http import FileResponse
+
+    return FileResponse(f, as_attachment=True, filename=riga.nome_file or "scansione")
 
 
 @login_required

@@ -612,13 +612,30 @@ def build_fascicolo_sessione_pdf_bytes(sessione) -> bytes:
         PdfTheme, build_styles, data_table, header_footer_callback,
         make_document, section_heading,
     )
-    from anagrafica.models_formazione import TrainingLessonAttendance
+    from anagrafica.models_formazione import TrainingAttachment, TrainingLessonAttendance
 
     corso = sessione.corso
     lezioni = list(sessione.lezioni.select_related("docente").order_by("data", "ora_inizio"))
     iscrizioni = list(sessione.iscrizioni.order_by("legacy_anagrafica_id"))
     ids = [i.legacy_anagrafica_id for i in iscrizioni]
     nomi = _nomi_map(ids)
+
+    # Evidenza della presenza, giornata per giornata: e' la domanda su cui si
+    # regge tutto il resto ("chi c'era, e come lo dimostri").
+    pres_per_lez: dict = {}
+    for a in TrainingLessonAttendance.objects.filter(lezione__sessione=sessione):
+        d = pres_per_lez.setdefault(a.lezione_id, {"tot": 0, "presenti": 0, "firmati": 0})
+        d["tot"] += 1
+        if a.stato_presenza in ("PRESENTE", "PARZIALE"):
+            d["presenti"] += 1
+        if a.signature_status == "FIRMATO" or a.firma_ingresso:
+            d["firmati"] += 1
+    try:
+        _reg = TrainingAttachment.objects.filter(sessione=sessione, tipo="REGISTRO_FIRMATO")
+        reg_per_lez = set(_reg.exclude(lezione=None).values_list("lezione_id", flat=True))
+        reg_sessione = _reg.filter(lezione__isnull=True).exists()
+    except Exception:  # tabella allegati assente su installazioni vecchie
+        reg_per_lez, reg_sessione = set(), False
 
     theme = PdfTheme.from_branding()
     styles = build_styles(theme)
@@ -638,9 +655,18 @@ def build_fascicolo_sessione_pdf_bytes(sessione) -> bytes:
     ))
     story.append(Spacer(1, 4 * mm))
 
-    # Progettazione
+    # Progettazione. La catena parte dal piano e dall'origine dell'obbligo:
+    # senza quelle due righe il fascicolo risponde al "cosa" ma non al "perche'".
+    fonte = "-"
+    if corso.fonte_obbligo:
+        fonte = corso.get_fonte_obbligo_display()
+        estremi = " ".join(x for x in [corso.riferimento_fonte, corso.articolo_fonte] if x).strip()
+        if estremi:
+            fonte = f"{fonte} - {estremi}"
     meta = [
+        ["Piano formativo", f"[{corso.piano.codice}] {corso.piano.nome}" if corso.piano_id else "-"],
         ["Corso", f"[{corso.codice}] {corso.titolo}"],
+        ["Origine dell'obbligo", fonte],
         ["Edizione", sessione.codice_sessione],
         ["Periodo", f"dal {sessione.data_inizio:%d-%m-%Y} al {sessione.data_fine:%d-%m-%Y}"],
         ["Sede / modalita'", f"{sessione.sede or '-'} ({sessione.get_modalita_display()})"],
@@ -648,6 +674,8 @@ def build_fascicolo_sessione_pdf_bytes(sessione) -> bytes:
         ["Durata teorica", f"{corso.durata_ore_teorica} h"],
         ["Iscritti", str(len(iscrizioni))],
     ]
+    if corso.qualifica_id:
+        meta.append(["Qualifica rilasciata", str(corso.qualifica)])
     try:
         regola = corso.regola_superamento
         meta.append([
@@ -690,12 +718,20 @@ def build_fascicolo_sessione_pdf_bytes(sessione) -> bytes:
         head = ["Dipendente", "Stato", "% Pres.", "Verifica", "Idoneo", "Completam."]
         rows = [[Paragraph(h, styles["table_header"]) for h in head]]
         for i in iscrizioni:
+            # La verifica non e' piu' un si'/no: dove c'e' evidenza si mostra,
+            # perche' un segno di spunta non dimostra un apprendimento.
             if i.verifica_superata is True:
                 verif = "Superata"
             elif i.verifica_superata is False:
-                verif = "No"
+                verif = "Non superata"
             else:
                 verif = "-"
+            if i.punteggio is not None:
+                verif += f" {i.punteggio}"
+                if i.punteggio_minimo is not None:
+                    verif += f"/{i.punteggio_minimo}"
+            if i.modalita_verifica:
+                verif += f" ({i.get_modalita_verifica_display()})"
             rows.append([
                 Paragraph(nomi.get(i.legacy_anagrafica_id, f"#{i.legacy_anagrafica_id}"), styles["cell"]),
                 Paragraph(i.get_stato_display(), styles["cell"]),
@@ -704,9 +740,132 @@ def build_fascicolo_sessione_pdf_bytes(sessione) -> bytes:
                 Paragraph("Si" if i.idoneo else ("No" if i.idoneo is False else "-"), styles["cell"]),
                 Paragraph(f"{i.data_completamento:%d-%m-%Y}" if i.data_completamento else "-", styles["cell"]),
             ])
-        story.append(data_table(rows, theme, col_widths=[None, 58, 42, 54, 40, 62], repeat_rows=1))
+        story.append(data_table(rows, theme, col_widths=[None, 54, 40, 96, 34, 58], repeat_rows=1))
     else:
         story.append(Paragraph("Nessun iscritto.", styles["body"]))
+    story.append(Spacer(1, 4 * mm))
+
+    # Programma dichiarato e copertura: è la differenza fra «abbiamo fatto il
+    # corso» e «abbiamo coperto i contenuti che dovevamo coprire».
+    programma = list(sessione.programma.all())
+    if programma:
+        coperti: dict = {}
+        for lz in lezioni:
+            for voce in lz.argomenti_svolti.all():
+                coperti.setdefault(voce.pk, []).append(lz.numero)
+        story += section_heading("Programma dichiarato e copertura", theme, styles)
+        head = ["#", "Argomento", "Ore", "Riferimento", "Svolto nelle giornate"]
+        rows = [[Paragraph(h, styles["table_header"]) for h in head]]
+        for n, voce in enumerate(programma, start=1):
+            giorni = coperti.get(voce.pk) or []
+            rows.append([
+                Paragraph(str(n), styles["cell"]),
+                Paragraph(voce.argomento + (" (integrato)" if voce.aggiunto else ""), styles["cell"]),
+                Paragraph(f"{voce.ore_previste}" if voce.ore_previste is not None else "-", styles["cell_right"]),
+                Paragraph(voce.riferimento or "-", styles["cell"]),
+                Paragraph(", ".join(str(g) for g in sorted(set(giorni))) or "NON svolto", styles["cell"]),
+            ])
+        story.append(data_table(rows, theme, col_widths=[18, None, 34, 100, 96], repeat_rows=1))
+        story.append(Spacer(1, 4 * mm))
+
+    # Evidenza della presenza, giornata per giornata
+    story += section_heading("Evidenza delle presenze", theme, styles)
+    if lezioni:
+        head = ["Giornata", "Data", "Attesi", "Presenti", "Firme", "Registro firmato"]
+        rows = [[Paragraph(h, styles["table_header"]) for h in head]]
+        for lz in lezioni:
+            d = pres_per_lez.get(lz.pk, {"tot": 0, "presenti": 0, "firmati": 0})
+            if lz.pk in reg_per_lez:
+                reg = "allegato"
+            elif reg_sessione:
+                reg = "a livello edizione"
+            else:
+                reg = "NON allegato"
+            rows.append([
+                Paragraph(str(lz.numero), styles["cell"]),
+                Paragraph(f"{lz.data:%d-%m-%Y}", styles["cell"]),
+                Paragraph(str(d["tot"] or len(iscrizioni)), styles["cell_right"]),
+                Paragraph(str(d["presenti"]), styles["cell_right"]),
+                Paragraph(str(d["firmati"]), styles["cell_right"]),
+                Paragraph(reg, styles["cell"]),
+            ])
+        story.append(data_table(rows, theme, col_widths=[46, 62, 42, 50, 40, None], repeat_rows=1))
+    else:
+        story.append(Paragraph("Nessuna giornata pianificata.", styles["body"]))
+    story.append(Spacer(1, 4 * mm))
+
+    # Completezza: cosa manca per reggere a una verifica, detto prima che
+    # qualcuno lo chieda. E' l'unica sezione che parla di cio' che NON c'e'.
+    controlli = []
+    controlli.append((
+        "Origine dell'obbligo dichiarata",
+        "Completo" if corso.fonte_obbligo else "Mancante",
+    ))
+    if lezioni:
+        senza_arg = sum(1 for lz in lezioni if not (lz.argomento or "").strip())
+        controlli.append((
+            "Argomento indicato su ogni giornata",
+            "Completo" if senza_arg == 0 else f"Mancante su {senza_arg} di {len(lezioni)}",
+        ))
+        senza_reg = sum(1 for lz in lezioni if lz.pk not in reg_per_lez)
+        if reg_sessione and senza_reg:
+            esito_reg = "Registro allegato a livello edizione"
+        elif senza_reg == 0:
+            esito_reg = "Completo"
+        else:
+            esito_reg = f"Mancante su {senza_reg} di {len(lezioni)}"
+        controlli.append(("Registro firmato allegato", esito_reg))
+    if programma:
+        scoperti = sum(1 for v in programma if not coperti.get(v.pk))
+        controlli.append((
+            "Programma coperto dalle giornate",
+            "Completo" if scoperti == 0 else f"{scoperti} argomenti su {len(programma)} non svolti",
+        ))
+    else:
+        controlli.append(("Programma didattico dichiarato", "Mancante"))
+    controlli.append(("Docente indicato", "Completo" if docente != "-" else "Mancante"))
+    # Efficacia: si dichiara solo se il corso la prevede, altrimenti la riga
+    # sarebbe un rimprovero per un adempimento che nessuno ha chiesto.
+    try:
+        from anagrafica.services.formazione_efficacia import mesi_efficacia_richiesti
+
+        mesi_eff = mesi_efficacia_richiesti(corso)
+    except Exception:
+        mesi_eff = 0
+    if mesi_eff:
+        from anagrafica.models_formazione import TrainingEfficacia
+
+        val = TrainingEfficacia.objects.filter(record__sessione=sessione)
+        attese = val.filter(valutata_il__isnull=True).count()
+        fatte = val.exclude(valutata_il__isnull=True).count()
+        if fatte and not attese:
+            esito_eff = f"Completo ({fatte} valutazioni)"
+        elif fatte or attese:
+            esito_eff = f"{fatte} fatte, {attese} ancora attese (a {mesi_eff} mesi)"
+        else:
+            esito_eff = f"Da aprire al completamento (a {mesi_eff} mesi)"
+        controlli.append(("Valutazione di efficacia sul campo", esito_eff))
+    if iscrizioni:
+        senza_esito = sum(1 for i in iscrizioni if i.idoneo is None)
+        controlli.append((
+            "Esito registrato per ogni iscritto",
+            "Completo" if senza_esito == 0 else f"Mancante su {senza_esito} di {len(iscrizioni)}",
+        ))
+        try:
+            if corso.regola_superamento.richiede_esame_finale:
+                senza_ver = sum(1 for i in iscrizioni if i.verifica_superata is None)
+                controlli.append((
+                    "Verifica finale registrata (richiesta dal corso)",
+                    "Completo" if senza_ver == 0 else f"Mancante su {senza_ver} di {len(iscrizioni)}",
+                ))
+        except Exception:
+            pass
+
+    story += section_heading("Completezza del fascicolo", theme, styles)
+    rows = [[Paragraph(h, styles["table_header"]) for h in ["Requisito", "Stato"]]]
+    for voce, esito in controlli:
+        rows.append([Paragraph(voce, styles["cell"]), Paragraph(esito, styles["cell"])])
+    story.append(data_table(rows, theme, col_widths=[None, 150], repeat_rows=1))
     story.append(Spacer(1, 4 * mm))
 
     # Relazione finale

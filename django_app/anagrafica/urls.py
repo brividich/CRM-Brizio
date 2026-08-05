@@ -323,6 +323,13 @@ urlpatterns = [
     # Prerequisiti
     path("formazione/corsi/<int:corso_id>/prerequisiti/add", views.formazione_corso_dep_add, name="formazione_corso_dep_add"),
     path("formazione/corsi/<int:corso_id>/prerequisiti/<int:dep_id>/rimuovi", views.formazione_corso_dep_delete, name="formazione_corso_dep_delete"),
+    # Programma didattico: previsto sul corso, erogato sull'edizione
+    path("formazione/corsi/<int:corso_id>/programma/add", views.formazione_corso_argomento_add, name="formazione_corso_argomento_add"),
+    path("formazione/corsi/<int:corso_id>/programma/<int:arg_id>/rimuovi", views.formazione_corso_argomento_delete, name="formazione_corso_argomento_delete"),
+    path("formazione/sessioni/<int:sessione_id>/programma/add", views.formazione_sessione_argomento_add, name="formazione_sessione_argomento_add"),
+    path("formazione/sessioni/<int:sessione_id>/programma/<int:arg_id>/rimuovi", views.formazione_sessione_argomento_delete, name="formazione_sessione_argomento_delete"),
+    path("formazione/sessioni/<int:sessione_id>/programma/riprendi", views.formazione_sessione_programma_riprendi, name="formazione_sessione_programma_riprendi"),
+    path("formazione/sessioni/<int:sessione_id>/programma/<int:arg_id>/giornate", views.formazione_sessione_argomento_giornate, name="formazione_sessione_argomento_giornate"),
     # Versioni
     path("formazione/corsi/<int:corso_id>/versioni/add", views.formazione_corso_version_add, name="formazione_corso_version_add"),
     path("formazione/corsi/<int:corso_id>/versioni/<int:ver_id>/rimuovi", views.formazione_corso_version_delete, name="formazione_corso_version_delete"),
@@ -390,6 +397,11 @@ urlpatterns = [
     path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/presenze/da-registro", views.formazione_registro_autocompila, name="formazione_registro_autocompila"),
     # Registro presenze lezione — foglio firme stampabile A4
     path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/registro/", views.formazione_lezione_registro, name="formazione_lezione_registro"),
+    # Foglio firme tracciato: elenco congelato, QR con token, marcatori d'angolo
+    path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/registro-qr/", views.formazione_lezione_registro_qr, name="formazione_lezione_registro_qr"),
+    path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/registro-scansione", views.formazione_registro_scansione, name="formazione_registro_scansione"),
+    path("formazione/scansioni/registro/", views.formazione_scansioni_log, name="formazione_scansioni_log"),
+    path("formazione/scansioni/<int:log_id>/file", views.formazione_scansione_scarica, name="formazione_scansione_scarica"),
     # Allegati formazione (registro firme firmato / materiale): livello sessione o lezione
     path("formazione/sessioni/<int:sessione_id>/allegati/upload", views.formazione_allegato_upload, name="formazione_allegato_upload"),
     path("formazione/allegati/<int:attachment_id>/elimina", views.formazione_allegato_delete, name="formazione_allegato_delete"),

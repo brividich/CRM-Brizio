@@ -346,6 +346,7 @@ class TrainingCourseForm(forms.ModelForm):
             "piano", "categoria", "qualifica", "codice", "titolo", "descrizione",
             "durata_ore_teorica", "validita_mesi",
             "obbligatorio", "costo_unitario",
+            "fonte_obbligo", "riferimento_fonte", "articolo_fonte",
             "is_elearning", "quiz_punteggio_minimo",
             "stato", "note", "versione", "is_active",
         ]
@@ -353,6 +354,9 @@ class TrainingCourseForm(forms.ModelForm):
             "piano":              forms.Select(attrs=_FM_SELECT),
             "categoria":          forms.Select(attrs=_FM_SELECT),
             "qualifica":          forms.Select(attrs=_FM_SELECT),
+            "fonte_obbligo":      forms.Select(attrs=_FM_SELECT),
+            "riferimento_fonte":  forms.TextInput(attrs={**_FM, "placeholder": "es. Accordo Stato-Regioni 21/12/2011"}),
+            "articolo_fonte":     forms.TextInput(attrs={**_FM, "placeholder": "es. art. 37 c. 2"}),
             "codice":             forms.TextInput(attrs=_FM),
             "titolo":             forms.TextInput(attrs=_FM),
             "descrizione":        forms.Textarea(attrs=_FM_TEXTAREA),
@@ -381,6 +385,12 @@ class TrainingCourseForm(forms.ModelForm):
         self.fields["qualifica"].queryset = TipoQualifica.objects.filter(is_active=True).order_by("categoria", "nome")
         self.fields["qualifica"].required = False
         self.fields["qualifica"].empty_label = "— Nessuna (corso non legato a qualifica) —"
+
+        # Origine dell'obbligo: mai bloccante, i corsi storici non la compilano.
+        self.fields["fonte_obbligo"].required = False
+        self.fields["fonte_obbligo"].widget.choices = (
+            [("", "— Non specificata —")] + list(TrainingCourse.FONTE_OBBLIGO_CHOICES)
+        )
 
         # Dropdown qualifica raggruppato per tipologia (optgroups per categoria).
         from itertools import groupby
@@ -994,6 +1004,7 @@ class TrainingEnrollmentEditForm(forms.ModelForm):
         fields = [
             "stato", "ore_frequentate",
             "percentuale_presenza", "idoneo",
+            "modalita_verifica", "punteggio", "punteggio_minimo",
             "verifica_superata", "data_verifica",
             "esito_esame", "data_completamento", "note",
         ]
@@ -1002,12 +1013,41 @@ class TrainingEnrollmentEditForm(forms.ModelForm):
             "ore_frequentate":      forms.NumberInput(attrs={**_FM_NUMBER, "step": "0.5", "min": "0"}),
             "percentuale_presenza": forms.NumberInput(attrs={**_FM_NUMBER, "step": "0.01", "min": "0", "max": "100"}),
             "idoneo":               forms.CheckboxInput(attrs=_FM_CHECK),
+            "modalita_verifica":    forms.Select(attrs=_FM_SELECT),
+            "punteggio":            forms.NumberInput(attrs={**_FM_NUMBER, "step": "0.01", "min": "0", "max": "100"}),
+            "punteggio_minimo":     forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "0", "max": "100"}),
             "verifica_superata":    forms.CheckboxInput(attrs=_FM_CHECK),
             "data_verifica":        forms.DateInput(attrs=_FM_DATE),
             "esito_esame":          forms.TextInput(attrs=_FM),
             "data_completamento":   forms.DateInput(attrs=_FM_DATE),
             "note":                 forms.Textarea(attrs=_FM_TEXTAREA),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["modalita_verifica"].required = False
+        self.fields["modalita_verifica"].widget.choices = (
+            [("", "— Non registrata —")] + list(TrainingEnrollment.MODALITA_VERIFICA_CHOICES)
+        )
+        # La soglia del corso è il default sensato: si compila da sola, e resta
+        # scritta sull'iscrizione così l'esito è rileggibile anni dopo con il
+        # criterio di allora e non con quello vigente al momento della lettura.
+        if self.instance and self.instance.pk and self.instance.punteggio_minimo is None:
+            try:
+                regola = self.instance.sessione.corso.regola_superamento
+                self.fields["punteggio_minimo"].initial = regola.ore_minime_percentuale
+            except Exception:
+                pass
+
+    def clean(self):
+        dati = super().clean()
+        punteggio = dati.get("punteggio")
+        soglia = dati.get("punteggio_minimo")
+        # Se ci sono punteggio e soglia, l'esito lo deduce il sistema: lasciarlo
+        # a mano significa ritrovarsi "verifica superata" con 40 su 60.
+        if punteggio is not None and soglia is not None:
+            dati["verifica_superata"] = punteggio >= soglia
+        return dati
 
 
 class TrainingLessonAttendanceForm(forms.ModelForm):

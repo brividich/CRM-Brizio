@@ -258,6 +258,14 @@ class TrainingCourse(models.Model):
         ("ARCHIVIATO", "Archiviato"),
     ]
 
+    FONTE_OBBLIGO_CHOICES = [
+        ("LEGGE",    "Norma di legge"),
+        ("ACCORDO",  "Accordo Stato-Regioni"),
+        ("CLIENTE",  "Specifica cliente"),
+        ("NORMA",    "Norma di sistema (ISO, EN, AS…)"),
+        ("INTERNO",  "Decisione interna"),
+    ]
+
     piano              = models.ForeignKey(TrainingPlan, on_delete=models.PROTECT, related_name="corsi")
     categoria          = models.ForeignKey(
         "anagrafica.CategoriaCorso", null=True, blank=True,
@@ -281,6 +289,24 @@ class TrainingCourse(models.Model):
         help_text="0 = una tantum, altrimenti durata in mesi prima del rinnovo",
     )
     obbligatorio   = models.BooleanField(default=False)
+    # ── Origine dell'obbligo (catena dell'evidenza, anello 1) ────────────────
+    # Da dove nasce il dovere di erogare il corso. Storicamente il riferimento
+    # finiva dentro il titolo come testo libero ("Rif. 9070Q", "AWPS004Q rev. B"),
+    # quindi non interrogabile: in audit la domanda "mostrami tutti i corsi che
+    # discendono dall'Accordo Stato-Regioni" non aveva risposta.
+    # Campi NON bloccanti: i corsi storici restano validi senza compilarli.
+    fonte_obbligo     = models.CharField(
+        max_length=12, choices=FONTE_OBBLIGO_CHOICES, blank=True, default="", db_index=True,
+        help_text="Da cosa discende l'obbligo di questo corso. Lasciare vuoto se non pertinente.",
+    )
+    riferimento_fonte = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Estremi della fonte: es. «D.Lgs 81/08», «Accordo Stato-Regioni 21/12/2011», «Avio 9070Q».",
+    )
+    articolo_fonte    = models.CharField(
+        max_length=100, blank=True, default="",
+        help_text="Punto specifico, se utile: es. «art. 37 c. 2», «§ 4.3».",
+    )
     # ── E-learning (micro-corso interno: slide sequenziali + quiz finale) ─────
     # Un corso e-learning si fruisce in autonomia dal portale: niente sessione
     # d'aula, niente registro presenze. Gli altri corsi restano "d'aula".
@@ -375,6 +401,14 @@ class TrainingCompletionRule(models.Model):
     richiede_firma_presenza = models.BooleanField(default=True)
     richiede_attestato      = models.BooleanField(default=False)
     richiede_validazione_hr = models.BooleanField(default=False)
+    # Valutazione di efficacia (catena dell'evidenza, anello 8): ISO 45001 §7.2 e
+    # ISO 9001 §7.2 non chiedono di aver erogato la formazione, chiedono di
+    # sapere se ha prodotto competenza. 0 = non richiesta.
+    valutazione_efficacia_mesi = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Dopo quanti mesi dal completamento va verificato sul campo se la "
+                  "formazione è stata efficace. 0 = valutazione non richiesta.",
+    )
     rule_json               = models.JSONField(default=dict, blank=True, help_text="Estensioni future regola")
     valid_from              = models.DateField(null=True, blank=True)
     valid_to                = models.DateField(null=True, blank=True)
@@ -429,6 +463,70 @@ class TrainingCourseModule(models.Model):
 
     def __str__(self) -> str:
         return f"{self.corso_padre.codice} → modulo {self.corso_modulo.codice}"
+
+
+# ─────────────────────────────────────────────────────────────
+# PROGRAMMA DIDATTICO (catena dell'evidenza, anello 3)
+# ─────────────────────────────────────────────────────────────
+# Per la formazione dei lavoratori i contenuti minimi sono normati: senza un
+# programma dichiarato non si dimostra di averli coperti. Il programma vive su
+# due livelli, come deve:
+#   - sul CORSO è il previsto, valido nel tempo;
+#   - sulla SESSIONE è ciò che quell'edizione ha davvero erogato. Viene copiato
+#     dal corso alla creazione (non collegato) e resta modificabile: se il corso
+#     cambia domani, l'edizione continua a documentare com'era allora. È la
+#     stessa logica degli snapshot già usati per docente e titolo.
+
+class TrainingCourseArgomento(models.Model):
+    """Voce del programma didattico previsto dal corso."""
+
+    corso        = models.ForeignKey(TrainingCourse, on_delete=models.CASCADE, related_name="programma")
+    ordine       = models.PositiveSmallIntegerField(default=0)
+    argomento    = models.CharField(max_length=300)
+    ore_previste = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    riferimento  = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Punto della fonte che impone il contenuto: es. «Allegato A, punto 3».",
+    )
+
+    class Meta:
+        ordering = ["ordine", "id"]
+        verbose_name = "Argomento del corso"
+        verbose_name_plural = "Programma del corso"
+
+    def __str__(self) -> str:
+        return f"{self.corso.codice} · {self.argomento[:60]}"
+
+
+class TrainingSessionArgomento(models.Model):
+    """Programma effettivo dell'edizione: copia del corso, poi modificabile.
+
+    ``origine`` resta solo come traccia della provenienza: se l'argomento del
+    corso viene cancellato, la riga dell'edizione sopravvive (SET_NULL) perché
+    documenta un fatto già accaduto.
+    """
+
+    sessione     = models.ForeignKey("anagrafica.TrainingSession", on_delete=models.CASCADE, related_name="programma")
+    ordine       = models.PositiveSmallIntegerField(default=0)
+    argomento    = models.CharField(max_length=300)
+    ore_previste = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    riferimento  = models.CharField(max_length=200, blank=True, default="")
+    origine      = models.ForeignKey(
+        TrainingCourseArgomento, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    aggiunto     = models.BooleanField(
+        default=False,
+        help_text="Vero se l'edizione ha integrato un argomento non previsto dal corso.",
+    )
+
+    class Meta:
+        ordering = ["ordine", "id"]
+        verbose_name = "Argomento dell'edizione"
+        verbose_name_plural = "Programma dell'edizione"
+
+    def __str__(self) -> str:
+        return f"{self.sessione.codice_sessione} · {self.argomento[:60]}"
 
 
 # ─────────────────────────────────────────────────────────────
@@ -679,6 +777,13 @@ class TrainingLesson(models.Model):
                   "dalla durata. Es. 08:00–17:00 con 60' di pausa = 8 ore formative.",
     )
     argomento    = models.CharField(max_length=500)
+    # Quali voci del programma dell'edizione sono state coperte in questa
+    # giornata: è il collegamento che permette di confrontare previsto ed
+    # erogato, cioè la domanda che segue subito «cosa insegna il corso».
+    argomenti_svolti = models.ManyToManyField(
+        TrainingSessionArgomento, blank=True, related_name="lezioni",
+        verbose_name="Argomenti del programma svolti",
+    )
     docente      = models.ForeignKey(
         TrainingInstructor, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="lezioni",
@@ -735,6 +840,13 @@ class TrainingEnrollment(models.Model):
         ("RITIRATO",   "Ritirato"),
     ]
 
+    MODALITA_VERIFICA_CHOICES = [
+        ("TEST",         "Test scritto"),
+        ("ORALE",        "Colloquio orale"),
+        ("PRATICA",      "Prova pratica"),
+        ("OSSERVAZIONE", "Osservazione sul campo"),
+    ]
+
     sessione             = models.ForeignKey(TrainingSession, on_delete=models.CASCADE, related_name="iscrizioni")
     legacy_anagrafica_id = models.IntegerField(db_index=True)
     assignment           = models.ForeignKey(
@@ -750,6 +862,22 @@ class TrainingEnrollment(models.Model):
     # corsi la cui regola di superamento ha richiede_esame_finale=True. Null = non registrata.
     verifica_superata    = models.BooleanField(null=True, blank=True)
     data_verifica        = models.DateField(null=True, blank=True)
+    # Evidenza della verifica (catena dell'evidenza, anello 7). Prima c'era solo
+    # il segno di spunta: per l'e-learning il quiz conserva punteggio e risposte,
+    # per l'aula non restava nulla. Un flag non dimostra un apprendimento.
+    modalita_verifica    = models.CharField(
+        max_length=12, choices=MODALITA_VERIFICA_CHOICES, blank=True, default="",
+        help_text="Come è stato verificato l'apprendimento.",
+    )
+    punteggio            = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text="Punteggio conseguito, in percentuale.",
+    )
+    punteggio_minimo     = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text="Soglia applicata a questa verifica. Serve a rileggere l'esito "
+                  "anni dopo con il criterio di allora, non con quello di oggi.",
+    )
     data_completamento   = models.DateField(null=True, blank=True)
     note                 = models.TextField(blank=True)
     iscritto_da          = models.ForeignKey(
@@ -949,6 +1077,250 @@ class TrainingEmployeeRecord(models.Model):
 
     def __str__(self) -> str:
         return f"[{self.legacy_anagrafica_id}] {self.corso.codice} — {self.data_completamento}"
+
+
+# ─────────────────────────────────────────────────────────────
+# FOGLIO FIRME EMESSO (catena dell'evidenza, anello 6)
+# ─────────────────────────────────────────────────────────────
+# Il registro cartaceo resta l'unico documento che un ispettore accetta senza
+# discutere. L'idea è farlo diventare anche il modo di compilare il portale,
+# invece di essere una seconda cosa da fare dopo.
+#
+# Perché serve un record e non basta ristampare al volo: al momento della
+# stampa l'elenco viene CONGELATO. Se dopo si aggiunge un iscritto, l'ordine
+# delle righe cambierebbe e la riga 7 del foglio scansionato non sarebbe più la
+# stessa persona della riga 7 ricalcolata. Il foglio emesso è un fatto storico.
+#
+# La geometria delle celle firma viene registrata alla generazione: rende il
+# riconoscimento della scansione una misura su rettangoli di posizione nota,
+# invece di un problema di lettura della scrittura.
+
+class TrainingSignatureSheet(models.Model):
+    """Foglio firme emesso per una giornata: elenco congelato + geometria."""
+
+    STATO_CHOICES = [
+        ("EMESSO",    "Emesso"),
+        ("ACQUISITO", "Scansione acquisita"),
+        ("ANNULLATO", "Annullato"),
+    ]
+
+    lezione    = models.ForeignKey(
+        "anagrafica.TrainingLesson", on_delete=models.CASCADE, related_name="fogli_firme",
+    )
+    token      = models.CharField(
+        max_length=16, unique=True, db_index=True,
+        help_text="Identificativo stampato nel QR: riaggancia la scansione alla giornata "
+                  "senza che nessuno debba sceglierla a mano.",
+    )
+    stato      = models.CharField(max_length=10, choices=STATO_CHOICES, default="EMESSO")
+    righe      = models.JSONField(
+        default=list, blank=True,
+        help_text="Elenco congelato alla stampa: [{n, legacy_id, nome}]. È ciò che "
+                  "rende la riga 7 della scansione la stessa persona di allora.",
+    )
+    geometria  = models.JSONField(
+        default=dict, blank=True,
+        help_text="Posizione in mm delle celle firma sulla pagina, dall'angolo in alto "
+                  "a sinistra. Serve a leggere la scansione senza interpretare la scrittura.",
+    )
+    emesso_il  = models.DateTimeField(auto_now_add=True)
+    emesso_da  = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    scansione  = models.ForeignKey(
+        "anagrafica.TrainingAttachment", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="fogli_firme",
+    )
+    acquisito_il = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-emesso_il", "-id"]
+        verbose_name = "Foglio firme emesso"
+        verbose_name_plural = "Fogli firme emessi"
+        indexes = [models.Index(fields=["lezione", "stato"])]
+
+    def __str__(self) -> str:
+        return f"Foglio {self.token} — lezione {self.lezione_id}"
+
+    @property
+    def n_righe(self) -> int:
+        return len(self.righe or [])
+
+
+class TrainingScanLog(models.Model):
+    """Registro delle scansioni caricate: cosa è arrivato, dov'è finito, com'è andata.
+
+    Nasce dal caso che conta davvero, cioè quando la lettura **fallisce**. Senza
+    registro, il file caricato spariva e restava solo un messaggio d'errore a
+    schermo: nessun modo di guardare cosa fosse arrivato davvero, e la persona
+    che aveva scansionato doveva rifare tutto per farlo vedere a qualcuno.
+
+    Perciò il file viene archiviato *sempre*, riuscita o fallita che sia la
+    lettura, e qui resta scritto il percorso. Su un esito riuscito serve a
+    confrontare la proposta con l'originale; su un errore è l'unica cosa che
+    permetta di capire perché.
+
+    Non sostituisce l'allegato «registro firmato» della giornata: quello è la
+    prova documentale scelta da una persona, questo è la traccia tecnica di
+    cosa ha masticato il portale.
+    """
+
+    ESITO_CHOICES = [
+        ("OK",       "Letto"),
+        ("ERRORE",   "Errore di lettura"),
+        ("RIFIUTATO", "Foglio non riconosciuto"),
+    ]
+    ORIGINE_CHOICES = [
+        ("WEB",      "Caricamento dalla pagina"),
+        ("CARTELLA", "Cartella di acquisizione"),
+    ]
+
+    lezione = models.ForeignKey(
+        "anagrafica.TrainingLesson", null=True, blank=True,
+        on_delete=models.CASCADE, related_name="scansioni_log",
+        help_text="Vuoto quando il foglio non è stato riconosciuto: il file resta "
+                  "comunque archiviato e ispezionabile.",
+    )
+    foglio = models.ForeignKey(
+        "anagrafica.TrainingSignatureSheet", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="letture",
+    )
+
+    nome_file = models.CharField(max_length=255, blank=True, default="")
+    percorso  = models.CharField(
+        max_length=500, blank=True, default="",
+        help_text="Dove è stato archiviato il file caricato, relativo allo storage "
+                  "privato dell'anagrafica.",
+    )
+    dimensione = models.PositiveIntegerField(default=0, help_text="Byte del file caricato.")
+
+    token_digitato = models.CharField(max_length=16, blank=True, default="")
+    token_letto    = models.CharField(
+        max_length=16, blank=True, default="",
+        help_text="Token decodificato dal QR. Vuoto se il codice non è stato letto "
+                  "e l'operatore ha digitato a mano.",
+    )
+
+    esito     = models.CharField(max_length=10, choices=ESITO_CHOICES, default="OK")
+    origine   = models.CharField(max_length=10, choices=ORIGINE_CHOICES, default="WEB")
+    messaggio = models.TextField(
+        blank=True, default="",
+        help_text="Motivo dell'errore, nelle stesse parole mostrate a chi ha caricato.",
+    )
+
+    n_righe   = models.PositiveIntegerField(default=0)
+    n_firmati = models.PositiveIntegerField(default=0)
+    n_dubbie  = models.PositiveIntegerField(default=0)
+    inclinazione = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text="Gradi di rotazione rilevati nella scansione.",
+    )
+
+    creato_il = models.DateTimeField(auto_now_add=True, db_index=True)
+    creato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+
+    class Meta:
+        ordering = ["-creato_il", "-id"]
+        verbose_name = "Lettura di scansione"
+        verbose_name_plural = "Registro letture scansioni"
+        indexes = [
+            models.Index(fields=["esito", "-creato_il"]),
+            models.Index(fields=["lezione", "-creato_il"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.get_esito_display()} — {self.nome_file or 'senza nome'} ({self.creato_il:%d-%m-%Y %H:%M})"
+
+    @property
+    def riuscita(self) -> bool:
+        return self.esito == "OK"
+
+    @property
+    def dimensione_leggibile(self) -> str:
+        n = self.dimensione or 0
+        if n < 1024:
+            return f"{n} B"
+        if n < 1024 * 1024:
+            return f"{n / 1024:.0f} KB"
+        return f"{n / (1024 * 1024):.1f} MB"
+
+
+# ─────────────────────────────────────────────────────────────
+# VALUTAZIONE DI EFFICACIA (catena dell'evidenza, anello 8)
+# ─────────────────────────────────────────────────────────────
+# Il modulo sapeva raccontare benissimo *che* la formazione era stata erogata.
+# Non diceva nulla su *cosa avesse prodotto*. È la differenza fra «abbiamo fatto
+# il corso» e «le persone sono competenti», ed è ciò che ISO 45001 §7.2 e
+# ISO 9001 §7.2 chiedono per nome.
+#
+# È una FK e non un uno-a-uno di proposito: dopo un esito «non efficace» si
+# concorda un'azione e si rivaluta. Le due valutazioni sono entrambe storia.
+
+class TrainingEfficacia(models.Model):
+    """Verifica sul campo, a distanza di mesi, che la formazione abbia prodotto
+    competenza. Nasce «attesa» al completamento e viene compilata dal preposto."""
+
+    ESITO_CHOICES = [
+        ("EFFICACE",     "Efficace"),
+        ("PARZIALE",     "Parzialmente efficace"),
+        ("NON_EFFICACE", "Non efficace"),
+    ]
+
+    record       = models.ForeignKey(
+        "anagrafica.TrainingEmployeeRecord", on_delete=models.CASCADE,
+        related_name="valutazioni_efficacia",
+    )
+    # Denormalizzato dal record: la valutazione si cerca per persona, e la
+    # ricerca deve restare diretta anche quando il record verrà archiviato.
+    legacy_anagrafica_id = models.IntegerField(db_index=True)
+    attesa_dal   = models.DateField(
+        db_index=True,
+        help_text="Data dalla quale la valutazione è dovuta (completamento + mesi previsti).",
+    )
+    valutata_il  = models.DateField(null=True, blank=True)
+    valutata_da  = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    valutatore_nome = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Snapshot di chi ha valutato: resta leggibile anche se l'utenza sparisce.",
+    )
+    esito        = models.CharField(max_length=14, choices=ESITO_CHOICES, blank=True, default="")
+    azione       = models.TextField(
+        blank=True,
+        help_text="Cosa si è deciso di fare quando l'esito non è pieno: affiancamento, "
+                  "ripetizione, cambio mansione.",
+    )
+    note         = models.TextField(blank=True)
+    created_at   = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["attesa_dal", "id"]
+        verbose_name = "Valutazione di efficacia"
+        verbose_name_plural = "Valutazioni di efficacia"
+        indexes = [
+            models.Index(fields=["legacy_anagrafica_id", "attesa_dal"]),
+            models.Index(fields=["esito"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"[{self.legacy_anagrafica_id}] efficacia attesa dal {self.attesa_dal}"
+
+    @property
+    def in_attesa(self) -> bool:
+        return not self.valutata_il
+
+    @property
+    def scaduta(self) -> bool:
+        """Dovuta e non ancora compilata: è la riga che deve comparire nei solleciti."""
+        from django.utils import timezone as _tz
+
+        return self.in_attesa and self.attesa_dal <= _tz.localdate()
 
 
 # ─────────────────────────────────────────────────────────────

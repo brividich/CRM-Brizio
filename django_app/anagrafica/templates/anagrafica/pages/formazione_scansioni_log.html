@@ -1,0 +1,142 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Registro letture scansioni | Formazione | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<style>
+.sl-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;
+  border:1px solid #cbd5e1;font-size:12.5px;text-decoration:none;color:inherit;white-space:nowrap}
+.sl-chip.on{background:#0f2942;border-color:#0f2942;color:#fff}
+body.theme-dark .sl-chip{border-color:#3a4a5e}
+body.theme-dark .sl-chip.on{background:#2563eb;border-color:#2563eb}
+.sl-mono{font-family:ui-monospace,Consolas,monospace;font-size:11.5px}
+.sl-perc{font-family:ui-monospace,Consolas,monospace;font-size:11px;color:#64748b;
+  word-break:break-all;max-width:320px;display:inline-block}
+body.theme-dark .sl-perc{color:#94a3b8}
+.sl-esito{font-weight:700;font-size:12px;letter-spacing:.03em}
+.sl-ok{color:#065f46}      body.theme-dark .sl-ok{color:#34d399}
+.sl-err{color:#b91c1c}     body.theme-dark .sl-err{color:#f87171}
+.sl-rif{color:#a97114}     body.theme-dark .sl-rif{color:#fbbf24}
+.sl-riga-err{background:#fef2f2}  body.theme-dark .sl-riga-err{background:#2a1717}
+.sl-riga-rif{background:#fffbeb}  body.theme-dark .sl-riga-rif{background:#2c2415}
+.sl-msg{font-size:12px;color:#7f1d1d;margin-top:3px}
+body.theme-dark .sl-msg{color:#fca5a5}
+.sl-avviso{border:1px solid #fcd34d;background:#fffbeb;border-radius:8px;padding:10px 14px;
+  font-size:13px;margin-bottom:14px}
+body.theme-dark .sl-avviso{border-color:#78350f;background:#2c2415}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="hr-shell" id="ana-root">
+
+  <div class="hr-hero">
+    <div>
+      <div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;opacity:.75;">Formazione · fogli firme</div>
+      <h1 style="margin:6px 0 4px;font-size:24px;">Registro letture scansioni</h1>
+      <div style="opacity:.85;font-size:13px;">
+        Ogni scansione caricata viene archiviata <strong>prima</strong> di essere letta, riuscita o no.
+        Qui c'è dove è finito il file.
+      </div>
+    </div>
+  </div>
+
+  {% if not lettore_qr_attivo %}
+  <div class="sl-avviso">
+    <strong>Lettore di codici non disponibile</strong> su questo ambiente: il codice del foglio va
+    digitato a mano. La lettura delle firme funziona lo stesso — è solo il riconoscimento
+    automatico del foglio a mancare.
+  </div>
+  {% endif %}
+
+  <div class="hr-card" style="padding:14px 18px;">
+    <form method="get" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:14px;">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <a class="sl-chip{% if not esito %} on{% endif %}" href="{% url 'anagrafica:formazione_scansioni_log' %}">Tutte <span class="muted">{{ conteggi.tutte }}</span></a>
+        <a class="sl-chip{% if esito == 'ERRORE' %} on{% endif %}" href="?esito=ERRORE">Errori <span class="muted">{{ conteggi.errore }}</span></a>
+        <a class="sl-chip{% if esito == 'RIFIUTATO' %} on{% endif %}" href="?esito=RIFIUTATO">Non riconosciute <span class="muted">{{ conteggi.rifiutato }}</span></a>
+        <a class="sl-chip{% if esito == 'OK' %} on{% endif %}" href="?esito=OK">Lette <span class="muted">{{ conteggi.ok }}</span></a>
+      </div>
+      {% if esito %}<input type="hidden" name="esito" value="{{ esito }}">{% endif %}
+      <input type="search" name="q" value="{{ cerca }}" placeholder="File, codice o corso…"
+             style="flex:1;min-width:200px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;">
+      <button type="submit" class="hr-btn">Cerca</button>
+    </form>
+
+    <div style="overflow-x:auto;border:1px solid #e2e8f0;border-radius:8px;">
+      <table class="hr-table" style="margin:0;">
+        <thead>
+          <tr>
+            <th style="width:130px;">Quando</th>
+            <th style="width:110px;">Esito</th>
+            <th>File archiviato</th>
+            <th style="width:200px;">Giornata</th>
+            <th style="width:110px;">Codice</th>
+            <th style="width:130px;">Letto</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in righe %}
+          <tr{% if r.esito == 'ERRORE' %} class="sl-riga-err"{% elif r.esito == 'RIFIUTATO' %} class="sl-riga-rif"{% endif %}>
+            <td class="sl-mono">
+              {{ r.creato_il|date:"d-m-Y" }}<br>
+              <span class="muted">{{ r.creato_il|date:"H:i" }}{% if r.creato_da %} · {{ r.creato_da.username }}{% endif %}</span>
+            </td>
+            <td>
+              <span class="sl-esito {% if r.esito == 'OK' %}sl-ok{% elif r.esito == 'ERRORE' %}sl-err{% else %}sl-rif{% endif %}">
+                {{ r.get_esito_display }}
+              </span>
+              {% if r.messaggio %}<div class="sl-msg">{{ r.messaggio }}</div>{% endif %}
+            </td>
+            <td>
+              {% if r.percorso %}
+                <a href="{% url 'anagrafica:formazione_scansione_scarica' r.pk %}">{{ r.nome_file|default:"scansione" }}</a>
+                <span class="muted" style="font-size:11.5px;"> · {{ r.dimensione_leggibile }}</span>
+                <div class="sl-perc">{{ r.percorso }}</div>
+              {% else %}
+                <span class="muted">{{ r.nome_file|default:"—" }}</span>
+                <div class="sl-msg">Archiviazione non riuscita: il file non è stato conservato.</div>
+              {% endif %}
+            </td>
+            <td style="font-size:12.5px;">
+              {% if r.lezione %}
+                {{ r.lezione.sessione.corso.titolo|truncatechars:44 }}<br>
+                <span class="muted">{{ r.lezione.sessione.codice_sessione }} · giornata {{ r.lezione.numero }}</span>
+              {% else %}
+                <span class="muted">non associata</span>
+              {% endif %}
+            </td>
+            <td class="sl-mono">
+              {% if r.token_letto %}
+                {{ r.token_letto }}<br><span class="muted" style="font-size:10.5px;">dal QR</span>
+              {% elif r.token_digitato %}
+                {{ r.token_digitato }}<br><span class="muted" style="font-size:10.5px;">digitato</span>
+              {% else %}<span class="muted">—</span>{% endif %}
+            </td>
+            <td class="sl-mono">
+              {% if r.esito == 'OK' %}
+                {{ r.n_firmati }}/{{ r.n_righe }} firmate
+                {% if r.n_dubbie %}<br><span class="muted">{{ r.n_dubbie }} dubbie</span>{% endif %}
+                {% if r.inclinazione %}<br><span class="muted">{{ r.inclinazione }}°</span>{% endif %}
+              {% else %}<span class="muted">—</span>{% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="fm-empty">Nessuna scansione caricata finora.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <p style="font-size:12px;color:#94a3b8;margin:12px 0 0;">
+      I file stanno nell'archivio privato dell'anagrafica, fuori dalla webroot e cifrati a riposo:
+      un foglio firme è un elenco di nomi con le firme autografe. Si aprono da qui, dove il download
+      lascia traccia, non da Esplora risorse.
+    </p>
+  </div>
+
+</div>
+{% endblock %}

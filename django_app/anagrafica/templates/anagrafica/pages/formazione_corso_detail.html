@@ -73,6 +73,60 @@
     {# ── Colonna sinistra ──────────────────────────────────────────────────── #}
     <div>
 
+      {# Programma didattico #}
+      <div class="hr-card fm-section">
+        <div class="fm-section-head">
+          <div class="fm-section-title">📚 Programma didattico <span class="fm-count">{{ programma|length }}</span></div>
+        </div>
+        {% if programma %}
+        <div class="fm-table-wrap">
+        <table class="fm-table">
+          <thead><tr><th class="num">#</th><th>Argomento</th><th class="num">Ore</th><th>Riferimento</th><th class="nowrap"></th></tr></thead>
+          <tbody>
+            {% for a in programma %}
+            <tr>
+              <td class="num muted">{{ forloop.counter }}</td>
+              <td>{{ a.argomento }}</td>
+              <td class="num">{% if a.ore_previste %}{{ a.ore_previste }}{% else %}<span class="muted">—</span>{% endif %}</td>
+              <td class="muted">{{ a.riferimento|default:"—" }}</td>
+              <td class="nowrap">
+                {% if is_editor %}
+                <form method="post" action="{% url 'anagrafica:formazione_corso_argomento_delete' corso.pk a.pk %}"
+                      onsubmit="return confirm('Rimuovere questo argomento dal programma del corso? Le edizioni già erogate non vengono toccate.')" style="display:inline;">
+                  {% csrf_token %}
+                  <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">✕</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        {% else %}
+        <div class="fm-empty">Nessun argomento dichiarato: il fascicolo delle edizioni segnalerà il programma come mancante.</div>
+        {% endif %}
+        {% if is_editor %}
+        <form method="post" action="{% url 'anagrafica:formazione_corso_argomento_add' corso.pk %}" class="fm-inline-form">
+          {% csrf_token %}
+          <div class="fm-f" style="flex:2;min-width:200px;">
+            <label>Argomento</label>
+            <input type="text" name="argomento" maxlength="300" required placeholder="es. Rischi specifici della mansione">
+          </div>
+          <div class="fm-f" style="width:90px;">
+            <label>Ore</label>
+            <input type="number" name="ore_previste" step="0.5" min="0" placeholder="4">
+          </div>
+          <div class="fm-f" style="flex:1;min-width:150px;">
+            <label>Riferimento</label>
+            <input type="text" name="riferimento" maxlength="200" placeholder="es. Allegato A, punto 3">
+          </div>
+          <button type="submit" class="hr-btn hr-btn-sm hr-btn-primary">Aggiungi</button>
+        </form>
+        <p class="muted" style="font-size:12px;margin:6px 0 0;">Le nuove edizioni ne ricevono una copia modificabile: cambiare il programma qui non altera le edizioni già erogate.</p>
+        {% endif %}
+      </div>
+
       {# Prerequisiti #}
       <div class="hr-card fm-section">
         <div class="fm-section-head">
