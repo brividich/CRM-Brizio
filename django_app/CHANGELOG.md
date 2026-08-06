@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Assets - crea OdL dalla scheda asset
+
+- **[fix/ux/test] `assets/views.py`, `assets/templates/assets/pages/asset_detail.html`, `assets/tests.py`**: nella card `Registro manutenzione`, la tabella `Manutenzione pianificata` ha ora una colonna `Azioni` con `Crea intervento` per ogni regola effettiva dell'asset, inclusi gli stati senza prima esecuzione. Il CTA e' presente anche nel riepilogo `Prossima manutenzione` e apre il form guidato con asset, regola, tipo e contenuti del piano precompilati.
+
 ### Assets - crea OdL dalla scadenza periodica
 
 - **[feat/fix/ux/test] `assets/views.py`, `assets/forms.py`, `assets/templates/assets/pages/maintenance_schedule.html`, `assets/tests.py`**: la tabella `Manutenzioni periodiche pianificate` dello scadenzario non costringe piu ad aprire il piano per registrare il lavoro. Il nuovo CTA `Crea intervento` apre il form OdL asset-specifico passando il `PeriodicVerification`; vengono proposti piano, tipo preventiva, titolo, note e fornitore. L'OdL salvato conserva la FK al piano e `origin=PERIODIC`. Gli ingressi da `MaintenanceRule` vengono anch'essi salvati con origine periodica coerente.

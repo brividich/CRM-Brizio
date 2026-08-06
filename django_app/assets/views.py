@@ -9987,6 +9987,12 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
         asset_queryset=Asset.objects.filter(pk=asset.id).select_related("asset_category"),
         today=today,
     )
+    for row in asset_schedule_rows:
+        row["workorder_create_url"] = _workorder_create_page_url(
+            asset_id=asset.id,
+            rule_id=row["base_rule"].id,
+            source="asset_detail",
+        )
     next_maintenance_row = next(
         (
             row
