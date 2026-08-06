@@ -83,14 +83,12 @@ class AssetAssignmentChooserMixin(forms.Form):
     )
     assignment_employee_id = forms.CharField(required=False, label="Dipendente anagrafica")
     assignment_department_value = forms.CharField(required=False, label="Reparto")
-    sharepoint_auto_folder = forms.BooleanField(required=False, label="Cartella SharePoint automatica")
     include_in_plant_layout = forms.BooleanField(required=False, label="Inserisci nella piantina")
 
     def _pop_assignment_kwargs(self, kwargs) -> None:
         self.assignment_employee_choices = kwargs.pop("assignment_employee_choices", None) or []
         self.assignment_employee_details = kwargs.pop("assignment_employee_details", None) or {}
         self.assignment_department_choices = kwargs.pop("assignment_department_choices", None) or []
-        self.default_sharepoint_auto = bool(kwargs.pop("default_sharepoint_auto", True))
         self.default_include_in_plant_layout = bool(kwargs.pop("default_include_in_plant_layout", False))
 
     def _setup_assignment_chooser_fields(self) -> None:
@@ -116,7 +114,6 @@ class AssetAssignmentChooserMixin(forms.Form):
         if "assignment_mode" in self.fields:
             current_mode = ASSIGNMENT_MODE_DEPARTMENT if self.initial.get("assignment_department_value") else ASSIGNMENT_MODE_EMPLOYEE
             self.initial.setdefault("assignment_mode", current_mode)
-        self.initial.setdefault("sharepoint_auto_folder", self.default_sharepoint_auto)
         self.initial.setdefault("include_in_plant_layout", self.default_include_in_plant_layout)
 
     def _validate_assignment_chooser(self, cleaned_data: dict) -> dict:
@@ -155,9 +152,6 @@ class AssetAssignmentChooserMixin(forms.Form):
             else:
                 instance.assigned_legacy_user_id = None
 
-        if self.cleaned_data.get("sharepoint_auto_folder"):
-            instance.sharepoint_folder_path = ""
-            instance.sharepoint_folder_url = ""
 
 
 HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
@@ -375,8 +369,6 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
             "status",
             "purchase_date",
             "production_date",
-            "sharepoint_folder_url",
-            "sharepoint_folder_path",
             "assignment_to",
             "assignment_reparto",
             "assignment_location",
@@ -396,8 +388,6 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
             "status": "Stato",
             "purchase_date": "Data acquisto",
             "production_date": "Data fabbricazione",
-            "sharepoint_folder_url": "URL cartella SharePoint",
-            "sharepoint_folder_path": "Percorso cartella SharePoint",
             "assignment_to": "Assegnato a",
             "assignment_reparto": "Reparto assegnazione",
             "assignment_location": "Posizione assegnazione",
@@ -427,18 +417,6 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
         if size > 10 * 1024 * 1024:
             raise forms.ValidationError("La foto targhetta non puo superare 10 MB.")
         return upload
-
-    def clean_sharepoint_folder_url(self):
-        value = (self.cleaned_data.get("sharepoint_folder_url") or "").strip()
-        if value and "://" not in value and "sharepoint" in value.lower():
-            value = f"https://{value.lstrip('/')}"
-        return value[:1000]
-
-    def clean_sharepoint_folder_path(self):
-        value = (self.cleaned_data.get("sharepoint_folder_path") or "").strip().replace("\\", "/")
-        while "//" in value:
-            value = value.replace("//", "/")
-        return value.strip("/")[:500]
 
     def _custom_field_form_name(self, code: str) -> str:
         return f"extra__{code}"
@@ -604,17 +582,13 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
             if field_name in self.fields and suggestions:
                 self.fields[field_name].widget.attrs["list"] = f"list_{field_name}"
 
-        if "sharepoint_folder_url" in self.fields:
-            self.fields["sharepoint_folder_url"].help_text = "Avanzato: link completo alla cartella asset, compilato automaticamente quando Graph crea la cartella."
-        if "sharepoint_folder_path" in self.fields:
-            self.fields["sharepoint_folder_path"].help_text = "Avanzato: percorso relativo nel drive. Se lasci automatico viene calcolato da reparto e tag asset."
 
         self._setup_assignment_chooser_fields()
 
         _attach_input_css(self)
         if "assignment_mode" in self.fields:
             self.fields["assignment_mode"].widget.attrs["class"] = ""
-        for field_name in ["sharepoint_auto_folder", "include_in_plant_layout"]:
+        for field_name in ["include_in_plant_layout"]:
             if field_name in self.fields:
                 self.fields[field_name].widget.attrs["class"] = ""
 
@@ -1504,8 +1478,6 @@ class ChemicalAssetForm(forms.ModelForm):
 
 class WorkMachineAssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.ModelForm):
     asset_tag = forms.CharField(required=False, label="Tag bene")
-    sharepoint_folder_url = forms.CharField(required=False, label="URL cartella SharePoint", max_length=1000)
-    sharepoint_folder_path = forms.CharField(required=False, label="Percorso cartella SharePoint", max_length=500)
     x_mm = forms.IntegerField(required=False, min_value=0, label="Corsa X (mm)")
     y_mm = forms.IntegerField(required=False, min_value=0, label="Corsa Y (mm)")
     z_mm = forms.IntegerField(required=False, min_value=0, label="Corsa Z (mm)")
@@ -1548,8 +1520,6 @@ class WorkMachineAssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin,
             "status",
             "purchase_date",
             "production_date",
-            "sharepoint_folder_url",
-            "sharepoint_folder_path",
             "assignment_to",
             "assignment_reparto",
             "assignment_location",
@@ -1567,8 +1537,6 @@ class WorkMachineAssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin,
             "status": "Stato",
             "purchase_date": "Data acquisto",
             "production_date": "Data fabbricazione",
-            "sharepoint_folder_url": "URL cartella SharePoint",
-            "sharepoint_folder_path": "Percorso cartella SharePoint",
             "assignment_to": "Responsabile",
             "assignment_reparto": "Reparto assegnazione",
             "assignment_location": "Posizione",
@@ -1594,11 +1562,8 @@ class WorkMachineAssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin,
         "production_date",
         "purchase_date",
     ]
-    sharepoint_field_names = [
-        "sharepoint_auto_folder",
+    layout_field_names = [
         "include_in_plant_layout",
-        "sharepoint_folder_url",
-        "sharepoint_folder_path",
     ]
     machine_field_names = [
         "x_mm",
@@ -1641,18 +1606,6 @@ class WorkMachineAssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin,
 
     def clean_asset_tag(self):
         return (self.cleaned_data.get("asset_tag") or "").strip()
-
-    def clean_sharepoint_folder_url(self):
-        value = (self.cleaned_data.get("sharepoint_folder_url") or "").strip()
-        if value and "://" not in value and "sharepoint" in value.lower():
-            value = f"https://{value.lstrip('/')}"
-        return value[:1000]
-
-    def clean_sharepoint_folder_path(self):
-        value = (self.cleaned_data.get("sharepoint_folder_path") or "").strip().replace("\\", "/")
-        while "//" in value:
-            value = value.replace("//", "/")
-        return value.strip("/")[:500]
 
     def _ensure_manual_source_key(self) -> str:
         if self.instance and self.instance.pk:
@@ -1747,8 +1700,6 @@ class WorkMachineAssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin,
             if field_name in self.fields and suggestions:
                 self.fields[field_name].widget.attrs["list"] = f"list_{field_name}"
 
-        self.fields["sharepoint_folder_url"].help_text = "Link completo alla cartella macchina su SharePoint."
-        self.fields["sharepoint_folder_path"].help_text = "Percorso relativo per sync file, es. Macchine/CN5/ML-000001."
         self.fields["periodic_verification_ids"].queryset = PeriodicVerification.objects.order_by("name", "id")
         self.fields["periodic_verification_ids"].help_text = "Collega la macchina a uno o piu piani di manutenzione periodica."
         if self.instance and self.instance.pk:
@@ -1782,7 +1733,7 @@ class WorkMachineAssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin,
             self.fields[field_name].widget.attrs["class"] = ""
         if "assignment_mode" in self.fields:
             self.fields["assignment_mode"].widget.attrs["class"] = ""
-        for field_name in ["sharepoint_auto_folder", "include_in_plant_layout"]:
+        for field_name in ["include_in_plant_layout"]:
             if field_name in self.fields:
                 self.fields[field_name].widget.attrs["class"] = ""
 

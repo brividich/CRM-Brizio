@@ -8,6 +8,18 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Removed
+
+- **Assets · rimossa l'integrazione SharePoint dal modulo asset** (`django_app/assets/views.py`, `models.py`, `forms.py`, `admin.py`, `urls.py`, `tests.py`, migration `0090_remove_sharepoint_fields.py`, template `asset_detail.html`, `asset_form.html`, `work_machine_form.html`, `gestione_admin.html`, `asset_qr_landing.html`, `asset_label_designer.html`, `django_app/assets/README.md`; eliminati `assets/services/sharepoint_public_links.py`, `assets/management/commands/sync_asset_documents_from_sharepoint.py`, `assets_ensure_public_share_links.py`, `assets_ensure_sharepoint_metadata.py`, `docs/assets/SHAREPOINT_UPLOAD_REVIEW.md`, `docs/assets/SHAREPOINT_CARTELLE_ASSET_GUIDE.md`; ripuliti `django_app/config/settings/base.py`, `django_app/hub_tools/views.py`, `hub_tools/templates/hub_tools/setup_wizard.html`, `hub_tools/tests.py`, `README.md`).
+
+  **Motivo e effetto sulle prestazioni.** L'archivio documenti asset era gia interamente locale (`ASSETS_PRIVATE_ROOT`, cifrato at-rest): SharePoint era solo una copia. Ogni upload pero eseguiva **in modo sincrono dentro la richiesta POST** circa venti round-trip a `graph.microsoft.com` — verifica ricorsiva di ogni segmento di cartella, PATCH dei metadati sulle tre sottocartelle, PUT del file, PATCH dei metadati del file — ciascuno su una connessione TLS nuova. Il salvataggio di un file da pochi kB richiedeva percio fino a un minuto. Ora il POST scrive solo su disco e in database.
+
+  Rimossi: helper Graph e sync (`_ensure_asset_sharepoint_folder`, `_upload_asset_document_to_sharepoint`, `_sync_asset_documents_from_sharepoint`, colonne metadato, healthcheck), selettore `Locale/SharePoint` nella card Documenti e nel form macchina, card `Archivio SharePoint` della scheda asset (sezione `SECTION_SHAREPOINT` e relative righe di layout), pannello `SharePoint / Microsoft Graph` in `/assets/impostazioni/?tab=config`, campi form `sharepoint_auto_folder` / `sharepoint_folder_url` / `sharepoint_folder_path`, link pubblici QR (`assets_ensure_public_share_links`, view e rotta `/assets/public/<token>/`, prefisso esente in `MIDDLEWARE_EXEMPT_PREFIXES`) e le impostazioni `SHAREPOINT_ASSET_*` / `ASSETS_SHAREPOINT_LIBRARY_URL` dal Setup Wizard hub.
+
+  **Migrazione `0090`**: elimina 10 colonne da `assets_asset` e 2 da `assets_assetdocument`, e cancella le righe di layout scheda con `code="SHAREPOINT"`. **Perdita definitiva** dei percorsi e URL SharePoint storici — scelta esplicita. **Non rimosso**: `core/graph_utils.py` e le chiavi `GRAPH_*`, che restano in uso da assenze, incidenti, timbri, automazioni e AI.
+
+  **Effetto sui QR**: l'etichetta punta ora sempre alla landing pubblica `/assets/qr/pub/<token>/`; il valore legacy `?target=sharepoint` viene trattato come `landing`, quindi i QR gia stampati continuano a funzionare.
+
 ### Changed
 
 - **Assets · il piano apre il rapporto gia predisposto, non un nuovo intervento** (`django_app/assets/views.py`, `templates/assets/pages/asset_detail.html`, `assets/tests.py`). Nel `Registro manutenzione` la scheda asset cerca l'OdL aperto della coppia asset/regola e porta il manutentore direttamente a `Compila e chiudi rapporto`, con giornate, tempo ed esito formale. Se il job automatico non lo ha ancora generato, `Genera rapporto` crea in modo idempotente un solo OdL periodico dal template effettivo, copia la checklist e apre subito la chiusura; click ripetuti riutilizzano lo stesso rapporto.

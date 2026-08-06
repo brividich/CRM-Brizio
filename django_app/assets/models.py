@@ -102,16 +102,6 @@ class Asset(models.Model):
         verbose_name="Rientra in PART 145",
         help_text="Indica se l'asset rientra nel regolamento aeronautico PART 145.",
     )
-    sharepoint_folder_url = models.CharField(max_length=1000, blank=True, default="")
-    sharepoint_folder_path = models.CharField(max_length=500, blank=True, default="")
-    sharepoint_drive_id = models.CharField(max_length=255, blank=True, default="")
-    sharepoint_item_id = models.CharField(max_length=255, blank=True, default="")
-    sharepoint_public_url = models.CharField(max_length=1000, blank=True, default="")
-    sharepoint_public_link_id = models.CharField(max_length=255, blank=True, default="")
-    sharepoint_public_enabled = models.BooleanField(default=False)
-    sharepoint_public_created_at = models.DateTimeField(null=True, blank=True)
-    sharepoint_public_last_checked_at = models.DateTimeField(null=True, blank=True)
-    sharepoint_public_error = models.TextField(blank=True, default="")
     public_qr_token = models.CharField(max_length=64, unique=True, null=True, blank=True, db_index=True)
     public_qr_enabled = models.BooleanField(default=True)
     extra_columns = models.JSONField(default=dict, blank=True)
@@ -521,7 +511,6 @@ class AssetDetailSectionLayout(models.Model):
     SECTION_LICENSES = "LICENSES"
     SECTION_PERIODIC = "PERIODIC"
     SECTION_QR = "QR"
-    SECTION_SHAREPOINT = "SHAREPOINT"
     SECTION_QUICK_ACTIONS = "QUICK_ACTIONS"
     SECTION_ASSIGNMENT = "ASSIGNMENT"
     SECTION_MAP = "MAP"
@@ -535,7 +524,6 @@ class AssetDetailSectionLayout(models.Model):
         (SECTION_LICENSES, "Licenze software"),
         (SECTION_PERIODIC, "Manutenzione periodica"),
         (SECTION_QR, "QR asset"),
-        (SECTION_SHAREPOINT, "Archivio SharePoint"),
         (SECTION_QUICK_ACTIONS, "Azioni rapide"),
         (SECTION_ASSIGNMENT, "Responsabile attuale"),
         (SECTION_MAP, "Posizione in officina"),
@@ -1671,8 +1659,6 @@ class AssetDocument(models.Model):
     )
     notes = models.CharField(max_length=255, blank=True, default="")
     document_date = models.DateField(null=True, blank=True)
-    sharepoint_url = models.CharField(max_length=1000, blank=True, default="")
-    sharepoint_path = models.CharField(max_length=500, blank=True, default="")
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -1706,7 +1692,7 @@ class AssetCategoryDocumentFolder(models.Model):
 
     Si aggiunge alle tre cartelle di base (specifiche/interventi/manuali) e vale
     per tutti gli asset di quella categoria. Lo ``slug`` e la chiave stabile
-    salvata in ``AssetDocument.category`` e usata come nome cartella SharePoint.
+    salvata in ``AssetDocument.category``.
     Non e rinominabile; la disattivazione (soft-delete) e consentita solo se
     nessun documento la usa.
     """

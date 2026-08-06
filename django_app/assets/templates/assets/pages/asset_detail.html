@@ -181,11 +181,6 @@ body.theme-dark .af-targhetta { background:#0b1220; border-color:var(--border); 
 .af-doc-tab.is-active { color: #2563eb; border-bottom-color: #2563eb; }
 .af-doc-body { padding: 12px 14px; display: grid; gap: 8px; }
 .af-doc-upload { display:grid; gap:8px; }
-.af-doc-storage { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-.af-doc-choice {
-  border:1px solid #dbe1ea; border-radius:10px; background:#fff; padding:7px 10px;
-  display:inline-flex; align-items:center; gap:7px; color:#334155; font-size:var(--fs-sm); font-weight:700; cursor:pointer;
-}
 .af-drop {
   border: 2px dashed #cbd5e1; border-radius: 12px; padding: 16px 12px; text-align: center; color: #64748b; font-size: var(--fs-base); background: #f8fafc;
   display:block; cursor:pointer;
@@ -422,7 +417,6 @@ body.theme-dark .af-cust-row span:first-child { color:var(--text-light); }
 body.theme-dark .af-doc-tabs { border-color:var(--border); }
 body.theme-dark .af-doc-tab { color:var(--text-light); }
 body.theme-dark .af-doc-tab.is-active { color:#93c5fd; border-bottom-color:#93c5fd; }
-body.theme-dark .af-doc-choice { background:var(--surface); border-color:var(--border); color:var(--text-mid); }
 body.theme-dark .af-drop { background:var(--surface-alt); border-color:var(--border); color:var(--text-light); }
 body.theme-dark .af-drop.is-dragging { border-color:#93c5fd; background:rgba(37,99,235,.14); color:#bfdbfe; }
 body.theme-dark .af-doc-item { background:var(--surface-alt); border-color:var(--border); }
@@ -1156,26 +1150,6 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
             {% endif %}
             <span class="af-note" style="margin-left:auto;">Il QR punta alla scheda asset.</span>
           </div>
-        {% elif card.code == "SHAREPOINT" %}
-          <div class="af-card-body">
-            <div class="af-link-row">
-              {% if sharepoint_folder_path %}
-                <div>
-                  <div class="af-spec-k">Percorso sync</div>
-                  <div class="af-link-value">{{ sharepoint_folder_path }}</div>
-                </div>
-              {% endif %}
-              {% if sharepoint_folder_url %}
-                <div>
-                  <div class="af-spec-k">Cartella collegata</div>
-                  <div class="af-link-value">{{ sharepoint_folder_url }}</div>
-                </div>
-                <a class="af-btn af-btn-secondary" href="{{ sharepoint_folder_url }}" target="_blank" rel="noopener">Apri cartella</a>
-              {% else %}
-                <div class="af-note">Percorso salvato ma URL cartella non ancora disponibile. Sara valorizzato automaticamente quando il sync SharePoint e attivo.</div>
-              {% endif %}
-            </div>
-          </div>
         {% elif card.code == "QUICK_ACTIONS" %}
           <div class="af-card-body">
             <div class="af-quick-grid">
@@ -1303,16 +1277,6 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
               <form class="af-doc-upload" method="post" enctype="multipart/form-data" data-doc-upload>
                 {% csrf_token %}
                 <input type="hidden" name="action" value="upload_asset_documents">
-                <div class="af-doc-storage" aria-label="Destinazione upload">
-                  <label class="af-doc-choice">
-                    <input type="radio" name="asset_document_storage" value="local">
-                    Locale
-                  </label>
-                  <label class="af-doc-choice">
-                    <input type="radio" name="asset_document_storage" value="sharepoint" checked>
-                    SharePoint
-                  </label>
-                </div>
                 <label class="af-drop" data-doc-drop>
                   <input
                     class="af-file-input"
@@ -1345,7 +1309,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
                 {% if groups %}
                   {% for group in groups %}
                     {% if group.folder %}
-                      <div class="af-doc-folder-head" title="Cartella caricata su SharePoint">&#128193; {{ group.folder }}</div>
+                      <div class="af-doc-folder-head" title="Cartella caricata">&#128193; {{ group.folder }}</div>
                     {% endif %}
                     {% for doc in group.documents %}
                       <div class="af-doc-item{% if group.folder %} af-doc-item-nested{% endif %}">
@@ -1365,7 +1329,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
                             <button class="af-btn" type="button" disabled>Apri</button>
                           {% endif %}
                           {% if doc.id %}
-                            <form method="post" class="af-doc-delete" onsubmit="return confirm('Eliminare definitivamente questo documento? Il file verra rimosso dal portale{% if doc.sharepoint %} e da SharePoint{% endif %}.');">
+                            <form method="post" class="af-doc-delete" onsubmit="return confirm('Eliminare definitivamente questo documento? Il file verra rimosso dal portale.');">
                               {% csrf_token %}
                               <input type="hidden" name="action" value="delete_asset_document">
                               <input type="hidden" name="document_id" value="{{ doc.id }}">

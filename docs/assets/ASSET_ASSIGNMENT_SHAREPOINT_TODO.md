@@ -2,6 +2,11 @@
 
 Data: 2026-05-08
 
+> **Obsoleto per la parte SharePoint (2026-08-06).** L'integrazione SharePoint del
+> modulo assets e stata rimossa: l'archivio documenti e interamente locale. Le voci
+> qui sotto su cartelle/percorsi SharePoint restano solo come traccia storica.
+> Restano valide le parti su assegnazione e planimetria.
+
 ## Incluso in questa patch
 
 - [x] Assegnazione asset da anagrafica dipendenti, con ricerca client-side nel select.

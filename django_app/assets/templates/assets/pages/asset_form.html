@@ -19,7 +19,7 @@
     {% endif %}
     <div class="as-form-grid-3">
       {% for field in form %}
-        {% if field.name in base_field_names and field.name != 'assignment_to' and field.name != 'assignment_reparto' and field.name != 'assignment_location' and field.name != 'sharepoint_folder_url' and field.name != 'sharepoint_folder_path' %}
+        {% if field.name in base_field_names and field.name != 'assignment_to' and field.name != 'assignment_reparto' and field.name != 'assignment_location' %}
           <div style="{% if field.name == 'notes' %}grid-column:1/-1;{% endif %}">
             <label for="{{ field.id_for_label }}">{{ field.label }}</label>
             {{ field }}
@@ -72,28 +72,17 @@
       </div>
 
       <div style="grid-column:1/-1;border-top:1px solid #e2e8f0;padding-top:12px;margin-top:2px;">
-        <h3 class="as-section-title" style="margin-bottom:10px;">SharePoint e planimetria</h3>
+        <h3 class="as-section-title" style="margin-bottom:10px;">Planimetria</h3>
         <div class="as-form-grid-3">
           {% for field in form %}
-            {% if field.name == 'sharepoint_auto_folder' or field.name == 'include_in_plant_layout' %}
+            {% if field.name == 'include_in_plant_layout' %}
               <label style="border:1px solid #dbe1ea;border-radius:12px;background:#f8fafc;padding:12px;display:flex;align-items:center;gap:8px;font-weight:700;color:#334155;" for="{{ field.id_for_label }}">
                 {{ field }}
                 <span>{{ field.label }}</span>
               </label>
               {% if field.errors %}<div class="as-error">{{ field.errors }}</div>{% endif %}
-            {% elif field.name == 'sharepoint_folder_url' or field.name == 'sharepoint_folder_path' %}
-              <div data-sharepoint-advanced>
-                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-                {{ field }}
-                {% if field.help_text %}<div class="as-help" style="margin-top:4px;">{{ field.help_text }}</div>{% endif %}
-                {% if field.errors %}<div class="as-error">{{ field.errors }}</div>{% endif %}
-              </div>
             {% endif %}
           {% endfor %}
-        </div>
-        <div class="as-help" style="margin-top:8px;">Con SharePoint automatico basta salvare: il portale crea "ASSET CN/&lt;tag asset&gt;" con le sottocartelle manuali, specifiche e interventi. I campi manuali restano per casi particolari.</div>
-        <div class="as-note" style="margin-top:8px;padding:10px 12px;border:1px solid #dbe1ea;border-radius:10px;background:#f8fafc;">
-          Percorso previsto: <code data-sharepoint-preview>-</code>
         </div>
       </div>
 
@@ -216,7 +205,6 @@
 
 {% block assets_shell_scripts %}
 {{ assignment_employee_details|json_script:"asset-assignment-employees" }}
-{{ sharepoint_preview_config|json_script:"asset-sharepoint-preview-config" }}
 <script>
 (function () {
   const categorySelect = document.getElementById("{{ form.asset_category.id_for_label }}");
@@ -320,36 +308,6 @@
   if (departmentInput) departmentInput.addEventListener("change", applyDepartment);
   toggleMode();
 
-  const autoSharePoint = document.getElementById("id_sharepoint_auto_folder");
-  const advancedSharePoint = Array.from(document.querySelectorAll("[data-sharepoint-advanced]"));
-  const previewNode = document.querySelector("[data-sharepoint-preview]");
-  const previewConfigNode = document.getElementById("asset-sharepoint-preview-config");
-  const previewConfig = previewConfigNode ? JSON.parse(previewConfigNode.textContent || "{}") : {};
-  const repartoInput = document.getElementById("id_reparto");
-  const assetTag = "{{ asset.asset_tag|default:'' }}";
-  function cleanSegment(value, fallback) {
-    const cleaned = String(value || "").replace(/[\\/:*?"<>|#%{}~&]+/g, "-").trim().replace(/^\.+|\.+$/g, "");
-    return cleaned || fallback || "";
-  }
-  function refreshSharePointPreview() {
-    if (!previewNode) return;
-    const root = String(previewConfig.root_path || "").replace(/^\/+|\/+$/g, "");
-    const folderName = cleanSegment(assetTag, previewConfig.fallback_asset_tag || "tag-asset");
-    previewNode.textContent = [root, folderName].filter(Boolean).join("/");
-  }
-  function toggleSharePointAdvanced() {
-    const hidden = autoSharePoint && autoSharePoint.checked;
-    advancedSharePoint.forEach(function (node) { node.style.display = hidden ? "none" : ""; });
-    refreshSharePointPreview();
-  }
-  if (autoSharePoint) {
-    autoSharePoint.addEventListener("change", toggleSharePointAdvanced);
-    toggleSharePointAdvanced();
-  }
-  [repartoInput].forEach(function (input) {
-    if (input) input.addEventListener("input", refreshSharePointPreview);
-  });
-  refreshSharePointPreview();
 })();
 </script>
 {% endblock %}

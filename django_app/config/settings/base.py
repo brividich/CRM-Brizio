@@ -619,12 +619,6 @@ TIMBRI_PRIVATE_ROOT = Path(env("TIMBRI_PRIVATE_ROOT", str(BASE_DIR / "media_priv
 TICKETS_PRIVATE_ROOT = Path(env("TICKETS_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
 # Allegati asset sensibili: storage privato con fallback compatibile sui file legacy in MEDIA_ROOT.
 ASSETS_PRIVATE_ROOT = Path(env("ASSETS_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
-SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED = env_bool("SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED", False)
-SHAREPOINT_ASSET_ALLOWED_ROOT_NAME = env("SHAREPOINT_ASSET_ALLOWED_ROOT_NAME", "ASSET CN")
-SHAREPOINT_ASSET_ALLOWED_ROOT_DRIVE_ID = env("SHAREPOINT_ASSET_ALLOWED_ROOT_DRIVE_ID", "")
-SHAREPOINT_ASSET_ALLOWED_ROOT_ITEM_ID = env("SHAREPOINT_ASSET_ALLOWED_ROOT_ITEM_ID", "")
-SHAREPOINT_ASSET_SITE_ID = env("SHAREPOINT_ASSET_SITE_ID", "")
-SHAREPOINT_ASSET_DRIVE_ID = env("SHAREPOINT_ASSET_DRIVE_ID", "")
 # Allegati Diario Preposto (segnalazioni di sicurezza): storage privato con
 # fallback compatibile sui file legacy in MEDIA_ROOT.
 DIARIO_PREPOSTO_PRIVATE_ROOT = Path(env("DIARIO_PREPOSTO_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
@@ -745,7 +739,6 @@ MIDDLEWARE_EXEMPT_PREFIXES = (
     "/favicon",
     "/setup/",
     "/admin-portale/hub/",
-    "/assets/public/",
     "/assets/qr/pub/",          # landing QR pubblica (token opaco), sola lettura
     "/schede-sicurezza/s/",     # scheda SDS mobile via QR fisico, sola lettura, no login
     "/monitoring/report-problem/",

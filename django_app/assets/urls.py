@@ -64,7 +64,6 @@ urlpatterns = [
     path("assets/internal-number/next/", views.asset_internal_number_next, name="internal_number_next"),
     path("assets/new/chimico/", views.chemical_asset_create, name="chemical_create"),
     path("assets/edit/chimico/<int:id>/", views.chemical_asset_edit, name="chemical_edit"),
-    path("assets/public/<str:public_qr_token>/", views.asset_public_redirect, name="asset_public_redirect"),
     path("assets/view/", views.asset_detail, name="asset_view"),
     path("assets/view/<int:id>/", views.asset_detail, name="asset_view"),
     path("assets/view/<int:asset_id>/componenti/", views.asset_component_list, name="asset_component_list_for_asset"),
