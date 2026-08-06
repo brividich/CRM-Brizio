@@ -1,0 +1,177 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Acquisizione scansioni | Formazione | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<style>
+.si-sec{border:1px solid #e2e8f0;border-radius:10px;padding:16px 18px;margin-bottom:16px}
+body.theme-dark .si-sec{border-color:#334155}
+.si-sec-tit{font-size:13px;font-weight:700;color:#334155;margin-bottom:4px}
+body.theme-dark .si-sec-tit{color:#cbd5e1}
+.si-sec-sub{font-size:12px;color:#64748b;margin:0 0 14px}
+.si-f{margin-bottom:14px}
+.si-f label{display:block;font-size:12.5px;font-weight:600;margin-bottom:4px}
+.si-f input[type=text],.si-f input[type=number]{width:100%;max-width:520px;padding:7px 10px;
+  border:1px solid #cbd5e1;border-radius:6px}
+.si-help{font-size:11.5px;color:#64748b;margin-top:4px;max-width:620px;line-height:1.5}
+.si-check{display:flex;gap:9px;align-items:flex-start;margin-bottom:12px}
+.si-check input{margin-top:3px}
+.si-err{font-size:12px;color:#b91c1c;margin-top:4px}
+.si-stato{display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:999px;
+  font-size:12px;font-weight:600}
+.si-ok{background:#dcfce7;color:#065f46}      body.theme-dark .si-ok{background:#14352a;color:#34d399}
+.si-ko{background:#fee2e2;color:#991b1b}      body.theme-dark .si-ko{background:#3a1d1d;color:#f87171}
+.si-neutro{background:#f1f5f9;color:#475569}  body.theme-dark .si-neutro{background:#1e293b;color:#94a3b8}
+.si-mono{font-family:ui-monospace,Consolas,monospace;font-size:12px}
+.si-avviso{border-left:3px solid #f59e0b;background:#fffbeb;padding:11px 14px;border-radius:0 8px 8px 0;
+  font-size:12.5px;line-height:1.55;margin-bottom:14px}
+body.theme-dark .si-avviso{background:#2c2415}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="hr-shell" id="ana-root">
+
+  {% include "anagrafica/components/flash_messages.html" %}
+
+  <div class="hr-hero">
+    <div>
+      <div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;opacity:.75;">Formazione · fogli firme</div>
+      <h1 style="margin:6px 0 4px;font-size:24px;">Acquisizione scansioni da cartella</h1>
+      <div style="opacity:.85;font-size:13px;">
+        La fotocopiatrice deposita i fogli firmati in una cartella di rete e il portale se li prende da solo.
+      </div>
+    </div>
+  </div>
+
+  <div class="hr-card" style="padding:18px 22px;">
+
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:16px;">
+      <span class="si-stato {% if stato_cartella == 'raggiungibile' %}si-ok{% elif stato_cartella == 'non raggiungibile' %}si-ko{% else %}si-neutro{% endif %}">
+        Cartella {{ stato_cartella }}
+      </span>
+      <span class="si-stato {% if config.attiva %}si-ok{% else %}si-neutro{% endif %}">
+        {% if config.attiva %}Acquisizione attiva{% else %}Acquisizione spenta{% endif %}
+      </span>
+      {% if config.ultima_esecuzione %}
+      <span style="font-size:12px;color:#64748b;">
+        Ultimo passaggio {{ config.ultima_esecuzione|date:"d-m-Y H:i" }} — {{ config.ultimo_esito }}
+      </span>
+      {% else %}
+      <span style="font-size:12px;color:#94a3b8;">Mai eseguito</span>
+      {% endif %}
+    </div>
+
+    <form method="post">
+      {% csrf_token %}
+
+      <div class="si-sec">
+        <div class="si-sec-tit">Dove arrivano le scansioni</div>
+        <p class="si-sec-sub">
+          Imposta il tasto «Scansione» della fotocopiatrice verso questa cartella. Non serve nessuna
+          regola sul nome del file: il QR stampato sul foglio dice già a quale giornata appartiene.
+        </p>
+
+        <div class="si-check">
+          {{ form.attiva }}
+          <div>
+            <label for="{{ form.attiva.id_for_label }}" style="margin:0;">Acquisizione attiva</label>
+            <div class="si-help">{{ form.attiva.help_text }}</div>
+          </div>
+        </div>
+        {% if form.attiva.errors %}<div class="si-err">{{ form.attiva.errors|join:" " }}</div>{% endif %}
+
+        <div class="si-f">
+          <label for="{{ form.cartella.id_for_label }}">Cartella di rete</label>
+          {{ form.cartella }}
+          <div class="si-help">{{ form.cartella.help_text }}</div>
+          {% if form.cartella.errors %}<div class="si-err">{{ form.cartella.errors|join:" " }}</div>{% endif %}
+          {% if avviso_lettera_unita %}
+          <div class="si-avviso" style="margin-top:8px;">
+            Il percorso comincia con una <strong>lettera di unità</strong>. Se è un disco locale del
+            server va bene; se invece è un'unità di rete mappata, il servizio <strong>non la vede</strong>
+            e la cartella risulterà sempre vuota. In quel caso usa il percorso UNC
+            (<span class="si-mono">\\server\condivisione\...</span>).
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="si-check">
+          {{ form.sposta_elaborati }}
+          <div>
+            <label for="{{ form.sposta_elaborati.id_for_label }}" style="margin:0;">Sposta i file dopo la lettura</label>
+            <div class="si-help">{{ form.sposta_elaborati.help_text }}</div>
+          </div>
+        </div>
+
+        <div class="si-f" style="max-width:200px;">
+          <label for="{{ form.max_file_per_giro.id_for_label }}">File per passaggio</label>
+          {{ form.max_file_per_giro }}
+          <div class="si-help">{{ form.max_file_per_giro.help_text }}</div>
+        </div>
+      </div>
+
+      <div class="si-sec">
+        <div class="si-sec-tit">Chi conferma le presenze</div>
+        <p class="si-sec-sub">
+          Di norma il portale <strong>propone</strong> e una persona conferma dalla pagina della giornata.
+        </p>
+
+        <div class="si-avviso">
+          <strong>Prima di accendere la conferma automatica.</strong> La lettura misura se una cella
+          contiene inchiostro: <strong>non riconosce chi ha firmato</strong>. Accesa, una presenza può
+          essere registrata senza che nessuno l'abbia guardata — e la presenza a un corso è un atto con
+          valore legale. Il foglio di carta resta comunque la prova, e il docente che era in aula
+          resta l'unico che può dire chi c'era.
+        </div>
+
+        <div class="si-check">
+          {{ form.conferma_automatica }}
+          <div>
+            <label for="{{ form.conferma_automatica.id_for_label }}" style="margin:0;">Registra le presenze automaticamente</label>
+            <div class="si-help">{{ form.conferma_automatica.help_text }}</div>
+          </div>
+        </div>
+
+        <div class="si-check">
+          {{ form.auto_solo_senza_dubbie }}
+          <div>
+            <label for="{{ form.auto_solo_senza_dubbie.id_for_label }}" style="margin:0;">…ma fermati se ci sono celle dubbie</label>
+            <div class="si-help">{{ form.auto_solo_senza_dubbie.help_text }}</div>
+          </div>
+        </div>
+
+        <div class="si-check">
+          {{ form.auto_solo_se_tutti_firmati }}
+          <div>
+            <label for="{{ form.auto_solo_se_tutti_firmati.id_for_label }}" style="margin:0;">…e solo se tutti gli attesi risultano firmati</label>
+            <div class="si-help">{{ form.auto_solo_se_tutti_firmati.help_text }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
+        <a class="hr-btn" href="{% url 'anagrafica:formazione_scansioni_log' %}">Registro letture</a>
+        <button type="submit" name="azione" value="prova" class="hr-btn">Prova adesso</button>
+        <button type="submit" name="azione" value="salva" class="hr-btn hr-btn-primary">Salva impostazioni</button>
+      </div>
+    </form>
+
+    <div class="si-sec" style="margin-top:18px;margin-bottom:0;">
+      <div class="si-sec-tit">Come funziona un passaggio</div>
+      <p class="si-sec-sub" style="margin-bottom:0;">
+        Ogni 5 minuti il portale guarda la cartella. Per ogni file: legge il QR, riconosce il foglio e
+        la giornata, archivia il file, misura le firme e scrive la riga nel
+        <a href="{% url 'anagrafica:formazione_scansioni_log' %}">registro letture</a>. I file letti
+        finiscono in <span class="si-mono">elaborati\</span>, quelli non riusciti in
+        <span class="si-mono">errori\</span> — così la cartella d'ingresso resta pulita e niente viene
+        letto due volte. Un file ancora in scrittura viene lasciato lì e ripreso al giro successivo.
+      </p>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

@@ -185,3 +185,21 @@ def run_archivia_attestati_mancanti(limit: int = 500) -> dict:
             logger.exception("run_archivia_attestati_mancanti: errore record %s", rec.pk)
 
     return {"ok": True, "archiviati": ok, "errori": err, "residui": len(mancanti) >= limit}
+
+
+def run_intake_scansioni_formazione(limit: int | None = None) -> dict:
+    """Passa in rassegna la cartella dove la fotocopiatrice deposita i fogli firme.
+
+    **Opt-in / fail-safe**: no-op se l'acquisizione è spenta
+    (`TrainingScanIntakeConfig.attiva`) o se la cartella non è raggiungibile —
+    una share di rete che non risponde è un contrattempo, non un guasto del
+    portale. Un errore sul singolo file non ferma gli altri.
+    """
+    from anagrafica.services.intake_scansioni import elabora_cartella
+
+    try:
+        esito = elabora_cartella(limite=limit)
+    except Exception:
+        logger.exception("run_intake_scansioni_formazione: passaggio fallito")
+        return {"ok": False, "riepilogo": "Errore nel passaggio sulla cartella"}
+    return {"ok": True, **esito}

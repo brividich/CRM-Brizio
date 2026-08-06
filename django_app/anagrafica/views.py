@@ -127,6 +127,7 @@ from .models_formazione import (
     TrainingRequirementRule,
     TrainingSession,
     TrainingSessionArgomento,
+    TrainingScanIntakeConfig,
     TrainingScanLog,
     TrainingSignatureSheet,
     TrainingSlide,
@@ -13865,6 +13866,73 @@ def formazione_scansioni_log(request):
 
 
 @login_required
+def formazione_scansioni_impostazioni(request):
+    """Cartella di acquisizione e regole di conferma (singleton).
+
+    Include il pulsante «Prova adesso», che vale più di ogni messaggio di
+    aiuto: una share di rete o si raggiunge o non si raggiunge, e chi la
+    configura deve poterlo sapere subito invece che dedurlo da una cartella
+    che resta vuota.
+    """
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare le impostazioni della formazione.")
+        return redirect("anagrafica:formazione_dashboard")
+
+    from .forms import TrainingScanIntakeConfigForm
+
+    config = TrainingScanIntakeConfig.load()
+    form = TrainingScanIntakeConfigForm(instance=config)
+
+    if request.method == "POST":
+        azione = (request.POST.get("azione") or "salva").strip()
+
+        if azione == "prova":
+            from .services.intake_scansioni import elabora_cartella
+
+            esito = elabora_cartella(config)
+            _audit_formazione(request, "intake_scansioni_prova", {
+                "cartella": config.cartella, "riepilogo": esito.get("riepilogo", ""),
+            })
+            messages.info(request, f"Passaggio eseguito: {esito.get('riepilogo', '')}")
+            return redirect("anagrafica:formazione_scansioni_impostazioni")
+
+        form = TrainingScanIntakeConfigForm(request.POST, instance=config)
+        if form.is_valid():
+            form.save()
+            _audit_formazione(request, "intake_scansioni_config", {
+                "attiva": config.attiva, "cartella": config.cartella,
+                "conferma_automatica": config.conferma_automatica,
+            })
+            messages.success(request, "Impostazioni dell'acquisizione salvate.")
+            return redirect("anagrafica:formazione_scansioni_impostazioni")
+        messages.error(request, "Controlla i campi segnalati.")
+
+    # Lo stato della cartella si guarda adesso, non si ricorda: una share può
+    # essere sparita dall'ultimo salvataggio.
+    import os
+
+    stato_cartella = "non configurata"
+    if (config.cartella or "").strip():
+        try:
+            stato_cartella = "raggiungibile" if os.path.isdir(config.cartella) else "non raggiungibile"
+        except OSError:
+            stato_cartella = "non raggiungibile"
+
+    # Una lettera di unità *può* essere un disco locale del server, quindi non si
+    # rifiuta; ma è più spesso una mappatura dell'utente collegato, che un
+    # servizio non vede — e il sintomo sarebbe una cartella eternamente vuota.
+    cartella = (config.cartella or "").strip()
+    avviso_lettera_unita = len(cartella) > 2 and cartella[1] == ":"
+
+    return render(request, "anagrafica/pages/formazione_scansioni_impostazioni.html", {
+        "form": form,
+        "config": config,
+        "stato_cartella": stato_cartella,
+        "avviso_lettera_unita": avviso_lettera_unita,
+    })
+
+
+@login_required
 def formazione_scansione_scarica(request, log_id: int):
     """Riscarica il file archiviato di una lettura.
 
@@ -13911,36 +13979,20 @@ def formazione_registro_autocompila(request, sessione_id: int, lezione_id: int):
     sessione = get_object_or_404(TrainingSession, pk=sessione_id)
     lezione = get_object_or_404(TrainingLesson, pk=lezione_id, sessione=sessione)
 
-    from django.utils import timezone as _tz
+    from .services.formazione_presenze import applica_firme_lezione
     from .services.training_turni import iscritti_attesi_lezione
 
-    attesi = iscritti_attesi_lezione(sessione, lezione)
-    now = _tz.now()
-    n = 0
-    toccati: list[TrainingEnrollment] = []
-    for e in attesi:
-        lid = e.legacy_anagrafica_id
-        ing = request.POST.get(f"ingresso_{lid}") == "1"
-        usc = request.POST.get(f"uscita_{lid}") == "1"
-        if not ing and not usc:
-            continue  # nessuna firma: non sovrascrive una presenza eventualmente già registrata
-        att, _ = TrainingLessonAttendance.objects.get_or_create(
-            lezione=lezione, legacy_anagrafica_id=lid,
-            defaults={"registrato_da": request.user},
+    # La scrittura vera sta nel servizio, condiviso con l'acquisizione da
+    # cartella: due strade di scrittura sullo stesso fatto prima o poi
+    # divergono, e in audit una delle due sarebbe sbagliata.
+    firme = {
+        e.legacy_anagrafica_id: (
+            request.POST.get(f"ingresso_{e.legacy_anagrafica_id}") == "1",
+            request.POST.get(f"uscita_{e.legacy_anagrafica_id}") == "1",
         )
-        att.firma_ingresso = ing
-        att.firma_uscita = usc
-        att.signature_status = "FIRMATO"
-        att.signature_method = "UPLOAD"
-        att.signed_at = now
-        att.stato_presenza = "PRESENTE" if (ing and usc) else "PARZIALE"
-        att.registrato_da = request.user
-        att.save()
-        toccati.append(e)
-        n += 1
-
-    for e in toccati:
-        _ricalcola_presenza_enrollment(e)
+        for e in iscritti_attesi_lezione(sessione, lezione)
+    }
+    n = len(applica_firme_lezione(lezione, firme, utente=request.user))
 
     if n:
         _audit_safe(request, "formazione_registro_autocompila", "formazione", {

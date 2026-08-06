@@ -90,6 +90,19 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # Fogli firme depositati dalla fotocopiatrice in una cartella di rete:
+        # il QR dice a quale giornata appartengono, quindi non serve nessuna
+        # convenzione sul nome del file. Spento finché non lo si accende da
+        # Impostazioni → Acquisizione scansioni, e no-op se la share non
+        # risponde: una cartella irraggiungibile non è un guasto del portale.
+        "name": "intake_scansioni_formazione",
+        "func": "anagrafica.tasks.run_intake_scansioni_formazione",
+        "schedule_type": "I",   # Schedule.MINUTES (django-q2 non supporta SECONDS)
+        "minutes": 5,           # la carta non ha fretta
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # Promemoria sessioni formative imminenti (T-7 e T-1) agli iscritti, con
         # invito calendario .ics + notifica in-app. Fail-safe / no-op se non ci sono
         # edizioni pianificate nelle date bersaglio.

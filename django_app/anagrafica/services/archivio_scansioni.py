@@ -106,6 +106,7 @@ def registra_lettura(
     esito: str = "OK",
     origine: str = "WEB",
     messaggio: str = "",
+    presenze_scritte: int = 0,
     esito_lettura: dict | None = None,
 ):
     """Scrive una riga nel registro. Non solleva mai.
@@ -127,6 +128,7 @@ def registra_lettura(
         "esito": esito,
         "origine": origine,
         "messaggio": messaggio or "",
+        "presenze_scritte": max(0, int(presenze_scritte or 0)),
     }
     if esito_lettura:
         dati["n_righe"] = len(esito_lettura.get("righe") or [])

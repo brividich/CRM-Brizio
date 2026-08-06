@@ -1235,6 +1235,12 @@ class TrainingScanLog(models.Model):
     def __str__(self) -> str:
         return f"{self.get_esito_display()} — {self.nome_file or 'senza nome'} ({self.creato_il:%d-%m-%Y %H:%M})"
 
+    presenze_scritte = models.PositiveIntegerField(
+        default=0,
+        help_text="Presenze registrate automaticamente da questa lettura. Zero quando "
+                  "la conferma è rimasta a una persona, che è il comportamento normale.",
+    )
+
     @property
     def riuscita(self) -> bool:
         return self.esito == "OK"
@@ -1247,6 +1253,85 @@ class TrainingScanLog(models.Model):
         if n < 1024 * 1024:
             return f"{n / 1024:.0f} KB"
         return f"{n / (1024 * 1024):.1f} MB"
+
+
+class TrainingScanIntakeConfig(models.Model):
+    """Singleton — cartella di acquisizione delle scansioni e regole di conferma.
+
+    Il gesto che questa configurazione elimina è banale e per questo pesante:
+    aprire il portale, cercare la giornata, caricare il file. Con una cartella
+    di rete la fotocopiatrice ci scrive dentro da sola e il portale se lo
+    prende — chi ha fatto il corso non tocca un computer.
+
+    La conferma resta **umana per default**, e non per prudenza formale: la
+    presenza a un corso è un atto con valore legale, e una misura di pixel non
+    è una firma. L'automatismo si accende consapevolmente da qui, e anche
+    acceso si ferma davanti alle celle dubbie — quelle dove il segno è troppo
+    debole per decidere — perché è esattamente lì che serve un occhio.
+
+    Pattern identico ad :class:`AttestatoFormazioneConfig`: una sola riga (pk=1).
+    """
+
+    CARTELLA_DEFAULT = r"\\pclogsys\PortaleNovicrom\scansioni\formazione"
+
+    attiva = models.BooleanField(
+        default=False,
+        help_text="Se spenta, il lavoro periodico non guarda la cartella. La lettura "
+                  "dalla pagina continua a funzionare comunque.",
+    )
+    cartella = models.CharField(
+        max_length=500, blank=True, default=CARTELLA_DEFAULT,
+        help_text="Percorso UNC della cartella dove la fotocopiatrice deposita le "
+                  "scansioni. Deve essere raggiungibile dall'utente con cui gira "
+                  "l'applicazione: una lettera di unità mappata non è visibile a un servizio.",
+    )
+    sposta_elaborati = models.BooleanField(
+        default=True,
+        help_text="Sposta i file letti in «elaborati» e quelli non riusciti in «errori», "
+                  "così la cartella di ingresso resta pulita e nulla viene riletto due volte.",
+    )
+    max_file_per_giro = models.PositiveIntegerField(
+        default=25,
+        help_text="Quanti file al massimo elaborare a ogni passaggio: un arretrato "
+                  "enorme non deve bloccare il lavoro periodico.",
+    )
+
+    conferma_automatica = models.BooleanField(
+        default=False,
+        help_text="Se accesa, una lettura pulita registra le presenze da sé senza "
+                  "attendere conferma. Da valutare con attenzione: la presenza a un "
+                  "corso è un atto con valore legale.",
+    )
+    auto_solo_senza_dubbie = models.BooleanField(
+        default=True,
+        help_text="Con la conferma automatica accesa, ferma comunque i fogli che hanno "
+                  "celle dubbie. Toglierla significa accettare che un segno incerto "
+                  "diventi una presenza senza che nessuno l'abbia guardato.",
+    )
+    auto_solo_se_tutti_firmati = models.BooleanField(
+        default=False,
+        help_text="Registra da sé solo se ogni iscritto atteso risulta firmato. Utile "
+                  "per accorgersi dei fogli letti a metà.",
+    )
+
+    ultima_esecuzione = models.DateTimeField(null=True, blank=True)
+    ultimo_esito = models.TextField(
+        blank=True, default="",
+        help_text="Riepilogo dell'ultimo passaggio, per capire dalla pagina se il "
+                  "meccanismo sta girando davvero.",
+    )
+
+    class Meta:
+        verbose_name = "Acquisizione scansioni da cartella"
+        verbose_name_plural = "Acquisizione scansioni da cartella"
+
+    def __str__(self) -> str:
+        return "Acquisizione scansioni" + ("" if self.attiva else " (spenta)")
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
 
 
 # ─────────────────────────────────────────────────────────────

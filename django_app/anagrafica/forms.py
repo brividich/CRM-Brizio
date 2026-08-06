@@ -30,6 +30,7 @@ from .models_formazione import (
     TrainingLesson,
     TrainingLessonAttendance,
     TrainingPlan,
+    TrainingScanIntakeConfig,
     TrainingRequirementRule,
     TrainingSession,
     TrainingSlide,
@@ -266,6 +267,39 @@ _FM_TEXTAREA = {"class": "fm-input", "rows": 3}
 _FM_DATE = {"class": "fm-input js-datepicker", "type": "date"}
 _FM_NUMBER = {"class": "fm-input"}
 _FM_CHECK = {"class": "fm-check"}
+
+
+class TrainingScanIntakeConfigForm(forms.ModelForm):
+    """Cartella di acquisizione delle scansioni e regole di conferma (singleton).
+
+    La conferma automatica è l'unico campo di questa pagina che cambia il
+    significato di un dato: acceso, una presenza può finire registrata senza
+    che nessuno l'abbia guardata. Per questo il default resta spento e i due
+    freni (celle dubbie, iscritti non tutti firmati) restano visibili accanto.
+    """
+
+    class Meta:
+        model = TrainingScanIntakeConfig
+        fields = [
+            "attiva", "cartella", "sposta_elaborati", "max_file_per_giro",
+            "conferma_automatica", "auto_solo_senza_dubbie", "auto_solo_se_tutti_firmati",
+        ]
+        widgets = {
+            "cartella": forms.TextInput(attrs={
+                "placeholder": r"\\server\condivisione\cartella",
+                "style": "font-family:ui-monospace,Consolas,monospace;",
+            }),
+            "max_file_per_giro": forms.NumberInput(attrs={"min": 1, "max": 500}),
+        }
+
+    def clean_cartella(self):
+        return (self.cleaned_data.get("cartella") or "").strip()
+
+    def clean(self):
+        dati = super().clean()
+        if dati.get("attiva") and not (dati.get("cartella") or "").strip():
+            self.add_error("cartella", "Serve una cartella per attivare l'acquisizione.")
+        return dati
 
 
 class AttestatoFormazioneConfigForm(forms.ModelForm):

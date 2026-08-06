@@ -44,6 +44,9 @@ body.theme-dark .sl-avviso{border-color:#78350f;background:#2c2415}
         Qui c'è dove è finito il file.
       </div>
     </div>
+    <div>
+      <a class="hr-btn" href="{% url 'anagrafica:formazione_scansioni_impostazioni' %}">⚙ Acquisizione da cartella</a>
+    </div>
   </div>
 
   {% if not lettore_qr_attivo %}
@@ -77,7 +80,7 @@ body.theme-dark .sl-avviso{border-color:#78350f;background:#2c2415}
             <th>File archiviato</th>
             <th style="width:200px;">Giornata</th>
             <th style="width:110px;">Codice</th>
-            <th style="width:130px;">Letto</th>
+            <th style="width:150px;">Letto</th>
           </tr>
         </thead>
         <tbody>
@@ -85,7 +88,7 @@ body.theme-dark .sl-avviso{border-color:#78350f;background:#2c2415}
           <tr{% if r.esito == 'ERRORE' %} class="sl-riga-err"{% elif r.esito == 'RIFIUTATO' %} class="sl-riga-rif"{% endif %}>
             <td class="sl-mono">
               {{ r.creato_il|date:"d-m-Y" }}<br>
-              <span class="muted">{{ r.creato_il|date:"H:i" }}{% if r.creato_da %} · {{ r.creato_da.username }}{% endif %}</span>
+              <span class="muted">{{ r.creato_il|date:"H:i" }}{% if r.creato_da %} · {{ r.creato_da.username }}{% elif r.origine == 'CARTELLA' %} · cartella{% endif %}</span>
             </td>
             <td>
               <span class="sl-esito {% if r.esito == 'OK' %}sl-ok{% elif r.esito == 'ERRORE' %}sl-err{% else %}sl-rif{% endif %}">
@@ -122,6 +125,7 @@ body.theme-dark .sl-avviso{border-color:#78350f;background:#2c2415}
               {% if r.esito == 'OK' %}
                 {{ r.n_firmati }}/{{ r.n_righe }} firmate
                 {% if r.n_dubbie %}<br><span class="muted">{{ r.n_dubbie }} dubbie</span>{% endif %}
+                {% if r.presenze_scritte %}<br><span class="sl-ok">{{ r.presenze_scritte }} registrate</span>{% endif %}
                 {% if r.inclinazione %}<br><span class="muted">{{ r.inclinazione }}°</span>{% endif %}
               {% else %}<span class="muted">—</span>{% endif %}
             </td>

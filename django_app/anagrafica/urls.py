@@ -401,6 +401,7 @@ urlpatterns = [
     path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/registro-qr/", views.formazione_lezione_registro_qr, name="formazione_lezione_registro_qr"),
     path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/registro-scansione", views.formazione_registro_scansione, name="formazione_registro_scansione"),
     path("formazione/scansioni/registro/", views.formazione_scansioni_log, name="formazione_scansioni_log"),
+    path("formazione/scansioni/impostazioni/", views.formazione_scansioni_impostazioni, name="formazione_scansioni_impostazioni"),
     path("formazione/scansioni/<int:log_id>/file", views.formazione_scansione_scarica, name="formazione_scansione_scarica"),
     # Allegati formazione (registro firme firmato / materiale): livello sessione o lezione
     path("formazione/sessioni/<int:sessione_id>/allegati/upload", views.formazione_allegato_upload, name="formazione_allegato_upload"),
