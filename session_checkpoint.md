@@ -4,11 +4,11 @@ Data: 2026-08-05
 
 Ultime voci viste/aggiunte in questa sessione:
 
-- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-08-06 - Codex` (Crea intervento nella manutenzione pianificata della scheda asset).
-- `django_app/assets/views.py` -> `workorder_create_url` contestuale su ogni `asset_schedule_rows`.
-- `django_app/assets/templates/assets/pages/asset_detail.html` -> CTA nel riepilogo Prossima manutenzione e colonna Azioni nella tabella mostrata dall'utente.
-- `django_app/assets/tests.py` -> verifica scheda asset -> form con asset/regola/tipo/titolo precompilati.
-- Test/check: 2 test mirati, Django check, migration check, template load e `git diff --check` OK; nessuna migration, ACL o modifica dati.
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-08-06 - Codex` (rapporto pianificato gia predisposto nella scheda asset).
+- `django_app/assets/views.py` -> associazione righe/OdL aperti e fallback POST idempotente che genera il rapporto periodico dal template e apre la chiusura.
+- `django_app/assets/templates/assets/pages/asset_detail.html` -> `Compila e chiudi rapporto` quando l'OdL esiste; `Genera rapporto` solo come recupero quando manca.
+- `django_app/assets/tests.py` -> verifica generazione singola, origine periodica, redirect alla chiusura, riuso senza duplicati e rendering del rapporto aperto.
+- Test/check: test mirato e Django check OK; `git diff --check` OK; nessuna migration, ACL, URL o modifica dati preesistenti.
 
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-08-05 - Codex` (OdL contestuale dalla manutenzione periodica in scadenza).
 - `django_app/assets/views.py`, `forms.py` -> parametro `periodic=<id>`, prefill del piano/fornitore/titolo e salvataggio con origine periodica.

@@ -10,7 +10,7 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ### Changed
 
-- **Assets · “Crea intervento” nella manutenzione pianificata della scheda asset** (`django_app/assets/views.py`, `templates/assets/pages/asset_detail.html`, `assets/tests.py`). La tabella mostrata nel `Registro manutenzione` espone ora un'azione su ogni riga, compresi i piani con `Prima esecuzione da pianificare`; lo stesso CTA compare nel riquadro `Prossima manutenzione`. Il form OdL si apre con asset e `MaintenanceRule` della riga gia selezionati.
+- **Assets · il piano apre il rapporto gia predisposto, non un nuovo intervento** (`django_app/assets/views.py`, `templates/assets/pages/asset_detail.html`, `assets/tests.py`). Nel `Registro manutenzione` la scheda asset cerca l'OdL aperto della coppia asset/regola e porta il manutentore direttamente a `Compila e chiudi rapporto`, con giornate, tempo ed esito formale. Se il job automatico non lo ha ancora generato, `Genera rapporto` crea in modo idempotente un solo OdL periodico dal template effettivo, copia la checklist e apre subito la chiusura; click ripetuti riutilizzano lo stesso rapporto.
 
 - **Assets · OdL contestuale dalle manutenzioni periodiche in scadenza** (`django_app/assets/views.py`, `forms.py`, `templates/assets/pages/maintenance_schedule.html`, `assets/tests.py`). Nella tabella `Manutenzioni periodiche pianificate` ogni riga espone ora `Crea intervento`: il form si apre sull'asset corretto con piano periodico, tipo preventiva, titolo, note e fornitore precompilati. Al salvataggio l'OdL resta collegato al `PeriodicVerification` e viene marcato con origine periodica.
 

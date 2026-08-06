@@ -9462,6 +9462,71 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
     )
     if request.method == "POST":
         action = _clean_string(request.POST.get("action"))
+        if action == "prepare_planned_maintenance_report":
+            base_rule_id = _as_int(request.POST.get("base_rule_id"), default=0)
+            schedule_row = _maintenance_schedule_row_for_asset_rule(
+                asset=asset,
+                base_rule_id=base_rule_id,
+            )
+            if schedule_row is None:
+                messages.error(request, "La manutenzione pianificata selezionata non è disponibile per questo asset.")
+                return redirect("assets:asset_view", id=asset.id)
+
+            workorder = None
+            created = False
+            with transaction.atomic():
+                # Serializza il fallback manuale sulla regola: due click ravvicinati
+                # devono aprire lo stesso rapporto, non due OdL concorrenti.
+                MaintenanceRule.objects.select_for_update().get(pk=base_rule_id)
+                workorder = (
+                    WorkOrder.objects.filter(
+                        asset=asset,
+                        maintenance_rule_id=base_rule_id,
+                        status=WorkOrder.STATUS_OPEN,
+                    )
+                    .order_by("opened_at", "id")
+                    .first()
+                )
+                if workorder is None:
+                    rule = schedule_row["base_rule"]
+                    template = schedule_row["effective_intervention_template"]
+                    workorder = WorkOrder(
+                        asset=asset,
+                        maintenance_rule=rule,
+                        origin=WorkOrder.ORIGIN_PERIODIC,
+                        kind=getattr(template, "workorder_kind", WorkOrder.KIND_PREVENTIVE),
+                        status=WorkOrder.STATUS_OPEN,
+                        title=f"{template.label} — {asset.asset_tag}",
+                        description=getattr(template, "description", "") or "",
+                        assigned_to=rule.assigned_to,
+                        supplier=rule.supplier,
+                        reference_batch=f"asset-{timezone.localdate():%Y%m%d}",
+                    )
+                    workorder.full_clean()
+                    workorder.save()
+                    copied_steps = copy_template_checklist_to_workorder(
+                        workorder,
+                        template_id=getattr(template, "pk", None),
+                    )
+                    log_note = "Rapporto di manutenzione pianificata generato dalla scheda asset."
+                    if copied_steps:
+                        log_note = f"{log_note} Checklist precompilata: {copied_steps} attività."
+                    WorkOrderLog.objects.create(
+                        work_order=workorder,
+                        note=log_note,
+                        author=request.user if request.user.is_authenticated else None,
+                    )
+                    created = True
+
+            if created:
+                notify_workorder_assigned(
+                    workorder,
+                    actor=request.user if request.user.is_authenticated else None,
+                )
+                messages.success(request, f"Rapporto #{workorder.id} generato: completa i dati e chiudilo.")
+            else:
+                messages.info(request, f"Il rapporto #{workorder.id} era già aperto: completa i dati e chiudilo.")
+            return redirect("assets:wo_close", id=workorder.id)
         if action == "upload_asset_documents":
             uploads, upload_errors = _validate_asset_document_uploads(request, asset)
             upload_count = _asset_document_upload_count(uploads)
@@ -9987,11 +10052,25 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
         asset_queryset=Asset.objects.filter(pk=asset.id).select_related("asset_category"),
         today=today,
     )
+    open_workorders_by_rule: dict[int, WorkOrder] = {}
+    rule_ids = [row["base_rule"].id for row in asset_schedule_rows]
+    for workorder in (
+        WorkOrder.objects.filter(
+            asset=asset,
+            maintenance_rule_id__in=rule_ids,
+            status=WorkOrder.STATUS_OPEN,
+        )
+        .select_related("maintenance_rule")
+        .order_by("opened_at", "id")
+    ):
+        open_workorders_by_rule.setdefault(workorder.maintenance_rule_id, workorder)
     for row in asset_schedule_rows:
-        row["workorder_create_url"] = _workorder_create_page_url(
-            asset_id=asset.id,
-            rule_id=row["base_rule"].id,
-            source="asset_detail",
+        open_workorder = open_workorders_by_rule.get(row["base_rule"].id)
+        row["open_workorder"] = open_workorder
+        row["workorder_close_url"] = (
+            reverse("assets:wo_close", kwargs={"id": open_workorder.id})
+            if open_workorder is not None
+            else ""
         )
     next_maintenance_row = next(
         (

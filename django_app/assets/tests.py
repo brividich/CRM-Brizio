@@ -6767,29 +6767,51 @@ class AssetMaintenanceStepThreeTests(TestCase):
             notes="Regola altra categoria",
         )
 
-    def test_asset_detail_planned_maintenance_rows_create_prefilled_workorder(self):
+    def test_asset_detail_planned_maintenance_row_generates_once_then_opens_closure_report(self):
         self.client.force_login(self.admin)
 
         page = self.client.get(reverse("assets:asset_view", kwargs={"id": self.asset.id}))
 
         self.assertEqual(page.status_code, 200)
-        expected_url = (
-            reverse("assets:wo_create", kwargs={"id": self.asset.id})
-            + f"?rule={self.base_rule.id}&source=asset_detail"
-        )
         schedule_row = next(
             row for row in page.context["asset_schedule_rows"] if row["base_rule"].id == self.base_rule.id
         )
-        self.assertEqual(schedule_row["workorder_create_url"], expected_url)
+        self.assertIsNone(schedule_row["open_workorder"])
         self.assertContains(page, "Manutenzione pianificata")
-        self.assertContains(page, "Crea intervento")
+        self.assertContains(page, "Genera rapporto")
 
-        form_page = self.client.get(expected_url)
-        self.assertEqual(form_page.status_code, 200)
-        form = form_page.context["form"]
-        self.assertEqual(int(form["maintenance_rule"].value()), self.base_rule.id)
-        self.assertEqual(form["kind"].value(), WorkOrder.KIND_PREVENTIVE)
-        self.assertEqual(form["title"].value(), self.category_template.label)
+        detail_url = reverse("assets:asset_view", kwargs={"id": self.asset.id})
+        post_data = {
+            "action": "prepare_planned_maintenance_report",
+            "base_rule_id": self.base_rule.id,
+        }
+        first_response = self.client.post(detail_url, post_data)
+        workorder = WorkOrder.objects.get(asset=self.asset, maintenance_rule=self.base_rule)
+        close_url = reverse("assets:wo_close", kwargs={"id": workorder.id})
+
+        self.assertRedirects(first_response, close_url, fetch_redirect_response=False)
+        self.assertEqual(workorder.status, WorkOrder.STATUS_OPEN)
+        self.assertEqual(workorder.origin, WorkOrder.ORIGIN_PERIODIC)
+        self.assertEqual(workorder.kind, self.category_template.workorder_kind)
+        self.assertEqual(workorder.title, f"{self.category_template.label} — {self.asset.asset_tag}")
+
+        second_response = self.client.post(detail_url, post_data)
+        self.assertRedirects(second_response, close_url, fetch_redirect_response=False)
+        self.assertEqual(
+            WorkOrder.objects.filter(asset=self.asset, maintenance_rule=self.base_rule).count(),
+            1,
+        )
+
+        refreshed_page = self.client.get(detail_url)
+        refreshed_row = next(
+            row
+            for row in refreshed_page.context["asset_schedule_rows"]
+            if row["base_rule"].id == self.base_rule.id
+        )
+        self.assertEqual(refreshed_row["open_workorder"], workorder)
+        self.assertEqual(refreshed_row["workorder_close_url"], close_url)
+        self.assertContains(refreshed_page, "Compila e chiudi rapporto")
+        self.assertContains(refreshed_page, f'href="{close_url}"')
 
     def test_maintenance_schedule_internal_external_filter_and_badge(self):
         from anagrafica.models import Fornitore
