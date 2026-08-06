@@ -695,6 +695,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
               {% if asset_next_maintenance_row.effective_intervention_template %}
               <div style="margin-left:auto;font-size:var(--fs-sm);color:#64748b;">{{ asset_next_maintenance_row.effective_intervention_template.label }}</div>
               {% endif %}
+              <a class="af-btn af-btn-primary" href="{{ asset_next_maintenance_row.workorder_create_url }}">Crea intervento</a>
             </div>
           </div>
           {% endif %}
@@ -712,6 +713,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
                     <th>Ultima esecuzione</th>
                     <th>Prossima scadenza</th>
                     <th>Stato</th>
+                    <th>Azioni</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -740,6 +742,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
                         {% endif %}
                       </td>
                       <td><span class="as-badge as-badge--{{ row.schedule_badge_class }}">{{ row.schedule_label }}</span></td>
+                      <td><a class="af-btn af-btn-primary" href="{{ row.workorder_create_url }}">Crea intervento</a></td>
                     </tr>
                   {% endfor %}
                 </tbody>

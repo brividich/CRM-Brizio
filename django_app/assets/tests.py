@@ -6767,6 +6767,30 @@ class AssetMaintenanceStepThreeTests(TestCase):
             notes="Regola altra categoria",
         )
 
+    def test_asset_detail_planned_maintenance_rows_create_prefilled_workorder(self):
+        self.client.force_login(self.admin)
+
+        page = self.client.get(reverse("assets:asset_view", kwargs={"id": self.asset.id}))
+
+        self.assertEqual(page.status_code, 200)
+        expected_url = (
+            reverse("assets:wo_create", kwargs={"id": self.asset.id})
+            + f"?rule={self.base_rule.id}&source=asset_detail"
+        )
+        schedule_row = next(
+            row for row in page.context["asset_schedule_rows"] if row["base_rule"].id == self.base_rule.id
+        )
+        self.assertEqual(schedule_row["workorder_create_url"], expected_url)
+        self.assertContains(page, "Manutenzione pianificata")
+        self.assertContains(page, "Crea intervento")
+
+        form_page = self.client.get(expected_url)
+        self.assertEqual(form_page.status_code, 200)
+        form = form_page.context["form"]
+        self.assertEqual(int(form["maintenance_rule"].value()), self.base_rule.id)
+        self.assertEqual(form["kind"].value(), WorkOrder.KIND_PREVENTIVE)
+        self.assertEqual(form["title"].value(), self.category_template.label)
+
     def test_maintenance_schedule_internal_external_filter_and_badge(self):
         from anagrafica.models import Fornitore
 

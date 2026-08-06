@@ -10,6 +10,8 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ### Changed
 
+- **Assets · “Crea intervento” nella manutenzione pianificata della scheda asset** (`django_app/assets/views.py`, `templates/assets/pages/asset_detail.html`, `assets/tests.py`). La tabella mostrata nel `Registro manutenzione` espone ora un'azione su ogni riga, compresi i piani con `Prima esecuzione da pianificare`; lo stesso CTA compare nel riquadro `Prossima manutenzione`. Il form OdL si apre con asset e `MaintenanceRule` della riga gia selezionati.
+
 - **Assets · OdL contestuale dalle manutenzioni periodiche in scadenza** (`django_app/assets/views.py`, `forms.py`, `templates/assets/pages/maintenance_schedule.html`, `assets/tests.py`). Nella tabella `Manutenzioni periodiche pianificate` ogni riga espone ora `Crea intervento`: il form si apre sull'asset corretto con piano periodico, tipo preventiva, titolo, note e fornitore precompilati. Al salvataggio l'OdL resta collegato al `PeriodicVerification` e viene marcato con origine periodica.
 
 - **Assets · corretto l'ingresso “+ Nuovo intervento” dall'hub manutenzione** (`django_app/assets/views.py`, `_operational_cockpit.html`, `assets/tests.py`). Tutti i CTA globali senza asset aprono ora la lista Interventi con il selettore asset gia visibile (`/assets/workorders/?create=1`); scelto il bene, il flusso prosegue nel form guidato esistente. Anche la route compatibile `/assets/workorders/new/` senza asset converge sullo stesso selettore invece di arrestarsi sulla lista.
