@@ -266,6 +266,22 @@ class RegistroLettureTest(_BaseScansioni):
                             follow=True)
         self.assertEqual(r.status_code, 200)
 
+    def test_il_registro_e_raggiungibile_dalla_home_del_modulo(self):
+        """Una pagina che si apre solo conoscendone l'indirizzo non esiste."""
+        r = self.client.get(reverse("anagrafica:formazione_dashboard"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, reverse("anagrafica:formazione_scansioni_log"))
+
+    def test_il_collegamento_non_compare_a_chi_non_puo_entrare(self):
+        """Offrire una porta che poi rimbalza è peggio che non offrirla."""
+        self.client.logout()
+        semplice = User.objects.create_user("solo_lettura", "sl@e.it", "pwd12345")
+        self.client.force_login(semplice)
+
+        r = self.client.get(reverse("anagrafica:formazione_dashboard"))
+        if r.status_code == 200:
+            self.assertNotContains(r, reverse("anagrafica:formazione_scansioni_log"))
+
     def test_senza_permessi_il_registro_non_si_apre(self):
         self.client.logout()
         semplice = User.objects.create_user("nessuno", "n@e.it", "pwd12345")

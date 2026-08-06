@@ -168,6 +168,12 @@
           <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-cal-clock"/></svg></span>
           <span class="fmd-area-body"><span class="fmd-area-title">Plan</span><span class="fmd-area-desc">Calendario corsi · scadenze · (DPI/assenze)</span></span>
         </a>
+        {% if can_edit_formazione %}
+        <a class="fmd-area" href="{% url 'anagrafica:formazione_scansioni_log' %}">
+          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-doc"/></svg></span>
+          <span class="fmd-area-body"><span class="fmd-area-title">Registro letture scansioni</span><span class="fmd-area-desc">Fogli firme caricati · esito · dov'è archiviato il file</span></span>
+        </a>
+        {% endif %}
         <a class="fmd-area" href="{% url 'anagrafica:sicurezza_hub' %}">
           <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-shield"/></svg></span>
           <span class="fmd-area-body"><span class="fmd-area-title">Salute e Sicurezza</span><span class="fmd-area-desc">Fattori di rischio, esposizioni, mansioni di rischio, idoneità (cruscotto + guida)</span></span>
