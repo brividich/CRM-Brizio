@@ -22,7 +22,7 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ### Fixed
 
-- **Formazione · subnav Anagrafica HR ripristinata su `/anagrafica/formazione/scansioni/impostazioni/`** (`django_app/anagrafica/templates/anagrafica/pages/formazione_scansioni_impostazioni.html`). La pagina non dichiarava `{% block subnav %}`, quindi `core/base.html` cadeva sulla navigazione di default e la barra risultava diversa da tutte le altre pagine del modulo. Aggiunta l'inclusione di `anagrafica/components/subnav.html` come nelle pagine sorelle (corsi, sessioni, scadenzario, istruttori).
+- **Formazione · subnav Anagrafica HR ripristinata sulle pagine scansioni** (`django_app/anagrafica/templates/anagrafica/pages/formazione_scansioni_impostazioni.html`, `formazione_scansioni_log.html`, `formazione_scansione_esito.html`). Le tre pagine non dichiaravano `{% block subnav %}`, quindi `core/base.html` cadeva sulla navigazione di default (`core/components/subnav.html`) e la barra risultava diversa da tutte le altre pagine del modulo. Aggiunta l'inclusione di `anagrafica/components/subnav.html` come nelle pagine sorelle (corsi, sessioni, scadenzario, istruttori). Restano senza subnav, correttamente, `formazione_registro_presenze.html` e `attestato_formazione.html`: sono documenti di stampa standalone che non estendono `core/base.html`.
 
 ### Changed
 
