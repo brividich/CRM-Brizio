@@ -295,7 +295,7 @@
   Documenti — visibili anche dal QR pubblico (funzione voluta: il tecnico in
   officina legge manuali e schede dal QR sulla macchina). I file NON sono
   serviti da /media/: il link e' sempre una view Django, a token quando il
-  visitatore e' anonimo. La cartella SharePoint resta ai soli autenticati.
+  visitatore e' anonimo.
   {% endcomment %}
   <div class="qrl-card">
     <div class="qrl-card-title">Documenti{% if asset_documents %} ({{ asset_documents|length }}){% endif %}</div>
@@ -313,11 +313,6 @@
         {% endfor %}
       {% else %}
         <p class="qrl-empty">Nessun documento caricato.</p>
-      {% endif %}
-      {% if sharepoint_folder_url and not qr_public %}
-        <div style="margin-top:10px;">
-          <a href="{{ sharepoint_folder_url }}" target="_blank" rel="noopener" style="font-size:.8rem; color:#1d4ed8; font-weight:600; text-decoration:none;">Apri cartella SharePoint &rarr;</a>
-        </div>
       {% endif %}
     </div>
   </div>

@@ -220,22 +220,6 @@ ASSET_DOCUMENT_UPLOAD_FIELDS = {
 ASSET_DOCUMENT_CATEGORY_LABELS = dict(AssetDocument.CATEGORY_CHOICES)
 # Prefisso del campo upload per le cartelle documento extra (oltre alle 3 di base).
 ASSET_DOCUMENT_CUSTOM_FIELD_PREFIX = "upload_cat_"
-ASSET_DOCUMENT_STORAGE_LOCAL = "local"
-ASSET_DOCUMENT_STORAGE_SHAREPOINT = "sharepoint"
-ASSET_DOCUMENT_STORAGE_CHOICES = {ASSET_DOCUMENT_STORAGE_LOCAL, ASSET_DOCUMENT_STORAGE_SHAREPOINT}
-# Cartella radice per l'archivio asset su SharePoint: <root drive>/ASSET CN/<asset_tag>/...
-def _asset_sharepoint_root() -> str:
-    return (
-        str(os.getenv("SHAREPOINT_ASSET_ALLOWED_ROOT_NAME") or getattr(settings, "SHAREPOINT_ASSET_ALLOWED_ROOT_NAME", "ASSET CN") or "ASSET CN")
-        .strip()
-        or "ASSET CN"
-    )
-
-
-ASSET_SHAREPOINT_ROOT = _asset_sharepoint_root()
-# Profondita massima della discesa ricorsiva nelle sottocartelle SharePoint
-# durante il sync inverso: limite di sicurezza contro alberi anomali/cicli.
-SHAREPOINT_SYNC_MAX_DEPTH = 20
 REPORT_TEMPLATE_ALLOWED_EXTENSIONS = {
     ".pdf",
     ".doc",
@@ -590,8 +574,6 @@ def _asset_label_field_catalog() -> list[dict[str, str]]:
         {"key": "assignment_to", "label": "Assegnato a", "group": "Assegnazione"},
         {"key": "assignment_reparto", "label": "Reparto assegnazione", "group": "Assegnazione"},
         {"key": "assignment_location", "label": "Posizione assegnazione", "group": "Assegnazione"},
-        {"key": "sharepoint_folder_path", "label": "Percorso SharePoint", "group": "SharePoint"},
-        {"key": "sharepoint_folder_url", "label": "URL SharePoint", "group": "SharePoint"},
         {"key": "year", "label": "Anno macchina", "group": "Macchina"},
         {"key": "x_mm", "label": "Corsa X", "group": "Macchina"},
         {"key": "y_mm", "label": "Corsa Y", "group": "Macchina"},
@@ -811,10 +793,6 @@ def _format_asset_label_value(asset: Asset | None, field_key: str, catalog_map: 
         raw_value = asset.get_asset_type_display()
     elif field_key == "status":
         raw_value = asset.get_status_display()
-    elif field_key == "sharepoint_folder_path":
-        raw_value = _normalize_sharepoint_path(asset.sharepoint_folder_path)
-    elif field_key == "sharepoint_folder_url":
-        raw_value = _clean_string(asset.sharepoint_folder_url)
     elif field_key in {
         "year",
         "x_mm",
@@ -866,8 +844,6 @@ def _default_asset_label_preview_values() -> dict[str, str]:
         "assignment_to": "Officina",
         "assignment_reparto": "CN5",
         "assignment_location": "Corsia A",
-        "sharepoint_folder_path": "ASSET CN/ML-000001",
-        "sharepoint_folder_url": "https://contoso.sharepoint.com/sites/example/Shared%20Documents/ASSET%20CN/ML-000001",
         "year": "2022",
         "x_mm": "850 mm",
         "y_mm": "700 mm",
@@ -2030,7 +2006,6 @@ def _build_asset_report_snapshot(asset: Asset) -> dict[str, object]:
         ("Seriale", _coalesce_str(asset.serial_number, "-")),
         ("Assegnato a", _coalesce_str(asset.assignment_to, "Non assegnato")),
         ("Posizione", _coalesce_str(asset.assignment_location, "-")),
-        ("SharePoint", _coalesce_str(_normalize_sharepoint_path(asset.sharepoint_folder_path), "-")),
     ]
 
     technical_rows: list[tuple[str, str]] = []
@@ -2225,121 +2200,13 @@ def render_asset_report_pdf(asset: Asset, snapshot: dict[str, object], *, templa
     return buf.getvalue()
 
 
-def _sharepoint_runtime_value(*env_keys: str, setting_keys: tuple[str, ...] = ()) -> tuple[str, str]:
-    value, source = resolve_env_value(*env_keys, dotenv_values=load_env_file_values())
-    if value and not is_placeholder_value(value):
-        if source == "process_env":
-            return value, "ambiente processo"
-        if source == "dotenv":
-            return value, ".env"
-    for key in setting_keys:
-        value = str(getattr(settings, key, "") or "").strip()
-        if value and not is_placeholder_value(value):
-            return value, "settings"
-    return "", "missing"
-
-
-def _sharepoint_graph_settings() -> dict[str, str]:
-    tenant_id = get_first_env_value("GRAPH_TENANT_ID", "AZURE_TENANT_ID")
-    client_id = get_first_env_value("GRAPH_CLIENT_ID", "AZURE_CLIENT_ID")
-    client_secret = get_first_env_value("GRAPH_CLIENT_SECRET", "AZURE_CLIENT_SECRET")
-    site_id = get_first_env_value("GRAPH_SITE_ID")
-    return {
-        "tenant_id": tenant_id,
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "site_id": site_id,
-    }
-
-
-def _sharepoint_assets_defaults() -> dict[str, str]:
-    dotenv_values = load_env_file_values()
-    return {
-        "library_url": _clean_string(dotenv_values.get("ASSETS_SHAREPOINT_LIBRARY_URL", ""))[:1000],
-        "public_links_enabled": _clean_string(
-            dotenv_values.get(
-                "SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED",
-                str(getattr(settings, "SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED", False)).lower(),
-            )
-        ).lower()
-        in {"1", "true", "yes", "on"},
-        "allowed_root_name": _clean_string(
-            dotenv_values.get(
-                "SHAREPOINT_ASSET_ALLOWED_ROOT_NAME",
-                getattr(settings, "SHAREPOINT_ASSET_ALLOWED_ROOT_NAME", "ASSET CN"),
-            )
-        )
-        or "ASSET CN",
-        "allowed_root_drive_id": _clean_string(
-            dotenv_values.get(
-                "SHAREPOINT_ASSET_ALLOWED_ROOT_DRIVE_ID",
-                getattr(settings, "SHAREPOINT_ASSET_ALLOWED_ROOT_DRIVE_ID", ""),
-            )
-        ),
-        "allowed_root_item_id": _clean_string(
-            dotenv_values.get(
-                "SHAREPOINT_ASSET_ALLOWED_ROOT_ITEM_ID",
-                getattr(settings, "SHAREPOINT_ASSET_ALLOWED_ROOT_ITEM_ID", ""),
-            )
-        ),
-        "asset_site_id": _clean_string(
-            dotenv_values.get(
-                "SHAREPOINT_ASSET_SITE_ID",
-                getattr(settings, "SHAREPOINT_ASSET_SITE_ID", ""),
-            )
-        ),
-        "asset_drive_id": _clean_string(
-            dotenv_values.get(
-                "SHAREPOINT_ASSET_DRIVE_ID",
-                getattr(settings, "SHAREPOINT_ASSET_DRIVE_ID", ""),
-            )
-        ),
-    }
-
-
-def _sharepoint_admin_config() -> dict[str, object]:
-    dotenv_values = load_env_file_values()
-    runtime_tenant_id, tenant_source = _sharepoint_runtime_value("GRAPH_TENANT_ID", "AZURE_TENANT_ID")
-    runtime_client_id, client_source = _sharepoint_runtime_value("GRAPH_CLIENT_ID", "AZURE_CLIENT_ID")
-    runtime_client_secret, secret_source = _sharepoint_runtime_value("GRAPH_CLIENT_SECRET", "AZURE_CLIENT_SECRET")
-    runtime_site_id, site_source = _sharepoint_runtime_value("GRAPH_SITE_ID")
-    defaults = _sharepoint_assets_defaults()
-    return {
-        "tenant_id": _clean_string(dotenv_values.get("GRAPH_TENANT_ID") or dotenv_values.get("AZURE_TENANT_ID", "")),
-        "client_id": _clean_string(dotenv_values.get("GRAPH_CLIENT_ID") or dotenv_values.get("AZURE_CLIENT_ID", "")),
-        "site_id": _clean_string(dotenv_values.get("GRAPH_SITE_ID", "")),
-        "client_secret_configured": bool(
-            _clean_string(dotenv_values.get("GRAPH_CLIENT_SECRET") or dotenv_values.get("AZURE_CLIENT_SECRET", ""))
-        ),
-        "runtime_ready": all([runtime_tenant_id, runtime_client_id, runtime_client_secret, runtime_site_id]),
-        "runtime_sources": {
-            "tenant_id": tenant_source,
-            "client_id": client_source,
-            "client_secret": secret_source,
-            "site_id": site_source,
-        },
-        "env_override_active": any(
-            source == "ambiente processo"
-            for source in [tenant_source, client_source, secret_source, site_source]
-        ),
-        "library_url": defaults["library_url"],
-        "asset_root": defaults["allowed_root_name"],
-        "public_links_enabled": defaults["public_links_enabled"],
-        "allowed_root_name": defaults["allowed_root_name"],
-        "allowed_root_drive_id": defaults["allowed_root_drive_id"],
-        "allowed_root_item_id": defaults["allowed_root_item_id"],
-        "asset_site_id": defaults["asset_site_id"],
-        "asset_drive_id": defaults["asset_drive_id"],
-    }
-
-
-def _sanitize_sharepoint_segment(value: str | None) -> str:
+def _sanitize_document_segment(value: str | None) -> str:
     row = re.sub(r'[\\/:*?"<>|#%{}~&]+', "-", _clean_string(value))
     row = re.sub(r"\s+", " ", row)
     return row.strip(" .")
 
 
-def _sanitize_sharepoint_filename(value: str | None, *, fallback: str = "documento") -> str:
+def _sanitize_document_filename(value: str | None, *, fallback: str = "documento") -> str:
     filename = safe_filename(value, max_length=180)
     if not filename:
         filename = fallback
@@ -2365,8 +2232,8 @@ def _asset_document_custom_field_name(slug: str) -> str:
 def _asset_document_folder_specs(asset: "Asset | None" = None) -> list[dict]:
     """Cartelle documento disponibili: le 3 di base piu le extra della AssetCategory.
 
-    Ogni spec contiene: ``code`` (chiave salvata in ``AssetDocument.category`` e
-    usata, in minuscolo, come segmento cartella SharePoint), ``label`` visibile,
+    Ogni spec contiene: ``code`` (chiave salvata in ``AssetDocument.category``),
+    ``label`` visibile,
     ``field`` nome del campo upload, ``removable`` (True solo per le extra) e
     ``folder_id`` (pk della ``AssetCategoryDocumentFolder`` o ``None`` per le base).
     """
@@ -2404,566 +2271,34 @@ def _asset_document_category_label(specs: list[dict], code: str) -> str:
     return ASSET_DOCUMENT_CATEGORY_LABELS.get(code, code)
 
 
-def _sanitize_sharepoint_relative_path(value: str | None, *, fallback_filename: str = "") -> str:
-    normalized = _normalize_sharepoint_path(value)
+def _sanitize_document_relative_path(value: str | None, *, fallback_filename: str = "") -> str:
+    normalized = _normalize_document_path(value)
     if not normalized:
         return ""
     parts = [part for part in normalized.split("/") if part and part not in {".", ".."}]
     if not parts:
         return ""
-    folders = [_sanitize_sharepoint_segment(part) for part in parts[:-1]]
+    folders = [_sanitize_document_segment(part) for part in parts[:-1]]
     folders = [part for part in folders if part]
-    filename = _sanitize_sharepoint_filename(parts[-1], fallback=fallback_filename or "documento")
+    filename = _sanitize_document_filename(parts[-1], fallback=fallback_filename or "documento")
     if not folders:
         return filename
     return "/".join([*folders, filename])
 
 
-def _sharepoint_document_remote_filename(document: AssetDocument) -> str:
-    source = _clean_string(document.original_name) or Path(document.file.name).name
-    filename = _sanitize_sharepoint_filename(source)
-    # Upload da cartella: conserva il nome originale per non snaturare la struttura
-    # della cartella replicata su SharePoint. Le sottocartelle evitano le collisioni
-    # e un re-upload dello stesso file aggiorna il contenuto come previsto.
-    if _clean_string(getattr(document, "relative_folder", "")):
-        return filename
-    path = Path(filename)
-    suffix = path.suffix[:20]
-    stem = path.stem[:120] or "documento"
-    created = document.created_at.strftime("%Y%m%d_%H%M%S") if document.created_at else timezone.now().strftime("%Y%m%d_%H%M%S")
-    return f"{created}_{document.id}_{stem}{suffix}"
-
-
-def _default_asset_sharepoint_path(asset: Asset) -> str:
-    # Percorso canonico: ASSET CN/<asset_tag>; i documenti finiscono poi
-    # nelle sottocartelle distinte manuali/specifiche/interventi.
-    asset_tag = _sanitize_sharepoint_segment(asset.asset_tag)
-    if not asset_tag:
-        if not asset.pk:
-            return ""
-        asset_tag = f"asset-{asset.pk}"
-    return _normalize_sharepoint_path(f"{_asset_sharepoint_root()}/{asset_tag}")
-
-
-def _ensure_asset_sharepoint_defaults(asset: Asset) -> None:
-    if _clean_string(asset.sharepoint_folder_path):
-        return
-    default_path = _default_asset_sharepoint_path(asset)
-    if not default_path:
-        return
-    Asset.objects.filter(pk=asset.pk).update(sharepoint_folder_path=default_path)
-    asset.sharepoint_folder_path = default_path
-
-
-def _sharepoint_graph_ready() -> bool:
-    config = _sharepoint_graph_settings()
-    return all(config.values())
-
-
-def _sharepoint_graph_token() -> str:
-    config = _sharepoint_graph_settings()
-    if not all(config.values()):
-        raise RuntimeError("Configurazione Graph assente o incompleta.")
-    return acquire_graph_token(config["tenant_id"], config["client_id"], config["client_secret"])
-
-
-def _sharepoint_drive_base_url() -> str:
-    config = _sharepoint_graph_settings()
-    if not config.get("site_id"):
-        raise RuntimeError("GRAPH_SITE_ID non configurato.")
-    return f"https://graph.microsoft.com/v1.0/sites/{config['site_id']}/drive"
-
-
-def _normalize_sharepoint_path(value: str | None) -> str:
+def _normalize_document_path(value: str | None) -> str:
     text = _clean_string(value).replace("\\", "/")
     while "//" in text:
         text = text.replace("//", "/")
     return text.strip("/")
 
 
-def _sharepoint_headers(*, binary: bool = False) -> dict[str, str]:
-    headers = {"Authorization": f"Bearer {_sharepoint_graph_token()}"}
-    headers["Content-Type"] = "application/octet-stream" if binary else "application/json"
-    return headers
-
-
-def _sharepoint_graph_healthcheck() -> tuple[bool, str]:
-    if not _sharepoint_graph_ready():
-        return False, "Configurazione SharePoint incompleta: verifica tenant, client, secret e site id."
-    try:
-        url = f"{_sharepoint_drive_base_url()}/root"
-        response = requests.get(url, headers=_sharepoint_headers(), timeout=20)
-        if response.status_code == 200:
-            payload = response.json()
-            drive_name = _coalesce_str(payload.get("name"), "Drive SharePoint")
-            return True, f"Connessione SharePoint OK. Drive raggiunto: {drive_name}."
-        return False, response.text or f"Errore SharePoint {response.status_code}"
-    except Exception as exc:
-        return False, f"Test SharePoint fallito: {exc}"
-
-
-def _sharepoint_graph_get_item(path: str) -> dict | None:
-    normalized = _normalize_sharepoint_path(path)
-    if not normalized:
-        return None
-    url = f"{_sharepoint_drive_base_url()}/root:/{quote(normalized, safe='/')}"
-    response = requests.get(url, headers=_sharepoint_headers(), timeout=20)
-    if response.status_code == 200:
-        return response.json()
-    if response.status_code == 404:
-        return None
-    raise RuntimeError(response.text or f"Errore Graph {response.status_code}")
-
-
-def _sharepoint_graph_create_folder(parent_path: str, folder_name: str) -> dict:
-    normalized_parent = _normalize_sharepoint_path(parent_path)
-    if normalized_parent:
-        url = f"{_sharepoint_drive_base_url()}/root:/{quote(normalized_parent, safe='/')}:/children"
-    else:
-        url = f"{_sharepoint_drive_base_url()}/root/children"
-    payload = {
-        "name": folder_name,
-        "folder": {},
-        "@microsoft.graph.conflictBehavior": "rename",
-    }
-    response = requests.post(url, headers=_sharepoint_headers(), json=payload, timeout=20)
-    if response.status_code in (200, 201):
-        return response.json()
-    raise RuntimeError(response.text or f"Errore creazione cartella SharePoint {response.status_code}")
-
-
-def _ensure_sharepoint_folder(path: str) -> dict[str, str]:
-    normalized = _normalize_sharepoint_path(path)
-    if not normalized:
-        return {"path": "", "url": ""}
-    current_path = ""
-    item = None
-    for part in [chunk for chunk in normalized.split("/") if chunk]:
-        current_path = f"{current_path}/{part}".strip("/")
-        item = _sharepoint_graph_get_item(current_path)
-        if item is None:
-            item = _sharepoint_graph_create_folder("/".join(current_path.split("/")[:-1]), part)
-    return {
-        "path": normalized,
-        "url": _coalesce_str((item or {}).get("webUrl")),
-        "id": _coalesce_str((item or {}).get("id")),
-        "drive_id": _coalesce_str(((item or {}).get("parentReference") or {}).get("driveId")),
-    }
-
-
-def _ensure_asset_sharepoint_folder(asset: Asset) -> list[str]:
-    _ensure_asset_sharepoint_defaults(asset)
-    folder_path = _normalize_sharepoint_path(asset.sharepoint_folder_path)
-    if not folder_path:
-        return []
-    if not _sharepoint_graph_ready():
-        if not _clean_string(asset.sharepoint_folder_url):
-            return ["Cartella SharePoint salvata ma sync file inattiva: configurazione Graph mancante."]
-        return []
-    warnings = []
-    try:
-        info = _ensure_sharepoint_folder(folder_path)
-        metadata_warning = _apply_sharepoint_folder_metadata(
-            asset,
-            _clean_string(info.get("id")),
-            label=f"cartella asset {asset.asset_tag}",
-            tipo_documento="Cartella asset",
-        )
-        if metadata_warning:
-            warnings.append(metadata_warning)
-        # Predispone le sottocartelle documento: le 3 di base piu le extra
-        # configurate sulla AssetCategory dell'asset.
-        for spec in _asset_document_folder_specs(asset):
-            category_info = _ensure_sharepoint_folder(f"{folder_path}/{spec['code'].lower()}")
-            metadata_warning = _apply_sharepoint_folder_metadata(
-                asset,
-                _clean_string(category_info.get("id")),
-                label=f"cartella {spec['label'].lower()} {asset.asset_tag}",
-                tipo_documento=spec["label"],
-            )
-            if metadata_warning:
-                warnings.append(metadata_warning)
-    except Exception as exc:
-        return [f"SharePoint non raggiungibile per {asset.asset_tag}: {exc}"]
-    folder_url = _clean_string(info.get("url"))
-    update_fields = {}
-    if folder_url and folder_url != _clean_string(asset.sharepoint_folder_url):
-        update_fields["sharepoint_folder_url"] = folder_url
-        asset.sharepoint_folder_url = folder_url
-    drive_id = _clean_string(info.get("drive_id"))
-    item_id = _clean_string(info.get("id"))
-    if drive_id and drive_id != _clean_string(getattr(asset, "sharepoint_drive_id", "")):
-        update_fields["sharepoint_drive_id"] = drive_id
-        asset.sharepoint_drive_id = drive_id
-    if item_id and item_id != _clean_string(getattr(asset, "sharepoint_item_id", "")):
-        update_fields["sharepoint_item_id"] = item_id
-        asset.sharepoint_item_id = item_id
-    if update_fields:
-        Asset.objects.filter(pk=asset.pk).update(**update_fields)
-    return warnings
-
-
-# Colonne SharePoint valorizzate su cartelle e file documento per indicizzazione/ricerca.
-SHAREPOINT_DOCUMENT_COLUMNS = (
-    "AssetTag",
-    "AssetCategoria",
-    "AssetSottocategoria",
-    "AssetProduttore",
-    "AssetModello",
-    "AssetMatricola",
-    "AssetStato",
-    "AssetReparto",
-    "AssetTipoDocumento",
-)
-_sharepoint_document_columns_ready = False
-
-
-def _sharepoint_list_columns_url() -> str:
-    config = _sharepoint_graph_settings()
-    response = requests.get(
-        f"{_sharepoint_drive_base_url()}/list?$select=id",
-        headers=_sharepoint_headers(),
-        timeout=20,
-    )
-    if response.status_code != 200:
-        raise RuntimeError(response.text or f"Errore Graph {response.status_code}")
-    list_id = _clean_string(response.json().get("id"))
-    if not list_id:
-        raise RuntimeError("Impossibile determinare la lista SharePoint del drive.")
-    return f"https://graph.microsoft.com/v1.0/sites/{config['site_id']}/lists/{list_id}/columns"
-
-
-def _ensure_sharepoint_document_columns() -> None:
-    """Crea (una volta per processo) le colonne metadato mancanti nella libreria."""
-    global _sharepoint_document_columns_ready
-    if _sharepoint_document_columns_ready:
-        return
-    columns_url = _sharepoint_list_columns_url()
-    response = requests.get(columns_url, headers=_sharepoint_headers(), timeout=20)
-    if response.status_code != 200:
-        raise RuntimeError(response.text or f"Errore Graph {response.status_code}")
-    existing = {_clean_string(col.get("name")) for col in response.json().get("value", [])}
-    for name in SHAREPOINT_DOCUMENT_COLUMNS:
-        if name in existing:
-            continue
-        create = requests.post(
-            columns_url,
-            headers=_sharepoint_headers(),
-            json={"name": name, "text": {}},
-            timeout=20,
-        )
-        # 409 = colonna gia presente: tollerato.
-        if create.status_code not in (200, 201, 409):
-            raise RuntimeError(create.text or f"Errore creazione colonna SharePoint {name}")
-    _sharepoint_document_columns_ready = True
-
-
-def _sharepoint_asset_metadata(asset: Asset) -> dict[str, str]:
-    subcategory = asset.asset_category
-    sub_label = _clean_string(getattr(subcategory, "label", ""))
-    parent_label = ""
-    if subcategory is not None and getattr(subcategory, "parent_id", None):
-        parent_label = _clean_string(getattr(getattr(subcategory, "parent", None), "label", ""))
-    return {
-        "AssetTag": _clean_string(asset.asset_tag),
-        "AssetCategoria": parent_label,
-        "AssetSottocategoria": sub_label,
-        "AssetProduttore": _clean_string(asset.manufacturer),
-        "AssetModello": _clean_string(asset.model),
-        "AssetMatricola": _clean_string(asset.serial_number),
-        "AssetStato": asset.get_status_display(),
-        "AssetReparto": _clean_string(asset.reparto),
-    }
-
-
-def _sharepoint_document_metadata(asset: Asset, document: AssetDocument) -> dict[str, str]:
-    metadata = _sharepoint_asset_metadata(asset)
-    # Etichetta cartella: risolve sia le 3 di base sia le extra della categoria.
-    metadata["AssetTipoDocumento"] = _asset_document_category_label(
-        _asset_document_folder_specs(asset), document.category
-    )
-    return metadata
-
-
-def _sharepoint_folder_metadata(asset: Asset, *, tipo_documento: str = "") -> dict[str, str]:
-    metadata = _sharepoint_asset_metadata(asset)
-    metadata["AssetTipoDocumento"] = _clean_string(tipo_documento)
-    return metadata
-
-
-def _patch_sharepoint_item_fields(item_id: str, metadata: dict[str, str]) -> None:
-    if not item_id:
-        return
-    _ensure_sharepoint_document_columns()
-    url = f"{_sharepoint_drive_base_url()}/items/{quote(item_id, safe='')}/listItem/fields"
-    response = requests.patch(
-        url,
-        headers=_sharepoint_headers(),
-        json=metadata,
-        timeout=20,
-    )
-    if response.status_code not in (200, 201):
-        raise RuntimeError(response.text or f"Errore Graph {response.status_code}")
-
-
-def _apply_sharepoint_document_metadata(asset: Asset, document: AssetDocument, item_id: str) -> str:
-    if not item_id:
-        return ""
-    try:
-        _patch_sharepoint_item_fields(item_id, _sharepoint_document_metadata(asset, document))
-        return ""
-    except Exception as exc:
-        label = document.original_name or document.file.name
-        return f"File caricato su SharePoint ma metadati non applicati per {label}: {exc}"
-
-
-def _apply_sharepoint_folder_metadata(asset: Asset, item_id: str, *, label: str, tipo_documento: str = "") -> str:
-    if not item_id:
-        return ""
-    try:
-        _patch_sharepoint_item_fields(item_id, _sharepoint_folder_metadata(asset, tipo_documento=tipo_documento))
-        return ""
-    except Exception as exc:
-        return f"Cartella SharePoint creata/trovata ma metadati non applicati per {label}: {exc}"
-
-
-def _upload_asset_document_to_sharepoint(asset: Asset, document: AssetDocument) -> str:
-    folder_path = _normalize_sharepoint_path(asset.sharepoint_folder_path)
-    if not folder_path:
-        return ""
-    if not _sharepoint_graph_ready():
-        return "File salvato nel portale ma non sincronizzato su SharePoint: configurazione Graph mancante."
-
-    category_folder = f"{folder_path}/{document.category.lower()}".strip("/")
-    try:
-        # Cartella relativa: usa quella persistita sul documento (upload "Carica
-        # cartella"); fallback al percorso relativo transitorio per compatibilita.
-        relative_folder = _normalize_sharepoint_path(getattr(document, "relative_folder", ""))
-        if not relative_folder:
-            relative_path = _sanitize_sharepoint_relative_path(
-                getattr(document, "_sharepoint_relative_path", ""),
-                fallback_filename=document.original_name or Path(document.file.name).name,
-            )
-            if "/" in relative_path:
-                relative_folder = "/".join(relative_path.split("/")[:-1])
-        target_folder = f"{category_folder}/{relative_folder}".strip("/") if relative_folder else category_folder
-        category_info = _ensure_sharepoint_folder(target_folder)
-        filename = _sharepoint_document_remote_filename(document)
-        remote_path = f"{category_info['path']}/{filename}".strip("/")
-        url = f"{_sharepoint_drive_base_url()}/root:/{quote(remote_path, safe='/')}:/content"
-        with document.file.open("rb") as handle:
-            response = requests.put(url, headers=_sharepoint_headers(binary=True), data=handle, timeout=60)
-        if response.status_code not in (200, 201):
-            raise RuntimeError(response.text or f"Errore upload SharePoint {response.status_code}")
-        payload = response.json() if response.text else {}
-        document.sharepoint_url = _coalesce_str(payload.get("webUrl"))
-        document.sharepoint_path = remote_path[:500]
-        document.save(update_fields=["sharepoint_url", "sharepoint_path"])
-        root_url = _clean_string(asset.sharepoint_folder_url) or _coalesce_str(category_info.get("url"))
-        if root_url and root_url != _clean_string(asset.sharepoint_folder_url):
-            Asset.objects.filter(pk=asset.pk).update(sharepoint_folder_url=root_url)
-            asset.sharepoint_folder_url = root_url
-        # Valorizza le colonne metadato del file (best-effort: non blocca l'upload).
-        return _apply_sharepoint_document_metadata(asset, document, _clean_string(payload.get("id")))
-    except Exception as exc:
-        return f"Upload SharePoint non riuscito per {document.original_name or document.file.name}: {exc}"
-
-
-def _delete_asset_document_from_sharepoint(document: AssetDocument) -> str:
-    """Rimuove il file documento da SharePoint. Best-effort: non blocca l'eliminazione locale."""
-    remote_path = _normalize_sharepoint_path(document.sharepoint_path)
-    if not remote_path:
-        return ""
-    label = document.original_name or document.file.name
-    if not _sharepoint_graph_ready():
-        return f"File rimosso dal portale ma non da SharePoint per {label}: configurazione Graph mancante."
-    try:
-        url = f"{_sharepoint_drive_base_url()}/root:/{quote(remote_path, safe='/')}"
-        response = requests.delete(url, headers=_sharepoint_headers(), timeout=20)
-        # 404 = file gia assente su SharePoint: tollerato.
-        if response.status_code not in (200, 202, 204, 404):
-            raise RuntimeError(response.text or f"Errore Graph {response.status_code}")
-        return ""
-    except Exception as exc:
-        return f"File rimosso dal portale ma non da SharePoint per {label}: {exc}"
-
-
-def _sharepoint_graph_walk_files(
-    folder_path: str,
-    *,
-    _base: str | None = None,
-    _depth: int = 0,
-) -> list[dict]:
-    """Elenca ricorsivamente i file di una cartella SharePoint e delle sottocartelle.
-
-    Ogni elemento ritornato e il ``driveItem`` Graph con in piu la chiave
-    ``relative_folder``: il percorso della sottocartella relativo a ``folder_path``
-    (vuoto per i file nella radice). Gestisce la paginazione Graph e limita la
-    profondita a ``SHAREPOINT_SYNC_MAX_DEPTH``. Ritorna lista vuota se la cartella
-    non esiste (404). Solleva ``RuntimeError`` per ogni altro errore.
-    """
-    normalized = _normalize_sharepoint_path(folder_path)
-    if not normalized:
-        return []
-    base = _normalize_sharepoint_path(_base) if _base is not None else normalized
-    if _depth > SHAREPOINT_SYNC_MAX_DEPTH:
-        return []
-    relative_folder = ""
-    if base and normalized.lower().startswith(base.lower()):
-        relative_folder = normalized[len(base):].strip("/")
-    url = (
-        f"{_sharepoint_drive_base_url()}/root:/{quote(normalized, safe='/')}:/children"
-        "?$select=id,name,size,webUrl,file,folder,lastModifiedDateTime&$top=200"
-    )
-    headers = _sharepoint_headers()
-    files: list[dict] = []
-    subfolders: list[str] = []
-    while url:
-        response = requests.get(url, headers=headers, timeout=30)
-        if response.status_code == 404:
-            return files
-        if response.status_code != 200:
-            raise RuntimeError(response.text or f"Errore Graph {response.status_code}")
-        payload = response.json()
-        for entry in payload.get("value", []):
-            if not isinstance(entry, dict):
-                continue
-            name = _clean_string(entry.get("name"))
-            if not name:
-                continue
-            if "folder" in entry:
-                subfolders.append(name)
-            elif "file" in entry:
-                files.append({**entry, "relative_folder": relative_folder})
-        url = _clean_string(payload.get("@odata.nextLink"))
-    for sub in subfolders:
-        files.extend(
-            _sharepoint_graph_walk_files(
-                f"{normalized}/{sub}", _base=base, _depth=_depth + 1
-            )
-        )
-    return files
-
-
-def _sync_asset_documents_from_sharepoint(asset: Asset, *, apply: bool = True) -> dict:
-    """Sync inverso SharePoint -> portale per i documenti di un singolo asset.
-
-    Le sottocartelle di ``manuali``/``specifiche``/``interventi`` vengono percorse
-    ricorsivamente: i file annidati conservano la cartella di origine in
-    ``AssetDocument.relative_folder`` (vista raggruppata nella scheda asset).
-
-    - file nuovi presenti su SharePoint -> crea un ``AssetDocument`` di riferimento
-      (con ``sharepoint_url``/``sharepoint_path``/``relative_folder``, senza copia locale);
-    - file rimossi da SharePoint -> elimina l'``AssetDocument`` sincronizzato
-      corrispondente (record + eventuale copia locale);
-    - file ancora presenti -> aggiorna ``sharepoint_url`` se cambiato.
-
-    I documenti solo-locali (senza ``sharepoint_path``) non vengono mai toccati.
-    Con ``apply=False`` la funzione conta soltanto le modifiche (dry-run).
-    """
-    result = {
-        "asset": asset.asset_tag,
-        "created": 0,
-        "deleted": 0,
-        "updated": 0,
-        "warnings": [],
-        "skipped": False,
-    }
-    folder_path = _normalize_sharepoint_path(asset.sharepoint_folder_path)
-    if not folder_path:
-        result["skipped"] = True
-        return result
-    if not _sharepoint_graph_ready():
-        result["skipped"] = True
-        result["warnings"].append("Configurazione Graph mancante: sync inverso non disponibile.")
-        return result
-
-    # AssetDocument gia sincronizzati, indicizzati per percorso remoto normalizzato.
-    existing_by_path: dict[str, AssetDocument] = {}
-    for document in asset.documents.all():
-        sp_path = _normalize_sharepoint_path(document.sharepoint_path)
-        if sp_path:
-            existing_by_path[sp_path.lower()] = document
-
-    seen_paths: set[str] = set()
-    scanned_prefixes: set[str] = set()
-    for spec in _asset_document_folder_specs(asset):
-        category = spec["code"]
-        category_folder = _normalize_sharepoint_path(f"{folder_path}/{category.lower()}")
-        try:
-            children = _sharepoint_graph_walk_files(category_folder)
-        except Exception as exc:
-            # Cartella non leggibile: niente eliminazioni per questa sottocartella.
-            result["warnings"].append(
-                f"{asset.asset_tag}/{category.lower()}: lettura SharePoint fallita: {exc}"
-            )
-            continue
-        # Cartella scansionata con successo (anche se vuota o assente): abilita le eliminazioni.
-        scanned_prefixes.add(f"{category_folder.lower()}/")
-        for entry in children:
-            name = _clean_string(entry.get("name"))
-            if not name:
-                continue
-            # Sottocartella di origine del file, relativa alla cartella categoria.
-            rel_folder = _normalize_sharepoint_path(entry.get("relative_folder"))
-            remote_path = _normalize_sharepoint_path(f"{category_folder}/{rel_folder}/{name}")
-            path_key = remote_path.lower()
-            seen_paths.add(path_key)
-            web_url = _clean_string(entry.get("webUrl"))
-            existing = existing_by_path.get(path_key)
-            if existing is not None:
-                update_fields: list[str] = []
-                if web_url and web_url != _clean_string(existing.sharepoint_url):
-                    existing.sharepoint_url = web_url[:1000]
-                    update_fields.append("sharepoint_url")
-                # Backfill della cartella di origine sui record sincronizzati prima
-                # del supporto alle sottocartelle, per la vista raggruppata.
-                if rel_folder and not _clean_string(existing.relative_folder):
-                    existing.relative_folder = rel_folder[:400]
-                    update_fields.append("relative_folder")
-                if update_fields:
-                    result["updated"] += 1
-                    if apply:
-                        existing.save(update_fields=update_fields)
-                continue
-            # File nuovo caricato direttamente su SharePoint: crea record di riferimento.
-            result["created"] += 1
-            if apply:
-                AssetDocument.objects.create(
-                    asset=asset,
-                    category=category,
-                    file="",
-                    original_name=name[:255],
-                    relative_folder=rel_folder[:400],
-                    sharepoint_url=web_url[:1000],
-                    sharepoint_path=remote_path[:500],
-                )
-
-    # File rimossi da SharePoint: elimina i record sincronizzati non piu presenti.
-    for path_key, document in existing_by_path.items():
-        if path_key in seen_paths:
-            continue
-        if not any(path_key.startswith(prefix) for prefix in scanned_prefixes):
-            # Percorso fuori dalle sottocartelle scansionate: non toccare.
-            continue
-        result["deleted"] += 1
-        if apply:
-            document.delete()
-    return result
-
-
 def _asset_qr_target_url(request: HttpRequest, asset: Asset, *, target: str = "detail") -> tuple[str, str]:
     desired = _clean_string(target).lower()
     public_token = _clean_string(getattr(asset, "public_qr_token", ""))
     public_qr_enabled = bool(public_token) and getattr(asset, "public_qr_enabled", True)
-    if desired == "sharepoint":
-        public_url = _clean_string(getattr(asset, "sharepoint_public_url", ""))
-        public_enabled = getattr(asset, "sharepoint_public_enabled", False)
-        if public_qr_enabled and public_enabled and public_url:
-            public_route = reverse("assets:asset_public_redirect", kwargs={"public_qr_token": public_token})
-            return _portal_absolute_uri(request, public_route), "Cartella SharePoint pubblica"
-        if public_enabled and public_url:
-            return public_url, "Cartella SharePoint pubblica"
+    # "sharepoint" e' un valore legacy (link e template etichetta salvati prima
+    # della rimozione dell'archivio SharePoint): vale come "landing".
     if desired in {"sharepoint", "landing"}:
         # Landing QR: pubblica (token opaco) quando disponibile, così il QR resta
         # leggibile da tecnici/ispettori esterni senza login.
@@ -3044,19 +2379,16 @@ def _build_asset_documents_by_category(asset: Asset) -> tuple[dict[str, str], di
         meta_parts = []
         if _clean_string(uploaded.notes):
             meta_parts.append(_clean_string(uploaded.notes))
-        if _clean_string(uploaded.sharepoint_path):
-            meta_parts.append(f"SP: {uploaded.sharepoint_path}")
         flat[uploaded.category].append(
             {
                 "id": uploaded.id,
                 "name": uploaded.original_name or Path(uploaded.file.name).name,
                 "size": size_text,
                 "date": uploaded.document_date.strftime("%d-%m-%Y") if uploaded.document_date else uploaded.created_at.strftime("%d-%m-%Y"),
-                "url": uploaded.sharepoint_url or reverse("assets:asset_document_download", args=[uploaded.id]),
+                "url": reverse("assets:asset_document_download", args=[uploaded.id]),
                 "kind": "uploaded",
-                "sharepoint": bool(_clean_string(uploaded.sharepoint_path)),
                 "meta": " | ".join(meta_parts),
-                "folder": _normalize_sharepoint_path(uploaded.relative_folder),
+                "folder": _normalize_document_path(uploaded.relative_folder),
             }
         )
 
@@ -3340,21 +2672,14 @@ def _validate_asset_document_uploads(
             except UploadMimeValidationError as exc:
                 errors.append(str(exc))
                 continue
-            upload.name = _sanitize_sharepoint_filename(basename)
-            upload._sharepoint_relative_path = _sanitize_sharepoint_relative_path(
+            upload.name = _sanitize_document_filename(basename)
+            upload._document_relative_path = _sanitize_document_relative_path(
                 relative_path,
                 fallback_filename=upload.name,
             )
             valid_files.append(upload)
         uploads[category] = valid_files
     return uploads, errors
-
-
-def _asset_document_storage_target(request: HttpRequest) -> str:
-    target = _clean_string(request.POST.get("asset_document_storage")).lower()
-    if target in ASSET_DOCUMENT_STORAGE_CHOICES:
-        return target
-    return ASSET_DOCUMENT_STORAGE_SHAREPOINT
 
 
 def _asset_document_upload_count(uploads: dict[str, list]) -> int:
@@ -3367,35 +2692,24 @@ def _apply_asset_document_changes(
     uploads: dict[str, list],
     remove_ids: set[int],
     actor,
-    sync_sharepoint: bool = True,
-) -> list[str]:
-    warnings: list[str] = []
+) -> None:
+    """Applica rimozioni e nuovi upload sull'archivio documenti locale dell'asset."""
     if remove_ids:
         for document in asset.documents.filter(id__in=remove_ids):
-            if _clean_string(document.sharepoint_path):
-                warning = _delete_asset_document_from_sharepoint(document)
-                if warning:
-                    warnings.append(warning)
             document.delete()
 
     for category, files in uploads.items():
         for upload in files:
-            relative_path = getattr(upload, "_sharepoint_relative_path", "")
+            relative_path = getattr(upload, "_document_relative_path", "")
             relative_folder = "/".join(relative_path.split("/")[:-1]) if "/" in relative_path else ""
-            document = AssetDocument.objects.create(
+            AssetDocument.objects.create(
                 asset=asset,
                 category=category,
                 file=upload,
-                original_name=_sanitize_sharepoint_filename(getattr(upload, "name", ""))[:255],
+                original_name=_sanitize_document_filename(getattr(upload, "name", ""))[:255],
                 relative_folder=relative_folder[:400],
                 uploaded_by=actor if getattr(actor, "is_authenticated", False) else None,
             )
-            document._sharepoint_relative_path = relative_path
-            if sync_sharepoint:
-                warning = _upload_asset_document_to_sharepoint(asset, document)
-                if warning:
-                    warnings.append(warning)
-    return warnings
 
 
 def _work_machine_maintenance_state(machine: WorkMachine, today) -> dict[str, object]:
@@ -3990,14 +3304,6 @@ def _assignment_form_kwargs(asset: Asset | None = None) -> dict[str, object]:
         "assignment_employee_details": employee_details,
         "assignment_department_choices": department_choices,
         "default_include_in_plant_layout": include_in_layout,
-        "default_sharepoint_auto": not bool(asset and _clean_string(asset.sharepoint_folder_path)),
-    }
-
-
-def _sharepoint_form_preview_config(*, is_work_machine: bool = False) -> dict[str, str]:
-    return {
-        "root_path": _asset_sharepoint_root(),
-        "fallback_asset_tag": "tag-asset",
     }
 
 
@@ -4062,10 +3368,6 @@ def _ensure_asset_plant_layout_marker(asset: Asset) -> str:
         marker.is_visible = True
         marker.save(update_fields=["is_visible", "updated_at"])
     return ""
-
-
-def _asset_sharepoint_requested(form, asset: Asset) -> bool:
-    return bool(form.cleaned_data.get("sharepoint_auto_folder") or _clean_string(asset.sharepoint_folder_path))
 
 
 def _outlook_calendar_graph_settings() -> dict[str, str]:
@@ -5380,12 +4682,6 @@ def _default_asset_detail_section_layout_rows() -> list[dict[str, object]]:
             "code": AssetDetailSectionLayout.SECTION_QUICK_ACTIONS,
             "grid_size": AssetDetailSectionLayout.SIZE_HALF,
             "sort_order": 250,
-            "is_visible": True,
-        },
-        {
-            "code": AssetDetailSectionLayout.SECTION_SHAREPOINT,
-            "grid_size": AssetDetailSectionLayout.SIZE_HALF,
-            "sort_order": 260,
             "is_visible": True,
         },
         {
@@ -9293,8 +8589,6 @@ def _build_asset_detail_section_cards(
     profile_card_title: str,
     detail_assignment_title: str,
     quick_action_buttons: list[dict],
-    sharepoint_folder_url: str,
-    sharepoint_folder_path: str,
     map_marker,
     doc_category_labels: dict,
     spec_pairs: list[tuple[str, str]],
@@ -9349,11 +8643,6 @@ def _build_asset_detail_section_cards(
             "code": AssetDetailSectionLayout.SECTION_QR,
             "title": "QR asset",
             "render": True,
-        },
-        AssetDetailSectionLayout.SECTION_SHAREPOINT: {
-            "code": AssetDetailSectionLayout.SECTION_SHAREPOINT,
-            "title": "Archivio SharePoint",
-            "render": bool(sharepoint_folder_url or sharepoint_folder_path),
         },
         AssetDetailSectionLayout.SECTION_QUICK_ACTIONS: {
             "code": AssetDetailSectionLayout.SECTION_QUICK_ACTIONS,
@@ -9530,30 +8819,18 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
         if action == "upload_asset_documents":
             uploads, upload_errors = _validate_asset_document_uploads(request, asset)
             upload_count = _asset_document_upload_count(uploads)
-            storage_target = _asset_document_storage_target(request)
             for error in upload_errors:
                 messages.error(request, error)
             if not upload_errors and upload_count <= 0:
                 messages.error(request, "Seleziona almeno un file da caricare.")
             if not upload_errors and upload_count > 0:
-                sharepoint_warnings = []
-                sync_sharepoint = storage_target == ASSET_DOCUMENT_STORAGE_SHAREPOINT
-                if sync_sharepoint:
-                    _ensure_asset_sharepoint_defaults(asset)
-                    sharepoint_warnings = _ensure_asset_sharepoint_folder(asset)
-                sharepoint_warnings.extend(
-                    _apply_asset_document_changes(
-                        asset,
-                        uploads=uploads,
-                        remove_ids=set(),
-                        actor=request.user,
-                        sync_sharepoint=sync_sharepoint,
-                    )
+                _apply_asset_document_changes(
+                    asset,
+                    uploads=uploads,
+                    remove_ids=set(),
+                    actor=request.user,
                 )
-                for warning in sharepoint_warnings:
-                    messages.warning(request, warning)
-                target_label = "SharePoint" if sync_sharepoint else "locale"
-                messages.success(request, f"{upload_count} file caricato/i in archivio {target_label}.")
+                messages.success(request, f"{upload_count} file caricato/i in archivio.")
             return redirect("assets:asset_view", id=asset.id)
         if action == "delete_asset_document":
             document_id = _as_int(request.POST.get("document_id"), default=0)
@@ -9563,15 +8840,12 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             else:
                 doc_label = document.original_name or Path(document.file.name).name
                 doc_category = document.category
-                had_sharepoint = bool(_clean_string(document.sharepoint_path))
-                for warning in _apply_asset_document_changes(
+                _apply_asset_document_changes(
                     asset,
                     uploads={},
                     remove_ids={document.id},
                     actor=request.user,
-                    sync_sharepoint=False,
-                ):
-                    messages.warning(request, warning)
+                )
                 log_action(
                     request,
                     "delete_asset_document",
@@ -9581,7 +8855,6 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
                         "asset_id": asset.id,
                         "category": doc_category,
                         "filename": doc_label,
-                        "sharepoint": had_sharepoint,
                     },
                 )
                 messages.success(request, f"Documento \"{doc_label}\" eliminato.")
@@ -9608,9 +8881,6 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
                 AssetCategoryDocumentFolder.objects.create(
                     category=category, name=raw_name, slug=slug, order=next_order
                 )
-                # Predispone subito la sottocartella su SharePoint (best-effort).
-                for warning in _ensure_asset_sharepoint_folder(asset):
-                    messages.warning(request, warning)
                 log_action(
                     request,
                     "add_asset_document_folder",
@@ -10238,8 +9508,6 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
         profile_card_title=profile_card_title,
         detail_assignment_title=detail_assignment_title,
         quick_action_buttons=quick_action_buttons,
-        sharepoint_folder_url=_clean_string(asset.sharepoint_folder_url),
-        sharepoint_folder_path=_normalize_sharepoint_path(asset.sharepoint_folder_path),
         map_marker=map_marker,
         doc_category_labels=doc_category_labels,
         spec_pairs=spec_pairs,
@@ -10329,15 +9597,8 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "documents_by_category": dict(documents_by_category),
             "document_upload_field_map": doc_upload_field_map,
             "can_manage_doc_folders": can_manage_doc_folders,
-            "sharepoint_folder_url": _clean_string(asset.sharepoint_folder_url),
-            "sharepoint_folder_path": _normalize_sharepoint_path(asset.sharepoint_folder_path),
             "asset_report_pdf_url": _asset_report_pdf_url(asset.id),
             "asset_qr_url": reverse("assets:asset_qr_label", kwargs={"id": asset.id}),
-            "asset_qr_sharepoint_url": (
-                reverse("assets:asset_qr_label", kwargs={"id": asset.id}) + "?target=sharepoint"
-                if asset.sharepoint_public_enabled and _clean_string(asset.sharepoint_public_url)
-                else ""
-            ),
             "asset_label_designer_url": (
                 reverse("assets:asset_label_designer") + f"?scope=asset&asset_id={asset.id}"
                 if _is_assets_admin(request)
@@ -10486,12 +9747,9 @@ def asset_label_designer(request: HttpRequest) -> HttpResponse:
 
     preview_context = _build_asset_label_preview_context(request, template=template, asset=preview_asset)
     preview_asset_qr_url = ""
-    preview_asset_sharepoint_qr_url = ""
     logo_meta = _asset_label_logo_meta(template)
     if preview_asset is not None:
         preview_asset_qr_url = reverse("assets:asset_qr_label", kwargs={"id": preview_asset.id})
-        if preview_asset.sharepoint_public_enabled and _clean_string(preview_asset.sharepoint_public_url):
-            preview_asset_sharepoint_qr_url = f"{preview_asset_qr_url}?target=sharepoint"
 
     if scope == AssetLabelTemplate.SCOPE_ASSET and scope_asset is not None:
         scope_title = f"Override asset - {scope_asset.asset_tag}"
@@ -10522,7 +9780,6 @@ def asset_label_designer(request: HttpRequest) -> HttpResponse:
             "back_url": back_url,
             "preview_asset": preview_asset,
             "preview_asset_qr_url": preview_asset_qr_url,
-            "preview_asset_sharepoint_qr_url": preview_asset_sharepoint_qr_url,
             "preview_catalog": preview_context["catalog"],
             "preview_selected_body_fields": preview_context["selected_body_fields"],
             "preview_field_values": preview_context["field_values"],
@@ -10648,15 +9905,15 @@ def _render_asset_qr_landing(request: HttpRequest, asset: Asset, *, public: bool
     qr_schedule_rows = qr_schedule_rows[:12]
     qr_overdue_count = sum(1 for r in qr_schedule_rows if r["status"] == "overdue")
 
-    # Documenti dell'asset (manuali, specifiche, interventi) + cartella SharePoint.
+    # Documenti dell'asset (manuali, specifiche, interventi).
     # I file non sono mai raggiungibili via /media/ (deny IIS): il link passa dalla
     # view a token per il QR pubblico, dalla view autenticata per l'utente loggato.
     asset_documents = []
     qr_token = _clean_string(asset.public_qr_token) if asset.public_qr_enabled else ""
     for doc in asset.documents.all()[:15]:
         if public:
-            # Il visitatore anonimo ha in mano solo il token: nessun URL SharePoint
-            # interno esposto, solo il download a token dei file locali.
+            # Il visitatore anonimo ha in mano solo il token: download a token dei
+            # file locali, nessun altro percorso esposto.
             open_url = (
                 reverse(
                     "assets:asset_document_qr_download",
@@ -10666,7 +9923,7 @@ def _render_asset_qr_landing(request: HttpRequest, asset: Asset, *, public: bool
                 else ""
             )
         else:
-            open_url = _clean_string(doc.sharepoint_url) or (
+            open_url = (
                 reverse("assets:asset_document_download", kwargs={"document_id": doc.id})
                 if doc.file
                 else ""
@@ -10679,8 +9936,6 @@ def _render_asset_qr_landing(request: HttpRequest, asset: Asset, *, public: bool
                 "open_url": open_url,
             }
         )
-    sharepoint_folder_url = _clean_string(getattr(asset, "sharepoint_folder_url", ""))
-
     # URL azioni
     detail_url = reverse("assets:asset_view", kwargs={"id": asset.id})
     report_url = f"{reverse('assets:asset_quick_report')}?asset={asset.id}"
@@ -10699,7 +9954,6 @@ def _render_asset_qr_landing(request: HttpRequest, asset: Asset, *, public: bool
         "qr_schedule_rows": qr_schedule_rows,
         "qr_overdue_count": qr_overdue_count,
         "asset_documents": asset_documents,
-        "sharepoint_folder_url": sharepoint_folder_url,
         "detail_url": detail_url,
         "report_url": report_url,
         "wo_list_url": wo_list_url,
@@ -10715,23 +9969,12 @@ def _render_asset_qr_landing(request: HttpRequest, asset: Asset, *, public: bool
     return render(request, "assets/pages/asset_qr_landing.html", context)
 
 
-@risposta_pubblica
-def asset_public_redirect(request: HttpRequest, public_qr_token: str) -> HttpResponse:
-    token = _clean_string(public_qr_token)
-    if not token:
-        raise Http404("Link non disponibile.")
-    asset = get_object_or_404(Asset, public_qr_token=token, public_qr_enabled=True)
-    if not asset.sharepoint_public_enabled or not _clean_string(asset.sharepoint_public_url):
-        raise Http404("Link non disponibile.")
-    return redirect(asset.sharepoint_public_url)
-
-
 @login_required
 def asset_qr_label(request: HttpRequest, id: int | None = None) -> HttpResponse:
     if id is None:
         return redirect("assets:asset_list")
     asset = get_object_or_404(Asset, pk=id)
-    target_value = _clean_string(request.GET.get("target")).lower() or "sharepoint"
+    target_value = _clean_string(request.GET.get("target")).lower() or "landing"
     target_url, target_label = _asset_qr_target_url(request, asset, target=target_value)
     template = _resolve_asset_label_template(asset)
     width = float(template.page_width_mm or 100) * mm
@@ -10850,9 +10093,7 @@ def asset_create(request: HttpRequest) -> HttpResponse:
                 marker_warning = _ensure_asset_plant_layout_marker(asset)
                 if marker_warning:
                     messages.warning(request, marker_warning)
-            if _asset_sharepoint_requested(form, asset):
-                for warning in _ensure_asset_sharepoint_folder(asset):
-                    messages.warning(request, warning)
+
             messages.success(request, "Asset creato correttamente.")
             return redirect("assets:asset_view", id=asset.id)
     else:
@@ -10872,8 +10113,7 @@ def asset_create(request: HttpRequest) -> HttpResponse:
             "list_suggestions": list_suggestions,
             "assignment_department_choices": assignment_kwargs["assignment_department_choices"],
             "assignment_employee_details": assignment_kwargs["assignment_employee_details"],
-            "sharepoint_preview_config": _sharepoint_form_preview_config(is_work_machine=False),
-            "sharepoint_auto_field_names": ["sharepoint_auto_folder"],
+
             "plant_layout_field_names": ["include_in_plant_layout"],
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
         },
@@ -10907,9 +10147,7 @@ def asset_edit(request: HttpRequest, id: int | None = None) -> HttpResponse:
                 marker_warning = _ensure_asset_plant_layout_marker(asset)
                 if marker_warning:
                     messages.warning(request, marker_warning)
-            if _asset_sharepoint_requested(form, asset):
-                for warning in _ensure_asset_sharepoint_folder(asset):
-                    messages.warning(request, warning)
+
             messages.success(request, "Asset aggiornato.")
             return redirect("assets:asset_view", id=asset.id)
     else:
@@ -10930,8 +10168,7 @@ def asset_edit(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "list_suggestions": list_suggestions,
             "assignment_department_choices": assignment_kwargs["assignment_department_choices"],
             "assignment_employee_details": assignment_kwargs["assignment_employee_details"],
-            "sharepoint_preview_config": _sharepoint_form_preview_config(is_work_machine=False),
-            "sharepoint_auto_field_names": ["sharepoint_auto_folder"],
+
             "plant_layout_field_names": ["include_in_plant_layout"],
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
         },
@@ -14984,7 +14221,6 @@ def work_machine_create(request: HttpRequest) -> HttpResponse:
     assignment_kwargs = _assignment_form_kwargs()
     if request.method == "POST":
         uploads, upload_errors = _validate_asset_document_uploads(request)
-        document_storage_target = _asset_document_storage_target(request)
         form = WorkMachineAssetForm(request.POST, list_suggestions=list_suggestions, **assignment_kwargs)
         if form.is_valid() and not upload_errors:
             asset = form.save()
@@ -14995,19 +14231,12 @@ def work_machine_create(request: HttpRequest) -> HttpResponse:
                 marker_warning = _ensure_asset_plant_layout_marker(asset)
                 if marker_warning:
                     messages.warning(request, marker_warning)
-            sync_sharepoint = document_storage_target == ASSET_DOCUMENT_STORAGE_SHAREPOINT
-            sharepoint_warnings = _ensure_asset_sharepoint_folder(asset) if (_asset_sharepoint_requested(form, asset) or sync_sharepoint) else []
-            sharepoint_warnings.extend(
-                _apply_asset_document_changes(
-                    asset,
-                    uploads=uploads,
-                    remove_ids=set(),
-                    actor=request.user,
-                    sync_sharepoint=sync_sharepoint,
-                )
+            _apply_asset_document_changes(
+                asset,
+                uploads=uploads,
+                remove_ids=set(),
+                actor=request.user,
             )
-            for warning in sharepoint_warnings:
-                messages.warning(request, warning)
             messages.success(request, "Macchina di lavoro creata correttamente.")
             return redirect("assets:asset_view", id=asset.id)
         for error in upload_errors:
@@ -15029,11 +14258,9 @@ def work_machine_create(request: HttpRequest) -> HttpResponse:
             "list_suggestions": list_suggestions,
             "assignment_department_choices": assignment_kwargs["assignment_department_choices"],
             "assignment_employee_details": assignment_kwargs["assignment_employee_details"],
-            "sharepoint_preview_config": _sharepoint_form_preview_config(is_work_machine=True),
             "asset_field_names": form.asset_field_names,
             "category_field_groups": form.category_field_groups,
             "category_dynamic_field_names": form.category_dynamic_field_names,
-            "sharepoint_field_names": form.sharepoint_field_names,
             "machine_field_names": form.machine_field_names,
             "assignment_field_names": form.assignment_field_names,
             "verification_field_names": form.verification_field_names,
@@ -15067,7 +14294,6 @@ def work_machine_edit(request: HttpRequest, id: int | None = None) -> HttpRespon
 
     if request.method == "POST":
         uploads, upload_errors = _validate_asset_document_uploads(request, asset)
-        document_storage_target = _asset_document_storage_target(request)
         remove_ids = {_as_int(value, default=0) for value in request.POST.getlist("remove_document_ids")}
         remove_ids = {value for value in remove_ids if value > 0}
         form = WorkMachineAssetForm(
@@ -15101,19 +14327,12 @@ def work_machine_edit(request: HttpRequest, id: int | None = None) -> HttpRespon
                 elif "photo" in request.FILES:
                     wm.photo = request.FILES["photo"]
                     wm.save(update_fields=["photo"])
-            sync_sharepoint = document_storage_target == ASSET_DOCUMENT_STORAGE_SHAREPOINT
-            sharepoint_warnings = _ensure_asset_sharepoint_folder(asset) if (_asset_sharepoint_requested(form, asset) or sync_sharepoint) else []
-            sharepoint_warnings.extend(
-                _apply_asset_document_changes(
-                    asset,
-                    uploads=uploads,
-                    remove_ids=remove_ids,
-                    actor=request.user,
-                    sync_sharepoint=sync_sharepoint,
-                )
+            _apply_asset_document_changes(
+                asset,
+                uploads=uploads,
+                remove_ids=remove_ids,
+                actor=request.user,
             )
-            for warning in sharepoint_warnings:
-                messages.warning(request, warning)
             messages.success(request, "Macchina di lavoro aggiornata.")
             return redirect("assets:asset_view", id=asset.id)
         for error in upload_errors:
@@ -15137,11 +14356,9 @@ def work_machine_edit(request: HttpRequest, id: int | None = None) -> HttpRespon
             "list_suggestions": list_suggestions,
             "assignment_department_choices": assignment_kwargs["assignment_department_choices"],
             "assignment_employee_details": assignment_kwargs["assignment_employee_details"],
-            "sharepoint_preview_config": _sharepoint_form_preview_config(is_work_machine=True),
             "asset_field_names": form.asset_field_names,
             "category_field_groups": form.category_field_groups,
             "category_dynamic_field_names": form.category_dynamic_field_names,
-            "sharepoint_field_names": form.sharepoint_field_names,
             "machine_field_names": form.machine_field_names,
             "assignment_field_names": form.assignment_field_names,
             "verification_field_names": form.verification_field_names,
@@ -17630,53 +16847,6 @@ def work_machine_maintenance_month_pdf(request: HttpRequest) -> HttpResponse:
     return response
 
 
-def _handle_sharepoint_config_request(request: HttpRequest) -> tuple[bool, str]:
-    tenant_id = _clean_string(request.POST.get("sharepoint_tenant_id"))[:200]
-    client_id = _clean_string(request.POST.get("sharepoint_client_id"))[:200]
-    site_id = _clean_string(request.POST.get("sharepoint_site_id"))[:500]
-    client_secret = _clean_string(request.POST.get("sharepoint_client_secret"))
-    library_url = _clean_string(request.POST.get("sharepoint_library_url"))[:1000]
-    public_links_enabled = "true" if _clean_string(request.POST.get("sharepoint_public_links_enabled")).lower() in {"1", "true", "yes", "on"} else "false"
-    allowed_root_name = _clean_string(request.POST.get("sharepoint_allowed_root_name"))[:120] or "ASSET CN"
-    allowed_root_drive_id = _clean_string(request.POST.get("sharepoint_allowed_root_drive_id"))[:255]
-    allowed_root_item_id = _clean_string(request.POST.get("sharepoint_allowed_root_item_id"))[:255]
-    asset_site_id = _clean_string(request.POST.get("sharepoint_asset_site_id"))[:500]
-    asset_drive_id = _clean_string(request.POST.get("sharepoint_asset_drive_id"))[:255]
-
-    try:
-        dotenv_values = load_env_file_values()
-        current_secret = str(dotenv_values.get("GRAPH_CLIENT_SECRET") or dotenv_values.get("AZURE_CLIENT_SECRET") or "").strip()
-        updates = {
-            "GRAPH_TENANT_ID": tenant_id,
-            "GRAPH_CLIENT_ID": client_id,
-            "GRAPH_SITE_ID": site_id,
-            "ASSETS_SHAREPOINT_LIBRARY_URL": library_url,
-            "SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED": public_links_enabled,
-            "SHAREPOINT_ASSET_ALLOWED_ROOT_NAME": allowed_root_name,
-            "SHAREPOINT_ASSET_ALLOWED_ROOT_DRIVE_ID": allowed_root_drive_id,
-            "SHAREPOINT_ASSET_ALLOWED_ROOT_ITEM_ID": allowed_root_item_id,
-            "SHAREPOINT_ASSET_SITE_ID": asset_site_id,
-            "SHAREPOINT_ASSET_DRIVE_ID": asset_drive_id,
-        }
-        if client_secret:
-            updates["GRAPH_CLIENT_SECRET"] = client_secret
-        elif not current_secret and not get_first_env_value("GRAPH_CLIENT_SECRET", "AZURE_CLIENT_SECRET"):
-            updates["GRAPH_CLIENT_SECRET"] = ""
-        update_env_file_values(
-            updates,
-            delete_keys=[
-                "AZURE_TENANT_ID",
-                "AZURE_CLIENT_ID",
-                "AZURE_CLIENT_SECRET",
-                "ASSETS_SHAREPOINT_ASSET_ROOT_PATH",
-                "ASSETS_SHAREPOINT_WORK_MACHINE_ROOT_PATH",
-            ],
-        )
-    except Exception as exc:
-        return False, f"Errore scrittura .env: {exc}"
-    return True, "Configurazione SharePoint aggiornata."
-
-
 @legacy_admin_required
 def gestione_admin(request: HttpRequest) -> HttpResponse:
     """Pagina di gestione interna Assets — accesso solo admin."""
@@ -17760,22 +16930,6 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
         action = request.POST.get("action")
         config_redirect = redirect(f"{reverse('assets:gestione_admin')}?tab=config")
         category_redirect = redirect(f"{reverse('assets:gestione_admin')}?tab=categorie")
-
-        if action == "save_sharepoint_config":
-            ok, text = _handle_sharepoint_config_request(request)
-            if ok:
-                messages.success(request, text)
-            else:
-                messages.error(request, text)
-            return config_redirect
-
-        if action == "test_sharepoint_config":
-            ok, text = _sharepoint_graph_healthcheck()
-            if ok:
-                messages.success(request, text)
-            else:
-                messages.error(request, text)
-            return config_redirect
 
         if action == "add_list_option":
             fk = request.POST.get("field_key", "").strip()
@@ -18021,7 +17175,6 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
             "sidebar_section_choices": _ui_choices(AssetSidebarButton.SECTION_CHOICES),
             "sidebar_target_suggestions": sidebar_target_suggestions,
             "sidebar_active_match_suggestions": sidebar_active_match_suggestions,
-            "sharepoint_admin_config": _sharepoint_admin_config(),
             "asset_categories": asset_categories,
             "asset_category_rows": asset_category_rows,
             "asset_category_fields": asset_category_fields,

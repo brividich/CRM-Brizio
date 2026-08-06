@@ -104,7 +104,7 @@ Alternativa: inserimento manuale da `/admin-portale/navigation-builder/`.
 - Il salvataggio bulk e "replace": gli asset selezionati vengono assegnati al dipendente, quelli prima assegnati ma non piu selezionati vengono sganciati.
 
 ## Rinomina massiva solo nome asset
-Command sicuro per aggiornare esclusivamente `Asset.name`, lasciando invariati `asset_tag`, categorie, stato, reparto, SharePoint e relazioni:
+Command sicuro per aggiornare esclusivamente `Asset.name`, lasciando invariati `asset_tag`, categorie, stato, reparto e relazioni:
 
 ```bash
 python manage.py rename_asset_names --export-template asset_names.csv
@@ -150,19 +150,13 @@ Colonne dinamiche:
 - I macchinari di officina possono essere gestiti come `Asset` con `asset_type="WORK_MACHINE"` e dettagli dedicati nella tabella `WorkMachine`.
 - La relazione e `1:1`: `Asset` resta il master record (tag, nome, stato, reparto), `WorkMachine` contiene le colonne specifiche di officina.
 
-## Link pubblici QR SharePoint
-- Il QR pubblico usa `/assets/public/<public_qr_token>/`, che reindirizza solo a `sharepoint_public_url` quando il link pubblico read-only e attivo.
-- Se `SITE_URL` e configurato, i PDF etichetta usano quella base canonica per le route QR (es. `https://hub.cnovicrom.local/assets/public/<token>/`) invece dello scheme visto dalla request interna IIS/Waitress.
-- La creazione automatica e controllata da `SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED` (default `false`) e non cambia permessi tenant/sito.
-- Le impostazioni `SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED`, `SHAREPOINT_ASSET_ALLOWED_ROOT_NAME`, `SHAREPOINT_ASSET_ALLOWED_ROOT_DRIVE_ID`, `SHAREPOINT_ASSET_ALLOWED_ROOT_ITEM_ID`, `SHAREPOINT_ASSET_SITE_ID` e `SHAREPOINT_ASSET_DRIVE_ID` sono gestibili sia dal pannello centrale `/admin-portale/hub/setup-wizard/#sec-graph` sia dalla tab configurazione di `/assets/impostazioni/`; entrambe le pagine salvano le stesse chiavi `.env`.
-- Sono eleggibili solo cartelle asset verificabili sotto `SHAREPOINT_ASSET_ALLOWED_ROOT_NAME` (default `ASSET CN`), con `sharepoint_drive_id` e `sharepoint_item_id`.
-- Riconversione asset esistenti:
+## QR asset
+- Il QR stampato punta alla landing pubblica `/assets/qr/pub/<public_qr_token>/` (sola lettura, senza login); `?target=detail` forza la scheda autenticata.
+- Se `SITE_URL` e configurato, i PDF etichetta usano quella base canonica per le route QR (es. `https://hub.cnovicrom.local/assets/qr/pub/<token>/`) invece dello scheme visto dalla request interna IIS/Waitress.
+- Con `public_qr_enabled=False` la landing risponde 404.
 
-```bash
-python manage.py assets_ensure_public_share_links --dry-run
-python manage.py assets_ensure_public_share_links --apply --only-missing
-python manage.py assets_ensure_public_share_links --apply --asset-tag "APLCP142-MATR.PI-I-2286"
-```
+## Archivio documenti
+- I documenti asset (specifiche, manuali, interventi + eventuali cartelle extra per categoria) sono archiviati **solo in locale**, in `ASSETS_PRIVATE_ROOT`, cifrati at-rest e serviti da view protette (`/assets/documenti/<id>/download/`, oppure la view a token per il QR pubblico). Nessuna copia su servizi esterni.
 
 Import dedicato:
 

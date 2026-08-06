@@ -28,13 +28,6 @@
 .wmf-doc-row-grid { display:grid; gap:10px; grid-template-columns:1.2fr 1.5fr .8fr .8fr auto; align-items:end; }
 .wmf-doc-row label { display:grid; gap:6px; color:#334155; font-size: var(--fs-sm); font-weight:700; }
 .wmf-upload-block { border-top:1px solid #dbe1ea; padding-top:10px; display:grid; gap:10px; }
-.wmf-upload-storage { border:1px solid #dbe1ea; border-radius:12px; background:#f8fafc; padding:12px; display:grid; gap:8px; }
-.wmf-upload-storage-title { font-size: var(--fs-base); color:#334155; font-weight:800; }
-.wmf-upload-storage-options { display:flex; gap:8px; flex-wrap:wrap; }
-.wmf-upload-choice {
-  border:1px solid #dbe1ea; border-radius:10px; background:#fff; padding:8px 10px;
-  display:inline-flex; align-items:center; gap:7px; color:#334155; font-size:var(--fs-sm); font-weight:700; cursor:pointer;
-}
 .wmf-upload-list { display:grid; gap:8px; }
 .wmf-upload-item { border:1px solid #dbe1ea; border-radius:10px; background:#fff; padding:10px 12px; display:grid; gap:6px; }
 .wmf-upload-top { display:flex; justify-content:space-between; gap:10px; align-items:center; flex-wrap:wrap; }
@@ -293,42 +286,25 @@
     <article class="wmf-card">
       <div class="wmf-card-head">
         <div>
-          <h2>Archivio SharePoint e QR</h2>
-          <p>Collega la cartella macchina e genera l'etichetta QR stampabile.</p>
+          <h2>Planimetria e QR</h2>
+          <p>Inserisci la macchina in piantina e genera l'etichetta QR stampabile.</p>
         </div>
       </div>
       <div class="wmf-card-body">
         <div class="wmf-fields">
           {% for field in form %}
-            {% if field.name in sharepoint_field_names %}
-              {% if field.name == 'sharepoint_auto_folder' or field.name == 'include_in_plant_layout' %}
-                <label class="wmf-check" for="{{ field.id_for_label }}">
-                  {{ field }}
-                  <span>{{ field.label }}</span>
-                </label>
-                {% if field.errors %}<div class="wmf-error">{{ field.errors }}</div>{% endif %}
-              {% else %}
-              <div class="wmf-field {% if field.name == 'sharepoint_folder_url' %}wide{% endif %}" data-sharepoint-advanced>
-                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {% if field.name in layout_field_names %}
+              <label class="wmf-check" for="{{ field.id_for_label }}">
                 {{ field }}
-                {% if field.help_text %}<div class="wmf-help">{{ field.help_text }}</div>{% endif %}
-                {% if field.errors %}<div class="wmf-error">{{ field.errors }}</div>{% endif %}
-              </div>
-              {% endif %}
+                <span>{{ field.label }}</span>
+              </label>
+              {% if field.errors %}<div class="wmf-error">{{ field.errors }}</div>{% endif %}
             {% endif %}
           {% endfor %}
-        </div>
-        <div class="wmf-inline-note">Con la cartella automatica basta salvare: il portale crea "ASSET CN/&lt;tag asset&gt;" con le sottocartelle manuali, specifiche e interventi. I campi manuali servono solo per eccezioni.</div>
-        <div class="wmf-inline-note" style="padding:10px 12px;border:1px solid #dbe1ea;border-radius:10px;background:#f8fafc;">
-          Percorso previsto: <code data-sharepoint-preview>-</code>
         </div>
         {% if asset %}
           <div class="wmf-inline-actions">
             <a class="btn btn-secondary" href="{% url 'assets:asset_qr_label' asset.id %}" target="_blank" rel="noopener">QR scheda</a>
-            {% if asset.sharepoint_folder_url %}
-              <a class="btn" href="{{ asset.sharepoint_folder_url }}" target="_blank" rel="noopener">Apri cartella</a>
-              <a class="btn" href="{% url 'assets:asset_qr_label' asset.id %}?target=sharepoint" target="_blank" rel="noopener">QR SharePoint</a>
-            {% endif %}
             {% if asset_label_designer_url %}
               <a class="btn" href="{{ asset_label_designer_url }}">Personalizza etichetta</a>
             {% endif %}
@@ -345,20 +321,6 @@
         </div>
       </div>
       <div class="wmf-card-body">
-        <div class="wmf-upload-storage">
-          <div class="wmf-upload-storage-title">Destinazione nuovi file</div>
-          <div class="wmf-upload-storage-options" aria-label="Destinazione nuovi file">
-            <label class="wmf-upload-choice">
-              <input type="radio" name="asset_document_storage" value="local">
-              Locale
-            </label>
-            <label class="wmf-upload-choice">
-              <input type="radio" name="asset_document_storage" value="sharepoint" checked>
-              SharePoint
-            </label>
-          </div>
-          <div class="wmf-help">Locale mantiene i file nel portale. SharePoint crea la cartella, se necessario, e sincronizza i nuovi file via Graph mantenendo il fallback locale.</div>
-        </div>
         <div class="wmf-doc-grid">
           {% for field_name, meta in document_field_map.items %}
             <section class="wmf-doc-section" data-doc-editor data-doc-label="{{ meta.1 }}">
@@ -382,14 +344,13 @@
                       {% for doc in uploaded_list %}
                         <div class="wmf-upload-item">
                           <div class="wmf-upload-top">
-                            <a href="{% if doc.sharepoint_url %}{{ doc.sharepoint_url }}{% else %}{% url 'assets:asset_document_download' doc.id %}{% endif %}" target="_blank" rel="noopener">{{ doc.original_name|default:doc.file.name }}</a>
+                            <a href="{% url 'assets:asset_document_download' doc.id %}" target="_blank" rel="noopener">{{ doc.original_name|default:doc.file.name }}</a>
                             <span class="wmf-upload-meta">
                               {{ doc.created_at|date:"d-m-Y H:i" }}
                               {% if doc.uploaded_by %} · {{ doc.uploaded_by.get_full_name|default:doc.uploaded_by.username }}{% endif %}
                             </span>
                           </div>
                           {% if doc.notes %}<div class="wmf-upload-meta">{{ doc.notes }}</div>{% endif %}
-                          {% if doc.sharepoint_path %}<div class="wmf-upload-meta">SharePoint: {{ doc.sharepoint_path }}</div>{% endif %}
                           <label class="wmf-upload-remove">
                             <input type="checkbox" name="remove_document_ids" value="{{ doc.id }}">
                             Rimuovi questo file
@@ -447,7 +408,6 @@
 
 {% block assets_shell_scripts %}
 {{ assignment_employee_details|json_script:"asset-assignment-employees" }}
-{{ sharepoint_preview_config|json_script:"asset-sharepoint-preview-config" }}
 <script>
 (function () {
   const categorySelect = document.getElementById("{{ form.asset_category.id_for_label }}");
@@ -641,36 +601,6 @@
   if (departmentInput) departmentInput.addEventListener("change", applyDepartment);
   toggleAssignmentMode();
 
-  const autoSharePoint = document.getElementById("id_sharepoint_auto_folder");
-  const advancedSharePoint = Array.from(document.querySelectorAll("[data-sharepoint-advanced]"));
-  const previewNode = document.querySelector("[data-sharepoint-preview]");
-  const previewConfigNode = document.getElementById("asset-sharepoint-preview-config");
-  const previewConfig = previewConfigNode ? JSON.parse(previewConfigNode.textContent || "{}") : {};
-  const repartoInput = document.getElementById("id_reparto");
-  const assetTag = "{{ asset.asset_tag|default:'' }}";
-  function cleanSegment(value, fallback) {
-    const cleaned = String(value || "").replace(/[\\/:*?"<>|#%{}~&]+/g, "-").trim().replace(/^\.+|\.+$/g, "");
-    return cleaned || fallback || "";
-  }
-  function refreshSharePointPreview() {
-    if (!previewNode) return;
-    const root = String(previewConfig.root_path || "").replace(/^\/+|\/+$/g, "");
-    const folderName = cleanSegment(assetTag, previewConfig.fallback_asset_tag || "tag-asset");
-    previewNode.textContent = [root, folderName].filter(Boolean).join("/");
-  }
-  function toggleSharePointAdvanced() {
-    const hidden = autoSharePoint && autoSharePoint.checked;
-    advancedSharePoint.forEach(function (node) { node.style.display = hidden ? "none" : ""; });
-    refreshSharePointPreview();
-  }
-  if (autoSharePoint) {
-    autoSharePoint.addEventListener("change", toggleSharePointAdvanced);
-    toggleSharePointAdvanced();
-  }
-  [repartoInput].forEach(function (input) {
-    if (input) input.addEventListener("input", refreshSharePointPreview);
-  });
-  refreshSharePointPreview();
 })();
 </script>
 {% endblock %}

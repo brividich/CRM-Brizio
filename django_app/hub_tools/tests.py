@@ -272,7 +272,6 @@ class HubSetupWizardEnvTests(TestCase):
                     "LDAP_ENABLED=yes",
                     "SESSION_EXPIRE_AT_BROWSER_CLOSE=True",
                     "EMAIL_USE_TLS=False",
-                    "SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED=yes",
                 ]
             ),
             encoding="utf-8",
@@ -288,41 +287,8 @@ class HubSetupWizardEnvTests(TestCase):
         self.assertEqual(response.context["env"]["DB_TRUST_CERT"], "1")
         self.assertEqual(response.context["env"]["LDAP_ENABLED"], "1")
         self.assertEqual(response.context["env"]["EMAIL_USE_TLS"], "0")
-        self.assertEqual(response.context["env"]["SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED"], "1")
         self.assertContains(response, 'id="f_db_trust_cert" checked')
         self.assertContains(response, 'id="f_ldap_enabled" checked')
-        self.assertContains(response, 'id="f_sharepoint_asset_public_links_enabled" checked')
-
-    def test_setup_wizard_renders_asset_sharepoint_public_link_fields(self):
-        self.env_path.write_text(
-            "\n".join(
-                [
-                    "ASSETS_SHAREPOINT_LIBRARY_URL=https://contoso.sharepoint.com/sites/assets",
-                    "SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED=true",
-                    "SHAREPOINT_ASSET_ALLOWED_ROOT_NAME=ASSET CN",
-                    "SHAREPOINT_ASSET_ALLOWED_ROOT_DRIVE_ID=drive-root",
-                    "SHAREPOINT_ASSET_ALLOWED_ROOT_ITEM_ID=item-root",
-                    "SHAREPOINT_ASSET_SITE_ID=site-assets",
-                    "SHAREPOINT_ASSET_DRIVE_ID=drive-assets",
-                ]
-            ),
-            encoding="utf-8",
-        )
-
-        with (
-            self._admin_access(),
-            patch("hub_tools.views._ENV_PATH", self.env_path),
-        ):
-            response = self.client.get(reverse("hub_tools:hub_setup_wizard"))
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Asset / QR pubblici SharePoint")
-        self.assertContains(response, 'id="f_assets_sharepoint_library_url" value="https://contoso.sharepoint.com/sites/assets"', html=False)
-        self.assertContains(response, 'id="f_sharepoint_asset_allowed_root_name" value="ASSET CN"', html=False)
-        self.assertContains(response, 'id="f_sharepoint_asset_allowed_root_drive_id" value="drive-root"', html=False)
-        self.assertContains(response, 'id="f_sharepoint_asset_allowed_root_item_id" value="item-root"', html=False)
-        self.assertContains(response, 'id="f_sharepoint_asset_site_id" value="site-assets"', html=False)
-        self.assertContains(response, 'id="f_sharepoint_asset_drive_id" value="drive-assets"', html=False)
 
     def test_reconfigure_preserves_db_trust_cert_when_field_is_missing(self):
         self.env_path.write_text(
@@ -429,56 +395,6 @@ class HubSetupWizardEnvTests(TestCase):
         updated = load_env_file_values(self.env_path)
         self.assertEqual(updated["NAVIGATION_REGISTRY_ENABLED"], "0")
         self.assertEqual(updated["NAVIGATION_LEGACY_FALLBACK_ENABLED"], "1")
-
-    def test_reconfigure_saves_asset_sharepoint_public_link_settings(self):
-        self.env_path.write_text(
-            "\n".join(
-                [
-                    "DJANGO_SECRET_KEY=test-secret",
-                    "GRAPH_TENANT_ID=tenant-old",
-                    "GRAPH_CLIENT_SECRET=keep-secret",
-                    "SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED=false",
-                    "SHAREPOINT_ASSET_ALLOWED_ROOT_NAME=ASSET CN",
-                ]
-            ),
-            encoding="utf-8",
-        )
-
-        with (
-            self._admin_access(),
-            patch("hub_tools.views._ENV_PATH", self.env_path),
-            patch("hub_tools.views.update_env_file_values", side_effect=self._update_env_without_process),
-        ):
-            response = self.client.post(
-                reverse("hub_tools:hub_api_reconfigure"),
-                data=json.dumps(
-                    {
-                        "graph_tenant_id": "tenant-new",
-                        "graph_client_secret": "",
-                        "assets_sharepoint_library_url": "https://contoso.sharepoint.com/sites/assets",
-                        "sharepoint_asset_public_links_enabled": True,
-                        "sharepoint_asset_allowed_root_name": "ASSET CN",
-                        "sharepoint_asset_allowed_root_drive_id": "drive-root-new",
-                        "sharepoint_asset_allowed_root_item_id": "item-root-new",
-                        "sharepoint_asset_site_id": "site-assets-new",
-                        "sharepoint_asset_drive_id": "drive-assets-new",
-                    }
-                ),
-                content_type="application/json",
-            )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.json()["ok"])
-        updated = load_env_file_values(self.env_path)
-        self.assertEqual(updated["GRAPH_TENANT_ID"], "tenant-new")
-        self.assertEqual(updated["GRAPH_CLIENT_SECRET"], "keep-secret")
-        self.assertEqual(updated["ASSETS_SHAREPOINT_LIBRARY_URL"], "https://contoso.sharepoint.com/sites/assets")
-        self.assertEqual(updated["SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED"], "1")
-        self.assertEqual(updated["SHAREPOINT_ASSET_ALLOWED_ROOT_NAME"], "ASSET CN")
-        self.assertEqual(updated["SHAREPOINT_ASSET_ALLOWED_ROOT_DRIVE_ID"], "drive-root-new")
-        self.assertEqual(updated["SHAREPOINT_ASSET_ALLOWED_ROOT_ITEM_ID"], "item-root-new")
-        self.assertEqual(updated["SHAREPOINT_ASSET_SITE_ID"], "site-assets-new")
-        self.assertEqual(updated["SHAREPOINT_ASSET_DRIVE_ID"], "drive-assets-new")
 
 
 class HubDatabaseRestoreSecurityTests(TestCase):
