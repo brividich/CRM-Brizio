@@ -20,6 +20,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
   **Effetto sui QR**: l'etichetta punta ora sempre alla landing pubblica `/assets/qr/pub/<token>/`; il valore legacy `?target=sharepoint` viene trattato come `landing`, quindi i QR gia stampati continuano a funzionare.
 
+### Fixed
+
+- **Formazione · subnav Anagrafica HR ripristinata su `/anagrafica/formazione/scansioni/impostazioni/`** (`django_app/anagrafica/templates/anagrafica/pages/formazione_scansioni_impostazioni.html`). La pagina non dichiarava `{% block subnav %}`, quindi `core/base.html` cadeva sulla navigazione di default e la barra risultava diversa da tutte le altre pagine del modulo. Aggiunta l'inclusione di `anagrafica/components/subnav.html` come nelle pagine sorelle (corsi, sessioni, scadenzario, istruttori).
+
 ### Changed
 
 - **Assets · il piano apre il rapporto gia predisposto, non un nuovo intervento** (`django_app/assets/views.py`, `templates/assets/pages/asset_detail.html`, `assets/tests.py`). Nel `Registro manutenzione` la scheda asset cerca l'OdL aperto della coppia asset/regola e porta il manutentore direttamente a `Compila e chiudi rapporto`, con giornate, tempo ed esito formale. Se il job automatico non lo ha ancora generato, `Genera rapporto` crea in modo idempotente un solo OdL periodico dal template effettivo, copia la checklist e apre subito la chiusura; click ripetuti riutilizzano lo stesso rapporto.
