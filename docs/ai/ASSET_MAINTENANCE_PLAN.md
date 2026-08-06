@@ -40,7 +40,7 @@ Contratto di ingresso OdL: un `WorkOrder` richiede sempre un asset. Ogni CTA glo
 
 Contratto contestuale dello scadenzario: una riga `MaintenanceRule` passa `rule=<id>`; una riga `PeriodicVerification` passa `periodic=<id>`. In entrambi i casi il form OdL deve precompilare la relazione reale e salvare `origin=PERIODIC`, non limitarsi a copiare il titolo.
 
-La stessa regola vale nella scheda asset: ogni riga di `asset_schedule_rows`, incluso lo stato `missing`/prima esecuzione, deve esporre il proprio `workorder_create_url` con `asset + rule`. La baseline nasce dalla chiusura dell'OdL; non va usata come motivo per nascondere la creazione dell'intervento.
+Nella scheda asset il piano non deve chiedere al manutentore di ricreare il lavoro: ogni riga di `asset_schedule_rows`, incluso lo stato `missing`/prima esecuzione, cerca prima l'OdL `OPEN` della coppia `asset + rule` generato dal piano e apre direttamente la chiusura formale. Solo come recupero, se il job schedulato non lo ha ancora predisposto, un POST idempotente genera lo stesso OdL periodico dal template effettivo, copia la checklist e porta alla chiusura; non passa dal form generico `Nuovo intervento` e non duplica rapporti aperti.
 
 ## 3. Spunti da CMMS open-source / commerciali
 

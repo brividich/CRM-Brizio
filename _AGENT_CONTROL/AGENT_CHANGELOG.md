@@ -3,14 +3,14 @@
 ## 2026-08-06 - Codex
 
 - Area: `django_app/assets`, Registro manutenzione nella scheda asset.
-- Richiesta: creare l'intervento relativo direttamente dalla tabella `Manutenzione pianificata` mostrata nel dettaglio asset.
+- Richiesta: trattare la manutenzione pianificata come rapporto di lavoro gia predisposto dal piano, che il manutentore deve compilare e chiudere, non come nuovo intervento da ricreare.
 - File modificati: `django_app/assets/views.py`, `django_app/assets/templates/assets/pages/asset_detail.html`, `django_app/assets/tests.py`, `README.md`, `django_app/assets/README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/ASSET_MAINTENANCE_PLAN.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
 - File critici modificati: nessuno; nessuna modifica a URL, routing, ACL, middleware, settings, autenticazione, permessi o navigazione globale. `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente.
-- Motivo tecnico: `asset_schedule_rows` conteneva gia asset, regola e stato, ma il template mostrava solo cinque colonne informative; non esponeva il form OdL contestuale gia supportato dal backend.
-- Modifica: aggiunto `workorder_create_url` per ogni riga; CTA nel riepilogo `Prossima manutenzione` e nuova colonna `Azioni` nella tabella; valido anche per `Prima esecuzione da pianificare`.
-- Impatto previsto: dalla schermata mostrata dall'utente si apre direttamente il form OdL con asset, regola, tipo preventiva, titolo e istruzioni precompilati.
-- Rischi residui: micro-regolazioni responsive possibili con viewport molto strette; la tabella usa gia il contenitore scrollabile esistente.
-- Test/check: 2 test mirati su scheda asset -> form precompilato e prefill da regola OK; `manage.py check assets`, `makemigrations --check --dry-run`, template load e `git diff --check` OK.
+- Motivo tecnico: il generatore periodico crea gia un OdL aperto e idempotente per asset/regola, ma la scheda asset ignorava quel rapporto e portava sempre al form di creazione, duplicando concettualmente una fase gia svolta.
+- Modifica: le righe sono arricchite con l'OdL aperto esistente e il CTA `Compila e chiudi rapporto`; il fallback POST `Genera rapporto` serializza sulla regola, riusa eventuali OdL aperti e, solo se assenti, crea l'OdL periodico dal template effettivo con checklist, log e notifica, quindi apre direttamente la chiusura.
+- Impatto previsto: il manutentore lavora sul rapporto gia predisposto dal piano; giornate, tempo, esito, risoluzione e allegati vengono consuntivati nel passaggio di chiusura esistente.
+- Rischi residui: se esistono duplicati aperti storici, la scheda apre il piu vecchio e non ne crea altri; la bonifica dei duplicati pregressi resta fuori perimetro.
+- Test/check: test mirato su generazione, redirect alla chiusura, riuso idempotente e rendering dell'OdL aperto OK; Django system check e `git diff --check` OK.
 - Backup creati: nessuno; nessuna migration.
 - README/CHANGELOG: aggiornati.
 - Note operative: lavoro isolato nel worktree dedicato; modifiche non correlate del checkout condiviso preservate.

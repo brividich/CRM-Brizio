@@ -15,9 +15,9 @@
 
 - **[ux/test] `anagrafica/templates/anagrafica/pages/formazione_dashboard.html`, `anagrafica/tests_formazione_scansioni_log.py`**: il **registro delle letture scansioni** esisteva solo per chi ne conosceva l'indirizzo — e una pagina che si apre solo a memoria non esiste. Aggiunto il riquadro **«Registro letture scansioni»** in «Aree del modulo» della home Formazione, dopo «Plan», gated `can_edit_formazione` come il resto delle azioni di modifica: offrire una porta che poi rimbalza è peggio che non offrirla. 2 test (presente per chi può gestire la formazione, assente per gli altri).
 
-### Assets - crea OdL dalla scheda asset
+### Assets - rapporto pianificato gia pronto dalla scheda asset
 
-- **[fix/ux/test] `assets/views.py`, `assets/templates/assets/pages/asset_detail.html`, `assets/tests.py`**: nella card `Registro manutenzione`, la tabella `Manutenzione pianificata` ha ora una colonna `Azioni` con `Crea intervento` per ogni regola effettiva dell'asset, inclusi gli stati senza prima esecuzione. Il CTA e' presente anche nel riepilogo `Prossima manutenzione` e apre il form guidato con asset, regola, tipo e contenuti del piano precompilati.
+- **[fix/ux/test] `assets/views.py`, `assets/templates/assets/pages/asset_detail.html`, `assets/tests.py`**: nella card `Registro manutenzione`, ogni regola effettiva mostra l'OdL aperto gia generato dal piano e porta direttamente al form formale `Compila e chiudi rapporto`. Il fallback `Genera rapporto` non apre il form di creazione generico: crea una sola volta l'OdL periodico dal template effettivo, con assegnatario, fornitore e checklist, quindi reindirizza alla chiusura; richieste ripetute riusano l'OdL aperto esistente.
 
 ### Assets - crea OdL dalla scadenza periodica
 
