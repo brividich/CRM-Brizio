@@ -1,6 +1,6 @@
 """Elabora a mano la cartella di acquisizione dei fogli firme.
 
-Lo stesso lavoro che gira ogni 5 minuti, lanciabile dal server: serve a provare
+Lo stesso lavoro che gira ogni 2 minuti, lanciabile dal server: serve a provare
 la configurazione appena impostata (la share si raggiunge? l'utente del servizio
 ci arriva?) senza aspettare il giro successivo, e a smaltire un arretrato.
 """

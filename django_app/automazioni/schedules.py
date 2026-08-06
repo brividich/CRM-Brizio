@@ -98,7 +98,7 @@ SCHEDULES: list[dict] = [
         "name": "intake_scansioni_formazione",
         "func": "anagrafica.tasks.run_intake_scansioni_formazione",
         "schedule_type": "I",   # Schedule.MINUTES (django-q2 non supporta SECONDS)
-        "minutes": 5,           # la carta non ha fretta
+        "minutes": 2,           # abbastanza spesso da sembrare immediato
         "repeats": -1,
         "kwargs": {},
     },

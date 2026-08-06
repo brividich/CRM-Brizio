@@ -53,3 +53,32 @@ class ScadenzeScheduleRegistrationTests(SimpleTestCase):
             self.assertEqual(spec["func"], func, sched_name)
             self.assertIn(spec["schedule_type"], ("C", "I"), sched_name)
             self.assertEqual(spec.get("repeats", -1), -1, sched_name)
+
+
+class IntakeScansioniScheduleTest(SimpleTestCase):
+    """L'acquisizione dei fogli firme dev'essere agganciata allo scheduler.
+
+    Senza registrazione in ``automazioni.schedules`` il meccanismo esisterebbe
+    ma non girerebbe mai, e nessuno se ne accorgerebbe: la cartella resterebbe
+    piena e il portale vuoto.
+    """
+
+    def test_lo_schedule_e_registrato(self):
+        spec = spec_by_name("intake_scansioni_formazione")
+        self.assertIsNotNone(spec, "schedule non registrata: setup_q_schedules non la attiverebbe")
+        self.assertEqual(spec["func"], "anagrafica.tasks.run_intake_scansioni_formazione")
+
+    def test_la_cadenza_e_in_minuti(self):
+        """django-q2 non supporta i SECONDI: con "S" il cluster va in crash."""
+        spec = spec_by_name("intake_scansioni_formazione")
+        self.assertEqual(spec["schedule_type"], "I")
+        self.assertEqual(spec["minutes"], 2)
+
+    def test_il_wrapper_esiste_ed_e_fail_safe(self):
+        from anagrafica import tasks
+
+        with mock.patch("anagrafica.services.intake_scansioni.elabora_cartella",
+                        side_effect=RuntimeError("share sparita")):
+            esito = tasks.run_intake_scansioni_formazione()
+
+        self.assertFalse(esito["ok"], "un guasto non deve propagarsi al cluster")
