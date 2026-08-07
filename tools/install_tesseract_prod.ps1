@@ -10,7 +10,9 @@
   legge nessun campo.
 
   Lo script fa, in quest'ordine:
-    1. mette Tesseract sull'host (copia portable oppure installer gia' scaricato);
+    1. mette Tesseract sull'host — SCARICANDOLO da internet (-Scarica), copiando
+       una cartella portable (-SorgentePortable) o eseguendo un installer gia'
+       presente (-Installer);
     2. verifica che il pacchetto lingua 'ita' ci sia davvero;
     3. scrive TESSERACT_CMD e TESSDATA_PREFIX nel .env PERSISTENTE (con backup);
     4. concede lettura+esecuzione all'identita' dell'app-pool;
@@ -32,11 +34,27 @@
   'tesseract-bin' dell'eseguibile portable). Se indicata, viene copiata in
   -Destinazione e non serve nessun installer.
 
+.PARAMETER Scarica
+  SCARICA Tesseract da internet direttamente sull'host: prende l'ultimo installer
+  UB-Mannheim per Windows a 64 bit e, subito dopo, il file lingua 'ita' dal
+  repository ufficiale tessdata. E' la strada da usare quando sul server non c'e'
+  ne' la cartella portable ne' un installer gia' copiato.
+  RICHIEDE che l'host abbia accesso a internet (anche via proxy di sistema).
+
 .PARAMETER Installer
   Percorso di un installer UB-Mannheim gia' scaricato (tesseract-ocr-w64-setup-*.exe),
-  da usare quando non si ha la copia portable. Viene eseguito in modo silenzioso.
-  ATTENZIONE: l'installazione silenziosa NON include le lingue aggiuntive; se
-  'ita' manca, lo script lo dice e si ferma prima di scrivere il .env.
+  da usare quando l'host NON ha accesso a internet. Viene eseguito in modo silenzioso.
+  L'installazione silenziosa non porta con se' le lingue aggiuntive: se 'ita' manca
+  e non e' consentito scaricarlo, lo script lo dice e si ferma prima di scrivere il .env.
+
+.PARAMETER UrlInstaller
+  URL esplicito dell'installer, per saltare il rilevamento automatico della
+  versione piu' recente (utile per bloccarsi su una versione nota).
+
+.PARAMETER HostAtteso
+  Nome dell'host di produzione atteso. Se il computer su cui gira lo script ha un
+  altro nome, compare un avviso: installare sulla macchina sbagliata e' un errore
+  silenzioso che si scopre tardi. Default: PCLOGSYS. Vuoto = nessun controllo.
 
 .PARAMETER Destinazione
   Dove installare/copiare Tesseract. Default: C:\PortaleNovicrom\tools\tesseract
@@ -61,21 +79,32 @@
   Mostra le operazioni senza eseguirle.
 
 .EXAMPLE
-  # Strada consigliata: riusa la build gia' validata
+  # Scarica tutto da internet e configura (host con accesso alla rete)
+  .\install_tesseract_prod.ps1 -Scarica
+
+.EXAMPLE
+  # Strada consigliata quando la si ha: riusa la build gia' validata
   .\install_tesseract_prod.ps1 -SorgentePortable '\\pcufficio\condivisa\tesseract-bin'
 
 .EXAMPLE
-  # Con installer scaricato a parte
+  # Host senza internet, con installer copiato a mano
   .\install_tesseract_prod.ps1 -Installer 'C:\temp\tesseract-ocr-w64-setup-5.5.0.exe'
 
 .EXAMPLE
   # Solo verifica di un host gia' configurato
   .\install_tesseract_prod.ps1 -DryRun
+
+.EXAMPLE
+  # Da un'altra macchina, senza copiare lo script sul server
+  Invoke-Command -ComputerName PCLOGSYS -FilePath .\install_tesseract_prod.ps1 -ArgumentList @()
 #>
 [CmdletBinding()]
 param(
     [string]$SorgentePortable,
+    [switch]$Scarica,
     [string]$Installer,
+    [string]$UrlInstaller,
+    [string]$HostAtteso     = 'PCLOGSYS',
     [string]$Destinazione    = 'C:\PortaleNovicrom\tools\tesseract',
     [string]$EnvPath         = 'C:\PortaleNovicrom\prod\config\.env',
     [string]$AppPool         = 'PortaleNovicrom',
@@ -92,6 +121,68 @@ function Ok    { param($m) Write-Host "  OK  $m" -ForegroundColor Green }
 function Avviso{ param($m) Write-Host "  !   $m" -ForegroundColor Yellow }
 function Fatale{ param($m) Write-Host "  X   $m" -ForegroundColor Red; exit 1 }
 function Farebbe { param($m) Write-Host "  ~   [dry-run] $m" -ForegroundColor DarkGray }
+
+# Dove stanno le cose, in chiaro: se un domani un indirizzo cambia, si corregge
+# qui e non dentro la logica.
+$UrlListaInstaller = 'https://digi.bib.uni-mannheim.de/tesseract/'
+$UrlLinguaIta      = 'https://github.com/tesseract-ocr/tessdata/raw/main/ita.traineddata'
+
+function Inizializza-Rete {
+    # TLS moderno e proxy di sistema: su Windows Server il default puo' non bastare.
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = `
+            [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
+    } catch {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    }
+    # Molti server escono solo via proxy autenticato con le credenziali di dominio.
+    try {
+        [Net.WebRequest]::DefaultWebProxy.Credentials = `
+            [Net.CredentialCache]::DefaultNetworkCredentials
+    } catch { }
+    # La barra di avanzamento di Invoke-WebRequest rallenta i download di ordini
+    # di grandezza su PowerShell 5: spegnerla non e' estetica.
+    $global:ProgressPreference = 'SilentlyContinue'
+}
+
+function Scarica-File {
+    param([string]$Url, [string]$Destinazione, [string]$Descrizione)
+    Info "Scarico $Descrizione..."
+    Info "  da $Url"
+    try {
+        Invoke-WebRequest -Uri $Url -OutFile $Destinazione -UseBasicParsing -TimeoutSec 300
+    } catch {
+        Fatale ("Download fallito ($Descrizione): " + $_.Exception.Message + "`n" +
+                "      Se l'host non ha accesso a internet, scarica il file altrove e usa " +
+                "-Installer (per l'eseguibile) copiando a mano ita.traineddata in tessdata.")
+    }
+    if (-not (Test-Path $Destinazione)) { Fatale "File non scaricato: $Descrizione" }
+    $mb = [math]::Round((Get-Item $Destinazione).Length / 1MB, 1)
+    Ok "$Descrizione scaricato ($mb MB)"
+}
+
+function Trova-UltimoInstaller {
+    # Ultimo tesseract-ocr-w64-setup-*.exe pubblicato da UB Mannheim.
+    Info "Cerco l'ultima versione su $UrlListaInstaller"
+    try {
+        $pagina = Invoke-WebRequest -Uri $UrlListaInstaller -UseBasicParsing -TimeoutSec 60
+    } catch {
+        Fatale ("Elenco versioni non raggiungibile: " + $_.Exception.Message + "`n" +
+                "      Usa -UrlInstaller con un indirizzo esplicito, oppure -Installer con un file gia' scaricato.")
+    }
+    $nomi = [regex]::Matches($pagina.Content, 'tesseract-ocr-w64-setup-[0-9][^"''<>\s]*\.exe') |
+            ForEach-Object { $_.Value } | Sort-Object -Unique
+    if (-not $nomi) {
+        Fatale "Nessun installer w64 trovato nell'elenco. Usa -UrlInstaller con un indirizzo esplicito."
+    }
+    # I nomi contengono versione e data (5.4.0.20240606): l'ordinamento testuale
+    # mette per ultimo il piu' recente. LIMITE NOTO: e' un ordinamento di stringhe,
+    # quindi il giorno in cui uscisse una 5.10 verrebbe messa prima della 5.9.
+    # Per bloccarsi su una versione precisa c'e' -UrlInstaller.
+    $scelto = $nomi | Sort-Object | Select-Object -Last 1
+    Ok "Versione individuata: $scelto"
+    return ($UrlListaInstaller.TrimEnd('/') + '/' + $scelto)
+}
 
 Write-Host "`n=== Tesseract OCR per l'acquisizione referti — NOVICROM HUB ===" -ForegroundColor White
 if ($DryRun) { Avviso "Modalita' DRY-RUN: nessuna modifica verra' applicata." }
@@ -112,8 +203,26 @@ if ($amministratore) {
     Fatale "Servono i diritti di amministratore: la copia dei file, gli ACL e il riavvio dell'app-pool li richiedono."
 }
 
-if ($SorgentePortable -and $Installer) {
-    Fatale "Indica -SorgentePortable OPPURE -Installer, non entrambi."
+$modi = @($SorgentePortable, $Installer, $(if ($Scarica) { 'scarica' })) |
+        Where-Object { $_ }
+if ($modi.Count -gt 1) {
+    Fatale "Indica UNA sola fra -SorgentePortable, -Installer e -Scarica."
+}
+
+if ($HostAtteso -and $env:COMPUTERNAME -and
+    $env:COMPUTERNAME.ToUpper() -ne $HostAtteso.ToUpper()) {
+    # Installare sulla macchina sbagliata non da' errore: da' un server che
+    # sembra a posto e un portale che continua a non leggere niente.
+    Avviso "Questo computer si chiama '$env:COMPUTERNAME', non '$HostAtteso'."
+    Avviso "Se e' voluto prosegui pure; altrimenti interrompi ora (Ctrl+C) — hai 5 secondi."
+    if (-not $DryRun) { Start-Sleep -Seconds 5 }
+}
+Info "Host: $env:COMPUTERNAME"
+
+if ($Destinazione -match '\s' -and ($Installer -or $Scarica)) {
+    # L'installer NSIS vuole /D= come ultimo argomento e SENZA virgolette:
+    # con uno spazio nel percorso l'installazione finisce altrove, in silenzio.
+    Fatale "Con -Installer o -Scarica la destinazione non puo' contenere spazi: '$Destinazione'."
 }
 
 # ── 1. Mettere Tesseract sull'host ──────────────────────────────────────────
@@ -144,15 +253,46 @@ if ($SorgentePortable) {
         Ok "Copiato in $Destinazione"
     }
 }
-elseif ($Installer) {
-    if (-not (Test-Path $Installer)) { Fatale "Installer non trovato: $Installer" }
-    if ($DryRun) {
-        Farebbe "esegue '$Installer' in modo silenzioso con destinazione '$Destinazione'"
-    } else {
+elseif ($Installer -or $Scarica) {
+    $daEseguire = $Installer
+    $scaricati  = $null
+
+    if ($Scarica) {
+        if ($DryRun) {
+            Farebbe "scarica l'installer da $UrlListaInstaller e ita.traineddata da GitHub"
+            Farebbe "poi installa in '$Destinazione'"
+        } else {
+            Inizializza-Rete
+            $scaricati = Join-Path $env:TEMP ("tesseract-dl-" + [guid]::NewGuid().ToString('N'))
+            $null = New-Item -ItemType Directory -Force -Path $scaricati
+
+            $url = if ($UrlInstaller) { $UrlInstaller } else { Trova-UltimoInstaller }
+            $daEseguire = Join-Path $scaricati 'tesseract-setup.exe'
+            Scarica-File -Url $url -Destinazione $daEseguire -Descrizione "installer Tesseract"
+        }
+    }
+
+    if (-not $DryRun) {
+        if (-not (Test-Path $daEseguire)) { Fatale "Installer non trovato: $daEseguire" }
         Info "Esecuzione installer (silenziosa)..."
-        $p = Start-Process -FilePath $Installer -ArgumentList "/S", "/D=$Destinazione" -Wait -PassThru
+        # /D= DEVE restare l'ultimo argomento e senza virgolette (regola NSIS).
+        $p = Start-Process -FilePath $daEseguire -ArgumentList "/S", "/D=$Destinazione" -Wait -PassThru
         if ($p.ExitCode -ne 0) { Fatale "Installer uscito con codice $($p.ExitCode)." }
         Ok "Installato in $Destinazione"
+
+        if ($scaricati) {
+            # Il file lingua si scarica SEMPRE quando siamo in modalita' -Scarica:
+            # l'installazione silenziosa non porta con se' le lingue aggiuntive, e
+            # senza 'ita' il riconoscimento dei certificati e' inservibile.
+            $cartellaDati = Join-Path $Destinazione 'tessdata'
+            $null = New-Item -ItemType Directory -Force -Path $cartellaDati
+            Scarica-File -Url $UrlLinguaIta `
+                         -Destinazione (Join-Path $cartellaDati 'ita.traineddata') `
+                         -Descrizione "pacchetto lingua italiano"
+            Remove-Item $scaricati -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    } elseif ($Installer) {
+        Farebbe "esegue '$Installer' in modo silenzioso con destinazione '$Destinazione'"
     }
 }
 else {
@@ -193,9 +333,11 @@ if ($lingue -notcontains 'ita') {
     Info "Lingue presenti: $($lingue -join ', ')"
     Info ""
     Info "I certificati sono in italiano: senza 'ita' il riconoscimento e' inservibile."
-    Info "Rimedio: copiare 'ita.traineddata' in $tessdata"
-    Info "  (installer UB-Mannheim: rieseguirlo spuntando Additional language data -> Italian)"
-    Fatale "Configurazione interrotta prima di scrivere il .env, per non lasciare l'host in uno stato a meta'."
+    Info "Rimedi:"
+    Info "  - host con internet : rilancia con -Scarica (prende anche il file lingua)"
+    Info "  - host senza internet: copia 'ita.traineddata' in $tessdata"
+    Info "    scaricandolo da $UrlLinguaIta"
+    Fatale "Interrotto PRIMA di scrivere il .env: un host con le variabili impostate e la lingua assente sembra configurato e non lo e'."
 }
 Ok "Lingua 'ita' presente."
 
