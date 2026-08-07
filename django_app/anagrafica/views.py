@@ -23,6 +23,7 @@ from django.urls import reverse
 # Alias esplicito: in questo file `timezone` è già importato dentro varie
 # funzioni (come `tz`/`_tz`) e `datetime.timezone` è un'altra cosa ancora.
 from django.utils import timezone as django_timezone
+from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_POST
 
 from django.contrib.auth.decorators import login_required
@@ -3394,6 +3395,18 @@ def widget_permissions(request):
 # Mansione dipendente — set dal catalogo (scrive su legacy DB)
 # ---------------------------------------------------------------------------
 
+def _data_decorrenza(request, campo: str = "data_decorrenza"):
+    """Legge dal POST la data di inizio validità del cambiamento organizzativo.
+
+    Vuota o malformata => nessuna decorrenza esplicita: il chiamante ricade su oggi.
+    """
+    raw = (request.POST.get(campo) or "").strip()
+    if not raw:
+        return None
+    parsed = parse_date(raw)
+    return parsed
+
+
 def _registra_cambiamento(
     legacy_id: int,
     tipo: str,
@@ -3403,22 +3416,28 @@ def _registra_cambiamento(
     data_effetto=None,
     note: str = "",
 ) -> DipendenteCambiamentoOrganizzativo | None:
-    """Crea una riga di storico solo se il valore è effettivamente cambiato.
+    """Apre un nuovo periodo di assegnazione, solo se il valore è cambiato davvero.
 
     Confronto case-insensitive con strip, così micro-edit di whitespace o maiuscole
     non generano voci storiche spurie.
+
+    Il periodo ancora aperto dello stesso tipo viene chiuso al giorno prima della
+    nuova decorrenza, così lo storico resta una sequenza continua di intervalli
+    inizio/fine e una sola riga per tipo risulta "in corso".
     """
     from django.utils import timezone as _tz
     v = (vecchio or "").strip()
     n = (nuovo or "").strip()
     if v.casefold() == n.casefold():
         return None
+    inizio = data_effetto or _tz.localdate()
+    DipendenteCambiamentoOrganizzativo.chiudi_periodo_aperto(legacy_id, tipo, inizio)
     return DipendenteCambiamentoOrganizzativo.objects.create(
         legacy_anagrafica_id=legacy_id,
         tipo=tipo,
         valore_precedente=v[:300],
         valore_nuovo=n[:300],
-        data_effetto=data_effetto or _tz.localdate(),
+        data_effetto=inizio,
         note=note,
         created_by=user if getattr(user, "is_authenticated", False) else None,
     )
@@ -3495,6 +3514,7 @@ def dipendente_mansione_set(request, legacy_id: int):
             DipendenteCambiamentoOrganizzativo.TIPO_MANSIONE,
             mansione_vecchia, mansione_nome,
             request.user,
+            data_effetto=_data_decorrenza(request),
         )
         messages.success(request, f'Mansione aggiornata a "{mansione_nome}".' if mansione_nome else "Mansione rimossa.")
         # E: cambio mansione → ricalcola idoneità e notifica i requisiti mancanti
@@ -3518,6 +3538,7 @@ def dipendente_reparto_set(request, legacy_id: int):
     reparto_nome = (request.POST.get("reparto") or "").strip()[:200]
     area_aziendale_raw = (request.POST.get("area_aziendale") or "").strip()
     area_aziendale_id = int(area_aziendale_raw) if area_aziendale_raw.isdigit() else None
+    decorrenza = _data_decorrenza(request)
 
     rows = fetch_anagrafica_rows(ids=[legacy_id])
     if not rows:
@@ -3545,10 +3566,12 @@ def dipendente_reparto_set(request, legacy_id: int):
             DipendenteCambiamentoOrganizzativo.TIPO_REPARTO,
             reparto_vecchio, reparto_nome,
             request.user,
+            data_effetto=decorrenza,
         )
-        # Auto-fill area aziendale e caporeparto da catalogo
+        # Auto-fill area aziendale e caporeparto da catalogo (storicizza AREA/AREA_AZIENDALE)
         _sync_aziendale_from_reparto(
-            legacy_id, reparto_nome, area_aziendale_id=area_aziendale_id, saved_by=request.user
+            legacy_id, reparto_nome, area_aziendale_id=area_aziendale_id,
+            saved_by=request.user, data_decorrenza=decorrenza,
         )
         messages.success(request, f'Reparto aggiornato a "{reparto_nome}".' if reparto_nome else "Reparto rimosso.")
     except Exception:
@@ -4403,8 +4426,10 @@ def dipendente_anagrafica_aziendale_save(request, legacy_id: int):
     instance, _ = DipendenteAnagraficaAziendale.objects.get_or_create(
         legacy_anagrafica_id=legacy_id
     )
-    area_vecchia = instance.area or ""
     ruolo_az_vecchio = instance.ruolo_aziendale or ""
+    area_vecchia = instance.area or ""
+    area_az_vecchia = instance.area_aziendale.nome if instance.area_aziendale_id else ""
+    decorrenza = _data_decorrenza(request)
 
     form = AnagraficaAziendaleForm(request.POST, instance=instance)
     if form.is_valid():
@@ -4412,20 +4437,19 @@ def dipendente_anagrafica_aziendale_save(request, legacy_id: int):
         obj.legacy_anagrafica_id = legacy_id
         obj.updated_by = request.user
         obj.save()
+        # Storicizza reparto (`area`) e area aziendale: lo fa il sync, unico punto
+        # di scrittura dei due campi.
         _sync_aziendale_from_reparto(
-            legacy_id, obj.area or "", area_aziendale_id=obj.area_aziendale_id, saved_by=request.user
-        )
-        _registra_cambiamento(
-            legacy_id,
-            DipendenteCambiamentoOrganizzativo.TIPO_AREA,
-            area_vecchia, obj.area or "",
-            request.user,
+            legacy_id, obj.area or "", area_aziendale_id=obj.area_aziendale_id,
+            saved_by=request.user, data_decorrenza=decorrenza,
+            area_precedente=area_vecchia, area_aziendale_precedente=area_az_vecchia,
         )
         _registra_cambiamento(
             legacy_id,
             DipendenteCambiamentoOrganizzativo.TIPO_RUOLO_AZIENDALE,
             ruolo_az_vecchio, obj.ruolo_aziendale or "",
             request.user,
+            data_effetto=decorrenza,
         )
         messages.success(request, "Anagrafica aziendale salvata.")
     else:
@@ -5820,7 +5844,9 @@ def _resolve_caporeparto_id(raw: str | None) -> int | None:
 
 
 def _sync_aziendale_from_reparto(
-    legacy_id: int, reparto_nome: str, *, area_aziendale_id: int | None = None, saved_by
+    legacy_id: int, reparto_nome: str, *, area_aziendale_id: int | None = None, saved_by,
+    data_decorrenza=None, area_precedente: str | None = None,
+    area_aziendale_precedente: str | None = None,
 ) -> None:
     """Aggiorna caporeparto_legacy_id e area_aziendale su DipendenteAnagraficaAziendale
     in base al Reparto assegnato. Chiamato ogni volta che il reparto (o l'area) cambia.
@@ -5831,6 +5857,12 @@ def _sync_aziendale_from_reparto(
     sia attiva: un'assegnazione a un'area nel frattempo disattivata resta valida, come
     già avviene per area/ruolo_aziendale (forms.py preserva il valore corrente anche
     se non più nel catalogo "attive").
+
+    Essendo l'unico punto che scrive `area` e `area_aziendale`, è anche il punto in cui
+    si storicizzano i due periodi corrispondenti: chi chiama non deve registrarli.
+    I valori precedenti si leggono dalla riga a DB, salvo che il chiamante li passi
+    esplicitamente — necessario quando ha già salvato la nuova versione della riga
+    (è il caso del form completo di anagrafica aziendale).
     """
     capo_id = None
     rep = None
@@ -5854,11 +5886,32 @@ def _sync_aziendale_from_reparto(
         legacy_anagrafica_id=legacy_id,
         defaults={"updated_by": saved_by},
     )
+    area_vecchia = area_precedente if area_precedente is not None else (az.area or "")
+    area_az_vecchia = (
+        area_aziendale_precedente if area_aziendale_precedente is not None
+        else (az.area_aziendale.nome if az.area_aziendale_id else "")
+    )
     az.area = reparto_nome
     az.caporeparto_legacy_id = capo_id
     az.area_aziendale_id = area_id_valido
     az.updated_by = saved_by
     az.save(update_fields=["area", "caporeparto_legacy_id", "area_aziendale", "updated_by", "updated_at"])
+
+    _registra_cambiamento(
+        legacy_id,
+        DipendenteCambiamentoOrganizzativo.TIPO_AREA,
+        area_vecchia, reparto_nome,
+        saved_by,
+        data_effetto=data_decorrenza,
+    )
+    _registra_cambiamento(
+        legacy_id,
+        DipendenteCambiamentoOrganizzativo.TIPO_AREA_AZIENDALE,
+        area_az_vecchia,
+        AreaAziendale.objects.filter(pk=area_id_valido).values_list("nome", flat=True).first() or "",
+        saved_by,
+        data_effetto=data_decorrenza,
+    )
 
 
 @login_required

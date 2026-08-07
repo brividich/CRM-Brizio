@@ -152,11 +152,11 @@ class LivelloContrattualeAdmin(admin.ModelAdmin):
 @admin.register(DipendenteCambiamentoOrganizzativo)
 class DipendenteCambiamentoOrganizzativoAdmin(admin.ModelAdmin):
     list_display = ("legacy_anagrafica_id", "tipo", "valore_precedente", "valore_nuovo",
-                    "data_effetto", "created_by", "created_at")
-    list_filter = ("tipo", "data_effetto")
+                    "data_effetto", "data_fine", "created_by", "created_at")
+    list_filter = ("tipo", "data_effetto", ("data_fine", admin.EmptyFieldListFilter))
     search_fields = ("legacy_anagrafica_id", "valore_precedente", "valore_nuovo", "note")
     readonly_fields = ("legacy_anagrafica_id", "tipo", "valore_precedente", "valore_nuovo",
-                       "data_effetto", "note", "created_at", "created_by")
+                       "data_effetto", "data_fine", "note", "created_at", "created_by")
     date_hierarchy = "data_effetto"
 
     def has_add_permission(self, request):

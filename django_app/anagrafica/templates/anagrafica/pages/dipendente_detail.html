@@ -895,10 +895,14 @@ body.theme-dark .dp-link-ok { color:#86efac; }
               <select name="area_aziendale" id="mini-area-select" class="dp-select" style="min-width:180px;" data-current="{{ aziendale.area_aziendale_id|default:'' }}">
                 <option value="">— Nessuna area —</option>
               </select>
+              <label style="font-size:11px;color:#64748b;font-weight:600;">Dal
+                <input type="date" name="data_decorrenza" class="dp-select" value="{{ oggi|date:'Y-m-d' }}" style="min-width:140px;">
+              </label>
               <button type="submit" class="dp-btn dp-btn-primary dp-btn-xs">Salva</button>
               <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" onclick="toggleRepartoForm()">Annulla</button>
             </form>
             <div style="font-size:11px;color:#94a3b8;margin-top:2px;">
+              La data «Dal» apre il nuovo periodo nello storico e chiude il precedente.
               Non trovi il reparto? <a href="{% url 'anagrafica:aree_list' %}" style="color:#1f87cd;">Gestisci il catalogo</a>.
             </div>
           </div>
@@ -921,10 +925,14 @@ body.theme-dark .dp-link-ok { color:#86efac; }
                   <option value="{{ dip.mansione }}" selected>{{ dip.mansione }} (attuale)</option>
                 {% endif %}
               </select>
+              <label style="font-size:11px;color:#64748b;font-weight:600;">Dal
+                <input type="date" name="data_decorrenza" class="dp-select" value="{{ oggi|date:'Y-m-d' }}" style="min-width:140px;">
+              </label>
               <button type="submit" class="dp-btn dp-btn-primary dp-btn-xs">Salva</button>
               <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" onclick="toggleMansioneForm()">Annulla</button>
             </form>
             <div style="font-size:11px;color:#94a3b8;margin-top:2px;">
+              La data «Dal» apre il nuovo periodo nello storico e chiude il precedente.
               Non trovi la mansione? <a href="{% url 'anagrafica:mansioni_list' %}" style="color:#1f87cd;">Gestisci il catalogo</a>.
             </div>
           </div>
@@ -997,6 +1005,13 @@ body.theme-dark .dp-link-ok { color:#86efac; }
               <label class="dp-form-label">Caporeparto</label>
               <input type="text" id="az-capo-autofill" class="dp-input" readonly style="background:#f8fafc;color:#64748b;cursor:default;" value="{{ caporeparto_label|default:'' }}">
               <span style="font-size:11px;color:#94a3b8;">Compilata automaticamente dal reparto</span>
+            </div>
+            <div class="dp-form-field">
+              <label class="dp-form-label" for="az-data-decorrenza">Decorrenza cambiamenti organizzativi</label>
+              <input type="date" id="az-data-decorrenza" name="data_decorrenza" class="dp-input" value="{{ oggi|date:'Y-m-d' }}">
+              <span style="font-size:11px;color:#94a3b8;">
+                Data di inizio dei nuovi periodi di reparto, area aziendale e ruolo aziendale nello storico.
+              </span>
             </div>
           </div>
           <div style="display:flex;gap:8px;margin-top:14px;">
@@ -1484,7 +1499,7 @@ body.theme-dark .dp-link-ok { color:#86efac; }
   <div class="dp-card" data-tab="contratto">
     <div class="dp-card-head">
       <div class="dp-card-title">📋 Storico cambiamenti organizzativi</div>
-      <span style="font-size:11px;color:#94a3b8;">Mansione · Reparto · Ruolo aziendale</span>
+      <span style="font-size:11px;color:#94a3b8;">Mansione · Reparto · Area aziendale · Ruolo aziendale</span>
     </div>
     <div class="dp-card-body">
       {% if storico_cambiamenti %}
@@ -1494,13 +1509,15 @@ body.theme-dark .dp-link-ok { color:#86efac; }
         <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs sc-filter-btn" data-tipo="MANSIONE">Mansione</button>
         <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs sc-filter-btn" data-tipo="REPARTO">Reparto (legacy)</button>
         <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs sc-filter-btn" data-tipo="AREA">Reparto</button>
+        <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs sc-filter-btn" data-tipo="AREA_AZIENDALE">Area aziendale</button>
         <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs sc-filter-btn" data-tipo="RUOLO_AZIENDALE">Ruolo</button>
       </div>
       <div style="overflow-x:auto;">
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
           <thead>
             <tr class="dp-tr-head dp-thead-soft">
-              <th class="dp-th-muted" style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;">Data effetto</th>
+              <th class="dp-th-muted" style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;">Dal</th>
+              <th class="dp-th-muted" style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;">Al</th>
               <th class="dp-th-muted" style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;">Tipo</th>
               <th class="dp-th-muted" style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;">Da</th>
               <th class="dp-th-muted" style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;">A</th>
@@ -1511,6 +1528,13 @@ body.theme-dark .dp-link-ok { color:#86efac; }
             {% for c in storico_cambiamenti %}
             <tr class="sc-row" data-tipo="{{ c.tipo }}" style="border-bottom:1px solid #f1f5f9;">
               <td class="dp-td-strong" style="padding:8px 10px;white-space:nowrap;font-weight:600;">{{ c.data_effetto|date:"d-m-Y" }}</td>
+              <td style="padding:8px 10px;white-space:nowrap;">
+                {% if c.data_fine %}
+                  <span class="dp-td-strong" style="font-weight:600;">{{ c.data_fine|date:"d-m-Y" }}</span>
+                {% else %}
+                  <span class="dp-pill dp-pill-green">In corso</span>
+                {% endif %}
+              </td>
               <td style="padding:8px 10px;white-space:nowrap;">
                 <span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;color:#fff;background:{{ c.colore }};">{{ c.get_tipo_display }}</span>
               </td>
@@ -1527,7 +1551,8 @@ body.theme-dark .dp-link-ok { color:#86efac; }
       </div>
       {% else %}
       <div style="padding:20px;text-align:center;color:#94a3b8;font-size:13px;">
-        Nessun cambiamento registrato. Le modifiche a mansione, reparto, area e ruolo aziendale verranno tracciate automaticamente.
+        Nessun cambiamento registrato. Le modifiche a mansione, reparto, area aziendale e ruolo aziendale
+        vengono tracciate automaticamente come periodi con data di inizio e fine.
       </div>
       {% endif %}
     </div>

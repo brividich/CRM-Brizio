@@ -1634,14 +1634,24 @@ class LivelloContrattuale(models.Model):
 
 
 class DipendenteCambiamentoOrganizzativo(models.Model):
-    """Storico cambiamenti organizzativi interni (mansione, reparto, area, ruolo aziendale).
+    """Storico cambiamenti organizzativi interni (mansione, reparto, area
+    aziendale, ruolo aziendale) come **periodi di assegnazione**.
 
-    Generato automaticamente dagli hook delle view di modifica. Lo storico contrattuale
-    CCNL (tipologia contratto, livello, qualifica) vive invece in StoricoContratto.
+    Ogni riga rappresenta l'intervallo in cui ``valore_nuovo`` è stato in
+    vigore per quel ``tipo``: inizia il ``data_effetto`` e finisce il
+    ``data_fine`` (``NULL`` = assegnazione ancora in corso). Quando viene
+    registrato un nuovo cambiamento dello stesso tipo, il periodo aperto
+    precedente viene chiuso al giorno prima della nuova decorrenza — vedi
+    ``chiudi_periodo_aperto``.
+
+    Generato automaticamente dagli hook delle view di modifica. Lo storico
+    contrattuale CCNL (tipologia contratto, livello, qualifica) vive invece in
+    StoricoContratto.
     """
     TIPO_MANSIONE = "MANSIONE"
     TIPO_REPARTO = "REPARTO"
     TIPO_AREA = "AREA"
+    TIPO_AREA_AZIENDALE = "AREA_AZIENDALE"
     TIPO_RUOLO_AZIENDALE = "RUOLO_AZIENDALE"
     TIPO_MATRICOLA = "MATRICOLA"
 
@@ -1649,6 +1659,7 @@ class DipendenteCambiamentoOrganizzativo(models.Model):
         (TIPO_MANSIONE, "Mansione"),
         (TIPO_REPARTO, "Reparto (legacy)"),
         (TIPO_AREA, "Reparto"),
+        (TIPO_AREA_AZIENDALE, "Area aziendale"),
         (TIPO_RUOLO_AZIENDALE, "Ruolo aziendale"),
         (TIPO_MATRICOLA, "Matricola"),
     ]
@@ -1657,6 +1668,7 @@ class DipendenteCambiamentoOrganizzativo(models.Model):
         TIPO_MANSIONE: "#1d4ed8",
         TIPO_REPARTO: "#0891b2",
         TIPO_AREA: "#7c3aed",
+        TIPO_AREA_AZIENDALE: "#0d9488",
         TIPO_RUOLO_AZIENDALE: "#db2777",
         TIPO_MATRICOLA: "#ea580c",
     }
@@ -1666,7 +1678,13 @@ class DipendenteCambiamentoOrganizzativo(models.Model):
     valore_precedente = models.CharField(max_length=300, blank=True, default="")
     valore_nuovo = models.CharField(max_length=300, blank=True, default="")
     data_effetto = models.DateField(
-        help_text="Data da cui vale il nuovo valore (default: oggi)"
+        verbose_name="Data inizio",
+        help_text="Data da cui vale il nuovo valore (default: oggi)",
+    )
+    data_fine = models.DateField(
+        null=True, blank=True,
+        verbose_name="Data fine",
+        help_text="Ultimo giorno in cui il valore è stato in vigore. Vuoto = assegnazione in corso.",
     )
     note = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -1693,6 +1711,37 @@ class DipendenteCambiamentoOrganizzativo(models.Model):
     @property
     def colore(self) -> str:
         return self.TIPO_COLORI.get(self.tipo, "#64748b")
+
+    @property
+    def is_in_corso(self) -> bool:
+        """True se l'assegnazione non è ancora stata chiusa da un cambiamento successivo."""
+        return self.data_fine is None
+
+    @classmethod
+    def chiudi_periodo_aperto(cls, legacy_anagrafica_id: int, tipo: str, data_inizio_nuovo):
+        """Chiude il periodo aperto di quel tipo al giorno prima della nuova decorrenza.
+
+        Se la nuova decorrenza è anteriore (o uguale) all'inizio del periodo aperto —
+        registrazione retroattiva fuori ordine — il periodo viene chiuso alla propria
+        data di inizio, così da non generare intervalli con fine < inizio.
+        Restituisce il numero di righe chiuse (0 o 1).
+        """
+        import datetime as _dt
+
+        aperto = (
+            cls.objects
+            .filter(legacy_anagrafica_id=legacy_anagrafica_id, tipo=tipo, data_fine__isnull=True)
+            .order_by("-data_effetto", "-created_at")
+            .first()
+        )
+        if aperto is None:
+            return 0
+        data_fine = data_inizio_nuovo - _dt.timedelta(days=1)
+        if data_fine < aperto.data_effetto:
+            data_fine = aperto.data_effetto
+        aperto.data_fine = data_fine
+        aperto.save(update_fields=["data_fine"])
+        return 1
 
 
 class StoricoContratto(models.Model):

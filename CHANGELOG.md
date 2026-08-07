@@ -8,6 +8,18 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Added
+
+- **Anagrafica HR · storico organizzativo del dipendente con data di inizio e fine** (`django_app/anagrafica/models.py`, `views.py`, `admin.py`, migration `0105_dipendentecambiamentoorganizzativo_data_fine_and_more.py`, template `anagrafica/pages/dipendente_detail.html`, nuovo `django_app/anagrafica/tests_storico_organizzativo.py`).
+
+  I cambiamenti di **mansione**, **reparto**, **area aziendale** e **ruolo aziendale** non sono piu solo eventi datati: ogni riga di `DipendenteCambiamentoOrganizzativo` e ora un **periodo di assegnazione** con `data_effetto` (inizio) e il nuovo campo `data_fine` (`NULL` = in corso). Aprendo un nuovo periodo, `chiudi_periodo_aperto` chiude quello precedente dello stesso tipo al giorno prima della nuova decorrenza, cosi per ogni tipo resta una sola riga aperta e lo storico e una sequenza continua di intervalli. Una registrazione retroattiva fuori ordine chiude il periodo alla propria data di inizio invece di produrre un intervallo con fine anteriore all'inizio.
+
+  **Area aziendale storicizzata.** Nuovo tipo `AREA_AZIENDALE`: prima i passaggi di area aziendale non lasciavano traccia. La registrazione di reparto e area aziendale e stata spostata dentro `_sync_aziendale_from_reparto`, unico punto che scrive i due campi, cosi nessun percorso di modifica puo saltarla (mini-form rapido, form completo, creazione dipendente). Il form completo salva la riga prima del sync e percio passa i valori precedenti in modo esplicito.
+
+  **Decorrenza scelta da HR.** I form di **Anagrafica aziendale** in scheda dipendente espongono un campo data: «Dal» nei mini-form Reparto e Mansione, «Decorrenza cambiamenti organizzativi» nel form completo (dove si cambia il ruolo aziendale). Il default e la data odierna; una data assente o malformata ricade su oggi. La tabella dello storico mostra le colonne **Dal** / **Al** con il badge «In corso» sul periodo aperto, e il filtro per tipo include Area aziendale.
+
+  La migrazione `0105` fa il **backfill**: le righe gia presenti sono eventi senza chiusura, quindi vengono incatenate per (dipendente, tipo) in ordine cronologico chiudendo ciascuna al giorno prima dell'inizio della successiva, e lasciando aperta l'ultima.
+
 ### Removed
 
 - **Assets · rimossa l'integrazione SharePoint dal modulo asset** (`django_app/assets/views.py`, `models.py`, `forms.py`, `admin.py`, `urls.py`, `tests.py`, migration `0090_remove_sharepoint_fields.py`, template `asset_detail.html`, `asset_form.html`, `work_machine_form.html`, `gestione_admin.html`, `asset_qr_landing.html`, `asset_label_designer.html`, `django_app/assets/README.md`; eliminati `assets/services/sharepoint_public_links.py`, `assets/management/commands/sync_asset_documents_from_sharepoint.py`, `assets_ensure_public_share_links.py`, `assets_ensure_sharepoint_metadata.py`, `docs/assets/SHAREPOINT_UPLOAD_REVIEW.md`, `docs/assets/SHAREPOINT_CARTELLE_ASSET_GUIDE.md`; ripuliti `django_app/config/settings/base.py`, `django_app/hub_tools/views.py`, `hub_tools/templates/hub_tools/setup_wizard.html`, `hub_tools/tests.py`, `README.md`).
