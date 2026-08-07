@@ -10,7 +10,7 @@
   legge nessun campo.
 
   Lo script fa, in quest'ordine:
-    1. mette Tesseract sull'host — SCARICANDOLO da internet (-Scarica), copiando
+    1. mette Tesseract sull'host - SCARICANDOLO da internet (-Scarica), copiando
        una cartella portable (-SorgentePortable) o eseguendo un installer gia'
        presente (-Installer);
     2. verifica che il pacchetto lingua 'ita' ci sia davvero;
@@ -127,6 +127,12 @@ function Farebbe { param($m) Write-Host "  ~   [dry-run] $m" -ForegroundColor Da
 $UrlListaInstaller = 'https://digi.bib.uni-mannheim.de/tesseract/'
 $UrlLinguaIta      = 'https://github.com/tesseract-ocr/tessdata/raw/main/ita.traineddata'
 
+# Lo User-Agent predefinito di Windows PowerShell viene RIFIUTATO (403) dal sito
+# che pubblica gli installer. Non e' un capriccio: senza questo, -Scarica fallisce
+# solo in produzione, perche' PowerShell 7 usa un User-Agent diverso e passa.
+$UserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+             '(KHTML, like Gecko) Chrome/124.0 Safari/537.36'
+
 function Inizializza-Rete {
     # TLS moderno e proxy di sistema: su Windows Server il default puo' non bastare.
     try {
@@ -150,7 +156,7 @@ function Scarica-File {
     Info "Scarico $Descrizione..."
     Info "  da $Url"
     try {
-        Invoke-WebRequest -Uri $Url -OutFile $Destinazione -UseBasicParsing -TimeoutSec 300
+        Invoke-WebRequest -Uri $Url -OutFile $Destinazione -UseBasicParsing -TimeoutSec 300 -UserAgent $UserAgent
     } catch {
         Fatale ("Download fallito ($Descrizione): " + $_.Exception.Message + "`n" +
                 "      Se l'host non ha accesso a internet, scarica il file altrove e usa " +
@@ -165,7 +171,7 @@ function Trova-UltimoInstaller {
     # Ultimo tesseract-ocr-w64-setup-*.exe pubblicato da UB Mannheim.
     Info "Cerco l'ultima versione su $UrlListaInstaller"
     try {
-        $pagina = Invoke-WebRequest -Uri $UrlListaInstaller -UseBasicParsing -TimeoutSec 60
+        $pagina = Invoke-WebRequest -Uri $UrlListaInstaller -UseBasicParsing -TimeoutSec 60 -UserAgent $UserAgent
     } catch {
         Fatale ("Elenco versioni non raggiungibile: " + $_.Exception.Message + "`n" +
                 "      Usa -UrlInstaller con un indirizzo esplicito, oppure -Installer con un file gia' scaricato.")
@@ -184,10 +190,10 @@ function Trova-UltimoInstaller {
     return ($UrlListaInstaller.TrimEnd('/') + '/' + $scelto)
 }
 
-Write-Host "`n=== Tesseract OCR per l'acquisizione referti — NOVICROM HUB ===" -ForegroundColor White
+Write-Host "`n=== Tesseract OCR per l'acquisizione referti - NOVICROM HUB ===" -ForegroundColor White
 if ($DryRun) { Avviso "Modalita' DRY-RUN: nessuna modifica verra' applicata." }
 
-# ── 0. Prerequisiti ─────────────────────────────────────────────────────────
+# -- 0. Prerequisiti ---------------------------------------------------------
 Passo "Prerequisiti"
 
 $amministratore = ([Security.Principal.WindowsPrincipal] `
@@ -214,7 +220,7 @@ if ($HostAtteso -and $env:COMPUTERNAME -and
     # Installare sulla macchina sbagliata non da' errore: da' un server che
     # sembra a posto e un portale che continua a non leggere niente.
     Avviso "Questo computer si chiama '$env:COMPUTERNAME', non '$HostAtteso'."
-    Avviso "Se e' voluto prosegui pure; altrimenti interrompi ora (Ctrl+C) — hai 5 secondi."
+    Avviso "Se e' voluto prosegui pure; altrimenti interrompi ora (Ctrl+C) - hai 5 secondi."
     if (-not $DryRun) { Start-Sleep -Seconds 5 }
 }
 Info "Host: $env:COMPUTERNAME"
@@ -225,7 +231,7 @@ if ($Destinazione -match '\s' -and ($Installer -or $Scarica)) {
     Fatale "Con -Installer o -Scarica la destinazione non puo' contenere spazi: '$Destinazione'."
 }
 
-# ── 1. Mettere Tesseract sull'host ──────────────────────────────────────────
+# -- 1. Mettere Tesseract sull'host ------------------------------------------
 Passo "Installazione"
 
 $exe = Join-Path $Destinazione 'tesseract.exe'
@@ -307,7 +313,7 @@ else {
             Fatale "Tesseract non e' presente in '$Destinazione' ne' nel PATH. Rilancia con -SorgentePortable o -Installer."
         }
     } else {
-        Info "Tesseract gia' presente in ${Destinazione} — nessuna reinstallazione."
+        Info "Tesseract gia' presente in ${Destinazione} - nessuna reinstallazione."
     }
 }
 
@@ -320,7 +326,7 @@ if ($DryRun -and -not (Test-Path $exe)) {
 }
 if (-not (Test-Path $exe)) { Fatale "Eseguibile non trovato dopo l'installazione: $exe" }
 
-# ── 2. Il pacchetto lingua italiano c'e' davvero? ───────────────────────────
+# -- 2. Il pacchetto lingua italiano c'e' davvero? ---------------------------
 Passo "Pacchetto lingua"
 
 $env:TESSDATA_PREFIX = $tessdata
@@ -341,7 +347,7 @@ if ($lingue -notcontains 'ita') {
 }
 Ok "Lingua 'ita' presente."
 
-# ── 3. Configurazione nel .env persistente ──────────────────────────────────
+# -- 3. Configurazione nel .env persistente ----------------------------------
 Passo "Configurazione (.env persistente)"
 
 if (-not (Test-Path $EnvPath)) {
@@ -393,7 +399,7 @@ if ($modificato -and -not $DryRun) {
     Ok "Nessuna modifica necessaria."
 }
 
-# ── 4. Permessi per l'identita' dell'app-pool ───────────────────────────────
+# -- 4. Permessi per l'identita' dell'app-pool -------------------------------
 Passo "Permessi"
 
 $identita = $IdentitaAppPool
@@ -428,7 +434,7 @@ if ($DryRun) {
     }
 }
 
-# ── 5. Riavvio dell'app-pool ────────────────────────────────────────────────
+# -- 5. Riavvio dell'app-pool ------------------------------------------------
 Passo "Riavvio applicazione"
 
 if ($DryRun) {
@@ -444,7 +450,7 @@ if ($DryRun) {
     }
 }
 
-# ── 6. Prova vera ───────────────────────────────────────────────────────────
+# -- 6. Prova vera -----------------------------------------------------------
 Passo "Verifica"
 
 if ($DryRun) {
@@ -455,15 +461,15 @@ if ($DryRun) {
 
 if ($PdfDiProva) {
     if (-not (Test-Path $PdfDiProva)) {
-        Avviso "PDF di prova non trovato: $PdfDiProva — verifica end-to-end saltata."
+        Avviso "PDF di prova non trovato: $PdfDiProva - verifica end-to-end saltata."
     } else {
         # Qui si verifica il MOTORE, non la catena intera: la rasterizzazione del
         # PDF la fa il portale con PyMuPDF, e riprodurla in PowerShell
         # significherebbe misurare una cosa diversa da quella che gira in
         # produzione. Su un'immagine il controllo e' diretto; su un PDF la prova
-        # vera e' il pulsante «Prova adesso» della pagina Impostazioni.
+        # vera e' il pulsante 'Prova adesso' della pagina Impostazioni.
         if ($PdfDiProva -notmatch '\.(png|jpg|jpeg|tif|tiff|bmp)$') {
-            Info "File PDF: la prova completa si fa dal portale col pulsante «Prova adesso»."
+            Info "File PDF: la prova completa si fa dal portale col pulsante 'Prova adesso'."
             Info "(qui servirebbe la rasterizzazione, che nel portale fa PyMuPDF)"
         } else {
             $tmp = Join-Path $env:TEMP ("referto-check-" + [guid]::NewGuid().ToString('N'))
@@ -492,8 +498,8 @@ Write-Host "  Configurato: $EnvPath"
 Write-Host ""
 Write-Host "Ultimo passo, dal portale:" -ForegroundColor Yellow
 Write-Host "  /anagrafica/visite-mediche/referti/impostazioni/"
-Write-Host "  Deve comparire «Riconoscimento testo attivo» col percorso qui sopra."
-Write-Host "  Poi indica la cartella delle scansioni, accendi l'acquisizione e usa «Prova adesso»."
+Write-Host "  Deve comparire 'Riconoscimento testo attivo' col percorso qui sopra."
+Write-Host "  Poi indica la cartella delle scansioni, accendi l'acquisizione e usa 'Prova adesso'."
 Write-Host ""
 Write-Host "Nota: finche' non e' mappato almeno un giudizio nella tabella alias in fondo" -ForegroundColor DarkGray
 Write-Host "a quella pagina, i referti restano tutti in coda. E' voluto, ma spiega una coda" -ForegroundColor DarkGray
