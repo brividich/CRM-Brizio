@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni attive:** 41
+**Totale automazioni attive:** 42
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -53,6 +53,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni lun, alle 07:00
 - **Task eseguito:** `anagrafica.tasks.run_idoneita_digest`
 - **Cosa fa:** Digest "idoneità alla mansione" (non idonei / con riserve) per RSPP / medico competente / HR. Fail-safe: no-op se non sono configurati i destinatari (SiteConfig idoneita_reminder_emails).
+
+### `intake_referti_sanitari`
+
+- **Quando gira:** ogni 10 minuti
+- **Task eseguito:** `anagrafica.tasks.run_intake_referti_sanitari`
+- **Cosa fa:** Certificati di idoneità depositati dalla fotocopiatrice in una cartella di rete. Qui non c'è nessun QR: il dipendente si riconosce dal blocco anagrafico e si conferma sulla data di nascita, quindi l'esito normale è una proposta in coda, non una registrazione. Spento finché non lo si accende da Impostazioni → Acquisizione referti. Passo più lungo dei fogli firme: la lettura costa ~2 secondi a certificato (OCR), e nessuno aspetta un referto in tempo reale.
 
 ### `intake_scansioni_formazione`
 

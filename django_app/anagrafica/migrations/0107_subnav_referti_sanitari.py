@@ -56,7 +56,7 @@ def rimuovi_voce(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("anagrafica", "0105_aliasesitoidoneita_refertointakeconfig_and_more"),
+        ("anagrafica", "0106_aliasesitoidoneita_refertointakeconfig_and_more"),
     ]
 
     operations = [

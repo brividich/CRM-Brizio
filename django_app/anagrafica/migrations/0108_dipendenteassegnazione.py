@@ -8,7 +8,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('anagrafica', '0105_dipendentecambiamentoorganizzativo_data_fine_and_more'),
+        ('anagrafica', '0107_subnav_referti_sanitari'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
