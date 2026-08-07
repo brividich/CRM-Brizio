@@ -3,6 +3,7 @@ from django.urls import path
 from . import views
 from . import views_mpq
 from . import views_recruiting
+from . import views_sorveglianza
 
 app_name = "anagrafica"
 
@@ -117,6 +118,17 @@ urlpatterns = [
     path("visite-mediche/sessioni/<int:sessione_id>/", views.visite_mediche_sessione_detail, name="visite_mediche_sessione_detail"),
     path("visite-mediche/sessioni/<int:sessione_id>/partecipante/aggiungi/", views.visite_mediche_sessione_partecipante_add, name="visite_mediche_sessione_partecipante_add"),
     path("visite-mediche/sessioni/<int:sessione_id>/elimina/", views.visite_mediche_sessione_delete, name="visite_mediche_sessione_delete"),
+
+    # Acquisizione referti di sorveglianza sanitaria (OCR + coda di revisione).
+    # Sotto `visite-mediche/` di proposito: è lo stesso dato e lo stesso permesso,
+    # non una sezione a sé.
+    path("visite-mediche/referti/", views_sorveglianza.referti_coda, name="referti_coda"),
+    path("visite-mediche/referti/carica/", views_sorveglianza.referti_carica, name="referti_carica"),
+    path("visite-mediche/referti/registro/", views_sorveglianza.referti_registro, name="referti_registro"),
+    path("visite-mediche/referti/impostazioni/", views_sorveglianza.referti_impostazioni, name="referti_impostazioni"),
+    path("visite-mediche/referti/<int:riga_id>/conferma/", views_sorveglianza.referti_conferma, name="referti_conferma"),
+    path("visite-mediche/referti/<int:riga_id>/scarta/", views_sorveglianza.referti_scarta, name="referti_scarta"),
+    path("visite-mediche/referti/<int:riga_id>/file", views_sorveglianza.referto_scarica, name="referto_scarica"),
 
     # Visite mediche dipendente
     path("dipendenti/<int:legacy_id>/visite/add", views.dipendente_visita_add, name="dipendente_visita_add"),
