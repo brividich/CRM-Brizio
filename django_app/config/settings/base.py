@@ -650,6 +650,10 @@ SCHEDE_SICUREZZA_PRIVATE_ROOT = Path(
 # Vuoto = si cerca `tesseract` nel PATH. Se manca, l'acquisizione dei referti non
 # rompe nulla: archivia il file e lo manda in revisione dicendo perché.
 TESSERACT_CMD = env("TESSERACT_CMD", "")
+# Cartella dei dati lingua. Serve solo alle copie PORTABLE di Tesseract (quelle
+# affiancate all'eseguibile, senza installer): un Tesseract installato la trova da
+# sé. Vuoto = si lascia decidere a Tesseract.
+TESSDATA_PREFIX = env("TESSDATA_PREFIX", "")
 # Radici UNC CONSENTITE per gli allegati "collegati" (modalità share = single source of
 # truth: il PDF resta sul master aziendale, il portale lo serve on-demand). La view di
 # download serve SOLO file dentro queste radici (allowlist + anti-traversal). Più radici

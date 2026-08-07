@@ -34,6 +34,7 @@ il lotto, ed è esattamente il guasto che nessuno nota.
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 import subprocess
 import tempfile
@@ -121,6 +122,22 @@ def _rasterizza(doc, pagina: int, dpi: int) -> bytes:
         raise ErroreLettura("La pagina non si è potuta rasterizzare.") from exc
 
 
+def _ambiente() -> dict:
+    """Ambiente del processo Tesseract, con i dati lingua se sono altrove.
+
+    Un Tesseract *installato* trova da sé la cartella ``tessdata``. Una copia
+    **portable** — quella che si ottiene affiancando la cartella all'eseguibile,
+    senza installer e senza diritti di amministratore — può non trovarla, e il
+    sintomo è un fallimento secco su ``-l ita`` che non dice niente di utile.
+    ``TESSDATA_PREFIX`` toglie di mezzo il dubbio.
+    """
+    ambiente = dict(os.environ)
+    dati = (getattr(settings, "TESSDATA_PREFIX", "") or "").strip()
+    if dati:
+        ambiente["TESSDATA_PREFIX"] = dati
+    return ambiente
+
+
 def _ocr(png: bytes, *, lingua: str, psm: int, timeout: int) -> str:
     """Testo letto da Tesseract. Stringa vuota se non è disponibile."""
     exe = percorso_tesseract()
@@ -137,7 +154,7 @@ def _ocr(png: bytes, *, lingua: str, psm: int, timeout: int) -> str:
         try:
             subprocess.run(
                 [exe, str(ingresso), str(uscita), "-l", lingua, "--psm", str(psm)],
-                check=True, capture_output=True, timeout=timeout,
+                check=True, capture_output=True, timeout=timeout, env=_ambiente(),
             )
         except subprocess.TimeoutExpired:
             raise ErroreLettura(
