@@ -1713,9 +1713,20 @@ class DipendenteCambiamentoOrganizzativo(models.Model):
         return self.TIPO_COLORI.get(self.tipo, "#64748b")
 
     @property
+    def is_programmato(self) -> bool:
+        """True se la decorrenza è nel futuro: il valore non è ancora in vigore."""
+        from django.utils import timezone as _tz
+        return self.data_effetto > _tz.localdate()
+
+    @property
     def is_in_corso(self) -> bool:
-        """True se l'assegnazione non è ancora stata chiusa da un cambiamento successivo."""
-        return self.data_fine is None
+        """True se il periodo è aperto **ed è già decorso**.
+
+        Un periodo con decorrenza futura non è "in corso": è programmato, e va
+        distinto in UI perché il valore vecchio è ancora quello valido oggi.
+        """
+        from django.utils import timezone as _tz
+        return self.data_fine is None and self.data_effetto <= _tz.localdate()
 
     @classmethod
     def chiudi_periodo_aperto(cls, legacy_anagrafica_id: int, tipo: str, data_inizio_nuovo):
@@ -1741,6 +1752,182 @@ class DipendenteCambiamentoOrganizzativo(models.Model):
             data_fine = aperto.data_effetto
         aperto.data_fine = data_fine
         aperto.save(update_fields=["data_fine"])
+        return 1
+
+
+class DipendenteAssegnazione(models.Model):
+    """Spostamento organizzativo del dipendente come **unità**: reparto, area
+    aziendale, mansione e ruolo aziendale valgono insieme per lo stesso periodo.
+
+    Nasce dal fatto che uno spostamento reale è un atto solo ("passa ai TORNI
+    come tornitore, capoturno"): tenerne traccia come quattro cambi di campo
+    scollegati perde il nesso. ``DipendenteCambiamentoOrganizzativo`` resta il
+    log per-campo (audit trail, scritto al momento dell'attivazione); questo è
+    l'oggetto HR con cui si lavora.
+
+    **Attivazione differita.** Un'assegnazione con ``data_inizio`` futura è
+    *programmata*: i campi vivi del dipendente (reparto/mansione legacy, area e
+    ruolo su ``DipendenteAnagraficaAziendale``) NON vengono toccati finché non
+    arriva la data. Li scrive ``services.assegnazioni.attiva_assegnazione``,
+    chiamata subito se la decorrenza è già passata, altrimenti dal task
+    ``run_attiva_assegnazioni_programmate``. ``attivata_il`` è la prova che il
+    passaggio è avvenuto.
+    """
+    STATO_PROGRAMMATA = "PROGRAMMATA"
+    STATO_IN_CORSO = "IN_CORSO"
+    STATO_CONCLUSA = "CONCLUSA"
+
+    STATO_LABEL = {
+        STATO_PROGRAMMATA: "Programmata",
+        STATO_IN_CORSO: "In corso",
+        STATO_CONCLUSA: "Conclusa",
+    }
+    STATO_COLORI = {
+        STATO_PROGRAMMATA: "#b45309",
+        STATO_IN_CORSO: "#15803d",
+        STATO_CONCLUSA: "#64748b",
+    }
+
+    # Esiti della verifica di idoneità, allineati a services.conformita.
+    IDONEITA_OK = "ok"
+    IDONEITA_WARN = "warn"
+    IDONEITA_KO = "ko"
+    IDONEITA_NA = "na"
+
+    IDONEITA_LABEL = {
+        IDONEITA_OK: "Abilitato",
+        IDONEITA_WARN: "Abilitazione parziale",
+        IDONEITA_KO: "Non abilitato",
+        IDONEITA_NA: "Nessun requisito",
+    }
+    IDONEITA_COLORI = {
+        IDONEITA_OK: "#15803d",
+        IDONEITA_WARN: "#b45309",
+        IDONEITA_KO: "#b91c1c",
+        IDONEITA_NA: "#64748b",
+    }
+
+    legacy_anagrafica_id = models.IntegerField(db_index=True)
+
+    data_inizio = models.DateField(verbose_name="Data inizio")
+    data_fine = models.DateField(
+        null=True, blank=True,
+        verbose_name="Data fine",
+        help_text="Vuoto = assegnazione senza termine (chiusa dallo spostamento successivo).",
+    )
+
+    reparto = models.CharField(max_length=200, blank=True, default="", verbose_name="Reparto")
+    area_aziendale = models.ForeignKey(
+        AreaAziendale,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="assegnazioni",
+        verbose_name="Area aziendale",
+    )
+    mansione = models.CharField(max_length=200, blank=True, default="", verbose_name="Mansione")
+    ruolo_aziendale = models.CharField(
+        max_length=200, blank=True, default="", verbose_name="Ruolo aziendale",
+    )
+
+    attivata_il = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Momento in cui i campi vivi del dipendente sono stati allineati.",
+    )
+
+    idoneita_esito = models.CharField(
+        max_length=10, blank=True, default="",
+        help_text="Esito della verifica competenze/DPI/visite al momento della registrazione.",
+    )
+    idoneita_mancanti = models.JSONField(default=list, blank=True)
+    idoneita_scaduti = models.JSONField(default=list, blank=True)
+    idoneita_verificata_il = models.DateTimeField(null=True, blank=True)
+
+    note = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="assegnazioni_registrate",
+    )
+
+    class Meta:
+        ordering = ["-data_inizio", "-created_at"]
+        indexes = [
+            models.Index(fields=["legacy_anagrafica_id", "-data_inizio"]),
+            models.Index(fields=["attivata_il", "data_inizio"]),
+        ]
+        verbose_name = "Assegnazione organizzativa"
+        verbose_name_plural = "Assegnazioni organizzative"
+
+    def __str__(self) -> str:
+        pezzi = [p for p in (self.reparto, self.mansione) if p] or ["(nessun dato)"]
+        return f"[{self.legacy_anagrafica_id}] {' · '.join(pezzi)} dal {self.data_inizio:%d-%m-%Y}"
+
+    # ── Stato temporale ────────────────────────────────────────────────────
+    @property
+    def stato(self) -> str:
+        from django.utils import timezone as _tz
+        oggi = _tz.localdate()
+        if self.data_inizio > oggi:
+            return self.STATO_PROGRAMMATA
+        if self.data_fine is not None and self.data_fine < oggi:
+            return self.STATO_CONCLUSA
+        return self.STATO_IN_CORSO
+
+    @property
+    def stato_label(self) -> str:
+        return self.STATO_LABEL.get(self.stato, self.stato)
+
+    @property
+    def stato_colore(self) -> str:
+        return self.STATO_COLORI.get(self.stato, "#64748b")
+
+    @property
+    def is_programmata(self) -> bool:
+        return self.stato == self.STATO_PROGRAMMATA
+
+    @property
+    def is_in_corso(self) -> bool:
+        return self.stato == self.STATO_IN_CORSO
+
+    # ── Verifica di idoneità ───────────────────────────────────────────────
+    @property
+    def idoneita_label(self) -> str:
+        return self.IDONEITA_LABEL.get(self.idoneita_esito, "Da verificare")
+
+    @property
+    def idoneita_colore(self) -> str:
+        return self.IDONEITA_COLORI.get(self.idoneita_esito, "#64748b")
+
+    @property
+    def idoneita_gap(self) -> list[str]:
+        """Requisiti scaduti + mancanti, gli scaduti per primi (più gravi)."""
+        return list(self.idoneita_scaduti or []) + list(self.idoneita_mancanti or [])
+
+    @classmethod
+    def chiudi_aperta(cls, legacy_anagrafica_id: int, data_inizio_nuova):
+        """Chiude l'assegnazione aperta al giorno prima della nuova decorrenza.
+
+        Stessa regola dello storico per-campo: una registrazione retroattiva fuori
+        ordine chiude alla propria data di inizio invece di produrre fine < inizio.
+        Restituisce il numero di righe chiuse (0 o 1).
+        """
+        import datetime as _dt
+
+        aperta = (
+            cls.objects
+            .filter(legacy_anagrafica_id=legacy_anagrafica_id, data_fine__isnull=True)
+            .order_by("-data_inizio", "-created_at")
+            .first()
+        )
+        if aperta is None:
+            return 0
+        fine = data_inizio_nuova - _dt.timedelta(days=1)
+        if fine < aperta.data_inizio:
+            fine = aperta.data_inizio
+        aperta.data_fine = fine
+        aperta.save(update_fields=["data_fine"])
         return 1
 
 

@@ -78,6 +78,7 @@ from .models import (
     SubnavLinkAnagrafica,
     DipendenteAnagraficaAziendale,
     DipendenteAnagraficaCivile,
+    DipendenteAssegnazione,
     DipendenteCambiamentoOrganizzativo,
     DipendenteQualifica,
     DipendenteRuoloOperativo,
@@ -2117,6 +2118,8 @@ def dipendente_detail(request, legacy_id: int):
 
     # Storico cambiamenti organizzativi (mansione, reparto, area, ruolo aziendale) — solo admin
     storico_cambiamenti: list = []
+    assegnazioni: list = []
+    assegnazione_in_corso = None
     if is_admin:
         storico_cambiamenti = list(
             DipendenteCambiamentoOrganizzativo.objects
@@ -2124,6 +2127,24 @@ def dipendente_detail(request, legacy_id: int):
             .select_related("created_by")
             .order_by("-data_effetto", "-created_at")[:50]
         )
+        # Spostamenti organizzativi: le programmate in cima, poi a ritroso. Il
+        # caporeparto si risolve dal reparto/area della singola assegnazione, non
+        # da quello attuale del dipendente, altrimenti una card storica mostrerebbe
+        # il responsabile di oggi.
+        assegnazioni = list(
+            DipendenteAssegnazione.objects
+            .filter(legacy_anagrafica_id=legacy_id)
+            .select_related("area_aziendale", "area_aziendale__reparto", "created_by")
+            .order_by("-data_inizio", "-created_at")[:30]
+        )
+        _dip_labels = _dipendenti_picker_rows()
+        _dip_label_map = {item["id"]: item["label"] for item in _dip_labels}
+        for _ass in assegnazioni:
+            _ass.responsabile_label = _dip_label_map.get(
+                _responsabile_di(_ass.reparto, _ass.area_aziendale) or 0, ""
+            )
+            if _ass.is_in_corso:
+                assegnazione_in_corso = _ass
 
     # Storico contrattuale
     storico_contratti: list = []
@@ -2329,6 +2350,12 @@ def dipendente_detail(request, legacy_id: int):
         "ruoli_assegnati": ruoli_assegnati,
         "ruoli_disponibili": ruoli_disponibili,
         "mansioni_catalogo": mansioni_catalogo,
+        "assegnazioni": assegnazioni,
+        "assegnazione_in_corso": assegnazione_in_corso,
+        "ruoli_aziendali_catalogo": (
+            list(RuoloAziendale.objects.filter(is_active=True).order_by("nome"))
+            if is_admin else []
+        ),
         "qualifiche_dip": qualifiche_dip,
         "tipi_qualifica": tipi_qualifica,
         "oggi": oggi,
@@ -3479,105 +3506,132 @@ def _notifica_gap_idoneita(legacy_id: int, dip: dict, mansione_nome: str, user=N
 
 @login_required
 @require_POST
-def dipendente_mansione_set(request, legacy_id: int):
-    legacy_user = get_legacy_user(request.user)
+def dipendente_assegnazione_create(request, legacy_id: int):
+    """Registra uno spostamento organizzativo (reparto + area + mansione + ruolo).
+
+    Sostituisce i vecchi mini-form separati "cambia reparto" / "cambia mansione":
+    uno spostamento reale è un atto solo e va registrato come tale, con una sola
+    decorrenza e una sola verifica di idoneità.
+
+    Se la decorrenza è futura l'assegnazione resta **programmata** e i campi vivi
+    del dipendente non vengono toccati: li allineerà il task alla data giusta.
+    """
     if not _is_anagrafica_admin(request):
-        messages.error(request, "Non hai i permessi per modificare la mansione.")
+        messages.error(request, "Non hai i permessi per registrare uno spostamento.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
-    mansione_nome = (request.POST.get("mansione_nome") or "").strip()[:200]
-
-    # Recupera la riga esistente per non sovrascrivere gli altri campi
     rows = fetch_anagrafica_rows(ids=[legacy_id])
     if not rows:
         messages.error(request, "Dipendente non trovato.")
         return redirect("anagrafica:dipendenti_list")
     dip = rows[0]
-    mansione_vecchia = (dip.get("mansione") or "").strip()
+
+    area_aziendale_raw = (request.POST.get("area_aziendale") or "").strip()
+    data_inizio = _data_decorrenza(request, "data_inizio") or django_timezone.localdate()
+    mansione_nome = (request.POST.get("mansione") or "").strip()[:200]
 
     try:
-        upsert_anagrafica_dipendente(
-            row_id=legacy_id,
-            aliasusername=dip.get("aliasusername") or "",
-            nome=dip.get("nome") or "",
-            cognome=dip.get("cognome") or "",
-            reparto=dip.get("reparto") or "",
-            mansione=mansione_nome,
-            ruolo=dip.get("ruolo") or "",
-            matricola=dip.get("matricola") or "",
-            email=dip.get("email") or "",
-            email_notifica=dip.get("email_notifica") or "",
-            attivo=bool(dip.get("attivo", True)),
-        )
-        _registra_cambiamento(
+        from .services.assegnazioni import crea_assegnazione
+        assegnazione = crea_assegnazione(
             legacy_id,
-            DipendenteCambiamentoOrganizzativo.TIPO_MANSIONE,
-            mansione_vecchia, mansione_nome,
-            request.user,
-            data_effetto=_data_decorrenza(request),
+            data_inizio=data_inizio,
+            reparto=(request.POST.get("reparto") or "").strip()[:200],
+            area_aziendale_id=int(area_aziendale_raw) if area_aziendale_raw.isdigit() else None,
+            mansione=mansione_nome,
+            ruolo_aziendale=(request.POST.get("ruolo_aziendale") or "").strip()[:200],
+            note=(request.POST.get("note") or "").strip(),
+            user=request.user,
+            include_visite_dettaglio=_can_view_visite_mediche(request),
         )
-        messages.success(request, f'Mansione aggiornata a "{mansione_nome}".' if mansione_nome else "Mansione rimossa.")
-        # E: cambio mansione → ricalcola idoneità e notifica i requisiti mancanti
-        if mansione_nome and mansione_nome.casefold() != mansione_vecchia.casefold():
-            _notifica_gap_idoneita(legacy_id, dip, mansione_nome, request.user)
     except Exception:
-        logger.exception("Errore aggiornamento mansione dipendente %s", legacy_id)
-        messages.error(request, "Errore durante l'aggiornamento della mansione.")
+        logger.exception("Errore registrazione spostamento dipendente %s", legacy_id)
+        messages.error(request, "Errore durante la registrazione dello spostamento.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    quando = (
+        f"programmato dal {data_inizio:%d-%m-%Y}"
+        if assegnazione.is_programmata else "attivo da oggi"
+    )
+    esito_idoneita = assegnazione.idoneita_label.lower()
+    if assegnazione.idoneita_gap:
+        messages.warning(
+            request,
+            f"Spostamento registrato ({quando}) — {esito_idoneita}: "
+            + ", ".join(assegnazione.idoneita_gap[:5])
+            + ("…" if len(assegnazione.idoneita_gap) > 5 else ""),
+        )
+    else:
+        messages.success(request, f"Spostamento registrato ({quando}) — {esito_idoneita}.")
+
+    # Il gap di idoneità va anche a caporeparto/RSPP/HR, come già avveniva al
+    # cambio mansione dal vecchio mini-form.
+    if mansione_nome and assegnazione.idoneita_gap:
+        _notifica_gap_idoneita(legacy_id, dip, mansione_nome, request.user)
+
     return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
 
 @login_required
 @require_POST
-def dipendente_reparto_set(request, legacy_id: int):
-    """Modifica il reparto di un dipendente con storicizzazione e auto-fill area/caporeparto."""
-    legacy_user = get_legacy_user(request.user)
+def dipendente_assegnazione_annulla(request, legacy_id: int, assegnazione_id: int):
+    """Annulla uno spostamento **programmato e non ancora attivato**.
+
+    Serve perché una decorrenza futura è una promessa revocabile: senza questo,
+    una data sbagliata resterebbe in calendario senza rimedio. Un'assegnazione
+    già attivata non si cancella — è storia, e si corregge con un nuovo
+    spostamento.
+    """
     if not _is_anagrafica_admin(request):
-        messages.error(request, "Non hai i permessi per modificare il reparto.")
+        messages.error(request, "Non hai i permessi per annullare uno spostamento.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
-    reparto_nome = (request.POST.get("reparto") or "").strip()[:200]
-    area_aziendale_raw = (request.POST.get("area_aziendale") or "").strip()
-    area_aziendale_id = int(area_aziendale_raw) if area_aziendale_raw.isdigit() else None
-    decorrenza = _data_decorrenza(request)
+    assegnazione = DipendenteAssegnazione.objects.filter(
+        pk=assegnazione_id, legacy_anagrafica_id=legacy_id,
+    ).first()
+    if assegnazione is None:
+        messages.error(request, "Spostamento non trovato.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+    if assegnazione.attivata_il is not None:
+        messages.error(
+            request,
+            "Lo spostamento è già attivo: per correggerlo registrane uno nuovo.",
+        )
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
-    rows = fetch_anagrafica_rows(ids=[legacy_id])
-    if not rows:
-        messages.error(request, "Dipendente non trovato.")
-        return redirect("anagrafica:dipendenti_list")
-    dip = rows[0]
-    reparto_vecchio = (dip.get("reparto") or "").strip()
+    # Riapre l'assegnazione che questa aveva chiuso, così non resta un buco.
+    precedente = (
+        DipendenteAssegnazione.objects
+        .filter(legacy_anagrafica_id=legacy_id, data_fine__isnull=False)
+        .exclude(pk=assegnazione.pk)
+        .order_by("-data_fine", "-created_at")
+        .first()
+    )
+    if precedente is not None and precedente.data_fine == assegnazione.data_inizio - _timedelta(days=1):
+        precedente.data_fine = None
+        precedente.save(update_fields=["data_fine"])
 
-    try:
-        upsert_anagrafica_dipendente(
-            row_id=legacy_id,
-            aliasusername=dip.get("aliasusername") or "",
-            nome=dip.get("nome") or "",
-            cognome=dip.get("cognome") or "",
-            reparto=reparto_nome,
-            mansione=dip.get("mansione") or "",
-            ruolo=dip.get("ruolo") or "",
-            matricola=dip.get("matricola") or "",
-            email=dip.get("email") or "",
-            email_notifica=dip.get("email_notifica") or "",
-            attivo=bool(dip.get("attivo", True)),
-        )
-        _registra_cambiamento(
-            legacy_id,
-            DipendenteCambiamentoOrganizzativo.TIPO_REPARTO,
-            reparto_vecchio, reparto_nome,
-            request.user,
-            data_effetto=decorrenza,
-        )
-        # Auto-fill area aziendale e caporeparto da catalogo (storicizza AREA/AREA_AZIENDALE)
-        _sync_aziendale_from_reparto(
-            legacy_id, reparto_nome, area_aziendale_id=area_aziendale_id,
-            saved_by=request.user, data_decorrenza=decorrenza,
-        )
-        messages.success(request, f'Reparto aggiornato a "{reparto_nome}".' if reparto_nome else "Reparto rimosso.")
-    except Exception:
-        logger.exception("Errore aggiornamento reparto dipendente %s", legacy_id)
-        messages.error(request, "Errore durante l'aggiornamento del reparto.")
+    assegnazione.delete()
+    messages.success(request, "Spostamento programmato annullato.")
     return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+
+@login_required
+def dipendente_assegnazione_verifica(request, legacy_id: int):
+    """Anteprima JSON dell'idoneità per una mansione ipotizzata.
+
+    Chiamata dal form di spostamento quando si sceglie la mansione, per dire
+    subito "abilitato" oppure "parziale, manca X" prima di confermare.
+    """
+    if not _is_anagrafica_admin(request):
+        return JsonResponse({"detail": "Permesso negato."}, status=403)
+
+    from .services.assegnazioni import verifica_idoneita
+    esito = verifica_idoneita(
+        legacy_id,
+        (request.GET.get("mansione") or "").strip(),
+        include_visite_dettaglio=_can_view_visite_mediche(request),
+    )
+    return JsonResponse(esito)
 
 
 @login_required
@@ -4426,31 +4480,16 @@ def dipendente_anagrafica_aziendale_save(request, legacy_id: int):
     instance, _ = DipendenteAnagraficaAziendale.objects.get_or_create(
         legacy_anagrafica_id=legacy_id
     )
-    ruolo_az_vecchio = instance.ruolo_aziendale or ""
-    area_vecchia = instance.area or ""
-    area_az_vecchia = instance.area_aziendale.nome if instance.area_aziendale_id else ""
-    decorrenza = _data_decorrenza(request)
 
+    # Reparto, area aziendale e ruolo aziendale non passano più da qui: li governa
+    # lo spostamento organizzativo (DipendenteAssegnazione), che li assegna insieme
+    # con una sola decorrenza. Questo form copre il resto dei dati aziendali.
     form = AnagraficaAziendaleForm(request.POST, instance=instance)
     if form.is_valid():
         obj = form.save(commit=False)
         obj.legacy_anagrafica_id = legacy_id
         obj.updated_by = request.user
         obj.save()
-        # Storicizza reparto (`area`) e area aziendale: lo fa il sync, unico punto
-        # di scrittura dei due campi.
-        _sync_aziendale_from_reparto(
-            legacy_id, obj.area or "", area_aziendale_id=obj.area_aziendale_id,
-            saved_by=request.user, data_decorrenza=decorrenza,
-            area_precedente=area_vecchia, area_aziendale_precedente=area_az_vecchia,
-        )
-        _registra_cambiamento(
-            legacy_id,
-            DipendenteCambiamentoOrganizzativo.TIPO_RUOLO_AZIENDALE,
-            ruolo_az_vecchio, obj.ruolo_aziendale or "",
-            request.user,
-            data_effetto=decorrenza,
-        )
         messages.success(request, "Anagrafica aziendale salvata.")
     else:
         for field, errs in form.errors.items():
@@ -5841,6 +5880,22 @@ def _resolve_caporeparto_id(raw: str | None) -> int | None:
     except (TypeError, ValueError):
         return None
     return value if value > 0 else None
+
+
+def _responsabile_di(reparto_nome: str, area=None) -> int | None:
+    """Legacy id del responsabile per una coppia (reparto, area aziendale).
+
+    Stessa gerarchia del sync — il responsabile dell'area vince sul caporeparto —
+    ma calcolata su valori arbitrari invece che sul dipendente: serve alle card
+    storiche, dove il responsabile è quello del reparto di allora.
+    """
+    if area is not None and area.reparto_id:
+        from anagrafica.services.reparto_canonico import resolve_responsabile_effettivo
+        return resolve_responsabile_effettivo(area=area, reparto=area.reparto)
+    if not reparto_nome:
+        return None
+    rep = Reparto.objects.filter(nome__iexact=reparto_nome).first()
+    return rep.caporeparto_legacy_id if rep else None
 
 
 def _sync_aziendale_from_reparto(

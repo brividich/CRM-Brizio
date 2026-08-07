@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni attive:** 39
+**Totale automazioni attive:** 41
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -17,6 +17,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni giorno, alle 02:15
 - **Task eseguito:** `anagrafica.tasks.run_archivia_attestati_mancanti`
 - **Cosa fa:** Archiviazione notturna degli attestati mancanti nel box documenti del dipendente. No-op se il salvataggio automatico è disattivato (opt-in da Impostazioni → Template attestato), quindi sicuro da tenere sempre attivo.
+
+### `attiva_assegnazioni_programmate`
+
+- **Quando gira:** ogni giorno, alle 00:05
+- **Task eseguito:** `anagrafica.tasks.run_attiva_assegnazioni_programmate`
+- **Cosa fa:** Attiva gli spostamenti organizzativi programmati la cui decorrenza e' arrivata (reparto/area/mansione/ruolo del dipendente). Presto al mattino, prima che chiunque apra il portale, cosi la giornata inizia gia' con l'assetto nuovo. Idempotente e no-op se non ce n'e' nessuno.
 
 ### `contratti_expiry_reminders`
 
@@ -47,6 +53,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni lun, alle 07:00
 - **Task eseguito:** `anagrafica.tasks.run_idoneita_digest`
 - **Cosa fa:** Digest "idoneità alla mansione" (non idonei / con riserve) per RSPP / medico competente / HR. Fail-safe: no-op se non sono configurati i destinatari (SiteConfig idoneita_reminder_emails).
+
+### `intake_scansioni_formazione`
+
+- **Quando gira:** ogni 2 minuti
+- **Task eseguito:** `anagrafica.tasks.run_intake_scansioni_formazione`
+- **Cosa fa:** Fogli firme depositati dalla fotocopiatrice in una cartella di rete: il QR dice a quale giornata appartengono, quindi non serve nessuna convenzione sul nome del file. Spento finché non lo si accende da Impostazioni → Acquisizione scansioni, e no-op se la share non risponde: una cartella irraggiungibile non è un guasto del portale.
 
 ### `training_expiry_reminders`
 

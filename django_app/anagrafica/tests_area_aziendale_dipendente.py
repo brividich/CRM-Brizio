@@ -98,7 +98,10 @@ class SyncAziendaleFromRepartoTests(TestCase):
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class DipendenteRepartoSetAreaAziendaleTests(TestCase):
-    """Il mini-form rapido 'Cambia reparto' può impostare anche l'Area aziendale."""
+    """Lo spostamento organizzativo imposta reparto e Area aziendale insieme.
+
+    (Prima erano il mini-form rapido 'Cambia reparto'; l'invariante area↔reparto
+    resta la stessa, cambia solo l'endpoint che la esercita.)"""
 
     @classmethod
     def setUpTestData(cls):
@@ -123,7 +126,7 @@ class DipendenteRepartoSetAreaAziendaleTests(TestCase):
         rep = Reparto.objects.create(nome="UT")
         area = AreaAziendale.objects.create(nome="IN1", reparto=rep)
         resp = self.client.post(
-            reverse("anagrafica:dipendente_reparto_set", args=[self.legacy_id]),
+            reverse("anagrafica:dipendente_assegnazione_create", args=[self.legacy_id]),
             {"reparto": "UT", "area_aziendale": str(area.pk)},
         )
         self.assertEqual(resp.status_code, 302)
@@ -135,7 +138,7 @@ class DipendenteRepartoSetAreaAziendaleTests(TestCase):
         rep_mag = Reparto.objects.create(nome="MAG")
         area_mag = AreaAziendale.objects.create(nome="ZONA1", reparto=rep_mag)
         resp = self.client.post(
-            reverse("anagrafica:dipendente_reparto_set", args=[self.legacy_id]),
+            reverse("anagrafica:dipendente_assegnazione_create", args=[self.legacy_id]),
             {"reparto": "UT", "area_aziendale": str(area_mag.pk)},
         )
         self.assertEqual(resp.status_code, 302)
@@ -145,7 +148,7 @@ class DipendenteRepartoSetAreaAziendaleTests(TestCase):
     def test_post_senza_area_non_genera_errore(self):
         Reparto.objects.create(nome="UT")
         resp = self.client.post(
-            reverse("anagrafica:dipendente_reparto_set", args=[self.legacy_id]),
+            reverse("anagrafica:dipendente_assegnazione_create", args=[self.legacy_id]),
             {"reparto": "UT"},
         )
         self.assertEqual(resp.status_code, 302)
@@ -215,8 +218,12 @@ class DipendenteMatricolaSetTests(TestCase):
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class AnagraficaAziendaleFormAreaAziendaleTests(TestCase):
-    """Il form completo 'Modifica dati aziendali' include ora la FK area_aziendale,
-    corretta/azzerata da _sync_aziendale_from_reparto se incoerente col reparto."""
+    """Il form 'Modifica dati aziendali' NON governa più l'assetto organizzativo.
+
+    Reparto, area aziendale e ruolo aziendale sono passati agli spostamenti
+    (DipendenteAssegnazione): lasciarli editabili anche da qui darebbe due
+    scrittori capaci di desincronizzare l'assetto dall'assegnazione in corso.
+    L'invariante area↔reparto vive ora nel service, non nel form."""
 
     @classmethod
     def setUpTestData(cls):
@@ -227,34 +234,39 @@ class AnagraficaAziendaleFormAreaAziendaleTests(TestCase):
     def setUp(self):
         self.client.force_login(self.admin)
 
-    def test_form_include_campo_area_aziendale_non_piu_nome(self):
+    def test_form_non_espone_piu_assetto_organizzativo(self):
         from .forms import AnagraficaAziendaleForm
         form = AnagraficaAziendaleForm()
-        self.assertIn("area_aziendale", form.fields)
-        self.assertNotIn("area_aziendale_nome", form.fields)
+        for campo in ("area", "area_aziendale", "ruolo_aziendale"):
+            with self.subTest(campo=campo):
+                self.assertNotIn(campo, form.fields)
+        # I dati aziendali "veri" restano.
+        self.assertIn("badge", form.fields)
 
-    def test_save_con_area_coerente_persiste_la_fk(self):
+    def test_save_non_puo_scavalcare_l_assegnazione(self):
+        """Un POST che tenta di forzare area/ruolo non deve avere effetto."""
         rep = Reparto.objects.create(nome="UT")
         area = AreaAziendale.objects.create(nome="IN1", reparto=rep)
+        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=920, area="MAG")
         resp = self.client.post(
             reverse("anagrafica:dipendente_aziendale_save", args=[920]),
-            {"area": "UT", "area_aziendale": str(area.pk)},
+            {"area": "UT", "area_aziendale": str(area.pk), "ruolo_aziendale": "Capoturno"},
         )
         self.assertEqual(resp.status_code, 302)
         az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=920)
-        self.assertEqual(az.area_aziendale_id, area.pk)
+        self.assertEqual(az.area, "MAG")
+        self.assertIsNone(az.area_aziendale_id)
+        self.assertEqual(az.ruolo_aziendale, "")
 
-    def test_save_con_area_incoerente_viene_azzerata(self):
-        Reparto.objects.create(nome="UT")
-        rep_mag = Reparto.objects.create(nome="MAG")
-        area_mag = AreaAziendale.objects.create(nome="ZONA1", reparto=rep_mag)
+    def test_save_persiste_gli_altri_dati_aziendali(self):
         resp = self.client.post(
             reverse("anagrafica:dipendente_aziendale_save", args=[921]),
-            {"area": "UT", "area_aziendale": str(area_mag.pk)},
+            {"badge": "0042", "telefono_aziendale": "+39 555 0100"},
         )
         self.assertEqual(resp.status_code, 302)
         az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=921)
-        self.assertIsNone(az.area_aziendale_id)
+        self.assertEqual(az.badge, "42")
+        self.assertEqual(az.telefono_aziendale, "+39 555 0100")
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
@@ -287,8 +299,9 @@ class DipendenteDetailAreaAziendaleUITests(TestCase):
         resp = self.client.get(reverse("anagrafica:dipendente_detail", args=[self.legacy_id]))
         self.assertEqual(resp.status_code, 200)
         content = resp.content.decode()
-        self.assertIn('id="mini-area-select"', content)
-        self.assertIn('id_area_aziendale', content)
+        # Il cascading vive ora nel form di spostamento organizzativo.
+        self.assertIn('id="sp-reparto"', content)
+        self.assertIn('id="sp-area"', content)
         self.assertIn('"UT"', content)
         self.assertIn('"IN1"', content)
         self.assertIn('"IN2"', content)

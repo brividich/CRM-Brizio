@@ -10,6 +10,32 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def run_attiva_assegnazioni_programmate() -> dict:
+    """Applica gli spostamenti organizzativi la cui decorrenza è arrivata.
+
+    Uno spostamento registrato con data futura resta *programmato*: il portale
+    continua a vedere reparto/mansione vecchi finché questo task, la mattina
+    della decorrenza, non allinea i campi vivi del dipendente.
+
+    Idempotente (salta le assegnazioni già attivate) e resiliente: un errore su
+    una persona non blocca le altre, così un dato sporco non ferma tutti gli
+    spostamenti del giorno.
+    """
+    from .services.assegnazioni import attiva_programmate_scadute
+
+    try:
+        esito = attiva_programmate_scadute()
+        if esito["attivate"] or esito["errori"]:
+            logger.info(
+                "run_attiva_assegnazioni_programmate: %s attivate, %s errori",
+                esito["attivate"], esito["errori"],
+            )
+        return esito
+    except Exception:
+        logger.exception("run_attiva_assegnazioni_programmate: eccezione inattesa")
+        raise
+
+
 def run_idoneita_digest(only_ko: bool = False) -> dict:
     """Digest "idoneità alla mansione" (non idonei / con riserve) per RSPP /
     medico competente / HR.

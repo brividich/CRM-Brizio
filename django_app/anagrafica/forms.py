@@ -149,6 +149,13 @@ class AnagraficaAziendaleForm(forms.ModelForm):
             "legacy_anagrafica_id", "updated_by", "updated_at",
             "tipologia_contratto", "livello_inquadramento",
             "caporeparto_legacy_id",
+            # Reparto, area aziendale e ruolo aziendale non si modificano più da
+            # qui: sono governati dagli spostamenti organizzativi
+            # (DipendenteAssegnazione), che li assegnano insieme con una sola
+            # decorrenza e la verifica di idoneità. Lasciarli editabili anche di
+            # qui creerebbe un secondo scrittore capace di desincronizzare
+            # l'assetto reale dall'assegnazione in corso.
+            "area", "area_aziendale", "ruolo_aziendale",
         ]
         widgets = {
             "badge": forms.TextInput(attrs={"class": "dp-input", "placeholder": "Codice badge fisico"}),
@@ -166,44 +173,6 @@ class AnagraficaAziendaleForm(forms.ModelForm):
             "email_aziendale": forms.EmailInput(attrs={"class": "dp-input"}),
             "telefono_aziendale": forms.TextInput(attrs={"class": "dp-input", "placeholder": "+39 ..."}),
         }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        # Reparto: dropdown dal catalogo Reparto.
-        # Include il valore corrente anche se non più presente nel catalogo.
-        active_aree = list(Reparto.objects.filter(is_active=True).values_list("nome", flat=True).order_by("nome"))
-        current_area = self.instance.area if self.instance.pk else ""
-        if current_area and current_area not in active_aree:
-            active_aree = [current_area] + active_aree
-        area_choices = [("", "— Nessuno —")] + [(n, n) for n in active_aree]
-        self.fields["area"].label = "Reparto"
-        self.fields["area"].widget = forms.Select(attrs={"class": "dp-input"})
-        self.fields["area"].widget.choices = area_choices
-
-        # Area aziendale: dropdown filtrato via JS sul Reparto scelto (client-side,
-        # vedi cascading in dipendente_detail.html). Il queryset include le aree
-        # attive più quella eventualmente già assegnata (anche se nel frattempo
-        # disattivata), stesso criterio già usato sopra per "area".
-        area_aziendale_corrente_id = self.instance.area_aziendale_id if self.instance.pk else None
-        self.fields["area_aziendale"].queryset = AreaAziendale.objects.filter(
-            Q(is_active=True) | Q(pk=area_aziendale_corrente_id)
-        ).order_by("nome")
-        self.fields["area_aziendale"].label = "Area aziendale"
-        self.fields["area_aziendale"].empty_label = "— Nessuna —"
-        self.fields["area_aziendale"].widget.attrs.update({
-            "class": "dp-input",
-            "data-current": str(area_aziendale_corrente_id or ""),
-        })
-
-        # Ruolo aziendale: dropdown da catalogo RuoloAziendale
-        active_ruoli = list(RuoloAziendale.objects.filter(is_active=True).values_list("nome", flat=True).order_by("nome"))
-        current_ruolo = self.instance.ruolo_aziendale if self.instance.pk else ""
-        if current_ruolo and current_ruolo not in active_ruoli:
-            active_ruoli = [current_ruolo] + active_ruoli
-        ruolo_choices = [("", "— Nessuno —")] + [(n, n) for n in active_ruoli]
-        self.fields["ruolo_aziendale"].widget = forms.Select(attrs={"class": "dp-input"})
-        self.fields["ruolo_aziendale"].widget.choices = ruolo_choices
 
     def clean_badge(self):
         val = self.cleaned_data.get("badge", "").strip()

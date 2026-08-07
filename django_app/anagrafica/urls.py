@@ -63,10 +63,14 @@ urlpatterns = [
     # Impostazioni permessi widget
     path("impostazioni-widget/", views.widget_permissions, name="widget_permissions"),
 
-    # Mansione dipendente (aggiorna campo legacy)
-    path("dipendenti/<int:legacy_id>/mansione/set", views.dipendente_mansione_set, name="dipendente_mansione_set"),
-    # Reparto dipendente (aggiorna campo legacy)
-    path("dipendenti/<int:legacy_id>/reparto/set", views.dipendente_reparto_set, name="dipendente_reparto_set"),
+    # Spostamento organizzativo: reparto + area + mansione + ruolo in un atto solo.
+    # Sostituisce i vecchi endpoint separati mansione/set e reparto/set.
+    path("dipendenti/<int:legacy_id>/assegnazione/nuova", views.dipendente_assegnazione_create, name="dipendente_assegnazione_create"),
+    path("dipendenti/<int:legacy_id>/assegnazione/<int:assegnazione_id>/annulla", views.dipendente_assegnazione_annulla, name="dipendente_assegnazione_annulla"),
+    # Anteprima idoneità: endpoint JSON, quindi sotto /anagrafica/api/ e mappato in
+    # core.middleware.API_ACL_GATE_PATHS — altrimenti a un utente senza permessi il
+    # middleware risponderebbe con un redirect HTML invece che con un 403 JSON.
+    path("api/dipendenti/<int:legacy_id>/assegnazione-verifica", views.dipendente_assegnazione_verifica, name="dipendente_assegnazione_verifica"),
     # Matricola dipendente (aggiorna campo legacy; preinserimento/recruiting)
     path("dipendenti/<int:legacy_id>/matricola/set", views.dipendente_matricola_set, name="dipendente_matricola_set"),
     # Username dipendente (aliasusername)

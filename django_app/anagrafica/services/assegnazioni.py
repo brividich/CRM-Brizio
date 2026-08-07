@@ -1,0 +1,314 @@
+"""Spostamenti organizzativi: registrazione, verifica di idoneità, attivazione.
+
+Uno spostamento è un atto unico — reparto, area aziendale, mansione e ruolo
+cambiano insieme — e viene registrato come ``DipendenteAssegnazione``. Da qui
+passano le tre cose che il modulo deve garantire:
+
+1. **Verifica di idoneità.** Prima di confermare, si chiede a
+   ``services.conformita`` se la persona è in regola *per la mansione di
+   destinazione*: competenze (formazione), DPI e visite mediche. L'esito è
+   consultivo — non blocca lo spostamento — e viene fotografato
+   sull'assegnazione, così resta la traccia di cosa mancava quel giorno.
+
+2. **Attivazione differita.** I campi vivi del dipendente si toccano solo
+   quando la decorrenza è arrivata: un'assegnazione datata al futuro resta
+   *programmata* e il portale continua a vedere il reparto vecchio finché
+   ``attiva_assegnazione`` non la applica (subito se la data è già passata,
+   altrimenti dal task notturno).
+
+3. **Audit per-campo.** All'attivazione si scrive comunque
+   ``DipendenteCambiamentoOrganizzativo`` per ciascun campo cambiato, con
+   ``data_effetto`` = inizio dell'assegnazione: il log per-campo resta la
+   fonte per report e diagnostica esistenti.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from django.db import transaction
+from django.utils import timezone
+
+from ..models import AreaAziendale, DipendenteAssegnazione, DipendenteCambiamentoOrganizzativo
+
+# Etichette dei domini nel gap di idoneità, come li produce services.conformita.
+DOMINIO_PREFISSI = {
+    "formazione": "Corso: ",
+    "dpi": "DPI: ",
+    "visite": "Visita: ",
+}
+
+
+def verifica_idoneita(
+    legacy_id: int,
+    mansione: str,
+    *,
+    include_visite_dettaglio: bool = False,
+) -> dict[str, Any]:
+    """Idoneità della persona **rispetto a una mansione** (anche solo ipotizzata).
+
+    Wrapper di ``conformita.stato_conformita``: quel servizio sa già calcolare i
+    requisiti di una mansione arbitraria, quindi lo si usa in anteprima prima di
+    confermare lo spostamento.
+
+    Ritorna ``{"esito", "label", "colore", "mancanti", "scaduti", "gap",
+    "per_dominio"}``. Fail-open: se il calcolo esplode si torna "da verificare"
+    invece di impedire la registrazione dello spostamento.
+    """
+    vuoto = {
+        "esito": DipendenteAssegnazione.IDONEITA_NA,
+        "label": DipendenteAssegnazione.IDONEITA_LABEL[DipendenteAssegnazione.IDONEITA_NA],
+        "colore": DipendenteAssegnazione.IDONEITA_COLORI[DipendenteAssegnazione.IDONEITA_NA],
+        "mancanti": [],
+        "scaduti": [],
+        "gap": [],
+        "per_dominio": {},
+    }
+    if not mansione or not mansione.strip():
+        return vuoto
+
+    try:
+        from . import conformita
+        stato = conformita.stato_conformita(
+            legacy_id,
+            mansione=mansione.strip(),
+            include_visite_dettaglio=include_visite_dettaglio,
+        )
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning(
+            "Verifica idoneita fallita per dipendente %s / mansione %r", legacy_id, mansione,
+            exc_info=True,
+        )
+        return dict(vuoto, label="Da verificare", esito="")
+
+    idn = stato.get("idoneita") or {}
+    esito = idn.get("esito") or DipendenteAssegnazione.IDONEITA_NA
+    mancanti = list(idn.get("mancanti") or [])
+    scaduti = list(idn.get("scaduti") or [])
+
+    return {
+        "esito": esito,
+        "label": DipendenteAssegnazione.IDONEITA_LABEL.get(esito, "Da verificare"),
+        "colore": DipendenteAssegnazione.IDONEITA_COLORI.get(esito, "#64748b"),
+        "mancanti": mancanti,
+        "scaduti": scaduti,
+        # Gli scaduti prima: un requisito scaduto è più grave di uno mai registrato.
+        "gap": scaduti + mancanti,
+        "per_dominio": _raggruppa_per_dominio(scaduti, mancanti),
+    }
+
+
+def _raggruppa_per_dominio(scaduti: list[str], mancanti: list[str]) -> dict[str, list[str]]:
+    """Divide il gap nei tre domini che l'utente vuole vedere separati."""
+    out: dict[str, list[str]] = {"formazione": [], "dpi": [], "visite": []}
+    for voce, suffisso in [(v, " (scaduto)") for v in scaduti] + [(v, "") for v in mancanti]:
+        for dominio, prefisso in DOMINIO_PREFISSI.items():
+            if voce.startswith(prefisso):
+                out[dominio].append(voce[len(prefisso):] + suffisso)
+                break
+    return {k: v for k, v in out.items() if v}
+
+
+@transaction.atomic
+def crea_assegnazione(
+    legacy_id: int,
+    *,
+    data_inizio,
+    reparto: str = "",
+    area_aziendale_id: int | None = None,
+    mansione: str = "",
+    ruolo_aziendale: str = "",
+    note: str = "",
+    user=None,
+    include_visite_dettaglio: bool = False,
+) -> DipendenteAssegnazione:
+    """Registra uno spostamento, chiudendo il precedente e verificando l'idoneità.
+
+    Se ``data_inizio`` è già passata (o è oggi) l'assegnazione viene anche
+    attivata subito; altrimenti resta programmata.
+    """
+    reparto = (reparto or "").strip()[:200]
+    mansione = (mansione or "").strip()[:200]
+    ruolo_aziendale = (ruolo_aziendale or "").strip()[:200]
+
+    # L'area aziendale deve appartenere al reparto scelto, stessa invariante di
+    # _sync_aziendale_from_reparto: un'area incoerente viene scartata invece di
+    # bloccare lo spostamento.
+    area_valida_id = None
+    if area_aziendale_id:
+        area = (
+            AreaAziendale.objects
+            .filter(pk=area_aziendale_id, reparto__nome__iexact=reparto)
+            .first()
+            if reparto else None
+        )
+        area_valida_id = area.pk if area is not None else None
+
+    idoneita = verifica_idoneita(
+        legacy_id, mansione, include_visite_dettaglio=include_visite_dettaglio
+    )
+
+    DipendenteAssegnazione.chiudi_aperta(legacy_id, data_inizio)
+
+    assegnazione = DipendenteAssegnazione.objects.create(
+        legacy_anagrafica_id=legacy_id,
+        data_inizio=data_inizio,
+        reparto=reparto,
+        area_aziendale_id=area_valida_id,
+        mansione=mansione,
+        ruolo_aziendale=ruolo_aziendale,
+        note=note,
+        idoneita_esito=idoneita["esito"],
+        idoneita_mancanti=idoneita["mancanti"],
+        idoneita_scaduti=idoneita["scaduti"],
+        idoneita_verificata_il=timezone.now(),
+        created_by=user if getattr(user, "is_authenticated", False) else None,
+    )
+
+    if data_inizio <= timezone.localdate():
+        attiva_assegnazione(assegnazione, user=user)
+
+    return assegnazione
+
+
+def attiva_assegnazione(assegnazione: DipendenteAssegnazione, *, user=None) -> bool:
+    """Allinea i campi vivi del dipendente a questa assegnazione.
+
+    Scrive reparto/mansione sulla riga legacy e area/area aziendale/ruolo su
+    ``DipendenteAnagraficaAziendale``, poi registra il log per-campo con
+    ``data_effetto`` = inizio dell'assegnazione (non "oggi": se il task gira in
+    ritardo la decorrenza formale resta quella giusta).
+
+    Idempotente: un'assegnazione già attivata non viene riapplicata.
+    Ritorna True se ha attivato, False se era già attiva.
+
+    Gli helper di ``views`` si importano qui dentro: sono le funzioni che già
+    presidiano la scrittura di quei campi e importarle a livello di modulo
+    creerebbe un ciclo views -> services -> views.
+    """
+    if assegnazione.attivata_il is not None:
+        return False
+
+    from core.legacy_anagrafica import fetch_anagrafica_rows, upsert_anagrafica_dipendente
+    from ..views import _registra_cambiamento, _sync_aziendale_from_reparto
+
+    legacy_id = assegnazione.legacy_anagrafica_id
+    rows = fetch_anagrafica_rows(ids=[legacy_id])
+    if not rows:
+        return False
+    dip = rows[0]
+
+    reparto_vecchio = (dip.get("reparto") or "").strip()
+    mansione_vecchia = (dip.get("mansione") or "").strip()
+
+    upsert_anagrafica_dipendente(
+        row_id=legacy_id,
+        aliasusername=dip.get("aliasusername") or "",
+        nome=dip.get("nome") or "",
+        cognome=dip.get("cognome") or "",
+        reparto=assegnazione.reparto,
+        mansione=assegnazione.mansione,
+        ruolo=dip.get("ruolo") or "",
+        matricola=dip.get("matricola") or "",
+        email=dip.get("email") or "",
+        email_notifica=dip.get("email_notifica") or "",
+        attivo=bool(dip.get("attivo", True)),
+    )
+
+    _registra_cambiamento(
+        legacy_id,
+        DipendenteCambiamentoOrganizzativo.TIPO_REPARTO,
+        reparto_vecchio, assegnazione.reparto,
+        user, data_effetto=assegnazione.data_inizio,
+    )
+    _registra_cambiamento(
+        legacy_id,
+        DipendenteCambiamentoOrganizzativo.TIPO_MANSIONE,
+        mansione_vecchia, assegnazione.mansione,
+        user, data_effetto=assegnazione.data_inizio,
+    )
+
+    # Reparto/area aziendale sul record aziendale: il sync è l'unico punto che
+    # scrive quei due campi e li storicizza da sé.
+    _sync_aziendale_from_reparto(
+        legacy_id, assegnazione.reparto,
+        area_aziendale_id=assegnazione.area_aziendale_id,
+        saved_by=user,
+        data_decorrenza=assegnazione.data_inizio,
+    )
+
+    _aggiorna_ruolo_aziendale(
+        legacy_id, assegnazione.ruolo_aziendale,
+        user=user, data_decorrenza=assegnazione.data_inizio,
+    )
+
+    assegnazione.attivata_il = timezone.now()
+    assegnazione.save(update_fields=["attivata_il"])
+    return True
+
+
+def _aggiorna_ruolo_aziendale(legacy_id: int, ruolo: str, *, user, data_decorrenza) -> None:
+    from ..models import DipendenteAnagraficaAziendale
+    from ..views import _registra_cambiamento
+
+    az, _ = DipendenteAnagraficaAziendale.objects.get_or_create(
+        legacy_anagrafica_id=legacy_id, defaults={"updated_by": user},
+    )
+    precedente = az.ruolo_aziendale or ""
+    if precedente.strip().casefold() == (ruolo or "").strip().casefold():
+        return
+    az.ruolo_aziendale = ruolo
+    az.updated_by = user
+    az.save(update_fields=["ruolo_aziendale", "updated_by", "updated_at"])
+    _registra_cambiamento(
+        legacy_id,
+        DipendenteCambiamentoOrganizzativo.TIPO_RUOLO_AZIENDALE,
+        precedente, ruolo,
+        user, data_effetto=data_decorrenza,
+    )
+
+
+def attiva_programmate_scadute(*, limit: int | None = None) -> dict[str, int]:
+    """Applica tutte le assegnazioni programmate la cui decorrenza è arrivata.
+
+    Pensata per il task schedulato: gira ogni notte e non deve mai far cadere il
+    cluster, quindi un errore su una persona non ferma le altre.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    qs = (
+        DipendenteAssegnazione.objects
+        .filter(attivata_il__isnull=True, data_inizio__lte=timezone.localdate())
+        .order_by("data_inizio", "pk")
+    )
+    if limit:
+        qs = qs[:limit]
+
+    attivate = errori = 0
+    for assegnazione in list(qs):
+        try:
+            if attiva_assegnazione(assegnazione):
+                attivate += 1
+        except Exception:
+            errori += 1
+            logger.exception(
+                "Attivazione assegnazione %s (dipendente %s) fallita",
+                assegnazione.pk, assegnazione.legacy_anagrafica_id,
+            )
+    return {"attivate": attivate, "errori": errori}
+
+
+def assegnazione_corrente(legacy_id: int) -> DipendenteAssegnazione | None:
+    """Assegnazione in vigore oggi (nessuna se la persona non ne ha mai avute)."""
+    oggi = timezone.localdate()
+    from django.db.models import Q
+    return (
+        DipendenteAssegnazione.objects
+        .filter(legacy_anagrafica_id=legacy_id, data_inizio__lte=oggi)
+        .filter(Q(data_fine__isnull=True) | Q(data_fine__gte=oggi))
+        .select_related("area_aziendale")
+        .order_by("-data_inizio", "-created_at")
+        .first()
+    )

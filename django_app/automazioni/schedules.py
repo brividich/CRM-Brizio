@@ -68,6 +68,18 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # Attiva gli spostamenti organizzativi programmati la cui decorrenza e'
+        # arrivata (reparto/area/mansione/ruolo del dipendente). Presto al
+        # mattino, prima che chiunque apra il portale, cosi la giornata inizia
+        # gia' con l'assetto nuovo. Idempotente e no-op se non ce n'e' nessuno.
+        "name": "attiva_assegnazioni_programmate",
+        "func": "anagrafica.tasks.run_attiva_assegnazioni_programmate",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "5 0 * * *",        # ogni giorno alle 00:05
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # Digest "idoneità alla mansione" (non idonei / con riserve) per RSPP /
         # medico competente / HR. Fail-safe: no-op se non sono configurati i
         # destinatari (SiteConfig idoneita_reminder_emails).
