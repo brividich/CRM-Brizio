@@ -28,6 +28,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
   Job `intake_referti_sanitari` ogni 10 minuti (opt-in, no-op a cartella spenta o irraggiungibile), idempotente per impronta SHA-256. 56 test in `tests_referti_intake.py`. ADR: `docs/superpowers/specs/2026-08-06-sorveglianza-sanitaria-intake-referti-design.md`.
 
+- **Script di installazione di Tesseract sull'host di produzione** (`tools/install_tesseract_prod.ps1`). Mette Tesseract sull'host (copia **portable** o installer già scaricato), verifica che il pacchetto lingua `ita` ci sia **prima** di scrivere qualunque cosa, configura `TESSERACT_CMD`/`TESSDATA_PREFIX` nel `.env` persistente (backup + UTF-8 senza BOM, come `ensure_document_encryption_key.ps1`), concede lettura+esecuzione all'identità dell'app-pool, lo riavvia e prova il motore. Idempotente; `-DryRun` mostra le operazioni senza applicarle e non richiede privilegi amministrativi.
+
+  La copia **portable** è la strada consigliata perché riusa la stessa build su cui l'estrazione è stata tarata: fra major di Tesseract cambia il motore di riconoscimento, e installarne una diversa introdurrebbe una variabile proprio nel punto misurato. Se `ita` manca, lo script **si ferma prima** di toccare il `.env`, per non lasciare l'host a metà.
+
 ### Removed
 
 - **Assets · rimossa l'integrazione SharePoint dal modulo asset** (`django_app/assets/views.py`, `models.py`, `forms.py`, `admin.py`, `urls.py`, `tests.py`, migration `0090_remove_sharepoint_fields.py`, template `asset_detail.html`, `asset_form.html`, `work_machine_form.html`, `gestione_admin.html`, `asset_qr_landing.html`, `asset_label_designer.html`, `django_app/assets/README.md`; eliminati `assets/services/sharepoint_public_links.py`, `assets/management/commands/sync_asset_documents_from_sharepoint.py`, `assets_ensure_public_share_links.py`, `assets_ensure_sharepoint_metadata.py`, `docs/assets/SHAREPOINT_UPLOAD_REVIEW.md`, `docs/assets/SHAREPOINT_CARTELLE_ASSET_GUIDE.md`; ripuliti `django_app/config/settings/base.py`, `django_app/hub_tools/views.py`, `hub_tools/templates/hub_tools/setup_wizard.html`, `hub_tools/tests.py`, `README.md`).
