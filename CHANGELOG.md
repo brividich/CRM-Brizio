@@ -8,6 +8,26 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Added
+
+- **Sorveglianza sanitaria · acquisizione automatica dei referti scansionati** (nuovi `django_app/anagrafica/models_sorveglianza.py`, `views_sorveglianza.py`, `tests_referti_intake.py`, `services/referti_ocr.py`, `services/referti_parsing.py`, `services/referti_match.py`, `services/referti_registrazione.py`, `services/referti_intake.py`, migrazioni `0105_aliasesitoidoneita_refertointakeconfig_and_more.py` e `0106_subnav_referti_sanitari.py`, template `referti_coda.html`, `referti_registro.html`, `referti_impostazioni.html`; modificati `anagrafica/models.py`, `forms.py`, `urls.py`, `tasks.py`, `automazioni/schedules.py`, `config/settings/base.py`).
+
+  I certificati di idoneità del medico competente sono firmati dal lavoratore, quindi arrivano per forza come **scansioni di sola immagine**: verificato sull'originale, zero caratteri di testo estraibile. Il portale li legge da una cartella di rete (o da un caricamento multiplo), riconosce il dipendente e **propone** la registrazione delle visite; registrare resta una decisione umana.
+
+  **Riuso, non un modulo nuovo.** Lo schema sanitario esiste già (`TipoVisitaMedica`, `VisitaMedica`, `VisitaSessione`) e non è stato toccato; l'ACL riusa il singleton `AnagraficaVisiteMedichePermission` (default ADMIN) e il permesso canonico `anagrafica.visite.view`, perché confermare un abbinamento *è* registrare una visita. I nuovi modelli descrivono solo il tragitto della scansione: `RefertoIntakeConfig` (singleton), `RefertoIntakeRiga` (registro + coda di revisione), `AliasEsameProtocollo` e `AliasEsitoIdoneita` (tabelle di traduzione modificabili in pagina).
+
+  **Un certificato non è una visita**: porta un intero protocollo sanitario, quindi da un solo PDF nascono **N `VisitaMedica`** con la stessa data e scadenze diverse. La periodicità viene dal **catalogo** (`durata_mesi`), non dal certificato; se il medico dichiara una cadenza diversa la divergenza non viene sovrascritta in silenzio ma registrata e mostrata in coda. Un esame fuori catalogo o un giudizio non riconosciuto **non vengono indovinati**: mandano il referto in revisione, perché inventare un tipo significa inventare una scadenza.
+
+  **Riconoscimento del dipendente**: fuzzy sul nominativo con `difflib` (libreria standard, nessuna dipendenza nuova) **confermato dalla data di nascita** letta sul certificato e confrontata con `DipendenteAnagraficaCivile`. Una data che coincide vale più di un nome somigliante; una data che **non** coincide manda in revisione qualunque sia il punteggio. Restano sempre manuali: dipendente cessato, candidati multipli, nominativo letto dal riconoscimento di ripiego.
+
+  **Dipendenze**: nessuna nuova libreria Python — la rasterizzazione usa PyMuPDF, già in `requirements.txt` e già impiegato da `core/qr.py`. **Nuova dipendenza binaria di sistema: Tesseract 5.x con pacchetto lingua `ita`**, la prima del portale: sta fuori dal venv e dal pacchetto di rilascio, va installata sul server e si configura con `TESSERACT_CMD` in `.env` se non è nel PATH. Se manca, i referti vengono comunque archiviati e la coda dice perché.
+
+  **Parametri OCR misurati, non canonici** (`ocr_dpi=200`, `ocr_psm=6`): i default di libreria (300 dpi, psm 3) sulla stessa pagina corrompevano la data del giudizio (`241-05-2024`). La taratura **non è trasferibile fra rasterizzatori** — con poppler funziona, con PyMuPDF no — ed è ricavata da un solo certificato: per questo vive in configurazione e si corregge dall'interfaccia, senza rilascio. L'estrazione non si affida comunque a un pattern singolo: la data del giudizio si decide **per consenso** fra le tre occorrenze presenti nel documento.
+
+  **Privacy (art. 9 GDPR)**: il testo grezzo dell'OCR **non viene mai persistito** — un referto contiene anche materiale diagnostico che al datore di lavoro non compete — sopravvivono solo i campi riconosciuti. Il PDF resta nell'archivio privato cifrato fuori webroot, scaricabile solo da view con ACL e audit; ogni conferma manuale registra chi e quando.
+
+  Job `intake_referti_sanitari` ogni 10 minuti (opt-in, no-op a cartella spenta o irraggiungibile), idempotente per impronta SHA-256. 56 test in `tests_referti_intake.py`. ADR: `docs/superpowers/specs/2026-08-06-sorveglianza-sanitaria-intake-referti-design.md`.
+
 ### Removed
 
 - **Assets · rimossa l'integrazione SharePoint dal modulo asset** (`django_app/assets/views.py`, `models.py`, `forms.py`, `admin.py`, `urls.py`, `tests.py`, migration `0090_remove_sharepoint_fields.py`, template `asset_detail.html`, `asset_form.html`, `work_machine_form.html`, `gestione_admin.html`, `asset_qr_landing.html`, `asset_label_designer.html`, `django_app/assets/README.md`; eliminati `assets/services/sharepoint_public_links.py`, `assets/management/commands/sync_asset_documents_from_sharepoint.py`, `assets_ensure_public_share_links.py`, `assets_ensure_sharepoint_metadata.py`, `docs/assets/SHAREPOINT_UPLOAD_REVIEW.md`, `docs/assets/SHAREPOINT_CARTELLE_ASSET_GUIDE.md`; ripuliti `django_app/config/settings/base.py`, `django_app/hub_tools/views.py`, `hub_tools/templates/hub_tools/setup_wizard.html`, `hub_tools/tests.py`, `README.md`).

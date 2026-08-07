@@ -103,6 +103,21 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # Certificati di idoneità depositati dalla fotocopiatrice in una cartella
+        # di rete. Qui non c'è nessun QR: il dipendente si riconosce dal blocco
+        # anagrafico e si conferma sulla data di nascita, quindi l'esito normale
+        # è una proposta in coda, non una registrazione. Spento finché non lo si
+        # accende da Impostazioni → Acquisizione referti.
+        # Passo più lungo dei fogli firme: la lettura costa ~2 secondi a
+        # certificato (OCR), e nessuno aspetta un referto in tempo reale.
+        "name": "intake_referti_sanitari",
+        "func": "anagrafica.tasks.run_intake_referti_sanitari",
+        "schedule_type": "I",   # Schedule.MINUTES
+        "minutes": 10,
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # Promemoria sessioni formative imminenti (T-7 e T-1) agli iscritti, con
         # invito calendario .ics + notifica in-app. Fail-safe / no-op se non ci sono
         # edizioni pianificate nelle date bersaglio.

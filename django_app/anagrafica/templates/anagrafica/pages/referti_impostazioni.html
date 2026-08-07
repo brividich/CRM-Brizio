@@ -1,0 +1,241 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Acquisizione referti | Visite mediche | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<style>
+.ri-sez{border:1px solid #e2e8f0;border-radius:10px;padding:16px 18px;margin-bottom:16px}
+body.theme-dark .ri-sez{border-color:#334155}
+.ri-tit{font-size:15px;font-weight:700;margin-bottom:4px}
+.ri-nota{font-size:12.5px;opacity:.75;margin-bottom:12px}
+.ri-campo{margin-bottom:12px}
+.ri-campo label{display:block;font-size:12.5px;font-weight:600;margin-bottom:4px}
+.ri-campo .helptext{display:block;font-size:11.5px;opacity:.7;margin-top:3px}
+.ri-campo input[type=text],.ri-campo input[type=number],.ri-campo select{
+  padding:7px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;min-width:260px}
+body.theme-dark .ri-campo input,body.theme-dark .ri-campo select{
+  border-color:#3a4a5e;background:#1e293b;color:#e2e8f0}
+.ri-riga{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 20px}
+.ri-stato{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700}
+.ri-ok{background:#dcfce7;color:#065f46}    body.theme-dark .ri-ok{background:#064e3b;color:#a7f3d0}
+.ri-ko{background:#fee2e2;color:#991b1b}    body.theme-dark .ri-ko{background:#4c1d1d;color:#fecaca}
+.ri-avviso{border:1px solid #fcd34d;background:#fffbeb;border-radius:8px;padding:10px 14px;
+  font-size:13px;margin-bottom:12px}
+body.theme-dark .ri-avviso{border-color:#78350f;background:#2c2415}
+.ri-err{font-size:12px;color:#b91c1c;margin-top:3px}
+body.theme-dark .ri-err{color:#f87171}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell" id="ana-root">
+
+  {% include "anagrafica/components/flash_messages.html" %}
+
+  <div class="hr-hero">
+    <div>
+      <div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;opacity:.75;">Sorveglianza sanitaria</div>
+      <h1 style="margin:6px 0 4px;font-size:24px;">Acquisizione referti</h1>
+      <div style="opacity:.85;font-size:13px;">
+        La fotocopiatrice scrive nella cartella, il portale legge e propone. Registrare resta
+        una decisione di una persona.
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a class="hr-btn" href="{% url 'anagrafica:referti_coda' %}">Coda di revisione</a>
+      <a class="hr-btn" href="{% url 'anagrafica:referti_registro' %}">Registro</a>
+    </div>
+  </div>
+
+  {% if not ocr_attivo %}
+  <div class="ri-avviso">
+    <strong>Tesseract non è installato su questo server.</strong> È l'unico componente esterno che
+    serve a questo modulo: senza, i referti vengono archiviati ma nessun campo può essere letto.
+    Va installato con il pacchetto lingua <code>ita</code>; se non finisce nel PATH, il percorso si
+    indica con <code>TESSERACT_CMD</code> nel file <code>.env</code>.
+  </div>
+  {% else %}
+  <div style="font-size:12.5px;opacity:.75;margin-bottom:12px;">
+    Riconoscimento testo attivo — <span style="font-family:ui-monospace,Consolas,monospace;">{{ ocr_percorso }}</span>
+  </div>
+  {% endif %}
+
+  {% if avviso_lettera_unita %}
+  <div class="ri-avviso">
+    La cartella è indicata con una <strong>lettera di unità</strong>. Una lettera mappata è visibile
+    all'utente collegato, non al servizio che esegue il portale: il sintomo sarebbe una cartella
+    che resta eternamente vuota. Meglio il percorso di rete completo.
+  </div>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+
+    <div class="ri-sez">
+      <div class="ri-tit">Cartella</div>
+      <div class="ri-nota">
+        Stato adesso: <span class="ri-stato {% if stato_cartella == 'raggiungibile' %}ri-ok{% else %}ri-ko{% endif %}">{{ stato_cartella }}</span>
+      </div>
+      {% for campo in form %}
+        {% if campo.name in "attiva,cartella,sposta_elaborati,max_file_per_giro" %}
+        <div class="ri-campo">
+          <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+          {{ campo }}
+          {% if campo.help_text %}<span class="helptext">{{ campo.help_text }}</span>{% endif %}
+          {% for e in campo.errors %}<div class="ri-err">{{ e }}</div>{% endfor %}
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+
+    <div class="ri-sez">
+      <div class="ri-tit">Lettura</div>
+      <div class="ri-nota">
+        I valori predefiniti non sono quelli canonici: sono stati <strong>misurati</strong>. A 300 dpi
+        con la segmentazione automatica la data del giudizio usciva corrotta, a 200 dpi con la
+        segmentazione a blocco no. Se un lotto di scansioni si legge male, è qui che si interviene.
+      </div>
+      <div class="ri-riga">
+      {% for campo in form %}
+        {% if campo.name in "ocr_dpi,ocr_psm,ocr_lingua,ocr_timeout_secondi" %}
+        <div class="ri-campo">
+          <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+          {{ campo }}
+          {% if campo.help_text %}<span class="helptext">{{ campo.help_text }}</span>{% endif %}
+          {% for e in campo.errors %}<div class="ri-err">{{ e }}</div>{% endfor %}
+        </div>
+        {% endif %}
+      {% endfor %}
+      </div>
+    </div>
+
+    <div class="ri-sez">
+      <div class="ri-tit">Riconoscimento del dipendente</div>
+      <div class="ri-nota">
+        Il certificato non porta il codice fiscale: resta il nominativo passato per l'OCR. A
+        confermare l'identità è la <strong>data di nascita</strong>, non la somiglianza del nome —
+        per questo le due soglie sono diverse, e per questo una data che non coincide manda in
+        revisione qualunque sia il punteggio.
+      </div>
+      <div class="ri-riga">
+      {% for campo in form %}
+        {% if campo.name in "soglia_con_data_nascita,soglia_senza_data_nascita" %}
+        <div class="ri-campo">
+          <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+          {{ campo }}
+          {% if campo.help_text %}<span class="helptext">{{ campo.help_text }}</span>{% endif %}
+          {% for e in campo.errors %}<div class="ri-err">{{ e }}</div>{% endfor %}
+        </div>
+        {% endif %}
+      {% endfor %}
+      </div>
+      {% for campo in form %}
+        {% if campo.name == "conferma_automatica" %}
+        <div class="ri-campo">
+          <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+          {{ campo }}
+          {% if campo.help_text %}<span class="helptext">{{ campo.help_text }}</span>{% endif %}
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
+      <button type="submit" name="azione" value="salva" class="hr-btn hr-btn-primary">Salva</button>
+      <button type="submit" name="azione" value="prova" class="hr-btn">Prova adesso</button>
+    </div>
+  </form>
+
+  <div class="ri-sez">
+    <div class="ri-tit">Esami del protocollo → tipi di visita</div>
+    <div class="ri-nota">
+      Ogni medico scrive gli esami a modo suo. Un esame che non trova corrispondenza qui non viene
+      indovinato: manda il referto in revisione — inventare un tipo significherebbe inventare una
+      scadenza. Aggiungere una riga qui è il modo di insegnare un nome nuovo.
+    </div>
+    <table class="fm-table">
+      <thead><tr><th>Come è scritto sul certificato</th><th>Tipo di visita</th><th>Attivo</th><th></th></tr></thead>
+      <tbody>
+        {% for a in alias_esami %}
+        <tr>
+          <td>{{ a.testo }}</td>
+          <td>{{ a.tipo.nome }}</td>
+          <td>{% if a.attivo %}sì{% else %}no{% endif %}</td>
+          <td>
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="alias_id" value="{{ a.pk }}">
+              <button type="submit" name="azione" value="alias_esame_elimina" class="hr-btn">Rimuovi</button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" style="opacity:.7;padding:16px;">
+          Nessun alias: valgono comunque i nomi esatti del catalogo tipi di visita.
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <form method="post" style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:end;">
+      {% csrf_token %}
+      {% for campo in form_esame %}
+      <div class="ri-campo">
+        <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+        {{ campo }}
+        {% for e in campo.errors %}<div class="ri-err">{{ e }}</div>{% endfor %}
+      </div>
+      {% endfor %}
+      <button type="submit" name="azione" value="alias_esame" class="hr-btn">Aggiungi</button>
+    </form>
+  </div>
+
+  <div class="ri-sez">
+    <div class="ri-tit">Giudizi → esito di idoneità</div>
+    <div class="ri-nota">
+      Stessa logica, con una posta più alta: fra «idoneo con prescrizioni» e «idoneo con
+      limitazioni» la differenza cambia cosa può fare una persona al lavoro. Un giudizio non
+      riconosciuto va in revisione con il testo in chiaro, non viene assimilato al più somigliante.
+    </div>
+    <table class="fm-table">
+      <thead><tr><th>Come è scritto sul certificato</th><th>Esito</th><th>Attivo</th><th></th></tr></thead>
+      <tbody>
+        {% for a in alias_esiti %}
+        <tr>
+          <td>{{ a.testo }}</td>
+          <td>{{ a.get_esito_display }}</td>
+          <td>{% if a.attivo %}sì{% else %}no{% endif %}</td>
+          <td>
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="alias_id" value="{{ a.pk }}">
+              <button type="submit" name="azione" value="alias_esito_elimina" class="hr-btn">Rimuovi</button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" style="opacity:.7;padding:16px;">
+          Nessun giudizio mappato: finché non se ne aggiunge almeno uno, i referti restano in revisione.
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <form method="post" style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:end;">
+      {% csrf_token %}
+      {% for campo in form_esito %}
+      <div class="ri-campo">
+        <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+        {{ campo }}
+        {% for e in campo.errors %}<div class="ri-err">{{ e }}</div>{% endfor %}
+      </div>
+      {% endfor %}
+      <button type="submit" name="azione" value="alias_esito" class="hr-btn">Aggiungi</button>
+    </form>
+  </div>
+
+</div>
+{% endblock %}

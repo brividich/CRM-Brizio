@@ -37,6 +37,11 @@ from .models_formazione import (
     TrainingQuizQuestion,
     TrainingQuizOption,
 )
+from .models_sorveglianza import (
+    AliasEsameProtocollo,
+    AliasEsitoIdoneita,
+    RefertoIntakeConfig,
+)
 
 
 # NOTE: i form Fornitore* sono stati spostati nel modulo `fornitori.forms`
@@ -1280,3 +1285,93 @@ class SkillMatrixConfigForm(forms.ModelForm):
         if v is not None and v < 1:
             raise forms.ValidationError("La soglia uomo-solo deve essere almeno 1.")
         return v
+
+
+# ─────────────────────────────────────────────────────────────
+# Acquisizione dei referti di sorveglianza sanitaria
+# ─────────────────────────────────────────────────────────────
+
+class RefertoIntakeConfigForm(forms.ModelForm):
+    """Cartella dei referti, parametri di lettura e soglie di riconoscimento.
+
+    I parametri dell'OCR sono in pagina e non nel codice per una ragione precisa:
+    la taratura iniziale viene da un solo certificato di un solo medico. Funziona,
+    ma il primo lotto reale può spostarla, e spostarla deve costare una modifica
+    qui, non un rilascio.
+
+    La conferma automatica è l'unico campo che cambia il significato di un dato:
+    accesa, un giudizio di idoneità può finire nella cartella sanitaria di una
+    persona senza che nessuno l'abbia guardato. Resta spenta di default.
+    """
+
+    class Meta:
+        model = RefertoIntakeConfig
+        fields = [
+            "attiva", "cartella", "sposta_elaborati", "max_file_per_giro",
+            "ocr_dpi", "ocr_psm", "ocr_lingua", "ocr_timeout_secondi",
+            "soglia_con_data_nascita", "soglia_senza_data_nascita",
+            "conferma_automatica",
+        ]
+        widgets = {
+            "cartella": forms.TextInput(attrs={
+                "placeholder": r"\server\condivisione\cartella",
+                "style": "font-family:ui-monospace,Consolas,monospace;",
+            }),
+            "max_file_per_giro": forms.NumberInput(attrs={"min": 1, "max": 500}),
+            "ocr_dpi": forms.NumberInput(attrs={"min": 100, "max": 600, "step": 50}),
+            "ocr_psm": forms.NumberInput(attrs={"min": 0, "max": 13}),
+            "ocr_timeout_secondi": forms.NumberInput(attrs={"min": 5, "max": 300}),
+            "soglia_con_data_nascita": forms.NumberInput(attrs={"min": 0, "max": 100}),
+            "soglia_senza_data_nascita": forms.NumberInput(attrs={"min": 0, "max": 100}),
+        }
+
+    def clean_cartella(self):
+        return (self.cleaned_data.get("cartella") or "").strip()
+
+    def clean_ocr_lingua(self):
+        return (self.cleaned_data.get("ocr_lingua") or "ita").strip() or "ita"
+
+    def clean(self):
+        dati = super().clean()
+        if dati.get("attiva") and not (dati.get("cartella") or "").strip():
+            self.add_error("cartella", "Serve una cartella per attivare l'acquisizione.")
+
+        bassa = dati.get("soglia_con_data_nascita")
+        alta = dati.get("soglia_senza_data_nascita")
+        if bassa is not None and alta is not None and bassa > alta:
+            # Non è un capriccio formale: la soglia "senza data di nascita" deve
+            # essere la più severa delle due, perché è quella che decide da sola.
+            self.add_error(
+                "soglia_senza_data_nascita",
+                "Senza data di nascita la soglia deve essere almeno pari a quella con "
+                "la data: è il caso in cui il nome decide da solo.",
+            )
+        return dati
+
+
+class AliasEsameProtocolloForm(forms.ModelForm):
+    """Come il medico chiama un esame ↔ quale tipo di visita è per noi."""
+
+    class Meta:
+        model = AliasEsameProtocollo
+        fields = ["testo", "tipo", "attivo"]
+        widgets = {
+            "testo": forms.TextInput(attrs={"placeholder": "Es. Visita medica periodica"}),
+        }
+
+    def clean_testo(self):
+        return (self.cleaned_data.get("testo") or "").strip()
+
+
+class AliasEsitoIdoneitaForm(forms.ModelForm):
+    """Come è scritto il giudizio ↔ quale esito in codice."""
+
+    class Meta:
+        model = AliasEsitoIdoneita
+        fields = ["testo", "esito", "attivo"]
+        widgets = {
+            "testo": forms.TextInput(attrs={"placeholder": "Es. IDONEO MANSIONE SPECIFICA"}),
+        }
+
+    def clean_testo(self):
+        return (self.cleaned_data.get("testo") or "").strip()
