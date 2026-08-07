@@ -203,3 +203,24 @@ def run_intake_scansioni_formazione(limit: int | None = None) -> dict:
         logger.exception("run_intake_scansioni_formazione: passaggio fallito")
         return {"ok": False, "riepilogo": "Errore nel passaggio sulla cartella"}
     return {"ok": True, **esito}
+
+
+def run_intake_referti_sanitari(limit: int | None = None) -> dict:
+    """Passa in rassegna la cartella dei referti di sorveglianza sanitaria.
+
+    **Opt-in / fail-safe**, come l'acquisizione dei fogli firme: no-op se è spenta
+    (`RefertoIntakeConfig.attiva`) o se la cartella non risponde.
+
+    Differenza sostanziale rispetto ai fogli firme: lì il QR identifica il
+    documento con certezza, qui il dipendente va *riconosciuto*. Perciò l'esito
+    normale di questo passaggio non è «registrato» ma «in coda»: le visite si
+    scrivono solo quando la conferma automatica è accesa e nulla è dubbio.
+    """
+    from anagrafica.services.referti_intake import elabora_cartella
+
+    try:
+        esito = elabora_cartella(limite=limit)
+    except Exception:
+        logger.exception("run_intake_referti_sanitari: passaggio fallito")
+        return {"ok": False, "riepilogo": "Errore nel passaggio sulla cartella"}
+    return {"ok": True, **esito}

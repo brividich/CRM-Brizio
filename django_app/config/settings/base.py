@@ -644,6 +644,16 @@ GESTIONE_SPECIFICHE_PRIVATE_ROOT = Path(
 SCHEDE_SICUREZZA_PRIVATE_ROOT = Path(
     env("SCHEDE_SICUREZZA_PRIVATE_ROOT", str(MEDIA_ROOT.parent / "media_private"))
 )
+# Tesseract OCR — lettura dei referti di sorveglianza sanitaria scansionati.
+# È l'unica dipendenza BINARIA di sistema del portale: sta fuori dal venv, fuori dal
+# pacchetto di rilascio, e va installata sul server (con il pacchetto lingua `ita`).
+# Vuoto = si cerca `tesseract` nel PATH. Se manca, l'acquisizione dei referti non
+# rompe nulla: archivia il file e lo manda in revisione dicendo perché.
+TESSERACT_CMD = env("TESSERACT_CMD", "")
+# Cartella dei dati lingua. Serve solo alle copie PORTABLE di Tesseract (quelle
+# affiancate all'eseguibile, senza installer): un Tesseract installato la trova da
+# sé. Vuoto = si lascia decidere a Tesseract.
+TESSDATA_PREFIX = env("TESSDATA_PREFIX", "")
 # Radici UNC CONSENTITE per gli allegati "collegati" (modalità share = single source of
 # truth: il PDF resta sul master aziendale, il portale lo serve on-demand). La view di
 # download serve SOLO file dentro queste radici (allowlist + anti-traversal). Più radici

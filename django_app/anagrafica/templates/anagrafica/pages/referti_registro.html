@@ -1,0 +1,109 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Registro referti acquisiti | Visite mediche | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<style>
+.rr-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;
+  border:1px solid #cbd5e1;font-size:12.5px;text-decoration:none;color:inherit;white-space:nowrap}
+.rr-chip.on{background:#0f2942;border-color:#0f2942;color:#fff}
+body.theme-dark .rr-chip{border-color:#3a4a5e}
+body.theme-dark .rr-chip.on{background:#2563eb;border-color:#2563eb}
+.rr-mono{font-family:ui-monospace,Consolas,monospace;font-size:11.5px}
+.rr-esito{font-weight:700;font-size:12px;letter-spacing:.03em}
+.rr-ok{color:#065f46}      body.theme-dark .rr-ok{color:#34d399}
+.rr-rev{color:#a97114}     body.theme-dark .rr-rev{color:#fbbf24}
+.rr-err{color:#b91c1c}     body.theme-dark .rr-err{color:#f87171}
+.rr-msg{font-size:12px;opacity:.75;margin-top:3px}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell" id="ana-root">
+
+  {% include "anagrafica/components/flash_messages.html" %}
+
+  <div class="hr-hero">
+    <div>
+      <div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;opacity:.75;">Sorveglianza sanitaria</div>
+      <h1 style="margin:6px 0 4px;font-size:24px;">Registro referti acquisiti</h1>
+      <div style="opacity:.85;font-size:13px;">
+        Ogni scansione viene archiviata <strong>prima</strong> di essere letta, riuscita o no.
+        Qui c'è dove è finito il file e cosa se n'è capito.
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a class="hr-btn" href="{% url 'anagrafica:referti_coda' %}">Coda di revisione</a>
+      <a class="hr-btn" href="{% url 'anagrafica:referti_impostazioni' %}">⚙ Acquisizione</a>
+    </div>
+  </div>
+
+  <form method="get" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:14px 0;">
+    <input type="search" name="q" value="{{ cerca }}" placeholder="Nome file o nominativo"
+           style="padding:7px 12px;border:1px solid #cbd5e1;border-radius:8px;min-width:240px;">
+    <button type="submit" class="hr-btn">Cerca</button>
+    <a class="rr-chip {% if not esito %}on{% endif %}" href="?">Tutte ({{ totale }})</a>
+    {% for chiave, etichetta, quanti in filtri %}
+    <a class="rr-chip {% if esito == chiave %}on{% endif %}" href="?esito={{ chiave }}">
+      {{ etichetta }} ({{ quanti }})
+    </a>
+    {% endfor %}
+  </form>
+
+  <table class="fm-table">
+    <thead>
+      <tr>
+        <th>Quando</th>
+        <th>File</th>
+        <th>Letto</th>
+        <th>Dipendente</th>
+        <th>Esito</th>
+        <th>Visite</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for riga in righe %}
+      <tr>
+        <td class="rr-mono">{{ riga.created_at|date:"d/m/Y H:i" }}</td>
+        <td>
+          <div class="rr-mono">{{ riga.nome_file }}</div>
+          <div class="rr-msg">{{ riga.get_origine_display }}{% if riga.pagina > 1 %} · pag. {{ riga.pagina }}{% endif %}</div>
+        </td>
+        <td>
+          {{ riga.letto_nominativo|default:"—" }}
+          {% if riga.letto_data_giudizio %}
+          <div class="rr-msg">giudizio {{ riga.letto_data_giudizio|date:"d/m/Y" }}</div>
+          {% endif %}
+        </td>
+        <td>
+          {{ riga.nome_proposto|default:"—" }}
+          {% if riga.punteggio %}<div class="rr-msg">{{ riga.punteggio }}%{% if riga.data_nascita_conferma %} · data confermata{% endif %}</div>{% endif %}
+        </td>
+        <td>
+          <span class="rr-esito
+            {% if riga.esito == 'OK' %}rr-ok{% elif riga.esito == 'DA_RIVEDERE' %}rr-rev{% elif riga.esito == 'ERRORE' %}rr-err{% endif %}">
+            {{ riga.get_esito_display }}
+          </span>
+          {% if riga.messaggio %}<div class="rr-msg">{{ riga.messaggio }}</div>{% endif %}
+          {% if riga.confermato_da %}
+          <div class="rr-msg">confermato da {{ riga.confermato_da.get_full_name|default:riga.confermato_da.username }}
+            il {{ riga.confermato_il|date:"d/m/Y H:i" }}</div>
+          {% endif %}
+        </td>
+        <td>{{ riga.visite_create }}</td>
+        <td><a class="hr-btn" href="{% url 'anagrafica:referto_scarica' riga.pk %}">File</a></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" style="text-align:center;padding:30px;opacity:.7;">Nessuna acquisizione registrata.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+</div>
+{% endblock %}
