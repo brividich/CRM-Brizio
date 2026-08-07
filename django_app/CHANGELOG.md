@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Anagrafica HR — documenti MSG e HTML
+
+- **[feat/test] `anagrafica/views.py`, `anagrafica/templates/anagrafica/pages/dipendente_detail.html`, `anagrafica/tests.py`**: il caricamento manuale nella card Documenti del dipendente supporta anche `.msg` (Outlook) e `.html`. Restano invariati limite 50 MB, archivio privato, ACL/audit e download come allegato; gli upload degli attestati di formazione conservano i formati precedenti.
+
 ### Formazione — la fotocopiatrice deposita i fogli firme, il portale se li prende
 
 - **[ux/test] `automazioni/schedules.py`, `automazioni/test_scadenze_schedules.py`**: cadenza dell'acquisizione portata da 5 a **2 minuti** — abbastanza spesso da sembrare immediato a chi ha appena scansionato, e il costo di un giro a vuoto è elencare una cartella. 3 test sull'aggancio allo scheduler: schedule registrata (senza, il meccanismo esisterebbe ma non girerebbe mai e nessuno se ne accorgerebbe), cadenza in **minuti** e non in secondi (`"S"` manda in crash il cluster django-q2) e wrapper fail-safe, perché un guasto sulla share non deve propagarsi al cluster che fa girare tutto il resto del portale.

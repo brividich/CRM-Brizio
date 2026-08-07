@@ -10,6 +10,8 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ### Added
 
+- **Anagrafica HR · upload documenti dipendente esteso a MSG e HTML** (`django_app/anagrafica/views.py`, `templates/anagrafica/pages/dipendente_detail.html`, `tests.py`): la card Documenti della scheda dipendente accetta ora anche messaggi Outlook `.msg` e file `.html`, mantenendo il limite di 50 MB, lo storage privato, il download forzato come allegato e i controlli di estensione/MIME. L'estensione riguarda solo il caricamento manuale del fascicolo e non gli attestati di formazione.
+
 - **Anagrafica HR · storico organizzativo del dipendente con data di inizio e fine** (`django_app/anagrafica/models.py`, `views.py`, `admin.py`, migration `0105_dipendentecambiamentoorganizzativo_data_fine_and_more.py`, template `anagrafica/pages/dipendente_detail.html`, nuovo `django_app/anagrafica/tests_storico_organizzativo.py`).
 
   I cambiamenti di **mansione**, **reparto**, **area aziendale** e **ruolo aziendale** non sono piu solo eventi datati: ogni riga di `DipendenteCambiamentoOrganizzativo` e ora un **periodo di assegnazione** con `data_effetto` (inizio) e il nuovo campo `data_fine` (`NULL` = in corso). Aprendo un nuovo periodo, `chiudi_periodo_aperto` chiude quello precedente dello stesso tipo al giorno prima della nuova decorrenza, cosi per ogni tipo resta una sola riga aperta e lo storico e una sequenza continua di intervalli. Una registrazione retroattiva fuori ordine chiude il periodo alla propria data di inizio invece di produrre un intervallo con fine anteriore all'inizio.

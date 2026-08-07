@@ -1,5 +1,20 @@
 # Agent Changelog
 
+## 2026-08-07 - Codex
+
+- Area: `django_app/anagrafica`, card Documenti della scheda dipendente.
+- Richiesta: consentire il caricamento di messaggi Outlook `.msg` e file `.html` nel fascicolo documentale del dipendente.
+- File modificati: `django_app/anagrafica/views.py`, `django_app/anagrafica/templates/anagrafica/pages/dipendente_detail.html`, `django_app/anagrafica/tests.py`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; nessuna modifica a URL, routing, ACL, middleware, settings, autenticazione, permessi o navigazione globale. `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente.
+- Motivo tecnico: il selettore browser e la validazione server del caricamento manuale ammettevano solo PDF, Office e immagini, quindi `.msg` e `.html` venivano esclusi prima del salvataggio.
+- Modifica: aggiunti `.msg` e `.html` all'`accept` del form e a whitelist dedicate di estensioni/MIME del solo upload manuale (`application/vnd.ms-outlook`, `application/x-msg`, `text/html`). Limite 50 MB, storage privato, ACL, audit e download forzato come allegato restano invariati; le whitelist condivise dagli attestati di formazione non sono state estese.
+- Impatto previsto: HR/admin puo archiviare email Outlook e pagine HTML nel fascicolo del dipendente senza convertirle; nessuna migration o modifica dati.
+- Rischi residui: client Outlook non standard che dichiarano per `.msg` un MIME diverso da quelli ammessi vengono respinti in modo fail-closed; il formato standard `application/vnd.ms-outlook` e' coperto.
+- Test/check: `DocumentoDipendenteUploadTests` OK (3 test, incluso salvataggio `.msg`/`.html` e contratto UI); `manage.py check anagrafica --settings=config.settings.test` OK; `git diff --check` OK.
+- Backup creati: nessuno.
+- README/CHANGELOG: aggiornati `README.md`, `CHANGELOG.md` e `django_app/CHANGELOG.md`.
+- Note operative: lavoro isolato nel worktree `C:\Dev\pn-anagrafica-documenti-msg-html`, branch `feature/anagrafica-doc-msg-html`; i file non tracciati del checkout condiviso non sono stati toccati.
+
 ## 2026-08-06 - Codex
 
 - Area: `django_app/assets`, Registro manutenzione nella scheda asset.

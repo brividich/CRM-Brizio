@@ -1,8 +1,15 @@
 # Session Checkpoint
 
-Data: 2026-08-05
+Data: 2026-08-07
 
 Ultime voci viste/aggiunte in questa sessione:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-08-07 - Codex` (upload documenti dipendente esteso a `.msg` e `.html`).
+- `django_app/anagrafica/views.py` -> whitelist dedicate al solo upload manuale per estensioni e MIME MSG/HTML, senza estendere gli attestati formazione.
+- `django_app/anagrafica/templates/anagrafica/pages/dipendente_detail.html` -> selettore file e label aggiornati con MSG/HTML.
+- `django_app/anagrafica/tests.py` -> regressioni su salvataggio dei due formati e contratto UI.
+- Documentazione: `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` aggiornati.
+- Test/check: 3 test mirati e Django check Anagrafica OK; `git diff --check` OK; nessun file critico, backup, migration, URL o modifica ACL.
 
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-08-06 - Codex` (rapporto pianificato gia predisposto nella scheda asset).
 - `django_app/assets/views.py` -> associazione righe/OdL aperti e fallback POST idempotente che genera il rapporto periodico dal template e apre la chiusura.

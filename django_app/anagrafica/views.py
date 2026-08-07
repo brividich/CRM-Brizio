@@ -9890,6 +9890,12 @@ _ALLOWED_DOC_MIMES = {
     "image/webp",
 }
 _ALLOWED_DOC_EXTENSIONS = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".jpeg", ".png", ".webp"}
+_ALLOWED_MANUAL_DOC_MIMES = _ALLOWED_DOC_MIMES | {
+    "application/vnd.ms-outlook",
+    "application/x-msg",
+    "text/html",
+}
+_ALLOWED_MANUAL_DOC_EXTENSIONS = _ALLOWED_DOC_EXTENSIONS | {".msg", ".html"}
 _MAX_DOC_SIZE = 50 * 1024 * 1024  # 50 MB
 
 
@@ -9911,8 +9917,12 @@ def documento_dipendente_upload(request, legacy_id: int):
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
     suffix = Path(uploaded.name or "").suffix.lower()
-    if suffix not in _ALLOWED_DOC_EXTENSIONS:
-        messages.error(request, f"Formato non consentito ({suffix}). Formati ammessi: PDF, DOC, DOCX, XLS, XLSX, JPG, PNG.")
+    if suffix not in _ALLOWED_MANUAL_DOC_EXTENSIONS:
+        messages.error(
+            request,
+            f"Formato non consentito ({suffix}). Formati ammessi: "
+            "PDF, DOC, DOCX, XLS, XLSX, JPG, PNG, MSG, HTML.",
+        )
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
     if uploaded.size > _MAX_DOC_SIZE:
@@ -9925,7 +9935,7 @@ def documento_dipendente_upload(request, legacy_id: int):
     except Exception:
         mime = uploaded.content_type or "application/octet-stream"
 
-    if mime not in _ALLOWED_DOC_MIMES:
+    if mime not in _ALLOWED_MANUAL_DOC_MIMES:
         messages.error(request, "Tipo di file non consentito (contenuto non valido).")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
