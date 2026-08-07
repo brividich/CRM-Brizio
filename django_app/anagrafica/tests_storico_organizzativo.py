@@ -1,9 +1,8 @@
-"""Storico organizzativo del dipendente come periodi con data di inizio e fine.
+"""Storico organizzativo per-campo: periodi con data di inizio e fine.
 
-Copre: la chiusura automatica del periodo precedente su mansione, reparto, area
-aziendale e ruolo aziendale; la decorrenza scelta da HR nei form di anagrafica
-aziendale; il backfill della catena di periodi; e il markup della tabella storico
-in scheda dipendente.
+È il log di audit sotto agli spostamenti organizzativi (vedi
+``tests_assegnazioni.py``): copre la chiusura automatica del periodo precedente
+e la distinzione fra periodo in corso e periodo con decorrenza futura.
 """
 from __future__ import annotations
 
@@ -77,11 +76,29 @@ class ChiusuraPeriodoTests(TestCase):
         self.assertGreaterEqual(vecchio.data_fine, vecchio.data_effetto)
 
     def test_is_in_corso_riflette_data_fine(self):
-        aperto = self._riga(1006, TIPO_MANSIONE, "Saldatore", datetime.date(2026, 1, 1))
-        chiuso = self._riga(1006, TIPO_REPARTO, "UT", datetime.date(2026, 1, 1),
-                            fine=datetime.date(2026, 2, 1))
+        from django.utils import timezone
+        oggi = timezone.localdate()
+        aperto = self._riga(1006, TIPO_MANSIONE, "Saldatore", oggi - datetime.timedelta(days=30))
+        chiuso = self._riga(1006, TIPO_REPARTO, "UT", oggi - datetime.timedelta(days=30),
+                            fine=oggi - datetime.timedelta(days=1))
         self.assertTrue(aperto.is_in_corso)
         self.assertFalse(chiuso.is_in_corso)
+
+    def test_periodo_con_decorrenza_futura_e_programmato_non_in_corso(self):
+        """Il bug segnalato: una riga aperta ma datata al futuro non è "in corso"
+        — il valore vecchio è ancora quello valido oggi."""
+        from django.utils import timezone
+        futuro = timezone.localdate() + datetime.timedelta(days=24)
+        riga = self._riga(1007, TIPO_REPARTO, "TORNI", futuro)
+        self.assertTrue(riga.is_programmato)
+        self.assertFalse(riga.is_in_corso)
+
+    def test_periodo_aperto_gia_decorso_e_in_corso_non_programmato(self):
+        from django.utils import timezone
+        passato = timezone.localdate() - datetime.timedelta(days=3)
+        riga = self._riga(1008, TIPO_REPARTO, "CNC", passato)
+        self.assertFalse(riga.is_programmato)
+        self.assertTrue(riga.is_in_corso)
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
@@ -139,206 +156,3 @@ class RegistraCambiamentoTests(TestCase):
         from .views import _registra_cambiamento
         riga = _registra_cambiamento(1104, TIPO_MANSIONE, "", "Saldatore", self.admin)
         self.assertEqual(riga.data_effetto, timezone.localdate())
-
-
-@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
-class MansioneRepartoDecorrenzaViewTests(TestCase):
-    """I mini-form di scheda dipendente accettano la data di decorrenza."""
-
-    @classmethod
-    def setUpTestData(cls):
-        _ensure_anagrafica_table()
-        cls.admin = User.objects.create_superuser(
-            username="storico_view_admin", email="storico_view_admin@x.local", password="x"
-        )
-
-    def setUp(self):
-        self.client.force_login(self.admin)
-        with connection.cursor() as cursor:
-            cursor.execute("DELETE FROM anagrafica_dipendenti")
-            cursor.execute(
-                "INSERT INTO anagrafica_dipendenti (aliasusername, nome, cognome, attivo) "
-                "VALUES (%s, %s, %s, %s)",
-                ["g.storico", "Gino", "Storico", 1],
-            )
-            cursor.execute(
-                "SELECT id FROM anagrafica_dipendenti WHERE aliasusername = %s", ["g.storico"]
-            )
-            self.legacy_id = int(cursor.fetchone()[0])
-
-    def _periodi(self, tipo):
-        return list(
-            DipendenteCambiamentoOrganizzativo.objects
-            .filter(legacy_anagrafica_id=self.legacy_id, tipo=tipo)
-            .order_by("data_effetto")
-        )
-
-    def test_mansione_set_usa_la_decorrenza_del_form(self):
-        self.client.post(
-            reverse("anagrafica:dipendente_mansione_set", args=[self.legacy_id]),
-            {"mansione_nome": "Saldatore", "data_decorrenza": "2026-03-15"},
-        )
-        periodi = self._periodi(TIPO_MANSIONE)
-        self.assertEqual(len(periodi), 1)
-        self.assertEqual(periodi[0].data_effetto, datetime.date(2026, 3, 15))
-
-    def test_secondo_cambio_mansione_chiude_il_periodo_precedente(self):
-        url = reverse("anagrafica:dipendente_mansione_set", args=[self.legacy_id])
-        self.client.post(url, {"mansione_nome": "Saldatore", "data_decorrenza": "2026-01-01"})
-        self.client.post(url, {"mansione_nome": "Capoturno", "data_decorrenza": "2026-07-01"})
-        periodi = self._periodi(TIPO_MANSIONE)
-        self.assertEqual([p.valore_nuovo for p in periodi], ["Saldatore", "Capoturno"])
-        self.assertEqual(periodi[0].data_fine, datetime.date(2026, 6, 30))
-        self.assertIsNone(periodi[1].data_fine)
-
-    def test_decorrenza_malformata_ricade_su_oggi(self):
-        from django.utils import timezone
-        self.client.post(
-            reverse("anagrafica:dipendente_mansione_set", args=[self.legacy_id]),
-            {"mansione_nome": "Saldatore", "data_decorrenza": "non-una-data"},
-        )
-        periodi = self._periodi(TIPO_MANSIONE)
-        self.assertEqual(periodi[0].data_effetto, timezone.localdate())
-
-    def test_reparto_set_storicizza_reparto_e_area_aziendale(self):
-        rep = Reparto.objects.create(nome="UT")
-        area = AreaAziendale.objects.create(nome="IN1", reparto=rep)
-        self.client.post(
-            reverse("anagrafica:dipendente_reparto_set", args=[self.legacy_id]),
-            {"reparto": "UT", "area_aziendale": str(area.pk), "data_decorrenza": "2026-04-01"},
-        )
-        area_periodi = self._periodi(TIPO_AREA)
-        area_az_periodi = self._periodi(TIPO_AREA_AZIENDALE)
-        self.assertEqual(len(area_periodi), 1)
-        self.assertEqual(area_periodi[0].valore_nuovo, "UT")
-        self.assertEqual(area_periodi[0].data_effetto, datetime.date(2026, 4, 1))
-        self.assertEqual(len(area_az_periodi), 1)
-        self.assertEqual(area_az_periodi[0].valore_nuovo, "IN1")
-        self.assertEqual(area_az_periodi[0].data_effetto, datetime.date(2026, 4, 1))
-
-    def test_cambio_area_aziendale_chiude_il_periodo_precedente(self):
-        rep = Reparto.objects.create(nome="UT")
-        area1 = AreaAziendale.objects.create(nome="IN1", reparto=rep)
-        area2 = AreaAziendale.objects.create(nome="IN2", reparto=rep)
-        url = reverse("anagrafica:dipendente_reparto_set", args=[self.legacy_id])
-        self.client.post(url, {"reparto": "UT", "area_aziendale": str(area1.pk),
-                               "data_decorrenza": "2026-01-01"})
-        self.client.post(url, {"reparto": "UT", "area_aziendale": str(area2.pk),
-                               "data_decorrenza": "2026-09-01"})
-        periodi = self._periodi(TIPO_AREA_AZIENDALE)
-        self.assertEqual([p.valore_nuovo for p in periodi], ["IN1", "IN2"])
-        self.assertEqual(periodi[0].data_fine, datetime.date(2026, 8, 31))
-        self.assertIsNone(periodi[1].data_fine)
-        # Il reparto non è cambiato: resta un solo periodo, ancora aperto.
-        area_periodi = self._periodi(TIPO_AREA)
-        self.assertEqual(len(area_periodi), 1)
-        self.assertIsNone(area_periodi[0].data_fine)
-
-    def test_storico_in_pagina_mostra_dal_al_e_in_corso(self):
-        url = reverse("anagrafica:dipendente_mansione_set", args=[self.legacy_id])
-        self.client.post(url, {"mansione_nome": "Saldatore", "data_decorrenza": "2026-01-01"})
-        self.client.post(url, {"mansione_nome": "Capoturno", "data_decorrenza": "2026-07-01"})
-        resp = self.client.get(
-            reverse("anagrafica:dipendente_detail", args=[self.legacy_id])
-        )
-        self.assertEqual(resp.status_code, 200)
-        content = resp.content.decode()
-        self.assertIn("30-06-2026", content)
-        self.assertIn("In corso", content)
-        self.assertIn('name="data_decorrenza"', content)
-
-
-@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
-class AnagraficaAziendaleStoricoTests(TestCase):
-    """Il form completo 'Modifica dati aziendali' storicizza reparto, area
-    aziendale e ruolo aziendale con la decorrenza indicata."""
-
-    @classmethod
-    def setUpTestData(cls):
-        cls.admin = User.objects.create_superuser(
-            username="storico_az_admin", email="storico_az_admin@x.local", password="x"
-        )
-
-    def setUp(self):
-        self.client.force_login(self.admin)
-        self.rep = Reparto.objects.create(nome="UT")
-        self.area = AreaAziendale.objects.create(nome="IN1", reparto=self.rep)
-        RuoloAziendale.objects.create(nome="Capoturno")
-        RuoloAziendale.objects.create(nome="Responsabile")
-
-    def _periodi(self, legacy_id, tipo):
-        return list(
-            DipendenteCambiamentoOrganizzativo.objects
-            .filter(legacy_anagrafica_id=legacy_id, tipo=tipo)
-            .order_by("data_effetto")
-        )
-
-    def test_ruolo_aziendale_apre_un_periodo_con_la_decorrenza(self):
-        self.client.post(
-            reverse("anagrafica:dipendente_aziendale_save", args=[1201]),
-            {"area": "UT", "ruolo_aziendale": "Capoturno", "data_decorrenza": "2026-02-01"},
-        )
-        periodi = self._periodi(1201, TIPO_RUOLO_AZIENDALE)
-        self.assertEqual(len(periodi), 1)
-        self.assertEqual(periodi[0].valore_nuovo, "Capoturno")
-        self.assertEqual(periodi[0].data_effetto, datetime.date(2026, 2, 1))
-        self.assertIsNone(periodi[0].data_fine)
-
-    def test_secondo_cambio_ruolo_chiude_il_precedente(self):
-        url = reverse("anagrafica:dipendente_aziendale_save", args=[1202])
-        self.client.post(url, {"area": "UT", "ruolo_aziendale": "Capoturno",
-                               "data_decorrenza": "2026-01-01"})
-        self.client.post(url, {"area": "UT", "ruolo_aziendale": "Responsabile",
-                               "data_decorrenza": "2026-05-01"})
-        periodi = self._periodi(1202, TIPO_RUOLO_AZIENDALE)
-        self.assertEqual([p.valore_nuovo for p in periodi], ["Capoturno", "Responsabile"])
-        self.assertEqual(periodi[0].data_fine, datetime.date(2026, 4, 30))
-        self.assertIsNone(periodi[1].data_fine)
-
-    def test_reparto_dal_form_completo_viene_storicizzato_una_volta_sola(self):
-        """Il form salva la riga prima del sync: i valori precedenti vanno letti
-        prima del save, altrimenti il cambiamento passerebbe inosservato."""
-        url = reverse("anagrafica:dipendente_aziendale_save", args=[1203])
-        self.client.post(url, {"area": "UT", "data_decorrenza": "2026-01-01"})
-        Reparto.objects.create(nome="MAG")
-        self.client.post(url, {"area": "MAG", "data_decorrenza": "2026-06-01"})
-        periodi = self._periodi(1203, TIPO_AREA)
-        self.assertEqual([p.valore_nuovo for p in periodi], ["UT", "MAG"])
-        self.assertEqual(periodi[0].data_fine, datetime.date(2026, 5, 31))
-        self.assertIsNone(periodi[1].data_fine)
-
-    def test_area_aziendale_dal_form_completo_viene_storicizzata(self):
-        area2 = AreaAziendale.objects.create(nome="IN2", reparto=self.rep)
-        url = reverse("anagrafica:dipendente_aziendale_save", args=[1204])
-        self.client.post(url, {"area": "UT", "area_aziendale": str(self.area.pk),
-                               "data_decorrenza": "2026-01-01"})
-        self.client.post(url, {"area": "UT", "area_aziendale": str(area2.pk),
-                               "data_decorrenza": "2026-06-01"})
-        periodi = self._periodi(1204, TIPO_AREA_AZIENDALE)
-        self.assertEqual([p.valore_nuovo for p in periodi], ["IN1", "IN2"])
-        self.assertEqual(periodi[0].data_fine, datetime.date(2026, 5, 31))
-        self.assertIsNone(periodi[1].data_fine)
-
-    def test_salvataggio_senza_modifiche_non_duplica_periodi(self):
-        url = reverse("anagrafica:dipendente_aziendale_save", args=[1205])
-        payload = {"area": "UT", "area_aziendale": str(self.area.pk),
-                   "ruolo_aziendale": "Capoturno", "data_decorrenza": "2026-01-01"}
-        self.client.post(url, payload)
-        self.client.post(url, dict(payload, data_decorrenza="2026-06-01"))
-        for tipo in (TIPO_AREA, TIPO_AREA_AZIENDALE, TIPO_RUOLO_AZIENDALE):
-            with self.subTest(tipo=tipo):
-                periodi = self._periodi(1205, tipo)
-                self.assertEqual(len(periodi), 1)
-                self.assertIsNone(periodi[0].data_fine)
-
-    def test_dati_aziendali_persistono_come_prima(self):
-        """Regressione: la storicizzazione non deve alterare il salvataggio."""
-        self.client.post(
-            reverse("anagrafica:dipendente_aziendale_save", args=[1206]),
-            {"area": "UT", "area_aziendale": str(self.area.pk), "ruolo_aziendale": "Capoturno",
-             "data_decorrenza": "2026-01-01"},
-        )
-        az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=1206)
-        self.assertEqual(az.area, "UT")
-        self.assertEqual(az.area_aziendale_id, self.area.pk)
-        self.assertEqual(az.ruolo_aziendale, "Capoturno")

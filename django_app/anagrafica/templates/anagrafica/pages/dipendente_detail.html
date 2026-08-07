@@ -332,6 +332,45 @@ body.theme-dark .dp-hr-badge { background:rgba(146,64,14,.2); color:#fcd34d; bor
 .sc-filter-active { background:#0c2545 !important; color:#fff !important; border-color:#0c2545 !important; }
 .sc-row:hover { background:#fafafa; }
 
+/* Spostamenti organizzativi (assegnazioni a periodo) */
+.sp-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:14px; }
+.sp-card { border:1px solid #e2e8f0; border-radius:14px; background:#fff; overflow:hidden; box-shadow:0 1px 2px rgba(15,23,42,.04); }
+/* La programmata si stacca: non e' l'assetto di oggi e non deve sembrarlo. */
+.sp-card-programmata { border-color:#fde68a; border-style:dashed; background:#fffdf7; }
+.sp-card-head { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; padding:12px 14px 8px; }
+.sp-card-titolo { font-size:14px; font-weight:800; color:#0c2545; }
+.sp-card-periodo { font-size:11px; color:#64748b; font-weight:600; margin-top:2px; }
+.sp-card-badges { display:flex; flex-direction:column; gap:4px; align-items:flex-end; flex-shrink:0; }
+.sp-badge { display:inline-block; padding:2px 9px; border-radius:999px; font-size:10px; font-weight:700; color:#fff; white-space:nowrap; }
+.sp-card-body { padding:0 14px 10px; display:flex; flex-direction:column; gap:3px; }
+.sp-riga { font-size:12px; }
+.sp-k { color:#64748b; font-weight:600; }
+.sp-v { color:#0f172a; font-weight:700; }
+.sp-gap { margin-top:8px; border-top:1px dashed #e2e8f0; padding-top:8px; }
+.sp-gap-titolo { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#b45309; }
+.sp-gap-lista { margin:4px 0 0; padding-left:16px; font-size:12px; color:#92400e; }
+.sp-card-foot { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;
+  padding:8px 14px; border-top:1px solid #f1f5f9; background:#f8fafc; font-size:10px; color:#94a3b8; }
+/* Pannello verifica idoneita' nel form */
+.sp-idoneita { margin-top:14px; border:1px solid #e2e8f0; border-radius:12px; padding:12px 14px; background:#f8fafc; }
+.sp-idoneita-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.sp-idoneita-badge { display:inline-block; padding:3px 10px; border-radius:999px; font-size:11px; font-weight:700; color:#fff; background:#64748b; }
+.sp-idoneita-titolo { font-size:11px; color:#64748b; font-weight:600; }
+.sp-idoneita-gap { margin-top:8px; font-size:12px; }
+.sp-dominio { margin-bottom:6px; }
+.sp-dominio-nome { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#64748b; }
+.sp-dominio-voci { margin:2px 0 0; padding-left:16px; color:#92400e; }
+body.theme-dark .sp-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .sp-card-programmata { background:rgba(146,64,14,.12); border-color:rgba(253,230,138,.35); }
+body.theme-dark .sp-card-titolo { color:var(--text); }
+body.theme-dark .sp-card-periodo, body.theme-dark .sp-k { color:var(--text-light); }
+body.theme-dark .sp-v { color:var(--text); }
+body.theme-dark .sp-card-foot { background:var(--surface-alt, rgba(255,255,255,.04)); border-top-color:var(--border); }
+body.theme-dark .sp-gap { border-top-color:var(--border); }
+body.theme-dark .sp-gap-lista, body.theme-dark .sp-dominio-voci { color:#fcd34d; }
+body.theme-dark .sp-idoneita { background:var(--surface-alt, rgba(255,255,255,.04)); border-color:var(--border); }
+body.theme-dark .sp-idoneita-titolo, body.theme-dark .sp-dominio-nome { color:var(--text-light); }
+
 /* Tab interne scheda dipendente */
 .dp-tabs { display:flex; gap:6px; flex-wrap:wrap; align-items:center; background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:6px; box-shadow:0 1px 2px rgba(15,23,42,.04); }
 .dp-tab { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; border-radius:10px; padding:7px 13px; font-size:13px; font-weight:700; color:#64748b; background:none; border:none; cursor:pointer; font-family:inherit; text-decoration:none; transition:background .15s, color .15s; }
@@ -873,69 +912,12 @@ body.theme-dark .dp-link-ok { color:#86efac; }
         </div>
         <div class="dp-info-item"><div class="dp-info-label">Badge</div><div class="dp-info-value">{{ aziendale.badge|default:"—" }}</div></div>
         <div class="dp-info-item">
-          <div class="dp-info-label">Reparto
-            {% if is_admin %}<button type="button" onclick="toggleRepartoForm()" style="background:none;border:none;cursor:pointer;color:#1f87cd;font-size:11px;font-weight:700;padding:0 4px;vertical-align:middle;" title="Cambia reparto">✏</button>{% endif %}
-          </div>
+          <div class="dp-info-label">Reparto</div>
           <div class="dp-info-value">{% if dip.reparto %}{{ dip.reparto }}{% elif aziendale and aziendale.area %}{{ aziendale.area }}{% else %}—{% endif %}</div>
-          {% if is_admin %}
-          <div class="dp-mansione-form" id="reparto-form">
-            <form method="post" action="{% url 'anagrafica:dipendente_reparto_set' legacy_id %}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-              {% csrf_token %}
-              <select name="reparto" id="mini-reparto-select" class="dp-select" style="min-width:200px;">
-                <option value="">— Nessun reparto —</option>
-                {% for rep in reparti_catalog %}
-                  <option value="{{ rep.nome }}" {% if rep.nome == dip.reparto %}selected{% endif %}>
-                    {{ rep.nome }}
-                  </option>
-                {% endfor %}
-                {% if dip.reparto and not reparto_in_catalog %}
-                  <option value="{{ dip.reparto }}" selected>{{ dip.reparto }} (attuale – non in catalogo)</option>
-                {% endif %}
-              </select>
-              <select name="area_aziendale" id="mini-area-select" class="dp-select" style="min-width:180px;" data-current="{{ aziendale.area_aziendale_id|default:'' }}">
-                <option value="">— Nessuna area —</option>
-              </select>
-              <label style="font-size:11px;color:#64748b;font-weight:600;">Dal
-                <input type="date" name="data_decorrenza" class="dp-select" value="{{ oggi|date:'Y-m-d' }}" style="min-width:140px;">
-              </label>
-              <button type="submit" class="dp-btn dp-btn-primary dp-btn-xs">Salva</button>
-              <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" onclick="toggleRepartoForm()">Annulla</button>
-            </form>
-            <div style="font-size:11px;color:#94a3b8;margin-top:2px;">
-              La data «Dal» apre il nuovo periodo nello storico e chiude il precedente.
-              Non trovi il reparto? <a href="{% url 'anagrafica:aree_list' %}" style="color:#1f87cd;">Gestisci il catalogo</a>.
-            </div>
-          </div>
-          {% endif %}
         </div>
         <div class="dp-info-item">
-          <div class="dp-info-label">Mansione
-            <button type="button" onclick="toggleMansioneForm()" style="background:none;border:none;cursor:pointer;color:#1f87cd;font-size:11px;font-weight:700;padding:0 4px;vertical-align:middle;" title="Cambia mansione">✏</button>
-          </div>
+          <div class="dp-info-label">Mansione</div>
           <div class="dp-info-value">{{ dip.mansione|default:"—" }}</div>
-          <div class="dp-mansione-form" id="mansione-form">
-            <form method="post" action="{% url 'anagrafica:dipendente_mansione_set' legacy_id %}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-              {% csrf_token %}
-              <select name="mansione_nome" class="dp-select" style="min-width:180px;">
-                <option value="">— Nessuna mansione —</option>
-                {% for m in mansioni_catalogo %}
-                  <option value="{{ m.nome }}" {% if m.nome == dip.mansione %}selected{% endif %}>{{ m.nome }}</option>
-                {% endfor %}
-                {% if dip.mansione and dip.mansione not in mansioni_catalogo|join:"," %}
-                  <option value="{{ dip.mansione }}" selected>{{ dip.mansione }} (attuale)</option>
-                {% endif %}
-              </select>
-              <label style="font-size:11px;color:#64748b;font-weight:600;">Dal
-                <input type="date" name="data_decorrenza" class="dp-select" value="{{ oggi|date:'Y-m-d' }}" style="min-width:140px;">
-              </label>
-              <button type="submit" class="dp-btn dp-btn-primary dp-btn-xs">Salva</button>
-              <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" onclick="toggleMansioneForm()">Annulla</button>
-            </form>
-            <div style="font-size:11px;color:#94a3b8;margin-top:2px;">
-              La data «Dal» apre il nuovo periodo nello storico e chiude il precedente.
-              Non trovi la mansione? <a href="{% url 'anagrafica:mansioni_list' %}" style="color:#1f87cd;">Gestisci il catalogo</a>.
-            </div>
-          </div>
         </div>
         <div class="dp-info-item">
           <div class="dp-info-label">Area aziendale</div>
@@ -1002,16 +984,17 @@ body.theme-dark .dp-link-ok { color:#86efac; }
             </div>
             {% endfor %}
             <div class="dp-form-field">
+              <label class="dp-form-label">Reparto · Area · Mansione · Ruolo</label>
+              <input type="text" class="dp-input" readonly style="background:#f8fafc;color:#64748b;cursor:default;"
+                     value="{{ dip.reparto|default:'—' }}{% if aziendale.area_aziendale %} · {{ aziendale.area_aziendale.nome }}{% endif %} · {{ dip.mansione|default:'—' }} · {{ aziendale.ruolo_aziendale|default:'—' }}">
+              <span style="font-size:11px;color:#94a3b8;">
+                Si cambiano da <strong>Spostamenti organizzativi</strong>, con decorrenza e verifica di idoneità.
+              </span>
+            </div>
+            <div class="dp-form-field">
               <label class="dp-form-label">Caporeparto</label>
               <input type="text" id="az-capo-autofill" class="dp-input" readonly style="background:#f8fafc;color:#64748b;cursor:default;" value="{{ caporeparto_label|default:'' }}">
               <span style="font-size:11px;color:#94a3b8;">Compilata automaticamente dal reparto</span>
-            </div>
-            <div class="dp-form-field">
-              <label class="dp-form-label" for="az-data-decorrenza">Decorrenza cambiamenti organizzativi</label>
-              <input type="date" id="az-data-decorrenza" name="data_decorrenza" class="dp-input" value="{{ oggi|date:'Y-m-d' }}">
-              <span style="font-size:11px;color:#94a3b8;">
-                Data di inizio dei nuovi periodi di reparto, area aziendale e ruolo aziendale nello storico.
-              </span>
             </div>
           </div>
           <div style="display:flex;gap:8px;margin-top:14px;">
@@ -1494,6 +1477,160 @@ body.theme-dark .dp-link-ok { color:#86efac; }
   </div>
   {% endif %}
 
+  <!-- SPOSTAMENTI ORGANIZZATIVI (assegnazioni a periodo) -->
+  {% if is_admin %}
+  <div class="dp-card" data-tab="anagrafica">
+    <div class="dp-card-head">
+      <div class="dp-card-title">🔀 Spostamenti organizzativi</div>
+      <button type="button" onclick="toggleSection('spostamento-form')" class="dp-btn dp-btn-primary dp-btn-sm">+ Nuovo spostamento</button>
+    </div>
+    <div class="dp-card-body">
+
+      <!-- Form nuovo spostamento -->
+      <div class="dp-edit-section" id="spostamento-form">
+        <div class="dp-form-section-title">Nuovo spostamento</div>
+        <form method="post" action="{% url 'anagrafica:dipendente_assegnazione_create' legacy_id %}">
+          {% csrf_token %}
+          <div class="dp-form-grid">
+            <div class="dp-form-field">
+              <label class="dp-form-label" for="sp-reparto">Reparto</label>
+              <select name="reparto" id="sp-reparto" class="dp-input">
+                <option value="">— Nessun reparto —</option>
+                {% for rep in reparti_catalog %}
+                  <option value="{{ rep.nome }}" {% if rep.nome == dip.reparto %}selected{% endif %}>{{ rep.nome }}</option>
+                {% endfor %}
+                {% if dip.reparto and not reparto_in_catalog %}
+                  <option value="{{ dip.reparto }}" selected>{{ dip.reparto }} (attuale – non in catalogo)</option>
+                {% endif %}
+              </select>
+              <span style="font-size:11px;color:#94a3b8;" id="sp-capo-preview"></span>
+              <span style="font-size:11px;color:#94a3b8;">
+                Non trovi il reparto? <a href="{% url 'anagrafica:aree_list' %}" style="color:#1f87cd;">Gestisci il catalogo</a>.
+              </span>
+            </div>
+            <div class="dp-form-field">
+              <label class="dp-form-label" for="sp-area">Area aziendale</label>
+              <select name="area_aziendale" id="sp-area" class="dp-input" data-current="{{ aziendale.area_aziendale_id|default:'' }}">
+                <option value="">— Nessuna area —</option>
+              </select>
+            </div>
+            <div class="dp-form-field">
+              <label class="dp-form-label" for="sp-mansione">Mansione</label>
+              <select name="mansione" id="sp-mansione" class="dp-input">
+                <option value="">— Nessuna mansione —</option>
+                {% for m in mansioni_catalogo %}
+                  <option value="{{ m.nome }}" {% if m.nome == dip.mansione %}selected{% endif %}>{{ m.nome }}</option>
+                {% endfor %}
+              </select>
+              <span style="font-size:11px;color:#94a3b8;">
+                Non trovi la mansione? <a href="{% url 'anagrafica:mansioni_list' %}" style="color:#1f87cd;">Gestisci il catalogo</a>.
+              </span>
+            </div>
+            <div class="dp-form-field">
+              <label class="dp-form-label" for="sp-ruolo">Ruolo aziendale</label>
+              <select name="ruolo_aziendale" id="sp-ruolo" class="dp-input">
+                <option value="">— Nessuno —</option>
+                {% for r in ruoli_aziendali_catalogo %}
+                  <option value="{{ r.nome }}" {% if r.nome == aziendale.ruolo_aziendale %}selected{% endif %}>{{ r.nome }}</option>
+                {% endfor %}
+                {% if aziendale.ruolo_aziendale and aziendale.ruolo_aziendale not in ruoli_aziendali_catalogo|join:"," %}
+                  <option value="{{ aziendale.ruolo_aziendale }}" selected>{{ aziendale.ruolo_aziendale }} (attuale)</option>
+                {% endif %}
+              </select>
+            </div>
+            <div class="dp-form-field">
+              <label class="dp-form-label" for="sp-data">Decorrenza</label>
+              <input type="date" name="data_inizio" id="sp-data" class="dp-input" value="{{ oggi|date:'Y-m-d' }}">
+              <span style="font-size:11px;color:#94a3b8;" id="sp-data-hint">
+                Con una data futura lo spostamento resta programmato: il portale continua a vedere
+                l'assetto attuale fino a quel giorno.
+              </span>
+            </div>
+            <div class="dp-form-field">
+              <label class="dp-form-label" for="sp-note">Note</label>
+              <input type="text" name="note" id="sp-note" class="dp-input" maxlength="500" placeholder="Motivo dello spostamento (opzionale)">
+            </div>
+          </div>
+
+          <!-- Verifica idoneità: competenze, DPI, visite mediche -->
+          <div id="sp-idoneita" class="sp-idoneita" hidden>
+            <div class="sp-idoneita-head">
+              <span class="sp-idoneita-badge" id="sp-idoneita-badge">Verifica in corso…</span>
+              <span class="sp-idoneita-titolo">Verifica per la mansione selezionata</span>
+            </div>
+            <div id="sp-idoneita-gap" class="sp-idoneita-gap"></div>
+          </div>
+
+          <div style="display:flex;gap:8px;margin-top:14px;">
+            <button type="submit" class="dp-btn dp-btn-primary dp-btn-sm">Registra spostamento</button>
+            <button type="button" class="dp-btn dp-btn-ghost dp-btn-sm" onclick="toggleSection('spostamento-form')">Annulla</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Elenco assegnazioni a card -->
+      {% if assegnazioni %}
+      <div class="sp-cards">
+        {% for a in assegnazioni %}
+        <div class="sp-card{% if a.is_programmata %} sp-card-programmata{% endif %}">
+          <div class="sp-card-head">
+            <div>
+              <div class="sp-card-titolo">{{ a.reparto|default:"— Nessun reparto —" }}{% if a.area_aziendale %} · {{ a.area_aziendale.nome }}{% endif %}</div>
+              <div class="sp-card-periodo">
+                Periodo: {{ a.data_inizio|date:"d-m-Y" }} – {% if a.data_fine %}{{ a.data_fine|date:"d-m-Y" }}{% else %}Ad oggi{% endif %}
+              </div>
+            </div>
+            <div class="sp-card-badges">
+              <span class="sp-badge" style="background:{{ a.stato_colore }};">{{ a.stato_label }}</span>
+              {% if a.idoneita_esito %}
+                <span class="sp-badge" style="background:{{ a.idoneita_colore }};">{{ a.idoneita_label }}</span>
+              {% endif %}
+            </div>
+          </div>
+          <div class="sp-card-body">
+            <div class="sp-riga"><span class="sp-k">Mansione:</span> <span class="sp-v">{{ a.mansione|default:"—" }}</span></div>
+            <div class="sp-riga"><span class="sp-k">Ruolo aziendale:</span> <span class="sp-v">{{ a.ruolo_aziendale|default:"—" }}</span></div>
+            <div class="sp-riga"><span class="sp-k">Responsabile:</span> <span class="sp-v">{{ a.responsabile_label|default:"—" }}</span></div>
+            {% if a.note %}<div class="sp-riga"><span class="sp-k">Note:</span> <span class="sp-v">{{ a.note }}</span></div>{% endif %}
+            {% if a.idoneita_gap %}
+            <div class="sp-gap">
+              <div class="sp-gap-titolo">Da soddisfare per questa mansione</div>
+              <ul class="sp-gap-lista">
+                {% for voce in a.idoneita_gap %}<li>{{ voce }}</li>{% endfor %}
+              </ul>
+            </div>
+            {% endif %}
+          </div>
+          <div class="sp-card-foot">
+            <span>
+              {% if a.attivata_il %}
+                Attivata il {{ a.attivata_il|date:"d-m-Y H:i" }}
+              {% else %}
+                In attesa di attivazione automatica
+              {% endif %}
+              {% if a.created_by %} · registrata da {{ a.created_by.get_full_name|default:a.created_by.username }}{% endif %}
+            </span>
+            {% if a.is_programmata and not a.attivata_il %}
+            <form method="post" action="{% url 'anagrafica:dipendente_assegnazione_annulla' legacy_id a.pk %}"
+                  onsubmit="return confirm('Annullare lo spostamento programmato dal {{ a.data_inizio|date:"d-m-Y" }}?');">
+              {% csrf_token %}
+              <button type="submit" class="dp-btn dp-btn-ghost dp-btn-xs">Annulla spostamento</button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="padding:20px;text-align:center;color:#94a3b8;font-size:13px;">
+        Nessuno spostamento registrato. Con «Nuovo spostamento» si assegnano insieme reparto,
+        area aziendale, mansione e ruolo per un periodo, con la verifica di competenze, DPI e visite mediche.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
   <!-- STORICO CAMBIAMENTI ORGANIZZATIVI -->
   {% if is_admin %}
   <div class="dp-card" data-tab="contratto">
@@ -1531,6 +1668,8 @@ body.theme-dark .dp-link-ok { color:#86efac; }
               <td style="padding:8px 10px;white-space:nowrap;">
                 {% if c.data_fine %}
                   <span class="dp-td-strong" style="font-weight:600;">{{ c.data_fine|date:"d-m-Y" }}</span>
+                {% elif c.is_programmato %}
+                  <span class="dp-pill dp-pill-amber" title="Decorrenza futura: non è ancora il valore in vigore">Programmato</span>
                 {% else %}
                   <span class="dp-pill dp-pill-green">In corso</span>
                 {% endif %}
@@ -2658,16 +2797,6 @@ window.addEventListener('beforeunload', e => {
 {% endif %}
 
 <script>
-function toggleMansioneForm() {
-  const f = document.getElementById('mansione-form');
-  if (f) f.classList.toggle('open');
-}
-
-function toggleRepartoForm() {
-  const f = document.getElementById('reparto-form');
-  if (f) f.classList.toggle('open');
-}
-
 function toggleUsernameForm() {
   const f = document.getElementById('username-form');
   if (f) f.classList.toggle('open');
@@ -2677,6 +2806,102 @@ function toggleMatricolaForm() {
   const f = document.getElementById('matricola-form');
   if (f) f.classList.toggle('open');
 }
+
+// Spostamenti organizzativi — verifica idoneità in anteprima.
+// Alla scelta della mansione chiede al server se la persona è abilitata
+// (competenze / DPI / visite), così l'esito si vede PRIMA di confermare.
+{% if is_admin %}
+(function() {
+  var selMansione = document.getElementById('sp-mansione');
+  var pannello = document.getElementById('sp-idoneita');
+  var badge = document.getElementById('sp-idoneita-badge');
+  var gapBox = document.getElementById('sp-idoneita-gap');
+  if (!selMansione || !pannello || !badge || !gapBox) return;
+
+  var NOMI_DOMINIO = { formazione: 'Competenze', dpi: 'DPI', visite: 'Visite mediche' };
+  var base = "{% url 'anagrafica:dipendente_assegnazione_verifica' legacy_id %}";
+  var richiestaCorrente = 0;
+
+  function render(dati) {
+    badge.textContent = dati.label || 'Da verificare';
+    badge.style.background = dati.colore || '#64748b';
+    gapBox.innerHTML = '';
+    var domini = dati.per_dominio || {};
+    var chiavi = Object.keys(domini);
+    if (!chiavi.length) {
+      gapBox.textContent = (dati.esito === 'ok')
+        ? 'Tutti i requisiti della mansione risultano soddisfatti.'
+        : 'Nessun requisito specifico registrato per questa mansione.';
+      return;
+    }
+    chiavi.forEach(function(chiave) {
+      var wrap = document.createElement('div');
+      wrap.className = 'sp-dominio';
+      var titolo = document.createElement('div');
+      titolo.className = 'sp-dominio-nome';
+      titolo.textContent = NOMI_DOMINIO[chiave] || chiave;
+      var lista = document.createElement('ul');
+      lista.className = 'sp-dominio-voci';
+      domini[chiave].forEach(function(voce) {
+        var li = document.createElement('li');
+        li.textContent = voce;
+        lista.appendChild(li);
+      });
+      wrap.appendChild(titolo);
+      wrap.appendChild(lista);
+      gapBox.appendChild(wrap);
+    });
+  }
+
+  function verifica() {
+    var mansione = selMansione.value;
+    if (!mansione) { pannello.hidden = true; return; }
+    pannello.hidden = false;
+    badge.textContent = 'Verifica in corso…';
+    badge.style.background = '#64748b';
+    gapBox.innerHTML = '';
+    var mia = ++richiestaCorrente;
+    fetch(base + '?mansione=' + encodeURIComponent(mansione), {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin'
+    })
+      .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
+      .then(function(dati) { if (mia === richiestaCorrente) render(dati); })
+      .catch(function() {
+        if (mia !== richiestaCorrente) return;
+        badge.textContent = 'Verifica non disponibile';
+        badge.style.background = '#64748b';
+        gapBox.textContent = 'Controlla la scheda idoneità dopo aver registrato lo spostamento.';
+      });
+  }
+
+  selMansione.addEventListener('change', verifica);
+  if (selMansione.value) verifica();
+})();
+
+// Avviso quando la decorrenza scelta e' nel futuro: lo spostamento resta programmato.
+(function() {
+  var campoData = document.getElementById('sp-data');
+  var hint = document.getElementById('sp-data-hint');
+  if (!campoData || !hint) return;
+  var testoBase = hint.textContent;
+  function aggiorna() {
+    var oggi = new Date(); oggi.setHours(0, 0, 0, 0);
+    var scelta = new Date(campoData.value + 'T00:00:00');
+    if (campoData.value && scelta > oggi) {
+      hint.textContent = 'Spostamento PROGRAMMATO: i dati del dipendente cambieranno il '
+        + scelta.toLocaleDateString('it-IT') + ', non prima.';
+      hint.style.color = '#b45309';
+      hint.style.fontWeight = '700';
+    } else {
+      hint.textContent = testoBase;
+      hint.style.color = '';
+      hint.style.fontWeight = '';
+    }
+  }
+  campoData.addEventListener('change', aggiorna);
+  aggiorna();
+})();
+{% endif %}
 
 // Storico cambiamenti organizzativi — filtro per tipo
 document.querySelectorAll('.sc-filter-btn').forEach(function(btn){
@@ -2784,8 +3009,8 @@ function toggleContrattoEdit(id) {
 
 // Auto-fill caporeparto in sola lettura + cascading Reparto -> Area aziendale
 // (client-side, nessuna chiamata al server). L'area aziendale è impostabile sia
-// dal mini-form rapido "Cambia reparto" sia dal form completo "Modifica dati
-// aziendali"; entrambi ricostruiscono le opzioni dallo stesso blob JSON.
+// dal form "Nuovo spostamento" sia dal form completo "Modifica dati aziendali";
+// entrambi ricostruiscono le opzioni dallo stesso blob JSON.
 (function() {
   var repartiData = {{ reparto_autofill_json|safe }};
   var areeByReparto = {{ aree_by_reparto_json|safe }};
@@ -2815,17 +3040,17 @@ function toggleContrattoEdit(id) {
     repartoSel.addEventListener('change', function() { syncAreaOptions(repartoSel, areaSel); });
   }
 
-  wireCascading(document.getElementById('mini-reparto-select'), document.getElementById('mini-area-select'));
-  wireCascading(document.getElementById('id_area'), document.getElementById('id_area_aziendale'));
-
-  var sel = document.getElementById('id_area');
-  if (sel) {
+  wireCascading(document.getElementById('sp-reparto'), document.getElementById('sp-area'));
+  // Anteprima del caporeparto mentre si sceglie il reparto dello spostamento:
+  // chi firma le autorizzazioni cambia insieme al reparto, meglio vederlo prima.
+  var selReparto = document.getElementById('sp-reparto');
+  var capoEl = document.getElementById('sp-capo-preview');
+  if (selReparto && capoEl) {
     function fillCapo() {
-      var d = repartiData[sel.value] || {};
-      var capoEl = document.getElementById('az-capo-autofill');
-      if (capoEl) capoEl.value = d.capo_label || '';
+      var d = repartiData[selReparto.value] || {};
+      capoEl.textContent = d.capo_label ? ('Responsabile: ' + d.capo_label) : '';
     }
-    sel.addEventListener('change', fillCapo);
+    selReparto.addEventListener('change', fillCapo);
     fillCapo();
   }
 })();

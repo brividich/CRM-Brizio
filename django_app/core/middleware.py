@@ -26,6 +26,10 @@ API_ACL_GATE_PATHS = {
     # (impostazioni). Senza mappatura, con ACL_STRICT_CANONICAL i non-superuser
     # prenderebbero 403 sull'endpoint (la view fa comunque il proprio _can_manage).
     "/procedure-refresh/api/": "/procedure-refresh/impostazioni/",
+    # API anagrafica (anteprima idoneità negli spostamenti organizzativi): gate come
+    # la scheda dipendente. La view applica comunque il proprio gate admin e risponde
+    # in JSON; senza mappatura il middleware rimanderebbe un redirect HTML.
+    "/anagrafica/api/": "/anagrafica/dipendenti/",
 }
 _ACL_MIDDLEWARE_LOG_TTL_SECONDS = 300
 logger = logging.getLogger(__name__)
