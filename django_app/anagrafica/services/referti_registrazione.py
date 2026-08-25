@@ -71,15 +71,20 @@ class PianoRegistrazione:
         return bool(self.tipi) and bool(self.esito) and not self.esami_ignoti
 
 
-def _mappa_esami() -> dict[str, int]:
-    """Testo normalizzato dell'esame → id del tipo di visita."""
+def _mappa_esami() -> dict[tuple[str, str], int]:
+    """(testo normalizzato dell'esame, periodicità) → id del tipo di visita.
+
+    La periodicità vuota è il ripiego: vale quando non esiste una riga per la
+    cadenza esatta scritta sul certificato.
+    """
     from ..models_sorveglianza import AliasEsameProtocollo
 
     mappa = {}
-    for testo, tipo_id in (
-        AliasEsameProtocollo.objects.filter(attivo=True).values_list("testo", "tipo_id")
+    for testo, periodicita, tipo_id in (
+        AliasEsameProtocollo.objects.filter(attivo=True)
+        .values_list("testo", "periodicita", "tipo_id")
     ):
-        mappa[normalizza(testo)] = tipo_id
+        mappa[(normalizza(testo), (periodicita or "").lower())] = tipo_id
     return mappa
 
 
@@ -121,7 +126,15 @@ def prepara_registrazione(campi) -> PianoRegistrazione:
 
     for voce in (campi.protocollo or []):
         chiave = normalizza(voce.get("esame", ""))
-        tipo_id = alias_esami.get(chiave) or per_nome.get(chiave)
+        cadenza = (voce.get("periodicita") or "").lower()
+        # Prima la riga per la cadenza esatta, poi quella generica, infine il
+        # nome a catalogo: la cadenza è ciò che distingue «Visita Medica
+        # Annuale» da «Quinquennale», e sbagliarla sposta una scadenza di anni.
+        tipo_id = (
+            alias_esami.get((chiave, cadenza))
+            or alias_esami.get((chiave, ""))
+            or per_nome.get(chiave)
+        )
         tipo = tipi_cache.get(tipo_id) if tipo_id else None
         if tipo is None:
             piano.esami_ignoti.append(voce.get("esame", ""))

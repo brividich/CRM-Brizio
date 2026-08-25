@@ -95,14 +95,27 @@ def referti_coda(request):
     )
 
     nomi = _nomi_per_legacy_ids([r.legacy_anagrafica_id_proposto for r in righe])
+    pronti = 0
     for riga in righe:
         riga.nome_proposto = nomi.get(riga.legacy_anagrafica_id_proposto or 0, "")
+        # «Pronto» = riconoscimento con la garanzia forte (data di nascita che
+        # coincide) e niente da inventare. È il sottoinsieme che si può passare
+        # in blocco senza riaprire le scansioni; il resto va guardato.
+        riga.pronto = bool(
+            riga.legacy_anagrafica_id_proposto
+            and riga.data_nascita_conferma
+            and riga.letto_data_giudizio
+            and not riga.nominativo_da_ripiego
+        )
+        if riga.pronto:
+            pronti += 1
 
     conteggi = {
         "da_rivedere": RefertoIntakeRiga.objects.filter(
             esito=RefertoIntakeRiga.ESITO_DA_RIVEDERE).count(),
         "registrati": RefertoIntakeRiga.objects.filter(
             esito=RefertoIntakeRiga.ESITO_OK).count(),
+        "pronti": pronti,
     }
 
     return render(request, "anagrafica/pages/referti_coda.html", {
@@ -164,6 +177,61 @@ def referti_carica(request):
     return redirect("anagrafica:referti_coda")
 
 
+def _conferma_una(request, riga, legacy_id: int | None) -> tuple[int, str]:
+    """Registra le visite di UN referto. Ritorna (visite create, errore).
+
+    Estratta perché la conferma in blocco deve comportarsi *esattamente* come
+    quella singola — stessa validazione, stesso audit per riga. Un'azione di
+    massa che scorciatoia i controlli scriverebbe dati sanitari senza le
+    garanzie che si applicano al gesto singolo.
+    """
+    from .services.referti_registrazione import ErroreRegistrazione, registra
+
+    proposto = riga.legacy_anagrafica_id_proposto
+    corretto_a_mano = bool(legacy_id and legacy_id != proposto)
+
+    try:
+        create = registra(riga, utente=request.user, legacy_id=legacy_id)
+    except ErroreRegistrazione as exc:
+        return 0, str(exc)
+    except Exception:
+        logger.exception("Referti: registrazione fallita (riga %s)", riga.pk)
+        return 0, "Registrazione fallita: riprova o segnala il problema."
+
+    _audit(request, "referto_confermato", {
+        "riga_id": riga.pk,
+        "legacy_id": riga.legacy_anagrafica_id_proposto,
+        "proposto_dal_sistema": proposto,
+        "corretto_a_mano": corretto_a_mano,
+        "punteggio": riga.punteggio,
+        "conferma_data_nascita": riga.data_nascita_conferma,
+        "visite_create": len(create),
+    })
+    return len(create), ""
+
+
+def _scarta_una(request, riga, motivo: str) -> None:
+    from .models_sorveglianza import RefertoIntakeRiga
+
+    riga.esito = RefertoIntakeRiga.ESITO_SCARTATO
+    riga.messaggio = motivo or "Scartato manualmente."
+    riga.confermato_da = request.user
+    riga.confermato_il = timezone.now()
+    riga.save(update_fields=["esito", "messaggio", "confermato_da", "confermato_il"])
+    _audit(request, "referto_scartato", {"riga_id": riga.pk, "motivo": motivo})
+
+
+def _legacy_id_scelto(valore: str) -> tuple[int | None, bool]:
+    """(id, valido). Vuoto = «tieni la proposta», non un errore."""
+    valore = (valore or "").strip()
+    if not valore:
+        return None, True
+    try:
+        return int(valore), True
+    except (TypeError, ValueError):
+        return None, False
+
+
 @login_required
 @require_POST
 def referti_conferma(request, riga_id: int):
@@ -178,43 +246,20 @@ def referti_conferma(request, riga_id: int):
         return _nega(request)
 
     from .models_sorveglianza import RefertoIntakeRiga
-    from .services.referti_registrazione import ErroreRegistrazione, registra
 
     riga = get_object_or_404(RefertoIntakeRiga, pk=riga_id)
 
-    scelto = (request.POST.get("legacy_id") or "").strip()
-    legacy_id = None
-    if scelto:
-        try:
-            legacy_id = int(scelto)
-        except (TypeError, ValueError):
-            messages.error(request, "Dipendente non valido.")
-            return redirect("anagrafica:referti_coda")
-
-    proposto = riga.legacy_anagrafica_id_proposto
-    corretto_a_mano = bool(legacy_id and legacy_id != proposto)
-
-    try:
-        create = registra(riga, utente=request.user, legacy_id=legacy_id)
-    except ErroreRegistrazione as exc:
-        messages.error(request, str(exc))
-        return redirect("anagrafica:referti_coda")
-    except Exception:
-        logger.exception("Referti: registrazione fallita (riga %s)", riga.pk)
-        messages.error(request, "Registrazione fallita: riprova o segnala il problema.")
+    legacy_id, valido = _legacy_id_scelto(request.POST.get("legacy_id"))
+    if not valido:
+        messages.error(request, "Dipendente non valido.")
         return redirect("anagrafica:referti_coda")
 
-    _audit(request, "referto_confermato", {
-        "riga_id": riga.pk,
-        "legacy_id": riga.legacy_anagrafica_id_proposto,
-        "proposto_dal_sistema": proposto,
-        "corretto_a_mano": corretto_a_mano,
-        "punteggio": riga.punteggio,
-        "conferma_data_nascita": riga.data_nascita_conferma,
-        "visite_create": len(create),
-    })
-    quale = riga.letto_nominativo or "questo dipendente"
-    messages.success(request, f"{len(create)} visite registrate dal referto di {quale}.")
+    quante, errore = _conferma_una(request, riga, legacy_id)
+    if errore:
+        messages.error(request, errore)
+    else:
+        quale = riga.letto_nominativo or "questo dipendente"
+        messages.success(request, f"{quante} visite registrate dal referto di {quale}.")
     return redirect("anagrafica:referti_coda")
 
 
@@ -232,16 +277,86 @@ def referti_scarta(request, riga_id: int):
     from .models_sorveglianza import RefertoIntakeRiga
 
     riga = get_object_or_404(RefertoIntakeRiga, pk=riga_id)
-    motivo = (request.POST.get("motivo") or "").strip()
-
-    riga.esito = RefertoIntakeRiga.ESITO_SCARTATO
-    riga.messaggio = motivo or "Scartato manualmente."
-    riga.confermato_da = request.user
-    riga.confermato_il = timezone.now()
-    riga.save(update_fields=["esito", "messaggio", "confermato_da", "confermato_il"])
-
-    _audit(request, "referto_scartato", {"riga_id": riga.pk, "motivo": motivo})
+    _scarta_una(request, riga, (request.POST.get("motivo") or "").strip())
     messages.info(request, "Referto tolto dalla coda. Resta archiviato nel registro.")
+    return redirect("anagrafica:referti_coda")
+
+
+@login_required
+@require_POST
+def referti_azioni(request):
+    """Conferma o scarto su **più referti insieme**.
+
+    Una giornata di visite mediche arriva tutta in una volta: venti certificati
+    dello stesso medico, letti bene, che aspettano solo un sì. Confermarli uno
+    per uno è la ragione per cui una coda resta piena.
+
+    Ogni riga conserva la sua decisione — il dipendente scelto è quello della sua
+    tendina — e ogni riga produce il suo record di audit: il blocco è un gesto di
+    interfaccia, non una scorciatoia sui controlli. Un errore su un referto non
+    ferma gli altri e viene riportato per nome, perché «3 su 12 non registrati»
+    senza dire quali sarebbe inservibile.
+    """
+    if not _puo(request):
+        return _nega(request)
+
+    from .models_sorveglianza import RefertoIntakeRiga
+
+    azione = (request.POST.get("azione") or "").strip()
+    scelte = request.POST.getlist("righe")
+    ids = [int(v) for v in scelte if str(v).isdigit()]
+    if not ids:
+        messages.error(request, "Nessun referto selezionato.")
+        return redirect("anagrafica:referti_coda")
+
+    righe = list(
+        RefertoIntakeRiga.objects
+        .filter(pk__in=ids, esito=RefertoIntakeRiga.ESITO_DA_RIVEDERE)
+        .order_by("pk")
+    )
+    if not righe:
+        messages.error(request, "I referti selezionati non sono più in coda.")
+        return redirect("anagrafica:referti_coda")
+
+    if azione == "scarta":
+        motivo = (request.POST.get("motivo_massivo") or "").strip()
+        for riga in righe:
+            _scarta_una(request, riga, motivo)
+        messages.info(
+            request,
+            f"{len(righe)} referti tolti dalla coda. Restano archiviati nel registro.",
+        )
+        return redirect("anagrafica:referti_coda")
+
+    if azione != "conferma":
+        messages.error(request, "Azione non riconosciuta.")
+        return redirect("anagrafica:referti_coda")
+
+    registrate = 0
+    confermati = 0
+    problemi: list[str] = []
+    for riga in righe:
+        legacy_id, valido = _legacy_id_scelto(request.POST.get(f"legacy_id_{riga.pk}"))
+        if not valido:
+            problemi.append(f"{riga.letto_nominativo or riga.nome_file}: dipendente non valido")
+            continue
+        quante, errore = _conferma_una(request, riga, legacy_id)
+        if errore:
+            problemi.append(f"{riga.letto_nominativo or riga.nome_file}: {errore}")
+            continue
+        registrate += quante
+        confermati += 1
+
+    if confermati:
+        messages.success(
+            request,
+            f"{confermati} referti confermati · {registrate} visite registrate.",
+        )
+    for problema in problemi[:10]:
+        messages.error(request, problema)
+    if len(problemi) > 10:
+        messages.error(request, f"…e altri {len(problemi) - 10} referti non registrati.")
+
     return redirect("anagrafica:referti_coda")
 
 

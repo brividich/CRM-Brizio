@@ -12,13 +12,42 @@
 body.theme-dark .rf-avviso{border-color:#78350f;background:#2c2415}
 .rf-carica{border:1px dashed #cbd5e1;border-radius:10px;padding:14px 16px;margin-bottom:16px}
 body.theme-dark .rf-carica{border-color:#3a4a5e}
-.rf-card{border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;margin-bottom:12px}
-body.theme-dark .rf-card{border-color:#334155}
-.rf-testa{display:flex;flex-wrap:wrap;gap:10px;align-items:baseline;justify-content:space-between}
-.rf-nome{font-size:16px;font-weight:700}
-.rf-file{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;color:#64748b}
+
+/* Riepilogo in cifre: quanti aspettano, quanti sono pronti da passare in blocco. */
+.rf-kpi{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+.rf-kpi-box{flex:1 1 150px;border:1px solid #e2e8f0;border-radius:12px;padding:10px 14px;background:#f8fafc}
+body.theme-dark .rf-kpi-box{border-color:#334155;background:rgba(255,255,255,.04)}
+.rf-kpi-num{font-size:22px;font-weight:800;line-height:1.1}
+.rf-kpi-lbl{font-size:11px;text-transform:uppercase;letter-spacing:.05em;opacity:.7;margin-top:2px}
+.rf-kpi-pronti .rf-kpi-num{color:#047857}
+body.theme-dark .rf-kpi-pronti .rf-kpi-num{color:#6ee7b7}
+
+/* Barra delle azioni di gruppo: resta sotto gli occhi mentre si scorre. */
+.rf-barra{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;gap:8px;align-items:center;
+  border:1px solid #e2e8f0;border-radius:12px;background:#fff;padding:10px 14px;margin-bottom:14px;
+  box-shadow:0 2px 10px rgba(15,23,42,.06)}
+body.theme-dark .rf-barra{border-color:#334155;background:#111c2e}
+.rf-barra-conta{font-size:13px;font-weight:700;margin-right:auto}
+.rf-barra-conta span{opacity:.65;font-weight:500}
+.rf-link{background:none;border:none;padding:0;font:inherit;font-size:12.5px;color:#1f87cd;
+  cursor:pointer;text-decoration:underline}
+.rf-barra[data-vuota="1"] .rf-solo-selezione{opacity:.45;pointer-events:none}
+
+.rf-card{border:1px solid #e2e8f0;border-radius:12px;padding:0;margin-bottom:12px;overflow:hidden;
+  background:#fff;transition:border-color .12s,box-shadow .12s}
+body.theme-dark .rf-card{border-color:#334155;background:#0f1a2b}
+.rf-card.is-sel{border-color:#1f87cd;box-shadow:0 0 0 2px rgba(31,135,205,.18)}
+.rf-testa{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;padding:12px 16px;
+  border-bottom:1px solid #f1f5f9}
+body.theme-dark .rf-testa{border-bottom-color:#1e293b}
+.rf-check{width:17px;height:17px;margin-top:3px;flex-shrink:0;cursor:pointer}
+.rf-intesta{flex:1 1 260px;min-width:0}
+.rf-nome{font-size:16px;font-weight:800;letter-spacing:-.01em}
+.rf-file{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;color:#64748b;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 body.theme-dark .rf-file{color:#94a3b8}
-.rf-motivo{font-size:13px;color:#7f1d1d;background:#fef2f2;border-radius:6px;padding:8px 10px;margin:10px 0}
+.rf-corpo{padding:12px 16px 14px}
+.rf-motivo{font-size:13px;color:#7f1d1d;background:#fef2f2;border-radius:8px;padding:8px 10px;margin:0 0 10px}
 body.theme-dark .rf-motivo{color:#fca5a5;background:#2a1717}
 .rf-griglia{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px 16px;margin:10px 0}
 .rf-et{font-size:11px;text-transform:uppercase;letter-spacing:.06em;opacity:.65}
@@ -27,10 +56,14 @@ body.theme-dark .rf-motivo{color:#fca5a5;background:#2a1717}
 .rf-tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:700}
 .rf-si{background:#dcfce7;color:#065f46}   body.theme-dark .rf-si{background:#064e3b;color:#a7f3d0}
 .rf-no{background:#fee2e2;color:#991b1b}   body.theme-dark .rf-no{background:#4c1d1d;color:#fecaca}
-.rf-azioni{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.rf-neutro{background:#e2e8f0;color:#334155} body.theme-dark .rf-neutro{background:#334155;color:#cbd5e1}
+.rf-azioni{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px;
+  padding-top:12px;border-top:1px dashed #e2e8f0}
+body.theme-dark .rf-azioni{border-top-color:#334155}
 .rf-input{padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px}
 body.theme-dark .rf-input{border-color:#3a4a5e;background:#1e293b;color:#e2e8f0}
-.rf-vuoto{text-align:center;padding:40px 20px;opacity:.7}
+.rf-vuoto{text-align:center;padding:44px 20px;opacity:.7}
+@media (max-width:640px){ .rf-barra{position:static} }
 </style>
 {% endblock %}
 
@@ -75,106 +108,215 @@ body.theme-dark .rf-input{border-color:#3a4a5e;background:#1e293b;color:#e2e8f0}
     <button type="submit" class="hr-btn hr-btn-primary">Leggi</button>
   </form>
 
-  <div style="margin:14px 0 10px;font-size:13px;opacity:.8;">
-    <strong>{{ conteggi.da_rivedere }}</strong> in attesa ·
-    {{ conteggi.registrati }} già registrati
+  <div class="rf-kpi">
+    <div class="rf-kpi-box">
+      <div class="rf-kpi-num">{{ conteggi.da_rivedere }}</div>
+      <div class="rf-kpi-lbl">In attesa di revisione</div>
+    </div>
+    <div class="rf-kpi-box rf-kpi-pronti">
+      <div class="rf-kpi-num">{{ conteggi.pronti }}</div>
+      <div class="rf-kpi-lbl">Con data di nascita confermata</div>
+    </div>
+    <div class="rf-kpi-box">
+      <div class="rf-kpi-num">{{ conteggi.registrati }}</div>
+      <div class="rf-kpi-lbl">Già registrati</div>
+    </div>
   </div>
 
-  {% for riga in righe %}
-  <div class="rf-card">
-    <div class="rf-testa">
-      <div>
-        <div class="rf-nome">{{ riga.letto_nominativo|default:"— nominativo non letto —" }}</div>
-        <div class="rf-file">{{ riga.nome_file }}{% if riga.pagina > 1 %} · pagina {{ riga.pagina }}{% endif %}</div>
-      </div>
-      <a class="hr-btn" href="{% url 'anagrafica:referto_scarica' riga.pk %}">Apri la scansione</a>
+  {% if righe %}
+  <!-- Un form solo per tutta la coda: le azioni di gruppo leggono le caselle
+       spuntate, quelle per riga portano con sé il proprio identificativo. -->
+  <form method="post" action="{% url 'anagrafica:referti_azioni' %}" id="rf-form">
+    {% csrf_token %}
+
+    <div class="rf-barra" id="rf-barra" data-vuota="1">
+      <div class="rf-barra-conta"><span id="rf-conta">Nessun referto selezionato</span></div>
+      <button type="button" class="rf-link" data-sel="tutti">Tutti</button>
+      <button type="button" class="rf-link" data-sel="pronti">Solo quelli con data confermata</button>
+      <button type="button" class="rf-link" data-sel="nessuno">Deseleziona</button>
+      <input type="text" name="motivo_massivo" class="rf-input rf-solo-selezione"
+             placeholder="Motivo dello scarto (facoltativo)" style="min-width:200px;">
+      <button type="submit" name="azione" value="scarta"
+              class="hr-btn rf-solo-selezione" id="rf-scarta">Scarta selezionati</button>
+      <button type="submit" name="azione" value="conferma"
+              class="hr-btn hr-btn-primary rf-solo-selezione" id="rf-conferma">Conferma selezionati</button>
     </div>
 
-    {% if riga.messaggio %}<div class="rf-motivo">{{ riga.messaggio }}</div>{% endif %}
-
-    <div class="rf-griglia">
-      <div>
-        <div class="rf-et">Data del giudizio</div>
-        <div class="rf-val">{{ riga.letto_data_giudizio|date:"d/m/Y"|default:"—" }}</div>
-      </div>
-      <div>
-        <div class="rf-et">Data di nascita letta</div>
-        <div class="rf-val">
-          {{ riga.letto_data_nascita|date:"d/m/Y"|default:"—" }}
-          {% if riga.letto_data_nascita %}
-            {% if riga.data_nascita_conferma %}
-              <span class="rf-tag rf-si">coincide</span>
-            {% else %}
-              <span class="rf-tag rf-no">non coincide</span>
-            {% endif %}
+    {% for riga in righe %}
+    <div class="rf-card" data-card="{{ riga.pk }}">
+      <div class="rf-testa">
+        <input type="checkbox" class="rf-check" name="righe" value="{{ riga.pk }}"
+               data-pronto="{% if riga.pronto %}1{% else %}0{% endif %}"
+               aria-label="Seleziona il referto di {{ riga.letto_nominativo|default:riga.nome_file }}">
+        <div class="rf-intesta">
+          <div class="rf-nome">{{ riga.letto_nominativo|default:"— nominativo non letto —" }}</div>
+          <div class="rf-file">{{ riga.nome_file }}{% if riga.pagina > 1 %} · pagina {{ riga.pagina }}{% endif %}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+          {% if riga.pronto %}
+            <span class="rf-tag rf-si">pronto</span>
+          {% elif riga.nominativo_da_ripiego %}
+            <span class="rf-tag rf-no">nome dalla firma</span>
+          {% else %}
+            <span class="rf-tag rf-neutro">da guardare</span>
           {% endif %}
+          <a class="hr-btn" href="{% url 'anagrafica:referto_scarica' riga.pk %}"
+             target="_blank" rel="noopener">Apri la scansione</a>
         </div>
       </div>
-      <div>
-        <div class="rf-et">Giudizio</div>
-        <div class="rf-val">{{ riga.letto_esito_testo|default:"—" }}</div>
-      </div>
-      <div>
-        <div class="rf-et">Mansione</div>
-        <div class="rf-val">{{ riga.letto_mansione|default:"—" }}</div>
-      </div>
-    </div>
 
-    {% if riga.letto_protocollo %}
-    <div>
-      <div class="rf-et">Protocollo sanitario</div>
-      <ul class="rf-prot">
-        {% for voce in riga.letto_protocollo %}
-        <li>{{ voce.esame }} — {{ voce.periodicita }}</li>
-        {% endfor %}
-      </ul>
-      <div style="font-size:12px;opacity:.7;margin-top:4px;">
-        La scadenza viene calcolata dal catalogo, non dalla periodicità scritta sul certificato.
-      </div>
-    </div>
-    {% endif %}
+      <div class="rf-corpo">
+        {% if riga.messaggio %}<div class="rf-motivo">{{ riga.messaggio }}</div>{% endif %}
 
-    {% if riga.divergenze %}
-    <div class="rf-motivo">
-      {% for d in riga.divergenze %}
-      {{ d.tipo }}: il certificato dice {{ d.certificato_mesi }} mesi, il catalogo {{ d.catalogo_mesi }}.
-      {% endfor %}
-      Vale il catalogo.
-    </div>
-    {% endif %}
+        <div class="rf-griglia">
+          <div>
+            <div class="rf-et">Data del giudizio</div>
+            <div class="rf-val">{{ riga.letto_data_giudizio|date:"d/m/Y"|default:"—" }}</div>
+          </div>
+          <div>
+            <div class="rf-et">Data di nascita letta</div>
+            <div class="rf-val">
+              {{ riga.letto_data_nascita|date:"d/m/Y"|default:"—" }}
+              {% if riga.letto_data_nascita %}
+                {% if riga.data_nascita_conferma %}
+                  <span class="rf-tag rf-si">coincide</span>
+                {% else %}
+                  <span class="rf-tag rf-no">non coincide</span>
+                {% endif %}
+              {% endif %}
+            </div>
+          </div>
+          <div>
+            <div class="rf-et">Giudizio</div>
+            <div class="rf-val">{{ riga.letto_esito_testo|default:"—" }}</div>
+          </div>
+          <div>
+            <div class="rf-et">Mansione</div>
+            <div class="rf-val">{{ riga.letto_mansione|default:"—" }}</div>
+          </div>
+        </div>
 
-    <form method="post" action="{% url 'anagrafica:referti_conferma' riga.pk %}" class="rf-azioni">
-      {% csrf_token %}
-      <label style="font-size:13px;">Dipendente:</label>
-      <select name="legacy_id" class="rf-input">
-        {% if riga.legacy_anagrafica_id_proposto %}
-        <option value="{{ riga.legacy_anagrafica_id_proposto }}">
-          {{ riga.nome_proposto|default:riga.legacy_anagrafica_id_proposto }}
-          — somiglianza {{ riga.punteggio }}%{% if riga.data_nascita_conferma %}, data confermata{% endif %}
-        </option>
+        {% if riga.letto_protocollo %}
+        <div>
+          <div class="rf-et">Protocollo sanitario</div>
+          <ul class="rf-prot">
+            {% for voce in riga.letto_protocollo %}
+            <li>{{ voce.esame }} — {{ voce.periodicita }}</li>
+            {% endfor %}
+          </ul>
+          <div style="font-size:12px;opacity:.7;margin-top:4px;">
+            La scadenza viene calcolata dal catalogo, non dalla periodicità scritta sul certificato.
+          </div>
+        </div>
         {% endif %}
-        {% for c in riga.candidati %}
-          {% if c.legacy_id != riga.legacy_anagrafica_id_proposto %}
-          <option value="{{ c.legacy_id }}">
-            {{ c.nominativo }} — {{ c.punteggio }}%{% if c.cessato %} (cessato){% endif %}
-          </option>
-          {% endif %}
-        {% endfor %}
-      </select>
-      <button type="submit" class="hr-btn hr-btn-primary">Conferma e registra</button>
-    </form>
 
-    <form method="post" action="{% url 'anagrafica:referti_scarta' riga.pk %}" class="rf-azioni">
-      {% csrf_token %}
-      <input type="text" name="motivo" class="rf-input" placeholder="Motivo dello scarto (facoltativo)">
-      <button type="submit" class="hr-btn">Scarta</button>
-    </form>
-  </div>
-  {% empty %}
+        {% if riga.divergenze %}
+        <div class="rf-motivo">
+          {% for d in riga.divergenze %}
+          {{ d.tipo }}: il certificato dice {{ d.certificato_mesi }} mesi, il catalogo {{ d.catalogo_mesi }}.
+          {% endfor %}
+          Vale il catalogo.
+        </div>
+        {% endif %}
+
+        <div class="rf-azioni">
+          <label style="font-size:13px;" for="rf-dip-{{ riga.pk }}">Dipendente:</label>
+          <select name="legacy_id_{{ riga.pk }}" id="rf-dip-{{ riga.pk }}" class="rf-input">
+            {% if riga.legacy_anagrafica_id_proposto %}
+            <option value="{{ riga.legacy_anagrafica_id_proposto }}">
+              {{ riga.nome_proposto|default:riga.legacy_anagrafica_id_proposto }}
+              — somiglianza {{ riga.punteggio }}%{% if riga.data_nascita_conferma %}, data confermata{% endif %}
+            </option>
+            {% endif %}
+            {% for c in riga.candidati %}
+              {% if c.legacy_id != riga.legacy_anagrafica_id_proposto %}
+              <option value="{{ c.legacy_id }}">
+                {{ c.nominativo }} — {{ c.punteggio }}%{% if c.cessato %} (cessato){% endif %}
+              </option>
+              {% endif %}
+            {% endfor %}
+          </select>
+          <button type="submit" class="hr-btn hr-btn-primary"
+                  data-singola="{{ riga.pk }}">Conferma e registra</button>
+          <button type="submit" class="hr-btn"
+                  data-singola-scarta="{{ riga.pk }}">Scarta</button>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </form>
+  {% else %}
   <div class="rf-vuoto">
     Nessun referto in attesa.
   </div>
-  {% endfor %}
+  {% endif %}
 
 </div>
+
+<script>
+(function () {
+  var form = document.getElementById('rf-form');
+  if (!form) return;
+  var barra = document.getElementById('rf-barra');
+  var conta = document.getElementById('rf-conta');
+  var caselle = Array.prototype.slice.call(form.querySelectorAll('.rf-check'));
+
+  function aggiorna() {
+    var scelte = caselle.filter(function (c) { return c.checked; });
+    barra.setAttribute('data-vuota', scelte.length ? '0' : '1');
+    conta.textContent = scelte.length
+      ? scelte.length + (scelte.length === 1 ? ' referto selezionato' : ' referti selezionati')
+      : 'Nessun referto selezionato';
+    caselle.forEach(function (c) {
+      var card = c.closest('.rf-card');
+      if (card) card.classList.toggle('is-sel', c.checked);
+    });
+  }
+
+  caselle.forEach(function (c) { c.addEventListener('change', aggiorna); });
+
+  form.querySelectorAll('[data-sel]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var modo = b.getAttribute('data-sel');
+      caselle.forEach(function (c) {
+        c.checked = modo === 'tutti' || (modo === 'pronti' && c.dataset.pronto === '1');
+      });
+      aggiorna();
+    });
+  });
+
+  // Le azioni di gruppo registrano dati sanitari su più persone in un colpo:
+  // vale una domanda esplicita, con il numero davanti.
+  ['rf-conferma', 'rf-scarta'].forEach(function (id) {
+    var b = document.getElementById(id);
+    if (!b) return;
+    b.addEventListener('click', function (e) {
+      var n = caselle.filter(function (c) { return c.checked; }).length;
+      if (!n) { e.preventDefault(); return; }
+      var verbo = id === 'rf-conferma' ? 'Confermare e registrare' : 'Scartare';
+      if (!confirm(verbo + ' ' + n + ' referti?')) e.preventDefault();
+    });
+  });
+
+  // Il bottone di una singola riga non deve trascinarsi dietro le caselle
+  // spuntate altrove: si manda quella riga sola, all'azione di gruppo.
+  form.querySelectorAll('[data-singola], [data-singola-scarta]').forEach(function (b) {
+    b.addEventListener('click', function (e) {
+      e.preventDefault();
+      var scarta = b.hasAttribute('data-singola-scarta');
+      var pk = b.getAttribute(scarta ? 'data-singola-scarta' : 'data-singola');
+      caselle.forEach(function (c) { c.checked = (c.value === pk); });
+      aggiorna();
+      var azione = document.createElement('input');
+      azione.type = 'hidden';
+      azione.name = 'azione';
+      azione.value = scarta ? 'scarta' : 'conferma';
+      form.appendChild(azione);
+      form.submit();
+    });
+  });
+
+  aggiorna();
+})();
+</script>
 {% endblock %}
