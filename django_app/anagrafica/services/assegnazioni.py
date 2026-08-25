@@ -110,6 +110,35 @@ def _raggruppa_per_dominio(scaduti: list[str], mancanti: list[str]) -> dict[str,
     return {k: v for k, v in out.items() if v}
 
 
+def assetto_corrente(legacy_id: int) -> dict[str, Any]:
+    """Assetto organizzativo **vivo** della persona: reparto, area, mansione, ruolo.
+
+    È il default dello spostamento. Uno spostamento tocca quasi sempre uno o due
+    campi su quattro: i campi non toccati devono restare quelli di oggi, non
+    diventare vuoti — altrimenti "cambio reparto" cancellerebbe la mansione.
+
+    Ritorna sempre le quattro chiavi, con stringa vuota / ``None`` se il dato non
+    esiste.
+    """
+    from core.legacy_anagrafica import fetch_anagrafica_rows
+
+    from ..models import DipendenteAnagraficaAziendale
+
+    reparto = mansione = ""
+    rows = fetch_anagrafica_rows(ids=[legacy_id])
+    if rows:
+        reparto = (rows[0].get("reparto") or "").strip()
+        mansione = (rows[0].get("mansione") or "").strip()
+
+    az = DipendenteAnagraficaAziendale.objects.filter(legacy_anagrafica_id=legacy_id).first()
+    return {
+        "reparto": reparto,
+        "mansione": mansione,
+        "area_aziendale_id": az.area_aziendale_id if az else None,
+        "ruolo_aziendale": ((az.ruolo_aziendale or "").strip() if az else ""),
+    }
+
+
 @transaction.atomic
 def crea_assegnazione(
     legacy_id: int,
@@ -125,12 +154,20 @@ def crea_assegnazione(
 ) -> DipendenteAssegnazione:
     """Registra uno spostamento, chiudendo il precedente e verificando l'idoneità.
 
+    I campi lasciati vuoti **ereditano l'assetto attuale** (vedi
+    ``assetto_corrente``): l'assegnazione resta la fotografia completa del
+    periodo — quattro campi sempre valorizzati — e nessun campo viene azzerato
+    solo perché chi registrava lo spostamento non lo ha toccato.
+
     Se ``data_inizio`` è già passata (o è oggi) l'assegnazione viene anche
     attivata subito; altrimenti resta programmata.
     """
-    reparto = (reparto or "").strip()[:200]
-    mansione = (mansione or "").strip()[:200]
-    ruolo_aziendale = (ruolo_aziendale or "").strip()[:200]
+    corrente = assetto_corrente(legacy_id)
+    reparto = ((reparto or "").strip() or corrente["reparto"])[:200]
+    mansione = ((mansione or "").strip() or corrente["mansione"])[:200]
+    ruolo_aziendale = ((ruolo_aziendale or "").strip() or corrente["ruolo_aziendale"])[:200]
+    if area_aziendale_id is None:
+        area_aziendale_id = corrente["area_aziendale_id"]
 
     # L'area aziendale deve appartenere al reparto scelto, stessa invariante di
     # _sync_aziendale_from_reparto: un'area incoerente viene scartata invece di
@@ -202,13 +239,20 @@ def attiva_assegnazione(assegnazione: DipendenteAssegnazione, *, user=None) -> b
     reparto_vecchio = (dip.get("reparto") or "").strip()
     mansione_vecchia = (dip.get("mansione") or "").strip()
 
+    # Rete di sicurezza per le assegnazioni con campi parziali (registrate prima
+    # del fill-forward di crea_assegnazione, o create da codice): un campo vuoto
+    # non cancella il dato vivo, lo lascia com'è.
+    reparto_nuovo = assegnazione.reparto or reparto_vecchio
+    mansione_nuova = assegnazione.mansione or mansione_vecchia
+    area_nuova_id = assegnazione.area_aziendale_id or _area_aziendale_corrente_id(legacy_id)
+
     upsert_anagrafica_dipendente(
         row_id=legacy_id,
         aliasusername=dip.get("aliasusername") or "",
         nome=dip.get("nome") or "",
         cognome=dip.get("cognome") or "",
-        reparto=assegnazione.reparto,
-        mansione=assegnazione.mansione,
+        reparto=reparto_nuovo,
+        mansione=mansione_nuova,
         ruolo=dip.get("ruolo") or "",
         matricola=dip.get("matricola") or "",
         email=dip.get("email") or "",
@@ -219,21 +263,21 @@ def attiva_assegnazione(assegnazione: DipendenteAssegnazione, *, user=None) -> b
     _registra_cambiamento(
         legacy_id,
         DipendenteCambiamentoOrganizzativo.TIPO_REPARTO,
-        reparto_vecchio, assegnazione.reparto,
+        reparto_vecchio, reparto_nuovo,
         user, data_effetto=assegnazione.data_inizio,
     )
     _registra_cambiamento(
         legacy_id,
         DipendenteCambiamentoOrganizzativo.TIPO_MANSIONE,
-        mansione_vecchia, assegnazione.mansione,
+        mansione_vecchia, mansione_nuova,
         user, data_effetto=assegnazione.data_inizio,
     )
 
     # Reparto/area aziendale sul record aziendale: il sync è l'unico punto che
     # scrive quei due campi e li storicizza da sé.
     _sync_aziendale_from_reparto(
-        legacy_id, assegnazione.reparto,
-        area_aziendale_id=assegnazione.area_aziendale_id,
+        legacy_id, reparto_nuovo,
+        area_aziendale_id=area_nuova_id,
         saved_by=user,
         data_decorrenza=assegnazione.data_inizio,
     )
@@ -248,9 +292,25 @@ def attiva_assegnazione(assegnazione: DipendenteAssegnazione, *, user=None) -> b
     return True
 
 
+def _area_aziendale_corrente_id(legacy_id: int) -> int | None:
+    from ..models import DipendenteAnagraficaAziendale
+
+    return (
+        DipendenteAnagraficaAziendale.objects
+        .filter(legacy_anagrafica_id=legacy_id)
+        .values_list("area_aziendale_id", flat=True)
+        .first()
+    )
+
+
 def _aggiorna_ruolo_aziendale(legacy_id: int, ruolo: str, *, user, data_decorrenza) -> None:
     from ..models import DipendenteAnagraficaAziendale
     from ..views import _registra_cambiamento
+
+    # Ruolo non indicato dallo spostamento: si conserva quello in essere. Il
+    # ruolo aziendale si toglie esplicitamente dalla scheda, non per omissione.
+    if not (ruolo or "").strip():
+        return
 
     az, _ = DipendenteAnagraficaAziendale.objects.get_or_create(
         legacy_anagrafica_id=legacy_id, defaults={"updated_by": user},

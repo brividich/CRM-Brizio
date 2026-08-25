@@ -337,6 +337,9 @@ body.theme-dark .dp-hr-badge { background:rgba(146,64,14,.2); color:#fcd34d; bor
 .sp-card { border:1px solid #e2e8f0; border-radius:14px; background:#fff; overflow:hidden; box-shadow:0 1px 2px rgba(15,23,42,.04); }
 /* La programmata si stacca: non e' l'assetto di oggi e non deve sembrarlo. */
 .sp-card-programmata { border-color:#fde68a; border-style:dashed; background:#fffdf7; }
+/* L'assetto attuale non registrato: c'e' ma non e' uno spostamento, tratto neutro. */
+.sp-card-attuale { border-style:dashed; background:#f8fafc; }
+.sp-eredit { font-size:10px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.03em; }
 .sp-card-head { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; padding:12px 14px 8px; }
 .sp-card-titolo { font-size:14px; font-weight:800; color:#0c2545; }
 .sp-card-periodo { font-size:11px; color:#64748b; font-weight:600; margin-top:2px; }
@@ -362,6 +365,8 @@ body.theme-dark .dp-hr-badge { background:rgba(146,64,14,.2); color:#fcd34d; bor
 .sp-dominio-voci { margin:2px 0 0; padding-left:16px; color:#92400e; }
 body.theme-dark .sp-card { background:var(--surface); border-color:var(--border); }
 body.theme-dark .sp-card-programmata { background:rgba(146,64,14,.12); border-color:rgba(253,230,138,.35); }
+body.theme-dark .sp-card-attuale { background:var(--surface-alt, rgba(255,255,255,.04)); border-color:var(--border); }
+body.theme-dark .sp-eredit { color:var(--text-light); }
 body.theme-dark .sp-card-titolo { color:var(--text); }
 body.theme-dark .sp-card-periodo, body.theme-dark .sp-k { color:var(--text-light); }
 body.theme-dark .sp-v { color:var(--text); }
@@ -1489,6 +1494,10 @@ body.theme-dark .dp-link-ok { color:#86efac; }
       <!-- Form nuovo spostamento -->
       <div class="dp-edit-section" id="spostamento-form">
         <div class="dp-form-section-title">Nuovo spostamento</div>
+        <div style="font-size:12px;color:#64748b;margin:-6px 0 12px;">
+          I campi partono dall'assetto attuale: cambia solo ciò che si sposta davvero —
+          quello che lasci com'è resta invariato, non viene azzerato.
+        </div>
         <form method="post" action="{% url 'anagrafica:dipendente_assegnazione_create' legacy_id %}">
           {% csrf_token %}
           <div class="dp-form-grid">
@@ -1521,6 +1530,9 @@ body.theme-dark .dp-link-ok { color:#86efac; }
                 {% for m in mansioni_catalogo %}
                   <option value="{{ m.nome }}" {% if m.nome == dip.mansione %}selected{% endif %}>{{ m.nome }}</option>
                 {% endfor %}
+                {% if dip.mansione and not mansione_in_catalog %}
+                  <option value="{{ dip.mansione }}" selected>{{ dip.mansione }} (attuale – non in catalogo)</option>
+                {% endif %}
               </select>
               <span style="font-size:11px;color:#94a3b8;">
                 Non trovi la mansione? <a href="{% url 'anagrafica:mansioni_list' %}" style="color:#1f87cd;">Gestisci il catalogo</a>.
@@ -1533,8 +1545,8 @@ body.theme-dark .dp-link-ok { color:#86efac; }
                 {% for r in ruoli_aziendali_catalogo %}
                   <option value="{{ r.nome }}" {% if r.nome == aziendale.ruolo_aziendale %}selected{% endif %}>{{ r.nome }}</option>
                 {% endfor %}
-                {% if aziendale.ruolo_aziendale and aziendale.ruolo_aziendale not in ruoli_aziendali_catalogo|join:"," %}
-                  <option value="{{ aziendale.ruolo_aziendale }}" selected>{{ aziendale.ruolo_aziendale }} (attuale)</option>
+                {% if aziendale.ruolo_aziendale and not ruolo_aziendale_in_catalog %}
+                  <option value="{{ aziendale.ruolo_aziendale }}" selected>{{ aziendale.ruolo_aziendale }} (attuale – non in catalogo)</option>
                 {% endif %}
               </select>
             </div>
@@ -1568,14 +1580,36 @@ body.theme-dark .dp-link-ok { color:#86efac; }
         </form>
       </div>
 
-      <!-- Elenco assegnazioni a card -->
-      {% if assegnazioni %}
+      <!-- Elenco assegnazioni a card. Senza un'assegnazione in vigore si mostra
+           comunque l'assetto attuale: è la situazione reale della persona, solo
+           non ancora storicizzata come spostamento. -->
       <div class="sp-cards">
+        {% if not assegnazione_in_corso %}
+        <div class="sp-card sp-card-attuale">
+          <div class="sp-card-head">
+            <div>
+              <div class="sp-card-titolo">{{ assetto_attuale.reparto|default:"— Nessun reparto —" }}{% if assetto_attuale.area %} · {{ assetto_attuale.area }}{% endif %}</div>
+              <div class="sp-card-periodo">Assetto attuale · nessuno spostamento registrato</div>
+            </div>
+            <div class="sp-card-badges">
+              <span class="sp-badge" style="background:#64748b;">Attuale</span>
+            </div>
+          </div>
+          <div class="sp-card-body">
+            <div class="sp-riga"><span class="sp-k">Mansione:</span> <span class="sp-v">{{ assetto_attuale.mansione|default:"—" }}</span></div>
+            <div class="sp-riga"><span class="sp-k">Ruolo aziendale:</span> <span class="sp-v">{{ assetto_attuale.ruolo_aziendale|default:"—" }}</span></div>
+            <div class="sp-riga"><span class="sp-k">Responsabile:</span> <span class="sp-v">{{ assetto_attuale.responsabile_label|default:"—" }}</span></div>
+          </div>
+          <div class="sp-card-foot">
+            <span>Dati vivi della scheda · usa «Nuovo spostamento» per registrarne uno con decorrenza.</span>
+          </div>
+        </div>
+        {% endif %}
         {% for a in assegnazioni %}
         <div class="sp-card{% if a.is_programmata %} sp-card-programmata{% endif %}">
           <div class="sp-card-head">
             <div>
-              <div class="sp-card-titolo">{{ a.reparto|default:"— Nessun reparto —" }}{% if a.area_aziendale %} · {{ a.area_aziendale.nome }}{% endif %}</div>
+              <div class="sp-card-titolo">{{ a.reparto_display|default:a.reparto|default:"— Nessun reparto —" }}{% if a.area_display %} · {{ a.area_display }}{% elif a.area_aziendale %} · {{ a.area_aziendale.nome }}{% endif %}</div>
               <div class="sp-card-periodo">
                 Periodo: {{ a.data_inizio|date:"d-m-Y" }} – {% if a.data_fine %}{{ a.data_fine|date:"d-m-Y" }}{% else %}Ad oggi{% endif %}
               </div>
@@ -1588,8 +1622,8 @@ body.theme-dark .dp-link-ok { color:#86efac; }
             </div>
           </div>
           <div class="sp-card-body">
-            <div class="sp-riga"><span class="sp-k">Mansione:</span> <span class="sp-v">{{ a.mansione|default:"—" }}</span></div>
-            <div class="sp-riga"><span class="sp-k">Ruolo aziendale:</span> <span class="sp-v">{{ a.ruolo_aziendale|default:"—" }}</span></div>
+            <div class="sp-riga"><span class="sp-k">Mansione:</span> <span class="sp-v">{{ a.mansione_display|default:a.mansione|default:"—" }}</span>{% if a.mansione_ereditata %} <span class="sp-eredit">invariata</span>{% endif %}</div>
+            <div class="sp-riga"><span class="sp-k">Ruolo aziendale:</span> <span class="sp-v">{{ a.ruolo_display|default:a.ruolo_aziendale|default:"—" }}</span>{% if a.ruolo_ereditato %} <span class="sp-eredit">invariato</span>{% endif %}</div>
             <div class="sp-riga"><span class="sp-k">Responsabile:</span> <span class="sp-v">{{ a.responsabile_label|default:"—" }}</span></div>
             {% if a.note %}<div class="sp-riga"><span class="sp-k">Note:</span> <span class="sp-v">{{ a.note }}</span></div>{% endif %}
             {% if a.idoneita_gap %}
@@ -1621,10 +1655,10 @@ body.theme-dark .dp-link-ok { color:#86efac; }
         </div>
         {% endfor %}
       </div>
-      {% else %}
-      <div style="padding:20px;text-align:center;color:#94a3b8;font-size:13px;">
-        Nessuno spostamento registrato. Con «Nuovo spostamento» si assegnano insieme reparto,
-        area aziendale, mansione e ruolo per un periodo, con la verifica di competenze, DPI e visite mediche.
+      {% if not assegnazioni %}
+      <div style="padding:14px 4px 0;text-align:center;color:#94a3b8;font-size:12px;">
+        Con «Nuovo spostamento» si assegnano insieme reparto, area aziendale, mansione e ruolo
+        per un periodo, con la verifica di competenze, DPI e visite mediche.
       </div>
       {% endif %}
     </div>

@@ -1323,7 +1323,7 @@ class AliasEsameProtocolloForm(forms.ModelForm):
 
     class Meta:
         model = AliasEsameProtocollo
-        fields = ["testo", "tipo", "attivo"]
+        fields = ["testo", "periodicita", "tipo", "attivo"]
         widgets = {
             "testo": forms.TextInput(attrs={"placeholder": "Es. Visita medica periodica"}),
         }

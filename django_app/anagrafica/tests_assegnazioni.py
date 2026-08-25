@@ -418,3 +418,135 @@ class SchedaDipendenteSpostamentiUITests(TestCase):
         content = resp.content.decode()
         self.assertIn("Abilitazione parziale", content)
         self.assertIn("Corso: Uso tornio", content)
+
+    def test_senza_assegnazioni_mostra_la_card_dell_assetto_attuale(self):
+        """Chi non ha mai avuto uno spostamento ha comunque un assetto: si vede."""
+        with connection.cursor() as cur:
+            cur.execute(
+                "UPDATE anagrafica_dipendenti SET reparto = %s, mansione = %s WHERE id = %s",
+                ["CNC", "Operatore CNC", self.legacy_id],
+            )
+        DipendenteAnagraficaAziendale.objects.update_or_create(
+            legacy_anagrafica_id=self.legacy_id,
+            defaults={"ruolo_aziendale": "Capoturno"},
+        )
+        resp = self.client.get(reverse("anagrafica:dipendente_detail", args=[self.legacy_id]))
+        content = resp.content.decode()
+        self.assertIn('class="sp-card sp-card-attuale"', content)
+        self.assertIn("Assetto attuale · nessuno spostamento registrato", content)
+        self.assertIn("Operatore CNC", content)
+        self.assertIn("Capoturno", content)
+
+    def test_con_assegnazione_in_corso_niente_card_assetto_attuale(self):
+        DipendenteAssegnazione.objects.create(
+            legacy_anagrafica_id=self.legacy_id, data_inizio=_fra(-5), reparto="TORNI",
+        )
+        resp = self.client.get(reverse("anagrafica:dipendente_detail", args=[self.legacy_id]))
+        self.assertNotIn('class="sp-card sp-card-attuale"', resp.content.decode())
+
+    def test_card_in_corso_eredita_i_campi_non_valorizzati(self):
+        """Assegnazione storica parziale: la card mostra il dato vivo, non un trattino."""
+        with connection.cursor() as cur:
+            cur.execute(
+                "UPDATE anagrafica_dipendenti SET mansione = %s WHERE id = %s",
+                ["Operatore CNC", self.legacy_id],
+            )
+        DipendenteAnagraficaAziendale.objects.update_or_create(
+            legacy_anagrafica_id=self.legacy_id,
+            defaults={"ruolo_aziendale": "Capoturno"},
+        )
+        DipendenteAssegnazione.objects.create(
+            legacy_anagrafica_id=self.legacy_id, data_inizio=_fra(-5), reparto="CNC",
+        )
+        content = self.client.get(
+            reverse("anagrafica:dipendente_detail", args=[self.legacy_id])
+        ).content.decode()
+        self.assertIn("Operatore CNC", content)
+        self.assertIn("Capoturno", content)
+        self.assertIn('<span class="sp-eredit">invariata</span>', content)
+        self.assertIn('<span class="sp-eredit">invariato</span>', content)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class SpostamentoDefaultAssettoAttualeTests(TestCase):
+    """I campi non toccati partono dall'assetto attuale e non lo azzerano."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+        cls.admin = User.objects.create_superuser(
+            username="sposta_def_admin", email="sposta_def_admin@x.local", password="x"
+        )
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM anagrafica_dipendenti")
+            cursor.execute(
+                "INSERT INTO anagrafica_dipendenti (aliasusername, nome, cognome, reparto, mansione, attivo) "
+                "VALUES (%s, %s, %s, %s, %s, %s)",
+                ["d.default", "Dino", "Default", "CNC", "Operatore CNC", 1],
+            )
+            cursor.execute(
+                "SELECT id FROM anagrafica_dipendenti WHERE aliasusername = %s", ["d.default"]
+            )
+            self.legacy_id = int(cursor.fetchone()[0])
+        self.rep_cnc = Reparto.objects.create(nome="CNC")
+        self.rep_torni = Reparto.objects.create(nome="TORNI")
+        self.area = AreaAziendale.objects.create(nome="IN1", reparto=self.rep_cnc)
+        RuoloAziendale.objects.create(nome="Capoturno")
+        DipendenteAnagraficaAziendale.objects.update_or_create(
+            legacy_anagrafica_id=self.legacy_id,
+            defaults={
+                "area": "CNC", "area_aziendale": self.area, "ruolo_aziendale": "Capoturno",
+            },
+        )
+
+    def _legacy(self, campo):
+        with connection.cursor() as cur:
+            cur.execute(f"SELECT {campo} FROM anagrafica_dipendenti WHERE id = %s", [self.legacy_id])
+            return (cur.fetchone() or [None])[0]
+
+    def test_assetto_corrente_legge_i_quattro_campi_vivi(self):
+        from .services.assegnazioni import assetto_corrente
+        self.assertEqual(
+            assetto_corrente(self.legacy_id),
+            {
+                "reparto": "CNC", "mansione": "Operatore CNC",
+                "area_aziendale_id": self.area.pk, "ruolo_aziendale": "Capoturno",
+            },
+        )
+
+    def test_spostamento_di_solo_reparto_conserva_mansione_e_ruolo(self):
+        self.client.post(
+            reverse("anagrafica:dipendente_assegnazione_create", args=[self.legacy_id]),
+            {"reparto": "TORNI", "data_inizio": _oggi().isoformat()},
+        )
+        a = DipendenteAssegnazione.objects.get(legacy_anagrafica_id=self.legacy_id)
+        self.assertEqual((a.reparto, a.mansione, a.ruolo_aziendale),
+                         ("TORNI", "Operatore CNC", "Capoturno"))
+        self.assertEqual(self._legacy("mansione"), "Operatore CNC")
+        az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=self.legacy_id)
+        self.assertEqual(az.ruolo_aziendale, "Capoturno")
+
+    def test_area_conservata_se_il_reparto_non_cambia(self):
+        self.client.post(
+            reverse("anagrafica:dipendente_assegnazione_create", args=[self.legacy_id]),
+            {"reparto": "CNC", "mansione": "Tornitore", "data_inizio": _oggi().isoformat()},
+        )
+        a = DipendenteAssegnazione.objects.get(legacy_anagrafica_id=self.legacy_id)
+        self.assertEqual(a.area_aziendale_id, self.area.pk)
+        az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=self.legacy_id)
+        self.assertEqual(az.area_aziendale_id, self.area.pk)
+
+    def test_assegnazione_parziale_preesistente_non_azzera_i_campi_vivi(self):
+        """Rete di sicurezza per le righe registrate prima del fill-forward."""
+        from .services.assegnazioni import attiva_assegnazione
+        a = DipendenteAssegnazione.objects.create(
+            legacy_anagrafica_id=self.legacy_id, data_inizio=_oggi(), reparto="TORNI",
+        )
+        attiva_assegnazione(a)
+        self.assertEqual(self._legacy("reparto"), "TORNI")
+        self.assertEqual(self._legacy("mansione"), "Operatore CNC")
+        az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=self.legacy_id)
+        self.assertEqual(az.ruolo_aziendale, "Capoturno")

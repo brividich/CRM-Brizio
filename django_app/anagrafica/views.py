@@ -2120,7 +2120,23 @@ def dipendente_detail(request, legacy_id: int):
     storico_cambiamenti: list = []
     assegnazioni: list = []
     assegnazione_in_corso = None
+    assetto_attuale: dict = {}
     if is_admin:
+        # Assetto vivo della persona: è il default dello spostamento e il
+        # fallback delle card. Serve anche a chi non ha mai registrato uno
+        # spostamento, che altrimenti vedrebbe solo un vuoto.
+        _dip_labels = _dipendenti_picker_rows()
+        _dip_label_map = {item["id"]: item["label"] for item in _dip_labels}
+        assetto_attuale = {
+            "reparto": (dip.get("reparto") or "").strip(),
+            "mansione": (dip.get("mansione") or "").strip(),
+            "area": (aziendale.area_aziendale.nome if (aziendale and aziendale.area_aziendale_id) else ""),
+            "ruolo_aziendale": ((aziendale.ruolo_aziendale or "").strip() if aziendale else ""),
+            "responsabile_label": (
+                _dip_label_map.get(aziendale.caporeparto_legacy_id or 0, "") if aziendale else ""
+            ),
+        }
+
         storico_cambiamenti = list(
             DipendenteCambiamentoOrganizzativo.objects
             .filter(legacy_anagrafica_id=legacy_id)
@@ -2137,14 +2153,26 @@ def dipendente_detail(request, legacy_id: int):
             .select_related("area_aziendale", "area_aziendale__reparto", "created_by")
             .order_by("-data_inizio", "-created_at")[:30]
         )
-        _dip_labels = _dipendenti_picker_rows()
-        _dip_label_map = {item["id"]: item["label"] for item in _dip_labels}
         for _ass in assegnazioni:
             _ass.responsabile_label = _dip_label_map.get(
                 _responsabile_di(_ass.reparto, _ass.area_aziendale) or 0, ""
             )
             if _ass.is_in_corso:
                 assegnazione_in_corso = _ass
+                # Card in corso: i campi che lo spostamento non ha valorizzato
+                # mostrano l'assetto vivo — è quello che la persona ha davvero —
+                # marcato come invariato invece che con un trattino. Le card
+                # storiche restano fedeli a quanto fu registrato allora.
+                _ass.reparto_display = _ass.reparto or assetto_attuale["reparto"]
+                _ass.area_display = (
+                    _ass.area_aziendale.nome if _ass.area_aziendale_id else assetto_attuale["area"]
+                )
+                _ass.mansione_display = _ass.mansione or assetto_attuale["mansione"]
+                _ass.mansione_ereditata = not _ass.mansione and bool(_ass.mansione_display)
+                _ass.ruolo_display = _ass.ruolo_aziendale or assetto_attuale["ruolo_aziendale"]
+                _ass.ruolo_ereditato = not _ass.ruolo_aziendale and bool(_ass.ruolo_display)
+                if not _ass.responsabile_label:
+                    _ass.responsabile_label = assetto_attuale["responsabile_label"]
 
     # Storico contrattuale
     storico_contratti: list = []
@@ -2282,6 +2310,13 @@ def dipendente_detail(request, legacy_id: int):
     reparto_in_catalog = reparto_corrente and any(
         r.nome.strip().casefold() == reparto_corrente.casefold() for r in reparti_catalog
     )
+    # Mansione/ruolo attuali fuori catalogo: il form dello spostamento deve
+    # comunque poterli preselezionare, altrimenti "non tocco la mansione"
+    # diventerebbe "azzero la mansione" al primo salvataggio.
+    mansione_corrente = (dip.get("mansione") or "").strip()
+    mansione_in_catalog = mansione_corrente and any(
+        m.nome.strip().casefold() == mansione_corrente.casefold() for m in mansioni_catalogo
+    )
     _dip_picker_map_detail = {item["id"]: item["label"] for item in _dipendenti_picker_rows()}
     caporeparto_label = _dip_picker_map_detail.get(aziendale.caporeparto_legacy_id, "") if aziendale and aziendale.caporeparto_legacy_id else ""
     reparto_autofill_json = json.dumps({
@@ -2302,6 +2337,15 @@ def dipendente_detail(request, legacy_id: int):
             continue
         aree_by_reparto.setdefault(a.reparto.nome, []).append({"id": a.id, "nome": a.nome})
     aree_by_reparto_json = json.dumps(aree_by_reparto)
+
+    ruoli_aziendali_catalogo = (
+        list(RuoloAziendale.objects.filter(is_active=True).order_by("nome")) if is_admin else []
+    )
+    ruolo_aziendale_corrente = (aziendale.ruolo_aziendale or "").strip() if aziendale else ""
+    ruolo_aziendale_in_catalog = ruolo_aziendale_corrente and any(
+        r.nome.strip().casefold() == ruolo_aziendale_corrente.casefold()
+        for r in ruoli_aziendali_catalogo
+    )
 
     # Anzianità di servizio (KPI scheda sintetica del Riepilogo). Calcolata dalla
     # prima assunzione (fallback su assunzione corrente) fino a oggi o alla
@@ -2340,6 +2384,8 @@ def dipendente_detail(request, legacy_id: int):
         "figli_list": figli_list,
         "reparti_catalog": reparti_catalog,
         "reparto_in_catalog": reparto_in_catalog,
+        "mansione_in_catalog": mansione_in_catalog,
+        "ruolo_aziendale_in_catalog": ruolo_aziendale_in_catalog,
         "caporeparto_label": caporeparto_label,
         "reparto_autofill_json": reparto_autofill_json,
         "aree_by_reparto_json": aree_by_reparto_json,
@@ -2352,10 +2398,8 @@ def dipendente_detail(request, legacy_id: int):
         "mansioni_catalogo": mansioni_catalogo,
         "assegnazioni": assegnazioni,
         "assegnazione_in_corso": assegnazione_in_corso,
-        "ruoli_aziendali_catalogo": (
-            list(RuoloAziendale.objects.filter(is_active=True).order_by("nome"))
-            if is_admin else []
-        ),
+        "assetto_attuale": assetto_attuale,
+        "ruoli_aziendali_catalogo": ruoli_aziendali_catalogo,
         "qualifiche_dip": qualifiche_dip,
         "tipi_qualifica": tipi_qualifica,
         "oggi": oggi,

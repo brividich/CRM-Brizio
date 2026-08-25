@@ -126,6 +126,7 @@ urlpatterns = [
     path("visite-mediche/referti/carica/", views_sorveglianza.referti_carica, name="referti_carica"),
     path("visite-mediche/referti/registro/", views_sorveglianza.referti_registro, name="referti_registro"),
     path("visite-mediche/referti/impostazioni/", views_sorveglianza.referti_impostazioni, name="referti_impostazioni"),
+    path("visite-mediche/referti/azioni/", views_sorveglianza.referti_azioni, name="referti_azioni"),
     path("visite-mediche/referti/<int:riga_id>/conferma/", views_sorveglianza.referti_conferma, name="referti_conferma"),
     path("visite-mediche/referti/<int:riga_id>/scarta/", views_sorveglianza.referti_scarta, name="referti_scarta"),
     path("visite-mediche/referti/<int:riga_id>/file", views_sorveglianza.referto_scarica, name="referto_scarica"),

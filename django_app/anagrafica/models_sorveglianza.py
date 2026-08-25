@@ -42,6 +42,20 @@ __all__ = [
 ]
 
 
+def _periodicita_note():
+    """Cadenze riconosciute nella colonna «Periodicita'» del protocollo.
+
+    Callable come ``_esiti_idoneita``: tiene la tabella in un posto solo
+    (``services.referti_parsing``) senza importarla al caricamento dei modelli.
+    """
+    from .services.referti_parsing import PERIODICITA_NOTE
+
+    return [("", "Qualsiasi periodicità")] + [
+        (chiave, f"{chiave.capitalize()} ({mesi} mesi)")
+        for chiave, mesi in PERIODICITA_NOTE.items()
+    ]
+
+
 def _esiti_idoneita():
     """Scelte di esito prese dal modello già esistente, senza import circolare.
 
@@ -330,12 +344,28 @@ class AliasEsameProtocollo(models.Model):
 
     Un esame che non trova corrispondenza **non viene indovinato**: manda la riga
     in revisione. Inventare un tipo di visita significherebbe inventare una scadenza.
+
+    LA PERIODICITÀ FA PARTE DELLA CHIAVE
+
+    Il certificato scrive il nome dell'esame in una colonna e la cadenza in
+    quella accanto, e a catalogo la stessa visita esiste in più versioni che si
+    distinguono *solo* per cadenza (Annuale / Biennale / Quinquennale). Senza la
+    periodicità nella chiave, «Visita Medica» potrebbe puntare a un tipo solo: un
+    referto quinquennale creerebbe una visita annuale, cioè una scadenza sbagliata
+    di quattro anni. La riga con periodicità vuota resta valida come ripiego,
+    per gli esami che a catalogo hanno una versione sola.
     """
 
     testo = models.CharField(
-        max_length=200, unique=True,
+        max_length=200,
         help_text="Il testo come compare sul certificato. Il confronto avviene "
                   "normalizzato (maiuscole, accenti e spazi non contano).",
+    )
+    periodicita = models.CharField(
+        max_length=20, blank=True, default="", choices=_periodicita_note,
+        help_text="La cadenza dichiarata accanto all'esame sul certificato. "
+                  "Vuota = vale per qualsiasi cadenza (ripiego, usato solo se non "
+                  "c'è una riga con la periodicità esatta).",
     )
     tipo = models.ForeignKey(
         "anagrafica.TipoVisitaMedica",
@@ -345,12 +375,18 @@ class AliasEsameProtocollo(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ["testo"]
+        ordering = ["testo", "periodicita"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["testo", "periodicita"], name="uniq_alias_esame_testo_periodicita",
+            ),
+        ]
         verbose_name = "Alias esame del protocollo"
         verbose_name_plural = "Alias esami del protocollo"
 
     def __str__(self) -> str:
-        return f"{self.testo} → {self.tipo}"
+        cadenza = f" [{self.periodicita}]" if self.periodicita else ""
+        return f"{self.testo}{cadenza} → {self.tipo}"
 
 
 class AliasEsitoIdoneita(models.Model):

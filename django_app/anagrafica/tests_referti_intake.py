@@ -367,6 +367,48 @@ class RegistrazioneTests(TestCase):
         self.assertEqual(riga.esito, RefertoIntakeRiga.ESITO_OK)
         self.assertEqual(riga.visite_create, 2)
 
+    def test_la_periodicita_sceglie_fra_i_tipi_omonimi_del_catalogo(self):
+        """A catalogo la stessa visita esiste per cadenza: la scadenza dipende da qui."""
+        quinquennale = TipoVisitaMedica.objects.create(
+            nome="Visita Medica Quinquennale", durata_mesi=60
+        )
+        AliasEsameProtocollo.objects.create(
+            testo="Visita Medica", periodicita="annuale", tipo=self.medica
+        )
+        AliasEsameProtocollo.objects.create(
+            testo="Visita Medica", periodicita="quinquennale", tipo=quinquennale
+        )
+        riga = self._riga(letto_protocollo=[
+            {"esame": "Visita Medica", "periodicita": "quinquennale"},
+        ])
+        create = registra(riga, utente=self.utente)
+        self.assertEqual(create[0].tipo, quinquennale)
+        self.assertEqual(create[0].data_scadenza, date(2029, 3, 15))  # 60 mesi
+
+    def test_riga_senza_periodicita_vale_come_ripiego(self):
+        AliasEsameProtocollo.objects.create(
+            testo="Vis. medica", periodicita="", tipo=self.medica
+        )
+        riga = self._riga(letto_protocollo=[
+            {"esame": "Vis. medica", "periodicita": "triennale"},
+        ])
+        create = registra(riga, utente=self.utente)
+        self.assertEqual(create[0].tipo, self.medica)
+
+    def test_la_cadenza_esatta_vince_sul_ripiego(self):
+        biennale = TipoVisitaMedica.objects.create(
+            nome="Visita Medica Biennale", durata_mesi=24
+        )
+        AliasEsameProtocollo.objects.create(testo="Vis. medica", periodicita="", tipo=self.medica)
+        AliasEsameProtocollo.objects.create(
+            testo="Vis. medica", periodicita="biennale", tipo=biennale
+        )
+        riga = self._riga(letto_protocollo=[
+            {"esame": "Vis. medica", "periodicita": "biennale"},
+        ])
+        create = registra(riga, utente=self.utente)
+        self.assertEqual(create[0].tipo, biennale)
+
     def test_alias_permette_un_nome_che_il_catalogo_non_ha(self):
         AliasEsameProtocollo.objects.create(testo="Vis. medica periodica", tipo=self.medica)
         riga = self._riga(letto_protocollo=[
@@ -381,6 +423,103 @@ class RegistrazioneTests(TestCase):
         piano = prepara_registrazione(campi)
         self.assertEqual(len(piano.tipi), 2)
         self.assertEqual(piano.esito, VisitaMedica.Esito.IDONEO_MANSIONE)
+        self.assertEqual(VisitaMedica.objects.count(), 0)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AzioniMassiveTests(TestCase):
+    """Conferma e scarto su più referti insieme: una giornata di visite in un gesto."""
+
+    def setUp(self):
+        self.medica = TipoVisitaMedica.objects.create(nome="Visita Medica", durata_mesi=12)
+        AliasEsitoIdoneita.objects.create(
+            testo="IDONEO MANSIONE SPECIFICA", esito=VisitaMedica.Esito.IDONEO_MANSIONE
+        )
+        self.utente = User.objects.create_superuser("revisore2", "r2@example.invalid", "x")
+        self.client.force_login(self.utente)
+
+    def _riga(self, sha: str, legacy_id: int = 10, **extra):
+        campi = {
+            "nome_file": f"referto-{sha[:4]}.pdf",
+            "sha256": sha * 8,
+            "letto_nominativo": "VERDI GIUSEPPE",
+            "letto_data_giudizio": date(2024, 3, 15),
+            "letto_esito_testo": "IDONEO MANSIONE SPECIFICA",
+            "letto_protocollo": [{"esame": "Visita Medica", "periodicita": "annuale"}],
+            "legacy_anagrafica_id_proposto": legacy_id,
+            "esito": RefertoIntakeRiga.ESITO_DA_RIVEDERE,
+        }
+        campi.update(extra)
+        return RefertoIntakeRiga.objects.create(**campi)
+
+    def test_conferma_di_gruppo_registra_ogni_referto(self):
+        a, b = self._riga("a", 10), self._riga("b", 11)
+        risposta = self.client.post("/anagrafica/visite-mediche/referti/azioni/", {
+            "azione": "conferma", "righe": [a.pk, b.pk],
+        })
+        self.assertEqual(risposta.status_code, 302)
+        a.refresh_from_db(); b.refresh_from_db()
+        self.assertEqual(a.esito, RefertoIntakeRiga.ESITO_OK)
+        self.assertEqual(b.esito, RefertoIntakeRiga.ESITO_OK)
+        self.assertEqual(VisitaMedica.objects.count(), 2)
+
+    def test_il_dipendente_scelto_per_riga_vince_sulla_proposta(self):
+        riga = self._riga("c", 10)
+        self.client.post("/anagrafica/visite-mediche/referti/azioni/", {
+            "azione": "conferma", "righe": [riga.pk], f"legacy_id_{riga.pk}": "99",
+        })
+        self.assertEqual(VisitaMedica.objects.get().legacy_anagrafica_id, 99)
+
+    def test_un_referto_guasto_non_ferma_gli_altri(self):
+        buono = self._riga("d", 10)
+        rotto = self._riga("e", 11, letto_esito_testo="GIUDIZIO MAI VISTO")
+        self.client.post("/anagrafica/visite-mediche/referti/azioni/", {
+            "azione": "conferma", "righe": [buono.pk, rotto.pk],
+        })
+        buono.refresh_from_db(); rotto.refresh_from_db()
+        self.assertEqual(buono.esito, RefertoIntakeRiga.ESITO_OK)
+        self.assertEqual(rotto.esito, RefertoIntakeRiga.ESITO_DA_RIVEDERE)
+        self.assertEqual(VisitaMedica.objects.count(), 1)
+
+    def test_scarto_di_gruppo_conserva_le_righe(self):
+        a, b = self._riga("f", 10), self._riga("g", 11)
+        self.client.post("/anagrafica/visite-mediche/referti/azioni/", {
+            "azione": "scarta", "righe": [a.pk, b.pk], "motivo_massivo": "Doppioni",
+        })
+        a.refresh_from_db(); b.refresh_from_db()
+        self.assertEqual(a.esito, RefertoIntakeRiga.ESITO_SCARTATO)
+        self.assertEqual(b.messaggio, "Doppioni")
+        self.assertEqual(RefertoIntakeRiga.objects.count(), 2)
+        self.assertEqual(VisitaMedica.objects.count(), 0)
+
+    def test_righe_gia_uscite_dalla_coda_non_si_riconfermano(self):
+        riga = self._riga("h", 10, esito=RefertoIntakeRiga.ESITO_OK)
+        self.client.post("/anagrafica/visite-mediche/referti/azioni/", {
+            "azione": "conferma", "righe": [riga.pk],
+        })
+        self.assertEqual(VisitaMedica.objects.count(), 0)
+
+    def test_selezione_vuota_non_fa_nulla(self):
+        self._riga("i", 10)
+        self.client.post("/anagrafica/visite-mediche/referti/azioni/", {"azione": "conferma"})
+        self.assertEqual(VisitaMedica.objects.count(), 0)
+
+    def test_la_coda_espone_selezione_multipla_e_marca_i_referti_pronti(self):
+        self._riga("m", 10, data_nascita_conferma=True, letto_data_nascita=date(1980, 1, 1))
+        self._riga("n", 11, nominativo_da_ripiego=True)
+        contenuto = self.client.get("/anagrafica/visite-mediche/referti/").content.decode()
+        self.assertIn('name="righe"', contenuto)
+        self.assertIn("Conferma selezionati", contenuto)
+        self.assertIn("Solo quelli con data confermata", contenuto)
+        self.assertIn('data-pronto="1"', contenuto)
+        self.assertIn('data-pronto="0"', contenuto)
+
+    def test_azione_massiva_negata_a_chi_non_tratta_dati_sanitari(self):
+        riga = self._riga("l", 10)
+        self.client.force_login(User.objects.create_user("passante2", password="x"))
+        self.client.post("/anagrafica/visite-mediche/referti/azioni/", {
+            "azione": "conferma", "righe": [riga.pk],
+        })
         self.assertEqual(VisitaMedica.objects.count(), 0)
 
 

@@ -157,13 +157,18 @@ body.theme-dark .ri-err{color:#f87171}
       Ogni medico scrive gli esami a modo suo. Un esame che non trova corrispondenza qui non viene
       indovinato: manda il referto in revisione — inventare un tipo significherebbe inventare una
       scadenza. Aggiungere una riga qui è il modo di insegnare un nome nuovo.
+      La <strong>periodicità</strong> fa parte della chiave: a catalogo la stessa visita esiste in
+      versioni che si distinguono solo per cadenza, quindi «Visita Medica» quinquennale e annuale
+      vogliono due righe. Lasciandola su «qualsiasi» la riga vale come ripiego, per gli esami che
+      a catalogo hanno una versione sola.
     </div>
     <table class="fm-table">
-      <thead><tr><th>Come è scritto sul certificato</th><th>Tipo di visita</th><th>Attivo</th><th></th></tr></thead>
+      <thead><tr><th>Come è scritto sul certificato</th><th>Periodicità</th><th>Tipo di visita</th><th>Attivo</th><th></th></tr></thead>
       <tbody>
         {% for a in alias_esami %}
         <tr>
           <td>{{ a.testo }}</td>
+          <td>{% if a.periodicita %}{{ a.get_periodicita_display }}{% else %}<span style="opacity:.6;">qualsiasi</span>{% endif %}</td>
           <td>{{ a.tipo.nome }}</td>
           <td>{% if a.attivo %}sì{% else %}no{% endif %}</td>
           <td>
@@ -175,7 +180,7 @@ body.theme-dark .ri-err{color:#f87171}
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="4" style="opacity:.7;padding:16px;">
+        <tr><td colspan="5" style="opacity:.7;padding:16px;">
           Nessun alias: valgono comunque i nomi esatti del catalogo tipi di visita.
         </td></tr>
         {% endfor %}
