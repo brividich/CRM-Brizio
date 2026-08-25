@@ -1008,6 +1008,10 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
             <label>Titolo manutenzione</label>
             <input class="input" type="text" name="detail_maintenance_title" placeholder="Es. Registro interventi">
           </div>
+          <div class="field">
+            <label>Inserimento manuale in timeline</label>
+            <label class="checkline"><input type="checkbox" name="detail_timeline_manual_enabled" value="1" checked> S&igrave;</label>
+          </div>
           <div>
             <button class="btn btn-primary btn-sm" type="submit">Aggiungi categoria</button>
           </div>
@@ -1079,6 +1083,7 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
                   {% if row.category.detail_assignment_title %}<span class="chip-soft blue">Responsabile: {{ row.category.detail_assignment_title }}</span>{% endif %}
                   {% if row.category.detail_timeline_title %}<span class="chip-soft blue">Timeline: {{ row.category.detail_timeline_title }}</span>{% endif %}
                   {% if row.category.detail_maintenance_title %}<span class="chip-soft blue">Manutenzione: {{ row.category.detail_maintenance_title }}</span>{% endif %}
+                  {% if not row.category.detail_timeline_manual_enabled %}<span class="chip-soft">Timeline manuale: off</span>{% endif %}
                   {% if not row.category.detail_specs_title and not row.category.detail_profile_title and not row.category.detail_assignment_title and not row.category.detail_timeline_title and not row.category.detail_maintenance_title %}
                     <span class="chip-soft slate">Titoli dettaglio standard</span>
                   {% endif %}
@@ -1187,6 +1192,10 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
               <div class="field"><label>Titolo responsabile</label><input class="input" type="text" name="detail_assignment_title" value="{{ row.category.detail_assignment_title }}"></div>
               <div class="field"><label>Titolo timeline</label><input class="input" type="text" name="detail_timeline_title" value="{{ row.category.detail_timeline_title }}"></div>
               <div class="field"><label>Titolo manutenzione</label><input class="input" type="text" name="detail_maintenance_title" value="{{ row.category.detail_maintenance_title }}"></div>
+              <div class="field">
+                <label>Inserimento manuale in timeline</label>
+                <label class="checkline"><input type="checkbox" name="detail_timeline_manual_enabled" value="1" {% if row.category.detail_timeline_manual_enabled %}checked{% endif %}> S&igrave;</label>
+              </div>
               <div style="align-self:end;">
                 <button class="btn btn-primary btn-sm" type="submit">Salva categoria</button>
               </div>
