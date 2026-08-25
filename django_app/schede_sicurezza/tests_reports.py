@@ -47,17 +47,40 @@ from .reports import matrice_presa_visione
 User = get_user_model()
 
 
-def _crea_dipendente_attivo(legacy_id: int, area_aziendale, *, cessato=False) -> "User":
+def crea_dipendente_con_account(etichetta: int | str, area_aziendale, *, cessato=False) -> "User":
+    """Dipendente in forza + account portale, montati come in produzione.
+
+    La catena reale passa da `anagrafica_dipendenti.utente_id`: l'id
+    dell'anagrafica e l'id dell'utente legacy vivono in due tabelle diverse e
+    **non** coincidono. Il primo `UtenteLegacy` creato qui e' un segnaposto
+    scartato apposta, per far divergere le due sequenze di id: se coincidessero,
+    un join sbagliato passerebbe i test.
+    """
     from datetime import date
 
+    from core.legacy_models import AnagraficaDipendente, UtenteLegacy
+
+    UtenteLegacy.objects.create(
+        nome=f"scarto{etichetta}", email=f"scarto{etichetta}@example.local", password="x",
+    )
+    utente = UtenteLegacy.objects.create(
+        nome=f"dip{etichetta}", email=f"dip{etichetta}@example.local", password="x",
+    )
+    anagrafica = AnagraficaDipendente.objects.create(
+        aliasusername=f"dip{etichetta}", utente=utente,
+    )
     DipendenteAnagraficaAziendale.objects.create(
-        legacy_anagrafica_id=legacy_id,
+        legacy_anagrafica_id=anagrafica.id,
         area_aziendale=area_aziendale,
         data_cessazione=date(2020, 1, 1) if cessato else None,
     )
-    user = User.objects.create_user(username=f"dip{legacy_id}", password="x")
-    Profile.objects.create(user=user, legacy_user_id=legacy_id)
+    user = User.objects.create_user(username=f"dip{etichetta}", password="x")
+    Profile.objects.create(user=user, legacy_user_id=utente.id)
     return user
+
+
+# Nome storico usato dai test di questo modulo.
+_crea_dipendente_attivo = crea_dipendente_con_account
 
 
 class MatricePresaVisioneTest(TestCase):
@@ -98,6 +121,29 @@ class MatricePresaVisioneTest(TestCase):
         # nessun DipendenteAnagraficaAziendale collegato all'area del reparto
         riga = matrice_presa_visione()[0].righe[0]
         self.assertEqual(riga.totale_dipendenti, 0)
+        self.assertIsNone(riga.percentuale)
+
+    def test_id_anagrafica_coincidente_con_id_utente_non_entra_nel_denominatore(self):
+        """Regressione: `anagrafica_dipendenti.id` e `utenti.id` sono spazi separati.
+
+        Un account il cui `legacy_user_id` coincide per caso con il
+        `legacy_anagrafica_id` di un dipendente non e' quel dipendente. Prima
+        della correzione la matrice lo contava nel reparto e ne registrava la
+        presa visione: non un denominatore vuoto, una persona sbagliata.
+        """
+        from core.legacy_models import AnagraficaDipendente
+
+        anagrafica = AnagraficaDipendente.objects.create(aliasusername="mai_loggato")
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=anagrafica.id, area_aziendale=self.area,
+        )
+        estraneo = User.objects.create_user(username="estraneo", password="x")
+        Profile.objects.create(user=estraneo, legacy_user_id=anagrafica.id)
+        PresaVisioneScheda.objects.create(scheda=self.scheda, operatore=estraneo)
+
+        riga = matrice_presa_visione()[0].righe[0]
+        self.assertEqual(riga.totale_dipendenti, 0)
+        self.assertEqual(riga.confermati, 0)
         self.assertIsNone(riga.percentuale)
 
     def test_prodotto_senza_scheda_corrente_non_appare_in_matrice(self):

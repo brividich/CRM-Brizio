@@ -8,10 +8,10 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 
-from anagrafica.models import AreaAziendale, DipendenteAnagraficaAziendale, Reparto
-from core.models import Profile
+from anagrafica.models import AreaAziendale, Reparto
 
 from .models import PresaVisioneScheda, ProdottoChimico, SchedaSicurezza
+from .tests_reports import crea_dipendente_con_account
 
 User = get_user_model()
 
@@ -55,9 +55,7 @@ class ReportComplianceCsvExportTest(TestCase):
         self.scheda = SchedaSicurezza.objects.create(
             prodotto=self.con_scheda, pdf=_pdf(), versione="Rev.2", is_corrente=True,
         )
-        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=9101, area_aziendale=self.area)
-        dip_user = User.objects.create_user(username="dip9101", password="x")
-        Profile.objects.create(user=dip_user, legacy_user_id=9101)
+        dip_user = crea_dipendente_con_account(9101, self.area)
         PresaVisioneScheda.objects.create(scheda=self.scheda, operatore=dip_user)
 
         self.admin = User.objects.create_user(username="admin_csv", password="x", is_superuser=True, is_staff=True)
@@ -91,9 +89,7 @@ class ReportComplianceTemplateTest(TestCase):
         self.scheda = SchedaSicurezza.objects.create(
             prodotto=self.prodotto, pdf=_pdf(), versione="Rev.2", is_corrente=True,
         )
-        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=9201, area_aziendale=self.area)
-        dip_user = User.objects.create_user(username="dip9201", password="x")
-        Profile.objects.create(user=dip_user, legacy_user_id=9201)
+        crea_dipendente_con_account(9201, self.area)
         self.admin = User.objects.create_user(username="admin_tpl", password="x", is_superuser=True, is_staff=True)
 
     def test_matrice_mostra_percentuale_e_badge(self):

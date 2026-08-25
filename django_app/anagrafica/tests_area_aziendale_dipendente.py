@@ -95,6 +95,67 @@ class SyncAziendaleFromRepartoTests(TestCase):
         az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=913)
         self.assertEqual(az.area_aziendale_id, area.pk)
 
+    # -- "non mi esprimo" != "togli l'area" -------------------------------
+
+    def test_parametro_omesso_conserva_l_area_dello_stesso_reparto(self):
+        """Regressione: chi rimappa solo il reparto non deve scollegare il dipendente.
+
+        Prima della sentinella, `report_reparti_orfani --apply` e ogni altro
+        chiamante che non nominava l'area azzeravano la FK, rendendo la persona
+        invisibile ai report che ragionano per reparto.
+        """
+        from .views import _sync_aziendale_from_reparto
+        rep = Reparto.objects.create(nome="UT")
+        area = AreaAziendale.objects.create(nome="IN1", reparto=rep)
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=914, area="UT", area_aziendale=area,
+        )
+        _sync_aziendale_from_reparto(914, "UT", saved_by=self.admin)
+        az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=914)
+        self.assertEqual(az.area_aziendale_id, area.pk)
+
+    def test_parametro_omesso_ma_reparto_cambiato_azzera_comunque(self):
+        """L'invariante area<->reparto vince sulla conservazione."""
+        from .views import _sync_aziendale_from_reparto
+        rep_ut = Reparto.objects.create(nome="UT")
+        Reparto.objects.create(nome="MAG")
+        area = AreaAziendale.objects.create(nome="IN1", reparto=rep_ut)
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=915, area="UT", area_aziendale=area,
+        )
+        _sync_aziendale_from_reparto(915, "MAG", saved_by=self.admin)
+        az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=915)
+        self.assertIsNone(az.area_aziendale_id)
+
+    def test_none_esplicito_toglie_l_area(self):
+        """Il form dove l'area e' un campo scelto dall'utente deve poterla togliere."""
+        from .views import _sync_aziendale_from_reparto
+        rep = Reparto.objects.create(nome="UT")
+        area = AreaAziendale.objects.create(nome="IN1", reparto=rep)
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=916, area="UT", area_aziendale=area,
+        )
+        _sync_aziendale_from_reparto(916, "UT", area_aziendale_id=None, saved_by=self.admin)
+        az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=916)
+        self.assertIsNone(az.area_aziendale_id)
+
+    def test_area_conservata_non_genera_voce_di_storico(self):
+        """Conservare non e' cambiare: nessun periodo nuovo nello storico."""
+        from .models import DipendenteCambiamentoOrganizzativo
+        from .views import _sync_aziendale_from_reparto
+        rep = Reparto.objects.create(nome="UT")
+        area = AreaAziendale.objects.create(nome="IN1", reparto=rep)
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=917, area="UT", area_aziendale=area,
+        )
+        _sync_aziendale_from_reparto(917, "UT", saved_by=self.admin)
+        self.assertFalse(
+            DipendenteCambiamentoOrganizzativo.objects.filter(
+                legacy_anagrafica_id=917,
+                tipo=DipendenteCambiamentoOrganizzativo.TIPO_AREA_AZIENDALE,
+            ).exists()
+        )
+
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class DipendenteRepartoSetAreaAziendaleTests(TestCase):
