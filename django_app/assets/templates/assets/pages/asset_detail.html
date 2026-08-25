@@ -304,6 +304,21 @@ body.theme-dark .af-targhetta { background:#0b1220; border-color:var(--border); 
 
 /* ── timeline dentro card anagrafica ──────────────────────── */
 .af-profile-timeline { margin-top: 6px; }
+.af-tl-head { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+.af-tl-add { position:relative; flex:1 1 100%; }
+.af-tl-add > summary { list-style:none; cursor:pointer; display:inline-flex; }
+.af-tl-add > summary::-webkit-details-marker { display:none; }
+.af-tl-add-form { margin-top:8px; padding:10px; border:1px solid #dbe1ea; border-radius:12px; background:#f8fafc; display:grid; gap:8px; }
+.af-tl-add-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.af-tl-add-grid label { display:grid; gap:3px; font-size:var(--fs-2xs); font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.04em; }
+.af-tl-add-grid input, .af-tl-add-grid select, .af-tl-add-grid textarea {
+  width:100%; padding:6px 8px; border:1px solid #dbe1ea; border-radius:8px;
+  font-size:var(--fs-sm); font-weight:500; color:#0f172a; background:#fff;
+  text-transform:none; letter-spacing:0;
+}
+.af-tl-add-wide { grid-column:1 / -1; }
+.af-tl-add-actions { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+@media (max-width: 620px) { .af-tl-add-grid { grid-template-columns:1fr; } }
 
 /* ── merge profilo + assegnazione ─────────────────────────── */
 .af-profile-group + .af-profile-group { margin-top:12px; padding-top:12px; border-top:1px solid #f1f5f9; }
@@ -401,6 +416,11 @@ body.theme-dark .af-card-title { color:var(--text); }
 body.theme-dark .af-spec-k { color:var(--text-light); }
 body.theme-dark .af-spec-v { color:var(--text); }
 body.theme-dark .af-timeline:before { background:var(--border); }
+body.theme-dark .af-tl-add-form { background:var(--surface); border-color:var(--border); }
+body.theme-dark .af-tl-add-grid label { color:var(--text-light); }
+body.theme-dark .af-tl-add-grid input,
+body.theme-dark .af-tl-add-grid select,
+body.theme-dark .af-tl-add-grid textarea { background:var(--surface); border-color:var(--border); color:var(--text); }
 body.theme-dark .af-tl-title { color:var(--text); }
 body.theme-dark .af-tl-desc { color:var(--text-mid); }
 body.theme-dark .af-tl-meta { color:var(--text-light); }
@@ -1122,7 +1142,46 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
             </div>
             {% if timeline_events %}
             <div class="af-profile-group">
-              <div class="af-profile-group-title">{{ detail_timeline_title|default:"Storico ciclo di vita" }}</div>
+              <div class="af-tl-head">
+                <div class="af-profile-group-title" style="margin-bottom:0;">{{ detail_timeline_title|default:"Storico ciclo di vita" }}</div>
+                {% if can_manage_asset_timeline and asset_timeline_manual_enabled %}
+                  <details class="af-tl-add">
+                    <summary class="af-btn af-btn-secondary">+ Inserisci</summary>
+                    <form class="af-tl-add-form" method="post">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="add_asset_timeline_entry">
+                      <div class="af-tl-add-grid">
+                        <label>Data evento
+                          <input type="date" name="timeline_date" required>
+                        </label>
+                        <label>Colore
+                          <select name="timeline_color">
+                            {% for code, label in asset_timeline_color_choices %}
+                              <option value="{{ code }}">{{ label }}</option>
+                            {% endfor %}
+                          </select>
+                        </label>
+                        <label class="af-tl-add-wide">Titolo evento
+                          <input type="text" name="timeline_title" maxlength="160" placeholder="Es. Fermo macchina per revisione straordinaria" required>
+                        </label>
+                        <label>Etichetta
+                          <input type="text" name="timeline_tag" maxlength="40" placeholder="Es. FERMO">
+                        </label>
+                        <label>Riferimento
+                          <input type="text" name="timeline_meta" maxlength="120" placeholder="Es. Officina esterna / Reparto 3">
+                        </label>
+                        <label class="af-tl-add-wide">Descrizione
+                          <textarea name="timeline_description" rows="2" maxlength="2000" placeholder="Cosa e successo, in breve"></textarea>
+                        </label>
+                      </div>
+                      <div class="af-tl-add-actions">
+                        <span class="af-note">Per eventi che non passano dal portale: fermi, traslochi, collaudi del fornitore.</span>
+                        <button class="af-btn af-btn-primary" type="submit">Salva in timeline</button>
+                      </div>
+                    </form>
+                  </details>
+                {% endif %}
+              </div>
               <ol class="af-timeline af-profile-timeline">
                 {% for event in timeline_events %}
                   <li class="af-tl-item">

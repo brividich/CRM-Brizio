@@ -10,6 +10,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ### Added
 
+- **Assets · voci a mano nella timeline di vita** (`django_app/assets/models.py`, `views.py`, migration `0091_assetcategory_detail_timeline_manual_enabled_and_more.py`, template `assets/pages/asset_detail.html` e `assets/pages/gestione_admin.html`, `tests.py`).
+
+  La timeline della scheda asset sapeva raccontare solo cio che era passato dal portale: registrazione a inventario, assegnazione, messa in servizio ricavata dall'anno della macchina. Tutto il resto della vita reale di un asset — un fermo di tre settimane, un trasloco di reparto, un collaudo eseguito dal costruttore, una modifica strutturale — non lasciava traccia, e la timeline finiva per essere una cronologia amministrativa invece che la storia della macchina.
+
+  Nuovo modello `AssetTimelineEntry` (data evento, titolo, etichetta, descrizione, riferimento, colore, autore) e pulsante **«+ Inserisci»** nel gruppo «Timeline ciclo di vita»: apre un form compatto (data, colore, titolo, etichetta, riferimento, descrizione) e la voce salvata si mescola agli eventi automatici nello stesso ordine cronologico, distinguibile dall'etichetta. La data richiesta e quella in cui il fatto e accaduto, non quella di inserimento; l'inserimento e tracciato in audit (`add_asset_timeline_entry`) con l'autore.
+
+  **Chi lo vede e opzionabile su due assi.** Il pulsante compare agli amministratori/gestori asset; per estenderlo ai manutentori si concede dal pannello Accessi l'azione `assets/asset_timeline_entry` (per ruolo o come override utente), senza toccare il codice — senza grant il pulsante non compare e la POST viene comunque rifiutata lato server. In piu, ogni categoria asset ha il flag **«Inserimento manuale in timeline»** (attivo di default) nelle Impostazioni Assets: spento, la categoria torna alla sola timeline automatica. Quattro test.
+
 - **Anagrafica HR · aggancio in blocco dell'area aziendale dall'etichetta di testo** (nuovi `django_app/anagrafica/management/commands/aggancia_area_da_testo.py` e `django_app/anagrafica/tests_aggancia_area.py`, `README.md`).
 
   Il reparto di una persona vive in tre posti — la colonna legacy `anagrafica_dipendenti.reparto`, il campo testo `DipendenteAnagraficaAziendale.area` e la FK `area_aziendale` → `AreaAziendale` → `Reparto` — ma solo la terza è una relazione, ed è l'unica che i report per reparto possano usare: un prodotto chimico o un corso è agganciato al *record* Reparto, non a una stringa. In un ambiente reale 117 dipendenti su 135 avevano l'etichetta di testo compilata e la FK vuota, quindi invisibili a quei report.

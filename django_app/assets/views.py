@@ -122,6 +122,7 @@ from .models import (
     AssetReportDefinition,
     AssetReportTemplate,
     AssetSidebarButton,
+    AssetTimelineEntry,
     SoftwareLicense,
     MaintenanceInterventionTemplate,
     MaintenanceRule,
@@ -3178,6 +3179,30 @@ def _can_manage_asset_document_folders(request: HttpRequest) -> bool:
     if _is_assets_admin(request):
         return True
     return bool(user_can_modulo_action(request, "assets", "admin_assets"))
+
+
+def _can_manage_asset_timeline_entries(request: HttpRequest) -> bool:
+    """Chi puo' aggiungere voci manuali alla timeline di vita di un asset.
+
+    Di serie gli amministratori/gestori asset. La platea e' pero' "opzionabile":
+    dal pannello Accessi si concede l'azione ``assets/asset_timeline_entry`` (per
+    ruolo o come override utente) ai manutentori, senza toccare il codice. Senza
+    grant il pulsante non compare e la POST viene rifiutata.
+    """
+    if _is_assets_admin(request):
+        return True
+    return bool(
+        user_can_modulo_action(request, "assets", "admin_assets")
+        or user_can_modulo_action(request, "assets", "asset_timeline_entry")
+    )
+
+
+def _asset_timeline_manual_enabled(asset: Asset) -> bool:
+    """L'inserimento manuale e' attivabile/disattivabile per categoria asset."""
+    category = getattr(asset, "asset_category", None)
+    if category is None:
+        return True
+    return bool(getattr(category, "detail_timeline_manual_enabled", True))
 
 
 def _can_manage_asset_list_layout(request: HttpRequest) -> bool:
@@ -7119,6 +7144,7 @@ def _handle_asset_category_request(request: HttpRequest) -> tuple[bool, str]:
             detail_assignment_title=_clean_string(request.POST.get("detail_assignment_title"))[:120],
             detail_timeline_title=_clean_string(request.POST.get("detail_timeline_title"))[:120],
             detail_maintenance_title=_clean_string(request.POST.get("detail_maintenance_title"))[:120],
+            detail_timeline_manual_enabled=bool(request.POST.get("detail_timeline_manual_enabled")),
             sort_order=_as_int(request.POST.get("sort_order"), default=100),
             is_active=bool(request.POST.get("is_active")),
         )
@@ -7148,6 +7174,7 @@ def _handle_asset_category_request(request: HttpRequest) -> tuple[bool, str]:
         category.detail_assignment_title = _clean_string(request.POST.get("detail_assignment_title"))[:120]
         category.detail_timeline_title = _clean_string(request.POST.get("detail_timeline_title"))[:120]
         category.detail_maintenance_title = _clean_string(request.POST.get("detail_maintenance_title"))[:120]
+        category.detail_timeline_manual_enabled = bool(request.POST.get("detail_timeline_manual_enabled"))
         category.sort_order = _as_int(request.POST.get("sort_order"), default=category.sort_order)
         category.is_active = bool(request.POST.get("is_active"))
         category.save(
@@ -7161,6 +7188,7 @@ def _handle_asset_category_request(request: HttpRequest) -> tuple[bool, str]:
                 "detail_assignment_title",
                 "detail_timeline_title",
                 "detail_maintenance_title",
+                "detail_timeline_manual_enabled",
                 "sort_order",
                 "is_active",
                 "updated_at",
@@ -7825,6 +7853,7 @@ def _build_assets_admin_snapshot() -> dict:
                 "detail_assignment_title",
                 "detail_timeline_title",
                 "detail_maintenance_title",
+                "detail_timeline_manual_enabled",
                 "sort_order",
                 "is_active",
             )
@@ -8816,6 +8845,52 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             else:
                 messages.info(request, f"Il rapporto #{workorder.id} era già aperto: completa i dati e chiudilo.")
             return redirect("assets:wo_close", id=workorder.id)
+        if action == "add_asset_timeline_entry":
+            if not _can_manage_asset_timeline_entries(request):
+                messages.error(request, "Permessi insufficienti per inserire voci nella timeline di vita.")
+                return redirect("assets:asset_view", id=asset.id)
+            if not _asset_timeline_manual_enabled(asset):
+                messages.error(request, "L'inserimento manuale in timeline e' disattivato per questa categoria di asset.")
+                return redirect("assets:asset_view", id=asset.id)
+            entry_title = _clean_string(request.POST.get("timeline_title"))[:160]
+            raw_event_date = _clean_string(request.POST.get("timeline_date"))
+            try:
+                entry_date = date.fromisoformat(raw_event_date) if raw_event_date else None
+            except ValueError:
+                entry_date = None
+            entry_color = _clean_string(request.POST.get("timeline_color")).lower()
+            if entry_color not in {code for code, _ in AssetTimelineEntry.COLOR_CHOICES}:
+                entry_color = AssetTimelineEntry.COLOR_BLUE
+            if not entry_title:
+                messages.error(request, "Inserisci il titolo dell'evento da registrare in timeline.")
+            elif entry_date is None:
+                messages.error(request, "Inserisci una data evento valida.")
+            else:
+                entry = AssetTimelineEntry.objects.create(
+                    asset=asset,
+                    event_date=entry_date,
+                    title=entry_title,
+                    tag=_clean_string(request.POST.get("timeline_tag"))[:40].upper(),
+                    description=_clean_string(request.POST.get("timeline_description"))[:2000],
+                    meta=_clean_string(request.POST.get("timeline_meta"))[:120],
+                    color=entry_color,
+                    created_by=request.user if request.user.is_authenticated else None,
+                )
+                log_action(
+                    request,
+                    "add_asset_timeline_entry",
+                    "assets",
+                    {
+                        "asset_id": asset.id,
+                        "entry_id": entry.id,
+                        "event_date": entry.event_date.isoformat(),
+                        "title": entry.title,
+                    },
+                    oggetto_tipo=AUDIT_OGGETTO_ASSET,
+                    oggetto_id=asset.id,
+                )
+                messages.success(request, f"Voce \"{entry.title}\" aggiunta alla timeline di vita.")
+            return redirect("assets:asset_view", id=asset.id)
         if action == "upload_asset_documents":
             uploads, upload_errors = _validate_asset_document_uploads(request, asset)
             upload_count = _asset_document_upload_count(uploads)
@@ -9116,6 +9191,27 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
                     "color": "blue",
                 }
             )
+    # Voci inserite a mano: eventi reali che non passano dal portale (fermi,
+    # traslochi, collaudi del fornitore) e che qui si mescolano agli automatici.
+    for entry in asset.timeline_entries.all()[:200]:
+        try:
+            entry_at = timezone.make_aware(
+                datetime(entry.event_date.year, entry.event_date.month, entry.event_date.day, 12, 0),
+                timezone.get_current_timezone(),
+            )
+        except (TypeError, ValueError, OverflowError):
+            entry_at = None
+        timeline_events.append(
+            {
+                "title": entry.title,
+                "tag": entry.tag or "MANUALE",
+                "description": entry.description,
+                "date": entry_at,
+                "meta": _coalesce_str(entry.meta, "Inserimento manuale"),
+                "color": entry.color,
+                "manual": True,
+            }
+        )
     timeline_events.sort(key=lambda item: item.get("date") or now, reverse=True)
 
     # Aggiungi ticket MAN inclusi nel registro manutenzione
@@ -9288,6 +9384,8 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
     doc_category_specs = _asset_document_folder_specs(asset)
     doc_upload_field_map = {spec["code"]: spec["field"] for spec in doc_category_specs}
     can_manage_doc_folders = _can_manage_asset_document_folders(request)
+    can_manage_asset_timeline = _can_manage_asset_timeline_entries(request)
+    asset_timeline_manual_enabled = _asset_timeline_manual_enabled(asset)
     periodic_verification_rows = []
     asset_execution_cutoff = _periodic_execution_window_cutoff(PERIODIC_EXECUTION_WINDOW_DEFAULT, today=today)
     for verification in asset.periodic_verifications.all().order_by("name", "id"):
@@ -9578,6 +9676,9 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "detail_assignment_title": detail_assignment_title,
             "timeline_events": timeline_events,
             "detail_timeline_title": detail_timeline_title,
+            "can_manage_asset_timeline": can_manage_asset_timeline,
+            "asset_timeline_manual_enabled": asset_timeline_manual_enabled,
+            "asset_timeline_color_choices": _ui_choices(AssetTimelineEntry.COLOR_CHOICES),
             "maintenance_rows": maintenance_rows,
             "deadline_completion_history": deadline_completion_history,
             "asset_maintenance_costs": asset_maintenance_costs,

@@ -333,6 +333,10 @@ class AssetCategory(models.Model):
     detail_assignment_title = models.CharField(max_length=120, blank=True, default="")
     detail_timeline_title = models.CharField(max_length=120, blank=True, default="")
     detail_maintenance_title = models.CharField(max_length=120, blank=True, default="")
+    detail_timeline_manual_enabled = models.BooleanField(
+        default=True,
+        help_text="Consente l'inserimento manuale di voci nella timeline di vita degli asset di questa categoria.",
+    )
     sort_order = models.IntegerField(default=100)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -1714,6 +1718,66 @@ class AssetCategoryDocumentFolder(models.Model):
 
     def __str__(self) -> str:
         return f"AssetCategoryDocumentFolder<{self.category_id}:{self.slug}>"
+
+
+class AssetTimelineEntry(models.Model):
+    """Voce inserita a mano nella timeline di vita di un asset.
+
+    La timeline della scheda asset si costruisce dagli eventi che il portale
+    conosce (registrazione a inventario, assegnazione, messa in servizio). Molti
+    fatti reali pero' non passano dal portale: un fermo macchina, un trasloco di
+    reparto, un collaudo eseguito dal fornitore, una modifica strutturale. Queste
+    voci li registrano a mano e vengono unite agli eventi automatici nello stesso
+    ordine cronologico.
+    """
+
+    COLOR_BLUE = "blue"
+    COLOR_GREEN = "green"
+    COLOR_AMBER = "amber"
+    COLOR_CHOICES = [
+        (COLOR_BLUE, "Blu (informativo)"),
+        (COLOR_GREEN, "Verde (positivo)"),
+        (COLOR_AMBER, "Ambra (attenzione)"),
+    ]
+
+    asset = models.ForeignKey(Asset, on_delete=models.CASCADE, related_name="timeline_entries")
+    event_date = models.DateField(
+        db_index=True,
+        help_text="Data in cui l'evento e' accaduto, non quella di inserimento.",
+    )
+    title = models.CharField(max_length=160)
+    tag = models.CharField(
+        max_length=40,
+        blank=True,
+        default="",
+        help_text="Etichetta breve accanto al titolo (es. FERMO, TRASLOCO, COLLAUDO).",
+    )
+    description = models.TextField(blank=True, default="")
+    meta = models.CharField(
+        max_length=120,
+        blank=True,
+        default="",
+        help_text="Riferimento libero: reparto, fornitore, persona.",
+    )
+    color = models.CharField(max_length=10, choices=COLOR_CHOICES, default=COLOR_BLUE)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="asset_timeline_entries",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-event_date", "-id"]
+        indexes = [
+            models.Index(fields=["asset", "event_date"], name="assettl_asset_date_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"AssetTimelineEntry<{self.asset_id}:{self.event_date}>"
 
 
 def default_asset_label_body_fields() -> list[str]:
