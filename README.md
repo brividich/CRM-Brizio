@@ -1240,6 +1240,11 @@ python django_app\manage.py report_reparti_orfani
 python django_app\manage.py report_reparti_orfani --reassign "CNC5G=CNC"                       # anteprima dry-run
 python django_app\manage.py report_reparti_orfani --reassign "CNC5G=CNC" --apply --eseguito-da admin
 
+# Aggancio dell'area aziendale (la FK usata dai report per reparto) partendo dall'etichetta di testo
+python django_app\manage.py aggancia_area_da_testo                          # anteprima, non scrive
+python django_app\manage.py aggancia_area_da_testo --reparto "AGG/MONT"     # anteprima di un solo reparto
+python django_app\manage.py aggancia_area_da_testo --applica --crea-aree
+
 # Release guard progressivo
 python django_app\manage.py secret_hygiene_check
 python django_app\manage.py validate_deployment --format json --settings=config.settings.test

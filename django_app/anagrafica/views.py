@@ -5898,8 +5898,14 @@ def _responsabile_di(reparto_nome: str, area=None) -> int | None:
     return rep.caporeparto_legacy_id if rep else None
 
 
+# Sentinella per `_sync_aziendale_from_reparto`: `None` significa "togli l'area",
+# l'assenza del parametro significa "non mi esprimo". Senza questa distinzione i
+# due casi collassano e ogni salvataggio di reparto scollega il dipendente.
+AREA_NON_SPECIFICATA = object()
+
+
 def _sync_aziendale_from_reparto(
-    legacy_id: int, reparto_nome: str, *, area_aziendale_id: int | None = None, saved_by,
+    legacy_id: int, reparto_nome: str, *, area_aziendale_id=AREA_NON_SPECIFICATA, saved_by,
     data_decorrenza=None, area_precedente: str | None = None,
     area_aziendale_precedente: str | None = None,
 ) -> None:
@@ -5912,6 +5918,15 @@ def _sync_aziendale_from_reparto(
     sia attiva: un'assegnazione a un'area nel frattempo disattivata resta valida, come
     già avviene per area/ruolo_aziendale (forms.py preserva il valore corrente anche
     se non più nel catalogo "attive").
+
+    **Omettere `area_aziendale_id` non significa azzerare l'area.** Chi non passa il
+    parametro (es. `report_reparti_orfani`, che rimappa solo il nome del reparto) sta
+    dicendo "non mi esprimo": l'area attuale viene conservata se appartiene ancora al
+    reparto risolto. Per toglierla davvero si passa `area_aziendale_id=None`, che è
+    quello che fanno i form dove l'area è un campo scelto dall'utente. Prima della
+    distinzione qualunque salvataggio che toccasse il reparto senza nominare l'area
+    scollegava il dipendente, e i report che ragionano per reparto smettevano di
+    vederlo (vedi `schede_sicurezza.reports.matrice_presa_visione`).
 
     Essendo l'unico punto che scrive `area` e `area_aziendale`, è anche il punto in cui
     si storicizzano i due periodi corrispondenti: chi chiama non deve registrarli.
@@ -5926,9 +5941,21 @@ def _sync_aziendale_from_reparto(
         if rep:
             capo_id = rep.caporeparto_legacy_id
 
+    az, _ = DipendenteAnagraficaAziendale.objects.get_or_create(
+        legacy_anagrafica_id=legacy_id,
+        defaults={"updated_by": saved_by},
+    )
+
+    # Chi non passa il parametro non sta chiedendo di togliere l'area: si riparte
+    # da quella attuale, che sopravvive solo se appartiene ancora al reparto
+    # risolto (il filtro qui sotto e' lo stesso per entrambi i casi).
+    area_candidata_id = (
+        az.area_aziendale_id if area_aziendale_id is AREA_NON_SPECIFICATA else area_aziendale_id
+    )
+
     area_id_valido = None
-    if area_aziendale_id and rep is not None:
-        area = AreaAziendale.objects.filter(pk=area_aziendale_id, reparto_id=rep.id).first()
+    if area_candidata_id and rep is not None:
+        area = AreaAziendale.objects.filter(pk=area_candidata_id, reparto_id=rep.id).first()
         if area is not None:
             area_id_valido = area.id
             # Responsabile effettivo: il responsabile dell'AREA aziendale vince
@@ -5936,11 +5963,6 @@ def _sync_aziendale_from_reparto(
             # reparto se l'area non ha responsabile). Fonte unica nel service.
             from anagrafica.services.reparto_canonico import resolve_responsabile_effettivo
             capo_id = resolve_responsabile_effettivo(area=area, reparto=rep)
-
-    az, _ = DipendenteAnagraficaAziendale.objects.get_or_create(
-        legacy_anagrafica_id=legacy_id,
-        defaults={"updated_by": saved_by},
-    )
     area_vecchia = area_precedente if area_precedente is not None else (az.area or "")
     area_az_vecchia = (
         area_aziendale_precedente if area_aziendale_precedente is not None

@@ -42,13 +42,30 @@ class RepartoMatricePresaVisione:
 def _user_ids_attivi_per_reparto(reparto_id: int) -> set[int]:
     """Django User attivi collegati (via Profile) a dipendenti in forza del reparto.
 
-    Percorso verificato: Reparto <- AreaAziendale.reparto <- DipendenteAnagraficaAziendale
-    (legacy_anagrafica_id == Profile.legacy_user_id, stesso spazio ID) -> User.
+    Percorso: Reparto <- AreaAziendale.reparto <- DipendenteAnagraficaAziendale
+    -> anagrafica_dipendenti.utente_id -> utenti.id == Profile.legacy_user_id -> User.
+
+    Il ponte fra anagrafica e account e' la colonna `utente_id` della tabella
+    legacy `anagrafica_dipendenti` (modello `core.legacy_models.AnagraficaDipendente`),
+    valorizzata al primo login da `core.legacy_utils._maybe_link_anagrafica`.
+    `legacy_anagrafica_id` (id di `anagrafica_dipendenti`) e `Profile.legacy_user_id`
+    (id di `utenti`) sono due spazi di ID **distinti**: confrontarli direttamente
+    non lascia il denominatore vuoto, lo popola con le persone sbagliate ogni
+    volta che i due interi coincidono per caso.
+
     Limite noto: cattura solo i dipendenti con `area_aziendale` valorizzato, non
     quelli ancora sul solo campo testo legacy `area`.
     """
     from anagrafica.models import DipendenteAnagraficaAziendale
+    from core.legacy_models import AnagraficaDipendente
+    from core.legacy_utils import legacy_table_has_column
     from core.models import Profile
+
+    if not legacy_table_has_column("anagrafica_dipendenti", "utente_id"):
+        # Senza la colonna ponte non esiste un modo corretto di collegare
+        # anagrafica e account: meglio un denominatore vuoto (la matrice mostra
+        # "n/d") che una percentuale calcolata su persone sbagliate.
+        return set()
 
     legacy_ids = list(
         DipendenteAnagraficaAziendale.objects.filter(
@@ -58,8 +75,14 @@ def _user_ids_attivi_per_reparto(reparto_id: int) -> set[int]:
     )
     if not legacy_ids:
         return set()
+    utente_ids = list(
+        AnagraficaDipendente.objects.filter(id__in=legacy_ids, utente_id__isnull=False)
+        .values_list("utente_id", flat=True)
+    )
+    if not utente_ids:
+        return set()
     return set(
-        Profile.objects.filter(legacy_user_id__in=legacy_ids, user__is_active=True)
+        Profile.objects.filter(legacy_user_id__in=utente_ids, user__is_active=True)
         .values_list("user_id", flat=True)
     )
 
