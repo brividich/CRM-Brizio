@@ -3197,6 +3197,38 @@ def _can_manage_asset_timeline_entries(request: HttpRequest) -> bool:
     )
 
 
+def _asset_timeline_entry_payload(request: HttpRequest) -> tuple[dict | None, str]:
+    """Legge dalla POST i campi di una voce manuale di timeline.
+
+    Stessa lettura per inserimento e modifica: ritorna ``(payload, errore)``,
+    con payload ``None`` quando manca un dato obbligatorio.
+    """
+    entry_title = _clean_string(request.POST.get("timeline_title"))[:160]
+    raw_event_date = _clean_string(request.POST.get("timeline_date"))
+    try:
+        entry_date = date.fromisoformat(raw_event_date) if raw_event_date else None
+    except ValueError:
+        entry_date = None
+    entry_color = _clean_string(request.POST.get("timeline_color")).lower()
+    if entry_color not in {code for code, _ in AssetTimelineEntry.COLOR_CHOICES}:
+        entry_color = AssetTimelineEntry.COLOR_BLUE
+    if not entry_title:
+        return None, "Inserisci il titolo dell'evento da registrare in timeline."
+    if entry_date is None:
+        return None, "Inserisci una data evento valida."
+    return (
+        {
+            "event_date": entry_date,
+            "title": entry_title,
+            "tag": _clean_string(request.POST.get("timeline_tag"))[:40].upper(),
+            "description": _clean_string(request.POST.get("timeline_description"))[:2000],
+            "meta": _clean_string(request.POST.get("timeline_meta"))[:120],
+            "color": entry_color,
+        },
+        "",
+    )
+
+
 def _asset_timeline_manual_enabled(asset: Asset) -> bool:
     """L'inserimento manuale e' attivabile/disattivabile per categoria asset."""
     category = getattr(asset, "asset_category", None)
@@ -8852,29 +8884,14 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             if not _asset_timeline_manual_enabled(asset):
                 messages.error(request, "L'inserimento manuale in timeline e' disattivato per questa categoria di asset.")
                 return redirect("assets:asset_view", id=asset.id)
-            entry_title = _clean_string(request.POST.get("timeline_title"))[:160]
-            raw_event_date = _clean_string(request.POST.get("timeline_date"))
-            try:
-                entry_date = date.fromisoformat(raw_event_date) if raw_event_date else None
-            except ValueError:
-                entry_date = None
-            entry_color = _clean_string(request.POST.get("timeline_color")).lower()
-            if entry_color not in {code for code, _ in AssetTimelineEntry.COLOR_CHOICES}:
-                entry_color = AssetTimelineEntry.COLOR_BLUE
-            if not entry_title:
-                messages.error(request, "Inserisci il titolo dell'evento da registrare in timeline.")
-            elif entry_date is None:
-                messages.error(request, "Inserisci una data evento valida.")
+            entry_payload, payload_error = _asset_timeline_entry_payload(request)
+            if entry_payload is None:
+                messages.error(request, payload_error)
             else:
                 entry = AssetTimelineEntry.objects.create(
                     asset=asset,
-                    event_date=entry_date,
-                    title=entry_title,
-                    tag=_clean_string(request.POST.get("timeline_tag"))[:40].upper(),
-                    description=_clean_string(request.POST.get("timeline_description"))[:2000],
-                    meta=_clean_string(request.POST.get("timeline_meta"))[:120],
-                    color=entry_color,
                     created_by=request.user if request.user.is_authenticated else None,
+                    **entry_payload,
                 )
                 log_action(
                     request,
@@ -8890,6 +8907,53 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
                     oggetto_id=asset.id,
                 )
                 messages.success(request, f"Voce \"{entry.title}\" aggiunta alla timeline di vita.")
+            return redirect("assets:asset_view", id=asset.id)
+        if action in {"update_asset_timeline_entry", "delete_asset_timeline_entry"}:
+            # Correzione e rimozione non dipendono dal flag di categoria: se
+            # l'inserimento manuale viene spento, le voci gia' registrate devono
+            # restare sistemabili da chi ha il permesso.
+            if not _can_manage_asset_timeline_entries(request):
+                messages.error(request, "Permessi insufficienti per gestire le voci della timeline di vita.")
+                return redirect("assets:asset_view", id=asset.id)
+            entry_id = _as_int(request.POST.get("entry_id"), default=0)
+            entry = asset.timeline_entries.filter(pk=entry_id).first() if entry_id > 0 else None
+            if entry is None:
+                messages.error(request, "Voce di timeline non trovata.")
+                return redirect("assets:asset_view", id=asset.id)
+            if action == "delete_asset_timeline_entry":
+                entry_label = entry.title
+                entry.delete()
+                log_action(
+                    request,
+                    "delete_asset_timeline_entry",
+                    "assets",
+                    {"asset_id": asset.id, "entry_id": entry_id, "title": entry_label},
+                    oggetto_tipo=AUDIT_OGGETTO_ASSET,
+                    oggetto_id=asset.id,
+                )
+                messages.success(request, f"Voce \"{entry_label}\" rimossa dalla timeline di vita.")
+                return redirect("assets:asset_view", id=asset.id)
+            entry_payload, payload_error = _asset_timeline_entry_payload(request)
+            if entry_payload is None:
+                messages.error(request, payload_error)
+            else:
+                for field_name, field_value in entry_payload.items():
+                    setattr(entry, field_name, field_value)
+                entry.save(update_fields=[*entry_payload.keys(), "updated_at"])
+                log_action(
+                    request,
+                    "update_asset_timeline_entry",
+                    "assets",
+                    {
+                        "asset_id": asset.id,
+                        "entry_id": entry.id,
+                        "event_date": entry.event_date.isoformat(),
+                        "title": entry.title,
+                    },
+                    oggetto_tipo=AUDIT_OGGETTO_ASSET,
+                    oggetto_id=asset.id,
+                )
+                messages.success(request, f"Voce \"{entry.title}\" aggiornata.")
             return redirect("assets:asset_view", id=asset.id)
         if action == "upload_asset_documents":
             uploads, upload_errors = _validate_asset_document_uploads(request, asset)
@@ -9210,6 +9274,11 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
                 "meta": _coalesce_str(entry.meta, "Inserimento manuale"),
                 "color": entry.color,
                 "manual": True,
+                "entry_id": entry.id,
+                "entry_date_iso": entry.event_date.isoformat(),
+                "entry_tag": entry.tag,
+                "entry_meta": entry.meta,
+                "entry_description": entry.description,
             }
         )
     timeline_events.sort(key=lambda item: item.get("date") or now, reverse=True)

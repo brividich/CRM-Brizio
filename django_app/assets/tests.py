@@ -9756,3 +9756,144 @@ class AssetTimelineManualEntryTests(TestCase):
 
         page = self.client.get(reverse("assets:asset_view", args=[self.asset.id]))
         self.assertNotIn("add_asset_timeline_entry", page.content.decode("utf-8"))
+
+    def _existing_entry(self, **overrides):
+        payload = {
+            "asset": self.asset,
+            "event_date": date(2026, 3, 14),
+            "title": "Fermo macchina per revisione",
+            "tag": "FERMO",
+            "meta": "Officina esterna",
+            "description": "Revisione straordinaria.",
+            "color": AssetTimelineEntry.COLOR_AMBER,
+            "created_by": self.admin,
+        }
+        payload.update(overrides)
+        return AssetTimelineEntry.objects.create(**payload)
+
+    def test_manager_updates_entry(self):
+        entry = self._existing_entry()
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("assets:asset_view", args=[self.asset.id]),
+            {
+                "action": "update_asset_timeline_entry",
+                "entry_id": entry.id,
+                "timeline_date": "2026-04-02",
+                "timeline_title": "Fermo macchina per revisione (rettifica)",
+                "timeline_tag": "fermo",
+                "timeline_meta": "Costruttore",
+                "timeline_description": "Data corretta dopo il rapporto del costruttore.",
+                "timeline_color": AssetTimelineEntry.COLOR_BLUE,
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        entry.refresh_from_db()
+        self.assertEqual(entry.event_date, date(2026, 4, 2))
+        self.assertEqual(entry.title, "Fermo macchina per revisione (rettifica)")
+        self.assertEqual(entry.meta, "Costruttore")
+        self.assertEqual(entry.color, AssetTimelineEntry.COLOR_BLUE)
+        # L'autore resta quello dell'inserimento originale.
+        self.assertEqual(entry.created_by, self.admin)
+
+    def test_update_keeps_entry_when_data_is_invalid(self):
+        entry = self._existing_entry()
+        self.client.force_login(self.admin)
+
+        self.client.post(
+            reverse("assets:asset_view", args=[self.asset.id]),
+            {
+                "action": "update_asset_timeline_entry",
+                "entry_id": entry.id,
+                "timeline_date": "02/04/2026",
+                "timeline_title": "Titolo nuovo",
+            },
+        )
+
+        entry.refresh_from_db()
+        self.assertEqual(entry.event_date, date(2026, 3, 14))
+        self.assertEqual(entry.title, "Fermo macchina per revisione")
+
+    def test_manager_deletes_entry(self):
+        entry = self._existing_entry()
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("assets:asset_view", args=[self.asset.id]),
+            {"action": "delete_asset_timeline_entry", "entry_id": entry.id},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(AssetTimelineEntry.objects.filter(pk=entry.id).exists())
+
+    def test_entry_of_another_asset_is_not_touched(self):
+        other_asset = Asset.objects.create(
+            asset_tag="AST-TL-002",
+            name="Pressa gemella",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            asset_category=self.category,
+            source_key="manual-tl-002",
+        )
+        entry = self._existing_entry(asset=other_asset)
+        self.client.force_login(self.admin)
+
+        self.client.post(
+            reverse("assets:asset_view", args=[self.asset.id]),
+            {"action": "delete_asset_timeline_entry", "entry_id": entry.id},
+        )
+
+        self.assertTrue(AssetTimelineEntry.objects.filter(pk=entry.id).exists())
+
+    def test_non_manager_cannot_update_or_delete(self):
+        entry = self._existing_entry()
+        self.client.force_login(self.viewer)
+
+        self.client.post(
+            reverse("assets:asset_view", args=[self.asset.id]),
+            {
+                "action": "update_asset_timeline_entry",
+                "entry_id": entry.id,
+                "timeline_date": "2026-04-02",
+                "timeline_title": "Modifica non autorizzata",
+            },
+        )
+        self.client.post(
+            reverse("assets:asset_view", args=[self.asset.id]),
+            {"action": "delete_asset_timeline_entry", "entry_id": entry.id},
+        )
+
+        entry.refresh_from_db()
+        self.assertEqual(entry.title, "Fermo macchina per revisione")
+
+        page = self.client.get(reverse("assets:asset_view", args=[self.asset.id]))
+        body = page.content.decode("utf-8")
+        self.assertNotIn("update_asset_timeline_entry", body)
+        self.assertNotIn("delete_asset_timeline_entry", body)
+
+    def test_entries_stay_editable_when_category_toggle_is_off(self):
+        """Spegnere l'inserimento manuale non deve congelare le voci gia' registrate."""
+        entry = self._existing_entry()
+        self.category.detail_timeline_manual_enabled = False
+        self.category.save(update_fields=["detail_timeline_manual_enabled"])
+        self.client.force_login(self.admin)
+
+        self.client.post(
+            reverse("assets:asset_view", args=[self.asset.id]),
+            {
+                "action": "update_asset_timeline_entry",
+                "entry_id": entry.id,
+                "timeline_date": "2026-04-02",
+                "timeline_title": "Rettifica a categoria spenta",
+                "timeline_color": AssetTimelineEntry.COLOR_BLUE,
+            },
+        )
+        entry.refresh_from_db()
+        self.assertEqual(entry.title, "Rettifica a categoria spenta")
+
+        self.client.post(
+            reverse("assets:asset_view", args=[self.asset.id]),
+            {"action": "delete_asset_timeline_entry", "entry_id": entry.id},
+        )
+        self.assertFalse(AssetTimelineEntry.objects.filter(pk=entry.id).exists())
