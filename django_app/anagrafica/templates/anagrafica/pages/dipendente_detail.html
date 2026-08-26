@@ -154,6 +154,11 @@
 
 /* Ruoli operativi */
 .dp-ruoli-list { display:flex; flex-wrap:wrap; gap:8px; }
+.dp-ruoli-gruppo { margin-bottom:10px; }
+.dp-ruoli-gruppo:last-child { margin-bottom:0; }
+.dp-ruoli-gruppo-h { display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#94a3b8; margin-bottom:5px; }
+.dp-amb-dot { width:7px; height:7px; border-radius:50%; display:inline-block; }
+body.theme-dark .dp-ruoli-gruppo-h { color:var(--text-light); }
 .dp-ruolo-badge {
   display:inline-flex; align-items:center; gap:6px;
   padding:5px 12px 5px 10px; border-radius:999px;
@@ -1912,24 +1917,41 @@ body.theme-dark .dp-link-ok { color:#86efac; }
       {% endif %}
     </div>
     <div class="dp-card-body">
-      <div class="dp-ruoli-list" id="ruoli-list">
-        {% for a in ruoli_assegnati %}
-          <span class="dp-ruolo-badge" style="background-color:{{ a.ruolo.colore }};"{% if a.is_principale %} title="Ruolo aziendale principale: è quello che compare nella scheda e negli spostamenti"{% endif %}>
-            {% if a.is_principale %}⭐ {% endif %}{% if a.ruolo.icona %}{{ a.ruolo.icona }} {% endif %}{{ a.ruolo.nome }}
-            {% if is_admin %}
-              <form method="post" action="{% url 'anagrafica:dipendente_ruolo_rimuovi' legacy_id a.id %}" style="display:inline;">
-                {% csrf_token %}
-                <button type="submit" class="dp-ruolo-remove" title="Rimuovi ruolo" onclick="return confirm('Rimuovere il ruolo {{ a.ruolo.nome }}?')">×</button>
-              </form>
-            {% endif %}
-          </span>
+      {# I ruoli si leggono per ambito: produttivo, esecutivo, ISO 45001, 27001…  #}
+      {# Sono incarichi che si sommano, non alternative fra cui scegliere.       #}
+      <div id="ruoli-list">
+        {% for gruppo in ruoli_per_ambito %}
+          <div class="dp-ruoli-gruppo">
+            <div class="dp-ruoli-gruppo-h" {% if gruppo.ambito %}title="{{ gruppo.ambito.descrizione|default:gruppo.ambito.nome }}"{% endif %}>
+              {% if gruppo.ambito %}
+                <span class="dp-amb-dot" style="background-color:{{ gruppo.ambito.colore }};"></span>
+                {% if gruppo.ambito.icona %}{{ gruppo.ambito.icona }} {% endif %}{{ gruppo.ambito.nome }}
+              {% else %}
+                <span class="dp-amb-dot" style="background-color:#cbd5e1;"></span>Assetto principale
+              {% endif %}
+            </div>
+            <div class="dp-ruoli-list">
+              {% for a in gruppo.elementi %}
+              <span class="dp-ruolo-badge" style="background-color:{{ a.ruolo.colore }};"{% if a.is_principale %} title="Ruolo aziendale principale: è quello che compare nella scheda e negli spostamenti"{% endif %}>
+                {% if a.is_principale %}⭐ {% endif %}{% if a.ruolo.icona %}{{ a.ruolo.icona }} {% endif %}{{ a.ruolo.nome }}
+                {% if is_admin %}
+                  <form method="post" action="{% url 'anagrafica:dipendente_ruolo_rimuovi' legacy_id a.id %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="dp-ruolo-remove" title="Rimuovi ruolo" onclick="return confirm('Rimuovere il ruolo {{ a.ruolo.nome }}?')">×</button>
+                  </form>
+                {% endif %}
+              </span>
+              {% endfor %}
+            </div>
+          </div>
         {% empty %}
-          <span style="font-size:13px;color:#94a3b8;">Nessun ruolo operativo assegnato.</span>
+          <div class="dp-ruoli-list"><span style="font-size:13px;color:#94a3b8;">Nessun ruolo operativo assegnato.</span></div>
         {% endfor %}
       </div>
       {% if ruoli_assegnati %}
       <div style="font-size:11px;color:#94a3b8;margin-top:6px;">
         ⭐ = ruolo aziendale principale, quello mostrato nella scheda e negli spostamenti. Gli altri restano assegnati.
+        I ruoli degli altri ambiti si <strong>sovrappongono</strong>: non sostituiscono il principale.
       </div>
       {% endif %}
       {% if is_admin and ruoli_disponibili %}
@@ -1937,8 +1959,12 @@ body.theme-dark .dp-link-ok { color:#86efac; }
           {% csrf_token %}
           <select name="ruolo_id" class="dp-select" required>
             <option value="">— Seleziona ruolo —</option>
-            {% for r in ruoli_disponibili %}
-              <option value="{{ r.id }}">{% if r.icona %}{{ r.icona }} {% endif %}{{ r.nome }}</option>
+            {% for gruppo in ruoli_disponibili_per_ambito %}
+            <optgroup label="{% if gruppo.ambito %}{% if gruppo.ambito.icona %}{{ gruppo.ambito.icona }} {% endif %}{{ gruppo.ambito.nome }}{% else %}Assetto principale{% endif %}">
+              {% for r in gruppo.elementi %}
+                <option value="{{ r.id }}">{% if r.icona %}{{ r.icona }} {% endif %}{{ r.nome }}</option>
+              {% endfor %}
+            </optgroup>
             {% endfor %}
           </select>
           <button type="submit" class="dp-btn dp-btn-primary dp-btn-sm">+ Assegna</button>

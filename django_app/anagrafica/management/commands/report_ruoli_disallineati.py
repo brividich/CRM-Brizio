@@ -29,6 +29,11 @@ Cinque anomalie, tutte in sola lettura finché non si passa ``--apply``:
    dato che manca è la collocazione, non il responsabile, e `--apply` non lo
    tocca. Solo `--azzera-responsabili-scollegati` lo cancella davvero.
 
+Il comando guarda soltanto i ruoli dell'**ambito della scheda** (quello con
+``alimenta_scheda``, più i ruoli non classificati): i ruoli degli altri
+organigrammi — ISO 45001, ISO 27001 — si sovrappongono per definizione e non
+concorrono al «Ruolo aziendale», quindi non sono anomalie.
+
 Uso:
     python manage.py report_ruoli_disallineati              # solo report
     python manage.py report_ruoli_disallineati --apply      # ripara
@@ -100,7 +105,11 @@ class Command(BaseCommand):
         def reparto_di(legacy_id: int) -> str:
             return str((anagrafica.get(legacy_id) or {}).get("reparto") or "").strip()
 
-        catalogo = {r.nome.strip().casefold(): r for r in RuoloOperativo.objects.all()}
+        catalogo = {
+            r.nome.strip().casefold(): r
+            for r in RuoloOperativo.objects.select_related("ambito")
+            if r.alimenta_ruolo_principale
+        }
 
         if persona:
             self._diagnosi_persona(persona, anagrafica)
@@ -110,10 +119,17 @@ class Command(BaseCommand):
         # suo ruolo principale, e se lo è già va tolto. «Concluso» è solo una
         # fine passata — una data futura è un'uscita programmata, non un ruolo
         # che la persona ha smesso di ricoprire.
+        #
+        # Contano inoltre soltanto i ruoli dell'**ambito della scheda**: quelli
+        # dell'organigramma 45001 o 27001 si sovrappongono senza mai diventare
+        # il «Ruolo aziendale», quindi non sono né anomalie né candidati alla
+        # promozione.
         oggi = timezone.localdate()
         assegnazioni: dict[int, list[str]] = {}
         concluse: dict[int, list[str]] = {}
-        for a in DipendenteRuoloOperativo.objects.select_related("ruolo"):
+        for a in DipendenteRuoloOperativo.objects.select_related("ruolo", "ruolo__ambito"):
+            if not a.ruolo.alimenta_ruolo_principale:
+                continue
             destinazione = (
                 concluse if (a.data_fine and a.data_fine < oggi) else assegnazioni
             )
@@ -307,7 +323,7 @@ class Command(BaseCommand):
         ruoli_per_id: dict[int, list[str]] = {}
         for a in DipendenteRuoloOperativo.objects.filter(
             legacy_anagrafica_id__in=ids
-        ).select_related("ruolo", "assegnato_da"):
+        ).select_related("ruolo", "ruolo__ambito", "assegnato_da"):
             autore = getattr(a.assegnato_da, "username", "") or "origine non tracciata"
             quando = a.assegnato_il.strftime("%d/%m/%Y") if a.assegnato_il else "?"
             periodo = ""
@@ -317,8 +333,9 @@ class Command(BaseCommand):
                     f" al {a.data_fine.strftime('%d/%m/%Y')}" if a.data_fine else "",
                 )
             tipologia = f" [{a.get_tipologia_display()}]" if a.tipologia else ""
+            ambito = f" ({a.ruolo.ambito_label})"
             ruoli_per_id.setdefault(a.legacy_anagrafica_id, []).append(
-                f"{a.ruolo.nome}{tipologia}{periodo} — assegnato da {autore} il {quando}"
+                f"{a.ruolo.nome}{ambito}{tipologia}{periodo} — assegnato da {autore} il {quando}"
             )
 
         schede = {

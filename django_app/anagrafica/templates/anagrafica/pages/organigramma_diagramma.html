@@ -106,6 +106,18 @@
   </div>
 
   <div class="ogd-toolbar">
+    {# Un organigramma per ambito: produttivo, ISO 45001, ISO 27001… #}
+    <form method="get" style="display:inline-flex;align-items:center;gap:6px;">
+      <select name="ambito" class="hr-btn hr-btn-outline" onchange="this.form.submit()"
+              style="font-family:inherit;cursor:pointer;">
+        <option value="">🗂 Tutti gli ambiti</option>
+        {% for a in ambiti_filtro %}
+          <option value="{{ a.pk }}" {% if ambito_sel == a.pk|stringformat:"s" %}selected{% endif %}>{% if a.icona %}{{ a.icona }} {% endif %}{{ a.nome }}</option>
+        {% endfor %}
+        <option value="senza" {% if ambito_sel == "senza" %}selected{% endif %}>Ruoli senza ambito</option>
+      </select>
+      <noscript><button type="submit" class="hr-btn hr-btn-outline">Applica</button></noscript>
+    </form>
     <button type="button" class="hr-btn hr-btn-outline" data-ogd-zoom="-">− Zoom</button>
     <button type="button" class="hr-btn hr-btn-outline" data-ogd-zoom="0">Adatta</button>
     <button type="button" class="hr-btn hr-btn-outline" data-ogd-zoom="+">+ Zoom</button>

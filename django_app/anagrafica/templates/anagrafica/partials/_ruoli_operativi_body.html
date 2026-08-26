@@ -1,7 +1,8 @@
 {# Corpo riusabile della gestione Ruoli operativi: griglia + form "+ Nuovo ruolo" #}
 {# + suggeriti + modale "Modifica ruolo". Usato dalla pagina standalone            #}
 {# ruoli_operativi.html e dal pannello "Ruoli" inline di impostazioni.html.         #}
-{# Richiede nel context: ruoli, ruoli_catalogo, ruoli_suggeriti, is_admin.          #}
+{# Richiede nel context: ruoli, ruoli_catalogo, ruoli_suggeriti, is_admin,          #}
+{# ambiti, n_senza_ambito.                                                          #}
 {# Id/funzioni prefissati `ro-`/`roOpenEdit` per convivere con altri modali quando  #}
 {# embeddato (impostazioni.html non porta il form-kit → lo includiamo qui, una      #}
 {# sola volta per pagina).                                                          #}
@@ -59,6 +60,32 @@ body.theme-dark .ro-qual-chip { background:rgba(99,102,241,.18); color:#c7d2fe; 
 body.theme-dark .ro-qual-chip-opz { background:var(--surface-alt, #1e293b); color:var(--text-light); border-color:var(--border); }
 body.theme-dark .ro-qual-empty, body.theme-dark .ro-qual-title, body.theme-dark .ro-qual-opz { color:var(--text-light); }
 
+/* Ambiti: barra filtri + chip sulle card */
+.ro-ambiti-bar { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:14px; }
+.ro-amb-chip {
+  display:inline-flex; align-items:center; gap:5px; padding:4px 11px; border-radius:999px;
+  font-size:12px; font-weight:600; cursor:pointer; border:1px solid #e2e8f0;
+  background:#f8fafc; color:#475569;
+}
+.ro-amb-chip:hover { background:#eef2f7; }
+.ro-amb-chip.active { background:#0c2545; color:#fff; border-color:#0c2545; }
+.ro-amb-dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+.ro-amb-tag {
+  display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:999px;
+  font-size:11px; font-weight:700; color:#fff;
+}
+.ro-amb-tag-vuoto { background:#f1f5f9; color:#64748b; border:1px dashed #cbd5e1; font-weight:600; }
+.ro-amb-star { font-size:11px; }
+.ro-amb-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px dashed #e2e8f0; flex-wrap:wrap; }
+.ro-amb-row:last-child { border-bottom:none; }
+.ro-amb-row-main { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.ro-amb-row-desc { font-size:12px; color:#64748b; margin-top:2px; }
+body.theme-dark .ro-amb-chip { background:var(--surface-alt, #1e293b); color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .ro-amb-chip.active { background:#1f87cd; color:#fff; border-color:#1f87cd; }
+body.theme-dark .ro-amb-tag-vuoto { background:var(--surface-alt, #1e293b); color:var(--text-light); border-color:var(--border); }
+body.theme-dark .ro-amb-row { border-color:var(--border); }
+body.theme-dark .ro-amb-row-desc { color:var(--text-light); }
+
 /* Modal edit */
 .ro-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:1000; align-items:center; justify-content:center; }
 .ro-modal-overlay.open { display:flex; }
@@ -94,9 +121,29 @@ body.theme-dark .ro-modal-title { color:var(--text); }
     </div>
     <div class="ro-card-body">
       {% if ruoli %}
+      {% if ambiti or n_senza_ambito %}
+      {# Ambiti: ogni organigramma (produttivo, 45001, 27001…) ha i suoi ruoli, #}
+      {# che si sovrappongono sulla persona invece di sostituirsi.               #}
+      <div class="ro-ambiti-bar" id="ro-ambiti-bar">
+        <button type="button" class="ro-amb-chip active" data-filtro="">Tutti ({{ ruoli|length }})</button>
+        {% for a in ambiti %}
+        <button type="button" class="ro-amb-chip" data-filtro="{{ a.id }}"
+                title="{{ a.descrizione|default:a.nome }}{% if a.alimenta_scheda %} — alimenta il «Ruolo aziendale» della scheda{% endif %}">
+          <span class="ro-amb-dot" style="background-color:{{ a.colore }};"></span>
+          {% if a.icona %}{{ a.icona }} {% endif %}{{ a.nome }} ({{ a.n_ruoli }}){% if a.alimenta_scheda %} <span class="ro-amb-star">⭐</span>{% endif %}
+        </button>
+        {% endfor %}
+        {% if n_senza_ambito %}
+        <button type="button" class="ro-amb-chip" data-filtro="senza"
+                title="Ruoli non ancora classificati: valgono come ruoli dell'assetto principale">
+          Non classificati ({{ n_senza_ambito }})
+        </button>
+        {% endif %}
+      </div>
+      {% endif %}
       <div class="ro-grid">
         {% for r in ruoli %}
-        <div class="ro-item">
+        <div class="ro-item" data-ambito="{{ r.ambito_id|default_if_none:'senza' }}">
           <div class="ro-item-accent" style="background-color:{{ r.colore }};"></div>
           <div class="ro-item-body">
             <div class="ro-item-name">
@@ -111,6 +158,14 @@ body.theme-dark .ro-modal-title { color:var(--text); }
               <div class="ro-item-desc">📜 Certificazione: {{ r.certificazione_competenza }}</div>
             {% endif %}
             <div class="ro-item-meta">
+              {% if r.ambito %}
+                <span class="ro-amb-tag" style="background-color:{{ r.ambito.colore }};"
+                      title="Ambito: {{ r.ambito.nome }}{% if r.ambito.alimenta_scheda %} — alimenta il «Ruolo aziendale» della scheda{% endif %}">
+                  {% if r.ambito.icona %}{{ r.ambito.icona }} {% endif %}{{ r.ambito.nome }}
+                </span>
+              {% else %}
+                <span class="ro-amb-tag ro-amb-tag-vuoto" title="Ruolo non classificato: vale come ruolo dell'assetto principale">Senza ambito</span>
+              {% endif %}
               <span class="ro-badge ro-badge-blue">{{ r.n_assegnati }} dipendent{{ r.n_assegnati|pluralize:"e,i" }}</span>
               {% if r.n_da_scheda %}<span class="ro-badge ro-badge-gray" title="Indicato come «Ruolo aziendale» nella scheda dipendente">+{{ r.n_da_scheda }} da scheda</span>{% endif %}
               {% if r.riporta_a %}<span class="ro-badge ro-badge-gray">▲ Riporta a: {{ r.riporta_a.nome }}</span>{% endif %}
@@ -161,7 +216,7 @@ body.theme-dark .ro-modal-title { color:var(--text); }
               </button>
               {% if is_admin %}
               <button type="button" class="ro-btn ro-btn-ghost ro-btn-sm"
-                onclick="roOpenEdit({{ r.id }}, '{{ r.nome|escapejs }}', '{{ r.descrizione|escapejs }}', '{{ r.colore }}', '{{ r.icona|escapejs }}', {{ r.is_active|yesno:'true,false' }}, '{{ r.certificazione_competenza|escapejs }}', '{{ r.riporta_a_id|default:'' }}')">
+                onclick="roOpenEdit({{ r.id }}, '{{ r.nome|escapejs }}', '{{ r.descrizione|escapejs }}', '{{ r.colore }}', '{{ r.icona|escapejs }}', {{ r.is_active|yesno:'true,false' }}, '{{ r.certificazione_competenza|escapejs }}', '{{ r.riporta_a_id|default:'' }}', '{{ r.ambito_id|default:'' }}')">
                 ✏ Modifica
               </button>
               {% if r.n_assegnati == 0 %}
@@ -187,6 +242,57 @@ body.theme-dark .ro-modal-title { color:var(--text); }
     </div>
   </div>
 
+  <!-- Ambiti dei ruoli (solo admin) -->
+  {% if is_admin %}
+  <div class="ro-card">
+    <div class="ro-card-head"><div class="ro-card-title">🗂 Ambiti dei ruoli</div></div>
+    <div class="ro-card-body">
+      <div class="ro-sub" style="margin-bottom:10px;">
+        Ogni ambito è un organigramma a sé — produttivo, esecutivo, ISO 45001, ISO 27001.
+        Una persona può ricoprire un ruolo per ambito: <strong>si sovrappongono, non si sostituiscono</strong>.
+        L'ambito con la ⭐ è l'unico il cui ruolo compare come «Ruolo aziendale» nella scheda dipendente.
+      </div>
+      {% for a in ambiti %}
+      <div class="ro-amb-row">
+        <div>
+          <div class="ro-amb-row-main">
+            <span class="ro-amb-tag" style="background-color:{{ a.colore }};">{% if a.icona %}{{ a.icona }} {% endif %}{{ a.nome }}</span>
+            {% if a.alimenta_scheda %}<span class="ro-badge ro-badge-blue">⭐ Ruolo aziendale della scheda</span>{% endif %}
+            {% if not a.is_active %}<span class="ro-badge ro-badge-red">Inattivo</span>{% endif %}
+            <span class="ro-badge ro-badge-gray">{{ a.n_ruoli }} ruol{{ a.n_ruoli|pluralize:"o,i" }}</span>
+          </div>
+          {% if a.descrizione %}<div class="ro-amb-row-desc">{{ a.descrizione }}</div>{% endif %}
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button type="button" class="ro-btn ro-btn-ghost ro-btn-sm"
+            onclick="roOpenAmbito({{ a.id }}, '{{ a.nome|escapejs }}', '{{ a.descrizione|escapejs }}', '{{ a.colore }}', '{{ a.icona|escapejs }}', {{ a.ordine }}, {{ a.alimenta_scheda|yesno:'true,false' }}, {{ a.is_active|yesno:'true,false' }})">✏ Modifica</button>
+          {% if not a.n_ruoli and not a.alimenta_scheda %}
+          <form method="post" action="{% url 'anagrafica:ambito_ruolo_delete' a.id %}" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" class="ro-btn ro-btn-danger ro-btn-sm"
+              onclick="return confirm('Eliminare l'ambito {{ a.nome|escapejs }}?')">🗑</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+      {% empty %}
+      <div style="font-size:13px;color:#94a3b8;">Nessun ambito: tutti i ruoli valgono per l'assetto principale.</div>
+      {% endfor %}
+
+      <form method="post" action="{% url 'anagrafica:ambito_ruolo_create' %}" style="margin-top:14px;">
+        {% csrf_token %}
+        <div class="ro-qual-form">
+          <input type="text" name="nome" class="hub-input hub-input-sm" placeholder="+ Nuovo ambito (es. Ambiente ISO 14001)" maxlength="100" required style="min-width:240px;">
+          <input type="text" name="icona" class="hub-input hub-input-sm" placeholder="emoji" maxlength="10" style="max-width:80px;">
+          <input type="color" name="colore" value="#64748b" style="height:32px;padding:2px 4px;cursor:pointer;">
+          <input type="number" name="ordine" class="hub-input hub-input-sm" placeholder="ordine" value="100" style="max-width:90px;">
+          <button type="submit" class="ro-btn ro-btn-ghost ro-btn-sm">Aggiungi ambito</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Form nuovo ruolo (solo admin) -->
   {% if is_admin %}
   <div class="ro-card">
@@ -205,6 +311,16 @@ body.theme-dark .ro-modal-title { color:var(--text); }
             <div class="hub-field">
               <label>Descrizione</label>
               <input type="text" name="descrizione" placeholder="Breve descrizione del ruolo (opzionale)" maxlength="200">
+            </div>
+            <div class="hub-field">
+              <label>Ambito</label>
+              <select name="ambito">
+                <option value="">— Non classificato (assetto principale) —</option>
+                {% for a in ambiti %}
+                <option value="{{ a.id }}"{% if a.alimenta_scheda %} selected{% endif %}>{% if a.icona %}{{ a.icona }} {% endif %}{{ a.nome }}{% if a.alimenta_scheda %} ⭐{% endif %}</option>
+                {% endfor %}
+              </select>
+              <div class="hub-help">In quale organigramma vive il ruolo. ⭐ = l'ambito il cui ruolo compare come «Ruolo aziendale» nella scheda; i ruoli degli altri ambiti si sovrappongono senza sostituirlo.</div>
             </div>
           </div>
           <div class="hub-fsec">
@@ -291,6 +407,15 @@ body.theme-dark .ro-modal-title { color:var(--text); }
           <input type="text" name="icona" id="ro-edit-icona" maxlength="10" placeholder="emoji opzionale">
         </div>
         <div class="hub-field">
+          <label>Ambito</label>
+          <select name="ambito" id="ro-edit-ambito">
+            <option value="">— Non classificato (assetto principale) —</option>
+            {% for a in ambiti %}
+            <option value="{{ a.id }}">{% if a.icona %}{{ a.icona }} {% endif %}{{ a.nome }}{% if a.alimenta_scheda %} ⭐{% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="hub-field">
           <label>Riporta a (ruolo sovraordinato)</label>
           <select name="riporta_a" id="ro-edit-riporta-a">
             <option value="">— Nessuno (vertice) —</option>
@@ -321,7 +446,7 @@ body.theme-dark .ro-modal-title { color:var(--text); }
 <script>
 const RO_BASE_EDIT_URL = "/anagrafica/ruoli-operativi/";
 
-function roOpenEdit(id, nome, desc, colore, icona, isActive, cert, riportaA) {
+function roOpenEdit(id, nome, desc, colore, icona, isActive, cert, riportaA, ambito) {
   document.getElementById('ro-edit-form').action = RO_BASE_EDIT_URL + id + '/modifica';
   document.getElementById('ro-edit-nome').value = nome;
   document.getElementById('ro-edit-desc').value = desc;
@@ -333,6 +458,8 @@ function roOpenEdit(id, nome, desc, colore, icona, isActive, cert, riportaA) {
   const sel = document.getElementById('ro-edit-riporta-a');
   Array.from(sel.options).forEach(o => { o.hidden = (o.value === String(id)); });
   sel.value = riportaA || '';
+  const amb = document.getElementById('ro-edit-ambito');
+  if (amb) amb.value = ambito || '';
   document.getElementById('ro-modal').classList.add('open');
 }
 function roCloseEdit() {
@@ -345,7 +472,97 @@ document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') roCloseEdit();
 });
 </script>
+
+<!-- Modal modifica ambito -->
+<div class="ro-modal-overlay" id="roa-modal">
+  <div class="ro-modal">
+    <div class="ro-modal-title">Modifica ambito</div>
+    <form method="post" id="roa-form" action="">
+      {% csrf_token %}
+      <div class="hub-form-stack">
+        <div class="hub-field">
+          <label>Nome *</label>
+          <input type="text" name="nome" id="roa-nome" required maxlength="100">
+        </div>
+        <div class="hub-field">
+          <label>Descrizione</label>
+          <input type="text" name="descrizione" id="roa-desc" maxlength="200">
+        </div>
+        <div class="hub-field">
+          <label>Colore</label>
+          <input type="color" name="colore" id="roa-colore" style="height:40px;padding:4px 8px;cursor:pointer;">
+        </div>
+        <div class="hub-field">
+          <label>Icona</label>
+          <input type="text" name="icona" id="roa-icona" maxlength="10" placeholder="emoji opzionale">
+        </div>
+        <div class="hub-field">
+          <label>Ordine</label>
+          <input type="number" name="ordine" id="roa-ordine">
+        </div>
+        <div class="hub-field">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;text-transform:none;letter-spacing:0;">
+            <input type="checkbox" name="alimenta_scheda" value="1" id="roa-scheda">
+            ⭐ I ruoli di questo ambito compaiono come «Ruolo aziendale» nella scheda
+          </label>
+          <div class="hub-help">Uno solo può farlo: spuntarlo qui lo toglie all'ambito che ce l'ha adesso.</div>
+        </div>
+        <div class="hub-field">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;text-transform:none;letter-spacing:0;">
+            <input type="checkbox" name="is_active" value="1" id="roa-active">
+            Ambito attivo
+          </label>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
+        <button type="button" class="ro-btn ro-btn-ghost" onclick="roCloseAmbito()">Annulla</button>
+        <button type="submit" class="ro-btn ro-btn-primary">Salva ambito</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const ROA_BASE_URL = "/anagrafica/ruoli-operativi/ambiti/";
+function roOpenAmbito(id, nome, desc, colore, icona, ordine, alimenta, isActive) {
+  document.getElementById('roa-form').action = ROA_BASE_URL + id + '/modifica';
+  document.getElementById('roa-nome').value = nome;
+  document.getElementById('roa-desc').value = desc || '';
+  document.getElementById('roa-colore').value = colore;
+  document.getElementById('roa-icona').value = icona || '';
+  document.getElementById('roa-ordine').value = ordine;
+  document.getElementById('roa-scheda').checked = alimenta;
+  document.getElementById('roa-active').checked = isActive;
+  document.getElementById('roa-modal').classList.add('open');
+}
+function roCloseAmbito() {
+  document.getElementById('roa-modal').classList.remove('open');
+}
+document.getElementById('roa-modal').addEventListener('click', function(e) {
+  if (e.target === this) roCloseAmbito();
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') roCloseAmbito();
+});
+</script>
 {% endif %}
+
+{# Filtro per ambito: le card restano tutte in pagina, si nascondono soltanto. #}
+<script>
+(function () {
+  const bar = document.getElementById('ro-ambiti-bar');
+  if (!bar) return;
+  bar.addEventListener('click', function (e) {
+    const chip = e.target.closest('.ro-amb-chip');
+    if (!chip) return;
+    const filtro = chip.dataset.filtro || '';
+    bar.querySelectorAll('.ro-amb-chip').forEach(c => c.classList.toggle('active', c === chip));
+    document.querySelectorAll('.ro-grid .ro-item').forEach(function (item) {
+      item.style.display = (!filtro || item.dataset.ambito === filtro) ? '' : 'none';
+    });
+  });
+})();
+</script>
 
 {# ── «Chi lo ricopre»: modale di sola lettura, anche per i non-admin ────────── #}
 <style>

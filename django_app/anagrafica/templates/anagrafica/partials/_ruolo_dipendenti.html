@@ -1,7 +1,12 @@
 {# Elenco «chi ricopre il ruolo», caricato via fetch nel modale del catalogo. #}
 {# Context: ruolo, righe (label, reparto, mansione, fonti, cessato).          #}
 <div class="rod-head">
-  <div class="rod-count">{{ righe|length }} person{{ righe|length|pluralize:"a,e" }}</div>
+  <div class="rod-count">
+    {{ righe|length }} person{{ righe|length|pluralize:"a,e" }}
+    {% if ruolo.ambito %}
+      <span class="ro-amb-tag" style="background-color:{{ ruolo.ambito.colore }};">{% if ruolo.ambito.icona %}{{ ruolo.ambito.icona }} {% endif %}{{ ruolo.ambito.nome }}</span>
+    {% endif %}
+  </div>
   <div class="rod-legend">
     <span class="ro-badge ro-badge-blue">Assegnato</span> ruolo assegnato dal catalogo ·
     <span class="ro-badge ro-badge-gray">Da scheda</span> «Ruolo aziendale» della scheda dipendente
