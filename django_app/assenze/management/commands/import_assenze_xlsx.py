@@ -160,6 +160,16 @@ def _norm_text(value) -> str:
     return re.sub(r"\s+", " ", str(value or "").strip())
 
 
+_SQL_MESSAGE_RE = re.compile(r"\[SQL Server\](.+?)\s*\(\d+\)", re.DOTALL)
+
+
+def _short_error(exc: Exception) -> str:
+    """Estrae il messaggio leggibile da un errore ODBC verboso."""
+    text = " ".join(str(exc).split())
+    match = _SQL_MESSAGE_RE.search(text)
+    return (match.group(1) if match else text).strip()[:300]
+
+
 def _compare_value(field: str, value):
     """Valore normalizzato per il confronto file <-> DB."""
     if field in {"data_inizio", "data_fine"}:
@@ -367,7 +377,7 @@ class Command(BaseCommand):
             "saltate_date_non_valide": skipped["date_non_valide"],
             "errori": 0,
         }
-        errors: list[str] = []
+        errors: list[tuple[str, int, str]] = []
         create_senza_sp = 0
 
         try:
@@ -390,49 +400,53 @@ class Command(BaseCommand):
                         match = self._pick_candidate(candidates, record)
 
                         try:
-                            if match is None:
-                                payload = {k: v for k, v in record.items() if k in cols}
-                                insert_cols = list(payload.keys())
-                                new_id = _insert_row_and_return_id(
-                                    cursor, "assenze", insert_cols, [payload[c] for c in insert_cols]
-                                )
-                                stats["create"] += 1
-                                create_senza_sp += 1
-                                if verbose:
-                                    nome = record["copia_nome"]
-                                    self.stdout.write(
-                                        f"  riga {excel_row}: CREATA id={new_id} {nome} {record['tipo_assenza']}"
+                            # Savepoint per riga: una riga rifiutata dal DB (es. un
+                            # vincolo CHECK legacy) non deve invalidare la transazione.
+                            with transaction.atomic():
+                                if match is None:
+                                    payload = {k: v for k, v in record.items() if k in cols}
+                                    insert_cols = list(payload.keys())
+                                    new_id = _insert_row_and_return_id(
+                                        cursor, "assenze", insert_cols, [payload[c] for c in insert_cols]
                                     )
-                                continue
+                                    stats["create"] += 1
+                                    create_senza_sp += 1
+                                    if verbose:
+                                        nome = record["copia_nome"]
+                                        self.stdout.write(
+                                            f"  riga {excel_row}: CREATA id={new_id} {nome} "
+                                            f"{record['tipo_assenza']}"
+                                        )
+                                    continue
 
-                            row_id = _as_int(match.get("id"))
-                            used_ids.add(row_id or 0)
-                            updates = {
-                                field: record[field]
-                                for field in compare_fields
-                                if field in record
-                                and _compare_value(field, match.get(field))
-                                != _compare_value(field, record[field])
-                            }
-                            if not updates:
-                                stats["invariate"] += 1
-                                if verbose:
-                                    self.stdout.write(f"  riga {excel_row}: invariata id={row_id}")
-                                continue
+                                row_id = _as_int(match.get("id"))
+                                used_ids.add(row_id or 0)
+                                updates = {
+                                    field: record[field]
+                                    for field in compare_fields
+                                    if field in record
+                                    and _compare_value(field, match.get(field))
+                                    != _compare_value(field, record[field])
+                                }
+                                if not updates:
+                                    stats["invariate"] += 1
+                                    if verbose:
+                                        self.stdout.write(f"  riga {excel_row}: invariata id={row_id}")
+                                    continue
 
-                            sets = ", ".join(f"{_quote_identifier(k)} = %s" for k in updates)
-                            cursor.execute(
-                                f"UPDATE assenze SET {sets} WHERE id = %s",
-                                [*updates.values(), row_id],
-                            )
-                            stats["aggiornate"] += 1
-                            if verbose:
-                                self.stdout.write(
-                                    f"  riga {excel_row}: AGGIORNATA id={row_id} campi={sorted(updates)}"
+                                sets = ", ".join(f"{_quote_identifier(k)} = %s" for k in updates)
+                                cursor.execute(
+                                    f"UPDATE assenze SET {sets} WHERE id = %s",
+                                    [*updates.values(), row_id],
                                 )
-                        except Exception as exc:  # pragma: no cover - difensivo
+                                stats["aggiornate"] += 1
+                                if verbose:
+                                    self.stdout.write(
+                                        f"  riga {excel_row}: AGGIORNATA id={row_id} campi={sorted(updates)}"
+                                    )
+                        except Exception as exc:
                             stats["errori"] += 1
-                            errors.append(f"riga {excel_row} ({record['copia_nome']}): {exc}")
+                            errors.append((_short_error(exc), excel_row, record["copia_nome"]))
 
                 if dry_run:
                     raise _DryRunAbort()
@@ -445,10 +459,24 @@ class Command(BaseCommand):
             self.stdout.write(f"  {label:<26} {value}")
 
         if errors:
+            grouped: dict[str, list[str]] = {}
+            for message, excel_row, nome in errors:
+                grouped.setdefault(message, []).append(f"riga {excel_row} ({nome})")
             self.stdout.write("")
             self.stdout.write(self.style.ERROR(f"Errori ({len(errors)}):"))
-            for line in errors[:20]:
-                self.stdout.write(f"  - {line}")
+            for message, righe in grouped.items():
+                self.stdout.write(f"  - {message}")
+                esempi = ", ".join(righe[:5])
+                resto = f" ... e altre {len(righe) - 5}" if len(righe) > 5 else ""
+                self.stdout.write(f"    {len(righe)}x: {esempi}{resto}")
+            if any("CK_assenze_tipo" in message for message in grouped):
+                self.stdout.write(
+                    self.style.WARNING(
+                        "  Il vincolo CK_assenze_tipo di questo database non ammette ancora i tipi "
+                        "canonici 'Flessibilita'' / 'Certifica presenza'. Allinealo con: "
+                        "manage.py allinea_tipo_assenza_flessibilita"
+                    )
+                )
 
         if create_senza_sp and not dry_run:
             self.stdout.write("")
