@@ -200,10 +200,12 @@ class CataloghiExportTests(ExportHRTestCase):
         self.assertEqual(row["n_aree"], 1)
 
     def test_ruoli_aziendali(self):
+        # Catalogo unico: anche l'export legacy legge i Ruoli (`RuoloOperativo`),
+        # non più la tabella `RuoloAziendale` congelata alla migration 0085.
         self._assert_spec_ok("ruoli_aziendali", 2)
         stati = {r["nome"]: r["stato"] for r in self._rows("ruoli_aziendali")}
-        self.assertEqual(stati["Responsabile qualità"], "Attivo")
-        self.assertEqual(stati["Addetto amministrazione"], "Inattivo")
+        self.assertEqual(stati["Preposto"], "Attivo")
+        self.assertEqual(stati["RLS"], "Attivo")
 
     def test_ruoli_operativi(self):
         self._assert_spec_ok("ruoli_operativi", 2)
