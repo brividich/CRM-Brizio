@@ -47,6 +47,7 @@ from attrezzature.services import workflow as attrezzature_workflow
 
 from .forms import (
     KickoffMeetingForm,
+    KickoffMeetingMinuteForm,
     ProjectCommentForm,
     ProjectKickoffForm,
     ProjectTaskGanttUpdateForm,
@@ -67,6 +68,7 @@ from .models import (
     MeetingIssue,
     MeetingIssueStatus,
     MeetingRoom,
+    MeetingStatus,
     Project,
     ProjectComment,
     SubTask,
@@ -6121,6 +6123,15 @@ def _meeting_issue_agenda_item(issue: MeetingIssue) -> dict:
     }
 
 
+def _project_tasks_for_picker(project: Project) -> list[dict]:
+    """Attivita' del kickoff selezionabili nei picker agenda/problemi.
+
+    Nessun troncamento: una lista tagliata a N faceva sparire in silenzio le
+    attivita' oltre la soglia dal menu «collega a un'attivita'».
+    """
+    return list(project.tasks.values("id", "title", "status").order_by("title"))
+
+
 def _open_meeting_issues_for_project(project: Project):
     return (
         project.meeting_issues
@@ -6313,7 +6324,6 @@ def project_meeting_create(request, project_id: int):
                 meeting.created_by = request.user
                 meeting.save()
                 form.save_m2m()
-                _sync_meeting_issues_from_post(request, project, meeting)
             _sync_meeting_outlook(request, meeting)
             log_action(request, "kickoff_meeting_create", "tasks", {"meeting_id": meeting.pk, "meeting_numero": meeting.numero, "project_id": project_id})
             messages.success(request, f"Incontro {meeting.numero} aggiunto.")
@@ -6324,7 +6334,7 @@ def project_meeting_create(request, project_id: int):
             "data": timezone.localdate(),
             "agenda_items_raw": json.dumps(auto_agenda),
         })
-    project_tasks = list(project.tasks.values("id", "title", "status").order_by("title")[:100])
+    project_tasks = _project_tasks_for_picker(project)
     meeting_rooms = list(MeetingRoom.objects.values_list("nome", flat=True))
     active_users = task_active_users_queryset()
     return render(
@@ -6338,7 +6348,7 @@ def project_meeting_create(request, project_id: int):
             "is_edit": False,
             "project_tasks_json": json.dumps(project_tasks),
             "meeting_rooms_json": json.dumps(meeting_rooms),
-            "meeting_issues": meeting_issues,
+            "carried_issues": meeting_issues,
             "active_users": active_users,
         },
     )
@@ -6391,20 +6401,18 @@ def project_meeting_edit(request, project_id: int, meeting_id: int):
     if not _can_manage_project(request, project):
         messages.error(request, "Non hai i permessi per modificare questo incontro.")
         return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
-    meeting_issues = list(_meeting_issues_for_form(project, meeting))
     if request.method == "POST":
         form = KickoffMeetingForm(request.POST, instance=meeting)
         if form.is_valid():
             with transaction.atomic():
                 meeting = form.save()
-                _sync_meeting_issues_from_post(request, project, meeting)
             _sync_meeting_outlook(request, meeting)
             log_action(request, "kickoff_meeting_edit", "tasks", {"meeting_id": meeting.pk, "meeting_numero": meeting.numero, "project_id": project_id})
             messages.success(request, "Incontro aggiornato.")
             return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
     else:
         form = KickoffMeetingForm(instance=meeting)
-    project_tasks = list(project.tasks.values("id", "title", "status").order_by("title")[:100])
+    project_tasks = _project_tasks_for_picker(project)
     meeting_rooms = list(MeetingRoom.objects.values_list("nome", flat=True))
     active_users = task_active_users_queryset()
     return render(
@@ -6419,10 +6427,153 @@ def project_meeting_edit(request, project_id: int, meeting_id: int):
             "is_edit": True,
             "project_tasks_json": json.dumps(project_tasks),
             "meeting_rooms_json": json.dumps(meeting_rooms),
-            "meeting_issues": meeting_issues,
+            "carried_issues": _open_meeting_issues_for_project(project),
             "active_users": active_users,
         },
     )
+
+
+@task_permissions_required("tasks_create")
+def project_meeting_minutes(request, project_id: int, meeting_id: int):
+    """Registrazione dell'esito: verbale, problemi e next steps DOPO l'incontro.
+
+    Seconda meta' del flusso, complementare alla convocazione
+    (`project_meeting_edit`). Salvando, l'incontro passa in stato «Svolto».
+    """
+    project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
+    if not _can_manage_project(request, project):
+        messages.error(request, "Non hai i permessi per registrare l'esito di questo incontro.")
+        return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+
+    if request.method == "POST":
+        form = KickoffMeetingMinuteForm(request.POST, instance=meeting)
+        if form.is_valid():
+            with transaction.atomic():
+                meeting = form.save(commit=False)
+                already_svolto = meeting.stato == MeetingStatus.SVOLTO
+                meeting.stato = MeetingStatus.SVOLTO
+                if not already_svolto:
+                    meeting.svolto_at = timezone.now()
+                meeting.save()
+                _sync_meeting_issues_from_post(request, project, meeting)
+            log_action(
+                request, "kickoff_meeting_minutes", "tasks",
+                {"meeting_id": meeting.pk, "meeting_numero": meeting.numero, "project_id": project_id},
+            )
+            messages.success(request, f"Esito dell'incontro {meeting.numero} registrato.")
+            return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+    else:
+        form = KickoffMeetingMinuteForm(instance=meeting)
+
+    return render(
+        request,
+        "tasks/project_meeting_minutes.html",
+        {
+            **_tasks_shell_context(request, active="meetings", project=project),
+            "page_title": f"Esito incontro {meeting.numero} - {project.name}",
+            "project": project,
+            "meeting": meeting,
+            "form": form,
+            "meeting_issues": list(_meeting_issues_for_form(project, meeting)),
+            "project_tasks_json": json.dumps(_project_tasks_for_picker(project)),
+            "active_users": task_active_users_queryset(),
+        },
+    )
+
+
+def _meeting_mail_feedback(request, outcome: dict, *, kind: str) -> None:
+    """Traduce l'esito di send_meeting_invite/minute in un messaggio utente."""
+    if outcome.get("sent"):
+        recipients = outcome.get("recipients") or []
+        messages.success(request, f"{kind} inviata a {len(recipients)} destinatari.")
+        return
+    reason = outcome.get("reason") or ""
+    if reason == "no_recipients":
+        messages.warning(
+            request,
+            f"{kind} non inviata: l'incontro non ha partecipanti con un indirizzo email.",
+        )
+    else:
+        messages.error(request, f"{kind} non inviata: errore durante l'invio.")
+
+
+@require_POST
+@task_permissions_required("tasks_create")
+def project_meeting_send_invite(request, project_id: int, meeting_id: int):
+    """Invia ai partecipanti la convocazione con l'ordine del giorno (+ .ics)."""
+    project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
+    if not _can_manage_project(request, project):
+        messages.error(request, "Non hai i permessi per inviare la convocazione di questo incontro.")
+        return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+
+    from .minute_email import send_meeting_invite
+
+    try:
+        outcome = send_meeting_invite(meeting, sent_by=request.user)
+    except Exception:
+        logger.exception("Invio convocazione fallito (meeting=%s)", meeting.pk)
+        outcome = {"sent": False, "reason": "send_error"}
+    _meeting_mail_feedback(request, outcome, kind="Convocazione")
+    log_action(
+        request, "kickoff_meeting_send_invite", "tasks",
+        {"meeting_id": meeting.pk, "project_id": project_id, "sent": bool(outcome.get("sent"))},
+    )
+    return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+
+
+@require_POST
+@task_permissions_required("tasks_create")
+def project_meeting_send_minute(request, project_id: int, meeting_id: int):
+    """Invia ai partecipanti la minuta dell'incontro (+ PDF allegato)."""
+    project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
+    if not _can_manage_project(request, project):
+        messages.error(request, "Non hai i permessi per inviare la minuta di questo incontro.")
+        return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+
+    from .minute_email import send_meeting_minute
+
+    try:
+        outcome = send_meeting_minute(meeting, sent_by=request.user)
+    except Exception:
+        logger.exception("Invio minuta fallito (meeting=%s)", meeting.pk)
+        outcome = {"sent": False, "reason": "send_error"}
+    _meeting_mail_feedback(request, outcome, kind="Minuta")
+    log_action(
+        request, "kickoff_meeting_send_minute", "tasks",
+        {"meeting_id": meeting.pk, "project_id": project_id, "sent": bool(outcome.get("sent"))},
+    )
+    return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+
+
+@task_permissions_required("tasks_view")
+def project_meeting_minute_pdf(request, project_id: int, meeting_id: int):
+    """Scarica la minuta dell'incontro in PDF (stesso documento allegato alla mail)."""
+    project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
+
+    from django.http import HttpResponse
+
+    from .minute_email import build_minute_pdf
+
+    try:
+        pdf = build_minute_pdf(meeting)
+    except Exception:
+        logger.exception("Generazione PDF minuta fallita (meeting=%s)", meeting.pk)
+        messages.error(request, "Impossibile generare il PDF della minuta.")
+        return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+
+    kickoff = getattr(project, "kickoff_number", "") or project.pk
+    filename = f"minuta-kickoff-{kickoff}-inc{meeting.numero}.pdf"
+    response = HttpResponse(pdf, content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    log_action(
+        request, "kickoff_meeting_minute_pdf", "tasks",
+        {"meeting_id": meeting.pk, "project_id": project_id},
+    )
+    return response
 
 
 @require_POST
@@ -6434,6 +6585,12 @@ def project_meeting_delete(request, project_id: int, meeting_id: int):
         messages.error(request, "Non hai i permessi per eliminare questo incontro.")
         return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
     numero = meeting.numero
+    # Prima di cancellare il record va rimosso l'evento dal calendario dei
+    # partecipanti: `sync_meeting_outlook_event` cancella su Graph quando
+    # `sync_outlook` e' falso. Senza questo passaggio l'invito restava orfano.
+    if meeting.outlook_event_id:
+        meeting.sync_outlook = False
+        _sync_meeting_outlook(request, meeting)
     meeting.delete()
     log_action(request, "kickoff_meeting_delete", "tasks", {"meeting_numero": numero, "project_id": project_id})
     messages.success(request, f"Incontro {numero} eliminato.")
@@ -6507,7 +6664,7 @@ def project_meeting_agenda_toggle(request, project_id: int, meeting_id: int, ite
         return JsonResponse({"ok": False, "reason": "item_not_found"}, status=404)
 
     meeting.agenda_items = items
-    meeting.save(update_fields=["agenda_items"])
+    meeting.save(update_fields=["agenda_items", "updated_at"])
     return JsonResponse({"ok": True, "done": new_done, "item_id": item_id})
 
 

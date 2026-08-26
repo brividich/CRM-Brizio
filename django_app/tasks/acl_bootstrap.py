@@ -126,6 +126,9 @@ _ROUTE_BINDINGS = {
     "tasks:project_gantt_update_task": "tasks.kickoff.edit",
     "tasks:project_gantt_shift_task": "tasks.kickoff.edit",
     "tasks:project_meeting_edit": "tasks.kickoff.edit",
+    "tasks:project_meeting_minutes": "tasks.kickoff.edit",
+    "tasks:project_meeting_send_invite": "tasks.kickoff.edit",
+    "tasks:project_meeting_send_minute": "tasks.kickoff.edit",
     # Commenti, sottotask, allegati e agenda incontri
     "tasks:add_comment": "tasks.kickoff.comment",
     "tasks:add_subtask": "tasks.kickoff.comment",
@@ -148,6 +151,7 @@ _ROUTE_BINDINGS = {
     "tasks:project_info_json": "tasks.kickoff.projects",
     "tasks:project_meetings": "tasks.kickoff.projects",
     "tasks:project_meeting_detail": "tasks.kickoff.projects",
+    "tasks:project_meeting_minute_pdf": "tasks.kickoff.projects",
     "tasks:project_vrf_upload": "tasks.kickoff.projects",
     "tasks:project_vrf_compile": "tasks.kickoff.projects",
     # Bridge attrezzature — ACL effettivo gestito dal modulo attrezzature
