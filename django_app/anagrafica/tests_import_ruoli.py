@@ -184,6 +184,48 @@ class ImportRuoliTests(TestCase):
         self.assertEqual(az.ruolo_aziendale, "Dept Chief")
         self.assertIn("PIÙ ruoli principali", out)
 
+    def test_assegnazione_non_confermata_dal_file_viene_elencata_non_rimossa(self):
+        ruolo = RuoloOperativo.objects.create(nome="Ruolo di prova")
+        DipendenteRuoloOperativo.objects.create(
+            legacy_anagrafica_id=self.ids["u.uno"], ruolo=ruolo,
+        )
+        out = self._import_base([
+            [1, "ROSSI MARIO", CF_UNO, "Capocommessa", "", "", "", "Principale", "", 100, "01/03/2020", None],
+        ], "--apply")
+        self.assertTrue(
+            DipendenteRuoloOperativo.objects
+            .filter(legacy_anagrafica_id=self.ids["u.uno"], ruolo=ruolo).exists()
+        )
+        self.assertIn("Ruolo di prova", out)
+
+    def test_rimuovi_estranee_toglie_solo_quelle_non_confermate(self):
+        ruolo = RuoloOperativo.objects.create(nome="Ruolo di prova")
+        DipendenteRuoloOperativo.objects.create(
+            legacy_anagrafica_id=self.ids["u.uno"], ruolo=ruolo,
+        )
+        self._import_base([
+            [1, "ROSSI MARIO", CF_UNO, "Capocommessa", "", "", "", "Principale", "", 100, "01/03/2020", None],
+        ], "--apply", "--rimuovi-estranee")
+        nomi = set(
+            DipendenteRuoloOperativo.objects
+            .filter(legacy_anagrafica_id=self.ids["u.uno"])
+            .values_list("ruolo__nome", flat=True)
+        )
+        self.assertEqual(nomi, {"Capocommessa"})
+
+    def test_chi_non_e_nel_file_non_viene_toccato_dalla_rimozione(self):
+        ruolo = RuoloOperativo.objects.create(nome="Ruolo di prova")
+        DipendenteRuoloOperativo.objects.create(
+            legacy_anagrafica_id=self.ids["d.due"], ruolo=ruolo,
+        )
+        self._import_base([
+            [1, "ROSSI MARIO", CF_UNO, "Capocommessa", "", "", "", "Principale", "", 100, "01/03/2020", None],
+        ], "--apply", "--rimuovi-estranee")
+        self.assertTrue(
+            DipendenteRuoloOperativo.objects
+            .filter(legacy_anagrafica_id=self.ids["d.due"], ruolo=ruolo).exists()
+        )
+
     # --------------------------------------------------------------- gerarchia
     def test_gerarchia_scritta_dove_univoca(self):
         self._import_base([
