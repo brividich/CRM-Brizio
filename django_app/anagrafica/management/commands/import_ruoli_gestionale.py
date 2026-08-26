@@ -22,6 +22,11 @@ saltato — l'import non crea dipendenti.
 Se il gestionale dà a una persona due principali (succede: il file lo segnala
 da sé) si tiene la più recente per data di inizio e si riporta l'anomalia.
 
+Con `--ambito «Produttivo»` i ruoli importati nascono già nell'organigramma
+giusto: il gestionale descrive l'assetto produttivo, non quello della sicurezza
+o delle informazioni, che nell'HUB vivono in ambiti propri e si sovrappongono a
+questo senza sostituirlo.
+
 **La gerarchia fra ruoli** si deduce da `Ruolo responsabile` sulle assegnazioni
 in corso — dove «in corso» significa senza data di fine *oppure con una fine
 futura*, perché il gestionale registra le uscite in anticipo — e si scrive
@@ -48,6 +53,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from anagrafica.models import (
+    AmbitoRuolo,
     DipendenteAnagraficaAziendale,
     DipendenteAnagraficaCivile,
     DipendenteRuoloOperativo,
@@ -137,6 +143,14 @@ class Command(BaseCommand):
             "--no-gerarchia", action="store_true",
             help="Non deduce «riporta a» dal file: la gerarchia resta quella già impostata.",
         )
+        parser.add_argument(
+            "--ambito", default=None,
+            help=(
+                "Nome dell'ambito in cui far nascere i ruoli importati (es. «Produttivo»). "
+                "L'ambito deve già esistere. Ai ruoli già in catalogo lo assegna solo se "
+                "non ne hanno uno: la classificazione fatta a mano non si tocca."
+            ),
+        )
 
     # ------------------------------------------------------------------ setup
     def handle(self, *args, **options):
@@ -148,6 +162,19 @@ class Command(BaseCommand):
 
         self.catalogo_nuovi: list[str] = []
         self.catalogo_aggiornati: list[str] = []
+        self.catalogo_classificati: list[str] = []
+
+        nome_ambito = (options.get("ambito") or "").strip()
+        self.ambito = None
+        if nome_ambito:
+            self.ambito = AmbitoRuolo.objects.filter(nome__iexact=nome_ambito).first()
+            if self.ambito is None:
+                disponibili = ", ".join(
+                    a.nome for a in AmbitoRuolo.objects.order_by("ordine", "nome")
+                ) or "nessuno"
+                raise CommandError(
+                    f"Ambito «{nome_ambito}» inesistente. Ambiti a catalogo: {disponibili}."
+                )
 
         with transaction.atomic():
             if roles_path:
@@ -195,22 +222,35 @@ class Command(BaseCommand):
 
             ruolo = esistenti.get(nome.casefold())
             if ruolo is None:
-                ruolo = RuoloOperativo(nome=nome, descrizione=testo)
+                ruolo = RuoloOperativo(nome=nome, descrizione=testo, ambito=self.ambito)
                 ruolo.save()
                 esistenti[nome.casefold()] = ruolo
                 self.catalogo_nuovi.append(nome)
-            elif testo and not (ruolo.descrizione or "").strip():
-                # La descrizione già scritta nel portale vince: il gestionale
-                # ne ha appena quattro, non deve sovrascrivere il lavoro fatto.
-                ruolo.descrizione = testo
-                ruolo.save(update_fields=["descrizione"])
-                self.catalogo_aggiornati.append(nome)
+            else:
+                if testo and not (ruolo.descrizione or "").strip():
+                    # La descrizione già scritta nel portale vince: il gestionale
+                    # ne ha appena quattro, non deve sovrascrivere il lavoro fatto.
+                    ruolo.descrizione = testo
+                    ruolo.save(update_fields=["descrizione"])
+                    self.catalogo_aggiornati.append(nome)
+                if self.ambito is not None and ruolo.ambito_id is None:
+                    # Solo i ruoli non classificati: se qualcuno ha già messo un
+                    # ruolo nell'organigramma 45001, l'import non lo riporta
+                    # indietro.
+                    ruolo.ambito = self.ambito
+                    ruolo.save(update_fields=["ambito"])
+                    self.catalogo_classificati.append(nome)
 
         self.stdout.write("")
         self.stdout.write(self.style.MIGRATE_HEADING(f"Catalogo ruoli — {path.name}"))
         self.stdout.write(f"  righe lette          : {len(dati)}")
         self.stdout.write(f"  ruoli nuovi          : {len(self.catalogo_nuovi)}")
         self.stdout.write(f"  descrizioni aggiunte : {len(self.catalogo_aggiornati)}")
+        if self.ambito is not None:
+            self.stdout.write(
+                f"  ambito «{self.ambito.nome}»  : {len(self.catalogo_nuovi)} nuovi + "
+                f"{len(self.catalogo_classificati)} già a catalogo e senza ambito"
+            )
         self.stdout.write(f"  già in catalogo      : {len(dati) - len(self.catalogo_nuovi)}")
         if troppo_lunghi:
             self.stdout.write(self.style.WARNING(
@@ -239,7 +279,10 @@ class Command(BaseCommand):
             (c.codice_fiscale or "").strip().upper(): c.legacy_anagrafica_id
             for c in DipendenteAnagraficaCivile.objects.exclude(codice_fiscale="")
         }
-        catalogo = {r.nome.strip().casefold(): r for r in RuoloOperativo.objects.all()}
+        catalogo = {
+            r.nome.strip().casefold(): r
+            for r in RuoloOperativo.objects.select_related("ambito")
+        }
 
         creati = completati = 0
         viste: set[tuple[int, int]] = set()
@@ -297,7 +340,14 @@ class Command(BaseCommand):
             creati += int(creata)
             completati += int(bool(campi) and not creata)
 
-            if tipologia == DipendenteRuoloOperativo.TIPOLOGIA_PRINCIPALE and _in_corso(data_fine):
+            # Il «Principale» si scrive in scheda solo se il ruolo appartiene
+            # all'ambito della scheda: un ruolo 45001 o 27001 si somma agli
+            # altri e non diventa il «Ruolo aziendale» di nessuno.
+            if (
+                tipologia == DipendenteRuoloOperativo.TIPOLOGIA_PRINCIPALE
+                and _in_corso(data_fine)
+                and ruolo.alimenta_ruolo_principale
+            ):
                 precedente = principali.get(legacy_id)
                 if precedente is None:
                     principali[legacy_id] = (ruolo.nome, data_inizio)

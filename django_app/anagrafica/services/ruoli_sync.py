@@ -21,6 +21,15 @@ rappresenta la persona nell'organizzazione. Le regole, in una riga ciascuna:
 - rimuovere l'assegnazione del principale promuove il primo ruolo rimasto, o
   svuota il campo se non ne restano.
 
+A queste regole se ne sovrappone una quinta, che le limita tutte:
+**solo i ruoli dell'ambito della scheda toccano il ruolo principale**. Un ruolo
+dell'organigramma 45001 o 27001 (``RuoloOperativo.ambito`` con
+``alimenta_scheda=False``) si assegna e basta: non diventa principale, non
+promuove nessuno quando viene tolto, non compare nel campo testuale. È il senso
+stesso degli ambiti — i ruoli si sovrappongono, non si sostituiscono. I ruoli
+senza ambito valgono come ruoli della scheda: prima della classificazione lo
+erano tutti.
+
 Nessuna funzione qui dentro elimina assegnazioni che non le siano state
 chieste: il multiruolo si perde in un attimo e si ricostruisce a mano.
 """
@@ -38,7 +47,30 @@ def _ruolo_per_nome(nome: str) -> RuoloOperativo | None:
     nome = (nome or "").strip()
     if not nome:
         return None
-    return RuoloOperativo.objects.filter(nome__iexact=nome).first()
+    return RuoloOperativo.objects.select_related("ambito").filter(nome__iexact=nome).first()
+
+
+def alimenta_principale(ruolo: RuoloOperativo) -> bool:
+    """Il ruolo appartiene all'ambito che alimenta il «Ruolo aziendale».
+
+    Vero anche per i ruoli senza ambito: sono quelli nati prima della
+    classificazione, e il loro comportamento non deve cambiare.
+    """
+    return bool(ruolo) and ruolo.alimenta_ruolo_principale
+
+
+def ruoli_che_alimentano(legacy_id: int):
+    """Assegnazioni della persona nell'ambito della scheda, per nome ruolo."""
+    return [
+        a
+        for a in (
+            DipendenteRuoloOperativo.objects
+            .filter(legacy_anagrafica_id=legacy_id)
+            .select_related("ruolo", "ruolo__ambito")
+            .order_by("ruolo__nome")
+        )
+        if a.ruolo.alimenta_ruolo_principale
+    ]
 
 
 def ruolo_principale(legacy_id: int) -> str:
@@ -61,9 +93,16 @@ def _scrivi_principale(legacy_id: int, nome: str, *, user=None) -> None:
 def dopo_assegnazione(legacy_id: int, ruolo: RuoloOperativo, *, user=None) -> bool:
     """Il ruolo appena assegnato diventa principale solo se non ce n'è già uno.
 
+    E solo se è un ruolo dell'ambito della scheda: gli altri organigrammi si
+    sovrappongono senza scrivere nel campo testuale.
+
     Ritorna True se il principale è stato scritto: chi chiama lo usa per dirlo
     all'utente, visto che è un effetto che non ha chiesto esplicitamente.
     """
+    if not alimenta_principale(ruolo):
+        # Ruolo di un altro organigramma (45001, 27001, …): si somma agli altri
+        # e non tocca il ruolo principale della scheda.
+        return False
     if ruolo_principale(legacy_id):
         return False
     _scrivi_principale(legacy_id, ruolo.nome, user=user)
@@ -73,6 +112,9 @@ def dopo_assegnazione(legacy_id: int, ruolo: RuoloOperativo, *, user=None) -> bo
 def dopo_rimozione(legacy_id: int, nome_rimosso: str, *, user=None) -> str:
     """Se spariva il principale, promuove il primo ruolo rimasto (o svuota).
 
+    «Rimasto» significa rimasto **nell'ambito della scheda**: un ruolo 45001
+    non prende il posto del ruolo produttivo appena tolto.
+
     Ritorna il nome del nuovo principale (stringa vuota se non ne restano).
     Va chiamata **dopo** la delete dell'assegnazione.
     """
@@ -80,14 +122,8 @@ def dopo_rimozione(legacy_id: int, nome_rimosso: str, *, user=None) -> str:
     if not corrente or corrente.casefold() != (nome_rimosso or "").strip().casefold():
         return corrente
 
-    rimasto = (
-        DipendenteRuoloOperativo.objects
-        .filter(legacy_anagrafica_id=legacy_id)
-        .select_related("ruolo")
-        .order_by("ruolo__nome")
-        .first()
-    )
-    nuovo = rimasto.ruolo.nome if rimasto else ""
+    rimasti = ruoli_che_alimentano(legacy_id)
+    nuovo = rimasti[0].ruolo.nome if rimasti else ""
     _scrivi_principale(legacy_id, nuovo, user=user)
     return nuovo
 
