@@ -11,7 +11,6 @@ from .models import (
     DipendenteAnagraficaCivile,
     FiglioACarico,
     Mansione,
-    RuoloAziendale,
     RuoloOperativo,
     SkillMatrixConfig,
     TipoVisitaMedica,

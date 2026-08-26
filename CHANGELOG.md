@@ -10,6 +10,12 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ### Added
 
+- **Anagrafica · «Chi lo ricopre»: dal catalogo dei ruoli all'elenco delle persone** (`django_app/anagrafica/views.py`, `urls.py`, nuovo template `anagrafica/partials/_ruolo_dipendenti.html`, `anagrafica/partials/_ruoli_operativi_body.html`, nuovo `django_app/anagrafica/tests_ruoli_catalogo_unico.py`).
+
+  La card di un ruolo diceva quante persone lo ricoprono, non quali: per saperlo si andava a pescare i dipendenti uno a uno. Nuovo pulsante **«👥 Chi lo ricopre»** su ogni card del catalogo: apre un modale con l'elenco, ciascuno linkato alla propria scheda, con reparto e mansione.
+
+  L'elenco **unisce le due provenienze** che oggi convivono: l'assegnazione esplicita del ruolo (`DipendenteRuoloOperativo`) e il «Ruolo aziendale» scritto nella scheda dipendente, che è ancora un campo testuale. Chi risulta da entrambe compare una volta sola, con entrambi i badge; i cessati sono marcati. Per lo stesso motivo la card mostra ora, accanto al conteggio delle assegnazioni, un **«+N da scheda»**: un ruolo con «0 dipendenti» ma indicato in tre schede non è un ruolo vuoto. Il pulsante è di sola lettura ed è visibile a chiunque acceda al catalogo, che resta protetto dall'ACL `/anagrafica/ruoli-operativi/`.
+
 - **Diagnosi in sola lettura sul database di produzione** (nuovi `django_app/config/settings/prod_readonly.py`, `django_app/config/readonly_guard.py`, `django_app/core/test_readonly_guard.py`, `docs/env.prod_readonly.example`, `docs/prod_readonly_login.sql`, `README.md`).
 
   Il database di sviluppo è una copia locale (`localhost\SQLEXPRESS`): guardarlo per capire cosa c'è in produzione porta a conclusioni sbagliate — un `--dry-run` sulla copia diceva «245 righe da creare» dove in produzione le stesse righe esistevano già. Il server di prod è raggiungibile in rete (TCP 1433 aperto), ma finora l'unico modo di interrogarlo era chiedere a una persona di lanciare la query e riportare l'output.
@@ -120,6 +126,12 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
   **Effetto sui QR**: l'etichetta punta ora sempre alla landing pubblica `/assets/qr/pub/<token>/`; il valore legacy `?target=sharepoint` viene trattato come `landing`, quindi i QR gia stampati continuano a funzionare.
 
 ### Fixed
+
+- **Anagrafica · il «Ruolo aziendale» dello spostamento pescava da un catalogo fermo alla 0085** (`django_app/anagrafica/views.py`, `forms.py`, `exports_hr.py`, nuova migration `anagrafica/0110_riallinea_ruoli_aziendali_residui.py`, `tests_assegnazioni.py`, `tests_exports_hr.py`).
+
+  Un ruolo creato nel catalogo («Ruoli nel catalogo») non compariva nella tendina **Ruolo aziendale** del form «Nuovo spostamento», dove invece ne appariva un altro che nel catalogo c'era eccome. Non era un filtro: erano **due tabelle diverse**. La pagina dei Ruoli legge `RuoloOperativo`; la tendina leggeva `RuoloAziendale`, la tabella legacy che la migration `0085` aveva copiato nel catalogo unico **una tantum e a senso unico**. Da allora ogni ruolo nuovo nasceva solo nel catalogo, e la tendina restava alla fotografia di quel giorno.
+
+  La tendina ora legge `RuoloOperativo`, come la pagina dei Ruoli: **una sola fonte**. Le rotte legacy `/anagrafica/ruoli-aziendali/*` non scrivono più la tabella vecchia — creare, modificare o eliminare da lì rimanda al catalogo unificato — così il doppione non può riformarsi; anche l'export legacy «Catalogo ruoli aziendali» rispecchia ora i Ruoli. La migration `0110` ripete il riallineamento della `0085` (idempotente) perché nessun ruolo rimasto solo nella tabella legacy sparisca dalla tendina. Il valore salvato resta il **nome** nel campo testuale `ruolo_aziendale`: nessuna migrazione di dati sulle schede, e il ramo «(attuale – non in catalogo)» continua a coprire i valori storici. Sette test nuovi.
 
 - **Anagrafica HR · cambiare reparto non scollega più il dipendente dalla sua area** (`django_app/anagrafica/views.py`, `tests_area_aziendale_dipendente.py`).
 

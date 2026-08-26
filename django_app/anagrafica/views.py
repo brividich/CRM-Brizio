@@ -92,7 +92,6 @@ from .models import (
     OnboardingOffboardingCampo,
     OnboardingPratica,
     OnboardingTask,
-    RuoloAziendale,
     RuoloOperativo,
     ImportazioneCedolini,
     SaldoCedolino,
@@ -2338,8 +2337,13 @@ def dipendente_detail(request, legacy_id: int):
         aree_by_reparto.setdefault(a.reparto.nome, []).append({"id": a.id, "nome": a.nome})
     aree_by_reparto_json = json.dumps(aree_by_reparto)
 
+    # Catalogo unico dei ruoli: il dropdown «Ruolo aziendale» dello spostamento
+    # legge `RuoloOperativo` come la pagina Ruoli. La vecchia tabella
+    # `RuoloAziendale` era una fotografia ferma alla migration 0085 (copia una
+    # tantum, a senso unico): i ruoli creati dopo nel catalogo non comparivano
+    # qui. Il valore salvato resta il NOME (campo testuale ruolo_aziendale).
     ruoli_aziendali_catalogo = (
-        list(RuoloAziendale.objects.filter(is_active=True).order_by("nome")) if is_admin else []
+        list(RuoloOperativo.objects.filter(is_active=True).order_by("nome")) if is_admin else []
     )
     ruolo_aziendale_corrente = (aziendale.ruolo_aziendale or "").strip() if aziendale else ""
     ruolo_aziendale_in_catalog = ruolo_aziendale_corrente and any(
@@ -3304,17 +3308,39 @@ def _riporta_a_valido(ruolo_id: int | None, riporta_a_id: int | None) -> bool:
     return True
 
 
+def _ruoli_conteggio_da_scheda() -> dict[str, int]:
+    """Quante schede dipendente riportano ciascun ruolo nel campo testuale.
+
+    Il «Ruolo aziendale» della scheda è ancora testo libero: non passa dalle
+    assegnazioni del catalogo, quindi va contato a parte per non mostrare
+    «0 dipendenti» su un ruolo che invece qualcuno ricopre.
+    """
+    conteggi: dict[str, int] = {}
+    for valore in (
+        DipendenteAnagraficaAziendale.objects
+        .exclude(ruolo_aziendale="")
+        .values_list("ruolo_aziendale", flat=True)
+    ):
+        chiave = (valore or "").strip().casefold()
+        if chiave:
+            conteggi[chiave] = conteggi.get(chiave, 0) + 1
+    return conteggi
+
+
 @login_required
 def ruoli_operativi_list(request):
     legacy_user = get_legacy_user(request.user)
     is_admin = _is_anagrafica_admin(request)
 
-    ruoli = (
+    ruoli = list(
         RuoloOperativo.objects
         .annotate(n_assegnati=Count("assegnazioni"))
         .select_related("riporta_a")
         .order_by("nome")
     )
+    _da_scheda = _ruoli_conteggio_da_scheda()
+    for _r in ruoli:
+        _r.n_da_scheda = _da_scheda.get((_r.nome or "").strip().casefold(), 0)
     # Catalogo per il dropdown «riporta a» (tutti i ruoli, incluso lo storico).
     ruoli_catalogo = list(RuoloOperativo.objects.order_by("nome").values("id", "nome"))
     ruoli_suggeriti = [
@@ -3418,6 +3444,59 @@ def ruolo_operativo_delete(request, ruolo_id: int):
     ruolo.delete()
     messages.success(request, f'Ruolo "{nome}" eliminato.')
     return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
+
+
+@login_required
+def ruolo_operativo_dipendenti(request, ruolo_id: int):
+    """Partial: chi ricopre un ruolo del catalogo unico.
+
+    Due fonti, entrambe legittime finché il ruolo aziendale resta un campo
+    testuale: l'assegnazione esplicita (``DipendenteRuoloOperativo``) e il
+    «Ruolo aziendale» scritto nella scheda. Chi compare in entrambe è mostrato
+    una volta sola, con tutte e due le provenienze.
+    """
+    ruolo = get_object_or_404(RuoloOperativo, pk=ruolo_id)
+
+    ids_assegnati = set(
+        DipendenteRuoloOperativo.objects
+        .filter(ruolo=ruolo)
+        .values_list("legacy_anagrafica_id", flat=True)
+    )
+    ids_scheda = set(
+        DipendenteAnagraficaAziendale.objects
+        .filter(ruolo_aziendale__iexact=ruolo.nome)
+        .values_list("legacy_anagrafica_id", flat=True)
+    )
+    tutti = {int(v) for v in (ids_assegnati | ids_scheda) if int(v or 0) > 0}
+
+    righe: list[dict] = []
+    if tutti:
+        cessati = _cessati_legacy_ids()
+        for row in fetch_anagrafica_rows(ids=sorted(tutti), deduplicate=True):
+            legacy_id = int(row.get("id") or 0)
+            if legacy_id <= 0:
+                continue
+            nome = str(row.get("nome") or "").strip()
+            cognome = str(row.get("cognome") or "").strip()
+            fonti = []
+            if legacy_id in ids_assegnati:
+                fonti.append("Assegnato")
+            if legacy_id in ids_scheda:
+                fonti.append("Da scheda")
+            righe.append({
+                "legacy_id": legacy_id,
+                "label": " ".join(p for p in [cognome, nome] if p) or f"#{legacy_id}",
+                "reparto": str(row.get("reparto") or "").strip(),
+                "mansione": str(row.get("mansione") or "").strip(),
+                "fonti": fonti,
+                "cessato": legacy_id in cessati,
+            })
+        righe.sort(key=lambda r: r["label"].casefold())
+
+    return render(request, "anagrafica/partials/_ruolo_dipendenti.html", {
+        "ruolo": ruolo,
+        "righe": righe,
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -6258,57 +6337,30 @@ def ruoli_aziendali_list(request):
 @login_required
 @require_POST
 def ruolo_aziendale_create(request):
-    legacy_user = get_legacy_user(request.user)
-    if not _is_anagrafica_admin(request):
-        messages.error(request, "Non hai i permessi per creare ruoli aziendali.")
-        return _back_to_caller(request, "anagrafica:ruoli_aziendali_list")
-    nome = (request.POST.get("nome") or "").strip()[:200]
-    if not nome:
-        messages.error(request, "Il nome del ruolo è obbligatorio.")
-        return _back_to_caller(request, "anagrafica:ruoli_aziendali_list")
-    _, created = RuoloAziendale.objects.get_or_create(
-        nome__iexact=nome,
-        defaults={"nome": nome, "descrizione": (request.POST.get("descrizione") or "").strip()},
-    )
-    if created:
-        messages.success(request, f'Ruolo aziendale "{nome}" creato.')
-    else:
-        messages.warning(request, f'Esiste già un ruolo aziendale con il nome "{nome}".')
-    return _back_to_caller(request, "anagrafica:ruoli_aziendali_list")
+    # Catalogo unico: la tabella legacy `RuoloAziendale` non viene più scritta,
+    # altrimenti tornerebbe a divergere dai Ruoli. Le rotte restano solo per non
+    # rompere link/bookmark e rimandano al catalogo unificato.
+    return _ruolo_aziendale_legacy_redirect(request)
 
 
 @login_required
 @require_POST
 def ruolo_aziendale_edit(request, ruolo_id: int):
-    legacy_user = get_legacy_user(request.user)
-    if not _is_anagrafica_admin(request):
-        messages.error(request, "Non hai i permessi per modificare ruoli aziendali.")
-        return _back_to_caller(request, "anagrafica:ruoli_aziendali_list")
-    ruolo = get_object_or_404(RuoloAziendale, pk=ruolo_id)
-    nome = (request.POST.get("nome") or "").strip()[:200]
-    if not nome:
-        messages.error(request, "Il nome del ruolo è obbligatorio.")
-        return _back_to_caller(request, "anagrafica:ruoli_aziendali_list")
-    ruolo.nome = nome
-    ruolo.descrizione = (request.POST.get("descrizione") or "").strip()
-    ruolo.is_active = request.POST.get("is_active") == "1"
-    ruolo.save()
-    messages.success(request, f'Ruolo aziendale "{ruolo.nome}" aggiornato.')
-    return _back_to_caller(request, "anagrafica:ruoli_aziendali_list")
+    return _ruolo_aziendale_legacy_redirect(request)
 
 
 @login_required
 @require_POST
 def ruolo_aziendale_delete(request, ruolo_id: int):
-    legacy_user = get_legacy_user(request.user)
-    if not _is_anagrafica_admin(request):
-        messages.error(request, "Non hai i permessi per eliminare ruoli aziendali.")
-        return _back_to_caller(request, "anagrafica:ruoli_aziendali_list")
-    ruolo = get_object_or_404(RuoloAziendale, pk=ruolo_id)
-    nome = ruolo.nome
-    ruolo.delete()
-    messages.success(request, f'Ruolo aziendale "{nome}" eliminato.')
-    return _back_to_caller(request, "anagrafica:ruoli_aziendali_list")
+    return _ruolo_aziendale_legacy_redirect(request)
+
+
+def _ruolo_aziendale_legacy_redirect(request):
+    messages.info(
+        request,
+        "I ruoli aziendali e operativi sono un catalogo unico: gestiscili da qui.",
+    )
+    return redirect("anagrafica:ruoli_operativi_list")
 
 
 # ---------------------------------------------------------------------------
@@ -8891,19 +8943,19 @@ def impostazioni(request):
     for az in aree_aziendali:
         az.responsabile_label = _dip_picker_map.get(az.responsabile_legacy_id or 0, "")
 
-    # --- Ruoli aziendali ---
-    ruoli_aziendali = list(RuoloAziendale.objects.all().order_by("nome"))
-
     # --- Ruoli operativi sicurezza ---
     # select_related("riporta_a") + catalogo/suggeriti: il pannello "Ruoli" inline
     # di impostazioni.html riusa il partial _ruoli_operativi_body.html e ha bisogno
     # dello stesso context della pagina autonoma ruoli_operativi_list.
-    ruoli_operativi = (
+    ruoli_operativi = list(
         RuoloOperativo.objects
         .annotate(n_assegnati=Count("assegnazioni"))
         .select_related("riporta_a")
         .order_by("nome")
     )
+    _ruoli_da_scheda = _ruoli_conteggio_da_scheda()
+    for _r in ruoli_operativi:
+        _r.n_da_scheda = _ruoli_da_scheda.get((_r.nome or "").strip().casefold(), 0)
     ruoli_catalogo = list(RuoloOperativo.objects.order_by("nome").values("id", "nome"))
     ruoli_suggeriti = [
         "Preposto", "RSPP", "ASPP", "RLS",
@@ -9175,7 +9227,6 @@ def impostazioni(request):
         "aree_aziendali": aree_aziendali,
         "dipendenti_picker": dipendenti_picker,
         # Ruoli aziendali
-        "ruoli_aziendali": ruoli_aziendali,
         # Ruoli operativi
         "ruoli_operativi": ruoli_operativi,
         "ruoli_catalogo": ruoli_catalogo,

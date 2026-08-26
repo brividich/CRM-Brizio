@@ -96,10 +96,16 @@ body.theme-dark .ro-modal-title { color:var(--text); }
             {% endif %}
             <div class="ro-item-meta">
               <span class="ro-badge ro-badge-blue">{{ r.n_assegnati }} dipendent{{ r.n_assegnati|pluralize:"e,i" }}</span>
+              {% if r.n_da_scheda %}<span class="ro-badge ro-badge-gray" title="Indicato come «Ruolo aziendale» nella scheda dipendente">+{{ r.n_da_scheda }} da scheda</span>{% endif %}
               {% if r.riporta_a %}<span class="ro-badge ro-badge-gray">▲ Riporta a: {{ r.riporta_a.nome }}</span>{% endif %}
             </div>
-            {% if is_admin %}
             <div class="ro-item-actions">
+              <button type="button" class="ro-btn ro-btn-ghost ro-btn-sm"
+                data-url="{% url 'anagrafica:ruolo_operativo_dipendenti' r.id %}"
+                onclick="roOpenDipendenti(this.dataset.url, '{{ r.nome|escapejs }}')">
+                👥 Chi lo ricopre
+              </button>
+              {% if is_admin %}
               <button type="button" class="ro-btn ro-btn-ghost ro-btn-sm"
                 onclick="roOpenEdit({{ r.id }}, '{{ r.nome|escapejs }}', '{{ r.descrizione|escapejs }}', '{{ r.colore }}', '{{ r.icona|escapejs }}', {{ r.is_active|yesno:'true,false' }}, '{{ r.certificazione_competenza|escapejs }}', '{{ r.riporta_a_id|default:'' }}')">
                 ✏ Modifica
@@ -113,8 +119,8 @@ body.theme-dark .ro-modal-title { color:var(--text); }
               {% else %}
               <span style="font-size:11px;color:#94a3b8;">{{ r.n_assegnati }} assegnazion{{ r.n_assegnati|pluralize:"e,i" }} — non eliminabile</span>
               {% endif %}
+              {% endif %}
             </div>
-            {% endif %}
           </div>
         </div>
         {% endfor %}
@@ -286,3 +292,56 @@ document.addEventListener('keydown', function(e) {
 });
 </script>
 {% endif %}
+
+{# ── «Chi lo ricopre»: modale di sola lettura, anche per i non-admin ────────── #}
+<style>
+.rod-head { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
+.rod-count { font-size:13px; font-weight:700; color:#334155; }
+.rod-legend { font-size:11px; color:#94a3b8; line-height:1.7; }
+.rod-list { display:flex; flex-direction:column; gap:8px; max-height:55vh; overflow-y:auto; }
+.rod-item { display:block; padding:10px 12px; border:1px solid #e2e8f0; border-radius:10px; text-decoration:none; background:#fff; }
+.rod-item:hover { background:#f8fafc; }
+.rod-item-main { display:flex; align-items:center; gap:6px; }
+.rod-name { font-size:14px; font-weight:700; color:#0f172a; }
+.rod-item-meta { font-size:12px; color:#64748b; margin-top:2px; }
+.rod-item-fonti { margin-top:6px; display:flex; gap:5px; flex-wrap:wrap; }
+.rod-empty { padding:24px; text-align:center; color:#94a3b8; font-size:13px; }
+body.theme-dark .rod-count { color:var(--text-mid); }
+body.theme-dark .rod-item { background:var(--surface-alt, #1e293b); border-color:var(--border); }
+body.theme-dark .rod-item:hover { background:var(--tbody-hover, #24334a); }
+body.theme-dark .rod-name { color:var(--text); }
+body.theme-dark .rod-item-meta { color:var(--text-light); }
+</style>
+
+<div class="ro-modal-overlay" id="rod-modal">
+  <div class="ro-modal">
+    <div class="ro-modal-title" id="rod-modal-title">Chi ricopre il ruolo</div>
+    <div id="rod-modal-body"><div class="rod-empty">Caricamento…</div></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+      <button type="button" class="ro-btn ro-btn-ghost" onclick="roCloseDipendenti()">Chiudi</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function roOpenDipendenti(url, nome) {
+  const modal = document.getElementById('rod-modal');
+  const body = document.getElementById('rod-modal-body');
+  document.getElementById('rod-modal-title').textContent = 'Chi ricopre «' + nome + '»';
+  body.innerHTML = '<div class="rod-empty">Caricamento…</div>';
+  modal.classList.add('open');
+  fetch(url, { credentials: 'same-origin' })
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.text(); })
+    .then(html => { body.innerHTML = html; })
+    .catch(() => { body.innerHTML = '<div class="rod-empty">Elenco non disponibile.</div>'; });
+}
+function roCloseDipendenti() {
+  document.getElementById('rod-modal').classList.remove('open');
+}
+document.getElementById('rod-modal').addEventListener('click', function(e) {
+  if (e.target === this) roCloseDipendenti();
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') roCloseDipendenti();
+});
+</script>

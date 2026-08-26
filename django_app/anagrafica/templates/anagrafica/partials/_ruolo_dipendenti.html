@@ -1,0 +1,31 @@
+{# Elenco «chi ricopre il ruolo», caricato via fetch nel modale del catalogo. #}
+{# Context: ruolo, righe (label, reparto, mansione, fonti, cessato).          #}
+<div class="rod-head">
+  <div class="rod-count">{{ righe|length }} person{{ righe|length|pluralize:"a,e" }}</div>
+  <div class="rod-legend">
+    <span class="ro-badge ro-badge-blue">Assegnato</span> ruolo assegnato dal catalogo ·
+    <span class="ro-badge ro-badge-gray">Da scheda</span> «Ruolo aziendale» della scheda dipendente
+  </div>
+</div>
+{% if righe %}
+<div class="rod-list">
+  {% for r in righe %}
+  <a class="rod-item" href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}">
+    <div class="rod-item-main">
+      <span class="rod-name">{{ r.label }}</span>
+      {% if r.cessato %}<span class="ro-badge ro-badge-red">Cessato</span>{% endif %}
+    </div>
+    <div class="rod-item-meta">
+      {{ r.reparto|default:"— reparto n.d. —" }}{% if r.mansione %} · {{ r.mansione }}{% endif %}
+    </div>
+    <div class="rod-item-fonti">
+      {% for f in r.fonti %}
+        <span class="ro-badge {% if f == 'Assegnato' %}ro-badge-blue{% else %}ro-badge-gray{% endif %}">{{ f }}</span>
+      {% endfor %}
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="rod-empty">Nessun dipendente ricopre il ruolo «{{ ruolo.nome }}».</div>
+{% endif %}
