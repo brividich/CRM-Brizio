@@ -1870,6 +1870,11 @@ def dipendente_detail(request, legacy_id: int):
     ruoli_disponibili = RuoloOperativo.objects.filter(is_active=True).exclude(
         id__in=[a.ruolo_id for a in ruoli_assegnati]
     )
+    # Una persona può avere più ruoli: quello scritto nel campo «Ruolo aziendale»
+    # è il principale, e va riconosciuto a colpo d'occhio tra i badge.
+    _principale = (aziendale.ruolo_aziendale or "").strip().casefold() if aziendale else ""
+    for _a in ruoli_assegnati:
+        _a.is_principale = bool(_principale) and _a.ruolo.nome.strip().casefold() == _principale
 
     # Mansioni catalogo
     mansioni_catalogo = list(Mansione.objects.filter(is_active=True).order_by("nome"))
@@ -3254,7 +3259,18 @@ def dipendente_ruolo_assegna(request, legacy_id: int):
         defaults={"assegnato_da": request.user},
     )
     if created:
-        messages.success(request, f'Ruolo "{ruolo.nome}" assegnato.')
+        # Il ruolo aziendale della scheda è il ruolo *principale*: lo si scrive
+        # solo a chi non ne ha ancora uno, per non ribaltare il principale a
+        # ogni ruolo aggiuntivo (una persona può averne più d'uno).
+        from anagrafica.services.ruoli_sync import dopo_assegnazione
+        promosso = dopo_assegnazione(legacy_id, ruolo, user=request.user)
+        if promosso:
+            messages.success(
+                request,
+                f'Ruolo "{ruolo.nome}" assegnato ed impostato come ruolo aziendale principale.',
+            )
+        else:
+            messages.success(request, f'Ruolo "{ruolo.nome}" assegnato.')
     else:
         messages.info(request, f'Ruolo "{ruolo.nome}" già assegnato.')
     return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
@@ -3271,7 +3287,17 @@ def dipendente_ruolo_rimuovi(request, legacy_id: int, assegnazione_id: int):
     assegnazione = get_object_or_404(DipendenteRuoloOperativo, pk=assegnazione_id, legacy_anagrafica_id=legacy_id)
     nome = assegnazione.ruolo.nome
     assegnazione.delete()
-    messages.success(request, f'Ruolo "{nome}" rimosso.')
+    # Tolto il ruolo principale, subentra il primo rimasto: la scheda non deve
+    # restare a indicare un ruolo che la persona non ricopre più.
+    from anagrafica.services.ruoli_sync import dopo_rimozione
+    nuovo_principale = dopo_rimozione(legacy_id, nome, user=request.user)
+    if nuovo_principale:
+        messages.success(
+            request,
+            f'Ruolo "{nome}" rimosso. Ruolo aziendale principale: "{nuovo_principale}".',
+        )
+    else:
+        messages.success(request, f'Ruolo "{nome}" rimosso.')
     return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
 
@@ -6091,6 +6117,13 @@ def _sync_aziendale_from_reparto(
         area_aziendale_precedente if area_aziendale_precedente is not None
         else (az.area_aziendale.nome if az.area_aziendale_id else "")
     )
+    # Nessuno è responsabile di sé stesso: un caporeparto che appartiene al
+    # proprio reparto si ritroverebbe indicato come proprio responsabile nella
+    # scheda e nelle card dell'assetto. Il suo riferimento superiore è semmai
+    # nella gerarchia dei ruoli, non qui.
+    if capo_id and int(capo_id) == int(legacy_id):
+        capo_id = None
+
     az.area = reparto_nome
     az.caporeparto_legacy_id = capo_id
     az.area_aziendale_id = area_id_valido
