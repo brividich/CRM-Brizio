@@ -21,7 +21,7 @@ from django.utils import timezone
 
 from .models import (
     AreaAziendale, DipendenteAnagraficaAziendale, DipendenteAssegnazione,
-    DipendenteCambiamentoOrganizzativo, Mansione, Reparto, RuoloAziendale,
+    DipendenteCambiamentoOrganizzativo, Mansione, Reparto, RuoloOperativo,
 )
 from .tests import _ensure_anagrafica_table
 
@@ -161,7 +161,7 @@ class SpostamentoViewTests(TestCase):
         self.rep_torni = Reparto.objects.create(nome="TORNI", caporeparto_legacy_id=777)
         Reparto.objects.create(nome="CNC")
         self.area = AreaAziendale.objects.create(nome="IN1", reparto=self.rep_torni)
-        RuoloAziendale.objects.create(nome="Capoturno")
+        RuoloOperativo.objects.create(nome="Capoturno")
 
     def _legacy(self, campo):
         with connection.cursor() as cur:
@@ -494,7 +494,7 @@ class SpostamentoDefaultAssettoAttualeTests(TestCase):
         self.rep_cnc = Reparto.objects.create(nome="CNC")
         self.rep_torni = Reparto.objects.create(nome="TORNI")
         self.area = AreaAziendale.objects.create(nome="IN1", reparto=self.rep_cnc)
-        RuoloAziendale.objects.create(nome="Capoturno")
+        RuoloOperativo.objects.create(nome="Capoturno")
         DipendenteAnagraficaAziendale.objects.update_or_create(
             legacy_anagrafica_id=self.legacy_id,
             defaults={

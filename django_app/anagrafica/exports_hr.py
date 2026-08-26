@@ -168,7 +168,9 @@ register(ExportSpec(
 # ── Ruoli aziendali (catalogo) ───────────────────────────────────────────────
 
 def _ruoli_aziendali_rows(request: HttpRequest, scope: str) -> list[dict]:
-    from anagrafica.models import RuoloAziendale
+    # Catalogo unico: anche l'export legacy legge i Ruoli, non più la tabella
+    # `RuoloAziendale` congelata alla migration 0085.
+    from anagrafica.models import RuoloOperativo
 
     return [
         {
@@ -176,7 +178,7 @@ def _ruoli_aziendali_rows(request: HttpRequest, scope: str) -> list[dict]:
             "descrizione": r.descrizione or "",
             "stato": "Attivo" if r.is_active else "Inattivo",
         }
-        for r in RuoloAziendale.objects.all().order_by("nome")
+        for r in RuoloOperativo.objects.all().order_by("nome")
     ]
 
 
