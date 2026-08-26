@@ -1202,6 +1202,29 @@ Ogni pacchetto contiene un **`BUILD_INFO.json`** alla radice (commit e branch ef
 
 ---
 
+## 🔍 Diagnosi in sola lettura sul DB di produzione
+
+Il database di sviluppo è una **copia locale**: quello che ci si legge non dice cosa c'è in produzione. Per interrogare il DB di prod dalla macchina di sviluppo senza poterlo modificare esiste il profilo `config.settings.prod_readonly`.
+
+```powershell
+# 1. login SQL di sola lettura, una volta sola sul server (utenza sysadmin)
+#    docs\prod_readonly_login.sql  -> ruolo db_datareader + DENY sulle scritture
+
+# 2. configurazione locale (il file e' ignorato da git: non committarlo)
+copy docs\env.prod_readonly.example .env.prod_readonly
+#    compilare PRODRO_DB_HOST / PRODRO_DB_NAME / PRODRO_DB_USER / PRODRO_DB_PASSWORD
+
+# 3. uso: qualsiasi comando di sola lettura
+python django_app\manage.py import_assenze_xlsx assenze.xlsx --dry-run --settings=config.settings.prod_readonly
+python django_app\manage.py acl_diagnose --user nome.cognome --path /assenze/ --settings=config.settings.prod_readonly
+```
+
+Il profilo è **solo da CLI** (non serve un sito) e protegge su due livelli: il grant `db_datareader` sul server — la barriera autorevole — e, lato client, `config/readonly_guard.py`, che rifiuta DML/DDL prima che la query parta e vieta le migrazioni. Se manca la configurazione il profilo si ferma subito indicando il file atteso. Percorso alternativo del file con la variabile `PROD_READONLY_ENV_FILE`.
+
+Restano fuori da questo profilo, per scelta, tutte le scritture: import veri, `migrate`, deploy. Quelli si lanciano sul server.
+
+---
+
 ## ⚡ Comandi utili
 
 ```powershell
