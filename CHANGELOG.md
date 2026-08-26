@@ -10,6 +10,16 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ### Added
 
+- **Assenze · import da file Excel, idempotente** (nuovi `django_app/assenze/management/commands/import_assenze_xlsx.py` e `django_app/assenze/test_import_xlsx.py`, `README.md`).
+
+  Il modulo sapeva ricevere assenze da una via sola: il pull da SharePoint (`sync_assenze_sharepoint`). Quando i dati arrivano come foglio Excel — un export della lista «Calendario assenze», o uno storico di una lista non più raggiungibile — non c'era modo di caricarli se non a mano, riga per riga.
+
+  Il comando `manage.py import_assenze_xlsx <file.xlsx>` legge l'header in prima riga (`Data inizio | Data fine | Nome Cognome | Tipoassenza | Stato approvazione`, con alias tolleranti e le colonne accessorie dell'export ignorate) e scrive sulla tabella legacy `assenze` **riconciliando invece di accodare**: chiave naturale `(nominativo normalizzato, giorno di inizio, giorno di fine)` — la riga assente viene **inserita**, quella presente e diversa viene **aggiornata nei soli campi cambiati**, quella identica **non produce alcuna scrittura**. Rieseguire l'import sullo stesso file non crea doppioni. Fra più candidati dello stesso giorno vince prima la riga con orari identici, poi quella con lo stesso tipo di assenza; ogni riga di DB può essere abbinata a una sola riga del file, così due permessi nello stesso giorno restano due record.
+
+  Il confronto passa dagli stessi normalizzatori delle view (`_tipo_for_storage`, `_norm_consenso`), quindi «Approvato» dal foglio e `moderation_status=0` dal DB sono lo stesso stato e non generano un update fittizio; i secondi non sono significativi, il cambio di orario nello stesso giorno sì. L'update **non tocca `sharepoint_item_id`**: una riga già legata alla lista resta legata. Il comando si adatta allo schema realmente presente (`legacy_table_columns`), ha `--dry-run` (esegue tutta la riconciliazione e stampa il riepilogo senza salvare), `--sheet`, `--limit`, `--verbose` e chiude il riepilogo con create/aggiornate/invariate/saltate.
+
+  **Avvertenza dichiarata dal comando stesso**: le righe inserite da file nascono senza `sharepoint_item_id` e il push di sincronizzazione (`/assenze/api/sync/push`, invocato anche in automatico al salvataggio di una certificazione presenza) le creerebbe come **nuovi elementi** nella lista SharePoint. Se la lista è ancora viva, la via corretta resta `sync_assenze_sharepoint --force`. Nove test.
+
 - **Assets · voci a mano nella timeline di vita, con modifica e cancellazione** (`django_app/assets/models.py`, `views.py`, migration `0091_assetcategory_detail_timeline_manual_enabled_and_more.py`, template `assets/pages/asset_detail.html` e `assets/pages/gestione_admin.html`, `tests.py`).
 
   La timeline della scheda asset sapeva raccontare solo cio che era passato dal portale: registrazione a inventario, assegnazione, messa in servizio ricavata dall'anno della macchina. Tutto il resto della vita reale di un asset — un fermo di tre settimane, un trasloco di reparto, un collaudo eseguito dal costruttore, una modifica strutturale — non lasciava traccia, e la timeline finiva per essere una cronologia amministrativa invece che la storia della macchina.
