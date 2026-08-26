@@ -10,6 +10,16 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ### Added
 
+- **Diagnosi in sola lettura sul database di produzione** (nuovi `django_app/config/settings/prod_readonly.py`, `django_app/config/readonly_guard.py`, `django_app/core/test_readonly_guard.py`, `docs/env.prod_readonly.example`, `docs/prod_readonly_login.sql`, `README.md`).
+
+  Il database di sviluppo è una copia locale (`localhost\SQLEXPRESS`): guardarlo per capire cosa c'è in produzione porta a conclusioni sbagliate — un `--dry-run` sulla copia diceva «245 righe da creare» dove in produzione le stesse righe esistevano già. Il server di prod è raggiungibile in rete (TCP 1433 aperto), ma finora l'unico modo di interrogarlo era chiedere a una persona di lanciare la query e riportare l'output.
+
+  Nuovo profilo `config.settings.prod_readonly`, pensato per la CLI e non per servire un sito: `python manage.py <comando> --settings=config.settings.prod_readonly`. Legge host e credenziali da `.env.prod_readonly` nella radice del repo — file ignorato da git, con chiavi a prefisso dedicato `PRODRO_*` per non poter collidere con le `DB_*` dello sviluppo — o dal percorso in `PROD_READONLY_ENV_FILE`. Se la configurazione manca, **si ferma subito** con l'indicazione del file atteso e dei due template.
+
+  **Due barriere, non una.** Quella autorevole è il grant sul server SQL: `docs/prod_readonly_login.sql` crea un login col solo ruolo `db_datareader` più un `DENY INSERT, UPDATE, DELETE, ALTER, EXECUTE` che continua a valere anche se un domani l'utenza finisse in un ruolo più ampio. Quella lato client è `config/readonly_guard.py`: un `execute_wrapper` che riconosce DML e DDL — CTE iniziale inclusa, così `WITH ... INSERT` non passa per una SELECT — e le rifiuta prima che la query parta, più un router che vieta le migrazioni. La barriera vive fuori dal modulo di settings e si installa con una chiamata esplicita, perché importarla non deve poter rendere read-only le connessioni di un processo che non l'ha chiesto (la suite di test, per dire). Il profilo azzera anche cache su tabella ed email, che sarebbero scritture collaterali all'avvio.
+
+  Il fail-fast usa `RuntimeError` e non `ImproperlyConfigured` per una ragione precisa: `ManagementUtility.execute` cattura quest'ultima e la degrada a `settings_exception`, col risultato che `manage.py check` riportava «no issues» su un profilo del tutto non configurato e `DATABASES` vuoto. Sei test sulla barriera; verificata end-to-end contro il SQL Server locale (lettura OK, INSERT/UPDATE/DELETE/DROP tutte respinte).
+
 - **Assenze · import da file Excel, idempotente** (nuovi `django_app/assenze/management/commands/import_assenze_xlsx.py` e `django_app/assenze/test_import_xlsx.py`, `README.md`).
 
   Il modulo sapeva ricevere assenze da una via sola: il pull da SharePoint (`sync_assenze_sharepoint`). Quando i dati arrivano come foglio Excel — un export della lista «Calendario assenze», o uno storico di una lista non più raggiungibile — non c'era modo di caricarli se non a mano, riga per riga.
