@@ -221,3 +221,57 @@ class ImportAssenzeXlsxTests(TestCase):
         )
         self._run(path, limit=1)
         self.assertEqual(len(self._fetch()), 1)
+
+
+class ImportAssenzeVincoloLegacyTests(TestCase):
+    """Una riga rifiutata dal DB non deve far fallire tutto l'import."""
+
+    def setUp(self):
+        with connection.cursor() as cursor:
+            cursor.execute("DROP TABLE IF EXISTS assenze")
+            cursor.execute(
+                """
+                CREATE TABLE assenze (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    sharepoint_item_id VARCHAR(64) NULL,
+                    copia_nome VARCHAR(200) NULL,
+                    tipo_assenza VARCHAR(100) NULL
+                        CHECK (tipo_assenza IN ('Ferie', 'Permesso', 'Malattia', 'Infortunio', 'Altro')),
+                    data_inizio DATETIME NULL,
+                    data_fine DATETIME NULL,
+                    consenso VARCHAR(100) NULL,
+                    moderation_status INTEGER NULL
+                )
+                """
+            )
+        legacy_table_columns.cache_clear()
+        self.addCleanup(legacy_table_columns.cache_clear)
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+
+    def test_riga_rifiutata_non_blocca_le_altre(self):
+        import openpyxl
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(list(HEADER))
+        ws.append(_row("ROSSI MARIO", datetime(2026, 7, 1), datetime(2026, 7, 4, 23, 59)))
+        # 'Flessibilita'' non e' ammesso dal vincolo legacy di questa tabella
+        ws.append(
+            _row("VERDI ANNA", datetime(2026, 7, 2, 6, 0), datetime(2026, 7, 2, 16, 0), tipo="Flessibilità")
+        )
+        ws.append(_row("BIANCHI LUCA", datetime(2026, 7, 3, 8, 0), datetime(2026, 7, 3, 12, 0), tipo="Permesso"))
+        path = Path(self._tmp.name) / "assenze.xlsx"
+        wb.save(path)
+
+        out = StringIO()
+        call_command("import_assenze_xlsx", str(path), stdout=out, stderr=out)
+        output = out.getvalue()
+
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT copia_nome FROM assenze ORDER BY id")
+            nomi = [r[0] for r in cursor.fetchall()]
+
+        self.assertEqual(nomi, ["ROSSI MARIO", "BIANCHI LUCA"])
+        self.assertIn("create                     2", output)
+        self.assertIn("errori                     1", output)
