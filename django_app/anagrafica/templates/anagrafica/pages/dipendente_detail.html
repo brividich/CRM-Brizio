@@ -1914,8 +1914,8 @@ body.theme-dark .dp-link-ok { color:#86efac; }
     <div class="dp-card-body">
       <div class="dp-ruoli-list" id="ruoli-list">
         {% for a in ruoli_assegnati %}
-          <span class="dp-ruolo-badge" style="background-color:{{ a.ruolo.colore }};">
-            {% if a.ruolo.icona %}{{ a.ruolo.icona }} {% endif %}{{ a.ruolo.nome }}
+          <span class="dp-ruolo-badge" style="background-color:{{ a.ruolo.colore }};"{% if a.is_principale %} title="Ruolo aziendale principale: è quello che compare nella scheda e negli spostamenti"{% endif %}>
+            {% if a.is_principale %}⭐ {% endif %}{% if a.ruolo.icona %}{{ a.ruolo.icona }} {% endif %}{{ a.ruolo.nome }}
             {% if is_admin %}
               <form method="post" action="{% url 'anagrafica:dipendente_ruolo_rimuovi' legacy_id a.id %}" style="display:inline;">
                 {% csrf_token %}
@@ -1927,6 +1927,11 @@ body.theme-dark .dp-link-ok { color:#86efac; }
           <span style="font-size:13px;color:#94a3b8;">Nessun ruolo operativo assegnato.</span>
         {% endfor %}
       </div>
+      {% if ruoli_assegnati %}
+      <div style="font-size:11px;color:#94a3b8;margin-top:6px;">
+        ⭐ = ruolo aziendale principale, quello mostrato nella scheda e negli spostamenti. Gli altri restano assegnati.
+      </div>
+      {% endif %}
       {% if is_admin and ruoli_disponibili %}
         <form method="post" action="{% url 'anagrafica:dipendente_ruolo_assegna' legacy_id %}" class="dp-ruolo-form">
           {% csrf_token %}

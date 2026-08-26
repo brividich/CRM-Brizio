@@ -312,15 +312,24 @@ def _aggiorna_ruolo_aziendale(legacy_id: int, ruolo: str, *, user, data_decorren
     if not (ruolo or "").strip():
         return
 
+    from .ruoli_sync import assicura_assegnazione
+
     az, _ = DipendenteAnagraficaAziendale.objects.get_or_create(
         legacy_anagrafica_id=legacy_id, defaults={"updated_by": user},
     )
     precedente = az.ruolo_aziendale or ""
     if precedente.strip().casefold() == (ruolo or "").strip().casefold():
+        # Stesso ruolo di prima: niente da storicizzare, ma l'assegnazione può
+        # mancare lo stesso (schede più vecchie della card «Ruoli operativi»).
+        assicura_assegnazione(legacy_id, ruolo, user=user)
         return
     az.ruolo_aziendale = ruolo
     az.updated_by = user
     az.save(update_fields=["ruolo_aziendale", "updated_by", "updated_at"])
+    # Il ruolo principale è uno dei ruoli della persona: se lo spostamento ne
+    # nomina uno del catalogo, deve comparire anche tra le assegnazioni. Le
+    # altre non si toccano — il multiruolo resta.
+    assicura_assegnazione(legacy_id, ruolo, user=user)
     _registra_cambiamento(
         legacy_id,
         DipendenteCambiamentoOrganizzativo.TIPO_RUOLO_AZIENDALE,
