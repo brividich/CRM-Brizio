@@ -161,6 +161,16 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
   La copia **portable** è la strada consigliata perché riusa la stessa build su cui l'estrazione è stata tarata: fra major di Tesseract cambia il motore di riconoscimento, e installarne una diversa introdurrebbe una variabile proprio nel punto misurato. Se `ita` manca, lo script **si ferma prima** di toccare il `.env`, per non lasciare l'host a metà.
 
+### Changed
+
+- **KICK-OFF · creare un kickoff crea il suo primo incontro e ci porta sopra** (`django_app/tasks/views.py`, `tests.py`, `tests_meeting_flow.py`, `README.md`).
+
+  Dopo il salvataggio di un nuovo kickoff il portale reindirizzava alla compilazione della scheda VRF. Ma un kickoff senza incontri è un kickoff che non è ancora partito: l'incontro di avvio è il passo successivo obbligato, e finora andava ricordato e creato a mano da una pagina diversa.
+
+  Ora la creazione genera anche l'**incontro 1** — stato «Pianificato», data odierna da correggere, e PM, capo commessa e programmatore già fra i partecipanti (sono le persone appena indicate nel form, non un'invenzione) — e porta direttamente alla sua **convocazione**, dove si completano data, luogo e ordine del giorno. Creazione del progetto e dell'incontro avvengono nella stessa transazione; l'helper è idempotente, un kickoff che ha già un incontro non ne riceve un secondo.
+
+  Il ramo di **riuso** di un kickoff esistente (stesso P/N + revisione + versione) non è una creazione e resta invariato: nessun incontro nuovo, redirect alla scheda VRF come prima. La scheda VRF non è più il passo imposto dopo la creazione ma resta raggiungibile dalle tab di commessa, dalla checklist di prontezza e dal centro «Da gestire», e la sua assenza continua a pesare sul gate di prontezza.
+
 ### Removed
 
 - **Assets · rimossa l'integrazione SharePoint dal modulo asset** (`django_app/assets/views.py`, `models.py`, `forms.py`, `admin.py`, `urls.py`, `tests.py`, migration `0090_remove_sharepoint_fields.py`, template `asset_detail.html`, `asset_form.html`, `work_machine_form.html`, `gestione_admin.html`, `asset_qr_landing.html`, `asset_label_designer.html`, `django_app/assets/README.md`; eliminati `assets/services/sharepoint_public_links.py`, `assets/management/commands/sync_asset_documents_from_sharepoint.py`, `assets_ensure_public_share_links.py`, `assets_ensure_sharepoint_metadata.py`, `docs/assets/SHAREPOINT_UPLOAD_REVIEW.md`, `docs/assets/SHAREPOINT_CARTELLE_ASSET_GUIDE.md`; ripuliti `django_app/config/settings/base.py`, `django_app/hub_tools/views.py`, `hub_tools/templates/hub_tools/setup_wizard.html`, `hub_tools/tests.py`, `README.md`).
