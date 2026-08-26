@@ -17,8 +17,10 @@
     </div>
     <div class="rod-item-meta">
       {{ r.reparto|default:"— reparto n.d. —" }}{% if r.mansione %} · {{ r.mansione }}{% endif %}
+      {% if r.dal %} · dal {{ r.dal|date:"d/m/Y" }}{% if r.al %} al {{ r.al|date:"d/m/Y" }}{% endif %}{% endif %}
     </div>
     <div class="rod-item-fonti">
+      {% if r.tipologia %}<span class="ro-badge ro-badge-gray">{{ r.tipologia }}</span>{% endif %}
       {% for f in r.fonti %}
         <span class="ro-badge {% if f == 'Assegnato' %}ro-badge-blue{% else %}ro-badge-gray{% endif %}">{{ f }}</span>
       {% endfor %}
