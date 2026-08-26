@@ -23,7 +23,9 @@ Se il gestionale dà a una persona due principali (succede: il file lo segnala
 da sé) si tiene la più recente per data di inizio e si riporta l'anomalia.
 
 **La gerarchia fra ruoli** si deduce da `Ruolo responsabile` sulle assegnazioni
-in corso, e si scrive **solo dove è univoca**: un ruolo che secondo il file
+in corso — dove «in corso» significa senza data di fine *oppure con una fine
+futura*, perché il gestionale registra le uscite in anticipo — e si scrive
+**solo dove è univoca**: un ruolo che secondo il file
 riporta a due ruoli diversi resta senza `riporta_a` e finisce nel report. Un
 ruolo che risulta riportare a sé stesso viene ignorato.
 
@@ -43,6 +45,7 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from django.utils import timezone
 
 from anagrafica.models import (
     DipendenteAnagraficaAziendale,
@@ -78,6 +81,15 @@ def _data(value) -> datetime.date | None:
         except ValueError:
             continue
     return None
+
+
+def _in_corso(data_fine: datetime.date | None) -> bool:
+    """Una data di fine futura non conclude nulla: il ruolo è ancora in essere.
+
+    Il gestionale registra le uscite in anticipo — «Operatore CN5 fino al
+    31/08» è una persona che oggi quel ruolo lo ricopre eccome.
+    """
+    return data_fine is None or data_fine >= timezone.localdate()
 
 
 def _leggi(path: Path, foglio: str | None = None) -> tuple[list[str], list[tuple]]:
@@ -256,7 +268,7 @@ class Command(BaseCommand):
 
             # La gerarchia guarda solo i ruoli in essere: un riporto chiuso nel
             # 2019 non descrive l'organizzazione di oggi.
-            if gerarchia and i_ruolo_resp is not None and not data_fine:
+            if gerarchia and i_ruolo_resp is not None and _in_corso(data_fine):
                 capo = _testo(riga[i_ruolo_resp])
                 if capo and capo.casefold() != nome_ruolo.casefold():
                     supervisori.setdefault(nome_ruolo.casefold(), set()).add(capo)
@@ -285,7 +297,7 @@ class Command(BaseCommand):
             creati += int(creata)
             completati += int(bool(campi) and not creata)
 
-            if tipologia == DipendenteRuoloOperativo.TIPOLOGIA_PRINCIPALE and not data_fine:
+            if tipologia == DipendenteRuoloOperativo.TIPOLOGIA_PRINCIPALE and _in_corso(data_fine):
                 precedente = principali.get(legacy_id)
                 if precedente is None:
                     principali[legacy_id] = (ruolo.nome, data_inizio)

@@ -156,6 +156,29 @@ class ImportRuoliTests(TestCase):
         self.assertEqual(ass.data_fine, datetime.date(2021, 12, 31))
         self.assertTrue(ass.is_conclusa)
 
+    def test_uscita_programmata_conserva_il_ruolo_principale(self):
+        """Fine futura = ruolo ancora in essere: il gestionale la registra prima."""
+        import datetime
+
+        from django.utils import timezone
+
+        futura = (timezone.localdate() + datetime.timedelta(days=20)).strftime("%d/%m/%Y")
+        self._import_base([
+            [1, "ROSSI MARIO", CF_UNO, "Capocommessa", "", "", "", "Principale", "", 100, "01/03/2020", futura],
+        ], "--apply")
+        az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=self.ids["u.uno"])
+        self.assertEqual(az.ruolo_aziendale, "Capocommessa")
+
+    def test_ruolo_gia_finito_non_diventa_principale(self):
+        self._import_base([
+            [1, "ROSSI MARIO", CF_UNO, "Capocommessa", "", "", "", "Principale", "", 100, "01/03/2019", "31/12/2021"],
+        ], "--apply")
+        self.assertFalse(
+            DipendenteAnagraficaAziendale.objects
+            .filter(legacy_anagrafica_id=self.ids["u.uno"])
+            .exclude(ruolo_aziendale="").exists()
+        )
+
     def test_persona_senza_codice_fiscale_noto_viene_saltata_e_segnalata(self):
         out = self._import_base([
             [1, "IGNOTO TIZIO", CF_IGNOTO, "Capocommessa", "", "", "", "Principale", "", 100, "01/03/2020", None],

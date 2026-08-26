@@ -185,6 +185,12 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ### Fixed
 
+- **Anagrafica · un ruolo concluso non è più il «ruolo aziendale» di nessuno** (`django_app/anagrafica/management/commands/report_ruoli_disallineati.py`, `import_ruoli_gestionale.py`, `tests_ruoli_sync.py`, `tests_import_ruoli.py`).
+
+  Il primo `--apply` in produzione ha promosso a «Ruolo aziendale» **17 ruoli ormai finiti**: la riparazione «assegnato senza principale» guardava tutte le assegnazioni, comprese quelle chiuse anni fa, e scriveva in scheda un ruolo che la persona non ricopre più. Ora il report separa le assegnazioni **in essere** da quelle **concluse**: le concluse non promuovono nessuno, e la nuova famiglia «Ruolo aziendale che punta a un ruolo CONCLUSO» ripulisce i casi già scritti, promuovendo l'unico ruolo in essere o svuotando il campo (con più ruoli in essere si salta: quale sia il principale è una scelta, non un automatismo).
+
+  Correlato, nell'import: **una data di fine futura non conclude niente**. Il gestionale registra le uscite in anticipo, e «Operatore CN5 fino al 31/08» è una persona che quel ruolo oggi lo ricopre eccome — prima veniva scartata sia dal ruolo principale sia dalla gerarchia fra ruoli. Il criterio è ora unico (`_in_corso`) e vale per entrambi.
+
 - **Anagrafica · «responsabile senza reparto» cancellava dati buoni; l'import ora dichiara le assegnazioni che il gestionale non conferma** (`django_app/anagrafica/management/commands/report_ruoli_disallineati.py`, `import_ruoli_gestionale.py`, `tests_ruoli_sync.py`, `tests_import_ruoli.py`).
 
   Il primo giro in produzione ha smascherato un criterio troppo grezzo: «nessun reparto ma un responsabile» segnalava **74 persone**, e `--apply` avrebbe azzerato 74 responsabili corretti. Il reparto legacy è testo libero e in produzione è vuoto per la maggioranza: chi è collocato tramite `area` o tramite la FK `area_aziendale` **non è anomalo**, e in ogni caso il dato che manca è la collocazione, non il responsabile. Ora la famiglia guarda tutte e tre le collocazioni, è dichiarata **segnalazione e non riparazione**, e `--apply` non la tocca: serve `--azzera-responsabili-scollegati` per cancellare davvero. Resta automatica la riparazione dei **responsabili di sé stessi** (in produzione erano 8, tutti caporeparto assegnati al proprio reparto), che è un dato senza significato.
