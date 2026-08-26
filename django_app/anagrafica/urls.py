@@ -61,6 +61,8 @@ urlpatterns = [
     path("ruoli-operativi/<int:ruolo_id>/modifica", views.ruolo_operativo_edit, name="ruolo_operativo_edit"),
     path("ruoli-operativi/<int:ruolo_id>/elimina", views.ruolo_operativo_delete, name="ruolo_operativo_delete"),
     path("ruoli-operativi/<int:ruolo_id>/dipendenti", views.ruolo_operativo_dipendenti, name="ruolo_operativo_dipendenti"),
+    path("ruoli-operativi/<int:ruolo_id>/qualifiche/aggiungi", views.ruolo_qualifica_aggiungi, name="ruolo_qualifica_aggiungi"),
+    path("ruoli-operativi/<int:ruolo_id>/qualifiche/<int:assoc_id>/rimuovi", views.ruolo_qualifica_rimuovi, name="ruolo_qualifica_rimuovi"),
 
     # Impostazioni permessi widget
     path("impostazioni-widget/", views.widget_permissions, name="widget_permissions"),

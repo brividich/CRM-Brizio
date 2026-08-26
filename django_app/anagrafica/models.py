@@ -353,9 +353,43 @@ class RuoloOperativo(models.Model):
 
 
 class DipendenteRuoloOperativo(models.Model):
-    """Assegnazione di un ruolo operativo a un dipendente (via ID legacy anagrafica)."""
+    """Assegnazione di un ruolo operativo a un dipendente (via ID legacy anagrafica).
+
+    Una persona può ricoprire più ruoli insieme. Fra questi, quello indicato
+    come **principale** è anche il «Ruolo aziendale» della scheda
+    (``DipendenteAnagraficaAziendale.ruolo_aziendale``, campo testuale singolo);
+    ``tipologia`` conserva la distinzione che il gestionale già faceva —
+    principale, secondario, ad interim — che il solo campo testuale non
+    saprebbe rappresentare.
+
+    ``data_inizio``/``data_fine`` datano l'assegnazione: da quando la persona
+    ricopre il ruolo, e fino a quando se è conclusa. Un'assegnazione senza date
+    è semplicemente in essere, come tutte quelle create prima dell'import.
+    """
+    TIPOLOGIA_PRINCIPALE = "PRINCIPALE"
+    TIPOLOGIA_SECONDARIO = "SECONDARIO"
+    TIPOLOGIA_AD_INTERIM = "AD_INTERIM"
+    TIPOLOGIA_CHOICES = [
+        (TIPOLOGIA_PRINCIPALE, "Principale"),
+        (TIPOLOGIA_SECONDARIO, "Secondario"),
+        (TIPOLOGIA_AD_INTERIM, "Ad interim"),
+    ]
+
     legacy_anagrafica_id = models.IntegerField(db_index=True)
     ruolo = models.ForeignKey(RuoloOperativo, on_delete=models.CASCADE, related_name="assegnazioni")
+    tipologia = models.CharField(
+        max_length=20, choices=TIPOLOGIA_CHOICES, blank=True, default="",
+        verbose_name="Tipologia associazione",
+        help_text="Principale = è anche il «Ruolo aziendale» della scheda.",
+    )
+    data_inizio = models.DateField(
+        null=True, blank=True, verbose_name="Da",
+        help_text="Data di decorrenza del ruolo. Vuota = non nota.",
+    )
+    data_fine = models.DateField(
+        null=True, blank=True, verbose_name="A",
+        help_text="Data di fine. Vuota = ruolo in essere.",
+    )
     assegnato_da = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -369,6 +403,13 @@ class DipendenteRuoloOperativo(models.Model):
         unique_together = [("legacy_anagrafica_id", "ruolo")]
         verbose_name = "Ruolo operativo dipendente"
         verbose_name_plural = "Ruoli operativi dipendenti"
+
+    @property
+    def is_conclusa(self) -> bool:
+        """Il ruolo è finito. Una data futura non conclude nulla: si guarda oggi."""
+        from django.utils import timezone
+
+        return bool(self.data_fine and self.data_fine < timezone.localdate())
 
     def __str__(self) -> str:
         return f"[{self.legacy_anagrafica_id}] → {self.ruolo.nome}"
@@ -539,6 +580,43 @@ class TipoQualifica(models.Model):
 
     def __str__(self) -> str:
         return self.nome
+
+
+class RuoloQualifica(models.Model):
+    """Qualifica attesa da un ruolo del catalogo (associazione modificabile a mano).
+
+    Il gestionale storico associava skill e livello a ciascun ruolo; l'export
+    di quella matrice è arrivato vuoto, quindi l'associazione si costruisce e
+    si corregge **dal portale**, dalla card del ruolo. Resta una dichiarazione
+    di *cosa serve* per ricoprire il ruolo: non certifica nessuno — chi ha
+    davvero la qualifica lo dicono le `DipendenteQualifica`.
+    """
+    ruolo = models.ForeignKey(
+        RuoloOperativo, on_delete=models.CASCADE, related_name="qualifiche_richieste",
+    )
+    qualifica = models.ForeignKey(
+        "TipoQualifica", on_delete=models.CASCADE, related_name="ruoli_che_la_richiedono",
+    )
+    livello = models.CharField(
+        max_length=50, blank=True, default="",
+        help_text="Livello atteso, se il ruolo lo distingue (es. «Base», «2», «Esperto»).",
+    )
+    obbligatoria = models.BooleanField(
+        default=True,
+        help_text="Se attiva, la qualifica è un requisito; altrimenti è preferenziale.",
+    )
+    note = models.CharField(max_length=200, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("ruolo", "qualifica")]
+        ordering = ["qualifica__nome"]
+        verbose_name = "Qualifica richiesta dal ruolo"
+        verbose_name_plural = "Qualifiche richieste dai ruoli"
+
+    def __str__(self) -> str:
+        return f"{self.ruolo.nome} → {self.qualifica.nome}"
+
 
 
 def _dipendente_qualifica_evidenza_upload_to(instance, filename: str) -> str:
