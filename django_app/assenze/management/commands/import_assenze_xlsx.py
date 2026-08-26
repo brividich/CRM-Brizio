@@ -164,7 +164,8 @@ _SQL_MESSAGE_RE = re.compile(r"\[SQL Server\](.+?)\s*\(\d+\)", re.DOTALL)
 
 def _short_error(exc: Exception) -> str:
     """Estrae il messaggio leggibile da un errore ODBC verboso."""
-    text = " ".join(str(exc).split())
+    # pyodbc espone l'errore come repr di tupla: gli apici restano escapati.
+    text = " ".join(str(exc).split()).replace("\\'", "'")
     match = _SQL_MESSAGE_RE.search(text)
     return (match.group(1) if match else text).strip()[:300]
 
