@@ -4,7 +4,10 @@ from django.contrib.sessions.backends.db import SessionStore
 from django.test import RequestFactory, TestCase
 
 from anagrafica.models import DipendenteRuoloOperativo, RuoloOperativo
-from anagrafica.services.organigramma_albero import build_posizioni_albero
+from anagrafica.services.organigramma_albero import (
+    build_posizioni_albero,
+    griglia_riporti,
+)
 
 User = get_user_model()
 
@@ -63,6 +66,35 @@ class PosizioniAlberoTests(TestCase):
         self.assertIs(nodo["titolari"][0]["ha_foto"], False)
 
 
+    def test_molti_riporti_foglia_vanno_su_piu_colonne(self):
+        capo = RuoloOperativo.objects.create(nome="CapoColonne")
+        ruolo = RuoloOperativo.objects.create(nome="Tecnico", riporta_a=capo)
+        for lid in range(1, 7):  # 6 titolari > SOGLIA_COLONNE
+            DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=lid, ruolo=ruolo)
+
+        albero = build_posizioni_albero()
+        nodo_capo = next(n for n in albero if n["ruolo"].nome == "CapoColonne")
+        self.assertEqual(len(nodo_capo["figli"]), 6)
+        self.assertIs(nodo_capo["griglia"], True)
+
+    def test_riporti_con_sottoalbero_restano_in_colonna_singola(self):
+        capo = RuoloOperativo.objects.create(nome="CapoMisto")
+        for i in range(6):
+            sub = RuoloOperativo.objects.create(nome=f"Sub{i}", riporta_a=capo)
+            DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=100 + i, ruolo=sub)
+        # uno dei riporti ha a sua volta un riporto: niente colonne
+        RuoloOperativo.objects.create(nome="Nipote", riporta_a=RuoloOperativo.objects.get(nome="Sub0"))
+
+        albero = build_posizioni_albero()
+        nodo_capo = next(n for n in albero if n["ruolo"].nome == "CapoMisto")
+        self.assertIs(nodo_capo["griglia"], False)
+
+    def test_griglia_riporti_soglia(self):
+        foglie = [{"figli": []} for _ in range(5)]
+        self.assertIs(griglia_riporti(foglie), False)
+        self.assertIs(griglia_riporti(foglie + [{"figli": []}]), True)
+
+
 class OrganigrammaDiagrammaViewTests(TestCase):
     def setUp(self):
         self.su = User.objects.create_superuser("su-diag", "su-diag@test.local", "x")
@@ -81,4 +113,4 @@ class OrganigrammaDiagrammaViewTests(TestCase):
         body = resp.content.decode()
         self.assertIn("CoordDiag", body)
         self.assertIn("TecnicoDiag", body)
-        self.assertIn("ogd-card", body)  # riquadri disegnati
+        self.assertIn("ogd-row", body)  # righe disegnate

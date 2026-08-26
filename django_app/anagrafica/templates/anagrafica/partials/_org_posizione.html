@@ -1,33 +1,42 @@
-{# Nodo ricorsivo del diagramma organigramma. Riceve: nodo (only). #}
-<li class="ogd-li{% if nodo.figli %} ogd-has-children{% endif %}">
-  <div class="ogd-card ogd-card--{{ nodo.tipo }}">
-    <div class="ogd-avatars">
-      {% for t in nodo.titolari %}
+{# Nodo ricorsivo dell'organigramma verticale. Riceve: nodo (only). #}
+<li class="ogd-node{% if nodo.figli %} ogd-has-children{% endif %}">
+  <div class="ogd-row ogd-row--{{ nodo.tipo }}">
+    {% if nodo.figli %}
+      <button type="button" class="ogd-toggle" data-ogd-toggle aria-expanded="true"
+              title="Comprimi / espandi i riporti">▾</button>
+    {% else %}
+      <span class="ogd-toggle ogd-toggle--leaf" aria-hidden="true">•</span>
+    {% endif %}
+
+    <span class="ogd-avatars">
+      {% for t in nodo.titolari|slice:":3" %}
         {% if t.ha_foto %}
           <img class="ogd-avatar" src="{% url 'anagrafica:foto_dipendente' t.legacy_id %}" alt="" loading="lazy">
         {% else %}
           <span class="ogd-avatar ogd-avatar--ph" aria-hidden="true">{{ t.nome|slice:":1"|upper|default:"?" }}</span>
         {% endif %}
       {% empty %}
-        <span class="ogd-avatar ogd-avatar--vac" aria-hidden="true">—</span>
+        <span class="ogd-avatar ogd-avatar--vac" aria-hidden="true">?</span>
       {% endfor %}
-    </div>
-    <div class="ogd-role" title="{{ nodo.ruolo.nome }}">{{ nodo.ruolo.nome }}</div>
-    <div class="ogd-chips">
-      {% for t in nodo.titolari %}
-        <span class="ogd-chip">{{ t.nome|default:t.legacy_id }}</span>
-      {% empty %}
-        <span class="ogd-chip ogd-chip--vac">Posizione scoperta</span>
-      {% endfor %}
-    </div>
+      {% if nodo.titolari|length > 3 %}
+        <span class="ogd-avatar ogd-avatar--piu" aria-hidden="true">+{{ nodo.titolari|length|add:"-3" }}</span>
+      {% endif %}
+    </span>
+
+    <span class="ogd-txt">
+      <span class="ogd-role" title="{{ nodo.ruolo.nome }}">{{ nodo.ruolo.nome }}</span>
+      <span class="ogd-people">
+        {% for t in nodo.titolari %}{{ t.nome|default:t.legacy_id }}{% if not forloop.last %} · {% endif %}{% empty %}Posizione scoperta{% endfor %}
+      </span>
+    </span>
+
     {% if nodo.figli %}
-      <button type="button" class="ogd-toggle" data-ogd-toggle aria-expanded="true"
-              title="Comprimi / espandi i riporti">−</button>
+      <span class="ogd-count-badge" title="riporti diretti">{{ nodo.figli|length }}</span>
     {% endif %}
   </div>
 
   {% if nodo.figli %}
-    <ul class="ogd-children">
+    <ul class="ogd-children{% if nodo.griglia %} ogd-children--cols{% endif %}">
       {% for figlio in nodo.figli %}
         {% include "anagrafica/partials/_org_posizione.html" with nodo=figlio only %}
       {% endfor %}
