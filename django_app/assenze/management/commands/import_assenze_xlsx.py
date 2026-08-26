@@ -44,7 +44,6 @@ from assenze.views import (
     _CONSENSO_TO_MOD,
     _as_int,
     _fetch_all_dict,
-    _insert_row_and_return_id,
     _norm_consenso,
     _quote_identifier,
     _quoted_columns,
@@ -406,16 +405,24 @@ class Command(BaseCommand):
                                 if match is None:
                                     payload = {k: v for k, v in record.items() if k in cols}
                                     insert_cols = list(payload.keys())
-                                    new_id = _insert_row_and_return_id(
-                                        cursor, "assenze", insert_cols, [payload[c] for c in insert_cols]
+                                    # INSERT a istruzione singola: il batch di
+                                    # _insert_row_and_return_id (DECLARE/OUTPUT/SELECT)
+                                    # lascia result set pendenti quando SQL Server
+                                    # rifiuta la riga, e il rollback al savepoint
+                                    # fallisce invalidando l'intera transazione.
+                                    placeholders = ", ".join(["%s"] * len(insert_cols))
+                                    cursor.execute(
+                                        f"INSERT INTO assenze ({_quoted_columns(insert_cols)}) "
+                                        f"VALUES ({placeholders})",
+                                        [payload[c] for c in insert_cols],
                                     )
                                     stats["create"] += 1
                                     create_senza_sp += 1
                                     if verbose:
                                         nome = record["copia_nome"]
                                         self.stdout.write(
-                                            f"  riga {excel_row}: CREATA id={new_id} {nome} "
-                                            f"{record['tipo_assenza']}"
+                                            f"  riga {excel_row}: CREATA {nome} {record['tipo_assenza']} "
+                                            f"{record['data_inizio']:%d/%m/%Y}"
                                         )
                                     continue
 
