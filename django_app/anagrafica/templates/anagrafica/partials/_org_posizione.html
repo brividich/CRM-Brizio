@@ -1,0 +1,36 @@
+{# Nodo ricorsivo del diagramma organigramma. Riceve: nodo (only). #}
+<li class="ogd-li{% if nodo.figli %} ogd-has-children{% endif %}">
+  <div class="ogd-card ogd-card--{{ nodo.tipo }}">
+    <div class="ogd-avatars">
+      {% for t in nodo.titolari %}
+        {% if t.ha_foto %}
+          <img class="ogd-avatar" src="{% url 'anagrafica:foto_dipendente' t.legacy_id %}" alt="" loading="lazy">
+        {% else %}
+          <span class="ogd-avatar ogd-avatar--ph" aria-hidden="true">{{ t.nome|slice:":1"|upper|default:"?" }}</span>
+        {% endif %}
+      {% empty %}
+        <span class="ogd-avatar ogd-avatar--vac" aria-hidden="true">—</span>
+      {% endfor %}
+    </div>
+    <div class="ogd-role" title="{{ nodo.ruolo.nome }}">{{ nodo.ruolo.nome }}</div>
+    <div class="ogd-chips">
+      {% for t in nodo.titolari %}
+        <span class="ogd-chip">{{ t.nome|default:t.legacy_id }}</span>
+      {% empty %}
+        <span class="ogd-chip ogd-chip--vac">Posizione scoperta</span>
+      {% endfor %}
+    </div>
+    {% if nodo.figli %}
+      <button type="button" class="ogd-toggle" data-ogd-toggle aria-expanded="true"
+              title="Comprimi / espandi i riporti">−</button>
+    {% endif %}
+  </div>
+
+  {% if nodo.figli %}
+    <ul class="ogd-children">
+      {% for figlio in nodo.figli %}
+        {% include "anagrafica/partials/_org_posizione.html" with nodo=figlio only %}
+      {% endfor %}
+    </ul>
+  {% endif %}
+</li>

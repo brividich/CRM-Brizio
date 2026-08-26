@@ -10,6 +10,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ### Added
 
+- **Anagrafica · organigramma a diagramma, un riquadro per posizione** (nuovi `django_app/anagrafica/templates/anagrafica/pages/organigramma_diagramma.html`, `django_app/anagrafica/templates/anagrafica/partials/_org_posizione.html`, `django_app/anagrafica/tests_organigramma_diagramma.py`; modificati `django_app/anagrafica/services/organigramma_albero.py`, `views.py`, `urls.py`, `templates/anagrafica/pages/organigramma.html`, `templates/anagrafica/pages/organigramma_albero.html`, `README.md`).
+
+  L'organigramma ad albero esisteva già, ma disegnato come elenco rientrato: la gerarchia si leggeva scorrendo l'indentazione, non guardando la forma dell'organizzazione. La terza vista `/anagrafica/organigramma/diagramma/` disegna la **stessa** gerarchia dei ruoli come diagramma top-down con connettori ortogonali — avatar del titolare, ruolo, nome — nel formato con cui gli organigrammi si stampano e si allegano al SGI.
+
+  L'unità di disegno è la **posizione**, non il ruolo: `build_posizioni_albero()` espande i titolari in riquadri distinti. Un ruolo-foglia con cinque titolari diventa cinque riquadri affiancati sotto lo stesso responsabile; un ruolo con un solo titolare resta un riquadro; un ruolo **senza** titolari resta in pianta come **posizione scoperta**. Unica eccezione, dichiarata: un ruolo con più titolari *che ha ruoli subordinati* resta un riquadro unico con tutte le persone — appendere i sottoruoli a un titolare scelto a caso inventerebbe una gerarchia tra persone, che questo modulo non ha mai avuto.
+
+  Rendering SSR senza librerie: connettori in CSS puro (liste annidate + pseudo-elementi), collasso del singolo ramo e «Espandi/Comprimi tutto», zoom con «Adatta» che porta l'intera pianta dentro la larghezza disponibile. Gli avatar passano dalla view protetta `anagrafica:foto_dipendente` **solo per chi la foto ce l'ha davvero** (il servizio precalcola l'insieme, così non si spara una richiesta 404 per ogni persona senza foto); per gli altri si disegna l'iniziale. Sei test nuovi.
+
 - **Assenze · import da file Excel, idempotente** (nuovi `django_app/assenze/management/commands/import_assenze_xlsx.py` e `django_app/assenze/test_import_xlsx.py`, `README.md`).
 
   Il modulo sapeva ricevere assenze da una via sola: il pull da SharePoint (`sync_assenze_sharepoint`). Quando i dati arrivano come foglio Excel — un export della lista «Calendario assenze», o uno storico di una lista non più raggiungibile — non c'era modo di caricarli se non a mano, riga per riga.
