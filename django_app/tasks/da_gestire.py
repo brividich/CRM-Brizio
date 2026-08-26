@@ -133,7 +133,8 @@ def _sec_meetings_open_issues(request, scope):
     )
     items = [
         {
-            "label": m.titolo,
+            # `titolo` e' facoltativo: senza fallback la riga compariva senza etichetta.
+            "label": (m.titolo or "").strip() or f"Incontro {m.numero}",
             "url": _url("tasks:project_meeting_detail", m.project_id, m.id),
             "meta": f"{m.open_issues} problemi aperti",
         }

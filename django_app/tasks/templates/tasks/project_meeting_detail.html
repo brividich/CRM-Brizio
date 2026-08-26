@@ -231,6 +231,31 @@ body.theme-dark .ctm-step-preview { color: #86efac; }
 
 /* Dark mode */
 body.theme-dark .md-hero { background: linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%); }
+
+/* ── Stato incontro e azioni documentali ────────────────────────────── */
+.md-stato {
+  display: inline-flex; align-items: center; gap: 5px;
+  border-radius: 20px; padding: 2px 10px;
+  font-size: .75rem; font-weight: 700; letter-spacing: .02em;
+}
+.md-stato.pianificato { background: var(--warning-bg, #fff7ed); color: var(--warning, #b45309); }
+.md-stato.svolto      { background: var(--success-bg, #ecfdf5); color: var(--success, #059669); }
+.md-stato.annullato   { background: var(--surface-alt, #f1f5f9); color: var(--text-light); }
+.md-docbar {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+}
+.md-docbar-label {
+  font-size: .75rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--text-light); margin-right: 4px;
+}
+.md-docbar form { display: inline; }
+.md-docbar .md-btn { margin: 0; }
+.md-docbar-hint { font-size: .75rem; color: var(--text-light); flex-basis: 100%; margin: 2px 0 0; }
 </style>
 {% endblock %}
 
@@ -257,6 +282,9 @@ body.theme-dark .md-hero { background: linear-gradient(135deg,#0f172a 0%,#1e3a5f
             {{ meeting.luogo }}
           </span>
         {% endif %}
+        <span class="md-meta-item">
+          <span class="md-stato {{ meeting.stato|lower }}">{{ meeting.get_stato_display }}</span>
+        </span>
         {% if meeting.created_by %}
           <span class="md-meta-item">
             <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"/></svg>
@@ -267,14 +295,35 @@ body.theme-dark .md-hero { background: linear-gradient(135deg,#0f172a 0%,#1e3a5f
     </div>
     {% if can_manage %}
       <div class="md-actions">
+        <a class="md-btn" href="{% url 'tasks:project_meeting_minutes' project.id meeting.id %}">{% if meeting.is_svolto %}Aggiorna esito{% else %}Registra esito{% endif %}</a>
         <button type="button" class="md-btn" onclick="openCreateTaskModal('', null)">Crea / assegna attività</button>
-        <a class="md-btn white" href="{% url 'tasks:project_meeting_edit' project.id meeting.id %}">Modifica</a>
+        <a class="md-btn white" href="{% url 'tasks:project_meeting_edit' project.id meeting.id %}">Convocazione</a>
         <form method="post" action="{% url 'tasks:project_meeting_delete' project.id meeting.id %}" style="display:inline;"
               onsubmit="return confirm('Eliminare definitivamente questo incontro?')">
           {% csrf_token %}
           <button type="submit" class="md-btn danger-ghost">Elimina</button>
         </form>
       </div>
+    {% endif %}
+  </div>
+
+  <div class="md-docbar">
+    <span class="md-docbar-label">Documenti</span>
+    {% if can_manage %}
+      <form method="post" action="{% url 'tasks:project_meeting_send_invite' project.id meeting.id %}"
+            onsubmit="return confirm('Inviare la convocazione con l'ordine del giorno a tutti i partecipanti?')">
+        {% csrf_token %}
+        <button type="submit" class="md-btn white">Invia convocazione</button>
+      </form>
+      <form method="post" action="{% url 'tasks:project_meeting_send_minute' project.id meeting.id %}"
+            onsubmit="return confirm('Inviare la minuta dell'incontro a tutti i partecipanti?')">
+        {% csrf_token %}
+        <button type="submit" class="md-btn white">Invia minuta</button>
+      </form>
+    {% endif %}
+    <a class="md-btn white" href="{% url 'tasks:project_meeting_minute_pdf' project.id meeting.id %}">Scarica minuta PDF</a>
+    {% if not meeting.is_svolto %}
+      <p class="md-docbar-hint">L'incontro non è ancora registrato come svolto: la minuta conterrà solo la convocazione.</p>
     {% endif %}
   </div>
 

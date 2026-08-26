@@ -1,0 +1,372 @@
+{# Stili condivisi fra la convocazione (project_meeting_form.html) e l'esito
+   (project_meeting_minutes.html): i due form sono due meta' dello stesso
+   flusso e devono restare visivamente identici. #}
+<style>
+/* ── Layout ─────────────────────────────────────────────────────────── */
+.mf-wrap {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 0 4px 32px;
+}
+.mf-header {
+  display: flex; align-items: center; gap: 14px;
+  margin-bottom: 14px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-mid) 100%);
+  border-radius: 14px;
+  padding: 16px 20px;
+  color: #fff;
+}
+.mf-header-icon {
+  width: 42px; height: 42px;
+  background: rgba(255,255,255,.15);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.mf-header-icon svg { width: 22px; height: 22px; stroke: #fff; }
+.mf-header h2 { margin: 0 0 3px; font-size: 1.15rem; font-weight: 800; }
+.mf-header p  { margin: 0; opacity: .8; font-size: .85rem; }
+
+/* ── Sections ───────────────────────────────────────────────────────── */
+.mf-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.mf-section-head {
+  background: var(--surface-alt, #f8fafc);
+  border-bottom: 1px solid var(--border);
+  padding: 9px 16px;
+  display: flex; align-items: center; gap: 8px;
+}
+.mf-section-head svg { width: 16px; height: 16px; stroke: var(--text-light); flex-shrink: 0; }
+.mf-section-head span { font-size: .8125rem; font-weight: 700; color: var(--text-mid); text-transform: uppercase; letter-spacing: .05em; }
+.mf-section-body { padding: 14px 16px; }
+
+/* ── Fields ─────────────────────────────────────────────────────────── */
+.mf-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.mf-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+@media (max-width: 640px) { .mf-row, .mf-row-3 { grid-template-columns: 1fr; } }
+.mf-field { margin-bottom: 12px; }
+.mf-field:last-child { margin-bottom: 0; }
+.mf-label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: .8125rem; font-weight: 600; color: var(--text-mid); margin-bottom: 5px;
+}
+.mf-label .req { color: var(--danger); }
+.mf-hint { font-size: .75rem; color: var(--text-light); margin-top: 5px; line-height: 1.4; }
+.mf-field .input { width: 100%; box-sizing: border-box; }
+.mf-errorlist { list-style: none; padding: 0; margin: 5px 0 0; }
+.mf-errorlist li { font-size: .8rem; color: var(--danger); display: flex; align-items: center; gap: 4px; }
+.mf-errorlist li::before { content: "⚠"; font-size: .7rem; }
+
+/* ── Partecipanti search + tags ─────────────────────────────────────── */
+.mf-search-box {
+  position: relative; margin-bottom: 10px;
+}
+.mf-search-box input {
+  width: 100%; box-sizing: border-box;
+  padding: 9px 12px 9px 36px;
+  border: 1px solid var(--border); border-radius: 8px;
+  font-size: .875rem; color: var(--text); background: var(--surface-alt, #f8fafc);
+  outline: none; transition: border-color .15s, box-shadow .15s;
+}
+.mf-search-box input:focus { border-color: var(--primary-mid); box-shadow: 0 0 0 3px rgba(37,99,235,.12); background: var(--surface); }
+.mf-search-box .mf-search-icon {
+  position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+  width: 15px; height: 15px; stroke: var(--text-light); pointer-events: none;
+}
+.mf-search-count {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  font-size: .75rem; color: var(--text-light); font-weight: 600;
+}
+
+.mf-participant-tags {
+  display: flex; flex-wrap: wrap; gap: 6px; min-height: 28px;
+  margin-bottom: 10px;
+}
+.mf-ptag {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: var(--surface-alt, #f8fafc); border: 1px solid var(--border); border-radius: 99px;
+  padding: 3px 10px 3px 8px; font-size: .8125rem; color: var(--primary-mid); font-weight: 500;
+}
+.mf-ptag-avatar {
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--primary-mid); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .6rem; font-weight: 700; flex-shrink: 0;
+}
+.mf-ptag-none { font-size: .8125rem; color: var(--text-light); font-style: italic; padding: 4px 0; }
+
+.mf-user-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--surface);
+}
+.mf-user-grid label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: .875rem; color: var(--text); cursor: pointer;
+  padding: 5px 8px; border-radius: 6px;
+  transition: background .1s; user-select: none;
+}
+.mf-user-grid label:hover { background: var(--surface-alt, #f8fafc); }
+.mf-user-grid label.mf-hidden { display: none; }
+.mf-user-grid input[type=checkbox] { accent-color: var(--primary-mid); width: 15px; height: 15px; flex-shrink: 0; }
+.mf-user-grid-empty { font-size: .85rem; color: var(--text-light); text-align: center; padding: 16px; font-style: italic; display: none; }
+
+/* ── Agenda builder ─────────────────────────────────────────────────── */
+.agenda-list { margin-bottom: 12px; }
+.agenda-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  background: var(--surface-alt, #f8fafc); border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px 14px; margin-bottom: 8px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.agenda-item:hover { border-color: var(--primary-mid); box-shadow: 0 1px 4px rgba(37,99,235,.08); }
+.agenda-num {
+  width: 26px; height: 26px; border-radius: 8px;
+  background: var(--primary-mid); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .75rem; font-weight: 800; flex-shrink: 0; margin-top: 1px;
+}
+.agenda-body { flex: 1; min-width: 0; }
+.agenda-title { font-size: .9rem; font-weight: 600; color: var(--text); word-break: break-word; }
+.agenda-nota { font-size: .8125rem; color: var(--text-light); margin-top: 4px; white-space: pre-wrap; }
+.agenda-extra-fields {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 6px; margin-top: 8px;
+}
+.agenda-extra-field {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 7px 9px; min-width: 0;
+}
+.agenda-extra-field span {
+  display: block; font-size: .68rem; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--text-light); font-weight: 700; margin-bottom: 2px;
+}
+.agenda-extra-field strong {
+  display: block; font-size: .8rem; color: var(--text); font-weight: 600;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.agenda-task-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--success-bg); border: 1px solid var(--success-bg); border-radius: 99px;
+  padding: 1px 8px; font-size: .75rem; color: var(--success); font-weight: 500;
+  margin-left: 8px; white-space: nowrap;
+}
+.agenda-task-badge svg { width: 11px; height: 11px; stroke: var(--success); }
+.agenda-del {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 6px; flex-shrink: 0; cursor: pointer;
+  border: none; background: transparent; color: var(--text-light); transition: background .1s, color .1s;
+}
+.agenda-del:hover { background: var(--danger-bg); color: var(--danger); }
+.agenda-del svg { width: 14px; height: 14px; stroke: currentColor; }
+
+.agenda-empty-state {
+  text-align: center; padding: 28px 16px;
+  color: var(--text-light); border: 2px dashed var(--border); border-radius: 10px;
+  font-size: .875rem;
+}
+.agenda-empty-state svg { width: 32px; height: 32px; stroke: var(--border); margin: 0 auto 8px; display: block; }
+
+/* Add form inline */
+.agenda-add-form {
+  background: var(--surface-alt, #f8fafc); border: 1px solid var(--border); border-radius: 10px;
+  padding: 16px; display: none; margin-bottom: 8px;
+}
+.agenda-add-form.open { display: block; }
+.agenda-add-title { font-size: .8125rem; font-weight: 700; color: var(--primary-mid); margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+.agenda-add-title svg { width: 14px; height: 14px; stroke: currentColor; }
+.agenda-add-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
+@media (max-width: 580px) { .agenda-add-row { grid-template-columns: 1fr; } }
+.agenda-add-actions { display: flex; gap: 6px; align-items: center; margin-top: 10px; }
+.agenda-custom-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.agenda-custom-head .mf-label { margin: 0; }
+.agenda-custom-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 10px; border-radius: 7px; border: 1px solid var(--border);
+  background: var(--surface-alt, #f8fafc); color: var(--primary-mid); font-size: .78rem; font-weight: 700;
+  cursor: pointer;
+}
+.agenda-custom-btn:hover { background: var(--surface-alt, #f8fafc); border-color: var(--primary-mid); }
+.agenda-custom-btn svg { width: 13px; height: 13px; stroke: currentColor; }
+.agenda-custom-fields { display: grid; gap: 8px; }
+.agenda-custom-row {
+  display: grid; grid-template-columns: minmax(120px, .45fr) minmax(160px, 1fr) 30px;
+  gap: 8px; align-items: center;
+}
+.agenda-custom-row .input { width: 100%; box-sizing: border-box; }
+.agenda-custom-remove {
+  width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
+  border: none; border-radius: 7px; background: transparent; color: var(--text-light); cursor: pointer;
+}
+.agenda-custom-remove:hover { background: var(--danger-bg); color: var(--danger); }
+.agenda-custom-remove svg { width: 14px; height: 14px; stroke: currentColor; }
+@media (max-width: 580px) { .agenda-custom-row { grid-template-columns: 1fr 1fr 30px; } }
+
+.agenda-btn-add {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 16px; border-radius: 8px; font-size: .875rem; font-weight: 600;
+  border: 1px dashed var(--border); background: var(--surface-alt, #f8fafc); color: var(--primary-mid); cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.agenda-btn-add:hover { background: var(--surface-alt, #f8fafc); border-color: var(--primary-mid); }
+.agenda-btn-add svg { width: 15px; height: 15px; stroke: currentColor; }
+
+/* Problemi gestiti */
+.mf-issues-list { display: grid; gap: 10px; margin-bottom: 16px; }
+.mf-issue-card {
+  border: 1px solid var(--danger-bg); background: var(--danger-bg); border-radius: 10px;
+  padding: 12px 14px; display: grid; gap: 8px;
+}
+.mf-issue-card.resolved { border-color: var(--success-bg); background: var(--success-bg); }
+.mf-issue-top { display: flex; align-items: flex-start; gap: 10px; }
+.mf-issue-check { width: 17px; height: 17px; margin-top: 2px; accent-color: var(--success); flex-shrink: 0; }
+.mf-issue-main { flex: 1; min-width: 0; }
+.mf-issue-title { font-size: .9rem; font-weight: 800; color: var(--danger); overflow-wrap: anywhere; }
+.mf-issue-card.resolved .mf-issue-title { color: var(--success); text-decoration: line-through; }
+.mf-issue-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
+.mf-issue-chip {
+  display: inline-flex; align-items: center; gap: 4px; border-radius: 99px;
+  padding: 2px 8px; font-size: .72rem; font-weight: 700;
+  background: var(--surface); border: 1px solid var(--danger-bg); color: var(--danger);
+}
+.mf-issue-card.resolved .mf-issue-chip { border-color: var(--success-bg); color: var(--success); }
+.mf-issue-desc { margin: 3px 0 0; white-space: pre-wrap; font-size: .8125rem; color: var(--text-light); line-height: 1.45; }
+.mf-issue-resolution { display: none; margin-left: 27px; }
+.mf-issue-card.resolved .mf-issue-resolution { display: block; }
+.mf-new-issues { display: grid; gap: 10px; }
+.mf-new-issue-row {
+  display: grid; grid-template-columns: minmax(180px, 1fr) minmax(160px, .8fr) 132px 32px;
+  gap: 8px; align-items: start; padding: 10px; border: 1px solid var(--border);
+  border-radius: 10px; background: var(--surface-alt, #f8fafc);
+}
+.mf-new-issue-row textarea { min-height: 38px; resize: vertical; }
+.mf-new-issue-remove {
+  width: 32px; height: 32px; border: none; border-radius: 7px; background: transparent;
+  color: var(--text-light); cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+}
+.mf-new-issue-remove:hover { background: var(--danger-bg); color: var(--danger); }
+.mf-new-issue-remove svg { width: 15px; height: 15px; stroke: currentColor; }
+@media (max-width: 760px) { .mf-new-issue-row { grid-template-columns: 1fr; } .mf-new-issue-remove { width: 100%; } }
+
+/* ── Collassabile note ODG (legacy) ─────────────────────────────────── */
+.mf-collapsible-toggle {
+  display: flex; align-items: center; gap: 6px;
+  font-size: .8rem; color: var(--text-light); cursor: pointer; user-select: none;
+  padding: 6px 0; border: none; background: none; font-weight: 500;
+}
+.mf-collapsible-toggle svg { width: 14px; height: 14px; stroke: currentColor; transition: transform .2s; }
+.mf-collapsible-toggle.open svg { transform: rotate(90deg); }
+.mf-collapsible-body { display: none; margin-top: 8px; }
+.mf-collapsible-body.open { display: block; }
+
+/* ── Outlook toggle ─────────────────────────────────────────────────── */
+.mf-outlook-toggle {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 20px; cursor: pointer; border-bottom: 1px solid var(--border);
+}
+.mf-outlook-toggle-label { flex: 1; }
+.mf-outlook-toggle-label strong { display: block; font-size: .9rem; font-weight: 700; color: var(--text); }
+.mf-outlook-toggle-label span { font-size: .8rem; color: var(--text-light); }
+.mf-toggle {
+  position: relative; width: 42px; height: 24px; flex-shrink: 0;
+  -webkit-appearance: none; appearance: none;
+  background: var(--border); border-radius: 999px; cursor: pointer; transition: background .2s;
+}
+.mf-toggle:checked { background: var(--primary-mid); }
+.mf-toggle::before {
+  content: ""; position: absolute; top: 3px; left: 3px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; transition: left .2s; box-shadow: 0 1px 3px rgba(0,0,0,.2);
+}
+.mf-toggle:checked::before { left: 21px; }
+.mf-outlook-body { padding: 16px 20px; display: none; }
+.mf-outlook-body.open { display: block; }
+.mf-outlook-icon {
+  width: 36px; height: 36px; border-radius: 8px;
+  background: #0078d4; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.mf-outlook-icon svg { width: 20px; height: 20px; fill: #fff; }
+.mf-outlook-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.mf-outlook-title { font-size: .9rem; font-weight: 700; color: var(--text); }
+.mf-outlook-sub { font-size: .8rem; color: var(--text-light); }
+.mf-attendees-preview {
+  background: var(--surface-alt, #f8fafc); border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 14px; margin-bottom: 12px; font-size: .8125rem; color: var(--primary-mid);
+}
+.mf-at-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.mf-at-row:last-child { margin-bottom: 0; }
+.mf-at-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--primary-mid); flex-shrink: 0; }
+
+/* ── Buttons ─────────────────────────────────────────────────────────── */
+.mf-actions { display: flex; gap: 10px; align-items: center; margin-top: 16px; flex-wrap: wrap; }
+.mf-btn {
+  padding: 11px 26px; border-radius: 9px; font-size: .9rem; font-weight: 700;
+  text-decoration: none; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 7px;
+  transition: background .15s, transform .1s;
+}
+.mf-btn svg { width: 16px; height: 16px; stroke: currentColor; }
+.mf-btn.primary { background: var(--primary-mid); color: #fff; }
+.mf-btn.primary:hover { background: var(--primary); }
+.mf-btn.primary:active { transform: scale(.98); }
+.mf-btn.ghost { background: var(--surface-alt, #f8fafc); color: var(--text-mid); border: 1px solid var(--border); }
+.mf-btn.ghost:hover { background: var(--surface-alt, #f8fafc); }
+.mf-btn-sm {
+  padding: 7px 14px; border-radius: 7px; font-size: .825rem; font-weight: 600;
+  border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
+}
+.mf-btn-sm.primary { background: var(--primary-mid); color: #fff; }
+.mf-btn-sm.primary:hover { background: var(--primary); }
+.mf-btn-sm.ghost { background: var(--surface-alt, #f8fafc); color: var(--text-mid); }
+.mf-btn-sm.ghost:hover { background: var(--border); }
+
+/* ── Dark mode ──────────────────────────────────────────────────────── */
+body.theme-dark .mf-header { background: linear-gradient(135deg,#0f172a,#1e3a5f); }
+body.theme-dark .mf-user-grid label:hover { background: rgba(37,99,235,.15); }
+body.theme-dark .mf-ptag { background: rgba(37,99,235,.15); border-color: rgba(59,130,246,.3); color: #93c5fd; }
+body.theme-dark .agenda-item:hover { border-color: rgba(59,130,246,.4); }
+body.theme-dark .agenda-add-form { background: rgba(37,99,235,.08); border-color: rgba(59,130,246,.25); }
+body.theme-dark .agenda-custom-btn { background: rgba(37,99,235,.12); border-color: rgba(59,130,246,.3); color: #93c5fd; }
+body.theme-dark .agenda-btn-add { background: rgba(37,99,235,.1); border-color: rgba(59,130,246,.3); color: #93c5fd; }
+body.theme-dark .mf-issue-title { color: #fca5a5; }
+body.theme-dark .mf-issue-card.resolved .mf-issue-title { color: #86efac; }
+body.theme-dark .mf-issue-chip { color: #fca5a5; }
+body.theme-dark .mf-issue-card.resolved .mf-issue-chip { color: #86efac; }
+body.theme-dark .mf-attendees-preview { background: rgba(37,99,235,.1); border-color: rgba(59,130,246,.3); color: #93c5fd; }
+
+/* ── Nota sui problemi ereditati (convocazione) ─────────────────────── */
+.mf-carried-note {
+  background: var(--warning-bg, #fff7ed);
+  border: 1px solid var(--warning, #f59e0b);
+  border-radius: 8px;
+  padding: 9px 12px;
+  margin-bottom: 12px;
+  font-size: .8125rem;
+  color: var(--text-mid);
+  line-height: 1.45;
+}
+.mf-carried-note strong { color: var(--warning, #b45309); }
+
+/* ── Riepilogo convocazione in testa alla pagina esito ───────────────── */
+.mf-recap {
+  display: flex; flex-wrap: wrap; gap: 8px 18px;
+  background: var(--surface-alt, #f8fafc);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  font-size: .8125rem;
+  color: var(--text-mid);
+}
+.mf-recap b { color: var(--text-light); font-weight: 600; }
+.mf-recap a { color: var(--primary-mid); text-decoration: none; font-weight: 600; }
+</style>

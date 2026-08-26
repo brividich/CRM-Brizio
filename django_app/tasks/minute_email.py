@@ -49,6 +49,7 @@ def _facts(meeting) -> list[tuple[str, str]]:
         ("Titolo", titolo or "—"),
         ("Data", _fmt_data(meeting) or "—"),
         ("Luogo", (meeting.luogo or "—").strip() or "—"),
+        ("Stato", meeting.get_stato_display()),
     ]
 
 
@@ -70,6 +71,105 @@ def _cta(meeting, label: str) -> str:
     return email_cta(label, url, note="Accedi al portale per i dettagli.")
 
 
+def _agenda_text(meeting) -> str:
+    """Ordine del giorno strutturato reso come testo.
+
+    I punti vivono in `agenda_items` (JSON) dal redesign dell'agenda: senza
+    questa resa la minuta inviata ai partecipanti conteneva solo il vecchio
+    campo testo libero, quasi sempre vuoto.
+    """
+    items = meeting.agenda_items or []
+    if not isinstance(items, list):
+        return ""
+    lines: list[str] = []
+    for idx, item in enumerate(items, start=1):
+        if not isinstance(item, dict):
+            continue
+        titolo = str(item.get("titolo", "")).strip()
+        if not titolo:
+            continue
+        marker = "[x]" if item.get("done") else "[ ]"
+        lines.append(f"{idx}. {marker} {titolo}")
+        nota = str(item.get("nota", "")).strip()
+        if nota:
+            lines.append(f"    {nota}")
+        for custom_field in item.get("custom_fields") or []:
+            if not isinstance(custom_field, dict):
+                continue
+            label = str(custom_field.get("label", "")).strip()
+            value = str(custom_field.get("value", "")).strip()
+            if label and value:
+                lines.append(f"    {label}: {value}")
+    return "\n".join(lines)
+
+
+def _issues_text(meeting) -> str:
+    """Problemi sollevati o chiusi in questo incontro, resi come testo."""
+    from django.db.models import Q
+
+    from tasks.models import MeetingIssue
+
+    qs = (
+        MeetingIssue.objects.filter(
+            Q(source_meeting=meeting) | Q(resolution_meeting=meeting)
+        )
+        .select_related("assigned_to")
+        .distinct()
+        .order_by("status", "due_date", "id")
+    )
+    lines: list[str] = []
+    for issue in qs:
+        parts = [issue.get_status_display()]
+        if issue.assigned_to_id:
+            owner = issue.assigned_to.get_full_name() or issue.assigned_to.username
+            parts.append(owner)
+        if issue.due_date:
+            parts.append(f"scadenza {_fmt(issue.due_date, '%d/%m/%Y')}")
+        lines.append(f"- {issue.title} ({', '.join(parts)})")
+        if issue.description:
+            lines.append(f"    {issue.description.strip()}")
+        if issue.resolution_note:
+            lines.append(f"    Risoluzione: {issue.resolution_note.strip()}")
+    return "\n".join(lines)
+
+
+def _partecipanti_text(meeting) -> str:
+    """Elenco dei partecipanti (utenti portale + email esterne)."""
+    names = [
+        (user.get_full_name() or user.username)
+        for user in meeting.partecipanti_utenti.all()
+    ]
+    extra = [
+        line.strip()
+        for line in (meeting.partecipanti_email_extra or "").splitlines()
+        if line.strip()
+    ]
+    lines = [f"- {n}" for n in names] + [f"- {e}" for e in extra]
+    note = (meeting.partecipanti_testo or "").strip()
+    if note:
+        lines.append(note)
+    return "\n".join(lines)
+
+
+def _minute_sections(meeting) -> list[tuple[str, str]]:
+    """Sezioni della minuta, sorgente unica per email e PDF (evita che divergano)."""
+    return [
+        ("Partecipanti", _partecipanti_text(meeting)),
+        ("Ordine del giorno", _agenda_text(meeting) or meeting.ordine_del_giorno),
+        ("Verbale / Note", meeting.note),
+        ("Problemi", _issues_text(meeting) or meeting.problemi_aperti),
+        ("Next steps", meeting.next_steps),
+    ]
+
+
+def _invite_sections(meeting) -> list[tuple[str, str]]:
+    """Sezioni della convocazione: ordine del giorno e invitati, nessun verbale."""
+    return [
+        ("Partecipanti convocati", _partecipanti_text(meeting)),
+        ("Ordine del giorno", _agenda_text(meeting) or meeting.ordine_del_giorno),
+    ]
+
+
 def build_minute_email(meeting) -> tuple[str, str, str]:
     """Compone (subject, body_text, body_html_fragment) della minuta incontro."""
     kickoff = getattr(meeting.project, "kickoff_number", "") or ""
@@ -79,12 +179,7 @@ def build_minute_email(meeting) -> tuple[str, str, str]:
         subject += f": {titolo}"
 
     facts = _facts(meeting)
-    sections = [
-        ("Ordine del giorno", meeting.ordine_del_giorno),
-        ("Verbale / Note", meeting.note),
-        ("Problemi aperti", meeting.problemi_aperti),
-        ("Next steps", meeting.next_steps),
-    ]
+    sections = _minute_sections(meeting)
 
     html_parts = [email_facts_table(facts)]
     text_parts = [f"{k}: {v}" for k, v in facts]
@@ -105,7 +200,7 @@ def build_invite_email(meeting) -> tuple[str, str, str]:
         subject += f": {titolo}"
 
     facts = _facts(meeting)
-    sections = [("Ordine del giorno", meeting.ordine_del_giorno)]
+    sections = _invite_sections(meeting)
 
     html_parts = [
         "<p>Sei convocato/a al seguente incontro di avvio commessa.</p>",
@@ -169,12 +264,7 @@ def build_minute_pdf(meeting) -> bytes:
         )
         story.append(Spacer(1, 5 * mm))
 
-    for label, value in [
-        ("Ordine del giorno", meeting.ordine_del_giorno),
-        ("Verbale / Note", meeting.note),
-        ("Problemi aperti", meeting.problemi_aperti),
-        ("Next steps", meeting.next_steps),
-    ]:
+    for label, value in _minute_sections(meeting):
         value = (value or "").strip()
         if not value:
             continue
@@ -233,7 +323,7 @@ def build_meeting_ics(meeting) -> bytes:
     lines += [
         f"SUMMARY:{summary}",
         f"LOCATION:{(meeting.luogo or '').strip()}",
-        f"DESCRIPTION:{(meeting.ordine_del_giorno or '').strip().replace(chr(10), ' ')}",
+        f"DESCRIPTION:{(_agenda_text(meeting) or meeting.ordine_del_giorno or '').strip().replace(chr(10), ' ')}",
         "END:VEVENT",
         "END:VCALENDAR",
     ]

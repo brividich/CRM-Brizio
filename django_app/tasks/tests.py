@@ -33,6 +33,7 @@ from .models import (
     KickoffMeeting,
     MeetingIssue,
     MeetingIssueStatus,
+    MeetingStatus,
     Project,
     ProjectComment,
     SubTask,
@@ -333,7 +334,7 @@ class MeetingIssueWorkflowTests(TasksBaseTestCase):
         )
         self.project = Project.objects.create(name="Kickoff test", created_by=self.user)
 
-    def test_new_meeting_creates_managed_issue_and_carries_it_to_next_agenda(self):
+    def test_minutes_create_managed_issue_and_carry_it_to_next_agenda(self):
         self.client.force_login(self.user)
         response = self.client.post(
             reverse("tasks:project_meeting_create", args=[self.project.id]),
@@ -342,7 +343,21 @@ class MeetingIssueWorkflowTests(TasksBaseTestCase):
                 "data": "2026-04-29",
                 "ora": "09:00",
                 "luogo": "Sala test",
+                "stato": MeetingStatus.PIANIFICATO,
                 "agenda_items_raw": "[]",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        meeting_1 = KickoffMeeting.objects.get(project=self.project, numero=1)
+        self.assertEqual(meeting_1.stato, MeetingStatus.PIANIFICATO)
+
+        # I problemi emergono durante l'incontro: si registrano nell'esito.
+        response = self.client.post(
+            reverse("tasks:project_meeting_minutes", args=[self.project.id, meeting_1.id]),
+            {
+                "note": "Discusso lo stato avanzamento",
+                "problemi_aperti": "",
+                "next_steps": "",
                 "new_issue_title": ["Materiale mancante"],
                 "new_issue_description": ["Serve conferma dal fornitore"],
                 "new_issue_assigned_to": [str(self.user.id)],
@@ -352,16 +367,19 @@ class MeetingIssueWorkflowTests(TasksBaseTestCase):
         )
 
         self.assertEqual(response.status_code, 302)
+        meeting_1.refresh_from_db()
+        self.assertEqual(meeting_1.stato, MeetingStatus.SVOLTO)
+        self.assertIsNotNone(meeting_1.svolto_at)
         issue = MeetingIssue.objects.get(project=self.project)
         self.assertEqual(issue.status, MeetingIssueStatus.OPEN)
-        self.assertEqual(issue.source_meeting.numero, 1)
+        self.assertEqual(issue.source_meeting, meeting_1)
         self.assertEqual(issue.assigned_to, self.user)
 
         response = self.client.get(reverse("tasks:project_meeting_create", args=[self.project.id]))
         self.assertContains(response, "Materiale mancante")
         self.assertContains(response, "Problema aperto")
 
-    def test_meeting_form_can_resolve_existing_issue_and_status_endpoint_can_reopen(self):
+    def test_minutes_can_resolve_existing_issue_and_status_endpoint_can_reopen(self):
         self.client.force_login(self.user)
         meeting_1 = KickoffMeeting.objects.create(
             project=self.project,
@@ -383,13 +401,11 @@ class MeetingIssueWorkflowTests(TasksBaseTestCase):
         )
 
         response = self.client.post(
-            reverse("tasks:project_meeting_edit", args=[self.project.id, meeting_2.id]),
+            reverse("tasks:project_meeting_minutes", args=[self.project.id, meeting_2.id]),
             {
-                "titolo": meeting_2.titolo,
-                "data": meeting_2.data.isoformat(),
-                "ora": "",
-                "luogo": "",
-                "agenda_items_raw": "[]",
+                "note": "",
+                "problemi_aperti": "",
+                "next_steps": "",
                 "meeting_issue_ids": [str(issue.id)],
                 "resolved_issue_ids": [str(issue.id)],
                 f"issue_resolution_{issue.id}": "Allineate in riunione",
@@ -2919,9 +2935,12 @@ class ReadinessQuerysetTests(TestCase):
         from tasks.models import Project, KickoffMeeting, Task
         from tasks.readiness import annotate_readiness_qs
 
+        from tasks.models import MeetingStatus
+
         p_full = Project.objects.create(name="full", created_by=self.user)
         KickoffMeeting.objects.create(
-            project=p_full, titolo="k", data=timezone.localdate(), created_by=self.user
+            project=p_full, titolo="k", data=timezone.localdate(),
+            created_by=self.user, stato=MeetingStatus.SVOLTO,
         )
         Task.objects.create(
             title="t", created_by=self.user, project=p_full, due_date=timezone.localdate()
@@ -2933,6 +2952,24 @@ class ReadinessQuerysetTests(TestCase):
         assert rows[p_full.id].rd_has_planned is True
         assert rows[p_empty.id].rd_has_meeting is False
         assert rows[p_empty.id].rd_has_planned is False
+
+    def test_planned_meeting_does_not_count_as_done(self):
+        from tasks.models import KickoffMeeting, MeetingStatus, Project
+        from tasks.readiness import annotate_readiness_qs, compute_project_readiness
+
+        p = Project.objects.create(name="solo pianificato", created_by=self.user)
+        KickoffMeeting.objects.create(
+            project=p, titolo="futuro", data=timezone.localdate() + timedelta(days=7),
+            created_by=self.user, stato=MeetingStatus.PIANIFICATO,
+        )
+        row = annotate_readiness_qs(Project.objects.filter(pk=p.pk)).get()
+        assert row.rd_has_meeting is False
+        assert row.rd_has_any_meeting is True
+        criteria = {c.key: c for c in compute_project_readiness(row).criteria}
+        assert criteria["meeting"].ok is False
+        # La CTA porta alla lista incontri (dove si registra l'esito), non a un doppione.
+        assert f"/tasks/projects/{p.id}/incontri/" in criteria["meeting"].action_url
+        assert not criteria["meeting"].action_url.endswith("/new/")
 
     def test_no_n_plus_one(self):
         from tasks.models import Project
