@@ -163,6 +163,20 @@ def _ids_con_foto(legacy_ids) -> set[int]:
     }
 
 
+#: oltre questo numero di riporti diretti tutti-foglia la lista verticale si
+#: spezza in più colonne, per non far scorrere all'infinito la pagina.
+SOGLIA_COLONNE = 5
+
+
+def griglia_riporti(figli: list[dict]) -> bool:
+    """True se i riporti diretti vanno disposti su più colonne.
+
+    Solo quando sono tanti (> :data:`SOGLIA_COLONNE`) **e** nessuno di loro ha a
+    sua volta dei riporti: un sotto-albero dentro una colonna sarebbe illeggibile.
+    """
+    return len(figli) > SOGLIA_COLONNE and all(not f["figli"] for f in figli)
+
+
 def build_posizioni_albero(ambito_id: int | None = None) -> list[dict]:
     """Albero delle POSIZIONI: un riquadro per posizione (ruolo + persona).
 
@@ -178,8 +192,9 @@ def build_posizioni_albero(ambito_id: int | None = None) -> list[dict]:
     - ``vacante`` — ruolo senza titolari: il riquadro resta, la posizione è
       scoperta.
 
-    Ogni titolare porta ``ha_foto`` per il rendering dell'avatar. ``ambito_id``
-    disegna il solo organigramma di quell'ambito.
+    Ogni titolare porta ``ha_foto`` per il rendering dell'avatar; ogni nodo
+    porta ``griglia`` (vedi :func:`griglia_riporti`) per il layout dei riporti.
+    ``ambito_id`` disegna il solo organigramma di quell'ambito.
     """
     albero = build_ruolo_albero(ambito_id)
 
@@ -199,20 +214,28 @@ def build_posizioni_albero(ambito_id: int | None = None) -> list[dict]:
         for figlio in nodo["figli"]:
             figli.extend(_espandi(figlio))
 
+        griglia = griglia_riporti(figli)
+
+        def _nodo(tipo: str, titolari: list[dict], figli_nodo: list[dict]) -> dict:
+            return {
+                "ruolo": nodo["ruolo"],
+                "tipo": tipo,
+                "titolari": titolari,
+                "figli": figli_nodo,
+                "griglia": griglia if figli_nodo else False,
+            }
+
         titolari = sorted(nodo["titolari"], key=lambda t: (t["nome"] or "", t["legacy_id"]))
         for t in titolari:
             t["ha_foto"] = t["legacy_id"] in con_foto
 
         if not titolari:
-            return [{"ruolo": nodo["ruolo"], "tipo": "vacante", "titolari": [], "figli": figli}]
+            return [_nodo("vacante", [], figli)]
         if len(titolari) == 1:
-            return [{"ruolo": nodo["ruolo"], "tipo": "posizione", "titolari": titolari, "figli": figli}]
+            return [_nodo("posizione", titolari, figli)]
         if not figli:
-            return [
-                {"ruolo": nodo["ruolo"], "tipo": "posizione", "titolari": [t], "figli": []}
-                for t in titolari
-            ]
-        return [{"ruolo": nodo["ruolo"], "tipo": "condiviso", "titolari": titolari, "figli": figli}]
+            return [_nodo("posizione", [t], []) for t in titolari]
+        return [_nodo("condiviso", titolari, figli)]
 
     posizioni: list[dict] = []
     for radice in albero:
