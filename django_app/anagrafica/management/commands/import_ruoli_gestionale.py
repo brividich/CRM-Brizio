@@ -114,6 +114,14 @@ class Command(BaseCommand):
             help="Importa solo i ruoli, senza assegnazioni né gerarchia.",
         )
         parser.add_argument(
+            "--rimuovi-estranee", action="store_true",
+            help=(
+                "Con --apply, rimuove le assegnazioni presenti nell'HUB che il file "
+                "del gestionale non conferma (ruoli nati da prove o da assegnazioni "
+                "manuali). Senza il flag vengono soltanto elencate."
+            ),
+        )
+        parser.add_argument(
             "--no-gerarchia", action="store_true",
             help="Non deduce «riporta a» dal file: la gerarchia resta quella già impostata.",
         )
@@ -134,7 +142,9 @@ class Command(BaseCommand):
                 self._importa_catalogo(Path(roles_path))
             if people_path and not options["solo_catalogo"]:
                 self._importa_assegnazioni(
-                    Path(people_path), gerarchia=not options["no_gerarchia"],
+                    Path(people_path),
+                    gerarchia=not options["no_gerarchia"],
+                    rimuovi_estranee=bool(options["rimuovi_estranee"]),
                 )
             if not self.apply:
                 transaction.set_rollback(True)
@@ -196,7 +206,7 @@ class Command(BaseCommand):
             ))
 
     # ----------------------------------------------------------- assegnazioni
-    def _importa_assegnazioni(self, path: Path, *, gerarchia: bool) -> None:
+    def _importa_assegnazioni(self, path: Path, *, gerarchia: bool, rimuovi_estranee: bool = False) -> None:
         header, dati = _leggi(path)
         def col(nome: str, obbligatoria: bool = True) -> int | None:
             if nome in header:
@@ -220,6 +230,7 @@ class Command(BaseCommand):
         catalogo = {r.nome.strip().casefold(): r for r in RuoloOperativo.objects.all()}
 
         creati = completati = 0
+        viste: set[tuple[int, int]] = set()
         persone_ignote: set[str] = set()
         ruoli_ignoti: set[str] = set()
         principali: dict[int, tuple[str, datetime.date | None]] = {}
@@ -251,6 +262,8 @@ class Command(BaseCommand):
                     supervisori.setdefault(nome_ruolo.casefold(), set()).add(capo)
 
             legacy_id = cf_map.get(cf)
+            if legacy_id is not None:
+                viste.add((legacy_id, ruolo.pk))
             if legacy_id is None:
                 persone_ignote.add(_testo(riga[i_dip]) if i_dip is not None else cf)
                 continue
@@ -293,6 +306,23 @@ class Command(BaseCommand):
                 az.save(update_fields=["ruolo_aziendale", "updated_at"])
                 scritti_principali += 1
 
+        # Assegnazioni che l'HUB ha e il gestionale no: nate da prove o da
+        # inserimenti a mano. Non si cancellano di default — potrebbero essere
+        # legittime e più aggiornate del file.
+        persone_del_file = {lid for lid, _ in viste}
+        estranee = [
+            a for a in DipendenteRuoloOperativo.objects
+            .filter(legacy_anagrafica_id__in=persone_del_file)
+            .select_related("ruolo")
+            if (a.legacy_anagrafica_id, a.ruolo_id) not in viste
+        ]
+        rimosse = 0
+        if estranee and rimuovi_estranee:
+            rimosse = len(estranee)
+            DipendenteRuoloOperativo.objects.filter(
+                pk__in=[a.pk for a in estranee]
+            ).delete()
+
         self.stdout.write("")
         self.stdout.write(self.style.MIGRATE_HEADING(f"Assegnazioni — {path.name}"))
         self.stdout.write(f"  righe lette              : {len(dati)}")
@@ -304,6 +334,15 @@ class Command(BaseCommand):
                 f"  persone con PIÙ ruoli principali: {len(doppi_principali)} "
                 "(tenuto il più recente per data di inizio)"
             ))
+        if estranee:
+            testo = "rimosse" if rimuovi_estranee else "NON confermate dal file (solo elencate)"
+            self.stdout.write(self.style.WARNING(
+                f"  assegnazioni nell'HUB {testo}: {len(estranee)}"
+            ))
+            for a in estranee:
+                self.stdout.write(f"    - [{a.legacy_anagrafica_id}] {a.ruolo.nome}")
+            if not rimuovi_estranee:
+                self.stdout.write("    (per toglierle: --rimuovi-estranee)")
         if persone_ignote:
             self.stdout.write(self.style.WARNING(
                 f"  persone senza corrispondenza in anagrafica (saltate): {len(persone_ignote)}"

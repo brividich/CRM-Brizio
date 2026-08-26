@@ -175,6 +175,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ### Fixed
 
+- **Anagrafica · «responsabile senza reparto» cancellava dati buoni; l'import ora dichiara le assegnazioni che il gestionale non conferma** (`django_app/anagrafica/management/commands/report_ruoli_disallineati.py`, `import_ruoli_gestionale.py`, `tests_ruoli_sync.py`, `tests_import_ruoli.py`).
+
+  Il primo giro in produzione ha smascherato un criterio troppo grezzo: «nessun reparto ma un responsabile» segnalava **74 persone**, e `--apply` avrebbe azzerato 74 responsabili corretti. Il reparto legacy è testo libero e in produzione è vuoto per la maggioranza: chi è collocato tramite `area` o tramite la FK `area_aziendale` **non è anomalo**, e in ogni caso il dato che manca è la collocazione, non il responsabile. Ora la famiglia guarda tutte e tre le collocazioni, è dichiarata **segnalazione e non riparazione**, e `--apply` non la tocca: serve `--azzera-responsabili-scollegati` per cancellare davvero. Resta automatica la riparazione dei **responsabili di sé stessi** (in produzione erano 8, tutti caporeparto assegnati al proprio reparto), che è un dato senza significato.
+
+  `--persona` mostra ora, per ogni ruolo, **chi l'ha assegnato e quando** (più periodo e tipologia): serviva per rispondere alla domanda «questo ruolo da dove salta fuori?» quando un'assegnazione non trova riscontro nel gestionale.
+
+  `import_ruoli_gestionale` elenca le **assegnazioni presenti nell'HUB che il file non conferma** — ruoli nati da prove o da inserimenti a mano — limitandosi alle persone che il file contiene. Di default le mostra soltanto; `--rimuovi-estranee` le toglie. Cinque test nuovi.
+
 - **KICK-OFF · «Incontro kickoff fatto» si accendeva anche solo programmandolo** (`django_app/tasks/readiness.py`, `tests.py`).
 
   Il criterio di prontezza contava qualunque `KickoffMeeting` esistente, compreso uno pianificato per il mese successivo: bastava fissare una data per far risultare la commessa pronta all'avvio. Ora conta solo un incontro in stato «Svolto». Quando un incontro esiste ma non è ancora stato tenuto, la CTA del criterio porta alla lista incontri — dove si registra l'esito — invece di proporre la creazione di un doppione.
