@@ -284,14 +284,38 @@ class ReportRuoliDisallineatiTests(TestCase):
         az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=self.ids["u.uno"])
         self.assertIsNone(az.caporeparto_legacy_id)
 
-    def test_apply_azzera_il_responsabile_di_chi_non_ha_reparto(self):
+    def test_apply_NON_azzera_il_responsabile_di_chi_e_solo_senza_reparto(self):
+        """Il dato mancante è la collocazione, non il responsabile: si segnala."""
         DipendenteAnagraficaAziendale.objects.create(
             legacy_anagrafica_id=self.ids["s.senza"],
             caporeparto_legacy_id=self.ids["u.uno"],
         )
-        self._run("--apply")
+        out = self._run("--apply")
+        az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=self.ids["s.senza"])
+        self.assertEqual(az.caporeparto_legacy_id, self.ids["u.uno"])
+        self.assertIn("Senza alcuna collocazione", out)
+
+    def test_flag_esplicito_azzera_i_responsabili_scollegati(self):
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=self.ids["s.senza"],
+            caporeparto_legacy_id=self.ids["u.uno"],
+        )
+        self._run("--apply", "--azzera-responsabili-scollegati")
         az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=self.ids["s.senza"])
         self.assertIsNone(az.caporeparto_legacy_id)
+
+    def test_chi_ha_area_aziendale_non_e_considerato_scollegato(self):
+        from .models import AreaAziendale, Reparto
+
+        rep = Reparto.objects.create(nome="UT")
+        area = AreaAziendale.objects.create(nome="IN1", reparto=rep)
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=self.ids["s.senza"],
+            caporeparto_legacy_id=self.ids["u.uno"],
+            area_aziendale=area,
+        )
+        out = self._run()
+        self.assertIn("Senza alcuna collocazione (né reparto, né area) ma con responsabile: 0", out)
 
     def test_chi_ha_reparto_e_un_responsabile_diverso_non_viene_toccato(self):
         DipendenteAnagraficaAziendale.objects.create(

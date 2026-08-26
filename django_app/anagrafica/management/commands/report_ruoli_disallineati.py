@@ -21,8 +21,10 @@ Quattro anomalie, tutte in sola lettura finché non si passa ``--apply``:
    in catalogo, ma nessuna assegnazione. Riparazione: crea l'assegnazione.
 3. **responsabile di sé stesso** — `caporeparto_legacy_id` uguale alla persona.
    Riparazione: azzera.
-4. **responsabile senza reparto** — nessun reparto in scheda ma un responsabile
-   valorizzato. Riparazione: azzera.
+4. **senza collocazione ma con responsabile** — né reparto, né area, né area
+   aziendale, eppure un responsabile valorizzato. È una **segnalazione**: il
+   dato che manca è la collocazione, non il responsabile, e `--apply` non lo
+   tocca. Solo `--azzera-responsabili-scollegati` lo cancella davvero.
 
 Uso:
     python manage.py report_ruoli_disallineati              # solo report
@@ -56,6 +58,14 @@ class Command(BaseCommand):
         parser.add_argument(
             "--solo", choices=["ruoli", "responsabili"], default=None,
             help="Limita il controllo a una sola famiglia di anomalie.",
+        )
+        parser.add_argument(
+            "--azzera-responsabili-scollegati", action="store_true",
+            help=(
+                "Con --apply, azzera il responsabile anche a chi non ha alcuna "
+                "collocazione (né reparto né area). Da usare solo sapendo che quel "
+                "responsabile è sbagliato: di norma il dato mancante è il reparto."
+            ),
         )
         parser.add_argument(
             "--persona", default=None,
@@ -129,7 +139,17 @@ class Command(BaseCommand):
                     continue
                 if int(capo) == int(legacy_id):
                     se_stessi.append(legacy_id)
-                elif not reparto_di(legacy_id):
+                    continue
+                # «Senza reparto» va guardato su tutte e tre le collocazioni: il
+                # reparto legacy è testo libero e in produzione è vuoto per la
+                # maggioranza, ma la persona può essere collocata via `area` o
+                # via FK `area_aziendale`. Chi ha una di queste NON è anomalo:
+                # il responsabile che porta è quello vero.
+                if (
+                    not reparto_di(legacy_id)
+                    and not (az.area or "").strip()
+                    and not az.area_aziendale_id
+                ):
                     capo_senza_reparto.append((legacy_id, int(capo)))
 
         # ── Report ───────────────────────────────────────────────────────────
@@ -155,7 +175,18 @@ class Command(BaseCommand):
                 self.stdout.write(f"    - {label(legacy_id)}")
 
             self.stdout.write("")
-            self.stdout.write(f"  Responsabile valorizzato senza reparto: {len(capo_senza_reparto)}")
+            self.stdout.write(
+                f"  Senza alcuna collocazione (né reparto, né area) ma con responsabile: "
+                f"{len(capo_senza_reparto)}"
+            )
+            self.stdout.write(
+                "    SEGNALAZIONE, non riparazione: il dato mancante è la collocazione, "
+                "non il responsabile."
+            )
+            self.stdout.write(
+                "    --apply NON li tocca. Per azzerare comunque i responsabili: "
+                "--azzera-responsabili-scollegati."
+            )
             for legacy_id, capo in sorted(capo_senza_reparto, key=lambda x: label(x[0])):
                 self.stdout.write(f"    - {label(legacy_id)} → responsabile: {label(capo)}")
 
@@ -188,7 +219,13 @@ class Command(BaseCommand):
                 )
                 creati += int(creata)
 
-            da_azzerare = set(se_stessi) | {lid for lid, _ in capo_senza_reparto}
+            # Di default si azzera solo chi è responsabile di sé stesso: è un
+            # dato senza significato. Chi è privo di collocazione ha quasi
+            # sempre un responsabile corretto e un reparto da compilare —
+            # cancellarlo perderebbe l'unica informazione buona che ha.
+            da_azzerare = set(se_stessi)
+            if options["azzera_responsabili_scollegati"]:
+                da_azzerare |= {lid for lid, _ in capo_senza_reparto}
             if da_azzerare:
                 azzerati = (
                     DipendenteAnagraficaAziendale.objects
@@ -227,11 +264,24 @@ class Command(BaseCommand):
             return
 
         ids = [int(r.get("id") or 0) for r in grezze]
+        # Con chi e quando: «questo ruolo da dove salta fuori?» si risponde solo
+        # guardando l'autore e la data dell'assegnazione.
         ruoli_per_id: dict[int, list[str]] = {}
         for a in DipendenteRuoloOperativo.objects.filter(
             legacy_anagrafica_id__in=ids
-        ).select_related("ruolo"):
-            ruoli_per_id.setdefault(a.legacy_anagrafica_id, []).append(a.ruolo.nome)
+        ).select_related("ruolo", "assegnato_da"):
+            autore = getattr(a.assegnato_da, "username", "") or "origine non tracciata"
+            quando = a.assegnato_il.strftime("%d/%m/%Y") if a.assegnato_il else "?"
+            periodo = ""
+            if a.data_inizio or a.data_fine:
+                periodo = " · dal {}{}".format(
+                    a.data_inizio.strftime("%d/%m/%Y") if a.data_inizio else "?",
+                    f" al {a.data_fine.strftime('%d/%m/%Y')}" if a.data_fine else "",
+                )
+            tipologia = f" [{a.get_tipologia_display()}]" if a.tipologia else ""
+            ruoli_per_id.setdefault(a.legacy_anagrafica_id, []).append(
+                f"{a.ruolo.nome}{tipologia}{periodo} — assegnato da {autore} il {quando}"
+            )
 
         schede = {
             az.legacy_anagrafica_id: az
@@ -255,7 +305,13 @@ class Command(BaseCommand):
             self.stdout.write(f"    reparto legacy : {row.get('reparto') or '—'}")
             self.stdout.write(f"    mansione legacy: {row.get('mansione') or '—'}")
             self.stdout.write(f"    utente_id      : {row.get('utente_id') or '—'}")
-            self.stdout.write(f"    ruoli assegnati: {', '.join(sorted(ruoli_per_id.get(legacy_id, []))) or '—'}")
+            righe_ruoli = sorted(ruoli_per_id.get(legacy_id, []))
+            if righe_ruoli:
+                self.stdout.write("    ruoli assegnati:")
+                for voce in righe_ruoli:
+                    self.stdout.write(f"      · {voce}")
+            else:
+                self.stdout.write("    ruoli assegnati: —")
             if az is None:
                 self.stdout.write("    scheda aziendale: ASSENTE")
                 continue
