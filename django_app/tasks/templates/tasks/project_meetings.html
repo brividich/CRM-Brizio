@@ -74,6 +74,15 @@
 }
 .meeting-empty svg { width: 48px; height: 48px; stroke: var(--border); margin-bottom: 16px; }
 .meeting-empty p { margin: 0 0 20px; font-size: 1rem; }
+
+.meeting-stato {
+  display: inline-flex; align-items: center;
+  border-radius: 20px; padding: 2px 9px;
+  font-size: .7rem; font-weight: 700; letter-spacing: .02em;
+}
+.meeting-stato.pianificato { background: var(--warning-bg, #fff7ed); color: var(--warning, #b45309); }
+.meeting-stato.svolto      { background: var(--success-bg, #ecfdf5); color: var(--success, #059669); }
+.meeting-stato.annullato   { background: var(--surface-alt, #f1f5f9); color: var(--text-light); }
 </style>
 {% endblock %}
 
@@ -103,6 +112,7 @@
             <div class="meeting-body">
               <h3>
                 {% if meeting.titolo %}{{ meeting.titolo }}{% else %}Incontro {{ meeting.numero }}{% endif %}
+                <span class="meeting-stato {{ meeting.stato|lower }}">{{ meeting.get_stato_display }}</span>
               </h3>
               <div class="meeting-meta">
                 <span class="meeting-meta-item">
@@ -126,7 +136,8 @@
             <div class="meeting-actions">
               <a class="meeting-btn ghost" href="{% url 'tasks:project_meeting_detail' project.id meeting.id %}">Apri</a>
               {% if can_manage %}
-                <a class="meeting-btn ghost" href="{% url 'tasks:project_meeting_edit' project.id meeting.id %}">Modifica</a>
+                <a class="meeting-btn{% if meeting.stato == 'PIANIFICATO' %} primary{% else %} ghost{% endif %}" href="{% url 'tasks:project_meeting_minutes' project.id meeting.id %}">{% if meeting.stato == 'SVOLTO' %}Aggiorna esito{% else %}Registra esito{% endif %}</a>
+                <a class="meeting-btn ghost" href="{% url 'tasks:project_meeting_edit' project.id meeting.id %}">Convocazione</a>
               {% endif %}
             </div>
           </div>

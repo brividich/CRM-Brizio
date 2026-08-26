@@ -58,7 +58,7 @@ TASKS_ATTACHMENT_MIMES = {
 }
 
 from .models import (
-    KickoffMeeting, Project, ProjectComment, SubTask, Task, TaskAttachment,
+    KickoffMeeting, MeetingStatus, Project, ProjectComment, SubTask, Task, TaskAttachment,
     TaskCategory, TaskComment, TaskPriority, TaskRoleAssignment, TaskRoleType,
     TaskStatus,
 )
@@ -1088,6 +1088,14 @@ class ProjectTaskGanttUpdateForm(forms.ModelForm):
 
 
 class KickoffMeetingForm(forms.ModelForm):
+    """Convocazione dell'incontro: quello che si decide PRIMA che l'incontro avvenga.
+
+    Verbale, problemi e next steps non stanno qui: si compilano dopo, con
+    `KickoffMeetingMinuteForm` (view `project_meeting_minutes`). La separazione
+    evita che l'utente debba attraversare tutto il form due volte a giorni di
+    distanza per compilarne meta' ogni volta.
+    """
+
     # Campo hidden gestito da JS: lista JSON dei punti all'ordine del giorno
     agenda_items_raw = forms.CharField(
         required=False,
@@ -1097,12 +1105,13 @@ class KickoffMeetingForm(forms.ModelForm):
     class Meta:
         model = KickoffMeeting
         fields = [
-            "titolo", "data", "ora", "luogo",
+            "titolo", "data", "ora", "luogo", "stato",
             "partecipanti_utenti", "partecipanti_email_extra", "partecipanti_testo",
-            "ordine_del_giorno", "note", "problemi_aperti", "next_steps",
+            "ordine_del_giorno",
             "sync_outlook", "outlook_organizer_email",
         ]
         widgets = {
+            "stato": forms.Select(attrs={"class": "input"}),
             "titolo": forms.TextInput(attrs={"class": "input", "placeholder": "Titolo opzionale"}),
             "data": forms.DateInput(attrs={"class": "input", "type": "date"}, format="%Y-%m-%d"),
             "ora": forms.TimeInput(attrs={"class": "input", "type": "time"}, format="%H:%M"),
@@ -1115,9 +1124,6 @@ class KickoffMeetingForm(forms.ModelForm):
                 attrs={"class": "input", "rows": 2, "placeholder": "Note aggiuntive sui partecipanti (facoltativo)"}
             ),
             "ordine_del_giorno": forms.Textarea(attrs={"class": "input", "rows": 3, "placeholder": "Note testuali aggiuntive (facoltativo — usa i punti strutturati sopra)"}),
-            "note": forms.Textarea(attrs={"class": "input", "rows": 6, "placeholder": "Verbale / Note incontro"}),
-            "problemi_aperti": forms.Textarea(attrs={"class": "input", "rows": 4, "placeholder": "Problemi emersi, con responsabile e scadenza"}),
-            "next_steps": forms.Textarea(attrs={"class": "input", "rows": 4, "placeholder": "Chi fa cosa entro quando"}),
             "sync_outlook": forms.CheckboxInput(attrs={"class": "mf-toggle"}),
             "outlook_organizer_email": forms.EmailInput(
                 attrs={"class": "input", "placeholder": "organizzatore@azienda.it (lascia vuoto = tuo account)"}
@@ -1132,6 +1138,16 @@ class KickoffMeetingForm(forms.ModelForm):
         self.fields["partecipanti_email_extra"].required = False
         self.fields["partecipanti_testo"].required = False
         self.fields["outlook_organizer_email"].required = False
+        # «Svolto» non si sceglie a mano: lo imposta la registrazione dell'esito.
+        # Resta fra le scelte solo se l'incontro e' gia' svolto, per non declassarlo
+        # salvando la convocazione.
+        if self.instance.pk and self.instance.stato == MeetingStatus.SVOLTO:
+            self.fields["stato"].choices = MeetingStatus.choices
+        else:
+            self.fields["stato"].choices = [
+                (MeetingStatus.PIANIFICATO.value, MeetingStatus.PIANIFICATO.label),
+                (MeetingStatus.ANNULLATO.value, MeetingStatus.ANNULLATO.label),
+            ]
         # Pre-popola il campo hidden con i punti agenda dell'istanza (per edit)
         if self.instance.pk:
             self.initial["agenda_items_raw"] = json.dumps(self.instance.agenda_items or [])
@@ -1194,3 +1210,35 @@ class KickoffMeetingForm(forms.ModelForm):
             instance.save()
             self.save_m2m()
         return instance
+
+
+class KickoffMeetingMinuteForm(forms.ModelForm):
+    """Esito dell'incontro: quello che si scrive DOPO che l'incontro e' avvenuto.
+
+    Complementare a `KickoffMeetingForm` (la convocazione). Il salvataggio porta
+    l'incontro in stato «Svolto»: la view che lo usa e' `project_meeting_minutes`.
+    """
+
+    class Meta:
+        model = KickoffMeeting
+        fields = ["note", "problemi_aperti", "next_steps"]
+        widgets = {
+            "note": forms.Textarea(
+                attrs={"class": "input", "rows": 8, "placeholder": "Verbale / Note incontro"}
+            ),
+            "problemi_aperti": forms.Textarea(
+                attrs={
+                    "class": "input",
+                    "rows": 4,
+                    "placeholder": "Campo storico: usa i problemi strutturati qui sopra",
+                }
+            ),
+            "next_steps": forms.Textarea(
+                attrs={"class": "input", "rows": 5, "placeholder": "Chi fa cosa entro quando (una riga per azione)"}
+            ),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name in self.fields:
+            self.fields[name].required = False

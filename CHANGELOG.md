@@ -10,6 +10,24 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ### Added
 
+- **KICK-OFF · l'incontro si gestisce in due tempi: convocazione e esito** (nuovi `django_app/tasks/migrations/0034_kickoffmeeting_stato.py`, `django_app/tasks/templates/tasks/project_meeting_minutes.html`, `django_app/tasks/templates/tasks/_meeting_form_styles.html`, `django_app/tasks/tests_meeting_flow.py`; modificati `django_app/tasks/models.py`, `forms.py`, `views.py`, `urls.py`, `acl_bootstrap.py`, `readiness.py`, `da_gestire.py`, `minute_email.py`, `tests.py`, `templates/tasks/project_meeting_form.html`, `project_meeting_detail.html`, `project_meetings.html`, `README.md`).
+
+  Il form dell'incontro chiedeva tutto insieme — data, luogo, partecipanti, ordine del giorno, verbale, problemi, next steps — in un'unica pagina da 1138 righe con un solo salvataggio. Ma l'incontro ha due momenti distinti a giorni di distanza: prima si convoca, dopo si verbalizza. L'utente apriva quindi lo stesso form due volte e ogni volta doveva attraversare tutte e sei le «tappe» per compilarne la metà, senza che nulla nel modulo distinguesse un incontro **pianificato** da uno **già tenuto**.
+
+  Nuovo campo `stato` su `KickoffMeeting` (**Pianificato / Svolto / Annullato**, con `svolto_at`) e flusso spezzato in due schermate. La convocazione (`.../incontri/<id>/edit/`) resta il form esistente ridotto a quattro tappe: dettagli, partecipanti, agenda, notifiche Outlook. L'esito (**nuova** `.../incontri/<id>/esito/`) chiede solo ciò che nasce dall'incontro — verbale, spunta dei punti trattati, chiusura dei problemi, next steps — e salvando porta l'incontro in «Svolto». Lo stato «Svolto» non è selezionabile a mano dalla convocazione: lo imposta la registrazione dell'esito, e salvare la convocazione di un incontro già svolto non lo declassa. La migrazione retro-classifica gli incontri esistenti: quelli con verbale, next steps o problemi compilati — o con data passata — nascono «Svolto».
+
+  Gli stili condivisi dalle due schermate sono estratti in `_meeting_form_styles.html`, così convocazione ed esito non possono divergere visivamente. Lista incontri e dettaglio mostrano il badge di stato e la CTA «Registra esito».
+
+- **KICK-OFF · convocazione, minuta e PDF ora hanno un pulsante** (`django_app/tasks/views.py`, `urls.py`, `acl_bootstrap.py`, `templates/tasks/project_meeting_detail.html`).
+
+  `tasks/minute_email.py` conteneva già, testate, le funzioni per inviare la convocazione con l'ordine del giorno (`.ics` allegato), inviare la minuta ai partecipanti (PDF allegato, CC a PM e capo commessa) e generare il PDF del verbale. Nessuna era raggiungibile dall'interfaccia: si attivavano solo passando dal designer automazioni, e i pacchetti AU52/AU53 sono importati come bozze disattivate. Di fatto la funzionalità esisteva e non si vedeva.
+
+  Il dettaglio incontro espone ora una barra **Documenti** con «Invia convocazione», «Invia minuta» e «Scarica minuta PDF» (le prime due sotto conferma e riservate a chi gestisce il kickoff, la terza a chiunque veda l'incontro). L'assenza di destinatari non è più un fallimento silenzioso: produce un avviso esplicito. Se l'incontro non è ancora svolto, la barra lo dichiara — la minuta conterrebbe solo la convocazione.
+
+- **KICK-OFF · la minuta contiene finalmente l'agenda strutturata e i problemi tracciati** (`django_app/tasks/minute_email.py`).
+
+  Minuta ed email di convocazione erano composte dai soli campi testo storici (`ordine_del_giorno`, `problemi_aperti`), quasi sempre vuoti da quando l'agenda è strutturata in `agenda_items` e i problemi vivono in `MeetingIssue`: il documento inviato ai partecipanti risultava mutilo. Ora entrambe rendono l'ordine del giorno strutturato (con lo stato «trattato» di ogni punto e i campi personalizzati), i problemi sollevati o chiusi nell'incontro con responsabile, scadenza e nota di risoluzione, e l'elenco dei partecipanti; i campi storici restano come fallback per gli incontri vecchi. Sorgente unica `_minute_sections()` condivisa da email e PDF, così i due documenti non possono divergere. Lo stato dell'incontro compare fra i dati di testata.
+
 - **Anagrafica · organigramma a diagramma, un riquadro per posizione** (nuovi `django_app/anagrafica/templates/anagrafica/pages/organigramma_diagramma.html`, `django_app/anagrafica/templates/anagrafica/partials/_org_posizione.html`, `django_app/anagrafica/tests_organigramma_diagramma.py`; modificati `django_app/anagrafica/services/organigramma_albero.py`, `views.py`, `urls.py`, `templates/anagrafica/pages/organigramma.html`, `templates/anagrafica/pages/organigramma_albero.html`, `README.md`).
 
   L'organigramma ad albero esisteva già, ma disegnato come elenco rientrato: la gerarchia si leggeva scorrendo l'indentazione, non guardando la forma dell'organizzazione. La terza vista `/anagrafica/organigramma/diagramma/` disegna la **stessa** gerarchia dei ruoli come diagramma top-down con connettori ortogonali — avatar del titolare, ruolo, nome — nel formato con cui gli organigrammi si stampano e si allegano al SGI.
@@ -134,6 +152,18 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
   **Effetto sui QR**: l'etichetta punta ora sempre alla landing pubblica `/assets/qr/pub/<token>/`; il valore legacy `?target=sharepoint` viene trattato come `landing`, quindi i QR gia stampati continuano a funzionare.
 
 ### Fixed
+
+- **KICK-OFF · «Incontro kickoff fatto» si accendeva anche solo programmandolo** (`django_app/tasks/readiness.py`, `tests.py`).
+
+  Il criterio di prontezza contava qualunque `KickoffMeeting` esistente, compreso uno pianificato per il mese successivo: bastava fissare una data per far risultare la commessa pronta all'avvio. Ora conta solo un incontro in stato «Svolto». Quando un incontro esiste ma non è ancora stato tenuto, la CTA del criterio porta alla lista incontri — dove si registra l'esito — invece di proporre la creazione di un doppione.
+
+- **KICK-OFF · eliminare un incontro lasciava l'invito orfano nei calendari** (`django_app/tasks/views.py`, `tests_meeting_flow.py`).
+
+  `project_meeting_delete` cancellava il record senza passare da `sync_meeting_outlook_event`: l'evento restava nel calendario Outlook di tutti i partecipanti, per un incontro che nel portale non esisteva più. La cancellazione su Graph avviene ora prima della delete, riusando il ramo già presente in `meeting_outlook.py`.
+
+- **KICK-OFF · righe senza etichetta in «Da gestire» e altri due difetti minori** (`django_app/tasks/da_gestire.py`, `views.py`).
+
+  La sezione «Incontri da chiudere» usava `titolo` come etichetta, che è facoltativo: gli incontri senza titolo comparivano come righe vuote, ora ripiegano su «Incontro N». La spunta di un punto all'ordine del giorno non aggiornava `updated_at` dell'incontro (`update_fields` incompleto). Il menu «collega a un'attività» nei form incontro tagliava la lista alle prime 100 attività del kickoff, facendo sparire le altre senza alcun avviso: il limite è stato rimosso.
 
 - **Anagrafica · il «Ruolo aziendale» dello spostamento pescava da un catalogo fermo alla 0085** (`django_app/anagrafica/views.py`, `forms.py`, `exports_hr.py`, nuova migration `anagrafica/0110_riallinea_ruoli_aziendali_residui.py`, `tests_assegnazioni.py`, `tests_exports_hr.py`).
 

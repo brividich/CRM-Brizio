@@ -911,6 +911,12 @@ class TaskExtraRef(models.Model):
         return f"TaskExtraRef<task={self.task_id} {self.field_code}={target}>"
 
 
+class MeetingStatus(models.TextChoices):
+    PIANIFICATO = "PIANIFICATO", "Pianificato"
+    SVOLTO = "SVOLTO", "Svolto"
+    ANNULLATO = "ANNULLATO", "Annullato"
+
+
 class KickoffMeeting(models.Model):
     project = models.ForeignKey(
         Project,
@@ -920,6 +926,18 @@ class KickoffMeeting(models.Model):
     )
     numero = models.PositiveIntegerField(verbose_name="Numero incontro")
     titolo = models.CharField(max_length=240, blank=True, default="", verbose_name="Titolo")
+    stato = models.CharField(
+        max_length=16,
+        choices=MeetingStatus.choices,
+        default=MeetingStatus.PIANIFICATO,
+        db_index=True,
+        verbose_name="Stato",
+        help_text=(
+            "Pianificato: convocazione inviata, incontro non ancora tenuto. "
+            "Svolto: verbale registrato. Annullato: incontro non tenuto."
+        ),
+    )
+    svolto_at = models.DateTimeField(null=True, blank=True, verbose_name="Esito registrato il")
     data = models.DateField(verbose_name="Data")
     ora = models.TimeField(null=True, blank=True, verbose_name="Ora")
     luogo = models.CharField(max_length=200, blank=True, default="", verbose_name="Luogo")
@@ -1002,6 +1020,15 @@ class KickoffMeeting(models.Model):
             if email and "@" in email and email not in emails:
                 emails.append(email)
         return emails
+
+    @property
+    def is_svolto(self) -> bool:
+        return self.stato == MeetingStatus.SVOLTO
+
+    @property
+    def label(self) -> str:
+        """Etichetta leggibile dell'incontro: il titolo se c'e', altrimenti «Incontro N»."""
+        return (self.titolo or "").strip() or f"Incontro {self.numero}"
 
     def __str__(self) -> str:
         return f"Incontro {self.numero} — {self.project}"

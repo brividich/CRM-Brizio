@@ -40,7 +40,23 @@ def _level_for(met: int) -> str:
 
 
 def _has_meeting(project) -> bool:
+    """Vero solo se un incontro e' stato effettivamente SVOLTO.
+
+    Il criterio si chiama «Incontro kickoff fatto»: prima contava anche un
+    incontro semplicemente pianificato per il mese prossimo, quindi bastava
+    programmarlo per far risultare la commessa pronta.
+    """
     anno = getattr(project, "rd_has_meeting", None)
+    if anno is not None:
+        return bool(anno)
+    from .models import MeetingStatus
+
+    return project.meetings.filter(stato=MeetingStatus.SVOLTO).exists()
+
+
+def _has_any_meeting(project) -> bool:
+    """Vero se esiste un incontro in qualsiasi stato (serve solo per la CTA)."""
+    anno = getattr(project, "rd_has_any_meeting", None)
     if anno is not None:
         return bool(anno)
     return project.meetings.exists()
@@ -51,6 +67,14 @@ def _has_planned_task(project) -> bool:
     if anno is not None:
         return bool(anno)
     return project.tasks.filter(due_date__isnull=False).exists()
+
+
+def _meeting_action_url(project, pid: int) -> str:
+    """Se un incontro esiste gia' ma non e' svolto, la CTA porta alla lista
+    (dove si registra l'esito), non alla creazione di un doppione."""
+    if _has_any_meeting(project):
+        return reverse("tasks:project_meetings", args=[pid])
+    return reverse("tasks:project_meeting_create", args=[pid])
 
 
 def compute_project_readiness(project) -> ReadinessResult:
@@ -71,7 +95,7 @@ def compute_project_readiness(project) -> ReadinessResult:
         ),
         ReadinessCriterion(
             "meeting", "Incontro kickoff fatto", meeting_ok,
-            None if meeting_ok else reverse("tasks:project_meeting_create", args=[pid]),
+            None if meeting_ok else _meeting_action_url(project, pid),
         ),
         ReadinessCriterion("team", "Team assegnato", team_ok, None),
         ReadinessCriterion(
@@ -87,10 +111,15 @@ def compute_project_readiness(project) -> ReadinessResult:
 
 
 def annotate_readiness_qs(qs):
-    from .models import KickoffMeeting, Task
+    from .models import KickoffMeeting, MeetingStatus, Task
 
     return qs.annotate(
-        rd_has_meeting=Exists(KickoffMeeting.objects.filter(project=OuterRef("pk"))),
+        rd_has_meeting=Exists(
+            KickoffMeeting.objects.filter(
+                project=OuterRef("pk"), stato=MeetingStatus.SVOLTO
+            )
+        ),
+        rd_has_any_meeting=Exists(KickoffMeeting.objects.filter(project=OuterRef("pk"))),
         rd_has_planned=Exists(
             Task.objects.filter(project=OuterRef("pk"), due_date__isnull=False)
         ),
