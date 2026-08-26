@@ -124,3 +124,80 @@ def build_certificazione_copertura(tipo_qualifica_id: int, oggi=None) -> list[di
     for radice in albero:
         _annota(radice)
     return albero
+
+
+def _ids_con_foto(legacy_ids) -> set[int]:
+    """Sottoinsieme di ``legacy_ids`` che ha una foto profilo caricata.
+
+    Serve a non emettere ``<img>`` verso ``anagrafica:foto_dipendente`` per chi
+    la foto non ce l'ha (la view risponde 404): il diagramma disegna le iniziali.
+    """
+    ids = sorted({int(i) for i in legacy_ids if i})
+    if not ids:
+        return set()
+    from anagrafica.models import DipendenteAnagraficaCivile
+
+    return {
+        int(lid)
+        for lid in DipendenteAnagraficaCivile.objects.filter(
+            legacy_anagrafica_id__in=ids
+        )
+        .exclude(foto="")
+        .values_list("legacy_anagrafica_id", flat=True)
+    }
+
+
+def build_posizioni_albero() -> list[dict]:
+    """Albero delle POSIZIONI: un riquadro per posizione (ruolo + persona).
+
+    Deriva da :func:`build_ruolo_albero` espandendo i titolari, con questa
+    regola (``tipo`` del nodo):
+
+    - ``posizione`` — ruolo con un solo titolare, oppure ruolo-foglia con più
+      titolari: in quest'ultimo caso genera N riquadri fratelli, uno per persona
+      (è il caso tipico "5 × Project Engineer" sotto lo stesso responsabile).
+    - ``condiviso`` — ruolo con più titolari **che ha ruoli subordinati**: resta
+      un riquadro unico con tutte le persone, perché appendere i sottoruoli a un
+      titolare scelto arbitrariamente inventerebbe una gerarchia tra persone.
+    - ``vacante`` — ruolo senza titolari: il riquadro resta, la posizione è
+      scoperta.
+
+    Ogni titolare porta ``ha_foto`` per il rendering dell'avatar.
+    """
+    albero = build_ruolo_albero()
+
+    tutti_ids = []
+
+    def _raccogli(nodo: dict) -> None:
+        tutti_ids.extend(t["legacy_id"] for t in nodo["titolari"])
+        for figlio in nodo["figli"]:
+            _raccogli(figlio)
+
+    for radice in albero:
+        _raccogli(radice)
+    con_foto = _ids_con_foto(tutti_ids)
+
+    def _espandi(nodo: dict) -> list[dict]:
+        figli: list[dict] = []
+        for figlio in nodo["figli"]:
+            figli.extend(_espandi(figlio))
+
+        titolari = sorted(nodo["titolari"], key=lambda t: (t["nome"] or "", t["legacy_id"]))
+        for t in titolari:
+            t["ha_foto"] = t["legacy_id"] in con_foto
+
+        if not titolari:
+            return [{"ruolo": nodo["ruolo"], "tipo": "vacante", "titolari": [], "figli": figli}]
+        if len(titolari) == 1:
+            return [{"ruolo": nodo["ruolo"], "tipo": "posizione", "titolari": titolari, "figli": figli}]
+        if not figli:
+            return [
+                {"ruolo": nodo["ruolo"], "tipo": "posizione", "titolari": [t], "figli": []}
+                for t in titolari
+            ]
+        return [{"ruolo": nodo["ruolo"], "tipo": "condiviso", "titolari": titolari, "figli": figli}]
+
+    posizioni: list[dict] = []
+    for radice in albero:
+        posizioni.extend(_espandi(radice))
+    return posizioni

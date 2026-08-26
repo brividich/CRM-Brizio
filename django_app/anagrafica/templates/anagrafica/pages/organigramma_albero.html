@@ -54,6 +54,7 @@ body.theme-dark .orgt-badge-mancante { color:var(--text-mid); background:rgba(25
       <p class="hr-pagehead-desc">Gerarchia dei ruoli operativi; le persone sono foglie titolari del ruolo.</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:organigramma_diagramma' %}">🗺 Vista diagramma</a>
       <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:organigramma' %}">▦ Vista griglia</a>
       <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:index' %}">← Dashboard</a>
     </div>

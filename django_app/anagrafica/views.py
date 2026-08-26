@@ -15077,6 +15077,31 @@ def organigramma_albero(request):
     })
 
 
+@login_required
+def organigramma_diagramma(request):
+    """Organigramma a diagramma: un riquadro per POSIZIONE (ruolo + persona).
+
+    Stessa gerarchia della vista ad albero (sempre tra ruoli, mai tra persone),
+    disegnata top-down con connettori, avatar e collasso dei rami. I ruoli con
+    più titolari diventano riquadri affiancati; vedi
+    :func:`anagrafica.services.organigramma_albero.build_posizioni_albero`.
+    """
+    from anagrafica.services.organigramma_albero import build_posizioni_albero
+
+    albero = build_posizioni_albero()
+
+    def _conta(nodi):
+        tot = 0
+        for n in nodi:
+            tot += 1 + _conta(n["figli"])
+        return tot
+
+    return render(request, "anagrafica/pages/organigramma_diagramma.html", {
+        "albero": albero,
+        "n_posizioni": _conta(albero),
+    })
+
+
 # ---------------------------------------------------------------------------
 # Fascicolo conformità — "il dipendente è in regola con la sua mansione?"
 # (H2: semaforo aggregato formazione + visite + qualifiche + DPI)

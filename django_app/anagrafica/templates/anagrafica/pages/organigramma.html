@@ -104,6 +104,7 @@ body.theme-dark .org-capo-missing { background:rgba(133,77,14,.18); border-color
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
       {% include "anagrafica/partials/_export_buttons.html" with export_key="organigramma" %}
       <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:organigramma_albero' %}">🌳 Vista albero</a>
+      <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:organigramma_diagramma' %}">🗺 Vista diagramma</a>
       <button type="button" class="hr-btn hr-btn-outline" onclick="window.print();">🖨 Stampa</button>
       <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:index' %}">← Dashboard</a>
     </div>

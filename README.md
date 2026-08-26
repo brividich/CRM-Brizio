@@ -412,6 +412,7 @@ Anagrafica master HR del portale, integrata con Active Directory e tabelle legac
 - **Report rapidi del corso** (dettaglio corso, gated `AnagraficaFormazionePermission`): card «📥 Report del corso» con **elenco iscritti/completati (CSV)**, **attestati completati (ZIP)** di tutti i completamenti idonei, **fogli firme di tutte le lezioni (PDF)** vuoti da firmare (`build_registri_corso_pdf_bytes` via `core/pdf`) e **report conformità** (scadenzario filtrato sul corso). La **sessione di qualifica** (`/anagrafica/qualifiche/sessioni/<id>/`) ha analogamente **«📃 Elenco (CSV)»** (`qualifica_sessione_report_csv`) e **«🖨 Stampa»**.
 - **Organigramma visuale** (`/anagrafica/organigramma/`, login): albero Reparto → Aree aziendali (badge) → caporeparto → membri da `Reparto`/`AreaAziendale` + dati legacy. Il reparto è il contenitore di primo livello (es. "UT"), le aree aziendali (es. "IN1") ne sono la sotto-articolazione. I disallineamenti emergono di proposito (dipendenti con reparto non a catalogo in "Non mappati"); cessati esclusi; filtro per reparto. Ogni area aziendale con un **responsabile proprio diverso dal caporeparto** ne mostra il **responsabile effettivo** nell'area chip (dominio: «caporeparto dall'area aziendale se differisce»).
 - **Organigramma ad albero** (`/anagrafica/organigramma/albero/`, login, toggle **🌳 Vista albero** dalla griglia): organigramma **ad albero sulla gerarchia dei RUOLI** (`RuoloOperativo.riporta_a`) — radici = ruoli senza `riporta_a`, le persone che ricoprono un ruolo sono **foglie titolari** (la gerarchia è **sempre tra ruoli, mai tra persone**). Con `?certificazione=<TipoQualifica.pk>` sovrappone la **copertura di una singola certificazione**: badge per titolare (posseduta valida / scaduta / mancante) e `n_copertura/n_totale` per nodo. Builder in `anagrafica/services/organigramma_albero.py` (`build_ruolo_albero`, `build_certificazione_copertura`).
+- **Organigramma a diagramma** (`/anagrafica/organigramma/diagramma/`, login, toggle **🗺 Vista diagramma**): la stessa gerarchia dei ruoli disegnata **top-down con connettori**, un riquadro per **posizione** (ruolo + persona) con avatar, nome e collasso dei rami. I ruoli con più titolari si espandono in riquadri affiancati; un ruolo con più titolari **e** riporti resta un riquadro unico (la gerarchia è tra ruoli, mai tra persone); i ruoli senza titolari restano in pianta come *posizione scoperta*. Toolbar con zoom e «Adatta», «Espandi/Comprimi tutto». Rendering SSR senza librerie (CSS + poche righe di JS); gli avatar passano dalla view protetta `anagrafica:foto_dipendente`. Builder `build_posizioni_albero()` in `anagrafica/services/organigramma_albero.py`.
 - **Reminder contratti a termine / periodi di prova** (management command `send_contratti_expiry_reminders --days 60 --prova-days 15 [--dry-run]`): digest email HR (destinatari `SiteConfig` `contratti_reminder_emails` → ADMINS → superuser) con contratti scaduti/in-scadenza, fine prova imminente e censimento contratti a termine senza storico. Helper destinatari condiviso in `anagrafica/services/reminders.py`.
 - **DPI consegnati all'ingresso**: nel form di creazione dipendente, dopo la scelta dei ruoli operativi, HTMX propone le categorie DPI `obbligatoria_mansionario=True`; HR conferma e il salvataggio crea `RichiestaDPI`+`ConsegnaDPI` (firma differita) e archivia un PDF cumulativo nello spazio documenti del dipendente. Servizi: `services/dpi_ingresso.crea_consegne_iniziali`, `archivia_pdf_cumulativo`. Endpoint HTMX: `anagrafica:htmx_dpi_iniziali`.
 - **Onboarding guidato dalla mansione di rischio**: i task DPI/formazione/visite della pratica di onboarding sono derivati dai requisiti della mansione (resolver `services/mansionario.py`, con fallback al flag globale DPI e alle regole formative). All'avvio dell'onboarding, se la mansione richiede DPI, partono notifiche email (fail-open) ad **AMM** ("DPI da distribuire", `SiteConfig.dpi_amm_emails`) e al **caporeparto/CAR** ("controllo uso effettivo DPI", via `Reparto.caporeparto_legacy_id` → `email_notifica`, fallback `SiteConfig.dpi_car_emails`).
@@ -1199,6 +1200,29 @@ Un **pre-flight** lo rende esplicito invece di lasciarlo scoprire al deploy:
 - `-FromWorkingTree` richiede `-Force` (emergenza, non scorciatoia); `-Force` bypassa entrambi i controlli.
 
 Ogni pacchetto contiene un **`BUILD_INFO.json`** alla radice (commit e branch effettivamente esportati, data, autore, `source: branch | working-tree`, `delta_vs_export_branch`). Il portale lo legge a runtime e ne mostra il contenuto in **Centrale di comando** (`/admin-portale/monitoring/status/`), con banner rosso se il pacchetto non corrisponde a un commit pulito. In sviluppo (`DEBUG=True`) un badge in alto a destra tiene sotto gli occhi i file non committati e i commit non ancora in `release/prod`.
+
+---
+
+## 🔍 Diagnosi in sola lettura sul DB di produzione
+
+Il database di sviluppo è una **copia locale**: quello che ci si legge non dice cosa c'è in produzione. Per interrogare il DB di prod dalla macchina di sviluppo senza poterlo modificare esiste il profilo `config.settings.prod_readonly`.
+
+```powershell
+# 1. login SQL di sola lettura, una volta sola sul server (utenza sysadmin)
+#    docs\prod_readonly_login.sql  -> ruolo db_datareader + DENY sulle scritture
+
+# 2. configurazione locale (il file e' ignorato da git: non committarlo)
+copy docs\env.prod_readonly.example .env.prod_readonly
+#    compilare PRODRO_DB_HOST / PRODRO_DB_NAME / PRODRO_DB_USER / PRODRO_DB_PASSWORD
+
+# 3. uso: qualsiasi comando di sola lettura
+python django_app\manage.py import_assenze_xlsx assenze.xlsx --dry-run --settings=config.settings.prod_readonly
+python django_app\manage.py acl_diagnose --user nome.cognome --path /assenze/ --settings=config.settings.prod_readonly
+```
+
+Il profilo è **solo da CLI** (non serve un sito) e protegge su due livelli: il grant `db_datareader` sul server — la barriera autorevole — e, lato client, `config/readonly_guard.py`, che rifiuta DML/DDL prima che la query parta e vieta le migrazioni. Se manca la configurazione il profilo si ferma subito indicando il file atteso. Percorso alternativo del file con la variabile `PROD_READONLY_ENV_FILE`.
+
+Restano fuori da questo profilo, per scelta, tutte le scritture: import veri, `migrate`, deploy. Quelli si lanciano sul server.
 
 ---
 
