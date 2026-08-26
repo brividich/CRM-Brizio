@@ -43,6 +43,22 @@
 .ro-badge-gray { background:#f1f5f9; color:#475569; }
 .ro-badge-red { background:#fee2e2; color:#b91c1c; }
 
+/* Qualifiche richieste dal ruolo */
+.ro-qual { margin-top:10px; padding-top:10px; border-top:1px dashed #e2e8f0; }
+.ro-qual-title { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.04em; }
+.ro-qual-list { display:flex; flex-wrap:wrap; gap:5px; margin-top:6px; }
+.ro-qual-chip { display:inline-flex; align-items:center; gap:4px; background:#eef2ff; color:#3730a3; border:1px solid #e0e7ff; border-radius:999px; padding:2px 9px; font-size:11px; font-weight:600; }
+.ro-qual-chip-opz { background:#f8fafc; color:#64748b; border-color:#e2e8f0; font-weight:500; }
+.ro-qual-x { background:none; border:none; color:inherit; cursor:pointer; font-size:13px; line-height:1; padding:0 0 0 2px; opacity:.6; }
+.ro-qual-x:hover { opacity:1; }
+.ro-qual-empty { font-size:12px; color:#94a3b8; margin-top:4px; }
+.ro-qual-form { display:flex; flex-wrap:wrap; gap:5px; align-items:center; margin-top:8px; }
+.ro-qual-opz { font-size:11px; color:#64748b; display:inline-flex; align-items:center; gap:3px; }
+body.theme-dark .ro-qual { border-color:var(--border); }
+body.theme-dark .ro-qual-chip { background:rgba(99,102,241,.18); color:#c7d2fe; border-color:rgba(199,210,254,.25); }
+body.theme-dark .ro-qual-chip-opz { background:var(--surface-alt, #1e293b); color:var(--text-light); border-color:var(--border); }
+body.theme-dark .ro-qual-empty, body.theme-dark .ro-qual-title, body.theme-dark .ro-qual-opz { color:var(--text-light); }
+
 /* Modal edit */
 .ro-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:1000; align-items:center; justify-content:center; }
 .ro-modal-overlay.open { display:flex; }
@@ -98,6 +114,44 @@ body.theme-dark .ro-modal-title { color:var(--text); }
               <span class="ro-badge ro-badge-blue">{{ r.n_assegnati }} dipendent{{ r.n_assegnati|pluralize:"e,i" }}</span>
               {% if r.n_da_scheda %}<span class="ro-badge ro-badge-gray" title="Indicato come «Ruolo aziendale» nella scheda dipendente">+{{ r.n_da_scheda }} da scheda</span>{% endif %}
               {% if r.riporta_a %}<span class="ro-badge ro-badge-gray">▲ Riporta a: {{ r.riporta_a.nome }}</span>{% endif %}
+            </div>
+            <div class="ro-qual">
+              <div class="ro-qual-title">Qualifiche richieste</div>
+              {% if r.qualifiche %}
+              <div class="ro-qual-list">
+                {% for q in r.qualifiche %}
+                <span class="ro-qual-chip{% if not q.obbligatoria %} ro-qual-chip-opz{% endif %}"
+                      title="{% if q.obbligatoria %}Requisito{% else %}Preferenziale{% endif %}{% if q.note %} — {{ q.note }}{% endif %}">
+                  {{ q.qualifica.nome }}{% if q.livello %} · {{ q.livello }}{% endif %}
+                  {% if is_admin %}
+                  <form method="post" action="{% url 'anagrafica:ruolo_qualifica_rimuovi' r.id q.id %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="ro-qual-x" title="Togli la qualifica dal ruolo"
+                      onclick="return confirm('Togliere «{{ q.qualifica.nome|escapejs }}» dal ruolo {{ r.nome|escapejs }}?')">×</button>
+                  </form>
+                  {% endif %}
+                </span>
+                {% endfor %}
+              </div>
+              {% else %}
+              <div class="ro-qual-empty">Nessuna qualifica associata.</div>
+              {% endif %}
+              {% if is_admin and qualifiche_catalogo %}
+              <form method="post" action="{% url 'anagrafica:ruolo_qualifica_aggiungi' r.id %}" class="ro-qual-form">
+                {% csrf_token %}
+                <select name="qualifica_id" class="hub-input hub-input-sm" required>
+                  <option value="">+ Qualifica…</option>
+                  {% for tq in qualifiche_catalogo %}
+                    <option value="{{ tq.id }}">{{ tq.nome }}</option>
+                  {% endfor %}
+                </select>
+                <input type="text" name="livello" class="hub-input hub-input-sm" placeholder="Livello (fac.)" maxlength="50" style="max-width:110px;">
+                <label class="ro-qual-opz" title="Preferenziale invece che obbligatoria">
+                  <input type="checkbox" name="obbligatoria" value="0"> facolt.
+                </label>
+                <button type="submit" class="ro-btn ro-btn-ghost ro-btn-sm">Aggiungi</button>
+              </form>
+              {% endif %}
             </div>
             <div class="ro-item-actions">
               <button type="button" class="ro-btn ro-btn-ghost ro-btn-sm"

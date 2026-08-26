@@ -93,6 +93,7 @@ from .models import (
     OnboardingPratica,
     OnboardingTask,
     RuoloOperativo,
+    RuoloQualifica,
     ImportazioneCedolini,
     SaldoCedolino,
     StoricoContratto,
@@ -1870,6 +1871,11 @@ def dipendente_detail(request, legacy_id: int):
     ruoli_disponibili = RuoloOperativo.objects.filter(is_active=True).exclude(
         id__in=[a.ruolo_id for a in ruoli_assegnati]
     )
+    # Una persona può avere più ruoli: quello scritto nel campo «Ruolo aziendale»
+    # è il principale, e va riconosciuto a colpo d'occhio tra i badge.
+    _principale = (aziendale.ruolo_aziendale or "").strip().casefold() if aziendale else ""
+    for _a in ruoli_assegnati:
+        _a.is_principale = bool(_principale) and _a.ruolo.nome.strip().casefold() == _principale
 
     # Mansioni catalogo
     mansioni_catalogo = list(Mansione.objects.filter(is_active=True).order_by("nome"))
@@ -3254,7 +3260,18 @@ def dipendente_ruolo_assegna(request, legacy_id: int):
         defaults={"assegnato_da": request.user},
     )
     if created:
-        messages.success(request, f'Ruolo "{ruolo.nome}" assegnato.')
+        # Il ruolo aziendale della scheda è il ruolo *principale*: lo si scrive
+        # solo a chi non ne ha ancora uno, per non ribaltare il principale a
+        # ogni ruolo aggiuntivo (una persona può averne più d'uno).
+        from anagrafica.services.ruoli_sync import dopo_assegnazione
+        promosso = dopo_assegnazione(legacy_id, ruolo, user=request.user)
+        if promosso:
+            messages.success(
+                request,
+                f'Ruolo "{ruolo.nome}" assegnato ed impostato come ruolo aziendale principale.',
+            )
+        else:
+            messages.success(request, f'Ruolo "{ruolo.nome}" assegnato.')
     else:
         messages.info(request, f'Ruolo "{ruolo.nome}" già assegnato.')
     return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
@@ -3271,7 +3288,17 @@ def dipendente_ruolo_rimuovi(request, legacy_id: int, assegnazione_id: int):
     assegnazione = get_object_or_404(DipendenteRuoloOperativo, pk=assegnazione_id, legacy_anagrafica_id=legacy_id)
     nome = assegnazione.ruolo.nome
     assegnazione.delete()
-    messages.success(request, f'Ruolo "{nome}" rimosso.')
+    # Tolto il ruolo principale, subentra il primo rimasto: la scheda non deve
+    # restare a indicare un ruolo che la persona non ricopre più.
+    from anagrafica.services.ruoli_sync import dopo_rimozione
+    nuovo_principale = dopo_rimozione(legacy_id, nome, user=request.user)
+    if nuovo_principale:
+        messages.success(
+            request,
+            f'Ruolo "{nome}" rimosso. Ruolo aziendale principale: "{nuovo_principale}".',
+        )
+    else:
+        messages.success(request, f'Ruolo "{nome}" rimosso.')
     return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
 
@@ -3341,6 +3368,16 @@ def ruoli_operativi_list(request):
     _da_scheda = _ruoli_conteggio_da_scheda()
     for _r in ruoli:
         _r.n_da_scheda = _da_scheda.get((_r.nome or "").strip().casefold(), 0)
+    # Qualifiche attese dal ruolo: l'associazione si costruisce a mano dal
+    # portale (l'export del gestionale è arrivato senza la matrice skill).
+    _qualifiche_per_ruolo: dict[int, list] = {}
+    for _rq in RuoloQualifica.objects.select_related("qualifica").order_by("qualifica__nome"):
+        _qualifiche_per_ruolo.setdefault(_rq.ruolo_id, []).append(_rq)
+    for _r in ruoli:
+        _r.qualifiche = _qualifiche_per_ruolo.get(_r.id, [])
+    qualifiche_catalogo = list(
+        TipoQualifica.objects.filter(is_active=True).order_by("categoria", "nome")
+    )
     # Catalogo per il dropdown «riporta a» (tutti i ruoli, incluso lo storico).
     ruoli_catalogo = list(RuoloOperativo.objects.order_by("nome").values("id", "nome"))
     ruoli_suggeriti = [
@@ -3350,6 +3387,7 @@ def ruoli_operativi_list(request):
     ]
     return render(request, "anagrafica/pages/ruoli_operativi.html", {
         "ruoli": ruoli,
+        "qualifiche_catalogo": qualifiche_catalogo,
         "ruoli_catalogo": ruoli_catalogo,
         "is_admin": is_admin,
         "ruoli_suggeriti": ruoli_suggeriti,
@@ -3447,6 +3485,54 @@ def ruolo_operativo_delete(request, ruolo_id: int):
 
 
 @login_required
+@require_POST
+def ruolo_qualifica_aggiungi(request, ruolo_id: int):
+    """Associa una qualifica attesa al ruolo (dal catalogo, a mano).
+
+    L'associazione dichiara *cosa serve* per ricoprire il ruolo: non certifica
+    nessuno — chi la possiede davvero lo dicono le qualifiche del dipendente.
+    """
+    if not _is_anagrafica_admin(request):
+        messages.error(request, "Non hai i permessi per gestire le qualifiche dei ruoli.")
+        return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
+
+    ruolo = get_object_or_404(RuoloOperativo, pk=ruolo_id)
+    qualifica_id = _parse_role_id(request.POST.get("qualifica_id"))
+    if not qualifica_id:
+        messages.error(request, "Scegli la qualifica da associare.")
+        return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
+
+    qualifica = get_object_or_404(TipoQualifica, pk=qualifica_id)
+    _, creata = RuoloQualifica.objects.get_or_create(
+        ruolo=ruolo, qualifica=qualifica,
+        defaults={
+            "livello": (request.POST.get("livello") or "").strip()[:50],
+            "obbligatoria": request.POST.get("obbligatoria") != "0",
+            "note": (request.POST.get("note") or "").strip()[:200],
+        },
+    )
+    if creata:
+        messages.success(request, f'"{qualifica.nome}" ora è richiesta dal ruolo "{ruolo.nome}".')
+    else:
+        messages.info(request, f'"{qualifica.nome}" era già associata a "{ruolo.nome}".')
+    return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
+
+
+@login_required
+@require_POST
+def ruolo_qualifica_rimuovi(request, ruolo_id: int, assoc_id: int):
+    if not _is_anagrafica_admin(request):
+        messages.error(request, "Non hai i permessi per gestire le qualifiche dei ruoli.")
+        return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
+
+    assoc = get_object_or_404(RuoloQualifica, pk=assoc_id, ruolo_id=ruolo_id)
+    nome = assoc.qualifica.nome
+    assoc.delete()
+    messages.success(request, f'"{nome}" non è più richiesta dal ruolo.')
+    return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
+
+
+@login_required
 def ruolo_operativo_dipendenti(request, ruolo_id: int):
     """Partial: chi ricopre un ruolo del catalogo unico.
 
@@ -3457,11 +3543,11 @@ def ruolo_operativo_dipendenti(request, ruolo_id: int):
     """
     ruolo = get_object_or_404(RuoloOperativo, pk=ruolo_id)
 
-    ids_assegnati = set(
-        DipendenteRuoloOperativo.objects
-        .filter(ruolo=ruolo)
-        .values_list("legacy_anagrafica_id", flat=True)
-    )
+    periodi = {
+        a.legacy_anagrafica_id: (a.data_inizio, a.data_fine, a.get_tipologia_display() if a.tipologia else "")
+        for a in DipendenteRuoloOperativo.objects.filter(ruolo=ruolo)
+    }
+    ids_assegnati = set(periodi)
     ids_scheda = set(
         DipendenteAnagraficaAziendale.objects
         .filter(ruolo_aziendale__iexact=ruolo.nome)
@@ -3490,6 +3576,9 @@ def ruolo_operativo_dipendenti(request, ruolo_id: int):
                 "mansione": str(row.get("mansione") or "").strip(),
                 "fonti": fonti,
                 "cessato": legacy_id in cessati,
+                "dal": periodi.get(legacy_id, (None, None, ""))[0],
+                "al": periodi.get(legacy_id, (None, None, ""))[1],
+                "tipologia": periodi.get(legacy_id, (None, None, ""))[2],
             })
         righe.sort(key=lambda r: r["label"].casefold())
 
@@ -6091,6 +6180,13 @@ def _sync_aziendale_from_reparto(
         area_aziendale_precedente if area_aziendale_precedente is not None
         else (az.area_aziendale.nome if az.area_aziendale_id else "")
     )
+    # Nessuno è responsabile di sé stesso: un caporeparto che appartiene al
+    # proprio reparto si ritroverebbe indicato come proprio responsabile nella
+    # scheda e nelle card dell'assetto. Il suo riferimento superiore è semmai
+    # nella gerarchia dei ruoli, non qui.
+    if capo_id and int(capo_id) == int(legacy_id):
+        capo_id = None
+
     az.area = reparto_nome
     az.caporeparto_legacy_id = capo_id
     az.area_aziendale_id = area_id_valido
@@ -8956,6 +9052,15 @@ def impostazioni(request):
     _ruoli_da_scheda = _ruoli_conteggio_da_scheda()
     for _r in ruoli_operativi:
         _r.n_da_scheda = _ruoli_da_scheda.get((_r.nome or "").strip().casefold(), 0)
+    # Stesso partial della pagina Ruoli: gli serve anche il catalogo qualifiche.
+    _qual_per_ruolo: dict[int, list] = {}
+    for _rq in RuoloQualifica.objects.select_related("qualifica").order_by("qualifica__nome"):
+        _qual_per_ruolo.setdefault(_rq.ruolo_id, []).append(_rq)
+    for _r in ruoli_operativi:
+        _r.qualifiche = _qual_per_ruolo.get(_r.id, [])
+    qualifiche_catalogo_ruoli = list(
+        TipoQualifica.objects.filter(is_active=True).order_by("categoria", "nome")
+    )
     ruoli_catalogo = list(RuoloOperativo.objects.order_by("nome").values("id", "nome"))
     ruoli_suggeriti = [
         "Preposto", "RSPP", "ASPP", "RLS",
@@ -9229,6 +9334,7 @@ def impostazioni(request):
         # Ruoli aziendali
         # Ruoli operativi
         "ruoli_operativi": ruoli_operativi,
+        "qualifiche_catalogo": qualifiche_catalogo_ruoli,
         "ruoli_catalogo": ruoli_catalogo,
         "ruoli_suggeriti": ruoli_suggeriti,
         # Qualifiche
