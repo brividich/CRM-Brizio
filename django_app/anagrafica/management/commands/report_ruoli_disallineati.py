@@ -11,17 +11,20 @@ Nella stessa passata si controlla il responsabile della scheda
 quello di ieri anche quando il reparto è stato svuotato, e nulla impediva a una
 persona di risultare responsabile di sé stessa.
 
-Quattro anomalie, tutte in sola lettura finché non si passa ``--apply``:
+Cinque anomalie, tutte in sola lettura finché non si passa ``--apply``:
 
 1. **assegnato senza principale** — ha ruoli assegnati ma `ruolo_aziendale`
    vuoto. Riparazione: se il ruolo è **uno solo** diventa il principale; con più
    ruoli si elenca e si salta (scegliere quale sia il principale è una
    decisione, non un automatismo).
-2. **principale senza assegnazione** — `ruolo_aziendale` valorizzato e presente
+2. **principale concluso** — il «Ruolo aziendale» punta a un'assegnazione
+   ormai finita. Riparazione: promuove l'unico ruolo in essere, o svuota il
+   campo se non ne restano (con più ruoli in essere si salta: è una scelta).
+3. **principale senza assegnazione** — `ruolo_aziendale` valorizzato e presente
    in catalogo, ma nessuna assegnazione. Riparazione: crea l'assegnazione.
-3. **responsabile di sé stesso** — `caporeparto_legacy_id` uguale alla persona.
+4. **responsabile di sé stesso** — `caporeparto_legacy_id` uguale alla persona.
    Riparazione: azzera.
-4. **senza collocazione ma con responsabile** — né reparto, né area, né area
+5. **senza collocazione ma con responsabile** — né reparto, né area, né area
    aziendale, eppure un responsabile valorizzato. È una **segnalazione**: il
    dato che manca è la collocazione, non il responsabile, e `--apply` non lo
    tocca. Solo `--azzera-responsabili-scollegati` lo cancella davvero.
@@ -35,6 +38,7 @@ from __future__ import annotations
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.utils import timezone
 
 from anagrafica.models import (
     DipendenteAnagraficaAziendale,
@@ -102,10 +106,19 @@ class Command(BaseCommand):
             self._diagnosi_persona(persona, anagrafica)
             return
 
+        # Un ruolo concluso non rappresenta più la persona: non può diventare il
+        # suo ruolo principale, e se lo è già va tolto. «Concluso» è solo una
+        # fine passata — una data futura è un'uscita programmata, non un ruolo
+        # che la persona ha smesso di ricoprire.
+        oggi = timezone.localdate()
         assegnazioni: dict[int, list[str]] = {}
+        concluse: dict[int, list[str]] = {}
         for a in DipendenteRuoloOperativo.objects.select_related("ruolo"):
-            assegnazioni.setdefault(a.legacy_anagrafica_id, []).append(a.ruolo.nome)
-        for nomi in assegnazioni.values():
+            destinazione = (
+                concluse if (a.data_fine and a.data_fine < oggi) else assegnazioni
+            )
+            destinazione.setdefault(a.legacy_anagrafica_id, []).append(a.ruolo.nome)
+        for nomi in list(assegnazioni.values()) + list(concluse.values()):
             nomi.sort(key=str.casefold)
 
         schede = {
@@ -115,6 +128,7 @@ class Command(BaseCommand):
 
         senza_principale: list[tuple[int, list[str]]] = []
         senza_assegnazione: list[tuple[int, str]] = []
+        principale_concluso: list[tuple[int, str, list[str]]] = []
         se_stessi: list[int] = []
         capo_senza_reparto: list[tuple[int, int]] = []
 
@@ -128,8 +142,17 @@ class Command(BaseCommand):
                 principale = (az.ruolo_aziendale or "").strip()
                 if not principale or principale.casefold() not in catalogo:
                     continue
-                gia = {n.casefold() for n in assegnazioni.get(legacy_id, [])}
-                if principale.casefold() not in gia:
+                in_corso = {n.casefold() for n in assegnazioni.get(legacy_id, [])}
+                finite = {n.casefold() for n in concluse.get(legacy_id, [])}
+                if principale.casefold() in in_corso:
+                    continue
+                if principale.casefold() in finite:
+                    # Il ruolo c'è, ma è finito: si promuove uno di quelli in
+                    # essere, o si svuota se non ne restano.
+                    principale_concluso.append(
+                        (legacy_id, principale, assegnazioni.get(legacy_id, []))
+                    )
+                else:
                     senza_assegnazione.append((legacy_id, principale))
 
         if solo != "ruoli":
@@ -164,6 +187,12 @@ class Command(BaseCommand):
                 self.stdout.write(f"    - {label(legacy_id)}: {', '.join(nomi)}{nota}")
 
             self.stdout.write("")
+            self.stdout.write(f"  Ruolo aziendale che punta a un ruolo CONCLUSO: {len(principale_concluso)}")
+            for legacy_id, nome, restanti in sorted(principale_concluso, key=lambda x: label(x[0])):
+                sostituto = restanti[0] if len(restanti) == 1 else ("—" if not restanti else "scelta manuale")
+                self.stdout.write(f"    - {label(legacy_id)}: «{nome}» concluso → {sostituto}")
+
+            self.stdout.write("")
             self.stdout.write(f"  Ruolo aziendale senza assegnazione nel catalogo: {len(senza_assegnazione)}")
             for legacy_id, nome in sorted(senza_assegnazione, key=lambda x: label(x[0])):
                 self.stdout.write(f"    - {label(legacy_id)}: {nome}")
@@ -196,7 +225,7 @@ class Command(BaseCommand):
             return
 
         # ── Riparazione ──────────────────────────────────────────────────────
-        promossi = creati = azzerati = 0
+        promossi = creati = azzerati = conclusi_ripuliti = 0
         saltati_multiruolo = 0
         with transaction.atomic():
             for legacy_id, nomi in senza_principale:
@@ -209,6 +238,15 @@ class Command(BaseCommand):
                 az.ruolo_aziendale = nomi[0][:200]
                 az.save(update_fields=["ruolo_aziendale", "updated_at"])
                 promossi += 1
+
+            for legacy_id, nome, restanti in principale_concluso:
+                if len(restanti) > 1:
+                    saltati_multiruolo += 1
+                    continue
+                az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=legacy_id)
+                az.ruolo_aziendale = (restanti[0] if restanti else "")[:200]
+                az.save(update_fields=["ruolo_aziendale", "updated_at"])
+                conclusi_ripuliti += 1
 
             for legacy_id, nome in senza_assegnazione:
                 ruolo = catalogo.get(nome.casefold())
@@ -236,7 +274,7 @@ class Command(BaseCommand):
         self.stdout.write("")
         self.stdout.write(self.style.SUCCESS(
             f"Riparati: {promossi} ruoli principali impostati, {creati} assegnazioni create, "
-            f"{azzerati} responsabili azzerati."
+            f"{azzerati} responsabili azzerati, {conclusi_ripuliti} ruoli principali conclusi ripuliti."
         ))
         if saltati_multiruolo:
             self.stdout.write(self.style.WARNING(

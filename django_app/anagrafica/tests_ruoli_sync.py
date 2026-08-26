@@ -265,6 +265,70 @@ class ReportRuoliDisallineatiTests(TestCase):
         self.assertEqual(ruolo_principale(self.ids["d.due"]), "")
         self.assertIn("Saltati 1", out)
 
+    def test_un_ruolo_concluso_non_diventa_principale(self):
+        """Chi ha solo ruoli finiti non ha un ruolo aziendale corrente."""
+        import datetime
+
+        from django.utils import timezone
+
+        ruolo = RuoloOperativo.objects.create(nome="Operatore CN5")
+        DipendenteRuoloOperativo.objects.create(
+            legacy_anagrafica_id=self.ids["u.uno"], ruolo=ruolo,
+            data_inizio=datetime.date(2020, 3, 1),
+            data_fine=timezone.localdate() - datetime.timedelta(days=30),
+        )
+        self._run("--apply")
+        self.assertEqual(ruolo_principale(self.ids["u.uno"]), "")
+
+    def test_una_fine_futura_non_conclude_il_ruolo(self):
+        import datetime
+
+        from django.utils import timezone
+
+        ruolo = RuoloOperativo.objects.create(nome="Operatore CNC")
+        DipendenteRuoloOperativo.objects.create(
+            legacy_anagrafica_id=self.ids["u.uno"], ruolo=ruolo,
+            data_fine=timezone.localdate() + datetime.timedelta(days=30),
+        )
+        self._run("--apply")
+        self.assertEqual(ruolo_principale(self.ids["u.uno"]), "Operatore CNC")
+
+    def test_principale_concluso_viene_sostituito_dal_ruolo_in_essere(self):
+        import datetime
+
+        from django.utils import timezone
+
+        vecchio = RuoloOperativo.objects.create(nome="Operatore Tornio")
+        nuovo = RuoloOperativo.objects.create(nome="Dept Chief")
+        DipendenteRuoloOperativo.objects.create(
+            legacy_anagrafica_id=self.ids["u.uno"], ruolo=vecchio,
+            data_fine=timezone.localdate() - datetime.timedelta(days=10),
+        )
+        DipendenteRuoloOperativo.objects.create(
+            legacy_anagrafica_id=self.ids["u.uno"], ruolo=nuovo,
+        )
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=self.ids["u.uno"], ruolo_aziendale="Operatore Tornio",
+        )
+        self._run("--apply")
+        self.assertEqual(ruolo_principale(self.ids["u.uno"]), "Dept Chief")
+
+    def test_principale_concluso_senza_ruoli_in_essere_svuota_il_campo(self):
+        import datetime
+
+        from django.utils import timezone
+
+        vecchio = RuoloOperativo.objects.create(nome="Operatore Tornio")
+        DipendenteRuoloOperativo.objects.create(
+            legacy_anagrafica_id=self.ids["u.uno"], ruolo=vecchio,
+            data_fine=timezone.localdate() - datetime.timedelta(days=10),
+        )
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=self.ids["u.uno"], ruolo_aziendale="Operatore Tornio",
+        )
+        self._run("--apply")
+        self.assertEqual(ruolo_principale(self.ids["u.uno"]), "")
+
     def test_apply_crea_l_assegnazione_mancante(self):
         DipendenteAnagraficaAziendale.objects.create(
             legacy_anagrafica_id=self.ids["u.uno"], ruolo_aziendale="Capocommessa",
