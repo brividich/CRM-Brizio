@@ -57,10 +57,20 @@ class Command(BaseCommand):
             "--solo", choices=["ruoli", "responsabili"], default=None,
             help="Limita il controllo a una sola famiglia di anomalie.",
         )
+        parser.add_argument(
+            "--persona", default=None,
+            help=(
+                "Diagnosi mirata: stampa TUTTE le righe di anagrafica che contengono "
+                "questo testo in nome/cognome/username, con id, reparto, ruoli assegnati "
+                "e responsabile. Serve a smascherare i doppioni, dove scheda e ruolo "
+                "vivono su due id diversi della stessa persona."
+            ),
+        )
 
     def handle(self, *args, **options):
         apply_changes = bool(options["apply"])
         solo = options["solo"]
+        persona = (options["persona"] or "").strip()
 
         rows = fetch_anagrafica_rows(deduplicate=True)
         anagrafica = {
@@ -77,6 +87,10 @@ class Command(BaseCommand):
             return str((anagrafica.get(legacy_id) or {}).get("reparto") or "").strip()
 
         catalogo = {r.nome.strip().casefold(): r for r in RuoloOperativo.objects.all()}
+
+        if persona:
+            self._diagnosi_persona(persona, anagrafica)
+            return
 
         assegnazioni: dict[int, list[str]] = {}
         for a in DipendenteRuoloOperativo.objects.select_related("ruolo"):
@@ -192,3 +206,62 @@ class Command(BaseCommand):
                 f"Saltati {saltati_multiruolo} dipendenti con più ruoli assegnati: "
                 "il ruolo principale va scelto a mano dalla scheda."
             ))
+
+    def _diagnosi_persona(self, testo: str, anagrafica: dict[int, dict]) -> None:
+        """Tutte le righe legacy che somigliano a `testo`, con quanto ci sta attaccato.
+
+        Non deduplica di proposito: due righe per la stessa persona sono
+        esattamente ciò che si sta cercando, e la fusione le nasconderebbe.
+        """
+        ago = testo.casefold()
+        grezze = [
+            r for r in fetch_anagrafica_rows()
+            if ago in " ".join(
+                str(r.get(c) or "") for c in ("nome", "cognome", "aliasusername")
+            ).casefold()
+        ]
+
+        self.stdout.write("")
+        self.stdout.write(self.style.MIGRATE_HEADING(f"Diagnosi «{testo}» — {len(grezze)} righe in anagrafica"))
+        if not grezze:
+            return
+
+        ids = [int(r.get("id") or 0) for r in grezze]
+        ruoli_per_id: dict[int, list[str]] = {}
+        for a in DipendenteRuoloOperativo.objects.filter(
+            legacy_anagrafica_id__in=ids
+        ).select_related("ruolo"):
+            ruoli_per_id.setdefault(a.legacy_anagrafica_id, []).append(a.ruolo.nome)
+
+        schede = {
+            az.legacy_anagrafica_id: az
+            for az in DipendenteAnagraficaAziendale.objects.filter(legacy_anagrafica_id__in=ids)
+        }
+
+        def nome_di(legacy_id: int) -> str:
+            row = anagrafica.get(legacy_id) or {}
+            return " ".join(
+                p for p in [
+                    str(row.get("cognome") or "").strip(),
+                    str(row.get("nome") or "").strip(),
+                ] if p
+            ) or f"#{legacy_id}"
+
+        for row in grezze:
+            legacy_id = int(row.get("id") or 0)
+            az = schede.get(legacy_id)
+            self.stdout.write("")
+            self.stdout.write(f"  id {legacy_id} — {nome_di(legacy_id)} (username: {row.get('aliasusername') or '—'})")
+            self.stdout.write(f"    reparto legacy : {row.get('reparto') or '—'}")
+            self.stdout.write(f"    mansione legacy: {row.get('mansione') or '—'}")
+            self.stdout.write(f"    utente_id      : {row.get('utente_id') or '—'}")
+            self.stdout.write(f"    ruoli assegnati: {', '.join(sorted(ruoli_per_id.get(legacy_id, []))) or '—'}")
+            if az is None:
+                self.stdout.write("    scheda aziendale: ASSENTE")
+                continue
+            capo = az.caporeparto_legacy_id or 0
+            capo_txt = f"{nome_di(capo)} (id {capo})" if capo else "—"
+            self.stdout.write(f"    ruolo aziendale : {az.ruolo_aziendale or '—'}")
+            self.stdout.write(f"    responsabile    : {capo_txt}")
+            self.stdout.write(f"    area aziendale  : {az.area_aziendale.nome if az.area_aziendale_id else '—'}")
+
