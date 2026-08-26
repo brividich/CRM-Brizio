@@ -523,7 +523,8 @@ Portfolio gestione progetti con workflow documento **VRF** (MOD.073). Presentato
 - **Identità univoca** su `part_number + revisione + versione` — riuso automatico, niente duplicati
 - **Timeline eventi attività**: il dettaglio task mostra una storia operativa leggibile (stato, date, assegnatari, subtask, allegati) con payload tecnico ancora consultabile in disclosure audit
 - **Gantt KICK-OFF**: drag al centro della barra per spostare inizio/fine insieme; drag sui bordi per allungare o accorciare solo inizio/fine mantenendo separata la durata dallo shift date
-- **VRF upload workflow**: dopo creazione kickoff, redirect a `/tasks/projects/<id>/vrf/` per caricare il MOD.073 Excel
+- **Creazione kickoff → primo incontro**: creando un kickoff nasce automaticamente il suo **incontro 1** (stato Pianificato, data odierna, PM/capo commessa/programmatore già fra i partecipanti) e si viene portati sulla sua **convocazione**. Riusare un kickoff esistente (stesso P/N+revisione+versione) non crea incontri.
+- **VRF upload workflow**: il MOD.073 Excel si carica da `/tasks/projects/<id>/vrf/`, raggiungibile dalle tab di commessa, dalla checklist di prontezza e dal centro «Da gestire» (non è più il redirect imposto dopo la creazione)
 - **Parsing automatico** celle fisse del .xlsx (B3=P/N, I3=Descrizione, P3=Esp, O2=Preventivo, P2=Versione, B4=Cliente) con anteprima
 - **Blocco progressivo VRF**: warning dopo `vrf_reminder_days` (default 7g), **bloccante** dopo `vrf_blocking_days` (default 30g) — guardati da `task_create` e `task_edit`
 - **Stati VRF**: `PENDING` / `UPLOADED` / `NOT_REQUIRED` con badge colorato nel portfolio
