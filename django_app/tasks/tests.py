@@ -2526,7 +2526,7 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
         self.assertContains(response, 'name="safety_impact"')
         self.assertContains(response, "Impatto sulla sicurezza")
 
-    def test_post_creates_project_and_redirects_to_vrf_compile(self):
+    def test_post_creates_project_with_first_meeting_and_redirects_there(self):
         self.client.force_login(self.user)
         response = self.client.post(
             reverse("tasks:project_create"),
@@ -2544,9 +2544,16 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
             },
         )
         project = Project.objects.get(part_number="PN-NEW-001")
+        meeting = project.meetings.get()
+        self.assertEqual(meeting.numero, 1)
+        self.assertEqual(meeting.stato, MeetingStatus.PIANIFICATO)
+        self.assertEqual(meeting.data, timezone.localdate())
+        self.assertEqual(meeting.created_by, self.user)
+        # Il team indicato nel form entra fra i partecipanti dell'incontro.
+        self.assertIn(self.user, meeting.partecipanti_utenti.all())
         self.assertRedirects(
             response,
-            reverse("tasks:project_vrf_compile", args=[project.id]),
+            reverse("tasks:project_meeting_edit", args=[project.id, meeting.id]),
         )
         self.assertEqual(project.client_name, "Cliente Test")
         self.assertEqual(project.revisione, "A")
@@ -2578,7 +2585,10 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
         )
 
         project = Project.objects.get(part_number="PN-SAFE-001")
-        self.assertRedirects(response, reverse("tasks:project_vrf_compile", args=[project.id]))
+        meeting = project.meetings.get()
+        self.assertRedirects(
+            response, reverse("tasks:project_meeting_edit", args=[project.id, meeting.id])
+        )
         self.assertTrue(project.safety_impact)
         self.assertEqual(project.vrf_status, VRFDocStatus.PENDING)
 
@@ -2647,6 +2657,8 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
             reverse("tasks:project_vrf_compile", args=[existing.id]),
         )
         self.assertEqual(Project.objects.filter(part_number="DUP-001").count(), 1)
+        # Riusare un kickoff non e' crearlo: nessun incontro nuovo.
+        self.assertEqual(existing.meetings.count(), 0)
         existing.refresh_from_db()
         self.assertEqual(existing.client_name, "Cliente Precedente")
 

@@ -215,3 +215,80 @@ class MinuteContentTests(TasksBaseTestCase):
         _, _, body_html = build_invite_email(self.meeting)
         self.assertIn("Collaudo linea 3", body_html)
         self.assertNotIn("Ritardo fornitore stampi", body_html)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class FirstMeetingOnKickoffCreateTests(TasksBaseTestCase):
+    """Creare un kickoff crea anche il suo incontro 1 e ci porta sopra."""
+
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "tasks")
+        _grant_role_actions(2, ["tasks_view", "tasks_create"])
+        self._refresh_acl_cache()
+        self.user = _create_user_with_legacy(
+            username="kickoff-first",
+            legacy_user_id=313,
+            role_id=2,
+            role_name="tasks",
+        )
+        self.client.force_login(self.user)
+
+    def _create_kickoff(self, part_number: str, **extra):
+        payload = {
+            "client_name": "Cliente",
+            "part_number": part_number,
+            "revisione": "A",
+            "versione": "1.0",
+            "description": "",
+            "control_method": "",
+            "vrf_quote_number": "",
+            "vrf_description": "",
+            "vrf_esp": "",
+            "project_manager": self.user.id,
+        }
+        payload.update(extra)
+        return self.client.post(reverse("tasks:project_create"), payload)
+
+    def test_kickoff_nasce_con_il_suo_primo_incontro(self):
+        response = self._create_kickoff("PN-FIRST-001")
+        project = Project.objects.get(part_number="PN-FIRST-001")
+        meeting = project.meetings.get()
+
+        self.assertEqual(meeting.numero, 1)
+        self.assertEqual(meeting.stato, MeetingStatus.PIANIFICATO)
+        self.assertRedirects(
+            response, reverse("tasks:project_meeting_edit", args=[project.id, meeting.id])
+        )
+
+    def test_la_convocazione_di_arrivo_e_compilabile(self):
+        self._create_kickoff("PN-FIRST-002")
+        project = Project.objects.get(part_number="PN-FIRST-002")
+        meeting = project.meetings.get()
+
+        page = self.client.get(
+            reverse("tasks:project_meeting_edit", args=[project.id, meeting.id])
+        )
+        self.assertEqual(page.status_code, 200)
+        body = page.content.decode()
+        self.assertIn('name="data"', body)
+        self.assertIn('name="luogo"', body)
+
+    def test_helper_idempotente_non_crea_un_secondo_incontro(self):
+        from tasks.views import _create_first_meeting
+
+        project = Project.objects.create(name="", created_by=self.user)
+        first = _create_first_meeting(project, self.user)
+        second = _create_first_meeting(project, self.user)
+
+        self.assertIsNotNone(first)
+        self.assertIsNone(second)
+        self.assertEqual(project.meetings.count(), 1)
+
+    def test_incontro_senza_team_resta_senza_partecipanti(self):
+        from tasks.views import _create_first_meeting
+
+        project = Project.objects.create(name="", created_by=self.user)
+        meeting = _create_first_meeting(project, self.user)
+
+        self.assertEqual(meeting.partecipanti_utenti.count(), 0)

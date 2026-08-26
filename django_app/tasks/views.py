@@ -3216,13 +3216,56 @@ def add_attachment(request, task_id: int):
     return redirect("tasks:detail", task_id=task.id)
 
 
+def _create_first_meeting(project: Project, user) -> KickoffMeeting | None:
+    """Crea l'incontro 1 del kickoff appena nato e vi precarica il team.
+
+    Un kickoff senza incontri e' un kickoff che non e' ancora partito: l'incontro
+    di avvio e' il passo successivo obbligato, non un extra da ricordarsi. Nasce
+    PIANIFICATO con la data di oggi (da correggere nella convocazione) e con PM,
+    capo commessa e programmatore gia' fra i partecipanti — sono le persone che
+    l'utente ha appena indicato nel form, non un'invenzione.
+
+    Idempotente: se il kickoff ha gia' un incontro non ne crea un secondo.
+    """
+    if project.meetings.exists():
+        return None
+
+    meeting = KickoffMeeting.objects.create(
+        project=project,
+        data=timezone.localdate(),
+        stato=MeetingStatus.PIANIFICATO,
+        created_by=user if getattr(user, "is_authenticated", False) else None,
+    )
+
+    team_ids = {
+        pk for pk in (
+            project.project_manager_id,
+            project.capo_commessa_id,
+            project.programmer_id,
+        ) if pk
+    }
+    if team_ids:
+        # Passa dal queryset degli utenti selezionabili: un membro del team
+        # disattivato non deve rientrare dalla finestra come partecipante.
+        meeting.partecipanti_utenti.set(
+            task_active_users_queryset().filter(pk__in=team_ids)
+        )
+    return meeting
+
+
 @task_permissions_required("tasks_view", "tasks_create")
 def project_create(request):
-    """Crea un nuovo kickoff (Project) e avvia il workflow VRF.
+    """Crea un nuovo kickoff (Project) con il suo primo incontro.
 
-    Flow: anagrafica kickoff -> salvataggio Project -> redirect a vrf_compile.
+    Flow: anagrafica kickoff -> salvataggio Project -> creazione incontro 1 ->
+    redirect alla sua convocazione. La scheda VRF resta raggiungibile dalle tab
+    di commessa, dalla checklist di prontezza e dal centro «Da gestire»: non e'
+    piu' il primo passo imposto, perche' il passo che fa partire davvero una
+    commessa e' convocare l'incontro di avvio.
+
     Se l'utente compila P/N + revisione + versione gia' esistenti, il form
-    intercetta il duplicato e reindirizza al kickoff gia' presente.
+    intercetta il duplicato e reindirizza al kickoff gia' presente (li' non c'e'
+    nessuna creazione, quindi nessun incontro nuovo).
     """
     projects_qs = _scoped_projects_queryset(request)
 
@@ -3243,15 +3286,30 @@ def project_create(request):
                 })
                 return redirect("tasks:project_vrf_compile", project_id=reused.id)
 
-            project = form.save(commit=False)
-            project.created_by = request.user
-            project.save()
+            with transaction.atomic():
+                project = form.save(commit=False)
+                project.created_by = request.user
+                project.save()
+                meeting = _create_first_meeting(project, request.user)
             log_action(request, "kickoff_created", "tasks", {
                 "project_id": project.id,
                 "part_number": project.part_number,
                 "client_name": project.client_name,
+                "meeting_id": meeting.id if meeting else None,
                 "message": f"Nuovo kickoff #{project.id} '{project.name}' creato",
             })
+            if meeting is not None:
+                messages.success(
+                    request,
+                    f"Kickoff '{project.name}' creato con il primo incontro. "
+                    "Completa data, luogo e partecipanti, poi invia la convocazione. "
+                    "La scheda VRF resta da compilare dalle tab della commessa.",
+                )
+                return redirect(
+                    "tasks:project_meeting_edit",
+                    project_id=project.id,
+                    meeting_id=meeting.id,
+                )
             messages.success(
                 request,
                 f"Kickoff '{project.name}' creato. Compila la scheda VRF per proseguire.",
