@@ -313,14 +313,85 @@ class FornitoreAsset(models.Model):
 # Ruoli operativi aziendali (preposto, RSPP, squadra antincendio, ecc.)
 # ---------------------------------------------------------------------------
 
+class AmbitoRuolo(models.Model):
+    """Ambito di un ruolo: produttivo, esecutivo, SGSL 45001, SGSI 27001…
+
+    Un ruolo non vive in un solo organigramma. La stessa persona è insieme
+    *Operatore CNC* nell'assetto produttivo, *Preposto* nell'organigramma della
+    sicurezza (ISO 45001) e magari *Referente sicurezza delle informazioni* in
+    quello ISO 27001: sono ruoli che **si sovrappongono**, non che si
+    sostituiscono. L'ambito è la dimensione che li tiene distinti — così ogni
+    norma può avere il suo organigramma senza che l'ultimo ruolo assegnato
+    cancelli il precedente dalla scheda.
+
+    Uno solo degli ambiti porta ``alimenta_scheda``: è quello il cui ruolo
+    finisce nel campo «Ruolo aziendale» della scheda dipendente (il *ruolo
+    principale*, vedi ``services/ruoli_sync.py``). I ruoli degli altri ambiti
+    restano assegnazioni e non toccano quel campo. Un ruolo **senza ambito**
+    vale come appartenente all'ambito della scheda: è lo stato di tutti i ruoli
+    nati prima di questa classificazione, e il loro comportamento non cambia.
+    """
+    nome = models.CharField(max_length=100, unique=True)
+    descrizione = models.TextField(blank=True, default="")
+    colore = models.CharField(max_length=7, default="#64748b", help_text="Colore esadecimale es. #1d4ed8")
+    icona = models.CharField(max_length=10, blank=True, default="", help_text="Emoji o testo breve")
+    ordine = models.IntegerField(default=100, help_text="Ordine di presentazione (crescente).")
+    alimenta_scheda = models.BooleanField(
+        default=False,
+        verbose_name="Alimenta il «Ruolo aziendale» della scheda",
+        help_text=(
+            "Solo un ambito può alimentarlo: è quello dell'assetto organizzativo "
+            "vero e proprio. I ruoli degli altri ambiti si sovrappongono senza "
+            "sostituire il ruolo principale."
+        ),
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["ordine", "nome"]
+        verbose_name = "Ambito del ruolo"
+        verbose_name_plural = "Ambiti dei ruoli"
+
+    def __str__(self) -> str:
+        return self.nome
+
+    def save(self, *args, **kwargs):
+        """L'ambito che alimenta la scheda è **uno solo**: gli altri si spengono.
+
+        Il campo «Ruolo aziendale» è singolo per costruzione; se due ambiti lo
+        alimentassero tornerebbe l'alternanza che questa classificazione serve
+        proprio a togliere di mezzo.
+        """
+        super().save(*args, **kwargs)
+        if self.alimenta_scheda:
+            AmbitoRuolo.objects.filter(alimenta_scheda=True).exclude(pk=self.pk).update(
+                alimenta_scheda=False
+            )
+
+
 class RuoloOperativo(models.Model):
     """Catalogo unico dei ruoli aziendali/operativi (Fase 2: unificazione).
 
     Assorbe i vecchi «Ruoli aziendali»: è la fonte unica dei ruoli, con la
     gerarchia interna (``riporta_a``) e la certificazione di competenza
     opzionale. NON è una primitiva ACL — resta un ruolo funzionale.
+
+    ``ambito`` dice *in quale organigramma* il ruolo vive (produttivo, SGSL
+    45001, SGSI 27001…): ruoli di ambiti diversi convivono sulla stessa persona
+    senza scalzarsi. Vuoto = ambito della scheda, come prima della
+    classificazione.
     """
     nome = models.CharField(max_length=100, unique=True)
+    ambito = models.ForeignKey(
+        AmbitoRuolo,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="ruoli",
+        verbose_name="Ambito",
+        help_text="Organigramma di appartenenza. Vuoto = assetto organizzativo principale.",
+    )
     descrizione = models.TextField(blank=True, default="")
     colore = models.CharField(max_length=7, default="#64748b", help_text="Colore esadecimale es. #1d4ed8")
     icona = models.CharField(max_length=10, blank=True, default="", help_text="Emoji o testo breve")
@@ -350,6 +421,20 @@ class RuoloOperativo(models.Model):
 
     def __str__(self) -> str:
         return self.nome
+
+    @property
+    def alimenta_ruolo_principale(self) -> bool:
+        """Il ruolo concorre al «Ruolo aziendale» della scheda dipendente.
+
+        Vero per i ruoli senza ambito (comportamento storico) e per quelli
+        dell'unico ambito marcato ``alimenta_scheda``. Falso per gli altri: un
+        ruolo dell'organigramma 45001 si aggiunge, non sostituisce.
+        """
+        return self.ambito is None or bool(self.ambito.alimenta_scheda)
+
+    @property
+    def ambito_label(self) -> str:
+        return self.ambito.nome if self.ambito_id else "Non classificato"
 
 
 class DipendenteRuoloOperativo(models.Model):

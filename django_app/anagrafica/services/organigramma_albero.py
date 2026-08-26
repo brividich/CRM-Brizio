@@ -5,6 +5,12 @@ persone: i dipendenti che ricoprono un ruolo sono foglie titolari del nodo di
 quel ruolo, senza sotto-gerarchia. Le radici sono i ruoli con ``riporta_a IS
 NULL``. La costruzione ricorsiva è protetta contro i cicli (difesa: insieme dei
 ruoli già visitati lungo il percorso).
+
+Con ``ambito`` si disegna **un organigramma per ambito**: quello produttivo,
+quello della sicurezza ISO 45001, quello ISO 27001. È lo stesso albero
+ristretto ai ruoli di quell'ambito — un ruolo il cui sovraordinato resta fuori
+dal filtro diventa radice, perché la sua gerarchia in quell'organigramma
+comincia da lui.
 """
 from __future__ import annotations
 
@@ -37,17 +43,27 @@ def _nome_map(legacy_ids) -> dict[int, str]:
     return result
 
 
-def build_ruolo_albero() -> list[dict]:
+def build_ruolo_albero(ambito_id: int | None = None) -> list[dict]:
     """Albero dei ruoli: lista di nodi radice.
 
     Nodo: ``{"ruolo": RuoloOperativo, "titolari": [{"legacy_id", "nome"}],
     "figli": [nodo...]}``. Radici = ruoli attivi con ``riporta_a IS NULL``.
-    """
-    ruoli = list(RuoloOperativo.objects.filter(is_active=True).order_by("nome"))
 
+    ``ambito_id`` restringe l'albero a un solo ambito (organigramma della
+    sicurezza, delle informazioni, …); ``0`` seleziona i ruoli **senza ambito**.
+    """
+    qs = RuoloOperativo.objects.filter(is_active=True).select_related("ambito")
+    if ambito_id is not None:
+        qs = qs.filter(ambito_id=None) if ambito_id == 0 else qs.filter(ambito_id=ambito_id)
+    ruoli = list(qs.order_by("nome"))
+
+    presenti = {r.id for r in ruoli}
     figli_di: dict[int | None, list[RuoloOperativo]] = {}
     for r in ruoli:
-        figli_di.setdefault(r.riporta_a_id, []).append(r)
+        # Sovraordinato fuori dal filtro: dentro questo organigramma il ruolo è
+        # una radice, non un orfano da buttare via.
+        padre = r.riporta_a_id if r.riporta_a_id in presenti else None
+        figli_di.setdefault(padre, []).append(r)
 
     titolari_ids: dict[int, list[int]] = {
         r.id: get_anagrafica_ids_for_role(r.id) for r in ruoli
@@ -78,7 +94,7 @@ def build_ruolo_albero() -> list[dict]:
     return radici
 
 
-def build_certificazione_copertura(tipo_qualifica_id: int, oggi=None) -> list[dict]:
+def build_certificazione_copertura(tipo_qualifica_id: int, oggi=None, ambito_id: int | None = None) -> list[dict]:
     """Come :func:`build_ruolo_albero`, con overlay di copertura per una singola
     certificazione (``TipoQualifica``).
 
@@ -107,7 +123,7 @@ def build_certificazione_copertura(tipo_qualifica_id: int, oggi=None) -> list[di
             continue
         stato_per_id[legacy_id] = stato
 
-    albero = build_ruolo_albero()
+    albero = build_ruolo_albero(ambito_id)
 
     def _annota(nodo: dict) -> None:
         n_cop = 0
@@ -147,7 +163,7 @@ def _ids_con_foto(legacy_ids) -> set[int]:
     }
 
 
-def build_posizioni_albero() -> list[dict]:
+def build_posizioni_albero(ambito_id: int | None = None) -> list[dict]:
     """Albero delle POSIZIONI: un riquadro per posizione (ruolo + persona).
 
     Deriva da :func:`build_ruolo_albero` espandendo i titolari, con questa
@@ -162,9 +178,10 @@ def build_posizioni_albero() -> list[dict]:
     - ``vacante`` — ruolo senza titolari: il riquadro resta, la posizione è
       scoperta.
 
-    Ogni titolare porta ``ha_foto`` per il rendering dell'avatar.
+    Ogni titolare porta ``ha_foto`` per il rendering dell'avatar. ``ambito_id``
+    disegna il solo organigramma di quell'ambito.
     """
-    albero = build_ruolo_albero()
+    albero = build_ruolo_albero(ambito_id)
 
     tutti_ids = []
 

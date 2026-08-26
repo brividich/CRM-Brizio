@@ -63,6 +63,10 @@ urlpatterns = [
     path("ruoli-operativi/<int:ruolo_id>/dipendenti", views.ruolo_operativo_dipendenti, name="ruolo_operativo_dipendenti"),
     path("ruoli-operativi/<int:ruolo_id>/qualifiche/aggiungi", views.ruolo_qualifica_aggiungi, name="ruolo_qualifica_aggiungi"),
     path("ruoli-operativi/<int:ruolo_id>/qualifiche/<int:assoc_id>/rimuovi", views.ruolo_qualifica_rimuovi, name="ruolo_qualifica_rimuovi"),
+    # Ambiti dei ruoli (produttivo, esecutivo, ISO 45001, ISO 27001, …)
+    path("ruoli-operativi/ambiti/nuovo", views.ambito_ruolo_create, name="ambito_ruolo_create"),
+    path("ruoli-operativi/ambiti/<int:ambito_id>/modifica", views.ambito_ruolo_edit, name="ambito_ruolo_edit"),
+    path("ruoli-operativi/ambiti/<int:ambito_id>/elimina", views.ambito_ruolo_delete, name="ambito_ruolo_delete"),
 
     # Impostazioni permessi widget
     path("impostazioni-widget/", views.widget_permissions, name="widget_permissions"),

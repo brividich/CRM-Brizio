@@ -92,6 +92,7 @@ from .models import (
     OnboardingOffboardingCampo,
     OnboardingPratica,
     OnboardingTask,
+    AmbitoRuolo,
     RuoloOperativo,
     RuoloQualifica,
     ImportazioneCedolini,
@@ -1865,17 +1866,28 @@ def dipendente_detail(request, legacy_id: int):
     # Ruoli operativi
     ruoli_assegnati = list(
         DipendenteRuoloOperativo.objects.filter(legacy_anagrafica_id=legacy_id)
-        .select_related("ruolo", "assegnato_da")
+        .select_related("ruolo", "ruolo__ambito", "assegnato_da")
         .order_by("ruolo__nome")
     )
-    ruoli_disponibili = RuoloOperativo.objects.filter(is_active=True).exclude(
-        id__in=[a.ruolo_id for a in ruoli_assegnati]
+    ruoli_disponibili = (
+        RuoloOperativo.objects.filter(is_active=True)
+        .select_related("ambito")
+        .exclude(id__in=[a.ruolo_id for a in ruoli_assegnati])
     )
     # Una persona può avere più ruoli: quello scritto nel campo «Ruolo aziendale»
     # è il principale, e va riconosciuto a colpo d'occhio tra i badge.
     _principale = (aziendale.ruolo_aziendale or "").strip().casefold() if aziendale else ""
     for _a in ruoli_assegnati:
         _a.is_principale = bool(_principale) and _a.ruolo.nome.strip().casefold() == _principale
+    # I ruoli si leggono per ambito: produttivo, esecutivo, ISO 45001, ISO 27001…
+    # Sono ruoli che convivono, e affiancarli senza distinguerli farebbe sembrare
+    # un elenco di alternative quello che è un cumulo di incarichi.
+    ruoli_per_ambito = _raggruppa_per_ambito(
+        ruoli_assegnati, chiave=lambda a: a.ruolo.ambito
+    )
+    ruoli_disponibili_per_ambito = _raggruppa_per_ambito(
+        list(ruoli_disponibili), chiave=lambda r: r.ambito
+    )
 
     # Mansioni catalogo
     mansioni_catalogo = list(Mansione.objects.filter(is_active=True).order_by("nome"))
@@ -2405,6 +2417,8 @@ def dipendente_detail(request, legacy_id: int):
         "all_widgets": STAT_WIDGETS,
         "ruoli_assegnati": ruoli_assegnati,
         "ruoli_disponibili": ruoli_disponibili,
+        "ruoli_per_ambito": ruoli_per_ambito,
+        "ruoli_disponibili_per_ambito": ruoli_disponibili_per_ambito,
         "mansioni_catalogo": mansioni_catalogo,
         "assegnazioni": assegnazioni,
         "assegnazione_in_corso": assegnazione_in_corso,
@@ -3354,6 +3368,80 @@ def _ruoli_conteggio_da_scheda() -> dict[str, int]:
     return conteggi
 
 
+def _raggruppa_per_ambito(elementi, chiave):
+    """Raggruppa per ambito conservando l'ordine degli ambiti (senza in fondo).
+
+    Ritorna ``[{"ambito": AmbitoRuolo|None, "elementi": [...]}, …]``.
+    """
+    gruppi: dict[int | None, dict] = {}
+    for el in elementi:
+        ambito = chiave(el)
+        key = ambito.id if ambito else None
+        gruppi.setdefault(key, {"ambito": ambito, "elementi": []})["elementi"].append(el)
+    return sorted(
+        gruppi.values(),
+        key=lambda g: (
+            g["ambito"].ordine if g["ambito"] else 9999,
+            (g["ambito"].nome if g["ambito"] else "").casefold(),
+        ),
+    )
+
+
+def _parse_int(raw, default: int) -> int:
+    raw = (raw or "").strip()
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return default
+
+
+def _parse_ambito_id(raw) -> int | None:
+    """Id dell'ambito scelto nel form, o ``None`` per «Non classificato»."""
+    raw = (raw or "").strip()
+    if not raw.isdigit():
+        return None
+    return int(raw) if AmbitoRuolo.objects.filter(pk=int(raw)).exists() else None
+
+
+def _parse_ambito_filtro(request) -> int | None:
+    """``?ambito=<id>`` per l'organigramma; ``?ambito=senza`` = ruoli non classificati.
+
+    ``None`` (parametro assente) significa «tutti gli ambiti insieme», che resta
+    la vista di default: l'organizzazione completa.
+    """
+    raw = (request.GET.get("ambito") or "").strip()
+    if raw == "senza":
+        return 0
+    if raw.isdigit() and AmbitoRuolo.objects.filter(pk=int(raw)).exists():
+        return int(raw)
+    return None
+
+
+def _ambito_filtro_context(ambito_id: int | None) -> dict:
+    return {
+        "ambiti_filtro": list(AmbitoRuolo.objects.filter(is_active=True)),
+        "ambito_sel": "senza" if ambito_id == 0 else (str(ambito_id) if ambito_id else ""),
+    }
+
+
+def _ambiti_context(ruoli) -> dict:
+    """Ambiti per i filtri del catalogo, con quanti ruoli ciascuno ne raccoglie.
+
+    «Non classificato» non è un ambito: è la voce che raduna i ruoli nati prima
+    della classificazione, che valgono come ruoli dell'ambito della scheda.
+    """
+    ambiti = list(AmbitoRuolo.objects.all())
+    conteggi: dict[int | None, int] = {}
+    for r in ruoli:
+        conteggi[r.ambito_id] = conteggi.get(r.ambito_id, 0) + 1
+    for a in ambiti:
+        a.n_ruoli = conteggi.get(a.id, 0)
+    return {
+        "ambiti": ambiti,
+        "n_senza_ambito": conteggi.get(None, 0),
+    }
+
+
 @login_required
 def ruoli_operativi_list(request):
     legacy_user = get_legacy_user(request.user)
@@ -3362,9 +3450,16 @@ def ruoli_operativi_list(request):
     ruoli = list(
         RuoloOperativo.objects
         .annotate(n_assegnati=Count("assegnazioni"))
-        .select_related("riporta_a")
+        .select_related("riporta_a", "ambito")
         .order_by("nome")
     )
+    # Ordinamento per ambito in Python: su SQL Server un ORDER BY su colonne
+    # della tabella collegata insieme all'annotate finisce in errore 8127.
+    ruoli.sort(key=lambda r: (
+        r.ambito.ordine if r.ambito_id else 9999,
+        (r.ambito.nome if r.ambito_id else "").casefold(),
+        (r.nome or "").casefold(),
+    ))
     _da_scheda = _ruoli_conteggio_da_scheda()
     for _r in ruoli:
         _r.n_da_scheda = _da_scheda.get((_r.nome or "").strip().casefold(), 0)
@@ -3391,6 +3486,7 @@ def ruoli_operativi_list(request):
         "ruoli_catalogo": ruoli_catalogo,
         "is_admin": is_admin,
         "ruoli_suggeriti": ruoli_suggeriti,
+        **_ambiti_context(ruoli),
     })
 
 
@@ -3415,6 +3511,7 @@ def ruolo_operativo_create(request):
             "colore": (request.POST.get("colore") or "#64748b").strip()[:7],
             "icona": (request.POST.get("icona") or "").strip()[:10],
             "certificazione_competenza": (request.POST.get("certificazione_competenza") or "").strip()[:200],
+            "ambito_id": _parse_ambito_id(request.POST.get("ambito")),
         },
     )
     if created:
@@ -3447,6 +3544,7 @@ def ruolo_operativo_edit(request, ruolo_id: int):
     ruolo.colore = (request.POST.get("colore") or "#64748b").strip()[:7]
     ruolo.icona = (request.POST.get("icona") or "").strip()[:10]
     ruolo.certificazione_competenza = (request.POST.get("certificazione_competenza") or "").strip()[:200]
+    ruolo.ambito_id = _parse_ambito_id(request.POST.get("ambito"))
     riporta_a_id = _parse_role_id(request.POST.get("riporta_a"))
     if riporta_a_id and _riporta_a_valido(ruolo.pk, riporta_a_id):
         ruolo.riporta_a_id = riporta_a_id
@@ -3532,6 +3630,104 @@ def ruolo_qualifica_rimuovi(request, ruolo_id: int, assoc_id: int):
     return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
 
 
+# ---------------------------------------------------------------------------
+# Ambiti dei ruoli — produttivo, esecutivo, ISO 45001, ISO 27001, …
+# ---------------------------------------------------------------------------
+
+@login_required
+@require_POST
+def ambito_ruolo_create(request):
+    if not _is_anagrafica_admin(request):
+        messages.error(request, "Non hai i permessi per gestire gli ambiti dei ruoli.")
+        return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
+
+    nome = (request.POST.get("nome") or "").strip()[:100]
+    if not nome:
+        messages.error(request, "Il nome dell'ambito è obbligatorio.")
+        return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
+
+    if AmbitoRuolo.objects.filter(nome__iexact=nome).exists():
+        messages.warning(request, f'Esiste già un ambito "{nome}".')
+        return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
+
+    ambito = AmbitoRuolo(
+        nome=nome,
+        descrizione=(request.POST.get("descrizione") or "").strip(),
+        colore=(request.POST.get("colore") or "#64748b").strip()[:7],
+        icona=(request.POST.get("icona") or "").strip()[:10],
+        ordine=_parse_int(request.POST.get("ordine"), 100),
+        alimenta_scheda=request.POST.get("alimenta_scheda") == "1",
+    )
+    ambito.save()
+    messages.success(request, f'Ambito "{ambito.nome}" creato.')
+    return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
+
+
+@login_required
+@require_POST
+def ambito_ruolo_edit(request, ambito_id: int):
+    if not _is_anagrafica_admin(request):
+        messages.error(request, "Non hai i permessi per gestire gli ambiti dei ruoli.")
+        return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
+
+    ambito = get_object_or_404(AmbitoRuolo, pk=ambito_id)
+    nome = (request.POST.get("nome") or "").strip()[:100]
+    if not nome:
+        messages.error(request, "Il nome dell'ambito è obbligatorio.")
+        return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
+
+    ambito.nome = nome
+    ambito.descrizione = (request.POST.get("descrizione") or "").strip()
+    ambito.colore = (request.POST.get("colore") or "#64748b").strip()[:7]
+    ambito.icona = (request.POST.get("icona") or "").strip()[:10]
+    ambito.ordine = _parse_int(request.POST.get("ordine"), ambito.ordine)
+    ambito.is_active = request.POST.get("is_active") == "1"
+    chiesto_scheda = request.POST.get("alimenta_scheda") == "1"
+    # Togliere la spunta all'unico ambito che alimenta la scheda lascerebbe il
+    # «Ruolo aziendale» senza sorgente: si cambia scegliendone un altro.
+    if not chiesto_scheda and ambito.alimenta_scheda:
+        messages.warning(
+            request,
+            "L'ambito che alimenta il «Ruolo aziendale» resta questo: per cambiarlo, "
+            "spunta la casella su un altro ambito.",
+        )
+    else:
+        ambito.alimenta_scheda = chiesto_scheda
+    ambito.save()
+    messages.success(request, f'Ambito "{ambito.nome}" aggiornato.')
+    return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
+
+
+@login_required
+@require_POST
+def ambito_ruolo_delete(request, ambito_id: int):
+    if not _is_anagrafica_admin(request):
+        messages.error(request, "Non hai i permessi per gestire gli ambiti dei ruoli.")
+        return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
+
+    ambito = get_object_or_404(AmbitoRuolo, pk=ambito_id)
+    n_ruoli = ambito.ruoli.count()
+    if n_ruoli:
+        messages.error(
+            request,
+            f'"{ambito.nome}" non si elimina: {n_ruoli} ruol{"o" if n_ruoli == 1 else "i"} '
+            "lo usano. Spostali in un altro ambito prima.",
+        )
+        return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
+    if ambito.alimenta_scheda:
+        messages.error(
+            request,
+            f'"{ambito.nome}" alimenta il «Ruolo aziendale» della scheda: '
+            "assegna quel compito a un altro ambito prima di eliminarlo.",
+        )
+        return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
+
+    nome = ambito.nome
+    ambito.delete()
+    messages.success(request, f'Ambito "{nome}" eliminato.')
+    return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
+
+
 @login_required
 def ruolo_operativo_dipendenti(request, ruolo_id: int):
     """Partial: chi ricopre un ruolo del catalogo unico.
@@ -3541,7 +3737,9 @@ def ruolo_operativo_dipendenti(request, ruolo_id: int):
     «Ruolo aziendale» scritto nella scheda. Chi compare in entrambe è mostrato
     una volta sola, con tutte e due le provenienze.
     """
-    ruolo = get_object_or_404(RuoloOperativo, pk=ruolo_id)
+    ruolo = get_object_or_404(
+        RuoloOperativo.objects.select_related("ambito"), pk=ruolo_id
+    )
 
     periodi = {
         a.legacy_anagrafica_id: (a.data_inizio, a.data_fine, a.get_tipologia_display() if a.tipologia else "")
@@ -9046,9 +9244,14 @@ def impostazioni(request):
     ruoli_operativi = list(
         RuoloOperativo.objects
         .annotate(n_assegnati=Count("assegnazioni"))
-        .select_related("riporta_a")
+        .select_related("riporta_a", "ambito")
         .order_by("nome")
     )
+    ruoli_operativi.sort(key=lambda r: (
+        r.ambito.ordine if r.ambito_id else 9999,
+        (r.ambito.nome if r.ambito_id else "").casefold(),
+        (r.nome or "").casefold(),
+    ))
     _ruoli_da_scheda = _ruoli_conteggio_da_scheda()
     for _r in ruoli_operativi:
         _r.n_da_scheda = _ruoli_da_scheda.get((_r.nome or "").strip().casefold(), 0)
@@ -9337,6 +9540,7 @@ def impostazioni(request):
         "qualifiche_catalogo": qualifiche_catalogo_ruoli,
         "ruoli_catalogo": ruoli_catalogo,
         "ruoli_suggeriti": ruoli_suggeriti,
+        **_ambiti_context(ruoli_operativi),
         # Qualifiche
         "tipi_qualifica": tipi_qualifica,
         "QUAL_CATEGORIA_CHOICES": TipoQualifica.CATEGORIA_CHOICES,
@@ -15226,11 +15430,17 @@ def organigramma_albero(request):
     )
     raw = (request.GET.get("certificazione") or "").strip()
     cert_id = int(raw) if raw.isdigit() else None
-    albero = build_certificazione_copertura(cert_id) if cert_id else build_ruolo_albero()
+    ambito_id = _parse_ambito_filtro(request)
+    albero = (
+        build_certificazione_copertura(cert_id, ambito_id=ambito_id)
+        if cert_id
+        else build_ruolo_albero(ambito_id)
+    )
     return render(request, "anagrafica/pages/organigramma_albero.html", {
         "albero": albero,
         "cert_id": cert_id,
         "certificazioni": TipoQualifica.objects.filter(is_active=True).order_by("nome"),
+        **_ambito_filtro_context(ambito_id),
     })
 
 
@@ -15245,7 +15455,8 @@ def organigramma_diagramma(request):
     """
     from anagrafica.services.organigramma_albero import build_posizioni_albero
 
-    albero = build_posizioni_albero()
+    ambito_id = _parse_ambito_filtro(request)
+    albero = build_posizioni_albero(ambito_id)
 
     def _conta(nodi):
         tot = 0
@@ -15256,6 +15467,7 @@ def organigramma_diagramma(request):
     return render(request, "anagrafica/pages/organigramma_diagramma.html", {
         "albero": albero,
         "n_posizioni": _conta(albero),
+        **_ambito_filtro_context(ambito_id),
     })
 
 
