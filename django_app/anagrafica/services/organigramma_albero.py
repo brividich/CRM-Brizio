@@ -163,9 +163,11 @@ def _ids_con_foto(legacy_ids) -> set[int]:
     }
 
 
-#: oltre questo numero di riporti diretti tutti-foglia la lista verticale si
+#: oltre questo numero di riporti diretti tutti-foglia la colonna verticale si
 #: spezza in più colonne, per non far scorrere all'infinito la pagina.
 SOGLIA_COLONNE = 5
+#: colonne massime affiancate sotto lo stesso riquadro.
+MAX_COLONNE = 3
 
 
 def griglia_riporti(figli: list[dict]) -> bool:
@@ -175,6 +177,22 @@ def griglia_riporti(figli: list[dict]) -> bool:
     sua volta dei riporti: un sotto-albero dentro una colonna sarebbe illeggibile.
     """
     return len(figli) > SOGLIA_COLONNE and all(not f["figli"] for f in figli)
+
+
+def spezza_in_colonne(figli: list[dict]) -> list[list[dict]]:
+    """I riporti diretti divisi nelle colonne da disegnare sotto il riquadro.
+
+    Una sola colonna nel caso normale — i riquadri scendono in verticale sotto
+    il genitore. Quando :func:`griglia_riporti` lo consente si affiancano fino a
+    :data:`MAX_COLONNE` colonne, riempite dall'alto verso il basso.
+    """
+    if not figli:
+        return []
+    if not griglia_riporti(figli):
+        return [list(figli)]
+    n_colonne = min(MAX_COLONNE, -(-len(figli) // SOGLIA_COLONNE))
+    per_colonna = -(-len(figli) // n_colonne)
+    return [figli[i:i + per_colonna] for i in range(0, len(figli), per_colonna)]
 
 
 def build_posizioni_albero(ambito_id: int | None = None) -> list[dict]:
@@ -193,7 +211,8 @@ def build_posizioni_albero(ambito_id: int | None = None) -> list[dict]:
       scoperta.
 
     Ogni titolare porta ``ha_foto`` per il rendering dell'avatar; ogni nodo
-    porta ``griglia`` (vedi :func:`griglia_riporti`) per il layout dei riporti.
+    porta ``griglia`` e ``colonne`` (vedi :func:`spezza_in_colonne`) per il
+    layout dei riporti.
     ``ambito_id`` disegna il solo organigramma di quell'ambito.
     """
     albero = build_ruolo_albero(ambito_id)
@@ -223,6 +242,7 @@ def build_posizioni_albero(ambito_id: int | None = None) -> list[dict]:
                 "titolari": titolari,
                 "figli": figli_nodo,
                 "griglia": griglia if figli_nodo else False,
+                "colonne": spezza_in_colonne(figli_nodo),
             }
 
         titolari = sorted(nodo["titolari"], key=lambda t: (t["nome"] or "", t["legacy_id"]))
