@@ -14,10 +14,23 @@
   background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
   box-shadow:var(--shadow); padding:30px 22px 28px; min-height:260px; overflow:auto;
 }
-/* max-content + margin auto: l'albero sta al centro quando ci sta, e quando è
-   più largo del pannello scorre in orizzontale senza che il lato sinistro
-   finisca tagliato (è quello che farebbe justify-content:center). */
-.ogd-root { width:max-content; min-width:100%; margin:0 auto; display:flex; flex-direction:column; gap:40px; }
+/* Zoom: `.ogd-scale` viene scalato con transform (che NON cambia lo spazio
+   occupato), quindi il JS ridimensiona `.ogd-zoomwrap` a misura*zoom — è quello
+   che tiene onesta la barra di scorrimento. `margin:0 auto` centra l'albero
+   quando ci sta e, quando eccede, non taglia il lato sinistro come farebbe
+   justify-content:center. */
+.ogd-zoomwrap { margin:0 auto; }
+.ogd-scale { width:max-content; transform-origin:0 0; }
+.ogd-root { width:max-content; display:flex; flex-direction:column; gap:40px; }
+
+/* [hidden] va riaffermato: una regola d'autore su display batte quella dello UA */
+.ogd-zoom { display:inline-flex; align-items:center; gap:4px; }
+.ogd-zoom[hidden] { display:none; }
+.ogd-zoom .hr-btn { padding-left:10px; padding-right:10px; }
+.ogd-zoom-val {
+  min-width:52px; text-align:center; font-size:var(--fs-sm); font-weight:700;
+  color:var(--text-mid); font-variant-numeric:tabular-nums;
+}
 
 /* ── Riquadro posizione ─────────────────────────────────────────────────── */
 .ogd-card {
@@ -133,7 +146,7 @@
     <div>
       <div class="hr-pagehead-eyebrow">Anagrafica HR</div>
       <h1 class="hr-pagehead-title">Organigramma a diagramma</h1>
-      <p class="hr-pagehead-desc">Un riquadro per posizione (ruolo + persona), disegnato ad albero: il genitore sta al centro e i riporti si affiancano sotto, agganciati alla traversa. La gerarchia resta tra ruoli: i ruoli con più titolari che hanno riporti restano un riquadro unico. I rami larghi si scorrono in orizzontale o si comprimono dal pulsante sul riquadro.</p>
+      <p class="hr-pagehead-desc">Un riquadro per posizione (ruolo + persona), disegnato ad albero: il genitore sta al centro e i riporti si affiancano sotto, agganciati alla traversa. La gerarchia resta tra ruoli: i ruoli con più titolari che hanno riporti restano un riquadro unico. I rami larghi si scorrono in orizzontale, si comprimono dal pulsante sul riquadro o si rimpiccioliscono con lo zoom qui sotto.</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
       <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:organigramma_albero' %}">⌸ Vista ad albero</a>
@@ -157,19 +170,28 @@
     </form>
     <button type="button" class="hr-btn hr-btn-outline" data-ogd-expand="1">Espandi tutto</button>
     <button type="button" class="hr-btn hr-btn-outline" data-ogd-expand="0">Comprimi tutto</button>
+    <span class="ogd-zoom" id="ogdZoom" hidden>
+      <button type="button" class="hr-btn hr-btn-outline" data-ogd-zoom="-1" title="Riduci">−</button>
+      <span class="ogd-zoom-val" id="ogdZoomVal" aria-live="polite">100%</span>
+      <button type="button" class="hr-btn hr-btn-outline" data-ogd-zoom="1" title="Ingrandisci">+</button>
+      <button type="button" class="hr-btn hr-btn-outline" data-ogd-zoom="fit" title="Adatta l'albero alla larghezza del pannello">⇔ Adatta</button>
+      <button type="button" class="hr-btn hr-btn-outline" data-ogd-zoom="reset" title="Torna alla dimensione reale">100%</button>
+    </span>
     <span class="ogd-count">{{ n_posizioni }} posizion{{ n_posizioni|pluralize:"e,i" }}</span>
   </div>
 
   <div class="ogd-panel" id="ogdPanel">
     {% if albero %}
       {# Un albero per radice, impilati: due organigrammi affiancati non si leggono. #}
-      <div class="ogd-root">
-        {% for nodo in albero %}
-          <ul class="ogd-level ogd-level--top">
-            {% include "anagrafica/partials/_org_posizione.html" with nodo=nodo only %}
-          </ul>
-        {% endfor %}
-      </div>
+      <div class="ogd-zoomwrap" id="ogdZoomWrap"><div class="ogd-scale" id="ogdScale">
+        <div class="ogd-root">
+          {% for nodo in albero %}
+            <ul class="ogd-level ogd-level--top">
+              {% include "anagrafica/partials/_org_posizione.html" with nodo=nodo only %}
+            </ul>
+          {% endfor %}
+        </div>
+      </div></div>
     {% else %}
       <p class="ogd-empty">Nessun ruolo a catalogo: l'organigramma si popola dai ruoli operativi e dai loro titolari.</p>
     {% endif %}
@@ -182,6 +204,59 @@
   var panel = document.getElementById('ogdPanel');
   if (!panel) { return; }
 
+  var wrap = document.getElementById('ogdZoomWrap');
+  var scale = document.getElementById('ogdScale');
+  var barra = document.getElementById('ogdZoom');
+  var valore = document.getElementById('ogdZoomVal');
+
+  var MIN = 0.3, MAX = 1.5, PASSO = 1.15;
+  var zoom = 1;
+  var modoFit = false;   /* con «Adatta» il ridimensionamento segue la finestra */
+
+  /* offsetWidth/offsetHeight NON risentono della transform: misurano sempre
+     l'albero a grandezza reale, che è quel che serve per dimensionare il wrap. */
+  function larghezzaUtile() {
+    var cs = getComputedStyle(panel);
+    return panel.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  }
+
+  function applica(z) {
+    if (!scale || !wrap) { return; }
+    zoom = Math.min(MAX, Math.max(MIN, z));
+    scale.style.transform = zoom === 1 ? '' : 'scale(' + zoom + ')';
+    wrap.style.width = Math.ceil(scale.offsetWidth * zoom) + 'px';
+    wrap.style.height = Math.ceil(scale.offsetHeight * zoom) + 'px';
+    if (valore) { valore.textContent = Math.round(zoom * 100) + '%'; }
+  }
+
+  function adatta() {
+    if (!scale) { return; }
+    var naturale = scale.offsetWidth;
+    modoFit = true;
+    applica(naturale > 0 ? Math.min(1, larghezzaUtile() / naturale) : 1);
+  }
+
+  /* Il collasso di un ramo cambia l'ingombro: il wrap va rimisurato, altrimenti
+     resta la barra di scorrimento di prima. */
+  function rimisura() {
+    if (modoFit) { adatta(); } else { applica(zoom); }
+  }
+
+  if (scale && wrap && barra) {
+    barra.hidden = false;   /* senza JS lo zoom non c'è: l'albero resta al 100% */
+    barra.addEventListener('click', function (ev) {
+      var btn = ev.target.closest('[data-ogd-zoom]');
+      if (!btn) { return; }
+      var azione = btn.getAttribute('data-ogd-zoom');
+      if (azione === 'fit') { adatta(); return; }
+      modoFit = false;
+      if (azione === 'reset') { applica(1); }
+      else { applica(azione === '1' ? zoom * PASSO : zoom / PASSO); }
+    });
+    window.addEventListener('resize', function () { if (modoFit) { adatta(); } });
+    applica(1);
+  }
+
   function stato(btn, chiuso) {
     btn.textContent = chiuso ? '+' : '−';
     btn.setAttribute('aria-expanded', chiuso ? 'false' : 'true');
@@ -193,6 +268,7 @@
     if (!btn) { return; }
     var nodo = btn.closest('.ogd-node');
     stato(btn, nodo.classList.toggle('is-collapsed'));
+    rimisura();
   });
 
   /* Espandi / comprimi tutto */
@@ -203,6 +279,7 @@
         nodo.classList.toggle('is-collapsed', comprimi);
       });
       panel.querySelectorAll('[data-ogd-toggle]').forEach(function (t) { stato(t, comprimi); });
+      rimisura();
     });
   });
 })();

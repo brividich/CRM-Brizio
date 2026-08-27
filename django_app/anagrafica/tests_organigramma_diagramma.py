@@ -111,3 +111,6 @@ class OrganigrammaDiagrammaViewTests(TestCase):
         # albero genealogico: livelli annidati di fratelli, non colonne appese
         self.assertIn("ogd-level", body)
         self.assertNotIn("ogd-colonna", body)
+        # zoom: comandi in toolbar e wrapper scalabile attorno all'albero
+        self.assertIn('data-ogd-zoom="fit"', body)
+        self.assertIn('id="ogdScale"', body)
