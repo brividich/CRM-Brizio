@@ -29,6 +29,8 @@
 .co-btn-undo:hover { background:#e2e8f0; }
 .co-note-input { padding:6px 8px; border:1px solid #cbd5e1; border-radius:6px; font-size:12px; width:160px; }
 
+.co-badge-vice { display:inline-block; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.03em; color:#92400e; background:#fef3c7; padding:2px 8px; border-radius:99px; margin-right:6px; }
+
 .co-badge-done { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; color:#166534; background:#dcfce7; padding:3px 9px; border-radius:99px; }
 
 .co-propose { background:#f8fafc; border:1px solid #e2e8f0; border-radius:14px; padding:16px 20px; }
@@ -86,6 +88,12 @@ body.theme-dark .co-empty, body.theme-dark .co-propose { background:#0f172a; bor
     <div class="co-item {% if voce.confermato %}co-done{% endif %}">
       <div>
         <div class="co-item-desc">{{ voce.descrizione }}</div>
+        {% if voce.come_vice %}
+        <div class="co-item-meta">
+          <span class="co-badge-vice">Come vice</span>
+          Titolare: {{ voce.responsabile|default:"non assegnato" }} — puoi confermare tu se è assente.
+        </div>
+        {% endif %}
         {% if voce.confermato %}
         <div class="co-item-meta">Confermato da {{ voce.confermato_da }} il {{ voce.confermato_il|date:"d/m/Y H:i" }}{% if voce.note %} — nota: {{ voce.note }}{% endif %}</div>
         {% endif %}

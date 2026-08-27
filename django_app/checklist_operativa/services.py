@@ -107,6 +107,13 @@ def genera_voci_da_template(evento: ChiusuraEvento) -> int:
         ChiusuraVoce.objects.filter(evento=evento_bloccato, template__isnull=False)
         .values_list("template_id", flat=True)
     )
+    da_istanziare = [
+        template
+        for template in ChecklistTaskTemplate.objects.filter(attivo=True)
+        .prefetch_related("vice_responsabili")
+        .order_by("ordine", "id")
+        if template.pk not in gia_presenti
+    ]
     nuove = [
         ChiusuraVoce(
             evento=evento_bloccato,
@@ -115,12 +122,33 @@ def genera_voci_da_template(evento: ChiusuraEvento) -> int:
             descrizione=template.descrizione,
             responsabile=template.responsabile,
         )
-        for template in ChecklistTaskTemplate.objects.filter(attivo=True).order_by("ordine", "id")
-        if template.pk not in gia_presenti
+        for template in da_istanziare
     ]
     if nuove:
         ChiusuraVoce.objects.bulk_create(nuove)
+        _copia_vice_dai_template(evento_bloccato, da_istanziare)
     return len(nuove)
+
+
+def _copia_vice_dai_template(evento: ChiusuraEvento, templates: list) -> None:
+    """Riporta i vice del template sulle voci appena create.
+
+    Separato dal ``bulk_create`` perché un M2M non si popola in bulk insieme
+    alle righe: le voci vengono rilette per ``template_id`` invece di fidarsi
+    delle chiavi restituite da ``bulk_create``, che su SQL Server non sono
+    garantite.
+    """
+    vice_per_template = {
+        template.pk: [vice.pk for vice in template.vice_responsabili.all()]
+        for template in templates
+    }
+    vice_per_template = {tpl: vice for tpl, vice in vice_per_template.items() if vice}
+    if not vice_per_template:
+        return
+
+    voci = ChiusuraVoce.objects.filter(evento=evento, template_id__in=vice_per_template)
+    for voce in voci:
+        voce.vice_responsabili.set(vice_per_template[voce.template_id])
 
 
 @transaction.atomic

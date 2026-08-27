@@ -8,14 +8,16 @@ from .models import ChecklistTaskTemplate, ChiusuraEvento, ChiusuraProposta, Chi
 @admin.register(ChecklistTaskTemplate)
 class ChecklistTaskTemplateAdmin(admin.ModelAdmin):
     list_display = ("ordine", "descrizione", "responsabile", "reparto", "attivo")
-    list_filter = ("attivo",)
-    search_fields = ("descrizione", "reparto")
+    list_filter = ("attivo", "reparto")
+    search_fields = ("descrizione", "reparto__nome")
+    filter_horizontal = ("vice_responsabili",)
 
 
 class ChiusuraVoceInline(admin.TabularInline):
     model = ChiusuraVoce
     extra = 0
     fields = ("ordine", "descrizione", "responsabile", "confermato", "confermato_da", "confermato_il")
+    # ``vice_responsabili`` è un M2M: fuori dall'inline, si gestisce dalla voce.
     readonly_fields = ("confermato_da", "confermato_il")
 
 

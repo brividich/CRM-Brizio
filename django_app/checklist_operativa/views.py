@@ -4,6 +4,7 @@ from functools import wraps
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -95,9 +96,16 @@ def gestione_home(request):
 
     voci = []
     if evento and dipendente:
+        # Il vice vede la voce insieme al responsabile: è il solo modo perché
+        # possa spuntarla quando il titolare è in ferie o assente.
         voci = list(
-            evento.voci.filter(responsabile=dipendente).select_related("confermato_da").order_by("ordine", "id")
+            evento.voci.filter(Q(responsabile=dipendente) | Q(vice_responsabili=dipendente))
+            .select_related("confermato_da", "responsabile")
+            .distinct()
+            .order_by("ordine", "id")
         )
+        for voce in voci:
+            voce.come_vice = voce.responsabile_id != dipendente.pk
 
     altri_eventi = ChiusuraEvento.objects.filter(stato=ChiusuraEvento.STATO_APERTA).order_by("-data_inizio")
 
@@ -117,7 +125,7 @@ def gestione_home(request):
 def gestione_conferma(request, voce_id: int):
     dipendente = _current_dipendente(request)
     voce = get_object_or_404(ChiusuraVoce, pk=voce_id)
-    if not dipendente or voce.responsabile_id != dipendente.pk:
+    if not voce.puo_confermare(dipendente):
         return render(request, "core/pages/forbidden.html", status=403)
 
     azione = request.POST.get("azione", "conferma")
@@ -165,7 +173,11 @@ def gestione_proposta_nuova(request):
 @configurazione_required
 def configurazione_home(request):
     context = {
-        "templates": ChecklistTaskTemplate.objects.all().select_related("responsabile"),
+        "templates": (
+            ChecklistTaskTemplate.objects.all()
+            .select_related("responsabile", "reparto")
+            .prefetch_related("vice_responsabili")
+        ),
         "eventi": eventi_con_progresso()[:20],
         "proposte_in_attesa": ChiusuraProposta.objects.filter(
             stato=ChiusuraProposta.STATO_IN_ATTESA
@@ -176,7 +188,17 @@ def configurazione_home(request):
 
 @configurazione_required
 def configurazione_task_edit(request, pk: int | None = None):
+    """Crea o modifica una mansione del template.
+
+    Serve due chiamanti con la stessa view e la stessa validazione: la pagina
+    intera (link diretto, segnalibro, browser senza JS) e il popup della
+    configurazione, che chiede solo il frammento del form. Al salvataggio dal
+    popup non si redirige — si risponde ``HX-Refresh`` e la tabella sottostante
+    si ridisegna da sola.
+    """
     instance = get_object_or_404(ChecklistTaskTemplate, pk=pk) if pk else None
+    is_htmx = request.headers.get("HX-Request") == "true"
+
     if request.method == "POST":
         form = ChecklistTaskTemplateForm(request.POST, instance=instance)
         if form.is_valid():
@@ -184,12 +206,20 @@ def configurazione_task_edit(request, pk: int | None = None):
             if not pk:
                 template.creato_da = request.user
             template.save()
+            form.save_m2m()
             messages.success(request, "Mansione salvata.")
+            if is_htmx:
+                risposta = HttpResponse(status=204)
+                risposta["HX-Refresh"] = "true"
+                return risposta
             return redirect("checklist_operativa:configurazione")
     else:
         form = ChecklistTaskTemplateForm(instance=instance)
 
-    return render(request, "checklist_operativa/pages/task_form.html", {"form": form, "instance": instance})
+    contesto = {"form": form, "instance": instance, "in_modale": is_htmx}
+    if is_htmx:
+        return render(request, "checklist_operativa/partials/_task_form.html", contesto)
+    return render(request, "checklist_operativa/pages/task_form.html", contesto)
 
 
 @configurazione_required
@@ -218,7 +248,11 @@ def configurazione_evento_nuovo(request):
 @configurazione_required
 def configurazione_evento_detail(request, pk: int):
     evento = get_object_or_404(eventi_con_progresso(), pk=pk)
-    voci = evento.voci.select_related("responsabile", "confermato_da").order_by("ordine", "id")
+    voci = (
+        evento.voci.select_related("responsabile", "confermato_da")
+        .prefetch_related("vice_responsabili")
+        .order_by("ordine", "id")
+    )
     context = {
         "evento": evento,
         "voci": voci,
@@ -276,6 +310,9 @@ def configurazione_voce_edit(request, evento_pk: int, pk: int | None = None):
             except ChecklistStatoError as exc:
                 messages.error(request, str(exc))
                 return redirect("checklist_operativa:evento_detail", pk=evento.pk)
+            # ``commit=False`` rimanda gli M2M: senza questa riga i vice scelti
+            # nel form non verrebbero mai scritti.
+            form.save_m2m()
             messages.success(request, "Voce salvata.")
             return redirect("checklist_operativa:evento_detail", pk=evento.pk)
     else:

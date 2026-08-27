@@ -19,9 +19,36 @@
 .co-a { color:#0369a1; font-weight:600; text-decoration:none; }
 .co-progress { display:inline-block; width:80px; height:8px; background:#f1f5f9; border-radius:99px; overflow:hidden; vertical-align:middle; margin-right:6px; }
 .co-progress-bar { height:100%; background:#16a34a; }
+.co-vice { font-size:12px; color:#475569; }
+.co-vice-none { color:#94a3b8; }
+
+/* Popup: la configurazione si modifica senza uscire dalla pagina, cosi' la
+   tabella delle mansioni resta sotto gli occhi mentre se ne cambia una. */
+.co-modal { display:none; position:fixed; inset:0; z-index:1100; align-items:flex-start; justify-content:center; background:rgba(15,23,42,.45); padding:40px 16px; overflow-y:auto; }
+.co-modal.co-modal-open { display:flex; }
+.co-modal-card { background:#fff; border-radius:14px; width:600px; max-width:100%; box-shadow:0 20px 50px rgba(15,23,42,.28); }
+.co-modal-head { display:flex; align-items:center; justify-content:space-between; padding:16px 22px; border-bottom:1px solid #e2e8f0; }
+.co-modal-head strong { font-size:15px; }
+.co-modal-close { background:none; border:none; font-size:22px; line-height:1; cursor:pointer; color:#64748b; }
+.co-modal-body { padding:18px 22px 22px; }
+.co-modal-body .co-form { max-width:none; background:none; border:none; border-radius:0; padding:0; display:flex; flex-direction:column; gap:12px; }
+.co-modal-body .co-form label { font-size:12px; font-weight:700; color:#64748b; display:flex; flex-direction:column; gap:4px; }
+.co-modal-body .hub-input, .co-modal-body .hub-select { padding:8px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px; width:100%; }
+.co-modal-body .co-multi { min-height:120px; }
+.co-form-help { font-size:11px; font-weight:500; color:#94a3b8; }
+.co-form-error { background:#fee2e2; color:#b91c1c; font-size:12px; padding:8px 10px; border-radius:8px; }
+.co-form-error-inline { color:#b91c1c; }
+.co-form-actions { display:flex; gap:8px; align-items:center; margin-top:4px; }
+.co-btn-confirm { padding:9px 18px; border-radius:8px; font-size:13px; font-weight:700; background:#16a34a; color:#fff; border:none; cursor:pointer; }
+.co-btn-cancel { padding:9px 18px; border-radius:8px; font-size:13px; font-weight:700; background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; cursor:pointer; }
+.co-modal-loading { color:#94a3b8; font-size:13px; padding:20px 0; }
 body.theme-dark .co-section { background:#1e293b; border-color:#334155; }
 body.theme-dark .co-table th { color:#94a3b8; border-color:#334155; }
 body.theme-dark .co-table td { border-color:#334155; color:#e2e8f0; }
+body.theme-dark .co-modal-card { background:#1e293b; }
+body.theme-dark .co-modal-head { border-color:#334155; }
+body.theme-dark .co-modal-body .co-form label { color:#94a3b8; }
+body.theme-dark .co-vice { color:#cbd5e1; }
 </style>
 {% endblock %}
 
@@ -30,19 +57,27 @@ body.theme-dark .co-table td { border-color:#334155; color:#e2e8f0; }
   <div class="co-section">
     <h2>
       Mansioni template
-      <a class="co-link-btn" href="{% url 'checklist_operativa:task_nuovo' %}">+ Nuova mansione</a>
+      {# href resta valido: senza JS/HTMX il link porta alla pagina intera. #}
+      <a class="co-link-btn" href="{% url 'checklist_operativa:task_nuovo' %}"
+         hx-get="{% url 'checklist_operativa:task_nuovo' %}" hx-target="#co-modal-body" hx-swap="innerHTML"
+         onclick="coModalOpen('Nuova mansione')">+ Nuova mansione</a>
     </h2>
     <table class="co-table">
-      <tr><th>Ord.</th><th>Descrizione</th><th>Responsabile</th><th>Reparto</th><th>Stato</th><th></th></tr>
+      <tr><th>Ord.</th><th>Descrizione</th><th>Responsabile</th><th>Vice</th><th>Reparto</th><th>Stato</th><th></th></tr>
       {% for t in templates %}
       <tr>
         <td>{{ t.ordine }}</td>
         <td>{{ t.descrizione|truncatechars:90 }}</td>
         <td>{{ t.responsabile|default:"—" }}</td>
+        <td class="co-vice">
+          {% for v in t.vice_responsabili.all %}{{ v }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="co-vice-none">—</span>{% endfor %}
+        </td>
         <td>{{ t.reparto|default:"—" }}</td>
         <td>{% if t.attivo %}<span class="co-badge co-badge-on">Attiva</span>{% else %}<span class="co-badge co-badge-off">Disattiva</span>{% endif %}</td>
         <td>
-          <a class="co-a" href="{% url 'checklist_operativa:task_modifica' t.pk %}">Modifica</a>
+          <a class="co-a" href="{% url 'checklist_operativa:task_modifica' t.pk %}"
+             hx-get="{% url 'checklist_operativa:task_modifica' t.pk %}" hx-target="#co-modal-body" hx-swap="innerHTML"
+             onclick="coModalOpen('Modifica mansione')">Modifica</a>
           <form method="post" action="{% url 'checklist_operativa:task_toggle' t.pk %}" style="display:inline">
             {% csrf_token %}
             <button type="submit" class="co-a" style="background:none;border:none;cursor:pointer;">{% if t.attivo %}Disattiva{% else %}Riattiva{% endif %}</button>
@@ -50,7 +85,7 @@ body.theme-dark .co-table td { border-color:#334155; color:#e2e8f0; }
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="6">Nessuna mansione configurata.</td></tr>
+      <tr><td colspan="7">Nessuna mansione configurata.</td></tr>
       {% endfor %}
     </table>
   </div>
@@ -88,4 +123,31 @@ body.theme-dark .co-table td { border-color:#334155; color:#e2e8f0; }
     <a class="co-a" href="{% url 'checklist_operativa:proposte' %}">Vai alla coda di revisione →</a>
   </div>
 </div>
+
+<div id="co-modal" class="co-modal" onclick="if (event.target === this) coModalClose();">
+  <div class="co-modal-card">
+    <div class="co-modal-head">
+      <strong id="co-modal-title">Mansione</strong>
+      <button type="button" class="co-modal-close" onclick="coModalClose()" aria-label="Chiudi">&times;</button>
+    </div>
+    <div id="co-modal-body" class="co-modal-body"></div>
+  </div>
+</div>
+
+<script>
+/* Il form viaggia via HTMX: la view risponde con il frammento, e al salvataggio
+   con HX-Refresh — cosi' validazione e messaggi restano quelli del server. */
+function coModalOpen(titolo) {
+  document.getElementById('co-modal-title').textContent = titolo;
+  document.getElementById('co-modal-body').innerHTML = '<div class="co-modal-loading">Caricamento…</div>';
+  document.getElementById('co-modal').classList.add('co-modal-open');
+}
+function coModalClose() {
+  document.getElementById('co-modal').classList.remove('co-modal-open');
+  document.getElementById('co-modal-body').innerHTML = '';
+}
+document.addEventListener('keydown', function (evt) {
+  if (evt.key === 'Escape') coModalClose();
+});
+</script>
 {% endblock %}

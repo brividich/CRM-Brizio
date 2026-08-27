@@ -1,0 +1,24 @@
+{# Corpo del form "mansione template": lo stesso frammento serve la pagina intera
+   e il popup della configurazione, così le due strade non divergono mai. #}
+{% if instance %}
+{% url 'checklist_operativa:task_modifica' instance.pk as co_action %}
+{% else %}
+{% url 'checklist_operativa:task_nuovo' as co_action %}
+{% endif %}
+<form class="co-form" method="post" action="{{ co_action }}"
+      {% if in_modale %}hx-post="{{ co_action }}" hx-target="#co-modal-body" hx-swap="innerHTML"{% endif %}>
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+  <div class="co-form-error">{{ form.non_field_errors|striptags }}</div>
+  {% endif %}
+  {% for field in form %}
+  <label>{{ field.label }}{% if field.errors %} — <span class="co-form-error-inline">{{ field.errors|striptags }}</span>{% endif %}
+    {{ field }}
+    {% if field.help_text %}<span class="co-form-help">{{ field.help_text }}</span>{% endif %}
+  </label>
+  {% endfor %}
+  <div class="co-form-actions">
+    <button type="button" class="co-btn-cancel" onclick="coModalClose()">Annulla</button>
+    <button type="submit" class="co-btn-confirm">Salva</button>
+  </div>
+</form>

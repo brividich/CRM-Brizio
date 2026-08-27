@@ -14,6 +14,7 @@
 .co-badge-on { background:#dcfce7; color:#166534; }
 .co-badge-off { background:#f1f5f9; color:#94a3b8; }
 .co-a { color:#0369a1; font-weight:600; text-decoration:none; }
+.co-vice { font-size:12px; color:#64748b; }
 .co-link-btn { font-size:12px; font-weight:700; background:#0369a1; color:#fff; padding:7px 14px; border-radius:8px; text-decoration:none; }
 .co-btn-danger { font-size:12px; font-weight:700; background:#dc2626; color:#fff; padding:7px 14px; border-radius:8px; border:none; cursor:pointer; }
 body.theme-dark .co-section { background:#1e293b; border-color:#334155; }
@@ -51,18 +52,21 @@ body.theme-dark .co-table td { border-color:#334155; color:#e2e8f0; }
   <div class="co-section">
     <h2>Voci</h2>
     <table class="co-table">
-      <tr><th>Ord.</th><th>Descrizione</th><th>Responsabile</th><th>Stato</th><th>Confermato da</th><th></th></tr>
+      <tr><th>Ord.</th><th>Descrizione</th><th>Responsabile</th><th>Vice</th><th>Stato</th><th>Confermato da</th><th></th></tr>
       {% for v in voci %}
       <tr>
         <td>{{ v.ordine }}</td>
         <td>{{ v.descrizione|truncatechars:90 }}</td>
         <td>{{ v.responsabile|default:"—" }}</td>
+        <td class="co-vice">
+          {% for vice in v.vice_responsabili.all %}{{ vice }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+        </td>
         <td>{% if v.confermato %}<span class="co-badge co-badge-on">Confermato</span>{% else %}<span class="co-badge co-badge-off">In attesa</span>{% endif %}</td>
         <td>{% if v.confermato %}{{ v.confermato_da }} — {{ v.confermato_il|date:"d/m/Y H:i" }}{% else %}—{% endif %}</td>
         <td>{% if evento.stato == "aperta" %}<a class="co-a" href="{% url 'checklist_operativa:voce_modifica' evento.pk v.pk %}">Modifica</a>{% endif %}</td>
       </tr>
       {% empty %}
-      <tr><td colspan="6">Nessuna voce.</td></tr>
+      <tr><td colspan="7">Nessuna voce.</td></tr>
       {% endfor %}
     </table>
   </div>

@@ -14,13 +14,16 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
+from anagrafica.models import Reparto
 from core.legacy_models import AnagraficaDipendente, UtenteLegacy
 from core.models import Notifica, UserOnboarding
 
+from .forms import ChecklistTaskTemplateForm
 from .models import ChecklistTaskTemplate, ChiusuraEvento, ChiusuraProposta, ChiusuraVoce
 from .services import (
     ChecklistStatoError,
     chiudi_evento,
+    crea_evento_con_voci,
     decidi_proposta,
     genera_voci_da_template,
 )
@@ -600,3 +603,183 @@ class RiepilogoPdfTests(TestCase):
         disposition = response["Content-Disposition"]
         for pericoloso in ('"/', "\\"):
             self.assertNotIn(pericoloso, disposition.split("filename=", 1)[1].strip('"'))
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class ViceResponsabileTests(TestCase):
+    """Il vice copre il responsabile assente: vede la voce e puo' confermarla."""
+
+    def setUp(self):
+        self.resp_user, self.responsabile = _crea_utente_con_dipendente("co-titolare", "Mario", "Rossi")
+        self.vice_user, self.vice = _crea_utente_con_dipendente("co-vice", "Anna", "Bianchi")
+        self.vice2_user, self.vice2 = _crea_utente_con_dipendente("co-vice2", "Luca", "Verdi")
+        self.estraneo_user = _crea_utente("co-estraneo")
+
+        self.evento = ChiusuraEvento.objects.create(nome="Natale 2026", data_inizio=date(2026, 12, 24))
+        self.voce = ChiusuraVoce.objects.create(
+            evento=self.evento, ordine=1, descrizione="Spegnere caldaia", responsabile=self.responsabile,
+        )
+        self.voce.vice_responsabili.set([self.vice, self.vice2])
+
+    def test_il_vice_puo_confermare_al_posto_del_responsabile(self):
+        self.client.force_login(self.vice_user)
+        response = self.client.post(
+            reverse("checklist_operativa:conferma", args=[self.voce.pk]),
+            {"azione": "conferma", "note": "titolare in ferie"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.voce.refresh_from_db()
+        self.assertTrue(self.voce.confermato)
+        # Chi ha agito davvero resta tracciato: il vice, non il titolare.
+        self.assertEqual(self.voce.confermato_da, self.vice)
+
+    def test_piu_di_un_vice_sulla_stessa_voce(self):
+        self.client.force_login(self.vice2_user)
+        response = self.client.post(
+            reverse("checklist_operativa:conferma", args=[self.voce.pk]), {"azione": "conferma"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.voce.refresh_from_db()
+        self.assertEqual(self.voce.confermato_da, self.vice2)
+
+    def test_estraneo_resta_fuori(self):
+        self.client.force_login(self.estraneo_user)
+        response = self.client.post(
+            reverse("checklist_operativa:conferma", args=[self.voce.pk]), {"azione": "conferma"},
+        )
+        self.assertEqual(response.status_code, 403)
+        self.voce.refresh_from_db()
+        self.assertFalse(self.voce.confermato)
+
+    def test_il_vice_vede_la_voce_in_gestione(self):
+        self.client.force_login(self.vice_user)
+        response = self.client.get(reverse("checklist_operativa:gestione"), {"evento": self.evento.pk})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Spegnere caldaia")
+        self.assertContains(response, "Come vice")
+
+    def test_il_responsabile_non_vede_la_propria_voce_come_vice(self):
+        self.client.force_login(self.resp_user)
+        response = self.client.get(reverse("checklist_operativa:gestione"), {"evento": self.evento.pk})
+        self.assertContains(response, "Spegnere caldaia")
+        self.assertNotContains(response, "Come vice")
+
+    def test_la_voce_non_e_duplicata_dal_join_sui_vice(self):
+        altra = ChiusuraVoce.objects.create(
+            evento=self.evento, ordine=2, descrizione="Chiudere acqua", responsabile=self.vice,
+        )
+        altra.vice_responsabili.set([self.vice2])
+        self.client.force_login(self.vice_user)
+        response = self.client.get(reverse("checklist_operativa:gestione"), {"evento": self.evento.pk})
+        corpo = response.content.decode()
+        self.assertEqual(corpo.count("Spegnere caldaia"), 1)
+        self.assertEqual(corpo.count("Chiudere acqua"), 1)
+
+    def test_generazione_copia_i_vice_dal_template(self):
+        template = ChecklistTaskTemplate.objects.create(
+            ordine=7, descrizione="Chiudere valvole gas", responsabile=self.responsabile, attivo=True,
+        )
+        template.vice_responsabili.set([self.vice, self.vice2])
+
+        evento, _creati = crea_evento_con_voci(
+            ChiusuraEvento(nome="Ferie estive 2027", data_inizio=date(2027, 8, 9))
+        )
+
+        voce = evento.voci.get(template=template)
+        self.assertEqual(
+            set(voce.vice_responsabili.values_list("pk", flat=True)), {self.vice.pk, self.vice2.pk},
+        )
+
+    def test_il_responsabile_non_puo_essere_vice_di_se_stesso(self):
+        form = ChecklistTaskTemplateForm(data={
+            "descrizione": "Spegnere compressore",
+            "responsabile": self.responsabile.pk,
+            "vice_responsabili": [self.responsabile.pk],
+            "ordine": 1,
+            "attivo": "on",
+            "note": "",
+        })
+        self.assertFalse(form.is_valid())
+        self.assertIn("vice_responsabili", form.errors)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class RepartoDaCatalogoTests(TestCase):
+    """Il reparto della mansione arriva dal catalogo anagrafica, non da testo libero."""
+
+    def setUp(self):
+        self.reparto = Reparto.objects.create(nome="Sala Metrologica")
+        self.dismesso = Reparto.objects.create(nome="Reparto dismesso", is_active=False)
+
+    def test_solo_i_reparti_attivi_sono_proposti(self):
+        form = ChecklistTaskTemplateForm()
+        proposti = set(form.fields["reparto"].queryset.values_list("pk", flat=True))
+        self.assertIn(self.reparto.pk, proposti)
+        self.assertNotIn(self.dismesso.pk, proposti)
+
+    def test_un_reparto_disattivato_gia_assegnato_resta_selezionabile(self):
+        template = ChecklistTaskTemplate.objects.create(descrizione="Test", reparto=self.dismesso)
+        form = ChecklistTaskTemplateForm(instance=template)
+        self.assertIn(self.dismesso.pk, form.fields["reparto"].queryset.values_list("pk", flat=True))
+
+    def test_salvataggio_aggancia_il_record_e_non_una_stringa(self):
+        form = ChecklistTaskTemplateForm(data={
+            "descrizione": "Spegnere banco prova",
+            "reparto": self.reparto.pk,
+            "ordine": 3,
+            "attivo": "on",
+            "note": "",
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+        template = form.save()
+        self.assertEqual(template.reparto, self.reparto)
+
+    def test_reparto_inesistente_rifiutato(self):
+        form = ChecklistTaskTemplateForm(data={
+            "descrizione": "X", "reparto": 999999, "ordine": 1, "note": "",
+        })
+        self.assertFalse(form.is_valid())
+        self.assertIn("reparto", form.errors)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class ConfigurazionePopupTests(TestCase):
+    """Il form della configurazione si apre in popup senza cambiare pagina."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser(username="co-admin-popup", password="pass12345")
+        self.client.force_login(self.admin)
+
+    def test_richiesta_htmx_restituisce_solo_il_frammento(self):
+        response = self.client.get(
+            reverse("checklist_operativa:task_nuovo"), headers={"hx-request": "true"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "<form")
+        # Il frammento non porta con se' il guscio della pagina.
+        self.assertNotContains(response, "<body")
+
+    def test_richiesta_normale_restituisce_la_pagina_intera(self):
+        response = self.client.get(reverse("checklist_operativa:task_nuovo"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "<body")
+
+    def test_salvataggio_da_popup_chiede_il_refresh_invece_di_redirigere(self):
+        response = self.client.post(
+            reverse("checklist_operativa:task_nuovo"),
+            {"descrizione": "Spegnere quadro", "ordine": 4, "attivo": "on", "note": ""},
+            headers={"hx-request": "true"},
+        )
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(response.headers.get("HX-Refresh"), "true")
+        self.assertTrue(ChecklistTaskTemplate.objects.filter(descrizione="Spegnere quadro").exists())
+
+    def test_form_non_valido_torna_nel_popup_con_gli_errori(self):
+        response = self.client.post(
+            reverse("checklist_operativa:task_nuovo"),
+            {"descrizione": "", "ordine": 4, "note": ""},
+            headers={"hx-request": "true"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "<body")
+        self.assertContains(response, "co-form-error")

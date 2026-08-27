@@ -11,7 +11,17 @@ class ChecklistTaskTemplate(models.Model):
 
     ordine = models.PositiveIntegerField(default=100)
     descrizione = models.TextField()
-    reparto = models.CharField(max_length=150, blank=True, default="")
+    # Reparto preso dal catalogo di anagrafica e non più testo libero: le
+    # etichette scritte a mano non sono agganciabili a nulla (stesso reparto
+    # scritto in tre modi = tre reparti diversi per chi legge la checklist).
+    reparto = models.ForeignKey(
+        "anagrafica.Reparto",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="checklist_task_templates",
+        verbose_name="Reparto",
+    )
     responsabile = models.ForeignKey(
         "core.AnagraficaDipendente",
         on_delete=models.SET_NULL,
@@ -19,6 +29,16 @@ class ChecklistTaskTemplate(models.Model):
         blank=True,
         related_name="checklist_task_templates",
         help_text="Dipendente che dovrà eseguire e confermare la mansione a ogni chiusura.",
+    )
+    vice_responsabili = models.ManyToManyField(
+        "core.AnagraficaDipendente",
+        blank=True,
+        related_name="checklist_task_templates_vice",
+        verbose_name="Vice responsabili",
+        help_text=(
+            "Sostituti che possono eseguire e confermare la mansione quando il "
+            "responsabile è assente. Se ne possono indicare più di uno."
+        ),
     )
     attivo = models.BooleanField(default=True)
     note = models.TextField(blank=True, default="")
@@ -113,6 +133,16 @@ class ChiusuraVoce(models.Model):
         blank=True,
         related_name="checklist_voci_assegnate",
     )
+    # Copiati dal template alla generazione, poi editabili sull'evento: come per
+    # ``descrizione`` e ``responsabile``, la voce è uno snapshot: cambiare i vice
+    # in configurazione non deve riscrivere le chiusure già in corso.
+    vice_responsabili = models.ManyToManyField(
+        "core.AnagraficaDipendente",
+        blank=True,
+        related_name="checklist_voci_vice",
+        verbose_name="Vice responsabili",
+        help_text="Chi può confermare al posto del responsabile se è assente.",
+    )
     confermato = models.BooleanField(default=False)
     confermato_da = models.ForeignKey(
         "core.AnagraficaDipendente", on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
@@ -140,6 +170,20 @@ class ChiusuraVoce(models.Model):
 
     def __str__(self) -> str:
         return f"{self.evento.nome} - [{self.ordine}] {self.descrizione[:60]}"
+
+    def puo_confermare(self, dipendente) -> bool:
+        """Chi può spuntare la voce: il responsabile o uno dei suoi vice.
+
+        Il vice vede e conferma sempre, senza che il portale debba stabilire se
+        il responsabile sia davvero assente: l'assenza qui è un fatto operativo
+        (ferie, malattia, turno) e la tracciabilità resta comunque piena, perché
+        ``confermato_da`` registra chi ha agito davvero.
+        """
+        if dipendente is None:
+            return False
+        if self.responsabile_id and self.responsabile_id == dipendente.pk:
+            return True
+        return self.vice_responsabili.filter(pk=dipendente.pk).exists()
 
     def conferma(self, dipendente, note: str = "") -> None:
         self.confermato = True
