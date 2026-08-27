@@ -10,6 +10,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ### Added
 
+- **Assets · anche gli eventi automatici della timeline di vita si eliminano** (nuova migration `assets/0092_assettimelinehiddenevent.py`; modificati `django_app/assets/models.py`, `views.py`, `templates/assets/pages/asset_detail.html`, `tests.py`, `README.md`).
+
+  La timeline della scheda asset mescola due cose diverse: le voci inserite a mano — che hanno già «Modifica» ed «Elimina» — e gli eventi che il portale deduce dai dati dell'asset (registrazione a inventario, assegnazione, acquisto/provisioning, messa in servizio). Questi ultimi non erano toccabili: «Acquisto / Provisioning» compare con una data stimata a tre giorni prima della registrazione, «Registrazione inventario» mostra la chiave tecnica di import (`asset-catalog:6a92093d…`) — righe che su molti asset non dicono niente e che non c'era modo di togliere.
+
+  Gli eventi automatici non sono righe di database: si ricalcolano a ogni apertura della scheda, quindi non c'è niente da cancellare. Nuovo modello **`AssetTimelineHiddenEvent`** (asset × chiave evento, con autore e timestamp): «Elimina» su un evento automatico registra che su **quell'asset** quella voce non va più mostrata, e la timeline la salta. **I dati dell'asset non vengono toccati**: nascondere «Registrazione inventario» non cambia la data di creazione, nascondere «Assegnazione» non riassegna niente — sparisce solo la riga dalla timeline, e la conferma del browser lo dice.
+
+  Stesso permesso delle voci manuali (`assets/asset_timeline_entry`, oltre ad amministratori e gestori asset): senza grant il pulsante non compare e la POST viene rifiutata. La rimozione è idempotente, è tracciata in audit (`hide_asset_timeline_event`) e vale per singolo asset — nascondere una voce su una macchina non la nasconde sulle altre. La card «Timeline ciclo di vita» resta visibile anche quando non resta più nessun evento, altrimenti sparirebbe con essa il pulsante «+ Inserisci». Cinque test.
+
 - **Anagrafica · organigramma a diagramma disegnato ad albero genealogico** (modificati `django_app/anagrafica/services/organigramma_albero.py`, `views.py`, `templates/anagrafica/pages/organigramma_diagramma.html`, `templates/anagrafica/partials/_org_posizione.html`, `tests_organigramma_diagramma.py`, `README.md`).
 
   I riquadri erano quelli giusti, ma il disegno no: i riporti si appendevano **in verticale a sinistra**, uno sotto l'altro lungo la spina del genitore. Un organigramma però si legge come un albero genealogico — il capo in cima, i suoi riporti affiancati sotto — e quella forma non era negoziabile.

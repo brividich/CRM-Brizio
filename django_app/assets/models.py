@@ -1780,6 +1780,51 @@ class AssetTimelineEntry(models.Model):
         return f"AssetTimelineEntry<{self.asset_id}:{self.event_date}>"
 
 
+class AssetTimelineHiddenEvent(models.Model):
+    """Evento automatico della timeline nascosto a mano su un singolo asset.
+
+    Gli eventi che il portale deduce dai dati dell'asset (registrazione a
+    inventario, assegnazione, provisioning, messa in servizio) non sono righe di
+    database: si ricalcolano a ogni apertura della scheda. Per renderli
+    "eliminabili" come le voci manuali si registra qui la scelta di nasconderli,
+    per asset e per chiave evento; alla costruzione della timeline le chiavi
+    presenti vengono saltate. Il dato originale dell'asset resta intatto.
+    """
+
+    KEY_ASSIGNMENT = "assignment"
+    KEY_INVENTORY = "inventory"
+    KEY_PROVISIONING = "provisioning"
+    KEY_MACHINE_START = "machine_start"
+    KEY_CHOICES = [
+        (KEY_ASSIGNMENT, "Assegnazione"),
+        (KEY_INVENTORY, "Registrazione inventario"),
+        (KEY_PROVISIONING, "Acquisto / Provisioning"),
+        (KEY_MACHINE_START, "Messa in servizio macchina"),
+    ]
+
+    asset = models.ForeignKey(Asset, on_delete=models.CASCADE, related_name="timeline_hidden_events")
+    event_key = models.CharField(
+        max_length=40,
+        choices=KEY_CHOICES,
+        help_text="Chiave dell'evento automatico da non mostrare in timeline.",
+    )
+    hidden_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="asset_timeline_hidden_events",
+    )
+    hidden_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["asset_id", "event_key"]
+        unique_together = [("asset", "event_key")]
+
+    def __str__(self) -> str:
+        return f"AssetTimelineHiddenEvent<{self.asset_id}:{self.event_key}>"
+
+
 def default_asset_label_body_fields() -> list[str]:
     return ["asset_type", "reparto", "serial_number"]
 

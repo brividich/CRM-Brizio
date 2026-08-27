@@ -1153,7 +1153,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
                 {% endfor %}
               </div>
             </div>
-            {% if timeline_events %}
+            {% if timeline_events or can_manage_asset_timeline %}
             <div class="af-profile-group">
               <div class="af-tl-head">
                 <div class="af-profile-group-title" style="margin-bottom:0;">{{ detail_timeline_title|default:"Storico ciclo di vita" }}</div>
@@ -1253,8 +1253,19 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
                           <button class="af-tl-link af-tl-link--danger" type="submit">Elimina</button>
                         </form>
                       </div>
+                    {% elif event.auto_key and can_manage_asset_timeline %}
+                      <div class="af-tl-actions">
+                        <form method="post" onsubmit="return confirm('Rimuovere la voce \u00ab{{ event.title|escapejs }}\u00bb dalla timeline? I dati dell\u2019asset non cambiano.');">
+                          {% csrf_token %}
+                          <input type="hidden" name="action" value="hide_asset_timeline_event">
+                          <input type="hidden" name="event_key" value="{{ event.auto_key }}">
+                          <button class="af-tl-link af-tl-link--danger" type="submit">Elimina</button>
+                        </form>
+                      </div>
                     {% endif %}
                   </li>
+                {% empty %}
+                  <li class="af-tl-item"><div class="af-tl-desc">Nessun evento in timeline.</div></li>
                 {% endfor %}
               </ol>
             </div>

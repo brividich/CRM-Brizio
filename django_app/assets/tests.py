@@ -80,6 +80,7 @@ from .models import (
     AssetReportTemplate,
     AssetSidebarButton,
     AssetTimelineEntry,
+    AssetTimelineHiddenEvent,
     PeriodicVerification,
     PlantLayout,
     PlantLayoutArea,
@@ -9897,3 +9898,103 @@ class AssetTimelineManualEntryTests(TestCase):
             {"action": "delete_asset_timeline_entry", "entry_id": entry.id},
         )
         self.assertFalse(AssetTimelineEntry.objects.filter(pk=entry.id).exists())
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AssetTimelineAutoEventHideTests(TestCase):
+    """Rimozione degli eventi automatici dalla timeline di vita."""
+
+    def setUp(self):
+        self.category = AssetCategory.objects.create(code="tl-auto-cat", label="Presse auto", is_active=True)
+        self.asset = Asset.objects.create(
+            asset_tag="AST-TLA-001",
+            name="Pressa timeline auto",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            asset_category=self.category,
+            source_key="manual-tla-001",
+        )
+        self.admin = User.objects.create_superuser(
+            username="asset-tlauto-admin",
+            email="asset-tlauto-admin@test.local",
+            password="pass12345",
+        )
+        _complete_onboarding(self.admin)
+        self.viewer = User.objects.create_user(username="asset-tlauto-viewer", password="pass12345")
+        _complete_onboarding(self.viewer)
+
+    def _hide(self, event_key):
+        return self.client.post(
+            reverse("assets:asset_view", args=[self.asset.id]),
+            {"action": "hide_asset_timeline_event", "event_key": event_key},
+        )
+
+    def _detail_body(self):
+        """Corpo della scheda senza i messaggi flash della POST precedente."""
+        self.client.get(reverse("assets:asset_view", args=[self.asset.id]))
+        page = self.client.get(reverse("assets:asset_view", args=[self.asset.id]))
+        self.assertEqual(page.status_code, 200)
+        return page.content.decode("utf-8")
+
+    def test_manager_hides_automatic_event(self):
+        self.client.force_login(self.admin)
+        page = self.client.get(reverse("assets:asset_view", args=[self.asset.id]))
+        self.assertIn("Registrazione inventario", page.content.decode("utf-8"))
+
+        response = self._hide(AssetTimelineHiddenEvent.KEY_INVENTORY)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            AssetTimelineHiddenEvent.objects.filter(
+                asset=self.asset,
+                event_key=AssetTimelineHiddenEvent.KEY_INVENTORY,
+                hidden_by=self.admin,
+            ).exists()
+        )
+        body = self._detail_body()
+        self.assertNotIn("Registrazione inventario", body)
+        self.assertIn("Acquisto / Provisioning", body)
+
+    def test_hiding_twice_is_idempotent(self):
+        self.client.force_login(self.admin)
+
+        self._hide(AssetTimelineHiddenEvent.KEY_PROVISIONING)
+        self._hide(AssetTimelineHiddenEvent.KEY_PROVISIONING)
+
+        self.assertEqual(
+            AssetTimelineHiddenEvent.objects.filter(asset=self.asset).count(),
+            1,
+        )
+
+    def test_unknown_event_key_is_rejected(self):
+        self.client.force_login(self.admin)
+
+        response = self._hide("qualsiasi-cosa")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(AssetTimelineHiddenEvent.objects.filter(asset=self.asset).exists())
+
+    def test_non_manager_cannot_hide_or_see_the_button(self):
+        self.client.force_login(self.viewer)
+
+        response = self._hide(AssetTimelineHiddenEvent.KEY_INVENTORY)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(AssetTimelineHiddenEvent.objects.filter(asset=self.asset).exists())
+        page = self.client.get(reverse("assets:asset_view", args=[self.asset.id]))
+        self.assertNotIn("hide_asset_timeline_event", page.content.decode("utf-8"))
+
+    def test_hidden_event_is_scoped_to_the_asset(self):
+        other_asset = Asset.objects.create(
+            asset_tag="AST-TLA-002",
+            name="Pressa gemella auto",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            asset_category=self.category,
+            source_key="manual-tla-002",
+        )
+        self.client.force_login(self.admin)
+
+        self._hide(AssetTimelineHiddenEvent.KEY_INVENTORY)
+
+        self.client.get(reverse("assets:asset_view", args=[self.asset.id]))
+        page = self.client.get(reverse("assets:asset_view", args=[other_asset.id]))
+        self.assertIn("Registrazione inventario", page.content.decode("utf-8"))
