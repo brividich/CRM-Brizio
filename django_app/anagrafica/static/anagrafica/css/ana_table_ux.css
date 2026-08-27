@@ -1,0 +1,52 @@
+/* ============================================================
+   ana_table_ux.css — righe cliccabili + ricerca live
+   Modulo Anagrafica HR. Caricato da components/subnav.html,
+   quindi attivo su ogni pagina del modulo e dei sotto-moduli.
+   Namespace `ana-` sulle sole classi aggiunte da ana_table_ux.js:
+   nessuna regola tocca le classi esistenti (fmd-/hr-/fm-/…).
+   ============================================================ */
+
+/* ── Riga cliccabile ──────────────────────────────────────────
+   Il fondo si dipinge sulle <td> e non sulla <tr>: le tabelle del
+   portale danno `background:transparent` alle celle, che coprirebbe
+   qualunque colore messo sulla riga. */
+tr.ana-row-link { cursor: pointer; }
+tr.ana-row-link > td { transition: background .12s; }
+tr.ana-row-link:hover > td { background: rgba(12, 37, 69, .045); }
+tr.ana-row-link:active > td { background: rgba(12, 37, 69, .085); }
+
+/* Riga aperta: resta segnata al ritorno sull'elenco — un gradino più
+   scura dell'hover, con il taglio ciano a sinistra per trovarla al volo. */
+tr.ana-row-link.ana-row-sel > td { background: rgba(12, 37, 69, .075); }
+tr.ana-row-link.ana-row-sel:hover > td { background: rgba(12, 37, 69, .095); }
+tr.ana-row-link.ana-row-sel > td:first-child { box-shadow: inset 3px 0 0 #1f87cd; }
+
+/* Dark: i token `--surface-alt` esistono solo in tema scuro, quindi qui si
+   lavora con velature bianche — nessuna dipendenza da token opzionali. */
+body.theme-dark tr.ana-row-link:hover > td { background: rgba(255, 255, 255, .05); }
+body.theme-dark tr.ana-row-link:active > td { background: rgba(255, 255, 255, .085); }
+body.theme-dark tr.ana-row-link.ana-row-sel > td { background: rgba(255, 255, 255, .075); }
+body.theme-dark tr.ana-row-link.ana-row-sel:hover > td { background: rgba(255, 255, 255, .1); }
+
+@media (prefers-reduced-motion: reduce) {
+  tr.ana-row-link > td { transition: none; }
+}
+
+/* ── Ricerca live ─────────────────────────────────────────────
+   Contatore accanto alla casella (visibile solo mentre si filtra) e
+   nota sotto la tabella quando la ricerca non trova nulla. */
+.ana-live-count {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 9px; border-radius: 999px;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 11px; font-weight: 700; white-space: nowrap;
+  background: rgba(31, 135, 205, .1); color: #1f87cd;
+}
+.ana-live-count[hidden] { display: none; }
+.ana-live-count-zero { background: rgba(220, 38, 38, .1); color: #dc2626; }
+
+.ana-live-empty {
+  padding: 18px 16px; text-align: center;
+  font-size: 13px; font-weight: 600; color: var(--text-muted, #94a3b8);
+}
+.ana-live-empty[hidden] { display: none; }

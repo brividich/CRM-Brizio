@@ -52,6 +52,14 @@
  *
  * Compatibile e sostituisce sortable-table.js: se entrambi sono inclusi, il primo
  * a inizializzare vince (entrambi controllano `dataset.fmTblInited`).
+ *
+ * API programmatica (window.fmTableEnhanced):
+ *   setColumnFilter(tableOrId, colKey, value)  filtro di colonna dall'esterno
+ *   setSearch(tableOrId, q)                    ricerca globale dall'esterno —
+ *     usata dalle pagine che hanno già la loro casella di ricerca sopra
+ *     l'elenco e la vogliono live (modulo Anagrafica). Ritorna false se la
+ *     tabella non è gestita dal componente. L'init è async: chi pilota la
+ *     tabella dall'esterno ascolti l'evento `fm-table:ready` sul <table>.
  */
 (function () {
   "use strict";
@@ -524,6 +532,10 @@
       search.placeholder = "Cerca…";
       search.value = state.q || "";
       search.addEventListener("input", () => { state.q = search.value; onChange(); });
+      // Riferimento per `_fmSetSearch`: una ricerca impostata dall'esterno
+      // (es. la casella di ricerca della pagina) deve restare in sincronia con
+      // questa casella, altrimenti i due campi mostrano query diverse.
+      table._fmSearchInput = search;
       searchWrap.appendChild(search);
       bar.appendChild(searchWrap);
     }
@@ -1385,21 +1397,51 @@
       return true;
     };
 
+    // Ricerca globale impostabile dall'esterno: serve alle pagine che hanno già
+    // la loro casella di ricerca sopra l'elenco (modulo Anagrafica) e la vogliono
+    // LIVE — delegando qui si riusa anche il caricamento delle altre pagine di
+    // una tabella paginata server-side, che un filtro locale non saprebbe fare.
+    table._fmSetSearch = function (value) {
+      state.q = value == null ? "" : String(value);
+      if (table._fmSearchInput && table._fmSearchInput.value !== state.q) {
+        table._fmSearchInput.value = state.q;
+      }
+      onChange();
+      return true;
+    };
+
     // Applica stato iniziale e, se le preferenze salvate hanno già una query
     // attiva (filtro/sort/search), carica subito tutto il dataset così che il
     // primo render rifletta la filtro su tutti i record e non solo sulla pagina.
     applyState(table, cols, state);
     maybeLoadAll();
+
+    // initTable è async (fetchPrefs): chi vuole pilotare la tabella dall'esterno
+    // non può sapere quando è pronta se non glielo diciamo.
+    table.dispatchEvent(new CustomEvent("fm-table:ready", { bubbles: true }));
+  }
+
+  function resolveTable(tableOrId) {
+    return typeof tableOrId === "string"
+      ? document.querySelector('table[data-table-id="' + tableOrId + '"], #' + tableOrId)
+      : tableOrId;
   }
 
   // Imposta (o azzera con value vuoto) un filtro di colonna su una tabella già
   // inizializzata. Ritorna true se applicato. Usato dai KPI cliccabili.
   function setColumnFilter(tableOrId, colKey, value) {
-    const table = typeof tableOrId === "string"
-      ? document.querySelector('table[data-table-id="' + tableOrId + '"], #' + tableOrId)
-      : tableOrId;
+    const table = resolveTable(tableOrId);
     if (!table || typeof table._fmSetColumnFilter !== "function") return false;
     return table._fmSetColumnFilter(colKey, value);
+  }
+
+  // Imposta (o azzera) la ricerca globale su una tabella già inizializzata.
+  // Ritorna false se la tabella non è (ancora) gestita dal componente: il
+  // chiamante può allora applicare un filtro locale di ripiego.
+  function setSearch(tableOrId, value) {
+    const table = resolveTable(tableOrId);
+    if (!table || typeof table._fmSetSearch !== "function") return false;
+    return table._fmSetSearch(value);
   }
 
   // ─── Auto-bind ────────────────────────────────────────────────────────────
@@ -1434,5 +1476,5 @@
     initAll();
     watchDynamicTables();
   }
-  window.fmTableEnhanced = { init: initTable, initAll: initAll, setColumnFilter: setColumnFilter };
+  window.fmTableEnhanced = { init: initTable, initAll: initAll, setColumnFilter: setColumnFilter, setSearch: setSearch };
 })();

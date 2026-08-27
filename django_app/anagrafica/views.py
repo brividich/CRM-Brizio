@@ -704,6 +704,41 @@ def build_dipendenti_rows(
     return _sort_dipendenti_rows(list(rows))
 
 
+def ruoli_ricoperti_map(legacy_ids: list[int]) -> dict[int, list[dict]]:
+    """Ruoli **in essere** per dipendente, principale in testa.
+
+    Una persona ricopre spesso più ruoli insieme perché gli ambiti si
+    sovrappongono (produttivo, SGSL 45001, SGSI 27001 — vedi ``AmbitoRuolo``):
+    il solo «Ruolo aziendale» della scheda ne mostrerebbe uno soltanto, per
+    questo le liste persone li mostrano tutti sotto il nome.
+
+    Le assegnazioni concluse (``data_fine`` passata) sono storia, non ruoli
+    ricoperti: restano nella scheda del dipendente e non compaiono qui. Idem
+    per i ruoli disattivati in catalogo.
+    """
+    ids = [int(value) for value in legacy_ids if int(value or 0) > 0]
+    if not ids:
+        return {}
+
+    oggi = django_timezone.localdate()
+    mappa: dict[int, list[dict]] = {}
+    for assegnazione in (
+        DipendenteRuoloOperativo.objects
+        .filter(legacy_anagrafica_id__in=ids, ruolo__is_active=True)
+        .filter(Q(data_fine__isnull=True) | Q(data_fine__gte=oggi))
+        .select_related("ruolo")
+        .order_by("ruolo__nome")
+    ):
+        mappa.setdefault(int(assegnazione.legacy_anagrafica_id), []).append({
+            "nome": assegnazione.ruolo.nome,
+            "principale": assegnazione.tipologia == DipendenteRuoloOperativo.TIPOLOGIA_PRINCIPALE,
+        })
+    # Il principale davanti: è quello che vale come «Ruolo aziendale».
+    for voci in mappa.values():
+        voci.sort(key=lambda voce: (0 if voce["principale"] else 1, voce["nome"]))
+    return mappa
+
+
 @login_required
 def dipendenti_list(request):
     q = request.GET.get("q", "").strip()
@@ -794,6 +829,10 @@ def dipendenti_list(request):
             dip["timbri_operator_id"] = None
             dip["timbri_count"] = 0
             dip["timbri_legacy_id"] = None
+
+    ruoli_map = ruoli_ricoperti_map([int(dip.get("id") or 0) for dip in list(page.object_list)])
+    for dip in list(page.object_list):
+        dip["ruoli"] = ruoli_map.get(int(dip.get("id") or 0), [])
 
     status_stats = count_anagrafica_statuses()
     tipologie_contratto_list = list(

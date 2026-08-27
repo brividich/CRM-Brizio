@@ -1,4 +1,5 @@
 {% load anagrafica_extras %}
+{% load static %}
 {% subnav_anagrafica as nav %}
 {% include "anagrafica/components/_fm_icons.html" %}
 <style>
@@ -134,6 +135,13 @@ sopra le tabelle, mantenendo le icone di ordina/filtro per colonna negli header.
 Marca <body> prima che fm-table-enhanced.js (defer) inizializzi le tabelle.
 {% endcomment %}
 <script>document.body && document.body.setAttribute("data-fm-hide-controls", "1");</script>
+{% comment %}
+UX comune alle tabelle del modulo (ricerca live + riga cliccabile): sta qui
+perché la subnav è l'unico pezzo incluso da OGNI pagina di anagrafica e dei
+suoi sotto-moduli. Vedi anagrafica/static/anagrafica/js/ana_table_ux.js.
+{% endcomment %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/ana_table_ux.css' %}?v=1">
+<script src="{% static 'anagrafica/js/ana_table_ux.js' %}?v=1" defer></script>
 <script>
 /* Subnav Anagrafica — apertura dropdown al CLICK (non più hover).
    Uno alla volta · click fuori / Esc chiudono · gestisce aria-expanded.
