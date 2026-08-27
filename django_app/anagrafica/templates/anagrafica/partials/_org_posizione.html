@@ -1,7 +1,12 @@
 {# Nodo ricorsivo dell'organigramma: tessera + riporti affiancati sotto, ad albero genealogico. Riceve: nodo (only). #}
 <li class="ogd-node{% if nodo.figli %} ogd-has-children{% endif %}">
-  <div class="ogd-card ogd-card--{{ nodo.tipo }}">
-    {# Un solo riquadro-avatar: con più titolari porta il loro numero, i nomi stanno in elenco accanto. #}
+  {% comment %}
+    Con una sola persona si clicca tutta la tessera (il JS risale a `data-persona`);
+    il nome resta comunque un `button`, che e' il comando raggiungibile da tastiera.
+    Niente `role=button` sulla tessera: dentro c'e' gia' il pulsante di collasso.
+  {% endcomment %}
+  <div class="ogd-card ogd-card--{{ nodo.tipo }}{% if nodo.titolari|length == 1 %} ogd-card--apribile{% endif %}"
+       {% if nodo.titolari|length == 1 %}data-persona="{{ nodo.titolari.0.legacy_id }}"{% endif %}>
     {% if nodo.titolari|length > 1 %}
       <span class="ogd-avatar ogd-avatar--gruppo" aria-hidden="true">{{ nodo.titolari|length }}</span>
     {% elif nodo.titolari %}
@@ -19,7 +24,8 @@
     <span class="ogd-txt">
       <span class="ogd-people">
         {% for t in nodo.titolari %}
-          <span class="ogd-person">{{ t.nome|default:t.legacy_id }}</span>
+          <button type="button" class="ogd-person ogd-person--link" data-persona="{{ t.legacy_id }}"
+                  title="Scheda sintetica di {{ t.nome|default:t.legacy_id }}">{{ t.nome|default:t.legacy_id }}</button>
         {% empty %}
           <span class="ogd-person ogd-person--vac">Posizione scoperta</span>
         {% endfor %}

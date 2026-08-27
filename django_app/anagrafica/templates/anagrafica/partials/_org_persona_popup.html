@@ -1,0 +1,48 @@
+{% comment %}
+  Scheda sintetica di una persona, per il popup dell'organigramma. Solo dati di
+  lavoro: l'organigramma non e' il fascicolo, e la scheda completa resta dietro
+  il proprio gate.
+{% endcomment %}
+<div class="ogp-head">
+  {% if ha_foto %}
+    <img class="ogp-foto" src="{% url 'anagrafica:foto_dipendente' legacy_id %}" alt="">
+  {% else %}
+    <span class="ogp-foto ogp-foto--ph" aria-hidden="true">{{ nome|slice:":1"|upper|default:"?" }}</span>
+  {% endif %}
+  <div class="ogp-head-txt">
+    <h3 class="ogp-nome">{{ nome|default:"—" }}</h3>
+    {% if ruolo_principale %}<p class="ogp-ruolo">{{ ruolo_principale }}</p>{% endif %}
+  </div>
+</div>
+
+<dl class="ogp-dati">
+  {% if matricola %}<dt>Matricola</dt><dd>{{ matricola }}</dd>{% endif %}
+  {% if badge %}<dt>Badge</dt><dd>{{ badge }}</dd>{% endif %}
+  {% if mansione %}<dt>Mansione</dt><dd>{{ mansione }}</dd>{% endif %}
+  {% if reparto %}<dt>Reparto</dt><dd>{{ reparto }}</dd>{% endif %}
+  {% if area_aziendale %}<dt>Area aziendale</dt><dd>{{ area_aziendale }}</dd>{% endif %}
+  {% if data_assunzione %}<dt>In forza dal</dt><dd>{{ data_assunzione|date:"d/m/Y" }}</dd>{% endif %}
+  {% if email %}<dt>Email</dt><dd><a href="mailto:{{ email }}">{{ email }}</a></dd>{% endif %}
+  {% if telefono %}<dt>Telefono</dt><dd>{{ telefono }}</dd>{% endif %}
+</dl>
+
+{% if ruoli %}
+  <div class="ogp-sez">
+    <div class="ogp-sez-tit">Ruoli ricoperti</div>
+    <div class="ogp-chips">
+      {% for r in ruoli %}
+        <span class="ogp-chip"{% if r.ambito_colore %} style="border-color:{{ r.ambito_colore }};"{% endif %}>
+          {{ r.nome }}{% if r.ambito %} <em>{{ r.ambito }}</em>{% endif %}
+        </span>
+      {% endfor %}
+    </div>
+  </div>
+{% endif %}
+
+{% comment %}
+  Ci si arriva solo passando il gate della scheda dipendente (stesso prefisso di
+  URL), quindi il link e' sempre percorribile da chi vede questo popup.
+{% endcomment %}
+<a class="hr-btn hr-btn-outline ogp-apri" href="{% url 'anagrafica:dipendente_detail' legacy_id %}">
+  Apri la scheda completa →
+</a>

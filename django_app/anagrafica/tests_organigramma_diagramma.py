@@ -1,9 +1,15 @@
 """Organigramma a diagramma: albero di POSIZIONI (ruolo + persona)."""
 from django.contrib.auth import get_user_model
 from django.contrib.sessions.backends.db import SessionStore
+from datetime import date
+
 from django.test import RequestFactory, TestCase
 
-from anagrafica.models import DipendenteRuoloOperativo, RuoloOperativo
+from anagrafica.models import (
+    DipendenteAnagraficaAziendale,
+    DipendenteRuoloOperativo,
+    RuoloOperativo,
+)
 from anagrafica.services.organigramma_albero import build_posizioni_albero
 
 User = get_user_model()
@@ -89,6 +95,51 @@ class PosizioniAlberoTests(TestCase):
         self.assertEqual(nodo_capo["figli"][0]["figli"][0]["ruolo"].nome, "Nipote")
 
 
+    def test_ex_dipendenti_non_occupano_posizioni(self):
+        """Chi ha una data di cessazione esce dall'organigramma: l'assegnazione
+        resta a storico, la posizione no."""
+        ruolo = RuoloOperativo.objects.create(nome="RuoloConEx")
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=11, ruolo=ruolo)
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=12, ruolo=ruolo)
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=12, data_cessazione=date(2026, 1, 31),
+        )
+
+        albero = build_posizioni_albero()
+        nodi = [n for n in albero if n["ruolo"].nome == "RuoloConEx"]
+        self.assertEqual(len(nodi), 1)  # resta un solo titolare: niente fratelli
+        self.assertEqual([t["legacy_id"] for t in nodi[0]["titolari"]], [11])
+
+    def test_ruolo_del_solo_ex_dipendente_diventa_vacante(self):
+        ruolo = RuoloOperativo.objects.create(nome="RuoloSoloEx")
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=21, ruolo=ruolo)
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=21, data_cessazione=date(2026, 2, 28),
+        )
+
+        albero = build_posizioni_albero()
+        nodo = next(n for n in albero if n["ruolo"].nome == "RuoloSoloEx")
+        self.assertEqual(nodo["tipo"], "vacante")
+        self.assertEqual(nodo["titolari"], [])
+
+
+class OrganigrammaPersonaPopupTests(TestCase):
+    def setUp(self):
+        self.su = User.objects.create_superuser("su-popup", "su-popup@test.local", "x")
+        self.ruolo = RuoloOperativo.objects.create(nome="RuoloPopup")
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=77, ruolo=self.ruolo)
+
+    def test_persona_inesistente_risponde_404(self):
+        """Il DB legacy non ha la riga: frammento di errore, non 500."""
+        from anagrafica.views import organigramma_persona_popup
+
+        request = RequestFactory().get("/anagrafica/dipendenti/999999/scheda-popup/")
+        request.user = self.su
+        request.session = SessionStore()
+        resp = organigramma_persona_popup(request, 999999)
+        self.assertEqual(resp.status_code, 404)
+
+
 class OrganigrammaDiagrammaViewTests(TestCase):
     def setUp(self):
         self.su = User.objects.create_superuser("su-diag", "su-diag@test.local", "x")
@@ -114,3 +165,8 @@ class OrganigrammaDiagrammaViewTests(TestCase):
         # zoom: comandi in toolbar e wrapper scalabile attorno all'albero
         self.assertIn('data-ogd-zoom="fit"', body)
         self.assertIn('id="ogdScale"', body)
+        # tela: schermo intero, stampa e popup della persona
+        self.assertIn('id="ogdFull"', body)
+        self.assertIn('id="ogdPrint"', body)
+        self.assertIn('data-url-popup', body)
+        self.assertIn('data-persona=', body)
