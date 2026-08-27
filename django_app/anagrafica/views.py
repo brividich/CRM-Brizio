@@ -15462,9 +15462,9 @@ def organigramma_diagramma(request):
     """Organigramma a diagramma: un riquadro per POSIZIONE (ruolo + persona).
 
     Stessa gerarchia della vista ad albero (sempre tra ruoli, mai tra persone),
-    disegnata con i riquadri appesi in verticale sotto il genitore: quando i
-    riporti sono tanti e tutti foglia si affiancano su più colonne. I ruoli con
-    più titolari diventano riquadri fratelli; vedi
+    disegnata ad albero genealogico: il riquadro genitore sta al centro e i
+    riporti si affiancano sotto, agganciati alla traversa. I ruoli con più
+    titolari diventano riquadri fratelli; vedi
     :func:`anagrafica.services.organigramma_albero.build_posizioni_albero`.
     """
     from anagrafica.services.organigramma_albero import build_posizioni_albero

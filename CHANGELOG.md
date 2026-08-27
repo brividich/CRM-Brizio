@@ -10,6 +10,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ### Added
 
+- **Anagrafica · organigramma a diagramma disegnato ad albero genealogico** (modificati `django_app/anagrafica/services/organigramma_albero.py`, `views.py`, `templates/anagrafica/pages/organigramma_diagramma.html`, `templates/anagrafica/partials/_org_posizione.html`, `tests_organigramma_diagramma.py`, `README.md`).
+
+  I riquadri erano quelli giusti, ma il disegno no: i riporti si appendevano **in verticale a sinistra**, uno sotto l'altro lungo la spina del genitore. Un organigramma però si legge come un albero genealogico — il capo in cima, i suoi riporti affiancati sotto — e quella forma non era negoziabile.
+
+  Il diagramma torna quindi **dall'alto verso il basso**: dal riquadro genitore scende un tronco fino a una **traversa orizzontale**, e da lì uno stacchetto verticale su ciascun riporto, affiancati e **centrati** rispetto al genitore. Il riporto unico non prende la traversa, solo la verticale. Ogni radice è un albero a sé, impilato sotto il precedente (due organigrammi affiancati non si leggono). Markup `ul`/`li` annidato, connettori in puro CSS sui token del tema, nessuna libreria: il rendering resta SSR.
+
+  Cade con questo la disposizione **su più colonne** dei riporti numerosi (`spezza_in_colonne`, `griglia_riporti`): serviva a contenere la larghezza del layout verticale, ma in un albero genealogico spezzare i fratelli su colonne affiancate rompe proprio la lettura per generazioni. I rami larghi si scorrono in orizzontale nel pannello — che centra l'albero quando ci sta e non taglia più il lato sinistro quando eccede — oppure si comprimono dal pulsante sul riquadro, spostato al centro del bordo inferiore, sul tronco. Otto test.
+
 - **Anagrafica · spostamento con ruolo «in parallelo»: si aggiunge invece di sostituire** (nuova migration `anagrafica/0113_assegnazione_ruolo_parallelo.py`; modificati `django_app/anagrafica/models.py`, `views.py`, `services/assegnazioni.py`, `services/ruoli_sync.py`, `templates/anagrafica/pages/dipendente_detail.html`, `tests_assegnazioni.py`, `README.md`).
 
   Uno spostamento organizzativo, per definizione, sostituisce: chi passa ai TORNI come tornitore lascia il posto di prima, e il ruolo scelto prende quello del «Ruolo aziendale» della scheda. Ma non sempre l'incarico nuovo scaccia il vecchio: si resta capoturno **e** si diventa capocommessa, due ruoli dello stesso ambito che convivono. Con gli ambiti appena introdotti la sovrapposizione era possibile solo *fra* organigrammi diversi; dentro lo stesso ambito restava una sostituzione forzata.

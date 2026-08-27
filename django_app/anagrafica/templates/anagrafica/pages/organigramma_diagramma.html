@@ -6,20 +6,22 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <style>
-/* ── Organigramma: riquadri appesi in verticale, tema HUB ────────────────── */
+/* ── Organigramma: albero "genealogico" dall'alto verso il basso, tema HUB ── */
 .ogd-toolbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .ogd-count { font-size:var(--fs-sm); color:var(--text-light); margin-left:auto; }
 
 .ogd-panel {
   background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
-  box-shadow:var(--shadow); padding:26px 22px 28px; min-height:240px; overflow:auto;
+  box-shadow:var(--shadow); padding:30px 22px 28px; min-height:260px; overflow:auto;
 }
-.ogd-root { display:flex; flex-direction:column; gap:26px; width:max-content; min-width:100%; }
-.ogd-node { position:relative; }
+/* max-content + margin auto: l'albero sta al centro quando ci sta, e quando è
+   più largo del pannello scorre in orizzontale senza che il lato sinistro
+   finisca tagliato (è quello che farebbe justify-content:center). */
+.ogd-root { width:max-content; min-width:100%; margin:0 auto; display:flex; flex-direction:column; gap:40px; }
 
 /* ── Riquadro posizione ─────────────────────────────────────────────────── */
 .ogd-card {
-  position:relative; box-sizing:border-box; width:200px; min-height:96px;
+  position:relative; box-sizing:border-box; width:196px; min-height:96px;
   display:flex; flex-direction:column; align-items:center; gap:6px;
   padding:26px 12px 14px; text-align:center;
   background:var(--surface); border:1px solid var(--border); border-top:3px solid var(--primary-mid);
@@ -27,18 +29,18 @@
 }
 .ogd-card:hover { border-color:var(--primary-mid); box-shadow:0 12px 24px -16px rgba(8,20,45,.75); }
 .ogd-card--vacante { border-style:dashed; border-top-color:var(--text-light); background:var(--surface-alt,#f8fafc); }
-.ogd-card--condiviso { border-top-color:var(--accent); width:232px; }
+.ogd-card--condiviso { border-top-color:var(--accent); width:228px; }
 
 /* Primo livello: il navy del portale */
-.ogd-root > .ogd-node > .ogd-card {
+.ogd-level--top > .ogd-node > .ogd-card {
   background:linear-gradient(135deg,#08142d 0%,#0c2545 58%,#1a3a66 100%);
-  border-color:transparent; border-top-color:var(--accent); width:232px;
+  border-color:transparent; border-top-color:var(--accent); width:228px;
 }
-.ogd-root > .ogd-node > .ogd-card .ogd-role { color:#fff; }
-.ogd-root > .ogd-node > .ogd-card .ogd-count-badge { color:#fff; background:rgba(255,255,255,.18); border-color:rgba(255,255,255,.24); }
+.ogd-level--top > .ogd-node > .ogd-card .ogd-role { color:#fff; }
+.ogd-level--top > .ogd-node > .ogd-card .ogd-count-badge { color:#fff; background:rgba(255,255,255,.18); border-color:rgba(255,255,255,.24); }
 
 /* Avatar a cavallo del bordo superiore */
-.ogd-avatars { position:absolute; top:-20px; left:50%; transform:translateX(-50%); display:inline-flex; }
+.ogd-avatars { position:absolute; top:-20px; left:50%; transform:translateX(-50%); display:inline-flex; z-index:2; }
 .ogd-avatar {
   width:38px; height:38px; border-radius:50%; object-fit:cover;
   border:2px solid var(--surface); background:var(--surface-alt,#e8eef5); box-shadow:0 2px 4px rgba(8,20,45,.2);
@@ -57,7 +59,7 @@
 }
 .ogd-chips { display:flex; flex-wrap:wrap; justify-content:center; gap:4px; }
 .ogd-chip {
-  max-width:196px; padding:3px 9px; border-radius:999px;
+  max-width:172px; padding:3px 9px; border-radius:999px;
   font-size:var(--fs-2xs); font-weight:700; letter-spacing:.02em; text-transform:uppercase;
   color:#fff; background:var(--primary-mid);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
@@ -70,48 +72,52 @@
   background:var(--surface-alt,#eef2f7); border:1px solid var(--border); border-radius:999px; padding:1px 7px;
 }
 
-/* Collasso: agganciato alla verticale che scende dal riquadro */
+/* Collasso: appeso sotto il riquadro, sul tronco che scende ai riporti */
 .ogd-toggle {
-  position:absolute; bottom:-12px; left:38px; transform:translateX(-50%);
+  position:absolute; bottom:-12px; left:50%; transform:translateX(-50%);
   width:22px; height:22px; min-height:0; padding:0; border-radius:50%;
   border:2px solid var(--surface); background:var(--primary); color:#fff;
   font-size:var(--fs-sm); font-weight:800; line-height:1; cursor:pointer;
-  display:flex; align-items:center; justify-content:center; box-shadow:var(--shadow); z-index:2;
+  display:flex; align-items:center; justify-content:center; box-shadow:var(--shadow); z-index:3;
 }
 .ogd-toggle:hover { background:var(--primary-mid); }
 
-/* ── I riporti scendono in verticale sotto il riquadro ──────────────────── */
-.ogd-colonne { position:relative; display:flex; align-items:flex-start; gap:26px; margin-left:38px; }
-.ogd-colonna {
-  position:relative; flex:0 0 auto; min-width:0;
-  border-left:2px solid var(--border); padding:18px 0 0 26px;
-  display:flex; flex-direction:column; gap:16px;
+/* ── Albero: i riporti si affiancano CENTRATI sotto il genitore ─────────── */
+.ogd-level {
+  list-style:none; margin:0; padding:0;
+  display:flex; justify-content:center; align-items:flex-start;
 }
-/* stacchetto orizzontale verso ogni riquadro figlio */
-.ogd-colonna > .ogd-node::before {
-  content:""; position:absolute; left:-26px; top:26px; width:26px; border-top:2px solid var(--border);
+.ogd-node {
+  position:relative; display:flex; flex-direction:column; align-items:center;
+  padding:22px 9px 0;
 }
-/* la verticale si ferma sull'ultimo riporto della colonna */
-.ogd-colonna > .ogd-node:last-child::after {
-  content:""; position:absolute; left:-28px; top:28px; bottom:0; width:2px; background:var(--surface);
+/* tronco: dal bordo inferiore del riquadro giù fino alla traversa dei riporti */
+.ogd-node > .ogd-level { position:relative; padding-top:22px; }
+.ogd-node > .ogd-level::before {
+  content:""; position:absolute; top:0; left:calc(50% - 1px); width:2px; height:22px; background:var(--border);
 }
-/* più colonne: una traversa in alto le collega alla verticale del genitore */
-.ogd-colonne--multi .ogd-colonna::before {
-  content:""; position:absolute; top:0; left:-2px; width:calc(100% + 28px); border-top:2px solid var(--border);
-}
-.ogd-colonne--multi .ogd-colonna:last-child::before { display:none; }
+/* traversa fra fratelli: mezza a sinistra e mezza a destra di ogni riquadro,
+   più lo stacchetto verticale che scende sul riquadro stesso */
+.ogd-node::before { content:""; position:absolute; top:0; left:0; right:0; height:2px; background:var(--border); }
+.ogd-node::after  { content:""; position:absolute; top:0; left:calc(50% - 1px); width:2px; height:22px; background:var(--border); }
+.ogd-node:first-child::before { left:calc(50% - 1px); }
+.ogd-node:last-child::before  { right:calc(50% - 1px); }
+.ogd-node:only-child::before  { display:none; }   /* riporto unico: solo la verticale */
+/* radice: non ha nessuno sopra di sé */
+.ogd-level--top > .ogd-node { padding-top:0; }
+.ogd-level--top > .ogd-node::before,
+.ogd-level--top > .ogd-node::after { display:none; }
 
-.ogd-node.is-collapsed > .ogd-colonne { display:none; }
+.ogd-node.is-collapsed > .ogd-level { display:none; }
 
 .ogd-empty { font-size:var(--fs-sm); color:var(--text-light); font-style:italic; text-align:center; padding:40px 0; }
 
 @media (max-width:640px) {
-  .ogd-panel { padding:22px 12px; }
-  .ogd-colonne { margin-left:24px; gap:16px; }
-  .ogd-colonna { padding-left:18px; }
-  .ogd-colonna > .ogd-node::before { left:-18px; width:18px; }
-  .ogd-colonna > .ogd-node:last-child::after { left:-20px; }
-  .ogd-toggle { left:24px; }
+  .ogd-panel { padding:26px 12px; }
+  .ogd-node { padding:18px 6px 0; }
+  .ogd-node::after { height:18px; }
+  .ogd-node > .ogd-level { padding-top:18px; }
+  .ogd-node > .ogd-level::before { height:18px; }
 }
 </style>
 {% endblock %}
@@ -127,7 +133,7 @@
     <div>
       <div class="hr-pagehead-eyebrow">Anagrafica HR</div>
       <h1 class="hr-pagehead-title">Organigramma a diagramma</h1>
-      <p class="hr-pagehead-desc">Un riquadro per posizione (ruolo + persona); i riporti scendono in verticale sotto il genitore e si affiancano su più colonne quando sono tanti. La gerarchia resta tra ruoli: i ruoli con più titolari che hanno riporti restano un riquadro unico.</p>
+      <p class="hr-pagehead-desc">Un riquadro per posizione (ruolo + persona), disegnato ad albero: il genitore sta al centro e i riporti si affiancano sotto, agganciati alla traversa. La gerarchia resta tra ruoli: i ruoli con più titolari che hanno riporti restano un riquadro unico. I rami larghi si scorrono in orizzontale o si comprimono dal pulsante sul riquadro.</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
       <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:organigramma_albero' %}">⌸ Vista ad albero</a>
@@ -156,9 +162,12 @@
 
   <div class="ogd-panel" id="ogdPanel">
     {% if albero %}
+      {# Un albero per radice, impilati: due organigrammi affiancati non si leggono. #}
       <div class="ogd-root">
         {% for nodo in albero %}
-          {% include "anagrafica/partials/_org_posizione.html" with nodo=nodo only %}
+          <ul class="ogd-level ogd-level--top">
+            {% include "anagrafica/partials/_org_posizione.html" with nodo=nodo only %}
+          </ul>
         {% endfor %}
       </div>
     {% else %}

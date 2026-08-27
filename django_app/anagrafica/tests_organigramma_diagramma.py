@@ -4,11 +4,7 @@ from django.contrib.sessions.backends.db import SessionStore
 from django.test import RequestFactory, TestCase
 
 from anagrafica.models import DipendenteRuoloOperativo, RuoloOperativo
-from anagrafica.services.organigramma_albero import (
-    build_posizioni_albero,
-    griglia_riporti,
-    spezza_in_colonne,
-)
+from anagrafica.services.organigramma_albero import build_posizioni_albero
 
 User = get_user_model()
 
@@ -67,50 +63,30 @@ class PosizioniAlberoTests(TestCase):
         self.assertIs(nodo["titolari"][0]["ha_foto"], False)
 
 
-    def test_molti_riporti_foglia_vanno_su_piu_colonne(self):
-        capo = RuoloOperativo.objects.create(nome="CapoColonne")
+    def test_molti_riporti_foglia_restano_fratelli_dello_stesso_livello(self):
+        """L'albero e' genealogico: i riporti stanno affiancati sotto il genitore,
+        non spezzati in colonne (il layout li dispone in orizzontale)."""
+        capo = RuoloOperativo.objects.create(nome="CapoLargo")
         ruolo = RuoloOperativo.objects.create(nome="Tecnico", riporta_a=capo)
-        for lid in range(1, 7):  # 6 titolari > SOGLIA_COLONNE
+        for lid in range(1, 7):
             DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=lid, ruolo=ruolo)
 
         albero = build_posizioni_albero()
-        nodo_capo = next(n for n in albero if n["ruolo"].nome == "CapoColonne")
+        nodo_capo = next(n for n in albero if n["ruolo"].nome == "CapoLargo")
         self.assertEqual(len(nodo_capo["figli"]), 6)
-        self.assertIs(nodo_capo["griglia"], True)
-        self.assertEqual([len(c) for c in nodo_capo["colonne"]], [3, 3])
+        self.assertNotIn("colonne", nodo_capo)
+        self.assertNotIn("griglia", nodo_capo)
 
-    def test_riporti_con_sottoalbero_restano_in_colonna_singola(self):
+    def test_sottoalbero_annidato_resta_nei_figli(self):
         capo = RuoloOperativo.objects.create(nome="CapoMisto")
-        for i in range(6):
-            sub = RuoloOperativo.objects.create(nome=f"Sub{i}", riporta_a=capo)
-            DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=100 + i, ruolo=sub)
-        # uno dei riporti ha a sua volta un riporto: niente colonne
-        RuoloOperativo.objects.create(nome="Nipote", riporta_a=RuoloOperativo.objects.get(nome="Sub0"))
+        sub = RuoloOperativo.objects.create(nome="Sub", riporta_a=capo)
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=100, ruolo=sub)
+        RuoloOperativo.objects.create(nome="Nipote", riporta_a=sub)
 
         albero = build_posizioni_albero()
         nodo_capo = next(n for n in albero if n["ruolo"].nome == "CapoMisto")
-        self.assertIs(nodo_capo["griglia"], False)
-        self.assertEqual(len(nodo_capo["colonne"]), 1)  # colonna unica
-
-    def test_colonne_spezzano_i_riporti_numerosi(self):
-        foglie = [{"figli": []} for _ in range(6)]
-        colonne = spezza_in_colonne(foglie)
-        self.assertEqual([len(c) for c in colonne], [3, 3])
-        self.assertEqual(sum(len(c) for c in colonne), 6)
-        # oltre le tre colonne non si va: si allungano
-        colonne = spezza_in_colonne([{"figli": []} for _ in range(20)])
-        self.assertEqual(len(colonne), 3)
-        self.assertEqual(sum(len(c) for c in colonne), 20)
-
-    def test_colonna_unica_quando_i_riporti_sono_pochi(self):
-        foglie = [{"figli": []} for _ in range(4)]
-        self.assertEqual(spezza_in_colonne(foglie), [foglie])
-        self.assertEqual(spezza_in_colonne([]), [])
-
-    def test_griglia_riporti_soglia(self):
-        foglie = [{"figli": []} for _ in range(5)]
-        self.assertIs(griglia_riporti(foglie), False)
-        self.assertIs(griglia_riporti(foglie + [{"figli": []}]), True)
+        self.assertEqual(len(nodo_capo["figli"]), 1)
+        self.assertEqual(nodo_capo["figli"][0]["figli"][0]["ruolo"].nome, "Nipote")
 
 
 class OrganigrammaDiagrammaViewTests(TestCase):
@@ -132,3 +108,6 @@ class OrganigrammaDiagrammaViewTests(TestCase):
         self.assertIn("CoordDiag", body)
         self.assertIn("TecnicoDiag", body)
         self.assertIn("ogd-card", body)  # riquadri disegnati
+        # albero genealogico: livelli annidati di fratelli, non colonne appese
+        self.assertIn("ogd-level", body)
+        self.assertNotIn("ogd-colonna", body)

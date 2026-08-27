@@ -1,5 +1,5 @@
-{# Nodo ricorsivo dell'organigramma: riquadro + riporti appesi in verticale. Riceve: nodo (only). #}
-<div class="ogd-node{% if nodo.figli %} ogd-has-children{% endif %}">
+{# Nodo ricorsivo dell'organigramma: riquadro + riporti affiancati sotto, ad albero genealogico. Riceve: nodo (only). #}
+<li class="ogd-node{% if nodo.figli %} ogd-has-children{% endif %}">
   <div class="ogd-card ogd-card--{{ nodo.tipo }}">
     <span class="ogd-avatars">
       {% for t in nodo.titolari|slice:":3" %}
@@ -33,15 +33,11 @@
     {% endif %}
   </div>
 
-  {% if nodo.colonne %}
-    <div class="ogd-colonne{% if nodo.griglia %} ogd-colonne--multi{% endif %}">
-      {% for colonna in nodo.colonne %}
-        <div class="ogd-colonna">
-          {% for figlio in colonna %}
-            {% include "anagrafica/partials/_org_posizione.html" with nodo=figlio only %}
-          {% endfor %}
-        </div>
+  {% if nodo.figli %}
+    <ul class="ogd-level">
+      {% for figlio in nodo.figli %}
+        {% include "anagrafica/partials/_org_posizione.html" with nodo=figlio only %}
       {% endfor %}
-    </div>
+    </ul>
   {% endif %}
-</div>
+</li>
