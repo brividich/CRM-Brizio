@@ -1,13 +1,6 @@
-{# Nodo ricorsivo dell'organigramma verticale. Riceve: nodo (only). #}
-<li class="ogd-node{% if nodo.figli %} ogd-has-children{% endif %}">
-  <div class="ogd-row ogd-row--{{ nodo.tipo }}">
-    {% if nodo.figli %}
-      <button type="button" class="ogd-toggle" data-ogd-toggle aria-expanded="true"
-              title="Comprimi / espandi i riporti">▾</button>
-    {% else %}
-      <span class="ogd-toggle ogd-toggle--leaf" aria-hidden="true">•</span>
-    {% endif %}
-
+{# Nodo ricorsivo dell'organigramma: riquadro + riporti appesi in verticale. Riceve: nodo (only). #}
+<div class="ogd-node{% if nodo.figli %} ogd-has-children{% endif %}">
+  <div class="ogd-card ogd-card--{{ nodo.tipo }}">
     <span class="ogd-avatars">
       {% for t in nodo.titolari|slice:":3" %}
         {% if t.ha_foto %}
@@ -23,23 +16,32 @@
       {% endif %}
     </span>
 
-    <span class="ogd-txt">
-      <span class="ogd-role" title="{{ nodo.ruolo.nome }}">{{ nodo.ruolo.nome }}</span>
-      <span class="ogd-people">
-        {% for t in nodo.titolari %}{{ t.nome|default:t.legacy_id }}{% if not forloop.last %} · {% endif %}{% empty %}Posizione scoperta{% endfor %}
-      </span>
-    </span>
+    <div class="ogd-role" title="{{ nodo.ruolo.nome }}">{{ nodo.ruolo.nome }}</div>
+
+    <div class="ogd-chips">
+      {% for t in nodo.titolari %}
+        <span class="ogd-chip">{{ t.nome|default:t.legacy_id }}</span>
+      {% empty %}
+        <span class="ogd-chip ogd-chip--vac">Posizione scoperta</span>
+      {% endfor %}
+    </div>
 
     {% if nodo.figli %}
       <span class="ogd-count-badge" title="riporti diretti">{{ nodo.figli|length }}</span>
+      <button type="button" class="ogd-toggle" data-ogd-toggle aria-expanded="true"
+              title="Comprimi / espandi i riporti">−</button>
     {% endif %}
   </div>
 
-  {% if nodo.figli %}
-    <ul class="ogd-children{% if nodo.griglia %} ogd-children--cols{% endif %}">
-      {% for figlio in nodo.figli %}
-        {% include "anagrafica/partials/_org_posizione.html" with nodo=figlio only %}
+  {% if nodo.colonne %}
+    <div class="ogd-colonne{% if nodo.griglia %} ogd-colonne--multi{% endif %}">
+      {% for colonna in nodo.colonne %}
+        <div class="ogd-colonna">
+          {% for figlio in colonna %}
+            {% include "anagrafica/partials/_org_posizione.html" with nodo=figlio only %}
+          {% endfor %}
+        </div>
       {% endfor %}
-    </ul>
+    </div>
   {% endif %}
-</li>
+</div>

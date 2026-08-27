@@ -7,6 +7,7 @@ from anagrafica.models import DipendenteRuoloOperativo, RuoloOperativo
 from anagrafica.services.organigramma_albero import (
     build_posizioni_albero,
     griglia_riporti,
+    spezza_in_colonne,
 )
 
 User = get_user_model()
@@ -76,6 +77,7 @@ class PosizioniAlberoTests(TestCase):
         nodo_capo = next(n for n in albero if n["ruolo"].nome == "CapoColonne")
         self.assertEqual(len(nodo_capo["figli"]), 6)
         self.assertIs(nodo_capo["griglia"], True)
+        self.assertEqual([len(c) for c in nodo_capo["colonne"]], [3, 3])
 
     def test_riporti_con_sottoalbero_restano_in_colonna_singola(self):
         capo = RuoloOperativo.objects.create(nome="CapoMisto")
@@ -88,6 +90,22 @@ class PosizioniAlberoTests(TestCase):
         albero = build_posizioni_albero()
         nodo_capo = next(n for n in albero if n["ruolo"].nome == "CapoMisto")
         self.assertIs(nodo_capo["griglia"], False)
+        self.assertEqual(len(nodo_capo["colonne"]), 1)  # colonna unica
+
+    def test_colonne_spezzano_i_riporti_numerosi(self):
+        foglie = [{"figli": []} for _ in range(6)]
+        colonne = spezza_in_colonne(foglie)
+        self.assertEqual([len(c) for c in colonne], [3, 3])
+        self.assertEqual(sum(len(c) for c in colonne), 6)
+        # oltre le tre colonne non si va: si allungano
+        colonne = spezza_in_colonne([{"figli": []} for _ in range(20)])
+        self.assertEqual(len(colonne), 3)
+        self.assertEqual(sum(len(c) for c in colonne), 20)
+
+    def test_colonna_unica_quando_i_riporti_sono_pochi(self):
+        foglie = [{"figli": []} for _ in range(4)]
+        self.assertEqual(spezza_in_colonne(foglie), [foglie])
+        self.assertEqual(spezza_in_colonne([]), [])
 
     def test_griglia_riporti_soglia(self):
         foglie = [{"figli": []} for _ in range(5)]
@@ -113,4 +131,4 @@ class OrganigrammaDiagrammaViewTests(TestCase):
         body = resp.content.decode()
         self.assertIn("CoordDiag", body)
         self.assertIn("TecnicoDiag", body)
-        self.assertIn("ogd-row", body)  # righe disegnate
+        self.assertIn("ogd-card", body)  # riquadri disegnati

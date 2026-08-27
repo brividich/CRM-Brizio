@@ -15449,15 +15449,12 @@ def organigramma_diagramma(request):
     """Organigramma a diagramma: un riquadro per POSIZIONE (ruolo + persona).
 
     Stessa gerarchia della vista ad albero (sempre tra ruoli, mai tra persone),
-    disegnata come albero verticale indentato con collasso dei rami: i riporti
-    scendono sotto il genitore e, quando sono tanti e tutti foglia, si dispongono
-    su più colonne. I ruoli con più titolari diventano righe sorelle; vedi
+    disegnata con i riquadri appesi in verticale sotto il genitore: quando i
+    riporti sono tanti e tutti foglia si affiancano su più colonne. I ruoli con
+    più titolari diventano riquadri fratelli; vedi
     :func:`anagrafica.services.organigramma_albero.build_posizioni_albero`.
     """
-    from anagrafica.services.organigramma_albero import (
-        build_posizioni_albero,
-        griglia_riporti,
-    )
+    from anagrafica.services.organigramma_albero import build_posizioni_albero
 
     ambito_id = _parse_ambito_filtro(request)
     albero = build_posizioni_albero(ambito_id)
@@ -15471,7 +15468,6 @@ def organigramma_diagramma(request):
     return render(request, "anagrafica/pages/organigramma_diagramma.html", {
         "albero": albero,
         "n_posizioni": _conta(albero),
-        "griglia_radice": griglia_riporti(albero),
         **_ambito_filtro_context(ambito_id),
     })
 
