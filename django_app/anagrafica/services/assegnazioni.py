@@ -148,6 +148,7 @@ def crea_assegnazione(
     area_aziendale_id: int | None = None,
     mansione: str = "",
     ruolo_aziendale: str = "",
+    ruolo_parallelo: bool = False,
     note: str = "",
     user=None,
     include_visite_dettaglio: bool = False,
@@ -159,12 +160,22 @@ def crea_assegnazione(
     periodo — quattro campi sempre valorizzati — e nessun campo viene azzerato
     solo perché chi registrava lo spostamento non lo ha toccato.
 
+    Con ``ruolo_parallelo`` il ruolo indicato **si aggiunge** a quello in essere
+    invece di sostituirlo: due incarichi dello stesso ambito che convivono (chi
+    resta capoturno e diventa anche capocommessa). Il campo «Ruolo aziendale»
+    della scheda non viene toccato e, sull'assegnazione, ``ruolo_aziendale``
+    registra il ruolo *aggiunto*. Senza un ruolo esplicito il flag non ha
+    oggetto e viene ignorato.
+
     Se ``data_inizio`` è già passata (o è oggi) l'assegnazione viene anche
     attivata subito; altrimenti resta programmata.
     """
     corrente = assetto_corrente(legacy_id)
     reparto = ((reparto or "").strip() or corrente["reparto"])[:200]
     mansione = ((mansione or "").strip() or corrente["mansione"])[:200]
+    # Il flag vale solo su un ruolo scelto adesso: ereditare il principale e poi
+    # dichiararlo "parallelo a sé stesso" non vuol dire niente.
+    ruolo_parallelo = bool(ruolo_parallelo) and bool((ruolo_aziendale or "").strip())
     ruolo_aziendale = ((ruolo_aziendale or "").strip() or corrente["ruolo_aziendale"])[:200]
     if area_aziendale_id is None:
         area_aziendale_id = corrente["area_aziendale_id"]
@@ -195,6 +206,7 @@ def crea_assegnazione(
         area_aziendale_id=area_valida_id,
         mansione=mansione,
         ruolo_aziendale=ruolo_aziendale,
+        ruolo_parallelo=ruolo_parallelo,
         note=note,
         idoneita_esito=idoneita["esito"],
         idoneita_mancanti=idoneita["mancanti"],
@@ -285,6 +297,7 @@ def attiva_assegnazione(assegnazione: DipendenteAssegnazione, *, user=None) -> b
     _aggiorna_ruolo_aziendale(
         legacy_id, assegnazione.ruolo_aziendale,
         user=user, data_decorrenza=assegnazione.data_inizio,
+        parallelo=assegnazione.ruolo_parallelo,
     )
 
     assegnazione.attivata_il = timezone.now()
@@ -303,7 +316,9 @@ def _area_aziendale_corrente_id(legacy_id: int) -> int | None:
     )
 
 
-def _aggiorna_ruolo_aziendale(legacy_id: int, ruolo: str, *, user, data_decorrenza) -> None:
+def _aggiorna_ruolo_aziendale(
+    legacy_id: int, ruolo: str, *, user, data_decorrenza, parallelo: bool = False
+) -> None:
     from ..models import DipendenteAnagraficaAziendale
     from ..views import _registra_cambiamento
 
@@ -312,7 +327,18 @@ def _aggiorna_ruolo_aziendale(legacy_id: int, ruolo: str, *, user, data_decorren
     if not (ruolo or "").strip():
         return
 
-    from .ruoli_sync import assicura_assegnazione
+    from .ruoli_sync import assicura_assegnazione, nome_alimenta_principale
+
+    # Ruolo che si somma invece di sostituire. Due casi, stesso effetto:
+    # il flag «in parallelo» scelto da chi registra lo spostamento, e i ruoli di
+    # un altro organigramma (45001, 27001, …), che per definizione non scrivono
+    # il «Ruolo aziendale» della scheda. In entrambi il ruolo diventa
+    # un'assegnazione in più e il principale resta quello di prima.
+    if parallelo or not nome_alimenta_principale(ruolo):
+        # Fuori catalogo non c'è nulla da aggiungere: un nome storico resta un
+        # valore testuale, e in parallelo non ha dove vivere.
+        assicura_assegnazione(legacy_id, ruolo, user=user)
+        return
 
     az, _ = DipendenteAnagraficaAziendale.objects.get_or_create(
         legacy_anagrafica_id=legacy_id, defaults={"updated_by": user},

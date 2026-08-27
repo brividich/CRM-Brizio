@@ -59,6 +59,16 @@ def alimenta_principale(ruolo: RuoloOperativo) -> bool:
     return bool(ruolo) and ruolo.alimenta_ruolo_principale
 
 
+def nome_alimenta_principale(nome: str) -> bool:
+    """Il nome di ruolo appartiene all'ambito che alimenta il «Ruolo aziendale».
+
+    Vero anche per un nome **fuori catalogo**: un valore storico nel campo
+    testuale è sempre stato un ruolo della scheda, e continua a esserlo.
+    """
+    ruolo = _ruolo_per_nome(nome)
+    return ruolo is None or ruolo.alimenta_ruolo_principale
+
+
 def ruoli_che_alimentano(legacy_id: int):
     """Assegnazioni della persona nell'ambito della scheda, per nome ruolo."""
     return [

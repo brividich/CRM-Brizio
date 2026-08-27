@@ -2361,7 +2361,18 @@ def dipendente_detail(request, legacy_id: int):
     # tantum, a senso unico): i ruoli creati dopo nel catalogo non comparivano
     # qui. Il valore salvato resta il NOME (campo testuale ruolo_aziendale).
     ruoli_aziendali_catalogo = (
-        list(RuoloOperativo.objects.filter(is_active=True).order_by("nome")) if is_admin else []
+        list(
+            RuoloOperativo.objects.filter(is_active=True)
+            .select_related("ambito")
+            .order_by("nome")
+        )
+        if is_admin else []
+    )
+    # Il dropdown mostra i ruoli raggruppati per ambito: da lì si capisce se il
+    # ruolo scelto sostituirà il «Ruolo aziendale» (ambito della scheda) o si
+    # sommerà agli altri (45001, 27001, …).
+    ruoli_aziendali_per_ambito = _raggruppa_per_ambito(
+        ruoli_aziendali_catalogo, chiave=lambda r: r.ambito
     )
     ruolo_aziendale_corrente = (aziendale.ruolo_aziendale or "").strip() if aziendale else ""
     ruolo_aziendale_in_catalog = ruolo_aziendale_corrente and any(
@@ -2424,6 +2435,7 @@ def dipendente_detail(request, legacy_id: int):
         "assegnazione_in_corso": assegnazione_in_corso,
         "assetto_attuale": assetto_attuale,
         "ruoli_aziendali_catalogo": ruoli_aziendali_catalogo,
+        "ruoli_aziendali_per_ambito": ruoli_aziendali_per_ambito,
         "qualifiche_dip": qualifiche_dip,
         "tipi_qualifica": tipi_qualifica,
         "oggi": oggi,
@@ -3949,6 +3961,7 @@ def dipendente_assegnazione_create(request, legacy_id: int):
             area_aziendale_id=int(area_aziendale_raw) if area_aziendale_raw.isdigit() else None,
             mansione=mansione_nome,
             ruolo_aziendale=(request.POST.get("ruolo_aziendale") or "").strip()[:200],
+            ruolo_parallelo=bool(request.POST.get("ruolo_parallelo")),
             note=(request.POST.get("note") or "").strip(),
             user=request.user,
             include_visite_dettaglio=_can_view_visite_mediche(request),
