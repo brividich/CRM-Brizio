@@ -24,7 +24,7 @@
         <div>
           <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Formazione</div>
           <h1><svg class="fmd-ico fmd-cap"><use href="#i-search"/></svg>Ricerca</h1>
-          <p class="fmd-sub">Cerca in corsi, sessioni, piani, qualifiche, dipendenti e attestati.</p>
+          <p class="fmd-sub">Cerca in corsi, sessioni, piani, qualifiche, docenti, aziende formative, dipendenti e attestati.</p>
         </div>
       </div>
     </section>
@@ -35,7 +35,7 @@
         <span class="fmd-search">
           <svg class="fmd-ico"><use href="#i-search"/></svg>
           <input type="search" name="q" value="{{ q }}" autofocus
-                 placeholder="Cerca corsi, sessioni, piani, qualifiche, dipendenti, attestati…"
+                 placeholder="Cerca corsi, sessioni, piani, qualifiche, docenti, aziende, dipendenti…"
                  autocomplete="off" aria-label="Cerca nella formazione"
                  hx-get="{% url 'anagrafica:formazione_ricerca' %}"
                  hx-trigger="keyup changed delay:300ms, search"

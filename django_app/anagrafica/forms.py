@@ -29,6 +29,7 @@ from .models_formazione import (
     TrainingLesson,
     TrainingLessonAttendance,
     TrainingPlan,
+    TrainingProvider,
     TrainingScanIntakeConfig,
     TrainingRequirementRule,
     TrainingSession,
@@ -440,11 +441,36 @@ class TrainingCourseForm(forms.ModelForm):
         return (self.cleaned_data.get("codice") or "").strip().upper()
 
 
+class TrainingProviderForm(forms.ModelForm):
+    class Meta:
+        model = TrainingProvider
+        fields = [
+            "nome", "partita_iva", "email", "telefono",
+            "sito_web", "indirizzo", "accreditamento",
+            "note", "is_active",
+        ]
+        widgets = {
+            "nome":           forms.TextInput(attrs=_FM),
+            "partita_iva":    forms.TextInput(attrs=_FM),
+            "email":          forms.EmailInput(attrs=_FM),
+            "telefono":       forms.TextInput(attrs=_FM),
+            "sito_web":       forms.TextInput(attrs=_FM),
+            "indirizzo":      forms.TextInput(attrs=_FM),
+            "accreditamento": forms.TextInput(attrs=_FM),
+            "note":           forms.Textarea(attrs=_FM_TEXTAREA),
+            "is_active":      forms.CheckboxInput(attrs=_FM_CHECK),
+        }
+
+    def clean_nome(self):
+        """Spazi collassati: due grafie della stessa società non devono convivere."""
+        return " ".join((self.cleaned_data.get("nome") or "").split())
+
+
 class TrainingInstructorForm(forms.ModelForm):
     class Meta:
         model = TrainingInstructor
         fields = [
-            "tipo", "nome", "ragione_sociale",
+            "tipo", "nome", "azienda", "ragione_sociale",
             "email", "telefono",
             "legacy_anagrafica_id",
             "qualification_notes", "is_active",
@@ -452,6 +478,7 @@ class TrainingInstructorForm(forms.ModelForm):
         widgets = {
             "tipo":                  forms.Select(attrs=_FM_SELECT),
             "nome":                  forms.TextInput(attrs=_FM),
+            "azienda":               forms.Select(attrs=_FM_SELECT),
             "ragione_sociale":       forms.TextInput(attrs=_FM),
             "email":                 forms.EmailInput(attrs=_FM),
             "telefono":              forms.TextInput(attrs=_FM),
@@ -459,6 +486,18 @@ class TrainingInstructorForm(forms.ModelForm):
             "qualification_notes":   forms.Textarea(attrs=_FM_TEXTAREA),
             "is_active":             forms.CheckboxInput(attrs=_FM_CHECK),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        qs = TrainingProvider.objects.filter(is_active=True)
+        if self.instance.pk and self.instance.azienda_id:
+            # L'ente disattivato resta selezionabile sul docente che ce l'ha già,
+            # altrimenti il primo salvataggio glielo toglierebbe di nascosto.
+            qs = TrainingProvider.objects.filter(
+                Q(is_active=True) | Q(pk=self.instance.azienda_id)
+            )
+        self.fields["azienda"].queryset = qs.order_by("nome")
+        self.fields["azienda"].empty_label = "— Nessuna azienda formativa —"
 
 
 class TrainingRequirementRuleForm(forms.ModelForm):

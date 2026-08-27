@@ -292,12 +292,18 @@ def build_attestato_pdf_bytes(record, cfg=None) -> bytes:
 RIFERIMENTO_LIBRETTO = "anagrafica.libretto_formativo"
 
 
-def build_libretto_pdf_bytes(legacy_id: int) -> bytes:
+def build_libretto_pdf_bytes(legacy_id: int, *, dal=None, al=None) -> bytes:
     """Genera il libretto formativo (curriculum) del dipendente come PDF (``bytes``).
 
     Aggrega storico completamenti (campi snapshot) e obblighi correnti, nello
     stesso tema PDF del portale. Self-contained: legge i dati da sé, così è usabile
     anche da archiviazione/schedulazione senza passare dalla view.
+
+    ``dal``/``al`` (``date``, opzionali) restringono lo **storico** alla data di
+    completamento: è l'estratto per un anno o per un periodo di rapporto. Il
+    periodo viene dichiarato in testa al documento, perché un libretto parziale
+    che non lo dice sembrerebbe un libretto incompleto. Gli obblighi correnti
+    non si filtrano: sono lo stato di oggi.
     """
     from reportlab.lib import colors
     from reportlab.lib.units import mm
@@ -320,12 +326,16 @@ def build_libretto_pdf_bytes(legacy_id: int) -> bytes:
     dip = dip or {}
     nominativo = f"{str(dip.get('cognome') or '').strip()} {str(dip.get('nome') or '').strip()}".strip() or f"Dipendente #{legacy_id}"
 
-    records = list(
+    records_qs = (
         TrainingEmployeeRecord.objects
         .filter(legacy_anagrafica_id=legacy_id)
         .select_related("corso")
-        .order_by("-data_completamento", "-created_at")
     )
+    if dal:
+        records_qs = records_qs.filter(data_completamento__gte=dal)
+    if al:
+        records_qs = records_qs.filter(data_completamento__lte=al)
+    records = list(records_qs.order_by("-data_completamento", "-created_at"))
     ore_totali = sum((r.ore_frequentate or 0) for r in records)
     oggi = timezone.localdate()
     obblighi = list(
@@ -357,10 +367,24 @@ def build_libretto_pdf_bytes(legacy_id: int) -> bytes:
         f"aggiornato al {oggi.strftime('%d-%m-%Y')}",
         styles["body"],
     ))
+    if dal or al:
+        if dal and al:
+            periodo = f"dal {dal.strftime('%d-%m-%Y')} al {al.strftime('%d-%m-%Y')}"
+        elif dal:
+            periodo = f"dal {dal.strftime('%d-%m-%Y')}"
+        else:
+            periodo = f"fino al {al.strftime('%d-%m-%Y')}"
+        story.append(Paragraph(
+            f"<b>Estratto parziale</b> — storico limitato al periodo {periodo}.",
+            styles["body"],
+        ))
     story.append(Spacer(1, 5 * mm))
 
     # Storico completamenti
-    story += section_heading("Storico formazione", theme, styles)
+    story += section_heading(
+        "Storico formazione" if not (dal or al) else "Storico formazione (periodo selezionato)",
+        theme, styles,
+    )
     if records:
         head = ["Corso", "Codice", "Data", "Ore", "Esito", "Validità"]
         body = [[Paragraph(h, styles["table_header"]) for h in head]]
@@ -375,7 +399,11 @@ def build_libretto_pdf_bytes(legacy_id: int) -> bytes:
             ])
         story.append(data_table(body, theme, col_widths=[None, 60, 52, 28, 50, 52], repeat_rows=1))
     else:
-        story.append(Paragraph("Nessun completamento registrato.", styles["body"]))
+        story.append(Paragraph(
+            "Nessun completamento nel periodo selezionato." if (dal or al)
+            else "Nessun completamento registrato.",
+            styles["body"],
+        ))
     story.append(Spacer(1, 5 * mm))
 
     # Obblighi correnti

@@ -52,6 +52,32 @@
     .pb-actions .pb-btn-print { background: #1f87cd; border-color: #1f87cd; }
     .pb-actions .pb-btn-print:hover { background: #1e40af; }
 
+    /* ── Barra periodo (non stampata) ─────────────────────────── */
+    .lb-filtro {
+      max-width: 900px; margin: 18px auto -6px;
+      display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+      padding: 12px 16px;
+      background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    }
+    .lb-filtro label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+    .lb-filtro input[type="date"] {
+      font-family: inherit; font-size: 12.5px; color: var(--ink);
+      padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: #fff;
+    }
+    .lb-filtro button, .lb-filtro a.lb-reset {
+      font-family: inherit; font-size: 12.5px; font-weight: 700;
+      padding: 7px 14px; border-radius: 8px; border: 1px solid var(--primary);
+      background: var(--primary); color: #fff; cursor: pointer; text-decoration: none;
+    }
+    .lb-filtro a.lb-reset { background: #fff; color: var(--muted); border-color: var(--line); }
+    .lb-filtro-note { flex: 1; text-align: right; font-size: 11.5px; color: var(--muted); }
+
+    .lb-periodo {
+      display: inline-block; margin-left: 8px; padding: 2px 10px; border-radius: 999px;
+      background: var(--accent-soft); color: var(--accent);
+      font-size: 11px; font-weight: 700;
+    }
+
     /* ── Foglio A4 ────────────────────────────────────────────── */
     .pb-sheet {
       max-width: 900px;
@@ -150,6 +176,7 @@
     @media print {
       body { background: #fff; font-size: 11px; }
       .pb-actions { display: none !important; }
+      .lb-filtro { display: none !important; }
       .lb-att-link { display: none !important; }
       .pb-sheet {
         max-width: none; margin: 0; padding: 0;
@@ -167,7 +194,7 @@
   <div class="pb-actions">
     <span class="pb-actions-title">Libretto formativo — {{ dip.cognome }} {{ dip.nome }}</span>
     <a href="{% url 'anagrafica:dipendente_detail' legacy_id %}" title="Apri scheda completa">← Scheda</a>
-    <a href="{% url 'anagrafica:dipendente_libretto_formativo' legacy_id %}?formato=pdf" target="_blank" rel="noopener" title="Scarica il libretto come PDF generato dal portale">📄 PDF</a>
+    <a href="{% url 'anagrafica:dipendente_libretto_formativo' legacy_id %}?formato=pdf{% if dal %}&amp;dal={{ dal|date:'Y-m-d' }}{% endif %}{% if al %}&amp;al={{ al|date:'Y-m-d' }}{% endif %}" target="_blank" rel="noopener" title="Scarica il libretto come PDF generato dal portale (stesso periodo mostrato a schermo)">📄 PDF</a>
     {% if can_edit %}
     <form method="post" action="{% url 'anagrafica:libretto_salva_box' legacy_id %}" style="margin:0;display:inline;">
       {% csrf_token %}
@@ -181,6 +208,23 @@
     {% endif %}
     <button type="button" class="pb-btn-print" onclick="window.print();">🖨 Stampa</button>
   </div>
+
+  {# Filtro di periodo: lo storico è la parte datata del libretto, ed è quella
+     che viene chiesta per anno o per intervallo (bilancio formativo, verifica
+     ispettiva). Non è stampato: sul foglio resta il periodo dichiarato. #}
+  <form class="lb-filtro" method="get" action="{% url 'anagrafica:dipendente_libretto_formativo' legacy_id %}">
+    <label for="lb-dal">Storico dal</label>
+    <input type="date" id="lb-dal" name="dal" value="{{ dal|date:'Y-m-d' }}">
+    <label for="lb-al">al</label>
+    <input type="date" id="lb-al" name="al" value="{{ al|date:'Y-m-d' }}">
+    <button type="submit">Filtra</button>
+    {% if periodo_attivo %}
+    <a class="lb-reset" href="{% url 'anagrafica:dipendente_libretto_formativo' legacy_id %}">Tutto lo storico</a>
+    <span class="lb-filtro-note">{{ record_storici|length }} di {{ totale_record }} completamenti nel periodo</span>
+    {% else %}
+    <span class="lb-filtro-note">Storico completo — {{ totale_record }} completament{{ totale_record|pluralize:"o,i" }}</span>
+    {% endif %}
+  </form>
 
   <article class="pb-sheet">
 
@@ -198,6 +242,11 @@
       <div class="pb-head-right">
         <div class="pb-head-id">ID legacy #{{ legacy_id }}</div>
         <div class="pb-head-date">Generato il {% now "d-m-Y H:i" %}</div>
+        {% if periodo_attivo %}
+        <div class="pb-head-date">
+          Estratto {% if dal %}dal {{ dal|date:"d-m-Y" }}{% endif %}{% if al %} al {{ al|date:"d-m-Y" }}{% endif %}
+        </div>
+        {% endif %}
       </div>
     </header>
 
@@ -205,7 +254,7 @@
     <div class="lb-kpis">
       <div class="lb-kpi">
         <div class="lb-kpi-val">{{ record_storici|length }}</div>
-        <div class="lb-kpi-lbl">Corsi completati</div>
+        <div class="lb-kpi-lbl">Corsi completati{% if periodo_attivo %} nel periodo{% endif %}</div>
       </div>
       <div class="lb-kpi">
         <div class="lb-kpi-val">{{ ore_totali|floatformat:"-2" }}</div>
@@ -219,7 +268,9 @@
 
     <!-- ── Obblighi correnti ─────────────────────────────────── -->
     <section class="pb-section">
-      <h2 class="pb-section-title">📌 Obblighi formativi correnti</h2>
+      <h2 class="pb-section-title">📌 Obblighi formativi correnti{% if periodo_attivo %}
+        <span class="lb-periodo">stato di oggi, non filtrato</span>
+      {% endif %}</h2>
       {% if obblighi %}
       <table class="lb-table">
         <thead>
@@ -262,7 +313,9 @@
 
     <!-- ── Storico completamenti ─────────────────────────────── -->
     <section class="pb-section">
-      <h2 class="pb-section-title">🎓 Storico corsi completati</h2>
+      <h2 class="pb-section-title">🎓 Storico corsi completati{% if periodo_attivo %}
+        <span class="lb-periodo">{% if dal %}dal {{ dal|date:"d-m-Y" }}{% endif %}{% if al %} al {{ al|date:"d-m-Y" }}{% endif %}</span>
+      {% endif %}</h2>
       {% if record_storici %}
       <table class="lb-table">
         <thead>
@@ -306,7 +359,7 @@
         </tbody>
       </table>
       {% else %}
-      <p class="lb-muted" style="margin:0;">Nessun corso completato registrato.</p>
+      <p class="lb-muted" style="margin:0;">{% if periodo_attivo %}Nessun corso completato nel periodo selezionato.{% else %}Nessun corso completato registrato.{% endif %}</p>
       {% endif %}
     </section>
 

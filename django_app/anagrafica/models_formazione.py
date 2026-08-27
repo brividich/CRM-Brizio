@@ -598,6 +598,42 @@ class TrainingRequirementRule(models.Model):
 
 
 # ─────────────────────────────────────────────────────────────
+# AZIENDA FORMATIVA (provider / ente di formazione)
+# ─────────────────────────────────────────────────────────────
+# I docenti esterni non arrivano mai da soli: arrivano da un ente, e in verifica
+# ispettiva la domanda è sull'ente (accreditamento, contatti, chi ha erogato
+# cosa). Finora l'ente viveva come testo libero in `ragione_sociale`, quindi
+# ogni docente ne riscriveva una variante. Qui diventa un'entità con i suoi
+# docenti associati; `ragione_sociale` resta come dato storico dei record già
+# inseriti e come ripiego per il docente senza ente.
+
+class TrainingProvider(models.Model):
+    """Ente di formazione / azienda formativa a cui appartengono i docenti."""
+
+    nome           = models.CharField(max_length=300, unique=True, verbose_name="Ragione sociale")
+    partita_iva    = models.CharField(max_length=20, blank=True, verbose_name="Partita IVA / C.F.")
+    email          = models.EmailField(blank=True)
+    telefono       = models.CharField(max_length=30, blank=True)
+    sito_web       = models.CharField(max_length=200, blank=True)
+    indirizzo      = models.CharField(max_length=300, blank=True)
+    accreditamento = models.CharField(
+        max_length=200, blank=True,
+        help_text="Estremi di accreditamento / albo (es. accreditamento regionale, n° iscrizione)",
+    )
+    note       = models.TextField(blank=True)
+    is_active  = models.BooleanField(default=True, verbose_name="Attiva")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["nome"]
+        verbose_name = "Azienda formativa"
+        verbose_name_plural = "Aziende formative"
+
+    def __str__(self) -> str:
+        return self.nome
+
+
+# ─────────────────────────────────────────────────────────────
 # DOCENTE / FORMATORE (D5)
 # ─────────────────────────────────────────────────────────────
 
@@ -611,7 +647,16 @@ class TrainingInstructor(models.Model):
 
     tipo                 = models.CharField(max_length=10, choices=TIPO_CHOICES, default="ESTERNO")
     nome                 = models.CharField(max_length=200)
-    ragione_sociale      = models.CharField(max_length=300, blank=True)
+    azienda              = models.ForeignKey(
+        TrainingProvider, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="istruttori",
+        verbose_name="Azienda formativa",
+        help_text="Ente di formazione di appartenenza (tipicamente per i docenti esterni)",
+    )
+    ragione_sociale      = models.CharField(
+        max_length=300, blank=True,
+        help_text="Ragione sociale libera: usata solo se l'azienda formativa non è a catalogo",
+    )
     email                = models.EmailField(blank=True)
     telefono             = models.CharField(max_length=30, blank=True)
     legacy_anagrafica_id = models.IntegerField(
@@ -626,6 +671,13 @@ class TrainingInstructor(models.Model):
         ordering = ["nome"]
         verbose_name = "Docente / Formatore"
         verbose_name_plural = "Docenti / Formatori"
+
+    @property
+    def ente(self) -> str:
+        """Ente di appartenenza: l'azienda a catalogo, altrimenti il testo libero."""
+        if self.azienda_id:
+            return self.azienda.nome
+        return self.ragione_sociale or ""
 
     def __str__(self) -> str:
         return self.nome

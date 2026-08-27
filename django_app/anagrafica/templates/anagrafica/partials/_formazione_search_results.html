@@ -4,7 +4,7 @@
   <div class="fmd-empty">
     <span class="fmd-ebadge" style="background:#e8f3fb;color:#1f87cd;"><svg class="fmd-ico"><use href="#i-search"/></svg></span>
     <span class="fmd-et">Inizia a cercare</span>
-    <span class="fmd-em">Digita un termine per trovare corsi, sessioni, piani, qualifiche, dipendenti e attestati.</span>
+    <span class="fmd-em">Digita un termine per trovare corsi, sessioni, piani, qualifiche, docenti, aziende formative, dipendenti e attestati.</span>
   </div>
 </section>
 {% elif totale == 0 %}
@@ -91,6 +91,67 @@
       <span class="fmd-area-body">
         <span class="fmd-area-title">{{ t.nome|truncatechars:54 }}</span>
         <span class="fmd-area-desc">{{ t.get_categoria_display }}{% if t.durata_mesi %} · valida {{ t.durata_mesi }} mesi{% endif %} · {{ t.n_assegnazioni }} assegnat{{ t.n_assegnazioni|pluralize:"o,i" }}</span>
+      </span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if risultati.istruttori %}
+<section class="fmd-panel fmd-block">
+  <div class="fmd-block-head">
+    <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-mic"/></svg>Docenti <span class="fmd-count">{{ risultati.istruttori|length }}</span></div>
+    <div class="fmd-block-aside">con i corsi svolti</div>
+  </div>
+  <div class="fmd-corsi-list">
+    {% for i in risultati.istruttori %}
+    <div class="fmd-corso-card">
+      <div class="fmd-corso-head">
+        <a class="fmd-area-ic" href="{% url 'anagrafica:formazione_istruttore_detail' i.pk %}" title="Apri scheda docente"><svg class="fmd-ico"><use href="#i-mic"/></svg></a>
+        <a class="fmd-corso-link" href="{% url 'anagrafica:formazione_istruttore_detail' i.pk %}">
+          <span class="fmd-area-title">{{ i.nome|truncatechars:70 }}</span>
+          <span class="fmd-area-desc">
+            {% if i.tipo == "INTERNO" %}Interno{% else %}Esterno{% endif %}
+            {% if i.ente %} · {{ i.ente|truncatechars:40 }}{% endif %}
+            · {{ i.n_sessioni }} sessione{{ i.n_sessioni|pluralize:",i" }} da titolare
+            {% if i.n_lezioni %} · {{ i.n_lezioni }} lezion{{ i.n_lezioni|pluralize:"e,i" }}{% endif %}
+          </span>
+        </a>
+      </div>
+      {% if i.sessioni.all %}
+      <details class="fmd-corso-det">
+        <summary><svg class="fmd-ico"><use href="#i-chevron-right"/></svg>Corsi svolti ({{ i.sessioni.all|length }})</summary>
+        <div class="fmd-ed-list">
+          {% for s in i.sessioni.all %}
+          <div class="fmd-ed">
+            <a class="fmd-ed-head" href="{% url 'anagrafica:formazione_sessione_detail' s.pk %}">
+              <span class="fmd-ed-code">{{ s.codice_sessione }}</span>
+              <span class="fmd-ed-meta">{{ s.corso.titolo|truncatechars:52 }} · {{ s.data_inizio|date:"d-m-Y" }}</span>
+            </a>
+          </div>
+          {% endfor %}
+        </div>
+      </details>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if risultati.aziende %}
+<section class="fmd-panel fmd-block">
+  <div class="fmd-block-head">
+    <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-building"/></svg>Aziende formative <span class="fmd-count">{{ risultati.aziende|length }}</span></div>
+  </div>
+  <div class="fmd-areas">
+    {% for a in risultati.aziende %}
+    <a class="fmd-area" href="{% url 'anagrafica:formazione_istruttori_list' %}?azienda={{ a.pk }}">
+      <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-building"/></svg></span>
+      <span class="fmd-area-body">
+        <span class="fmd-area-title">{{ a.nome|truncatechars:54 }}</span>
+        <span class="fmd-area-desc">{% if a.partita_iva %}P.IVA {{ a.partita_iva }} · {% endif %}{{ a.n_istruttori }} docent{{ a.n_istruttori|pluralize:"e,i" }}{% if a.accreditamento %} · {{ a.accreditamento|truncatechars:28 }}{% endif %}</span>
       </span>
     </a>
     {% endfor %}

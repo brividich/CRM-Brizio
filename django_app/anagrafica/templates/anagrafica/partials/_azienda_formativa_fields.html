@@ -1,0 +1,43 @@
+{# Campi azienda formativa — fonte unica per i modali Crea e Modifica. #}
+{# Stesso pattern di _istruttore_fields.html: campi statici .hub-field, i value #}
+{# del modale Modifica arrivano da JS (openEditAzienda). #}
+{# Parametri include: id_prefix (obbligatorio); check_active (spunta iniziale). #}
+<div class="hub-form-stack">
+  <div class="hub-field">
+    <label for="{{ id_prefix }}nome">Ragione sociale <span class="hub-req">*</span></label>
+    <input type="text" name="nome" id="{{ id_prefix }}nome" maxlength="300" required>
+  </div>
+  <div class="hub-field">
+    <label for="{{ id_prefix }}partita_iva">Partita IVA / C.F.</label>
+    <input type="text" name="partita_iva" id="{{ id_prefix }}partita_iva" maxlength="20">
+  </div>
+  <div class="hub-field">
+    <label for="{{ id_prefix }}accreditamento">Accreditamento</label>
+    <input type="text" name="accreditamento" id="{{ id_prefix }}accreditamento" maxlength="200">
+    <span class="hub-help">Estremi di accreditamento o albo (es. accreditamento regionale, n° iscrizione).</span>
+  </div>
+  <div class="hub-field">
+    <label for="{{ id_prefix }}email">Email</label>
+    <input type="email" name="email" id="{{ id_prefix }}email" maxlength="254">
+  </div>
+  <div class="hub-field">
+    <label for="{{ id_prefix }}telefono">Telefono</label>
+    <input type="text" name="telefono" id="{{ id_prefix }}telefono" maxlength="30">
+  </div>
+  <div class="hub-field">
+    <label for="{{ id_prefix }}sito_web">Sito web</label>
+    <input type="text" name="sito_web" id="{{ id_prefix }}sito_web" maxlength="200">
+  </div>
+  <div class="hub-field">
+    <label for="{{ id_prefix }}indirizzo">Indirizzo</label>
+    <input type="text" name="indirizzo" id="{{ id_prefix }}indirizzo" maxlength="300">
+  </div>
+  <div class="hub-field">
+    <label for="{{ id_prefix }}note">Note</label>
+    <textarea name="note" id="{{ id_prefix }}note" rows="2"></textarea>
+  </div>
+  <label class="hub-check" for="{{ id_prefix }}is_active">
+    <input type="checkbox" name="is_active" value="True" id="{{ id_prefix }}is_active"{% if check_active %} checked{% endif %}>
+    Attiva
+  </label>
+</div>

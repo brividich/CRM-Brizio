@@ -400,6 +400,12 @@ urlpatterns = [
     path("formazione/istruttori/nuovo", views.formazione_istruttore_create, name="formazione_istruttore_create"),
     path("formazione/istruttori/<int:istruttore_id>/modifica", views.formazione_istruttore_edit, name="formazione_istruttore_edit"),
     path("formazione/istruttori/<int:istruttore_id>/elimina", views.formazione_istruttore_delete, name="formazione_istruttore_delete"),
+    path("formazione/istruttori/<int:istruttore_id>/", views.formazione_istruttore_detail, name="formazione_istruttore_detail"),
+    # Aziende formative (enti di formazione a cui i docenti appartengono):
+    # governate dalla stessa pagina dei docenti, quindi niente rotta di elenco.
+    path("formazione/aziende-formative/nuova", views.formazione_azienda_create, name="formazione_azienda_create"),
+    path("formazione/aziende-formative/<int:azienda_id>/modifica", views.formazione_azienda_edit, name="formazione_azienda_edit"),
+    path("formazione/aziende-formative/<int:azienda_id>/elimina", views.formazione_azienda_delete, name="formazione_azienda_delete"),
 
     # ── Formazione HR — Sessioni ────────────────────────────────────────────
     path("formazione/sessioni/", views.formazione_sessioni_list, name="formazione_sessioni_list"),

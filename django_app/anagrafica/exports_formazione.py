@@ -268,7 +268,8 @@ register(ExportSpec(
 
 
 # ── Docenti / Formatori ───────────────────────────────────────────────────────
-# Filtri di `views.formazione_istruttori_list`: q (nome|ragione_sociale), tipo.
+# Filtri di `views.formazione_istruttori_list`: q (nome|ragione_sociale|azienda),
+# tipo, azienda (id o "NESSUNA").
 # Email/telefono sono già visibili a schermo (contatti professionali del docente).
 
 def _formazione_istruttori_rows(request: HttpRequest, scope: str) -> list[dict]:
@@ -276,20 +277,30 @@ def _formazione_istruttori_rows(request: HttpRequest, scope: str) -> list[dict]:
 
     from anagrafica.models import TrainingInstructor
 
-    qs = TrainingInstructor.objects.all()
+    qs = TrainingInstructor.objects.select_related("azienda")
     if scope == "filtered":
         filtro_tipo = (request.GET.get("tipo") or "").strip()
         q_search = (request.GET.get("q") or "").strip()
+        filtro_azienda = (request.GET.get("azienda") or "").strip()
         if filtro_tipo:
             qs = qs.filter(tipo=filtro_tipo)
         if q_search:
-            qs = qs.filter(Q(nome__icontains=q_search) | Q(ragione_sociale__icontains=q_search))
+            qs = qs.filter(
+                Q(nome__icontains=q_search)
+                | Q(ragione_sociale__icontains=q_search)
+                | Q(azienda__nome__icontains=q_search)
+            )
+        if filtro_azienda == "NESSUNA":
+            qs = qs.filter(azienda__isnull=True)
+        elif filtro_azienda.isdigit():
+            qs = qs.filter(azienda_id=int(filtro_azienda))
 
     rows: list[dict] = []
     for i in qs.order_by("nome"):
         rows.append({
             "nome": i.nome or "",
             "tipo": i.get_tipo_display(),
+            "azienda": i.azienda.nome if i.azienda_id else "",
             "ragione_sociale": i.ragione_sociale or "",
             "email": i.email or "",
             "telefono": i.telefono or "",
@@ -309,6 +320,15 @@ def _formazione_istruttori_filters(request: HttpRequest) -> str:
     labels = dict(TrainingInstructor.TIPO_CHOICES)
     if filtro_tipo in labels:
         parts.append(f"Tipo: {labels[filtro_tipo]}")
+    filtro_azienda = (request.GET.get("azienda") or "").strip()
+    if filtro_azienda == "NESSUNA":
+        parts.append("Azienda formativa: nessuna")
+    elif filtro_azienda.isdigit():
+        from anagrafica.models import TrainingProvider
+
+        az = TrainingProvider.objects.filter(pk=int(filtro_azienda)).first()
+        if az:
+            parts.append(f"Azienda formativa: {az.nome}")
     return " · ".join(parts)
 
 
@@ -319,7 +339,8 @@ register(ExportSpec(
     columns=[
         ("Nome", "nome"),
         ("Tipo", "tipo"),
-        ("Ragione sociale", "ragione_sociale"),
+        ("Azienda formativa", "azienda"),
+        ("Ragione sociale (libera)", "ragione_sociale"),
         ("Email", "email"),
         ("Telefono", "telefono"),
         ("Attivo", "attivo"),

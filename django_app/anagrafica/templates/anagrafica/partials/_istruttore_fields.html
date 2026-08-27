@@ -3,7 +3,7 @@
 {# popola i value via JS (openEditModal), come mn-modal/ro-modal. #}
 {# Parametri include: id_prefix (obbligatorio, distingue crea/edit e gli id); #}
 {#                    check_active (bool, spunta iniziale "Attivo" — solo nel Crea). #}
-{# Richiede nel context: TIPO_CHOICES. #}
+{# Richiede nel context: TIPO_CHOICES, aziende. #}
 <div class="hub-form-stack">
   <div class="hub-field">
     <label for="{{ id_prefix }}tipo">Tipo</label>
@@ -16,8 +16,17 @@
     <input type="text" name="nome" id="{{ id_prefix }}nome" maxlength="200" required>
   </div>
   <div class="hub-field">
-    <label for="{{ id_prefix }}ragione_sociale">Ragione sociale</label>
+    <label for="{{ id_prefix }}azienda">Azienda formativa</label>
+    <select name="azienda" id="{{ id_prefix }}azienda">
+      <option value="">— Nessuna azienda formativa —</option>
+      {% for az in aziende %}<option value="{{ az.pk }}">{{ az.nome }}</option>{% endfor %}
+    </select>
+    <span class="hub-help">L'ente di formazione a catalogo. Si crea dal pannello «Aziende formative».</span>
+  </div>
+  <div class="hub-field">
+    <label for="{{ id_prefix }}ragione_sociale">Ragione sociale (libera)</label>
     <input type="text" name="ragione_sociale" id="{{ id_prefix }}ragione_sociale" maxlength="300">
+    <span class="hub-help">Solo se l'ente non è a catalogo: resta come dato storico.</span>
   </div>
   <div class="hub-field">
     <label for="{{ id_prefix }}email">Email</label>

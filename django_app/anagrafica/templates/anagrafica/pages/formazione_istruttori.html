@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}Istruttori | Formazione HR{% endblock %}
+{% block title %}Docenti e aziende formative | Formazione HR{% endblock %}
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
@@ -22,10 +22,13 @@
       <div>
         <div class="fmd-crumb"><a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span><span class="fmd-cur">Docenti</span></div>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-mic"/></svg>Docenti / Formatori <span class="fmd-count">{{ istruttori|length }}</span></h1>
-        <p class="fmd-ph-sub">Catalogo docenti interni ed esterni.</p>
+        <p class="fmd-ph-sub">Catalogo docenti interni ed esterni e aziende formative di provenienza.</p>
       </div>
       {% if is_editor %}
       <div class="fmd-pagehead-actions">
+        <button type="button" class="fmd-btn fmd-btn-ghost" onclick="openIstrModal('modal-crea-azienda')">
+          <svg class="fmd-ico"><use href="#i-building"/></svg>Nuova azienda formativa
+        </button>
         <button type="button" class="fmd-btn fmd-btn-primary" onclick="openIstrModal('modal-crea-istr')">
           <svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo istruttore
         </button>
@@ -33,11 +36,94 @@
       {% endif %}
     </div>
 
+    {# ── Aziende formative ────────────────────────────────────────────────── #}
+    {# L'ente viene prima del docente: è da lì che i docenti esterni arrivano e #}
+    {# in verifica è l'ente la cosa che viene chiesta per prima.                #}
+    <section class="fmd-panel fmd-block" style="margin-bottom:16px;">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-building"/></svg>Aziende formative <span class="fmd-count">{{ aziende|length }}</span></div>
+        <div class="fmd-block-aside">clicca per filtrare i docenti</div>
+      </div>
+
+      <div class="fmd-chips" style="margin-bottom:14px;">
+        <a class="fmd-chip {% if not filtro_azienda %}fmd-on{% endif %}"
+           href="?{% if q_search %}q={{ q_search|urlencode }}&{% endif %}{% if filtro_tipo %}tipo={{ filtro_tipo }}{% endif %}">Tutti i docenti</a>
+        {% for az in aziende %}
+        <a class="fmd-chip {% if filtro_azienda == az.pk|stringformat:'s' %}fmd-on{% endif %}"
+           href="?azienda={{ az.pk }}{% if q_search %}&q={{ q_search|urlencode }}{% endif %}{% if filtro_tipo %}&tipo={{ filtro_tipo }}{% endif %}">
+          {{ az.nome }} <span class="fmd-count">{{ az.n_istruttori }}</span>
+        </a>
+        {% endfor %}
+        <a class="fmd-chip {% if filtro_azienda == 'NESSUNA' %}fmd-on{% endif %}"
+           href="?azienda=NESSUNA{% if q_search %}&q={{ q_search|urlencode }}{% endif %}{% if filtro_tipo %}&tipo={{ filtro_tipo }}{% endif %}">
+          Senza azienda <span class="fmd-count">{{ senza_azienda }}</span>
+        </a>
+      </div>
+
+      {% if aziende %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table" data-table-id="formazione.aziende_formative.list">
+          <thead>
+            <tr>
+              <th>Ragione sociale</th>
+              <th>P. IVA / C.F.</th>
+              <th>Accreditamento</th>
+              <th>Contatti</th>
+              <th class="fmd-c">Docenti</th>
+              <th class="fmd-c">Attiva</th>
+              {% if is_editor %}<th class="fmd-nowrap">Azioni</th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for az in aziende %}
+            <tr>
+              <td>
+                <a href="?azienda={{ az.pk }}" style="font-weight:700;color:var(--fmd-navy);text-decoration:none;">{{ az.nome }}</a>
+                {% if az.indirizzo %}<div class="fmd-muted" style="font-size:11.5px;">{{ az.indirizzo }}</div>{% endif %}
+              </td>
+              <td class="fmd-muted">{{ az.partita_iva|default:"—" }}</td>
+              <td class="fmd-muted">{{ az.accreditamento|default:"—" }}</td>
+              <td class="fmd-muted">
+                {% if az.email %}{{ az.email }}{% endif %}
+                {% if az.email and az.telefono %} · {% endif %}
+                {% if az.telefono %}{{ az.telefono }}{% endif %}
+                {% if not az.email and not az.telefono %}—{% endif %}
+              </td>
+              <td class="fmd-c">{{ az.n_istruttori }}</td>
+              <td class="fmd-c">{% if az.is_active %}<span class="fmd-badge fmd-b-green">Sì</span>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+              {% if is_editor %}
+              <td class="fmd-nowrap">
+                <button type="button" class="fmd-btn fmd-btn-ghost" style="padding:6px 12px;"
+                        onclick="openEditAzienda({{ az.pk }}, '{{ az.nome|escapejs }}', '{{ az.partita_iva|escapejs }}', '{{ az.accreditamento|escapejs }}', '{{ az.email|escapejs }}', '{{ az.telefono|escapejs }}', '{{ az.sito_web|escapejs }}', '{{ az.indirizzo|escapejs }}', '{{ az.note|escapejs }}', {{ az.is_active|yesno:'true,false' }})">
+                  Modifica
+                </button>
+                <form method="post" action="{% url 'anagrafica:formazione_azienda_delete' az.pk %}" style="display:inline;"
+                      onsubmit="return confirm('Eliminare l’azienda formativa «{{ az.nome|escapejs }}»? Se ha docenti associati verrà solo disattivata.')">
+                  {% csrf_token %}
+                  <button type="submit" class="fmd-btn fmd-btn-ghost" style="padding:6px 12px;color:#c53030;">Elimina</button>
+                </form>
+              </td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="fmd-empty">
+        <span class="fmd-ebadge" style="background:#eef2f7;color:#94a3b8;"><svg class="fmd-ico"><use href="#i-building"/></svg></span>
+        <span class="fmd-et">Nessuna azienda formativa a catalogo</span>
+        <span class="fmd-em">Registra gli enti che erogano i corsi: i docenti esterni potranno essere associati.</span>
+      </div>
+      {% endif %}
+    </section>
+
+    {# ── Docenti ──────────────────────────────────────────────────────────── #}
     <section class="fmd-panel">
       <form method="get" class="fmd-toolbar">
         <span class="fmd-search">
           <svg class="fmd-ico"><use href="#i-search"/></svg>
-          <input type="text" name="q" value="{{ q_search }}" placeholder="Nome o ragione sociale…" autocomplete="off">
+          <input type="text" name="q" value="{{ q_search }}" placeholder="Nome, ragione sociale o azienda…" autocomplete="off">
         </span>
         <select name="tipo" class="fmd-select" aria-label="Filtra per tipo">
           <option value="">Tutti i tipi</option>
@@ -45,11 +131,24 @@
             <option value="{{ code }}" {% if filtro_tipo == code %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
         </select>
+        <select name="azienda" class="fmd-select" aria-label="Filtra per azienda formativa">
+          <option value="">Tutte le aziende</option>
+          {% for az in aziende %}
+            <option value="{{ az.pk }}" {% if filtro_azienda == az.pk|stringformat:"s" %}selected{% endif %}>{{ az.nome }}</option>
+          {% endfor %}
+          <option value="NESSUNA" {% if filtro_azienda == "NESSUNA" %}selected{% endif %}>Senza azienda</option>
+        </select>
         <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-filter"/></svg>Filtra</button>
         <a href="{% url 'anagrafica:formazione_istruttori_list' %}" class="fmd-btn fmd-btn-ghost">Reset</a>
         <span class="fmd-spacer"></span>
         {% include "anagrafica/partials/_export_buttons.html" with export_key="formazione_istruttori" %}
       </form>
+
+      {% if azienda_corrente %}
+      <div class="fmd-block-aside" style="padding:0 22px 10px;">Docenti di «{{ azienda_corrente.nome }}»</div>
+      {% elif filtro_azienda == "NESSUNA" %}
+      <div class="fmd-block-aside" style="padding:0 22px 10px;">Docenti senza azienda formativa a catalogo</div>
+      {% endif %}
 
       {% if istruttori %}
       <div class="fmd-tablewrap">
@@ -60,9 +159,10 @@
               <th data-col="tipo" data-col-label="Tipo" data-col-type="select"
                   data-col-options='[["INTERNO","Interno"],["ESTERNO","Esterno / Provider"]]'
                   data-col-sortable="1" data-col-filterable="1">Tipo</th>
-              <th data-col="ragione_sociale" data-col-label="Ragione sociale" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Ragione sociale</th>
+              <th data-col="azienda" data-col-label="Azienda formativa" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Azienda formativa</th>
               <th data-col="email" data-col-label="Email" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Email</th>
               <th data-col="telefono" data-col-label="Telefono" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Telefono</th>
+              <th class="fmd-c" data-col="svolti" data-col-label="Corsi svolti" data-col-type="num" data-col-sortable="1">Corsi svolti</th>
               <th class="fmd-c" data-col="attivo" data-col-label="Attivo" data-col-type="bool" data-col-sortable="1" data-col-filterable="1">Attivo</th>
               <th class="fmd-nowrap">Azioni</th>
             </tr>
@@ -70,20 +170,28 @@
           <tbody>
             {% for i in istruttori %}
             <tr>
-              <td><span style="font-weight:700;color:var(--fmd-navy);">{{ i.nome }}</span></td>
+              <td>
+                <a href="{% url 'anagrafica:formazione_istruttore_detail' i.pk %}" style="font-weight:700;color:var(--fmd-navy);text-decoration:none;">{{ i.nome }}</a>
+              </td>
               <td>
                 <span data-value="{{ i.tipo }}" style="display:none;">{{ i.tipo }}</span>
                 {% if i.tipo == "INTERNO" %}<span class="fmd-badge fmd-b-cyan">Interno</span>
                 {% else %}<span class="fmd-badge fmd-b-violet">Esterno</span>{% endif %}
               </td>
-              <td class="fmd-muted">{{ i.ragione_sociale|default:"—" }}</td>
+              <td class="fmd-muted">
+                {% if i.azienda_id %}<a href="?azienda={{ i.azienda_id }}" style="color:var(--fmd-navy);text-decoration:none;font-weight:600;">{{ i.azienda.nome }}</a>
+                {% elif i.ragione_sociale %}{{ i.ragione_sociale }} <span class="fmd-badge fmd-plain" title="Ragione sociale libera, non a catalogo">fuori catalogo</span>
+                {% else %}—{% endif %}
+              </td>
               <td class="fmd-muted">{{ i.email|default:"—" }}</td>
               <td class="fmd-muted">{{ i.telefono|default:"—" }}</td>
+              <td class="fmd-c">{{ i.n_sessioni }}</td>
               <td class="fmd-c">{% if i.is_active %}<span class="fmd-badge fmd-b-green">Sì</span>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
               <td class="fmd-nowrap">
+                <a href="{% url 'anagrafica:formazione_istruttore_detail' i.pk %}" class="fmd-btn fmd-btn-ghost" style="padding:6px 12px;">Scheda</a>
                 {% if is_editor %}
                 <button type="button" class="fmd-btn fmd-btn-ghost" style="padding:6px 12px;"
-                        onclick="openEditModal({{ i.pk }}, '{{ i.tipo }}', '{{ i.nome|escapejs }}', '{{ i.ragione_sociale|escapejs }}', '{{ i.email|escapejs }}', '{{ i.telefono|escapejs }}', {{ i.legacy_anagrafica_id|default:'null' }}, {{ i.is_active|yesno:'true,false' }}, '{{ i.qualification_notes|escapejs }}')">
+                        onclick="openEditModal({{ i.pk }}, '{{ i.tipo }}', '{{ i.nome|escapejs }}', '{{ i.ragione_sociale|escapejs }}', '{{ i.email|escapejs }}', '{{ i.telefono|escapejs }}', {{ i.legacy_anagrafica_id|default:'null' }}, {{ i.is_active|yesno:'true,false' }}, '{{ i.qualification_notes|escapejs }}', {{ i.azienda_id|default:'null' }})">
                   Modifica
                 </button>
                 <form method="post" action="{% url 'anagrafica:formazione_istruttore_delete' i.pk %}" style="display:inline;"
@@ -150,14 +258,53 @@
   </div>
 </div>
 
+<div id="modal-crea-azienda" class="hub-modal" data-istr-modal>
+  <div class="hub-modal-card">
+    <div class="hub-modal-head">
+      <strong>Nuova azienda formativa</strong>
+      <button type="button" class="hub-modal-x" data-close-modal="modal-crea-azienda" aria-label="Chiudi">×</button>
+    </div>
+    <form method="post" action="{% url 'anagrafica:formazione_azienda_create' %}">
+      {% csrf_token %}
+      <div class="hub-modal-body">
+        {% include "anagrafica/partials/_azienda_formativa_fields.html" with id_prefix="crea-az-" check_active=True %}
+      </div>
+      <div class="hub-modal-foot">
+        <button type="button" class="fmd-btn fmd-btn-ghost" data-close-modal="modal-crea-azienda">Annulla</button>
+        <button type="submit" class="fmd-btn fmd-btn-primary">Crea</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="modal-edit-azienda" class="hub-modal" data-istr-modal>
+  <div class="hub-modal-card">
+    <div class="hub-modal-head">
+      <strong>Modifica azienda formativa</strong>
+      <button type="button" class="hub-modal-x" data-close-modal="modal-edit-azienda" aria-label="Chiudi">×</button>
+    </div>
+    <form id="form-edit-azienda" method="post" action="">
+      {% csrf_token %}
+      <div class="hub-modal-body">
+        {% include "anagrafica/partials/_azienda_formativa_fields.html" with id_prefix="edit-az-" %}
+      </div>
+      <div class="hub-modal-foot">
+        <button type="button" class="fmd-btn fmd-btn-ghost" data-close-modal="modal-edit-azienda">Annulla</button>
+        <button type="submit" class="fmd-btn fmd-btn-primary">Salva</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
 function openIstrModal(id) { document.getElementById(id).classList.add('open'); }
 function closeIstrModal(id) { document.getElementById(id).classList.remove('open'); }
 
-function openEditModal(pk, tipo, nome, ragSoc, email, tel, legacyId, isActive, notes) {
+function openEditModal(pk, tipo, nome, ragSoc, email, tel, legacyId, isActive, notes, aziendaId) {
   document.getElementById('form-edit-istr').action = `/anagrafica/formazione/istruttori/${pk}/modifica`;
   document.getElementById('edit-istr-tipo').value = tipo;
   document.getElementById('edit-istr-nome').value = nome;
+  document.getElementById('edit-istr-azienda').value = aziendaId || '';
   document.getElementById('edit-istr-ragione_sociale').value = ragSoc;
   document.getElementById('edit-istr-email').value = email;
   document.getElementById('edit-istr-telefono').value = tel;
@@ -165,6 +312,20 @@ function openEditModal(pk, tipo, nome, ragSoc, email, tel, legacyId, isActive, n
   document.getElementById('edit-istr-qualification_notes').value = notes || '';
   document.getElementById('edit-istr-is_active').checked = isActive;
   openIstrModal('modal-edit-istr');
+}
+
+function openEditAzienda(pk, nome, piva, accred, email, tel, sito, indirizzo, note, isActive) {
+  document.getElementById('form-edit-azienda').action = `/anagrafica/formazione/aziende-formative/${pk}/modifica`;
+  document.getElementById('edit-az-nome').value = nome;
+  document.getElementById('edit-az-partita_iva').value = piva;
+  document.getElementById('edit-az-accreditamento').value = accred;
+  document.getElementById('edit-az-email').value = email;
+  document.getElementById('edit-az-telefono').value = tel;
+  document.getElementById('edit-az-sito_web').value = sito;
+  document.getElementById('edit-az-indirizzo').value = indirizzo;
+  document.getElementById('edit-az-note').value = note || '';
+  document.getElementById('edit-az-is_active').checked = isActive;
+  openIstrModal('modal-edit-azienda');
 }
 
 // Chiusura canonica: pulsanti data-close-modal, click sull'overlay, tasto ESC.

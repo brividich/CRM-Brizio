@@ -511,6 +511,7 @@ _PULSANTI_DEFINITIONS = [
     {"modulo": "anagrafica", "codice": "anagrafica_formazione_corsi", "label": "Formazione - Corsi", "url": "/anagrafica/formazione/corsi/", "hide": True},
     {"modulo": "anagrafica", "codice": "anagrafica_formazione_sessioni", "label": "Formazione - Sessioni", "url": "/anagrafica/formazione/sessioni/", "hide": True},
     {"modulo": "anagrafica", "codice": "anagrafica_formazione_istruttori", "label": "Formazione - Istruttori", "url": "/anagrafica/formazione/istruttori/", "hide": True},
+    {"modulo": "anagrafica", "codice": "anagrafica_formazione_aziende_formative", "label": "Formazione - Aziende formative", "url": "/anagrafica/formazione/aziende-formative/", "hide": True},
     {"modulo": "anagrafica", "codice": "anagrafica_formazione_scadenzario", "label": "Formazione - Scadenzario", "url": "/anagrafica/formazione/scadenzario/", "hide": True},
     {"modulo": "anagrafica", "codice": "anagrafica_formazione_export", "label": "Formazione - Export Excel", "url": "/anagrafica/formazione/export/", "hide": True},
 ]

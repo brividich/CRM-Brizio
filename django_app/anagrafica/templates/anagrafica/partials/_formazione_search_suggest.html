@@ -35,6 +35,22 @@
     </a>
     {% endfor %}
   {% endif %}
+  {% if risultati.istruttori %}<div class="fmd-suggest-cat">Docenti</div>
+    {% for i in risultati.istruttori|slice:":4" %}
+    <a class="fmd-suggest-item" href="{% url 'anagrafica:formazione_istruttore_detail' i.pk %}">
+      <span class="fmd-suggest-ic"><svg class="fmd-ico"><use href="#i-mic"/></svg></span>
+      <span class="fmd-suggest-body"><span class="fmd-suggest-t">{{ i.nome|truncatechars:54 }}</span><span class="fmd-suggest-m">{% if i.ente %}{{ i.ente|truncatechars:26 }} · {% endif %}{{ i.n_sessioni }} corso svolto{{ i.n_sessioni|pluralize:",i" }}</span></span>
+    </a>
+    {% endfor %}
+  {% endif %}
+  {% if risultati.aziende %}<div class="fmd-suggest-cat">Aziende formative</div>
+    {% for a in risultati.aziende|slice:":3" %}
+    <a class="fmd-suggest-item" href="{% url 'anagrafica:formazione_istruttori_list' %}?azienda={{ a.pk }}">
+      <span class="fmd-suggest-ic"><svg class="fmd-ico"><use href="#i-building"/></svg></span>
+      <span class="fmd-suggest-body"><span class="fmd-suggest-t">{{ a.nome|truncatechars:54 }}</span><span class="fmd-suggest-m">{{ a.n_istruttori }} docent{{ a.n_istruttori|pluralize:"e,i" }}</span></span>
+    </a>
+    {% endfor %}
+  {% endif %}
   {% if risultati.dipendenti %}<div class="fmd-suggest-cat">Dipendenti</div>
     {% for d in risultati.dipendenti|slice:":4" %}
     <a class="fmd-suggest-item" href="{% url 'anagrafica:dipendente_libretto_formativo' d.legacy_id %}">

@@ -58,6 +58,7 @@ from .forms import (
     TrainingLessonForm,
     TrainingLezioniGeneraForm,
     TrainingPlanForm,
+    TrainingProviderForm,
     TrainingRequirementRuleForm,
     TrainingSessioneUnicaForm,
     TrainingSessionForm,
@@ -127,6 +128,7 @@ from .models_formazione import (
     TrainingLessonAttendance,
     TrainingExportLog,
     TrainingPlan,
+    TrainingProvider,
     TrainingRequirementRule,
     TrainingSession,
     TrainingSessionArgomento,
@@ -2588,6 +2590,28 @@ def dipendente_print(request, legacy_id: int):
 # Libretto formativo dipendente — pagina stampa per audit ISO / uscita
 # ---------------------------------------------------------------------------
 
+def _periodo_da_request(request) -> tuple[date | None, date | None]:
+    """Legge i parametri `dal`/`al` (ISO, come li manda `<input type="date">`).
+
+    Una data illeggibile vale come assente: il filtro è una comodità di lettura,
+    non deve mai far fallire la pagina. Se l'intervallo è invertito le due date
+    vengono scambiate, così `dal` e `al` restano quello che dicono di essere.
+    """
+    def _parse(nome: str) -> date | None:
+        raw = (request.GET.get(nome) or "").strip()
+        if not raw:
+            return None
+        try:
+            return date.fromisoformat(raw)
+        except ValueError:
+            return None
+
+    dal, al = _parse("dal"), _parse("al")
+    if dal and al and dal > al:
+        dal, al = al, dal
+    return dal, al
+
+
 @login_required
 def dipendente_libretto_formativo(request, legacy_id: int):
     """Curriculum formativo completo del dipendente, A4-friendly.
@@ -2598,6 +2622,11 @@ def dipendente_libretto_formativo(request, legacy_id: int):
     Stesso pattern di `dipendente_print`: action bar non stampata +
     `window.print()`. La generazione è tracciata in `TrainingExportLog`
     (tipo STORICO_DIP).
+
+    Con `?dal=` / `?al=` (ISO) lo **storico** viene ristretto al periodo di
+    completamento: è la domanda tipica di un'ispezione o di un bilancio annuale
+    ("cosa ha fatto nel 2025"). Gli obblighi correnti restano fuori dal filtro,
+    perché sono una fotografia di oggi e non un fatto datato.
     """
     if not _can_view_formazione(request):
         messages.error(request, "Non hai i permessi per visualizzare la formazione.")
@@ -2612,10 +2641,11 @@ def dipendente_libretto_formativo(request, legacy_id: int):
 
     # Variante PDF server-side (stessa fonte dati): ?formato=pdf
     formato = (request.GET.get("formato") or "").strip().lower()
+    dal, al = _periodo_da_request(request)
     if formato == "pdf":
         from .services.attestato_pdf import build_libretto_pdf_bytes
         try:
-            pdf = build_libretto_pdf_bytes(legacy_id)
+            pdf = build_libretto_pdf_bytes(legacy_id, dal=dal, al=al)
         except Exception:
             logger.exception("Errore generazione PDF libretto %s", legacy_id)
             messages.error(request, "Errore nella generazione del PDF del libretto.")
@@ -2623,7 +2653,11 @@ def dipendente_libretto_formativo(request, legacy_id: int):
         try:
             TrainingExportLog.objects.create(
                 tipo="STORICO_DIP",
-                filtri_json={"legacy_anagrafica_id": legacy_id, "formato": "libretto_pdf"},
+                filtri_json={
+                    "legacy_anagrafica_id": legacy_id, "formato": "libretto_pdf",
+                    "dal": dal.isoformat() if dal else None,
+                    "al": al.isoformat() if al else None,
+                },
                 righe_esportate=0,
                 generato_da=request.user,
                 ip_address=request.META.get("REMOTE_ADDR") or None,
@@ -2634,13 +2668,18 @@ def dipendente_libretto_formativo(request, legacy_id: int):
         resp["Content-Disposition"] = f'inline; filename="libretto_formativo_{legacy_id}.pdf"'
         return resp
 
-    record_storici = list(
+    record_qs = (
         TrainingEmployeeRecord.objects
         .filter(legacy_anagrafica_id=legacy_id)
         .select_related("attestato", "corso")
-        .order_by("-data_completamento", "-created_at")
     )
+    if dal:
+        record_qs = record_qs.filter(data_completamento__gte=dal)
+    if al:
+        record_qs = record_qs.filter(data_completamento__lte=al)
+    record_storici = list(record_qs.order_by("-data_completamento", "-created_at"))
     ore_totali = sum((r.ore_frequentate or 0) for r in record_storici)
+    totale_record = TrainingEmployeeRecord.objects.filter(legacy_anagrafica_id=legacy_id).count()
 
     from django.utils import timezone as tz
     oggi = tz.localdate()
@@ -2654,7 +2693,11 @@ def dipendente_libretto_formativo(request, legacy_id: int):
     try:
         TrainingExportLog.objects.create(
             tipo="STORICO_DIP",
-            filtri_json={"legacy_anagrafica_id": legacy_id, "formato": "libretto_html"},
+            filtri_json={
+                "legacy_anagrafica_id": legacy_id, "formato": "libretto_html",
+                "dal": dal.isoformat() if dal else None,
+                "al": al.isoformat() if al else None,
+            },
             righe_esportate=len(record_storici),
             generato_da=request.user,
             ip_address=request.META.get("REMOTE_ADDR") or None,
@@ -2675,6 +2718,10 @@ def dipendente_libretto_formativo(request, legacy_id: int):
         "ore_totali": ore_totali,
         "obblighi": obblighi,
         "oggi": oggi,
+        "dal": dal,
+        "al": al,
+        "periodo_attivo": bool(dal or al),
+        "totale_record": totale_record,
         "can_edit": _can_edit_formazione(request),
         "doc_libretto": doc_libretto,
     })
@@ -11855,8 +11902,9 @@ def formazione_dashboard(request):
 
 @login_required
 def formazione_ricerca(request):
-    """Ricerca globale formazione: corsi, sessioni, piani, qualifiche,
-    dipendenti (libretto) e attestati. Un'unica casella dalla dashboard.
+    """Ricerca globale formazione: corsi, sessioni, piani, qualifiche, docenti,
+    aziende formative, dipendenti (libretto) e attestati. Un'unica casella
+    dalla dashboard.
 
     Best-effort, limitata in righe: serve a "saltare" velocemente all'entità,
     non è un motore full-text. Gated dal permesso di visualizzazione formazione.
@@ -11868,7 +11916,7 @@ def formazione_ricerca(request):
     q = (request.GET.get("q") or "").strip()
     risultati: dict[str, list] = {
         "corsi": [], "sessioni": [], "piani": [], "qualifiche": [],
-        "dipendenti": [], "attestati": [],
+        "istruttori": [], "aziende": [], "dipendenti": [], "attestati": [],
     }
     totale = 0
     if q:
@@ -11896,13 +11944,51 @@ def formazione_ricerca(request):
         )
         risultati["sessioni"] = list(
             TrainingSession.objects.select_related("corso")
-            .filter(Q(codice_sessione__icontains=q) | Q(corso__titolo__icontains=q) | Q(sede__icontains=q))
+            .filter(
+                Q(codice_sessione__icontains=q) | Q(corso__titolo__icontains=q)
+                | Q(sede__icontains=q)
+                | Q(docente__nome__icontains=q) | Q(docente_nome__icontains=q)
+            )
             .annotate(n_iscritti=_Count("iscrizioni", distinct=True))
             .order_by("-data_inizio")[:25]
         )
         risultati["qualifiche"] = list(
             TipoQualifica.objects.filter(Q(nome__icontains=q) | Q(descrizione__icontains=q))
             .annotate(n_assegnazioni=_Count("assegnazioni", distinct=True))
+            .order_by("nome")[:25]
+        )
+
+        # Docenti: si cercano per nome, ente (a catalogo o testo libero) ed email.
+        # Le sessioni sono precaricate perché il risultato mostra "cosa ha
+        # svolto": senza quelle, trovare il docente non dice ancora niente.
+        risultati["istruttori"] = list(
+            TrainingInstructor.objects.select_related("azienda")
+            .filter(
+                Q(nome__icontains=q)
+                | Q(ragione_sociale__icontains=q)
+                | Q(azienda__nome__icontains=q)
+                | Q(email__icontains=q)
+            )
+            .annotate(
+                n_sessioni=_Count("sessioni", distinct=True),
+                n_lezioni=_Count("lezioni", distinct=True),
+            )
+            .prefetch_related(
+                _Prefetch(
+                    "sessioni",
+                    queryset=TrainingSession.objects.select_related("corso").order_by("-data_inizio"),
+                )
+            )
+            .order_by("nome")[:25]
+        )
+        risultati["aziende"] = list(
+            TrainingProvider.objects
+            .filter(
+                Q(nome__icontains=q)
+                | Q(partita_iva__icontains=q)
+                | Q(accreditamento__icontains=q)
+            )
+            .annotate(n_istruttori=_Count("istruttori", distinct=True))
             .order_by("nome")[:25]
         )
 
@@ -12874,22 +12960,165 @@ def formazione_istruttori_list(request):
 
     filtro_tipo = request.GET.get("tipo", "")
     q_search = (request.GET.get("q") or "").strip()
-    qs = TrainingInstructor.objects.all()
+    filtro_azienda = (request.GET.get("azienda") or "").strip()
+
+    qs = TrainingInstructor.objects.select_related("azienda")
     if filtro_tipo:
         qs = qs.filter(tipo=filtro_tipo)
     if q_search:
-        qs = qs.filter(Q(nome__icontains=q_search) | Q(ragione_sociale__icontains=q_search))
+        qs = qs.filter(
+            Q(nome__icontains=q_search)
+            | Q(ragione_sociale__icontains=q_search)
+            | Q(azienda__nome__icontains=q_search)
+        )
+    if filtro_azienda == "NESSUNA":
+        qs = qs.filter(azienda__isnull=True)
+    elif filtro_azienda.isdigit():
+        qs = qs.filter(azienda_id=int(filtro_azienda))
 
-    istruttori = list(qs.order_by("nome"))
-    form = TrainingInstructorForm()
+    istruttori = list(
+        qs.annotate(
+            n_sessioni=Count("sessioni", distinct=True),
+            n_lezioni=Count("lezioni", distinct=True),
+        ).order_by("nome")
+    )
+
+    # Le aziende formative aprono la pagina: sono l'ente da cui i docenti
+    # arrivano, e il conteggio dice subito quali sono davvero in uso.
+    aziende = list(
+        TrainingProvider.objects
+        .annotate(n_istruttori=Count("istruttori", distinct=True))
+        .order_by("nome")
+    )
+    senza_azienda = TrainingInstructor.objects.filter(azienda__isnull=True).count()
+    azienda_corrente = None
+    if filtro_azienda.isdigit():
+        azienda_corrente = next((a for a in aziende if a.pk == int(filtro_azienda)), None)
+
     return render(request, "anagrafica/pages/formazione_istruttori.html", {
         "istruttori": istruttori,
-        "form": form,
+        "form": TrainingInstructorForm(),
+        "provider_form": TrainingProviderForm(),
+        "aziende": aziende,
+        "senza_azienda": senza_azienda,
         "is_editor": is_editor,
         "filtro_tipo": filtro_tipo,
+        "filtro_azienda": filtro_azienda,
+        "azienda_corrente": azienda_corrente,
         "q_search": q_search,
         "TIPO_CHOICES": TrainingInstructor.TIPO_CHOICES,
     })
+
+
+@login_required
+def formazione_istruttore_detail(request, istruttore_id: int):
+    """Scheda del docente: chi è, da quale ente arriva, e cosa ha erogato.
+
+    I "corsi svolti" sono le sessioni in cui è docente titolare **oppure** ha
+    tenuto almeno una lezione: nel portale le due cose possono divergere
+    (titolare della sessione, docente della singola giornata) e per la
+    tracciabilità contano entrambe.
+    """
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
+        return redirect("anagrafica:index")
+
+    istr = get_object_or_404(TrainingInstructor.objects.select_related("azienda"), pk=istruttore_id)
+
+    # Due passaggi: prima gli id distinti (senza ordinamento, che con DISTINCT
+    # su SQL Server pretende la colonna nella select), poi la query annotata.
+    sessioni_ids = list(
+        TrainingSession.objects
+        .filter(Q(docente_id=istr.pk) | Q(lezioni__docente_id=istr.pk))
+        .order_by().values_list("id", flat=True).distinct()
+    )
+    sessioni = list(
+        TrainingSession.objects.filter(pk__in=sessioni_ids)
+        .select_related("corso")
+        .annotate(n_iscritti=Count("iscrizioni", distinct=True))
+        .prefetch_related("lezioni")
+        .order_by("-data_inizio")
+    )
+
+    ore_erogate = 0.0
+    for sess in sessioni:
+        ore_erogate += sum(
+            lz.durata_ore for lz in sess.lezioni.all()
+            if lz.docente_id == istr.pk or (sess.docente_id == istr.pk and lz.docente_id is None)
+        )
+    corsi_distinti = len({s.corso_id for s in sessioni})
+    discenti = sum(s.n_iscritti for s in sessioni)
+
+    return render(request, "anagrafica/pages/formazione_istruttore_detail.html", {
+        "istr": istr,
+        "sessioni": sessioni,
+        "ore_erogate": round(ore_erogate, 2),
+        "corsi_distinti": corsi_distinti,
+        "discenti": discenti,
+        "is_editor": _can_edit_formazione(request),
+    })
+
+
+# -- Aziende formative (enti di formazione) -----------------------------------
+# CRUD dalla stessa pagina dei docenti: l'ente non ha vita propria, esiste per
+# raggruppare i docenti e per rispondere in verifica "chi ha erogato".
+
+@login_required
+@require_POST
+def formazione_azienda_create(request):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per creare aziende formative.")
+        return redirect("anagrafica:formazione_istruttori_list")
+    form = TrainingProviderForm(request.POST)
+    if form.is_valid():
+        az = form.save()
+        messages.success(request, f'Azienda formativa "{az.nome}" creata.')
+    else:
+        for field_errors in form.errors.values():
+            for err in field_errors:
+                messages.error(request, err)
+    return redirect("anagrafica:formazione_istruttori_list")
+
+
+@login_required
+@require_POST
+def formazione_azienda_edit(request, azienda_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare aziende formative.")
+        return redirect("anagrafica:formazione_istruttori_list")
+    az = get_object_or_404(TrainingProvider, pk=azienda_id)
+    form = TrainingProviderForm(request.POST, instance=az)
+    if form.is_valid():
+        form.save()
+        messages.success(request, f'Azienda formativa "{az.nome}" aggiornata.')
+    else:
+        for field_errors in form.errors.values():
+            for err in field_errors:
+                messages.error(request, err)
+    return redirect("anagrafica:formazione_istruttori_list")
+
+
+@login_required
+@require_POST
+def formazione_azienda_delete(request, azienda_id: int):
+    """Elimina l'ente solo se non ha docenti; altrimenti lo disattiva.
+
+    Stessa prudenza già applicata ai docenti: quello che è citato da altro non
+    sparisce, si spegne — così lo storico resta leggibile.
+    """
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per eliminare aziende formative.")
+        return redirect("anagrafica:formazione_istruttori_list")
+    az = get_object_or_404(TrainingProvider, pk=azienda_id)
+    if az.istruttori.exists():
+        az.is_active = False
+        az.save(update_fields=["is_active"])
+        messages.warning(request, f'Azienda formativa "{az.nome}" disattivata (ha docenti associati).')
+    else:
+        nome = az.nome
+        az.delete()
+        messages.success(request, f'Azienda formativa "{nome}" eliminata.')
+    return redirect("anagrafica:formazione_istruttori_list")
 
 
 @login_required
