@@ -123,6 +123,7 @@ from .models import (
     AssetReportTemplate,
     AssetSidebarButton,
     AssetTimelineEntry,
+    AssetTimelineHiddenEvent,
     SoftwareLicense,
     MaintenanceInterventionTemplate,
     MaintenanceRule,
@@ -3227,6 +3228,11 @@ def _asset_timeline_entry_payload(request: HttpRequest) -> tuple[dict | None, st
         },
         "",
     )
+
+
+def _asset_timeline_hidden_keys(asset: Asset) -> set[str]:
+    """Chiavi degli eventi automatici che l'utente ha rimosso dalla timeline."""
+    return set(asset.timeline_hidden_events.values_list("event_key", flat=True))
 
 
 def _asset_timeline_manual_enabled(asset: Asset) -> bool:
@@ -8955,6 +8961,33 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
                 )
                 messages.success(request, f"Voce \"{entry.title}\" aggiornata.")
             return redirect("assets:asset_view", id=asset.id)
+        if action == "hide_asset_timeline_event":
+            # Gli eventi automatici non sono righe di database: "eliminarli"
+            # significa registrare che su questo asset non vanno piu' mostrati.
+            if not _can_manage_asset_timeline_entries(request):
+                messages.error(request, "Permessi insufficienti per gestire le voci della timeline di vita.")
+                return redirect("assets:asset_view", id=asset.id)
+            event_key = _clean_string(request.POST.get("event_key"))[:40]
+            event_labels = dict(AssetTimelineHiddenEvent.KEY_CHOICES)
+            if event_key not in event_labels:
+                messages.error(request, "Voce di timeline non trovata.")
+                return redirect("assets:asset_view", id=asset.id)
+            _, hidden_created = AssetTimelineHiddenEvent.objects.get_or_create(
+                asset=asset,
+                event_key=event_key,
+                defaults={"hidden_by": request.user if request.user.is_authenticated else None},
+            )
+            if hidden_created:
+                log_action(
+                    request,
+                    "hide_asset_timeline_event",
+                    "assets",
+                    {"asset_id": asset.id, "event_key": event_key},
+                    oggetto_tipo=AUDIT_OGGETTO_ASSET,
+                    oggetto_id=asset.id,
+                )
+            messages.success(request, f"Voce \"{event_labels[event_key]}\" rimossa dalla timeline di vita.")
+            return redirect("assets:asset_view", id=asset.id)
         if action == "upload_asset_documents":
             uploads, upload_errors = _validate_asset_document_uploads(request, asset)
             upload_count = _asset_document_upload_count(uploads)
@@ -9212,6 +9245,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             {
                 "title": f"Assegnato a {asset.assignment_to}",
                 "tag": "ASSEGNAZIONE",
+                "auto_key": AssetTimelineHiddenEvent.KEY_ASSIGNMENT,
                 "description": _coalesce_str(asset.assignment_location, "Asset in uso"),
                 "date": asset.updated_at,
                 "meta": _coalesce_str(asset.assignment_reparto, "Inventario"),
@@ -9222,6 +9256,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
         {
             "title": "Registrazione inventario",
             "tag": "AMMINISTRAZIONE",
+            "auto_key": AssetTimelineHiddenEvent.KEY_INVENTORY,
             "description": _coalesce_str(asset.source_key, "Asset aggiunto al sistema."),
             "date": asset.created_at,
             "meta": "Sistema",
@@ -9233,6 +9268,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             {
                 "title": "Acquisto / Provisioning",
                 "tag": "APPROVVIGIONAMENTO",
+                "auto_key": AssetTimelineHiddenEvent.KEY_PROVISIONING,
                 "description": _coalesce_str(extra.get("po_ref"), "Asset provisionato"),
                 "date": asset.created_at - timedelta(days=3),
                 "meta": _coalesce_str(extra.get("owner_dept"), "Approvvigionamenti"),
@@ -9249,6 +9285,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
                 {
                     "title": "Messa in servizio macchina",
                     "tag": "OFFICINA",
+                    "auto_key": AssetTimelineHiddenEvent.KEY_MACHINE_START,
                     "description": _coalesce_str(asset.reparto, "Macchina operativa"),
                     "date": machine_start,
                     "meta": _coalesce_str(asset.manufacturer, "Produzione"),
@@ -9281,6 +9318,11 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
                 "entry_description": entry.description,
             }
         )
+    hidden_auto_keys = _asset_timeline_hidden_keys(asset)
+    if hidden_auto_keys:
+        # Gli eventi automatici rimossi restano fuori dalla timeline: la riga di
+        # AssetTimelineHiddenEvent e' l'unica traccia, i dati dell'asset no.
+        timeline_events = [event for event in timeline_events if event.get("auto_key") not in hidden_auto_keys]
     timeline_events.sort(key=lambda item: item.get("date") or now, reverse=True)
 
     # Aggiungi ticket MAN inclusi nel registro manutenzione

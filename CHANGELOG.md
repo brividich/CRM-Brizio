@@ -10,6 +10,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ### Added
 
+- **Assets · anche gli eventi automatici della timeline di vita si eliminano** (nuova migration `assets/0092_assettimelinehiddenevent.py`; modificati `django_app/assets/models.py`, `views.py`, `templates/assets/pages/asset_detail.html`, `tests.py`, `README.md`).
+
+  La timeline della scheda asset mescola due cose diverse: le voci inserite a mano — che hanno già «Modifica» ed «Elimina» — e gli eventi che il portale deduce dai dati dell'asset (registrazione a inventario, assegnazione, acquisto/provisioning, messa in servizio). Questi ultimi non erano toccabili: «Acquisto / Provisioning» compare con una data stimata a tre giorni prima della registrazione, «Registrazione inventario» mostra la chiave tecnica di import (`asset-catalog:6a92093d…`) — righe che su molti asset non dicono niente e che non c'era modo di togliere.
+
+  Gli eventi automatici non sono righe di database: si ricalcolano a ogni apertura della scheda, quindi non c'è niente da cancellare. Nuovo modello **`AssetTimelineHiddenEvent`** (asset × chiave evento, con autore e timestamp): «Elimina» su un evento automatico registra che su **quell'asset** quella voce non va più mostrata, e la timeline la salta. **I dati dell'asset non vengono toccati**: nascondere «Registrazione inventario» non cambia la data di creazione, nascondere «Assegnazione» non riassegna niente — sparisce solo la riga dalla timeline, e la conferma del browser lo dice.
+
+  Stesso permesso delle voci manuali (`assets/asset_timeline_entry`, oltre ad amministratori e gestori asset): senza grant il pulsante non compare e la POST viene rifiutata. La rimozione è idempotente, è tracciata in audit (`hide_asset_timeline_event`) e vale per singolo asset — nascondere una voce su una macchina non la nasconde sulle altre. La card «Timeline ciclo di vita» resta visibile anche quando non resta più nessun evento, altrimenti sparirebbe con essa il pulsante «+ Inserisci». Cinque test.
+
 - **Anagrafica · spostamento con ruolo «in parallelo»: si aggiunge invece di sostituire** (nuova migration `anagrafica/0113_assegnazione_ruolo_parallelo.py`; modificati `django_app/anagrafica/models.py`, `views.py`, `services/assegnazioni.py`, `services/ruoli_sync.py`, `templates/anagrafica/pages/dipendente_detail.html`, `tests_assegnazioni.py`, `README.md`).
 
   Uno spostamento organizzativo, per definizione, sostituisce: chi passa ai TORNI come tornitore lascia il posto di prima, e il ruolo scelto prende quello del «Ruolo aziendale» della scheda. Ma non sempre l'incarico nuovo scaccia il vecchio: si resta capoturno **e** si diventa capocommessa, due ruoli dello stesso ambito che convivono. Con gli ambiti appena introdotti la sovrapposizione era possibile solo *fra* organigrammi diversi; dentro lo stesso ambito restava una sostituzione forzata.
