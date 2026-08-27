@@ -16,7 +16,8 @@ from django.core.paginator import Paginator
 from django.db import IntegrityError, connections, transaction
 from django.db.models import Count, Max, Q, Sum
 from django.http import (
-    Http404, HttpResponse, HttpResponseForbidden, HttpResponseRedirect, JsonResponse,
+    Http404, HttpResponse, HttpResponseForbidden, HttpResponseNotFound,
+    HttpResponseRedirect, JsonResponse,
 )
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -15493,6 +15494,59 @@ def organigramma_albero(request):
         "cert_id": cert_id,
         "certificazioni": TipoQualifica.objects.filter(is_active=True).order_by("nome"),
         **_ambito_filtro_context(ambito_id),
+    })
+
+
+@login_required
+def organigramma_persona_popup(request, legacy_id: int):
+    """Scheda sintetica di una persona, per il popup dell'organigramma.
+
+    Frammento HTML (niente ``base.html``): lo carica il diagramma quando si
+    clicca una tessera. Sta sotto ``/anagrafica/dipendenti/`` di proposito, cosi'
+    l'ACL lo governa **come la scheda dipendente**: chi non puo' aprire la scheda
+    non ottiene questi dati da una scorciatoia. Solo dati di lavoro (ruolo,
+    reparto, recapiti aziendali): l'organigramma non e' il fascicolo.
+    """
+    ensure_anagrafica_schema()
+    rows = fetch_anagrafica_rows(ids=[legacy_id])
+    if not rows:
+        return HttpResponseNotFound("<p class=\"ogp-vuoto\">Dipendente non trovato.</p>")
+    dip = rows[0]
+
+    civile = DipendenteAnagraficaCivile.objects.filter(legacy_anagrafica_id=legacy_id).first()
+    aziendale = DipendenteAnagraficaAziendale.objects.filter(legacy_anagrafica_id=legacy_id).first()
+
+    ruoli = [
+        {
+            "nome": a.ruolo.nome,
+            "ambito": a.ruolo.ambito.nome if a.ruolo.ambito_id else "",
+            "ambito_colore": a.ruolo.ambito.colore if a.ruolo.ambito_id else "",
+        }
+        for a in (
+            DipendenteRuoloOperativo.objects
+            .filter(legacy_anagrafica_id=legacy_id, ruolo__is_active=True)
+            .select_related("ruolo", "ruolo__ambito")
+            .order_by("ruolo__nome")
+        )
+    ]
+
+    nome = f"{dip.get('cognome') or ''} {dip.get('nome') or ''}".strip()
+    return render(request, "anagrafica/partials/_org_persona_popup.html", {
+        "legacy_id": legacy_id,
+        "nome": nome,
+        "ha_foto": bool(civile and civile.foto),
+        "matricola": dip.get("matricola") or "",
+        "badge": aziendale.badge if aziendale else "",
+        "mansione": dip.get("mansione") or "",
+        "reparto": (aziendale.area if aziendale and aziendale.area else dip.get("reparto")) or "",
+        "area_aziendale": str(aziendale.area_aziendale) if aziendale and aziendale.area_aziendale_id else "",
+        "ruolo_principale": (aziendale.ruolo_aziendale if aziendale else "") or dip.get("ruolo") or "",
+        "data_assunzione": (
+            (aziendale.data_assunzione_ultima or aziendale.data_prima_assunzione) if aziendale else None
+        ),
+        "email": (aziendale.email_aziendale if aziendale else "") or dip.get("email_notifica") or "",
+        "telefono": aziendale.telefono_aziendale if aziendale else "",
+        "ruoli": ruoli,
     })
 
 

@@ -46,6 +46,9 @@ urlpatterns = [
     path("formazione/sessioni/<int:sessione_id>/attestati/", views.formazione_sessione_attestati, name="formazione_sessione_attestati"),
     # Pannello semaforo conformità (HTMX lazy-load nella scheda dipendente)
     path("dipendenti/<int:legacy_id>/conformita/", views.dipendente_conformita_panel, name="dipendente_conformita_panel"),
+    # Popup dell'organigramma: sta sotto `dipendenti/` di proposito, cosi' l'ACL
+    # lo gate come la scheda dipendente (i dati sono quelli, in sintesi).
+    path("dipendenti/<int:legacy_id>/scheda-popup/", views.organigramma_persona_popup, name="organigramma_persona_popup"),
     path("dipendenti/<int:legacy_id>/esposizione-rischio/add/", views.dipendente_esposizione_rischio_add, name="dipendente_esposizione_rischio_add"),
     path("dipendenti/<int:legacy_id>/esposizione-rischio/<int:esp_id>/remove/", views.dipendente_esposizione_rischio_remove, name="dipendente_esposizione_rischio_remove"),
     path("dipendenti/<int:legacy_id>/verbale-dpi/", views.dipendente_verbale_dpi, name="dipendente_verbale_dpi"),

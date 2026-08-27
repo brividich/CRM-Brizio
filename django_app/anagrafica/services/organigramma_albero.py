@@ -4,7 +4,9 @@ La gerarchia è SEMPRE tra :class:`RuoloOperativo` (campo ``riporta_a``), mai tr
 persone: i dipendenti che ricoprono un ruolo sono foglie titolari del nodo di
 quel ruolo, senza sotto-gerarchia. Le radici sono i ruoli con ``riporta_a IS
 NULL``. La costruzione ricorsiva è protetta contro i cicli (difesa: insieme dei
-ruoli già visitati lungo il percorso).
+ruoli già visitati lungo il percorso). Gli **ex dipendenti** (rapporto cessato)
+non compaiono come titolari: l'assegnazione resta a storico, la posizione
+nell'organigramma no.
 
 Con ``ambito`` si disegna **un organigramma per ambito**: quello produttivo,
 quello della sicurezza ISO 45001, quello ISO 27001. È lo stesso albero
@@ -43,6 +45,24 @@ def _nome_map(legacy_ids) -> dict[int, str]:
     return result
 
 
+def cessati_legacy_ids() -> set[int]:
+    """``legacy_anagrafica_id`` degli ex dipendenti (rapporto cessato).
+
+    Stessa regola del resto del modulo — ``data_cessazione`` valorizzata
+    sull'anagrafica aziendale: un ex dipendente resta a sistema col suo
+    fascicolo, ma non occupa una posizione nell'organigramma.
+    """
+    from anagrafica.models import DipendenteAnagraficaAziendale
+
+    return {
+        int(lid)
+        for lid in DipendenteAnagraficaAziendale.objects.filter(
+            data_cessazione__isnull=False
+        ).values_list("legacy_anagrafica_id", flat=True)
+        if lid
+    }
+
+
 def build_ruolo_albero(ambito_id: int | None = None) -> list[dict]:
     """Albero dei ruoli: lista di nodi radice.
 
@@ -65,8 +85,13 @@ def build_ruolo_albero(ambito_id: int | None = None) -> list[dict]:
         padre = r.riporta_a_id if r.riporta_a_id in presenti else None
         figli_di.setdefault(padre, []).append(r)
 
+    # Gli ex dipendenti non ricoprono piu' la posizione: l'assegnazione al ruolo
+    # resta a storico, ma nell'organigramma la casella e' vuota (o la tiene solo
+    # chi e' ancora in forza).
+    cessati = cessati_legacy_ids()
     titolari_ids: dict[int, list[int]] = {
-        r.id: get_anagrafica_ids_for_role(r.id) for r in ruoli
+        r.id: [lid for lid in get_anagrafica_ids_for_role(r.id) if int(lid or 0) not in cessati]
+        for r in ruoli
     }
     tutti_ids = {lid for ids in titolari_ids.values() for lid in ids}
     nomi = _nome_map(tutti_ids)

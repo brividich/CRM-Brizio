@@ -7,14 +7,20 @@
 {% include "anagrafica/components/_hr_restyle.html" %}
 <style>
 /* ── Organigramma: albero "genealogico" su tela pan/zoom, tema HUB ───────── */
+
+/* A tutta larghezza: `.content` è tarato su 1680px, che qui è spazio buttato.
+   `:has()` tiene l'override su questa pagina sola, senza toccare base.html. */
+.content:has(> .ogd-page) { width:100%; max-width:none; }
+.ogd-page { display:flex; flex-direction:column; gap:16px; }
+
 .ogd-toolbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .ogd-count { font-size:var(--fs-sm); color:var(--text-light); margin-left:auto; }
-.ogd-hint { font-size:var(--fs-xs); color:var(--text-light); margin:-12px 0 0; }
+.ogd-hint { font-size:var(--fs-xs); color:var(--text-light); margin:0; }
 
 /* La tela ha un'altezza propria: l'albero non allunga la pagina, si naviga
    dentro il riquadro trascinando. */
 .ogd-panel {
-  position:relative; height:min(76vh,880px); min-height:420px; overflow:auto;
+  position:relative; height:calc(100vh - 300px); min-height:420px; overflow:auto;
   background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
   box-shadow:var(--shadow); padding:26px 22px;
   background-image:radial-gradient(var(--border) 1px, transparent 1px);
@@ -22,6 +28,14 @@
   cursor:grab; overscroll-behavior:contain;
 }
 .ogd-panel.is-dragging { cursor:grabbing; -webkit-user-select:none; user-select:none; }
+
+/* Schermo intero: ci va il blocco INTERO (barra + tela), altrimenti i comandi
+   di zoom sparirebbero proprio quando servono. */
+.ogd-stage:fullscreen {
+  display:flex; flex-direction:column; gap:10px;
+  padding:12px; background:var(--bg);
+}
+.ogd-stage:fullscreen .ogd-panel { flex:1 1 auto; height:auto; min-height:0; }
 
 /* Zoom: `.ogd-scale` viene scalato con transform (che NON cambia lo spazio
    occupato), quindi il JS ridimensiona `.ogd-zoomwrap` a misura*zoom — è quello
@@ -33,7 +47,7 @@
 .ogd-root { width:max-content; display:flex; flex-direction:column; align-items:flex-start; gap:20px; }
 
 /* [hidden] va riaffermato: una regola d'autore su display batte quella dello UA */
-.ogd-zoom { display:inline-flex; align-items:center; gap:4px; }
+.ogd-zoom { display:inline-flex; align-items:center; gap:4px; flex-wrap:wrap; }
 .ogd-zoom[hidden] { display:none; }
 .ogd-zoom .hr-btn { padding-left:10px; padding-right:10px; }
 .ogd-zoom-val {
@@ -55,10 +69,11 @@
   border-radius:9px 0 0 9px; background:var(--primary-mid);
 }
 .ogd-card:hover { border-color:var(--primary-mid); box-shadow:0 8px 20px -14px rgba(8,20,45,.8); }
-.ogd-card--condiviso::after { background:var(--accent); }
+.ogd-card--apribile { cursor:pointer; }
 .ogd-card--vacante { border-style:dashed; box-shadow:none; }
 /* più titolari: i nomi si impilano, la tessera cresce */
 .ogd-card--condiviso { height:auto; min-height:62px; }
+.ogd-card--condiviso::after { background:var(--accent); }
 .ogd-card--vacante::after { background:var(--border); }
 
 /* Radice: la tessera piena, navy del portale */
@@ -85,11 +100,18 @@
 .ogd-avatar--gruppo { background:var(--primary-mid); border-color:transparent; color:#fff; }
 
 .ogd-txt { display:flex; flex-direction:column; gap:2px; min-width:0; }
-.ogd-people { display:flex; flex-direction:column; gap:1px; min-width:0; }
+.ogd-people { display:flex; flex-direction:column; gap:1px; min-width:0; align-items:flex-start; }
 .ogd-person {
   font-size:var(--fs-sm); font-weight:700; color:var(--text); line-height:1.2;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:186px;
 }
+/* il nome è il comando raggiungibile da tastiera, ma non deve sembrare un bottone */
+.ogd-person--link {
+  padding:0; border:0; background:none; font-family:inherit; text-align:left;
+  min-height:0; cursor:pointer; display:block;
+}
+.ogd-person--link:hover { text-decoration:underline; }
+.ogd-person--link:focus-visible { outline:2px solid var(--primary-mid); outline-offset:2px; border-radius:3px; }
 .ogd-person--vac { font-weight:600; font-style:italic; color:var(--text-light); }
 .ogd-role {
   font-size:var(--fs-2xs); font-weight:700; letter-spacing:.055em; text-transform:uppercase;
@@ -149,12 +171,63 @@
 
 .ogd-empty { font-size:var(--fs-sm); color:var(--text-light); font-style:italic; text-align:center; padding:40px 0; }
 
+/* ── Popup scheda persona ───────────────────────────────────────────────── */
+.ogd-modal { position:fixed; inset:0; z-index:1200; display:flex; align-items:center; justify-content:center; padding:20px; }
+.ogd-modal[hidden] { display:none; }
+.ogd-modal-back { position:absolute; inset:0; background:rgba(8,20,45,.5); }
+.ogd-modal-box {
+  position:relative; width:min(420px,100%); max-height:86vh; overflow:auto;
+  background:var(--surface); border:1px solid var(--border); border-radius:16px;
+  box-shadow:0 30px 60px -24px rgba(8,20,45,.7); padding:22px;
+}
+.ogd-modal-x {
+  position:absolute; top:10px; right:10px; width:28px; height:28px; min-height:0; padding:0;
+  border:1px solid var(--border); background:var(--surface); color:var(--text-mid);
+  border-radius:8px; font-size:var(--fs-base); line-height:1; cursor:pointer;
+}
+.ogd-modal-x:hover { color:var(--text); border-color:var(--primary-mid); }
+.ogp-head { display:flex; align-items:center; gap:14px; margin-bottom:16px; padding-right:26px; }
+.ogp-foto { width:60px; height:60px; border-radius:14px; object-fit:cover; border:1px solid var(--border); background:var(--surface-alt,#eef2f7); flex:0 0 auto; }
+.ogp-foto--ph { display:inline-flex; align-items:center; justify-content:center; font-size:var(--fs-xl); font-weight:800; color:var(--primary-mid); }
+.ogp-nome { margin:0; font-size:var(--fs-lg); font-weight:800; color:var(--text); line-height:1.2; }
+.ogp-ruolo { margin:2px 0 0; font-size:var(--fs-2xs); font-weight:700; letter-spacing:.055em; text-transform:uppercase; color:var(--text-light); }
+.ogp-dati { display:grid; grid-template-columns:auto 1fr; gap:6px 14px; margin:0; font-size:var(--fs-sm); }
+.ogp-dati dt { color:var(--text-light); }
+.ogp-dati dd { margin:0; color:var(--text); font-weight:600; }
+.ogp-sez { margin-top:16px; }
+.ogp-sez-tit { font-size:var(--fs-2xs); font-weight:800; letter-spacing:.055em; text-transform:uppercase; color:var(--text-light); margin-bottom:6px; }
+.ogp-chips { display:flex; flex-wrap:wrap; gap:5px; }
+.ogp-chip {
+  font-size:var(--fs-xs); font-weight:700; color:var(--text-mid);
+  border:1px solid var(--border); border-left-width:3px; border-radius:7px; padding:3px 8px;
+}
+.ogp-chip em { font-style:normal; font-weight:600; color:var(--text-light); }
+.ogp-apri { margin-top:18px; width:100%; justify-content:center; }
+.ogp-vuoto { font-size:var(--fs-sm); color:var(--text-light); font-style:italic; margin:0; }
+
 @media (max-width:640px) {
-  .ogd-panel { padding:20px 12px; height:min(70vh,620px); }
+  .ogd-panel { padding:20px 12px; height:calc(100vh - 260px); }
   .ogd-node { padding:18px 6px 0; }
   .ogd-node::after { height:18px; }
   .ogd-node > .ogd-level { padding-top:18px; }
   .ogd-node > .ogd-level::before { height:18px; }
+}
+
+/* ── Stampa / PDF: la tela ridiventa un foglio ──────────────────────────── */
+@media print {
+  @page { size:A4 landscape; margin:10mm; }
+  .core-topnav, .core-sidebar, .subnav, .app-header, .notifications-banner,
+  .ogd-toolbar, .ogd-hint, .ogd-modal, .hr-pagehead a { display:none !important; }
+  .content:has(> .ogd-page) { padding:0; }
+  .ogd-panel {
+    height:auto !important; min-height:0 !important; overflow:visible !important;
+    border:0; box-shadow:none; background:none; padding:0; cursor:auto;
+  }
+  /* il colore delle tessere è informazione, non decorazione */
+  .ogd-card, .ogd-level--top { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .ogd-level--top { break-inside:avoid; box-shadow:none; }
+  .ogd-card { box-shadow:none; }
+  .ogd-toggle, .ogd-count-badge { display:none !important; }
 }
 </style>
 {% endblock %}
@@ -162,7 +235,7 @@
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
-<div style="display:flex;flex-direction:column;gap:20px;">
+<div class="ogd-page">
 
   {% include "anagrafica/components/flash_messages.html" %}
 
@@ -170,7 +243,7 @@
     <div>
       <div class="hr-pagehead-eyebrow">Anagrafica HR</div>
       <h1 class="hr-pagehead-title">Organigramma a diagramma</h1>
-      <p class="hr-pagehead-desc">Una tessera per posizione (persona + ruolo), disegnata ad albero: il genitore sta al centro e i riporti si affiancano sotto, agganciati alla traversa. La gerarchia resta tra ruoli: i ruoli con più titolari che hanno riporti restano una tessera unica. La tela si trascina e si zooma; ogni radice è un albero a sé.</p>
+      <p class="hr-pagehead-desc">Una tessera per posizione (persona + ruolo), disegnata ad albero: il genitore sta al centro e i riporti si affiancano sotto. La gerarchia resta tra ruoli, e gli ex dipendenti non occupano posizioni. Clicca una tessera per la scheda sintetica della persona; la tela si trascina, si zooma, va a schermo intero e si stampa.</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
       <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:organigramma_albero' %}">⌸ Vista ad albero</a>
@@ -179,49 +252,62 @@
     </div>
   </div>
 
-  <div class="ogd-toolbar">
-    {# Un organigramma per ambito: produttivo, ISO 45001, ISO 27001… #}
-    <form method="get" style="display:inline-flex;align-items:center;gap:6px;">
-      <select name="ambito" class="hr-btn hr-btn-outline" onchange="this.form.submit()"
-              title="Organigramma da disegnare" style="font-family:inherit;cursor:pointer;">
-        <option value="">🗂 Tutti gli ambiti</option>
-        {% for a in ambiti_filtro %}
-          <option value="{{ a.pk }}" {% if ambito_sel == a.pk|stringformat:"s" %}selected{% endif %}>{% if a.icona %}{{ a.icona }} {% endif %}{{ a.nome }}</option>
-        {% endfor %}
-        <option value="senza" {% if ambito_sel == "senza" %}selected{% endif %}>Ruoli senza ambito</option>
-      </select>
-      <noscript><button type="submit" class="hr-btn hr-btn-outline">Applica</button></noscript>
-    </form>
-    <button type="button" class="hr-btn hr-btn-outline" data-ogd-expand="1">Espandi tutto</button>
-    <button type="button" class="hr-btn hr-btn-outline" data-ogd-expand="0">Comprimi tutto</button>
-    <span class="ogd-zoom" id="ogdZoom" hidden>
-      <button type="button" class="hr-btn hr-btn-outline" data-ogd-zoom="-1" title="Riduci">−</button>
-      <span class="ogd-zoom-val" id="ogdZoomVal" aria-live="polite">100%</span>
-      <button type="button" class="hr-btn hr-btn-outline" data-ogd-zoom="1" title="Ingrandisci">+</button>
-      <button type="button" class="hr-btn hr-btn-outline" data-ogd-zoom="fit" title="Adatta l'albero alla larghezza del pannello">⇔ Adatta</button>
-      <button type="button" class="hr-btn hr-btn-outline" data-ogd-zoom="reset" title="Torna alla dimensione reale">100%</button>
-    </span>
-    <span class="ogd-count">{{ n_posizioni }} posizion{{ n_posizioni|pluralize:"e,i" }}</span>
-  </div>
-
-  <div class="ogd-panel" id="ogdPanel">
-    {% if albero %}
-      {# Un albero per radice, impilati: due organigrammi affiancati non si leggono. #}
-      <div class="ogd-zoomwrap" id="ogdZoomWrap"><div class="ogd-scale" id="ogdScale">
-        <div class="ogd-root">
-          {% for nodo in albero %}
-            <ul class="ogd-level ogd-level--top">
-              {% include "anagrafica/partials/_org_posizione.html" with nodo=nodo only %}
-            </ul>
+  <div class="ogd-stage" id="ogdStage">
+    <div class="ogd-toolbar">
+      {# Un organigramma per ambito: produttivo, ISO 45001, ISO 27001… #}
+      <form method="get" style="display:inline-flex;align-items:center;gap:6px;">
+        <select name="ambito" class="hr-btn hr-btn-outline" onchange="this.form.submit()"
+                title="Organigramma da disegnare" style="font-family:inherit;cursor:pointer;">
+          <option value="">🗂 Tutti gli ambiti</option>
+          {% for a in ambiti_filtro %}
+            <option value="{{ a.pk }}" {% if ambito_sel == a.pk|stringformat:"s" %}selected{% endif %}>{% if a.icona %}{{ a.icona }} {% endif %}{{ a.nome }}</option>
           {% endfor %}
-        </div>
-      </div></div>
-    {% else %}
-      <p class="ogd-empty">Nessun ruolo a catalogo: l'organigramma si popola dai ruoli operativi e dai loro titolari.</p>
-    {% endif %}
-  </div>
+          <option value="senza" {% if ambito_sel == "senza" %}selected{% endif %}>Ruoli senza ambito</option>
+        </select>
+        <noscript><button type="submit" class="hr-btn hr-btn-outline">Applica</button></noscript>
+      </form>
+      <button type="button" class="hr-btn hr-btn-outline" data-ogd-expand="1">Espandi tutto</button>
+      <button type="button" class="hr-btn hr-btn-outline" data-ogd-expand="0">Comprimi tutto</button>
+      <span class="ogd-zoom" id="ogdZoom" hidden>
+        <button type="button" class="hr-btn hr-btn-outline" data-ogd-zoom="-1" title="Riduci">−</button>
+        <span class="ogd-zoom-val" id="ogdZoomVal" aria-live="polite">100%</span>
+        <button type="button" class="hr-btn hr-btn-outline" data-ogd-zoom="1" title="Ingrandisci">+</button>
+        <button type="button" class="hr-btn hr-btn-outline" data-ogd-zoom="fit" title="Fa entrare tutto l'albero nel pannello">⤢ Adatta</button>
+        <button type="button" class="hr-btn hr-btn-outline" data-ogd-zoom="reset" title="Torna alla dimensione reale">100%</button>
+        <button type="button" class="hr-btn hr-btn-outline" id="ogdFull" title="Schermo intero (Esc per uscire)">⛶ Schermo intero</button>
+        <button type="button" class="hr-btn hr-btn-outline" id="ogdPrint" title="Stampa o salva in PDF">🖨 Stampa / PDF</button>
+      </span>
+      <span class="ogd-count">{{ n_posizioni }} posizion{{ n_posizioni|pluralize:"e,i" }}</span>
+    </div>
 
-  <p class="ogd-hint">Trascina la tela per muoverti dentro l'organigramma · <kbd>Ctrl</kbd> + rotella per lo zoom · il pulsante sotto la tessera comprime il ramo.</p>
+    <div class="ogd-panel" id="ogdPanel"
+         data-url-popup="{% url 'anagrafica:organigramma_persona_popup' 0 %}">
+      {% if albero %}
+        {# Un albero per radice, impilati: due organigrammi affiancati non si leggono. #}
+        <div class="ogd-zoomwrap" id="ogdZoomWrap"><div class="ogd-scale" id="ogdScale">
+          <div class="ogd-root">
+            {% for nodo in albero %}
+              <ul class="ogd-level ogd-level--top">
+                {% include "anagrafica/partials/_org_posizione.html" with nodo=nodo only %}
+              </ul>
+            {% endfor %}
+          </div>
+        </div></div>
+      {% else %}
+        <p class="ogd-empty">Nessun ruolo a catalogo: l'organigramma si popola dai ruoli operativi e dai loro titolari.</p>
+      {% endif %}
+    </div>
+
+    <p class="ogd-hint">Trascina la tela per muoverti · <kbd>Ctrl</kbd> + rotella per lo zoom · clicca una tessera per la scheda della persona.</p>
+
+    <div class="ogd-modal" id="ogdModal" hidden>
+      <div class="ogd-modal-back" data-ogd-chiudi></div>
+      <div class="ogd-modal-box" role="dialog" aria-modal="true" aria-label="Scheda sintetica del dipendente">
+        <button type="button" class="ogd-modal-x" data-ogd-chiudi title="Chiudi" aria-label="Chiudi">×</button>
+        <div id="ogdModalBody"><p class="ogp-vuoto">Carico…</p></div>
+      </div>
+    </div>
+  </div>
 
 </div>
 
@@ -230,6 +316,7 @@
   var panel = document.getElementById('ogdPanel');
   if (!panel) { return; }
 
+  var stage = document.getElementById('ogdStage');
   var wrap = document.getElementById('ogdZoomWrap');
   var scale = document.getElementById('ogdScale');
   var barra = document.getElementById('ogdZoom');
@@ -241,9 +328,12 @@
 
   /* offsetWidth/offsetHeight NON risentono della transform: misurano sempre
      l'albero a grandezza reale, che è quel che serve per dimensionare il wrap. */
-  function larghezzaUtile() {
+  function spazioUtile() {
     var cs = getComputedStyle(panel);
-    return panel.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    return {
+      w: panel.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
+      h: panel.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
+    };
   }
 
   function applica(z) {
@@ -255,11 +345,14 @@
     if (valore) { valore.textContent = Math.round(zoom * 100) + '%'; }
   }
 
+  /* «Adatta» = ci entra TUTTO, larghezza E altezza: la vista d'insieme è il
+     motivo per cui si guarda un organigramma. */
   function adatta() {
     if (!scale) { return; }
-    var naturale = scale.offsetWidth;
+    var natW = scale.offsetWidth, natH = scale.offsetHeight;
+    var d = spazioUtile();
     modoFit = true;
-    applica(naturale > 0 ? Math.min(1, larghezzaUtile() / naturale) : 1);
+    applica(natW > 0 && natH > 0 ? Math.min(1, d.w / natW, d.h / natH) : 1);
   }
 
   /* Il collasso di un ramo cambia l'ingombro: il wrap va rimisurato, altrimenti
@@ -299,8 +392,77 @@
     applica(1);
   }
 
+  /* ── Schermo intero: ci vanno barra e tela insieme ─────────────────────── */
+  var btnFull = document.getElementById('ogdFull');
+  if (btnFull && stage && stage.requestFullscreen) {
+    btnFull.addEventListener('click', function () {
+      if (document.fullscreenElement) { document.exitFullscreen(); }
+      else { stage.requestFullscreen(); }
+    });
+    document.addEventListener('fullscreenchange', function () {
+      btnFull.textContent = document.fullscreenElement === stage ? '⛶ Esci' : '⛶ Schermo intero';
+      rimisura();   /* il pannello ha cambiato dimensioni */
+    });
+  } else if (btnFull) {
+    btnFull.hidden = true;   /* niente Fullscreen API: meglio nessun pulsante che uno finto */
+  }
+
+  /* ── Stampa / PDF: si scala l'albero sulla larghezza del foglio ────────── */
+  var btnPrint = document.getElementById('ogdPrint');
+  if (btnPrint && scale) {
+    var LARGH_FOGLIO = 1040;   /* A4 orizzontale a 96dpi, meno i margini di stampa */
+    var primaStampa = null;
+    btnPrint.addEventListener('click', function () {
+      primaStampa = { zoom: zoom, fit: modoFit };
+      var nat = scale.offsetWidth;
+      modoFit = false;
+      applica(nat > 0 ? Math.min(1, LARGH_FOGLIO / nat) : 1);
+      window.print();
+    });
+    window.addEventListener('afterprint', function () {
+      if (!primaStampa) { return; }
+      modoFit = primaStampa.fit;
+      if (modoFit) { adatta(); } else { applica(primaStampa.zoom); }
+      primaStampa = null;
+    });
+  }
+
+  /* ── Popup della persona ───────────────────────────────────────────────── */
+  var modale = document.getElementById('ogdModal');
+  var corpo = document.getElementById('ogdModalBody');
+  var urlPopup = panel.getAttribute('data-url-popup') || '';
+
+  function chiudi() { if (modale) { modale.hidden = true; } }
+  function apri(idPersona) {
+    if (!modale || !corpo || !urlPopup) { return; }
+    corpo.innerHTML = '<p class="ogp-vuoto">Carico…</p>';
+    modale.hidden = false;
+    fetch(urlPopup.replace('/0/', '/' + encodeURIComponent(idPersona) + '/'), {
+      credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(function (r) {
+      if (!r.ok) { throw new Error(String(r.status)); }
+      return r.text();
+    }).then(function (html) {
+      corpo.innerHTML = html;
+    }).catch(function (err) {
+      /* fail-closed anche a video: chi non ha il permesso legge perche', non un errore muto */
+      corpo.innerHTML = (err && err.message === '403')
+        ? '<p class="ogp-vuoto">Non hai i permessi per vedere la scheda di questa persona.</p>'
+        : '<p class="ogp-vuoto">Scheda non disponibile.</p>';
+    });
+  }
+  if (modale) {
+    modale.addEventListener('click', function (ev) {
+      if (ev.target.closest('[data-ogd-chiudi]')) { chiudi(); }
+    });
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape' && !modale.hidden) { chiudi(); }
+    });
+  }
+
   /* ── Pan: si trascina la tela come una mappa ───────────────────────────── */
   var pan = null;
+  var panAppenaMosso = false;   /* un trascinamento non deve aprire il popup */
   panel.addEventListener('pointerdown', function (ev) {
     if (ev.button !== 0) { return; }
     /* i comandi dentro la tela restano cliccabili */
@@ -319,9 +481,10 @@
     panel.scrollLeft = pan.sl - dx;
     panel.scrollTop = pan.st - dy;
   });
-  function finePan(ev) {
+  function finePan() {
     if (!pan) { return; }
     try { panel.releasePointerCapture(pan.id); } catch (e) { /* mai catturato */ }
+    panAppenaMosso = pan.mosso;
     panel.classList.remove('is-dragging');
     pan = null;
   }
@@ -334,13 +497,18 @@
     btn.setAttribute('aria-expanded', chiuso ? 'false' : 'true');
   }
 
-  /* Collasso del singolo ramo */
   panel.addEventListener('click', function (ev) {
+    /* Collasso del singolo ramo */
     var btn = ev.target.closest('[data-ogd-toggle]');
-    if (!btn) { return; }
-    var nodo = btn.closest('.ogd-node');
-    stato(btn, nodo.classList.toggle('is-collapsed'));
-    rimisura();
+    if (btn) {
+      var nodo = btn.closest('.ogd-node');
+      stato(btn, nodo.classList.toggle('is-collapsed'));
+      rimisura();
+      return;
+    }
+    if (panAppenaMosso) { panAppenaMosso = false; return; }   /* era un trascinamento */
+    var persona = ev.target.closest('[data-persona]');
+    if (persona) { apri(persona.getAttribute('data-persona')); }
   });
 
   /* Espandi / comprimi tutto */
