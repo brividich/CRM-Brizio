@@ -79,8 +79,10 @@
                   <span>
                     <span class="fmd-cell-main">{{ dip.cognome }} {{ dip.nome }}</span>
                     {% if dip.timbri_legacy_id %}<span class="fmd-cell-sub"><span class="fmd-code">#{{ dip.timbri_legacy_id }}</span></span>{% endif %}
-                    {# Termini della ricerca server-side che non sono a video (username, matricola):
-                       senza di essi la ricerca live troverebbe meno della ricerca col tasto Filtra. #}
+                    {% comment %}
+                    Termini della ricerca server-side che non sono a video (username, matricola):
+                    senza di essi la ricerca live troverebbe meno della ricerca col tasto Filtra.
+                    {% endcomment %}
                     <span class="fmd-sr-only">{{ dip.aliasusername }} {{ dip.matricola_legacy }}</span>
                     {% if dip.ruoli %}
                     <span class="fmd-roles">

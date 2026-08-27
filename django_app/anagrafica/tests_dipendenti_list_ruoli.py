@@ -113,3 +113,10 @@ class DipendentiListRuoliRenderTests(TestCase):
     def test_username_e_matricola_restano_cercabili_dal_filtro_live(self):
         body = self._get().content.decode()
         self.assertIn('class="fmd-sr-only">d.aksoy 0138<', body)
+
+    def test_nessun_commento_di_template_finisce_a_video(self):
+        # Il commento `{# #}` di Django vale per UNA riga sola: scritto su due,
+        # la prima finisce stampata nella cella accanto al nome.
+        body = self._get().content.decode()
+        self.assertNotIn("Termini della ricerca", body)
+        self.assertNotIn("{#", body)
