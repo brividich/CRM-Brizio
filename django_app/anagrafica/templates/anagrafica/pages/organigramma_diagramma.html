@@ -6,22 +6,31 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <style>
-/* ── Organigramma: albero "genealogico" dall'alto verso il basso, tema HUB ── */
+/* ── Organigramma: albero "genealogico" su tela pan/zoom, tema HUB ───────── */
 .ogd-toolbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .ogd-count { font-size:var(--fs-sm); color:var(--text-light); margin-left:auto; }
+.ogd-hint { font-size:var(--fs-xs); color:var(--text-light); margin:-12px 0 0; }
 
+/* La tela ha un'altezza propria: l'albero non allunga la pagina, si naviga
+   dentro il riquadro trascinando. */
 .ogd-panel {
+  position:relative; height:min(76vh,880px); min-height:420px; overflow:auto;
   background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
-  box-shadow:var(--shadow); padding:30px 22px 28px; min-height:260px; overflow:auto;
+  box-shadow:var(--shadow); padding:26px 22px;
+  background-image:radial-gradient(var(--border) 1px, transparent 1px);
+  background-size:22px 22px; background-position:-1px -1px; background-attachment:local;
+  cursor:grab; overscroll-behavior:contain;
 }
+.ogd-panel.is-dragging { cursor:grabbing; -webkit-user-select:none; user-select:none; }
+
 /* Zoom: `.ogd-scale` viene scalato con transform (che NON cambia lo spazio
    occupato), quindi il JS ridimensiona `.ogd-zoomwrap` a misura*zoom — è quello
-   che tiene onesta la barra di scorrimento. `margin:0 auto` centra l'albero
-   quando ci sta e, quando eccede, non taglia il lato sinistro come farebbe
-   justify-content:center. */
+   che tiene onesta la barra di scorrimento. */
 .ogd-zoomwrap { margin:0 auto; }
 .ogd-scale { width:max-content; transform-origin:0 0; }
-.ogd-root { width:max-content; display:flex; flex-direction:column; gap:40px; }
+/* flex-start: ogni radice è un albero a sé e parte da sinistra. Centrarle tutte
+   sulla larghezza dell'albero più largo lascerebbe mezzo pannello vuoto. */
+.ogd-root { width:max-content; display:flex; flex-direction:column; align-items:flex-start; gap:20px; }
 
 /* [hidden] va riaffermato: una regola d'autore su display batte quella dello UA */
 .ogd-zoom { display:inline-flex; align-items:center; gap:4px; }
@@ -32,63 +41,72 @@
   color:var(--text-mid); font-variant-numeric:tabular-nums;
 }
 
-/* ── Riquadro posizione ─────────────────────────────────────────────────── */
+/* ── Tessera posizione: riga compatta, non il riquadro con l'avatar tondo ── */
 .ogd-card {
-  position:relative; box-sizing:border-box; width:196px; min-height:96px;
-  display:flex; flex-direction:column; align-items:center; gap:6px;
-  padding:26px 12px 14px; text-align:center;
-  background:var(--surface); border:1px solid var(--border); border-top:3px solid var(--primary-mid);
-  border-radius:12px; box-shadow:var(--shadow); transition:box-shadow .12s ease, border-color .12s ease;
+  position:relative; box-sizing:border-box; width:248px; height:62px;
+  display:flex; align-items:center; gap:10px; padding:8px 30px 8px 11px;
+  background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  box-shadow:0 1px 2px rgba(8,20,45,.07);
+  transition:border-color .12s ease, box-shadow .12s ease;
 }
-.ogd-card:hover { border-color:var(--primary-mid); box-shadow:0 12px 24px -16px rgba(8,20,45,.75); }
-.ogd-card--vacante { border-style:dashed; border-top-color:var(--text-light); background:var(--surface-alt,#f8fafc); }
-.ogd-card--condiviso { border-top-color:var(--accent); width:228px; }
+/* filetto d'accento verticale, dentro il bordo: niente barra colorata a sinistra */
+.ogd-card::after {
+  content:""; position:absolute; left:0; top:0; bottom:0; width:3px;
+  border-radius:9px 0 0 9px; background:var(--primary-mid);
+}
+.ogd-card:hover { border-color:var(--primary-mid); box-shadow:0 8px 20px -14px rgba(8,20,45,.8); }
+.ogd-card--condiviso::after { background:var(--accent); }
+.ogd-card--vacante { border-style:dashed; box-shadow:none; }
+/* più titolari: i nomi si impilano, la tessera cresce */
+.ogd-card--condiviso { height:auto; min-height:62px; }
+.ogd-card--vacante::after { background:var(--border); }
 
-/* Primo livello: il navy del portale */
+/* Radice: la tessera piena, navy del portale */
 .ogd-level--top > .ogd-node > .ogd-card {
   background:linear-gradient(135deg,#08142d 0%,#0c2545 58%,#1a3a66 100%);
-  border-color:transparent; border-top-color:var(--accent); width:228px;
+  border-color:transparent; box-shadow:0 10px 22px -16px rgba(8,20,45,.9);
 }
-.ogd-level--top > .ogd-node > .ogd-card .ogd-role { color:#fff; }
-.ogd-level--top > .ogd-node > .ogd-card .ogd-count-badge { color:#fff; background:rgba(255,255,255,.18); border-color:rgba(255,255,255,.24); }
+.ogd-level--top > .ogd-node > .ogd-card::after { background:var(--accent); }
+.ogd-level--top > .ogd-node > .ogd-card .ogd-person { color:#fff; }
+.ogd-level--top > .ogd-node > .ogd-card .ogd-role { color:rgba(255,255,255,.72); }
+.ogd-level--top > .ogd-node > .ogd-card .ogd-avatar { border-color:rgba(255,255,255,.28); }
+.ogd-level--top > .ogd-node > .ogd-card .ogd-count-badge { color:#fff; background:rgba(255,255,255,.16); }
 
-/* Avatar a cavallo del bordo superiore */
-.ogd-avatars { position:absolute; top:-20px; left:50%; transform:translateX(-50%); display:inline-flex; z-index:2; }
+/* Avatar: quadrato stondato, incassato nella tessera */
 .ogd-avatar {
-  width:38px; height:38px; border-radius:50%; object-fit:cover;
-  border:2px solid var(--surface); background:var(--surface-alt,#e8eef5); box-shadow:0 2px 4px rgba(8,20,45,.2);
+  flex:0 0 auto; width:36px; height:36px; border-radius:9px; object-fit:cover;
+  border:1px solid var(--border); background:var(--surface-alt,#eef2f7);
 }
-.ogd-avatars .ogd-avatar + .ogd-avatar { margin-left:-12px; }
-.ogd-avatar--ph, .ogd-avatar--vac, .ogd-avatar--piu {
+.ogd-avatar--ph, .ogd-avatar--vac, .ogd-avatar--gruppo {
   display:inline-flex; align-items:center; justify-content:center;
   font-size:var(--fs-sm); font-weight:800; color:var(--primary-mid);
 }
-.ogd-avatar--vac { color:var(--text-light); border-style:dashed; }
-.ogd-avatar--piu { background:var(--primary-mid); color:#fff; font-size:var(--fs-xs); }
+.ogd-avatar--vac { color:var(--text-light); border-style:dashed; background:transparent; }
+.ogd-avatar--gruppo { background:var(--primary-mid); border-color:transparent; color:#fff; }
 
+.ogd-txt { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.ogd-people { display:flex; flex-direction:column; gap:1px; min-width:0; }
+.ogd-person {
+  font-size:var(--fs-sm); font-weight:700; color:var(--text); line-height:1.2;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.ogd-person--vac { font-weight:600; font-style:italic; color:var(--text-light); }
 .ogd-role {
-  font-size:var(--fs-sm); font-weight:800; color:var(--text); line-height:1.25;
+  font-size:var(--fs-2xs); font-weight:700; letter-spacing:.055em; text-transform:uppercase;
+  color:var(--text-light); line-height:1.25;
   display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
 }
-.ogd-chips { display:flex; flex-wrap:wrap; justify-content:center; gap:4px; }
-.ogd-chip {
-  max-width:172px; padding:3px 9px; border-radius:999px;
-  font-size:var(--fs-2xs); font-weight:700; letter-spacing:.02em; text-transform:uppercase;
-  color:#fff; background:var(--primary-mid);
-  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-}
-.ogd-chip--vac { color:var(--text-mid); background:var(--surface-alt,#e2e8f0); border:1px dashed var(--border); }
 
 .ogd-count-badge {
-  position:absolute; top:7px; right:9px;
+  position:absolute; top:8px; right:8px;
   font-size:var(--fs-2xs); font-weight:800; color:var(--text-mid);
-  background:var(--surface-alt,#eef2f7); border:1px solid var(--border); border-radius:999px; padding:1px 7px;
+  background:var(--surface-alt,#eef2f7); border-radius:6px; padding:1px 6px;
 }
 
-/* Collasso: appeso sotto il riquadro, sul tronco che scende ai riporti */
+/* Collasso: appeso sotto la tessera, sul tronco che scende ai riporti */
 .ogd-toggle {
-  position:absolute; bottom:-12px; left:50%; transform:translateX(-50%);
-  width:22px; height:22px; min-height:0; padding:0; border-radius:50%;
+  position:absolute; bottom:-11px; left:50%; transform:translateX(-50%);
+  width:21px; height:21px; min-height:0; padding:0; border-radius:7px;
   border:2px solid var(--surface); background:var(--primary); color:#fff;
   font-size:var(--fs-sm); font-weight:800; line-height:1; cursor:pointer;
   display:flex; align-items:center; justify-content:center; box-shadow:var(--shadow); z-index:3;
@@ -102,20 +120,26 @@
 }
 .ogd-node {
   position:relative; display:flex; flex-direction:column; align-items:center;
-  padding:22px 9px 0;
+  padding:22px 8px 0;
 }
-/* tronco: dal bordo inferiore del riquadro giù fino alla traversa dei riporti */
+/* tronco: dal bordo inferiore della tessera giù fino alla traversa dei riporti */
 .ogd-node > .ogd-level { position:relative; padding-top:22px; }
 .ogd-node > .ogd-level::before {
   content:""; position:absolute; top:0; left:calc(50% - 1px); width:2px; height:22px; background:var(--border);
 }
-/* traversa fra fratelli: mezza a sinistra e mezza a destra di ogni riquadro,
-   più lo stacchetto verticale che scende sul riquadro stesso */
+/* traversa fra fratelli: mezza a sinistra e mezza a destra di ogni tessera,
+   più lo stacchetto verticale che scende sulla tessera stessa */
 .ogd-node::before { content:""; position:absolute; top:0; left:0; right:0; height:2px; background:var(--border); }
 .ogd-node::after  { content:""; position:absolute; top:0; left:calc(50% - 1px); width:2px; height:22px; background:var(--border); }
 .ogd-node:first-child::before { left:calc(50% - 1px); }
 .ogd-node:last-child::before  { right:calc(50% - 1px); }
 .ogd-node:only-child::before  { display:none; }   /* riporto unico: solo la verticale */
+/* Ogni radice è un albero a sé: un'isola sulla tela, così due organigrammi
+   impilati non sembrano lo stesso disegno. */
+.ogd-level--top {
+  padding:20px 22px 24px; background:var(--surface);
+  border:1px solid var(--border); border-radius:16px; box-shadow:0 1px 2px rgba(8,20,45,.05);
+}
 /* radice: non ha nessuno sopra di sé */
 .ogd-level--top > .ogd-node { padding-top:0; }
 .ogd-level--top > .ogd-node::before,
@@ -126,7 +150,7 @@
 .ogd-empty { font-size:var(--fs-sm); color:var(--text-light); font-style:italic; text-align:center; padding:40px 0; }
 
 @media (max-width:640px) {
-  .ogd-panel { padding:26px 12px; }
+  .ogd-panel { padding:20px 12px; height:min(70vh,620px); }
   .ogd-node { padding:18px 6px 0; }
   .ogd-node::after { height:18px; }
   .ogd-node > .ogd-level { padding-top:18px; }
@@ -146,7 +170,7 @@
     <div>
       <div class="hr-pagehead-eyebrow">Anagrafica HR</div>
       <h1 class="hr-pagehead-title">Organigramma a diagramma</h1>
-      <p class="hr-pagehead-desc">Un riquadro per posizione (ruolo + persona), disegnato ad albero: il genitore sta al centro e i riporti si affiancano sotto, agganciati alla traversa. La gerarchia resta tra ruoli: i ruoli con più titolari che hanno riporti restano un riquadro unico. I rami larghi si scorrono in orizzontale, si comprimono dal pulsante sul riquadro o si rimpiccioliscono con lo zoom qui sotto.</p>
+      <p class="hr-pagehead-desc">Una tessera per posizione (persona + ruolo), disegnata ad albero: il genitore sta al centro e i riporti si affiancano sotto, agganciati alla traversa. La gerarchia resta tra ruoli: i ruoli con più titolari che hanno riporti restano una tessera unica. La tela si trascina e si zooma; ogni radice è un albero a sé.</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
       <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:organigramma_albero' %}">⌸ Vista ad albero</a>
@@ -159,7 +183,7 @@
     {# Un organigramma per ambito: produttivo, ISO 45001, ISO 27001… #}
     <form method="get" style="display:inline-flex;align-items:center;gap:6px;">
       <select name="ambito" class="hr-btn hr-btn-outline" onchange="this.form.submit()"
-              style="font-family:inherit;cursor:pointer;">
+              title="Organigramma da disegnare" style="font-family:inherit;cursor:pointer;">
         <option value="">🗂 Tutti gli ambiti</option>
         {% for a in ambiti_filtro %}
           <option value="{{ a.pk }}" {% if ambito_sel == a.pk|stringformat:"s" %}selected{% endif %}>{% if a.icona %}{{ a.icona }} {% endif %}{{ a.nome }}</option>
@@ -197,6 +221,8 @@
     {% endif %}
   </div>
 
+  <p class="ogd-hint">Trascina la tela per muoverti dentro l'organigramma · <kbd>Ctrl</kbd> + rotella per lo zoom · il pulsante sotto la tessera comprime il ramo.</p>
+
 </div>
 
 <script>
@@ -209,7 +235,7 @@
   var barra = document.getElementById('ogdZoom');
   var valore = document.getElementById('ogdZoomVal');
 
-  var MIN = 0.3, MAX = 1.5, PASSO = 1.15;
+  var MIN = 0.25, MAX = 1.5, PASSO = 1.15;
   var zoom = 1;
   var modoFit = false;   /* con «Adatta» il ridimensionamento segue la finestra */
 
@@ -254,8 +280,54 @@
       else { applica(azione === '1' ? zoom * PASSO : zoom / PASSO); }
     });
     window.addEventListener('resize', function () { if (modoFit) { adatta(); } });
+
+    /* Zoom con Ctrl+rotella, tenendo fermo il punto sotto il puntatore. */
+    panel.addEventListener('wheel', function (ev) {
+      if (!ev.ctrlKey) { return; }
+      ev.preventDefault();
+      var rect = panel.getBoundingClientRect();
+      var ox = ev.clientX - rect.left, oy = ev.clientY - rect.top;
+      var px = panel.scrollLeft + ox, py = panel.scrollTop + oy;
+      var prima = zoom;
+      modoFit = false;
+      applica(ev.deltaY < 0 ? zoom * PASSO : zoom / PASSO);
+      var f = zoom / prima;
+      panel.scrollLeft = px * f - ox;
+      panel.scrollTop = py * f - oy;
+    }, { passive: false });
+
     applica(1);
   }
+
+  /* ── Pan: si trascina la tela come una mappa ───────────────────────────── */
+  var pan = null;
+  panel.addEventListener('pointerdown', function (ev) {
+    if (ev.button !== 0) { return; }
+    /* i comandi dentro la tela restano cliccabili */
+    if (ev.target.closest('button, a, select, input, textarea')) { return; }
+    pan = { x: ev.clientX, y: ev.clientY, sl: panel.scrollLeft, st: panel.scrollTop, mosso: false, id: ev.pointerId };
+  });
+  panel.addEventListener('pointermove', function (ev) {
+    if (!pan || ev.pointerId !== pan.id) { return; }
+    var dx = ev.clientX - pan.x, dy = ev.clientY - pan.y;
+    if (!pan.mosso) {
+      if (Math.abs(dx) + Math.abs(dy) < 4) { return; }   /* soglia: un click resta un click */
+      pan.mosso = true;
+      panel.classList.add('is-dragging');
+      try { panel.setPointerCapture(pan.id); } catch (e) { /* niente cattura: si trascina lo stesso */ }
+    }
+    panel.scrollLeft = pan.sl - dx;
+    panel.scrollTop = pan.st - dy;
+  });
+  function finePan(ev) {
+    if (!pan) { return; }
+    try { panel.releasePointerCapture(pan.id); } catch (e) { /* mai catturato */ }
+    panel.classList.remove('is-dragging');
+    pan = null;
+  }
+  panel.addEventListener('pointerup', finePan);
+  panel.addEventListener('pointercancel', finePan);
+  panel.addEventListener('dragstart', function (ev) { ev.preventDefault(); });
 
   function stato(btn, chiuso) {
     btn.textContent = chiuso ? '+' : '−';

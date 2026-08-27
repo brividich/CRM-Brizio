@@ -1,30 +1,31 @@
-{# Nodo ricorsivo dell'organigramma: riquadro + riporti affiancati sotto, ad albero genealogico. Riceve: nodo (only). #}
+{# Nodo ricorsivo dell'organigramma: tessera + riporti affiancati sotto, ad albero genealogico. Riceve: nodo (only). #}
 <li class="ogd-node{% if nodo.figli %} ogd-has-children{% endif %}">
   <div class="ogd-card ogd-card--{{ nodo.tipo }}">
-    <span class="ogd-avatars">
-      {% for t in nodo.titolari|slice:":3" %}
+    {# Un solo riquadro-avatar: con più titolari porta il loro numero, i nomi stanno in elenco accanto. #}
+    {% if nodo.titolari|length > 1 %}
+      <span class="ogd-avatar ogd-avatar--gruppo" aria-hidden="true">{{ nodo.titolari|length }}</span>
+    {% elif nodo.titolari %}
+      {% with t=nodo.titolari.0 %}
         {% if t.ha_foto %}
           <img class="ogd-avatar" src="{% url 'anagrafica:foto_dipendente' t.legacy_id %}" alt="" loading="lazy">
         {% else %}
           <span class="ogd-avatar ogd-avatar--ph" aria-hidden="true">{{ t.nome|slice:":1"|upper|default:"?" }}</span>
         {% endif %}
-      {% empty %}
-        <span class="ogd-avatar ogd-avatar--vac" aria-hidden="true">?</span>
-      {% endfor %}
-      {% if nodo.titolari|length > 3 %}
-        <span class="ogd-avatar ogd-avatar--piu" aria-hidden="true">+{{ nodo.titolari|length|add:"-3" }}</span>
-      {% endif %}
+      {% endwith %}
+    {% else %}
+      <span class="ogd-avatar ogd-avatar--vac" aria-hidden="true">?</span>
+    {% endif %}
+
+    <span class="ogd-txt">
+      <span class="ogd-people">
+        {% for t in nodo.titolari %}
+          <span class="ogd-person">{{ t.nome|default:t.legacy_id }}</span>
+        {% empty %}
+          <span class="ogd-person ogd-person--vac">Posizione scoperta</span>
+        {% endfor %}
+      </span>
+      <span class="ogd-role" title="{{ nodo.ruolo.nome }}">{{ nodo.ruolo.nome }}</span>
     </span>
-
-    <div class="ogd-role" title="{{ nodo.ruolo.nome }}">{{ nodo.ruolo.nome }}</div>
-
-    <div class="ogd-chips">
-      {% for t in nodo.titolari %}
-        <span class="ogd-chip">{{ t.nome|default:t.legacy_id }}</span>
-      {% empty %}
-        <span class="ogd-chip ogd-chip--vac">Posizione scoperta</span>
-      {% endfor %}
-    </div>
 
     {% if nodo.figli %}
       <span class="ogd-count-badge" title="riporti diretti">{{ nodo.figli|length }}</span>
