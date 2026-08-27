@@ -1991,6 +1991,14 @@ class DipendenteAssegnazione(models.Model):
     ruolo_aziendale = models.CharField(
         max_length=200, blank=True, default="", verbose_name="Ruolo aziendale",
     )
+    ruolo_parallelo = models.BooleanField(
+        default=False,
+        verbose_name="Ruolo in parallelo",
+        help_text=(
+            "Il ruolo si aggiunge a quello in essere invece di sostituirlo: "
+            "serve quando i due incarichi convivono pur essendo dello stesso ambito."
+        ),
+    )
 
     attivata_il = models.DateTimeField(
         null=True, blank=True,

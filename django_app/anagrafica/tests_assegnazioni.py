@@ -20,8 +20,9 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .models import (
-    AreaAziendale, DipendenteAnagraficaAziendale, DipendenteAssegnazione,
-    DipendenteCambiamentoOrganizzativo, Mansione, Reparto, RuoloOperativo,
+    AmbitoRuolo, AreaAziendale, DipendenteAnagraficaAziendale, DipendenteAssegnazione,
+    DipendenteCambiamentoOrganizzativo, DipendenteRuoloOperativo, Mansione, Reparto,
+    RuoloOperativo,
 )
 from .tests import _ensure_anagrafica_table
 
@@ -550,3 +551,145 @@ class SpostamentoDefaultAssettoAttualeTests(TestCase):
         self.assertEqual(self._legacy("mansione"), "Operatore CNC")
         az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=self.legacy_id)
         self.assertEqual(az.ruolo_aziendale, "Capoturno")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class SpostamentoRuoloParalleloTests(TestCase):
+    """Il ruolo dello spostamento può **aggiungersi** invece di sostituire.
+
+    Di norma il ruolo scelto prende il posto del «Ruolo aziendale» della scheda:
+    è uno spostamento, e chi si sposta lascia il ruolo di prima. Ma due incarichi
+    dello stesso ambito possono convivere (resta capoturno *e* diventa
+    capocommessa): il flag «in parallelo» dice esattamente questo, e senza flag
+    resta la sostituzione. I ruoli di un altro organigramma si sommano sempre,
+    con o senza flag — è il senso degli ambiti.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+        cls.admin = User.objects.create_superuser(
+            username="sposta_par_admin", email="sposta_par_admin@x.local", password="x"
+        )
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM anagrafica_dipendenti")
+            cursor.execute(
+                "INSERT INTO anagrafica_dipendenti (aliasusername, nome, cognome, reparto, mansione, attivo) "
+                "VALUES (%s, %s, %s, %s, %s, %s)",
+                ["p.parall", "Piero", "Parallelo", "CNC", "Operatore CNC", 1],
+            )
+            cursor.execute(
+                "SELECT id FROM anagrafica_dipendenti WHERE aliasusername = %s", ["p.parall"]
+            )
+            self.legacy_id = int(cursor.fetchone()[0])
+        Reparto.objects.create(nome="CNC")
+        # «Produttivo» lo semina gia' la migration 0112: qui si riusa, non si duplica.
+        self.scheda, _ = AmbitoRuolo.objects.update_or_create(
+            nome="Produttivo", defaults={"alimenta_scheda": True, "ordine": 10},
+        )
+        self.sicurezza, _ = AmbitoRuolo.objects.update_or_create(
+            nome="ISO 45001", defaults={"alimenta_scheda": False, "ordine": 30},
+        )
+        self.capoturno = RuoloOperativo.objects.create(nome="Capoturno", ambito=self.scheda)
+        self.capocommessa = RuoloOperativo.objects.create(nome="Capocommessa", ambito=self.scheda)
+        self.preposto = RuoloOperativo.objects.create(nome="Preposto", ambito=self.sicurezza)
+        DipendenteAnagraficaAziendale.objects.update_or_create(
+            legacy_anagrafica_id=self.legacy_id,
+            defaults={"area": "CNC", "ruolo_aziendale": "Capoturno"},
+        )
+        DipendenteRuoloOperativo.objects.create(
+            legacy_anagrafica_id=self.legacy_id, ruolo=self.capoturno,
+        )
+
+    def _post(self, **extra):
+        payload = {"reparto": "CNC", "data_inizio": _oggi().isoformat()}
+        payload.update(extra)
+        return self.client.post(
+            reverse("anagrafica:dipendente_assegnazione_create", args=[self.legacy_id]),
+            payload,
+        )
+
+    def _principale(self):
+        az = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=self.legacy_id)
+        return (az.ruolo_aziendale or "").strip()
+
+    def _ruoli(self):
+        return sorted(
+            a.ruolo.nome
+            for a in DipendenteRuoloOperativo.objects.filter(
+                legacy_anagrafica_id=self.legacy_id
+            ).select_related("ruolo")
+        )
+
+    # ── Senza flag: sostituzione, come sempre ──────────────────────────────
+    def test_senza_flag_il_ruolo_dello_stesso_ambito_sostituisce(self):
+        self._post(ruolo_aziendale="Capocommessa")
+        self.assertEqual(self._principale(), "Capocommessa")
+        # Il ruolo di prima resta fra le assegnazioni: il multiruolo non si perde,
+        # cambia solo quale dei due rappresenta la persona.
+        self.assertEqual(self._ruoli(), ["Capocommessa", "Capoturno"])
+
+    # ── Con flag: si aggiunge ──────────────────────────────────────────────
+    def test_flag_parallelo_non_tocca_il_ruolo_aziendale(self):
+        self._post(ruolo_aziendale="Capocommessa", ruolo_parallelo="1")
+        self.assertEqual(self._principale(), "Capoturno")
+
+    def test_flag_parallelo_aggiunge_comunque_l_assegnazione(self):
+        self._post(ruolo_aziendale="Capocommessa", ruolo_parallelo="1")
+        self.assertEqual(self._ruoli(), ["Capocommessa", "Capoturno"])
+
+    def test_flag_parallelo_registrato_sull_assegnazione(self):
+        self._post(ruolo_aziendale="Capocommessa", ruolo_parallelo="1")
+        a = DipendenteAssegnazione.objects.get(legacy_anagrafica_id=self.legacy_id)
+        self.assertTrue(a.ruolo_parallelo)
+        self.assertEqual(a.ruolo_aziendale, "Capocommessa")
+
+    def test_flag_parallelo_non_storicizza_un_cambio_di_ruolo(self):
+        self._post(ruolo_aziendale="Capocommessa", ruolo_parallelo="1")
+        self.assertFalse(
+            DipendenteCambiamentoOrganizzativo.objects.filter(
+                legacy_anagrafica_id=self.legacy_id,
+                tipo=DipendenteCambiamentoOrganizzativo.TIPO_RUOLO_AZIENDALE,
+            ).exists()
+        )
+
+    def test_flag_senza_ruolo_scelto_e_ignorato(self):
+        """Niente ruolo, niente parallelo: il campo eredita il principale e resta tale."""
+        self._post(mansione="Tornitore", ruolo_parallelo="1")
+        a = DipendenteAssegnazione.objects.get(legacy_anagrafica_id=self.legacy_id)
+        self.assertFalse(a.ruolo_parallelo)
+        self.assertEqual(a.ruolo_aziendale, "Capoturno")
+        self.assertEqual(self._principale(), "Capoturno")
+
+    # ── Altri organigrammi: paralleli per definizione ──────────────────────
+    def test_ruolo_di_altro_ambito_non_sostituisce_nemmeno_senza_flag(self):
+        self._post(ruolo_aziendale="Preposto")
+        self.assertEqual(self._principale(), "Capoturno")
+        self.assertEqual(self._ruoli(), ["Capoturno", "Preposto"])
+
+    # ── Attivazione differita ──────────────────────────────────────────────
+    def test_spostamento_programmato_in_parallelo_applica_la_regola_alla_data(self):
+        from .services.assegnazioni import attiva_assegnazione
+
+        self._post(ruolo_aziendale="Capocommessa", ruolo_parallelo="1", data_inizio=_fra(10).isoformat())
+        a = DipendenteAssegnazione.objects.get(legacy_anagrafica_id=self.legacy_id)
+        self.assertIsNone(a.attivata_il)
+        self.assertEqual(self._ruoli(), ["Capoturno"])
+
+        attiva_assegnazione(a)
+        self.assertEqual(self._principale(), "Capoturno")
+        self.assertEqual(self._ruoli(), ["Capocommessa", "Capoturno"])
+
+    # ── Form ───────────────────────────────────────────────────────────────
+    def test_il_form_espone_il_flag_e_raggruppa_i_ruoli_per_ambito(self):
+        resp = self.client.get(
+            reverse("anagrafica:dipendente_detail", args=[self.legacy_id])
+        )
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        self.assertIn('name="ruolo_parallelo"', html)
+        self.assertIn('<optgroup label="Produttivo">', html)
+        self.assertIn('<optgroup label="ISO 45001">', html)
