@@ -462,3 +462,70 @@ body.theme-dark .fmd .fmd-alert{
   font-size:12.5px; font-weight:600; color:var(--text, #2d3a55);
 }
 .fmd-export-menu a:hover{ background:var(--surface-alt, #f1f5f9); }
+
+/* ── Espansione in riga: corso → edizioni → giornate ──────────────────────────
+   La riga di dettaglio è un <tr class="fm-detail-row">: resta fuori da filtro e
+   ordinamento di fm-table-enhanced e dal click-riga di ana_table_ux. Il
+   contenuto arriva via HTMX alla prima apertura (partials
+   _formazione_corso_espansione / _formazione_sessione_espansione). */
+.fmd-exp-btn{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:24px; height:24px; padding:0; border-radius:6px;
+  border:1px solid var(--fmd-line); background:#fff; cursor:pointer;
+  font-size:11px; line-height:1; color:var(--fmd-muted);
+  transition:transform .15s, border-color .15s, color .15s;
+}
+.fmd-exp-btn:hover{ border-color:#cfd9ea; color:var(--fmd-navy); }
+.fmd-exp-btn[aria-expanded="true"]{ transform:rotate(90deg); color:var(--fmd-cyan); border-color:#cfd9ea; }
+.fmd-exp-cell{ padding:0 !important; background:var(--fmd-line-soft); }
+.fmd-exp-inner{ padding:12px 16px 14px 46px; }
+.fmd-exp-head{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  margin-bottom:9px; font-size:12.5px; color:var(--fmd-muted);
+}
+.fmd-exp-head b{ color:var(--fmd-navy); }
+.fmd-exp-open{ font-size:12px; font-weight:700; color:var(--fmd-cyan); text-decoration:none; white-space:nowrap; }
+.fmd-exp-open:hover{ text-decoration:underline; }
+.fmd-exp-list{ display:flex; flex-direction:column; gap:6px; }
+.fmd-exp-ed{ background:#fff; border:1px solid var(--fmd-line); border-radius:9px; overflow:hidden; }
+.fmd-exp-ed > summary{
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  padding:8px 12px; cursor:pointer; list-style:none;
+}
+.fmd-exp-ed > summary::-webkit-details-marker{ display:none; }
+.fmd-exp-ed > summary:hover{ background:var(--fmd-line-soft); }
+.fmd-exp-caret{ font-size:10px; color:var(--fmd-muted-2); transition:transform .15s; }
+.fmd-exp-ed[open] > summary .fmd-exp-caret{ transform:rotate(90deg); }
+.fmd-exp-ed .fmd-ed-code{ font-family:var(--fmd-mono); font-size:11.5px; font-weight:700; color:var(--fmd-navy); text-decoration:none; }
+.fmd-exp-ed .fmd-ed-code:hover{ color:var(--fmd-cyan); text-decoration:underline; }
+.fmd-exp-ed .fmd-ed-meta{ flex:1; min-width:0; font-size:12px; color:var(--fmd-muted); }
+.fmd-exp-lez{ padding:2px 12px 10px; font-size:12px; color:var(--fmd-muted); }
+.fmd-exp-tab{ width:100%; border-collapse:collapse; font-size:12px; }
+.fmd-exp-tab th{
+  text-align:left; padding:5px 8px; border-bottom:1px solid var(--fmd-line);
+  font-family:var(--fmd-mono); font-size:10px; font-weight:700; letter-spacing:.05em;
+  text-transform:uppercase; color:var(--fmd-muted-2); white-space:nowrap;
+}
+.fmd-exp-tab td{ padding:5px 8px; border-bottom:1px solid var(--fmd-line-soft); color:var(--fmd-ink); vertical-align:top; }
+.fmd-exp-tab tr:last-child td{ border-bottom:none; }
+.fmd-exp-n{ font-family:var(--fmd-mono); font-weight:700; color:var(--fmd-muted-2); }
+.fmd-exp-foot{ margin-top:6px; text-align:right; }
+.fmd-exp-foot a{ font-size:11.5px; font-weight:700; color:var(--fmd-cyan); text-decoration:none; }
+.fmd-exp-vuoto{ font-size:12.5px; color:var(--fmd-muted-2); }
+.fmd-exp-vuoto a{ margin-left:6px; font-weight:700; color:var(--fmd-cyan); text-decoration:none; }
+
+body.theme-dark .fmd .fmd-exp-cell{ background:rgba(148,163,184,.06); }
+body.theme-dark .fmd .fmd-exp-ed,
+body.theme-dark .fmd .fmd-exp-btn{ background:var(--surface, #12203a); }
+
+/* Campi data/file nelle toolbar (upload documenti ente/docente, filtri di
+   periodo): stesso vestito dei campi testo, che la regola sopra copre solo per
+   input[type=text]. */
+.fmd-toolbar input[type=date], .fmd-toolbar input[type=file]{
+  height:38px; border:1px solid var(--fmd-line); border-radius:8px; padding:0 11px;
+  font:inherit; font-size:13px; color:var(--fmd-ink); background:#fff; outline:none;
+}
+.fmd-toolbar input[type=file]{ padding:7px 11px; }
+.fmd-toolbar input[type=date]:focus, .fmd-toolbar input[type=file]:focus{
+  border-color:var(--fmd-cyan); box-shadow:0 0 0 3px rgba(31,135,205,.12);
+}

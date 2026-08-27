@@ -1,0 +1,107 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Chi ci ha formato | Formazione HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=5">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="fmd-wrap">
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb">
+          <a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span>
+          <a href="{% url 'anagrafica:formazione_istruttori_list' %}">Docenti</a><span class="fmd-sep"> / </span>
+          <span class="fmd-cur">Chi ci ha formato</span>
+        </div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-building"/></svg>Chi ci ha formato</h1>
+        <p class="fmd-ph-sub">Formazione erogata da ciascun ente{% if periodo_attivo %} nel periodo selezionato{% endif %}. Le ore sono attribuite per giornata, al docente che l'ha tenuta.</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        <a href="{% url 'anagrafica:formazione_istruttori_list' %}" class="fmd-btn fmd-btn-ghost">← Docenti</a>
+      </div>
+    </div>
+
+    <section class="fmd-panel" style="margin-bottom:16px;">
+      <form method="get" class="fmd-toolbar">
+        <span class="fmd-block-aside">Erogazioni dal</span>
+        <input type="date" name="dal" value="{{ dal|date:'Y-m-d' }}" aria-label="Dalla data">
+        <span class="fmd-block-aside">al</span>
+        <input type="date" name="al" value="{{ al|date:'Y-m-d' }}" aria-label="Alla data">
+        <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-filter"/></svg>Filtra</button>
+        {% if periodo_attivo %}
+        <a href="{% url 'anagrafica:formazione_enti_report' %}" class="fmd-btn fmd-btn-ghost">Tutto lo storico</a>
+        {% endif %}
+        <span class="fmd-spacer"></span>
+        {% include "anagrafica/partials/_export_buttons.html" with export_key="formazione_enti" %}
+      </form>
+    </section>
+
+    <section class="fmd-kpi fmd-k4">
+      <div class="fmd-mtr fmd-t-navy"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-building"/></svg></span><span class="fmd-mtr-val">{{ enti_attivi }}</span></div><div class="fmd-mtr-lbl">Enti che hanno erogato</div><div class="fmd-mtr-sub">Su {{ righe|length }} a catalogo</div></div>
+      <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-calendar"/></svg></span><span class="fmd-mtr-val">{{ tot_sessioni }}</span></div><div class="fmd-mtr-lbl">Edizioni erogate</div><div class="fmd-mtr-sub">{% if periodo_attivo %}Nel periodo{% else %}Tutto lo storico{% endif %}</div></div>
+      <div class="fmd-mtr fmd-t-green"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ tot_ore|floatformat:"-2" }}</span></div><div class="fmd-mtr-lbl">Ore erogate</div><div class="fmd-mtr-sub">Al netto delle pause</div></div>
+      <div class="fmd-mtr fmd-t-violet"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ tot_discenti }}</span></div><div class="fmd-mtr-lbl">Iscritti formati</div><div class="fmd-mtr-sub">Somma sulle edizioni</div></div>
+    </section>
+
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>Enti di formazione <span class="fmd-count">{{ righe|length }}</span></div>
+        <div class="fmd-block-aside">chi non ha erogato resta in elenco a zero</div>
+      </div>
+      {% if righe %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table" data-table-id="formazione.enti.report">
+          <thead>
+            <tr>
+              <th data-col="ente" data-col-label="Ente" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Ente</th>
+              <th data-col="accreditamento" data-col-label="Accreditamento" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Accreditamento</th>
+              <th class="fmd-c" data-col="docenti" data-col-label="Docenti" data-col-type="number" data-col-sortable="1">Docenti</th>
+              <th class="fmd-c" data-col="edizioni" data-col-label="Edizioni" data-col-type="number" data-col-sortable="1">Edizioni</th>
+              <th class="fmd-c" data-col="corsi" data-col-label="Corsi" data-col-type="number" data-col-sortable="1">Corsi</th>
+              <th class="fmd-r" data-col="ore" data-col-label="Ore" data-col-type="number" data-col-sortable="1">Ore</th>
+              <th class="fmd-c" data-col="iscritti" data-col-label="Iscritti" data-col-type="number" data-col-sortable="1">Iscritti</th>
+              <th class="fmd-nowrap" data-col="ultima" data-col-label="Ultima erogazione" data-col-type="date" data-col-sortable="1">Ultima erogazione</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in righe %}
+            <tr>
+              <td>
+                <a class="fmd-data-link" href="{% url 'anagrafica:formazione_azienda_detail' r.ente.pk %}">{{ r.ente.nome }}</a>
+                {% if not r.ente.is_active %}<span class="fmd-muted" style="font-size:10.5px;margin-left:4px;">(non attiva)</span>{% endif %}
+              </td>
+              <td class="fmd-muted">{{ r.ente.accreditamento|default:"—" }}</td>
+              <td class="fmd-c">{{ r.n_docenti }}</td>
+              <td class="fmd-c">{% if r.n_sessioni %}{{ r.n_sessioni }}{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+              <td class="fmd-c">{% if r.n_corsi %}{{ r.n_corsi }}{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+              <td class="fmd-r fmd-num" data-sort-value="{{ r.ore }}">{{ r.ore|floatformat:"-2" }}</td>
+              <td class="fmd-c">{% if r.discenti %}{{ r.discenti }}{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+              <td class="fmd-nowrap fmd-muted" data-sort-value="{{ r.ultima_data|date:'Y-m-d' }}">{% if r.ultima_data %}{{ r.ultima_data|date:"d-m-Y" }}{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="fmd-empty">
+        <span class="fmd-ebadge" style="background:#eef2f7;color:#94a3b8;"><svg class="fmd-ico"><use href="#i-building"/></svg></span>
+        <span class="fmd-et">Nessuna azienda formativa a catalogo</span>
+        <span class="fmd-em">Registra gli enti dalla pagina Docenti per vedere qui cosa hanno erogato.</span>
+      </div>
+      {% endif %}
+    </section>
+
+  </div>{# .fmd-wrap #}
+</div>{# .fmd #}
+{% endblock %}

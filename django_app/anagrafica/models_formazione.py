@@ -684,6 +684,116 @@ class TrainingInstructor(models.Model):
 
 
 # ─────────────────────────────────────────────────────────────
+# DOCUMENTI DI ENTE E DOCENTE (qualifica del formatore)
+# ─────────────────────────────────────────────────────────────
+# In verifica ispettiva l'accreditamento dell'ente e la qualifica del docente
+# vanno **mostrati**, non citati: finora vivevano come testo in
+# `accreditamento` e `qualification_notes`. Un unico modello per i due
+# soggetti — sono la stessa cosa (una carta che prova un titolo) e così la
+# view di download, con il suo ACL e il suo audit, resta una sola.
+
+
+def _training_provider_doc_upload_to(instance, filename: str) -> str:
+    if instance.azienda_id:
+        owner = f"enti/{instance.azienda_id}"
+    else:
+        owner = f"docenti/{instance.docente_id or 'tmp'}"
+    suffix = Path(filename or "").suffix.lower()[:20] or ".bin"
+    stem = Path(filename or "").stem[:80] or "documento"
+    now = timezone.now()
+    return (
+        f"anagrafica/formazione/{owner}/documenti/"
+        f"{now.strftime('%Y%m')}/{now.strftime('%Y%m%d_%H%M%S')}_{stem}{suffix}"
+    )
+
+
+class TrainingProviderDocument(models.Model):
+    """Documento di un ente di formazione o di un docente.
+
+    Esattamente uno fra ``azienda`` e ``docente`` è valorizzato (vincolo di
+    database): il documento appartiene a un soggetto solo. Storage privato
+    fuori webroot come gli altri documenti HR; si scarica solo dalla view
+    protetta ``anagrafica:formazione_ente_documento_download``.
+
+    ``data_scadenza`` è facoltativa ma è il motivo per cui questi documenti
+    stanno nel portale invece che in una cartella: un accreditamento scade, e
+    un ente che forma con l'accreditamento scaduto è un rilievo.
+    """
+
+    class Tipo(models.TextChoices):
+        ACCREDITAMENTO = "ACCREDITAMENTO", "Accreditamento / iscrizione albo"
+        CONTRATTO = "CONTRATTO", "Contratto / convenzione"
+        CV = "CV", "Curriculum del docente"
+        QUALIFICA = "QUALIFICA", "Attestato di qualifica del docente"
+        ASSICURAZIONE = "ASSICURAZIONE", "Polizza assicurativa"
+        ALTRO = "ALTRO", "Altro"
+
+    azienda = models.ForeignKey(
+        TrainingProvider, null=True, blank=True,
+        on_delete=models.CASCADE, related_name="documenti",
+    )
+    docente = models.ForeignKey(
+        "anagrafica.TrainingInstructor", null=True, blank=True,
+        on_delete=models.CASCADE, related_name="documenti",
+    )
+    tipo = models.CharField(
+        max_length=20, choices=Tipo.choices, default=Tipo.ACCREDITAMENTO, db_index=True,
+    )
+    file = models.FileField(
+        upload_to=_training_provider_doc_upload_to,
+        storage=PrivateAnagraficaStorage(),
+    )
+    nome_originale   = models.CharField(max_length=255, blank=True, default="")
+    tipo_mime        = models.CharField(max_length=100, blank=True, default="")
+    dimensione_bytes = models.PositiveIntegerField(default=0)
+    descrizione      = models.CharField(max_length=300, blank=True, default="")
+    data_scadenza    = models.DateField(
+        null=True, blank=True,
+        help_text="Se il documento scade (accreditamento, polizza, qualifica a termine).",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    created_by_display = models.CharField(max_length=200, blank=True, default="")
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        verbose_name = "Documento ente/docente"
+        verbose_name_plural = "Documenti enti e docenti"
+        indexes = [
+            models.Index(fields=["azienda", "tipo"]),
+            models.Index(fields=["docente", "tipo"]),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(azienda__isnull=False, docente__isnull=True)
+                    | models.Q(azienda__isnull=True, docente__isnull=False)
+                ),
+                name="training_provider_doc_un_solo_proprietario",
+            ),
+        ]
+
+    @property
+    def stato_scadenza(self) -> str:
+        """"", "VALIDO", "IN_SCADENZA" (<=60gg) o "SCADUTO"."""
+        if not self.data_scadenza:
+            return ""
+        giorni = (self.data_scadenza - timezone.localdate()).days
+        if giorni < 0:
+            return "SCADUTO"
+        if giorni <= 60:
+            return "IN_SCADENZA"
+        return "VALIDO"
+
+    def __str__(self) -> str:
+        owner = self.azienda.nome if self.azienda_id else (self.docente.nome if self.docente_id else "—")
+        return f"[{self.get_tipo_display()}] {owner}"
+
+
+# ─────────────────────────────────────────────────────────────
 # ASSEGNAZIONE CORSO A DIPENDENTE
 # ─────────────────────────────────────────────────────────────
 

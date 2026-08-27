@@ -1,0 +1,173 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ az.nome }} | Aziende formative | Formazione HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=5">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="fmd-wrap">
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb">
+          <a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span>
+          <a href="{% url 'anagrafica:formazione_istruttori_list' %}">Docenti</a><span class="fmd-sep"> / </span>
+          <span class="fmd-cur">{{ az.nome }}</span>
+        </div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-building"/></svg>{{ az.nome }}</h1>
+        <p class="fmd-ph-sub">
+          Azienda formativa
+          {% if az.partita_iva %} · P.IVA {{ az.partita_iva }}{% endif %}
+          {% if az.accreditamento %} · <b>{{ az.accreditamento }}</b>{% endif %}
+          {% if not az.is_active %} · <span class="fmd-badge fmd-b-orange">Non attiva</span>{% endif %}
+        </p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        <a href="{% url 'anagrafica:formazione_istruttori_list' %}?azienda={{ az.pk }}" class="fmd-btn fmd-btn-ghost">
+          <svg class="fmd-ico"><use href="#i-mic"/></svg>Docenti dell'ente
+        </a>
+        <a href="{% url 'anagrafica:formazione_enti_report' %}" class="fmd-btn fmd-btn-ghost">Chi ci ha formato</a>
+      </div>
+    </div>
+
+    {# ── Filtro di periodo ─────────────────────────────────────────────────
+       La domanda su un fornitore è quasi sempre datata: «quanto ci ha formato
+       nel 2025». Stessi parametri del libretto formativo (dal/al). #}
+    <section class="fmd-panel" style="margin-bottom:16px;">
+      <form method="get" class="fmd-toolbar">
+        <span class="fmd-block-aside">Erogazioni dal</span>
+        <input type="date" name="dal" value="{{ dal|date:'Y-m-d' }}" aria-label="Dalla data">
+        <span class="fmd-block-aside">al</span>
+        <input type="date" name="al" value="{{ al|date:'Y-m-d' }}" aria-label="Alla data">
+        <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-filter"/></svg>Filtra</button>
+        {% if periodo_attivo %}
+        <a href="{% url 'anagrafica:formazione_azienda_detail' az.pk %}" class="fmd-btn fmd-btn-ghost">Tutto lo storico</a>
+        {% endif %}
+        <span class="fmd-spacer"></span>
+        <span class="fmd-block-aside">
+          {% if periodo_attivo %}periodo selezionato{% else %}storico completo{% endif %}
+        </span>
+      </form>
+    </section>
+
+    {# ── KPI di erogazione ────────────────────────────────────────────────── #}
+    <section class="fmd-kpi fmd-k4">
+      <div class="fmd-mtr fmd-t-navy"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-calendar"/></svg></span><span class="fmd-mtr-val">{{ sessioni|length }}</span></div><div class="fmd-mtr-lbl">Edizioni erogate</div><div class="fmd-mtr-sub">Con un docente dell'ente</div></div>
+      <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-book"/></svg></span><span class="fmd-mtr-val">{{ n_corsi }}</span></div><div class="fmd-mtr-lbl">Corsi distinti</div><div class="fmd-mtr-sub">Titoli diversi erogati</div></div>
+      <div class="fmd-mtr fmd-t-green"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ ore|floatformat:"-2" }}</span></div><div class="fmd-mtr-lbl">Ore erogate</div><div class="fmd-mtr-sub">Solo le ore dei suoi docenti</div></div>
+      <div class="fmd-mtr fmd-t-violet"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ discenti }}</span></div><div class="fmd-mtr-lbl">Iscritti formati</div><div class="fmd-mtr-sub">Somma degli iscritti alle edizioni</div></div>
+    </section>
+
+    {# ── Anagrafica ───────────────────────────────────────────────────────── #}
+    <section class="fmd-panel fmd-block" style="margin-bottom:16px;">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-doc"/></svg>Dati dell'ente</div>
+      </div>
+      <div class="fmd-tablewrap">
+        <table class="fmd-table">
+          <tbody>
+            <tr><th style="width:220px;">Partita IVA / C.F.</th><td class="fmd-muted">{{ az.partita_iva|default:"—" }}</td></tr>
+            <tr><th>Accreditamento</th><td>{{ az.accreditamento|default:"—" }}</td></tr>
+            <tr><th>Contatti</th><td class="fmd-muted">{{ az.email|default:"—" }}{% if az.telefono %} · {{ az.telefono }}{% endif %}</td></tr>
+            <tr><th>Sito web</th><td class="fmd-muted">{{ az.sito_web|default:"—" }}</td></tr>
+            <tr><th>Indirizzo</th><td class="fmd-muted">{{ az.indirizzo|default:"—" }}</td></tr>
+            <tr><th>Note</th><td class="fmd-muted">{{ az.note|default:"—"|linebreaksbr }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    {# ── Documenti ────────────────────────────────────────────────────────── #}
+    {% url 'anagrafica:formazione_azienda_documento_add' az.pk as doc_add_url %}
+    {% include "anagrafica/partials/_ente_documenti.html" with add_url=doc_add_url %}
+
+    {# ── Docenti dell'ente ────────────────────────────────────────────────── #}
+    <section class="fmd-panel fmd-block" style="margin-bottom:16px;">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-mic"/></svg>Docenti <span class="fmd-count">{{ docenti|length }}</span></div>
+      </div>
+      {% if docenti %}
+      <div class="fmd-areas">
+        {% for d in docenti %}
+        <a class="fmd-area" href="{% url 'anagrafica:formazione_istruttore_detail' d.pk %}">
+          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-mic"/></svg></span>
+          <span class="fmd-area-body">
+            <span class="fmd-area-title">{{ d.nome }}</span>
+            <span class="fmd-area-desc">{% if d.tipo == "INTERNO" %}Interno{% else %}Esterno{% endif %} · {{ d.n_sessioni }} edizion{{ d.n_sessioni|pluralize:"e,i" }} da titolare{% if not d.is_active %} · non attivo{% endif %}</span>
+          </span>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="fmd-empty">
+        <span class="fmd-ebadge" style="background:#eef2f7;color:#94a3b8;"><svg class="fmd-ico"><use href="#i-mic"/></svg></span>
+        <span class="fmd-et">Nessun docente associato</span>
+        <span class="fmd-em">Associa i docenti all'ente dalla pagina Docenti.</span>
+      </div>
+      {% endif %}
+    </section>
+
+    {# ── Corsi erogati ────────────────────────────────────────────────────── #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-calendar"/></svg>Corsi erogati <span class="fmd-count">{{ sessioni|length }}</span></div>
+        <div class="fmd-block-aside">{% if periodo_attivo %}nel periodo selezionato{% else %}tutto lo storico{% endif %}</div>
+      </div>
+      {% if sessioni %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table" data-table-id="formazione.ente.erogazioni">
+          <thead>
+            <tr>
+              <th>Edizione</th>
+              <th>Corso</th>
+              <th>Periodo</th>
+              <th>Docente</th>
+              <th class="fmd-c">Iscritti</th>
+              <th class="fmd-r">Ore dell'ente</th>
+              <th>Stato</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in sessioni %}
+            <tr>
+              <td><a class="fmd-data-link" href="{% url 'anagrafica:formazione_sessione_detail' s.pk %}">{{ s.codice_sessione }}</a></td>
+              <td>
+                <a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' s.corso_id %}" style="color:inherit;">{{ s.corso.titolo }}</a>
+                <div class="fmd-muted" style="font-size:11.5px;">{{ s.corso.codice }}</div>
+              </td>
+              <td class="fmd-nowrap">{{ s.data_inizio|date:"d-m-Y" }}{% if s.data_fine != s.data_inizio %} → {{ s.data_fine|date:"d-m-Y" }}{% endif %}</td>
+              <td class="fmd-muted">{% if s.docente_id %}<a class="fmd-data-link" href="{% url 'anagrafica:formazione_istruttore_detail' s.docente_id %}" style="color:inherit;">{{ s.docente.nome }}</a>{% else %}{{ s.docente_nome|default:"—" }}{% endif %}</td>
+              <td class="fmd-c">{{ s.n_iscritti }}</td>
+              <td class="fmd-r fmd-num">{{ s.ore_ente|floatformat:"-2" }}</td>
+              <td>
+                {% if s.stato == "COMPLETATA" %}<span class="fmd-badge fmd-b-green">Completata</span>
+                {% elif s.stato == "ANNULLATA" %}<span class="fmd-badge fmd-b-orange">Annullata</span>
+                {% else %}<span class="fmd-badge fmd-plain">{{ s.get_stato_display }}</span>{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="fmd-empty">
+        <span class="fmd-ebadge" style="background:#eef2f7;color:#94a3b8;"><svg class="fmd-ico"><use href="#i-calendar"/></svg></span>
+        <span class="fmd-et">Nessuna erogazione{% if periodo_attivo %} nel periodo{% endif %}</span>
+        <span class="fmd-em">Nessuna edizione risulta tenuta da un docente di questo ente.</span>
+      </div>
+      {% endif %}
+    </section>
+
+  </div>{# .fmd-wrap #}
+</div>{# .fmd #}
+{% endblock %}

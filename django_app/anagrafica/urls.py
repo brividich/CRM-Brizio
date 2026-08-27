@@ -401,11 +401,21 @@ urlpatterns = [
     path("formazione/istruttori/<int:istruttore_id>/modifica", views.formazione_istruttore_edit, name="formazione_istruttore_edit"),
     path("formazione/istruttori/<int:istruttore_id>/elimina", views.formazione_istruttore_delete, name="formazione_istruttore_delete"),
     path("formazione/istruttori/<int:istruttore_id>/", views.formazione_istruttore_detail, name="formazione_istruttore_detail"),
+    path("formazione/istruttori/<int:istruttore_id>/documenti/nuovo", views.formazione_istruttore_documento_add, name="formazione_istruttore_documento_add"),
     # Aziende formative (enti di formazione a cui i docenti appartengono):
-    # governate dalla stessa pagina dei docenti, quindi niente rotta di elenco.
+    # l'elenco vive nella pagina dei docenti, la scheda è il "cosa ci ha erogato".
     path("formazione/aziende-formative/nuova", views.formazione_azienda_create, name="formazione_azienda_create"),
+    path("formazione/aziende-formative/report/", views.formazione_enti_report, name="formazione_enti_report"),
+    path("formazione/aziende-formative/<int:azienda_id>/", views.formazione_azienda_detail, name="formazione_azienda_detail"),
     path("formazione/aziende-formative/<int:azienda_id>/modifica", views.formazione_azienda_edit, name="formazione_azienda_edit"),
     path("formazione/aziende-formative/<int:azienda_id>/elimina", views.formazione_azienda_delete, name="formazione_azienda_delete"),
+    path("formazione/aziende-formative/<int:azienda_id>/documenti/nuovo", views.formazione_azienda_documento_add, name="formazione_azienda_documento_add"),
+    path("formazione/documenti-ente/<int:documento_id>/elimina", views.formazione_ente_documento_delete, name="formazione_ente_documento_delete"),
+    path("formazione/documenti-ente/<int:documento_id>/download", views.formazione_ente_documento_download, name="formazione_ente_documento_download"),
+
+    # Espansione in riga: corso → edizioni → lezioni (frammenti HTMX).
+    path("formazione/corsi/<int:corso_id>/espansione", views.formazione_corso_espansione, name="formazione_corso_espansione"),
+    path("formazione/sessioni/<int:sessione_id>/espansione", views.formazione_sessione_espansione, name="formazione_sessione_espansione"),
 
     # ── Formazione HR — Sessioni ────────────────────────────────────────────
     path("formazione/sessioni/", views.formazione_sessioni_list, name="formazione_sessioni_list"),

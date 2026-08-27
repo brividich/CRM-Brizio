@@ -1,0 +1,42 @@
+{% comment %}
+Primo livello dell'espansione in riga: le edizioni (sessioni) di un corso.
+Caricato via HTMX da `formazione_corso_espansione` alla prima apertura della
+riga. Ogni edizione apre a sua volta le proprie giornate, sempre su richiesta.
+Context: corso, sessioni (annotate n_iscritti, n_lezioni).
+{% endcomment %}
+{% if sessioni %}
+<div class="fmd-exp-head">
+  <span>{{ sessioni|length }} edizion{{ sessioni|pluralize:"e,i" }} di <b>{{ corso.titolo }}</b></span>
+  <a class="fmd-exp-open" href="{% url 'anagrafica:formazione_corso_detail' corso.pk %}">Apri il corso →</a>
+</div>
+<div class="fmd-exp-list">
+  {% for s in sessioni %}
+  <details class="fmd-exp-ed"
+           hx-get="{% url 'anagrafica:formazione_sessione_espansione' s.pk %}"
+           hx-trigger="toggle once"
+           hx-target="find .fmd-exp-lez"
+           hx-swap="innerHTML">
+    <summary>
+      <span class="fmd-exp-caret" aria-hidden="true">▸</span>
+      <a class="fmd-ed-code" href="{% url 'anagrafica:formazione_sessione_detail' s.pk %}">{{ s.codice_sessione }}</a>
+      <span class="fmd-ed-meta">
+        {{ s.data_inizio|date:"d-m-Y" }}{% if s.data_fine != s.data_inizio %} → {{ s.data_fine|date:"d-m-Y" }}{% endif %}
+        · {{ s.n_lezioni }} giornat{{ s.n_lezioni|pluralize:"a,e" }}
+        · {{ s.n_iscritti }} iscritt{{ s.n_iscritti|pluralize:"o,i" }}
+        {% if s.docente_id %} · {{ s.docente.nome }}{% if s.docente.azienda_id %} <span class="fmd-muted">({{ s.docente.azienda.nome }})</span>{% endif %}
+        {% elif s.docente_nome %} · {{ s.docente_nome }}{% endif %}
+      </span>
+      {% if s.stato == "COMPLETATA" %}<span class="fmd-badge fmd-b-green">Completata</span>
+      {% elif s.stato == "ANNULLATA" %}<span class="fmd-badge fmd-b-orange">Annullata</span>
+      {% else %}<span class="fmd-badge fmd-plain">{{ s.get_stato_display }}</span>{% endif %}
+    </summary>
+    <div class="fmd-exp-lez"><span class="fmd-muted">Carico le giornate…</span></div>
+  </details>
+  {% endfor %}
+</div>
+{% else %}
+<div class="fmd-exp-vuoto">
+  Nessuna edizione programmata per questo corso.
+  <a href="{% url 'anagrafica:formazione_corso_detail' corso.pk %}">Apri il corso →</a>
+</div>
+{% endif %}

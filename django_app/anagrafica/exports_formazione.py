@@ -351,6 +351,86 @@ register(ExportSpec(
 ))
 
 
+# ── Chi ci ha formato (enti di formazione) ────────────────────────────────────
+# Filtri di `views.formazione_enti_report`: dal/al (ISO). Lo scope "full" ignora
+# il periodo: è lo storico completo per ente.
+
+def _periodo_export(request: HttpRequest, scope: str):
+    from datetime import date as _date
+
+    if scope != "filtered":
+        return None, None
+
+    def _parse(nome: str):
+        raw = (request.GET.get(nome) or "").strip()
+        if not raw:
+            return None
+        try:
+            return _date.fromisoformat(raw)
+        except ValueError:
+            return None
+
+    dal, al = _parse("dal"), _parse("al")
+    if dal and al and dal > al:
+        dal, al = al, dal
+    return dal, al
+
+
+def _formazione_enti_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from anagrafica.services.formazione_enti import riepilogo_enti
+
+    dal, al = _periodo_export(request, scope)
+    rows: list[dict] = []
+    for r in riepilogo_enti(dal=dal, al=al):
+        ente = r["ente"]
+        rows.append({
+            "ente": ente.nome,
+            "partita_iva": ente.partita_iva or "",
+            "accreditamento": ente.accreditamento or "",
+            "attiva": _si_no(ente.is_active),
+            "n_docenti": r["n_docenti"],
+            "n_sessioni": r["n_sessioni"],
+            "n_corsi": r["n_corsi"],
+            "ore": r["ore"],
+            "discenti": r["discenti"],
+            "ultima_data": r["ultima_data"].strftime("%d-%m-%Y") if r["ultima_data"] else "",
+        })
+    return rows
+
+
+def _formazione_enti_filters(request: HttpRequest) -> str:
+    parts: list[str] = []
+    dal = (request.GET.get("dal") or "").strip()
+    al = (request.GET.get("al") or "").strip()
+    if dal:
+        parts.append(f"Dal: {dal}")
+    if al:
+        parts.append(f"Al: {al}")
+    return " · ".join(parts)
+
+
+register(ExportSpec(
+    key="formazione_enti",
+    title="Chi ci ha formato - Enti di formazione",
+    sheet_title="Enti formativi",
+    columns=[
+        ("Ente", "ente"),
+        ("P. IVA / C.F.", "partita_iva"),
+        ("Accreditamento", "accreditamento"),
+        ("Attiva", "attiva"),
+        ("Docenti", "n_docenti"),
+        ("Edizioni", "n_sessioni"),
+        ("Corsi", "n_corsi"),
+        ("Ore", "ore"),
+        ("Iscritti", "discenti"),
+        ("Ultima erogazione", "ultima_data"),
+    ],
+    dataset=_formazione_enti_rows,
+    filters_label=_formazione_enti_filters,
+    permission=acl_gate("/anagrafica/formazione/istruttori/"),
+))
+
+
 # ── Scadenzario formazione ────────────────────────────────────────────────────
 # Filtri di `views.formazione_scadenzario`: stato, corso, q (nome dipendente).
 # Senza `stato` la lista mostra solo scaduti / in scadenza / mai frequentati:

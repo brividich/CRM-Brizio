@@ -4,7 +4,7 @@
   <div class="fmd-empty">
     <span class="fmd-ebadge" style="background:#e8f3fb;color:#1f87cd;"><svg class="fmd-ico"><use href="#i-search"/></svg></span>
     <span class="fmd-et">Inizia a cercare</span>
-    <span class="fmd-em">Digita un termine per trovare corsi, sessioni, piani, qualifiche, docenti, aziende formative, dipendenti e attestati.</span>
+    <span class="fmd-em">Digita un termine per trovare corsi, sessioni, piani, qualifiche, docenti, aziende formative, argomenti del programma, dipendenti e attestati.</span>
   </div>
 </section>
 {% elif totale == 0 %}
@@ -147,7 +147,7 @@
   </div>
   <div class="fmd-areas">
     {% for a in risultati.aziende %}
-    <a class="fmd-area" href="{% url 'anagrafica:formazione_istruttori_list' %}?azienda={{ a.pk }}">
+    <a class="fmd-area" href="{% url 'anagrafica:formazione_azienda_detail' a.pk %}">
       <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-building"/></svg></span>
       <span class="fmd-area-body">
         <span class="fmd-area-title">{{ a.nome|truncatechars:54 }}</span>
@@ -155,6 +155,44 @@
       </span>
     </a>
     {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if risultati.argomenti %}
+<section class="fmd-panel fmd-block">
+  <div class="fmd-block-head">
+    <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Argomenti del programma <span class="fmd-count">{{ risultati.argomenti|length }}</span></div>
+    <div class="fmd-block-aside">erogato = programma dell'edizione</div>
+  </div>
+  <div class="fmd-tablewrap">
+    <table class="fmd-table">
+      <thead>
+        <tr>
+          <th>Argomento</th>
+          <th>Dove</th>
+          <th>Riferimento</th>
+          <th class="fmd-r">Ore</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in risultati.argomenti %}
+        <tr>
+          <td>
+            <a class="fmd-data-link" href="{{ a.url }}">{{ a.argomento }}</a>
+            {% if a.erogato %}<span class="fmd-badge fmd-b-green">erogato</span>
+            {% else %}<span class="fmd-badge fmd-plain">previsto</span>{% endif %}
+          </td>
+          <td class="fmd-muted">
+            <span class="fmd-code">{{ a.codice }}</span> {{ a.titolo|truncatechars:44 }}
+            {% if a.data %}<span class="fmd-muted"> · {{ a.data|date:"d-m-Y" }}</span>{% endif %}
+          </td>
+          <td class="fmd-muted">{{ a.riferimento|default:"—" }}</td>
+          <td class="fmd-r">{% if a.ore %}{{ a.ore|floatformat:"-2" }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 </section>
 {% endif %}

@@ -58,6 +58,7 @@ from .forms import (
     TrainingLessonForm,
     TrainingLezioniGeneraForm,
     TrainingPlanForm,
+    TrainingProviderDocumentForm,
     TrainingProviderForm,
     TrainingRequirementRuleForm,
     TrainingSessioneUnicaForm,
@@ -129,6 +130,7 @@ from .models_formazione import (
     TrainingExportLog,
     TrainingPlan,
     TrainingProvider,
+    TrainingProviderDocument,
     TrainingRequirementRule,
     TrainingSession,
     TrainingSessionArgomento,
@@ -11903,8 +11905,8 @@ def formazione_dashboard(request):
 @login_required
 def formazione_ricerca(request):
     """Ricerca globale formazione: corsi, sessioni, piani, qualifiche, docenti,
-    aziende formative, dipendenti (libretto) e attestati. Un'unica casella
-    dalla dashboard.
+    aziende formative, argomenti del programma, dipendenti (libretto) e
+    attestati. Un'unica casella dalla dashboard.
 
     Best-effort, limitata in righe: serve a "saltare" velocemente all'entità,
     non è un motore full-text. Gated dal permesso di visualizzazione formazione.
@@ -11916,7 +11918,8 @@ def formazione_ricerca(request):
     q = (request.GET.get("q") or "").strip()
     risultati: dict[str, list] = {
         "corsi": [], "sessioni": [], "piani": [], "qualifiche": [],
-        "istruttori": [], "aziende": [], "dipendenti": [], "attestati": [],
+        "istruttori": [], "aziende": [], "argomenti": [],
+        "dipendenti": [], "attestati": [],
     }
     totale = 0
     if q:
@@ -11991,6 +11994,46 @@ def formazione_ricerca(request):
             .annotate(n_istruttori=_Count("istruttori", distinct=True))
             .order_by("nome")[:25]
         )
+
+        # Programma didattico: il contenuto insegnato, non il titolo del corso.
+        # «Spazi confinati» può essere un modulo dentro un corso che si chiama
+        # altrimenti — cercarlo solo nei titoli non lo trova. Si guarda prima
+        # l'**erogato** (programma dell'edizione, il fatto documentato) e poi il
+        # **previsto** (programma del corso), tenendo le due cose distinte.
+        argomenti: list[dict] = []
+        for a in (
+            TrainingSessionArgomento.objects
+            .select_related("sessione", "sessione__corso")
+            .filter(Q(argomento__icontains=q) | Q(riferimento__icontains=q))
+            .order_by("-sessione__data_inizio", "ordine")[:20]
+        ):
+            argomenti.append({
+                "argomento": a.argomento,
+                "riferimento": a.riferimento,
+                "ore": a.ore_previste,
+                "erogato": True,
+                "titolo": a.sessione.corso.titolo,
+                "codice": a.sessione.codice_sessione,
+                "data": a.sessione.data_inizio,
+                "url": reverse("anagrafica:formazione_sessione_detail", args=[a.sessione_id]),
+            })
+        for a in (
+            TrainingCourseArgomento.objects
+            .select_related("corso")
+            .filter(Q(argomento__icontains=q) | Q(riferimento__icontains=q))
+            .order_by("corso__titolo", "ordine")[:20]
+        ):
+            argomenti.append({
+                "argomento": a.argomento,
+                "riferimento": a.riferimento,
+                "ore": a.ore_previste,
+                "erogato": False,
+                "titolo": a.corso.titolo,
+                "codice": a.corso.codice,
+                "data": None,
+                "url": reverse("anagrafica:formazione_corso_detail", args=[a.corso_id]),
+            })
+        risultati["argomenti"] = argomenti
 
         # Dipendenti per nome → link al libretto formativo.
         nomi = _build_nomi_map()
@@ -13051,6 +13094,8 @@ def formazione_istruttore_detail(request, istruttore_id: int):
 
     return render(request, "anagrafica/pages/formazione_istruttore_detail.html", {
         "istr": istr,
+        "documenti": list(istr.documenti.all()),
+        "doc_form": TrainingProviderDocumentForm(),
         "sessioni": sessioni,
         "ore_erogate": round(ore_erogate, 2),
         "corsi_distinti": corsi_distinti,
@@ -13096,6 +13141,242 @@ def formazione_azienda_edit(request, azienda_id: int):
             for err in field_errors:
                 messages.error(request, err)
     return redirect("anagrafica:formazione_istruttori_list")
+
+
+@login_required
+def formazione_azienda_detail(request, azienda_id: int):
+    """Scheda dell'ente: chi è, cosa ci ha erogato, con quali carte.
+
+    È la pagina a cui porta la ricerca quando si cerca un ente formativo: la
+    domanda dietro «cerco Formazione Sicura S.r.l.» non è «quali docenti ha»
+    ma «cosa ci ha fatto». Il periodo (`?dal=`/`?al=`) ritaglia le erogazioni
+    come sul libretto del dipendente.
+    """
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
+        return redirect("anagrafica:index")
+
+    az = get_object_or_404(TrainingProvider, pk=azienda_id)
+    dal, al = _periodo_da_request(request)
+
+    from .services.formazione_enti import erogazioni_di_ente
+
+    erog = erogazioni_di_ente(az.pk, dal=dal, al=al)
+    docenti = list(
+        az.istruttori.annotate(n_sessioni=Count("sessioni", distinct=True)).order_by("nome")
+    )
+    return render(request, "anagrafica/pages/formazione_azienda_detail.html", {
+        "az": az,
+        "docenti": docenti,
+        "documenti": list(az.documenti.all()),
+        "doc_form": TrainingProviderDocumentForm(),
+        "sessioni": erog["sessioni"],
+        "ore": erog["ore"],
+        "discenti": erog["discenti"],
+        "n_corsi": erog["n_corsi"],
+        "dal": dal,
+        "al": al,
+        "periodo_attivo": bool(dal or al),
+        "is_editor": _can_edit_formazione(request),
+    })
+
+
+@login_required
+def formazione_enti_report(request):
+    """«Chi ci ha formato»: una riga per ente, nel periodo scelto.
+
+    Gli enti che nel periodo non hanno erogato niente restano in elenco a zero:
+    un fornitore che non si usa più è un'informazione, non un'assenza.
+    """
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
+        return redirect("anagrafica:index")
+
+    dal, al = _periodo_da_request(request)
+    from .services.formazione_enti import riepilogo_enti
+
+    righe = riepilogo_enti(dal=dal, al=al)
+    return render(request, "anagrafica/pages/formazione_enti_report.html", {
+        "righe": righe,
+        "dal": dal,
+        "al": al,
+        "periodo_attivo": bool(dal or al),
+        "tot_sessioni": sum(r["n_sessioni"] for r in righe),
+        "tot_ore": round(sum(r["ore"] for r in righe), 2),
+        "tot_discenti": sum(r["discenti"] for r in righe),
+        "enti_attivi": sum(1 for r in righe if r["n_sessioni"]),
+    })
+
+
+# ── Documenti di ente e docente ──────────────────────────────────────────────
+# Accreditamento, contratto, CV, attestato del formatore: carte che in verifica
+# vanno mostrate. Stesso trattamento degli altri documenti HR — archivio privato
+# fuori webroot, download solo dalla view protetta, audit su ogni passaggio.
+
+def _salva_documento_ente(request, *, azienda=None, docente=None):
+    """Valida e salva l'upload. Ritorna il messaggio d'errore, o None."""
+    uploaded = request.FILES.get("file")
+    if not uploaded:
+        return "Seleziona un file da caricare."
+
+    suffix = Path(uploaded.name or "").suffix.lower()
+    if suffix not in _ALLOWED_DOC_EXTENSIONS:
+        return f"Formato non consentito ({suffix}). Ammessi: PDF, immagini, DOC/XLS."
+    if uploaded.size > _MAX_DOC_SIZE:
+        return f"File troppo grande ({uploaded.size // (1024 * 1024)} MB). Limite: 50 MB."
+    try:
+        from core.upload_mime import sniff_mime
+        mime = sniff_mime(uploaded)
+    except Exception:
+        mime = uploaded.content_type or "application/octet-stream"
+    if mime not in _ALLOWED_DOC_MIMES:
+        return "Tipo di file non consentito (contenuto non valido)."
+
+    form = TrainingProviderDocumentForm(request.POST, request.FILES)
+    if not form.is_valid():
+        return " ".join(str(e) for errs in form.errors.values() for e in errs)
+
+    doc = form.save(commit=False)
+    doc.azienda = azienda
+    doc.docente = docente
+    doc.nome_originale = (uploaded.name or "")[:255]
+    doc.tipo_mime = mime
+    doc.dimensione_bytes = uploaded.size
+    doc.created_by = request.user
+    doc.created_by_display = request.user.get_full_name() or request.user.username
+    doc.save()
+
+    try:
+        from core.audit import log_action
+        log_action(request, "FORMAZIONE_DOC_ENTE_UPLOAD", "anagrafica", {
+            "documento_id": doc.pk, "tipo": doc.tipo,
+            "azienda_id": azienda.pk if azienda else None,
+            "docente_id": docente.pk if docente else None,
+            "nome_originale": doc.nome_originale,
+        })
+    except Exception:
+        logger.warning("Audit FORMAZIONE_DOC_ENTE_UPLOAD fallito", exc_info=True)
+    return None
+
+
+@login_required
+@require_POST
+def formazione_azienda_documento_add(request, azienda_id: int):
+    az = get_object_or_404(TrainingProvider, pk=azienda_id)
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per caricare documenti.")
+        return redirect("anagrafica:formazione_azienda_detail", azienda_id=az.pk)
+    errore = _salva_documento_ente(request, azienda=az)
+    if errore:
+        messages.error(request, errore)
+    else:
+        messages.success(request, "Documento caricato.")
+    return redirect("anagrafica:formazione_azienda_detail", azienda_id=az.pk)
+
+
+@login_required
+@require_POST
+def formazione_istruttore_documento_add(request, istruttore_id: int):
+    istr = get_object_or_404(TrainingInstructor, pk=istruttore_id)
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per caricare documenti.")
+        return redirect("anagrafica:formazione_istruttore_detail", istruttore_id=istr.pk)
+    errore = _salva_documento_ente(request, docente=istr)
+    if errore:
+        messages.error(request, errore)
+    else:
+        messages.success(request, "Documento caricato.")
+    return redirect("anagrafica:formazione_istruttore_detail", istruttore_id=istr.pk)
+
+
+@login_required
+@require_POST
+def formazione_ente_documento_delete(request, documento_id: int):
+    doc = get_object_or_404(TrainingProviderDocument, pk=documento_id)
+    azienda_id, docente_id, nome = doc.azienda_id, doc.docente_id, doc.nome_originale
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per eliminare documenti.")
+    else:
+        doc.delete()
+        try:
+            from core.audit import log_action
+            log_action(request, "FORMAZIONE_DOC_ENTE_ELIMINATO", "anagrafica", {
+                "documento_id": documento_id, "azienda_id": azienda_id,
+                "docente_id": docente_id, "nome_originale": nome,
+            })
+        except Exception:
+            logger.warning("Audit FORMAZIONE_DOC_ENTE_ELIMINATO fallito", exc_info=True)
+        messages.success(request, "Documento eliminato.")
+    if azienda_id:
+        return redirect("anagrafica:formazione_azienda_detail", azienda_id=azienda_id)
+    return redirect("anagrafica:formazione_istruttore_detail", istruttore_id=docente_id)
+
+
+@login_required
+def formazione_ente_documento_download(request, documento_id: int):
+    """Scarica il documento dall'archivio privato (ACL formazione + audit)."""
+    if not _can_view_formazione(request):
+        return HttpResponse(status=403)
+    doc = get_object_or_404(TrainingProviderDocument, pk=documento_id)
+    if not doc.file:
+        return HttpResponse("File non disponibile.", status=404)
+    try:
+        from core.audit import log_action
+        log_action(request, "FORMAZIONE_DOC_ENTE_DOWNLOAD", "anagrafica", {
+            "documento_id": doc.pk, "tipo": doc.tipo,
+            "azienda_id": doc.azienda_id, "docente_id": doc.docente_id,
+        })
+    except Exception:
+        logger.warning("Audit FORMAZIONE_DOC_ENTE_DOWNLOAD fallito", exc_info=True)
+    from django.http import FileResponse
+    try:
+        fh = doc.file.open("rb")
+    except FileNotFoundError:
+        return HttpResponse("File non trovato sul server.", status=404)
+    resp = FileResponse(fh, as_attachment=True, filename=doc.nome_originale or f"documento_{doc.pk}.bin")
+    if doc.tipo_mime:
+        resp["Content-Type"] = doc.tipo_mime
+    return resp
+
+
+# ── Espansione della tabella corsi: corso → edizioni → lezioni ───────────────
+# Il catalogo corsi è l'elenco di ciò che *si può* fare; per sapere cosa è stato
+# davvero erogato bisognava aprire il corso, poi l'edizione, poi le giornate.
+# I due frammenti qui sotto aprono quei due livelli dentro la riga, caricati
+# solo quando servono: 50 corsi × edizioni × lezioni renderizzati sempre
+# sarebbero una pagina enorme per una cosa che si guarda una riga alla volta.
+
+@login_required
+def formazione_corso_espansione(request, corso_id: int):
+    """Frammento HTMX: le edizioni di un corso, dentro la riga della tabella."""
+    if not _can_view_formazione(request):
+        return HttpResponse(status=403)
+    corso = get_object_or_404(TrainingCourse, pk=corso_id)
+    sessioni = list(
+        corso.sessioni
+        .select_related("docente", "docente__azienda")
+        .annotate(n_iscritti=Count("iscrizioni", distinct=True), n_lezioni=Count("lezioni", distinct=True))
+        .order_by("-data_inizio")
+    )
+    return render(request, "anagrafica/partials/_formazione_corso_espansione.html", {
+        "corso": corso,
+        "sessioni": sessioni,
+    })
+
+
+@login_required
+def formazione_sessione_espansione(request, sessione_id: int):
+    """Frammento HTMX: le giornate di un'edizione, dentro la riga espansa."""
+    if not _can_view_formazione(request):
+        return HttpResponse(status=403)
+    sessione = get_object_or_404(TrainingSession.objects.select_related("corso"), pk=sessione_id)
+    lezioni = list(
+        sessione.lezioni.select_related("docente").order_by("data", "ora_inizio")
+    )
+    return render(request, "anagrafica/partials/_formazione_sessione_espansione.html", {
+        "sessione": sessione,
+        "lezioni": lezioni,
+    })
 
 
 @login_required

@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=4">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=5">
 {% include "core/components/_hub_formkit.html" %}
 {% endblock %}
 
@@ -24,16 +24,19 @@
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-mic"/></svg>Docenti / Formatori <span class="fmd-count">{{ istruttori|length }}</span></h1>
         <p class="fmd-ph-sub">Catalogo docenti interni ed esterni e aziende formative di provenienza.</p>
       </div>
-      {% if is_editor %}
       <div class="fmd-pagehead-actions">
+        <a href="{% url 'anagrafica:formazione_enti_report' %}" class="fmd-btn fmd-btn-ghost">
+          <svg class="fmd-ico"><use href="#i-grid"/></svg>Chi ci ha formato
+        </a>
+        {% if is_editor %}
         <button type="button" class="fmd-btn fmd-btn-ghost" onclick="openIstrModal('modal-crea-azienda')">
           <svg class="fmd-ico"><use href="#i-building"/></svg>Nuova azienda formativa
         </button>
         <button type="button" class="fmd-btn fmd-btn-primary" onclick="openIstrModal('modal-crea-istr')">
           <svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo istruttore
         </button>
+        {% endif %}
       </div>
-      {% endif %}
     </div>
 
     {# ── Aziende formative ────────────────────────────────────────────────── #}
@@ -78,7 +81,7 @@
             {% for az in aziende %}
             <tr>
               <td>
-                <a href="?azienda={{ az.pk }}" style="font-weight:700;color:var(--fmd-navy);text-decoration:none;">{{ az.nome }}</a>
+                <a href="{% url 'anagrafica:formazione_azienda_detail' az.pk %}" style="font-weight:700;color:var(--fmd-navy);text-decoration:none;">{{ az.nome }}</a>
                 {% if az.indirizzo %}<div class="fmd-muted" style="font-size:11.5px;">{{ az.indirizzo }}</div>{% endif %}
               </td>
               <td class="fmd-muted">{{ az.partita_iva|default:"—" }}</td>
@@ -89,7 +92,7 @@
                 {% if az.telefono %}{{ az.telefono }}{% endif %}
                 {% if not az.email and not az.telefono %}—{% endif %}
               </td>
-              <td class="fmd-c">{{ az.n_istruttori }}</td>
+              <td class="fmd-c"><a class="fmd-data-link" href="?azienda={{ az.pk }}" title="Filtra i docenti di questo ente">{{ az.n_istruttori }}</a></td>
               <td class="fmd-c">{% if az.is_active %}<span class="fmd-badge fmd-b-green">Sì</span>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
               {% if is_editor %}
               <td class="fmd-nowrap">
@@ -179,7 +182,7 @@
                 {% else %}<span class="fmd-badge fmd-b-violet">Esterno</span>{% endif %}
               </td>
               <td class="fmd-muted">
-                {% if i.azienda_id %}<a href="?azienda={{ i.azienda_id }}" style="color:var(--fmd-navy);text-decoration:none;font-weight:600;">{{ i.azienda.nome }}</a>
+                {% if i.azienda_id %}<a href="{% url 'anagrafica:formazione_azienda_detail' i.azienda_id %}" style="color:var(--fmd-navy);text-decoration:none;font-weight:600;">{{ i.azienda.nome }}</a>
                 {% elif i.ragione_sociale %}{{ i.ragione_sociale }} <span class="fmd-badge fmd-plain" title="Ragione sociale libera, non a catalogo">fuori catalogo</span>
                 {% else %}—{% endif %}
               </td>

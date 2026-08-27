@@ -45,9 +45,17 @@
   {% endif %}
   {% if risultati.aziende %}<div class="fmd-suggest-cat">Aziende formative</div>
     {% for a in risultati.aziende|slice:":3" %}
-    <a class="fmd-suggest-item" href="{% url 'anagrafica:formazione_istruttori_list' %}?azienda={{ a.pk }}">
+    <a class="fmd-suggest-item" href="{% url 'anagrafica:formazione_azienda_detail' a.pk %}">
       <span class="fmd-suggest-ic"><svg class="fmd-ico"><use href="#i-building"/></svg></span>
       <span class="fmd-suggest-body"><span class="fmd-suggest-t">{{ a.nome|truncatechars:54 }}</span><span class="fmd-suggest-m">{{ a.n_istruttori }} docent{{ a.n_istruttori|pluralize:"e,i" }}</span></span>
+    </a>
+    {% endfor %}
+  {% endif %}
+  {% if risultati.argomenti %}<div class="fmd-suggest-cat">Argomenti del programma</div>
+    {% for a in risultati.argomenti|slice:":4" %}
+    <a class="fmd-suggest-item" href="{{ a.url }}">
+      <span class="fmd-suggest-ic"><svg class="fmd-ico"><use href="#i-clipboard"/></svg></span>
+      <span class="fmd-suggest-body"><span class="fmd-suggest-t">{{ a.argomento|truncatechars:54 }}</span><span class="fmd-suggest-m">{% if a.erogato %}erogato{% else %}previsto{% endif %} · {{ a.titolo|truncatechars:26 }}</span></span>
     </a>
     {% endfor %}
   {% endif %}

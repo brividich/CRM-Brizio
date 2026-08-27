@@ -30,6 +30,7 @@ from .models_formazione import (
     TrainingLessonAttendance,
     TrainingPlan,
     TrainingProvider,
+    TrainingProviderDocument,
     TrainingScanIntakeConfig,
     TrainingRequirementRule,
     TrainingSession,
@@ -464,6 +465,24 @@ class TrainingProviderForm(forms.ModelForm):
     def clean_nome(self):
         """Spazi collassati: due grafie della stessa società non devono convivere."""
         return " ".join((self.cleaned_data.get("nome") or "").split())
+
+
+class TrainingProviderDocumentForm(forms.ModelForm):
+    """Carica il documento di un ente o di un docente.
+
+    Il proprietario (`azienda`/`docente`) non è nel form: lo fissa la view dalla
+    pagina in cui ci si trova, così non è manipolabile dal POST.
+    """
+
+    class Meta:
+        model = TrainingProviderDocument
+        fields = ["tipo", "descrizione", "data_scadenza", "file"]
+        widgets = {
+            "tipo":          forms.Select(attrs=_FM_SELECT),
+            "descrizione":   forms.TextInput(attrs=_FM),
+            "data_scadenza": forms.DateInput(attrs=_FM_DATE, format="%Y-%m-%d"),
+            "file":          forms.ClearableFileInput(attrs={"class": "fm-input"}),
+        }
 
 
 class TrainingInstructorForm(forms.ModelForm):

@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=4">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=5">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -68,6 +68,7 @@
         <table class="fmd-table" data-table-id="formazione.corsi.list">
           <thead>
             <tr>
+              <th class="fmd-c" style="width:34px;" aria-label="Espandi"></th>
               <th data-col="codice" data-col-label="Codice" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Codice</th>
               <th data-col="titolo" data-col-label="Titolo" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Titolo</th>
               <th data-col="piano" data-col-label="Piano" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Piano</th>
@@ -83,7 +84,17 @@
           </thead>
           <tbody>
             {% for c in page_obj %}
-            <tr>
+            <tr id="fmd-corso-row-{{ c.pk }}">
+              <td class="fmd-c">
+                <button type="button" class="fmd-exp-btn" id="fmd-exp-btn-{{ c.pk }}"
+                        aria-expanded="false" aria-controls="fmd-exp-row-{{ c.pk }}"
+                        title="Mostra le edizioni e le giornate"
+                        onclick="fmdToggleCorso({{ c.pk }})"
+                        hx-get="{% url 'anagrafica:formazione_corso_espansione' c.pk %}"
+                        hx-trigger="click once"
+                        hx-target="#fmd-exp-body-{{ c.pk }}"
+                        hx-swap="innerHTML">▶</button>
+              </td>
               <td><span class="fmd-code">{{ c.codice }}</span></td>
               <td>
                 <a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' c.pk %}">{{ c.titolo }}</a>
@@ -102,6 +113,15 @@
               <td class="fmd-nowrap fmd-muted" data-sort-value="{{ c.created_at|date:'Y-m-d' }}">{{ c.created_at|date:"d-m-Y" }}</td>
               <td class="fmd-c">{% if c.obbligatorio %}<span class="fmd-badge fmd-b-orange">Sì</span>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
               <td class="fmd-nowrap"><a href="{% url 'anagrafica:formazione_corso_detail' c.pk %}" class="fmd-btn fmd-btn-ghost" style="padding:6px 12px;">Apri</a></td>
+            </tr>
+            {# Riga di dettaglio: fuori da filtro/sort dell'enhancer e dal click-riga.
+               Il contenuto (edizioni → giornate) arriva via HTMX alla prima apertura. #}
+            <tr id="fmd-exp-row-{{ c.pk }}" class="fm-detail-row" data-fm-detail-row="1" style="display:none;">
+              <td class="fmd-exp-cell" colspan="10">
+                <div class="fmd-exp-inner" id="fmd-exp-body-{{ c.pk }}">
+                  <span class="fmd-muted">Carico le edizioni…</span>
+                </div>
+              </td>
             </tr>
             {% endfor %}
           </tbody>
@@ -134,4 +154,18 @@
 
   </div>{# .fmd-wrap #}
 </div>{# .fmd #}
+
+<script>
+/* Apre/chiude la riga di dettaglio del corso. Il caricamento del contenuto è
+   di HTMX (hx-trigger="click once" sullo stesso pulsante): qui si governa solo
+   la visibilità, così riaprire una riga già caricata non rifà la richiesta. */
+function fmdToggleCorso(pk) {
+  var row = document.getElementById('fmd-exp-row-' + pk);
+  var btn = document.getElementById('fmd-exp-btn-' + pk);
+  if (!row || !btn) return;
+  var aperta = row.style.display !== 'none';
+  row.style.display = aperta ? 'none' : '';
+  btn.setAttribute('aria-expanded', aperta ? 'false' : 'true');
+}
+</script>
 {% endblock %}

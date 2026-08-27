@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=4">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=5">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -27,15 +27,15 @@
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-mic"/></svg>{{ istr.nome }}</h1>
         <p class="fmd-ph-sub">
           {% if istr.tipo == "INTERNO" %}Docente interno{% else %}Docente esterno{% endif %}
-          {% if istr.azienda_id %} · <b>{{ istr.azienda.nome }}</b>{% elif istr.ragione_sociale %} · {{ istr.ragione_sociale }}{% endif %}
+          {% if istr.azienda_id %} · <a href="{% url 'anagrafica:formazione_azienda_detail' istr.azienda_id %}"><b>{{ istr.azienda.nome }}</b></a>{% elif istr.ragione_sociale %} · {{ istr.ragione_sociale }}{% endif %}
           {% if not istr.is_active %} · <span class="fmd-badge fmd-b-orange">Non attivo</span>{% endif %}
         </p>
       </div>
       <div class="fmd-pagehead-actions">
         <a href="{% url 'anagrafica:formazione_istruttori_list' %}" class="fmd-btn fmd-btn-ghost">← Docenti</a>
         {% if istr.azienda_id %}
-        <a href="{% url 'anagrafica:formazione_istruttori_list' %}?azienda={{ istr.azienda_id }}" class="fmd-btn fmd-btn-ghost">
-          <svg class="fmd-ico"><use href="#i-building"/></svg>Colleghi dell'ente
+        <a href="{% url 'anagrafica:formazione_azienda_detail' istr.azienda_id %}" class="fmd-btn fmd-btn-ghost">
+          <svg class="fmd-ico"><use href="#i-building"/></svg>Scheda dell'ente
         </a>
         {% endif %}
       </div>
@@ -62,7 +62,7 @@
               <th>Azienda formativa</th>
               <td>
                 {% if istr.azienda_id %}
-                  <b>{{ istr.azienda.nome }}</b>
+                  <a class="fmd-data-link" href="{% url 'anagrafica:formazione_azienda_detail' istr.azienda_id %}"><b>{{ istr.azienda.nome }}</b></a>
                   {% if istr.azienda.partita_iva %}<span class="fmd-muted"> · P.IVA {{ istr.azienda.partita_iva }}</span>{% endif %}
                   {% if istr.azienda.accreditamento %}<div class="fmd-muted" style="font-size:12px;">Accreditamento: {{ istr.azienda.accreditamento }}</div>{% endif %}
                   {% if istr.azienda.email or istr.azienda.telefono %}<div class="fmd-muted" style="font-size:12px;">{{ istr.azienda.email }}{% if istr.azienda.email and istr.azienda.telefono %} · {% endif %}{{ istr.azienda.telefono }}</div>{% endif %}
@@ -78,6 +78,10 @@
         </table>
       </div>
     </section>
+
+    {# ── Documenti del docente (CV, attestato di qualifica) ───────────────── #}
+    {% url 'anagrafica:formazione_istruttore_documento_add' istr.pk as doc_add_url %}
+    {% include "anagrafica/partials/_ente_documenti.html" with add_url=doc_add_url %}
 
     {# ── Corsi svolti ─────────────────────────────────────────────────────── #}
     <section class="fmd-panel fmd-block">

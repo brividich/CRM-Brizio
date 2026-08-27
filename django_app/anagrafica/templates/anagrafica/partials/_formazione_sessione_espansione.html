@@ -1,0 +1,39 @@
+{% comment %}
+Secondo livello dell'espansione in riga: le giornate (lezioni) di un'edizione.
+Caricato via HTMX da `formazione_sessione_espansione` alla prima apertura.
+Context: sessione, lezioni (con docente).
+{% endcomment %}
+{% if lezioni %}
+<table class="fmd-exp-tab">
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Data</th>
+      <th>Orario</th>
+      <th class="fmd-r">Ore</th>
+      <th>Argomento</th>
+      <th>Docente</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for l in lezioni %}
+    <tr>
+      <td class="fmd-exp-n">{{ l.numero }}</td>
+      <td class="fmd-nowrap">{{ l.data|date:"d-m-Y" }}</td>
+      <td class="fmd-nowrap">{{ l.ora_inizio|time:"H:i" }}–{{ l.ora_fine|time:"H:i" }}{% if l.pausa_minuti %} <span class="fmd-muted">(−{{ l.pausa_minuti }}′)</span>{% endif %}</td>
+      <td class="fmd-r">{{ l.durata_ore|floatformat:"-2" }}</td>
+      <td>{{ l.argomento|default:"—" }}</td>
+      <td class="fmd-muted">{% if l.docente_id %}{{ l.docente.nome }}{% elif l.docente_nome %}{{ l.docente_nome }}{% else %}—{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<div class="fmd-exp-foot">
+  <a href="{% url 'anagrafica:formazione_sessione_detail' sessione.pk %}">Apri l'edizione {{ sessione.codice_sessione }} →</a>
+</div>
+{% else %}
+<div class="fmd-exp-vuoto">
+  Nessuna giornata pianificata per questa edizione.
+  <a href="{% url 'anagrafica:formazione_sessione_detail' sessione.pk %}">Apri l'edizione →</a>
+</div>
+{% endif %}
