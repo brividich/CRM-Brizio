@@ -317,3 +317,77 @@ def candidati_corso(corso, *, sessione=None, oggi: date | None = None) -> dict[s
         "pool_filtrato": pool_filtrato,
         "n_preselect": sum(1 for c in idonei if c["preselect"]),
     }
+
+
+def righe_gap_formativo(
+    *, filtro_reparto: str = "", filtro_corso: str = "", filtro_stato: str = "",
+) -> tuple[list, list[str], list[dict]]:
+    """Una riga per (dipendente, corso obbligatorio) non in regola: scaduto, in
+    scadenza o mai frequentato. Riusa :func:`candidati_corso` sui soli corsi
+    bersaglio di una regola di obbligo attiva — chi è già a posto non compare.
+    Condivisa da `views.formazione_copertura` e dal suo export.
+    """
+    from core.legacy_anagrafica import fetch_anagrafica_rows
+
+    from ..models_formazione import TrainingCourse, TrainingRequirementRule
+
+    corso_ids = set(
+        TrainingRequirementRule.objects
+        .filter(is_active=True, is_mandatory=True, corso__isnull=False)
+        .values_list("corso_id", flat=True)
+    )
+    piano_ids = set(
+        TrainingRequirementRule.objects
+        .filter(is_active=True, is_mandatory=True, piano__isnull=False)
+        .values_list("piano_id", flat=True)
+    )
+    if piano_ids:
+        corso_ids |= set(
+            TrainingCourse.objects.filter(piano_id__in=piano_ids, is_active=True)
+            .values_list("id", flat=True)
+        )
+    corsi_all = list(
+        TrainingCourse.objects.filter(id__in=corso_ids, is_active=True).order_by("titolo")
+    )
+    corsi_iter = (
+        [c for c in corsi_all if str(c.pk) == filtro_corso] if filtro_corso.isdigit() else corsi_all
+    )
+
+    rep_map: dict[int, dict] = {}
+    try:
+        for r in fetch_anagrafica_rows():
+            try:
+                lid = int(r.get("id") or 0)
+            except (TypeError, ValueError):
+                continue
+            rep_map[lid] = {
+                "reparto": (r.get("reparto") or "").strip(),
+                "mansione": (r.get("mansione") or "").strip(),
+            }
+    except Exception:
+        pass
+
+    _ord = {"SCADUTO": 0, "IN_SCADENZA_30": 1, "IN_SCADENZA_90": 2, "MAI_FREQUENTATO": 3}
+    righe: list[dict] = []
+    for corso in corsi_iter:
+        res = candidati_corso(corso)
+        for c in res["idonei"] + res["non_idonei"]:
+            if filtro_stato and c["stato"] != filtro_stato:
+                continue
+            info = rep_map.get(c["legacy_id"], {})
+            reparto = info.get("reparto", "")
+            if filtro_reparto and reparto.casefold() != filtro_reparto.casefold():
+                continue
+            righe.append({
+                "legacy_id": c["legacy_id"],
+                "nome": c["nome"],
+                "reparto": reparto or "—",
+                "mansione": info.get("mansione", "") or "—",
+                "corso": corso,
+                "stato": c["stato"],
+                "stato_label": c["stato_label"],
+                "data_scadenza": c["data_scadenza"],
+            })
+    righe.sort(key=lambda r: (r["reparto"].casefold(), r["nome"].casefold(), _ord.get(r["stato"], 9)))
+    reparti = sorted({v["reparto"] for v in rep_map.values() if v.get("reparto")})
+    return corsi_all, reparti, righe

@@ -8,6 +8,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Changed
+
+- **Formazione · copertura formativa allineata al design system `fmd`** (`django_app/anagrafica/templates/anagrafica/pages/formazione_copertura.html`, `views.py`, nuovo `services/training_eligibility.righe_gap_formativo`, `exports_formazione.py`, `tests_formazione_copertura.py`). La pagina «Copertura» era rimasta sul vecchio stile `hr-` mentre il resto del modulo (Corsi, Scadenzario, Monte ore CCNL, Chi ci ha formato) è passato a `fmd-`: stessa testata/KPI/toolbar/tabella/badge delle altre pagine formazione, **paginata** (50/pagina, prima renderizzava l'intero elenco gap) ed **esportabile** (Excel/PDF, `formazione_copertura`, nuovo). La logica di calcolo del gap (chi non è in regola con un corso obbligatorio) è stata estratta dalla view in `righe_gap_formativo`, condivisa ora da pagina ed export invece di essere duplicata.
+
 ### Added
 
 - **Formazione · monte ore CCNL (diritto soggettivo alla formazione)** (nuova migration `anagrafica/0116_add_obbligatoria_ccnl.py`, nuovi `django_app/anagrafica/services/formazione_ccnl.py`, `templates/anagrafica/pages/formazione_ccnl_dashboard.html`, `partials/_formazione_ccnl_espansione.html`, `tests_formazione_ccnl.py`; modificati `models_formazione.py`, `forms.py`, `views.py`, `urls.py`, `exports_formazione.py`, `static/anagrafica/css/formazione_design.css`, `templates/anagrafica/pages/formazione_corso_form.html`, `pages/formazione_corso_detail.html`, `pages/formazione_dashboard.html`, `README.md`).

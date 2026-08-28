@@ -5,136 +5,118 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-{% include "anagrafica/components/_fm_style.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=5">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
-<div class="hr-shell">
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
   {% include "anagrafica/components/flash_messages.html" %}
+  <div class="fmd-wrap">
 
-  {# ── Header ─────────────────────────────────────────────────────────────── #}
-  <div class="hr-pagehead">
-    <div>
-      <div class="hr-pagehead-eyebrow">
-        <a href="{% url 'anagrafica:formazione_dashboard' %}" style="color:#94a3b8;text-decoration:none;">Formazione</a>
-        &rsaquo; Copertura
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span><span class="fmd-cur">Copertura</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-shield"/></svg>Copertura formativa</h1>
+        <p class="fmd-ph-sub">Dipendenti <strong>non in regola</strong> con i corsi obbligatori (scaduto, in scadenza o mai frequentato), per reparto e mansione. Chi è già a posto non compare.</p>
       </div>
-      <h2 class="hr-pagehead-title">Copertura formativa &middot; gap obbligatori</h2>
-      <p class="hr-pagehead-desc">
-        Dipendenti <strong>non in regola</strong> con i corsi obbligatori (scaduto, in scadenza
-        o mai frequentato), per reparto e mansione. Chi è già a posto non compare.
-      </p>
+      <div class="fmd-pagehead-actions">
+        <a href="{% url 'anagrafica:formazione_scadenzario' %}" class="fmd-btn fmd-btn-ghost">↗ Scadenzario</a>
+      </div>
     </div>
-    <div style="display:flex;gap:8px;align-items:flex-start;">
-      <a href="{% url 'anagrafica:formazione_scadenzario' %}" class="hr-btn hr-btn-ghost">↗ Scadenzario</a>
-    </div>
-  </div>
 
-  {# ── KPI ────────────────────────────────────────────────────────────────── #}
-  <div class="hr-metric-grid" style="margin-bottom:18px;">
-    <div class="hr-metric">
-      <div class="hr-metric-ico amber">👤</div>
-      <div class="hr-metric-body"><div class="hr-metric-top">
-        <span class="hr-metric-lbl">Dipendenti con gap</span><span class="hr-metric-val">{{ n_dip }}</span>
-      </div><div class="hr-metric-sub">Almeno un obbligo non soddisfatto</div></div>
-    </div>
-    <div class="hr-metric">
-      <div class="hr-metric-ico red">⛔</div>
-      <div class="hr-metric-body"><div class="hr-metric-top">
-        <span class="hr-metric-lbl">Gap totali</span><span class="hr-metric-val">{{ n_gap }}</span>
-      </div><div class="hr-metric-sub">Coppie dipendente × corso</div></div>
-    </div>
-    <div class="hr-metric">
-      <div class="hr-metric-ico red">🔴</div>
-      <div class="hr-metric-body"><div class="hr-metric-top">
-        <span class="hr-metric-lbl">Scaduti</span><span class="hr-metric-val">{{ n_scaduti }}</span>
-      </div><div class="hr-metric-sub">Da rinnovare con urgenza</div></div>
-    </div>
-    <div class="hr-metric">
-      <div class="hr-metric-ico blue">🆕</div>
-      <div class="hr-metric-body"><div class="hr-metric-top">
-        <span class="hr-metric-lbl">Mai frequentati</span><span class="hr-metric-val">{{ n_mai }}</span>
-      </div><div class="hr-metric-sub">Primo rilascio da pianificare</div></div>
-    </div>
-  </div>
+    <section class="fmd-kpi fmd-k4">
+      <div class="fmd-mtr fmd-t-amber"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ n_dip }}</span></div><div class="fmd-mtr-lbl">Dipendenti con gap</div><div class="fmd-mtr-sub">Almeno un obbligo non soddisfatto</div></div>
+      <div class="fmd-mtr fmd-t-orange"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span><span class="fmd-mtr-val">{{ n_gap }}</span></div><div class="fmd-mtr-lbl">Gap totali</div><div class="fmd-mtr-sub">Coppie dipendente × corso</div></div>
+      <div class="fmd-mtr fmd-t-navy"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ n_scaduti }}</span></div><div class="fmd-mtr-lbl">Scaduti</div><div class="fmd-mtr-sub">Da rinnovare con urgenza</div></div>
+      <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-doc"/></svg></span><span class="fmd-mtr-val">{{ n_mai }}</span></div><div class="fmd-mtr-lbl">Mai frequentati</div><div class="fmd-mtr-sub">Primo rilascio da pianificare</div></div>
+    </section>
 
-  {# ── Filtri ─────────────────────────────────────────────────────────────── #}
-  <div class="hr-card" style="padding:14px 18px;margin-bottom:16px;">
-    <form method="get" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
-      <div class="fm-f">
-        <label>Reparto</label>
-        <select name="reparto" class="fm-input fm-select">
-          <option value="">Tutti</option>
+    <section class="fmd-panel">
+      <form method="get" class="fmd-toolbar">
+        <select name="reparto" class="fmd-select" aria-label="Filtra per reparto">
+          <option value="">Tutti i reparti</option>
           {% for r in reparti %}<option value="{{ r }}" {% if r == filtro_reparto %}selected{% endif %}>{{ r }}</option>{% endfor %}
         </select>
-      </div>
-      <div class="fm-f">
-        <label>Corso obbligatorio</label>
-        <select name="corso" class="fm-input fm-select">
-          <option value="">Tutti</option>
-          {% for c in corsi %}<option value="{{ c.pk }}" {% if filtro_corso == c.pk|stringformat:'s' %}selected{% endif %}>{{ c.titolo|truncatechars:50 }}</option>{% endfor %}
+        <select name="corso" class="fmd-select" aria-label="Filtra per corso obbligatorio">
+          <option value="">Tutti i corsi obbligatori</option>
+          {% for c in corsi %}<option value="{{ c.pk }}" {% if filtro_corso == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.titolo|truncatechars:50 }}</option>{% endfor %}
         </select>
-      </div>
-      <div class="fm-f">
-        <label>Stato</label>
-        <select name="stato" class="fm-input fm-select">
-          <option value="">Tutti</option>
+        <select name="stato" class="fmd-select" aria-label="Filtra per stato">
+          <option value="">Tutti gli stati</option>
           <option value="SCADUTO" {% if filtro_stato == "SCADUTO" %}selected{% endif %}>Scaduto</option>
           <option value="IN_SCADENZA_30" {% if filtro_stato == "IN_SCADENZA_30" %}selected{% endif %}>In scadenza ≤30gg</option>
           <option value="IN_SCADENZA_90" {% if filtro_stato == "IN_SCADENZA_90" %}selected{% endif %}>In scadenza ≤90gg</option>
           <option value="MAI_FREQUENTATO" {% if filtro_stato == "MAI_FREQUENTATO" %}selected{% endif %}>Mai frequentato</option>
         </select>
-      </div>
-      <div style="display:flex;gap:8px;">
-        <button type="submit" class="hr-btn hr-btn-primary">Filtra</button>
-        <a href="{% url 'anagrafica:formazione_copertura' %}" class="hr-btn hr-btn-ghost">Azzera</a>
-      </div>
-    </form>
-  </div>
+        <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-filter"/></svg>Filtra</button>
+        <a href="{% url 'anagrafica:formazione_copertura' %}" class="fmd-btn fmd-btn-ghost">Reset</a>
+        <span class="fmd-spacer"></span>
+        {% include "anagrafica/partials/_export_buttons.html" with export_key="formazione_copertura" %}
+      </form>
 
-  {# ── Tabella gap ────────────────────────────────────────────────────────── #}
-  <div class="hr-card">
-    <div class="hr-card-head"><div class="hr-card-title">📋 Gap formativi ({{ n_gap }})</div></div>
-    {% if righe %}
-    <div style="overflow-x:auto;">
-      <table class="hr-table">
-        <thead>
-          <tr>
-            <th>Dipendente</th><th>Reparto</th><th>Mansione</th>
-            <th>Corso obbligatorio</th><th>Stato</th><th>Scadenza</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for r in righe %}
-          <tr>
-            <td style="font-weight:500;">
-              <a href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}" style="color:inherit;text-decoration:none;">{{ r.nome }}</a>
-            </td>
-            <td style="font-size:12px;color:#475569;">{{ r.reparto }}</td>
-            <td style="font-size:12px;color:#475569;">{{ r.mansione }}</td>
-            <td style="font-size:12px;">
-              <a href="{% url 'anagrafica:formazione_corso_detail' r.corso.pk %}" style="color:#3b82f6;text-decoration:none;">{{ r.corso.titolo|truncatechars:48 }}</a>
-            </td>
-            <td style="font-size:12px;">
-              {% if r.stato == "SCADUTO" %}<span class="fm-pill fm-pill-expired">Scaduto</span>
-              {% elif r.stato == "IN_SCADENZA_30" %}<span class="fm-pill fm-pill-warning">In scadenza ≤30gg</span>
-              {% elif r.stato == "IN_SCADENZA_90" %}<span class="fm-pill fm-pill-warning">In scadenza ≤90gg</span>
-              {% else %}<span class="fm-pill fm-pill-missing">Mai frequentato</span>{% endif %}
-            </td>
-            <td style="font-size:12px;color:#475569;">{{ r.data_scadenza|date:"d-m-Y"|default:"—" }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <div style="padding:24px 16px;font-size:13px;color:#94a3b8;text-align:center;">
-      Nessun gap formativo con i filtri correnti. {% if not corsi %}Nessun corso ha regole di obbligatorietà attive.{% endif %}
-    </div>
-    {% endif %}
-  </div>
+      {% if page_obj %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table" data-table-id="formazione.copertura">
+          <thead>
+            <tr>
+              <th data-col="dipendente" data-col-label="Dipendente" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Dipendente</th>
+              <th data-col="reparto" data-col-label="Reparto" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Reparto</th>
+              <th data-col="mansione" data-col-label="Mansione" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Mansione</th>
+              <th data-col="corso" data-col-label="Corso obbligatorio" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Corso obbligatorio</th>
+              <th data-col="stato" data-col-label="Stato" data-col-type="select"
+                  data-col-options='[["SCADUTO","Scaduto"],["IN_SCADENZA_30","≤30gg"],["IN_SCADENZA_90","≤90gg"],["MAI_FREQUENTATO","Mai frequentato"]]'
+                  data-col-sortable="1" data-col-filterable="1">Stato</th>
+              <th class="fmd-nowrap" data-col="scadenza" data-col-label="Scadenza" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Scadenza</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in page_obj %}
+            <tr>
+              <td><a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}">{{ r.nome }}</a></td>
+              <td class="fmd-muted">{{ r.reparto }}</td>
+              <td class="fmd-muted">{{ r.mansione }}</td>
+              <td><a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' r.corso.pk %}" style="color:inherit;">{{ r.corso.titolo|truncatechars:48 }}</a></td>
+              <td>
+                {% if r.stato == "SCADUTO" %}<span class="fmd-badge fmd-b-red">Scaduto</span>
+                {% elif r.stato == "IN_SCADENZA_30" %}<span class="fmd-badge fmd-b-orange">In scadenza ≤30gg</span>
+                {% elif r.stato == "IN_SCADENZA_90" %}<span class="fmd-badge fmd-b-amber">In scadenza ≤90gg</span>
+                {% else %}<span class="fmd-badge fmd-b-grey">Mai frequentato</span>{% endif %}
+              </td>
+              <td class="fmd-nowrap fmd-muted" data-sort-value="{{ r.data_scadenza|date:'Y-m-d' }}">{{ r.data_scadenza|date:"d-m-Y"|default:"—" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
 
-</div>
+      <div class="fmd-tfoot">
+        <span class="fmd-info">Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }} · {{ n_gap }} gap</span>
+        {% if page_obj.paginator.num_pages > 1 %}
+        <div class="fmd-pager">
+          {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}&reparto={{ filtro_reparto }}&corso={{ filtro_corso }}&stato={{ filtro_stato }}">‹</a>
+          {% endif %}
+          <span class="fmd-page fmd-on">{{ page_obj.number }}</span>
+          {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}&reparto={{ filtro_reparto }}&corso={{ filtro_corso }}&stato={{ filtro_stato }}">›</a>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+
+      {% else %}
+      <div class="fmd-empty">
+        <span class="fmd-ebadge"><svg class="fmd-ico"><use href="#i-check"/></svg></span>
+        <span class="fmd-et">Nessun gap formativo</span>
+        <span class="fmd-em">{% if not corsi %}Nessun corso ha regole di obbligatorietà attive.{% else %}Nessun risultato con i filtri selezionati.{% endif %}</span>
+      </div>
+      {% endif %}
+    </section>
+
+  </div>{# .fmd-wrap #}
+</div>{# .fmd #}
 {% endblock %}

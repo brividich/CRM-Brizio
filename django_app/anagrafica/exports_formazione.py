@@ -615,6 +615,69 @@ register(ExportSpec(
 ))
 
 
+# ── Copertura / gap formativo ─────────────────────────────────────────────────
+# Filtri di `views.formazione_copertura`: reparto, corso, stato. Stesso servizio
+# `services.training_eligibility.righe_gap_formativo` della pagina: nessuna
+# doppia implementazione della logica di idoneità/pertinenza.
+
+def _formazione_copertura_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from anagrafica.services.training_eligibility import righe_gap_formativo
+
+    if scope == "filtered":
+        filtro_reparto = (request.GET.get("reparto") or "").strip()
+        filtro_corso = (request.GET.get("corso") or "").strip()
+        filtro_stato = (request.GET.get("stato") or "").strip()
+    else:
+        filtro_reparto = filtro_corso = filtro_stato = ""
+
+    _, _, righe = righe_gap_formativo(
+        filtro_reparto=filtro_reparto, filtro_corso=filtro_corso, filtro_stato=filtro_stato,
+    )
+    rows: list[dict] = []
+    for r in righe:
+        rows.append({
+            "dipendente": r["nome"],
+            "reparto": r["reparto"],
+            "mansione": r["mansione"],
+            "corso": f"[{r['corso'].codice}] {r['corso'].titolo}",
+            "stato": r["stato_label"],
+            "scadenza": _d(r["data_scadenza"]),
+        })
+    return rows
+
+
+def _formazione_copertura_filters(request: HttpRequest) -> str:
+    parts: list[str] = []
+    reparto = (request.GET.get("reparto") or "").strip()
+    corso = (request.GET.get("corso") or "").strip()
+    stato = (request.GET.get("stato") or "").strip()
+    if reparto:
+        parts.append(f"Reparto: {reparto}")
+    if corso:
+        parts.append(f"Corso: {corso}")
+    if stato:
+        parts.append(f"Stato: {stato}")
+    return " · ".join(parts)
+
+
+register(ExportSpec(
+    key="formazione_copertura",
+    title="Copertura formativa - Gap obbligatori",
+    sheet_title="Copertura",
+    columns=[
+        ("Dipendente", "dipendente"),
+        ("Reparto", "reparto"),
+        ("Mansione", "mansione"),
+        ("Corso obbligatorio", "corso"),
+        ("Stato", "stato"),
+        ("Scadenza", "scadenza"),
+    ],
+    dataset=_formazione_copertura_rows,
+    filters_label=_formazione_copertura_filters,
+    permission=acl_gate("/anagrafica/formazione/copertura/"),
+))
+
+
 # ── Fattori di rischio ────────────────────────────────────────────────────────
 # `views.fattori_rischio_list` non ha filtri GET: la lista è completa.
 
