@@ -1208,6 +1208,8 @@ def import_estrazioni_corsi(
     else:
         _do_import()
 
+    return report
+
 
 # ─────────────────────────────────────────────────────────────
 # IMPORT: elenco aziende/agenzie formative → TrainingProvider
@@ -1306,7 +1308,5 @@ def import_training_providers_xlsx(xlsx_path: str | Path, commit: bool = False) 
             _do_import()
     else:
         _do_import()
-
-    return report
 
     return report
