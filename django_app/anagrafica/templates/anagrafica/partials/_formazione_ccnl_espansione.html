@@ -1,0 +1,48 @@
+{% comment %}
+Dettaglio in riga: i corsi del dipendente nella finestra dei 3 anni, divisi
+facoltativi (concorrono alle 24h) e obbligatori (sicurezza, informativi).
+Caricato via HTMX alla prima apertura della riga.
+Context: legacy_id, dal, al, facoltativi (TrainingEmployeeRecord[]), obbligatori.
+{% endcomment %}
+<div class="fmd-exp-head">
+  <span>Corsi completati dal <b>{{ dal|date:"d-m-Y" }}</b> al <b>{{ al|date:"d-m-Y" }}</b></span>
+  <a class="fmd-exp-open" href="{% url 'anagrafica:dipendente_libretto_formativo' legacy_id %}">Apri il libretto formativo →</a>
+</div>
+{% if not facoltativi and not obbligatori %}
+<div class="fmd-exp-vuoto">Nessun corso completato in questo periodo.</div>
+{% else %}
+<div class="fmd-exp-list">
+  <div class="fmd-ccnl-col">
+    <div class="fmd-ccnl-col-h">Facoltativi <span class="fmd-count">{{ facoltativi|length }}</span> <span class="fmd-muted">— concorrono alle 24h</span></div>
+    {% if facoltativi %}
+    <table class="fmd-exp-tab">
+      {% for rec in facoltativi %}
+      <tr>
+        <td class="fmd-nowrap fmd-muted">{{ rec.data_completamento|date:"d-m-Y" }}</td>
+        <td><a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' rec.corso_id %}">{{ rec.corso.titolo }}</a></td>
+        <td class="fmd-r fmd-num fmd-nowrap">{{ rec.ore_frequentate }} h</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <div class="fmd-exp-vuoto">Nessuno.</div>
+    {% endif %}
+  </div>
+  <div class="fmd-ccnl-col">
+    <div class="fmd-ccnl-col-h">Obbligatori <span class="fmd-count">{{ obbligatori|length }}</span> <span class="fmd-muted">— sicurezza, fuori dal monte ore</span></div>
+    {% if obbligatori %}
+    <table class="fmd-exp-tab">
+      {% for rec in obbligatori %}
+      <tr>
+        <td class="fmd-nowrap fmd-muted">{{ rec.data_completamento|date:"d-m-Y" }}</td>
+        <td><a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' rec.corso_id %}">{{ rec.corso.titolo }}</a></td>
+        <td class="fmd-r fmd-num fmd-nowrap">{{ rec.ore_frequentate }} h</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <div class="fmd-exp-vuoto">Nessuno.</div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}

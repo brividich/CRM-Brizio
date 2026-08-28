@@ -1,0 +1,164 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Monte ore CCNL | Formazione HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=5">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="fmd-wrap">
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span><span class="fmd-cur">Monte ore CCNL</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-clock"/></svg>Monte ore CCNL</h1>
+        <p class="fmd-ph-sub">
+          Diritto soggettivo alla formazione: {{ monte_ore_target }}h ogni {{ 3 }} anni di formazione <strong>facoltativa</strong>,
+          a finestra scorrevole dal <strong>{{ dal|date:"d-m-Y" }}</strong> al <strong>{{ al|date:"d-m-Y" }}</strong>.
+          La formazione sicurezza (obbligatoria per legge o Accordo Stato-Regioni) non concorre al monte ore: resta informativa a fianco.
+        </p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        <a href="{% url 'anagrafica:formazione_copertura' %}" class="fmd-btn fmd-btn-ghost">↗ Copertura obbligatoria</a>
+      </div>
+    </div>
+
+    <section class="fmd-panel" style="margin-bottom:16px;">
+      <form method="get" class="fmd-toolbar">
+        <span class="fmd-search">
+          <svg class="fmd-ico"><use href="#i-search"/></svg>
+          <input type="text" name="q" value="{{ filtro_q }}" placeholder="Cerca dipendente…" autocomplete="off">
+        </span>
+        <select name="reparto" class="fmd-select" aria-label="Filtra per reparto">
+          <option value="">Tutti i reparti</option>
+          {% for r in reparti %}<option value="{{ r }}" {% if r == filtro_reparto %}selected{% endif %}>{{ r }}</option>{% endfor %}
+        </select>
+        <select name="stato" class="fmd-select" aria-label="Filtra per stato monte ore">
+          <option value="">Stato: tutti</option>
+          <option value="COMPLETO" {% if filtro_stato == "COMPLETO" %}selected{% endif %}>Monte ore completo</option>
+          <option value="IN_CORSO" {% if filtro_stato == "IN_CORSO" %}selected{% endif %}>In corso</option>
+          <option value="DA_INIZIARE" {% if filtro_stato == "DA_INIZIARE" %}selected{% endif %}>Da iniziare</option>
+        </select>
+        <span class="fmd-block-aside">al</span>
+        <input type="date" name="al" value="{{ al_param }}" aria-label="Istantanea al">
+        <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-filter"/></svg>Filtra</button>
+        <a href="{% url 'anagrafica:formazione_ccnl_dashboard' %}" class="fmd-btn fmd-btn-ghost">Reset</a>
+        <span class="fmd-spacer"></span>
+        {% include "anagrafica/partials/_export_buttons.html" with export_key="formazione_ccnl" %}
+      </form>
+    </section>
+
+    <section class="fmd-kpi fmd-k4">
+      <div class="fmd-mtr fmd-t-navy"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ totale }}</span></div><div class="fmd-mtr-lbl">Dipendenti in elenco</div><div class="fmd-mtr-sub">Attivi, con i filtri correnti</div></div>
+      <div class="fmd-mtr fmd-t-green"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ n_completi }}</span></div><div class="fmd-mtr-lbl">Monte ore completo</div><div class="fmd-mtr-sub">≥ {{ monte_ore_target }}h facoltative nel triennio</div></div>
+      <div class="fmd-mtr fmd-t-amber"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ n_da_iniziare }}</span></div><div class="fmd-mtr-lbl">Da iniziare</div><div class="fmd-mtr-sub">Nessuna ora facoltativa nel triennio</div></div>
+      <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ media_ore_facoltative }}</span></div><div class="fmd-mtr-lbl">Media ore facoltative</div><div class="fmd-mtr-sub">Per dipendente in elenco</div></div>
+    </section>
+
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>Dipendenti <span class="fmd-count">{{ totale }}</span></div>
+        <div class="fmd-block-aside">clic sulla freccia per vedere i corsi del periodo</div>
+      </div>
+      {% if page_obj %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table" data-table-id="formazione.ccnl.dashboard">
+          <thead>
+            <tr>
+              <th class="fmd-c" style="width:34px;" aria-label="Espandi"></th>
+              <th data-col="dipendente" data-col-label="Dipendente" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Dipendente</th>
+              <th data-col="reparto" data-col-label="Reparto" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Reparto</th>
+              <th data-col="mansione" data-col-label="Mansione" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Mansione</th>
+              <th data-col="facoltative" data-col-label="Monte ore facoltativo" data-col-type="number" data-col-sortable="1">Monte ore facoltativo (CCNL)</th>
+              <th class="fmd-r" data-col="obbligatorie" data-col-label="Ore sicurezza" data-col-type="number" data-col-sortable="1">Ore sicurezza (periodo)</th>
+              <th class="fmd-nowrap" data-col="ultima" data-col-label="Ultimo corso" data-col-type="date" data-col-sortable="1">Ultimo corso</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in page_obj %}
+            <tr id="fmd-ccnl-row-{{ r.legacy_id }}">
+              <td class="fmd-c">
+                <button type="button" class="fmd-exp-btn" id="fmd-ccnl-btn-{{ r.legacy_id }}"
+                        aria-expanded="false" aria-controls="fmd-ccnl-exp-{{ r.legacy_id }}"
+                        title="Mostra i corsi del periodo"
+                        onclick="fmdToggleCcnl({{ r.legacy_id }})"
+                        hx-get="{% url 'anagrafica:formazione_ccnl_dipendente_espansione' r.legacy_id %}{% if al_param %}?al={{ al_param }}{% endif %}"
+                        hx-trigger="click once"
+                        hx-target="#fmd-ccnl-body-{{ r.legacy_id }}"
+                        hx-swap="innerHTML">▶</button>
+              </td>
+              <td><a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}">{{ r.nome }}</a></td>
+              <td class="fmd-muted">{{ r.reparto }}</td>
+              <td class="fmd-muted">{{ r.mansione }}</td>
+              <td data-sort-value="{{ r.ore_facoltative }}">
+                <div class="fmd-ccnl-cell">
+                  <div class="fmd-ccnl-bar{% if r.stato == 'COMPLETO' %} fmd-ok{% elif r.stato == 'DA_INIZIARE' %} fmd-warn{% endif %}"><span style="width:{{ r.pct }}%;"></span></div>
+                  <span class="fmd-ccnl-cell-label"><b>{{ r.ore_facoltative|floatformat:"-2" }}</b> / {{ monte_ore_target }} h
+                    {% if r.stato == "COMPLETO" %}<span class="fmd-badge fmd-b-green" style="margin-left:4px;">Completo</span>
+                    {% elif r.stato == "DA_INIZIARE" %}<span class="fmd-badge fmd-b-amber" style="margin-left:4px;">Da iniziare</span>
+                    {% else %}<span class="fmd-badge fmd-plain" style="margin-left:4px;">Mancano {{ r.ore_mancanti|floatformat:"-2" }} h</span>{% endif %}
+                  </span>
+                </div>
+              </td>
+              <td class="fmd-r fmd-num" data-sort-value="{{ r.ore_obbligatorie }}">{{ r.ore_obbligatorie|floatformat:"-2" }}</td>
+              <td class="fmd-nowrap fmd-muted" data-sort-value="{{ r.ultima_data|date:'Y-m-d' }}">{{ r.ultima_data|date:"d-m-Y"|default:"—" }}</td>
+            </tr>
+            <tr id="fmd-ccnl-exp-{{ r.legacy_id }}" class="fm-detail-row" data-fm-detail-row="1" style="display:none;">
+              <td class="fmd-exp-cell" colspan="7">
+                <div class="fmd-exp-inner" id="fmd-ccnl-body-{{ r.legacy_id }}">
+                  <span class="fmd-muted">Carico i corsi del periodo…</span>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="fmd-tfoot">
+        <span class="fmd-info">Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }} · {{ totale }} dipendenti</span>
+        {% if page_obj.paginator.num_pages > 1 %}
+        <div class="fmd-pager">
+          {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}&reparto={{ filtro_reparto }}&stato={{ filtro_stato }}&q={{ filtro_q }}&al={{ al_param }}">‹</a>
+          {% endif %}
+          <span class="fmd-page fmd-on">{{ page_obj.number }}</span>
+          {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}&reparto={{ filtro_reparto }}&stato={{ filtro_stato }}&q={{ filtro_q }}&al={{ al_param }}">›</a>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+
+      {% else %}
+      <div class="fmd-empty">
+        <span class="fmd-ebadge" style="background:#eef2f7;color:#94a3b8;"><svg class="fmd-ico"><use href="#i-clock"/></svg></span>
+        <span class="fmd-et">Nessun dipendente trovato</span>
+        <span class="fmd-em">Modifica i filtri.</span>
+      </div>
+      {% endif %}
+    </section>
+
+  </div>{# .fmd-wrap #}
+</div>{# .fmd #}
+
+<script>
+function fmdToggleCcnl(legacyId) {
+  var row = document.getElementById('fmd-ccnl-exp-' + legacyId);
+  var btn = document.getElementById('fmd-ccnl-btn-' + legacyId);
+  if (!row || !btn) return;
+  var aperta = row.style.display !== 'none';
+  row.style.display = aperta ? 'none' : '';
+  btn.setAttribute('aria-expanded', aperta ? 'false' : 'true');
+}
+</script>
+{% endblock %}

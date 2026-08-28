@@ -431,6 +431,84 @@ register(ExportSpec(
 ))
 
 
+# ── Monte ore CCNL (diritto soggettivo alla formazione) ──────────────────────
+# Filtri di `views.formazione_ccnl_dashboard`: reparto, stato, q (nome), al
+# (istantanea; default oggi). Stessa finestra scorrevole di 3 anni della pagina.
+
+def _formazione_ccnl_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from datetime import date as _date
+
+    from anagrafica.services.formazione_ccnl import MONTE_ORE_TARGET, righe_dipendenti
+
+    al_param = None
+    if scope == "filtered":
+        raw = (request.GET.get("al") or "").strip()
+        if raw:
+            try:
+                al_param = _date.fromisoformat(raw)
+            except ValueError:
+                al_param = None
+        filtro_reparto = (request.GET.get("reparto") or "").strip()
+        filtro_stato = (request.GET.get("stato") or "").strip()
+        filtro_q = (request.GET.get("q") or "").strip()
+    else:
+        filtro_reparto = filtro_stato = filtro_q = ""
+
+    _, _, _, righe = righe_dipendenti(
+        al=al_param, filtro_reparto=filtro_reparto, filtro_stato=filtro_stato, filtro_q=filtro_q,
+    )
+    rows: list[dict] = []
+    for r in righe:
+        rows.append({
+            "nome": r["nome"],
+            "reparto": r["reparto"],
+            "mansione": r["mansione"],
+            "ore_facoltative": r["ore_facoltative"],
+            "monte_ore_target": MONTE_ORE_TARGET,
+            "ore_obbligatorie": r["ore_obbligatorie"],
+            "stato": r["stato"],
+            "ultima_data": _d(r["ultima_data"]),
+        })
+    return rows
+
+
+def _formazione_ccnl_filters(request: HttpRequest) -> str:
+    parts: list[str] = []
+    reparto = (request.GET.get("reparto") or "").strip()
+    stato = (request.GET.get("stato") or "").strip()
+    q = (request.GET.get("q") or "").strip()
+    al = (request.GET.get("al") or "").strip()
+    if reparto:
+        parts.append(f"Reparto: {reparto}")
+    if stato:
+        parts.append(f"Stato: {stato}")
+    if q:
+        parts.append(f"Ricerca: {q}")
+    if al:
+        parts.append(f"Istantanea al: {al}")
+    return " · ".join(parts)
+
+
+register(ExportSpec(
+    key="formazione_ccnl",
+    title="Monte ore CCNL - Diritto alla formazione",
+    sheet_title="Monte ore CCNL",
+    columns=[
+        ("Dipendente", "nome"),
+        ("Reparto", "reparto"),
+        ("Mansione", "mansione"),
+        ("Ore facoltative (periodo)", "ore_facoltative"),
+        ("Target CCNL (h/3 anni)", "monte_ore_target"),
+        ("Ore sicurezza (periodo)", "ore_obbligatorie"),
+        ("Stato", "stato"),
+        ("Ultimo corso", "ultima_data"),
+    ],
+    dataset=_formazione_ccnl_rows,
+    filters_label=_formazione_ccnl_filters,
+    permission=acl_gate("/anagrafica/formazione/monte-ore-ccnl/"),
+))
+
+
 # ── Scadenzario formazione ────────────────────────────────────────────────────
 # Filtri di `views.formazione_scadenzario`: stato, corso, q (nome dipendente).
 # Senza `stato` la lista mostra solo scaduti / in scadenza / mai frequentati:

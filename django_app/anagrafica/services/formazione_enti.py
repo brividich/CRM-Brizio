@@ -119,11 +119,17 @@ def riepilogo_enti(dal: date | None = None, al: date | None = None) -> list[dict
 
 
 def erogazioni_di_ente(azienda_id: int, dal: date | None = None, al: date | None = None) -> dict:
-    """Sessioni erogate da un ente nel periodo, con i totali della sua riga."""
+    """Sessioni erogate da un ente nel periodo, con i totali della sua riga.
+
+    `per_corso` raggruppa le stesse sessioni per corso (albero corso → edizioni,
+    come il catalogo corsi): un corso può avere più edizioni erogate dallo
+    stesso ente, e vederle una sotto l'altra senza ripetere titolo/codice è
+    più leggibile di una tabella piatta.
+    """
     sessioni: list[TrainingSession] = []
     ore_totali = 0.0
     discenti = 0
-    corsi: set[int] = set()
+    per_corso: dict[int, dict] = {}
     for sess in _sessioni_qs(dal, al):
         if azienda_id not in _enti_coinvolti(sess):
             continue
@@ -131,10 +137,26 @@ def erogazioni_di_ente(azienda_id: int, dal: date | None = None, al: date | None
         sessioni.append(sess)
         ore_totali += sess.ore_ente
         discenti += sess.n_iscritti
-        corsi.add(sess.corso_id)
+
+        gruppo = per_corso.setdefault(sess.corso_id, {
+            "corso": sess.corso, "sessioni": [], "ore": 0.0,
+            "discenti": 0, "ultima_data": None,
+        })
+        gruppo["sessioni"].append(sess)
+        gruppo["ore"] += sess.ore_ente
+        gruppo["discenti"] += sess.n_iscritti
+        if gruppo["ultima_data"] is None or sess.data_inizio > gruppo["ultima_data"]:
+            gruppo["ultima_data"] = sess.data_inizio
+
+    for gruppo in per_corso.values():
+        gruppo["ore"] = round(gruppo["ore"], 2)
+        gruppo["n_sessioni"] = len(gruppo["sessioni"])
+    gruppi = sorted(per_corso.values(), key=lambda g: g["ultima_data"], reverse=True)
+
     return {
         "sessioni": sessioni,
+        "per_corso": gruppi,
         "ore": round(ore_totali, 2),
         "discenti": discenti,
-        "n_corsi": len(corsi),
+        "n_corsi": len(per_corso),
     }

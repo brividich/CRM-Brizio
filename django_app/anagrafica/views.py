@@ -14,7 +14,7 @@ from pathlib import Path
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import IntegrityError, connections, transaction
-from django.db.models import Count, Max, Q, Sum
+from django.db.models import Count, Max, Prefetch, Q, Sum
 from django.http import (
     Http404, HttpResponse, HttpResponseForbidden, HttpResponseNotFound,
     HttpResponseRedirect, JsonResponse,
@@ -12256,7 +12256,12 @@ def formazione_corsi_list(request):
     filtro_obbligatorio = request.GET.get("obbligatorio", "")
     q_search = (request.GET.get("q") or "").strip()
 
-    qs = TrainingCourse.objects.select_related("piano").all()
+    qs = TrainingCourse.objects.select_related("piano").prefetch_related(
+        Prefetch(
+            "sessioni",
+            queryset=TrainingSession.objects.select_related("docente__azienda").order_by("-data_inizio"),
+        )
+    )
     if filtro_piano:
         qs = qs.filter(piano_id=filtro_piano)
     if filtro_stato:
@@ -12271,6 +12276,19 @@ def formazione_corsi_list(request):
     paginator = Paginator(qs.order_by("piano__nome", "titolo"), 50)
     page_obj = paginator.get_page(request.GET.get("page"))
     piani = list(TrainingPlan.objects.filter(is_active=True).order_by("nome"))
+
+    for corso in page_obj:
+        nomi = []
+        visti = set()
+        for sessione in corso.sessioni.all():
+            docente = sessione.docente
+            if not docente:
+                continue
+            nome = docente.azienda.nome if docente.azienda_id else docente.ragione_sociale
+            if nome and nome not in visti:
+                visti.add(nome)
+                nomi.append(nome)
+        corso.enti_formatori = nomi
 
     return render(request, "anagrafica/pages/formazione_corsi.html", {
         "page_obj": page_obj,
@@ -13172,6 +13190,7 @@ def formazione_azienda_detail(request, azienda_id: int):
         "documenti": list(az.documenti.all()),
         "doc_form": TrainingProviderDocumentForm(),
         "sessioni": erog["sessioni"],
+        "per_corso": erog["per_corso"],
         "ore": erog["ore"],
         "discenti": erog["discenti"],
         "n_corsi": erog["n_corsi"],
@@ -15305,6 +15324,77 @@ def formazione_copertura(request):
         "filtro_corso": filtro_corso,
         "filtro_stato": filtro_stato,
         "is_editor": _can_edit_formazione(request),
+    })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CCNL — monte ore facoltativo del diritto soggettivo alla formazione
+# ─────────────────────────────────────────────────────────────────────────────
+
+@login_required
+def formazione_ccnl_dashboard(request):
+    """Monte ore CCNL per dipendente: ore facoltative (verso le 24h/3 anni,
+    «a riempire») e ore obbligatorie/sicurezza nello stesso periodo, informative
+    («a diminuire» quando ci sono corsi obbligatori scaduti — vedi scadenzario
+    per il dettaglio). Finestra scorrevole degli ultimi 3 anni da oggi, o da
+    `?al=` per un istantanea passata."""
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
+        return redirect("anagrafica:index")
+
+    from .services.formazione_ccnl import MONTE_ORE_TARGET, righe_dipendenti
+
+    filtro_reparto = (request.GET.get("reparto") or "").strip()
+    filtro_stato   = (request.GET.get("stato") or "").strip()
+    filtro_q       = (request.GET.get("q") or "").strip()
+    al_raw = (request.GET.get("al") or "").strip()
+    try:
+        al_param = date.fromisoformat(al_raw) if al_raw else None
+    except ValueError:
+        al_param = None
+
+    dal, al, reparti_set, righe = righe_dipendenti(
+        al=al_param, filtro_reparto=filtro_reparto, filtro_stato=filtro_stato, filtro_q=filtro_q,
+    )
+
+    paginator = Paginator(righe, 50)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    return render(request, "anagrafica/pages/formazione_ccnl_dashboard.html", {
+        "page_obj": page_obj,
+        "dal": dal,
+        "al": al,
+        "al_param": al_raw,
+        "monte_ore_target": MONTE_ORE_TARGET,
+        "reparti": sorted(reparti_set),
+        "filtro_reparto": filtro_reparto,
+        "filtro_stato": filtro_stato,
+        "filtro_q": filtro_q,
+        "totale": len(righe),
+        "n_completi": sum(1 for r in righe if r["stato"] == "COMPLETO"),
+        "n_da_iniziare": sum(1 for r in righe if r["stato"] == "DA_INIZIARE"),
+        "media_ore_facoltative": round(sum(r["ore_facoltative"] for r in righe) / len(righe), 1) if righe else 0,
+    })
+
+
+@login_required
+def formazione_ccnl_dipendente_espansione(request, legacy_id: int):
+    """Frammento HTMX: i corsi del dipendente nel periodo, dentro la riga espansa."""
+    if not _can_view_formazione(request):
+        return HttpResponse(status=403)
+
+    from .services.formazione_ccnl import corsi_dipendente_nel_periodo
+
+    al_raw = (request.GET.get("al") or "").strip()
+    try:
+        al_param = date.fromisoformat(al_raw) if al_raw else None
+    except ValueError:
+        al_param = None
+
+    dati = corsi_dipendente_nel_periodo(legacy_id, al=al_param)
+    return render(request, "anagrafica/partials/_formazione_ccnl_espansione.html", {
+        "legacy_id": legacy_id,
+        **dati,
     })
 
 

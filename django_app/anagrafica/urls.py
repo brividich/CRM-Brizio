@@ -470,6 +470,10 @@ urlpatterns = [
     # Copertura / gap formativo (chi manca quali corsi obbligatori, per reparto/mansione)
     path("formazione/copertura/", views.formazione_copertura, name="formazione_copertura"),
 
+    # ── Formazione HR — Monte ore CCNL (diritto soggettivo alla formazione) ──
+    path("formazione/monte-ore-ccnl/", views.formazione_ccnl_dashboard, name="formazione_ccnl_dashboard"),
+    path("formazione/monte-ore-ccnl/<int:legacy_id>/espansione", views.formazione_ccnl_dipendente_espansione, name="formazione_ccnl_dipendente_espansione"),
+
     # ── Formazione HR — Plan (calendario eventi mese per mese) ──────────────
     path("formazione/plan/", views.formazione_plan, name="formazione_plan"),
     path("formazione/plan/dipendente/<int:legacy_id>/", views.formazione_plan, name="formazione_plan_dipendente"),

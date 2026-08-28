@@ -120,39 +120,64 @@
     {# ── Corsi erogati ────────────────────────────────────────────────────── #}
     <section class="fmd-panel fmd-block">
       <div class="fmd-block-head">
-        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-calendar"/></svg>Corsi erogati <span class="fmd-count">{{ sessioni|length }}</span></div>
-        <div class="fmd-block-aside">{% if periodo_attivo %}nel periodo selezionato{% else %}tutto lo storico{% endif %}</div>
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-calendar"/></svg>Corsi erogati <span class="fmd-count">{{ per_corso|length }}</span></div>
+        <div class="fmd-block-aside">{{ sessioni|length }} edizion{{ sessioni|length|pluralize:"e,i" }} · {% if periodo_attivo %}nel periodo selezionato{% else %}tutto lo storico{% endif %}</div>
       </div>
-      {% if sessioni %}
+      {% if per_corso %}
       <div class="fmd-tablewrap">
         <table class="fmd-table" data-table-id="formazione.ente.erogazioni">
           <thead>
             <tr>
-              <th>Edizione</th>
+              <th class="fmd-c" style="width:34px;" aria-label="Espandi"></th>
               <th>Corso</th>
-              <th>Periodo</th>
-              <th>Docente</th>
+              <th class="fmd-c">Edizioni</th>
               <th class="fmd-c">Iscritti</th>
               <th class="fmd-r">Ore dell'ente</th>
-              <th>Stato</th>
+              <th class="fmd-nowrap">Ultima erogazione</th>
             </tr>
           </thead>
           <tbody>
-            {% for s in sessioni %}
-            <tr>
-              <td><a class="fmd-data-link" href="{% url 'anagrafica:formazione_sessione_detail' s.pk %}">{{ s.codice_sessione }}</a></td>
-              <td>
-                <a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' s.corso_id %}" style="color:inherit;">{{ s.corso.titolo }}</a>
-                <div class="fmd-muted" style="font-size:11.5px;">{{ s.corso.codice }}</div>
+            {% for g in per_corso %}
+            <tr id="fmd-ente-row-{{ g.corso.pk }}">
+              <td class="fmd-c">
+                <button type="button" class="fmd-exp-btn" id="fmd-ente-btn-{{ g.corso.pk }}"
+                        aria-expanded="false" aria-controls="fmd-ente-exp-{{ g.corso.pk }}"
+                        title="Mostra le edizioni erogate"
+                        onclick="fmdToggleEnteCorso({{ g.corso.pk }})">▶</button>
               </td>
-              <td class="fmd-nowrap">{{ s.data_inizio|date:"d-m-Y" }}{% if s.data_fine != s.data_inizio %} → {{ s.data_fine|date:"d-m-Y" }}{% endif %}</td>
-              <td class="fmd-muted">{% if s.docente_id %}<a class="fmd-data-link" href="{% url 'anagrafica:formazione_istruttore_detail' s.docente_id %}" style="color:inherit;">{{ s.docente.nome }}</a>{% else %}{{ s.docente_nome|default:"—" }}{% endif %}</td>
-              <td class="fmd-c">{{ s.n_iscritti }}</td>
-              <td class="fmd-r fmd-num">{{ s.ore_ente|floatformat:"-2" }}</td>
               <td>
-                {% if s.stato == "COMPLETATA" %}<span class="fmd-badge fmd-b-green">Completata</span>
-                {% elif s.stato == "ANNULLATA" %}<span class="fmd-badge fmd-b-orange">Annullata</span>
-                {% else %}<span class="fmd-badge fmd-plain">{{ s.get_stato_display }}</span>{% endif %}
+                <a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' g.corso.pk %}" style="color:inherit;">{{ g.corso.titolo }}</a>
+                <div class="fmd-muted" style="font-size:11.5px;">{{ g.corso.codice }}</div>
+              </td>
+              <td class="fmd-c">{{ g.n_sessioni }}</td>
+              <td class="fmd-c">{{ g.discenti }}</td>
+              <td class="fmd-r fmd-num">{{ g.ore|floatformat:"-2" }}</td>
+              <td class="fmd-nowrap fmd-muted">{{ g.ultima_data|date:"d-m-Y" }}</td>
+            </tr>
+            <tr id="fmd-ente-exp-{{ g.corso.pk }}" class="fm-detail-row" data-fm-detail-row="1" style="display:none;">
+              <td class="fmd-exp-cell" colspan="6">
+                <div class="fmd-exp-inner">
+                  <table class="fmd-exp-tab" style="width:100%;">
+                    <tr>
+                      <th>Edizione</th><th>Periodo</th><th>Docente</th>
+                      <th class="fmd-c">Iscritti</th><th class="fmd-r">Ore dell'ente</th><th>Stato</th>
+                    </tr>
+                    {% for s in g.sessioni %}
+                    <tr>
+                      <td><a class="fmd-data-link" href="{% url 'anagrafica:formazione_sessione_detail' s.pk %}">{{ s.codice_sessione }}</a></td>
+                      <td class="fmd-nowrap">{{ s.data_inizio|date:"d-m-Y" }}{% if s.data_fine != s.data_inizio %} → {{ s.data_fine|date:"d-m-Y" }}{% endif %}</td>
+                      <td>{% if s.docente_id %}<a class="fmd-data-link" href="{% url 'anagrafica:formazione_istruttore_detail' s.docente_id %}" style="color:inherit;">{{ s.docente.nome }}</a>{% else %}{{ s.docente_nome|default:"—" }}{% endif %}</td>
+                      <td class="fmd-c">{{ s.n_iscritti }}</td>
+                      <td class="fmd-r fmd-num">{{ s.ore_ente|floatformat:"-2" }}</td>
+                      <td>
+                        {% if s.stato == "COMPLETATA" %}<span class="fmd-badge fmd-b-green">Completata</span>
+                        {% elif s.stato == "ANNULLATA" %}<span class="fmd-badge fmd-b-orange">Annullata</span>
+                        {% else %}<span class="fmd-badge fmd-plain">{{ s.get_stato_display }}</span>{% endif %}
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </table>
+                </div>
               </td>
             </tr>
             {% endfor %}
@@ -170,4 +195,15 @@
 
   </div>{# .fmd-wrap #}
 </div>{# .fmd #}
+
+<script>
+function fmdToggleEnteCorso(corsoId) {
+  var row = document.getElementById('fmd-ente-exp-' + corsoId);
+  var btn = document.getElementById('fmd-ente-btn-' + corsoId);
+  if (!row || !btn) return;
+  var aperta = row.style.display !== 'none';
+  row.style.display = aperta ? 'none' : '';
+  btn.setAttribute('aria-expanded', aperta ? 'false' : 'true');
+}
+</script>
 {% endblock %}

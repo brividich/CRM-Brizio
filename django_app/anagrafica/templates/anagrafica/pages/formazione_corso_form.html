@@ -201,6 +201,10 @@
                 {% include "anagrafica/partials/_fmd_field.html" with field=form.obbligatorio %}
                 {% include "anagrafica/partials/_fmd_field.html" with field=form.is_active %}
               </div>
+              <p class="kp-hint" style="margin:14px 0 6px;">Distinto da «Obbligatorio» sopra: qui si dichiara se il corso rientra nella formazione sicurezza esclusa dal monte ore CCNL (diritto soggettivo alla formazione, 24h ogni 3 anni), invece di quella che vi concorre.</p>
+              <div class="fmd-checks">
+                {% include "anagrafica/partials/_fmd_field.html" with field=form.obbligatoria_ccnl %}
+              </div>
             </div>
           </section>
 
