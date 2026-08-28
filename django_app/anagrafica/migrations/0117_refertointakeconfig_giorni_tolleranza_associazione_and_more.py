@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('anagrafica', '0115_trainingproviderdocument'),
+        ('anagrafica', '0116_add_obbligatoria_ccnl'),
     ]
 
     operations = [
