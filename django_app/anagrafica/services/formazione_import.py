@@ -1208,4 +1208,105 @@ def import_estrazioni_corsi(
     else:
         _do_import()
 
+
+# ─────────────────────────────────────────────────────────────
+# IMPORT: elenco aziende/agenzie formative → TrainingProvider
+# ─────────────────────────────────────────────────────────────
+
+def import_training_providers_xlsx(xlsx_path: str | Path, commit: bool = False) -> dict:
+    """Importa aziende/agenzie formative da un xlsx con colonne
+    Nome | Descrizione | Indirizzo | Telefono | Contatto | Telefono del contatto.
+
+    Match su `TrainingProvider.nome` case-insensitive (evita doppioni per
+    maiuscole/spazi). Il file esporta l'email del referente nella colonna
+    "Telefono del contatto" (quando contiene una "@") — è l'unico modo in cui
+    compare un'email nel file. "Descrizione" e il referente ("Contatto")
+    confluiscono in `note`. Indirizzo/telefono troppo lunghi per il campo
+    vengono troncati e il testo integrale spostato in `note`.
+    """
+    from anagrafica.models_formazione import TrainingProvider
+
+    report: dict[str, Any] = {
+        "file": str(xlsx_path),
+        "righe_lette": 0,
+        "created": 0,
+        "updated": 0,
+        "skipped": 0,
+        "warnings": [],
+        "errors": [],
+    }
+
+    rows = _read_rows(xlsx_path)
+    report["righe_lette"] = len(rows)
+
+    def _do_import():
+        for i, row in enumerate(rows, start=2):
+            try:
+                nome = _norm(row.get("Nome"))
+                if not nome:
+                    report["skipped"] += 1
+                    continue
+
+                descrizione = _norm(row.get("Descrizione"))
+                indirizzo = _norm(row.get("Indirizzo"))
+                telefono = _norm(row.get("Telefono"))
+                contatto = _norm(row.get("Contatto"))
+                telefono_contatto = _norm(row.get("Telefono del contatto"))
+
+                email = telefono_contatto if "@" in telefono_contatto else ""
+
+                note_parts = []
+                if descrizione:
+                    note_parts.append(descrizione)
+                if contatto:
+                    note_parts.append(f"Referente: {contatto}")
+                note = "\n\n".join(note_parts)
+
+                if len(indirizzo) > 300:
+                    note = (f"Indirizzo completo: {indirizzo}\n\n{note}").strip()
+                    indirizzo = indirizzo[:297] + "..."
+                if len(telefono) > 30:
+                    note = (f"Telefono completo: {telefono}\n\n{note}").strip()
+                    telefono = telefono[:27] + "..."
+
+                defaults = {
+                    "indirizzo": indirizzo,
+                    "telefono": telefono,
+                    "email": email,
+                    "note": note,
+                }
+
+                if not commit:
+                    exists = TrainingProvider.objects.filter(nome__iexact=nome).exists()
+                    report["updated" if exists else "created"] += 1
+                    continue
+
+                obj, created = TrainingProvider.objects.get_or_create(
+                    nome__iexact=nome,
+                    defaults={"nome": nome, **defaults},
+                )
+                if created:
+                    report["created"] += 1
+                else:
+                    changed = False
+                    for field, value in defaults.items():
+                        if value and not getattr(obj, field):
+                            setattr(obj, field, value)
+                            changed = True
+                    if changed:
+                        obj.save()
+                    report["updated"] += 1
+
+            except Exception as e:
+                report["errors"].append(f"riga {i}: {type(e).__name__}: {e}")
+                logger.exception("Errore import aziende formative riga %s", i)
+
+    if commit:
+        with transaction.atomic():
+            _do_import()
+    else:
+        _do_import()
+
+    return report
+
     return report
