@@ -1336,7 +1336,7 @@ class RefertoIntakeConfigForm(forms.ModelForm):
             "attiva", "cartella", "sposta_elaborati", "max_file_per_giro",
             "ocr_dpi", "ocr_psm", "ocr_lingua", "ocr_timeout_secondi",
             "soglia_con_data_nascita", "soglia_senza_data_nascita",
-            "conferma_automatica",
+            "conferma_automatica", "giorni_tolleranza_associazione",
         ]
         widgets = {
             "cartella": forms.TextInput(attrs={
@@ -1349,6 +1349,7 @@ class RefertoIntakeConfigForm(forms.ModelForm):
             "ocr_timeout_secondi": forms.NumberInput(attrs={"min": 5, "max": 300}),
             "soglia_con_data_nascita": forms.NumberInput(attrs={"min": 0, "max": 100}),
             "soglia_senza_data_nascita": forms.NumberInput(attrs={"min": 0, "max": 100}),
+            "giorni_tolleranza_associazione": forms.NumberInput(attrs={"min": 0, "max": 60}),
         }
 
     def clean_cartella(self):

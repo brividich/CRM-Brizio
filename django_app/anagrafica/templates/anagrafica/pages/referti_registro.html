@@ -96,7 +96,10 @@ body.theme-dark .rr-chip.on{background:#2563eb;border-color:#2563eb}
             il {{ riga.confermato_il|date:"d/m/Y H:i" }}</div>
           {% endif %}
         </td>
-        <td>{{ riga.visite_create }}</td>
+        <td>
+          {{ riga.visite_create }}
+          {% if riga.visite_associate %}<div class="rr-msg">+{{ riga.visite_associate }} agganciate</div>{% endif %}
+        </td>
         <td><a class="hr-btn" href="{% url 'anagrafica:referto_scarica' riga.pk %}">File</a></td>
       </tr>
       {% empty %}

@@ -267,6 +267,7 @@ class RegistrazioneTests(TestCase):
             testo="IDONEO MANSIONE SPECIFICA", esito=VisitaMedica.Esito.IDONEO_MANSIONE
         )
         self.utente = User.objects.create_user("revisore", password="x")
+        self.config = RefertoIntakeConfig.load()
 
     def _riga(self, **extra):
         campi = {
@@ -357,6 +358,61 @@ class RegistrazioneTests(TestCase):
         create = registra(self._riga(), utente=self.utente)
         self.assertEqual(len(create), 1)
         self.assertEqual(create[0].tipo, self.oculistica)
+
+    def test_data_vicina_si_aggancia_invece_di_duplicare(self):
+        """Visita già registrata (Giornata visite) 2 giorni prima del giudizio."""
+        esistente = VisitaMedica.objects.create(
+            legacy_anagrafica_id=10, tipo=self.medica,
+            data_svolgimento=date(2024, 3, 13), esito=VisitaMedica.Esito.IDONEO,
+        )
+        create = registra(self._riga(), utente=self.utente)
+        esistente.refresh_from_db()
+        # Solo l'oculistica è nuova; la medica si è agganciata a quella esistente.
+        self.assertEqual(len(create), 2)
+        self.assertEqual(VisitaMedica.objects.filter(tipo=self.medica).count(), 1)
+        nuova_oculistica = next(v for v in create if v.tipo_id == self.oculistica.id)
+        self.assertEqual(esistente.referto_documento_id, nuova_oculistica.referto_documento_id)
+        self.assertIn("agganciato", esistente.note)
+        # La data e l'esito originali non vengono toccati.
+        self.assertEqual(esistente.data_svolgimento, date(2024, 3, 13))
+        self.assertEqual(esistente.esito, VisitaMedica.Esito.IDONEO)
+
+    def test_data_fuori_tolleranza_crea_comunque(self):
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=10, tipo=self.medica,
+            data_svolgimento=date(2024, 2, 1),  # oltre 7 giorni dal 15/3
+        )
+        create = registra(self._riga(), utente=self.utente)
+        self.assertEqual(len(create), 2)
+        self.assertEqual(VisitaMedica.objects.filter(tipo=self.medica).count(), 2)
+
+    def test_visita_gia_agganciata_non_viene_riusata(self):
+        """Una visita con referto già collegato non è candidata: appartiene a un altro certificato."""
+        from django.core.files.base import ContentFile
+
+        from .models import DocumentoDipendente
+
+        altro_doc = DocumentoDipendente(
+            legacy_anagrafica_id=10, tipo=DocumentoDipendente.Tipo.VISITA_MEDICA_REFERTO,
+            nome_originale="altro.pdf", tipo_mime="application/pdf",
+        )
+        altro_doc.file.save("altro.pdf", ContentFile(b"x"), save=True)
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=10, tipo=self.medica,
+            data_svolgimento=date(2024, 3, 14), referto_documento=altro_doc,
+        )
+        create = registra(self._riga(), utente=self.utente)
+        self.assertEqual(len(create), 2)
+        self.assertEqual(VisitaMedica.objects.filter(tipo=self.medica).count(), 2)
+
+    def test_soglia_zero_disattiva_l_associazione(self):
+        self.config.giorni_tolleranza_associazione = 0
+        self.config.save()
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=10, tipo=self.medica, data_svolgimento=date(2024, 3, 16),
+        )
+        create = registra(self._riga(), utente=self.utente)
+        self.assertEqual(VisitaMedica.objects.filter(tipo=self.medica).count(), 2)
 
     def test_traccia_di_chi_ha_confermato(self):
         riga = self._riga()

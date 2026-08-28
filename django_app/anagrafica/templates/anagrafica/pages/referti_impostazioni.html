@@ -145,6 +145,27 @@ body.theme-dark .ri-err{color:#f87171}
       {% endfor %}
     </div>
 
+    <div class="ri-sez">
+      <div class="ri-tit">Associazione a visite già registrate</div>
+      <div class="ri-nota">
+        La data registrata a mano (es. dalla Giornata visite) e quella scritta poi dal medico sul
+        certificato spesso non coincidono di un giorno o due, pur essendo lo stesso evento: entro
+        questa finestra il referto si aggancia alla visita già presente invece di duplicarla.
+      </div>
+      <div class="ri-riga">
+      {% for campo in form %}
+        {% if campo.name == "giorni_tolleranza_associazione" %}
+        <div class="ri-campo">
+          <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+          {{ campo }}
+          {% if campo.help_text %}<span class="helptext">{{ campo.help_text }}</span>{% endif %}
+          {% for e in campo.errors %}<div class="ri-err">{{ e }}</div>{% endfor %}
+        </div>
+        {% endif %}
+      {% endfor %}
+      </div>
+    </div>
+
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
       <button type="submit" name="azione" value="salva" class="hr-btn hr-btn-primary">Salva</button>
       <button type="submit" name="azione" value="prova" class="hr-btn">Prova adesso</button>
