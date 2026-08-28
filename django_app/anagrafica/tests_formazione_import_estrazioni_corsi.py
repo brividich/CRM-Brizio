@@ -114,3 +114,13 @@ class ImportEstrazioniCorsiTests(TestCase):
         self.assertEqual(TrainingCourse.objects.count(), 2)
         self.assertEqual(TrainingInstructor.objects.count(), 1)
         self.assertEqual(TrainingSession.objects.count(), 1)
+
+    def test_solo_docenti_non_tocca_piani_corsi_sessioni(self):
+        with patch.object(svc, "_read_rows", side_effect=_fake_read_rows):
+            report = svc.import_estrazioni_corsi("finto.xlsx", commit=True, solo_docenti=True)
+        self.assertEqual(report["errors"], [])
+        self.assertEqual(report["docenti_created"], 1)
+        self.assertEqual(TrainingInstructor.objects.count(), 1)
+        self.assertFalse(TrainingPlan.objects.exists())
+        self.assertFalse(TrainingCourse.objects.exists())
+        self.assertFalse(TrainingSession.objects.exists())

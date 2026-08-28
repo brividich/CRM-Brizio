@@ -978,8 +978,14 @@ def import_estrazioni_corsi(
     xlsx_path: str | Path,
     commit: bool = False,
     sheets: list[str] | None = None,
+    solo_docenti: bool = False,
 ) -> dict:
     """Importa catalogo corsi/sessioni/docenti da "N Estrazioni Corsi.xlsx".
+
+    Con `solo_docenti=True` importa **solo** `TrainingInstructor` da
+    DESCRIZIONE DOCENTE (una entry per nome distinto su tutte le righe/fogli),
+    senza toccare piani/corsi/sessioni — utile quando il catalogo corsi verrà
+    importato separatamente da un altro file.
 
     Per ogni riga valida (CODICE CORSO presente):
     - `TrainingPlan`: lookup/creazione per `nome` = DESCRIZIONE ATTIVITA'.
@@ -1098,6 +1104,10 @@ def import_estrazioni_corsi(
     def _do_import():
         for i, row in enumerate(all_rows, start=2):
             try:
+                if solo_docenti:
+                    _get_docente(row.get("DESCRIZIONE DOCENTE"))
+                    continue
+
                 foglio = row.get("__sheet__")
                 cod_corso_raw = row.get("CODICE CORSO")
                 if not cod_corso_raw:

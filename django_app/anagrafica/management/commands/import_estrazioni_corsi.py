@@ -18,6 +18,9 @@ Esempi:
 
     # Applica le modifiche
     python manage.py import_estrazioni_corsi --file "C:\\...\\1 Estrazioni Corsi.xlsx" --commit
+
+    # Solo docenti (senza toccare piani/corsi/sessioni)
+    python manage.py import_estrazioni_corsi --file "C:\\...\\1 Estrazioni Corsi.xlsx" --solo-docenti --commit
 """
 
 from __future__ import annotations
@@ -48,6 +51,10 @@ class Command(BaseCommand):
             "--commit", action="store_true",
             help="Applica le modifiche al DB. Senza questo flag il comando è dry-run.",
         )
+        parser.add_argument(
+            "--solo-docenti", action="store_true",
+            help="Importa solo i docenti (TrainingInstructor), senza toccare piani/corsi/sessioni.",
+        )
 
     def handle(self, *args, **opts):
         xlsx_path = Path(opts["file"])
@@ -55,15 +62,17 @@ class Command(BaseCommand):
             raise CommandError(f"File non trovato: {xlsx_path}")
 
         commit = bool(opts.get("commit"))
+        solo_docenti = bool(opts.get("solo_docenti"))
         sheets_raw = (opts.get("sheets") or "").strip()
         sheets = [s.strip() for s in sheets_raw.split(",") if s.strip()] if sheets_raw else ESTRAZIONI_CORSI_SHEETS_DEFAULT
 
         self.stdout.write(self.style.NOTICE(
             f"Import estrazioni corsi — file: {xlsx_path.name}\n"
             f"Fogli: {', '.join(sheets)} — modalità: {'COMMIT' if commit else 'DRY-RUN'}"
+            + (" — SOLO DOCENTI" if solo_docenti else "")
         ))
 
-        report = import_estrazioni_corsi(xlsx_path, commit=commit, sheets=sheets)
+        report = import_estrazioni_corsi(xlsx_path, commit=commit, sheets=sheets, solo_docenti=solo_docenti)
 
         self.stdout.write("")
         ordine_chiavi = [
