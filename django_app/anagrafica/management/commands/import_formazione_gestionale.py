@@ -162,7 +162,7 @@ class Command(BaseCommand):
         """Stampa il report di un singolo import. Ritorna il n. di errori."""
         ordine_chiavi = [
             "righe_lette", "dipendenti_non_trovati",
-            "piani_created", "corsi_created", "sessioni_created",
+            "piani_created", "corsi_created", "corsi_accoppiati_per_titolo", "sessioni_created",
             "lezioni_created", "tipi_qualifica_created",
             "iscrizioni_created", "iscrizioni_updated",
             "presenze_created", "presenze_updated",

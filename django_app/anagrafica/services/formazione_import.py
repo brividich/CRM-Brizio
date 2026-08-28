@@ -372,6 +372,7 @@ def import_courses_person(xlsx_path: str | Path, commit: bool = False) -> dict:
         "dipendenti_non_trovati": 0,
         "piani_created": 0,
         "corsi_created": 0,
+        "corsi_accoppiati_per_titolo": 0,
         "sessioni_created": 0,
         "iscrizioni_created": 0,
         "iscrizioni_updated": 0,
@@ -405,6 +406,16 @@ def import_courses_person(xlsx_path: str | Path, commit: bool = False) -> dict:
     pian_cache: dict[str, TrainingPlan | None] = {}
     cors_cache: dict[str, TrainingCourse | None] = {}
     sess_cache: dict[tuple[str, date | None], TrainingSession | None] = {}
+
+    # Indice per titolo normalizzato: i "Codice corso" del gestionale sono
+    # per-edizione (cambiano di anno in anno anche per lo stesso corso
+    # ricorrente), quindi un titolo già a catalogo con un codice diverso va
+    # ACCOPPIATO al TrainingCourse esistente invece di duplicarlo.
+    titolo_index: dict[str, TrainingCourse] = {}
+    for tc in TrainingCourse.objects.exclude(titolo=""):
+        key = _norm(tc.titolo).upper()
+        if key and key not in titolo_index:
+            titolo_index[key] = tc
 
     def _get_piano(nome: str) -> TrainingPlan | None:
         if not nome:
@@ -441,6 +452,15 @@ def import_courses_person(xlsx_path: str | Path, commit: bool = False) -> dict:
         if existing:
             cors_cache[codice] = existing
             return existing
+        # Codice non a catalogo: prova ad accoppiare per titolo normalizzato
+        # prima di crearne uno nuovo (stesso corso ricorrente, codice diverso
+        # per edizione/anno nel gestionale).
+        titolo_key = _norm(titolo).upper()
+        if titolo_key and titolo_key in titolo_index:
+            matched = titolo_index[titolo_key]
+            cors_cache[codice] = matched
+            report["corsi_accoppiati_per_titolo"] += 1
+            return matched
         if commit and piano is not None:
             obj = TrainingCourse.objects.create(
                 codice=codice, titolo=titolo or codice,
@@ -450,9 +470,17 @@ def import_courses_person(xlsx_path: str | Path, commit: bool = False) -> dict:
                 stato="ATTIVO", is_active=True,
             )
             cors_cache[codice] = obj
+            if titolo_key:
+                titolo_index[titolo_key] = obj
             report["corsi_created"] += 1
             return obj
         cors_cache[codice] = None
+        if titolo_key and titolo_key not in titolo_index:
+            # Dry-run: nessun oggetto reale da indicizzare, ma segnamo il
+            # titolo come "già visto in questa run" così righe successive con
+            # lo stesso titolo/codice diverso risultano accoppiate e non
+            # gonfiano il conteggio di corsi_created.
+            titolo_index[titolo_key] = None
         report["corsi_created"] += 1
         return None
 
