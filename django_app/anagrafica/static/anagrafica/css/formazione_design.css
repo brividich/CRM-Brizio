@@ -391,6 +391,7 @@ body.theme-dark .fmd .fmd-table thead th,
 body.theme-dark .fmd .fmd-count,
 body.theme-dark .fmd .fmd-ed,
 body.theme-dark .fmd .fmd-bar,
+body.theme-dark .fmd .fmd-ccnl-bar,
 body.theme-dark .fmd .fmd-flow-chip,
 body.theme-dark .fmd .fm-slide-body code,
 body.theme-dark .fmd .fm-import-box{
@@ -514,9 +515,24 @@ body.theme-dark .fmd .fmd-alert{
 .fmd-exp-vuoto{ font-size:12.5px; color:var(--fmd-muted-2); }
 .fmd-exp-vuoto a{ margin-left:6px; font-weight:700; color:var(--fmd-cyan); text-decoration:none; }
 
+/* ── Monte ore CCNL: due colonne facoltativi/obbligatori nella riga espansa ── */
+.fmd-ccnl-col{ background:#fff; border:1px solid var(--fmd-line); border-radius:9px; padding:10px 12px; }
+.fmd-ccnl-col + .fmd-ccnl-col{ margin-top:8px; }
+.fmd-ccnl-col-h{ font-size:11.5px; font-weight:700; color:var(--fmd-navy); margin-bottom:6px; }
+
+/* ── Barra di completamento monte ore (più alta della .fmd-bar da elenco) ── */
+.fmd-ccnl-bar{ height:10px; background:#eef2f7; border-radius:5px; overflow:hidden; min-width:120px; }
+.fmd-ccnl-bar > span{ display:block; height:10px; border-radius:5px; background:var(--fmd-cyan); transition:width .2s; }
+.fmd-ccnl-bar.fmd-warn > span{ background:var(--fmd-orange); }
+.fmd-ccnl-bar.fmd-ok > span{ background:#16a34a; }
+.fmd-ccnl-cell{ display:flex; flex-direction:column; gap:4px; min-width:140px; }
+.fmd-ccnl-cell-label{ font-size:11px; color:var(--fmd-muted); white-space:nowrap; }
+.fmd-ccnl-cell-label b{ color:var(--fmd-navy); }
+
 body.theme-dark .fmd .fmd-exp-cell{ background:rgba(148,163,184,.06); }
 body.theme-dark .fmd .fmd-exp-ed,
-body.theme-dark .fmd .fmd-exp-btn{ background:var(--surface, #12203a); }
+body.theme-dark .fmd .fmd-exp-btn,
+body.theme-dark .fmd .fmd-ccnl-col{ background:var(--surface, #12203a); }
 
 /* Campi data/file nelle toolbar (upload documenti ente/docente, filtri di
    periodo): stesso vestito dei campi testo, che la regola sopra copre solo per

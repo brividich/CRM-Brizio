@@ -354,7 +354,7 @@ class TrainingCourseForm(forms.ModelForm):
         fields = [
             "piano", "categoria", "qualifica", "codice", "titolo", "descrizione",
             "durata_ore_teorica", "validita_mesi",
-            "obbligatorio", "costo_unitario",
+            "obbligatorio", "obbligatoria_ccnl", "costo_unitario",
             "fonte_obbligo", "riferimento_fonte", "articolo_fonte",
             "is_elearning", "quiz_punteggio_minimo",
             "stato", "note", "versione", "is_active",
@@ -372,6 +372,7 @@ class TrainingCourseForm(forms.ModelForm):
             "durata_ore_teorica": forms.NumberInput(attrs={**_FM_NUMBER, "step": "0.5", "min": "0.5"}),
             "validita_mesi":      forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "0"}),
             "obbligatorio":       forms.CheckboxInput(attrs=_FM_CHECK),
+            "obbligatoria_ccnl":  forms.CheckboxInput(attrs=_FM_CHECK),
             "costo_unitario":     forms.NumberInput(attrs={**_FM_NUMBER, "step": "0.01", "min": "0"}),
             "is_elearning":       forms.CheckboxInput(attrs=_FM_CHECK),
             "quiz_punteggio_minimo": forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "0", "max": "100"}),

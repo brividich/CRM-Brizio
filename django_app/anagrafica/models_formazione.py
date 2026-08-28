@@ -289,6 +289,22 @@ class TrainingCourse(models.Model):
         help_text="0 = una tantum, altrimenti durata in mesi prima del rinnovo",
     )
     obbligatorio   = models.BooleanField(default=False)
+    # ── Diritto soggettivo alla formazione (CCNL) ────────────────────────────
+    # Il CCNL riconosce un monte ore di formazione — tipicamente non tecnico/
+    # professionale — maturato su una finestra di 3 anni (24h). La formazione
+    # dovuta per legge o Accordo Stato-Regioni (sicurezza) non vi concorre: è un
+    # obbligo distinto, non un beneficio. Questo flag è indipendente da
+    # `obbligatorio`/`fonte_obbligo` (che restano il driver di filtri/idoneità/
+    # export già in uso) proprio perché un corso può essere "obbligatorio" per
+    # motivi che non sono di sicurezza (cliente, norma di sistema, decisione
+    # interna) e in quel caso può comunque concorrere al monte ore CCNL.
+    obbligatoria_ccnl = models.BooleanField(
+        default=False,
+        verbose_name="Formazione obbligatoria (CCNL)",
+        help_text="Esclusa dal monte ore facoltativo del CCNL (24h ogni 3 anni). "
+                  "Spuntare per la formazione sicurezza da legge o Accordo Stato-Regioni; "
+                  "le altre concorrono al monte ore del dipendente.",
+    )
     # ── Origine dell'obbligo (catena dell'evidenza, anello 1) ────────────────
     # Da dove nasce il dovere di erogare il corso. Storicamente il riferimento
     # finiva dentro il titolo come testo libero ("Rif. 9070Q", "AWPS004Q rev. B"),

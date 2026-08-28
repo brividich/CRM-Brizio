@@ -30,6 +30,7 @@
         {% elif corso.stato == "BOZZA" %}<span class="fmd-badge fmd-b-amber">Bozza</span>
         {% else %}<span class="fmd-badge fmd-b-grey">Archiviato</span>{% endif %}
         {% if corso.obbligatorio %} <span class="fmd-badge fmd-b-orange">Obbligatorio</span>{% endif %}
+        {% if corso.obbligatoria_ccnl %} <span class="fmd-badge fmd-b-grey" title="Esclusa dal monte ore facoltativo CCNL (24h/3 anni)">Fuori monte ore CCNL</span>{% endif %}
       </p>
     </div>
     {% if is_editor %}

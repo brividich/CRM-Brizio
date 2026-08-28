@@ -103,6 +103,18 @@ class SchedaEnteTests(TestCase):
         self.assertEqual(len(parziale.context["sessioni"]), 1)
         self.assertTrue(parziale.context["periodo_attivo"])
 
+    def test_corsi_erogati_raggruppati_ad_albero_per_corso(self):
+        """«Corsi erogati» è un albero corso → edizioni, non una riga per edizione."""
+        secondo_corso = _corso(codice="C-ENTE-2", titolo="Altro corso")
+        _sessione(secondo_corso, "S-ENTE-3", date(2026, 6, 1), docente=self.doc_alfa)
+
+        resp = self._scheda(self.alfa)
+        per_corso = resp.context["per_corso"]
+        self.assertEqual(len(per_corso), 2)
+        gruppo_primo = next(g for g in per_corso if g["corso"].pk == self.corso.pk)
+        self.assertEqual(gruppo_primo["n_sessioni"], 1)
+        self.assertEqual(gruppo_primo["ore"], 2.0)
+
     def test_scheda_elenca_i_docenti_dell_ente(self):
         resp = self._scheda(self.alfa)
         self.assertEqual([d.pk for d in resp.context["docenti"]], [self.doc_alfa.pk])
