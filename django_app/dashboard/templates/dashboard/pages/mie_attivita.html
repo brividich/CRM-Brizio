@@ -1,16 +1,16 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{# ===================================================================
-   mie_attivita.html — pagina dedicata del cockpit "Le mie attività".
-   Riusa il design system della home (home_portale.css: hp-card / hp-cdg /
-   hp-list / hp-badge) per restare uniforme alla UI della dashboard.
-   Context (vedi dashboard/views_mie_attivita.py):
-     greeting_name  str
-     total_open     int
-     sections       list[dict] {key,label,tone,icon,items[],all_url,empty}
-       items[] {code?,title,meta,status,priority?,url}
-   =================================================================== #}
+{% comment %}
+mie_attivita.html — pagina dedicata del cockpit "Le mie attività".
+Riusa il design system della home (home_portale.css: hp-card / hp-cdg /
+hp-list / hp-badge) per restare uniforme alla UI della dashboard.
+Context (vedi dashboard/views_mie_attivita.py):
+  greeting_name  str
+  total_open     int
+  sections       list[dict] {key,label,tone,icon,items[],all_url,empty}
+    items[] {code?,title,meta,status,priority?,url}
+{% endcomment %}
 
 {% block title %}Le mie attività · {{ block.super }}{% endblock %}
 

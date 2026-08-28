@@ -1,26 +1,26 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{# ===================================================================
-   home_portale.html — Home portale interattiva di NOVICROM HUB.
-   Context atteso (vedi dashboard/views_home_portale.py):
-     greeting_name        str
-     date_label           str
-     time_label           str
-     active_role          dict  {code, label}
-     active_unit          str|None
-     header_actions       list[dict]
-     priority_kpis        list[dict]
-     module_groups        list[dict]
-     my_tasks             list[dict]
-     pending_approvals    list[dict]
-     anomalie_aperte      list[dict]
-     calendar_week        list[dict]
-     news_items           list[dict]
-     activity_items       list[dict]
-     safety_kpis          list[dict]
-     system_status        list[dict]
-   =================================================================== #}
+{% comment %}
+home_portale.html — Home portale interattiva di NOVICROM HUB.
+Context atteso (vedi dashboard/views_home_portale.py):
+  greeting_name        str
+  date_label           str
+  time_label           str
+  active_role          dict  {code, label}
+  active_unit          str|None
+  header_actions       list[dict]
+  priority_kpis        list[dict]
+  module_groups        list[dict]
+  my_tasks             list[dict]
+  pending_approvals    list[dict]
+  anomalie_aperte      list[dict]
+  calendar_week        list[dict]
+  news_items           list[dict]
+  activity_items       list[dict]
+  safety_kpis          list[dict]
+  system_status        list[dict]
+{% endcomment %}
 
 {% block title %}Home portale · NOVICROM HUB{% endblock %}
 

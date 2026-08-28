@@ -424,7 +424,9 @@ body.theme-dark .fmd .fm-slide-body,
 body.theme-dark .fmd .fm-slide-body h2,
 body.theme-dark .fmd .fm-slide-body h3,
 body.theme-dark .fmd .fmd-lesson-arg,
-body.theme-dark .fmd .fmd-cell-main{
+body.theme-dark .fmd .fmd-cell-main,
+body.theme-dark .fmd .fmd-ccnl-cell-label b,
+body.theme-dark .fmd .fmd-ccnl-col-h{
   color: var(--text);
 }
 /* Chip dei ruoli: fondo soft + testo chiaro; il principale tiene il ciano. */

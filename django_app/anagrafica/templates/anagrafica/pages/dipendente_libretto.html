@@ -209,9 +209,7 @@
     <button type="button" class="pb-btn-print" onclick="window.print();">🖨 Stampa</button>
   </div>
 
-  {# Filtro di periodo: lo storico è la parte datata del libretto, ed è quella
-     che viene chiesta per anno o per intervallo (bilancio formativo, verifica
-     ispettiva). Non è stampato: sul foglio resta il periodo dichiarato. #}
+  {# Filtro di periodo: lo storico è la parte datata del libretto (bilancio formativo, verifica ispettiva); non è stampato, sul foglio resta il periodo dichiarato. #}
   <form class="lb-filtro" method="get" action="{% url 'anagrafica:dipendente_libretto_formativo' legacy_id %}">
     <label for="lb-dal">Storico dal</label>
     <input type="date" id="lb-dal" name="dal" value="{{ dal|date:'Y-m-d' }}">
