@@ -71,6 +71,15 @@ class ImportEstrazioniCorsiTests(TestCase):
         self.assertFalse(TrainingSession.objects.exists())
         self.assertEqual(report["errors"], [])
 
+    def test_dry_run_non_conta_doppio_tra_fogli(self):
+        # Il corso 101 e la sua sessione (2026-01-10) compaiono sia in "Corsi"
+        # che in "Corsi AGGIORNAMENTI" e non esistono ancora in DB: in dry-run
+        # vanno contati come "creati" una volta sola, non una per foglio.
+        report = self._run(commit=False)
+        self.assertEqual(report["corsi_created"], 2)  # 101 (nuovo) + 102 (nuovo)
+        self.assertEqual(report["corsi_updated"], 1)  # 101 ri-processato nel 2° foglio
+        self.assertEqual(report["sessioni_created"], 1)  # sessione di 101 il 2026-01-10
+
     def test_commit_crea_piano_corso_docente_sessione(self):
         report = self._run(commit=True)
         self.assertEqual(report["errors"], [])
