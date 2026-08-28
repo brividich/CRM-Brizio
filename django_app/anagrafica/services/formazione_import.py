@@ -215,13 +215,16 @@ def _lookup_legacy_id(
 # WORKBOOK READER
 # ─────────────────────────────────────────────────────────────
 
-def _read_rows(xlsx_path: str | Path) -> list[dict]:
-    """Legge il primo foglio del workbook come lista di dict (header → cella)."""
+def _read_rows(xlsx_path: str | Path, sheet_name: str | None = None) -> list[dict]:
+    """Legge un foglio del workbook come lista di dict (header → cella).
+
+    Senza `sheet_name` legge il primo foglio (comportamento storico).
+    """
     import openpyxl  # lazy import: dipendenza opzionale
 
     wb = openpyxl.load_workbook(xlsx_path, read_only=True, data_only=True)
     try:
-        ws = wb[wb.sheetnames[0]]
+        ws = wb[sheet_name] if sheet_name else wb[wb.sheetnames[0]]
         rows_iter = ws.iter_rows(values_only=True)
         headers = next(rows_iter, None)
         if not headers:
@@ -928,6 +931,276 @@ def import_qualifications_person(xlsx_path: str | Path, commit: bool = False) ->
             except Exception as e:
                 report["errors"].append(f"riga {i}: {type(e).__name__}: {e}")
                 logger.exception("Errore import qualifica riga %s", i)
+
+    if commit:
+        with transaction.atomic():
+            _do_import()
+    else:
+        _do_import()
+
+    return report
+
+
+# ─────────────────────────────────────────────────────────────
+# IMPORT: "N Estrazioni Corsi.xlsx" → TrainingPlan + TrainingCourse +
+#          TrainingInstructor + TrainingSession
+# ─────────────────────────────────────────────────────────────
+# Formato diverso da courses-person.xlsx: qui il foglio è un catalogo
+# corsi/sessioni (una riga = una sessione erogata), senza dati di
+# iscrizione per persona. Colonne attese (fogli "Corsi" e
+# "Corsi AGGIORNAMENTI"):
+#   CODICE ATTIVITA' | DESCRIZIONE ATTIVITA' | CODICE CORSO | DESCRIZIONE |
+#   DESCRIZIONE ESTESA | ORE OBBLIGATORIE | DESCRIZIONE LUOGO | TIPO LUOGO |
+#   CODICE DOCENTE | DESCRIZIONE DOCENTE | STATO CORSO | DATA INIZIO |
+#   DATA FINE | NOTE (solo AGGIORNAMENTI)
+#
+# I fogli "PROVA ..." dello stesso file sono bozze/QA e vanno ignorati.
+
+ESTRAZIONI_CORSI_SHEETS_DEFAULT = ["Corsi", "Corsi AGGIORNAMENTI"]
+
+_STATO_CORSO_TO_SESSIONE = {
+    "aperto":  "PIANIFICATA",
+    "erogato": "IN_CORSO",
+    "chiuso":  "COMPLETATA",
+    "sospeso": "ANNULLATA",
+}
+
+
+def _map_stato_sessione_estrazioni(s: Any) -> str | None:
+    return _STATO_CORSO_TO_SESSIONE.get(_norm(s).lower())
+
+
+def _map_modalita_da_tipo_luogo(s: Any) -> str:
+    return "ESTERNO" if _norm(s).lower() == "esterno" else "IN_SEDE"
+
+
+def import_estrazioni_corsi(
+    xlsx_path: str | Path,
+    commit: bool = False,
+    sheets: list[str] | None = None,
+) -> dict:
+    """Importa catalogo corsi/sessioni/docenti da "N Estrazioni Corsi.xlsx".
+
+    Per ogni riga valida (CODICE CORSO presente):
+    - `TrainingPlan`: lookup/creazione per `nome` = DESCRIZIONE ATTIVITA'.
+    - `TrainingCourse`: lookup per `codice` = str(CODICE CORSO). Titolo
+      sempre allineato al file; descrizione riempita solo se vuota; durata
+      aggiornata solo se il file fornisce un valore e quello attuale è
+      vuoto/zero.
+    - `TrainingInstructor`: lookup/creazione per `nome` = DESCRIZIONE DOCENTE
+      (case-insensitive). Se il nome combacia con un dipendente in anagrafica
+      (Cognome Nome), `tipo=INTERNO` e `legacy_anagrafica_id` valorizzato;
+      altrimenti `tipo=ESTERNO`. Righe senza docente (vuoto o '#N/A') non
+      creano/aggiornano l'istruttore.
+    - `TrainingSession`: lookup per `(corso, data_inizio)`; salta la riga se
+      manca DATA INIZIO. `sede`/`modalita`/`stato`/`docente` aggiornati se il
+      file fornisce un valore diverso da quello corrente (il file è
+      considerato la fonte più recente per questi campi operativi).
+
+    I fogli passati in `sheets` (default: "Corsi" poi "Corsi AGGIORNAMENTI")
+    sono processati in ordine: a parità di codice corso, i fogli successivi
+    vincono (permette di ri-lanciare l'import con un export più recente).
+    """
+    from anagrafica.models_formazione import (
+        TrainingCourse,
+        TrainingInstructor,
+        TrainingPlan,
+        TrainingSession,
+    )
+
+    report: dict[str, Any] = {
+        "file": str(xlsx_path),
+        "righe_lette": 0,
+        "righe_saltate": 0,
+        "piani_created": 0,
+        "corsi_created": 0,
+        "corsi_updated": 0,
+        "docenti_created": 0,
+        "sessioni_created": 0,
+        "sessioni_updated": 0,
+        "errors": [],
+        "warnings": [],
+        "dry_run": not commit,
+    }
+
+    sheets = sheets or ESTRAZIONI_CORSI_SHEETS_DEFAULT
+
+    all_rows: list[dict] = []
+    for sheet_name in sheets:
+        try:
+            rows = _read_rows(xlsx_path, sheet_name=sheet_name)
+        except KeyError:
+            report["warnings"].append(f"Foglio non trovato: '{sheet_name}' — saltato.")
+            continue
+        except FileNotFoundError as e:
+            report["errors"].append(f"File non trovato: {e}")
+            return report
+        except Exception as e:
+            report["errors"].append(f"Errore lettura xlsx (foglio {sheet_name}): {e}")
+            logger.exception("Errore lettura xlsx %s [%s]", xlsx_path, sheet_name)
+            return report
+        for row in rows:
+            row["__sheet__"] = sheet_name
+        all_rows.extend(rows)
+
+    report["righe_lette"] = len(all_rows)
+
+    by_nome_dip, _by_cf = _build_lookup_indexes()
+
+    piano_cache: dict[str, TrainingPlan] = {}
+    docente_cache: dict[str, TrainingInstructor] = {}
+
+    def _get_piano(nome: str) -> TrainingPlan:
+        if nome in piano_cache:
+            return piano_cache[nome]
+        obj = TrainingPlan.objects.filter(nome=nome).first()
+        if obj is None:
+            codice = _short_code(nome, prefix="P-", max_len=20)
+            while TrainingPlan.objects.filter(codice=codice).exists():
+                codice = _short_code(nome + "_x", prefix="P-", max_len=20)
+            if commit:
+                obj = TrainingPlan.objects.create(
+                    nome=nome, codice=codice,
+                    categoria="OBBLIGATORIA" if "sicurezza" in nome.lower() else "CONSIGLIATA",
+                    stato="ATTIVO", is_active=True,
+                )
+            report["piani_created"] += 1
+        piano_cache[nome] = obj
+        return obj
+
+    def _get_docente(nome_raw: str) -> TrainingInstructor | None:
+        nome = _norm(nome_raw)
+        if not nome or nome == "#N/A":
+            return None
+        key = nome.upper()
+        if key in docente_cache:
+            return docente_cache[key]
+        obj = TrainingInstructor.objects.filter(nome__iexact=nome).first()
+        if obj is None:
+            legacy_id = by_nome_dip.get(key)
+            tipo = "INTERNO" if legacy_id else "ESTERNO"
+            if commit:
+                obj = TrainingInstructor.objects.create(
+                    nome=nome, tipo=tipo, legacy_anagrafica_id=legacy_id,
+                )
+            report["docenti_created"] += 1
+        docente_cache[key] = obj
+        return obj
+
+    def _do_import():
+        for i, row in enumerate(all_rows, start=2):
+            try:
+                foglio = row.get("__sheet__")
+                cod_corso_raw = row.get("CODICE CORSO")
+                if not cod_corso_raw:
+                    report["righe_saltate"] += 1
+                    continue
+                try:
+                    codice = str(int(cod_corso_raw))
+                except (TypeError, ValueError):
+                    codice = _norm(cod_corso_raw)
+                if not codice:
+                    report["righe_saltate"] += 1
+                    continue
+
+                piano_nome = _norm(row.get("DESCRIZIONE ATTIVITA'")) or "NOVICROM"
+                piano = _get_piano(piano_nome)
+
+                titolo = _norm(row.get("DESCRIZIONE")) or codice
+                descrizione = _norm(row.get("DESCRIZIONE ESTESA"))
+                ore = _parse_decimal(row.get("ORE OBBLIGATORIE"))
+
+                corso = TrainingCourse.objects.filter(codice=codice).first()
+                if corso is None:
+                    if commit:
+                        corso = TrainingCourse.objects.create(
+                            piano=piano, codice=codice, titolo=titolo,
+                            descrizione=descrizione,
+                            durata_ore_teorica=ore or Decimal("0"),
+                            stato="ATTIVO", is_active=True,
+                        )
+                    report["corsi_created"] += 1
+                else:
+                    changed = False
+                    if commit:
+                        if titolo and corso.titolo != titolo:
+                            corso.titolo = titolo
+                            changed = True
+                        if descrizione and not corso.descrizione:
+                            corso.descrizione = descrizione
+                            changed = True
+                        if ore and not corso.durata_ore_teorica:
+                            corso.durata_ore_teorica = ore
+                            changed = True
+                        if changed:
+                            corso.save()
+                    report["corsi_updated"] += 1
+
+                docente = _get_docente(row.get("DESCRIZIONE DOCENTE"))
+
+                d_inizio = _parse_date(row.get("DATA INIZIO"))
+                if d_inizio is None:
+                    report["warnings"].append(
+                        f"[{foglio}] riga {i}: corso {codice} senza DATA INIZIO — sessione non creata."
+                    )
+                    continue
+                d_fine = _parse_date(row.get("DATA FINE")) or d_inizio
+
+                sede = _norm(row.get("DESCRIZIONE LUOGO"))
+                modalita = _map_modalita_da_tipo_luogo(row.get("TIPO LUOGO"))
+                stato_sess = _map_stato_sessione_estrazioni(row.get("STATO CORSO")) or "PIANIFICATA"
+                note = _norm(row.get("NOTE"))
+
+                if corso is not None:
+                    sessione = TrainingSession.objects.filter(corso=corso, data_inizio=d_inizio).first()
+                else:
+                    sessione = None  # dry-run senza corso reale
+
+                if sessione is None:
+                    if not commit:
+                        report["sessioni_created"] += 1
+                        continue
+                    codice_sessione = f"{codice}-{d_inizio.strftime('%Y%m%d')}"
+                    n = 0
+                    base = codice_sessione
+                    while TrainingSession.objects.filter(codice_sessione=codice_sessione).exists():
+                        n += 1
+                        codice_sessione = f"{base[:36]}-{n}"
+                    TrainingSession.objects.create(
+                        corso=corso, codice_sessione=codice_sessione,
+                        stato=stato_sess, modalita=modalita,
+                        data_inizio=d_inizio, data_fine=d_fine,
+                        sede=sede[:200], docente=docente,
+                        docente_nome=(docente.nome if docente else "")[:200],
+                        note=note,
+                    )
+                    report["sessioni_created"] += 1
+                else:
+                    changed = False
+                    if commit:
+                        if sede and sessione.sede != sede:
+                            sessione.sede = sede[:200]
+                            changed = True
+                        if modalita and sessione.modalita != modalita:
+                            sessione.modalita = modalita
+                            changed = True
+                        if stato_sess and sessione.stato != stato_sess:
+                            sessione.stato = stato_sess
+                            changed = True
+                        if docente and not sessione.docente_id:
+                            sessione.docente = docente
+                            sessione.docente_nome = docente.nome[:200]
+                            changed = True
+                        if note and not sessione.note:
+                            sessione.note = note
+                            changed = True
+                        if changed:
+                            sessione.save()
+                    report["sessioni_updated"] += 1
+
+            except Exception as e:
+                report["errors"].append(f"riga {i}: {type(e).__name__}: {e}")
+                logger.exception("Errore import estrazioni corsi riga %s", i)
 
     if commit:
         with transaction.atomic():
