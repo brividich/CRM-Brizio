@@ -110,19 +110,27 @@ class AziendaFormativaTests(TestCase):
         self.assertEqual(az.nome, "Nuovo nome")
         self.assertEqual(az.accreditamento, "REG-2026/17")
 
+    def _docenti_table_section(self, body):
+        # La tabella "Aziende formative" elenca sempre tutti i docenti di ogni
+        # ente (righe di dettaglio espandibili), a prescindere dal filtro: le
+        # asserzioni sul filtro riguardano solo la tabella docenti sotto.
+        marker = 'data-table-id="formazione.istruttori.list"'
+        idx = body.index(marker)
+        return body[idx:]
+
     def test_elenco_docenti_filtra_per_azienda(self):
         az = TrainingProvider.objects.create(nome="Alfa Formazione")
         dentro = TrainingInstructor.objects.create(nome="Docente Alfa", azienda=az)
         fuori = TrainingInstructor.objects.create(nome="Docente Solo")
 
         url = reverse("anagrafica:formazione_istruttori_list")
-        body = self.client.get(url, {"azienda": str(az.pk)}).content.decode()
-        self.assertIn(dentro.nome, body)
-        self.assertNotIn(fuori.nome, body)
+        section = self._docenti_table_section(self.client.get(url, {"azienda": str(az.pk)}).content.decode())
+        self.assertIn(dentro.nome, section)
+        self.assertNotIn(fuori.nome, section)
 
-        body = self.client.get(url, {"azienda": "NESSUNA"}).content.decode()
-        self.assertIn(fuori.nome, body)
-        self.assertNotIn(dentro.nome, body)
+        section = self._docenti_table_section(self.client.get(url, {"azienda": "NESSUNA"}).content.decode())
+        self.assertIn(fuori.nome, section)
+        self.assertNotIn(dentro.nome, section)
 
     def test_elenco_docenti_trova_per_nome_azienda(self):
         az = TrainingProvider.objects.create(nome="Beta Academy")

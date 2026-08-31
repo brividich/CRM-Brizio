@@ -124,6 +124,9 @@
 .fmd-table tbody tr{ transition:background .12s; }
 .fmd-table tbody tr:hover{ background:#fafbfd; }
 .fmd-table tbody tr:last-child td{ border-bottom:none; }
+.fmd-az-expandable{ cursor:pointer; }
+.fmd-az-detail .fmd-table tbody td{ padding:8px 12px; }
+.fmd-az-detail .fmd-table thead th{ padding:6px 12px; }
 .fmd-cell-sub{ font-size:11.5px; color:var(--fmd-muted-2); margin-top:2px; }
 /* Ruoli ricoperti sotto il nome, nelle liste persone: gli ambiti si sovrappongono
    (produttivo, 45001, 27001…) quindi i ruoli sono più d'uno e vanno mostrati
