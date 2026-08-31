@@ -357,6 +357,126 @@ class SpostamentoViewTests(TestCase):
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class SpostamentoModificaTests(TestCase):
+    """Correggere una card già registrata (attiva, programmata o conclusa),
+    senza passare da un nuovo spostamento."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+        cls.admin = User.objects.create_superuser(
+            username="sposta_mod_admin", email="sposta_mod_admin@x.local", password="x"
+        )
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM anagrafica_dipendenti")
+            cursor.execute(
+                "INSERT INTO anagrafica_dipendenti (aliasusername, nome, cognome, reparto, mansione, attivo) "
+                "VALUES (%s, %s, %s, %s, %s, %s)",
+                ["m.modif", "Mara", "Modifica", "CNC", "Operatore CNC", 1],
+            )
+            cursor.execute(
+                "SELECT id FROM anagrafica_dipendenti WHERE aliasusername = %s", ["m.modif"]
+            )
+            self.legacy_id = int(cursor.fetchone()[0])
+        Reparto.objects.create(nome="TORNI", caporeparto_legacy_id=777)
+        Reparto.objects.create(nome="CNC")
+
+    def _legacy(self, campo):
+        with connection.cursor() as cur:
+            cur.execute(f"SELECT {campo} FROM anagrafica_dipendenti WHERE id = %s", [self.legacy_id])
+            return (cur.fetchone() or [None])[0]
+
+    def _crea(self, **extra):
+        payload = {"reparto": "TORNI", "mansione": "Tornitore", "data_inizio": _oggi().isoformat()}
+        payload.update(extra)
+        self.client.post(
+            reverse("anagrafica:dipendente_assegnazione_create", args=[self.legacy_id]), payload,
+        )
+        return (
+            DipendenteAssegnazione.objects
+            .filter(legacy_anagrafica_id=self.legacy_id)
+            .order_by("-data_inizio", "-created_at").first()
+        )
+
+    def _modifica(self, assegnazione, **extra):
+        payload = {"reparto": assegnazione.reparto, "data_inizio": assegnazione.data_inizio.isoformat()}
+        payload.update(extra)
+        return self.client.post(
+            reverse(
+                "anagrafica:dipendente_assegnazione_modifica",
+                args=[self.legacy_id, assegnazione.pk],
+            ),
+            payload,
+        )
+
+    # ── Programmata ──────────────────────────────────────────────────────
+    def test_modifica_programmata_non_tocca_i_campi_vivi(self):
+        a = self._crea(data_inizio=_fra(20).isoformat())
+        self._modifica(a, mansione="Fresatore")
+        self.assertEqual(self._legacy("reparto"), "CNC")
+        a.refresh_from_db()
+        self.assertEqual(a.mansione, "Fresatore")
+        self.assertIsNone(a.attivata_il)
+
+    def test_modifica_programmata_con_decorrenza_arrivata_attiva_subito(self):
+        a = self._crea(data_inizio=_fra(20).isoformat())
+        self._modifica(a, data_inizio=_oggi().isoformat())
+        a.refresh_from_db()
+        self.assertIsNotNone(a.attivata_il)
+        self.assertEqual(self._legacy("reparto"), "TORNI")
+
+    # ── Aperta e già attiva ──────────────────────────────────────────────
+    def test_modifica_card_attiva_propaga_ai_campi_vivi(self):
+        a = self._crea(data_inizio=_oggi().isoformat())
+        self._modifica(a, reparto="CNC", mansione="Operatore CNC")
+        self.assertEqual(self._legacy("reparto"), "CNC")
+        self.assertEqual(self._legacy("mansione"), "Operatore CNC")
+        log = DipendenteCambiamentoOrganizzativo.objects.filter(
+            legacy_anagrafica_id=self.legacy_id,
+            tipo=DipendenteCambiamentoOrganizzativo.TIPO_REPARTO,
+            valore_precedente="TORNI", valore_nuovo="CNC",
+        ).first()
+        self.assertIsNotNone(log)
+
+    def test_modifica_non_registra_una_seconda_card(self):
+        a = self._crea(data_inizio=_oggi().isoformat())
+        self._modifica(a, note="corretto")
+        self.assertEqual(
+            DipendenteAssegnazione.objects.filter(legacy_anagrafica_id=self.legacy_id).count(), 1,
+        )
+
+    def test_modifica_stampa_chi_e_quando(self):
+        a = self._crea(data_inizio=_oggi().isoformat())
+        self._modifica(a, note="fix")
+        a.refresh_from_db()
+        self.assertIsNotNone(a.modificata_il)
+        self.assertEqual(a.modificata_da, self.admin)
+
+    # ── Conclusa ─────────────────────────────────────────────────────────
+    def test_modifica_card_conclusa_non_tocca_i_campi_vivi(self):
+        prima = self._crea(data_inizio=_fra(-30).isoformat())
+        self._crea(reparto="CNC", mansione="Operatore CNC", data_inizio=_oggi().isoformat())
+        prima.refresh_from_db()
+        self.assertIsNotNone(prima.data_fine)
+
+        self._modifica(prima, mansione="Fresatore vecchio")
+        prima.refresh_from_db()
+        self.assertEqual(prima.mansione, "Fresatore vecchio")
+        self.assertEqual(self._legacy("mansione"), "Operatore CNC")
+
+    # ── Permessi ─────────────────────────────────────────────────────────
+    def test_non_admin_non_puo_modificare(self):
+        a = self._crea(data_inizio=_oggi().isoformat())
+        self.client.force_login(User.objects.create_user(username="modif_plain", password="x"))
+        self._modifica(a, mansione="Fresatore")
+        a.refresh_from_db()
+        self.assertEqual(a.mansione, "Tornitore")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class SchedaDipendenteSpostamentiUITests(TestCase):
     """La card degli spostamenti in scheda dipendente."""
 
@@ -669,6 +789,26 @@ class SpostamentoRuoloParalleloTests(TestCase):
         self._post(ruolo_aziendale="Preposto")
         self.assertEqual(self._principale(), "Capoturno")
         self.assertEqual(self._ruoli(), ["Capoturno", "Preposto"])
+
+    def test_flag_parallelo_senza_cambio_di_assetto_non_chiude_la_card_aperta(self):
+        """Due ruoli in parallelo di seguito, senza toccare reparto/mansione:
+        deve restare una sola assegnazione aperta, non una chiusa e una nuova
+        — altrimenti il primo ruolo aggiunto risulterebbe "Concluso" pur
+        restando valido."""
+        turnista = RuoloOperativo.objects.create(nome="Turnista", ambito=self.scheda)
+        self._post(ruolo_aziendale="Capocommessa", ruolo_parallelo="1")
+        prima = DipendenteAssegnazione.objects.get(legacy_anagrafica_id=self.legacy_id)
+
+        self._post(ruolo_aziendale=turnista.nome, ruolo_parallelo="1")
+
+        self.assertEqual(
+            DipendenteAssegnazione.objects.filter(legacy_anagrafica_id=self.legacy_id).count(),
+            1,
+        )
+        prima.refresh_from_db()
+        self.assertIsNone(prima.data_fine)
+        self.assertEqual(prima.stato, DipendenteAssegnazione.STATO_IN_CORSO)
+        self.assertEqual(self._ruoli(), ["Capocommessa", "Capoturno", "Turnista"])
 
     # ── Attivazione differita ──────────────────────────────────────────────
     def test_spostamento_programmato_in_parallelo_applica_la_regola_alla_data(self):
