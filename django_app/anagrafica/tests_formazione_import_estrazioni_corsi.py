@@ -71,6 +71,15 @@ class ImportEstrazioniCorsiTests(TestCase):
         self.assertFalse(TrainingSession.objects.exists())
         self.assertEqual(report["errors"], [])
 
+    def test_dry_run_non_conta_doppio_tra_fogli(self):
+        # Il corso 101 e la sua sessione (2026-01-10) compaiono sia in "Corsi"
+        # che in "Corsi AGGIORNAMENTI" e non esistono ancora in DB: in dry-run
+        # vanno contati come "creati" una volta sola, non una per foglio.
+        report = self._run(commit=False)
+        self.assertEqual(report["corsi_created"], 2)  # 101 (nuovo) + 102 (nuovo)
+        self.assertEqual(report["corsi_updated"], 1)  # 101 ri-processato nel 2° foglio
+        self.assertEqual(report["sessioni_created"], 1)  # sessione di 101 il 2026-01-10
+
     def test_commit_crea_piano_corso_docente_sessione(self):
         report = self._run(commit=True)
         self.assertEqual(report["errors"], [])
@@ -105,3 +114,13 @@ class ImportEstrazioniCorsiTests(TestCase):
         self.assertEqual(TrainingCourse.objects.count(), 2)
         self.assertEqual(TrainingInstructor.objects.count(), 1)
         self.assertEqual(TrainingSession.objects.count(), 1)
+
+    def test_solo_docenti_non_tocca_piani_corsi_sessioni(self):
+        with patch.object(svc, "_read_rows", side_effect=_fake_read_rows):
+            report = svc.import_estrazioni_corsi("finto.xlsx", commit=True, solo_docenti=True)
+        self.assertEqual(report["errors"], [])
+        self.assertEqual(report["docenti_created"], 1)
+        self.assertEqual(TrainingInstructor.objects.count(), 1)
+        self.assertFalse(TrainingPlan.objects.exists())
+        self.assertFalse(TrainingCourse.objects.exists())
+        self.assertFalse(TrainingSession.objects.exists())
