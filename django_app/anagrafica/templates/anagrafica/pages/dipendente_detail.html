@@ -1661,13 +1661,90 @@ body.theme-dark .dp-link-ok { color:#86efac; }
               {% endif %}
               {% if a.created_by %} · registrata da {{ a.created_by.get_full_name|default:a.created_by.username }}{% endif %}
             </span>
-            {% if a.is_programmata and not a.attivata_il %}
-            <form method="post" action="{% url 'anagrafica:dipendente_assegnazione_annulla' legacy_id a.pk %}"
-                  onsubmit="return confirm('Annullare lo spostamento programmato dal {{ a.data_inizio|date:"d-m-Y" }}?');">
+            <div style="display:flex;gap:6px;">
+              <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" onclick="toggleSection('sp-edit-{{ a.pk }}')">Modifica</button>
+              {% if a.is_programmata and not a.attivata_il %}
+              <form method="post" action="{% url 'anagrafica:dipendente_assegnazione_annulla' legacy_id a.pk %}"
+                    onsubmit="return confirm('Annullare lo spostamento programmato dal {{ a.data_inizio|date:"d-m-Y" }}?');">
+                {% csrf_token %}
+                <button type="submit" class="dp-btn dp-btn-ghost dp-btn-xs">Annulla spostamento</button>
+              </form>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Modifica card: corregge QUESTA registrazione, non ne crea una nuova.
+               Su una card attiva/in corso la correzione si propaga ai campi vivi
+               (vedi services.assegnazioni.modifica_assegnazione); su una conclusa
+               resta solo storia corretta. -->
+          <div class="dp-edit-section" id="sp-edit-{{ a.pk }}" style="margin:0 14px 14px;">
+            <form method="post" action="{% url 'anagrafica:dipendente_assegnazione_modifica' legacy_id a.pk %}">
               {% csrf_token %}
-              <button type="submit" class="dp-btn dp-btn-ghost dp-btn-xs">Annulla spostamento</button>
+              <div class="dp-form-grid">
+                <div class="dp-form-field">
+                  <label class="dp-form-label" for="sp-edit-reparto-{{ a.pk }}">Reparto</label>
+                  <select name="reparto" id="sp-edit-reparto-{{ a.pk }}" class="dp-input sp-edit-reparto" data-pk="{{ a.pk }}">
+                    <option value="">— Nessun reparto —</option>
+                    {% for rep in reparti_catalog %}
+                      <option value="{{ rep.nome }}" {% if rep.nome == a.reparto %}selected{% endif %}>{{ rep.nome }}</option>
+                    {% endfor %}
+                    {% if a.reparto and not a.reparto_in_catalog %}
+                      <option value="{{ a.reparto }}" selected>{{ a.reparto }} (non in catalogo)</option>
+                    {% endif %}
+                  </select>
+                </div>
+                <div class="dp-form-field">
+                  <label class="dp-form-label" for="sp-edit-area-{{ a.pk }}">Area aziendale</label>
+                  <select name="area_aziendale" id="sp-edit-area-{{ a.pk }}" class="dp-input sp-edit-area" data-pk="{{ a.pk }}" data-current="{{ a.area_aziendale_id|default:'' }}">
+                    <option value="">— Nessuna area —</option>
+                  </select>
+                </div>
+                <div class="dp-form-field">
+                  <label class="dp-form-label" for="sp-edit-mansione-{{ a.pk }}">Mansione</label>
+                  <select name="mansione" id="sp-edit-mansione-{{ a.pk }}" class="dp-input">
+                    <option value="">— Nessuna mansione —</option>
+                    {% for m in mansioni_catalogo %}
+                      <option value="{{ m.nome }}" {% if m.nome == a.mansione %}selected{% endif %}>{{ m.nome }}</option>
+                    {% endfor %}
+                    {% if a.mansione and not a.mansione_in_catalog %}
+                      <option value="{{ a.mansione }}" selected>{{ a.mansione }} (non in catalogo)</option>
+                    {% endif %}
+                  </select>
+                </div>
+                <div class="dp-form-field">
+                  <label class="dp-form-label" for="sp-edit-ruolo-{{ a.pk }}">Ruolo aziendale</label>
+                  <select name="ruolo_aziendale" id="sp-edit-ruolo-{{ a.pk }}" class="dp-input">
+                    <option value="">— Nessuno —</option>
+                    {% for gruppo in ruoli_aziendali_per_ambito %}
+                      <optgroup label="{% if gruppo.ambito %}{{ gruppo.ambito.nome }}{% else %}Senza ambito{% endif %}">
+                        {% for r in gruppo.elementi %}
+                          <option value="{{ r.nome }}" {% if r.nome == a.ruolo_aziendale %}selected{% endif %}>{{ r.nome }}</option>
+                        {% endfor %}
+                      </optgroup>
+                    {% endfor %}
+                    {% if a.ruolo_aziendale and not a.ruolo_aziendale_in_catalog %}
+                      <option value="{{ a.ruolo_aziendale }}" selected>{{ a.ruolo_aziendale }} (non in catalogo)</option>
+                    {% endif %}
+                  </select>
+                  <label style="display:flex;align-items:flex-start;gap:6px;font-size:12px;color:#334155;margin-top:6px;">
+                    <input type="checkbox" name="ruolo_parallelo" value="1" {% if a.ruolo_parallelo %}checked{% endif %} style="margin-top:2px;">
+                    <span>Ruolo <strong>in parallelo</strong>: si aggiunge invece di sostituire</span>
+                  </label>
+                </div>
+                <div class="dp-form-field">
+                  <label class="dp-form-label" for="sp-edit-data-{{ a.pk }}">Decorrenza</label>
+                  <input type="date" name="data_inizio" id="sp-edit-data-{{ a.pk }}" class="dp-input" value="{{ a.data_inizio|date:'Y-m-d' }}">
+                </div>
+                <div class="dp-form-field">
+                  <label class="dp-form-label" for="sp-edit-note-{{ a.pk }}">Note</label>
+                  <input type="text" name="note" id="sp-edit-note-{{ a.pk }}" class="dp-input" maxlength="500" value="{{ a.note }}">
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;margin-top:14px;">
+                <button type="submit" class="dp-btn dp-btn-primary dp-btn-sm">Salva modifica</button>
+                <button type="button" class="dp-btn dp-btn-ghost dp-btn-sm" onclick="toggleSection('sp-edit-{{ a.pk }}')">Annulla</button>
+              </div>
             </form>
-            {% endif %}
           </div>
         </div>
         {% endfor %}
@@ -3118,6 +3195,12 @@ function toggleContrattoEdit(id) {
   }
 
   wireCascading(document.getElementById('sp-reparto'), document.getElementById('sp-area'));
+  // Stesso cascading per ogni form "Modifica" delle card di spostamento, una
+  // coppia reparto/area per assegnazione, accoppiate per data-pk.
+  document.querySelectorAll('.sp-edit-reparto').forEach(function(repartoSel) {
+    var areaSel = document.querySelector('.sp-edit-area[data-pk="' + repartoSel.dataset.pk + '"]');
+    wireCascading(repartoSel, areaSel);
+  });
   // Anteprima del caporeparto mentre si sceglie il reparto dello spostamento:
   // chi firma le autorizzazioni cambia insieme al reparto, meglio vederlo prima.
   var selReparto = document.getElementById('sp-reparto');

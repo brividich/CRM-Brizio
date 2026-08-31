@@ -78,6 +78,7 @@ urlpatterns = [
     # Sostituisce i vecchi endpoint separati mansione/set e reparto/set.
     path("dipendenti/<int:legacy_id>/assegnazione/nuova", views.dipendente_assegnazione_create, name="dipendente_assegnazione_create"),
     path("dipendenti/<int:legacy_id>/assegnazione/<int:assegnazione_id>/annulla", views.dipendente_assegnazione_annulla, name="dipendente_assegnazione_annulla"),
+    path("dipendenti/<int:legacy_id>/assegnazione/<int:assegnazione_id>/modifica", views.dipendente_assegnazione_modifica, name="dipendente_assegnazione_modifica"),
     # Anteprima idoneità: endpoint JSON, quindi sotto /anagrafica/api/ e mappato in
     # core.middleware.API_ACL_GATE_PATHS — altrimenti a un utente senza permessi il
     # middleware risponderebbe con un redirect HTML invece che con un 403 JSON.
