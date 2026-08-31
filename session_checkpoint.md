@@ -1,8 +1,15 @@
 # Session Checkpoint
 
-Data: 2026-08-07
+Data: 2026-08-28
 
 Ultime voci viste/aggiunte in questa sessione:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-08-28 - Codex` (creazione Excel formazione 2026 dal risultato query TSV fornito dall'utente).
+- `outputs/01a043e8-8cb2-7fb1-9eb3-ca609cd2ef81/Formazione_2026.xlsx` -> artifact HR locale a 6 fogli: dashboard, registro univoco, fonte integrale, riepiloghi corsi/reparti e controlli.
+- `outputs/01a043e8-8cb2-7fb1-9eb3-ca609cd2ef81/Formazione_2026_dashboard.xlsx` -> versione finale: Dashboard principale filtrabile e dinamica collegata alla tabella espandibile `Registro formazione`; 5 filtri, 4 KPI, 21 formule, 2 grafici e link interni.
+- `outputs/01a043e8-8cb2-7fb1-9eb3-ca609cd2ef81/Formazione_2026_dashboard_v2.xlsx` -> versione corretta dopo riscontro utente: eliminati `LET/FILTER/UNIQUE/TAKE`; collegamento Dashboard/Registro basato su colonna helper nascosta e sole formule Excel classiche. Questa e' la versione da usare.
+- `.gitignore` -> aggiunto `outputs/` per evitare il versionamento accidentale di artifact nominativi.
+- Verifica: 248 righe fonte, 247 univoche, 1 duplicato esatto, 4 anomalie logiche; Dashboard iniziale, tabella sorgente `A4:Y251`, 5 convalide filtro, 402 formule classiche (0 `_xlfn`), filtro anni 2020-2035 e corso parziale, 2 grafici, ZIP/XLSX e riferimenti OK; SHA256 v2 `64D82658A68BD3D42DF248F6ADB0B5D7F5C4EECCD8F9D8AA8DA4878DD1D3B4EC`. Nessuna modifica a codice, DB, ACL, routing, settings, README o CHANGELOG.
 
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-08-07 - Codex` (upload documenti dipendente esteso a `.msg` e `.html`).
 - `django_app/anagrafica/views.py` -> whitelist dedicate al solo upload manuale per estensioni e MIME MSG/HTML, senza estendere gli attestati formazione.
