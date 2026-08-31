@@ -25,7 +25,8 @@
       </div>
       <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-book"/></svg>{{ corso.titolo }}</h1>
       <p class="fmd-ph-sub">
-        Piano: <strong>{{ corso.piano.nome }}</strong> · Versione {{ corso.versione }} ·
+        Piano: <strong>{{ corso.piano.nome }}</strong> · Versione {{ corso.versione }}
+        {% if corso.ente_formativo %} · Ente formativo: <strong>{{ corso.ente_formativo.nome }}</strong>{% endif %} ·
         {% if corso.stato == "ATTIVO" %}<span class="fmd-badge fmd-b-green">Attivo</span>
         {% elif corso.stato == "BOZZA" %}<span class="fmd-badge fmd-b-amber">Bozza</span>
         {% else %}<span class="fmd-badge fmd-b-grey">Archiviato</span>{% endif %}
@@ -429,7 +430,7 @@
           <th data-col="stato" data-col-label="Stato" data-col-type="select"
               data-col-options='[["PIANIFICATA","Pianificata"],["IN_CORSO","In corso"],["COMPLETATA","Completata"],["ANNULLATA","Annullata"]]'
               data-col-sortable="1" data-col-filterable="1">Stato</th>
-          <th data-col="docente" data-col-label="Docente" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Docente</th>
+          <th data-col="docente" data-col-label="Docente / Ente" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Docente / Ente</th>
           <th class="num" data-col="lezioni" data-col-label="Lezioni" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Lezioni</th>
           <th class="num" data-col="iscritti" data-col-label="Iscritti" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Iscritti</th>
           <th class="nowrap">Azioni</th>
@@ -446,7 +447,7 @@
           <td class="nowrap muted">{{ s.data_fine|date:"d-m-Y" }}</td>
           <td class="muted">{{ s.get_modalita_display }}</td>
           <td><span class="fm-pill fm-pill-{{ s.stato|lower }}">{{ s.get_stato_display }}</span></td>
-          <td class="muted">{{ s.docente_nome|default:s.docente|default:"—" }}</td>
+          <td class="muted">{{ s.erogatore_display|default:"—" }}</td>
           <td class="num">{{ s.n_lezioni }}</td>
           <td class="num">{{ s.n_iscritti }}</td>
           <td class="nowrap">

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Formazione — l'ente formativo torna a scheda corso
+
+- **[feat/test] `anagrafica/models_formazione.py` (`TrainingCourse.ente_formativo`, `TrainingSession.erogatore_display`), `anagrafica/migrations/0117_trainingcourse_ente_formativo.py` [nuovo], `anagrafica/forms.py` (`TrainingCourseForm`), `anagrafica/views.py` (`formazione_corsi_list`, `formazione_corso_detail`, `formazione_sessione_detail`, `formazione_ricerca`), `anagrafica/templates/anagrafica/pages/formazione_corso_detail.html`, `anagrafica/templates/anagrafica/pages/formazione_sessione_detail.html`**: il corso a catalogo non aveva alcun collegamento all'ente formativo che lo eroga — solo la sessione e la lezione avevano un docente. Aggiunto `TrainingCourse.ente_formativo` (FK a `TrainingProvider`, editabile dal form corso), mostrato in scheda corso e nella ricerca globale (`formazione_ricerca`, che ora trova un corso anche digitando il nome dell'ente). La colonna "Ente / Formatore" già presente nell'elenco corsi ora antepone questo valore esplicito a quello dedotto dai docenti delle sessioni. Sessione e lezione **non cambiano semantica**: la sessione mostra il proprio docente quando è valorizzato (`erogatore_display`), altrimenti ripiega sull'ente formativo del corso; la lezione mostra sempre e solo il proprio docente.
+
 ### Anagrafica HR — documenti MSG e HTML
 
 - **[feat/test] `anagrafica/views.py`, `anagrafica/templates/anagrafica/pages/dipendente_detail.html`, `anagrafica/tests.py`**: il caricamento manuale nella card Documenti del dipendente supporta anche `.msg` (Outlook) e `.html`. Restano invariati limite 50 MB, archivio privato, ACL/audit e download come allegato; gli upload degli attestati di formazione conservano i formati precedenti.

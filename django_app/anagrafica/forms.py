@@ -353,6 +353,7 @@ class TrainingCourseForm(forms.ModelForm):
         model = TrainingCourse
         fields = [
             "piano", "categoria", "qualifica", "codice", "titolo", "descrizione",
+            "ente_formativo",
             "durata_ore_teorica", "validita_mesi",
             "obbligatorio", "obbligatoria_ccnl", "costo_unitario",
             "fonte_obbligo", "riferimento_fonte", "articolo_fonte",
@@ -363,6 +364,7 @@ class TrainingCourseForm(forms.ModelForm):
             "piano":              forms.Select(attrs=_FM_SELECT),
             "categoria":          forms.Select(attrs=_FM_SELECT),
             "qualifica":          forms.Select(attrs=_FM_SELECT),
+            "ente_formativo":     forms.Select(attrs=_FM_SELECT),
             "fonte_obbligo":      forms.Select(attrs=_FM_SELECT),
             "riferimento_fonte":  forms.TextInput(attrs={**_FM, "placeholder": "es. Accordo Stato-Regioni 21/12/2011"}),
             "articolo_fonte":     forms.TextInput(attrs={**_FM, "placeholder": "es. art. 37 c. 2"}),
@@ -395,6 +397,10 @@ class TrainingCourseForm(forms.ModelForm):
         self.fields["qualifica"].queryset = TipoQualifica.objects.filter(is_active=True).order_by("categoria", "nome")
         self.fields["qualifica"].required = False
         self.fields["qualifica"].empty_label = "— Nessuna (corso non legato a qualifica) —"
+
+        self.fields["ente_formativo"].queryset = TrainingProvider.objects.filter(is_active=True).order_by("nome")
+        self.fields["ente_formativo"].required = False
+        self.fields["ente_formativo"].empty_label = "— Nessuno —"
 
         # Origine dell'obbligo: mai bloccante, i corsi storici non la compilano.
         self.fields["fonte_obbligo"].required = False

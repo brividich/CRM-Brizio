@@ -11930,8 +11930,11 @@ def formazione_ricerca(request):
         # Edizioni + lezioni precaricate per il sottoelenco espandibile,
         # sia in pagina risultati sia nella tendina (no query N+1).
         risultati["corsi"] = list(
-            TrainingCourse.objects.select_related("piano")
-            .filter(Q(titolo__icontains=q) | Q(codice__icontains=q))
+            TrainingCourse.objects.select_related("piano", "ente_formativo")
+            .filter(
+                Q(titolo__icontains=q) | Q(codice__icontains=q)
+                | Q(ente_formativo__nome__icontains=q)
+            )
             .annotate(n_sessioni=_Count("sessioni", distinct=True))
             .prefetch_related(
                 _Prefetch(
@@ -11947,11 +11950,12 @@ def formazione_ricerca(request):
             .order_by("nome")[:25]
         )
         risultati["sessioni"] = list(
-            TrainingSession.objects.select_related("corso")
+            TrainingSession.objects.select_related("corso", "corso__ente_formativo")
             .filter(
                 Q(codice_sessione__icontains=q) | Q(corso__titolo__icontains=q)
                 | Q(sede__icontains=q)
                 | Q(docente__nome__icontains=q) | Q(docente_nome__icontains=q)
+                | Q(corso__ente_formativo__nome__icontains=q)
             )
             .annotate(n_iscritti=_Count("iscrizioni", distinct=True))
             .order_by("-data_inizio")[:25]
@@ -12256,7 +12260,7 @@ def formazione_corsi_list(request):
     filtro_obbligatorio = request.GET.get("obbligatorio", "")
     q_search = (request.GET.get("q") or "").strip()
 
-    qs = TrainingCourse.objects.select_related("piano").prefetch_related(
+    qs = TrainingCourse.objects.select_related("piano", "ente_formativo").prefetch_related(
         Prefetch(
             "sessioni",
             queryset=TrainingSession.objects.select_related("docente__azienda").order_by("-data_inizio"),
@@ -12271,7 +12275,10 @@ def formazione_corsi_list(request):
     elif filtro_obbligatorio == "0":
         qs = qs.filter(obbligatorio=False)
     if q_search:
-        qs = qs.filter(Q(titolo__icontains=q_search) | Q(codice__icontains=q_search))
+        qs = qs.filter(
+            Q(titolo__icontains=q_search) | Q(codice__icontains=q_search)
+            | Q(ente_formativo__nome__icontains=q_search)
+        )
 
     paginator = Paginator(qs.order_by("piano__nome", "titolo"), 50)
     page_obj = paginator.get_page(request.GET.get("page"))
@@ -12280,6 +12287,12 @@ def formazione_corsi_list(request):
     for corso in page_obj:
         nomi = []
         visti = set()
+        # L'ente di riferimento del corso (esplicito) viene per primo; gli enti
+        # visti solo tramite i docenti delle sessioni completano l'elenco quando
+        # differiscono (es. corso storicamente erogato da più provider).
+        if corso.ente_formativo_id:
+            nomi.append(corso.ente_formativo.nome)
+            visti.add(corso.ente_formativo.nome)
         for sessione in corso.sessioni.all():
             docente = sessione.docente
             if not docente:
@@ -12510,7 +12523,7 @@ def formazione_corso_detail(request, corso_id: int):
         messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
         return redirect("anagrafica:index")
     is_editor = _can_edit_formazione(request)
-    corso = get_object_or_404(TrainingCourse.objects.select_related("piano"), pk=corso_id)
+    corso = get_object_or_404(TrainingCourse.objects.select_related("piano", "ente_formativo"), pk=corso_id)
 
     prerequisiti = list(
         TrainingCourseDependency.objects.filter(corso_principale=corso)
@@ -12554,6 +12567,8 @@ def formazione_corso_detail(request, corso_id: int):
                   n_iscritti=Count("iscrizioni", distinct=True))
         .order_by("-data_inizio")[:100]
     )
+    for s in sessioni_list:
+        s.corso = corso  # evita una query per sessione in erogatore_display (fallback ente_formativo)
 
     # Aggregazione dipendenti iscritti distinti (across all sessioni del corso).
     # Per ciascuno: n. sessioni, stato sintetico, ultimo completamento, idoneo.
@@ -13612,7 +13627,7 @@ def formazione_sessione_detail(request, sessione_id: int):
     is_editor = _can_edit_formazione(request)
 
     sessione = get_object_or_404(
-        TrainingSession.objects.select_related("corso", "corso__piano", "docente"),
+        TrainingSession.objects.select_related("corso", "corso__piano", "corso__ente_formativo", "docente"),
         pk=sessione_id,
     )
     lezioni  = list(sessione.lezioni.select_related("docente").order_by("data", "ora_inizio"))
@@ -15139,7 +15154,7 @@ def formazione_sessione_fascicolo(request, sessione_id: int):
         messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
         return redirect("anagrafica:index")
     sessione = get_object_or_404(
-        TrainingSession.objects.select_related("corso", "corso__piano", "docente"),
+        TrainingSession.objects.select_related("corso", "corso__piano", "corso__ente_formativo", "docente"),
         pk=sessione_id,
     )
     from .services.attestato_pdf import build_fascicolo_sessione_pdf_bytes

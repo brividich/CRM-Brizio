@@ -180,8 +180,8 @@ body.theme-dark .flatpickr-calendar.inline .flatpickr-next-month svg{ fill:#e2e8
       <div class="hr-metric-ico amber">👤</div>
       <div class="hr-metric-body">
         <div class="hr-metric-top">
-          <span class="hr-metric-lbl">Docente</span>
-          <span class="hr-metric-val" style="font-size:13px;">{{ sessione.docente_nome|default:sessione.docente|default:"—" }}</span>
+          <span class="hr-metric-lbl">Docente / Ente</span>
+          <span class="hr-metric-val" style="font-size:13px;">{{ sessione.erogatore_display|default:"—" }}</span>
         </div>
         <div class="hr-metric-sub">{{ sessione.sede|default:"Sede non specificata"|truncatechars:30 }}</div>
       </div>

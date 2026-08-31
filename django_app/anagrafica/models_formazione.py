@@ -283,6 +283,13 @@ class TrainingCourse(models.Model):
     codice             = models.CharField(max_length=30, unique=True)
     titolo             = models.CharField(max_length=300)
     descrizione        = models.TextField(blank=True)
+    ente_formativo     = models.ForeignKey(
+        "anagrafica.TrainingProvider", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="corsi_erogati",
+        verbose_name="Ente formativo",
+        help_text="Ente che eroga tipicamente questo corso. La singola sessione mostra il "
+                  "proprio docente quando è valorizzato; altrimenti si mostra questo ente.",
+    )
     durata_ore_teorica = models.DecimalField(max_digits=7, decimal_places=2)
     validita_mesi      = models.PositiveSmallIntegerField(
         default=0,
@@ -918,6 +925,24 @@ class TrainingSession(models.Model):
     def ore_pianificate(self) -> float:
         """Monte ore formative della sessione = somma delle durate nette delle lezioni."""
         return round(sum(lz.durata_ore for lz in self.lezioni.all()), 2)
+
+    @property
+    def erogatore_display(self) -> str:
+        """Chi ha erogato la sessione, per la UI e la ricerca.
+
+        Un docente singolo è più informativo dell'ente («chi» invece di
+        «tramite chi»): se la sessione ne ha uno assegnato si mostra quello.
+        Altrimenti si ripiega sull'ente formativo del corso — utile quando la
+        sessione non ha un docente specifico registrato ma si sa comunque
+        chi l'ha erogata.
+        """
+        if self.docente_nome:
+            return self.docente_nome
+        if self.docente_id:
+            return self.docente.nome
+        if self.corso_id and self.corso.ente_formativo_id:
+            return self.corso.ente_formativo.nome
+        return ""
 
     def sessioni_gemelle(self):
         """Le altre sessioni della stessa ``edizione`` (stesso corso), sé esclusa.
