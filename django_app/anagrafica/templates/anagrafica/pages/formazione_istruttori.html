@@ -60,12 +60,12 @@
         <a class="fmd-chip {% if filtro_azienda == az.pk|stringformat:'s' %}fmd-on{% endif %}"
            href="?azienda={{ az.pk }}{% if q_search %}&q={{ q_search|urlencode }}{% endif %}{% if filtro_tipo %}&tipo={{ filtro_tipo }}{% endif %}"
            data-chip-label="{{ az.nome|lower }}">
-          {{ az.nome }} <span class="fmd-count">{{ az.n_istruttori }}</span>
+          {{ az.nome }}
         </a>
         {% endfor %}
         <a class="fmd-chip {% if filtro_azienda == 'NESSUNA' %}fmd-on{% endif %}"
            href="?azienda=NESSUNA{% if q_search %}&q={{ q_search|urlencode }}{% endif %}{% if filtro_tipo %}&tipo={{ filtro_tipo }}{% endif %}">
-          Senza azienda <span class="fmd-count">{{ senza_azienda }}</span>
+          Senza azienda
         </a>
       </div>
       <div id="fmd-chip-search-empty" class="fmd-block-aside" style="display:none;padding:0 0 10px;">Nessuna azienda corrisponde alla ricerca.</div>
