@@ -13063,11 +13063,34 @@ def formazione_istruttori_list(request):
 
     # Le aziende formative aprono la pagina: sono l'ente da cui i docenti
     # arrivano, e il conteggio dice subito quali sono davvero in uso.
+    # I docenti per ente sono prefetchati per poter espandere la riga senza
+    # ricaricare la pagina; le ultime sessioni si recuperano con un'unica
+    # query in blocco (per istruttore, non una per riga) per evitare N+1.
     aziende = list(
         TrainingProvider.objects
         .annotate(n_istruttori=Count("istruttori", distinct=True))
+        .prefetch_related(Prefetch(
+            "istruttori",
+            queryset=TrainingInstructor.objects.annotate(
+                n_sessioni=Count("sessioni", distinct=True)
+            ).order_by("nome"),
+        ))
         .order_by("nome")
     )
+    tutti_istruttori_id = [i.pk for az in aziende for i in az.istruttori.all()]
+    ultime_sessioni_per_istruttore = {}
+    if tutti_istruttori_id:
+        for sess in (
+            TrainingSession.objects
+            .filter(docente_id__in=tutti_istruttori_id)
+            .select_related("corso")
+            .order_by("docente_id", "-data_inizio")
+        ):
+            ultime_sessioni_per_istruttore.setdefault(sess.docente_id, []).append(sess)
+    for az in aziende:
+        for istr in az.istruttori.all():
+            istr.ultime_sessioni = ultime_sessioni_per_istruttore.get(istr.pk, [])[:3]
+
     senza_azienda = TrainingInstructor.objects.filter(azienda__isnull=True).count()
     azienda_corrente = None
     if filtro_azienda.isdigit():
