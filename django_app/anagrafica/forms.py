@@ -691,7 +691,7 @@ class TrainingSessionForm(forms.ModelForm):
         fields = [
             "corso", "codice_sessione", "stato", "modalita",
             "data_inizio", "data_fine", "sede",
-            "docente", "docente_nome", "note",
+            "docente", "docente_ente", "docente_nome", "note",
         ]
         widgets = {
             "corso":           forms.Select(attrs=_FM_SELECT),
@@ -702,8 +702,14 @@ class TrainingSessionForm(forms.ModelForm):
             "data_fine":       forms.DateInput(attrs=_FM_DATE),
             "sede":            forms.TextInput(attrs=_FM),
             "docente":         forms.Select(attrs=_FM_SELECT),
+            "docente_ente":    forms.Select(attrs=_FM_SELECT),
             "docente_nome":    forms.TextInput(attrs=_FM),
             "note":            forms.Textarea(attrs=_FM_TEXTAREA),
+        }
+        labels = {"docente_ente": "Ente come docente"}
+        help_texts = {
+            "docente_ente": "Da usare quando il docente nominativo non è noto (es. webinar erogato dall'ente): "
+                            "alternativo al docente, non insieme.",
         }
 
     def __init__(self, *args, **kwargs):
@@ -713,6 +719,9 @@ class TrainingSessionForm(forms.ModelForm):
         )
         self.fields["docente"].queryset = TrainingInstructor.objects.filter(is_active=True).order_by("nome")
         self.fields["docente"].required = False
+        self.fields["docente_ente"].queryset = TrainingProvider.objects.filter(is_active=True).order_by("nome")
+        self.fields["docente_ente"].required = False
+        self.fields["docente_ente"].empty_label = "— Nessuno —"
         # Codice edizione e data di fine sono ricavabili: lasciarli vuoti non deve
         # bloccare il salvataggio (codice = <CORSO>-E<N>, fine = inizio per la
         # sessione di un solo giorno). Vedi services.formazione_pianificazione.
@@ -735,16 +744,27 @@ class TrainingSessionForm(forms.ModelForm):
         if not (cd.get("codice_sessione") or "").strip() and cd.get("corso"):
             from .services.formazione_pianificazione import genera_codice_sessione
             cd["codice_sessione"] = genera_codice_sessione(cd["corso"])
-        # Snapshot nome docente dal FK se non compilato manualmente
+        # Docente nominativo ed ente-come-docente sono alternativi: il primo
+        # sostituisce il secondo, non lo affianca.
         docente = cd.get("docente")
-        if docente and not cd.get("docente_nome"):
-            cd["docente_nome"] = docente.nome
+        docente_ente = cd.get("docente_ente")
+        if docente and docente_ente:
+            raise forms.ValidationError("Scegli un docente nominativo o un ente come docente, non entrambi.")
+        # Snapshot nome docente dal FK se non compilato manualmente
+        if not cd.get("docente_nome"):
+            if docente:
+                cd["docente_nome"] = docente.nome
+            elif docente_ente:
+                cd["docente_nome"] = docente_ente.nome
         return cd
 
     def save(self, commit=True):
         instance = super().save(commit=False)
-        if instance.docente and not instance.docente_nome:
-            instance.docente_nome = instance.docente.nome
+        if not instance.docente_nome:
+            if instance.docente:
+                instance.docente_nome = instance.docente.nome
+            elif instance.docente_ente:
+                instance.docente_nome = instance.docente_ente.nome
         if commit:
             instance.save()
         return instance
@@ -1140,7 +1160,7 @@ class TrainingLessonForm(forms.ModelForm):
         model = TrainingLesson
         fields = [
             "numero", "data", "ora_inizio", "ora_fine", "pausa_minuti",
-            "argomento", "docente", "docente_nome", "note",
+            "argomento", "docente", "docente_ente", "docente_nome", "note",
         ]
         widgets = {
             "numero":      forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "1"}),
@@ -1150,16 +1170,24 @@ class TrainingLessonForm(forms.ModelForm):
             "pausa_minuti": forms.NumberInput(attrs={**_FM_NUMBER, "step": "15", "min": "0", "max": "480"}),
             "argomento":   forms.TextInput(attrs=_FM),
             "docente":     forms.Select(attrs=_FM_SELECT),
+            "docente_ente": forms.Select(attrs=_FM_SELECT),
             "docente_nome": forms.TextInput(attrs=_FM),
             "note":        forms.Textarea(attrs=_FM_TEXTAREA),
         }
-        labels = {"pausa_minuti": "Pausa (minuti)"}
+        labels = {"pausa_minuti": "Pausa (minuti)", "docente_ente": "Ente come docente"}
+        help_texts = {
+            "docente_ente": "Da usare quando il docente nominativo non è noto (es. webinar erogato dall'ente): "
+                            "alternativo al docente, non insieme.",
+        }
 
     def __init__(self, *args, sessione=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.sessione = sessione
         self.fields["docente"].queryset = TrainingInstructor.objects.filter(is_active=True).order_by("nome")
         self.fields["docente"].required = False
+        self.fields["docente_ente"].queryset = TrainingProvider.objects.filter(is_active=True).order_by("nome")
+        self.fields["docente_ente"].required = False
+        self.fields["docente_ente"].empty_label = "— Nessuno —"
 
     def clean(self):
         cd = super().clean()
@@ -1185,16 +1213,26 @@ class TrainingLessonForm(forms.ModelForm):
                     f"{self.sessione.data_inizio.strftime('%d-%m-%Y')} e "
                     f"{self.sessione.data_fine.strftime('%d-%m-%Y')}.",
                 )
-        # Snapshot nome docente
+        # Docente nominativo ed ente-come-docente sono alternativi.
         docente = cd.get("docente")
-        if docente and not cd.get("docente_nome"):
-            cd["docente_nome"] = docente.nome
+        docente_ente = cd.get("docente_ente")
+        if docente and docente_ente:
+            raise forms.ValidationError("Scegli un docente nominativo o un ente come docente, non entrambi.")
+        # Snapshot nome docente
+        if not cd.get("docente_nome"):
+            if docente:
+                cd["docente_nome"] = docente.nome
+            elif docente_ente:
+                cd["docente_nome"] = docente_ente.nome
         return cd
 
     def save(self, commit=True):
         instance = super().save(commit=False)
-        if instance.docente and not instance.docente_nome:
-            instance.docente_nome = instance.docente.nome
+        if not instance.docente_nome:
+            if instance.docente:
+                instance.docente_nome = instance.docente.nome
+            elif instance.docente_ente:
+                instance.docente_nome = instance.docente_ente.nome
         if commit:
             instance.save()
         return instance

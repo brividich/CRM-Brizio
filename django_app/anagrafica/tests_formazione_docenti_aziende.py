@@ -12,9 +12,11 @@ from datetime import date, time
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.db import IntegrityError, transaction
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
+from .forms import TrainingLessonForm, TrainingSessionForm
 from .models_formazione import (
     TrainingCourse,
     TrainingPlan,
@@ -302,3 +304,59 @@ class LibrettoPeriodoTests(TestCase):
         self.assertTrue(parziale.startswith(b"%PDF"))
         # L'estratto parziale ha meno righe da stampare del libretto completo.
         self.assertLess(len(parziale), len(completo))
+
+
+class EnteComeDocenteTests(TestCase):
+    """Sessioni/lezioni la cui competenza formativa è dell'ente, senza un
+    docente nominativo noto (tipicamente webinar erogati dal provider)."""
+
+    def setUp(self):
+        self.corso = _corso(codice="C-ENTE")
+        self.az = TrainingProvider.objects.create(nome="Webinar Academy")
+
+    def test_form_sessione_accetta_ente_come_docente(self):
+        form = TrainingSessionForm(data={
+            "corso": self.corso.pk, "stato": "PIANIFICATA", "modalita": "REMOTO",
+            "data_inizio": "2026-09-01", "data_fine": "2026-09-01",
+            "docente_ente": self.az.pk,
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+        sessione = form.save()
+        self.assertIsNone(sessione.docente_id)
+        self.assertEqual(sessione.docente_ente_id, self.az.pk)
+        # Lo snapshot testuale usato da PDF/export prende il nome dell'ente.
+        self.assertEqual(sessione.docente_nome, "Webinar Academy")
+
+    def test_form_sessione_rifiuta_docente_e_ente_insieme(self):
+        istr = TrainingInstructor.objects.create(nome="Rossi")
+        form = TrainingSessionForm(data={
+            "corso": self.corso.pk, "stato": "PIANIFICATA", "modalita": "REMOTO",
+            "data_inizio": "2026-09-01", "data_fine": "2026-09-01",
+            "docente": istr.pk, "docente_ente": self.az.pk,
+        })
+        self.assertFalse(form.is_valid())
+
+    def test_form_lezione_accetta_ente_come_docente(self):
+        sessione = _sessione(self.corso, "S-ENTE", date(2026, 9, 1))
+        form = TrainingLessonForm(data={
+            "numero": 1, "data": "2026-09-01",
+            "ora_inizio": "09:00", "ora_fine": "13:00", "pausa_minuti": 0,
+            "argomento": "Introduzione", "docente_ente": self.az.pk,
+        }, sessione=sessione)
+        self.assertTrue(form.is_valid(), form.errors)
+        lezione = form.save(commit=False)
+        lezione.sessione = sessione
+        lezione.save()
+        self.assertIsNone(lezione.docente_id)
+        self.assertEqual(lezione.docente_ente_id, self.az.pk)
+        self.assertEqual(lezione.docente_nome, "Webinar Academy")
+
+    def test_vincolo_db_non_ammette_docente_e_ente_insieme(self):
+        sessione = _sessione(self.corso, "S-VINC", date(2026, 9, 1))
+        istr = TrainingInstructor.objects.create(nome="Verdi")
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            TrainingLesson.objects.create(
+                sessione=sessione, numero=1, data=date(2026, 9, 1),
+                ora_inizio=time(9, 0), ora_fine=time(13, 0),
+                argomento="X", docente=istr, docente_ente=self.az,
+            )

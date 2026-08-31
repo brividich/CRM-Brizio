@@ -388,7 +388,7 @@ body.theme-dark .flatpickr-calendar.inline .flatpickr-next-month svg{ fill:#e2e8
                         '{{ lz.ora_inizio|time:'H:i' }}', '{{ lz.ora_fine|time:'H:i' }}',
                         '{{ lz.argomento|escapejs }}', {{ lz.docente_id|default:'null' }},
                         '{{ lz.docente_nome|escapejs }}', '{{ lz.note|escapejs }}',
-                        {{ lz.pausa_minuti|default:0 }}
+                        {{ lz.pausa_minuti|default:0 }}, {{ lz.docente_ente_id|default:'null' }}
                       )">Modifica</button>
               <form method="post"
                     action="{% url 'anagrafica:formazione_lezione_delete' sessione.pk lz.pk %}"
@@ -448,6 +448,15 @@ body.theme-dark .flatpickr-calendar.inline .flatpickr-next-month svg{ fill:#e2e8
               <option value="">— Seleziona —</option>
               {% for instr in lezione_form.fields.docente.queryset %}
                 <option value="{{ instr.pk }}">{{ instr.nome }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="fm-f">
+            <label>Ente come docente</label>
+            <select name="docente_ente" title="Da usare quando il docente nominativo non è noto (es. webinar erogato dall'ente).">
+              <option value="">— Nessuno —</option>
+              {% for ente in lezione_form.fields.docente_ente.queryset %}
+                <option value="{{ ente.pk }}">{{ ente.nome }}</option>
               {% endfor %}
             </select>
           </div>
@@ -573,11 +582,13 @@ body.theme-dark .flatpickr-calendar.inline .flatpickr-next-month svg{ fill:#e2e8
 </div>
 
 <script>
-function openEditLezioneModal(pk, numero, data, oraInizio, oraFine, argomento, docenteId, docenteNome, note, pausaMinuti) {
+function openEditLezioneModal(pk, numero, data, oraInizio, oraFine, argomento, docenteId, docenteNome, note, pausaMinuti, docenteEnteId) {
   const sessId = {{ sessione.pk }};
   document.getElementById('form-edit-lezione').action = `/anagrafica/formazione/sessioni/${sessId}/lezioni/${pk}/modifica`;
   const instrOpts = [{% for instr in lezione_form.fields.docente.queryset %}{ pk:{{ instr.pk }}, nome:'{{ instr.nome|escapejs }}' },{% endfor %}];
   const docenteSel = instrOpts.map(o => `<option value="${o.pk}"${o.pk===docenteId?' selected':''}>${o.nome}</option>`).join('');
+  const enteOpts = [{% for ente in lezione_form.fields.docente_ente.queryset %}{ pk:{{ ente.pk }}, nome:'{{ ente.nome|escapejs }}' },{% endfor %}];
+  const docenteEnteSel = enteOpts.map(o => `<option value="${o.pk}"${o.pk===docenteEnteId?' selected':''}>${o.nome}</option>`).join('');
   const dMin = '{{ sessione.data_inizio|date:"Y-m-d" }}';
   const dMax = '{{ sessione.data_fine|date:"Y-m-d" }}';
   const wrap = document.getElementById('edit-lezione-fields');
@@ -599,6 +610,8 @@ function openEditLezioneModal(pk, numero, data, oraInizio, oraFine, argomento, d
       <input name="argomento" value="${argomento.replace(/"/g,'&quot;')}" required maxlength="500" class="fm-input"></div>
     <div style="margin-bottom:10px;"><label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:3px;">Docente</label>
       <select name="docente" class="fm-input fm-select"><option value="">— Nessuno —</option>${docenteSel}</select></div>
+    <div style="margin-bottom:10px;"><label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:3px;">Ente come docente</label>
+      <select name="docente_ente" class="fm-input fm-select" title="Da usare quando il docente nominativo non è noto (es. webinar erogato dall'ente)."><option value="">— Nessuno —</option>${docenteEnteSel}</select></div>
     <div style="margin-bottom:10px;"><label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:3px;">Snapshot nome docente</label>
       <input name="docente_nome" value="${docenteNome.replace(/"/g,'&quot;')}" maxlength="200" class="fm-input"></div>
     <div><label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:3px;">Note</label>

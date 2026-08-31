@@ -902,6 +902,13 @@ class TrainingSession(models.Model):
         TrainingInstructor, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="sessioni",
     )
+    docente_ente    = models.ForeignKey(
+        TrainingProvider, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="sessioni_come_docente",
+        verbose_name="Ente come docente",
+        help_text="Se il docente nominativo non è noto (es. webinar erogato dall'ente): "
+                  "traccia l'ente di formazione al posto della persona.",
+    )
     docente_nome    = models.CharField(max_length=200, blank=True, help_text="Snapshot nome docente per stabilità storica")
     note            = models.TextField(blank=True)
     created_at      = models.DateTimeField(auto_now_add=True)
@@ -919,6 +926,12 @@ class TrainingSession(models.Model):
             models.Index(fields=["corso", "stato"]),
             models.Index(fields=["data_inizio", "data_fine"]),
             models.Index(fields=["corso", "edizione"]),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=~models.Q(docente__isnull=False, docente_ente__isnull=False),
+                name="training_session_docente_o_ente_non_entrambi",
+            ),
         ]
 
     @property
@@ -991,6 +1004,13 @@ class TrainingLesson(models.Model):
         TrainingInstructor, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="lezioni",
     )
+    docente_ente = models.ForeignKey(
+        TrainingProvider, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="lezioni_come_docente",
+        verbose_name="Ente come docente",
+        help_text="Se il docente nominativo non è noto (es. webinar erogato dall'ente): "
+                  "traccia l'ente di formazione al posto della persona.",
+    )
     docente_nome = models.CharField(max_length=200, blank=True, help_text="Snapshot nome docente per stabilità storica")
     note         = models.TextField(blank=True)
     created_at   = models.DateTimeField(auto_now_add=True)
@@ -1002,6 +1022,12 @@ class TrainingLesson(models.Model):
     class Meta:
         ordering = ["data", "ora_inizio"]
         unique_together = [("sessione", "numero")]
+        constraints = [
+            models.CheckConstraint(
+                condition=~models.Q(docente__isnull=False, docente_ente__isnull=False),
+                name="training_lesson_docente_o_ente_non_entrambi",
+            ),
+        ]
         verbose_name = "Lezione"
         verbose_name_plural = "Lezioni"
 
