@@ -2021,6 +2021,16 @@ class DipendenteAssegnazione(models.Model):
         null=True, blank=True,
         related_name="assegnazioni_registrate",
     )
+    modificata_il = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Ultima correzione della card, anche su uno spostamento già attivo o concluso.",
+    )
+    modificata_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="assegnazioni_modificate",
+    )
 
     class Meta:
         ordering = ["-data_inizio", "-created_at"]

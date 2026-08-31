@@ -167,6 +167,13 @@ def crea_assegnazione(
     registra il ruolo *aggiunto*. Senza un ruolo esplicito il flag non ha
     oggetto e viene ignorato.
 
+    Se reparto/area/mansione restano quelli di oggi (l'unica cosa che cambia è
+    il ruolo aggiunto, con decorrenza già arrivata), **non si registra un nuovo
+    spostamento**: si aggiunge solo l'incarico e l'assegnazione aperta resta
+    quella di prima, "In corso". Un nuovo spostamento chiuderebbe quella card
+    anche se il ruolo che descriveva resta valido — il flag serve proprio a
+    farli convivere, non a farli succedere.
+
     Se ``data_inizio`` è già passata (o è oggi) l'assegnazione viene anche
     attivata subito; altrimenti resta programmata.
     """
@@ -193,6 +200,25 @@ def crea_assegnazione(
         )
         area_valida_id = area.pk if area is not None else None
 
+    aperta = (
+        DipendenteAssegnazione.objects
+        .filter(legacy_anagrafica_id=legacy_id, data_fine__isnull=True)
+        .order_by("-data_inizio", "-created_at")
+        .first()
+    )
+    solo_ruolo_aggiunto = (
+        aperta is not None
+        and ruolo_parallelo
+        and data_inizio <= timezone.localdate()
+        and reparto == corrente["reparto"]
+        and mansione == corrente["mansione"]
+        and area_valida_id == corrente["area_aziendale_id"]
+    )
+    if solo_ruolo_aggiunto:
+        from .ruoli_sync import assicura_assegnazione
+        assicura_assegnazione(legacy_id, ruolo_aziendale, user=user)
+        return aperta
+
     idoneita = verifica_idoneita(
         legacy_id, mansione, include_visite_dettaglio=include_visite_dettaglio
     )
@@ -217,6 +243,144 @@ def crea_assegnazione(
 
     if data_inizio <= timezone.localdate():
         attiva_assegnazione(assegnazione, user=user)
+
+    return assegnazione
+
+
+@transaction.atomic
+def modifica_assegnazione(
+    assegnazione: DipendenteAssegnazione,
+    *,
+    data_inizio,
+    reparto: str = "",
+    area_aziendale_id: int | None = None,
+    mansione: str = "",
+    ruolo_aziendale: str = "",
+    ruolo_parallelo: bool = False,
+    note: str = "",
+    user=None,
+    include_visite_dettaglio: bool = False,
+) -> DipendenteAssegnazione:
+    """Corregge una card di spostamento già registrata — attiva, programmata o
+    conclusa — senza passare da un nuovo spostamento.
+
+    A differenza di ``crea_assegnazione`` i campi lasciati vuoti ereditano i
+    valori **già sulla card** (non l'assetto live di oggi): qui si corregge un
+    errore su QUESTA registrazione, non se ne descrive una nuova.
+
+    - **Programmata** (mai attivata): i campi si correggono e basta; se la
+      nuova decorrenza è già arrivata l'attivazione parte subito, come alla
+      prima registrazione.
+    - **Aperta e già attiva** (rappresenta l'assetto vivo di oggi): la
+      correzione si propaga ai campi vivi del dipendente e produce lo stesso
+      log per-campo di un'attivazione — l'audit trail resta la verità su cosa
+      è cambiato, anche per una correzione.
+    - **Conclusa** (superata da uno spostamento successivo): la correzione
+      resta sulla card, senza toccare i campi vivi né il log per-campo.
+
+    Non ricalcola i confini delle card adiacenti: correggere la decorrenza di
+    una card può lasciare un buco o una sovrapposizione con quella
+    precedente/successiva, da sistemare a mano se serve.
+
+    Ritorna l'assegnazione aggiornata.
+    """
+    legacy_id = assegnazione.legacy_anagrafica_id
+
+    reparto = ((reparto or "").strip() or assegnazione.reparto)[:200]
+    mansione_prima = assegnazione.mansione
+    mansione = ((mansione or "").strip() or mansione_prima)[:200]
+    ruolo_parallelo = bool(ruolo_parallelo) and bool((ruolo_aziendale or "").strip())
+    ruolo_aziendale = ((ruolo_aziendale or "").strip() or assegnazione.ruolo_aziendale)[:200]
+    if area_aziendale_id is None:
+        area_aziendale_id = assegnazione.area_aziendale_id
+
+    area_valida_id = None
+    if area_aziendale_id:
+        area = (
+            AreaAziendale.objects
+            .filter(pk=area_aziendale_id, reparto__nome__iexact=reparto)
+            .first()
+            if reparto else None
+        )
+        area_valida_id = area.pk if area is not None else None
+
+    if mansione != mansione_prima:
+        idoneita = verifica_idoneita(
+            legacy_id, mansione, include_visite_dettaglio=include_visite_dettaglio
+        )
+        assegnazione.idoneita_esito = idoneita["esito"]
+        assegnazione.idoneita_mancanti = idoneita["mancanti"]
+        assegnazione.idoneita_scaduti = idoneita["scaduti"]
+        assegnazione.idoneita_verificata_il = timezone.now()
+
+    era_programmata = assegnazione.attivata_il is None
+    era_aperta = assegnazione.data_fine is None
+    reparto_prima = assegnazione.reparto
+
+    assegnazione.data_inizio = data_inizio
+    assegnazione.reparto = reparto
+    assegnazione.area_aziendale_id = area_valida_id
+    assegnazione.mansione = mansione
+    assegnazione.ruolo_aziendale = ruolo_aziendale
+    assegnazione.ruolo_parallelo = ruolo_parallelo
+    assegnazione.note = note
+    assegnazione.modificata_il = timezone.now()
+    assegnazione.modificata_da = user if getattr(user, "is_authenticated", False) else None
+    assegnazione.save()
+
+    if era_programmata:
+        if data_inizio <= timezone.localdate():
+            attiva_assegnazione(assegnazione, user=user)
+        return assegnazione
+
+    if not era_aperta:
+        # Card conclusa: solo storia da correggere, non lo stato vivo.
+        return assegnazione
+
+    from core.legacy_anagrafica import fetch_anagrafica_rows, upsert_anagrafica_dipendente
+    from ..views import _registra_cambiamento, _sync_aziendale_from_reparto
+
+    rows = fetch_anagrafica_rows(ids=[legacy_id])
+    if not rows:
+        return assegnazione
+    dip = rows[0]
+
+    upsert_anagrafica_dipendente(
+        row_id=legacy_id,
+        aliasusername=dip.get("aliasusername") or "",
+        nome=dip.get("nome") or "",
+        cognome=dip.get("cognome") or "",
+        reparto=reparto,
+        mansione=mansione,
+        ruolo=dip.get("ruolo") or "",
+        matricola=dip.get("matricola") or "",
+        email=dip.get("email") or "",
+        email_notifica=dip.get("email_notifica") or "",
+        attivo=bool(dip.get("attivo", True)),
+    )
+
+    if reparto != reparto_prima:
+        _registra_cambiamento(
+            legacy_id, DipendenteCambiamentoOrganizzativo.TIPO_REPARTO,
+            reparto_prima, reparto, user, data_effetto=data_inizio,
+        )
+    if mansione != mansione_prima:
+        _registra_cambiamento(
+            legacy_id, DipendenteCambiamentoOrganizzativo.TIPO_MANSIONE,
+            mansione_prima, mansione, user, data_effetto=data_inizio,
+        )
+
+    _sync_aziendale_from_reparto(
+        legacy_id, reparto,
+        area_aziendale_id=area_valida_id,
+        saved_by=user,
+        data_decorrenza=data_inizio,
+    )
+    _aggiorna_ruolo_aziendale(
+        legacy_id, ruolo_aziendale,
+        user=user, data_decorrenza=data_inizio,
+        parallelo=ruolo_parallelo,
+    )
 
     return assegnazione
 

@@ -2424,6 +2424,21 @@ def dipendente_detail(request, legacy_id: int):
         for r in ruoli_aziendali_catalogo
     )
 
+    # Ogni card di spostamento può avere un valore fuori catalogo (es. reparto
+    # rinominato dopo): il form di modifica deve comunque preselezionarlo,
+    # altrimenti "non tocco il reparto" diventerebbe "lo azzero" al salvataggio.
+    for _ass in assegnazioni:
+        _ass.reparto_in_catalog = bool(_ass.reparto) and any(
+            r.nome.strip().casefold() == _ass.reparto.strip().casefold() for r in reparti_catalog
+        )
+        _ass.mansione_in_catalog = bool(_ass.mansione) and any(
+            m.nome.strip().casefold() == _ass.mansione.strip().casefold() for m in mansioni_catalogo
+        )
+        _ass.ruolo_aziendale_in_catalog = bool(_ass.ruolo_aziendale) and any(
+            r.nome.strip().casefold() == _ass.ruolo_aziendale.strip().casefold()
+            for r in ruoli_aziendali_catalogo
+        )
+
     # Anzianità di servizio (KPI scheda sintetica del Riepilogo). Calcolata dalla
     # prima assunzione (fallback su assunzione corrente) fino a oggi o alla
     # cessazione se il rapporto è chiuso.
@@ -4106,7 +4121,7 @@ def dipendente_assegnazione_annulla(request, legacy_id: int, assegnazione_id: in
     if assegnazione.attivata_il is not None:
         messages.error(
             request,
-            "Lo spostamento è già attivo: per correggerlo registrane uno nuovo.",
+            "Lo spostamento è già attivo: usa \"Modifica\" per correggerlo.",
         )
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
@@ -4124,6 +4139,54 @@ def dipendente_assegnazione_annulla(request, legacy_id: int, assegnazione_id: in
 
     assegnazione.delete()
     messages.success(request, "Spostamento programmato annullato.")
+    return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+
+@login_required
+@require_POST
+def dipendente_assegnazione_modifica(request, legacy_id: int, assegnazione_id: int):
+    """Corregge una card di spostamento già registrata — attiva, programmata o
+    conclusa — senza registrarne una nuova.
+
+    A differenza della creazione, qui i campi lasciati vuoti ereditano i
+    valori già sulla card (non l'assetto vivo di oggi): si sta correggendo
+    QUESTA registrazione. Vedi ``services.assegnazioni.modifica_assegnazione``
+    per cosa succede quando la card è quella che descrive l'assetto attuale.
+    """
+    if not _is_anagrafica_admin(request):
+        messages.error(request, "Non hai i permessi per modificare uno spostamento.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    assegnazione = DipendenteAssegnazione.objects.filter(
+        pk=assegnazione_id, legacy_anagrafica_id=legacy_id,
+    ).first()
+    if assegnazione is None:
+        messages.error(request, "Spostamento non trovato.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    area_aziendale_raw = (request.POST.get("area_aziendale") or "").strip()
+    data_inizio = _data_decorrenza(request, "data_inizio") or assegnazione.data_inizio
+
+    try:
+        from .services.assegnazioni import modifica_assegnazione
+        modifica_assegnazione(
+            assegnazione,
+            data_inizio=data_inizio,
+            reparto=(request.POST.get("reparto") or "").strip()[:200],
+            area_aziendale_id=int(area_aziendale_raw) if area_aziendale_raw.isdigit() else None,
+            mansione=(request.POST.get("mansione") or "").strip()[:200],
+            ruolo_aziendale=(request.POST.get("ruolo_aziendale") or "").strip()[:200],
+            ruolo_parallelo=bool(request.POST.get("ruolo_parallelo")),
+            note=(request.POST.get("note") or "").strip(),
+            user=request.user,
+            include_visite_dettaglio=_can_view_visite_mediche(request),
+        )
+    except Exception:
+        logger.exception("Errore modifica spostamento %s (dipendente %s)", assegnazione_id, legacy_id)
+        messages.error(request, "Errore durante la modifica dello spostamento.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    messages.success(request, "Spostamento aggiornato.")
     return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
 

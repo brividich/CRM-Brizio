@@ -10,6 +10,7 @@ from anagrafica.models_formazione import (
     TrainingCourse,
     TrainingInstructor,
     TrainingPlan,
+    TrainingProvider,
     TrainingSession,
 )
 from anagrafica.services import formazione_import as svc
@@ -124,3 +125,70 @@ class ImportEstrazioniCorsiTests(TestCase):
         self.assertFalse(TrainingPlan.objects.exists())
         self.assertFalse(TrainingCourse.objects.exists())
         self.assertFalse(TrainingSession.objects.exists())
+
+
+ROWS_CORSI_ENTE = [
+    {
+        # DESCRIZIONE DOCENTE combacia con un TrainingProvider a catalogo:
+        # è l'ente che eroga, non una persona — niente TrainingInstructor fittizio.
+        "CODICE ATTIVITA'": 0, "DESCRIZIONE ATTIVITA'": "NOVICROM", "CODICE CORSO": 201,
+        "DESCRIZIONE": "Corso qualità esterno", "DESCRIZIONE ESTESA": None,
+        "ORE OBBLIGATORIE": 8, "DESCRIZIONE LUOGO": "Sede TÜV", "TIPO LUOGO": "ESTERNO",
+        "CODICE DOCENTE": None, "DESCRIZIONE DOCENTE": "TÜV SUD", "STATO CORSO": "CHIUSO",
+        "DATA INIZIO": date(2026, 2, 5), "DATA FINE": date(2026, 2, 5),
+    },
+]
+
+
+def _fake_read_rows_ente(xlsx_path, sheet_name=None):
+    if sheet_name == "Corsi":
+        return [dict(r) for r in ROWS_CORSI_ENTE]
+    return []
+
+
+class ImportEstrazioniCorsiEnteComeDocenteTests(TestCase):
+    """DESCRIZIONE DOCENTE è testo libero: quando combacia con un ente già a
+    catalogo va trattato come tale (`docente_ente`), non come una persona —
+    e il corso guadagna il suo `ente_formativo` dal primo caso incontrato.
+    """
+
+    def setUp(self):
+        self.ente = TrainingProvider.objects.create(nome="TÜV SUD")
+
+    def _run(self, commit: bool) -> dict:
+        with patch.object(svc, "_read_rows", side_effect=_fake_read_rows_ente):
+            return svc.import_estrazioni_corsi("finto.xlsx", commit=commit, sheets=["Corsi"])
+
+    def test_dry_run_non_crea_istruttore_fittizio_e_conta_ente(self):
+        report = self._run(commit=False)
+        self.assertEqual(report["docenti_riconosciuti_come_ente"], 1)
+        self.assertEqual(report["corsi_ente_formativo_impostato"], 1)
+        self.assertFalse(TrainingInstructor.objects.exists())
+
+    def test_commit_imposta_docente_ente_su_sessione_e_ente_formativo_su_corso(self):
+        report = self._run(commit=True)
+        self.assertEqual(report["errors"], [])
+        self.assertFalse(TrainingInstructor.objects.exists())
+
+        corso = TrainingCourse.objects.get(codice="201")
+        self.assertEqual(corso.ente_formativo_id, self.ente.pk)
+
+        sessione = TrainingSession.objects.get(corso=corso, data_inizio=date(2026, 2, 5))
+        self.assertIsNone(sessione.docente_id)
+        self.assertEqual(sessione.docente_ente_id, self.ente.pk)
+        self.assertEqual(sessione.docente_nome, "TÜV SUD")
+        self.assertEqual(sessione.erogatore_display, "TÜV SUD")
+
+    def test_non_sovrascrive_ente_formativo_gia_impostato_a_mano(self):
+        altro_ente = TrainingProvider.objects.create(nome="Altro ente")
+        # Simula un corso già presente con ente_formativo impostato a mano
+        # da un import precedente: il nuovo giro non deve toccarlo.
+        piano = TrainingPlan.objects.create(nome="NOVICROM", codice="P-NOVICROM")
+        TrainingCourse.objects.create(
+            piano=piano, codice="201", titolo="Corso qualità esterno",
+            durata_ore_teorica=8, stato="ATTIVO", is_active=True,
+            ente_formativo=altro_ente,
+        )
+        self._run(commit=True)
+        corso = TrainingCourse.objects.get(codice="201")
+        self.assertEqual(corso.ente_formativo_id, altro_ente.pk)
