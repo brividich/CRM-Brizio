@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=5">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=6">
 {% include "core/components/_hub_formkit.html" %}
 {% endblock %}
 
@@ -48,12 +48,18 @@
         <div class="fmd-block-aside">clicca per filtrare i docenti</div>
       </div>
 
-      <div class="fmd-chips" style="margin-bottom:14px;">
+      <span class="fmd-search" style="margin-bottom:10px;max-width:320px;">
+        <svg class="fmd-ico"><use href="#i-search"/></svg>
+        <input type="text" id="fmd-chip-search" placeholder="Cerca azienda…" autocomplete="off">
+      </span>
+
+      <div class="fmd-chips" id="fmd-chips-aziende" style="margin-bottom:14px;">
         <a class="fmd-chip {% if not filtro_azienda %}fmd-on{% endif %}"
            href="?{% if q_search %}q={{ q_search|urlencode }}&{% endif %}{% if filtro_tipo %}tipo={{ filtro_tipo }}{% endif %}">Tutti i docenti</a>
         {% for az in aziende %}
         <a class="fmd-chip {% if filtro_azienda == az.pk|stringformat:'s' %}fmd-on{% endif %}"
-           href="?azienda={{ az.pk }}{% if q_search %}&q={{ q_search|urlencode }}{% endif %}{% if filtro_tipo %}&tipo={{ filtro_tipo }}{% endif %}">
+           href="?azienda={{ az.pk }}{% if q_search %}&q={{ q_search|urlencode }}{% endif %}{% if filtro_tipo %}&tipo={{ filtro_tipo }}{% endif %}"
+           data-chip-label="{{ az.nome|lower }}">
           {{ az.nome }} <span class="fmd-count">{{ az.n_istruttori }}</span>
         </a>
         {% endfor %}
@@ -62,12 +68,14 @@
           Senza azienda <span class="fmd-count">{{ senza_azienda }}</span>
         </a>
       </div>
+      <div id="fmd-chip-search-empty" class="fmd-block-aside" style="display:none;padding:0 0 10px;">Nessuna azienda corrisponde alla ricerca.</div>
 
       {% if aziende %}
-      <div class="fmd-tablewrap">
+      <div class="fmd-tablewrap" style="max-height:480px;overflow-y:auto;">
         <table class="fmd-table" data-table-id="formazione.aziende_formative.list">
           <thead>
             <tr>
+              <th style="width:28px;"></th>
               <th>Ragione sociale</th>
               <th>P. IVA / C.F.</th>
               <th>Accreditamento</th>
@@ -79,9 +87,13 @@
           </thead>
           <tbody>
             {% for az in aziende %}
-            <tr>
+            {% with docenti_az=az.istruttori.all %}
+            <tr class="fmd-az-row {% if docenti_az %}fmd-az-expandable{% endif %}" {% if docenti_az %}onclick="toggleAziendaRow(this, event)" data-az-target="az-detail-{{ az.pk }}"{% endif %}>
+              <td class="fmd-c">
+                {% if docenti_az %}<svg class="fmd-ico fmd-az-chevron" style="font-size:14px;transition:transform .15s;"><use href="#i-chevron-right"/></svg>{% endif %}
+              </td>
               <td>
-                <a href="{% url 'anagrafica:formazione_azienda_detail' az.pk %}" style="font-weight:700;color:var(--fmd-navy);text-decoration:none;">{{ az.nome }}</a>
+                <a href="{% url 'anagrafica:formazione_azienda_detail' az.pk %}" onclick="event.stopPropagation();" style="font-weight:700;color:var(--fmd-navy);text-decoration:none;">{{ az.nome }}</a>
                 {% if az.indirizzo %}<div class="fmd-muted" style="font-size:11.5px;">{{ az.indirizzo }}</div>{% endif %}
               </td>
               <td class="fmd-muted">{{ az.partita_iva|default:"—" }}</td>
@@ -92,10 +104,10 @@
                 {% if az.telefono %}{{ az.telefono }}{% endif %}
                 {% if not az.email and not az.telefono %}—{% endif %}
               </td>
-              <td class="fmd-c"><a class="fmd-data-link" href="?azienda={{ az.pk }}" title="Filtra i docenti di questo ente">{{ az.n_istruttori }}</a></td>
+              <td class="fmd-c"><a class="fmd-data-link" href="?azienda={{ az.pk }}" onclick="event.stopPropagation();" title="Filtra i docenti di questo ente">{{ az.n_istruttori }}</a></td>
               <td class="fmd-c">{% if az.is_active %}<span class="fmd-badge fmd-b-green">Sì</span>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
               {% if is_editor %}
-              <td class="fmd-nowrap">
+              <td class="fmd-nowrap" onclick="event.stopPropagation();">
                 <button type="button" class="fmd-btn fmd-btn-ghost" style="padding:6px 12px;"
                         onclick="openEditAzienda({{ az.pk }}, '{{ az.nome|escapejs }}', '{{ az.partita_iva|escapejs }}', '{{ az.accreditamento|escapejs }}', '{{ az.email|escapejs }}', '{{ az.telefono|escapejs }}', '{{ az.sito_web|escapejs }}', '{{ az.indirizzo|escapejs }}', '{{ az.note|escapejs }}', {{ az.is_active|yesno:'true,false' }})">
                   Modifica
@@ -108,6 +120,37 @@
               </td>
               {% endif %}
             </tr>
+            {% if docenti_az %}
+            <tr class="fmd-az-detail" id="az-detail-{{ az.pk }}" style="display:none;">
+              <td colspan="{% if is_editor %}8{% else %}7{% endif %}" style="padding:0;">
+                <div style="padding:10px 20px 14px 46px;background:var(--surface-alt,#f7f9fb);">
+                  <table class="fmd-table" style="background:transparent;">
+                    <thead>
+                      <tr>
+                        <th>Docente</th>
+                        <th>Tipo</th>
+                        <th class="fmd-c">Corsi svolti</th>
+                        <th>Ultimi corsi</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for d in docenti_az %}
+                      <tr>
+                        <td><a href="{% url 'anagrafica:formazione_istruttore_detail' d.pk %}" style="color:var(--fmd-navy);text-decoration:none;font-weight:600;">{{ d.nome }}</a></td>
+                        <td>{% if d.tipo == "INTERNO" %}<span class="fmd-badge fmd-b-cyan">Interno</span>{% else %}<span class="fmd-badge fmd-b-violet">Esterno</span>{% endif %}</td>
+                        <td class="fmd-c">{{ d.n_sessioni }}</td>
+                        <td class="fmd-muted">
+                          {% for s in d.ultime_sessioni %}{{ s.corso.nome }} ({{ s.data_inizio|date:"d/m/Y" }}){% if not forloop.last %} · {% endif %}{% empty %}—{% endfor %}
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </td>
+            </tr>
+            {% endif %}
+            {% endwith %}
             {% endfor %}
           </tbody>
         </table>
@@ -220,6 +263,34 @@
 
   </div>{# .fmd-wrap #}
 </div>{# .fmd #}
+
+<script>
+function toggleAziendaRow(rowEl, ev) {
+  if (ev && ev.target.closest('a,button,form')) return;
+  var target = document.getElementById(rowEl.getAttribute('data-az-target'));
+  if (!target) return;
+  var open = target.style.display !== 'none';
+  target.style.display = open ? 'none' : '';
+  var chevron = rowEl.querySelector('.fmd-az-chevron');
+  if (chevron) chevron.style.transform = open ? '' : 'rotate(90deg)';
+}
+
+(function () {
+  var chipSearch = document.getElementById('fmd-chip-search');
+  if (!chipSearch) return;
+  chipSearch.addEventListener('input', function () {
+    var term = chipSearch.value.trim().toLowerCase();
+    var anyVisible = false;
+    document.querySelectorAll('#fmd-chips-aziende [data-chip-label]').forEach(function (chip) {
+      var match = !term || chip.getAttribute('data-chip-label').indexOf(term) !== -1;
+      chip.style.display = match ? '' : 'none';
+      if (match) anyVisible = true;
+    });
+    var empty = document.getElementById('fmd-chip-search-empty');
+    if (empty) empty.style.display = (term && !anyVisible) ? '' : 'none';
+  });
+})();
+</script>
 
 {# ── Modali (pattern canonico .hub-modal; logica POST invariata) ──────────── #}
 {% if is_editor %}

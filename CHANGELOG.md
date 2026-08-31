@@ -8,6 +8,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Added
+
+- **Formazione · ricerca aziende formative e tabella "Aziende formative" espandibile** (`django_app/anagrafica/views.py`, `templates/anagrafica/pages/formazione_istruttori.html`, `static/anagrafica/css/formazione_design.css`, `tests_formazione_docenti_aziende.py`). L'elenco chip delle 94 aziende formative in `/anagrafica/formazione/istruttori/` era illeggibile a colpo d'occhio; aggiunto un campo di ricerca client-side che filtra i chip per nome mentre si digita. La tabella "Aziende formative" ora sta in un contenitore scorribile (~10 righe visibili) e ogni riga con docenti si espande cliccandola per mostrare, senza round-trip, i docenti dell'ente con tipo, corsi svolti e ultime 3 sessioni erogate (dati prefetchati in view con un'unica query aggiuntiva in blocco, non una per docente).
+
 ### Changed
 
 - **Formazione · `import_courses_person` accoppia i corsi per titolo, non solo per codice** (`django_app/anagrafica/services/formazione_import.py`, `management/commands/import_formazione_gestionale.py`, nuovo `tests_formazione_import_courses_person.py`). In `courses-person.xlsx` il "Codice corso" è per-edizione: lo stesso corso ricorrente (es. refresh annuale) arriva con un codice diverso ogni anno, e il lookup per solo codice ne creava un `TrainingCourse` duplicato a ogni edizione. Ora, se il codice non è a catalogo, si cerca un `TrainingCourse` esistente con lo stesso titolo normalizzato (case-insensitive, spazi collassati) prima di crearne uno nuovo; se trovato ci si accoppia (nuovo contatore report `corsi_accoppiati_per_titolo`), altrimenti si crea come prima — e il nuovo titolo resta indicizzato per il resto della run, così righe successive con codice diverso ma stesso titolo si accoppiano a sua volta invece di duplicarsi a vicenda. Verificato sui dati reali di prod (dry-run, `config.settings.prod_readonly`): 212 corsi "nuovi" diventano 109 nuovi + 103 accoppiati.
