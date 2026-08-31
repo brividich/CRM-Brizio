@@ -8,6 +8,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Added
+
+- **Formazione · ente come docente di sessione/lezione** (`django_app/anagrafica/models_formazione.py`, `forms.py`, `templates/anagrafica/pages/{formazione_sessione_form,formazione_sessione_detail}.html`, nuova migration `anagrafica/0117_traininglesson_docente_ente_and_more.py`, `tests_formazione_docenti_aziende.py`). Quando il docente nominativo non è noto (tipico dei webinar erogati direttamente dall'ente di formazione), `TrainingSession` e `TrainingLesson` accettano ora, in alternativa al `docente` (`TrainingInstructor`), un nuovo campo `docente_ente` (`TrainingProvider`) — vincolo DB che impedisce di valorizzare entrambi. Lo snapshot `docente_nome`, già usato ovunque (PDF, foglio firme, export, promemoria) come prima fonte di visualizzazione, viene popolato dal nome dell'ente esattamente come già avveniva dal nome del docente: nessuna modifica necessaria a valle.
+
 ### Changed
 
 - **Formazione · `import_courses_person` accoppia i corsi per titolo, non solo per codice** (`django_app/anagrafica/services/formazione_import.py`, `management/commands/import_formazione_gestionale.py`, nuovo `tests_formazione_import_courses_person.py`). In `courses-person.xlsx` il "Codice corso" è per-edizione: lo stesso corso ricorrente (es. refresh annuale) arriva con un codice diverso ogni anno, e il lookup per solo codice ne creava un `TrainingCourse` duplicato a ogni edizione. Ora, se il codice non è a catalogo, si cerca un `TrainingCourse` esistente con lo stesso titolo normalizzato (case-insensitive, spazi collassati) prima di crearne uno nuovo; se trovato ci si accoppia (nuovo contatore report `corsi_accoppiati_per_titolo`), altrimenti si crea come prima — e il nuovo titolo resta indicizzato per il resto della run, così righe successive con codice diverso ma stesso titolo si accoppiano a sua volta invece di duplicarsi a vicenda. Verificato sui dati reali di prod (dry-run, `config.settings.prod_readonly`): 212 corsi "nuovi" diventano 109 nuovi + 103 accoppiati.
