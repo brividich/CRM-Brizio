@@ -1006,8 +1006,14 @@ def import_estrazioni_corsi(
     xlsx_path: str | Path,
     commit: bool = False,
     sheets: list[str] | None = None,
+    solo_docenti: bool = False,
 ) -> dict:
     """Importa catalogo corsi/sessioni/docenti da "N Estrazioni Corsi.xlsx".
+
+    Con `solo_docenti=True` importa **solo** `TrainingInstructor` da
+    DESCRIZIONE DOCENTE (una entry per nome distinto su tutte le righe/fogli),
+    senza toccare piani/corsi/sessioni — utile quando il catalogo corsi verrà
+    importato separatamente da un altro file.
 
     Per ogni riga valida (CODICE CORSO presente):
     - `TrainingPlan`: lookup/creazione per `nome` = DESCRIZIONE ATTIVITA'.
@@ -1077,6 +1083,14 @@ def import_estrazioni_corsi(
 
     piano_cache: dict[str, TrainingPlan] = {}
     docente_cache: dict[str, TrainingInstructor] = {}
+    # Il file ripete quasi lo stesso set di corsi/sessioni su più fogli (es.
+    # "Corsi" e "Corsi AGGIORNAMENTI" si sovrappongono al ~99%). In dry-run
+    # non c'è una riga scritta nel DB da ritrovare al secondo passaggio, quindi
+    # senza questi set la stessa entità non ancora esistente verrebbe contata
+    # come "creata" una volta per ogni foglio in cui compare. Track locale di
+    # cosa è già stato "creato" (reale o virtuale) in QUESTA esecuzione.
+    corsi_processati: set[str] = set()
+    sessioni_processate: set[tuple[str, date]] = set()
 
     def _get_piano(nome: str) -> TrainingPlan:
         if nome in piano_cache:
@@ -1118,6 +1132,10 @@ def import_estrazioni_corsi(
     def _do_import():
         for i, row in enumerate(all_rows, start=2):
             try:
+                if solo_docenti:
+                    _get_docente(row.get("DESCRIZIONE DOCENTE"))
+                    continue
+
                 foglio = row.get("__sheet__")
                 cod_corso_raw = row.get("CODICE CORSO")
                 if not cod_corso_raw:
@@ -1139,7 +1157,9 @@ def import_estrazioni_corsi(
                 ore = _parse_decimal(row.get("ORE OBBLIGATORIE"))
 
                 corso = TrainingCourse.objects.filter(codice=codice).first()
-                if corso is None:
+                corso_gia_visto = codice in corsi_processati
+                corsi_processati.add(codice)
+                if corso is None and not corso_gia_visto:
                     if commit:
                         corso = TrainingCourse.objects.create(
                             piano=piano, codice=codice, titolo=titolo,
@@ -1150,7 +1170,7 @@ def import_estrazioni_corsi(
                     report["corsi_created"] += 1
                 else:
                     changed = False
-                    if commit:
+                    if commit and corso is not None:
                         if titolo and corso.titolo != titolo:
                             corso.titolo = titolo
                             changed = True
@@ -1179,12 +1199,16 @@ def import_estrazioni_corsi(
                 stato_sess = _map_stato_sessione_estrazioni(row.get("STATO CORSO")) or "PIANIFICATA"
                 note = _norm(row.get("NOTE"))
 
+                sess_key = (codice, d_inizio)
+                sessione_gia_vista = sess_key in sessioni_processate
+                sessioni_processate.add(sess_key)
+
                 if corso is not None:
                     sessione = TrainingSession.objects.filter(corso=corso, data_inizio=d_inizio).first()
                 else:
                     sessione = None  # dry-run senza corso reale
 
-                if sessione is None:
+                if sessione is None and not sessione_gia_vista:
                     if not commit:
                         report["sessioni_created"] += 1
                         continue
@@ -1205,7 +1229,7 @@ def import_estrazioni_corsi(
                     report["sessioni_created"] += 1
                 else:
                     changed = False
-                    if commit:
+                    if commit and sessione is not None:
                         if sede and sessione.sede != sede:
                             sessione.sede = sede[:200]
                             changed = True
