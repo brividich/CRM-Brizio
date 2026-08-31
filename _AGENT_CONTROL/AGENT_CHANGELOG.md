@@ -1,5 +1,23 @@
 # Agent Changelog
 
+## 2026-08-28 - Codex
+
+- Area: artifact HR locale `outputs/.../Formazione_2026.xlsx`; nessuna modifica al codice applicativo.
+- Richiesta: riprendere e creare l'Excel formazione 2026 usando il risultato di una query fornito dall'utente; successiva evoluzione con Dashboard principale alimentata dal foglio `Registro formazione` e filtri interattivi.
+- File modificati/creati: `outputs/01a043e8-8cb2-7fb1-9eb3-ca609cd2ef81/Formazione_2026.xlsx` (prima versione), `Formazione_2026_dashboard.xlsx` (tentativo con funzioni Excel 365 non calcolate nell'ambiente utente), `Formazione_2026_dashboard_v2.xlsx` (versione finale compatibile; tutti locali e ignorati da Git), `.gitignore`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`; builder temporaneo sotto `.tmp/formazione_2026/` (ignorato da Git).
+- File critici modificati: nessuno; nessuna modifica a URL, routing, ACL, middleware, settings, autenticazione, permessi o navigazione globale. I file `_AGENT_CONTROL/ACTIVE_SESSION.md`, `WORK_LOCKS.md`, `CRITICAL_FILES.md` e `CRITICAL_CHANGE_REQUESTS.md` non erano presenti.
+- Motivo tecnico: il risultato query era un TSV senza intestazioni (248 righe, 23 colonne) e il runtime standard `@oai/artifact-tool` non era disponibile; usato il fallback `openpyxl` gia installato nel progetto, senza nuove dipendenze.
+- Modifica: versione finale a 7 fogli (`Dashboard principale`, `Registro formazione`, `Dati query`, `Riepilogo corsi`, `Riepilogo reparti`, `Controlli`, `Liste` nascosto). Dopo riscontro visivo dell'utente, rimosse completamente le funzioni dinamiche `LET/FILTER/UNIQUE/TAKE`: ogni riga del Registro calcola una colonna tecnica nascosta `Visibile dashboard` (0/1) in base ai 5 filtri; KPI, prime 15 righe e grafici leggono quel flag con sole formule classiche `SUM`, `SUMPRODUCT`, `COUNTIFS`, `AGGREGATE`, `INDEX`. Il Registro e' una tabella espandibile e la formula tecnica viene propagata da Excel sulle nuove righe. Il menu Anno copre 2020-2035 e il filtro Corso accetta anche testo parziale tramite `SEARCH`, quindi resta utilizzabile con nuovi corsi. Link interni Dashboard/Registro; query originale integrale; 1 duplicato e 4 anomalie segnalati senza correzioni automatiche. `outputs/` resta ignorato da Git.
+- Impatto previsto: report operativo aggiornabile direttamente da Excel: HR inserisce nuovi corsi nel Registro e usa la Dashboard principale per analisi filtrate; nessun effetto sul portale o sul database.
+- Rischi residui: la propagazione automatica della formula tecnica alle nuove righe usa il comportamento standard delle tabelle Excel (opzione normalmente attiva); le intestazioni sono ricostruite dal mapping dei modelli perché la query non includeva header; `Codice corso` e `Docente / note` risultano vuoti nella fonte. I file precedenti aperti non sono stati forzati o sovrascritti.
+- Test/check: parsing uniforme 23 colonne su 248 righe; apertura `openpyxl` e test ZIP OK; Dashboard foglio attivo; tabella `RegistroFormazione` su `A4:Y251`; 402 formule totali (247 helper Registro + 155 Dashboard), zero `_xlfn`/funzioni dinamiche, 5 convalide filtro, 2 grafici (mensile verificato come singola serie senza legenda), 2 link interni, helper presenti dalla prima all'ultima riga, intervallo anni 2020-2035 e filtro corso parziale verificati, 0 token di errore e 0 collegamenti sospetti; file finale 94.120 byte; SHA256 `64D82658A68BD3D42DF248F6ADB0B5D7F5C4EECCD8F9D8AA8DA4878DD1D3B4EC`; nessun dato personale scritto nei changelog.
+- Backup creati: nessuno; il foglio `Dati query` conserva integralmente la fonte dentro il workbook.
+- README aggiornato: no, nessun comportamento applicativo cambiato.
+- CHANGELOG aggiornato: no, nessun comportamento applicativo cambiato.
+- AGENT_CHANGELOG aggiornato: si.
+- Esito: completato.
+- Note per altro agente: non committare o spostare il workbook fuori dall'area locale ignorata; contiene dati HR nominativi.
+
 ## 2026-08-07 - Codex
 
 - Area: `django_app/anagrafica`, card Documenti della scheda dipendente.

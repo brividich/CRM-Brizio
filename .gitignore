@@ -55,6 +55,7 @@ cover/
 # Build artifacts
 build/
 dist/
+outputs/
 develop-eggs/
 downloads/
 eggs/
