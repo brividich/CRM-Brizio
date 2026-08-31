@@ -11950,11 +11950,12 @@ def formazione_ricerca(request):
             .order_by("nome")[:25]
         )
         risultati["sessioni"] = list(
-            TrainingSession.objects.select_related("corso", "corso__ente_formativo")
+            TrainingSession.objects.select_related("corso", "corso__ente_formativo", "docente_ente")
             .filter(
                 Q(codice_sessione__icontains=q) | Q(corso__titolo__icontains=q)
                 | Q(sede__icontains=q)
                 | Q(docente__nome__icontains=q) | Q(docente_nome__icontains=q)
+                | Q(docente_ente__nome__icontains=q)
                 | Q(corso__ente_formativo__nome__icontains=q)
             )
             .annotate(n_iscritti=_Count("iscrizioni", distinct=True))
@@ -12562,7 +12563,7 @@ def formazione_corso_detail(request, corso_id: int):
     # su corsi storici molto frequentati (ordine: piu recenti prima).
     sessioni_list = list(
         corso.sessioni
-        .select_related("docente")
+        .select_related("docente", "docente_ente")
         .annotate(n_lezioni=Count("lezioni", distinct=True),
                   n_iscritti=Count("iscrizioni", distinct=True))
         .order_by("-data_inizio")[:100]
@@ -13627,7 +13628,9 @@ def formazione_sessione_detail(request, sessione_id: int):
     is_editor = _can_edit_formazione(request)
 
     sessione = get_object_or_404(
-        TrainingSession.objects.select_related("corso", "corso__piano", "corso__ente_formativo", "docente"),
+        TrainingSession.objects.select_related(
+            "corso", "corso__piano", "corso__ente_formativo", "docente", "docente_ente",
+        ),
         pk=sessione_id,
     )
     lezioni  = list(sessione.lezioni.select_related("docente").order_by("data", "ora_inizio"))
@@ -15154,7 +15157,9 @@ def formazione_sessione_fascicolo(request, sessione_id: int):
         messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
         return redirect("anagrafica:index")
     sessione = get_object_or_404(
-        TrainingSession.objects.select_related("corso", "corso__piano", "corso__ente_formativo", "docente"),
+        TrainingSession.objects.select_related(
+            "corso", "corso__piano", "corso__ente_formativo", "docente", "docente_ente",
+        ),
         pk=sessione_id,
     )
     from .services.attestato_pdf import build_fascicolo_sessione_pdf_bytes

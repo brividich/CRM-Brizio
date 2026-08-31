@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('anagrafica', '0116_add_obbligatoria_ccnl'),
+        ('anagrafica', '0117_traininglesson_docente_ente_and_more'),
     ]
 
     operations = [

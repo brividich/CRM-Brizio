@@ -943,16 +943,19 @@ class TrainingSession(models.Model):
     def erogatore_display(self) -> str:
         """Chi ha erogato la sessione, per la UI e la ricerca.
 
-        Un docente singolo è più informativo dell'ente («chi» invece di
-        «tramite chi»): se la sessione ne ha uno assegnato si mostra quello.
-        Altrimenti si ripiega sull'ente formativo del corso — utile quando la
-        sessione non ha un docente specifico registrato ma si sa comunque
-        chi l'ha erogata.
+        Un docente nominativo (proprio o come `docente_ente`, quando il nome
+        della persona non è noto — es. webinar erogato dall'ente) è più
+        informativo del semplice ente di riferimento del corso, quindi vince
+        se presente. Altrimenti si ripiega sull'ente formativo del corso —
+        utile quando la sessione non ha nulla di specifico registrato ma si
+        sa comunque chi l'ha erogata.
         """
         if self.docente_nome:
             return self.docente_nome
         if self.docente_id:
             return self.docente.nome
+        if self.docente_ente_id:
+            return self.docente_ente.nome
         if self.corso_id and self.corso.ente_formativo_id:
             return self.corso.ente_formativo.nome
         return ""
