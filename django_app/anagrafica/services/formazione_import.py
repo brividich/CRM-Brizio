@@ -1021,15 +1021,23 @@ def import_estrazioni_corsi(
       sempre allineato al file; descrizione riempita solo se vuota; durata
       aggiornata solo se il file fornisce un valore e quello attuale è
       vuoto/zero.
-    - `TrainingInstructor`: lookup/creazione per `nome` = DESCRIZIONE DOCENTE
-      (case-insensitive). Se il nome combacia con un dipendente in anagrafica
-      (Cognome Nome), `tipo=INTERNO` e `legacy_anagrafica_id` valorizzato;
-      altrimenti `tipo=ESTERNO`. Righe senza docente (vuoto o '#N/A') non
-      creano/aggiornano l'istruttore.
+    - DESCRIZIONE DOCENTE è testo libero e nel gestionale porta indifferentemente
+      il nome di una persona o quello di un ente di formazione (es. "TÜV SUD"):
+      se combacia (case-insensitive) con un `TrainingProvider` già a catalogo si
+      tratta come **ente-come-docente** (`TrainingSession.docente_ente`), non
+      come persona — altrimenti lookup/creazione `TrainingInstructor` per
+      `nome`: se il nome combacia con un dipendente in anagrafica (Cognome
+      Nome), `tipo=INTERNO` e `legacy_anagrafica_id` valorizzato; altrimenti
+      `tipo=ESTERNO`. Righe senza docente (vuoto o '#N/A') non creano/aggiornano
+      né l'istruttore né il riferimento all'ente.
+    - `TrainingCourse.ente_formativo`: impostato dal primo ente-come-docente
+      incontrato per quel corso, solo se il campo è ancora vuoto — non
+      sovrascrive un valore già impostato (a mano o da un'esecuzione precedente).
     - `TrainingSession`: lookup per `(corso, data_inizio)`; salta la riga se
-      manca DATA INIZIO. `sede`/`modalita`/`stato`/`docente` aggiornati se il
-      file fornisce un valore diverso da quello corrente (il file è
-      considerato la fonte più recente per questi campi operativi).
+      manca DATA INIZIO. `sede`/`modalita`/`stato`/`docente` (o `docente_ente`)
+      aggiornati se il file fornisce un valore diverso da quello corrente (il
+      file è considerato la fonte più recente per questi campi operativi); non
+      sovrascrive mai un docente/ente già presente su una sessione esistente.
 
     I fogli passati in `sheets` (default: "Corsi" poi "Corsi AGGIORNAMENTI")
     sono processati in ordine: a parità di codice corso, i fogli successivi
@@ -1039,6 +1047,7 @@ def import_estrazioni_corsi(
         TrainingCourse,
         TrainingInstructor,
         TrainingPlan,
+        TrainingProvider,
         TrainingSession,
     )
 
@@ -1050,6 +1059,8 @@ def import_estrazioni_corsi(
         "corsi_created": 0,
         "corsi_updated": 0,
         "docenti_created": 0,
+        "docenti_riconosciuti_come_ente": 0,
+        "corsi_ente_formativo_impostato": 0,
         "sessioni_created": 0,
         "sessioni_updated": 0,
         "errors": [],
@@ -1083,6 +1094,13 @@ def import_estrazioni_corsi(
 
     piano_cache: dict[str, TrainingPlan] = {}
     docente_cache: dict[str, TrainingInstructor] = {}
+    # Enti già a catalogo, indicizzati per nome normalizzato: DESCRIZIONE
+    # DOCENTE è testo libero e nel gestionale può portare tanto una persona
+    # quanto un ente (es. "TÜV SUD" erogato da sé stesso, senza un nominativo).
+    # Caricato una volta sola: il catalogo enti è piccolo (decine, non migliaia).
+    enti_by_nome: dict[str, TrainingProvider] = {
+        _norm(p.nome).upper(): p for p in TrainingProvider.objects.all()
+    }
     # Il file ripete quasi lo stesso set di corsi/sessioni su più fogli (es.
     # "Corsi" e "Corsi AGGIORNAMENTI" si sovrappongono al ~99%). In dry-run
     # non c'è una riga scritta nel DB da ritrovare al secondo passaggio, quindi
@@ -1091,6 +1109,8 @@ def import_estrazioni_corsi(
     # cosa è già stato "creato" (reale o virtuale) in QUESTA esecuzione.
     corsi_processati: set[str] = set()
     sessioni_processate: set[tuple[str, date]] = set()
+    corsi_ente_impostati: set[str] = set()
+    enti_riconosciuti_nomi: set[str] = set()
 
     def _get_piano(nome: str) -> TrainingPlan:
         if nome in piano_cache:
@@ -1129,11 +1149,29 @@ def import_estrazioni_corsi(
         docente_cache[key] = obj
         return obj
 
+    def _resolve_docente_o_ente(
+        nome_raw: Any,
+    ) -> tuple[TrainingInstructor | None, TrainingProvider | None]:
+        """Un solo nome, due possibili soggetti: se combacia con un ente a
+        catalogo si tratta come tale (non si crea un `TrainingInstructor`
+        fittizio per un'azienda); altrimenti ripiega sul docente nominativo.
+        """
+        nome = _norm(nome_raw)
+        if not nome or nome == "#N/A":
+            return None, None
+        ente = enti_by_nome.get(nome.upper())
+        if ente is not None:
+            if nome.upper() not in enti_riconosciuti_nomi:
+                enti_riconosciuti_nomi.add(nome.upper())
+                report["docenti_riconosciuti_come_ente"] += 1
+            return None, ente
+        return _get_docente(nome_raw), None
+
     def _do_import():
         for i, row in enumerate(all_rows, start=2):
             try:
                 if solo_docenti:
-                    _get_docente(row.get("DESCRIZIONE DOCENTE"))
+                    _resolve_docente_o_ente(row.get("DESCRIZIONE DOCENTE"))
                     continue
 
                 foglio = row.get("__sheet__")
@@ -1184,7 +1222,21 @@ def import_estrazioni_corsi(
                             corso.save()
                     report["corsi_updated"] += 1
 
-                docente = _get_docente(row.get("DESCRIZIONE DOCENTE"))
+                docente, docente_ente = _resolve_docente_o_ente(row.get("DESCRIZIONE DOCENTE"))
+
+                # Il corso guadagna il suo ente formativo dal primo
+                # ente-come-docente incontrato — solo se non ne ha già uno
+                # (a mano o da un'esecuzione precedente): il file non collega
+                # esplicitamente corso ed ente, questo è il ripiego migliore
+                # disponibile finché non esiste una fonte più diretta.
+                if docente_ente is not None and codice not in corsi_ente_impostati:
+                    ha_gia_ente = bool(commit and corso is not None and corso.ente_formativo_id)
+                    if not ha_gia_ente:
+                        corsi_ente_impostati.add(codice)
+                        report["corsi_ente_formativo_impostato"] += 1
+                        if commit and corso is not None:
+                            corso.ente_formativo = docente_ente
+                            corso.save(update_fields=["ente_formativo"])
 
                 d_inizio = _parse_date(row.get("DATA INIZIO"))
                 if d_inizio is None:
@@ -1218,12 +1270,15 @@ def import_estrazioni_corsi(
                     while TrainingSession.objects.filter(codice_sessione=codice_sessione).exists():
                         n += 1
                         codice_sessione = f"{base[:36]}-{n}"
+                    docente_nome_snapshot = (
+                        docente.nome if docente else (docente_ente.nome if docente_ente else "")
+                    )
                     TrainingSession.objects.create(
                         corso=corso, codice_sessione=codice_sessione,
                         stato=stato_sess, modalita=modalita,
                         data_inizio=d_inizio, data_fine=d_fine,
-                        sede=sede[:200], docente=docente,
-                        docente_nome=(docente.nome if docente else "")[:200],
+                        sede=sede[:200], docente=docente, docente_ente=docente_ente,
+                        docente_nome=docente_nome_snapshot[:200],
                         note=note,
                     )
                     report["sessioni_created"] += 1
@@ -1239,9 +1294,17 @@ def import_estrazioni_corsi(
                         if stato_sess and sessione.stato != stato_sess:
                             sessione.stato = stato_sess
                             changed = True
-                        if docente and not sessione.docente_id:
+                        # Non sovrascrive un docente/ente già presente: valorizza
+                        # solo se la sessione non ne aveva ancora nessuno dei due
+                        # (vincolo DB: sono alternativi, non possono coesistere).
+                        senza_docente_o_ente = not sessione.docente_id and not sessione.docente_ente_id
+                        if docente and senza_docente_o_ente:
                             sessione.docente = docente
                             sessione.docente_nome = docente.nome[:200]
+                            changed = True
+                        elif docente_ente and senza_docente_o_ente:
+                            sessione.docente_ente = docente_ente
+                            sessione.docente_nome = docente_ente.nome[:200]
                             changed = True
                         if note and not sessione.note:
                             sessione.note = note

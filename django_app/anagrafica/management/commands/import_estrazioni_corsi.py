@@ -78,7 +78,9 @@ class Command(BaseCommand):
         ordine_chiavi = [
             "righe_lette", "righe_saltate",
             "piani_created", "corsi_created", "corsi_updated",
-            "docenti_created", "sessioni_created", "sessioni_updated",
+            "docenti_created", "docenti_riconosciuti_come_ente",
+            "corsi_ente_formativo_impostato",
+            "sessioni_created", "sessioni_updated",
         ]
         for chiave in ordine_chiavi:
             if chiave in report and report[chiave]:
