@@ -45,30 +45,12 @@
     <section class="fmd-panel fmd-block" style="margin-bottom:16px;">
       <div class="fmd-block-head">
         <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-building"/></svg>Aziende formative <span class="fmd-count">{{ aziende|length }}</span></div>
-        <div class="fmd-block-aside">clicca per filtrare i docenti</div>
       </div>
 
-      <span class="fmd-search" style="margin-bottom:10px;max-width:320px;">
+      <span class="fmd-search" style="margin-bottom:14px;max-width:320px;">
         <svg class="fmd-ico"><use href="#i-search"/></svg>
-        <input type="text" id="fmd-chip-search" placeholder="Cerca azienda…" autocomplete="off">
+        <input type="text" id="fmd-chip-search" name="cerca" placeholder="Cerca azienda…" autocomplete="off">
       </span>
-
-      <div class="fmd-chips" id="fmd-chips-aziende" style="margin-bottom:14px;">
-        <a class="fmd-chip {% if not filtro_azienda %}fmd-on{% endif %}"
-           href="?{% if q_search %}q={{ q_search|urlencode }}&{% endif %}{% if filtro_tipo %}tipo={{ filtro_tipo }}{% endif %}">Tutti i docenti</a>
-        {% for az in aziende %}
-        <a class="fmd-chip {% if filtro_azienda == az.pk|stringformat:'s' %}fmd-on{% endif %}"
-           href="?azienda={{ az.pk }}{% if q_search %}&q={{ q_search|urlencode }}{% endif %}{% if filtro_tipo %}&tipo={{ filtro_tipo }}{% endif %}"
-           data-chip-label="{{ az.nome|lower }}">
-          {{ az.nome }}
-        </a>
-        {% endfor %}
-        <a class="fmd-chip {% if filtro_azienda == 'NESSUNA' %}fmd-on{% endif %}"
-           href="?azienda=NESSUNA{% if q_search %}&q={{ q_search|urlencode }}{% endif %}{% if filtro_tipo %}&tipo={{ filtro_tipo }}{% endif %}">
-          Senza azienda
-        </a>
-      </div>
-      <div id="fmd-chip-search-empty" class="fmd-block-aside" style="display:none;padding:0 0 10px;">Nessuna azienda corrisponde alla ricerca.</div>
 
       {% if aziende %}
       <div class="fmd-tablewrap" style="max-height:480px;overflow-y:auto;">
@@ -275,21 +257,6 @@ function toggleAziendaRow(rowEl, ev) {
   if (chevron) chevron.style.transform = open ? '' : 'rotate(90deg)';
 }
 
-(function () {
-  var chipSearch = document.getElementById('fmd-chip-search');
-  if (!chipSearch) return;
-  chipSearch.addEventListener('input', function () {
-    var term = chipSearch.value.trim().toLowerCase();
-    var anyVisible = false;
-    document.querySelectorAll('#fmd-chips-aziende [data-chip-label]').forEach(function (chip) {
-      var match = !term || chip.getAttribute('data-chip-label').indexOf(term) !== -1;
-      chip.style.display = match ? '' : 'none';
-      if (match) anyVisible = true;
-    });
-    var empty = document.getElementById('fmd-chip-search-empty');
-    if (empty) empty.style.display = (term && !anyVisible) ? '' : 'none';
-  });
-})();
 </script>
 
 {# ── Modali (pattern canonico .hub-modal; logica POST invariata) ──────────── #}
