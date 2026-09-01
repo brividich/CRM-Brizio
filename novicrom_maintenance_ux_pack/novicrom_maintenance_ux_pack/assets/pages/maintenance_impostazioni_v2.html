@@ -1,0 +1,80 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Catalogo e piani manutenzione{% endblock %}
+
+{% block assets_shell_head %}
+  {% include "assets/components/maintenance_ux_v2_styles.html" %}
+  <style>
+    .mi2-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.mi2-guide-wrap{display:grid;grid-template-columns:minmax(0,1fr) 460px;gap:12px;align-items:stretch}.mi2-info{padding:14px 16px;border:1px solid #bfdbfe;border-radius:12px;background:#f8fbff}.mi2-info strong{color:#1d4ed8}.mi2-info p{margin:5px 0 0;color:#64748b;font-size:var(--fs-sm);line-height:1.45}.mi2-actions{display:flex;gap:6px;flex-wrap:wrap}.mi2-plan-actions{display:flex;gap:5px;flex-wrap:wrap;align-items:center}.mi2-gen{margin:0}.mi2-gen button{border:0}.mi2-muted{color:#64748b;font-size:var(--fs-xs)}
+    @media(max-width:1100px){.mi2-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.mi2-guide-wrap{grid-template-columns:1fr}}@media(max-width:650px){.mi2-summary{grid-template-columns:1fr}}
+    body.theme-dark .mi2-info{background:var(--surface);border-color:var(--border)}body.theme-dark .mi2-info p,.theme-dark .mi2-muted{color:var(--text-light)}
+  </style>
+{% endblock %}
+
+{% block assets_shell_title %}Catalogo e piani manutenzione{% endblock %}
+{% block assets_shell_subtitle %}<p>Definisci il lavoro una volta, collegalo agli asset e governa frequenze e responsabilità senza duplicare informazioni.</p>{% endblock %}
+{% block assets_shell_toolbar %}
+  <a class="btn" href="{{ url_hub }}">Hub manutenzione</a>
+  <a class="btn" href="{{ url_scadenzario }}">Scadenzario</a>
+  {% if active_tab == 'catalogo' %}<a class="btn btn-primary" href="{% url 'assets:maintenance_template_create' %}">+ Nuova attività</a>{% elif active_tab == 'piani' %}<a class="btn btn-primary" href="{% url 'assets:maintenance_rule_create' %}">+ Nuovo piano</a>{% endif %}
+{% endblock %}
+
+{% block assets_shell_content %}
+<section class="ux-page">
+  <nav class="ux-tabs" aria-label="Catalogo e piani">
+    <a class="ux-tab {% if active_tab == 'catalogo' %}active{% endif %}" href="?tab=catalogo">Attività <span class="ux-count">{{ template_count }}</span></a>
+    <a class="ux-tab {% if active_tab == 'piani' %}active{% endif %}" href="?tab=piani">Piani di manutenzione <span class="ux-count">{{ maintenance_plan_count }}</span></a>
+    <a class="ux-tab {% if active_tab == 'copertura' %}active{% endif %}" href="?tab=copertura">Copertura / salute {% if plan_category_count %}<span class="ux-count">{{ plan_category_count }}</span>{% endif %}</a>
+  </nav>
+
+  <section class="mi2-summary">
+    <article class="ux-kpi"><span class="ux-kpi-icon">&#128736;</span><span><span class="ux-kpi-label">Attività</span><span class="ux-kpi-value">{{ template_count }}</span><span class="ux-kpi-note">Procedure riutilizzabili</span></span><span>&rsaquo;</span></article>
+    <article class="ux-kpi"><span class="ux-kpi-icon">&#128197;</span><span><span class="ux-kpi-label">Piani</span><span class="ux-kpi-value">{{ maintenance_plan_count }}</span><span class="ux-kpi-note">Regole attive e visibili</span></span><span>&rsaquo;</span></article>
+    <article class="ux-kpi"><span class="ux-kpi-icon">&#10003;</span><span><span class="ux-kpi-label">Piani inglobati</span><span class="ux-kpi-value">{{ ingested_periodic_count }}</span><span class="ux-kpi-note">Migrazione completata</span></span><span>&rsaquo;</span></article>
+    <article class="ux-kpi {% if pending_periodic_count %}warn{% else %}ok{% endif %}"><span class="ux-kpi-icon">&#9888;</span><span><span class="ux-kpi-label">Da completare</span><span class="ux-kpi-value">{{ pending_periodic_count }}</span><span class="ux-kpi-note">Vecchi piani ancora da gestire</span></span><span>&rsaquo;</span></article>
+  </section>
+
+  <div class="mi2-guide-wrap">
+    <div class="mi2-info"><strong>Come leggere il modello</strong><p><b>Attività</b> = cosa fare (istruzioni, checklist, durata). <b>Piano</b> = dove e quando farlo (asset, frequenza, responsabile, fornitore e apertura OdL). Le entità tecniche restano tracciate nel backend, ma l'utente vede concetti operativi.</p></div>
+    <article class="ux-card"><div class="ux-card-body"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><strong style="color:#0f172a">Creazione rapida piano</strong><div class="mi2-muted">Tre passaggi per evitare form troppo lunghi.</div></div><a class="ux-btn primary sm" href="{% url 'assets:maintenance_rule_create' %}">+ Nuovo piano</a></div><div class="ux-guide" style="margin-top:10px"><div class="ux-guide-step"><span class="ux-guide-num">1</span><strong>Scegli attività</strong><span>Parti da una procedura esistente.</span></div><div class="ux-guide-step"><span class="ux-guide-num">2</span><strong>Collega asset</strong><span>Categoria, gruppo o asset specifici.</span></div><div class="ux-guide-step"><span class="ux-guide-num">3</span><strong>Definisci frequenza</strong><span>Responsabile, soglia e automazione.</span></div></div></div></article>
+  </div>
+
+  {% if active_tab != 'copertura' %}
+  <form method="get" class="ux-filters">
+    <input type="hidden" name="tab" value="{{ active_tab }}">
+    <div class="ux-field"><label>Categoria</label><select name="category"><option value="">Tutte</option>{% for cat in category_options %}<option value="{{ cat.id }}" {% if selected_category and selected_category.id == cat.id %}selected{% endif %}>{{ cat.label }}</option>{% endfor %}</select></div>
+    <div class="ux-field"><label>Stato</label><select name="active"><option value="active" {% if active_filter == 'active' %}selected{% endif %}>Solo attivi</option><option value="inactive" {% if active_filter == 'inactive' %}selected{% endif %}>Solo inattivi</option><option value="all" {% if active_filter == 'all' %}selected{% endif %}>Tutti</option></select></div>
+    <div class="ux-field"><label>Esecuzione</label><select name="execution"><option value="all" {% if execution_filter == 'all' %}selected{% endif %}>Interne + esterne</option><option value="internal" {% if execution_filter == 'internal' %}selected{% endif %}>Solo interne</option><option value="external" {% if execution_filter == 'external' %}selected{% endif %}>Solo esterne</option></select></div>
+    <div class="ux-field search"><label>Ricerca</label><input type="search" name="q" value="{{ q }}" placeholder="Attività, codice, categoria..."></div>
+    <button type="submit" class="ux-btn primary">Applica</button>{% if has_active_filters %}<a class="ux-btn" href="{{ clear_filters_url }}">Reset</a>{% endif %}
+  </form>
+  {% endif %}
+
+  {% if active_tab == 'catalogo' %}
+  <article class="ux-card">
+    <header class="ux-card-head"><div><h3>Attività di manutenzione</h3><p>Il catalogo descrive il lavoro; frequenza e asset vengono definiti nei piani.</p></div><a class="ux-btn primary" href="{% url 'assets:maintenance_template_create' %}">+ Nuova attività</a></header>
+    <div class="ux-table-wrap"><table class="ux-table"><thead><tr><th>Attività</th><th>Famiglia</th><th>Categoria</th><th>Durata</th><th>Piani collegati</th><th>Stato</th><th>Azioni</th></tr></thead><tbody>
+      {% for row in template_rows %}<tr><td><span class="ux-primary">{{ row.t.label }}</span><span class="ux-secondary">{{ row.t.code }}{% if row.t.description %} · {{ row.t.description|truncatechars:75 }}{% endif %}</span></td><td><span class="ux-pill info">{{ row.t.get_maintenance_type_display }}</span></td><td>{% if row.t.asset_category %}{{ row.t.asset_category.label }}{% else %}<span class="ux-secondary">Generale</span>{% endif %}</td><td>{% if row.t.estimated_duration_minutes %}{{ row.t.estimated_duration_minutes }} min{% else %}<span class="ux-secondary">Da definire</span>{% endif %}</td><td>{% if row.rules_count %}<span class="ux-pill info">{{ row.rules_count }}</span>{% else %}0{% endif %}</td><td><span class="ux-pill {% if row.t.is_active %}ok{% else %}muted{% endif %}">{% if row.t.is_active %}Attiva{% else %}Inattiva{% endif %}</span></td><td><div class="mi2-actions"><a class="ux-btn sm" href="{% url 'assets:maintenance_template_edit' row.t.id %}">Modifica</a><a class="ux-btn primary sm" href="{% url 'assets:maintenance_rule_create' %}?template={{ row.t.id }}">Crea piano</a></div></td></tr>{% empty %}<tr><td colspan="7"><div class="ux-empty">Nessuna attività trovata.</div></td></tr>{% endfor %}
+    </tbody></table></div>
+  </article>
+  {% endif %}
+
+  {% if active_tab == 'piani' %}
+  <article class="ux-card">
+    <header class="ux-card-head"><div><h3>Piani di manutenzione</h3><p>Asset, frequenza, responsabilità e automazione in un'unica vista.</p></div><div class="mi2-actions"><a class="ux-btn" href="{{ url_suppliers }}">Fornitori</a><a class="ux-btn primary" href="{% url 'assets:maintenance_rule_create' %}">+ Nuovo piano</a></div></header>
+    <div class="ux-table-wrap"><table class="ux-table"><thead><tr><th>Attività</th><th>Asset</th><th>Frequenza</th><th>Responsabile</th><th>Automazione</th><th>Storico</th><th>Azioni</th></tr></thead><tbody>
+      {% for row in maintenance_plan_rows %}{% with rule=row.rule %}<tr><td><span class="ux-primary">{{ rule.intervention_template.label }}</span><span class="ux-secondary">{{ rule.asset_category.label }}{% if row.legacy_count %} · {{ row.legacy_count }} piano precedente inglobato{% endif %}</span></td><td><span class="ux-pill info">{{ row.asset_count }} asset</span><span class="ux-secondary">{{ rule.get_scope_type_display }}</span></td><td><span class="ux-primary">{{ rule.threshold_value }} {{ rule.get_threshold_type_display }}</span><span class="ux-secondary">{% if rule.first_due_date %}Prima {{ rule.first_due_date|date:"d/m/Y" }}{% else %}Dall'ultima esecuzione{% endif %}</span></td><td>{% if rule.is_external %}<span class="ux-pill info">Esterna</span><span class="ux-secondary">{{ rule.supplier|default:"Ditta da assegnare" }}</span>{% elif rule.assigned_to %}{{ rule.assigned_to.get_full_name|default:rule.assigned_to.username }}{% else %}<span class="ux-pill warn">Da assegnare</span>{% endif %}</td><td>{% if rule.auto_generate_workorders %}<span class="ux-pill ok">OdL automatici</span>{% else %}<span class="ux-pill warn">Manuale</span>{% endif %}<span class="ux-secondary">{% if rule.is_active %}Piano attivo{% else %}Piano disattivato{% endif %}</span></td><td><a class="ux-link" href="{% url 'assets:maintenance_history' %}?q={{ rule.intervention_template.label|urlencode }}">{{ rule.completed_count }} completati</a><span class="ux-secondary">{{ rule.history_count }} OdL totali</span></td><td><a class="ux-btn sm" href="{% url 'assets:maintenance_rule_edit' rule.id %}">Modifica</a></td></tr>{% endwith %}{% empty %}<tr><td colspan="7"><div class="ux-empty">Nessun piano trovato.</div></td></tr>{% endfor %}
+    </tbody></table></div>
+  </article>
+  {% endif %}
+
+  {% if active_tab == 'copertura' %}
+  <article class="ux-card">
+    <header class="ux-card-head"><div><h3>Copertura e salute dei piani</h3><p>Individua categorie scoperte, scadute o mai eseguite senza entrare nelle entità tecniche.</p></div><a class="ux-btn" href="{{ url_schedule }}">Scadenzario operativo</a></header>
+    <div class="ux-table-wrap"><table class="ux-table"><thead><tr><th>Categoria</th><th>Regole</th><th>Asset</th><th>Scadute</th><th>Warning</th><th>Pianificate</th><th>Mai eseguite</th><th>Azioni</th></tr></thead><tbody>
+      {% for r in plan_rows %}<tr data-row-href="{{ r.schedule_url }}"><td class="ux-primary">{{ r.category.label }}</td><td>{{ r.rules_count }}{% if r.meter_rules_count %}<span class="ux-secondary">{{ r.meter_rules_count }} a contatore</span>{% endif %}</td><td>{{ r.assets_count }}</td><td>{% if r.overdue %}<a class="ux-pill danger" href="{{ r.schedule_due_url }}">{{ r.overdue }}</a>{% else %}0{% endif %}</td><td>{% if r.warning %}<span class="ux-pill warn">{{ r.warning }}</span>{% else %}0{% endif %}</td><td>{% if r.upcoming %}<span class="ux-pill ok">{{ r.upcoming }}</span>{% else %}0{% endif %}</td><td>{% if r.missing %}<span class="ux-pill info">{{ r.missing }}</span>{% else %}0{% endif %}</td><td><div class="mi2-plan-actions">{% if r.overdue or r.warning %}<form method="post" class="mi2-gen" onsubmit="return confirm('Generare gli ordini di lavoro per le manutenzioni scadute/in scadenza di «{{ r.category.label|escapejs }}»?');">{% csrf_token %}<input type="hidden" name="action" value="generate_workorders"><input type="hidden" name="category_id" value="{{ r.category.id }}"><button class="ux-btn primary sm" type="submit">Genera OdL ({{ r.overdue|add:r.warning }})</button></form>{% endif %}<a class="ux-btn sm" href="{{ r.schedule_url }}">Scadenzario</a><a class="ux-btn sm" href="{{ r.rules_url }}">Regole</a></div></td></tr>{% empty %}<tr><td colspan="8"><div class="ux-empty">Nessun piano con categoria disponibile.</div></td></tr>{% endfor %}
+    </tbody></table></div>
+  </article>
+  {% endif %}
+</section>
+{% endblock %}

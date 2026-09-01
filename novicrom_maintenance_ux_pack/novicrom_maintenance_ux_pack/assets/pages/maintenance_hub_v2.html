@@ -1,0 +1,119 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Manutenzione{% endblock %}
+
+{% block assets_shell_head %}
+  {% include "assets/components/maintenance_ux_v2_styles.html" %}
+  <style>
+    .mh2-work{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:12px;align-items:start}
+    .mh2-stack{display:grid;gap:12px}.mh2-side{display:grid;gap:12px;position:sticky;top:12px}
+    .mh2-compact{display:grid;gap:8px}.mh2-row{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;color:inherit;text-decoration:none}.mh2-row:hover{border-color:#93c5fd;background:#fbfdff}.mh2-id{font-size:var(--fs-xs);font-weight:900;color:#1d4ed8}.mh2-title{font-size:var(--fs-sm);font-weight:850;color:#0f172a}.mh2-meta{margin-top:2px;font-size:var(--fs-xs);color:#64748b}.mh2-status{font-size:var(--fs-xs);font-weight:850}
+    .mh2-plan{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 0;border-top:1px solid #edf2f7}.mh2-plan:first-child{border-top:0}.mh2-plan strong{display:block;color:#0f172a;font-size:var(--fs-sm)}.mh2-plan span{display:block;margin-top:2px;color:#64748b;font-size:var(--fs-xs)}
+    .mh2-links{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.mh2-link{display:block;padding:12px;border:1px solid #e2e8f0;border-radius:11px;background:#fff;color:#0f172a;text-decoration:none}.mh2-link:hover{border-color:#93c5fd;background:#fbfdff}.mh2-link strong{display:block;font-size:var(--fs-sm)}.mh2-link span{display:block;margin-top:4px;color:#64748b;font-size:var(--fs-xs);line-height:1.35}
+    @media(max-width:1150px){.mh2-work{grid-template-columns:1fr}.mh2-side{position:static}.mh2-links{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:650px){.mh2-links{grid-template-columns:1fr}}
+    body.theme-dark .mh2-row,body.theme-dark .mh2-link{background:var(--surface);border-color:var(--border)}body.theme-dark .mh2-title,body.theme-dark .mh2-plan strong,body.theme-dark .mh2-link{color:var(--text)}body.theme-dark .mh2-meta,body.theme-dark .mh2-plan span,body.theme-dark .mh2-link span{color:var(--text-light)}
+  </style>
+{% endblock %}
+
+{% block assets_shell_title %}Centro manutenzione aziendale{% endblock %}
+{% block assets_shell_subtitle %}<p>Il centro operativo per capire cosa richiede attenzione, intervenire e mantenere lo storico completo.</p>{% endblock %}
+{% block assets_shell_toolbar %}
+  <a class="btn btn-primary" href="{{ url_wo_create }}">+ Nuovo intervento</a>
+  <a class="btn" href="{{ url_impostazioni }}?tab=piani">+ Nuovo piano</a>
+  <a class="btn" href="{{ url_maintenance_schedule }}">Scadenzario</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<section class="ux-page">
+  <div class="ux-attention-title">&#9888; Cosa richiede attenzione oggi</div>
+  <section class="ux-attention-grid" aria-label="Priorità manutenzione">
+    <a class="ux-kpi {% if wo_overdue %}danger{% elif wo_total %}warn{% else %}ok{% endif %}" href="{{ url_wo_open }}">
+      <span class="ux-kpi-icon">&#128295;</span><span><span class="ux-kpi-label">Interventi aperti</span><span class="ux-kpi-value">{{ wo_total }}</span><span class="ux-kpi-note">{% if wo_overdue %}{{ wo_overdue|length }} oltre soglia{% else %}Nessuno oltre soglia{% endif %}</span></span><span>&rsaquo;</span>
+    </a>
+    <a class="ux-kpi {% if overdue_deadlines_count or overdue_verifications_count %}danger{% else %}ok{% endif %}" href="{{ url_maintenance_schedule }}?status=due">
+      <span class="ux-kpi-icon">&#9888;</span><span><span class="ux-kpi-label">Scadenze da recuperare</span><span class="ux-kpi-value">{{ overdue_deadlines_count|add:overdue_verifications_count }}</span><span class="ux-kpi-note">Scadenze e verifiche già oltre termine</span></span><span>&rsaquo;</span>
+    </a>
+    <a class="ux-kpi {% if upcoming_deadlines_count or upcoming_verifications_count or maintenance_rule_counts.warning %}warn{% else %}ok{% endif %}" href="{{ url_maintenance_schedule }}">
+      <span class="ux-kpi-icon">&#128197;</span><span><span class="ux-kpi-label">Prossimi 30 giorni</span><span class="ux-kpi-value">{{ upcoming_deadlines_count|add:upcoming_verifications_count|add:maintenance_rule_counts.warning }}</span><span class="ux-kpi-note">Attività e verifiche in avvicinamento</span></span><span>&rsaquo;</span>
+    </a>
+    <a class="ux-kpi ok" href="{{ url_wo_done }}">
+      <span class="ux-kpi-icon">&#10003;</span><span><span class="ux-kpi-label">Completati</span><span class="ux-kpi-value">{{ closed_recent_count }}</span><span class="ux-kpi-note">Negli ultimi 30 giorni</span></span><span>&rsaquo;</span>
+    </a>
+  </section>
+
+  <form method="get" class="ux-filters">
+    <input type="hidden" name="tab" value="da_fare">
+    {% if reparto_options %}<div class="ux-field"><label for="mh2-reparto">Reparto</label><select id="mh2-reparto" name="reparto"><option value="">Tutti</option>{% for r in reparto_options %}<option value="{{ r }}" {% if r == reparto_filter %}selected{% endif %}>{{ r }}</option>{% endfor %}</select></div>{% endif %}
+    {% if is_admin and user_options %}<div class="ux-field"><label for="mh2-assigned">Manutentore</label><select id="mh2-assigned" name="assigned"><option value="">Tutti</option>{% for u in user_options %}<option value="{{ u.pk }}" {% if assigned_filter == u.pk|stringformat:"s" %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>{% endfor %}</select></div>{% endif %}
+    <button class="ux-btn primary" type="submit">Applica</button>
+    {% if reparto_filter or assigned_filter %}<a class="ux-btn" href="?tab=da_fare">Reset</a>{% endif %}
+  </form>
+
+  <div class="mh2-work">
+    <div class="mh2-stack">
+      <article class="ux-card">
+        <header class="ux-card-head"><div><h3>Lavoro operativo</h3><p>Prima le attività oltre soglia, poi quelle aperte di recente.</p></div><a class="ux-link" href="{{ url_wo_list }}">Registro completo &rsaquo;</a></header>
+        <div class="ux-card-body">
+          <div class="ux-board">
+            <section class="ux-board-col">
+              <div class="ux-board-col-h"><span>Oltre soglia</span><span class="ux-count">{{ wo_overdue|length }}</span></div>
+              {% for wo in wo_overdue|slice:":6" %}<a class="ux-task" href="{% url 'assets:wo_view' wo.id %}"><div class="ux-task-title">{{ wo.title|truncatechars:55 }}</div><div class="ux-task-sub">{{ wo.asset.asset_tag }} · {{ wo.asset.name|truncatechars:28 }}{% if wo.asset.reparto %} · {{ wo.asset.reparto }}{% endif %}</div><div class="ux-task-foot"><span class="ux-tag">#{{ wo.pk }}</span><span class="ux-date danger">{{ wo.opened_at.date|timesince:today }}</span></div></a>{% empty %}<div class="ux-empty">Nessun intervento oltre soglia.</div>{% endfor %}
+            </section>
+            <section class="ux-board-col">
+              <div class="ux-board-col-h"><span>Aperti recenti</span><span class="ux-count">{{ wo_recent|length }}</span></div>
+              {% for wo in wo_recent|slice:":6" %}<a class="ux-task" href="{% url 'assets:wo_view' wo.id %}"><div class="ux-task-title">{{ wo.title|truncatechars:55 }}</div><div class="ux-task-sub">{{ wo.asset.asset_tag }} · {{ wo.asset.name|truncatechars:28 }}{% if wo.asset.reparto %} · {{ wo.asset.reparto }}{% endif %}</div><div class="ux-task-foot"><span class="ux-tag">#{{ wo.pk }}</span><span class="ux-date warn">{{ wo.opened_at.date|timesince:today }}</span></div></a>{% empty %}<div class="ux-empty">Nessun nuovo intervento.</div>{% endfor %}
+            </section>
+            <section class="ux-board-col">
+              <div class="ux-board-col-h"><span>Piani da gestire</span><span class="ux-count">{{ maintenance_rule_counts.overdue|add:maintenance_rule_counts.warning|add:maintenance_rule_counts.missing }}</span></div>
+              {% for row in maintenance_rule_rows|slice:":6" %}<a class="ux-task" href="{{ row.primary_action_url }}"><div class="ux-task-title">{{ row.effective_intervention_template.label|default:"Manutenzione programmata"|truncatechars:50 }}</div><div class="ux-task-sub">{{ row.asset.asset_tag }} · {{ row.asset.name|truncatechars:28 }}</div><div class="ux-task-foot"><span class="ux-pill {% if row.schedule_status == 'overdue' %}danger{% elif row.schedule_status == 'warning' %}warn{% elif row.schedule_status == 'missing' %}muted{% else %}ok{% endif %}">{{ row.schedule_label }}</span><span class="ux-date">{% if row.due_date %}{{ row.due_date|date:"d/m/Y" }}{% endif %}</span></div></a>{% empty %}<div class="ux-empty">Nessun piano da gestire.</div>{% endfor %}
+            </section>
+          </div>
+        </div>
+      </article>
+
+      {% if urgent_items or upcoming_items %}
+      <article class="ux-card">
+        <header class="ux-card-head"><div><h3>Scadenze operative</h3><p>Una lista compatta delle attività che richiedono una decisione.</p></div><a class="ux-link" href="{{ url_maintenance_schedule }}">Apri scadenzario &rsaquo;</a></header>
+        <div class="ux-card-body mh2-compact">
+          {% for item in urgent_items|slice:":6" %}<a class="mh2-row" href="{{ item.url }}"><span class="ux-pill danger">Urgente</span><span><span class="mh2-title">{{ item.title }}</span><span class="mh2-meta">{{ item.asset_label }}</span></span><span class="ux-date danger">{{ item.due_date|date:"d/m/Y" }}</span></a>{% endfor %}
+          {% for item in upcoming_items|slice:":6" %}<a class="mh2-row" href="{{ item.url }}"><span class="ux-pill warn">Warning</span><span><span class="mh2-title">{{ item.title }}</span><span class="mh2-meta">{{ item.asset_label }}</span></span><span class="ux-date warn">{{ item.due_date|date:"d/m/Y" }}</span></a>{% endfor %}
+        </div>
+      </article>
+      {% endif %}
+
+      {% if man_tickets %}
+      <article class="ux-card">
+        <header class="ux-card-head"><div><h3>Ticket manutenzione aperti</h3><p>Segnalazioni ancora presenti nel flusso ticket.</p></div></header>
+        <div class="ux-table-wrap"><table class="ux-table"><thead><tr><th>#</th><th>Oggetto</th><th>Aperto il</th><th>Assegnato a</th></tr></thead><tbody>{% for t in man_tickets|slice:":10" %}<tr data-row-href="{% url 'tickets:detail' t.pk %}"><td><a class="ux-link" href="{% url 'tickets:detail' t.pk %}">{{ t.pk }}</a></td><td class="ux-primary">{{ t.oggetto|default:t.descrizione|truncatechars:70 }}</td><td>{% if t.data_apertura %}{{ t.data_apertura|date:"d/m/Y" }}{% else %}—{% endif %}</td><td>{% if t.assegnato_a %}{{ t.assegnato_a.get_full_name|default:t.assegnato_a.username }}{% else %}—{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+      </article>
+      {% endif %}
+    </div>
+
+    <aside class="mh2-side">
+      <article class="ux-card">
+        <header class="ux-card-head"><div><h3>Agenda 7 giorni</h3><p>Le prossime scadenze in ordine temporale.</p></div></header>
+        <div class="ux-card-body ux-list">
+          {% for item in next7_items %}<a class="ux-list-item" href="{{ item.url|default:url_maintenance_schedule }}"><span class="ux-datebox">{{ item.due_date|date:"d" }}<br>{{ item.due_date|date:"M" }}</span><span class="ux-list-main"><strong>{{ item.title }}</strong><span>{{ item.kind_label }}</span></span><span>&rsaquo;</span></a>{% empty %}<div class="ux-empty">Nessuna scadenza nei prossimi 7 giorni.</div>{% endfor %}
+        </div>
+      </article>
+
+      <article class="ux-card">
+        <header class="ux-card-head"><div><h3>Accessi rapidi</h3><p>I registri completi restano disponibili senza affollare il cruscotto.</p></div></header>
+        <div class="ux-card-body" style="display:grid;gap:8px">
+          <a class="ux-btn" href="{{ url_maintenance_schedule }}">Scadenzario completo</a>
+          <a class="ux-btn" href="{{ url_hub_scadenze }}">Scadenze amministrative</a>
+          <a class="ux-btn" href="{{ url_hub_verifiche }}">Verifiche periodiche</a>
+          <a class="ux-btn" href="{{ url_wo_done }}">Storico interventi</a>
+        </div>
+      </article>
+    </aside>
+  </div>
+
+  <nav class="mh2-links" aria-label="Aree manutenzione">
+    <a class="mh2-link" href="{{ url_wo_open }}"><strong>Interventi</strong><span>Coda operativa, assegnazioni, avanzamento e chiusura.</span></a>
+    <a class="mh2-link" href="{{ url_impostazioni }}?tab=piani"><strong>Piani di manutenzione</strong><span>Frequenze, asset collegati, responsabili e automazione.</span></a>
+    <a class="mh2-link" href="{{ url_impostazioni }}?tab=catalogo"><strong>Catalogo attività</strong><span>Procedure standard, checklist, tempi e materiali.</span></a>
+    <a class="mh2-link" href="{{ url_wo_done }}"><strong>Storico</strong><span>Esecuzioni concluse, esiti, tecnici, tempi e costi.</span></a>
+  </nav>
+</section>
+{% endblock %}
