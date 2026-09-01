@@ -3,349 +3,176 @@
 {% block title %}Intervento #{{ workorder.id }}{% endblock %}
 
 {% block assets_shell_head %}
-<style>
-.wod-page { display:grid; gap:14px; max-width:1080px; }
-.wod-card {
-  border:1px solid #dbe1ea;
-  border-radius:16px;
-  background:#fff;
-  box-shadow:0 10px 24px rgba(15, 23, 42, .05);
-}
-.wod-card-body { padding:18px; }
-.wod-hero {
-  display:grid;
-  gap:16px;
-  grid-template-columns:minmax(0, 1.3fr) minmax(260px, .7fr);
-}
-.wod-title { margin:10px 0 6px; font-size:var(--fs-display-lg); color:#0f172a; }
-.wod-sub { color:#64748b; margin:0; }
-.wod-chip-row { display:flex; gap:8px; flex-wrap:wrap; }
-.wod-stats { display:grid; gap:10px; }
-.wod-stat {
-  border:1px solid #e2e8f0;
-  border-radius:14px;
-  padding:12px 14px;
-  background:#fcfdff;
-}
-.wod-stat span { display:block; color:#64748b; font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.08em; font-weight:800; }
-.wod-stat strong { display:block; margin-top:6px; color:#0f172a; font-size:var(--fs-title-lg); }
-.wod-grid { display:grid; gap:16px; grid-template-columns:repeat(2, minmax(0, 1fr)); margin-top:16px; }
-.wod-section-title { margin:0 0 10px; font-size:var(--fs-title-md); color:#0f172a; }
-.wod-list { display:grid; gap:10px; }
-.wod-row {
-  display:grid;
-  gap:4px;
-  padding:10px 0;
-  border-top:1px solid #f1f5f9;
-}
-.wod-row:first-child { border-top:none; padding-top:0; }
-.wod-row-label { color:#64748b; font-size:var(--fs-sm); }
-.wod-row-value { color:#0f172a; font-size:var(--fs-base); }
-.wod-note { white-space:pre-wrap; color:#0f172a; }
-.wod-attachments,
-.wod-logs { display:grid; gap:8px; }
-.wod-attachment,
-.wod-log {
-  border:1px solid #e2e8f0;
-  border-radius:12px;
-  padding:12px 14px;
-  background:#fcfdff;
-}
-.wod-log-meta { color:#64748b; font-size:var(--fs-sm); margin-bottom:6px; }
-@media (max-width: 860px) {
-  .wod-hero,
-  .wod-grid { grid-template-columns:1fr; }
-}
-
-body.theme-dark .wod-card { background:var(--surface); border-color:var(--border); }
-body.theme-dark .wod-title { color:var(--text); }
-body.theme-dark .wod-sub { color:var(--text-light); }
-body.theme-dark .wod-stat { background:var(--surface-alt); border-color:var(--border); }
-body.theme-dark .wod-stat span { color:var(--text-light); }
-body.theme-dark .wod-stat strong { color:var(--text); }
-body.theme-dark .wod-section-title { color:var(--text); }
-body.theme-dark .wod-row { border-top-color:var(--border); }
-body.theme-dark .wod-row-label { color:var(--text-light); }
-body.theme-dark .wod-row-value { color:var(--text); }
-body.theme-dark .wod-note { color:var(--text); }
-body.theme-dark .wod-attachment { background:var(--surface-alt); border-color:var(--border); }
-body.theme-dark .wod-log { background:var(--surface-alt); border-color:var(--border); }
-body.theme-dark .wod-log-meta { color:var(--text-light); }
-
-/* Checklist */
-.wod-cl-badge {
-  display:inline-block;
-  border-radius:20px;
-  padding:2px 10px;
-  font-size:var(--fs-xs);
-  font-weight:700;
-  margin-left:8px;
-  vertical-align:middle;
-}
-.wod-cl-badge--done { background:#dcfce7; color:#166534; }
-.wod-cl-badge--partial { background:#fef9c3; color:#854d0e; }
-.wod-cl-list { display:grid; gap:6px; margin-bottom:14px; }
-.wod-cl-item {
-  display:grid;
-  grid-template-columns:1fr auto;
-  grid-template-rows:auto auto;
-  gap:2px 8px;
-  align-items:center;
-  padding:8px 10px;
-  border:1px solid #e2e8f0;
-  border-radius:10px;
-  background:#fcfdff;
-  transition:background .15s;
-}
-.wod-cl-item--done { background:#f0fdf4; border-color:#bbf7d0; }
-.wod-cl-left { display:flex; align-items:center; gap:10px; grid-column:1; }
-.wod-cl-actions { display:flex; gap:6px; align-items:center; grid-column:2; grid-row:1; }
-.wod-cl-meta { grid-column:1/-1; font-size:var(--fs-xs); color:#64748b; padding-left:28px; }
-.wod-cl-num {
-  min-width:22px;
-  height:22px;
-  border-radius:50%;
-  background:#e2e8f0;
-  color:#475569;
-  font-size:var(--fs-xs);
-  font-weight:700;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  flex-shrink:0;
-}
-.wod-cl-item--done .wod-cl-num { background:#bbf7d0; color:#166534; }
-.wod-cl-desc { color:#0f172a; }
-.wod-cl-item--done .wod-cl-desc { color:#64748b; text-decoration:line-through; }
-.wod-cl-toggle {
-  border:none;
-  background:none;
-  cursor:pointer;
-  font-size:1.1rem;
-  color:#64748b;
-  padding:2px 6px;
-  border-radius:6px;
-  line-height:1;
-}
-.wod-cl-toggle:hover { background:#e2e8f0; }
-.wod-cl-toggle--undo { color:#16a34a; font-weight:700; }
-.wod-cl-del {
-  border:none;
-  background:none;
-  cursor:pointer;
-  font-size:.85rem;
-  color:#94a3b8;
-  padding:2px 6px;
-  border-radius:6px;
-  line-height:1;
-}
-.wod-cl-del:hover { background:#fee2e2; color:#dc2626; }
-.wod-cl-add-form { display:flex; gap:8px; align-items:center; }
-.wod-cl-add-input {
-  flex:1;
-  border:1px solid #cbd5e1;
-  border-radius:8px;
-  padding:6px 10px;
-  font-size:var(--fs-base);
-}
-body.theme-dark .wod-cl-badge--done { background:#14532d; color:#86efac; }
-body.theme-dark .wod-cl-badge--partial { background:#422006; color:#fde68a; }
-body.theme-dark .wod-cl-item { background:var(--surface-alt); border-color:var(--border); }
-body.theme-dark .wod-cl-item--done { background:#052e16; border-color:#15803d; }
-body.theme-dark .wod-cl-num { background:var(--border); color:var(--text-light); }
-body.theme-dark .wod-cl-item--done .wod-cl-num { background:#15803d; color:#bbf7d0; }
-body.theme-dark .wod-cl-desc { color:var(--text); }
-body.theme-dark .wod-cl-item--done .wod-cl-desc { color:var(--text-light); }
-body.theme-dark .wod-cl-meta { color:var(--text-light); }
-body.theme-dark .wod-cl-toggle { color:var(--text-light); }
-body.theme-dark .wod-cl-toggle:hover { background:var(--border); }
-body.theme-dark .wod-cl-add-input { background:var(--surface); border-color:var(--border); color:var(--text); }
-
-/* Link standard inline */
-.wod-link { color:#1d4ed8; text-decoration:none; font-weight:600; }
-.wod-link:hover { text-decoration:underline; }
-body.theme-dark .wod-link { color:#60a5fa; }
-
-/* Allegato cliccabile */
-.wod-attachment-link { text-decoration:none; color:inherit; }
-.wod-attachment-link:hover { box-shadow:0 2px 8px rgba(0,0,0,.1); }
-
-/* Form log */
-.wod-log-form { display:grid; gap:8px; margin-bottom:14px; }
-
-/* Note vuote */
-.wod-empty-note { margin:0; }
-</style>
+  {% include "assets/components/maintenance_ux_v2_styles.html" %}
+  <style>
+    .wod-cl-badge{display:inline-flex;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:900;margin-left:6px}.wod-cl-badge--done{background:#dcfce7;color:#166534}.wod-cl-badge--partial{background:#fef3c7;color:#854d0e}.wod-cl-list{display:grid;gap:7px}.wod-cl-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 8px;align-items:center;padding:9px 10px;border:1px solid #e2e8f0;border-radius:10px;background:#fcfdff}.wod-cl-item--done{background:#f0fdf4;border-color:#bbf7d0}.wod-cl-left{display:flex;gap:9px;align-items:center}.wod-cl-actions{display:flex;gap:4px}.wod-cl-meta{grid-column:1/-1;padding-left:30px;color:#64748b;font-size:10px}.wod-cl-num{width:22px;height:22px;border-radius:999px;background:#e2e8f0;color:#475569;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;flex:0 0 auto}.wod-cl-item--done .wod-cl-num{background:#bbf7d0;color:#166534}.wod-cl-desc{color:#0f172a;font-size:var(--fs-sm)}.wod-cl-item--done .wod-cl-desc{color:#64748b;text-decoration:line-through}.wod-cl-toggle,.wod-cl-del{border:0;background:transparent;cursor:pointer;border-radius:6px;padding:4px 7px}.wod-cl-toggle:hover{background:#e2e8f0}.wod-cl-del{color:#94a3b8}.wod-cl-del:hover{background:#fee2e2;color:#dc2626}.wod-cl-add-form{display:flex;gap:8px;margin-top:10px}.wod-cl-add-input{flex:1;min-width:0;height:36px;border:1px solid #cbd5e1;border-radius:9px;padding:0 10px;font:inherit}
+    #wod-checklist-section{border:1px solid #dbe5f2;border-radius:14px;background:#fff;box-shadow:0 8px 22px rgba(15,23,42,.04)}#wod-checklist-section .wod-card-body{padding:16px}#wod-checklist-section .wod-section-title{margin:0;color:#0f172a;font-size:var(--fs-lg)}
+    .wo2-chips{display:flex;gap:7px;flex-wrap:wrap}.wo2-note-form{display:grid;gap:8px}.wo2-note-form textarea{min-height:92px;border:1px solid #cbd5e1;border-radius:10px;padding:10px;font:inherit;resize:vertical}.wo2-detail-title{margin:0;color:#0f172a;font-size:1.15rem}.wo2-muted{color:#64748b;font-size:var(--fs-sm)}.wo2-costgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.wo2-cost{padding:12px;border:1px solid #e2e8f0;border-radius:11px;background:#fbfdff}.wo2-cost span{display:block;color:#64748b;font-size:10px;text-transform:uppercase;font-weight:850}.wo2-cost strong{display:block;margin-top:6px;color:#0f172a;font-size:1.05rem}
+    @media(max-width:760px){.wo2-costgrid{grid-template-columns:1fr}}
+    body.theme-dark #wod-checklist-section,body.theme-dark .wod-cl-item,body.theme-dark .wo2-cost{background:var(--surface);border-color:var(--border)}body.theme-dark .wod-cl-desc,body.theme-dark #wod-checklist-section .wod-section-title,body.theme-dark .wo2-detail-title,body.theme-dark .wo2-cost strong{color:var(--text)}body.theme-dark .wod-cl-meta,body.theme-dark .wo2-muted,body.theme-dark .wo2-cost span{color:var(--text-light)}
+    .wo2-wait-banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border:1px solid #fde68a;border-radius:12px;background:#fffbeb}.wo2-wait-banner strong{color:#92400e}.wo2-wait-banner p{margin:3px 0 0;color:#78350f;font-size:var(--fs-sm)}
+    .wo2-wait-form{display:grid;gap:8px;margin-top:10px}.wo2-wait-form select,.wo2-wait-form textarea{border:1px solid #cbd5e1;border-radius:9px;padding:8px 10px;font:inherit}.wo2-wait-form textarea{min-height:70px;resize:vertical}
+    body.theme-dark .wo2-wait-banner{background:rgba(180,83,9,.12);border-color:#78350f}body.theme-dark .wo2-wait-banner strong{color:#fde68a}body.theme-dark .wo2-wait-banner p{color:#fcd9a0}
+  </style>
 {% endblock %}
 
 {% block assets_shell_title %}Intervento #{{ workorder.id }}{% endblock %}
-{% block assets_shell_subtitle %}
-<p>{{ workorder.asset.asset_tag }} - {{ workorder.asset.name }}</p>
-{% endblock %}
+{% block assets_shell_subtitle %}<p>{{ workorder.title }} · {{ workorder.asset.asset_tag }} - {{ workorder.asset.name }}</p>{% endblock %}
 {% block assets_shell_toolbar %}
   <a class="btn" href="{{ workorder_asset_url }}">Apri asset</a>
-  {% if workorder_rule_url %}
-    <a class="btn" href="{{ workorder_rule_url }}">Apri regola manutenzione</a>
+  {% if workorder_rule_url %}<a class="btn" href="{{ workorder_rule_url }}">Piano / regola</a>{% endif %}
+  {% if workorder_contract_url %}<a class="btn" href="{{ workorder_contract_url }}">{{ workorder_contract_label }}</a>{% endif %}
+  {% if workorder.status == 'OPEN' and workorder.is_waiting %}
+    <form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="action" value="resume_from_waiting"><button class="btn" type="submit">Riprendi lavorazione</button></form>
   {% endif %}
-  {% if workorder_contract_url %}
-    <a class="btn" href="{{ workorder_contract_url }}">{{ workorder_contract_label }}</a>
-  {% endif %}
-  {% if workorder.status == 'OPEN' %}
-    <a class="btn btn-primary" href="{% url 'assets:wo_close' workorder.id %}">Chiudi intervento</a>
-  {% endif %}
+  {% if workorder.status == 'OPEN' %}<a class="btn btn-primary" href="{% url 'assets:wo_close' workorder.id %}">Chiudi intervento</a>{% endif %}
 {% endblock %}
 
 {% block assets_shell_content %}
-<section class="wod-page">
-  <header>
-    <a href="{% url 'assets:wo_list' %}" class="as-backlink">&larr; Torna agli interventi</a>
-  </header>
+<section class="ux-page">
+  <div class="ux-hero">
+    <div>
+      <a href="{% url 'assets:wo_list' %}" class="as-backlink">&larr; Interventi</a>
+      <div class="wo2-chips" style="margin-top:10px">
+        <span class="as-badge as-badge--{{ workorder_status.badge_class }}">{{ workorder_status.label }}</span>
+        {% if workorder.status == 'OPEN' and workorder.is_waiting %}<span class="as-badge as-badge--warn">In attesa · {{ workorder.get_wait_reason_display }}</span>{% endif %}
+        <span class="as-badge as-badge--{{ workorder_kind.badge_class }}">{{ workorder_kind.label }}</span>
+        <span class="as-badge as-badge--{{ workorder_coverage.badge_class }}">{{ workorder_coverage.label }}</span>
+      </div>
+    </div>
+  </div>
 
-  <!-- ===== CARD PRINCIPALE ===== -->
-  <article class="wod-card">
-    <div class="wod-card-body">
-      <div class="wod-hero">
-        <div>
-          <!-- Stato e badge -->
-          <div class="wod-chip-row">
-            <span class="as-badge as-badge--{{ workorder_status.badge_class }}">{{ workorder_status.label }}</span>
-            <span class="as-badge as-badge--{{ workorder_kind.badge_class }}">{{ workorder_kind.label }}</span>
-            <span class="as-badge as-badge--{{ workorder_coverage.badge_class }}">{{ workorder_coverage.label }}</span>
+  <div class="ux-detail-grid">
+    <div class="ux-detail-left">
+      <article class="ux-card">
+        <header class="ux-card-head"><div><h3>Panoramica</h3><p>Le informazioni essenziali dell'intervento, senza perdere il collegamento a asset, piano e contratto.</p></div></header>
+        <div class="ux-card-body">
+          <div class="ux-info-grid">
+            <div class="ux-info-block"><label>Asset</label><strong><a class="ux-link" href="{{ workorder_asset_url }}">{{ workorder.asset.asset_tag }}</a></strong><span>{{ workorder.asset.name }}</span></div>
+            <div class="ux-info-block"><label>Assegnato a</label><strong>{% if workorder.assigned_to %}{{ workorder.assigned_to.get_full_name|default:workorder.assigned_to.username }}{% else %}—{% endif %}</strong></div>
+            <div class="ux-info-block"><label>Eseguito da</label><strong>{% if workorder.executed_by %}{{ workorder.executed_by.get_full_name|default:workorder.executed_by.username }}{% else %}—{% endif %}</strong></div>
+            <div class="ux-info-block"><label>Data apertura</label><strong>{{ workorder.opened_at|date:"d/m/Y H:i" }}</strong></div>
+            <div class="ux-info-block"><label>Tipo</label><strong>{% if workorder.maintenance_rule %}{{ workorder.maintenance_rule.intervention_template.label }}{% else %}Intervento manuale{% endif %}</strong></div>
+            <div class="ux-info-block"><label>Fornitore</label><strong>{{ workorder.supplier|default:"—" }}</strong></div>
+            <div class="ux-info-block"><label>Contratto</label><strong>{% if workorder.assistance_contract %}{% if workorder_contract_url %}<a class="ux-link" href="{{ workorder_contract_url }}">{{ workorder.assistance_contract.title }}</a>{% else %}{{ workorder.assistance_contract.title }}{% endif %}{% else %}—{% endif %}</strong></div>
+            <div class="ux-info-block"><label>Chiuso il</label><strong>{% if workorder.closed_at %}{{ workorder.closed_at|date:"d/m/Y H:i" }}{% else %}—{% endif %}</strong></div>
           </div>
-          <h2 class="wod-title">{{ workorder.title }}</h2>
-          <p class="wod-sub">
-            {% if workorder.maintenance_rule %}{{ workorder.maintenance_rule.intervention_template.label }}{% else %}Intervento manuale{% endif %}
-            {% if workorder.assistance_contract %} &middot; {{ workorder.assistance_contract.title }}{% endif %}
-          </p>
+          <div class="ux-description"><strong>Problema / attività</strong><br>{{ workorder.description|default:"Nessuna descrizione inserita." }}</div>
+          {% if workorder.resolution %}<div class="ux-description"><strong>Risoluzione</strong><br>{{ workorder.resolution }}</div>{% endif %}
 
-          <div class="wod-grid">
-            <!-- Colonna sinistra: chi, cosa, asset -->
-            <div>
-              <h3 class="wod-section-title">Chi / Dove</h3>
-              <div class="wod-list">
-                <div class="wod-row">
-                  <span class="wod-row-label">Asset</span>
-                  <span class="wod-row-value"><a class="wod-link" href="{{ workorder_asset_url }}">{{ workorder.asset.asset_tag }} &mdash; {{ workorder.asset.name }}</a></span>
+          {% if workorder.status == 'OPEN' %}
+            {% if workorder.is_waiting %}
+            <div class="ux-description">
+              <div class="wo2-wait-banner">
+                <span>&#9203;</span>
+                <div>
+                  <strong>In attesa dal {{ workorder.waiting_since|date:"d/m/Y H:i" }} · {{ workorder.get_wait_reason_display }}</strong>
+                  {% if workorder.wait_note %}<p>{{ workorder.wait_note }}</p>{% endif %}
                 </div>
-                <div class="wod-row">
-                  <span class="wod-row-label">Assegnato a</span>
-                  <span class="wod-row-value">{% if workorder.assigned_to %}{{ workorder.assigned_to.get_full_name|default:workorder.assigned_to.username }}{% else %}&mdash;{% endif %}</span>
-                </div>
-                <div class="wod-row">
-                  <span class="wod-row-label">Eseguito da</span>
-                  <span class="wod-row-value">{% if workorder.executed_by %}{{ workorder.executed_by.get_full_name|default:workorder.executed_by.username }}{% else %}&mdash;{% endif %}</span>
-                </div>
-                <div class="wod-row">
-                  <span class="wod-row-label">Fornitore esterno</span>
-                  <span class="wod-row-value">{{ workorder.supplier|default:"&mdash;" }}</span>
-                </div>
-                {% if workorder.assistance_contract %}
-                <div class="wod-row">
-                  <span class="wod-row-label">Contratto assistenza</span>
-                  <span class="wod-row-value"><a class="wod-link" href="{{ workorder_contract_url }}">{{ workorder.assistance_contract.title }}</a></span>
-                </div>
-                {% endif %}
-                {% if workorder.maintenance_rule %}
-                <div class="wod-row">
-                  <span class="wod-row-label">Regola manutenzione</span>
-                  <span class="wod-row-value">{% if workorder_rule_url %}<a class="wod-link" href="{{ workorder_rule_url }}">{{ workorder.maintenance_rule.intervention_template.label }}</a>{% else %}{{ workorder.maintenance_rule.intervention_template.label }}{% endif %}</span>
-                </div>
-                {% endif %}
               </div>
             </div>
-
-            <!-- Colonna destra: descrizione, date, risoluzione -->
-            <div>
-              <h3 class="wod-section-title">Dettaglio intervento</h3>
-              <div class="wod-list">
-                <div class="wod-row">
-                  <span class="wod-row-label">Problema segnalato</span>
-                  <span class="wod-row-value wod-note">{{ workorder.description|default:"&mdash;" }}</span>
-                </div>
-                {% if workorder.resolution %}
-                <div class="wod-row">
-                  <span class="wod-row-label">Risoluzione</span>
-                  <span class="wod-row-value wod-note">{{ workorder.resolution }}</span>
-                </div>
-                {% endif %}
-                <div class="wod-row">
-                  <span class="wod-row-label">Aperto il</span>
-                  <span class="wod-row-value">{{ workorder.opened_at|date:"d-m-Y H:i" }}</span>
-                </div>
-                <div class="wod-row">
-                  <span class="wod-row-label">Chiuso il</span>
-                  <span class="wod-row-value">{% if workorder.closed_at %}{{ workorder.closed_at|date:"d-m-Y H:i" }}{% else %}&mdash;{% endif %}</span>
-                </div>
-                {% if execution_days %}
-                <div class="wod-row">
-                  <span class="wod-row-label">Giorni di esecuzione</span>
-                  <span class="wod-row-value">{% for execution_day in execution_days %}{{ execution_day.execution_date|date:"d-m-Y" }}{% if not forloop.last %} &middot; {% endif %}{% endfor %}</span>
-                </div>
-                {% endif %}
-              </div>
+            {% else %}
+            <div class="ux-description">
+              <details>
+                <summary class="wo2-muted" style="cursor:pointer;color:#1d4ed8;font-weight:800">+ Metti in attesa</summary>
+                <form method="post" class="wo2-wait-form">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="set_waiting">
+                  <label class="wo2-muted">Motivo
+                    <select name="wait_reason" required>
+                      <option value="">Seleziona un motivo</option>
+                      {% for code, label in wait_reason_choices %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
+                    </select>
+                  </label>
+                  <label class="wo2-muted">Nota (facoltativa)
+                    <textarea name="wait_note" placeholder="Es. atteso ricambio FIL-EMU-200, consegna prevista giovedì..."></textarea>
+                  </label>
+                  <div><button class="ux-btn" type="submit">Metti in attesa</button></div>
+                </form>
+              </details>
             </div>
-          </div>
+            {% endif %}
+            <div class="ux-description">
+              <details>
+                <summary class="wo2-muted" style="cursor:pointer;color:#1d4ed8;font-weight:800">+ Riassegna</summary>
+                <form method="post" class="wo2-wait-form">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="reassign">
+                  <label class="wo2-muted">Nuovo assegnatario
+                    <select name="new_assignee">
+                      <option value="">Nessuno (rimuovi assegnazione)</option>
+                      {% for u in assignable_users %}<option value="{{ u.id }}" {% if workorder.assigned_to_id == u.id %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>{% endfor %}
+                    </select>
+                  </label>
+                  <label class="wo2-muted">Motivo (facoltativo)
+                    <textarea name="reassign_reason" placeholder="Es. assenza programmata, competenza specifica richiesta..."></textarea>
+                  </label>
+                  <div><button class="ux-btn" type="submit">Riassegna</button></div>
+                </form>
+              </details>
+            </div>
+          {% endif %}
         </div>
+      </article>
 
-        <!-- Sidebar: metriche operative -->
-        <aside class="wod-stats">
-          <div class="wod-stat">
-            <span>Durata intervento</span>
-            <strong>{% if duration_hours %}{{ duration_hours }} h{% if duration_remainder %} {{ duration_remainder }} min{% endif %}{% elif duration_remainder %}{{ duration_remainder }} min{% else %}&mdash;{% endif %}</strong>
-          </div>
-          <div class="wod-stat">
-            <span>Fermo impianto</span>
-            <strong>{% if downtime_hours %}{{ downtime_hours }} h{% if downtime_remainder %} {{ downtime_remainder }} min{% endif %}{% elif downtime_remainder %}{{ downtime_remainder }} min{% else %}0 min{% endif %}</strong>
-          </div>
-          <div class="wod-stat">
-            <span>Costo registrato</span>
-            <strong>{% if workorder.resolved_total_cost_eur is not None %}{{ workorder.resolved_total_cost_eur }} EUR{% else %}&mdash;{% endif %}</strong>
-          </div>
-        </aside>
-      </div>
+      {% include "assets/components/workorder_checklist.html" %}
+
+      <article class="ux-card">
+        <header class="ux-card-head"><div><h3>Note operative</h3><p>Ogni nota resta associata a data, ora e autore.</p></div></header>
+        <div class="ux-card-body">
+          {% if workorder.status == 'OPEN' %}
+          <form method="post" class="wo2-note-form">
+            {% csrf_token %}
+            <label for="id_log_note" class="wo2-muted">Aggiungi un avanzamento, un'osservazione o una decisione</label>
+            <textarea id="id_log_note" name="log_note" placeholder="Es. verificata pompa, sostituito filtro, in attesa ricambio..."></textarea>
+            <div><button class="ux-btn primary" type="submit">Aggiungi nota</button></div>
+          </form>
+          {% else %}<div class="wo2-muted">Intervento chiuso: la cronologia rimane consultabile qui sotto.</div>{% endif %}
+        </div>
+      </article>
     </div>
-  </article>
 
-  <!-- ===== CHECKLIST ===== -->
-  {% include "assets/components/workorder_checklist.html" %}
+    <aside class="ux-detail-right">
+      <article class="ux-card">
+        <header class="ux-card-head"><div><h3>Riepilogo rapido</h3><p>Tempi, costi e copertura.</p></div></header>
+        <div class="ux-card-body ux-stat-list">
+          <div class="ux-stat-row"><span>Stato</span><strong>{{ workorder_status.label }}</strong></div>
+          {% if workorder.outcome %}<div class="ux-stat-row"><span>Esito</span><strong>{{ workorder.get_outcome_display }}</strong></div>{% endif %}
+          {% if workorder.follow_up_date %}<div class="ux-stat-row"><span>Verifica follow-up entro</span><strong>{{ workorder.follow_up_date|date:"d/m/Y" }}</strong></div>{% endif %}
+          <div class="ux-stat-row"><span>Copertura</span><strong>{{ workorder_coverage.label }}</strong></div>
+          <div class="ux-stat-row"><span>Durata intervento</span><strong>{% if duration_hours %}{{ duration_hours }} h{% if duration_remainder %} {{ duration_remainder }} min{% endif %}{% elif duration_remainder %}{{ duration_remainder }} min{% else %}—{% endif %}</strong></div>
+          <div class="ux-stat-row"><span>Fermo impianto</span><strong>{% if downtime_hours %}{{ downtime_hours }} h{% if downtime_remainder %} {{ downtime_remainder }} min{% endif %}{% elif downtime_remainder %}{{ downtime_remainder }} min{% else %}0 min{% endif %}</strong></div>
+          <div class="ux-stat-row"><span>Costo registrato</span><strong>{% if workorder.resolved_total_cost_eur is not None %}{{ workorder.resolved_total_cost_eur }} EUR{% else %}—{% endif %}</strong></div>
+          {% if execution_days %}<div class="ux-stat-row"><span>Giorni esecuzione</span><strong>{% for execution_day in execution_days %}{{ execution_day.execution_date|date:"d/m" }}{% if not forloop.last %}, {% endif %}{% endfor %}</strong></div>{% endif %}
+        </div>
+      </article>
 
-  <!-- ===== ALLEGATI ===== -->
-  <article class="wod-card">
-    <div class="wod-card-body">
-      <h3 class="wod-section-title">Allegati</h3>
-      <div class="wod-attachments">
-        {% for attachment in attachments %}
-          <a href="{% url 'assets:workorder_attachment_download' attachment.id %}" target="_blank" rel="noopener" class="wod-attachment wod-attachment-link">
-            <strong>{{ attachment.original_name|default:attachment.file.name }}</strong><br>
-            <span class="wod-log-meta">{{ attachment.created_at|date:"d-m-Y H:i" }}</span>
-          </a>
-        {% empty %}
-          <p class="as-note wod-empty-note">Nessun allegato presente.</p>
-        {% endfor %}
-      </div>
-    </div>
-  </article>
+      <article class="ux-card">
+        <header class="ux-card-head"><div><h3>Allegati</h3><p>Rapportini, foto e documenti dell'intervento.</p></div></header>
+        <div class="ux-card-body ux-attachments">
+          {% for attachment in attachments %}<a href="{% url 'assets:workorder_attachment_download' attachment.id %}" target="_blank" rel="noopener" class="ux-file"><strong>{{ attachment.original_name|default:attachment.file.name }}</strong><span>{{ attachment.created_at|date:"d/m/Y H:i" }}</span></a>{% empty %}<div class="ux-empty" style="grid-column:1/-1">Nessun allegato presente.</div>{% endfor %}
+        </div>
+      </article>
 
-  <!-- ===== LOG INTERVENTO ===== -->
-  <article class="wod-card">
-    <div class="wod-card-body">
-      <h3 class="wod-section-title">Log intervento</h3>
-      <form method="post" class="wod-log-form">
-        {% csrf_token %}
-        <label for="id_log_note">Aggiungi nota</label>
-        <textarea id="id_log_note" name="log_note" rows="3" placeholder="Descrivi un avanzamento, un'osservazione o un'azione eseguita..."></textarea>
-        <div><button class="btn btn-primary" type="submit">Aggiungi log</button></div>
-      </form>
-      <div class="wod-logs">
-        {% for log in logs %}
-          <div class="wod-log">
-            <div class="wod-log-meta">{{ log.ts|date:"d-m-Y H:i" }}{% if log.author %} &mdash; {{ log.author.get_full_name|default:log.author.username }}{% endif %}</div>
-            <div class="wod-note">{{ log.note }}</div>
-          </div>
-        {% empty %}
-          <p class="as-note wod-empty-note">Nessun log ancora. Aggiungi la prima nota sopra.</p>
-        {% endfor %}
-      </div>
+      <article class="ux-card">
+        <header class="ux-card-head"><div><h3>Collegamenti</h3><p>Accesso diretto agli oggetti che spiegano perché esiste questo intervento.</p></div></header>
+        <div class="ux-card-body" style="display:grid;gap:8px">
+          <a class="ux-btn" href="{{ workorder_asset_url }}">Scheda asset</a>
+          {% if workorder_rule_url %}<a class="ux-btn" href="{{ workorder_rule_url }}">Regola manutenzione</a>{% endif %}
+          {% if workorder_contract_url %}<a class="ux-btn" href="{{ workorder_contract_url }}">Contratto assistenza</a>{% endif %}
+          {% if workorder.follow_up_of %}<a class="ux-btn" href="{% url 'assets:wo_view' workorder.follow_up_of_id %}">&larr; Intervento originale #{{ workorder.follow_up_of_id }}</a>{% endif %}
+          {% for child in workorder.follow_ups.all %}<a class="ux-btn" href="{% url 'assets:wo_view' child.id %}">Follow-up #{{ child.id }} · {{ child.get_status_display }}</a>{% endfor %}
+        </div>
+      </article>
+    </aside>
+  </div>
+
+  <article class="ux-card">
+    <header class="ux-card-head"><div><h3>Cronologia intervento</h3><p>La traccia operativa resta visibile ma separata dal lavoro corrente.</p></div></header>
+    <div class="ux-card-body ux-timeline">
+      {% for log in logs %}
+      <div class="ux-event"><span class="ux-dot"></span><span class="ux-event-meta">{{ log.ts|date:"d/m/Y H:i" }}</span><strong>{% if log.author %}{{ log.author.get_full_name|default:log.author.username }}{% else %}Sistema{% endif %}</strong><span class="ux-event-detail">{{ log.note }}</span><span></span></div>
+      {% empty %}<div class="ux-empty">Nessun evento registrato.</div>{% endfor %}
     </div>
   </article>
 </section>

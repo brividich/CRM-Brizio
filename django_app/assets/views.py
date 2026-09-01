@@ -152,7 +152,7 @@ from .maintenance import (
     sync_workorder_maintenance_state,
     upsert_asset_maintenance_rule_state,
 )
-from .notifications import notify_workorder_assigned, notify_workorder_taken_over
+from .notifications import notify_workorder_assigned, notify_workorder_reassigned, notify_workorder_taken_over
 from .services.dashboard_kpi import (
     get_asset_maintenance_costs,
     get_downtime_by_family,
@@ -15177,16 +15177,87 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
     )
 
     if request.method == "POST":
+        action = _clean_string(request.POST.get("action"))
+        author = request.user if request.user.is_authenticated else None
+
+        if action == "set_waiting":
+            reason = _clean_string(request.POST.get("wait_reason"))
+            note = _clean_string(request.POST.get("wait_note"))
+            reason_choices = dict(WorkOrder.WAIT_REASON_CHOICES)
+            if workorder.status != WorkOrder.STATUS_OPEN:
+                messages.error(request, "Solo un intervento aperto puo essere messo in attesa.")
+            elif reason not in reason_choices:
+                messages.error(request, "Seleziona un motivo di attesa valido.")
+            else:
+                workorder.set_waiting(reason=reason, note=note)
+                log_text = f"Intervento messo in attesa · motivo: {reason_choices[reason]}"
+                if note:
+                    log_text = f"{log_text} · {note}"
+                WorkOrderLog.objects.create(work_order=workorder, note=log_text, author=author)
+                messages.success(request, "Intervento messo in attesa.")
+            return redirect("assets:wo_view", id=workorder.id)
+
+        if action == "resume_from_waiting":
+            if workorder.is_waiting:
+                workorder.resume_from_waiting()
+                WorkOrderLog.objects.create(
+                    work_order=workorder, note="Intervento ripreso dall'attesa.", author=author
+                )
+                messages.success(request, "Intervento ripreso.")
+            return redirect("assets:wo_view", id=workorder.id)
+
+        if action == "reassign":
+            from django.contrib.auth import get_user_model
+
+            User = get_user_model()
+            if workorder.status != WorkOrder.STATUS_OPEN:
+                messages.error(request, "Solo un intervento aperto puo essere riassegnato.")
+                return redirect("assets:wo_view", id=workorder.id)
+            new_assignee_id = _clean_string(request.POST.get("new_assignee"))
+            reason = _clean_string(request.POST.get("reassign_reason"))
+            new_assignee = None
+            if new_assignee_id:
+                new_assignee = User.objects.filter(pk=new_assignee_id, is_active=True).first()
+                if new_assignee is None:
+                    messages.error(request, "Seleziona un manutentore valido.")
+                    return redirect("assets:wo_view", id=workorder.id)
+            previous_assignee = workorder.assigned_to
+            if new_assignee_id == "" and previous_assignee is None:
+                messages.info(request, "Nessuna modifica: assegnatario invariato.")
+                return redirect("assets:wo_view", id=workorder.id)
+            if new_assignee is not None and previous_assignee is not None and new_assignee.pk == previous_assignee.pk:
+                messages.info(request, "Nessuna modifica: assegnatario invariato.")
+                return redirect("assets:wo_view", id=workorder.id)
+            workorder.assigned_to = new_assignee
+            workorder.save(update_fields=["assigned_to"])
+            previous_label = (
+                previous_assignee.get_full_name() or previous_assignee.username if previous_assignee else "nessuno"
+            )
+            new_label = new_assignee.get_full_name() or new_assignee.username if new_assignee else "nessuno"
+            actor_label = author.get_full_name() or author.username if author else "—"
+            log_text = f"Riassegnato da {previous_label} a {new_label} · da {actor_label}"
+            if reason:
+                log_text = f"{log_text} · motivo: {reason}"
+            WorkOrderLog.objects.create(work_order=workorder, note=log_text, author=author)
+            notify_workorder_assigned(workorder, actor=request.user)
+            notify_workorder_reassigned(workorder, previous_assignee=previous_assignee, actor=request.user)
+            messages.success(request, "Intervento riassegnato.")
+            return redirect("assets:wo_view", id=workorder.id)
+
         log_note = _clean_string(request.POST.get("log_note"))
         if log_note:
             WorkOrderLog.objects.create(
                 work_order=workorder,
                 note=log_note,
-                author=request.user if request.user.is_authenticated else None,
+                author=author,
             )
             messages.success(request, "Nota aggiunta.")
             return redirect("assets:wo_view", id=workorder.id)
 
+    from django.contrib.auth import get_user_model
+
+    User = get_user_model()
+    assignable_users = User.objects.filter(is_active=True).order_by("last_name", "first_name", "username")
     logs = workorder.logs.select_related("author").all()
     attachments = workorder.attachments.all()
     checklist_items = list(workorder.checklist_items.select_related("done_by").order_by("step_number", "id"))
@@ -15235,6 +15306,8 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
                 is_covered=bool(workorder.covered_by_contract),
                 contract=workorder.assistance_contract,
             ),
+            "wait_reason_choices": WorkOrder.WAIT_REASON_CHOICES,
+            "assignable_users": assignable_users,
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
         },
     )
@@ -15365,10 +15438,17 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
                 workorder.supplier = resolved_supplier
             assigned_to = form.cleaned_data.get("assigned_to")
             executed_by = form.cleaned_data.get("executed_by")
+            previous_assignee_id = workorder.assigned_to_id
+            previous_assignee_label = (
+                workorder.assigned_to.get_full_name() or workorder.assigned_to.username
+                if workorder.assigned_to_id
+                else "nessuno"
+            )
             if assigned_to is not None:
                 workorder.assigned_to = assigned_to
             if executed_by is not None:
                 workorder.executed_by = executed_by
+            assignee_changed = assigned_to is not None and assigned_to.pk != previous_assignee_id
             try:
                 workorder.close(
                     status=form.cleaned_data["status"],
@@ -15395,8 +15475,64 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
                 )
                 if workorder.status == WorkOrder.STATUS_DONE and workorder.maintenance_rule_id:
                     sync_workorder_maintenance_state(workorder)
+
+                author = request.user if request.user.is_authenticated else None
+                esito = form.cleaned_data.get("esito")
+                follow_up_child = None
+                if workorder.status == WorkOrder.STATUS_DONE and esito:
+                    outcome_fields = ["outcome"]
+                    workorder.outcome = esito
+                    if esito == WorkOrder.OUTCOME_RESOLVED_TEMP:
+                        workorder.follow_up_date = form.cleaned_data.get("follow_up_date")
+                        outcome_fields.append("follow_up_date")
+                    elif esito == WorkOrder.OUTCOME_NOT_RESOLVED:
+                        # "Non risolto" non deve risultare chiuso definitivamente: torna aperto.
+                        workorder.status = WorkOrder.STATUS_OPEN
+                        workorder.closed_at = None
+                        outcome_fields += ["status", "closed_at"]
+                    workorder.save(update_fields=outcome_fields)
+                    if esito == WorkOrder.OUTCOME_RESOLVED_TEMP:
+                        follow_up_child = WorkOrder.objects.create(
+                            asset=workorder.asset,
+                            supplier=workorder.supplier,
+                            maintenance_rule=workorder.maintenance_rule,
+                            kind=workorder.kind,
+                            origin=WorkOrder.ORIGIN_MANUAL,
+                            assigned_to=workorder.assigned_to,
+                            title=f"Follow-up: {workorder.title}",
+                            description=(
+                                f"Verifica di follow-up dell'intervento #{workorder.id}, "
+                                f"risolto temporaneamente il {timezone.localtime(workorder.closed_at):%d/%m/%Y}."
+                            ),
+                            follow_up_of=workorder,
+                        )
+                        WorkOrderLog.objects.create(
+                            work_order=follow_up_child,
+                            note=f"Creato come follow-up dell'intervento #{workorder.id}.",
+                            author=author,
+                        )
+
                 log_note = _clean_string(form.cleaned_data.get("log_note"))
-                closure_note = "Intervento chiuso." if workorder.status == WorkOrder.STATUS_DONE else "Intervento annullato."
+                if workorder.status == WorkOrder.STATUS_DONE:
+                    closure_note = f"Intervento chiuso · esito: {workorder.get_outcome_display()}."
+                elif workorder.status == WorkOrder.STATUS_CANCELED:
+                    closure_note = "Intervento annullato."
+                else:
+                    closure_note = f"Intervento non risolto, resta aperto · esito: {workorder.get_outcome_display()}."
+                if follow_up_child is not None:
+                    closure_note = (
+                        f"{closure_note} Follow-up #{follow_up_child.id} creato "
+                        f"(verifica entro il {workorder.follow_up_date:%d/%m/%Y})."
+                    )
+                if assignee_changed:
+                    new_assignee_label = (
+                        workorder.assigned_to.get_full_name() or workorder.assigned_to.username
+                        if workorder.assigned_to_id
+                        else "nessuno"
+                    )
+                    closure_note = (
+                        f"{closure_note} Assegnatario aggiornato: {previous_assignee_label} → {new_assignee_label}."
+                    )
                 if execution_days:
                     closure_note = f"{closure_note} Giorni esecuzione: {', '.join(day.strftime('%d/%m/%Y') for day in execution_days)}."
                 if log_note:
@@ -15411,12 +15547,17 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
                 WorkOrderLog.objects.create(
                     work_order=workorder,
                     note=closure_note,
-                    author=request.user if request.user.is_authenticated else None,
+                    author=author,
                 )
-                messages.success(
-                    request,
-                    "Intervento chiuso." if workorder.status == WorkOrder.STATUS_DONE else "Intervento annullato.",
-                )
+                if workorder.status == WorkOrder.STATUS_DONE:
+                    success_message = "Intervento chiuso."
+                elif workorder.status == WorkOrder.STATUS_CANCELED:
+                    success_message = "Intervento annullato."
+                else:
+                    success_message = "Intervento registrato come non risolto: resta aperto."
+                if follow_up_child is not None:
+                    success_message = f"{success_message} Creato il follow-up #{follow_up_child.id}."
+                messages.success(request, success_message)
                 return redirect("assets:wo_view", id=workorder.id)
     else:
         form = WorkOrderCloseForm(
