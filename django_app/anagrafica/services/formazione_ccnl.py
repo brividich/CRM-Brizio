@@ -84,11 +84,14 @@ def righe_dipendenti(
     finestra e stato verso il monte ore. Usata dalla dashboard e dall'export:
     stessi filtri, stesso risultato.
     """
+    from .reparto_canonico import enrich_rows_reparto_canonico
+
     dal, al, aggregato = monte_ore_dipendenti(al=al)
     cessati = _cessati_legacy_ids()
     reparti_set: set[str] = set()
     righe: list[dict] = []
-    for r in fetch_anagrafica_rows(deduplicate=True):
+    rows = enrich_rows_reparto_canonico(fetch_anagrafica_rows(deduplicate=True))
+    for r in rows:
         try:
             lid = int(r.get("id") or 0)
         except (TypeError, ValueError):
