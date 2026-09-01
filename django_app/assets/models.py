@@ -2083,6 +2083,28 @@ class WorkOrder(models.Model):
         (ORIGIN_TICKET, "Da ticket"),
     ]
 
+    OUTCOME_RESOLVED = "RESOLVED"
+    OUTCOME_RESOLVED_TEMP = "RESOLVED_TEMP"
+    OUTCOME_NOT_RESOLVED = "NOT_RESOLVED"
+    OUTCOME_CHOICES = [
+        (OUTCOME_RESOLVED, "Risolto"),
+        (OUTCOME_RESOLVED_TEMP, "Risolto temporaneamente"),
+        (OUTCOME_NOT_RESOLVED, "Non risolto"),
+    ]
+
+    WAIT_REASON_RICAMBIO = "RICAMBIO"
+    WAIT_REASON_FORNITORE = "FORNITORE"
+    WAIT_REASON_PRODUZIONE = "PRODUZIONE"
+    WAIT_REASON_AUTORIZZAZIONE = "AUTORIZZAZIONE"
+    WAIT_REASON_ALTRO = "ALTRO"
+    WAIT_REASON_CHOICES = [
+        (WAIT_REASON_RICAMBIO, "Ricambio"),
+        (WAIT_REASON_FORNITORE, "Fornitore"),
+        (WAIT_REASON_PRODUZIONE, "Produzione"),
+        (WAIT_REASON_AUTORIZZAZIONE, "Autorizzazione"),
+        (WAIT_REASON_ALTRO, "Altro"),
+    ]
+
     asset = models.ForeignKey(Asset, on_delete=models.CASCADE, related_name="workorders")
     periodic_verification = models.ForeignKey(
         PeriodicVerification,
@@ -2189,6 +2211,37 @@ class WorkOrder(models.Model):
         default=None,
         help_text="Valore del contatore (ore/km/cicli) al momento della chiusura dell'OdL. "
                   "Compilato automaticamente dalla view di chiusura se l'asset ha un AssetMeter.",
+    )
+    is_waiting = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Intervento in attesa (ricambio, fornitore, produzione, autorizzazione...). "
+                  "Non cambia lo status OPEN: e' un'informazione ortogonale per non alterare "
+                  "i filtri esistenti su STATUS_OPEN.",
+    )
+    wait_reason = models.CharField(max_length=20, choices=WAIT_REASON_CHOICES, blank=True, default="")
+    wait_note = models.TextField(blank=True, default="")
+    waiting_since = models.DateTimeField(null=True, blank=True)
+    outcome = models.CharField(
+        max_length=20,
+        choices=OUTCOME_CHOICES,
+        blank=True,
+        default="",
+        help_text="Esito della chiusura (Risolto / Risolto temporaneamente / Non risolto). "
+                  "Vuoto per gli interventi ancora aperti o annullati.",
+    )
+    follow_up_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Data entro cui verificare un intervento chiuso come 'Risolto temporaneamente'.",
+    )
+    follow_up_of = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="follow_ups",
+        help_text="Intervento originale di cui questo e' il follow-up di verifica.",
     )
 
     class Meta:
@@ -2327,6 +2380,23 @@ class WorkOrder(models.Model):
                 # La prossima manutenzione non viene ricalcolata: la macchina
                 # sparisce dalle scadenze senza che nessuno lo noti.
                 logger.exception("Assets: ricalcolo della prossima manutenzione fallito")
+
+    def set_waiting(self, *, reason: str, note: str = "") -> None:
+        """Mette l'intervento in attesa. Non tocca ``status`` (resta OPEN):
+        e' un'informazione ortogonale per non alterare i filtri esistenti
+        su STATUS_OPEN sparsi in hub/scadenzario/dashboard."""
+        self.is_waiting = True
+        self.wait_reason = reason
+        self.wait_note = note
+        self.waiting_since = timezone.now()
+        self.save(update_fields=["is_waiting", "wait_reason", "wait_note", "waiting_since"])
+
+    def resume_from_waiting(self) -> None:
+        self.is_waiting = False
+        self.wait_reason = ""
+        self.wait_note = ""
+        self.waiting_since = None
+        self.save(update_fields=["is_waiting", "wait_reason", "wait_note", "waiting_since"])
 
 
 class WorkOrderExecutionDay(models.Model):

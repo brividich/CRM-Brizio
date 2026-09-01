@@ -66,3 +66,22 @@ def notify_workorder_taken_over(workorder, *, previous_assignee, actor) -> bool:
         workorder,
         f"L'intervento #{workorder.pk} che ti era assegnato è stato preso in carico da {who}.",
     )
+
+
+def notify_workorder_reassigned(workorder, *, previous_assignee, actor) -> bool:
+    """Avvisa il precedente assegnatario che l'intervento è stato riassegnato ad altri.
+
+    A differenza di ``notify_workorder_taken_over`` (autoassegnazione), qui l'azione
+    è compiuta da un terzo (chi riassegna), non dal nuovo assegnatario.
+    """
+    if previous_assignee is None:
+        return False
+    new_assignee = getattr(workorder, "assigned_to", None)
+    if new_assignee is not None and getattr(new_assignee, "pk", None) == getattr(previous_assignee, "pk", None):
+        return False
+    who = actor.get_full_name() or actor.username if actor is not None else "un responsabile"
+    return notify_user_about_workorder(
+        previous_assignee,
+        workorder,
+        f"L'intervento #{workorder.pk} che ti era assegnato è stato riassegnato da {who}.",
+    )

@@ -3,829 +3,271 @@
 {% block title %}Prossime manutenzioni{% endblock %}
 
 {% block assets_shell_head %}
-<style>
-.ms-page { display:grid; gap:14px; }
-.ms-grid-kpi { display:grid; gap:10px; grid-template-columns:repeat(6, minmax(0, 1fr)); }
-.ms-kpi, .ms-card {
-  border:1px solid #dbe1ea;
-  border-radius:16px;
-  background:#fff;
-  box-shadow:0 10px 24px rgba(15, 23, 42, .05);
-}
-.ms-kpi { padding:14px 16px; }
-.ms-kpi-label { font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.08em; color:#64748b; font-weight:800; }
-.ms-kpi-value { margin-top:8px; font-size:var(--fs-display-lg); font-weight:800; color:#0f172a; }
-.ms-card-head {
-  display:flex;
-  justify-content:space-between;
-  gap:12px;
-  align-items:flex-start;
-  padding:16px 18px;
-  border-bottom:1px solid #e5e7eb;
-  flex-wrap:wrap;
-}
-.ms-card-head h2 { margin:0; font-size:var(--fs-heading); color:#0f172a; }
-.ms-card-head p { margin:4px 0 0; color:#64748b; }
-.ms-card-body { padding:18px; }
-.ms-filters { display:grid; gap:12px; grid-template-columns:repeat(5, minmax(0, 1fr)); align-items:end; }
-.ms-field label { display:block; margin-bottom:6px; font-weight:700; color:#24364f; }
-.ms-field :is(input, select) {
-  width:100%;
-  border:1px solid #cbd5e1;
-  border-radius:10px;
-  background:#fff;
-  padding:10px 12px;
-  font:inherit;
-}
-.ms-actions { display:flex; gap:8px; flex-wrap:wrap; grid-column:1/-1; }
-.ms-table-wrap { overflow:auto; }
-.ms-table { width:100%; border-collapse:collapse; }
-.ms-table th {
-  text-align:left;
-  padding:10px 8px;
-  border-bottom:1px solid #e5e7eb;
-  color:#64748b;
-  font-size:var(--fs-sm);
-  text-transform:uppercase;
-}
-.ms-table td {
-  padding:12px 8px;
-  border-bottom:1px solid #f1f5f9;
-  color:#0f172a;
-  vertical-align:top;
-}
-.ms-meta { color:#64748b; font-size:var(--fs-sm); line-height:1.5; }
-.ms-actions-row { display:flex; gap:8px; flex-wrap:wrap; }
-.ms-suggestions { display:grid; gap:6px; margin-top:8px; }
-.ms-suggestion { color:#64748b; font-size:var(--fs-sm); line-height:1.45; }
-.ms-inline-form { display:grid; gap:8px; margin-top:10px; }
-.ms-inline-select {
-  width:100%;
-  border:1px solid #cbd5e1;
-  border-radius:10px;
-  background:#fff;
-  padding:9px 10px;
-  font:inherit;
-}
-.ms-inline-note {
-  color:#64748b;
-  font-size:var(--fs-sm);
-  line-height:1.45;
-}
-.ms-existing-events {
-  display:grid;
-  gap:6px;
-  margin-top:10px;
-  padding-top:10px;
-  border-top:1px dashed #dbe1ea;
-}
-.ms-empty { color:#64748b; }
-@media (max-width: 1280px) {
-  .ms-grid-kpi { grid-template-columns:repeat(3, minmax(0, 1fr)); }
-}
-@media (max-width: 920px) {
-  .ms-filters { grid-template-columns:repeat(2, minmax(0, 1fr)); }
-}
-@media (max-width: 720px) {
-  .ms-grid-kpi,
-  .ms-filters { grid-template-columns:1fr; }
-}
+  {% include "assets/components/maintenance_ux_v2_styles.html" %}
+  <style>
+    .ms2-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}.ms2-layout{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:12px;align-items:start}.ms2-side{display:grid;gap:12px;position:sticky;top:12px}.ms2-viewbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.ms2-viewbar-left{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.ms2-advanced{margin-top:12px}.ms2-advanced summary{cursor:pointer;color:#1d4ed8;font-size:var(--fs-xs);font-weight:800}.ms2-actions{display:flex;gap:6px;flex-wrap:wrap}.ms2-priority{display:grid;gap:8px}.ms2-priority-item{padding:10px;border:1px solid #e2e8f0;border-radius:10px;background:#fff}.ms2-priority-top{display:flex;justify-content:space-between;gap:8px}.ms2-priority-item strong{display:block;margin-top:5px;color:#0f172a;font-size:var(--fs-sm)}.ms2-priority-item span.meta{display:block;margin-top:2px;color:#64748b;font-size:var(--fs-xs)}.ms2-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:7px}.ms2-collapsed{border:1px solid #dbe5f2;border-radius:12px;background:#fff;overflow:hidden}.ms2-collapsed summary{cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;font-weight:850;color:#0f172a;list-style:none}.ms2-collapsed summary::-webkit-details-marker{display:none}.ms2-collapsed[open] summary{border-bottom:1px solid #edf2f7}.ms2-machine-summary{display:flex;gap:8px;flex-wrap:wrap}.ms2-table-actions{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+    @media(max-width:1150px){.ms2-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}.ms2-layout{grid-template-columns:1fr}.ms2-side{position:static}}
+    body.theme-dark .ms2-priority-item,body.theme-dark .ms2-collapsed{background:var(--surface);border-color:var(--border)}body.theme-dark .ms2-priority-item strong,body.theme-dark .ms2-collapsed summary{color:var(--text)}body.theme-dark .ms2-priority-item span.meta{color:var(--text-light)}
 
-body.theme-dark .ms-kpi { background:var(--surface); border-color:var(--border); }
-body.theme-dark .ms-kpi-label { color:var(--text-light); }
-body.theme-dark .ms-kpi-value { color:var(--text); }
-body.theme-dark .ms-card { background:var(--surface); border-color:var(--border); }
-body.theme-dark .ms-card-head { border-bottom-color:var(--border); }
-body.theme-dark .ms-card-head h2 { color:var(--text); }
-body.theme-dark .ms-card-head p { color:var(--text-light); }
-body.theme-dark .ms-field label { color:var(--text); }
-body.theme-dark .ms-field :is(input, select) { background:var(--surface); border-color:var(--border); color:var(--text); }
-body.theme-dark .ms-inline-select { background:var(--surface); border-color:var(--border); color:var(--text); }
-body.theme-dark .ms-table th { border-bottom-color:var(--border); color:var(--text-light); }
-body.theme-dark .ms-table td { border-bottom-color:var(--border); color:var(--text); }
-body.theme-dark .ms-meta { color:var(--text-light); }
-body.theme-dark .ms-suggestion { color:var(--text-light); }
-body.theme-dark .ms-inline-note { color:var(--text-light); }
-body.theme-dark .ms-existing-events { border-top-color:var(--border); }
-body.theme-dark .ms-empty { color:var(--text-light); }
-
-/* Link di navigazione nelle celle tabella */
-.ms-cell-link { color:#0f172a; text-decoration:none; font-weight:700; }
-.ms-cell-link:hover { color:#1d4ed8; }
-body.theme-dark .ms-cell-link { color:var(--text); }
-body.theme-dark .ms-cell-link:hover { color:#60a5fa; }
-
-/* Form "Registra esecuzione rapida" */
-.ms-record-form-grid { display:grid; gap:6px; grid-template-columns:repeat(2, minmax(0, 1fr)); }
-.ms-record-field { display:grid; gap:4px; font-size:var(--fs-sm); font-weight:700; color:#334155; }
-.ms-record-field.full { grid-column:1/-1; }
-.ms-record-input { border:1px solid #cbd5e1; border-radius:8px; padding:6px 8px; width:100%; font:inherit; }
-.ms-record-input[type="file"] { border-style:dashed; background:#fff; }
-.ms-record-actions { display:flex; gap:6px; flex-wrap:wrap; }
-.ms-record-form-wrap { display:none; gap:8px; margin-top:10px; padding:10px; border:1px solid #cbd5e1; border-radius:10px; background:#f8fafc; }
-.ms-record-form-wrap.open { display:grid; }
-.ms-checklist { display:grid; gap:4px; margin-top:2px; }
-.ms-check-item { display:flex; align-items:flex-start; gap:8px; font-weight:400; font-size:var(--fs-sm); color:#334155; cursor:pointer; padding:4px 8px; border-radius:6px; background:#fff; border:1px solid #e2e8f0; }
-.ms-check-item input { margin-top:3px; flex-shrink:0; }
-body.theme-dark .ms-check-item { background:var(--surface); border-color:var(--border); color:var(--text); }
-.ms-executions-header { font-weight:800; text-transform:uppercase; letter-spacing:.05em; }
-body.theme-dark .ms-record-field { color:var(--text); }
-body.theme-dark .ms-record-input { background:var(--surface); border-color:var(--border); color:var(--text); }
-body.theme-dark .ms-record-form-wrap { background:var(--surface-alt); border-color:var(--border); }
-
-/* Gerarchia azioni: primaria evidente, toggle secondari e compatti */
-.ms-actions-row { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
-.ms-toggle { font-size:var(--fs-xs); padding:5px 9px; font-weight:600; }
-
-/* Badge "manutenzione esterna" (ditta terza) — distinto dai badge di stato */
-.ms-ext-badge { display:inline-block; font-size:var(--fs-xs); font-weight:800; padding:1px 7px; border-radius:999px; background:#ede9fe; color:#6d28d9; margin-left:4px; white-space:nowrap; }
-body.theme-dark .ms-ext-badge { background:rgba(109,40,217,.28); color:#c4b5fd; }
-
-/* ── Selettore viste (Lista / Board / Per macchina) ── */
-.ms-viewsel { display:inline-flex; gap:2px; background:#eef1f6; border:1px solid #e2e8f0; border-radius:10px; padding:3px; }
-.ms-viewsel-btn { font-size:var(--fs-sm); font-weight:700; color:#64748b; text-decoration:none; padding:6px 12px; border-radius:8px; white-space:nowrap; }
-.ms-viewsel-btn:hover { color:#1d4ed8; }
-.ms-viewsel-btn.is-active { background:#fff; color:#1d4ed8; box-shadow:0 1px 2px rgba(15,23,42,.08); }
-body.theme-dark .ms-viewsel { background:#162032; border-color:#334155; }
-body.theme-dark .ms-viewsel-btn { color:#94a3b8; }
-body.theme-dark .ms-viewsel-btn.is-active { background:#1e293b; color:#60a5fa; box-shadow:none; }
-
-/* Tag macchina mono (board/macchina) */
-.ms-tag2 { font-family:monospace; font-size:var(--fs-xs); font-weight:800; background:#eff6ff; color:#1d4ed8; padding:1px 6px; border-radius:5px; }
-body.theme-dark .ms-tag2 { background:#1e3a5f; color:#93c5fd; }
-
-/* Concept C: corsia di stato a sinistra nella Lista */
-.ms-row-overdue  td:first-child { box-shadow:inset 4px 0 0 #dc2626; }
-.ms-row-warning  td:first-child { box-shadow:inset 4px 0 0 #d97706; }
-.ms-row-upcoming td:first-child { box-shadow:inset 4px 0 0 #16a34a; }
-.ms-row-missing  td:first-child { box-shadow:inset 4px 0 0 #94a3b8; }
-.ms-table td:first-child { padding-left:14px; }
-
-/* Concept A: Board per stato */
-.ms-board { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:14px; }
-.ms-board-colh { display:flex; align-items:center; gap:8px; font-size:var(--fs-sm); font-weight:800; margin-bottom:10px; color:#0f172a; }
-.ms-board-dot { width:9px; height:9px; border-radius:50%; }
-.ms-overdue  .ms-board-dot { background:#dc2626; } .ms-warning .ms-board-dot { background:#d97706; } .ms-upcoming .ms-board-dot { background:#16a34a; }
-.ms-board-ct { margin-left:auto; color:#94a3b8; font-weight:700; font-variant-numeric:tabular-nums; }
-.ms-kcard { display:block; background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:11px 12px 11px 15px; margin-bottom:9px; position:relative; text-decoration:none; color:inherit; cursor:pointer; }
-.ms-kcard::before { content:""; position:absolute; left:0; top:10px; bottom:10px; width:3px; border-radius:3px; }
-.ms-kcard.ms-overdue::before { background:#dc2626; } .ms-kcard.ms-warning::before { background:#d97706; } .ms-kcard.ms-upcoming::before { background:#16a34a; }
-.ms-kcard:hover { border-color:#c7d2e5; }
-.ms-kcard-int { font-size:var(--fs-sm); font-weight:700; color:#0f172a; }
-.ms-kcard-mac { font-size:var(--fs-xs); color:#64748b; margin-top:1px; }
-.ms-kcard-foot { display:flex; align-items:center; gap:8px; margin-top:8px; }
-.ms-kcard-date { font-size:var(--fs-xs); color:#94a3b8; font-variant-numeric:tabular-nums; margin-left:auto; }
-.ms-kcard-act { font-size:var(--fs-xs); font-weight:800; color:#1d4ed8; text-decoration:none; }
-.ms-board-more, .ms-board-empty { text-align:center; padding:8px; font-size:var(--fs-xs); color:#94a3b8; }
-body.theme-dark .ms-board-colh { color:var(--text); }
-body.theme-dark .ms-kcard { background:#1e293b; border-color:#334155; }
-body.theme-dark .ms-kcard-int { color:var(--text); }
-body.theme-dark .ms-kcard-act { color:#60a5fa; }
-
-/* Concept B: Per macchina */
-.ms-machines { display:grid; gap:12px; }
-.ms-mcard { border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; background:#fff; }
-.ms-mcard-h { display:flex; align-items:center; gap:12px; padding:12px 16px; background:#f8fafc; border-bottom:1px solid #e2e8f0; cursor:pointer; }
-.ms-mcard-ico { width:34px; height:34px; border-radius:9px; background:#eaf0ff; color:#1d4ed8; display:grid; place-items:center; font-size:17px; flex-shrink:0; }
-.ms-mcard-name { font-size:var(--fs-xs); color:#64748b; margin-top:1px; }
-.ms-mcard-right { margin-left:auto; }
-.ms-cnt { font-size:var(--fs-xs); font-weight:800; padding:3px 10px; border-radius:999px; white-space:nowrap; }
-.ms-cnt.sc { background:#fdecee; color:#dc2626; } .ms-cnt.wa { background:#fdf3e3; color:#b45309; } .ms-cnt.ok { background:#e6f5ec; color:#15803d; }
-.ms-mrow { display:flex; align-items:center; gap:12px; padding:10px 16px; border-top:1px solid #f1f5f9; cursor:pointer; }
-.ms-mrow:hover { background:#f8fafc; }
-.ms-mrow-int { font-size:var(--fs-sm); font-weight:600; color:#1e293b; }
-.ms-mrow-meta { margin-left:auto; display:flex; align-items:center; gap:10px; }
-.ms-mrow-date { font-size:var(--fs-xs); color:#94a3b8; font-variant-numeric:tabular-nums; }
-body.theme-dark .ms-mcard { background:#1e293b; border-color:#334155; }
-body.theme-dark .ms-mcard-h { background:#162032; border-color:#334155; }
-body.theme-dark .ms-mcard-ico { background:#1e3a5f; color:#93c5fd; }
-body.theme-dark .ms-mrow { border-color:#253347; } body.theme-dark .ms-mrow:hover { background:#253347; }
-body.theme-dark .ms-mrow-int { color:var(--text); }
-body.theme-dark .ms-cnt.sc { background:rgba(220,38,38,.22); color:#fca5a5; }
-body.theme-dark .ms-cnt.wa { background:rgba(180,83,9,.25); color:#fcd9a0; }
-body.theme-dark .ms-cnt.ok { background:rgba(21,128,61,.25); color:#86efac; }
-@media (max-width:900px) { .ms-board { grid-template-columns:1fr; } }
-
-/* Note di integrazione Outlook senza margin inline */
-.ms-calendar-note { margin:0; max-width:360px; }
-
-/* Pulsante "Vista calendario" allineato a destra nell'header dello scadenzario */
-.ms-calendar-link { margin-left:auto; align-self:center; white-space:nowrap; }
-
-/* Link nelle celle scadenze amministrative e look-ahead */
-.ms-blue-link { color:#1d4ed8; text-decoration:none; font-weight:600; }
-.ms-blue-link:hover { text-decoration:underline; }
-body.theme-dark .ms-blue-link { color:#60a5fa; }
-
-/* Colori badge giorni residui */
-.ms-days-red { color:#dc2626; font-weight:700; }
-.ms-days-amber { color:#d97706; font-weight:700; }
-.ms-days-ok { color:#0f172a; }
-body.theme-dark .ms-days-ok { color:var(--text); }
-
-/* Look-ahead sezione */
-.ms-lookahead-body { display:grid; gap:16px; }
-.ms-lookahead-summary { cursor:pointer; font-weight:700; color:#1e3a5f; padding:6px 0; list-style:none; display:flex; align-items:center; gap:8px; }
-.ms-lookahead-summary::-webkit-details-marker { display:none; }
-.ms-lookahead-week-label { font-size:var(--fs-base); }
-.ms-lookahead-badge { margin-left:auto; }
-.ms-lookahead-table-wrap { margin-top:8px; }
-body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
-</style>
+    /* Form "Registra esecuzione" / evento Outlook — dentro "Altre azioni", invariati dall'originale */
+    .ms-record-form-grid{display:grid;gap:6px;grid-template-columns:repeat(2,minmax(0,1fr))}
+    .ms-record-field{display:grid;gap:4px;font-size:var(--fs-sm);font-weight:700;color:#334155}
+    .ms-record-field.full{grid-column:1/-1}
+    .ms-record-input{border:1px solid #cbd5e1;border-radius:8px;padding:6px 8px;width:100%;font:inherit}
+    .ms-record-input[type="file"]{border-style:dashed;background:#fff}
+    .ms-record-actions{display:flex;gap:6px;flex-wrap:wrap}
+    .ms-checklist{display:grid;gap:4px;margin-top:2px}
+    .ms-check-item{display:flex;align-items:flex-start;gap:8px;font-weight:400;font-size:var(--fs-sm);color:#334155;cursor:pointer;padding:4px 8px;border-radius:6px;background:#fff;border:1px solid #e2e8f0}
+    .ms-check-item input{margin-top:3px;flex-shrink:0}
+    .ms-inline-form{display:grid;gap:8px;margin-top:8px}
+    .ms-inline-select{width:100%;border:1px solid #cbd5e1;border-radius:10px;background:#fff;padding:9px 10px;font:inherit}
+    .ms-inline-note{color:#64748b;font-size:var(--fs-sm);line-height:1.45}
+    .ms-existing-events{display:grid;gap:6px;margin-top:10px;padding-top:10px;border-top:1px dashed #dbe1ea}
+    .ms-executions-header{font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#64748b;font-size:var(--fs-xs)}
+    body.theme-dark .ms-record-field{color:var(--text)}
+    body.theme-dark .ms-record-input{background:var(--surface);border-color:var(--border);color:var(--text)}
+    body.theme-dark .ms-check-item{background:var(--surface);border-color:var(--border);color:var(--text)}
+    body.theme-dark .ms-inline-select{background:var(--surface);border-color:var(--border);color:var(--text)}
+    body.theme-dark .ms-inline-note{color:var(--text-light)}
+    body.theme-dark .ms-existing-events{border-top-color:var(--border)}
+  </style>
 {% endblock %}
 
 {% block assets_shell_title %}Prossime manutenzioni{% endblock %}
-{% block assets_shell_subtitle %}
-<p>Vista operativa delle regole effettive a giorni, con warning, scaduti e copertura contrattuale.</p>
-{% endblock %}
+{% block assets_shell_subtitle %}<p>Vista operativa delle attività scadute, in warning, pianificate e senza copertura.</p>{% endblock %}
 
 {% block assets_shell_content %}
-<section class="ms-page">
+<section class="ux-page">
   {% if selected_asset %}
-    <article class="ms-card">
-      <div class="ms-card-body">
-        <strong>{{ selected_asset.asset_tag }}</strong> - {{ selected_asset.name }}
-        {% if selected_asset.asset_category %}<span class="ms-meta"> · {{ selected_asset.asset_category.label }}</span>{% endif %}
-      </div>
-    </article>
+  <article class="ux-card"><div class="ux-card-body"><strong>{{ selected_asset.asset_tag }}</strong> — {{ selected_asset.name }}{% if selected_asset.asset_category %} · {{ selected_asset.asset_category.label }}{% endif %}</div></article>
   {% endif %}
 
-  <section class="ms-grid-kpi">
-    <article class="ms-kpi"><div class="ms-kpi-label">Scadute</div><div class="ms-kpi-value">{{ overdue_count }}</div></article>
-    <article class="ms-kpi"><div class="ms-kpi-label">In warning</div><div class="ms-kpi-value">{{ warning_count }}</div></article>
-    <article class="ms-kpi"><div class="ms-kpi-label">Pianificate</div><div class="ms-kpi-value">{{ upcoming_count }}</div></article>
-    <article class="ms-kpi"><div class="ms-kpi-label">Prima esecuzione</div><div class="ms-kpi-value">{{ missing_count }}</div></article>
-    <article class="ms-kpi"><div class="ms-kpi-label">Coperte</div><div class="ms-kpi-value">{{ covered_count }}</div></article>
-    <article class="ms-kpi"><div class="ms-kpi-label">Scoperte</div><div class="ms-kpi-value">{{ uncovered_count }}</div></article>
+  <section class="ms2-kpis">
+    <a class="ux-kpi {% if overdue_count %}danger{% else %}ok{% endif %}" href="?status=overdue"><span class="ux-kpi-icon">&#9888;</span><span><span class="ux-kpi-label">Scadute</span><span class="ux-kpi-value">{{ overdue_count }}</span><span class="ux-kpi-note">Richiedono azione</span></span><span>&rsaquo;</span></a>
+    <a class="ux-kpi {% if warning_count %}warn{% else %}ok{% endif %}" href="?status=warning"><span class="ux-kpi-icon">&#9201;</span><span><span class="ux-kpi-label">In warning</span><span class="ux-kpi-value">{{ warning_count }}</span><span class="ux-kpi-note">In avvicinamento</span></span><span>&rsaquo;</span></a>
+    <a class="ux-kpi" href="?status=upcoming"><span class="ux-kpi-icon">&#128197;</span><span><span class="ux-kpi-label">Pianificate</span><span class="ux-kpi-value">{{ upcoming_count }}</span><span class="ux-kpi-note">Già programmate</span></span><span>&rsaquo;</span></a>
+    <a class="ux-kpi" href="?status=missing"><span class="ux-kpi-icon">&#9654;</span><span><span class="ux-kpi-label">Prima esecuzione</span><span class="ux-kpi-value">{{ missing_count }}</span><span class="ux-kpi-note">Baseline mancante</span></span><span>&rsaquo;</span></a>
+    <a class="ux-kpi ok" href="?coverage=covered"><span class="ux-kpi-icon">&#10003;</span><span><span class="ux-kpi-label">Coperte</span><span class="ux-kpi-value">{{ covered_count }}</span><span class="ux-kpi-note">Con copertura</span></span><span>&rsaquo;</span></a>
+    <a class="ux-kpi {% if uncovered_count %}danger{% else %}ok{% endif %}" href="?coverage=uncovered"><span class="ux-kpi-icon">&#9634;</span><span><span class="ux-kpi-label">Scoperte</span><span class="ux-kpi-value">{{ uncovered_count }}</span><span class="ux-kpi-note">Senza copertura</span></span><span>&rsaquo;</span></a>
   </section>
 
   {% if status_filter == "attive" and attive_hidden_total %}
-    <p style="margin:.25rem 0 1rem;padding:.5rem .75rem;border-left:3px solid #c7c7c7;background:#f6f6f6;color:#555;font-size:.9rem;border-radius:4px;">
-      Vista <strong>Attive</strong>: {{ attive_hidden_total }} voci senza storico o pianificate oltre 90 giorni sono nascoste per leggibilita.
-      <a href="{{ show_all_status_url }}">Mostra tutte</a>.
-    </p>
+  <div class="ux-card"><div class="ux-card-body ms-inline-note">Vista <strong>Attive</strong>: {{ attive_hidden_total }} voci senza storico o pianificate oltre 90 giorni sono nascoste per leggibilità. <a class="ux-link" href="{{ show_all_status_url }}">Mostra tutte</a>.</div></div>
   {% endif %}
 
-  <article class="ms-card">
-    <div class="ms-card-head">
-      <div>
-        <h2>Filtri operativi</h2>
-        <p>Riduci la vista per reparto, categoria, stato e copertura senza perdere leggibilita. I KPI riflettono i filtri attivi.</p>
-      </div>
-    </div>
-    <div class="ms-card-body">
-      <form method="get" class="ms-filters">
-        {% if selected_asset %}<input type="hidden" name="asset" value="{{ selected_asset.id }}">{% endif %}
-        <div class="ms-field">
-          <label for="id_status">Stato</label>
-          <select id="id_status" name="status">
-            {% for code, label in status_choices %}
-              <option value="{{ code }}" {% if status_filter == code %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="ms-field">
-          <label for="id_category">Categoria</label>
-          <select id="id_category" name="category">
-            <option value="">Tutte</option>
-            {% for category in category_options %}
-              <option value="{{ category.id }}" {% if selected_category_id == category.id %}selected{% endif %}>{{ category.label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="ms-field">
-          <label for="id_reparto">Reparto</label>
-          <select id="id_reparto" name="reparto">
-            <option value="">Tutti</option>
-            {% for reparto in reparto_options %}
-              <option value="{{ reparto }}" {% if reparto_filter == reparto %}selected{% endif %}>{{ reparto }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="ms-field">
-          <label for="id_coverage">Copertura</label>
-          <select id="id_coverage" name="coverage">
-            <option value="all" {% if coverage_filter == "all" %}selected{% endif %}>Tutte</option>
-            <option value="covered" {% if coverage_filter == "covered" %}selected{% endif %}>Con contratto</option>
-            <option value="uncovered" {% if coverage_filter == "uncovered" %}selected{% endif %}>Senza contratto</option>
-          </select>
-        </div>
-        <div class="ms-field">
-          <label for="id_execution">Esecuzione</label>
-          <select id="id_execution" name="execution">
-            {% for code, label in execution_choices %}
-              <option value="{{ code }}" {% if execution_filter == code %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="ms-field">
-          <label for="id_q">Ricerca</label>
-          <input id="id_q" type="text" name="q" value="{{ q }}" placeholder="Asset, tag, intervento">
-        </div>
-        <div class="ms-actions">
-          <button type="submit" class="btn btn-primary">Applica</button>
-          <a class="btn" href="{{ clear_filters_url }}">Reset</a>
-          <a class="btn btn-secondary" href="{% url 'assets:reports' %}">Apri report</a>
-        </div>
-      </form>
-    </div>
-  </article>
+  <form method="get" class="ux-filters">
+    {% if selected_asset %}<input type="hidden" name="asset" value="{{ selected_asset.id }}">{% endif %}
+    <div class="ux-field"><label for="id_status">Stato</label><select id="id_status" name="status">{% for code, label in status_choices %}<option value="{{ code }}" {% if status_filter == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+    <div class="ux-field"><label for="id_category">Categoria</label><select id="id_category" name="category"><option value="">Tutte</option>{% for category in category_options %}<option value="{{ category.id }}" {% if selected_category_id == category.id %}selected{% endif %}>{{ category.label }}</option>{% endfor %}</select></div>
+    <div class="ux-field"><label for="id_reparto">Reparto</label><select id="id_reparto" name="reparto"><option value="">Tutti</option>{% for reparto in reparto_options %}<option value="{{ reparto }}" {% if reparto_filter == reparto %}selected{% endif %}>{{ reparto }}</option>{% endfor %}</select></div>
+    <div class="ux-field"><label for="id_coverage">Copertura</label><select id="id_coverage" name="coverage"><option value="all" {% if coverage_filter == "all" %}selected{% endif %}>Tutte</option><option value="covered" {% if coverage_filter == "covered" %}selected{% endif %}>Con contratto</option><option value="uncovered" {% if coverage_filter == "uncovered" %}selected{% endif %}>Senza contratto</option></select></div>
+    <div class="ux-field"><label for="id_execution">Esecuzione</label><select id="id_execution" name="execution">{% for code, label in execution_choices %}<option value="{{ code }}" {% if execution_filter == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+    <div class="ux-field search"><label for="id_q">Ricerca</label><input id="id_q" type="search" name="q" value="{{ q }}" placeholder="Attività, asset, codice..."></div>
+    <button class="ux-btn primary" type="submit">Applica</button>
+    <a class="ux-btn" href="{{ clear_filters_url }}">Reset</a>
+    <a class="ux-btn" href="{% url 'assets:reports' %}">Apri report</a>
+  </form>
 
-  {% if periodic_schedule_rows %}
-    <details class="ms-card as-collapse">
-      <summary class="ms-card-head">
-        <div>
-          <h2>Manutenzioni periodiche pianificate</h2>
-          <p>Apri direttamente un intervento gia collegato al piano e all'asset della riga, oppure consulta la configurazione del piano.</p>
-        </div>
-      </summary>
-      <div class="ms-card-body">
-        <div class="ms-table-wrap">
-          <table class="ms-table">
-            <thead>
-              <tr>
-                <th>Asset</th>
-                <th>Piano</th>
-                <th>Cadenza</th>
-                <th>Ultima verifica</th>
-                <th>Prossima scadenza</th>
-                <th>Azioni</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for row in periodic_schedule_rows %}
-                <tr data-row-href="{{ row.edit_url }}">
-                  <td>
-                    <strong><a href="{{ row.asset_detail_url }}" class="ms-cell-link">{{ row.asset.asset_tag }}</a></strong><br>
-                    <span class="ms-meta">{{ row.asset.name }}{% if row.asset.reparto %} &middot; {{ row.asset.reparto }}{% endif %}</span>
-                  </td>
-                  <td>
-                    <strong>{{ row.verification.name }}</strong><br>
-                    <span class="ms-meta">{% if row.supplier_label %}{{ row.supplier_label }}{% else %}Fornitore non impostato{% endif %}</span>
-                  </td>
-                  <td><span class="ms-meta">{{ row.frequency_months }} mesi</span></td>
-                  <td>
-                    {% if row.last_execution_date %}
-                      <strong>{{ row.last_execution_date|date:"d-m-Y" }}</strong>
-                    {% else %}
-                      <span class="ms-meta">Nessuna verifica registrata</span>
-                    {% endif %}
-                  </td>
-                  <td>
-                    {% if row.due_date %}<strong>{{ row.due_date|date:"d-m-Y" }}</strong><br>{% endif %}
-                    <span class="as-badge as-badge--{{ row.schedule_badge_class }}">{{ row.schedule_label }}</span>
-                  </td>
-                  <td>
-                    <div class="ms-actions-row">
-                      <a class="btn btn-primary" href="{{ row.workorder_create_url }}">Crea intervento</a>
-                      <a class="btn btn-secondary" href="{{ row.edit_url }}">Apri piano</a>
-                    </div>
-                  </td>
-                </tr>
+  <div class="ms2-layout">
+    <div>
+      <article class="ux-card">
+        <header class="ux-card-head">
+          <div><h3>Scadenzario</h3><p>Stato, data, asset e azione in primo piano. Le funzioni secondarie restano raggiungibili dal dettaglio.</p></div>
+          <div class="ms2-viewbar-left">
+            <div class="ux-tabs" id="ms-viewsel">
+              <a class="ux-tab {% if vista == 'lista' %}active{% endif %}" href="{{ vista_urls.lista }}" data-vista="lista">Lista</a>
+              <a class="ux-tab {% if vista == 'board' %}active{% endif %}" href="{{ vista_urls.board }}" data-vista="board">Board</a>
+              <a class="ux-tab {% if vista == 'macchina' %}active{% endif %}" href="{{ vista_urls.macchina }}" data-vista="macchina">Per macchina</a>
+            </div>
+            <a class="ux-btn sm" href="{% url 'assets:calendario_asset' %}">&#128197; Calendario</a>
+          </div>
+        </header>
+        {% if can_manage_outlook_calendar and not outlook_calendar_ready %}
+        <div class="ux-card-body" style="padding-top:0"><p class="ms-inline-note">Integrazione Outlook non pronta: verifica le credenziali <code>GRAPH_*</code> e il permesso <code>Calendars.ReadWrite</code>.</p></div>
+        {% endif %}
+        <div class="ux-card-body">
+          {% if schedule_rows %}
+            {% if vista == 'macchina' %}
+              {% for g in machine_groups %}
+              <details class="ux-accordion" {% if forloop.first %}open{% endif %}>
+                <summary><div class="ux-accordion-title"><span class="ux-asset-icon">&#9881;</span><span><span class="ux-asset-name">{{ g.asset.asset_tag }} · {{ g.asset.name }}</span><span class="ux-asset-meta">{{ g.asset.reparto|default:"Reparto non indicato" }}</span></span></div><span class="ux-accordion-badges">{% if g.overdue %}<span class="ux-pill danger">{{ g.overdue }} scadute</span>{% endif %}{% if g.warning %}<span class="ux-pill warn">{{ g.warning }} warning</span>{% endif %}{% if not g.overdue and not g.warning %}<span class="ux-pill ok">In regola</span>{% endif %}</span></summary>
+                <div class="ux-accordion-body"><table class="ux-table"><thead><tr><th>Attività</th><th>Stato</th><th>Scadenza</th><th>Copertura</th><th>Azione</th></tr></thead><tbody>{% for row in g.rows %}<tr data-row-href="{{ row.asset_detail_url }}"><td><span class="ux-primary">{{ row.effective_intervention_template.label }}</span><span class="ux-secondary">{{ row.effective_threshold_value }} {{ row.effective_threshold_label|lower }}{% if row.base_rule.is_external %} · Esterna{% if row.base_rule.supplier %}: {{ row.base_rule.supplier }}{% endif %}{% endif %}</span></td><td><span class="ux-pill {% if row.schedule_status == 'overdue' %}danger{% elif row.schedule_status == 'warning' %}warn{% elif row.schedule_status == 'missing' %}muted{% else %}ok{% endif %}">{{ row.schedule_label }}</span></td><td>{% if row.due_date %}<strong>{{ row.due_date|date:"d/m/Y" }}</strong>{% else %}—{% endif %}<span class="ux-secondary">{% if row.days_until_due is not None %}{{ row.days_until_due }} gg{% endif %}</span></td><td>{% if row.primary_contract %}<span class="ux-pill info">{{ row.contract_state.label }}</span><span class="ux-secondary">{{ row.primary_contract.supplier }}</span>{% else %}<span class="ux-pill muted">Non disponibile</span>{% endif %}</td><td><div class="ms2-table-actions">{% if row.schedule_status == 'missing' %}<a class="ux-btn primary sm" href="{{ row.first_execution_url }}">Prima esecuzione</a>{% else %}<a class="ux-btn primary sm" href="{{ row.workorder_create_url }}">Crea intervento</a>{% endif %}<a class="ux-btn sm" href="{% url 'assets:maintenance_worksheet' row.asset.id row.base_rule.id %}" target="_blank">Scheda</a></div></td></tr>{% endfor %}</tbody></table></div>
+              </details>
               {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </details>
-  {% endif %}
-
-  <details class="ms-card as-collapse as-collapse--cap" open>
-    <summary class="ms-card-head">
-      <div>
-        <h2>Scadenzario</h2>
-        <p>Le righe senza una data base vengono mostrate come prima esecuzione da pianificare. Clicca una riga per aprire l'asset.</p>
-      </div>
-      <div class="ms-viewsel" role="tablist" aria-label="Vista scadenzario">
-        <a class="ms-viewsel-btn {% if vista == 'lista' %}is-active{% endif %}" href="{{ vista_urls.lista }}" data-vista="lista">&#9776; Lista</a>
-        <a class="ms-viewsel-btn {% if vista == 'board' %}is-active{% endif %}" href="{{ vista_urls.board }}" data-vista="board">&#9636; Board</a>
-        <a class="ms-viewsel-btn {% if vista == 'macchina' %}is-active{% endif %}" href="{{ vista_urls.macchina }}" data-vista="macchina">&#9881; Per macchina</a>
-      </div>
-      <a class="btn btn-secondary ms-calendar-link" href="{% url 'assets:calendario_asset' %}"
-         title="Apri le manutenzioni in vista a calendario / Gantt">&#128197; Vista calendario</a>
-      {% if can_manage_outlook_calendar and not outlook_calendar_ready %}
-        <p class="ms-inline-note ms-calendar-note">
-          Integrazione Outlook non pronta: verifica le credenziali `GRAPH_*` e il permesso `Calendars.ReadWrite`.
-        </p>
-      {% endif %}
-    </summary>
-    <div class="ms-card-body as-collapse-body">
-      {% if schedule_rows %}
-      {% if vista == 'lista' %}
-        <div class="ms-table-wrap">
-          <table class="ms-table">
-            <thead>
-              <tr>
-                <th>Asset</th>
-                <th>Intervento</th>
-                <th>Ultima esecuzione</th>
-                <th>Prossima scadenza</th>
-                <th data-col="copertura" data-col-hidden="1">Copertura</th>
-                <th>Azioni</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for row in schedule_rows %}
-                <tr data-row-href="{{ row.asset_detail_url }}" class="ms-row-{{ row.schedule_status }}">
+            {% elif vista == 'board' %}
+              <div class="ux-board">{% for col in board_columns %}<section class="ux-board-col"><div class="ux-board-col-h"><span>{{ col.label }}</span><span class="ux-count">{{ col.rows|length }}</span></div>{% for row in col.rows|slice:":20" %}<a class="ux-task" href="{{ row.workorder_create_url }}"><div class="ux-task-title">{{ row.effective_intervention_template.label|truncatechars:50 }}</div><div class="ux-task-sub">{{ row.asset.asset_tag }} · {{ row.asset.name|truncatechars:30 }}</div><div class="ux-task-foot"><span class="ux-pill {% if row.schedule_status == 'overdue' %}danger{% elif row.schedule_status == 'warning' %}warn{% elif row.schedule_status == 'missing' %}muted{% else %}ok{% endif %}">{{ row.schedule_label }}</span><span class="ux-date">{% if row.due_date %}{{ row.due_date|date:"d/m" }}{% endif %}</span></div></a>{% empty %}<div class="ux-empty">Nessuna attività</div>{% endfor %}</section>{% endfor %}</div>
+            {% else %}
+              <div class="ux-table-wrap"><table class="ux-table"><thead><tr><th>Asset</th><th>Attività</th><th>Stato</th><th>Prossima scadenza</th><th>Ultima esecuzione</th><th>Copertura</th><th>Azione</th></tr></thead><tbody>
+                {% for row in schedule_rows %}
+                <tr data-row-href="{{ row.asset_detail_url }}">
+                  <td><a class="ux-link" href="{{ row.asset_detail_url }}">{{ row.asset.asset_tag }}</a><span class="ux-secondary">{{ row.asset.name }}{% if row.asset.reparto %} · {{ row.asset.reparto }}{% endif %}</span></td>
+                  <td><span class="ux-primary">{{ row.effective_intervention_template.label }}</span><span class="ux-secondary">{{ row.effective_threshold_value }} {{ row.effective_threshold_label|lower }}{% if row.base_rule.is_external %} · Esterna{% if row.base_rule.supplier %}: {{ row.base_rule.supplier }}{% endif %}{% endif %}</span></td>
+                  <td><span class="ux-pill {% if row.schedule_status == 'overdue' %}danger{% elif row.schedule_status == 'warning' %}warn{% elif row.schedule_status == 'missing' %}muted{% else %}ok{% endif %}">{{ row.schedule_label }}</span>{% if row.meter_is_stale %}<br><span class="ux-secondary" style="color:#b45309">Contatore fermo {{ row.meter_days_since_update }} gg</span>{% endif %}</td>
+                  <td>{% if row.due_date %}<strong>{{ row.due_date|date:"d/m/Y" }}</strong>{% else %}—{% endif %}<span class="ux-secondary">{% if row.days_until_due is not None %}{{ row.days_until_due }} gg{% endif %}</span></td>
+                  <td>{% if row.last_execution_date %}{{ row.last_execution_date|date:"d/m/Y" }}<span class="ux-secondary">{% if row.last_execution_workorder %}Intervento #{{ row.last_execution_workorder.id }}{% else %}Storico manuale{% endif %}</span>{% else %}<span class="ux-pill muted">Mai eseguita</span>{% endif %}</td>
+                  <td>{% if row.primary_contract %}<span class="ux-pill info">{{ row.contract_state.label }}</span><span class="ux-secondary">{{ row.primary_contract.supplier }}</span>{% else %}<span class="ux-pill muted">Non disponibile</span>{% endif %}</td>
                   <td>
-                    <strong><a href="{{ row.asset_detail_url }}" class="ms-cell-link">{{ row.asset.asset_tag }}</a></strong><br>
-                    <span class="ms-meta">{{ row.asset.name }}{% if row.asset.reparto %} · {{ row.asset.reparto }}{% endif %}</span>
-                  </td>
-                  <td data-value="{% if row.base_rule.is_external %}external{% else %}internal{% endif %}">
-                    <strong>{{ row.effective_intervention_template.label }}</strong>
-                    {% if row.base_rule.is_external %}
-                      <span class="ms-ext-badge">Esterna{% if row.base_rule.supplier %} · {{ row.base_rule.supplier }}{% endif %}</span>
-                    {% endif %}
-                    <br>
-                    <span class="ms-meta">{{ row.effective_threshold_value }} {{ row.effective_threshold_label|lower }} · warning {{ row.effective_warning_days }} gg</span>
-                  </td>
-                  <td>
-                    {% if row.last_execution_date %}
-                      <strong>{{ row.last_execution_date|date:"d-m-Y" }}</strong><br>
-                      <span class="ms-meta">
-                        {% if row.last_execution_workorder %}
-                          Intervento #{{ row.last_execution_workorder.id }}
-                        {% else %}
-                          Storico manuale
-                        {% endif %}
-                      </span>
-                    {% else %}
-                      <span class="ms-meta">Nessuna esecuzione registrata</span>
-                    {% endif %}
-                  </td>
-                  <td data-sort-value="{{ row.days_until_due|default_if_none:999999 }}">
-                    {% if row.due_date %}
-                      <strong>{{ row.due_date|date:"d-m-Y" }}</strong><br>
-                    {% endif %}
-                    <span class="as-badge as-badge--{{ row.schedule_badge_class }}">{{ row.schedule_label }}</span>
-                    {% if row.meter_is_stale %}
-                      <br><span class="as-badge as-badge--warn">Contatore fermo da {{ row.meter_days_since_update }} gg</span>
-                      <br><span class="ms-meta">Valore non aggiornato: questa scadenza non e' attendibile.</span>
-                    {% endif %}
-                    {% if row.schedule_status == "missing" %}
-                      <br><span class="ms-meta">Prima esecuzione da pianificare</span>
-                    {% endif %}
-                  </td>
-                  <td>
-                    {% if row.primary_contract %}
-                      <strong><a href="{{ row.contracts_url }}" class="ms-cell-link">{{ row.primary_contract.supplier }}</a></strong><br>
-                      <span class="as-badge as-badge--{{ row.contract_state.badge_class }}">{{ row.contract_state.label }}</span>
-                    {% else %}
-                      <span class="as-badge as-badge--muted">Copertura non disponibile</span><br>
-                      <a class="as-link-subtle" href="{{ row.contracts_url }}">Apri contratti</a>
-                    {% endif %}
-                  </td>
-                  <td>
-                    <div class="ms-actions-row">
-                      {% if row.schedule_status == "missing" %}
-                        <a class="btn btn-primary" href="{{ row.first_execution_url }}">Imposta prima esecuzione</a>
-                      {% else %}
-                        <a class="btn btn-primary" href="{{ row.workorder_create_url }}">Crea intervento</a>
-                      {% endif %}
-                      {% if can_manage_assets %}
-                        <button class="btn btn-secondary ms-toggle" type="button" data-ms-record-toggle="{{ row.asset.id }}-{{ row.base_rule.id }}">+ Registra esecuzione</button>
-                      {% endif %}
-                      {% if can_manage_outlook_calendar and row.due_date and outlook_calendar_ready and calendar_user_choices %}
-                        <button class="btn btn-secondary ms-toggle" type="button" data-ms-cal-toggle="{{ row.asset.id }}-{{ row.base_rule.id }}">&#128197; Outlook</button>
-                      {% endif %}
-                      <a class="btn btn-secondary ms-toggle" href="{% url 'assets:maintenance_worksheet' row.asset.id row.base_rule.id %}" target="_blank" rel="noopener" title="Scheda intervento stampabile">&#128424; Scheda</a>
+                    <div class="ms2-table-actions">
+                      {% if row.schedule_status == 'missing' %}<a class="ux-btn primary sm" href="{{ row.first_execution_url }}">Imposta prima esecuzione</a>{% else %}<a class="ux-btn primary sm" href="{{ row.workorder_create_url }}">Crea intervento</a>{% endif %}
+                      <a class="ux-btn sm" href="{% url 'assets:maintenance_worksheet' row.asset.id row.base_rule.id %}" target="_blank" rel="noopener">Scheda</a>
                     </div>
-                    {% if can_manage_assets %}
-                      <form method="post" class="ms-record-form ms-record-form-wrap" data-ms-record-form="{{ row.asset.id }}-{{ row.base_rule.id }}" enctype="multipart/form-data">
-                        {% csrf_token %}
-                        <input type="hidden" name="action" value="record_maintenance_rule_execution">
-                        <input type="hidden" name="asset_id" value="{{ row.asset.id }}">
-                        <input type="hidden" name="base_rule_id" value="{{ row.base_rule.id }}">
-                        <input type="hidden" name="filter_asset" value="{% if selected_asset %}{{ selected_asset.id }}{% endif %}">
-                        <input type="hidden" name="filter_status" value="{{ status_filter }}">
-                        <input type="hidden" name="filter_category" value="{{ selected_category_id }}">
-                        <input type="hidden" name="filter_reparto" value="{{ reparto_filter }}">
-                        <input type="hidden" name="filter_coverage" value="{{ coverage_filter }}">
-                        <input type="hidden" name="filter_q" value="{{ q }}">
-                        <div class="ms-record-form-grid">
-                          <label class="ms-record-field">Data
-                            <input type="date" name="execution_date" value="{{ today_iso }}" max="{{ today_iso }}" required class="ms-record-input">
-                          </label>
-                          <label class="ms-record-field">Durata (min)
-                            <input type="number" name="execution_duration_minutes" min="0" value="0" class="ms-record-input">
-                          </label>
-                          <label class="ms-record-field">Costo (EUR)
-                            <input type="text" name="execution_cost_eur" inputmode="decimal" placeholder="es. 120.50" class="ms-record-input">
-                          </label>
-                          {% if row.checklist_steps %}
-                          <div class="ms-record-field full">
-                            <span>Checklist intervento</span>
-                            <div class="ms-checklist">
-                              {% for step in row.checklist_steps %}
-                                <label class="ms-check-item">
-                                  <input type="checkbox" name="checklist_done" value="{{ step.step_number }}" checked>
-                                  <span>{{ step.description }}</span>
-                                </label>
-                              {% endfor %}
+                    <details class="ms2-advanced">
+                      <summary>Altre azioni</summary>
+                      <div style="margin-top:8px;display:grid;gap:10px">
+                        <div style="display:flex;gap:10px;flex-wrap:wrap">
+                          <a class="ux-link" href="{{ row.asset_detail_url }}">Apri asset</a>
+                          {% if row.contracts_url %}<a class="ux-link" href="{{ row.contracts_url }}">Contratti / copertura</a>{% endif %}
+                          {% if row.edit_url %}<a class="ux-link" href="{{ row.edit_url }}">Configurazione piano</a>{% endif %}
+                        </div>
+
+                        {% if can_manage_assets %}
+                        <details>
+                          <summary>+ Registra esecuzione</summary>
+                          <form method="post" class="ms-inline-form" enctype="multipart/form-data">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="record_maintenance_rule_execution">
+                            <input type="hidden" name="asset_id" value="{{ row.asset.id }}">
+                            <input type="hidden" name="base_rule_id" value="{{ row.base_rule.id }}">
+                            <input type="hidden" name="filter_asset" value="{% if selected_asset %}{{ selected_asset.id }}{% endif %}">
+                            <input type="hidden" name="filter_status" value="{{ status_filter }}">
+                            <input type="hidden" name="filter_category" value="{{ selected_category_id }}">
+                            <input type="hidden" name="filter_reparto" value="{{ reparto_filter }}">
+                            <input type="hidden" name="filter_coverage" value="{{ coverage_filter }}">
+                            <input type="hidden" name="filter_q" value="{{ q }}">
+                            <div class="ms-record-form-grid">
+                              <label class="ms-record-field">Data<input type="date" name="execution_date" value="{{ today_iso }}" max="{{ today_iso }}" required class="ms-record-input"></label>
+                              <label class="ms-record-field">Durata (min)<input type="number" name="execution_duration_minutes" min="0" value="0" class="ms-record-input"></label>
+                              <label class="ms-record-field">Costo (EUR)<input type="text" name="execution_cost_eur" inputmode="decimal" placeholder="es. 120.50" class="ms-record-input"></label>
+                              {% if row.checklist_steps %}
+                              <div class="ms-record-field full"><span>Checklist intervento</span>
+                                <div class="ms-checklist">{% for step in row.checklist_steps %}<label class="ms-check-item"><input type="checkbox" name="checklist_done" value="{{ step.step_number }}" checked><span>{{ step.description }}</span></label>{% endfor %}</div>
+                              </div>
+                              {% endif %}
+                              <label class="ms-record-field full">Note / risoluzione<textarea name="execution_notes" rows="2" placeholder="Cosa è stato fatto, ricambi, anomalie..." class="ms-record-input"></textarea></label>
+                              <label class="ms-record-field full">
+                                {% if row.base_rule.is_external %}&#127970; Rapportino ditta esterna{% if row.base_rule.supplier %} ({{ row.base_rule.supplier }}){% endif %} + allegati{% else %}Allegati (verbali, report, foto){% endif %}
+                                <input type="file" name="execution_files" multiple class="ms-record-input">
+                                <span class="ms-suggestion">{% if row.base_rule.is_external %}Allega il <strong>rapportino</strong> della ditta esterna. {% endif %}Caricamento opzionale. I file vengono allegati all'intervento creato e visibili dall'asset.</span>
+                              </label>
                             </div>
-                          </div>
-                          {% endif %}
-                          <label class="ms-record-field full">Note / risoluzione
-                            <textarea name="execution_notes" rows="2" placeholder="Cosa è stato fatto, ricambi, anomalie..." class="ms-record-input"></textarea>
-                          </label>
-                          <label class="ms-record-field full">
-                            {% if row.base_rule.is_external %}&#127970; Rapportino ditta esterna{% if row.base_rule.supplier %} ({{ row.base_rule.supplier }}){% endif %} + allegati{% else %}Allegati (verbali, report, foto){% endif %}
-                            <input type="file" name="execution_files" multiple class="ms-record-input">
-                            <span class="ms-suggestion">{% if row.base_rule.is_external %}Allega il <strong>rapportino</strong> della ditta esterna. {% endif %}Caricamento opzionale. I file vengono allegati all'intervento creato e visibili dall'asset.</span>
-                          </label>
-                        </div>
-                        <div class="ms-record-actions">
-                          <button class="btn btn-primary" type="submit">Registra</button>
-                          <button class="btn" type="button" data-ms-record-cancel="{{ row.asset.id }}-{{ row.base_rule.id }}">Annulla</button>
-                        </div>
-                      </form>
-                    {% endif %}
-                    {% if row.execution_rows %}
-                      <div class="ms-existing-events">
-                        <div class="ms-meta ms-executions-header">Esecuzioni recenti ({{ row.execution_count }})</div>
-                        {% for execution in row.execution_rows %}
-                          <div class="ms-meta">
-                            <strong>{{ execution.executed_at|date:"d-m-Y" }}</strong>
+                            <div class="ms-record-actions"><button class="ux-btn primary sm" type="submit">Registra</button></div>
+                          </form>
+                        </details>
+                        {% endif %}
+
+                        {% if row.execution_rows %}
+                        <div class="ms-existing-events">
+                          <div class="ms-executions-header">Esecuzioni recenti ({{ row.execution_count }})</div>
+                          {% for execution in row.execution_rows %}
+                          <div class="ux-secondary">
+                            <strong>{{ execution.executed_at|date:"d/m/Y" }}</strong>
                             {% if execution.cost_eur is not None %} · {{ execution.cost_eur }} EUR{% endif %}
                             {% if execution.duration_minutes %} · {{ execution.duration_minutes }} min{% endif %}
-                            {% if execution.url %} · <a href="{{ execution.url }}" class="as-link-subtle">OdL #{{ execution.workorder.id }}</a>{% endif %}
+                            {% if execution.url %} · <a href="{{ execution.url }}" class="ux-link">OdL #{{ execution.workorder.id }}</a>{% endif %}
                             {% if execution.resolution %}<br><span class="ms-suggestion">{{ execution.resolution|truncatechars:140 }}</span>{% endif %}
                           </div>
-                        {% endfor %}
-                      </div>
-                    {% endif %}
-                    {% if row.suggestions %}
-                      <div class="ms-suggestions">
-                        {% for suggestion in row.suggestions %}
-                          {% if suggestion.label != "Crea intervento" and suggestion.label != "Imposta prima esecuzione" %}
-                            <a class="as-link-subtle" href="{{ suggestion.href }}">{{ suggestion.label }}</a>
-                            <div class="ms-suggestion">{{ suggestion.description }}</div>
-                          {% endif %}
-                        {% endfor %}
-                      </div>
-                    {% endif %}
-                    {% if can_manage_outlook_calendar and row.due_date %}
-                      {% if not outlook_calendar_ready %}
-                        <div class="ms-inline-note">Configura Graph prima di creare eventi Outlook.</div>
-                      {% elif calendar_user_choices %}
-                        <div class="ms-record-form-wrap" data-ms-cal-form="{{ row.asset.id }}-{{ row.base_rule.id }}">
-                        <form method="post" class="ms-inline-form">
-                          {% csrf_token %}
-                          <input type="hidden" name="action" value="create_outlook_calendar_event">
-                          <input type="hidden" name="asset_id" value="{{ row.asset.id }}">
-                          <input type="hidden" name="base_rule_id" value="{{ row.base_rule.id }}">
-                          <input type="hidden" name="filter_asset" value="{% if selected_asset %}{{ selected_asset.id }}{% endif %}">
-                          <input type="hidden" name="filter_status" value="{{ status_filter }}">
-                          <input type="hidden" name="filter_category" value="{{ selected_category_id }}">
-                          <input type="hidden" name="filter_reparto" value="{{ reparto_filter }}">
-                          <input type="hidden" name="filter_coverage" value="{{ coverage_filter }}">
-                          <input type="hidden" name="filter_q" value="{{ q }}">
-                          <select class="ms-inline-select" name="target_legacy_user_id" required>
-                            <option value="">Seleziona utente calendario</option>
-                            {% for user_id, user_label in calendar_user_choices %}
-                              <option value="{{ user_id }}" {% if row.default_calendar_user_id == user_id %}selected{% endif %}>{{ user_label }}</option>
-                            {% endfor %}
-                          </select>
-                          <button type="submit" class="btn btn-secondary">Crea evento Outlook</button>
-                        </form>
+                          {% endfor %}
                         </div>
-                      {% else %}
-                        <div class="ms-inline-note">Nessun utente con mailbox disponibile per la sincronizzazione calendario.</div>
-                      {% endif %}
-                    {% endif %}
-                    {% if row.calendar_event_rows %}
-                      <div class="ms-existing-events">
-                        {% for event_row in row.calendar_event_rows %}
-                          {% if event_row.graph_event_web_link %}
-                            <a class="as-link-subtle" href="{{ event_row.graph_event_web_link }}" target="_blank" rel="noopener">
-                              Evento Outlook · {{ event_row.target_display_name|default:event_row.target_email }}
-                            </a>
+                        {% endif %}
+
+                        {% if row.suggestions %}
+                        <div class="ms-existing-events">
+                          {% for suggestion in row.suggestions %}
+                            {% if suggestion.label != "Crea intervento" and suggestion.label != "Imposta prima esecuzione" %}
+                              <a class="ux-link" href="{{ suggestion.href }}">{{ suggestion.label }}</a>
+                              <div class="ms-suggestion">{{ suggestion.description }}</div>
+                            {% endif %}
+                          {% endfor %}
+                        </div>
+                        {% endif %}
+
+                        {% if can_manage_outlook_calendar and row.due_date %}
+                          {% if not outlook_calendar_ready %}
+                            <div class="ms-inline-note">Configura Graph prima di creare eventi Outlook.</div>
+                          {% elif calendar_user_choices %}
+                          <details>
+                            <summary>&#128197; Crea evento Outlook</summary>
+                            <form method="post" class="ms-inline-form">
+                              {% csrf_token %}
+                              <input type="hidden" name="action" value="create_outlook_calendar_event">
+                              <input type="hidden" name="asset_id" value="{{ row.asset.id }}">
+                              <input type="hidden" name="base_rule_id" value="{{ row.base_rule.id }}">
+                              <input type="hidden" name="filter_asset" value="{% if selected_asset %}{{ selected_asset.id }}{% endif %}">
+                              <input type="hidden" name="filter_status" value="{{ status_filter }}">
+                              <input type="hidden" name="filter_category" value="{{ selected_category_id }}">
+                              <input type="hidden" name="filter_reparto" value="{{ reparto_filter }}">
+                              <input type="hidden" name="filter_coverage" value="{{ coverage_filter }}">
+                              <input type="hidden" name="filter_q" value="{{ q }}">
+                              <select class="ms-inline-select" name="target_legacy_user_id" required>
+                                <option value="">Seleziona utente calendario</option>
+                                {% for user_id, user_label in calendar_user_choices %}<option value="{{ user_id }}" {% if row.default_calendar_user_id == user_id %}selected{% endif %}>{{ user_label }}</option>{% endfor %}
+                              </select>
+                              <button type="submit" class="ux-btn sm">Crea evento Outlook</button>
+                            </form>
+                          </details>
                           {% else %}
-                            <span class="ms-inline-note">Evento registrato · {{ event_row.target_display_name|default:event_row.target_email }}</span>
+                            <div class="ms-inline-note">Nessun utente con mailbox disponibile per la sincronizzazione calendario.</div>
                           {% endif %}
-                          <div class="ms-suggestion">Scadenza {{ event_row.due_date|date:"d-m-Y" }} · creato il {{ event_row.created_at|date:"d-m-Y H:i" }}</div>
-                        {% endfor %}
+                        {% endif %}
+
+                        {% if row.calendar_event_rows %}
+                        <div class="ms-existing-events">
+                          {% for event_row in row.calendar_event_rows %}
+                            {% if event_row.graph_event_web_link %}<a class="ux-link" href="{{ event_row.graph_event_web_link }}" target="_blank" rel="noopener">Evento Outlook · {{ event_row.target_display_name|default:event_row.target_email }}</a>
+                            {% else %}<span class="ms-inline-note">Evento registrato · {{ event_row.target_display_name|default:event_row.target_email }}</span>{% endif %}
+                            <div class="ms-suggestion">Scadenza {{ event_row.due_date|date:"d/m/Y" }} · creato il {{ event_row.created_at|date:"d/m/Y H:i" }}</div>
+                          {% endfor %}
+                        </div>
+                        {% endif %}
                       </div>
-                    {% endif %}
+                    </details>
                   </td>
                 </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+                {% endfor %}
+              </tbody></table></div>
+            {% endif %}
+          {% else %}<div class="ux-empty">Nessuna manutenzione trovata con i filtri correnti.</div>{% endif %}
         </div>
-
-      {% elif vista == 'board' %}
-        <div class="ms-board">
-          {% for col in board_columns %}
-          <div class="ms-board-col">
-            <div class="ms-board-colh ms-{{ col.key }}">
-              <span class="ms-board-dot"></span> {{ col.label }}
-              <span class="ms-board-ct">{{ col.rows|length }}</span>
-            </div>
-            {% for row in col.rows|slice:":60" %}
-              <div class="ms-kcard ms-{{ col.key }}" data-row-href="{{ row.asset_detail_url }}">
-                <div class="ms-kcard-int">{{ row.effective_intervention_template.label|truncatechars:42 }}
-                  {% if row.base_rule.is_external %}<span class="ms-ext-badge">&#127970;{% if row.base_rule.supplier %} {{ row.base_rule.supplier|truncatechars:16 }}{% endif %}</span>{% endif %}
-                </div>
-                <div class="ms-kcard-mac"><span class="ms-tag2">{{ row.asset.asset_tag }}</span> {{ row.asset.name|truncatechars:22 }}</div>
-                <div class="ms-kcard-foot">
-                  <span class="as-badge as-badge--{{ row.schedule_badge_class }}">{{ row.schedule_label }}</span>
-                  {% if row.meter_is_stale %}<span class="as-badge as-badge--warn">Contatore fermo {{ row.meter_days_since_update }} gg</span>{% endif %}
-                  {% if row.due_date %}<span class="ms-kcard-date">{{ row.due_date|date:"d-m-y" }}</span>{% endif %}
-                  <a class="ms-kcard-act" href="{{ row.workorder_create_url }}">Registra &rsaquo;</a>
-                </div>
-              </div>
-            {% endfor %}
-            {% if col.rows|length > 60 %}<div class="ms-board-more">+ {{ col.rows|length|add:"-60" }} altre…</div>{% endif %}
-            {% if not col.rows %}<div class="ms-board-empty">Nessuna</div>{% endif %}
-          </div>
-          {% endfor %}
-        </div>
-
-      {% elif vista == 'macchina' %}
-        <div class="ms-machines">
-          {% for g in machine_groups %}
-          <div class="ms-mcard">
-            <div class="ms-mcard-h" data-row-href="{{ g.asset_detail_url }}">
-              <div class="ms-mcard-ico">&#9881;</div>
-              <div style="min-width:0;">
-                <span class="ms-tag2">{{ g.asset.asset_tag }}</span>
-                <div class="ms-mcard-name">{{ g.asset.name|truncatechars:40 }}{% if g.asset.reparto %} · {{ g.asset.reparto }}{% endif %}</div>
-              </div>
-              <div class="ms-mcard-right">
-                {% if g.overdue %}<span class="ms-cnt sc">{{ g.overdue }} scadut{{ g.overdue|pluralize:"a,e" }}</span>
-                {% elif g.warning %}<span class="ms-cnt wa">{{ g.warning }} in scadenza</span>
-                {% else %}<span class="ms-cnt ok">in regola</span>{% endif %}
-              </div>
-            </div>
-            {% for row in g.rows %}
-              <div class="ms-mrow" data-row-href="{{ row.workorder_create_url }}">
-                <span class="ms-mrow-int">{{ row.effective_intervention_template.label|truncatechars:44 }}
-                  {% if row.base_rule.is_external %}<span class="ms-ext-badge">&#127970;{% if row.base_rule.supplier %} {{ row.base_rule.supplier|truncatechars:16 }}{% endif %}</span>{% endif %}
-                </span>
-                <span class="ms-mrow-meta">
-                  <span class="as-badge as-badge--{{ row.schedule_badge_class }}">{{ row.schedule_label }}</span>
-                  {% if row.due_date %}<span class="ms-mrow-date">{{ row.due_date|date:"d-m-Y" }}</span>{% endif %}
-                </span>
-              </div>
-            {% endfor %}
-          </div>
-          {% endfor %}
-        </div>
-      {% endif %}
-
-      {% else %}
-        <p class="ms-empty">Nessuna manutenzione trovata con i filtri correnti.</p>
-      {% endif %}
+      </article>
     </div>
-  </details>
 
-  {% if admin_deadline_rows %}
-  <details class="ms-card as-collapse">
-    <summary class="ms-card-head">
-      <div>
-        <h2>Scadenze amministrative</h2>
-        <p>Certificati, revisioni normative e scadenze una tantum — {{ admin_deadline_total }} totali con i filtri correnti.</p>
-      </div>
-    </summary>
-    <div class="ms-card-body">
-      <div class="ms-table-wrap">
-        <table class="ms-table">
-          <thead>
-            <tr>
-              <th>Asset</th>
-              <th>Tipo</th>
-              <th>Scadenza</th>
-              <th>Giorni</th>
-              <th>Stato</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in admin_deadline_rows %}
-            <tr data-row-href="{{ row.asset_detail_url }}">
-              <td>
-                <a href="{{ row.asset_detail_url }}" class="ms-blue-link">{{ row.deadline.asset.asset_tag }}</a>
-                <div class="ms-meta">{{ row.deadline.asset.name }}</div>
-                <div class="ms-meta">{{ row.deadline.title }}</div>
-              </td>
-              <td><span class="as-badge as-badge--neutral">{{ row.deadline.get_deadline_type_display }}</span></td>
-              <td>{{ row.deadline.due_date|date:"d/m/Y" }}</td>
-              <td>
-                {% if row.days_left is not None %}
-                  {% if row.days_left < 0 %}<span class="ms-days-red">{{ row.days_left }} gg</span>
-                  {% elif row.days_left <= row.deadline.warning_days %}<span class="ms-days-amber">{{ row.days_left }} gg</span>
-                  {% else %}<span class="ms-days-ok">{{ row.days_left }} gg</span>{% endif %}
-                {% else %}-{% endif %}
-              </td>
-              <td>
-                {% if row.schedule_status == "overdue" %}<span class="as-badge as-badge--danger">Scaduta</span>
-                {% elif row.schedule_status == "warning" %}<span class="as-badge as-badge--warning">In scadenza</span>
-                {% else %}<span class="as-badge as-badge--neutral">Programmata</span>{% endif %}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </details>
-  {% endif %}
-
-  {% if lookahead_rows %}
-  <details class="ms-card as-collapse">
-    <summary class="ms-card-head">
-      <div>
-        <h2>Pianificazione prossimi 90 giorni</h2>
-        <p>Manutenzioni periodiche previste nelle prossime 13 settimane, raggruppate per settimana.</p>
-      </div>
-    </summary>
-    <div class="ms-card-body ms-lookahead-body">
-      {% for week in lookahead_rows %}
-      <details>
-        <summary class="ms-lookahead-summary">
-          <span class="ms-lookahead-week-label">{{ week.week_label }}</span>
-          <span class="as-badge as-badge--neutral ms-lookahead-badge">{{ week.rows|length }} intervent{% if week.rows|length == 1 %}o{% else %}i{% endif %}</span>
-        </summary>
-        <div class="ms-table-wrap ms-lookahead-table-wrap">
-          <table class="ms-table">
-            <thead>
-              <tr>
-                <th>Asset</th>
-                <th>Intervento</th>
-                <th>Scadenza</th>
-                <th>Stato</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for row in week.rows %}
-              <tr data-row-href="{{ row.asset_detail_url }}">
-                <td>
-                  <a href="{{ row.asset_detail_url }}" class="ms-blue-link">{{ row.asset.asset_tag }}</a>
-                  <div class="ms-meta">{{ row.asset.name }}</div>
-                </td>
-                <td>{{ row.effective_intervention_template.label }}</td>
-                <td>{{ row.due_date|date:"d/m/Y" }}</td>
-                <td>
-                  {% if row.schedule_status == "overdue" %}<span class="as-badge as-badge--danger">Scaduta</span>
-                  {% elif row.schedule_status == "warning" %}<span class="as-badge as-badge--warning">In scadenza</span>
-                  {% elif row.schedule_status == "upcoming" %}<span class="as-badge as-badge--ok">Programmata</span>
-                  {% else %}<span class="as-badge as-badge--neutral">-</span>{% endif %}
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+    <aside class="ms2-side">
+      <article class="ux-card">
+        <header class="ux-card-head"><div><h3>Priorità</h3><p>Prime attività della vista corrente.</p></div></header>
+        <div class="ux-card-body ms2-priority">
+          {% for row in schedule_rows|slice:":6" %}<div class="ms2-priority-item"><div class="ms2-priority-top"><span class="ux-pill {% if row.schedule_status == 'overdue' %}danger{% elif row.schedule_status == 'warning' %}warn{% elif row.schedule_status == 'missing' %}muted{% else %}ok{% endif %}">{{ row.schedule_label }}</span><span class="ux-date {% if row.schedule_status == 'overdue' %}danger{% elif row.schedule_status == 'warning' %}warn{% endif %}">{% if row.due_date %}{{ row.due_date|date:"d/m/Y" }}{% endif %}</span></div><strong>{{ row.effective_intervention_template.label }}</strong><span class="meta">{{ row.asset.asset_tag }} · {{ row.asset.name|truncatechars:28 }}</span><div class="ms2-foot">{% if row.schedule_status == 'missing' %}<a class="ux-btn primary sm" href="{{ row.first_execution_url }}">Pianifica</a>{% else %}<a class="ux-btn primary sm" href="{{ row.workorder_create_url }}">Apri</a>{% endif %}<a class="ux-link" href="{{ row.asset_detail_url }}">Asset</a></div></div>{% empty %}<div class="ux-empty">Nessuna priorità.</div>{% endfor %}
         </div>
-      </details>
-      {% endfor %}
-    </div>
-  </details>
-  {% endif %}
+      </article>
+      <article class="ux-card"><header class="ux-card-head"><div><h3>Vista completa</h3><p>Le informazioni secondarie restano disponibili ma non occupano la pagina principale.</p></div></header><div class="ux-card-body" style="display:grid;gap:8px"><a class="ux-btn" href="{% url 'assets:calendario_asset' %}">Vista calendario</a><a class="ux-btn" href="{% url 'assets:reports' %}">Report manutenzione</a>{% if show_all_status_url %}<a class="ux-btn" href="{{ show_all_status_url }}">Mostra anche storico</a>{% endif %}</div></article>
+    </aside>
+  </div>
 
+  {% if periodic_schedule_rows %}<details class="ms2-collapsed"><summary><span>Manutenzioni periodiche pianificate</span><span class="ux-pill info">{{ periodic_schedule_rows|length }}</span></summary><div class="ux-table-wrap"><table class="ux-table"><thead><tr><th>Asset</th><th>Piano</th><th>Cadenza</th><th>Ultima verifica</th><th>Prossima</th><th>Azioni</th></tr></thead><tbody>{% for row in periodic_schedule_rows %}<tr data-row-href="{{ row.edit_url }}"><td><a class="ux-link" href="{{ row.asset_detail_url }}">{{ row.asset.asset_tag }}</a><span class="ux-secondary">{{ row.asset.name }}</span></td><td>{{ row.verification.name }}<span class="ux-secondary">{% if row.supplier_label %}{{ row.supplier_label }}{% else %}Fornitore non impostato{% endif %}</span></td><td>{{ row.frequency_months }} mesi</td><td>{% if row.last_execution_date %}{{ row.last_execution_date|date:"d/m/Y" }}{% else %}—{% endif %}</td><td>{% if row.due_date %}{{ row.due_date|date:"d/m/Y" }}{% endif %}<span class="ux-secondary">{{ row.schedule_label }}</span></td><td><a class="ux-btn primary sm" href="{{ row.workorder_create_url }}">Crea intervento</a> <a class="ux-btn sm" href="{{ row.edit_url }}">Apri piano</a></td></tr>{% endfor %}</tbody></table></div></details>{% endif %}
+
+  {% if admin_deadline_rows %}<details class="ms2-collapsed"><summary><span>Scadenze amministrative</span><span class="ux-pill {% if admin_deadline_total %}warn{% else %}muted{% endif %}">{{ admin_deadline_total }}</span></summary><div class="ux-table-wrap"><table class="ux-table"><thead><tr><th>Asset</th><th>Tipo</th><th>Scadenza</th><th>Giorni</th><th>Stato</th></tr></thead><tbody>{% for row in admin_deadline_rows %}<tr data-row-href="{{ row.asset_detail_url }}"><td><a class="ux-link" href="{{ row.asset_detail_url }}">{{ row.deadline.asset.asset_tag }}</a><span class="ux-secondary">{{ row.deadline.asset.name }} · {{ row.deadline.title }}</span></td><td>{{ row.deadline.get_deadline_type_display }}</td><td>{{ row.deadline.due_date|date:"d/m/Y" }}</td><td>{{ row.days_left|default:"—" }}</td><td><span class="ux-pill {% if row.schedule_status == 'overdue' %}danger{% elif row.schedule_status == 'warning' %}warn{% else %}ok{% endif %}">{% if row.schedule_status == 'overdue' %}Scaduta{% elif row.schedule_status == 'warning' %}In scadenza{% else %}Programmata{% endif %}</span></td></tr>{% endfor %}</tbody></table></div></details>{% endif %}
+
+  {% if lookahead_rows %}<details class="ms2-collapsed"><summary><span>Pianificazione prossimi 90 giorni</span><span class="ux-pill info">13 settimane</span></summary><div class="ux-card-body" style="display:grid;gap:8px">{% for week in lookahead_rows %}<details class="ux-accordion"><summary><span class="ux-asset-name">{{ week.week_label }}</span><span class="ux-count">{{ week.rows|length }}</span></summary><div class="ux-table-wrap"><table class="ux-table"><thead><tr><th>Asset</th><th>Intervento</th><th>Scadenza</th><th>Stato</th></tr></thead><tbody>{% for row in week.rows %}<tr><td><a class="ux-link" href="{{ row.asset_detail_url }}">{{ row.asset.asset_tag }}</a><span class="ux-secondary">{{ row.asset.name }}</span></td><td>{{ row.effective_intervention_template.label }}</td><td>{{ row.due_date|date:"d/m/Y" }}</td><td><span class="ux-pill {% if row.schedule_status == 'overdue' %}danger{% elif row.schedule_status == 'warning' %}warn{% else %}ok{% endif %}">{{ row.schedule_label }}</span></td></tr>{% endfor %}</tbody></table></div></details>{% endfor %}</div></details>{% endif %}
 </section>
 <script>
 (() => {
-  document.querySelectorAll("[data-ms-record-toggle]").forEach((toggle) => {
-    const key = toggle.dataset.msRecordToggle;
-    const form = document.querySelector(`[data-ms-record-form="${key}"]`);
-    const cancel = document.querySelector(`[data-ms-record-cancel="${key}"]`);
-    if (!form) return;
-    toggle.addEventListener("click", () => {
-      form.classList.toggle("open");
-    });
-    cancel?.addEventListener("click", () => {
-      form.classList.remove("open");
-    });
-  });
-  document.querySelectorAll("[data-ms-cal-toggle]").forEach((toggle) => {
-    const key = toggle.dataset.msCalToggle;
-    const wrap = document.querySelector(`[data-ms-cal-form="${key}"]`);
-    if (!wrap) return;
-    toggle.addEventListener("click", () => {
-      wrap.classList.toggle("open");
-    });
-  });
-
   // Selettore viste: ricorda l'ultima scelta per-utente (localStorage) e la
   // riapplica ai caricamenti "nudi" (senza ?vista in URL).
-  (function () {
-    const sel = document.querySelector(".ms-viewsel");
-    if (!sel) return;
-    const KEY = "ms_vista";
-    sel.querySelectorAll("[data-vista]").forEach((a) => {
-      a.addEventListener("click", () => { try { localStorage.setItem(KEY, a.dataset.vista); } catch (e) {} });
-    });
-    try {
-      const params = new URLSearchParams(window.location.search);
-      if (!params.has("vista")) {
-        const saved = localStorage.getItem(KEY);
-        if (saved && saved !== "lista") {
-          const target = sel.querySelector('[data-vista="' + saved + '"]');
-          if (target && target.getAttribute("href")) window.location.replace(target.getAttribute("href"));
-        }
+  const sel = document.getElementById("ms-viewsel");
+  if (!sel) return;
+  const KEY = "ms_vista";
+  sel.querySelectorAll("[data-vista]").forEach((a) => {
+    a.addEventListener("click", () => { try { localStorage.setItem(KEY, a.dataset.vista); } catch (e) {} });
+  });
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("vista")) {
+      const saved = localStorage.getItem(KEY);
+      if (saved && saved !== "lista") {
+        const target = sel.querySelector('[data-vista="' + saved + '"]');
+        if (target && target.getAttribute("href")) window.location.replace(target.getAttribute("href"));
       }
-    } catch (e) {}
-  })();
+    }
+  } catch (e) {}
 })();
 </script>
 {% endblock %}
