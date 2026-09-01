@@ -3,1165 +3,153 @@
 {% block title %}Manutenzione{% endblock %}
 
 {% block assets_shell_head %}
-<style>
-.mh-page { display:grid; gap:18px; }
+  {% include "assets/components/maintenance_ux_v2_styles.html" %}
+  <style>
+    .mh2-work{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:12px;align-items:start}
+    .mh2-stack{display:grid;gap:12px}.mh2-side{display:grid;gap:12px;position:sticky;top:12px}
+    .mh2-compact{display:grid;gap:8px}.mh2-row{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;color:inherit;text-decoration:none}.mh2-row:hover{border-color:#93c5fd;background:#fbfdff}.mh2-id{font-size:var(--fs-xs);font-weight:900;color:#1d4ed8}.mh2-title{font-size:var(--fs-sm);font-weight:850;color:#0f172a}.mh2-meta{margin-top:2px;font-size:var(--fs-xs);color:#64748b}.mh2-status{font-size:var(--fs-xs);font-weight:850}
+    .mh2-plan{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 0;border-top:1px solid #edf2f7}.mh2-plan:first-child{border-top:0}.mh2-plan strong{display:block;color:#0f172a;font-size:var(--fs-sm)}.mh2-plan span{display:block;margin-top:2px;color:#64748b;font-size:var(--fs-xs)}
+    .mh2-links{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.mh2-link{display:block;padding:12px;border:1px solid #e2e8f0;border-radius:11px;background:#fff;color:#0f172a;text-decoration:none}.mh2-link:hover{border-color:#93c5fd;background:#fbfdff}.mh2-link strong{display:block;font-size:var(--fs-sm)}.mh2-link span{display:block;margin-top:4px;color:#64748b;font-size:var(--fs-xs);line-height:1.35}
+    @media(max-width:1150px){.mh2-work{grid-template-columns:1fr}.mh2-side{position:static}.mh2-links{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:650px){.mh2-links{grid-template-columns:1fr}}
+    body.theme-dark .mh2-row,body.theme-dark .mh2-link{background:var(--surface);border-color:var(--border)}body.theme-dark .mh2-title,body.theme-dark .mh2-plan strong,body.theme-dark .mh2-link{color:var(--text)}body.theme-dark .mh2-meta,body.theme-dark .mh2-plan span,body.theme-dark .mh2-link span{color:var(--text-light)}
 
-/* La testata deve orientare, non replicare tutti i registri del modulo. */
-.mh-priority-strip {
-  display:grid;
-  grid-template-columns:repeat(4,minmax(0,1fr));
-  border:1px solid #dbe1ea;
-  border-radius:12px;
-  background:#fff;
-  overflow:hidden;
-  box-shadow:0 10px 24px rgba(15,23,42,.04);
-}
-.mh-priority-card {
-  min-width:0;
-  padding:14px 16px;
-  display:grid;
-  grid-template-columns:auto 1fr;
-  column-gap:11px;
-  align-items:center;
-  color:inherit;
-  text-decoration:none;
-  border-right:1px solid #e5e7eb;
-  transition:background .12s ease;
-}
-.mh-priority-card:last-child { border-right:0; }
-.mh-priority-card:hover { background:#f8fafc; }
-.mh-priority-value {
-  grid-row:1 / span 2;
-  min-width:42px;
-  font-size:1.75rem;
-  line-height:1;
-  font-weight:900;
-  color:#2563eb;
-  text-align:center;
-}
-.mh-priority-card.is-danger .mh-priority-value { color:#dc2626; }
-.mh-priority-card.is-warning .mh-priority-value { color:#d97706; }
-.mh-priority-card.is-ok .mh-priority-value { color:#15803d; }
-.mh-priority-label { font-size:var(--fs-sm); font-weight:800; color:#0f172a; }
-.mh-priority-note { font-size:var(--fs-xs); color:#64748b; }
-.mh-workspace-head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-top:2px; }
-.mh-workspace-title { margin:0; font-size:1.05rem; color:#0f172a; }
-.mh-workspace-note { margin:3px 0 0; color:#64748b; font-size:var(--fs-sm); }
-.mh-workspace-link { color:#1d4ed8; font-size:var(--fs-sm); font-weight:750; text-decoration:none; white-space:nowrap; }
-.mh-workspace-link:hover { text-decoration:underline; }
-.mh-agenda-links { display:flex; gap:10px; flex-wrap:wrap; padding-top:2px; }
-
-/* ── KPI strip ─────────────────────────────────────────────── */
-.mh-kpis {
-  display:grid;
-  gap:10px;
-  grid-template-columns:repeat(6, minmax(0, 1fr));
-}
-.mh-kpi {
-  border:1px solid #dbe1ea;
-  border-radius:14px;
-  background:#fff;
-  padding:14px 16px;
-  display:flex;
-  flex-direction:column;
-  gap:4px;
-  color:inherit;
-  text-decoration:none;
-  transition:transform .12s, box-shadow .12s, border-color .12s;
-}
-.mh-kpi:hover {
-  border-color:#93c5fd;
-  box-shadow:0 10px 24px rgba(37,99,235,.10);
-  transform:translateY(-1px);
-}
-.mh-kpi-label {
-  font-size:var(--fs-xs);
-  font-weight:800;
-  color:#64748b;
-  text-transform:uppercase;
-  letter-spacing:.06em;
-}
-.mh-kpi-value {
-  font-size:1.9rem;
-  font-weight:900;
-  line-height:1;
-  color:#0f172a;
-}
-.mh-kpi-sub { font-size:var(--fs-xs); color:#94a3b8; margin-top:2px; }
-.mh-kpi.red  { border-color:#fca5a5; background:#fff5f5; }
-.mh-kpi.red  .mh-kpi-value { color:#dc2626; }
-.mh-kpi.amber { border-color:#fcd34d; background:#fffbeb; }
-.mh-kpi.amber .mh-kpi-value { color:#d97706; }
-.mh-kpi.green { border-color:#86efac; background:#f0fdf4; }
-.mh-kpi.green .mh-kpi-value { color:#16a34a; }
-.mh-kpi.blue  { border-color:#93c5fd; background:#eff6ff; }
-.mh-kpi.blue  .mh-kpi-value { color:#2563eb; }
-
-/* ── Tab bar principale ────────────────────────────────────── */
-.mh-tabs {
-  display:flex;
-  gap:0;
-  border-bottom:2px solid #e5e7eb;
-}
-.mh-tab {
-  display:inline-flex;
-  align-items:center;
-  gap:8px;
-  padding:10px 22px;
-  font-size:var(--fs-md);
-  font-weight:800;
-  color:#64748b;
-  text-decoration:none;
-  border-radius:10px 10px 0 0;
-  border:2px solid transparent;
-  border-bottom:none;
-  margin-bottom:-2px;
-  transition:color .12s, background .12s;
-}
-.mh-tab:hover { color:#1d4ed8; background:#f0f6ff; }
-.mh-tab.is-active {
-  color:#1d4ed8;
-  background:#fff;
-  border-color:#e5e7eb;
-  border-bottom-color:#fff;
-}
-.mh-tab-badge {
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  min-width:20px;
-  height:20px;
-  padding:0 6px;
-  border-radius:999px;
-  font-size:10px;
-  font-weight:900;
-}
-.mh-tab-badge.red   { background:#fee2e2; color:#b91c1c; }
-.mh-tab-badge.amber { background:#fef3c7; color:#92400e; }
-.mh-tab-badge.blue  { background:#dbeafe; color:#1e40af; }
-
-/* ── Layout tab "da fare" ──────────────────────────────────── */
-.mh-body {
-  display:grid;
-  gap:14px;
-  grid-template-columns:minmax(0,1fr) 300px;
-  align-items:start;
-}
-.mh-col-left  { display:grid; gap:14px; }
-.mh-side { display:grid; gap:14px; }
-
-/* ── Filtri ────────────────────────────────────────────────── */
-.mh-filters { display:flex; gap:10px; align-items:center; flex-wrap:wrap; background:#f8fafc; border:1px solid #e5e7eb; border-radius:10px; padding:10px 14px; }
-.mh-filters label { font-size:var(--fs-xs); font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.04em; }
-.mh-filters select { padding:5px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:var(--fs-sm); background:#fff; }
-.mh-filters a.reset { font-size:var(--fs-sm); color:#94a3b8; text-decoration:none; margin-left:auto; }
-.mh-filters a.reset:hover { color:#ef4444; }
-
-/* ── Card generica ─────────────────────────────────────────── */
-.mh-card {
-  border:1px solid #dbe1ea;
-  border-radius:14px;
-  background:#fff;
-  overflow:hidden;
-}
-.mh-card-head {
-  padding:13px 16px;
-  border-bottom:1px solid #e5e7eb;
-  display:flex;
-  align-items:center;
-  gap:10px;
-  flex-wrap:wrap;
-}
-.mh-card-head-title {
-  font-size:var(--fs-md);
-  font-weight:800;
-  color:#0f172a;
-  flex:1;
-}
-.mh-card-head-badge {
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  min-width:20px;
-  height:20px;
-  padding:0 6px;
-  border-radius:999px;
-  font-size:var(--fs-xs);
-  font-weight:800;
-}
-.mh-badge-red   { background:#fee2e2; color:#b91c1c; }
-.mh-badge-amber { background:#fef3c7; color:#92400e; }
-.mh-badge-green { background:#dcfce7; color:#15803d; }
-.mh-badge-blue  { background:#dbeafe; color:#1e40af; }
-.mh-badge-muted { background:#f1f5f9; color:#64748b; }
-.mh-card-body   { padding:14px 16px; display:grid; gap:12px; }
-.mh-card.is-urgent { border-color:#fca5a5; }
-.mh-card.is-urgent .mh-card-head { background:#fff5f5; border-color:#fca5a5; }
-.mh-card.is-warn   { border-color:#fcd34d; }
-.mh-card.is-warn   .mh-card-head { background:#fffbeb; border-color:#fcd34d; }
-
-/* ── Lista interventi ──────────────────────────────────────── */
-.mh-wo-list { display:grid; gap:6px; }
-.mh-wo-item {
-  display:flex;
-  align-items:center;
-  gap:8px;
-  padding:8px 10px;
-  border:1px solid #f1f5f9;
-  border-radius:8px;
-  text-decoration:none;
-  color:inherit;
-  transition:background .12s;
-}
-.mh-wo-item:hover { background:#f8fafc; }
-.mh-wo-item.is-overdue { border-color:#fca5a5; background:#fff9f9; border-left:3px solid #dc2626; }
-.mh-wo-item.is-recent  { border-left:3px solid #f59e0b; }
-.mh-wo-num  { font-size:var(--fs-xs); font-weight:900; color:#94a3b8; font-family:monospace; white-space:nowrap; }
-.mh-wo-body { flex:1; min-width:0; }
-.mh-wo-title { font-size:var(--fs-sm); font-weight:700; color:#1d4ed8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.mh-wo-meta  { font-size:var(--fs-xs); color:#64748b; }
-.mh-wo-tag   { font-family:monospace; font-weight:800; font-size:var(--fs-xs); background:#eff6ff; color:#1d4ed8; padding:1px 4px; border-radius:4px; }
-.mh-wo-age-red   { font-size:var(--fs-xs); font-weight:800; color:#dc2626; white-space:nowrap; }
-.mh-wo-age-amber { font-size:var(--fs-xs); font-weight:800; color:#d97706; white-space:nowrap; }
-.mh-empty { color:#94a3b8; font-size:var(--fs-sm); }
-
-/* ── Riga intervento con azioni inline ─────────────────────── */
-.mh-wo-row { display:grid; gap:0; border:1px solid #f1f5f9; border-radius:8px; overflow:hidden; }
-.mh-wo-row.is-overdue { border-color:#fca5a5; border-left:3px solid #dc2626; }
-.mh-wo-row.is-recent  { border-left:3px solid #f59e0b; }
-.mh-wo-row .mh-wo-item { border:none; border-radius:0; }
-.mh-wo-actions {
-  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
-  padding:6px 10px 8px 10px; border-top:1px dashed #e5e7eb; background:#fcfdfe;
-}
-.mh-wo-assignee { font-size:var(--fs-xs); color:#64748b; margin-right:auto; }
-.mh-wo-assignee.is-mine { color:#16a34a; font-weight:700; }
-.mh-wo-btn {
-  display:inline-flex; align-items:center; gap:5px; padding:4px 10px;
-  font-size:var(--fs-xs); font-weight:700; border-radius:7px; text-decoration:none;
-  border:1px solid transparent; cursor:pointer; font-family:inherit; line-height:1.4;
-}
-.mh-wo-btn.claim   { background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe; }
-.mh-wo-btn.claim:hover { background:#dbeafe; }
-.mh-wo-btn.close   { background:#f0fdf4; color:#15803d; border-color:#bbf7d0; }
-.mh-wo-btn.close:hover { background:#dcfce7; }
-.mh-wo-claim-form { display:inline; margin:0; }
-
-/* ── Scadenze urgenti ──────────────────────────────────────── */
-.mh-due-list { display:grid; gap:6px; }
-.mh-due-item {
-  display:flex;
-  align-items:flex-start;
-  gap:10px;
-  padding:9px 11px;
-  border:1px solid #f1f5f9;
-  border-radius:8px;
-  text-decoration:none;
-  color:inherit;
-  cursor:pointer;
-  transition:filter .12s;
-}
-.mh-due-item:hover { filter:brightness(.97); }
-.mh-due-item.is-overdue { border-color:#fca5a5; background:#fff9f9; border-left:3px solid #dc2626; }
-.mh-due-item.is-warn    { border-color:#fcd34d; background:#fffdf0; border-left:3px solid #f59e0b; }
-.mh-due-dot {
-  width:8px; height:8px; border-radius:50%;
-  flex-shrink:0; margin-top:5px;
-}
-.mh-due-dot.red   { background:#dc2626; }
-.mh-due-dot.amber { background:#f59e0b; }
-.mh-due-body  { flex:1; min-width:0; }
-.mh-due-title { font-size:var(--fs-sm); font-weight:700; color:#0f172a; }
-.mh-due-meta  { font-size:var(--fs-xs); color:#64748b; margin-top:2px; }
-.mh-due-date  { font-size:var(--fs-xs); font-weight:800; white-space:nowrap; }
-.mh-due-date.red   { color:#dc2626; }
-.mh-due-date.amber { color:#d97706; }
-
-/* ── Mini tabella (macchine, ticket) ───────────────────────── */
-.mh-mini-table-wrap { overflow-x:auto; }
-.mh-mini-table { width:100%; border-collapse:collapse; }
-.mh-mini-table th { padding:7px 10px; background:#f8fafc; font-size:var(--fs-xs); font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.05em; text-align:left; border-bottom:1px solid #e5e7eb; white-space:nowrap; }
-.mh-mini-table td { padding:8px 10px; border-bottom:1px solid #f1f5f9; font-size:var(--fs-sm); color:#334155; }
-.mh-mini-table tr:last-child td { border-bottom:none; }
-.mh-mini-table a { color:#1d4ed8; text-decoration:none; font-weight:600; }
-.mh-mini-table a:hover { text-decoration:underline; }
-
-/* Azioni rapide */
-.mh-actions-list { display:grid; gap:8px; }
-.mh-action-btn {
-  display:flex;
-  align-items:center;
-  gap:10px;
-  padding:11px 14px;
-  border-radius:10px;
-  text-decoration:none;
-  font-size:var(--fs-sm);
-  font-weight:700;
-  transition:background .12s, box-shadow .12s;
-}
-.mh-action-btn.primary {
-  background:#1d4ed8;
-  color:#fff;
-  border:1px solid #1d4ed8;
-}
-.mh-action-btn.primary:hover { background:#1e40af; }
-.mh-action-btn.secondary {
-  background:#f8fafc;
-  color:#334155;
-  border:1px solid #e2e8f0;
-}
-.mh-action-btn.secondary:hover { background:#f1f5f9; }
-.mh-action-icon { font-size:1rem; flex-shrink:0; }
-.mh-action-body { flex:1; }
-.mh-action-sub { font-size:var(--fs-xs); font-weight:400; color:#94a3b8; margin-top:1px; }
-.mh-action-btn.primary .mh-action-sub { color:rgba(255,255,255,.7); }
-
-/* Mini riepilogo 7gg */
-.mh-next-list { display:grid; gap:5px; }
-.mh-next-item {
-  display:flex;
-  align-items:baseline;
-  gap:8px;
-  padding:6px 10px;
-  border-radius:8px;
-  background:#f8fafc;
-  font-size:var(--fs-xs);
-}
-.mh-next-date { font-weight:800; color:#0f172a; white-space:nowrap; min-width:72px; }
-.mh-next-label { color:#334155; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.mh-next-type {
-  font-size:10px;
-  font-weight:800;
-  padding:2px 5px;
-  border-radius:4px;
-  text-transform:uppercase;
-  letter-spacing:.04em;
-  white-space:nowrap;
-}
-.mh-next-type.t-verifica  { background:#dbeafe; color:#1e40af; }
-.mh-next-type.t-scadenza  { background:#fef3c7; color:#92400e; }
-.mh-next-type.t-contratto { background:#dcfce7; color:#166534; }
-.mh-next-type.t-green     { background:#dcfce7; color:#166534; }
-.mh-next-type.t-blue      { background:#dbeafe; color:#1e40af; }
-.mh-stat-label { min-width:auto; margin-right:4px; }
-
-.mh-card-head-link {
-  font-size:var(--fs-xs);
-  color:#1d4ed8;
-  font-weight:700;
-  text-decoration:none;
-  white-space:nowrap;
-}
-.mh-card-head-link:hover { text-decoration:underline; }
-.mh-card-body-link {
-  font-size:var(--fs-sm);
-  color:#1d4ed8;
-  font-weight:700;
-  text-decoration:none;
-}
-.mh-card-body-link:hover { text-decoration:underline; }
-
-/* ── Scadenzario (sotto-tab + tabelle) ─────────────────────── */
-.sc-subtabs { display:flex; gap:0; border-bottom:2px solid #e5e7eb; }
-.sc-subtab {
-  display:inline-flex; align-items:center; gap:8px; padding:9px 18px;
-  font-size:var(--fs-sm); font-weight:700; color:#64748b; text-decoration:none;
-  border-radius:10px 10px 0 0; border:2px solid transparent; border-bottom:none;
-  margin-bottom:-2px; transition:color .12s, background .12s;
-}
-.sc-subtab:hover { color:#1d4ed8; background:#f0f6ff; }
-.sc-subtab.is-active { color:#1d4ed8; background:#fff; border-color:#e5e7eb; border-bottom-color:#fff; }
-.sc-subtab-badge { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; padding:0 5px; border-radius:999px; font-size:10px; font-weight:900; }
-.sc-badge-red   { background:#fee2e2; color:#b91c1c; }
-.sc-badge-amber { background:#fef3c7; color:#92400e; }
-.sc-card { border:1px solid #e2e8f0; border-radius:16px; background:#fff; overflow:hidden; box-shadow:0 1px 4px rgba(15,23,42,.04); }
-.sc-card-head { padding:14px 18px; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-.sc-card-title { font-size:var(--fs-md); font-weight:800; color:#0f172a; flex:1; min-width:0; }
-.sc-card-body  { padding:0; }
-.sc-fullpage-link { font-size:var(--fs-xs); color:#1d4ed8; font-weight:700; text-decoration:none; white-space:nowrap; padding:5px 10px; border:1px solid #dbeafe; border-radius:8px; background:#eff6ff; transition:background .12s; }
-.sc-fullpage-link:hover { background:#dbeafe; }
-.sc-filters { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:12px 18px; background:#f8fafc; border-bottom:1px solid #f1f5f9; }
-.sc-filters-form { display:contents; }
-.sc-filter-label { font-size:var(--fs-xs); font-weight:700; color:#64748b; }
-.sc-filters select { border:1px solid #cbd5e1; border-radius:8px; background:#fff; color:#334155; padding:6px 10px; font:inherit; font-size:var(--fs-sm); }
-.sc-cell-sub { display:block; font-size:var(--fs-xs); margin-top:2px; color:#94a3b8; }
-.sc-cell-code { display:block; font-size:var(--fs-xs); color:#94a3b8; }
-.sc-table-wrap { overflow-x:auto; }
-.sc-table { width:100%; border-collapse:collapse; }
-.sc-table th { text-align:left; padding:10px 14px; background:#f8fafc; border-bottom:1px solid #e5e7eb; color:#64748b; font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.06em; font-weight:800; white-space:nowrap; }
-.sc-table td { padding:11px 14px; border-bottom:1px solid #f1f5f9; color:#1e293b; font-size:var(--fs-sm); vertical-align:middle; }
-.sc-table tbody tr:last-child td { border-bottom:none; }
-.sc-table tbody tr:hover td { background:#f8fafc; }
-.sc-pill { display:inline-flex; align-items:center; padding:3px 9px; border-radius:999px; font-size:var(--fs-xs); font-weight:800; white-space:nowrap; }
-.sc-pill.ok { background:#dcfce7; color:#15803d; }
-.sc-pill.warn { background:#fef3c7; color:#a16207; }
-.sc-pill.danger { background:#fee2e2; color:#b91c1c; }
-.sc-pill.muted { background:#f1f5f9; color:#64748b; }
-.mh-ext-badge { display:inline-block; font-size:10px; font-weight:800; padding:1px 6px; border-radius:999px; background:#ede9fe; color:#6d28d9; margin-left:4px; white-space:nowrap; }
-body.theme-dark .mh-ext-badge { background:rgba(109,40,217,.28); color:#c4b5fd; }
-.sc-tag { font-family:monospace; font-size:var(--fs-xs); font-weight:800; background:#eff6ff; color:#1d4ed8; padding:2px 6px; border-radius:5px; text-decoration:none; white-space:nowrap; }
-.sc-tag:hover { background:#dbeafe; }
-.sc-muted { color:#94a3b8; }
-.sc-chips { display:flex; gap:5px; flex-wrap:wrap; }
-.sc-chip { font-size:var(--fs-xs); padding:2px 7px; border-radius:999px; background:#f1f5f9; color:#475569; font-weight:600; text-decoration:none; }
-.sc-chip:hover { background:#dbeafe; color:#1d4ed8; }
-.sc-empty { padding:32px 18px; text-align:center; color:#94a3b8; font-size:var(--fs-sm); }
-.sc-empty-rich { padding:36px 20px; text-align:center; display:grid; gap:10px; justify-items:center; }
-.sc-empty-rich .sc-empty-icon { font-size:1.8rem; opacity:.55; }
-.sc-empty-rich .sc-empty-title { font-size:var(--fs-md); font-weight:800; color:#334155; }
-.sc-empty-rich .sc-empty-text { font-size:var(--fs-sm); color:#94a3b8; max-width:420px; }
-.sc-empty-rich .sc-empty-cta {
-  display:inline-flex; align-items:center; gap:6px; padding:8px 16px; margin-top:4px;
-  background:#1d4ed8; color:#fff; border-radius:9px; font-size:var(--fs-sm); font-weight:700; text-decoration:none;
-}
-.sc-empty-rich .sc-empty-cta:hover { background:#1e40af; }
-.sc-days-badge { display:inline-block; font-size:var(--fs-xs); font-weight:700; margin-left:5px; padding:1px 6px; border-radius:5px; white-space:nowrap; }
-.sc-days-badge.red { background:#fee2e2; color:#b91c1c; }
-.sc-days-badge.amber { background:#fef3c7; color:#92400e; }
-.sc-days-badge.green { background:#dcfce7; color:#166534; }
-.sc-days-badge.muted { background:#f1f5f9; color:#64748b; }
-
-/* ── Dark mode ─────────────────────────────────────────────── */
-body.theme-dark .mh-kpi          { background:#1e293b; border-color:#334155; }
-body.theme-dark .mh-kpi.red      { background:#2d1515; border-color:#7f1d1d; }
-body.theme-dark .mh-kpi.amber    { background:#2d2008; border-color:#78350f; }
-body.theme-dark .mh-kpi.green    { background:#0d2e18; border-color:#14532d; }
-body.theme-dark .mh-kpi.blue     { background:#0d1f3c; border-color:#1e3a5f; }
-body.theme-dark .mh-kpi-label    { color:#94a3b8; }
-body.theme-dark .mh-kpi-sub      { color:#64748b; }
-body.theme-dark .mh-tabs         { border-color:#334155; }
-body.theme-dark .mh-tab          { color:#94a3b8; }
-body.theme-dark .mh-tab:hover    { color:#60a5fa; background:#1e2d44; }
-body.theme-dark .mh-tab.is-active { color:#60a5fa; background:#1e293b; border-color:#334155; border-bottom-color:#1e293b; }
-body.theme-dark .mh-filters      { background:#1e293b; border-color:#334155; }
-body.theme-dark .mh-filters select { background:#253347; border-color:#475569; color:#cbd5e1; }
-body.theme-dark .mh-card         { background:#1e293b; border-color:#334155; }
-body.theme-dark .mh-card-head    { border-color:#334155; }
-body.theme-dark .mh-card-head-title { color:var(--text); }
-body.theme-dark .mh-card.is-urgent .mh-card-head { background:#2d1515; }
-body.theme-dark .mh-card.is-warn .mh-card-head   { background:#2d2008; }
-body.theme-dark .mh-wo-item      { border-color:#334155; background:#253347; }
-body.theme-dark .mh-wo-item:hover { background:#2d3f5a; }
-body.theme-dark .mh-wo-item.is-overdue { background:#2d1515; }
-body.theme-dark .mh-wo-title     { color:#60a5fa; }
-body.theme-dark .mh-wo-meta      { color:#94a3b8; }
-body.theme-dark .mh-wo-tag       { background:#1e3a5f; color:#93c5fd; }
-body.theme-dark .mh-wo-row       { border-color:#334155; }
-body.theme-dark .mh-wo-actions   { background:#1b2536; border-color:#334155; }
-body.theme-dark .mh-wo-assignee  { color:#94a3b8; }
-body.theme-dark .mh-wo-assignee.is-mine { color:#86efac; }
-body.theme-dark .mh-wo-btn.claim { background:#1e3a5f; color:#93c5fd; border-color:#1e40af; }
-body.theme-dark .mh-wo-btn.close { background:#0d2e18; color:#86efac; border-color:#14532d; }
-body.theme-dark .mh-due-item     { border-color:#334155; background:#253347; }
-body.theme-dark .mh-due-item.is-overdue { background:#2d1515; }
-body.theme-dark .mh-due-item.is-warn    { background:#2d2008; }
-body.theme-dark .mh-due-title    { color:var(--text); }
-body.theme-dark .mh-due-meta     { color:#94a3b8; }
-body.theme-dark .mh-mini-table th { background:#162032; border-color:#334155; color:#94a3b8; }
-body.theme-dark .mh-mini-table td { color:var(--text); border-color:#253347; }
-body.theme-dark .mh-mini-table a  { color:#60a5fa; }
-body.theme-dark .mh-action-btn.secondary { background:#253347; color:#cbd5e1; border-color:#334155; }
-body.theme-dark .mh-action-btn.secondary:hover { background:#2d3f5a; }
-body.theme-dark .mh-action-sub   { color:#64748b; }
-body.theme-dark .mh-next-item    { background:#253347; }
-body.theme-dark .mh-next-date    { color:var(--text); }
-body.theme-dark .mh-next-label   { color:#cbd5e1; }
-body.theme-dark .mh-empty        { color:#64748b; }
-body.theme-dark .mh-card-head-link { color:#60a5fa; }
-body.theme-dark .mh-card-body-link { color:#60a5fa; }
-body.theme-dark .sc-subtabs      { border-color:#334155; }
-body.theme-dark .sc-subtab       { color:#94a3b8; }
-body.theme-dark .sc-subtab:hover { color:#60a5fa; background:#1e2d44; }
-body.theme-dark .sc-subtab.is-active { color:#60a5fa; background:#1e293b; border-color:#334155; border-bottom-color:#1e293b; }
-body.theme-dark .sc-card         { background:#1e293b; border-color:#334155; box-shadow:none; }
-body.theme-dark .sc-card-head    { border-color:#334155; }
-body.theme-dark .sc-card-title   { color:var(--text); }
-body.theme-dark .sc-filters      { background:#162032; border-color:#253347; }
-body.theme-dark .sc-filter-label { color:#94a3b8; }
-body.theme-dark .sc-filters select { background:#1e293b; border-color:#334155; color:var(--text); }
-body.theme-dark .sc-cell-sub     { color:#64748b; }
-body.theme-dark .sc-cell-code    { color:#64748b; }
-body.theme-dark .sc-fullpage-link { background:#1e2d44; border-color:#334155; color:#60a5fa; }
-body.theme-dark .sc-fullpage-link:hover { background:#253347; }
-body.theme-dark .sc-table th     { background:#162032; border-color:#334155; color:#94a3b8; }
-body.theme-dark .sc-table td     { color:var(--text); border-color:#253347; }
-body.theme-dark .sc-table tbody tr:hover td { background:#253347; }
-body.theme-dark .sc-tag          { background:#1e3a5f; color:#93c5fd; }
-body.theme-dark .sc-tag:hover    { background:#1e40af; }
-body.theme-dark .sc-muted        { color:#64748b; }
-body.theme-dark .sc-chip         { background:#253347; color:#94a3b8; }
-body.theme-dark .sc-chip:hover   { background:#1e3a5f; color:#93c5fd; }
-body.theme-dark .sc-empty        { color:#64748b; }
-body.theme-dark .sc-empty-rich .sc-empty-title { color:#cbd5e1; }
-body.theme-dark .sc-empty-rich .sc-empty-text  { color:#64748b; }
-body.theme-dark .sc-days-badge.red   { background:rgba(185,28,28,.25); color:#fca5a5; }
-body.theme-dark .sc-days-badge.amber { background:rgba(161,98,7,.25); color:#fde68a; }
-body.theme-dark .sc-days-badge.green { background:rgba(21,128,61,.25); color:#86efac; }
-body.theme-dark .sc-days-badge.muted { background:rgba(255,255,255,.07); color:#64748b; }
-
-@media (max-width:1100px) {
-  .mh-body  { grid-template-columns:1fr; }
-  .mh-kpis  { grid-template-columns:repeat(3, minmax(0, 1fr)); }
-  .mh-priority-strip { grid-template-columns:repeat(2,minmax(0,1fr)); }
-  .mh-priority-card:nth-child(2) { border-right:0; }
-  .mh-priority-card:nth-child(-n+2) { border-bottom:1px solid #e5e7eb; }
-}
-@media (max-width:600px) {
-  .mh-kpis  { grid-template-columns:1fr 1fr; }
-  .mh-tab   { padding:8px 12px; font-size:var(--fs-sm); }
-  .mh-priority-strip { grid-template-columns:1fr; }
-  .mh-priority-card,
-  .mh-priority-card:nth-child(2) { border-right:0; border-bottom:1px solid #e5e7eb; }
-  .mh-priority-card:last-child { border-bottom:0; }
-  .mh-workspace-head { align-items:flex-start; flex-direction:column; gap:6px; }
-}
-
-/* Cockpit refresh */
-.mh-kpi,
-.mh-card,
-.sc-card {
-  position:relative;
-  overflow:hidden;
-  border-radius:10px;
-  box-shadow:0 10px 24px rgba(15,23,42,.045);
-}
-.mh-kpi {
-  padding-left:18px;
-  background:linear-gradient(135deg,#fff 0%,#f8fafc 100%);
-}
-.mh-kpi:before {
-  content:"";
-  position:absolute;
-  left:0;
-  top:0;
-  bottom:0;
-  width:4px;
-  background:#2563eb;
-}
-.mh-kpi.red:before { background:#dc2626; }
-.mh-kpi.amber:before { background:#f59e0b; }
-.mh-kpi.green:before { background:#14b8a6; }
-.mh-kpi.blue:before { background:#2563eb; }
-.mh-card-head,
-.sc-card-head {
-  background:linear-gradient(90deg,#f8fafc 0%,#fff 100%);
-}
-.mh-card-head-title,
-.sc-card-title {
-  display:flex;
-  align-items:center;
-  gap:8px;
-}
-.mh-card-head-title:before,
-.sc-card-title:before {
-  content:"";
-  width:8px;
-  height:18px;
-  border-radius:4px;
-  background:#14b8a6;
-  flex:0 0 auto;
-}
-.mh-tabs,
-.sc-subtabs { border-bottom-color:#dbe3ef; }
-.mh-tab.is-active,
-.sc-subtab.is-active { box-shadow:0 -6px 18px rgba(15,23,42,.04); }
-.mh-filters,
-.sc-filters {
-  border-radius:10px;
-  background:#fff;
-  box-shadow:0 8px 18px rgba(15,23,42,.035);
-}
-body.theme-dark .mh-kpi,
-body.theme-dark .mh-card,
-body.theme-dark .sc-card,
-body.theme-dark .mh-filters,
-body.theme-dark .sc-filters {
-  box-shadow:none;
-}
-body.theme-dark .mh-card-head,
-body.theme-dark .sc-card-head {
-  background:linear-gradient(90deg,rgba(255,255,255,.04) 0%,rgba(255,255,255,.01) 100%);
-}
-body.theme-dark .mh-priority-strip { background:var(--surface); border-color:var(--border); box-shadow:none; }
-body.theme-dark .mh-priority-card { border-color:var(--border); }
-body.theme-dark .mh-priority-card:hover { background:rgba(255,255,255,.04); }
-body.theme-dark .mh-priority-label,
-body.theme-dark .mh-workspace-title { color:var(--text); }
-body.theme-dark .mh-priority-note,
-body.theme-dark .mh-workspace-note { color:var(--text-light); }
-.mh-core-nav { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
-.mh-core-link { display:grid; gap:4px; min-height:84px; padding:13px 15px; border:1px solid #dbe1ea; border-radius:12px; background:#fff; color:#0f172a; text-decoration:none; }
-.mh-core-link:hover { border-color:#93c5fd; background:#f8fbff; }
-.mh-core-link strong { font-size:var(--fs-base); }
-.mh-core-link span { color:#64748b; font-size:var(--fs-sm); line-height:1.35; }
-body.theme-dark .mh-core-link { background:var(--surface); border-color:var(--border); color:var(--text); }
-body.theme-dark .mh-core-link span { color:var(--text-light); }
-@media(max-width:900px){.mh-core-nav{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:560px){.mh-core-nav{grid-template-columns:1fr}}
-</style>
+    /* Azioni inline (prendi in carico / chiudi) sulle card OdL della board */
+    .ux-task{display:block;padding:0;overflow:hidden}
+    .ux-task-link{display:block;padding:10px;color:inherit;text-decoration:none}
+    .mh-wo-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 10px 8px 10px;border-top:1px dashed #e5e7eb;background:#fcfdfe}
+    .mh-wo-assignee{font-size:var(--fs-xs);color:#64748b;margin-right:auto}
+    .mh-wo-assignee.is-mine{color:#16a34a;font-weight:700}
+    .mh-wo-btn{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;font-size:var(--fs-xs);font-weight:700;border-radius:7px;text-decoration:none;border:1px solid transparent;cursor:pointer;font-family:inherit;line-height:1.4}
+    .mh-wo-btn.claim{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe}.mh-wo-btn.claim:hover{background:#dbeafe}
+    .mh-wo-btn.close{background:#f0fdf4;color:#15803d;border-color:#bbf7d0}.mh-wo-btn.close:hover{background:#dcfce7}
+    .mh-wo-claim-form{display:inline;margin:0}
+    body.theme-dark .mh-wo-actions{background:rgba(255,255,255,.02);border-color:var(--border)}
+    body.theme-dark .mh-wo-assignee{color:var(--text-light)}body.theme-dark .mh-wo-assignee.is-mine{color:#86efac}
+    body.theme-dark .mh-wo-btn.claim{background:#1e3a5f;color:#93c5fd;border-color:#1e40af}
+    body.theme-dark .mh-wo-btn.close{background:#0d2e18;color:#86efac;border-color:#14532d}
+  </style>
 {% endblock %}
 
 {% block assets_shell_title %}Centro manutenzione aziendale{% endblock %}
-{% block assets_shell_subtitle %}
-<p>Ticket, interventi, piani ordinari, scadenze e storico in un unico punto operativo.</p>
-{% endblock %}
+{% block assets_shell_subtitle %}<p>Il centro operativo per capire cosa richiede attenzione, intervenire e mantenere lo storico completo.</p>{% endblock %}
 {% block assets_shell_toolbar %}
-  <a class="btn" href="{% url 'assets:asset_dashboard' %}">&#8592; Asset</a>
+  <a class="btn" href="{% url 'assets:asset_dashboard' %}">&larr; Asset</a>
   <a class="btn btn-primary" href="{{ url_wo_create }}">+ Nuovo intervento</a>
-  <a class="btn" href="{{ url_impostazioni }}">Catalogo e piani</a>
+  <a class="btn" href="{{ url_impostazioni }}?tab=piani">+ Nuovo piano</a>
+  <a class="btn" href="{{ url_maintenance_schedule }}">Scadenzario</a>
 {% endblock %}
 
 {% block assets_shell_content %}
-<div class="mh-page">
-
-  <!-- Una sola fascia di orientamento: priorità, non un secondo cruscotto. -->
-  <section class="mh-priority-strip" aria-label="Priorità manutenzione">
-    <a class="mh-priority-card {% if wo_overdue %}is-danger{% elif wo_total %}is-warning{% else %}is-ok{% endif %}" href="{{ url_wo_open }}">
-      <span class="mh-priority-value">{{ wo_total }}</span>
-      <span class="mh-priority-label">Interventi aperti</span>
-      <span class="mh-priority-note">{% if wo_overdue %}{{ wo_overdue|length }} oltre soglia{% else %}nessuno oltre soglia{% endif %}</span>
+<section class="ux-page">
+  <div class="ux-attention-title">&#9888; Cosa richiede attenzione oggi</div>
+  <section class="ux-attention-grid" aria-label="Priorità manutenzione">
+    <a class="ux-kpi {% if wo_overdue %}danger{% elif wo_total %}warn{% else %}ok{% endif %}" href="{{ url_wo_open }}">
+      <span class="ux-kpi-icon">&#128295;</span><span><span class="ux-kpi-label">Interventi aperti</span><span class="ux-kpi-value">{{ wo_total }}</span><span class="ux-kpi-note">{% if wo_overdue %}{{ wo_overdue|length }} oltre soglia{% else %}Nessuno oltre soglia{% endif %}</span></span><span>&rsaquo;</span>
     </a>
-    <a class="mh-priority-card {% if overdue_deadlines_count or overdue_verifications_count %}is-danger{% else %}is-ok{% endif %}" href="{{ url_maintenance_schedule }}?status=due">
-      <span class="mh-priority-value">{{ overdue_deadlines_count|add:overdue_verifications_count }}</span>
-      <span class="mh-priority-label">Scadute</span>
-      <span class="mh-priority-note">scadenze e verifiche da recuperare</span>
+    <a class="ux-kpi {% if overdue_deadlines_count or overdue_verifications_count %}danger{% else %}ok{% endif %}" href="{{ url_maintenance_schedule }}?status=due">
+      <span class="ux-kpi-icon">&#9888;</span><span><span class="ux-kpi-label">Scadenze da recuperare</span><span class="ux-kpi-value">{{ overdue_deadlines_count|add:overdue_verifications_count }}</span><span class="ux-kpi-note">Scadenze e verifiche già oltre termine</span></span><span>&rsaquo;</span>
     </a>
-    <a class="mh-priority-card {% if upcoming_deadlines_count or upcoming_verifications_count or maintenance_rule_counts.warning %}is-warning{% else %}is-ok{% endif %}" href="{{ url_maintenance_schedule }}">
-      <span class="mh-priority-value">{{ upcoming_deadlines_count|add:upcoming_verifications_count|add:maintenance_rule_counts.warning }}</span>
-      <span class="mh-priority-label">In avvicinamento</span>
-      <span class="mh-priority-note">entro 30 giorni</span>
+    <a class="ux-kpi {% if upcoming_deadlines_count or upcoming_verifications_count or maintenance_rule_counts.warning %}warn{% else %}ok{% endif %}" href="{{ url_maintenance_schedule }}">
+      <span class="ux-kpi-icon">&#128197;</span><span><span class="ux-kpi-label">Prossimi 30 giorni</span><span class="ux-kpi-value">{{ upcoming_deadlines_count|add:upcoming_verifications_count|add:maintenance_rule_counts.warning }}</span><span class="ux-kpi-note">Attività e verifiche in avvicinamento</span></span><span>&rsaquo;</span>
     </a>
-    <a class="mh-priority-card is-ok" href="{{ url_wo_done }}">
-      <span class="mh-priority-value">{{ closed_recent_count }}</span>
-      <span class="mh-priority-label">Completati</span>
-      <span class="mh-priority-note">negli ultimi 30 giorni</span>
+    <a class="ux-kpi ok" href="{{ url_wo_done }}">
+      <span class="ux-kpi-icon">&#10003;</span><span><span class="ux-kpi-label">Completati</span><span class="ux-kpi-value">{{ closed_recent_count }}</span><span class="ux-kpi-note">Negli ultimi 30 giorni</span></span><span>&rsaquo;</span>
     </a>
   </section>
 
-  <nav class="mh-core-nav" aria-label="Aree del centro manutenzione">
-    <a class="mh-core-link" href="{{ url_wo_open }}"><strong>Interventi</strong><span>Coda operativa, assegnazioni e chiusure.</span></a>
-    <a class="mh-core-link" href="{{ url_impostazioni }}?tab=piani"><strong>Piani ordinari</strong><span>Asset, frequenze, responsabili e automazione OdL.</span></a>
-    <a class="mh-core-link" href="{{ url_impostazioni }}?tab=catalogo"><strong>Catalogo attivita</strong><span>Procedure, checklist, tempi e materiali standard.</span></a>
-    <a class="mh-core-link" href="{{ url_wo_done }}"><strong>Storico</strong><span>Esecuzioni concluse, esiti, tecnici, tempi e costi.</span></a>
-  </nav>
-
-  {% if active_tab == 'da_fare' %}
-  <!-- ═══════════════════════ TAB: DA FARE ════════════════════════════════ -->
-
-  <div class="mh-workspace-head">
-    <div>
-      <h2 class="mh-workspace-title">Lavoro operativo</h2>
-      <p class="mh-workspace-note">Prima gli interventi oltre soglia, poi scadenze e attività pianificate.</p>
-    </div>
-    <a class="mh-workspace-link" href="{{ url_wo_list }}">Apri il registro completo &rsaquo;</a>
-  </div>
-
-  <!-- Filtri -->
-  <form method="get" class="mh-filters">
+  <form method="get" class="ux-filters">
     <input type="hidden" name="tab" value="da_fare">
-    {% if reparto_options %}
-    <label for="mh-reparto">Reparto</label>
-    <select id="mh-reparto" name="reparto" onchange="this.form.submit()">
-      <option value="">— tutti —</option>
-      {% for r in reparto_options %}
-      <option value="{{ r }}" {% if r == reparto_filter %}selected{% endif %}>{{ r }}</option>
-      {% endfor %}
-    </select>
-    {% endif %}
-    {% if is_admin and user_options %}
-    <label for="mh-assigned">Manutentore</label>
-    <select id="mh-assigned" name="assigned" onchange="this.form.submit()">
-      <option value="">— tutti —</option>
-      {% for u in user_options %}
-      <option value="{{ u.pk }}" {% if assigned_filter == u.pk|stringformat:"s" %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
-      {% endfor %}
-    </select>
-    {% endif %}
-    {% if reparto_filter or assigned_filter %}
-    <a href="?tab=da_fare" class="reset">× rimuovi filtri</a>
-    {% endif %}
+    {% if reparto_options %}<div class="ux-field"><label for="mh2-reparto">Reparto</label><select id="mh2-reparto" name="reparto"><option value="">Tutti</option>{% for r in reparto_options %}<option value="{{ r }}" {% if r == reparto_filter %}selected{% endif %}>{{ r }}</option>{% endfor %}</select></div>{% endif %}
+    {% if is_admin and user_options %}<div class="ux-field"><label for="mh2-assigned">Manutentore</label><select id="mh2-assigned" name="assigned"><option value="">Tutti</option>{% for u in user_options %}<option value="{{ u.pk }}" {% if assigned_filter == u.pk|stringformat:"s" %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>{% endfor %}</select></div>{% endif %}
+    <button class="ux-btn primary" type="submit">Applica</button>
+    {% if reparto_filter or assigned_filter %}<a class="ux-btn" href="?tab=da_fare">Reset</a>{% endif %}
   </form>
 
-  <div class="mh-body">
-    <!-- ── Colonna sinistra ────────────────────────────────────────────── -->
-    <div class="mh-col-left">
-
-      <!-- Interventi aperti -->
-      <div class="mh-card {% if wo_overdue %}is-urgent{% elif wo_recent %}is-warn{% endif %}">
-        <div class="mh-card-head">
-          <span class="mh-card-head-title">Interventi da gestire</span>
-          {% if wo_overdue %}<span class="mh-card-head-badge mh-badge-red">{{ wo_overdue|length }} in ritardo</span>{% endif %}
-          {% if wo_recent %}<span class="mh-card-head-badge mh-badge-amber">{{ wo_recent|length }} recenti</span>{% endif %}
-          {% if not wo_overdue and not wo_recent and wo_total %}<span class="mh-card-head-badge mh-badge-green">{{ wo_total }} ok</span>{% endif %}
-          <a href="{{ url_wo_open }}" class="mh-card-head-link">Vedi aperti ›</a>
-        </div>
-        <div class="mh-card-body">
-          {% if wo_overdue or wo_recent %}
-            <div class="mh-wo-list">
-              {% for wo in wo_overdue|slice:":8" %}
-                <div class="mh-wo-row is-overdue">
-                  <a href="{% url 'assets:wo_view' wo.id %}" class="mh-wo-item">
-                    <span class="mh-wo-num">#{{ wo.pk }}</span>
-                    <div class="mh-wo-body">
-                      <div class="mh-wo-title">{{ wo.title|truncatechars:60 }}</div>
-                      <div class="mh-wo-meta"><span class="mh-wo-tag">{{ wo.asset.asset_tag }}</span> {{ wo.asset.name|truncatechars:35 }}{% if wo.asset.reparto %} · {{ wo.asset.reparto }}{% endif %}</div>
-                    </div>
-                    <span class="mh-wo-age-red">{{ wo.opened_at.date|timesince:today }}</span>
-                  </a>
+  <div class="mh2-work">
+    <div class="mh2-stack">
+      <article class="ux-card">
+        <header class="ux-card-head"><div><h3>Lavoro operativo</h3><p>Prima le attività oltre soglia, poi quelle aperte di recente.</p></div><a class="ux-link" href="{{ url_wo_list }}">Registro completo &rsaquo;</a></header>
+        <div class="ux-card-body">
+          <div class="ux-board">
+            <section class="ux-board-col">
+              <div class="ux-board-col-h"><span>Oltre soglia</span><span class="ux-count">{{ wo_overdue|length }}</span></div>
+              {% for wo in wo_overdue|slice:":6" %}
+                <div class="ux-task">
+                  <a class="ux-task-link" href="{% url 'assets:wo_view' wo.id %}"><div class="ux-task-title">{{ wo.title|truncatechars:55 }}{% if wo.is_waiting %}<span class="ux-pill warn" style="margin-left:6px">In attesa</span>{% endif %}</div><div class="ux-task-sub">{{ wo.asset.asset_tag }} · {{ wo.asset.name|truncatechars:28 }}{% if wo.asset.reparto %} · {{ wo.asset.reparto }}{% endif %}</div><div class="ux-task-foot"><span class="ux-tag">#{{ wo.pk }}</span><span class="ux-date danger">{{ wo.opened_at.date|timesince:today }}</span></div></a>
                   {% include "assets/pages/_mh_wo_actions.html" with wo=wo %}
                 </div>
-              {% endfor %}
+              {% empty %}<div class="ux-empty">Nessun intervento oltre soglia.</div>{% endfor %}
+            </section>
+            <section class="ux-board-col">
+              <div class="ux-board-col-h"><span>Aperti recenti</span><span class="ux-count">{{ wo_recent|length }}</span></div>
               {% for wo in wo_recent|slice:":6" %}
-                <div class="mh-wo-row is-recent">
-                  <a href="{% url 'assets:wo_view' wo.id %}" class="mh-wo-item">
-                    <span class="mh-wo-num">#{{ wo.pk }}</span>
-                    <div class="mh-wo-body">
-                      <div class="mh-wo-title">{{ wo.title|truncatechars:60 }}</div>
-                      <div class="mh-wo-meta"><span class="mh-wo-tag">{{ wo.asset.asset_tag }}</span> {{ wo.asset.name|truncatechars:35 }}{% if wo.asset.reparto %} · {{ wo.asset.reparto }}{% endif %}</div>
-                    </div>
-                    <span class="mh-wo-age-amber">{{ wo.opened_at.date|timesince:today }}</span>
-                  </a>
+                <div class="ux-task">
+                  <a class="ux-task-link" href="{% url 'assets:wo_view' wo.id %}"><div class="ux-task-title">{{ wo.title|truncatechars:55 }}{% if wo.is_waiting %}<span class="ux-pill warn" style="margin-left:6px">In attesa</span>{% endif %}</div><div class="ux-task-sub">{{ wo.asset.asset_tag }} · {{ wo.asset.name|truncatechars:28 }}{% if wo.asset.reparto %} · {{ wo.asset.reparto }}{% endif %}</div><div class="ux-task-foot"><span class="ux-tag">#{{ wo.pk }}</span><span class="ux-date warn">{{ wo.opened_at.date|timesince:today }}</span></div></a>
                   {% include "assets/pages/_mh_wo_actions.html" with wo=wo %}
                 </div>
-              {% endfor %}
-            </div>
-          {% else %}
-            <span class="mh-empty">Nessun intervento aperto.</span>
-          {% endif %}
-        </div>
-      </div>
-
-      <!-- Scadenze urgenti -->
-      {% if urgent_items %}
-      <div class="mh-card is-urgent">
-        <div class="mh-card-head">
-          <span class="mh-card-head-title">Urgenti / scadute</span>
-          <span class="mh-card-head-badge mh-badge-red">{{ urgent_items|length }}</span>
-          <a href="{{ url_maintenance_schedule }}" class="mh-card-head-link">Scadenzario ›</a>
-        </div>
-        <div class="mh-card-body">
-          <div class="mh-due-list">
-            {% for item in urgent_items|slice:":8" %}
-              <a href="{{ item.url }}" class="mh-due-item {% if item.is_overdue %}is-overdue{% else %}is-warn{% endif %}">
-                <div class="mh-due-dot {% if item.is_overdue %}red{% else %}amber{% endif %}"></div>
-                <div class="mh-due-body">
-                  <div class="mh-due-title">{{ item.title }}</div>
-                  <div class="mh-due-meta">{{ item.asset_label }}</div>
-                </div>
-                <span class="mh-due-date {% if item.is_overdue %}red{% else %}amber{% endif %}">{{ item.due_date|date:"d/m/Y" }}</span>
-              </a>
-            {% endfor %}
+              {% empty %}<div class="ux-empty">Nessun nuovo intervento.</div>{% endfor %}
+            </section>
+            <section class="ux-board-col">
+              <div class="ux-board-col-h"><span>Piani da gestire</span><span class="ux-count">{{ maintenance_rule_counts.overdue|add:maintenance_rule_counts.warning|add:maintenance_rule_counts.missing }}</span></div>
+              {% for row in maintenance_rule_rows|slice:":6" %}<a class="ux-task ux-task-link" href="{{ row.primary_action_url }}"><div class="ux-task-title">{{ row.effective_intervention_template.label|default:"Manutenzione programmata"|truncatechars:50 }}</div><div class="ux-task-sub">{{ row.asset.asset_tag }} · {{ row.asset.name|truncatechars:28 }}</div><div class="ux-task-foot"><span class="ux-pill {% if row.schedule_status == 'overdue' %}danger{% elif row.schedule_status == 'warning' %}warn{% elif row.schedule_status == 'missing' %}muted{% else %}ok{% endif %}">{{ row.schedule_label }}</span><span class="ux-date">{% if row.due_date %}{{ row.due_date|date:"d/m/Y" }}{% endif %}</span></div><div class="mh2-meta">{{ row.primary_action_label }} &rsaquo;</div></a>{% empty %}<div class="ux-empty">Nessun piano da gestire.</div>{% endfor %}
+            </section>
           </div>
         </div>
-      </div>
+      </article>
+
+      {% if urgent_items or upcoming_items %}
+      <article class="ux-card">
+        <header class="ux-card-head"><div><h3>Scadenze operative</h3><p>Una lista compatta delle attività che richiedono una decisione.</p></div><a class="ux-link" href="{{ url_maintenance_schedule }}">Apri scadenzario &rsaquo;</a></header>
+        <div class="ux-card-body mh2-compact">
+          {% for item in urgent_items|slice:":6" %}<a class="mh2-row" href="{{ item.url }}"><span class="ux-pill danger">Urgente</span><span><span class="mh2-title">{{ item.title }}</span><span class="mh2-meta">{{ item.asset_label }}</span></span><span class="ux-date danger">{{ item.due_date|date:"d/m/Y" }}</span></a>{% endfor %}
+          {% for item in upcoming_items|slice:":6" %}<a class="mh2-row" href="{{ item.url }}"><span class="ux-pill warn">Warning</span><span><span class="mh2-title">{{ item.title }}</span><span class="mh2-meta">{{ item.asset_label }}</span></span><span class="ux-date warn">{{ item.due_date|date:"d/m/Y" }}</span></a>{% endfor %}
+        </div>
+      </article>
       {% endif %}
 
-      <!-- In scadenza 30gg -->
-      {% if upcoming_items %}
-      <div class="mh-card is-warn">
-        <div class="mh-card-head">
-          <span class="mh-card-head-title">In scadenza (30 giorni)</span>
-          <span class="mh-card-head-badge mh-badge-amber">{{ upcoming_items|length }}</span>
-          <a href="{{ url_maintenance_schedule }}" class="mh-card-head-link">Scadenzario ›</a>
-        </div>
-        <div class="mh-card-body">
-          <div class="mh-due-list">
-            {% for item in upcoming_items|slice:":8" %}
-              <a href="{{ item.url }}" class="mh-due-item is-warn">
-                <div class="mh-due-dot amber"></div>
-                <div class="mh-due-body">
-                  <div class="mh-due-title">{{ item.title }}</div>
-                  <div class="mh-due-meta">{{ item.asset_label }}</div>
-                </div>
-                <span class="mh-due-date amber">{{ item.due_date|date:"d/m/Y" }}</span>
-              </a>
-            {% endfor %}
-          </div>
-        </div>
-      </div>
-      {% endif %}
-
-      <!-- Regole manutenzione effettive -->
-      {% if maintenance_rule_rows %}
-      <div class="mh-card {% if maintenance_rule_counts.overdue %}is-urgent{% else %}is-warn{% endif %}">
-        <div class="mh-card-head">
-          <span class="mh-card-head-title">Piani ordinari da gestire</span>
-          {% if maintenance_rule_counts.overdue %}<span class="mh-card-head-badge mh-badge-red">{{ maintenance_rule_counts.overdue }} scadute</span>{% endif %}
-          {% if maintenance_rule_counts.warning %}<span class="mh-card-head-badge mh-badge-amber">{{ maintenance_rule_counts.warning }} in warning</span>{% endif %}
-          {% if maintenance_rule_counts.missing %}<span class="mh-card-head-badge mh-badge-muted">{{ maintenance_rule_counts.missing }} da avviare</span>{% endif %}
-          <a href="{{ url_maintenance_schedule }}" class="mh-card-head-link">Prossime manutenzioni &rsaquo;</a>
-        </div>
-        <div class="mh-card-body">
-          <div class="mh-mini-table-wrap">
-            <table class="mh-mini-table">
-              <thead><tr><th>Asset</th><th>Intervento</th><th>Stato</th><th>Azione</th></tr></thead>
-              <tbody>
-                {% for row in maintenance_rule_rows %}
-                <tr data-row-href="{{ row.asset_detail_url }}">
-                  <td>
-                    <a href="{{ row.asset_detail_url }}"><span class="mh-wo-tag">{{ row.asset.asset_tag }}</span> {{ row.asset.name|truncatechars:34 }}</a>
-                    <div class="mh-wo-meta">{{ row.asset.reparto|default:"-" }}{% if row.asset.asset_category %} &middot; {{ row.asset.asset_category.label }}{% endif %}</div>
-                  </td>
-                  <td>
-                    {{ row.effective_intervention_template.label|default:"Manutenzione programmata" }}
-                    {% if row.base_rule.is_external %}<span class="mh-ext-badge">&#127970; Esterna{% if row.base_rule.supplier %} &middot; {{ row.base_rule.supplier }}{% endif %}</span>{% endif %}
-                    <div class="mh-wo-meta">{{ row.effective_threshold_label }}{% if row.effective_threshold_value %}: {{ row.effective_threshold_value }}{% endif %}</div>
-                  </td>
-                  <td>
-                    {% if row.schedule_status == "overdue" %}<span class="sc-pill danger">Scaduta</span>
-                    {% elif row.schedule_status == "warning" %}<span class="sc-pill warn">In scadenza</span>
-                    {% elif row.schedule_status == "missing" %}<span class="sc-pill muted">Prima esecuzione</span>
-                    {% else %}<span class="sc-pill ok">Pianificata</span>{% endif %}
-                    <div class="mh-wo-meta">{% if row.due_date %}{{ row.due_date|date:"d/m/Y" }} - {% endif %}{{ row.schedule_label }}</div>
-                  </td>
-                  <td><a href="{{ row.primary_action_url }}" class="mh-card-body-link">{{ row.primary_action_label }} &rsaquo;</a></td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-      {% endif %}
-
-      <!-- Macchine in scadenza -->
       {% if machines_overdue or machines_warning %}
-      <div class="mh-card {% if machines_overdue %}is-urgent{% else %}is-warn{% endif %}">
-        <div class="mh-card-head">
-          <span class="mh-card-head-title">Macchine — manutenzione in scadenza</span>
-          {% if machines_overdue %}<span class="mh-card-head-badge mh-badge-red">{{ machines_overdue|length }} scadute</span>{% endif %}
-          {% if machines_warning %}<span class="mh-card-head-badge mh-badge-amber">{{ machines_warning|length }} imminenti</span>{% endif %}
-          <a href="{{ work_machine_list_url }}" class="mh-card-head-link">Vedi tutte ›</a>
-        </div>
-        <div class="mh-card-body">
-          <div class="mh-mini-table-wrap">
-            <table class="mh-mini-table">
-              <thead><tr><th>Macchina</th><th>Reparto</th><th>Prossima manut.</th><th>Stato</th></tr></thead>
-              <tbody>
-                {% for m in machines_overdue %}
-                <tr data-row-href="{% url 'assets:asset_view' m.asset_id %}">
-                  <td><a href="{% url 'assets:asset_view' m.asset_id %}"><span class="mh-wo-tag">{{ m.asset.asset_tag }}</span> {{ m.asset.name|truncatechars:34 }}</a></td>
-                  <td>{{ m.asset.reparto|default:"—" }}</td>
-                  <td><span class="mh-wo-age-red">{{ m.next_maintenance_date|date:"d/m/Y" }}</span></td>
-                  <td><span class="sc-pill danger">In ritardo</span></td>
-                </tr>
-                {% endfor %}
-                {% for m in machines_warning %}
-                <tr data-row-href="{% url 'assets:asset_view' m.asset_id %}">
-                  <td><a href="{% url 'assets:asset_view' m.asset_id %}"><span class="mh-wo-tag">{{ m.asset.asset_tag }}</span> {{ m.asset.name|truncatechars:34 }}</a></td>
-                  <td>{{ m.asset.reparto|default:"—" }}</td>
-                  <td><span class="mh-wo-age-amber">{{ m.next_maintenance_date|date:"d/m/Y" }}</span></td>
-                  <td><span class="sc-pill warn">Imminente</span></td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+      <article class="ux-card">
+        <header class="ux-card-head"><div><h3>Macchine — manutenzione in scadenza</h3><p>Prossima manutenzione da <code>WorkMachine.next_maintenance_date</code>.</p></div><a class="ux-link" href="{{ work_machine_list_url }}">Vedi tutte &rsaquo;</a></header>
+        <div class="ux-table-wrap"><table class="ux-table"><thead><tr><th>Macchina</th><th>Reparto</th><th>Prossima manut.</th><th>Stato</th></tr></thead><tbody>
+          {% for m in machines_overdue %}<tr data-row-href="{% url 'assets:asset_view' m.asset_id %}"><td class="ux-primary"><a class="ux-link" href="{% url 'assets:asset_view' m.asset_id %}">{{ m.asset.asset_tag }} · {{ m.asset.name|truncatechars:34 }}</a></td><td>{{ m.asset.reparto|default:"—" }}</td><td><span class="ux-date danger">{{ m.next_maintenance_date|date:"d/m/Y" }}</span></td><td><span class="ux-pill danger">In ritardo</span></td></tr>{% endfor %}
+          {% for m in machines_warning %}<tr data-row-href="{% url 'assets:asset_view' m.asset_id %}"><td class="ux-primary"><a class="ux-link" href="{% url 'assets:asset_view' m.asset_id %}">{{ m.asset.asset_tag }} · {{ m.asset.name|truncatechars:34 }}</a></td><td>{{ m.asset.reparto|default:"—" }}</td><td><span class="ux-date warn">{{ m.next_maintenance_date|date:"d/m/Y" }}</span></td><td><span class="ux-pill warn">Imminente</span></td></tr>{% endfor %}
+        </tbody></table></div>
+      </article>
       {% endif %}
 
-      <!-- Ticket MAN -->
       {% if man_tickets %}
-      <div class="mh-card">
-        <div class="mh-card-head">
-          <span class="mh-card-head-title">Ticket manutenzione aperti</span>
-          <span class="mh-card-head-badge mh-badge-blue">{{ man_tickets|length }}</span>
-        </div>
-        <div class="mh-card-body">
-          <div class="mh-mini-table-wrap">
-            <table class="mh-mini-table">
-              <thead><tr><th>#</th><th>Oggetto</th><th>Aperto il</th><th>Assegnato a</th></tr></thead>
-              <tbody>
-                {% for t in man_tickets %}
-                <tr data-row-href="{% url 'tickets:detail' t.pk %}">
-                  <td class="mh-wo-num">{{ t.pk }}</td>
-                  <td>{{ t.oggetto|default:t.descrizione|truncatechars:60 }}</td>
-                  <td>{% if t.data_apertura %}{{ t.data_apertura|date:"d/m/Y" }}{% else %}—{% endif %}</td>
-                  <td>{% if t.assegnato_a %}{{ t.assegnato_a.get_full_name|default:t.assegnato_a.username }}{% else %}—{% endif %}</td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-      {% endif %}
-
-      {% if not wo_overdue and not wo_recent and not urgent_items and not upcoming_items and not maintenance_rule_rows and not machines_overdue and not machines_warning and not man_tickets %}
-      <div class="mh-card">
-        <div class="mh-card-head">
-          <span class="mh-card-head-title">Niente in sospeso</span>
-          <span class="mh-card-head-badge mh-badge-green">tutto ok</span>
-        </div>
-        <div class="mh-card-body">
-          <span class="mh-empty">Nessun intervento aperto né scadenza imminente.</span>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
-            <a href="{{ url_wo_create }}" class="mh-card-body-link">+ Nuovo intervento ›</a>
-            <a href="{{ url_maintenance_schedule }}" class="mh-card-body-link">Apri scadenzario completo ›</a>
-          </div>
-        </div>
-      </div>
-      {% endif %}
-
-    </div>
-
-    <!-- ── Colonna destra ──────────────────────────────────────────────── -->
-    <div class="mh-side">
-
-      <!-- Prossimi 7 giorni -->
-      <div class="mh-card">
-        <div class="mh-card-head">
-          <span class="mh-card-head-title">Agenda 7 giorni</span>
-          {% if next7_items %}<span class="mh-card-head-badge mh-badge-blue">{{ next7_items|length }}</span>{% endif %}
-        </div>
-        <div class="mh-card-body">
-          {% if next7_items %}
-          <div class="mh-next-list">
-            {% for item in next7_items %}
-              <div class="mh-next-item">
-                <span class="mh-next-date">{{ item.due_date|date:"d/m" }}</span>
-                <span class="mh-next-label">{{ item.title }}</span>
-                <span class="mh-next-type t-{{ item.kind }}">{{ item.kind_label }}</span>
-              </div>
-            {% endfor %}
-          </div>
-          {% else %}
-          <span class="mh-empty">Nessuna scadenza nei prossimi 7 giorni.</span>
-          {% endif %}
-          <div class="mh-agenda-links" aria-label="Registri scadenze">
-            <a href="{{ url_maintenance_schedule }}" class="mh-card-body-link">Scadenzario</a>
-            <a href="{{ url_hub_scadenze }}" class="mh-card-body-link">Scadenze amministrative</a>
-            <a href="{{ url_hub_verifiche }}" class="mh-card-body-link">Verifiche</a>
-          </div>
-        </div>
-      </div>
-
-    </div>
-  </div>
-
-  {% else %}
-  <!-- ═══════════════════════ TAB: SCADENZARIO ════════════════════════════ -->
-
-  <div class="sc-subtabs">
-    <a href="?tab=scadenzario&sub=verifiche" class="sc-subtab {% if scad_sub == 'verifiche' %}is-active{% endif %}">
-      Verifiche periodiche
-      {% if overdue_verifications %}<span class="sc-subtab-badge sc-badge-red">{{ overdue_verifications }}</span>
-      {% elif upcoming_verifications %}<span class="sc-subtab-badge sc-badge-amber">{{ upcoming_verifications }}</span>{% endif %}
-    </a>
-    <a href="?tab=scadenzario&sub=scadenze" class="sc-subtab {% if scad_sub == 'scadenze' %}is-active{% endif %}">
-      Scadenze amministrative
-      {% if overdue_deadlines %}<span class="sc-subtab-badge sc-badge-red">{{ overdue_deadlines }}</span>
-      {% elif upcoming_deadlines %}<span class="sc-subtab-badge sc-badge-amber">{{ upcoming_deadlines }}</span>{% endif %}
-    </a>
-    <a href="?tab=scadenzario&sub=contratti" class="sc-subtab {% if scad_sub == 'contratti' %}is-active{% endif %}">
-      Contratti assistenza
-      {% if contracts_expiring %}<span class="sc-subtab-badge sc-badge-amber">{{ contracts_expiring }}</span>{% endif %}
-    </a>
-  </div>
-
-  {% if scad_sub == 'verifiche' %}
-  <div class="sc-card">
-    <div class="sc-card-head">
-      <span class="sc-card-title">Verifiche periodiche</span>
-      <a href="{{ url_verifications_full }}" class="sc-fullpage-link">Gestione completa &rsaquo;</a>
-    </div>
-    <div class="sc-filters">
-      <form method="get" class="sc-filters-form">
-        <input type="hidden" name="tab" value="scadenzario">
-        <input type="hidden" name="sub" value="verifiche">
-        <label class="sc-filter-label" for="sc-scope-select">Scope:</label>
-        <select id="sc-scope-select" name="scope" title="Filtra per scope" onchange="this.form.submit()">
-          <option value="all"        {% if scope_filter == 'all' %}selected{% endif %}>Tutti</option>
-          <option value="production" {% if scope_filter == 'production' %}selected{% endif %}>Produzione</option>
-          <option value="it"         {% if scope_filter == 'it' %}selected{% endif %}>IT</option>
-        </select>
-      </form>
-    </div>
-    <div class="sc-card-body">
-      {% if verif_rows %}
-        <div class="sc-table-wrap">
-          <table class="sc-table">
-            <thead><tr>
-              <th>Piano</th><th>Fornitore</th><th>Cadenza</th><th>Prossima verifica</th><th>Stato</th><th>Asset collegati</th>
-            </tr></thead>
-            <tbody>
-              {% for row in verif_rows %}
-              <tr data-row-href="{{ url_verifications_full }}">
-                <td><strong>{{ row.v.name }}</strong></td>
-                <td class="sc-muted">{{ row.v.supplier|default:"—" }}</td>
-                <td class="sc-muted">{{ row.v.frequency_months }} mesi</td>
-                <td>
-                  {% if row.v.next_verification_date %}
-                    {{ row.v.next_verification_date|date:"d/m/Y" }}
-                    {% if row.days_left is not None %}
-                      <span class="sc-days-badge {% if row.days_left < 0 %}red{% elif row.days_left <= 30 %}amber{% else %}green{% endif %}">
-                        {% if row.days_left < 0 %}{{ row.days_abs }}gg fa{% else %}fra {{ row.days_left }}gg{% endif %}
-                      </span>
-                    {% endif %}
-                  {% else %}<span class="sc-muted">—</span>{% endif %}
-                </td>
-                <td>
-                  <span class="sc-pill {{ row.state }}">
-                    {% if row.state == 'danger' %}Scaduta{% elif row.state == 'warn' %}In scadenza{% elif row.state == 'ok' %}Ok{% else %}N/D{% endif %}
-                  </span>
-                </td>
-                <td>
-                  <div class="sc-chips">
-                    {% for asset in row.v.assets.all|slice:":4" %}
-                      <a href="{% url 'assets:asset_view' asset.id %}" class="sc-chip">{{ asset.asset_tag }}</a>
-                    {% empty %}<span class="sc-muted">—</span>{% endfor %}
-                    {% if row.v.assets.count > 4 %}<span class="sc-chip">+{{ row.v.assets.count|add:"-4" }}</span>{% endif %}
-                  </div>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      {% else %}
-        <div class="sc-empty-rich">
-          <div class="sc-empty-icon">&#128203;</div>
-          <div class="sc-empty-title">Nessuna verifica periodica configurata</div>
-          <div class="sc-empty-text">Le verifiche periodiche (es. controlli su attrezzature, sollevamento, antincendio) compaiono qui una volta create. Per questo scope non ce ne sono ancora.</div>
-          <a href="{{ url_verifications_full }}" class="sc-empty-cta">+ Configura una verifica</a>
-        </div>
+      <article class="ux-card">
+        <header class="ux-card-head"><div><h3>Ticket manutenzione aperti</h3><p>Segnalazioni ancora presenti nel flusso ticket.</p></div></header>
+        <div class="ux-table-wrap"><table class="ux-table"><thead><tr><th>#</th><th>Oggetto</th><th>Aperto il</th><th>Assegnato a</th></tr></thead><tbody>{% for t in man_tickets|slice:":10" %}<tr data-row-href="{% url 'tickets:detail' t.pk %}"><td><a class="ux-link" href="{% url 'tickets:detail' t.pk %}">{{ t.pk }}</a></td><td class="ux-primary">{{ t.oggetto|default:t.descrizione|truncatechars:70 }}</td><td>{% if t.data_apertura %}{{ t.data_apertura|date:"d/m/Y" }}{% else %}—{% endif %}</td><td>{% if t.assegnato_a %}{{ t.assegnato_a.get_full_name|default:t.assegnato_a.username }}{% else %}—{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+      </article>
       {% endif %}
     </div>
-  </div>
-  {% endif %}
 
-  {% if scad_sub == 'scadenze' %}
-  <div class="sc-card">
-    <div class="sc-card-head">
-      <span class="sc-card-title">Scadenze amministrative</span>
-      <a href="{{ url_deadlines_full }}" class="sc-fullpage-link">Gestione completa &rsaquo;</a>
-    </div>
-    <div class="sc-filters">
-      <form method="get" class="sc-filters-form">
-        <input type="hidden" name="tab" value="scadenzario">
-        <input type="hidden" name="sub" value="scadenze">
-        <label class="sc-filter-label" for="sc-dtype-select">Tipo:</label>
-        <select id="sc-dtype-select" name="dtype" title="Filtra per tipo scadenza" onchange="this.form.submit()">
-          <option value="">Tutti</option>
-          {% for val, label in deadline_type_choices %}
-            <option value="{{ val }}" {% if deadline_type_filter == val %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </form>
-    </div>
-    <div class="sc-card-body">
-      {% if deadline_rows %}
-        <div class="sc-table-wrap">
-          <table class="sc-table">
-            <thead><tr>
-              <th>Titolo</th><th>Asset</th><th>Tipo</th><th>Scadenza</th><th>Stato</th>
-            </tr></thead>
-            <tbody>
-              {% for row in deadline_rows %}
-              <tr{% if row.d.asset %} data-row-href="{% url 'assets:asset_view' row.d.asset.id %}"{% endif %}>
-                <td><strong>{{ row.d.title }}</strong>{% if row.d.reference_code %} <span class="sc-muted">({{ row.d.reference_code }})</span>{% endif %}</td>
-                <td>
-                  {% if row.d.asset %}
-                    <a href="{% url 'assets:asset_view' row.d.asset.id %}" class="sc-tag">{{ row.d.asset.asset_tag }}</a>
-                    <span class="sc-cell-sub">{{ row.d.asset.name|truncatechars:30 }}</span>
-                  {% else %}<span class="sc-muted">—</span>{% endif %}
-                </td>
-                <td class="sc-muted">{{ row.d.get_deadline_type_display }}</td>
-                <td>
-                  {{ row.d.due_date|date:"d/m/Y" }}
-                  {% if row.days_left is not None %}
-                    <span class="sc-days-badge {% if row.days_left < 0 %}red{% elif row.days_left <= 30 %}amber{% else %}green{% endif %}">
-                      {% if row.days_left < 0 %}{{ row.days_abs }}gg fa{% else %}fra {{ row.days_left }}gg{% endif %}
-                    </span>
-                  {% endif %}
-                </td>
-                <td>
-                  <span class="sc-pill {{ row.state }}">
-                    {% if row.state == 'danger' %}Scaduta{% elif row.state == 'warn' %}In scadenza{% elif row.state == 'ok' %}Ok{% else %}N/D{% endif %}
-                  </span>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+    <aside class="mh2-side">
+      <article class="ux-card">
+        <header class="ux-card-head"><div><h3>Agenda 7 giorni</h3><p>Le prossime scadenze in ordine temporale.</p></div></header>
+        <div class="ux-card-body ux-list">
+          {% for item in next7_items %}<a class="ux-list-item" href="{{ item.url|default:url_maintenance_schedule }}"><span class="ux-datebox">{{ item.due_date|date:"d" }}<br>{{ item.due_date|date:"M" }}</span><span class="ux-list-main"><strong>{{ item.title }}</strong><span>{{ item.kind_label }}</span></span><span>&rsaquo;</span></a>{% empty %}<div class="ux-empty">Nessuna scadenza nei prossimi 7 giorni.</div>{% endfor %}
         </div>
-      {% else %}
-        {% if deadline_type_filter %}
-          <div class="sc-empty">Nessuna scadenza amministrativa attiva per questo tipo.</div>
-        {% else %}
-          <div class="sc-empty-rich">
-            <div class="sc-empty-icon">&#128197;</div>
-            <div class="sc-empty-title">Nessuna scadenza amministrativa attiva</div>
-            <div class="sc-empty-text">Scadenze tecniche o amministrative manuali (collaudi, omologazioni, revisioni) collegate agli asset. Aggiungine una per tenerle sotto controllo qui.</div>
-            <a href="{{ url_deadlines_full }}" class="sc-empty-cta">+ Aggiungi scadenza</a>
-          </div>
-        {% endif %}
-      {% endif %}
-    </div>
-  </div>
-  {% endif %}
+      </article>
 
-  {% if scad_sub == 'contratti' %}
-  <div class="sc-card">
-    <div class="sc-card-head">
-      <span class="sc-card-title">Contratti assistenza</span>
-      <a href="{{ url_contracts_full }}" class="sc-fullpage-link">Gestione completa &rsaquo;</a>
-    </div>
-    <div class="sc-card-body">
-      {% if contract_rows %}
-        <div class="sc-table-wrap">
-          <table class="sc-table">
-            <thead><tr>
-              <th>Contratto</th><th>Fornitore</th><th>Tipo</th><th>Copertura</th><th>Scadenza</th><th>Stato</th>
-            </tr></thead>
-            <tbody>
-              {% for row in contract_rows %}
-              <tr{% if row.c.asset %} data-row-href="{% url 'assets:asset_view' row.c.asset.id %}"{% endif %}>
-                <td>
-                  <strong>{{ row.c.title }}</strong>
-                  {% if row.c.code %}<span class="sc-cell-code">{{ row.c.code }}</span>{% endif %}
-                </td>
-                <td class="sc-muted">{{ row.c.supplier|default:"—" }}</td>
-                <td class="sc-muted">{{ row.c.get_contract_type_display }}</td>
-                <td>
-                  {% if row.c.asset %}<a href="{% url 'assets:asset_view' row.c.asset.id %}" class="sc-tag">{{ row.c.asset.asset_tag }}</a>
-                  {% elif row.c.asset_category %}<span class="sc-muted">{{ row.c.asset_category.label }}</span>
-                  {% else %}<span class="sc-muted">Tutte le categorie</span>{% endif %}
-                </td>
-                <td>
-                  {% if row.c.end_date %}
-                    {{ row.c.end_date|date:"d/m/Y" }}
-                    {% if row.days_left is not None %}
-                      <span class="sc-days-badge {% if row.days_left < 0 %}red{% elif row.days_left <= 30 %}amber{% else %}green{% endif %}">
-                        {% if row.days_left < 0 %}{{ row.days_abs }}gg fa{% else %}fra {{ row.days_left }}gg{% endif %}
-                      </span>
-                    {% endif %}
-                  {% else %}<span class="sc-muted">Nessuna scadenza</span>{% endif %}
-                </td>
-                <td>
-                  <span class="sc-pill {{ row.state }}">
-                    {% if row.state == 'danger' %}Scaduto{% elif row.state == 'warn' %}In scadenza{% elif row.state == 'ok' %}Attivo{% else %}Aperto{% endif %}
-                  </span>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+      <article class="ux-card">
+        <header class="ux-card-head"><div><h3>Accessi rapidi</h3><p>I registri completi restano disponibili senza affollare il cruscotto.</p></div></header>
+        <div class="ux-card-body" style="display:grid;gap:8px">
+          <a class="ux-btn" href="{{ url_maintenance_schedule }}">Scadenzario completo</a>
+          <a class="ux-btn" href="{{ url_hub_scadenze }}">Scadenze amministrative</a>
+          <a class="ux-btn" href="{{ url_hub_verifiche }}">Verifiche periodiche</a>
+          <a class="ux-btn" href="{{ url_wo_done }}">Storico interventi</a>
         </div>
-      {% else %}
-        <div class="sc-empty-rich">
-          <div class="sc-empty-icon">&#128188;</div>
-          <div class="sc-empty-title">Nessun contratto assistenza attivo</div>
-          <div class="sc-empty-text">Registra i contratti di assistenza/manutenzione con i fornitori per monitorarne copertura e scadenza direttamente dallo scadenzario.</div>
-          <a href="{{ url_contracts_full }}" class="sc-empty-cta">+ Aggiungi contratto</a>
-        </div>
-      {% endif %}
-    </div>
+      </article>
+    </aside>
   </div>
-  {% endif %}
 
-  {% endif %}
-
-</div>
+  <nav class="mh2-links" aria-label="Aree manutenzione">
+    <a class="mh2-link" href="{{ url_wo_open }}"><strong>Interventi</strong><span>Coda operativa, assegnazioni, avanzamento e chiusura.</span></a>
+    <a class="mh2-link" href="{{ url_impostazioni }}?tab=piani"><strong>Piani di manutenzione</strong><span>Frequenze, asset collegati, responsabili e automazione.</span></a>
+    <a class="mh2-link" href="{{ url_impostazioni }}?tab=catalogo"><strong>Catalogo attività</strong><span>Procedure standard, checklist, tempi e materiali.</span></a>
+    <a class="mh2-link" href="{{ url_wo_done }}"><strong>Storico</strong><span>Esecuzioni concluse, esiti, tecnici, tempi e costi.</span></a>
+  </nav>
+</section>
 {% endblock %}

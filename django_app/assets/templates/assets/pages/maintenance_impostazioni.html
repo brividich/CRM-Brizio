@@ -3,513 +3,79 @@
 {% block title %}Catalogo e piani manutenzione{% endblock %}
 
 {% block assets_shell_head %}
-<style>
-.mi-page { display:grid; gap:20px; }
-.mi-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
-.mi-summary-card { border:1px solid #dbe1ea; border-radius:12px; background:#fff; padding:13px 15px; }
-.mi-summary-value { font-size:var(--fs-display-lg); font-weight:850; color:#0f172a; }
-.mi-summary-label { color:#64748b; font-size:var(--fs-sm); margin-top:3px; }
-
-/* ── Tab bar ───────────────────────────────────────────────────────── */
-.mi-tabs {
-  display:flex;
-  gap:0;
-  border-bottom:2px solid #e5e7eb;
-}
-.mi-tab {
-  display:inline-flex;
-  align-items:center;
-  gap:8px;
-  padding:10px 20px;
-  font-size:var(--fs-sm);
-  font-weight:700;
-  color:#64748b;
-  text-decoration:none;
-  border-radius:10px 10px 0 0;
-  border:2px solid transparent;
-  border-bottom:none;
-  margin-bottom:-2px;
-  transition:color .12s, background .12s;
-}
-.mi-tab:hover       { color:#1d4ed8; background:#f0f6ff; }
-.mi-tab.is-active   { color:#1d4ed8; background:#fff; border-color:#e5e7eb; border-bottom-color:#fff; }
-.mi-tab-badge {
-  display:inline-flex; align-items:center; justify-content:center;
-  min-width:20px; height:20px; padding:0 5px;
-  border-radius:999px; font-size:10px; font-weight:900;
-  background:#dbeafe; color:#1e40af;
-}
-
-/* ── Card ──────────────────────────────────────────────────────────── */
-.mi-card {
-  border:1px solid #e2e8f0;
-  border-radius:16px;
-  background:#fff;
-  overflow:hidden;
-  box-shadow:0 1px 4px rgba(15,23,42,.04);
-}
-.mi-card-head {
-  padding:14px 18px;
-  border-bottom:1px solid #f1f5f9;
-  display:flex;
-  align-items:center;
-  gap:10px;
-  flex-wrap:wrap;
-}
-.mi-card-title { font-size:var(--fs-md); font-weight:800; color:#0f172a; flex:1; min-width:0; }
-.mi-new-btn {
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-  padding:6px 14px;
-  background:#1d4ed8;
-  color:#fff;
-  border-radius:8px;
-  font-size:var(--fs-sm);
-  font-weight:700;
-  text-decoration:none;
-  border:none;
-  cursor:pointer;
-  transition:background .12s;
-}
-.mi-new-btn:hover { background:#1e40af; }
-
-/* ── Barra filtri ──────────────────────────────────────────────────── */
-.mi-filters {
-  display:flex; flex-wrap:wrap; align-items:center; gap:10px;
-  padding:12px 14px; background:#f8fafc;
-  border:1px solid #e2e8f0; border-radius:12px;
-}
-.mi-filter-field {
-  padding:7px 10px; font-size:var(--fs-sm);
-  border:1px solid #cbd5e1; border-radius:8px;
-  background:#fff; color:#1e293b;
-}
-.mi-filter-search { flex:1; min-width:180px; }
-.mi-filter-field:focus { outline:2px solid #93c5fd; outline-offset:1px; }
-body.theme-dark .mi-filters { background:#162032; border-color:#334155; }
-body.theme-dark .mi-filter-field { background:#1e293b; border-color:#3b4e6b; color:var(--text); }
-
-/* ── Tabella ───────────────────────────────────────────────────────── */
-.mi-table-wrap { overflow-x:auto; }
-.mi-table { width:100%; border-collapse:collapse; }
-.mi-table th {
-  text-align:left;
-  padding:10px 14px;
-  background:#f8fafc;
-  border-bottom:1px solid #e5e7eb;
-  color:#64748b;
-  font-size:var(--fs-xs);
-  text-transform:uppercase;
-  letter-spacing:.06em;
-  font-weight:800;
-  white-space:nowrap;
-}
-.mi-table td {
-  padding:11px 14px;
-  border-bottom:1px solid #f1f5f9;
-  color:#1e293b;
-  font-size:var(--fs-sm);
-  vertical-align:middle;
-}
-.mi-table tbody tr:last-child td { border-bottom:none; }
-
-/* ── Template rows (accordion) ─────────────────────────────────────── */
-.mi-tmpl-row {
-  cursor:pointer;
-  -webkit-user-select:none;
-  user-select:none;
-  transition:background .1s;
-}
-.mi-tmpl-row:hover td { background:#f8fafc; }
-.mi-tmpl-row td { font-weight:700; }
-.mi-tmpl-expand {
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  width:22px; height:22px;
-  border-radius:6px;
-  background:#f1f5f9;
-  color:#64748b;
-  font-size:11px;
-  transition:transform .18s;
-  flex-shrink:0;
-}
-.mi-tmpl-row.is-open .mi-tmpl-expand { transform:rotate(180deg); }
-.mi-rules-tbody { display:none; }
-.mi-rules-tbody.is-open { display:table-row-group; }
-.mi-rule-row td {
-  background:#f9fafb;
-  border-left:3px solid #e0e7ff;
-  padding-left:26px;
-}
-.mi-rule-row:last-child td { border-bottom:1px solid #e9edf2; }
-.mi-rule-label {
-  font-size:var(--fs-xs);
-  font-weight:700;
-  color:#94a3b8;
-  text-transform:uppercase;
-  letter-spacing:.05em;
-}
-.mi-rule-name { display:block; font-weight:600; }
-.mi-ext-badge { display:inline-block; font-size:10px; font-weight:800; padding:1px 6px; border-radius:999px; background:#ede9fe; color:#6d28d9; margin-left:4px; white-space:nowrap; }
-body.theme-dark .mi-ext-badge { background:rgba(109,40,217,.28); color:#c4b5fd; }
-.mi-rule-add-link  { font-size:var(--fs-xs); }
-.mi-rule-warning   { display:block; font-size:var(--fs-xs); margin-top:2px; }
-.mi-placeholder-cell { display:inline-block; width:22px; }
-.mi-desc {
-  display:block;
-  font-size:var(--fs-xs);
-  font-weight:400;
-  margin-top:2px;
-  color:#94a3b8;
-}
-
-/* ── Elementi comuni ───────────────────────────────────────────────── */
-.mi-pill {
-  display:inline-flex; align-items:center;
-  padding:3px 9px; border-radius:999px;
-  font-size:var(--fs-xs); font-weight:800; white-space:nowrap;
-}
-.mi-pill.active   { background:#dcfce7; color:#15803d; }
-.mi-pill.inactive { background:#f1f5f9; color:#64748b; }
-.mi-pill.warn     { background:#fef3c7; color:#a16207; }
-.mi-pill.blue     { background:#dbeafe; color:#1e40af; }
-.mi-pill.danger   { background:#fee2e2; color:#b91c1c; text-decoration:none; }
-a.mi-pill.danger:hover { background:#fecaca; }
-.mi-badge {
-  display:inline-block; padding:2px 8px;
-  border-radius:6px; font-size:var(--fs-xs); font-weight:700;
-  background:#eff6ff; color:#1e40af;
-}
-.mi-muted { color:#94a3b8; }
-.mi-link  { color:#1d4ed8; text-decoration:none; font-weight:700; }
-.mi-link:hover { text-decoration:underline; }
-.mi-tag {
-  font-family:monospace; font-size:var(--fs-xs); font-weight:800;
-  background:#eff6ff; color:#1d4ed8; padding:2px 6px;
-  border-radius:5px; text-decoration:none;
-}
-.mi-empty {
-  padding:32px 18px; text-align:center;
-  color:#94a3b8; font-size:var(--fs-sm);
-}
-.mi-plan-intro {
-  padding:12px 18px; color:#64748b; font-size:var(--fs-sm);
-  background:#f8fafc; border-bottom:1px solid #f1f5f9;
-}
-body.theme-dark .mi-plan-intro { background:#162032; border-color:#253347; color:#94a3b8; }
-
-
-/* Pulsante "Genera OdL" nel Piano */
-.mi-gen-form { margin:0 0 6px; }
-.mi-gen-btn { display:inline-flex; align-items:center; gap:5px; padding:5px 11px; background:#1d4ed8; color:#fff; border:none; border-radius:8px; font-size:var(--fs-xs); font-weight:800; cursor:pointer; }
-.mi-gen-btn:hover { background:#1e40af; }
-.mi-scope-tag {
-  font-size:var(--fs-xs); padding:2px 7px; border-radius:5px;
-  font-weight:700;
-}
-.mi-scope-it   { background:#eff6ff; color:#1d4ed8; }
-.mi-scope-prod { background:#f0fdf4; color:#15803d; }
-.mi-scope-all  { background:#f8fafc; color:#475569; }
-
-/* ── Dark mode ─────────────────────────────────────────────────────── */
-body.theme-dark .mi-tabs       { border-color:#334155; }
-body.theme-dark .mi-tab        { color:#94a3b8; }
-body.theme-dark .mi-tab:hover  { color:#60a5fa; background:#1e2d44; }
-body.theme-dark .mi-tab.is-active {
-  color:#60a5fa; background:#1e293b;
-  border-color:#334155; border-bottom-color:#1e293b;
-}
-body.theme-dark .mi-card       { background:#1e293b; border-color:#334155; box-shadow:none; }
-body.theme-dark .mi-card-head  { border-color:#334155; }
-body.theme-dark .mi-card-title { color:var(--text); }
-body.theme-dark .mi-table th   { background:#162032; border-color:#334155; color:#94a3b8; }
-body.theme-dark .mi-table td   { color:var(--text); border-color:#253347; }
-body.theme-dark .mi-tmpl-row:hover td { background:#253347; }
-body.theme-dark .mi-tmpl-expand { background:#253347; color:#94a3b8; }
-body.theme-dark .mi-rule-row td { background:#162032; border-left-color:#3b4e6b; }
-body.theme-dark .mi-badge      { background:#1e3a5f; color:#93c5fd; }
-body.theme-dark .mi-tag        { background:#1e3a5f; color:#93c5fd; }
-body.theme-dark .mi-link       { color:#60a5fa; }
-body.theme-dark .mi-muted      { color:#64748b; }
-body.theme-dark .mi-scope-it   { background:#0d1f3c; color:#93c5fd; }
-body.theme-dark .mi-scope-prod { background:#0d2e18; color:#86efac; }
-body.theme-dark .mi-scope-all  { background:#253347; color:#94a3b8; }
-body.theme-dark .mi-pill.active   { background:rgba(21,128,61,.25); color:#86efac; }
-body.theme-dark .mi-pill.inactive { background:rgba(255,255,255,.07); color:#64748b; }
-body.theme-dark .mi-pill.warn     { background:rgba(161,98,7,.25); color:#fde68a; }
-body.theme-dark .mi-pill.blue     { background:rgba(37,99,235,.25); color:#93c5fd; }
-body.theme-dark .mi-pill.danger   { background:rgba(185,28,28,.25); color:#fca5a5; }
-body.theme-dark .mi-tab-badge { background:#1e3a5f; color:#93c5fd; }
-body.theme-dark .mi-rule-label { color:#475569; }
-body.theme-dark .mi-summary-card { background:var(--surface); border-color:var(--border); }
-body.theme-dark .mi-summary-value { color:var(--text); }
-
-/* ── Responsive ────────────────────────────────────────────────────── */
-@media (max-width:600px) {
-  .mi-tab  { padding:8px 10px; font-size:var(--fs-xs); }
-  .mi-card-head { gap:8px; }
-}
-@media (max-width:800px) { .mi-summary { grid-template-columns:1fr; } }
-</style>
+  {% include "assets/components/maintenance_ux_v2_styles.html" %}
+  <style>
+    .mi2-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.mi2-guide-wrap{display:grid;grid-template-columns:minmax(0,1fr) 460px;gap:12px;align-items:stretch}.mi2-info{padding:14px 16px;border:1px solid #bfdbfe;border-radius:12px;background:#f8fbff}.mi2-info strong{color:#1d4ed8}.mi2-info p{margin:5px 0 0;color:#64748b;font-size:var(--fs-sm);line-height:1.45}.mi2-actions{display:flex;gap:6px;flex-wrap:wrap}.mi2-plan-actions{display:flex;gap:5px;flex-wrap:wrap;align-items:center}.mi2-gen{margin:0}.mi2-gen button{border:0}.mi2-muted{color:#64748b;font-size:var(--fs-xs)}
+    @media(max-width:1100px){.mi2-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.mi2-guide-wrap{grid-template-columns:1fr}}@media(max-width:650px){.mi2-summary{grid-template-columns:1fr}}
+    body.theme-dark .mi2-info{background:var(--surface);border-color:var(--border)}body.theme-dark .mi2-info p,.theme-dark .mi2-muted{color:var(--text-light)}
+  </style>
 {% endblock %}
 
 {% block assets_shell_title %}Catalogo e piani manutenzione{% endblock %}
-{% block assets_shell_subtitle %}
-<p>Definisci cosa fare, su quali asset, con quale frequenza e chi ne e responsabile.</p>
-{% endblock %}
+{% block assets_shell_subtitle %}<p>Definisci il lavoro una volta, collegalo agli asset e governa frequenze e responsabilità senza duplicare informazioni.</p>{% endblock %}
 {% block assets_shell_toolbar %}
-  <a class="btn" href="{{ url_hub }}">&#8592; Hub manutenzione</a>
+  <a class="btn" href="{{ url_hub }}">&larr; Hub manutenzione</a>
   <a class="btn" href="{{ url_scadenzario }}">Scadenzario</a>
   <a class="btn" href="{% url 'assets:maintenance_history' %}">Storico</a>
+  {% if active_tab == 'catalogo' %}<a class="btn btn-primary" href="{% url 'assets:maintenance_template_create' %}">+ Nuova attività</a>{% elif active_tab == 'piani' %}<a class="btn btn-primary" href="{% url 'assets:maintenance_rule_create' %}">+ Nuovo piano</a>{% endif %}
 {% endblock %}
 
 {% block assets_shell_content %}
-<div class="mi-page">
+<section class="ux-page">
+  <nav class="ux-tabs" aria-label="Catalogo e piani">
+    <a class="ux-tab {% if active_tab == 'catalogo' %}active{% endif %}" href="?tab=catalogo">Attività <span class="ux-count">{{ template_count }}</span></a>
+    <a class="ux-tab {% if active_tab == 'piani' %}active{% endif %}" href="?tab=piani">Piani di manutenzione <span class="ux-count">{{ maintenance_plan_count }}</span></a>
+    <a class="ux-tab {% if active_tab == 'copertura' %}active{% endif %}" href="?tab=copertura">Copertura / salute {% if plan_category_count %}<span class="ux-count">{{ plan_category_count }}</span>{% endif %}</a>
+  </nav>
 
-  <!-- TAB BAR ──────────────────────────────────────────────────────── -->
-  <div class="mi-tabs">
-    <a href="?tab=catalogo" class="mi-tab {% if active_tab == 'catalogo' %}is-active{% endif %}">
-      Catalogo attivita
-      <span class="mi-tab-badge">{{ template_count }}</span>
-    </a>
-    <a href="?tab=piani" class="mi-tab {% if active_tab == 'piani' %}is-active{% endif %}">
-      Piani ordinari
-      <span class="mi-tab-badge">{{ maintenance_plan_count }}</span>
-    </a>
-    <a href="?tab=copertura" class="mi-tab {% if active_tab == 'copertura' %}is-active{% endif %}">
-      Copertura
-      {% if plan_category_count %}<span class="mi-tab-badge">{{ plan_category_count }}</span>{% endif %}
-    </a>
-  </div>
-
-  <section class="mi-summary" aria-label="Sintesi configurazione manutenzione">
-    <article class="mi-summary-card"><div class="mi-summary-value">{{ template_count }}</div><div class="mi-summary-label">tipi di attivita visibili</div></article>
-    <article class="mi-summary-card"><div class="mi-summary-value">{{ maintenance_plan_count }}</div><div class="mi-summary-label">piani ordinari visibili</div></article>
-    <article class="mi-summary-card"><div class="mi-summary-value">{{ ingested_periodic_count }}</div><div class="mi-summary-label">vecchi piani inglobati{% if pending_periodic_count %} · {{ pending_periodic_count }} da completare{% endif %}</div></article>
+  <section class="mi2-summary">
+    <article class="ux-kpi"><span class="ux-kpi-icon">&#128736;</span><span><span class="ux-kpi-label">Attività</span><span class="ux-kpi-value">{{ template_count }}</span><span class="ux-kpi-note">Procedure riutilizzabili</span></span><span>&rsaquo;</span></article>
+    <article class="ux-kpi"><span class="ux-kpi-icon">&#128197;</span><span><span class="ux-kpi-label">Piani</span><span class="ux-kpi-value">{{ maintenance_plan_count }}</span><span class="ux-kpi-note">Regole attive e visibili</span></span><span>&rsaquo;</span></article>
+    <article class="ux-kpi"><span class="ux-kpi-icon">&#10003;</span><span><span class="ux-kpi-label">Piani inglobati</span><span class="ux-kpi-value">{{ ingested_periodic_count }}</span><span class="ux-kpi-note">Migrazione completata</span></span><span>&rsaquo;</span></article>
+    <article class="ux-kpi {% if pending_periodic_count %}warn{% else %}ok{% endif %}"><span class="ux-kpi-icon">&#9888;</span><span><span class="ux-kpi-label">Da completare</span><span class="ux-kpi-value">{{ pending_periodic_count }}</span><span class="ux-kpi-note">Vecchi piani ancora da gestire</span></span><span>&rsaquo;</span></article>
   </section>
 
-  <!-- Barra filtri integrata (sostituisce le vecchie pagine "Vista avanzata") -->
+  <div class="mi2-guide-wrap">
+    <div class="mi2-info"><strong>Come leggere il modello</strong><p><b>Attività</b> = cosa fare (istruzioni, checklist, durata). <b>Piano</b> = dove e quando farlo (asset, frequenza, responsabile, fornitore e apertura OdL). Le entità tecniche restano tracciate nel backend, ma l'utente vede concetti operativi.</p></div>
+    <article class="ux-card"><div class="ux-card-body"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><strong style="color:#0f172a">Creazione rapida piano</strong><div class="mi2-muted">Tre passaggi per evitare form troppo lunghi.</div></div><a class="ux-btn primary sm" href="{% url 'assets:maintenance_rule_create' %}">+ Nuovo piano</a></div><div class="ux-guide" style="margin-top:10px"><div class="ux-guide-step"><span class="ux-guide-num">1</span><strong>Scegli attività</strong><span>Parti da una procedura esistente.</span></div><div class="ux-guide-step"><span class="ux-guide-num">2</span><strong>Collega asset</strong><span>Categoria, gruppo o asset specifici.</span></div><div class="ux-guide-step"><span class="ux-guide-num">3</span><strong>Definisci frequenza</strong><span>Responsabile, soglia e automazione.</span></div></div></div></article>
+  </div>
+
   {% if active_tab != 'copertura' %}
-  <form method="get" class="mi-filters" role="search">
+  <form method="get" class="ux-filters">
     <input type="hidden" name="tab" value="{{ active_tab }}">
-    <select name="category" class="mi-filter-field" aria-label="Filtra per categoria">
-      <option value="">Tutte le categorie</option>
-      {% for cat in category_options %}
-        <option value="{{ cat.id }}" {% if selected_category and selected_category.id == cat.id %}selected{% endif %}>{{ cat.label }}</option>
-      {% endfor %}
-    </select>
-    <select name="active" class="mi-filter-field" aria-label="Filtra per stato">
-      <option value="active"   {% if active_filter == 'active' %}selected{% endif %}>Solo attivi</option>
-      <option value="inactive" {% if active_filter == 'inactive' %}selected{% endif %}>Solo inattivi</option>
-      <option value="all"      {% if active_filter == 'all' %}selected{% endif %}>Tutti</option>
-    </select>
-    <select name="execution" class="mi-filter-field" aria-label="Filtra per esecuzione interna/esterna">
-      <option value="all"      {% if execution_filter == 'all' %}selected{% endif %}>Interne + esterne</option>
-      <option value="internal" {% if execution_filter == 'internal' %}selected{% endif %}>Solo interne</option>
-      <option value="external" {% if execution_filter == 'external' %}selected{% endif %}>Solo esterne</option>
-    </select>
-    <input type="search" name="q" value="{{ q }}" class="mi-filter-field mi-filter-search"
-           placeholder="Cerca intervento, codice o categoria…" aria-label="Ricerca">
-    <button type="submit" class="mi-new-btn">Filtra</button>
-    {% if has_active_filters %}
-      <a href="{{ clear_filters_url }}" class="mi-link">Azzera</a>
-    {% endif %}
+    <div class="ux-field"><label>Categoria</label><select name="category"><option value="">Tutte</option>{% for cat in category_options %}<option value="{{ cat.id }}" {% if selected_category and selected_category.id == cat.id %}selected{% endif %}>{{ cat.label }}</option>{% endfor %}</select></div>
+    <div class="ux-field"><label>Stato</label><select name="active"><option value="active" {% if active_filter == 'active' %}selected{% endif %}>Solo attivi</option><option value="inactive" {% if active_filter == 'inactive' %}selected{% endif %}>Solo inattivi</option><option value="all" {% if active_filter == 'all' %}selected{% endif %}>Tutti</option></select></div>
+    <div class="ux-field"><label>Esecuzione</label><select name="execution"><option value="all" {% if execution_filter == 'all' %}selected{% endif %}>Interne + esterne</option><option value="internal" {% if execution_filter == 'internal' %}selected{% endif %}>Solo interne</option><option value="external" {% if execution_filter == 'external' %}selected{% endif %}>Solo esterne</option></select></div>
+    <div class="ux-field search"><label>Ricerca</label><input type="search" name="q" value="{{ q }}" placeholder="Attività, codice, categoria..."></div>
+    <button type="submit" class="ux-btn primary">Applica</button>{% if has_active_filters %}<a class="ux-btn" href="{{ clear_filters_url }}">Reset</a>{% endif %}
   </form>
   {% endif %}
 
-  <!-- TAB: CATALOGO ATTIVITA ───────────────────────────────────────── -->
   {% if active_tab == 'catalogo' %}
-
-  <details class="mi-card as-collapse as-collapse--cap" open>
-    <summary class="mi-card-head">
-      <span class="mi-card-title">Tipi di attivita riutilizzabili</span>
-      <a href="{% url 'assets:maintenance_template_create' %}" class="mi-new-btn">+ Nuovo tipo</a>
-    </summary>
-    <div class="mi-plan-intro">Il tipo descrive il lavoro: istruzioni, checklist, durata prevista e materiali. La frequenza e gli asset appartengono invece al piano.</div>
-    <div class="mi-table-wrap as-collapse-body">
-      <table class="mi-table">
-        <thead><tr>
-          <th scope="col">Attivita</th>
-          <th scope="col">Famiglia</th>
-          <th scope="col">Categoria</th>
-          <th scope="col">Durata</th>
-          <th scope="col">Piani</th>
-          <th scope="col">Stato</th>
-          <th scope="col" aria-label="Azioni"></th>
-        </tr></thead>
-        <tbody>
-        {% if template_rows %}
-          {% for row in template_rows %}
-            <tr>
-              <td>
-                <strong>{{ row.t.label }}</strong>
-                <span class="mi-desc"><span class="mi-tag">{{ row.t.code }}</span>{% if row.t.description %} · {{ row.t.description|truncatechars:75 }}{% endif %}</span>
-              </td>
-              <td><span class="mi-badge">{{ row.t.get_maintenance_type_display }}</span></td>
-              <td>
-                {% if row.t.asset_category %}
-                  <span class="mi-badge">{{ row.t.asset_category.label }}</span>
-                {% else %}
-                  <span class="mi-muted">Generale</span>
-                {% endif %}
-              </td>
-              <td>{% if row.t.estimated_duration_minutes %}{{ row.t.estimated_duration_minutes }} min{% else %}<span class="mi-muted">Da definire</span>{% endif %}</td>
-              <td>
-                {% if row.rules_count %}
-                  <span class="mi-badge">{{ row.rules_count }}</span>
-                {% else %}
-                  <span class="mi-muted">Nessuna</span>
-                {% endif %}
-              </td>
-              <td>
-                <span class="mi-pill {% if row.t.is_active %}active{% else %}inactive{% endif %}">
-                  {% if row.t.is_active %}Attivo{% else %}Inattivo{% endif %}
-                </span>
-              </td>
-              <td>
-                <a href="{% url 'assets:maintenance_template_edit' row.t.id %}" class="mi-link">Modifica</a>
-                <span class="mi-muted">·</span>
-                <a href="{% url 'assets:maintenance_rule_create' %}?template={{ row.t.id }}" class="mi-link">Crea piano</a>
-              </td>
-            </tr>
-          {% endfor %}
-        {% else %}
-            <tr>
-              <td colspan="7" class="mi-empty">
-                {% if has_active_filters %}
-                  Nessun tipo corrisponde ai filtri. <a href="{{ clear_filters_url }}" class="mi-link">Azzera i filtri</a>.
-                {% else %}
-                  Nessun tipo configurato. <a href="{% url 'assets:maintenance_template_create' %}" class="mi-link">Crea il primo.</a>
-                {% endif %}
-              </td>
-            </tr>
-        {% endif %}
-        </tbody>
-      </table>
-    </div>
-  </details>
+  <article class="ux-card">
+    <header class="ux-card-head"><div><h3>Attività di manutenzione</h3><p>Il catalogo descrive il lavoro; frequenza e asset vengono definiti nei piani.</p></div><a class="ux-btn primary" href="{% url 'assets:maintenance_template_create' %}">+ Nuova attività</a></header>
+    <div class="ux-table-wrap"><table class="ux-table"><thead><tr><th>Attività</th><th>Famiglia</th><th>Categoria</th><th>Durata</th><th>Piani collegati</th><th>Stato</th><th>Azioni</th></tr></thead><tbody>
+      {% for row in template_rows %}<tr><td><span class="ux-primary">{{ row.t.label }}</span><span class="ux-secondary">{{ row.t.code }}{% if row.t.description %} · {{ row.t.description|truncatechars:75 }}{% endif %}</span></td><td><span class="ux-pill info">{{ row.t.get_maintenance_type_display }}</span></td><td>{% if row.t.asset_category %}{{ row.t.asset_category.label }}{% else %}<span class="ux-secondary">Generale</span>{% endif %}</td><td>{% if row.t.estimated_duration_minutes %}{{ row.t.estimated_duration_minutes }} min{% else %}<span class="ux-secondary">Da definire</span>{% endif %}</td><td>{% if row.rules_count %}<span class="ux-pill info">{{ row.rules_count }}</span>{% else %}0{% endif %}</td><td><span class="ux-pill {% if row.t.is_active %}ok{% else %}muted{% endif %}">{% if row.t.is_active %}Attiva{% else %}Inattiva{% endif %}</span></td><td><div class="mi2-actions"><a class="ux-btn sm" href="{% url 'assets:maintenance_template_edit' row.t.id %}">Modifica</a><a class="ux-btn primary sm" href="{% url 'assets:maintenance_rule_create' %}?template={{ row.t.id }}">Crea piano</a></div></td></tr>{% empty %}<tr><td colspan="7"><div class="ux-empty">{% if has_active_filters %}Nessuna attività trovata con questi filtri. <a class="ux-link" href="{{ clear_filters_url }}">Azzera i filtri</a>.{% else %}Nessuna attività configurata. <a class="ux-link" href="{% url 'assets:maintenance_template_create' %}">Crea la prima</a>.{% endif %}</div></td></tr>{% endfor %}
+    </tbody></table></div>
+  </article>
   {% endif %}
 
-  <!-- TAB: PIANI ORDINARI ─────────────────────────────────────────── -->
   {% if active_tab == 'piani' %}
-  <details class="mi-card as-collapse as-collapse--cap" open>
-    <summary class="mi-card-head">
-      <span class="mi-card-title">Piani ordinari</span>
-      <a href="{{ url_suppliers }}" class="mi-link">Fornitori &rsaquo;</a>
-      <a href="{% url 'assets:maintenance_rule_create' %}" class="mi-new-btn">+ Nuovo piano</a>
-    </summary>
-    <div class="mi-plan-intro">Il piano applica un tipo di attivita agli asset, stabilisce frequenza, prima scadenza, responsabile e apertura automatica dell'OdL.</div>
-    <div class="mi-table-wrap as-collapse-body">
-      <table class="mi-table">
-        <thead><tr><th>Attivita</th><th>Asset coinvolti</th><th>Frequenza</th><th>Responsabile</th><th>Automazione</th><th>Storico</th><th></th></tr></thead>
-        <tbody>
-        {% for row in maintenance_plan_rows %}
-          {% with rule=row.rule %}
-          <tr>
-            <td><strong>{{ rule.intervention_template.label }}</strong><span class="mi-desc">{{ rule.asset_category.label }}{% if row.legacy_count %} · {{ row.legacy_count }} piano precedente inglobato{% endif %}</span></td>
-            <td><span class="mi-badge">{{ row.asset_count }} asset</span><span class="mi-desc">{{ rule.get_scope_type_display }}</span></td>
-            <td><strong>{{ rule.threshold_value }} {{ rule.get_threshold_type_display }}</strong><span class="mi-desc">{% if rule.first_due_date %}prima scadenza {{ rule.first_due_date|date:"d/m/Y" }}{% else %}dall'ultima esecuzione{% endif %}</span></td>
-            <td>{% if rule.is_external %}<span class="mi-ext-badge">Esterna</span><span class="mi-desc">{{ rule.supplier|default:"Ditta da assegnare" }}</span>{% elif rule.assigned_to %}{{ rule.assigned_to.get_full_name|default:rule.assigned_to.username }}{% else %}Da assegnare{% endif %}</td>
-            <td>{% if rule.auto_generate_workorders %}<span class="mi-pill active">OdL automatici</span>{% else %}<span class="mi-pill warn">Apertura manuale</span>{% endif %}<span class="mi-desc">{% if rule.is_active %}Piano attivo{% else %}Piano disattivato{% endif %}</span></td>
-            <td><a class="mi-link" href="{% url 'assets:maintenance_history' %}?q={{ rule.intervention_template.label|urlencode }}">{{ rule.completed_count }} completati</a><span class="mi-desc">{{ rule.history_count }} OdL totali</span></td>
-            <td><a href="{% url 'assets:maintenance_rule_edit' rule.id %}" class="mi-link">Modifica</a></td>
-          </tr>
-          {% endwith %}
-        {% empty %}
-          <tr><td colspan="7" class="mi-empty">Nessun piano corrisponde ai filtri. <a href="{% url 'assets:maintenance_rule_create' %}" class="mi-link">Crea il primo piano</a>.</td></tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </details>
+  <article class="ux-card">
+    <header class="ux-card-head"><div><h3>Piani di manutenzione</h3><p>Asset, frequenza, responsabilità e automazione in un'unica vista.</p></div><div class="mi2-actions"><a class="ux-btn" href="{{ url_suppliers }}">Fornitori</a><a class="ux-btn primary" href="{% url 'assets:maintenance_rule_create' %}">+ Nuovo piano</a></div></header>
+    <div class="ux-table-wrap"><table class="ux-table"><thead><tr><th>Attività</th><th>Asset</th><th>Frequenza</th><th>Responsabile</th><th>Automazione</th><th>Storico</th><th>Azioni</th></tr></thead><tbody>
+      {% for row in maintenance_plan_rows %}{% with rule=row.rule %}<tr><td><span class="ux-primary">{{ rule.intervention_template.label }}</span><span class="ux-secondary">{{ rule.asset_category.label }}{% if row.legacy_count %} · {{ row.legacy_count }} piano precedente inglobato{% endif %}</span></td><td><span class="ux-pill info">{{ row.asset_count }} asset</span><span class="ux-secondary">{{ rule.get_scope_type_display }}</span></td><td><span class="ux-primary">{{ rule.threshold_value }} {{ rule.get_threshold_type_display }}</span><span class="ux-secondary">{% if rule.first_due_date %}Prima {{ rule.first_due_date|date:"d/m/Y" }}{% else %}Dall'ultima esecuzione{% endif %}</span></td><td>{% if rule.is_external %}<span class="ux-pill info">Esterna</span><span class="ux-secondary">{{ rule.supplier|default:"Ditta da assegnare" }}</span>{% elif rule.assigned_to %}{{ rule.assigned_to.get_full_name|default:rule.assigned_to.username }}{% else %}<span class="ux-pill warn">Da assegnare</span>{% endif %}</td><td>{% if rule.auto_generate_workorders %}<span class="ux-pill ok">OdL automatici</span>{% else %}<span class="ux-pill warn">Manuale</span>{% endif %}<span class="ux-secondary">{% if rule.is_active %}Piano attivo{% else %}Piano disattivato{% endif %}</span></td><td><a class="ux-link" href="{% url 'assets:maintenance_history' %}?q={{ rule.intervention_template.label|urlencode }}">{{ rule.completed_count }} completati</a><span class="ux-secondary">{{ rule.history_count }} OdL totali</span></td><td><a class="ux-btn sm" href="{% url 'assets:maintenance_rule_edit' rule.id %}">Modifica</a></td></tr>{% endwith %}{% empty %}<tr><td colspan="7"><div class="ux-empty">{% if has_active_filters %}Nessun piano trovato con questi filtri. <a class="ux-link" href="{{ clear_filters_url }}">Azzera i filtri</a>.{% else %}Nessun piano configurato. <a class="ux-link" href="{% url 'assets:maintenance_rule_create' %}">Crea il primo</a>.{% endif %}</div></td></tr>{% endfor %}
+    </tbody></table></div>
+  </article>
   {% endif %}
 
-  <!-- TAB: PIANO PER CATEGORIA ──────────────────────────────────────── -->
   {% if active_tab == 'copertura' %}
-  <details class="mi-card as-collapse as-collapse--cap" open>
-    <summary class="mi-card-head">
-      <span class="mi-card-title">Piano di manutenzione per categoria</span>
-      <a href="{{ url_schedule }}" class="mi-link">Apri scadenzario operativo &rsaquo;</a>
-    </summary>
-    <div class="mi-plan-intro">
-      Salute della manutenzione programmata per categoria asset: regole <strong>a giorni</strong> e
-      <strong>a contatore</strong> (ore/km/cicli, valutate sui contatori <code>AssetMeter</code> correnti).
-      Da qui apri lo scadenzario operativo filtrato sulla categoria.
-    </div>
-    <div class="mi-table-wrap as-collapse-body">
-      <table class="mi-table">
-        <thead><tr>
-          <th scope="col">Categoria</th>
-          <th scope="col">Regole</th>
-          <th scope="col">Asset</th>
-          <th scope="col">Scadute</th>
-          <th scope="col">In scadenza</th>
-          <th scope="col">Pianificate</th>
-          <th scope="col">Mai eseguite</th>
-          <th scope="col" aria-label="Azioni"></th>
-        </tr></thead>
-        <tbody>
-          {% if plan_rows %}
-            {% for r in plan_rows %}
-            <tr data-row-href="{{ r.schedule_url }}">
-              <td><strong>{{ r.category.label }}</strong></td>
-              <td>
-                <span class="mi-badge">{{ r.rules_count }}</span>
-                {% if r.meter_rules_count %}<span class="mi-rule-warning mi-muted">{{ r.meter_rules_count }} a contatore</span>{% endif %}
-              </td>
-              <td>{{ r.assets_count }}</td>
-              <td>{% if r.overdue %}<a href="{{ r.schedule_due_url }}" class="mi-pill danger">{{ r.overdue }}</a>{% else %}<span class="mi-muted">0</span>{% endif %}</td>
-              <td>{% if r.warning %}<span class="mi-pill warn">{{ r.warning }}</span>{% else %}<span class="mi-muted">0</span>{% endif %}</td>
-              <td>{% if r.upcoming %}<span class="mi-pill active">{{ r.upcoming }}</span>{% else %}<span class="mi-muted">0</span>{% endif %}</td>
-              <td>{% if r.missing %}<span class="mi-pill blue">{{ r.missing }}</span>{% else %}<span class="mi-muted">0</span>{% endif %}</td>
-              <td>
-                {% if r.overdue or r.warning %}
-                  <form method="post" class="mi-gen-form" onsubmit="return confirm('Generare gli ordini di lavoro per le manutenzioni scadute/in scadenza di «{{ r.category.label|escapejs }}»? Le voci con un intervento già aperto vengono saltate.');">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="generate_workorders">
-                    <input type="hidden" name="category_id" value="{{ r.category.id }}">
-                    <button type="submit" class="mi-gen-btn" title="Crea gli OdL delle scadute/in scadenza di questa categoria">&#43; Genera OdL ({{ r.overdue|add:r.warning }})</button>
-                  </form>
-                {% endif %}
-                <a href="{{ r.schedule_url }}" class="mi-link">Scadenzario</a>
-                <span class="mi-muted">·</span>
-                <a href="{{ r.rules_url }}" class="mi-link">Regole</a>
-              </td>
-            </tr>
-            {% endfor %}
-          {% else %}
-            <tr>
-              <td colspan="8" class="mi-empty">
-                Nessuna regola di manutenzione attiva con categoria. Crea un
-                <a href="{{ url_template_new }}" class="mi-link">template</a> e poi una
-                <a href="{{ url_rule_new }}" class="mi-link">regola</a> per popolare il piano.
-              </td>
-            </tr>
-          {% endif %}
-        </tbody>
-      </table>
-    </div>
-  </details>
+  <article class="ux-card">
+    <header class="ux-card-head"><div><h3>Copertura e salute dei piani</h3><p>Individua categorie scoperte, scadute o mai eseguite senza entrare nelle entità tecniche.</p></div><a class="ux-btn" href="{{ url_schedule }}">Scadenzario operativo</a></header>
+    <div class="ux-table-wrap"><table class="ux-table"><thead><tr><th>Categoria</th><th>Regole</th><th>Asset</th><th>Scadute</th><th>Warning</th><th>Pianificate</th><th>Mai eseguite</th><th>Azioni</th></tr></thead><tbody>
+      {% for r in plan_rows %}<tr data-row-href="{{ r.schedule_url }}"><td class="ux-primary">{{ r.category.label }}</td><td>{{ r.rules_count }}{% if r.meter_rules_count %}<span class="ux-secondary">{{ r.meter_rules_count }} a contatore</span>{% endif %}</td><td>{{ r.assets_count }}</td><td>{% if r.overdue %}<a class="ux-pill danger" href="{{ r.schedule_due_url }}">{{ r.overdue }}</a>{% else %}0{% endif %}</td><td>{% if r.warning %}<span class="ux-pill warn">{{ r.warning }}</span>{% else %}0{% endif %}</td><td>{% if r.upcoming %}<span class="ux-pill ok">{{ r.upcoming }}</span>{% else %}0{% endif %}</td><td>{% if r.missing %}<span class="ux-pill info">{{ r.missing }}</span>{% else %}0{% endif %}</td><td><div class="mi2-plan-actions">{% if r.overdue or r.warning %}<form method="post" class="mi2-gen" onsubmit="return confirm('Generare gli ordini di lavoro per le manutenzioni scadute/in scadenza di «{{ r.category.label|escapejs }}»? Le voci con un intervento già aperto vengono saltate.');">{% csrf_token %}<input type="hidden" name="action" value="generate_workorders"><input type="hidden" name="category_id" value="{{ r.category.id }}"><button class="ux-btn primary sm" type="submit">Genera OdL ({{ r.overdue|add:r.warning }})</button></form>{% endif %}<a class="ux-btn sm" href="{{ r.schedule_url }}">Scadenzario</a><a class="ux-btn sm" href="{{ r.rules_url }}">Regole</a></div></td></tr>{% empty %}<tr><td colspan="8"><div class="ux-empty">Nessuna regola di manutenzione attiva con categoria. Crea un <a class="ux-link" href="{{ url_template_new }}">template</a> e poi una <a class="ux-link" href="{{ url_rule_new }}">regola</a> per popolare il piano.</div></td></tr>{% endfor %}
+    </tbody></table></div>
+  </article>
   {% endif %}
-
-</div>
-{% endblock %}
-
-{% block assets_shell_scripts %}
-<script>
-(function () {
-  document.querySelectorAll("[data-mi-tmpl]").forEach(function (row) {
-    if (row.hasAttribute("data-mi-no-expand")) return;
-    var tid = row.getAttribute("data-mi-tmpl");
-    var rulesBody = document.querySelector("[data-mi-rules='" + tid + "']");
-    if (!rulesBody) return;
-    row.addEventListener("click", function () {
-      var open = row.classList.toggle("is-open");
-      rulesBody.classList.toggle("is-open", open);
-    });
-  });
-})();
-</script>
+</section>
 {% endblock %}

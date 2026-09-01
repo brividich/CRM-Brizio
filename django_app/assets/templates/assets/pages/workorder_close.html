@@ -105,6 +105,18 @@ body.theme-dark .woc-details-body{border-color:var(--border)}
                 {% if form.closed_at.errors %}<div class="woc-error">{{ form.closed_at.errors }}</div>{% endif %}
               </div>
             </div>
+            <div class="woc-field woc-field--full" id="wocEsitoField">
+              <label>{{ form.esito.label }} <span class="woc-required">*</span></label>
+              {{ form.esito }}
+              <div class="woc-note">Obbligatorio quando l'esito e “Chiusa”. Se scegli “Non risolto” l'intervento resta aperto.</div>
+              {% if form.esito.errors %}<div class="woc-error">{{ form.esito.errors }}</div>{% endif %}
+            </div>
+            <div class="woc-field woc-field--full" id="wocFollowUpField" hidden>
+              <label for="{{ form.follow_up_date.id_for_label }}">{{ form.follow_up_date.label }} <span class="woc-required">*</span></label>
+              {{ form.follow_up_date }}
+              <div class="woc-note">Verrà creato automaticamente un nuovo intervento di follow-up collegato a questa scadenza.</div>
+              {% if form.follow_up_date.errors %}<div class="woc-error">{{ form.follow_up_date.errors }}</div>{% endif %}
+            </div>
           </div>
         </section>
 
@@ -210,6 +222,9 @@ body.theme-dark .woc-details-body{border-color:var(--border)}
   "use strict";
   const statusField=document.getElementById("id_status");
   const closedAtField=document.getElementById("id_closed_at");
+  const esitoField=document.getElementById("wocEsitoField");
+  const esitoRadios=document.querySelectorAll("input[name=esito]");
+  const followUpField=document.getElementById("wocFollowUpField");
   const contractField=document.getElementById("id_assistance_contract");
   const coveredField=document.getElementById("id_covered_by_contract");
   const submitButton=document.getElementById("workorderCloseSubmit");
@@ -235,15 +250,23 @@ body.theme-dark .woc-details-body{border-color:var(--border)}
   function syncDayLimits(){if(!daysList)return;daysList.querySelectorAll("input[type=date]").forEach(function(input){input.max=closureDate();});syncDays();}
   function syncSubmitLabel(){if(!statusField||!submitButton)return;submitButton.textContent=statusField.value==="CANCELED"?"Conferma annullamento":"Chiudi definitivamente";}
   function syncCoverage(){if(!coveredField)return;const active=Boolean(String(contractField?contractField.value:"").trim());coveredField.disabled=!active;if(!active)coveredField.checked=false;}
+  function selectedEsito(){var checked=document.querySelector("input[name=esito]:checked");return checked?checked.value:"";}
+  function syncEsitoVisibility(){
+    if(!statusField||!esitoField)return;
+    const isClosing=statusField.value!=="CANCELED";
+    esitoField.hidden=!isClosing;
+    if(followUpField)followUpField.hidden=!isClosing||selectedEsito()!=="RESOLVED_TEMP";
+  }
 
   const initialDays=daysHidden&&daysHidden.value?daysHidden.value.split(",").filter(Boolean):[];
   initialDays.forEach(addDay);
   if(!initialDays.length)addDay("");
   if(addDayButton)addDayButton.addEventListener("click",function(){addDay("");});
   if(closedAtField)closedAtField.addEventListener("change",syncDayLimits);
-  if(statusField)statusField.addEventListener("change",syncSubmitLabel);
+  if(statusField)statusField.addEventListener("change",function(){syncSubmitLabel();syncEsitoVisibility();});
   if(contractField)contractField.addEventListener("change",syncCoverage);
-  syncSubmitLabel(); syncCoverage(); syncDayLimits();
+  esitoRadios.forEach(function(radio){radio.addEventListener("change",syncEsitoVisibility);});
+  syncSubmitLabel(); syncCoverage(); syncDayLimits(); syncEsitoVisibility();
 })();
 </script>
 {% endblock %}

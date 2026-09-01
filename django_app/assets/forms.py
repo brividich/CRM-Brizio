@@ -2905,6 +2905,17 @@ class WorkOrderCloseForm(forms.Form):
         input_formats=["%Y-%m-%dT%H:%M"],
         widget=forms.DateTimeInput(format="%Y-%m-%dT%H:%M", attrs={"type": "datetime-local"}),
     )
+    esito = forms.ChoiceField(
+        choices=WorkOrder.OUTCOME_CHOICES,
+        required=False,
+        label="Esito",
+        widget=forms.RadioSelect,
+    )
+    follow_up_date = forms.DateField(
+        required=False,
+        label="Data verifica follow-up",
+        widget=forms.DateInput(format="%Y-%m-%d", attrs={"type": "date"}),
+    )
     execution_days = forms.CharField(required=False, widget=forms.HiddenInput())
     resolution = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 4}), label="Risoluzione")
     intervention_duration_hours = forms.IntegerField(required=False, min_value=0, label="Ore")
@@ -2999,6 +3010,17 @@ class WorkOrderCloseForm(forms.Form):
         cleaned_data["closed_at"] = closed_at
         if closed_at and closed_at > timezone.now() + timedelta(minutes=5):
             self.add_error("closed_at", "La chiusura non puo essere registrata nel futuro.")
+
+        esito = cleaned_data.get("esito")
+        if status == WorkOrder.STATUS_DONE:
+            if not esito:
+                self.add_error("esito", "Seleziona l'esito dell'intervento.")
+            elif esito == WorkOrder.OUTCOME_RESOLVED_TEMP:
+                follow_up_date = cleaned_data.get("follow_up_date")
+                if not follow_up_date:
+                    self.add_error("follow_up_date", "Indica una data di verifica per il follow-up.")
+                elif follow_up_date < timezone.localtime(closed_at).date():
+                    self.add_error("follow_up_date", "La data di follow-up non puo essere precedente alla chiusura.")
 
         raw_days = str(cleaned_data.get("execution_days") or "")
         execution_days = []

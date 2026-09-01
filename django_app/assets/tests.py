@@ -3467,16 +3467,16 @@ class AssetsRoutingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(
             response,
-            '<section class="mh-priority-strip" aria-label="Priorità manutenzione">',
+            '<section class="ux-attention-grid" aria-label="Priorità manutenzione">',
             html=False,
         )
         self.assertContains(response, "Lavoro operativo")
-        self.assertContains(response, "Interventi da gestire")
+        self.assertContains(response, "Oltre soglia")
         self.assertContains(response, "Agenda 7 giorni")
-        self.assertContains(response, "Apri il registro completo")
+        self.assertContains(response, "Registro completo")
         self.assertContains(response, "Centro manutenzione aziendale")
-        self.assertContains(response, "Piani ordinari")
-        self.assertContains(response, "Catalogo attivita")
+        self.assertContains(response, "Piani di manutenzione")
+        self.assertContains(response, "Catalogo attività")
         self.assertContains(response, "Storico")
         expected_create_url = f'{reverse("assets:wo_list")}?create=1'
         self.assertEqual(response.context["url_wo_create"], expected_create_url)
@@ -4732,6 +4732,7 @@ class WorkOrderFlowTests(TestCase):
             reverse("assets:wo_close", args=[workorder.id]),
             {
                 "status": WorkOrder.STATUS_DONE,
+                "esito": WorkOrder.OUTCOME_RESOLVED,
                 "closed_at": closed_at.strftime("%Y-%m-%dT%H:%M"),
                 "execution_days": f"{first_day},{second_day}",
                 "resolution": "Ripristinato e verificato il corretto funzionamento.",
@@ -4935,6 +4936,7 @@ class WorkOrderFlowTests(TestCase):
             reverse("assets:wo_close", args=[workorder.id]),
             {
                 "status": WorkOrder.STATUS_DONE,
+                "esito": WorkOrder.OUTCOME_RESOLVED,
                 "resolution": "Server verificato",
                 "assistance_contract": str(contract.id),
                 "covered_by_contract": "on",
@@ -5102,6 +5104,7 @@ class WorkOrderFlowTests(TestCase):
                     reverse("assets:wo_close", args=[workorder.id]),
                     {
                         "status": WorkOrder.STATUS_DONE,
+                        "esito": WorkOrder.OUTCOME_RESOLVED,
                         "resolution": "Sostituito componente e verificato riavvio.",
                         "intervention_duration_minutes": "45",
                         "downtime_minutes": "12",
@@ -5298,7 +5301,7 @@ class WorkOrderFlowTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["maintenance_rule_counts"]["missing"], 1)
-        self.assertContains(response, "Piani ordinari da gestire")
+        self.assertContains(response, "Piani da gestire")
         self.assertContains(response, self.asset.asset_tag)
         self.assertContains(response, "Controllo hub critico")
         self.assertContains(response, "Prima esecuzione")
@@ -5717,13 +5720,13 @@ class AssetMaintenanceStepTwoTests(TestCase):
 
         settings_response = self.client.get(settings_url + "?tab=catalogo&active=all")
         self.assertEqual(settings_response.status_code, 200)
-        self.assertContains(settings_response, "Catalogo attivita")
+        self.assertContains(settings_response, "Attività di manutenzione")
         self.assertContains(settings_response, general_template.label)
         self.assertContains(settings_response, category_template.label)
 
         plans_response = self.client.get(settings_url + "?tab=piani&active=all")
         self.assertEqual(plans_response.status_code, 200)
-        self.assertContains(plans_response, "Piani ordinari")
+        self.assertContains(plans_response, "Piani di manutenzione")
         self.assertContains(plans_response, category_template.label)
         self.assertContains(settings_response, self.category.label)
 
@@ -5804,7 +5807,7 @@ class AssetMaintenanceStepTwoTests(TestCase):
         response = self.client.get(reverse("assets:maintenance_impostazioni") + "?tab=piano")
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Piano di manutenzione per categoria")
+        self.assertContains(response, "Copertura e salute dei piani")
         self.assertContains(response, self.category.label)
 
 
@@ -6250,10 +6253,10 @@ class AssetMaintenanceStepThreeTests(TestCase):
             self.assertEqual(resp.status_code, 200)
             self.assertContains(resp, "ms-viewsel")
         board = self.client.get(base + "?vista=board&status=all")
-        self.assertContains(board, "ms-board")
+        self.assertContains(board, "ux-board")
         self.assertContains(board, "Scadute")
         macchina = self.client.get(base + "?vista=macchina&status=all")
-        self.assertContains(macchina, "ms-machines")
+        self.assertContains(macchina, "ux-accordion")
         self.assertContains(macchina, self.asset.asset_tag)
 
     def test_maintenance_worksheet_renders(self):
