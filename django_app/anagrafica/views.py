@@ -6457,6 +6457,16 @@ def _resolve_caporeparto_id(raw: str | None) -> int | None:
     return value if value > 0 else None
 
 
+def _resolve_responsabili_ids(raw_list) -> list[int]:
+    """Normalizza gli id POST di ``responsabili`` (multi-select) in legacy_id validi."""
+    ids: list[int] = []
+    for raw in raw_list or []:
+        resolved = _resolve_caporeparto_id(raw)
+        if resolved is not None:
+            ids.append(resolved)
+    return ids
+
+
 def _responsabile_di(reparto_nome: str, area=None) -> int | None:
     """Legacy id del responsabile per una coppia (reparto, area aziendale).
 
@@ -6577,16 +6587,29 @@ def _sync_aziendale_from_reparto(
 def aree_list(request):
     legacy_user = get_legacy_user(request.user)
     is_admin = _is_anagrafica_admin(request)
-    reparti = list(Reparto.objects.prefetch_related("aree_aziendali").order_by("nome"))
-    aree_senza_reparto = list(AreaAziendale.objects.filter(reparto__isnull=True).order_by("nome"))
+    reparti = list(
+        Reparto.objects.prefetch_related("aree_aziendali", "responsabili", "aree_aziendali__responsabili")
+        .order_by("nome")
+    )
+    aree_senza_reparto = list(
+        AreaAziendale.objects.filter(reparto__isnull=True).prefetch_related("responsabili").order_by("nome")
+    )
     dipendenti = _dipendenti_picker_rows()
     dip_map = {item["id"]: item["label"] for item in dipendenti}
+
+    def _responsabili_labels(obj):
+        ids = [d.id for d in obj.responsabili.all()]
+        return ids, ", ".join(dip_map.get(i, "") for i in ids if dip_map.get(i, ""))
+
     for rep in reparti:
         rep.caporeparto_label = dip_map.get(rep.caporeparto_legacy_id or 0, "")
+        rep.responsabili_ids, rep.responsabili_label = _responsabili_labels(rep)
         for area in rep.aree_aziendali.all():
             area.responsabile_label = dip_map.get(area.responsabile_legacy_id or 0, "")
+            area.responsabili_ids, area.responsabili_label = _responsabili_labels(area)
     for area in aree_senza_reparto:
         area.responsabile_label = dip_map.get(area.responsabile_legacy_id or 0, "")
+        area.responsabili_ids, area.responsabili_label = _responsabili_labels(area)
     return render(request, "anagrafica/pages/aree_list.html", {
         "reparti": reparti,
         "aree_senza_reparto": aree_senza_reparto,
@@ -6625,6 +6648,7 @@ def area_aziendale_create(request):
         },
     )
     if created:
+        obj.responsabili.set(_resolve_responsabili_ids(request.POST.getlist("responsabili")))
         messages.success(request, f'Area aziendale "{nome}" creata.')
     else:
         messages.warning(request, f'Esiste già un\'area aziendale con il nome "{nome}".')
@@ -6656,6 +6680,7 @@ def area_aziendale_edit(request, area_id: int):
     area.responsabile_legacy_id = _resolve_caporeparto_id(request.POST.get("responsabile_legacy_id"))
     area.is_active = request.POST.get("is_active") == "1"
     area.save()
+    area.responsabili.set(_resolve_responsabili_ids(request.POST.getlist("responsabili")))
     messages.success(request, f'Area aziendale "{area.nome}" aggiornata.')
     return _back_to_caller(request, "anagrafica:aree_list")
 
@@ -6728,6 +6753,7 @@ def area_create(request):
         },
     )
     if created:
+        obj.responsabili.set(_resolve_responsabili_ids(request.POST.getlist("responsabili")))
         messages.success(request, f'Reparto "{nome}" creato.')
         _sync_reparto_capo_mapping(obj)
     else:
@@ -6757,6 +6783,7 @@ def area_edit(request, area_id: int):
     DipendenteAnagraficaAziendale.objects.filter(area__iexact=rep.nome).update(
         caporeparto_legacy_id=rep.caporeparto_legacy_id
     )
+    rep.responsabili.set(_resolve_responsabili_ids(request.POST.getlist("responsabili")))
     messages.success(request, f'Reparto "{rep.nome}" aggiornato.')
     return _back_to_caller(request, "anagrafica:aree_list")
 

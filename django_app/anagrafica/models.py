@@ -934,6 +934,16 @@ class Reparto(models.Model):
         verbose_name="Caporeparto",
         help_text="ID legacy del dipendente assegnato come caporeparto.",
     )
+    # Co-responsabili opzionali, in aggiunta al caporeparto sopra: dato
+    # anagrafico/UI, non alimenta digest/RepartoCapoMapping/automazioni, che
+    # restano guidati solo da ``caporeparto_legacy_id``.
+    responsabili = models.ManyToManyField(
+        "core.AnagraficaDipendente",
+        blank=True,
+        related_name="reparti_responsabile",
+        verbose_name="Responsabili",
+        help_text="Responsabili aggiuntivi del reparto. Se ne possono indicare più di uno.",
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -973,6 +983,15 @@ class AreaAziendale(models.Model):
         db_index=True,
         verbose_name="Responsabile",
         help_text="ID legacy del dipendente responsabile di quest'area (opzionale, es. dirigente qualità/produzione).",
+    )
+    # Co-responsabili opzionali, in aggiunta al responsabile sopra: dato
+    # anagrafico/UI, non alimenta automazioni.
+    responsabili = models.ManyToManyField(
+        "core.AnagraficaDipendente",
+        blank=True,
+        related_name="aree_responsabile",
+        verbose_name="Responsabili",
+        help_text="Responsabili aggiuntivi dell'area. Se ne possono indicare più di uno.",
     )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
