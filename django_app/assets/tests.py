@@ -4554,6 +4554,35 @@ class WorkOrderFlowTests(TestCase):
         self.assertContains(response, "data-wo-asset-option", html=False)
         self.assertContains(response, self.asset.asset_tag)
 
+    def test_workorder_list_filters_by_asset_from_qr_landing_link(self):
+        other_asset = Asset.objects.create(
+            asset_tag="IT-000125",
+            name="Altro server",
+            asset_type=Asset.TYPE_SERVER,
+            status=Asset.STATUS_IN_USE,
+        )
+        matching = WorkOrder.objects.create(
+            asset=self.asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="Intervento sull'asset scansionato",
+        )
+        other = WorkOrder.objects.create(
+            asset=other_asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="Intervento su un altro asset",
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("assets:wo_list"), {"asset": str(self.asset.id), "view": "all"})
+
+        self.assertEqual(response.status_code, 200)
+        titles = [wo.title for wo in response.context["workorders"]]
+        self.assertIn(matching.title, titles)
+        self.assertNotIn(other.title, titles)
+        self.assertEqual(response.context["asset_filter"], self.asset)
+
     def test_global_workorder_create_redirects_to_selected_asset_form(self):
         self.client.force_login(self.user)
 
@@ -4715,6 +4744,20 @@ class WorkOrderFlowTests(TestCase):
         self.assertContains(response, 'name="intervention_duration_hours"', html=False)
         self.assertContains(response, "Chiudi definitivamente")
         self.assertNotContains(response, 'class="as-section-nav"', html=False)
+
+    def test_workorder_close_form_defaults_executed_by_to_current_user(self):
+        workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="Intervento senza esecutore assegnato",
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("assets:wo_close", args=[workorder.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["form"].initial.get("executed_by"), self.user.id)
 
     def test_formal_closure_records_days_time_and_editable_timestamp(self):
         workorder = WorkOrder.objects.create(
@@ -4949,6 +4992,55 @@ class WorkOrderFlowTests(TestCase):
         state = AssetMaintenanceRuleState.objects.get(asset=self.asset, base_rule=rule)
         self.assertEqual(state.last_work_order, workorder)
         self.assertEqual(state.last_execution_date, timezone.localdate())
+
+    def test_workorder_close_not_resolved_reopens_without_advancing_schedule(self):
+        category = AssetCategory.objects.create(
+            code="wo-not-resolved-category",
+            label="Categoria WO Non Risolto",
+            base_asset_type=Asset.TYPE_SERVER,
+        )
+        self.asset.asset_category = category
+        self.asset.save(update_fields=["asset_category"])
+        template = MaintenanceInterventionTemplate.objects.create(
+            code="wo-not-resolved-template",
+            label="Check semestrale server",
+            asset_category=category,
+        )
+        rule = MaintenanceRule.objects.create(
+            intervention_template=template,
+            asset_category=category,
+            threshold_type=MaintenanceRule.THRESHOLD_DAYS,
+            threshold_value=180,
+            warning_days=20,
+        )
+        workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            maintenance_rule=rule,
+            kind=WorkOrder.KIND_PREVENTIVE,
+            origin=WorkOrder.ORIGIN_PERIODIC,
+            status=WorkOrder.STATUS_OPEN,
+            title="Check semestrale non risolto",
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("assets:wo_close", args=[workorder.id]),
+            {
+                "status": WorkOrder.STATUS_DONE,
+                "esito": WorkOrder.OUTCOME_NOT_RESOLVED,
+                "resolution": "Verificato ma il guasto persiste, serve ricambio.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        workorder.refresh_from_db()
+        self.assertEqual(workorder.status, WorkOrder.STATUS_OPEN)
+        self.assertIsNone(workorder.closed_at)
+        self.assertEqual(workorder.outcome, WorkOrder.OUTCOME_NOT_RESOLVED)
+        self.assertIsNone(workorder.meter_value_at_close)
+        self.assertFalse(
+            AssetMaintenanceRuleState.objects.filter(asset=self.asset, base_rule=rule).exists()
+        )
 
     def test_create_workorder_rejects_contract_coverage_without_contract(self):
         self.client.force_login(self.user)
@@ -6340,6 +6432,25 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.assertContains(resp, "Documenti")
         # La regola di categoria dell'asset (missing/prima esecuzione) compare come voce.
         self.assertContains(resp, self.category_template.label)
+
+    def test_asset_qr_landing_open_workorders_are_clickable_for_authenticated_user(self):
+        if not self.asset.asset_tag:
+            self.asset.asset_tag = "QR-TEST-2"
+            self.asset.save(update_fields=["asset_tag"])
+        workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="Guasto da QR",
+        )
+        self.client.force_login(self.admin)
+
+        resp = self.client.get(
+            reverse("assets:asset_qr_landing", kwargs={"asset_tag": self.asset.asset_tag})
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, f'<a class="qrl-wo-item" href="{reverse("assets:wo_view", args=[workorder.id])}"', html=False)
 
     def test_seed_fornitori_manutenzione_command(self):
         from io import StringIO
@@ -10001,3 +10112,465 @@ class AssetTimelineAutoEventHideTests(TestCase):
         self.client.get(reverse("assets:asset_view", args=[self.asset.id]))
         page = self.client.get(reverse("assets:asset_view", args=[other_asset.id]))
         self.assertIn("Registrazione inventario", page.content.decode("utf-8"))
+
+
+class WorkOrderPriorityAndOperationalStateTests(TestCase):
+    """Fase 5 cockpit manutentore: priorità, stato operativo derivato, avvio lavorazione."""
+
+    def setUp(self):
+        self.user = User.objects.create_superuser(
+            username="turno.user",
+            email="turno.user@example.com",
+            password="secret123",
+        )
+        self.other_user = User.objects.create_user(
+            username="turno.altro",
+            email="turno.altro@example.com",
+            password="secret123",
+        )
+        self.asset = Asset.objects.create(
+            asset_tag="IT-TURNO-001",
+            name="Server turno test",
+            asset_type=Asset.TYPE_SERVER,
+            status=Asset.STATUS_IN_USE,
+        )
+
+    def test_priority_defaults_to_normal(self):
+        workorder = WorkOrder.objects.create(
+            asset=self.asset, kind=WorkOrder.KIND_CORRECTIVE, status=WorkOrder.STATUS_OPEN, title="Senza priorità"
+        )
+        self.assertEqual(workorder.priority, WorkOrder.PRIORITY_NORMAL)
+
+    def test_operational_state_transitions(self):
+        workorder = WorkOrder.objects.create(
+            asset=self.asset, kind=WorkOrder.KIND_CORRECTIVE, status=WorkOrder.STATUS_OPEN, title="Stato operativo"
+        )
+        self.assertEqual(workorder.operational_state, WorkOrder.OPSTATE_UNASSIGNED)
+
+        workorder.assigned_to = self.user
+        workorder.save(update_fields=["assigned_to"])
+        self.assertEqual(workorder.operational_state, WorkOrder.OPSTATE_ASSIGNED)
+
+        workorder.start()
+        self.assertEqual(workorder.operational_state, WorkOrder.OPSTATE_IN_PROGRESS)
+        self.assertIsNotNone(workorder.started_at)
+
+        workorder.set_waiting(reason=WorkOrder.WAIT_REASON_RICAMBIO, note="Atteso ricambio")
+        self.assertEqual(workorder.operational_state, WorkOrder.OPSTATE_WAITING)
+
+        workorder.close(status=WorkOrder.STATUS_DONE, resolution="Fatto")
+        self.assertIsNone(workorder.operational_state)
+
+    def test_start_is_idempotent_and_resumes_from_waiting(self):
+        workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="Avvio idempotente",
+            assigned_to=self.user,
+        )
+        workorder.start()
+        first_started_at = workorder.started_at
+        self.assertIsNotNone(first_started_at)
+
+        workorder.set_waiting(reason=WorkOrder.WAIT_REASON_ALTRO)
+        self.assertTrue(workorder.is_waiting)
+
+        workorder.start()
+        workorder.refresh_from_db()
+        self.assertFalse(workorder.is_waiting)
+        self.assertEqual(workorder.started_at, first_started_at)
+
+    def test_is_overdue_only_when_open_and_due_in_the_past(self):
+        past = timezone.now() - timedelta(hours=1)
+        future = timezone.now() + timedelta(hours=1)
+        overdue_open = WorkOrder.objects.create(
+            asset=self.asset, kind=WorkOrder.KIND_CORRECTIVE, status=WorkOrder.STATUS_OPEN,
+            title="Scaduto", due_at=past,
+        )
+        not_yet_due = WorkOrder.objects.create(
+            asset=self.asset, kind=WorkOrder.KIND_CORRECTIVE, status=WorkOrder.STATUS_OPEN,
+            title="Non ancora scaduto", due_at=future,
+        )
+        closed_overdue = WorkOrder.objects.create(
+            asset=self.asset, kind=WorkOrder.KIND_CORRECTIVE, status=WorkOrder.STATUS_DONE,
+            title="Scaduto ma chiuso", due_at=past, closed_at=timezone.now(),
+        )
+        self.assertTrue(overdue_open.is_overdue)
+        self.assertFalse(not_yet_due.is_overdue)
+        self.assertFalse(closed_overdue.is_overdue)
+
+    def test_workorder_detail_start_action_sets_started_at_and_logs(self):
+        workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="Da iniziare",
+            assigned_to=self.user,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse("assets:wo_view", args=[workorder.id]), {"action": "start"})
+
+        self.assertRedirects(response, reverse("assets:wo_view", args=[workorder.id]))
+        workorder.refresh_from_db()
+        self.assertIsNotNone(workorder.started_at)
+        self.assertTrue(workorder.logs.filter(note="Intervento iniziato.").exists())
+
+    def test_workorder_detail_set_priority_action(self):
+        workorder = WorkOrder.objects.create(
+            asset=self.asset, kind=WorkOrder.KIND_CORRECTIVE, status=WorkOrder.STATUS_OPEN, title="Priorità"
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("assets:wo_view", args=[workorder.id]),
+            {"action": "set_priority", "priority": WorkOrder.PRIORITY_URGENT},
+        )
+
+        self.assertRedirects(response, reverse("assets:wo_view", args=[workorder.id]))
+        workorder.refresh_from_db()
+        self.assertEqual(workorder.priority, WorkOrder.PRIORITY_URGENT)
+        self.assertTrue(workorder.logs.filter(note__icontains="Priorità aggiornata").exists())
+
+    def test_workorder_list_priority_filter(self):
+        urgent = WorkOrder.objects.create(
+            asset=self.asset, kind=WorkOrder.KIND_CORRECTIVE, status=WorkOrder.STATUS_OPEN,
+            title="Urgente", priority=WorkOrder.PRIORITY_URGENT,
+        )
+        normal = WorkOrder.objects.create(
+            asset=self.asset, kind=WorkOrder.KIND_CORRECTIVE, status=WorkOrder.STATUS_OPEN,
+            title="Normale", priority=WorkOrder.PRIORITY_NORMAL,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("assets:wo_list"), {"priority": WorkOrder.PRIORITY_URGENT, "view": "all"})
+
+        titles = [wo.title for wo in response.context["workorders"]]
+        self.assertIn(urgent.title, titles)
+        self.assertNotIn(normal.title, titles)
+
+    def test_workorder_list_open_view_sorts_urgent_first(self):
+        WorkOrder.objects.create(
+            asset=self.asset, kind=WorkOrder.KIND_CORRECTIVE, status=WorkOrder.STATUS_OPEN,
+            title="Normale vecchio", priority=WorkOrder.PRIORITY_NORMAL,
+            opened_at=timezone.now() - timedelta(days=5),
+        )
+        urgent_recent = WorkOrder.objects.create(
+            asset=self.asset, kind=WorkOrder.KIND_CORRECTIVE, status=WorkOrder.STATUS_OPEN,
+            title="Urgente recente", priority=WorkOrder.PRIORITY_URGENT,
+            opened_at=timezone.now(),
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("assets:wo_list"), {"view": "open"})
+
+        workorders = list(response.context["workorders"])
+        self.assertEqual(workorders[0].id, urgent_recent.id)
+
+
+class IlMioTurnoTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_superuser(
+            username="turno.home.user",
+            email="turno.home.user@example.com",
+            password="secret123",
+        )
+        self.other_user = User.objects.create_user(
+            username="turno.home.altro",
+            email="turno.home.altro@example.com",
+            password="secret123",
+        )
+        self.asset = Asset.objects.create(
+            asset_tag="IT-TURNO-002",
+            name="Server home turno",
+            asset_type=Asset.TYPE_SERVER,
+            status=Asset.STATUS_IN_USE,
+        )
+
+    def _wo(self, **kwargs):
+        defaults = dict(
+            asset=self.asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="OdL",
+        )
+        defaults.update(kwargs)
+        return WorkOrder.objects.create(**defaults)
+
+    def test_sections_are_mutually_exclusive_and_populated(self):
+        bloccato = self._wo(title="Bloccato", assigned_to=self.user)
+        bloccato.set_waiting(reason=WorkOrder.WAIT_REASON_RICAMBIO)
+        urgente = self._wo(title="Urgente", assigned_to=self.user, priority=WorkOrder.PRIORITY_URGENT)
+        scaduto = self._wo(
+            title="Scaduto", assigned_to=self.user, due_at=timezone.now() - timedelta(hours=2)
+        )
+        oggi = self._wo(
+            title="Oggi",
+            assigned_to=self.user,
+            due_at=timezone.now() + timedelta(minutes=5),
+        )
+        in_corso = self._wo(title="In corso", assigned_to=self.user)
+        in_corso.start()
+        altro = self._wo(title="Altro assegnato", assigned_to=self.user)
+        non_mio = self._wo(title="Non mio", assigned_to=self.other_user)
+        da_prendere = self._wo(title="Da prendere")
+        chiuso = self._wo(title="Chiuso", assigned_to=self.user, status=WorkOrder.STATUS_DONE, closed_at=timezone.now())
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("assets:il_mio_turno"))
+
+        self.assertEqual(response.status_code, 200)
+        sections = {section["key"]: section["rows"] for section in response.context["sections"]}
+        self.assertEqual([wo.id for wo in sections["bloccati"]], [bloccato.id])
+        self.assertEqual([wo.id for wo in sections["emergenze"]], [urgente.id])
+        self.assertEqual([wo.id for wo in sections["scaduti"]], [scaduto.id])
+        self.assertEqual([wo.id for wo in sections["oggi"]], [oggi.id])
+        self.assertEqual([wo.id for wo in sections["in_corso"]], [in_corso.id])
+        self.assertEqual([wo.id for wo in sections["altri"]], [altro.id])
+        self.assertEqual([wo.id for wo in sections["da_prendere"]], [da_prendere.id])
+        all_shown_ids = {wo.id for rows in sections.values() for wo in rows}
+        self.assertNotIn(non_mio.id, all_shown_ids)
+        self.assertNotIn(chiuso.id, all_shown_ids)
+
+    def test_claim_from_il_mio_turno_redirects_back(self):
+        da_prendere = self._wo(title="Da prendere via claim")
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("assets:wo_claim", args=[da_prendere.id]),
+            {"next": reverse("assets:il_mio_turno")},
+        )
+
+        self.assertRedirects(response, reverse("assets:il_mio_turno"))
+        da_prendere.refresh_from_db()
+        self.assertEqual(da_prendere.assigned_to_id, self.user.id)
+
+
+class WorkOrderChecklistTypedStepsTests(TestCase):
+    """Fase 6 cockpit manutentore: checklist tipizzate, blocco chiusura, causa guasto."""
+
+    def setUp(self):
+        self.user = User.objects.create_superuser(
+            username="checklist.user",
+            email="checklist.user@example.com",
+            password="secret123",
+        )
+        self.asset = Asset.objects.create(
+            asset_tag="IT-CL-001",
+            name="Server checklist test",
+            asset_type=Asset.TYPE_SERVER,
+            status=Asset.STATUS_IN_USE,
+        )
+        self.workorder = WorkOrder.objects.create(
+            asset=self.asset, kind=WorkOrder.KIND_CORRECTIVE, status=WorkOrder.STATUS_OPEN, title="OdL checklist"
+        )
+
+    def _step(self, **kwargs):
+        defaults = dict(work_order=self.workorder, step_number=10, description="Step")
+        defaults.update(kwargs)
+        return WorkOrderChecklist.objects.create(**defaults)
+
+    def test_is_complete_per_type(self):
+        yes_no = self._step(step_type=WorkOrderChecklist.TYPE_YES_NO)
+        self.assertFalse(yes_no.is_complete)
+        yes_no.toggle(self.user)
+        self.assertTrue(yes_no.is_complete)
+
+        measure = self._step(step_type=WorkOrderChecklist.TYPE_MEASURE, unit="°C")
+        self.assertFalse(measure.is_complete)
+        measure.set_value(value_numeric=Decimal("42.5"), user=self.user)
+        self.assertTrue(measure.is_complete)
+
+        text = self._step(step_type=WorkOrderChecklist.TYPE_TEXT)
+        self.assertFalse(text.is_complete)
+        text.set_value(value_text="Tutto ok", user=self.user)
+        self.assertTrue(text.is_complete)
+
+        photo = self._step(step_type=WorkOrderChecklist.TYPE_PHOTO)
+        self.assertFalse(photo.is_complete)
+        WorkOrderAttachment.objects.create(
+            work_order=self.workorder,
+            checklist_item=photo,
+            file=SimpleUploadedFile("step.jpg", b"binarydata", content_type="image/jpeg"),
+        )
+        self.assertTrue(photo.is_complete)
+
+    def test_is_out_of_range(self):
+        measure = self._step(step_type=WorkOrderChecklist.TYPE_MEASURE, unit="bar", range_min=Decimal("2"), range_max=Decimal("6"))
+        measure.set_value(value_numeric=Decimal("4"), user=self.user)
+        self.assertFalse(measure.is_out_of_range)
+        measure.set_value(value_numeric=Decimal("9"), user=self.user)
+        self.assertTrue(measure.is_out_of_range)
+
+    def test_blocks_closure_only_when_mandatory_incomplete_and_not_skipped(self):
+        mandatory = self._step(step_type=WorkOrderChecklist.TYPE_YES_NO, is_mandatory=True)
+        self.assertTrue(mandatory.blocks_closure)
+
+        mandatory.toggle(self.user)
+        self.assertFalse(mandatory.blocks_closure)
+
+        mandatory.toggle(self.user)  # torna incompleto
+        mandatory.skip(reason="Non applicabile a questo asset", user=self.user)
+        self.assertFalse(mandatory.blocks_closure)
+
+        mandatory.unskip()
+        self.assertTrue(mandatory.blocks_closure)
+
+    def test_copy_template_checklist_copies_typed_fields(self):
+        category = AssetCategory.objects.create(
+            code="cl-category", label="Categoria checklist", base_asset_type=Asset.TYPE_SERVER,
+        )
+        template = MaintenanceInterventionTemplate.objects.create(
+            code="cl-template", label="Template checklist", asset_category=category,
+        )
+        MaintenanceChecklistStep.objects.create(
+            intervention_template=template,
+            step_number=10,
+            description="Misura pressione",
+            step_type="MEASURE",
+            is_mandatory=True,
+            unit="bar",
+            range_min=Decimal("1"),
+            range_max=Decimal("5"),
+        )
+        self.workorder.maintenance_rule = MaintenanceRule.objects.create(
+            intervention_template=template,
+            asset_category=category,
+            threshold_type=MaintenanceRule.THRESHOLD_DAYS,
+            threshold_value=90,
+        )
+        self.workorder.save(update_fields=["maintenance_rule"])
+
+        from assets.maintenance import copy_template_checklist_to_workorder
+        copy_template_checklist_to_workorder(self.workorder)
+
+        item = self.workorder.checklist_items.get()
+        self.assertEqual(item.step_type, "MEASURE")
+        self.assertTrue(item.is_mandatory)
+        self.assertEqual(item.unit, "bar")
+        self.assertEqual(item.range_min, Decimal("1.00"))
+        self.assertEqual(item.range_max, Decimal("5.00"))
+
+    def test_set_value_view_for_measure_step(self):
+        item = self._step(step_type=WorkOrderChecklist.TYPE_MEASURE, unit="°C")
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("assets:wo_checklist_set_value", args=[self.workorder.id, item.id]),
+            {"value_numeric": "36.6"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        item.refresh_from_db()
+        self.assertEqual(item.value_numeric, Decimal("36.60"))
+        self.assertTrue(item.is_done)
+
+    def test_set_value_view_for_text_step(self):
+        item = self._step(step_type=WorkOrderChecklist.TYPE_TEXT)
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("assets:wo_checklist_set_value", args=[self.workorder.id, item.id]),
+            {"value_text": "Nessuna anomalia rilevata"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        item.refresh_from_db()
+        self.assertEqual(item.value_text, "Nessuna anomalia rilevata")
+
+    def test_checklist_photo_upload_links_attachment_to_step(self):
+        item = self._step(step_type=WorkOrderChecklist.TYPE_PHOTO)
+        self.client.force_login(self.user)
+        upload = SimpleUploadedFile("step-photo.jpg", b"binarydata", content_type="image/jpeg")
+
+        with _workspace_temporary_directory("assets-checklist-photo-") as media_root, override_settings(MEDIA_ROOT=media_root):
+            with patch("assets.views.validate_extension_and_mime", return_value="image/jpeg"):
+                response = self.client.post(
+                    reverse("assets:wo_checklist_photo", args=[self.workorder.id, item.id]),
+                    {"photo": upload},
+                )
+
+        self.assertRedirects(
+            response,
+            f"{reverse('assets:wo_view', args=[self.workorder.id])}#wod-checklist-section",
+            fetch_redirect_response=False,
+        )
+        item.refresh_from_db()
+        self.assertEqual(item.photos.count(), 1)
+
+    def test_checklist_skip_and_unskip_views(self):
+        item = self._step(step_type=WorkOrderChecklist.TYPE_YES_NO, is_mandatory=True)
+        self.client.force_login(self.user)
+
+        skip_response = self.client.post(
+            reverse("assets:wo_checklist_skip", args=[self.workorder.id, item.id]),
+            {"skip_reason": "Componente non presente su questo asset"},
+        )
+        self.assertEqual(skip_response.status_code, 200)
+        item.refresh_from_db()
+        self.assertTrue(item.is_skipped)
+        self.assertEqual(item.skip_reason, "Componente non presente su questo asset")
+
+        unskip_response = self.client.post(
+            reverse("assets:wo_checklist_skip", args=[self.workorder.id, item.id])
+        )
+        self.assertEqual(unskip_response.status_code, 200)
+        item.refresh_from_db()
+        self.assertFalse(item.is_skipped)
+
+    def test_workorder_close_blocked_by_incomplete_mandatory_step(self):
+        self._step(step_type=WorkOrderChecklist.TYPE_YES_NO, is_mandatory=True, description="Verifica sicurezza")
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("assets:wo_close", args=[self.workorder.id]),
+            {
+                "status": WorkOrder.STATUS_DONE,
+                "esito": WorkOrder.OUTCOME_RESOLVED,
+                "resolution": "Fatto",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.workorder.refresh_from_db()
+        self.assertEqual(self.workorder.status, WorkOrder.STATUS_OPEN)
+        self.assertContains(response, "Verifica sicurezza")
+
+    def test_workorder_close_allowed_after_mandatory_step_completed(self):
+        item = self._step(step_type=WorkOrderChecklist.TYPE_YES_NO, is_mandatory=True)
+        item.toggle(self.user)
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("assets:wo_close", args=[self.workorder.id]),
+            {
+                "status": WorkOrder.STATUS_DONE,
+                "esito": WorkOrder.OUTCOME_RESOLVED,
+                "resolution": "Fatto",
+                "failure_cause": WorkOrder.FAILURE_CAUSE_MECHANICAL,
+            },
+        )
+
+        self.assertRedirects(response, reverse("assets:wo_view", args=[self.workorder.id]))
+        self.workorder.refresh_from_db()
+        self.assertEqual(self.workorder.status, WorkOrder.STATUS_DONE)
+        self.assertEqual(self.workorder.failure_cause, WorkOrder.FAILURE_CAUSE_MECHANICAL)
+
+    def test_workorder_close_allowed_after_mandatory_step_skipped(self):
+        item = self._step(step_type=WorkOrderChecklist.TYPE_YES_NO, is_mandatory=True)
+        item.skip(reason="Non applicabile", user=self.user)
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("assets:wo_close", args=[self.workorder.id]),
+            {
+                "status": WorkOrder.STATUS_DONE,
+                "esito": WorkOrder.OUTCOME_RESOLVED,
+                "resolution": "Fatto",
+            },
+        )
+
+        self.assertRedirects(response, reverse("assets:wo_view", args=[self.workorder.id]))
+        self.workorder.refresh_from_db()
+        self.assertEqual(self.workorder.status, WorkOrder.STATUS_DONE)

@@ -1022,24 +1022,38 @@ class MaintenanceInterventionTemplateForm(forms.ModelForm):
 class MaintenanceChecklistStepForm(forms.ModelForm):
     class Meta:
         model = MaintenanceChecklistStep
-        fields = ["step_number", "description"]
+        fields = ["step_number", "description", "step_type", "is_mandatory", "unit", "range_min", "range_max"]
         labels = {
             "step_number": "N.",
             "description": "Step checklist",
+            "step_type": "Tipo",
+            "is_mandatory": "Obbligatorio",
+            "unit": "Unità",
+            "range_min": "Min",
+            "range_max": "Max",
         }
         widgets = {
             "description": forms.TextInput(attrs={"placeholder": "Es. Verifica livello olio e perdite"}),
             "step_number": forms.NumberInput(attrs={"min": 0, "step": 10}),
+            "unit": forms.TextInput(attrs={"placeholder": "°C, bar..."}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Il numero step è opzionale: se vuoto viene auto-assegnato in fase di salvataggio.
         self.fields["step_number"].required = False
+        self.fields["step_type"].required = False
+        self.fields["unit"].required = False
+        self.fields["range_min"].required = False
+        self.fields["range_max"].required = False
+        self.fields["is_mandatory"].required = False
         _attach_input_css(self)
 
     def clean_description(self):
         return (self.cleaned_data.get("description") or "").strip()
+
+    def clean_step_type(self):
+        return self.cleaned_data.get("step_type") or MaintenanceChecklistStep._meta.get_field("step_type").default
 
 
 # Formset inline: gli step di checklist appartengono a un MaintenanceInterventionTemplate
@@ -2673,6 +2687,8 @@ class WorkOrderForm(forms.ModelForm):
             "assistance_contract",
             "covered_by_contract",
             "kind",
+            "priority",
+            "due_at",
             "status",
             "title",
             "description",
@@ -2687,6 +2703,8 @@ class WorkOrderForm(forms.ModelForm):
             "assistance_contract": "Contratto assistenza",
             "covered_by_contract": "Copertura da contratto",
             "kind": "Tipo intervento",
+            "priority": "Priorità",
+            "due_at": "Scadenza entro cui completare",
             "status": "Stato",
             "title": "Titolo",
             "description": "Descrizione",
@@ -2702,6 +2720,10 @@ class WorkOrderForm(forms.ModelForm):
             "assigned_to": forms.Select(),
             "description": forms.Textarea(attrs={"rows": 4}),
             "resolution": forms.Textarea(attrs={"rows": 3}),
+            "due_at": forms.DateTimeInput(
+                format="%Y-%m-%dT%H:%M",
+                attrs={"type": "datetime-local"},
+            ),
         }
 
     def __init__(self, *args, **kwargs):
@@ -2730,6 +2752,10 @@ class WorkOrderForm(forms.ModelForm):
         self.fields["status"].widget = forms.HiddenInput()
         self.fields["status"].initial = WorkOrder.STATUS_OPEN
         self.initial["status"] = WorkOrder.STATUS_OPEN
+        self.fields["priority"].required = False
+        self.fields["due_at"].required = False
+        self.fields["due_at"].input_formats = ["%Y-%m-%dT%H:%M"]
+        self.fields["due_at"].help_text = "Opzionale: se vuota, l'urgenza è indicata solo dalla priorità."
         verification_field = self.fields["periodic_verification"]
         verification_field.required = False
         verification_field.help_text = "Seleziona il piano di manutenzione periodica collegato per proporre il fornitore."
@@ -2918,6 +2944,11 @@ class WorkOrderCloseForm(forms.Form):
     )
     execution_days = forms.CharField(required=False, widget=forms.HiddenInput())
     resolution = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 4}), label="Risoluzione")
+    failure_cause = forms.ChoiceField(
+        choices=[("", "Non specificata")] + list(WorkOrder.FAILURE_CAUSE_CHOICES),
+        required=False,
+        label="Causa del guasto",
+    )
     intervention_duration_hours = forms.IntegerField(required=False, min_value=0, label="Ore")
     intervention_duration_remainder = forms.IntegerField(required=False, min_value=0, max_value=59, label="Minuti")
     intervention_duration_minutes = forms.IntegerField(required=False, min_value=0, widget=forms.HiddenInput())

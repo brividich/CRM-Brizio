@@ -1004,6 +1004,23 @@ class MaintenanceChecklistStep(models.Model):
     )
     step_number = models.PositiveSmallIntegerField(default=10)
     description = models.CharField(max_length=255)
+    step_type = models.CharField(
+        max_length=10,
+        choices=[
+            ("YES_NO", "Sì/No"),
+            ("MEASURE", "Misura"),
+            ("TEXT", "Testo"),
+            ("PHOTO", "Foto"),
+        ],
+        default="YES_NO",
+    )
+    is_mandatory = models.BooleanField(
+        default=False,
+        help_text="Step obbligatorio/di sicurezza: blocca la chiusura dell'OdL finché non è completo o saltato con motivazione.",
+    )
+    unit = models.CharField(max_length=20, blank=True, default="", help_text="Unità di misura (solo step Misura).")
+    range_min = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    range_max = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
     class Meta:
         ordering = ["intervention_template", "step_number", "id"]
@@ -2092,6 +2109,41 @@ class WorkOrder(models.Model):
         (OUTCOME_NOT_RESOLVED, "Non risolto"),
     ]
 
+    PRIORITY_URGENT = "URGENT"
+    PRIORITY_NORMAL = "NORMAL"
+    PRIORITY_LOW = "LOW"
+    PRIORITY_CHOICES = [
+        (PRIORITY_URGENT, "Urgente"),
+        (PRIORITY_NORMAL, "Normale"),
+        (PRIORITY_LOW, "Bassa"),
+    ]
+
+    OPSTATE_UNASSIGNED = "unassigned"
+    OPSTATE_ASSIGNED = "assigned"
+    OPSTATE_IN_PROGRESS = "in_progress"
+    OPSTATE_WAITING = "waiting"
+    OPSTATE_LABELS = {
+        OPSTATE_UNASSIGNED: "Da assegnare",
+        OPSTATE_ASSIGNED: "Assegnato",
+        OPSTATE_IN_PROGRESS: "In corso",
+        OPSTATE_WAITING: "In attesa",
+    }
+
+    FAILURE_CAUSE_ELECTRICAL = "ELECTRICAL"
+    FAILURE_CAUSE_MECHANICAL = "MECHANICAL"
+    FAILURE_CAUSE_HYDRAULIC = "HYDRAULIC"
+    FAILURE_CAUSE_WEAR = "WEAR"
+    FAILURE_CAUSE_OPERATOR_ERROR = "OPERATOR_ERROR"
+    FAILURE_CAUSE_OTHER = "OTHER"
+    FAILURE_CAUSE_CHOICES = [
+        (FAILURE_CAUSE_ELECTRICAL, "Elettrica"),
+        (FAILURE_CAUSE_MECHANICAL, "Meccanica"),
+        (FAILURE_CAUSE_HYDRAULIC, "Idraulica"),
+        (FAILURE_CAUSE_WEAR, "Usura"),
+        (FAILURE_CAUSE_OPERATOR_ERROR, "Errore operatore"),
+        (FAILURE_CAUSE_OTHER, "Altro"),
+    ]
+
     WAIT_REASON_RICAMBIO = "RICAMBIO"
     WAIT_REASON_FORNITORE = "FORNITORE"
     WAIT_REASON_PRODUZIONE = "PRODUZIONE"
@@ -2144,6 +2196,23 @@ class WorkOrder(models.Model):
     )
     covered_by_contract = models.BooleanField(default=False, db_index=True)
     kind = models.CharField(max_length=20, choices=KIND_CHOICES, default=KIND_OTHER)
+    priority = models.CharField(
+        max_length=10,
+        choices=PRIORITY_CHOICES,
+        default=PRIORITY_NORMAL,
+        db_index=True,
+        help_text="Urgenza dichiarata dell'intervento (non dedotta dall'anzianità di apertura).",
+    )
+    due_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Scadenza esplicita entro cui l'intervento andrebbe concluso (opzionale).",
+    )
+    started_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp di inizio lavorazione effettiva (bottone 'Inizia intervento').",
+    )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_OPEN)
     origin = models.CharField(
         max_length=20,
@@ -2179,6 +2248,13 @@ class WorkOrder(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True, default="")
     resolution = models.TextField(blank=True, default="")
+    failure_cause = models.CharField(
+        max_length=20,
+        choices=FAILURE_CAUSE_CHOICES,
+        blank=True,
+        default="",
+        help_text="Causa del guasto, per statistiche di ricorrenza (opzionale).",
+    )
     notes = models.TextField(blank=True, default="", help_text="Note aggiuntive sulla manutenzione")
     intervention_duration_minutes = models.PositiveIntegerField(default=0)
     downtime_minutes = models.PositiveIntegerField(default=0)
@@ -2299,7 +2375,7 @@ class WorkOrder(models.Model):
         assistance_contract: "AssistanceContract" | None = None,
     ):
         self.status = status
-        self.closed_at = closed_at or timezone.now()
+        self.closed_at = (closed_at or timezone.now()) if status != self.STATUS_OPEN else None
         if resolution:
             self.resolution = resolution
         if intervention_duration is not None:
@@ -2398,6 +2474,43 @@ class WorkOrder(models.Model):
         self.waiting_since = None
         self.save(update_fields=["is_waiting", "wait_reason", "wait_note", "waiting_since"])
 
+    def start(self) -> None:
+        """Segna l'inizio della lavorazione effettiva (bottone 'Inizia intervento').
+        Idempotente: non sposta ``started_at`` se l'intervento e' gia' in corso.
+        Riprende automaticamente da un'attesa, perche' premere "Inizia/Riprendi"
+        e' l'unico gesto che il manutentore compie sul campo."""
+        if self.status != self.STATUS_OPEN:
+            return
+        if self.is_waiting:
+            self.resume_from_waiting()
+        if not self.started_at:
+            self.started_at = timezone.now()
+            self.save(update_fields=["started_at"])
+
+    @property
+    def operational_state(self) -> str | None:
+        """Sotto-stato dentro OPEN, derivato senza un campo dedicato ridondante
+        (evita di dover propagare un secondo stato in sync con is_waiting/started_at/
+        assigned_to): None per gli OdL chiusi/annullati."""
+        if self.status != self.STATUS_OPEN:
+            return None
+        if self.is_waiting:
+            return self.OPSTATE_WAITING
+        if self.started_at:
+            return self.OPSTATE_IN_PROGRESS
+        if self.assigned_to_id:
+            return self.OPSTATE_ASSIGNED
+        return self.OPSTATE_UNASSIGNED
+
+    @property
+    def operational_state_label(self) -> str:
+        state = self.operational_state
+        return self.OPSTATE_LABELS.get(state, "") if state else ""
+
+    @property
+    def is_overdue(self) -> bool:
+        return bool(self.status == self.STATUS_OPEN and self.due_at and self.due_at < timezone.now())
+
 
 class WorkOrderExecutionDay(models.Model):
     """Giorno effettivo in cui e' stata svolta attivita per un OdL."""
@@ -2438,6 +2551,14 @@ def _workorder_attachment_upload_to(instance, filename: str) -> str:
 
 class WorkOrderAttachment(models.Model):
     work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE, related_name="attachments")
+    checklist_item = models.ForeignKey(
+        "WorkOrderChecklist",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="photos",
+        help_text="Valorizzato quando l'allegato è la foto di uno step checklist di tipo Foto.",
+    )
     file = models.FileField(upload_to=_workorder_attachment_upload_to, storage=PrivateAssetDocumentStorage())
     original_name = models.CharField(max_length=255, blank=True, default="")
     notes = models.CharField(max_length=255, blank=True, default="")
@@ -2489,9 +2610,25 @@ class WorkOrderLog(models.Model):
 
 
 class WorkOrderChecklist(models.Model):
+    TYPE_YES_NO = "YES_NO"
+    TYPE_MEASURE = "MEASURE"
+    TYPE_TEXT = "TEXT"
+    TYPE_PHOTO = "PHOTO"
+    TYPE_CHOICES = [
+        (TYPE_YES_NO, "Sì/No"),
+        (TYPE_MEASURE, "Misura"),
+        (TYPE_TEXT, "Testo"),
+        (TYPE_PHOTO, "Foto"),
+    ]
+
     work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE, related_name="checklist_items")
     step_number = models.PositiveSmallIntegerField()
     description = models.CharField(max_length=255)
+    step_type = models.CharField(max_length=10, choices=TYPE_CHOICES, default=TYPE_YES_NO)
+    is_mandatory = models.BooleanField(
+        default=False,
+        help_text="Step obbligatorio/di sicurezza: blocca la chiusura dell'OdL finché non è completo o saltato con motivazione.",
+    )
     is_done = models.BooleanField(default=False, db_index=True)
     done_at = models.DateTimeField(null=True, blank=True)
     done_by = models.ForeignKey(
@@ -2501,6 +2638,21 @@ class WorkOrderChecklist(models.Model):
         blank=True,
         related_name="workorder_checklist_done",
     )
+    unit = models.CharField(max_length=20, blank=True, default="", help_text="Unità di misura (solo step Misura).")
+    range_min = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    range_max = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    value_numeric = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    value_text = models.TextField(blank=True, default="")
+    is_skipped = models.BooleanField(default=False)
+    skip_reason = models.TextField(blank=True, default="")
+    skipped_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="workorder_checklist_skipped",
+    )
+    skipped_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["work_order", "step_number", "id"]
@@ -2521,6 +2673,58 @@ class WorkOrderChecklist(models.Model):
             self.done_at = tz.now()
             self.done_by = user
         self.save(update_fields=["is_done", "done_at", "done_by_id"])
+
+    def set_value(self, *, value_numeric=None, value_text=None, user=None) -> None:
+        """Valorizza uno step Misura o Testo. Un valore compilato conta come 'fatto'
+        per uniformità con gli step Sì/No (badge, conteggio, filtri)."""
+        from django.utils import timezone as tz
+        if self.step_type == self.TYPE_MEASURE:
+            self.value_numeric = value_numeric
+        elif self.step_type == self.TYPE_TEXT:
+            self.value_text = value_text or ""
+        self.is_done = self.is_complete
+        self.done_at = tz.now() if self.is_done else None
+        self.done_by = user if self.is_done else None
+        self.save(update_fields=["value_numeric", "value_text", "is_done", "done_at", "done_by_id"])
+
+    def skip(self, *, reason: str, user=None) -> None:
+        from django.utils import timezone as tz
+        self.is_skipped = True
+        self.skip_reason = reason
+        self.skipped_by = user
+        self.skipped_at = tz.now()
+        self.save(update_fields=["is_skipped", "skip_reason", "skipped_by_id", "skipped_at"])
+
+    def unskip(self) -> None:
+        self.is_skipped = False
+        self.skip_reason = ""
+        self.skipped_by = None
+        self.skipped_at = None
+        self.save(update_fields=["is_skipped", "skip_reason", "skipped_by_id", "skipped_at"])
+
+    @property
+    def is_complete(self) -> bool:
+        if self.step_type == self.TYPE_MEASURE:
+            return self.value_numeric is not None
+        if self.step_type == self.TYPE_TEXT:
+            return bool(self.value_text.strip())
+        if self.step_type == self.TYPE_PHOTO:
+            return self.photos.exists()
+        return self.is_done
+
+    @property
+    def is_out_of_range(self) -> bool:
+        if self.step_type != self.TYPE_MEASURE or self.value_numeric is None:
+            return False
+        if self.range_min is not None and self.value_numeric < self.range_min:
+            return True
+        if self.range_max is not None and self.value_numeric > self.range_max:
+            return True
+        return False
+
+    @property
+    def blocks_closure(self) -> bool:
+        return self.is_mandatory and not self.is_complete and not self.is_skipped
 
 
 class AssetMaintenanceRuleState(models.Model):

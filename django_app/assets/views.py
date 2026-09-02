@@ -9,7 +9,7 @@ import re
 import tempfile
 from collections import defaultdict
 from datetime import date, datetime, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from html import escape
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
@@ -24,7 +24,7 @@ from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.core.paginator import Paginator
 from django.db import DatabaseError, IntegrityError, connections, transaction
-from django.db.models import Avg, Count, Max, Q
+from django.db.models import Avg, Case, Count, IntegerField, Max, Q, When
 from django.http import FileResponse, Http404, HttpRequest, HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.templatetags.static import static
@@ -5135,6 +5135,7 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
     wo_list = reverse("assets:wo_list")
     asset_quick_report = reverse("assets:asset_quick_report")
     maintenance_todo = reverse("assets:maintenance_todo")
+    il_mio_turno_url = reverse("assets:il_mio_turno")
     current_type = _clean_string(request.GET.get("asset_type"))
     current_group = _clean_string(request.GET.get("group")).lower()
     current_route = getattr(getattr(request, "resolver_match", None), "url_name", "")
@@ -5147,6 +5148,13 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
             "url": asset_dashboard,
             "is_subitem": False,
             "active": current_route == "asset_dashboard",
+        },
+        {
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Il mio turno",
+            "url": il_mio_turno_url,
+            "is_subitem": False,
+            "active": current_route == "il_mio_turno",
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
@@ -14694,12 +14702,15 @@ def _validate_execution_attachment_uploads(request: HttpRequest) -> tuple[list, 
     return _validate_workorder_attachment_uploads(request, field_name="execution_files")
 
 
-def _save_workorder_attachments(*, workorder: WorkOrder, uploads: list, user) -> list[WorkOrderAttachment]:
+def _save_workorder_attachments(
+    *, workorder: WorkOrder, uploads: list, user, checklist_item: "WorkOrderChecklist | None" = None
+) -> list[WorkOrderAttachment]:
     created: list[WorkOrderAttachment] = []
     for upload in uploads:
         created.append(
             WorkOrderAttachment.objects.create(
                 work_order=workorder,
+                checklist_item=checklist_item,
                 file=upload,
                 original_name=Path(getattr(upload, "name", "") or "").name[:255],
                 uploaded_by=user if getattr(user, "is_authenticated", False) else None,
@@ -14724,6 +14735,16 @@ def _add_form_validation_errors(form, exc: ValidationError) -> None:
         return
     for error in list(getattr(exc, "messages", []) or [str(exc)]):
         form.add_error(None, error)
+
+
+def _workorder_priority_order_case() -> Case:
+    return Case(
+        When(priority=WorkOrder.PRIORITY_URGENT, then=0),
+        When(priority=WorkOrder.PRIORITY_NORMAL, then=1),
+        When(priority=WorkOrder.PRIORITY_LOW, then=2),
+        default=1,
+        output_field=IntegerField(),
+    )
 
 
 def _apply_workorder_list_filters(get_params, *, include_filters: bool = True):
@@ -14753,14 +14774,20 @@ def _apply_workorder_list_filters(get_params, *, include_filters: bool = True):
     category_id = _as_int(get_params.get("category"), default=0)
     assigned_id = _as_int(get_params.get("assigned"), default=0)
     open_age_days = _as_int(get_params.get("open_age"), default=0)
+    asset_id = _as_int(get_params.get("asset"), default=0)
+    priority = _clean_string(get_params.get("priority"))
     q = _clean_string(get_params.get("q"))
 
+    if priority in dict(WorkOrder.PRIORITY_CHOICES):
+        qs = qs.filter(priority=priority)
     if status:
         qs = qs.filter(status=status)
     if kind:
         qs = qs.filter(kind=kind)
     if origin:
         qs = qs.filter(origin=origin)
+    if asset_id:
+        qs = qs.filter(asset_id=asset_id)
     if coverage == "covered":
         qs = qs.filter(covered_by_contract=True)
     elif coverage == "uncovered":
@@ -14845,14 +14872,17 @@ def _workorder_list_filter_chips(
     category_id: int,
     assigned_id: int,
     open_age_days: int,
+    priority: str = "",
     q: str,
     operational_view: str,
     category_options,
     user_options,
+    asset_filter=None,
 ) -> list[dict[str, str]]:
     status_labels = dict(WorkOrder.STATUS_CHOICES)
     kind_labels = dict(WorkOrder.KIND_CHOICES)
     origin_labels = dict(WorkOrder.ORIGIN_CHOICES)
+    priority_labels = dict(WorkOrder.PRIORITY_CHOICES)
     coverage_labels = {
         "covered": "Con contratto",
         "uncovered": "Senza contratto",
@@ -14893,6 +14923,8 @@ def _workorder_list_filter_chips(
         add("status", "Stato", status_labels.get(status, status))
     if kind:
         add("kind", "Tipo", kind_labels.get(kind, kind))
+    if priority:
+        add("priority", "Priorità", priority_labels.get(priority, priority))
     if origin:
         add("origin", "Origine", origin_labels.get(origin, origin))
     if coverage in coverage_labels:
@@ -14908,6 +14940,8 @@ def _workorder_list_filter_chips(
         add("assigned", "Responsabile", user_label)
     if open_age_days:
         add("open_age", "Aperti da", f"{open_age_days} giorni")
+    if asset_filter is not None:
+        add("asset", "Asset", asset_filter.asset_tag or asset_filter.name)
     return chips
 
 
@@ -14921,14 +14955,22 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
     category_id = _as_int(request.GET.get("category"), default=0)
     assigned_id = _as_int(request.GET.get("assigned"), default=0)
     open_age_days = _as_int(request.GET.get("open_age"), default=0)
+    asset_id = _as_int(request.GET.get("asset"), default=0)
+    priority = _clean_string(request.GET.get("priority"))
     q = _clean_string(request.GET.get("q"))
     operational_view = _resolve_workorder_operational_view(request.GET)
+    asset_filter = Asset.objects.filter(pk=asset_id).first() if asset_id else None
 
     workorders = _apply_workorder_operational_view(
         _apply_workorder_list_filters(request.GET),
         operational_view=operational_view,
         user=request.user,
-    ).order_by("-opened_at", "-id")
+    )
+    if operational_view in ("open", "mine", "unassigned"):
+        # Coda di lavoro: urgente prima, poi il più vecchio aperto — non l'ultimo creato.
+        workorders = workorders.order_by(_workorder_priority_order_case(), "opened_at", "id")
+    else:
+        workorders = workorders.order_by("-opened_at", "-id")
     count_source = WorkOrder.objects.all()
     operational_counts = {
         "open": count_source.filter(status=WorkOrder.STATUS_OPEN).count(),
@@ -14956,10 +14998,12 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
         category_id=category_id,
         assigned_id=assigned_id,
         open_age_days=open_age_days,
+        priority=priority,
         q=q,
         operational_view=operational_view,
         category_options=category_options,
         user_options=user_options,
+        asset_filter=asset_filter,
     )
 
     return render(
@@ -14973,9 +15017,12 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
             "origin_filter": origin,
             "coverage_filter": coverage,
             "reparto_filter": reparto,
+            "priority_filter": priority,
+            "priority_choices": WorkOrder.PRIORITY_CHOICES,
             "selected_category_id": category_id,
             "assigned_filter": assigned_id,
             "open_age_filter": open_age_days,
+            "asset_filter": asset_filter,
             "q_filter": q,
             "workorder_view": operational_view,
             "workorder_view_url": _workorder_list_page_url(view=operational_view),
@@ -14992,6 +15039,7 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
                 or category_id
                 or assigned_id
                 or open_age_days
+                or priority
                 or status
             ),
             "status_choices": WorkOrder.STATUS_CHOICES,
@@ -15007,6 +15055,79 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
                 "id",
             ),
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
+        },
+    )
+
+
+@login_required
+def il_mio_turno(request: HttpRequest) -> HttpResponse:
+    """Home del manutentore: cosa fare adesso, non l'archivio di chi pianifica.
+    Ogni OdL compare in una sola sezione (la prima che gli si applica, nell'ordine
+    Bloccati > Emergenze > Scaduti > Oggi > In corso), cosi' non si duplica la coda."""
+    user = request.user
+    now = timezone.now()
+    today = timezone.localdate()
+    priority_order = _workorder_priority_order_case()
+
+    mine_open = (
+        WorkOrder.objects.select_related("asset", "asset__asset_category", "maintenance_rule__intervention_template")
+        .filter(status=WorkOrder.STATUS_OPEN, assigned_to=user)
+    )
+    unassigned_open = (
+        WorkOrder.objects.select_related("asset", "asset__asset_category", "maintenance_rule__intervention_template")
+        .filter(status=WorkOrder.STATUS_OPEN, assigned_to__isnull=True)
+        .order_by(priority_order, "opened_at", "id")
+    )
+
+    bloccati = list(mine_open.filter(is_waiting=True).order_by("waiting_since"))
+    bloccati_ids = {wo.id for wo in bloccati}
+    emergenze = list(
+        mine_open.filter(priority=WorkOrder.PRIORITY_URGENT)
+        .exclude(id__in=bloccati_ids)
+        .order_by("opened_at", "id")
+    )
+    emergenze_ids = bloccati_ids | {wo.id for wo in emergenze}
+    scaduti = list(
+        mine_open.filter(due_at__lt=now)
+        .exclude(id__in=emergenze_ids)
+        .order_by("due_at", "id")
+    )
+    scaduti_ids = emergenze_ids | {wo.id for wo in scaduti}
+    oggi = list(
+        mine_open.filter(due_at__date=today)
+        .exclude(id__in=scaduti_ids)
+        .order_by("due_at", "id")
+    )
+    oggi_ids = scaduti_ids | {wo.id for wo in oggi}
+    in_corso = list(
+        mine_open.filter(started_at__isnull=False)
+        .exclude(id__in=oggi_ids)
+        .order_by("started_at")
+    )
+    in_corso_ids = oggi_ids | {wo.id for wo in in_corso}
+    altri_assegnati = list(
+        mine_open.exclude(id__in=in_corso_ids).order_by(priority_order, "opened_at", "id")
+    )
+    da_prendere = list(unassigned_open[:20])
+
+    sections = [
+        {"key": "bloccati", "title": "Bloccati / in attesa", "rows": bloccati, "empty": "Nessun intervento in attesa."},
+        {"key": "emergenze", "title": "Emergenze", "rows": emergenze, "empty": "Nessuna emergenza aperta."},
+        {"key": "scaduti", "title": "Scaduti", "rows": scaduti, "empty": "Nessun intervento scaduto."},
+        {"key": "oggi", "title": "Oggi", "rows": oggi, "empty": "Nessuna scadenza per oggi."},
+        {"key": "in_corso", "title": "In corso", "rows": in_corso, "empty": "Nessun intervento iniziato."},
+        {"key": "altri", "title": "Altri assegnati a te", "rows": altri_assegnati, "empty": "Nessun altro intervento assegnato."},
+        {"key": "da_prendere", "title": "Da prendere in carico", "rows": da_prendere, "empty": "Niente in coda da prendere in carico."},
+    ]
+    return render(
+        request,
+        "assets/pages/il_mio_turno.html",
+        {
+            "page_title": "Il mio turno",
+            "sections": sections,
+            "total_mine_open": mine_open.count(),
+            **_assets_shell_context(request, rows=25),
+            "assets_section_nav": None,
         },
     )
 
@@ -15197,6 +15318,43 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
                 messages.success(request, "Intervento messo in attesa.")
             return redirect("assets:wo_view", id=workorder.id)
 
+        if action == "start":
+            if workorder.status != WorkOrder.STATUS_OPEN:
+                messages.error(request, "Solo un intervento aperto puo essere iniziato.")
+            else:
+                was_waiting = workorder.is_waiting
+                already_started = bool(workorder.started_at)
+                workorder.start()
+                if not already_started:
+                    log_text = "Intervento iniziato."
+                    if was_waiting:
+                        log_text = "Intervento ripreso e iniziato."
+                    WorkOrderLog.objects.create(work_order=workorder, note=log_text, author=author)
+                    messages.success(request, "Intervento iniziato.")
+                elif was_waiting:
+                    WorkOrderLog.objects.create(
+                        work_order=workorder, note="Intervento ripreso dall'attesa.", author=author
+                    )
+                    messages.success(request, "Intervento ripreso.")
+            return redirect("assets:wo_view", id=workorder.id)
+
+        if action == "set_priority":
+            priority_choices = dict(WorkOrder.PRIORITY_CHOICES)
+            new_priority = _clean_string(request.POST.get("priority"))
+            if new_priority not in priority_choices:
+                messages.error(request, "Seleziona una priorità valida.")
+            elif new_priority != workorder.priority:
+                previous_label = workorder.get_priority_display()
+                workorder.priority = new_priority
+                workorder.save(update_fields=["priority"])
+                WorkOrderLog.objects.create(
+                    work_order=workorder,
+                    note=f"Priorità aggiornata: {previous_label} → {priority_choices[new_priority]}",
+                    author=author,
+                )
+                messages.success(request, "Priorità aggiornata.")
+            return redirect("assets:wo_view", id=workorder.id)
+
         if action == "resume_from_waiting":
             if workorder.is_waiting:
                 workorder.resume_from_waiting()
@@ -15260,8 +15418,10 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
     assignable_users = User.objects.filter(is_active=True).order_by("last_name", "first_name", "username")
     logs = workorder.logs.select_related("author").all()
     attachments = workorder.attachments.all()
-    checklist_items = list(workorder.checklist_items.select_related("done_by").order_by("step_number", "id"))
-    checklist_done_count = sum(1 for it in checklist_items if it.is_done)
+    checklist_items = list(
+        workorder.checklist_items.select_related("done_by", "skipped_by").prefetch_related("photos").order_by("step_number", "id")
+    )
+    checklist_done_count = sum(1 for it in checklist_items if it.is_complete or it.is_skipped)
     execution_days = list(workorder.execution_days.order_by("execution_date"))
     duration_hours, duration_remainder = divmod(max(0, int(workorder.intervention_duration_minutes or 0)), 60)
     downtime_hours, downtime_remainder = divmod(max(0, int(workorder.downtime_minutes or 0)), 60)
@@ -15307,6 +15467,10 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
                 contract=workorder.assistance_contract,
             ),
             "wait_reason_choices": WorkOrder.WAIT_REASON_CHOICES,
+            "priority_choices": WorkOrder.PRIORITY_CHOICES,
+            "operational_state": workorder.operational_state,
+            "operational_state_label": workorder.operational_state_label,
+            "is_overdue": workorder.is_overdue,
             "assignable_users": assignable_users,
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
         },
@@ -15314,8 +15478,10 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
 
 
 def _render_checklist_fragment(request: HttpRequest, workorder: WorkOrder) -> HttpResponse:
-    items = list(workorder.checklist_items.select_related("done_by").order_by("step_number", "id"))
-    done_count = sum(1 for it in items if it.is_done)
+    items = list(
+        workorder.checklist_items.select_related("done_by", "skipped_by").prefetch_related("photos").order_by("step_number", "id")
+    )
+    done_count = sum(1 for it in items if it.is_complete or it.is_skipped)
     return render(
         request,
         "assets/components/workorder_checklist.html",
@@ -15377,6 +15543,60 @@ def workorder_checklist_delete(request: HttpRequest, id: int, item_id: int) -> H
 
 
 @login_required
+def workorder_checklist_set_value(request: HttpRequest, id: int, item_id: int) -> HttpResponse:
+    """Valorizza uno step Misura o Testo (gli step Sì/No usano il toggle, le Foto l'upload)."""
+    workorder = get_object_or_404(WorkOrder, pk=id)
+    if workorder.status != WorkOrder.STATUS_OPEN:
+        return HttpResponseForbidden("OdL non aperto.")
+    if request.method != "POST":
+        return HttpResponseForbidden("Metodo non consentito.")
+    item = get_object_or_404(WorkOrderChecklist, pk=item_id, work_order=workorder)
+    if item.step_type == WorkOrderChecklist.TYPE_MEASURE:
+        raw_value = _clean_string(request.POST.get("value_numeric"))
+        try:
+            value_numeric = Decimal(raw_value.replace(",", ".")) if raw_value else None
+        except (InvalidOperation, ValueError):
+            value_numeric = None
+        item.set_value(value_numeric=value_numeric, user=request.user)
+    elif item.step_type == WorkOrderChecklist.TYPE_TEXT:
+        item.set_value(value_text=request.POST.get("value_text", ""), user=request.user)
+    return _render_checklist_fragment(request, workorder)
+
+
+@login_required
+def workorder_checklist_photo(request: HttpRequest, id: int, item_id: int) -> HttpResponse:
+    workorder = get_object_or_404(WorkOrder, pk=id)
+    if workorder.status != WorkOrder.STATUS_OPEN:
+        return HttpResponseForbidden("OdL non aperto.")
+    if request.method != "POST":
+        return HttpResponseForbidden("Metodo non consentito.")
+    item = get_object_or_404(WorkOrderChecklist, pk=item_id, work_order=workorder, step_type=WorkOrderChecklist.TYPE_PHOTO)
+    uploads, upload_errors = _validate_workorder_attachment_uploads(request, field_name="photo")
+    if uploads:
+        _save_workorder_attachments(workorder=workorder, uploads=uploads[:1], user=request.user, checklist_item=item)
+    elif upload_errors:
+        messages.error(request, upload_errors[0])
+    return redirect(f"{reverse('assets:wo_view', args=[workorder.id])}#wod-checklist-section")
+
+
+@login_required
+def workorder_checklist_skip(request: HttpRequest, id: int, item_id: int) -> HttpResponse:
+    workorder = get_object_or_404(WorkOrder, pk=id)
+    if workorder.status != WorkOrder.STATUS_OPEN:
+        return HttpResponseForbidden("OdL non aperto.")
+    if request.method != "POST":
+        return HttpResponseForbidden("Metodo non consentito.")
+    item = get_object_or_404(WorkOrderChecklist, pk=item_id, work_order=workorder)
+    if item.is_skipped:
+        item.unskip()
+    else:
+        reason = _clean_string(request.POST.get("skip_reason"))
+        if reason:
+            item.skip(reason=reason, user=request.user)
+    return _render_checklist_fragment(request, workorder)
+
+
+@login_required
 def workorder_claim(request: HttpRequest, id: int) -> HttpResponse:
     """Assegna l'intervento aperto all'utente corrente ("prendi in carico").
 
@@ -15432,6 +15652,15 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
         form_is_valid = form.is_valid()
         for error in upload_errors:
             form.add_error(None, error)
+        if form_is_valid and form.cleaned_data["status"] == WorkOrder.STATUS_DONE:
+            blocking_items = [item for item in workorder.checklist_items.all() if item.blocks_closure]
+            if blocking_items:
+                labels = ", ".join(f"#{item.step_number} {item.description}" for item in blocking_items)
+                form.add_error(
+                    None,
+                    f"Completa o salta con motivazione gli step obbligatori della checklist prima di chiudere: {labels}.",
+                )
+                form_is_valid = False
         if form_is_valid and not upload_errors:
             resolved_supplier = form.cleaned_data.get("resolved_supplier")
             if resolved_supplier is not None and workorder.supplier_id is None:
@@ -15449,9 +15678,18 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
             if executed_by is not None:
                 workorder.executed_by = executed_by
             assignee_changed = assigned_to is not None and assigned_to.pk != previous_assignee_id
+            requested_status = form.cleaned_data["status"]
+            esito = form.cleaned_data.get("esito")
+            # "Non risolto" non deve mai risultare chiuso, nemmeno per un istante: se il
+            # WO fosse chiuso prima di riaprirlo, close()/sync_workorder_maintenance_state
+            # avanzerebbero la prossima scadenza su una manutenzione che non ha risolto nulla.
+            reopened_as_unresolved = (
+                requested_status == WorkOrder.STATUS_DONE and esito == WorkOrder.OUTCOME_NOT_RESOLVED
+            )
+            effective_status = WorkOrder.STATUS_OPEN if reopened_as_unresolved else requested_status
             try:
                 workorder.close(
-                    status=form.cleaned_data["status"],
+                    status=effective_status,
                     closed_at=form.cleaned_data.get("closed_at"),
                     resolution=form.cleaned_data.get("resolution") or "",
                     intervention_duration=form.cleaned_data.get("intervention_duration_minutes"),
@@ -15465,6 +15703,10 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
             except ValidationError as exc:
                 _add_form_validation_errors(form, exc)
             else:
+                failure_cause = form.cleaned_data.get("failure_cause") or ""
+                if failure_cause != workorder.failure_cause:
+                    workorder.failure_cause = failure_cause
+                    workorder.save(update_fields=["failure_cause"])
                 execution_days = form.cleaned_data.get("execution_days_list") or []
                 workorder.execution_days.all().delete()
                 WorkOrderExecutionDay.objects.bulk_create(
@@ -15477,19 +15719,16 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
                     sync_workorder_maintenance_state(workorder)
 
                 author = request.user if request.user.is_authenticated else None
-                esito = form.cleaned_data.get("esito")
                 follow_up_child = None
-                if workorder.status == WorkOrder.STATUS_DONE and esito:
+                if reopened_as_unresolved:
+                    workorder.outcome = esito
+                    workorder.save(update_fields=["outcome"])
+                elif workorder.status == WorkOrder.STATUS_DONE and esito:
                     outcome_fields = ["outcome"]
                     workorder.outcome = esito
                     if esito == WorkOrder.OUTCOME_RESOLVED_TEMP:
                         workorder.follow_up_date = form.cleaned_data.get("follow_up_date")
                         outcome_fields.append("follow_up_date")
-                    elif esito == WorkOrder.OUTCOME_NOT_RESOLVED:
-                        # "Non risolto" non deve risultare chiuso definitivamente: torna aperto.
-                        workorder.status = WorkOrder.STATUS_OPEN
-                        workorder.closed_at = None
-                        outcome_fields += ["status", "closed_at"]
                     workorder.save(update_fields=outcome_fields)
                     if esito == WorkOrder.OUTCOME_RESOLVED_TEMP:
                         follow_up_child = WorkOrder.objects.create(
@@ -15571,7 +15810,12 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
                 "assistance_contract": workorder.assistance_contract_id,
                 "covered_by_contract": workorder.covered_by_contract,
                 "assigned_to": workorder.assigned_to_id,
-                "executed_by": workorder.executed_by_id,
+                # Chi chiude l'intervento è quasi sempre chi l'ha eseguito: precompilare
+                # evita al manutentore di doversi ricercare in un elenco ad ogni chiusura.
+                "executed_by": workorder.executed_by_id or (
+                    request.user.id if request.user.is_authenticated else None
+                ),
+                "failure_cause": workorder.failure_cause,
             },
             asset=workorder.asset,
             workorder=workorder,
@@ -15597,6 +15841,7 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
             ),
             "attachment_accept": _workorder_attachment_accept_attr(),
             "attachment_max_mb": int(ASSET_DOCUMENT_MAX_BYTES / (1024 * 1024)),
+            "checklist_blocking_items": [item for item in workorder.checklist_items.all() if item.blocks_closure],
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
             "assets_section_nav": None,
         },

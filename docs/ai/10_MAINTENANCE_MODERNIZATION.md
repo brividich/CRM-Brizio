@@ -541,6 +541,149 @@ class WorkOrderChecklist(models.Model):
 
 ---
 
+## Fase 4 — Cockpit del manutentore (analisi 2026-09-02)
+
+> Analisi richiesta dall'utente sulla prospettiva del **manutentore in officina** (non del pianificatore/responsabile): il modulo ha già un motore dati ricco (piani preventivi, scadenze, OdL, checklist, costi, allegati, QR, storico), ma l'interfaccia oggi è pensata per chi pianifica e controlla, non per chi esegue.
+
+**Flusso ideale individuato**: `Il mio turno / Scansiona QR → contesto e rischi → Inizia → procedura guidata → tempo, ricambi, evidenze → Completa oppure Blocca/Escala`.
+
+### Criticità individuate (per priorità)
+
+| Priorità | Problema | Conseguenza | Stato |
+|---|---|---|---|
+| **Critica** | `close()`/`sync_workorder_maintenance_state` avanzavano la prossima scadenza anche quando l'esito finale era "Non risolto" (il WO transitava per DONE prima di tornare OPEN) | Scadenza futura potenzialmente falsa, fiducia nei dati compromessa | ✅ **Corretto** — vedi P4.1 |
+| Alta | Filtro `?asset=<id>` generato dalla landing QR non era gestito da `workorder_list` | Il link "Vedi tutti gli interventi" dalla QR mostrava tutti gli OdL, non solo quelli dell'asset scansionato | ✅ **Corretto** — vedi P4.2 |
+| Alta | Interventi aperti nella landing QR erano solo informativi, non cliccabili | Il manutentore doveva navigare altrove per aprire/chiudere l'intervento visto sul QR | ✅ **Corretto** — vedi P4.3 |
+| Alta | Etichetta ruolo hardcoded "Amministratore sistema" in `base_shell.html` | Mostrata identica a ogni utente del modulo, indipendentemente dal ruolo reale | ✅ **Corretto** — vedi P4.4 |
+| Alta | Campo "Eseguito da" nel form di chiusura vuoto di default | Il manutentore doveva ricercarsi ogni volta nell'elenco utenti per chiudere un proprio intervento | ✅ **Corretto** — vedi P4.5 |
+| Alta | Stati OdL limitati a Aperto/Chiuso/Annullato; niente priorità né due-date esplicita | L'urgenza è dedotta dall'anzianità, non dichiarata | ⏳ Aperto — richiede decisioni di modello dati (vedi Fase 5) |
+| Alta | Home non distingue bene "non assegnati a me" nella coda personale | Presa in carico spontanea poco naturale | ⏳ Aperto — vedi Fase 5 |
+| Media | Checklist solo sì/no, non tipizzata (misure, foto, firma) | Controlli di sicurezza restano testo libero | ⏳ Aperto — vedi Fase 6 |
+| Media | Materiali/durata previsti dal template poco visibili nell'intervento | Il tecnico non vede subito cosa preparare | ⏳ Aperto — vedi Fase 5 |
+| Evolutiva | Nessun autosalvataggio/offline nel sottomodulo | Rischio perdita dati in officina | ⏳ Aperto — non prioritario, richiede architettura dedicata (vedi Fase 6) |
+
+Nota: esiste un bug distinto e preesistente (non toccato in questa fase, tracciato anche in memoria `analisi_assets_p0_aperti`) — `MaintenanceGeneratorDedupTests.test_open_manual_workorder_blocks_the_generator`/`test_closed_manual_workorder_releases_the_rule` falliscono già su `main`: l'apertura manuale di un OdL legato a una regola (`wo_create` con `maintenance_rule`) non imposta `origin=MANUAL` come atteso dal test. Da investigare separatamente, non è collegato al fix P4.1.
+
+### P4.1 — Fix "Non risolto" non deve mai avanzare la scadenza (Critica)
+
+**Problema**: in `workorder_close`, il WO veniva chiuso con `status=DONE` (che fa scattare `close()` → aggiornamento `WorkMachine.next_maintenance_date` per regole a giorni, e `sync_workorder_maintenance_state()` → upsert `AssetMaintenanceRuleState`), e **solo dopo** — se l'esito scelto era "Non risolto" — lo stato veniva riportato a `OPEN`. La scadenza risultava quindi già avanzata su una manutenzione che non aveva risolto nulla.
+
+**Fix**: l'esito (`esito`) viene letto **prima** di chiamare `workorder.close()`; se `status richiesto == DONE` e `esito == NOT_RESOLVED`, lo stato effettivo passato a `close()` è direttamente `OPEN` — così `close()` non tocca più `WorkMachine.next_maintenance_date`, non cattura lo snapshot del contatore, e il controllo `sync_workorder_maintenance_state` (che verifica `status == DONE`) non scatta. `WorkOrder.close()` è stato inoltre corretto per non impostare più `closed_at` quando lo stato passato è `OPEN`.
+
+**File modificati**:
+- `assets/models.py` — `WorkOrder.close()`: `closed_at` impostato solo se `status != STATUS_OPEN`
+- `assets/views.py` — `workorder_close`: calcolo di `reopened_as_unresolved`/`effective_status` prima della chiamata a `close()`; rimossa la logica di "flip-back" post-hoc duplicata
+- `assets/tests.py` — nuovo test `test_workorder_close_not_resolved_reopens_without_advancing_schedule`
+
+**Criteri di completamento**:
+- [x] `close()` non avanza `next_maintenance_date`/`AssetMaintenanceRuleState` quando l'esito finale è "Non risolto"
+- [x] `closed_at` resta `None` quando l'OdL riapre come "Non risolto"
+- [x] `meter_value_at_close` non viene catturato in questo caso
+- [x] Test di regressione con `MaintenanceRule`/`AssetMaintenanceRuleState`
+- [x] Suite `assets` invariata (414/415 test verdi, i 2 fallimenti sono preesistenti e non collegati)
+
+**Stato**: ✅ Completato — 2026-09-02
+
+### P4.2 — Fix filtro asset nella lista OdL
+
+**Problema**: `workorder_list`/`_apply_workorder_list_filters` non leggevano mai `request.GET["asset"]`, nonostante `wo_list_url` nella landing QR lo generasse (`?asset=<id>`).
+
+**Fix**: aggiunto filtro `asset_id` in `_apply_workorder_list_filters`, propagato in `workorder_list` (context `asset_filter`) e come chip rimovibile in `_workorder_list_filter_chips`.
+
+**File modificati**: `assets/views.py`, `assets/tests.py` (`test_workorder_list_filters_by_asset_from_qr_landing_link`).
+
+**Stato**: ✅ Completato — 2026-09-02
+
+### P4.3 — OdL aperti cliccabili dalla landing QR
+
+**Problema**: nella landing QR (`asset_qr_landing.html`), gli OdL aperti erano righe informative senza link.
+
+**Fix**: per utenti autenticati (non QR pubblico) ogni riga OdL è ora un link verso `assets:wo_view`. Il QR pubblico anonimo resta invariato (nessuna azione operativa esposta senza login).
+
+**File modificati**: `assets/templates/assets/pages/asset_qr_landing.html`, `assets/tests.py` (`test_asset_qr_landing_open_workorders_are_clickable_for_authenticated_user`).
+
+**Stato**: ✅ Completato — 2026-09-02
+
+### P4.4 — Etichetta ruolo dinamica nella sidebar Assets
+
+**Problema**: `base_shell.html` mostrava sempre "Amministratore sistema", indipendentemente dal ruolo reale dell'utente.
+
+**Fix**: l'etichetta usa ora `can_gestione_admin` (già presente nel context di `_assets_shell_context`, stessa condizione che mostra la voce di menu "Amministrazione") per distinguere "Amministratore" da "Operatore Assets".
+
+**File modificati**: `assets/templates/assets/base_shell.html`.
+
+**Stato**: ✅ Completato — 2026-09-02
+
+### P4.5 — Precompilazione esecutore nella chiusura OdL
+
+**Problema**: il campo "Eseguito da" nel form di chiusura restava vuoto finché nessuno lo impostava esplicitamente, obbligando il manutentore a ricercarsi ogni volta.
+
+**Fix**: se `workorder.executed_by_id` non è impostato, il valore iniziale del form è l'utente corrente (resta comunque modificabile, ad esempio se chi chiude non è chi ha eseguito il lavoro).
+
+**File modificati**: `assets/views.py` (`workorder_close`), `assets/tests.py` (`test_workorder_close_form_defaults_executed_by_to_current_user`).
+
+**Stato**: ✅ Completato — 2026-09-02
+
+## Fase 5 — Cockpit del manutentore: coda e schermata di esecuzione
+
+> Analisi 2026-09-02, seconda iterazione (dopo i quick win di Fase 4). Ambito concordato con l'utente: modello dati (priorità/stati operativi) + home "Il mio turno" + schermata unica di esecuzione, tutto insieme.
+
+**Decisioni prese con l'utente**: 3 livelli di priorità (Urgente/Normale/Bassa); lo stato operativo (in corso/in attesa) è un **sotto-stato dentro OPEN**, non nuovi valori di `WorkOrder.STATUS_CHOICES` — per non toccare ogni punto del codice che oggi confronta `status == OPEN` (filtri, dashboard, generatore scadenze, ACL).
+
+**Scoperta in fase di analisi**: il "in attesa con motivo" del report (ricambio/fornitore/autorizzazione/...) **esisteva già** — `WorkOrder.is_waiting`/`wait_reason`/`wait_note`/`waiting_since` (migration `0093`). Non è stato duplicato: lo stato operativo `waiting` è derivato da `is_waiting`.
+
+### P5.1 — Priorità, scadenza esplicita e stato operativo derivato
+
+**Fatto**: `WorkOrder.priority` (URGENT/NORMAL/LOW, default NORMAL, `db_index`), `WorkOrder.due_at` (opzionale), `WorkOrder.started_at` (timestamp "Inizia intervento"). `operational_state` è una **property** (non un campo) derivata da `assigned_to_id`/`started_at`/`is_waiting`, per evitare un quarto stato da tenere sincronizzato manualmente — `unassigned` → `assigned` → `in_progress` (via `start()`) → `waiting` (via `is_waiting`, invariato). `start()` è idempotente e riprende automaticamente da un'attesa. `is_overdue` deriva da `due_at`+`status`.
+
+**File**: `assets/models.py`, migration `0095_workorder_due_at_workorder_priority_and_more.py`.
+
+**Stato**: ✅ Completato — 2026-09-02, 10 test nuovi verdi.
+
+### P5.2 — Schermata di esecuzione consolidata nel dettaglio OdL
+
+**Deciso**: non una pagina nuova — il dettaglio OdL esistente (`workorder_detail.html`) era già ricco (checklist, allegati, log, gestione attesa/riassegnazione); vi si sono aggiunti priorità/scadenza/stato operativo e il bottone "Inizia intervento"/"Riprendi lavorazione", invece di introdurre un terzo punto di navigazione oltre a dettaglio e chiusura.
+
+**File**: `assets/views.py` (`workorder_detail`, azioni `start`/`set_priority`), `assets/templates/assets/pages/workorder_detail.html`.
+
+**Stato**: ✅ Completato — 2026-09-02.
+
+### P5.3 — Home "Il mio turno"
+
+**Fatto**: `/assets/manutenzione/il-mio-turno/`, distinta dal Centro Manutenzione del responsabile. Sezioni **Bloccati → Emergenze → Scaduti → Oggi → In corso → Altri assegnati a te → Da prendere in carico**; ogni OdL compare in una sola sezione (la prima applicabile, per non mostrare lo stesso intervento due volte). "Da prendere in carico" usa il claim esistente (`assets:wo_claim`) con redirect di ritorno, non un link che promette un'azione e apre solo il dettaglio.
+
+**File**: `assets/views.py` (`il_mio_turno`), `assets/urls.py`, `assets/templates/assets/pages/il_mio_turno.html`.
+
+**Nota deploy**: la voce di sidebar "Il mio turno" è nel fallback di default (`_default_sidebar_buttons`); in prod la sidebar Assets è configurata da `AssetSidebarButton` nel pannello admin (non hardcoded) — **va aggiunta manualmente dopo il deploy**, altrimenti la pagina resta raggiungibile solo via URL diretto.
+
+**Stato**: ✅ Completato — 2026-09-02, 2 test nuovi verdi (sezioni mutuamente esclusive, claim con redirect).
+
+**Verifica**: HTTP autenticato diretto su server dev (login, sezioni popolate, OdL nella sezione attesa) — **corretto dopo**: quel server dev girava sul SQL Server locale reale (`config.settings.dev` non è SQLite su questa macchina), non un vero controllo visivo. Verificare aspetto/tema chiaro-scuro prima del deploy.
+
+## Fase 6 — Qualità del dato sul campo (parziale: punti 1/3/4)
+
+> Ambito concordato con l'utente: punti 1 (checklist tipizzate), 3 (causa guasto codificata) e 4 (autosalvataggio) del backlog Fase 6 originale. Esclusi in questo giro: 2 (ricambi strutturati — richiede decisioni su un catalogo scorte che non esiste nel portale) e 5 (offline-first — richiede architettura dedicata, esplicitamente "dopo aver validato gli altri punti").
+
+**Decisioni prese con l'utente**: catalogo causa guasto = Elettrica/Meccanica/Idraulica/Usura/Errore operatore/Altro; uno step obbligatorio/di sicurezza non compilato **blocca la chiusura** dell'OdL (si può forzare solo con motivazione esplicita salvata); tipi di step aggiunti ora = Misura (con range), Testo, Foto (non Firma).
+
+### P6.1 — Checklist tipizzate + blocco chiusura
+
+**Fatto**: `WorkOrderChecklist`/`MaintenanceChecklistStep` guadagnano `step_type` (Sì/No/Misura/Testo/Foto), `is_mandatory`, `unit`/`range_min`/`range_max` (solo Misura), `value_numeric`/`value_text`, `is_skipped`/`skip_reason` (+ chi/quando). `is_complete` è una property per-tipo (non un secondo booleano da tenere in sync); `blocks_closure` = obbligatorio AND non completo AND non saltato. Le foto si appoggiano al modello `WorkOrderAttachment` esistente (nuovo FK opzionale `checklist_item`), non un modello nuovo. `workorder_close` verifica `blocks_closure` su tutti gli step e rifiuta la chiusura elencando quelli mancanti.
+
+**File**: `assets/models.py`, `assets/maintenance.py` (`copy_template_checklist_to_workorder`), `assets/views.py` (nuove azioni `workorder_checklist_set_value`/`_photo`/`_skip`), `assets/forms.py`/`assets/admin.py` (autoring template: `MaintenanceChecklistStepForm`, `MaintenanceChecklistStepInline`), `assets/templates/assets/components/workorder_checklist.html`, `assets/templates/assets/pages/maintenance_template_form.html`, `assets/templates/assets/pages/workorder_close.html` (banner "checklist incompleta" prima del submit).
+
+**Stato**: ✅ Completato — 2026-09-02, 11 test nuovi, 422/424 `assets` verdi (i 2 falliti sono i 2 preesistenti noti, non collegati).
+
+### P6.2 — Causa guasto codificata
+
+**Fatto**: `WorkOrder.failure_cause` (scelta singola, opzionale) nel form di chiusura. La "soluzione codificata" del report resta fuori scope: `resolution` rimane testo libero — codificarla richiede un catalogo che l'utente non ha ancora deciso.
+
+**File**: `assets/models.py`, `assets/forms.py`, `assets/views.py` (`workorder_close`), `assets/templates/assets/pages/workorder_close.html`.
+
+### P6.3 — Autosalvataggio bozza
+
+**Fatto**: JS puro in `workorder_close.html`, `localStorage` per-viewer chiavato per OdL, nessun draft server-side. Salva su `input`/`change` (debounce 500ms), ripristina al caricamento (con avviso visibile "Bozza precedente ripristinata"), cancellato al submit (anche in caso di redisplay per errori di validazione, perché la cancellazione avviene nell'handler `submit` prima dell'invio).
+
 ## Note operative
 
 - Tutti i management command devono supportare `--settings=config.settings.dev` e `--dry-run`
@@ -549,3 +692,4 @@ class WorkOrderChecklist(models.Model):
 - Le migrazioni SQL Server devono essere testate su SQLite in dev e su MSSQL in staging
 - Nessuna logica business nei template: usare sempre il service layer o la view
 - Per le email usare il sistema SMTP già configurato in `SiteConfig` / `settings`
+- **⚠️ `config.settings.dev` su questa macchina NON è SQLite**: il `django_app/.env` del checkout condiviso ha `DB_ENGINE=sqlserver` verso `localhost\SQLEXPRESS` (DB `PORTALE NOVICROM`) — un'istanza locale reale, non un DB usa-e-getta. Copiare quel `.env` in un worktree e lanciare `manage.py migrate --settings=config.settings.dev` **scrive sullo stesso DB locale condiviso da tutte le sessioni/worktree**, non su un DB isolato. Vedi memoria `db_locale_dev_e_sqlserver_non_sqlite` per l'incidente (due migration `0095` di branch diversi applicate allo stesso DB) e la procedura corretta prima di un prossimo controllo visivo.

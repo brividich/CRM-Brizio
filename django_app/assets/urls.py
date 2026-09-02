@@ -103,6 +103,7 @@ urlpatterns = [
     path("assets/assign/", views.assignment_set, name="asset_assign"),
     path("assets/assign/<int:id>/", views.assignment_set, name="asset_assign"),
     path("assets/workorders/", views.workorder_list, name="wo_list"),
+    path("assets/manutenzione/il-mio-turno/", views.il_mio_turno, name="il_mio_turno"),
     path("assets/workorders/new/", views.workorder_create, name="wo_create"),
     path("assets/workorders/new/<int:id>/", views.workorder_create, name="wo_create"),
     path("assets/workorders/view/", views.workorder_detail, name="wo_view"),
@@ -113,6 +114,9 @@ urlpatterns = [
     path("assets/workorders/<int:id>/checklist/add/", views.workorder_checklist_add, name="wo_checklist_add"),
     path("assets/workorders/<int:id>/checklist/<int:item_id>/toggle/", views.workorder_checklist_toggle, name="wo_checklist_toggle"),
     path("assets/workorders/<int:id>/checklist/<int:item_id>/delete/", views.workorder_checklist_delete, name="wo_checklist_delete"),
+    path("assets/workorders/<int:id>/checklist/<int:item_id>/set-value/", views.workorder_checklist_set_value, name="wo_checklist_set_value"),
+    path("assets/workorders/<int:id>/checklist/<int:item_id>/photo/", views.workorder_checklist_photo, name="wo_checklist_photo"),
+    path("assets/workorders/<int:id>/checklist/<int:item_id>/skip/", views.workorder_checklist_skip, name="wo_checklist_skip"),
     path("assets/manutenzione/verifiche/", views.periodic_verification_list, name="periodic_verifications"),
     path(
         "assets/verifiche-periodiche/",

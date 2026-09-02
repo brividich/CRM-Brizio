@@ -77,7 +77,15 @@ body.theme-dark .woc-details-body{border-color:var(--border)}
     </div>
   </section>
 
-  <form method="post" enctype="multipart/form-data" class="woc-form">
+  {% if checklist_blocking_items %}
+    <div class="assets-message assets-message-error">
+      <strong>Checklist incompleta.</strong> Prima di chiudere completa o salta con motivazione:
+      {% for item in checklist_blocking_items %}#{{ item.step_number }} {{ item.description }}{% if not forloop.last %}, {% endif %}{% endfor %}.
+      <a href="{% url 'assets:wo_view' workorder.id %}#wod-checklist-section">Vai alla checklist</a>
+    </div>
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" class="woc-form" id="workorderCloseForm" data-autosave-key="wo-close-draft-{{ workorder.id }}">
     {% csrf_token %}
     {{ form.execution_days }}
     {{ form.intervention_duration_minutes }}
@@ -166,6 +174,12 @@ body.theme-dark .woc-details-body{border-color:var(--border)}
               {{ form.resolution }}
               <div class="woc-note">Obbligatoria quando l'esito e “Chiusa”.</div>
               {% if form.resolution.errors %}<div class="woc-error">{{ form.resolution.errors }}</div>{% endif %}
+            </div>
+            <div class="woc-field">
+              <label for="{{ form.failure_cause.id_for_label }}">{{ form.failure_cause.label }} <span class="woc-note">opzionale</span></label>
+              {{ form.failure_cause }}
+              <div class="woc-note">Serve a capire se un guasto si ripete per lo stesso motivo.</div>
+              {% if form.failure_cause.errors %}<div class="woc-error">{{ form.failure_cause.errors }}</div>{% endif %}
             </div>
             <div class="woc-field">
               <label for="{{ form.log_note.id_for_label }}">{{ form.log_note.label }} <span class="woc-note">opzionale</span></label>
@@ -267,6 +281,59 @@ body.theme-dark .woc-details-body{border-color:var(--border)}
   if(contractField)contractField.addEventListener("change",syncCoverage);
   esitoRadios.forEach(function(radio){radio.addEventListener("change",syncEsitoVisibility);});
   syncSubmitLabel(); syncCoverage(); syncDayLimits(); syncEsitoVisibility();
+})();
+</script>
+<script>
+(function(){
+  "use strict";
+  // Autosalvataggio bozza: se il tablet si blocca o la pagina si ricarica per
+  // sbaglio, il manutentore non riparte da zero. Nessun draft server-side:
+  // solo localStorage, per-viewer, cancellato appena l'invio va a buon fine.
+  const form=document.getElementById("workorderCloseForm");
+  if(!form||!window.localStorage)return;
+  const key=form.dataset.autosaveKey;
+  if(!key)return;
+  const skipTypes=new Set(["file","hidden","submit","button"]);
+  const fields=Array.from(form.querySelectorAll("input,select,textarea")).filter(function(el){
+    return el.name && !skipTypes.has(el.type);
+  });
+
+  function readDraft(){
+    try{ const raw=localStorage.getItem(key); return raw?JSON.parse(raw):null; }catch(e){ return null; }
+  }
+  function saveDraft(){
+    const data={};
+    fields.forEach(function(el){
+      if(el.type==="checkbox"||el.type==="radio"){ if(el.checked) data[el.name]=el.value; }
+      else { data[el.name]=el.value; }
+    });
+    try{ localStorage.setItem(key, JSON.stringify({savedAt:Date.now(), data:data})); }catch(e){}
+  }
+  function restoreDraft(){
+    const draft=readDraft();
+    if(!draft||!draft.data)return false;
+    let restored=false;
+    fields.forEach(function(el){
+      if(!(el.name in draft.data))return;
+      const value=draft.data[el.name];
+      if(el.type==="checkbox"||el.type==="radio"){ el.checked=(el.value===value); }
+      else { if(el.value===value)return; el.value=value; }
+      el.dispatchEvent(new Event("change",{bubbles:true}));
+      restored=true;
+    });
+    return restored;
+  }
+
+  if(restoreDraft()){
+    const notice=document.createElement("div");
+    notice.className="assets-message";
+    notice.textContent="Bozza precedente ripristinata su questo dispositivo.";
+    form.prepend(notice);
+  }
+  let timer=null;
+  form.addEventListener("input", function(){ clearTimeout(timer); timer=setTimeout(saveDraft, 500); });
+  form.addEventListener("change", saveDraft);
+  form.addEventListener("submit", function(){ try{ localStorage.removeItem(key); }catch(e){} });
 })();
 </script>
 {% endblock %}
