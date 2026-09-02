@@ -15,36 +15,113 @@
     {% if checklist_items %}
       <div class="wod-cl-list">
         {% for item in checklist_items %}
-          <div class="wod-cl-item {% if item.is_done %}wod-cl-item--done{% endif %}">
+          <div class="wod-cl-item {% if item.is_complete or item.is_skipped %}wod-cl-item--done{% endif %}{% if item.blocks_closure %} wod-cl-item--blocking{% endif %}">
             <div class="wod-cl-left">
               <span class="wod-cl-num">{{ item.step_number }}</span>
-              <span class="wod-cl-desc">{{ item.description }}</span>
+              <span class="wod-cl-desc">
+                {{ item.description }}
+                {% if item.is_mandatory %}<span class="wod-cl-mandatory" title="Step obbligatorio">*</span>{% endif %}
+                {% if item.step_type != 'YES_NO' %}<span class="wod-cl-type">{{ item.get_step_type_display }}</span>{% endif %}
+              </span>
             </div>
             <div class="wod-cl-actions">
-              {% if is_open %}
-                <form method="post" action="{% url 'assets:wo_checklist_toggle' workorder.id item.id %}"
-                      hx-post="{% url 'assets:wo_checklist_toggle' workorder.id item.id %}"
-                      hx-target="#wod-checklist-section"
-                      hx-swap="outerHTML">
-                  {% csrf_token %}
-                  <button class="wod-cl-toggle {% if item.is_done %}wod-cl-toggle--undo{% endif %}" type="submit" title="{% if item.is_done %}Segna come da fare{% else %}Segna come fatto{% endif %}">
+              {% if item.step_type == 'YES_NO' %}
+                {% if is_open %}
+                  <form method="post" action="{% url 'assets:wo_checklist_toggle' workorder.id item.id %}"
+                        hx-post="{% url 'assets:wo_checklist_toggle' workorder.id item.id %}"
+                        hx-target="#wod-checklist-section"
+                        hx-swap="outerHTML">
+                    {% csrf_token %}
+                    <button class="wod-cl-toggle {% if item.is_done %}wod-cl-toggle--undo{% endif %}" type="submit" title="{% if item.is_done %}Segna come da fare{% else %}Segna come fatto{% endif %}">
+                      {% if item.is_done %}&#10003;{% else %}&#9675;{% endif %}
+                    </button>
+                  </form>
+                  <form method="post" action="{% url 'assets:wo_checklist_delete' workorder.id item.id %}"
+                        hx-post="{% url 'assets:wo_checklist_delete' workorder.id item.id %}"
+                        hx-target="#wod-checklist-section"
+                        hx-swap="outerHTML">
+                    {% csrf_token %}
+                    <button class="wod-cl-del" type="submit" title="Elimina step">&#10005;</button>
+                  </form>
+                {% else %}
+                  <span class="wod-cl-toggle {% if item.is_done %}wod-cl-toggle--undo{% endif %}" style="cursor:default;">
                     {% if item.is_done %}&#10003;{% else %}&#9675;{% endif %}
-                  </button>
-                </form>
-                <form method="post" action="{% url 'assets:wo_checklist_delete' workorder.id item.id %}"
-                      hx-post="{% url 'assets:wo_checklist_delete' workorder.id item.id %}"
-                      hx-target="#wod-checklist-section"
-                      hx-swap="outerHTML">
-                  {% csrf_token %}
-                  <button class="wod-cl-del" type="submit" title="Elimina step">&#10005;</button>
-                </form>
-              {% else %}
-                <span class="wod-cl-toggle {% if item.is_done %}wod-cl-toggle--undo{% endif %}" style="cursor:default;">
-                  {% if item.is_done %}&#10003;{% else %}&#9675;{% endif %}
-                </span>
+                  </span>
+                {% endif %}
               {% endif %}
             </div>
-            {% if item.is_done and item.done_by %}
+
+            {% if item.step_type == 'MEASURE' %}
+              <div class="wod-cl-meta">
+                {% if item.value_numeric is not None %}
+                  <strong{% if item.is_out_of_range %} class="wod-cl-outrange"{% endif %}>{{ item.value_numeric }}{{ item.unit }}</strong>
+                  {% if item.is_out_of_range %}<span class="wod-cl-outrange-badge">fuori range</span>{% endif %}
+                  {% if item.range_min is not None or item.range_max is not None %}<span>· atteso {{ item.range_min|default:"—" }}–{{ item.range_max|default:"—" }}{{ item.unit }}</span>{% endif %}
+                {% endif %}
+              </div>
+              {% if is_open %}
+              <form method="post" action="{% url 'assets:wo_checklist_set_value' workorder.id item.id %}"
+                    hx-post="{% url 'assets:wo_checklist_set_value' workorder.id item.id %}"
+                    hx-target="#wod-checklist-section" hx-swap="outerHTML" class="wod-cl-value-form">
+                {% csrf_token %}
+                <input type="number" step="0.01" name="value_numeric" value="{{ item.value_numeric|default_if_none:'' }}" placeholder="Valore{% if item.unit %} ({{ item.unit }}){% endif %}">
+                <button class="btn" type="submit">Salva</button>
+              </form>
+              {% endif %}
+            {% elif item.step_type == 'TEXT' %}
+              {% if item.value_text %}<div class="wod-cl-meta">{{ item.value_text }}</div>{% endif %}
+              {% if is_open %}
+              <form method="post" action="{% url 'assets:wo_checklist_set_value' workorder.id item.id %}"
+                    hx-post="{% url 'assets:wo_checklist_set_value' workorder.id item.id %}"
+                    hx-target="#wod-checklist-section" hx-swap="outerHTML" class="wod-cl-value-form">
+                {% csrf_token %}
+                <textarea name="value_text" placeholder="Nota per questo step...">{{ item.value_text }}</textarea>
+                <button class="btn" type="submit">Salva</button>
+              </form>
+              {% endif %}
+            {% elif item.step_type == 'PHOTO' %}
+              <div class="wod-cl-meta">
+                {% for photo in item.photos.all %}
+                  <a href="{% url 'assets:workorder_attachment_download' photo.id %}" target="_blank" rel="noopener">{{ photo.original_name }}</a>{% if not forloop.last %}, {% endif %}
+                {% empty %}
+                  <span>Nessuna foto caricata.</span>
+                {% endfor %}
+              </div>
+              {% if is_open %}
+              <form method="post" action="{% url 'assets:wo_checklist_photo' workorder.id item.id %}" enctype="multipart/form-data" class="wod-cl-value-form">
+                {% csrf_token %}
+                <input type="file" name="photo" accept="image/*,.pdf">
+                <button class="btn" type="submit">Carica foto</button>
+              </form>
+              {% endif %}
+            {% endif %}
+
+            {% if item.is_skipped %}
+              <div class="wod-cl-meta wod-cl-skipped">
+                Saltato{% if item.skipped_by %} da {{ item.skipped_by.get_full_name|default:item.skipped_by.username }}{% endif %} · {{ item.skip_reason }}
+                {% if is_open %}
+                <form method="post" action="{% url 'assets:wo_checklist_skip' workorder.id item.id %}"
+                      hx-post="{% url 'assets:wo_checklist_skip' workorder.id item.id %}"
+                      hx-target="#wod-checklist-section" hx-swap="outerHTML" style="display:inline">
+                  {% csrf_token %}
+                  <button class="wod-cl-unskip" type="submit">Annulla salto</button>
+                </form>
+                {% endif %}
+              </div>
+            {% elif is_open and item.is_mandatory and not item.is_complete %}
+              <details class="wod-cl-skip-details">
+                <summary>Salta con motivazione</summary>
+                <form method="post" action="{% url 'assets:wo_checklist_skip' workorder.id item.id %}"
+                      hx-post="{% url 'assets:wo_checklist_skip' workorder.id item.id %}"
+                      hx-target="#wod-checklist-section" hx-swap="outerHTML" class="wod-cl-value-form">
+                  {% csrf_token %}
+                  <textarea name="skip_reason" placeholder="Motivo per cui questo step obbligatorio non può essere completato..." required></textarea>
+                  <button class="btn" type="submit">Salta</button>
+                </form>
+              </details>
+            {% endif %}
+
+            {% if item.is_done and item.done_by and item.step_type == 'YES_NO' %}
               <div class="wod-cl-meta">Fatto da {{ item.done_by.get_full_name|default:item.done_by.username }}{% if item.done_at %} il {{ item.done_at|date:"d-m-Y H:i" }}{% endif %}</div>
             {% endif %}
           </div>

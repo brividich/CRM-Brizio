@@ -701,7 +701,16 @@ def copy_template_checklist_to_workorder(workorder: WorkOrder | None, *, templat
         return 0
     WorkOrderChecklist.objects.bulk_create(
         [
-            WorkOrderChecklist(work_order=workorder, step_number=step.step_number, description=step.description)
+            WorkOrderChecklist(
+                work_order=workorder,
+                step_number=step.step_number,
+                description=step.description,
+                step_type=step.step_type,
+                is_mandatory=step.is_mandatory,
+                unit=step.unit,
+                range_min=step.range_min,
+                range_max=step.range_max,
+            )
             for step in steps
         ]
     )
