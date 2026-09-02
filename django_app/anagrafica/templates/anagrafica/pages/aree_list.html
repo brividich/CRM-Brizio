@@ -134,6 +134,9 @@ body.theme-dark .cat-add-title { color:var(--text); }
                   {% if rep.caporeparto_label %}
                     <span class="cat-pill cat-pill-blue">👤 {{ rep.caporeparto_label }}</span>
                   {% endif %}
+                  {% if rep.responsabili_label %}
+                    <span class="cat-pill cat-pill-orange">+ {{ rep.responsabili_label }}</span>
+                  {% endif %}
                 </div>
                 {% if is_admin %}
                 <div style="display:flex;gap:6px;">
@@ -143,6 +146,7 @@ body.theme-dark .cat-add-title { color:var(--text); }
                           data-edit-rep-desc="{{ rep.descrizione }}"
                           data-edit-rep-colore="{{ rep.colore }}"
                           data-edit-rep-capo="{{ rep.caporeparto_legacy_id|default_if_none:'' }}"
+                          data-edit-rep-responsabili="{{ rep.responsabili_ids|join:',' }}"
                           data-edit-rep-active="{{ rep.is_active|yesno:'1,0' }}">
                     Modifica
                   </button>
@@ -165,8 +169,11 @@ body.theme-dark .cat-add-title { color:var(--text); }
             <td>
               {% if area.responsabile_label %}
                 <span class="cat-pill cat-pill-blue">{{ area.responsabile_label }}</span>
-              {% else %}
+              {% elif not area.responsabili_label %}
                 <span style="color:#94a3b8;">—</span>
+              {% endif %}
+              {% if area.responsabili_label %}
+                <span class="cat-pill cat-pill-orange">+ {{ area.responsabili_label }}</span>
               {% endif %}
             </td>
             <td>
@@ -184,6 +191,7 @@ body.theme-dark .cat-add-title { color:var(--text); }
                         data-edit-area-nome="{{ area.nome }}"
                         data-edit-area-desc="{{ area.descrizione }}"
                         data-edit-area-responsabile="{{ area.responsabile_legacy_id|default_if_none:'' }}"
+                        data-edit-area-responsabili="{{ area.responsabili_ids|join:',' }}"
                         data-edit-area-reparto="{{ rep.pk }}"
                         data-edit-area-active="{{ area.is_active|yesno:'1,0' }}">
                   Modifica
@@ -221,8 +229,11 @@ body.theme-dark .cat-add-title { color:var(--text); }
             <td>
               {% if area.responsabile_label %}
                 <span class="cat-pill cat-pill-blue">{{ area.responsabile_label }}</span>
-              {% else %}
+              {% elif not area.responsabili_label %}
                 <span style="color:#94a3b8;">—</span>
+              {% endif %}
+              {% if area.responsabili_label %}
+                <span class="cat-pill cat-pill-orange">+ {{ area.responsabili_label }}</span>
               {% endif %}
             </td>
             <td>
@@ -240,6 +251,7 @@ body.theme-dark .cat-add-title { color:var(--text); }
                         data-edit-area-nome="{{ area.nome }}"
                         data-edit-area-desc="{{ area.descrizione }}"
                         data-edit-area-responsabile="{{ area.responsabile_legacy_id|default_if_none:'' }}"
+                        data-edit-area-responsabili="{{ area.responsabili_ids|join:',' }}"
                         data-edit-area-reparto=""
                         data-edit-area-active="{{ area.is_active|yesno:'1,0' }}">
                   Modifica
@@ -287,6 +299,15 @@ body.theme-dark .cat-add-title { color:var(--text); }
                 {% endfor %}
               </select>
             </div>
+            <div class="hub-field">
+              <label>Altri responsabili</label>
+              <select name="responsabili" multiple size="6">
+                {% for dip in dipendenti_picker %}
+                  <option value="{{ dip.id }}">{{ dip.label }}</option>
+                {% endfor %}
+              </select>
+              <p class="hub-help">Opzionale. Tieni premuto CTRL per sceglierne più di uno.</p>
+            </div>
             <div>
               <button type="submit" class="cat-btn cat-btn-primary">Crea reparto</button>
             </div>
@@ -328,6 +349,15 @@ body.theme-dark .cat-add-title { color:var(--text); }
                 {% endfor %}
               </select>
             </div>
+            <div class="hub-field">
+              <label>Altri responsabili</label>
+              <select name="responsabili" multiple size="6">
+                {% for dip in dipendenti_picker %}
+                  <option value="{{ dip.id }}">{{ dip.label }}</option>
+                {% endfor %}
+              </select>
+              <p class="hub-help">Opzionale. Tieni premuto CTRL per sceglierne più di uno.</p>
+            </div>
             <div>
               <button type="submit" class="cat-btn cat-btn-primary">Crea area</button>
             </div>
@@ -368,6 +398,15 @@ body.theme-dark .cat-add-title { color:var(--text); }
               <option value="{{ dip.id }}">{{ dip.label }}</option>
             {% endfor %}
           </select>
+        </div>
+        <div class="hub-field">
+          <label>Altri responsabili</label>
+          <select name="responsabili" id="edit-rep-responsabili" multiple size="6">
+            {% for dip in dipendenti_picker %}
+              <option value="{{ dip.id }}">{{ dip.label }}</option>
+            {% endfor %}
+          </select>
+          <p class="hub-help">Opzionale. Tieni premuto CTRL per sceglierne più di uno.</p>
         </div>
         <div>
           <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#334155;cursor:pointer;">
@@ -416,6 +455,15 @@ body.theme-dark .cat-add-title { color:var(--text); }
             {% endfor %}
           </select>
         </div>
+        <div class="hub-field">
+          <label>Altri responsabili</label>
+          <select name="responsabili" id="edit-area-responsabili" multiple size="6">
+            {% for dip in dipendenti_picker %}
+              <option value="{{ dip.id }}">{{ dip.label }}</option>
+            {% endfor %}
+          </select>
+          <p class="hub-help">Opzionale. Tieni premuto CTRL per sceglierne più di uno.</p>
+        </div>
         <div>
           <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#334155;cursor:pointer;">
             <input type="checkbox" name="is_active" id="edit-area-active" value="1"> Area attiva
@@ -444,6 +492,13 @@ body.theme-dark .cat-add-title { color:var(--text); }
     });
   });
 
+  function setMultiSelect(selectEl, csv) {
+    var ids = (csv || '').split(',').filter(Boolean);
+    Array.prototype.forEach.call(selectEl.options, function(opt) {
+      opt.selected = ids.indexOf(opt.value) !== -1;
+    });
+  }
+
   // ── Modal reparto ──
   var repEditBase = "{% url 'anagrafica:area_edit' 0 %}";
   window.closeRepEdit = function() {
@@ -457,6 +512,7 @@ body.theme-dark .cat-add-title { color:var(--text); }
       document.getElementById('edit-rep-desc').value = btn.getAttribute('data-edit-rep-desc') || '';
       document.getElementById('edit-rep-colore').value = btn.getAttribute('data-edit-rep-colore') || '#64748b';
       document.getElementById('edit-rep-capo').value = btn.getAttribute('data-edit-rep-capo') || '';
+      setMultiSelect(document.getElementById('edit-rep-responsabili'), btn.getAttribute('data-edit-rep-responsabili'));
       document.getElementById('edit-rep-active').checked = btn.getAttribute('data-edit-rep-active') === '1';
       document.getElementById('edit-rep-modal').style.display = 'flex';
     });
@@ -478,6 +534,7 @@ body.theme-dark .cat-add-title { color:var(--text); }
       document.getElementById('edit-area-desc').value = btn.getAttribute('data-edit-area-desc') || '';
       document.getElementById('edit-area-reparto').value = btn.getAttribute('data-edit-area-reparto') || '';
       document.getElementById('edit-area-responsabile').value = btn.getAttribute('data-edit-area-responsabile') || '';
+      setMultiSelect(document.getElementById('edit-area-responsabili'), btn.getAttribute('data-edit-area-responsabili'));
       document.getElementById('edit-area-active').checked = btn.getAttribute('data-edit-area-active') === '1';
       document.getElementById('edit-area-modal').style.display = 'flex';
     });

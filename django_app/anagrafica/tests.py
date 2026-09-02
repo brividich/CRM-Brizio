@@ -4558,6 +4558,103 @@ class AreeRepartiCrudTests(TestCase):
         self.assertIn("IN1", content)
 
 
+class RepartoAreaResponsabiliMultipliTests(TestCase):
+    """Responsabili multipli (opzionali), additivi rispetto a caporeparto_legacy_id
+    e responsabile_legacy_id, che restano invariati per digest/automazioni."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from core.legacy_models import AnagraficaDipendente
+        cls.admin = User.objects.create_superuser(
+            username="resp_multipli_admin", email="resp_multipli_admin@x.local", password="x"
+        )
+        cls.dip1 = AnagraficaDipendente.objects.create(nome="Anna", cognome="Rossi")
+        cls.dip2 = AnagraficaDipendente.objects.create(nome="Bruno", cognome="Bianchi")
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def test_crea_reparto_con_piu_responsabili(self):
+        from .models import Reparto
+        resp = self.client.post(reverse("anagrafica:area_create"), {
+            "nome": "UT", "descrizione": "", "colore": "#1f87cd",
+            "caporeparto_legacy_id": "",
+            "responsabili": [str(self.dip1.pk), str(self.dip2.pk)],
+        })
+        self.assertEqual(resp.status_code, 302)
+        rep = Reparto.objects.get(nome="UT")
+        self.assertEqual(
+            set(rep.responsabili.values_list("pk", flat=True)),
+            {self.dip1.pk, self.dip2.pk},
+        )
+
+    def test_edit_reparto_sostituisce_responsabili(self):
+        from .models import Reparto
+        rep = Reparto.objects.create(nome="UT")
+        rep.responsabili.set([self.dip1])
+        resp = self.client.post(reverse("anagrafica:area_edit", args=[rep.pk]), {
+            "nome": "UT", "descrizione": "", "colore": "#64748b",
+            "caporeparto_legacy_id": "", "is_active": "1",
+            "responsabili": [str(self.dip2.pk)],
+        })
+        self.assertEqual(resp.status_code, 302)
+        rep.refresh_from_db()
+        self.assertEqual(list(rep.responsabili.values_list("pk", flat=True)), [self.dip2.pk])
+
+    def test_edit_reparto_senza_responsabili_svuota_insieme(self):
+        from .models import Reparto
+        rep = Reparto.objects.create(nome="UT")
+        rep.responsabili.set([self.dip1, self.dip2])
+        resp = self.client.post(reverse("anagrafica:area_edit", args=[rep.pk]), {
+            "nome": "UT", "descrizione": "", "colore": "#64748b",
+            "caporeparto_legacy_id": "", "is_active": "1",
+        })
+        self.assertEqual(resp.status_code, 302)
+        rep.refresh_from_db()
+        self.assertEqual(rep.responsabili.count(), 0)
+
+    def test_crea_area_aziendale_con_piu_responsabili(self):
+        from .models import AreaAziendale, Reparto
+        rep = Reparto.objects.create(nome="UT")
+        resp = self.client.post(reverse("anagrafica:area_aziendale_create"), {
+            "nome": "IN1", "descrizione": "", "reparto_id": str(rep.pk),
+            "responsabile_legacy_id": "",
+            "responsabili": [str(self.dip1.pk), str(self.dip2.pk)],
+        })
+        self.assertEqual(resp.status_code, 302)
+        area = AreaAziendale.objects.get(nome="IN1")
+        self.assertEqual(
+            set(area.responsabili.values_list("pk", flat=True)),
+            {self.dip1.pk, self.dip2.pk},
+        )
+
+    def test_edit_area_aziendale_sostituisce_responsabili(self):
+        from .models import AreaAziendale
+        area = AreaAziendale.objects.create(nome="IN1")
+        area.responsabili.set([self.dip1])
+        resp = self.client.post(reverse("anagrafica:area_aziendale_edit", args=[area.pk]), {
+            "nome": "IN1", "descrizione": "", "reparto_id": "",
+            "responsabile_legacy_id": "", "is_active": "1",
+            "responsabili": [str(self.dip2.pk)],
+        })
+        self.assertEqual(resp.status_code, 302)
+        area.refresh_from_db()
+        self.assertEqual(list(area.responsabili.values_list("pk", flat=True)), [self.dip2.pk])
+
+    def test_caporeparto_legacy_id_non_influenzato_da_responsabili(self):
+        """I due campi legacy restano guidati solo dal loro select singolo."""
+        from .models import Reparto
+        resp = self.client.post(reverse("anagrafica:area_create"), {
+            "nome": "UT", "descrizione": "", "colore": "#1f87cd",
+            "caporeparto_legacy_id": str(self.dip1.pk),
+            "responsabili": [str(self.dip2.pk)],
+        })
+        self.assertEqual(resp.status_code, 302)
+        rep = Reparto.objects.get(nome="UT")
+        self.assertEqual(rep.caporeparto_legacy_id, self.dip1.pk)
+        self.assertEqual(list(rep.responsabili.values_list("pk", flat=True)), [self.dip2.pk])
+
+
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class OrganigrammaRepartoCanonicoTests(TestCase):
     """L'organigramma colloca i dipendenti per reparto CANONICO
