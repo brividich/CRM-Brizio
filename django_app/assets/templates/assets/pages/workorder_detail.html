@@ -23,9 +23,11 @@
   {% if workorder_rule_url %}<a class="btn" href="{{ workorder_rule_url }}">Piano / regola</a>{% endif %}
   {% if workorder_contract_url %}<a class="btn" href="{{ workorder_contract_url }}">{{ workorder_contract_label }}</a>{% endif %}
   {% if workorder.status == 'OPEN' and workorder.is_waiting %}
-    <form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="action" value="resume_from_waiting"><button class="btn" type="submit">Riprendi lavorazione</button></form>
+    <form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="action" value="start"><button class="btn btn-primary" type="submit">Riprendi lavorazione</button></form>
+  {% elif workorder.status == 'OPEN' and not workorder.started_at %}
+    <form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="action" value="start"><button class="btn btn-primary" type="submit">Inizia intervento</button></form>
   {% endif %}
-  {% if workorder.status == 'OPEN' %}<a class="btn btn-primary" href="{% url 'assets:wo_close' workorder.id %}">Chiudi intervento</a>{% endif %}
+  {% if workorder.status == 'OPEN' %}<a class="btn {% if workorder.started_at and not workorder.is_waiting %}btn-primary{% endif %}" href="{% url 'assets:wo_close' workorder.id %}">Chiudi intervento</a>{% endif %}
 {% endblock %}
 
 {% block assets_shell_content %}
@@ -35,7 +37,9 @@
       <a href="{% url 'assets:wo_list' %}" class="as-backlink">&larr; Interventi</a>
       <div class="wo2-chips" style="margin-top:10px">
         <span class="as-badge as-badge--{{ workorder_status.badge_class }}">{{ workorder_status.label }}</span>
-        {% if workorder.status == 'OPEN' and workorder.is_waiting %}<span class="as-badge as-badge--warn">In attesa · {{ workorder.get_wait_reason_display }}</span>{% endif %}
+        {% if operational_state %}<span class="as-badge as-badge--{% if operational_state == 'waiting' %}warn{% elif operational_state == 'in_progress' %}ok{% else %}info{% endif %}">{{ operational_state_label }}{% if operational_state == 'waiting' %} · {{ workorder.get_wait_reason_display }}{% endif %}</span>{% endif %}
+        {% if workorder.priority != 'NORMAL' %}<span class="as-badge as-badge--{% if workorder.priority == 'URGENT' %}danger{% else %}muted{% endif %}">{{ workorder.get_priority_display }}</span>{% endif %}
+        {% if is_overdue %}<span class="as-badge as-badge--danger">Scaduto il {{ workorder.due_at|date:"d/m/Y H:i" }}</span>{% elif workorder.due_at %}<span class="as-badge as-badge--muted">Entro {{ workorder.due_at|date:"d/m/Y H:i" }}</span>{% endif %}
         <span class="as-badge as-badge--{{ workorder_kind.badge_class }}">{{ workorder_kind.label }}</span>
         <span class="as-badge as-badge--{{ workorder_coverage.badge_class }}">{{ workorder_coverage.label }}</span>
       </div>
@@ -52,6 +56,9 @@
             <div class="ux-info-block"><label>Assegnato a</label><strong>{% if workorder.assigned_to %}{{ workorder.assigned_to.get_full_name|default:workorder.assigned_to.username }}{% else %}—{% endif %}</strong></div>
             <div class="ux-info-block"><label>Eseguito da</label><strong>{% if workorder.executed_by %}{{ workorder.executed_by.get_full_name|default:workorder.executed_by.username }}{% else %}—{% endif %}</strong></div>
             <div class="ux-info-block"><label>Data apertura</label><strong>{{ workorder.opened_at|date:"d/m/Y H:i" }}</strong></div>
+            <div class="ux-info-block"><label>Iniziato il</label><strong>{% if workorder.started_at %}{{ workorder.started_at|date:"d/m/Y H:i" }}{% else %}—{% endif %}</strong></div>
+            <div class="ux-info-block"><label>Priorità</label><strong>{{ workorder.get_priority_display }}</strong></div>
+            <div class="ux-info-block"><label>Scadenza</label><strong>{% if workorder.due_at %}{{ workorder.due_at|date:"d/m/Y H:i" }}{% else %}—{% endif %}</strong></div>
             <div class="ux-info-block"><label>Tipo</label><strong>{% if workorder.maintenance_rule %}{{ workorder.maintenance_rule.intervention_template.label }}{% else %}Intervento manuale{% endif %}</strong></div>
             <div class="ux-info-block"><label>Fornitore</label><strong>{{ workorder.supplier|default:"—" }}</strong></div>
             <div class="ux-info-block"><label>Contratto</label><strong>{% if workorder.assistance_contract %}{% if workorder_contract_url %}<a class="ux-link" href="{{ workorder_contract_url }}">{{ workorder.assistance_contract.title }}</a>{% else %}{{ workorder.assistance_contract.title }}{% endif %}{% else %}—{% endif %}</strong></div>
@@ -92,6 +99,21 @@
               </details>
             </div>
             {% endif %}
+            <div class="ux-description">
+              <details>
+                <summary class="wo2-muted" style="cursor:pointer;color:#1d4ed8;font-weight:800">+ Cambia priorità</summary>
+                <form method="post" class="wo2-wait-form">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="set_priority">
+                  <label class="wo2-muted">Priorità
+                    <select name="priority">
+                      {% for code, label in priority_choices %}<option value="{{ code }}" {% if workorder.priority == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                    </select>
+                  </label>
+                  <div><button class="ux-btn" type="submit">Aggiorna priorità</button></div>
+                </form>
+              </details>
+            </div>
             <div class="ux-description">
               <details>
                 <summary class="wo2-muted" style="cursor:pointer;color:#1d4ed8;font-weight:800">+ Riassegna</summary>

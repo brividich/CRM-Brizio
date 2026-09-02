@@ -285,6 +285,10 @@
   font-size: .8rem;
   line-height: 1.45;
 }
+.wo-overdue {
+  color: #b91c1c;
+  font-weight: 800;
+}
 .wo-cost {
   color: #0f172a;
   font-weight: 800;
@@ -385,6 +389,9 @@ body.theme-dark .wo-table td {
 }
 body.theme-dark .wo-muted {
   color: var(--text-light);
+}
+body.theme-dark .wo-overdue {
+  color: #fca5a5;
 }
 </style>
 {% endblock %}
@@ -520,6 +527,12 @@ body.theme-dark .wo-muted {
             <label for="woKindFilter">Tipo</label>
             <select id="woKindFilter" name="kind"><option value="">Tutti</option>{% for code,label in kind_choices %}<option value="{{ code }}" {% if kind_filter == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
           </div>
+          {% if workorder_view != 'closed' %}
+          <div>
+            <label for="woPriorityFilter">Priorità</label>
+            <select id="woPriorityFilter" name="priority"><option value="">Tutte</option>{% for code,label in priority_choices %}<option value="{{ code }}" {% if priority_filter == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+          </div>
+          {% endif %}
           <div>
             <label for="woOriginFilter">Origine</label>
             <select id="woOriginFilter" name="origin"><option value="">Tutte</option>{% for code,label in origin_choices %}<option value="{{ code }}" {% if origin_filter == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
@@ -586,8 +599,10 @@ body.theme-dark .wo-muted {
             <tr{% if wo.status == 'OPEN' %} class="wo-row--open"{% endif %}>
               <td>
                 <a class="wo-title-link" href="{% url 'assets:wo_view' wo.id %}">#{{ wo.id }} - {{ wo.title }}</a>
+                {% if wo.status == 'OPEN' and wo.priority != 'NORMAL' %}<span class="as-badge {% if wo.priority == 'URGENT' %}as-badge--danger{% else %}as-badge--muted{% endif %}">{{ wo.get_priority_display }}</span>{% endif %}
+                {% if wo.status == 'OPEN' and wo.is_overdue %}<span class="as-badge as-badge--danger">Scaduto</span>{% endif %}
                 {% if wo.description %}<div class="wo-muted">{{ wo.description|truncatechars:90 }}</div>{% endif %}
-                <div class="wo-workorder-meta"><span class="wo-muted">{{ wo.get_kind_display }}</span><span class="wo-muted">·</span><span class="wo-muted">{{ wo.get_origin_display }}</span></div>
+                <div class="wo-workorder-meta"><span class="wo-muted">{{ wo.get_kind_display }}</span><span class="wo-muted">·</span><span class="wo-muted">{{ wo.get_origin_display }}</span>{% if wo.status == 'OPEN' and wo.operational_state and wo.operational_state != 'assigned' and wo.operational_state != 'unassigned' %}<span class="wo-muted">·</span><span class="wo-muted">{{ wo.operational_state_label }}</span>{% endif %}</div>
               </td>
               <td>
                 <strong>{{ wo.asset.asset_tag }}</strong>
@@ -602,7 +617,7 @@ body.theme-dark .wo-muted {
                 </div>
               </td>
               <td>
-                {% if wo.status == 'OPEN' %}<div class="wo-time-main">Aperto da {{ wo.opened_at|timesince }}</div><div class="wo-muted">Dal {{ wo.opened_at|date:"d-m-Y H:i" }}</div>{% else %}<div class="wo-time-main">Chiuso il {{ wo.closed_at|date:"d-m-Y" }}</div><div class="wo-muted">Aperto il {{ wo.opened_at|date:"d-m-Y" }}</div>{% endif %}
+                {% if wo.status == 'OPEN' %}<div class="wo-time-main">Aperto da {{ wo.opened_at|timesince }}</div><div class="wo-muted">Dal {{ wo.opened_at|date:"d-m-Y H:i" }}</div>{% if wo.due_at %}<div class="wo-muted{% if wo.is_overdue %} wo-overdue{% endif %}">Scadenza {{ wo.due_at|date:"d-m-Y H:i" }}</div>{% endif %}{% else %}<div class="wo-time-main">Chiuso il {{ wo.closed_at|date:"d-m-Y" }}</div><div class="wo-muted">Aperto il {{ wo.opened_at|date:"d-m-Y" }}</div>{% endif %}
               </td>
               <td>
                 <div class="wo-action-cell">

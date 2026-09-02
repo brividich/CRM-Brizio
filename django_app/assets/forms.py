@@ -2673,6 +2673,8 @@ class WorkOrderForm(forms.ModelForm):
             "assistance_contract",
             "covered_by_contract",
             "kind",
+            "priority",
+            "due_at",
             "status",
             "title",
             "description",
@@ -2687,6 +2689,8 @@ class WorkOrderForm(forms.ModelForm):
             "assistance_contract": "Contratto assistenza",
             "covered_by_contract": "Copertura da contratto",
             "kind": "Tipo intervento",
+            "priority": "Priorità",
+            "due_at": "Scadenza entro cui completare",
             "status": "Stato",
             "title": "Titolo",
             "description": "Descrizione",
@@ -2702,6 +2706,10 @@ class WorkOrderForm(forms.ModelForm):
             "assigned_to": forms.Select(),
             "description": forms.Textarea(attrs={"rows": 4}),
             "resolution": forms.Textarea(attrs={"rows": 3}),
+            "due_at": forms.DateTimeInput(
+                format="%Y-%m-%dT%H:%M",
+                attrs={"type": "datetime-local"},
+            ),
         }
 
     def __init__(self, *args, **kwargs):
@@ -2730,6 +2738,10 @@ class WorkOrderForm(forms.ModelForm):
         self.fields["status"].widget = forms.HiddenInput()
         self.fields["status"].initial = WorkOrder.STATUS_OPEN
         self.initial["status"] = WorkOrder.STATUS_OPEN
+        self.fields["priority"].required = False
+        self.fields["due_at"].required = False
+        self.fields["due_at"].input_formats = ["%Y-%m-%dT%H:%M"]
+        self.fields["due_at"].help_text = "Opzionale: se vuota, l'urgenza è indicata solo dalla priorità."
         verification_field = self.fields["periodic_verification"]
         verification_field.required = False
         verification_field.help_text = "Seleziona il piano di manutenzione periodica collegato per proporre il fornitore."

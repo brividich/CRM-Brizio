@@ -1,0 +1,92 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Il mio turno{% endblock %}
+
+{% block assets_shell_head %}
+  <style>
+    .imt-section { margin-bottom: 22px; }
+    .imt-section-head { display:flex; align-items:baseline; gap:8px; margin-bottom:10px; }
+    .imt-section-head h3 { margin:0; color:#0f172a; font-size:1rem; }
+    .imt-section-count { color:#64748b; font-size:.8rem; font-weight:700; }
+    .imt-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; }
+    .imt-card {
+      display:flex; flex-direction:column; gap:8px; padding:14px;
+      border:1px solid #dbe1ea; border-radius:14px; background:#fff;
+      box-shadow:0 8px 20px rgba(15,23,42,.04); text-decoration:none; color:inherit;
+    }
+    .imt-card:hover { border-color:#93c5fd; box-shadow:0 10px 24px rgba(29,78,216,.10); }
+    .imt-card--urgent { border-left:4px solid #dc2626; }
+    .imt-card--waiting { border-left:4px solid #d97706; }
+    .imt-card-title { font-weight:800; color:#0f172a; font-size:.95rem; }
+    .imt-card-asset { color:#334155; font-size:.85rem; font-weight:700; }
+    .imt-card-meta { display:flex; flex-wrap:wrap; gap:6px; font-size:.75rem; color:#64748b; }
+    .imt-card-cta { margin-top:auto; align-self:flex-start; }
+    .imt-empty { color:#64748b; font-size:.85rem; padding:14px; border:1px dashed #cbd5e1; border-radius:12px; }
+    body.theme-dark .imt-card { background:var(--surface); border-color:var(--border); box-shadow:none; }
+    body.theme-dark .imt-card-title { color:var(--text); }
+    body.theme-dark .imt-card-asset { color:var(--text); }
+    body.theme-dark .imt-card-meta, body.theme-dark .imt-section-count { color:var(--text-light); }
+    body.theme-dark .imt-empty { border-color:var(--border); color:var(--text-light); }
+    @media(max-width:520px){ .imt-grid { grid-template-columns:1fr; } }
+  </style>
+{% endblock %}
+
+{% block assets_shell_title %}Il mio turno{% endblock %}
+{% block assets_shell_subtitle %}<p>{{ total_mine_open }} interventi aperti assegnati a te.</p>{% endblock %}
+{% block assets_shell_toolbar %}
+  <a class="btn" href="{% url 'assets:wo_list' %}">Tutti gli interventi</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<section class="ux-page">
+  {% for section in sections %}
+  <div class="imt-section">
+    <div class="imt-section-head">
+      <h3>{{ section.title }}</h3>
+      <span class="imt-section-count">{{ section.rows|length }}</span>
+    </div>
+    {% if section.rows %}
+    <div class="imt-grid">
+      {% for wo in section.rows %}
+        {% if section.key == 'da_prendere' %}
+        <div class="imt-card{% if wo.priority == 'URGENT' %} imt-card--urgent{% endif %}">
+          <a href="{% url 'assets:wo_view' wo.id %}" style="color:inherit;text-decoration:none;">
+            <div class="imt-card-asset">{{ wo.asset.asset_tag }} · {{ wo.asset.name }}{% if wo.asset.reparto %} · {{ wo.asset.reparto }}{% endif %}</div>
+            <div class="imt-card-title">{{ wo.title|truncatechars:70 }}</div>
+          </a>
+          <div class="imt-card-meta">
+            <span>{{ wo.get_kind_display }}</span>
+            {% if wo.priority != 'NORMAL' %}<span class="as-badge {% if wo.priority == 'URGENT' %}as-badge--danger{% else %}as-badge--muted{% endif %}">{{ wo.get_priority_display }}</span>{% endif %}
+            {% if wo.due_at %}<span{% if wo.is_overdue %} class="as-badge as-badge--danger"{% endif %}>Scadenza {{ wo.due_at|date:"d/m H:i" }}</span>{% endif %}
+          </div>
+          <form method="post" action="{% url 'assets:wo_claim' wo.id %}" class="imt-card-cta">
+            {% csrf_token %}<input type="hidden" name="next" value="{% url 'assets:il_mio_turno' %}">
+            <button class="btn btn-primary" type="submit">Prendi in carico</button>
+          </form>
+        </div>
+        {% else %}
+        <a class="imt-card{% if wo.priority == 'URGENT' %} imt-card--urgent{% elif wo.is_waiting %} imt-card--waiting{% endif %}" href="{% url 'assets:wo_view' wo.id %}">
+          <div class="imt-card-asset">{{ wo.asset.asset_tag }} · {{ wo.asset.name }}{% if wo.asset.reparto %} · {{ wo.asset.reparto }}{% endif %}</div>
+          <div class="imt-card-title">{{ wo.title|truncatechars:70 }}</div>
+          <div class="imt-card-meta">
+            <span>{{ wo.get_kind_display }}</span>
+            {% if wo.priority != 'NORMAL' %}<span class="as-badge {% if wo.priority == 'URGENT' %}as-badge--danger{% else %}as-badge--muted{% endif %}">{{ wo.get_priority_display }}</span>{% endif %}
+            {% if wo.is_waiting %}<span class="as-badge as-badge--warn">In attesa · {{ wo.get_wait_reason_display }}</span>{% endif %}
+            {% if wo.due_at %}<span{% if wo.is_overdue %} class="as-badge as-badge--danger"{% endif %}>Scadenza {{ wo.due_at|date:"d/m H:i" }}</span>{% endif %}
+            {% if wo.started_at %}<span>In corso da {{ wo.started_at|timesince }}</span>{% endif %}
+            {% if wo.intervention_duration_minutes %}<span>Stima {{ wo.intervention_duration_minutes }} min</span>{% endif %}
+          </div>
+          <span class="btn btn-primary imt-card-cta">
+            {% if wo.is_waiting %}Riprendi{% elif wo.started_at %}Continua{% else %}Inizia{% endif %}
+          </span>
+        </a>
+        {% endif %}
+      {% endfor %}
+    </div>
+    {% else %}
+      <div class="imt-empty">{{ section.empty }}</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</section>
+{% endblock %}

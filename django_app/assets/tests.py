@@ -10112,3 +10112,236 @@ class AssetTimelineAutoEventHideTests(TestCase):
         self.client.get(reverse("assets:asset_view", args=[self.asset.id]))
         page = self.client.get(reverse("assets:asset_view", args=[other_asset.id]))
         self.assertIn("Registrazione inventario", page.content.decode("utf-8"))
+
+
+class WorkOrderPriorityAndOperationalStateTests(TestCase):
+    """Fase 5 cockpit manutentore: priorità, stato operativo derivato, avvio lavorazione."""
+
+    def setUp(self):
+        self.user = User.objects.create_superuser(
+            username="turno.user",
+            email="turno.user@example.com",
+            password="secret123",
+        )
+        self.other_user = User.objects.create_user(
+            username="turno.altro",
+            email="turno.altro@example.com",
+            password="secret123",
+        )
+        self.asset = Asset.objects.create(
+            asset_tag="IT-TURNO-001",
+            name="Server turno test",
+            asset_type=Asset.TYPE_SERVER,
+            status=Asset.STATUS_IN_USE,
+        )
+
+    def test_priority_defaults_to_normal(self):
+        workorder = WorkOrder.objects.create(
+            asset=self.asset, kind=WorkOrder.KIND_CORRECTIVE, status=WorkOrder.STATUS_OPEN, title="Senza priorità"
+        )
+        self.assertEqual(workorder.priority, WorkOrder.PRIORITY_NORMAL)
+
+    def test_operational_state_transitions(self):
+        workorder = WorkOrder.objects.create(
+            asset=self.asset, kind=WorkOrder.KIND_CORRECTIVE, status=WorkOrder.STATUS_OPEN, title="Stato operativo"
+        )
+        self.assertEqual(workorder.operational_state, WorkOrder.OPSTATE_UNASSIGNED)
+
+        workorder.assigned_to = self.user
+        workorder.save(update_fields=["assigned_to"])
+        self.assertEqual(workorder.operational_state, WorkOrder.OPSTATE_ASSIGNED)
+
+        workorder.start()
+        self.assertEqual(workorder.operational_state, WorkOrder.OPSTATE_IN_PROGRESS)
+        self.assertIsNotNone(workorder.started_at)
+
+        workorder.set_waiting(reason=WorkOrder.WAIT_REASON_RICAMBIO, note="Atteso ricambio")
+        self.assertEqual(workorder.operational_state, WorkOrder.OPSTATE_WAITING)
+
+        workorder.close(status=WorkOrder.STATUS_DONE, resolution="Fatto")
+        self.assertIsNone(workorder.operational_state)
+
+    def test_start_is_idempotent_and_resumes_from_waiting(self):
+        workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="Avvio idempotente",
+            assigned_to=self.user,
+        )
+        workorder.start()
+        first_started_at = workorder.started_at
+        self.assertIsNotNone(first_started_at)
+
+        workorder.set_waiting(reason=WorkOrder.WAIT_REASON_ALTRO)
+        self.assertTrue(workorder.is_waiting)
+
+        workorder.start()
+        workorder.refresh_from_db()
+        self.assertFalse(workorder.is_waiting)
+        self.assertEqual(workorder.started_at, first_started_at)
+
+    def test_is_overdue_only_when_open_and_due_in_the_past(self):
+        past = timezone.now() - timedelta(hours=1)
+        future = timezone.now() + timedelta(hours=1)
+        overdue_open = WorkOrder.objects.create(
+            asset=self.asset, kind=WorkOrder.KIND_CORRECTIVE, status=WorkOrder.STATUS_OPEN,
+            title="Scaduto", due_at=past,
+        )
+        not_yet_due = WorkOrder.objects.create(
+            asset=self.asset, kind=WorkOrder.KIND_CORRECTIVE, status=WorkOrder.STATUS_OPEN,
+            title="Non ancora scaduto", due_at=future,
+        )
+        closed_overdue = WorkOrder.objects.create(
+            asset=self.asset, kind=WorkOrder.KIND_CORRECTIVE, status=WorkOrder.STATUS_DONE,
+            title="Scaduto ma chiuso", due_at=past, closed_at=timezone.now(),
+        )
+        self.assertTrue(overdue_open.is_overdue)
+        self.assertFalse(not_yet_due.is_overdue)
+        self.assertFalse(closed_overdue.is_overdue)
+
+    def test_workorder_detail_start_action_sets_started_at_and_logs(self):
+        workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="Da iniziare",
+            assigned_to=self.user,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse("assets:wo_view", args=[workorder.id]), {"action": "start"})
+
+        self.assertRedirects(response, reverse("assets:wo_view", args=[workorder.id]))
+        workorder.refresh_from_db()
+        self.assertIsNotNone(workorder.started_at)
+        self.assertTrue(workorder.logs.filter(note="Intervento iniziato.").exists())
+
+    def test_workorder_detail_set_priority_action(self):
+        workorder = WorkOrder.objects.create(
+            asset=self.asset, kind=WorkOrder.KIND_CORRECTIVE, status=WorkOrder.STATUS_OPEN, title="Priorità"
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("assets:wo_view", args=[workorder.id]),
+            {"action": "set_priority", "priority": WorkOrder.PRIORITY_URGENT},
+        )
+
+        self.assertRedirects(response, reverse("assets:wo_view", args=[workorder.id]))
+        workorder.refresh_from_db()
+        self.assertEqual(workorder.priority, WorkOrder.PRIORITY_URGENT)
+        self.assertTrue(workorder.logs.filter(note__icontains="Priorità aggiornata").exists())
+
+    def test_workorder_list_priority_filter(self):
+        urgent = WorkOrder.objects.create(
+            asset=self.asset, kind=WorkOrder.KIND_CORRECTIVE, status=WorkOrder.STATUS_OPEN,
+            title="Urgente", priority=WorkOrder.PRIORITY_URGENT,
+        )
+        normal = WorkOrder.objects.create(
+            asset=self.asset, kind=WorkOrder.KIND_CORRECTIVE, status=WorkOrder.STATUS_OPEN,
+            title="Normale", priority=WorkOrder.PRIORITY_NORMAL,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("assets:wo_list"), {"priority": WorkOrder.PRIORITY_URGENT, "view": "all"})
+
+        titles = [wo.title for wo in response.context["workorders"]]
+        self.assertIn(urgent.title, titles)
+        self.assertNotIn(normal.title, titles)
+
+    def test_workorder_list_open_view_sorts_urgent_first(self):
+        WorkOrder.objects.create(
+            asset=self.asset, kind=WorkOrder.KIND_CORRECTIVE, status=WorkOrder.STATUS_OPEN,
+            title="Normale vecchio", priority=WorkOrder.PRIORITY_NORMAL,
+            opened_at=timezone.now() - timedelta(days=5),
+        )
+        urgent_recent = WorkOrder.objects.create(
+            asset=self.asset, kind=WorkOrder.KIND_CORRECTIVE, status=WorkOrder.STATUS_OPEN,
+            title="Urgente recente", priority=WorkOrder.PRIORITY_URGENT,
+            opened_at=timezone.now(),
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("assets:wo_list"), {"view": "open"})
+
+        workorders = list(response.context["workorders"])
+        self.assertEqual(workorders[0].id, urgent_recent.id)
+
+
+class IlMioTurnoTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_superuser(
+            username="turno.home.user",
+            email="turno.home.user@example.com",
+            password="secret123",
+        )
+        self.other_user = User.objects.create_user(
+            username="turno.home.altro",
+            email="turno.home.altro@example.com",
+            password="secret123",
+        )
+        self.asset = Asset.objects.create(
+            asset_tag="IT-TURNO-002",
+            name="Server home turno",
+            asset_type=Asset.TYPE_SERVER,
+            status=Asset.STATUS_IN_USE,
+        )
+
+    def _wo(self, **kwargs):
+        defaults = dict(
+            asset=self.asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="OdL",
+        )
+        defaults.update(kwargs)
+        return WorkOrder.objects.create(**defaults)
+
+    def test_sections_are_mutually_exclusive_and_populated(self):
+        bloccato = self._wo(title="Bloccato", assigned_to=self.user)
+        bloccato.set_waiting(reason=WorkOrder.WAIT_REASON_RICAMBIO)
+        urgente = self._wo(title="Urgente", assigned_to=self.user, priority=WorkOrder.PRIORITY_URGENT)
+        scaduto = self._wo(
+            title="Scaduto", assigned_to=self.user, due_at=timezone.now() - timedelta(hours=2)
+        )
+        oggi = self._wo(
+            title="Oggi",
+            assigned_to=self.user,
+            due_at=timezone.now() + timedelta(minutes=5),
+        )
+        in_corso = self._wo(title="In corso", assigned_to=self.user)
+        in_corso.start()
+        altro = self._wo(title="Altro assegnato", assigned_to=self.user)
+        non_mio = self._wo(title="Non mio", assigned_to=self.other_user)
+        da_prendere = self._wo(title="Da prendere")
+        chiuso = self._wo(title="Chiuso", assigned_to=self.user, status=WorkOrder.STATUS_DONE, closed_at=timezone.now())
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("assets:il_mio_turno"))
+
+        self.assertEqual(response.status_code, 200)
+        sections = {section["key"]: section["rows"] for section in response.context["sections"]}
+        self.assertEqual([wo.id for wo in sections["bloccati"]], [bloccato.id])
+        self.assertEqual([wo.id for wo in sections["emergenze"]], [urgente.id])
+        self.assertEqual([wo.id for wo in sections["scaduti"]], [scaduto.id])
+        self.assertEqual([wo.id for wo in sections["oggi"]], [oggi.id])
+        self.assertEqual([wo.id for wo in sections["in_corso"]], [in_corso.id])
+        self.assertEqual([wo.id for wo in sections["altri"]], [altro.id])
+        self.assertEqual([wo.id for wo in sections["da_prendere"]], [da_prendere.id])
+        all_shown_ids = {wo.id for rows in sections.values() for wo in rows}
+        self.assertNotIn(non_mio.id, all_shown_ids)
+        self.assertNotIn(chiuso.id, all_shown_ids)
+
+    def test_claim_from_il_mio_turno_redirects_back(self):
+        da_prendere = self._wo(title="Da prendere via claim")
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("assets:wo_claim", args=[da_prendere.id]),
+            {"next": reverse("assets:il_mio_turno")},
+        )
+
+        self.assertRedirects(response, reverse("assets:il_mio_turno"))
+        da_prendere.refresh_from_db()
+        self.assertEqual(da_prendere.assigned_to_id, self.user.id)

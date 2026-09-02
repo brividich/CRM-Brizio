@@ -624,15 +624,41 @@ Nota: esiste un bug distinto e preesistente (non toccato in questa fase, traccia
 
 **Stato**: ✅ Completato — 2026-09-02
 
-## Fase 5 — Cockpit del manutentore: coda e schermata di esecuzione (non avviata)
+## Fase 5 — Cockpit del manutentore: coda e schermata di esecuzione
 
-> Richiede decisioni di modello dati e UX che vanno concordate prima dell'implementazione (nuovi stati/campi sul `WorkOrder`, redesign della home). Non implementata in questa sessione per restare nello scope esplicitamente richiesto (quick win di affidabilità). Elenco di riferimento per la prossima iterazione:
+> Analisi 2026-09-02, seconda iterazione (dopo i quick win di Fase 4). Ambito concordato con l'utente: modello dati (priorità/stati operativi) + home "Il mio turno" + schermata unica di esecuzione, tutto insieme.
 
-- Priorità OdL (`emergenza/alta/normale/bassa`) e data/ora richiesta esplicita, distinta dall'anzianità di apertura
-- Stati operativi intermedi (assegnato/in corso/in attesa/bloccato) oltre a Aperto/Chiuso/Annullato, con motivi rapidi di blocco (ricambio, macchina indisponibile, autorizzazione, fornitore, condizione non sicura)
-- Home "Il mio turno" per il manutentore, distinta dalla home del responsabile: Emergenze/Scaduti/Oggi/In corso/Bloccati/Da prendere
-- Schermata unica di esecuzione (asset+rischi+DPI+checklist+timer+ricambi+note/foto, azione Blocca/Completa) invece della navigazione dispersa tra dettaglio e pagina di chiusura
-- Materiali/durata stimata del template intervento portati in evidenza nel dettaglio OdL
+**Decisioni prese con l'utente**: 3 livelli di priorità (Urgente/Normale/Bassa); lo stato operativo (in corso/in attesa) è un **sotto-stato dentro OPEN**, non nuovi valori di `WorkOrder.STATUS_CHOICES` — per non toccare ogni punto del codice che oggi confronta `status == OPEN` (filtri, dashboard, generatore scadenze, ACL).
+
+**Scoperta in fase di analisi**: il "in attesa con motivo" del report (ricambio/fornitore/autorizzazione/...) **esisteva già** — `WorkOrder.is_waiting`/`wait_reason`/`wait_note`/`waiting_since` (migration `0093`). Non è stato duplicato: lo stato operativo `waiting` è derivato da `is_waiting`.
+
+### P5.1 — Priorità, scadenza esplicita e stato operativo derivato
+
+**Fatto**: `WorkOrder.priority` (URGENT/NORMAL/LOW, default NORMAL, `db_index`), `WorkOrder.due_at` (opzionale), `WorkOrder.started_at` (timestamp "Inizia intervento"). `operational_state` è una **property** (non un campo) derivata da `assigned_to_id`/`started_at`/`is_waiting`, per evitare un quarto stato da tenere sincronizzato manualmente — `unassigned` → `assigned` → `in_progress` (via `start()`) → `waiting` (via `is_waiting`, invariato). `start()` è idempotente e riprende automaticamente da un'attesa. `is_overdue` deriva da `due_at`+`status`.
+
+**File**: `assets/models.py`, migration `0095_workorder_due_at_workorder_priority_and_more.py`.
+
+**Stato**: ✅ Completato — 2026-09-02, 10 test nuovi verdi.
+
+### P5.2 — Schermata di esecuzione consolidata nel dettaglio OdL
+
+**Deciso**: non una pagina nuova — il dettaglio OdL esistente (`workorder_detail.html`) era già ricco (checklist, allegati, log, gestione attesa/riassegnazione); vi si sono aggiunti priorità/scadenza/stato operativo e il bottone "Inizia intervento"/"Riprendi lavorazione", invece di introdurre un terzo punto di navigazione oltre a dettaglio e chiusura.
+
+**File**: `assets/views.py` (`workorder_detail`, azioni `start`/`set_priority`), `assets/templates/assets/pages/workorder_detail.html`.
+
+**Stato**: ✅ Completato — 2026-09-02.
+
+### P5.3 — Home "Il mio turno"
+
+**Fatto**: `/assets/manutenzione/il-mio-turno/`, distinta dal Centro Manutenzione del responsabile. Sezioni **Bloccati → Emergenze → Scaduti → Oggi → In corso → Altri assegnati a te → Da prendere in carico**; ogni OdL compare in una sola sezione (la prima applicabile, per non mostrare lo stesso intervento due volte). "Da prendere in carico" usa il claim esistente (`assets:wo_claim`) con redirect di ritorno, non un link che promette un'azione e apre solo il dettaglio.
+
+**File**: `assets/views.py` (`il_mio_turno`), `assets/urls.py`, `assets/templates/assets/pages/il_mio_turno.html`.
+
+**Nota deploy**: la voce di sidebar "Il mio turno" è nel fallback di default (`_default_sidebar_buttons`); in prod la sidebar Assets è configurata da `AssetSidebarButton` nel pannello admin (non hardcoded) — **va aggiunta manualmente dopo il deploy**, altrimenti la pagina resta raggiungibile solo via URL diretto.
+
+**Stato**: ✅ Completato — 2026-09-02, 2 test nuovi verdi (sezioni mutuamente esclusive, claim con redirect).
+
+**Verifica**: HTTP autenticato diretto su server dev (login, sezioni popolate, OdL nella sezione attesa) — **corretto dopo**: quel server dev girava sul SQL Server locale reale (`config.settings.dev` non è SQLite su questa macchina), non un vero controllo visivo. Verificare aspetto/tema chiaro-scuro prima del deploy.
 
 ## Fase 6 — Qualità del dato sul campo (non avviata)
 

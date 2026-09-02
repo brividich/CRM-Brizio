@@ -2092,6 +2092,26 @@ class WorkOrder(models.Model):
         (OUTCOME_NOT_RESOLVED, "Non risolto"),
     ]
 
+    PRIORITY_URGENT = "URGENT"
+    PRIORITY_NORMAL = "NORMAL"
+    PRIORITY_LOW = "LOW"
+    PRIORITY_CHOICES = [
+        (PRIORITY_URGENT, "Urgente"),
+        (PRIORITY_NORMAL, "Normale"),
+        (PRIORITY_LOW, "Bassa"),
+    ]
+
+    OPSTATE_UNASSIGNED = "unassigned"
+    OPSTATE_ASSIGNED = "assigned"
+    OPSTATE_IN_PROGRESS = "in_progress"
+    OPSTATE_WAITING = "waiting"
+    OPSTATE_LABELS = {
+        OPSTATE_UNASSIGNED: "Da assegnare",
+        OPSTATE_ASSIGNED: "Assegnato",
+        OPSTATE_IN_PROGRESS: "In corso",
+        OPSTATE_WAITING: "In attesa",
+    }
+
     WAIT_REASON_RICAMBIO = "RICAMBIO"
     WAIT_REASON_FORNITORE = "FORNITORE"
     WAIT_REASON_PRODUZIONE = "PRODUZIONE"
@@ -2144,6 +2164,23 @@ class WorkOrder(models.Model):
     )
     covered_by_contract = models.BooleanField(default=False, db_index=True)
     kind = models.CharField(max_length=20, choices=KIND_CHOICES, default=KIND_OTHER)
+    priority = models.CharField(
+        max_length=10,
+        choices=PRIORITY_CHOICES,
+        default=PRIORITY_NORMAL,
+        db_index=True,
+        help_text="Urgenza dichiarata dell'intervento (non dedotta dall'anzianità di apertura).",
+    )
+    due_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Scadenza esplicita entro cui l'intervento andrebbe concluso (opzionale).",
+    )
+    started_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp di inizio lavorazione effettiva (bottone 'Inizia intervento').",
+    )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_OPEN)
     origin = models.CharField(
         max_length=20,
@@ -2397,6 +2434,43 @@ class WorkOrder(models.Model):
         self.wait_note = ""
         self.waiting_since = None
         self.save(update_fields=["is_waiting", "wait_reason", "wait_note", "waiting_since"])
+
+    def start(self) -> None:
+        """Segna l'inizio della lavorazione effettiva (bottone 'Inizia intervento').
+        Idempotente: non sposta ``started_at`` se l'intervento e' gia' in corso.
+        Riprende automaticamente da un'attesa, perche' premere "Inizia/Riprendi"
+        e' l'unico gesto che il manutentore compie sul campo."""
+        if self.status != self.STATUS_OPEN:
+            return
+        if self.is_waiting:
+            self.resume_from_waiting()
+        if not self.started_at:
+            self.started_at = timezone.now()
+            self.save(update_fields=["started_at"])
+
+    @property
+    def operational_state(self) -> str | None:
+        """Sotto-stato dentro OPEN, derivato senza un campo dedicato ridondante
+        (evita di dover propagare un secondo stato in sync con is_waiting/started_at/
+        assigned_to): None per gli OdL chiusi/annullati."""
+        if self.status != self.STATUS_OPEN:
+            return None
+        if self.is_waiting:
+            return self.OPSTATE_WAITING
+        if self.started_at:
+            return self.OPSTATE_IN_PROGRESS
+        if self.assigned_to_id:
+            return self.OPSTATE_ASSIGNED
+        return self.OPSTATE_UNASSIGNED
+
+    @property
+    def operational_state_label(self) -> str:
+        state = self.operational_state
+        return self.OPSTATE_LABELS.get(state, "") if state else ""
+
+    @property
+    def is_overdue(self) -> bool:
+        return bool(self.status == self.STATUS_OPEN and self.due_at and self.due_at < timezone.now())
 
 
 class WorkOrderExecutionDay(models.Model):

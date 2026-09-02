@@ -478,6 +478,20 @@ body.theme-dark .wof-advanced-body { border-color:var(--border); }
               {% if form.assigned_to.errors %}<div class="wof-error">{{ form.assigned_to.errors }}</div>{% endif %}
             </div>
 
+            <div class="wof-field">
+              <label for="{{ form.priority.id_for_label }}">Priorità <span class="wof-optional">opzionale</span></label>
+              {{ form.priority }}
+              <div class="wof-helper">L'urgenza dichiarata, non dedotta dall'anzianità dell'OdL.</div>
+              {% if form.priority.errors %}<div class="wof-error">{{ form.priority.errors }}</div>{% endif %}
+            </div>
+
+            <div class="wof-field">
+              <label for="{{ form.due_at.id_for_label }}">Scadenza entro cui completare <span class="wof-optional">opzionale</span></label>
+              {{ form.due_at }}
+              <div class="wof-helper">{{ form.due_at.help_text }}</div>
+              {% if form.due_at.errors %}<div class="wof-error">{{ form.due_at.errors }}</div>{% endif %}
+            </div>
+
             <div class="wof-field wof-field--full">
               <label for="{{ form.title.id_for_label }}">Titolo <span class="wof-required" aria-label="obbligatorio">*</span></label>
               {{ form.title }}
