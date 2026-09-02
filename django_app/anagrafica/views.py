@@ -9420,14 +9420,21 @@ def impostazioni(request):
             mansioni_grouped.append((cat_code, cat_labels[cat_code], items))
 
     # --- Reparti e Aree aziendali ---
-    aree = list(Reparto.objects.prefetch_related("aree_aziendali").order_by("nome"))
-    aree_aziendali = list(AreaAziendale.objects.order_by("nome"))
+    aree = list(Reparto.objects.prefetch_related("aree_aziendali", "responsabili").order_by("nome"))
+    aree_aziendali = list(AreaAziendale.objects.prefetch_related("responsabili").order_by("nome"))
     dipendenti_picker = _dipendenti_picker_rows()
     _dip_picker_map = {item["id"]: item["label"] for item in dipendenti_picker}
+
+    def _responsabili_labels(obj):
+        ids = [d.id for d in obj.responsabili.all()]
+        return ids, ", ".join(_dip_picker_map.get(i, "") for i in ids if _dip_picker_map.get(i, ""))
+
     for a in aree:
         a.caporeparto_label = _dip_picker_map.get(a.caporeparto_legacy_id or 0, "")
+        a.responsabili_ids, a.responsabili_label = _responsabili_labels(a)
     for az in aree_aziendali:
         az.responsabile_label = _dip_picker_map.get(az.responsabile_legacy_id or 0, "")
+        az.responsabili_ids, az.responsabili_label = _responsabili_labels(az)
 
     # --- Ruoli operativi sicurezza ---
     # select_related("riporta_a") + catalogo/suggeriti: il pannello "Ruoli" inline
