@@ -14753,6 +14753,7 @@ def _apply_workorder_list_filters(get_params, *, include_filters: bool = True):
     category_id = _as_int(get_params.get("category"), default=0)
     assigned_id = _as_int(get_params.get("assigned"), default=0)
     open_age_days = _as_int(get_params.get("open_age"), default=0)
+    asset_id = _as_int(get_params.get("asset"), default=0)
     q = _clean_string(get_params.get("q"))
 
     if status:
@@ -14761,6 +14762,8 @@ def _apply_workorder_list_filters(get_params, *, include_filters: bool = True):
         qs = qs.filter(kind=kind)
     if origin:
         qs = qs.filter(origin=origin)
+    if asset_id:
+        qs = qs.filter(asset_id=asset_id)
     if coverage == "covered":
         qs = qs.filter(covered_by_contract=True)
     elif coverage == "uncovered":
@@ -14849,6 +14852,7 @@ def _workorder_list_filter_chips(
     operational_view: str,
     category_options,
     user_options,
+    asset_filter=None,
 ) -> list[dict[str, str]]:
     status_labels = dict(WorkOrder.STATUS_CHOICES)
     kind_labels = dict(WorkOrder.KIND_CHOICES)
@@ -14908,6 +14912,8 @@ def _workorder_list_filter_chips(
         add("assigned", "Responsabile", user_label)
     if open_age_days:
         add("open_age", "Aperti da", f"{open_age_days} giorni")
+    if asset_filter is not None:
+        add("asset", "Asset", asset_filter.asset_tag or asset_filter.name)
     return chips
 
 
@@ -14921,8 +14927,10 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
     category_id = _as_int(request.GET.get("category"), default=0)
     assigned_id = _as_int(request.GET.get("assigned"), default=0)
     open_age_days = _as_int(request.GET.get("open_age"), default=0)
+    asset_id = _as_int(request.GET.get("asset"), default=0)
     q = _clean_string(request.GET.get("q"))
     operational_view = _resolve_workorder_operational_view(request.GET)
+    asset_filter = Asset.objects.filter(pk=asset_id).first() if asset_id else None
 
     workorders = _apply_workorder_operational_view(
         _apply_workorder_list_filters(request.GET),
@@ -14960,6 +14968,7 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
         operational_view=operational_view,
         category_options=category_options,
         user_options=user_options,
+        asset_filter=asset_filter,
     )
 
     return render(
@@ -14976,6 +14985,7 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
             "selected_category_id": category_id,
             "assigned_filter": assigned_id,
             "open_age_filter": open_age_days,
+            "asset_filter": asset_filter,
             "q_filter": q,
             "workorder_view": operational_view,
             "workorder_view_url": _workorder_list_page_url(view=operational_view),
@@ -15449,9 +15459,18 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
             if executed_by is not None:
                 workorder.executed_by = executed_by
             assignee_changed = assigned_to is not None and assigned_to.pk != previous_assignee_id
+            requested_status = form.cleaned_data["status"]
+            esito = form.cleaned_data.get("esito")
+            # "Non risolto" non deve mai risultare chiuso, nemmeno per un istante: se il
+            # WO fosse chiuso prima di riaprirlo, close()/sync_workorder_maintenance_state
+            # avanzerebbero la prossima scadenza su una manutenzione che non ha risolto nulla.
+            reopened_as_unresolved = (
+                requested_status == WorkOrder.STATUS_DONE and esito == WorkOrder.OUTCOME_NOT_RESOLVED
+            )
+            effective_status = WorkOrder.STATUS_OPEN if reopened_as_unresolved else requested_status
             try:
                 workorder.close(
-                    status=form.cleaned_data["status"],
+                    status=effective_status,
                     closed_at=form.cleaned_data.get("closed_at"),
                     resolution=form.cleaned_data.get("resolution") or "",
                     intervention_duration=form.cleaned_data.get("intervention_duration_minutes"),
@@ -15477,19 +15496,16 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
                     sync_workorder_maintenance_state(workorder)
 
                 author = request.user if request.user.is_authenticated else None
-                esito = form.cleaned_data.get("esito")
                 follow_up_child = None
-                if workorder.status == WorkOrder.STATUS_DONE and esito:
+                if reopened_as_unresolved:
+                    workorder.outcome = esito
+                    workorder.save(update_fields=["outcome"])
+                elif workorder.status == WorkOrder.STATUS_DONE and esito:
                     outcome_fields = ["outcome"]
                     workorder.outcome = esito
                     if esito == WorkOrder.OUTCOME_RESOLVED_TEMP:
                         workorder.follow_up_date = form.cleaned_data.get("follow_up_date")
                         outcome_fields.append("follow_up_date")
-                    elif esito == WorkOrder.OUTCOME_NOT_RESOLVED:
-                        # "Non risolto" non deve risultare chiuso definitivamente: torna aperto.
-                        workorder.status = WorkOrder.STATUS_OPEN
-                        workorder.closed_at = None
-                        outcome_fields += ["status", "closed_at"]
                     workorder.save(update_fields=outcome_fields)
                     if esito == WorkOrder.OUTCOME_RESOLVED_TEMP:
                         follow_up_child = WorkOrder.objects.create(
@@ -15571,7 +15587,11 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
                 "assistance_contract": workorder.assistance_contract_id,
                 "covered_by_contract": workorder.covered_by_contract,
                 "assigned_to": workorder.assigned_to_id,
-                "executed_by": workorder.executed_by_id,
+                # Chi chiude l'intervento è quasi sempre chi l'ha eseguito: precompilare
+                # evita al manutentore di doversi ricercare in un elenco ad ogni chiusura.
+                "executed_by": workorder.executed_by_id or (
+                    request.user.id if request.user.is_authenticated else None
+                ),
             },
             asset=workorder.asset,
             workorder=workorder,

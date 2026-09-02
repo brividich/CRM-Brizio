@@ -72,6 +72,9 @@
   border-top: 1px solid #f1f5f9;
 }
 .qrl-wo-item:first-child { border-top: none; padding-top: 0; }
+a.qrl-wo-item { color: inherit; text-decoration: none; cursor: pointer; margin: 0 -6px; padding: 8px 6px; border-radius: 8px; }
+a.qrl-wo-item:hover { background: #f8fafc; }
+a.qrl-wo-item:first-child { margin-top: 0; }
 .qrl-wo-dot {
   width: 8px;
   height: 8px;
@@ -135,6 +138,7 @@
   .qrl-card { background: #1e293b; border-color: #334155; }
   .qrl-card-title { color: #94a3b8; border-bottom-color: #334155; }
   .qrl-wo-item { border-top-color: #334155; }
+  a.qrl-wo-item:hover { background: #24344a; }
   .qrl-wo-title { color: #f1f5f9; }
   .qrl-kv-label { color: #94a3b8; }
   .qrl-kv-value { color: #f1f5f9; }
@@ -267,6 +271,7 @@
     <div class="qrl-card-body">
       {% if open_workorders %}
         {% for wo in open_workorders %}
+          {% if qr_public %}
           <div class="qrl-wo-item">
             <div class="qrl-wo-dot {% if wo.kind == 'CORRECTIVE' %}qrl-wo-dot--urgente{% endif %}"></div>
             <div>
@@ -277,6 +282,18 @@
               </div>
             </div>
           </div>
+          {% else %}
+          <a class="qrl-wo-item" href="{% url 'assets:wo_view' wo.id %}">
+            <div class="qrl-wo-dot {% if wo.kind == 'CORRECTIVE' %}qrl-wo-dot--urgente{% endif %}"></div>
+            <div>
+              <div class="qrl-wo-title">{{ wo.title|truncatechars:60 }}</div>
+              <div class="qrl-wo-meta">
+                {{ wo.get_kind_display }}
+                &nbsp;·&nbsp; aperto il {{ wo.opened_at|date:"d-m-Y" }}
+              </div>
+            </div>
+          </a>
+          {% endif %}
         {% endfor %}
         {% if not qr_public %}
           <div style="margin-top:10px;">
