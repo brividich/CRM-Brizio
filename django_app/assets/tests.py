@@ -10269,6 +10269,14 @@ class WorkOrderPriorityAndOperationalStateTests(TestCase):
         self.assertEqual(workorders[0].id, urgent_recent.id)
 
 
+class IlMioTurnoSidebarSeedTests(TestCase):
+    def test_migration_seeds_visible_sidebar_button(self):
+        button = AssetSidebarButton.objects.get(code="il_mio_turno")
+        self.assertTrue(button.is_visible)
+        self.assertEqual(button.target_url, "django:assets:il_mio_turno")
+        self.assertFalse(button.is_subitem)
+
+
 class IlMioTurnoTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_superuser(

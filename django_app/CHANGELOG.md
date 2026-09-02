@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Assets — manutenzione: voce sidebar "Il mio turno" seminata via migration
+
+- **[feat/test] `assets/migrations/0097_seed_il_mio_turno_sidebar_button.py` [nuovo]**: la home del manutentore (`/assets/manutenzione/il-mio-turno/`, Fase 5) era raggiungibile solo da URL diretto perché in ogni ambiente con sidebar già configurata (`AssetSidebarButton` non vuota) il fallback di codice non scatta mai. Migration dati (`get_or_create`, idempotente, reversibile) che aggiunge la voce come primo elemento della sezione principale — stesso pattern già usato per tutte le altre voci di sidebar del modulo (`0008`, `0017`, `0034`, `0048`, ...), quindi si applica da sola al prossimo `migrate` in ogni ambiente, prod incluso, senza intervento manuale da pannello admin.
+
 ### Assets — manutenzione: "Non risolto" non avanza più la scadenza, e altri quick win del manutentore
 
 - **[fix/test] `assets/models.py` (`WorkOrder.close`), `assets/views.py` (`workorder_close`), `assets/tests.py`**: chiudere un intervento con esito **"Non risolto"** faceva comunque transitare il WO per `DONE` prima di riportarlo `OPEN` — `close()` e `sync_workorder_maintenance_state()` avanzavano nel frattempo `WorkMachine.next_maintenance_date`/`AssetMaintenanceRuleState` su una manutenzione che non aveva risolto nulla, producendo una prossima scadenza falsa. L'esito viene ora letto **prima** della chiusura: se è "Non risolto" lo stato passato a `close()` è direttamente `OPEN`, che non tocca più scadenza né snapshot contatore. `closed_at` non viene più impostato quando lo stato è `OPEN`. Aggiunto test di regressione.

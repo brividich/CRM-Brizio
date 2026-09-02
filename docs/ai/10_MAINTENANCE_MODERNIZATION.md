@@ -654,7 +654,7 @@ Nota: esiste un bug distinto e preesistente (non toccato in questa fase, traccia
 
 **File**: `assets/views.py` (`il_mio_turno`), `assets/urls.py`, `assets/templates/assets/pages/il_mio_turno.html`.
 
-**Nota deploy**: la voce di sidebar "Il mio turno" è nel fallback di default (`_default_sidebar_buttons`); in prod la sidebar Assets è configurata da `AssetSidebarButton` nel pannello admin (non hardcoded) — **va aggiunta manualmente dopo il deploy**, altrimenti la pagina resta raggiungibile solo via URL diretto.
+**Nota deploy**: la voce di sidebar "Il mio turno" è nel fallback di default (`_default_sidebar_buttons`, non usato quando `AssetSidebarButton` non è vuota) **e** seminata via migration dati (`assets/0097_seed_il_mio_turno_sidebar_button.py`) — si applica da sola al prossimo `migrate` in ogni ambiente, prod incluso, senza intervento manuale.
 
 **Stato**: ✅ Completato — 2026-09-02, 2 test nuovi verdi (sezioni mutuamente esclusive, claim con redirect).
 
