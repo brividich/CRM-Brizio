@@ -10307,26 +10307,32 @@ class IlMioTurnoTests(TestCase):
         return WorkOrder.objects.create(**defaults)
 
     def test_sections_are_mutually_exclusive_and_populated(self):
-        bloccato = self._wo(title="Bloccato", assigned_to=self.user)
-        bloccato.set_waiting(reason=WorkOrder.WAIT_REASON_RICAMBIO)
-        urgente = self._wo(title="Urgente", assigned_to=self.user, priority=WorkOrder.PRIORITY_URGENT)
-        scaduto = self._wo(
-            title="Scaduto", assigned_to=self.user, due_at=timezone.now() - timedelta(hours=2)
-        )
-        oggi = self._wo(
-            title="Oggi",
-            assigned_to=self.user,
-            due_at=timezone.now() + timedelta(minutes=5),
-        )
-        in_corso = self._wo(title="In corso", assigned_to=self.user)
-        in_corso.start()
-        altro = self._wo(title="Altro assegnato", assigned_to=self.user)
-        non_mio = self._wo(title="Non mio", assigned_to=self.other_user)
-        da_prendere = self._wo(title="Da prendere")
-        chiuso = self._wo(title="Chiuso", assigned_to=self.user, status=WorkOrder.STATUS_DONE, closed_at=timezone.now())
+        # Orario fisso a metà giornata: il bucket "oggi" dipende dal confronto tra
+        # due_at e "adesso"/"oggi" calcolati dalla view nello stesso istante in cui
+        # il test li prepara — usare il vero timezone.now() rende il test fragile
+        # a cavallo di mezzanotte (due_at scivola sul giorno dopo).
+        frozen_now = timezone.now().replace(hour=12, minute=0, second=0, microsecond=0)
+        with patch("django.utils.timezone.now", return_value=frozen_now):
+            bloccato = self._wo(title="Bloccato", assigned_to=self.user)
+            bloccato.set_waiting(reason=WorkOrder.WAIT_REASON_RICAMBIO)
+            urgente = self._wo(title="Urgente", assigned_to=self.user, priority=WorkOrder.PRIORITY_URGENT)
+            scaduto = self._wo(
+                title="Scaduto", assigned_to=self.user, due_at=frozen_now - timedelta(hours=2)
+            )
+            oggi = self._wo(
+                title="Oggi",
+                assigned_to=self.user,
+                due_at=frozen_now + timedelta(minutes=5),
+            )
+            in_corso = self._wo(title="In corso", assigned_to=self.user)
+            in_corso.start()
+            altro = self._wo(title="Altro assegnato", assigned_to=self.user)
+            non_mio = self._wo(title="Non mio", assigned_to=self.other_user)
+            da_prendere = self._wo(title="Da prendere")
+            chiuso = self._wo(title="Chiuso", assigned_to=self.user, status=WorkOrder.STATUS_DONE, closed_at=frozen_now)
 
-        self.client.force_login(self.user)
-        response = self.client.get(reverse("assets:il_mio_turno"))
+            self.client.force_login(self.user)
+            response = self.client.get(reverse("assets:il_mio_turno"))
 
         self.assertEqual(response.status_code, 200)
         sections = {section["key"]: section["rows"] for section in response.context["sections"]}
