@@ -9,7 +9,7 @@ import re
 import tempfile
 from collections import defaultdict
 from datetime import date, datetime, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from html import escape
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
@@ -14702,12 +14702,15 @@ def _validate_execution_attachment_uploads(request: HttpRequest) -> tuple[list, 
     return _validate_workorder_attachment_uploads(request, field_name="execution_files")
 
 
-def _save_workorder_attachments(*, workorder: WorkOrder, uploads: list, user) -> list[WorkOrderAttachment]:
+def _save_workorder_attachments(
+    *, workorder: WorkOrder, uploads: list, user, checklist_item: "WorkOrderChecklist | None" = None
+) -> list[WorkOrderAttachment]:
     created: list[WorkOrderAttachment] = []
     for upload in uploads:
         created.append(
             WorkOrderAttachment.objects.create(
                 work_order=workorder,
+                checklist_item=checklist_item,
                 file=upload,
                 original_name=Path(getattr(upload, "name", "") or "").name[:255],
                 uploaded_by=user if getattr(user, "is_authenticated", False) else None,
@@ -15415,8 +15418,10 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
     assignable_users = User.objects.filter(is_active=True).order_by("last_name", "first_name", "username")
     logs = workorder.logs.select_related("author").all()
     attachments = workorder.attachments.all()
-    checklist_items = list(workorder.checklist_items.select_related("done_by").order_by("step_number", "id"))
-    checklist_done_count = sum(1 for it in checklist_items if it.is_done)
+    checklist_items = list(
+        workorder.checklist_items.select_related("done_by", "skipped_by").prefetch_related("photos").order_by("step_number", "id")
+    )
+    checklist_done_count = sum(1 for it in checklist_items if it.is_complete or it.is_skipped)
     execution_days = list(workorder.execution_days.order_by("execution_date"))
     duration_hours, duration_remainder = divmod(max(0, int(workorder.intervention_duration_minutes or 0)), 60)
     downtime_hours, downtime_remainder = divmod(max(0, int(workorder.downtime_minutes or 0)), 60)
@@ -15473,8 +15478,10 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
 
 
 def _render_checklist_fragment(request: HttpRequest, workorder: WorkOrder) -> HttpResponse:
-    items = list(workorder.checklist_items.select_related("done_by").order_by("step_number", "id"))
-    done_count = sum(1 for it in items if it.is_done)
+    items = list(
+        workorder.checklist_items.select_related("done_by", "skipped_by").prefetch_related("photos").order_by("step_number", "id")
+    )
+    done_count = sum(1 for it in items if it.is_complete or it.is_skipped)
     return render(
         request,
         "assets/components/workorder_checklist.html",
@@ -15536,6 +15543,60 @@ def workorder_checklist_delete(request: HttpRequest, id: int, item_id: int) -> H
 
 
 @login_required
+def workorder_checklist_set_value(request: HttpRequest, id: int, item_id: int) -> HttpResponse:
+    """Valorizza uno step Misura o Testo (gli step Sì/No usano il toggle, le Foto l'upload)."""
+    workorder = get_object_or_404(WorkOrder, pk=id)
+    if workorder.status != WorkOrder.STATUS_OPEN:
+        return HttpResponseForbidden("OdL non aperto.")
+    if request.method != "POST":
+        return HttpResponseForbidden("Metodo non consentito.")
+    item = get_object_or_404(WorkOrderChecklist, pk=item_id, work_order=workorder)
+    if item.step_type == WorkOrderChecklist.TYPE_MEASURE:
+        raw_value = _clean_string(request.POST.get("value_numeric"))
+        try:
+            value_numeric = Decimal(raw_value.replace(",", ".")) if raw_value else None
+        except (InvalidOperation, ValueError):
+            value_numeric = None
+        item.set_value(value_numeric=value_numeric, user=request.user)
+    elif item.step_type == WorkOrderChecklist.TYPE_TEXT:
+        item.set_value(value_text=request.POST.get("value_text", ""), user=request.user)
+    return _render_checklist_fragment(request, workorder)
+
+
+@login_required
+def workorder_checklist_photo(request: HttpRequest, id: int, item_id: int) -> HttpResponse:
+    workorder = get_object_or_404(WorkOrder, pk=id)
+    if workorder.status != WorkOrder.STATUS_OPEN:
+        return HttpResponseForbidden("OdL non aperto.")
+    if request.method != "POST":
+        return HttpResponseForbidden("Metodo non consentito.")
+    item = get_object_or_404(WorkOrderChecklist, pk=item_id, work_order=workorder, step_type=WorkOrderChecklist.TYPE_PHOTO)
+    uploads, upload_errors = _validate_workorder_attachment_uploads(request, field_name="photo")
+    if uploads:
+        _save_workorder_attachments(workorder=workorder, uploads=uploads[:1], user=request.user, checklist_item=item)
+    elif upload_errors:
+        messages.error(request, upload_errors[0])
+    return redirect(f"{reverse('assets:wo_view', args=[workorder.id])}#wod-checklist-section")
+
+
+@login_required
+def workorder_checklist_skip(request: HttpRequest, id: int, item_id: int) -> HttpResponse:
+    workorder = get_object_or_404(WorkOrder, pk=id)
+    if workorder.status != WorkOrder.STATUS_OPEN:
+        return HttpResponseForbidden("OdL non aperto.")
+    if request.method != "POST":
+        return HttpResponseForbidden("Metodo non consentito.")
+    item = get_object_or_404(WorkOrderChecklist, pk=item_id, work_order=workorder)
+    if item.is_skipped:
+        item.unskip()
+    else:
+        reason = _clean_string(request.POST.get("skip_reason"))
+        if reason:
+            item.skip(reason=reason, user=request.user)
+    return _render_checklist_fragment(request, workorder)
+
+
+@login_required
 def workorder_claim(request: HttpRequest, id: int) -> HttpResponse:
     """Assegna l'intervento aperto all'utente corrente ("prendi in carico").
 
@@ -15591,6 +15652,15 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
         form_is_valid = form.is_valid()
         for error in upload_errors:
             form.add_error(None, error)
+        if form_is_valid and form.cleaned_data["status"] == WorkOrder.STATUS_DONE:
+            blocking_items = [item for item in workorder.checklist_items.all() if item.blocks_closure]
+            if blocking_items:
+                labels = ", ".join(f"#{item.step_number} {item.description}" for item in blocking_items)
+                form.add_error(
+                    None,
+                    f"Completa o salta con motivazione gli step obbligatori della checklist prima di chiudere: {labels}.",
+                )
+                form_is_valid = False
         if form_is_valid and not upload_errors:
             resolved_supplier = form.cleaned_data.get("resolved_supplier")
             if resolved_supplier is not None and workorder.supplier_id is None:
@@ -15633,6 +15703,10 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
             except ValidationError as exc:
                 _add_form_validation_errors(form, exc)
             else:
+                failure_cause = form.cleaned_data.get("failure_cause") or ""
+                if failure_cause != workorder.failure_cause:
+                    workorder.failure_cause = failure_cause
+                    workorder.save(update_fields=["failure_cause"])
                 execution_days = form.cleaned_data.get("execution_days_list") or []
                 workorder.execution_days.all().delete()
                 WorkOrderExecutionDay.objects.bulk_create(
@@ -15741,6 +15815,7 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
                 "executed_by": workorder.executed_by_id or (
                     request.user.id if request.user.is_authenticated else None
                 ),
+                "failure_cause": workorder.failure_cause,
             },
             asset=workorder.asset,
             workorder=workorder,
@@ -15766,6 +15841,7 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
             ),
             "attachment_accept": _workorder_attachment_accept_attr(),
             "attachment_max_mb": int(ASSET_DOCUMENT_MAX_BYTES / (1024 * 1024)),
+            "checklist_blocking_items": [item for item in workorder.checklist_items.all() if item.blocks_closure],
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
             "assets_section_nav": None,
         },

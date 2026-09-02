@@ -660,13 +660,29 @@ Nota: esiste un bug distinto e preesistente (non toccato in questa fase, traccia
 
 **Verifica**: HTTP autenticato diretto su server dev (login, sezioni popolate, OdL nella sezione attesa) — **corretto dopo**: quel server dev girava sul SQL Server locale reale (`config.settings.dev` non è SQLite su questa macchina), non un vero controllo visivo. Verificare aspetto/tema chiaro-scuro prima del deploy.
 
-## Fase 6 — Qualità del dato sul campo (non avviata)
+## Fase 6 — Qualità del dato sul campo (parziale: punti 1/3/4)
 
-- Checklist tipizzate (sì/no, misura, testo, foto, firma, pass/fail) con passi obbligatori/di sicurezza che bloccano la chiusura
-- Ricambi strutturati con quantità e disponibilità
-- Causa guasto e soluzione codificate (non solo testo libero)
-- Autosalvataggio/recupero bozze nel form di chiusura
-- Offline-first (coda persistente, stato di sincronizzazione visibile) — solo dopo aver validato i punti precedenti, architettura dedicata
+> Ambito concordato con l'utente: punti 1 (checklist tipizzate), 3 (causa guasto codificata) e 4 (autosalvataggio) del backlog Fase 6 originale. Esclusi in questo giro: 2 (ricambi strutturati — richiede decisioni su un catalogo scorte che non esiste nel portale) e 5 (offline-first — richiede architettura dedicata, esplicitamente "dopo aver validato gli altri punti").
+
+**Decisioni prese con l'utente**: catalogo causa guasto = Elettrica/Meccanica/Idraulica/Usura/Errore operatore/Altro; uno step obbligatorio/di sicurezza non compilato **blocca la chiusura** dell'OdL (si può forzare solo con motivazione esplicita salvata); tipi di step aggiunti ora = Misura (con range), Testo, Foto (non Firma).
+
+### P6.1 — Checklist tipizzate + blocco chiusura
+
+**Fatto**: `WorkOrderChecklist`/`MaintenanceChecklistStep` guadagnano `step_type` (Sì/No/Misura/Testo/Foto), `is_mandatory`, `unit`/`range_min`/`range_max` (solo Misura), `value_numeric`/`value_text`, `is_skipped`/`skip_reason` (+ chi/quando). `is_complete` è una property per-tipo (non un secondo booleano da tenere in sync); `blocks_closure` = obbligatorio AND non completo AND non saltato. Le foto si appoggiano al modello `WorkOrderAttachment` esistente (nuovo FK opzionale `checklist_item`), non un modello nuovo. `workorder_close` verifica `blocks_closure` su tutti gli step e rifiuta la chiusura elencando quelli mancanti.
+
+**File**: `assets/models.py`, `assets/maintenance.py` (`copy_template_checklist_to_workorder`), `assets/views.py` (nuove azioni `workorder_checklist_set_value`/`_photo`/`_skip`), `assets/forms.py`/`assets/admin.py` (autoring template: `MaintenanceChecklistStepForm`, `MaintenanceChecklistStepInline`), `assets/templates/assets/components/workorder_checklist.html`, `assets/templates/assets/pages/maintenance_template_form.html`, `assets/templates/assets/pages/workorder_close.html` (banner "checklist incompleta" prima del submit).
+
+**Stato**: ✅ Completato — 2026-09-02, 11 test nuovi, 422/424 `assets` verdi (i 2 falliti sono i 2 preesistenti noti, non collegati).
+
+### P6.2 — Causa guasto codificata
+
+**Fatto**: `WorkOrder.failure_cause` (scelta singola, opzionale) nel form di chiusura. La "soluzione codificata" del report resta fuori scope: `resolution` rimane testo libero — codificarla richiede un catalogo che l'utente non ha ancora deciso.
+
+**File**: `assets/models.py`, `assets/forms.py`, `assets/views.py` (`workorder_close`), `assets/templates/assets/pages/workorder_close.html`.
+
+### P6.3 — Autosalvataggio bozza
+
+**Fatto**: JS puro in `workorder_close.html`, `localStorage` per-viewer chiavato per OdL, nessun draft server-side. Salva su `input`/`change` (debounce 500ms), ripristina al caricamento (con avviso visibile "Bozza precedente ripristinata"), cancellato al submit (anche in caso di redisplay per errori di validazione, perché la cancellazione avviene nell'handler `submit` prima dell'invio).
 
 ## Note operative
 
@@ -676,3 +692,4 @@ Nota: esiste un bug distinto e preesistente (non toccato in questa fase, traccia
 - Le migrazioni SQL Server devono essere testate su SQLite in dev e su MSSQL in staging
 - Nessuna logica business nei template: usare sempre il service layer o la view
 - Per le email usare il sistema SMTP già configurato in `SiteConfig` / `settings`
+- **⚠️ `config.settings.dev` su questa macchina NON è SQLite**: il `django_app/.env` del checkout condiviso ha `DB_ENGINE=sqlserver` verso `localhost\SQLEXPRESS` (DB `PORTALE NOVICROM`) — un'istanza locale reale, non un DB usa-e-getta. Copiare quel `.env` in un worktree e lanciare `manage.py migrate --settings=config.settings.dev` **scrive sullo stesso DB locale condiviso da tutte le sessioni/worktree**, non su un DB isolato. Vedi memoria `db_locale_dev_e_sqlserver_non_sqlite` per l'incidente (due migration `0095` di branch diversi applicate allo stesso DB) e la procedura corretta prima di un prossimo controllo visivo.

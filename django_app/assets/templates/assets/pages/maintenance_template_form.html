@@ -71,7 +71,7 @@ body.theme-dark .mtf-cta a { color:#60a5fa; }
         <div class="as-error">{{ checklist_formset.non_form_errors }}</div>
       {% endif %}
       <table class="mtf-cl-table" id="checklist-rows">
-        <thead><tr><th style="width:80px;">N.</th><th>Step</th><th style="width:70px;">Elimina</th></tr></thead>
+        <thead><tr><th style="width:80px;">N.</th><th>Step</th><th style="width:110px;">Tipo</th><th style="width:70px;">Obbl.</th><th style="width:80px;">Unità</th><th style="width:70px;">Min</th><th style="width:70px;">Max</th><th style="width:70px;">Elimina</th></tr></thead>
         <tbody>
           {% for cf in checklist_formset %}
           <tr class="mtf-cl-row">
@@ -81,11 +81,17 @@ body.theme-dark .mtf-cta a { color:#60a5fa; }
               {{ cf.description }}
               {% if cf.description.errors %}<div class="as-error">{{ cf.description.errors }}</div>{% endif %}
             </td>
+            <td>{{ cf.step_type }}</td>
+            <td>{{ cf.is_mandatory }}</td>
+            <td>{{ cf.unit }}</td>
+            <td>{{ cf.range_min }}</td>
+            <td>{{ cf.range_max }}</td>
             <td class="mtf-cl-del">{% if cf.instance.pk %}{{ cf.DELETE }}{% else %}&mdash;{% endif %}</td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
+      <div class="as-help">Tipo "Misura": compila Unità e/o Min/Max per segnalare un valore fuori range. "Obbligatorio" blocca la chiusura dell'OdL finché lo step non è completo o saltato con motivazione.</div>
       <div>
         <button type="button" class="btn" id="add-checklist-row">+ Aggiungi step</button>
       </div>
@@ -94,6 +100,11 @@ body.theme-dark .mtf-cta a { color:#60a5fa; }
           {% for hidden in checklist_formset.empty_form.hidden_fields %}{{ hidden }}{% endfor %}
           <td>{{ checklist_formset.empty_form.step_number }}</td>
           <td>{{ checklist_formset.empty_form.description }}</td>
+          <td>{{ checklist_formset.empty_form.step_type }}</td>
+          <td>{{ checklist_formset.empty_form.is_mandatory }}</td>
+          <td>{{ checklist_formset.empty_form.unit }}</td>
+          <td>{{ checklist_formset.empty_form.range_min }}</td>
+          <td>{{ checklist_formset.empty_form.range_max }}</td>
           <td class="mtf-cl-del">{{ checklist_formset.empty_form.DELETE }}</td>
         </tr>
       </template>

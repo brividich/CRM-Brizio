@@ -238,7 +238,7 @@ class AssetAdministrativeDeadlineAdmin(admin.ModelAdmin):
 class MaintenanceChecklistStepInline(admin.TabularInline):
     model = MaintenanceChecklistStep
     extra = 1
-    fields = ("step_number", "description")
+    fields = ("step_number", "description", "step_type", "is_mandatory", "unit", "range_min", "range_max")
     ordering = ("step_number", "id")
 
 

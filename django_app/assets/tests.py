@@ -10345,3 +10345,232 @@ class IlMioTurnoTests(TestCase):
         self.assertRedirects(response, reverse("assets:il_mio_turno"))
         da_prendere.refresh_from_db()
         self.assertEqual(da_prendere.assigned_to_id, self.user.id)
+
+
+class WorkOrderChecklistTypedStepsTests(TestCase):
+    """Fase 6 cockpit manutentore: checklist tipizzate, blocco chiusura, causa guasto."""
+
+    def setUp(self):
+        self.user = User.objects.create_superuser(
+            username="checklist.user",
+            email="checklist.user@example.com",
+            password="secret123",
+        )
+        self.asset = Asset.objects.create(
+            asset_tag="IT-CL-001",
+            name="Server checklist test",
+            asset_type=Asset.TYPE_SERVER,
+            status=Asset.STATUS_IN_USE,
+        )
+        self.workorder = WorkOrder.objects.create(
+            asset=self.asset, kind=WorkOrder.KIND_CORRECTIVE, status=WorkOrder.STATUS_OPEN, title="OdL checklist"
+        )
+
+    def _step(self, **kwargs):
+        defaults = dict(work_order=self.workorder, step_number=10, description="Step")
+        defaults.update(kwargs)
+        return WorkOrderChecklist.objects.create(**defaults)
+
+    def test_is_complete_per_type(self):
+        yes_no = self._step(step_type=WorkOrderChecklist.TYPE_YES_NO)
+        self.assertFalse(yes_no.is_complete)
+        yes_no.toggle(self.user)
+        self.assertTrue(yes_no.is_complete)
+
+        measure = self._step(step_type=WorkOrderChecklist.TYPE_MEASURE, unit="°C")
+        self.assertFalse(measure.is_complete)
+        measure.set_value(value_numeric=Decimal("42.5"), user=self.user)
+        self.assertTrue(measure.is_complete)
+
+        text = self._step(step_type=WorkOrderChecklist.TYPE_TEXT)
+        self.assertFalse(text.is_complete)
+        text.set_value(value_text="Tutto ok", user=self.user)
+        self.assertTrue(text.is_complete)
+
+        photo = self._step(step_type=WorkOrderChecklist.TYPE_PHOTO)
+        self.assertFalse(photo.is_complete)
+        WorkOrderAttachment.objects.create(
+            work_order=self.workorder,
+            checklist_item=photo,
+            file=SimpleUploadedFile("step.jpg", b"binarydata", content_type="image/jpeg"),
+        )
+        self.assertTrue(photo.is_complete)
+
+    def test_is_out_of_range(self):
+        measure = self._step(step_type=WorkOrderChecklist.TYPE_MEASURE, unit="bar", range_min=Decimal("2"), range_max=Decimal("6"))
+        measure.set_value(value_numeric=Decimal("4"), user=self.user)
+        self.assertFalse(measure.is_out_of_range)
+        measure.set_value(value_numeric=Decimal("9"), user=self.user)
+        self.assertTrue(measure.is_out_of_range)
+
+    def test_blocks_closure_only_when_mandatory_incomplete_and_not_skipped(self):
+        mandatory = self._step(step_type=WorkOrderChecklist.TYPE_YES_NO, is_mandatory=True)
+        self.assertTrue(mandatory.blocks_closure)
+
+        mandatory.toggle(self.user)
+        self.assertFalse(mandatory.blocks_closure)
+
+        mandatory.toggle(self.user)  # torna incompleto
+        mandatory.skip(reason="Non applicabile a questo asset", user=self.user)
+        self.assertFalse(mandatory.blocks_closure)
+
+        mandatory.unskip()
+        self.assertTrue(mandatory.blocks_closure)
+
+    def test_copy_template_checklist_copies_typed_fields(self):
+        category = AssetCategory.objects.create(
+            code="cl-category", label="Categoria checklist", base_asset_type=Asset.TYPE_SERVER,
+        )
+        template = MaintenanceInterventionTemplate.objects.create(
+            code="cl-template", label="Template checklist", asset_category=category,
+        )
+        MaintenanceChecklistStep.objects.create(
+            intervention_template=template,
+            step_number=10,
+            description="Misura pressione",
+            step_type="MEASURE",
+            is_mandatory=True,
+            unit="bar",
+            range_min=Decimal("1"),
+            range_max=Decimal("5"),
+        )
+        self.workorder.maintenance_rule = MaintenanceRule.objects.create(
+            intervention_template=template,
+            asset_category=category,
+            threshold_type=MaintenanceRule.THRESHOLD_DAYS,
+            threshold_value=90,
+        )
+        self.workorder.save(update_fields=["maintenance_rule"])
+
+        from assets.maintenance import copy_template_checklist_to_workorder
+        copy_template_checklist_to_workorder(self.workorder)
+
+        item = self.workorder.checklist_items.get()
+        self.assertEqual(item.step_type, "MEASURE")
+        self.assertTrue(item.is_mandatory)
+        self.assertEqual(item.unit, "bar")
+        self.assertEqual(item.range_min, Decimal("1.00"))
+        self.assertEqual(item.range_max, Decimal("5.00"))
+
+    def test_set_value_view_for_measure_step(self):
+        item = self._step(step_type=WorkOrderChecklist.TYPE_MEASURE, unit="°C")
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("assets:wo_checklist_set_value", args=[self.workorder.id, item.id]),
+            {"value_numeric": "36.6"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        item.refresh_from_db()
+        self.assertEqual(item.value_numeric, Decimal("36.60"))
+        self.assertTrue(item.is_done)
+
+    def test_set_value_view_for_text_step(self):
+        item = self._step(step_type=WorkOrderChecklist.TYPE_TEXT)
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("assets:wo_checklist_set_value", args=[self.workorder.id, item.id]),
+            {"value_text": "Nessuna anomalia rilevata"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        item.refresh_from_db()
+        self.assertEqual(item.value_text, "Nessuna anomalia rilevata")
+
+    def test_checklist_photo_upload_links_attachment_to_step(self):
+        item = self._step(step_type=WorkOrderChecklist.TYPE_PHOTO)
+        self.client.force_login(self.user)
+        upload = SimpleUploadedFile("step-photo.jpg", b"binarydata", content_type="image/jpeg")
+
+        with _workspace_temporary_directory("assets-checklist-photo-") as media_root, override_settings(MEDIA_ROOT=media_root):
+            with patch("assets.views.validate_extension_and_mime", return_value="image/jpeg"):
+                response = self.client.post(
+                    reverse("assets:wo_checklist_photo", args=[self.workorder.id, item.id]),
+                    {"photo": upload},
+                )
+
+        self.assertRedirects(
+            response,
+            f"{reverse('assets:wo_view', args=[self.workorder.id])}#wod-checklist-section",
+            fetch_redirect_response=False,
+        )
+        item.refresh_from_db()
+        self.assertEqual(item.photos.count(), 1)
+
+    def test_checklist_skip_and_unskip_views(self):
+        item = self._step(step_type=WorkOrderChecklist.TYPE_YES_NO, is_mandatory=True)
+        self.client.force_login(self.user)
+
+        skip_response = self.client.post(
+            reverse("assets:wo_checklist_skip", args=[self.workorder.id, item.id]),
+            {"skip_reason": "Componente non presente su questo asset"},
+        )
+        self.assertEqual(skip_response.status_code, 200)
+        item.refresh_from_db()
+        self.assertTrue(item.is_skipped)
+        self.assertEqual(item.skip_reason, "Componente non presente su questo asset")
+
+        unskip_response = self.client.post(
+            reverse("assets:wo_checklist_skip", args=[self.workorder.id, item.id])
+        )
+        self.assertEqual(unskip_response.status_code, 200)
+        item.refresh_from_db()
+        self.assertFalse(item.is_skipped)
+
+    def test_workorder_close_blocked_by_incomplete_mandatory_step(self):
+        self._step(step_type=WorkOrderChecklist.TYPE_YES_NO, is_mandatory=True, description="Verifica sicurezza")
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("assets:wo_close", args=[self.workorder.id]),
+            {
+                "status": WorkOrder.STATUS_DONE,
+                "esito": WorkOrder.OUTCOME_RESOLVED,
+                "resolution": "Fatto",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.workorder.refresh_from_db()
+        self.assertEqual(self.workorder.status, WorkOrder.STATUS_OPEN)
+        self.assertContains(response, "Verifica sicurezza")
+
+    def test_workorder_close_allowed_after_mandatory_step_completed(self):
+        item = self._step(step_type=WorkOrderChecklist.TYPE_YES_NO, is_mandatory=True)
+        item.toggle(self.user)
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("assets:wo_close", args=[self.workorder.id]),
+            {
+                "status": WorkOrder.STATUS_DONE,
+                "esito": WorkOrder.OUTCOME_RESOLVED,
+                "resolution": "Fatto",
+                "failure_cause": WorkOrder.FAILURE_CAUSE_MECHANICAL,
+            },
+        )
+
+        self.assertRedirects(response, reverse("assets:wo_view", args=[self.workorder.id]))
+        self.workorder.refresh_from_db()
+        self.assertEqual(self.workorder.status, WorkOrder.STATUS_DONE)
+        self.assertEqual(self.workorder.failure_cause, WorkOrder.FAILURE_CAUSE_MECHANICAL)
+
+    def test_workorder_close_allowed_after_mandatory_step_skipped(self):
+        item = self._step(step_type=WorkOrderChecklist.TYPE_YES_NO, is_mandatory=True)
+        item.skip(reason="Non applicabile", user=self.user)
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("assets:wo_close", args=[self.workorder.id]),
+            {
+                "status": WorkOrder.STATUS_DONE,
+                "esito": WorkOrder.OUTCOME_RESOLVED,
+                "resolution": "Fatto",
+            },
+        )
+
+        self.assertRedirects(response, reverse("assets:wo_view", args=[self.workorder.id]))
+        self.workorder.refresh_from_db()
+        self.assertEqual(self.workorder.status, WorkOrder.STATUS_DONE)
