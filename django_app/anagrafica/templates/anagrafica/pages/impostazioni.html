@@ -70,6 +70,7 @@
 }
 .imp-input:focus, .imp-select:focus, .imp-textarea:focus { border-color:#1f87cd; background:#fff; }
 .imp-textarea { resize:vertical; min-height:60px; }
+.imp-help { font-size:11px; color:#94a3b8; margin:0; }
 .imp-color { width:42px; height:36px; padding:2px; border-radius:8px; border:1px solid #d1d5db; cursor:pointer; }
 
 .imp-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:9px; font-size:12px; font-weight:700; border:none; cursor:pointer; text-decoration:none; transition:background .15s; }
@@ -180,6 +181,7 @@ body.theme-dark .imp-card { background:var(--surface); border-color:var(--border
 body.theme-dark .imp-card-title { color:var(--text); }
 body.theme-dark .imp-input, body.theme-dark .imp-select, body.theme-dark .imp-textarea { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
 body.theme-dark .imp-label { color:var(--text-light); }
+body.theme-dark .imp-help { color:var(--text-light); }
 body.theme-dark .imp-cat-title { color:var(--text-light); }
 body.theme-dark .imp-row { background:var(--surface-alt); border-color:var(--border); }
 body.theme-dark .imp-row-name { color:var(--text); }
@@ -461,6 +463,15 @@ body.theme-dark .imp-acl-ov-opt { color:var(--text-mid); }
                 {% endfor %}
               </select>
             </div>
+            <div class="imp-field" style="flex:3 1 240px;">
+              <label class="imp-label">Altri responsabili</label>
+              <select class="imp-select" name="responsabili" multiple size="4">
+                {% for dip in dipendenti_picker %}
+                  <option value="{{ dip.id }}">{{ dip.label }}</option>
+                {% endfor %}
+              </select>
+              <p class="imp-help">Opzionale. Tieni premuto CTRL per sceglierne più di uno.</p>
+            </div>
             <div class="imp-field">
               <button class="imp-btn imp-btn-green" type="submit">+ Aggiungi</button>
             </div>
@@ -483,8 +494,11 @@ body.theme-dark .imp-acl-ov-opt { color:var(--text-mid); }
                     {% endif %}
                     {% if az.responsabile_label %}
                       <span class="imp-badge" style="background:#dbeafe;color:#1e40af;">👤 {{ az.responsabile_label }}</span>
-                    {% else %}
+                    {% elif not az.responsabili_label %}
                       <span style="color:#94a3b8;font-size:12px;">responsabile non assegnato</span>
+                    {% endif %}
+                    {% if az.responsabili_label %}
+                      <span class="imp-badge" style="background:#ffedd5;color:#9a3412;">+ {{ az.responsabili_label }}</span>
                     {% endif %}
                   </div>
                   {% if not az.is_active %}<span class="imp-badge imp-badge-gray">disattiva</span>{% endif %}
@@ -535,6 +549,15 @@ body.theme-dark .imp-acl-ov-opt { color:var(--text-mid); }
                             <option value="{{ dip.id }}" {% if az.responsabile_legacy_id == dip.id %}selected{% endif %}>{{ dip.label }}</option>
                           {% endfor %}
                         </select>
+                      </div>
+                      <div class="imp-field">
+                        <label class="imp-label">Altri responsabili</label>
+                        <select class="imp-select" name="responsabili" multiple size="4">
+                          {% for dip in dipendenti_picker %}
+                            <option value="{{ dip.id }}" {% if dip.id in az.responsabili_ids %}selected{% endif %}>{{ dip.label }}</option>
+                          {% endfor %}
+                        </select>
+                        <p class="imp-help">Opzionale. Tieni premuto CTRL per sceglierne più di uno.</p>
                       </div>
                       <div class="imp-field">
                         <label class="imp-label" style="display:flex;align-items:center;gap:6px;">
@@ -593,6 +616,15 @@ body.theme-dark .imp-acl-ov-opt { color:var(--text-mid); }
                 {% endfor %}
               </select>
             </div>
+            <div class="imp-field" style="flex:3 1 240px;">
+              <label class="imp-label">Altri responsabili</label>
+              <select class="imp-select" name="responsabili" multiple size="4">
+                {% for dip in dipendenti_picker %}
+                  <option value="{{ dip.id }}">{{ dip.label }}</option>
+                {% endfor %}
+              </select>
+              <p class="imp-help">Opzionale. Tieni premuto CTRL per sceglierne più di uno.</p>
+            </div>
             <div class="imp-field">
               <button class="imp-btn imp-btn-green" type="submit">+ Aggiungi</button>
             </div>
@@ -612,8 +644,11 @@ body.theme-dark .imp-acl-ov-opt { color:var(--text-mid); }
                     {{ a.aree_aziendali.count }} area/e aziendal{{ a.aree_aziendali.count|pluralize:"e,i" }}
                     {% if a.caporeparto_label %}
                       · <span class="imp-badge" style="background:#dbeafe;color:#1e40af;">👤 {{ a.caporeparto_label }}</span>
-                    {% else %}
+                    {% elif not a.responsabili_label %}
                       · <span style="color:#94a3b8;font-size:12px;">caporeparto non assegnato</span>
+                    {% endif %}
+                    {% if a.responsabili_label %}
+                      · <span class="imp-badge" style="background:#ffedd5;color:#9a3412;">+ {{ a.responsabili_label }}</span>
                     {% endif %}
                   </div>
                   {% if not a.is_active %}<span class="imp-badge imp-badge-gray">disattivo</span>{% endif %}
@@ -659,6 +694,15 @@ body.theme-dark .imp-acl-ov-opt { color:var(--text-mid); }
                             <option value="{{ dip.id }}" {% if a.caporeparto_legacy_id == dip.id %}selected{% endif %}>{{ dip.label }}</option>
                           {% endfor %}
                         </select>
+                      </div>
+                      <div class="imp-field">
+                        <label class="imp-label">Altri responsabili</label>
+                        <select class="imp-select" name="responsabili" multiple size="4">
+                          {% for dip in dipendenti_picker %}
+                            <option value="{{ dip.id }}" {% if dip.id in a.responsabili_ids %}selected{% endif %}>{{ dip.label }}</option>
+                          {% endfor %}
+                        </select>
+                        <p class="imp-help">Opzionale. Tieni premuto CTRL per sceglierne più di uno.</p>
                       </div>
                       <div class="imp-field">
                         <label class="imp-label" style="display:flex;align-items:center;gap:6px;">
