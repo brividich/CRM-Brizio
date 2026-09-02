@@ -1,5 +1,23 @@
 # Agent Changelog
 
+## 2026-09-02 - Codex
+
+- Area: `django_app/tasks`, KICK-OFF F3 — Fase A identita normalizzata e avvio struttura view dedicate.
+- Richiesta: analizzare `BUILD_SPEC_kickoff_F3.md`, avviare l'implementazione in collaborazione sequenziale con Claude Code e mantenere una checklist operativa condivisa.
+- File modificati/creati: `BUILD_CHECKLIST_kickoff_F3.md`, `django_app/tasks/identity.py`, `django_app/tasks/models.py`, `django_app/tasks/migrations/0035_normalize_project_identity.py`, `django_app/tasks/views_projects.py`, `django_app/tasks/urls.py`, `django_app/tasks/acl_bootstrap.py`, `django_app/tasks/templates/tasks/project_create.html`, `django_app/tasks/tests_identity.py`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/03_BACKEND_MODULES.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: `django_app/tasks/acl_bootstrap.py` per associare la nuova route read-only `tasks:identity_suggest` al permesso canonico gia esistente `tasks.kickoff.view`; nessuna permission/grant nuova. `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente nella workspace. Modificato anche il routing locale `django_app/tasks/urls.py`; nessun routing globale, middleware, settings o autenticazione toccati.
+- Motivo tecnico: P/N e clienti storici potevano differire per case/spazi, rendendo inaffidabili raggruppamenti e agganci; il form non offriva suggerimenti scoped sui valori gia presenti.
+- Modifica: normalizzatori puri (P/N uppercase, trim e collasso spazi; cliente trim/collasso spazi con case preservato) applicati come primo blocco di `Project.save()` lasciando invariato il retry del progressivo; data migration idempotente in batch senza `save()` per riga, con report collisioni non distruttivo; endpoint JSON read-only con scope `_scoped_projects_queryset`, massimo 20 valori e `401/403` JSON; datalist Cliente/P/N nel form; test separati. Creata checklist condivisa con stato e ownership delle sessioni F3.
+- Impatto previsto: nuovi salvataggi e dati storici hanno identita coerente; il form propone soltanto clienti/P/N visibili all'utente; nessun record viene fuso o eliminato e i progressivi kickoff restano invariati.
+- Rischi residui: la migration segnala eventuali collisioni e richiede revisione manuale; non le risolve. Il percorso completo F3 (registro azioni, panoramica e restyle) resta da implementare nelle sessioni successive della checklist.
+- Test/check: 11 test nuovi `tasks.tests_identity` OK; 5 test esistenti su numerazione/nome/creazione/riuso kickoff OK; `manage.py check --settings=config.settings.test` OK; `makemigrations --check --dry-run --settings=config.settings.test` OK; `secret_hygiene_check --settings=config.settings.test` OK; `git diff --check` OK. Un primo comando aggregato conteneva un nome test errato, poi rilanciato col nome corretto e verde.
+- Backup creati: nessuno; migration non applicata a DB dev/prod, solo al database SQLite usa-e-getta dei test.
+- README aggiornato: si.
+- CHANGELOG aggiornato: si (`CHANGELOG.md` e `django_app/CHANGELOG.md`).
+- AGENT_CHANGELOG aggiornato: si.
+- Esito: Fase A completata; sessioni F3 successive aperte nella checklist.
+- Note per altro agente: lavorare sul branch `feature/kickoff-f3-fruibilita`; prima di partire aggiornare `BUILD_CHECKLIST_kickoff_F3.md`. `views_projects.py` contiene gia `identity_suggest`; non estrarre gli helper finche non emerge un import circolare reale.
+
 ## 2026-08-28 - Codex
 
 - Area: artifact HR locale `outputs/.../Formazione_2026.xlsx`; nessuna modifica al codice applicativo.

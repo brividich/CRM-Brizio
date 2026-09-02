@@ -29,19 +29,19 @@ Spec sorgente: `C:\Dev\Portale Novicrom\BUILD_SPEC_kickoff_F3.md`
 
 ## Sessione 2 — Fase A: identità normalizzata
 
-- [ ] `tasks/identity.py`: normalizzatori puri.
-- [ ] `Project.save()`: normalizzazione come primo blocco, retry invariato.
-- [ ] Data migration idempotente, bulk/chunk, report collisioni.
-- [ ] `identity_suggest`: scope ACL, limite 20, JSON 401/403.
-- [ ] Datalist Cliente/P/N in `project_create.html`.
-- [ ] `tests_identity.py`: parità, save, retry, ACL endpoint, migration.
-- [ ] Test mirati Fase A verdi.
-- Stato: IN CORSO — Codex.
+- [x] `tasks/identity.py`: normalizzatori puri.
+- [x] `Project.save()`: normalizzazione come primo blocco, retry invariato.
+- [x] Data migration idempotente, bulk/chunk, report collisioni.
+- [x] `identity_suggest`: scope ACL, limite 20, JSON 401/403.
+- [x] Datalist Cliente/P/N in `project_create.html`.
+- [x] `tests_identity.py`: parità, save, retry, ACL endpoint, migration.
+- [x] Test mirati Fase A verdi (11 test).
+- Stato: COMPLETATA — Codex.
 
 ## Sessione 3 — Struttura view nuove
 
-- [ ] Creare `views_projects.py` con le sole view F3.
-- [ ] Estrarre `view_helpers.py` soltanto se necessario per evitare import circolare.
+- [x] Creato `views_projects.py` e inserita `identity_suggest`; le altre due view arriveranno nelle rispettive fasi.
+- [x] Nessuna estrazione `view_helpers.py` necessaria per la view Fase A.
 - [ ] Registrare le tre route in ordine sicuro.
 - [ ] `manage.py check` verde.
 - Stato: DA FARE — non assegnata.
@@ -102,3 +102,7 @@ Spec sorgente: `C:\Dev\Portale Novicrom\BUILD_SPEC_kickoff_F3.md`
 - Il decorator `task_permissions_required()` è HTML-oriented. L'endpoint `identity_suggest` deve usare un gate dedicato che restituisca JSON `401`/`403` senza cambiare il comportamento delle view esistenti.
 - Il pulsante esplicitamente denominato `Gantt` nel footer portfolio resta diretto al piano; il nome commessa diventerà l'ingresso generico alla Panoramica nella Fase C.
 - `RECON.md` è temporaneo e non va committato; le divergenze durature sono replicate qui.
+
+## Registro verifiche
+
+- 2026-09-02 — Codex — Fase A: 11 test `tasks.tests_identity` verdi; 5 regressioni esistenti su `Project`/creazione kickoff verdi; `manage.py check`, `makemigrations --check --dry-run`, `secret_hygiene_check` e `git diff --check` verdi.

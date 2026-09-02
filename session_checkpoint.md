@@ -1,8 +1,15 @@
 # Session Checkpoint
 
-Data: 2026-08-28
+Data: 2026-09-02
 
 Ultime voci viste/aggiunte in questa sessione:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-02 - Codex` (KICK-OFF F3: RECON, checklist condivisa e Fase A identita normalizzata).
+- `BUILD_CHECKLIST_kickoff_F3.md` -> checklist operativa condivisa per le sessioni 1-9; Sessione 1 e Fase A completate, struttura view F3 avviata.
+- `django_app/tasks/identity.py`, `models.py`, migration `0035_normalize_project_identity.py` -> normalizzazione P/N/cliente e riallineamento storico idempotente in batch con collision report, senza cambiare `kickoff_number`.
+- `django_app/tasks/views_projects.py`, `urls.py`, `acl_bootstrap.py`, `templates/tasks/project_create.html` -> suggerimenti Cliente/P/N scoped, limite 20, JSON `401/403`, datalist nel form e binding al permesso esistente `tasks.kickoff.view`.
+- `django_app/tasks/tests_identity.py` -> 11 test nuovi; 5 regressioni esistenti su numerazione/creazione/riuso verificate. Check, migration drift, secret hygiene e diff check verdi.
+- Documentazione aggiornata: `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/03_BACKEND_MODULES.md`. Nessun backup; nessun DB dev/prod modificato; nessun nuovo permesso, campo o dipendenza.
 
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-08-28 - Codex` (creazione Excel formazione 2026 dal risultato query TSV fornito dall'utente).
 - `outputs/01a043e8-8cb2-7fb1-9eb3-ca609cd2ef81/Formazione_2026.xlsx` -> artifact HR locale a 6 fogli: dashboard, registro univoco, fonte integrale, riepiloghi corsi/reparti e controlli.

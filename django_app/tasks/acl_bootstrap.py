@@ -112,6 +112,7 @@ _ROUTE_BINDINGS = {
     "tasks:download_excel_template": "tasks.kickoff.view",
     "tasks:category_fields_json": "tasks.kickoff.view",
     "tasks:asset_availability_json": "tasks.kickoff.view",
+    "tasks:identity_suggest": "tasks.kickoff.view",
     "tasks:project_vrf_download": "tasks.kickoff.view",
     # Creazione
     "tasks:create": "tasks.kickoff.create",

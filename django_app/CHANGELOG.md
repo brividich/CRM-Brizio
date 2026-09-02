@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### KICK-OFF F3 — identita normalizzata e autocomplete scoped
+
+- **[feat/data/test] `tasks/identity.py`, `models.py`, migration `tasks/0035_normalize_project_identity.py`, `views_projects.py`, `urls.py`, `acl_bootstrap.py`, `templates/tasks/project_create.html`, `tests_identity.py`**: P/N e cliente vengono normalizzati a ogni salvataggio; i record storici sono riallineati in batch senza passare da `Project.save()` e le eventuali collisioni di identita vengono solo segnalate. Il form nuovo kickoff propone clienti/P/N gia visibili tramite un endpoint read-only limitato a 20 valori e protetto dallo scope esistente, con errori JSON `401/403`. La route riusa `tasks.kickoff.view`; nessun nuovo permesso.
+
 ### Assets — manutenzione: "Non risolto" non avanza più la scadenza, e altri quick win del manutentore
 
 - **[fix/test] `assets/models.py` (`WorkOrder.close`), `assets/views.py` (`workorder_close`), `assets/tests.py`**: chiudere un intervento con esito **"Non risolto"** faceva comunque transitare il WO per `DONE` prima di riportarlo `OPEN` — `close()` e `sync_workorder_maintenance_state()` avanzavano nel frattempo `WorkMachine.next_maintenance_date`/`AssetMaintenanceRuleState` su una manutenzione che non aveva risolto nulla, producendo una prossima scadenza falsa. L'esito viene ora letto **prima** della chiusura: se è "Non risolto" lo stato passato a `close()` è direttamente `OPEN`, che non tocca più scadenza né snapshot contatore. `closed_at` non viene più impostato quando lo stato è `OPEN`. Aggiunto test di regressione.
