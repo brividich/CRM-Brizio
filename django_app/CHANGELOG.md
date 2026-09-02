@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Anagrafica — ruolo in parallelo: la card aperta non si chiude più per un falso positivo
+
+- **[fix/test] `anagrafica/services/assegnazioni.py` (`crea_assegnazione`), `anagrafica/tests_assegnazioni.py`**: la scelta di non aprire una nuova card quando l'unica cosa che cambia è un ruolo aggiunto in parallelo confrontava reparto/mansione/area con l'**assetto live** del dipendente invece che con la card aperta stessa — se i due divergevano anche solo per maiuscole/spazi (drift, re-import) veniva registrato per errore un nuovo spostamento, che chiudeva la card precedente ("Conclusa") pur restando valido il ruolo che descriveva. Ora il confronto è con i valori della card aperta, case/spazi-insensibile. Aggiunto test di regressione.
+- **[ux] `anagrafica/templates/anagrafica/pages/dipendente_detail.html`**: rimossa l'etichetta «in parallelo» sulla card di uno spostamento — l'informazione era già data dal testo «Ruolo aggiunto» e leggerla accanto a una card «Conclusa» faceva pensare, a torto, che il ruolo aggiunto fosse terminato.
+
 ### Formazione — l'ente formativo torna a scheda corso
 
 - **[feat/test] `anagrafica/models_formazione.py` (`TrainingCourse.ente_formativo`, `TrainingSession.erogatore_display`), `anagrafica/migrations/0117_trainingcourse_ente_formativo.py` [nuovo], `anagrafica/forms.py` (`TrainingCourseForm`), `anagrafica/views.py` (`formazione_corsi_list`, `formazione_corso_detail`, `formazione_sessione_detail`, `formazione_ricerca`), `anagrafica/templates/anagrafica/pages/formazione_corso_detail.html`, `anagrafica/templates/anagrafica/pages/formazione_sessione_detail.html`**: il corso a catalogo non aveva alcun collegamento all'ente formativo che lo eroga — solo la sessione e la lezione avevano un docente. Aggiunto `TrainingCourse.ente_formativo` (FK a `TrainingProvider`, editabile dal form corso), mostrato in scheda corso e nella ricerca globale (`formazione_ricerca`, che ora trova un corso anche digitando il nome dell'ente). La colonna "Ente / Formatore" già presente nell'elenco corsi ora antepone questo valore esplicito a quello dedotto dai docenti delle sessioni. Sessione e lezione **non cambiano semantica**: la sessione mostra il proprio docente quando è valorizzato (`erogatore_display`), altrimenti ripiega sull'ente formativo del corso; la lezione mostra sempre e solo il proprio docente.
