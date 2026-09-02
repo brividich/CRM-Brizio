@@ -810,6 +810,23 @@ class SpostamentoRuoloParalleloTests(TestCase):
         self.assertEqual(prima.stato, DipendenteAssegnazione.STATO_IN_CORSO)
         self.assertEqual(self._ruoli(), ["Capocommessa", "Capoturno", "Turnista"])
 
+    def test_flag_parallelo_non_chiude_la_card_per_differenza_di_maiuscole(self):
+        """Il confronto per decidere se la card resta aperta usa i valori della
+        card stessa, non l'assetto live: un reparto scritto con maiuscole
+        diverse (drift, re-import, ecc.) non deve bastare a farla chiudere."""
+        self._post(ruolo_aziendale="Capocommessa", ruolo_parallelo="1")
+        prima = DipendenteAssegnazione.objects.get(legacy_anagrafica_id=self.legacy_id)
+
+        self._post(reparto="cnc", ruolo_aziendale="Preposto", ruolo_parallelo="1")
+
+        self.assertEqual(
+            DipendenteAssegnazione.objects.filter(legacy_anagrafica_id=self.legacy_id).count(),
+            1,
+        )
+        prima.refresh_from_db()
+        self.assertIsNone(prima.data_fine)
+        self.assertEqual(self._ruoli(), ["Capocommessa", "Capoturno", "Preposto"])
+
     # ── Attivazione differita ──────────────────────────────────────────────
     def test_spostamento_programmato_in_parallelo_applica_la_regola_alla_data(self):
         from .services.assegnazioni import attiva_assegnazione

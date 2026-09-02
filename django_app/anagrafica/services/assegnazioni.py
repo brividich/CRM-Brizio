@@ -206,13 +206,17 @@ def crea_assegnazione(
         .order_by("-data_inizio", "-created_at")
         .first()
     )
+    # Confronto con la card aperta stessa, non con l'assetto live: sono la
+    # stessa cosa nel caso comune, ma possono divergere (sync che azzera
+    # l'area, differenze di maiuscole/spazi) — ed è la card aperta quella che
+    # non deve chiudersi per un'aggiunta che non la cambia davvero.
     solo_ruolo_aggiunto = (
         aperta is not None
         and ruolo_parallelo
         and data_inizio <= timezone.localdate()
-        and reparto == corrente["reparto"]
-        and mansione == corrente["mansione"]
-        and area_valida_id == corrente["area_aziendale_id"]
+        and reparto.strip().casefold() == (aperta.reparto or "").strip().casefold()
+        and mansione.strip().casefold() == (aperta.mansione or "").strip().casefold()
+        and area_valida_id == aperta.area_aziendale_id
     )
     if solo_ruolo_aggiunto:
         from .ruoli_sync import assicura_assegnazione
