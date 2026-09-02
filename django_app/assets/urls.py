@@ -103,6 +103,7 @@ urlpatterns = [
     path("assets/assign/", views.assignment_set, name="asset_assign"),
     path("assets/assign/<int:id>/", views.assignment_set, name="asset_assign"),
     path("assets/workorders/", views.workorder_list, name="wo_list"),
+    path("assets/manutenzione/il-mio-turno/", views.il_mio_turno, name="il_mio_turno"),
     path("assets/workorders/new/", views.workorder_create, name="wo_create"),
     path("assets/workorders/new/<int:id>/", views.workorder_create, name="wo_create"),
     path("assets/workorders/view/", views.workorder_detail, name="wo_view"),
