@@ -4554,6 +4554,35 @@ class WorkOrderFlowTests(TestCase):
         self.assertContains(response, "data-wo-asset-option", html=False)
         self.assertContains(response, self.asset.asset_tag)
 
+    def test_workorder_list_filters_by_asset_from_qr_landing_link(self):
+        other_asset = Asset.objects.create(
+            asset_tag="IT-000125",
+            name="Altro server",
+            asset_type=Asset.TYPE_SERVER,
+            status=Asset.STATUS_IN_USE,
+        )
+        matching = WorkOrder.objects.create(
+            asset=self.asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="Intervento sull'asset scansionato",
+        )
+        other = WorkOrder.objects.create(
+            asset=other_asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="Intervento su un altro asset",
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("assets:wo_list"), {"asset": str(self.asset.id), "view": "all"})
+
+        self.assertEqual(response.status_code, 200)
+        titles = [wo.title for wo in response.context["workorders"]]
+        self.assertIn(matching.title, titles)
+        self.assertNotIn(other.title, titles)
+        self.assertEqual(response.context["asset_filter"], self.asset)
+
     def test_global_workorder_create_redirects_to_selected_asset_form(self):
         self.client.force_login(self.user)
 
@@ -4715,6 +4744,20 @@ class WorkOrderFlowTests(TestCase):
         self.assertContains(response, 'name="intervention_duration_hours"', html=False)
         self.assertContains(response, "Chiudi definitivamente")
         self.assertNotContains(response, 'class="as-section-nav"', html=False)
+
+    def test_workorder_close_form_defaults_executed_by_to_current_user(self):
+        workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="Intervento senza esecutore assegnato",
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("assets:wo_close", args=[workorder.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["form"].initial.get("executed_by"), self.user.id)
 
     def test_formal_closure_records_days_time_and_editable_timestamp(self):
         workorder = WorkOrder.objects.create(
@@ -4949,6 +4992,55 @@ class WorkOrderFlowTests(TestCase):
         state = AssetMaintenanceRuleState.objects.get(asset=self.asset, base_rule=rule)
         self.assertEqual(state.last_work_order, workorder)
         self.assertEqual(state.last_execution_date, timezone.localdate())
+
+    def test_workorder_close_not_resolved_reopens_without_advancing_schedule(self):
+        category = AssetCategory.objects.create(
+            code="wo-not-resolved-category",
+            label="Categoria WO Non Risolto",
+            base_asset_type=Asset.TYPE_SERVER,
+        )
+        self.asset.asset_category = category
+        self.asset.save(update_fields=["asset_category"])
+        template = MaintenanceInterventionTemplate.objects.create(
+            code="wo-not-resolved-template",
+            label="Check semestrale server",
+            asset_category=category,
+        )
+        rule = MaintenanceRule.objects.create(
+            intervention_template=template,
+            asset_category=category,
+            threshold_type=MaintenanceRule.THRESHOLD_DAYS,
+            threshold_value=180,
+            warning_days=20,
+        )
+        workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            maintenance_rule=rule,
+            kind=WorkOrder.KIND_PREVENTIVE,
+            origin=WorkOrder.ORIGIN_PERIODIC,
+            status=WorkOrder.STATUS_OPEN,
+            title="Check semestrale non risolto",
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("assets:wo_close", args=[workorder.id]),
+            {
+                "status": WorkOrder.STATUS_DONE,
+                "esito": WorkOrder.OUTCOME_NOT_RESOLVED,
+                "resolution": "Verificato ma il guasto persiste, serve ricambio.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        workorder.refresh_from_db()
+        self.assertEqual(workorder.status, WorkOrder.STATUS_OPEN)
+        self.assertIsNone(workorder.closed_at)
+        self.assertEqual(workorder.outcome, WorkOrder.OUTCOME_NOT_RESOLVED)
+        self.assertIsNone(workorder.meter_value_at_close)
+        self.assertFalse(
+            AssetMaintenanceRuleState.objects.filter(asset=self.asset, base_rule=rule).exists()
+        )
 
     def test_create_workorder_rejects_contract_coverage_without_contract(self):
         self.client.force_login(self.user)
@@ -6340,6 +6432,25 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.assertContains(resp, "Documenti")
         # La regola di categoria dell'asset (missing/prima esecuzione) compare come voce.
         self.assertContains(resp, self.category_template.label)
+
+    def test_asset_qr_landing_open_workorders_are_clickable_for_authenticated_user(self):
+        if not self.asset.asset_tag:
+            self.asset.asset_tag = "QR-TEST-2"
+            self.asset.save(update_fields=["asset_tag"])
+        workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="Guasto da QR",
+        )
+        self.client.force_login(self.admin)
+
+        resp = self.client.get(
+            reverse("assets:asset_qr_landing", kwargs={"asset_tag": self.asset.asset_tag})
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, f'<a class="qrl-wo-item" href="{reverse("assets:wo_view", args=[workorder.id])}"', html=False)
 
     def test_seed_fornitori_manutenzione_command(self):
         from io import StringIO

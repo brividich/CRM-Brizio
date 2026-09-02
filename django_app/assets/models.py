@@ -2299,7 +2299,7 @@ class WorkOrder(models.Model):
         assistance_contract: "AssistanceContract" | None = None,
     ):
         self.status = status
-        self.closed_at = closed_at or timezone.now()
+        self.closed_at = (closed_at or timezone.now()) if status != self.STATUS_OPEN else None
         if resolution:
             self.resolution = resolution
         if intervention_duration is not None:

@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Assets — manutenzione: "Non risolto" non avanza più la scadenza, e altri quick win del manutentore
+
+- **[fix/test] `assets/models.py` (`WorkOrder.close`), `assets/views.py` (`workorder_close`), `assets/tests.py`**: chiudere un intervento con esito **"Non risolto"** faceva comunque transitare il WO per `DONE` prima di riportarlo `OPEN` — `close()` e `sync_workorder_maintenance_state()` avanzavano nel frattempo `WorkMachine.next_maintenance_date`/`AssetMaintenanceRuleState` su una manutenzione che non aveva risolto nulla, producendo una prossima scadenza falsa. L'esito viene ora letto **prima** della chiusura: se è "Non risolto" lo stato passato a `close()` è direttamente `OPEN`, che non tocca più scadenza né snapshot contatore. `closed_at` non viene più impostato quando lo stato è `OPEN`. Aggiunto test di regressione.
+- **[fix/test] `assets/views.py` (`_apply_workorder_list_filters`, `workorder_list`, `_workorder_list_filter_chips`), `assets/tests.py`**: il link "Vedi tutti gli interventi" generato dalla landing QR (`?asset=<id>`) non veniva letto da nessun filtro della lista OdL — mostrava tutti gli interventi invece di quelli dell'asset scansionato. Aggiunto filtro `asset` con chip rimovibile.
+- **[ux/test] `assets/templates/assets/pages/asset_qr_landing.html`, `assets/tests.py`**: gli interventi aperti nella landing QR sono ora cliccabili verso il dettaglio OdL per gli utenti autenticati (il QR pubblico anonimo resta invariato, nessuna azione operativa esposta senza login).
+- **[ux] `assets/templates/assets/base_shell.html`**: l'etichetta ruolo nella sidebar Assets era hardcoded a "Amministratore sistema" per chiunque; ora distingue Amministratore/Operatore Assets in base al permesso `can_gestione_admin` già disponibile nel context.
+- **[ux/test] `assets/views.py` (`workorder_close`), `assets/tests.py`**: il campo "Eseguito da" nel form di chiusura è ora precompilato con l'utente corrente quando l'OdL non ha ancora un esecutore assegnato (resta modificabile).
+- **[docs] `docs/ai/10_MAINTENANCE_MODERNIZATION.md`**: aggiunta Fase 4 (quick win completati in questa sessione) e Fase 5/6 (roadmap cockpit del manutentore: coda con priorità/stati operativi, schermata unica di esecuzione, checklist tipizzate, offline-first) come guida per le prossime iterazioni.
+
 ### Anagrafica — ruolo in parallelo: la card aperta non si chiude più per un falso positivo
 
 - **[fix/test] `anagrafica/services/assegnazioni.py` (`crea_assegnazione`), `anagrafica/tests_assegnazioni.py`**: la scelta di non aprire una nuova card quando l'unica cosa che cambia è un ruolo aggiunto in parallelo confrontava reparto/mansione/area con l'**assetto live** del dipendente invece che con la card aperta stessa — se i due divergevano anche solo per maiuscole/spazi (drift, re-import) veniva registrato per errore un nuovo spostamento, che chiudeva la card precedente ("Conclusa") pur restando valido il ruolo che descriveva. Ora il confronto è con i valori della card aperta, case/spazi-insensibile. Aggiunto test di regressione.

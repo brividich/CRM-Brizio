@@ -541,6 +541,107 @@ class WorkOrderChecklist(models.Model):
 
 ---
 
+## Fase 4 — Cockpit del manutentore (analisi 2026-09-02)
+
+> Analisi richiesta dall'utente sulla prospettiva del **manutentore in officina** (non del pianificatore/responsabile): il modulo ha già un motore dati ricco (piani preventivi, scadenze, OdL, checklist, costi, allegati, QR, storico), ma l'interfaccia oggi è pensata per chi pianifica e controlla, non per chi esegue.
+
+**Flusso ideale individuato**: `Il mio turno / Scansiona QR → contesto e rischi → Inizia → procedura guidata → tempo, ricambi, evidenze → Completa oppure Blocca/Escala`.
+
+### Criticità individuate (per priorità)
+
+| Priorità | Problema | Conseguenza | Stato |
+|---|---|---|---|
+| **Critica** | `close()`/`sync_workorder_maintenance_state` avanzavano la prossima scadenza anche quando l'esito finale era "Non risolto" (il WO transitava per DONE prima di tornare OPEN) | Scadenza futura potenzialmente falsa, fiducia nei dati compromessa | ✅ **Corretto** — vedi P4.1 |
+| Alta | Filtro `?asset=<id>` generato dalla landing QR non era gestito da `workorder_list` | Il link "Vedi tutti gli interventi" dalla QR mostrava tutti gli OdL, non solo quelli dell'asset scansionato | ✅ **Corretto** — vedi P4.2 |
+| Alta | Interventi aperti nella landing QR erano solo informativi, non cliccabili | Il manutentore doveva navigare altrove per aprire/chiudere l'intervento visto sul QR | ✅ **Corretto** — vedi P4.3 |
+| Alta | Etichetta ruolo hardcoded "Amministratore sistema" in `base_shell.html` | Mostrata identica a ogni utente del modulo, indipendentemente dal ruolo reale | ✅ **Corretto** — vedi P4.4 |
+| Alta | Campo "Eseguito da" nel form di chiusura vuoto di default | Il manutentore doveva ricercarsi ogni volta nell'elenco utenti per chiudere un proprio intervento | ✅ **Corretto** — vedi P4.5 |
+| Alta | Stati OdL limitati a Aperto/Chiuso/Annullato; niente priorità né due-date esplicita | L'urgenza è dedotta dall'anzianità, non dichiarata | ⏳ Aperto — richiede decisioni di modello dati (vedi Fase 5) |
+| Alta | Home non distingue bene "non assegnati a me" nella coda personale | Presa in carico spontanea poco naturale | ⏳ Aperto — vedi Fase 5 |
+| Media | Checklist solo sì/no, non tipizzata (misure, foto, firma) | Controlli di sicurezza restano testo libero | ⏳ Aperto — vedi Fase 6 |
+| Media | Materiali/durata previsti dal template poco visibili nell'intervento | Il tecnico non vede subito cosa preparare | ⏳ Aperto — vedi Fase 5 |
+| Evolutiva | Nessun autosalvataggio/offline nel sottomodulo | Rischio perdita dati in officina | ⏳ Aperto — non prioritario, richiede architettura dedicata (vedi Fase 6) |
+
+Nota: esiste un bug distinto e preesistente (non toccato in questa fase, tracciato anche in memoria `analisi_assets_p0_aperti`) — `MaintenanceGeneratorDedupTests.test_open_manual_workorder_blocks_the_generator`/`test_closed_manual_workorder_releases_the_rule` falliscono già su `main`: l'apertura manuale di un OdL legato a una regola (`wo_create` con `maintenance_rule`) non imposta `origin=MANUAL` come atteso dal test. Da investigare separatamente, non è collegato al fix P4.1.
+
+### P4.1 — Fix "Non risolto" non deve mai avanzare la scadenza (Critica)
+
+**Problema**: in `workorder_close`, il WO veniva chiuso con `status=DONE` (che fa scattare `close()` → aggiornamento `WorkMachine.next_maintenance_date` per regole a giorni, e `sync_workorder_maintenance_state()` → upsert `AssetMaintenanceRuleState`), e **solo dopo** — se l'esito scelto era "Non risolto" — lo stato veniva riportato a `OPEN`. La scadenza risultava quindi già avanzata su una manutenzione che non aveva risolto nulla.
+
+**Fix**: l'esito (`esito`) viene letto **prima** di chiamare `workorder.close()`; se `status richiesto == DONE` e `esito == NOT_RESOLVED`, lo stato effettivo passato a `close()` è direttamente `OPEN` — così `close()` non tocca più `WorkMachine.next_maintenance_date`, non cattura lo snapshot del contatore, e il controllo `sync_workorder_maintenance_state` (che verifica `status == DONE`) non scatta. `WorkOrder.close()` è stato inoltre corretto per non impostare più `closed_at` quando lo stato passato è `OPEN`.
+
+**File modificati**:
+- `assets/models.py` — `WorkOrder.close()`: `closed_at` impostato solo se `status != STATUS_OPEN`
+- `assets/views.py` — `workorder_close`: calcolo di `reopened_as_unresolved`/`effective_status` prima della chiamata a `close()`; rimossa la logica di "flip-back" post-hoc duplicata
+- `assets/tests.py` — nuovo test `test_workorder_close_not_resolved_reopens_without_advancing_schedule`
+
+**Criteri di completamento**:
+- [x] `close()` non avanza `next_maintenance_date`/`AssetMaintenanceRuleState` quando l'esito finale è "Non risolto"
+- [x] `closed_at` resta `None` quando l'OdL riapre come "Non risolto"
+- [x] `meter_value_at_close` non viene catturato in questo caso
+- [x] Test di regressione con `MaintenanceRule`/`AssetMaintenanceRuleState`
+- [x] Suite `assets` invariata (414/415 test verdi, i 2 fallimenti sono preesistenti e non collegati)
+
+**Stato**: ✅ Completato — 2026-09-02
+
+### P4.2 — Fix filtro asset nella lista OdL
+
+**Problema**: `workorder_list`/`_apply_workorder_list_filters` non leggevano mai `request.GET["asset"]`, nonostante `wo_list_url` nella landing QR lo generasse (`?asset=<id>`).
+
+**Fix**: aggiunto filtro `asset_id` in `_apply_workorder_list_filters`, propagato in `workorder_list` (context `asset_filter`) e come chip rimovibile in `_workorder_list_filter_chips`.
+
+**File modificati**: `assets/views.py`, `assets/tests.py` (`test_workorder_list_filters_by_asset_from_qr_landing_link`).
+
+**Stato**: ✅ Completato — 2026-09-02
+
+### P4.3 — OdL aperti cliccabili dalla landing QR
+
+**Problema**: nella landing QR (`asset_qr_landing.html`), gli OdL aperti erano righe informative senza link.
+
+**Fix**: per utenti autenticati (non QR pubblico) ogni riga OdL è ora un link verso `assets:wo_view`. Il QR pubblico anonimo resta invariato (nessuna azione operativa esposta senza login).
+
+**File modificati**: `assets/templates/assets/pages/asset_qr_landing.html`, `assets/tests.py` (`test_asset_qr_landing_open_workorders_are_clickable_for_authenticated_user`).
+
+**Stato**: ✅ Completato — 2026-09-02
+
+### P4.4 — Etichetta ruolo dinamica nella sidebar Assets
+
+**Problema**: `base_shell.html` mostrava sempre "Amministratore sistema", indipendentemente dal ruolo reale dell'utente.
+
+**Fix**: l'etichetta usa ora `can_gestione_admin` (già presente nel context di `_assets_shell_context`, stessa condizione che mostra la voce di menu "Amministrazione") per distinguere "Amministratore" da "Operatore Assets".
+
+**File modificati**: `assets/templates/assets/base_shell.html`.
+
+**Stato**: ✅ Completato — 2026-09-02
+
+### P4.5 — Precompilazione esecutore nella chiusura OdL
+
+**Problema**: il campo "Eseguito da" nel form di chiusura restava vuoto finché nessuno lo impostava esplicitamente, obbligando il manutentore a ricercarsi ogni volta.
+
+**Fix**: se `workorder.executed_by_id` non è impostato, il valore iniziale del form è l'utente corrente (resta comunque modificabile, ad esempio se chi chiude non è chi ha eseguito il lavoro).
+
+**File modificati**: `assets/views.py` (`workorder_close`), `assets/tests.py` (`test_workorder_close_form_defaults_executed_by_to_current_user`).
+
+**Stato**: ✅ Completato — 2026-09-02
+
+## Fase 5 — Cockpit del manutentore: coda e schermata di esecuzione (non avviata)
+
+> Richiede decisioni di modello dati e UX che vanno concordate prima dell'implementazione (nuovi stati/campi sul `WorkOrder`, redesign della home). Non implementata in questa sessione per restare nello scope esplicitamente richiesto (quick win di affidabilità). Elenco di riferimento per la prossima iterazione:
+
+- Priorità OdL (`emergenza/alta/normale/bassa`) e data/ora richiesta esplicita, distinta dall'anzianità di apertura
+- Stati operativi intermedi (assegnato/in corso/in attesa/bloccato) oltre a Aperto/Chiuso/Annullato, con motivi rapidi di blocco (ricambio, macchina indisponibile, autorizzazione, fornitore, condizione non sicura)
+- Home "Il mio turno" per il manutentore, distinta dalla home del responsabile: Emergenze/Scaduti/Oggi/In corso/Bloccati/Da prendere
+- Schermata unica di esecuzione (asset+rischi+DPI+checklist+timer+ricambi+note/foto, azione Blocca/Completa) invece della navigazione dispersa tra dettaglio e pagina di chiusura
+- Materiali/durata stimata del template intervento portati in evidenza nel dettaglio OdL
+
+## Fase 6 — Qualità del dato sul campo (non avviata)
+
+- Checklist tipizzate (sì/no, misura, testo, foto, firma, pass/fail) con passi obbligatori/di sicurezza che bloccano la chiusura
+- Ricambi strutturati con quantità e disponibilità
+- Causa guasto e soluzione codificate (non solo testo libero)
+- Autosalvataggio/recupero bozze nel form di chiusura
+- Offline-first (coda persistente, stato di sincronizzazione visibile) — solo dopo aver validato i punti precedenti, architettura dedicata
+
 ## Note operative
 
 - Tutti i management command devono supportare `--settings=config.settings.dev` e `--dry-run`
