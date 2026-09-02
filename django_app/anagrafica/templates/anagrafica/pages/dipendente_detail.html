@@ -1640,7 +1640,7 @@ body.theme-dark .dp-link-ok { color:#86efac; }
           </div>
           <div class="sp-card-body">
             <div class="sp-riga"><span class="sp-k">Mansione:</span> <span class="sp-v">{{ a.mansione_display|default:a.mansione|default:"—" }}</span>{% if a.mansione_ereditata %} <span class="sp-eredit">invariata</span>{% endif %}</div>
-            <div class="sp-riga"><span class="sp-k">{% if a.ruolo_parallelo %}Ruolo aggiunto:{% else %}Ruolo aziendale:{% endif %}</span> <span class="sp-v">{{ a.ruolo_display|default:a.ruolo_aziendale|default:"—" }}</span>{% if a.ruolo_parallelo %} <span class="sp-eredit">in parallelo</span>{% elif a.ruolo_ereditato %} <span class="sp-eredit">invariato</span>{% endif %}</div>
+            <div class="sp-riga"><span class="sp-k">{% if a.ruolo_parallelo %}Ruolo aggiunto:{% else %}Ruolo aziendale:{% endif %}</span> <span class="sp-v">{{ a.ruolo_display|default:a.ruolo_aziendale|default:"—" }}</span>{% if a.ruolo_ereditato and not a.ruolo_parallelo %} <span class="sp-eredit">invariato</span>{% endif %}</div>
             <div class="sp-riga"><span class="sp-k">Responsabile:</span> <span class="sp-v">{{ a.responsabile_label|default:"—" }}</span></div>
             {% if a.note %}<div class="sp-riga"><span class="sp-k">Note:</span> <span class="sp-v">{{ a.note }}</span></div>{% endif %}
             {% if a.idoneita_gap %}
