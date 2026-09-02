@@ -2,9 +2,16 @@
 from __future__ import annotations
 
 from django.http import JsonResponse
+from django.shortcuts import get_object_or_404, render
 
+from .action_register import build_project_actions
 from .identity import normalize_client_name, normalize_part_number
-from .views import _has_task_permission, _scoped_projects_queryset
+from .views import (
+    _has_task_permission,
+    _scoped_projects_queryset,
+    _tasks_shell_context,
+    task_permissions_required,
+)
 
 
 _IDENTITY_FIELDS = {
@@ -55,3 +62,26 @@ def identity_suggest(request):
         .distinct()[:20]
     )
     return JsonResponse({"values": values})
+
+
+@task_permissions_required("tasks_view")
+def project_actions(request, project_id: int):
+    """Mostra in un unico registro issue, attivita' e sotto-attivita'."""
+    project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    include_closed = request.GET.get("closed") == "1"
+    actions = build_project_actions(project, include_closed=include_closed)
+    open_count = sum(row.is_open for row in actions)
+    overdue_count = sum(row.is_overdue for row in actions)
+    return render(
+        request,
+        "tasks/project_actions.html",
+        {
+            **_tasks_shell_context(request, active="actions", project=project),
+            "page_title": f"Registro azioni - {project.name}",
+            "project": project,
+            "actions": actions,
+            "include_closed": include_closed,
+            "open_count": open_count,
+            "overdue_count": overdue_count,
+        },
+    )

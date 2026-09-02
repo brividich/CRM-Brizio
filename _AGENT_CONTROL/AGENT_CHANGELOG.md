@@ -2,6 +2,24 @@
 
 ## 2026-09-02 - Codex
 
+- Area: `django_app/tasks`, KICK-OFF F3 — Fase B registro azioni unico.
+- Richiesta: proseguire l'implementazione di `BUILD_SPEC_kickoff_F3.md` mantenendo aggiornata la checklist operativa condivisa con Claude Code.
+- File modificati/creati: `BUILD_CHECKLIST_kickoff_F3.md`, nuovo `django_app/tasks/action_register.py`, `django_app/tasks/views_projects.py`, `django_app/tasks/urls.py`, `django_app/tasks/acl_bootstrap.py`, nuovo `django_app/tasks/templates/tasks/project_actions.html`, `django_app/tasks/static/tasks/css/tasks.css`, nuovo `django_app/tasks/tests_action_register.py`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/03_BACKEND_MODULES.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: `django_app/tasks/acl_bootstrap.py` per associare la nuova route read-only `tasks:project_actions` al permesso canonico esistente `tasks.kickoff.projects` e invalidare la cache bootstrap (`v7` -> `v8`); nessuna permission o grant nuovo. Modificato anche il routing locale `django_app/tasks/urls.py`; nessun routing globale, middleware, settings, autenticazione o navigazione globale toccati. `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente nella workspace.
+- Motivo tecnico: issue incontro, attivita e sotto-attivita erano consultabili in punti separati, senza un'unica coda operativa di commessa.
+- Modifica: introdotta dataclass frozen `ActionRow` e tre collector indipendenti con `select_related`, semantica scadenza uniforme e ordinamento deterministico; aggiunta view scoped con filtro server-side `closed=1`, contatori e tabella tokenizzata senza CSS inline; gestiti issue senza incontro e fallimenti isolati per sorgente.
+- Impatto previsto: gli utenti autorizzati possono consultare tutte le azioni della commessa in un registro read-only, con scadute prioritarie e chiuse opzionali, senza N+1.
+- Rischi residui: la tab contestuale “Azioni” verra aggiunta nella Fase C insieme alla Panoramica; fino ad allora la route e disponibile direttamente. Il fallback di un issue senza incontro punta alla lista incontri con un'ancora che puo non corrispondere a un elemento renderizzato.
+- Test/check: 11 test `tasks.tests_action_register` OK, inclusi binding ACL, 3 query per builder e 4 query per view (render template escluso); `py_compile` OK; `manage.py check --settings=config.settings.test` OK; `makemigrations --check --dry-run --settings=config.settings.test` OK; `secret_hygiene_check --settings=config.settings.test` OK; `git diff --check` OK.
+- Backup creati: nessuno; nessun database dev/prod modificato, soltanto il database SQLite isolato dei test.
+- README aggiornato: si.
+- CHANGELOG aggiornato: si (`CHANGELOG.md` e `django_app/CHANGELOG.md`).
+- AGENT_CHANGELOG aggiornato: si.
+- Esito: Fase B completata e verificata.
+- Note per altro agente: lavorare sul branch `feature/kickoff-f3-fruibilita`; la prossima voce e la Fase C. `project_actions` e gia in `views_projects.py`, quindi non duplicarla; aggiornare prima `BUILD_CHECKLIST_kickoff_F3.md`.
+
+## 2026-09-02 - Codex
+
 - Area: `django_app/tasks`, KICK-OFF F3 — Fase A identita normalizzata e avvio struttura view dedicate.
 - Richiesta: analizzare `BUILD_SPEC_kickoff_F3.md`, avviare l'implementazione in collaborazione sequenziale con Claude Code e mantenere una checklist operativa condivisa.
 - File modificati/creati: `BUILD_CHECKLIST_kickoff_F3.md`, `django_app/tasks/identity.py`, `django_app/tasks/models.py`, `django_app/tasks/migrations/0035_normalize_project_identity.py`, `django_app/tasks/views_projects.py`, `django_app/tasks/urls.py`, `django_app/tasks/acl_bootstrap.py`, `django_app/tasks/templates/tasks/project_create.html`, `django_app/tasks/tests_identity.py`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/03_BACKEND_MODULES.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.

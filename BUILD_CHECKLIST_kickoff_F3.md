@@ -42,18 +42,18 @@ Spec sorgente: `C:\Dev\Portale Novicrom\BUILD_SPEC_kickoff_F3.md`
 
 - [x] Creato `views_projects.py` e inserita `identity_suggest`; le altre due view arriveranno nelle rispettive fasi.
 - [x] Nessuna estrazione `view_helpers.py` necessaria per la view Fase A.
-- [ ] Registrare le tre route in ordine sicuro.
+- [ ] Registrare le tre route in ordine sicuro (2/3: `identity_suggest` e `project_actions`; manca `project_overview`).
 - [ ] `manage.py check` verde.
 - Stato: DA FARE — non assegnata.
 
 ## Sessione 4 — Fase B: registro azioni
 
-- [ ] `action_register.py` con tre collector difensivi e ordinamento unico.
-- [ ] View `project_actions` e filtro `closed=1`.
-- [ ] Template `project_actions.html` senza CSS inline.
-- [ ] `tests_action_register.py`, incluso budget query.
-- [ ] Test mirati Fase B verdi.
-- Stato: DA FARE — non assegnata.
+- [x] `action_register.py` con tre collector difensivi e ordinamento unico.
+- [x] View `project_actions` e filtro `closed=1`.
+- [x] Template `project_actions.html` senza CSS inline.
+- [x] `tests_action_register.py`, incluso budget query.
+- [x] Test mirati Fase B verdi (11 test; budget view dichiarato: 4 query).
+- Stato: COMPLETATA — Codex.
 
 ## Sessione 5 — Fase C: panoramica commessa
 
@@ -106,3 +106,4 @@ Spec sorgente: `C:\Dev\Portale Novicrom\BUILD_SPEC_kickoff_F3.md`
 ## Registro verifiche
 
 - 2026-09-02 — Codex — Fase A: 11 test `tasks.tests_identity` verdi; 5 regressioni esistenti su `Project`/creazione kickoff verdi; `manage.py check`, `makemigrations --check --dry-run`, `secret_hygiene_check` e `git diff --check` verdi.
+- 2026-09-02 — Codex — Fase B: 11 test `tasks.tests_action_register` verdi; builder fissato a 3 query e view a 4 query (render template escluso dal conteggio).

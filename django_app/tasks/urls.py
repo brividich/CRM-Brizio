@@ -17,6 +17,11 @@ urlpatterns = [
         views_projects.identity_suggest,
         name="identity_suggest",
     ),
+    path(
+        "tasks/projects/<int:project_id>/azioni/",
+        views_projects.project_actions,
+        name="project_actions",
+    ),
     path("tasks/projects/<int:project_id>/set-phase/", views.project_set_phase, name="project_set_phase"),
     path("tasks/projects/<int:project_id>/gantt/", views.project_gantt, name="project_gantt"),
     path(

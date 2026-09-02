@@ -1,0 +1,72 @@
+{% extends "tasks/base_shell.html" %}
+
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">{{ project.name }}</span>{% endblock %}
+{% block tasks_shell_title %}Registro azioni{% endblock %}
+{% block tasks_shell_subtitle %}Issue degli incontri, attività e sotto-attività in un solo punto operativo.{% endblock %}
+
+{% block tasks_shell_actions %}
+  <a class="ts-hero-action" href="{% url 'tasks:project_gantt' project.id %}">Torna al Gantt</a>
+  {% if include_closed %}
+    <a class="ts-hero-action primary" href="{% url 'tasks:project_actions' project.id %}">Solo aperte</a>
+  {% else %}
+    <a class="ts-hero-action primary" href="{% url 'tasks:project_actions' project.id %}?closed=1">Includi chiuse</a>
+  {% endif %}
+{% endblock %}
+
+{% block tasks_shell_content %}
+  <section class="ka-summary" aria-label="Riepilogo azioni">
+    <div class="ka-summary-card">
+      <span class="ka-summary-value">{{ open_count }}</span>
+      <span class="ka-summary-label">aperte</span>
+    </div>
+    <div class="ka-summary-card{% if overdue_count %} ka-summary-card--danger{% endif %}">
+      <span class="ka-summary-value">{{ overdue_count }}</span>
+      <span class="ka-summary-label">scadute</span>
+    </div>
+    <p class="ka-summary-text">{{ open_count }} aperte, {{ overdue_count }} scadute</p>
+  </section>
+
+  {% if actions %}
+    <div class="ka-table-wrap">
+      <table class="ka-table">
+        <thead>
+          <tr>
+            <th scope="col">Azione</th>
+            <th scope="col">Origine</th>
+            <th scope="col">Responsabile</th>
+            <th scope="col">Scadenza</th>
+            <th scope="col">Stato</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for action in actions %}
+            <tr{% if action.is_overdue %} class="ka-row--danger"{% elif not action.is_open %} class="ka-row--closed"{% endif %}>
+              <td><a class="ka-action-link" href="{{ action.url }}">{{ action.title }}</a></td>
+              <td>
+                <span class="ka-origin ka-origin--{{ action.origin }}">{{ action.source_label }}</span>
+              </td>
+              <td>{{ action.owner_label|default:"Non assegnata" }}</td>
+              <td>{% if action.due_date %}{{ action.due_date|date:"d/m/Y" }}{% else %}<span class="ka-muted">—</span>{% endif %}</td>
+              <td>
+                {% if action.is_overdue %}
+                  <span class="ka-status ka-status--danger">Scaduta</span>
+                {% elif action.is_open %}
+                  <span class="ka-status ka-status--open">Aperta</span>
+                {% else %}
+                  <span class="ka-status ka-status--closed">Chiusa</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <section class="ka-empty">
+      <p>Nessuna azione aperta su questa commessa.</p>
+      {% if tasks_shell_can_create %}
+        <a class="ts-hero-action primary" href="{% url 'tasks:create' %}?project={{ project.id }}">Crea attività</a>
+      {% endif %}
+    </section>
+  {% endif %}
+{% endblock %}

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### KICK-OFF F3 — registro azioni unico
+
+- **[feat/test] `tasks/action_register.py`, `views_projects.py`, `urls.py`, `acl_bootstrap.py`, `templates/tasks/project_actions.html`, `static/tasks/css/tasks.css`, `tests_action_register.py`**: nuova pagina scoped `/tasks/projects/<id>/azioni/` che aggrega issue incontro, task e subtask in una tabella read-only ordinata per urgenza. Il filtro `?closed=1` include gli elementi chiusi; issue senza incontro e guasti di una singola sorgente sono gestiti senza svuotare il registro. Budget fissato a 3 query per il builder e 4 per la view, escluso il rendering del template. Riutilizzato `tasks.kickoff.projects`, senza nuove permission.
+
 ### KICK-OFF F3 — identita normalizzata e autocomplete scoped
 
 - **[feat/data/test] `tasks/identity.py`, `models.py`, migration `tasks/0035_normalize_project_identity.py`, `views_projects.py`, `urls.py`, `acl_bootstrap.py`, `templates/tasks/project_create.html`, `tests_identity.py`**: P/N e cliente vengono normalizzati a ogni salvataggio; i record storici sono riallineati in batch senza passare da `Project.save()` e le eventuali collisioni di identita vengono solo segnalate. Il form nuovo kickoff propone clienti/P/N gia visibili tramite un endpoint read-only limitato a 20 valori e protetto dallo scope esistente, con errori JSON `401/403`. La route riusa `tasks.kickoff.view`; nessun nuovo permesso.
