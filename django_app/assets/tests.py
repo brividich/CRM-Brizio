@@ -10588,3 +10588,91 @@ class WorkOrderChecklistTypedStepsTests(TestCase):
         self.assertRedirects(response, reverse("assets:wo_view", args=[self.workorder.id]))
         self.workorder.refresh_from_db()
         self.assertEqual(self.workorder.status, WorkOrder.STATUS_DONE)
+
+
+class MaintenanceRuleImpactPreviewTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            username="mrf-impact-admin",
+            email="mrf-impact-admin@test.local",
+            password="pass12345",
+        )
+        self.viewer = User.objects.create_user(
+            username="mrf-impact-viewer",
+            email="mrf-impact-viewer@test.local",
+            password="pass12345",
+        )
+        self.category = AssetCategory.objects.create(
+            code="mrf-impact-category",
+            label="Categoria Anteprima",
+            base_asset_type=Asset.TYPE_WORK_MACHINE,
+            sort_order=10,
+        )
+        self.asset_a = Asset.objects.create(
+            name="Asset Anteprima A",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            asset_category=self.category,
+            source_key="mrf-impact-asset-a",
+        )
+        self.asset_b = Asset.objects.create(
+            name="Asset Anteprima B",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            asset_category=self.category,
+            source_key="mrf-impact-asset-b",
+        )
+        self.url = reverse("assets:maintenance_rule_impact_preview")
+
+    def test_preview_counts_all_category_assets_by_default(self):
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            self.url,
+            {
+                "asset_category": str(self.category.id),
+                "scope_type": MaintenanceRule.SCOPE_CATEGORY,
+                "threshold_type": MaintenanceRule.THRESHOLD_DAYS,
+                "threshold_value": "30",
+                "warning_days": "5",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["impact"]["asset_count"], 2)
+        self.assertContains(response, "Prima esecuzione da pianificare")
+
+    def test_preview_scope_assets_counts_only_selected(self):
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            self.url,
+            {
+                "asset_category": str(self.category.id),
+                "scope_type": MaintenanceRule.SCOPE_ASSETS,
+                "assets": [str(self.asset_a.id)],
+                "threshold_type": MaintenanceRule.THRESHOLD_DAYS,
+                "threshold_value": "30",
+                "warning_days": "5",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["impact"]["asset_count"], 1)
+
+    def test_preview_requires_admin(self):
+        # Simula la richiesta AJAX/HTMX reale (stesso criterio di core.middleware._is_json_request):
+        # senza questo header l'ACLMiddleware condivisa intercetta prima della view e reindirizza
+        # (comportamento corretto per una navigazione normale, non per un endpoint hx-post).
+        self.client.force_login(self.viewer)
+        response = self.client.post(
+            self.url,
+            {
+                "asset_category": str(self.category.id),
+                "scope_type": MaintenanceRule.SCOPE_CATEGORY,
+                "threshold_type": MaintenanceRule.THRESHOLD_DAYS,
+                "threshold_value": "30",
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_preview_without_category_returns_zero(self):
+        self.client.force_login(self.admin)
+        response = self.client.post(self.url, {"scope_type": MaintenanceRule.SCOPE_CATEGORY})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["impact"]["asset_count"], 0)

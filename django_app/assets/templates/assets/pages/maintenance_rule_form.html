@@ -79,6 +79,24 @@ body.theme-dark .mrf-section legend { color:var(--text); }
     grid-template-columns: 1fr;
   }
 }
+.mrf-impact-panel {
+  border: 1px dashed #93c5fd;
+  border-radius: 12px;
+  background: #f0f7ff;
+  padding: 12px 14px;
+}
+body.theme-dark .mrf-impact-panel { background: rgba(59,130,246,.08); border-color: rgba(59,130,246,.4); }
+.mrf-impact-head { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+.mrf-impact-count { font-size:var(--fs-display-lg); font-weight:800; color:#1d4ed8; line-height:1; }
+.mrf-impact-label { font-size:var(--fs-sm); color:#64748b; }
+.mrf-impact-list { list-style:none; margin:10px 0 0; padding:0; display:grid; gap:6px; }
+.mrf-impact-list li { display:flex; justify-content:space-between; gap:10px; font-size:var(--fs-sm); border-top:1px solid #e2e8f0; padding-top:6px; }
+body.theme-dark .mrf-impact-list li { border-color:var(--border); }
+.mrf-impact-list li:first-child { border-top:0; padding-top:0; }
+.mrf-impact-due--overdue,
+.mrf-impact-due--missing { color:#b91c1c; font-weight:700; }
+.mrf-impact-due--warning { color:#a16207; font-weight:700; }
+.mrf-impact-due--upcoming { color:#166534; }
 </style>
 {% endblock %}
 {% block assets_shell_title %}{% if is_edit %}Modifica piano manutenzione{% else %}Nuovo piano manutenzione{% endif %}{% endblock %}
@@ -142,6 +160,7 @@ body.theme-dark .mrf-section legend { color:var(--text); }
 
   <form method="post" class="mrf-form-card">
     {% csrf_token %}
+    <input type="hidden" name="rule_id" value="{{ rule.pk|default:'' }}">
 
     {% if form.non_field_errors %}
       <div style="padding:10px;border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;border-radius:10px;">
@@ -168,6 +187,18 @@ body.theme-dark .mrf-section legend { color:var(--text); }
         {% include "assets/pages/_maintenance_form_field.html" with field=form.warning_days %}
         {% include "assets/pages/_maintenance_form_field.html" with field=form.first_due_date %}
         {% include "assets/pages/_maintenance_form_field.html" with field=form.auto_generate_workorders %}
+      </div>
+      <div
+        id="mrf-impact-panel"
+        class="mrf-impact-panel"
+        hx-post="{% url 'assets:maintenance_rule_impact_preview' %}"
+        hx-trigger="load, change from:#{{ form.asset_category.id_for_label }}, change from:#{{ form.scope_type.id_for_label }}, change from:#{{ form.assets.id_for_label }}, change from:#{{ form.threshold_type.id_for_label }}, keyup changed delay:400ms from:#{{ form.threshold_value.id_for_label }}, keyup changed delay:400ms from:#{{ form.warning_days.id_for_label }}, change from:#{{ form.first_due_date.id_for_label }}"
+        hx-include="closest form"
+        hx-target="this"
+        hx-swap="innerHTML"
+        hx-headers='{"X-Requested-With": "XMLHttpRequest"}'
+      >
+        <p class="as-note">Anteprima impatto...</p>
       </div>
     </fieldset>
     <fieldset class="mrf-section">

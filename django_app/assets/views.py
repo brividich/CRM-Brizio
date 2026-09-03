@@ -26,6 +26,7 @@ from django.core.paginator import Paginator
 from django.db import DatabaseError, IntegrityError, connections, transaction
 from django.db.models import Avg, Case, Count, IntegerField, Max, Q, When
 from django.http import FileResponse, Http404, HttpRequest, HttpResponse, HttpResponseForbidden, JsonResponse
+from django.utils.dateparse import parse_date
 from django.shortcuts import get_object_or_404, redirect, render
 from django.templatetags.static import static
 from django.urls import NoReverseMatch, reverse
@@ -148,6 +149,7 @@ from .maintenance import (
     get_primary_assistance_contract,
     get_workorder_overdue_days,
     normalize_workorder_source,
+    preview_maintenance_rule_impact,
     resolve_asset_maintenance_rules,
     sync_workorder_maintenance_state,
     upsert_asset_maintenance_rule_state,
@@ -11331,6 +11333,35 @@ def maintenance_rule_create(request: HttpRequest) -> HttpResponse:
                 search_placeholder="Ricerca rapida per piano, attivita o categoria",
             ),
         },
+    )
+
+
+@login_required
+def maintenance_rule_impact_preview(request: HttpRequest) -> HttpResponse:
+    """Endpoint HTMX-only: anteprima non persistita di quanti asset copre una regola e delle
+    prime scadenze, mentre l'utente compila il form. Non salva nulla."""
+    if not _is_assets_admin(request):
+        return HttpResponseForbidden("Permesso negato.")
+
+    rule_pk = _as_int(request.POST.get("rule_id"), default=0) or None
+    scope_type = request.POST.get("scope_type") or MaintenanceRule.SCOPE_CATEGORY
+    asset_ids = [_as_int(v) for v in request.POST.getlist("assets") if _as_int(v)]
+    first_due_date = parse_date(request.POST.get("first_due_date") or "") if request.POST.get("first_due_date") else None
+
+    impact = preview_maintenance_rule_impact(
+        asset_category_id=_as_int(request.POST.get("asset_category"), default=0) or None,
+        scope_type=scope_type,
+        asset_ids=asset_ids,
+        threshold_type=request.POST.get("threshold_type") or MaintenanceRule.THRESHOLD_DAYS,
+        threshold_value=_as_int(request.POST.get("threshold_value"), default=0),
+        warning_days=_as_int(request.POST.get("warning_days"), default=0),
+        first_due_date=first_due_date,
+        rule_pk=rule_pk,
+    )
+    return render(
+        request,
+        "assets/components/_maintenance_rule_impact.html",
+        {"impact": impact},
     )
 
 
