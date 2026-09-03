@@ -10676,3 +10676,86 @@ class MaintenanceRuleImpactPreviewTests(TestCase):
         response = self.client.post(self.url, {"scope_type": MaintenanceRule.SCOPE_CATEGORY})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["impact"]["asset_count"], 0)
+
+
+class MaintenanceRuleScopeTreeTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            username="mrf-tree-admin",
+            email="mrf-tree-admin@test.local",
+            password="pass12345",
+        )
+        self.category = AssetCategory.objects.create(
+            code="mrf-tree-category",
+            label="Categoria Albero",
+            base_asset_type=Asset.TYPE_WORK_MACHINE,
+            sort_order=10,
+        )
+        self.template = MaintenanceInterventionTemplate.objects.create(
+            code="mrf-tree-template",
+            label="Verifica albero",
+            asset_category=self.category,
+        )
+        self.asset_off = Asset.objects.create(
+            name="Asset Officina",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            asset_category=self.category,
+            reparto="OFFICINA",
+            source_key="mrf-tree-asset-off",
+        )
+        self.asset_no_reparto = Asset.objects.create(
+            name="Asset Senza Reparto",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            asset_category=self.category,
+            source_key="mrf-tree-asset-no-reparto",
+        )
+
+    def test_create_form_renders_asset_tree_grouped_by_reparto(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("assets:maintenance_rule_create") + f"?category={self.category.id}")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="assets-tree"')
+        self.assertContains(response, "OFFICINA")
+        self.assertContains(response, "Senza reparto")
+        self.assertContains(response, f'value="{self.asset_off.id}"')
+
+    def test_edit_form_shows_override_badge(self):
+        rule = MaintenanceRule.objects.create(
+            intervention_template=self.template,
+            asset_category=self.category,
+            scope_type=MaintenanceRule.SCOPE_ASSETS,
+            threshold_type=MaintenanceRule.THRESHOLD_DAYS,
+            threshold_value=30,
+        )
+        rule.assets.set([self.asset_off, self.asset_no_reparto])
+        MaintenanceRuleAssetOverride.objects.create(
+            asset=self.asset_off,
+            base_rule=rule,
+            override_threshold_value=15,
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("assets:maintenance_rule_edit", args=[rule.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Personalizzata")
+        self.assertNotContains(response, "Disabilitata")
+
+    def test_scope_assets_submission_still_saves_selected_ids(self):
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            reverse("assets:maintenance_rule_create"),
+            {
+                "intervention_template": str(self.template.id),
+                "asset_category": str(self.category.id),
+                "scope_type": MaintenanceRule.SCOPE_ASSETS,
+                "assets": [str(self.asset_off.id)],
+                "threshold_type": MaintenanceRule.THRESHOLD_DAYS,
+                "threshold_value": "30",
+                "sort_order": "10",
+                "is_active": "on",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        rule = MaintenanceRule.objects.get(intervention_template=self.template)
+        self.assertEqual(list(rule.assets.values_list("id", flat=True)), [self.asset_off.id])

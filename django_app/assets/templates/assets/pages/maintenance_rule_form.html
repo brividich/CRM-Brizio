@@ -97,6 +97,41 @@ body.theme-dark .mrf-impact-list li { border-color:var(--border); }
 .mrf-impact-due--missing { color:#b91c1c; font-weight:700; }
 .mrf-impact-due--warning { color:#a16207; font-weight:700; }
 .mrf-impact-due--upcoming { color:#166534; }
+.mrf-asset-tree {
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid #dbe1ea;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 12px;
+}
+body.theme-dark .mrf-asset-tree { border-color: var(--border); }
+.mrf-asset-group-title {
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  font-weight: 800;
+  color: #64748b;
+  margin-bottom: 6px;
+}
+.mrf-asset-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.mrf-asset-badge {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 100px;
+  margin-left: auto;
+}
+.mrf-asset-badge--warn { background:#fef9c3; color:#854d0e; }
+.mrf-asset-badge--muted { background:#e2e8f0; color:#475569; }
 </style>
 {% endblock %}
 {% block assets_shell_title %}{% if is_edit %}Modifica piano manutenzione{% else %}Nuovo piano manutenzione{% endif %}{% endblock %}
@@ -175,7 +210,27 @@ body.theme-dark .mrf-impact-list li { border-color:var(--border); }
         {% include "assets/pages/_maintenance_form_field.html" with field=form.intervention_template %}
         {% include "assets/pages/_maintenance_form_field.html" with field=form.asset_category %}
         {% include "assets/pages/_maintenance_form_field.html" with field=form.scope_type %}
-        {% include "assets/pages/_maintenance_form_field.html" with field=form.assets full_width=True %}
+        <div id="assets-scope-field" style="grid-column:1/-1;">
+          <label>{{ form.assets.label }}</label>
+          <div id="assets-tree" class="mrf-asset-tree">
+            {% for group in form.asset_scope_groups %}
+              <div class="mrf-asset-group">
+                <div class="mrf-asset-group-title">{{ group.reparto }} <span class="as-note">({{ group.items|length }})</span></div>
+                {% for item in group.items %}
+                  <label class="mrf-asset-item">
+                    <input type="checkbox" name="assets" value="{{ item.id }}" {% if item.checked %}checked{% endif %}>
+                    <span>{{ item.label }}</span>
+                    {% if item.override %}<span class="mrf-asset-badge mrf-asset-badge--{{ item.override.css_class }}">{{ item.override.label }}</span>{% endif %}
+                  </label>
+                {% endfor %}
+              </div>
+            {% empty %}
+              <p class="as-note">Scegli prima una categoria asset.</p>
+            {% endfor %}
+          </div>
+          {% if form.assets.help_text %}<div class="as-help" style="margin-top:4px;">{{ form.assets.help_text }}</div>{% endif %}
+          {% if form.assets.errors %}<div class="as-error">{{ form.assets.errors }}</div>{% endif %}
+        </div>
       </div>
     </fieldset>
     <fieldset class="mrf-section">
@@ -192,7 +247,7 @@ body.theme-dark .mrf-impact-list li { border-color:var(--border); }
         id="mrf-impact-panel"
         class="mrf-impact-panel"
         hx-post="{% url 'assets:maintenance_rule_impact_preview' %}"
-        hx-trigger="load, change from:#{{ form.asset_category.id_for_label }}, change from:#{{ form.scope_type.id_for_label }}, change from:#{{ form.assets.id_for_label }}, change from:#{{ form.threshold_type.id_for_label }}, keyup changed delay:400ms from:#{{ form.threshold_value.id_for_label }}, keyup changed delay:400ms from:#{{ form.warning_days.id_for_label }}, change from:#{{ form.first_due_date.id_for_label }}"
+        hx-trigger="load, change from:#{{ form.asset_category.id_for_label }}, change from:#{{ form.scope_type.id_for_label }}, change from:#assets-tree, change from:#{{ form.threshold_type.id_for_label }}, keyup changed delay:400ms from:#{{ form.threshold_value.id_for_label }}, keyup changed delay:400ms from:#{{ form.warning_days.id_for_label }}, change from:#{{ form.first_due_date.id_for_label }}"
         hx-include="closest form"
         hx-target="this"
         hx-swap="innerHTML"
@@ -241,7 +296,7 @@ body.theme-dark .mrf-impact-list li { border-color:var(--border); }
   const listLink = document.getElementById("maintenance-template-list-link");
   const createLink = document.getElementById("maintenance-template-create-link");
   const scopeSelect = document.getElementById("{{ form.scope_type.id_for_label }}");
-  const assetsSelect = document.getElementById("{{ form.assets.id_for_label }}");
+  const assetsTree = document.getElementById("assets-tree");
   const executionSelect = document.getElementById("{{ form.execution_mode.id_for_label }}");
   const supplierSelect = document.getElementById("{{ form.supplier.id_for_label }}");
   const assignedSelect = document.getElementById("{{ form.assigned_to.id_for_label }}");
@@ -260,9 +315,9 @@ body.theme-dark .mrf-impact-list li { border-color:var(--border); }
   syncTemplateLinks();
 
   function syncScope() {
-    if (!scopeSelect || !assetsSelect) return;
+    if (!scopeSelect || !assetsTree) return;
     const targeted = scopeSelect.value === "ASSETS";
-    const holder = assetsSelect.closest("div");
+    const holder = document.getElementById("assets-scope-field");
     if (holder) holder.hidden = !targeted;
   }
   function syncExecution() {
