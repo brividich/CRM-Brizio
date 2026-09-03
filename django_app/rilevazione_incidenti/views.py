@@ -37,6 +37,7 @@ TIPOLOGIE = [
     ("Unsafe Act", "Unsafe Act"),
     ("Near Miss", "Near Miss"),
     ("Accident", "Accident"),
+    ("Early Warning", "Early Warning"),
 ]
 
 TIPI_EVENTO_NORMALIZZATI = [
@@ -536,6 +537,7 @@ def lista(request):
         "unsafe_act": _tipi_cnt.get("Unsafe Act", 0),
         "near_miss": _tipi_cnt.get("Near Miss", 0),
         "accident": _tipi_cnt.get("Accident", 0),
+        "early_warning": _tipi_cnt.get("Early Warning", 0),
         "eventi_unsafe_condition": _eventi_cnt.get(TipoEventoSicurezza.UNSAFE_CONDITION, 0),
         "eventi_near_miss": _eventi_cnt.get(TipoEventoSicurezza.NEAR_MISS, 0),
         "eventi_incidente": _eventi_cnt.get(TipoEventoSicurezza.INCIDENTE, 0),

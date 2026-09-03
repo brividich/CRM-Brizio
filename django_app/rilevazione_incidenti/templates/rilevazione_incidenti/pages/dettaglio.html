@@ -49,6 +49,7 @@
 .sic-pill-unsafe-act { background:#e0f2fe; color:#0c4a6e; }
 .sic-pill-near-miss { background:#fff7ed; color:#9a3412; }
 .sic-pill-accident { background:#fee2e2; color:#991b1b; }
+.sic-pill-early-warning { background:#f5f3ff; color:#5b21b6; }
 
 .sic-stato-badge { display:inline-flex; align-items:center; gap:6px; padding:4px 12px; border-radius:20px; font-size: var(--fs-sm); font-weight:700; }
 .sic-stato-aperto { background:#fef9c3; color:#a16207; }
@@ -84,6 +85,7 @@ body.theme-dark .sic-pill-unsafe-condition { background:rgba(234,88,12,.6); colo
 body.theme-dark .sic-pill-unsafe-act      { background:rgba(220,38,38,.6); color:#fff; }
 body.theme-dark .sic-pill-near-miss       { background:rgba(180,83,9,.6);  color:#fff; }
 body.theme-dark .sic-pill-accident        { background:rgba(127,29,29,.6); color:#fff; }
+body.theme-dark .sic-pill-early-warning   { background:rgba(91,33,182,.6); color:#fff; }
 body.theme-dark .sic-stato-aperto    { background:rgba(29,78,216,.2); color:#93c5fd; }
 body.theme-dark .sic-stato-approvato { background:rgba(146,64,14,.25); color:#fde68a; }
 body.theme-dark .sic-stato-chiuso    { background:rgba(6,95,70,.25); color:#6ee7b7; }
@@ -125,6 +127,7 @@ body.theme-dark .sic-btn-rspp { background:rgba(29,78,216,.2); color:#93c5fd; }
         {% elif t == "Unsafe Act" %}<span class="sic-tipo-pill sic-pill-unsafe-act">Unsafe Act</span>
         {% elif t == "Near Miss" %}<span class="sic-tipo-pill sic-pill-near-miss">Near Miss</span>
         {% elif t == "Accident" %}<span class="sic-tipo-pill sic-pill-accident">Accident</span>
+        {% elif t == "Early Warning" %}<span class="sic-tipo-pill sic-pill-early-warning">Early Warning</span>
         {% else %}<span class="sic-tipo-pill" style="background:#f1f5f9;color:#475569;">{{ t }}</span>{% endif %}
         {% endwith %}
 

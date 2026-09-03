@@ -100,6 +100,7 @@ body.theme-dark .sic-error-box { background:rgba(153,27,27,.2); border-color:rgb
       {% elif t == "Unsafe Act" %}<span class="sic-tipo-pill" style="background:#e0f2fe;color:#0c4a6e;">Unsafe Act</span>
       {% elif t == "Near Miss" %}<span class="sic-tipo-pill" style="background:#fff7ed;color:#9a3412;">Near Miss</span>
       {% elif t == "Accident" %}<span class="sic-tipo-pill" style="background:#fee2e2;color:#991b1b;">Accident</span>
+      {% elif t == "Early Warning" %}<span class="sic-tipo-pill" style="background:#f5f3ff;color:#5b21b6;">Early Warning</span>
       {% endif %}
       {% endwith %}
       <input type="hidden" name="Tipologia_scheda" value="{{ f.Tipologia_scheda|default:'' }}">
