@@ -1028,3 +1028,175 @@ body.tk-wide .content { width: 100%; max-width: none; }
 .meeting-stato.pianificato { background: var(--warning-bg, #fff7ed); color: var(--warning, #b45309); }
 .meeting-stato.svolto      { background: var(--success-bg, #ecfdf5); color: var(--success, #059669); }
 .meeting-stato.annullato   { background: var(--surface-alt, #f1f5f9); color: var(--text-light); }
+
+/* ── project_vrf_upload.html (Passata 3, spostato da <style> inline) ── */
+.vrf-upload-area {
+  border: 2px dashed #bfdbfe;
+  border-radius: 14px;
+  background: #f0f7ff;
+  padding: 28px 24px;
+  text-align: center;
+  transition: border-color 0.15s;
+}
+
+.vrf-upload-area:focus-within {
+  border-color: var(--primary-mid);
+}
+
+.vrf-upload-icon {
+  font-size: 40px;
+  margin-bottom: 14px;
+  opacity: 0.45;
+}
+
+.vrf-upload-title {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.vrf-upload-sub {
+  font-size: 13px;
+  color: var(--text-light);
+  margin-bottom: 20px;
+}
+
+.vrf-status-banner {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 14px 18px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.vrf-status-banner.blocked {
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-bg);
+  color: var(--danger);
+}
+
+.vrf-status-banner.warning {
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-bg);
+  color: var(--warning);
+}
+
+.vrf-status-banner.ok {
+  background: var(--success-bg);
+  border: 1px solid var(--success-bg);
+  color: var(--success);
+}
+
+.vrf-status-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.vrf-actions-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.vrf-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.vrf-preview-table tr {
+  border-bottom: 1px solid var(--border);
+}
+
+.vrf-preview-table td:first-child {
+  width: 200px;
+  padding: 10px 16px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-light);
+  background: #f8fbff;
+  white-space: nowrap;
+}
+
+.vrf-preview-table td:last-child {
+  padding: 10px 16px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.vrf-preview-table td.empty {
+  color: var(--text-light);
+  font-weight: 400;
+  font-style: italic;
+}
+
+.vrf-confirm-bar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 16px 20px;
+  background: var(--warning-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.vrf-confirm-bar .confirm-text {
+  flex: 1;
+  font-size: 13px;
+  color: var(--warning);
+}
+
+.vrf-identity-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.vrf-id-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-mid);
+  font-weight: 600;
+}
+
+.vrf-id-chip .lbl {
+  font-weight: 700;
+  color: var(--text-light);
+  text-transform: uppercase;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+}
+
+.vrf-id-chip.pn  { border-color: #c7d2fe; background: #eef2ff; color: #3730a3; }
+.vrf-id-chip.rev { border-color: #bbf7d0; background: #f0fdf4; color: #166534; }
+.vrf-id-chip.ver { border-color: #fed7aa; background: #fff7ed; color: #9a3412; }
+
+.vrf-skip-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+body.theme-dark .vrf-upload-area { background:rgba(29,78,216,.08); border-color:rgba(29,78,216,.3); }
+body.theme-dark .vrf-id-chip { background:var(--surface-alt, #f8fafc); }
+body.theme-dark .vrf-id-chip.pn { background:rgba(55,48,163,.2); border-color:rgba(199,210,254,.2); color:#a5b4fc; }
+body.theme-dark .vrf-id-chip.rev { background:rgba(22,101,52,.2); border-color:rgba(187,247,208,.2); color:#86efac; }
+body.theme-dark .vrf-id-chip.ver { background:rgba(154,52,18,.2); border-color:rgba(254,215,170,.2); color:#fdba74; }
