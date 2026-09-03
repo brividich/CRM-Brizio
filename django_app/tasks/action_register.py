@@ -154,3 +154,15 @@ def build_project_actions(project, *, include_closed: bool = False) -> list[Acti
                 project.pk,
             )
     return sorted(rows, key=_sort_key)
+
+
+def count_project_open_actions(project) -> int:
+    """Conta le azioni aperte senza materializzare le righe del registro."""
+    closed_statuses = {TaskStatus.DONE, TaskStatus.CANCELED}
+    return (
+        project.meeting_issues.filter(status=MeetingIssueStatus.OPEN).count()
+        + project.tasks.exclude(status__in=closed_statuses).count()
+        + SubTask.objects.filter(task__project=project)
+        .exclude(status__in=closed_statuses)
+        .count()
+    )

@@ -1,12 +1,17 @@
 """View focalizzate sulla fruibilita' delle commesse KICK-OFF."""
 from __future__ import annotations
 
+from django.db.models import Count, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
+from django.utils import timezone
 
 from .action_register import build_project_actions
 from .identity import normalize_client_name, normalize_part_number
+from .models import MeetingStatus
+from .readiness import annotate_readiness_qs, compute_project_readiness
 from .views import (
+    _can_manage_project,
     _has_task_permission,
     _scoped_projects_queryset,
     _tasks_shell_context,
@@ -76,12 +81,67 @@ def project_actions(request, project_id: int):
         request,
         "tasks/project_actions.html",
         {
-            **_tasks_shell_context(request, active="actions", project=project),
+            **_tasks_shell_context(
+                request,
+                active="actions",
+                project=project,
+                action_count=open_count,
+            ),
             "page_title": f"Registro azioni - {project.name}",
             "project": project,
             "actions": actions,
             "include_closed": include_closed,
             "open_count": open_count,
             "overdue_count": overdue_count,
+        },
+    )
+
+
+@task_permissions_required("tasks_view")
+def project_overview(request, project_id: int):
+    """Landing leggibile della commessa con stato e prossime azioni."""
+    project_queryset = annotate_readiness_qs(_scoped_projects_queryset(request))
+    project = get_object_or_404(project_queryset, pk=project_id)
+    actions = build_project_actions(project)
+    action_open_count = len(actions)
+    today = timezone.localdate()
+    next_meeting = (
+        project.meetings.filter(
+            stato=MeetingStatus.PIANIFICATO,
+            data__gte=today,
+        )
+        .order_by("data", "ora", "numero", "id")
+        .first()
+    )
+    task_counts = project.tasks.aggregate(
+        total=Count("id"),
+        planned=Count("id", filter=Q(due_date__isnull=False)),
+    )
+    recent_meetings = list(project.meetings.order_by("-numero", "-id")[:3])
+    readiness = compute_project_readiness(project)
+    can_manage = _can_manage_project(request, project)
+
+    return render(
+        request,
+        "tasks/project_overview.html",
+        {
+            **_tasks_shell_context(
+                request,
+                active="overview",
+                project=project,
+                action_count=action_open_count,
+            ),
+            "page_title": f"Panoramica - {project.name}",
+            "project": project,
+            "readiness": readiness,
+            "actions": actions,
+            "top_actions": actions[:5],
+            "action_open_count": action_open_count,
+            "next_meeting": next_meeting,
+            "planned_task_count": task_counts["planned"],
+            "total_task_count": task_counts["total"],
+            "recent_meetings": recent_meetings,
+            "can_manage": can_manage,
+            "hide_readiness_actions": not can_manage,
         },
     )

@@ -1065,14 +1065,26 @@ def _apply_default_ordering(qs):
     )
 
 
-def _tasks_shell_context(request, *, active: str, task: Task | None = None, project: Project | None = None) -> dict:
+def _tasks_shell_context(
+    request,
+    *,
+    active: str,
+    task: Task | None = None,
+    project: Project | None = None,
+    action_count: int | None = None,
+) -> dict:
     current_project = project
     if current_project is None and task is not None and getattr(task, "project_id", None):
         current_project = task.project
+    if current_project is not None and action_count is None:
+        from .action_register import count_project_open_actions
+
+        action_count = count_project_open_actions(current_project)
     return {
         "tasks_shell_active": active,
         "tasks_shell_task": task,
         "tasks_shell_project": current_project,
+        "tasks_shell_open_action_count": action_count or 0,
         "tasks_shell_can_create": _has_task_permission(request, "tasks_create"),
         "tasks_shell_can_admin": user_can_modulo_action(request, "tasks", "admin_tasks"),
         "tasks_shell_is_scope_admin": _has_task_permission(request, "tasks_admin"),
@@ -3538,7 +3550,7 @@ def copy_project_with_vrf(request, project_id: int):
         },
     )
     messages.success(request, f"Kickoff duplicato correttamente: {kickoff.name}.")
-    return redirect("tasks:project_gantt", project_id=kickoff.id)
+    return redirect("tasks:project_overview", project_id=kickoff.id)
 
 
 @require_POST
@@ -3568,7 +3580,7 @@ def copy_project_with_vrf_without_pn(request, project_id: int):
         },
     )
     messages.success(request, f"Kickoff duplicato senza P/N: {kickoff.name}.")
-    return redirect("tasks:project_gantt", project_id=kickoff.id)
+    return redirect("tasks:project_overview", project_id=kickoff.id)
 
 
 @task_permissions_required("tasks_view")
@@ -5412,7 +5424,7 @@ def project_vrf_upload(request, project_id: int):
     if request.method == "GET":
         request.session.pop(session_key, None)
         return render(request, "tasks/project_vrf_upload.html", {
-            **_tasks_shell_context(request, active="projects", project=project),
+            **_tasks_shell_context(request, active="vrf", project=project),
             "page_title": f"Documento VRF - {project.name}",
             "project": project,
             "vrf_detail": vrf_detail,
@@ -5470,7 +5482,7 @@ def project_vrf_upload(request, project_id: int):
         }
 
         return render(request, "tasks/project_vrf_upload.html", {
-            **_tasks_shell_context(request, active="projects", project=project),
+            **_tasks_shell_context(request, active="vrf", project=project),
             "page_title": f"Documento VRF - {project.name}",
             "project": project,
             "vrf_detail": vrf_detail,
@@ -5726,7 +5738,7 @@ def project_vrf_compile(request, project_id: int):
         })
 
     context = {
-        **_tasks_shell_context(request, active="projects", project=project),
+        **_tasks_shell_context(request, active="vrf", project=project),
         "page_title": f"Compila VRF - {project.name}",
         "project": project,
         "vrf_detail": vrf_detail,

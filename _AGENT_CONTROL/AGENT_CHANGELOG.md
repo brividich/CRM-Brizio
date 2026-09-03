@@ -2,6 +2,24 @@
 
 ## 2026-09-02 - Codex
 
+- Area: `django_app/tasks`, KICK-OFF F3 — Fase C Panoramica commessa.
+- Richiesta: implementare la Fase C di `BUILD_SPEC_kickoff_F3.md` nel branch/worktree condiviso e aggiornare la checklist operativa.
+- File modificati/creati: `BUILD_CHECKLIST_kickoff_F3.md`, `django_app/tasks/action_register.py`, `views_projects.py`, `views.py`, `urls.py`, `acl_bootstrap.py`, nuovo `templates/tasks/project_overview.html`, `templates/tasks/_project_tabs.html`, `_readiness_checklist.html`, `projects.html`, `_board_card.html`, `_timeline.html`, `list.html`, `static/tasks/css/tasks.css`, `kickoff_invite.py`, nuovo `tests_project_overview.py`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/03_BACKEND_MODULES.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: `django_app/tasks/acl_bootstrap.py` per associare `tasks:project_overview` al permesso canonico esistente `tasks.kickoff.projects` e invalidare la cache bootstrap (`v8` -> `v9`); nessuna permission/grant nuova. Modificato il routing locale `django_app/tasks/urls.py`; nessun routing globale, middleware, settings, autenticazione o navigazione globale. `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente.
+- Motivo tecnico: il Gantt fungeva impropriamente da landing e le informazioni di stato della commessa erano disperse tra piano, incontri, VRF e attività.
+- Modifica: nuova Panoramica scoped con team/fase/readiness, tre metriche, top 5 azioni e ultimi 3 incontri; cinque tab contestuali con conteggio aperto; `active="vrf"` corretto nelle view VRF; CTA mutative filtrate tramite `_can_manage_project`; ingressi generici di portfolio/card/board/timeline/riepilogo/invito e redirect post-copia portati alla Panoramica, mantenendo i link esplicitamente Gantt/Piano sul piano. Il conteggio tab usa tre query `COUNT` e non materializza le azioni nelle view preesistenti.
+- Impatto previsto: ogni commessa apre su un riepilogo operativo leggibile anche in sola lettura; il piano resta una sezione distinta e le azioni urgenti sono immediatamente visibili.
+- Rischi residui: il conteggio tab aggiunge tre query leggere alle pagine contestuali preesistenti; la futura Passata 2 introdurrà annotazioni aggregate per le liste multi-commessa. Nessuna verifica visuale browser chiaro/scuro eseguita in questa fase; prevista nei passaggi UI successivi. Il bump versione resta rinviato alla chiusura complessiva F3 per evitare incrementi intermedi sullo stesso branch.
+- Test/check: 9 test `tasks.tests_project_overview` OK e 8 regressioni preesistenti su tab, portfolio, board, `Da gestire` e copia kickoff OK; primo run con 5 subtest falliti esclusivamente per frammento HTML incompleto nel nuovo test, corretto e rilanciato verde. Suite completa `tasks` OK (227 test); `py_compile`, `manage.py check --settings=config.settings.test`, `makemigrations --check --dry-run`, `secret_hygiene_check` e `git diff --check` OK.
+- Backup creati: nessuno; nessun DB dev/prod modificato, solo SQLite di test isolato.
+- README aggiornato: si.
+- CHANGELOG aggiornato: si (`CHANGELOG.md` e `django_app/CHANGELOG.md`).
+- AGENT_CHANGELOG aggiornato: si.
+- Esito: Fase C implementata e verificata; Sessione 6 automatica completata, resta la verifica manuale dei quattro scenari della spec.
+- Note per altro agente: branch `feature/kickoff-f3-fruibilita`, worktree `C:\Dev\pn-kickoff-f3`. Sessioni 1-5 complete dopo il commit; la Sessione 6 prevede suite `tasks` completa e controlli funzionali, poi le tre passate UI. Non duplicare `project_overview` in `views.py`.
+
+## 2026-09-02 - Codex
+
 - Area: `django_app/tasks`, KICK-OFF F3 — Fase B registro azioni unico.
 - Richiesta: proseguire l'implementazione di `BUILD_SPEC_kickoff_F3.md` mantenendo aggiornata la checklist operativa condivisa con Claude Code.
 - File modificati/creati: `BUILD_CHECKLIST_kickoff_F3.md`, nuovo `django_app/tasks/action_register.py`, `django_app/tasks/views_projects.py`, `django_app/tasks/urls.py`, `django_app/tasks/acl_bootstrap.py`, nuovo `django_app/tasks/templates/tasks/project_actions.html`, `django_app/tasks/static/tasks/css/tasks.css`, nuovo `django_app/tasks/tests_action_register.py`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/03_BACKEND_MODULES.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.

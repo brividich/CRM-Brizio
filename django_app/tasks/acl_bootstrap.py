@@ -8,7 +8,7 @@ from core.acl_bootstrap_base import run_bootstrap
 
 logger = logging.getLogger(__name__)
 
-_BOOTSTRAP_CACHE_KEY = "tasks_acl_bootstrap_v8"
+_BOOTSTRAP_CACHE_KEY = "tasks_acl_bootstrap_v9"
 
 MODULE = "tasks"
 
@@ -148,6 +148,7 @@ _ROUTE_BINDINGS = {
     "tasks:project_meeting_delete": "tasks.kickoff.admin",
     # Progetti, Gantt e VRF
     "tasks:project_list": "tasks.kickoff.projects",
+    "tasks:project_overview": "tasks.kickoff.projects",
     "tasks:project_actions": "tasks.kickoff.projects",
     "tasks:project_gantt": "tasks.kickoff.projects",
     "tasks:project_info_json": "tasks.kickoff.projects",

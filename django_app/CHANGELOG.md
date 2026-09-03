@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### KICK-OFF F3 — Panoramica commessa e navigazione contestuale
+
+- **[feat/ux/test] `tasks/views_projects.py`, `views.py`, `urls.py`, `acl_bootstrap.py`, `action_register.py`, `templates/tasks/project_overview.html`, `_project_tabs.html`, `_readiness_checklist.html`, `static/tasks/css/tasks.css`, ingressi portfolio e `kickoff_invite.py`, `tests_project_overview.py`**: nuova landing scoped `/tasks/projects/<id>/` con identità/team/fase, readiness, metriche operative, top 5 azioni e ultimi 3 incontri. Le tab diventano `Panoramica · Azioni · Incontri · Piano · VRF` e mostrano il conteggio aperto con tre query di solo conteggio nelle view preesistenti; le nuove view riusano il registro già materializzato. CTA mutative visibili solo a chi supera `_can_manage_project`. Link generici verso la Panoramica, link nominati Gantt/Piano invariati. Binding al permesso esistente `tasks.kickoff.projects`, nessuna nuova permission.
+
 ### KICK-OFF F3 — registro azioni unico
 
 - **[feat/test] `tasks/action_register.py`, `views_projects.py`, `urls.py`, `acl_bootstrap.py`, `templates/tasks/project_actions.html`, `static/tasks/css/tasks.css`, `tests_action_register.py`**: nuova pagina scoped `/tasks/projects/<id>/azioni/` che aggrega issue incontro, task e subtask in una tabella read-only ordinata per urgenza. Il filtro `?closed=1` include gli elementi chiusi; issue senza incontro e guasti di una singola sorgente sono gestiti senza svuotare il registro. Budget fissato a 3 query per il builder e 4 per la view, escluso il rendering del template. Riutilizzato `tasks.kickoff.projects`, senza nuove permission.

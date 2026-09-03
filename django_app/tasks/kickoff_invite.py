@@ -66,11 +66,11 @@ def _build_attendees(project) -> list[dict]:
 
 def _kickoff_body_html(request, project, kickoff_date, kickoff_location: str) -> str:
     try:
-        gantt_url = request.build_absolute_uri(
-            reverse("tasks:project_gantt", args=[project.id])
+        project_url = request.build_absolute_uri(
+            reverse("tasks:project_overview", args=[project.id])
         ) if request else ""
     except Exception:
-        gantt_url = ""
+        project_url = ""
 
     lines = [
         f"<p><strong>Kickoff:</strong> {escape(project.name)}</p>",
@@ -101,8 +101,8 @@ def _kickoff_body_html(request, project, kickoff_date, kickoff_location: str) ->
     if kickoff_location:
         lines.append(f"<p><strong>Luogo:</strong> {escape(kickoff_location)}</p>")
 
-    if gantt_url:
-        lines.append(f'<p><a href="{gantt_url}">Apri kickoff sul portale</a></p>')
+    if project_url:
+        lines.append(f'<p><a href="{project_url}">Apri kickoff sul portale</a></p>')
     return "\n".join(lines)
 
 

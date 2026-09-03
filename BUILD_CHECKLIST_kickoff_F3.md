@@ -42,9 +42,9 @@ Spec sorgente: `C:\Dev\Portale Novicrom\BUILD_SPEC_kickoff_F3.md`
 
 - [x] Creato `views_projects.py` e inserita `identity_suggest`; le altre due view arriveranno nelle rispettive fasi.
 - [x] Nessuna estrazione `view_helpers.py` necessaria per la view Fase A.
-- [ ] Registrare le tre route in ordine sicuro (2/3: `identity_suggest` e `project_actions`; manca `project_overview`).
-- [ ] `manage.py check` verde.
-- Stato: DA FARE — non assegnata.
+- [x] Registrate le tre route in ordine sicuro (`identity_suggest`, `project_actions`, `project_overview`).
+- [x] `manage.py check` verde.
+- Stato: COMPLETATA — Codex.
 
 ## Sessione 4 — Fase B: registro azioni
 
@@ -57,24 +57,24 @@ Spec sorgente: `C:\Dev\Portale Novicrom\BUILD_SPEC_kickoff_F3.md`
 
 ## Sessione 5 — Fase C: panoramica commessa
 
-- [ ] View/route `project_overview` come landing commessa.
-- [ ] Template `project_overview.html` senza CSS inline.
-- [ ] Cinque tab e conteggio azioni aperte.
-- [ ] Aggiornare tutti gli `active` delle view con tab progetto.
-- [ ] Ridirezionare gli ingressi generici alla Panoramica.
-- [ ] `tests_project_overview.py`.
-- [ ] Test mirati Fase C verdi.
-- Stato: DA FARE — non assegnata.
+- [x] View/route `project_overview` come landing commessa.
+- [x] Template `project_overview.html` senza CSS inline.
+- [x] Cinque tab e conteggio azioni aperte.
+- [x] Aggiornati tutti gli `active` delle view con tab progetto.
+- [x] Ridirezionati gli ingressi generici alla Panoramica; i link esplicitamente Gantt/Piano restano sul piano.
+- [x] `tests_project_overview.py`.
+- [x] Test mirati Fase C verdi (9 test) e 8 regressioni preesistenti verdi.
+- Stato: COMPLETATA — Codex.
 
 ## Sessione 6 — Chiusura funzionale
 
-- [ ] Suite `tasks` completa verde.
-- [ ] Django `check` verde.
-- [ ] `makemigrations --check --dry-run` verde.
-- [ ] `secret_hygiene_check` verde.
+- [x] Suite `tasks` completa verde (227 test).
+- [x] Django `check` verde.
+- [x] `makemigrations --check --dry-run` verde.
+- [x] `secret_hygiene_check` verde.
 - [ ] Verifica manuale dei quattro scenari della spec.
-- [ ] Documentazione, changelog e registri agente aggiornati.
-- Stato: DA FARE — non assegnata.
+- [x] Documentazione, changelog e registri agente aggiornati.
+- Stato: PARZIALE — verifiche automatiche completate da Codex; verifica manuale da fare.
 
 ## Sessione 7 — UI Passata 1
 
@@ -107,3 +107,5 @@ Spec sorgente: `C:\Dev\Portale Novicrom\BUILD_SPEC_kickoff_F3.md`
 
 - 2026-09-02 — Codex — Fase A: 11 test `tasks.tests_identity` verdi; 5 regressioni esistenti su `Project`/creazione kickoff verdi; `manage.py check`, `makemigrations --check --dry-run`, `secret_hygiene_check` e `git diff --check` verdi.
 - 2026-09-02 — Codex — Fase B: 11 test `tasks.tests_action_register` verdi; builder fissato a 3 query e view a 4 query (render template escluso dal conteggio).
+- 2026-09-02 — Codex — Fase C: 9 test `tasks.tests_project_overview` verdi; 8 regressioni mirate su tab, portfolio, board, `Da gestire` e copia kickoff verdi. Primo run: 5 subtest falliti per frammento HTML incompleto nell'asserzione, corretto il solo nuovo test e rilanciato verde.
+- 2026-09-03 — Codex — Chiusura automatica Fasi A-C: suite completa `tasks` verde, 227 test; Django `check`, migration drift, secret hygiene e `git diff --check` verdi. Resta la verifica manuale dei quattro scenari prima di chiudere la Sessione 6.

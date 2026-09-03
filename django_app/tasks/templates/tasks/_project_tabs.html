@@ -1,6 +1,8 @@
 {% load static %}
 <nav class="tk-tabs" aria-label="Sezioni commessa">
-  <a class="tk-tab{% if active == 'gantt' %} tk-tab--active{% endif %}" href="{% url 'tasks:project_gantt' project.id %}">Gantt</a>
+  <a class="tk-tab{% if active == 'overview' %} tk-tab--active{% endif %}" href="{% url 'tasks:project_overview' project.id %}">Panoramica</a>
+  <a class="tk-tab{% if active == 'actions' %} tk-tab--active{% endif %}" href="{% url 'tasks:project_actions' project.id %}">Azioni{% if tasks_shell_open_action_count %} ({{ tasks_shell_open_action_count }}){% endif %}</a>
   <a class="tk-tab{% if active == 'meetings' %} tk-tab--active{% endif %}" href="{% url 'tasks:project_meetings' project.id %}">Incontri</a>
+  <a class="tk-tab{% if active == 'gantt' %} tk-tab--active{% endif %}" href="{% url 'tasks:project_gantt' project.id %}">Piano</a>
   <a class="tk-tab{% if active == 'vrf' %} tk-tab--active{% endif %}" href="{% url 'tasks:project_vrf_upload' project.id %}">VRF</a>
 </nav>
