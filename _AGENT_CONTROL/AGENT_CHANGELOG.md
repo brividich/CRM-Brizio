@@ -1,5 +1,59 @@
 # Agent Changelog
 
+## 2026-09-02 - Codex
+
+- Area: `django_app/tasks`, KICK-OFF F3 — Fase C Panoramica commessa.
+- Richiesta: implementare la Fase C di `BUILD_SPEC_kickoff_F3.md` nel branch/worktree condiviso e aggiornare la checklist operativa.
+- File modificati/creati: `BUILD_CHECKLIST_kickoff_F3.md`, `django_app/tasks/action_register.py`, `views_projects.py`, `views.py`, `urls.py`, `acl_bootstrap.py`, nuovo `templates/tasks/project_overview.html`, `templates/tasks/_project_tabs.html`, `_readiness_checklist.html`, `projects.html`, `_board_card.html`, `_timeline.html`, `list.html`, `static/tasks/css/tasks.css`, `kickoff_invite.py`, nuovo `tests_project_overview.py`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/03_BACKEND_MODULES.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: `django_app/tasks/acl_bootstrap.py` per associare `tasks:project_overview` al permesso canonico esistente `tasks.kickoff.projects` e invalidare la cache bootstrap (`v8` -> `v9`); nessuna permission/grant nuova. Modificato il routing locale `django_app/tasks/urls.py`; nessun routing globale, middleware, settings, autenticazione o navigazione globale. `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente.
+- Motivo tecnico: il Gantt fungeva impropriamente da landing e le informazioni di stato della commessa erano disperse tra piano, incontri, VRF e attività.
+- Modifica: nuova Panoramica scoped con team/fase/readiness, tre metriche, top 5 azioni e ultimi 3 incontri; cinque tab contestuali con conteggio aperto; `active="vrf"` corretto nelle view VRF; CTA mutative filtrate tramite `_can_manage_project`; ingressi generici di portfolio/card/board/timeline/riepilogo/invito e redirect post-copia portati alla Panoramica, mantenendo i link esplicitamente Gantt/Piano sul piano. Il conteggio tab usa tre query `COUNT` e non materializza le azioni nelle view preesistenti.
+- Impatto previsto: ogni commessa apre su un riepilogo operativo leggibile anche in sola lettura; il piano resta una sezione distinta e le azioni urgenti sono immediatamente visibili.
+- Rischi residui: il conteggio tab aggiunge tre query leggere alle pagine contestuali preesistenti; la futura Passata 2 introdurrà annotazioni aggregate per le liste multi-commessa. Nessuna verifica visuale browser chiaro/scuro eseguita in questa fase; prevista nei passaggi UI successivi. Il bump versione resta rinviato alla chiusura complessiva F3 per evitare incrementi intermedi sullo stesso branch.
+- Test/check: 9 test `tasks.tests_project_overview` OK e 8 regressioni preesistenti su tab, portfolio, board, `Da gestire` e copia kickoff OK; primo run con 5 subtest falliti esclusivamente per frammento HTML incompleto nel nuovo test, corretto e rilanciato verde. Suite completa `tasks` OK (227 test); `py_compile`, `manage.py check --settings=config.settings.test`, `makemigrations --check --dry-run`, `secret_hygiene_check` e `git diff --check` OK.
+- Backup creati: nessuno; nessun DB dev/prod modificato, solo SQLite di test isolato.
+- README aggiornato: si.
+- CHANGELOG aggiornato: si (`CHANGELOG.md` e `django_app/CHANGELOG.md`).
+- AGENT_CHANGELOG aggiornato: si.
+- Esito: Fase C implementata e verificata; Sessione 6 automatica completata, resta la verifica manuale dei quattro scenari della spec.
+- Note per altro agente: branch `feature/kickoff-f3-fruibilita`, worktree `C:\Dev\pn-kickoff-f3`. Sessioni 1-5 complete dopo il commit; la Sessione 6 prevede suite `tasks` completa e controlli funzionali, poi le tre passate UI. Non duplicare `project_overview` in `views.py`.
+
+## 2026-09-02 - Codex
+
+- Area: `django_app/tasks`, KICK-OFF F3 — Fase B registro azioni unico.
+- Richiesta: proseguire l'implementazione di `BUILD_SPEC_kickoff_F3.md` mantenendo aggiornata la checklist operativa condivisa con Claude Code.
+- File modificati/creati: `BUILD_CHECKLIST_kickoff_F3.md`, nuovo `django_app/tasks/action_register.py`, `django_app/tasks/views_projects.py`, `django_app/tasks/urls.py`, `django_app/tasks/acl_bootstrap.py`, nuovo `django_app/tasks/templates/tasks/project_actions.html`, `django_app/tasks/static/tasks/css/tasks.css`, nuovo `django_app/tasks/tests_action_register.py`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/03_BACKEND_MODULES.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: `django_app/tasks/acl_bootstrap.py` per associare la nuova route read-only `tasks:project_actions` al permesso canonico esistente `tasks.kickoff.projects` e invalidare la cache bootstrap (`v7` -> `v8`); nessuna permission o grant nuovo. Modificato anche il routing locale `django_app/tasks/urls.py`; nessun routing globale, middleware, settings, autenticazione o navigazione globale toccati. `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente nella workspace.
+- Motivo tecnico: issue incontro, attivita e sotto-attivita erano consultabili in punti separati, senza un'unica coda operativa di commessa.
+- Modifica: introdotta dataclass frozen `ActionRow` e tre collector indipendenti con `select_related`, semantica scadenza uniforme e ordinamento deterministico; aggiunta view scoped con filtro server-side `closed=1`, contatori e tabella tokenizzata senza CSS inline; gestiti issue senza incontro e fallimenti isolati per sorgente.
+- Impatto previsto: gli utenti autorizzati possono consultare tutte le azioni della commessa in un registro read-only, con scadute prioritarie e chiuse opzionali, senza N+1.
+- Rischi residui: la tab contestuale “Azioni” verra aggiunta nella Fase C insieme alla Panoramica; fino ad allora la route e disponibile direttamente. Il fallback di un issue senza incontro punta alla lista incontri con un'ancora che puo non corrispondere a un elemento renderizzato.
+- Test/check: 11 test `tasks.tests_action_register` OK, inclusi binding ACL, 3 query per builder e 4 query per view (render template escluso); `py_compile` OK; `manage.py check --settings=config.settings.test` OK; `makemigrations --check --dry-run --settings=config.settings.test` OK; `secret_hygiene_check --settings=config.settings.test` OK; `git diff --check` OK.
+- Backup creati: nessuno; nessun database dev/prod modificato, soltanto il database SQLite isolato dei test.
+- README aggiornato: si.
+- CHANGELOG aggiornato: si (`CHANGELOG.md` e `django_app/CHANGELOG.md`).
+- AGENT_CHANGELOG aggiornato: si.
+- Esito: Fase B completata e verificata.
+- Note per altro agente: lavorare sul branch `feature/kickoff-f3-fruibilita`; la prossima voce e la Fase C. `project_actions` e gia in `views_projects.py`, quindi non duplicarla; aggiornare prima `BUILD_CHECKLIST_kickoff_F3.md`.
+
+## 2026-09-02 - Codex
+
+- Area: `django_app/tasks`, KICK-OFF F3 — Fase A identita normalizzata e avvio struttura view dedicate.
+- Richiesta: analizzare `BUILD_SPEC_kickoff_F3.md`, avviare l'implementazione in collaborazione sequenziale con Claude Code e mantenere una checklist operativa condivisa.
+- File modificati/creati: `BUILD_CHECKLIST_kickoff_F3.md`, `django_app/tasks/identity.py`, `django_app/tasks/models.py`, `django_app/tasks/migrations/0035_normalize_project_identity.py`, `django_app/tasks/views_projects.py`, `django_app/tasks/urls.py`, `django_app/tasks/acl_bootstrap.py`, `django_app/tasks/templates/tasks/project_create.html`, `django_app/tasks/tests_identity.py`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/03_BACKEND_MODULES.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: `django_app/tasks/acl_bootstrap.py` per associare la nuova route read-only `tasks:identity_suggest` al permesso canonico gia esistente `tasks.kickoff.view`; nessuna permission/grant nuova. `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente nella workspace. Modificato anche il routing locale `django_app/tasks/urls.py`; nessun routing globale, middleware, settings o autenticazione toccati.
+- Motivo tecnico: P/N e clienti storici potevano differire per case/spazi, rendendo inaffidabili raggruppamenti e agganci; il form non offriva suggerimenti scoped sui valori gia presenti.
+- Modifica: normalizzatori puri (P/N uppercase, trim e collasso spazi; cliente trim/collasso spazi con case preservato) applicati come primo blocco di `Project.save()` lasciando invariato il retry del progressivo; data migration idempotente in batch senza `save()` per riga, con report collisioni non distruttivo; endpoint JSON read-only con scope `_scoped_projects_queryset`, massimo 20 valori e `401/403` JSON; datalist Cliente/P/N nel form; test separati. Creata checklist condivisa con stato e ownership delle sessioni F3.
+- Impatto previsto: nuovi salvataggi e dati storici hanno identita coerente; il form propone soltanto clienti/P/N visibili all'utente; nessun record viene fuso o eliminato e i progressivi kickoff restano invariati.
+- Rischi residui: la migration segnala eventuali collisioni e richiede revisione manuale; non le risolve. Il percorso completo F3 (registro azioni, panoramica e restyle) resta da implementare nelle sessioni successive della checklist.
+- Test/check: 11 test nuovi `tasks.tests_identity` OK; 5 test esistenti su numerazione/nome/creazione/riuso kickoff OK; `manage.py check --settings=config.settings.test` OK; `makemigrations --check --dry-run --settings=config.settings.test` OK; `secret_hygiene_check --settings=config.settings.test` OK; `git diff --check` OK. Un primo comando aggregato conteneva un nome test errato, poi rilanciato col nome corretto e verde.
+- Backup creati: nessuno; migration non applicata a DB dev/prod, solo al database SQLite usa-e-getta dei test.
+- README aggiornato: si.
+- CHANGELOG aggiornato: si (`CHANGELOG.md` e `django_app/CHANGELOG.md`).
+- AGENT_CHANGELOG aggiornato: si.
+- Esito: Fase A completata; sessioni F3 successive aperte nella checklist.
+- Note per altro agente: lavorare sul branch `feature/kickoff-f3-fruibilita`; prima di partire aggiornare `BUILD_CHECKLIST_kickoff_F3.md`. `views_projects.py` contiene gia `identity_suggest`; non estrarre gli helper finche non emerge un import circolare reale.
+
 ## 2026-08-28 - Codex
 
 - Area: artifact HR locale `outputs/.../Formazione_2026.xlsx`; nessuna modifica al codice applicativo.

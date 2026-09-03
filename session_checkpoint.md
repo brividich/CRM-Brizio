@@ -1,8 +1,32 @@
 # Session Checkpoint
 
-Data: 2026-08-28
+Data: 2026-09-02
 
 Ultime voci viste/aggiunte in questa sessione:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-02 - Codex` (KICK-OFF F3 Fase C: Panoramica commessa).
+- `BUILD_CHECKLIST_kickoff_F3.md` -> Sessioni 1-5 completate; prossima Sessione 6, chiusura funzionale.
+- `django_app/tasks/views_projects.py`, `urls.py`, `templates/tasks/project_overview.html`, `static/tasks/css/tasks.css` -> landing scoped con team/fase/readiness, metriche, top 5 azioni e ultimi 3 incontri, senza CSS inline.
+- `django_app/tasks/_project_tabs.html`, `views.py`, `action_register.py` -> cinque tab contestuali, active VRF corretto e conteggio azioni aperte con tre query `COUNT` nelle view preesistenti, riuso del conteggio nelle nuove.
+- Ingressi generici aggiornati in `projects.html`, `_board_card.html`, `_timeline.html`, `list.html`, `kickoff_invite.py` e redirect post-copia; link esplicitamente Gantt/Piano invariati.
+- `django_app/tasks/acl_bootstrap.py` -> binding `tasks:project_overview` a `tasks.kickoff.projects`, cache bootstrap `v9`; nessun nuovo permesso/grant.
+- `django_app/tasks/tests_project_overview.py` -> 9 test nuovi; 8 regressioni preesistenti verdi. Nessun backup, dipendenza, migration o DB dev/prod modificato.
+- Documentazione Fase C aggiornata: `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/03_BACKEND_MODULES.md`; bump versione rinviato alla chiusura complessiva F3.
+- Chiusura automatica Fasi A-C: suite completa `tasks` verde (227 test), `py_compile`, Django check, migration drift, secret hygiene e `git diff --check` verdi; resta la verifica manuale della Sessione 6.
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-02 - Codex` (KICK-OFF F3 Fase B: registro azioni unico).
+- `BUILD_CHECKLIST_kickoff_F3.md` -> Sessione 4 completata; Sessione 3 a 2/3 route, in attesa di `project_overview` nella Fase C.
+- `django_app/tasks/action_register.py`, `views_projects.py`, `urls.py`, `templates/tasks/project_actions.html`, `static/tasks/css/tasks.css` -> registro read-only scoped di issue/task/subtask, ordinamento operativo, filtro chiuse, contatori ed empty state.
+- `django_app/tasks/acl_bootstrap.py` -> binding `tasks:project_actions` al permesso esistente `tasks.kickoff.projects`; cache bootstrap portata a `v8`, nessuna permission/grant nuova.
+- `django_app/tasks/tests_action_register.py` -> 11 test verdi (incluso binding ACL), budget dichiarato 3 query builder / 4 query view; `py_compile`, Django check, migration drift, secret hygiene e diff check verdi. Nessun backup, dipendenza, migration o DB dev/prod modificato.
+- Documentazione Fase B aggiornata: `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/03_BACKEND_MODULES.md`.
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-02 - Codex` (KICK-OFF F3: RECON, checklist condivisa e Fase A identita normalizzata).
+- `BUILD_CHECKLIST_kickoff_F3.md` -> checklist operativa condivisa per le sessioni 1-9; Sessione 1 e Fase A completate, struttura view F3 avviata.
+- `django_app/tasks/identity.py`, `models.py`, migration `0035_normalize_project_identity.py` -> normalizzazione P/N/cliente e riallineamento storico idempotente in batch con collision report, senza cambiare `kickoff_number`.
+- `django_app/tasks/views_projects.py`, `urls.py`, `acl_bootstrap.py`, `templates/tasks/project_create.html` -> suggerimenti Cliente/P/N scoped, limite 20, JSON `401/403`, datalist nel form e binding al permesso esistente `tasks.kickoff.view`.
+- `django_app/tasks/tests_identity.py` -> 11 test nuovi; 5 regressioni esistenti su numerazione/creazione/riuso verificate. Check, migration drift, secret hygiene e diff check verdi.
+- Documentazione aggiornata: `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/03_BACKEND_MODULES.md`. Nessun backup; nessun DB dev/prod modificato; nessun nuovo permesso, campo o dipendenza.
 
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-08-28 - Codex` (creazione Excel formazione 2026 dal risultato query TSV fornito dall'utente).
 - `outputs/01a043e8-8cb2-7fb1-9eb3-ca609cd2ef81/Formazione_2026.xlsx` -> artifact HR locale a 6 fogli: dashboard, registro univoco, fonte integrale, riepiloghi corsi/reparti e controlli.

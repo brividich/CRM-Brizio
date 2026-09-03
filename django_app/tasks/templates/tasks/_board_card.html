@@ -1,5 +1,5 @@
 <div class="kbf-card" draggable="{{ is_board_editor|yesno:'true,false' }}" data-project-id="{{ project.id }}">
-  <a class="kbf-card-name" href="{% url 'tasks:project_gantt' project.id %}">{{ project.name }}</a>
+  <a class="kbf-card-name" href="{% url 'tasks:project_overview' project.id %}">{{ project.name }}</a>
   {% if project.client_name %}<div class="kbf-card-client">{{ project.client_name }}</div>{% endif %}
   {% if project.readiness %}<div class="kbf-card-badge">{% include "tasks/_readiness_badge.html" with readiness=project.readiness %}</div>{% endif %}
   <div class="kbf-card-meta">

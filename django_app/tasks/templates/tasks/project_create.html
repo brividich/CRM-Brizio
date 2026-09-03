@@ -54,11 +54,13 @@
               <div class="kp-field col-2">
                 <label for="{{ form.client_name.id_for_label }}">Cliente <span class="kp-req">*</span></label>
                 {{ form.client_name }}
+                <datalist id="project-client-datalist"></datalist>
                 {% if form.client_name.errors %}<div class="kp-err">{{ form.client_name.errors|join:" " }}</div>{% endif %}
               </div>
               <div class="kp-field">
                 <label for="{{ form.part_number.id_for_label }}">P/N</label>
                 {{ form.part_number }}
+                <datalist id="project-part-number-datalist"></datalist>
                 {% if form.part_number.errors %}<div class="kp-err">{{ form.part_number.errors|join:" " }}</div>{% endif %}
               </div>
               <div class="kp-field">
@@ -158,4 +160,60 @@
   </form>
 
 </div>
+{% endblock %}
+
+{% block tasks_shell_scripts %}
+<script>
+(function () {
+  'use strict';
+
+  const suggestUrl = "{% url 'tasks:identity_suggest' %}";
+
+  function attachIdentitySuggestions(inputId, datalistId, field) {
+    const input = document.getElementById(inputId);
+    const datalist = document.getElementById(datalistId);
+    if (!input || !datalist) return;
+
+    let requestSequence = 0;
+    async function loadSuggestions() {
+      const query = String(input.value || '').trim();
+      if (query.length < 1) return;
+
+      const currentSequence = ++requestSequence;
+      try {
+        const response = await fetch(
+          suggestUrl + '?field=' + encodeURIComponent(field) + '&q=' + encodeURIComponent(query),
+          {
+            headers: {
+              'Accept': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest'
+            }
+          }
+        );
+        const data = await window.portalReadJsonResponse(response, {
+          fallbackError: 'Impossibile caricare i suggerimenti.'
+        });
+        if (currentSequence !== requestSequence) return;
+
+        datalist.replaceChildren();
+        (data.values || []).forEach(function (value) {
+          const option = document.createElement('option');
+          option.value = value;
+          datalist.appendChild(option);
+        });
+        input.setAttribute('list', datalistId);
+      } catch (error) {
+        // Il suggerimento e' accessorio: il campo resta sempre testo libero.
+      }
+    }
+
+    input.addEventListener('focus', loadSuggestions, { once: true });
+    input.addEventListener('input', loadSuggestions);
+    input.addEventListener('change', loadSuggestions);
+  }
+
+  attachIdentitySuggestions('{{ form.client_name.id_for_label }}', 'project-client-datalist', 'client');
+  attachIdentitySuggestions('{{ form.part_number.id_for_label }}', 'project-part-number-datalist', 'part_number');
+})();
+</script>
 {% endblock %}

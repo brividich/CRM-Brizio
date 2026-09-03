@@ -830,7 +830,7 @@
       {% if admin_project_summary %}
       <div class="ts-card-grid" style="margin-top:4px;">
         {% for project in admin_project_summary %}
-          <a class="ts-card ts-card-link" href="{% url 'tasks:project_gantt' project.id %}">
+          <a class="ts-card ts-card-link" href="{% url 'tasks:project_overview' project.id %}">
             <div class="ts-card-title">{{ project.name }}</div>
             <div class="ts-card-meta" style="margin-top:6px;">
               <span class="task-meta-chip">Aperte: {{ project.open_total }}</span>

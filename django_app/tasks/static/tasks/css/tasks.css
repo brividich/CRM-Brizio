@@ -868,6 +868,89 @@ body.tk-wide .content { width: 100%; max-width: none; }
 .tk-tab:hover { color: var(--text); background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .tk-tab--active { color: var(--accent); background: var(--surface); border-color: var(--border); position: relative; top: 1px; }
 
+/* ── Registro azioni commessa ───────────────────────────────────── */
+.ka-summary { display: flex; align-items: stretch; gap: var(--hub-space-3); flex-wrap: wrap; margin-bottom: var(--hub-space-4); }
+.ka-summary-card { display: flex; align-items: baseline; gap: var(--hub-space-2); min-width: 120px; padding: var(--hub-space-3) var(--hub-space-4); border: 1px solid var(--hub-color-border); border-radius: var(--hub-radius-md); background: var(--hub-color-surface); box-shadow: var(--hub-shadow-sm); }
+.ka-summary-card--danger { border-color: var(--hub-status-danger); background: var(--hub-status-danger-bg); }
+.ka-summary-value { color: var(--hub-color-text); font-size: var(--hub-font-xl); font-weight: 600; }
+.ka-summary-label { color: var(--hub-color-text-muted); font-size: var(--hub-font-sm); }
+.ka-summary-text { align-self: center; margin: 0; color: var(--hub-color-text-muted); font-size: var(--hub-font-sm); }
+.ka-table-wrap { overflow-x: auto; border: 1px solid var(--hub-color-border); border-radius: var(--hub-radius-lg); background: var(--hub-color-surface); box-shadow: var(--hub-shadow-sm); }
+.ka-table { width: 100%; border-collapse: collapse; color: var(--hub-color-text); font-size: var(--hub-font-base); }
+.ka-table th, .ka-table td { padding: var(--hub-space-3) var(--hub-space-4); border-bottom: 1px solid var(--hub-color-border); text-align: left; vertical-align: middle; }
+.ka-table th { background: var(--hub-color-surface-raised); color: var(--hub-color-text-muted); font-size: var(--hub-font-xs); font-weight: 600; }
+.ka-table tbody tr:last-child td { border-bottom: 0; }
+.ka-table tbody tr:hover { background: var(--hub-color-surface-raised); }
+.ka-table .ka-row--danger { background: var(--hub-status-danger-bg); }
+.ka-table .ka-row--closed { color: var(--hub-color-text-soft); }
+.ka-action-link { color: var(--hub-color-text); font-weight: 600; text-decoration: none; }
+.ka-action-link:hover { color: var(--hub-color-text); text-decoration: underline; }
+.ka-origin, .ka-status { display: inline-flex; padding: var(--hub-space-1) var(--hub-space-2); border-radius: var(--hub-radius-sm); font-size: var(--hub-font-xs); font-weight: 600; white-space: nowrap; }
+.ka-origin--issue { color: var(--hub-status-warning); background: var(--hub-status-warning-bg); }
+.ka-origin--task { color: var(--hub-status-info); background: var(--hub-status-info-bg); }
+.ka-origin--subtask { color: var(--hub-status-neutral); background: var(--hub-status-neutral-bg); }
+.ka-status--danger { color: var(--hub-status-danger); background: var(--hub-status-danger-bg); }
+.ka-status--open { color: var(--hub-status-success); background: var(--hub-status-success-bg); }
+.ka-status--closed { color: var(--hub-status-neutral); background: var(--hub-status-neutral-bg); }
+.ka-muted { color: var(--hub-color-text-soft); }
+.ka-empty { padding: var(--hub-space-8); border: 1px solid var(--hub-color-border); border-radius: var(--hub-radius-lg); background: var(--hub-color-surface); color: var(--hub-color-text-muted); text-align: center; }
+.ka-empty p { margin: 0 0 var(--hub-space-4); }
+
+@media (max-width: 700px) {
+  .ka-summary-card { flex: 1; }
+  .ka-table th, .ka-table td { padding: var(--hub-space-2) var(--hub-space-3); }
+}
+
+/* ── Panoramica commessa ────────────────────────────────────────── */
+.ko-phase { display: inline-flex; padding: var(--hub-space-1) var(--hub-space-2); border: 1px solid var(--hub-color-border); border-radius: var(--hub-radius-md); background: var(--hub-status-neutral-bg); color: var(--hub-color-text-muted); font-size: var(--hub-font-xs); font-weight: 600; }
+.ko-team { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--hub-space-3); margin-bottom: var(--hub-space-4); }
+.ko-team-item { display: flex; flex-direction: column; gap: var(--hub-space-1); padding: var(--hub-space-3) var(--hub-space-4); border: 1px solid var(--hub-color-border); border-radius: var(--hub-radius-lg); background: var(--hub-color-surface); box-shadow: var(--hub-shadow-sm); }
+.ko-team-role { color: var(--hub-color-text-muted); font-size: var(--hub-font-xs); }
+.ko-team-name { color: var(--hub-color-text); font-size: var(--hub-font-base); font-weight: 600; }
+.ko-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--hub-space-3); margin-bottom: var(--hub-space-4); }
+.ko-metric { display: flex; flex-direction: column; gap: var(--hub-space-1); min-height: 82px; padding: var(--hub-space-4); border: 1px solid var(--hub-color-border); border-radius: var(--hub-radius-lg); background: var(--hub-color-surface); color: var(--hub-color-text); text-decoration: none; box-shadow: var(--hub-shadow-sm); }
+.ko-metric:hover { background: var(--hub-color-surface-raised); }
+.ko-metric-value { font-size: var(--hub-font-heading); font-weight: 600; }
+.ko-metric-value--date { font-size: var(--hub-font-xl); }
+.ko-metric-value--empty { color: var(--hub-color-text-soft); }
+.ko-metric-label { color: var(--hub-color-text-muted); font-size: var(--hub-font-sm); }
+.ko-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--hub-space-4); margin-bottom: var(--hub-space-4); }
+.ko-panel { overflow: hidden; border: 1px solid var(--hub-color-border); border-radius: var(--hub-radius-lg); background: var(--hub-color-surface); box-shadow: var(--hub-shadow-sm); }
+.ko-panel-head { display: flex; align-items: center; justify-content: space-between; gap: var(--hub-space-3); padding: var(--hub-space-4); border-bottom: 1px solid var(--hub-color-border); background: var(--hub-color-surface-raised); }
+.ko-panel-head h2 { margin: 0; color: var(--hub-color-text); font-size: var(--hub-font-lg); font-weight: 600; }
+.ko-panel-head p { margin: var(--hub-space-1) 0 0; color: var(--hub-color-text-muted); font-size: var(--hub-font-xs); }
+.ko-panel-link { flex-shrink: 0; padding: var(--hub-space-2); border-radius: var(--hub-radius-md); color: var(--hub-color-text); font-size: var(--hub-font-sm); font-weight: 600; text-decoration: none; }
+.ko-panel-link:hover { background: var(--hub-color-surface); }
+.ko-panel-body { padding: var(--hub-space-4); }
+.ko-panel-body--flush { padding: 0; }
+.ko-action-list, .ko-meeting-list { margin: 0; padding: 0; list-style: none; }
+.ko-action-item { display: flex; align-items: center; justify-content: space-between; gap: var(--hub-space-3); padding: var(--hub-space-3) var(--hub-space-4); border-bottom: 1px solid var(--hub-color-border); }
+.ko-action-item:last-child { border-bottom: 0; }
+.ko-action-item--danger { background: var(--hub-status-danger-bg); }
+.ko-action-main { display: flex; min-width: 0; flex-direction: column; gap: var(--hub-space-1); }
+.ko-action-main a { overflow: hidden; color: var(--hub-color-text); font-size: var(--hub-font-base); font-weight: 600; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+.ko-action-main a:hover { text-decoration: underline; }
+.ko-action-main span, .ko-action-meta { color: var(--hub-color-text-muted); font-size: var(--hub-font-xs); }
+.ko-action-meta { display: flex; flex-shrink: 0; align-items: center; gap: var(--hub-space-2); }
+.ko-meeting-list li { border-bottom: 1px solid var(--hub-color-border); }
+.ko-meeting-list li:last-child { border-bottom: 0; }
+.ko-meeting-list a { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--hub-space-3); padding: var(--hub-space-3) var(--hub-space-4); color: var(--hub-color-text); text-decoration: none; }
+.ko-meeting-list a:hover { background: var(--hub-color-surface-raised); }
+.ko-meeting-title { overflow: hidden; font-size: var(--hub-font-base); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.ko-meeting-date { color: var(--hub-color-text-muted); font-size: var(--hub-font-xs); }
+.ko-meeting-status { display: inline-flex; padding: var(--hub-space-1) var(--hub-space-2); border-radius: var(--hub-radius-md); font-size: var(--hub-font-xs); font-weight: 600; }
+.ko-meeting-status--pianificato { color: var(--hub-status-info); background: var(--hub-status-info-bg); }
+.ko-meeting-status--svolto { color: var(--hub-status-success); background: var(--hub-status-success-bg); }
+.ko-meeting-status--annullato { color: var(--hub-status-neutral); background: var(--hub-status-neutral-bg); }
+.ko-empty { margin: 0; padding: var(--hub-space-5); color: var(--hub-color-text-muted); font-size: var(--hub-font-sm); text-align: center; }
+.ko-panel--meetings { margin-bottom: var(--hub-space-4); }
+
+@media (max-width: 800px) {
+  .ko-team, .ko-metrics, .ko-grid { grid-template-columns: 1fr; }
+  .ko-meeting-list a { grid-template-columns: minmax(0, 1fr) auto; }
+  .ko-meeting-status { grid-column: 1 / -1; justify-self: start; }
+}
+
 /* ── Messaggi di modulo (allineati ai token core) ───────────────── */
 .tk-messages { display: flex; flex-direction: column; gap: 8px; margin-bottom: var(--hub-space-4); }
 .tk-message { padding: 10px 14px; border-radius: var(--hub-radius-md); border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: var(--hub-font-sm); }
