@@ -288,6 +288,16 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # KICK-OFF — promemoria "domani hai un incontro" ai partecipanti (portale
+        # + email esterne) degli incontri PIANIFICATO in agenda per il giorno dopo.
+        "name": "tasks_meeting_reminders",
+        "func": "tasks.tasks.run_meeting_reminders",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "0 17 * * *",       # ogni pomeriggio alle 17:00 (il giorno prima)
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # GESTIONE SPECIFICHE — reminder 7gg sui MOD.133 non presi in carico.
         # Timer in pausa per le specifiche sospese/in errore (gestito nel job).
         "name": "gestione_specifiche_reminder",

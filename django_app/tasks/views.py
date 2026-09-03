@@ -6404,9 +6404,13 @@ def project_meeting_create(request, project_id: int):
             return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting.pk)
     else:
         auto_agenda = [_meeting_issue_agenda_item(issue) for issue in meeting_issues]
+        default_partecipanti = [
+            u.pk for u in (project.project_manager, project.capo_commessa, project.programmer) if u
+        ]
         form = KickoffMeetingForm(initial={
             "data": timezone.localdate(),
             "agenda_items_raw": json.dumps(auto_agenda),
+            "partecipanti_utenti": default_partecipanti,
         })
     project_tasks = _project_tasks_for_picker(project)
     meeting_rooms = list(MeetingRoom.objects.values_list("nome", flat=True))
@@ -6450,6 +6454,7 @@ def project_meeting_detail(request, project_id: int, meeting_id: int):
         .distinct()
         .order_by("status", "due_date", "created_at", "id")
     )
+    open_issue_count = sum(1 for issue in meeting_issues if not issue.is_resolved)
     return render(
         request,
         "tasks/project_meeting_detail.html",
@@ -6460,6 +6465,7 @@ def project_meeting_detail(request, project_id: int, meeting_id: int):
             "meeting": meeting,
             "can_manage": can_manage,
             "meeting_issues": meeting_issues,
+            "open_issue_count": open_issue_count,
             "next_steps_lines": next_steps_lines,
             "active_users": task_active_users_queryset() if can_manage else [],
             "agenda_toggle_url_base": f"/tasks/projects/{project_id}/incontri/{meeting_id}/agenda-toggle/",

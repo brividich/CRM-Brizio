@@ -102,3 +102,81 @@ def run_meeting_issue_reminders(**kwargs) -> dict:
             logger.exception("run_meeting_issue_reminders: notifica in-app fallita per %s", email)
 
     return {"reminders": sent, "issues": qs.count()}
+
+
+@system_job_run("tasks_meeting_reminders")
+def run_meeting_reminders(**kwargs) -> dict:
+    """Promemoria "domani hai un incontro" per gli incontri KICK-OFF di domani.
+
+    Per ogni `KickoffMeeting` ancora PIANIFICATO con `data` = domani, avvisa i
+    partecipanti (notifica in-app per gli utenti portale + email a tutti,
+    inclusi gli indirizzi esterni). Copre il caso in cui `sync_outlook` sia
+    spento (l'invito Outlook, quando attivo, ha già il proprio promemoria
+    calendario). Idempotente: `reminder_sent_at` viene marcato al primo giro.
+    """
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from core.email_utils import send_hub_mail
+    from core.notifiche import invia_notifica
+    from tasks.minute_email import meeting_url
+    from tasks.models import KickoffMeeting, MeetingStatus
+
+    tomorrow = timezone.localdate() + timedelta(days=1)
+    qs = (
+        KickoffMeeting.objects.filter(
+            stato=MeetingStatus.PIANIFICATO,
+            data=tomorrow,
+            reminder_sent_at__isnull=True,
+        )
+        .select_related("project")
+        .prefetch_related("partecipanti_utenti")
+    )
+
+    sent = 0
+    for meeting in qs:
+        label = meeting.titolo or f"Incontro {meeting.numero}"
+        project_label = getattr(meeting.project, "name", "")
+        when = meeting.data.strftime("%d/%m/%Y")
+        if meeting.ora:
+            when += f" alle {meeting.ora.strftime('%H:%M')}"
+        message = f'Domani hai l\'incontro "{label}" [{project_label}] — {when}.'
+        url = meeting_url(meeting)
+
+        emails: list[str] = []
+        for user in meeting.partecipanti_utenti.all():
+            profile = getattr(user, "profile", None)
+            legacy_id = getattr(profile, "legacy_user_id", None) if profile else None
+            if legacy_id:
+                try:
+                    invia_notifica(int(legacy_id), "generico", message[:500], url)
+                except (TypeError, ValueError):
+                    logger.exception("run_meeting_reminders: legacy_id non valido per user=%s", user.pk)
+            email = (getattr(user, "email", "") or "").strip()
+            if email:
+                emails.append(email)
+        for line in (meeting.partecipanti_email_extra or "").splitlines():
+            email = line.strip()
+            if email:
+                emails.append(email)
+        emails = sorted(set(emails))
+
+        if emails:
+            try:
+                send_hub_mail(
+                    f"Promemoria incontro domani — {label}",
+                    f"{message}\n\n{url}" if url else message,
+                    emails,
+                    title="Promemoria incontro KICK-OFF",
+                    email_type="VRF - KICK-OFF",
+                    fail_silently=True,
+                )
+            except Exception:
+                logger.exception("run_meeting_reminders: invio email fallito per meeting=%s", meeting.pk)
+
+        meeting.reminder_sent_at = timezone.now()
+        meeting.save(update_fields=["reminder_sent_at"])
+        sent += 1
+
+    return {"reminders": sent}

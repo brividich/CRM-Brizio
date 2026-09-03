@@ -386,43 +386,25 @@
       </div>
     </div>
     <div class="ts-panel-body">
-      <div class="tl-admin-kpis">
-        <div class="tl-admin-kpi c-blue">
-          <div class="tl-admin-kpi-val blue">{{ admin_console.unassigned }}</div>
-          <div class="tl-admin-kpi-label">Non assegnate</div>
-        </div>
-        <div class="tl-admin-kpi c-amber">
-          <div class="tl-admin-kpi-val amber">{{ admin_console.without_due_date }}</div>
-          <div class="tl-admin-kpi-label">Senza data fine</div>
-        </div>
-        <div class="tl-admin-kpi c-purple">
-          <div class="tl-admin-kpi-val purple">{{ admin_console.due_next_7d }}</div>
-          <div class="tl-admin-kpi-label">Scadono in 7gg</div>
-        </div>
-        <div class="tl-admin-kpi c-red">
-          <div class="tl-admin-kpi-val red">{{ admin_console.stale_in_progress }}</div>
-          <div class="tl-admin-kpi-label">In corso ferme &gt;7gg</div>
-        </div>
+      <div class="tl-admin-strip">
+        <span class="ts-chip {% if admin_console.unassigned %}warn{% else %}soft{% endif %}">{{ admin_console.unassigned }} non assegnate</span>
+        <span class="ts-chip {% if admin_console.without_due_date %}warn{% else %}soft{% endif %}">{{ admin_console.without_due_date }} senza data fine</span>
+        <span class="ts-chip {% if admin_console.due_next_7d %}info{% else %}soft{% endif %}">{{ admin_console.due_next_7d }} scadono in 7gg</span>
+        <span class="ts-chip {% if admin_console.stale_in_progress %}danger{% else %}soft{% endif %}">{{ admin_console.stale_in_progress }} in corso ferme &gt;7gg</span>
+        {% if readiness_summary %}
+          <span class="tl-admin-strip-sep"></span>
+          <span class="tk-readiness-summary tl-admin-strip-inline">
+            <span class="tk-readiness tk-readiness--ready">Pronte {{ readiness_summary.ready }}</span>
+            <span class="tk-readiness tk-readiness--partial">Quasi {{ readiness_summary.partial }}</span>
+            <span class="tk-readiness tk-readiness--notready">Non pronte {{ readiness_summary.notready }}</span>
+          </span>
+        {% endif %}
       </div>
-
-      {% if readiness_summary %}
-      <div class="tk-readiness-summary">
-        <span class="tk-readiness tk-readiness--ready">Pronte {{ readiness_summary.ready }}</span>
-        <span class="tk-readiness tk-readiness--partial">Quasi {{ readiness_summary.partial }}</span>
-        <span class="tk-readiness tk-readiness--notready">Non pronte {{ readiness_summary.notready }}</span>
-      </div>
-      {% endif %}
 
       {% if admin_project_summary %}
-      <div class="ts-card-grid" style="margin-top:4px;">
+      <div class="tl-admin-projects">
         {% for project in admin_project_summary %}
-          <a class="ts-card ts-card-link" href="{% url 'tasks:project_overview' project.id %}">
-            <div class="ts-card-title">{{ project.name }}</div>
-            <div class="ts-card-meta" style="margin-top:6px;">
-              <span class="task-meta-chip">Aperte: {{ project.open_total }}</span>
-              <span class="task-meta-chip">Totali: {{ project.task_total }}</span>
-            </div>
-          </a>
+          <a class="ts-chip soft" href="{% url 'tasks:project_overview' project.id %}">{{ project.name }} &middot; {{ project.open_total }}/{{ project.task_total }} aperte</a>
         {% endfor %}
       </div>
       {% endif %}
@@ -433,15 +415,17 @@
   <section class="ts-panel">
     <div class="ts-panel-head">
       <div class="ts-panel-title-wrap">
-        <h2 class="ts-panel-title">Backlog operativo</h2>
+        <h2 class="ts-panel-title">
+          {% if showing_mine_default %}Le tue attivita{% else %}Tutte le attivita{% if is_scope_admin %} &middot; scope amministrativo{% endif %}{% endif %}
+        </h2>
         <p class="ts-panel-subtitle">{{ tasks|length }} risultati &mdash; ordine per scadenza e ultimo aggiornamento.</p>
       </div>
       <div class="ts-panel-meta">
-        {% if showing_mine_default %}
-          <span class="ts-chip warn">Solo mie</span>
-          {% if is_scope_admin %}
-            <a class="ts-chip soft" style="text-decoration:none;" href="{% url 'tasks:list' %}?mine=0">Tutto scope</a>
-          {% endif %}
+        {% if is_scope_admin %}
+          <div class="tl-scope-toggle">
+            <a class="tl-scope-btn{% if showing_mine_default %} active{% endif %}" href="{% url 'tasks:list' %}">Le mie</a>
+            <a class="tl-scope-btn{% if not showing_mine_default %} active{% endif %}" href="{% url 'tasks:list' %}?mine=0">Tutto lo scope</a>
+          </div>
         {% endif %}
         <button class="tl-filter-toggle" id="tl-toggle-btn" type="button" onclick="toggleFilters()">
           <span class="tl-filter-icon">
@@ -455,15 +439,6 @@
     </div>
 
     <div class="ts-panel-body">
-      {% if showing_mine_default %}
-        <div class="ts-note-box">
-          Stai visualizzando le attivita kickoff vicine al tuo lavoro quotidiano.
-          {% if is_scope_admin %}
-            <a class="ts-link" href="{% url 'tasks:list' %}?mine=0">Passa alla vista completa di scope</a>.
-          {% endif %}
-        </div>
-      {% endif %}
-
       <div id="tl-filter-body" class="tl-filter-body">
         <form method="get" class="ts-stack">
           <div class="tl-filter-grid">
@@ -523,20 +498,22 @@
                 <th>Kickoff</th>
                 <th>Assegnato a</th>
                 <th>Scadenza</th>
-                <th></th>
               </tr>
             </thead>
             <tbody>
               {% for task in tasks %}
-                <tr class="status-{{ task.status|lower }}{% if task.is_overdue %} status-overdue{% endif %}">
+                <tr class="status-{{ task.status|lower }}{% if task.is_overdue %} status-overdue{% endif %} tl-row-clickable" data-href="{% url 'tasks:detail' task.id %}">
                   <td>
                     <a class="tl-task-link" href="{% url 'tasks:detail' task.id %}">{{ task.title }}</a>
                     {% if task.description %}<div class="tl-task-desc">{{ task.description|truncatechars:90 }}</div>{% endif %}
                     {% if task.tags %}<div class="tl-tag" title="{{ task.tags }}">{{ task.tags }}</div>{% endif %}
                   </td>
                   <td>
-                    <span class="ts-badge ts-badge--{{ task.status|lower }}">{{ task.get_status_display }}</span>
-                    {% if task.is_overdue %}<span class="ts-badge danger" style="margin-top:3px;display:block;">Overdue</span>{% endif %}
+                    {% if task.is_overdue %}
+                      <span class="ts-badge danger">Overdue</span>
+                    {% else %}
+                      <span class="ts-badge ts-badge--{{ task.status|lower }}">{{ task.get_status_display }}</span>
+                    {% endif %}
                   </td>
                   <td><span class="ts-badge ts-badge--{{ task.priority|lower }}">{{ task.get_priority_display }}</span></td>
                   <td>
@@ -563,11 +540,6 @@
                     {% else %}
                       <span style="color:var(--text-light);font-size:12px;">&mdash;</span>
                     {% endif %}
-                  </td>
-                  <td>
-                    <div class="tl-col-actions">
-                      <a class="btn btn-secondary btn-sm" href="{% url 'tasks:detail' task.id %}">Apri</a>
-                    </div>
                   </td>
                 </tr>
               {% endfor %}
@@ -615,6 +587,15 @@
       if (body) body.classList.add('open');
     }
   })();
+
+  // Riga tabella backlog cliccabile (il titolo resta un link diretto per tastiera/screen reader)
+  document.querySelectorAll('.tl-row-clickable').forEach(row => {
+    row.addEventListener('click', (event) => {
+      if (event.target.closest('a')) return;
+      const href = row.dataset.href;
+      if (href) window.location.href = href;
+    });
+  });
 
   // Kanban: count cards per column, hide "empty" placeholders where cards exist
   (function () {

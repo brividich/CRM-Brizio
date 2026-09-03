@@ -1923,6 +1923,12 @@ body.theme-dark .tf-asset-conflict-list li { background:rgba(255,255,255,.05); }
 .md-nextsteps .md-card-head svg { stroke: var(--success); }
 .md-nextsteps .md-card-head span { color: var(--success); }
 .md-card { border-left: 4px solid var(--primary-mid); }
+.md-closing-summary { border-left-color: var(--primary-mid) !important; }
+.md-closing-summary-body {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px 16px;
+}
+.md-closing-summary-stats { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: .875rem; color: var(--text-light); }
+.md-closing-summary-stats strong { color: var(--text); }
 
 /* Agenda items */
 .md-agenda-item {
@@ -2153,31 +2159,25 @@ body.theme-dark .md-hero { background: linear-gradient(135deg,#0f172a 0%,#1e3a5f
 
   .tl-active-chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 
-  /* ── Admin console KPI inline ── */
-  .tl-admin-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+  /* ── Admin console: striscia di chip compatte (sostituisce le vecchie card KPI) ── */
+  .tl-admin-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .tl-admin-strip-sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 2px; }
+  .tk-readiness-summary.tl-admin-strip-inline { display: inline-flex; margin-top: 0; gap: 8px; flex-wrap: wrap; }
+  .tl-admin-projects { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 
-  .tl-admin-kpi {
-    padding: 14px 16px;
-    border: 1px solid;
-    border-radius: var(--hub-radius-lg);
-    box-shadow: 0 2px 8px rgba(15,23,42,.04);
-    transition: box-shadow .15s ease, transform .15s ease;
+  /* ── Selettore di scope (Le mie / Tutto lo scope) ── */
+  .tl-scope-toggle {
+    display: inline-flex; border: 1px solid var(--border); border-radius: 999px;
+    padding: 2px; gap: 2px; background: var(--surface-alt, var(--surface));
   }
-  .tl-admin-kpi:hover { box-shadow: 0 6px 18px rgba(15,23,42,.09); transform: translateY(-1px); }
+  .tl-scope-btn {
+    padding: 5px 12px; border-radius: 999px; font-size: 11.5px; font-weight: 700;
+    color: var(--text-mid); text-decoration: none; white-space: nowrap;
+  }
+  .tl-scope-btn:hover { color: var(--text); }
+  .tl-scope-btn.active { background: var(--primary-mid); color: #fff; }
 
-  .tl-admin-kpi.c-blue   { background: linear-gradient(145deg,#dbeafe 0%,#eff6ff 30%,var(--surface) 100%); border-color: #bfdbfe; }
-  .tl-admin-kpi.c-amber  { background: linear-gradient(145deg,#fde68a 0%,var(--warning-bg) 30%,var(--surface) 100%); border-color: #fcd34d; }
-  .tl-admin-kpi.c-teal   { background: linear-gradient(145deg,#ccfbf1 0%,#f0fdfb 30%,var(--surface) 100%); border-color: #99f6e4; }
-  .tl-admin-kpi.c-purple { background: linear-gradient(145deg,#ede9fe 0%,#f5f3ff 30%,var(--surface) 100%); border-color: #ddd6fe; }
-  .tl-admin-kpi.c-red    { background: linear-gradient(145deg,var(--danger-bg) 0%,#fef2f2 30%,var(--surface) 100%); border-color: var(--danger-bg); }
-
-  .tl-admin-kpi-val          { font-size: 28px; font-weight: 900; line-height: 1; color: var(--primary-mid); }
-  .tl-admin-kpi-val.blue     { color: var(--primary-mid); }
-  .tl-admin-kpi-val.amber    { color: var(--warning); }
-  .tl-admin-kpi-val.teal     { color: #0f766e; }
-  .tl-admin-kpi-val.purple   { color: #7c3aed; }
-  .tl-admin-kpi-val.red      { color: var(--danger); }
-  .tl-admin-kpi-label        { margin-top: 5px; font-size: 11px; font-weight: 700; color: var(--ts-text-mid); }
+  .tl-row-clickable { cursor: pointer; }
 
   /* ── Task table (global mode) ── */
   .tl-table-wrap {
@@ -2461,22 +2461,16 @@ body.theme-dark .md-hero { background: linear-gradient(135deg,#0f172a 0%,#1e3a5f
     .kb-board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
   @media (max-width: 1100px) {
-    .tl-admin-kpis    { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .tl-filter-grid   { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .pk-task-grid     { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .pk-header        { grid-template-columns: 1fr; }
     .pk-progress-ring { display: none; }
   }
   @media (max-width: 760px) {
-    .tl-admin-kpis, .tl-filter-grid, .pk-task-grid, .kb-board { grid-template-columns: 1fr; }
+    .tl-filter-grid, .pk-task-grid, .kb-board { grid-template-columns: 1fr; }
   }
 
   /* ── Dark mode — Command Center ── */
-  body.theme-dark .tl-admin-kpi.c-blue,
-  body.theme-dark .tl-admin-kpi.c-amber,
-  body.theme-dark .tl-admin-kpi.c-teal,
-  body.theme-dark .tl-admin-kpi.c-purple,
-  body.theme-dark .tl-admin-kpi.c-red { background: var(--surface); border-color: var(--border); }
   body.theme-dark .tl-table thead th { background: var(--thead-bg, #f8fafc); }
   body.theme-dark .tl-table tbody tr { border-color: var(--border); }
   body.theme-dark .tl-table tbody tr:hover td,
