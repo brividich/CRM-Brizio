@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.utils import timezone
 
 from .models import (
@@ -617,6 +617,157 @@ def build_maintenance_schedule_rows(
 # le regole a contatore (ore/km/cicli). I chiamanti che filtrano per due_date data
 # ignorano automaticamente le righe a contatore.
 build_day_based_maintenance_schedule_rows = build_maintenance_schedule_rows
+
+
+def preview_maintenance_rule_impact(
+    *,
+    asset_category_id: int | None,
+    scope_type: str,
+    asset_ids: list[int] | None,
+    threshold_type: str,
+    threshold_value: int | None,
+    warning_days: int | None,
+    first_due_date: date | None,
+    rule_pk: int | None = None,
+    today: date | None = None,
+    limit: int = 5,
+) -> dict[str, Any]:
+    """Anteprima non persistita dell'impatto di una regola in fase di compilazione nel form:
+    quanti asset copre lo scope scelto e le prime scadenze che ne deriverebbero.
+
+    Non tocca ``MaintenanceRule.objects``: legge solo lo stato di esecuzione già salvato
+    (``AssetMaintenanceRuleState``) quando ``rule_pk`` è dato (form di modifica) — una regola
+    nuova non ha ancora stato per definizione, quindi ogni asset risulta "prima esecuzione".
+    Ignora deliberatamente gli override per asset: sono un dettaglio della regola già salvata,
+    non della bozza in corso di compilazione.
+    """
+    current_day = today or timezone.localdate()
+    if not asset_category_id:
+        return {"asset_count": 0, "upcoming": []}
+
+    assets_qs = Asset.objects.filter(status=Asset.STATUS_IN_USE, asset_category_id=asset_category_id)
+    if scope_type == MaintenanceRule.SCOPE_ASSETS:
+        assets_qs = assets_qs.filter(id__in=asset_ids or [])
+    assets = list(assets_qs.only("id", "name", "asset_tag", "reparto", "asset_category_id"))
+    if not assets:
+        return {"asset_count": 0, "upcoming": []}
+
+    asset_ids_resolved = [asset.id for asset in assets]
+    threshold_value = int(threshold_value or 0)
+    warning_days = int(warning_days or 0)
+
+    rows: list[dict[str, Any]] = []
+
+    if threshold_type == MaintenanceRule.THRESHOLD_DAYS:
+        state_by_asset = {}
+        if rule_pk:
+            state_by_asset = {
+                state.asset_id: state
+                for state in AssetMaintenanceRuleState.objects.filter(
+                    asset_id__in=asset_ids_resolved, base_rule_id=rule_pk
+                )
+            }
+        for asset in assets:
+            state = state_by_asset.get(asset.id)
+            due_date = None
+            if state and state.last_execution_date:
+                due_date = state.last_execution_date + timedelta(days=threshold_value)
+            elif first_due_date:
+                due_date = first_due_date
+            schedule = _schedule_status_payload(due_date=due_date, warning_days=warning_days, today=current_day)
+            rows.append({"asset": asset, "due_date": due_date, "schedule_label": schedule["label"], "schedule_status": schedule["status"]})
+    elif threshold_type in _METER_THRESHOLD_TO_METER_TYPE:
+        meter_type_key = _METER_THRESHOLD_TO_METER_TYPE[threshold_type]
+        unit_label = _METER_UNIT_LABELS.get(threshold_type, "")
+        meter_by_asset = {
+            m["asset_id"]: m["current_value"]
+            for m in AssetMeter.objects.filter(
+                asset_id__in=asset_ids_resolved, meter_type=meter_type_key
+            ).values("asset_id", "current_value")
+        }
+        state_by_asset = {}
+        if rule_pk:
+            state_by_asset = {
+                state.asset_id: state
+                for state in AssetMaintenanceRuleState.objects.select_related("last_work_order").filter(
+                    asset_id__in=asset_ids_resolved, base_rule_id=rule_pk
+                )
+            }
+        for asset in assets:
+            state = state_by_asset.get(asset.id)
+            base_value = 0.0
+            if state and state.last_work_order and state.last_work_order.meter_value_at_close is not None:
+                base_value = float(state.last_work_order.meter_value_at_close)
+            meter = meter_schedule_payload(
+                current_value=meter_by_asset.get(asset.id),
+                base_value=base_value,
+                threshold_value=threshold_value,
+                warning_units=warning_days,
+                unit_label=unit_label,
+            )
+            rows.append({"asset": asset, "due_date": None, "schedule_label": meter["label"], "schedule_status": meter["status"]})
+    else:
+        return {"asset_count": len(assets), "upcoming": []}
+
+    status_order = {SCHEDULE_MISSING: 0, SCHEDULE_OVERDUE: 1, SCHEDULE_WARNING: 2, SCHEDULE_UPCOMING: 3}
+    rows.sort(
+        key=lambda row: (
+            status_order.get(str(row.get("schedule_status") or ""), 9),
+            row.get("due_date") or date.max,
+            getattr(row["asset"], "name", "") or "",
+        )
+    )
+    return {"asset_count": len(assets), "upcoming": rows[:limit]}
+
+
+def distribute_campaign_due_dates(
+    *,
+    count: int,
+    window_days: int,
+    start_date: date | None = None,
+    assigned_to=None,
+    max_per_day: int = 3,
+) -> list[date]:
+    """Distribuisce ``count`` scadenze su una finestra di ``window_days`` giorni (round-robin),
+    invece di metterle tutte sulla stessa data come farebbe una singola ``MaintenanceRule``
+    category-wide. Se ``assigned_to`` è dato, evita — quando possibile — di superare
+    ``max_per_day`` OdL aperti nello stesso giorno per quel tecnico, sommando il carico già
+    esistente a quello che si sta per creare. Se la finestra è troppo stretta per rispettare
+    il tetto, lo supera piuttosto che rifiutarsi di distribuire (nessun asset resta escluso)."""
+    start_date = start_date or timezone.localdate()
+    window_days = max(1, int(window_days or 1))
+    day_candidates = [start_date + timedelta(days=i) for i in range(window_days)]
+
+    load = {day: 0 for day in day_candidates}
+    if assigned_to is not None:
+        end_date = day_candidates[-1]
+        existing = (
+            WorkOrder.objects.filter(
+                assigned_to=assigned_to,
+                status=WorkOrder.STATUS_OPEN,
+                due_at__date__gte=start_date,
+                due_at__date__lte=end_date,
+            )
+            .values("due_at__date")
+            .annotate(n=Count("id"))
+        )
+        for row in existing:
+            day = row["due_at__date"]
+            if day in load:
+                load[day] = row["n"]
+
+    dates: list[date] = []
+    cursor = 0
+    for _ in range(max(0, int(count or 0))):
+        attempts = 0
+        while attempts < window_days and load[day_candidates[cursor % window_days]] >= max_per_day:
+            cursor += 1
+            attempts += 1
+        chosen = day_candidates[cursor % window_days]
+        load[chosen] += 1
+        dates.append(chosen)
+        cursor += 1
+    return dates
 
 
 def _clean_sort_value(value) -> str:

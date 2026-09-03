@@ -8,7 +8,7 @@ import os
 import re
 import tempfile
 from collections import defaultdict
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
 from html import escape
 from pathlib import Path, PurePosixPath
@@ -26,6 +26,7 @@ from django.core.paginator import Paginator
 from django.db import DatabaseError, IntegrityError, connections, transaction
 from django.db.models import Avg, Case, Count, IntegerField, Max, Q, When
 from django.http import FileResponse, Http404, HttpRequest, HttpResponse, HttpResponseForbidden, JsonResponse
+from django.utils.dateparse import parse_date
 from django.shortcuts import get_object_or_404, redirect, render
 from django.templatetags.static import static
 from django.urls import NoReverseMatch, reverse
@@ -144,10 +145,12 @@ from .maintenance import (
     build_day_based_maintenance_schedule_rows,
     contract_state_payload,
     copy_template_checklist_to_workorder,
+    distribute_campaign_due_dates,
     get_applicable_assistance_contracts,
     get_primary_assistance_contract,
     get_workorder_overdue_days,
     normalize_workorder_source,
+    preview_maintenance_rule_impact,
     resolve_asset_maintenance_rules,
     sync_workorder_maintenance_state,
     upsert_asset_maintenance_rule_state,
@@ -11335,6 +11338,35 @@ def maintenance_rule_create(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+def maintenance_rule_impact_preview(request: HttpRequest) -> HttpResponse:
+    """Endpoint HTMX-only: anteprima non persistita di quanti asset copre una regola e delle
+    prime scadenze, mentre l'utente compila il form. Non salva nulla."""
+    if not _is_assets_admin(request):
+        return HttpResponseForbidden("Permesso negato.")
+
+    rule_pk = _as_int(request.POST.get("rule_id"), default=0) or None
+    scope_type = request.POST.get("scope_type") or MaintenanceRule.SCOPE_CATEGORY
+    asset_ids = [_as_int(v) for v in request.POST.getlist("assets") if _as_int(v)]
+    first_due_date = parse_date(request.POST.get("first_due_date") or "") if request.POST.get("first_due_date") else None
+
+    impact = preview_maintenance_rule_impact(
+        asset_category_id=_as_int(request.POST.get("asset_category"), default=0) or None,
+        scope_type=scope_type,
+        asset_ids=asset_ids,
+        threshold_type=request.POST.get("threshold_type") or MaintenanceRule.THRESHOLD_DAYS,
+        threshold_value=_as_int(request.POST.get("threshold_value"), default=0),
+        warning_days=_as_int(request.POST.get("warning_days"), default=0),
+        first_due_date=first_due_date,
+        rule_pk=rule_pk,
+    )
+    return render(
+        request,
+        "assets/components/_maintenance_rule_impact.html",
+        {"impact": impact},
+    )
+
+
+@login_required
 def maintenance_rule_edit(request: HttpRequest, id: int | None = None) -> HttpResponse:
     if not _is_assets_admin(request):
         messages.error(request, "Solo admin puo gestire le regole manutenzione.")
@@ -14959,6 +14991,8 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
     priority = _clean_string(request.GET.get("priority"))
     q = _clean_string(request.GET.get("q"))
     operational_view = _resolve_workorder_operational_view(request.GET)
+    display = _clean_string(request.GET.get("display")).lower()
+    display = display if display in ("list", "board") else "list"
     asset_filter = Asset.objects.filter(pk=asset_id).first() if asset_id else None
 
     workorders = _apply_workorder_operational_view(
@@ -15006,12 +15040,32 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
         asset_filter=asset_filter,
     )
 
+    board_columns = []
+    if display == "board":
+        # Kanban degli stati operativi (unassigned/assigned/in_progress/waiting), diversa dalla
+        # board per scadenza gia' presente in maintenance_hub.html: qui la colonna e' lo stato
+        # reale dell'OdL, non quanto e' vecchio.
+        board_by_state = {key: [] for key in WorkOrder.OPSTATE_LABELS}
+        for wo in workorders.filter(status=WorkOrder.STATUS_OPEN).select_related("asset", "assigned_to"):
+            state = wo.operational_state
+            if state in board_by_state:
+                board_by_state[state].append(wo)
+        board_columns = [
+            {"key": key, "label": label, "workorders": board_by_state[key]}
+            for key, label in WorkOrder.OPSTATE_LABELS.items()
+        ]
+
     return render(
         request,
         "assets/pages/workorder_list.html",
         {
             "page_title": "Interventi",
             "workorders": workorders,
+            "workorder_display": display,
+            "board_columns": board_columns,
+            "workorder_display_toggle_url": _workorder_list_page_url(
+                view=operational_view, display="list" if display == "board" else "board"
+            ),
             "status_filter": status,
             "kind_filter": kind,
             "origin_filter": origin,
@@ -15055,6 +15109,121 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
                 "id",
             ),
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
+        },
+    )
+
+
+@login_required
+def workorder_campaign_create(request: HttpRequest) -> HttpResponse:
+    """Crea più OdL in un colpo solo per un gruppo di asset simili (es. verifica annuale su
+    12 presse), stesso template, scadenze distribuite su una finestra invece che tutte sulla
+    stessa data. `reference_batch` raggruppa il lotto (stesso campo già usato da
+    `generate_workorders_for_rule`); `origin` resta `ORIGIN_MANUAL` — una campagna è una
+    creazione manuale multipla, non un nuovo tipo di origine da tracciare a parte."""
+    if not _is_assets_admin(request):
+        messages.error(request, "Solo admin può creare campagne di manutenzione.")
+        return redirect("assets:wo_list")
+
+    from django.contrib.auth import get_user_model
+
+    User = get_user_model()
+
+    templates = list(
+        MaintenanceInterventionTemplate.objects.filter(is_active=True)
+        .select_related("asset_category")
+        .order_by("sort_order", "label")
+    )
+    assets_qs = (
+        Asset.objects.filter(status=Asset.STATUS_IN_USE)
+        .select_related("asset_category")
+        .order_by("asset_category__sort_order", "reparto", "name", "id")
+    )
+    campaign_asset_groups: dict[str, list[Asset]] = {}
+    for asset in assets_qs:
+        group_label = asset.asset_category.label if asset.asset_category_id else "Senza categoria"
+        campaign_asset_groups.setdefault(group_label, []).append(asset)
+
+    user_options = list(User.objects.filter(is_active=True).order_by("last_name", "first_name", "username"))
+
+    if request.method == "POST":
+        template_id = _as_int(request.POST.get("intervention_template"), default=0)
+        asset_ids = [_as_int(v) for v in request.POST.getlist("assets") if _as_int(v)]
+        selected_assets = list(assets_qs.filter(id__in=asset_ids)) if asset_ids else []
+        template = MaintenanceInterventionTemplate.objects.filter(pk=template_id).first() if template_id else None
+        window_days = _as_int(request.POST.get("window_days"), default=10) or 10
+        window_days = max(1, min(window_days, 60))
+        priority = _clean_string(request.POST.get("priority")) or WorkOrder.PRIORITY_NORMAL
+        if priority not in dict(WorkOrder.PRIORITY_CHOICES):
+            priority = WorkOrder.PRIORITY_NORMAL
+        assigned_id = _as_int(request.POST.get("assigned_to"), default=0)
+        assigned_user = User.objects.filter(pk=assigned_id, is_active=True).first() if assigned_id else None
+        start_date_raw = _clean_string(request.POST.get("start_date"))
+        start_date = (parse_date(start_date_raw) if start_date_raw else None) or timezone.localdate()
+
+        if not template:
+            messages.error(request, "Seleziona un tipo di attività.")
+        elif not selected_assets:
+            messages.error(request, "Seleziona almeno un asset.")
+        else:
+            due_dates = distribute_campaign_due_dates(
+                count=len(selected_assets),
+                window_days=window_days,
+                start_date=start_date,
+                assigned_to=assigned_user,
+            )
+            reference_batch = f"CAMPAIGN_{template.id}_{timezone.now():%Y%m%d_%H%M%S}"
+            created: list[WorkOrder] = []
+            with transaction.atomic():
+                for asset, due_date in zip(selected_assets, due_dates):
+                    workorder = WorkOrder(
+                        asset=asset,
+                        kind=template.workorder_kind,
+                        status=WorkOrder.STATUS_OPEN,
+                        origin=WorkOrder.ORIGIN_MANUAL,
+                        title=f"{template.label} — {asset.asset_tag or asset.name}",
+                        description=template.description or "",
+                        priority=priority,
+                        due_at=timezone.make_aware(datetime.combine(due_date, time(9, 0))),
+                        assigned_to=assigned_user,
+                        reference_batch=reference_batch,
+                        opened_at=timezone.now(),
+                    )
+                    workorder.full_clean()
+                    workorder.save()
+                    copy_template_checklist_to_workorder(workorder, template_id=template.id)
+                    WorkOrderLog.objects.create(
+                        work_order=workorder,
+                        note=f"Creato in campagna (lotto {reference_batch}).",
+                        author=request.user,
+                    )
+                    created.append(workorder)
+            log_action(
+                request,
+                "create_workorder_campaign",
+                "assets",
+                {
+                    "reference_batch": reference_batch,
+                    "template_id": template.id,
+                    "count": len(created),
+                    "window_days": window_days,
+                },
+            )
+            messages.success(request, f"Creati {len(created)} interventi (lotto {reference_batch}).")
+            return redirect(_workorder_list_page_url(view="open"))
+
+    return render(
+        request,
+        "assets/pages/workorder_campaign_create.html",
+        {
+            "page_title": "Nuova campagna di manutenzione",
+            "templates": templates,
+            "campaign_asset_groups": [
+                {"label": label, "assets": assets} for label, assets in campaign_asset_groups.items()
+            ],
+            "priority_choices": WorkOrder.PRIORITY_CHOICES,
+            "user_options": user_options,
+            "back_url": reverse("assets:wo_list"),
+            **_assets_shell_context(request),
         },
     )
 
@@ -15635,6 +15804,49 @@ def workorder_claim(request: HttpRequest, id: int) -> HttpResponse:
     notify_workorder_taken_over(workorder, previous_assignee=previous_assignee, actor=request.user)
     messages.success(request, f"Intervento #{workorder.id} preso in carico.")
     return redirect(next_url)
+
+
+@login_required
+def workorder_set_state(request: HttpRequest, id: int) -> JsonResponse:
+    """Endpoint della board Kanban OdL (drag&drop): sposta un intervento aperto tra gli stati
+    operativi derivati (assegna/avvia/metti in attesa). Risposta sempre JSON, mai redirect —
+    e' l'unico consumatore, via fetch(), stesso pattern di tasks/_board.html."""
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "error": "Metodo non consentito."}, status=405)
+    workorder = get_object_or_404(WorkOrder, pk=id)
+    if workorder.status != WorkOrder.STATUS_OPEN:
+        return JsonResponse({"ok": False, "error": "Intervento non aperto."}, status=409)
+
+    target_state = _clean_string(request.POST.get("state"))
+    actor = request.user.get_full_name() or request.user.username
+
+    if target_state == WorkOrder.OPSTATE_ASSIGNED:
+        previous_assignee = workorder.assigned_to
+        workorder.assign(request.user)
+        WorkOrderLog.objects.create(
+            work_order=workorder,
+            note=f"Preso in carico da {actor} (board).",
+            author=request.user,
+        )
+        notify_workorder_taken_over(workorder, previous_assignee=previous_assignee, actor=request.user)
+    elif target_state == WorkOrder.OPSTATE_IN_PROGRESS:
+        workorder.start()
+        WorkOrderLog.objects.create(
+            work_order=workorder,
+            note=f"Intervento avviato da {actor} (board).",
+            author=request.user,
+        )
+    elif target_state == WorkOrder.OPSTATE_WAITING:
+        workorder.set_waiting(reason=WorkOrder.WAIT_REASON_ALTRO, note="")
+        WorkOrderLog.objects.create(
+            work_order=workorder,
+            note=f"Messo in attesa da {actor} (board). Motivo da precisare in scheda.",
+            author=request.user,
+        )
+    else:
+        return JsonResponse({"ok": False, "error": "Stato non valido."}, status=400)
+
+    return JsonResponse({"ok": True, "operational_state": workorder.operational_state})
 
 
 @login_required
@@ -16858,6 +17070,78 @@ def maintenance_impostazioni(request: HttpRequest) -> HttpResponse:
             "url_schedule": reverse("assets:maintenance_schedule"),
             "url_template_new": reverse("assets:maintenance_template_create"),
             "url_rule_new": reverse("assets:maintenance_rule_create"),
+            "url_coverage_matrix": reverse("assets:maintenance_coverage_matrix"),
+        },
+    )
+
+
+@login_required
+def maintenance_coverage_matrix(request: HttpRequest) -> HttpResponse:
+    """Righe = asset, colonne = tipo intervento: dove la tab 'Copertura' aggrega per
+    categoria, qui si vede l'asset singolo — buchi (nessuna regola copre l'incrocio) e
+    sovrapposizioni (piu' regole attive sullo stesso incrocio, causa nota dei duplicati
+    del generatore) a colpo d'occhio, invece di scoprirli aprendo ogni asset."""
+    if not _is_assets_admin(request):
+        messages.error(request, "Solo admin puo gestire le regole manutenzione.")
+        return redirect("assets:asset_list")
+
+    type_labels = dict(MaintenanceInterventionTemplate.MAINTENANCE_TYPE_CHOICES)
+    rows = build_day_based_maintenance_schedule_rows(
+        asset_queryset=Asset.objects.filter(status=Asset.STATUS_IN_USE).select_related(
+            "asset_category"
+        )
+    )
+
+    by_asset: dict[int, dict[str, Any]] = {}
+    columns_seen: dict[str, str] = {}
+    for row in rows:
+        asset = row["asset"]
+        template = row.get("effective_intervention_template")
+        col_key = getattr(template, "maintenance_type", None) or MaintenanceInterventionTemplate.TYPE_OTHER
+        columns_seen.setdefault(col_key, type_labels.get(col_key, col_key))
+        entry = by_asset.setdefault(asset.id, {"asset": asset, "cells": {}})
+        entry["cells"].setdefault(col_key, []).append(row)
+
+    columns = sorted(columns_seen.items(), key=lambda kv: kv[1])
+
+    matrix_rows = []
+    for entry in by_asset.values():
+        asset = entry["asset"]
+        cells = []
+        for col_key, _label in columns:
+            cell_rows = entry["cells"].get(col_key, [])
+            if not cell_rows:
+                cells.append({"state": "empty"})
+            elif len(cell_rows) > 1:
+                cells.append({"state": "overlap", "count": len(cell_rows), "rows": cell_rows})
+            else:
+                only_row = cell_rows[0]
+                cells.append(
+                    {
+                        "state": only_row["schedule_status"],
+                        "label": only_row["schedule_label"],
+                        "rows": cell_rows,
+                    }
+                )
+        matrix_rows.append({"asset": asset, "cells": cells})
+    matrix_rows.sort(key=lambda r: (r["asset"].reparto or "", r["asset"].name or "", r["asset"].id))
+
+    uncovered_assets = list(
+        Asset.objects.filter(status=Asset.STATUS_IN_USE)
+        .exclude(id__in=by_asset.keys())
+        .order_by("reparto", "name", "id")
+    )
+
+    return render(
+        request,
+        "assets/pages/maintenance_coverage_matrix.html",
+        {
+            "page_title": "Matrice di copertura",
+            "columns": columns,
+            "matrix_rows": matrix_rows,
+            "uncovered_assets": uncovered_assets,
+            "back_url": _maintenance_settings_page_url(request, tab="copertura"),
+            **_assets_shell_context(request),
         },
     )
 

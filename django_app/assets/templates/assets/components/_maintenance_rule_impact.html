@@ -1,0 +1,21 @@
+{% load static %}
+<div class="mrf-impact-inner">
+  <div class="mrf-impact-head">
+    <span class="mrf-impact-count">{{ impact.asset_count }}</span>
+    <span class="mrf-impact-label">asset coperti da questo scope</span>
+  </div>
+  {% if impact.upcoming %}
+    <ul class="mrf-impact-list">
+      {% for row in impact.upcoming %}
+        <li>
+          <span class="mrf-impact-asset">{{ row.asset.name|default:row.asset.asset_tag }}</span>
+          <span class="mrf-impact-due mrf-impact-due--{{ row.schedule_status }}">{{ row.schedule_label }}</span>
+        </li>
+      {% endfor %}
+    </ul>
+  {% elif impact.asset_count %}
+    <p class="as-note">Nessuna scadenza calcolabile con i parametri attuali.</p>
+  {% else %}
+    <p class="as-note">Scegli categoria e scope per vedere quanti asset copre questa regola.</p>
+  {% endif %}
+</div>

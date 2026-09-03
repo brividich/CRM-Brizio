@@ -2474,6 +2474,14 @@ class WorkOrder(models.Model):
         self.waiting_since = None
         self.save(update_fields=["is_waiting", "wait_reason", "wait_note", "waiting_since"])
 
+    def assign(self, user) -> None:
+        """Assegna l'intervento a ``user`` (drag&drop in board = 'prendo in carico').
+        Non tocca started_at/is_waiting: solo il passaggio unassigned -> assigned."""
+        if self.status != self.STATUS_OPEN:
+            return
+        self.assigned_to = user
+        self.save(update_fields=["assigned_to"])
+
     def start(self) -> None:
         """Segna l'inizio della lavorazione effettiva (bottone 'Inizia intervento').
         Idempotente: non sposta ``started_at`` se l'intervento e' gia' in corso.

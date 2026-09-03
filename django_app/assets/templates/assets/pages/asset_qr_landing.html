@@ -125,6 +125,21 @@ a.qrl-wo-item:first-child { margin-top: 0; }
 .qrl-btn--secondary { background: #f1f5f9; color: #0f172a; }
 .qrl-btn--detail   { background: #f8fafc; color: #334155; border: 1px solid #dbe1ea; }
 .qrl-btn-icon { font-size: 1.4rem; }
+.qrl-quick-report {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--primary, #1d4ed8);
+  color: #fff;
+  font-size: .95rem;
+  font-weight: 700;
+  text-decoration: none;
+  text-align: center;
+}
+.qrl-quick-report .qrl-btn-icon { font-size: 1.2rem; }
 .qrl-empty { color: #94a3b8; font-size: .85rem; font-style: italic; }
 .qrl-not-found {
   text-align: center;
@@ -179,6 +194,12 @@ a.qrl-wo-item:first-child { margin-top: 0; }
       </p>
     </div>
   </header>
+
+  {# CTA rapida — un tap dal QR alla segnalazione, senza scorrere prima OdL/scadenze #}
+  <a href="{{ report_url }}" class="qrl-quick-report">
+    <span class="qrl-btn-icon">&#9888;</span>
+    {% if qr_public %}Accedi e segnala un problema{% else %}Segnala guasto ora{% endif %}
+  </a>
 
   {# Stato asset #}
   <div class="qrl-card">
