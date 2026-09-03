@@ -1,318 +1,5 @@
 {% extends "tasks/base_shell.html" %}
 
-{% block tasks_shell_head %}
-<style>
-  /* ══ Portfolio grid ══════════════════════════════════════════ */
-  .pf-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
-    gap: 14px;
-  }
-
-  .pf-card {
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    background: var(--surface);
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    box-shadow: var(--shadow);
-    transition: box-shadow .18s ease, transform .18s ease;
-  }
-
-  .pf-card:hover {
-    box-shadow: 0 12px 36px rgba(0,0,0,.12);
-    transform: translateY(-3px);
-  }
-
-  /* ── Cover header — replaces thin strip ── */
-  .pf-card-cover {
-    height: 82px;
-    position: relative;
-    overflow: hidden;
-    flex-shrink: 0;
-    display: flex;
-    align-items: flex-end;
-    padding: 14px 18px 12px;
-  }
-
-  /* Gradient backgrounds per VRF status (decorativi, testo bianco in entrambi i temi) */
-  .pf-card-cover.ok {
-    background: linear-gradient(135deg, #064e3b 0%, #065f46 40%, #059669 100%);
-  }
-  .pf-card-cover.warn {
-    background: linear-gradient(135deg, #78350f 0%, #92400e 40%, #d97706 100%);
-  }
-  .pf-card-cover.blocked {
-    background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 40%, #dc2626 100%);
-  }
-  .pf-card-cover.na {
-    background: linear-gradient(135deg, #1e293b 0%, #334155 40%, #475569 100%);
-  }
-  .pf-card-cover.pending {
-    background:
-      radial-gradient(ellipse at 80% -20%, rgba(249,115,22,.4) 0%, transparent 50%),
-      linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #1d4ed8 100%);
-  }
-
-  /* Noise overlay for texture */
-  .pf-card-cover::before {
-    content: "";
-    position: absolute; inset: 0;
-    background: radial-gradient(ellipse at 0% 100%, rgba(255,255,255,.06) 0%, transparent 60%);
-    pointer-events: none;
-  }
-
-  .pf-cover-content {
-    position: relative; z-index: 1;
-    display: flex; align-items: flex-start; justify-content: space-between;
-    width: 100%; gap: 10px;
-  }
-
-  .pf-name-link {
-    font-size: 15px;
-    font-weight: 900;
-    color: #fff;
-    text-decoration: none;
-    line-height: 1.25;
-    letter-spacing: -.01em;
-    text-shadow: 0 1px 4px rgba(0,0,0,.3);
-    flex: 1;
-  }
-  .pf-name-link:hover { color: rgba(255,255,255,.85); }
-
-  .pf-ko-number {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 30px;
-    height: 20px;
-    padding: 0 7px;
-    border-radius: 6px;
-    background: rgba(255,255,255,.18);
-    border: 1px solid rgba(255,255,255,.28);
-    color: rgba(255,255,255,.9);
-    font-size: 9.5px;
-    font-weight: 900;
-    letter-spacing: .07em;
-    white-space: nowrap;
-    flex-shrink: 0;
-    margin-top: 1px;
-  }
-
-  /* ── Card body ── */
-  .pf-card-body {
-    padding: 16px 18px;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .pf-card-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 10px;
-  }
-
-  /* ── Identity chips ── */
-  .pf-chips {
-    display: flex;
-    gap: 5px;
-    flex-wrap: wrap;
-  }
-
-  .pf-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    padding: 3px 8px;
-    border-radius: 999px;
-    font-size: 10px;
-    font-weight: 700;
-    border: 1px solid transparent;
-    white-space: nowrap;
-  }
-
-  .pf-chip .lbl {
-    font-weight: 900;
-    font-size: 9px;
-    letter-spacing: .08em;
-    text-transform: uppercase;
-    opacity: .65;
-  }
-
-  /* P/N resta indigo (colore identità senza token dedicato); rev/ver/client su token */
-  .pf-chip.pn     { background: #eef2ff; border-color: #c7d2fe; color: #3730a3; }
-  .pf-chip.rev    { background: var(--success-bg); border-color: transparent; color: var(--success); }
-  .pf-chip.ver    { background: var(--accent-light); border-color: transparent; color: var(--accent); }
-  .pf-chip.client { background: var(--surface-alt, #f8fafc); border-color: var(--border); color: var(--text-light); }
-
-  /* ── Progress bar ── */
-  .pf-progress { display: grid; gap: 6px; }
-
-  .pf-progress-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 11px;
-    color: var(--text-light);
-    font-weight: 700;
-  }
-
-  .pf-progress-pct {
-    font-weight: 900;
-    color: var(--text);
-    font-size: 12px;
-  }
-
-  .pf-progress-bar {
-    height: 7px;
-    border-radius: 999px;
-    background: var(--border);
-    overflow: hidden;
-  }
-
-  .pf-progress-fill {
-    height: 100%;
-    border-radius: 999px;
-    background: linear-gradient(90deg, var(--success) 0%, var(--primary-mid) 100%);
-    transition: width .5s cubic-bezier(.22,1,.36,1);
-  }
-
-  .pf-task-counts {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
-  .pf-count {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--text-mid);
-  }
-
-  .pf-count-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 999px;
-    flex-shrink: 0;
-  }
-
-  .pf-count-dot.total { background: var(--text-light); }
-  .pf-count-dot.open  { background: var(--primary-mid); }
-  .pf-count-dot.done  { background: var(--success); }
-
-  /* ── VRF row ── */
-  .pf-vrf-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 9px 12px;
-    border-radius: 12px;
-    border: 1px solid var(--border);
-    background: var(--surface-alt, #f8fafc);
-    font-size: 11px;
-    font-weight: 700;
-  }
-
-  .pf-vrf-label {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: var(--text-light);
-  }
-
-  .pf-vrf-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 999px;
-    flex-shrink: 0;
-  }
-  .pf-vrf-dot.ok      { background: var(--success); }
-  .pf-vrf-dot.warn    { background: var(--warning); }
-  .pf-vrf-dot.blocked { background: var(--danger); }
-  .pf-vrf-dot.na      { background: var(--text-light); }
-  .pf-vrf-dot.pending { background: var(--text-light); }
-
-  /* ── Card footer ── */
-  .pf-card-footer {
-    padding: 12px 20px;
-    border-top: 1px solid var(--border);
-    background: var(--surface-alt, #f8fafc);
-    display: flex;
-    gap: 7px;
-    flex-wrap: wrap;
-    align-items: center;
-  }
-
-  .pf-card-footer .btn { font-size: 11px; }
-
-  /* ── Toolbar filtri ── */
-  .pf-toolbar {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    padding: 12px 18px;
-    border-bottom: 1px solid var(--border);
-    background: var(--surface-alt, #f8fafc);
-  }
-
-  .pf-toolbar .ts-field { gap: 3px; min-width: 130px; }
-  .pf-toolbar .ts-field label { font-size: 9px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-light); font-weight: 800; }
-  .pf-toolbar .ts-field .input,
-  .pf-toolbar .ts-field select { min-height: 32px; font-size: 12px; padding: 0 8px; border-radius: 8px; }
-  .pf-toolbar .ts-field input[type="text"] { min-height: 32px; font-size: 12px; padding: 0 8px; border-radius: 8px; }
-
-  /* ── Cover right cluster (numero KO + RAL) ── */
-  .pf-cover-right {
-    display: flex;
-    gap: 5px;
-    align-items: center;
-    flex-shrink: 0;
-  }
-
-  /* ── Semaforo RAL ── */
-  .pf-ral {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 10px;
-    font-weight: 800;
-  }
-
-  .pf-ral-dot {
-    width: 9px;
-    height: 9px;
-    border-radius: 999px;
-    flex-shrink: 0;
-  }
-
-  .pf-ral-dot.green  { background: var(--success); }
-  .pf-ral-dot.yellow { background: var(--warning); }
-  .pf-ral-dot.red    { background: var(--danger); }
-
-  .pf-ral.green  { color: var(--success); }
-  .pf-ral.yellow { color: var(--warning); }
-  .pf-ral.red    { color: var(--danger); }
-
-  /* ── Responsive ── */
-  @media (max-width: 860px) {
-    .pf-grid { grid-template-columns: 1fr; }
-  }
-
-  /* ── Dark mode ── (solo il chip identità P/N indigo, senza token dedicato) */
-  .pf-card:hover { box-shadow: 0 12px 36px rgba(0,0,0,.12); }
-  body.theme-dark .pf-chip.pn { background: rgba(55,48,163,.2); border-color: rgba(199,210,254,.2); color: #a5b4fc; }
-</style>
-{% endblock %}
-
 {% block tasks_shell_shell_class %} ts-shell--compact ts-shell--portfolio{% endblock %}
 
 {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Portfolio</span>{% endblock %}
@@ -406,24 +93,22 @@
         {% for project in projects %}
           {% with d=project.vrf_detail %}
           <div class="pf-card">
-            <!-- Cover header con gradiente per stato VRF -->
-            <div class="pf-card-cover {{ d.status|default:'pending' }}">
-              <div class="pf-cover-content">
-                <a class="pf-name-link" href="{% url 'tasks:project_overview' project.id %}">{{ project.name }}</a>
-                <div class="pf-cover-right">
-                  {% if project.kickoff_number %}
-                    <span class="pf-ko-number">KO-{{ project.kickoff_number }}</span>
-                  {% endif %}
-                  <span class="pf-ral {{ project.ral_status }}" title="Attività scadute: {{ project.task_overdue }}">
-                    <span class="pf-ral-dot {{ project.ral_status }}"></span>
-                    {% if project.ral_status == 'green' %}OK{% elif project.ral_status == 'yellow' %}Attenzione{% else %}Critico{% endif %}
-                  </span>
-                </div>
-              </div>
-            </div>
             <div class="pf-card-body">
 
-              <!-- Identity chips -->
+              <!-- Riga 1: nome + giorni alla consegna -->
+              <div class="pf-card-top">
+                <a class="pf-card-name" href="{% url 'tasks:project_overview' project.id %}">
+                  {% if project.kickoff_number %}<span class="pf-ko-number">KO-{{ project.kickoff_number }}</span>{% endif %}<span>{{ project.name }}</span>
+                </a>
+                <span class="pf-card-days{% if project.days_to_delivery is not None and project.days_to_delivery < 0 %} danger{% endif %}">
+                  {% if project.days_to_delivery is None %}Nessuna scadenza
+                  {% elif project.days_to_delivery < 0 %}Scaduta da {{ project.days_to_delivery|cut:"-" }}gg
+                  {% elif project.days_to_delivery == 0 %}Scade oggi
+                  {% else %}Tra {{ project.days_to_delivery }}gg{% endif %}
+                </span>
+              </div>
+
+              <!-- Riga 2: cliente + P/N + revisione -->
               <div class="pf-chips">
                 {% if project.client_name %}
                   <span class="pf-chip client">{{ project.client_name }}</span>
@@ -442,30 +127,32 @@
                 {% endif %}
               </div>
 
-              <!-- Prontezza all'avvio -->
-              {% if project.readiness %}
-                <div style="margin:2px 0;">{% include "tasks/_readiness_badge.html" with readiness=project.readiness %}</div>
-              {% endif %}
+              <!-- Riga 3: pill di stato -->
+              <div class="pf-pills">
+                <span class="pf-pill pf-pill--phase">{{ project.get_phase_display }}</span>
+                {% if project.overdue_action_count %}
+                  <span class="pf-pill pf-pill--overdue">{{ project.overdue_action_count }} scadut{{ project.overdue_action_count|pluralize:"a,e" }}</span>
+                {% endif %}
+                {% if project.readiness and project.readiness.level != 'ready' %}
+                  {% include "tasks/_readiness_badge.html" with readiness=project.readiness %}
+                {% endif %}
+              </div>
 
-              <!-- Avanzamento -->
-              <div class="pf-progress">
-                <div class="pf-progress-header">
-                  <span>Avanzamento attivita</span>
-                  <span class="pf-progress-pct">
-                    {% if project.task_total > 0 %}{% widthratio project.task_done project.task_total 100 %}%{% else %}—{% endif %}
-                  </span>
+              <div class="pf-card-sep"></div>
+
+              <!-- Riga team -->
+              <div class="pf-card-team">
+                <div class="pf-card-team-item">
+                  <span class="pf-card-team-role">PM</span>
+                  <span class="pf-card-team-name">{% if project.project_manager %}{{ project.project_manager.get_full_name|default:project.project_manager.username }}{% else %}—{% endif %}</span>
                 </div>
-                <div class="pf-progress-bar">
-                  {% if project.task_total > 0 %}
-                    <div class="pf-progress-fill" style="width:{% widthratio project.task_done project.task_total 100 %}%"></div>
-                  {% else %}
-                    <div class="pf-progress-fill" style="width:0%"></div>
-                  {% endif %}
+                <div class="pf-card-team-item">
+                  <span class="pf-card-team-role">Capocommessa</span>
+                  <span class="pf-card-team-name">{% if project.capo_commessa %}{{ project.capo_commessa.get_full_name|default:project.capo_commessa.username }}{% else %}—{% endif %}</span>
                 </div>
-                <div class="pf-task-counts">
-                  <span class="pf-count"><span class="pf-count-dot total"></span>{{ project.task_total }} totali</span>
-                  <span class="pf-count"><span class="pf-count-dot open"></span>{{ project.task_open }} aperte</span>
-                  <span class="pf-count"><span class="pf-count-dot done"></span>{{ project.task_done }} chiuse</span>
+                <div class="pf-card-team-item">
+                  <span class="pf-card-team-role">Programmatore</span>
+                  <span class="pf-card-team-name">{% if project.programmer %}{{ project.programmer.get_full_name|default:project.programmer.username }}{% else %}—{% endif %}</span>
                 </div>
               </div>
 

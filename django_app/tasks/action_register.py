@@ -156,6 +156,77 @@ def build_project_actions(project, *, include_closed: bool = False) -> list[Acti
     return sorted(rows, key=_sort_key)
 
 
+def annotate_open_action_counts(projects_qs):
+    """Annota `open_action_count`/`overdue_action_count` sul queryset di progetti.
+
+    Usa sottoquery correlate (una per sorgente/metrica) invece di `Count()` in
+    catena sullo stesso queryset: annotare piu' `Count()` su relazioni diverse
+    nella stessa query causa un fan-out dei JOIN che gonfia i conteggi. Le
+    sottoquery restano nella singola query generata (nessun N+1 per riga).
+    """
+    from django.db.models import Count, F, IntegerField, OuterRef, Subquery
+    from django.db.models.functions import Coalesce
+
+    from .models import MeetingIssue, SubTask, Task
+
+    today = timezone.localdate()
+    closed_statuses = (TaskStatus.DONE, TaskStatus.CANCELED)
+
+    def _count_subquery(queryset, group_field):
+        return Subquery(
+            queryset.order_by().values(group_field).annotate(c=Count("id")).values("c"),
+            output_field=IntegerField(),
+        )
+
+    issue_open = _count_subquery(
+        MeetingIssue.objects.filter(project=OuterRef("pk"), status=MeetingIssueStatus.OPEN),
+        "project",
+    )
+    issue_overdue = _count_subquery(
+        MeetingIssue.objects.filter(
+            project=OuterRef("pk"),
+            status=MeetingIssueStatus.OPEN,
+            due_date__isnull=False,
+            due_date__lt=today,
+        ),
+        "project",
+    )
+    task_open = _count_subquery(
+        Task.objects.filter(project=OuterRef("pk")).exclude(status__in=closed_statuses),
+        "project",
+    )
+    task_overdue = _count_subquery(
+        Task.objects.filter(
+            project=OuterRef("pk"), due_date__isnull=False, due_date__lt=today
+        ).exclude(status__in=closed_statuses),
+        "project",
+    )
+    subtask_open = _count_subquery(
+        SubTask.objects.filter(task__project=OuterRef("pk")).exclude(status__in=closed_statuses),
+        "task__project",
+    )
+    subtask_overdue = _count_subquery(
+        SubTask.objects.filter(
+            task__project=OuterRef("pk"), due_date__isnull=False, due_date__lt=today
+        ).exclude(status__in=closed_statuses),
+        "task__project",
+    )
+
+    return projects_qs.annotate(
+        _oa_issue_open=Coalesce(issue_open, 0),
+        _oa_task_open=Coalesce(task_open, 0),
+        _oa_subtask_open=Coalesce(subtask_open, 0),
+        _oa_issue_overdue=Coalesce(issue_overdue, 0),
+        _oa_task_overdue=Coalesce(task_overdue, 0),
+        _oa_subtask_overdue=Coalesce(subtask_overdue, 0),
+    ).annotate(
+        open_action_count=F("_oa_issue_open") + F("_oa_task_open") + F("_oa_subtask_open"),
+        overdue_action_count=(
+            F("_oa_issue_overdue") + F("_oa_task_overdue") + F("_oa_subtask_overdue")
+        ),
+    )
+
+
 def count_project_open_actions(project) -> int:
     """Conta le azioni aperte senza materializzare le righe del registro."""
     closed_statuses = {TaskStatus.DONE, TaskStatus.CANCELED}

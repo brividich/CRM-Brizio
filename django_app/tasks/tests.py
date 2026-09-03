@@ -12,7 +12,8 @@ from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import connection
-from django.test import TestCase, override_settings
+from django.http import HttpResponse
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -56,7 +57,7 @@ from .models import (
     VRFDocStatus,
 )
 from .forms import ProjectKickoffForm
-from .views import _task_date_absence_conflicts
+from .views import _task_date_absence_conflicts, project_list
 
 User = get_user_model()
 
@@ -1356,6 +1357,34 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         self.assertContains(response, "Copia VRF")
         self.assertContains(response, "Copia senza P/N")
 
+    def test_project_list_query_budget_with_many_projects(self):
+        """§10.4: annotate_open_action_counts() usa sottoquery correlate, non
+        Count() incatenati su relazioni diverse — il budget query non deve
+        crescere con il numero di commesse nel portfolio. Chiama la view
+        direttamente (come ProjectActionsViewTests) per isolare il costo dalla
+        query di ACL/middleware/branding condivisa da ogni richiesta HTTP."""
+        for i in range(12):
+            Project.objects.create(
+                name=f"Commessa budget {i}", client_name="Cliente Budget", created_by=self.user
+            )
+        admin = User.objects.create_superuser(username="portfolio-budget-admin", password="pass12345")
+        request = RequestFactory().get(reverse("tasks:project_list"))
+        request.user = admin
+
+        def render_without_template_queries(request, template_name, context):
+            return HttpResponse(f"{template_name}:{len(context['projects'])}")
+
+        # Budget: 1 query per le righe progetto (readiness Exists() e i conteggi
+        # azioni di annotate_open_action_counts() sono sottoquery correlate nella
+        # stessa query, non round-trip aggiuntivi) + 1 per client_choices + 6 per
+        # TaskImpostazioni.get_singleton() (get_or_create con audit log). Nessuna
+        # di queste cresce con il numero di commesse nel portfolio.
+        with patch("tasks.views.render", side_effect=render_without_template_queries):
+            with self.assertNumQueries(8):
+                response = project_list(request)
+
+        self.assertEqual(response.status_code, 200)
+
     def test_project_list_builds_client_filter_from_distinct_names(self):
         self.client.force_login(self.user)
         Project.objects.create(name="Kickoff Alfa", client_name="Cliente Alfa", created_by=self.user)
@@ -1876,8 +1905,8 @@ class TaskAbsenceConflictTests(TasksBaseTestCase):
         )
         response = self.client.get(reverse("tasks:project_gantt", args=[project.id]))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "is-absence")
-        self.assertContains(response, "absence-x")
+        self.assertContains(response, "assenze 1gg")
+        self.assertTrue(response.context["gantt_rows"][0]["has_absence_conflicts"])
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)

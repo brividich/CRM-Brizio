@@ -7,7 +7,7 @@ from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from .action_register import build_project_actions
+from .action_register import annotate_open_action_counts, build_project_actions, count_project_open_actions
 from .models import (
     KickoffMeeting,
     MeetingIssue,
@@ -177,6 +177,75 @@ class ActionRegisterTests(TestCase):
             rows = build_project_actions(self.project)
 
         self.assertEqual([row.title for row in rows], ["Attività superstite"])
+
+
+class AnnotateOpenActionCountsTests(TestCase):
+    """§10.4: conteggi per la card portfolio, senza N+1 su piu' commesse."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(username="annotate-owner")
+
+    def test_counts_match_count_project_open_actions_across_all_sources(self):
+        project = Project.objects.create(name="Con azioni miste", created_by=self.owner)
+        meeting = KickoffMeeting.objects.create(
+            project=project, numero=1, data=timezone.localdate(), created_by=self.owner
+        )
+        MeetingIssue.objects.create(
+            project=project,
+            source_meeting=meeting,
+            title="Issue scaduta",
+            status=MeetingIssueStatus.OPEN,
+            due_date=timezone.localdate() - timedelta(days=2),
+            created_by=self.owner,
+        )
+        MeetingIssue.objects.create(
+            project=project,
+            title="Issue chiusa",
+            status=MeetingIssueStatus.RESOLVED,
+            created_by=self.owner,
+        )
+        open_task = Task.objects.create(
+            title="Task aperto",
+            project=project,
+            created_by=self.owner,
+            due_date=timezone.localdate() + timedelta(days=3),
+        )
+        closed_task = Task.objects.create(
+            title="Task chiuso",
+            project=project,
+            created_by=self.owner,
+            status=TaskStatus.DONE,
+        )
+        SubTask.objects.create(
+            task=closed_task,
+            title="Subtask aperta e scaduta",
+            due_date=timezone.localdate() - timedelta(days=1),
+        )
+        SubTask.objects.create(task=open_task, title="Subtask chiusa", status=TaskStatus.DONE)
+
+        annotated = annotate_open_action_counts(Project.objects.filter(pk=project.pk)).get()
+
+        self.assertEqual(annotated.open_action_count, count_project_open_actions(project))
+        self.assertEqual(annotated.open_action_count, 3)  # issue + task + subtask aperti
+        self.assertEqual(annotated.overdue_action_count, 2)  # issue e subtask scadute
+
+    def test_project_without_actions_annotates_to_zero(self):
+        project = Project.objects.create(name="Senza azioni", created_by=self.owner)
+
+        annotated = annotate_open_action_counts(Project.objects.filter(pk=project.pk)).get()
+
+        self.assertEqual(annotated.open_action_count, 0)
+        self.assertEqual(annotated.overdue_action_count, 0)
+
+    def test_no_n_plus_one_across_many_projects(self):
+        projects = [
+            Project.objects.create(name=f"Commessa {i}", created_by=self.owner) for i in range(12)
+        ]
+        for project in projects[:5]:
+            Task.objects.create(title="Aperto", project=project, created_by=self.owner)
+
+        with self.assertNumQueries(1):
+            list(annotate_open_action_counts(Project.objects.filter(id__in=[p.id for p in projects])))
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
