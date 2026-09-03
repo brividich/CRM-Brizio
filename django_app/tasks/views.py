@@ -9,7 +9,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.views import redirect_to_login
 from django.db import DatabaseError, connections, transaction
-from django.db.models import Count, F, Max, Prefetch, Q
+from django.db.models import Count, F, Max, Min, OuterRef, Prefetch, Q, Subquery
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -3359,20 +3359,30 @@ def project_list(request):
     if q_client:
         projects_base_qs = projects_base_qs.filter(client_name__icontains=q_client)
 
+    # earliest_due come sottoquery correlata (Min), non F("tasks__due_date"): un
+    # campo non aggregato su una relazione multi-riga forza Django a raggruppare
+    # anche gli altri Count() per quel valore, sdoppiando il progetto in una riga
+    # per ogni due_date distinta tra i suoi task.
+    earliest_due_sq = (
+        Task.objects.filter(project=OuterRef("pk"), due_date__isnull=False)
+        .order_by()
+        .values("project")
+        .annotate(v=Min("due_date"))
+        .values("v")
+    )
     projects_qs = projects_base_qs.annotate(
-        task_total=Count("tasks", distinct=True),
-        task_open=Count("tasks", filter=Q(tasks__status__in=OPEN_STATUSES), distinct=True),
         task_done=Count("tasks", filter=Q(tasks__status=TaskStatus.DONE), distinct=True),
         task_overdue=Count(
             "tasks",
             filter=Q(tasks__status__in=OPEN_STATUSES, tasks__due_date__lt=today),
             distinct=True,
         ),
-        task_progress_avg=Count("tasks", filter=Q(tasks__progress__gt=0), distinct=True),
-        earliest_due=F("tasks__due_date"),
+        earliest_due=Subquery(earliest_due_sq),
     )
+    from tasks.action_register import annotate_open_action_counts
     from tasks.readiness import annotate_readiness_qs, compute_project_readiness
     projects_qs = annotate_readiness_qs(projects_qs)
+    projects_qs = annotate_open_action_counts(projects_qs)
 
     # Ordinamento
     if q_sort == "due":
@@ -3393,18 +3403,12 @@ def project_list(request):
     projects = list(projects_qs.distinct())
     cfg = TaskImpostazioni.get_singleton()
 
-    # ── Calcola semaforo RAL e VRF detail per ciascun progetto ──
+    # ── VRF detail, readiness e giorni alla consegna per ciascun progetto ──
     for p in projects:
         p.vrf_detail = _vrf_status_detail(p, cfg)
         p.can_manage = _can_manage_project(request, p)
         p.readiness = compute_project_readiness(p)
-        overdue = getattr(p, "task_overdue", 0) or 0
-        if overdue == 0:
-            p.ral_status = "green"
-        elif overdue <= 2:
-            p.ral_status = "yellow"
-        else:
-            p.ral_status = "red"
+        p.days_to_delivery = (p.earliest_due - today).days if p.earliest_due else None
 
     # Filtro VRF applicato lato Python (usa vrf_detail già calcolato)
     if q_vrf:
@@ -3434,7 +3438,7 @@ def project_list(request):
     timeline = None
     timeline_undated = []
     if view_mode == "timeline":
-        from django.db.models import Min  # Max e' gia' importato a livello modulo
+        # Min/Max sono gia' importati a livello modulo.
         from django.db.models.functions import Coalesce
         from tasks.timeline import build_portfolio_timeline
         spans = {

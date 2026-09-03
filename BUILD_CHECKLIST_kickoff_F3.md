@@ -85,10 +85,10 @@ Spec sorgente: `C:\Dev\Portale Novicrom\BUILD_SPEC_kickoff_F3.md`
 
 ## Sessione 8 — UI Passata 2
 
-- [ ] Restyle card portfolio e rimozione copertine/gradienti.
-- [ ] `annotate_open_action_counts(projects_qs)` senza N+1.
-- [ ] Test query budget su almeno 10 commesse.
-- Stato: DA FARE — non assegnata.
+- [x] Restyle card portfolio e rimozione copertine/gradienti.
+- [x] `annotate_open_action_counts(projects_qs)` senza N+1.
+- [x] Test query budget su almeno 10 commesse.
+- Stato: COMPLETATA — Claude.
 
 ## Sessione 9 — UI Passata 3
 
@@ -110,3 +110,4 @@ Spec sorgente: `C:\Dev\Portale Novicrom\BUILD_SPEC_kickoff_F3.md`
 - 2026-09-02 — Codex — Fase C: 9 test `tasks.tests_project_overview` verdi; 8 regressioni mirate su tab, portfolio, board, `Da gestire` e copia kickoff verdi. Primo run: 5 subtest falliti per frammento HTML incompleto nell'asserzione, corretto il solo nuovo test e rilanciato verde.
 - 2026-09-03 — Codex — Chiusura automatica Fasi A-C: suite completa `tasks` verde, 227 test; Django `check`, migration drift, secret hygiene e `git diff --check` verdi. Resta la verifica manuale dei quattro scenari prima di chiudere la Sessione 6.
 - 2026-09-03 — Claude — Sessione 7 (Passata 1): hero piatta su `tasks.css`, scala `--ts-radius-*` rimossa (0 occorrenze). Trovato e corretto, solo nel perimetro `tasks`, un bug di cascata pre-esistente in `tokens.css` (non toccato) che teneva `--hub-color-surface/-bg/-text*` sempre al valore chiaro in dark mode. Verifica visiva Playwright su `projects.html`, `list.html`, `project_gantt.html`, `project_meetings.html`, `impostazioni.html` in entrambi i temi; 227 test `tasks`, `check`, `secret_hygiene_check` verdi.
+- 2026-09-03 — Claude — Sessione 8 (Passata 2): card portfolio senza copertine/gradienti/RAL, nuovo ordine nome+scadenza/identità/pill/team; `annotate_open_action_counts()` con sottoquery correlate (no fan-out di `Count()`); corretto un bug pre-esistente di `earliest_due=F(...)` che duplicava le righe progetto con più task. Test nuovi su parità conteggi, zero-azioni, query budget (1 query su 12 commesse per l'annotazione, 8 query fisse per la view su 12 commesse). Verifica visiva Playwright chiaro/scuro. 231 test `tasks`, `check`, `makemigrations --check`, `secret_hygiene_check` verdi.
