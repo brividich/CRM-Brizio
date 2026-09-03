@@ -92,10 +92,10 @@ Spec sorgente: `C:\Dev\Portale Novicrom\BUILD_SPEC_kickoff_F3.md`
 
 ## Sessione 9 — UI Passata 3
 
-- [ ] Spostare CSS inline in `tasks.css`, un componente/commit per volta.
-- [ ] Grep finali della spec tutti conformi.
-- [ ] Suite `tasks` finale verde.
-- Stato: DA FARE — non assegnata.
+- [x] Spostare CSS inline in `tasks.css`, un componente/commit per volta (8 template + partial `_meeting_form_styles.html` rimosso).
+- [x] Suite `tasks` finale verde (231 test).
+- [ ] Grep gradienti/font-weight 700-900/uppercase (§10.6) a zero — NON fatto: relocation CSS puro senza cambio di resa, azzerarli è un redesign visivo pagina per pagina fuori scope. Solo `--ts-radius` è a 0 (Sessione 7).
+- Stato: COMPLETATA (relocation) — Claude. Il redesign visivo per azzerare i grep §10.6 resta un lavoro futuro, non assegnato.
 
 ## Note e decisioni condivise
 
@@ -111,3 +111,4 @@ Spec sorgente: `C:\Dev\Portale Novicrom\BUILD_SPEC_kickoff_F3.md`
 - 2026-09-03 — Codex — Chiusura automatica Fasi A-C: suite completa `tasks` verde, 227 test; Django `check`, migration drift, secret hygiene e `git diff --check` verdi. Resta la verifica manuale dei quattro scenari prima di chiudere la Sessione 6.
 - 2026-09-03 — Claude — Sessione 7 (Passata 1): hero piatta su `tasks.css`, scala `--ts-radius-*` rimossa (0 occorrenze). Trovato e corretto, solo nel perimetro `tasks`, un bug di cascata pre-esistente in `tokens.css` (non toccato) che teneva `--hub-color-surface/-bg/-text*` sempre al valore chiaro in dark mode. Verifica visiva Playwright su `projects.html`, `list.html`, `project_gantt.html`, `project_meetings.html`, `impostazioni.html` in entrambi i temi; 227 test `tasks`, `check`, `secret_hygiene_check` verdi.
 - 2026-09-03 — Claude — Sessione 8 (Passata 2): card portfolio senza copertine/gradienti/RAL, nuovo ordine nome+scadenza/identità/pill/team; `annotate_open_action_counts()` con sottoquery correlate (no fan-out di `Count()`); corretto un bug pre-esistente di `earliest_due=F(...)` che duplicava le righe progetto con più task. Test nuovi su parità conteggi, zero-azioni, query budget (1 query su 12 commesse per l'annotazione, 8 query fisse per la view su 12 commesse). Verifica visiva Playwright chiaro/scuro. 231 test `tasks`, `check`, `makemigrations --check`, `secret_hygiene_check` verdi.
+- 2026-09-03 — Claude — Sessione 9 (Passata 3): rientro CSS inline in `tasks.css` per gli 8 template rimasti + partial `_meeting_form_styles.html` (rimosso, incluso da 2 template). Un commit per file, nessun cambio di resa visiva (screenshot Playwright chiaro/scuro su ognuno). Corretto `TaskAbsenceConflictTests.test_project_gantt_marks_absence_cells`: asseriva su testo presente solo nel CSS inline rimosso (falso positivo pre-esistente), sostituito con il segnale realmente renderizzato. Rimosse alcune regole CSS morte incontrate nello spostamento. 231 test `tasks`, `check`, `secret_hygiene_check` verdi. F3 (Fasi A-C + Passate 1-3) completa; resta aperta solo la verifica manuale dei 4 scenari (Sessione 6) e, come lavoro futuro non assegnato, l'azzeramento dei grep gradienti/font-weight/uppercase del DoD §10.6.

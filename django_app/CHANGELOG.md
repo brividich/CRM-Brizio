@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### KICK-OFF F3 — restyle UI Passata 3: rientro CSS inline (chiusura F3)
+
+- **[ux] `tasks/static/tasks/css/tasks.css` + 8 template**: tutti i blocchi `<style>` inline rimasti nel modulo `tasks` (project_meetings.html, project_vrf_upload.html, projects.html, detail.html, form.html, project_meeting_detail.html, list.html, project_gantt.html — incluso il secondo `<style>` scoped `.ts-gantt-cm` dentro il body) sono spostati verbatim in `tasks.css`, un file per commit. Nessun cambio di resa visiva (verificato con screenshot Playwright chiaro/scuro su ogni pagina toccata).
+- **[ux] `tasks/templates/tasks/_meeting_form_styles.html` [rimosso]**: partial condiviso da `project_meeting_form.html` e `project_meeting_minutes.html`, incluso incondizionatamente da entrambi — spostato anch'esso in `tasks.css` e il file eliminato; rimossi i due `{% include %}`.
+- **[fix] `tasks/tests.py`**: `TaskAbsenceConflictTests.test_project_gantt_marks_absence_cells` asseriva sulle stringhe `is-absence`/`absence-x`, presenti però solo nel testo del `<style>` inline appena rimosso — `row["cells"]` con quelle classi è calcolato in `views.py` ma non è mai renderizzato dal template (che usa la barra `.ts-gantt-cm` via JS), quindi il test passava per coincidenza sul testo CSS in pagina, non sul comportamento reale. Sostituita l'asserzione con il segnale realmente renderizzato (`row.has_absence_conflicts`, testo "assenze Ngg").
+- Rimosse poche regole morte incontrate durante lo spostamento (mai raggiungibili dal markup del rispettivo file): `.meeting-btn.danger`, `.vrf-status-banner.pending/.na`, `.badge.warn` in `detail.html` — annotate nei rispettivi commit.
+- Grep di chiusura: `--ts-radius` a 0 occorrenze in tutto `tasks/` (rimossa in Sessione 7). I grep su gradienti/font-weight 700-900/uppercase (§10.6) restano diversi da zero: la Passata 3 ha spostato il CSS esistente senza cambiarlo, come richiesto ("nessun cambio di resa visiva") — azzerarli è un intervento di redesign visivo pagina per pagina, non una relocation, e resta fuori dallo scope di questa sessione.
+- `python manage.py test tasks` (231 test), `check`, `secret_hygiene_check` verdi dopo ogni commit.
+
 ### KICK-OFF F3 — restyle UI Passata 2: card portfolio senza copertine
 
 - **[ux] `tasks/templates/tasks/projects.html`, `action_register.py`, `views.py`**: la card commessa del portfolio perde le cinque copertine colorate a gradiente (una per stato VRF) e l'overlay noise. Nuovo ordine: nome + KO badge e giorni alla consegna (rosso `--hub-status-danger` se scaduta) · cliente/P/N/rev · riga di pill (fase neutra, azioni scadute solo se >0, readiness solo se non `ready`) · separatore hairline · riga team (PM/Capocommessa/Programmatore). Il semaforo RAL basato solo su `Task.due_date` (`pf-ral`) è sostituito dalla pill "N scadute", che copre anche `MeetingIssue` e `SubTask`. La riga VRF resta invariata come chip informativo, cambia solo il contenitore. Rimossa la barra di avanzamento attività (ridondante con la pill azioni, dato già disponibile nella Panoramica).
