@@ -1,0 +1,121 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Nuova campagna di manutenzione{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.wcc-card { border:1px solid #dbe1ea; border-radius:14px; background:#fff; padding:16px; display:grid; gap:14px; }
+.wcc-section { border:0; border-top:1px solid #e5e7eb; padding:14px 0 2px; margin:0; }
+.wcc-section:first-of-type { border-top:0; padding-top:0; }
+.wcc-section legend { padding:0 8px 0 0; font-size:var(--fs-md); font-weight:850; color:#0f172a; }
+.wcc-note { color:#64748b; font-size:var(--fs-sm); margin:-2px 0 10px; }
+body.theme-dark .wcc-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .wcc-section { border-color:var(--border); }
+body.theme-dark .wcc-section legend { color:var(--text); }
+.wcc-tree { max-height:360px; overflow-y:auto; border:1px solid #dbe1ea; border-radius:10px; padding:10px 12px; display:grid; gap:12px; }
+body.theme-dark .wcc-tree { border-color:var(--border); }
+.wcc-group-title { font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.05em; font-weight:800; color:#64748b; margin-bottom:6px; }
+.wcc-item { display:flex; align-items:center; gap:8px; padding:4px 0; font-size:var(--fs-sm); cursor:pointer; }
+.wcc-actions { display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; align-items:center; }
+.wcc-count { font-size:var(--fs-sm); color:#64748b; }
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Nuova campagna di manutenzione{% endblock %}
+{% block assets_shell_subtitle %}<p>Crea più interventi in un colpo solo per un gruppo di asset simili, con le scadenze distribuite su una finestra invece che tutte sulla stessa data.</p>{% endblock %}
+{% block assets_shell_toolbar %}
+  <a class="btn" href="{{ back_url }}">&larr; Interventi</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<section style="max-width:980px;">
+  <form method="post" class="wcc-card">
+    {% csrf_token %}
+
+    <fieldset class="wcc-section">
+      <legend>1. Cosa fare</legend>
+      <div class="wcc-note">Il tipo di attività determina titolo, checklist e tipo di intervento di ogni OdL creato.</div>
+      <div class="as-form-grid-3">
+        <div>
+          <label for="wccTemplate">Tipo di attività</label>
+          <select id="wccTemplate" name="intervention_template" required>
+            <option value="">Seleziona...</option>
+            {% for t in templates %}
+              <option value="{{ t.id }}">{{ t.label }}{% if t.asset_category %} — {{ t.asset_category.label }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="wccPriority">Priorità</label>
+          <select id="wccPriority" name="priority">
+            {% for code, label in priority_choices %}<option value="{{ code }}" {% if code == 'NORMAL' %}selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="wccAssigned">Manutentore (opzionale)</label>
+          <select id="wccAssigned" name="assigned_to">
+            <option value="">Non assegnato</option>
+            {% for u in user_options %}<option value="{{ u.id }}">{{ u.get_full_name|default:u.username }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset class="wcc-section">
+      <legend>2. Quando</legend>
+      <div class="wcc-note">Le scadenze vengono distribuite sulla finestra scelta, non messe tutte sulla stessa data.</div>
+      <div class="as-form-grid-3">
+        <div>
+          <label for="wccStart">Prima scadenza</label>
+          <input type="date" id="wccStart" name="start_date">
+        </div>
+        <div>
+          <label for="wccWindow">Finestra (giorni)</label>
+          <input type="number" id="wccWindow" name="window_days" min="1" max="60" value="10">
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset class="wcc-section">
+      <legend>3. Asset coinvolti</legend>
+      <div class="wcc-note"><span class="wcc-count" data-wcc-count>0 selezionati</span></div>
+      <div class="wcc-tree" data-wcc-tree>
+        {% for group in campaign_asset_groups %}
+          <div>
+            <div class="wcc-group-title">{{ group.label }} <span class="as-note">({{ group.assets|length }})</span></div>
+            {% for asset in group.assets %}
+              <label class="wcc-item">
+                <input type="checkbox" name="assets" value="{{ asset.id }}" data-wcc-check>
+                <span>{{ asset.name|default:asset.asset_tag }}{% if asset.reparto %} · {{ asset.reparto }}{% endif %}</span>
+              </label>
+            {% endfor %}
+          </div>
+        {% empty %}
+          <p class="as-note">Nessun asset in uso disponibile.</p>
+        {% endfor %}
+      </div>
+    </fieldset>
+
+    <div class="wcc-actions">
+      <a class="btn" href="{{ back_url }}">Annulla</a>
+      <button type="submit" class="btn btn-primary">Crea campagna</button>
+    </div>
+  </form>
+</section>
+{% endblock %}
+
+{% block assets_shell_scripts %}
+<script>
+(function () {
+  var checks = document.querySelectorAll("[data-wcc-check]");
+  var counter = document.querySelector("[data-wcc-count]");
+  function updateCount() {
+    var n = 0;
+    checks.forEach(function (c) { if (c.checked) { n += 1; } });
+    if (counter) { counter.textContent = n + " selezionati"; }
+  }
+  checks.forEach(function (c) { c.addEventListener("change", updateCount); });
+  updateCount();
+})();
+</script>
+{% endblock %}

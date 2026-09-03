@@ -4,7 +4,7 @@ import io
 import json
 import shutil
 from contextlib import contextmanager
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import patch
@@ -10847,6 +10847,163 @@ class MaintenanceCoverageMatrixTests(TestCase):
         self.client.force_login(viewer)
         response = self.client.get(reverse("assets:maintenance_coverage_matrix"))
         self.assertEqual(response.status_code, 302)
+
+
+class WorkOrderCampaignDistributionTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_superuser(
+            username="campaign-tech",
+            email="campaign-tech@test.local",
+            password="pass12345",
+        )
+        self.asset = Asset.objects.create(
+            asset_tag="IT-CAMPAIGN-001",
+            name="Server campagna test",
+            asset_type=Asset.TYPE_SERVER,
+            status=Asset.STATUS_IN_USE,
+        )
+
+    def test_distributes_round_robin_across_window(self):
+        from assets.maintenance import distribute_campaign_due_dates
+
+        start = timezone.localdate()
+        dates = distribute_campaign_due_dates(count=5, window_days=5, start_date=start)
+        self.assertEqual(len(dates), 5)
+        self.assertEqual(sorted(set(dates)), [start + timedelta(days=i) for i in range(5)])
+
+    def test_wraps_around_when_more_assets_than_window_days(self):
+        from assets.maintenance import distribute_campaign_due_dates
+
+        start = timezone.localdate()
+        dates = distribute_campaign_due_dates(count=7, window_days=3, start_date=start, max_per_day=99)
+        self.assertEqual(len(dates), 7)
+        counts = {d: dates.count(d) for d in set(dates)}
+        # 7 su 3 giorni: distribuzione il piu' uniforme possibile (3/2/2)
+        self.assertEqual(sorted(counts.values()), [2, 2, 3])
+
+    def test_respects_existing_load_for_assigned_technician(self):
+        from assets.maintenance import distribute_campaign_due_dates
+
+        start = timezone.localdate()
+        for _ in range(3):
+            WorkOrder.objects.create(
+                asset=self.asset,
+                kind=WorkOrder.KIND_CORRECTIVE,
+                status=WorkOrder.STATUS_OPEN,
+                title="Carico esistente",
+                assigned_to=self.user,
+                due_at=timezone.make_aware(datetime.combine(start, datetime.min.time())),
+            )
+        dates = distribute_campaign_due_dates(
+            count=1, window_days=3, start_date=start, assigned_to=self.user, max_per_day=3
+        )
+        # Il primo giorno ha gia' 3 OdL (= max_per_day): la nuova scadenza salta al giorno dopo.
+        self.assertEqual(dates, [start + timedelta(days=1)])
+
+
+class WorkOrderCampaignCreateViewTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            username="campaign-admin",
+            email="campaign-admin@test.local",
+            password="pass12345",
+        )
+        self.category = AssetCategory.objects.create(
+            code="campaign-category",
+            label="Categoria Campagna",
+            base_asset_type=Asset.TYPE_WORK_MACHINE,
+            sort_order=10,
+        )
+        self.template = MaintenanceInterventionTemplate.objects.create(
+            code="campaign-template",
+            label="Verifica annuale",
+            asset_category=self.category,
+        )
+        self.asset_a = Asset.objects.create(
+            name="Pressa Campagna A",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            asset_category=self.category,
+            source_key="campaign-asset-a",
+        )
+        self.asset_b = Asset.objects.create(
+            name="Pressa Campagna B",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            asset_category=self.category,
+            source_key="campaign-asset-b",
+        )
+        self.url = reverse("assets:wo_campaign_create")
+
+    def test_creates_one_workorder_per_asset_with_shared_batch(self):
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            self.url,
+            {
+                "intervention_template": str(self.template.id),
+                "priority": WorkOrder.PRIORITY_NORMAL,
+                "window_days": "5",
+                "assets": [str(self.asset_a.id), str(self.asset_b.id)],
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        created = WorkOrder.objects.filter(asset__in=[self.asset_a, self.asset_b])
+        self.assertEqual(created.count(), 2)
+        batches = set(created.values_list("reference_batch", flat=True))
+        self.assertEqual(len(batches), 1)
+        self.assertTrue(next(iter(batches)).startswith(f"CAMPAIGN_{self.template.id}_"))
+        for wo in created:
+            self.assertEqual(wo.origin, WorkOrder.ORIGIN_MANUAL)
+            self.assertEqual(wo.status, WorkOrder.STATUS_OPEN)
+            self.assertIsNotNone(wo.due_at)
+
+    def test_copies_checklist_from_template(self):
+        MaintenanceChecklistStep.objects.create(
+            intervention_template=self.template,
+            step_number=10,
+            description="Verifica generale",
+            step_type=WorkOrderChecklist.TYPE_YES_NO,
+        )
+        self.client.force_login(self.admin)
+        self.client.post(
+            self.url,
+            {
+                "intervention_template": str(self.template.id),
+                "priority": WorkOrder.PRIORITY_NORMAL,
+                "window_days": "5",
+                "assets": [str(self.asset_a.id)],
+            },
+        )
+        workorder = WorkOrder.objects.get(asset=self.asset_a)
+        self.assertEqual(WorkOrderChecklist.objects.filter(work_order=workorder).count(), 1)
+
+    def test_requires_at_least_one_asset(self):
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            self.url,
+            {
+                "intervention_template": str(self.template.id),
+                "priority": WorkOrder.PRIORITY_NORMAL,
+                "window_days": "5",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(WorkOrder.objects.count(), 0)
+
+    def test_requires_admin(self):
+        viewer = User.objects.create_user(
+            username="campaign-viewer", email="campaign-viewer@test.local", password="pass12345"
+        )
+        self.client.force_login(viewer)
+        response = self.client.post(
+            self.url,
+            {
+                "intervention_template": str(self.template.id),
+                "priority": WorkOrder.PRIORITY_NORMAL,
+                "window_days": "5",
+                "assets": [str(self.asset_a.id)],
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(WorkOrder.objects.count(), 0)
 
 
 class WorkOrderBoardTests(TestCase):

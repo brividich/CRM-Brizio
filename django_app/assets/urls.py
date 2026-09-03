@@ -108,6 +108,7 @@ urlpatterns = [
     path("assets/manutenzione/il-mio-turno/", views.il_mio_turno, name="il_mio_turno"),
     path("assets/workorders/new/", views.workorder_create, name="wo_create"),
     path("assets/workorders/new/<int:id>/", views.workorder_create, name="wo_create"),
+    path("assets/workorders/campagna/", views.workorder_campaign_create, name="wo_campaign_create"),
     path("assets/workorders/view/", views.workorder_detail, name="wo_view"),
     path("assets/workorders/view/<int:id>/", views.workorder_detail, name="wo_view"),
     path("assets/workorders/close/", views.workorder_close, name="wo_close"),

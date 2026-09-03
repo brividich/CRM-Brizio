@@ -8,7 +8,7 @@ import os
 import re
 import tempfile
 from collections import defaultdict
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
 from html import escape
 from pathlib import Path, PurePosixPath
@@ -145,6 +145,7 @@ from .maintenance import (
     build_day_based_maintenance_schedule_rows,
     contract_state_payload,
     copy_template_checklist_to_workorder,
+    distribute_campaign_due_dates,
     get_applicable_assistance_contracts,
     get_primary_assistance_contract,
     get_workorder_overdue_days,
@@ -15108,6 +15109,121 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
                 "id",
             ),
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
+        },
+    )
+
+
+@login_required
+def workorder_campaign_create(request: HttpRequest) -> HttpResponse:
+    """Crea più OdL in un colpo solo per un gruppo di asset simili (es. verifica annuale su
+    12 presse), stesso template, scadenze distribuite su una finestra invece che tutte sulla
+    stessa data. `reference_batch` raggruppa il lotto (stesso campo già usato da
+    `generate_workorders_for_rule`); `origin` resta `ORIGIN_MANUAL` — una campagna è una
+    creazione manuale multipla, non un nuovo tipo di origine da tracciare a parte."""
+    if not _is_assets_admin(request):
+        messages.error(request, "Solo admin può creare campagne di manutenzione.")
+        return redirect("assets:wo_list")
+
+    from django.contrib.auth import get_user_model
+
+    User = get_user_model()
+
+    templates = list(
+        MaintenanceInterventionTemplate.objects.filter(is_active=True)
+        .select_related("asset_category")
+        .order_by("sort_order", "label")
+    )
+    assets_qs = (
+        Asset.objects.filter(status=Asset.STATUS_IN_USE)
+        .select_related("asset_category")
+        .order_by("asset_category__sort_order", "reparto", "name", "id")
+    )
+    campaign_asset_groups: dict[str, list[Asset]] = {}
+    for asset in assets_qs:
+        group_label = asset.asset_category.label if asset.asset_category_id else "Senza categoria"
+        campaign_asset_groups.setdefault(group_label, []).append(asset)
+
+    user_options = list(User.objects.filter(is_active=True).order_by("last_name", "first_name", "username"))
+
+    if request.method == "POST":
+        template_id = _as_int(request.POST.get("intervention_template"), default=0)
+        asset_ids = [_as_int(v) for v in request.POST.getlist("assets") if _as_int(v)]
+        selected_assets = list(assets_qs.filter(id__in=asset_ids)) if asset_ids else []
+        template = MaintenanceInterventionTemplate.objects.filter(pk=template_id).first() if template_id else None
+        window_days = _as_int(request.POST.get("window_days"), default=10) or 10
+        window_days = max(1, min(window_days, 60))
+        priority = _clean_string(request.POST.get("priority")) or WorkOrder.PRIORITY_NORMAL
+        if priority not in dict(WorkOrder.PRIORITY_CHOICES):
+            priority = WorkOrder.PRIORITY_NORMAL
+        assigned_id = _as_int(request.POST.get("assigned_to"), default=0)
+        assigned_user = User.objects.filter(pk=assigned_id, is_active=True).first() if assigned_id else None
+        start_date_raw = _clean_string(request.POST.get("start_date"))
+        start_date = (parse_date(start_date_raw) if start_date_raw else None) or timezone.localdate()
+
+        if not template:
+            messages.error(request, "Seleziona un tipo di attività.")
+        elif not selected_assets:
+            messages.error(request, "Seleziona almeno un asset.")
+        else:
+            due_dates = distribute_campaign_due_dates(
+                count=len(selected_assets),
+                window_days=window_days,
+                start_date=start_date,
+                assigned_to=assigned_user,
+            )
+            reference_batch = f"CAMPAIGN_{template.id}_{timezone.now():%Y%m%d_%H%M%S}"
+            created: list[WorkOrder] = []
+            with transaction.atomic():
+                for asset, due_date in zip(selected_assets, due_dates):
+                    workorder = WorkOrder(
+                        asset=asset,
+                        kind=template.workorder_kind,
+                        status=WorkOrder.STATUS_OPEN,
+                        origin=WorkOrder.ORIGIN_MANUAL,
+                        title=f"{template.label} — {asset.asset_tag or asset.name}",
+                        description=template.description or "",
+                        priority=priority,
+                        due_at=timezone.make_aware(datetime.combine(due_date, time(9, 0))),
+                        assigned_to=assigned_user,
+                        reference_batch=reference_batch,
+                        opened_at=timezone.now(),
+                    )
+                    workorder.full_clean()
+                    workorder.save()
+                    copy_template_checklist_to_workorder(workorder, template_id=template.id)
+                    WorkOrderLog.objects.create(
+                        work_order=workorder,
+                        note=f"Creato in campagna (lotto {reference_batch}).",
+                        author=request.user,
+                    )
+                    created.append(workorder)
+            log_action(
+                request,
+                "create_workorder_campaign",
+                "assets",
+                {
+                    "reference_batch": reference_batch,
+                    "template_id": template.id,
+                    "count": len(created),
+                    "window_days": window_days,
+                },
+            )
+            messages.success(request, f"Creati {len(created)} interventi (lotto {reference_batch}).")
+            return redirect(_workorder_list_page_url(view="open"))
+
+    return render(
+        request,
+        "assets/pages/workorder_campaign_create.html",
+        {
+            "page_title": "Nuova campagna di manutenzione",
+            "templates": templates,
+            "campaign_asset_groups": [
+                {"label": label, "assets": assets} for label, assets in campaign_asset_groups.items()
+            ],
+            "priority_choices": WorkOrder.PRIORITY_CHOICES,
+            "user_options": user_options,
+            "back_url": reverse("assets:wo_list"),
+            **_assets_shell_context(request),
         },
     )
 

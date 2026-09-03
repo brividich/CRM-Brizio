@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.utils import timezone
 
 from .models import (
@@ -718,6 +718,56 @@ def preview_maintenance_rule_impact(
         )
     )
     return {"asset_count": len(assets), "upcoming": rows[:limit]}
+
+
+def distribute_campaign_due_dates(
+    *,
+    count: int,
+    window_days: int,
+    start_date: date | None = None,
+    assigned_to=None,
+    max_per_day: int = 3,
+) -> list[date]:
+    """Distribuisce ``count`` scadenze su una finestra di ``window_days`` giorni (round-robin),
+    invece di metterle tutte sulla stessa data come farebbe una singola ``MaintenanceRule``
+    category-wide. Se ``assigned_to`` è dato, evita — quando possibile — di superare
+    ``max_per_day`` OdL aperti nello stesso giorno per quel tecnico, sommando il carico già
+    esistente a quello che si sta per creare. Se la finestra è troppo stretta per rispettare
+    il tetto, lo supera piuttosto che rifiutarsi di distribuire (nessun asset resta escluso)."""
+    start_date = start_date or timezone.localdate()
+    window_days = max(1, int(window_days or 1))
+    day_candidates = [start_date + timedelta(days=i) for i in range(window_days)]
+
+    load = {day: 0 for day in day_candidates}
+    if assigned_to is not None:
+        end_date = day_candidates[-1]
+        existing = (
+            WorkOrder.objects.filter(
+                assigned_to=assigned_to,
+                status=WorkOrder.STATUS_OPEN,
+                due_at__date__gte=start_date,
+                due_at__date__lte=end_date,
+            )
+            .values("due_at__date")
+            .annotate(n=Count("id"))
+        )
+        for row in existing:
+            day = row["due_at__date"]
+            if day in load:
+                load[day] = row["n"]
+
+    dates: list[date] = []
+    cursor = 0
+    for _ in range(max(0, int(count or 0))):
+        attempts = 0
+        while attempts < window_days and load[day_candidates[cursor % window_days]] >= max_per_day:
+            cursor += 1
+            attempts += 1
+        chosen = day_candidates[cursor % window_days]
+        load[chosen] += 1
+        dates.append(chosen)
+        cursor += 1
+    return dates
 
 
 def _clean_sort_value(value) -> str:

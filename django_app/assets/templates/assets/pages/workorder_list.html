@@ -461,6 +461,7 @@ body.theme-dark .wob-overdue { color: #fca5a5; }
   <a class="btn" href="{% url 'assets:maintenance_hub' %}">&#8592; Hub manutenzione</a>
   <a class="btn" href="{% url 'assets:asset_list' %}">Inventario</a>
   <button type="button" onclick="document.getElementById('woCreateDlg').showModal()" class="btn btn-primary"{% if not workorder_create_asset_options %} disabled{% endif %}>+ Nuovo intervento</button>
+  <a class="btn" href="{% url 'assets:wo_campaign_create' %}">+ Campagna</a>
   <button type="button" onclick="document.getElementById('woExportDlg').showModal()" class="btn">&#8595; Esporta</button>
   <dialog id="woCreateDlg" class="wo-create-dialog">
     <form method="get" action="{% url 'assets:wo_create' %}" class="wo-create-form">
