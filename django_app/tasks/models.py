@@ -6,6 +6,7 @@ from django.db import IntegrityError, models, transaction
 from django.db.models import Max
 from django.utils import timezone
 
+from tasks.identity import normalize_client_name, normalize_part_number
 from tasks.storage import PrivateTasksStorage
 
 
@@ -128,6 +129,9 @@ class Project(models.Model):
         ordering = ["-updated_at", "-id"]
 
     def save(self, *args, **kwargs):
+        self.part_number = normalize_part_number(self.part_number)
+        self.client_name = normalize_client_name(self.client_name)
+
         if not self._state.adding:
             if self.kickoff_number and not self.name:
                 self.name = f"KICK-OFF {self.kickoff_number}"

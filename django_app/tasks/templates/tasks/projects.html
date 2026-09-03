@@ -409,7 +409,7 @@
             <!-- Cover header con gradiente per stato VRF -->
             <div class="pf-card-cover {{ d.status|default:'pending' }}">
               <div class="pf-cover-content">
-                <a class="pf-name-link" href="{% url 'tasks:project_gantt' project.id %}">{{ project.name }}</a>
+                <a class="pf-name-link" href="{% url 'tasks:project_overview' project.id %}">{{ project.name }}</a>
                 <div class="pf-cover-right">
                   {% if project.kickoff_number %}
                     <span class="pf-ko-number">KO-{{ project.kickoff_number }}</span>

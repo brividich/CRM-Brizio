@@ -1,0 +1,134 @@
+{% extends "tasks/base_shell.html" %}
+
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Panoramica</span>{% endblock %}
+{% block tasks_shell_title %}{{ project.name }}{% endblock %}
+{% block tasks_shell_subtitle %}
+  {% if project.client_name %}{{ project.client_name }}{% endif %}
+  {% if project.part_number %}{% if project.client_name %} · {% endif %}P/N {{ project.part_number }}{% endif %}
+  {% if project.revisione %} · Rev. {{ project.revisione }}{% endif %}
+{% endblock %}
+
+{% block tasks_shell_meta %}
+  <span class="ko-phase">{{ project.get_phase_display }}</span>
+  {% include "tasks/_readiness_badge.html" with readiness=readiness %}
+{% endblock %}
+
+{% block tasks_shell_actions %}
+  <a class="ts-hero-action" href="{% url 'tasks:project_list' %}">Portfolio kickoff</a>
+  {% if can_manage %}
+    <a class="ts-hero-action" href="{% url 'tasks:project_vrf_upload' project.id %}">Gestisci VRF</a>
+    {% if tasks_shell_can_create %}
+      <a class="ts-hero-action" href="{% url 'tasks:project_meeting_create' project.id %}">Nuovo incontro</a>
+      <a class="ts-hero-action primary" href="{% url 'tasks:create' %}?project={{ project.id }}">+ Nuova attività</a>
+    {% endif %}
+  {% endif %}
+{% endblock %}
+
+{% block tasks_shell_content %}
+  <section class="ko-team" aria-label="Team commessa">
+    <div class="ko-team-item">
+      <span class="ko-team-role">Project manager</span>
+      <span class="ko-team-name">{% if project.project_manager %}{{ project.project_manager.get_full_name|default:project.project_manager.username }}{% else %}Non assegnato{% endif %}</span>
+    </div>
+    <div class="ko-team-item">
+      <span class="ko-team-role">Capocommessa</span>
+      <span class="ko-team-name">{% if project.capo_commessa %}{{ project.capo_commessa.get_full_name|default:project.capo_commessa.username }}{% else %}Non assegnato{% endif %}</span>
+    </div>
+    <div class="ko-team-item">
+      <span class="ko-team-role">Programmatore</span>
+      <span class="ko-team-name">{% if project.programmer %}{{ project.programmer.get_full_name|default:project.programmer.username }}{% else %}Non assegnato{% endif %}</span>
+    </div>
+  </section>
+
+  <section class="ko-metrics" aria-label="Metriche commessa">
+    <a class="ko-metric" href="{% url 'tasks:project_actions' project.id %}">
+      <span class="ko-metric-value">{{ action_open_count }}</span>
+      <span class="ko-metric-label">Azioni aperte</span>
+    </a>
+    <a class="ko-metric" href="{% url 'tasks:project_meetings' project.id %}">
+      {% if next_meeting %}
+        <span class="ko-metric-value ko-metric-value--date">{{ next_meeting.data|date:"d/m/Y" }}</span>
+        <span class="ko-metric-label">Prossimo incontro · n. {{ next_meeting.numero }}</span>
+      {% else %}
+        <span class="ko-metric-value ko-metric-value--empty">—</span>
+        <span class="ko-metric-label">Nessun incontro pianificato</span>
+      {% endif %}
+    </a>
+    <a class="ko-metric" href="{% url 'tasks:project_gantt' project.id %}">
+      <span class="ko-metric-value">{{ planned_task_count }}/{{ total_task_count }}</span>
+      <span class="ko-metric-label">Attività a piano</span>
+    </a>
+  </section>
+
+  <div class="ko-grid">
+    <section class="ko-panel">
+      <div class="ko-panel-head">
+        <div>
+          <h2>Prontezza all'avvio</h2>
+          <p>{{ readiness.label }} · {{ readiness.met }} criteri su {{ readiness.total }}</p>
+        </div>
+        {% include "tasks/_readiness_badge.html" with readiness=readiness %}
+      </div>
+      <div class="ko-panel-body">
+        {% include "tasks/_readiness_checklist.html" with readiness=readiness hide_actions=hide_readiness_actions %}
+      </div>
+    </section>
+
+    <section class="ko-panel">
+      <div class="ko-panel-head">
+        <div>
+          <h2>Prossime azioni</h2>
+          <p>Le prime cinque per urgenza e scadenza.</p>
+        </div>
+        <a class="ko-panel-link" href="{% url 'tasks:project_actions' project.id %}">Registro completo</a>
+      </div>
+      <div class="ko-panel-body ko-panel-body--flush">
+        {% if top_actions %}
+          <ul class="ko-action-list">
+            {% for action in top_actions %}
+              <li class="ko-action-item{% if action.is_overdue %} ko-action-item--danger{% endif %}">
+                <div class="ko-action-main">
+                  <a href="{{ action.url }}">{{ action.title }}</a>
+                  <span>{{ action.source_label }}</span>
+                </div>
+                <div class="ko-action-meta">
+                  {% if action.due_date %}{{ action.due_date|date:"d/m/Y" }}{% else %}Senza scadenza{% endif %}
+                  {% if action.is_overdue %}<span class="ka-status ka-status--danger">Scaduta</span>{% endif %}
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="ko-empty">Nessuna azione aperta su questa commessa.</p>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+
+  <section class="ko-panel ko-panel--meetings">
+    <div class="ko-panel-head">
+      <div>
+        <h2>Ultimi incontri</h2>
+        <p>Le tre registrazioni più recenti della commessa.</p>
+      </div>
+      <a class="ko-panel-link" href="{% url 'tasks:project_meetings' project.id %}">Tutti gli incontri</a>
+    </div>
+    <div class="ko-panel-body ko-panel-body--flush">
+      {% if recent_meetings %}
+        <ul class="ko-meeting-list">
+          {% for meeting in recent_meetings %}
+            <li>
+              <a href="{% url 'tasks:project_meeting_detail' project.id meeting.id %}">
+                <span class="ko-meeting-title">Incontro {{ meeting.numero }}{% if meeting.titolo %} · {{ meeting.titolo }}{% endif %}</span>
+                <span class="ko-meeting-date">{{ meeting.data|date:"d/m/Y" }}</span>
+                <span class="ko-meeting-status ko-meeting-status--{{ meeting.stato|lower }}">{{ meeting.get_stato_display }}</span>
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="ko-empty">Nessun incontro registrato.</p>
+      {% endif %}
+    </div>
+  </section>
+{% endblock %}

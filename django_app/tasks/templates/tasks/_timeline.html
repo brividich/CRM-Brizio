@@ -14,7 +14,7 @@
     {% for row in timeline.rows %}
       <div class="ptl-row">
         <div class="ptl-row-label">
-          <a href="{% url 'tasks:project_gantt' row.project.id %}">{{ row.project.name }}</a>
+          <a href="{% url 'tasks:project_overview' row.project.id %}">{{ row.project.name }}</a>
           {% if row.readiness %}{% include "tasks/_readiness_badge.html" with readiness=row.readiness %}{% endif %}
         </div>
         <div class="ptl-row-track">

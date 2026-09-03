@@ -3,7 +3,7 @@
     <li class="tk-ritem tk-ritem--{% if c.ok %}ok{% else %}miss{% endif %}">
       <span class="tk-ritem-ic" aria-hidden="true">{% if c.ok %}&#10003;{% else %}&#9675;{% endif %}</span>
       <span class="tk-ritem-label">{{ c.label }}</span>
-      {% if not c.ok and c.action_url %}
+      {% if not c.ok and c.action_url and not hide_actions %}
         <a class="tk-ritem-fix" href="{{ c.action_url }}">Sistema</a>
       {% endif %}
     </li>
