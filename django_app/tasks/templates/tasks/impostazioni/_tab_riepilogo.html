@@ -1,0 +1,89 @@
+<section class="ts-grid-2">
+  <article class="ts-panel">
+    <div class="ts-panel-head">
+      <div class="ts-panel-title-wrap">
+        <h2 class="ts-panel-title">Distribuzione per stato</h2>
+        <p class="ts-panel-subtitle">Lettura rapida del mix tra backlog aperto, avanzamento e chiusure.</p>
+      </div>
+    </div>
+    <div class="ts-panel-body no-pad">
+      <div class="ts-table-wrap" style="border:0;border-radius:0;">
+        <table class="ts-table" style="min-width:0;">
+          <thead><tr><th>Stato</th><th>Quantita</th></tr></thead>
+          <tbody>
+            {% for val, lbl, cnt in tasks_by_status %}
+              <tr>
+                <td><span class="ts-badge ts-badge--{{ val|lower }}">{{ lbl }}</span></td>
+                <td><strong>{{ cnt }}</strong></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </article>
+
+  <article class="ts-panel">
+    <div class="ts-panel-head">
+      <div class="ts-panel-title-wrap">
+        <h2 class="ts-panel-title">Top 10 assegnatari</h2>
+        <p class="ts-panel-subtitle">Utenti con il maggior numero di task assegnate nel database attuale.</p>
+      </div>
+    </div>
+    <div class="ts-panel-body no-pad">
+      <div class="ts-table-wrap" style="border:0;border-radius:0;">
+        <table class="ts-table" style="min-width:0;">
+          <thead><tr><th>Utente</th><th>Task</th></tr></thead>
+          <tbody>
+            {% for row in top_assignees %}
+              <tr>
+                <td>{{ row.assigned_to__username }}</td>
+                <td><strong>{{ row.n }}</strong></td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="2">Nessun dato disponibile.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </article>
+</section>
+
+<section class="ts-panel">
+  <div class="ts-panel-head">
+    <div class="ts-panel-title-wrap">
+      <h2 class="ts-panel-title">Configurazione attiva</h2>
+      <p class="ts-panel-subtitle">Riepilogo delle impostazioni modificabili oggi in uso nel modulo.</p>
+    </div>
+  </div>
+  <div class="ts-panel-body">
+    <div class="settings-summary">
+      <div class="settings-summary-item">
+        <div class="settings-summary-label">Branding modulo</div>
+        <div class="settings-summary-value">{{ module_branding_display_label }}</div>
+        <div class="settings-summary-note">{% if module_branding_has_logo %}Logo personalizzato attivo.{% else %}Nessun logo personalizzato.{% endif %}</div>
+      </div>
+      <div class="settings-summary-item">
+        <div class="settings-summary-label">Email notifiche</div>
+        <div class="settings-summary-value">{{ cfg.responsabile_email|default:"Non impostata" }}</div>
+        <div class="settings-summary-note">{% if cfg.notifiche_scadenza_attive %}Notifiche scadenza attive.{% else %}Notifiche scadenza disattivate.{% endif %}</div>
+      </div>
+      <div class="settings-summary-item">
+        <div class="settings-summary-label">Preavviso scadenza</div>
+        <div class="settings-summary-value">{{ cfg.giorni_preavviso }} giorni</div>
+        <div class="settings-summary-note">Promemoria anticipato per le attivita kickoff.</div>
+      </div>
+      <div class="settings-summary-item">
+        <div class="settings-summary-label">Soglie VRF</div>
+        <div class="settings-summary-value">{{ cfg.vrf_reminder_days }} / {{ cfg.vrf_blocking_days }} giorni</div>
+        <div class="settings-summary-note">Prima avviso, poi blocco operativo.</div>
+      </div>
+      <div class="settings-summary-item">
+        <div class="settings-summary-label">Note interne</div>
+        <div class="settings-summary-value">{% if cfg.note_generali %}Presenti{% else %}Assenti{% endif %}</div>
+        <div class="settings-summary-note">Le note operative si gestiscono dalla tab Configurazione.</div>
+      </div>
+    </div>
+  </div>
+</section>

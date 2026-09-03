@@ -329,6 +329,16 @@ class NewMeetingDefaultParticipantsTests(TasksBaseTestCase):
 class AgendaItemResponsabileDurataTests(TasksBaseTestCase):
     """I punti agenda possono portare un responsabile e una durata stimata (opzionali)."""
 
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "tasks")
+        self.convocato = _create_user_with_legacy(
+            username="agenda-resp",
+            legacy_user_id=312,
+            role_id=2,
+            role_name="tasks",
+        )
+
     def test_clean_agenda_items_raw_preserva_responsabile_e_durata(self):
         import json
 
@@ -337,19 +347,48 @@ class AgendaItemResponsabileDurataTests(TasksBaseTestCase):
         form = KickoffMeetingForm(data={
             "data": "2026-09-10",
             "stato": MeetingStatus.PIANIFICATO,
+            "partecipanti_utenti": [self.convocato.pk],
             "agenda_items_raw": json.dumps([{
                 "id": "a1",
                 "titolo": "Punto 1",
-                "responsabile_id": 7,
+                "responsabile_id": self.convocato.pk,
                 "responsabile_label": "Mario Rossi",
                 "durata_minuti": 15,
             }]),
         })
         self.assertTrue(form.is_valid(), form.errors)
         item = form.cleaned_data["agenda_items_raw"][0]
-        self.assertEqual(item["responsabile_id"], 7)
+        self.assertEqual(item["responsabile_id"], self.convocato.pk)
         self.assertEqual(item["responsabile_label"], "Mario Rossi")
         self.assertEqual(item["durata_minuti"], 15)
+
+    def test_responsabile_non_convocato_viene_azzerato(self):
+        """Il responsabile di un punto deve essere fra i partecipanti convocati."""
+        import json
+
+        from tasks.forms import KickoffMeetingForm
+
+        estraneo = _create_user_with_legacy(
+            username="agenda-estraneo",
+            legacy_user_id=313,
+            role_id=2,
+            role_name="tasks",
+        )
+        form = KickoffMeetingForm(data={
+            "data": "2026-09-10",
+            "stato": MeetingStatus.PIANIFICATO,
+            "partecipanti_utenti": [self.convocato.pk],
+            "agenda_items_raw": json.dumps([{
+                "id": "a1",
+                "titolo": "Punto 1",
+                "responsabile_id": estraneo.pk,
+                "responsabile_label": "Estraneo",
+            }]),
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+        item = form.cleaned_data["agenda_items_raw"][0]
+        self.assertIsNone(item["responsabile_id"])
+        self.assertEqual(item["responsabile_label"], "")
 
     def test_durata_fuori_range_viene_scartata(self):
         import json

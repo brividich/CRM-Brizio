@@ -1,0 +1,214 @@
+<section class="ts-panel">
+  <div class="ts-panel-head">
+    <div class="ts-panel-title-wrap">
+      <h2 class="ts-panel-title">Tipi attivita e campi dinamici</h2>
+      <p class="ts-panel-subtitle">Definisci le tipologie di attivita (es. Programmazione, Collaudo, Industrializzazione) e i campi extra che devono comparire nel form <code>Nuova attivita</code>. I campi supportano dipendenze dinamiche: un campo puo' apparire solo se un altro ha certo valore.</p>
+    </div>
+  </div>
+  <div class="ts-panel-body">
+    <div class="ts-tipi-layout">
+
+      {# --- COLONNA SX: lista categorie + form nuovo tipo --- #}
+      <aside style="background:var(--surface-alt, #f8fafc); border:1px solid var(--border); border-radius:10px; padding:12px;">
+        <h3 style="margin:0 0 8px 0; font-size:13px; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-light);">Tipi definiti</h3>
+        {% if tipi_categories %}
+          <div style="display:flex; flex-direction:column; gap:4px; margin-bottom:14px;">
+            {% for cat in tipi_categories %}
+              <a href="?tab=tipi&cat={{ cat.id }}"
+                 style="padding:8px 10px; border-radius:6px; text-decoration:none; display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:13px; {% if tipi_focus_category and tipi_focus_category.id == cat.id %}background:var(--accent); color:#fff; font-weight:600;{% else %}background:var(--surface); color:var(--text); border:1px solid var(--border);{% endif %}">
+                <span>{% if cat.icon %}<span style="opacity:.7; margin-right:4px;">{{ cat.icon }}</span>{% endif %}{{ cat.name }}</span>
+                <span style="font-size:10px; opacity:.75;">{{ cat.fields.count }} campi{% if not cat.is_active %} · off{% endif %}</span>
+              </a>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div style="font-size:12px; color:var(--text-light); margin-bottom:14px;">Nessun tipo definito.</div>
+        {% endif %}
+
+        <form method="post" style="display:flex; flex-direction:column; gap:6px; border-top:1px dashed var(--border); padding-top:12px;">
+          {% csrf_token %}
+          <input type="hidden" name="tab" value="tipi">
+          <input type="hidden" name="cat_action" value="category_create">
+          <label style="font-size:11px; color:var(--text-light); text-transform:uppercase; letter-spacing:0.05em;">Nuovo tipo</label>
+          <input type="text" name="name" required maxlength="120" placeholder="Es. Programmazione" class="input" style="padding:6px 8px;">
+          <input type="text" name="icon" maxlength="80" placeholder="Emoji/icona (opz.)" class="input" style="padding:6px 8px;">
+          <input type="text" name="description" maxlength="255" placeholder="Descrizione breve" class="input" style="padding:6px 8px;">
+          <select name="role_type" class="input" style="padding:6px 8px;">
+            {% for value, label in tipi_role_choices %}
+              <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+          <label style="display:flex; align-items:center; gap:6px; font-size:12px;">
+            <input type="checkbox" name="is_machine_work"> Lavoro macchina (compare nel calendario asset)
+          </label>
+          <button type="submit" class="btn btn-sm">+ Crea tipo</button>
+        </form>
+      </aside>
+
+      {# --- COLONNA DX: dettaglio categoria selezionata --- #}
+      <div>
+        {% if tipi_focus_category %}
+          <form method="post" style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:16px;">
+            {% csrf_token %}
+            <input type="hidden" name="tab" value="tipi">
+            <input type="hidden" name="cat_action" value="category_update">
+            <input type="hidden" name="category_id" value="{{ tipi_focus_category.id }}">
+            <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+              <div style="flex:1; min-width:180px;">
+                <label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Nome</label>
+                <input type="text" name="name" value="{{ tipi_focus_category.name }}" required maxlength="120" class="input" style="width:100%;">
+              </div>
+              <div style="width:140px;">
+                <label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Icona</label>
+                <input type="text" name="icon" value="{{ tipi_focus_category.icon }}" maxlength="80" class="input" style="width:100%;">
+              </div>
+              <div style="width:100px;">
+                <label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Ordine</label>
+                <input type="number" name="order_index" value="{{ tipi_focus_category.order_index }}" min="0" class="input" style="width:100%;">
+              </div>
+              <div style="width:220px;">
+                <label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Ruolo dedicato</label>
+                <select name="role_type" class="input" style="width:100%;">
+                  {% for value, label in tipi_role_choices %}
+                    <option value="{{ value }}" {% if tipi_focus_category.role_type == value %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <label style="display:flex; align-items:center; gap:6px; font-size:12px; padding-bottom:8px;">
+                <input type="checkbox" name="is_active" {% if tipi_focus_category.is_active %}checked{% endif %}> Attivo
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; font-size:12px; padding-bottom:8px;">
+                <input type="checkbox" name="is_machine_work" {% if tipi_focus_category.is_machine_work %}checked{% endif %}> Lavoro macchina
+              </label>
+            </div>
+            <div style="margin-top:8px;">
+              <label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Descrizione</label>
+              <input type="text" name="description" value="{{ tipi_focus_category.description }}" maxlength="255" class="input" style="width:100%;">
+            </div>
+            <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:10px;">
+              <button type="submit" formaction="?tab=tipi" form="" class="btn btn-secondary btn-sm" style="color:var(--danger); border-color:var(--danger-bg);" formmethod="post" onclick="this.form.cat_action.value='category_delete'; return confirm('Eliminare il tipo &quot;{{ tipi_focus_category.name }}&quot;? Le attivita collegate verranno scollegate.');">Elimina tipo</button>
+              <button type="submit" class="btn btn-sm">Salva tipo</button>
+            </div>
+          </form>
+
+          <h3 style="margin:0 0 8px 0; font-size:14px;">Campi del tipo "{{ tipi_focus_category.name }}"</h3>
+
+          {% if tipi_focus_category.fields.all %}
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              {% for f in tipi_focus_category.fields.all %}
+                <details style="background:var(--surface); border:1px solid var(--border); border-radius:8px;">
+                  <summary style="padding:10px 14px; cursor:pointer; display:flex; gap:10px; align-items:center; font-size:13px;">
+                    <span style="flex:1;"><strong>{{ f.label }}</strong>
+                      <span style="color:var(--text-light); font-size:11px;">· {{ f.get_field_type_display }} · <code>{{ f.code }}</code>{% if f.required %} · <span style="color:var(--danger);">richiesto</span>{% endif %}{% if f.depends_on_code %} · mostra se <code>{{ f.depends_on_code }}</code>={{ f.depends_on_value|default:"*" }}{% endif %}</span>
+                    </span>
+                    <span style="color:var(--text-light); font-size:11px;">Ord. {{ f.order_index }}</span>
+                  </summary>
+                  <div style="padding:12px 14px; border-top:1px solid var(--surface-alt, #f1f5f9);">
+                    <form method="post" style="display:grid; grid-template-columns:repeat(2, 1fr); gap:10px;">
+                      {% csrf_token %}
+                      <input type="hidden" name="tab" value="tipi">
+                      <input type="hidden" name="cat_action" value="field_update">
+                      <input type="hidden" name="category_id" value="{{ tipi_focus_category.id }}">
+                      <input type="hidden" name="field_id" value="{{ f.id }}">
+                      <div><label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Label</label><input name="label" value="{{ f.label }}" required maxlength="180" class="input" style="width:100%;"></div>
+                      <div><label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Code (slug)</label><input name="code" value="{{ f.code }}" maxlength="60" class="input" style="width:100%;"></div>
+                      <div><label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Tipo</label>
+                        <select name="field_type" class="input" style="width:100%;">
+                          {% for value, label in tipi_field_types %}
+                            <option value="{{ value }}" {% if f.field_type == value %}selected{% endif %}>{{ label }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                      <div><label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Ordine</label><input type="number" name="order_index" value="{{ f.order_index }}" min="0" class="input" style="width:100%;"></div>
+                      <div><label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Help text</label><input name="help_text" value="{{ f.help_text }}" maxlength="255" class="input" style="width:100%;"></div>
+                      <div><label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Placeholder</label><input name="placeholder" value="{{ f.placeholder }}" maxlength="120" class="input" style="width:100%;"></div>
+                      <div style="grid-column: span 2;">
+                        <label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Opzioni (solo select / multiselect) — una per riga, formato <code>valore | label</code></label>
+                        <textarea name="choices_raw" rows="4" class="input" style="width:100%; font-family:monospace; font-size:12px;">{% for ch in f.choices_json %}{{ ch.value|default:ch }}{% if ch.label and ch.label != ch.value %} | {{ ch.label }}{% endif %}
+{% endfor %}</textarea>
+                      </div>
+                      <div><label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Dipende dal campo (code)</label><input name="depends_on_code" value="{{ f.depends_on_code }}" maxlength="60" class="input" style="width:100%;"></div>
+                      <div><label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Quando ha valore (separa con |)</label><input name="depends_on_value" value="{{ f.depends_on_value }}" maxlength="255" class="input" style="width:100%;"></div>
+                      <div style="grid-column: span 2; border-top:1px dashed var(--border); padding-top:10px; display:grid; grid-template-columns:1fr 1fr; gap:10px;" data-asset-filters="{% if f.field_type == 'asset' %}1{% else %}0{% endif %}">
+                        <div style="grid-column: span 2; font-size:11px; color:var(--text-light);"><strong>Filtri asset</strong> (validi solo per field_type=asset). Lascia vuoto per mostrare tutti gli asset operativi.</div>
+                        <div>
+                          <label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Limita per tipo asset</label>
+                          <select name="asset_type_filter_multi" class="input" multiple size="4" style="width:100%;">
+                            {% for value, label in tipi_asset_type_choices %}
+                              <option value="{{ value }}" {% if value in f.asset_type_filter_list %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                          </select>
+                        </div>
+                        <div>
+                          <label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Limita per categoria asset</label>
+                          <select name="asset_category_filter_multi" class="input" multiple size="4" style="width:100%;">
+                            {% for cat in tipi_asset_categories %}
+                              <option value="{{ cat.id }}" {% if cat.id in f.asset_category_filter_ids %}selected{% endif %}>{{ cat.label }}</option>
+                            {% endfor %}
+                          </select>
+                        </div>
+                      </div>
+                      <label style="display:flex; gap:6px; align-items:center; font-size:12px;"><input type="checkbox" name="required" {% if f.required %}checked{% endif %}> Campo richiesto</label>
+                      <div style="grid-column: span 2; display:flex; gap:8px; justify-content:flex-end; border-top:1px solid var(--surface-alt, #f1f5f9); padding-top:10px;">
+                        <button type="submit" formmethod="post" class="btn btn-secondary btn-sm" style="color:var(--danger); border-color:var(--danger-bg);" onclick="this.form.cat_action.value='field_delete'; return confirm('Eliminare il campo &quot;{{ f.label }}&quot;?');">Elimina</button>
+                        <button type="submit" class="btn btn-sm">Salva</button>
+                      </div>
+                    </form>
+                  </div>
+                </details>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="ts-empty"><strong>Nessun campo ancora definito.</strong><div>Aggiungi il primo campo qui sotto.</div></div>
+          {% endif %}
+
+          <form method="post" style="margin-top:14px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:14px; display:grid; grid-template-columns:repeat(2, 1fr); gap:10px;">
+            {% csrf_token %}
+            <input type="hidden" name="tab" value="tipi">
+            <input type="hidden" name="cat_action" value="field_create">
+            <input type="hidden" name="category_id" value="{{ tipi_focus_category.id }}">
+            <div style="grid-column: span 2;"><strong style="font-size:13px; color:var(--primary-mid);">+ Aggiungi campo al tipo "{{ tipi_focus_category.name }}"</strong></div>
+            <div><label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Label*</label><input name="label" required maxlength="180" class="input" style="width:100%;"></div>
+            <div><label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Code (auto dallo slug se vuoto)</label><input name="code" maxlength="60" class="input" style="width:100%;"></div>
+            <div><label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Tipo*</label>
+              <select name="field_type" class="input" style="width:100%;">
+                {% for value, label in tipi_field_types %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+              </select>
+            </div>
+            <div><label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Ordine</label><input type="number" name="order_index" min="0" class="input" style="width:100%;" placeholder="auto"></div>
+            <div style="grid-column: span 2;">
+              <label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Opzioni select (uno per riga, <code>valore | label</code>)</label>
+              <textarea name="choices_raw" rows="3" class="input" style="width:100%; font-family:monospace; font-size:12px;" placeholder="basic&#10;advanced | Avanzato"></textarea>
+            </div>
+            <div><label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Help text</label><input name="help_text" maxlength="255" class="input" style="width:100%;"></div>
+            <div><label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Placeholder</label><input name="placeholder" maxlength="120" class="input" style="width:100%;"></div>
+            <div><label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Dipende dal campo (code)</label><input name="depends_on_code" maxlength="60" class="input" style="width:100%;"></div>
+            <div><label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Quando ha valore</label><input name="depends_on_value" maxlength="255" class="input" style="width:100%;" placeholder="es. programmazione oppure val1|val2"></div>
+            <div style="grid-column: span 2; border-top:1px dashed #bfdbfe; padding-top:10px; display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+              <div style="grid-column: span 2; font-size:11px; color:var(--text-light);"><strong>Filtri asset</strong> (validi solo per field_type=asset). Lascia vuoto per mostrare tutti gli asset operativi.</div>
+              <div>
+                <label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Limita per tipo asset</label>
+                <select name="asset_type_filter_multi" class="input" multiple size="4" style="width:100%;">
+                  {% for value, label in tipi_asset_type_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                </select>
+              </div>
+              <div>
+                <label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Limita per categoria asset</label>
+                <select name="asset_category_filter_multi" class="input" multiple size="4" style="width:100%;">
+                  {% for cat in tipi_asset_categories %}<option value="{{ cat.id }}">{{ cat.label }}</option>{% endfor %}
+                </select>
+              </div>
+            </div>
+            <label style="display:flex; gap:6px; align-items:center; font-size:12px;"><input type="checkbox" name="required"> Campo richiesto</label>
+            <div style="grid-column: span 2; display:flex; justify-content:flex-end; border-top:1px solid #bfdbfe; padding-top:10px;"><button type="submit" class="btn btn-sm">+ Aggiungi campo</button></div>
+          </form>
+        {% else %}
+          <div class="ts-empty">
+            <strong>Nessun tipo selezionato.</strong>
+            <div>Crea un primo tipo dalla colonna sinistra per iniziare a definire i suoi campi dinamici.</div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</section>

@@ -452,6 +452,14 @@ class TaskAdminSettingsTests(TasksBaseTestCase):
         response = self.client.get(reverse("tasks:gestione_admin"))
         self.assertRedirects(response, f"{reverse('tasks:impostazioni')}?tab=riepilogo")
 
+    def test_every_settings_tab_renders(self):
+        """Ogni tab ha il corpo in un include dedicato: verifica che risolvano tutti."""
+        self.client.force_login(self.admin_user)
+        for tab in ("config", "riepilogo", "record", "ruoli", "accessi", "promemoria", "tipi", "log"):
+            with self.subTest(tab=tab):
+                response = self.client.get(reverse("tasks:impostazioni"), {"tab": tab})
+                self.assertEqual(response.status_code, 200)
+
     def test_settings_config_tab_is_slimmer_with_compact_branding(self):
         self.client.force_login(self.admin_user)
         response = self.client.get(reverse("tasks:impostazioni"), {"tab": "config"})
