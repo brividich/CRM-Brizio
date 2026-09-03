@@ -19,6 +19,18 @@
   --ts-shadow: var(--shadow);
 }
 
+/* tokens.css ridefinisce --surface/--text/--bg solo su body.theme-dark: essendo
+   --hub-color-* dichiarate su :root con var(--surface, ...), l'inheritance del
+   valore CALCOLATO le blocca al chiaro. Non tocchiamo tokens.css: correggiamo
+   la cascata solo dentro il perimetro tasks. */
+body.theme-dark .ts-shell {
+  --hub-color-surface: var(--surface);
+  --hub-color-bg: var(--bg);
+  --hub-color-text: var(--text);
+  --hub-color-text-muted: var(--text-mid);
+  --hub-color-text-soft: var(--text-light);
+}
+
 .ts-shell--compact {
   gap: 10px;
   padding-top: 6px;

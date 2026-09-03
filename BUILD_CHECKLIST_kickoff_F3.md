@@ -78,10 +78,10 @@ Spec sorgente: `C:\Dev\Portale Novicrom\BUILD_SPEC_kickoff_F3.md`
 
 ## Sessione 7 — UI Passata 1
 
-- [ ] Hero piatta e adozione token `--hub-*`.
-- [ ] Rimozione scala `--ts-radius-*` nel perimetro previsto.
-- [ ] Verifica pagine richieste in tema chiaro/scuro.
-- Stato: DA FARE — non assegnata.
+- [x] Hero piatta e adozione token `--hub-*`.
+- [x] Rimozione scala `--ts-radius-*` nel perimetro previsto.
+- [x] Verifica pagine richieste in tema chiaro/scuro.
+- Stato: COMPLETATA — Claude.
 
 ## Sessione 8 — UI Passata 2
 
@@ -109,3 +109,4 @@ Spec sorgente: `C:\Dev\Portale Novicrom\BUILD_SPEC_kickoff_F3.md`
 - 2026-09-02 — Codex — Fase B: 11 test `tasks.tests_action_register` verdi; builder fissato a 3 query e view a 4 query (render template escluso dal conteggio).
 - 2026-09-02 — Codex — Fase C: 9 test `tasks.tests_project_overview` verdi; 8 regressioni mirate su tab, portfolio, board, `Da gestire` e copia kickoff verdi. Primo run: 5 subtest falliti per frammento HTML incompleto nell'asserzione, corretto il solo nuovo test e rilanciato verde.
 - 2026-09-03 — Codex — Chiusura automatica Fasi A-C: suite completa `tasks` verde, 227 test; Django `check`, migration drift, secret hygiene e `git diff --check` verdi. Resta la verifica manuale dei quattro scenari prima di chiudere la Sessione 6.
+- 2026-09-03 — Claude — Sessione 7 (Passata 1): hero piatta su `tasks.css`, scala `--ts-radius-*` rimossa (0 occorrenze). Trovato e corretto, solo nel perimetro `tasks`, un bug di cascata pre-esistente in `tokens.css` (non toccato) che teneva `--hub-color-surface/-bg/-text*` sempre al valore chiaro in dark mode. Verifica visiva Playwright su `projects.html`, `list.html`, `project_gantt.html`, `project_meetings.html`, `impostazioni.html` in entrambi i temi; 227 test `tasks`, `check`, `secret_hygiene_check` verdi.

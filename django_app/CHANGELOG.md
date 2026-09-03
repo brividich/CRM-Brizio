@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### KICK-OFF F3 — restyle UI Passata 1: hero piatta e rimozione scala `--ts-radius-*`
+
+- **[ux] `tasks/static/tasks/css/tasks.css`, `templates/tasks/list.html`**: `.ts-hero` (usata da ~20 pagine tramite `base_shell.html`) perde i tre gradienti sovrapposti, l'ombra a 48px e il bordo arrotondato — diventa superficie piatta (`--hub-color-surface`) con hairline `border-bottom`, testo su `--hub-color-text`/`--hub-color-text-muted`. `.ts-eyebrow` perde pill/uppercase/peso 900, resta una riga muted. Solo l'azione `primary` (`.ts-hero-action.primary`) resta accentata; le altre diventano secondarie con bordo hairline. Rimossa la scala `--ts-radius-sm/md/lg` (in conflitto con `tokens.css`): tutti gli usi in `tasks.css` e i due residui inline in `list.html` sono passati a `--hub-radius-md/lg`.
+- **[fix] `tasks/static/tasks/css/tasks.css`**: `tokens.css` (non toccato, fuori scope) dichiara `--hub-color-surface/-bg/-text/-text-muted/-text-soft` su `:root` come `var(--surface, ...)` ma le ridefinisce per il tema scuro solo su `body.theme-dark`, sotto `:root` nell'albero — il valore calcolato resta quindi quello chiaro anche a tema scuro (bug di cascata pre-esistente nel token layer, verificato con `getComputedStyle`). Corretto solo dentro il perimetro `tasks` con una ridichiarazione locale su `body.theme-dark .ts-shell`, necessaria perché la nuova hero piatta dipende da quei token per essere leggibile in dark mode.
+- Verifica manuale in tema chiaro e scuro su `projects.html`, `list.html`, `project_gantt.html`, `project_meetings.html`, `impostazioni.html` (screenshot Playwright, nessun elemento illeggibile dopo il fix di cascata). `python manage.py test tasks` (227 test), `check` e `secret_hygiene_check` verdi.
+
 ### Assets — manutenzione: voce sidebar "Il mio turno" seminata via migration
 
 - **[feat/test] `assets/migrations/0097_seed_il_mio_turno_sidebar_button.py` [nuovo]**: la home del manutentore (`/assets/manutenzione/il-mio-turno/`, Fase 5) era raggiungibile solo da URL diretto perché in ogni ambiente con sidebar già configurata (`AssetSidebarButton` non vuota) il fallback di codice non scatta mai. Migration dati (`get_or_create`, idempotente, reversibile) che aggiunge la voce come primo elemento della sezione principale — stesso pattern già usato per tutte le altre voci di sidebar del modulo (`0008`, `0017`, `0034`, `0048`, ...), quindi si applica da sola al prossimo `migrate` in ogni ambiente, prod incluso, senza intervento manuale da pannello admin.
