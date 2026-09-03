@@ -33,98 +33,39 @@ def run_send_task_reminders(*, limit: int = 0) -> dict:
     return {"limit": limit, "output": out[:500]}
 
 
-@system_job_run("tasks_meeting_issue_reminders")
-def run_meeting_issue_reminders(**kwargs) -> dict:
-    """Promemoria per i «problemi aperti» degli incontri KICK-OFF scaduti.
+@system_job_run("tasks_meetings_digest")
+def run_meetings_digest(**kwargs) -> dict:
+    """Digest giornaliero unico per gli incontri KICK-OFF.
 
-    Per ogni `MeetingIssue` OPEN con scadenza passata e un responsabile assegnato,
-    invia al responsabile una email di sollecito (raggruppata per persona) + una
-    notifica in-app best-effort. Idempotente per giro (si basa sullo stato corrente:
-    un problema chiuso o senza scadenza non produce solleciti).
+    Sostituisce i due job separati "domani hai un incontro" e "problemi aperti
+    scaduti": quando ricorrono lo stesso giorno per la stessa persona, li unisce
+    in una sola email invece di due. Il promemoria incontro gira ogni giorno
+    (copre il caso `sync_outlook` spento, che non ha un proprio promemoria
+    calendario); il sollecito problemi scaduti resta al lunedi, la stessa
+    cadenza del vecchio job settimanale che sostituisce — spostarlo a ogni
+    giorno risollecerebbe la stessa persona 7 volte più spesso. Le notifiche
+    in-app restano una per evento (l'inbox del portale le aggrega già).
+    Idempotente sugli incontri (`reminder_sent_at`); il sollecito problemi si
+    basa sullo stato corrente (nessun flag: un problema chiuso non è più
+    sollecitato).
     """
     from collections import defaultdict
-
-    from django.utils import timezone
-
-    from core.email_utils import send_hub_mail
-    from tasks.models import MeetingIssue, MeetingIssueStatus
-
-    today = timezone.localdate()
-    qs = (
-        MeetingIssue.objects.filter(
-            status=MeetingIssueStatus.OPEN,
-            due_date__isnull=False,
-            due_date__lt=today,
-            assigned_to__isnull=False,
-        )
-        .select_related("assigned_to", "project")
-    )
-
-    by_email: dict[str, list] = defaultdict(list)
-    for issue in qs:
-        email = (getattr(issue.assigned_to, "email", "") or "").strip()
-        if email:
-            by_email[email].append(issue)
-
-    sent = 0
-    for email, issues in by_email.items():
-        rows = [
-            f"- {i.title} (KICK-OFF {getattr(i.project, 'kickoff_number', '') or ''}, "
-            f"scadenza {i.due_date:%d/%m/%Y})"
-            for i in issues
-        ]
-        body = "Problemi aperti scaduti a te assegnati:\n" + "\n".join(rows)
-        try:
-            n = send_hub_mail(
-                f"Problemi aperti KICK-OFF scaduti ({len(issues)})",
-                body,
-                [email],
-                title="Problemi aperti scaduti",
-                email_type="VRF - KICK-OFF",
-                fail_silently=True,
-            )
-            if n:
-                sent += 1
-        except Exception:
-            logger.exception("run_meeting_issue_reminders: invio fallito per %s", email)
-
-        # Notifica in-app best-effort (mappa email → utenti legacy)
-        try:
-            from core.notifiche import invia_notifica, legacy_user_ids_for_email
-
-            for luid in legacy_user_ids_for_email(email):
-                invia_notifica(
-                    luid,
-                    "generico",
-                    f"Hai {len(issues)} problema/i aperto/i scaduto/i su incontri KICK-OFF.",
-                )
-        except Exception:
-            logger.exception("run_meeting_issue_reminders: notifica in-app fallita per %s", email)
-
-    return {"reminders": sent, "issues": qs.count()}
-
-
-@system_job_run("tasks_meeting_reminders")
-def run_meeting_reminders(**kwargs) -> dict:
-    """Promemoria "domani hai un incontro" per gli incontri KICK-OFF di domani.
-
-    Per ogni `KickoffMeeting` ancora PIANIFICATO con `data` = domani, avvisa i
-    partecipanti (notifica in-app per gli utenti portale + email a tutti,
-    inclusi gli indirizzi esterni). Copre il caso in cui `sync_outlook` sia
-    spento (l'invito Outlook, quando attivo, ha già il proprio promemoria
-    calendario). Idempotente: `reminder_sent_at` viene marcato al primo giro.
-    """
     from datetime import timedelta
 
     from django.utils import timezone
 
     from core.email_utils import send_hub_mail
-    from core.notifiche import invia_notifica
+    from core.notifiche import invia_notifica, legacy_user_ids_for_email
     from tasks.minute_email import meeting_url
-    from tasks.models import KickoffMeeting, MeetingStatus
+    from tasks.models import KickoffMeeting, MeetingIssue, MeetingIssueStatus, MeetingStatus
 
-    tomorrow = timezone.localdate() + timedelta(days=1)
-    qs = (
+    today = timezone.localdate()
+    tomorrow = today + timedelta(days=1)
+    include_overdue_issues = today.weekday() == 0  # lunedi
+
+    by_email: dict[str, dict] = defaultdict(lambda: {"meetings": [], "issues": []})
+
+    meetings = list(
         KickoffMeeting.objects.filter(
             stato=MeetingStatus.PIANIFICATO,
             data=tomorrow,
@@ -133,50 +74,105 @@ def run_meeting_reminders(**kwargs) -> dict:
         .select_related("project")
         .prefetch_related("partecipanti_utenti")
     )
-
-    sent = 0
-    for meeting in qs:
+    for meeting in meetings:
         label = meeting.titolo or f"Incontro {meeting.numero}"
-        project_label = getattr(meeting.project, "name", "")
-        when = meeting.data.strftime("%d/%m/%Y")
-        if meeting.ora:
-            when += f" alle {meeting.ora.strftime('%H:%M')}"
-        message = f'Domani hai l\'incontro "{label}" [{project_label}] — {when}.'
-        url = meeting_url(meeting)
-
-        emails: list[str] = []
+        recipients: set[str] = set()
         for user in meeting.partecipanti_utenti.all():
             profile = getattr(user, "profile", None)
             legacy_id = getattr(profile, "legacy_user_id", None) if profile else None
             if legacy_id:
                 try:
-                    invia_notifica(int(legacy_id), "generico", message[:500], url)
+                    invia_notifica(
+                        int(legacy_id),
+                        "generico",
+                        f'Domani hai l\'incontro "{label}" [{getattr(meeting.project, "name", "")}].'[:500],
+                        meeting_url(meeting),
+                    )
                 except (TypeError, ValueError):
-                    logger.exception("run_meeting_reminders: legacy_id non valido per user=%s", user.pk)
+                    logger.exception("run_meetings_digest: legacy_id non valido per user=%s", user.pk)
             email = (getattr(user, "email", "") or "").strip()
             if email:
-                emails.append(email)
+                recipients.add(email)
         for line in (meeting.partecipanti_email_extra or "").splitlines():
             email = line.strip()
             if email:
-                emails.append(email)
-        emails = sorted(set(emails))
+                recipients.add(email)
+        for email in recipients:
+            by_email[email]["meetings"].append(meeting)
 
-        if emails:
+    issues: list = []
+    if include_overdue_issues:
+        issues = list(
+            MeetingIssue.objects.filter(
+                status=MeetingIssueStatus.OPEN,
+                due_date__isnull=False,
+                due_date__lt=today,
+                assigned_to__isnull=False,
+            ).select_related("assigned_to", "project")
+        )
+        by_issue_email: dict[str, list] = defaultdict(list)
+        for issue in issues:
+            email = (getattr(issue.assigned_to, "email", "") or "").strip()
+            if email:
+                by_issue_email[email].append(issue)
+                by_email[email]["issues"].append(issue)
+        for email, issue_list in by_issue_email.items():
             try:
-                send_hub_mail(
-                    f"Promemoria incontro domani — {label}",
-                    f"{message}\n\n{url}" if url else message,
-                    emails,
-                    title="Promemoria incontro KICK-OFF",
-                    email_type="VRF - KICK-OFF",
-                    fail_silently=True,
-                )
+                for luid in legacy_user_ids_for_email(email):
+                    invia_notifica(
+                        luid,
+                        "generico",
+                        f"Hai {len(issue_list)} problema/i aperto/i scaduto/i su incontri KICK-OFF.",
+                    )
             except Exception:
-                logger.exception("run_meeting_reminders: invio email fallito per meeting=%s", meeting.pk)
+                logger.exception("run_meetings_digest: notifica in-app problemi fallita per %s", email)
 
+    sent = 0
+    for email, data in by_email.items():
+        parts = []
+        if data["meetings"]:
+            rows = []
+            for m in data["meetings"]:
+                when = m.data.strftime("%d/%m/%Y")
+                if m.ora:
+                    when += f" alle {m.ora.strftime('%H:%M')}"
+                m_label = m.titolo or f"Incontro {m.numero}"
+                rows.append(f"- {m_label} [{getattr(m.project, 'name', '')}] — {when}")
+            parts.append("Incontri KICK-OFF di domani:\n" + "\n".join(rows))
+        if data["issues"]:
+            rows = [
+                f"- {i.title} (KICK-OFF {getattr(i.project, 'kickoff_number', '') or ''}, "
+                f"scadenza {i.due_date:%d/%m/%Y})"
+                for i in data["issues"]
+            ]
+            parts.append("Problemi aperti scaduti a te assegnati:\n" + "\n".join(rows))
+        if not parts:
+            continue
+
+        if data["meetings"] and data["issues"]:
+            subject = "Promemoria KICK-OFF: incontro domani e problemi scaduti"
+        elif data["meetings"]:
+            first_label = data["meetings"][0].titolo or f"Incontro {data['meetings'][0].numero}"
+            subject = f"Promemoria incontro domani — {first_label}"
+        else:
+            subject = f"Problemi aperti KICK-OFF scaduti ({len(data['issues'])})"
+
+        try:
+            n = send_hub_mail(
+                subject,
+                "\n\n".join(parts),
+                [email],
+                title="Promemoria KICK-OFF",
+                email_type="VRF - KICK-OFF",
+                fail_silently=True,
+            )
+            if n:
+                sent += 1
+        except Exception:
+            logger.exception("run_meetings_digest: invio email fallito per %s", email)
+
+    for meeting in meetings:
         meeting.reminder_sent_at = timezone.now()
         meeting.save(update_fields=["reminder_sent_at"])
-        sent += 1
 
-    return {"reminders": sent}
+    return {"reminders": sent, "meetings": len(meetings), "issues": len(issues)}

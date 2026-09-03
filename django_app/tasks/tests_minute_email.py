@@ -110,15 +110,19 @@ class MeetingIssueReminderTests(TestCase):
         self.project = Project.objects.create(name="", created_by=self.user)
 
     def test_reminder_emails_overdue_open_issue(self):
+        from unittest.mock import patch
+
         from tasks.models import MeetingIssue, MeetingIssueStatus
-        from tasks.tasks import run_meeting_issue_reminders
+        from tasks.tasks import run_meetings_digest
+
+        monday = date(2026, 9, 7)  # il sollecito problemi gira solo il lunedi
 
         MeetingIssue.objects.create(
             project=self.project,
             title="Problema scaduto",
             status=MeetingIssueStatus.OPEN,
             assigned_to=self.user,
-            due_date=date.today() - timedelta(days=3),
+            due_date=monday - timedelta(days=3),
         )
         # non scaduto → non deve produrre reminder
         MeetingIssue.objects.create(
@@ -126,9 +130,10 @@ class MeetingIssueReminderTests(TestCase):
             title="Futuro",
             status=MeetingIssueStatus.OPEN,
             assigned_to=self.user,
-            due_date=date.today() + timedelta(days=5),
+            due_date=monday + timedelta(days=5),
         )
-        result = run_meeting_issue_reminders()
+        with patch("django.utils.timezone.localdate", return_value=monday):
+            result = run_meetings_digest()
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ["resp@example.com"])
         self.assertIn("Problema scaduto", mail.outbox[0].body)

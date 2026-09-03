@@ -366,8 +366,8 @@ class AgendaItemResponsabileDurataTests(TasksBaseTestCase):
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
-class MeetingReminderJobTests(TasksBaseTestCase):
-    """Job periodico: promemoria "domani hai un incontro" ai partecipanti."""
+class MeetingsDigestJobTests(TasksBaseTestCase):
+    """Job periodico unico: "domani hai un incontro" + (il lunedi) problemi scaduti."""
 
     def setUp(self):
         super().setUp()
@@ -386,7 +386,7 @@ class MeetingReminderJobTests(TasksBaseTestCase):
 
         from django.utils import timezone
 
-        from tasks.tasks import run_meeting_reminders
+        from tasks.tasks import run_meetings_digest
 
         tomorrow = timezone.localdate() + timedelta(days=1)
         meeting_tomorrow = KickoffMeeting.objects.create(project=self.project, data=tomorrow, created_by=self.user)
@@ -395,7 +395,7 @@ class MeetingReminderJobTests(TasksBaseTestCase):
             project=self.project, data=tomorrow + timedelta(days=5), created_by=self.user
         )
 
-        run_meeting_reminders()
+        run_meetings_digest()
 
         meeting_tomorrow.refresh_from_db()
         meeting_later.refresh_from_db()
@@ -409,14 +409,14 @@ class MeetingReminderJobTests(TasksBaseTestCase):
 
         from django.utils import timezone
 
-        from tasks.tasks import run_meeting_reminders
+        from tasks.tasks import run_meetings_digest
 
         tomorrow = timezone.localdate() + timedelta(days=1)
         meeting = KickoffMeeting.objects.create(project=self.project, data=tomorrow, created_by=self.user)
         meeting.partecipanti_utenti.add(self.user)
 
-        run_meeting_reminders()
-        run_meeting_reminders()
+        run_meetings_digest()
+        run_meetings_digest()
 
         self.assertEqual(len(mail.outbox), 1)
 
@@ -425,7 +425,7 @@ class MeetingReminderJobTests(TasksBaseTestCase):
 
         from django.utils import timezone
 
-        from tasks.tasks import run_meeting_reminders
+        from tasks.tasks import run_meetings_digest
 
         tomorrow = timezone.localdate() + timedelta(days=1)
         meeting = KickoffMeeting.objects.create(
@@ -433,8 +433,56 @@ class MeetingReminderJobTests(TasksBaseTestCase):
         )
         meeting.partecipanti_utenti.add(self.user)
 
-        run_meeting_reminders()
+        run_meetings_digest()
 
         meeting.refresh_from_db()
         self.assertIsNone(meeting.reminder_sent_at)
+
+    def test_incontro_e_problema_scaduto_lo_stesso_lunedi_fanno_una_sola_email(self):
+        from datetime import date, timedelta
+        from unittest.mock import patch
+
+        from tasks.models import MeetingIssue, MeetingIssueStatus
+        from tasks.tasks import run_meetings_digest
+
+        monday = date(2026, 9, 7)  # lunedi
+        tomorrow = monday + timedelta(days=1)
+        with patch("django.utils.timezone.localdate", return_value=monday):
+            meeting = KickoffMeeting.objects.create(project=self.project, data=tomorrow, created_by=self.user)
+            meeting.partecipanti_utenti.add(self.user)
+            MeetingIssue.objects.create(
+                project=self.project,
+                title="Problema scaduto",
+                status=MeetingIssueStatus.OPEN,
+                assigned_to=self.user,
+                due_date=monday - timedelta(days=3),
+            )
+
+            run_meetings_digest()
+
+        self.assertEqual(len(mail.outbox), 1)
+        body = mail.outbox[0].body
+        self.assertIn("Incontri KICK-OFF di domani", body)
+        self.assertIn("Problema scaduto", body)
+
+    def test_problema_scaduto_fuori_lunedi_non_genera_sollecito(self):
+        from datetime import date, timedelta
+        from unittest.mock import patch
+
+        from tasks.models import MeetingIssue, MeetingIssueStatus
+        from tasks.tasks import run_meetings_digest
+
+        tuesday = date(2026, 9, 8)  # non lunedi
+        MeetingIssue.objects.create(
+            project=self.project,
+            title="Problema scaduto",
+            status=MeetingIssueStatus.OPEN,
+            assigned_to=self.user,
+            due_date=tuesday - timedelta(days=3),
+        )
+
+        with patch("django.utils.timezone.localdate", return_value=tuesday):
+            run_meetings_digest()
+
+        self.assertEqual(len(mail.outbox), 0)
         self.assertEqual(len(mail.outbox), 0)
