@@ -15642,6 +15642,11 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
             "is_overdue": workorder.is_overdue,
             "assignable_users": assignable_users,
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
+            # Il dettaglio di un OdL è un'azione operativa su un intervento specifico: la
+            # subnav di sezione ("+Nuovo intervento" ecc.) non è contestuale a questa pagina
+            # e spingeva fuori dal flusso, stesso motivo per cui è già soppressa in
+            # workorder_create.
+            "assets_section_nav": None,
         },
     )
 
