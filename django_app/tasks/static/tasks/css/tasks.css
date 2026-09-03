@@ -17,9 +17,6 @@
   --ts-text: var(--text);
   --ts-text-mid: var(--text-mid);
   --ts-shadow: var(--shadow);
-  --ts-radius-sm: 10px;
-  --ts-radius-md: 14px;
-  --ts-radius-lg: 18px;
 }
 
 .ts-shell--compact {
@@ -34,14 +31,10 @@
   align-items: center;
   gap: 14px;
   flex-wrap: wrap;
-  padding: 20px 24px;
-  border-radius: var(--ts-radius-lg);
-  color: #fff;
-  background:
-    radial-gradient(ellipse at 80% -20%, rgba(249,115,22,.45) 0%, transparent 52%),
-    radial-gradient(ellipse at -10% 110%, rgba(45,82,130,.5) 0%, transparent 52%),
-    linear-gradient(135deg, var(--ts-primary) 0%, var(--ts-primary-mid) 60%, #3d6a9b 100%);
-  box-shadow: 0 20px 48px rgba(20,48,90,.22), inset 0 1px 0 rgba(255,255,255,.12);
+  padding: var(--hub-space-5) var(--hub-space-6);
+  border-bottom: 1px solid var(--hub-color-border);
+  color: var(--hub-color-text);
+  background: var(--hub-color-surface);
 }
 
 .ts-hero-left {
@@ -60,27 +53,23 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: rgba(255,255,255,.15);
-  border: 1px solid rgba(255,255,255,.2);
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: .1em;
-  text-transform: uppercase;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--hub-color-text-muted);
 }
 
 .ts-hero h1 {
   margin: 0;
   font-size: 27px;
   line-height: 1.06;
-  letter-spacing: -.03em;
-  font-weight: 900;
+  letter-spacing: -.01em;
+  font-weight: 600;
+  color: var(--hub-color-text);
 }
 
 .ts-hero-text {
   margin: 0;
-  color: rgba(255,255,255,.8);
+  color: var(--hub-color-text-muted);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -99,12 +88,12 @@
   justify-content: center;
   min-height: 24px;
   padding: 0 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(255,255,255,.22);
-  background: rgba(255,255,255,.13);
-  color: #fff;
+  border-radius: var(--hub-radius-md);
+  border: 1px solid var(--hub-color-border);
+  background: var(--hub-color-bg);
+  color: var(--hub-color-text-muted);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -123,39 +112,37 @@
   gap: 6px;
   min-height: 36px;
   padding: 0 16px;
-  border-radius: var(--ts-radius-sm);
-  border: 1px solid rgba(255,255,255,.22);
-  background: rgba(255,255,255,.1);
-  color: #fff;
+  border-radius: var(--hub-radius-md);
+  border: 1px solid var(--hub-color-border);
+  background: var(--hub-color-surface);
+  color: var(--hub-color-text);
   text-decoration: none;
   font-size: 12px;
-  font-weight: 800;
-  transition: background .12s ease, transform .12s ease, box-shadow .12s ease;
+  font-weight: 600;
+  transition: background .12s ease, border-color .12s ease;
   white-space: nowrap;
 }
 
 .ts-hero-action:hover {
-  background: rgba(255,255,255,.2);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0,0,0,.15);
+  background: var(--hub-color-bg);
+  border-color: var(--hub-color-steel-2);
 }
 
 .ts-hero-action.primary {
-  border-color: rgba(255,255,255,.75);
-  background: #fff;
-  color: var(--ts-primary);
+  border-color: var(--hub-color-orange);
+  background: var(--hub-color-orange);
+  color: #fff;
 }
 
 .ts-hero-action.primary:hover {
-  background: #f0f6ff;
+  background: var(--ts-primary);
+  border-color: var(--ts-primary);
 }
 
 .ts-shell--compact .ts-hero {
   align-items: flex-end;
   gap: 16px 18px;
-  padding: 18px 20px;
-  border-radius: 16px;
-  box-shadow: 0 14px 32px rgba(20,48,90,.18), inset 0 1px 0 rgba(255,255,255,.1);
+  padding: var(--hub-space-4) var(--hub-space-5);
 }
 
 .ts-shell--compact .ts-hero-left {
@@ -251,7 +238,7 @@
 
 .ts-kpi {
   border: 1px solid var(--ts-border);
-  border-radius: var(--ts-radius-md);
+  border-radius: var(--hub-radius-lg);
   background: var(--ts-surface);
   padding: 10px 12px;
   box-shadow: 0 2px 10px rgba(15,23,42,.05);
@@ -353,7 +340,7 @@
 
 .ts-panel {
   border: 1px solid var(--ts-border);
-  border-radius: var(--ts-radius-lg);
+  border-radius: var(--hub-radius-lg);
   background: var(--ts-surface);
   overflow: hidden;
   box-shadow: 0 2px 12px rgba(15,23,42,.05);
@@ -419,7 +406,7 @@
 
 .ts-card {
   border: 1px solid var(--ts-border);
-  border-radius: var(--ts-radius-md);
+  border-radius: var(--hub-radius-lg);
   background: linear-gradient(180deg, #fff 0%, #f8fbff 100%);
   padding: 14px 16px;
   box-shadow: 0 2px 10px rgba(15,23,42,.05);
@@ -482,7 +469,7 @@
 /* ── Note / info box ── */
 .ts-note-box {
   padding: 11px 14px;
-  border-radius: var(--ts-radius-sm);
+  border-radius: var(--hub-radius-md);
   border: 1px solid rgba(249,115,22,.2);
   background: var(--ts-accent-soft);
   color: #9a3412;
@@ -498,7 +485,7 @@
   padding: 36px 24px;
   text-align: center;
   border: 1.5px dashed rgba(148,163,184,.5);
-  border-radius: var(--ts-radius-md);
+  border-radius: var(--hub-radius-md);
   background: linear-gradient(180deg, #fafcff 0%, #f8fafc 100%);
   color: var(--ts-text-mid);
 }
@@ -510,7 +497,7 @@
   width: 100%;
   overflow-x: auto;
   border: 1px solid var(--ts-border);
-  border-radius: var(--ts-radius-md);
+  border-radius: var(--hub-radius-lg);
   background: #fff;
 }
 
@@ -569,7 +556,7 @@
   box-sizing: border-box;
   min-height: 36px;
   padding: 0 10px;
-  border-radius: var(--ts-radius-sm);
+  border-radius: var(--hub-radius-md);
   border: 1px solid #d0dce8;
   background: #fff;
   color: #0f172a;
@@ -625,7 +612,7 @@
 .ts-messages { display: grid; gap: 6px; }
 .ts-message {
   padding: 11px 14px;
-  border-radius: var(--ts-radius-sm);
+  border-radius: var(--hub-radius-md);
   border: 1px solid #dbe5ef;
   background: #f8fbff;
   color: #334155;
@@ -690,7 +677,7 @@
 
 @media (max-width: 760px) {
   .ts-shell { gap: 10px; padding-top: 8px; }
-  .ts-hero { padding: 16px 18px; border-radius: var(--ts-radius-md); }
+  .ts-hero { padding: var(--hub-space-4) var(--hub-space-4); }
   .ts-hero h1 { font-size: 22px; }
   .ts-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ts-tabs { overflow-x: auto; }
@@ -701,14 +688,6 @@
    DARK MODE
    ══════════════════════════════════════════════════════════════════ */
 
-body.theme-dark .ts-hero-action.primary {
-  background: rgba(255,255,255,.15);
-  color: #fff;
-  border-color: rgba(255,255,255,.2);
-}
-body.theme-dark .ts-hero-action.primary:hover {
-  background: rgba(255,255,255,.22);
-}
 
 /* KPI dark — rimuovi sfondo tintato, usa surface */
 body.theme-dark .ts-kpi.blue,
