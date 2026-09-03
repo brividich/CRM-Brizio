@@ -1905,8 +1905,8 @@ class TaskAbsenceConflictTests(TasksBaseTestCase):
         )
         response = self.client.get(reverse("tasks:project_gantt", args=[project.id]))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "is-absence")
-        self.assertContains(response, "absence-x")
+        self.assertContains(response, "assenze 1gg")
+        self.assertTrue(response.context["gantt_rows"][0]["has_absence_conflicts"])
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
