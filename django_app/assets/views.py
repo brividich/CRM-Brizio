@@ -16954,6 +16954,78 @@ def maintenance_impostazioni(request: HttpRequest) -> HttpResponse:
             "url_schedule": reverse("assets:maintenance_schedule"),
             "url_template_new": reverse("assets:maintenance_template_create"),
             "url_rule_new": reverse("assets:maintenance_rule_create"),
+            "url_coverage_matrix": reverse("assets:maintenance_coverage_matrix"),
+        },
+    )
+
+
+@login_required
+def maintenance_coverage_matrix(request: HttpRequest) -> HttpResponse:
+    """Righe = asset, colonne = tipo intervento: dove la tab 'Copertura' aggrega per
+    categoria, qui si vede l'asset singolo — buchi (nessuna regola copre l'incrocio) e
+    sovrapposizioni (piu' regole attive sullo stesso incrocio, causa nota dei duplicati
+    del generatore) a colpo d'occhio, invece di scoprirli aprendo ogni asset."""
+    if not _is_assets_admin(request):
+        messages.error(request, "Solo admin puo gestire le regole manutenzione.")
+        return redirect("assets:asset_list")
+
+    type_labels = dict(MaintenanceInterventionTemplate.MAINTENANCE_TYPE_CHOICES)
+    rows = build_day_based_maintenance_schedule_rows(
+        asset_queryset=Asset.objects.filter(status=Asset.STATUS_IN_USE).select_related(
+            "asset_category"
+        )
+    )
+
+    by_asset: dict[int, dict[str, Any]] = {}
+    columns_seen: dict[str, str] = {}
+    for row in rows:
+        asset = row["asset"]
+        template = row.get("effective_intervention_template")
+        col_key = getattr(template, "maintenance_type", None) or MaintenanceInterventionTemplate.TYPE_OTHER
+        columns_seen.setdefault(col_key, type_labels.get(col_key, col_key))
+        entry = by_asset.setdefault(asset.id, {"asset": asset, "cells": {}})
+        entry["cells"].setdefault(col_key, []).append(row)
+
+    columns = sorted(columns_seen.items(), key=lambda kv: kv[1])
+
+    matrix_rows = []
+    for entry in by_asset.values():
+        asset = entry["asset"]
+        cells = []
+        for col_key, _label in columns:
+            cell_rows = entry["cells"].get(col_key, [])
+            if not cell_rows:
+                cells.append({"state": "empty"})
+            elif len(cell_rows) > 1:
+                cells.append({"state": "overlap", "count": len(cell_rows), "rows": cell_rows})
+            else:
+                only_row = cell_rows[0]
+                cells.append(
+                    {
+                        "state": only_row["schedule_status"],
+                        "label": only_row["schedule_label"],
+                        "rows": cell_rows,
+                    }
+                )
+        matrix_rows.append({"asset": asset, "cells": cells})
+    matrix_rows.sort(key=lambda r: (r["asset"].reparto or "", r["asset"].name or "", r["asset"].id))
+
+    uncovered_assets = list(
+        Asset.objects.filter(status=Asset.STATUS_IN_USE)
+        .exclude(id__in=by_asset.keys())
+        .order_by("reparto", "name", "id")
+    )
+
+    return render(
+        request,
+        "assets/pages/maintenance_coverage_matrix.html",
+        {
+            "page_title": "Matrice di copertura",
+            "columns": columns,
+            "matrix_rows": matrix_rows,
+            "uncovered_assets": uncovered_assets,
+            "back_url": _maintenance_settings_page_url(request, tab="copertura"),
+            **_assets_shell_context(request),
         },
     )
 

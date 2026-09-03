@@ -10761,6 +10761,94 @@ class MaintenanceRuleScopeTreeTests(TestCase):
         self.assertEqual(list(rule.assets.values_list("id", flat=True)), [self.asset_off.id])
 
 
+class MaintenanceCoverageMatrixTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            username="mcm-admin",
+            email="mcm-admin@test.local",
+            password="pass12345",
+        )
+        self.category = AssetCategory.objects.create(
+            code="mcm-category",
+            label="Categoria Matrice",
+            base_asset_type=Asset.TYPE_WORK_MACHINE,
+            sort_order=10,
+        )
+        self.covered_asset = Asset.objects.create(
+            name="Asset Coperto",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            asset_category=self.category,
+            reparto="OFFICINA",
+            source_key="mcm-asset-covered",
+        )
+        self.uncovered_asset = Asset.objects.create(
+            name="Asset Scoperto",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            asset_category=self.category,
+            reparto="OFFICINA",
+            source_key="mcm-asset-uncovered",
+        )
+        self.template_a = MaintenanceInterventionTemplate.objects.create(
+            code="mcm-template-a",
+            label="Ispezione",
+            maintenance_type=MaintenanceInterventionTemplate.TYPE_INSPECTION,
+            asset_category=self.category,
+        )
+        self.template_b = MaintenanceInterventionTemplate.objects.create(
+            code="mcm-template-b",
+            label="Ispezione bis",
+            maintenance_type=MaintenanceInterventionTemplate.TYPE_INSPECTION,
+            asset_category=self.category,
+        )
+        self.rule_a = MaintenanceRule.objects.create(
+            intervention_template=self.template_a,
+            asset_category=self.category,
+            threshold_type=MaintenanceRule.THRESHOLD_DAYS,
+            threshold_value=30,
+        )
+        self.rule_b = MaintenanceRule.objects.create(
+            intervention_template=self.template_b,
+            asset_category=self.category,
+            threshold_type=MaintenanceRule.THRESHOLD_DAYS,
+            threshold_value=45,
+        )
+        # covered_asset e' coperto da due regole con lo stesso maintenance_type
+        # (INSPECTION): deve comparire come sovrapposizione, non come due celle.
+        # uncovered_asset non ha nessuna regola: SCOPE_ASSETS su rule_a/rule_b lo esclude.
+        self.rule_a.scope_type = MaintenanceRule.SCOPE_ASSETS
+        self.rule_a.assets.set([self.covered_asset])
+        self.rule_a.save()
+        self.rule_b.scope_type = MaintenanceRule.SCOPE_ASSETS
+        self.rule_b.assets.set([self.covered_asset])
+        self.rule_b.save()
+
+    def test_matrix_shows_overlap_badge(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("assets:maintenance_coverage_matrix"))
+        self.assertEqual(response.status_code, 200)
+        matrix_rows = {row["asset"].id: row for row in response.context["matrix_rows"]}
+        self.assertIn(self.covered_asset.id, matrix_rows)
+        cells = matrix_rows[self.covered_asset.id]["cells"]
+        self.assertEqual(len(cells), 1)
+        self.assertEqual(cells[0]["state"], "overlap")
+        self.assertEqual(cells[0]["count"], 2)
+
+    def test_matrix_lists_uncovered_asset(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("assets:maintenance_coverage_matrix"))
+        uncovered_ids = [a.id for a in response.context["uncovered_assets"]]
+        self.assertIn(self.uncovered_asset.id, uncovered_ids)
+        self.assertNotIn(self.covered_asset.id, uncovered_ids)
+
+    def test_matrix_requires_admin(self):
+        viewer = User.objects.create_user(
+            username="mcm-viewer", email="mcm-viewer@test.local", password="pass12345"
+        )
+        self.client.force_login(viewer)
+        response = self.client.get(reverse("assets:maintenance_coverage_matrix"))
+        self.assertEqual(response.status_code, 302)
+
+
 class WorkOrderBoardTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_superuser(

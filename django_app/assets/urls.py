@@ -47,6 +47,7 @@ urlpatterns = [
     path("assets/manutenzione/regole/new/", views.maintenance_rule_create, name="maintenance_rule_create"),
     path("assets/manutenzione/regole/edit/<int:id>/", views.maintenance_rule_edit, name="maintenance_rule_edit"),
     path("assets/manutenzione/regole/anteprima-impatto/", views.maintenance_rule_impact_preview, name="maintenance_rule_impact_preview"),
+    path("assets/manutenzione/copertura/matrice/", views.maintenance_coverage_matrix, name="maintenance_coverage_matrix"),
     path("assets/manutenzione/prossime/", views.maintenance_schedule, name="maintenance_schedule"),
     path("assets/manutenzione/contratti/", views.assistance_contract_list, name="assistance_contract_list"),
     path("assets/licenze/", views.software_license_list, name="software_license_list"),
