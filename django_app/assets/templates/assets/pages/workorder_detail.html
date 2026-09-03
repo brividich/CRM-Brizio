@@ -40,9 +40,9 @@
   {% if workorder.status == 'OPEN' and workorder.is_waiting %}
     <form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="action" value="start"><button class="btn btn-primary" type="submit">Riprendi lavorazione</button></form>
   {% elif workorder.status == 'OPEN' and not workorder.started_at %}
-    <form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="action" value="start"><button class="btn btn-primary" type="submit">Inizia intervento</button></form>
+    <form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="action" value="start"><button class="btn" type="submit" title="Facoltativo: traccia l'orario di inizio, non è richiesto per chiudere l'intervento">Segna come iniziato</button></form>
   {% endif %}
-  {% if workorder.status == 'OPEN' %}<a class="btn {% if workorder.started_at and not workorder.is_waiting %}btn-primary{% endif %}" href="{% url 'assets:wo_close' workorder.id %}">Chiudi intervento</a>{% endif %}
+  {% if workorder.status == 'OPEN' %}<a class="btn{% if not workorder.is_waiting %} btn-primary{% endif %}" href="{% url 'assets:wo_close' workorder.id %}">Chiudi intervento</a>{% endif %}
 {% endblock %}
 
 {% block assets_shell_content %}
