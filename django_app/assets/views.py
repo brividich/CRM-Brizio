@@ -14990,6 +14990,8 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
     priority = _clean_string(request.GET.get("priority"))
     q = _clean_string(request.GET.get("q"))
     operational_view = _resolve_workorder_operational_view(request.GET)
+    display = _clean_string(request.GET.get("display")).lower()
+    display = display if display in ("list", "board") else "list"
     asset_filter = Asset.objects.filter(pk=asset_id).first() if asset_id else None
 
     workorders = _apply_workorder_operational_view(
@@ -15037,12 +15039,32 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
         asset_filter=asset_filter,
     )
 
+    board_columns = []
+    if display == "board":
+        # Kanban degli stati operativi (unassigned/assigned/in_progress/waiting), diversa dalla
+        # board per scadenza gia' presente in maintenance_hub.html: qui la colonna e' lo stato
+        # reale dell'OdL, non quanto e' vecchio.
+        board_by_state = {key: [] for key in WorkOrder.OPSTATE_LABELS}
+        for wo in workorders.filter(status=WorkOrder.STATUS_OPEN).select_related("asset", "assigned_to"):
+            state = wo.operational_state
+            if state in board_by_state:
+                board_by_state[state].append(wo)
+        board_columns = [
+            {"key": key, "label": label, "workorders": board_by_state[key]}
+            for key, label in WorkOrder.OPSTATE_LABELS.items()
+        ]
+
     return render(
         request,
         "assets/pages/workorder_list.html",
         {
             "page_title": "Interventi",
             "workorders": workorders,
+            "workorder_display": display,
+            "board_columns": board_columns,
+            "workorder_display_toggle_url": _workorder_list_page_url(
+                view=operational_view, display="list" if display == "board" else "board"
+            ),
             "status_filter": status,
             "kind_filter": kind,
             "origin_filter": origin,
@@ -15666,6 +15688,49 @@ def workorder_claim(request: HttpRequest, id: int) -> HttpResponse:
     notify_workorder_taken_over(workorder, previous_assignee=previous_assignee, actor=request.user)
     messages.success(request, f"Intervento #{workorder.id} preso in carico.")
     return redirect(next_url)
+
+
+@login_required
+def workorder_set_state(request: HttpRequest, id: int) -> JsonResponse:
+    """Endpoint della board Kanban OdL (drag&drop): sposta un intervento aperto tra gli stati
+    operativi derivati (assegna/avvia/metti in attesa). Risposta sempre JSON, mai redirect —
+    e' l'unico consumatore, via fetch(), stesso pattern di tasks/_board.html."""
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "error": "Metodo non consentito."}, status=405)
+    workorder = get_object_or_404(WorkOrder, pk=id)
+    if workorder.status != WorkOrder.STATUS_OPEN:
+        return JsonResponse({"ok": False, "error": "Intervento non aperto."}, status=409)
+
+    target_state = _clean_string(request.POST.get("state"))
+    actor = request.user.get_full_name() or request.user.username
+
+    if target_state == WorkOrder.OPSTATE_ASSIGNED:
+        previous_assignee = workorder.assigned_to
+        workorder.assign(request.user)
+        WorkOrderLog.objects.create(
+            work_order=workorder,
+            note=f"Preso in carico da {actor} (board).",
+            author=request.user,
+        )
+        notify_workorder_taken_over(workorder, previous_assignee=previous_assignee, actor=request.user)
+    elif target_state == WorkOrder.OPSTATE_IN_PROGRESS:
+        workorder.start()
+        WorkOrderLog.objects.create(
+            work_order=workorder,
+            note=f"Intervento avviato da {actor} (board).",
+            author=request.user,
+        )
+    elif target_state == WorkOrder.OPSTATE_WAITING:
+        workorder.set_waiting(reason=WorkOrder.WAIT_REASON_ALTRO, note="")
+        WorkOrderLog.objects.create(
+            work_order=workorder,
+            note=f"Messo in attesa da {actor} (board). Motivo da precisare in scheda.",
+            author=request.user,
+        )
+    else:
+        return JsonResponse({"ok": False, "error": "Stato non valido."}, status=400)
+
+    return JsonResponse({"ok": True, "operational_state": workorder.operational_state})
 
 
 @login_required

@@ -393,6 +393,65 @@ body.theme-dark .wo-muted {
 body.theme-dark .wo-overdue {
   color: #fca5a5;
 }
+.wob-board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(220px, 1fr));
+  gap: 12px;
+  align-items: start;
+  overflow-x: auto;
+  padding: 16px;
+}
+.wob-col {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  min-height: 140px;
+}
+.wob-col.is-over { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,.15); }
+.wob-col-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  font-weight: 800;
+  font-size: .78rem;
+  color: #17324f;
+}
+.wob-col-count { background: #e2e8f0; color: #475569; border-radius: 999px; padding: 1px 8px; font-size: .72rem; }
+.wob-col-body { padding: 8px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.wob-col-empty { color: #94a3b8; text-align: center; margin: 8px 0; font-size: .8rem; }
+.wob-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  cursor: grab;
+  box-shadow: 0 1px 2px rgba(15,23,42,.06);
+}
+.wob-card.is-dragging { opacity: .5; }
+.wob-card-title { font-weight: 800; color: #17324f; text-decoration: none; font-size: .8rem; }
+.wob-card-title:hover { color: #1d4ed8; }
+.wob-card-meta { display: flex; justify-content: space-between; gap: 6px; font-size: .72rem; color: #64748b; }
+.wob-muted { color: #94a3b8; }
+.wob-overdue { color: #b91c1c; font-weight: 700; }
+@media (max-width: 900px) { .wob-board { grid-template-columns: repeat(2, minmax(200px, 1fr)); } }
+body.theme-dark .wob-col { background: var(--surface); border-color: var(--border); }
+body.theme-dark .wob-col.is-over { border-color: #60a5fa; box-shadow: 0 0 0 2px rgba(96,165,250,.2); }
+body.theme-dark .wob-col-head { border-color: var(--border); color: var(--text); }
+body.theme-dark .wob-col-count { background: var(--surface-alt); color: var(--text-light); }
+body.theme-dark .wob-col-empty { color: var(--text-light); }
+body.theme-dark .wob-card { background: var(--surface-alt); border-color: var(--border); }
+body.theme-dark .wob-card-title { color: var(--text); }
+body.theme-dark .wob-card-title:hover { color: #93c5fd; }
+body.theme-dark .wob-card-meta { color: var(--text-light); }
+body.theme-dark .wob-muted { color: var(--text-light); }
+body.theme-dark .wob-overdue { color: #fca5a5; }
 </style>
 {% endblock %}
 
@@ -582,7 +641,13 @@ body.theme-dark .wo-overdue {
     <div class="wo-table-head">
       <h2 class="wo-table-title">{% if workorder_view == 'mine' %}Interventi assegnati a me{% elif workorder_view == 'unassigned' %}Interventi da prendere in carico{% elif workorder_view == 'closed' %}Archivio interventi chiusi{% else %}Interventi aperti{% endif %}</h2>
       <span class="as-badge as-badge--info">{{ workorders|length }} righe</span>
+      {% if workorder_view != 'closed' %}
+        <a class="btn" href="{{ workorder_display_toggle_url }}">{% if workorder_display == 'board' %}Vista elenco{% else %}Vista board{% endif %}</a>
+      {% endif %}
     </div>
+    {% if workorder_display == 'board' and workorder_view != 'closed' %}
+      {% include "assets/pages/_workorder_board.html" %}
+    {% else %}
     <div class="wo-table-wrap">
       <table class="wo-table">
         <thead>
@@ -640,6 +705,7 @@ body.theme-dark .wo-overdue {
         </tbody>
       </table>
     </div>
+    {% endif %}
   </article>
 </section>
 {% endblock %}

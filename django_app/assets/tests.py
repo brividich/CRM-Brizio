@@ -10759,3 +10759,83 @@ class MaintenanceRuleScopeTreeTests(TestCase):
         self.assertEqual(response.status_code, 302)
         rule = MaintenanceRule.objects.get(intervention_template=self.template)
         self.assertEqual(list(rule.assets.values_list("id", flat=True)), [self.asset_off.id])
+
+
+class WorkOrderBoardTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_superuser(
+            username="board-admin",
+            email="board-admin@test.local",
+            password="pass12345",
+        )
+        self.asset = Asset.objects.create(
+            asset_tag="IT-BOARD-001",
+            name="Server board test",
+            asset_type=Asset.TYPE_SERVER,
+            status=Asset.STATUS_IN_USE,
+        )
+        self.workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="OdL board",
+        )
+        self.url = reverse("assets:wo_set_state", args=[self.workorder.id])
+
+    def test_assign_model_method(self):
+        self.workorder.assign(self.user)
+        self.assertEqual(self.workorder.assigned_to_id, self.user.id)
+
+    def test_assign_noop_when_not_open(self):
+        self.workorder.close(status=WorkOrder.STATUS_DONE, resolution="Fatto")
+        self.workorder.assign(self.user)
+        self.workorder.refresh_from_db()
+        self.assertIsNone(self.workorder.assigned_to_id)
+
+    def test_set_state_to_assigned_via_endpoint(self):
+        self.client.force_login(self.user)
+        response = self.client.post(self.url, {"state": WorkOrder.OPSTATE_ASSIGNED})
+        self.assertEqual(response.status_code, 200)
+        self.workorder.refresh_from_db()
+        self.assertEqual(self.workorder.assigned_to_id, self.user.id)
+        self.assertEqual(response.json()["operational_state"], WorkOrder.OPSTATE_ASSIGNED)
+
+    def test_set_state_to_in_progress_via_endpoint(self):
+        self.workorder.assigned_to = self.user
+        self.workorder.save(update_fields=["assigned_to"])
+        self.client.force_login(self.user)
+        response = self.client.post(self.url, {"state": WorkOrder.OPSTATE_IN_PROGRESS})
+        self.assertEqual(response.status_code, 200)
+        self.workorder.refresh_from_db()
+        self.assertIsNotNone(self.workorder.started_at)
+
+    def test_set_state_to_waiting_via_endpoint(self):
+        self.client.force_login(self.user)
+        response = self.client.post(self.url, {"state": WorkOrder.OPSTATE_WAITING})
+        self.assertEqual(response.status_code, 200)
+        self.workorder.refresh_from_db()
+        self.assertTrue(self.workorder.is_waiting)
+
+    def test_set_state_invalid_returns_400(self):
+        self.client.force_login(self.user)
+        response = self.client.post(self.url, {"state": "bogus"})
+        self.assertEqual(response.status_code, 400)
+
+    def test_set_state_requires_post(self):
+        self.client.force_login(self.user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 405)
+
+    def test_set_state_closed_workorder_returns_409(self):
+        self.workorder.close(status=WorkOrder.STATUS_DONE, resolution="Fatto")
+        self.client.force_login(self.user)
+        response = self.client.post(self.url, {"state": WorkOrder.OPSTATE_IN_PROGRESS})
+        self.assertEqual(response.status_code, 409)
+
+    def test_board_display_groups_by_operational_state(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("assets:wo_list") + "?display=board")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["workorder_display"], "board")
+        columns = {col["key"]: col for col in response.context["board_columns"]}
+        self.assertIn(self.workorder, columns[WorkOrder.OPSTATE_UNASSIGNED]["workorders"])
