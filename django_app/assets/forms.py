@@ -717,6 +717,13 @@ PRODUCTION_ASSET_TYPES = [
     Asset.TYPE_CARROPONTE,
 ]
 
+# Complemento di IT_DEVICE_TYPES: tutto cio' che non e' un dispositivo IT.
+# La manutenzione periodica deve poter coprire QUALSIASI asset, quindi lo scope
+# "non IT" non puo' essere una whitelist di tre tipi (CNC/macchina/carroponte):
+# lascerebbe fuori impianti generici (TYPE_OTHER), prodotti chimici e ogni tipo
+# aggiunto in futuro. Derivandolo da TYPE_CHOICES la copertura resta totale.
+NON_IT_ASSET_TYPES = [v for v, _label in Asset.TYPE_CHOICES if v not in IT_DEVICE_TYPES]
+
 IT_DEVICE_TYPE_CHOICES = [
     (v, label) for v, label in Asset.TYPE_CHOICES
     if v in IT_DEVICE_TYPES

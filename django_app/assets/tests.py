@@ -1335,6 +1335,83 @@ class AssetsRoutingTests(TestCase):
         self.assertNotContains(asset_response, planned.name)
         self.assertNotContains(asset_response, unrelated.name)
 
+    def test_periodic_verification_page_does_not_loop_for_asset_outside_production_types(self):
+        admin = User.objects.create_superuser(
+            username="asset-periodic-loop-admin",
+            email="asset-periodic-loop-admin@test.local",
+            password="pass12345",
+        )
+        asset = Asset.objects.create(
+            name="Bruciatore forno 2",
+            asset_type=Asset.TYPE_OTHER,
+            reparto="TRT",
+            source_key="manual-periodic-loop-other",
+        )
+
+        self.client.force_login(admin)
+        response = self.client.get(
+            reverse("assets:periodic_verifications") + f"?asset={asset.id}&scope=production"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["selected_asset"].id, asset.id)
+
+    def test_periodic_verification_production_scope_covers_every_non_it_asset(self):
+        admin = User.objects.create_superuser(
+            username="asset-periodic-scope-admin",
+            email="asset-periodic-scope-admin@test.local",
+            password="pass12345",
+        )
+        plant_asset = Asset.objects.create(
+            name="Impianto aspirazione",
+            asset_type=Asset.TYPE_OTHER,
+            reparto="TRT",
+            source_key="manual-periodic-scope-other",
+        )
+        chemical_asset = Asset.objects.create(
+            name="Sgrassante alcalino",
+            asset_type=Asset.TYPE_CHEMICAL,
+            reparto="GAL",
+            source_key="manual-periodic-scope-chemical",
+        )
+        verification = PeriodicVerification.objects.create(
+            name="Verifica impianto aspirazione",
+            frequency_months=12,
+            next_verification_date=timezone.localdate(),
+        )
+        verification.assets.set([plant_asset])
+
+        self.client.force_login(admin)
+        response = self.client.get(reverse("assets:periodic_verifications") + "?scope=production")
+
+        self.assertEqual(response.status_code, 200)
+        selectable_ids = set(response.context["form"].fields["asset_ids"].queryset.values_list("id", flat=True))
+        self.assertIn(plant_asset.id, selectable_ids)
+        self.assertIn(chemical_asset.id, selectable_ids)
+        listed_ids = {row["verification"].id for row in response.context["verification_rows"]}
+        self.assertIn(verification.id, listed_ids)
+
+    def test_periodic_verification_page_still_redirects_it_asset_to_it_scope(self):
+        admin = User.objects.create_superuser(
+            username="asset-periodic-itscope-admin",
+            email="asset-periodic-itscope-admin@test.local",
+            password="pass12345",
+        )
+        asset = Asset.objects.create(
+            name="Server ERP",
+            asset_type=Asset.TYPE_SERVER,
+            reparto="ITC",
+            source_key="manual-periodic-scope-server",
+        )
+
+        self.client.force_login(admin)
+        response = self.client.get(
+            reverse("assets:periodic_verifications") + f"?asset={asset.id}&scope=production"
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("scope=it", response["Location"])
+
     def test_legacy_periodic_verification_url_redirects_to_maintenance_route(self):
         admin = User.objects.create_superuser(
             username="asset-periodic-legacy-admin",
