@@ -153,14 +153,45 @@ Pagine aperte nel browser su un'istanza SQLite di prova, **tema chiaro e tema sc
 - [x] `RETIRED_SCHEDULE_NAMES` in `automazioni/schedules.py` + pulizia in `setup_q_schedules`: togliere una voce da `SCHEDULES` **non** rimuove il record django-q, e il vecchio job continuerebbe a girare dopo il deploy, invisibile alla Centrale di comando
 - [x] **Import storico** (§34/§62): `assets/services/maintenance_history_import.py`, pagina `/assets/manutenzione/importa-storico/` (upload → anteprima riga per riga → conferma), modello Excel scaricabile, comando `import_maintenance_history` (`--template`, anteprima di default, `--apply`). Ripetibile: le righe già importate risultano «già presente». Una scadenza aperta preesistente **non** viene spostata sulla data calcolata dallo storico, e il conteggio lo dice
 
-### Da eseguire in ambiente (non è codice)
+### Ricognizione sul DB di sviluppo — fatta il 2026-09-04 (sola lettura)
 
-- [ ] `migrate_maintenance_to_plans --dry-run` in dev e **confronto dei conteggi** con §65 della specifica (n. regole, n. asset coinvolti, n. state, n. OdL periodici, n. verifiche legacy)
-- [ ] Rivedere a mano le applicazioni amministrative nate con `auto_generate=False` e impostare la periodicità reale
-- [ ] Convertire o archiviare le `PeriodicVerification` con `is_legacy=False` elencate dal comando
-- [ ] Compilare e caricare il foglio dello storico (una riga per coppia asset/piano)
+DB dev: `localhost\SQLEXPRESS`, database `PORTALE NOVICROM`, migrazioni assets ferme a `0097` (**`0098` non applicata**).
 
-> **Ordine di deploy vincolante**: prima `migrate_maintenance_to_plans`, poi l'import dello storico, poi `setup_q_schedules`. Invertendo gli ultimi due resta un giorno senza generazione delle scadenze.
+Per interrogare il DB dev **dal worktree**, senza copiare `.env` (che non va copiato: contiene `DB_ENGINE=sqlserver` anche per il profilo dev):
+
+```powershell
+$env:PORTAL_CONFIG_ENV_FILE = "C:\Dev\Portale Novicrom\django_app\.env"
+python django_app\manage.py <comando> --settings=config.settings.dev
+```
+
+Cosa c'è da convertire, misurato:
+
+| Grandezza | Valore | Conseguenza |
+|---|---:|---|
+| Regole attive | 18 | tutte `scope=CATEGORY` → 18 applicazioni su categoria |
+| di cui a contatore (ore/km/cicli) | **0** | niente va perso nella dismissione dei contatori |
+| Override per asset | 0 | nessuna personalizzazione da convertire, **nessun conflitto possibile** |
+| Stati ultima esecuzione | 187 | 187 occorrenze eseguite |
+| Scadenze amministrative attive | 2 | 2 piani amministrativi + 2 occorrenze aperte |
+| `PeriodicVerification` con `is_legacy=False` | 4 | elencate dal comando, **non** convertite |
+| Coppie piano/asset generate | 561 | 17 regole × 33 asset (la 18ª tocca una categoria senza asset in uso) |
+
+**Il punto che decide la riuscita del passaggio**: delle 561 coppie, **187 hanno una data di ultima esecuzione e 374 no**. Tutte e 18 le regole hanno `first_due_date` a NULL, quindi per quelle 374 coppie il motore non ha né storico né data di partenza: `compute_due_date_for` restituisce **oggi**, e alla prima generazione nascerebbero 374 scadenze tutte dovute lo stesso giorno. È esattamente lo scenario che l'import dello storico esiste per evitare.
+
+Foglio precompilato con le 374 righe da compilare (asset · piano · ultima esecuzione · note) generato in `scratchpad/storico_da_compilare.xlsx` — script `scratchpad/genera_foglio_storico.py`, legge solo il vecchio motore e gira anche prima della `0098`.
+
+Dati puliti, nessun caso limite: 0 regole senza piano, 0 regole `CATEGORY` senza categoria, 0 con `auto_generate=False`.
+
+### Da eseguire in ambiente (scrivono sul DB)
+
+- [ ] **`migrate assets 0098`** sul DB dev — prerequisito di tutto: senza le colonne nuove su `MaintenanceInterventionTemplate` qualunque query sui piani fallisce (`Il nome di colonna 'execution_mode' non è valido`). La migration è additiva (5 `CreateModel`, 15 `AddField`, 2 `AlterField` di soli `help_text`/`choices`) e reversibile
+- [ ] `migrate_maintenance_to_plans --dry-run`, confronto con la tabella qui sopra, poi senza `--dry-run`
+- [ ] Compilare le 374 righe del foglio e caricarle (`import_maintenance_history <file>` per l'anteprima, poi `--apply`) **prima** della prima generazione
+- [ ] Rivedere le 2 applicazioni amministrative nate con `auto_generate=False` e impostare la periodicità reale
+- [ ] Decidere sulle 4 `PeriodicVerification` con `is_legacy=False` elencate dal comando
+- [ ] `setup_q_schedules` (ritira `assets_generate_workorders`, registra `assets_generate_occurrences`)
+
+> **Ordine vincolante**: `migrate 0098` → `migrate_maintenance_to_plans` → import dello storico → `setup_q_schedules`. Anticipare l'ultimo passo lascia un giorno senza generazione; saltare l'import fa nascere 374 scadenze finte tutte dovute oggi.
 
 ---
 
