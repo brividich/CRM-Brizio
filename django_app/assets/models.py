@@ -2069,6 +2069,12 @@ class AssetReportTemplate(models.Model):
 
 
 class WorkOrder(models.Model):
+    # Prefisso di reference_batch per gli OdL creati insieme in un'unica
+    # registrazione multi-asset: distingue questo raggruppamento (numerazione
+    # display "342-1", "342-2") dagli altri usi di reference_batch (dedup
+    # generazione automatica da regola, import storico).
+    BATCH_REFERENCE_PREFIX = "MULTI-"
+
     KIND_PREVENTIVE = "PREVENTIVE"
     KIND_CORRECTIVE = "CORRECTIVE"
     KIND_SAFETY = "SAFETY"
@@ -2376,6 +2382,11 @@ class WorkOrder(models.Model):
     ):
         self.status = status
         self.closed_at = (closed_at or timezone.now()) if status != self.STATUS_OPEN else None
+        if status == self.STATUS_DONE and not self.started_at:
+            # "Registra intervento" chiude senza passare da "Inizia": valorizza
+            # started_at qui cosi' i report che si aspettano un intervento avviato
+            # (es. "Il mio turno") non vedono un OdL chiuso ma mai iniziato.
+            self.started_at = self.closed_at
         if resolution:
             self.resolution = resolution
         if intervention_duration is not None:
@@ -2473,6 +2484,35 @@ class WorkOrder(models.Model):
         self.wait_note = ""
         self.waiting_since = None
         self.save(update_fields=["is_waiting", "wait_reason", "wait_note", "waiting_since"])
+
+    @classmethod
+    def mark_batch(cls, workorders: "list[WorkOrder]") -> None:
+        """Collega insieme gli OdL creati da un'unica registrazione multi-asset
+        cosi' che display_number li mostri come "342-1", "342-2", ecc. Un solo
+        elemento non forma un batch: resta con il numero semplice."""
+        if len(workorders) < 2:
+            return
+        reference_batch = f"{cls.BATCH_REFERENCE_PREFIX}{workorders[0].id}"
+        cls.objects.filter(pk__in=[wo.pk for wo in workorders]).update(reference_batch=reference_batch)
+        for wo in workorders:
+            wo.reference_batch = reference_batch
+
+    @property
+    def display_number(self) -> str:
+        """Numero da mostrare in UI: ``#<id>`` per un OdL isolato, oppure
+        ``#<id-capofila>-<posizione>`` per gli OdL creati insieme in una
+        registrazione multi-asset (vedi mark_workorder_batch)."""
+        if self.reference_batch.startswith(self.BATCH_REFERENCE_PREFIX):
+            sibling_ids = list(
+                WorkOrder.objects.filter(reference_batch=self.reference_batch)
+                .order_by("id")
+                .values_list("id", flat=True)
+            )
+            if self.id in sibling_ids:
+                leader_id = sibling_ids[0]
+                position = sibling_ids.index(self.id) + 1
+                return f"{leader_id}-{position}"
+        return str(self.id)
 
     def start(self) -> None:
         """Segna l'inizio della lavorazione effettiva (bottone 'Inizia intervento').

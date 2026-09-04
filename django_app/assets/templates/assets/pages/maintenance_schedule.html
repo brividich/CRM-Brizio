@@ -104,7 +104,7 @@
                   <td><span class="ux-primary">{{ row.effective_intervention_template.label }}</span><span class="ux-secondary">{{ row.effective_threshold_value }} {{ row.effective_threshold_label|lower }}{% if row.base_rule.is_external %} · Esterna{% if row.base_rule.supplier %}: {{ row.base_rule.supplier }}{% endif %}{% endif %}</span></td>
                   <td><span class="ux-pill {% if row.schedule_status == 'overdue' %}danger{% elif row.schedule_status == 'warning' %}warn{% elif row.schedule_status == 'missing' %}muted{% else %}ok{% endif %}">{{ row.schedule_label }}</span>{% if row.meter_is_stale %}<br><span class="ux-secondary" style="color:#b45309">Contatore fermo {{ row.meter_days_since_update }} gg</span>{% endif %}</td>
                   <td>{% if row.due_date %}<strong>{{ row.due_date|date:"d/m/Y" }}</strong>{% else %}—{% endif %}<span class="ux-secondary">{% if row.days_until_due is not None %}{{ row.days_until_due }} gg{% endif %}</span></td>
-                  <td>{% if row.last_execution_date %}{{ row.last_execution_date|date:"d/m/Y" }}<span class="ux-secondary">{% if row.last_execution_workorder %}Intervento #{{ row.last_execution_workorder.id }}{% else %}Storico manuale{% endif %}</span>{% else %}<span class="ux-pill muted">Mai eseguita</span>{% endif %}</td>
+                  <td>{% if row.last_execution_date %}{{ row.last_execution_date|date:"d/m/Y" }}<span class="ux-secondary">{% if row.last_execution_workorder %}Intervento #{{ row.last_execution_workorder.display_number }}{% else %}Storico manuale{% endif %}</span>{% else %}<span class="ux-pill muted">Mai eseguita</span>{% endif %}</td>
                   <td>{% if row.primary_contract %}<span class="ux-pill info">{{ row.contract_state.label }}</span><span class="ux-secondary">{{ row.primary_contract.supplier }}</span>{% else %}<span class="ux-pill muted">Non disponibile</span>{% endif %}</td>
                   <td>
                     <div class="ms2-table-actions">
@@ -163,7 +163,7 @@
                             <strong>{{ execution.executed_at|date:"d/m/Y" }}</strong>
                             {% if execution.cost_eur is not None %} · {{ execution.cost_eur }} EUR{% endif %}
                             {% if execution.duration_minutes %} · {{ execution.duration_minutes }} min{% endif %}
-                            {% if execution.url %} · <a href="{{ execution.url }}" class="ux-link">OdL #{{ execution.workorder.id }}</a>{% endif %}
+                            {% if execution.url %} · <a href="{{ execution.url }}" class="ux-link">OdL #{{ execution.workorder.display_number }}</a>{% endif %}
                             {% if execution.resolution %}<br><span class="ms-suggestion">{{ execution.resolution|truncatechars:140 }}</span>{% endif %}
                           </div>
                           {% endfor %}

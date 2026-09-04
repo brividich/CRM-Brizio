@@ -2805,6 +2805,78 @@ def _build_execution_workorder(
     return workorder
 
 
+def _rule_sibling_assets(rule: MaintenanceRule, exclude_asset_id: int) -> list[Asset]:
+    """Altri asset coperti dalla stessa regola di manutenzione (esclude l'asset corrente)."""
+    if rule.scope_type == MaintenanceRule.SCOPE_ASSETS:
+        qs = rule.assets.all()
+    else:
+        qs = Asset.objects.filter(asset_category_id=rule.asset_category_id, status=Asset.STATUS_IN_USE)
+    return list(qs.exclude(pk=exclude_asset_id).order_by("asset_tag"))
+
+
+def _verification_sibling_assets(verification: PeriodicVerification, exclude_asset_id: int) -> list[Asset]:
+    """Altri asset coperti dallo stesso piano di verifica periodica (esclude l'asset corrente)."""
+    return list(verification.assets.exclude(pk=exclude_asset_id).order_by("asset_tag"))
+
+
+def _clone_workorder_for_sibling_asset(source: WorkOrder, sibling_asset: Asset) -> WorkOrder:
+    """Duplica i dati pianificatori di un OdL appena creato su un altro asset con la
+    stessa manutenzione (suggerimento "altri asset dello stesso tipo" in creazione
+    singola). Non copia allegati/checklist gia' spuntate: solo l'impostazione."""
+    sibling = WorkOrder(
+        asset=sibling_asset,
+        periodic_verification=source.periodic_verification,
+        maintenance_rule=source.maintenance_rule,
+        supplier=source.supplier,
+        assistance_contract=source.assistance_contract,
+        covered_by_contract=source.covered_by_contract,
+        kind=source.kind,
+        priority=source.priority,
+        due_at=source.due_at,
+        status=WorkOrder.STATUS_OPEN,
+        origin=source.origin,
+        title=source.title,
+        description=source.description,
+        opened_at=source.opened_at,
+    )
+    sibling.full_clean()
+    sibling.save()
+    return sibling
+
+
+def _create_sibling_workorders_from_request(*, request: HttpRequest, source: WorkOrder) -> list[WorkOrder]:
+    """Crea gli OdL "collegati" scelti nel suggerimento "altri asset con la stessa
+    manutenzione" del form di creazione singola. Ricalcola lato server l'elenco
+    consentito (stessa regola/piano di ``source``) per non fidarsi degli id postati
+    dal client, poi lega tutto con display_number tramite WorkOrder.mark_batch."""
+    raw_ids = request.POST.getlist("extra_asset_ids")
+    if not raw_ids:
+        return []
+    requested_ids = {_as_int(raw_id, default=0) for raw_id in raw_ids} - {0}
+    if not requested_ids:
+        return []
+    if source.maintenance_rule_id:
+        allowed_assets = _rule_sibling_assets(source.maintenance_rule, source.asset_id)
+    elif source.periodic_verification_id:
+        allowed_assets = _verification_sibling_assets(source.periodic_verification, source.asset_id)
+    else:
+        allowed_assets = []
+    allowed_by_id = {sibling_asset.id: sibling_asset for sibling_asset in allowed_assets}
+    created: list[WorkOrder] = []
+    for sibling_asset in (allowed_by_id[asset_id] for asset_id in requested_ids if asset_id in allowed_by_id):
+        sibling = _clone_workorder_for_sibling_asset(source, sibling_asset)
+        _prepopulate_workorder_checklist_from_template(sibling)
+        WorkOrderLog.objects.create(
+            work_order=sibling,
+            note=f"Intervento creato insieme a #{source.asset.asset_tag} (stessa manutenzione).",
+            author=request.user if request.user.is_authenticated else None,
+        )
+        created.append(sibling)
+    if created:
+        WorkOrder.mark_batch([source, *created])
+    return created
+
+
 def _serialize_execution_workorder(workorder: WorkOrder) -> dict[str, object]:
     return {
         "workorder": workorder,
@@ -13884,6 +13956,7 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
                                     user=request.user,
                                 )
                             )
+                    WorkOrder.mark_batch(created_workorders)
                     previous_last = verification.last_verification_date
                     if previous_last is None or executed_on >= previous_last:
                         verification.last_verification_date = executed_on
@@ -15222,11 +15295,27 @@ def workorder_create(request: HttpRequest, id: int | None = None) -> HttpRespons
                         note=log_note,
                         author=request.user if request.user.is_authenticated else None,
                     )
+                    sibling_workorders = _create_sibling_workorders_from_request(
+                        request=request,
+                        source=workorder,
+                    )
                 notify_workorder_assigned(
                     workorder,
                     actor=request.user if request.user.is_authenticated else None,
                 )
-                messages.success(request, "Intervento creato.")
+                for sibling in sibling_workorders:
+                    notify_workorder_assigned(
+                        sibling,
+                        actor=request.user if request.user.is_authenticated else None,
+                    )
+                if sibling_workorders:
+                    messages.success(
+                        request,
+                        f"Intervento creato insieme a {len(sibling_workorders)} interventi collegati "
+                        f"({workorder.display_number} - {', '.join(sibling.display_number for sibling in sibling_workorders)}).",
+                    )
+                else:
+                    messages.success(request, "Intervento creato.")
                 if request.POST.get("submit_action") == "close":
                     return redirect("assets:wo_close", id=workorder.id)
                 return redirect("assets:wo_view", id=workorder.id)
@@ -15245,6 +15334,19 @@ def workorder_create(request: HttpRequest, id: int | None = None) -> HttpRespons
     }
     maintenance_rule_suggestion_map = form.build_rule_suggestion_map()
     contract_suggestion_map = form.build_contract_suggestion_map()
+    sibling_asset_map: dict[str, list[dict[str, object]]] = {}
+    for rule in form.fields["maintenance_rule"].queryset:
+        siblings = _rule_sibling_assets(rule, asset.id)
+        if siblings:
+            sibling_asset_map[f"rule-{rule.id}"] = [
+                {"id": sibling.id, "label": f"{sibling.asset_tag} - {sibling.name}"} for sibling in siblings
+            ]
+    for verification in form.fields["periodic_verification"].queryset:
+        siblings = _verification_sibling_assets(verification, asset.id)
+        if siblings:
+            sibling_asset_map[f"verification-{verification.id}"] = [
+                {"id": sibling.id, "label": f"{sibling.asset_tag} - {sibling.name}"} for sibling in siblings
+            ]
     initial_rule = None
     rule_value = form["maintenance_rule"].value()
     if rule_value:
@@ -15272,6 +15374,7 @@ def workorder_create(request: HttpRequest, id: int | None = None) -> HttpRespons
             "periodic_verification_supplier_map_json": json.dumps(periodic_verification_supplier_map),
             "maintenance_rule_suggestion_map_json": json.dumps(maintenance_rule_suggestion_map),
             "contract_suggestion_map_json": json.dumps(contract_suggestion_map),
+            "sibling_asset_map_json": json.dumps(sibling_asset_map),
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
             # Il form e' un flusso transazionale: evita tab e azioni globali
             # duplicate mentre l'utente sta compilando l'intervento.
@@ -15704,6 +15807,8 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
                 _add_form_validation_errors(form, exc)
             else:
                 failure_cause = form.cleaned_data.get("failure_cause") or ""
+                if workorder.kind not in (WorkOrder.KIND_CORRECTIVE, WorkOrder.KIND_SAFETY, WorkOrder.KIND_CALIBRATION):
+                    failure_cause = ""
                 if failure_cause != workorder.failure_cause:
                     workorder.failure_cause = failure_cause
                     workorder.save(update_fields=["failure_cause"])

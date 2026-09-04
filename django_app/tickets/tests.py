@@ -71,6 +71,7 @@ class TicketNuovoSafetyTests(TestCase):
             "priorita": "MEDIA",
             "titolo": f"Ticket {tipo}",
             "descrizione": "Descrizione di test",
+            "asset_descrizione_libera": "Asset generico di test",
         }
 
     def test_get_form_shows_blocking_safety_section(self):
@@ -586,24 +587,16 @@ class TicketMaintenanceRegisterTests(TestCase):
             asset_category=self.asset_category,
             status="IN_USE",
         )
+        TicketImpostazioni.objects.create(tipo="MAN", acl_gestione=["test-user"])
 
-    def test_new_man_ticket_form_defaults_maintenance_register_checked(self):
-        """Verifica che il form MAN proponga l'inclusione ma invii anche il valore unchecked."""
+    def test_new_man_ticket_form_has_no_maintenance_register_checkbox(self):
+        """Il checkbox è ora nella gestione tecnica (gestione_detail), non nel form del richiedente."""
         self.client.force_login(self.user)
 
         response = self.client.get(reverse("tickets:nuovo") + "?tipo=MAN")
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(
-            response,
-            'name="include_in_maintenance_register" value="0"',
-            html=False,
-        )
-        self.assertContains(
-            response,
-            'name="include_in_maintenance_register" value="1" checked',
-            html=False,
-        )
+        self.assertNotContains(response, 'name="include_in_maintenance_register"')
 
     def test_new_man_ticket_has_include_in_maintenance_register_true_by_default(self):
         """Verifica che un nuovo ticket MAN abbia include_in_maintenance_register=True di default."""
@@ -619,7 +612,6 @@ class TicketMaintenanceRegisterTests(TestCase):
                 "priorita": "MEDIA",
                 "incide_sicurezza": "0",
                 "asset_id": str(self.asset.id),
-                "include_in_maintenance_register": "1",
             },
         )
 
@@ -665,7 +657,6 @@ class TicketMaintenanceRegisterTests(TestCase):
                 "priorita": "MEDIA",
                 "incide_sicurezza": "0",
                 "asset_descrizione_libera": "Asset generico",
-                "include_in_maintenance_register": "1",
             },
         )
 
@@ -692,7 +683,6 @@ class TicketMaintenanceRegisterTests(TestCase):
                 "priorita": "MEDIA",
                 "incide_sicurezza": "0",
                 "asset_id": str(self.asset.id),
-                "include_in_maintenance_register": "1",
             },
         )
 
@@ -710,7 +700,7 @@ class TicketMaintenanceRegisterTests(TestCase):
         self.assertEqual(row["ticket_number"], ticket.numero_ticket)
 
     def test_man_ticket_with_asset_and_flag_false_not_in_maintenance_register(self):
-        """Verifica che un ticket MAN con asset e flag False non compaia nel registro manutenzione."""
+        """Il tecnico può escludere dal registro manutenzione un ticket MAN via api_ticket_analytics."""
         self.client.force_login(self.user)
 
         response = self.client.post(
@@ -723,12 +713,24 @@ class TicketMaintenanceRegisterTests(TestCase):
                 "priorita": "MEDIA",
                 "incide_sicurezza": "0",
                 "asset_id": str(self.asset.id),
-                "include_in_maintenance_register": "0",
             },
         )
 
         self.assertEqual(response.status_code, 302)
         ticket = Ticket.objects.get(titolo="Test ticket MAN escluso")
+        self.assertTrue(ticket.include_in_maintenance_register)
+
+        import json
+        analytics_response = self.client.post(
+            reverse("tickets:api_analytics"),
+            data=json.dumps({
+                "ticket_id": ticket.pk,
+                "include_in_maintenance_register": False,
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(analytics_response.status_code, 200)
+        ticket.refresh_from_db()
         self.assertFalse(ticket.include_in_maintenance_register)
 
         # Non dovrebbe comparire nel registro manutenzione

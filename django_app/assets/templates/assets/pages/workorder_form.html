@@ -175,6 +175,10 @@
   accent-color: #1d4ed8;
 }
 .wof-field textarea { min-height: 58px; resize: vertical; }
+.wof-sibling-list { display: grid; gap: 6px; max-height: 220px; overflow-y: auto; padding: 4px 2px; }
+.wof-sibling-item { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm); color: #223756; }
+.wof-sibling-item input[type="checkbox"] { width: auto; accent-color: #1d4ed8; }
+body.theme-dark .wof-sibling-item { color: var(--text); }
 .wof-helper {
   color: #64748b;
   font-size: var(--fs-xs);
@@ -609,6 +613,12 @@ body.theme-dark .wof-advanced-body { border-color:var(--border); }
               {% if form.covered_by_contract.help_text %}<div class="wof-helper">{{ form.covered_by_contract.help_text }}</div>{% endif %}
               {% if form.covered_by_contract.errors %}<div class="wof-error">{{ form.covered_by_contract.errors }}</div>{% endif %}
             </div>
+
+            <div class="wof-field wof-field--full" id="siblingAssetsField" hidden>
+              <label>Altri asset con la stessa manutenzione</label>
+              <div class="wof-helper">Seleziona anche loro per creare interventi collegati, numerati insieme (es. #342-1, #342-2).</div>
+              <div class="wof-sibling-list" id="siblingAssetsList"></div>
+            </div>
           </div>
         </details>
       </aside>
@@ -652,6 +662,9 @@ body.theme-dark .wof-advanced-body { border-color:var(--border); }
   const supplierMap = {{ periodic_verification_supplier_map_json|safe }};
   const ruleMap = {{ maintenance_rule_suggestion_map_json|safe }};
   const contractMap = {{ contract_suggestion_map_json|safe }};
+  const siblingAssetMap = {{ sibling_asset_map_json|safe }};
+  const siblingField = document.getElementById("siblingAssetsField");
+  const siblingList = document.getElementById("siblingAssetsList");
   const baseSupplierHelp = suggestionEl ? suggestionEl.textContent.trim() : "";
   const baseRuleHelp = ruleSuggestionEl ? ruleSuggestionEl.textContent.trim() : "";
   const baseContractHelp = contractSuggestionEl ? contractSuggestionEl.textContent.trim() : "";
@@ -729,6 +742,38 @@ body.theme-dark .wof-advanced-body { border-color:var(--border); }
     setHelperState(contractSuggestionEl, baseContractHelp, false);
   }
 
+  function syncSiblingAssets() {
+    if (!siblingField || !siblingList) return;
+    const previouslyChecked = new Set(
+      Array.prototype.map.call(siblingList.querySelectorAll("input[type=checkbox]:checked"), function (el) {
+        return el.value;
+      })
+    );
+    const ruleValue = ruleEl ? String(ruleEl.value || "").trim() : "";
+    const verificationValue = verificationEl ? String(verificationEl.value || "").trim() : "";
+    const siblings = (ruleValue && siblingAssetMap["rule-" + ruleValue])
+      || (verificationValue && siblingAssetMap["verification-" + verificationValue])
+      || [];
+    siblingList.innerHTML = "";
+    if (!siblings.length) {
+      siblingField.hidden = true;
+      return;
+    }
+    siblings.forEach(function (siblingAsset) {
+      const row = document.createElement("label");
+      row.className = "wof-sibling-item";
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.name = "extra_asset_ids";
+      checkbox.value = String(siblingAsset.id);
+      checkbox.checked = previouslyChecked.has(String(siblingAsset.id));
+      row.appendChild(checkbox);
+      row.appendChild(document.createTextNode(siblingAsset.label));
+      siblingList.appendChild(row);
+    });
+    siblingField.hidden = false;
+  }
+
   function syncCoverageAvailability() {
     if (!coveredByContractEl) return;
     const hasContract = Boolean(String(contractEl ? contractEl.value : "").trim());
@@ -797,10 +842,16 @@ body.theme-dark .wof-advanced-body { border-color:var(--border); }
     });
   }
   if (ruleEl) {
-    ruleEl.addEventListener("change", syncRuleSuggestion);
+    ruleEl.addEventListener("change", function () {
+      syncRuleSuggestion();
+      syncSiblingAssets();
+    });
   }
   if (verificationEl) {
-    verificationEl.addEventListener("change", syncSuggestedSupplier);
+    verificationEl.addEventListener("change", function () {
+      syncSuggestedSupplier();
+      syncSiblingAssets();
+    });
   }
   if (contractEl) {
     contractEl.addEventListener("change", function () {
@@ -835,6 +886,7 @@ body.theme-dark .wof-advanced-body { border-color:var(--border); }
   syncCoverageAvailability();
   syncSuggestedSupplier();
   syncAttachmentCount();
+  syncSiblingAssets();
 })();
 </script>
 {% endblock %}

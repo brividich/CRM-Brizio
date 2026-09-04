@@ -598,7 +598,7 @@ body.theme-dark .wo-overdue {
           {% for wo in workorders %}
             <tr{% if wo.status == 'OPEN' %} class="wo-row--open"{% endif %}>
               <td>
-                <a class="wo-title-link" href="{% url 'assets:wo_view' wo.id %}">#{{ wo.id }} - {{ wo.title }}</a>
+                <a class="wo-title-link" href="{% url 'assets:wo_view' wo.id %}">#{{ wo.display_number }} - {{ wo.title }}</a>
                 {% if wo.status == 'OPEN' and wo.priority != 'NORMAL' %}<span class="as-badge {% if wo.priority == 'URGENT' %}as-badge--danger{% else %}as-badge--muted{% endif %}">{{ wo.get_priority_display }}</span>{% endif %}
                 {% if wo.status == 'OPEN' and wo.is_overdue %}<span class="as-badge as-badge--danger">Scaduto</span>{% endif %}
                 {% if wo.description %}<div class="wo-muted">{{ wo.description|truncatechars:90 }}</div>{% endif %}

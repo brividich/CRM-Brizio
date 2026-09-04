@@ -5121,6 +5121,68 @@ class WorkOrderFlowTests(TestCase):
         )
         self.assertNotContains(response, "Stato iniziale")
 
+    def test_create_workorder_suggests_and_creates_sibling_assets_for_same_rule(self):
+        category = AssetCategory.objects.create(
+            code="wo-sibling-category",
+            label="Categoria WO Sibling",
+            base_asset_type=Asset.TYPE_SERVER,
+        )
+        self.asset.asset_category = category
+        self.asset.save(update_fields=["asset_category"])
+        sibling_asset = Asset.objects.create(
+            asset_tag="IT-000125",
+            name="Server sibling",
+            asset_type=Asset.TYPE_SERVER,
+            asset_category=category,
+            status=Asset.STATUS_IN_USE,
+        )
+        template = MaintenanceInterventionTemplate.objects.create(
+            code="wo-sibling-template",
+            label="Controllo periodico categoria",
+            asset_category=category,
+        )
+        rule = MaintenanceRule.objects.create(
+            intervention_template=template,
+            asset_category=category,
+            scope_type=MaintenanceRule.SCOPE_CATEGORY,
+            threshold_type=MaintenanceRule.THRESHOLD_DAYS,
+            threshold_value=180,
+            warning_days=15,
+        )
+        self.client.force_login(self.user)
+
+        get_response = self.client.get(
+            reverse("assets:wo_create", args=[self.asset.id]) + f"?rule={rule.id}"
+        )
+        self.assertEqual(get_response.status_code, 200)
+        self.assertContains(get_response, "Altri asset con la stessa manutenzione")
+        self.assertContains(get_response, sibling_asset.asset_tag)
+
+        response = self.client.post(
+            reverse("assets:wo_create", args=[self.asset.id]),
+            {
+                "periodic_verification": "",
+                "maintenance_rule": str(rule.id),
+                "supplier": "",
+                "kind": WorkOrder.KIND_PREVENTIVE,
+                "status": WorkOrder.STATUS_OPEN,
+                "title": "Controllo periodico categoria",
+                "description": "",
+                "resolution": "",
+                "downtime_minutes": "0",
+                "extra_asset_ids": [str(sibling_asset.id)],
+            },
+        )
+
+        self.assertEqual(response.status_code, 302, getattr(response, "content", b"")[:400])
+        primary = WorkOrder.objects.get(asset=self.asset, maintenance_rule=rule)
+        sibling_wo = WorkOrder.objects.get(asset=sibling_asset, maintenance_rule=rule)
+        self.assertEqual(sibling_wo.title, primary.title)
+        self.assertEqual(sibling_wo.status, WorkOrder.STATUS_OPEN)
+        self.assertEqual(primary.reference_batch, sibling_wo.reference_batch)
+        self.assertEqual(primary.display_number, f"{primary.id}-1")
+        self.assertEqual(sibling_wo.display_number, f"{primary.id}-2")
+
     def test_close_workorder_rejects_incompatible_contract(self):
         supplier = Fornitore.objects.create(
             ragione_sociale="Supplier Originario",
@@ -7226,6 +7288,11 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.assertEqual(plan.last_verification_date, execution_date)
         self.assertEqual(plan.next_verification_date, date(2026, 7, 28))
 
+        # Un solo asset non forma un batch: il numero resta quello semplice.
+        workorder = WorkOrder.objects.get(periodic_verification=plan, asset=self.asset)
+        self.assertEqual(workorder.reference_batch, "")
+        self.assertEqual(workorder.display_number, str(workorder.id))
+
         wo = WorkOrder.objects.get(periodic_verification=plan, asset=self.asset)
         self.assertEqual(wo.status, WorkOrder.STATUS_DONE)
         self.assertEqual(wo.kind, WorkOrder.KIND_PREVENTIVE)
@@ -7326,7 +7393,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
         plan.refresh_from_db()
         self.assertEqual(plan.last_verification_date, execution_date)
 
-        workorders = WorkOrder.objects.filter(periodic_verification=plan, asset__in=[self.asset, second_asset])
+        workorders = WorkOrder.objects.filter(periodic_verification=plan, asset__in=[self.asset, second_asset]).order_by("id")
         self.assertEqual(workorders.count(), 2)
         for wo in workorders:
             self.assertEqual(wo.status, WorkOrder.STATUS_DONE)
@@ -7336,6 +7403,11 @@ class AssetMaintenanceStepThreeTests(TestCase):
 
         total_attachments = WorkOrderAttachment.objects.filter(work_order__in=workorders).count()
         self.assertEqual(total_attachments, 2)
+
+        # Numerazione condivisa: gli OdL creati insieme si mostrano come "342-1", "342-2"...
+        leader, second = workorders
+        self.assertEqual(leader.display_number, f"{leader.id}-1")
+        self.assertEqual(second.display_number, f"{leader.id}-2")
 
     def test_maintenance_schedule_lists_periodic_verifications(self):
         from anagrafica.models import Fornitore

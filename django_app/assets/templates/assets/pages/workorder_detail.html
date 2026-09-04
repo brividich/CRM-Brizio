@@ -1,6 +1,6 @@
 {% extends "assets/base_shell.html" %}
 
-{% block title %}Intervento #{{ workorder.id }}{% endblock %}
+{% block title %}Intervento #{{ workorder.display_number }}{% endblock %}
 
 {% block assets_shell_head %}
   {% include "assets/components/maintenance_ux_v2_styles.html" %}
@@ -11,8 +11,21 @@
     @media(max-width:760px){.wo2-costgrid{grid-template-columns:1fr}}
     body.theme-dark #wod-checklist-section,body.theme-dark .wod-cl-item,body.theme-dark .wo2-cost{background:var(--surface);border-color:var(--border)}body.theme-dark .wod-cl-desc,body.theme-dark #wod-checklist-section .wod-section-title,body.theme-dark .wo2-detail-title,body.theme-dark .wo2-cost strong{color:var(--text)}body.theme-dark .wod-cl-meta,body.theme-dark .wo2-muted,body.theme-dark .wo2-cost span{color:var(--text-light)}
     .wo2-wait-banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border:1px solid #fde68a;border-radius:12px;background:#fffbeb}.wo2-wait-banner strong{color:#92400e}.wo2-wait-banner p{margin:3px 0 0;color:#78350f;font-size:var(--fs-sm)}
-    .wo2-wait-form{display:grid;gap:8px;margin-top:10px}.wo2-wait-form select,.wo2-wait-form textarea{border:1px solid #cbd5e1;border-radius:9px;padding:8px 10px;font:inherit}.wo2-wait-form textarea{min-height:70px;resize:vertical}
+    .wo2-quickactions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}
+    .wo2-qa{border:1px solid #e2e8f0;border-radius:10px;background:#fbfdff;padding:0}
+    .wo2-qa summary{list-style:none;cursor:pointer;padding:8px 10px;color:#1d4ed8;font-weight:800;font-size:var(--fs-sm)}
+    .wo2-qa summary::-webkit-details-marker{display:none}
+    .wo2-qa[open] summary{border-bottom:1px solid #e2e8f0}
+    .wo2-wait-form{display:grid;gap:6px;padding:8px 10px}
+    .wo2-wait-form .wo2-field{display:grid;grid-template-columns:78px minmax(0,1fr);gap:6px;align-items:start}
+    .wo2-wait-form label{color:#64748b;font-size:var(--fs-xs);font-weight:800;padding-top:6px}
+    .wo2-wait-form select,.wo2-wait-form textarea{border:1px solid #cbd5e1;border-radius:8px;padding:5px 8px;font:inherit;font-size:var(--fs-sm);width:100%}
+    .wo2-wait-form textarea{min-height:40px;resize:vertical}
+    .wo2-wait-form .ux-btn{justify-self:start}
+    @media(max-width:900px){.wo2-quickactions{grid-template-columns:1fr}}
     body.theme-dark .wo2-wait-banner{background:rgba(180,83,9,.12);border-color:#78350f}body.theme-dark .wo2-wait-banner strong{color:#fde68a}body.theme-dark .wo2-wait-banner p{color:#fcd9a0}
+    body.theme-dark .wo2-qa{background:var(--surface);border-color:var(--border)}body.theme-dark .wo2-qa[open] summary{border-color:var(--border)}
+    body.theme-dark .wo2-wait-form select,body.theme-dark .wo2-wait-form textarea{background:var(--surface);border-color:var(--border);color:var(--text)}
     .wod-cl-mandatory{color:#dc2626;font-weight:900;margin-left:3px}
     .wod-cl-type{margin-left:6px;font-size:9px;text-transform:uppercase;font-weight:800;color:#64748b;background:#eef2f7;border-radius:999px;padding:2px 6px}
     .wod-cl-item--blocking{border-color:#fca5a5;background:#fef2f2}
@@ -31,18 +44,13 @@
   </style>
 {% endblock %}
 
-{% block assets_shell_title %}Intervento #{{ workorder.id }}{% endblock %}
+{% block assets_shell_title %}Intervento #{{ workorder.display_number }}{% endblock %}
 {% block assets_shell_subtitle %}<p>{{ workorder.title }} · {{ workorder.asset.asset_tag }} - {{ workorder.asset.name }}</p>{% endblock %}
 {% block assets_shell_toolbar %}
   <a class="btn" href="{{ workorder_asset_url }}">Apri asset</a>
   {% if workorder_rule_url %}<a class="btn" href="{{ workorder_rule_url }}">Piano / regola</a>{% endif %}
   {% if workorder_contract_url %}<a class="btn" href="{{ workorder_contract_url }}">{{ workorder_contract_label }}</a>{% endif %}
-  {% if workorder.status == 'OPEN' and workorder.is_waiting %}
-    <form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="action" value="start"><button class="btn btn-primary" type="submit">Riprendi lavorazione</button></form>
-  {% elif workorder.status == 'OPEN' and not workorder.started_at %}
-    <form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="action" value="start"><button class="btn btn-primary" type="submit">Inizia intervento</button></form>
-  {% endif %}
-  {% if workorder.status == 'OPEN' %}<a class="btn {% if workorder.started_at and not workorder.is_waiting %}btn-primary{% endif %}" href="{% url 'assets:wo_close' workorder.id %}">Chiudi intervento</a>{% endif %}
+  {% if workorder.status == 'OPEN' %}<a class="btn btn-primary" href="{% url 'assets:wo_close' workorder.id %}">Registra intervento</a>{% endif %}
 {% endblock %}
 
 {% block assets_shell_content %}
@@ -93,58 +101,55 @@
                 </div>
               </div>
             </div>
-            {% else %}
-            <div class="ux-description">
-              <details>
-                <summary class="wo2-muted" style="cursor:pointer;color:#1d4ed8;font-weight:800">+ Metti in attesa</summary>
+            {% endif %}
+            <div class="wo2-quickactions">
+              {% if not workorder.is_waiting %}
+              <details class="wo2-qa">
+                <summary>+ Metti in attesa</summary>
                 <form method="post" class="wo2-wait-form">
                   {% csrf_token %}
                   <input type="hidden" name="action" value="set_waiting">
-                  <label class="wo2-muted">Motivo
+                  <div class="wo2-field"><label>Motivo</label>
                     <select name="wait_reason" required>
                       <option value="">Seleziona un motivo</option>
                       {% for code, label in wait_reason_choices %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
                     </select>
-                  </label>
-                  <label class="wo2-muted">Nota (facoltativa)
-                    <textarea name="wait_note" placeholder="Es. atteso ricambio FIL-EMU-200, consegna prevista giovedì..."></textarea>
-                  </label>
-                  <div><button class="ux-btn" type="submit">Metti in attesa</button></div>
+                  </div>
+                  <div class="wo2-field"><label>Nota</label>
+                    <textarea name="wait_note" placeholder="Facoltativa. Es. atteso ricambio FIL-EMU-200..."></textarea>
+                  </div>
+                  <button class="ux-btn sm" type="submit">Metti in attesa</button>
                 </form>
               </details>
-            </div>
-            {% endif %}
-            <div class="ux-description">
-              <details>
-                <summary class="wo2-muted" style="cursor:pointer;color:#1d4ed8;font-weight:800">+ Cambia priorità</summary>
+              {% endif %}
+              <details class="wo2-qa">
+                <summary>+ Cambia priorità</summary>
                 <form method="post" class="wo2-wait-form">
                   {% csrf_token %}
                   <input type="hidden" name="action" value="set_priority">
-                  <label class="wo2-muted">Priorità
+                  <div class="wo2-field"><label>Priorità</label>
                     <select name="priority">
                       {% for code, label in priority_choices %}<option value="{{ code }}" {% if workorder.priority == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
                     </select>
-                  </label>
-                  <div><button class="ux-btn" type="submit">Aggiorna priorità</button></div>
+                  </div>
+                  <button class="ux-btn sm" type="submit">Aggiorna priorità</button>
                 </form>
               </details>
-            </div>
-            <div class="ux-description">
-              <details>
-                <summary class="wo2-muted" style="cursor:pointer;color:#1d4ed8;font-weight:800">+ Riassegna</summary>
+              <details class="wo2-qa">
+                <summary>+ Riassegna</summary>
                 <form method="post" class="wo2-wait-form">
                   {% csrf_token %}
                   <input type="hidden" name="action" value="reassign">
-                  <label class="wo2-muted">Nuovo assegnatario
+                  <div class="wo2-field"><label>Assegna a</label>
                     <select name="new_assignee">
-                      <option value="">Nessuno (rimuovi assegnazione)</option>
+                      <option value="">Nessuno (rimuovi)</option>
                       {% for u in assignable_users %}<option value="{{ u.id }}" {% if workorder.assigned_to_id == u.id %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>{% endfor %}
                     </select>
-                  </label>
-                  <label class="wo2-muted">Motivo (facoltativo)
-                    <textarea name="reassign_reason" placeholder="Es. assenza programmata, competenza specifica richiesta..."></textarea>
-                  </label>
-                  <div><button class="ux-btn" type="submit">Riassegna</button></div>
+                  </div>
+                  <div class="wo2-field"><label>Motivo</label>
+                    <textarea name="reassign_reason" placeholder="Facoltativo. Es. assenza programmata..."></textarea>
+                  </div>
+                  <button class="ux-btn sm" type="submit">Riassegna</button>
                 </form>
               </details>
             </div>

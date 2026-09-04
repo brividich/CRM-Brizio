@@ -30,6 +30,7 @@
 .sic-tipo-unsafe-act:hover { border-color:#0369a1; }
 .sic-tipo-near-miss:hover { border-color:#ea580c; }
 .sic-tipo-accident:hover { border-color:#dc2626; }
+.sic-tipo-early-warning:hover { border-color:#7c3aed; }
 
 .sic-tipo-icon { font-size: var(--fs-display-3xl); line-height:1; }
 .sic-tipo-label { font-size: var(--fs-title-md); font-weight:800; color:#0f172a; }
@@ -39,6 +40,7 @@
 .sic-tipo-unsafe-act .sic-tipo-badge-inline { background:#e0f2fe; color:#0c4a6e; }
 .sic-tipo-near-miss .sic-tipo-badge-inline { background:#fff7ed; color:#9a3412; }
 .sic-tipo-accident .sic-tipo-badge-inline { background:#fee2e2; color:#991b1b; }
+.sic-tipo-early-warning .sic-tipo-badge-inline { background:#f5f3ff; color:#5b21b6; }
 .sic-tipo-badge-inline {
   padding:3px 12px; border-radius:20px; font-size: var(--fs-xs); font-weight:700;
 }
@@ -132,6 +134,7 @@
 body.theme-dark .sic-breadcrumb { color:var(--text-light); }
 body.theme-dark .sic-breadcrumb a { color:#2dd4bf; }
 body.theme-dark .sic-tipo-card { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .sic-tipo-label { color:var(--text); }
 body.theme-dark .sic-tipo-card:hover { border-color:#2dd4bf; }
 body.theme-dark .sic-form-card { background:var(--surface); border-color:var(--border); }
 body.theme-dark .sic-section { border-color:var(--border); }
@@ -153,7 +156,7 @@ body.theme-dark .sic-error-box { background:rgba(153,27,27,.2); border-color:rgb
       <a href="{% url 'rilevazione_incidenti:lista' %}">&#8592; Rilevazioni Sicurezza</a>
     </div>
     <div class="sic-hero-title">Nuova Rilevazione</div>
-    <div class="sic-hero-sub">Segnalazione UnSafe Condition / UnSafe Act / Near Miss / Accident</div>
+    <div class="sic-hero-sub">Segnalazione UnSafe Condition / UnSafe Act / Near Miss / Accident / Early Warning</div>
   </div>
 
   {% if not tipo %}
@@ -190,6 +193,12 @@ body.theme-dark .sic-error-box { background:rgba(153,27,27,.2); border-color:rgb
         <div class="sic-tipo-desc">Infortunio avvenuto con conseguenze per il lavoratore</div>
         <span class="sic-tipo-badge-inline">Infortunio</span>
       </a>
+      <a href="{% url 'rilevazione_incidenti:nuovo' %}?tipo=Early+Warning" class="sic-tipo-card sic-tipo-early-warning">
+        <div class="sic-tipo-icon">&#129657;</div>
+        <div class="sic-tipo-label">Early Warning</div>
+        <div class="sic-tipo-desc">Segnale precoce di rischio da monitorare in via preventiva</div>
+        <span class="sic-tipo-badge-inline">Segnale precoce</span>
+      </a>
     </div>
   </div>
 
@@ -219,6 +228,8 @@ body.theme-dark .sic-error-box { background:rgba(153,27,27,.2); border-color:rgb
           <span class="sic-tipo-pill" style="background:#fff7ed;color:#9a3412;">Near Miss</span>
         {% elif tipo == "Accident" %}
           <span class="sic-tipo-pill" style="background:#fee2e2;color:#991b1b;">Accident</span>
+        {% elif tipo == "Early Warning" %}
+          <span class="sic-tipo-pill" style="background:#f5f3ff;color:#5b21b6;">Early Warning</span>
         {% endif %}
         <a href="{% url 'rilevazione_incidenti:nuovo' %}"
            style="color:#64748b;margin-left:10px;text-decoration:none;">
