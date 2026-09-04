@@ -7,7 +7,6 @@ Schedulare come task Windows quotidiano (suggerito alle 06:00, prima di send_mai
 Logica per ogni (asset, rule) — l'ultima esecuzione si legge da AssetMaintenanceRuleState,
 la stessa fonte dello scadenzario (qualunque sia l'origine dell'OdL che l'ha registrata):
   - threshold_type=DAYS: last_execution_date + threshold_value giorni.
-  - threshold_type=HOURS/KM/CYCLES: usa il valore corrente di AssetMeter e lo confronta
     con il valore al momento dell'ultima esecuzione. Se la differenza >= threshold_value, genera.
   - Controlla override: se l'asset ha un MaintenanceRuleAssetOverride con is_disabled=True, salta.
   - Se esiste già un WO OPEN per quella coppia (asset, rule), salta (nessun duplicato).
@@ -24,21 +23,16 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
 
-from assets.maintenance import copy_template_checklist_to_workorder, meter_schedule_payload
+from assets.maintenance import copy_template_checklist_to_workorder
 from assets.models import (
     Asset,
     AssetMaintenanceRuleState,
-    AssetMeter,
     MaintenanceRule,
     MaintenanceRuleAssetOverride,
     WorkOrder,
 )
 
-_METER_TYPE_MAP = {
-    MaintenanceRule.THRESHOLD_HOURS: AssetMeter.METER_HOURS,
-    MaintenanceRule.THRESHOLD_KM: AssetMeter.METER_KM,
-    MaintenanceRule.THRESHOLD_CYCLES: AssetMeter.METER_CYCLES,
-}
+
 
 
 class Command(BaseCommand):
@@ -104,11 +98,6 @@ class Command(BaseCommand):
             .values_list("id", "asset_id", "maintenance_rule_id")
         }
 
-        # Precarica contatori (asset_id, meter_type) -> current_value
-        meter_map: dict[tuple[int, str], float] = {
-            (m["asset_id"], m["meter_type"]): float(m["current_value"])
-            for m in AssetMeter.objects.values("asset_id", "meter_type", "current_value")
-        }
 
         # Ultima esecuzione per coppia (asset, regola): STESSA fonte dello scadenzario.
         # Prima il generatore interrogava solo gli OdL con origin=PERIODIC chiusi, quindi non
@@ -123,7 +112,6 @@ class Command(BaseCommand):
         skipped_disabled = 0
         skipped_open = 0
         skipped_not_due = 0
-        skipped_no_meter = 0
 
         for rule in rules:
             assets_qs = Asset.objects.filter(
@@ -185,36 +173,9 @@ class Command(BaseCommand):
                         skipped_not_due += 1
                         continue
 
-                elif effective_threshold_type in _METER_TYPE_MAP:
-                    meter_type_key = _METER_TYPE_MAP[effective_threshold_type]
-                    current_val = meter_map.get((asset.id, meter_type_key))
-                    if current_val is None:
-                        skipped_no_meter += 1
-                        continue
-                    # Valore del contatore all'ultima esecuzione, dallo stesso stato che legge
-                    # lo scadenzario: anche qui l'origine dell'OdL non deve contare.
-                    last_wo = state.last_work_order if state else None
-                    base_val = (
-                        float(last_wo.meter_value_at_close)
-                        if last_wo is not None and last_wo.meter_value_at_close is not None
-                        else 0.0
-                    )
-                    payload = meter_schedule_payload(
-                        current_value=current_val,
-                        base_value=base_val,
-                        threshold_value=effective_threshold_value,
-                        warning_units=rule.warning_days,
-                        unit_label=meter_type_key,
-                    )
-                    if payload["due"]:
-                        due = True
-                        remaining = payload["remaining"] or 0.0
-                        due_reason = f"contatore {meter_type_key}={current_val:.0f} (restano {remaining:.0f}/{effective_threshold_value})"
-                    else:
-                        skipped_not_due += 1
-                        continue
                 else:
-                    # threshold_type non gestito
+                    # Soglie a contatore (ore/km/cicli): fuori dal flusso manutentivo,
+                    # senza letture attendibili davano scadenze false ma verdi.
                     skipped_disabled += 1
                     continue
 
@@ -260,8 +221,7 @@ class Command(BaseCommand):
             f"Creati={created} "
             f"GiaAperti={skipped_open} "
             f"NonInScadenza={skipped_not_due} "
-            f"Disabilitati/Override={skipped_disabled} "
-            f"SenzaContatore={skipped_no_meter}"
+            f"Disabilitati/Override={skipped_disabled}"
         )
         if dry_run:
             self.stdout.write(self.style.WARNING(f"[DRY-RUN] {summary}"))

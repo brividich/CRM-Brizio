@@ -42,7 +42,6 @@ from .forms import (
 from .maintenance import (
     build_day_based_maintenance_schedule_rows,
     build_maintenance_schedule_rows,
-    meter_schedule_payload,
     resolve_asset_maintenance_rules,
     sync_workorder_maintenance_state,
     upsert_asset_maintenance_rule_state,
@@ -5899,7 +5898,7 @@ class AssetMaintenanceStepTwoTests(TestCase):
             data={
                 "intervention_template": str(template.id),
                 "asset_category": str(self.category.id),
-                "threshold_type": MaintenanceRule.THRESHOLD_HOURS,
+                "threshold_type": MaintenanceRule.THRESHOLD_DAYS,
                 "threshold_value": "250",
                 "sort_order": "40",
                 "is_active": "on",
@@ -5968,125 +5967,6 @@ class AssetMaintenanceStepTwoTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Copertura e salute dei piani")
         self.assertContains(response, self.category.label)
-
-
-class AssetMeterScheduleTests(TestCase):
-    """Fase 2.1 — scadenzario e generatore per regole a contatore (ore/km/cicli)."""
-
-    def setUp(self):
-        self.category = AssetCategory.objects.create(
-            code="cnc-meter", label="CNC contatore", base_asset_type=Asset.TYPE_CNC, sort_order=10,
-        )
-        self.template = MaintenanceInterventionTemplate.objects.create(
-            code="tagliando-ore", label="Tagliando ore", asset_category=self.category,
-        )
-        self.rule = MaintenanceRule.objects.create(
-            intervention_template=self.template,
-            asset_category=self.category,
-            threshold_type=MaintenanceRule.THRESHOLD_HOURS,
-            threshold_value=500,
-            warning_days=50,
-        )
-        self.asset = Asset.objects.create(
-            asset_tag="CNC-MTR-001",
-            name="Tornio contatore",
-            asset_type=Asset.TYPE_CNC,
-            asset_category=self.category,
-            status=Asset.STATUS_IN_USE,
-        )
-
-    def _set_meter(self, value):
-        return AssetMeter.objects.create(
-            asset=self.asset, meter_type=AssetMeter.METER_HOURS, current_value=value, unit_label="h",
-        )
-
-    def _rows(self):
-        return build_maintenance_schedule_rows(
-            asset_queryset=Asset.objects.filter(pk=self.asset.id).select_related("asset_category")
-        )
-
-    def test_meter_payload_status_thresholds(self):
-        upcoming = meter_schedule_payload(current_value=100, base_value=0, threshold_value=500, warning_units=50)
-        warning = meter_schedule_payload(current_value=470, base_value=0, threshold_value=500, warning_units=50)
-        overdue = meter_schedule_payload(current_value=520, base_value=0, threshold_value=500, warning_units=50)
-        missing = meter_schedule_payload(current_value=None, base_value=0, threshold_value=500, warning_units=50)
-        self.assertEqual(upcoming["status"], "upcoming")
-        self.assertFalse(upcoming["due"])
-        self.assertEqual(warning["status"], "warning")
-        self.assertTrue(warning["due"])
-        self.assertEqual(overdue["status"], "overdue")
-        self.assertTrue(overdue["due"])
-        self.assertEqual(missing["status"], "missing")
-
-    def test_schedule_meter_rule_upcoming(self):
-        self._set_meter(100)
-        rows = self._rows()
-        self.assertEqual(len(rows), 1)
-        self.assertTrue(rows[0]["is_meter_based"])
-        self.assertEqual(rows[0]["schedule_status"], "upcoming")
-        self.assertIsNone(rows[0]["due_date"])
-
-    def test_schedule_meter_rule_warning_and_overdue(self):
-        self._set_meter(470)
-        self.assertEqual(self._rows()[0]["schedule_status"], "warning")
-        AssetMeter.objects.filter(asset=self.asset, meter_type=AssetMeter.METER_HOURS).update(current_value=520)
-        self.assertEqual(self._rows()[0]["schedule_status"], "overdue")
-
-    def test_schedule_meter_rule_missing_without_meter(self):
-        rows = self._rows()
-        self.assertEqual(rows[0]["schedule_status"], "missing")
-        self.assertIn("Contatore", rows[0]["schedule_label"])
-
-    def test_generator_creates_meter_workorder_when_due(self):
-        self._set_meter(480)
-        call_command("generate_scheduled_workorders", stdout=io.StringIO())
-        self.assertTrue(
-            WorkOrder.objects.filter(
-                asset=self.asset, maintenance_rule=self.rule, origin=WorkOrder.ORIGIN_PERIODIC
-            ).exists()
-        )
-
-    def test_generator_skips_meter_workorder_when_not_due(self):
-        self._set_meter(100)
-        call_command("generate_scheduled_workorders", stdout=io.StringIO())
-        self.assertFalse(WorkOrder.objects.filter(asset=self.asset, maintenance_rule=self.rule).exists())
-
-    def test_workorder_close_snapshots_current_meter_value(self):
-        self._set_meter(520)
-        workorder = WorkOrder.objects.create(
-            asset=self.asset,
-            maintenance_rule=self.rule,
-            origin=WorkOrder.ORIGIN_PERIODIC,
-            kind=WorkOrder.KIND_PREVENTIVE,
-            status=WorkOrder.STATUS_OPEN,
-            title="Tagliando ore - CNC-MTR-001",
-        )
-
-        workorder.close(status=WorkOrder.STATUS_DONE, resolution="Eseguito.")
-
-        workorder.refresh_from_db()
-        self.assertEqual(workorder.meter_value_at_close, Decimal("520.00"))
-
-    def test_sync_snapshots_meter_value_for_recorded_execution(self):
-        meter = self._set_meter(520)
-        workorder = WorkOrder.objects.create(
-            asset=self.asset,
-            maintenance_rule=self.rule,
-            origin=WorkOrder.ORIGIN_PERIODIC,
-            kind=WorkOrder.KIND_PREVENTIVE,
-            status=WorkOrder.STATUS_DONE,
-            title="Tagliando ore registrato",
-            closed_at=timezone.now(),
-        )
-
-        sync_workorder_maintenance_state(workorder)
-        workorder.refresh_from_db()
-        self.assertEqual(workorder.meter_value_at_close, Decimal("520.00"))
-
-        AssetMeter.objects.filter(pk=meter.pk).update(current_value=540)
-        row = self._rows()[0]
-        self.assertEqual(row["schedule_status"], "upcoming")
-        self.assertEqual(row["meter_remaining"], 480.0)
 
 
 class PeriodicVerificationConvergenceTests(TestCase):
@@ -8953,113 +8833,72 @@ class MaintenanceReminderCommandTests(TestCase):
         self.assertIn("Verifica canonica", output)
 
 
-class MeterStalenessTests(TestCase):
-    """Quick win Q2 — contatore assente o fermo: una manutenzione a ore invisibile o falsamente verde."""
+class MissingScheduleRowTests(TestCase):
+    """Una manutenzione mai eseguita non e' un'informazione neutra.
+
+    Sostituisce MeterStalenessTests: i contatori (ore/km/cicli) sono usciti dal
+    flusso manutentivo, ma la garanzia che resta valida — "mai eseguita" e' rossa e
+    sta in cima, non grigia e in fondo — va tenuta coperta anche per le regole a
+    giorni, che sono le uniche rimaste.
+    """
 
     def setUp(self):
         self.category = AssetCategory.objects.create(
-            code="cnc-stale", label="CNC staleness", base_asset_type=Asset.TYPE_CNC, sort_order=10,
+            code="cnc-missing", label="CNC prima esecuzione", base_asset_type=Asset.TYPE_CNC, sort_order=10,
         )
         self.template = MaintenanceInterventionTemplate.objects.create(
-            code="tagliando-stale", label="Tagliando ore", asset_category=self.category,
+            code="tagliando-missing", label="Tagliando", asset_category=self.category,
         )
         self.rule = MaintenanceRule.objects.create(
             intervention_template=self.template,
             asset_category=self.category,
-            threshold_type=MaintenanceRule.THRESHOLD_HOURS,
-            threshold_value=500,
-            warning_days=50,
+            threshold_type=MaintenanceRule.THRESHOLD_DAYS,
+            threshold_value=180,
+            warning_days=30,
         )
         self.asset = Asset.objects.create(
-            asset_tag="CNC-STALE-001",
-            name="Tornio contatore fermo",
+            asset_tag="CNC-MISSING-001",
+            name="Tornio mai manutenuto",
             asset_type=Asset.TYPE_CNC,
             asset_category=self.category,
             status=Asset.STATUS_IN_USE,
         )
 
-    def _set_meter(self, value, *, days_since_update: int = 0):
-        meter = AssetMeter.objects.create(
-            asset=self.asset, meter_type=AssetMeter.METER_HOURS, current_value=value, unit_label="h",
-        )
-        if days_since_update:
-            # update() bypassa auto_now: è l'unico modo per simulare un contatore fermo.
-            AssetMeter.objects.filter(pk=meter.pk).update(
-                updated_at=timezone.now() - timedelta(days=days_since_update)
-            )
-        return meter
-
-    def _rows(self):
-        return build_maintenance_schedule_rows(
+    def test_mai_eseguita_e_rossa_non_grigia(self):
+        row = build_maintenance_schedule_rows(
             asset_queryset=Asset.objects.filter(pk=self.asset.id).select_related("asset_category")
-        )
-
-    def test_missing_meter_row_is_danger_not_muted(self):
-        row = self._rows()[0]
+        )[0]
 
         self.assertEqual(row["schedule_status"], "missing")
         self.assertEqual(row["schedule_badge_class"], "danger")
 
-    def test_missing_rows_sort_before_upcoming(self):
-        other_asset = Asset.objects.create(
-            asset_tag="CNC-STALE-002",
-            name="Tornio con contatore",
+    def test_mai_eseguita_ordina_prima_di_una_in_programma(self):
+        altro = Asset.objects.create(
+            asset_tag="CNC-MISSING-002",
+            name="Tornio con storico",
             asset_type=Asset.TYPE_CNC,
             asset_category=self.category,
             status=Asset.STATUS_IN_USE,
         )
-        AssetMeter.objects.create(
-            asset=other_asset, meter_type=AssetMeter.METER_HOURS, current_value=10, unit_label="h",
+        AssetMaintenanceRuleState.objects.create(
+            asset=altro, base_rule=self.rule, last_execution_date=timezone.localdate()
         )
 
         rows = build_maintenance_schedule_rows()
 
         self.assertEqual(rows[0]["asset"].id, self.asset.id)
-        self.assertEqual(rows[0]["schedule_status"], "missing")
-        self.assertEqual(rows[1]["schedule_status"], "upcoming")
 
-    def test_fresh_meter_is_not_stale(self):
-        self._set_meter(100)
+    def test_le_soglie_a_contatore_non_producono_righe(self):
+        # Non vengono convertite in silenzio: semplicemente non compaiono piu'.
+        self.rule.threshold_type = MaintenanceRule.THRESHOLD_HOURS
+        self.rule.save(update_fields=["threshold_type"])
 
-        row = self._rows()[0]
+        rows = build_maintenance_schedule_rows(
+            asset_queryset=Asset.objects.filter(pk=self.asset.id).select_related("asset_category")
+        )
 
-        self.assertFalse(row["meter_is_stale"])
-        self.assertEqual(row["meter_days_since_update"], 0)
+        self.assertEqual(rows, [])
 
-    def test_stale_meter_is_flagged_even_when_schedule_is_green(self):
-        self._set_meter(100, days_since_update=45)
-
-        row = self._rows()[0]
-
-        self.assertEqual(row["schedule_status"], "upcoming")
-        self.assertTrue(row["meter_is_stale"])
-        self.assertEqual(row["meter_days_since_update"], 45)
-
-    def test_stale_threshold_is_configurable_via_siteconfig(self):
-        from core.models import SiteConfig
-
-        self._set_meter(100, days_since_update=20)
-        self.assertFalse(self._rows()[0]["meter_is_stale"])
-
-        SiteConfig.objects.create(chiave="assets_meter_stale_days", valore="15")
-
-        self.assertTrue(self._rows()[0]["meter_is_stale"])
-
-    def test_reminder_reports_missing_meter_and_stale_meter(self):
-        out = io.StringIO()
-        call_command("send_maintenance_reminders", dry_run=True, stdout=out)
-        missing_output = out.getvalue()
-
-        self._set_meter(100, days_since_update=45)
-        out = io.StringIO()
-        call_command("send_maintenance_reminders", dry_run=True, stdout=out)
-        stale_output = out.getvalue()
-
-        self.assertIn("NON VALUTABILI", missing_output)
-        self.assertIn("Contatore h mancante", missing_output)
-        self.assertIn("CONTATORI FERMI DA ALMENO 30 GIORNI", stale_output)
-        self.assertIn("45gg senza letture", stale_output)
-        self.assertIn("CNC-STALE-001", stale_output)
 
 
 class WorkOrderAssigneeNotificationTests(TestCase):

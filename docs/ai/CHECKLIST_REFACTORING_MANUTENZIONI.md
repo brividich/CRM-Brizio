@@ -199,10 +199,26 @@ Dati puliti, nessun caso limite: 0 regole senza piano, 0 regole `CATEGORY` senza
 
 Ordine obbligatorio: prima si migra, si verifica, e *solo dopo* si rimuove.
 
-- [ ] Togliere i contatori dal flusso: `AssetMeter`, `AssetMeterHistory`, threshold HOURS/KM/CYCLES, `WorkOrder.meter_value_at_close`, `meter_is_stale`, badge e filtri relativi
-  - punti da toccare: `maintenance.py` (`_snapshot_workorder_meter_value_at_close`, `meter_schedule_payload`, il ramo meter di `build_maintenance_schedule_rows`), `models.py` (`WorkOrder.close`), `generate_scheduled_workorders.py`, `views.py` (~29 riferimenti), `forms.py` (3), `tests.py` (~61)
-  - i modelli si possono **deprecare** prima di droppare le tabelle; il codice nuovo non deve dipenderne
-- [ ] `WorkMachine.next_maintenance_date` (`models.py`, scritto in `WorkOrder.close`): **oggi è una seconda fonte di verità.** Renderlo cache derivata dall'occorrenza aperta più vicina, o rimuoverlo
+### G1 — fatta il 2026-09-04
+
+Sul DB dev il sottosistema contatori è **vuoto**: 0 `AssetMeter`, 0 `AssetMeterHistory`, 0 regole a soglia diversa da giorni, 0 `meter_value_at_close`, `next_maintenance_date` mai valorizzato su 38 macchine. È codice che non ha mai contenuto una riga, quindi rimuoverlo non tocca dati né comportamento.
+
+- [x] Contatori fuori dal **flusso manutentivo**: via `meter_schedule_payload`, `_snapshot_workorder_meter_value_at_close`, `get_meter_stale_days`, `meter_days_since_update`, il ramo a contatore di `build_maintenance_schedule_rows` e dell'anteprima impatto regola, il ramo a contatore di `generate_scheduled_workorders`, la sezione «contatori fermi» del reminder, il badge nello scadenzario
+- [x] `WorkOrder.close()` non scrive più `meter_value_at_close`
+- [x] Le soglie a contatore **non si possono più creare**: `MaintenanceRuleForm` e il form override offrono solo «Giorni». Le regole esistenti restano leggibili finché il vecchio motore non viene ritirato del tutto
+- [x] `WorkOrder.close()` non scrive più `WorkMachine.next_maintenance_date`. Era una seconda fonte di verità sulla scadenza, per giunta parziale: si aggiornava **solo** per gli OdL con `origin=PERIODIC`, quindi chiudendo un'esecuzione registrata a mano il campo restava indietro senza che nessuno lo notasse
+- [x] `MeterStalenessTests` e `AssetMeterScheduleTests` sostituiti da `MissingScheduleRowTests`: la garanzia che sopravvive — «mai eseguita» è rossa e in cima, non grigia e in fondo — resta coperta per le regole a giorni, più un test che verifica che le soglie a contatore non producano righe
+
+**Cosa NON è stato toccato, e perché**
+
+- I **modelli** `AssetMeter`/`AssetMeterHistory` e il campo `WorkOrder.meter_value_at_close` restano definiti, e le tabelle non sono droppate: su dev sono vuote ma la produzione non è ispezionabile da qui. Il drop è una migration a sé, dopo aver verificato che anche in prod siano vuote
+- Il **pannello letture contatore** nella scheda asset resta: cancellare l'unico posto dove si registra un dato è una decisione di prodotto, non un passo di refactoring, e il requisito della specifica («i contatori escono dal flusso manutentivo») è già soddisfatto
+- `report_origin_proxy_damage` resta intatto: è uno strumento **forense** sul mondo pre-refactoring, e togliergli l'analisi dei contatori significherebbe perdere la possibilità di valutare il danno storico in produzione
+- `WorkMachine.next_maintenance_date` **resta come campo**: non è solo una cache, è modificabile a mano e alimenta il piano del mese, la dashboard macchine e i report. Toglierlo è fase G2, insieme al resto del vecchio motore
+### G2 — bloccata dalla fase F
+
+Non si rimuove il vecchio motore prima di aver convertito i suoi dati: sul DB dev ci sono **18 regole attive e 187 stati di ultima esecuzione**. Finché `migrate_maintenance_to_plans` non è stato eseguito, toglierli lascerebbe il portale senza alcuna manutenzione programmata.
+
 - [ ] Ritirare `generate_scheduled_workorders` (dopo che lo schedulatore usa il nuovo comando)
 - [ ] Ritirare `AssetMaintenanceRuleState` e `sync_workorder_maintenance_state`
 - [ ] Ritirare `MaintenanceRule` / `MaintenanceRuleAssetOverride` (soft: `is_active=False` + rimozione dalla UI, drop tabelle solo a valle)

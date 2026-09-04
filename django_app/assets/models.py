@@ -2520,26 +2520,6 @@ class WorkOrder(models.Model):
                 self.supplier = assistance_contract.supplier
         elif covered_by_contract is False:
             self.assistance_contract = None
-        if (
-            status == self.STATUS_DONE
-            and self.meter_value_at_close is None
-            and self.maintenance_rule_id
-            and self.asset_id
-        ):
-            meter_type = {
-                MaintenanceRule.THRESHOLD_HOURS: AssetMeter.METER_HOURS,
-                MaintenanceRule.THRESHOLD_KM: AssetMeter.METER_KM,
-                MaintenanceRule.THRESHOLD_CYCLES: AssetMeter.METER_CYCLES,
-            }.get(self.maintenance_rule.threshold_type)
-            if meter_type:
-                meter = (
-                    AssetMeter.objects
-                    .filter(asset_id=self.asset_id, meter_type=meter_type)
-                    .only("current_value")
-                    .first()
-                )
-                if meter is not None:
-                    self.meter_value_at_close = meter.current_value
         if cost is not None:
             self.cost_eur = cost
         elif labor_cost is not None or materials_cost is not None:
@@ -2560,28 +2540,13 @@ class WorkOrder(models.Model):
                 "covered_by_contract",
                 "assistance_contract",
                 "cost_eur",
-                "meter_value_at_close",
             ]
         )
-        # P1.3 — aggiorna next_maintenance_date sulla WorkMachine collegata quando l'OdL è periodico
-        if (
-            status == self.STATUS_DONE
-            and self.origin == self.ORIGIN_PERIODIC
-            and self.maintenance_rule_id
-        ):
-            from datetime import timedelta
-            try:
-                rule = self.maintenance_rule
-                if rule.threshold_type == MaintenanceRule.THRESHOLD_DAYS and rule.threshold_value:
-                    wm = getattr(self.asset, "work_machine", None)
-                    if wm is not None:
-                        closed_date = self.closed_at.date() if self.closed_at else timezone.localdate()
-                        wm.next_maintenance_date = closed_date + timedelta(days=rule.threshold_value)
-                        wm.save(update_fields=["next_maintenance_date"])
-            except Exception:
-                # La prossima manutenzione non viene ricalcolata: la macchina
-                # sparisce dalle scadenze senza che nessuno lo noti.
-                logger.exception("Assets: ricalcolo della prossima manutenzione fallito")
+        # La chiusura NON scrive piu' WorkMachine.next_maintenance_date. Era una
+        # seconda fonte di verita' sulla scadenza, per giunta parziale: si aggiornava
+        # solo per gli OdL con origin=PERIODIC, quindi chiudendo un'esecuzione
+        # registrata a mano il campo restava indietro senza che nessuno lo notasse.
+        # La scadenza vive nell'occorrenza (services/maintenance_domain).
 
     def set_waiting(self, *, reason: str, note: str = "") -> None:
         """Mette l'intervento in attesa. Non tocca ``status`` (resta OPEN):
