@@ -1289,6 +1289,236 @@ class MeetingIssue(models.Model):
         return self.title
 
 
+class MeetingActionStatus(models.TextChoices):
+    OPEN = "OPEN", "Da fare"
+    DONE = "DONE", "Fatta"
+
+
+class MeetingActionItem(models.Model):
+    """Azione decisa in un incontro: chi fa cosa entro quando.
+
+    Il campo storico `KickoffMeeting.next_steps` e' testo libero: nessun
+    responsabile, nessuna scadenza, nessun riporto automatico. Questa entita' e'
+    simmetrica a `MeetingIssue` e segue lo stesso ciclo di vita: finche' e'
+    aperta rientra nell'agenda degli incontri successivi.
+    """
+
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name="meeting_actions",
+        verbose_name="Kickoff",
+    )
+    source_meeting = models.ForeignKey(
+        KickoffMeeting,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="actions_raised",
+        verbose_name="Incontro di origine",
+    )
+    title = models.CharField(max_length=220, verbose_name="Azione")
+    description = models.TextField(blank=True, default="", verbose_name="Dettaglio")
+    status = models.CharField(
+        max_length=12,
+        choices=MeetingActionStatus.choices,
+        default=MeetingActionStatus.OPEN,
+        db_index=True,
+        verbose_name="Stato",
+    )
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="meeting_actions_assigned",
+        verbose_name="Responsabile",
+    )
+    due_date = models.DateField(null=True, blank=True, verbose_name="Scadenza")
+    linked_task = models.ForeignKey(
+        Task,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="meeting_actions",
+        verbose_name="Attività collegata",
+    )
+    done_at = models.DateTimeField(null=True, blank=True)
+    done_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="meeting_actions_done",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="meeting_actions_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["status", "due_date", "created_at", "id"]
+        indexes = [
+            models.Index(fields=["project", "status"]),
+            models.Index(fields=["source_meeting", "status"]),
+        ]
+        verbose_name = "Azione incontro"
+        verbose_name_plural = "Azioni incontri"
+
+    @property
+    def is_done(self) -> bool:
+        return self.status == MeetingActionStatus.DONE
+
+    @property
+    def is_overdue(self) -> bool:
+        if self.is_done or not self.due_date:
+            return False
+        return self.due_date < timezone.localdate()
+
+    def mark_done(self, *, user=None) -> None:
+        self.status = MeetingActionStatus.DONE
+        self.done_by = user if getattr(user, "is_authenticated", False) else None
+        self.done_at = timezone.now()
+
+    def reopen(self) -> None:
+        self.status = MeetingActionStatus.OPEN
+        self.done_by = None
+        self.done_at = None
+
+    def __str__(self) -> str:
+        return self.title
+
+
+class MeetingDecisionImpact(models.TextChoices):
+    BASSO = "BASSO", "Basso"
+    MEDIO = "MEDIO", "Medio"
+    ALTO = "ALTO", "Alto"
+
+
+class MeetingDecision(models.Model):
+    """Decisione presa in un incontro, separata dal verbale libero.
+
+    Nel campo `note` una decisione e' irrecuperabile a mesi di distanza: qui
+    resta come record consultabile nel registro di commessa.
+    """
+
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name="meeting_decisions",
+        verbose_name="Kickoff",
+    )
+    meeting = models.ForeignKey(
+        KickoffMeeting,
+        on_delete=models.CASCADE,
+        related_name="decisions",
+        verbose_name="Incontro",
+    )
+    testo = models.CharField(max_length=400, verbose_name="Decisione")
+    dettaglio = models.TextField(blank=True, default="", verbose_name="Motivazione / contesto")
+    decisa_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="meeting_decisions_taken",
+        verbose_name="Decisa da",
+    )
+    impatto = models.CharField(
+        max_length=8,
+        choices=MeetingDecisionImpact.choices,
+        default=MeetingDecisionImpact.MEDIO,
+        db_index=True,
+        verbose_name="Impatto",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="meeting_decisions_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [models.Index(fields=["project", "created_at"])]
+        verbose_name = "Decisione incontro"
+        verbose_name_plural = "Decisioni incontri"
+
+    def __str__(self) -> str:
+        return self.testo
+
+
+class MeetingProposalStatus(models.TextChoices):
+    PENDING = "PENDING", "In attesa"
+    ACCEPTED = "ACCEPTED", "Accettata"
+    REJECTED = "REJECTED", "Rifiutata"
+
+
+class MeetingAgendaProposal(models.Model):
+    """Punto proposto da un convocato, che il gestore accetta o rifiuta.
+
+    L'ordine del giorno lo scriveva solo chi gestisce la commessa: chi era
+    convocato non aveva modo di far mettere un punto all'ordine del giorno se
+    non chiedendolo fuori dal portale.
+    """
+
+    meeting = models.ForeignKey(
+        KickoffMeeting,
+        on_delete=models.CASCADE,
+        related_name="agenda_proposals",
+        verbose_name="Incontro",
+    )
+    proposed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="meeting_agenda_proposals",
+        verbose_name="Proposto da",
+    )
+    titolo = models.CharField(max_length=200, verbose_name="Punto proposto")
+    nota = models.TextField(blank=True, default="", verbose_name="Nota")
+    stato = models.CharField(
+        max_length=10,
+        choices=MeetingProposalStatus.choices,
+        default=MeetingProposalStatus.PENDING,
+        db_index=True,
+        verbose_name="Stato",
+    )
+    nota_decisione = models.CharField(
+        max_length=255, blank=True, default="", verbose_name="Nota della decisione"
+    )
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="meeting_agenda_proposals_decided",
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["stato", "created_at", "id"]
+        indexes = [models.Index(fields=["meeting", "stato"])]
+        verbose_name = "Proposta ordine del giorno"
+        verbose_name_plural = "Proposte ordine del giorno"
+
+    @property
+    def is_pending(self) -> bool:
+        return self.stato == MeetingProposalStatus.PENDING
+
+    def __str__(self) -> str:
+        return self.titolo
+
+
 class MeetingRoom(models.Model):
     nome = models.CharField(max_length=120, unique=True, verbose_name="Nome sala")
     note = models.TextField(blank=True, default="", verbose_name="Note")

@@ -528,6 +528,267 @@ class MeetingsDigestJobTests(TasksBaseTestCase):
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class MeetingAgendaProposalTests(TasksBaseTestCase):
+    """I convocati propongono punti, chi gestisce la commessa decide."""
+
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "tasks")
+        _grant_role_actions(2, ["tasks_view", "tasks_create"])
+        self._refresh_acl_cache()
+        self.pm = _create_user_with_legacy(
+            username="proposta-pm", legacy_user_id=571, role_id=2, role_name="tasks"
+        )
+        self.convocato = _create_user_with_legacy(
+            username="proposta-convocato", legacy_user_id=572, role_id=2, role_name="tasks"
+        )
+        self.estraneo = _create_user_with_legacy(
+            username="proposta-estraneo", legacy_user_id=573, role_id=2, role_name="tasks"
+        )
+        self.project = Project.objects.create(
+            name="", created_by=self.pm, project_manager=self.pm
+        )
+        self.meeting = KickoffMeeting.objects.create(
+            project=self.project, data="2026-09-10", created_by=self.pm
+        )
+        self.meeting.partecipanti_utenti.add(self.convocato)
+        self.create_url = reverse(
+            "tasks:project_meeting_proposal_create", args=[self.project.id, self.meeting.id]
+        )
+
+    def test_il_convocato_puo_proporre(self):
+        from tasks.models import MeetingAgendaProposal, MeetingProposalStatus
+
+        self.client.force_login(self.convocato)
+        self.client.post(self.create_url, {"titolo": "Parliamo del collaudo", "nota": "urgente"})
+        proposal = MeetingAgendaProposal.objects.get(meeting=self.meeting)
+        self.assertEqual(proposal.proposed_by, self.convocato)
+        self.assertEqual(proposal.stato, MeetingProposalStatus.PENDING)
+
+    def test_chi_non_e_convocato_non_propone(self):
+        from tasks.models import MeetingAgendaProposal
+
+        self.client.force_login(self.estraneo)
+        self.client.post(self.create_url, {"titolo": "Punto non richiesto"})
+        self.assertFalse(MeetingAgendaProposal.objects.filter(meeting=self.meeting).exists())
+
+    def test_accettare_una_proposta_la_mette_in_agenda(self):
+        from tasks.models import MeetingAgendaProposal, MeetingProposalStatus
+
+        proposal = MeetingAgendaProposal.objects.create(
+            meeting=self.meeting, proposed_by=self.convocato, titolo="Parliamo del collaudo"
+        )
+        self.client.force_login(self.pm)
+        self.client.post(
+            reverse("tasks:project_meeting_proposal_decide",
+                    args=[self.project.id, self.meeting.id, proposal.id]),
+            {"action": "accept"},
+        )
+        proposal.refresh_from_db()
+        self.meeting.refresh_from_db()
+        self.assertEqual(proposal.stato, MeetingProposalStatus.ACCEPTED)
+        titoli = [item["titolo"] for item in self.meeting.agenda_items]
+        self.assertEqual(titoli, ["Parliamo del collaudo"])
+
+    def test_rifiutare_una_proposta_non_tocca_l_agenda(self):
+        from tasks.models import MeetingAgendaProposal, MeetingProposalStatus
+
+        proposal = MeetingAgendaProposal.objects.create(
+            meeting=self.meeting, proposed_by=self.convocato, titolo="Fuori tema"
+        )
+        self.client.force_login(self.pm)
+        self.client.post(
+            reverse("tasks:project_meeting_proposal_decide",
+                    args=[self.project.id, self.meeting.id, proposal.id]),
+            {"action": "reject", "nota_decisione": "Non pertinente a questo incontro"},
+        )
+        proposal.refresh_from_db()
+        self.meeting.refresh_from_db()
+        self.assertEqual(proposal.stato, MeetingProposalStatus.REJECTED)
+        self.assertEqual(proposal.nota_decisione, "Non pertinente a questo incontro")
+        self.assertEqual(self.meeting.agenda_items, [])
+
+    def test_il_convocato_non_puo_decidere(self):
+        from tasks.models import MeetingAgendaProposal, MeetingProposalStatus
+
+        proposal = MeetingAgendaProposal.objects.create(
+            meeting=self.meeting, proposed_by=self.convocato, titolo="Punto"
+        )
+        self.client.force_login(self.convocato)
+        self.client.post(
+            reverse("tasks:project_meeting_proposal_decide",
+                    args=[self.project.id, self.meeting.id, proposal.id]),
+            {"action": "accept"},
+        )
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.stato, MeetingProposalStatus.PENDING)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class MeetingActionAndDecisionTests(TasksBaseTestCase):
+    """Azioni strutturate (chi fa cosa entro quando) e registro decisioni."""
+
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "tasks")
+        _grant_role_actions(2, ["tasks_view", "tasks_create"])
+        self._refresh_acl_cache()
+        self.user = _create_user_with_legacy(
+            username="azioni-pm", legacy_user_id=561, role_id=2, role_name="tasks"
+        )
+        self.user.email = "azioni@example.com"
+        self.user.save(update_fields=["email"])
+        self.project = Project.objects.create(
+            name="", created_by=self.user, project_manager=self.user
+        )
+        self.meeting = KickoffMeeting.objects.create(
+            project=self.project, data="2026-09-10", created_by=self.user
+        )
+        self.client.force_login(self.user)
+        self.minutes_url = reverse(
+            "tasks:project_meeting_minutes", args=[self.project.id, self.meeting.id]
+        )
+
+    def _registra_esito(self, **extra):
+        payload = {"note": "verbale", "problemi_aperti": "", "next_steps": ""}
+        payload.update(extra)
+        return self.client.post(self.minutes_url, payload)
+
+    def test_esito_crea_azione_con_responsabile_e_scadenza(self):
+        from tasks.models import MeetingActionItem, MeetingActionStatus
+
+        self._registra_esito(**{
+            "new_action_title": ["Ordinare il materiale", "   "],
+            "new_action_description": ["Fornitore storico", ""],
+            "new_action_assigned_to": [str(self.user.pk), ""],
+            "new_action_due_date": ["2026-09-20", ""],
+        })
+        actions = list(MeetingActionItem.objects.filter(project=self.project))
+        self.assertEqual(len(actions), 1)
+        action = actions[0]
+        self.assertEqual(action.title, "Ordinare il materiale")
+        self.assertEqual(action.assigned_to, self.user)
+        self.assertEqual(action.due_date.isoformat(), "2026-09-20")
+        self.assertEqual(action.status, MeetingActionStatus.OPEN)
+        self.assertEqual(action.source_meeting, self.meeting)
+
+    def test_azione_aperta_torna_nell_agenda_del_prossimo_incontro(self):
+        import json
+
+        from tasks.models import MeetingActionItem
+
+        aperta = MeetingActionItem.objects.create(
+            project=self.project, source_meeting=self.meeting, title="Azione aperta"
+        )
+        chiusa = MeetingActionItem.objects.create(
+            project=self.project, source_meeting=self.meeting, title="Azione chiusa"
+        )
+        chiusa.mark_done(user=self.user)
+        chiusa.save()
+
+        response = self.client.get(
+            reverse("tasks:project_meeting_create", args=[self.project.id])
+        )
+        items = json.loads(response.context["form"].initial["agenda_items_raw"])
+        action_ids = [item.get("action_id") for item in items]
+        self.assertIn(aperta.pk, action_ids)
+        self.assertNotIn(chiusa.pk, action_ids)
+
+    def test_chiusura_e_riapertura_azione_dal_dettaglio(self):
+        from tasks.models import MeetingActionItem
+
+        action = MeetingActionItem.objects.create(
+            project=self.project, source_meeting=self.meeting, title="Azione"
+        )
+        url = reverse(
+            "tasks:project_meeting_action_status",
+            args=[self.project.id, self.meeting.id, action.id],
+        )
+        self.client.post(url, {"action": "done"})
+        action.refresh_from_db()
+        self.assertTrue(action.is_done)
+        self.assertEqual(action.done_by, self.user)
+
+        self.client.post(url, {"action": "reopen"})
+        action.refresh_from_db()
+        self.assertFalse(action.is_done)
+        self.assertIsNone(action.done_at)
+
+    def test_esito_registra_le_decisioni(self):
+        from tasks.models import MeetingDecision, MeetingDecisionImpact
+
+        self._registra_esito(**{
+            "new_decision_testo": ["Si procede con il fornitore A", ""],
+            "new_decision_dettaglio": ["Costo minore a parità di lead time", ""],
+            "new_decision_decisa_da": [str(self.user.pk), ""],
+            "new_decision_impatto": ["ALTO", ""],
+        })
+        decisions = list(MeetingDecision.objects.filter(project=self.project))
+        self.assertEqual(len(decisions), 1)
+        self.assertEqual(decisions[0].impatto, MeetingDecisionImpact.ALTO)
+        self.assertEqual(decisions[0].meeting, self.meeting)
+
+    def test_impatto_non_valido_ricade_su_medio(self):
+        from tasks.models import MeetingDecision, MeetingDecisionImpact
+
+        self._registra_esito(**{
+            "new_decision_testo": ["Decisione"],
+            "new_decision_impatto": ["CATASTROFICO"],
+        })
+        self.assertEqual(
+            MeetingDecision.objects.get(project=self.project).impatto,
+            MeetingDecisionImpact.MEDIO,
+        )
+
+    def test_minuta_riporta_azioni_e_decisioni(self):
+        from tasks.minute_email import _minute_sections
+        from tasks.models import MeetingActionItem, MeetingDecision
+
+        MeetingActionItem.objects.create(
+            project=self.project, source_meeting=self.meeting,
+            title="Ordinare il materiale", assigned_to=self.user,
+        )
+        MeetingDecision.objects.create(
+            project=self.project, meeting=self.meeting, testo="Si procede con A",
+        )
+        sections = dict(_minute_sections(self.meeting))
+        self.assertIn("Ordinare il materiale", sections["Azioni"])
+        self.assertIn("Si procede con A", sections["Decisioni"])
+
+    def test_registro_decisioni_di_commessa(self):
+        from tasks.models import MeetingDecision
+
+        MeetingDecision.objects.create(
+            project=self.project, meeting=self.meeting, testo="Si procede con A",
+        )
+        response = self.client.get(
+            reverse("tasks:project_decisions", args=[self.project.id])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Si procede con A")
+
+    def test_digest_del_lunedi_sollecita_le_azioni_scadute(self):
+        from datetime import date, timedelta
+
+        from tasks.models import MeetingActionItem
+        from tasks.tasks import run_meetings_digest
+
+        monday = date(2026, 9, 7)
+        MeetingActionItem.objects.create(
+            project=self.project,
+            source_meeting=self.meeting,
+            title="Azione scaduta",
+            assigned_to=self.user,
+            due_date=monday - timedelta(days=2),
+        )
+        with patch("django.utils.timezone.localdate", return_value=monday):
+            run_meetings_digest()
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("Azione scaduta", mail.outbox[0].body)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class MeetingAgendaTemplateTests(TasksBaseTestCase):
     """Modelli di ordine del giorno riutilizzabili + duplica dall'incontro precedente."""
 

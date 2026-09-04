@@ -57,13 +57,20 @@ def run_meetings_digest(**kwargs) -> dict:
     from core.email_utils import send_hub_mail
     from core.notifiche import invia_notifica, legacy_user_ids_for_email
     from tasks.minute_email import meeting_url
-    from tasks.models import KickoffMeeting, MeetingIssue, MeetingIssueStatus, MeetingStatus
+    from tasks.models import (
+        KickoffMeeting,
+        MeetingActionItem,
+        MeetingActionStatus,
+        MeetingIssue,
+        MeetingIssueStatus,
+        MeetingStatus,
+    )
 
     today = timezone.localdate()
     tomorrow = today + timedelta(days=1)
     include_overdue_issues = today.weekday() == 0  # lunedi
 
-    by_email: dict[str, dict] = defaultdict(lambda: {"meetings": [], "issues": []})
+    by_email: dict[str, dict] = defaultdict(lambda: {"meetings": [], "issues": [], "actions": []})
 
     meetings = list(
         KickoffMeeting.objects.filter(
@@ -116,6 +123,21 @@ def run_meetings_digest(**kwargs) -> dict:
             if email:
                 by_issue_email[email].append(issue)
                 by_email[email]["issues"].append(issue)
+        # Le azioni scadute seguono la stessa cadenza dei problemi: sono lo
+        # stesso genere di sollecito, e finiscono nella stessa email.
+        actions = list(
+            MeetingActionItem.objects.filter(
+                status=MeetingActionStatus.OPEN,
+                due_date__isnull=False,
+                due_date__lt=today,
+                assigned_to__isnull=False,
+            ).select_related("assigned_to", "project")
+        )
+        for action in actions:
+            email = (getattr(action.assigned_to, "email", "") or "").strip()
+            if email:
+                by_email[email]["actions"].append(action)
+
         for email, issue_list in by_issue_email.items():
             try:
                 for luid in legacy_user_ids_for_email(email):
@@ -146,16 +168,24 @@ def run_meetings_digest(**kwargs) -> dict:
                 for i in data["issues"]
             ]
             parts.append("Problemi aperti scaduti a te assegnati:\n" + "\n".join(rows))
+        if data["actions"]:
+            rows = [
+                f"- {a.title} (KICK-OFF {getattr(a.project, 'kickoff_number', '') or ''}, "
+                f"scadenza {a.due_date:%d/%m/%Y})"
+                for a in data["actions"]
+            ]
+            parts.append("Azioni scadute a te assegnate:\n" + "\n".join(rows))
         if not parts:
             continue
 
-        if data["meetings"] and data["issues"]:
-            subject = "Promemoria KICK-OFF: incontro domani e problemi scaduti"
+        if data["meetings"] and (data["issues"] or data["actions"]):
+            subject = "Promemoria KICK-OFF: incontro domani e scadenze aperte"
         elif data["meetings"]:
             first_label = data["meetings"][0].titolo or f"Incontro {data['meetings'][0].numero}"
             subject = f"Promemoria incontro domani — {first_label}"
         else:
-            subject = f"Problemi aperti KICK-OFF scaduti ({len(data['issues'])})"
+            scaduti = len(data["issues"]) + len(data["actions"])
+            subject = f"Scadenze KICK-OFF aperte ({scaduti})"
 
         try:
             n = send_hub_mail(

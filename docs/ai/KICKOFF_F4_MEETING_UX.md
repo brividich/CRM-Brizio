@@ -176,12 +176,12 @@ rollforward. Fellow/Hypercontext trattano l'action item come oggetto di prima cl
 
 **Checklist**
 
-- [ ] migration `0040_meetingactionitem`
-- [ ] modello + helper `_sync_meeting_action_items_from_post`
-- [ ] blocco "Azioni (chi fa cosa entro quando)" nella pagina esito
-- [ ] carry-forward in agenda + digest
-- [ ] chiusura azione dal dettaglio incontro e dalla Panoramica
-- [ ] test: creazione, chiusura, carry-forward, digest
+- [x] migration `0040_meetingactionitem_meetingdecision`
+- [x] modello `MeetingActionItem` + helper `_sync_meeting_actions_from_post`
+- [x] blocco "Azioni" nella pagina esito (chiusura delle aperte + righe nuove)
+- [x] carry-forward in agenda (`_meeting_action_agenda_item`) + digest del lunedì
+- [x] chiusura/riapertura azione dal dettaglio incontro (`project_meeting_action_status`)
+- [x] test: creazione, chiusura, riapertura, carry-forward, digest, resa in minuta
 
 ### P3 · Registro decisioni
 
@@ -199,12 +199,12 @@ RAID log e board portal le tengono separate.
 
 **Checklist**
 
-- [ ] migration `0041_meetingdecision`
-- [ ] modello + sync dal POST esito
-- [ ] blocco nella pagina esito + elenco nel dettaglio incontro
-- [ ] registro di commessa + link dalla Panoramica
-- [ ] sezione in `_minute_sections`
-- [ ] test: creazione, resa in minuta, registro di commessa
+- [x] migration `0040_meetingactionitem_meetingdecision` (insieme a P2)
+- [x] modello `MeetingDecision` + `_sync_meeting_decisions_from_post` (append-only)
+- [x] blocco nella pagina esito + elenco nel dettaglio incontro
+- [x] registro di commessa `/tasks/projects/<id>/decisioni/`, linkato dal dettaglio incontro
+- [x] sezione "Decisioni" in `_minute_sections`
+- [x] test: creazione, impatto non valido → Medio, resa in minuta, registro di commessa
 
 ### P7 · I convocati possono proporre punti all'ordine del giorno
 
@@ -222,11 +222,11 @@ scrive solo chi ha `tasks_create`.
 
 **Checklist**
 
-- [ ] migration `0042_meetingagendaproposal`
-- [ ] modello + view proponi / accetta / rifiuta
-- [ ] blocco nel dettaglio incontro (due viste: convocato / gestore)
-- [ ] notifiche
-- [ ] test: permessi (non convocato non propone), accettazione crea l'item, rifiuto no
+- [x] migration `0041_meetingagendaproposal`
+- [x] modello + view `project_meeting_proposal_create` / `project_meeting_proposal_decide`
+- [x] blocco nel dettaglio incontro (form per il convocato, Accetta/Rifiuta per il gestore)
+- [x] notifiche in-app (al PM/capo commessa alla proposta, al proponente alla decisione)
+- [x] test: non convocato non propone, accettazione crea l'item, rifiuto no, convocato non decide
 
 ---
 

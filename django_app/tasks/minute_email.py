@@ -141,6 +141,41 @@ def _issues_text(meeting) -> str:
     return "\n".join(lines)
 
 
+def _actions_text(meeting) -> str:
+    """Azioni decise o chiuse in questo incontro, con responsabile e scadenza."""
+    from tasks.models import MeetingActionItem
+
+    qs = (
+        MeetingActionItem.objects.filter(source_meeting=meeting)
+        .select_related("assigned_to")
+        .order_by("status", "due_date", "id")
+    )
+    lines: list[str] = []
+    for action in qs:
+        parts = [action.get_status_display()]
+        if action.assigned_to_id:
+            parts.append(action.assigned_to.get_full_name() or action.assigned_to.username)
+        if action.due_date:
+            parts.append(f"entro {_fmt(action.due_date, '%d/%m/%Y')}")
+        lines.append(f"- {action.title} ({', '.join(parts)})")
+        if action.description:
+            lines.append(f"    {action.description.strip()}")
+    return "\n".join(lines)
+
+
+def _decisions_text(meeting) -> str:
+    """Decisioni registrate in questo incontro."""
+    lines: list[str] = []
+    for decision in meeting.decisions.select_related("decisa_da").order_by("created_at", "id"):
+        parts = [f"impatto {decision.get_impatto_display().lower()}"]
+        if decision.decisa_da_id:
+            parts.append(decision.decisa_da.get_full_name() or decision.decisa_da.username)
+        lines.append(f"- {decision.testo} ({', '.join(parts)})")
+        if decision.dettaglio:
+            lines.append(f"    {decision.dettaglio.strip()}")
+    return "\n".join(lines)
+
+
 def _partecipanti_text(meeting) -> str:
     """Elenco dei partecipanti (utenti portale + email esterne)."""
     names = [
@@ -202,8 +237,9 @@ def _minute_sections(meeting) -> list[tuple[str, str]]:
         *_presenze_sections(meeting),
         ("Ordine del giorno", _agenda_text(meeting) or meeting.ordine_del_giorno),
         ("Verbale / Note", meeting.note),
+        ("Decisioni", _decisions_text(meeting)),
         ("Problemi", _issues_text(meeting) or meeting.problemi_aperti),
-        ("Next steps", meeting.next_steps),
+        ("Azioni", _actions_text(meeting) or meeting.next_steps),
     ]
 
 

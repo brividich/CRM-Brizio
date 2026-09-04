@@ -1930,6 +1930,34 @@ body.theme-dark .tf-asset-conflict-list li { background:rgba(255,255,255,.05); }
 .md-closing-summary-stats { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: .875rem; color: var(--text-light); }
 .md-closing-summary-stats strong { color: var(--text); }
 
+/* Proposte di punti ODG */
+.md-proposal-decide, .md-proposal-new {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+}
+.md-proposal-new { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); }
+.md-proposal-new .input { flex: 1 1 220px; }
+.md-proposal-decide .input { min-width: 170px; }
+
+/* Azioni strutturate nel dettaglio incontro */
+.md-action-row {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+}
+.md-action-row:last-child { border-bottom: none; }
+.md-action-main { flex: 1 1 auto; min-width: 0; }
+.md-action-title { font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.md-action-row.done .md-action-title { text-decoration: line-through; color: var(--text-light); }
+.mf-issue-chip.overdue { color: var(--danger); border-color: var(--danger-bg); background: var(--danger-bg); }
+
+/* Decisioni registrate nella pagina esito */
+.mf-decision-list { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; }
+.mf-decision-list li {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  font-size: .875rem; color: var(--text);
+  border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px;
+}
+.mf-decision-who { color: var(--text-light); font-size: .8125rem; }
+
 /* Scorciatoie agenda nel form incontro */
 .agenda-shortcuts {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px;

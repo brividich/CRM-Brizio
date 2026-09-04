@@ -1192,6 +1192,7 @@ class KickoffMeetingForm(forms.ModelForm):
                     "task_id": int(task_id) if task_id else None,
                     "task_label": str(item.get("task_label", "")).strip()[:200],
                     "issue_id": int(item.get("issue_id")) if item.get("issue_id") else None,
+                    "action_id": int(item.get("action_id")) if item.get("action_id") else None,
                     "source": str(item.get("source", "")).strip()[:40],
                     "locked": bool(item.get("locked", False)),
                     "responsabile_id": int(responsabile_id) if responsabile_id else None,
