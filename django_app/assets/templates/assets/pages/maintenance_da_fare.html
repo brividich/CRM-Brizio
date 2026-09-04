@@ -17,6 +17,18 @@
 {% block assets_shell_content %}
 <div class="md-page">
 
+  {% if scoped_reparti %}
+    {% comment %}
+      Preimpostazione, non barriera: la pagina dichiara lo scope e basta un click
+      per toglierlo. La visibilita' in lista non e' un confine di sicurezza.
+    {% endcomment %}
+    <div class="md-scope-note">
+      Filtrato sui reparti che guidi: <strong>{{ scoped_reparti|join:", " }}</strong>.
+      <a href="?reparto=">Mostra tutti i reparti</a>
+    </div>
+  {% endif %}
+
+
   <div class="md-kpis">
     <a class="md-kpi is-danger" href="?window=overdue">
       <span class="md-kpi-label">Scadute</span>

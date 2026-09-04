@@ -9955,6 +9955,8 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
                 1 for row in resolved_maintenance_rule_rows if row["status"] == "disabled"
             ),
             "asset_maintenance_rule_list_url": _asset_maintenance_rule_list_page_url(asset_id=asset.id),
+            # Piani del nuovo dominio (Piano -> Applicazione -> Occorrenza).
+            **_asset_maintenance_plans_context(asset),
             "can_manage_asset_maintenance_rules": can_manage_asset_maintenance_rules,
             "asset_linked_task_rows": linked_task_rows,
             "asset_upcoming_task_rows": upcoming_task_rows,
@@ -15791,6 +15793,7 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
             # Pannello del nuovo dominio: le manutenzioni raccolte in questo OdL.
             # Un OdL massivo va letto per asset, non come un blocco unico.
             **_workorder_occurrences_context(request, workorder),
+            **_checklist_followup_context(request, workorder, checklist_items),
             "duration_hours": duration_hours,
             "duration_remainder": duration_remainder,
             "downtime_hours": downtime_hours,
@@ -15836,6 +15839,84 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
     )
 
 
+def _asset_maintenance_plans_context(asset) -> dict[str, object]:
+    """I piani del nuovo dominio che riguardano questo asset, per la sua scheda.
+
+    Finche' vivevano solo in una pagina a parte, chi apriva la scheda di una
+    macchina non poteva sapere quali manutenzioni la riguardassero: la domanda
+    piu' ovvia davanti a un asset.
+    """
+    from .models import MaintenanceOccurrence
+    from .services import maintenance_domain as maintenance_dom
+
+    resolutions = maintenance_dom.resolve_asset_plans(asset)
+    if not resolutions:
+        return {"asset_plan_rows": [], "asset_plan_conflict_count": 0}
+
+    next_by_plan: dict[int, MaintenanceOccurrence] = {}
+    for occurrence in (
+        MaintenanceOccurrence.objects.filter(
+            asset=asset, status=MaintenanceOccurrence.STATUS_OPEN
+        )
+        .select_related("work_order")
+        .order_by("due_date")
+    ):
+        next_by_plan.setdefault(occurrence.plan_id, occurrence)
+
+    today = timezone.localdate()
+    rows = []
+    for resolution in resolutions:
+        occurrence = next_by_plan.get(resolution.plan.pk)
+        rows.append(
+            {
+                "resolution": resolution,
+                "occurrence": occurrence,
+                "state": maintenance_dom.occurrence_state_payload(occurrence, today=today)
+                if occurrence is not None
+                else None,
+            }
+        )
+    return {
+        "asset_plan_rows": rows,
+        "asset_plan_conflict_count": sum(1 for row in rows if row["resolution"].is_conflict),
+    }
+
+
+def _checklist_followup_context(request: HttpRequest, workorder: WorkOrder, items) -> dict[str, object]:
+    """Da quale step si puo' aprire un follow-up, e su quale asset.
+
+    Uno step fuori range o saltato con motivazione e' il momento in cui l'anomalia
+    si vede: se il pulsante non e' li', il follow-up si apre dopo, a memoria, o non
+    si apre affatto. Il follow-up del nuovo dominio nasce pero' da un'occorrenza,
+    quindi serve sapere *su quale macchina*: su un OdL massivo la checklist e' una
+    sola ma gli asset sono molti, e sceglierne uno d'ufficio sarebbe un'invenzione.
+    """
+    from .models import MaintenanceOccurrence
+    from .views_maintenance import can_execute_maintenance
+
+    if not can_execute_maintenance(request):
+        return {"checklist_followup_occurrences": [], "checklist_followups_by_item": {}}
+
+    occurrences = list(
+        MaintenanceOccurrence.objects.filter(work_order=workorder)
+        .select_related("asset", "plan")
+        .order_by("asset__asset_tag")
+    )
+    existing = {
+        follow_up.follow_up_checklist_item_id: follow_up
+        for follow_up in WorkOrder.objects.filter(
+            follow_up_checklist_item__in=[item.id for item in items]
+        ).only("id", "title", "status", "follow_up_checklist_item")
+    }
+    for item in items:
+        # Attributo sul singolo step: il template non deve fare lookup in un dict.
+        item.existing_follow_up = existing.get(item.id)
+    return {
+        "checklist_followup_occurrences": occurrences,
+        "checklist_followups_by_item": existing,
+    }
+
+
 def _render_checklist_fragment(request: HttpRequest, workorder: WorkOrder) -> HttpResponse:
     items = list(
         workorder.checklist_items.select_related("done_by", "skipped_by").prefetch_related("photos").order_by("step_number", "id")
@@ -15850,6 +15931,7 @@ def _render_checklist_fragment(request: HttpRequest, workorder: WorkOrder) -> Ht
             "checklist_done_count": done_count,
             "checklist_total": len(items),
             "is_open": workorder.status == WorkOrder.STATUS_OPEN,
+            **_checklist_followup_context(request, workorder, items),
         },
     )
 

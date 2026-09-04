@@ -11,8 +11,10 @@ from __future__ import annotations
 
 import io
 import json
+import re
 from datetime import date, timedelta
 
+from dateutil.relativedelta import relativedelta
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
@@ -598,3 +600,236 @@ class HistoryImportTests(MaintenanceUITestCase):
         response = self.client.get(reverse("assets:maintenance_history_import"))
 
         self.assertIn(response.status_code, (302, 403, 404))
+
+
+class ChecklistFollowUpTests(MaintenanceUITestCase):
+    """Il follow-up si apre da dove l'anomalia si vede: lo step della checklist."""
+
+    def setUp(self):
+        super().setUp()
+        self.workorder = domain.create_workorder_from_occurrences(
+            [self.occurrences[0]], user=self.admin
+        )
+        self.step = self.workorder.checklist_items.create(
+            step_number=1,
+            description="Gioco assiale mandrino",
+            step_type="MEASURE",
+            unit="mm",
+            range_min=0,
+            range_max=2,
+            value_numeric=7,
+        )
+
+    def test_uno_step_fuori_range_offre_il_follow_up(self):
+        response = self.client.get(reverse("assets:wo_view", args=[self.workorder.pk]))
+
+        self.assertContains(response, "Apri follow-up")
+        self.assertContains(
+            response,
+            f"{reverse('assets:occurrence_followup_create', args=[self.occurrences[0].pk])}?step={self.step.pk}",
+        )
+
+    def test_su_odl_massivo_chiede_su_quale_macchina(self):
+        domain.add_occurrences_to_workorder(
+            self.workorder, [self.occurrences[1]], user=self.admin
+        )
+
+        response = self.client.get(reverse("assets:wo_view", args=[self.workorder.pk]))
+
+        self.assertContains(response, "su quale macchina?")
+        for occurrence in self.occurrences[:2]:
+            self.assertContains(
+                response,
+                f"{reverse('assets:occurrence_followup_create', args=[occurrence.pk])}?step={self.step.pk}",
+            )
+
+    def test_un_follow_up_gia_aperto_non_ne_propone_un_altro(self):
+        follow_up = WorkOrder.objects.create(
+            asset=self.assets[0],
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="Sostituzione cuscinetti",
+            follow_up_occurrence=self.occurrences[0],
+            follow_up_checklist_item=self.step,
+        )
+
+        response = self.client.get(reverse("assets:wo_view", args=[self.workorder.pk]))
+
+        self.assertContains(response, "Follow-up aperto")
+        self.assertContains(response, f"#{follow_up.pk}")
+        self.assertNotContains(response, "Apri follow-up")
+
+    def test_uno_step_fuori_range_non_e_marcato_come_risolto(self):
+        # Compilato non vuol dire a posto: barrarlo in verde nasconde l'anomalia
+        # proprio nella riga che la contiene. Nessuno degli step di questo OdL e'
+        # completo, quindi la classe "done" non deve comparire affatto.
+        response = self.client.get(reverse("assets:wo_view", args=[self.workorder.pk]))
+
+        # Solo la marcatura delle righe, non il CSS che definisce le classi.
+        classi = re.findall(r'class="(wod-cl-item[^"]*)"', response.content.decode())
+        self.assertTrue(classi, "nessuno step renderizzato")
+        self.assertTrue(any("wod-cl-item--blocking" in c for c in classi))
+        self.assertFalse([c for c in classi if "wod-cl-item--done" in c])
+
+    def test_uno_step_nei_limiti_non_propone_nulla(self):
+        self.step.value_numeric = 1
+        self.step.save(update_fields=["value_numeric"])
+
+        response = self.client.get(reverse("assets:wo_view", args=[self.workorder.pk]))
+
+        self.assertNotContains(response, "Apri follow-up")
+
+
+class AssetDetailPlansTests(MaintenanceUITestCase):
+    """I piani vivono anche nella scheda della macchina, non solo in una pagina a parte."""
+
+    def test_la_scheda_asset_elenca_i_piani_che_lo_riguardano(self):
+        response = self.client.get(reverse("assets:asset_view", args=[self.assets[0].pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Piani di manutenzione")
+        self.assertContains(response, "Cambio olio")
+        self.assertContains(response, "Gestisci i piani di questo asset")
+
+    def test_quando_ci_sono_piani_il_blocco_a_regole_tace(self):
+        # Due fonti sulla stessa scheda direbbero la stessa manutenzione due volte,
+        # con due date diverse.
+        response = self.client.get(reverse("assets:asset_view", args=[self.assets[0].pk]))
+
+        self.assertNotContains(response, "Nessuna regola manutenzione pianificata")
+
+    def test_un_asset_senza_piani_mostra_ancora_il_blocco_storico(self):
+        orfano = Asset.objects.create(
+            asset_tag="SENZA01",
+            name="Asset senza piani",
+            asset_category=self.category,
+            status=Asset.STATUS_IN_USE,
+        )
+
+        response = self.client.get(reverse("assets:asset_view", args=[orfano.pk]))
+
+        self.assertNotContains(response, "Piani di manutenzione")
+        self.assertContains(response, "Manutenzione pianificata")
+
+
+class AssignmentPreviewFirstDueTests(MaintenanceUITestCase):
+    """L'anteprima dice quanti asset, e anche quando arriva il lavoro."""
+
+    def test_l_anteprima_raggruppa_le_prime_scadenze_per_mese(self):
+        MaintenanceOccurrence.objects.all().delete()
+        fra_un_mese = timezone.localdate() + timedelta(days=30)
+
+        response = self.client.get(
+            reverse("assets:maintenance_assignment_preview"),
+            {
+                "plan": self.plan.pk,
+                "target_type": "GROUP",
+                "target_id": self.group.pk,
+                "frequency": "DAYS",
+                "interval": "30",
+                "first_due_date": fra_un_mese.isoformat(),
+            },
+        )
+
+        payload = response.json()
+        self.assertEqual(payload["assets"], 3)
+        self.assertTrue(payload["first_due"], "senza le prime scadenze l'anteprima non dice quando arriva il lavoro")
+        self.assertEqual(sum(bucket["count"] for bucket in payload["first_due"]), 3)
+
+    def test_il_preset_vince_sui_campi_grezzi(self):
+        # Scegliendo "ogni trimestre" i sei campi grezzi restano ai valori iniziali
+        # del form: se l'anteprima leggesse quelli, calcolerebbe le date con una
+        # periodicita' che nessuno ha scelto.
+        MaintenanceOccurrence.objects.all().delete()
+        eseguita = timezone.localdate() - timedelta(days=1)
+        MaintenanceOccurrence.objects.create(
+            plan=self.plan,
+            assignment=self.assignment,
+            asset=self.assets[0],
+            due_date=eseguita,
+            status=MaintenanceOccurrence.STATUS_DONE,
+            completed_on=eseguita,
+        )
+
+        response = self.client.get(
+            reverse("assets:maintenance_assignment_preview"),
+            {
+                "plan": self.plan.pk,
+                "target_type": "ASSET",
+                "target_id": self.assets[0].pk,
+                "recurrence_preset": "quarterly",
+                "frequency": "DAYS",
+                "interval": "1",
+            },
+        )
+
+        from assets.views_maintenance import _MESI
+
+        payload = response.json()
+        atteso = eseguita + relativedelta(months=3)
+        sbagliato = eseguita + relativedelta(days=1)
+        self.assertEqual(len(payload["first_due"]), 1)
+        self.assertEqual(
+            payload["first_due"][0]["label"], f"{_MESI[atteso.month - 1]} {atteso.year}"
+        )
+        self.assertNotEqual(
+            payload["first_due"][0]["label"],
+            f"{_MESI[sbagliato.month - 1]} {sbagliato.year}",
+            "l'anteprima ha usato i campi grezzi invece del preset",
+        )
+
+    def test_gli_asset_con_una_scadenza_aperta_non_sono_ricontati(self):
+        response = self.client.get(
+            reverse("assets:maintenance_assignment_preview"),
+            {
+                "plan": self.plan.pk,
+                "target_type": "GROUP",
+                "target_id": self.group.pk,
+                "frequency": "DAYS",
+                "interval": "30",
+            },
+        )
+
+        payload = response.json()
+        self.assertEqual(payload["already"], 3)
+        self.assertEqual(payload["first_due"], [])
+
+
+class CaporepartoScopeTests(MaintenanceUITestCase):
+    """Lo scope per reparto e' una preimpostazione dichiarata, non una barriera."""
+
+    def test_senza_reparti_guidati_non_si_filtra_nulla(self):
+        response = self.client.get(reverse("assets:maintenance_da_fare"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["scoped_reparti"], [])
+        self.assertEqual(response.context["total"], 3)
+
+    def test_un_reparto_esplicito_in_query_string_disattiva_lo_scope(self):
+        from assets import views_maintenance
+
+        original = views_maintenance.user_reparti
+        views_maintenance.user_reparti = lambda request: ["Officina"]
+        try:
+            scoped = self.client.get(reverse("assets:maintenance_da_fare"))
+            esplicito = self.client.get(reverse("assets:maintenance_da_fare"), {"reparto": ""})
+        finally:
+            views_maintenance.user_reparti = original
+
+        self.assertEqual(scoped.context["scoped_reparti"], ["Officina"])
+        self.assertEqual(esplicito.context["scoped_reparti"], [])
+
+    def test_un_reparto_che_non_esiste_sugli_asset_non_svuota_la_pagina(self):
+        # Il reparto sull'asset e' testo libero: un disallineamento di nomi non deve
+        # produrre una pagina vuota, che verrebbe letta come "non c'e' lavoro".
+        from assets import views_maintenance
+
+        original = views_maintenance.user_reparti
+        views_maintenance.user_reparti = lambda request: ["Reparto Inesistente"]
+        try:
+            response = self.client.get(reverse("assets:maintenance_da_fare"))
+        finally:
+            views_maintenance.user_reparti = original
+
+        self.assertEqual(response.context["scoped_reparti"], [])
+        self.assertEqual(response.context["total"], 3)

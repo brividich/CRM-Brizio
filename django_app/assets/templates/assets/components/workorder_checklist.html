@@ -15,7 +15,12 @@
     {% if checklist_items %}
       <div class="wod-cl-list">
         {% for item in checklist_items %}
-          <div class="wod-cl-item {% if item.is_complete or item.is_skipped %}wod-cl-item--done{% endif %}{% if item.blocks_closure %} wod-cl-item--blocking{% endif %}">
+          {% comment %}
+            Uno step con un valore fuori range e' compilato, non risolto: mostrarlo
+            barrato e verde come gli altri lo fa leggere "fatto, tutto a posto"
+            proprio dove c'e' l'anomalia.
+          {% endcomment %}
+          <div class="wod-cl-item {% if item.is_complete and not item.is_out_of_range or item.is_skipped %}wod-cl-item--done{% endif %}{% if item.is_out_of_range or item.blocks_closure %} wod-cl-item--blocking{% endif %}">
             <div class="wod-cl-left">
               <span class="wod-cl-num">{{ item.step_number }}</span>
               <span class="wod-cl-desc">
@@ -119,6 +124,34 @@
                   <button class="btn" type="submit">Salta</button>
                 </form>
               </details>
+            {% endif %}
+
+            {% comment %}
+              Il follow-up si apre da dove l'anomalia si vede: uno step fuori range o
+              saltato con motivazione. Serve un'occorrenza — il follow-up e' sempre su
+              un asset preciso — quindi su un OdL massivo si chiede su quale macchina,
+              invece di sceglierne una d'ufficio.
+            {% endcomment %}
+            {% if item.is_out_of_range or item.is_skipped %}
+              <div class="wod-cl-meta wod-cl-followup">
+                {% if item.existing_follow_up %}
+                  Follow-up aperto:
+                  <a href="{% url 'assets:wo_view' item.existing_follow_up.id %}">#{{ item.existing_follow_up.id }} {{ item.existing_follow_up.title|truncatechars:60 }}</a>
+                {% elif checklist_followup_occurrences|length == 1 %}
+                  {% for occurrence in checklist_followup_occurrences %}
+                    <a class="btn btn-sm" href="{% url 'assets:occurrence_followup_create' occurrence.pk %}?step={{ item.id }}">Apri follow-up</a>
+                  {% endfor %}
+                {% elif checklist_followup_occurrences %}
+                  <details>
+                    <summary>Apri follow-up — su quale macchina?</summary>
+                    <div class="wod-cl-followup-list">
+                      {% for occurrence in checklist_followup_occurrences %}
+                        <a href="{% url 'assets:occurrence_followup_create' occurrence.pk %}?step={{ item.id }}">{{ occurrence.asset.asset_tag|default:occurrence.asset.name }}</a>
+                      {% endfor %}
+                    </div>
+                  </details>
+                {% endif %}
+              </div>
             {% endif %}
 
             {% if item.is_done and item.done_by and item.step_type == 'YES_NO' %}

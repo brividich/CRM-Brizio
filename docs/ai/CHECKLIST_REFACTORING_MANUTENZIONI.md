@@ -86,7 +86,7 @@ Commit della fase: `feature/assets-manutenzione-refactor`. Nuove pagine sotto `/
 - [x] Form piano a sezioni numerate (Cosa / Chi / Documenti e calendario / Pubblicazione) — **non** un wizard multi-pagina: un form progressivo a step numerati copre lo stesso bisogno senza stato intermedio da gestire
 - [x] Periodicità da preset leggibili (`RECURRENCE_PRESETS`); i sei campi grezzi compaiono solo con «Personalizzata»
 - [x] Anteprima impatto AJAX prima del salvataggio: quanti asset coinvolge, quante scadenze aperte esistono già, quanti conflitti
-- [ ] L'anteprima non elenca ancora **le prime scadenze** («8 entro ottobre, 6 entro novembre» della specifica §29): mostra solo i conteggi
+- [x] Anteprima con **le prime scadenze** raggruppate per mese («3 entro settembre 2026»). Il preset di periodicità vince sui sei campi grezzi: scegliendo «ogni trimestre» quei campi restano ai valori iniziali del form, e l'anteprima calcolerebbe le date con una periodicità che nessuno ha scelto
 
 ### E2 — Da fare
 - [x] Blocchi SCADUTE / ENTRO 7 GIORNI / PROGRAMMATE / IN ATTESA / ESTERNE
@@ -106,20 +106,20 @@ Commit della fase: `feature/assets-manutenzione-refactor`. Nuove pagine sotto `/
 - [x] «Distribuisci sulla giornata» sulla selezione
 - [x] Chiusura per singola occorrenza, con allegato e blocco sulle amministrative
 - [x] Follow-up agganciato a occorrenza + asset (accetta `?step=<id>` per lo step di checklist)
-- [ ] Manca il **pulsante «Crea follow-up» dentro la checklist** quando uno step è KO o fuori range: la view lo supporta già via `?step=`, va aggiunto il link in `components/workorder_checklist.html`
+- [x] **«Apri follow-up» dentro la checklist** su uno step fuori range o saltato con motivazione. Il follow-up nasce da un'occorrenza, quindi su un OdL massivo la pagina chiede *su quale macchina* invece di sceglierne una d'ufficio; se un follow-up su quello step esiste già, mostra quello. Corretto anche il fatto che uno step fuori range fosse marcato «fatto» (barrato e verde) proprio nella riga che conteneva l'anomalia
 
 ### E5 — Dashboard
 - [x] Quadro responsabile `/assets/manutenzione/quadro/`: scadute, in scadenza, non pianificate, OdL aperti/in corso, in attesa, rapporti mancanti, follow-up, conflitti
 - [x] Sezione «manutenzioni dovute ma non pianificate» in evidenza
 - [x] Matrice copertura `/assets/manutenzione/copertura/` con `✓ / P / X / ! / –`, celle cliccabili verso la personalizzazione
-- [ ] **Caporeparto**: esiste il filtro per reparto, non uno scope automatico sul proprio reparto. Va deciso se derivarlo dall'anagrafica (attenzione: `reparto` sull'asset è testo libero) o da un permesso dedicato
+- [x] **Caporeparto**: «Da fare» e «Scadenze» preimpostano il filtro sui reparti guidati dall'utente (fonte autorevole `Reparto.caporeparto_legacy_id`, ponte `Profile.legacy_user_id`). È una preimpostazione **dichiarata in pagina** con «Mostra tutti i reparti» accanto, non una barriera: la visibilità in lista non è un confine di sicurezza. Se i nomi non combaciano — il `reparto` sull'asset è testo libero — il filtro non si applica affatto, perché una pagina vuota per disallineamento si legge come «non c'è lavoro»
 
 ### E6 — Scheda asset e gruppi
 - [x] `/assets/manutenzione/asset/<id>/piani/`: periodicità, origine («Ereditato dal gruppo» / «Personalizzato» / «Escluso» / «Conflitto»), prossima scadenza, storico. La parola «override» non compare
 - [x] Quando personalizzato mostra anche lo standard del gruppo
 - [x] Personalizza / Escludi / torna al gruppo, con motivo
 - [x] CRUD gruppi asset con selezione multipla degli asset
-- [ ] Il blocco piani **non è ancora incorporato** nella scheda asset `/assets/view/<id>/`: è una pagina a sé, raggiunta dai link delle liste
+- [x] Blocco piani **dentro** la scheda asset `/assets/view/<id>/`: piano, periodicità, origine, prossima scadenza e stato, con link alla pagina di gestione. Quando l'asset ha piani, il blocco storico a regole tace: due fonti sulla stessa scheda direbbero la stessa manutenzione con due date diverse
 
 ### E7 — Navigazione
 - [x] Subnav manutenzione: Da fare · Scadenze · Quadro · Piani · Gruppi asset · Interventi · Storico · Impostazioni · Report · Fornitori
@@ -202,7 +202,10 @@ Ordine obbligatorio: prima si migra, si verifica, e *solo dopo* si rimuove.
 ## 8. Trappole del repository da non riscoprire
 
 - **Sessioni parallele**: mai lavorare in `C:\Dev\Portale Novicrom` (checkout condiviso). Worktree dedicato: `git worktree add C:\Dev\pn-<tema> -B <branch> origin/main`. Al 2026-09-04 esiste già un altro worktree attivo su `feature/assets-manutenzione-ux` in `C:\Dev\pn-manutenzione-ux`.
-- **Branch manutenzione non mergiati** che toccano la stessa area e vanno riconciliati prima o dopo: `feature/assets-manutentore-fase5`, `feature/assets-manutentore-fase6`, `feature/assets-manutentore-cockpit-p1`, `feature/assets-manutenzione-ux`, `feat/manutenzione-quickwin`.
+- **Branch manutenzione: riconciliazione fatta il 2026-09-04.** Non resta nulla da mergiare oltre a questo ramo.
+  - già in `main`: `feature/assets-manutentore-fase5`, `feature/assets-manutentore-fase6`, `feature/assets-manutentore-cockpit-p1`, `feature/assets-manutenzione-ux` (`git branch -r --merged origin/main` li elenca);
+  - `feat/manutenzione-quickwin` (3 commit) e `feature/assets-shell-responsive`: **superati**. Git li vede non mergiati perché gli SHA differiscono, ma il contenuto è in `main` — verificato file per file (`send_maintenance_reminders.py`, `notifications.py`, `report_origin_proxy_damage.py` identici; il generatore legge già `AssetMaintenanceRuleState` e stampa «OdL #N ancora aperto»; il blocco `@media (max-width: 860px)` e il campo `internal_number` ci sono). Il loro diff verso `main` è fatto quasi solo di *rimozioni*: precedono la dismissione di SharePoint da assets;
+  - `fix/assets-periodic-scope-all-assets`: **era l'unico ancora vivo**. Riportato su `main` come `fix/assets-periodic-scope-rebased` (`535aee47`), branch indipendente da questo refactoring perché la correzione può andare in produzione senza aspettarlo.
 - **Collisione numeri migration**: dopo ogni merge, `makemigrations --check`. Questo lavoro usa `assets/0098`.
 - **`{# #}` in Django commenta solo una riga**: su più righe i `{% %}` interni vengono comunque eseguiti.
 - **`runserver` non ricarica i template**: dopo una modifica `.html` va riavviato.

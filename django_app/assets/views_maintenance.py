@@ -52,7 +52,13 @@ from .models import (
 )
 from .services import maintenance_domain as domain
 from .services import maintenance_history_import as history_import
-from .services.recurrence import RECURRENCE_PRESETS, describe_recurrence
+from .services.recurrence import (
+    ANCHOR_FROM_COMPLETION,
+    RECURRENCE_PRESETS,
+    compute_next_due,
+    describe_recurrence,
+    first_due_date_for,
+)
 from .views import _assets_shell_context, _as_int, _clean_string, _is_assets_admin
 
 # ---------------------------------------------------------------------------
@@ -111,6 +117,57 @@ def _base_occurrence_queryset():
         .prefetch_related("attachments")
         .exclude(status=MaintenanceOccurrence.STATUS_CANCELED)
     )
+
+
+def user_reparti(request: HttpRequest) -> list[str]:
+    """Reparti guidati dall'utente, dalla fonte autorevole ``Reparto.caporeparto_legacy_id``.
+
+    Serve a preimpostare il filtro, non a nascondere dati: la pagina lo dichiara e
+    basta un click per togliere lo scope. Tutto in try/except perche' passa dalle
+    tabelle legacy: un caporeparto non risolto deve dare "nessun filtro", mai un 500.
+    """
+    try:
+        from anagrafica.models import Reparto
+        from core.models import Profile
+
+        legacy_id = (
+            Profile.objects.filter(user=request.user)
+            .values_list("legacy_user_id", flat=True)
+            .first()
+        )
+        if not legacy_id:
+            return []
+        return sorted(
+            {
+                str(nome).strip()
+                for nome in Reparto.objects.filter(
+                    is_active=True, caporeparto_legacy_id=int(legacy_id)
+                ).values_list("nome", flat=True)
+                if str(nome or "").strip()
+            }
+        )
+    except Exception:  # pragma: no cover - dipende dalle tabelle legacy
+        return []
+
+
+def _apply_caporeparto_scope(queryset, request: HttpRequest) -> tuple[Any, list[str]]:
+    """Preimposta lo scope sui reparti dell'utente, se non ha gia' scelto lui.
+
+    ``reparto`` presente in query string (anche vuoto) significa "ho deciso io":
+    da quel momento lo scope automatico non si riapplica, altrimenti sarebbe
+    impossibile guardare fuori dal proprio reparto.
+    """
+    if "reparto" in request.GET:
+        return queryset, []
+    reparti = user_reparti(request)
+    if not reparti:
+        return queryset, []
+    scoped = queryset.filter(asset__reparto__in=reparti)
+    if not scoped.exists():
+        # Un filtro che azzera la pagina per un disallineamento di nomi (il reparto
+        # sull'asset e' testo libero) e' peggio di nessun filtro.
+        return queryset, []
+    return scoped, reparti
 
 
 def _apply_occurrence_filters(queryset, form: OccurrenceFilterForm, *, today: date):
@@ -235,6 +292,7 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
         form,
         today=today,
     )
+    queryset, scoped_reparti = _apply_caporeparto_scope(queryset, request)
     rows = _decorate(list(queryset[:1000]), today=today)
 
     week_end = today + timedelta(days=7)
@@ -308,6 +366,7 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
             "can_plan": can_plan_maintenance(request),
             "can_execute": can_execute_maintenance(request),
             "workorder_form": WorkOrderFromOccurrencesForm(),
+            "scoped_reparti": scoped_reparti,
         },
     )
 
@@ -334,6 +393,7 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
     form.is_valid()
 
     queryset = _apply_occurrence_filters(_base_occurrence_queryset(), form, today=today)
+    queryset, scoped_reparti = _apply_caporeparto_scope(queryset, request)
     rows = _decorate(list(queryset[:2000]), today=today)
     if form.cleaned_data.get("report_missing"):
         rows = _report_missing_rows(rows)
@@ -353,6 +413,7 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
             "active_tab": active_tab,
             "can_plan": can_plan_maintenance(request),
             "workorder_form": WorkOrderFromOccurrencesForm(),
+            "scoped_reparti": scoped_reparti,
         },
     )
 
@@ -658,6 +719,99 @@ def maintenance_assignment_delete(request: HttpRequest, plan_id: int, assignment
     return redirect("assets:maintenance_plan_detail", plan_id=plan_id)
 
 
+def _parse_iso_date(raw) -> date | None:
+    """Data ISO dai parametri di query (l'anteprima e' un GET, non un form)."""
+    try:
+        return date.fromisoformat(str(raw or "").strip())
+    except ValueError:
+        return None
+
+
+_MESI = (
+    "gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
+    "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre",
+)
+
+
+def _preview_first_due(
+    request: HttpRequest,
+    *,
+    plan_id: int,
+    asset_ids: list[int],
+    skip_asset_ids: set[int],
+    conflicting: set[int],
+) -> list[dict[str, Any]]:
+    """Quando cadrebbero le prime scadenze, raggruppate per mese.
+
+    "Interessera' 14 asset" non dice se il lavoro arriva tutto insieme la settimana
+    prossima o spalmato su un anno. La periodicita' viene dai campi del form, non
+    dal database: l'applicazione non e' ancora salvata.
+    """
+    # Il preset vince sui sei campi grezzi: quando l'utente sceglie "ogni trimestre"
+    # quei campi restano ai valori iniziali del form, e l'anteprima calcolerebbe le
+    # date con una periodicita' che nessuno ha scelto.
+    preset_key = _clean_string(request.GET.get("recurrence_preset"))
+    preset = next(
+        (values for key, _label, values in RECURRENCE_PRESETS if key == preset_key),
+        None,
+    )
+    if preset:
+        spec = {
+            "frequency": preset.get("frequency", MaintenancePlanAssignment.FREQ_DAYS),
+            "interval": preset.get("interval", 1),
+            "weekday": preset.get("weekday"),
+            "week_of_month": preset.get("week_of_month"),
+            "day_of_month": preset.get("day_of_month"),
+            "month_of_year": preset.get("month_of_year"),
+        }
+    else:
+        spec = {
+            "frequency": _clean_string(request.GET.get("frequency")) or MaintenancePlanAssignment.FREQ_DAYS,
+            "interval": _as_int(request.GET.get("interval"), default=1) or 1,
+            "weekday": request.GET.get("weekday") or None,
+            "week_of_month": request.GET.get("week_of_month") or None,
+            "day_of_month": request.GET.get("day_of_month") or None,
+            "month_of_year": request.GET.get("month_of_year") or None,
+        }
+    anchor = _clean_string(request.GET.get("schedule_anchor")) or ANCHOR_FROM_COMPLETION
+    today = timezone.localdate()
+    start = _parse_iso_date(request.GET.get("first_due_date")) or today
+
+    last_done: dict[int, MaintenanceOccurrence] = {}
+    for occurrence in (
+        MaintenanceOccurrence.objects.filter(
+            plan_id=plan_id, asset_id__in=asset_ids, status=MaintenanceOccurrence.STATUS_DONE
+        )
+        .only("asset_id", "due_date", "completed_on")
+        .order_by("asset_id", "-completed_on", "-due_date")
+    ):
+        last_done.setdefault(occurrence.asset_id, occurrence)
+
+    buckets: dict[tuple[int, int], int] = {}
+    for asset_id in asset_ids:
+        if asset_id in skip_asset_ids or asset_id in conflicting:
+            continue
+        previous = last_done.get(asset_id)
+        if previous is not None:
+            due = compute_next_due(
+                spec,
+                anchor=anchor,
+                previous_due=previous.due_date,
+                completion_date=previous.completed_on,
+            )
+        else:
+            due = first_due_date_for(spec, start_date=start, today=today)
+        if due is None:
+            continue
+        buckets[(due.year, due.month)] = buckets.get((due.year, due.month), 0) + 1
+
+    rows = [
+        {"label": f"{_MESI[month - 1]} {year}", "count": count}
+        for (year, month), count in sorted(buckets.items())
+    ]
+    return rows[:6]
+
+
 @login_required
 def maintenance_assignment_preview(request: HttpRequest) -> JsonResponse:
     """Anteprima non persistita: quanti asset tocca, prime scadenze, conflitti.
@@ -686,15 +840,29 @@ def maintenance_assignment_preview(request: HttpRequest) -> JsonResponse:
         asset_queryset=Asset.objects.filter(pk__in=asset_ids), plan_ids=[plan_id]
     )
     conflicts = sum(1 for resolution in resolutions.values() if resolution.is_conflict)
-    already = MaintenanceOccurrence.objects.filter(
-        plan_id=plan_id, asset_id__in=asset_ids, status=MaintenanceOccurrence.STATUS_OPEN
-    ).count()
+    open_by_asset = set(
+        MaintenanceOccurrence.objects.filter(
+            plan_id=plan_id, asset_id__in=asset_ids, status=MaintenanceOccurrence.STATUS_OPEN
+        ).values_list("asset_id", flat=True)
+    )
+    already = len(open_by_asset)
 
     return JsonResponse(
         {
             "assets": len(asset_ids),
             "conflicts": conflicts,
             "already": already,
+            "first_due": _preview_first_due(
+                request,
+                plan_id=plan_id,
+                asset_ids=asset_ids,
+                skip_asset_ids=open_by_asset,
+                conflicting={
+                    asset_id
+                    for (_plan, asset_id), resolution in resolutions.items()
+                    if resolution.is_conflict or resolution.is_excluded
+                },
+            ),
         }
     )
 

@@ -81,24 +81,29 @@
   var form = document.querySelector('[data-md-assignment-form]');
   if (!form) { return; }
 
-  var targetType = form.querySelector('#id_target_type');
-  var fields = {
-    ASSET: form.querySelector('#id_asset'),
-    GROUP: form.querySelector('#id_asset_group'),
-    CATEGORY: form.querySelector('#id_asset_category')
-  };
-  var preset = form.querySelector('#id_recurrence_preset');
+  // Gli elementi si rileggono a ogni uso: gli enhancer globali del portale
+  // (select potenziati, form-kit) rimpiazzano i nodi dopo che questo script e'
+  // partito, e un riferimento catturato all'avvio resta agganciato a un nodo
+  // staccato dal documento — l'anteprima smetteva di partire senza un errore.
+  var TARGET_IDS = { ASSET: 'id_asset', GROUP: 'id_asset_group', CATEGORY: 'id_asset_category' };
+  var RECURRENCE_IDS = ['recurrence_preset', 'frequency', 'interval', 'weekday',
+    'week_of_month', 'day_of_month', 'month_of_year', 'schedule_anchor', 'first_due_date'];
+
+  function el(id) { return form.querySelector('#' + id); }
+  function targetTypeEl() { return el('id_target_type'); }
+  function targetField(key) { return el(TARGET_IDS[key]); }
+  function previewEl() { return form.querySelector('[data-md-preview]'); }
   var customBlock = form.querySelector('[data-md-custom-recurrence]');
-  var preview = form.querySelector('[data-md-preview]');
 
   function fieldWrapper(el) { return el ? el.closest('.md-field') : null; }
 
   function syncTarget() {
     // Un bersaglio alla volta: mostrare tutti e tre i selettori insieme fa
     // sembrare che si possano combinare, e non e' cosi'.
-    var value = targetType ? targetType.value : '';
-    Object.keys(fields).forEach(function (key) {
-      var wrapper = fieldWrapper(fields[key]);
+    var current = targetTypeEl();
+    var value = current ? current.value : '';
+    Object.keys(TARGET_IDS).forEach(function (key) {
+      var wrapper = fieldWrapper(targetField(key));
       if (wrapper) { wrapper.hidden = key !== value; }
     });
     refreshPreview();
@@ -106,42 +111,65 @@
 
   function syncPreset() {
     // I sei campi grezzi servono solo a chi sceglie "Personalizzata".
+    var preset = el('id_recurrence_preset');
     if (customBlock) { customBlock.hidden = preset && preset.value !== 'custom'; }
+    // La periodicita' cambia le date dell'anteprima, non solo il testo del campo.
+    refreshPreview();
   }
 
   var previewTimer = null;
   function refreshPreview() {
-    if (!preview || !targetType) { return; }
-    var value = targetType.value;
-    var input = fields[value];
+    var preview = previewEl();
+    var current = targetTypeEl();
+    if (!preview || !current) { return; }
+    var value = current.value;
+    var input = targetField(value);
     if (!input || !input.value) {
       preview.textContent = 'Scegli un bersaglio per vedere quanti asset coinvolge.';
       return;
     }
     window.clearTimeout(previewTimer);
     previewTimer = window.setTimeout(function () {
+      // La periodicita' viaggia con l'anteprima: senza, il server non puo' dire
+      // *quando* cadrebbero le prime scadenze, solo quanti asset tocca.
       var url = form.dataset.previewUrl
         + '?plan=' + encodeURIComponent(form.dataset.plan)
         + '&target_type=' + encodeURIComponent(value)
         + '&target_id=' + encodeURIComponent(input.value);
+      RECURRENCE_IDS.forEach(function (name) {
+        var field = el('id_' + name);
+        if (field && field.value) { url += '&' + name + '=' + encodeURIComponent(field.value); }
+      });
       fetch(url, { credentials: 'same-origin' })
         .then(function (response) { return response.ok ? response.json() : null; })
         .then(function (data) {
           if (!data) { return; }
-          var parts = ['Questa applicazione interessera ' + data.assets + ' asset.'];
-          if (data.already) { parts.push(data.already + ' hanno gia una scadenza aperta per questo piano (non verra duplicata).'); }
+          var parts = ['Questa applicazione interesserà ' + data.assets + ' asset.'];
+          if (data.already) { parts.push(data.already + ' hanno già una scadenza aperta per questo piano (non verrà duplicata).'); }
           if (data.conflicts) { parts.push(data.conflicts + ' presentano conflitti da risolvere personalizzando l\'asset.'); }
+          if (data.first_due && data.first_due.length) {
+            var quando = data.first_due.map(function (bucket) {
+              return bucket.count + ' entro ' + bucket.label;
+            }).join(', ');
+            parts.push('Prime scadenze: ' + quando + '.');
+          }
           preview.textContent = parts.join(' ');
         })
         .catch(function () { /* l'anteprima e' un di piu': se non arriva, il form resta usabile */ });
     }, 250);
   }
 
-  if (targetType) { targetType.addEventListener('change', syncTarget); }
-  Object.keys(fields).forEach(function (key) {
-    if (fields[key]) { fields[key].addEventListener('change', refreshPreview); }
+  // Delega sul form: sopravvive alla sostituzione dei nodi da parte degli enhancer.
+  form.addEventListener('change', function (event) {
+    var id = event.target && event.target.id;
+    if (!id) { return; }
+    if (id === 'id_target_type') { syncTarget(); return; }
+    if (id === 'id_recurrence_preset') { syncPreset(); return; }
+    if (id === TARGET_IDS.ASSET || id === TARGET_IDS.GROUP || id === TARGET_IDS.CATEGORY
+        || RECURRENCE_IDS.indexOf(id.replace(/^id_/, '')) !== -1) {
+      refreshPreview();
+    }
   });
-  if (preset) { preset.addEventListener('change', syncPreset); }
 
   syncTarget();
   syncPreset();
