@@ -1,0 +1,72 @@
+<section class="ts-panel">
+  <div class="ts-panel-head">
+    <div class="ts-panel-title-wrap">
+      <h2 class="ts-panel-title">Gestione promemoria kickoff</h2>
+      <p class="ts-panel-subtitle">Ogni task con reminder attivo ha un record schedulato. Da qui puoi eliminarli, rimandarli di N giorni o forzarne l'invio immediato (crea Notifica portale all'assegnatario).</p>
+    </div>
+    <div class="ts-panel-meta" style="display:flex; gap:16px; font-size:12px; color:var(--text-light);">
+      <span><strong style="color:var(--primary-mid);">{{ promemoria_count_pending }}</strong> pending</span>
+      <span><strong style="color:var(--danger);">{{ promemoria_count_overdue }}</strong> overdue</span>
+      <span><strong style="color:#d97706;">{{ promemoria_count_next7 }}</strong> in 7gg</span>
+      <span><strong style="color:var(--success);">{{ promemoria_count_fired }}</strong> fired</span>
+    </div>
+  </div>
+  <div class="ts-panel-body">
+    <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+      <a href="?tab=promemoria&filter_status=pending" class="btn btn-sm {% if promemoria_filter == 'pending' %}btn-primary{% else %}btn-secondary{% endif %}">Pending ({{ promemoria_count_pending }})</a>
+      <a href="?tab=promemoria&filter_status=fired" class="btn btn-sm {% if promemoria_filter == 'fired' %}btn-primary{% else %}btn-secondary{% endif %}">Fired ({{ promemoria_count_fired }})</a>
+      <a href="?tab=promemoria&filter_status=all" class="btn btn-sm {% if promemoria_filter == 'all' %}btn-primary{% else %}btn-secondary{% endif %}">Tutti</a>
+    </div>
+    <form method="post" action="">
+      {% csrf_token %}
+      <input type="hidden" name="tab" value="promemoria">
+      <input type="hidden" name="filter_status" value="{{ promemoria_filter }}">
+      <table style="width:100%; border-collapse:collapse; font-size:12px;">
+        <thead>
+          <tr style="background:var(--surface-alt, #f1f5f9);">
+            <th style="padding:8px; text-align:center; width:36px;"><input type="checkbox" onclick="document.querySelectorAll('input[name=reminder_id]').forEach(c=>c.checked=this.checked)"></th>
+            <th style="padding:8px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--text-light);">Attivita</th>
+            <th style="padding:8px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--text-light);">Kickoff</th>
+            <th style="padding:8px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--text-light);">Assegnatario</th>
+            <th style="padding:8px; text-align:center; font-size:11px; text-transform:uppercase; color:var(--text-light);">Fire at</th>
+            <th style="padding:8px; text-align:center; font-size:11px; text-transform:uppercase; color:var(--text-light);">Scadenza</th>
+            <th style="padding:8px; text-align:center; font-size:11px; text-transform:uppercase; color:var(--text-light);">Stato</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in promemoria_list %}
+            <tr style="border-bottom:1px solid var(--border); {% if r.overdue %}background:#fef2f2;{% elif r.fired %}background:#f0fdf4;{% endif %}">
+              <td style="padding:8px; text-align:center;"><input type="checkbox" name="reminder_id" value="{{ r.id }}"></td>
+              <td style="padding:8px;"><a href="{% url 'tasks:detail' r.task_id %}" style="color:var(--text); font-weight:600;">{{ r.task_title }}</a></td>
+              <td style="padding:8px; color:var(--text-light);">{{ r.project_name|default:"-" }}</td>
+              <td style="padding:8px;">{{ r.assignee|default:"(id legacy " }}{% if not r.assignee %}{{ r.legacy_user_id }}){% endif %}</td>
+              <td style="padding:8px; text-align:center; font-variant-numeric:tabular-nums;">{{ r.fire_at|date:"d-m-Y" }}</td>
+              <td style="padding:8px; text-align:center; font-variant-numeric:tabular-nums; color:var(--text-light);">{% if r.due_date %}{{ r.due_date|date:"d-m-Y" }}{% else %}-{% endif %}</td>
+              <td style="padding:8px; text-align:center;">
+                {% if r.fired %}
+                  <span style="background:var(--success-bg); color:#166534; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700;">FIRED</span>
+                {% elif r.overdue %}
+                  <span style="background:var(--danger-bg); color:var(--danger); padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700;">OVERDUE</span>
+                {% else %}
+                  <span style="background:#dbeafe; color:var(--primary-mid); padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700;">PENDING</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="7" style="padding:30px; text-align:center; color:var(--text-light);">Nessun promemoria per il filtro corrente.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div style="margin-top:16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:12px; background:var(--surface-alt, #f8fafc); border:1px solid var(--border); border-radius:8px;">
+        <span style="font-size:12px; font-weight:700; color:var(--text-light); text-transform:uppercase; letter-spacing:0.05em;">Azioni su selezionati:</span>
+        <button type="submit" name="reminder_action" value="fire_now" class="btn btn-sm" onclick="return confirm('Invia subito Notifica portale per i promemoria selezionati?')">Invia ora</button>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <button type="submit" name="reminder_action" value="postpone" class="btn btn-secondary btn-sm">Rimanda</button>
+          <input type="number" name="postpone_days" value="7" min="1" max="365" style="width:60px; padding:4px 6px; border:1px solid var(--border); border-radius:4px;">
+          <span style="font-size:12px; color:var(--text-light);">giorni</span>
+        </div>
+        <button type="submit" name="reminder_action" value="delete" class="btn btn-secondary btn-sm" style="color:var(--danger); border-color:var(--danger-bg);" onclick="return confirm('Eliminare definitivamente i promemoria selezionati?')">Elimina</button>
+      </div>
+    </form>
+  </div>
+</section>

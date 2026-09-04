@@ -1204,6 +1204,23 @@ class KickoffMeetingForm(forms.ModelForm):
         except (json.JSONDecodeError, TypeError, ValueError):
             return []
 
+    def clean(self):
+        """Il responsabile di un punto ODG deve essere fra i convocati.
+
+        La UI propone solo i partecipanti selezionati; qui teniamo il dato
+        coerente anche per POST costruiti a mano o per partecipanti rimossi
+        dopo aver assegnato il punto.
+        """
+        cleaned = super().clean()
+        items = cleaned.get("agenda_items_raw") or []
+        partecipanti = cleaned.get("partecipanti_utenti")
+        allowed_ids = {user.pk for user in partecipanti} if partecipanti is not None else set()
+        for item in items:
+            if item.get("responsabile_id") and item["responsabile_id"] not in allowed_ids:
+                item["responsabile_id"] = None
+                item["responsabile_label"] = ""
+        return cleaned
+
     def clean_partecipanti_email_extra(self) -> str:
         raw = self.cleaned_data.get("partecipanti_email_extra", "")
         lines = [l.strip() for l in raw.splitlines() if l.strip()]

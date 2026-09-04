@@ -1,0 +1,121 @@
+<section class="ts-grid-2">
+  <article class="ts-panel">
+    <div class="ts-panel-body">
+      <div class="inline-actions">
+        <a href="{% url 'tasks:list' %}" class="btn btn-secondary btn-sm">Dashboard attivita</a>
+        <a href="{% url 'tasks:project_list' %}" class="btn btn-secondary btn-sm">Portfolio kickoff</a>
+        <a href="?tab=record" class="btn btn-secondary btn-sm">Apri record</a>
+        <a href="?tab=log" class="btn btn-secondary btn-sm">Apri log</a>
+      </div>
+    </div>
+  </article>
+
+  {% include "core/components/module_branding_card.html" with branding_compact=True %}
+</section>
+
+<form method="post">
+  {% csrf_token %}
+  <input type="hidden" name="tab" value="config">
+
+  <div class="ts-panel" style="margin-top:14px;">
+    <div class="ts-panel-head">
+      <div class="ts-panel-title-wrap">
+        <h2 class="ts-panel-title">Notifiche e responsabile</h2>
+        <p class="ts-panel-subtitle">Configura le email di sistema per scadenze e assegnazioni.</p>
+      </div>
+    </div>
+    <div class="ts-panel-body">
+      <div class="ts-form-grid-2">
+        <div class="ts-field">
+          <label for="responsabile_email">Email notifiche</label>
+          <input type="email" id="responsabile_email" name="responsabile_email" value="{{ cfg.responsabile_email }}" placeholder="es. admin@azienda.it">
+          <span class="ts-field-help">Destinatario delle email di sistema per scadenze e assegnazioni.</span>
+        </div>
+        <div class="ts-field">
+          <label for="giorni_preavviso">Giorni preavviso scadenza</label>
+          <input type="number" id="giorni_preavviso" name="giorni_preavviso" value="{{ cfg.giorni_preavviso }}" min="1" max="30">
+          <span class="ts-field-help">Quanti giorni prima della scadenza inviare il promemoria.</span>
+        </div>
+      </div>
+      <div class="ts-field">
+        <div class="ts-checkline">
+          <input type="checkbox" id="notifiche_scadenza_attive" name="notifiche_scadenza_attive" {% if cfg.notifiche_scadenza_attive %}checked{% endif %}>
+          <label for="notifiche_scadenza_attive">Abilita notifiche email per scadenza attivita kickoff</label>
+        </div>
+        <span class="ts-field-help">Se attivo, il sistema avvisa assegnatario e referente dell'attivita con il preavviso configurato.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="ts-panel" style="margin-top:14px;">
+    <div class="ts-panel-head">
+      <div class="ts-panel-title-wrap">
+        <h2 class="ts-panel-title">Note operative</h2>
+        <p class="ts-panel-subtitle">Indicazioni interne visibili solo agli amministratori del modulo.</p>
+      </div>
+    </div>
+    <div class="ts-panel-body">
+      <div class="ts-field full">
+        <label for="note_generali">Note generali</label>
+        <textarea id="note_generali" name="note_generali" rows="4">{{ cfg.note_generali }}</textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="ts-panel" style="margin-top:14px;">
+    <div class="ts-panel-head">
+      <div class="ts-panel-title-wrap">
+        <h2 class="ts-panel-title">Documento VRF - obbligo e reminder</h2>
+        <p class="ts-panel-subtitle">Configura dopo quanti giorni dalla creazione del kickoff il sistema mostra l'avviso e blocca le operazioni sulle attivita kickoff.</p>
+      </div>
+    </div>
+    <div class="ts-panel-body">
+      <div class="ts-form-grid-2">
+        <div class="ts-field">
+          <label for="vrf_reminder_days">Giorni avviso</label>
+          <input type="number" id="vrf_reminder_days" name="vrf_reminder_days" value="{{ cfg.vrf_reminder_days }}" min="1" max="365">
+          <span class="ts-field-help">Dopo quanti giorni dalla creazione del kickoff viene mostrato l'avviso se il documento VRF non e stato caricato.</span>
+        </div>
+        <div class="ts-field">
+          <label for="vrf_blocking_days">Giorni blocco</label>
+          <input type="number" id="vrf_blocking_days" name="vrf_blocking_days" value="{{ cfg.vrf_blocking_days }}" min="1" max="36500">
+          <span class="ts-field-help">Dopo quanti giorni il sistema impedisce di aggiungere o modificare attivita kickoff finche il documento non viene caricato. Imposta 9999 per disabilitare il blocco.</span>
+        </div>
+      </div>
+      <div class="ts-note-box" style="margin-top:12px;">
+        <strong>Soglie attive:</strong> avviso dopo {{ cfg.vrf_reminder_days }} giorni &bull; blocco dopo {{ cfg.vrf_blocking_days }} giorni.
+        Il timer parte dalla data di creazione del kickoff.
+      </div>
+    </div>
+    <div class="ts-panel-footer">
+      <button type="submit" class="btn btn-primary">Salva impostazioni</button>
+    </div>
+  </div>
+
+  <div class="ts-panel" style="margin-top:14px;">
+    <div class="ts-panel-head">
+      <div class="ts-panel-title-wrap">
+        <h2 class="ts-panel-title">Verifica disponibilita asset</h2>
+        <p class="ts-panel-subtitle">All'assegnazione di un asset a un'attivita, il portale verifica se nella finestra scelta esistono OdL aperti, verifiche periodiche, ticket manutenzione o altre attivita gia' pianificate su quello stesso asset.</p>
+      </div>
+    </div>
+    <div class="ts-panel-body">
+      <div class="ts-form-grid-2">
+        <div class="ts-field ts-field-inline">
+          <input type="checkbox" id="asset_conflict_check_enabled" name="asset_conflict_check_enabled" {% if cfg.asset_conflict_check_enabled %}checked{% endif %}>
+          <label for="asset_conflict_check_enabled">Mostra pannello disponibilita' sugli asset selezionati</label>
+        </div>
+        <div class="ts-field ts-field-inline">
+          <input type="checkbox" id="asset_conflict_block" name="asset_conflict_block" {% if cfg.asset_conflict_block %}checked{% endif %}>
+          <label for="asset_conflict_block">Blocca il salvataggio in presenza di conflitto bloccante (OdL aperto, asset in riparazione, sovrapposizione con altra attivita')</label>
+        </div>
+      </div>
+      <div class="ts-note-box" style="margin-top:12px;">
+        Le verifiche periodiche e i ticket aperti restano sempre in stato <em>warning</em> (solo avviso). I conflitti con OdL aperti, asset in riparazione e sovrapposizioni temporali con altre attivita' sono considerati <em>bloccanti</em> e possono impedire il salvataggio quando l'opzione e' attiva.
+      </div>
+    </div>
+    <div class="ts-panel-footer">
+      <button type="submit" class="btn btn-primary">Salva impostazioni</button>
+    </div>
+  </div>
+</form>

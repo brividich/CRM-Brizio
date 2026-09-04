@@ -1,0 +1,30 @@
+<section class="ts-panel">
+  <div class="ts-panel-head">
+    <div class="ts-panel-title-wrap">
+      <h2 class="ts-panel-title">Log attivita KICK-OFF</h2>
+      <p class="ts-panel-subtitle">Ultime 100 voci di audit per il modulo.</p>
+    </div>
+  </div>
+  <div class="ts-panel-body">
+    {% if audit_entries %}
+      <div class="admin-log-grid">
+        <div class="admin-log-row admin-log-head">
+          <span>Data/ora</span><span>Utente</span><span>Azione</span><span>Dettaglio</span>
+        </div>
+        {% for entry in audit_entries %}
+          <div class="admin-log-row">
+            <span>{{ entry.created_at|date:"d-m-Y H:i" }}</span>
+            <span>{{ entry.utente_display|default:"-" }}</span>
+            <span>{{ entry.azione }}</span>
+            <span style="color:var(--text-light);">{{ entry.dettaglio }}</span>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="ts-empty">
+        <strong>Nessuna voce di log disponibile.</strong>
+        <div>Il log si popola automaticamente quando vengono registrate azioni sul modulo.</div>
+      </div>
+    {% endif %}
+  </div>
+</section>

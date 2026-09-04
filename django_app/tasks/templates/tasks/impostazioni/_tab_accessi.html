@@ -1,0 +1,96 @@
+<section class="ts-panel">
+  <div class="ts-panel-head">
+    <div class="ts-panel-title-wrap">
+      <h2 class="ts-panel-title">Regole accesso kickoff</h2>
+      <p class="ts-panel-subtitle">Qui definisci chi vede e chi modifica davvero i task. Le regole per ruolo valgono dentro i kickoff in cui l'utente ricopre quel ruolo; gli override utente valgono su tutto il modulo KICK-OFF.</p>
+    </div>
+    <div class="ts-panel-meta" style="display:flex; gap:16px; font-size:12px; color:var(--text-light);">
+      <span><strong style="color:var(--primary-mid);">{{ access_stats.role_rules }}</strong> regole ruolo</span>
+      <span><strong style="color:var(--success);">{{ access_stats.user_overrides }}</strong> override utente</span>
+      <span><strong style="color:var(--warning);">{{ access_stats.edit_all_roles }}</strong> ruoli con edit completo</span>
+      <span><strong style="color:#9f1239;">{{ access_stats.edit_all_users }}</strong> utenti con edit completo</span>
+    </div>
+  </div>
+  <div class="ts-panel-body">
+    <div style="margin-bottom:14px; padding:12px 14px; border:1px solid var(--border); border-radius:10px; background:var(--surface-alt, #f8fafc); color:var(--text-mid); font-size:13px; line-height:1.5;">
+      <strong style="color:var(--text);">Esempi:</strong> imposta <em>Capocommessa</em> su <em>Vede e modifica tutto il kickoff</em> e <em>Programmatore</em> su <em>Vede tutto + modifica solo i task assegnati</em>. Se serve un'eccezione, usa l'override sul singolo utente.
+    </div>
+
+    <form method="get" action="" style="display:flex; gap:8px; margin-bottom:12px;">
+      <input type="hidden" name="tab" value="accessi">
+      <input type="text" class="input" name="q_access_user" value="{{ access_filter_q }}" placeholder="Filtra override utente per nome, cognome o email" style="flex:1;">
+      <button type="submit" class="btn btn-secondary btn-sm">Filtra</button>
+    </form>
+
+    <form method="post" action="">
+      {% csrf_token %}
+      <input type="hidden" name="tab" value="accessi">
+      <input type="hidden" name="q_access_user" value="{{ access_filter_q }}">
+
+      <div style="margin-bottom:20px;">
+        <h3 style="margin:0 0 10px 0; font-size:15px; color:var(--text);">Regole per ruolo operativo</h3>
+        <table style="width:100%; border-collapse:collapse; font-size:13px;">
+          <thead>
+            <tr style="background:var(--surface-alt, #f1f5f9);">
+              <th style="padding:8px 10px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--text-light);">Ruolo</th>
+              <th style="padding:8px 10px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--text-light);">Ambito</th>
+              <th style="padding:8px 10px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--text-light);">Regola</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in access_role_rows %}
+              <tr style="border-bottom:1px solid var(--border);">
+                <td style="padding:10px; font-weight:700; color:var(--text);">{{ row.label }}</td>
+                <td style="padding:10px; color:var(--text-light);">{{ row.help }}</td>
+                <td style="padding:10px;">
+                  <select name="access_role__{{ row.code }}" class="input">
+                    {% for value, label in access_role_choices %}
+                      <option value="{{ value }}" {% if row.access_level == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div>
+        <h3 style="margin:0 0 10px 0; font-size:15px; color:var(--text);">Override per singolo utente</h3>
+        <table style="width:100%; border-collapse:collapse; font-size:13px;">
+          <thead>
+            <tr style="background:var(--surface-alt, #f1f5f9);">
+              <th style="padding:8px 10px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--text-light);">Utente</th>
+              <th style="padding:8px 10px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--text-light);">Email</th>
+              <th style="padding:8px 10px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--text-light);">Override modulo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in access_user_rows %}
+              <tr style="border-bottom:1px solid var(--border);">
+                <td style="padding:10px; font-weight:600; color:var(--text);">
+                  {{ row.label }}
+                  <input type="hidden" name="visible_access_user_id" value="{{ row.id }}">
+                </td>
+                <td style="padding:10px; color:var(--text-light);">{{ row.email|default:"-" }}</td>
+                <td style="padding:10px;">
+                  <select name="access_user__{{ row.id }}" class="input">
+                    {% for value, label in access_user_choices %}
+                      <option value="{{ value }}" {% if row.access_level == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="3" style="padding:30px; text-align:center; color:var(--text-light);">Nessun utente attivo trovato per questo filtro.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-top:14px; display:flex; gap:10px; justify-content:flex-end;">
+        <button type="submit" class="btn">Salva regole accesso</button>
+      </div>
+    </form>
+  </div>
+</section>
