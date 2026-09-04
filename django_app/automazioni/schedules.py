@@ -278,12 +278,14 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
-        # KICK-OFF — sollecito ai responsabili sui «problemi aperti» degli incontri
-        # scaduti (MeetingIssue OPEN con due_date passata). Email + notifica in-app.
-        "name": "tasks_meeting_issue_reminders",
-        "func": "tasks.tasks.run_meeting_issue_reminders",
+        # KICK-OFF — digest unico incontri: "domani hai un incontro" (ogni giorno)
+        # + sollecito «problemi aperti» degli incontri scaduti (il lunedi, dentro
+        # la stessa funzione). Una sola email per persona quando coincidono,
+        # invece di due job/invii separati.
+        "name": "tasks_meetings_digest",
+        "func": "tasks.tasks.run_meetings_digest",
         "schedule_type": "C",       # Schedule.CRON
-        "cron": "0 7 * * 1",        # ogni lunedi alle 07:00
+        "cron": "0 17 * * *",       # ogni pomeriggio alle 17:00 (il giorno prima dell'incontro)
         "repeats": -1,
         "kwargs": {},
     },

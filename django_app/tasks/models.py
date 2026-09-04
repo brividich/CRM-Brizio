@@ -942,6 +942,10 @@ class KickoffMeeting(models.Model):
         ),
     )
     svolto_at = models.DateTimeField(null=True, blank=True, verbose_name="Esito registrato il")
+    reminder_sent_at = models.DateTimeField(
+        null=True, blank=True, verbose_name="Promemoria pre-incontro inviato il",
+        help_text="Marcato dal job periodico che avvisa i partecipanti il giorno prima; evita doppi invii.",
+    )
     data = models.DateField(verbose_name="Data")
     ora = models.TimeField(null=True, blank=True, verbose_name="Ora")
     luogo = models.CharField(max_length=200, blank=True, default="", verbose_name="Luogo")

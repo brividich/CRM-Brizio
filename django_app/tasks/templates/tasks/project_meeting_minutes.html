@@ -40,7 +40,11 @@
             <div class="agenda-item" data-agenda-item="{{ item.id }}">
               <div class="agenda-num">{{ forloop.counter }}</div>
               <div class="agenda-body">
-                <div class="agenda-title">{{ item.titolo }}</div>
+                <div class="agenda-title">
+                  {{ item.titolo }}
+                  {% if item.responsabile_label %}<span class="agenda-task-badge">{{ item.responsabile_label }}</span>{% endif %}
+                  {% if item.durata_minuti %}<span class="agenda-task-badge">{{ item.durata_minuti }} min</span>{% endif %}
+                </div>
                 {% if item.nota %}<div class="agenda-nota">{{ item.nota }}</div>{% endif %}
               </div>
               <button type="button" class="mf-btn-sm {% if item.done %}primary{% else %}ghost{% endif %}"

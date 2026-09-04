@@ -1167,6 +1167,7 @@ class KickoffMeetingForm(forms.ModelForm):
                 if not titolo:
                     continue
                 task_id = item.get("task_id")
+                responsabile_id = item.get("responsabile_id")
                 custom_fields = []
                 raw_custom_fields = item.get("custom_fields") or []
                 if isinstance(raw_custom_fields, list):
@@ -1177,6 +1178,13 @@ class KickoffMeetingForm(forms.ModelForm):
                         value = str(custom_field.get("value", "")).strip()[:500]
                         if label and value:
                             custom_fields.append({"label": label, "value": value})
+                durata = item.get("durata_minuti")
+                try:
+                    durata = int(durata) if durata else None
+                    if durata is not None and (durata <= 0 or durata > 480):
+                        durata = None
+                except (TypeError, ValueError):
+                    durata = None
                 result.append({
                     "id": str(item.get("id", "")),
                     "titolo": titolo,
@@ -1186,12 +1194,32 @@ class KickoffMeetingForm(forms.ModelForm):
                     "issue_id": int(item.get("issue_id")) if item.get("issue_id") else None,
                     "source": str(item.get("source", "")).strip()[:40],
                     "locked": bool(item.get("locked", False)),
+                    "responsabile_id": int(responsabile_id) if responsabile_id else None,
+                    "responsabile_label": str(item.get("responsabile_label", "")).strip()[:150],
+                    "durata_minuti": durata,
                     "custom_fields": custom_fields,
                     "done": bool(item.get("done", False)),
                 })
             return result
         except (json.JSONDecodeError, TypeError, ValueError):
             return []
+
+    def clean(self):
+        """Il responsabile di un punto ODG deve essere fra i convocati.
+
+        La UI propone solo i partecipanti selezionati; qui teniamo il dato
+        coerente anche per POST costruiti a mano o per partecipanti rimossi
+        dopo aver assegnato il punto.
+        """
+        cleaned = super().clean()
+        items = cleaned.get("agenda_items_raw") or []
+        partecipanti = cleaned.get("partecipanti_utenti")
+        allowed_ids = {user.pk for user in partecipanti} if partecipanti is not None else set()
+        for item in items:
+            if item.get("responsabile_id") and item["responsabile_id"] not in allowed_ids:
+                item["responsabile_id"] = None
+                item["responsabile_label"] = ""
+        return cleaned
 
     def clean_partecipanti_email_extra(self) -> str:
         raw = self.cleaned_data.get("partecipanti_email_extra", "")

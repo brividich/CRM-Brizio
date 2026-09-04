@@ -292,3 +292,236 @@ class FirstMeetingOnKickoffCreateTests(TasksBaseTestCase):
         meeting = _create_first_meeting(project, self.user)
 
         self.assertEqual(meeting.partecipanti_utenti.count(), 0)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class NewMeetingDefaultParticipantsTests(TasksBaseTestCase):
+    """Il form "Nuovo incontro" preseleziona PM/capocommessa/programmatore della commessa."""
+
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "tasks")
+        _grant_role_actions(2, ["tasks_view", "tasks_create"])
+        self._refresh_acl_cache()
+        self.pm = _create_user_with_legacy(username="pm-default", legacy_user_id=401, role_id=2, role_name="tasks")
+        self.capo = _create_user_with_legacy(username="capo-default", legacy_user_id=402, role_id=2, role_name="tasks")
+        self.prog = _create_user_with_legacy(username="prog-default", legacy_user_id=403, role_id=2, role_name="tasks")
+        self.project = Project.objects.create(
+            name="", created_by=self.pm,
+            project_manager=self.pm, capo_commessa=self.capo, programmer=self.prog,
+        )
+        self.client.force_login(self.pm)
+
+    def test_nuovo_incontro_preseleziona_i_tre_ruoli(self):
+        response = self.client.get(reverse("tasks:project_meeting_create", args=[self.project.id]))
+        self.assertEqual(response.status_code, 200)
+        preselected = set(response.context["form"].initial.get("partecipanti_utenti") or [])
+        self.assertEqual(preselected, {self.pm.id, self.capo.id, self.prog.id})
+
+    def test_ruoli_non_assegnati_non_rompono_il_default(self):
+        project = Project.objects.create(name="", created_by=self.pm, project_manager=self.pm)
+        response = self.client.get(reverse("tasks:project_meeting_create", args=[project.id]))
+        self.assertEqual(response.status_code, 200)
+        preselected = set(response.context["form"].initial.get("partecipanti_utenti") or [])
+        self.assertEqual(preselected, {self.pm.id})
+
+
+class AgendaItemResponsabileDurataTests(TasksBaseTestCase):
+    """I punti agenda possono portare un responsabile e una durata stimata (opzionali)."""
+
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "tasks")
+        self.convocato = _create_user_with_legacy(
+            username="agenda-resp",
+            legacy_user_id=312,
+            role_id=2,
+            role_name="tasks",
+        )
+
+    def test_clean_agenda_items_raw_preserva_responsabile_e_durata(self):
+        import json
+
+        from tasks.forms import KickoffMeetingForm
+
+        form = KickoffMeetingForm(data={
+            "data": "2026-09-10",
+            "stato": MeetingStatus.PIANIFICATO,
+            "partecipanti_utenti": [self.convocato.pk],
+            "agenda_items_raw": json.dumps([{
+                "id": "a1",
+                "titolo": "Punto 1",
+                "responsabile_id": self.convocato.pk,
+                "responsabile_label": "Mario Rossi",
+                "durata_minuti": 15,
+            }]),
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+        item = form.cleaned_data["agenda_items_raw"][0]
+        self.assertEqual(item["responsabile_id"], self.convocato.pk)
+        self.assertEqual(item["responsabile_label"], "Mario Rossi")
+        self.assertEqual(item["durata_minuti"], 15)
+
+    def test_responsabile_non_convocato_viene_azzerato(self):
+        """Il responsabile di un punto deve essere fra i partecipanti convocati."""
+        import json
+
+        from tasks.forms import KickoffMeetingForm
+
+        estraneo = _create_user_with_legacy(
+            username="agenda-estraneo",
+            legacy_user_id=313,
+            role_id=2,
+            role_name="tasks",
+        )
+        form = KickoffMeetingForm(data={
+            "data": "2026-09-10",
+            "stato": MeetingStatus.PIANIFICATO,
+            "partecipanti_utenti": [self.convocato.pk],
+            "agenda_items_raw": json.dumps([{
+                "id": "a1",
+                "titolo": "Punto 1",
+                "responsabile_id": estraneo.pk,
+                "responsabile_label": "Estraneo",
+            }]),
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+        item = form.cleaned_data["agenda_items_raw"][0]
+        self.assertIsNone(item["responsabile_id"])
+        self.assertEqual(item["responsabile_label"], "")
+
+    def test_durata_fuori_range_viene_scartata(self):
+        import json
+
+        from tasks.forms import KickoffMeetingForm
+
+        form = KickoffMeetingForm(data={
+            "data": "2026-09-10",
+            "stato": MeetingStatus.PIANIFICATO,
+            "agenda_items_raw": json.dumps([{"id": "a1", "titolo": "Punto 1", "durata_minuti": 9999}]),
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertIsNone(form.cleaned_data["agenda_items_raw"][0]["durata_minuti"])
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class MeetingsDigestJobTests(TasksBaseTestCase):
+    """Job periodico unico: "domani hai un incontro" + (il lunedi) problemi scaduti."""
+
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "tasks")
+        _grant_role_actions(2, ["tasks_view", "tasks_create"])
+        self._refresh_acl_cache()
+        self.user = _create_user_with_legacy(
+            username="reminder-user", legacy_user_id=411, role_id=2, role_name="tasks"
+        )
+        self.user.email = "reminder@example.com"
+        self.user.save(update_fields=["email"])
+        self.project = Project.objects.create(name="", created_by=self.user, project_manager=self.user)
+
+    def test_promemoria_solo_per_incontri_di_domani_non_ancora_avvisati(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from tasks.tasks import run_meetings_digest
+
+        tomorrow = timezone.localdate() + timedelta(days=1)
+        meeting_tomorrow = KickoffMeeting.objects.create(project=self.project, data=tomorrow, created_by=self.user)
+        meeting_tomorrow.partecipanti_utenti.add(self.user)
+        meeting_later = KickoffMeeting.objects.create(
+            project=self.project, data=tomorrow + timedelta(days=5), created_by=self.user
+        )
+
+        run_meetings_digest()
+
+        meeting_tomorrow.refresh_from_db()
+        meeting_later.refresh_from_db()
+        self.assertIsNotNone(meeting_tomorrow.reminder_sent_at)
+        self.assertIsNone(meeting_later.reminder_sent_at)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn(self.user.email, mail.outbox[0].to)
+
+    def test_promemoria_e_idempotente(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from tasks.tasks import run_meetings_digest
+
+        tomorrow = timezone.localdate() + timedelta(days=1)
+        meeting = KickoffMeeting.objects.create(project=self.project, data=tomorrow, created_by=self.user)
+        meeting.partecipanti_utenti.add(self.user)
+
+        run_meetings_digest()
+        run_meetings_digest()
+
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_incontro_annullato_non_riceve_promemoria(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from tasks.tasks import run_meetings_digest
+
+        tomorrow = timezone.localdate() + timedelta(days=1)
+        meeting = KickoffMeeting.objects.create(
+            project=self.project, data=tomorrow, created_by=self.user, stato=MeetingStatus.ANNULLATO
+        )
+        meeting.partecipanti_utenti.add(self.user)
+
+        run_meetings_digest()
+
+        meeting.refresh_from_db()
+        self.assertIsNone(meeting.reminder_sent_at)
+
+    def test_incontro_e_problema_scaduto_lo_stesso_lunedi_fanno_una_sola_email(self):
+        from datetime import date, timedelta
+        from unittest.mock import patch
+
+        from tasks.models import MeetingIssue, MeetingIssueStatus
+        from tasks.tasks import run_meetings_digest
+
+        monday = date(2026, 9, 7)  # lunedi
+        tomorrow = monday + timedelta(days=1)
+        with patch("django.utils.timezone.localdate", return_value=monday):
+            meeting = KickoffMeeting.objects.create(project=self.project, data=tomorrow, created_by=self.user)
+            meeting.partecipanti_utenti.add(self.user)
+            MeetingIssue.objects.create(
+                project=self.project,
+                title="Problema scaduto",
+                status=MeetingIssueStatus.OPEN,
+                assigned_to=self.user,
+                due_date=monday - timedelta(days=3),
+            )
+
+            run_meetings_digest()
+
+        self.assertEqual(len(mail.outbox), 1)
+        body = mail.outbox[0].body
+        self.assertIn("Incontri KICK-OFF di domani", body)
+        self.assertIn("Problema scaduto", body)
+
+    def test_problema_scaduto_fuori_lunedi_non_genera_sollecito(self):
+        from datetime import date, timedelta
+        from unittest.mock import patch
+
+        from tasks.models import MeetingIssue, MeetingIssueStatus
+        from tasks.tasks import run_meetings_digest
+
+        tuesday = date(2026, 9, 8)  # non lunedi
+        MeetingIssue.objects.create(
+            project=self.project,
+            title="Problema scaduto",
+            status=MeetingIssueStatus.OPEN,
+            assigned_to=self.user,
+            due_date=tuesday - timedelta(days=3),
+        )
+
+        with patch("django.utils.timezone.localdate", return_value=tuesday):
+            run_meetings_digest()
+
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertEqual(len(mail.outbox), 0)

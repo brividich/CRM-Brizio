@@ -150,6 +150,8 @@
                 <div class="md-agenda-title">
                   {{ item.titolo }}
                   {% if item.task_label %}<span class="md-agenda-task">{{ item.task_label }}</span>{% endif %}
+                  {% if item.responsabile_label %}<span class="md-agenda-task">{{ item.responsabile_label }}</span>{% endif %}
+                  {% if item.durata_minuti %}<span class="md-agenda-task">{{ item.durata_minuti }} min</span>{% endif %}
                 </div>
                 {% if item.nota %}<div class="md-agenda-nota">{{ item.nota }}</div>{% endif %}
                 {% if item.custom_fields %}
@@ -296,6 +298,22 @@
     {% endif %}
 
     {% with partecipanti_utenti=meeting.partecipanti_utenti.all %}
+    {% if meeting.is_svolto and can_manage %}
+      <div class="md-card full md-closing-summary">
+        <div class="md-card-head">
+          <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+          <span>Riepilogo di chiusura</span>
+        </div>
+        <div class="md-card-body md-closing-summary-body">
+          <div class="md-closing-summary-stats">
+            <span><strong>{{ open_issue_count }}</strong> problem{{ open_issue_count|pluralize:"a,i" }} ancora apert{{ open_issue_count|pluralize:"o,i" }}{% if open_issue_count %} — {{ open_issue_count|pluralize:"entra,entrano" }} automaticamente nell'agenda del prossimo incontro{% endif %}</span>
+            <span><strong>{{ next_steps_lines|length }}</strong> next step registrat{{ next_steps_lines|length|pluralize:"o,i" }}</span>
+          </div>
+          <a class="md-btn" href="{% url 'tasks:project_meeting_create' project.id %}">Pianifica prossimo incontro &rarr;</a>
+        </div>
+      </div>
+    {% endif %}
+
     {% if not partecipanti_utenti and not meeting.partecipanti_email_extra and not meeting.partecipanti_testo and not meeting.agenda_items and not meeting.ordine_del_giorno and not meeting.note and not meeting_issues and not meeting.problemi_aperti and not meeting.next_steps and not meeting.outlook_event_id %}
       <div class="md-card full">
         <div class="md-card-body" style="text-align:center;padding:32px 18px;">

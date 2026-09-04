@@ -1,0 +1,107 @@
+<section class="ts-panel">
+  <div class="ts-panel-head">
+    <div class="ts-panel-title-wrap">
+      <h2 class="ts-panel-title">Kickoff</h2>
+      <p class="ts-panel-subtitle">{{ projects_page.paginator.count }} record con ricerca per nome o cliente.</p>
+    </div>
+  </div>
+  <div class="ts-panel-body">
+    <form method="get" class="admin-search-row">
+      <input type="hidden" name="tab" value="record">
+      <div class="ts-field">
+        <label for="id_q_proj">Cerca kickoff</label>
+        <input id="id_q_proj" type="text" name="q_proj" value="{{ q_proj }}" class="input" placeholder="Nome o cliente">
+      </div>
+      <div class="ts-actions">
+        <button type="submit" class="btn btn-sm">Cerca</button>
+        {% if q_proj %}<a href="?tab=record" class="btn btn-secondary btn-sm">Reset</a>{% endif %}
+      </div>
+    </form>
+
+    <div class="ts-table-wrap">
+      <table class="ts-table">
+        <thead><tr><th>Nome</th><th>Cliente</th><th>PM</th><th>Creato</th><th></th></tr></thead>
+        <tbody>
+          {% for p in projects_page %}
+            <tr>
+              <td>{{ p.name }}</td>
+              <td>{{ p.client_name|default:"-" }}</td>
+              <td>{{ p.project_manager.username|default:"-" }}</td>
+              <td>{{ p.created_at|date:"d-m-Y" }}</td>
+              <td><a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_gantt' p.id %}">Gantt</a></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5">Nessun kickoff trovato.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if projects_page.has_other_pages %}
+      <div class="ts-panel-footer">
+        <span class="ts-chip soft">Pagina {{ projects_page.number }} di {{ projects_page.paginator.num_pages }}</span>
+        {% if projects_page.has_previous %}<a class="btn btn-secondary btn-sm" href="?tab=record&q_proj={{ q_proj }}&proj_page={{ projects_page.previous_page_number }}">Prec</a>{% endif %}
+        {% if projects_page.has_next %}<a class="btn btn-secondary btn-sm" href="?tab=record&q_proj={{ q_proj }}&proj_page={{ projects_page.next_page_number }}">Succ</a>{% endif %}
+      </div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="ts-panel">
+  <div class="ts-panel-head">
+    <div class="ts-panel-title-wrap">
+      <h2 class="ts-panel-title">Attivita kickoff</h2>
+      <p class="ts-panel-subtitle">{{ tasks_page.paginator.count }} record filtrabili per titolo e stato.</p>
+    </div>
+  </div>
+  <div class="ts-panel-body">
+    <form method="get" class="admin-search-row">
+      <input type="hidden" name="tab" value="record">
+      <div class="ts-field">
+        <label for="id_q_task">Cerca attivita</label>
+        <input id="id_q_task" type="text" name="q_task" value="{{ q_task }}" class="input" placeholder="Titolo attivita">
+      </div>
+      <div class="ts-field">
+        <label for="id_filter_status">Stato</label>
+        <select id="id_filter_status" name="filter_status" class="input">
+          <option value="">Tutti gli stati</option>
+          {% for val, lbl in task_status_choices %}
+            <option value="{{ val }}" {% if filter_status == val %}selected{% endif %}>{{ lbl }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="ts-actions">
+        <button type="submit" class="btn btn-sm">Cerca</button>
+      </div>
+    </form>
+
+    <div class="ts-table-wrap">
+      <table class="ts-table">
+        <thead><tr><th>Titolo</th><th>Kickoff</th><th>Stato</th><th>Priorita</th><th>Assegnato a</th><th>Scadenza</th><th></th></tr></thead>
+        <tbody>
+          {% for t in tasks_page %}
+            <tr>
+              <td>{{ t.title }}</td>
+              <td>{{ t.project.name|default:"-" }}</td>
+              <td><span class="ts-badge ts-badge--{{ t.status|lower }}">{{ t.get_status_display }}</span></td>
+              <td><span class="ts-badge ts-badge--{{ t.priority|lower }}">{{ t.get_priority_display }}</span></td>
+              <td>{{ t.assigned_to.username|default:"-" }}</td>
+              <td>{% if t.due_date %}{{ t.due_date|date:"d-m-Y" }}{% else %}-{% endif %}</td>
+              <td><a class="btn btn-secondary btn-sm" href="{% url 'tasks:detail' t.id %}">Apri</a></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="7">Nessuna attivita trovata.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if tasks_page.has_other_pages %}
+      <div class="ts-panel-footer">
+        <span class="ts-chip soft">Pagina {{ tasks_page.number }} di {{ tasks_page.paginator.num_pages }}</span>
+        {% if tasks_page.has_previous %}<a class="btn btn-secondary btn-sm" href="?tab=record&q_task={{ q_task }}&filter_status={{ filter_status }}&task_page={{ tasks_page.previous_page_number }}">Prec</a>{% endif %}
+        {% if tasks_page.has_next %}<a class="btn btn-secondary btn-sm" href="?tab=record&q_task={{ q_task }}&filter_status={{ filter_status }}&task_page={{ tasks_page.next_page_number }}">Succ</a>{% endif %}
+      </div>
+    {% endif %}
+  </div>
+</section>
