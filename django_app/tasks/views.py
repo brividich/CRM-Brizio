@@ -6645,6 +6645,20 @@ def _sync_meeting_issues_from_post(request, project: Project, meeting: KickoffMe
         )
 
 
+def _agenda_notes_recap(meeting: KickoffMeeting) -> str:
+    """Note prese punto per punto durante la conduzione, come bozza di verbale."""
+    lines: list[str] = []
+    for index, item in enumerate(meeting.agenda_items or [], start=1):
+        if not isinstance(item, dict):
+            continue
+        titolo = str(item.get("titolo", "")).strip()
+        nota = str(item.get("nota", "")).strip()
+        if not titolo or not nota:
+            continue
+        lines.append(f"{index}. {titolo}: {nota}")
+    return "\n".join(lines)
+
+
 def _meeting_actions_for_form(project: Project, meeting: KickoffMeeting | None = None):
     """Azioni da mostrare nella pagina esito: le aperte + quelle nate qui."""
     qs = project.meeting_actions.select_related("source_meeting", "assigned_to", "linked_task")
@@ -6961,6 +6975,12 @@ def project_meeting_minutes(request, project_id: int, meeting_id: int):
             return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
     else:
         form = KickoffMeetingMinuteForm(instance=meeting)
+        # Se la riunione e' stata condotta da `/conduci/`, le note dei punti ci
+        # sono gia': si riportano nel verbale invece di farle riscrivere.
+        if not (meeting.note or "").strip():
+            recap = _agenda_notes_recap(meeting)
+            if recap:
+                form.initial["note"] = recap
 
     return render(
         request,
@@ -7387,6 +7407,142 @@ def project_decisions(request, project_id: int):
             "decisions": decisions,
         },
     )
+
+
+@task_permissions_required("tasks_create")
+def project_meeting_run(request, project_id: int, meeting_id: int):
+    """Schermata di conduzione: un punto alla volta, tempi e cattura rapida.
+
+    Prima esisteva solo il «dopo»: si conduceva la riunione altrove e si
+    riportava tutto a mano nella pagina esito.
+    """
+    project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
+    if not _can_manage_project(request, project):
+        messages.error(request, "Non hai i permessi per condurre questo incontro.")
+        return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+
+    items = [item for item in (meeting.agenda_items or []) if isinstance(item, dict)]
+    planned_minutes = sum(int(item.get("durata_minuti") or 0) for item in items)
+    return render(
+        request,
+        "tasks/project_meeting_run.html",
+        {
+            **_tasks_shell_context(request, active="meetings", project=project),
+            "page_title": f"Conduci incontro {meeting.numero} - {project.name}",
+            "project": project,
+            "meeting": meeting,
+            "agenda_items": items,
+            "planned_minutes": planned_minutes,
+            "done_count": sum(1 for item in items if item.get("done")),
+            "active_users": task_active_users_queryset(),
+            "decision_impacts": MeetingDecisionImpact.choices,
+            "item_update_url": reverse(
+                "tasks:project_meeting_agenda_item_update",
+                kwargs={"project_id": project_id, "meeting_id": meeting_id},
+            ),
+            "quick_capture_url": reverse(
+                "tasks:project_meeting_quick_capture",
+                kwargs={"project_id": project_id, "meeting_id": meeting_id},
+            ),
+        },
+    )
+
+
+@require_POST
+@task_permissions_required("tasks_create")
+def project_meeting_agenda_item_update(request, project_id: int, meeting_id: int):
+    """Autosave di nota, spunta e tempo effettivo su un punto dell'agenda."""
+    project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
+    if not _can_manage_project(request, project):
+        return JsonResponse({"ok": False, "reason": "forbidden"}, status=403)
+
+    item_id = (request.POST.get("item_id") or "").strip()
+    items = meeting.agenda_items or []
+    target = None
+    for item in items:
+        if isinstance(item, dict) and str(item.get("id", "")) == item_id:
+            target = item
+            break
+    if target is None:
+        return JsonResponse({"ok": False, "reason": "item_not_found"}, status=404)
+
+    if "nota" in request.POST:
+        target["nota"] = (request.POST.get("nota") or "").strip()[:1000]
+    if "done" in request.POST:
+        target["done"] = (request.POST.get("done") or "").lower() in ("1", "true", "on")
+    if "tempo_effettivo_minuti" in request.POST:
+        try:
+            minuti = int(request.POST.get("tempo_effettivo_minuti") or 0)
+        except (TypeError, ValueError):
+            minuti = 0
+        target["tempo_effettivo_minuti"] = minuti if 0 < minuti <= 480 else None
+
+    meeting.agenda_items = items
+    meeting.save(update_fields=["agenda_items", "updated_at"])
+    return JsonResponse({
+        "ok": True,
+        "item_id": item_id,
+        "done": bool(target.get("done")),
+        "tempo_effettivo_minuti": target.get("tempo_effettivo_minuti"),
+    })
+
+
+@require_POST
+@task_permissions_required("tasks_create")
+def project_meeting_quick_capture(request, project_id: int, meeting_id: int):
+    """Cattura rapida durante la riunione: azione, decisione o problema."""
+    project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
+    if not _can_manage_project(request, project):
+        return JsonResponse({"ok": False, "reason": "forbidden"}, status=403)
+
+    kind = (request.POST.get("kind") or "").strip()
+    titolo = (request.POST.get("titolo") or "").strip()
+    if not titolo:
+        return JsonResponse({"ok": False, "reason": "title_required"}, status=400)
+
+    owner = None
+    owner_id = (request.POST.get("owner_id") or "").strip()
+    if owner_id:
+        try:
+            owner = User.objects.get(pk=int(owner_id))
+        except (User.DoesNotExist, ValueError):
+            owner = None
+    due_date = _parse_optional_date(request.POST.get("due_date") or "")
+
+    if kind == "action":
+        record = MeetingActionItem.objects.create(
+            project=project, source_meeting=meeting, title=titolo[:220],
+            assigned_to=owner, due_date=due_date,
+            created_by=request.user if request.user.is_authenticated else None,
+        )
+        label = "Azione"
+    elif kind == "issue":
+        record = MeetingIssue.objects.create(
+            project=project, source_meeting=meeting, title=titolo[:220],
+            assigned_to=owner, due_date=due_date,
+            created_by=request.user if request.user.is_authenticated else None,
+        )
+        label = "Problema"
+    elif kind == "decision":
+        impatto = (request.POST.get("impatto") or "").strip().upper()
+        valid = {value for value, _ in MeetingDecisionImpact.choices}
+        record = MeetingDecision.objects.create(
+            project=project, meeting=meeting, testo=titolo[:400],
+            decisa_da=owner,
+            impatto=impatto if impatto in valid else MeetingDecisionImpact.MEDIO,
+            created_by=request.user if request.user.is_authenticated else None,
+        )
+        label = "Decisione"
+    else:
+        return JsonResponse({"ok": False, "reason": "invalid_kind"}, status=400)
+
+    log_action(request, "kickoff_meeting_quick_capture", "tasks", {
+        "kind": kind, "record_id": record.pk, "meeting_id": meeting.pk, "project_id": project.pk,
+    })
+    return JsonResponse({"ok": True, "kind": kind, "label": label, "titolo": titolo, "id": record.pk})
 
 
 @require_POST

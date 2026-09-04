@@ -528,6 +528,117 @@ class MeetingsDigestJobTests(TasksBaseTestCase):
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class MeetingRunTests(TasksBaseTestCase):
+    """Schermata di conduzione: autosave sui punti e cattura rapida."""
+
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "tasks")
+        _grant_role_actions(2, ["tasks_view", "tasks_create"])
+        self._refresh_acl_cache()
+        self.user = _create_user_with_legacy(
+            username="conduci-pm", legacy_user_id=581, role_id=2, role_name="tasks"
+        )
+        self.estraneo = _create_user_with_legacy(
+            username="conduci-estraneo", legacy_user_id=582, role_id=2, role_name="tasks"
+        )
+        self.project = Project.objects.create(
+            name="", created_by=self.user, project_manager=self.user
+        )
+        self.meeting = KickoffMeeting.objects.create(
+            project=self.project,
+            data="2026-09-10",
+            created_by=self.user,
+            agenda_items=[
+                {"id": "a1", "titolo": "Stato avanzamento", "nota": "", "durata_minuti": 15, "done": False},
+                {"id": "a2", "titolo": "Criticità", "nota": "", "durata_minuti": 20, "done": False},
+            ],
+        )
+        self.client.force_login(self.user)
+        self.run_url = reverse("tasks:project_meeting_run", args=[self.project.id, self.meeting.id])
+        self.item_url = reverse(
+            "tasks:project_meeting_agenda_item_update", args=[self.project.id, self.meeting.id]
+        )
+        self.capture_url = reverse(
+            "tasks:project_meeting_quick_capture", args=[self.project.id, self.meeting.id]
+        )
+
+    def test_la_pagina_somma_i_tempi_pianificati(self):
+        response = self.client.get(self.run_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["planned_minutes"], 35)
+        self.assertEqual(response.context["done_count"], 0)
+
+    def test_autosave_nota_spunta_e_tempo_effettivo(self):
+        self.client.post(self.item_url, {"item_id": "a1", "nota": "in linea col piano"})
+        self.client.post(self.item_url, {"item_id": "a1", "done": "1"})
+        self.client.post(self.item_url, {"item_id": "a1", "tempo_effettivo_minuti": "22"})
+        self.meeting.refresh_from_db()
+        item = self.meeting.agenda_items[0]
+        self.assertEqual(item["nota"], "in linea col piano")
+        self.assertTrue(item["done"])
+        self.assertEqual(item["tempo_effettivo_minuti"], 22)
+
+    def test_tempo_fuori_range_viene_scartato(self):
+        self.client.post(self.item_url, {"item_id": "a1", "tempo_effettivo_minuti": "999"})
+        self.meeting.refresh_from_db()
+        self.assertIsNone(self.meeting.agenda_items[0]["tempo_effettivo_minuti"])
+
+    def test_punto_inesistente_risponde_404(self):
+        response = self.client.post(self.item_url, {"item_id": "nope", "nota": "x"})
+        self.assertEqual(response.status_code, 404)
+
+    def test_cattura_rapida_crea_azione_decisione_e_problema(self):
+        from tasks.models import MeetingActionItem, MeetingDecision
+
+        self.client.post(self.capture_url, {
+            "kind": "action", "titolo": "Chiamare il fornitore",
+            "owner_id": str(self.user.pk), "due_date": "2026-09-20",
+        })
+        self.client.post(self.capture_url, {
+            "kind": "decision", "titolo": "Si procede con A", "impatto": "ALTO",
+        })
+        self.client.post(self.capture_url, {"kind": "issue", "titolo": "Manca il disegno"})
+
+        action = MeetingActionItem.objects.get(project=self.project)
+        self.assertEqual(action.assigned_to, self.user)
+        self.assertEqual(action.source_meeting, self.meeting)
+        self.assertEqual(MeetingDecision.objects.filter(meeting=self.meeting).count(), 1)
+        self.assertTrue(MeetingIssue.objects.filter(source_meeting=self.meeting).exists())
+
+    def test_cattura_rapida_senza_titolo_non_crea_nulla(self):
+        from tasks.models import MeetingActionItem
+
+        response = self.client.post(self.capture_url, {"kind": "action", "titolo": "  "})
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(MeetingActionItem.objects.exists())
+
+    def test_chi_non_gestisce_la_commessa_non_conduce(self):
+        """Fuori scope si esce con 404, in scope senza gestione con 403: mai scrittura."""
+        self.client.force_login(self.estraneo)
+        response = self.client.post(self.item_url, {"item_id": "a1", "nota": "x"})
+        self.assertIn(response.status_code, (403, 404))
+        self.meeting.refresh_from_db()
+        self.assertEqual(self.meeting.agenda_items[0]["nota"], "")
+
+    def test_l_esito_riparte_dalle_note_prese_durante_la_riunione(self):
+        self.client.post(self.item_url, {"item_id": "a1", "nota": "in linea col piano"})
+        response = self.client.get(
+            reverse("tasks:project_meeting_minutes", args=[self.project.id, self.meeting.id])
+        )
+        self.assertIn("Stato avanzamento: in linea col piano", response.context["form"].initial["note"])
+
+    def test_un_verbale_gia_scritto_non_viene_sovrascritto(self):
+        self.meeting.note = "verbale scritto a mano"
+        self.meeting.save(update_fields=["note"])
+        self.client.post(self.item_url, {"item_id": "a1", "nota": "nota del punto"})
+        response = self.client.get(
+            reverse("tasks:project_meeting_minutes", args=[self.project.id, self.meeting.id])
+        )
+        self.assertEqual(response.context["form"].initial["note"], "verbale scritto a mano")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class MeetingAgendaProposalTests(TasksBaseTestCase):
     """I convocati propongono punti, chi gestisce la commessa decide."""
 

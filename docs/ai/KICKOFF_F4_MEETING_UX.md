@@ -250,12 +250,12 @@ non è sommata, non è confrontata con l'orario, e l'esito si scrive dopo in un 
 
 **Checklist**
 
-- [ ] endpoint `project_meeting_agenda_item_update` (nota / done / tempo effettivo)
-- [ ] endpoint di cattura rapida azione / decisione / problema
-- [ ] template `project_meeting_run.html` + CSS in `tasks.css`
-- [ ] barra tempi e avviso sforamento
-- [ ] passaggio alla pagina esito precompilata
-- [ ] test: autosave, permessi, tempi, precompilazione esito
+- [x] endpoint `project_meeting_agenda_item_update` (nota / done / tempo effettivo)
+- [x] endpoint `project_meeting_quick_capture` (azione / decisione / problema)
+- [x] template `project_meeting_run.html` + CSS in `tasks.css`, ingresso "Conduci incontro" dal dettaglio
+- [x] barra tempi sticky (pianificato vs trascorso) e avviso di sforamento
+- [x] passaggio alla pagina esito con il verbale precompilato dalle note dei punti
+- [x] test: tempi, autosave, tempo fuori range, punto inesistente, cattura rapida, permessi, precompilazione
 
 ---
 

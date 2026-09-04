@@ -38,6 +38,9 @@
     {% if can_manage %}
       <div class="md-actions">
         {% if not meeting.minuta_chiusa %}
+          {% if not meeting.is_svolto %}
+            <a class="md-btn" href="{% url 'tasks:project_meeting_run' project.id meeting.id %}">Conduci incontro</a>
+          {% endif %}
           <a class="md-btn" href="{% url 'tasks:project_meeting_minutes' project.id meeting.id %}">{% if meeting.is_svolto %}Aggiorna esito{% else %}Registra esito{% endif %}</a>
         {% endif %}
         <button type="button" class="md-btn" onclick="openCreateTaskModal('', null)">Crea / assegna attività</button>

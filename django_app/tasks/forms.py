@@ -1087,6 +1087,17 @@ class ProjectTaskGanttUpdateForm(forms.ModelForm):
         return cleaned_data
 
 
+def _positive_int_or_none(value, *, maximum: int = 480) -> int | None:
+    """Minuti validi (1..maximum) o None: usato dai campi tempo dei punti ODG."""
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return None
+    if number <= 0 or number > maximum:
+        return None
+    return number
+
+
 class KickoffMeetingForm(forms.ModelForm):
     """Convocazione dell'incontro: quello che si decide PRIMA che l'incontro avvenga.
 
@@ -1198,6 +1209,7 @@ class KickoffMeetingForm(forms.ModelForm):
                     "responsabile_id": int(responsabile_id) if responsabile_id else None,
                     "responsabile_label": str(item.get("responsabile_label", "")).strip()[:150],
                     "durata_minuti": durata,
+                    "tempo_effettivo_minuti": _positive_int_or_none(item.get("tempo_effettivo_minuti")),
                     "custom_fields": custom_fields,
                     "done": bool(item.get("done", False)),
                 })

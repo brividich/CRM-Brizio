@@ -132,6 +132,7 @@ _ROUTE_BINDINGS = {
     "tasks:project_gantt_shift_task": "tasks.kickoff.edit",
     "tasks:project_meeting_edit": "tasks.kickoff.edit",
     "tasks:project_meeting_minutes": "tasks.kickoff.edit",
+    "tasks:project_meeting_run": "tasks.kickoff.edit",
     "tasks:project_meeting_send_invite": "tasks.kickoff.edit",
     "tasks:project_meeting_send_minute": "tasks.kickoff.edit",
     "tasks:project_meeting_minute_close": "tasks.kickoff.edit",
@@ -147,6 +148,8 @@ _ROUTE_BINDINGS = {
     "tasks:project_meeting_action_status": "tasks.kickoff.comment",
     "tasks:project_meeting_proposal_decide": "tasks.kickoff.comment",
     "tasks:project_meeting_agenda_toggle": "tasks.kickoff.comment",
+    "tasks:project_meeting_agenda_item_update": "tasks.kickoff.comment",
+    "tasks:project_meeting_quick_capture": "tasks.kickoff.comment",
     # Gestione amministrativa
     "tasks:gestione_admin": "tasks.kickoff.admin",
     "tasks:impostazioni": "tasks.kickoff.admin",
