@@ -1,0 +1,81 @@
+{% comment %}Tabella di occorrenze, riusata da "Da fare", "Scadenze", scheda piano e quadro.
+   Parametri attesi nel contesto d'inclusione:
+     rows          righe {occurrence, state, label, badge_class, days_until_due}
+     selectable    mostra le checkbox per l'azione massiva
+     show_plan     mostra la colonna Piano (si nasconde nella scheda piano)
+     today         data di riferimento{% endcomment %}
+<div class="md-scroll">
+  <table class="md-table" data-fm-hide-search="1">
+    <thead>
+      <tr>
+        {% if selectable %}<th style="width:34px"><input type="checkbox" data-md-check-all></th>{% endif %}
+        <th>Scadenza</th>
+        {% if show_plan %}<th>Piano</th>{% endif %}
+        <th>Asset</th>
+        <th>Stato</th>
+        <th>Ordine di lavoro</th>
+        <th class="md-right">Azioni</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        {% with occ=row.occurrence %}
+        <tr>
+          {% if selectable %}
+            <td>
+              {% if not occ.work_order_id and occ.status == "OPEN" %}
+                <input type="checkbox" name="occurrence_ids" value="{{ occ.pk }}" form="md-bulk-form" data-md-check>
+              {% endif %}
+            </td>
+          {% endif %}
+          <td>
+            <span class="md-due {% if row.state == 'overdue' %}is-late{% endif %}">{{ occ.due_date|date:"d/m/Y" }}</span>
+            {% if row.days_until_due != None %}
+              <span class="md-sub">
+                {% if row.days_late %}scaduta da {{ row.days_late }} gg
+                {% elif row.days_until_due == 0 %}oggi
+                {% else %}fra {{ row.days_until_due }} gg{% endif %}
+              </span>
+            {% endif %}
+          </td>
+          {% if show_plan %}
+            <td>
+              <a class="md-asset" href="{% url 'assets:maintenance_plan_detail' occ.plan_id %}">{{ occ.plan.label }}</a>
+              <span class="md-sub">{{ occ.plan.get_maintenance_type_display }}</span>
+            </td>
+          {% endif %}
+          <td>
+            <a class="md-asset" href="{% url 'assets:asset_maintenance_plans' occ.asset_id %}">{{ occ.asset.asset_tag|default:occ.asset.name }}</a>
+            <span class="md-sub">{{ occ.asset.name }}{% if occ.asset.reparto %} · {{ occ.asset.reparto }}{% endif %}</span>
+          </td>
+          <td>
+            <span class="md-badge {{ row.badge_class }}">{{ row.label }}</span>
+            {% if occ.is_external %}<span class="md-sub">Esterna{% if occ.supplier %} · {{ occ.supplier.ragione_sociale }}{% endif %}</span>{% endif %}
+          </td>
+          <td class="md-nowrap">
+            {% if occ.work_order_id %}
+              <a href="{% url 'assets:wo_view' occ.work_order_id %}">OdL #{{ occ.work_order_id }}</a>
+              {% if occ.execution_day_id %}<span class="md-sub">{{ occ.execution_day.execution_date|date:"d/m" }}</span>{% endif %}
+            {% else %}
+              <span class="md-sub">Da pianificare</span>
+            {% endif %}
+          </td>
+          <td class="md-right md-nowrap">
+            {% if occ.status == "OPEN" %}
+              <a class="btn btn-sm" href="{% url 'assets:occurrence_complete' occ.pk %}">Registra</a>
+            {% elif not occ.attachments.all %}
+              <a class="btn btn-sm" href="{% url 'assets:occurrence_complete' occ.pk %}">Allega rapporto</a>
+            {% else %}
+              {% for attachment in occ.attachments.all|slice:":1" %}
+                <a class="btn btn-sm" href="{% url 'assets:occurrence_attachment_download' attachment.pk %}">Rapporto</a>
+              {% endfor %}
+            {% endif %}
+          </td>
+        </tr>
+        {% endwith %}
+      {% empty %}
+        <tr><td colspan="{% if selectable %}7{% else %}6{% endif %}" class="md-empty">Nessuna manutenzione in questo gruppo.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

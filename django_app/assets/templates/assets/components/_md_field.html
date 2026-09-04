@@ -1,0 +1,7 @@
+{# Un campo di form del pacchetto manutenzione: etichetta, widget, aiuto, errori. #}
+<div class="md-field{% if field.field.widget.input_type == 'checkbox' %} md-field-check{% endif %}">
+  <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+  {{ field }}
+  {% if field.help_text %}<span class="helptext">{{ field.help_text }}</span>{% endif %}
+  {{ field.errors }}
+</div>

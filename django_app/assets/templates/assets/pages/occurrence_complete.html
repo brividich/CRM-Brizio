@@ -1,0 +1,61 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Registra — {{ occurrence.plan.label }}{% endblock %}
+
+{% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}{% endblock %}
+
+{% block assets_shell_title %}Registra l'esecuzione{% endblock %}
+{% block assets_shell_subtitle %}
+  <p>{{ occurrence.plan.label }} su <strong>{{ occurrence.asset.asset_tag|default:occurrence.asset.name }}</strong> — scadenza {{ occurrence.due_date|date:"d/m/Y" }}</p>
+{% endblock %}
+
+{% block assets_shell_toolbar %}
+  {% if occurrence.work_order_id %}<a class="btn" href="{% url 'assets:wo_view' occurrence.work_order_id %}">Ordine di lavoro #{{ occurrence.work_order_id }}</a>{% endif %}
+  <a class="btn" href="{% url 'assets:occurrence_followup_create' occurrence.pk %}">Apri follow-up</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<form class="md-form" method="post" enctype="multipart/form-data" novalidate>
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+
+  <div class="md-preview">
+    Stato attuale: <span class="md-badge {{ state.badge_class }}">{{ state.label }}</span>.
+    {% if occurrence.schedule_anchor == "FIXED_CALENDAR" %}
+      La prossima scadenza sara' calcolata dalla <strong>scadenza teorica</strong> ({{ occurrence.due_date|date:"d/m/Y" }}): eseguirla in ritardo non sposta il calendario.
+    {% else %}
+      La prossima scadenza sara' calcolata dalla <strong>data di esecuzione</strong> che indichi qui sotto.
+    {% endif %}
+  </div>
+
+  <fieldset class="md-fieldset">
+    <h2>Esecuzione</h2>
+    <div class="md-grid-2">
+      {% include "assets/components/_md_field.html" with field=form.completed_on %}
+      {% include "assets/components/_md_field.html" with field=form.downtime_minutes %}
+      {% if form.report_received_at %}{% include "assets/components/_md_field.html" with field=form.report_received_at %}{% endif %}
+    </div>
+    {% include "assets/components/_md_field.html" with field=form.notes %}
+  </fieldset>
+
+  <fieldset class="md-fieldset">
+    <h2>Rapporto / documento</h2>
+    {% if occurrence.attachment_required %}
+      <p class="md-hint"><strong>Obbligatorio.</strong> Per completare questa scadenza serve il documento aggiornato.</p>
+    {% endif %}
+    {% include "assets/components/_md_field.html" with field=form.attachment %}
+    {% if occurrence.attachments.all %}
+      <ul style="margin:0;padding-left:18px;font-size:var(--fs-sm)">
+        {% for attachment in occurrence.attachments.all %}
+          <li><a href="{% url 'assets:occurrence_attachment_download' attachment.pk %}">{{ attachment.original_name|default:"allegato" }}</a></li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </fieldset>
+
+  <div class="md-form-actions">
+    <button type="submit" class="btn btn-primary">Registra esecuzione</button>
+    <a class="btn" href="{% url 'assets:maintenance_da_fare' %}">Annulla</a>
+  </div>
+</form>
+{% endblock %}

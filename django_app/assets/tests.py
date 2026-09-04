@@ -3401,15 +3401,20 @@ class AssetsRoutingTests(TestCase):
         self.assertContains(hub_response, 'aria-label="Manutenzione"', html=False)
         self.assertContains(hub_response, ">Assets<", html=False)
         self.assertContains(hub_response, ">Manutenzione<", html=False)
+        # La sezione parla il linguaggio del nuovo dominio: "Da fare" e "Scadenze"
+        # sostituiscono "Oggi" e "Scadenzario", che restano raggiungibili per URL
+        # finche' il vecchio motore non e' dismesso.
         self.assertContains(
             hub_response,
-            f'class="as-section-tab active" href="{reverse("assets:maintenance_hub")}" aria-current="page">Oggi</a>',
+            f'class="as-section-tab active" href="{reverse("assets:maintenance_da_fare")}" aria-current="page">Da fare</a>',
             html=False,
         )
-        self.assertContains(hub_response, f'href="{reverse("assets:maintenance_schedule")}">Scadenzario</a>', html=False)
+        self.assertContains(hub_response, f'href="{reverse("assets:maintenance_scadenze")}">Scadenze</a>', html=False)
+        self.assertContains(hub_response, f'href="{reverse("assets:maintenance_plan_list")}">Piani</a>', html=False)
+        self.assertContains(hub_response, f'href="{reverse("assets:asset_group_list")}">Gruppi asset</a>', html=False)
         self.assertContains(hub_response, f'href="{reverse("assets:wo_list")}">Interventi</a>', html=False)
         self.assertContains(hub_response, f'href="{reverse("assets:maintenance_history")}">Storico</a>', html=False)
-        self.assertContains(hub_response, f'href="{reverse("assets:maintenance_impostazioni")}">Catalogo e piani</a>', html=False)
+        self.assertContains(hub_response, f'href="{reverse("assets:maintenance_impostazioni")}">Impostazioni</a>', html=False)
         self.assertContains(
             hub_response,
             f'class="as-section-action as-section-action--primary" href="{reverse("assets:wo_list")}?create=1" data-as-section-action="new-workorder">+ Nuovo intervento</a>',
@@ -3422,7 +3427,7 @@ class AssetsRoutingTests(TestCase):
         )
         self.assertContains(
             hub_response,
-            f'href="{reverse("assets:maintenance_rule_create")}" data-as-section-action="new-plan">+ Nuovo piano</a>',
+            f'href="{reverse("assets:maintenance_plan_create")}" data-as-section-action="new-plan">+ Nuovo piano</a>',
             html=False,
         )
 
@@ -3430,7 +3435,7 @@ class AssetsRoutingTests(TestCase):
         self.assertEqual(schedule_response.status_code, 200)
         self.assertContains(
             schedule_response,
-            f'class="as-section-tab active" href="{reverse("assets:maintenance_schedule")}" aria-current="page">Scadenzario</a>',
+            f'class="as-section-tab active" href="{reverse("assets:maintenance_scadenze")}" aria-current="page">Scadenze</a>',
             html=False,
         )
 

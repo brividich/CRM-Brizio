@@ -1,0 +1,96 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}{{ plan.label }} — {{ asset.asset_tag }}{% endblock %}
+
+{% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}{% endblock %}
+
+{% block assets_shell_title %}{{ plan.label }} su {{ asset.asset_tag }}{% endblock %}
+{% block assets_shell_subtitle %}
+  <p>{{ asset.name }}{% if asset.reparto %} · {{ asset.reparto }}{% endif %}</p>
+{% endblock %}
+
+{% block assets_shell_toolbar %}
+  <a class="btn" href="{% url 'assets:asset_maintenance_plans' asset.pk %}">Torna ai piani dell'asset</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<form class="md-form" method="post" novalidate data-md-customize>
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+
+  {% if resolution %}
+    <div class="md-preview">
+      {% if resolution.is_conflict %}
+        <strong>Conflitto da risolvere.</strong>
+        Il piano arriva qui da piu' gruppi con periodicita' diverse:
+        {% for item in resolution.conflict_description %}{{ item.target }} ({{ item.recurrence }}){% if not forloop.last %}, {% endif %}{% endfor %}.
+        Personalizzare questo asset risolve il conflitto.
+      {% elif resolution.is_excluded %}
+        Questo asset e' attualmente <strong>escluso</strong> dal piano.
+      {% else %}
+        Impostazione attuale: <strong>{{ resolution.recurrence_label }}</strong>
+        {% if resolution.assignment %}({{ resolution.source_label|lower }}: {{ resolution.assignment.target_label }}){% endif %}.
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <fieldset class="md-fieldset">
+    <h2>Comportamento su questo asset</h2>
+    {% include "assets/components/_md_field.html" with field=form.mode %}
+  </fieldset>
+
+  <fieldset class="md-fieldset" data-md-custom-block>
+    <h2>Periodicita per questo asset</h2>
+    {% include "assets/components/_md_field.html" with field=form.recurrence_preset %}
+    <div class="md-grid-2" data-md-custom-recurrence>
+      {% include "assets/components/_md_field.html" with field=form.interval %}
+      {% include "assets/components/_md_field.html" with field=form.frequency %}
+      {% include "assets/components/_md_field.html" with field=form.weekday %}
+      {% include "assets/components/_md_field.html" with field=form.week_of_month %}
+      {% include "assets/components/_md_field.html" with field=form.day_of_month %}
+      {% include "assets/components/_md_field.html" with field=form.month_of_year %}
+    </div>
+    <div class="md-grid-2">
+      {% include "assets/components/_md_field.html" with field=form.warning_days %}
+      {% include "assets/components/_md_field.html" with field=form.first_due_date %}
+    </div>
+  </fieldset>
+
+  <fieldset class="md-fieldset">
+    <h2>Motivo</h2>
+    <p class="md-hint">Escludere o personalizzare una macchina resta a registro: fra sei mesi serve sapere perche'.</p>
+    {% include "assets/components/_md_field.html" with field=form.notes %}
+  </fieldset>
+
+  <div class="md-form-actions">
+    <button type="submit" class="btn btn-primary">Salva</button>
+    <a class="btn" href="{% url 'assets:asset_maintenance_plans' asset.pk %}">Annulla</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block assets_shell_scripts %}
+<script>
+(function () {
+  var form = document.querySelector('[data-md-customize]');
+  if (!form) { return; }
+  var customBlock = form.querySelector('[data-md-custom-block]');
+  var recurrenceBlock = form.querySelector('[data-md-custom-recurrence]');
+  var preset = form.querySelector('#id_recurrence_preset');
+
+  function selectedMode() {
+    var checked = form.querySelector('input[name="mode"]:checked');
+    return checked ? checked.value : '';
+  }
+  function sync() {
+    // I campi di periodicita' hanno senso solo se si sta personalizzando.
+    if (customBlock) { customBlock.hidden = selectedMode() !== 'custom'; }
+    if (recurrenceBlock) { recurrenceBlock.hidden = preset && preset.value !== 'custom'; }
+  }
+  form.addEventListener('change', function (event) {
+    if (event.target.name === 'mode' || event.target === preset) { sync(); }
+  });
+  sync();
+})();
+</script>
+{% endblock %}

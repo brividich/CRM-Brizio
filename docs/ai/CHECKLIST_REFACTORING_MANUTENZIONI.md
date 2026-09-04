@@ -68,61 +68,78 @@ L'**occorrenza** è la fonte canonica della scadenza concreta. L'OdL è solo lo 
 
 ### Test
 - [x] 35 test in `assets/tests_maintenance_domain.py` — coprono §64.1→§64.14 della specifica. Verdi.
+- [x] 24 test in `assets/tests_maintenance_ui.py` sulle pagine e sui flussi. Verdi.
 
 ```powershell
-python django_app\manage.py test assets.tests_maintenance_domain --settings=config.settings.test --keepdb
+python django_app\manage.py test assets.tests_maintenance_domain assets.tests_maintenance_ui --settings=config.settings.test --keepdb
 ```
 
 ---
 
-## 3. Da fare — Fase E (UI). **È il blocco più grosso rimasto.**
+## 3. Fase E (UI) — fatta, con i residui elencati
 
-Nessuna view/template/URL è stata ancora scritta: il dominio è pronto e testato, l'interfaccia parla ancora il vecchio linguaggio.
+Commit della fase: `feature/assets-manutenzione-refactor`. Nuove pagine sotto `/assets/manutenzione/`, viste in `assets/views_maintenance.py`, form in `assets/forms_maintenance.py` (moduli separati: `views.py` è a 18k righe e `forms.py` a 3k, entrambi toccati da rami paralleli).
 
 ### E1 — Piani
-- [ ] Elenco piani (`/assets/manutenzione/piani/`): nome, tipo, n. asset coperti, periodicità applicate, prossima scadenza, scadute, attivo
-- [ ] Scheda piano: applicazioni (gruppo/asset + periodicità + preavviso), prossime scadenze, OdL aperti, storico, follow-up
-- [ ] Wizard nuovo piano a 5 step (Cosa / Dove / Quando / Chi / Anteprima). Step 5 deve mostrare «Questo piano interesserà N asset, X entro ottobre, Y conflitti»
-- [ ] Riusare `RECURRENCE_PRESETS`: mai esporre cron o i sei campi grezzi
-- [ ] Anteprima impatto prima del salvataggio di un'applicazione (analogo di `preview_maintenance_rule_impact`, ma sulle occorrenze)
+- [x] Elenco `/assets/manutenzione/piani/`: tipo, asset coperti, periodicità applicate, prossima scadenza, scadute, conflitti
+- [x] Scheda piano: applicazioni con periodicità leggibile e ancoraggio, conflitti in testa con link «Personalizza», prossime scadenze, OdL aperti, storico con ritardo
+- [x] Form piano a sezioni numerate (Cosa / Chi / Documenti e calendario / Pubblicazione) — **non** un wizard multi-pagina: un form progressivo a step numerati copre lo stesso bisogno senza stato intermedio da gestire
+- [x] Periodicità da preset leggibili (`RECURRENCE_PRESETS`); i sei campi grezzi compaiono solo con «Personalizzata»
+- [x] Anteprima impatto AJAX prima del salvataggio: quanti asset coinvolge, quante scadenze aperte esistono già, quanti conflitti
+- [ ] L'anteprima non elenca ancora **le prime scadenze** («8 entro ottobre, 6 entro novembre» della specifica §29): mostra solo i conteggi
 
-### E2 — Da fare (pagina quotidiana del manutentore)
-- [ ] Blocchi: SCADUTE / QUESTA SETTIMANA / PROGRAMMATE / IN ATTESA / ESTERNE
-- [ ] Switch vista: per Piano / per Famiglia (gruppo) / per Asset
-- [ ] Riepilogo in testa: scadute, entro 7 giorni, in programma, appuntamenti esterni
-- [ ] Selezione multipla → `[Crea OdL]` (usa `create_workorder_from_occurrences`)
-- [ ] Ordinamento: scadute → in scadenza → da pianificare → programmate → future (`VIEW_STATE_ORDER` esiste già)
+### E2 — Da fare
+- [x] Blocchi SCADUTE / ENTRO 7 GIORNI / PROGRAMMATE / IN ATTESA / ESTERNE
+- [x] Switch di raggruppamento Piano / Famiglia / Asset (parametro `?by=`, non `?group=`: quello è il filtro per gruppo)
+- [x] Riepilogo in testa cliccabile (scadute, entro 7 giorni, in programma, appuntamenti esterni)
+- [x] Selezione multipla → «Crea ordine di lavoro» (barra che compare solo a selezione non vuota). La selezione sta **solo** nella sezione raggruppata: i blocchi in alto sono di lettura, altrimenti la stessa occorrenza sarebbe selezionabile due volte
+- [x] Ordinamento per urgenza (`VIEW_STATE_ORDER`)
 
 ### E3 — Scadenze
-- [ ] Vista temporale: tab Scadute / 30 giorni / 90 giorni / Tutte / Amministrative / Ordinarie
-- [ ] Filtri §26: piano, asset, gruppo, reparto, tipo, stato, assegnatario, fornitore, interna/esterna, con-senza OdL, rapporto mancante, follow-up aperto, periodo
+- [x] Tab Scadute / 30 / 90 / Tutte / Amministrative / Ordinarie
+- [x] Tutti i filtri della specifica §26 (piano, asset, gruppo, reparto, tipo, esecuzione, con/senza OdL, assegnatario, fornitore, rapporto mancante, ricerca)
 
-### E4 — OdL
-- [ ] Dettaglio OdL massivo: elenco occorrenze con checkbox, contatori «Completate / Da fare / Rimosse / Totale iniziale»
-- [ ] Deselezionare un asset → `remove_occurrence_from_workorder` (mai chiusura/annullamento)
-- [ ] `[Distribuisci su più giorni]` → `assign_occurrences_to_day`, raggruppamento per giornata, rapportino per giornata
-- [ ] Chiusura per singola occorrenza (`complete_occurrence`), non per lotto
-- [ ] Da step checklist KO/fuori range: `[Crea follow-up]` precompilato (asset, piano, occorrenza, OdL, step, descrizione)
+### E4 — OdL massivi
+- [x] Pannello «Manutenzioni raccolte» nel dettaglio OdL, raggruppato per giornata di esecuzione
+- [x] Contatori «Completate · da fare · totale iniziale» + «parzialmente completato»
+- [x] Rimozione di un asset che **non** chiude e **non** annulla (con conferma esplicita che lo dice)
+- [x] «Distribuisci sulla giornata» sulla selezione
+- [x] Chiusura per singola occorrenza, con allegato e blocco sulle amministrative
+- [x] Follow-up agganciato a occorrenza + asset (accetta `?step=<id>` per lo step di checklist)
+- [ ] Manca il **pulsante «Crea follow-up» dentro la checklist** quando uno step è KO o fuori range: la view lo supporta già via `?step=`, va aggiunto il link in `components/workorder_checklist.html`
 
 ### E5 — Dashboard
-- [ ] Responsabile: SCADUTE, IN SCADENZA, NON PIANIFICATE, ODL APERTI/IN CORSO, IN ATTESA, RAPPORTI MANCANTI, FOLLOW-UP APERTI + sezione «manutenzioni senza OdL»
-- [ ] Caporeparto: filtro sul proprio reparto (riusare i ruoli/ACL esistenti, non inventare un sistema parallelo)
-- [ ] Matrice copertura asset × piani con `✓ ereditato / P personalizzato / X escluso / ! conflitto / - non applicato` (dati già pronti da `build_plan_resolutions`)
+- [x] Quadro responsabile `/assets/manutenzione/quadro/`: scadute, in scadenza, non pianificate, OdL aperti/in corso, in attesa, rapporti mancanti, follow-up, conflitti
+- [x] Sezione «manutenzioni dovute ma non pianificate» in evidenza
+- [x] Matrice copertura `/assets/manutenzione/copertura/` con `✓ / P / X / ! / –`, celle cliccabili verso la personalizzazione
+- [ ] **Caporeparto**: esiste il filtro per reparto, non uno scope automatico sul proprio reparto. Va deciso se derivarlo dall'anagrafica (attenzione: `reparto` sull'asset è testo libero) o da un permesso dedicato
 
 ### E6 — Scheda asset e gruppi
-- [ ] Blocco «Piani di manutenzione» nella scheda asset: periodicità, «Ereditato da: TORNI», prossima scadenza, azioni `[Personalizza] [Escludi] [Storico]` (mai la parola "override")
-- [ ] Quando personalizzato, mostrare anche lo standard del gruppo (`inherited_recurrence_label` esiste già)
-- [ ] CRUD gruppi asset + gestione membership
+- [x] `/assets/manutenzione/asset/<id>/piani/`: periodicità, origine («Ereditato dal gruppo» / «Personalizzato» / «Escluso» / «Conflitto»), prossima scadenza, storico. La parola «override» non compare
+- [x] Quando personalizzato mostra anche lo standard del gruppo
+- [x] Personalizza / Escludi / torna al gruppo, con motivo
+- [x] CRUD gruppi asset con selezione multipla degli asset
+- [ ] Il blocco piani **non è ancora incorporato** nella scheda asset `/assets/view/<id>/`: è una pagina a sé, raggiunta dai link delle liste
 
 ### E7 — Navigazione
-- [ ] Voce «Manutenzione»: Da fare / Scadenze / Ordini di lavoro / Piani / Gruppi asset / Storico / Follow-up / Fornitori / Contratti
-- [ ] Rimuovere «Scadenze amministrative» come sezione separata
-- [ ] **Trappola nota**: la subnav non è hardcodata, si gestisce con `NavigationItem`; le voci nuove vanno seedate via migration (vedi `0076_maintenance_sidebar_unified.py` come esempio)
+- [x] Subnav manutenzione: Da fare · Scadenze · Quadro · Piani · Gruppi asset · Interventi · Storico · Impostazioni · Report · Fornitori
+- [x] «Oggi» e «Scadenzario» tolti dalla barra (le pagine restano per URL e evidenziano la voce nuova equivalente); «Catalogo e piani» → «Impostazioni»; l'azione «+ Nuovo piano» punta al nuovo form
+- [ ] La voce «Scadenze amministrative» della sidebar asset resta finché la migrazione dei dati non è eseguita (fase F)
 
 ### E8 — ACL
-- [ ] Registrare le nuove route in ACL v2 e in `API_ACL_GATE_PATHS` per gli endpoint AJAX — **senza questo `ACL_STRICT_CANONICAL` le nega con 403 in prod**
-- [ ] Aggiornare `assets/acl_bootstrap.py`
-- [ ] Ruoli: admin / responsabile / manutentore / caporeparto sui permessi già esistenti
+- [x] Route registrate in `assets/acl_bootstrap.py` (cache key `v10`) e `/api/assets/manutenzione/` in `API_ACL_GATE_PATHS`
+- [x] Tre gate: `can_manage_maintenance_plans`, `can_plan_maintenance`, `can_execute_maintenance` — ognuno passa da `user_can_modulo_action`, quindi i permessi granulari contano davvero
+- [x] Due azioni concedibili dal pannello Accessi: `maintenance_planning`, `maintenance_execute`
+- [ ] Da eseguire in ambiente: `bootstrap_acl_v2` / `acl_coverage_report` dopo il deploy, per confermare che le route nuove risultino coperte
+
+### Verificato a video
+Pagine aperte nel browser su un'istanza SQLite di prova, **tema chiaro e tema scuro**. Difetti trovati e corretti in questa fase:
+- i commenti `{# … #}` multi-riga in cima ai partial venivano **stampati a video** (in Django `{# #}` commenta una riga sola) → convertiti in `{% comment %}`
+- `display:grid` sulle classi dei campi vinceva sull'`[hidden]{display:none}` del browser, quindi i blocchi che il JS nasconde restavano visibili → aggiunta la regola esplicita
+- l'enhancer `fm-table` aggiungeva una seconda casella di ricerca accanto a quella server-side → `data-fm-hide-search="1"` sulle tabelle del pacchetto
+
+### Test
+`assets/tests_maintenance_ui.py` — 24 test: rendering di tutte le pagine, raggruppamenti, filtri, matrice, OdL massivo (creazione, rimozione senza chiusura, distribuzione, completamento parziale, aggiunta esplicita), chiusura amministrativa con e senza documento, follow-up, preset di periodicità, esclusione, anteprima impatto, permessi negati.
 
 ---
 

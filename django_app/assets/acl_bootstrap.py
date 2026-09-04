@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from core.acl_bootstrap_base import run_bootstrap
 
-_BOOTSTRAP_CACHE_KEY = "assets_acl_bootstrap_v9"
+_BOOTSTRAP_CACHE_KEY = "assets_acl_bootstrap_v10"
 
 _PULSANTI_DEFINITIONS = [
     {"modulo": "assets", "codice": "assets_list", "label": "Assets - Lista asset", "url": "/assets/", "hide": False},
@@ -56,6 +56,22 @@ _PULSANTI_DEFINITIONS = [
     {"modulo": "assets", "codice": "assets_wo_close", "label": "Assets - Chiudi work order", "url": "/assets/workorders/close/", "hide": True},
     {"modulo": "assets", "codice": "assets_reports_manage", "label": "Assets - Gestione template report", "url": "/assets/reports/manage/", "hide": True},
     {"modulo": "assets", "codice": "assets_maintenance_month_pdf", "label": "Assets - Report manutenzione mensile PDF", "url": "/assets/reports/work-machines/maintenance-month.pdf", "hide": True},
+    # Nuovo dominio manutenzione: Piano -> Applicazione -> Occorrenza -> OdL.
+    # "Da fare" e "Scadenze" sono pagine operative (visibili in nav); tutto cio'
+    # che configura o modifica passa comunque dai gate della view.
+    {"modulo": "assets", "codice": "assets_maintenance_da_fare", "label": "Assets - Manutenzioni da fare", "url": "/assets/manutenzione/da-fare/", "hide": False},
+    {"modulo": "assets", "codice": "assets_maintenance_scadenze", "label": "Assets - Scadenze manutenzione", "url": "/assets/manutenzione/scadenze/", "hide": False},
+    {"modulo": "assets", "codice": "assets_maintenance_quadro", "label": "Assets - Quadro manutenzione (responsabile)", "url": "/assets/manutenzione/quadro/", "hide": True},
+    {"modulo": "assets", "codice": "assets_maintenance_plans", "label": "Assets - Piani di manutenzione", "url": "/assets/manutenzione/piani/", "hide": True},
+    {"modulo": "assets", "codice": "assets_maintenance_groups", "label": "Assets - Gruppi di asset", "url": "/assets/manutenzione/gruppi/", "hide": True},
+    {"modulo": "assets", "codice": "assets_maintenance_coverage", "label": "Assets - Copertura piani", "url": "/assets/manutenzione/copertura/", "hide": True},
+    {"modulo": "assets", "codice": "assets_maintenance_asset_plans", "label": "Assets - Piani manutenzione dell'asset", "url": "/assets/manutenzione/asset/", "hide": True},
+    {"modulo": "assets", "codice": "assets_maintenance_preview_api", "label": "Assets - Anteprima applicazione piano", "url": "/api/assets/manutenzione/", "hide": True},
+    # Azioni riservate: pianificazione (organizza il lavoro) ed esecuzione
+    # (registra, carica rapporti, apre follow-up). Concedibili dal pannello
+    # Accessi senza toccare il codice.
+    {"modulo": "assets", "codice": "maintenance_planning", "label": "Assets - Pianifica manutenzioni (crea OdL, distribuisci giornate)", "url": "", "hide": True},
+    {"modulo": "assets", "codice": "maintenance_execute", "label": "Assets - Esegui manutenzioni (registra, allega, follow-up)", "url": "", "hide": True},
 ]
 
 

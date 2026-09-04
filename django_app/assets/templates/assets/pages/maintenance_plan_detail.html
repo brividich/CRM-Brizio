@@ -1,0 +1,182 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}{{ plan.label }} — Piano di manutenzione{% endblock %}
+
+{% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}{% endblock %}
+
+{% block assets_shell_title %}{{ plan.label }}{% endblock %}
+{% block assets_shell_subtitle %}
+  <p>
+    {{ plan.get_maintenance_type_display }} ·
+    {% if plan.is_external %}Esterna{% if plan.default_supplier %} ({{ plan.default_supplier.ragione_sociale }}){% endif %}{% else %}Interna{% endif %}
+    {% if plan.attachment_required %} · documento obbligatorio alla chiusura{% endif %}
+    {% if plan.checklist_steps.exists %} · checklist di {{ checklist_steps|length }} step{% endif %}
+  </p>
+{% endblock %}
+
+{% block assets_shell_toolbar %}
+  <a class="btn" href="{% url 'assets:maintenance_plan_list' %}">Tutti i piani</a>
+  {% if can_manage %}
+    <a class="btn" href="{% url 'assets:maintenance_plan_edit' plan.pk %}">Modifica piano</a>
+    <a class="btn btn-primary" href="{% url 'assets:maintenance_assignment_create' plan.pk %}">+ Applica a...</a>
+  {% endif %}
+{% endblock %}
+
+{% block assets_shell_content %}
+<div class="md-page">
+
+  {% if plan.description %}
+    <section class="md-section">
+      <div class="md-section-head"><h2>Cosa va fatto</h2></div>
+      <div style="padding:12px 16px">{{ plan.description|linebreaksbr }}</div>
+    </section>
+  {% endif %}
+
+  {% if conflicts %}
+    <div class="md-conflict">
+      <h3>{{ conflicts|length }} asset in conflitto</h3>
+      <p style="margin:0 0 6px;font-size:var(--fs-sm)">
+        Questo piano arriva su questi asset da piu' gruppi con periodicita' diverse. Il sistema non ne sceglie una:
+        personalizza l'asset per decidere.
+      </p>
+      <ul>
+        {% for conflict in conflicts %}
+          <li>
+            <strong>{{ conflict.asset.asset_tag|default:conflict.asset.name }}</strong> —
+            {% for item in conflict.conflict_description %}{{ item.target }}: {{ item.recurrence }}{% if not forloop.last %} · {% endif %}{% endfor %}
+            {% if can_manage %}
+              — <a href="{% url 'assets:asset_plan_customize' conflict.asset.pk plan.pk %}">Personalizza</a>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  <section class="md-section">
+    <div class="md-section-head"><h2>Applicazioni</h2><span class="md-badge badge-muted">{{ assignment_rows|length }}</span></div>
+    <div class="md-scroll">
+      <table class="md-table" data-fm-hide-search="1">
+        <thead>
+          <tr>
+            <th>Si applica a</th>
+            <th>Periodicita</th>
+            <th class="md-right">Preavviso</th>
+            <th class="md-right">Asset</th>
+            <th>Esecuzione</th>
+            <th>Stato</th>
+            {% if can_manage %}<th class="md-right">Azioni</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in assignment_rows %}
+            {% with assignment=row.assignment %}
+            <tr>
+              <td>
+                <strong>{{ assignment.target_label }}</strong>
+                <span class="md-sub">{{ assignment.get_target_type_display }}</span>
+              </td>
+              <td>
+                {% if assignment.is_excluded %}
+                  <span class="md-badge badge-danger">Escluso dal piano</span>
+                {% else %}
+                  {{ row.recurrence }}
+                  <span class="md-sub">
+                    {% if assignment.effective_schedule_anchor == "FIXED_CALENDAR" %}dalla scadenza teorica{% else %}dalla data di esecuzione{% endif %}
+                  </span>
+                {% endif %}
+              </td>
+              <td class="md-right">{{ assignment.warning_days }} gg</td>
+              <td class="md-right">{{ row.asset_count }}</td>
+              <td>
+                {% if assignment.effective_execution_mode == "EXTERNAL" %}
+                  Esterna{% if assignment.effective_supplier %}<span class="md-sub">{{ assignment.effective_supplier.ragione_sociale }}</span>{% endif %}
+                {% else %}
+                  Interna{% if assignment.effective_assignee %}<span class="md-sub">{{ assignment.effective_assignee.get_full_name|default:assignment.effective_assignee.username }}</span>{% endif %}
+                {% endif %}
+              </td>
+              <td>
+                {% if not assignment.is_active %}<span class="md-badge badge-muted">Non attiva</span>
+                {% elif not assignment.auto_generate %}<span class="md-badge badge-warning">Solo manuale</span>
+                {% else %}<span class="md-badge badge-success">Attiva</span>{% endif %}
+              </td>
+              {% if can_manage %}
+                <td class="md-right md-nowrap">
+                  <a class="btn btn-sm" href="{% url 'assets:maintenance_assignment_edit' plan.pk assignment.pk %}">Modifica</a>
+                  <form method="post" action="{% url 'assets:maintenance_assignment_delete' plan.pk assignment.pk %}" style="display:inline"
+                        onsubmit="return confirm('Rimuovere questa applicazione? Se ha storico verra disattivata, non cancellata.');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm">Rimuovi</button>
+                  </form>
+                </td>
+              {% endif %}
+            </tr>
+            {% endwith %}
+          {% empty %}
+            <tr><td colspan="{% if can_manage %}7{% else %}6{% endif %}" class="md-empty">
+              Il piano non e' ancora applicato a nulla: da solo non produce scadenze.
+              {% if can_manage %}<a href="{% url 'assets:maintenance_assignment_create' plan.pk %}">Applicalo a un gruppo o a un asset</a>.{% endif %}
+            </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="md-section">
+    <div class="md-section-head"><h2>Prossime scadenze</h2><span class="md-badge badge-muted">{{ upcoming|length }}</span></div>
+    {% include "assets/components/_occurrence_rows.html" with rows=upcoming selectable=0 show_plan=0 %}
+  </section>
+
+  {% if open_workorders %}
+    <section class="md-section">
+      <div class="md-section-head"><h2>Ordini di lavoro aperti</h2><span class="md-badge badge-muted">{{ open_workorders|length }}</span></div>
+      <div class="md-scroll">
+        <table class="md-table" data-fm-hide-search="1">
+          <thead><tr><th>OdL</th><th>Titolo</th><th class="md-right">Asset</th><th>Assegnato a</th><th>Aperto il</th></tr></thead>
+          <tbody>
+            {% for wo in open_workorders %}
+              <tr>
+                <td><a class="md-asset" href="{% url 'assets:wo_view' wo.pk %}">#{{ wo.pk }}</a></td>
+                <td>{{ wo.title }}</td>
+                <td class="md-right">{{ wo.occurrence_count }}</td>
+                <td>{% if wo.assigned_to %}{{ wo.assigned_to.get_full_name|default:wo.assigned_to.username }}{% else %}<span class="md-sub">da assegnare</span>{% endif %}</td>
+                <td class="md-nowrap">{{ wo.opened_at|date:"d/m/Y" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
+
+  <section class="md-section">
+    <div class="md-section-head"><h2>Storico</h2><span class="md-badge badge-muted">{{ history|length }}</span></div>
+    <div class="md-scroll">
+      <table class="md-table" data-fm-hide-search="1">
+        <thead><tr><th>Scadenza teorica</th><th>Eseguita il</th><th>Ritardo</th><th>Asset</th><th>Da</th><th>Rapporto</th></tr></thead>
+        <tbody>
+          {% for occ in history %}
+            <tr>
+              <td class="md-nowrap">{{ occ.due_date|date:"d/m/Y" }}</td>
+              <td class="md-nowrap">{{ occ.completed_on|date:"d/m/Y" }}</td>
+              <td class="md-nowrap">{% if occ.completed_on > occ.due_date %}<span class="md-badge badge-warning">in ritardo</span>{% else %}<span class="md-sub">nei termini</span>{% endif %}</td>
+              <td>{{ occ.asset.asset_tag|default:occ.asset.name }}</td>
+              <td>{% if occ.completed_by %}{{ occ.completed_by.get_full_name|default:occ.completed_by.username }}{% else %}<span class="md-sub">—</span>{% endif %}</td>
+              <td>
+                {% for attachment in occ.attachments.all %}
+                  <a href="{% url 'assets:occurrence_attachment_download' attachment.pk %}">{{ attachment.original_name|default:"allegato" }}</a>{% if not forloop.last %}, {% endif %}
+                {% empty %}
+                  <span class="md-sub">—</span>
+                {% endfor %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6" class="md-empty">Nessuna esecuzione registrata.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}

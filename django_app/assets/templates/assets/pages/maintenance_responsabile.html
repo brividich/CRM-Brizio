@@ -1,0 +1,132 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Quadro manutenzione{% endblock %}
+
+{% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}{% endblock %}
+
+{% block assets_shell_title %}Quadro manutenzione{% endblock %}
+{% block assets_shell_subtitle %}
+  <p>Cosa e' scaduto, cosa sta per scadere e — la domanda che di solito nessuno vede — cosa e' <em>dovuto ma non ancora pianificato</em>.</p>
+{% endblock %}
+
+{% block assets_shell_toolbar %}
+  <a class="btn" href="{% url 'assets:maintenance_da_fare' %}">Da fare</a>
+  <a class="btn" href="{% url 'assets:maintenance_scadenze' %}">Scadenze</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<div class="md-page">
+
+  <div class="md-kpis">
+    <a class="md-kpi is-danger" href="{% url 'assets:maintenance_scadenze' %}?window=overdue">
+      <span class="md-kpi-label">Scadute</span><span class="md-kpi-value">{{ kpi.overdue }}</span>
+    </a>
+    <a class="md-kpi is-warn" href="{% url 'assets:maintenance_scadenze' %}?window=30">
+      <span class="md-kpi-label">In scadenza</span><span class="md-kpi-value">{{ kpi.due_soon }}</span>
+    </a>
+    <a class="md-kpi is-warn" href="{% url 'assets:maintenance_scadenze' %}?planning=unplanned">
+      <span class="md-kpi-label">Non pianificate</span><span class="md-kpi-value">{{ kpi.unplanned }}</span>
+      <span class="md-kpi-sub">dovute, senza OdL</span>
+    </a>
+    <div class="md-kpi">
+      <span class="md-kpi-label">OdL aperti</span><span class="md-kpi-value">{{ kpi.workorders_open }}</span>
+      <span class="md-kpi-sub">{{ kpi.workorders_running }} in corso</span>
+    </div>
+    <div class="md-kpi">
+      <span class="md-kpi-label">In attesa</span><span class="md-kpi-value">{{ kpi.waiting }}</span>
+      <span class="md-kpi-sub">ricambi, fornitori, autorizzazioni</span>
+    </div>
+    <a class="md-kpi is-warn" href="{% url 'assets:maintenance_scadenze' %}?report_missing=on&window=">
+      <span class="md-kpi-label">Rapporti mancanti</span><span class="md-kpi-value">{{ kpi.report_missing }}</span>
+      <span class="md-kpi-sub">eseguite ma non documentate</span>
+    </a>
+    <div class="md-kpi">
+      <span class="md-kpi-label">Follow-up aperti</span><span class="md-kpi-value">{{ kpi.follow_ups }}</span>
+    </div>
+    <a class="md-kpi {% if kpi.conflicts %}is-danger{% endif %}" href="{% url 'assets:maintenance_coverage' %}">
+      <span class="md-kpi-label">Conflitti</span><span class="md-kpi-value">{{ kpi.conflicts }}</span>
+      <span class="md-kpi-sub">periodicita in contrasto</span>
+    </a>
+  </div>
+
+  <section class="md-section is-warn">
+    <div class="md-section-head">
+      <h2>Manutenzioni dovute ma non pianificate</h2>
+      <span class="md-badge badge-warning">{{ unplanned|length }}</span>
+      <span class="md-sub">«dovuta» e «pianificata» non sono la stessa cosa</span>
+    </div>
+    {% include "assets/components/_occurrence_rows.html" with rows=unplanned selectable=0 show_plan=1 %}
+  </section>
+
+  <section class="md-section">
+    <div class="md-section-head"><h2>Ordini di lavoro aperti</h2><span class="md-badge badge-muted">{{ open_workorders|length }}</span></div>
+    <div class="md-scroll">
+      <table class="md-table" data-fm-hide-search="1">
+        <thead><tr><th>OdL</th><th>Titolo</th><th class="md-right">Asset</th><th>Assegnato a</th><th>Stato</th><th>Aperto il</th></tr></thead>
+        <tbody>
+          {% for wo in open_workorders %}
+            <tr>
+              <td><a class="md-asset" href="{% url 'assets:wo_view' wo.pk %}">#{{ wo.pk }}</a></td>
+              <td>{{ wo.title }}</td>
+              <td class="md-right">{{ wo.occurrence_count }}</td>
+              <td>{% if wo.assigned_to %}{{ wo.assigned_to.get_full_name|default:wo.assigned_to.username }}{% else %}<span class="md-sub">da assegnare</span>{% endif %}</td>
+              <td>
+                {% if wo.is_waiting %}<span class="md-badge badge-muted">In attesa</span>
+                {% elif wo.started_at %}<span class="md-badge badge-primary">In corso</span>
+                {% else %}<span class="md-badge badge-info">Pianificato</span>{% endif %}
+              </td>
+              <td class="md-nowrap">{{ wo.opened_at|date:"d/m/Y" }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6" class="md-empty">Nessun ordine di lavoro aperto sulle manutenzioni programmate.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="md-section">
+    <div class="md-section-head"><h2>Rapporti mancanti</h2><span class="md-badge badge-warning">{{ report_missing|length }}</span></div>
+    {% include "assets/components/_occurrence_rows.html" with rows=report_missing selectable=0 show_plan=1 %}
+  </section>
+
+  <section class="md-section">
+    <div class="md-section-head"><h2>Follow-up aperti</h2><span class="md-badge badge-muted">{{ follow_ups|length }}</span></div>
+    <div class="md-scroll">
+      <table class="md-table" data-fm-hide-search="1">
+        <thead><tr><th>OdL</th><th>Asset</th><th>Anomalia</th><th>Emersa durante</th><th>Aperto il</th></tr></thead>
+        <tbody>
+          {% for wo in follow_ups %}
+            <tr>
+              <td><a class="md-asset" href="{% url 'assets:wo_view' wo.pk %}">#{{ wo.pk }}</a></td>
+              <td>{{ wo.asset.asset_tag|default:wo.asset.name }}</td>
+              <td>{{ wo.follow_up_reason|default:wo.title|truncatechars:90 }}</td>
+              <td>{{ wo.follow_up_occurrence.plan.label }}</td>
+              <td class="md-nowrap">{{ wo.opened_at|date:"d/m/Y" }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5" class="md-empty">Nessun follow-up aperto.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {% if conflicts %}
+    <section class="md-section is-urgent">
+      <div class="md-section-head"><h2>Conflitti di periodicita</h2><span class="md-badge badge-danger">{{ conflicts|length }}</span></div>
+      <div style="padding:12px 16px;display:grid;gap:8px">
+        {% for conflict in conflicts %}
+          <div class="md-conflict">
+            <h3>{{ conflict.plan.label }} — {{ conflict.asset.asset_tag|default:conflict.asset.name }}</h3>
+            <ul>
+              {% for item in conflict.conflict_description %}<li>{{ item.target }}: {{ item.recurrence }}</li>{% endfor %}
+            </ul>
+            <a class="btn btn-sm" href="{% url 'assets:asset_plan_customize' conflict.asset.pk conflict.plan.pk %}">Personalizza {{ conflict.asset.asset_tag }}</a>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+</div>
+{% endblock %}

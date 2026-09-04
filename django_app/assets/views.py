@@ -6248,10 +6248,27 @@ def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
         return None
 
     route_to_item = {
-        "maintenance_hub": "todo",
-        "maintenance_todo": "todo",
-        "maintenance_schedule": "schedule",
-        "maintenance_scadenzario": "schedule",
+        "maintenance_hub": "da_fare",
+        "maintenance_todo": "da_fare",
+        "maintenance_da_fare": "da_fare",
+        "occurrence_complete": "da_fare",
+        "occurrence_followup_create": "da_fare",
+        "maintenance_scadenze": "scadenze",
+        "maintenance_responsabile": "quadro",
+        "maintenance_plan_list": "plans",
+        "maintenance_plan_detail": "plans",
+        "maintenance_plan_create": "plans",
+        "maintenance_plan_edit": "plans",
+        "maintenance_assignment_create": "plans",
+        "maintenance_assignment_edit": "plans",
+        "maintenance_coverage": "plans",
+        "asset_group_list": "groups",
+        "asset_group_create": "groups",
+        "asset_group_edit": "groups",
+        "asset_maintenance_plans": "plans",
+        "asset_plan_customize": "plans",
+        "maintenance_schedule": "scadenze",
+        "maintenance_scadenzario": "scadenze",
         "maintenance_history": "history",
         "wo_list": "workorders",
         "wo_view": "workorders",
@@ -6290,14 +6307,29 @@ def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
     settings_url = reverse("assets:maintenance_impostazioni")
     items = [
         {
-            "key": "todo",
-            "label": "Oggi",
-            "url": reverse("assets:maintenance_hub"),
+            "key": "da_fare",
+            "label": "Da fare",
+            "url": reverse("assets:maintenance_da_fare"),
         },
         {
-            "key": "schedule",
-            "label": "Scadenzario",
-            "url": reverse("assets:maintenance_schedule"),
+            "key": "scadenze",
+            "label": "Scadenze",
+            "url": reverse("assets:maintenance_scadenze"),
+        },
+        {
+            "key": "quadro",
+            "label": "Quadro",
+            "url": reverse("assets:maintenance_responsabile"),
+        },
+        {
+            "key": "plans",
+            "label": "Piani",
+            "url": reverse("assets:maintenance_plan_list"),
+        },
+        {
+            "key": "groups",
+            "label": "Gruppi asset",
+            "url": reverse("assets:asset_group_list"),
         },
         {
             "key": "workorders",
@@ -6311,7 +6343,7 @@ def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
         },
         {
             "key": "settings",
-            "label": "Catalogo e piani",
+            "label": "Impostazioni",
             "url": settings_url,
         },
         {
@@ -6354,7 +6386,9 @@ def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
             {
                 "key": "new-plan",
                 "label": "+ Nuovo piano",
-                "url": reverse("assets:maintenance_rule_create"),
+                # Punta al nuovo dominio: "piano" per l'utente e' Piano di
+                # manutenzione, non la vecchia regola per categoria.
+                "url": reverse("assets:maintenance_plan_create"),
                 "kind": "secondary",
             },
         ],
@@ -15552,6 +15586,51 @@ def workorder_create(request: HttpRequest, id: int | None = None) -> HttpRespons
     )
 
 
+def _workorder_occurrences_context(request: HttpRequest, workorder: WorkOrder) -> dict[str, object]:
+    """Contesto del pannello "manutenzioni raccolte" del nuovo dominio.
+
+    Vive qui e non in ``views_maintenance`` perche' e' il dettaglio OdL storico a
+    doverlo mostrare; la dipendenza fra i due moduli resta a senso unico.
+    """
+    from .forms_maintenance import ExecutionDayForm
+    from .models import MaintenanceOccurrence
+    from .services import maintenance_domain as maintenance_dom
+    from .views_maintenance import can_execute_maintenance, can_plan_maintenance
+
+    occurrences = list(
+        MaintenanceOccurrence.objects.filter(work_order=workorder)
+        .select_related("plan", "asset", "assignment", "execution_day")
+        .prefetch_related("attachments")
+        .order_by("execution_day__execution_date", "due_date", "asset__asset_tag")
+    )
+    if not occurrences:
+        return {"wo_occurrence_rows": [], "wo_occurrence_progress": None}
+
+    today = timezone.localdate()
+    rows = []
+    for occurrence in occurrences:
+        payload = maintenance_dom.occurrence_state_payload(occurrence, today=today)
+        rows.append({"occurrence": occurrence, **payload})
+
+    by_day: dict[object, list[dict[str, object]]] = {}
+    for row in rows:
+        by_day.setdefault(row["occurrence"].execution_day, []).append(row)
+    day_groups = sorted(
+        ({"day": day, "rows": items} for day, items in by_day.items()),
+        key=lambda group: (group["day"] is None, getattr(group["day"], "execution_date", date.max)),
+    )
+
+    return {
+        "wo_occurrence_rows": rows,
+        "wo_occurrence_day_groups": day_groups,
+        "wo_occurrence_progress": maintenance_dom.workorder_progress(workorder),
+        "wo_execution_day_form": ExecutionDayForm(),
+        "wo_can_plan_maintenance": can_plan_maintenance(request),
+        "wo_can_execute_maintenance": can_execute_maintenance(request),
+    }
+
+
+
 @login_required
 def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
     if id is None:
@@ -15709,6 +15788,9 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
             "checklist_done_count": checklist_done_count,
             "checklist_total": len(checklist_items),
             "execution_days": execution_days,
+            # Pannello del nuovo dominio: le manutenzioni raccolte in questo OdL.
+            # Un OdL massivo va letto per asset, non come un blocco unico.
+            **_workorder_occurrences_context(request, workorder),
             "duration_hours": duration_hours,
             "duration_remainder": duration_remainder,
             "downtime_hours": downtime_hours,

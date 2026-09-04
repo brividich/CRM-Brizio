@@ -1,0 +1,72 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}{% endblock %}
+
+{% block assets_shell_title %}{{ page_title }}{% endblock %}
+{% block assets_shell_subtitle %}
+  <p>Il piano dice <em>cosa</em> va fatto. Dopo averlo salvato deciderai <em>dove</em> e <em>quando</em> applicarlo.</p>
+{% endblock %}
+
+{% block assets_shell_toolbar %}
+  {% if plan %}<a class="btn" href="{% url 'assets:maintenance_plan_detail' plan.pk %}">Torna al piano</a>
+  {% else %}<a class="btn" href="{% url 'assets:maintenance_plan_list' %}">Annulla</a>{% endif %}
+{% endblock %}
+
+{% block assets_shell_content %}
+<form class="md-form" method="post" novalidate>
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+
+  <fieldset class="md-fieldset">
+    <h2>1 · Cosa</h2>
+    <p class="md-hint">Il nome che leggera' il manutentore, e cosa deve ottenere.</p>
+    {% include "assets/components/_md_field.html" with field=form.label %}
+    <div class="md-grid-2">
+      {% include "assets/components/_md_field.html" with field=form.maintenance_type %}
+      {% include "assets/components/_md_field.html" with field=form.asset_category %}
+    </div>
+    {% include "assets/components/_md_field.html" with field=form.description %}
+    <div class="md-grid-2">
+      {% include "assets/components/_md_field.html" with field=form.estimated_duration_minutes %}
+      {% include "assets/components/_md_field.html" with field=form.required_materials %}
+    </div>
+  </fieldset>
+
+  <fieldset class="md-fieldset">
+    <h2>2 · Chi la esegue</h2>
+    <p class="md-hint">Valori predefiniti: ogni applicazione del piano puo' sovrascriverli.</p>
+    <div class="md-grid-2">
+      {% include "assets/components/_md_field.html" with field=form.execution_mode %}
+      {% include "assets/components/_md_field.html" with field=form.default_supplier %}
+      {% include "assets/components/_md_field.html" with field=form.default_assignee %}
+    </div>
+  </fieldset>
+
+  <fieldset class="md-fieldset">
+    <h2>3 · Documenti e calendario</h2>
+    <p class="md-hint">
+      Una scadenza amministrativa eseguita in ritardo non deve spostare in avanti tutte quelle successive:
+      per questo il tipo «Scadenza amministrativa» resta ancorato alla scadenza teorica e pretende il documento.
+    </p>
+    {% include "assets/components/_md_field.html" with field=form.attachment_required %}
+    {% include "assets/components/_md_field.html" with field=form.schedule_anchor %}
+  </fieldset>
+
+  <fieldset class="md-fieldset">
+    <h2>4 · Pubblicazione</h2>
+    <div class="md-grid-2">
+      {% include "assets/components/_md_field.html" with field=form.code %}
+      {% include "assets/components/_md_field.html" with field=form.sort_order %}
+      {% include "assets/components/_md_field.html" with field=form.is_active %}
+    </div>
+  </fieldset>
+
+  <div class="md-form-actions">
+    <button type="submit" class="btn btn-primary">Salva piano</button>
+    {% if plan %}<a class="btn" href="{% url 'assets:maintenance_plan_detail' plan.pk %}">Annulla</a>
+    {% else %}<a class="btn" href="{% url 'assets:maintenance_plan_list' %}">Annulla</a>{% endif %}
+  </div>
+</form>
+{% endblock %}
