@@ -1,0 +1,225 @@
+{% extends "tasks/base_shell.html" %}
+
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Conduzione</span>{% endblock %}
+{% block tasks_shell_title %}Incontro {{ meeting.numero }}{% if meeting.titolo %} — {{ meeting.titolo }}{% endif %}{% endblock %}
+{% block tasks_shell_subtitle %}{{ project.name }} · un punto alla volta, con tempi e cattura rapida.{% endblock %}
+
+{% block tasks_shell_actions %}
+  <a class="ts-hero-action" href="{% url 'tasks:project_meeting_detail' project.id meeting.id %}">Dettaglio</a>
+  <a class="ts-hero-action" href="{% url 'tasks:project_meeting_minutes' project.id meeting.id %}">Chiudi e vai all'esito</a>
+{% endblock %}
+
+{% block tasks_shell_content %}
+<div class="run-wrap">
+
+  {# Token per le chiamate JSON di questa pagina (nessun form tradizionale) #}
+  <form id="run-csrf" style="display:none">{% csrf_token %}</form>
+
+  {# Barra tempi: pianificato vs trascorso da quando la pagina e' aperta #}
+  <div class="run-timebar">
+    <div class="run-time-item"><span>Pianificato</span><strong>{{ planned_minutes }} min</strong></div>
+    <div class="run-time-item"><span>Trascorso</span><strong id="run-elapsed">0 min</strong></div>
+    <div class="run-time-item"><span>Punti trattati</span><strong id="run-done-count">{{ done_count }}</strong> <span>/ {{ agenda_items|length }}</span></div>
+    <div class="run-time-warn" id="run-overrun" hidden>Fuori tempo rispetto al pianificato</div>
+  </div>
+
+  {% if agenda_items %}
+    <div class="run-items">
+      {% for item in agenda_items %}
+        <article class="run-item{% if item.done %} done{% endif %}" data-item-id="{{ item.id }}">
+          <header class="run-item-head">
+            <span class="run-item-num">{{ forloop.counter }}</span>
+            <h3 class="run-item-title">{{ item.titolo }}</h3>
+            {% if item.responsabile_label %}<span class="mf-issue-chip">{{ item.responsabile_label }}</span>{% endif %}
+            {% if item.durata_minuti %}<span class="mf-issue-chip">{{ item.durata_minuti }} min previsti</span>{% endif %}
+            <span class="run-item-state" data-role="state">{% if item.done %}Trattato{% else %}Da trattare{% endif %}</span>
+          </header>
+
+          <textarea class="input run-item-nota" data-role="nota" rows="3"
+                    placeholder="Cosa è emerso su questo punto (si salva da solo)">{{ item.nota }}</textarea>
+
+          <div class="run-item-actions">
+            <button type="button" class="mf-btn-sm primary" data-role="toggle-done">
+              {% if item.done %}Segna da trattare{% else %}Segna trattato{% endif %}
+            </button>
+            <label class="tpl-inline">
+              Tempo effettivo
+              <input class="input" type="number" min="1" max="480" style="width:80px"
+                     data-role="tempo" value="{{ item.tempo_effettivo_minuti|default_if_none:'' }}">
+              min
+            </label>
+            <span class="run-item-saved" data-role="saved" hidden>salvato</span>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="empty" style="text-align:center;padding:28px 12px;">
+      Questo incontro non ha punti all'ordine del giorno.
+      <a href="{% url 'tasks:project_meeting_edit' project.id meeting.id %}">Aggiungili dalla convocazione</a>.
+    </p>
+  {% endif %}
+
+  {# Cattura rapida: quello che emerge mentre si parla, senza uscire dalla pagina #}
+  <section class="ts-panel run-capture">
+    <div class="ts-panel-head">
+      <h2 class="ts-panel-title">Cattura rapida</h2>
+    </div>
+    <div class="ts-panel-body">
+      <div class="run-capture-form">
+        <select class="input" id="capture-kind">
+          <option value="action">Azione</option>
+          <option value="decision">Decisione</option>
+          <option value="issue">Problema</option>
+        </select>
+        <input class="input" type="text" id="capture-titolo" maxlength="400" placeholder="Cosa è stato deciso / chi fa cosa / cosa non torna">
+        <select class="input" id="capture-owner">
+          <option value="">Responsabile</option>
+          {% for u in active_users %}
+            <option value="{{ u.pk }}">{{ u.get_full_name|default:u.username }}</option>
+          {% endfor %}
+        </select>
+        <input class="input" type="date" id="capture-due" title="Scadenza">
+        <select class="input" id="capture-impatto" hidden>
+          {% for value, label in decision_impacts %}
+            <option value="{{ value }}"{% if value == "MEDIO" %} selected{% endif %}>Impatto {{ label }}</option>
+          {% endfor %}
+        </select>
+        <button type="button" class="md-btn" id="capture-save">Registra</button>
+      </div>
+      <ul class="run-capture-log" id="capture-log"></ul>
+      <p class="mf-hint">Azioni e problemi rientrano da soli nell'ordine del giorno del prossimo incontro; le decisioni finiscono nel registro di commessa.</p>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block tasks_shell_scripts %}
+<script>
+(function () {
+  'use strict';
+
+  const ITEM_URL = "{{ item_update_url }}";
+  const CAPTURE_URL = "{{ quick_capture_url }}";
+  const PLANNED = {{ planned_minutes|default:0 }};
+
+  function csrfToken() {
+    const el = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (el) return el.value;
+    const m = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+    return m ? decodeURIComponent(m[1]) : '';
+  }
+
+  function post(url, data) {
+    const body = new URLSearchParams(data);
+    return fetch(url, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: body.toString(),
+    }).then(r => r.json());
+  }
+
+  /* Cronometro della riunione: parte all'apertura della pagina. */
+  const started = Date.now();
+  const elapsedEl = document.getElementById('run-elapsed');
+  const overrunEl = document.getElementById('run-overrun');
+  setInterval(function () {
+    const minutes = Math.floor((Date.now() - started) / 60000);
+    if (elapsedEl) elapsedEl.textContent = minutes + ' min';
+    if (overrunEl && PLANNED > 0) overrunEl.hidden = minutes <= PLANNED;
+  }, 15000);
+
+  function refreshDoneCount() {
+    const el = document.getElementById('run-done-count');
+    if (el) el.textContent = String(document.querySelectorAll('.run-item.done').length);
+  }
+
+  /* Un punto per volta: nota in autosave, spunta e tempo effettivo. */
+  document.querySelectorAll('.run-item').forEach(function (card) {
+    const itemId = card.getAttribute('data-item-id');
+    const saved = card.querySelector('[data-role=saved]');
+    const state = card.querySelector('[data-role=state]');
+    const toggle = card.querySelector('[data-role=toggle-done]');
+    const nota = card.querySelector('[data-role=nota]');
+    const tempo = card.querySelector('[data-role=tempo]');
+
+    function flashSaved() {
+      if (!saved) return;
+      saved.hidden = false;
+      setTimeout(function () { saved.hidden = true; }, 1500);
+    }
+
+    let notaTimer = null;
+    nota?.addEventListener('input', function () {
+      clearTimeout(notaTimer);
+      notaTimer = setTimeout(function () {
+        post(ITEM_URL, { item_id: itemId, nota: nota.value }).then(flashSaved).catch(function () {});
+      }, 800);
+    });
+
+    tempo?.addEventListener('change', function () {
+      post(ITEM_URL, { item_id: itemId, tempo_effettivo_minuti: tempo.value || '0' })
+        .then(flashSaved).catch(function () {});
+    });
+
+    toggle?.addEventListener('click', function () {
+      const next = !card.classList.contains('done');
+      toggle.disabled = true;
+      post(ITEM_URL, { item_id: itemId, done: next ? '1' : '0' })
+        .then(function (data) {
+          if (!data || !data.ok) return;
+          card.classList.toggle('done', !!data.done);
+          if (state) state.textContent = data.done ? 'Trattato' : 'Da trattare';
+          toggle.textContent = data.done ? 'Segna da trattare' : 'Segna trattato';
+          refreshDoneCount();
+          flashSaved();
+        })
+        .catch(function () {})
+        .finally(function () { toggle.disabled = false; });
+    });
+  });
+
+  /* Cattura rapida */
+  const kindEl = document.getElementById('capture-kind');
+  const impattoEl = document.getElementById('capture-impatto');
+  const dueEl = document.getElementById('capture-due');
+
+  function syncCaptureFields() {
+    const isDecision = kindEl && kindEl.value === 'decision';
+    if (impattoEl) impattoEl.hidden = !isDecision;
+    if (dueEl) dueEl.hidden = isDecision;
+  }
+  kindEl?.addEventListener('change', syncCaptureFields);
+  syncCaptureFields();
+
+  document.getElementById('capture-save')?.addEventListener('click', function () {
+    const titoloEl = document.getElementById('capture-titolo');
+    const ownerEl = document.getElementById('capture-owner');
+    const titolo = titoloEl ? titoloEl.value.trim() : '';
+    if (!titolo) { titoloEl?.focus(); return; }
+    post(CAPTURE_URL, {
+      kind: kindEl ? kindEl.value : 'action',
+      titolo: titolo,
+      owner_id: ownerEl ? ownerEl.value : '',
+      due_date: dueEl && !dueEl.hidden ? dueEl.value : '',
+      impatto: impattoEl && !impattoEl.hidden ? impattoEl.value : '',
+    }).then(function (data) {
+      if (!data || !data.ok) return;
+      const log = document.getElementById('capture-log');
+      if (log) {
+        const li = document.createElement('li');
+        li.textContent = data.label + ': ' + data.titolo;
+        log.appendChild(li);
+      }
+      if (titoloEl) titoloEl.value = '';
+      if (dueEl) dueEl.value = '';
+      titoloEl?.focus();
+    }).catch(function () {});
+  });
+})();
+</script>
+{% endblock %}

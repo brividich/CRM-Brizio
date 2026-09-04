@@ -108,6 +108,10 @@ _ROUTE_BINDINGS = {
     "tasks:list": "tasks.kickoff.view",
     "tasks:da_gestire": "tasks.kickoff.view",
     "tasks:incontri_calendario": "tasks.kickoff.view",
+    "tasks:incontri_lista": "tasks.kickoff.view",
+    # Proporre un punto e' consentito ai convocati: la view verifica che
+    # l'utente sia fra i partecipanti, il permesso resta quello di lettura.
+    "tasks:project_meeting_proposal_create": "tasks.kickoff.view",
     "tasks:detail": "tasks.kickoff.view",
     "tasks:download_excel_template": "tasks.kickoff.view",
     "tasks:category_fields_json": "tasks.kickoff.view",
@@ -128,8 +132,11 @@ _ROUTE_BINDINGS = {
     "tasks:project_gantt_shift_task": "tasks.kickoff.edit",
     "tasks:project_meeting_edit": "tasks.kickoff.edit",
     "tasks:project_meeting_minutes": "tasks.kickoff.edit",
+    "tasks:project_meeting_run": "tasks.kickoff.edit",
     "tasks:project_meeting_send_invite": "tasks.kickoff.edit",
     "tasks:project_meeting_send_minute": "tasks.kickoff.edit",
+    "tasks:project_meeting_minute_close": "tasks.kickoff.edit",
+    "tasks:project_meeting_minute_reopen": "tasks.kickoff.edit",
     # Commenti, sottotask, allegati e agenda incontri
     "tasks:add_comment": "tasks.kickoff.comment",
     "tasks:add_subtask": "tasks.kickoff.comment",
@@ -138,7 +145,11 @@ _ROUTE_BINDINGS = {
     "tasks:subtask_toggle": "tasks.kickoff.comment",
     "tasks:add_project_comment": "tasks.kickoff.comment",
     "tasks:project_meeting_issue_status": "tasks.kickoff.comment",
+    "tasks:project_meeting_action_status": "tasks.kickoff.comment",
+    "tasks:project_meeting_proposal_decide": "tasks.kickoff.comment",
     "tasks:project_meeting_agenda_toggle": "tasks.kickoff.comment",
+    "tasks:project_meeting_agenda_item_update": "tasks.kickoff.comment",
+    "tasks:project_meeting_quick_capture": "tasks.kickoff.comment",
     # Gestione amministrativa
     "tasks:gestione_admin": "tasks.kickoff.admin",
     "tasks:impostazioni": "tasks.kickoff.admin",
@@ -153,6 +164,7 @@ _ROUTE_BINDINGS = {
     "tasks:project_gantt": "tasks.kickoff.projects",
     "tasks:project_info_json": "tasks.kickoff.projects",
     "tasks:project_meetings": "tasks.kickoff.projects",
+    "tasks:project_decisions": "tasks.kickoff.projects",
     "tasks:project_meeting_detail": "tasks.kickoff.projects",
     "tasks:project_meeting_minute_pdf": "tasks.kickoff.projects",
     "tasks:project_vrf_upload": "tasks.kickoff.projects",

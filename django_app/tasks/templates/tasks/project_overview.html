@@ -93,7 +93,7 @@
                 </div>
                 <div class="ko-action-meta">
                   {% if action.due_date %}{{ action.due_date|date:"d/m/Y" }}{% else %}Senza scadenza{% endif %}
-                  {% if action.is_overdue %}<span class="ka-status ka-status--danger">Scaduta</span>{% endif %}
+                  {% if action.is_overdue %}<span class="ts-chip danger">Scaduta</span>{% endif %}
                 </div>
               </li>
             {% endfor %}

@@ -8,6 +8,7 @@
   <a class="ts-hero-action" href="?m={{ cal.prev }}" aria-label="Mese precedente">‹</a>
   <a class="ts-hero-action" href="{% url 'tasks:incontri_calendario' %}">Oggi</a>
   <a class="ts-hero-action" href="?m={{ cal.next }}" aria-label="Mese successivo">›</a>
+  <a class="ts-hero-action" href="{% url 'tasks:incontri_lista' %}">Elenco</a>
 {% endblock %}
 
 {% block tasks_shell_content %}

@@ -1,0 +1,49 @@
+{% extends "tasks/base_shell.html" %}
+
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Decisioni</span>{% endblock %}
+{% block tasks_shell_title %}Registro decisioni{% endblock %}
+{% block tasks_shell_subtitle %}{{ project.name }} · cosa è stato deciso, da chi e in quale incontro.{% endblock %}
+
+{% block tasks_shell_actions %}
+  <a class="ts-hero-action" href="{% url 'tasks:project_meetings' project.id %}">Incontri</a>
+{% endblock %}
+
+{% block tasks_shell_content %}
+<section class="ts-panel">
+  <div class="ts-panel-body">
+    {% if decisions %}
+      <div class="tl-table-wrap">
+        <table class="tl-table">
+          <thead>
+            <tr>
+              <th style="width:46%">Decisione</th>
+              <th>Impatto</th>
+              <th>Decisa da</th>
+              <th>Incontro</th>
+              <th>Registrata il</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for decision in decisions %}
+              <tr>
+                <td>
+                  {{ decision.testo }}
+                  {% if decision.dettaglio %}<div class="tl-task-desc">{{ decision.dettaglio }}</div>{% endif %}
+                </td>
+                <td><span class="mf-issue-chip">{{ decision.get_impatto_display }}</span></td>
+                <td>{% if decision.decisa_da %}{{ decision.decisa_da.get_full_name|default:decision.decisa_da.username }}{% else %}&mdash;{% endif %}</td>
+                <td>
+                  <a class="tl-task-link" href="{% url 'tasks:project_meeting_detail' project.id decision.meeting_id %}">#{{ decision.meeting.numero }} {{ decision.meeting.label }}</a>
+                </td>
+                <td><span class="tl-date">{{ decision.created_at|date:"d-m-Y" }}</span></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="empty" style="text-align:center;padding:28px 12px;">Nessuna decisione registrata su questa commessa. Si registrano dalla pagina esito di un incontro.</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

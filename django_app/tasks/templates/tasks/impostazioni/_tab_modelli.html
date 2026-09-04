@@ -1,0 +1,69 @@
+{# Modelli di ordine del giorno riutilizzabili nella convocazione incontro. #}
+<section class="ts-panel">
+  <div class="ts-panel-head">
+    <div class="ts-panel-title-wrap">
+      <h2 class="ts-panel-title">Modelli ordine del giorno</h2>
+      <p class="ts-panel-subtitle">Punti ricorrenti pronti da caricare nella convocazione di un incontro. Un punto per riga; per indicare la durata stimata scrivi <code>Titolo | 15</code>.</p>
+    </div>
+  </div>
+  <div class="ts-panel-body">
+
+    <form method="post" action="" class="tpl-form">
+      {% csrf_token %}
+      <input type="hidden" name="tab" value="modelli">
+      <input type="hidden" name="tpl_action" value="template_create">
+      <div class="tpl-grid">
+        <div>
+          <label class="mf-label" for="tpl-nome">Nome modello</label>
+          <input class="input" type="text" id="tpl-nome" name="nome" maxlength="120" placeholder="Es. Avanzamento settimanale" required>
+        </div>
+        <div>
+          <label class="mf-label" for="tpl-desc">Descrizione</label>
+          <input class="input" type="text" id="tpl-desc" name="descrizione" maxlength="255" placeholder="Quando usarlo (facoltativo)">
+        </div>
+      </div>
+      <label class="mf-label" for="tpl-items">Punti</label>
+      <textarea class="input" id="tpl-items" name="items_text" rows="5" placeholder="Stato avanzamento | 15&#10;Criticità aperte | 20&#10;Prossimi passi"></textarea>
+      <div style="margin-top:10px">
+        <button type="submit" class="md-btn">Crea modello</button>
+      </div>
+    </form>
+
+    {% if agenda_templates %}
+      <div class="tpl-list">
+        {% for template in agenda_templates %}
+          <form method="post" action="" class="tpl-card">
+            {% csrf_token %}
+            <input type="hidden" name="tab" value="modelli">
+            <input type="hidden" name="template_id" value="{{ template.id }}">
+            <div class="tpl-grid">
+              <div>
+                <label class="mf-label" for="tpl-nome-{{ template.id }}">Nome</label>
+                <input class="input" type="text" id="tpl-nome-{{ template.id }}" name="nome" maxlength="120" value="{{ template.nome }}">
+              </div>
+              <div>
+                <label class="mf-label" for="tpl-desc-{{ template.id }}">Descrizione</label>
+                <input class="input" type="text" id="tpl-desc-{{ template.id }}" name="descrizione" maxlength="255" value="{{ template.descrizione }}">
+              </div>
+            </div>
+            <label class="mf-label" for="tpl-items-{{ template.id }}">Punti</label>
+            <textarea class="input" id="tpl-items-{{ template.id }}" name="items_text" rows="4">{{ template.items_text }}</textarea>
+            <div class="tpl-card-actions">
+              <label class="tpl-inline">
+                <input type="checkbox" name="is_active" {% if template.is_active %}checked{% endif %}> Attivo
+              </label>
+              <label class="tpl-inline">
+                Ordine <input class="input" type="number" name="order_index" value="{{ template.order_index }}" min="0" style="width:80px">
+              </label>
+              <button type="submit" class="md-btn" name="tpl_action" value="template_update">Salva</button>
+              <button type="submit" class="md-btn danger-ghost" name="tpl_action" value="template_delete"
+                      onclick="return confirm('Eliminare il modello «{{ template.nome|escapejs }}»?')">Elimina</button>
+            </div>
+          </form>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="empty" style="margin-top:18px">Nessun modello ancora creato.</p>
+    {% endif %}
+  </div>
+</section>

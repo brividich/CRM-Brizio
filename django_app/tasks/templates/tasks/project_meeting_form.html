@@ -225,6 +225,24 @@
             Aggiungi punto
           </button>
 
+          {# Scorciatoie: modelli riutilizzabili e ODG dell'incontro precedente #}
+          {% if agenda_templates or has_previous_agenda %}
+            <div class="agenda-shortcuts">
+              {% if agenda_templates %}
+                <select class="input" id="agenda-template-select">
+                  <option value="">Carica un modello…</option>
+                  {% for template in agenda_templates %}
+                    <option value="{{ forloop.counter0 }}">{{ template.nome }}{% if template.descrizione %} — {{ template.descrizione }}{% endif %}</option>
+                  {% endfor %}
+                </select>
+                <button type="button" class="mf-btn-sm ghost" id="agenda-template-apply">Aggiungi punti del modello</button>
+              {% endif %}
+              {% if has_previous_agenda %}
+                <button type="button" class="mf-btn-sm ghost" id="agenda-duplicate-prev">Duplica ODG dell'incontro precedente</button>
+              {% endif %}
+            </div>
+          {% endif %}
+
           {# Note testuali legacy ODG #}
           <div style="margin-top:14px">
             <button type="button" class="mf-collapsible-toggle" id="toggle-odg-note">
@@ -293,6 +311,8 @@
 {% block tasks_shell_scripts %}
 {{ project_tasks_json|json_script:"project-tasks-data" }}
 {{ meeting_rooms_json|json_script:"meeting-rooms-data" }}
+{{ agenda_templates_json|json_script:"agenda-templates-data" }}
+{{ previous_agenda_json|json_script:"previous-agenda-data" }}
 
 <script>
 (function () {
@@ -568,6 +588,52 @@
 
   /* Init da dati esistenti (edit) */
   initAgenda();
+
+  /* ─── Modelli ODG e duplica dall'incontro precedente ──────────────── */
+  function readJsonScript(id) {
+    try {
+      const el = document.getElementById(id);
+      return el ? (JSON.parse(el.textContent) || []) : [];
+    } catch (e) { return []; }
+  }
+  const agendaTemplates = readJsonScript('agenda-templates-data');
+  const previousAgenda = readJsonScript('previous-agenda-data');
+
+  /* I punti caricati sono normali item: modificabili e rimovibili come gli altri. */
+  function appendAgendaItems(items) {
+    let added = 0;
+    (items || []).forEach(function (raw, i) {
+      const titolo = String(raw.titolo || '').trim();
+      if (!titolo) return;
+      agenda.push({
+        id: String(Date.now()) + '-' + i,
+        titolo: titolo,
+        nota: String(raw.nota || '').trim(),
+        task_id: null,
+        task_label: '',
+        responsabile_id: null,
+        responsabile_label: '',
+        durata_minuti: raw.durata_minuti || null,
+        custom_fields: [],
+        done: false,
+      });
+      added += 1;
+    });
+    if (added) renderAgenda();
+    return added;
+  }
+
+  document.getElementById('agenda-template-apply')?.addEventListener('click', function () {
+    const select = document.getElementById('agenda-template-select');
+    const index = select ? parseInt(select.value, 10) : NaN;
+    if (Number.isNaN(index) || !agendaTemplates[index]) return;
+    appendAgendaItems(agendaTemplates[index].items);
+    if (select) select.value = '';
+  });
+
+  document.getElementById('agenda-duplicate-prev')?.addEventListener('click', function () {
+    appendAgendaItems(previousAgenda);
+  });
 
   /* ─── Responsabile punto ODG = solo convocati ─────────────────────── */
   const respSelect = document.getElementById('new-agenda-resp');

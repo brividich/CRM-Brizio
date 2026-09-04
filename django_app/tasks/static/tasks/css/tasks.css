@@ -859,38 +859,8 @@ body.tk-wide .content { width: 100%; max-width: none; }
 .tk-tab:hover { color: var(--text); background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .tk-tab--active { color: var(--accent); background: var(--surface); border-color: var(--border); position: relative; top: 1px; }
 
-/* ── Registro azioni commessa ───────────────────────────────────── */
-.ka-summary { display: flex; align-items: stretch; gap: var(--hub-space-3); flex-wrap: wrap; margin-bottom: var(--hub-space-4); }
-.ka-summary-card { display: flex; align-items: baseline; gap: var(--hub-space-2); min-width: 120px; padding: var(--hub-space-3) var(--hub-space-4); border: 1px solid var(--hub-color-border); border-radius: var(--hub-radius-md); background: var(--hub-color-surface); box-shadow: var(--hub-shadow-sm); }
-.ka-summary-card--danger { border-color: var(--hub-status-danger); background: var(--hub-status-danger-bg); }
-.ka-summary-value { color: var(--hub-color-text); font-size: var(--hub-font-xl); font-weight: 600; }
-.ka-summary-label { color: var(--hub-color-text-muted); font-size: var(--hub-font-sm); }
-.ka-summary-text { align-self: center; margin: 0; color: var(--hub-color-text-muted); font-size: var(--hub-font-sm); }
-.ka-table-wrap { overflow-x: auto; border: 1px solid var(--hub-color-border); border-radius: var(--hub-radius-lg); background: var(--hub-color-surface); box-shadow: var(--hub-shadow-sm); }
-.ka-table { width: 100%; border-collapse: collapse; color: var(--hub-color-text); font-size: var(--hub-font-base); }
-.ka-table th, .ka-table td { padding: var(--hub-space-3) var(--hub-space-4); border-bottom: 1px solid var(--hub-color-border); text-align: left; vertical-align: middle; }
-.ka-table th { background: var(--hub-color-surface-raised); color: var(--hub-color-text-muted); font-size: var(--hub-font-xs); font-weight: 600; }
-.ka-table tbody tr:last-child td { border-bottom: 0; }
-.ka-table tbody tr:hover { background: var(--hub-color-surface-raised); }
-.ka-table .ka-row--danger { background: var(--hub-status-danger-bg); }
-.ka-table .ka-row--closed { color: var(--hub-color-text-soft); }
-.ka-action-link { color: var(--hub-color-text); font-weight: 600; text-decoration: none; }
-.ka-action-link:hover { color: var(--hub-color-text); text-decoration: underline; }
-.ka-origin, .ka-status { display: inline-flex; padding: var(--hub-space-1) var(--hub-space-2); border-radius: var(--hub-radius-sm); font-size: var(--hub-font-xs); font-weight: 600; white-space: nowrap; }
-.ka-origin--issue { color: var(--hub-status-warning); background: var(--hub-status-warning-bg); }
-.ka-origin--task { color: var(--hub-status-info); background: var(--hub-status-info-bg); }
-.ka-origin--subtask { color: var(--hub-status-neutral); background: var(--hub-status-neutral-bg); }
-.ka-status--danger { color: var(--hub-status-danger); background: var(--hub-status-danger-bg); }
-.ka-status--open { color: var(--hub-status-success); background: var(--hub-status-success-bg); }
-.ka-status--closed { color: var(--hub-status-neutral); background: var(--hub-status-neutral-bg); }
-.ka-muted { color: var(--hub-color-text-soft); }
-.ka-empty { padding: var(--hub-space-8); border: 1px solid var(--hub-color-border); border-radius: var(--hub-radius-lg); background: var(--hub-color-surface); color: var(--hub-color-text-muted); text-align: center; }
-.ka-empty p { margin: 0 0 var(--hub-space-4); }
-
-@media (max-width: 700px) {
-  .ka-summary-card { flex: 1; }
-  .ka-table th, .ka-table td { padding: var(--hub-space-2) var(--hub-space-3); }
-}
+/* Registro azioni commessa: usa il guscio canonico del modulo
+   (ts-panel + tl-table + ts-kpi/ts-chip). Nessun namespace dedicato. */
 
 /* ── Panoramica commessa ────────────────────────────────────────── */
 .ko-phase { display: inline-flex; padding: var(--hub-space-1) var(--hub-space-2); border: 1px solid var(--hub-color-border); border-radius: var(--hub-radius-md); background: var(--hub-status-neutral-bg); color: var(--hub-color-text-muted); font-size: var(--hub-font-xs); font-weight: 600; }
@@ -1929,6 +1899,118 @@ body.theme-dark .tf-asset-conflict-list li { background:rgba(255,255,255,.05); }
 }
 .md-closing-summary-stats { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: .875rem; color: var(--text-light); }
 .md-closing-summary-stats strong { color: var(--text); }
+
+/* Conduzione riunione (/conduci/) */
+.run-wrap { display: grid; gap: 16px; }
+.run-timebar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 24px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px;
+  position: sticky; top: 0; z-index: 5;
+}
+.run-time-item { display: flex; align-items: baseline; gap: 6px; font-size: .8125rem; color: var(--text-light); }
+.run-time-item strong { font-size: 1.05rem; color: var(--text); font-variant-numeric: tabular-nums; }
+.run-time-warn {
+  margin-left: auto; font-size: .8125rem; font-weight: 700; color: var(--danger);
+  background: var(--danger-bg); border-radius: 20px; padding: 4px 12px;
+}
+.run-items { display: grid; gap: 12px; }
+.run-item {
+  border: 1px solid var(--border); border-left: 4px solid var(--primary-mid);
+  border-radius: 12px; padding: 14px; background: var(--surface);
+}
+.run-item.done { border-left-color: var(--success); opacity: .75; }
+.run-item-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
+.run-item-num {
+  width: 26px; height: 26px; border-radius: 50%; background: var(--primary-mid); color: #fff;
+  display: inline-flex; align-items: center; justify-content: center; font-size: .8125rem; font-weight: 700;
+}
+.run-item-title { margin: 0; font-size: 1rem; color: var(--text); }
+.run-item.done .run-item-title { text-decoration: line-through; }
+.run-item-state { margin-left: auto; font-size: .75rem; font-weight: 700; color: var(--text-light); text-transform: uppercase; }
+.run-item-nota { width: 100%; box-sizing: border-box; }
+.run-item-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 10px; }
+.run-item-saved { font-size: .75rem; color: var(--success); font-weight: 700; }
+.run-capture-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.run-capture-form .input { width: auto; min-width: 140px; }
+.run-capture-form #capture-titolo { flex: 1 1 260px; }
+.run-capture-log { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 4px; font-size: .875rem; color: var(--text-light); }
+
+/* Proposte di punti ODG */
+.md-proposal-decide, .md-proposal-new {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+}
+.md-proposal-new { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); }
+.md-proposal-new .input { flex: 1 1 220px; }
+.md-proposal-decide .input { min-width: 170px; }
+
+/* Azioni strutturate nel dettaglio incontro */
+.md-action-row {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+}
+.md-action-row:last-child { border-bottom: none; }
+.md-action-main { flex: 1 1 auto; min-width: 0; }
+.md-action-title { font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.md-action-row.done .md-action-title { text-decoration: line-through; color: var(--text-light); }
+.mf-issue-chip.overdue { color: var(--danger); border-color: var(--danger-bg); background: var(--danger-bg); }
+
+/* Decisioni registrate nella pagina esito */
+.mf-decision-list { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; }
+.mf-decision-list li {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  font-size: .875rem; color: var(--text);
+  border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px;
+}
+.mf-decision-who { color: var(--text-light); font-size: .8125rem; }
+
+/* Scorciatoie agenda nel form incontro */
+.agenda-shortcuts {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px;
+}
+.agenda-shortcuts .input { min-width: 220px; }
+
+/* Impostazioni: modelli ordine del giorno */
+.tpl-form, .tpl-card {
+  border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 14px;
+}
+.tpl-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 10px; }
+.tpl-grid .input { width: 100%; box-sizing: border-box; }
+.tpl-form textarea, .tpl-card textarea { width: 100%; box-sizing: border-box; }
+.tpl-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; }
+.tpl-inline { display: inline-flex; align-items: center; gap: 6px; font-size: .8125rem; color: var(--text-light); }
+@media (max-width: 720px) { .tpl-grid { grid-template-columns: 1fr; } }
+
+/* Elenco incontri: barra filtri */
+.ml-filters {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px;
+}
+/* `.input` e' a larghezza piena nel resto del portale: qui i campi stanno in riga. */
+.ml-filters .input { width: auto; min-width: 150px; }
+.ml-filters input[type=search] { flex: 1 1 240px; min-width: 220px; }
+.ml-scope { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.ml-scope-btn {
+  padding: 7px 14px; font-size: .8125rem; font-weight: 600;
+  color: var(--text-light); text-decoration: none; background: transparent;
+}
+.ml-scope-btn.active { background: var(--primary-mid); color: #fff; }
+
+/* Approvazione minuta */
+.md-minute-locked {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: .8125rem; font-weight: 600; color: var(--success);
+  background: var(--success-bg); border-radius: 20px; padding: 4px 12px;
+}
+.md-reopen-box { display: inline-flex; align-items: center; gap: 6px; }
+.md-reopen-box .input { min-width: 260px; }
+
+/* Presenze effettive nella card partecipanti */
+.md-presenze {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px;
+  margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px dashed var(--border);
+  font-size: .8125rem;
+}
+.md-presenze-count { font-weight: 700; color: var(--primary-mid); }
+.md-presenze-absent { color: var(--text-light); }
 
 /* Agenda items */
 .md-agenda-item {

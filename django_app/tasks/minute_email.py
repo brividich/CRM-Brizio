@@ -43,7 +43,7 @@ def meeting_url(meeting) -> str:
 def _facts(meeting) -> list[tuple[str, str]]:
     kickoff = getattr(meeting.project, "kickoff_number", "") or ""
     titolo = (meeting.titolo or "").strip()
-    return [
+    facts = [
         ("KICK-OFF", str(kickoff)),
         ("Incontro n.", str(meeting.numero)),
         ("Titolo", titolo or "—"),
@@ -51,6 +51,14 @@ def _facts(meeting) -> list[tuple[str, str]]:
         ("Luogo", (meeting.luogo or "—").strip() or "—"),
         ("Stato", meeting.get_stato_display()),
     ]
+    # Una minuta approvata e' un documento chiuso: chi la riceve deve vederlo.
+    if getattr(meeting, "minuta_chiusa", False):
+        approvatore = meeting.minuta_chiusa_da
+        firma = ""
+        if approvatore is not None:
+            firma = f" da {approvatore.get_full_name() or approvatore.username}"
+        facts.append(("Minuta", f"Approvata il {_fmt(meeting.minuta_chiusa_at, '%d/%m/%Y')}{firma}"))
+    return facts
 
 
 def _sections_html_text(meeting, sections: list[tuple[str, str]]) -> tuple[list[str], list[str]]:
@@ -133,6 +141,41 @@ def _issues_text(meeting) -> str:
     return "\n".join(lines)
 
 
+def _actions_text(meeting) -> str:
+    """Azioni decise o chiuse in questo incontro, con responsabile e scadenza."""
+    from tasks.models import MeetingActionItem
+
+    qs = (
+        MeetingActionItem.objects.filter(source_meeting=meeting)
+        .select_related("assigned_to")
+        .order_by("status", "due_date", "id")
+    )
+    lines: list[str] = []
+    for action in qs:
+        parts = [action.get_status_display()]
+        if action.assigned_to_id:
+            parts.append(action.assigned_to.get_full_name() or action.assigned_to.username)
+        if action.due_date:
+            parts.append(f"entro {_fmt(action.due_date, '%d/%m/%Y')}")
+        lines.append(f"- {action.title} ({', '.join(parts)})")
+        if action.description:
+            lines.append(f"    {action.description.strip()}")
+    return "\n".join(lines)
+
+
+def _decisions_text(meeting) -> str:
+    """Decisioni registrate in questo incontro."""
+    lines: list[str] = []
+    for decision in meeting.decisions.select_related("decisa_da").order_by("created_at", "id"):
+        parts = [f"impatto {decision.get_impatto_display().lower()}"]
+        if decision.decisa_da_id:
+            parts.append(decision.decisa_da.get_full_name() or decision.decisa_da.username)
+        lines.append(f"- {decision.testo} ({', '.join(parts)})")
+        if decision.dettaglio:
+            lines.append(f"    {decision.dettaglio.strip()}")
+    return "\n".join(lines)
+
+
 def _partecipanti_text(meeting) -> str:
     """Elenco dei partecipanti (utenti portale + email esterne)."""
     names = [
@@ -151,14 +194,52 @@ def _partecipanti_text(meeting) -> str:
     return "\n".join(lines)
 
 
+def _presenti_text(meeting) -> str:
+    """Chi era davvero presente (utenti portale + email esterne convocate)."""
+    names = [
+        (user.get_full_name() or user.username)
+        for user in meeting.presenti_utenti.all()
+    ]
+    lines = [f"- {n}" for n in names] + [f"- {e}" for e in meeting.get_presenti_email_list()]
+    note = (meeting.partecipanti_testo or "").strip()
+    if note:
+        lines.append(note)
+    return "\n".join(lines)
+
+
+def _assenti_text(meeting) -> str:
+    """Convocati risultati assenti all'appello."""
+    names = [
+        (user.get_full_name() or user.username)
+        for user in meeting.assenti_utenti
+    ]
+    lines = [f"- {n}" for n in names] + [f"- {e}" for e in meeting.assenti_email]
+    return "\n".join(lines)
+
+
+def _presenze_sections(meeting) -> list[tuple[str, str]]:
+    """Presenti/assenti se l'appello e' stato fatto, altrimenti i soli convocati.
+
+    Gli incontri antecedenti alla registrazione delle presenze non hanno il dato:
+    per loro la minuta resta identica a prima, con la sezione «Partecipanti».
+    """
+    if not getattr(meeting, "presenze_registrate", False):
+        return [("Partecipanti", _partecipanti_text(meeting))]
+    return [
+        ("Presenti", _presenti_text(meeting)),
+        ("Assenti", _assenti_text(meeting)),
+    ]
+
+
 def _minute_sections(meeting) -> list[tuple[str, str]]:
     """Sezioni della minuta, sorgente unica per email e PDF (evita che divergano)."""
     return [
-        ("Partecipanti", _partecipanti_text(meeting)),
+        *_presenze_sections(meeting),
         ("Ordine del giorno", _agenda_text(meeting) or meeting.ordine_del_giorno),
         ("Verbale / Note", meeting.note),
+        ("Decisioni", _decisions_text(meeting)),
         ("Problemi", _issues_text(meeting) or meeting.problemi_aperti),
-        ("Next steps", meeting.next_steps),
+        ("Azioni", _actions_text(meeting) or meeting.next_steps),
     ]
 
 
