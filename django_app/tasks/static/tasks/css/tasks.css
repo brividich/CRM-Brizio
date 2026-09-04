@@ -859,38 +859,8 @@ body.tk-wide .content { width: 100%; max-width: none; }
 .tk-tab:hover { color: var(--text); background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .tk-tab--active { color: var(--accent); background: var(--surface); border-color: var(--border); position: relative; top: 1px; }
 
-/* ── Registro azioni commessa ───────────────────────────────────── */
-.ka-summary { display: flex; align-items: stretch; gap: var(--hub-space-3); flex-wrap: wrap; margin-bottom: var(--hub-space-4); }
-.ka-summary-card { display: flex; align-items: baseline; gap: var(--hub-space-2); min-width: 120px; padding: var(--hub-space-3) var(--hub-space-4); border: 1px solid var(--hub-color-border); border-radius: var(--hub-radius-md); background: var(--hub-color-surface); box-shadow: var(--hub-shadow-sm); }
-.ka-summary-card--danger { border-color: var(--hub-status-danger); background: var(--hub-status-danger-bg); }
-.ka-summary-value { color: var(--hub-color-text); font-size: var(--hub-font-xl); font-weight: 600; }
-.ka-summary-label { color: var(--hub-color-text-muted); font-size: var(--hub-font-sm); }
-.ka-summary-text { align-self: center; margin: 0; color: var(--hub-color-text-muted); font-size: var(--hub-font-sm); }
-.ka-table-wrap { overflow-x: auto; border: 1px solid var(--hub-color-border); border-radius: var(--hub-radius-lg); background: var(--hub-color-surface); box-shadow: var(--hub-shadow-sm); }
-.ka-table { width: 100%; border-collapse: collapse; color: var(--hub-color-text); font-size: var(--hub-font-base); }
-.ka-table th, .ka-table td { padding: var(--hub-space-3) var(--hub-space-4); border-bottom: 1px solid var(--hub-color-border); text-align: left; vertical-align: middle; }
-.ka-table th { background: var(--hub-color-surface-raised); color: var(--hub-color-text-muted); font-size: var(--hub-font-xs); font-weight: 600; }
-.ka-table tbody tr:last-child td { border-bottom: 0; }
-.ka-table tbody tr:hover { background: var(--hub-color-surface-raised); }
-.ka-table .ka-row--danger { background: var(--hub-status-danger-bg); }
-.ka-table .ka-row--closed { color: var(--hub-color-text-soft); }
-.ka-action-link { color: var(--hub-color-text); font-weight: 600; text-decoration: none; }
-.ka-action-link:hover { color: var(--hub-color-text); text-decoration: underline; }
-.ka-origin, .ka-status { display: inline-flex; padding: var(--hub-space-1) var(--hub-space-2); border-radius: var(--hub-radius-sm); font-size: var(--hub-font-xs); font-weight: 600; white-space: nowrap; }
-.ka-origin--issue { color: var(--hub-status-warning); background: var(--hub-status-warning-bg); }
-.ka-origin--task { color: var(--hub-status-info); background: var(--hub-status-info-bg); }
-.ka-origin--subtask { color: var(--hub-status-neutral); background: var(--hub-status-neutral-bg); }
-.ka-status--danger { color: var(--hub-status-danger); background: var(--hub-status-danger-bg); }
-.ka-status--open { color: var(--hub-status-success); background: var(--hub-status-success-bg); }
-.ka-status--closed { color: var(--hub-status-neutral); background: var(--hub-status-neutral-bg); }
-.ka-muted { color: var(--hub-color-text-soft); }
-.ka-empty { padding: var(--hub-space-8); border: 1px solid var(--hub-color-border); border-radius: var(--hub-radius-lg); background: var(--hub-color-surface); color: var(--hub-color-text-muted); text-align: center; }
-.ka-empty p { margin: 0 0 var(--hub-space-4); }
-
-@media (max-width: 700px) {
-  .ka-summary-card { flex: 1; }
-  .ka-table th, .ka-table td { padding: var(--hub-space-2) var(--hub-space-3); }
-}
+/* Registro azioni commessa: usa il guscio canonico del modulo
+   (ts-panel + tl-table + ts-kpi/ts-chip). Nessun namespace dedicato. */
 
 /* ── Panoramica commessa ────────────────────────────────────────── */
 .ko-phase { display: inline-flex; padding: var(--hub-space-1) var(--hub-space-2); border: 1px solid var(--hub-color-border); border-radius: var(--hub-radius-md); background: var(--hub-status-neutral-bg); color: var(--hub-color-text-muted); font-size: var(--hub-font-xs); font-weight: 600; }

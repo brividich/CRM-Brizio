@@ -77,6 +77,9 @@ def project_actions(request, project_id: int):
     actions = build_project_actions(project, include_closed=include_closed)
     open_count = sum(row.is_open for row in actions)
     overdue_count = sum(row.is_overdue for row in actions)
+    closed_count = sum(not row.is_open for row in actions)
+    unassigned_count = sum(row.is_open and not row.owner_label for row in actions)
+    no_due_count = sum(row.is_open and row.due_date is None for row in actions)
     return render(
         request,
         "tasks/project_actions.html",
@@ -93,6 +96,9 @@ def project_actions(request, project_id: int):
             "include_closed": include_closed,
             "open_count": open_count,
             "overdue_count": overdue_count,
+            "closed_count": closed_count,
+            "unassigned_count": unassigned_count,
+            "no_due_count": no_due_count,
         },
     )
 
