@@ -1107,7 +1107,7 @@ class MaintenanceRuleForm(forms.ModelForm):
         widgets = {
             "notes": forms.Textarea(attrs={"rows": 4}),
             "first_due_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
-            "assets": forms.SelectMultiple(attrs={"size": 10}),
+            "assets": forms.CheckboxSelectMultiple(),
         }
 
     def __init__(self, *args, **kwargs):
@@ -1147,7 +1147,8 @@ class MaintenanceRuleForm(forms.ModelForm):
         ).select_related("asset_category")
         self.fields["assets"].queryset = asset_qs.order_by("name", "asset_tag", "id")
         self.fields["assets"].required = False
-        self.fields["assets"].help_text = "Usato solo con 'Solo asset selezionati'. Ctrl/Cmd per selezioni multiple."
+        self.fields["assets"].help_text = "Usato solo con 'Solo asset selezionati'."
+        self.asset_scope_groups = self._build_asset_scope_groups()
         from django.contrib.auth import get_user_model
 
         User = get_user_model()
@@ -1185,6 +1186,38 @@ class MaintenanceRuleForm(forms.ModelForm):
             "Solo per manutenzioni esterne; lascia vuoto se interna o se la ditta non è ancora definita."
         )
         _attach_input_css(self)
+
+    def _build_asset_scope_groups(self):
+        """Raggruppa gli asset selezionabili come 'scope' della regola per reparto, con badge
+        quando esiste già un override attivo (solo in edit: una regola nuova non ha override).
+        Usato dal template al posto del rendering automatico di CheckboxSelectMultiple, per
+        poter raggruppare e mostrare il badge senza toccare la validazione del campo."""
+        selected_ids = {str(getattr(v, "pk", v)) for v in (self["assets"].value() or [])}
+
+        override_by_asset_id = {}
+        if self.instance.pk:
+            overrides = MaintenanceRuleAssetOverride.objects.filter(base_rule_id=self.instance.pk)
+            for override in overrides:
+                if override.is_disabled:
+                    override_by_asset_id[override.asset_id] = {"label": "Disabilitata", "css_class": "muted"}
+                elif override.has_effective_override:
+                    override_by_asset_id[override.asset_id] = {"label": "Personalizzata", "css_class": "warn"}
+
+        groups: dict[str, list[dict]] = {}
+        for asset in self.fields["assets"].queryset:
+            reparto = (asset.reparto or "").strip() or "Senza reparto"
+            groups.setdefault(reparto, []).append(
+                {
+                    "id": asset.pk,
+                    "label": str(asset),
+                    "checked": str(asset.pk) in selected_ids,
+                    "override": override_by_asset_id.get(asset.pk),
+                }
+            )
+        return [
+            {"reparto": reparto, "items": items}
+            for reparto, items in sorted(groups.items(), key=lambda kv: (kv[0] == "Senza reparto", kv[0]))
+        ]
 
     def clean_notes(self):
         return (self.cleaned_data.get("notes") or "").strip()

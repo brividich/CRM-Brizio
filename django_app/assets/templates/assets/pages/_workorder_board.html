@@ -1,0 +1,79 @@
+{% load static %}
+<div class="wob-board">
+  {% for col in board_columns %}
+    <div class="wob-col" data-state="{{ col.key }}">
+      <div class="wob-col-head">
+        <span class="wob-col-label">{{ col.label }}</span>
+        <span class="wob-col-count">{{ col.workorders|length }}</span>
+      </div>
+      <div class="wob-col-body">
+        {% for wo in col.workorders %}
+          <div class="wob-card" draggable="true" data-wo-id="{{ wo.id }}">
+            <a class="wob-card-title" href="{% url 'assets:wo_view' wo.id %}">#{{ wo.id }} — {{ wo.title|truncatechars:48 }}</a>
+            <div class="wob-card-meta">
+              <span>{{ wo.asset.asset_tag|default:wo.asset.name }}</span>
+              {% if wo.priority != 'NORMAL' %}<span class="as-badge {% if wo.priority == 'URGENT' %}as-badge--danger{% else %}as-badge--muted{% endif %}">{{ wo.get_priority_display }}</span>{% endif %}
+            </div>
+            <div class="wob-card-meta">
+              {% if wo.assigned_to %}<span>{{ wo.assigned_to.get_full_name|default:wo.assigned_to.username }}</span>{% else %}<span class="wob-muted">Non assegnato</span>{% endif %}
+              {% if wo.due_at %}<span class="{% if wo.is_overdue %}wob-overdue{% endif %}">{{ wo.due_at|date:"d-m" }}</span>{% endif %}
+            </div>
+          </div>
+        {% empty %}
+          <p class="wob-col-empty">—</p>
+        {% endfor %}
+      </div>
+    </div>
+  {% endfor %}
+</div>
+
+<script>
+(function () {
+  var meta = document.querySelector("meta[name='csrf-token']");
+  var csrf = meta ? meta.getAttribute("content") : "";
+
+  function setState(woId, state, onOk, onErr) {
+    fetch("/assets/workorders/" + woId + "/set-state/", {
+      method: "POST",
+      headers: {
+        "X-CSRFToken": csrf,
+        "Content-Type": "application/x-www-form-urlencoded",
+        "X-Requested-With": "XMLHttpRequest"
+      },
+      body: "state=" + encodeURIComponent(state)
+    }).then(function (r) { return r.ok ? r.json() : Promise.reject(r); })
+      .then(function (d) { if (d && d.ok) { onOk(); } else { onErr(d && d.error); } })
+      .catch(function () { onErr(); });
+  }
+
+  var dragged = null;
+  document.querySelectorAll(".wob-card[draggable='true']").forEach(function (card) {
+    card.addEventListener("dragstart", function () { dragged = card; card.classList.add("is-dragging"); });
+    card.addEventListener("dragend", function () { card.classList.remove("is-dragging"); dragged = null; });
+  });
+  document.querySelectorAll(".wob-col").forEach(function (col) {
+    col.addEventListener("dragover", function (e) { e.preventDefault(); col.classList.add("is-over"); });
+    col.addEventListener("dragleave", function () { col.classList.remove("is-over"); });
+    col.addEventListener("drop", function (e) {
+      e.preventDefault(); col.classList.remove("is-over");
+      if (!dragged) { return; }
+      var card = dragged;
+      var woId = card.getAttribute("data-wo-id");
+      var state = col.getAttribute("data-state");
+      var sourceCol = card.closest(".wob-col");
+      if (sourceCol === col) { return; }
+      var body = col.querySelector(".wob-col-body");
+      var sourcePlaceholder = sourceCol.querySelector(".wob-col-empty");
+      var sourceBody = sourceCol.querySelector(".wob-col-body");
+      body.appendChild(card);
+      setState(woId, state, function () {
+        /* successo: la card resta nella nuova colonna */
+      }, function (errorMessage) {
+        sourceBody.appendChild(card);
+        if (sourcePlaceholder) { sourceBody.appendChild(sourcePlaceholder); }
+        alert(errorMessage || "Spostamento non riuscito.");
+      });
+    });
+  });
+})();
+</script>
