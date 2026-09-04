@@ -34,7 +34,8 @@
 
     {% if meetings %}
       <div class="tl-table-wrap">
-        <table class="tl-table">
+        {# Ricerca server-side (cerca anche nel verbale): niente doppia casella fm-table. #}
+        <table class="tl-table" data-fm-hide-search="1">
           <thead>
             <tr>
               <th style="width:34%">Incontro</th>

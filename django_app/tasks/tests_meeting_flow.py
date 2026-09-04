@@ -765,6 +765,20 @@ class MeetingActionAndDecisionTests(TasksBaseTestCase):
         payload.update(extra)
         return self.client.post(self.minutes_url, payload)
 
+    def test_i_dati_per_i_picker_arrivano_come_liste_non_come_stringhe(self):
+        """`json_script` serializza da solo: una stringa gia' in JSON diventa una
+        stringa in pagina e rompe i menu «Task collegato» delle righe nuove."""
+        from tasks.models import Task
+
+        Task.objects.create(title="Attività", project=self.project, created_by=self.user)
+        for url in (
+            self.minutes_url,
+            reverse("tasks:project_meeting_create", args=[self.project.id]),
+        ):
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertIsInstance(response.context["project_tasks_json"], list)
+
     def test_esito_crea_azione_con_responsabile_e_scadenza(self):
         from tasks.models import MeetingActionItem, MeetingActionStatus
 

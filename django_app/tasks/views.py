@@ -6827,8 +6827,11 @@ def project_meeting_create(request, project_id: int):
             "project": project,
             "form": form,
             "is_edit": False,
-            "project_tasks_json": json.dumps(project_tasks),
-            "meeting_rooms_json": json.dumps(meeting_rooms),
+            # `json_script` serializa da solo: passargli una stringa gia' in JSON
+            # la incapsula una seconda volta e in pagina si ottiene una stringa,
+            # non una lista (rompeva i menu «Task collegato» delle righe nuove).
+            "project_tasks_json": project_tasks,
+            "meeting_rooms_json": meeting_rooms,
             "carried_issues": meeting_issues,
             "active_users": active_users,
             "agenda_templates": list(MeetingAgendaTemplate.objects.filter(is_active=True)),
@@ -6917,8 +6920,11 @@ def project_meeting_edit(request, project_id: int, meeting_id: int):
             "meeting": meeting,
             "form": form,
             "is_edit": True,
-            "project_tasks_json": json.dumps(project_tasks),
-            "meeting_rooms_json": json.dumps(meeting_rooms),
+            # `json_script` serializa da solo: passargli una stringa gia' in JSON
+            # la incapsula una seconda volta e in pagina si ottiene una stringa,
+            # non una lista (rompeva i menu «Task collegato» delle righe nuove).
+            "project_tasks_json": project_tasks,
+            "meeting_rooms_json": meeting_rooms,
             "carried_issues": _open_meeting_issues_for_project(project),
             "active_users": active_users,
             "agenda_templates": list(MeetingAgendaTemplate.objects.filter(is_active=True)),
@@ -6995,7 +7001,7 @@ def project_meeting_minutes(request, project_id: int, meeting_id: int):
             "meeting_actions": list(_meeting_actions_for_form(project, meeting)),
             "meeting_decisions": list(meeting.decisions.select_related("decisa_da")),
             "decision_impacts": MeetingDecisionImpact.choices,
-            "project_tasks_json": json.dumps(_project_tasks_for_picker(project)),
+            "project_tasks_json": _project_tasks_for_picker(project),
             "active_users": task_active_users_queryset(),
         },
     )
