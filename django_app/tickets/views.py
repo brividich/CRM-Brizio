@@ -921,7 +921,6 @@ def ticket_nuovo(request):
         sicurezza   = sicurezza_raw == "1"
         asset_id    = (request.POST.get("asset_id") or "").strip()
         asset_libera= (request.POST.get("asset_descrizione_libera") or "").strip()[:300]
-        include_maintenance = request.POST.get("include_in_maintenance_register") == "1"
 
         if sicurezza_raw not in {"0", "1"}:
             return render(request, "tickets/pages/nuovo.html",
@@ -933,6 +932,12 @@ def ticket_nuovo(request):
             return render(request, "tickets/pages/nuovo.html",
                 _ctx(tipo_eff=tipo_post,
                      error="Titolo, descrizione e categoria sono obbligatori.",
+                     form_data=request.POST))
+
+        if not asset_id and not asset_libera:
+            return render(request, "tickets/pages/nuovo.html",
+                _ctx(tipo_eff=tipo_post,
+                     error="Indica l'asset coinvolto: seleziona un asset dal catalogo, dai tuoi asset o inserisci almeno un nome generico.",
                      form_data=request.POST))
 
         if priorita not in dict(PrioritaTicket.choices):
@@ -959,7 +964,7 @@ def ticket_nuovo(request):
             richiedente_email=email,
             richiedente_legacy_user_id=legacy_id,
             richiedente_user=request.user,
-            include_in_maintenance_register=include_maintenance if tipo_post == TipoTicket.MAN else False,
+            include_in_maintenance_register=tipo_post == TipoTicket.MAN,
         )
         ticket.save()
 
@@ -2520,6 +2525,9 @@ def api_ticket_analytics(request):
     if "ricorrente" in payload:
         ticket.ricorrente = bool(payload["ricorrente"])
         update_fields.append("ricorrente")
+    if "include_in_maintenance_register" in payload:
+        ticket.include_in_maintenance_register = bool(payload["include_in_maintenance_register"])
+        update_fields.append("include_in_maintenance_register")
     if "ticket_origine_id" in payload:
         orig_id = payload["ticket_origine_id"]
         if orig_id:

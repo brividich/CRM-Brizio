@@ -1089,7 +1089,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
                               <strong>{{ execution.executed_at|date:"d-m-Y" }}</strong>
                               {% if execution.resolution %} - {{ execution.resolution|truncatechars:120 }}{% endif %}
                               {% if execution.cost_eur is not None %} ({{ execution.cost_eur }} EUR){% endif %}
-                              {% if execution.url %} <a href="{{ execution.url }}">OdL #{{ execution.workorder.id }}</a>{% endif %}
+                              {% if execution.url %} <a href="{{ execution.url }}">OdL #{{ execution.workorder.display_number }}</a>{% endif %}
                             </li>
                           {% endfor %}
                         </ul>

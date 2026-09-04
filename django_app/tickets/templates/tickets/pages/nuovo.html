@@ -328,7 +328,7 @@ body.theme-dark .tkt-error { background:rgba(220,38,38,.12); border-color:rgba(2
 
           <div class="tkt-field-row">
             <div class="tkt-field" style="position:relative;">
-              <label>Asset coinvolto</label>
+              <label>Asset coinvolto <span class="req">*</span></label>
 
               {% if my_assets_list %}
               <!-- Miei asset / reparto -->
@@ -393,16 +393,6 @@ body.theme-dark .tkt-error { background:rgba(220,38,38,.12); border-color:rgba(2
               placeholder="Descrivi il problema nel dettaglio: quando e iniziato, come si manifesta, cosa hai gia provato...">{{ form_data.descrizione|default:'' }}</textarea>
           </div>
 
-          {% if tipo == "MAN" %}
-          <div class="tkt-field" style="margin-top:8px;padding:12px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;">
-            <label style="display:flex;align-items:center;gap:8px;color:#15803d;font-weight:700;">
-              <input type="hidden" name="include_in_maintenance_register" value="0">
-              <input type="checkbox" name="include_in_maintenance_register" value="1" checked>
-              Includi nel registro manutenzione asset
-            </label>
-            <div style="font-size:11px;color:#64748b;margin-top:4px;">Il ticket comparirà nel registro manutenzione dell'asset come intervento straordinario.</div>
-          </div>
-          {% endif %}
         </div>
 
         <div class="tkt-form-section">

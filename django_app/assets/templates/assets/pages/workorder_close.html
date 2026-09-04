@@ -1,7 +1,7 @@
 {% extends "assets/base_shell.html" %}
 
 {% block title %}Chiudi intervento{% endblock %}
-{% block assets_shell_title %}Chiudi intervento #{{ workorder.id }}{% endblock %}
+{% block assets_shell_title %}Chiudi intervento #{{ workorder.display_number }}{% endblock %}
 {% block assets_shell_subtitle %}<p>{{ workorder.asset.asset_tag }} · {{ workorder.title }}</p>{% endblock %}
 {% block assets_shell_toolbar %}
   <a class="btn" href="{% url 'assets:wo_view' workorder.id %}">&larr; Torna all'intervento</a>
@@ -175,12 +175,14 @@ body.theme-dark .woc-details-body{border-color:var(--border)}
               <div class="woc-note">Obbligatoria quando l'esito e “Chiusa”.</div>
               {% if form.resolution.errors %}<div class="woc-error">{{ form.resolution.errors }}</div>{% endif %}
             </div>
+            {% if workorder.kind == "CORRECTIVE" or workorder.kind == "SAFETY" or workorder.kind == "CALIBRATION" %}
             <div class="woc-field">
               <label for="{{ form.failure_cause.id_for_label }}">{{ form.failure_cause.label }} <span class="woc-note">opzionale</span></label>
               {{ form.failure_cause }}
               <div class="woc-note">Serve a capire se un guasto si ripete per lo stesso motivo.</div>
               {% if form.failure_cause.errors %}<div class="woc-error">{{ form.failure_cause.errors }}</div>{% endif %}
             </div>
+            {% endif %}
             <div class="woc-field">
               <label for="{{ form.log_note.id_for_label }}">{{ form.log_note.label }} <span class="woc-note">opzionale</span></label>
               {{ form.log_note }}

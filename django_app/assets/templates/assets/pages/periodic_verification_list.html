@@ -310,13 +310,25 @@
 }
 .pv-execution-toggle-all input { width:auto; margin:0; }
 .pv-execution-asset-list {
-  min-height:120px;
-  max-height:180px;
+  display:grid;
+  gap:6px;
+  min-height:auto;
+  max-height:220px;
+  overflow-y:auto;
   border:1px solid #cbd5e1;
   border-radius:8px;
   background:#fff;
-  padding:6px 8px;
+  padding:8px 10px;
 }
+.wof-sibling-item { display:flex; align-items:center; gap:8px; font-size:var(--fs-sm); color:#223756; }
+.wof-sibling-item input[type="checkbox"] { width:auto; accent-color:#1d4ed8; }
+body.theme-dark .wof-sibling-item { color:var(--text); }
+.pv-record-heading { display:flex; align-items:flex-start; gap:10px; margin-bottom:2px; }
+.pv-record-heading .woc-step { width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto; background:#1d4ed8; color:#fff; font-weight:900; font-size:var(--fs-xs); }
+.pv-record-heading h3 { margin:0; color:#0f172a; font-size:var(--fs-title-sm); }
+.pv-record-heading p { margin:3px 0 0; color:#64748b; font-size:var(--fs-sm); }
+body.theme-dark .pv-record-heading h3 { color:var(--text); }
+body.theme-dark .pv-record-heading p { color:var(--text-light); }
 .pv-execution-files {
   border:1px dashed #cbd5e1;
   border-radius:8px;
@@ -451,10 +463,11 @@ body.theme-dark .pv-view-btn { color:var(--text-light); }
 .pv-record-form {
   display:none;
   margin-top:10px;
-  padding:10px;
-  border:1px solid #cbd5e1;
-  border-radius:10px;
-  background:#f8fafc;
+  padding:16px;
+  border:1px solid #dbe1ea;
+  border-radius:13px;
+  background:#fff;
+  box-shadow:0 8px 24px rgba(15,23,42,.045);
   gap:10px;
   grid-template-columns:repeat(2, minmax(0, 1fr));
 }
@@ -523,7 +536,7 @@ body.theme-dark .pv-history-row .pv-history-extra { color:var(--text-light); }
 body.theme-dark .pv-history-row a.pv-history-link { color:#93c5fd; }
 body.theme-dark .pv-history-title { color:var(--text-light); }
 body.theme-dark .pv-history-meta { color:var(--text-light); }
-body.theme-dark .pv-record-form { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .pv-record-form { background:var(--surface); border-color:var(--border); box-shadow:none; }
 body.theme-dark .pv-record-form label { color:var(--text-mid); }
 body.theme-dark .pv-record-form :is(input,select,textarea) { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
 body.theme-dark .pv-record-toggle.is-secondary { background:var(--surface-alt); color:#93c5fd; border-color:rgba(96,165,250,.45); }
@@ -916,7 +929,7 @@ body.theme-dark .pv-list-controls input { background:var(--surface-alt); border-
                             </div>
                           </div>
                           <div>
-                            {% if execution.url %}<a class="pv-history-link" href="{{ execution.url }}">OdL #{{ execution.workorder.id }}</a>{% endif %}
+                            {% if execution.url %}<a class="pv-history-link" href="{{ execution.url }}">OdL #{{ execution.workorder.display_number }}</a>{% endif %}
                           </div>
                         </div>
                       {% endfor %}
@@ -935,18 +948,22 @@ body.theme-dark .pv-list-controls input { background:var(--surface-alt); border-
                       <input type="hidden" name="filter_q" value="{{ periodic_q }}">
                       <input type="hidden" name="filter_edit" value="{% if edit_verification %}{{ edit_verification.id }}{% endif %}">
                       <input type="hidden" name="filter_window" value="{{ execution_window }}">
+                      <div class="pv-record-full pv-record-heading">
+                        <span class="woc-step">R</span>
+                        <div><h3>Registra esecuzione</h3><p>Un OdL chiuso viene creato per ogni asset selezionato.</p></div>
+                      </div>
                       <div class="pv-record-full">
                         <label>Asset coinvolti</label>
                         <label class="pv-execution-toggle-all">
                           <input type="checkbox" data-pv-execution-toggle-all="{{ row.verification.id }}" checked>
                           <span>Seleziona / deseleziona tutti</span>
                         </label>
-                        <select class="pv-execution-asset-list" name="execution_asset_ids" multiple required size="6" data-pv-execution-asset-list="{{ row.verification.id }}">
+                        <div class="pv-execution-asset-list" data-pv-execution-asset-list="{{ row.verification.id }}">
                           {% for asset in row.execution_assets %}
-                            <option value="{{ asset.id }}" selected>{{ asset.asset_tag }} - {{ asset.name }}</option>
+                            <label class="wof-sibling-item"><input type="checkbox" name="execution_asset_ids" value="{{ asset.id }}" checked>{{ asset.asset_tag }} - {{ asset.name }}</label>
                           {% endfor %}
-                        </select>
-                        <div class="pv-help">L'esecuzione viene registrata su ogni asset selezionato (un intervento per asset).</div>
+                        </div>
+                        <div class="pv-help">L'esecuzione viene registrata su ogni asset selezionato (un intervento per asset). Se selezioni più asset, gli OdL creati insieme si numerano in serie (es. #342-1, #342-2).</div>
                       </div>
                       <div>
                         <label>Data esecuzione</label>
@@ -1067,13 +1084,13 @@ body.theme-dark .pv-list-controls input { background:var(--surface-alt); border-
     const list = document.querySelector(`[data-pv-execution-asset-list="${planId}"]`);
     if (!list) return;
     const syncToggle = () => {
-      const options = Array.from(list.options);
-      const allSelected = options.length > 0 && options.every((opt) => opt.selected);
+      const items = Array.from(list.querySelectorAll("input[type=checkbox]"));
+      const allSelected = items.length > 0 && items.every((item) => item.checked);
       checkbox.checked = allSelected;
     };
     checkbox.addEventListener("change", () => {
-      Array.from(list.options).forEach((option) => {
-        option.selected = checkbox.checked;
+      Array.from(list.querySelectorAll("input[type=checkbox]")).forEach((item) => {
+        item.checked = checkbox.checked;
       });
     });
     list.addEventListener("change", syncToggle);
