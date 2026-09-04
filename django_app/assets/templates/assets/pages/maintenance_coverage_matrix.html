@@ -1,0 +1,92 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Matrice di copertura{% endblock %}
+
+{% block assets_shell_head %}
+  {% include "assets/components/maintenance_ux_v2_styles.html" %}
+  <style>
+    .mcm-table-wrap{overflow:auto;max-height:70vh}
+    .mcm-table{width:100%;border-collapse:collapse;font-size:var(--fs-sm)}
+    .mcm-table th,.mcm-table td{padding:8px 10px;border-bottom:1px solid #edf2f7;white-space:nowrap}
+    .mcm-table thead th{position:sticky;top:0;background:#f8fbff;text-align:left;color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:.04em;z-index:1}
+    .mcm-table tbody th{position:sticky;left:0;background:#fff;text-align:left;color:#0f172a;font-weight:800;z-index:1}
+    .mcm-cell{text-align:center}
+    .mcm-dash{color:#cbd5e1}
+    .mcm-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:800}
+    .mcm-badge--overdue,.mcm-badge--missing{background:#fee2e2;color:#b91c1c}
+    .mcm-badge--warning{background:#fef3c7;color:#92400e}
+    .mcm-badge--upcoming{background:#dcfce7;color:#15803d}
+    .mcm-badge--overlap{background:#ede9fe;color:#6d28d9}
+    body.theme-dark .mcm-table thead th{background:var(--surface);color:var(--text-light)}
+    body.theme-dark .mcm-table tbody th{background:var(--surface);color:var(--text)}
+    body.theme-dark .mcm-table td,.body.theme-dark .mcm-table th{border-color:var(--border)}
+  </style>
+{% endblock %}
+
+{% block assets_shell_title %}Matrice di copertura{% endblock %}
+{% block assets_shell_subtitle %}<p>Ogni riga è un asset, ogni colonna un tipo di intervento: cella vuota = nessuna regola copre l'incrocio, badge viola = più regole attive sullo stesso incrocio.</p>{% endblock %}
+{% block assets_shell_toolbar %}
+  <a class="btn" href="{{ back_url }}">&larr; Copertura per categoria</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<section style="display:grid;gap:14px;">
+  <article class="ux-card">
+    <header class="ux-card-head">
+      <div><h3>Asset coperti</h3><p>{{ matrix_rows|length }} asset con almeno una regola di manutenzione attiva.</p></div>
+    </header>
+    <div class="mcm-table-wrap">
+      <table class="mcm-table">
+        <thead>
+          <tr>
+            <th>Asset</th>
+            {% for col_key, col_label in columns %}<th>{{ col_label }}</th>{% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in matrix_rows %}
+            <tr>
+              <th>{{ row.asset.name|default:row.asset.asset_tag }}<div class="ux-secondary">{{ row.asset.reparto|default:"—" }}</div></th>
+              {% for cell in row.cells %}
+                <td class="mcm-cell">
+                  {% if cell.state == 'empty' %}
+                    <span class="mcm-dash">—</span>
+                  {% elif cell.state == 'overlap' %}
+                    <span class="mcm-badge mcm-badge--overlap">{{ cell.count }} regole</span>
+                  {% else %}
+                    <span class="mcm-badge mcm-badge--{{ cell.state }}">{{ cell.label }}</span>
+                  {% endif %}
+                </td>
+              {% endfor %}
+            </tr>
+          {% empty %}
+            <tr><td colspan="{{ columns|length|add:1 }}"><div class="ux-empty">Nessun asset con regole attive.</div></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <article class="ux-card">
+    <header class="ux-card-head">
+      <div><h3>Asset scoperti</h3><p>In uso, senza nessuna regola di manutenzione preventiva attiva.</p></div>
+    </header>
+    <div class="ux-table-wrap">
+      <table class="ux-table">
+        <thead><tr><th>Asset</th><th>Reparto</th><th>Categoria</th></tr></thead>
+        <tbody>
+          {% for asset in uncovered_assets %}
+            <tr>
+              <td class="ux-primary">{{ asset.name|default:asset.asset_tag }}</td>
+              <td>{{ asset.reparto|default:"—" }}</td>
+              <td>{{ asset.asset_category.label|default:"—" }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="3"><div class="ux-empty">Nessun asset scoperto: tutti hanno almeno una regola attiva.</div></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+</section>
+{% endblock %}

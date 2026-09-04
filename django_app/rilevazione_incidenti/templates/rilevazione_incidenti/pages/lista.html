@@ -63,21 +63,25 @@
 .sic-tipo-card-ua { background:#e0f2fe; }
 .sic-tipo-card-nm { background:#fff7ed; }
 .sic-tipo-card-ac { background:#fee2e2; }
+.sic-tipo-card-ew { background:#f5f3ff; }
 .sic-tipo-card-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
 .sic-tipo-card-uc .sic-tipo-card-dot { background:#16a34a; }
 .sic-tipo-card-ua .sic-tipo-card-dot { background:#0369a1; }
 .sic-tipo-card-nm .sic-tipo-card-dot { background:#ea580c; }
 .sic-tipo-card-ac .sic-tipo-card-dot { background:#dc2626; }
+.sic-tipo-card-ew .sic-tipo-card-dot { background:#7c3aed; }
 .sic-tipo-card-label { font-size: var(--fs-xs); font-weight:700; flex:1; }
 .sic-tipo-card-uc .sic-tipo-card-label { color:#166534; }
 .sic-tipo-card-ua .sic-tipo-card-label { color:#0c4a6e; }
 .sic-tipo-card-nm .sic-tipo-card-label { color:#9a3412; }
 .sic-tipo-card-ac .sic-tipo-card-label { color:#991b1b; }
+.sic-tipo-card-ew .sic-tipo-card-label { color:#5b21b6; }
 .sic-tipo-card-num { font-size: var(--fs-xl); font-weight:900; }
 .sic-tipo-card-uc .sic-tipo-card-num { color:#15803d; }
 .sic-tipo-card-ua .sic-tipo-card-num { color:#0369a1; }
 .sic-tipo-card-nm .sic-tipo-card-num { color:#c2410c; }
 .sic-tipo-card-ac .sic-tipo-card-num { color:#991b1b; }
+.sic-tipo-card-ew .sic-tipo-card-num { color:#5b21b6; }
 
 .sic-filters {
   background:#fff; border:1px solid #e2e8f0; border-radius:14px;
@@ -131,6 +135,7 @@
 .sic-tipo-unsafe-act { background:#e0f2fe; color:#0c4a6e; }
 .sic-tipo-near-miss { background:#fff7ed; color:#9a3412; }
 .sic-tipo-accident { background:#fee2e2; color:#991b1b; }
+.sic-tipo-early-warning { background:#f5f3ff; color:#5b21b6; }
 
 .sic-stato-dot {
   display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px;
@@ -165,6 +170,7 @@ body.theme-dark .sic-tipo-card-uc { background:rgba(21,128,61,.15); }
 body.theme-dark .sic-tipo-card-ua { background:rgba(3,105,161,.15); }
 body.theme-dark .sic-tipo-card-nm { background:rgba(120,53,15,.15); }
 body.theme-dark .sic-tipo-card-ac { background:rgba(185,28,28,.15); }
+body.theme-dark .sic-tipo-card-ew { background:rgba(124,58,237,.15); }
 body.theme-dark .sic-table-card { background:var(--surface); border-color:var(--border); }
 body.theme-dark .sic-table-header { border-color:var(--border); color:var(--text-mid); }
 body.theme-dark .sic-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
@@ -175,6 +181,7 @@ body.theme-dark .sic-tipo-unsafe-condition { background:rgba(234,88,12,.7); }
 body.theme-dark .sic-tipo-unsafe-act { background:rgba(220,38,38,.7); }
 body.theme-dark .sic-tipo-near-miss { background:rgba(180,83,9,.7); }
 body.theme-dark .sic-tipo-accident { background:rgba(127,29,29,.7); }
+body.theme-dark .sic-tipo-early-warning { background:rgba(91,33,182,.7); }
 body.theme-dark .sic-stato-aperto-label    { color:#93c5fd; }
 body.theme-dark .sic-stato-approvato-label { color:#fde68a; }
 body.theme-dark .sic-stato-chiuso-label    { color:#86efac; }
@@ -199,7 +206,7 @@ body.theme-dark .sic-count-badge { background:rgba(255,255,255,.08); color:var(-
   <div class="sic-hero">
     <div class="sic-hero-left">
       <div class="sic-hero-title">&#128737; Rilevazioni Sicurezza</div>
-      <div class="sic-hero-sub">UnSafe Condition &bull; UnSafe Act &bull; Near Miss &bull; Accident</div>
+      <div class="sic-hero-sub">UnSafe Condition &bull; UnSafe Act &bull; Near Miss &bull; Accident &bull; Early Warning</div>
     </div>
     <div class="sic-hero-actions">
       {% if can_rspp %}
@@ -270,6 +277,11 @@ body.theme-dark .sic-count-badge { background:rgba(255,255,255,.08); color:var(-
       <div class="sic-tipo-card-dot"></div>
       <div class="sic-tipo-card-label">Accident</div>
       <div class="sic-tipo-card-num">{{ stats.accident }}</div>
+    </div>
+    <div class="sic-tipo-card sic-tipo-card-ew">
+      <div class="sic-tipo-card-dot"></div>
+      <div class="sic-tipo-card-label">Early Warning</div>
+      <div class="sic-tipo-card-num">{{ stats.early_warning }}</div>
     </div>
   </div>
   <div class="sic-tipo-row">
@@ -374,6 +386,8 @@ body.theme-dark .sic-count-badge { background:rgba(255,255,255,.08); color:var(-
               <span class="sic-tipo-badge sic-tipo-near-miss">Near Miss</span>
             {% elif "accident" in t %}
               <span class="sic-tipo-badge sic-tipo-accident">Accident</span>
+            {% elif "early warning" in t %}
+              <span class="sic-tipo-badge sic-tipo-early-warning">Early Warning</span>
             {% else %}
               <span class="sic-tipo-badge" style="background:#f1f5f9;color:#475569;">{{ f.Tipologia_scheda|default:"—" }}</span>
             {% endif %}
