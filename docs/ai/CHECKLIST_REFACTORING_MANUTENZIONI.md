@@ -182,14 +182,32 @@ Foglio precompilato con le 374 righe da compilare (asset · piano · ultima esec
 
 Dati puliti, nessun caso limite: 0 regole senza piano, 0 regole `CATEGORY` senza categoria, 0 con `auto_generate=False`.
 
-### Da eseguire in ambiente (scrivono sul DB)
+### Eseguito sul DB dev il 2026-09-05
 
-- [ ] **`migrate assets 0098`** sul DB dev — prerequisito di tutto: senza le colonne nuove su `MaintenanceInterventionTemplate` qualunque query sui piani fallisce (`Il nome di colonna 'execution_mode' non è valido`). La migration è additiva (5 `CreateModel`, 15 `AddField`, 2 `AlterField` di soli `help_text`/`choices`) e reversibile
+- [x] `migrate assets 0098` — applicata
+- [x] `migrate_maintenance_to_plans` — **i conteggi coincidono esattamente con la ricognizione**: 18 applicazioni su categoria, 0 gruppi, 0 override, 0 esclusioni, 187 occorrenze eseguite, 2 piani amministrativi + 2 applicazioni + 2 occorrenze aperte, 0 regole a contatore saltate. Stato risultante: 20 applicazioni attive, 187 occorrenze eseguite, 2 aperte
+- [x] Le 4 `PeriodicVerification` con `is_legacy=False` sono state **elencate, non convertite**: #1 Verifica allarme, #2 Test Backup, #3 Cambio olio, #4 FW Update
+- [x] `generate_maintenance_occurrences --dry-run` — **conferma dal motore**: creerebbe 465 occorrenze, di cui **374 con scadenza oggi** (le coppie senza storico) e 91 su date reali ricavate dallo storico. Nessun conflitto, nessuna esclusione
+
+> **Non generare prima dell'import dello storico.** Su dev non c'è nessuno schedule django-q registrato per assets, quindi nulla parte da solo; ma il primo `generate_maintenance_occurrences` (o `setup_q_schedules` seguito dal cluster) creerebbe quelle 374 scadenze finte.
+
+### Ancora da fare
+
+- [ ] Compilare le 374 righe del foglio e caricarle (`import_maintenance_history <file>` per l'anteprima, poi `--apply`)
+- [ ] Impostare la periodicità reale sulle 2 applicazioni amministrative (nate con `auto_generate=False`)
+- [ ] Decidere sulle 4 `PeriodicVerification` elencate sopra
+- [ ] Solo dopo: prima generazione e `setup_q_schedules`
+
+<details><summary>Comandi (storico)</summary>
+
+- [x] **`migrate assets 0098`** sul DB dev — prerequisito di tutto: senza le colonne nuove su `MaintenanceInterventionTemplate` qualunque query sui piani fallisce (`Il nome di colonna 'execution_mode' non è valido`). La migration è additiva (5 `CreateModel`, 15 `AddField`, 2 `AlterField` di soli `help_text`/`choices`) e reversibile
 - [ ] `migrate_maintenance_to_plans --dry-run`, confronto con la tabella qui sopra, poi senza `--dry-run`
 - [ ] Compilare le 374 righe del foglio e caricarle (`import_maintenance_history <file>` per l'anteprima, poi `--apply`) **prima** della prima generazione
 - [ ] Rivedere le 2 applicazioni amministrative nate con `auto_generate=False` e impostare la periodicità reale
 - [ ] Decidere sulle 4 `PeriodicVerification` con `is_legacy=False` elencate dal comando
 - [ ] `setup_q_schedules` (ritira `assets_generate_workorders`, registra `assets_generate_occurrences`)
+
+</details>
 
 > **Ordine vincolante**: `migrate 0098` → `migrate_maintenance_to_plans` → import dello storico → `setup_q_schedules`. Anticipare l'ultimo passo lascia un giorno senza generazione; saltare l'import fa nascere 374 scadenze finte tutte dovute oggi.
 
