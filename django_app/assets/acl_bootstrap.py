@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from core.acl_bootstrap_base import run_bootstrap
 
-_BOOTSTRAP_CACHE_KEY = "assets_acl_bootstrap_v10"
+_BOOTSTRAP_CACHE_KEY = "assets_acl_bootstrap_v11"
 
 _PULSANTI_DEFINITIONS = [
     {"modulo": "assets", "codice": "assets_list", "label": "Assets - Lista asset", "url": "/assets/", "hide": False},
@@ -66,6 +66,7 @@ _PULSANTI_DEFINITIONS = [
     {"modulo": "assets", "codice": "assets_maintenance_groups", "label": "Assets - Gruppi di asset", "url": "/assets/manutenzione/gruppi/", "hide": True},
     {"modulo": "assets", "codice": "assets_maintenance_coverage", "label": "Assets - Copertura piani", "url": "/assets/manutenzione/copertura/", "hide": True},
     {"modulo": "assets", "codice": "assets_maintenance_asset_plans", "label": "Assets - Piani manutenzione dell'asset", "url": "/assets/manutenzione/asset/", "hide": True},
+    {"modulo": "assets", "codice": "assets_maintenance_history_import", "label": "Assets - Import storico manutenzioni", "url": "/assets/manutenzione/importa-storico/", "hide": True},
     {"modulo": "assets", "codice": "assets_maintenance_preview_api", "label": "Assets - Anteprima applicazione piano", "url": "/api/assets/manutenzione/", "hide": True},
     # Azioni riservate: pianificazione (organizza il lavoro) ed esecuzione
     # (registra, carica rapporti, apre follow-up). Concedibili dal pannello

@@ -8,7 +8,8 @@ l'allegato obbligatorio, la precedenza asset/gruppo e i conflitti.
 
 from __future__ import annotations
 
-from datetime import date
+import io
+from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -18,6 +19,7 @@ from django.utils import timezone
 
 from assets.models import (
     Asset,
+    AssetAdministrativeDeadline,
     AssetCategory,
     AssetGroup,
     AssetGroupMembership,
@@ -543,3 +545,98 @@ class OccurrenceViewStateTests(MaintenanceDomainTestCase):
             domain.occurrence_view_state(self.occurrence, today=date(2026, 10, 21)),
             MaintenanceOccurrence.VIEW_WAITING,
         )
+
+
+class MaintenanceReminderTests(MaintenanceDomainTestCase):
+    """Il promemoria quotidiano legge le occorrenze, e legge SOLO quelle.
+
+    Finche' il nuovo dominio e' vuoto vale il comportamento storico: durante la
+    migrazione la mail non deve smettere di partire.
+    """
+
+    def setUp(self):
+        self.today = timezone.localdate()
+        self.plan = self.make_plan("Revisione annuale")
+        self.assignment = self.make_assignment(self.plan)
+
+    def _occurrence(self, asset, due_date, **kwargs):
+        defaults = {
+            "plan": self.plan,
+            "assignment": self.assignment,
+            "asset": asset,
+            "due_date": due_date,
+            "warning_days": 30,
+        }
+        defaults.update(kwargs)
+        return MaintenanceOccurrence.objects.create(**defaults)
+
+    def _run(self, **kwargs):
+        out = io.StringIO()
+        call_command("send_maintenance_reminders", dry_run=True, stdout=out, **kwargs)
+        return out.getvalue()
+
+    def _legacy_deadline(self, *, due_date, title="Collaudo INAIL"):
+        return AssetAdministrativeDeadline.objects.create(
+            asset=self.assets[0],
+            title=title,
+            due_date=due_date,
+        )
+
+    def test_le_occorrenze_scadute_sono_in_cima(self):
+        self._occurrence(self.assets[0], self.today - timedelta(days=12))
+
+        output = self._run()
+
+        self.assertIn("SCADUTE — AZIONE IMMEDIATA", output)
+        self.assertIn("SCADUTA da 12gg", output)
+        self.assertIn("TORNIO01", output)
+        self.assertIn("Revisione annuale", output)
+
+    def test_le_sorgenti_legacy_tacciono_quando_esistono_occorrenze(self):
+        # La stessa manutenzione, migrata, arriverebbe due volte con due nomi diversi.
+        self._legacy_deadline(due_date=self.today - timedelta(days=3))
+        self._occurrence(self.assets[0], self.today - timedelta(days=3))
+
+        output = self._run()
+
+        self.assertNotIn("Collaudo INAIL", output)
+        self.assertIn("Revisione annuale", output)
+
+    def test_senza_occorrenze_resta_il_comportamento_storico(self):
+        self._legacy_deadline(due_date=self.today - timedelta(days=3))
+
+        output = self._run()
+
+        self.assertIn("Collaudo INAIL", output)
+
+    def test_occorrenza_gia_raccolta_in_un_odl_non_e_ripetuta(self):
+        occurrence = self._occurrence(self.assets[0], self.today + timedelta(days=5))
+        domain.create_workorder_from_occurrences([occurrence], user=self.user)
+
+        output = self._run(no_throttle=True)
+
+        self.assertNotIn("Revisione annuale", output)
+
+    def test_eseguita_senza_rapporto_resta_nella_mail(self):
+        self._occurrence(
+            self.assets[0],
+            self.today - timedelta(days=40),
+            status=MaintenanceOccurrence.STATUS_DONE,
+            completed_on=self.today - timedelta(days=2),
+            supplier=None,
+        )
+        self.plan.attachment_required = True
+        self.plan.save(update_fields=["attachment_required"])
+
+        output = self._run()
+
+        self.assertIn("ESEGUITE MA SENZA RAPPORTO", output)
+        self.assertIn("Revisione annuale", output)
+
+    def test_in_scadenza_dentro_il_preavviso(self):
+        self._occurrence(self.assets[0], self.today + timedelta(days=3))
+
+        output = self._run(no_throttle=True)
+
+        self.assertIn("MANUTENZIONI in scadenza", output)
+        self.assertIn("[3gg]", output)

@@ -28,6 +28,24 @@ def run_generate_scheduled_workorders() -> dict:
         raise
 
 
+def run_generate_maintenance_occurrences() -> dict:
+    """Crea le occorrenze di manutenzione dovute dai piani attivi.
+
+    Sostituisce ``run_generate_scheduled_workorders``: lo scheduler non apre più un
+    OdL per ogni asset. Genera le *manutenzioni dovute*; raggrupparle in ordini di
+    lavoro — anche massivi — resta una decisione umana. Va schedulato PRIMA di
+    ``run_maintenance_reminders`` così le nuove scadenze entrano nella mail del giorno.
+    """
+    from django.core.management import call_command
+
+    try:
+        call_command("generate_maintenance_occurrences", verbosity=0)
+        return {"ok": True}
+    except Exception:
+        logger.exception("run_generate_maintenance_occurrences: eccezione inattesa")
+        raise
+
+
 def run_maintenance_reminders() -> dict:
     """Promemoria email scadenze manutenzione/verifiche periodiche + OdL scaduti.
 

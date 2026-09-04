@@ -9,6 +9,8 @@ agganciato all'asset giusto.
 
 from __future__ import annotations
 
+import io
+import json
 from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
@@ -87,6 +89,7 @@ class MaintenancePagesRenderTests(MaintenanceUITestCase):
             reverse("assets:asset_group_create"),
             reverse("assets:asset_group_edit", args=[self.group.pk]),
             reverse("assets:maintenance_coverage"),
+            reverse("assets:maintenance_history_import"),
             reverse("assets:asset_maintenance_plans", args=[self.assets[0].pk]),
             reverse("assets:asset_plan_customize", args=[self.assets[0].pk, self.plan.pk]),
             reverse("assets:occurrence_complete", args=[self.occurrences[0].pk]),
@@ -452,3 +455,146 @@ class MaintenancePermissionTests(TestCase):
             {"plan": self.plan.pk, "target_type": "GROUP", "target_id": "1"},
         )
         self.assertEqual(response.status_code, 403)
+
+
+class HistoryImportTests(MaintenanceUITestCase):
+    """L'import iniziale dello storico: senza, ogni piano risulterebbe dovuto subito."""
+
+    def _xlsx(self, rows, headers=None):
+        from openpyxl import Workbook
+
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.append(headers or ["asset", "piano", "ultima esecuzione", "note"])
+        for row in rows:
+            sheet.append(row)
+        buffer = io.BytesIO()
+        workbook.save(buffer)
+        return SimpleUploadedFile(
+            "storico.xlsx",
+            buffer.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+    def test_anteprima_calcola_la_prossima_scadenza_senza_scrivere(self):
+        eseguita = timezone.localdate() - timedelta(days=5)
+        response = self.client.post(
+            reverse("assets:maintenance_history_import"),
+            {"file": self._xlsx([["TORNIO01", "Cambio olio", eseguita.strftime("%d/%m/%Y"), "ok"]])},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        report = response.context["report"]
+        self.assertEqual(len(report.valid_rows), 1)
+        self.assertEqual(report.valid_rows[0].next_due, eseguita + timedelta(days=30))
+        self.assertFalse(
+            MaintenanceOccurrence.objects.filter(source=MaintenanceOccurrence.SOURCE_IMPORT).exists(),
+            "l'anteprima non deve scrivere nulla",
+        )
+
+    def test_le_righe_in_errore_non_bloccano_le_altre(self):
+        eseguita = timezone.localdate() - timedelta(days=5)
+        response = self.client.post(
+            reverse("assets:maintenance_history_import"),
+            {
+                "file": self._xlsx(
+                    [
+                        ["TORNIO01", "Cambio olio", eseguita.strftime("%d/%m/%Y"), ""],
+                        ["FANTASMA", "Cambio olio", eseguita.strftime("%d/%m/%Y"), ""],
+                        ["TORNIO02", "Piano inesistente", eseguita.strftime("%d/%m/%Y"), ""],
+                        ["TORNIO03", "Cambio olio", "domani", ""],
+                    ]
+                )
+            },
+        )
+
+        report = response.context["report"]
+        self.assertEqual(len(report.valid_rows), 1)
+        self.assertEqual(len(report.error_rows), 3)
+        errori = " ".join(row.error for row in report.error_rows)
+        self.assertIn("FANTASMA", errori)
+        self.assertIn("Piano inesistente", errori)
+
+    def test_la_conferma_scrive_storico_e_prossima_scadenza(self):
+        eseguita = timezone.localdate() - timedelta(days=5)
+        payload = json.dumps([["TORNIO01", "Cambio olio", eseguita.isoformat(), "revisione"]])
+
+        response = self.client.post(
+            reverse("assets:maintenance_history_import"),
+            {"confirm": "1", "payload": payload},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        storico = MaintenanceOccurrence.objects.get(
+            asset=self.assets[0], status=MaintenanceOccurrence.STATUS_DONE
+        )
+        self.assertEqual(storico.due_date, eseguita)
+        self.assertEqual(storico.completed_on, eseguita)
+        self.assertEqual(storico.completion_notes, "revisione")
+
+    def test_import_ripetibile_non_duplica(self):
+        eseguita = timezone.localdate() - timedelta(days=5)
+        upload = lambda: self.client.post(  # noqa: E731
+            reverse("assets:maintenance_history_import"),
+            {"file": self._xlsx([["TORNIO01", "Cambio olio", eseguita.strftime("%d/%m/%Y"), ""]])},
+        )
+        payload = json.dumps([["TORNIO01", "Cambio olio", eseguita.isoformat(), ""]])
+        self.client.post(
+            reverse("assets:maintenance_history_import"), {"confirm": "1", "payload": payload}
+        )
+
+        report = upload().context["report"]
+
+        self.assertEqual(len(report.valid_rows), 0)
+        self.assertEqual(len(report.duplicate_rows), 1)
+
+    def test_il_conflitto_si_chiama_conflitto(self):
+        # Un piano che arriva da due gruppi con periodicita' diverse NON e' un piano
+        # "che non si applica": dirlo cosi' manderebbe l'utente a cercare la causa
+        # sbagliata. La risoluzione in conflitto non ha applicazione, quindi l'ordine
+        # dei controlli e' l'unica cosa che tiene in piedi il messaggio giusto.
+        altro_gruppo = AssetGroup.objects.create(code="reparto2", label="REPARTO 2")
+        AssetGroupMembership.objects.create(group=altro_gruppo, asset=self.assets[0])
+        MaintenancePlanAssignment.objects.create(
+            plan=self.plan,
+            target_type=MaintenancePlanAssignment.TARGET_GROUP,
+            asset_group=altro_gruppo,
+            frequency=MaintenancePlanAssignment.FREQ_DAYS,
+            interval=90,
+            warning_days=30,
+        )
+        eseguita = timezone.localdate() - timedelta(days=5)
+
+        response = self.client.post(
+            reverse("assets:maintenance_history_import"),
+            {"file": self._xlsx([["TORNIO01", "Cambio olio", eseguita.strftime("%d/%m/%Y"), ""]])},
+        )
+
+        errori = " ".join(row.error for row in response.context["report"].error_rows)
+        self.assertIn("conflitto", errori.lower())
+        self.assertNotIn("non si applica", errori)
+
+    def test_intestazioni_sbagliate_lo_dicono(self):
+        response = self.client.post(
+            reverse("assets:maintenance_history_import"),
+            {"file": self._xlsx([["x", "y", "z"]], headers=["colonna1", "colonna2", "colonna3"])},
+        )
+
+        self.assertTrue(response.context["report"].header_error)
+
+    def test_il_modello_excel_si_scarica(self):
+        response = self.client.get(reverse("assets:maintenance_history_template"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("spreadsheetml", response["Content-Type"])
+
+    def test_senza_permesso_la_pagina_non_si_apre(self):
+        # La route e' registrata in acl_bootstrap: la nega gia' il middleware (302),
+        # e se anche passasse il gate della view risponderebbe 404.
+        operatore = User.objects.create_user(username="operatore-import", password="x")
+        self.client.force_login(operatore)
+
+        response = self.client.get(reverse("assets:maintenance_history_import"))
+
+        self.assertIn(response.status_code, (302, 403, 404))

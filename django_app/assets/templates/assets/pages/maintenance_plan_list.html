@@ -13,6 +13,7 @@
   <a class="btn" href="{% url 'assets:asset_group_list' %}">Gruppi asset</a>
   {% if can_manage %}
     <a class="btn" href="{% url 'assets:maintenance_coverage' %}">Copertura</a>
+    <a class="btn" href="{% url 'assets:maintenance_history_import' %}">Importa storico</a>
     <a class="btn btn-primary" href="{% url 'assets:maintenance_plan_create' %}">+ Nuovo piano</a>
   {% endif %}
 {% endblock %}

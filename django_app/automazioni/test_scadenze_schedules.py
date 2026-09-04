@@ -16,8 +16,8 @@ from automazioni.schedules import spec_by_name
 
 # (modulo tasks, nome wrapper, nome management command, nome schedule, func path)
 _MATRIX = [
-    ("assets.tasks", "run_generate_scheduled_workorders", "generate_scheduled_workorders",
-     "assets_generate_workorders", "assets.tasks.run_generate_scheduled_workorders"),
+    ("assets.tasks", "run_generate_maintenance_occurrences", "generate_maintenance_occurrences",
+     "assets_generate_occurrences", "assets.tasks.run_generate_maintenance_occurrences"),
     ("assets.tasks", "run_maintenance_reminders", "send_maintenance_reminders",
      "assets_maintenance_reminders", "assets.tasks.run_maintenance_reminders"),
     ("dpi.tasks", "run_dpi_expiry_reminders", "send_dpi_expiry_reminders",
@@ -82,3 +82,19 @@ class IntakeScansioniScheduleTest(SimpleTestCase):
             esito = tasks.run_intake_scansioni_formazione()
 
         self.assertFalse(esito["ok"], "un guasto non deve propagarsi al cluster")
+
+
+class RetiredSchedulesTests(SimpleTestCase):
+    """Uno schedule tolto dal codice sopravvive nel DB: va ritirato esplicitamente."""
+
+    def test_il_generatore_di_odl_e_ritirato_non_solo_rimosso(self):
+        from automazioni.schedules import RETIRED_SCHEDULE_NAMES
+
+        self.assertIsNone(spec_by_name("assets_generate_workorders"))
+        self.assertIn("assets_generate_workorders", RETIRED_SCHEDULE_NAMES)
+
+    def test_nessun_nome_ritirato_e_anche_attivo(self):
+        from automazioni.schedules import RETIRED_SCHEDULE_NAMES
+
+        for name in RETIRED_SCHEDULE_NAMES:
+            self.assertIsNone(spec_by_name(name), f"{name} e' insieme attivo e ritirato")

@@ -207,6 +207,16 @@ urlpatterns = [
         name="occurrence_attachment_download",
     ),
     path(
+        "assets/manutenzione/importa-storico/",
+        views_maintenance.maintenance_history_import,
+        name="maintenance_history_import",
+    ),
+    path(
+        "assets/manutenzione/importa-storico/modello/",
+        views_maintenance.maintenance_history_template,
+        name="maintenance_history_template",
+    ),
+    path(
         "assets/manutenzione/scadenze/crea-odl/",
         views_maintenance.occurrence_create_workorder,
         name="occurrence_create_workorder",

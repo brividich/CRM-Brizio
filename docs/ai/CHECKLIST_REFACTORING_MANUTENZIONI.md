@@ -143,14 +143,24 @@ Pagine aperte nel browser su un'istanza SQLite di prova, **tema chiaro e tema sc
 
 ---
 
-## 4. Da fare — Fase F (amministrative e legacy)
+## 4. Fase F (amministrative e legacy) — codice fatto, resta l'esecuzione sui dati
 
-- [ ] Eseguire `migrate_maintenance_to_plans --dry-run` in dev e **confrontare i conteggi** con quelli attesi (§65 della specifica: n. regole, n. asset coinvolti, n. state, n. OdL periodici, n. verifiche legacy)
+### Fatto in questa ondata
+
+- [x] **Promemoria sulle occorrenze.** `send_maintenance_reminders` ha una fonte sola: se esiste anche una sola `MaintenanceOccurrence` la mail parla di occorrenze e le sorgenti legacy (scadenze amministrative, verifiche periodiche, righe da regola, contatori fermi) tacciono. Finché il nuovo dominio è vuoto vale il comportamento storico, così il promemoria non smette di partire durante la migrazione. Blocchi: SCADUTE · ESEGUITE MA SENZA RAPPORTO · in scadenza · OdL in ritardo. Le occorrenze già raccolte in un OdL aperto non compaiono tra le scadenze: le copre il blocco OdL
+  - la nota precedente («le scadute spariscono dalle mail») **era già superata**: il blocco `!!! SCADUTE` esisteva
+- [x] **Scheduler.** `assets_generate_workorders` → `assets_generate_occurrences` (`assets.tasks.run_generate_maintenance_occurrences`). Lo scheduler non apre più un OdL per asset
+- [x] `RETIRED_SCHEDULE_NAMES` in `automazioni/schedules.py` + pulizia in `setup_q_schedules`: togliere una voce da `SCHEDULES` **non** rimuove il record django-q, e il vecchio job continuerebbe a girare dopo il deploy, invisibile alla Centrale di comando
+- [x] **Import storico** (§34/§62): `assets/services/maintenance_history_import.py`, pagina `/assets/manutenzione/importa-storico/` (upload → anteprima riga per riga → conferma), modello Excel scaricabile, comando `import_maintenance_history` (`--template`, anteprima di default, `--apply`). Ripetibile: le righe già importate risultano «già presente». Una scadenza aperta preesistente **non** viene spostata sulla data calcolata dallo storico, e il conteggio lo dice
+
+### Da eseguire in ambiente (non è codice)
+
+- [ ] `migrate_maintenance_to_plans --dry-run` in dev e **confronto dei conteggi** con §65 della specifica (n. regole, n. asset coinvolti, n. state, n. OdL periodici, n. verifiche legacy)
 - [ ] Rivedere a mano le applicazioni amministrative nate con `auto_generate=False` e impostare la periodicità reale
 - [ ] Convertire o archiviare le `PeriodicVerification` con `is_legacy=False` elencate dal comando
-- [ ] Import iniziale storico (§34/§62): wizard `asset_tag | piano | ultima esecuzione | note` con template Excel, anteprima, errori per riga, conferma. **Non ancora scritto.**
-- [ ] Reindirizzare `send_maintenance_reminders` sulle occorrenze (oggi legge regole/verifiche/scadenze). Nota: oggi filtra `due_date >= today`, quindi **le scadute spariscono dalle mail** — da correggere nello stesso passaggio
-- [ ] `automazioni/schedules.py:399` schedula `generate_scheduled_workorders`: sostituire con `generate_maintenance_occurrences`
+- [ ] Compilare e caricare il foglio dello storico (una riga per coppia asset/piano)
+
+> **Ordine di deploy vincolante**: prima `migrate_maintenance_to_plans`, poi l'import dello storico, poi `setup_q_schedules`. Invertendo gli ultimi due resta un giorno senza generazione delle scadenze.
 
 ---
 

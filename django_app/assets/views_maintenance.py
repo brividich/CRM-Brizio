@@ -12,6 +12,8 @@ Applicazione, Scadenza, Ordine di lavoro, Follow-up. Mai "regola", "override",
 
 from __future__ import annotations
 
+import io
+import json
 from collections import defaultdict
 from datetime import date, timedelta
 from typing import Any
@@ -33,6 +35,7 @@ from .forms_maintenance import (
     ExecutionDayForm,
     FollowUpForm,
     MaintenancePlanAssignmentForm,
+    MaintenanceHistoryImportForm,
     MaintenancePlanForm,
     OccurrenceCompletionForm,
     OccurrenceFilterForm,
@@ -48,6 +51,7 @@ from .models import (
     WorkOrder,
 )
 from .services import maintenance_domain as domain
+from .services import maintenance_history_import as history_import
 from .services.recurrence import RECURRENCE_PRESETS, describe_recurrence
 from .views import _assets_shell_context, _as_int, _clean_string, _is_assets_admin
 
@@ -1164,3 +1168,108 @@ def maintenance_coverage(request: HttpRequest) -> HttpResponse:
             "rows": rows,
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Import dello storico
+# ---------------------------------------------------------------------------
+
+def _import_payload(report) -> str:
+    """Righe importabili serializzate per il passo di conferma.
+
+    La conferma ripassa dalla stessa ``analyze``: il payload non e' una scorciatoia
+    che salta la validazione, e' solo il modo di non far ricaricare il file.
+    """
+    return json.dumps(
+        [
+            [row.asset_tag, row.plan_label, row.last_execution.isoformat(), row.notes]
+            for row in report.valid_rows
+        ]
+    )
+
+
+def _table_from_payload(raw: str) -> list[list[Any]]:
+    try:
+        rows = json.loads(raw or "[]")
+    except (ValueError, TypeError):
+        return []
+    table: list[list[Any]] = [list(history_import.TEMPLATE_HEADERS)]
+    for row in rows:
+        if isinstance(row, list) and len(row) == 4:
+            table.append([str(value or "") for value in row])
+    return table
+
+
+@login_required
+def maintenance_history_import(request: HttpRequest) -> HttpResponse:
+    """Carica lo storico: anteprima riga per riga, poi conferma.
+
+    Senza la data dell'ultima esecuzione il motore considera ogni piano dovuto
+    subito: il giorno del passaggio il portale aprirebbe centinaia di scadenze
+    false. Questa e' la pagina che evita quel giorno.
+    """
+    if not can_manage_maintenance_plans(request):
+        raise Http404
+
+    form = MaintenanceHistoryImportForm()
+    report = None
+    payload = ""
+
+    if request.method == "POST" and request.POST.get("confirm") == "1":
+        report = history_import.analyze(_table_from_payload(request.POST.get("payload", "")))
+        if report.can_apply:
+            history_import.apply_report(report, user=request.user)
+            avviso = (
+                f" {report.kept_open} scadenze gia' aperte sono state lasciate come stavano."
+                if report.kept_open
+                else ""
+            )
+            messages.success(
+                request,
+                f"Storico importato: {report.created_history} esecuzioni registrate, "
+                f"{report.created_next} prossime scadenze aperte.{avviso}",
+            )
+            return redirect("assets:maintenance_scadenze")
+        messages.error(request, report.header_error or "Nessuna riga importabile: ricarica il file.")
+        payload = _import_payload(report)
+
+    elif request.method == "POST":
+        form = MaintenanceHistoryImportForm(request.POST, request.FILES)
+        if form.is_valid():
+            try:
+                table = history_import.read_table(form.cleaned_data["file"])
+            except Exception as exc:  # file corrotto o non leggibile
+                messages.error(request, f"File non leggibile: {exc}")
+                table = []
+            if table:
+                report = history_import.analyze(table)
+                payload = _import_payload(report)
+
+    return render(
+        request,
+        "assets/pages/maintenance_history_import.html",
+        {
+            **_assets_shell_context(request),
+            "page_title": "Importa storico manutenzioni",
+            "form": form,
+            "report": report,
+            "payload": payload,
+            "headers": history_import.TEMPLATE_HEADERS,
+        },
+    )
+
+
+@login_required
+def maintenance_history_template(request: HttpRequest) -> HttpResponse:
+    """Modello Excel da compilare."""
+    if not can_manage_maintenance_plans(request):
+        raise Http404
+
+    buffer = io.BytesIO()
+    history_import.build_template_workbook().save(buffer)
+    response = HttpResponse(
+        buffer.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = 'attachment; filename="storico_manutenzioni_modello.xlsx"'
+    return response

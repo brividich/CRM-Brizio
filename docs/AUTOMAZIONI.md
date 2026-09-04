@@ -86,11 +86,11 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 
 ## Assets · Manutenzione
 
-### `assets_generate_workorders`
+### `assets_generate_occurrences`
 
 - **Quando gira:** ogni giorno, alle 06:00
-- **Task eseguito:** `assets.tasks.run_generate_scheduled_workorders`
-- **Cosa fa:** ASSETS — genera gli OdL periodici dovuti dalle MaintenanceRule attive. Idempotente (nessun duplicato se esiste già un WO OPEN). Gira PRIMA del promemoria manutenzione così i nuovi OdL rientrano nella mail del giorno.
+- **Task eseguito:** `assets.tasks.run_generate_maintenance_occurrences`
+- **Cosa fa:** ASSETS — genera le OCCORRENZE di manutenzione dovute dai piani attivi. Non apre più un OdL per ogni asset: raggruppare le manutenzioni in ordini di lavoro è una decisione umana (pagina "Da fare"). Idempotente: la terna (piano, asset, scadenza) è unica a DB. Gira PRIMA del promemoria manutenzione così le nuove scadenze rientrano nella mail del giorno.
 
 ### `assets_maintenance_reminders`
 
@@ -230,11 +230,11 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 
 ## KICK-OFF · Attività
 
-### `tasks_meeting_issue_reminders`
+### `tasks_meetings_digest`
 
-- **Quando gira:** ogni lun, alle 07:00
-- **Task eseguito:** `tasks.tasks.run_meeting_issue_reminders`
-- **Cosa fa:** KICK-OFF — sollecito ai responsabili sui «problemi aperti» degli incontri scaduti (MeetingIssue OPEN con due_date passata). Email + notifica in-app.
+- **Quando gira:** ogni giorno, alle 17:00
+- **Task eseguito:** `tasks.tasks.run_meetings_digest`
+- **Cosa fa:** KICK-OFF — digest unico incontri: "domani hai un incontro" (ogni giorno) + sollecito «problemi aperti» degli incontri scaduti (il lunedi, dentro la stessa funzione). Una sola email per persona quando coincidono, invece di due job/invii separati.
 
 ### `tasks_send_reminders`
 

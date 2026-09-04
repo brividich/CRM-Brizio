@@ -601,3 +601,22 @@ class OccurrenceFilterForm(forms.Form):
         for field in self.fields.values():
             field.widget.attrs.setdefault("class", "")
         _attach_input_css(self)
+
+
+class MaintenanceHistoryImportForm(forms.Form):
+    """Caricamento del foglio storico. La validazione vera e' riga per riga, in anteprima."""
+
+    file = forms.FileField(
+        label="File dello storico",
+        help_text="Excel (.xlsx) o CSV con le colonne: asset · piano · ultima esecuzione · note.",
+        widget=forms.ClearableFileInput(attrs={"accept": ".xlsx,.csv,.txt"}),
+    )
+
+    def clean_file(self):
+        uploaded = self.cleaned_data["file"]
+        name = (uploaded.name or "").lower()
+        if not name.endswith((".xlsx", ".csv", ".txt")):
+            raise forms.ValidationError("Formato non supportato: servono .xlsx o .csv.")
+        if uploaded.size > 8 * 1024 * 1024:
+            raise forms.ValidationError("File troppo grande (massimo 8 MB).")
+        return uploaded
