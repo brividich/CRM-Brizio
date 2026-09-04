@@ -1,8 +1,14 @@
 # Session Checkpoint
 
-Data: 2026-09-02
+Data: 2026-09-04
 
 Ultime voci viste/aggiunte in questa sessione:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-04 - Codex` (audit indipendente refactor manutenzioni, sola documentazione/test).
+- `docs/ai/AUDIT_LEGACY_MANUTENZIONI_CODEX.md` -> inventario legacy, seconde fonti di verità, audit `WorkOrder.asset`, performance, ACL/direct URL e priorità remediation.
+- `docs/ai/AUDIT_BRANCH_LEGACY_MANUTENZIONI.md` -> cinque branch verificati come antenati del target, tutti con zero commit esclusivi; nessun recupero/merge/cherry-pick.
+- `django_app/assets/tests_maintenance_audit_edges.py` -> 23 test separati su calendario, occurrence, OdL massivi e ACL; 22 verdi, 1 failure intenzionale che riproduce la pianificazione fuori reparto.
+- Verifica: suite preesistenti `assets.tests_maintenance_domain` 35/35 e `assets.tests_maintenance_ui` 24/24 verdi; nessun file runtime, DB dev/prod, dipendenza, ACL, routing o file critico modificato; nessun backup.
 
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-02 - Codex` (KICK-OFF F3 Fase C: Panoramica commessa).
 - `BUILD_CHECKLIST_kickoff_F3.md` -> Sessioni 1-5 completate; prossima Sessione 6, chiusura funzionale.
