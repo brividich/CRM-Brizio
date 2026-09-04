@@ -1,0 +1,92 @@
+{% extends "tasks/base_shell.html" %}
+
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Incontri</span>{% endblock %}
+{% block tasks_shell_title %}Elenco incontri{% endblock %}
+{% block tasks_shell_subtitle %}Tutti gli incontri a cui hai accesso, con ricerca nel verbale.{% endblock %}
+
+{% block tasks_shell_actions %}
+  <a class="ts-hero-action" href="{% url 'tasks:incontri_calendario' %}">Calendario</a>
+{% endblock %}
+
+{% block tasks_shell_content %}
+<section class="ts-panel">
+  <div class="ts-panel-body">
+    <form method="get" class="ml-filters">
+      <div class="ml-scope">
+        <a class="ml-scope-btn{% if filter_mine %} active{% endif %}" href="?mine=1{% if filter_stato %}&stato={{ filter_stato }}{% endif %}{% if filter_periodo %}&periodo={{ filter_periodo }}{% endif %}{% if filter_q %}&q={{ filter_q|urlencode }}{% endif %}">I miei</a>
+        <a class="ml-scope-btn{% if not filter_mine %} active{% endif %}" href="?mine=0{% if filter_stato %}&stato={{ filter_stato }}{% endif %}{% if filter_periodo %}&periodo={{ filter_periodo }}{% endif %}{% if filter_q %}&q={{ filter_q|urlencode }}{% endif %}">Tutti</a>
+      </div>
+      <input type="hidden" name="mine" value="{% if filter_mine %}1{% else %}0{% endif %}">
+      <input class="input" type="search" name="q" value="{{ filter_q }}" placeholder="Cerca in titolo, verbale, next steps…">
+      <select class="input" name="stato">
+        <option value="">Tutti gli stati</option>
+        {% for value, label in stato_choices %}
+          <option value="{{ value }}"{% if filter_stato == value %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <select class="input" name="periodo">
+        <option value="tutti"{% if filter_periodo == "tutti" %} selected{% endif %}>Tutto il periodo</option>
+        <option value="prossimi"{% if filter_periodo == "prossimi" %} selected{% endif %}>Da oggi in poi</option>
+        <option value="passati"{% if filter_periodo == "passati" %} selected{% endif %}>Passati</option>
+      </select>
+      <button type="submit" class="md-btn">Filtra</button>
+    </form>
+
+    {% if meetings %}
+      <div class="tl-table-wrap">
+        <table class="tl-table">
+          <thead>
+            <tr>
+              <th style="width:34%">Incontro</th>
+              <th>Commessa</th>
+              <th>Data</th>
+              <th>Stato</th>
+              <th>Partecipanti</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for meeting in meetings %}
+              <tr class="tl-row-clickable" data-href="{% url 'tasks:project_meeting_detail' meeting.project_id meeting.id %}">
+                <td>
+                  <a class="tl-task-link" href="{% url 'tasks:project_meeting_detail' meeting.project_id meeting.id %}">#{{ meeting.numero }} {{ meeting.label }}</a>
+                  {% if meeting.luogo %}<div class="tl-task-desc">{{ meeting.luogo }}</div>{% endif %}
+                </td>
+                <td><span class="tl-ko-link">{{ meeting.project.name }}</span></td>
+                <td><span class="tl-date">{{ meeting.data|date:"d-m-Y" }}{% if meeting.ora %} · {{ meeting.ora|time:"H:i" }}{% endif %}</span></td>
+                <td>
+                  <span class="md-stato {{ meeting.stato|lower }}">{{ meeting.get_stato_display }}</span>
+                  {% if meeting.minuta_chiusa %}<span class="ts-badge">Minuta approvata</span>{% endif %}
+                </td>
+                <td>
+                  {% if meeting.presenze_registrate %}
+                    {{ meeting.presenti_count }} presenti / {{ meeting.convocati_count }}
+                  {% else %}
+                    {{ meeting.convocati_count }} convocati
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="empty" style="text-align:center;padding:28px 12px;">Nessun incontro corrisponde ai filtri.</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
+
+{% block tasks_shell_scripts %}
+<script>
+(function () {
+  'use strict';
+  document.querySelectorAll('.tl-row-clickable').forEach(function (row) {
+    row.addEventListener('click', function (ev) {
+      if (ev.target.closest('a')) return;
+      const href = row.getAttribute('data-href');
+      if (href) window.location.href = href;
+    });
+  });
+})();
+</script>
+{% endblock %}

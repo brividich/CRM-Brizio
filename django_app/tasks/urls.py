@@ -10,6 +10,7 @@ urlpatterns = [
     path("tasks/", views.task_list, name="list"),
     path("tasks/da-gestire/", views.da_gestire, name="da_gestire"),
     path("tasks/incontri-calendario/", views.incontri_calendario, name="incontri_calendario"),
+    path("tasks/incontri/", views.incontri_lista, name="incontri_lista"),
     path("tasks/projects/", views.project_list, name="project_list"),
     path("tasks/projects/new/", views.project_create, name="project_create"),
     path(
@@ -101,6 +102,8 @@ urlpatterns = [
     path("tasks/projects/<int:project_id>/incontri/<int:meeting_id>/invia-convocazione/", views.project_meeting_send_invite, name="project_meeting_send_invite"),
     path("tasks/projects/<int:project_id>/incontri/<int:meeting_id>/invia-minuta/", views.project_meeting_send_minute, name="project_meeting_send_minute"),
     path("tasks/projects/<int:project_id>/incontri/<int:meeting_id>/minuta.pdf", views.project_meeting_minute_pdf, name="project_meeting_minute_pdf"),
+    path("tasks/projects/<int:project_id>/incontri/<int:meeting_id>/approva-minuta/", views.project_meeting_minute_close, name="project_meeting_minute_close"),
+    path("tasks/projects/<int:project_id>/incontri/<int:meeting_id>/riapri-minuta/", views.project_meeting_minute_reopen, name="project_meeting_minute_reopen"),
     path("tasks/projects/<int:project_id>/incontri/<int:meeting_id>/delete/", views.project_meeting_delete, name="project_meeting_delete"),
     path("tasks/projects/<int:project_id>/incontri/<int:meeting_id>/problemi/<int:issue_id>/status/", views.project_meeting_issue_status, name="project_meeting_issue_status"),
     path("tasks/projects/<int:project_id>/incontri/<int:meeting_id>/agenda-toggle/<str:item_id>/", views.project_meeting_agenda_toggle, name="project_meeting_agenda_toggle"),

@@ -525,3 +525,401 @@ class MeetingsDigestJobTests(TasksBaseTestCase):
 
         self.assertEqual(len(mail.outbox), 0)
         self.assertEqual(len(mail.outbox), 0)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class MeetingAgendaTemplateTests(TasksBaseTestCase):
+    """Modelli di ordine del giorno riutilizzabili + duplica dall'incontro precedente."""
+
+    def setUp(self):
+        super().setUp()
+        _ensure_role(1, "admin")
+        self._refresh_acl_cache()
+        self.user = _create_user_with_legacy(
+            username="modelli-pm", legacy_user_id=551, role_id=1, role_name="admin"
+        )
+        self.project = Project.objects.create(
+            name="", created_by=self.user, project_manager=self.user
+        )
+        self.client.force_login(self.user)
+
+    def test_creazione_modello_con_durate(self):
+        from tasks.models import MeetingAgendaTemplate
+
+        response = self.client.post(reverse("tasks:impostazioni"), {
+            "tab": "modelli",
+            "tpl_action": "template_create",
+            "nome": "Avanzamento settimanale",
+            "descrizione": "Riunione ricorrente",
+            "items_text": "Stato avanzamento | 15\nCriticità aperte\n   \nProssimi passi | 999",
+        })
+        self.assertEqual(response.status_code, 302)
+        template = MeetingAgendaTemplate.objects.get(nome="Avanzamento settimanale")
+        self.assertEqual(
+            template.items,
+            [
+                {"titolo": "Stato avanzamento", "nota": "", "durata_minuti": 15},
+                {"titolo": "Criticità aperte", "nota": "", "durata_minuti": None},
+                {"titolo": "Prossimi passi", "nota": "", "durata_minuti": None},
+            ],
+        )
+
+    def test_il_form_incontro_riceve_i_modelli_attivi(self):
+        from tasks.models import MeetingAgendaTemplate
+
+        MeetingAgendaTemplate.objects.create(
+            nome="Attivo", items=[{"titolo": "Punto", "nota": "", "durata_minuti": None}]
+        )
+        MeetingAgendaTemplate.objects.create(nome="Spento", items=[], is_active=False)
+
+        response = self.client.get(
+            reverse("tasks:project_meeting_create", args=[self.project.id])
+        )
+        nomi = [t["nome"] for t in response.context["agenda_templates_json"]]
+        self.assertEqual(nomi, ["Attivo"])
+
+    def test_duplica_odg_dell_incontro_precedente_esclude_i_problemi(self):
+        issue = MeetingIssue.objects.create(
+            project=self.project, title="Problema", status=MeetingIssueStatus.OPEN
+        )
+        KickoffMeeting.objects.create(
+            project=self.project,
+            data="2026-09-10",
+            created_by=self.user,
+            agenda_items=[
+                {"id": "a1", "titolo": "Punto ricorrente", "durata_minuti": 10},
+                {"id": f"issue-{issue.pk}", "titolo": "Problema", "issue_id": issue.pk},
+            ],
+        )
+        response = self.client.get(
+            reverse("tasks:project_meeting_create", args=[self.project.id])
+        )
+        self.assertTrue(response.context["has_previous_agenda"])
+        self.assertEqual(
+            response.context["previous_agenda_json"],
+            [{"titolo": "Punto ricorrente", "nota": "", "durata_minuti": 10}],
+        )
+
+    def test_tab_modelli_si_apre(self):
+        response = self.client.get(reverse("tasks:impostazioni"), {"tab": "modelli"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Modelli ordine del giorno")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class MeetingListaTests(TasksBaseTestCase):
+    """Elenco trasversale: «i miei» incontri e ricerca nel verbale."""
+
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "tasks")
+        _grant_role_actions(2, ["tasks_view", "tasks_create"])
+        self._refresh_acl_cache()
+        self.user = _create_user_with_legacy(
+            username="lista-pm", legacy_user_id=541, role_id=2, role_name="tasks"
+        )
+        self.altro = _create_user_with_legacy(
+            username="lista-altro", legacy_user_id=542, role_id=2, role_name="tasks"
+        )
+        self.project = Project.objects.create(
+            name="", created_by=self.user, project_manager=self.user
+        )
+        self.mio = KickoffMeeting.objects.create(
+            project=self.project, data="2026-09-10", titolo="Incontro mio",
+            note="si è parlato di collaudo", created_by=self.user,
+        )
+        self.mio.partecipanti_utenti.add(self.user)
+        self.altrui = KickoffMeeting.objects.create(
+            project=self.project, data="2026-09-11", titolo="Incontro altrui",
+            created_by=self.altro,
+        )
+        self.altrui.partecipanti_utenti.add(self.altro)
+        self.client.force_login(self.user)
+        self.url = reverse("tasks:incontri_lista")
+
+    def test_default_mostra_solo_i_miei_incontri(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        titoli = [m.titolo for m in response.context["meetings"]]
+        self.assertIn("Incontro mio", titoli)
+        self.assertNotIn("Incontro altrui", titoli)
+
+    def test_scope_tutti_mostra_anche_gli_altri(self):
+        response = self.client.get(self.url, {"mine": "0"})
+        titoli = [m.titolo for m in response.context["meetings"]]
+        self.assertIn("Incontro altrui", titoli)
+
+    def test_ricerca_nel_verbale(self):
+        response = self.client.get(self.url, {"mine": "0", "q": "collaudo"})
+        titoli = [m.titolo for m in response.context["meetings"]]
+        self.assertEqual(titoli, ["Incontro mio"])
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class MeetingMinuteApprovalTests(TasksBaseTestCase):
+    """La minuta approvata e' un documento chiuso: si riapre solo con un motivo."""
+
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "tasks")
+        _grant_role_actions(2, ["tasks_view", "tasks_create"])
+        self._refresh_acl_cache()
+        self.user = _create_user_with_legacy(
+            username="minuta-pm", legacy_user_id=531, role_id=2, role_name="tasks"
+        )
+        self.project = Project.objects.create(
+            name="", created_by=self.user, project_manager=self.user
+        )
+        self.meeting = KickoffMeeting.objects.create(
+            project=self.project,
+            data="2026-09-10",
+            stato=MeetingStatus.SVOLTO,
+            note="verbale",
+            created_by=self.user,
+        )
+        self.client.force_login(self.user)
+        self.close_url = reverse(
+            "tasks:project_meeting_minute_close", args=[self.project.id, self.meeting.id]
+        )
+        self.reopen_url = reverse(
+            "tasks:project_meeting_minute_reopen", args=[self.project.id, self.meeting.id]
+        )
+        self.minutes_url = reverse(
+            "tasks:project_meeting_minutes", args=[self.project.id, self.meeting.id]
+        )
+
+    def test_incontro_non_svolto_non_si_approva(self):
+        self.meeting.stato = MeetingStatus.PIANIFICATO
+        self.meeting.save(update_fields=["stato"])
+        self.client.post(self.close_url)
+        self.meeting.refresh_from_db()
+        self.assertFalse(self.meeting.minuta_chiusa)
+
+    def test_minuta_approvata_blocca_la_modifica_dell_esito(self):
+        self.client.post(self.close_url)
+        self.meeting.refresh_from_db()
+        self.assertTrue(self.meeting.minuta_chiusa)
+        self.assertEqual(self.meeting.minuta_chiusa_da, self.user)
+
+        response = self.client.post(self.minutes_url, {"note": "riscrittura"})
+        self.assertEqual(response.status_code, 302)
+        self.meeting.refresh_from_db()
+        self.assertEqual(self.meeting.note, "verbale")
+
+        response = self.client.get(self.minutes_url)
+        self.assertEqual(response.status_code, 302)
+
+    def test_riapertura_richiede_un_motivo(self):
+        self.client.post(self.close_url)
+
+        self.client.post(self.reopen_url, {"motivo": "  "})
+        self.meeting.refresh_from_db()
+        self.assertTrue(self.meeting.minuta_chiusa)
+
+        self.client.post(self.reopen_url, {"motivo": "errore nel verbale"})
+        self.meeting.refresh_from_db()
+        self.assertFalse(self.meeting.minuta_chiusa)
+        self.assertEqual(self.meeting.minuta_riaperture, 1)
+
+        response = self.client.post(self.minutes_url, {"note": "verbale corretto"})
+        self.assertEqual(response.status_code, 302)
+        self.meeting.refresh_from_db()
+        self.assertEqual(self.meeting.note, "verbale corretto")
+
+    def test_la_minuta_approvata_lo_dichiara_nel_documento(self):
+        from tasks.minute_email import _facts
+
+        self.client.post(self.close_url)
+        self.meeting.refresh_from_db()
+        labels = dict(_facts(self.meeting))
+        self.assertIn("Minuta", labels)
+        self.assertIn("Approvata il", labels["Minuta"])
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class MeetingAgendaCarryOverTests(TasksBaseTestCase):
+    """Rolling agenda: i punti non trattati tornano nel prossimo incontro."""
+
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "tasks")
+        _grant_role_actions(2, ["tasks_view", "tasks_create"])
+        self._refresh_acl_cache()
+        self.user = _create_user_with_legacy(
+            username="carry-pm", legacy_user_id=521, role_id=2, role_name="tasks"
+        )
+        self.project = Project.objects.create(
+            name="", created_by=self.user, project_manager=self.user
+        )
+        self.client.force_login(self.user)
+        self.create_url = reverse("tasks:project_meeting_create", args=[self.project.id])
+
+    def _new_meeting_agenda(self) -> list[dict]:
+        import json
+
+        response = self.client.get(self.create_url)
+        self.assertEqual(response.status_code, 200)
+        return json.loads(response.context["form"].initial["agenda_items_raw"])
+
+    def test_punto_non_trattato_torna_nel_prossimo_incontro(self):
+        KickoffMeeting.objects.create(
+            project=self.project,
+            data="2026-09-10",
+            stato=MeetingStatus.SVOLTO,
+            created_by=self.user,
+            agenda_items=[
+                {"id": "a1", "titolo": "Trattato", "done": True},
+                {"id": "a2", "titolo": "Rimasto fuori", "nota": "manca il fornitore", "done": False},
+            ],
+        )
+        titoli = [item["titolo"] for item in self._new_meeting_agenda()]
+        self.assertIn("Rimasto fuori", titoli)
+        self.assertNotIn("Trattato", titoli)
+
+    def test_il_punto_riportato_dichiara_l_incontro_di_origine(self):
+        meeting = KickoffMeeting.objects.create(
+            project=self.project,
+            data="2026-09-10",
+            stato=MeetingStatus.SVOLTO,
+            created_by=self.user,
+            agenda_items=[{"id": "a1", "titolo": "Rimasto fuori", "done": False}],
+        )
+        carried = self._new_meeting_agenda()[0]
+        self.assertEqual(carried["source"], "carry_over")
+        self.assertFalse(carried["done"])
+        self.assertIn(
+            {"label": "Riportato da", "value": f"Incontro {meeting.numero}"},
+            carried["custom_fields"],
+        )
+
+    def test_i_problemi_aperti_non_vengono_duplicati_dal_carry_over(self):
+        issue = MeetingIssue.objects.create(
+            project=self.project, title="Problema aperto", status=MeetingIssueStatus.OPEN
+        )
+        KickoffMeeting.objects.create(
+            project=self.project,
+            data="2026-09-10",
+            stato=MeetingStatus.SVOLTO,
+            created_by=self.user,
+            agenda_items=[{
+                "id": f"issue-{issue.pk}",
+                "titolo": f"Problema aperto: {issue.title}",
+                "issue_id": issue.pk,
+                "source": "meeting_issue",
+                "done": False,
+            }],
+        )
+        items = self._new_meeting_agenda()
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["issue_id"], issue.pk)
+
+    def test_nessun_carry_over_da_incontri_non_ancora_svolti(self):
+        KickoffMeeting.objects.create(
+            project=self.project,
+            data="2026-09-10",
+            stato=MeetingStatus.PIANIFICATO,
+            created_by=self.user,
+            agenda_items=[{"id": "a1", "titolo": "Non ancora discusso", "done": False}],
+        )
+        self.assertEqual(self._new_meeting_agenda(), [])
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class MeetingAttendanceTests(TasksBaseTestCase):
+    """Presenze effettive: chi c'era davvero, distinto dai convocati."""
+
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "tasks")
+        _grant_role_actions(2, ["tasks_view", "tasks_create"])
+        self._refresh_acl_cache()
+        self.user = _create_user_with_legacy(
+            username="presenze-pm", legacy_user_id=511, role_id=2, role_name="tasks"
+        )
+        self.user.email = "pm-presenze@example.com"
+        self.user.save(update_fields=["email"])
+        self.assente = _create_user_with_legacy(
+            username="presenze-assente", legacy_user_id=512, role_id=2, role_name="tasks"
+        )
+        self.project = Project.objects.create(
+            name="", created_by=self.user, project_manager=self.user
+        )
+        self.meeting = KickoffMeeting.objects.create(
+            project=self.project,
+            data="2026-09-10",
+            partecipanti_email_extra="esterno@example.com\naltro@example.com",
+            created_by=self.user,
+        )
+        self.meeting.partecipanti_utenti.add(self.user, self.assente)
+        self.client.force_login(self.user)
+        self.minutes_url = reverse(
+            "tasks:project_meeting_minutes", args=[self.project.id, self.meeting.id]
+        )
+
+    def test_esito_propone_tutti_i_convocati_come_presenti(self):
+        response = self.client.get(self.minutes_url)
+        self.assertEqual(response.status_code, 200)
+        initial = response.context["form"].initial
+        self.assertCountEqual(initial["presenti_utenti"], [self.user.pk, self.assente.pk])
+        self.assertCountEqual(
+            initial["presenti_email_list"], ["esterno@example.com", "altro@example.com"]
+        )
+
+    def test_registrare_esito_salva_presenti_e_assenti(self):
+        response = self.client.post(self.minutes_url, {
+            "presenti_utenti": [self.user.pk],
+            "presenti_email_list": ["esterno@example.com"],
+            "note": "verbale",
+            "problemi_aperti": "",
+            "next_steps": "",
+        })
+        self.assertEqual(response.status_code, 302)
+        self.meeting.refresh_from_db()
+        self.assertTrue(self.meeting.presenze_registrate)
+        self.assertEqual(self.meeting.presenti_count, 2)
+        self.assertEqual(self.meeting.convocati_count, 4)
+        self.assertEqual([u.pk for u in self.meeting.assenti_utenti], [self.assente.pk])
+        self.assertEqual(self.meeting.assenti_email, ["altro@example.com"])
+
+    def test_presente_non_convocato_viene_rifiutato(self):
+        estraneo = _create_user_with_legacy(
+            username="presenze-estraneo", legacy_user_id=513, role_id=2, role_name="tasks"
+        )
+        response = self.client.post(self.minutes_url, {
+            "presenti_utenti": [estraneo.pk],
+            "note": "verbale",
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["form"].errors)
+        self.meeting.refresh_from_db()
+        self.assertFalse(self.meeting.presenze_registrate)
+
+    def test_minuta_mostra_presenti_e_assenti_solo_dopo_l_appello(self):
+        from tasks.minute_email import _minute_sections
+
+        labels = [label for label, _ in _minute_sections(self.meeting)]
+        self.assertIn("Partecipanti", labels)
+        self.assertNotIn("Presenti", labels)
+
+        self.client.post(self.minutes_url, {
+            "presenti_utenti": [self.user.pk],
+            "presenti_email_list": ["esterno@example.com"],
+            "note": "verbale",
+        })
+        self.meeting.refresh_from_db()
+        sections = dict(_minute_sections(self.meeting))
+        self.assertIn("Presenti", sections)
+        self.assertIn("esterno@example.com", sections["Presenti"])
+        self.assertIn(self.assente.username, sections["Assenti"])
+        self.assertIn("altro@example.com", sections["Assenti"])
+
+    def test_dettaglio_incontro_mostra_il_conteggio_presenze(self):
+        self.client.post(self.minutes_url, {
+            "presenti_utenti": [self.user.pk],
+            "presenti_email_list": ["esterno@example.com"],
+            "note": "verbale",
+        })
+        response = self.client.get(
+            reverse("tasks:project_meeting_detail", args=[self.project.id, self.meeting.id])
+        )
+        self.assertContains(response, "2 presenti su 4 convocati")

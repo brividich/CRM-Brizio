@@ -1930,6 +1930,54 @@ body.theme-dark .tf-asset-conflict-list li { background:rgba(255,255,255,.05); }
 .md-closing-summary-stats { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: .875rem; color: var(--text-light); }
 .md-closing-summary-stats strong { color: var(--text); }
 
+/* Scorciatoie agenda nel form incontro */
+.agenda-shortcuts {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px;
+}
+.agenda-shortcuts .input { min-width: 220px; }
+
+/* Impostazioni: modelli ordine del giorno */
+.tpl-form, .tpl-card {
+  border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 14px;
+}
+.tpl-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 10px; }
+.tpl-grid .input { width: 100%; box-sizing: border-box; }
+.tpl-form textarea, .tpl-card textarea { width: 100%; box-sizing: border-box; }
+.tpl-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; }
+.tpl-inline { display: inline-flex; align-items: center; gap: 6px; font-size: .8125rem; color: var(--text-light); }
+@media (max-width: 720px) { .tpl-grid { grid-template-columns: 1fr; } }
+
+/* Elenco incontri: barra filtri */
+.ml-filters {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px;
+}
+.ml-filters .input { min-width: 150px; }
+.ml-filters input[type=search] { flex: 1 1 240px; }
+.ml-scope { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.ml-scope-btn {
+  padding: 7px 14px; font-size: .8125rem; font-weight: 600;
+  color: var(--text-light); text-decoration: none; background: transparent;
+}
+.ml-scope-btn.active { background: var(--primary-mid); color: #fff; }
+
+/* Approvazione minuta */
+.md-minute-locked {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: .8125rem; font-weight: 600; color: var(--success);
+  background: var(--success-bg); border-radius: 20px; padding: 4px 12px;
+}
+.md-reopen-box { display: inline-flex; align-items: center; gap: 6px; }
+.md-reopen-box .input { min-width: 260px; }
+
+/* Presenze effettive nella card partecipanti */
+.md-presenze {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px;
+  margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px dashed var(--border);
+  font-size: .8125rem;
+}
+.md-presenze-count { font-weight: 700; color: var(--primary-mid); }
+.md-presenze-absent { color: var(--text-light); }
+
 /* Agenda items */
 .md-agenda-item {
   display: flex; align-items: flex-start; gap: 10px;

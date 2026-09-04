@@ -108,6 +108,7 @@ _ROUTE_BINDINGS = {
     "tasks:list": "tasks.kickoff.view",
     "tasks:da_gestire": "tasks.kickoff.view",
     "tasks:incontri_calendario": "tasks.kickoff.view",
+    "tasks:incontri_lista": "tasks.kickoff.view",
     "tasks:detail": "tasks.kickoff.view",
     "tasks:download_excel_template": "tasks.kickoff.view",
     "tasks:category_fields_json": "tasks.kickoff.view",
@@ -130,6 +131,8 @@ _ROUTE_BINDINGS = {
     "tasks:project_meeting_minutes": "tasks.kickoff.edit",
     "tasks:project_meeting_send_invite": "tasks.kickoff.edit",
     "tasks:project_meeting_send_minute": "tasks.kickoff.edit",
+    "tasks:project_meeting_minute_close": "tasks.kickoff.edit",
+    "tasks:project_meeting_minute_reopen": "tasks.kickoff.edit",
     # Commenti, sottotask, allegati e agenda incontri
     "tasks:add_comment": "tasks.kickoff.comment",
     "tasks:add_subtask": "tasks.kickoff.comment",

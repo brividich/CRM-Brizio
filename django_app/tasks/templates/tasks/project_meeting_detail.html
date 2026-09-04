@@ -37,7 +37,9 @@
     </div>
     {% if can_manage %}
       <div class="md-actions">
-        <a class="md-btn" href="{% url 'tasks:project_meeting_minutes' project.id meeting.id %}">{% if meeting.is_svolto %}Aggiorna esito{% else %}Registra esito{% endif %}</a>
+        {% if not meeting.minuta_chiusa %}
+          <a class="md-btn" href="{% url 'tasks:project_meeting_minutes' project.id meeting.id %}">{% if meeting.is_svolto %}Aggiorna esito{% else %}Registra esito{% endif %}</a>
+        {% endif %}
         <button type="button" class="md-btn" onclick="openCreateTaskModal('', null)">Crea / assegna attività</button>
         <a class="md-btn white" href="{% url 'tasks:project_meeting_edit' project.id meeting.id %}">Convocazione</a>
         <form method="post" action="{% url 'tasks:project_meeting_delete' project.id meeting.id %}" style="display:inline;"
@@ -64,6 +66,31 @@
       </form>
     {% endif %}
     <a class="md-btn white" href="{% url 'tasks:project_meeting_minute_pdf' project.id meeting.id %}">Scarica minuta PDF</a>
+    {# Approvazione della minuta: chiude il documento, la riapertura resta a registro. #}
+    {% if can_manage and meeting.is_svolto %}
+      {% if meeting.minuta_chiusa %}
+        <form method="post" action="{% url 'tasks:project_meeting_minute_reopen' project.id meeting.id %}" id="minute-reopen-form">
+          {% csrf_token %}
+          <button type="button" class="md-btn white" id="minute-reopen-open">Riapri minuta</button>
+          <span class="md-reopen-box" id="minute-reopen-box" hidden>
+            <input type="text" class="input" name="motivo" id="minute-reopen-motivo" maxlength="500"
+                   placeholder="Motivo della riapertura (obbligatorio)">
+            <button type="submit" class="md-btn white">Conferma</button>
+          </span>
+        </form>
+      {% else %}
+        <form method="post" action="{% url 'tasks:project_meeting_minute_close' project.id meeting.id %}"
+              onsubmit="return confirm('Approvare e chiudere la minuta? L\'esito non sarà più modificabile senza riaprirla.')">
+          {% csrf_token %}
+          <button type="submit" class="md-btn white">Approva e chiudi minuta</button>
+        </form>
+      {% endif %}
+    {% endif %}
+    {% if meeting.minuta_chiusa %}
+      <span class="md-minute-locked">
+        Minuta approvata il {{ meeting.minuta_chiusa_at|date:"d-m-Y H:i" }}{% if meeting.minuta_chiusa_da %} da {{ meeting.minuta_chiusa_da.get_full_name|default:meeting.minuta_chiusa_da.username }}{% endif %}{% if meeting.minuta_riaperture %} · {{ meeting.minuta_riaperture }} riapertur{{ meeting.minuta_riaperture|pluralize:"a,e" }}{% endif %}
+      </span>
+    {% endif %}
     {% if not meeting.is_svolto %}
       <p class="md-docbar-hint">L'incontro non è ancora registrato come svolto: la minuta conterrà solo la convocazione.</p>
     {% endif %}
@@ -78,6 +105,20 @@
           <span>Partecipanti</span>
         </div>
         <div class="md-card-body" style="padding-top:12px;padding-bottom:14px;">
+          {# Presenze effettive: presenti solo dopo che l'appello e' stato fatto. #}
+          {% if meeting.presenze_registrate %}
+            <div class="md-presenze">
+              <span class="md-presenze-count">{{ meeting.presenti_count }} presenti su {{ meeting.convocati_count }} convocati</span>
+              {% if meeting.assenti_utenti or meeting.assenti_email %}
+                <span class="md-presenze-absent">
+                  Assenti:
+                  {% for u in meeting.assenti_utenti %}{{ u.get_full_name|default:u.username }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                  {% if meeting.assenti_utenti and meeting.assenti_email %}, {% endif %}
+                  {% for e in meeting.assenti_email %}{{ e|lower }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                </span>
+              {% endif %}
+            </div>
+          {% endif %}
           {% if portal_users %}
             <div style="margin-bottom:10px;">
               <div style="font-size:.75rem;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Utenti portale</div>
@@ -391,6 +432,17 @@
 <script>
 (function () {
   'use strict';
+
+  /* Riapertura minuta: il motivo e' obbligatorio e finisce nel registro azioni. */
+  const reopenOpen = document.getElementById('minute-reopen-open');
+  const reopenBox = document.getElementById('minute-reopen-box');
+  if (reopenOpen && reopenBox) {
+    reopenOpen.addEventListener('click', function () {
+      reopenBox.hidden = false;
+      reopenOpen.hidden = true;
+      document.getElementById('minute-reopen-motivo')?.focus();
+    });
+  }
 
   const TOGGLE_BASE  = "{{ agenda_toggle_url_base }}";
   const STEP_URL     = "{{ task_from_step_url }}";

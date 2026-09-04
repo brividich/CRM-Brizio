@@ -27,6 +27,29 @@
   <form method="post" novalidate id="minutes-form">
     {% csrf_token %}
 
+    {# Presenze: chi era davvero all'incontro, non chi era stato convocato. #}
+    <div class="mf-section">
+      <div class="mf-section-head">
+        <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z"/></svg>
+        <span>Presenze</span>
+      </div>
+      <div class="mf-section-body">
+        {% if form.presenti_utenti.field.queryset or form.presenti_email_list.field.choices %}
+          <p class="mf-hint" style="margin-top:0;margin-bottom:10px">
+            Togli la spunta a chi non si è presentato: la minuta riporterà presenti e assenti.
+            <button type="button" class="mf-btn-sm ghost" id="presenze-all">Tutti presenti</button>
+            <button type="button" class="mf-btn-sm ghost" id="presenze-none">Nessuno</button>
+          </p>
+          <div class="mf-user-grid" id="presenze-grid">
+            {{ form.presenti_utenti }}
+            {{ form.presenti_email_list }}
+          </div>
+        {% else %}
+          <p class="mf-hint" style="margin:0">Nessun partecipante convocato: aggiungili dalla convocazione per registrare le presenze.</p>
+        {% endif %}
+      </div>
+    </div>
+
     {% if meeting.agenda_items %}
     <div class="mf-section">
       <div class="mf-section-head">
@@ -34,7 +57,7 @@
         <span>Punti trattati</span>
       </div>
       <div class="mf-section-body">
-        <p class="mf-hint" style="margin-top:0;margin-bottom:10px">Spunta i punti effettivamente trattati. Le spunte si salvano subito, senza attendere il salvataggio del verbale.</p>
+        <p class="mf-hint" style="margin-top:0;margin-bottom:10px">Spunta i punti effettivamente trattati. Le spunte si salvano subito, senza attendere il salvataggio del verbale. I punti che restano da trattare vengono riproposti nell'ordine del giorno del prossimo incontro.</p>
         <div class="agenda-list">
           {% for item in meeting.agenda_items %}
             <div class="agenda-item" data-agenda-item="{{ item.id }}">
@@ -251,6 +274,15 @@
     checkbox.addEventListener('change', syncCard);
     syncCard();
   });
+
+  /* Presenze: spunta/togli tutti */
+  function setPresenze(checked) {
+    document.querySelectorAll('#presenze-grid input[type=checkbox]').forEach(function (cb) {
+      cb.checked = checked;
+    });
+  }
+  document.getElementById('presenze-all')?.addEventListener('click', function () { setPresenze(true); });
+  document.getElementById('presenze-none')?.addEventListener('click', function () { setPresenze(false); });
 
   /* Collassabile note legacy */
   const problemsToggle = document.getElementById('toggle-problems-note');

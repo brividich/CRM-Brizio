@@ -1247,10 +1247,20 @@ class KickoffMeetingMinuteForm(forms.ModelForm):
     l'incontro in stato «Svolto»: la view che lo usa e' `project_meeting_minutes`.
     """
 
+    # Presenze delle email esterne: checkbox costruite sui convocati, salvate
+    # nel TextField `presenti_email_extra` (una per riga) da `save()`.
+    presenti_email_list = forms.MultipleChoiceField(
+        required=False,
+        choices=(),
+        widget=forms.CheckboxSelectMultiple(),
+        label="Presenti (esterni)",
+    )
+
     class Meta:
         model = KickoffMeeting
-        fields = ["note", "problemi_aperti", "next_steps"]
+        fields = ["presenti_utenti", "note", "problemi_aperti", "next_steps"]
         widgets = {
+            "presenti_utenti": forms.CheckboxSelectMultiple(),
             "note": forms.Textarea(
                 attrs={"class": "input", "rows": 8, "placeholder": "Verbale / Note incontro"}
             ),
@@ -1270,3 +1280,35 @@ class KickoffMeetingMinuteForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         for name in self.fields:
             self.fields[name].required = False
+
+        # Presente si puo' essere solo se convocati: le scelte sono i convocati
+        # dell'incontro, non tutti gli utenti attivi.
+        meeting = self.instance if self.instance and self.instance.pk else None
+        if meeting is None:
+            self.fields["presenti_utenti"].queryset = User.objects.none()
+            self.fields["presenti_email_list"].choices = []
+            return
+
+        convocati = meeting.partecipanti_utenti.all()
+        emails = meeting.get_partecipanti_email_list()
+        self.fields["presenti_utenti"].queryset = convocati
+        self.fields["presenti_email_list"].choices = [(e, e) for e in emails]
+
+        # Prima registrazione: si parte con tutti presenti, e' il caso normale.
+        # `model_to_dict` ha gia' riempito `initial["presenti_utenti"]` con la
+        # M2M vuota, quindi qui si assegna, non si usa setdefault.
+        if not meeting.presenze_registrate:
+            self.initial["presenti_utenti"] = [u.pk for u in convocati]
+            self.initial["presenti_email_list"] = emails
+        else:
+            self.initial["presenti_email_list"] = meeting.get_presenti_email_list()
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.presenti_email_extra = "\n".join(
+            self.cleaned_data.get("presenti_email_list") or []
+        )
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance

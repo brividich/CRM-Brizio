@@ -65,6 +65,7 @@ from .models import (
     DependencyType,
     GanttBaseline,
     KickoffMeeting,
+    MeetingAgendaTemplate,
     MeetingIssue,
     MeetingIssueStatus,
     MeetingRoom,
@@ -187,7 +188,7 @@ TASK_PRIORITY_LABELS_IT = {
     TaskPriority.MEDIUM: "Media",
     TaskPriority.HIGH: "Alta",
 }
-TASK_SETTINGS_TABS = ("config", "riepilogo", "record", "log", "ruoli", "accessi", "promemoria", "tipi")
+TASK_SETTINGS_TABS = ("config", "riepilogo", "record", "log", "ruoli", "accessi", "promemoria", "tipi", "modelli")
 TASK_ACCESS_LEVEL_ORDER = {
     TaskAccessLevel.NONE: 0,
     TaskAccessLevel.READ_ALL: 1,
@@ -387,6 +388,9 @@ def _build_tasks_settings_context(request, *, tab: str) -> dict:
 
     if tab == "log":
         context["audit_entries"] = AuditLog.objects.filter(modulo="tasks").order_by("-created_at")[:100]
+
+    if tab == "modelli":
+        context["agenda_templates"] = list(MeetingAgendaTemplate.objects.all())
 
     if tab == "ruoli":
         cfg = TaskImpostazioni.get_singleton()
@@ -3514,6 +3518,68 @@ def incontri_calendario(request):
     )
 
 
+@task_permissions_required("tasks_view")
+def incontri_lista(request):
+    """Elenco trasversale degli incontri: «i miei», filtri e ricerca nelle minute.
+
+    Il calendario mostra un mese alla volta e il dettaglio commessa un kickoff
+    alla volta: mancava il modo di trovare un incontro passato senza sapere gia'
+    dove fosse.
+    """
+    projects = _scoped_projects_queryset(request)
+    meetings = (
+        KickoffMeeting.objects
+        .filter(project__in=projects)
+        .select_related("project")
+        .prefetch_related("partecipanti_utenti")
+    )
+
+    mine = (request.GET.get("mine") or "1") == "1"
+    stato = (request.GET.get("stato") or "").strip()
+    periodo = (request.GET.get("periodo") or "tutti").strip()
+    q_text = (request.GET.get("q") or "").strip()
+    today = timezone.localdate()
+
+    if mine and request.user.is_authenticated:
+        meetings = meetings.filter(
+            Q(partecipanti_utenti=request.user)
+            | Q(presenti_utenti=request.user)
+            | Q(created_by=request.user)
+        ).distinct()
+    if stato in dict(MeetingStatus.choices):
+        meetings = meetings.filter(stato=stato)
+    if periodo == "prossimi":
+        meetings = meetings.filter(data__gte=today)
+    elif periodo == "passati":
+        meetings = meetings.filter(data__lt=today)
+    if q_text:
+        meetings = meetings.filter(
+            Q(titolo__icontains=q_text)
+            | Q(note__icontains=q_text)
+            | Q(ordine_del_giorno__icontains=q_text)
+            | Q(next_steps__icontains=q_text)
+            | Q(problemi_aperti__icontains=q_text)
+            | Q(luogo__icontains=q_text)
+            | Q(project__name__icontains=q_text)
+        )
+
+    meetings = meetings.order_by("-data", "-ora", "-numero")[:200]
+    return render(
+        request,
+        "tasks/incontri_lista.html",
+        {
+            **_tasks_shell_context(request, active="calendario"),
+            "page_title": "Elenco incontri",
+            "meetings": meetings,
+            "filter_mine": mine,
+            "filter_stato": stato,
+            "filter_periodo": periodo,
+            "filter_q": q_text,
+            "stato_choices": MeetingStatus.choices,
+        },
+    )
+
+
 @require_POST
 @task_permissions_required("tasks_view")
 def project_set_phase(request, project_id: int):
@@ -5108,6 +5174,95 @@ def _persist_task_extra_data(task: "Task", post_data) -> None:
         TaskExtraRef.objects.bulk_create(refs_to_create)
 
 
+def _parse_agenda_template_items(raw: str) -> list[dict]:
+    """Un punto per riga, «Titolo | durata» per indicare i minuti stimati."""
+    items: list[dict] = []
+    for line in (raw or "").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        titolo, _, durata_raw = line.partition("|")
+        titolo = titolo.strip()[:200]
+        if not titolo:
+            continue
+        try:
+            durata = int(durata_raw.strip())
+            if durata <= 0 or durata > 480:
+                durata = None
+        except (TypeError, ValueError):
+            durata = None
+        items.append({"titolo": titolo, "nota": "", "durata_minuti": durata})
+    return items
+
+
+def _handle_tasks_agenda_templates_post(request):
+    """POST tab modelli: CRUD dei modelli di ordine del giorno."""
+    action = (request.POST.get("tpl_action") or "").strip()
+    base_url = f"{reverse('tasks:impostazioni')}?tab=modelli"
+
+    if action == "template_create":
+        nome = (request.POST.get("nome") or "").strip()
+        if not nome:
+            messages.error(request, "Indica un nome per il modello.")
+            return redirect(base_url)
+        if MeetingAgendaTemplate.objects.filter(nome=nome[:120]).exists():
+            messages.error(request, f"Esiste già un modello chiamato «{nome}».")
+            return redirect(base_url)
+        max_order = MeetingAgendaTemplate.objects.aggregate(m=Max("order_index")).get("m") or 0
+        template = MeetingAgendaTemplate.objects.create(
+            nome=nome[:120],
+            descrizione=(request.POST.get("descrizione") or "").strip()[:255],
+            items=_parse_agenda_template_items(request.POST.get("items_text") or ""),
+            order_index=max_order + 10,
+            created_by=request.user if request.user.is_authenticated else None,
+        )
+        log_action(request, "modello_odg_creato", "tasks", {
+            "template_id": template.pk, "nome": template.nome,
+        })
+        messages.success(request, f"Modello «{template.nome}» creato.")
+        return redirect(base_url)
+
+    if action == "template_update":
+        try:
+            template = MeetingAgendaTemplate.objects.get(pk=int(request.POST.get("template_id") or 0))
+        except (MeetingAgendaTemplate.DoesNotExist, TypeError, ValueError):
+            messages.error(request, "Modello non trovato.")
+            return redirect(base_url)
+        nome = (request.POST.get("nome") or "").strip()
+        if not nome:
+            messages.error(request, "Il nome del modello è obbligatorio.")
+            return redirect(base_url)
+        template.nome = nome[:120]
+        template.descrizione = (request.POST.get("descrizione") or "").strip()[:255]
+        template.items = _parse_agenda_template_items(request.POST.get("items_text") or "")
+        template.is_active = bool(request.POST.get("is_active"))
+        try:
+            template.order_index = max(0, int(request.POST.get("order_index") or 0))
+        except (TypeError, ValueError):
+            pass
+        template.save()
+        log_action(request, "modello_odg_modificato", "tasks", {
+            "template_id": template.pk, "nome": template.nome,
+        })
+        messages.success(request, f"Modello «{template.nome}» aggiornato.")
+        return redirect(base_url)
+
+    if action == "template_delete":
+        try:
+            template = MeetingAgendaTemplate.objects.get(pk=int(request.POST.get("template_id") or 0))
+        except (MeetingAgendaTemplate.DoesNotExist, TypeError, ValueError):
+            messages.error(request, "Modello non trovato.")
+            return redirect(base_url)
+        nome = template.nome
+        template.delete()
+        log_action(request, "modello_odg_eliminato", "tasks", {"nome": nome})
+        messages.success(request, f"Modello «{nome}» eliminato.")
+        return redirect(base_url)
+
+    messages.error(request, "Azione non valida.")
+    return redirect(base_url)
+
+
 def _handle_tasks_categories_post(request):
     """POST tab tipi: CRUD TaskCategory + TaskCategoryField."""
     action = (request.POST.get("cat_action") or "").strip()
@@ -5367,6 +5522,8 @@ def impostazioni(request):
             return _handle_tasks_reminders_post(request)
         if posted_tab == "tipi":
             return _handle_tasks_categories_post(request)
+        if posted_tab == "modelli":
+            return _handle_tasks_agenda_templates_post(request)
 
         branding_response = handle_module_branding_post(
             request,
@@ -6197,6 +6354,90 @@ def _meeting_issue_agenda_item(issue: MeetingIssue) -> dict:
     }
 
 
+def _carry_over_agenda_items(project: Project) -> list[dict]:
+    """Punti non trattati nell'ultimo incontro svolto, da riproporre nel prossimo.
+
+    Rolling agenda: quello che non si e' fatto in tempo non deve sparire. I
+    problemi aperti arrivano gia' per la loro strada (`_meeting_issue_agenda_item`),
+    quindi qui si escludono per non duplicarli.
+    """
+    last = (
+        project.meetings
+        .filter(stato=MeetingStatus.SVOLTO)
+        .order_by("-numero")
+        .first()
+    )
+    if last is None:
+        return []
+
+    carried: list[dict] = []
+    for index, item in enumerate(last.agenda_items or []):
+        if not isinstance(item, dict) or item.get("done"):
+            continue
+        if item.get("issue_id") or item.get("source") == "meeting_issue":
+            continue
+        titolo = str(item.get("titolo", "")).strip()
+        if not titolo:
+            continue
+        custom_fields = [
+            field
+            for field in (item.get("custom_fields") or [])
+            if isinstance(field, dict) and field.get("label") != "Riportato da"
+        ]
+        custom_fields.append({"label": "Riportato da", "value": f"Incontro {last.numero}"})
+        carried.append({
+            "id": f"carry-{last.pk}-{item.get('id') or index}",
+            "titolo": titolo,
+            "nota": str(item.get("nota", "")).strip(),
+            "task_id": item.get("task_id"),
+            "task_label": str(item.get("task_label", "")).strip(),
+            "issue_id": None,
+            "source": "carry_over",
+            "locked": False,
+            "responsabile_id": item.get("responsabile_id"),
+            "responsabile_label": str(item.get("responsabile_label", "")).strip(),
+            "durata_minuti": item.get("durata_minuti"),
+            "custom_fields": custom_fields,
+            "done": False,
+        })
+    return carried
+
+
+def _agenda_templates_payload() -> list[dict]:
+    """Modelli ODG attivi, pronti per il selettore del form incontro."""
+    return [
+        {"nome": template.nome, "items": template.items or []}
+        for template in MeetingAgendaTemplate.objects.filter(is_active=True)
+    ]
+
+
+def _previous_meeting_agenda(project: Project, *, exclude_meeting_id: int | None = None) -> list[dict]:
+    """Punti dell'ultimo incontro della commessa, per il «duplica ODG precedente».
+
+    Esclude i punti agganciati a un problema tracciato: quelli arrivano gia'
+    dal carry-over automatico e duplicarli creerebbe doppioni.
+    """
+    qs = project.meetings.order_by("-numero")
+    if exclude_meeting_id:
+        qs = qs.exclude(pk=exclude_meeting_id)
+    last = qs.first()
+    if last is None:
+        return []
+    items = []
+    for item in last.agenda_items or []:
+        if not isinstance(item, dict) or item.get("issue_id"):
+            continue
+        titolo = str(item.get("titolo", "")).strip()
+        if not titolo:
+            continue
+        items.append({
+            "titolo": titolo,
+            "nota": str(item.get("nota", "")).strip(),
+            "durata_minuti": item.get("durata_minuti"),
+        })
+    return items
+
+
 def _project_tasks_for_picker(project: Project) -> list[dict]:
     """Attivita' del kickoff selezionabili nei picker agenda/problemi.
 
@@ -6404,6 +6645,7 @@ def project_meeting_create(request, project_id: int):
             return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting.pk)
     else:
         auto_agenda = [_meeting_issue_agenda_item(issue) for issue in meeting_issues]
+        auto_agenda += _carry_over_agenda_items(project)
         default_partecipanti = [
             u.pk for u in (project.project_manager, project.capo_commessa, project.programmer) if u
         ]
@@ -6415,6 +6657,7 @@ def project_meeting_create(request, project_id: int):
     project_tasks = _project_tasks_for_picker(project)
     meeting_rooms = list(MeetingRoom.objects.values_list("nome", flat=True))
     active_users = task_active_users_queryset()
+    previous_agenda = _previous_meeting_agenda(project)
     return render(
         request,
         "tasks/project_meeting_form.html",
@@ -6428,6 +6671,10 @@ def project_meeting_create(request, project_id: int):
             "meeting_rooms_json": json.dumps(meeting_rooms),
             "carried_issues": meeting_issues,
             "active_users": active_users,
+            "agenda_templates": list(MeetingAgendaTemplate.objects.filter(is_active=True)),
+            "agenda_templates_json": _agenda_templates_payload(),
+            "previous_agenda_json": previous_agenda,
+            "has_previous_agenda": bool(previous_agenda),
         },
     )
 
@@ -6495,6 +6742,7 @@ def project_meeting_edit(request, project_id: int, meeting_id: int):
     project_tasks = _project_tasks_for_picker(project)
     meeting_rooms = list(MeetingRoom.objects.values_list("nome", flat=True))
     active_users = task_active_users_queryset()
+    previous_agenda = _previous_meeting_agenda(project, exclude_meeting_id=meeting.pk)
     return render(
         request,
         "tasks/project_meeting_form.html",
@@ -6509,6 +6757,10 @@ def project_meeting_edit(request, project_id: int, meeting_id: int):
             "meeting_rooms_json": json.dumps(meeting_rooms),
             "carried_issues": _open_meeting_issues_for_project(project),
             "active_users": active_users,
+            "agenda_templates": list(MeetingAgendaTemplate.objects.filter(is_active=True)),
+            "agenda_templates_json": _agenda_templates_payload(),
+            "previous_agenda_json": previous_agenda,
+            "has_previous_agenda": bool(previous_agenda),
         },
     )
 
@@ -6525,6 +6777,14 @@ def project_meeting_minutes(request, project_id: int, meeting_id: int):
     if not _can_manage_project(request, project):
         messages.error(request, "Non hai i permessi per registrare l'esito di questo incontro.")
         return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+    # Minuta approvata = documento chiuso: si modifica solo dopo una riapertura
+    # esplicita, che resta a registro.
+    if meeting.minuta_chiusa:
+        messages.warning(
+            request,
+            "La minuta è approvata e non è modificabile. Riaprila dal dettaglio incontro per correggerla.",
+        )
+        return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
 
     if request.method == "POST":
         form = KickoffMeetingMinuteForm(request.POST, instance=meeting)
@@ -6535,7 +6795,11 @@ def project_meeting_minutes(request, project_id: int, meeting_id: int):
                 meeting.stato = MeetingStatus.SVOLTO
                 if not already_svolto:
                     meeting.svolto_at = timezone.now()
+                # Registrare l'esito significa aver fatto l'appello: da qui in poi
+                # «nessun presente» e' un dato, non un incontro storico senza presenze.
+                meeting.presenze_registrate_at = timezone.now()
                 meeting.save()
+                form.save_m2m()
                 _sync_meeting_issues_from_post(request, project, meeting)
             log_action(
                 request, "kickoff_meeting_minutes", "tasks",
@@ -6654,6 +6918,71 @@ def project_meeting_minute_pdf(request, project_id: int, meeting_id: int):
         {"meeting_id": meeting.pk, "project_id": project_id},
     )
     return response
+
+
+@require_POST
+@task_permissions_required("tasks_create")
+def project_meeting_minute_close(request, project_id: int, meeting_id: int):
+    """Approva e chiude la minuta: da qui in poi l'esito e' in sola lettura."""
+    project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
+    if not _can_manage_project(request, project):
+        messages.error(request, "Non hai i permessi per approvare la minuta di questo incontro.")
+        return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+    if not meeting.is_svolto:
+        messages.error(request, "Registra prima l'esito dell'incontro: una minuta vuota non si approva.")
+        return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+    if meeting.minuta_chiusa:
+        messages.info(request, "La minuta era già approvata.")
+        return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+
+    meeting.minuta_chiusa_at = timezone.now()
+    meeting.minuta_chiusa_da = request.user
+    meeting.save(update_fields=["minuta_chiusa_at", "minuta_chiusa_da", "updated_at"])
+    log_action(
+        request, "kickoff_meeting_minute_close", "tasks",
+        {"meeting_id": meeting.pk, "meeting_numero": meeting.numero, "project_id": project_id},
+    )
+    messages.success(request, "Minuta approvata: l'esito è ora in sola lettura.")
+    return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+
+
+@require_POST
+@task_permissions_required("tasks_create")
+def project_meeting_minute_reopen(request, project_id: int, meeting_id: int):
+    """Riapre una minuta approvata. Il motivo e' obbligatorio e finisce a registro."""
+    project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
+    if not _can_manage_project(request, project):
+        messages.error(request, "Non hai i permessi per riaprire la minuta di questo incontro.")
+        return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+    if not meeting.minuta_chiusa:
+        messages.info(request, "La minuta non è approvata: è già modificabile.")
+        return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+
+    motivo = (request.POST.get("motivo") or "").strip()
+    if not motivo:
+        messages.error(request, "Per riaprire la minuta serve un motivo: resta a registro.")
+        return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+
+    meeting.minuta_chiusa_at = None
+    meeting.minuta_chiusa_da = None
+    meeting.minuta_riaperture = (meeting.minuta_riaperture or 0) + 1
+    meeting.save(update_fields=[
+        "minuta_chiusa_at", "minuta_chiusa_da", "minuta_riaperture", "updated_at",
+    ])
+    log_action(
+        request, "kickoff_meeting_minute_reopen", "tasks",
+        {
+            "meeting_id": meeting.pk,
+            "meeting_numero": meeting.numero,
+            "project_id": project_id,
+            "motivo": motivo[:500],
+            "riaperture": meeting.minuta_riaperture,
+        },
+    )
+    messages.success(request, "Minuta riaperta: l'esito è di nuovo modificabile.")
+    return redirect("tasks:project_meeting_minutes", project_id=project_id, meeting_id=meeting_id)
 
 
 @require_POST
