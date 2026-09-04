@@ -1,72 +1,144 @@
 {% extends "tasks/base_shell.html" %}
 
-{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">{{ project.name }}</span>{% endblock %}
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Azioni</span>{% endblock %}
 {% block tasks_shell_title %}Registro azioni{% endblock %}
-{% block tasks_shell_subtitle %}Issue degli incontri, attività e sotto-attività in un solo punto operativo.{% endblock %}
+{% block tasks_shell_subtitle %}{{ project.name }} &middot; issue degli incontri, attività e sotto-attività in un solo punto operativo.{% endblock %}
+
+{% block tasks_shell_meta %}
+  <span class="ts-hero-pill">{{ open_count }} aperte, {{ overdue_count }} scadute</span>
+  {% if include_closed %}<span class="ts-hero-pill">Chiuse incluse</span>{% endif %}
+{% endblock %}
 
 {% block tasks_shell_actions %}
-  <a class="ts-hero-action" href="{% url 'tasks:project_gantt' project.id %}">Torna al Gantt</a>
-  {% if include_closed %}
-    <a class="ts-hero-action primary" href="{% url 'tasks:project_actions' project.id %}">Solo aperte</a>
-  {% else %}
-    <a class="ts-hero-action primary" href="{% url 'tasks:project_actions' project.id %}?closed=1">Includi chiuse</a>
+  <a class="ts-hero-action" href="{% url 'tasks:project_decisions' project.id %}">Decisioni</a>
+  {% if tasks_shell_can_create %}
+    <a class="ts-hero-action primary" href="{% url 'tasks:create' %}?project={{ project.id }}">+ Aggiungi attività</a>
   {% endif %}
 {% endblock %}
 
-{% block tasks_shell_content %}
-  <section class="ka-summary" aria-label="Riepilogo azioni">
-    <div class="ka-summary-card">
-      <span class="ka-summary-value">{{ open_count }}</span>
-      <span class="ka-summary-label">aperte</span>
-    </div>
-    <div class="ka-summary-card{% if overdue_count %} ka-summary-card--danger{% endif %}">
-      <span class="ka-summary-value">{{ overdue_count }}</span>
-      <span class="ka-summary-label">scadute</span>
-    </div>
-    <p class="ka-summary-text">{{ open_count }} aperte, {{ overdue_count }} scadute</p>
-  </section>
-
-  {% if actions %}
-    <div class="ka-table-wrap">
-      <table class="ka-table">
-        <thead>
-          <tr>
-            <th scope="col">Azione</th>
-            <th scope="col">Origine</th>
-            <th scope="col">Responsabile</th>
-            <th scope="col">Scadenza</th>
-            <th scope="col">Stato</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for action in actions %}
-            <tr{% if action.is_overdue %} class="ka-row--danger"{% elif not action.is_open %} class="ka-row--closed"{% endif %}>
-              <td><a class="ka-action-link" href="{{ action.url }}">{{ action.title }}</a></td>
-              <td>
-                <span class="ka-origin ka-origin--{{ action.origin }}">{{ action.source_label }}</span>
-              </td>
-              <td>{{ action.owner_label|default:"Non assegnata" }}</td>
-              <td>{% if action.due_date %}{{ action.due_date|date:"d/m/Y" }}{% else %}<span class="ka-muted">—</span>{% endif %}</td>
-              <td>
-                {% if action.is_overdue %}
-                  <span class="ka-status ka-status--danger">Scaduta</span>
-                {% elif action.is_open %}
-                  <span class="ka-status ka-status--open">Aperta</span>
-                {% else %}
-                  <span class="ka-status ka-status--closed">Chiusa</span>
-                {% endif %}
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  {% else %}
-    <section class="ka-empty">
-      <p>Nessuna azione aperta su questa commessa.</p>
-      {% if tasks_shell_can_create %}
-        <a class="ts-hero-action primary" href="{% url 'tasks:create' %}?project={{ project.id }}">Crea attività</a>
-      {% endif %}
-    </section>
+{% block tasks_shell_kpis %}
+<section class="ts-kpis">
+  <article class="ts-kpi blue">
+    <div class="ts-kpi-label">Aperte</div>
+    <div class="ts-kpi-value">{{ open_count }}</div>
+    <div class="ts-kpi-note">Issue, attività e sotto-attività da chiudere.</div>
+    <div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:100%"></div></div>
+  </article>
+  <article class="ts-kpi red">
+    <div class="ts-kpi-label">Scadute</div>
+    <div class="ts-kpi-value">{{ overdue_count }}</div>
+    <div class="ts-kpi-note">Con scadenza superata e ancora aperte.</div>
+    {% if open_count %}
+      <div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:{% widthratio overdue_count open_count 100 %}%"></div></div>
+    {% endif %}
+  </article>
+  <article class="ts-kpi amber">
+    <div class="ts-kpi-label">Senza responsabile</div>
+    <div class="ts-kpi-value">{{ unassigned_count }}</div>
+    <div class="ts-kpi-note">Aperte ma non assegnate a nessuno.</div>
+    {% if open_count %}
+      <div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:{% widthratio unassigned_count open_count 100 %}%"></div></div>
+    {% endif %}
+  </article>
+  <article class="ts-kpi teal">
+    <div class="ts-kpi-label">Senza scadenza</div>
+    <div class="ts-kpi-value">{{ no_due_count }}</div>
+    <div class="ts-kpi-note">Aperte senza data di chiusura attesa.</div>
+    {% if open_count %}
+      <div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:{% widthratio no_due_count open_count 100 %}%"></div></div>
+    {% endif %}
+  </article>
+  {% if include_closed %}
+    <article class="ts-kpi slate">
+      <div class="ts-kpi-label">Chiuse</div>
+      <div class="ts-kpi-value">{{ closed_count }}</div>
+      <div class="ts-kpi-note">Visibili perché il filtro le include.</div>
+    </article>
   {% endif %}
+</section>
+{% endblock %}
+
+{% block tasks_shell_content %}
+<section class="ts-panel">
+  <div class="ts-panel-body">
+    <div class="ml-filters">
+      <div class="ml-scope">
+        <a class="ml-scope-btn{% if not include_closed %} active{% endif %}" href="{% url 'tasks:project_actions' project.id %}">Solo aperte</a>
+        <a class="ml-scope-btn{% if include_closed %} active{% endif %}" href="{% url 'tasks:project_actions' project.id %}?closed=1">Includi chiuse</a>
+      </div>
+    </div>
+
+    {% if actions %}
+      <div class="tl-table-wrap">
+        <table class="tl-table">
+          <thead>
+            <tr>
+              <th style="width:38%">Azione</th>
+              <th>Origine</th>
+              <th>Responsabile</th>
+              <th>Scadenza</th>
+              <th>Stato</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for action in actions %}
+              <tr class="tl-row-clickable{% if action.is_overdue %} status-overdue{% elif not action.is_open %} status-done{% endif %}" data-href="{{ action.url }}">
+                <td>
+                  <a class="tl-task-link" href="{{ action.url }}">{{ action.title }}</a>
+                  {# Per le attività la provenienza coincide con la chip Origine: non la ripetiamo. #}
+                  {% if action.origin != "task" %}<div class="tl-task-desc">{{ action.source_label }}</div>{% endif %}
+                </td>
+                <td>
+                  {% if action.origin == "issue" %}
+                    <span class="ts-chip warn">Issue</span>
+                  {% elif action.origin == "task" %}
+                    <span class="ts-chip info">Attività</span>
+                  {% else %}
+                    <span class="ts-chip soft">Sotto-attività</span>
+                  {% endif %}
+                </td>
+                <td>{% if action.owner_label %}{{ action.owner_label }}{% else %}<span class="tl-ko-link">Non assegnata</span>{% endif %}</td>
+                <td>
+                  {% if action.due_date %}
+                    <span class="tl-date{% if action.is_overdue %} overdue{% endif %}">{{ action.due_date|date:"d-m-Y" }}</span>
+                  {% else %}
+                    <span class="tl-date">&mdash;</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if action.is_overdue %}
+                    <span class="ts-chip danger">Scaduta</span>
+                  {% elif action.is_open %}
+                    <span class="ts-chip ok">Aperta</span>
+                  {% else %}
+                    <span class="ts-chip soft">Chiusa</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="empty" style="text-align:center;padding:28px 12px;">
+        Nessuna azione {% if not include_closed %}aperta {% endif %}su questa commessa.
+      </p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
+
+{% block tasks_shell_scripts %}
+<script>
+(function () {
+  'use strict';
+  document.querySelectorAll('.tl-row-clickable').forEach(function (row) {
+    row.addEventListener('click', function (ev) {
+      if (ev.target.closest('a')) return;
+      const href = row.getAttribute('data-href');
+      if (href) window.location.href = href;
+    });
+  });
+})();
+</script>
 {% endblock %}
