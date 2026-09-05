@@ -387,6 +387,35 @@ class OccurrenceCompletionTests(MaintenanceDomainTestCase):
         )
 
 
+class WorkOrderChecklistFromPlanTests(MaintenanceDomainTestCase):
+    """L'OdL nasce con la checklist del piano.
+
+    La garanzia esisteva sul generatore legacy, che e' stato ritirato: senza questo
+    test si perderebbe con lui, e un intervento nascerebbe senza gli step da spuntare.
+    """
+
+    def test_l_odl_eredita_gli_step_del_piano(self):
+        from assets.models import MaintenanceChecklistStep, WorkOrderChecklist
+
+        plan = self.make_plan("Controllo generale")
+        MaintenanceChecklistStep.objects.create(
+            intervention_template=plan, step_number=10, description="Controlla cinghie"
+        )
+        MaintenanceChecklistStep.objects.create(
+            intervention_template=plan, step_number=20, description="Lubrifica guide"
+        )
+        self.make_assignment(plan, first_due_date=date(2020, 1, 1))
+        domain.generate_occurrences(today=date(2026, 9, 20))
+        occorrenze = list(MaintenanceOccurrence.objects.filter(plan=plan)[:1])
+
+        work_order = domain.create_workorder_from_occurrences(occorrenze, user=self.user)
+
+        steps = list(
+            WorkOrderChecklist.objects.filter(work_order=work_order).order_by("step_number")
+        )
+        self.assertEqual([s.description for s in steps], ["Controlla cinghie", "Lubrifica guide"])
+
+
 class MassiveWorkOrderTests(MaintenanceDomainTestCase):
     def setUp(self):
         self.plan = self.make_plan()

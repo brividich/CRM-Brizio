@@ -237,10 +237,23 @@ Sul DB dev il sottosistema contatori è **vuoto**: 0 `AssetMeter`, 0 `AssetMeter
 
 Non si rimuove il vecchio motore prima di aver convertito i suoi dati: sul DB dev ci sono **18 regole attive e 187 stati di ultima esecuzione**. Finché `migrate_maintenance_to_plans` non è stato eseguito, toglierli lascerebbe il portale senza alcuna manutenzione programmata.
 
-- [ ] Ritirare `generate_scheduled_workorders` (dopo che lo schedulatore usa il nuovo comando)
-- [ ] Ritirare `AssetMaintenanceRuleState` e `sync_workorder_maintenance_state`
-- [ ] Ritirare `MaintenanceRule` / `MaintenanceRuleAssetOverride` (soft: `is_active=False` + rimozione dalla UI, drop tabelle solo a valle)
+**Eseguita il 2026-09-05**, dopo che la conversione dei dati su dev è andata a buon fine.
+
+- [x] `generate_scheduled_workorders` **rimosso** (comando + task `run_generate_scheduled_workorders` + l'azione «Genera OdL» in blocco dalle Impostazioni). Lo scheduler punta al comando nuovo dal commit precedente
+- [x] `sync_workorder_maintenance_state` non viene più chiamato: `AssetMaintenanceRuleState` smette di essere alimentato, l'ultima esecuzione si legge dalle occorrenze eseguite
+- [x] Superfici del vecchio motore ritirate: restano raggiungibili per URL ma **rimandano** alla superficie nuova equivalente, così un vecchio link o un segnalibro non trova una pagina morta
+  - `manutenzione/prossime/` e `manutenzione/scadenzario/` → Scadenze
+  - `manutenzione/todo/` → Da fare
+  - `manutenzione/regole/*` (elenco, nuova, modifica, anteprima impatto) → Piani
+  - `manutenzione/copertura/matrice/` → Copertura
+  - `manutenzione/asset-rules/<id>/` → Piani dell'asset
+- [x] ~1.270 righe di viste legacy rimosse; 24 test delle superfici ritirate eliminati, la garanzia sulla copia della checklist spostata sul motore nuovo (`WorkOrderChecklistFromPlanTests`)
+- [ ] `MaintenanceRule` / `MaintenanceRuleAssetOverride` / `AssetMaintenanceRuleState`: **modelli e tabelle intatti**. Il drop è una migration a sé, da fare quando la produzione è convertita e verificata
 - [ ] `AssetAdministrativeDeadline`: mantenere in sola lettura finché lo storico non è verificato
+
+**Non ritirato, ed è stata una correzione in corsa**: `maintenance_hub`. L'avevo incluso nello sweep, ma non è una superficie del vecchio motore — è il cruscotto degli **ordini di lavoro**, che non vanno da nessuna parte, e con esso sarebbe sparita la lista degli OdL in ritardo che il Quadro non replica. Ripristinato.
+
+**Baseline dei test cambiata**: i 2 fallimenti storici di `MaintenanceGeneratorDedupTests` non compaiono più perché la classe testava il generatore rimosso. Non sono stati «risolti»: è sparito il codice che testavano. La suite `assets` passa ora a 509 test, tutti verdi.
 
 ---
 
