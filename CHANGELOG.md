@@ -8,6 +8,16 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+
+## 1.4.0 - 2026-09-05
+
+Rifacimento del modulo manutenzione: la scadenza non vive più dentro l'ordine di
+lavoro ma in un'**occorrenza** propria, e il vecchio motore a regole è stato
+ritirato. Togliere un asset da un intervento non cancella più la sua
+manutenzione; lo stesso piano può valere su gruppi diversi con periodicità
+diverse; le manutenzioni a contatore, che producevano scadenze false presentate
+come verdi, escono dal flusso.
+
 ### Fixed
 
 - **Barra di navigazione: il nome di un'icona finiva stampato accanto alla voce** (`django_app/core/icon_utils.py`, nuovo `django_app/core/tests_icon_utils.py`). Nella barra in alto, accanto a KICK-OFF, compariva la scritta `check-square`: il nome dell'icona, non l'icona. Il ripiego di `icon_text_or_fallback` stampava il valore così com'era — giusto per un'emoji, sbagliato per uno **slug** non riconosciuto, che non è un glifo. Ora uno slug non risolto ripiega sull'iniziale dell'etichetta, come per un'icona assente, e `check-square` è stato mappato sull'icona che gli corrispondeva. Il difetto era visibile su ogni pagina del portale.
