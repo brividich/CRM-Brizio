@@ -5209,6 +5209,11 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
     wo_list = reverse("assets:wo_list")
     asset_quick_report = reverse("assets:asset_quick_report")
     maintenance_todo = reverse("assets:maintenance_todo")
+    maintenance_da_fare = reverse("assets:maintenance_da_fare")
+    maintenance_scadenze = reverse("assets:maintenance_scadenze")
+    maintenance_quadro = reverse("assets:maintenance_responsabile")
+    maintenance_plans = reverse("assets:maintenance_plan_list")
+    asset_groups = reverse("assets:asset_group_list")
     il_mio_turno_url = reverse("assets:il_mio_turno")
     current_type = _clean_string(request.GET.get("asset_type"))
     current_group = _clean_string(request.GET.get("group")).lower()
@@ -5291,28 +5296,62 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
                 "maintenance_schedule", "maintenance_todo", "maintenance_history",
                 "wo_list", "wo_view", "wo_create", "wo_close",
                 "assistance_contract_list",
+                # Superfici del nuovo dominio: senza queste il ramo "Manutenzione"
+                # si chiudeva proprio mentre ci si stava lavorando dentro.
+                "maintenance_da_fare", "maintenance_scadenze", "maintenance_responsabile",
+                "maintenance_plan_list", "maintenance_plan_detail", "maintenance_plan_create",
+                "maintenance_plan_edit", "maintenance_assignment_create", "maintenance_assignment_edit",
+                "maintenance_coverage", "maintenance_history_import",
+                "asset_group_list", "asset_group_create", "asset_group_edit",
+                "occurrence_complete", "occurrence_followup_create",
             },
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Pannello manutenzione",
-            "url": maintenance_hub,
+            "label": "Da fare",
+            "url": maintenance_da_fare,
             "is_subitem": True,
-            "active": current_route == "maintenance_hub",
+            # Le rotte ritirate rimandano qui: la voce resta accesa anche per chi
+            # arriva da un vecchio segnalibro, altrimenti atterrerebbe su una pagina
+            # senza nessuna voce di menu evidenziata.
+            "active": current_route in {"maintenance_da_fare", "maintenance_todo"},
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Centro operativo",
-            "url": maintenance_todo,
+            "label": "Scadenze",
+            "url": maintenance_scadenze,
             "is_subitem": True,
-            "active": current_route == "maintenance_todo",
+            "active": current_route in {
+                "maintenance_scadenze", "maintenance_schedule", "maintenance_scadenzario",
+                "occurrence_complete", "occurrence_followup_create",
+            },
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Scadenzario",
-            "url": maintenance_schedule,
+            "label": "Quadro",
+            "url": maintenance_quadro,
             "is_subitem": True,
-            "active": current_route == "maintenance_schedule",
+            "active": current_route == "maintenance_responsabile",
+        },
+        {
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Piani",
+            "url": maintenance_plans,
+            "is_subitem": True,
+            "active": current_route in {
+                "maintenance_plan_list", "maintenance_plan_detail", "maintenance_plan_create",
+                "maintenance_plan_edit", "maintenance_assignment_create", "maintenance_assignment_edit",
+                "maintenance_coverage", "maintenance_history_import",
+                "maintenance_rule_list", "maintenance_rule_create", "maintenance_rule_edit",
+                "maintenance_coverage_matrix",
+            },
+        },
+        {
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Gruppi asset",
+            "url": asset_groups,
+            "is_subitem": True,
+            "active": current_route in {"asset_group_list", "asset_group_create", "asset_group_edit"},
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
@@ -5320,13 +5359,6 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
             "url": maintenance_templates,
             "is_subitem": True,
             "active": current_route in {"maintenance_template_list", "maintenance_template_create", "maintenance_template_edit"},
-        },
-        {
-            "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Piani ordinari",
-            "url": maintenance_rules,
-            "is_subitem": True,
-            "active": current_route in {"maintenance_rule_list", "maintenance_rule_create", "maintenance_rule_edit"},
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
@@ -5560,14 +5592,58 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "is_visible": True,
         },
         {
+            "code": "maintenance_da_fare",
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Da fare",
+            "target_url": "django:assets:maintenance_da_fare",
+            "active_match": "/assets/manutenzione/da-fare/",
+            "is_subitem": True,
+            "parent_code": "manutenzione_hub",
+            "sort_order": 53,
+            "is_visible": True,
+        },
+        {
+            "code": "maintenance_scadenze",
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Scadenze",
+            "target_url": "django:assets:maintenance_scadenze",
+            "active_match": "/assets/manutenzione/scadenze/",
+            "is_subitem": True,
+            "parent_code": "manutenzione_hub",
+            "sort_order": 54,
+            "is_visible": True,
+        },
+        {
+            "code": "maintenance_quadro",
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Quadro",
+            "target_url": "django:assets:maintenance_responsabile",
+            "active_match": "/assets/manutenzione/quadro/",
+            "is_subitem": True,
+            "parent_code": "manutenzione_hub",
+            "sort_order": 55,
+            "is_visible": True,
+        },
+        {
             "code": "maintenance_rules",
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Piani ordinari",
-            "target_url": "django:assets:maintenance_rule_list",
-            "active_match": "/assets/manutenzione/regole/",
+            "label": "Piani",
+            "target_url": "django:assets:maintenance_plan_list",
+            "active_match": "/assets/manutenzione/piani/",
             "is_subitem": True,
             "parent_code": "manutenzione_hub",
             "sort_order": 56,
+            "is_visible": True,
+        },
+        {
+            "code": "maintenance_asset_groups",
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Gruppi asset",
+            "target_url": "django:assets:asset_group_list",
+            "active_match": "/assets/manutenzione/gruppi/",
+            "is_subitem": True,
+            "parent_code": "manutenzione_hub",
+            "sort_order": 57,
             "is_visible": True,
         },
         {
@@ -5595,9 +5671,9 @@ def _default_sidebar_seed_rows() -> list[dict]:
         {
             "code": "maintenance_schedule",
             "section": AssetSidebarButton.SECTION_OPERATIONS,
-            "label": "Prossime manutenzioni",
-            "target_url": "django:assets:maintenance_schedule",
-            "active_match": "/assets/manutenzione/prossime/",
+            "label": "Scadenze manutenzione",
+            "target_url": "django:assets:maintenance_scadenze",
+            "active_match": "/assets/manutenzione/scadenze/",
             "is_subitem": False,
             "parent_code": "",
             "sort_order": 66,
@@ -5628,9 +5704,9 @@ def _default_sidebar_seed_rows() -> list[dict]:
         {
             "code": "compliance_reports",
             "section": AssetSidebarButton.SECTION_ANALYTICS,
-            "label": "Scadenzario operativo",
-            "target_url": "django:assets:maintenance_schedule",
-            "active_match": "/assets/manutenzione/prossime/",
+            "label": "Scadenze manutenzione",
+            "target_url": "django:assets:maintenance_scadenze",
+            "active_match": "/assets/manutenzione/scadenze/",
             "is_subitem": False,
             "parent_code": "",
             "sort_order": 80,
@@ -16334,8 +16410,9 @@ def maintenance_impostazioni(request: HttpRequest) -> HttpResponse:
         "rules": "piani",
         "piano": "copertura",
     }.get(active_tab, active_tab)
-    if active_tab not in ("catalogo", "piani", "copertura"):
-        active_tab = "catalogo"
+    # Le schede "piani" e "copertura" avevano superfici proprie nel nuovo dominio:
+    # qui resta il solo catalogo delle attivita', il resto e' un rimando.
+    active_tab = "catalogo"
     is_admin = _is_assets_admin(request)
 
     from .models import MaintenanceInterventionTemplate

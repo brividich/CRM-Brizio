@@ -833,3 +833,48 @@ class CaporepartoScopeTests(MaintenanceUITestCase):
 
         self.assertEqual(response.context["scoped_reparti"], [])
         self.assertEqual(response.context["total"], 3)
+
+
+class QuadroOverdueWorkOrdersTests(MaintenanceUITestCase):
+    """Il Quadro deve mostrare gli OdL fermi da troppo tempo.
+
+    Era l'unica cosa che il cruscotto vecchio (`maintenance_hub`) aveva e il Quadro
+    no, ed e' il motivo per cui quella pagina non si poteva ancora ritirare. La
+    soglia e' quella condivisa di SiteConfig, la stessa del promemoria.
+    """
+
+    def test_un_odl_fermo_da_troppo_tempo_compare_nel_quadro(self):
+        from core.models import SiteConfig
+
+        SiteConfig.objects.update_or_create(chiave="assets_wo_overdue_days", defaults={"valore": "10"})
+        vecchio = WorkOrder.objects.create(
+            asset=self.assets[0],
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="Perdita olio non risolta",
+        )
+        WorkOrder.objects.filter(pk=vecchio.pk).update(
+            opened_at=timezone.now() - timedelta(days=30)
+        )
+
+        response = self.client.get(reverse("assets:maintenance_responsabile"))
+
+        self.assertEqual(response.context["kpi"]["workorders_overdue"], 1)
+        self.assertContains(response, "Ordini di lavoro in ritardo")
+        self.assertContains(response, "Perdita olio non risolta")
+
+    def test_un_odl_recente_non_e_in_ritardo(self):
+        from core.models import SiteConfig
+
+        SiteConfig.objects.update_or_create(chiave="assets_wo_overdue_days", defaults={"valore": "21"})
+        WorkOrder.objects.create(
+            asset=self.assets[0],
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="Aperto oggi",
+        )
+
+        response = self.client.get(reverse("assets:maintenance_responsabile"))
+
+        self.assertEqual(response.context["kpi"]["workorders_overdue"], 0)
+        self.assertNotContains(response, "Aperto oggi")

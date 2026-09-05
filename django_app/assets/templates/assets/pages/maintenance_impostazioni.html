@@ -15,17 +15,23 @@
 {% block assets_shell_subtitle %}<p>Definisci il lavoro una volta, collegalo agli asset e governa frequenze e responsabilità senza duplicare informazioni.</p>{% endblock %}
 {% block assets_shell_toolbar %}
   <a class="btn" href="{{ url_hub }}">&larr; Hub manutenzione</a>
-  <a class="btn" href="{{ url_scadenzario }}">Scadenzario</a>
+  <a class="btn" href="{% url 'assets:maintenance_scadenze' %}">Scadenze</a>
   <a class="btn" href="{% url 'assets:maintenance_history' %}">Storico</a>
-  {% if active_tab == 'catalogo' %}<a class="btn btn-primary" href="{% url 'assets:maintenance_template_create' %}">+ Nuova attività</a>{% elif active_tab == 'piani' %}<a class="btn btn-primary" href="{% url 'assets:maintenance_rule_create' %}">+ Nuovo piano</a>{% endif %}
+  <a class="btn btn-primary" href="{% url 'assets:maintenance_template_create' %}">+ Nuova attività</a>
 {% endblock %}
 
 {% block assets_shell_content %}
 <section class="ux-page">
-  <nav class="ux-tabs" aria-label="Catalogo e piani">
-    <a class="ux-tab {% if active_tab == 'catalogo' %}active{% endif %}" href="?tab=catalogo">Attività <span class="ux-count">{{ template_count }}</span></a>
-    <a class="ux-tab {% if active_tab == 'piani' %}active{% endif %}" href="?tab=piani">Piani di manutenzione <span class="ux-count">{{ maintenance_plan_count }}</span></a>
-    <a class="ux-tab {% if active_tab == 'copertura' %}active{% endif %}" href="?tab=copertura">Copertura / salute {% if plan_category_count %}<span class="ux-count">{{ plan_category_count }}</span>{% endif %}</a>
+  {% comment %}
+    Le schede «Piani di manutenzione» e «Copertura / salute» mostravano il catalogo
+    del vecchio motore a regole, che ora ha superfici proprie: tenerle qui avrebbe
+    raccontato la stessa manutenzione due volte, con numeri diversi. Restano come
+    rimandi espliciti.
+  {% endcomment %}
+  <nav class="ux-tabs" aria-label="Catalogo attività">
+    <a class="ux-tab active" href="?tab=catalogo">Attività <span class="ux-count">{{ template_count }}</span></a>
+    <a class="ux-tab" href="{% url 'assets:maintenance_plan_list' %}">Piani di manutenzione &rsaquo;</a>
+    <a class="ux-tab" href="{% url 'assets:maintenance_coverage' %}">Copertura &rsaquo;</a>
   </nav>
 
   <section class="mi2-summary">

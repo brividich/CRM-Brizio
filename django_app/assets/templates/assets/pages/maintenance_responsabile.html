@@ -36,6 +36,10 @@
       <span class="md-kpi-label">In attesa</span><span class="md-kpi-value">{{ kpi.waiting }}</span>
       <span class="md-kpi-sub">ricambi, fornitori, autorizzazioni</span>
     </div>
+    <a class="md-kpi {% if kpi.workorders_overdue %}is-danger{% endif %}" href="#odl-in-ritardo">
+      <span class="md-kpi-label">OdL in ritardo</span><span class="md-kpi-value">{{ kpi.workorders_overdue }}</span>
+      <span class="md-kpi-sub">aperti da oltre {{ wo_overdue_days }} gg</span>
+    </a>
     <a class="md-kpi is-warn" href="{% url 'assets:maintenance_scadenze' %}?report_missing=on&window=">
       <span class="md-kpi-label">Rapporti mancanti</span><span class="md-kpi-value">{{ kpi.report_missing }}</span>
       <span class="md-kpi-sub">eseguite ma non documentate</span>
@@ -79,6 +83,32 @@
             </tr>
           {% empty %}
             <tr><td colspan="6" class="md-empty">Nessun ordine di lavoro aperto sulle manutenzioni programmate.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="md-section {% if overdue_workorders %}is-urgent{% endif %}" id="odl-in-ritardo">
+    <div class="md-section-head">
+      <h2>Ordini di lavoro in ritardo</h2>
+      <span class="md-badge {% if overdue_workorders %}badge-danger{% else %}badge-muted{% endif %}">{{ overdue_workorders|length }}</span>
+      <span class="md-sub">aperti da oltre {{ wo_overdue_days }} giorni</span>
+    </div>
+    <div class="md-scroll">
+      <table class="md-table" data-fm-hide-search="1">
+        <thead><tr><th>OdL</th><th>Titolo</th><th>Asset</th><th>Assegnato a</th><th class="md-right">Aperto da</th></tr></thead>
+        <tbody>
+          {% for wo in overdue_workorders %}
+            <tr>
+              <td><a class="md-asset" href="{% url 'assets:wo_view' wo.pk %}">#{{ wo.pk }}</a></td>
+              <td>{{ wo.title|truncatechars:70 }}</td>
+              <td>{{ wo.asset.asset_tag|default:wo.asset.name }}</td>
+              <td>{% if wo.assigned_to %}{{ wo.assigned_to.get_full_name|default:wo.assigned_to.username }}{% else %}<span class="md-sub">da assegnare</span>{% endif %}</td>
+              <td class="md-right md-nowrap">{{ wo.days_open }} gg</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5" class="md-empty">Nessun intervento aperto da oltre {{ wo_overdue_days }} giorni.</td></tr>
           {% endfor %}
         </tbody>
       </table>

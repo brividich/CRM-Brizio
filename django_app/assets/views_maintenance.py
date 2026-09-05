@@ -461,6 +461,27 @@ def maintenance_responsabile(request: HttpRequest) -> HttpResponse:
         .order_by("-opened_at")[:50]
     )
 
+    # OdL aperti da troppo tempo: la soglia e' quella condivisa di SiteConfig
+    # (assets_wo_overdue_days), la stessa che usa il promemoria. Qui NON si filtra
+    # sulle occorrenze: un intervento fermo da tre settimane conta per il
+    # responsabile a prescindere da come e' nato.
+    from .maintenance import get_workorder_overdue_days
+
+    wo_overdue_days = get_workorder_overdue_days()
+    overdue_workorders = []
+    for work_order in (
+        WorkOrder.objects.filter(
+            status=WorkOrder.STATUS_OPEN,
+            opened_at__date__lte=today - timedelta(days=wo_overdue_days),
+        )
+        .select_related("asset", "assigned_to")
+        .order_by("opened_at")[:40]
+    ):
+        # I giorni si contano qui: il template non deve fare aritmetica, e
+        # "1 mese, 1 settimana" e' meno leggibile di "38 giorni" in una colonna.
+        work_order.days_open = (today - timezone.localtime(work_order.opened_at).date()).days
+        overdue_workorders.append(work_order)
+
     conflicts = [
         resolution
         for resolution in domain.build_plan_resolutions(
@@ -476,6 +497,7 @@ def maintenance_responsabile(request: HttpRequest) -> HttpResponse:
         "workorders_open": open_workorders.count(),
         "workorders_running": sum(1 for wo in open_workorders if wo.started_at and not wo.is_waiting),
         "waiting": sum(1 for wo in open_workorders if wo.is_waiting),
+        "workorders_overdue": len(overdue_workorders),
         "report_missing": len(report_missing),
         "follow_ups": follow_ups.count(),
         "conflicts": len(conflicts),
@@ -492,6 +514,8 @@ def maintenance_responsabile(request: HttpRequest) -> HttpResponse:
             "unplanned": unplanned[:60],
             "report_missing": report_missing[:40],
             "open_workorders": list(open_workorders[:40]),
+            "overdue_workorders": overdue_workorders,
+            "wo_overdue_days": wo_overdue_days,
             "follow_ups": list(follow_ups),
             "conflicts": conflicts[:40],
             "can_plan": can_plan_maintenance(request),

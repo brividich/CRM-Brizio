@@ -5754,34 +5754,6 @@ class AssetMaintenanceStepTwoTests(TestCase):
 
         self.assertTrue(form.is_valid(), form.errors.as_json())
 
-    def test_maintenance_impostazioni_piano_tab_renders(self):
-        template = MaintenanceInterventionTemplate.objects.create(
-            code="piano-step-two",
-            label="Intervento piano",
-            asset_category=self.category,
-        )
-        MaintenanceRule.objects.create(
-            intervention_template=template,
-            asset_category=self.category,
-            threshold_type=MaintenanceRule.THRESHOLD_DAYS,
-            threshold_value=60,
-        )
-        Asset.objects.create(
-            asset_tag="ML-PIANO-001",
-            name="Macchina piano",
-            asset_type=Asset.TYPE_WORK_MACHINE,
-            asset_category=self.category,
-            status=Asset.STATUS_IN_USE,
-        )
-        self.client.force_login(self.admin)
-
-        response = self.client.get(reverse("assets:maintenance_impostazioni") + "?tab=piano")
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Copertura e salute dei piani")
-        self.assertContains(response, self.category.label)
-
-
 class PeriodicVerificationConvergenceTests(TestCase):
     """Fase 2.3 — convergenza PeriodicVerification → MaintenanceRule."""
 
