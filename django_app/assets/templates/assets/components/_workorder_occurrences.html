@@ -1,0 +1,118 @@
+{% comment %}Manutenzioni raccolte in questo ordine di lavoro.
+   Un OdL massivo si legge per asset: ognuno si chiude, si sposta di giornata o
+   esce dall'OdL per conto suo. Uscire NON significa fatto, e nemmeno annullato.{% endcomment %}
+{% if wo_occurrence_rows %}
+  {% include "assets/components/maintenance_domain_styles.html" %}
+  <article class="ux-card">
+    <header class="ux-card-head">
+      <div>
+        <h3>Manutenzioni raccolte</h3>
+        <p>
+          {% if wo_occurrence_progress %}
+            Completate {{ wo_occurrence_progress.done }} · da fare {{ wo_occurrence_progress.todo }} ·
+            totale iniziale {{ wo_occurrence_progress.total }}
+            {% if wo_occurrence_progress.is_partial %} — <strong>parzialmente completato</strong>{% endif %}
+          {% endif %}
+        </p>
+      </div>
+    </header>
+    <div class="ux-card-body">
+      <form method="post" id="md-bulk-form" action="{% url 'assets:workorder_distribute_day' workorder.pk %}">
+        {% csrf_token %}
+      </form>
+
+      {% for group in wo_occurrence_day_groups %}
+        <section class="md-section" style="margin-bottom:12px">
+          <div class="md-section-head">
+            <h2>
+              {% if group.day %}Giornata del {{ group.day.execution_date|date:"d/m/Y" }}{% else %}Non ancora assegnate a una giornata{% endif %}
+            </h2>
+            <span class="md-badge badge-muted">{{ group.rows|length }}</span>
+          </div>
+          <div class="md-scroll">
+            <table class="md-table" data-fm-hide-search="1">
+              <thead>
+                <tr>
+                  {% if wo_can_plan_maintenance %}<th style="width:34px"><input type="checkbox" data-md-check-all></th>{% endif %}
+                  <th>Asset</th>
+                  <th>Piano</th>
+                  <th>Scadenza</th>
+                  <th>Stato</th>
+                  <th class="md-right">Azioni</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in group.rows %}
+                  {% with occ=row.occurrence %}
+                  <tr>
+                    {% if wo_can_plan_maintenance %}
+                      <td>
+                        {% if occ.status == "OPEN" %}
+                          <input type="checkbox" name="occurrence_ids" value="{{ occ.pk }}" form="md-bulk-form" data-md-check>
+                        {% endif %}
+                      </td>
+                    {% endif %}
+                    <td>
+                      <a class="md-asset" href="{% url 'assets:asset_maintenance_plans' occ.asset_id %}">{{ occ.asset.asset_tag|default:occ.asset.name }}</a>
+                      <span class="md-sub">{{ occ.asset.name }}</span>
+                    </td>
+                    <td>{{ occ.plan.label }}</td>
+                    <td class="md-nowrap">{{ occ.due_date|date:"d/m/Y" }}</td>
+                    <td><span class="md-badge {{ row.badge_class }}">{{ row.label }}</span></td>
+                    <td class="md-right md-nowrap">
+                      {% if occ.status == "OPEN" and wo_can_execute_maintenance %}
+                        <a class="btn btn-sm" href="{% url 'assets:occurrence_complete' occ.pk %}">Registra</a>
+                        <a class="btn btn-sm" href="{% url 'assets:occurrence_followup_create' occ.pk %}">Follow-up</a>
+                      {% endif %}
+                      {% if occ.status == "OPEN" and wo_can_plan_maintenance %}
+                        <form method="post" action="{% url 'assets:workorder_occurrence_remove' workorder.pk occ.pk %}" style="display:inline"
+                              onsubmit="return confirm('Togliere {{ occ.asset.asset_tag|escapejs }} da questo ordine di lavoro? La manutenzione NON viene chiusa: torna fra quelle da pianificare.');">
+                          {% csrf_token %}
+                          <button type="submit" class="btn btn-sm">Rimuovi</button>
+                        </form>
+                      {% endif %}
+                    </td>
+                  </tr>
+                  {% endwith %}
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      {% endfor %}
+
+      {% if wo_can_plan_maintenance %}
+        <div class="md-bulk is-visible" style="position:static;box-shadow:none">
+          <span class="md-bulk-count"><span data-md-count>0</span> selezionate</span>
+          <div class="md-field">
+            <label for="{{ wo_execution_day_form.execution_date.id_for_label }}">Distribuisci sulla giornata</label>
+            {{ wo_execution_day_form.execution_date }}
+          </div>
+          <button type="submit" class="btn btn-primary" form="md-bulk-form">Sposta nella giornata</button>
+        </div>
+      {% endif %}
+    </div>
+  </article>
+
+  <script>
+  (function () {
+    var counter = document.querySelector('[data-md-count]');
+    if (!counter) { return; }
+    // Il campo data vive fuori dal <form>: lo si aggancia con l'attributo form
+    // come le checkbox, cosi' la POST porta con se' giornata e selezione.
+    var dateInput = document.getElementById('{{ wo_execution_day_form.execution_date.id_for_label }}');
+    if (dateInput) { dateInput.setAttribute('form', 'md-bulk-form'); }
+
+    function refresh() { counter.textContent = document.querySelectorAll('[data-md-check]:checked').length; }
+    document.addEventListener('change', function (event) {
+      if (event.target.matches('[data-md-check-all]')) {
+        event.target.closest('table').querySelectorAll('[data-md-check]').forEach(function (box) {
+          box.checked = event.target.checked;
+        });
+      }
+      if (event.target.matches('[data-md-check], [data-md-check-all]')) { refresh(); }
+    });
+    refresh();
+  })();
+  </script>
+{% endif %}

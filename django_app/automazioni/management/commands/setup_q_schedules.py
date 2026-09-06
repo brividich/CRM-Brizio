@@ -35,6 +35,7 @@ class Command(BaseCommand):
         from django_q.models import Schedule
 
         from automazioni.schedules import (
+            RETIRED_SCHEDULE_NAMES,
             SCHEDULES,
             delete_schedule,
             disabled_schedule_names,
@@ -84,6 +85,16 @@ class Command(BaseCommand):
                 _obj, created = register_schedule(spec)
                 verb = "creato" if created else "aggiornato"
                 self.stdout.write(self.style.SUCCESS(f"  [ok] {verb}: {name} -> {spec['func']}"))
+
+        # Schedule ritirati: vanno rimossi dal DB, altrimenti il job continua a girare
+        # dopo il deploy pur non esistendo più nel codice.
+        if not delete:
+            for name in RETIRED_SCHEDULE_NAMES:
+                if dry_run:
+                    if Schedule.objects.filter(name=name).exists():
+                        self.stdout.write(f"{mode} Eliminerei schedule ritirato '{name}'")
+                elif delete_schedule(name):
+                    self.stdout.write(self.style.WARNING(f"  [x] ritirato: {name}"))
 
         if not delete and not dry_run:
             count = Schedule.objects.filter(

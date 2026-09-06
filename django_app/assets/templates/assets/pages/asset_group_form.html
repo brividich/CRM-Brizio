@@ -1,0 +1,40 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}{% endblock %}
+
+{% block assets_shell_title %}{{ page_title }}{% endblock %}
+{% block assets_shell_subtitle %}
+  <p>Gli asset del gruppo ereditano i piani applicati al gruppo, salvo personalizzazione o esclusione sul singolo asset.</p>
+{% endblock %}
+
+{% block assets_shell_toolbar %}
+  <a class="btn" href="{% url 'assets:asset_group_list' %}">Tutti i gruppi</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<form class="md-form" method="post" novalidate>
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+  <fieldset class="md-fieldset">
+    <h2>Gruppo</h2>
+    {% include "assets/components/_md_field.html" with field=form.label %}
+    {% include "assets/components/_md_field.html" with field=form.description %}
+    <div class="md-grid-2">
+      {% include "assets/components/_md_field.html" with field=form.code %}
+      {% include "assets/components/_md_field.html" with field=form.sort_order %}
+      {% include "assets/components/_md_field.html" with field=form.is_active %}
+    </div>
+  </fieldset>
+  <fieldset class="md-fieldset">
+    <h2>Asset</h2>
+    <p class="md-hint">Ctrl/Cmd per selezionarne piu' di uno.</p>
+    {% include "assets/components/_md_field.html" with field=form.members %}
+  </fieldset>
+  <div class="md-form-actions">
+    <button type="submit" class="btn btn-primary">Salva gruppo</button>
+    <a class="btn" href="{% url 'assets:asset_group_list' %}">Annulla</a>
+  </div>
+</form>
+{% endblock %}

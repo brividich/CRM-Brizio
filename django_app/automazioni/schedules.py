@@ -396,11 +396,13 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
-        # ASSETS — genera gli OdL periodici dovuti dalle MaintenanceRule attive.
-        # Idempotente (nessun duplicato se esiste già un WO OPEN). Gira PRIMA del
-        # promemoria manutenzione così i nuovi OdL rientrano nella mail del giorno.
-        "name": "assets_generate_workorders",
-        "func": "assets.tasks.run_generate_scheduled_workorders",
+        # ASSETS — genera le OCCORRENZE di manutenzione dovute dai piani attivi.
+        # Non apre più un OdL per ogni asset: raggruppare le manutenzioni in ordini di
+        # lavoro è una decisione umana (pagina "Da fare"). Idempotente: la terna
+        # (piano, asset, scadenza) è unica a DB. Gira PRIMA del promemoria manutenzione
+        # così le nuove scadenze rientrano nella mail del giorno.
+        "name": "assets_generate_occurrences",
+        "func": "assets.tasks.run_generate_maintenance_occurrences",
         "schedule_type": "C",       # Schedule.CRON
         "cron": "0 6 * * *",        # ogni mattina alle 06:00
         "repeats": -1,
@@ -477,6 +479,17 @@ SCHEDULES: list[dict] = [
         "repeats": -1,
         "kwargs": {},
     },
+]
+
+
+
+# Schedule ritirati: restano elencati qui perché ``setup_q_schedules`` li rimuova dal
+# DB. Togliere una voce da SCHEDULES non basta — il record django-q sopravvive al
+# deploy e il job continuerebbe a girare, invisibile alla Centrale di comando.
+RETIRED_SCHEDULE_NAMES: list[str] = [
+    # Sostituito da "assets_generate_occurrences": generava un OdL per asset dalle
+    # MaintenanceRule. Se restasse attivo produrrebbe una seconda fonte di scadenze.
+    "assets_generate_workorders",
 ]
 
 

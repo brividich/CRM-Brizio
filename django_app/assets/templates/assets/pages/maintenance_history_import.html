@@ -1,0 +1,120 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Importa storico manutenzioni{% endblock %}
+
+{% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}{% endblock %}
+
+{% block assets_shell_title %}Importa storico manutenzioni{% endblock %}
+{% block assets_shell_subtitle %}
+  <p>
+    Il motore calcola la prossima scadenza dall'ultima esecuzione. Finché quella data non
+    esiste, ogni piano risulta <em>dovuto subito</em>: questa pagina evita di aprire centinaia
+    di scadenze false il giorno del passaggio.
+  </p>
+{% endblock %}
+
+{% block assets_shell_toolbar %}
+  <a class="btn" href="{% url 'assets:maintenance_plan_list' %}">Piani</a>
+  <a class="btn" href="{% url 'assets:maintenance_history_template' %}">Scarica il modello</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<div class="md-page">
+
+  <section class="md-section">
+    <div class="md-section-head"><h2>1 · Il file</h2></div>
+    <div class="md-form" style="padding:16px">
+      <p class="md-sub" style="margin-top:0">
+        Quattro colonne, nell'ordine che preferisci: <strong>{{ headers|join:" · " }}</strong>.
+        Le date si scrivono <code>gg/mm/aaaa</code>. Un asset che compare più volte con piani
+        diversi è normale: una riga per ogni piano.
+      </p>
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {% include "assets/components/_md_field.html" with field=form.file %}
+        <div class="md-actions">
+          <button type="submit" class="btn btn-primary">Analizza il file</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  {% if report %}
+    {% if report.header_error %}
+      <div class="md-conflict">
+        <h3>Il file non è utilizzabile</h3>
+        <p style="margin:0">{{ report.header_error }}</p>
+      </div>
+    {% else %}
+      <section class="md-section">
+        <div class="md-section-head">
+          <h2>2 · Anteprima</h2>
+          <span class="md-badge badge-success">{{ report.valid_rows|length }} importabili</span>
+          {% if report.duplicate_rows %}<span class="md-badge badge-muted">{{ report.duplicate_rows|length }} già presenti</span>{% endif %}
+          {% if report.error_rows %}<span class="md-badge badge-danger">{{ report.error_rows|length }} da correggere</span>{% endif %}
+        </div>
+        <div class="md-scroll">
+          <table class="md-table" data-fm-hide-search="1">
+            <thead>
+              <tr>
+                <th class="md-right">Riga</th>
+                <th>Asset</th>
+                <th>Piano</th>
+                <th>Ultima esecuzione</th>
+                <th>Periodicità</th>
+                <th>Prossima scadenza</th>
+                <th>Esito</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in report.rows %}
+                <tr>
+                  <td class="md-right md-sub">{{ row.number }}</td>
+                  <td>{{ row.asset_tag }}</td>
+                  <td>{{ row.plan_label }}</td>
+                  <td class="md-nowrap">
+                    {% if row.last_execution %}{{ row.last_execution|date:"d/m/Y" }}{% else %}<span class="md-sub">{{ row.raw_date|default:"—" }}</span>{% endif %}
+                  </td>
+                  <td>{{ row.recurrence_label|default:"—" }}</td>
+                  <td class="md-nowrap">{% if row.next_due %}{{ row.next_due|date:"d/m/Y" }}{% else %}<span class="md-sub">—</span>{% endif %}</td>
+                  <td>
+                    {% if row.outcome == "create" %}
+                      <span class="md-badge badge-success">Da importare</span>
+                    {% elif row.outcome == "duplicate" %}
+                      <span class="md-badge badge-muted">Già presente</span>
+                    {% else %}
+                      <span class="md-badge badge-danger">Errore</span>
+                      <span class="md-sub">{{ row.error }}</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="md-section {% if report.can_apply %}is-warn{% endif %}">
+        <div class="md-section-head"><h2>3 · Conferma</h2></div>
+        <div style="padding:16px">
+          {% if report.can_apply %}
+            <p style="margin-top:0">
+              Verranno registrate <strong>{{ report.valid_rows|length }}</strong> esecuzioni storiche e
+              aperte le relative prossime scadenze. Le righe in errore restano fuori: correggile e
+              ricarica il file, l'import è ripetibile e non duplica ciò che ha già scritto.
+            </p>
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="confirm" value="1">
+              <input type="hidden" name="payload" value="{{ payload }}">
+              <button type="submit" class="btn btn-primary">Importa {{ report.valid_rows|length }} righe</button>
+            </form>
+          {% else %}
+            <p style="margin:0">Nessuna riga importabile: correggi gli errori qui sopra e ricarica il file.</p>
+          {% endif %}
+        </div>
+      </section>
+    {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

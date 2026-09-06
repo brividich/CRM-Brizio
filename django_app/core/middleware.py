@@ -30,6 +30,10 @@ API_ACL_GATE_PATHS = {
     # la scheda dipendente. La view applica comunque il proprio gate admin e risponde
     # in JSON; senza mappatura il middleware rimanderebbe un redirect HTML.
     "/anagrafica/api/": "/anagrafica/dipendenti/",
+    # Anteprima impatto di un'applicazione di piano manutenzione: gate come la
+    # pagina dei piani. La view fa comunque il proprio gate e risponde in JSON;
+    # senza mappatura, con ACL_STRICT_CANONICAL il middleware la negherebbe.
+    "/api/assets/manutenzione/": "/assets/manutenzione/piani/",
 }
 _ACL_MIDDLEWARE_LOG_TTL_SECONDS = 300
 logger = logging.getLogger(__name__)

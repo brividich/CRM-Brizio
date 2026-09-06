@@ -1,0 +1,152 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Da fare — Manutenzione{% endblock %}
+
+{% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}{% endblock %}
+
+{% block assets_shell_title %}Da fare{% endblock %}
+{% block assets_shell_subtitle %}
+  <p>Cosa va fatto, su quali macchine, entro quando. {{ total }} manutenzion{{ total|pluralize:"e,i" }} apert{{ total|pluralize:"a,e" }}.</p>
+{% endblock %}
+
+{% block assets_shell_toolbar %}
+  <a class="btn" href="{% url 'assets:maintenance_scadenze' %}">Scadenze</a>
+  {% if can_plan %}<a class="btn" href="{% url 'assets:maintenance_responsabile' %}">Quadro</a>{% endif %}
+{% endblock %}
+
+{% block assets_shell_content %}
+<div class="md-page">
+
+  {% if scoped_reparti %}
+    {% comment %}
+      Preimpostazione, non barriera: la pagina dichiara lo scope e basta un click
+      per toglierlo. La visibilita' in lista non e' un confine di sicurezza.
+    {% endcomment %}
+    <div class="md-scope-note">
+      Filtrato sui reparti che guidi: <strong>{{ scoped_reparti|join:", " }}</strong>.
+      <a href="?reparto=">Mostra tutti i reparti</a>
+    </div>
+  {% endif %}
+
+
+  <div class="md-kpis">
+    <a class="md-kpi is-danger" href="?window=overdue">
+      <span class="md-kpi-label">Scadute</span>
+      <span class="md-kpi-value">{{ summary.overdue }}</span>
+      <span class="md-kpi-sub">da recuperare</span>
+    </a>
+    <a class="md-kpi is-warn" href="?window=7">
+      <span class="md-kpi-label">Entro 7 giorni</span>
+      <span class="md-kpi-value">{{ summary.week }}</span>
+      <span class="md-kpi-sub">questa settimana</span>
+    </a>
+    <a class="md-kpi" href="?planning=planned">
+      <span class="md-kpi-label">In programma</span>
+      <span class="md-kpi-value">{{ summary.planned }}</span>
+      <span class="md-kpi-sub">gia in un ordine di lavoro</span>
+    </a>
+    <a class="md-kpi" href="?execution_mode=EXTERNAL">
+      <span class="md-kpi-label">Appuntamenti esterni</span>
+      <span class="md-kpi-value">{{ summary.external }}</span>
+      <span class="md-kpi-sub">data fissata col fornitore</span>
+    </a>
+  </div>
+
+  <form class="md-filters" method="get">
+    {% for field in filter_form %}
+      <div class="md-field">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+      </div>
+    {% endfor %}
+    <input type="hidden" name="by" value="{{ view_mode }}">
+    <div class="md-actions">
+      <button type="submit" class="btn btn-primary">Filtra</button>
+      <a class="btn" href="{% url 'assets:maintenance_da_fare' %}">Azzera</a>
+    </div>
+  </form>
+
+  <div class="md-tabs">
+    <span style="align-self:center;font-size:var(--fs-xs);font-weight:800;color:var(--text-mid);margin-right:4px">RAGGRUPPA PER</span>
+    <a class="md-tab {% if view_mode == 'plan' %}active{% endif %}" href="?by=plan">Piano</a>
+    <a class="md-tab {% if view_mode == 'group' %}active{% endif %}" href="?by=group">Famiglia</a>
+    <a class="md-tab {% if view_mode == 'asset' %}active{% endif %}" href="?by=asset">Asset</a>
+  </div>
+
+  {% for block in blocks %}
+    <section class="md-section {% if block.tone == 'urgent' %}is-urgent{% elif block.tone == 'warn' %}is-warn{% endif %}">
+      <div class="md-section-head">
+        <h2>{{ block.title }}</h2>
+        <span class="md-badge {% if block.tone == 'urgent' %}badge-danger{% elif block.tone == 'warn' %}badge-warning{% else %}badge-muted{% endif %}">{{ block.rows|length }}</span>
+      </div>
+      {% if block.rows %}
+        {% include "assets/components/_occurrence_rows.html" with rows=block.rows selectable=0 show_plan=1 %}
+      {% else %}
+        <p class="md-empty">Niente in questo blocco.</p>
+      {% endif %}
+    </section>
+  {% endfor %}
+
+  <section class="md-section">
+    <div class="md-section-head">
+      <h2>Raggruppate per {% if view_mode == 'plan' %}piano{% elif view_mode == 'group' %}famiglia{% else %}asset{% endif %}</h2>
+      {% if can_plan %}<span class="md-sub">Seleziona qui le manutenzioni da raccogliere in un ordine di lavoro.</span>{% endif %}
+    </div>
+    <div class="md-groups" style="padding:12px">
+      {% for group in groups %}
+        <details class="md-group" {% if group.overdue %}open{% endif %}>
+          <summary>
+            {{ group.label }}
+            {% if group.sub %}<span class="md-sub" style="display:inline">{{ group.sub }}</span>{% endif %}
+            {% if group.overdue %}<span class="md-badge badge-danger">{{ group.overdue }} scadute</span>{% endif %}
+            <span class="md-group-count">{{ group.rows|length }}</span>
+          </summary>
+          {% include "assets/components/_occurrence_rows.html" with rows=group.rows selectable=can_plan show_plan=1 %}
+        </details>
+      {% empty %}
+        <p class="md-empty">Nessuna manutenzione aperta con i filtri correnti.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  {% if can_plan %}
+    <form class="md-bulk" id="md-bulk-form" method="post" action="{% url 'assets:occurrence_create_workorder' %}">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <span class="md-bulk-count"><span data-md-count>0</span> selezionate</span>
+      <div class="md-field"><label for="{{ workorder_form.title.id_for_label }}">Titolo</label>{{ workorder_form.title }}</div>
+      <div class="md-field"><label for="{{ workorder_form.assigned_to.id_for_label }}">Assegna a</label>{{ workorder_form.assigned_to }}</div>
+      <div class="md-field"><label for="{{ workorder_form.due_at.id_for_label }}">Entro</label>{{ workorder_form.due_at }}</div>
+      <button type="submit" class="btn btn-primary">Crea ordine di lavoro</button>
+    </form>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block assets_shell_scripts %}
+<script>
+(function () {
+  // La barra di azione massiva compare solo quando c'e' qualcosa di selezionato:
+  // una barra sempre presente si legge come "posso premere", e non e' vero.
+  var bar = document.querySelector('.md-bulk');
+  if (!bar) { return; }
+  var counter = bar.querySelector('[data-md-count]');
+
+  function refresh() {
+    var checked = document.querySelectorAll('[data-md-check]:checked').length;
+    counter.textContent = checked;
+    bar.classList.toggle('is-visible', checked > 0);
+  }
+
+  document.addEventListener('change', function (event) {
+    var target = event.target;
+    if (target.matches('[data-md-check-all]')) {
+      var scope = target.closest('table');
+      scope.querySelectorAll('[data-md-check]').forEach(function (box) { box.checked = target.checked; });
+    }
+    if (target.matches('[data-md-check], [data-md-check-all]')) { refresh(); }
+  });
+  refresh();
+})();
+</script>
+{% endblock %}

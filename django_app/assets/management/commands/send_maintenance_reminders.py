@@ -4,20 +4,31 @@ Schedulare come task Windows quotidiano (suggerito alle 07:00):
 
     python manage.py send_maintenance_reminders
 
-Controlla:
+FONTE UNICA. Se esiste almeno una ``MaintenanceOccurrence`` (cioè la migrazione al
+dominio Piano/Applicazione/Occorrenza è stata eseguita), la mail parla SOLO di
+occorrenze e le sorgenti legacy tacciono: le stesse manutenzioni arriverebbero due
+volte, con due nomi e due date diverse. Finché il nuovo dominio è vuoto vale il
+comportamento storico, così il promemoria non smette di partire durante la migrazione.
+
+Contenuto con le OCCORRENZE:
+  1. SCADUTE — restano in cima finché non vengono registrate.
+  2. ESEGUITE MA SENZA RAPPORTO — il lavoro è fatto, la pratica no.
+  3. In scadenza entro --deadline-days (escluse quelle già raccolte in un OdL aperto:
+     le copre il blocco OdL).
+  4. WorkOrder aperti da più di --wo-overdue-days.
+
+Contenuto LEGACY (solo finché non ci sono occorrenze):
   1. Tutto ciò che è già SCADUTO (scadenze amministrative, verifiche periodiche, manutenzioni
      da regola): resta nella mail, in cima, finché non viene risolto.
   2. AssetAdministrativeDeadline in scadenza entro --deadline-days (default: 30)
   3. PeriodicVerification in scadenza entro --deadline-days
   4. WorkOrder aperti da più di --wo-overdue-days (0 = SiteConfig "assets_wo_overdue_days", default 21)
   5. Manutenzioni programmate dalle REGOLE (MaintenanceRule) in warning entro --deadline-days
-  6. Manutenzioni NON VALUTABILI (contatore mancante o mai eseguite) e CONTATORI FERMI:
-     un contatore non aggiornato produce scadenze verdi ma false.
+  6. Manutenzioni NON VALUTABILI (mai eseguite).
 
 Destinatari: SiteConfig chiave "assets_reminder_emails" (lista separata da virgola),
   oppure settings.ADMINS, oppure utenti superuser con email.
 Soglia giorni configurabile anche via SiteConfig chiave "assets_reminder_days" (default: 30).
-Contatore fermo: SiteConfig chiave "assets_meter_stale_days" (default: 30).
 
 Cadenza (anti-rumore): ciò che è scaduto/non valutabile è nella mail TUTTI i giorni; ciò che è
 solo in scadenza compare il primo giorno in cui entra nella finestra di preavviso, poi una volta
@@ -35,8 +46,14 @@ from django.core.mail import send_mail
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from assets.models import AssetAdministrativeDeadline, PeriodicVerification, WorkOrder
+from assets.models import (
+    AssetAdministrativeDeadline,
+    MaintenanceOccurrence,
+    PeriodicVerification,
+    WorkOrder,
+)
 from assets.notifications import notify_user_about_workorder
+from assets.services import maintenance_domain as domain
 from core.models import SiteConfig
 from core.notifiche import invia_notifica_email
 
@@ -47,7 +64,7 @@ def should_remind_upcoming(days_left: int | None, window_days: int) -> bool:
     Con 30 giorni di preavviso la stessa scadenza finiva nella mail per 30 mattine identiche:
     è il modo canonico per rendere invisibile un alert. Qui si avvisa il primo giorno in cui la
     scadenza entra nella finestra, poi una volta a settimana, poi il giorno stesso della scadenza.
-    Le righe senza un conteggio di giorni (regole a contatore) restano sempre incluse.
+    Le righe senza un conteggio di giorni restano sempre incluse.
     """
     if days_left is None:
         return True
@@ -71,6 +88,81 @@ def _rule_row_line(row: dict) -> str:
     due = row.get("due_date")
     due_str = due.strftime("%d-%m-%Y") if due else (str(row.get("schedule_label") or "") or "—")
     return f"{asset.asset_tag} — {label}{ext} — {due_str}"
+
+
+def _occurrence_line(occurrence: MaintenanceOccurrence) -> str:
+    """Riga leggibile per un'occorrenza (scadenzario a piani)."""
+    asset = occurrence.asset
+    tag = asset.asset_tag or asset.name
+    label = occurrence.plan.label if occurrence.plan_id else "Manutenzione"
+    ext = ""
+    if occurrence.is_external:
+        supplier = f" {occurrence.supplier}" if occurrence.supplier_id else ""
+        ext = f" [esterna{supplier}]"
+        if occurrence.appointment_date:
+            ext += f" appuntamento {occurrence.appointment_date:%d-%m-%Y}"
+    return f"{tag} — {label}{ext} — {occurrence.due_date:%d-%m-%Y}"
+
+
+def _occurrence_link(occurrence: MaintenanceOccurrence) -> str:
+    """Deep link alla lista scadenze filtrata sull'asset dell'occorrenza."""
+    return f"/assets/manutenzione/scadenze/?window=&asset={occurrence.asset_id}"
+
+
+def collect_occurrence_reminders(*, today, horizon, deadline_days: int, no_throttle: bool) -> dict:
+    """Le occorrenze da mettere nella mail, divise per blocco.
+
+    Fonte unica quando il nuovo dominio e' popolato: piano/applicazione/occorrenza.
+    Le occorrenze gia' raccolte in un OdL aperto NON entrano nei blocchi di scadenza
+    (le copre il blocco "OdL aperti da piu' di N giorni"): finirebbero nella mail due
+    volte con due nomi diversi.
+    """
+    open_qs = (
+        MaintenanceOccurrence.objects.filter(
+            status=MaintenanceOccurrence.STATUS_OPEN,
+            due_date__lte=horizon,
+        )
+        .select_related("asset", "plan", "supplier", "work_order")
+        .order_by("due_date")
+    )
+
+    overdue: list[MaintenanceOccurrence] = []
+    due: list[MaintenanceOccurrence] = []
+    for occurrence in open_qs:
+        state = domain.occurrence_view_state(occurrence, today=today)
+        if state == MaintenanceOccurrence.VIEW_OVERDUE:
+            overdue.append(occurrence)
+            continue
+        if state not in (
+            MaintenanceOccurrence.VIEW_DUE_SOON,
+            MaintenanceOccurrence.VIEW_TO_PLAN,
+        ):
+            # Pianificata / in corso / in attesa: c'e' gia' un OdL aperto.
+            continue
+        days_left = (occurrence.due_date - today).days
+        window = int(occurrence.warning_days or 0) or deadline_days
+        if not no_throttle and not should_remind_upcoming(days_left, window):
+            continue
+        due.append(occurrence)
+
+    # Eseguite ma senza rapporto: restano aperte a norma finche' il documento non arriva.
+    report_missing = [
+        occurrence
+        for occurrence in (
+            MaintenanceOccurrence.objects.filter(status=MaintenanceOccurrence.STATUS_DONE)
+            .select_related("asset", "plan", "supplier", "work_order")
+            .prefetch_related("attachments")
+            .order_by("-completed_on")[:200]
+        )
+        if domain.occurrence_view_state(occurrence, today=today)
+        == MaintenanceOccurrence.VIEW_REPORT_MISSING
+    ]
+
+    return {
+        "overdue": overdue[:50],
+        "due": due[:50],
+        "report_missing": report_missing[:50],
+    }
 
 
 def _get_recipients(override: list[str] | None) -> list[str]:
@@ -128,9 +220,27 @@ class Command(BaseCommand):
         horizon = today + timedelta(days=deadline_days)
         wo_threshold = today - timedelta(days=wo_overdue_days)
 
+        # Fonte unica. Quando il nuovo dominio è popolato (migrazione eseguita) la mail
+        # parla di occorrenze e le sorgenti legacy tacciono: le stesse manutenzioni
+        # arriverebbero due volte, con due nomi e due date diverse.
+        use_occurrences = MaintenanceOccurrence.objects.exists()
+        occurrences = (
+            collect_occurrence_reminders(
+                today=today,
+                horizon=horizon,
+                deadline_days=deadline_days,
+                no_throttle=no_throttle,
+            )
+            if use_occurrences
+            else {"overdue": [], "due": [], "report_missing": []}
+        )
+        occ_overdue = occurrences["overdue"]
+        occ_due = occurrences["due"]
+        occ_report_missing = occurrences["report_missing"]
+
         # 1. Scadenze amministrative: scadute (sempre, finché non risolte) + in scadenza entro l'orizzonte.
         #    Nessun filtro di finestra futura: una scadenza superata deve gridare di più, non sparire.
-        admin_all = list(
+        admin_all = [] if use_occurrences else list(
             AssetAdministrativeDeadline.objects.filter(
                 is_active=True,
                 due_date__lte=horizon,
@@ -149,7 +259,7 @@ class Command(BaseCommand):
         # 2. Verifiche periodiche: idem, scadute + in scadenza.
         #    is_legacy=True significa "trigger temporale gestito dalle MaintenanceRule": la stessa
         #    manutenzione arriverebbe due volte nella mail. Cockpit e KPI le escludono già.
-        periodic_all = list(
+        periodic_all = [] if use_occurrences else list(
             PeriodicVerification.objects.filter(
                 is_active=True,
                 is_legacy=False,
@@ -182,18 +292,13 @@ class Command(BaseCommand):
         # 4. Manutenzioni programmate dalle REGOLE: scadute + in warning entro l'orizzonte,
         #    più le righe non valutabili (contatore mancante / mai eseguite) e i contatori fermi.
         #    (Prima non erano coperte dai reminder: lo scadenzario rule-based era solo "pull".)
-        from assets.maintenance import build_maintenance_schedule_rows, get_meter_stale_days
+        from assets.maintenance import build_maintenance_schedule_rows
 
-        stale_days = get_meter_stale_days()
         rule_overdue: list[dict] = []
         rule_due: list[dict] = []
         rule_missing: list[dict] = []
-        stale_meters: dict[tuple[int, str], dict] = {}
-        for row in build_maintenance_schedule_rows(today=today):
-            if row.get("meter_is_stale"):
-                # Un contatore fermo serve la stessa bugia ("restano 320 h") a tutte le regole
-                # che lo usano: nella mail va segnalato una volta sola.
-                stale_meters.setdefault((row["asset"].id, str(row.get("meter_unit") or "")), row)
+        legacy_rows = [] if use_occurrences else build_maintenance_schedule_rows(today=today)
+        for row in legacy_rows:
             status = str(row.get("schedule_status") or "")
             if status == "missing":
                 rule_missing.append(row)
@@ -216,9 +321,10 @@ class Command(BaseCommand):
         rule_overdue = rule_overdue[:50]
         rule_due = rule_due[:50]
         rule_missing = rule_missing[:50]
-        meter_stale = list(stale_meters.values())[:50]
 
-        overdue_total = len(admin_overdue) + len(periodic_overdue) + len(rule_overdue)
+        overdue_total = (
+            len(admin_overdue) + len(periodic_overdue) + len(rule_overdue) + len(occ_overdue)
+        )
 
         if not (
             overdue_total
@@ -227,7 +333,8 @@ class Command(BaseCommand):
             or overdue_wo
             or rule_due
             or rule_missing
-            or meter_stale
+            or occ_due
+            or occ_report_missing
         ):
             self.stdout.write("Nessun promemoria da inviare.")
             return
@@ -256,26 +363,37 @@ class Command(BaseCommand):
                 )
             for row in rule_overdue:
                 lines.append(f"  [SCADUTA] Manutenzione programmata — {_rule_row_line(row)}")
+            for occurrence in occ_overdue:
+                late = (today - occurrence.due_date).days
+                lines.append(
+                    f"  [SCADUTA da {late}gg] Manutenzione — {_occurrence_line(occurrence)}"
+                )
             lines.append("")
             lines.append("=" * 60)
+            lines.append("")
+
+        if occ_report_missing:
+            lines.append(
+                f"ESEGUITE MA SENZA RAPPORTO ({len(occ_report_missing)}):"
+            )
+            lines.append("  Il lavoro è fatto, la pratica no: manca il documento di chiusura.")
+            for occurrence in occ_report_missing:
+                done = occurrence.completed_on
+                done_str = f"{done:%d-%m-%Y}" if done else "—"
+                lines.append(f"  [eseguita il {done_str}] {_occurrence_line(occurrence)}")
+            lines.append("")
+
+        if occ_due:
+            lines.append(f"MANUTENZIONI in scadenza nei prossimi {deadline_days} giorni ({len(occ_due)}):")
+            for occurrence in occ_due:
+                days_left = (occurrence.due_date - today).days
+                lines.append(f"  [{days_left}gg] {_occurrence_line(occurrence)}")
             lines.append("")
 
         if rule_missing:
             lines.append(f"NON VALUTABILI — contatore mancante o mai eseguite ({len(rule_missing)}):")
             for row in rule_missing:
                 lines.append(f"  {_rule_row_line(row)}")
-            lines.append("")
-
-        if meter_stale:
-            lines.append(f"CONTATORI FERMI DA ALMENO {stale_days} GIORNI ({len(meter_stale)}):")
-            lines.append("  Finché non vengono letti, le scadenze a contatore di questi asset non sono attendibili.")
-            for row in meter_stale:
-                asset = row["asset"]
-                unit = row.get("meter_unit") or "u"
-                lines.append(
-                    f"  [{row.get('meter_days_since_update')}gg senza letture] {asset.asset_tag} — "
-                    f"contatore {unit}: {row.get('meter_current_value')}"
-                )
             lines.append("")
 
         if admin_deadlines:
@@ -311,16 +429,19 @@ class Command(BaseCommand):
             subject_parts.append(f"{overdue_total} SCADUTE")
         if rule_missing:
             subject_parts.append(f"{len(rule_missing)} non valutabili")
-        if meter_stale:
-            subject_parts.append(f"{len(meter_stale)} contatori fermi")
-        subject_parts.extend(
-            [
-                f"{len(rule_due)} regole",
-                f"{len(admin_deadlines)} scad.",
-                f"{len(periodic)} verif.",
-                f"{len(overdue_wo)} OdL",
-            ]
-        )
+        if occ_report_missing:
+            subject_parts.append(f"{len(occ_report_missing)} senza rapporto")
+        if use_occurrences:
+            subject_parts.extend([f"{len(occ_due)} in scadenza", f"{len(overdue_wo)} OdL"])
+        else:
+            subject_parts.extend(
+                [
+                    f"{len(rule_due)} regole",
+                    f"{len(admin_deadlines)} scad.",
+                    f"{len(periodic)} verif.",
+                    f"{len(overdue_wo)} OdL",
+                ]
+            )
         subject = f"[Manutenzione] {' + '.join(subject_parts)} — {today:%d-%m-%Y}"
 
         if dry_run:
@@ -347,6 +468,32 @@ class Command(BaseCommand):
                 fail_silently=False,
             )
             for email in recipients:
+                for occurrence in occ_overdue:
+                    late = (today - occurrence.due_date).days
+                    invia_notifica_email(
+                        email,
+                        "asset_scadenza",
+                        f"Manutenzione SCADUTA da {late} giorni: "
+                        f"{occurrence.asset.asset_tag or occurrence.asset.name} - {occurrence.plan.label}.",
+                        _occurrence_link(occurrence),
+                    )
+                for occurrence in occ_report_missing:
+                    invia_notifica_email(
+                        email,
+                        "asset_scadenza",
+                        f"Rapporto mancante: {occurrence.asset.asset_tag or occurrence.asset.name} - "
+                        f"{occurrence.plan.label} eseguita ma non documentata.",
+                        _occurrence_link(occurrence),
+                    )
+                for occurrence in occ_due:
+                    days_left = (occurrence.due_date - today).days
+                    invia_notifica_email(
+                        email,
+                        "asset_scadenza",
+                        f"Manutenzione in scadenza tra {days_left} giorni: "
+                        f"{occurrence.asset.asset_tag or occurrence.asset.name} - {occurrence.plan.label}.",
+                        _occurrence_link(occurrence),
+                    )
                 for d in admin_overdue:
                     late = (today - d.due_date).days
                     invia_notifica_email(
@@ -380,16 +527,6 @@ class Command(BaseCommand):
                         "asset_scadenza",
                         f"Manutenzione non valutabile ({row.get('schedule_label')}): {asset.asset_tag} - {label}.",
                         f"/assets/manutenzione/prossime/?asset={asset.id}",
-                    )
-                for row in meter_stale:
-                    asset = row["asset"]
-                    unit = row.get("meter_unit") or "u"
-                    invia_notifica_email(
-                        email,
-                        "asset_scadenza",
-                        f"Contatore {unit} fermo da {row.get('meter_days_since_update')} giorni: "
-                        f"{asset.asset_tag}. Le scadenze a contatore non sono attendibili.",
-                        f"/assets/{asset.id}/",
                     )
                 for d in admin_deadlines:
                     days_left = (d.due_date - today).days
@@ -436,12 +573,20 @@ class Command(BaseCommand):
                     f"Il tuo intervento #{wo.pk} è aperto da {age} giorni: {wo.title} ({wo.asset.asset_tag}).",
                 ):
                     personal += 1
+            if use_occurrences:
+                summary = (
+                    f"Scadute={overdue_total} InScadenza={len(occ_due)} "
+                    f"SenzaRapporto={len(occ_report_missing)} OdL_ritardo={len(overdue_wo)}"
+                )
+            else:
+                summary = (
+                    f"Scadute={overdue_total} NonValutabili={len(rule_missing)} "
+                    f"Scadenze={len(admin_deadlines)} "
+                    f"Verifiche={len(periodic)} OdL_ritardo={len(overdue_wo)}"
+                )
             self.stdout.write(self.style.SUCCESS(
                 f"Email inviata a {len(recipients)} destinatari. "
-                f"Scadute={overdue_total} NonValutabili={len(rule_missing)} "
-                f"ContatoriFermi={len(meter_stale)} Scadenze={len(admin_deadlines)} "
-                f"Verifiche={len(periodic)} OdL_ritardo={len(overdue_wo)} "
-                f"NotificheAssegnatari={personal}"
+                f"{summary} NotificheAssegnatari={personal}"
             ))
         except Exception as exc:
             self.stderr.write(self.style.ERROR(f"Invio email fallito: {exc}"))

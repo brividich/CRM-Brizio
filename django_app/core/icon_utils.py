@@ -436,6 +436,9 @@ _SEMANTIC_ICON_ALIASES = {
     "calendar-x": "calendar-x",
     "check": "check",
     "check-circle": "check-circle",
+    # Nome usato da voci di navigazione esistenti: senza alias finiva stampato
+    # com'e' nella barra in alto ("check-square" accanto a KICK-OFF).
+    "check-square": "check-circle",
     "chevron-down": "chevron-down",
     "chevron-left": "chevron-left",
     "chevron-right": "chevron-right",
@@ -658,8 +661,23 @@ def render_semantic_icon(icon_name: str, svg_class: str = "ui-icon-svg"):
 
 
 def icon_text_or_fallback(value, fallback: str = "") -> str:
+    """Testo da mostrare quando l'icona non si risolve in un'immagine o in un SVG.
+
+    Un'icona puo' essere un'emoji, e allora si stampa. Ma uno **slug** non
+    riconosciuto (``check-square``, ``file-text``) non e' un glifo: stamparlo
+    significa scrivere il nome dell'icona dentro l'interfaccia, che e' esattamente
+    cio' che succedeva nella barra in alto. In quel caso si ripiega sull'iniziale
+    dell'etichetta, come per un'icona assente.
+    """
     text = str(value or "").strip()
-    if text:
+    if text and not _looks_like_icon_slug(text):
         return text
     fallback_text = str(fallback or "").strip()
     return fallback_text[:1].upper() if fallback_text else ""
+
+
+def _looks_like_icon_slug(text: str) -> bool:
+    """Vero per nomi tipo ``check-square``: solo ASCII, piu' lungo di due caratteri."""
+    if len(text) <= 2:
+        return False
+    return all(ch.isascii() and (ch.isalnum() or ch in "-_") for ch in text)

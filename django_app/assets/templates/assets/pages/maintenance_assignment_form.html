@@ -1,0 +1,178 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Applicazione — {{ plan.label }}{% endblock %}
+
+{% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}{% endblock %}
+
+{% block assets_shell_title %}{% if assignment %}Modifica applicazione{% else %}Applica «{{ plan.label }}»{% endif %}{% endblock %}
+{% block assets_shell_subtitle %}
+  <p>Dove si applica il piano e con che tempi. Lo stesso piano puo' valere su gruppi diversi con periodicita' diverse.</p>
+{% endblock %}
+
+{% block assets_shell_toolbar %}
+  <a class="btn" href="{% url 'assets:maintenance_plan_detail' plan.pk %}">Torna al piano</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<form class="md-form" method="post" novalidate data-md-assignment-form data-plan="{{ plan.pk }}" data-preview-url="{{ preview_url }}">
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+
+  <fieldset class="md-fieldset">
+    <h2>1 · Dove</h2>
+    <p class="md-hint">
+      Un'applicazione sul singolo asset ha la precedenza sul gruppo, e il gruppo sulla categoria.
+      Se due gruppi diversi impongono tempi diversi allo stesso asset il sistema segnala un conflitto invece di sceglierne uno.
+    </p>
+    {% include "assets/components/_md_field.html" with field=form.target_type %}
+    <div class="md-grid-2">
+      {% include "assets/components/_md_field.html" with field=form.asset_group %}
+      {% include "assets/components/_md_field.html" with field=form.asset %}
+      {% include "assets/components/_md_field.html" with field=form.asset_category %}
+    </div>
+    <p class="md-preview" data-md-preview>Scegli un bersaglio per vedere quanti asset coinvolge.</p>
+  </fieldset>
+
+  <fieldset class="md-fieldset">
+    <h2>2 · Quando</h2>
+    {% include "assets/components/_md_field.html" with field=form.recurrence_preset %}
+    <div class="md-grid-2" data-md-custom-recurrence>
+      {% include "assets/components/_md_field.html" with field=form.interval %}
+      {% include "assets/components/_md_field.html" with field=form.frequency %}
+      {% include "assets/components/_md_field.html" with field=form.weekday %}
+      {% include "assets/components/_md_field.html" with field=form.week_of_month %}
+      {% include "assets/components/_md_field.html" with field=form.day_of_month %}
+      {% include "assets/components/_md_field.html" with field=form.month_of_year %}
+    </div>
+    <div class="md-grid-2">
+      {% include "assets/components/_md_field.html" with field=form.warning_days %}
+      {% include "assets/components/_md_field.html" with field=form.first_due_date %}
+      {% include "assets/components/_md_field.html" with field=form.schedule_anchor %}
+    </div>
+  </fieldset>
+
+  <fieldset class="md-fieldset">
+    <h2>3 · Chi</h2>
+    <p class="md-hint">Lascia vuoto per usare i valori predefiniti del piano.</p>
+    <div class="md-grid-2">
+      {% include "assets/components/_md_field.html" with field=form.execution_mode %}
+      {% include "assets/components/_md_field.html" with field=form.supplier %}
+      {% include "assets/components/_md_field.html" with field=form.assigned_to %}
+    </div>
+  </fieldset>
+
+  <fieldset class="md-fieldset">
+    <h2>4 · Attivazione</h2>
+    {% include "assets/components/_md_field.html" with field=form.auto_generate %}
+    {% include "assets/components/_md_field.html" with field=form.is_active %}
+    {% include "assets/components/_md_field.html" with field=form.notes %}
+  </fieldset>
+
+  <div class="md-form-actions">
+    <button type="submit" class="btn btn-primary">Salva applicazione</button>
+    <a class="btn" href="{% url 'assets:maintenance_plan_detail' plan.pk %}">Annulla</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block assets_shell_scripts %}
+<script>
+(function () {
+  var form = document.querySelector('[data-md-assignment-form]');
+  if (!form) { return; }
+
+  // Gli elementi si rileggono a ogni uso: gli enhancer globali del portale
+  // (select potenziati, form-kit) rimpiazzano i nodi dopo che questo script e'
+  // partito, e un riferimento catturato all'avvio resta agganciato a un nodo
+  // staccato dal documento — l'anteprima smetteva di partire senza un errore.
+  var TARGET_IDS = { ASSET: 'id_asset', GROUP: 'id_asset_group', CATEGORY: 'id_asset_category' };
+  var RECURRENCE_IDS = ['recurrence_preset', 'frequency', 'interval', 'weekday',
+    'week_of_month', 'day_of_month', 'month_of_year', 'schedule_anchor', 'first_due_date'];
+
+  function el(id) { return form.querySelector('#' + id); }
+  function targetTypeEl() { return el('id_target_type'); }
+  function targetField(key) { return el(TARGET_IDS[key]); }
+  function previewEl() { return form.querySelector('[data-md-preview]'); }
+  var customBlock = form.querySelector('[data-md-custom-recurrence]');
+
+  function fieldWrapper(el) { return el ? el.closest('.md-field') : null; }
+
+  function syncTarget() {
+    // Un bersaglio alla volta: mostrare tutti e tre i selettori insieme fa
+    // sembrare che si possano combinare, e non e' cosi'.
+    var current = targetTypeEl();
+    var value = current ? current.value : '';
+    Object.keys(TARGET_IDS).forEach(function (key) {
+      var wrapper = fieldWrapper(targetField(key));
+      if (wrapper) { wrapper.hidden = key !== value; }
+    });
+    refreshPreview();
+  }
+
+  function syncPreset() {
+    // I sei campi grezzi servono solo a chi sceglie "Personalizzata".
+    var preset = el('id_recurrence_preset');
+    if (customBlock) { customBlock.hidden = preset && preset.value !== 'custom'; }
+    // La periodicita' cambia le date dell'anteprima, non solo il testo del campo.
+    refreshPreview();
+  }
+
+  var previewTimer = null;
+  function refreshPreview() {
+    var preview = previewEl();
+    var current = targetTypeEl();
+    if (!preview || !current) { return; }
+    var value = current.value;
+    var input = targetField(value);
+    if (!input || !input.value) {
+      preview.textContent = 'Scegli un bersaglio per vedere quanti asset coinvolge.';
+      return;
+    }
+    window.clearTimeout(previewTimer);
+    previewTimer = window.setTimeout(function () {
+      // La periodicita' viaggia con l'anteprima: senza, il server non puo' dire
+      // *quando* cadrebbero le prime scadenze, solo quanti asset tocca.
+      var url = form.dataset.previewUrl
+        + '?plan=' + encodeURIComponent(form.dataset.plan)
+        + '&target_type=' + encodeURIComponent(value)
+        + '&target_id=' + encodeURIComponent(input.value);
+      RECURRENCE_IDS.forEach(function (name) {
+        var field = el('id_' + name);
+        if (field && field.value) { url += '&' + name + '=' + encodeURIComponent(field.value); }
+      });
+      fetch(url, { credentials: 'same-origin' })
+        .then(function (response) { return response.ok ? response.json() : null; })
+        .then(function (data) {
+          if (!data) { return; }
+          var parts = ['Questa applicazione interesserà ' + data.assets + ' asset.'];
+          if (data.already) { parts.push(data.already + ' hanno già una scadenza aperta per questo piano (non verrà duplicata).'); }
+          if (data.conflicts) { parts.push(data.conflicts + ' presentano conflitti da risolvere personalizzando l\'asset.'); }
+          if (data.first_due && data.first_due.length) {
+            var quando = data.first_due.map(function (bucket) {
+              return bucket.count + ' entro ' + bucket.label;
+            }).join(', ');
+            parts.push('Prime scadenze: ' + quando + '.');
+          }
+          preview.textContent = parts.join(' ');
+        })
+        .catch(function () { /* l'anteprima e' un di piu': se non arriva, il form resta usabile */ });
+    }, 250);
+  }
+
+  // Delega sul form: sopravvive alla sostituzione dei nodi da parte degli enhancer.
+  form.addEventListener('change', function (event) {
+    var id = event.target && event.target.id;
+    if (!id) { return; }
+    if (id === 'id_target_type') { syncTarget(); return; }
+    if (id === 'id_recurrence_preset') { syncPreset(); return; }
+    if (id === TARGET_IDS.ASSET || id === TARGET_IDS.GROUP || id === TARGET_IDS.CATEGORY
+        || RECURRENCE_IDS.indexOf(id.replace(/^id_/, '')) !== -1) {
+      refreshPreview();
+    }
+  });
+
+  syncTarget();
+  syncPreset();
+})();
+</script>
+{% endblock %}

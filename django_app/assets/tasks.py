@@ -10,21 +10,21 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def run_generate_scheduled_workorders() -> dict:
-    """Genera gli OdL periodici dovuti dalle MaintenanceRule attive.
+def run_generate_maintenance_occurrences() -> dict:
+    """Crea le occorrenze di manutenzione dovute dai piani attivi.
 
-    Wrappa il management command ``generate_scheduled_workorders``. Idempotente:
-    non crea duplicati se esiste già un WorkOrder OPEN per la coppia (asset, rule).
-    Va schedulato PRIMA di ``run_maintenance_reminders`` così i nuovi OdL rientrano
-    nel promemoria dello stesso giorno.
+    Sostituisce ``run_generate_scheduled_workorders``: lo scheduler non apre più un
+    OdL per ogni asset. Genera le *manutenzioni dovute*; raggrupparle in ordini di
+    lavoro — anche massivi — resta una decisione umana. Va schedulato PRIMA di
+    ``run_maintenance_reminders`` così le nuove scadenze entrano nella mail del giorno.
     """
     from django.core.management import call_command
 
     try:
-        call_command("generate_scheduled_workorders", verbosity=0)
+        call_command("generate_maintenance_occurrences", verbosity=0)
         return {"ok": True}
     except Exception:
-        logger.exception("run_generate_scheduled_workorders: eccezione inattesa")
+        logger.exception("run_generate_maintenance_occurrences: eccezione inattesa")
         raise
 
 

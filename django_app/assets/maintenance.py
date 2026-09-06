@@ -9,7 +9,6 @@ from django.utils import timezone
 from .models import (
     Asset,
     AssetMaintenanceRuleState,
-    AssetMeter,
     AssistanceContract,
     MaintenanceChecklistStep,
     MaintenanceRule,
@@ -44,7 +43,6 @@ WORKORDER_SOURCE_LABELS = {
 
 # Un contatore fermo produce una scadenza falsa presentata come verde ("restano 320 h" su un
 # valore vecchio di mesi). Oltre questa soglia il contatore è considerato non aggiornato.
-METER_STALE_DAYS_DEFAULT = 30
 
 # Anzianità oltre la quale un OdL ancora aperto è "in ritardo". Era ricopiata a mano in cinque
 # punti (cockpit, KPI, dashboard macchine, reminder): fonte unica.
@@ -63,26 +61,6 @@ def get_workorder_overdue_days() -> int:
     except (TypeError, ValueError):
         return WORKORDER_OVERDUE_DAYS_DEFAULT
     return value if value > 0 else WORKORDER_OVERDUE_DAYS_DEFAULT
-
-
-def get_meter_stale_days() -> int:
-    """Giorni oltre i quali un contatore è considerato fermo (SiteConfig 'assets_meter_stale_days')."""
-    from core.models import SiteConfig
-
-    try:
-        value = int(SiteConfig.get("assets_meter_stale_days", str(METER_STALE_DAYS_DEFAULT)) or METER_STALE_DAYS_DEFAULT)
-    except (TypeError, ValueError):
-        return METER_STALE_DAYS_DEFAULT
-    return value if value > 0 else METER_STALE_DAYS_DEFAULT
-
-
-def meter_days_since_update(updated_at: datetime | None, *, today: date | None = None) -> int | None:
-    """Giorni trascorsi dall'ultimo aggiornamento del contatore (None se sconosciuto)."""
-    if updated_at is None:
-        return None
-    current_day = today or timezone.localdate()
-    updated_day = timezone.localtime(updated_at).date() if timezone.is_aware(updated_at) else updated_at.date()
-    return max(0, (current_day - updated_day).days)
 
 
 def _resolved_rule_row(
@@ -256,38 +234,9 @@ def upsert_asset_maintenance_rule_state(
     return state
 
 
-def _snapshot_workorder_meter_value_at_close(workorder: WorkOrder) -> None:
-    if (
-        workorder.meter_value_at_close is not None
-        or not workorder.maintenance_rule_id
-        or not workorder.asset_id
-    ):
-        return
-    meter_type = {
-        MaintenanceRule.THRESHOLD_HOURS: AssetMeter.METER_HOURS,
-        MaintenanceRule.THRESHOLD_KM: AssetMeter.METER_KM,
-        MaintenanceRule.THRESHOLD_CYCLES: AssetMeter.METER_CYCLES,
-    }.get(workorder.maintenance_rule.threshold_type)
-    if not meter_type:
-        return
-    meter = (
-        AssetMeter.objects
-        .filter(asset_id=workorder.asset_id, meter_type=meter_type)
-        .only("current_value")
-        .first()
-    )
-    if meter is None:
-        return
-    workorder.meter_value_at_close = meter.current_value
-    WorkOrder.objects.filter(pk=workorder.pk, meter_value_at_close__isnull=True).update(
-        meter_value_at_close=meter.current_value
-    )
-
-
 def sync_workorder_maintenance_state(workorder: WorkOrder | None) -> AssetMaintenanceRuleState | None:
     if workorder is None or workorder.status != WorkOrder.STATUS_DONE or not workorder.maintenance_rule_id or not workorder.asset_id:
         return None
-    _snapshot_workorder_meter_value_at_close(workorder)
     closed_at = workorder.closed_at or timezone.now()
     executed_on = timezone.localtime(closed_at).date() if timezone.is_aware(closed_at) else closed_at.date()
     return upsert_asset_maintenance_rule_state(
@@ -336,19 +285,6 @@ def _schedule_status_payload(*, due_date: date | None, warning_days: int, today:
     }
 
 
-# Mappa soglia regola → tipo contatore AssetMeter e unità di misura leggibile.
-_METER_THRESHOLD_TO_METER_TYPE = {
-    MaintenanceRule.THRESHOLD_HOURS: AssetMeter.METER_HOURS,
-    MaintenanceRule.THRESHOLD_KM: AssetMeter.METER_KM,
-    MaintenanceRule.THRESHOLD_CYCLES: AssetMeter.METER_CYCLES,
-}
-_METER_UNIT_LABELS = {
-    MaintenanceRule.THRESHOLD_HOURS: "h",
-    MaintenanceRule.THRESHOLD_KM: "km",
-    MaintenanceRule.THRESHOLD_CYCLES: "cicli",
-}
-
-
 def _fmt_units(value) -> str:
     try:
         number = float(value)
@@ -357,68 +293,6 @@ def _fmt_units(value) -> str:
     if number == int(number):
         return str(int(number))
     return f"{number:.1f}"
-
-
-def meter_schedule_payload(
-    *,
-    current_value,
-    base_value,
-    threshold_value,
-    warning_units,
-    unit_label: str = "",
-) -> dict[str, Any]:
-    """Stato manutenzione per regole a contatore (ore/km/cicli), condiviso tra lo scadenzario
-    e il generatore di OdL così che ciò che si vede coincida con ciò che viene generato.
-
-    ``current_value=None`` significa contatore non disponibile per l'asset → stato ``missing``.
-    Ritorna anche ``due`` (= status in overdue/warning) usato dal generatore come trigger.
-    """
-    unit = (unit_label or "u").strip() or "u"
-    if current_value is None:
-        # Senza contatore non si sa nemmeno SE la manutenzione è scaduta: è il caso più
-        # pericoloso, non il meno urgente.
-        return {
-            "status": SCHEDULE_MISSING,
-            "label": f"Contatore {unit} mancante",
-            "badge_class": "danger",
-            "remaining": None,
-            "consumed": None,
-            "due": False,
-            "days_until_due": None,
-        }
-    threshold = float(threshold_value or 0)
-    consumed = max(0.0, float(current_value) - float(base_value or 0))
-    remaining = threshold - consumed
-    warn = max(0.0, min(float(warning_units or 0), threshold))
-    if remaining <= 0:
-        return {
-            "status": SCHEDULE_OVERDUE,
-            "label": f"Oltre soglia di {_fmt_units(-remaining)} {unit}",
-            "badge_class": "danger",
-            "remaining": remaining,
-            "consumed": consumed,
-            "due": True,
-            "days_until_due": None,
-        }
-    if remaining <= warn:
-        return {
-            "status": SCHEDULE_WARNING,
-            "label": f"Restano {_fmt_units(remaining)} {unit}",
-            "badge_class": "warn",
-            "remaining": remaining,
-            "consumed": consumed,
-            "due": True,
-            "days_until_due": None,
-        }
-    return {
-        "status": SCHEDULE_UPCOMING,
-        "label": f"Restano {_fmt_units(remaining)} {unit}",
-        "badge_class": "ok",
-        "remaining": remaining,
-        "consumed": consumed,
-        "due": False,
-        "days_until_due": None,
-    }
 
 
 def build_maintenance_schedule_rows(
@@ -465,18 +339,6 @@ def build_maintenance_schedule_rows(
             base_rule__asset_category_id__in=category_ids,
         )
     }
-    # Contatori (ore/km/cicli) correnti per le regole a soglia non-giorni.
-    meter_by_asset_type: dict[tuple[int, str], dict[str, Any]] = {
-        (m["asset_id"], m["meter_type"]): {
-            "current_value": m["current_value"],
-            "unit_label": m["unit_label"],
-            "updated_at": m["updated_at"],
-        }
-        for m in AssetMeter.objects.filter(asset_id__in=asset_ids).values(
-            "asset_id", "meter_type", "current_value", "unit_label", "updated_at"
-        )
-    }
-    stale_days_threshold = get_meter_stale_days()
     threshold_labels = dict(MaintenanceRule.THRESHOLD_TYPE_CHOICES)
 
     rows: list[dict[str, Any]] = []
@@ -513,14 +375,6 @@ def build_maintenance_schedule_rows(
                     if state and state.last_execution_date
                     else ""
                 ),
-                "is_meter_based": False,
-                "meter_unit": "",
-                "meter_current_value": None,
-                "meter_remaining": None,
-                "meter_updated_at": None,
-                "meter_days_since_update": None,
-                "meter_is_stale": False,
-                "meter_stale_days_threshold": stale_days_threshold,
             }
 
             if effective_type == MaintenanceRule.THRESHOLD_DAYS:
@@ -544,50 +398,9 @@ def build_maintenance_schedule_rows(
                         "days_until_due": schedule["days_until_due"],
                     }
                 )
-            elif effective_type in _METER_THRESHOLD_TO_METER_TYPE:
-                meter_type_key = _METER_THRESHOLD_TO_METER_TYPE[effective_type]
-                meter_info = meter_by_asset_type.get((asset.id, meter_type_key))
-                current_value = meter_info["current_value"] if meter_info else None
-                unit_label = (
-                    (meter_info["unit_label"].strip() if meter_info and meter_info["unit_label"] else "")
-                    or _METER_UNIT_LABELS.get(effective_type, "")
-                )
-                base_value = 0.0
-                last_wo = state.last_work_order if state else None
-                if last_wo is not None and last_wo.meter_value_at_close is not None:
-                    base_value = float(last_wo.meter_value_at_close)
-                meter = meter_schedule_payload(
-                    current_value=current_value,
-                    base_value=base_value,
-                    threshold_value=resolved_row["effective_threshold_value"],
-                    warning_units=resolved_row.get("effective_warning_days") or 0,
-                    unit_label=unit_label,
-                )
-                meter_updated_at = meter_info["updated_at"] if meter_info else None
-                days_since_update = meter_days_since_update(meter_updated_at, today=current_day)
-                is_stale = (
-                    current_value is not None
-                    and days_since_update is not None
-                    and days_since_update >= stale_days_threshold
-                )
-                rows.append(
-                    {
-                        **common,
-                        "due_date": None,
-                        "is_meter_based": True,
-                        "meter_unit": unit_label,
-                        "meter_current_value": current_value,
-                        "meter_remaining": meter["remaining"],
-                        "meter_updated_at": meter_updated_at,
-                        "meter_days_since_update": days_since_update,
-                        "meter_is_stale": is_stale,
-                        "meter_stale_days_threshold": stale_days_threshold,
-                        "schedule_status": meter["status"],
-                        "schedule_label": meter["label"],
-                        "schedule_badge_class": meter["badge_class"],
-                        "days_until_due": None,
-                    }
-                )
+            # Le soglie a contatore (ore/km/cicli) non producono piu' righe: senza
+            # letture attendibili davano scadenze false presentate come verdi. Restano
+            # fuori dallo scadenzario, non convertite in silenzio.
             else:
                 continue
 
@@ -676,36 +489,6 @@ def preview_maintenance_rule_impact(
                 due_date = first_due_date
             schedule = _schedule_status_payload(due_date=due_date, warning_days=warning_days, today=current_day)
             rows.append({"asset": asset, "due_date": due_date, "schedule_label": schedule["label"], "schedule_status": schedule["status"]})
-    elif threshold_type in _METER_THRESHOLD_TO_METER_TYPE:
-        meter_type_key = _METER_THRESHOLD_TO_METER_TYPE[threshold_type]
-        unit_label = _METER_UNIT_LABELS.get(threshold_type, "")
-        meter_by_asset = {
-            m["asset_id"]: m["current_value"]
-            for m in AssetMeter.objects.filter(
-                asset_id__in=asset_ids_resolved, meter_type=meter_type_key
-            ).values("asset_id", "current_value")
-        }
-        state_by_asset = {}
-        if rule_pk:
-            state_by_asset = {
-                state.asset_id: state
-                for state in AssetMaintenanceRuleState.objects.select_related("last_work_order").filter(
-                    asset_id__in=asset_ids_resolved, base_rule_id=rule_pk
-                )
-            }
-        for asset in assets:
-            state = state_by_asset.get(asset.id)
-            base_value = 0.0
-            if state and state.last_work_order and state.last_work_order.meter_value_at_close is not None:
-                base_value = float(state.last_work_order.meter_value_at_close)
-            meter = meter_schedule_payload(
-                current_value=meter_by_asset.get(asset.id),
-                base_value=base_value,
-                threshold_value=threshold_value,
-                warning_units=warning_days,
-                unit_label=unit_label,
-            )
-            rows.append({"asset": asset, "due_date": None, "schedule_label": meter["label"], "schedule_status": meter["status"]})
     else:
         return {"asset_count": len(assets), "upcoming": []}
 

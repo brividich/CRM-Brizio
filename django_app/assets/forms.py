@@ -1112,6 +1112,15 @@ class MaintenanceRuleForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Le soglie a contatore (ore/km/cicli) escono dal flusso manutentivo: senza
+        # letture attendibili producevano scadenze false presentate come verdi. Non si
+        # possono piu' creare; le regole esistenti restano leggibili finche' il vecchio
+        # motore non viene ritirato del tutto.
+        self.fields["threshold_type"].choices = [
+            (value, label)
+            for value, label in MaintenanceRule.THRESHOLD_TYPE_CHOICES
+            if value == MaintenanceRule.THRESHOLD_DAYS
+        ]
         current_category_id = getattr(self.instance, "asset_category_id", None)
         selected_category_id = None
         if self.is_bound:
@@ -1370,6 +1379,11 @@ class MaintenanceRuleAssetOverrideForm(forms.ModelForm):
         self.fields["override_intervention_template"].queryset = template_qs.order_by("sort_order", "label", "id")
 
         self.fields["override_threshold_type"].required = False
+        self.fields["override_threshold_type"].choices = [
+            choice
+            for choice in self.fields["override_threshold_type"].choices
+            if choice[0] in ("", None, MaintenanceRule.THRESHOLD_DAYS)
+        ]
         self.fields["override_threshold_value"].required = False
         self.fields["asset"].help_text = "Asset su cui applicare la personalizzazione."
         self.fields["base_rule"].help_text = "Regola standard ereditata dalla categoria dell'asset."
