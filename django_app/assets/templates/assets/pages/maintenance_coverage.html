@@ -1,0 +1,58 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Copertura piani{% endblock %}
+
+{% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}{% endblock %}
+
+{% block assets_shell_title %}Copertura piani{% endblock %}
+{% block assets_shell_subtitle %}
+  <p>Asset per piano: i buchi e i conflitti si vedono qui, senza aprire una macchina alla volta.</p>
+{% endblock %}
+
+{% block assets_shell_toolbar %}
+  <a class="btn" href="{% url 'assets:maintenance_plan_list' %}">Piani</a>
+  <a class="btn" href="{% url 'assets:asset_group_list' %}">Gruppi asset</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<div class="md-page">
+  <div class="md-legend">
+    <span><span class="cell-inherited">&#10003;</span> ereditato</span>
+    <span><span class="cell-custom">P</span> personalizzato</span>
+    <span><span class="cell-excluded">X</span> escluso</span>
+    <span><span class="cell-conflict">!</span> conflitto</span>
+    <span><span class="cell-none">&ndash;</span> non applicato</span>
+  </div>
+
+  <section class="md-section">
+    <div class="md-section-head"><h2>Matrice</h2><span class="md-badge badge-muted">{{ rows|length }} asset &times; {{ plans|length }} piani</span></div>
+    <div class="md-scroll" style="overflow:auto">
+      <table class="md-matrix">
+        <thead>
+          <tr>
+            <th class="md-matrix-asset">Asset</th>
+            {% for plan in plans %}<th title="{{ plan.label }}">{{ plan.label|truncatechars:18 }}</th>{% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+            <tr>
+              <td class="md-matrix-asset">
+                <a class="md-asset" href="{% url 'assets:asset_maintenance_plans' row.asset.pk %}">{{ row.asset.asset_tag|default:row.asset.name }}</a>
+                {% if row.asset.reparto %}<span class="md-sub">{{ row.asset.reparto }}</span>{% endif %}
+              </td>
+              {% for cell in row.cells %}
+                <td class="cell-{{ cell.tone }}" title="{{ cell.title }}">
+                  <a href="{% url 'assets:asset_plan_customize' cell.asset.pk cell.plan.pk %}" style="color:inherit;text-decoration:none">{{ cell.symbol }}</a>
+                </td>
+              {% endfor %}
+            </tr>
+          {% empty %}
+            <tr><td class="md-empty" colspan="{{ plans|length|add:1 }}">Nessun asset in uso.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}

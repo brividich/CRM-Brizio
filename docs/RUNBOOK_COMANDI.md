@@ -2,7 +2,7 @@
 
 Foglio operativo di tutti gli script eseguibili (Django management commands + PowerShell di deploy/manutenzione), raggruppati per area con una riga di spiegazione ciascuno.
 
-> Aggiornato: 2026-07-07 · App v1.3.0 · Non esaustivo al 100% sui tanti import una-tantum, ma copre tutto ciò che serve in esercizio.
+> Aggiornato: 2026-07-07 · App v1.4.0 · Non esaustivo al 100% sui tanti import una-tantum, ma copre tutto ciò che serve in esercizio.
 
 ## Legenda sicurezza
 

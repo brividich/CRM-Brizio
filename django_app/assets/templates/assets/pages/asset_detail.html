@@ -735,6 +735,73 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
             </div>
           </div>
           {% endif %}
+          {% comment %}
+            Piani del nuovo dominio. Quando ci sono, sono la fonte: il blocco storico
+            qui sotto (regole a soglia) resta visibile solo finche' l'asset non ha
+            piani, altrimenti la stessa manutenzione comparirebbe due volte sulla
+            stessa scheda con due date diverse.
+          {% endcomment %}
+          {% if asset_plan_rows %}
+            <div class="af-subhead{% if not asset_next_maintenance_row %} af-subhead--flush{% endif %}">
+              <div class="af-subhead-label">Piani di manutenzione</div>
+              <a class="as-link-subtle" href="{% url 'assets:asset_maintenance_plans' asset.id %}">Gestisci i piani di questo asset</a>
+            </div>
+            {% if asset_plan_conflict_count %}
+              <div class="af-doc-empty" style="padding:4px 16px;color:#b91c1c;">
+                {{ asset_plan_conflict_count }} piano/i arriva/no su questo asset da più gruppi con periodicità diverse:
+                finche' il conflitto resta, per quel piano non vengono create scadenze.
+              </div>
+            {% endif %}
+            <div class="af-table-wrap">
+              <table class="af-table">
+                <thead>
+                  <tr>
+                    <th>Piano</th>
+                    <th>Periodicità</th>
+                    <th>Origine</th>
+                    <th>Prossima scadenza</th>
+                    <th>Stato</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in asset_plan_rows %}
+                    <tr>
+                      <td><a href="{% url 'assets:maintenance_plan_detail' row.resolution.plan.pk %}">{{ row.resolution.plan.label }}</a></td>
+                      <td style="white-space:nowrap;">
+                        {% if row.resolution.is_conflict %}
+                          <span style="color:#b91c1c;">in conflitto</span>
+                        {% elif row.resolution.is_excluded %}
+                          —
+                        {% else %}
+                          {{ row.resolution.recurrence_label }}
+                        {% endif %}
+                      </td>
+                      <td>
+                        {{ row.resolution.source_label }}
+                        {% if row.resolution.inherited_recurrence_label %}
+                          <span style="color:#94a3b8;font-size:11px;">standard: {{ row.resolution.inherited_recurrence_label }}</span>
+                        {% endif %}
+                      </td>
+                      <td style="white-space:nowrap;">
+                        {% if row.occurrence %}{{ row.occurrence.due_date|date:"d-m-Y" }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}
+                      </td>
+                      <td>
+                        {% if row.state %}
+                          <span class="as-badge as-badge--{% if row.state.state == 'overdue' %}danger{% elif row.state.state == 'due_soon' %}warning{% else %}muted{% endif %}">{{ row.state.label }}</span>
+                        {% elif row.resolution.is_excluded %}
+                          <span class="as-badge as-badge--muted">Escluso</span>
+                        {% else %}
+                          <span style="color:#94a3b8;font-size:11px;">nessuna scadenza aperta</span>
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% endif %}
+
+          {% if not asset_plan_rows %}
           <!-- Manutenzione pianificata (regole periodiche per questo asset) -->
           <div class="af-subhead{% if not asset_next_maintenance_row %} af-subhead--flush{% endif %}">
             <div class="af-subhead-label">Manutenzione pianificata</div>
@@ -797,6 +864,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
             </div>
           {% else %}
             <div class="af-doc-empty" style="padding:4px 16px 12px;">Nessuna regola manutenzione pianificata per questo asset.</div>
+          {% endif %}
           {% endif %}
           <!-- Interventi straordinari -->
           <div class="af-subhead">

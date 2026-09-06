@@ -1,0 +1,84 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Piani di manutenzione{% endblock %}
+
+{% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}{% endblock %}
+
+{% block assets_shell_title %}Piani di manutenzione{% endblock %}
+{% block assets_shell_subtitle %}
+  <p>Un piano dice <em>cosa</em> va fatto. Dove e con che tempi lo dicono le sue applicazioni: lo stesso piano puo' valere su gruppi diversi con periodicita' diverse.</p>
+{% endblock %}
+
+{% block assets_shell_toolbar %}
+  <a class="btn" href="{% url 'assets:asset_group_list' %}">Gruppi asset</a>
+  {% if can_manage %}
+    <a class="btn" href="{% url 'assets:maintenance_coverage' %}">Copertura</a>
+    <a class="btn" href="{% url 'assets:maintenance_history_import' %}">Importa storico</a>
+    <a class="btn btn-primary" href="{% url 'assets:maintenance_plan_create' %}">+ Nuovo piano</a>
+  {% endif %}
+{% endblock %}
+
+{% block assets_shell_content %}
+<div class="md-page">
+  <section class="md-section">
+    <div class="md-section-head"><h2>Piani</h2><span class="md-badge badge-muted">{{ rows|length }}</span></div>
+    <div class="md-scroll">
+      <table class="md-table" data-fm-hide-search="1">
+        <thead>
+          <tr>
+            <th>Piano</th>
+            <th>Tipo</th>
+            <th class="md-right">Asset coperti</th>
+            <th>Periodicita applicate</th>
+            <th>Prossima scadenza</th>
+            <th class="md-right">Scadute</th>
+            <th>Stato</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+            <tr>
+              <td>
+                <a class="md-asset" href="{% url 'assets:maintenance_plan_detail' row.plan.pk %}">{{ row.plan.label }}</a>
+                <span class="md-sub">{{ row.plan.assignment_count }} applicazion{{ row.plan.assignment_count|pluralize:"e,i" }}</span>
+              </td>
+              <td>
+                {{ row.plan.get_maintenance_type_display }}
+                {% if row.plan.attachment_required %}<span class="md-sub">documento obbligatorio</span>{% endif %}
+              </td>
+              <td class="md-right">
+                {{ row.coverage.assets }}
+                {% if row.coverage.excluded %}<span class="md-sub">{{ row.coverage.excluded }} esclusi</span>{% endif %}
+              </td>
+              <td>
+                {% for recurrence in row.recurrences %}
+                  <span class="md-badge badge-muted">{{ recurrence }}</span>
+                {% empty %}
+                  <span class="md-sub">nessuna applicazione attiva</span>
+                {% endfor %}
+              </td>
+              <td class="md-nowrap">
+                {% if row.stats.next_due %}{{ row.stats.next_due|date:"d/m/Y" }}{% else %}<span class="md-sub">—</span>{% endif %}
+              </td>
+              <td class="md-right">
+                {% if row.stats.overdue %}<span class="md-badge badge-danger">{{ row.stats.overdue }}</span>{% else %}<span class="md-sub">0</span>{% endif %}
+              </td>
+              <td>
+                {% if row.coverage.conflicts %}
+                  <span class="md-badge badge-danger">{{ row.coverage.conflicts }} conflitti</span>
+                {% elif row.plan.is_active %}
+                  <span class="md-badge badge-success">Attivo</span>
+                {% else %}
+                  <span class="md-badge badge-muted">Non attivo</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="7" class="md-empty">Nessun piano configurato. {% if can_manage %}<a href="{% url 'assets:maintenance_plan_create' %}">Creane uno</a>.{% endif %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}

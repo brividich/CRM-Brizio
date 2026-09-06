@@ -1,0 +1,98 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Scadenze — Manutenzione{% endblock %}
+
+{% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}{% endblock %}
+
+{% block assets_shell_title %}Scadenze{% endblock %}
+{% block assets_shell_subtitle %}
+  <p>Vista temporale completa: ordinarie e amministrative insieme, perche' per chi le deve rispettare sono la stessa cosa. {{ total }} risultat{{ total|pluralize:"o,i" }}.</p>
+{% endblock %}
+
+{% block assets_shell_toolbar %}
+  <a class="btn" href="{% url 'assets:maintenance_da_fare' %}">Da fare</a>
+  <a class="btn" href="{% url 'assets:maintenance_plan_list' %}">Piani</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<div class="md-page">
+
+  {% if scoped_reparti %}
+    {% comment %}
+      Preimpostazione, non barriera: la pagina dichiara lo scope e basta un click
+      per toglierlo. La visibilita' in lista non e' un confine di sicurezza.
+    {% endcomment %}
+    <div class="md-scope-note">
+      Filtrato sui reparti che guidi: <strong>{{ scoped_reparti|join:", " }}</strong>.
+      <a href="?reparto=">Mostra tutti i reparti</a>
+    </div>
+  {% endif %}
+
+
+  <div class="md-tabs">
+    {% for value, label in tabs %}
+      <a class="md-tab {% if active_tab == value %}active{% endif %}" href="?window={{ value }}">{{ label }}</a>
+    {% endfor %}
+    <a class="md-tab {% if request.GET.plan_type == 'administrative' %}active{% endif %}" href="?window=&plan_type=administrative">Amministrative</a>
+    <a class="md-tab {% if request.GET.plan_type == 'ordinary' %}active{% endif %}" href="?window=&plan_type=ordinary">Ordinarie</a>
+  </div>
+
+  <form class="md-filters" method="get">
+    {% for field in filter_form %}
+      <div class="md-field {% if field.name == 'report_missing' %}md-field-check{% endif %}">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+      </div>
+    {% endfor %}
+    <div class="md-actions">
+      <button type="submit" class="btn btn-primary">Filtra</button>
+      <a class="btn" href="{% url 'assets:maintenance_scadenze' %}">Azzera</a>
+    </div>
+  </form>
+
+  <section class="md-section">
+    <div class="md-section-head">
+      <h2>Scadenze</h2>
+      <span class="md-badge badge-muted">{{ total }}</span>
+      {% if can_plan %}<span class="md-sub">Seleziona per raccogliere in un ordine di lavoro.</span>{% endif %}
+    </div>
+    {% include "assets/components/_occurrence_rows.html" with rows=rows selectable=can_plan show_plan=1 %}
+  </section>
+
+  {% if can_plan %}
+    <form class="md-bulk" id="md-bulk-form" method="post" action="{% url 'assets:occurrence_create_workorder' %}">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <span class="md-bulk-count"><span data-md-count>0</span> selezionate</span>
+      <div class="md-field"><label for="{{ workorder_form.title.id_for_label }}">Titolo</label>{{ workorder_form.title }}</div>
+      <div class="md-field"><label for="{{ workorder_form.assigned_to.id_for_label }}">Assegna a</label>{{ workorder_form.assigned_to }}</div>
+      <div class="md-field"><label for="{{ workorder_form.supplier.id_for_label }}">Ditta esterna</label>{{ workorder_form.supplier }}</div>
+      <div class="md-field"><label for="{{ workorder_form.due_at.id_for_label }}">Entro</label>{{ workorder_form.due_at }}</div>
+      <button type="submit" class="btn btn-primary">Crea ordine di lavoro</button>
+    </form>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block assets_shell_scripts %}
+<script>
+(function () {
+  var bar = document.querySelector('.md-bulk');
+  if (!bar) { return; }
+  var counter = bar.querySelector('[data-md-count]');
+  function refresh() {
+    var checked = document.querySelectorAll('[data-md-check]:checked').length;
+    counter.textContent = checked;
+    bar.classList.toggle('is-visible', checked > 0);
+  }
+  document.addEventListener('change', function (event) {
+    var target = event.target;
+    if (target.matches('[data-md-check-all]')) {
+      target.closest('table').querySelectorAll('[data-md-check]').forEach(function (box) { box.checked = target.checked; });
+    }
+    if (target.matches('[data-md-check], [data-md-check-all]')) { refresh(); }
+  });
+  refresh();
+})();
+</script>
+{% endblock %}

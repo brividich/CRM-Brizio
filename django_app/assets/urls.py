@@ -1,7 +1,7 @@
 from django.urls import path
 from django.views.generic import RedirectView
 
-from . import views
+from . import views, views_maintenance
 
 app_name = "assets"
 
@@ -149,6 +149,93 @@ urlpatterns = [
     path("assets/bulk-update/", views.asset_bulk_update, name="asset_bulk_update"),
     path("assets/dashboard/", RedirectView.as_view(pattern_name="assets:asset_dashboard", permanent=False)),
     path("api/assets/dashboard/config/", views.api_asset_dashboard_save_config, name="api_dashboard_save_config"),
+    # --- Nuovo dominio manutenzione: Piano -> Applicazione -> Occorrenza -> OdL ---
+    path("assets/manutenzione/da-fare/", views_maintenance.maintenance_da_fare, name="maintenance_da_fare"),
+    path("assets/manutenzione/scadenze/", views_maintenance.maintenance_scadenze, name="maintenance_scadenze"),
+    path("assets/manutenzione/quadro/", views_maintenance.maintenance_responsabile, name="maintenance_responsabile"),
+    path("assets/manutenzione/piani/", views_maintenance.maintenance_plan_list, name="maintenance_plan_list"),
+    path("assets/manutenzione/piani/new/", views_maintenance.maintenance_plan_form, name="maintenance_plan_create"),
+    path("assets/manutenzione/piani/<int:plan_id>/", views_maintenance.maintenance_plan_detail, name="maintenance_plan_detail"),
+    path("assets/manutenzione/piani/<int:plan_id>/edit/", views_maintenance.maintenance_plan_form, name="maintenance_plan_edit"),
+    path(
+        "assets/manutenzione/piani/<int:plan_id>/applicazioni/new/",
+        views_maintenance.maintenance_assignment_form,
+        name="maintenance_assignment_create",
+    ),
+    path(
+        "assets/manutenzione/piani/<int:plan_id>/applicazioni/<int:assignment_id>/",
+        views_maintenance.maintenance_assignment_form,
+        name="maintenance_assignment_edit",
+    ),
+    path(
+        "assets/manutenzione/piani/<int:plan_id>/applicazioni/<int:assignment_id>/rimuovi/",
+        views_maintenance.maintenance_assignment_delete,
+        name="maintenance_assignment_delete",
+    ),
+    path(
+        "api/assets/manutenzione/applicazioni/anteprima/",
+        views_maintenance.maintenance_assignment_preview,
+        name="maintenance_assignment_preview",
+    ),
+    path("assets/manutenzione/gruppi/", views_maintenance.asset_group_list, name="asset_group_list"),
+    path("assets/manutenzione/gruppi/new/", views_maintenance.asset_group_form, name="asset_group_create"),
+    path("assets/manutenzione/gruppi/<int:group_id>/", views_maintenance.asset_group_form, name="asset_group_edit"),
+    path("assets/manutenzione/copertura/", views_maintenance.maintenance_coverage, name="maintenance_coverage"),
+    path(
+        "assets/manutenzione/asset/<int:asset_id>/piani/",
+        views_maintenance.asset_maintenance_plans,
+        name="asset_maintenance_plans",
+    ),
+    path(
+        "assets/manutenzione/asset/<int:asset_id>/piani/<int:plan_id>/personalizza/",
+        views_maintenance.asset_plan_customize,
+        name="asset_plan_customize",
+    ),
+    path(
+        "assets/manutenzione/scadenze/<int:occurrence_id>/registra/",
+        views_maintenance.occurrence_complete,
+        name="occurrence_complete",
+    ),
+    path(
+        "assets/manutenzione/scadenze/<int:occurrence_id>/follow-up/",
+        views_maintenance.occurrence_followup_create,
+        name="occurrence_followup_create",
+    ),
+    path(
+        "assets/manutenzione/scadenze/allegati/<int:attachment_id>/download/",
+        views_maintenance.occurrence_attachment_download,
+        name="occurrence_attachment_download",
+    ),
+    path(
+        "assets/manutenzione/importa-storico/",
+        views_maintenance.maintenance_history_import,
+        name="maintenance_history_import",
+    ),
+    path(
+        "assets/manutenzione/importa-storico/modello/",
+        views_maintenance.maintenance_history_template,
+        name="maintenance_history_template",
+    ),
+    path(
+        "assets/manutenzione/scadenze/crea-odl/",
+        views_maintenance.occurrence_create_workorder,
+        name="occurrence_create_workorder",
+    ),
+    path(
+        "assets/workorders/<int:workorder_id>/manutenzioni/aggiungi/",
+        views_maintenance.workorder_occurrence_add,
+        name="workorder_occurrence_add",
+    ),
+    path(
+        "assets/workorders/<int:workorder_id>/manutenzioni/<int:occurrence_id>/rimuovi/",
+        views_maintenance.workorder_occurrence_remove,
+        name="workorder_occurrence_remove",
+    ),
+    path(
+        "assets/workorders/<int:workorder_id>/manutenzioni/giornata/",
+        views_maintenance.workorder_distribute_day,
+        name="workorder_distribute_day",
+    ),
     # Calendario asset
     path("assets/calendario/", views.calendario_asset, name="calendario_asset"),
     path("api/assets/calendario/json/", views.calendario_asset_json, name="calendario_asset_json"),

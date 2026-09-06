@@ -4,6 +4,7 @@ import calendar
 import logging
 import re
 import uuid
+from datetime import timedelta
 from pathlib import Path
 from decimal import Decimal
 
@@ -916,6 +917,13 @@ class AssetAdministrativeDeadlineCompletionAttachment(models.Model):
 
 
 class MaintenanceInterventionTemplate(models.Model):
+    """Piano di manutenzione: *cosa* deve essere fatto (+ checklist).
+
+    Nella UI si chiama "Piano di manutenzione". Il nome della classe resta quello
+    storico per non toccare le migliaia di riferimenti esistenti; il *dove* e il
+    *quando* vivono in :class:`MaintenancePlanAssignment`.
+    """
+
     TYPE_ROUTINE = "ROUTINE"
     TYPE_INSPECTION = "INSPECTION"
     TYPE_LUBRICATION = "LUBRICATION"
@@ -924,6 +932,7 @@ class MaintenanceInterventionTemplate(models.Model):
     TYPE_ADJUSTMENT = "ADJUSTMENT"
     TYPE_SAFETY = "SAFETY"
     TYPE_CALIBRATION = "CALIBRATION"
+    TYPE_ADMINISTRATIVE = "ADMINISTRATIVE"
     TYPE_OTHER = "OTHER"
     MAINTENANCE_TYPE_CHOICES = [
         (TYPE_ROUTINE, "Manutenzione ordinaria"),
@@ -934,7 +943,15 @@ class MaintenanceInterventionTemplate(models.Model):
         (TYPE_ADJUSTMENT, "Regolazione / taratura meccanica"),
         (TYPE_SAFETY, "Sicurezza"),
         (TYPE_CALIBRATION, "Taratura strumento"),
+        (TYPE_ADMINISTRATIVE, "Scadenza amministrativa"),
         (TYPE_OTHER, "Altro"),
+    ]
+
+    MODE_INTERNAL = "INTERNAL"
+    MODE_EXTERNAL = "EXTERNAL"
+    EXECUTION_MODE_CHOICES = [
+        (MODE_INTERNAL, "Interna"),
+        (MODE_EXTERNAL, "Esterna (ditta terza)"),
     ]
 
     code = models.SlugField(max_length=80, unique=True)
@@ -961,6 +978,48 @@ class MaintenanceInterventionTemplate(models.Model):
         null=True,
         blank=True,
         related_name="maintenance_intervention_templates",
+        help_text="Categoria di riferimento (facoltativa). Il perimetro reale lo danno le applicazioni.",
+    )
+    execution_mode = models.CharField(
+        max_length=20,
+        choices=EXECUTION_MODE_CHOICES,
+        default=MODE_INTERNAL,
+        db_index=True,
+        help_text="Modalita' predefinita di esecuzione; ogni applicazione puo' sovrascriverla.",
+    )
+    default_supplier = models.ForeignKey(
+        "anagrafica.Fornitore",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="default_maintenance_plans",
+        help_text="Ditta esterna predefinita (solo per piani eseguiti all'esterno).",
+    )
+    default_assignee = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="default_maintenance_plans",
+        help_text="Manutentore interno predefinito.",
+    )
+    attachment_required = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Se attivo, l'occorrenza non si puo' chiudere senza allegato (obbligatorio per le amministrative).",
+    )
+    schedule_anchor = models.CharField(
+        max_length=20,
+        choices=[
+            ("FROM_COMPLETION", "Dalla data di esecuzione"),
+            ("FIXED_CALENDAR", "Dalla scadenza teorica"),
+        ],
+        blank=True,
+        default="",
+        help_text=(
+            "Vuoto = default per tipo: ordinaria dalla data di esecuzione, "
+            "amministrativa dalla scadenza teorica (il ritardo non sposta il calendario)."
+        ),
     )
     sort_order = models.IntegerField(default=100)
     is_active = models.BooleanField(default=True, db_index=True)
@@ -969,8 +1028,8 @@ class MaintenanceInterventionTemplate(models.Model):
 
     class Meta:
         ordering = ["sort_order", "label", "id"]
-        verbose_name = "Template intervento manutenzione"
-        verbose_name_plural = "Template interventi manutenzione"
+        verbose_name = "Piano di manutenzione"
+        verbose_name_plural = "Piani di manutenzione"
 
     def __str__(self) -> str:
         if self.asset_category_id and self.asset_category:
@@ -982,7 +1041,32 @@ class MaintenanceInterventionTemplate(models.Model):
         self.description = (self.description or "").strip()
         self.required_materials = (self.required_materials or "").strip()
         if not self.label:
-            raise ValidationError({"label": "Inserisci il nome del template intervento."})
+            raise ValidationError({"label": "Inserisci il nome del piano di manutenzione."})
+        if self.execution_mode == self.MODE_INTERNAL:
+            # Un piano interno non ha ditta terza predefinita.
+            self.default_supplier = None
+        if self.is_administrative:
+            # Regola non negoziabile: la scadenza amministrativa si chiude col documento.
+            self.attachment_required = True
+
+    @property
+    def is_administrative(self) -> bool:
+        return self.maintenance_type == self.TYPE_ADMINISTRATIVE
+
+    @property
+    def is_external(self) -> bool:
+        return self.execution_mode == self.MODE_EXTERNAL
+
+    @property
+    def default_schedule_anchor(self) -> str:
+        """Ancoraggio effettivo della periodicita'.
+
+        Un'amministrativa eseguita in ritardo NON deve spostare in avanti tutto il
+        calendario futuro: la prossima scadenza si conta dalla scadenza teorica.
+        """
+        if self.schedule_anchor:
+            return self.schedule_anchor
+        return "FIXED_CALENDAR" if self.is_administrative else "FROM_COMPLETION"
 
     @property
     def workorder_kind(self) -> str:
@@ -2325,6 +2409,37 @@ class WorkOrder(models.Model):
         related_name="follow_ups",
         help_text="Intervento originale di cui questo e' il follow-up di verifica.",
     )
+    # Un problema trovato durante una manutenzione massiva riguarda UN asset, non il lotto:
+    # il follow-up si aggancia all'occorrenza (e allo step checklist che l'ha rivelato).
+    follow_up_occurrence = models.ForeignKey(
+        "MaintenanceOccurrence",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="follow_ups",
+        help_text="Occorrenza durante la quale e' emerso il problema.",
+    )
+    follow_up_checklist_item = models.ForeignKey(
+        "WorkOrderChecklist",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="follow_ups",
+        help_text="Step di checklist KO / fuori range che ha originato il follow-up.",
+    )
+    follow_up_reason = models.TextField(
+        blank=True,
+        default="",
+        help_text="Anomalia rilevata che ha generato il follow-up.",
+    )
+    # Un OdL massivo raccoglie piu' occorrenze: `asset` resta l'asset capofila
+    # (la prima occorrenza collegata) perche' tutte le viste storiche lo usano.
+    # L'elenco reale degli asset e' `WorkOrder.occurrences`.
+    is_massive = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="OdL che organizza piu' occorrenze su asset diversi.",
+    )
 
     class Meta:
         ordering = ["-opened_at", "-id"]
@@ -2405,26 +2520,6 @@ class WorkOrder(models.Model):
                 self.supplier = assistance_contract.supplier
         elif covered_by_contract is False:
             self.assistance_contract = None
-        if (
-            status == self.STATUS_DONE
-            and self.meter_value_at_close is None
-            and self.maintenance_rule_id
-            and self.asset_id
-        ):
-            meter_type = {
-                MaintenanceRule.THRESHOLD_HOURS: AssetMeter.METER_HOURS,
-                MaintenanceRule.THRESHOLD_KM: AssetMeter.METER_KM,
-                MaintenanceRule.THRESHOLD_CYCLES: AssetMeter.METER_CYCLES,
-            }.get(self.maintenance_rule.threshold_type)
-            if meter_type:
-                meter = (
-                    AssetMeter.objects
-                    .filter(asset_id=self.asset_id, meter_type=meter_type)
-                    .only("current_value")
-                    .first()
-                )
-                if meter is not None:
-                    self.meter_value_at_close = meter.current_value
         if cost is not None:
             self.cost_eur = cost
         elif labor_cost is not None or materials_cost is not None:
@@ -2445,28 +2540,13 @@ class WorkOrder(models.Model):
                 "covered_by_contract",
                 "assistance_contract",
                 "cost_eur",
-                "meter_value_at_close",
             ]
         )
-        # P1.3 — aggiorna next_maintenance_date sulla WorkMachine collegata quando l'OdL è periodico
-        if (
-            status == self.STATUS_DONE
-            and self.origin == self.ORIGIN_PERIODIC
-            and self.maintenance_rule_id
-        ):
-            from datetime import timedelta
-            try:
-                rule = self.maintenance_rule
-                if rule.threshold_type == MaintenanceRule.THRESHOLD_DAYS and rule.threshold_value:
-                    wm = getattr(self.asset, "work_machine", None)
-                    if wm is not None:
-                        closed_date = self.closed_at.date() if self.closed_at else timezone.localdate()
-                        wm.next_maintenance_date = closed_date + timedelta(days=rule.threshold_value)
-                        wm.save(update_fields=["next_maintenance_date"])
-            except Exception:
-                # La prossima manutenzione non viene ricalcolata: la macchina
-                # sparisce dalle scadenze senza che nessuno lo noti.
-                logger.exception("Assets: ricalcolo della prossima manutenzione fallito")
+        # La chiusura NON scrive piu' WorkMachine.next_maintenance_date. Era una
+        # seconda fonte di verita' sulla scadenza, per giunta parziale: si aggiornava
+        # solo per gli OdL con origin=PERIODIC, quindi chiudendo un'esecuzione
+        # registrata a mano il campo restava indietro senza che nessuno lo notasse.
+        # La scadenza vive nell'occorrenza (services/maintenance_domain).
 
     def set_waiting(self, *, reason: str, note: str = "") -> None:
         """Mette l'intervento in attesa. Non tocca ``status`` (resta OPEN):
@@ -2569,6 +2649,15 @@ class WorkOrderExecutionDay(models.Model):
         related_name="execution_days",
     )
     execution_date = models.DateField(db_index=True)
+    notes = models.TextField(blank=True, default="")
+    completed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="completed_workorder_execution_days",
+    )
+    completed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -2606,6 +2695,14 @@ class WorkOrderAttachment(models.Model):
         blank=True,
         related_name="photos",
         help_text="Valorizzato quando l'allegato è la foto di uno step checklist di tipo Foto.",
+    )
+    execution_day = models.ForeignKey(
+        "WorkOrderExecutionDay",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="attachments",
+        help_text="Giornata di esecuzione a cui appartiene il rapportino (un giorno puo' averne piu' di uno).",
     )
     file = models.FileField(upload_to=_workorder_attachment_upload_to, storage=PrivateAssetDocumentStorage())
     original_name = models.CharField(max_length=255, blank=True, default="")
@@ -3136,3 +3233,562 @@ class AssetMaintenanceBudget(models.Model):
 
     def __str__(self) -> str:
         return f"Budget {self.asset_category} — {self.year}: €{self.budget_eur}"
+
+
+# ---------------------------------------------------------------------------
+# Nuovo dominio manutenzione: Piano -> Applicazione -> Occorrenza -> OdL
+#
+# Fonte canonica della scadenza concreta = MaintenanceOccurrence.
+# Fonte del calcolo della prossima occorrenza = MaintenancePlanAssignment
+# (ricorrenza + ancoraggio) + ultimo completamento registrato sull'occorrenza.
+# Nessun altro modello deve tenere un "next_due" con logica propria.
+# ---------------------------------------------------------------------------
+
+
+class AssetGroup(models.Model):
+    """Gruppo operativo di asset (TORNI, DMG MORI, MACCHINE REPARTO 1...).
+
+    ``AssetCategory`` non basta: un asset ha una sola categoria, mentre lo stesso
+    asset deve poter appartenere a piu' gruppi logici (famiglia costruttiva,
+    reparto, criticita').
+    """
+
+    code = models.SlugField(max_length=80, unique=True)
+    label = models.CharField(max_length=120)
+    description = models.TextField(blank=True, default="")
+    assets = models.ManyToManyField(
+        Asset,
+        through="AssetGroupMembership",
+        related_name="asset_groups",
+        blank=True,
+    )
+    sort_order = models.IntegerField(default=100)
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["sort_order", "label", "id"]
+        verbose_name = "Gruppo asset"
+        verbose_name_plural = "Gruppi asset"
+
+    def __str__(self) -> str:
+        return self.label
+
+    def clean(self):
+        self.label = (self.label or "").strip()
+        self.description = (self.description or "").strip()
+        if not self.label:
+            raise ValidationError({"label": "Inserisci il nome del gruppo."})
+        if not self.code:
+            self.code = slugify(self.label)[:80]
+
+
+class AssetGroupMembership(models.Model):
+    group = models.ForeignKey(AssetGroup, on_delete=models.CASCADE, related_name="memberships")
+    asset = models.ForeignKey(Asset, on_delete=models.CASCADE, related_name="group_memberships")
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="asset_group_memberships_created",
+    )
+
+    class Meta:
+        ordering = ["group__sort_order", "asset__name", "id"]
+        verbose_name = "Appartenenza a gruppo asset"
+        verbose_name_plural = "Appartenenze a gruppi asset"
+        constraints = [
+            models.UniqueConstraint(fields=["group", "asset"], name="uniq_asset_group_membership"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.group.label} - {getattr(self.asset, 'asset_tag', self.asset_id)}"
+
+
+class MaintenancePlanAssignment(models.Model):
+    """Applicazione di un Piano: *dove* si applica e *con che tempi*.
+
+    La periodicita' non appartiene al Piano: lo stesso Piano puo' valere su gruppi
+    diversi con periodicita' diverse. La precedenza e' ASSET > GRUPPO > CATEGORIA;
+    due applicazioni dello stesso livello con tempi diversi non vengono risolte
+    d'ufficio, generano un conflitto visibile (vedi services/maintenance_domain).
+    """
+
+    TARGET_ASSET = "ASSET"
+    TARGET_GROUP = "GROUP"
+    TARGET_CATEGORY = "CATEGORY"
+    TARGET_CHOICES = [
+        (TARGET_ASSET, "Asset specifico"),
+        (TARGET_GROUP, "Gruppo asset"),
+        (TARGET_CATEGORY, "Categoria asset"),
+    ]
+
+    FREQ_DAYS = "DAYS"
+    FREQ_WEEKS = "WEEKS"
+    FREQ_MONTHS = "MONTHS"
+    FREQ_YEARS = "YEARS"
+    FREQUENCY_CHOICES = [
+        (FREQ_DAYS, "Giorni"),
+        (FREQ_WEEKS, "Settimane"),
+        (FREQ_MONTHS, "Mesi"),
+        (FREQ_YEARS, "Anni"),
+    ]
+
+    ANCHOR_FROM_COMPLETION = "FROM_COMPLETION"
+    ANCHOR_FIXED_CALENDAR = "FIXED_CALENDAR"
+    ANCHOR_CHOICES = [
+        (ANCHOR_FROM_COMPLETION, "Dalla data di esecuzione"),
+        (ANCHOR_FIXED_CALENDAR, "Dalla scadenza teorica"),
+    ]
+
+    plan = models.ForeignKey(
+        "MaintenanceInterventionTemplate",
+        on_delete=models.PROTECT,
+        related_name="assignments",
+    )
+    target_type = models.CharField(max_length=16, choices=TARGET_CHOICES, db_index=True)
+    asset = models.ForeignKey(
+        Asset,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="maintenance_plan_assignments",
+    )
+    asset_group = models.ForeignKey(
+        AssetGroup,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="maintenance_plan_assignments",
+    )
+    asset_category = models.ForeignKey(
+        AssetCategory,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="maintenance_plan_assignments",
+    )
+
+    # --- Ricorrenza (solo calendario: niente ore/km/cicli) --------------------
+    frequency = models.CharField(max_length=10, choices=FREQUENCY_CHOICES, default=FREQ_DAYS)
+    interval = models.PositiveSmallIntegerField(
+        default=1,
+        help_text="Ogni quante unita' di frequenza si ripete (es. 3 mesi = MONTHS/3).",
+    )
+    weekday = models.SmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="0=lunedi ... 6=domenica. Usato per ricorrenze tipo 'primo lunedi del mese'.",
+    )
+    week_of_month = models.SmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="1..4 = prima..quarta settimana, -1 = ultima. Va usato con weekday.",
+    )
+    day_of_month = models.SmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="1..31 giorno fisso del mese, -1 = ultimo giorno del mese.",
+    )
+    month_of_year = models.SmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="1..12: mese fisso per le ricorrenze annuali (es. 31 dicembre).",
+    )
+
+    warning_days = models.PositiveIntegerField(
+        default=30,
+        help_text="Giorni di preavviso: da quando l'occorrenza diventa visibile e pianificabile.",
+    )
+    schedule_anchor = models.CharField(
+        max_length=20,
+        choices=ANCHOR_CHOICES,
+        blank=True,
+        default="",
+        help_text="Vuoto = eredita dal Piano (ordinaria: dalla esecuzione, amministrativa: dalla scadenza teorica).",
+    )
+    first_due_date = models.DateField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Prima scadenza quando non esiste ancora storico per l'asset.",
+    )
+
+    # --- Override opzionali sui default del Piano -----------------------------
+    execution_mode = models.CharField(
+        max_length=20,
+        choices=[("INTERNAL", "Interna"), ("EXTERNAL", "Esterna (ditta terza)")],
+        blank=True,
+        default="",
+        help_text="Vuoto = eredita dal Piano.",
+    )
+    supplier = models.ForeignKey(
+        "anagrafica.Fornitore",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="maintenance_plan_assignments",
+    )
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="maintenance_plan_assignments",
+    )
+
+    is_excluded = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Solo per applicazioni su asset singolo: esclude l'asset dal Piano ereditato dal gruppo.",
+    )
+    auto_generate = models.BooleanField(
+        default=True,
+        db_index=True,
+        help_text="Genera automaticamente le occorrenze quando si entra nella finestra di preavviso.",
+    )
+    is_active = models.BooleanField(default=True, db_index=True)
+    notes = models.TextField(blank=True, default="")
+    legacy_rule = models.ForeignKey(
+        "MaintenanceRule",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="migrated_assignments",
+        help_text="Regola di origine, valorizzata dalla migrazione dal vecchio motore.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["plan__sort_order", "plan__label", "target_type", "id"]
+        verbose_name = "Applicazione piano di manutenzione"
+        verbose_name_plural = "Applicazioni piani di manutenzione"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["plan", "asset"],
+                condition=models.Q(target_type="ASSET"),
+                name="uniq_plan_assignment_asset",
+            ),
+            models.UniqueConstraint(
+                fields=["plan", "asset_group"],
+                condition=models.Q(target_type="GROUP"),
+                name="uniq_plan_assignment_group",
+            ),
+            models.UniqueConstraint(
+                fields=["plan", "asset_category"],
+                condition=models.Q(target_type="CATEGORY"),
+                name="uniq_plan_assignment_category",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["plan", "is_active"], name="idx_plan_assignment_active"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{getattr(self.plan, 'label', self.plan_id)} -> {self.target_label}"
+
+    @property
+    def target_label(self) -> str:
+        if self.target_type == self.TARGET_ASSET:
+            return getattr(self.asset, "asset_tag", "") or getattr(self.asset, "name", "") or "asset"
+        if self.target_type == self.TARGET_GROUP:
+            return getattr(self.asset_group, "label", "") or "gruppo"
+        return getattr(self.asset_category, "label", "") or "categoria"
+
+    @property
+    def specificity(self) -> int:
+        """Piu' alto = piu' specifico. ASSET > GRUPPO > CATEGORIA."""
+        return {self.TARGET_ASSET: 3, self.TARGET_GROUP: 2, self.TARGET_CATEGORY: 1}.get(self.target_type, 0)
+
+    @property
+    def effective_schedule_anchor(self) -> str:
+        if self.schedule_anchor:
+            return self.schedule_anchor
+        return getattr(self.plan, "default_schedule_anchor", self.ANCHOR_FROM_COMPLETION)
+
+    @property
+    def effective_execution_mode(self) -> str:
+        return self.execution_mode or getattr(self.plan, "execution_mode", "INTERNAL")
+
+    @property
+    def effective_supplier(self):
+        return self.supplier or getattr(self.plan, "default_supplier", None)
+
+    @property
+    def effective_assignee(self):
+        return self.assigned_to or getattr(self.plan, "default_assignee", None)
+
+    def clean(self):
+        self.notes = (self.notes or "").strip()
+        if not self.plan_id:
+            raise ValidationError({"plan": "Seleziona un piano di manutenzione."})
+
+        targets = {
+            self.TARGET_ASSET: self.asset_id,
+            self.TARGET_GROUP: self.asset_group_id,
+            self.TARGET_CATEGORY: self.asset_category_id,
+        }
+        if self.target_type not in targets:
+            raise ValidationError({"target_type": "Indica su cosa si applica il piano."})
+        if not targets[self.target_type]:
+            field = {
+                self.TARGET_ASSET: "asset",
+                self.TARGET_GROUP: "asset_group",
+                self.TARGET_CATEGORY: "asset_category",
+            }[self.target_type]
+            raise ValidationError({field: "Seleziona il bersaglio dell'applicazione."})
+        # Un'applicazione ha un solo bersaglio: gli altri restano vuoti.
+        for target_type, value in targets.items():
+            if target_type != self.target_type and value:
+                raise ValidationError(
+                    {"target_type": "L'applicazione puo' avere un solo bersaglio (asset, gruppo o categoria)."}
+                )
+
+        if self.is_excluded and self.target_type != self.TARGET_ASSET:
+            raise ValidationError({"is_excluded": "L'esclusione vale solo per un asset specifico."})
+
+        if not self.is_excluded:
+            from .services.recurrence import validate_recurrence_fields
+
+            validate_recurrence_fields(self)
+
+    def recurrence_label(self) -> str:
+        from .services.recurrence import describe_recurrence
+
+        return describe_recurrence(self)
+
+
+class MaintenanceOccurrence(models.Model):
+    """Una singola manutenzione dovuta su un singolo asset entro una data.
+
+    E' la fonte canonica della scadenza: esiste indipendentemente dall'OdL, cosi'
+    togliere un asset da un OdL non cancella la manutenzione, e un OdL massivo
+    puo' raccogliere piu' occorrenze senza perdere la scadenza di ciascun asset.
+    """
+
+    STATUS_OPEN = "OPEN"
+    STATUS_DONE = "DONE"
+    STATUS_CANCELED = "CANCELED"
+    STATUS_CHOICES = [
+        (STATUS_OPEN, "Aperta"),
+        (STATUS_DONE, "Eseguita"),
+        (STATUS_CANCELED, "Annullata"),
+    ]
+
+    SOURCE_SCHEDULER = "SCHEDULER"
+    SOURCE_MANUAL = "MANUAL"
+    SOURCE_MIGRATION = "MIGRATION"
+    SOURCE_IMPORT = "IMPORT"
+    SOURCE_CHOICES = [
+        (SOURCE_SCHEDULER, "Generata dallo scheduler"),
+        (SOURCE_MANUAL, "Creata a mano"),
+        (SOURCE_MIGRATION, "Migrata dal vecchio motore"),
+        (SOURCE_IMPORT, "Importata"),
+    ]
+
+    # Stati visuali derivati (non persistiti): vedi services/maintenance_domain.
+    VIEW_OVERDUE = "overdue"
+    VIEW_DUE_SOON = "due_soon"
+    VIEW_TO_PLAN = "to_plan"
+    VIEW_PLANNED = "planned"
+    VIEW_IN_PROGRESS = "in_progress"
+    VIEW_WAITING = "waiting"
+    VIEW_EXECUTED = "executed"
+    VIEW_REPORT_MISSING = "report_missing"
+    VIEW_COMPLETED = "completed"
+    VIEW_CANCELED = "canceled"
+
+    plan = models.ForeignKey(
+        "MaintenanceInterventionTemplate",
+        on_delete=models.PROTECT,
+        related_name="occurrences",
+    )
+    assignment = models.ForeignKey(
+        MaintenancePlanAssignment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="occurrences",
+    )
+    asset = models.ForeignKey(Asset, on_delete=models.CASCADE, related_name="maintenance_occurrences")
+
+    due_date = models.DateField(db_index=True)
+    warning_days = models.PositiveIntegerField(default=30)
+    schedule_anchor = models.CharField(
+        max_length=20,
+        choices=MaintenancePlanAssignment.ANCHOR_CHOICES,
+        default=MaintenancePlanAssignment.ANCHOR_FROM_COMPLETION,
+    )
+    previous_due_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Scadenza teorica da cui questa occorrenza deriva (serve all'ancoraggio a calendario).",
+    )
+
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=STATUS_OPEN, db_index=True)
+    work_order = models.ForeignKey(
+        WorkOrder,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="occurrences",
+    )
+    execution_day = models.ForeignKey(
+        WorkOrderExecutionDay,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="occurrences",
+    )
+
+    completed_on = models.DateField(null=True, blank=True, db_index=True)
+    completed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="completed_maintenance_occurrences",
+    )
+    completion_notes = models.TextField(blank=True, default="")
+    downtime_minutes = models.PositiveIntegerField(
+        default=0,
+        help_text="Fermo macchina imputato a questo asset (l'OdL massivo non basta: serve il dato per asset).",
+    )
+
+    # --- Manutenzione esterna: eseguito != praticamente completo --------------
+    supplier = models.ForeignKey(
+        "anagrafica.Fornitore",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="maintenance_occurrences",
+    )
+    appointment_date = models.DateField(null=True, blank=True)
+    appointment_notes = models.CharField(max_length=255, blank=True, default="")
+    report_received_at = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Data di arrivo del rapporto del fornitore (puo' essere posteriore all'esecuzione).",
+    )
+
+    cancel_reason = models.CharField(max_length=255, blank=True, default="")
+    source = models.CharField(max_length=12, choices=SOURCE_CHOICES, default=SOURCE_SCHEDULER, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["due_date", "asset__name", "id"]
+        verbose_name = "Occorrenza di manutenzione"
+        verbose_name_plural = "Occorrenze di manutenzione"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["plan", "asset", "due_date"],
+                name="uniq_maintenance_occurrence",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["status", "due_date"], name="idx_occurrence_status_due"),
+            models.Index(fields=["asset", "due_date"], name="idx_occurrence_asset_due"),
+            models.Index(fields=["plan", "due_date"], name="idx_occurrence_plan_due"),
+        ]
+
+    def __str__(self) -> str:
+        asset_label = getattr(self.asset, "asset_tag", self.asset_id)
+        return f"{getattr(self.plan, 'label', self.plan_id)} - {asset_label} ({self.due_date:%d-%m-%Y})"
+
+    @property
+    def warning_date(self):
+        if not self.due_date:
+            return None
+        return self.due_date - timedelta(days=int(self.warning_days or 0))
+
+    @property
+    def is_administrative(self) -> bool:
+        return bool(getattr(self.plan, "is_administrative", False))
+
+    @property
+    def attachment_required(self) -> bool:
+        return bool(getattr(self.plan, "attachment_required", False))
+
+    @property
+    def is_external(self) -> bool:
+        if self.assignment_id and self.assignment:
+            return self.assignment.effective_execution_mode == "EXTERNAL"
+        return getattr(self.plan, "execution_mode", "") == "EXTERNAL"
+
+    @property
+    def has_attachment(self) -> bool:
+        return self.attachments.exists()
+
+    def days_until_due(self, reference_date=None) -> int | None:
+        if not self.due_date:
+            return None
+        return (self.due_date - (reference_date or timezone.localdate())).days
+
+
+def _occurrence_attachment_upload_to(instance, filename: str) -> str:
+    occurrence = getattr(instance, "occurrence", None)
+    asset = getattr(occurrence, "asset", None) if occurrence else None
+    asset_tag = getattr(asset, "asset_tag", "") or "asset-tmp"
+    suffix = Path(filename or "").suffix.lower()[:20]
+    stem = slugify(Path(filename or "").stem)[:80] or "allegato"
+    stamp = timezone.now().strftime("%Y%m%d_%H%M%S")
+    token = uuid.uuid4().hex[:8]
+    return (
+        f"assets_maintenance_occurrences/{asset_tag}/"
+        f"{instance.occurrence_id or 'tmp'}/{stamp}_{token}_{stem}{suffix}"
+    )
+
+
+class MaintenanceOccurrenceAttachment(models.Model):
+    """Rapporto/documento della singola occorrenza.
+
+    Separato dagli allegati dell'OdL perche' su un OdL massivo il rapporto e' per
+    asset, e perche' una scadenza amministrativa si chiude col documento anche
+    senza passare da un OdL.
+    """
+
+    occurrence = models.ForeignKey(
+        MaintenanceOccurrence,
+        on_delete=models.CASCADE,
+        related_name="attachments",
+    )
+    file = models.FileField(
+        upload_to=_occurrence_attachment_upload_to,
+        storage=PrivateAssetAdministrativeDeadlineStorage(),
+    )
+    original_name = models.CharField(max_length=255, blank=True, default="")
+    notes = models.CharField(max_length=255, blank=True, default="")
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="maintenance_occurrence_attachments_uploaded",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        verbose_name = "Allegato occorrenza"
+        verbose_name_plural = "Allegati occorrenze"
+
+    def __str__(self) -> str:
+        name = self.original_name or Path(self.file.name).name
+        return f"OccAttachment<{self.occurrence_id}:{name}>"
+
+    def save(self, *args, **kwargs):
+        if not self.original_name and self.file:
+            self.original_name = Path(self.file.name).name[:255]
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        storage = self.file.storage if self.file else None
+        file_name = self.file.name if self.file else ""
+        super().delete(*args, **kwargs)
+        if storage and file_name and storage.exists(file_name):
+            storage.delete(file_name)

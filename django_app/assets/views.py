@@ -89,6 +89,7 @@ from .forms import (
     WorkMachineAssetForm,
     DeviceFilterForm,
     IT_DEVICE_TYPES,
+    NON_IT_ASSET_TYPES,
     PRODUCTION_ASSET_TYPES,
     WorkMachineFilterForm,
     WorkOrderCloseForm,
@@ -152,7 +153,6 @@ from .maintenance import (
     normalize_workorder_source,
     preview_maintenance_rule_impact,
     resolve_asset_maintenance_rules,
-    sync_workorder_maintenance_state,
     upsert_asset_maintenance_rule_state,
 )
 from .notifications import notify_workorder_assigned, notify_workorder_reassigned, notify_workorder_taken_over
@@ -5180,11 +5180,15 @@ def _periodic_scope_context(scope: str) -> dict[str, object]:
             "subtitle": "Piani ricorrenti filtrati su PC, server, rete, fonia, TVCC e dispositivi IT.",
             "asset_types": IT_DEVICE_TYPES,
         }
+    # Lo scope "production" e' il complemento di quello IT: ogni asset non IT
+    # deve poter avere un piano di manutenzione periodica, impianti generici e
+    # prodotti chimici inclusi. Stessa semantica dello scadenzario
+    # (`exclude(assets__asset_type__in=IT_DEVICE_TYPES)`).
     return {
         "scope": "production",
         "title": "Manutenzione periodica asset produzione",
-        "subtitle": "Piani ricorrenti filtrati su CNC, macchine utensili e carroponti.",
-        "asset_types": PRODUCTION_ASSET_TYPES,
+        "subtitle": "Piani ricorrenti su tutti gli asset non IT: CNC, macchine utensili, carroponti, impianti e altri asset.",
+        "asset_types": NON_IT_ASSET_TYPES,
     }
 
 
@@ -5210,6 +5214,11 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
     wo_list = reverse("assets:wo_list")
     asset_quick_report = reverse("assets:asset_quick_report")
     maintenance_todo = reverse("assets:maintenance_todo")
+    maintenance_da_fare = reverse("assets:maintenance_da_fare")
+    maintenance_scadenze = reverse("assets:maintenance_scadenze")
+    maintenance_quadro = reverse("assets:maintenance_responsabile")
+    maintenance_plans = reverse("assets:maintenance_plan_list")
+    asset_groups = reverse("assets:asset_group_list")
     il_mio_turno_url = reverse("assets:il_mio_turno")
     current_type = _clean_string(request.GET.get("asset_type"))
     current_group = _clean_string(request.GET.get("group")).lower()
@@ -5292,28 +5301,62 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
                 "maintenance_schedule", "maintenance_todo", "maintenance_history",
                 "wo_list", "wo_view", "wo_create", "wo_close",
                 "assistance_contract_list",
+                # Superfici del nuovo dominio: senza queste il ramo "Manutenzione"
+                # si chiudeva proprio mentre ci si stava lavorando dentro.
+                "maintenance_da_fare", "maintenance_scadenze", "maintenance_responsabile",
+                "maintenance_plan_list", "maintenance_plan_detail", "maintenance_plan_create",
+                "maintenance_plan_edit", "maintenance_assignment_create", "maintenance_assignment_edit",
+                "maintenance_coverage", "maintenance_history_import",
+                "asset_group_list", "asset_group_create", "asset_group_edit",
+                "occurrence_complete", "occurrence_followup_create",
             },
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Pannello manutenzione",
-            "url": maintenance_hub,
+            "label": "Da fare",
+            "url": maintenance_da_fare,
             "is_subitem": True,
-            "active": current_route == "maintenance_hub",
+            # Le rotte ritirate rimandano qui: la voce resta accesa anche per chi
+            # arriva da un vecchio segnalibro, altrimenti atterrerebbe su una pagina
+            # senza nessuna voce di menu evidenziata.
+            "active": current_route in {"maintenance_da_fare", "maintenance_todo"},
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Centro operativo",
-            "url": maintenance_todo,
+            "label": "Scadenze",
+            "url": maintenance_scadenze,
             "is_subitem": True,
-            "active": current_route == "maintenance_todo",
+            "active": current_route in {
+                "maintenance_scadenze", "maintenance_schedule", "maintenance_scadenzario",
+                "occurrence_complete", "occurrence_followup_create",
+            },
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Scadenzario",
-            "url": maintenance_schedule,
+            "label": "Quadro",
+            "url": maintenance_quadro,
             "is_subitem": True,
-            "active": current_route == "maintenance_schedule",
+            "active": current_route == "maintenance_responsabile",
+        },
+        {
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Piani",
+            "url": maintenance_plans,
+            "is_subitem": True,
+            "active": current_route in {
+                "maintenance_plan_list", "maintenance_plan_detail", "maintenance_plan_create",
+                "maintenance_plan_edit", "maintenance_assignment_create", "maintenance_assignment_edit",
+                "maintenance_coverage", "maintenance_history_import",
+                "maintenance_rule_list", "maintenance_rule_create", "maintenance_rule_edit",
+                "maintenance_coverage_matrix",
+            },
+        },
+        {
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Gruppi asset",
+            "url": asset_groups,
+            "is_subitem": True,
+            "active": current_route in {"asset_group_list", "asset_group_create", "asset_group_edit"},
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
@@ -5321,13 +5364,6 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
             "url": maintenance_templates,
             "is_subitem": True,
             "active": current_route in {"maintenance_template_list", "maintenance_template_create", "maintenance_template_edit"},
-        },
-        {
-            "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Piani ordinari",
-            "url": maintenance_rules,
-            "is_subitem": True,
-            "active": current_route in {"maintenance_rule_list", "maintenance_rule_create", "maintenance_rule_edit"},
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
@@ -5561,14 +5597,58 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "is_visible": True,
         },
         {
+            "code": "maintenance_da_fare",
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Da fare",
+            "target_url": "django:assets:maintenance_da_fare",
+            "active_match": "/assets/manutenzione/da-fare/",
+            "is_subitem": True,
+            "parent_code": "manutenzione_hub",
+            "sort_order": 53,
+            "is_visible": True,
+        },
+        {
+            "code": "maintenance_scadenze",
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Scadenze",
+            "target_url": "django:assets:maintenance_scadenze",
+            "active_match": "/assets/manutenzione/scadenze/",
+            "is_subitem": True,
+            "parent_code": "manutenzione_hub",
+            "sort_order": 54,
+            "is_visible": True,
+        },
+        {
+            "code": "maintenance_quadro",
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Quadro",
+            "target_url": "django:assets:maintenance_responsabile",
+            "active_match": "/assets/manutenzione/quadro/",
+            "is_subitem": True,
+            "parent_code": "manutenzione_hub",
+            "sort_order": 55,
+            "is_visible": True,
+        },
+        {
             "code": "maintenance_rules",
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Piani ordinari",
-            "target_url": "django:assets:maintenance_rule_list",
-            "active_match": "/assets/manutenzione/regole/",
+            "label": "Piani",
+            "target_url": "django:assets:maintenance_plan_list",
+            "active_match": "/assets/manutenzione/piani/",
             "is_subitem": True,
             "parent_code": "manutenzione_hub",
             "sort_order": 56,
+            "is_visible": True,
+        },
+        {
+            "code": "maintenance_asset_groups",
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Gruppi asset",
+            "target_url": "django:assets:asset_group_list",
+            "active_match": "/assets/manutenzione/gruppi/",
+            "is_subitem": True,
+            "parent_code": "manutenzione_hub",
+            "sort_order": 57,
             "is_visible": True,
         },
         {
@@ -5596,9 +5676,9 @@ def _default_sidebar_seed_rows() -> list[dict]:
         {
             "code": "maintenance_schedule",
             "section": AssetSidebarButton.SECTION_OPERATIONS,
-            "label": "Prossime manutenzioni",
-            "target_url": "django:assets:maintenance_schedule",
-            "active_match": "/assets/manutenzione/prossime/",
+            "label": "Scadenze manutenzione",
+            "target_url": "django:assets:maintenance_scadenze",
+            "active_match": "/assets/manutenzione/scadenze/",
             "is_subitem": False,
             "parent_code": "",
             "sort_order": 66,
@@ -5629,9 +5709,9 @@ def _default_sidebar_seed_rows() -> list[dict]:
         {
             "code": "compliance_reports",
             "section": AssetSidebarButton.SECTION_ANALYTICS,
-            "label": "Scadenzario operativo",
-            "target_url": "django:assets:maintenance_schedule",
-            "active_match": "/assets/manutenzione/prossime/",
+            "label": "Scadenze manutenzione",
+            "target_url": "django:assets:maintenance_scadenze",
+            "active_match": "/assets/manutenzione/scadenze/",
             "is_subitem": False,
             "parent_code": "",
             "sort_order": 80,
@@ -6248,10 +6328,27 @@ def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
         return None
 
     route_to_item = {
-        "maintenance_hub": "todo",
-        "maintenance_todo": "todo",
-        "maintenance_schedule": "schedule",
-        "maintenance_scadenzario": "schedule",
+        "maintenance_hub": "da_fare",
+        "maintenance_todo": "da_fare",
+        "maintenance_da_fare": "da_fare",
+        "occurrence_complete": "da_fare",
+        "occurrence_followup_create": "da_fare",
+        "maintenance_scadenze": "scadenze",
+        "maintenance_responsabile": "quadro",
+        "maintenance_plan_list": "plans",
+        "maintenance_plan_detail": "plans",
+        "maintenance_plan_create": "plans",
+        "maintenance_plan_edit": "plans",
+        "maintenance_assignment_create": "plans",
+        "maintenance_assignment_edit": "plans",
+        "maintenance_coverage": "plans",
+        "asset_group_list": "groups",
+        "asset_group_create": "groups",
+        "asset_group_edit": "groups",
+        "asset_maintenance_plans": "plans",
+        "asset_plan_customize": "plans",
+        "maintenance_schedule": "scadenze",
+        "maintenance_scadenzario": "scadenze",
         "maintenance_history": "history",
         "wo_list": "workorders",
         "wo_view": "workorders",
@@ -6290,14 +6387,29 @@ def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
     settings_url = reverse("assets:maintenance_impostazioni")
     items = [
         {
-            "key": "todo",
-            "label": "Oggi",
-            "url": reverse("assets:maintenance_hub"),
+            "key": "da_fare",
+            "label": "Da fare",
+            "url": reverse("assets:maintenance_da_fare"),
         },
         {
-            "key": "schedule",
-            "label": "Scadenzario",
-            "url": reverse("assets:maintenance_schedule"),
+            "key": "scadenze",
+            "label": "Scadenze",
+            "url": reverse("assets:maintenance_scadenze"),
+        },
+        {
+            "key": "quadro",
+            "label": "Quadro",
+            "url": reverse("assets:maintenance_responsabile"),
+        },
+        {
+            "key": "plans",
+            "label": "Piani",
+            "url": reverse("assets:maintenance_plan_list"),
+        },
+        {
+            "key": "groups",
+            "label": "Gruppi asset",
+            "url": reverse("assets:asset_group_list"),
         },
         {
             "key": "workorders",
@@ -6311,7 +6423,7 @@ def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
         },
         {
             "key": "settings",
-            "label": "Catalogo e piani",
+            "label": "Impostazioni",
             "url": settings_url,
         },
         {
@@ -6354,7 +6466,9 @@ def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
             {
                 "key": "new-plan",
                 "label": "+ Nuovo piano",
-                "url": reverse("assets:maintenance_rule_create"),
+                # Punta al nuovo dominio: "piano" per l'utente e' Piano di
+                # manutenzione, non la vecchia regola per categoria.
+                "url": reverse("assets:maintenance_plan_create"),
                 "kind": "secondary",
             },
         ],
@@ -9921,6 +10035,8 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
                 1 for row in resolved_maintenance_rule_rows if row["status"] == "disabled"
             ),
             "asset_maintenance_rule_list_url": _asset_maintenance_rule_list_page_url(asset_id=asset.id),
+            # Piani del nuovo dominio (Piano -> Applicazione -> Occorrenza).
+            **_asset_maintenance_plans_context(asset),
             "can_manage_asset_maintenance_rules": can_manage_asset_maintenance_rules,
             "asset_linked_task_rows": linked_task_rows,
             "asset_upcoming_task_rows": upcoming_task_rows,
@@ -11335,172 +11451,26 @@ def maintenance_template_edit(request: HttpRequest, id: int | None = None) -> Ht
 
 @login_required
 def maintenance_rule_list(request: HttpRequest) -> HttpResponse:
-    """Deprecata: template e regole sono ora un'unica vista in Impostazioni manutenzione.
-    Redirige alla tab 'Interventi & Regole' preservando i filtri (categoria/attivo/ricerca)."""
-    if not _is_assets_admin(request):
-        messages.error(request, "Solo admin puo gestire le regole manutenzione.")
-        return redirect("assets:asset_list")
-    return redirect(_maintenance_settings_page_url(request, tab="piani"), permanent=True)
+    """Ritirata: la superficie del vecchio motore rimanda a quella nuova."""
+    return redirect("assets:maintenance_plan_list")
 
 
 @login_required
 def maintenance_rule_create(request: HttpRequest) -> HttpResponse:
-    if not _is_assets_admin(request):
-        messages.error(request, "Solo admin puo gestire le regole manutenzione.")
-        return redirect("assets:asset_list")
-
-    selected_category_id = _as_int(request.GET.get("category"), default=0)
-    selected_template_id = _as_int(request.GET.get("template"), default=0)
-    initial = {}
-    if selected_category_id:
-        initial["asset_category"] = selected_category_id
-    if selected_template_id:
-        initial["intervention_template"] = selected_template_id
-
-    if request.method == "POST":
-        form = MaintenanceRuleForm(request.POST)
-        if form.is_valid():
-            rule = form.save()
-            log_action(
-                request,
-                "create_maintenance_rule",
-                "assets",
-                {
-                    "rule_id": rule.id,
-                    "asset_category_id": rule.asset_category_id,
-                    "template_id": rule.intervention_template_id,
-                    "threshold_type": rule.threshold_type,
-                    "threshold_value": rule.threshold_value,
-                },
-            )
-            messages.success(request, "Piano di manutenzione creato.")
-            return redirect(
-                _maintenance_rule_list_page_url(
-                    category_id=rule.asset_category_id,
-                    template_id=rule.intervention_template_id,
-                )
-            )
-    else:
-        form = MaintenanceRuleForm(initial=initial)
-
-    form_state = _maintenance_rule_form_state(form, is_edit=False)
-
-    return render(
-        request,
-        "assets/pages/maintenance_rule_form.html",
-        {
-            "page_title": "Nuovo piano manutenzione",
-            "form": form,
-            "maintenance_rule_form_state": form_state,
-            "is_edit": False,
-            "back_url": _maintenance_rule_list_page_url(
-                category_id=selected_category_id,
-                template_id=selected_template_id,
-            ),
-            **_assets_shell_context(
-                request,
-                rows=_as_int(request.GET.get("rows"), default=25),
-                search_action=reverse("assets:maintenance_rule_list"),
-                new_url=reverse("assets:maintenance_rule_create"),
-                new_label="+ Nuovo piano",
-                search_placeholder="Ricerca rapida per piano, attivita o categoria",
-            ),
-        },
-    )
+    """Ritirata: la superficie del vecchio motore rimanda a quella nuova."""
+    return redirect("assets:maintenance_plan_create")
 
 
 @login_required
 def maintenance_rule_impact_preview(request: HttpRequest) -> HttpResponse:
-    """Endpoint HTMX-only: anteprima non persistita di quanti asset copre una regola e delle
-    prime scadenze, mentre l'utente compila il form. Non salva nulla."""
-    if not _is_assets_admin(request):
-        return HttpResponseForbidden("Permesso negato.")
-
-    rule_pk = _as_int(request.POST.get("rule_id"), default=0) or None
-    scope_type = request.POST.get("scope_type") or MaintenanceRule.SCOPE_CATEGORY
-    asset_ids = [_as_int(v) for v in request.POST.getlist("assets") if _as_int(v)]
-    first_due_date = parse_date(request.POST.get("first_due_date") or "") if request.POST.get("first_due_date") else None
-
-    impact = preview_maintenance_rule_impact(
-        asset_category_id=_as_int(request.POST.get("asset_category"), default=0) or None,
-        scope_type=scope_type,
-        asset_ids=asset_ids,
-        threshold_type=request.POST.get("threshold_type") or MaintenanceRule.THRESHOLD_DAYS,
-        threshold_value=_as_int(request.POST.get("threshold_value"), default=0),
-        warning_days=_as_int(request.POST.get("warning_days"), default=0),
-        first_due_date=first_due_date,
-        rule_pk=rule_pk,
-    )
-    return render(
-        request,
-        "assets/components/_maintenance_rule_impact.html",
-        {"impact": impact},
-    )
+    """Ritirata: la superficie del vecchio motore rimanda a quella nuova."""
+    return redirect("assets:maintenance_plan_list")
 
 
 @login_required
 def maintenance_rule_edit(request: HttpRequest, id: int | None = None) -> HttpResponse:
-    if not _is_assets_admin(request):
-        messages.error(request, "Solo admin puo gestire le regole manutenzione.")
-        return redirect("assets:asset_list")
-    if id is None:
-        return redirect("assets:maintenance_rule_list")
-
-    rule = get_object_or_404(
-        MaintenanceRule.objects.select_related("asset_category", "intervention_template"),
-        pk=id,
-    )
-    if request.method == "POST":
-        form = MaintenanceRuleForm(request.POST, instance=rule)
-        if form.is_valid():
-            rule = form.save()
-            log_action(
-                request,
-                "update_maintenance_rule",
-                "assets",
-                {
-                    "rule_id": rule.id,
-                    "asset_category_id": rule.asset_category_id,
-                    "template_id": rule.intervention_template_id,
-                    "threshold_type": rule.threshold_type,
-                    "threshold_value": rule.threshold_value,
-                },
-            )
-            messages.success(request, "Piano di manutenzione aggiornato.")
-            return redirect(
-                _maintenance_rule_list_page_url(
-                    category_id=rule.asset_category_id,
-                    template_id=rule.intervention_template_id,
-                )
-            )
-    else:
-        form = MaintenanceRuleForm(instance=rule)
-
-    form_state = _maintenance_rule_form_state(form, is_edit=True)
-
-    return render(
-        request,
-        "assets/pages/maintenance_rule_form.html",
-        {
-            "page_title": f"Modifica piano {rule.intervention_template.label}",
-            "form": form,
-            "maintenance_rule_form_state": form_state,
-            "rule": rule,
-            "is_edit": True,
-            "back_url": _maintenance_rule_list_page_url(
-                category_id=rule.asset_category_id,
-                template_id=rule.intervention_template_id,
-            ),
-            **_assets_shell_context(
-                request,
-                rows=_as_int(request.GET.get("rows"), default=25),
-                search_action=reverse("assets:maintenance_rule_list"),
-                new_url=reverse("assets:maintenance_rule_create"),
-                new_label="+ Nuovo piano",
-                search_placeholder="Ricerca rapida per piano, attivita o categoria",
-            ),
-        },
-    )
+    """Ritirata: la superficie del vecchio motore rimanda a quella nuova."""
+    return redirect("assets:maintenance_plan_list")
 
 
 def _asset_maintenance_status_payload(status: str) -> dict[str, str]:
@@ -11513,127 +11483,8 @@ def _asset_maintenance_status_payload(status: str) -> dict[str, str]:
 
 @login_required
 def asset_maintenance_rule_list(request: HttpRequest, asset_id: int) -> HttpResponse:
-    asset = get_object_or_404(Asset.objects.select_related("asset_category"), pk=asset_id)
-    focus_rule_id = _as_int(request.GET.get("focus_rule"), default=0)
-    if not _is_assets_admin(request):
-        messages.error(request, "Solo admin puo gestire le regole manutenzione per asset.")
-        return redirect("assets:asset_view", id=asset.id)
-
-    if request.method == "POST":
-        action = _clean_string(request.POST.get("action"))
-        base_rule = get_object_or_404(
-            MaintenanceRule.objects.select_related("asset_category", "intervention_template"),
-            pk=_as_int(request.POST.get("base_rule_id"), default=0),
-            asset_category_id=asset.asset_category_id,
-        )
-        if action == "update_rule_execution":
-            raw_execution_date = _clean_string(request.POST.get("last_execution_date"))
-            execution_notes = _clean_string(request.POST.get("last_execution_notes"))
-            try:
-                execution_date = datetime.strptime(raw_execution_date, "%Y-%m-%d").date()
-            except ValueError:
-                execution_date = None
-            if execution_date is None:
-                messages.error(request, "Inserisci una data valida per l'ultima esecuzione.")
-            else:
-                upsert_asset_maintenance_rule_state(
-                    asset=asset,
-                    base_rule=base_rule,
-                    executed_on=execution_date,
-                    notes=execution_notes,
-                )
-                log_action(
-                    request,
-                    "update_asset_maintenance_execution",
-                    "assets",
-                    {
-                        "asset_id": asset.id,
-                        "base_rule_id": base_rule.id,
-                        "last_execution_date": execution_date.isoformat(),
-                    },
-                )
-                messages.success(request, "Storico manutenzione aggiornato.")
-            return redirect(_asset_maintenance_rule_list_page_url(asset_id=asset.id, focus_rule_id=base_rule.id))
-        if action == "clear_rule_execution":
-            AssetMaintenanceRuleState.objects.filter(asset=asset, base_rule=base_rule).delete()
-            log_action(
-                request,
-                "clear_asset_maintenance_execution",
-                "assets",
-                {
-                    "asset_id": asset.id,
-                    "base_rule_id": base_rule.id,
-                },
-            )
-            messages.success(request, "Storico manutenzione azzerato.")
-            return redirect(_asset_maintenance_rule_list_page_url(asset_id=asset.id, focus_rule_id=base_rule.id))
-
-    resolved_rows = resolve_asset_maintenance_rules(asset)
-    schedule_rows = build_day_based_maintenance_schedule_rows(
-        asset_queryset=Asset.objects.filter(pk=asset.id).select_related("asset_category"),
-    )
-    schedule_by_rule_id = {row["base_rule"].id: row for row in schedule_rows}
-    rule_rows: list[dict[str, object]] = []
-    for row in resolved_rows:
-        status_payload = _asset_maintenance_status_payload(str(row["status"]))
-        override = row["override"]
-        schedule_row = schedule_by_rule_id.get(row["base_rule"].id)
-        row_payload = {
-            **row,
-            "status_label": status_payload["label"],
-            "status_badge_class": status_payload["badge_class"],
-            "last_execution_date": schedule_row["last_execution_date"] if schedule_row else None,
-            "last_execution_notes": schedule_row["last_execution_notes"] if schedule_row else "",
-            "last_execution_workorder": schedule_row["last_execution_workorder"] if schedule_row else None,
-            "due_date": schedule_row["due_date"] if schedule_row else None,
-            "schedule_status": schedule_row["schedule_status"] if schedule_row else "",
-            "schedule_label": schedule_row["schedule_label"] if schedule_row else "Non operativo",
-            "schedule_badge_class": schedule_row["schedule_badge_class"] if schedule_row else "muted",
-            "effective_warning_days": row.get("effective_warning_days") or 0,
-            "create_url": _asset_maintenance_rule_override_create_page_url(asset_id=asset.id, rule_id=row["base_rule"].id),
-            "workorder_create_url": _workorder_create_page_url(
-                asset_id=asset.id,
-                rule_id=row["base_rule"].id,
-                source="maintenance_rules",
-            ),
-            "focus_url": _asset_maintenance_rule_list_page_url(asset_id=asset.id, focus_rule_id=row["base_rule"].id),
-            "edit_url": (
-                _asset_maintenance_rule_override_edit_page_url(asset_id=asset.id, override_id=override.id)
-                if override is not None
-                else ""
-            ),
-            "reset_url": (
-                _asset_maintenance_rule_override_reset_page_url(asset_id=asset.id, override_id=override.id)
-                if override is not None
-                else ""
-            ),
-            "is_focus": row["base_rule"].id == focus_rule_id,
-        }
-        rule_rows.append(row_payload)
-
-    return render(
-        request,
-        "assets/pages/maintenance_asset_rule_list.html",
-        {
-            "page_title": f"Regole manutenzione asset {asset.asset_tag}",
-            "asset": asset,
-            "rule_rows": rule_rows,
-            "rule_total": len(rule_rows),
-            "overridden_rule_count": sum(1 for row in rule_rows if row["status"] == "overridden"),
-            "disabled_rule_count": sum(1 for row in rule_rows if row["status"] == "disabled"),
-            "scheduled_rule_count": sum(1 for row in rule_rows if row.get("schedule_status") not in {"", "missing"}),
-            "missing_execution_count": sum(1 for row in rule_rows if row.get("schedule_status") == "missing"),
-            "focus_rule_id": focus_rule_id,
-            "asset_detail_url": reverse("assets:asset_view", kwargs={"id": asset.id}),
-            "asset_has_category": bool(asset.asset_category_id),
-            **_assets_shell_context(
-                request,
-                rows=_as_int(request.GET.get("rows"), default=25),
-                search_action=_asset_maintenance_rule_list_page_url(asset_id=asset.id),
-                search_placeholder="Ricerca contestuale disponibile dal dettaglio asset",
-            ),
-        },
-    )
+    """Ritirata: la superficie del vecchio motore rimanda a quella nuova."""
+    return redirect("assets:asset_maintenance_plans", asset_id=asset_id)
 
 
 @login_required
@@ -11947,547 +11798,8 @@ def _maintenance_schedule_periodic_rows(
 
 @login_required
 def maintenance_schedule(request: HttpRequest) -> HttpResponse:
-    can_manage_outlook_calendar = _is_assets_admin(request)
-    calendar_user_choices: list[tuple[str, str]] = []
-    calendar_user_details: dict[str, dict[str, str]] = {}
-    if can_manage_outlook_calendar:
-        calendar_user_choices, calendar_user_details = _legacy_employee_options()
-
-    if request.method == "POST":
-        action = _clean_string(request.POST.get("action"))
-        if action == "create_outlook_calendar_event":
-            redirect_url = _maintenance_schedule_redirect_from_request(request)
-            if not can_manage_outlook_calendar:
-                messages.error(request, "Solo gli admin assets possono creare eventi Outlook su calendari utente.")
-                return redirect(redirect_url)
-
-            asset_id = _as_int(request.POST.get("asset_id"), default=0)
-            base_rule_id = _as_int(request.POST.get("base_rule_id"), default=0)
-            target_legacy_user_id = _as_int(request.POST.get("target_legacy_user_id"), default=0)
-            asset = Asset.objects.select_related("asset_category").filter(pk=asset_id).first()
-            target_details = calendar_user_details.get(str(target_legacy_user_id))
-            if asset is None:
-                messages.error(request, "Asset non trovato.")
-                return redirect(redirect_url)
-            if not base_rule_id:
-                messages.error(request, "Regola manutenzione non valida.")
-                return redirect(redirect_url)
-            if target_details is None:
-                messages.error(request, "Seleziona un utente valido per il calendario Outlook.")
-                return redirect(redirect_url)
-
-            schedule_row = _maintenance_schedule_row_for_asset_rule(asset=asset, base_rule_id=base_rule_id)
-            if schedule_row is None:
-                messages.error(request, "Scadenza manutenzione non trovata per l'asset selezionato.")
-                return redirect(redirect_url)
-            if not isinstance(schedule_row.get("due_date"), date):
-                messages.error(request, "Questa manutenzione non ha ancora una data scadenza calendarizzabile.")
-                return redirect(redirect_url)
-
-            try:
-                entry, created = _create_asset_maintenance_calendar_event(
-                    request=request,
-                    asset=asset,
-                    schedule_row=schedule_row,
-                    target_legacy_user_id=target_legacy_user_id,
-                    target_details=target_details,
-                )
-                target_label = entry.target_display_name or entry.target_email or f"utente {entry.target_legacy_user_id}"
-                if created:
-                    log_action(
-                        request,
-                        "create_maintenance_calendar_event",
-                        "assets",
-                        {
-                            "asset_id": asset.id,
-                            "base_rule_id": schedule_row["base_rule"].id,
-                            "due_date": str(schedule_row["due_date"]),
-                            "target_legacy_user_id": entry.target_legacy_user_id,
-                            "target_email": entry.target_email,
-                            "graph_event_id": entry.graph_event_id,
-                        },
-                    )
-                    messages.success(
-                        request,
-                        f"Evento Outlook creato per {target_label} sulla scadenza del {entry.due_date:%d-%m-%Y}.",
-                    )
-                else:
-                    messages.info(
-                        request,
-                        f"Esiste gia un evento Outlook per {target_label} su questa stessa scadenza.",
-                    )
-            except Exception as exc:
-                messages.error(request, f"Creazione evento Outlook fallita: {exc}")
-            return redirect(redirect_url)
-
-        if action == "record_maintenance_rule_execution":
-            redirect_url = _maintenance_schedule_redirect_from_request(request)
-            if not _is_assets_admin(request):
-                messages.error(request, "Solo admin puo registrare esecuzioni di manutenzione.")
-                return redirect(redirect_url)
-            asset_id = _as_int(request.POST.get("asset_id"), default=0)
-            base_rule_id = _as_int(request.POST.get("base_rule_id"), default=0)
-            asset = Asset.objects.select_related("asset_category").filter(pk=asset_id).first()
-            base_rule = MaintenanceRule.objects.filter(pk=base_rule_id).select_related("intervention_template").first()
-            if asset is None or base_rule is None:
-                messages.error(request, "Asset o regola manutenzione non trovati.")
-                return redirect(redirect_url)
-            today_local = timezone.localdate()
-            executed_on_raw = _clean_string(request.POST.get("execution_date"))
-            if executed_on_raw:
-                try:
-                    executed_on = date.fromisoformat(executed_on_raw)
-                except ValueError:
-                    messages.error(request, "Data di esecuzione non valida.")
-                    return redirect(redirect_url)
-            else:
-                executed_on = today_local
-            if executed_on > today_local:
-                messages.error(request, "La data di esecuzione non puo essere futura.")
-                return redirect(redirect_url)
-            duration_minutes = max(0, _as_int(request.POST.get("execution_duration_minutes"), default=0))
-            try:
-                cost_value = _parse_execution_cost_input(request.POST.get("execution_cost_eur"))
-            except ValueError:
-                messages.error(request, "Costo non valido: usa un numero non negativo (es. 120.50).")
-                return redirect(redirect_url)
-            resolution_text = _clean_string(request.POST.get("execution_notes"))
-            uploads, upload_errors = _validate_execution_attachment_uploads(request)
-            if upload_errors:
-                for error in upload_errors:
-                    messages.error(request, error)
-                return redirect(redirect_url)
-            template_label = (getattr(base_rule.intervention_template, "label", "") or "Manutenzione").strip()
-            attachments_total = 0
-            try:
-                with transaction.atomic():
-                    workorder = _build_execution_workorder(
-                        asset=asset,
-                        title=f"Esecuzione regola: {template_label}",
-                        description=resolution_text,
-                        executed_on=executed_on,
-                        duration_minutes=duration_minutes,
-                        cost_value=cost_value,
-                        resolution_text=resolution_text,
-                        maintenance_rule=base_rule,
-                        # Manutenzione esterna: l'OdL eredita la ditta terza della regola,
-                        # così storico e costi restano attribuiti al fornitore.
-                        supplier=base_rule.supplier if base_rule.is_external else None,
-                    )
-                    sync_workorder_maintenance_state(workorder)
-                    # Checklist operativa (Fase 2): copia gli step del template e spunta
-                    # quelli confermati nel form di registrazione rapida.
-                    copy_template_checklist_to_workorder(workorder)
-                    done_steps = [
-                        int(s) for s in request.POST.getlist("checklist_done") if str(s).isdigit()
-                    ]
-                    if done_steps:
-                        WorkOrderChecklist.objects.filter(
-                            work_order=workorder, step_number__in=done_steps
-                        ).update(
-                            is_done=True,
-                            done_at=timezone.now(),
-                            done_by=request.user if request.user.is_authenticated else None,
-                        )
-                    if uploads:
-                        attachments_total = len(
-                            _save_workorder_attachments(
-                                workorder=workorder,
-                                uploads=uploads,
-                                user=request.user,
-                            )
-                        )
-            except ValidationError as exc:
-                messages.error(request, f"Esecuzione non registrabile: {exc}")
-                return redirect(redirect_url)
-            except Exception as exc:
-                messages.error(request, f"Errore registrazione esecuzione: {exc}")
-                return redirect(redirect_url)
-            log_action(
-                request,
-                "record_maintenance_rule_execution",
-                "assets",
-                {
-                    "asset_id": asset.id,
-                    "base_rule_id": base_rule.id,
-                    "workorder_id": workorder.id,
-                    "executed_on": str(executed_on),
-                    "cost_eur": str(cost_value) if cost_value is not None else None,
-                    "duration_minutes": duration_minutes,
-                    "attachments": attachments_total,
-                },
-            )
-            attach_suffix = f" ({attachments_total} allegati)" if attachments_total else ""
-            messages.success(
-                request,
-                f"Esecuzione registrata su {asset.asset_tag} il {executed_on:%d-%m-%Y}{attach_suffix}.",
-            )
-            return redirect(redirect_url)
-
-    selected_asset_id = _as_int(request.GET.get("asset"), default=0)
-    selected_asset = None
-    if selected_asset_id:
-        selected_asset = Asset.objects.select_related("asset_category").filter(pk=selected_asset_id).first()
-    status_filter = _clean_string(request.GET.get("status")) or "attive"
-    category_id = _as_int(request.GET.get("category"), default=0)
-    reparto_filter = _clean_string(request.GET.get("reparto"))
-    coverage_filter = _clean_string(request.GET.get("coverage")) or "all"
-    execution_filter = _clean_string(request.GET.get("execution")) or "all"
-    if execution_filter not in {"all", "internal", "external"}:
-        execution_filter = "all"
-    q = _clean_string(request.GET.get("q"))
-
-    asset_qs = Asset.objects.select_related("asset_category").exclude(status=Asset.STATUS_RETIRED).order_by(
-        "reparto",
-        "name",
-        "asset_tag",
-    )
-    if selected_asset is not None:
-        asset_qs = asset_qs.filter(pk=selected_asset.id)
-    if category_id:
-        asset_qs = asset_qs.filter(asset_category_id=category_id)
-    if reparto_filter:
-        asset_qs = asset_qs.filter(reparto__iexact=reparto_filter)
-    if q:
-        asset_qs = asset_qs.filter(
-            Q(asset_tag__icontains=q)
-            | Q(internal_number__icontains=q)
-            | Q(name__icontains=q)
-            | Q(reparto__icontains=q)
-            | Q(asset_category__label__icontains=q)
-        )
-
-    schedule_rows = build_day_based_maintenance_schedule_rows(asset_queryset=asset_qs)
-    primary_contract_by_asset_id: dict[int, AssistanceContract | None] = {}
-    filtered_rows: list[dict[str, object]] = []
-    # Totali per i KPI (calcolati sul sottoinsieme che passa i filtri non-stato, cosi
-    # restano corretti anche quando la tabella e filtrata/snellita).
-    status_totals = {"overdue": 0, "warning": 0, "upcoming": 0, "missing": 0}
-    # Vista "Attive" (default): mostra solo cio che e azionabile a breve. Nasconde dalla
-    # tabella le "senza storico" e le pianificate oltre l'orizzonte, restando contate.
-    ATTIVE_HORIZON_DAYS = 90
-    attive_hidden_total = 0
-    for row in schedule_rows:
-        asset = row["asset"]
-        if asset.id not in primary_contract_by_asset_id:
-            primary_contract_by_asset_id[asset.id] = get_primary_assistance_contract(asset)
-        primary_contract = primary_contract_by_asset_id[asset.id]
-        row["primary_contract"] = primary_contract
-        row["contract_state"] = contract_state_payload(primary_contract) if primary_contract else None
-        row["is_covered"] = primary_contract is not None
-        row["asset_detail_url"] = reverse("assets:asset_view", kwargs={"id": asset.id})
-        row["workorder_create_url"] = _workorder_create_page_url(
-            asset_id=asset.id,
-            rule_id=row["base_rule"].id,
-            source="maintenance_schedule",
-        )
-        row["first_execution_url"] = _asset_maintenance_rule_list_page_url(
-            asset_id=asset.id,
-            focus_rule_id=row["base_rule"].id,
-        )
-        primary_action = _maintenance_row_primary_action(
-            asset=asset,
-            base_rule=row["base_rule"],
-            schedule_status=str(row.get("schedule_status") or ""),
-            source="maintenance_schedule",
-        )
-        row["primary_action_label"] = primary_action["label"]
-        row["primary_action_url"] = primary_action["url"]
-        row["contracts_url"] = _assistance_contracts_page_url(asset_id=asset.id)
-        row["suggestions"] = _contextual_maintenance_suggestions(
-            asset=asset,
-            schedule_row=row,
-            contract=primary_contract,
-            source="maintenance_schedule",
-        )
-
-        # Filtri non-stato prima (copertura/ricerca), cosi il conteggio "senza storico"
-        # riflette il sottoinsieme realmente pertinente.
-        if coverage_filter == "covered" and not row["is_covered"]:
-            continue
-        if coverage_filter == "uncovered" and row["is_covered"]:
-            continue
-        if execution_filter == "internal" and row["base_rule"].is_external:
-            continue
-        if execution_filter == "external" and not row["base_rule"].is_external:
-            continue
-        if q:
-            q_value = q.casefold()
-            searchable_chunks = [
-                asset.asset_tag,
-                asset.name,
-                asset.reparto,
-                getattr(getattr(asset, "asset_category", None), "label", ""),
-                row["effective_intervention_template"].label,
-            ]
-            if not any(q_value in _clean_string(chunk).casefold() for chunk in searchable_chunks):
-                continue
-        status_value = str(row["schedule_status"] or "")
-        if status_value in status_totals:
-            status_totals[status_value] += 1
-
-        # Filtro stato per la tabella.
-        if status_filter == "due" and status_value not in {"overdue", "warning", "missing"}:
-            continue
-        if status_filter in {"overdue", "warning", "upcoming", "missing"} and status_value != status_filter:
-            continue
-        if status_filter == "attive":
-            far_upcoming = (
-                status_value == "upcoming"
-                and isinstance(row.get("days_until_due"), int)
-                and row["days_until_due"] > ATTIVE_HORIZON_DAYS
-            )
-            if status_value == "missing" or far_upcoming:
-                attive_hidden_total += 1
-                continue
-        filtered_rows.append(row)
-
-    # Ordine di default pensato per il manutentore: prima le SCADUTE (più in ritardo
-    # in cima), poi in warning, poi pianificate (più vicine prima), infine "mai eseguite".
-    # È solo l'ordine iniziale: l'utente può comunque riordinare dalle intestazioni.
-    _SCHEDULE_STATUS_ORDER = {"overdue": 0, "warning": 1, "upcoming": 2, "missing": 3}
-    filtered_rows.sort(
-        key=lambda r: (
-            _SCHEDULE_STATUS_ORDER.get(str(r.get("schedule_status") or ""), 9),
-            r["days_until_due"] if isinstance(r.get("days_until_due"), int) else 10 ** 9,
-        )
-    )
-
-    calendar_event_map: dict[tuple[int, int, date], list[AssetCalendarEvent]] = defaultdict(list)
-    if filtered_rows:
-        asset_ids = set()
-        base_rule_ids = set()
-        due_dates = set()
-        for row in filtered_rows:
-            due_date = row.get("due_date")
-            if not isinstance(due_date, date):
-                continue
-            asset_ids.add(row["asset"].id)
-            base_rule_ids.add(row["base_rule"].id)
-            due_dates.add(due_date)
-        if asset_ids and base_rule_ids and due_dates:
-            for entry in (
-                AssetCalendarEvent.objects.filter(
-                    event_kind=AssetCalendarEvent.KIND_MAINTENANCE,
-                    asset_id__in=asset_ids,
-                    maintenance_rule_id__in=base_rule_ids,
-                    due_date__in=due_dates,
-                )
-                .order_by("target_display_name", "target_email", "created_at", "id")
-            ):
-                if entry.maintenance_rule_id:
-                    calendar_event_map[(entry.asset_id, entry.maintenance_rule_id, entry.due_date)].append(entry)
-
-    schedule_today = timezone.localdate()
-    schedule_execution_cutoff = _periodic_execution_window_cutoff(
-        PERIODIC_EXECUTION_WINDOW_DEFAULT, today=schedule_today
-    )
-    # Storico esecuzioni in batch: una sola query per tutte le righe visibili (evita N+1).
-    exec_pairs = {(row["asset"].id, row["base_rule"].id) for row in filtered_rows}
-    exec_by_pair: dict[tuple[int, int], list[dict[str, object]]] = defaultdict(list)
-    if exec_pairs:
-        exec_wo_qs = WorkOrder.objects.select_related("asset", "supplier").filter(
-            asset_id__in={pair[0] for pair in exec_pairs},
-            maintenance_rule_id__in={pair[1] for pair in exec_pairs},
-            status=WorkOrder.STATUS_DONE,
-        )
-        if schedule_execution_cutoff is not None:
-            exec_wo_qs = exec_wo_qs.filter(closed_at__date__gte=schedule_execution_cutoff)
-        for workorder in exec_wo_qs.order_by("-closed_at", "-id"):
-            key = (workorder.asset_id, workorder.maintenance_rule_id)
-            if key in exec_pairs and len(exec_by_pair[key]) < 5:
-                exec_by_pair[key].append(_serialize_execution_workorder(workorder))
-
-    for row in filtered_rows:
-        due_date = row.get("due_date")
-        if isinstance(due_date, date):
-            row["calendar_event_rows"] = list(
-                calendar_event_map.get((row["asset"].id, row["base_rule"].id, due_date), [])
-            )
-        else:
-            row["calendar_event_rows"] = []
-        row["default_calendar_user_id"] = _asset_calendar_default_user_id(row["asset"], calendar_user_details)
-        row["execution_rows"] = exec_by_pair.get((row["asset"].id, row["base_rule"].id), [])
-        row["execution_count"] = len(row["execution_rows"])
-
-    # Checklist operativa del template per riga (Fase 2), batch anti-N+1.
-    from .models import MaintenanceChecklistStep
-
-    tmpl_ids = {
-        row["effective_intervention_template"].id
-        for row in filtered_rows
-        if row.get("effective_intervention_template")
-    }
-    steps_by_tmpl: dict[int, list] = defaultdict(list)
-    if tmpl_ids:
-        for step in MaintenanceChecklistStep.objects.filter(
-            intervention_template_id__in=tmpl_ids
-        ).order_by("step_number", "id"):
-            steps_by_tmpl[step.intervention_template_id].append(step)
-    for row in filtered_rows:
-        tmpl = row.get("effective_intervention_template")
-        row["checklist_steps"] = steps_by_tmpl.get(tmpl.id, []) if tmpl else []
-
-    reparto_options = [
-        value
-        for value in Asset.objects.exclude(reparto="")
-        .order_by("reparto")
-        .values_list("reparto", flat=True)
-        .distinct()
-    ]
-
-    # --- Look-ahead 90 giorni (raggruppato per settimana) ---
-    lookahead_rows = _build_maintenance_lookahead_rows(
-        asset_queryset=asset_qs,
-        today=schedule_today,
-        days=90,
-    )
-
-    # --- Scadenze amministrative nella schedule (filtrate coerentemente) ---
-    admin_deadline_qs = (
-        AssetAdministrativeDeadline.objects.filter(is_active=True)
-        .select_related("asset", "asset__asset_category")
-        .order_by("due_date", "asset__name", "title")
-    )
-    if selected_asset is not None:
-        admin_deadline_qs = admin_deadline_qs.filter(asset=selected_asset)
-    if category_id:
-        admin_deadline_qs = admin_deadline_qs.filter(asset__asset_category_id=category_id)
-    if reparto_filter:
-        admin_deadline_qs = admin_deadline_qs.filter(asset__reparto__iexact=reparto_filter)
-    if q:
-        admin_deadline_qs = admin_deadline_qs.filter(
-            Q(title__icontains=q) | Q(asset__asset_tag__icontains=q) | Q(asset__name__icontains=q)
-        )
-    admin_deadline_rows = []
-    for dl in admin_deadline_qs[:200]:
-        days_left = dl.days_until_due(reference_date=schedule_today)
-        if days_left is None:
-            dl_status = "missing"
-        elif days_left < 0:
-            dl_status = "overdue"
-        elif days_left <= dl.warning_days:
-            dl_status = "warning"
-        else:
-            dl_status = "upcoming"
-        if status_filter == "due" and dl_status not in {"overdue", "warning", "missing"}:
-            continue
-        if status_filter == "attive" and dl_status == "missing":
-            continue
-        if status_filter in {"overdue", "warning", "upcoming", "missing"} and dl_status != status_filter:
-            continue
-        admin_deadline_rows.append({
-            "deadline": dl,
-            "days_left": days_left,
-            "schedule_status": dl_status,
-            "asset_detail_url": reverse("assets:asset_view", kwargs={"id": dl.asset_id}),
-        })
-
-    periodic_schedule_rows = _maintenance_schedule_periodic_rows(
-        asset_queryset=asset_qs,
-        status_filter=status_filter,
-        q=q,
-        today=schedule_today,
-    )
-    periodic_overdue = sum(1 for row in periodic_schedule_rows if row["schedule_status"] == "overdue")
-    periodic_warning = sum(1 for row in periodic_schedule_rows if row["schedule_status"] == "warning")
-    periodic_upcoming = sum(1 for row in periodic_schedule_rows if row["schedule_status"] == "upcoming")
-    periodic_missing = sum(1 for row in periodic_schedule_rows if row["schedule_status"] == "missing")
-
-    # ── Selettore viste (Lista / Board / Per macchina) ────────────────────────
-    vista = _clean_string(request.GET.get("vista")) or "lista"
-    if vista not in ("lista", "board", "macchina"):
-        vista = "lista"
-
-    def _vista_url(target: str) -> str:
-        params = request.GET.copy()
-        params["vista"] = target
-        return f"{request.path}?{params.urlencode()}"
-
-    vista_urls = {v: _vista_url(v) for v in ("lista", "board", "macchina")}
-    # Board: colonne per stato (le righe portano già tutti i dati per la card).
-    board_columns = [
-        {"key": "overdue", "label": "Scadute", "rows": [r for r in filtered_rows if r.get("schedule_status") == "overdue"]},
-        {"key": "warning", "label": "In scadenza", "rows": [r for r in filtered_rows if r.get("schedule_status") == "warning"]},
-        {"key": "upcoming", "label": "Pianificate", "rows": [r for r in filtered_rows if r.get("schedule_status") == "upcoming"]},
-    ]
-    # Per macchina: raggruppa le righe per asset, con lo stato peggiore in testa.
-    _status_rank = {"overdue": 0, "warning": 1, "missing": 2, "upcoming": 3}
-    machine_map: dict[int, dict[str, object]] = {}
-    for r in filtered_rows:
-        asset_obj = r["asset"]
-        grp = machine_map.setdefault(
-            asset_obj.id,
-            {"asset": asset_obj, "rows": [], "overdue": 0, "warning": 0, "asset_detail_url": r.get("asset_detail_url")},
-        )
-        grp["rows"].append(r)
-        if r.get("schedule_status") == "overdue":
-            grp["overdue"] = int(grp["overdue"]) + 1
-        elif r.get("schedule_status") == "warning":
-            grp["warning"] = int(grp["warning"]) + 1
-    machine_groups = sorted(
-        machine_map.values(),
-        key=lambda g: (
-            -int(g["overdue"]), -int(g["warning"]),
-            str(getattr(g["asset"], "reparto", "") or ""), str(getattr(g["asset"], "name", "") or ""),
-        ),
-    )
-
-    return render(
-        request,
-        "assets/pages/maintenance_schedule.html",
-        {
-            "page_title": "Prossime manutenzioni",
-            "selected_asset": selected_asset,
-            "vista": vista,
-            "vista_urls": vista_urls,
-            "board_columns": board_columns,
-            "machine_groups": machine_groups,
-            "schedule_rows": filtered_rows,
-            "schedule_total": len(filtered_rows),
-            "periodic_schedule_rows": periodic_schedule_rows,
-            "periodic_schedule_total": len(periodic_schedule_rows),
-            "overdue_count": status_totals["overdue"] + periodic_overdue,
-            "warning_count": status_totals["warning"] + periodic_warning,
-            "upcoming_count": status_totals["upcoming"] + periodic_upcoming,
-            "missing_count": status_totals["missing"] + periodic_missing,
-            "attive_hidden_total": attive_hidden_total,
-            "show_all_status_url": _query_url(request, status="all"),
-            "covered_count": sum(1 for row in filtered_rows if row["is_covered"]),
-            "uncovered_count": sum(1 for row in filtered_rows if not row["is_covered"]),
-            "category_options": AssetCategory.objects.filter(is_active=True).order_by("sort_order", "label", "id"),
-            "selected_category_id": category_id,
-            "reparto_options": reparto_options,
-            "reparto_filter": reparto_filter,
-            "status_filter": status_filter,
-            "status_choices": _maintenance_schedule_status_choices(),
-            "coverage_filter": coverage_filter,
-            "execution_filter": execution_filter,
-            "execution_choices": [
-                ("all", "Tutte"),
-                ("internal", "Interne"),
-                ("external", "Esterne (ditta terza)"),
-            ],
-            "q": q,
-            "clear_filters_url": _maintenance_schedule_page_url(asset_id=selected_asset.id if selected_asset else 0),
-            "can_manage_outlook_calendar": can_manage_outlook_calendar,
-            "can_manage_assets": _is_assets_admin(request),
-            "outlook_calendar_ready": _outlook_calendar_graph_ready() if can_manage_outlook_calendar else False,
-            "calendar_user_choices": calendar_user_choices,
-            "today_iso": schedule_today.isoformat(),
-            "lookahead_rows": lookahead_rows,
-            "admin_deadline_rows": admin_deadline_rows,
-            "admin_deadline_total": len(admin_deadline_rows),
-            **_assets_shell_context(
-                request,
-                rows=_as_int(request.GET.get("rows"), default=25),
-                search_action=_maintenance_schedule_page_url(asset_id=selected_asset.id if selected_asset else 0),
-                new_url=reverse("assets:asset_create"),
-                new_label="+ Nuovo asset",
-                search_placeholder="Ricerca manutenzioni per asset, reparto o intervento",
-            ),
-        },
-    )
+    """Ritirata: la superficie del vecchio motore rimanda a quella nuova."""
+    return redirect("assets:maintenance_scadenze")
 
 
 @login_required
@@ -13815,9 +13127,15 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
         return redirect(f"{reverse('assets:periodic_verifications')}?{query.urlencode()}")
 
     if selected_asset is not None and selected_asset.asset_type not in periodic_asset_types:
-        query = request.GET.copy()
-        query["scope"] = "it" if selected_asset.asset_type in IT_DEVICE_TYPES else "production"
-        return redirect(f"{reverse('assets:periodic_verifications')}?{query.urlencode()}")
+        target_scope = "it" if selected_asset.asset_type in IT_DEVICE_TYPES else "production"
+        # Rimbalzare sullo scope da cui si arriva significherebbe redirigere
+        # sulla stessa URL all'infinito (ERR_TOO_MANY_REDIRECTS): si redirige
+        # solo verso uno scope diverso, altrimenti si resta e si mostra la
+        # pagina con il filtro asset attivo.
+        if target_scope != periodic_scope:
+            query = request.GET.copy()
+            query["scope"] = target_scope
+            return redirect(f"{reverse('assets:periodic_verifications')}?{query.urlencode()}")
 
     edit_id = _as_int(request.POST.get("edit_id") or request.GET.get("edit"), default=0)
     edit_verification = None
@@ -15552,6 +14870,51 @@ def workorder_create(request: HttpRequest, id: int | None = None) -> HttpRespons
     )
 
 
+def _workorder_occurrences_context(request: HttpRequest, workorder: WorkOrder) -> dict[str, object]:
+    """Contesto del pannello "manutenzioni raccolte" del nuovo dominio.
+
+    Vive qui e non in ``views_maintenance`` perche' e' il dettaglio OdL storico a
+    doverlo mostrare; la dipendenza fra i due moduli resta a senso unico.
+    """
+    from .forms_maintenance import ExecutionDayForm
+    from .models import MaintenanceOccurrence
+    from .services import maintenance_domain as maintenance_dom
+    from .views_maintenance import can_execute_maintenance, can_plan_maintenance
+
+    occurrences = list(
+        MaintenanceOccurrence.objects.filter(work_order=workorder)
+        .select_related("plan", "asset", "assignment", "execution_day")
+        .prefetch_related("attachments")
+        .order_by("execution_day__execution_date", "due_date", "asset__asset_tag")
+    )
+    if not occurrences:
+        return {"wo_occurrence_rows": [], "wo_occurrence_progress": None}
+
+    today = timezone.localdate()
+    rows = []
+    for occurrence in occurrences:
+        payload = maintenance_dom.occurrence_state_payload(occurrence, today=today)
+        rows.append({"occurrence": occurrence, **payload})
+
+    by_day: dict[object, list[dict[str, object]]] = {}
+    for row in rows:
+        by_day.setdefault(row["occurrence"].execution_day, []).append(row)
+    day_groups = sorted(
+        ({"day": day, "rows": items} for day, items in by_day.items()),
+        key=lambda group: (group["day"] is None, getattr(group["day"], "execution_date", date.max)),
+    )
+
+    return {
+        "wo_occurrence_rows": rows,
+        "wo_occurrence_day_groups": day_groups,
+        "wo_occurrence_progress": maintenance_dom.workorder_progress(workorder),
+        "wo_execution_day_form": ExecutionDayForm(),
+        "wo_can_plan_maintenance": can_plan_maintenance(request),
+        "wo_can_execute_maintenance": can_execute_maintenance(request),
+    }
+
+
+
 @login_required
 def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
     if id is None:
@@ -15709,6 +15072,10 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
             "checklist_done_count": checklist_done_count,
             "checklist_total": len(checklist_items),
             "execution_days": execution_days,
+            # Pannello del nuovo dominio: le manutenzioni raccolte in questo OdL.
+            # Un OdL massivo va letto per asset, non come un blocco unico.
+            **_workorder_occurrences_context(request, workorder),
+            **_checklist_followup_context(request, workorder, checklist_items),
             "duration_hours": duration_hours,
             "duration_remainder": duration_remainder,
             "downtime_hours": downtime_hours,
@@ -15754,6 +15121,84 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
     )
 
 
+def _asset_maintenance_plans_context(asset) -> dict[str, object]:
+    """I piani del nuovo dominio che riguardano questo asset, per la sua scheda.
+
+    Finche' vivevano solo in una pagina a parte, chi apriva la scheda di una
+    macchina non poteva sapere quali manutenzioni la riguardassero: la domanda
+    piu' ovvia davanti a un asset.
+    """
+    from .models import MaintenanceOccurrence
+    from .services import maintenance_domain as maintenance_dom
+
+    resolutions = maintenance_dom.resolve_asset_plans(asset)
+    if not resolutions:
+        return {"asset_plan_rows": [], "asset_plan_conflict_count": 0}
+
+    next_by_plan: dict[int, MaintenanceOccurrence] = {}
+    for occurrence in (
+        MaintenanceOccurrence.objects.filter(
+            asset=asset, status=MaintenanceOccurrence.STATUS_OPEN
+        )
+        .select_related("work_order")
+        .order_by("due_date")
+    ):
+        next_by_plan.setdefault(occurrence.plan_id, occurrence)
+
+    today = timezone.localdate()
+    rows = []
+    for resolution in resolutions:
+        occurrence = next_by_plan.get(resolution.plan.pk)
+        rows.append(
+            {
+                "resolution": resolution,
+                "occurrence": occurrence,
+                "state": maintenance_dom.occurrence_state_payload(occurrence, today=today)
+                if occurrence is not None
+                else None,
+            }
+        )
+    return {
+        "asset_plan_rows": rows,
+        "asset_plan_conflict_count": sum(1 for row in rows if row["resolution"].is_conflict),
+    }
+
+
+def _checklist_followup_context(request: HttpRequest, workorder: WorkOrder, items) -> dict[str, object]:
+    """Da quale step si puo' aprire un follow-up, e su quale asset.
+
+    Uno step fuori range o saltato con motivazione e' il momento in cui l'anomalia
+    si vede: se il pulsante non e' li', il follow-up si apre dopo, a memoria, o non
+    si apre affatto. Il follow-up del nuovo dominio nasce pero' da un'occorrenza,
+    quindi serve sapere *su quale macchina*: su un OdL massivo la checklist e' una
+    sola ma gli asset sono molti, e sceglierne uno d'ufficio sarebbe un'invenzione.
+    """
+    from .models import MaintenanceOccurrence
+    from .views_maintenance import can_execute_maintenance
+
+    if not can_execute_maintenance(request):
+        return {"checklist_followup_occurrences": [], "checklist_followups_by_item": {}}
+
+    occurrences = list(
+        MaintenanceOccurrence.objects.filter(work_order=workorder)
+        .select_related("asset", "plan")
+        .order_by("asset__asset_tag")
+    )
+    existing = {
+        follow_up.follow_up_checklist_item_id: follow_up
+        for follow_up in WorkOrder.objects.filter(
+            follow_up_checklist_item__in=[item.id for item in items]
+        ).only("id", "title", "status", "follow_up_checklist_item")
+    }
+    for item in items:
+        # Attributo sul singolo step: il template non deve fare lookup in un dict.
+        item.existing_follow_up = existing.get(item.id)
+    return {
+        "checklist_followup_occurrences": occurrences,
+        "checklist_followups_by_item": existing,
+    }
+
+
 def _render_checklist_fragment(request: HttpRequest, workorder: WorkOrder) -> HttpResponse:
     items = list(
         workorder.checklist_items.select_related("done_by", "skipped_by").prefetch_related("photos").order_by("step_number", "id")
@@ -15768,6 +15213,7 @@ def _render_checklist_fragment(request: HttpRequest, workorder: WorkOrder) -> Ht
             "checklist_done_count": done_count,
             "checklist_total": len(items),
             "is_open": workorder.status == WorkOrder.STATUS_OPEN,
+            **_checklist_followup_context(request, workorder, items),
         },
     )
 
@@ -16037,8 +15483,8 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
                         for execution_day in execution_days
                     ]
                 )
-                if workorder.status == WorkOrder.STATUS_DONE and workorder.maintenance_rule_id:
-                    sync_workorder_maintenance_state(workorder)
+                # Lo stato del vecchio motore non viene piu' alimentato:
+                # l'ultima esecuzione si legge dalle occorrenze eseguite.
 
                 author = request.user if request.user.is_authenticated else None
                 follow_up_child = None
@@ -16834,10 +16280,8 @@ def maintenance_hub(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def maintenance_scadenzario(request: HttpRequest) -> HttpResponse:
-    """Deprecata: lo scadenzario unico è ora /prossime/ (maintenance_schedule).
-    Redirige lì preservando il filtro reparto."""
-    reparto_filter = _clean_string(request.GET.get("reparto"))
-    return redirect(_maintenance_schedule_page_url(reparto=reparto_filter), permanent=True)
+    """Ritirata: la superficie del vecchio motore rimanda a quella nuova."""
+    return redirect("assets:maintenance_scadenze")
 
 
 def _maintenance_supplier_rows() -> list[dict[str, object]]:
@@ -16965,47 +16409,10 @@ def maintenance_impostazioni(request: HttpRequest) -> HttpResponse:
     if _clean_string(request.GET.get("tab")) == "fornitori":
         return redirect("assets:maintenance_suppliers")
 
-    # POST: genera in blocco gli OdL delle manutenzioni in scadenza di una categoria
-    # (riusa il comando periodico scoped alla categoria; dedup su OdL aperti, checklist inclusa).
-    if request.method == "POST" and _clean_string(request.POST.get("action")) == "generate_workorders":
-        piano_url = reverse("assets:maintenance_impostazioni") + "?tab=piano"
-        if not _is_assets_admin(request):
-            messages.error(request, "Solo admin può generare OdL di manutenzione.")
-            return redirect(piano_url)
-        cat_id = _as_int(request.POST.get("category_id"), default=0)
-        category = AssetCategory.objects.filter(pk=cat_id).first() if cat_id else None
-        if category is None:
-            messages.error(request, "Categoria non valida.")
-            return redirect(piano_url)
-        import re as _re
-        from io import StringIO as _StringIO
-
-        from django.core.management import call_command as _call_command
-
-        buf = _StringIO()
-        try:
-            _call_command("generate_scheduled_workorders", category=cat_id, limit=200, stdout=buf)
-        except Exception as exc:  # pragma: no cover - dipende dai dati
-            messages.error(request, f"Generazione OdL fallita: {exc}")
-            return redirect(piano_url)
-        text = buf.getvalue()
-        m_created = _re.search(r"Creati=(\d+)", text)
-        m_open = _re.search(r"GiaAperti=(\d+)", text)
-        created = int(m_created.group(1)) if m_created else 0
-        already = int(m_open.group(1)) if m_open else 0
-        log_action(request, "bulk_generate_workorders", "assets", {"category_id": cat_id, "created": created})
-        if created:
-            messages.success(
-                request,
-                f"Creati {created} ordini di lavoro per «{category.label}»"
-                + (f" ({already} già aperti, saltati)." if already else "."),
-            )
-        else:
-            messages.info(
-                request,
-                f"Nessun nuovo OdL per «{category.label}»: le manutenzioni in scadenza hanno già un intervento aperto.",
-            )
-        return redirect(piano_url)
+    # La generazione in blocco degli OdL dal vecchio motore e' stata ritirata: le
+    # scadenze nascono dalle occorrenze (generate_maintenance_occurrences) e il
+    # raggruppamento in ordini di lavoro si fa dalla pagina "Da fare", scegliendo
+    # cosa mettere insieme invece di aprirne uno per asset.
 
     active_tab = _clean_string(request.GET.get("tab")) or "catalogo"
     active_tab = {
@@ -17014,8 +16421,9 @@ def maintenance_impostazioni(request: HttpRequest) -> HttpResponse:
         "rules": "piani",
         "piano": "copertura",
     }.get(active_tab, active_tab)
-    if active_tab not in ("catalogo", "piani", "copertura"):
-        active_tab = "catalogo"
+    # Le schede "piani" e "copertura" avevano superfici proprie nel nuovo dominio:
+    # qui resta il solo catalogo delle attivita', il resto e' un rimando.
+    active_tab = "catalogo"
     is_admin = _is_assets_admin(request)
 
     from .models import MaintenanceInterventionTemplate
@@ -17187,73 +16595,8 @@ def maintenance_impostazioni(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def maintenance_coverage_matrix(request: HttpRequest) -> HttpResponse:
-    """Righe = asset, colonne = tipo intervento: dove la tab 'Copertura' aggrega per
-    categoria, qui si vede l'asset singolo — buchi (nessuna regola copre l'incrocio) e
-    sovrapposizioni (piu' regole attive sullo stesso incrocio, causa nota dei duplicati
-    del generatore) a colpo d'occhio, invece di scoprirli aprendo ogni asset."""
-    if not _is_assets_admin(request):
-        messages.error(request, "Solo admin puo gestire le regole manutenzione.")
-        return redirect("assets:asset_list")
-
-    type_labels = dict(MaintenanceInterventionTemplate.MAINTENANCE_TYPE_CHOICES)
-    rows = build_day_based_maintenance_schedule_rows(
-        asset_queryset=Asset.objects.filter(status=Asset.STATUS_IN_USE).select_related(
-            "asset_category"
-        )
-    )
-
-    by_asset: dict[int, dict[str, Any]] = {}
-    columns_seen: dict[str, str] = {}
-    for row in rows:
-        asset = row["asset"]
-        template = row.get("effective_intervention_template")
-        col_key = getattr(template, "maintenance_type", None) or MaintenanceInterventionTemplate.TYPE_OTHER
-        columns_seen.setdefault(col_key, type_labels.get(col_key, col_key))
-        entry = by_asset.setdefault(asset.id, {"asset": asset, "cells": {}})
-        entry["cells"].setdefault(col_key, []).append(row)
-
-    columns = sorted(columns_seen.items(), key=lambda kv: kv[1])
-
-    matrix_rows = []
-    for entry in by_asset.values():
-        asset = entry["asset"]
-        cells = []
-        for col_key, _label in columns:
-            cell_rows = entry["cells"].get(col_key, [])
-            if not cell_rows:
-                cells.append({"state": "empty"})
-            elif len(cell_rows) > 1:
-                cells.append({"state": "overlap", "count": len(cell_rows), "rows": cell_rows})
-            else:
-                only_row = cell_rows[0]
-                cells.append(
-                    {
-                        "state": only_row["schedule_status"],
-                        "label": only_row["schedule_label"],
-                        "rows": cell_rows,
-                    }
-                )
-        matrix_rows.append({"asset": asset, "cells": cells})
-    matrix_rows.sort(key=lambda r: (r["asset"].reparto or "", r["asset"].name or "", r["asset"].id))
-
-    uncovered_assets = list(
-        Asset.objects.filter(status=Asset.STATUS_IN_USE)
-        .exclude(id__in=by_asset.keys())
-        .order_by("reparto", "name", "id")
-    )
-
-    return render(
-        request,
-        "assets/pages/maintenance_coverage_matrix.html",
-        {
-            "page_title": "Matrice di copertura",
-            "columns": columns,
-            "matrix_rows": matrix_rows,
-            "uncovered_assets": uncovered_assets,
-            "back_url": _maintenance_settings_page_url(request, tab="copertura"),
-            **_assets_shell_context(request),
-        },
-    )
+    """Ritirata: la superficie del vecchio motore rimanda a quella nuova."""
+    return redirect("assets:maintenance_coverage")
 
 
 @login_required
@@ -17316,10 +16659,8 @@ def maintenance_worksheet(request: HttpRequest, asset_id: int, rule_id: int) -> 
 
 @login_required
 def maintenance_todo(request: HttpRequest) -> HttpResponse:
-    """Deprecata: il 'to-do' è ora la tab 'da_fare' del Centro Manutenzione unificato."""
-    params = request.GET.copy()
-    params["tab"] = "da_fare"
-    return redirect(f"{reverse('assets:maintenance_hub')}?{params.urlencode()}", permanent=True)
+    """Ritirata: la superficie del vecchio motore rimanda a quella nuova."""
+    return redirect("assets:maintenance_da_fare")
 
 
 @login_required

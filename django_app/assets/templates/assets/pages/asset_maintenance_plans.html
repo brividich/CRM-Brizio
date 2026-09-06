@@ -1,0 +1,113 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Piani di manutenzione — {{ asset.asset_tag }}{% endblock %}
+
+{% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}{% endblock %}
+
+{% block assets_shell_title %}Piani di manutenzione{% endblock %}
+{% block assets_shell_subtitle %}
+  <p>{{ asset.asset_tag }} — {{ asset.name }}{% if asset.reparto %} · {{ asset.reparto }}{% endif %}</p>
+{% endblock %}
+
+{% block assets_shell_toolbar %}
+  <a class="btn" href="{% url 'assets:asset_view' asset.pk %}">Scheda asset</a>
+  <a class="btn" href="{% url 'assets:maintenance_plan_list' %}">Tutti i piani</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<div class="md-page">
+  <section class="md-section">
+    <div class="md-section-head"><h2>Piani che riguardano questo asset</h2><span class="md-badge badge-muted">{{ rows|length }}</span></div>
+    <div class="md-scroll">
+      <table class="md-table" data-fm-hide-search="1">
+        <thead>
+          <tr><th>Piano</th><th>Periodicita</th><th>Origine</th><th>Prossima scadenza</th>{% if can_manage %}<th class="md-right">Azioni</th>{% endif %}</tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+            {% with resolution=row.resolution %}
+            <tr>
+              <td>
+                <a class="md-asset" href="{% url 'assets:maintenance_plan_detail' resolution.plan.pk %}">{{ resolution.plan.label }}</a>
+                <span class="md-sub">{{ resolution.plan.get_maintenance_type_display }}</span>
+              </td>
+              <td>
+                {% if resolution.is_conflict %}
+                  <span class="md-badge badge-danger">Conflitto</span>
+                  <span class="md-sub">
+                    {% for item in resolution.conflict_description %}{{ item.target }}: {{ item.recurrence }}{% if not forloop.last %} · {% endif %}{% endfor %}
+                  </span>
+                {% elif resolution.is_excluded %}
+                  <span class="md-badge badge-muted">Non si applica</span>
+                {% else %}
+                  {{ resolution.recurrence_label }}
+                  {% if resolution.inherited_recurrence_label %}
+                    <span class="md-sub">Standard del gruppo: {{ resolution.inherited_recurrence_label }}</span>
+                  {% endif %}
+                {% endif %}
+              </td>
+              <td>
+                {% if resolution.source == "asset" and resolution.is_applied %}
+                  <span class="md-badge badge-info">Personalizzato</span>
+                {% elif resolution.is_excluded %}
+                  <span class="md-badge badge-muted">Escluso</span>
+                {% elif resolution.is_conflict %}
+                  <span class="md-sub">piu gruppi</span>
+                {% else %}
+                  <span class="md-sub">{{ resolution.source_label }}{% if resolution.assignment %} · {{ resolution.assignment.target_label }}{% endif %}</span>
+                {% endif %}
+              </td>
+              <td class="md-nowrap">
+                {% if row.next_due %}
+                  <span class="md-due {% if row.is_overdue %}is-late{% endif %}">{{ row.next_due|date:"d/m/Y" }}</span>
+                {% else %}
+                  <span class="md-sub">nessuna scadenza aperta</span>
+                {% endif %}
+              </td>
+              {% if can_manage %}
+                <td class="md-right md-nowrap">
+                  <a class="btn btn-sm" href="{% url 'assets:asset_plan_customize' asset.pk resolution.plan.pk %}">
+                    {% if resolution.source == "asset" %}Modifica{% else %}Personalizza{% endif %}
+                  </a>
+                </td>
+              {% endif %}
+            </tr>
+            {% endwith %}
+          {% empty %}
+            <tr><td colspan="{% if can_manage %}5{% else %}4{% endif %}" class="md-empty">
+              Nessun piano copre questo asset. Aggiungilo a un gruppo, oppure applica un piano direttamente all'asset.
+            </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="md-section">
+    <div class="md-section-head"><h2>Storico manutenzioni</h2><span class="md-badge badge-muted">{{ history|length }}</span></div>
+    <div class="md-scroll">
+      <table class="md-table" data-fm-hide-search="1">
+        <thead><tr><th>Scadenza teorica</th><th>Eseguita il</th><th>Piano</th><th>Da</th><th>Note</th><th>Rapporto</th></tr></thead>
+        <tbody>
+          {% for occ in history %}
+            <tr>
+              <td class="md-nowrap">{{ occ.due_date|date:"d/m/Y" }}</td>
+              <td class="md-nowrap">{{ occ.completed_on|date:"d/m/Y" }}</td>
+              <td>{{ occ.plan.label }}</td>
+              <td>{% if occ.completed_by %}{{ occ.completed_by.get_full_name|default:occ.completed_by.username }}{% else %}<span class="md-sub">—</span>{% endif %}</td>
+              <td>{{ occ.completion_notes|truncatechars:80 }}</td>
+              <td>
+                {% for attachment in occ.attachments.all %}
+                  <a href="{% url 'assets:occurrence_attachment_download' attachment.pk %}">{{ attachment.original_name|default:"allegato" }}</a>{% if not forloop.last %}, {% endif %}
+                {% empty %}<span class="md-sub">—</span>{% endfor %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6" class="md-empty">Nessuna esecuzione registrata su questo asset.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}

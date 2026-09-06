@@ -1,0 +1,45 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Gruppi di asset{% endblock %}
+
+{% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}{% endblock %}
+
+{% block assets_shell_title %}Gruppi di asset{% endblock %}
+{% block assets_shell_subtitle %}
+  <p>La famiglia operativa su cui si applicano i piani: TORNI, DMG MORI, MACCHINE REPARTO 1. Un asset puo' stare in piu' gruppi, cosa che la categoria non permette.</p>
+{% endblock %}
+
+{% block assets_shell_toolbar %}
+  <a class="btn" href="{% url 'assets:maintenance_plan_list' %}">Piani</a>
+  {% if can_manage %}<a class="btn btn-primary" href="{% url 'assets:asset_group_create' %}">+ Nuovo gruppo</a>{% endif %}
+{% endblock %}
+
+{% block assets_shell_content %}
+<div class="md-page">
+  <section class="md-section">
+    <div class="md-section-head"><h2>Gruppi</h2><span class="md-badge badge-muted">{{ groups|length }}</span></div>
+    <div class="md-scroll">
+      <table class="md-table" data-fm-hide-search="1">
+        <thead><tr><th>Gruppo</th><th>Descrizione</th><th class="md-right">Asset</th><th class="md-right">Piani applicati</th><th>Stato</th></tr></thead>
+        <tbody>
+          {% for group in groups %}
+            <tr>
+              <td>
+                {% if can_manage %}<a class="md-asset" href="{% url 'assets:asset_group_edit' group.pk %}">{{ group.label }}</a>
+                {% else %}<strong>{{ group.label }}</strong>{% endif %}
+                <span class="md-sub">{{ group.code }}</span>
+              </td>
+              <td>{{ group.description|default:"" }}</td>
+              <td class="md-right">{{ group.member_count }}</td>
+              <td class="md-right">{{ group.plan_count }}</td>
+              <td>{% if group.is_active %}<span class="md-badge badge-success">Attivo</span>{% else %}<span class="md-badge badge-muted">Non attivo</span>{% endif %}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5" class="md-empty">Nessun gruppo. {% if can_manage %}<a href="{% url 'assets:asset_group_create' %}">Creane uno</a>.{% endif %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}

@@ -717,6 +717,13 @@ PRODUCTION_ASSET_TYPES = [
     Asset.TYPE_CARROPONTE,
 ]
 
+# Complemento di IT_DEVICE_TYPES: tutto cio' che non e' un dispositivo IT.
+# La manutenzione periodica deve poter coprire QUALSIASI asset, quindi lo scope
+# "non IT" non puo' essere una whitelist di tre tipi (CNC/macchina/carroponte):
+# lascerebbe fuori impianti generici (TYPE_OTHER), prodotti chimici e ogni tipo
+# aggiunto in futuro. Derivandolo da TYPE_CHOICES la copertura resta totale.
+NON_IT_ASSET_TYPES = [v for v, _label in Asset.TYPE_CHOICES if v not in IT_DEVICE_TYPES]
+
 IT_DEVICE_TYPE_CHOICES = [
     (v, label) for v, label in Asset.TYPE_CHOICES
     if v in IT_DEVICE_TYPES
@@ -1112,6 +1119,15 @@ class MaintenanceRuleForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Le soglie a contatore (ore/km/cicli) escono dal flusso manutentivo: senza
+        # letture attendibili producevano scadenze false presentate come verdi. Non si
+        # possono piu' creare; le regole esistenti restano leggibili finche' il vecchio
+        # motore non viene ritirato del tutto.
+        self.fields["threshold_type"].choices = [
+            (value, label)
+            for value, label in MaintenanceRule.THRESHOLD_TYPE_CHOICES
+            if value == MaintenanceRule.THRESHOLD_DAYS
+        ]
         current_category_id = getattr(self.instance, "asset_category_id", None)
         selected_category_id = None
         if self.is_bound:
@@ -1370,6 +1386,11 @@ class MaintenanceRuleAssetOverrideForm(forms.ModelForm):
         self.fields["override_intervention_template"].queryset = template_qs.order_by("sort_order", "label", "id")
 
         self.fields["override_threshold_type"].required = False
+        self.fields["override_threshold_type"].choices = [
+            choice
+            for choice in self.fields["override_threshold_type"].choices
+            if choice[0] in ("", None, MaintenanceRule.THRESHOLD_DAYS)
+        ]
         self.fields["override_threshold_value"].required = False
         self.fields["asset"].help_text = "Asset su cui applicare la personalizzazione."
         self.fields["base_rule"].help_text = "Regola standard ereditata dalla categoria dell'asset."
