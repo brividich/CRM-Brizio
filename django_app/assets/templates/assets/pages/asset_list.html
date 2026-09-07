@@ -7,7 +7,7 @@
 <style>
 .content { padding: 0 !important; max-width: none !important; width: 100% !important; margin: 0 !important; }
 .dash { display: grid; grid-template-columns: 230px 1fr; align-items: stretch; border: 1px solid #dbe3f0; border-radius: 0; overflow: hidden; background: #f4f7fc; }
-.side { align-self: stretch; background: #f8fbff; border-right: 1px solid #dbe3f0; padding: 14px; display: grid; grid-template-rows: auto 1fr auto; gap: 12px; }
+.side { align-self: stretch; background: #f8fbff; border-right: 1px solid #dbe3f0; padding: 14px; display: grid; grid-template-rows: auto auto 1fr auto; gap: 10px; }
 .brand { display: flex; align-items: center; gap: 10px; }
 .logo { width: 34px; height: 34px; border-radius: 9px; background: #1f64d8; color: #fff; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; }
 .logo img { width: 100%; height: 100%; object-fit: cover; border-radius: 9px; }
@@ -15,6 +15,24 @@
 .name { font-size: var(--fs-display-lg); font-weight: 800; color: #0f172a; }
 .name span { color: #1f64d8; }
 .menu { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 4px; }
+.menu-filter { position: relative; display: flex; align-items: center; }
+.menu-filter input {
+  width: 100%; height: 30px; border: 1px solid #dbe3f0; border-radius: 8px; background: #fff;
+  padding: 0 26px; font-family: inherit; font-size: var(--fs-xs); color: #24395e; outline: none;
+}
+.menu-filter input:focus { border-color: #93b4e8; box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+.menu-filter input::-webkit-search-cancel-button { display: none; }
+.menu-filter-icon { position: absolute; left: 8px; font-size: var(--fs-2xs); color: #8ea2bf; pointer-events: none; }
+.menu-filter-clear {
+  position: absolute; right: 4px; width: 20px; height: 20px; border: 0; border-radius: 6px;
+  background: transparent; color: #8ea2bf; cursor: pointer; line-height: 1; font-size: var(--fs-sm);
+}
+.menu-filter-clear:hover { background: #edf3fc; color: #1f64d8; }
+.menu-empty { margin: 8px 4px; font-size: var(--fs-xs); color: #8ea2bf; }
+.menu [hidden] { display: none !important; }
+body.theme-dark .menu-filter input { background: var(--surface); border-color: var(--border); color: var(--text); }
+body.theme-dark .menu-filter-icon, body.theme-dark .menu-empty, body.theme-dark .menu-filter-clear { color: var(--text-light); }
+body.theme-dark .menu-filter-clear:hover { background: rgba(255,255,255,.07); color: #60a5fa; }
 .mh { font-size: var(--fs-2xs); color: #8ea2bf; text-transform: uppercase; letter-spacing: .08em; margin: 7px 4px; font-weight: 700; }
 .ma, .ms { display: block; color: #24395e; text-decoration: none; border-radius: 8px; padding: 5px 8px; font-weight: 600; line-height: 1.1; font-size: var(--fs-sm); }
 .ma:hover, .ms:hover { background: #edf3fc; }
@@ -508,6 +526,11 @@ body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid);
       <span class="logo">{% if assets_logo_url %}<img src="{{ assets_logo_url }}" alt="Logo">{% else %}A{% endif %}</span>
       <div class="name">Inven<span>tario</span></div>
     </a>
+    <div class="menu-filter">
+      <span class="menu-filter-icon" aria-hidden="true">&#128269;</span>
+      <input type="search" placeholder="Filtra il menu" autocomplete="off" aria-label="Filtra le voci del menu" data-li-nav-filter>
+      <button type="button" class="menu-filter-clear" aria-label="Azzera filtro" data-li-nav-filter-clear hidden>&times;</button>
+    </div>
     <nav class="menu">
       {% for group in assets_sidebar_groups %}
         <div class="mh">{{ group.label }}</div>
@@ -531,6 +554,7 @@ body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid);
           {% endif %}
         {% endfor %}
       {% endfor %}
+      <p class="menu-empty" data-li-nav-empty hidden>Nessuna voce corrisponde.</p>
     </nav>
     {% if can_gestione_admin %}
     <a class="ma" href="{% url 'assets:gestione_admin' %}" style="background:#eef2ff;color:#1f64d8;font-weight:700;">&#9881; Impostazioni</a>
@@ -1859,6 +1883,80 @@ body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid);
         setGroupOpen(group, shouldOpen);
       });
     });
+
+    // Filtro voci: con oltre venti voci di primo livello, scorrere costa piu'
+    // che scrivere. Nasconde e basta, non riordina.
+    var nav = document.querySelector(".menu");
+    var input = document.querySelector("[data-li-nav-filter]");
+    var clear = document.querySelector("[data-li-nav-filter-clear]");
+    var empty = document.querySelector("[data-li-nav-empty]");
+    if (!nav || !input) return;
+    var openBeforeFilter = null;
+
+    function normalize(text) {
+      return (text || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+    }
+
+    function applyFilter(raw) {
+      var query = normalize(raw);
+      var pendingHead = null;
+      var headHasVisible = false;
+      var anyVisible = false;
+
+      Array.prototype.slice.call(nav.children).forEach(function (node) {
+        if (node === empty) return;
+        if (node.classList.contains("mh")) {
+          if (pendingHead) { pendingHead.hidden = !headHasVisible; }
+          pendingHead = node;
+          headHasVisible = false;
+          return;
+        }
+        var visible;
+        if (node.classList.contains("li-nav-group")) {
+          var parentLink = node.querySelector(".li-nav-parent .ma");
+          var parentMatch = !query || normalize(parentLink && parentLink.textContent).indexOf(query) !== -1;
+          var childMatches = 0;
+          Array.prototype.slice.call(node.querySelectorAll(".li-nav-children .ms")).forEach(function (child) {
+            var hit = !query || parentMatch || normalize(child.textContent).indexOf(query) !== -1;
+            child.hidden = !hit;
+            if (hit && query && !parentMatch) { childMatches += 1; }
+          });
+          visible = parentMatch || childMatches > 0;
+          if (query && visible) { setGroupOpen(node, true); }
+        } else {
+          visible = !query || normalize(node.textContent).indexOf(query) !== -1;
+        }
+        node.hidden = !visible;
+        if (visible) { headHasVisible = true; anyVisible = true; }
+      });
+
+      if (pendingHead) { pendingHead.hidden = !headHasVisible; }
+      if (empty) { empty.hidden = anyVisible; }
+      if (clear) { clear.hidden = !query; }
+    }
+
+    function resetFilter() {
+      input.value = "";
+      applyFilter("");
+      groups.forEach(function (group) { setGroupOpen(group, group === openBeforeFilter); });
+      openBeforeFilter = null;
+    }
+
+    input.addEventListener("input", function () {
+      if (openBeforeFilter === null) {
+        openBeforeFilter = groups.filter(function (g) { return g.classList.contains("open"); })[0] || false;
+      }
+      if (!input.value) { resetFilter(); return; }
+      applyFilter(input.value);
+    });
+
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { resetFilter(); input.blur(); }
+    });
+
+    if (clear) {
+      clear.addEventListener("click", function () { resetFilter(); input.focus(); });
+    }
   });
 })();
 </script>

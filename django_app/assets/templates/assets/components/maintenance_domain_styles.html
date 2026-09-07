@@ -52,6 +52,17 @@
 .md-section.is-urgent .md-section-head { background:rgba(220,38,38,.07); }
 .md-section.is-warn { border-color:#fcd34d; }
 .md-section.is-warn .md-section-head { background:rgba(217,119,6,.09); }
+/* Sezione apribile: il titolo diventa il comando, senza aggiungere bottoni. */
+details.md-section > summary.md-section-head { cursor:pointer; list-style:none; }
+details.md-section > summary.md-section-head::-webkit-details-marker { display:none; }
+details.md-section > summary.md-section-head:before {
+  content:"▸"; color:var(--text-mid,#8ea2bf); font-size:var(--fs-sm); transition:transform .15s ease;
+}
+details.md-section[open] > summary.md-section-head:before { transform:rotate(90deg); }
+details.md-section:not([open]) > summary.md-section-head { border-bottom:0; }
+details.md-section > summary.md-section-head:hover { background:var(--tbody-hover,#f8fbff); }
+details.md-section.is-urgent > summary.md-section-head:hover { background:rgba(220,38,38,.12); }
+details.md-section.is-warn > summary.md-section-head:hover { background:rgba(217,119,6,.14); }
 .md-empty { padding:18px 16px; color:var(--text-mid,#7f92af); font-size:var(--fs-sm); }
 
 /* --- Badge di stato --- */

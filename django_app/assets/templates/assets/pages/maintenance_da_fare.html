@@ -74,24 +74,32 @@
   </div>
 
   {% for block in blocks %}
-    <section class="md-section {% if block.tone == 'urgent' %}is-urgent{% elif block.tone == 'warn' %}is-warn{% endif %}">
-      <div class="md-section-head">
+    {% comment %}
+      Blocchi apribili e richiudibili: cinque tabelle sempre aperte sono un muro,
+      e la sola che serve adesso e' quella in cima. Restano aperti di default i
+      due blocchi che chiedono un'azione (scadute, entro 7 giorni); lo stato
+      scelto dall'utente viene ricordato per blocco.
+    {% endcomment %}
+    <details class="md-section {% if block.tone == 'urgent' %}is-urgent{% elif block.tone == 'warn' %}is-warn{% endif %}"
+             data-md-block="{{ block.key }}"{% if block.tone and block.rows %} open{% endif %}>
+      <summary class="md-section-head">
         <h2>{{ block.title }}</h2>
+        {% if can_plan and block.rows %}<span class="md-sub" style="display:inline">selezionabili</span>{% endif %}
         <span class="md-badge {% if block.tone == 'urgent' %}badge-danger{% elif block.tone == 'warn' %}badge-warning{% else %}badge-muted{% endif %}">{{ block.rows|length }}</span>
-      </div>
+      </summary>
       {% if block.rows %}
-        {% include "assets/components/_occurrence_rows.html" with rows=block.rows selectable=0 show_plan=1 %}
+        {% include "assets/components/_occurrence_rows.html" with rows=block.rows selectable=can_plan show_plan=1 %}
       {% else %}
         <p class="md-empty">Niente in questo blocco.</p>
       {% endif %}
-    </section>
+    </details>
   {% endfor %}
 
-  <section class="md-section">
-    <div class="md-section-head">
+  <details class="md-section" data-md-block="grouped" open>
+    <summary class="md-section-head">
       <h2>Raggruppate per {% if view_mode == 'plan' %}piano{% elif view_mode == 'group' %}famiglia{% else %}asset{% endif %}</h2>
-      {% if can_plan %}<span class="md-sub">Seleziona qui le manutenzioni da raccogliere in un ordine di lavoro.</span>{% endif %}
-    </div>
+      {% if can_plan %}<span class="md-sub" style="display:inline">Seleziona le manutenzioni da raccogliere in un ordine di lavoro.</span>{% endif %}
+    </summary>
     <div class="md-groups" style="padding:12px">
       {% for group in groups %}
         <details class="md-group" {% if group.overdue %}open{% endif %}>
@@ -107,13 +115,14 @@
         <p class="md-empty">Nessuna manutenzione aperta con i filtri correnti.</p>
       {% endfor %}
     </div>
-  </section>
+  </details>
 
   {% if can_plan %}
     <form class="md-bulk" id="md-bulk-form" method="post" action="{% url 'assets:occurrence_create_workorder' %}">
       {% csrf_token %}
       <input type="hidden" name="next" value="{{ request.get_full_path }}">
       <span class="md-bulk-count"><span data-md-count>0</span> selezionate</span>
+      <button type="button" class="btn btn-sm" data-md-clear>Deseleziona</button>
       <div class="md-field"><label for="{{ workorder_form.title.id_for_label }}">Titolo</label>{{ workorder_form.title }}</div>
       <div class="md-field"><label for="{{ workorder_form.assigned_to.id_for_label }}">Assegna a</label>{{ workorder_form.assigned_to }}</div>
       <div class="md-field"><label for="{{ workorder_form.due_at.id_for_label }}">Entro</label>{{ workorder_form.due_at }}</div>
@@ -126,26 +135,91 @@
 {% block assets_shell_scripts %}
 <script>
 (function () {
-  // La barra di azione massiva compare solo quando c'e' qualcosa di selezionato:
-  // una barra sempre presente si legge come "posso premere", e non e' vero.
-  var bar = document.querySelector('.md-bulk');
-  if (!bar) { return; }
-  var counter = bar.querySelector('[data-md-count]');
+  var STORAGE_KEY = "assets_da_fare_blocks_v1";
 
-  function refresh() {
-    var checked = document.querySelectorAll('[data-md-check]:checked').length;
-    counter.textContent = checked;
-    bar.classList.toggle('is-visible', checked > 0);
+  // ── Blocchi: lo stato aperto/chiuso e' una preferenza, non una decisione ──
+  var blocks = Array.prototype.slice.call(document.querySelectorAll("[data-md-block]"));
+  var stato = {};
+  try { stato = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}") || {}; } catch (e) { stato = {}; }
+
+  blocks.forEach(function (block) {
+    var key = block.getAttribute("data-md-block");
+    if (Object.prototype.hasOwnProperty.call(stato, key)) { block.open = !!stato[key]; }
+    block.addEventListener("toggle", function () {
+      stato[key] = block.open;
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(stato)); } catch (e) {}
+    });
+  });
+
+  // ── Selezione multipla ───────────────────────────────────────────────────
+  // La stessa occorrenza compare sia nel blocco per urgenza sia nel gruppo per
+  // piano/famiglia/asset: le caselle con lo stesso valore vanno tenute in
+  // accordo, altrimenti la pagina mostra due verita' diverse sulla stessa riga.
+  var bar = document.querySelector(".md-bulk");
+  if (!bar) { return; }
+  var counter = bar.querySelector("[data-md-count]");
+
+  function tutte() {
+    return Array.prototype.slice.call(document.querySelectorAll("[data-md-check]"));
   }
 
-  document.addEventListener('change', function (event) {
+  function selezionate() {
+    var valori = {};
+    tutte().forEach(function (box) { if (box.checked) { valori[box.value] = true; } });
+    return Object.keys(valori);
+  }
+
+  function aggiornaTeste() {
+    document.querySelectorAll("[data-md-check-all]").forEach(function (testa) {
+      var tabella = testa.closest("table");
+      if (!tabella) { return; }
+      var caselle = Array.prototype.slice.call(tabella.querySelectorAll("[data-md-check]"));
+      var spuntate = caselle.filter(function (box) { return box.checked; }).length;
+      testa.checked = caselle.length > 0 && spuntate === caselle.length;
+      testa.indeterminate = spuntate > 0 && spuntate < caselle.length;
+    });
+  }
+
+  function refresh() {
+    var n = selezionate().length;
+    counter.textContent = n;
+    bar.classList.toggle("is-visible", n > 0);
+    aggiornaTeste();
+  }
+
+  function allinea(valore, checked) {
+    tutte().forEach(function (box) {
+      if (box.value === valore && box.checked !== checked) { box.checked = checked; }
+    });
+  }
+
+  document.addEventListener("change", function (event) {
     var target = event.target;
-    if (target.matches('[data-md-check-all]')) {
-      var scope = target.closest('table');
-      scope.querySelectorAll('[data-md-check]').forEach(function (box) { box.checked = target.checked; });
+    if (target.matches("[data-md-check-all]")) {
+      var tabella = target.closest("table");
+      if (tabella) {
+        tabella.querySelectorAll("[data-md-check]").forEach(function (box) {
+          box.checked = target.checked;
+          allinea(box.value, target.checked);
+        });
+      }
+      refresh();
+      return;
     }
-    if (target.matches('[data-md-check], [data-md-check-all]')) { refresh(); }
+    if (target.matches("[data-md-check]")) {
+      allinea(target.value, target.checked);
+      refresh();
+    }
   });
+
+  var pulisci = bar.querySelector("[data-md-clear]");
+  if (pulisci) {
+    pulisci.addEventListener("click", function () {
+      tutte().forEach(function (box) { box.checked = false; });
+      refresh();
+    });
+  }
+
   refresh();
 })();
 </script>
