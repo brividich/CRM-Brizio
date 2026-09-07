@@ -33,29 +33,46 @@ quello in esercizio.
 `9fc8e3a6`) è stata attivata in produzione: il generatore legacy non esiste più nel
 pacchetto installato e lo scheduler nel codice punta al motore nuovo.
 
-**Ma il motore nuovo non ha ancora girato nemmeno una volta, e allo stato attuale non
-girerà.** Sono tre fatti distinti, ed è il terzo quello che conta:
+**Il motore nuovo non ha però ancora girato nemmeno una volta.** Il job è schedulato alle
+06:00 (`schedules.py:407`) e la corsa delle 06:00 di oggi è avvenuta **tre ore prima** del
+deploy, quindi ancora con il motore vecchio; il cluster django-q è stato riavviato alle
+10:36, dopo il deploy. **La prima corsa del motore nuovo sarà quella del 2026-09-08 alle
+06:00.**
 
-1. il job è schedulato alle 06:00 (`schedules.py:407`); la corsa delle 06:00 di oggi è
-   avvenuta **tre ore prima** del deploy, quindi con il motore vecchio;
-2. il cluster django-q è stato riavviato alle 10:36, dopo il deploy: da quel momento il
-   processo ha in memoria il codice nuovo;
-3. **il deploy non riesegue `setup_q_schedules`.** La tabella `django_q_schedule`
-   conserva quindi le righe scritte dalla release precedente. Il job vecchio
-   `assets_generate_workorders` punta a `assets.tasks.run_generate_scheduled_workorders`,
-   funzione che **non esiste più** in `/current/django_app/assets/tasks.py`; il job nuovo
-   `assets_generate_occurrences` non risulta mai essere stato registrato.
+Restava una condizione da verificare, che il codice da solo non poteva chiudere. Il job è
+stato **rinominato** insieme al motore (`assets_generate_workorders` →
+`assets_generate_occurrences`); `register_schedule` fa `update_or_create` **per nome**
+(`schedules.py:653`), quindi non aggiorna la riga vecchia; e il passo che la rimuove —
+`setup_q_schedules`, che consuma `RETIRED_SCHEDULE_NAMES` — **non è nel flusso di promote
+usato in produzione** (§2.2). Se nessuno l'avesse eseguito, la tabella `django_q_schedule`
+avrebbe conservato il job vecchio, puntato a una funzione che non esiste più, e il job
+nuovo non sarebbe mai stato registrato: generazione automatica ferma del tutto.
 
-Se questo si conferma a runtime — è la prima cosa da verificare, e il flag
-`manut_audit --runtime` la stampa in un colpo — allora domani alle 06:00 il cluster
-tenterà una funzione inesistente e fallirà, **e nessuna occorrenza verrà generata**.
-Non è una regressione silenziosa a metà: è la generazione automatica ferma del tutto.
+**Verificato a runtime il 2026-09-07: non è successo. Lo scheduler è allineato.**
 
-**Conseguenza sull'import.** Importare lo storico prima di aver sistemato lo scheduler
-è comunque possibile — l'import scrive per conto suo, non passa dal generatore — ma
-significa popolare il portale di scadenze che nessun motore poi farà avanzare. La
-sequenza corretta è: **prima `setup_q_schedules`, poi la verifica che il job giri, poi
-l'import.**
+```
+assets_generate_occurrences | assets.tasks.run_generate_maintenance_occurrences
+                            | next = 2026-09-08 04:00 UTC (06:00 locali)
+```
+
+`assets_generate_workorders` **non è presente**, e le schedule registrate sono 41, quante
+ne prevede `SCHEDULES`. Il motivo è che `setup_q_schedules` è stato eseguito a mano dopo il
+deploy: la Centrale di comando espone il pulsante **«📅 Registra schedule»**
+(`monitoring/views.py:214`), che lo lancia (`monitoring/views.py:242-246`). È una terza
+strada, oltre a `deploy-release.ps1` e alla riga di comando, e in questo caso ha
+compensato la lacuna del promote.
+
+**Cosa resta vero, e cosa no.** Non c'è alcun guasto in corso: la generazione riparte
+domani mattina con il motore giusto, e non serve fare nulla. Resta però la **fragilità di
+processo**: il flusso di promote non registra gli schedule, quindi la correttezza della
+tabella dipende dal fatto che qualcuno si ricordi di premere un pulsante. Ha funzionato
+oggi; è un presidio umano, non una garanzia del processo, e al prossimo rename di un job si
+ripresenterà identica.
+
+**Conseguenza sull'import.** Cade il vincolo di sequenza: lo scheduler è a posto, quindi
+l'import dello storico non deve più aspettare. Restano i due punti di merito di §5 — le 5
+occorrenze che nascono già scadute e lo scarto fra la semantica legacy del foglio e quella
+nuova dell'importatore — che vanno affrontati per conto loro.
 
 **Raccomandazione (dettaglio in §7):** tenere il motore a occorrenze
 (`generate_maintenance_occurrences`), che è già l'unico presente nel codice installato;
@@ -138,7 +155,7 @@ disabilitato lì, `setup_q_schedules` non lo registrerebbe e anzi lo eliminerebb
 **Ambienti:** `SCHEDULES` non è differenziato per ambiente. Ciò che cambia è quale
 cluster django-q è in esecuzione; in produzione è `QCluster_PROD`.
 
-### 2.2 Il ritiro del job vecchio, e perché non basta
+### 2.2 Il ritiro del job vecchio: il processo non lo garantisce, una persona sì
 
 Il nome del job è cambiato con il motore:
 
@@ -165,6 +182,16 @@ una seconda fonte di scadenze»* — consumato in `setup_q_schedules.py:90-97`.
 Questa è la stessa classe di difetto già nota per il Setup Wizard: un passo presente nel
 percorso di installazione e assente in quello di release.
 
+**Esiste però una terza strada, ed è quella che è stata usata.** La Centrale di comando
+espone l'azione «📅 Registra schedule» (`monitoring/views.py:214`), che esegue
+`call_command("setup_q_schedules")` (`monitoring/views.py:242-246`) e registra l'operazione
+nell'audit (`:247`). Lanciata a mano dopo il promote del 07-09, ha allineato la tabella:
+verifica in §2.3.
+
+Il difetto di processo resta comunque aperto: perché la tabella sia corretta serve che
+qualcuno **si ricordi** di premere quel pulsante dopo ogni release che tocca i job. È un
+presidio, non una garanzia.
+
 ### 2.3 Evidenze di esercizio (artefatti di produzione)
 
 `Y:` è `\\pclogsys\PortaleNovicrom\prod`: la produzione è ispezionabile in sola lettura.
@@ -184,15 +211,31 @@ percorso di installazione e assente in quello di release.
 > riavvio di oggi alle 10:36. La corsa delle 06:00 di oggi è quindi stata eseguita dal
 > motore vecchio, che a quell'ora era anche quello su disco.
 
-### 2.4 Cosa resta non determinabile dal codice, e come determinarlo
+**Verifica a DB (2026-09-07, sola lettura).** `django_q.Schedule` in produzione:
 
-Tre fatti vivono solo nel database di produzione:
+| | |
+|---|---|
+| Schedule registrate | **41** (quante ne prevede `SCHEDULES`) |
+| `assets_generate_occurrences` | **presente** → `assets.tasks.run_generate_maintenance_occurrences`, `next_run` 2026-09-08 04:00 UTC = **06:00 locali** |
+| `assets_generate_workorders` | **assente** |
+| `assets_maintenance_reminders` | presente → `run_maintenance_reminders`, `next_run` 05:00 UTC = 07:00 locali |
 
-1. quali righe esistono in `django_q_schedule`, con `next_run` e il `func` registrato;
-2. l'esito dell'ultima corsa (`Success` / `Failure`);
-3. se `assets_generate_occurrences` sia disabilitato in `monitoring.ScheduleControl`.
+Nessuna schedule orfana, nessun job mancante. La previsione di §2.2 — riga vecchia
+superstite e job nuovo non registrato — **non si è avverata**, perché `setup_q_schedules` è
+stato eseguito dalla Centrale di comando dopo il promote.
 
-Sono esattamente le tre cose che stampa la sezione nuova:
+### 2.4 Cosa non è determinabile dal codice, e come determinarlo
+
+Tre fatti vivono solo nel database di produzione. Il primo è stato verificato (§2.3); gli
+altri due restano da guardare:
+
+1. ~~quali righe esistono in `django_q_schedule`, con `next_run` e il `func` registrato~~
+   — **verificato il 07-09: allineato**;
+2. l'esito della **prima corsa del motore nuovo**, attesa il 2026-09-08 alle 06:00
+   (`Success` / `Failure`, e quante occorrenze ha creato);
+3. se qualche job sia disabilitato in `monitoring.ScheduleControl`.
+
+Sono esattamente le cose che stampa la sezione nuova:
 
 ```powershell
 C:\PortaleNovicrom\prod\venv\Scripts\python.exe manage.py manut_audit `
@@ -519,34 +562,41 @@ più nulla. Va marcata come vista storica o rimossa, non lasciata ambigua.
 
 ### 7.2 Azioni, in ordine
 
-1. **Prima di ogni altra cosa, verificare lo scheduler in produzione:**
+1. ~~Verificare lo scheduler in produzione~~ — **fatto il 07-09, esito allineato** (§2.3).
+   Nessuna azione richiesta. Il comando resta utile a ogni release che tocca i job:
    ```powershell
    C:\PortaleNovicrom\prod\venv\Scripts\python.exe manage.py manut_audit `
        --runtime --sorgenti --fonti-parallele --settings=config.settings.prod
    ```
-   Se «PUNTO 7» segnala schedule orfane o job non registrati, il rimedio è una riga:
+   Se «PUNTO 7» segnalasse schedule orfane o job non registrati, il rimedio è una riga
+   (idempotente: rimuove i ritirati e registra i nuovi), oppure il pulsante «📅 Registra
+   schedule» della Centrale di comando:
    ```powershell
    C:\PortaleNovicrom\prod\venv\Scripts\python.exe manage.py setup_q_schedules `
        --settings=config.settings.prod
    ```
-   (in dry-run prima, se si preferisce vederlo). È idempotente, rimuove i ritirati e
-   registra i nuovi.
 
-2. **Chiudere il difetto di processo**, non solo il suo effetto: aggiungere lo step
-   `setup_q_schedules` al flusso di promote del Setup Wizard (`setup_wizard.py`, dopo lo
-   step 6 «Attivazione release» a `:5722`), com'è già in `deploy-release.ps1:607`.
-   Altrimenti il prossimo rename di un job ripresenterà lo stesso quadro.
+2. **Controllare la prima corsa** del motore nuovo, il 2026-09-08 dopo le 06:00: è la prima
+   volta in assoluto che gira in produzione. `manut_audit --sorgenti` dice quante
+   occorrenze `SCHEDULER` sono nate e se qualcuna è nata già scaduta.
 
-3. **Solo dopo**, importare lo storico — e usare l'anteprima come strumento di verifica,
-   non come formalità: dice quante righe cadono per asset o piano non trovato (rischio
-   §5.2) e quante per «il piano non si applica» (rischio §5.1), che è la misura diretta
-   dello scarto tra la semantica legacy del foglio e quella nuova dell'importatore.
+3. **Chiudere il difetto di processo**, che resta aperto anche se stavolta non ha fatto
+   danni: aggiungere lo step `setup_q_schedules` al flusso di promote del Setup Wizard
+   (`setup_wizard.py`, dopo lo step 6 «Attivazione release» a `:5722`), com'è già in
+   `deploy-release.ps1:607`. Finché dipende da un pulsante premuto a mano, il prossimo
+   rename di un job può passare inosservato.
 
-4. **Correggere prima dell'import le 5 righe** che nascerebbero scadute (tabella §5.4), o
+4. **Importare lo storico** — non c'è più un vincolo di sequenza, lo scheduler è a posto.
+   Usare l'anteprima come strumento di verifica, non come formalità: dice quante righe
+   cadono per asset o piano non trovato (rischio §5.2) e quante per «il piano non si
+   applica» (rischio §5.1), che è la misura diretta dello scarto tra la semantica legacy
+   del foglio e quella nuova dell'importatore.
+
+5. **Correggere prima dell'import le 5 righe** che nascerebbero scadute (tabella §5.4), o
    accettarle sapendo che compariranno subito nel pool «Da fare» — in particolare
    `CNC-ELT-007003`, arretrata di oltre due anni.
 
-5. **Mettere in conto il pile-up permanente** di §5.5: 41 gruppi di scadenze simultanee,
+6. **Mettere in conto il pile-up permanente** di §5.5: 41 gruppi di scadenze simultanee,
    40 dei quali resteranno allineati per sempre.
 
 ### 7.3 Fuori perimetro, da decidere separatamente
@@ -635,12 +685,20 @@ scrittura di alcun tipo, nessuna esecuzione di comandi applicativi in produzione
 timestamp, versioni, nomi di migrazioni. Nessun contenuto applicativo, nessun dato
 personale, nessuna credenziale è stato letto o riportato.
 
-**Limite principale.** Tutte le conclusioni su *cosa è registrato nello scheduler* sono
-inferite dal codice e dagli artefatti di deploy, non osservate a DB. Sono formulate come
-previsioni verificabili, ed è per renderle verificabili in un colpo solo che esiste
-`manut_audit --runtime`. Se la verifica smentisce §2.2 — per esempio perché
-`setup_q_schedules` è stato eseguito a mano dopo il deploy — cade la conclusione operativa
-più importante di questo documento, e va corretta.
+**Limite dichiarato in prima stesura, e come si è chiuso.** Le conclusioni su *cosa è
+registrato nello scheduler* erano inferite dal codice e dagli artefatti di deploy, non
+osservate a DB, e la prima stesura avvertiva: *«se la verifica smentisce §2.2 — per esempio
+perché `setup_q_schedules` è stato eseguito a mano dopo il deploy — cade la conclusione
+operativa più importante di questo documento»*.
+
+**È andata esattamente così.** La verifica del 2026-09-07 (§2.3) mostra la tabella
+allineata: `setup_q_schedules` era stato lanciato dalla Centrale di comando. La previsione
+di guasto era sbagliata ed è stata riscritta in §2.2, §2.3, §2.4, nell'esito esecutivo e
+in §7.2. Sopravvive il rilievo di processo — il promote non registra gli schedule — che
+resta valido perché riguarda il percorso automatico, non l'esito di questa singola release.
+
+Gli altri limiti restano: la prima corsa del motore nuovo (08-09) non è ancora osservata, e
+i conteggi di §4 e dell'Appendice A richiedono il DB di produzione.
 
 **Assunzione dichiarata in §5.4:** le periodicità usate nella simulazione provengono da
 `MaintenanceRule.threshold_value` (colonna `note` del foglio del 04-09) e si assume siano
