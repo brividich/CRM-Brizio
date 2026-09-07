@@ -236,6 +236,11 @@ urlpatterns = [
         views_maintenance.workorder_distribute_day,
         name="workorder_distribute_day",
     ),
+    path(
+        "assets/workorders/<int:workorder_id>/manutenzioni/registra/",
+        views_maintenance.workorder_occurrences_complete,
+        name="workorder_occurrences_complete",
+    ),
     # Calendario asset
     path("assets/calendario/", views.calendario_asset, name="calendario_asset"),
     path("api/assets/calendario/json/", views.calendario_asset_json, name="calendario_asset_json"),

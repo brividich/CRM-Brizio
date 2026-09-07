@@ -489,6 +489,41 @@ class OccurrenceCompletionForm(forms.Form):
         return cleaned
 
 
+class OccurrenceBulkCompletionForm(forms.Form):
+    """Registrazione in blocco delle manutenzioni raccolte in UN ordine di lavoro.
+
+    Non e' una chiusura di lotto: ogni occorrenza viene chiusa singolarmente e
+    la sua prossima scadenza si calcola sul suo piano: qui si condivide solo
+    *cosa si dichiara* (giorno, note, fermo), che su un intervento fatto in una
+    sola uscita e' la stessa cosa per tutte le macchine.
+    """
+
+    completed_on = forms.DateField(
+        label="Eseguite il",
+        widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+    )
+    notes = forms.CharField(label="Note", required=False, widget=forms.Textarea(attrs={"rows": 2}))
+    downtime_minutes = forms.IntegerField(
+        label="Fermo macchina (minuti)", required=False, min_value=0
+    )
+    attachment = forms.FileField(
+        label="Rapporto unico (opzionale)",
+        required=False,
+        help_text="Allegato a tutte le manutenzioni selezionate. Serve per quelle che lo richiedono.",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["completed_on"].initial = timezone.localdate()
+        _attach_input_css(self)
+
+    def clean_completed_on(self):
+        completed_on = self.cleaned_data["completed_on"]
+        if completed_on > timezone.localdate():
+            raise forms.ValidationError("La data di esecuzione non puo essere nel futuro.")
+        return completed_on
+
+
 class WorkOrderFromOccurrencesForm(forms.Form):
     """Raccolta di piu' manutenzioni dovute in un unico ordine di lavoro."""
 
