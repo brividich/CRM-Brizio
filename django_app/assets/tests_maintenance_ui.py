@@ -226,6 +226,173 @@ class WorkOrderFlowTests(MaintenanceUITestCase):
         self.assertEqual(orphan.work_order_id, work_order.pk)
 
 
+class WorkOrderBulkCompletionTests(MaintenanceUITestCase):
+    """Registrazione in blocco delle manutenzioni raccolte in un ordine di lavoro.
+
+    Un intervento massivo si esegue in una sola uscita: registrarlo una riga per
+    volta era la parte che il pannello non copriva.
+    """
+
+    def _create_workorder(self, occurrences=None):
+        self.client.post(
+            reverse("assets:occurrence_create_workorder"),
+            {
+                "occurrence_ids": [str(occ.pk) for occ in (occurrences or self.occurrences)],
+                "title": "",
+                "assigned_to": "",
+                "supplier": "",
+                "due_at": "",
+            },
+        )
+        return WorkOrder.objects.latest("id")
+
+    def test_registra_le_selezionate_chiude_ogni_asset_e_crea_le_successive(self):
+        work_order = self._create_workorder()
+        scelte = self.occurrences[:2]
+
+        response = self.client.post(
+            reverse("assets:workorder_occurrences_complete", args=[work_order.pk]),
+            {
+                "occurrence_ids": [str(occ.pk) for occ in scelte],
+                "completed_on": timezone.localdate().isoformat(),
+                "notes": "giro olio del turno",
+                "downtime_minutes": "15",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+
+        for occurrence in scelte:
+            occurrence.refresh_from_db()
+            self.assertEqual(occurrence.status, MaintenanceOccurrence.STATUS_DONE)
+            self.assertEqual(occurrence.downtime_minutes, 15)
+            self.assertEqual(occurrence.completion_notes, "giro olio del turno")
+            self.assertTrue(
+                MaintenanceOccurrence.objects.filter(
+                    plan=self.plan, asset=occurrence.asset, status=MaintenanceOccurrence.STATUS_OPEN
+                ).exists(),
+                "ogni asset deve avanzare sul suo piano",
+            )
+
+        # La terza non era selezionata: resta aperta.
+        self.occurrences[2].refresh_from_db()
+        self.assertEqual(self.occurrences[2].status, MaintenanceOccurrence.STATUS_OPEN)
+
+    def test_non_registra_occorrenze_di_un_altro_intervento(self):
+        primo = self._create_workorder(self.occurrences[:2])
+        estranea = self.occurrences[2]
+
+        response = self.client.post(
+            reverse("assets:workorder_occurrences_complete", args=[primo.pk]),
+            {
+                "occurrence_ids": [str(estranea.pk)],
+                "completed_on": timezone.localdate().isoformat(),
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        estranea.refresh_from_db()
+        self.assertEqual(estranea.status, MaintenanceOccurrence.STATUS_OPEN)
+
+    def test_amministrativa_senza_documento_viene_saltata_e_detta_per_nome(self):
+        plan = MaintenanceInterventionTemplate.objects.create(
+            code="assicurazione-bulk",
+            label="Rinnovo assicurazione",
+            maintenance_type=MaintenanceInterventionTemplate.TYPE_ADMINISTRATIVE,
+            attachment_required=True,
+        )
+        amministrativa = MaintenanceOccurrence.objects.create(
+            plan=plan,
+            asset=self.assets[0],
+            due_date=timezone.localdate(),
+            warning_days=30,
+        )
+        ordinaria = self.occurrences[1]
+        work_order = self._create_workorder([amministrativa, ordinaria])
+
+        response = self.client.post(
+            reverse("assets:workorder_occurrences_complete", args=[work_order.pk]),
+            {
+                "occurrence_ids": [str(amministrativa.pk), str(ordinaria.pk)],
+                "completed_on": timezone.localdate().isoformat(),
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+
+        amministrativa.refresh_from_db()
+        ordinaria.refresh_from_db()
+        self.assertEqual(amministrativa.status, MaintenanceOccurrence.STATUS_OPEN)
+        self.assertEqual(ordinaria.status, MaintenanceOccurrence.STATUS_DONE)
+        testo = " ".join(str(m) for m in response.context["messages"])
+        self.assertIn("Non registrate", testo)
+        self.assertIn(self.assets[0].asset_tag, testo)
+
+    def test_rapporto_unico_vale_per_tutte_le_selezionate(self):
+        plan = MaintenanceInterventionTemplate.objects.create(
+            code="revisione-bulk",
+            label="Revisione con rapporto",
+            maintenance_type=MaintenanceInterventionTemplate.TYPE_ADMINISTRATIVE,
+            attachment_required=True,
+        )
+        richiedono = [
+            MaintenanceOccurrence.objects.create(
+                plan=plan,
+                asset=asset,
+                due_date=timezone.localdate(),
+                warning_days=30,
+            )
+            for asset in self.assets[:2]
+        ]
+        work_order = self._create_workorder(richiedono)
+
+        response = self.client.post(
+            reverse("assets:workorder_occurrences_complete", args=[work_order.pk]),
+            {
+                "occurrence_ids": [str(occ.pk) for occ in richiedono],
+                "completed_on": timezone.localdate().isoformat(),
+                "attachment": SimpleUploadedFile("rapporto.pdf", b"%PDF-1.4 rapporto", content_type="application/pdf"),
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        for occurrence in richiedono:
+            occurrence.refresh_from_db()
+            self.assertEqual(occurrence.status, MaintenanceOccurrence.STATUS_DONE)
+            self.assertEqual(occurrence.attachments.count(), 1)
+            allegato = occurrence.attachments.first()
+            self.assertTrue(allegato.file.size > 0, "il secondo allegato non deve salvarsi vuoto")
+
+    def test_data_futura_rifiutata_e_niente_viene_chiuso(self):
+        work_order = self._create_workorder()
+        domani = timezone.localdate() + timedelta(days=1)
+
+        response = self.client.post(
+            reverse("assets:workorder_occurrences_complete", args=[work_order.pk]),
+            {
+                "occurrence_ids": [str(self.occurrences[0].pk)],
+                "completed_on": domani.isoformat(),
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.occurrences[0].refresh_from_db()
+        self.assertEqual(self.occurrences[0].status, MaintenanceOccurrence.STATUS_OPEN)
+
+    def test_odl_chiuso_con_manutenzioni_aperte_lo_dichiara(self):
+        work_order = self._create_workorder()
+        work_order.status = WorkOrder.STATUS_DONE
+        work_order.save(update_fields=["status"])
+
+        response = self.client.get(reverse("assets:wo_view", args=[work_order.pk]))
+        self.assertContains(response, "Intervento chiuso, ma")
+
+    def test_il_pannello_offre_l_azione_massiva(self):
+        work_order = self._create_workorder()
+        response = self.client.get(reverse("assets:wo_view", args=[work_order.pk]))
+        self.assertContains(response, "Registra le selezionate")
+        self.assertContains(
+            response,
+            reverse("assets:workorder_occurrences_complete", args=[work_order.pk]),
+        )
+
+
 class OccurrenceCompletionViewTests(MaintenanceUITestCase):
     def test_registrazione_avanza_la_scadenza(self):
         occurrence = self.occurrences[0]

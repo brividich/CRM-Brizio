@@ -5549,7 +5549,7 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "active_match": "",
             "is_subitem": True,
             "parent_code": "manutenzione_hub",
-            "sort_order": 57,
+            "sort_order": 80,
             "is_visible": True,
         },
         {
@@ -5593,8 +5593,8 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "active_match": "/assets/manutenzione/templates/",
             "is_subitem": True,
             "parent_code": "manutenzione_hub",
-            "sort_order": 55,
-            "is_visible": True,
+            "sort_order": 120,
+            "is_visible": False,
         },
         {
             "code": "maintenance_da_fare",
@@ -5604,18 +5604,18 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "active_match": "/assets/manutenzione/da-fare/",
             "is_subitem": True,
             "parent_code": "manutenzione_hub",
-            "sort_order": 53,
+            "sort_order": 10,
             "is_visible": True,
         },
         {
-            "code": "maintenance_scadenze",
+            "code": "maintenance_scadenzario",
             "section": AssetSidebarButton.SECTION_MAIN,
             "label": "Scadenze",
             "target_url": "django:assets:maintenance_scadenze",
             "active_match": "/assets/manutenzione/scadenze/",
             "is_subitem": True,
             "parent_code": "manutenzione_hub",
-            "sort_order": 54,
+            "sort_order": 20,
             "is_visible": True,
         },
         {
@@ -5626,18 +5626,29 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "active_match": "/assets/manutenzione/quadro/",
             "is_subitem": True,
             "parent_code": "manutenzione_hub",
-            "sort_order": 55,
+            "sort_order": 30,
             "is_visible": True,
         },
         {
-            "code": "maintenance_rules",
+            "code": "maintenance_interventi",
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Interventi",
+            "target_url": "django:assets:wo_list",
+            "active_match": "/assets/workorders/",
+            "is_subitem": True,
+            "parent_code": "manutenzione_hub",
+            "sort_order": 40,
+            "is_visible": True,
+        },
+        {
+            "code": "maintenance_piani",
             "section": AssetSidebarButton.SECTION_MAIN,
             "label": "Piani",
             "target_url": "django:assets:maintenance_plan_list",
             "active_match": "/assets/manutenzione/piani/",
             "is_subitem": True,
             "parent_code": "manutenzione_hub",
-            "sort_order": 56,
+            "sort_order": 50,
             "is_visible": True,
         },
         {
@@ -5648,7 +5659,40 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "active_match": "/assets/manutenzione/gruppi/",
             "is_subitem": True,
             "parent_code": "manutenzione_hub",
-            "sort_order": 57,
+            "sort_order": 60,
+            "is_visible": True,
+        },
+        {
+            "code": "maintenance_storico",
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Storico",
+            "target_url": "django:assets:maintenance_history",
+            "active_match": "/assets/manutenzione/storico/",
+            "is_subitem": True,
+            "parent_code": "manutenzione_hub",
+            "sort_order": 70,
+            "is_visible": True,
+        },
+        {
+            "code": "maintenance_fornitori",
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Fornitori",
+            "target_url": "django:assets:maintenance_suppliers",
+            "active_match": "/assets/manutenzione/fornitori/",
+            "is_subitem": True,
+            "parent_code": "manutenzione_hub",
+            "sort_order": 90,
+            "is_visible": True,
+        },
+        {
+            "code": "maintenance_impostazioni",
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Impostazioni",
+            "target_url": "django:assets:maintenance_impostazioni",
+            "active_match": "/assets/manutenzione/impostazioni/",
+            "is_subitem": True,
+            "parent_code": "manutenzione_hub",
+            "sort_order": 110,
             "is_visible": True,
         },
         {
@@ -5703,7 +5747,7 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "active_match": "",
             "is_subitem": True,
             "parent_code": "manutenzione_hub",
-            "sort_order": 58,
+            "sort_order": 85,
             "is_visible": True,
         },
         {
@@ -14876,7 +14920,7 @@ def _workorder_occurrences_context(request: HttpRequest, workorder: WorkOrder) -
     Vive qui e non in ``views_maintenance`` perche' e' il dettaglio OdL storico a
     doverlo mostrare; la dipendenza fra i due moduli resta a senso unico.
     """
-    from .forms_maintenance import ExecutionDayForm
+    from .forms_maintenance import ExecutionDayForm, OccurrenceBulkCompletionForm
     from .models import MaintenanceOccurrence
     from .services import maintenance_domain as maintenance_dom
     from .views_maintenance import can_execute_maintenance, can_plan_maintenance
@@ -14909,6 +14953,7 @@ def _workorder_occurrences_context(request: HttpRequest, workorder: WorkOrder) -
         "wo_occurrence_day_groups": day_groups,
         "wo_occurrence_progress": maintenance_dom.workorder_progress(workorder),
         "wo_execution_day_form": ExecutionDayForm(),
+        "wo_bulk_completion_form": OccurrenceBulkCompletionForm(),
         "wo_can_plan_maintenance": can_plan_maintenance(request),
         "wo_can_execute_maintenance": can_execute_maintenance(request),
     }
@@ -15565,6 +15610,31 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
                 if follow_up_child is not None:
                     success_message = f"{success_message} Creato il follow-up #{follow_up_child.id}."
                 messages.success(request, success_message)
+                # Chiudere l'intervento non registra le manutenzioni raccolte: ogni
+                # asset avanza sul suo piano quando *quella* manutenzione viene
+                # dichiarata eseguita. Se l'OdL si chiude e restano occorrenze
+                # aperte, la scadenza resta scaduta: va detto qui, non scoperto
+                # una settimana dopo davanti a una lista che non si e' svuotata.
+                if workorder.status in (WorkOrder.STATUS_DONE, WorkOrder.STATUS_CANCELED):
+                    from .models import MaintenanceOccurrence
+
+                    aperte = MaintenanceOccurrence.objects.filter(
+                        work_order=workorder, status=MaintenanceOccurrence.STATUS_OPEN
+                    ).count()
+                    if aperte == 1:
+                        messages.warning(
+                            request,
+                            "Una manutenzione raccolta in questo intervento non risulta "
+                            "registrata: la sua scadenza resta aperta. Registrala dal "
+                            "pannello \u00abManutenzioni raccolte\u00bb.",
+                        )
+                    elif aperte:
+                        messages.warning(
+                            request,
+                            f"{aperte} manutenzioni raccolte in questo intervento non "
+                            "risultano registrate: le loro scadenze restano aperte. "
+                            "Registrale dal pannello \u00abManutenzioni raccolte\u00bb.",
+                        )
                 return redirect("assets:wo_view", id=workorder.id)
     else:
         form = WorkOrderCloseForm(

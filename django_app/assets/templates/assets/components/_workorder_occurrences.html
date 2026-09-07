@@ -17,7 +17,21 @@
       </div>
     </header>
     <div class="ux-card-body">
-      <form method="post" id="md-bulk-form" action="{% url 'assets:workorder_distribute_day' workorder.pk %}">
+      {% if wo_occurrence_progress.todo and workorder.status != "OPEN" %}
+        {% comment %}
+          L'intervento e' chiuso ma qualche manutenzione non e' stata registrata:
+          quelle scadenze restano scadute e nessuna nuova viene creata. Dirlo qui
+          e' l'unico posto in cui la contraddizione si vede.
+        {% endcomment %}
+        <p class="md-conflict" style="margin:0 0 12px">
+          Intervento chiuso, ma {{ wo_occurrence_progress.todo }} manutenzion{{ wo_occurrence_progress.todo|pluralize:"e,i" }}
+          qui raccolt{{ wo_occurrence_progress.todo|pluralize:"a,e" }} non risulta{{ wo_occurrence_progress.todo|pluralize:",no" }}
+          registrat{{ wo_occurrence_progress.todo|pluralize:"a,e" }}: la scadenza resta aperta e la successiva
+          non viene creata. Registrale qui sotto.
+        </p>
+      {% endif %}
+      <form method="post" id="md-bulk-form" enctype="multipart/form-data"
+            action="{% url 'assets:workorder_distribute_day' workorder.pk %}">
         {% csrf_token %}
       </form>
 
@@ -81,14 +95,59 @@
         </section>
       {% endfor %}
 
-      {% if wo_can_plan_maintenance %}
-        <div class="md-bulk is-visible" style="position:static;box-shadow:none">
-          <span class="md-bulk-count"><span data-md-count>0</span> selezionate</span>
-          <div class="md-field">
-            <label for="{{ wo_execution_day_form.execution_date.id_for_label }}">Distribuisci sulla giornata</label>
-            {{ wo_execution_day_form.execution_date }}
+      {% if wo_can_plan_maintenance or wo_can_execute_maintenance %}
+        {% comment %}
+          Le azioni sulla selezione. Registrare piu' manutenzioni insieme non e'
+          una chiusura di lotto: giorno, note e fermo si dichiarano una volta
+          sola perche' l'uscita e' stata una, ma ogni asset si chiude per conto
+          suo e avanza sul proprio piano.
+        {% endcomment %}
+        <div class="md-bulk is-visible md-bulk-stack" style="position:static;box-shadow:none" data-md-bulk-fields>
+          <div class="md-bulk-row">
+            <span class="md-bulk-count"><span data-md-count>0</span> selezionate</span>
+            <button type="button" class="btn btn-sm" data-md-select-all>Seleziona tutte</button>
+            <button type="button" class="btn btn-sm" data-md-clear>Deseleziona</button>
           </div>
-          <button type="submit" class="btn btn-primary" form="md-bulk-form">Sposta nella giornata</button>
+
+          {% if wo_can_execute_maintenance %}
+            <div class="md-bulk-row">
+              <div class="md-field">
+                <label for="{{ wo_bulk_completion_form.completed_on.id_for_label }}">Eseguite il</label>
+                {{ wo_bulk_completion_form.completed_on }}
+              </div>
+              <div class="md-field">
+                <label for="{{ wo_bulk_completion_form.downtime_minutes.id_for_label }}">Fermo (min)</label>
+                {{ wo_bulk_completion_form.downtime_minutes }}
+              </div>
+              <div class="md-field" style="flex:1;min-width:220px">
+                <label for="{{ wo_bulk_completion_form.notes.id_for_label }}">Note</label>
+                {{ wo_bulk_completion_form.notes }}
+              </div>
+              <div class="md-field">
+                <label for="{{ wo_bulk_completion_form.attachment.id_for_label }}">Rapporto unico</label>
+                {{ wo_bulk_completion_form.attachment }}
+              </div>
+              <button type="submit" class="btn btn-primary" form="md-bulk-form"
+                      formaction="{% url 'assets:workorder_occurrences_complete' workorder.pk %}"
+                      formenctype="multipart/form-data"
+                      data-md-complete>Registra le selezionate</button>
+            </div>
+            <p class="md-sub" style="margin:0">
+              Ogni manutenzione viene chiusa singolarmente e la prossima scadenza si calcola sul suo piano.
+              Quelle che richiedono un documento obbligatorio restano aperte se non lo alleghi, e te lo diciamo per nome.
+            </p>
+          {% endif %}
+
+          {% if wo_can_plan_maintenance %}
+            <div class="md-bulk-row">
+              <div class="md-field">
+                <label for="{{ wo_execution_day_form.execution_date.id_for_label }}">Distribuisci sulla giornata</label>
+                {{ wo_execution_day_form.execution_date }}
+              </div>
+              <button type="submit" class="btn" form="md-bulk-form"
+                      formaction="{% url 'assets:workorder_distribute_day' workorder.pk %}">Sposta nella giornata</button>
+            </div>
+          {% endif %}
         </div>
       {% endif %}
     </div>
@@ -98,12 +157,36 @@
   (function () {
     var counter = document.querySelector('[data-md-count]');
     if (!counter) { return; }
-    // Il campo data vive fuori dal <form>: lo si aggancia con l'attributo form
-    // come le checkbox, cosi' la POST porta con se' giornata e selezione.
-    var dateInput = document.getElementById('{{ wo_execution_day_form.execution_date.id_for_label }}');
-    if (dateInput) { dateInput.setAttribute('form', 'md-bulk-form'); }
+    var barra = document.querySelector('[data-md-bulk-fields]');
 
-    function refresh() { counter.textContent = document.querySelectorAll('[data-md-check]:checked').length; }
+    // I campi vivono fuori dal <form>: si agganciano con l'attributo form come
+    // le checkbox, cosi' la POST porta con se' data, note, fermo e allegato.
+    if (barra) {
+      barra.querySelectorAll('input, select, textarea').forEach(function (campo) {
+        campo.setAttribute('form', 'md-bulk-form');
+      });
+    }
+
+    function caselle() {
+      return Array.prototype.slice.call(document.querySelectorAll('[data-md-check]'));
+    }
+
+    function refresh() {
+      var n = caselle().filter(function (box) { return box.checked; }).length;
+      counter.textContent = n;
+      if (barra) {
+        barra.querySelectorAll('button[type="submit"]').forEach(function (btn) { btn.disabled = n === 0; });
+      }
+      document.querySelectorAll('[data-md-check-all]').forEach(function (testa) {
+        var tabella = testa.closest('table');
+        if (!tabella) { return; }
+        var righe = Array.prototype.slice.call(tabella.querySelectorAll('[data-md-check]'));
+        var spuntate = righe.filter(function (box) { return box.checked; }).length;
+        testa.checked = righe.length > 0 && spuntate === righe.length;
+        testa.indeterminate = spuntate > 0 && spuntate < righe.length;
+      });
+    }
+
     document.addEventListener('change', function (event) {
       if (event.target.matches('[data-md-check-all]')) {
         event.target.closest('table').querySelectorAll('[data-md-check]').forEach(function (box) {
@@ -112,6 +195,34 @@
       }
       if (event.target.matches('[data-md-check], [data-md-check-all]')) { refresh(); }
     });
+
+    var seleziona = document.querySelector('[data-md-select-all]');
+    if (seleziona) {
+      seleziona.addEventListener('click', function () {
+        caselle().forEach(function (box) { box.checked = true; });
+        refresh();
+      });
+    }
+    var pulisci = document.querySelector('[data-md-clear]');
+    if (pulisci) {
+      pulisci.addEventListener('click', function () {
+        caselle().forEach(function (box) { box.checked = false; });
+        refresh();
+      });
+    }
+
+    // Registrare chiude le manutenzioni e fa avanzare le scadenze: si conferma.
+    var registra = document.querySelector('[data-md-complete]');
+    if (registra) {
+      registra.addEventListener('click', function (event) {
+        var n = caselle().filter(function (box) { return box.checked; }).length;
+        if (!n) { event.preventDefault(); return; }
+        var messaggio = 'Registrare ' + n + ' manutenzion' + (n === 1 ? 'e' : 'i') +
+          ' come eseguite? Le scadenze successive verranno create.';
+        if (!window.confirm(messaggio)) { event.preventDefault(); }
+      });
+    }
+
     refresh();
   })();
   </script>
