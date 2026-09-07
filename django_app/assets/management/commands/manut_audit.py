@@ -468,6 +468,12 @@ class Command(BaseCommand):
         girato davvero. Sono tre cose diverse: un deploy che non riesegue
         ``setup_q_schedules`` lascia a DB il job della release precedente, che resta
         schedulato con un ``func`` che il codice nuovo non definisce piu'.
+
+        Un job assente a DB ha pero' due cause opposte: **perso** (mai registrato, ed
+        e' un guasto) oppure **spento di proposito** dalla Centrale di comando
+        (``monitoring.ScheduleControl``, che ``setup_q_schedules`` rispetta). Vengono
+        stampati separatamente: un rapporto che grida al guasto davanti a una scelta
+        deliberata smette di essere creduto proprio quando serve.
         """
         self._section("PUNTO 7 - RUNTIME DELLO SCHEDULER (cosa gira davvero)")
 
@@ -540,18 +546,42 @@ class Command(BaseCommand):
             ))
 
         try:
-            from automazioni.schedules import SCHEDULES
+            from automazioni.schedules import SCHEDULES, disabled_schedule_names
 
             attesi = {spec["name"] for spec in SCHEDULES}
-            mancanti = sorted(attesi - {row["name"] for row in rows})
-            if mancanti:
+            mancanti = attesi - {row["name"] for row in rows}
+            # Un job assente a DB perche' disattivato dalla Centrale di comando NON e'
+            # un guasto: e' una scelta durevole (monitoring.ScheduleControl), che
+            # ``setup_q_schedules`` rispetta anche dopo un redeploy. Confonderlo con un
+            # job perso rende il rapporto rumoroso proprio dove deve essere creduto.
+            try:
+                disattivati = set(disabled_schedule_names())
+            except Exception:
+                disattivati = set()
+
+            spenti = sorted(mancanti & disattivati)
+            persi = sorted(mancanti - disattivati)
+
+            if spenti:
+                self.stdout.write("")
+                self.stdout.write(
+                    "  DISATTIVATI dalla Centrale di comando (scelta deliberata, non un guasto): %d"
+                    % len(spenti)
+                )
+                for name in spenti:
+                    self.stdout.write("    - %s" % name)
+
+            if persi:
                 self.stdout.write("")
                 self.stdout.write(self.style.ERROR(
-                    "  NON REGISTRATE: %d job esistono nel codice ma non a DB - non girano."
-                    % len(mancanti)
+                    "  NON REGISTRATE: %d job esistono nel codice, non sono disattivati "
+                    "e non sono a DB - non girano." % len(persi)
                 ))
-                for name in mancanti:
+                for name in persi:
                     self.stdout.write(self.style.ERROR("    - %s" % name))
+                self.stdout.write(self.style.ERROR(
+                    "  Rimedio: manage.py setup_q_schedules"
+                ))
         except Exception as exc:  # pragma: no cover
             self.stdout.write(self.style.WARNING("  Confronto col codice non riuscito: %s" % exc))
 
