@@ -14920,7 +14920,7 @@ def _workorder_occurrences_context(request: HttpRequest, workorder: WorkOrder) -
     Vive qui e non in ``views_maintenance`` perche' e' il dettaglio OdL storico a
     doverlo mostrare; la dipendenza fra i due moduli resta a senso unico.
     """
-    from .forms_maintenance import ExecutionDayForm
+    from .forms_maintenance import ExecutionDayForm, OccurrenceBulkCompletionForm
     from .models import MaintenanceOccurrence
     from .services import maintenance_domain as maintenance_dom
     from .views_maintenance import can_execute_maintenance, can_plan_maintenance
@@ -14953,6 +14953,7 @@ def _workorder_occurrences_context(request: HttpRequest, workorder: WorkOrder) -
         "wo_occurrence_day_groups": day_groups,
         "wo_occurrence_progress": maintenance_dom.workorder_progress(workorder),
         "wo_execution_day_form": ExecutionDayForm(),
+        "wo_bulk_completion_form": OccurrenceBulkCompletionForm(),
         "wo_can_plan_maintenance": can_plan_maintenance(request),
         "wo_can_execute_maintenance": can_execute_maintenance(request),
     }
@@ -15609,6 +15610,31 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
                 if follow_up_child is not None:
                     success_message = f"{success_message} Creato il follow-up #{follow_up_child.id}."
                 messages.success(request, success_message)
+                # Chiudere l'intervento non registra le manutenzioni raccolte: ogni
+                # asset avanza sul suo piano quando *quella* manutenzione viene
+                # dichiarata eseguita. Se l'OdL si chiude e restano occorrenze
+                # aperte, la scadenza resta scaduta: va detto qui, non scoperto
+                # una settimana dopo davanti a una lista che non si e' svuotata.
+                if workorder.status in (WorkOrder.STATUS_DONE, WorkOrder.STATUS_CANCELED):
+                    from .models import MaintenanceOccurrence
+
+                    aperte = MaintenanceOccurrence.objects.filter(
+                        work_order=workorder, status=MaintenanceOccurrence.STATUS_OPEN
+                    ).count()
+                    if aperte == 1:
+                        messages.warning(
+                            request,
+                            "Una manutenzione raccolta in questo intervento non risulta "
+                            "registrata: la sua scadenza resta aperta. Registrala dal "
+                            "pannello \u00abManutenzioni raccolte\u00bb.",
+                        )
+                    elif aperte:
+                        messages.warning(
+                            request,
+                            f"{aperte} manutenzioni raccolte in questo intervento non "
+                            "risultano registrate: le loro scadenze restano aperte. "
+                            "Registrale dal pannello \u00abManutenzioni raccolte\u00bb.",
+                        )
                 return redirect("assets:wo_view", id=workorder.id)
     else:
         form = WorkOrderCloseForm(

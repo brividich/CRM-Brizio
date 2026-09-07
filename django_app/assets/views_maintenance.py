@@ -37,6 +37,7 @@ from .forms_maintenance import (
     MaintenancePlanAssignmentForm,
     MaintenanceHistoryImportForm,
     MaintenancePlanForm,
+    OccurrenceBulkCompletionForm,
     OccurrenceCompletionForm,
     OccurrenceFilterForm,
     WorkOrderFromOccurrencesForm,
@@ -1156,6 +1157,87 @@ def workorder_distribute_day(request: HttpRequest, workorder_id: int) -> HttpRes
         request,
         f"{len(occurrences)} asset programmati per il {day.execution_date:%d/%m/%Y}.",
     )
+    return redirect("assets:wo_view", id=workorder_id)
+
+
+@login_required
+@require_POST
+def workorder_occurrences_complete(request: HttpRequest, workorder_id: int) -> HttpResponse:
+    """Registra in un colpo solo le manutenzioni selezionate di QUESTO ordine di lavoro.
+
+    Un intervento massivo si esegue in una sola uscita ma si registrava una riga
+    per volta: su un OdL da dieci macchine sono dieci form identici. Qui si
+    dichiara una volta sola giorno, note e fermo, mentre la chiusura resta
+    **per occorrenza** — ogni asset avanza sul suo piano, e chi non si puo'
+    chiudere (manca il documento obbligatorio) viene saltato e detto per nome,
+    invece di far fallire tutto il blocco.
+    """
+    work_order = get_object_or_404(WorkOrder, pk=workorder_id)
+    if not can_execute_maintenance(request):
+        return _deny(request, "Non hai i permessi per registrare l'esecuzione delle manutenzioni.")
+
+    form = OccurrenceBulkCompletionForm(request.POST, request.FILES)
+    # Solo le occorrenze di questo OdL: la selezione arriva dal client e la
+    # pagina non e' il posto dove decidere a quale intervento appartengono.
+    occurrences = [occ for occ in _selected_occurrences(request) if occ.work_order_id == work_order.pk]
+
+    if not occurrences:
+        messages.error(request, "Seleziona almeno una manutenzione da registrare.")
+        return redirect("assets:wo_view", id=workorder_id)
+    if not form.is_valid():
+        errori = "; ".join(
+            f"{field}: {' '.join(errs)}" for field, errs in form.errors.items()
+        )
+        messages.error(request, f"Registrazione non valida. {errori}")
+        return redirect("assets:wo_view", id=workorder_id)
+
+    upload = form.cleaned_data.get("attachment")
+    completed_on = form.cleaned_data["completed_on"]
+    notes = form.cleaned_data.get("notes") or ""
+    downtime = form.cleaned_data.get("downtime_minutes")
+
+    registrate: list[str] = []
+    saltate: list[str] = []
+    for occurrence in occurrences:
+        etichetta = occurrence.asset.asset_tag or occurrence.asset.name
+        if upload:
+            # Lo stesso rapporto vale per tutte: il file viene riletto da capo
+            # per ogni allegato, altrimenti dal secondo in poi si salva vuoto.
+            upload.seek(0)
+            MaintenanceOccurrenceAttachment.objects.create(
+                occurrence=occurrence, file=upload, uploaded_by=request.user
+            )
+        try:
+            domain.complete_occurrence(
+                occurrence,
+                completed_on=completed_on,
+                user=request.user,
+                notes=notes,
+                downtime_minutes=downtime,
+            )
+        except domain.OccurrenceCompletionError as exc:
+            saltate.append(f"{etichetta} ({exc})")
+        else:
+            registrate.append(etichetta)
+
+    if registrate:
+        messages.success(
+            request,
+            f"{len(registrate)} manutenzion{'e' if len(registrate) == 1 else 'i'} registrat"
+            f"{'a' if len(registrate) == 1 else 'e'} il {completed_on:%d/%m/%Y}: {', '.join(registrate)}.",
+        )
+    if saltate:
+        messages.warning(request, f"Non registrate: {'; '.join(saltate)}.")
+
+    rimaste = MaintenanceOccurrence.objects.filter(
+        work_order_id=work_order.pk, status=MaintenanceOccurrence.STATUS_OPEN
+    ).count()
+    if registrate and not rimaste and work_order.status == WorkOrder.STATUS_OPEN:
+        messages.info(
+            request,
+            "Tutte le manutenzioni raccolte sono registrate: l'intervento puo' essere chiuso.",
+        )
+
     return redirect("assets:wo_view", id=workorder_id)
 
 
