@@ -33,11 +33,17 @@ quello in esercizio.
 `9fc8e3a6`) è stata attivata in produzione: il generatore legacy non esiste più nel
 pacchetto installato e lo scheduler nel codice punta al motore nuovo.
 
-**Il motore nuovo non ha però ancora girato nemmeno una volta.** Il job è schedulato alle
-06:00 (`schedules.py:407`) e la corsa delle 06:00 di oggi è avvenuta **tre ore prima** del
-deploy, quindi ancora con il motore vecchio; il cluster django-q è stato riavviato alle
-10:36, dopo il deploy. **La prima corsa del motore nuovo sarà quella del 2026-09-08 alle
-06:00.**
+**Il job schedulato non ha però ancora girato nemmeno una volta col motore nuovo.** È
+schedulato alle 06:00 (`schedules.py:407`) e la corsa delle 06:00 di oggi è avvenuta **tre
+ore prima** del deploy, quindi ancora col motore vecchio. **La prima corsa automatica sarà
+quella del 2026-09-08 alle 06:00.**
+
+Attenzione a non confondere il job con il motore: il *comando* è già stato eseguito a mano.
+La verifica del 07-09 trova **321 occorrenze con `source=SCHEDULER`** (§8), che solo
+`generate_occurrences` può aver scritto — `migrate_maintenance_to_plans` marca
+esplicitamente `MIGRATION` in tutti e tre i suoi `create` (`:285`, `:361`, `:374`), quindi
+non è un effetto del valore di default del campo. Il motore nuovo ha quindi già popolato il
+portale; è la sua esecuzione **automatica** a non essere ancora avvenuta.
 
 Restava una condizione da verificare, che il codice da solo non poteva chiudere. Il job è
 stato **rinominato** insieme al motore (`assets_generate_workorders` →
@@ -441,6 +447,12 @@ lette da `MaintenanceRule.threshold_value`).
 **Scritture prodotte: 304 occorrenze** — 152 `DONE` (storiche) + 152 `OPEN` (prossime),
 tutte con `source=IMPORT`.
 
+> **Verificato: l'import è stato eseguito, e i numeri coincidono.** `manut_audit --sorgenti`
+> in produzione il 2026-09-07 riporta `Importata DONE 152` (dal 18-06-2021 al 24-08-2026) e
+> `Importata OPEN 152` (dal 18-06-2024 al 30-03-2029), con **5 aperte già scadute, la più
+> vecchia al 18-06-2024** — cioè esattamente le 5 righe della tabella qui sotto, a partire
+> da `CNC-ELT-007003`. La previsione fatta sul codice corrisponde al risultato reale.
+
 Delle 152 aperte:
 
 | Esito | N |
@@ -560,6 +572,10 @@ lettura (`assets/maintenance.py`, viste di anteprima e scadenzario). Non c'è ur
 rimuoverla, ma finché è visibile mostra numeri calcolati con una semantica che non genera
 più nulla. Va marcata come vista storica o rimossa, non lasciata ambigua.
 
+**Rimuovere `WorkMachine.next_maintenance_date`**, che la misura in Appendice A mostra
+essere **vuoto su tutti gli asset**: nessuna migrazione dati, nessun rischio, solo la
+rimozione dal form (`forms.py:1561`) e dai cinque template che lo espongono.
+
 ### 7.2 Azioni, in ordine
 
 1. ~~Verificare lo scheduler in produzione~~ — **fatto il 07-09, esito allineato** (§2.3).
@@ -636,10 +652,37 @@ cinque template, ancora modificabile a mano, e non più aggiornato da nulla. **C
 valore che aveva l'ultima volta che qualcuno lo ha toccato.** È la fonte parallela da
 dismettere per prima.
 
-**Conteggio delle sovrapposizioni:** richiede il database. `manut_audit --fonti-parallele`
-(sezione «PUNTO 9») conta gli asset distinti per fonte, quanti hanno una scadenza attiva
-in più di una fonte contemporaneamente, la distribuzione delle combinazioni osservate e il
-dettaglio per asset.
+**Conteggio delle sovrapposizioni — misurato il 2026-09-07** con
+`manut_audit --fonti-parallele`:
+
+| Fonte | Asset distinti |
+|---|---:|
+| occorrenza aperta | **64** |
+| scadenza amministrativa | **27** |
+| verifica periodica | **0** |
+| `WorkMachine.next_maintenance_date` | **0** |
+
+**Asset con scadenza attiva in più di una fonte: 27**, tutti nella stessa combinazione
+*occorrenza aperta + scadenza amministrativa* (carroponti `APS-CRP-*`, gru `APS-GRU-*`,
+magneti, pinze, sottotrave, i due Kardex, un chiller HVAC).
+
+Questo **corregge in meglio** la valutazione qui sopra, su due punti:
+
+1. **`WorkMachine.next_maintenance_date` non è un campo congelato con dati dentro: è
+   vuoto.** Nessun asset lo ha valorizzato. Non c'è nulla da migrare e nessun dato da
+   perdere: la rimozione dai cinque template e dal form è pura pulizia, e va fatta proprio
+   perché un campo vuoto esposto in pagina è peggio di un campo assente — mostra una colonna
+   che non si riempirà mai.
+2. **Le verifiche periodiche attive con una prossima data sono zero.** Il sottodominio
+   esiste nel modello ma non è in uso.
+
+**Resta un solo caso reale da chiarire**, ed è quello dei 27 asset: il piano di
+manutenzione supporta il tipo *scadenza amministrativa*, quindi la stessa scadenza può
+essere tracciata **due volte** — una come `AssetAdministrativeDeadline`, una come
+occorrenza di un piano amministrativo. Va guardato asset per asset se sono la stessa cosa
+in doppio o due scadenze legittimamente distinte (per un carroponte: verifica di legge
+*e* manutenzione ordinaria). Se sono in doppio, è l'unica sovrapposizione da risolvere
+davvero.
 
 ---
 
