@@ -4,7 +4,7 @@
 <style>
 .content { padding: 0 !important; max-width: none !important; width: 100% !important; margin: 0 !important; }
 .as-shell { display: grid; grid-template-columns: 230px 1fr; align-items: stretch; background: linear-gradient(180deg,#f8fbff 0%,#f4f7fc 100%); border-top: 1px solid #dbe3f0; }
-.as-side { align-self: stretch; background: linear-gradient(180deg,#ffffff 0%,#f3f8ff 100%); border-right: 1px solid #dbe3f0; padding: 12px; display: grid; grid-template-rows: auto 1fr auto; gap: 10px; position: sticky; top: 0; height: 100vh; overflow: hidden; }
+.as-side { align-self: stretch; background: linear-gradient(180deg,#ffffff 0%,#f3f8ff 100%); border-right: 1px solid #dbe3f0; padding: 12px; display: grid; grid-template-rows: auto auto 1fr auto; gap: 8px; position: sticky; top: 0; height: 100vh; overflow: hidden; }
 .as-brand { display: flex; align-items: center; gap: 10px; }
 .as-logo { width: 36px; height: 36px; border-radius: 10px; background: #0f172a; color: #fff; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; box-shadow:0 12px 24px rgba(15,23,42,.16); }
 .as-logo img { width: 100%; height: 100%; object-fit: cover; border-radius: 9px; }
@@ -13,6 +13,30 @@
 .as-name { font-size: var(--fs-display-lg); font-weight: 900; color: #0f172a; line-height: 1; }
 .as-name span { color: #1f64d8; }
 .as-nav { display: flex; flex-direction: column; gap: 4px; overflow-y: auto; min-height: 0; }
+.as-nav-filter { position: relative; display: flex; align-items: center; }
+.as-nav-filter input {
+  width: 100%;
+  height: 30px;
+  border: 1px solid #dbe3f0;
+  border-radius: 8px;
+  background: #fff;
+  padding: 0 26px 0 26px;
+  font-family: inherit;
+  font-size: var(--fs-xs);
+  color: #24395e;
+  outline: none;
+}
+.as-nav-filter input:focus { border-color: #93b4e8; box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+.as-nav-filter input::-webkit-search-cancel-button { display: none; }
+.as-nav-filter-icon { position: absolute; left: 8px; font-size: var(--fs-2xs); color: #8ea2bf; pointer-events: none; }
+.as-nav-filter-clear {
+  position: absolute; right: 4px; width: 20px; height: 20px; border: 0; border-radius: 6px;
+  background: transparent; color: #8ea2bf; cursor: pointer; line-height: 1; font-size: var(--fs-sm);
+}
+.as-nav-filter-clear:hover { background: #edf3fc; color: #1f64d8; }
+.as-nav-empty { margin: 8px 4px; font-size: var(--fs-xs); color: #8ea2bf; }
+/* il filtro nasconde voci, teste di sezione e gruppi: batte i display: grid/flex locali */
+.as-nav [hidden] { display: none !important; }
 .as-nav-head { font-size: var(--fs-2xs); color: #8ea2bf; text-transform: uppercase; letter-spacing: .08em; margin: 7px 4px; font-weight: 700; }
 .as-link { position:relative; display: block; color: #24395e; text-decoration: none; border-radius: 8px; padding: 6px 9px; font-weight: 700; line-height: 1.1; font-size: var(--fs-sm); }
 .as-link:hover { background: #edf3fc; }
@@ -280,6 +304,11 @@ body.theme-dark .as-side { background: linear-gradient(180deg,var(--surface) 0%,
 body.theme-dark .as-name { color: var(--text); }
 body.theme-dark .as-name span { color: #60a5fa; }
 body.theme-dark .as-brand-link:hover { background: rgba(255,255,255,.05); }
+body.theme-dark .as-nav-filter input { background: var(--surface); border-color: var(--border); color: var(--text); }
+body.theme-dark .as-nav-filter input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.18); }
+body.theme-dark .as-nav-filter-icon, body.theme-dark .as-nav-empty { color: var(--text-light); }
+body.theme-dark .as-nav-filter-clear { color: var(--text-light); }
+body.theme-dark .as-nav-filter-clear:hover { background: rgba(255,255,255,.07); color: #60a5fa; }
 body.theme-dark .as-nav-head { color: var(--text-light); }
 body.theme-dark .as-link { color: var(--text-mid); }
 body.theme-dark .as-link:hover { background: rgba(255,255,255,.07); color: var(--text); }
@@ -371,6 +400,11 @@ body.theme-dark tr[data-row-href]:hover > td { background: rgba(96,165,250,.10);
       <span class="as-logo">{% if assets_logo_url %}<img src="{{ assets_logo_url }}" alt="Logo {{ assets_brand_label|default:'Assets' }}">{% else %}{{ assets_brand_label|default:'Assets'|first|upper }}{% endif %}</span>
       <div class="as-name">{{ assets_brand_label|default:"Asset" }}</div>
     </a>
+    <div class="as-nav-filter">
+      <span class="as-nav-filter-icon" aria-hidden="true">&#128269;</span>
+      <input type="search" placeholder="Filtra il menu" autocomplete="off" aria-label="Filtra le voci del menu" data-as-nav-filter>
+      <button type="button" class="as-nav-filter-clear" aria-label="Azzera filtro" data-as-nav-filter-clear hidden>&times;</button>
+    </div>
     <nav class="as-nav">
       {% for group in assets_sidebar_groups %}
         <div class="as-nav-head">{{ group.label }}</div>
@@ -398,6 +432,7 @@ body.theme-dark tr[data-row-href]:hover > td { background: rgba(96,165,250,.10);
         <div class="as-nav-head" style="margin-top:10px;">Amministrazione</div>
         <a class="as-link{% if request.resolver_match.url_name == 'gestione_admin' %} active{% endif %}" href="{% url 'assets:gestione_admin' %}">&#9881; Impostazioni</a>
       {% endif %}
+      <p class="as-nav-empty" data-as-nav-empty hidden>Nessuna voce corrisponde.</p>
     </nav>
     <div class="as-user">
       <span class="as-user-av">{{ request.user.username|slice:":1"|upper }}</span>
@@ -466,43 +501,127 @@ body.theme-dark tr[data-row-href]:hover > td { background: rgba(96,165,250,.10);
 {% block extra_scripts %}
 <script>
 (function () {
-  var groups = Array.prototype.slice.call(document.querySelectorAll("[data-as-nav-group]"));
-  if (!groups.length) return;
+  var nav = document.querySelector(".as-nav");
+  if (!nav) return;
+  var groups = Array.prototype.slice.call(nav.querySelectorAll("[data-as-nav-group]"));
 
+  // ── Accordion ────────────────────────────────────────────────────────────
+  // Un ramo aperto per volta: il menu e' lungo e due rami aperti bastano a
+  // spingere fuori schermo il resto. Lo stato non viene ricordato tra le
+  // pagine: la voce attiva basta a riaprire il ramo giusto.
   var storageKey = "assets_sidebar_open_groups_v1";
-  try {
-    localStorage.removeItem(storageKey);
-  } catch (e) {}
+  try { localStorage.removeItem(storageKey); } catch (e) {}
 
   function setGroupOpen(group, isOpen) {
     var toggle = group.querySelector("[data-as-nav-toggle]");
     group.classList.toggle("open", isOpen);
-    if (toggle) {
-      toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
-    }
+    if (toggle) { toggle.setAttribute("aria-expanded", isOpen ? "true" : "false"); }
   }
 
   function closeOtherGroups(activeGroup) {
     groups.forEach(function (group) {
-      if (group !== activeGroup) {
-        setGroupOpen(group, false);
-      }
+      if (group !== activeGroup) { setGroupOpen(group, false); }
     });
   }
 
   groups.forEach(function (group) {
     var toggle = group.querySelector("[data-as-nav-toggle]");
-    if (toggle) {
-      toggle.setAttribute("aria-expanded", group.classList.contains("open") ? "true" : "false");
-      toggle.addEventListener("click", function () {
-        var shouldOpen = !group.classList.contains("open");
-        if (shouldOpen) {
-          closeOtherGroups(group);
-        }
-        setGroupOpen(group, shouldOpen);
-      });
+    if (!toggle) return;
+    toggle.setAttribute("aria-expanded", group.classList.contains("open") ? "true" : "false");
+    toggle.addEventListener("click", function () {
+      var shouldOpen = !group.classList.contains("open");
+      if (shouldOpen) { closeOtherGroups(group); }
+      setGroupOpen(group, shouldOpen);
+    });
+  });
+
+  // ── Filtro voci ──────────────────────────────────────────────────────────
+  // Con oltre venti voci di primo livello scorrere e' piu' lento che scrivere.
+  // Il filtro nasconde, non riordina: la posizione delle voci resta quella che
+  // l'utente ha imparato.
+  var input = nav.parentNode.querySelector("[data-as-nav-filter]");
+  var clear = nav.parentNode.querySelector("[data-as-nav-filter-clear]");
+  var empty = nav.querySelector("[data-as-nav-empty]");
+  if (!input) return;
+
+  var openBeforeFilter = null;
+
+  function normalize(text) {
+    return (text || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+  }
+
+  function applyFilter(raw) {
+    var query = normalize(raw);
+    var nodes = Array.prototype.slice.call(nav.children);
+    var pendingHead = null;
+    var headHasVisible = false;
+    var anyVisible = false;
+
+    nodes.forEach(function (node) {
+      if (node === empty) return;
+
+      if (node.classList.contains("as-nav-head")) {
+        if (pendingHead) { pendingHead.hidden = !headHasVisible; }
+        pendingHead = node;
+        headHasVisible = false;
+        return;
+      }
+
+      var visible;
+      if (node.classList.contains("as-nav-group")) {
+        var parentLink = node.querySelector(".as-nav-parent .as-link");
+        var parentMatch = !query || normalize(parentLink && parentLink.textContent).indexOf(query) !== -1;
+        var children = Array.prototype.slice.call(node.querySelectorAll(".as-nav-children .as-link"));
+        var childMatches = 0;
+        children.forEach(function (child) {
+          var hit = !query || parentMatch || normalize(child.textContent).indexOf(query) !== -1;
+          child.hidden = !hit;
+          if (hit && query && !parentMatch) { childMatches += 1; }
+        });
+        visible = parentMatch || childMatches > 0;
+        if (query && visible) { setGroupOpen(node, true); }
+      } else {
+        visible = !query || normalize(node.textContent).indexOf(query) !== -1;
+      }
+
+      node.hidden = !visible;
+      if (visible) { headHasVisible = true; anyVisible = true; }
+    });
+
+    if (pendingHead) { pendingHead.hidden = !headHasVisible; }
+    if (empty) { empty.hidden = anyVisible; }
+    if (clear) { clear.hidden = !query; }
+  }
+
+  function resetFilter() {
+    input.value = "";
+    applyFilter("");
+    groups.forEach(function (group) {
+      setGroupOpen(group, group.getAttribute("data-as-nav-key") === openBeforeFilter);
+    });
+  }
+
+  input.addEventListener("input", function () {
+    if (openBeforeFilter === null) {
+      var open = groups.filter(function (group) { return group.classList.contains("open"); })[0];
+      openBeforeFilter = open ? open.getAttribute("data-as-nav-key") : "";
+    }
+    applyFilter(input.value);
+    if (!input.value) { resetFilter(); openBeforeFilter = null; }
+  });
+
+  input.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") { resetFilter(); openBeforeFilter = null; input.blur(); }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      var first = nav.querySelector(".as-nav-group:not([hidden]) .as-nav-children .as-link:not([hidden]), .as-link:not([hidden])");
+      if (first && first.href) { window.location.href = first.href; }
     }
   });
+
+  if (clear) {
+    clear.addEventListener("click", function () { resetFilter(); openBeforeFilter = null; input.focus(); });
+  }
 })();
 
 /* Righe tabella linkabili (asset / OdL / azione) + link dentro summary collassabili */
