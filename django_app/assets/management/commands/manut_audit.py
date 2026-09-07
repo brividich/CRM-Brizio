@@ -10,6 +10,17 @@ Risponde ai punti 3, 4 e 6 della ricognizione:
    dentro/fuori un OdL, utenti distinti che hanno registrato.
 6. **Concetti non definiti** — follow-up e conflitti di periodicita'.
 
+Fase 0bis (ricognizione dei motori) aggiunge tre sezioni, tutte opzionali:
+
+7. **Runtime dello scheduler** (``--runtime``) — Schedule django-q registrate a
+   DB con ``next_run``/``last_run``, esito dell'ultima corsa, e versione del
+   pacchetto installato da ``BUILD_INFO.json``. Risponde alla domanda "cosa gira
+   davvero", che il codice da solo non puo' chiudere.
+8. **Sorgente delle occorrenze** (``--sorgenti``) — conteggi separati per
+   ``MaintenanceOccurrence.source``: quale motore ha prodotto cosa.
+9. **Fonti di scadenza parallele** (``--fonti-parallele``) — quanti asset hanno
+   una scadenza attiva in piu' di una fonte contemporaneamente.
+
 Vincoli rispettati, per costruzione:
 
 - **Nessuna scrittura.** Solo ``values()``/``annotate()``/``aggregate()`` e
@@ -46,7 +57,10 @@ from django.utils import timezone
 
 from assets.models import (
     Asset,
+    AssetAdministrativeDeadline,
     MaintenanceOccurrence,
+    PeriodicVerification,
+    WorkMachine,
     WorkOrder,
     WorkOrderLog,
 )
@@ -90,6 +104,21 @@ class Command(BaseCommand):
             help="Righe di dettaglio stampate per il punto 3 (default 100). 0 = tutte.",
         )
         parser.add_argument(
+            "--runtime",
+            action="store_true",
+            help="Punto 7: Schedule django-q registrate (next_run/last_run, esito ultima corsa) e versione installata.",
+        )
+        parser.add_argument(
+            "--sorgenti",
+            action="store_true",
+            help="Punto 8: conteggio delle occorrenze per sorgente (quale motore le ha generate).",
+        )
+        parser.add_argument(
+            "--fonti-parallele",
+            action="store_true",
+            help="Punto 9: asset con una scadenza attiva in piu' di una fonte contemporaneamente.",
+        )
+        parser.add_argument(
             "--skip-conflicts",
             action="store_true",
             help="Salta il calcolo dei conflitti di periodicita' (3 query su tutti gli asset attivi).",
@@ -101,6 +130,9 @@ class Command(BaseCommand):
         self.months = max(1, int(options["months"]))
         self.limit = max(0, int(options["limit"]))
         self.skip_conflicts = bool(options["skip_conflicts"])
+        self.runtime = bool(options["runtime"])
+        self.sorgenti = bool(options["sorgenti"])
+        self.fonti_parallele = bool(options["fonti_parallele"])
         self.today: date = timezone.localdate()
         self.window_start = self.today - timedelta(days=self.months * 31)
 
@@ -108,6 +140,12 @@ class Command(BaseCommand):
         self._punto3_debito_storico()
         self._punto4_uso_reale()
         self._punto6_concetti()
+        if self.runtime:
+            self._punto7_runtime()
+        if self.sorgenti:
+            self._punto8_sorgenti()
+        if self.fonti_parallele:
+            self._punto9_fonti_parallele()
         self._footer()
 
     # ------------------------------------------------------------------
@@ -417,6 +455,308 @@ class Command(BaseCommand):
         self.stdout.write(f"UTENTI DISTINTI CHE HANNO REGISTRATO: {len(righe_reg)}")
         for row in righe_reg[:20]:
             self.stdout.write(f"  {row['completed_by__username']:<30} {row['registrate']:>6}")
+
+
+    # ==================================================================
+    # PUNTO 7 - Runtime dello scheduler (Fase 0bis)
+    # ==================================================================
+    def _punto7_runtime(self) -> None:
+        """Cosa e' registrato nello scheduler e cosa ha girato davvero.
+
+        Il codice dice cosa *dovrebbe* girare; ``django_q.Schedule`` dice cosa e'
+        registrato a DB; ``next_run`` e l'esito dell'ultimo Task dicono cosa ha
+        girato davvero. Sono tre cose diverse: un deploy che non riesegue
+        ``setup_q_schedules`` lascia a DB il job della release precedente, che resta
+        schedulato con un ``func`` che il codice nuovo non definisce piu'.
+        """
+        self._section("PUNTO 7 - RUNTIME DELLO SCHEDULER (cosa gira davvero)")
+
+        self.stdout.write("")
+        self.stdout.write("[FILE] BUILD_INFO.json (versione del pacchetto installato)")
+        self.stdout.write(RULE)
+        self.stdout.write("EXPLAIN: non letto." if self.explain else self._build_info())
+        self.stdout.write(RULE)
+
+        try:
+            from django_q.models import Schedule
+        except Exception as exc:  # pragma: no cover - dipende dall'installazione
+            self.stdout.write(self.style.WARNING("django_q non disponibile: %s" % exc))
+            return
+
+        schedules = Schedule.objects.all().order_by("name")
+        self._show("Schedule django-q registrate a DB", schedules)
+        if self.explain:
+            return
+
+        rows = list(
+            schedules.values(
+                "name", "func", "schedule_type", "cron", "minutes",
+                "repeats", "next_run", "task",
+            )
+        )
+        if not rows:
+            self.stdout.write(self.style.WARNING(
+                "  Nessuno Schedule registrato: nessun job periodico girera'. "
+                "Rimedio: manage.py setup_q_schedules"
+            ))
+            return
+
+        self.stdout.write("  Schedule registrate: %d" % len(rows))
+        self.stdout.write("")
+        self.stdout.write(
+            "  %-34s %-14s %-17s %-12s %s" % ("NOME", "CADENZA", "PROSSIMA CORSA", "ULTIMO ESITO", "FUNC")
+        )
+        self.stdout.write("  " + "-" * 116)
+
+        esiti = self._task_outcomes([r["task"] for r in rows if r["task"]])
+
+        orfani: list[str] = []
+        for row in rows:
+            cadenza = (
+                "cron %s" % row["cron"] if row["schedule_type"] == "C"
+                else "ogni %sm" % row["minutes"]
+            )
+            prossima = row["next_run"].strftime("%d-%m-%Y %H:%M") if row["next_run"] else "-"
+            esito = esiti.get(row["task"], "-")
+            self.stdout.write(
+                "  %-34s %-14s %-17s %-12s %s"
+                % (row["name"][:34], cadenza[:14], prossima, esito, row["func"])
+            )
+            if not self._func_importabile(row["func"]):
+                orfani.append("%s -> %s" % (row["name"], row["func"]))
+
+        if orfani:
+            self.stdout.write("")
+            self.stdout.write(self.style.ERROR(
+                "  SCHEDULE ORFANE: il 'func' registrato non esiste nel codice installato."
+            ))
+            self.stdout.write(self.style.ERROR(
+                "  Il cluster fallisce a ogni corsa, e il job che lo sostituisce non e' registrato."
+            ))
+            for voce in orfani:
+                self.stdout.write(self.style.ERROR("    - %s" % voce))
+            self.stdout.write(self.style.ERROR(
+                "  Rimedio: manage.py setup_q_schedules  (rimuove i ritirati, registra i nuovi)"
+            ))
+
+        try:
+            from automazioni.schedules import SCHEDULES
+
+            attesi = {spec["name"] for spec in SCHEDULES}
+            mancanti = sorted(attesi - {row["name"] for row in rows})
+            if mancanti:
+                self.stdout.write("")
+                self.stdout.write(self.style.ERROR(
+                    "  NON REGISTRATE: %d job esistono nel codice ma non a DB - non girano."
+                    % len(mancanti)
+                ))
+                for name in mancanti:
+                    self.stdout.write(self.style.ERROR("    - %s" % name))
+        except Exception as exc:  # pragma: no cover
+            self.stdout.write(self.style.WARNING("  Confronto col codice non riuscito: %s" % exc))
+
+    def _build_info(self) -> str:
+        """Versione installata: il file sta nella radice del pacchetto, sopra django_app/."""
+        import json
+        from pathlib import Path
+
+        from django.conf import settings
+
+        base = Path(getattr(settings, "BASE_DIR", "."))
+        for candidate in (base / "BUILD_INFO.json", base.parent / "BUILD_INFO.json"):
+            if candidate.is_file():
+                try:
+                    data = json.loads(candidate.read_text(encoding="utf-8"))
+                except Exception as exc:
+                    return "%s: illeggibile (%s)" % (candidate, exc)
+                return "\n".join([
+                    str(candidate),
+                    "  versione  : %s" % data.get("version"),
+                    "  commit    : %s (%s)" % (data.get("commit_short"), data.get("branch")),
+                    "  costruito : %s da %s" % (data.get("built_at"), data.get("built_by")),
+                    "  dirty     : %s | delta vs branch: %s"
+                    % (data.get("dirty"), data.get("delta_vs_export_branch")),
+                ])
+        return "BUILD_INFO.json non trovato (sviluppo, o pacchetto non tracciabile)."
+
+    @staticmethod
+    def _func_importabile(dotted: str) -> bool:
+        """True se il ``func`` registrato e' ancora risolvibile nel codice installato."""
+        import importlib
+
+        try:
+            module_path, _, attr = str(dotted or "").rpartition(".")
+            if not module_path:
+                return False
+            return hasattr(importlib.import_module(module_path), attr)
+        except Exception:
+            return False
+
+    @staticmethod
+    def _task_outcomes(task_ids: list) -> dict:
+        """Esito dell'ultima corsa, per id di Task django-q."""
+        if not task_ids:
+            return {}
+        try:
+            from django_q.models import Task
+
+            return {
+                row["id"]: ("Success" if row["success"] else "FAILURE")
+                for row in Task.objects.filter(id__in=task_ids).values("id", "success")
+            }
+        except Exception:
+            return {}
+
+    # ==================================================================
+    # PUNTO 8 - Sorgente delle occorrenze (Fase 0bis)
+    # ==================================================================
+    def _punto8_sorgenti(self) -> None:
+        """Quale motore ha prodotto quali occorrenze.
+
+        ``MaintenanceOccurrence.source`` e' indicizzato e valorizzato alla creazione
+        da ogni percorso di scrittura: e' la traccia che rende i record attribuibili
+        a posteriori, senza euristiche sulle date.
+        """
+        self._section("PUNTO 8 - SORGENTE DELLE OCCORRENZE (quale motore ha generato cosa)")
+
+        per_sorgente = (
+            MaintenanceOccurrence.objects.values("source", "status")
+            .annotate(n=Count("id"), prima=Min("due_date"), ultima=Max("due_date"))
+            .order_by("source", "status")
+        )
+        self._show("Occorrenze per sorgente e stato", per_sorgente)
+
+        scadute = (
+            MaintenanceOccurrence.objects.filter(
+                status=MaintenanceOccurrence.STATUS_OPEN, due_date__lt=self.today
+            )
+            .values("source")
+            .annotate(n=Count("id"), piu_vecchia=Min("due_date"))
+            .order_by("source")
+        )
+        self._show("Occorrenze APERTE gia' scadute, per sorgente", scadute)
+        if self.explain:
+            return
+
+        etichette = dict(MaintenanceOccurrence.SOURCE_CHOICES)
+        righe = list(per_sorgente)
+        if not righe:
+            self.stdout.write("  Nessuna occorrenza a DB.")
+            return
+
+        self.stdout.write("")
+        self.stdout.write("  %-32s %-12s %6s  %-10s %-10s" % ("SORGENTE", "STATO", "N", "DA", "A"))
+        self.stdout.write("  " + "-" * 80)
+        totale = 0
+        for row in righe:
+            totale += row["n"]
+            self.stdout.write(
+                "  %-32s %-12s %6d  %s %s"
+                % (
+                    etichette.get(row["source"], row["source"])[:32],
+                    str(row["status"])[:12],
+                    row["n"],
+                    row["prima"].strftime("%d-%m-%Y") if row["prima"] else "-",
+                    row["ultima"].strftime("%d-%m-%Y") if row["ultima"] else "-",
+                )
+            )
+        self.stdout.write("  " + "-" * 80)
+        self.stdout.write("  %-45s %6d" % ("TOTALE", totale))
+
+        righe_scadute = list(scadute)
+        if righe_scadute:
+            self.stdout.write("")
+            self.stdout.write("  Aperte e gia' scadute alla data di oggi (nate nel passato):")
+            for row in righe_scadute:
+                self.stdout.write(
+                    "    %-32s %6d   la piu' vecchia: %s"
+                    % (
+                        etichette.get(row["source"], row["source"]),
+                        row["n"],
+                        row["piu_vecchia"].strftime("%d-%m-%Y") if row["piu_vecchia"] else "-",
+                    )
+                )
+
+    # ==================================================================
+    # PUNTO 9 - Fonti di scadenza parallele (Fase 0bis)
+    # ==================================================================
+    def _punto9_fonti_parallele(self) -> None:
+        """Quanti asset hanno una scadenza attiva in piu' di una fonte.
+
+        Quattro fonti indipendenti possono dire "questo asset scade": l'occorrenza
+        del nuovo dominio, la verifica periodica, la scadenza amministrativa e la
+        data denormalizzata sulla macchina. Nessuna delle quattro sa delle altre.
+        """
+        self._section("PUNTO 9 - FONTI DI SCADENZA PARALLELE (sovrapposizioni per asset)")
+
+        occorrenze = MaintenanceOccurrence.objects.filter(
+            status=MaintenanceOccurrence.STATUS_OPEN
+        ).order_by().values_list("asset_id", flat=True)
+        verifiche = PeriodicVerification.objects.filter(
+            is_active=True, next_verification_date__isnull=False
+        ).order_by().values_list("assets__id", flat=True)
+        amministrative = AssetAdministrativeDeadline.objects.filter(
+            is_active=True
+        ).order_by().values_list("asset_id", flat=True)
+        macchine = WorkMachine.objects.filter(
+            next_maintenance_date__isnull=False
+        ).order_by().values_list("asset_id", flat=True)
+
+        self._show("Asset con occorrenza aperta", occorrenze)
+        self._show("Asset con verifica periodica attiva", verifiche)
+        self._show("Asset con scadenza amministrativa attiva", amministrative)
+        self._show("Asset con next_maintenance_date valorizzata", macchine)
+        if self.explain:
+            return
+
+        fonti = {
+            "occorrenza aperta": {a for a in occorrenze if a},
+            "verifica periodica": {a for a in verifiche if a},
+            "scadenza amministrativa": {a for a in amministrative if a},
+            "next_maintenance_date": {a for a in macchine if a},
+        }
+
+        self.stdout.write("")
+        for nome, insieme in fonti.items():
+            self.stdout.write("  %-28s asset distinti: %6d" % (nome, len(insieme)))
+
+        conteggio: dict[int, list[str]] = {}
+        for nome, insieme in fonti.items():
+            for asset_id in insieme:
+                conteggio.setdefault(asset_id, []).append(nome)
+
+        sovrapposti = {a: f for a, f in conteggio.items() if len(f) > 1}
+        self.stdout.write("")
+        self.stdout.write(
+            "  ASSET CON SCADENZA ATTIVA IN PIU' DI UNA FONTE: %d" % len(sovrapposti)
+        )
+        if not sovrapposti:
+            return
+
+        combinazioni: dict[tuple, int] = {}
+        for elenco in sovrapposti.values():
+            chiave = tuple(sorted(elenco))
+            combinazioni[chiave] = combinazioni.get(chiave, 0) + 1
+        self.stdout.write("")
+        self.stdout.write("  Combinazioni osservate:")
+        for combo, n in sorted(combinazioni.items(), key=lambda kv: -kv[1]):
+            self.stdout.write("    %5dx  %s" % (n, " + ".join(combo)))
+
+        limite = self.limit or len(sovrapposti)
+        primi = list(sovrapposti)[:limite]
+        etichette_asset = dict(
+            Asset.objects.filter(pk__in=primi).values_list("pk", "asset_tag")
+        )
+        self.stdout.write("")
+        self.stdout.write("  Dettaglio (primi %d):" % len(primi))
+        for asset_id in primi:
+            self.stdout.write(
+                "    %-28s %s"
+                % (
+                    str(etichette_asset.get(asset_id) or asset_id)[:28],
+                    ", ".join(sovrapposti[asset_id]),
+                )
+            )
 
     # ==================================================================
     # PUNTO 6 - Concetti non definiti
