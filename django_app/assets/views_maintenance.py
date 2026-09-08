@@ -358,11 +358,22 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
     if view_mode not in {"plan", "group", "asset"}:
         view_mode = "plan"
 
+    # I quattro numeri rispondono alla domanda della pagina — "cosa devo fare
+    # adesso?" — e non alla salute del modulo, che e' il mestiere del Cruscotto.
+    # Contati sulle righe gia' in memoria: nessuna query in piu'.
+    user_id = getattr(request.user, "id", None)
     summary = {
-        "overdue": len(blocks[0]["rows"]),
-        "week": len(blocks[1]["rows"]),
-        "planned": len(blocks[2]["rows"]),
-        "external": sum(1 for r in rows if r["occurrence"].is_external and r["occurrence"].appointment_date),
+        "overdue": sum(1 for r in rows if r["state"] == MaintenanceOccurrence.VIEW_OVERDUE),
+        "today": sum(1 for r in rows if r["occurrence"].due_date == today),
+        "week": sum(
+            1 for r in rows
+            if today < r["occurrence"].due_date <= today + timedelta(days=7)
+        ),
+        "mine": sum(
+            1 for r in rows
+            if r["occurrence"].work_order_id
+            and r["occurrence"].work_order.assigned_to_id == user_id
+        ),
     }
 
     return render(

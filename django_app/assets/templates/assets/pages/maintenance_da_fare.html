@@ -29,31 +29,42 @@
   {% endif %}
 
 
+  {% comment %}
+    Quattro numeri, una domanda sola: "cosa devo fare adesso?". La salute del
+    modulo e' mestiere del Cruscotto. Ogni riquadro e' un filtro: cliccarlo
+    restringe la lista sotto invece di portare altrove.
+  {% endcomment %}
   <div class="md-kpis">
     <a class="md-kpi is-danger" href="?window=overdue">
       <span class="md-kpi-label">Scadute</span>
       <span class="md-kpi-value">{{ summary.overdue }}</span>
       <span class="md-kpi-sub">da recuperare</span>
     </a>
-    <a class="md-kpi is-warn" href="?window=7">
-      <span class="md-kpi-label">Entro 7 giorni</span>
+    <a class="md-kpi is-warn" href="?window=0">
+      <span class="md-kpi-label">Da fare oggi</span>
+      <span class="md-kpi-value">{{ summary.today }}</span>
+      <span class="md-kpi-sub">entro fine giornata</span>
+    </a>
+    <a class="md-kpi" href="?window=7">
+      <span class="md-kpi-label">Prossimi 7 giorni</span>
       <span class="md-kpi-value">{{ summary.week }}</span>
       <span class="md-kpi-sub">questa settimana</span>
     </a>
-    <a class="md-kpi" href="?planning=planned">
-      <span class="md-kpi-label">In programma</span>
-      <span class="md-kpi-value">{{ summary.planned }}</span>
-      <span class="md-kpi-sub">gia in un ordine di lavoro</span>
-    </a>
-    <a class="md-kpi" href="?execution_mode=EXTERNAL">
-      <span class="md-kpi-label">Appuntamenti esterni</span>
-      <span class="md-kpi-value">{{ summary.external }}</span>
-      <span class="md-kpi-sub">data fissata col fornitore</span>
+    <a class="md-kpi" href="?assignee={{ request.user.id }}">
+      <span class="md-kpi-label">Assegnate a me</span>
+      <span class="md-kpi-value">{{ summary.mine }}</span>
+      <span class="md-kpi-sub">in totale</span>
     </a>
   </div>
 
+  {% comment %}
+    Quattro filtri a vista, il resto sotto "Filtri avanzati": nessun filtro e'
+    stato tolto, cambia cosa si vede per primo. Il pannello si apre da solo se
+    un avanzato e' attivo, altrimenti un filtro nascosto svuoterebbe la lista
+    senza spiegare perche'.
+  {% endcomment %}
   <form class="md-filters" method="get">
-    {% for field in filter_form %}
+    {% for field in filter_form.simple_fields %}
       <div class="md-field">
         <label for="{{ field.id_for_label }}">{{ field.label }}</label>
         {{ field }}
@@ -64,6 +75,18 @@
       <button type="submit" class="btn btn-primary">Filtra</button>
       <a class="btn" href="{% url 'assets:maintenance_da_fare' %}">Azzera</a>
     </div>
+
+    <details class="md-advanced" {% if filter_form.advanced_active %}open{% endif %}>
+      <summary>Filtri avanzati{% if filter_form.advanced_active %} <span class="md-badge badge-info">attivi</span>{% endif %}</summary>
+      <div class="md-advanced-grid">
+        {% for field in filter_form.advanced_fields %}
+          <div class="md-field">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+          </div>
+        {% endfor %}
+      </div>
+    </details>
   </form>
 
   <div class="md-tabs">
@@ -95,7 +118,9 @@
     </details>
   {% endfor %}
 
-  <details class="md-section" data-md-block="grouped" open>
+  {% comment %}Chiuso di default: la priorita' e' la vista dominante, il
+  raggruppamento serve a costruire un'uscita unica ed e' un secondo momento.{% endcomment %}
+  <details class="md-section" data-md-block="grouped">
     <summary class="md-section-head">
       <h2>Raggruppate per {% if view_mode == 'plan' %}piano{% elif view_mode == 'group' %}famiglia{% else %}asset{% endif %}</h2>
       {% if can_plan %}<span class="md-sub" style="display:inline">Seleziona le manutenzioni da raccogliere in un ordine di lavoro.</span>{% endif %}

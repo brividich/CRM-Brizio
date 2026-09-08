@@ -1072,3 +1072,43 @@ class QuadroOverdueWorkOrdersTests(MaintenanceUITestCase):
         # La metrica specifica resta, con un nome che dice cosa conta.
         self.assertNotIn(correttivo.id, [])
         self.assertEqual(response.context["planned_workorders_count"], 0)
+
+
+class DaFareKpiEFiltriTests(TestCase):
+    """P1.2: i quattro numeri rispondono a "cosa devo fare adesso", e i filtri
+    poco usati stanno sotto "Filtri avanzati" senza sparire."""
+
+    def setUp(self):
+        self.user = User.objects.create_superuser(username="dafare-kpi", password="pass12345")
+        self.client.force_login(self.user)
+
+    def test_i_filtri_avanzati_esistono_tutti_e_non_sono_in_prima_fila(self):
+        from assets.forms_maintenance import OccurrenceFilterForm
+
+        form = OccurrenceFilterForm({})
+        semplici = [f.name for f in form.simple_fields]
+        avanzati = [f.name for f in form.advanced_fields]
+
+        self.assertEqual(semplici, ["q", "reparto", "assignee", "window"])
+        # Nessun filtro perso: semplici + avanzati = tutti.
+        self.assertEqual(sorted(semplici + avanzati), sorted(form.fields))
+        for atteso in ("plan", "group", "asset", "plan_type", "execution_mode",
+                       "planning", "supplier", "report_missing", "include_done"):
+            self.assertIn(atteso, avanzati)
+
+    def test_il_pannello_avanzato_si_apre_se_un_filtro_avanzato_e_attivo(self):
+        from assets.forms_maintenance import OccurrenceFilterForm
+
+        self.assertFalse(OccurrenceFilterForm({"q": "olio"}).advanced_active)
+        self.assertTrue(OccurrenceFilterForm({"plan_type": "ORDINARY"}).advanced_active)
+
+    def test_la_pagina_espone_i_quattro_kpi_della_giornata(self):
+        response = self.client.get(reverse("assets:maintenance_da_fare"))
+
+        self.assertEqual(response.status_code, 200)
+        summary = response.context["summary"]
+        self.assertEqual(sorted(summary), ["mine", "overdue", "today", "week"])
+        self.assertContains(response, "Da fare oggi")
+        self.assertContains(response, "Prossimi 7 giorni")
+        self.assertContains(response, "Assegnate a me")
+        self.assertContains(response, "Filtri avanzati")
