@@ -20,7 +20,7 @@ from typing import Any
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count, Q
+from django.db.models import Count, Max, Q
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -622,7 +622,12 @@ def maintenance_plan_list(request: HttpRequest) -> HttpResponse:
     plans = list(
         MaintenanceInterventionTemplate.objects.annotate(
             assignment_count=Count("assignments", filter=Q(assignments__is_active=True), distinct=True)
-        ).order_by("sort_order", "label")
+        )
+        # Le periodicita' si leggono da plan.assignments dentro il ciclo: senza
+        # prefetch e' una query per piano, e con qualche decina di piani la pagina
+        # ne faceva oltre cento.
+        .prefetch_related("assignments")
+        .order_by("sort_order", "label")
     )
     plan_ids = [plan.id for plan in plans]
 
@@ -651,12 +656,31 @@ def maintenance_plan_list(request: HttpRequest) -> HttpResponse:
         if due_date < today:
             bucket["overdue"] += 1
 
+    # Ultima esecuzione per piano: una query aggregata sola, GROUP BY server-side.
+    # ``order_by()`` esplicito perche' Meta.ordering insieme a values()+annotate()
+    # su SQL Server produce l'errore 8127.
+    last_done = dict(
+        MaintenanceOccurrence.objects.filter(
+            plan_id__in=plan_ids, status=MaintenanceOccurrence.STATUS_DONE
+        )
+        .values_list("plan_id")
+        .annotate(ultima=Max("completed_on"))
+        .order_by()
+    )
+
     rows = []
     for plan in plans:
+        cov = coverage.get(plan.id, {"assets": 0, "conflicts": 0, "excluded": 0})
+        # Denominatore: gli asset che il piano tocca davvero, non l'intero parco.
+        # "32 su 33" dice quanto e' completo il piano; "32 su 400" non direbbe nulla.
+        in_scope = cov["assets"] + cov["conflicts"] + cov["excluded"]
         rows.append(
             {
                 "plan": plan,
-                "coverage": coverage.get(plan.id, {"assets": 0, "conflicts": 0, "excluded": 0}),
+                "coverage": cov,
+                "coverage_scope": in_scope,
+                "coverage_pct": round(100 * cov["assets"] / in_scope) if in_scope else None,
+                "last_done": last_done.get(plan.id),
                 "stats": stats.get(plan.id, {"next_due": None, "overdue": 0}),
                 "recurrences": sorted(
                     {describe_recurrence(a) for a in plan.assignments.all() if not a.is_excluded}

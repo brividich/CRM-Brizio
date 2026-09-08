@@ -1158,3 +1158,55 @@ class CruscottoCaricoManutentoriTests(TestCase):
         self.assertEqual(nessuno["scadute"], 1)
         self.assertEqual(nessuno["settimana"], 0)
         self.assertContains(response, "Non assegnate")
+
+
+class StoricoCoperturaDatoTests(TestCase):
+    """P2: un totale ha senso solo se il dato e' compilato. Durata e costi si
+    inseriscono a mano in chiusura e quasi nessuno lo fa: "1,5 h" accanto a 661
+    attivita' concluse invita a conclusioni sbagliate."""
+
+    def setUp(self):
+        self.user = User.objects.create_superuser(username="storico-kpi", password="pass12345")
+        self.client.force_login(self.user)
+        self.asset = Asset.objects.create(asset_tag="STO-0001", name="Tornio",
+                                          status=Asset.STATUS_IN_USE)
+
+    def _wo_chiuso(self, minuti=0):
+        return WorkOrder.objects.create(
+            asset=self.asset, kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_DONE, title="Chiuso",
+            closed_at=timezone.now(), intervention_duration_minutes=minuti,
+        )
+
+    def test_sotto_soglia_mostra_la_copertura_non_il_totale(self):
+        for _ in range(9):
+            self._wo_chiuso(0)
+        self._wo_chiuso(90)   # 1 su 10 = 10%, sotto la soglia del 20%
+
+        response = self.client.get(reverse("assets:maintenance_history"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["history_duration_reliable"])
+        self.assertEqual(response.context["history_duration_coverage"], "10%")
+        self.assertEqual(response.context["history_duration_rows"], 1)
+        self.assertContains(response, "ha il tempo registrato")
+
+    def test_sopra_soglia_il_totale_torna_ma_dichiara_su_quanto_poggia(self):
+        for _ in range(5):
+            self._wo_chiuso(60)   # 5 su 5 = 100%
+
+        response = self.client.get(reverse("assets:maintenance_history"))
+
+        self.assertTrue(response.context["history_duration_reliable"])
+        self.assertEqual(response.context["history_duration_coverage"], "100%")
+        self.assertContains(response, "tempo consuntivato")
+
+    def test_una_riga_su_moltissime_si_scrive_meno_di_un_percento(self):
+        for _ in range(300):
+            self._wo_chiuso(0)
+        self._wo_chiuso(30)
+
+        response = self.client.get(reverse("assets:maintenance_history"))
+
+        # 1/301 arrotonderebbe a "0%", che accanto a "1 su 301" stona.
+        self.assertEqual(response.context["history_duration_coverage"], "<1%")

@@ -8,6 +8,12 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Changed
+
+- **Manutenzione · lo Storico non spaccia più tre interventi per una statistica** (`django_app/assets/views.py` (`maintenance_history`), `templates/assets/pages/maintenance_history.html`, `assets/tests_maintenance_ui.py`). La pagina mostrava «1,5 h tempo consuntivato · 0,00 €» accanto a 661 attività concluse, come se fossero totali di tutto. Non lo erano: durata e costi si compilano a mano in chiusura e quasi nessuno lo fa — sui dati veri il tempo è registrato su **3 interventi su 339 (0,9%)**, il fermo macchina su **1 (0,3%)**, i costi su **nessuno**. Ora la pagina misura la **copertura del dato** e si comporta di conseguenza: sopra il 20% mostra il totale dichiarando su quanti interventi poggia, sotto quella soglia mostra solo la copertura — «<1% degli interventi ha il tempo registrato (3 su 661)» — perché è quella l'informazione vera, ed è anche l'unica azionabile. Un totale calcolato su un dato coperto all'1% non diventa affidabile aggiungendoci un'avvertenza.
+
+- **Manutenzione · i Piani dicono quanto sono completi e quando sono stati eseguiti** (`django_app/assets/views_maintenance.py`, `templates/assets/pages/maintenance_plan_list.html`). La colonna «Asset coperti» dava un numero assoluto, che da solo non dice se il piano è completo: ora è **«Copertura»** con `32 / 33` e la percentuale sugli asset **in perimetro** — il denominatore sono gli asset che il piano tocca davvero, non l'intero parco, altrimenti «32 su 400» non direbbe nulla. Nuova colonna **«Ultima esecuzione»**, da una sola query aggregata con `order_by()` esplicito (`Meta.ordering` + `values()`+`annotate()` su SQL Server dà errore 8127). Aggiunto il `prefetch_related` sulle applicazioni, che mancava: le periodicità si leggono dentro il ciclo e la pagina faceva **una query per piano** — da 141 query a 84.
+
 ### Fixed
 
 - **Manutenzione · un intervento di nessuno non si poteva chiudere dalla lista** (`django_app/assets/templates/assets/pages/workorder_list.html`, `assets/tests.py`). Regressione introdotta con la coda condivisa: la colonna Azioni mostrava **«Apri» due volte** su un intervento senza assegnatario, e **«Chiudi» compariva solo su quelli già assegnati** — l'esatto contrario del modello, dove è la chiusura a intestare il lavoro. Ora un'azione sola per colonna: «Apri» sempre, «Chiudi» su tutti gli interventi aperti.

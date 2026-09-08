@@ -16041,6 +16041,32 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
     total_duration = sum(int(row["duration_minutes"] or 0) for row in rows)
     total_cost = sum((row["cost"] or Decimal("0")) for row in rows)
 
+    # Un totale ha senso solo se il dato e' compilato. Durata e costi si compilano a
+    # mano in chiusura e quasi nessuno lo fa: presentare "1,5 h" accanto a 661
+    # attivita' concluse non e' una statistica, e' un numero che invita a conclusioni
+    # sbagliate. Qui si misura su quante righe il dato esiste davvero (>0) e la
+    # pagina lo dichiara; sotto una soglia minima il KPI non viene mostrato affatto,
+    # perche' un dato coperto all'1% non dice nulla nemmeno con l'avvertenza.
+    totale_righe = len(rows)
+    righe_con_durata = sum(1 for row in rows if int(row["duration_minutes"] or 0) > 0)
+    righe_con_costo = sum(1 for row in rows if (row["cost"] or Decimal("0")) > 0)
+
+    def _copertura(quante: int) -> int:
+        return round(100 * quante / totale_righe) if totale_righe else 0
+
+    def _copertura_label(quante: int) -> str:
+        """"0%" accanto a "3 su 661" stona: se il dato c'e' ma e' sotto l'unita'
+        percentuale si scrive "<1%", che e' quello che significa."""
+        if not quante:
+            return "0%"
+        pct = _copertura(quante)
+        return "<1%" if pct == 0 else f"{pct}%"
+
+    # Sotto il 20% il numero e' aneddotico: si mostra la copertura, non il totale.
+    SOGLIA_AFFIDABILE = 20
+    duration_coverage = _copertura(righe_con_durata)
+    cost_coverage = _copertura(righe_con_costo)
+
     return render(
         request,
         "assets/pages/maintenance_history.html",
@@ -16053,6 +16079,12 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
             "history_ticket_count": sum(1 for row in rows if row["source"] == "ticket"),
             "history_duration_hours": round(total_duration / 60, 1),
             "history_total_cost": total_cost,
+            "history_duration_coverage": _copertura_label(righe_con_durata),
+            "history_cost_coverage": _copertura_label(righe_con_costo),
+            "history_duration_rows": righe_con_durata,
+            "history_cost_rows": righe_con_costo,
+            "history_duration_reliable": duration_coverage >= SOGLIA_AFFIDABILE,
+            "history_cost_reliable": cost_coverage >= SOGLIA_AFFIDABILE,
             "q": q,
             "source": source,
             "date_from": date_from,
