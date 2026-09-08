@@ -90,6 +90,7 @@ reversibili):
 - [x] Riquadro **«Cosa il portale non può ancora misurare»**: copertura reale di durata,
       fermo macchina e costi, più MTTR/MTBF/disponibilità dichiarati non calcolabili
 - [x] Default dai permessi esistenti (`can_execute_maintenance`), scelta esplicita vince
+- [x] **Puntualità solo dove scadenza ed esecuzione sono eventi distinti** — vedi §5
 
 ---
 
@@ -122,11 +123,17 @@ lavoro che oggi vive solo su un branch, e farlo guardare da una persona (§4.2).
    quindi pesa su **ogni pagina del portale**. Una cache per richiesta lo risolve in
    poche righe ma tocca `core`. **Farla? Quando?**
 
-2. **Verifica visiva a video mai eseguita.** La cattura schermo va in timeout su questo
-   ambiente (JS e query passano, lo screenshot no). Tutte le verifiche sono su HTML
-   renderizzato, contesto delle view e database. **Le pagine vanno guardate da una
-   persona** prima del rilascio — in particolare la Sintesi, il cui grafico a barre è
-   l'unico pezzo di layout non coperto dai test.
+2. **Segnalato, non toccato:** nel Cruscotto operativo il riquadro si chiama ancora
+   **«OdL in ritardo»** mentre la sua riga sotto dice «aperti da oltre N gg». La
+   sezione era già stata rinominata in P0 proprio perché `due_at` non è valorizzato e
+   quello che si misura è l'anzianità: l'etichetta del KPI è rimasta indietro.
+   **La cambio?**
+
+> **Chiusa:** la verifica visiva è stata eseguita (08/09, tema chiaro e scuro, dati veri
+> di sviluppo) su Sintesi, Operativo, scheda fornitore ed elenco fornitori. Ha trovato
+> il difetto del §5.2, che i test non potevano vedere. Le pagine si rendono con
+> `RequestFactory` in sola lettura e si guardano su un server statico locale: il login
+> SSO non funziona sul server di sviluppo.
 
 > **Chiusa:** il dettaglio fornitore si è fatto, con il criterio del §8 — i due riquadri
 > che sarebbero nati vuoti (costi, tempi) sono diventati un riquadro solo che *dichiara*
@@ -145,8 +152,16 @@ Sui 339 ordini di lavoro chiusi in sviluppo:
 | costo manodopera / materiali / totale | **0** |
 | eseguito da | 2 (0,6%) |
 
-> **Trappola:** questi campi hanno **default `0`, non `NULL`**. `exclude(campo=None)`
+> **Trappola 1:** questi campi hanno **default `0`, non `NULL`**. `exclude(campo=None)`
 > restituisce il 100%. La copertura vera si misura con `filter(campo__gt=0)`.
+
+> **Trappola 2 — puntualità.** Delle **164** occorrenze concluse negli ultimi 12 mesi,
+> **164 hanno `completed_on` identica a `due_date`** e tutte hanno `source=MIGRATION`:
+> nella migrazione dal vecchio motore la scadenza è stata *dedotta dall'esecuzione*,
+> quindi sono puntuali per costruzione. Un KPI «nei tempi» su quella base dà **100%** e
+> non misura niente. La puntualità si calcola solo su `SCHEDULER` e `MANUAL`, e sotto
+> **10 righe** non si mostra la percentuale. In sviluppo la base misurabile è **zero**:
+> la pagina lo dichiara, ed è il comportamento giusto.
 
 Conseguenza: ogni KPI su tempi e costi va trattato come in §2 (Storico), e i grafici
 di Fase 11 su costi e fermo macchina **non si fanno finché il dato non viene compilato**.
@@ -216,7 +231,7 @@ scegliendone una.
   macchina e costi hanno **default `0`, non `NULL`**, quindi risulterebbe sempre il 100%.
   Si conta con `filter(campo__gt=0)`; l'helper condiviso è `views._copertura_dato`.
 - **Test**: `manage.py test assets --settings=config.settings.test --keepdb`.
-  Baseline attuale **538 verdi**.
+  Baseline attuale **540 verdi**.
 
 ---
 

@@ -476,26 +476,36 @@ def _sintesi_direzione(*, today: date, open_rows: list[dict[str, Any]], done_row
     """
     anno_fa = today - timedelta(days=365)
 
-    # Puntualita': una sola aggregazione, confronto fra due colonne della stessa
-    # riga. ``order_by()`` esplicito: Meta.ordering con values()+annotate() su SQL
-    # Server produce l'errore 8127.
-    puntualita = MaintenanceOccurrence.objects.filter(
-        status=MaintenanceOccurrence.STATUS_DONE,
-        completed_on__gte=anno_fa,
-    ).aggregate(
+    # La puntualita' si misura solo dove scadenza ed esecuzione sono due eventi
+    # DISTINTI. Nelle occorrenze migrate dal vecchio motore (e in quelle importate
+    # dallo storico) la scadenza e' stata dedotta dalla data di esecuzione: sono
+    # puntuali per costruzione, e in sviluppo bastavano a produrre un "100% nei
+    # tempi" su 164 righe che non misurava nulla. Restano contate, ma a parte.
+    concluse_qs = MaintenanceOccurrence.objects.filter(
+        status=MaintenanceOccurrence.STATUS_DONE, completed_on__gte=anno_fa
+    )
+    misurabili_qs = concluse_qs.filter(
+        source__in=[MaintenanceOccurrence.SOURCE_SCHEDULER, MaintenanceOccurrence.SOURCE_MANUAL]
+    )
+
+    # Una sola aggregazione, confronto fra due colonne della stessa riga.
+    # ``order_by()`` esplicito: Meta.ordering con values()+annotate() su SQL Server
+    # produce l'errore 8127.
+    puntualita = misurabili_qs.aggregate(
         concluse=Count("id"),
         nei_tempi=Count("id", filter=Q(completed_on__lte=F("due_date"))),
     )
     concluse = puntualita["concluse"] or 0
     nei_tempi = puntualita["nei_tempi"] or 0
+    concluse_totali = concluse_qs.count()
+    # Sotto una decina di righe una percentuale e' aneddotica: si dichiara la base
+    # invece di stampare un numero che sembrerebbe una statistica.
+    BASE_MINIMA = 10
+    puntualita_misurabile = concluse >= BASE_MINIMA
 
-    # Andamento a 12 mesi: concluse per mese, di cui nei tempi. Il dato esiste
-    # (due_date e completed_on sono obbligatori), quindi il grafico e' onesto.
+    # Andamento a 12 mesi: stessa base della puntualita', per lo stesso motivo.
     mesi_rows = list(
-        MaintenanceOccurrence.objects.filter(
-            status=MaintenanceOccurrence.STATUS_DONE, completed_on__gte=anno_fa
-        )
-        .annotate(mese=TruncMonth("completed_on"))
+        misurabili_qs.annotate(mese=TruncMonth("completed_on"))
         .values("mese")
         .annotate(
             concluse=Count("id"),
@@ -542,8 +552,11 @@ def _sintesi_direzione(*, today: date, open_rows: list[dict[str, Any]], done_row
 
     return {
         "concluse_12m": concluse,
+        "concluse_totali_12m": concluse_totali,
+        "concluse_non_misurabili_12m": concluse_totali - concluse,
+        "puntualita_misurabile": puntualita_misurabile,
         "nei_tempi_12m": nei_tempi,
-        "puntualita_pct": round(100 * nei_tempi / concluse) if concluse else None,
+        "puntualita_pct": round(100 * nei_tempi / concluse) if puntualita_misurabile else None,
         "andamento": andamento,
         "scadute": len(scadute),
         "arretrato_da": piu_vecchia,

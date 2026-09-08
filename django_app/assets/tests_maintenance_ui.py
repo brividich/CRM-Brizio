@@ -1227,20 +1227,67 @@ class SintesiDirezioneTests(MaintenanceUITestCase):
         occurrence.save(update_fields=["status", "completed_on"])
         return occurrence
 
+    def _occorrenze_concluse(self, quante, *, in_ritardo=0, source=None):
+        """Occorrenze chiuse su date diverse (il vincolo e' piano+asset+scadenza)."""
+        oggi = timezone.localdate()
+        create = []
+        for i in range(quante):
+            scadenza = oggi - timedelta(days=10 + i)
+            occurrence = MaintenanceOccurrence.objects.create(
+                plan=self.plan,
+                asset=self.assets[0],
+                due_date=scadenza,
+                status=MaintenanceOccurrence.STATUS_DONE,
+                completed_on=scadenza + timedelta(days=3 if i < in_ritardo else 0),
+                source=source or MaintenanceOccurrence.SOURCE_SCHEDULER,
+            )
+            create.append(occurrence)
+        return create
+
     def test_la_sintesi_misura_la_puntualita_sulle_concluse(self):
-        self._chiudi(self.occurrences[0], giorni_di_ritardo=-2)
-        self._chiudi(self.occurrences[1], giorni_di_ritardo=5)
+        self._occorrenze_concluse(12, in_ritardo=3)
 
         response = self.client.get(reverse("assets:maintenance_responsabile") + "?vista=sintesi")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["vista"], "sintesi")
         sintesi = response.context["sintesi"]
+        self.assertTrue(sintesi["puntualita_misurabile"])
+        self.assertEqual(sintesi["concluse_12m"], 12)
+        self.assertEqual(sintesi["nei_tempi_12m"], 9)
+        self.assertEqual(sintesi["puntualita_pct"], 75)
+        self.assertEqual(sum(m["concluse"] for m in sintesi["andamento"]), 12)
+
+    def test_le_occorrenze_migrate_non_contano_come_puntuali(self):
+        """Nelle occorrenze migrate dal vecchio motore la scadenza e' stata dedotta
+        dalla data di esecuzione: sono puntuali per costruzione. In sviluppo erano
+        164 su 164 e producevano un "100% nei tempi" che non misurava nulla."""
+        self._occorrenze_concluse(12, source=MaintenanceOccurrence.SOURCE_MIGRATION)
+
+        response = self.client.get(reverse("assets:maintenance_responsabile") + "?vista=sintesi")
+        sintesi = response.context["sintesi"]
+
+        # Restano contate, ma fuori dalla misura - e la pagina dice perche'.
+        self.assertFalse(sintesi["puntualita_misurabile"])
+        self.assertIsNone(sintesi["puntualita_pct"])
+        self.assertEqual(sintesi["concluse_12m"], 0)
+        self.assertEqual(sintesi["concluse_totali_12m"], 12)
+        self.assertEqual(sintesi["concluse_non_misurabili_12m"], 12)
+        self.assertEqual(sintesi["andamento"], [])
+        self.assertContains(response, "n.d.")
+        self.assertContains(response, "vengono dalla migrazione")
+
+    def test_sotto_una_base_minima_la_percentuale_non_si_mostra(self):
+        self._chiudi(self.occurrences[0], giorni_di_ritardo=-2)
+        self._chiudi(self.occurrences[1], giorni_di_ritardo=5)
+
+        response = self.client.get(reverse("assets:maintenance_responsabile") + "?vista=sintesi")
+        sintesi = response.context["sintesi"]
+
+        # Due righe non fanno una statistica: "50%" sarebbe un numero, non una misura.
         self.assertEqual(sintesi["concluse_12m"], 2)
-        self.assertEqual(sintesi["nei_tempi_12m"], 1)
-        self.assertEqual(sintesi["puntualita_pct"], 50)
-        # Un mese di andamento, con la barra divisa fra puntuali e tardive.
-        self.assertEqual(sum(m["concluse"] for m in sintesi["andamento"]), 2)
+        self.assertFalse(sintesi["puntualita_misurabile"])
+        self.assertIsNone(sintesi["puntualita_pct"])
 
     def test_la_sintesi_dichiara_cio_che_non_puo_misurare(self):
         """Niente MTTR/MTBF/spesa: i campi da cui si calcolano non sono compilati,
@@ -1254,7 +1301,7 @@ class SintesiDirezioneTests(MaintenanceUITestCase):
 
         response = self.client.get(reverse("assets:maintenance_responsabile") + "?vista=sintesi")
 
-        self.assertContains(response, "Cosa il portale non puo ancora misurare")
+        self.assertContains(response, "Cosa il portale non puo' ancora misurare")
         self.assertContains(response, "MTTR")
         gaps = {gap["label"]: gap["coverage"] for gap in response.context["sintesi"]["non_misurabili"]}
         # I campi hanno default 0, non NULL: la copertura si misura con "> 0".

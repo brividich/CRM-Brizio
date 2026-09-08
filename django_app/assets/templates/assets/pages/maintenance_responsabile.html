@@ -63,15 +63,24 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
     quanto quei campi sono coperti.
   {% endcomment %}
   <div class="md-kpis">
+    {% comment %}
+      Nelle occorrenze migrate dal vecchio motore la scadenza e' stata dedotta dalla
+      data di esecuzione: sono puntuali per costruzione. Se restano fuori troppe
+      righe, la percentuale non si mostra affatto - si dice perche'.
+    {% endcomment %}
     <div class="md-kpi {% if sintesi.puntualita_pct != None and sintesi.puntualita_pct < 80 %}is-warn{% endif %}">
       <span class="md-kpi-label">Manutenzioni nei tempi</span>
-      <span class="md-kpi-value">{% if sintesi.puntualita_pct != None %}{{ sintesi.puntualita_pct }}%{% else %}&mdash;{% endif %}</span>
-      <span class="md-kpi-sub">{{ sintesi.nei_tempi_12m }} su {{ sintesi.concluse_12m }} concluse in 12 mesi</span>
+      <span class="md-kpi-value">{% if sintesi.puntualita_misurabile %}{{ sintesi.puntualita_pct }}%{% else %}n.d.{% endif %}</span>
+      {% if sintesi.puntualita_misurabile %}
+        <span class="md-kpi-sub">{{ sintesi.nei_tempi_12m }} su {{ sintesi.concluse_12m }} concluse dal portale{% if sintesi.concluse_non_misurabili_12m %}, {{ sintesi.concluse_non_misurabili_12m }} migrate escluse{% endif %}</span>
+      {% else %}
+        <span class="md-kpi-sub">base insufficiente: {{ sintesi.concluse_non_misurabili_12m }} delle {{ sintesi.concluse_totali_12m }} concluse vengono dalla migrazione, dove la scadenza e' dedotta dall'esecuzione</span>
+      {% endif %}
     </div>
     <a class="md-kpi {% if sintesi.scadute %}is-danger{% endif %}" href="{% url 'assets:maintenance_scadenze' %}?window=overdue">
       <span class="md-kpi-label">Scadute adesso</span>
       <span class="md-kpi-value">{{ sintesi.scadute }}</span>
-      <span class="md-kpi-sub">{% if sintesi.arretrato_giorni %}la piu vecchia da {{ sintesi.arretrato_giorni }} giorni{% else %}nessun arretrato{% endif %}</span>
+      <span class="md-kpi-sub">{% if sintesi.arretrato_giorni %}la piu' vecchia da {{ sintesi.arretrato_giorni }} giorni{% else %}nessun arretrato{% endif %}</span>
     </a>
     <div class="md-kpi {% if kpi.workorders_overdue %}is-warn{% endif %}">
       <span class="md-kpi-label">Interventi aperti</span>
@@ -89,7 +98,7 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
       <span class="md-kpi-sub">{{ sintesi.asset_con_piano }} asset su {{ sintesi.asset_in_uso }} in uso</span>
     </div>
     <a class="md-kpi {% if kpi.conflicts %}is-danger{% endif %}" href="{% url 'assets:maintenance_coverage' %}">
-      <span class="md-kpi-label">Conflitti di periodicita</span>
+      <span class="md-kpi-label">Conflitti di periodicita'</span>
       <span class="md-kpi-value">{{ kpi.conflicts }}</span>
       <span class="md-kpi-sub">stesso asset, due cadenze</span>
     </a>
@@ -112,16 +121,23 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
         <span><i style="background:#f59e0b"></i>oltre la scadenza</span>
       </div>
     {% else %}
-      <p class="md-sub" style="margin:10px 0 0">Nessuna manutenzione conclusa negli ultimi 12 mesi.</p>
+      <p class="md-sub" style="margin:10px 0 0">
+        Nessuna manutenzione conclusa <em>dal portale</em> negli ultimi 12 mesi.
+        {% if sintesi.concluse_non_misurabili_12m %}
+          Le {{ sintesi.concluse_non_misurabili_12m }} concluse che risultano a sistema vengono dalla
+          migrazione, dove la scadenza e' dedotta dalla data di esecuzione: disegnarle qui direbbe
+          che sono state tutte puntuali, che e' vero per costruzione e falso come misura.
+        {% endif %}
+      </p>
     {% endif %}
   </section>
 
   <section class="ms-gaps">
-    <h2>Cosa il portale non puo ancora misurare</h2>
+    <h2>Cosa il portale non puo' ancora misurare</h2>
     {% for gap in sintesi.non_misurabili %}
     <div class="ms-gap">
       <strong>{{ gap.coverage.label }}</strong>
-      <span><b>{{ gap.label }}</b> &mdash; {{ gap.perche }}: compilata su {{ gap.coverage.rows }} dei {{ gap.coverage.total }} interventi chiusi nell'anno.</span>
+      <span><b>{{ gap.label }}</b> &mdash; {{ gap.perche }}: presente su {{ gap.coverage.rows }} dei {{ gap.coverage.total }} interventi chiusi nell'anno.</span>
     </div>
     {% endfor %}
     <div class="ms-gap">
@@ -133,7 +149,7 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
   </section>
 
   <div class="ms-note">
-    Questa e la lettura di andamento. Le liste operative &mdash; cosa e scaduto, quali ordini di lavoro
+    Questa e' la lettura di andamento. Le liste operative &mdash; cosa e' scaduto, quali ordini di lavoro
     sono aperti, chi ha troppo carico &mdash; sono nella vista <a href="?vista=operativo">Operativo</a>.
   </div>
 
