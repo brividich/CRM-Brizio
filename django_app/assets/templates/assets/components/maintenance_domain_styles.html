@@ -193,4 +193,9 @@ body.theme-dark .md-bulk { box-shadow:0 -8px 26px rgba(0,0,0,.45); }
     display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
     gap: 10px; padding: 10px 0 4px;
   }
+
+  /* La riga del lavoro di nessuno non deve confondersi con le altre. */
+  .md-row-unassigned { background: var(--surface-alt, rgba(220,38,38,.05)); }
+  .md-row-unassigned td { border-top: 2px solid var(--danger, #dc2626); }
+  .md-num { text-align: right; font-variant-numeric: tabular-nums; }
 </style>

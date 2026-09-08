@@ -520,6 +520,54 @@ def maintenance_responsabile(request: HttpRequest) -> HttpResponse:
         work_order.days_open = (today - timezone.localtime(work_order.opened_at).date()).days
         overdue_workorders.append(work_order)
 
+    # --- Carico dei manutentori -------------------------------------------------
+    # Una sola query aggregata, GROUP BY server-side: chi ha troppo lavoro e quanto
+    # non e' di nessuno. ``order_by`` esplicito perche' Meta.ordering insieme a
+    # values()+annotate() su SQL Server produce l'errore 8127.
+    week_end = today + timedelta(days=7)
+    carico_rows = list(
+        MaintenanceOccurrence.objects.filter(status=MaintenanceOccurrence.STATUS_OPEN)
+        .values(
+            "work_order__assigned_to",
+            "work_order__assigned_to__username",
+            "work_order__assigned_to__first_name",
+            "work_order__assigned_to__last_name",
+        )
+        .annotate(
+            aperte=Count("id"),
+            scadute=Count("id", filter=Q(due_date__lt=today)),
+            settimana=Count("id", filter=Q(due_date__gte=today, due_date__lte=week_end)),
+        )
+        .order_by("-aperte")
+    )
+    carico = []
+    non_assegnate = None
+    for row in carico_rows:
+        user_id = row["work_order__assigned_to"]
+        if user_id is None:
+            # Non assegnate: sia le occorrenze senza ordine di lavoro sia quelle in un
+            # ordine che non ha ancora un assegnatario. Per il responsabile sono la
+            # stessa domanda: "chi ci va?".
+            non_assegnate = {
+                "user_id": None,
+                "label": "Non assegnate",
+                "aperte": row["aperte"],
+                "scadute": row["scadute"],
+                "settimana": row["settimana"],
+            }
+            continue
+        nome = " ".join(
+            part for part in (row["work_order__assigned_to__first_name"],
+                              row["work_order__assigned_to__last_name"]) if part
+        ).strip()
+        carico.append({
+            "user_id": user_id,
+            "label": nome or row["work_order__assigned_to__username"],
+            "aperte": row["aperte"],
+            "scadute": row["scadute"],
+            "settimana": row["settimana"],
+        })
+
     conflicts = [
         resolution
         for resolution in domain.build_plan_resolutions(
@@ -555,6 +603,8 @@ def maintenance_responsabile(request: HttpRequest) -> HttpResponse:
             "overdue_workorders": overdue_workorders,
             "wo_overdue_days": wo_overdue_days,
             "planned_workorders_count": planned_workorders_count,
+            "carico": carico,
+            "carico_non_assegnate": non_assegnate,
             "follow_ups": list(follow_ups),
             "conflicts": conflicts[:40],
             "can_plan": can_plan_maintenance(request),

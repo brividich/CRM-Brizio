@@ -1112,3 +1112,49 @@ class DaFareKpiEFiltriTests(TestCase):
         self.assertContains(response, "Prossimi 7 giorni")
         self.assertContains(response, "Assegnate a me")
         self.assertContains(response, "Filtri avanzati")
+
+
+class CruscottoCaricoManutentoriTests(TestCase):
+    """P1.3: chi ha troppo lavoro, e quanto lavoro non e' di nessuno."""
+
+    def setUp(self):
+        self.user = User.objects.create_superuser(username="carico-resp", password="pass12345")
+        self.tecnico = User.objects.create_user(username="mario.rossi", password="pass12345",
+                                                first_name="Mario", last_name="Rossi")
+        self.client.force_login(self.user)
+        self.asset = Asset.objects.create(asset_tag="CAR-0001", name="Tornio",
+                                          status=Asset.STATUS_IN_USE)
+        self.plan = MaintenanceInterventionTemplate.objects.create(code="car", label="Cambio olio")
+
+    def _occ(self, due, assegnata_a=None):
+        wo = None
+        if assegnata_a is not None:
+            wo = WorkOrder.objects.create(asset=self.asset, kind=WorkOrder.KIND_PREVENTIVE,
+                                          status=WorkOrder.STATUS_OPEN, title="OdL",
+                                          assigned_to=assegnata_a)
+        return MaintenanceOccurrence.objects.create(
+            plan=self.plan, asset=self.asset, due_date=due, work_order=wo,
+            status=MaintenanceOccurrence.STATUS_OPEN,
+        )
+
+    def test_carico_separa_le_persone_dal_lavoro_di_nessuno(self):
+        oggi = timezone.localdate()
+        self._occ(oggi - timedelta(days=5), self.tecnico)   # scaduta, di Mario
+        self._occ(oggi + timedelta(days=2), self.tecnico)   # questa settimana, di Mario
+        self._occ(oggi - timedelta(days=1))                 # scaduta, di nessuno
+        self._occ(oggi + timedelta(days=40))                # futura, di nessuno
+
+        response = self.client.get(reverse("assets:maintenance_responsabile"))
+
+        self.assertEqual(response.status_code, 200)
+        carico = {r["label"]: r for r in response.context["carico"]}
+        self.assertIn("Mario Rossi", carico)
+        self.assertEqual(carico["Mario Rossi"]["aperte"], 2)
+        self.assertEqual(carico["Mario Rossi"]["scadute"], 1)
+        self.assertEqual(carico["Mario Rossi"]["settimana"], 1)
+
+        nessuno = response.context["carico_non_assegnate"]
+        self.assertEqual(nessuno["aperte"], 2)
+        self.assertEqual(nessuno["scadute"], 1)
+        self.assertEqual(nessuno["settimana"], 0)
+        self.assertContains(response, "Non assegnate")

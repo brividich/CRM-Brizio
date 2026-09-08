@@ -94,6 +94,49 @@
     </div>
   </section>
 
+  {% comment %}
+    Chi ha troppo lavoro, e quanto non e' di nessuno. La riga "Non assegnate" e'
+    la piu' importante della tabella: e' il lavoro che nessuno ha preso in mano,
+    e da li' si va a vedere quale.
+  {% endcomment %}
+  <section class="md-section" id="carico-manutentori">
+    <div class="md-section-head">
+      <h2>Carico manutentori</h2>
+      <span class="md-sub" style="display:inline">manutenzioni aperte per persona</span>
+    </div>
+    <table class="md-table">
+      <thead>
+        <tr>
+          <th>Tecnico</th>
+          <th class="md-num">Aperte</th>
+          <th class="md-num">Scadute</th>
+          <th class="md-num">Questa settimana</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for riga in carico %}
+          <tr>
+            <td><a class="ux-link" href="{% url 'assets:maintenance_da_fare' %}?assignee={{ riga.user_id }}">{{ riga.label }}</a></td>
+            <td class="md-num">{{ riga.aperte }}</td>
+            <td class="md-num">{% if riga.scadute %}<span class="md-badge badge-danger">{{ riga.scadute }}</span>{% else %}0{% endif %}</td>
+            <td class="md-num">{{ riga.settimana }}</td>
+          </tr>
+        {% endfor %}
+        {% if carico_non_assegnate %}
+          <tr class="md-row-unassigned">
+            <td><a class="ux-link" href="{% url 'assets:maintenance_da_fare' %}?planning=unplanned"><strong>Non assegnate</strong></a></td>
+            <td class="md-num"><strong>{{ carico_non_assegnate.aperte }}</strong></td>
+            <td class="md-num">{% if carico_non_assegnate.scadute %}<span class="md-badge badge-danger">{{ carico_non_assegnate.scadute }}</span>{% else %}0{% endif %}</td>
+            <td class="md-num">{{ carico_non_assegnate.settimana }}</td>
+          </tr>
+        {% endif %}
+        {% if not carico and not carico_non_assegnate %}
+          <tr><td colspan="4"><span class="md-sub">Nessuna manutenzione aperta.</span></td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </section>
+
   <section class="md-section {% if overdue_workorders %}is-urgent{% endif %}" id="odl-in-ritardo">
     <div class="md-section-head">
       <h2>Aperti da oltre {{ wo_overdue_days }} giorni</h2>
