@@ -4721,8 +4721,9 @@ class WorkOrderFlowTests(TestCase):
         self.assertContains(response, "Altri filtri")
         self.assertContains(response, open_workorder.title)
         self.assertNotContains(response, closed_workorder.title)
-        self.assertContains(response, "Prendi in carico")
-        self.assertContains(response, reverse("assets:wo_claim", args=[open_workorder.id]))
+        # La coda e' condivisa: non si prende in carico, si apre e si fa.
+        self.assertNotContains(response, "Prendi in carico")
+        self.assertContains(response, reverse("assets:wo_view", args=[open_workorder.id]))
         self.assertNotContains(response, "<th>Copertura</th>", html=False)
         self.assertNotContains(response, "<th>Costi</th>", html=False)
 
@@ -9548,7 +9549,7 @@ class IlMioTurnoTests(TestCase):
             in_corso.start()
             altro = self._wo(title="Altro assegnato", assigned_to=self.user)
             non_mio = self._wo(title="Non mio", assigned_to=self.other_user)
-            da_prendere = self._wo(title="Da prendere")
+            di_nessuno = self._wo(title="Di nessuno")
             chiuso = self._wo(title="Chiuso", assigned_to=self.user, status=WorkOrder.STATUS_DONE, closed_at=frozen_now)
 
             self.client.force_login(self.user)
@@ -9561,11 +9562,73 @@ class IlMioTurnoTests(TestCase):
         self.assertEqual([wo.id for wo in sections["scaduti"]], [scaduto.id])
         self.assertEqual([wo.id for wo in sections["oggi"]], [oggi.id])
         self.assertEqual([wo.id for wo in sections["in_corso"]], [in_corso.id])
-        self.assertEqual([wo.id for wo in sections["altri"]], [altro.id])
-        self.assertEqual([wo.id for wo in sections["da_prendere"]], [da_prendere.id])
+        # Coda condivisa: l'OdL di nessuno sta nella coda insieme ai miei, non in una
+        # sezione a parte da rivendicare.
+        self.assertEqual(
+            sorted(wo.id for wo in sections["altri"]), sorted([altro.id, di_nessuno.id])
+        )
+        self.assertNotIn("da_prendere", sections)
         all_shown_ids = {wo.id for rows in sections.values() for wo in rows}
         self.assertNotIn(non_mio.id, all_shown_ids)
         self.assertNotIn(chiuso.id, all_shown_ids)
+
+    def test_sezioni_vuote_non_vengono_stampate(self):
+        """Le sezioni senza righe non arrivano al template: quattro riquadri vuoti in
+        cima spingevano sotto la piega il lavoro vero."""
+        mio = self._wo(title="Solo questo", assigned_to=self.user)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("assets:il_mio_turno"))
+
+        keys = [section["key"] for section in response.context["sections"]]
+        self.assertEqual(keys, ["altri"])
+        self.assertEqual([wo.id for wo in response.context["sections"][0]["rows"]], [mio.id])
+        # Quello che manca si riassume in una riga sola.
+        self.assertIn("nessuna emergenza", response.context["quiet_labels"])
+        self.assertIn("niente di scaduto", response.context["quiet_labels"])
+        self.assertEqual(response.context["total_open"], 1)
+        self.assertEqual(response.context["total_urgent"], 0)
+        self.assertNotContains(response, "Prendi in carico")
+
+    def test_chiusura_intesta_a_chi_chiude_se_di_nessuno(self):
+        """Coda condivisa: chiudendo un intervento di nessuno, diventa di chi lo chiude.
+        Senza questo, lo storico non direbbe chi ci e' andato."""
+        di_nessuno = self._wo(title="Da chiudere")
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("assets:wo_close", args=[di_nessuno.id]),
+            {
+                "status": WorkOrder.STATUS_DONE,
+                "esito": WorkOrder.OUTCOME_RESOLVED,
+                "resolution": "Fatto",
+                "claim_on_close": "on",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        di_nessuno.refresh_from_db()
+        self.assertEqual(di_nessuno.assigned_to_id, self.user.id)
+        self.assertEqual(di_nessuno.executed_by_id, self.user.id)
+
+    def test_chiusura_non_intesta_se_la_spunta_e_tolta(self):
+        """Chi registra il lavoro di un altro non deve risultare l'esecutore."""
+        di_nessuno = self._wo(title="Da chiudere per conto terzi")
+        self.client.force_login(self.user)
+
+        self.client.post(
+            reverse("assets:wo_close", args=[di_nessuno.id]),
+            {
+                "status": WorkOrder.STATUS_DONE,
+                "esito": WorkOrder.OUTCOME_RESOLVED,
+                "resolution": "Fatto da altri",
+            },
+            follow=True,
+        )
+
+        di_nessuno.refresh_from_db()
+        self.assertIsNone(di_nessuno.assigned_to_id)
 
     def test_claim_from_il_mio_turno_redirects_back(self):
         da_prendere = self._wo(title="Da prendere via claim")
