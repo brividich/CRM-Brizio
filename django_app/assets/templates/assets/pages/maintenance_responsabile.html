@@ -63,7 +63,12 @@
   </section>
 
   <section class="md-section">
-    <div class="md-section-head"><h2>Ordini di lavoro aperti</h2><span class="md-badge badge-muted">{{ open_workorders|length }}</span></div>
+    <div class="md-section-head">
+      <h2>Ordini di lavoro attivi</h2>
+      <span class="md-badge badge-muted">{{ open_workorders|length }}</span>
+      {% if overdue_workorders %}<span class="md-badge badge-danger">di cui {{ overdue_workorders|length }} aperti da oltre {{ wo_overdue_days }} giorni</span>{% endif %}
+      {% if planned_workorders_count %}<span class="md-sub">{{ planned_workorders_count }} da manutenzione programmata</span>{% endif %}
+    </div>
     <div class="md-scroll">
       <table class="md-table" data-fm-hide-search="1">
         <thead><tr><th>OdL</th><th>Titolo</th><th class="md-right">Asset</th><th>Assegnato a</th><th>Stato</th><th>Aperto il</th></tr></thead>
@@ -91,7 +96,7 @@
 
   <section class="md-section {% if overdue_workorders %}is-urgent{% endif %}" id="odl-in-ritardo">
     <div class="md-section-head">
-      <h2>Ordini di lavoro in ritardo</h2>
+      <h2>Aperti da oltre {{ wo_overdue_days }} giorni</h2>
       <span class="md-badge {% if overdue_workorders %}badge-danger{% else %}badge-muted{% endif %}">{{ overdue_workorders|length }}</span>
       <span class="md-sub">aperti da oltre {{ wo_overdue_days }} giorni</span>
     </div>

@@ -72,7 +72,10 @@
                     </td>
                     <td>{{ occ.plan.label }}</td>
                     <td class="md-nowrap">{{ occ.due_date|date:"d/m/Y" }}</td>
-                    <td><span class="md-badge {{ row.badge_class }}">{{ row.label }}</span></td>
+                    <td>
+                      <span class="md-badge {{ row.operational_badge|default:row.badge_class }}">{{ row.operational_label|default:row.label }}</span>
+                      {% if row.document_label %}<span class="md-badge {{ row.document_badge }} md-badge--doc">{{ row.document_label }}</span>{% endif %}
+                    </td>
                     <td class="md-right md-nowrap">
                       {% if occ.status == "OPEN" and wo_can_execute_maintenance %}
                         <a class="btn btn-sm" href="{% url 'assets:occurrence_complete' occ.pk %}">Registra</a>

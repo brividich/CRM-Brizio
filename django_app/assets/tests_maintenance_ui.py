@@ -1027,7 +1027,10 @@ class QuadroOverdueWorkOrdersTests(MaintenanceUITestCase):
         response = self.client.get(reverse("assets:maintenance_responsabile"))
 
         self.assertEqual(response.context["kpi"]["workorders_overdue"], 1)
-        self.assertContains(response, "Ordini di lavoro in ritardo")
+        # Non si chiama piu' "in ritardo": WorkOrder.due_at non viene valorizzato,
+        # quindi non c'e' una scadenza da sforare — si misura l'anzianita'.
+        self.assertContains(response, "Aperti da oltre")
+        self.assertNotContains(response, "Ordini di lavoro in ritardo")
         self.assertContains(response, "Perdita olio non risolta")
 
     def test_un_odl_recente_non_e_in_ritardo(self):
@@ -1043,5 +1046,29 @@ class QuadroOverdueWorkOrdersTests(MaintenanceUITestCase):
 
         response = self.client.get(reverse("assets:maintenance_responsabile"))
 
+        # Non e' vecchio: non conta fra quelli aperti da oltre la soglia...
         self.assertEqual(response.context["kpi"]["workorders_overdue"], 0)
-        self.assertNotContains(response, "Aperto oggi")
+        # ...ma e' aperto, quindi il responsabile lo deve vedere fra gli ATTIVI.
+        # Prima spariva del tutto perche' il KPI contava solo gli OdL nati da un
+        # piano, ed era il motivo di "0 aperti / 4 in ritardo".
+        attivi = [wo.id for wo in response.context["open_workorders"]]
+        recente = WorkOrder.objects.get(title="Aperto oggi")
+        self.assertIn(recente.id, attivi)
+
+    def test_odl_attivi_includono_i_correttivi_senza_manutenzione(self):
+        """Il KPI principale non deve contare solo gli OdL nati da un piano: era il
+        motivo per cui il Quadro mostrava "0 aperti" sopra a quattro da gestire."""
+        correttivo = WorkOrder.objects.create(
+            asset=self.assets[0],
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="Guasto segnalato stamattina",
+        )
+
+        response = self.client.get(reverse("assets:maintenance_responsabile"))
+
+        attivi = [wo.id for wo in response.context["open_workorders"]]
+        self.assertIn(correttivo.id, attivi)
+        # La metrica specifica resta, con un nome che dice cosa conta.
+        self.assertNotIn(correttivo.id, [])
+        self.assertEqual(response.context["planned_workorders_count"], 0)

@@ -690,8 +690,9 @@ body.theme-dark .wob-overdue { color: #fca5a5; }
                   <a class="btn" href="{% url 'assets:wo_view' wo.id %}">Apri</a>
                   {% if wo.status == 'OPEN' %}
                     {% if not wo.assigned_to_id %}
-                    {# La coda della manutenzione e' condivisa: non si "prende in carico",
-                       si apre e si fa. L'intestazione avviene alla chiusura, a chi chiude. #}
+                    {% comment %}La coda della manutenzione e' condivisa: non si
+                    "prende in carico", si apre e si fa. L'intestazione avviene alla
+                    chiusura, a chi chiude.{% endcomment %}
                     <a class="btn btn-primary" href="{% url 'assets:wo_view' wo.id %}">Apri</a>
                     {% else %}
                     <a class="btn btn-primary" href="{% url 'assets:wo_close' wo.id %}">Chiudi</a>

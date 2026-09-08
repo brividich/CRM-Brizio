@@ -577,14 +577,50 @@ def occurrence_view_state(occurrence: MaintenanceOccurrence, *, today: date | No
     return MaintenanceOccurrence.VIEW_TO_PLAN
 
 
+# Lo stato unico appiattiva due domande diverse: "il lavoro e' stato fatto?" e "la
+# pratica e' completa?". Un'occorrenza eseguita ma senza rapporto compariva come
+# "Completata" accanto al pulsante "Allega rapporto" — sembrava conclusa e non lo
+# era. Le due dimensioni si derivano dallo stesso stato di vista: nessun campo
+# nuovo, nessuna migrazione.
+OPERATIONAL_STATE_LABELS = {
+    MaintenanceOccurrence.VIEW_OVERDUE: "Scaduta",
+    MaintenanceOccurrence.VIEW_DUE_SOON: "In scadenza",
+    MaintenanceOccurrence.VIEW_TO_PLAN: "Da pianificare",
+    MaintenanceOccurrence.VIEW_PLANNED: "Pianificata",
+    MaintenanceOccurrence.VIEW_IN_PROGRESS: "In corso",
+    MaintenanceOccurrence.VIEW_WAITING: "In attesa",
+    # Il lavoro c'e' stato in entrambi i casi: cambia solo la pratica.
+    MaintenanceOccurrence.VIEW_EXECUTED: "Eseguita",
+    MaintenanceOccurrence.VIEW_REPORT_MISSING: "Eseguita",
+    MaintenanceOccurrence.VIEW_COMPLETED: "Chiusa",
+    MaintenanceOccurrence.VIEW_CANCELED: "Annullata",
+}
+
+# Solo per cio' che e' gia' stato eseguito: su un'occorrenza ancora da fare non
+# c'e' nessuna documentazione da attendersi, e dirlo sarebbe rumore.
+DOCUMENT_STATE = {
+    MaintenanceOccurrence.VIEW_REPORT_MISSING: ("Rapporto mancante", "badge-warning", False),
+    MaintenanceOccurrence.VIEW_COMPLETED: ("Documentazione completa", "badge-success", True),
+    MaintenanceOccurrence.VIEW_EXECUTED: ("Documentazione completa", "badge-success", True),
+}
+
+
 def occurrence_state_payload(occurrence: MaintenanceOccurrence, *, today: date | None = None) -> dict[str, Any]:
     state = occurrence_view_state(occurrence, today=today)
+    document_label, document_badge, document_ok = DOCUMENT_STATE.get(state, ("", "", None))
     return {
         "state": state,
         "label": VIEW_STATE_LABELS.get(state, ""),
         "badge_class": VIEW_STATE_BADGES.get(state, "badge-muted"),
         "order": VIEW_STATE_ORDER.get(state, 99),
         "days_until_due": occurrence.days_until_due(today),
+        # Stato OPERATIVO: a che punto e' il lavoro.
+        "operational_label": OPERATIONAL_STATE_LABELS.get(state, ""),
+        "operational_badge": VIEW_STATE_BADGES.get(state, "badge-muted"),
+        # Stato DOCUMENTALE: vuoto finche' non c'e' nulla da documentare.
+        "document_label": document_label,
+        "document_badge": document_badge,
+        "document_ok": document_ok,
     }
 
 

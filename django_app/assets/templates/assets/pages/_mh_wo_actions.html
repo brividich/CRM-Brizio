@@ -6,8 +6,8 @@ Richiede: wo (WorkOrder con attributo assigned_to_me).{% endcomment %}
   {% elif wo.assigned_to_id %}
     <span class="mh-wo-assignee">Assegnato a {{ wo.assigned_to.get_full_name|default:wo.assigned_to.username }}</span>
   {% else %}
-    {# Coda condivisa: "non assegnato" non vuol dire fermo, vuol dire di tutti.
-       Non si prende in carico: si chiude, e chi chiude se lo intesta. #}
+    {% comment %}Coda condivisa: "non assegnato" non vuol dire fermo, vuol dire di
+    tutti. Non si prende in carico: si chiude, e chi chiude se lo intesta.{% endcomment %}
     <span class="mh-wo-assignee">Di tutti</span>
   {% endif %}
   <a href="{% url 'assets:wo_close' wo.id %}" class="mh-wo-btn close">Chiudi ›</a>
