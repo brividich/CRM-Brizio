@@ -456,7 +456,7 @@ body.theme-dark .wob-overdue { color: #fca5a5; }
 {% endblock %}
 
 {% block assets_shell_title %}Interventi{% endblock %}
-{% block assets_shell_subtitle %}<p>Prendi in carico, gestisci e chiudi il lavoro di manutenzione.</p>{% endblock %}
+{% block assets_shell_subtitle %}<p>La coda è di tutti: apri un intervento, fallo e chiudilo — chiudendolo diventa tuo.</p>{% endblock %}
 {% block assets_shell_toolbar %}
   <a class="btn" href="{% url 'assets:maintenance_hub' %}">&#8592; Hub manutenzione</a>
   <a class="btn" href="{% url 'assets:asset_list' %}">Inventario</a>
@@ -690,7 +690,9 @@ body.theme-dark .wob-overdue { color: #fca5a5; }
                   <a class="btn" href="{% url 'assets:wo_view' wo.id %}">Apri</a>
                   {% if wo.status == 'OPEN' %}
                     {% if not wo.assigned_to_id %}
-                    <form class="wo-claim-form" method="post" action="{% url 'assets:wo_claim' wo.id %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><button class="btn btn-primary" type="submit">Prendi in carico</button></form>
+                    {# La coda della manutenzione e' condivisa: non si "prende in carico",
+                       si apre e si fa. L'intestazione avviene alla chiusura, a chi chiude. #}
+                    <a class="btn btn-primary" href="{% url 'assets:wo_view' wo.id %}">Apri</a>
                     {% else %}
                     <a class="btn btn-primary" href="{% url 'assets:wo_close' wo.id %}">Chiudi</a>
                     {% endif %}

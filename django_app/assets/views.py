@@ -14666,6 +14666,13 @@ def workorder_campaign_create(request: HttpRequest) -> HttpResponse:
 @login_required
 def il_mio_turno(request: HttpRequest) -> HttpResponse:
     """Home del manutentore: cosa fare adesso, non l'archivio di chi pianifica.
+
+    La coda e' **condivisa**: un intervento senza assegnatario riguarda tutti, non e'
+    di nessuno. Non si "prende in carico" — lo si apre e lo si fa; l'intestazione
+    avviene alla chiusura, a chi l'ha chiuso (``workorder_close``). Cosi' la pagina
+    funziona con un manutentore solo e continua a funzionare quando saranno di piu':
+    chi ha interventi propri vede quelli, il resto della squadra vede il non assegnato.
+
     Ogni OdL compare in una sola sezione (la prima che gli si applica, nell'ordine
     Bloccati > Emergenze > Scaduti > Oggi > In corso), cosi' non si duplica la coda."""
     user = request.user
@@ -14673,14 +14680,12 @@ def il_mio_turno(request: HttpRequest) -> HttpResponse:
     today = timezone.localdate()
     priority_order = _workorder_priority_order_case()
 
+    # Coda condivisa: i miei + quelli di nessuno. Un intervento assegnato a un altro
+    # manutentore resta fuori, altrimenti la pagina smette di essere "il mio turno".
     mine_open = (
         WorkOrder.objects.select_related("asset", "asset__asset_category", "maintenance_rule__intervention_template")
-        .filter(status=WorkOrder.STATUS_OPEN, assigned_to=user)
-    )
-    unassigned_open = (
-        WorkOrder.objects.select_related("asset", "asset__asset_category", "maintenance_rule__intervention_template")
-        .filter(status=WorkOrder.STATUS_OPEN, assigned_to__isnull=True)
-        .order_by(priority_order, "opened_at", "id")
+        .filter(status=WorkOrder.STATUS_OPEN)
+        .filter(Q(assigned_to=user) | Q(assigned_to__isnull=True))
     )
 
     bloccati = list(mine_open.filter(is_waiting=True).order_by("waiting_since"))
@@ -14709,27 +14714,38 @@ def il_mio_turno(request: HttpRequest) -> HttpResponse:
         .order_by("started_at")
     )
     in_corso_ids = oggi_ids | {wo.id for wo in in_corso}
-    altri_assegnati = list(
+    altri = list(
         mine_open.exclude(id__in=in_corso_ids).order_by(priority_order, "opened_at", "id")
     )
-    da_prendere = list(unassigned_open[:20])
 
     sections = [
-        {"key": "bloccati", "title": "Bloccati / in attesa", "rows": bloccati, "empty": "Nessun intervento in attesa."},
-        {"key": "emergenze", "title": "Emergenze", "rows": emergenze, "empty": "Nessuna emergenza aperta."},
-        {"key": "scaduti", "title": "Scaduti", "rows": scaduti, "empty": "Nessun intervento scaduto."},
-        {"key": "oggi", "title": "Oggi", "rows": oggi, "empty": "Nessuna scadenza per oggi."},
-        {"key": "in_corso", "title": "In corso", "rows": in_corso, "empty": "Nessun intervento iniziato."},
-        {"key": "altri", "title": "Altri assegnati a te", "rows": altri_assegnati, "empty": "Nessun altro intervento assegnato."},
-        {"key": "da_prendere", "title": "Da prendere in carico", "rows": da_prendere, "empty": "Niente in coda da prendere in carico."},
+        {"key": "bloccati", "title": "Bloccati / in attesa", "tone": "wait",
+         "rows": bloccati, "quiet": "nessuno bloccato"},
+        {"key": "emergenze", "title": "Emergenze", "tone": "urgent",
+         "rows": emergenze, "quiet": "nessuna emergenza"},
+        {"key": "scaduti", "title": "Scaduti", "tone": "urgent",
+         "rows": scaduti, "quiet": "niente di scaduto"},
+        {"key": "oggi", "title": "Oggi", "tone": "today",
+         "rows": oggi, "quiet": "niente per oggi"},
+        {"key": "in_corso", "title": "In corso", "tone": "",
+         "rows": in_corso, "quiet": "niente di iniziato"},
+        {"key": "altri", "title": "Il resto della coda", "tone": "",
+         "rows": altri, "quiet": "coda vuota"},
     ]
+    # Le sezioni vuote non si stampano: quattro riquadri "Nessun intervento..." in cima
+    # spingevano il lavoro vero sotto la piega, su una pagina che deve dire cosa fare
+    # adesso. Quello che manca si riassume in una riga sola.
+    sections_with_rows = [s for s in sections if s["rows"]]
+    quiet_labels = [s["quiet"] for s in sections if not s["rows"]]
     return render(
         request,
         "assets/pages/il_mio_turno.html",
         {
             "page_title": "Il mio turno",
-            "sections": sections,
-            "total_mine_open": mine_open.count(),
+            "sections": sections_with_rows,
+            "quiet_labels": quiet_labels,
+            "total_open": len(bloccati) + len(emergenze) + len(scaduti) + len(oggi) + len(in_corso) + len(altri),
+            "total_urgent": len(bloccati) + len(emergenze) + len(scaduti),
             **_assets_shell_context(request, rows=25),
             "assets_section_nav": None,
         },
@@ -15486,9 +15502,20 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
             )
             if assigned_to is not None:
                 workorder.assigned_to = assigned_to
+            # Coda condivisa: un intervento che nessuno aveva preso in carico si intesta
+            # a chi lo chiude. Senza questo, il lavoro fatto resterebbe di "nessuno" e lo
+            # storico non direbbe chi c'e' andato. La casella e' spuntata di default ma
+            # resta disattivabile: chi registra per conto di un altro non deve mentire.
+            claim_on_close = form.cleaned_data.get("claim_on_close")
+            if claim_on_close and workorder.assigned_to_id is None and request.user.is_authenticated:
+                workorder.assigned_to = request.user
             if executed_by is not None:
                 workorder.executed_by = executed_by
-            assignee_changed = assigned_to is not None and assigned_to.pk != previous_assignee_id
+            # "Eseguito da" segue la stessa logica: se non e' stato dichiarato nessuno,
+            # chi chiude e' la risposta piu' probabile e comunque migliore del vuoto.
+            if claim_on_close and workorder.executed_by_id is None and request.user.is_authenticated:
+                workorder.executed_by = request.user
+            assignee_changed = workorder.assigned_to_id != previous_assignee_id
             requested_status = form.cleaned_data["status"]
             esito = form.cleaned_data.get("esito")
             # "Non risolto" non deve mai risultare chiuso, nemmeno per un istante: se il
