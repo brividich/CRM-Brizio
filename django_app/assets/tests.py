@@ -7890,6 +7890,43 @@ class CategorySidebarTests(TestCase):
         # I report restano raggiungibili.
         self.assertTrue(AssetSidebarButton.objects.filter(code="report_asset").exists())
 
+    def test_categorie_stanno_nella_sezione_dedicata(self):
+        """Le categorie sono un filtro sull'inventario, non destinazioni: tredici
+        radici in "Navigazione" sommergevano le pagine che si usano davvero."""
+        from assets.services.sidebar_categories import rebuild_category_sidebar
+
+        rebuild_category_sidebar(AssetCategory, AssetSidebarButton)
+
+        categoria_buttons = AssetSidebarButton.objects.filter(code__startswith="catnav-")
+        self.assertTrue(categoria_buttons.exists())
+        self.assertEqual(
+            set(categoria_buttons.values_list("section", flat=True)),
+            {AssetSidebarButton.SECTION_CATEGORIES},
+        )
+        # Nessuna categoria resta a ingombrare la navigazione.
+        self.assertFalse(
+            categoria_buttons.filter(section=AssetSidebarButton.SECTION_MAIN).exists()
+        )
+        # I report restano dove stavano: sono uno strumento, non una categoria.
+        self.assertEqual(
+            AssetSidebarButton.objects.get(code="report_asset").section,
+            AssetSidebarButton.SECTION_OPERATIONS,
+        )
+
+    def test_sezione_categorie_e_ultima_nella_sidebar(self):
+        """La sezione piu' lunga e meno usata per navigare va in fondo."""
+        from assets.services.sidebar_categories import rebuild_category_sidebar
+        from assets.views import _build_sidebar_groups
+
+        rebuild_category_sidebar(AssetCategory, AssetSidebarButton)
+        request = RequestFactory().get(reverse("assets:asset_list"))
+        request.user = self.user
+
+        sezioni = [group["section"] for group in _build_sidebar_groups(request)]
+
+        self.assertIn(AssetSidebarButton.SECTION_CATEGORIES, sezioni)
+        self.assertEqual(sezioni[-1], AssetSidebarButton.SECTION_CATEGORIES)
+
     def test_subtree_ids_include_descendants(self):
         from assets.views import _category_subtree_ids
 
