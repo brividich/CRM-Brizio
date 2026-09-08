@@ -535,7 +535,7 @@ def maintenance_responsabile(request: HttpRequest) -> HttpResponse:
         "assets/pages/maintenance_responsabile.html",
         {
             **_assets_shell_context(request),
-            "page_title": "Quadro manutenzione",
+            "page_title": "Cruscotto manutenzione",
             "today": today,
             "kpi": kpi,
             "unplanned": unplanned[:60],
