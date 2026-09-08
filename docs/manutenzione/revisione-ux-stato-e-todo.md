@@ -12,7 +12,7 @@ Ultimo aggiornamento: **2026-09-08** (seconda sessione: P2 chiusa, Fase 11 fatta
 
 | Ramo | Commit | Contiene |
 |---|---|---|
-| `origin/fix/assets-manutenzione-p0` | `4dd8bf51` | **tutto il lavoro P0+P1+P2**, non mergiato |
+| `origin/fix/assets-manutenzione-p0` | `33168148` | **tutto il lavoro P0+P1+P2+Fase 11**, non mergiato |
 | `main` = `origin/main` | `2aa349c3` | coda condivisa, sidebar categorie, P0 |
 | `release/prod` = `origin/release/prod` | `9eea3864` | indietro di 4 commit rispetto a `main` |
 | **produzione (PCLOGSYS)** | `acf1813` | **non ha nulla di questa revisione** |
@@ -20,6 +20,8 @@ Ultimo aggiornamento: **2026-09-08** (seconda sessione: P2 chiusa, Fase 11 fatta
 Commit sul branch non ancora in `main`, dal più recente:
 
 ```
+33168148  P2 conclusa (scheda fornitore) e Fase 11 (Sintesi direzione)
+514af5c1  docs - stato e cose da fare della revisione UX manutenzione
 4dd8bf51  P2 - Storico onesto sui dati e Piani con copertura reale
 2d8f7fcc  P1.4/P1.5 - Interventi coerenti e Cruscotto senza blocchi vuoti
 87ffe4d9  "Attivita'" e "Parametri" erano la stessa pagina
