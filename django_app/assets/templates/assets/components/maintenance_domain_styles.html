@@ -198,4 +198,18 @@ body.theme-dark .md-bulk { box-shadow:0 -8px 26px rgba(0,0,0,.45); }
   .md-row-unassigned { background: var(--surface-alt, rgba(220,38,38,.05)); }
   .md-row-unassigned td { border-top: 2px solid var(--danger, #dc2626); }
   .md-num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* Sezione senza righe: resta il titolo con "nessuna criticita'", sparisce la
+     tabella vuota. Non si nasconde la sezione: sapere che il controllo e' stato
+     fatto e non ha trovato nulla e' un'informazione. */
+  .md-section.is-empty { opacity: .72; }
+  .md-section.is-empty .md-scroll,
+  .md-section.is-empty .md-table,
+  .md-section.is-empty .md-occ-list { display: none; }
+  .md-section.is-empty .md-section-head { border-bottom: 0; margin-bottom: 0; }
+  .md-section.is-empty .md-section-head::after {
+    content: "nessuna criticità";
+    font-size: var(--fs-xs); color: var(--text-light); font-weight: 600;
+    margin-left: auto;
+  }
 </style>

@@ -8,6 +8,16 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Fixed
+
+- **Manutenzione · un intervento di nessuno non si poteva chiudere dalla lista** (`django_app/assets/templates/assets/pages/workorder_list.html`, `assets/tests.py`). Regressione introdotta con la coda condivisa: la colonna Azioni mostrava **«Apri» due volte** su un intervento senza assegnatario, e **«Chiudi» compariva solo su quelli già assegnati** — l'esatto contrario del modello, dove è la chiusura a intestare il lavoro. Ora un'azione sola per colonna: «Apri» sempre, «Chiudi» su tutti gli interventi aperti.
+
+### Changed
+
+- **Manutenzione · le etichette dell'assegnazione dicono la verità** (`templates/assets/pages/workorder_list.html`). «In carico a te» prometteva un'esclusiva che la coda condivisa non dà — diventa **«Assegnato a te»** — e «Non assegnato» suonava come *fermo* invece che *di tutti*: diventa **«Di nessuno»**. La scheda «Interventi da prendere in carico» è ora **«Interventi di nessuno»**, coerente con il fatto che il pulsante per rivendicarli non esiste più.
+
+- **Manutenzione · nel Cruscotto le sezioni vuote si comprimono** (`templates/assets/pages/maintenance_responsabile.html`, `components/maintenance_domain_styles.html`). Una sezione senza righe occupava mezza schermata con una tabella fatta di sola intestazione più un «Nessun…»: con cinque sezioni su sei vuote — la condizione normale quando le cose vanno bene — il Cruscotto era lungo da scorrere proprio quando non c'era niente da vedere. Ora la sezione vuota resta come titolo con accanto **«nessuna criticità»** e la tabella sparisce. Non si nasconde del tutto: sapere che il controllo è stato fatto e non ha trovato nulla è a sua volta un'informazione.
+
 ### Added
 
 - **Manutenzione · «Carico manutentori» nel Cruscotto** (`django_app/assets/views_maintenance.py`, `templates/assets/pages/maintenance_responsabile.html`, `components/maintenance_domain_styles.html`, `assets/tests_maintenance_ui.py`). Il Cruscotto diceva cosa è scaduto e cosa è aperto, ma non **chi** ce l'ha in mano: per sapere se una persona era sommersa bisognava filtrare la lista per assegnatario, una alla volta. Nuova tabella **Tecnico · Aperte · Scadute · Questa settimana**, con ogni nome cliccabile che porta a «Da fare» già filtrato su quella persona. La riga **«Non assegnate»** è staccata dalle altre e in evidenza, perché è la domanda che conta — quel lavoro non è di nessuno — e raccoglie sia le manutenzioni senza ordine di lavoro sia quelle in un ordine che non ha ancora un assegnatario: per chi deve organizzare sono lo stesso problema. **Una sola query aggregata** con `GROUP BY` server-side e `order_by()` esplicito, perché `Meta.ordering` insieme a `values()`+`annotate()` su SQL Server produce l'errore 8127.

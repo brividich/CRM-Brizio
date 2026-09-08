@@ -4755,7 +4755,7 @@ class WorkOrderFlowTests(TestCase):
         self.assertEqual(workorder.assigned_to, self.user)
         mine_response = self.client.get(reverse("assets:wo_list"), {"view": "mine"})
         self.assertContains(mine_response, workorder.title)
-        self.assertContains(mine_response, "In carico a te")
+        self.assertContains(mine_response, "Assegnato a te")
 
     def test_workorder_create_from_list_uses_guided_ui_and_back_link(self):
         self.client.force_login(self.user)

@@ -53,7 +53,12 @@
     </a>
   </div>
 
-  <section class="md-section is-warn">
+  {% comment %}
+    Una sezione vuota non deve occupare mezza schermata con una tabella che ha
+    solo l'intestazione: si comprime a una riga. Il Cruscotto serve a trovare i
+    problemi, e il vuoto e' una buona notizia da dire in fretta.
+  {% endcomment %}
+  <section class="md-section is-warn{% if not unplanned %} is-empty{% endif %}">
     <div class="md-section-head">
       <h2>Manutenzioni dovute ma non pianificate</h2>
       <span class="md-badge badge-warning">{{ unplanned|length }}</span>
@@ -62,7 +67,7 @@
     {% include "assets/components/_occurrence_rows.html" with rows=unplanned selectable=0 show_plan=1 %}
   </section>
 
-  <section class="md-section">
+  <section class="md-section{% if not open_workorders %} is-empty{% endif %}">
     <div class="md-section-head">
       <h2>Ordini di lavoro attivi</h2>
       <span class="md-badge badge-muted">{{ open_workorders|length }}</span>
@@ -137,7 +142,7 @@
     </table>
   </section>
 
-  <section class="md-section {% if overdue_workorders %}is-urgent{% endif %}" id="odl-in-ritardo">
+  <section class="md-section {% if overdue_workorders %}is-urgent{% else %}is-empty{% endif %}" id="odl-in-ritardo">
     <div class="md-section-head">
       <h2>Aperti da oltre {{ wo_overdue_days }} giorni</h2>
       <span class="md-badge {% if overdue_workorders %}badge-danger{% else %}badge-muted{% endif %}">{{ overdue_workorders|length }}</span>
@@ -163,12 +168,12 @@
     </div>
   </section>
 
-  <section class="md-section">
+  <section class="md-section{% if not report_missing %} is-empty{% endif %}">
     <div class="md-section-head"><h2>Rapporti mancanti</h2><span class="md-badge badge-warning">{{ report_missing|length }}</span></div>
     {% include "assets/components/_occurrence_rows.html" with rows=report_missing selectable=0 show_plan=1 %}
   </section>
 
-  <section class="md-section">
+  <section class="md-section{% if not follow_ups %} is-empty{% endif %}">
     <div class="md-section-head"><h2>Follow-up aperti</h2><span class="md-badge badge-muted">{{ follow_ups|length }}</span></div>
     <div class="md-scroll">
       <table class="md-table" data-fm-hide-search="1">
