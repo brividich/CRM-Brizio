@@ -28,8 +28,9 @@
           <tr>
             <th>Piano</th>
             <th>Tipo</th>
-            <th class="md-right">Asset coperti</th>
+            <th class="md-right">Copertura</th>
             <th>Periodicita applicate</th>
+            <th>Ultima esecuzione</th>
             <th>Prossima scadenza</th>
             <th class="md-right">Scadute</th>
             <th>Stato</th>
@@ -46,8 +47,18 @@
                 {{ row.plan.get_maintenance_type_display }}
                 {% if row.plan.attachment_required %}<span class="md-sub">documento obbligatorio</span>{% endif %}
               </td>
+              {% comment %}
+                Denominatore: gli asset che il piano tocca davvero, non l'intero
+                parco. "32 su 33" dice quanto e' completo il piano; "32 su 400"
+                non direbbe nulla.
+              {% endcomment %}
               <td class="md-right">
-                {{ row.coverage.assets }}
+                {% if row.coverage_scope %}
+                  <strong>{{ row.coverage.assets }} / {{ row.coverage_scope }}</strong>
+                  <span class="md-sub">{{ row.coverage_pct }}% degli asset in perimetro</span>
+                {% else %}
+                  <span class="md-sub">non applicato</span>
+                {% endif %}
                 {% if row.coverage.excluded %}<span class="md-sub">{{ row.coverage.excluded }} esclusi</span>{% endif %}
               </td>
               <td>
@@ -56,6 +67,9 @@
                 {% empty %}
                   <span class="md-sub">nessuna applicazione attiva</span>
                 {% endfor %}
+              </td>
+              <td>
+                {% if row.last_done %}{{ row.last_done|date:"d/m/Y" }}{% else %}<span class="md-sub">mai</span>{% endif %}
               </td>
               <td class="md-nowrap">
                 {% if row.stats.next_due %}{{ row.stats.next_due|date:"d/m/Y" }}{% else %}<span class="md-sub">—</span>{% endif %}

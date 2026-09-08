@@ -1072,3 +1072,274 @@ class QuadroOverdueWorkOrdersTests(MaintenanceUITestCase):
         # La metrica specifica resta, con un nome che dice cosa conta.
         self.assertNotIn(correttivo.id, [])
         self.assertEqual(response.context["planned_workorders_count"], 0)
+
+
+class DaFareKpiEFiltriTests(TestCase):
+    """P1.2: i quattro numeri rispondono a "cosa devo fare adesso", e i filtri
+    poco usati stanno sotto "Filtri avanzati" senza sparire."""
+
+    def setUp(self):
+        self.user = User.objects.create_superuser(username="dafare-kpi", password="pass12345")
+        self.client.force_login(self.user)
+
+    def test_i_filtri_avanzati_esistono_tutti_e_non_sono_in_prima_fila(self):
+        from assets.forms_maintenance import OccurrenceFilterForm
+
+        form = OccurrenceFilterForm({})
+        semplici = [f.name for f in form.simple_fields]
+        avanzati = [f.name for f in form.advanced_fields]
+
+        self.assertEqual(semplici, ["q", "reparto", "assignee", "window"])
+        # Nessun filtro perso: semplici + avanzati = tutti.
+        self.assertEqual(sorted(semplici + avanzati), sorted(form.fields))
+        for atteso in ("plan", "group", "asset", "plan_type", "execution_mode",
+                       "planning", "supplier", "report_missing", "include_done"):
+            self.assertIn(atteso, avanzati)
+
+    def test_il_pannello_avanzato_si_apre_se_un_filtro_avanzato_e_attivo(self):
+        from assets.forms_maintenance import OccurrenceFilterForm
+
+        self.assertFalse(OccurrenceFilterForm({"q": "olio"}).advanced_active)
+        self.assertTrue(OccurrenceFilterForm({"plan_type": "ORDINARY"}).advanced_active)
+
+    def test_la_pagina_espone_i_quattro_kpi_della_giornata(self):
+        response = self.client.get(reverse("assets:maintenance_da_fare"))
+
+        self.assertEqual(response.status_code, 200)
+        summary = response.context["summary"]
+        self.assertEqual(sorted(summary), ["mine", "overdue", "today", "week"])
+        self.assertContains(response, "Da fare oggi")
+        self.assertContains(response, "Prossimi 7 giorni")
+        self.assertContains(response, "Assegnate a me")
+        self.assertContains(response, "Filtri avanzati")
+
+
+class CruscottoCaricoManutentoriTests(TestCase):
+    """P1.3: chi ha troppo lavoro, e quanto lavoro non e' di nessuno."""
+
+    def setUp(self):
+        self.user = User.objects.create_superuser(username="carico-resp", password="pass12345")
+        self.tecnico = User.objects.create_user(username="mario.rossi", password="pass12345",
+                                                first_name="Mario", last_name="Rossi")
+        self.client.force_login(self.user)
+        self.asset = Asset.objects.create(asset_tag="CAR-0001", name="Tornio",
+                                          status=Asset.STATUS_IN_USE)
+        self.plan = MaintenanceInterventionTemplate.objects.create(code="car", label="Cambio olio")
+
+    def _occ(self, due, assegnata_a=None):
+        wo = None
+        if assegnata_a is not None:
+            wo = WorkOrder.objects.create(asset=self.asset, kind=WorkOrder.KIND_PREVENTIVE,
+                                          status=WorkOrder.STATUS_OPEN, title="OdL",
+                                          assigned_to=assegnata_a)
+        return MaintenanceOccurrence.objects.create(
+            plan=self.plan, asset=self.asset, due_date=due, work_order=wo,
+            status=MaintenanceOccurrence.STATUS_OPEN,
+        )
+
+    def test_carico_separa_le_persone_dal_lavoro_di_nessuno(self):
+        oggi = timezone.localdate()
+        self._occ(oggi - timedelta(days=5), self.tecnico)   # scaduta, di Mario
+        self._occ(oggi + timedelta(days=2), self.tecnico)   # questa settimana, di Mario
+        self._occ(oggi - timedelta(days=1))                 # scaduta, di nessuno
+        self._occ(oggi + timedelta(days=40))                # futura, di nessuno
+
+        response = self.client.get(reverse("assets:maintenance_responsabile"))
+
+        self.assertEqual(response.status_code, 200)
+        carico = {r["label"]: r for r in response.context["carico"]}
+        self.assertIn("Mario Rossi", carico)
+        self.assertEqual(carico["Mario Rossi"]["aperte"], 2)
+        self.assertEqual(carico["Mario Rossi"]["scadute"], 1)
+        self.assertEqual(carico["Mario Rossi"]["settimana"], 1)
+
+        nessuno = response.context["carico_non_assegnate"]
+        self.assertEqual(nessuno["aperte"], 2)
+        self.assertEqual(nessuno["scadute"], 1)
+        self.assertEqual(nessuno["settimana"], 0)
+        self.assertContains(response, "Non assegnate")
+
+
+class StoricoCoperturaDatoTests(TestCase):
+    """P2: un totale ha senso solo se il dato e' compilato. Durata e costi si
+    inseriscono a mano in chiusura e quasi nessuno lo fa: "1,5 h" accanto a 661
+    attivita' concluse invita a conclusioni sbagliate."""
+
+    def setUp(self):
+        self.user = User.objects.create_superuser(username="storico-kpi", password="pass12345")
+        self.client.force_login(self.user)
+        self.asset = Asset.objects.create(asset_tag="STO-0001", name="Tornio",
+                                          status=Asset.STATUS_IN_USE)
+
+    def _wo_chiuso(self, minuti=0):
+        return WorkOrder.objects.create(
+            asset=self.asset, kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_DONE, title="Chiuso",
+            closed_at=timezone.now(), intervention_duration_minutes=minuti,
+        )
+
+    def test_sotto_soglia_mostra_la_copertura_non_il_totale(self):
+        for _ in range(9):
+            self._wo_chiuso(0)
+        self._wo_chiuso(90)   # 1 su 10 = 10%, sotto la soglia del 20%
+
+        response = self.client.get(reverse("assets:maintenance_history"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["history_duration_reliable"])
+        self.assertEqual(response.context["history_duration_coverage"], "10%")
+        self.assertEqual(response.context["history_duration_rows"], 1)
+        self.assertContains(response, "ha il tempo registrato")
+
+    def test_sopra_soglia_il_totale_torna_ma_dichiara_su_quanto_poggia(self):
+        for _ in range(5):
+            self._wo_chiuso(60)   # 5 su 5 = 100%
+
+        response = self.client.get(reverse("assets:maintenance_history"))
+
+        self.assertTrue(response.context["history_duration_reliable"])
+        self.assertEqual(response.context["history_duration_coverage"], "100%")
+        self.assertContains(response, "tempo consuntivato")
+
+    def test_una_riga_su_moltissime_si_scrive_meno_di_un_percento(self):
+        for _ in range(300):
+            self._wo_chiuso(0)
+        self._wo_chiuso(30)
+
+        response = self.client.get(reverse("assets:maintenance_history"))
+
+        # 1/301 arrotonderebbe a "0%", che accanto a "1 su 301" stona.
+        self.assertEqual(response.context["history_duration_coverage"], "<1%")
+
+
+class SintesiDirezioneTests(MaintenanceUITestCase):
+    """Fase 11: il Cruscotto ha due letture, non due pagine.
+
+    La sintesi mostra solo cio' che i dati mantengono: puntualita' e arretrato si
+    calcolano su scadenza e data di esecuzione, che ci sono sempre. Costi, fermo
+    macchina e durata sono facoltativi e quasi mai compilati: al loro posto la
+    pagina dichiara la copertura, invece di disegnare un grafico piatto a zero.
+    """
+
+    def _chiudi(self, occurrence, *, giorni_di_ritardo=0):
+        occurrence.status = MaintenanceOccurrence.STATUS_DONE
+        occurrence.completed_on = occurrence.due_date + timedelta(days=giorni_di_ritardo)
+        occurrence.save(update_fields=["status", "completed_on"])
+        return occurrence
+
+    def _occorrenze_concluse(self, quante, *, in_ritardo=0, source=None):
+        """Occorrenze chiuse su date diverse (il vincolo e' piano+asset+scadenza)."""
+        oggi = timezone.localdate()
+        create = []
+        for i in range(quante):
+            scadenza = oggi - timedelta(days=10 + i)
+            occurrence = MaintenanceOccurrence.objects.create(
+                plan=self.plan,
+                asset=self.assets[0],
+                due_date=scadenza,
+                status=MaintenanceOccurrence.STATUS_DONE,
+                completed_on=scadenza + timedelta(days=3 if i < in_ritardo else 0),
+                source=source or MaintenanceOccurrence.SOURCE_SCHEDULER,
+            )
+            create.append(occurrence)
+        return create
+
+    def test_la_sintesi_misura_la_puntualita_sulle_concluse(self):
+        self._occorrenze_concluse(12, in_ritardo=3)
+
+        response = self.client.get(reverse("assets:maintenance_responsabile") + "?vista=sintesi")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["vista"], "sintesi")
+        sintesi = response.context["sintesi"]
+        self.assertTrue(sintesi["puntualita_misurabile"])
+        self.assertEqual(sintesi["concluse_12m"], 12)
+        self.assertEqual(sintesi["nei_tempi_12m"], 9)
+        self.assertEqual(sintesi["puntualita_pct"], 75)
+        self.assertEqual(sum(m["concluse"] for m in sintesi["andamento"]), 12)
+
+    def test_le_occorrenze_migrate_non_contano_come_puntuali(self):
+        """Nelle occorrenze migrate dal vecchio motore la scadenza e' stata dedotta
+        dalla data di esecuzione: sono puntuali per costruzione. In sviluppo erano
+        164 su 164 e producevano un "100% nei tempi" che non misurava nulla."""
+        self._occorrenze_concluse(12, source=MaintenanceOccurrence.SOURCE_MIGRATION)
+
+        response = self.client.get(reverse("assets:maintenance_responsabile") + "?vista=sintesi")
+        sintesi = response.context["sintesi"]
+
+        # Restano contate, ma fuori dalla misura - e la pagina dice perche'.
+        self.assertFalse(sintesi["puntualita_misurabile"])
+        self.assertIsNone(sintesi["puntualita_pct"])
+        self.assertEqual(sintesi["concluse_12m"], 0)
+        self.assertEqual(sintesi["concluse_totali_12m"], 12)
+        self.assertEqual(sintesi["concluse_non_misurabili_12m"], 12)
+        self.assertEqual(sintesi["andamento"], [])
+        self.assertContains(response, "n.d.")
+        self.assertContains(response, "vengono dalla migrazione")
+
+    def test_sotto_una_base_minima_la_percentuale_non_si_mostra(self):
+        self._chiudi(self.occurrences[0], giorni_di_ritardo=-2)
+        self._chiudi(self.occurrences[1], giorni_di_ritardo=5)
+
+        response = self.client.get(reverse("assets:maintenance_responsabile") + "?vista=sintesi")
+        sintesi = response.context["sintesi"]
+
+        # Due righe non fanno una statistica: "50%" sarebbe un numero, non una misura.
+        self.assertEqual(sintesi["concluse_12m"], 2)
+        self.assertFalse(sintesi["puntualita_misurabile"])
+        self.assertIsNone(sintesi["puntualita_pct"])
+
+    def test_la_sintesi_dichiara_cio_che_non_puo_misurare(self):
+        """Niente MTTR/MTBF/spesa: i campi da cui si calcolano non sono compilati,
+        e un valore mostrato lo stesso sarebbe inventato al ribasso."""
+        chiuso = WorkOrder.objects.create(
+            asset=self.assets[0],
+            kind=WorkOrder.KIND_CORRECTIVE,
+            title="Intervento senza consuntivo",
+        )
+        chiuso.close(status=WorkOrder.STATUS_DONE)
+
+        response = self.client.get(reverse("assets:maintenance_responsabile") + "?vista=sintesi")
+
+        self.assertContains(response, "Cosa il portale non puo' ancora misurare")
+        self.assertContains(response, "MTTR")
+        gaps = {gap["label"]: gap["coverage"] for gap in response.context["sintesi"]["non_misurabili"]}
+        # I campi hanno default 0, non NULL: la copertura si misura con "> 0".
+        self.assertEqual(gaps["Costi di manutenzione"]["rows"], 0)
+        self.assertEqual(gaps["Costi di manutenzione"]["label"], "0%")
+        self.assertFalse(gaps["Fermo macchina"]["reliable"])
+
+    def test_le_liste_operative_non_compaiono_nella_sintesi(self):
+        WorkOrder.objects.create(
+            asset=self.assets[0],
+            kind=WorkOrder.KIND_CORRECTIVE,
+            title="Guasto da gestire subito",
+        )
+
+        sintesi = self.client.get(reverse("assets:maintenance_responsabile") + "?vista=sintesi")
+        operativo = self.client.get(reverse("assets:maintenance_responsabile") + "?vista=operativo")
+
+        self.assertNotContains(sintesi, "Guasto da gestire subito")
+        self.assertContains(operativo, "Guasto da gestire subito")
+        self.assertEqual(operativo.context["sintesi"], None)
+
+    def test_il_default_segue_i_permessi_gia_esistenti(self):
+        """Chi non puo' ne' pianificare ne' eseguire non ha nulla da fare con le
+        liste operative: apre sulla sintesi. Nessun secondo sistema di ruoli."""
+        from assets import views_maintenance
+
+        # Il superuser esegue: default operativo.
+        self.assertEqual(
+            self.client.get(reverse("assets:maintenance_responsabile")).context["vista"], "operativo"
+        )
+
+        originale = views_maintenance.can_execute_maintenance
+        views_maintenance.can_execute_maintenance = lambda request: False
+        try:
+            response = self.client.get(reverse("assets:maintenance_responsabile"))
+            self.assertEqual(response.context["vista"], "sintesi")
+            # La scelta esplicita vince comunque sul default.
+            scelto = self.client.get(reverse("assets:maintenance_responsabile") + "?vista=operativo")
+            self.assertEqual(scelto.context["vista"], "operativo")
+        finally:
+            views_maintenance.can_execute_maintenance = originale

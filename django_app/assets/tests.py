@@ -4755,7 +4755,7 @@ class WorkOrderFlowTests(TestCase):
         self.assertEqual(workorder.assigned_to, self.user)
         mine_response = self.client.get(reverse("assets:wo_list"), {"view": "mine"})
         self.assertContains(mine_response, workorder.title)
-        self.assertContains(mine_response, "In carico a te")
+        self.assertContains(mine_response, "Assegnato a te")
 
     def test_workorder_create_from_list_uses_guided_ui_and_back_link(self):
         self.client.force_login(self.user)
@@ -6061,6 +6061,43 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.assertContains(page, "Fornitori usati in manutenzione")
         self.assertContains(page, "Fornitore Manut Srl")
         self.assertContains(page, reverse("fornitori:fornitore_detail", kwargs={"fornitore_id": supplier.id}))
+
+    def test_maintenance_supplier_detail_dichiara_la_copertura_dei_costi(self):
+        """La scheda fornitore non stampa "0,00 EUR di spesa": dice su quanti
+        interventi il costo e' compilato davvero. I campi hanno default 0, non NULL."""
+        from anagrafica.models import Fornitore
+
+        supplier = Fornitore.objects.create(ragione_sociale="Ditta Esterna Srl")
+        self.base_rule.execution_mode = MaintenanceRule.MODE_EXTERNAL
+        self.base_rule.supplier = supplier
+        self.base_rule.save(update_fields=["execution_mode", "supplier"])
+
+        WorkOrder.objects.create(asset=self.asset, supplier=supplier, title="Intervento aperto")
+        chiuso = WorkOrder.objects.create(asset=self.asset, supplier=supplier, title="Intervento chiuso")
+        chiuso.close(status=WorkOrder.STATUS_DONE)
+
+        self.client.force_login(self.admin)
+        page = self.client.get(
+            reverse("assets:maintenance_supplier_detail", kwargs={"fornitore_id": supplier.id})
+        )
+
+        self.assertEqual(page.status_code, 200)
+        self.assertEqual(page.context["open_total"], 1)
+        self.assertEqual(page.context["closed_total"], 1)
+        # Nessun costo compilato: copertura 0%, e la pagina lo dichiara invece di
+        # mostrare un totale che sembrerebbe la spesa dell'anno.
+        self.assertEqual(page.context["costo_12m_coverage"]["rows"], 0)
+        self.assertFalse(page.context["costo_12m_coverage"]["reliable"])
+        self.assertContains(page, "calcolabile dal portale")
+        # La manutenzione affidata e l'anagrafica restano raggiungibili.
+        self.assertEqual(len(page.context["rule_rows"]), 1)
+        self.assertContains(page, reverse("fornitori:fornitore_detail", kwargs={"fornitore_id": supplier.id}))
+
+        # La lista porta alla scheda, non piu' direttamente all'anagrafica.
+        lista = self.client.get(reverse("assets:maintenance_suppliers"))
+        self.assertContains(
+            lista, reverse("assets:maintenance_supplier_detail", kwargs={"fornitore_id": supplier.id})
+        )
 
     def test_maintenance_worksheet_renders(self):
         self.client.force_login(self.admin)

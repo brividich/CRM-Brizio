@@ -1,0 +1,288 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}{{ supplier.ragione_sociale }} — manutenzione{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.msd-page{display:grid;gap:14px}
+.msd-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+.msd-kpi,.msd-card{border:1px solid #dbe1ea;border-radius:12px;background:#fff}
+.msd-kpi{padding:12px 14px}
+.msd-kpi strong{display:block;font-size:var(--fs-display-lg);color:#0f172a}
+.msd-kpi span{color:#64748b;font-size:var(--fs-sm)}
+.msd-kpi.is-alert strong{color:#b91c1c}
+.msd-head{padding:12px 16px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.msd-head h2{margin:0;font-size:var(--fs-md);font-weight:800;color:#0f172a;flex:1;min-width:0}
+.msd-note{padding:11px 16px;color:#64748b;font-size:var(--fs-sm);background:#f8fafc;border-bottom:1px solid #f1f5f9}
+.msd-table-wrap{overflow-x:auto}
+.msd-table{width:100%;border-collapse:collapse}
+.msd-table th{text-align:left;padding:9px 14px;background:#f8fafc;border-bottom:1px solid #e5e7eb;color:#64748b;font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.05em;font-weight:800;white-space:nowrap}
+.msd-table td{padding:10px 14px;border-bottom:1px solid #f1f5f9;color:#1e293b;font-size:var(--fs-sm);vertical-align:top}
+.msd-table tbody tr:last-child td{border-bottom:none}
+.msd-link{color:#1d4ed8;text-decoration:none;font-weight:700}
+.msd-link:hover{text-decoration:underline}
+.msd-muted{color:#94a3b8}
+.msd-badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:var(--fs-xs);font-weight:700;background:#eff6ff;color:#1e40af;white-space:nowrap}
+.msd-badge.ok{background:#dcfce7;color:#166534}
+.msd-badge.warn{background:#fef3c7;color:#92400e}
+.msd-badge.bad{background:#fee2e2;color:#b91c1c}
+.msd-empty{padding:22px 16px;text-align:center;color:#94a3b8;font-size:var(--fs-sm)}
+.msd-cov{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0}
+.msd-cov > div{padding:14px 16px;border-right:1px solid #f1f5f9}
+.msd-cov > div:last-child{border-right:none}
+.msd-cov strong{display:block;font-size:var(--fs-display-sm);color:#0f172a}
+.msd-cov span{color:#64748b;font-size:var(--fs-xs)}
+.msd-chips{padding:12px 16px;display:flex;flex-wrap:wrap;gap:6px}
+.msd-chip{display:inline-block;padding:3px 9px;border-radius:999px;background:#f1f5f9;color:#334155;font-size:var(--fs-xs);font-weight:600}
+body.theme-dark .msd-kpi,body.theme-dark .msd-card{background:var(--surface);border-color:var(--border)}
+body.theme-dark .msd-kpi strong,body.theme-dark .msd-head h2,body.theme-dark .msd-cov strong{color:var(--text)}
+body.theme-dark .msd-head,body.theme-dark .msd-note,body.theme-dark .msd-cov > div{border-color:var(--border)}
+body.theme-dark .msd-note{background:var(--surface-alt);color:#94a3b8}
+body.theme-dark .msd-table th{background:var(--surface-alt);border-color:var(--border);color:#94a3b8}
+body.theme-dark .msd-table td{color:var(--text);border-color:var(--border)}
+body.theme-dark .msd-link{color:#60a5fa}
+body.theme-dark .msd-chip{background:var(--surface-alt);color:var(--text)}
+@media(max-width:900px){.msd-kpis{grid-template-columns:repeat(2,1fr)}.msd-cov{grid-template-columns:1fr}.msd-cov > div{border-right:none;border-bottom:1px solid #f1f5f9}}
+@media(max-width:560px){.msd-kpis{grid-template-columns:1fr}}
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}{{ supplier.ragione_sociale }}{% endblock %}
+{% block assets_shell_subtitle %}
+<p>
+  Scheda di manutenzione: cosa è affidato a questa ditta e cosa ha fatto.
+  {% if not supplier.is_active %}<strong>Fornitore non attivo in anagrafica.</strong>{% endif %}
+</p>
+{% endblock %}
+{% block assets_shell_toolbar %}
+  <a class="btn" href="{{ url_suppliers }}">&lsaquo; Fornitori manutenzione</a>
+  <a class="btn btn-primary" href="{{ url_anagrafica }}">Anagrafica fornitore</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<div class="msd-page">
+
+  <div class="msd-kpis">
+    <article class="msd-kpi{% if open_overdue %} is-alert{% endif %}">
+      <strong>{{ open_total }}</strong>
+      <span>interventi aperti{% if open_overdue %} · {{ open_overdue }} oltre la scadenza{% endif %}</span>
+    </article>
+    <article class="msd-kpi">
+      <strong>{{ closed_12m }}</strong>
+      <span>conclusi negli ultimi 12 mesi ({{ closed_total }} in tutto)</span>
+    </article>
+    <article class="msd-kpi">
+      <strong>{{ contracts_active }}</strong>
+      <span>contratti di assistenza attivi</span>
+    </article>
+    <article class="msd-kpi">
+      <strong>{{ covered_total }}</strong>
+      <span>asset coperti da contratti, piani o verifiche</span>
+    </article>
+  </div>
+
+  {% comment %}
+    Fase 10 chiedeva "costi dell'anno" e "fermo macchina". Sono campi facoltativi
+    della chiusura, compilati su una frazione minima degli interventi: un totale
+    stampato qui sembrerebbe la spesa dell'anno e non lo sarebbe. Si dichiara la
+    copertura del campo, che è il dato vero ed è azionabile.
+  {% endcomment %}
+  <section class="msd-card">
+    <div class="msd-head"><h2>Quanto è documentato il lavoro svolto</h2></div>
+    {% if closed_total %}
+      <div class="msd-cov">
+        {% for item in coperture %}
+        <div>
+          <strong>{{ item.coverage.label }}</strong>
+          <span>{{ item.label }} — compilato su {{ item.coverage.rows }} dei {{ item.coverage.total }} interventi chiusi</span>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="msd-note">
+        {% if costo_12m_coverage.reliable %}
+          Costo consuntivato negli ultimi 12 mesi: <strong>{{ costo_12m|floatformat:2 }} €</strong>,
+          su {{ costo_12m_coverage.label }} degli interventi conclusi nel periodo.
+        {% else %}
+          <strong>La spesa verso questo fornitore non è calcolabile dal portale:</strong>
+          il costo è registrato su {{ costo_12m_coverage.rows }} dei {{ costo_12m_coverage.total }} interventi
+          conclusi negli ultimi 12 mesi. Finché il campo non viene compilato in chiusura,
+          un totale sarebbe una cifra inventata al ribasso.
+        {% endif %}
+      </div>
+    {% else %}
+      <div class="msd-empty">Nessun intervento chiuso a nome di questo fornitore: non c'è ancora nulla da misurare.</div>
+    {% endif %}
+  </section>
+
+  <section class="msd-card">
+    <div class="msd-head">
+      <h2>Interventi aperti ({{ open_total }})</h2>
+      {% if open_unassigned %}<span class="msd-badge warn">{{ open_unassigned }} senza assegnatario</span>{% endif %}
+    </div>
+    <div class="msd-table-wrap">
+      <table class="msd-table">
+        <thead><tr>
+          <th scope="col">Intervento</th>
+          <th scope="col">Asset</th>
+          <th scope="col">Aperto il</th>
+          <th scope="col">Stato</th>
+        </tr></thead>
+        <tbody>
+          {% for wo in open_workorders %}
+          <tr>
+            <td><a class="msd-link" href="{% url 'assets:wo_view' wo.id %}">{{ wo.display_number }}</a> — {{ wo.title }}</td>
+            <td>{% if wo.asset %}{{ wo.asset.name }}{% else %}<span class="msd-muted">—</span>{% endif %}</td>
+            <td>{{ wo.opened_at|date:"d/m/Y" }}</td>
+            <td>
+              {% if wo.is_overdue %}<span class="msd-badge bad">oltre la scadenza</span>
+              {% else %}<span class="msd-badge">{{ wo.operational_state_label|default:"Aperta" }}</span>{% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="msd-empty">Nessun intervento aperto.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="msd-card as-collapse as-collapse--cap">
+    <div class="msd-head"><h2>Contratti di assistenza ({{ contracts_active }} attivi)</h2>
+      <a class="msd-link" href="{{ url_contracts }}">Gestione contratti &rsaquo;</a>
+    </div>
+    <div class="msd-table-wrap">
+      <table class="msd-table">
+        <thead><tr>
+          <th scope="col">Contratto</th>
+          <th scope="col">Copre</th>
+          <th scope="col">Periodo</th>
+          <th scope="col">Canone</th>
+          <th scope="col">Stato</th>
+        </tr></thead>
+        <tbody>
+          {% for row in contract_rows %}
+          <tr>
+            <td><strong>{{ row.c.title }}</strong>{% if row.c.code %} <span class="msd-muted">({{ row.c.code }})</span>{% endif %}
+              {% if row.c.sla_description %}<br><span class="msd-muted">{{ row.c.sla_description }}</span>{% endif %}</td>
+            <td>{{ row.target }}</td>
+            <td>{{ row.c.start_date|date:"d/m/Y" }} — {% if row.c.end_date %}{{ row.c.end_date|date:"d/m/Y" }}{% else %}<span class="msd-muted">senza scadenza</span>{% endif %}</td>
+            <td>{% if row.canone %}{{ row.canone|floatformat:2 }} €{% else %}<span class="msd-muted">non indicato</span>{% endif %}</td>
+            <td>
+              {% if not row.c.is_active %}<span class="msd-badge">archiviato</span>
+              {% elif row.is_current %}<span class="msd-badge ok">in corso</span>
+              {% else %}<span class="msd-badge warn">fuori periodo</span>{% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="msd-empty">Nessun contratto di assistenza registrato per questo fornitore.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="msd-card as-collapse as-collapse--cap">
+    <div class="msd-head"><h2>Manutenzioni affidate ({{ rules_active }} attive)</h2></div>
+    <div class="msd-table-wrap">
+      <table class="msd-table">
+        <thead><tr>
+          <th scope="col">Intervento</th>
+          <th scope="col">Ambito</th>
+          <th scope="col">Periodicità</th>
+          <th scope="col">Stato</th>
+        </tr></thead>
+        <tbody>
+          {% for row in rule_rows %}
+          <tr>
+            <td><strong>{{ row.r.intervention_template.label }}</strong></td>
+            <td>{{ row.ambito }}</td>
+            <td>{{ row.periodicita }}</td>
+            <td>{% if row.r.is_active %}<span class="msd-badge ok">attiva</span>{% else %}<span class="msd-badge">sospesa</span>{% endif %}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="msd-empty">Nessuna manutenzione periodica affidata a questo fornitore.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="msd-card as-collapse as-collapse--cap">
+    <div class="msd-head"><h2>Verifiche periodiche ({{ verifications_active }} attive)</h2></div>
+    <div class="msd-table-wrap">
+      <table class="msd-table">
+        <thead><tr>
+          <th scope="col">Verifica</th>
+          <th scope="col">Asset</th>
+          <th scope="col">Ultima</th>
+          <th scope="col">Prossima</th>
+        </tr></thead>
+        <tbody>
+          {% for row in verification_rows %}
+          <tr>
+            <td><strong>{{ row.v.name }}</strong> <span class="msd-muted">ogni {{ row.v.frequency_months }} mesi</span></td>
+            <td>{{ row.assets }}</td>
+            <td>{% if row.v.last_verification_date %}{{ row.v.last_verification_date|date:"d/m/Y" }}{% else %}<span class="msd-muted">mai</span>{% endif %}</td>
+            <td>
+              {% if row.v.next_verification_date %}
+                {{ row.v.next_verification_date|date:"d/m/Y" }}
+                {% if row.scaduta %} <span class="msd-badge bad">scaduta</span>{% endif %}
+              {% else %}<span class="msd-muted">—</span>{% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="msd-empty">Nessuna verifica periodica assegnata a questo fornitore.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="msd-card as-collapse as-collapse--cap">
+    <div class="msd-head"><h2>Ultimi interventi conclusi</h2></div>
+    <div class="msd-table-wrap">
+      <table class="msd-table">
+        <thead><tr>
+          <th scope="col">Intervento</th>
+          <th scope="col">Asset</th>
+          <th scope="col">Chiuso il</th>
+          <th scope="col">Durata</th>
+        </tr></thead>
+        <tbody>
+          {% for wo in closed_recent %}
+          <tr>
+            <td><a class="msd-link" href="{% url 'assets:wo_view' wo.id %}">{{ wo.display_number }}</a> — {{ wo.title }}</td>
+            <td>{% if wo.asset %}{{ wo.asset.name }}{% else %}<span class="msd-muted">—</span>{% endif %}</td>
+            <td>{% if wo.closed_at %}{{ wo.closed_at|date:"d/m/Y" }}{% else %}<span class="msd-muted">—</span>{% endif %}</td>
+            <td>{% if wo.intervention_duration_minutes %}{{ wo.intervention_duration_minutes }} min{% else %}<span class="msd-muted">non registrata</span>{% endif %}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="msd-empty">Nessun intervento concluso.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="msd-card as-collapse as-collapse--cap">
+    <div class="msd-head"><h2>Asset coperti ({{ covered_total }})</h2></div>
+    {% if covered_assets %}
+      <div class="msd-note">
+        Asset citati direttamente negli interventi, nei contratti e nelle verifiche, più quelli
+        che ricadono nelle categorie coperte da un contratto o da una manutenzione affidata.
+      </div>
+      <div class="msd-chips">
+        {% for asset in covered_assets %}
+        <a class="msd-chip" href="{% url 'assets:asset_view' asset.id %}">{{ asset.name }}</a>
+        {% endfor %}
+      </div>
+      {% if covered_total > 50 %}
+      <div class="msd-note">Mostrati i primi 50 di {{ covered_total }}.</div>
+      {% endif %}
+    {% else %}
+      <div class="msd-empty">Nessun asset collegato a questo fornitore.</div>
+    {% endif %}
+  </section>
+
+</div>
+{% endblock %}

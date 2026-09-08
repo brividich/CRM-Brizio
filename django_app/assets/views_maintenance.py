@@ -20,7 +20,8 @@ from typing import Any
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count, Q
+from django.db.models import Count, F, Max, Q
+from django.db.models.functions import TruncMonth
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -60,7 +61,7 @@ from .services.recurrence import (
     describe_recurrence,
     first_due_date_for,
 )
-from .views import _assets_shell_context, _as_int, _clean_string, _is_assets_admin
+from .views import _assets_shell_context, _as_int, _clean_string, _copertura_dato, _is_assets_admin
 
 # ---------------------------------------------------------------------------
 # Permessi
@@ -358,11 +359,22 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
     if view_mode not in {"plan", "group", "asset"}:
         view_mode = "plan"
 
+    # I quattro numeri rispondono alla domanda della pagina — "cosa devo fare
+    # adesso?" — e non alla salute del modulo, che e' il mestiere del Cruscotto.
+    # Contati sulle righe gia' in memoria: nessuna query in piu'.
+    user_id = getattr(request.user, "id", None)
     summary = {
-        "overdue": len(blocks[0]["rows"]),
-        "week": len(blocks[1]["rows"]),
-        "planned": len(blocks[2]["rows"]),
-        "external": sum(1 for r in rows if r["occurrence"].is_external and r["occurrence"].appointment_date),
+        "overdue": sum(1 for r in rows if r["state"] == MaintenanceOccurrence.VIEW_OVERDUE),
+        "today": sum(1 for r in rows if r["occurrence"].due_date == today),
+        "week": sum(
+            1 for r in rows
+            if today < r["occurrence"].due_date <= today + timedelta(days=7)
+        ),
+        "mine": sum(
+            1 for r in rows
+            if r["occurrence"].work_order_id
+            and r["occurrence"].work_order.assigned_to_id == user_id
+        ),
     }
 
     return render(
@@ -437,6 +449,147 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
 # Dashboard responsabile
 # ---------------------------------------------------------------------------
 
+def _vista_cruscotto(request: HttpRequest) -> str:
+    """Quale delle due letture del Cruscotto mostrare.
+
+    La scelta esplicita (``?vista=``) vince sempre. Senza scelta il default si
+    ricava dai permessi che esistono gia': chi non puo' ne' pianificare ne'
+    eseguire non ha nulla da fare con le liste operative — vede la sintesi. Non
+    si introduce un secondo sistema di ruoli per una preferenza di vista.
+    """
+    scelta = _clean_string(request.GET.get("vista")).lower()
+    if scelta in {"operativo", "sintesi"}:
+        return scelta
+    return "operativo" if can_execute_maintenance(request) else "sintesi"
+
+
+def _sintesi_direzione(*, today: date, open_rows: list[dict[str, Any]], done_rows: list[dict[str, Any]],
+                       report_missing: int, resolutions: dict) -> dict[str, Any]:
+    """Indicatori di andamento per la direzione, costruiti SOLO su campi che
+    risultano compilati.
+
+    Costi, fermo macchina e durata degli interventi sono facoltativi in chiusura e
+    quasi mai compilati (default ``0``, non ``NULL``): niente MTTR, niente MTBF,
+    nessun grafico di spesa. Al loro posto la pagina misura quanto quei campi sono
+    coperti e lo dichiara — un grafico piatto a zero sarebbe peggio di un grafico
+    assente, perche' sembrerebbe un risultato.
+    """
+    anno_fa = today - timedelta(days=365)
+
+    # La puntualita' si misura solo dove scadenza ed esecuzione sono due eventi
+    # DISTINTI. Nelle occorrenze migrate dal vecchio motore (e in quelle importate
+    # dallo storico) la scadenza e' stata dedotta dalla data di esecuzione: sono
+    # puntuali per costruzione, e in sviluppo bastavano a produrre un "100% nei
+    # tempi" su 164 righe che non misurava nulla. Restano contate, ma a parte.
+    concluse_qs = MaintenanceOccurrence.objects.filter(
+        status=MaintenanceOccurrence.STATUS_DONE, completed_on__gte=anno_fa
+    )
+    misurabili_qs = concluse_qs.filter(
+        source__in=[MaintenanceOccurrence.SOURCE_SCHEDULER, MaintenanceOccurrence.SOURCE_MANUAL]
+    )
+
+    # Una sola aggregazione, confronto fra due colonne della stessa riga.
+    # ``order_by()`` esplicito: Meta.ordering con values()+annotate() su SQL Server
+    # produce l'errore 8127.
+    puntualita = misurabili_qs.aggregate(
+        concluse=Count("id"),
+        nei_tempi=Count("id", filter=Q(completed_on__lte=F("due_date"))),
+    )
+    concluse = puntualita["concluse"] or 0
+    nei_tempi = puntualita["nei_tempi"] or 0
+    concluse_totali = concluse_qs.count()
+    # Sotto una decina di righe una percentuale e' aneddotica: si dichiara la base
+    # invece di stampare un numero che sembrerebbe una statistica.
+    BASE_MINIMA = 10
+    puntualita_misurabile = concluse >= BASE_MINIMA
+
+    # Andamento a 12 mesi: stessa base della puntualita', per lo stesso motivo.
+    mesi_rows = list(
+        misurabili_qs.annotate(mese=TruncMonth("completed_on"))
+        .values("mese")
+        .annotate(
+            concluse=Count("id"),
+            nei_tempi=Count("id", filter=Q(completed_on__lte=F("due_date"))),
+        )
+        .order_by("mese")
+    )
+    picco = max([row["concluse"] for row in mesi_rows] or [0])
+    andamento = [
+        {
+            "mese": row["mese"],
+            "concluse": row["concluse"],
+            "nei_tempi": row["nei_tempi"],
+            "tardive": row["concluse"] - row["nei_tempi"],
+            # Altezza in percentuale: il grafico e' fatto di due div, non serve una libreria.
+            "h_nei_tempi": round(100 * row["nei_tempi"] / picco) if picco else 0,
+            "h_tardive": round(100 * (row["concluse"] - row["nei_tempi"]) / picco) if picco else 0,
+        }
+        for row in mesi_rows
+    ]
+
+    # Arretrato: non "quante" scadute, ma "da quanto". Una scaduta di ieri e una di
+    # due anni fa non sono lo stesso problema.
+    scadute = [r for r in open_rows if r["state"] == MaintenanceOccurrence.VIEW_OVERDUE]
+    piu_vecchia = min((r["occurrence"].due_date for r in scadute), default=None)
+
+    # Copertura della pianificazione: asset in uso che hanno almeno un piano applicato.
+    asset_con_piano = {
+        asset_id for (_plan_id, asset_id), resolution in resolutions.items() if resolution.is_applied
+    }
+    asset_in_uso = Asset.objects.filter(status=Asset.STATUS_IN_USE).count()
+
+    # Copertura dei campi facoltativi sugli interventi chiusi nell'anno.
+    chiusi = WorkOrder.objects.filter(status=WorkOrder.STATUS_DONE, closed_at__date__gte=anno_fa).aggregate(
+        totale=Count("id"),
+        con_durata=Count("id", filter=Q(intervention_duration_minutes__gt=0)),
+        con_fermo=Count("id", filter=Q(downtime_minutes__gt=0)),
+        con_costo=Count(
+            "id",
+            filter=Q(cost_eur__gt=0) | Q(labor_cost_eur__gt=0) | Q(materials_cost_eur__gt=0),
+        ),
+    )
+    totale_chiusi = chiusi["totale"] or 0
+
+    return {
+        "concluse_12m": concluse,
+        "concluse_totali_12m": concluse_totali,
+        "concluse_non_misurabili_12m": concluse_totali - concluse,
+        "puntualita_misurabile": puntualita_misurabile,
+        "nei_tempi_12m": nei_tempi,
+        "puntualita_pct": round(100 * nei_tempi / concluse) if puntualita_misurabile else None,
+        "andamento": andamento,
+        "scadute": len(scadute),
+        "arretrato_da": piu_vecchia,
+        "arretrato_giorni": (today - piu_vecchia).days if piu_vecchia else None,
+        "documentale_base": len(done_rows),
+        "documentale_mancanti": report_missing,
+        "documentale_pct": (
+            round(100 * (len(done_rows) - report_missing) / len(done_rows)) if done_rows else None
+        ),
+        "asset_con_piano": len(asset_con_piano),
+        "asset_in_uso": asset_in_uso,
+        "asset_pct": round(100 * len(asset_con_piano) / asset_in_uso) if asset_in_uso else None,
+        "non_misurabili": [
+            {
+                "label": "Durata degli interventi",
+                "perche": "compilata a mano in chiusura",
+                "coverage": _copertura_dato(chiusi["con_durata"] or 0, totale_chiusi),
+            },
+            {
+                "label": "Fermo macchina",
+                "perche": "senza questo dato non esiste disponibilita impianti",
+                "coverage": _copertura_dato(chiusi["con_fermo"] or 0, totale_chiusi),
+            },
+            {
+                "label": "Costi di manutenzione",
+                "perche": "manodopera e materiali non vengono valorizzati",
+                "coverage": _copertura_dato(chiusi["con_costo"] or 0, totale_chiusi),
+            },
+        ],
+        "non_misurabili_base": totale_chiusi,
+    }
+
+
 @login_required
 def maintenance_responsabile(request: HttpRequest) -> HttpResponse:
     """Quadro generale: cosa e' scaduto, cosa sta per scadere, cosa NON e' ancora
@@ -509,13 +662,56 @@ def maintenance_responsabile(request: HttpRequest) -> HttpResponse:
         work_order.days_open = (today - timezone.localtime(work_order.opened_at).date()).days
         overdue_workorders.append(work_order)
 
-    conflicts = [
-        resolution
-        for resolution in domain.build_plan_resolutions(
-            asset_queryset=Asset.objects.filter(status=Asset.STATUS_IN_USE)
-        ).values()
-        if resolution.is_conflict
-    ]
+    # --- Carico dei manutentori -------------------------------------------------
+    # Una sola query aggregata, GROUP BY server-side: chi ha troppo lavoro e quanto
+    # non e' di nessuno. ``order_by`` esplicito perche' Meta.ordering insieme a
+    # values()+annotate() su SQL Server produce l'errore 8127.
+    week_end = today + timedelta(days=7)
+    carico_rows = list(
+        MaintenanceOccurrence.objects.filter(status=MaintenanceOccurrence.STATUS_OPEN)
+        .values(
+            "work_order__assigned_to",
+            "work_order__assigned_to__username",
+            "work_order__assigned_to__first_name",
+            "work_order__assigned_to__last_name",
+        )
+        .annotate(
+            aperte=Count("id"),
+            scadute=Count("id", filter=Q(due_date__lt=today)),
+            settimana=Count("id", filter=Q(due_date__gte=today, due_date__lte=week_end)),
+        )
+        .order_by("-aperte")
+    )
+    carico = []
+    non_assegnate = None
+    for row in carico_rows:
+        user_id = row["work_order__assigned_to"]
+        if user_id is None:
+            # Non assegnate: sia le occorrenze senza ordine di lavoro sia quelle in un
+            # ordine che non ha ancora un assegnatario. Per il responsabile sono la
+            # stessa domanda: "chi ci va?".
+            non_assegnate = {
+                "user_id": None,
+                "label": "Non assegnate",
+                "aperte": row["aperte"],
+                "scadute": row["scadute"],
+                "settimana": row["settimana"],
+            }
+            continue
+        nome = " ".join(
+            part for part in (row["work_order__assigned_to__first_name"],
+                              row["work_order__assigned_to__last_name"]) if part
+        ).strip()
+        carico.append({
+            "user_id": user_id,
+            "label": nome or row["work_order__assigned_to__username"],
+            "aperte": row["aperte"],
+            "scadute": row["scadute"],
+            "settimana": row["settimana"],
+        })
+
+    resolutions = domain.build_plan_resolutions(asset_queryset=Asset.objects.filter(status=Asset.STATUS_IN_USE))
+    conflicts = [resolution for resolution in resolutions.values() if resolution.is_conflict]
 
     kpi = {
         "overdue": sum(1 for r in open_rows if r["state"] == MaintenanceOccurrence.VIEW_OVERDUE),
@@ -530,13 +726,30 @@ def maintenance_responsabile(request: HttpRequest) -> HttpResponse:
         "conflicts": len(conflicts),
     }
 
+    # Due letture della stessa pagina, non due pagine: l'operativo elenca cosa fare,
+    # la sintesi dice come sta andando. Stesso URL, stesso conteggio, un parametro.
+    vista = _vista_cruscotto(request)
+    sintesi = (
+        _sintesi_direzione(
+            today=today,
+            open_rows=open_rows,
+            done_rows=done_rows,
+            report_missing=len(report_missing),
+            resolutions=resolutions,
+        )
+        if vista == "sintesi"
+        else None
+    )
+
     return render(
         request,
         "assets/pages/maintenance_responsabile.html",
         {
             **_assets_shell_context(request),
-            "page_title": "Quadro manutenzione",
+            "page_title": "Cruscotto manutenzione",
             "today": today,
+            "vista": vista,
+            "sintesi": sintesi,
             "kpi": kpi,
             "unplanned": unplanned[:60],
             "report_missing": report_missing[:40],
@@ -544,6 +757,8 @@ def maintenance_responsabile(request: HttpRequest) -> HttpResponse:
             "overdue_workorders": overdue_workorders,
             "wo_overdue_days": wo_overdue_days,
             "planned_workorders_count": planned_workorders_count,
+            "carico": carico,
+            "carico_non_assegnate": non_assegnate,
             "follow_ups": list(follow_ups),
             "conflicts": conflicts[:40],
             "can_plan": can_plan_maintenance(request),
@@ -561,7 +776,12 @@ def maintenance_plan_list(request: HttpRequest) -> HttpResponse:
     plans = list(
         MaintenanceInterventionTemplate.objects.annotate(
             assignment_count=Count("assignments", filter=Q(assignments__is_active=True), distinct=True)
-        ).order_by("sort_order", "label")
+        )
+        # Le periodicita' si leggono da plan.assignments dentro il ciclo: senza
+        # prefetch e' una query per piano, e con qualche decina di piani la pagina
+        # ne faceva oltre cento.
+        .prefetch_related("assignments")
+        .order_by("sort_order", "label")
     )
     plan_ids = [plan.id for plan in plans]
 
@@ -590,12 +810,31 @@ def maintenance_plan_list(request: HttpRequest) -> HttpResponse:
         if due_date < today:
             bucket["overdue"] += 1
 
+    # Ultima esecuzione per piano: una query aggregata sola, GROUP BY server-side.
+    # ``order_by()`` esplicito perche' Meta.ordering insieme a values()+annotate()
+    # su SQL Server produce l'errore 8127.
+    last_done = dict(
+        MaintenanceOccurrence.objects.filter(
+            plan_id__in=plan_ids, status=MaintenanceOccurrence.STATUS_DONE
+        )
+        .values_list("plan_id")
+        .annotate(ultima=Max("completed_on"))
+        .order_by()
+    )
+
     rows = []
     for plan in plans:
+        cov = coverage.get(plan.id, {"assets": 0, "conflicts": 0, "excluded": 0})
+        # Denominatore: gli asset che il piano tocca davvero, non l'intero parco.
+        # "32 su 33" dice quanto e' completo il piano; "32 su 400" non direbbe nulla.
+        in_scope = cov["assets"] + cov["conflicts"] + cov["excluded"]
         rows.append(
             {
                 "plan": plan,
-                "coverage": coverage.get(plan.id, {"assets": 0, "conflicts": 0, "excluded": 0}),
+                "coverage": cov,
+                "coverage_scope": in_scope,
+                "coverage_pct": round(100 * cov["assets"] / in_scope) if in_scope else None,
+                "last_done": last_done.get(plan.id),
                 "stats": stats.get(plan.id, {"next_due": None, "overdue": 0}),
                 "recurrences": sorted(
                     {describe_recurrence(a) for a in plan.assignments.all() if not a.is_excluded}
