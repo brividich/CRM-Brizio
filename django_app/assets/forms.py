@@ -3032,6 +3032,11 @@ class WorkOrderCloseForm(forms.Form):
     )
     assigned_to = forms.ModelChoiceField(required=False, queryset=None, label="Assegnato a")
     executed_by = forms.ModelChoiceField(required=False, queryset=None, label="Eseguito da")
+    claim_on_close = forms.BooleanField(
+        required=False,
+        initial=True,
+        label="Intesta a me questo intervento",
+    )
     assistance_contract = forms.ModelChoiceField(required=False, queryset=AssistanceContract.objects.none(), label="Contratto assistenza")
     covered_by_contract = forms.BooleanField(required=False, label="Coperto da contratto")
     log_note = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3}), label="Nota di chiusura")
@@ -3064,6 +3069,17 @@ class WorkOrderCloseForm(forms.Form):
         self.fields["assigned_to"].help_text = "Manutentore assegnato all'intervento."
         self.fields["executed_by"].queryset = user_qs
         self.fields["executed_by"].help_text = "Chi ha fisicamente eseguito il lavoro."
+        # La coda della manutenzione e' condivisa: gli interventi non sono di nessuno
+        # finche' qualcuno non li chiude. La casella compare solo quando serve davvero,
+        # cioe' quando l'intervento non ha ancora un assegnatario.
+        if getattr(self.workorder, "assigned_to_id", None):
+            del self.fields["claim_on_close"]
+        else:
+            self.fields["claim_on_close"].help_text = (
+                "L'intervento non risulta assegnato a nessuno: chiudendolo diventa tuo, "
+                "cosi' lo storico dice chi ci e' andato. Togli la spunta se stai "
+                "registrando il lavoro di un altro."
+            )
         self.fields["cost_eur"].help_text = "Opzionale: se compilato sostituisce la somma manodopera + materiali."
         if not self.is_bound:
             close_value = getattr(self.workorder, "closed_at", None) or timezone.now()
