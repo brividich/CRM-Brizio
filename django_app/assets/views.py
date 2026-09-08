@@ -5966,6 +5966,8 @@ def _build_sidebar_groups(request: HttpRequest, rows: int = 25) -> list[dict]:
         AssetSidebarButton.SECTION_MAIN: 0,
         AssetSidebarButton.SECTION_ANALYTICS: 1,
         AssetSidebarButton.SECTION_OPERATIONS: 2,
+        # Ultima: e' la piu' lunga e la meno usata per navigare.
+        AssetSidebarButton.SECTION_CATEGORIES: 3,
     }
     configured = list(
         AssetSidebarButton.objects.filter(is_visible=True)

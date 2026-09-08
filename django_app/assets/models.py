@@ -643,10 +643,15 @@ class AssetSidebarButton(models.Model):
     SECTION_MAIN = "MAIN"
     SECTION_ANALYTICS = "ANALYTICS"
     SECTION_OPERATIONS = "OPERATIONS"
+    # Le categorie non sono destinazioni ma filtri sull'inventario: tredici radici
+    # come voci di primo livello sommergevano le pagine vere. Sezione propria, in
+    # fondo, dove si cerca un tipo di macchina invece di navigare.
+    SECTION_CATEGORIES = "CATEGORIES"
     SECTION_CHOICES = [
         (SECTION_MAIN, "Navigazione"),
         (SECTION_ANALYTICS, "Analisi e rischio"),
         (SECTION_OPERATIONS, "Strumenti e gestione"),
+        (SECTION_CATEGORIES, "Inventario per categoria"),
     ]
 
     code = models.SlugField(max_length=80, unique=True)
