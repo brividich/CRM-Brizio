@@ -221,10 +221,24 @@ def _apply_occurrence_filters(queryset, form: OccurrenceFilterForm, *, today: da
         queryset = queryset.filter(work_order__isnull=False)
 
     window = data.get("window")
+    # Le finestre temporali sono viste OPERATIVE: dicono cosa resta da gestire, non
+    # cosa e' successo. Prima "30 giorni" era il solo ``due_date <= oggi+30``, senza
+    # limite inferiore ne' filtro di stato: significava "tutto lo scibile fino a fra
+    # 30 giorni", quindi anche manutenzioni concluse nel 2021. Lo storico sta in
+    # "Storico"; qui le concluse entrano solo se richieste esplicitamente.
+    include_done = bool(data.get("include_done"))
     if window == "overdue":
         queryset = queryset.filter(status=MaintenanceOccurrence.STATUS_OPEN, due_date__lt=today)
     elif window:
-        queryset = queryset.filter(due_date__lte=today + timedelta(days=int(window)))
+        queryset = queryset.filter(
+            due_date__gte=today,
+            due_date__lte=today + timedelta(days=int(window)),
+        )
+        if not include_done:
+            queryset = queryset.filter(status=MaintenanceOccurrence.STATUS_OPEN)
+    elif not include_done:
+        # "Tutte future": comunque solo cio' che resta da gestire.
+        queryset = queryset.filter(status=MaintenanceOccurrence.STATUS_OPEN)
 
     return queryset.distinct()
 
@@ -449,12 +463,22 @@ def maintenance_responsabile(request: HttpRequest) -> HttpResponse:
     ]
     report_missing = _report_missing_rows(done_rows)
 
+    # "ODL attivi" sono TUTTI gli ordini aperti, correttivi compresi: il responsabile
+    # deve vedere anche il guasto segnalato stamattina, non solo cio' che nasce da un
+    # piano. Prima il KPI filtrava ``occurrences__isnull=False`` e mostrava 0 mentre
+    # sotto comparivano quattro interventi da gestire: due popolazioni diverse con
+    # etichette che sembravano una il sottoinsieme dell'altra.
     open_workorders = (
-        WorkOrder.objects.filter(status=WorkOrder.STATUS_OPEN, occurrences__isnull=False)
-        .distinct()
+        WorkOrder.objects.filter(status=WorkOrder.STATUS_OPEN)
         .select_related("asset", "assigned_to")
         .annotate(occurrence_count=Count("occurrences"))
         .order_by("opened_at")
+    )
+    # Metrica secondaria, con un nome che dice cosa conta davvero.
+    planned_workorders_count = (
+        WorkOrder.objects.filter(status=WorkOrder.STATUS_OPEN, occurrences__isnull=False)
+        .distinct()
+        .count()
     )
     follow_ups = (
         WorkOrder.objects.filter(status=WorkOrder.STATUS_OPEN, follow_up_occurrence__isnull=False)
@@ -462,10 +486,12 @@ def maintenance_responsabile(request: HttpRequest) -> HttpResponse:
         .order_by("-opened_at")[:50]
     )
 
-    # OdL aperti da troppo tempo: la soglia e' quella condivisa di SiteConfig
-    # (assets_wo_overdue_days), la stessa che usa il promemoria. Qui NON si filtra
-    # sulle occorrenze: un intervento fermo da tre settimane conta per il
-    # responsabile a prescindere da come e' nato.
+    # OdL aperti da troppo tempo. NON si chiamano "in ritardo": ``WorkOrder.due_at``
+    # esiste ma in pratica non viene valorizzato, quindi non c'e' una scadenza vera da
+    # sforare — quello che si misura qui e' l'anzianita', ``opened_at`` oltre la soglia
+    # condivisa di SiteConfig (assets_wo_overdue_days), la stessa del promemoria.
+    # Presentare come ritardo cio' che e' soltanto vecchio e' una promessa che i dati
+    # non mantengono. Sono un SOTTOINSIEME di open_workorders.
     from .maintenance import get_workorder_overdue_days
 
     wo_overdue_days = get_workorder_overdue_days()
@@ -517,6 +543,7 @@ def maintenance_responsabile(request: HttpRequest) -> HttpResponse:
             "open_workorders": list(open_workorders[:40]),
             "overdue_workorders": overdue_workorders,
             "wo_overdue_days": wo_overdue_days,
+            "planned_workorders_count": planned_workorders_count,
             "follow_ups": list(follow_ups),
             "conflicts": conflicts[:40],
             "can_plan": can_plan_maintenance(request),

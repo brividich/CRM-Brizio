@@ -616,6 +616,10 @@ class OccurrenceFilterForm(forms.Form):
     assignee = forms.ModelChoiceField(queryset=None, required=False, label="Assegnatario", empty_label="Chiunque")
     supplier = forms.ModelChoiceField(queryset=None, required=False, label="Fornitore", empty_label="Tutti")
     report_missing = forms.BooleanField(required=False, label="Solo rapporto mancante")
+    # Filtro avanzato: le viste temporali mostrano cio' che resta da gestire, e le
+    # concluse vivono nello Storico. Chi vuole vedere anche quelle dentro la stessa
+    # finestra lo chiede: il default resta operativo.
+    include_done = forms.BooleanField(required=False, label="Includi concluse")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
