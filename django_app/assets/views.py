@@ -5597,17 +5597,6 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "is_visible": True,
         },
         {
-            "code": "maintenance_attivita",
-            "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Attività",
-            "target_url": "django:assets:maintenance_template_list",
-            "active_match": "/assets/manutenzione/templates/",
-            "is_subitem": True,
-            "parent_code": "manutenzione_config",
-            "sort_order": 10,
-            "is_visible": True,
-        },
-        {
             "code": "maintenance_copertura",
             "section": AssetSidebarButton.SECTION_MAIN,
             "label": "Copertura",
@@ -5720,12 +5709,12 @@ def _default_sidebar_seed_rows() -> list[dict]:
         {
             "code": "maintenance_impostazioni",
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Parametri",
+            "label": "Attività",
             "target_url": "django:assets:maintenance_impostazioni",
             "active_match": "/assets/manutenzione/impostazioni/",
             "is_subitem": True,
             "parent_code": "manutenzione_config",
-            "sort_order": 50,
+            "sort_order": 10,
             "is_visible": True,
         },
         {
