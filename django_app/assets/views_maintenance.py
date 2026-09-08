@@ -20,7 +20,8 @@ from typing import Any
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count, Max, Q
+from django.db.models import Count, F, Max, Q
+from django.db.models.functions import TruncMonth
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -60,7 +61,7 @@ from .services.recurrence import (
     describe_recurrence,
     first_due_date_for,
 )
-from .views import _assets_shell_context, _as_int, _clean_string, _is_assets_admin
+from .views import _assets_shell_context, _as_int, _clean_string, _copertura_dato, _is_assets_admin
 
 # ---------------------------------------------------------------------------
 # Permessi
@@ -448,6 +449,134 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
 # Dashboard responsabile
 # ---------------------------------------------------------------------------
 
+def _vista_cruscotto(request: HttpRequest) -> str:
+    """Quale delle due letture del Cruscotto mostrare.
+
+    La scelta esplicita (``?vista=``) vince sempre. Senza scelta il default si
+    ricava dai permessi che esistono gia': chi non puo' ne' pianificare ne'
+    eseguire non ha nulla da fare con le liste operative — vede la sintesi. Non
+    si introduce un secondo sistema di ruoli per una preferenza di vista.
+    """
+    scelta = _clean_string(request.GET.get("vista")).lower()
+    if scelta in {"operativo", "sintesi"}:
+        return scelta
+    return "operativo" if can_execute_maintenance(request) else "sintesi"
+
+
+def _sintesi_direzione(*, today: date, open_rows: list[dict[str, Any]], done_rows: list[dict[str, Any]],
+                       report_missing: int, resolutions: dict) -> dict[str, Any]:
+    """Indicatori di andamento per la direzione, costruiti SOLO su campi che
+    risultano compilati.
+
+    Costi, fermo macchina e durata degli interventi sono facoltativi in chiusura e
+    quasi mai compilati (default ``0``, non ``NULL``): niente MTTR, niente MTBF,
+    nessun grafico di spesa. Al loro posto la pagina misura quanto quei campi sono
+    coperti e lo dichiara — un grafico piatto a zero sarebbe peggio di un grafico
+    assente, perche' sembrerebbe un risultato.
+    """
+    anno_fa = today - timedelta(days=365)
+
+    # Puntualita': una sola aggregazione, confronto fra due colonne della stessa
+    # riga. ``order_by()`` esplicito: Meta.ordering con values()+annotate() su SQL
+    # Server produce l'errore 8127.
+    puntualita = MaintenanceOccurrence.objects.filter(
+        status=MaintenanceOccurrence.STATUS_DONE,
+        completed_on__gte=anno_fa,
+    ).aggregate(
+        concluse=Count("id"),
+        nei_tempi=Count("id", filter=Q(completed_on__lte=F("due_date"))),
+    )
+    concluse = puntualita["concluse"] or 0
+    nei_tempi = puntualita["nei_tempi"] or 0
+
+    # Andamento a 12 mesi: concluse per mese, di cui nei tempi. Il dato esiste
+    # (due_date e completed_on sono obbligatori), quindi il grafico e' onesto.
+    mesi_rows = list(
+        MaintenanceOccurrence.objects.filter(
+            status=MaintenanceOccurrence.STATUS_DONE, completed_on__gte=anno_fa
+        )
+        .annotate(mese=TruncMonth("completed_on"))
+        .values("mese")
+        .annotate(
+            concluse=Count("id"),
+            nei_tempi=Count("id", filter=Q(completed_on__lte=F("due_date"))),
+        )
+        .order_by("mese")
+    )
+    picco = max([row["concluse"] for row in mesi_rows] or [0])
+    andamento = [
+        {
+            "mese": row["mese"],
+            "concluse": row["concluse"],
+            "nei_tempi": row["nei_tempi"],
+            "tardive": row["concluse"] - row["nei_tempi"],
+            # Altezza in percentuale: il grafico e' fatto di due div, non serve una libreria.
+            "h_nei_tempi": round(100 * row["nei_tempi"] / picco) if picco else 0,
+            "h_tardive": round(100 * (row["concluse"] - row["nei_tempi"]) / picco) if picco else 0,
+        }
+        for row in mesi_rows
+    ]
+
+    # Arretrato: non "quante" scadute, ma "da quanto". Una scaduta di ieri e una di
+    # due anni fa non sono lo stesso problema.
+    scadute = [r for r in open_rows if r["state"] == MaintenanceOccurrence.VIEW_OVERDUE]
+    piu_vecchia = min((r["occurrence"].due_date for r in scadute), default=None)
+
+    # Copertura della pianificazione: asset in uso che hanno almeno un piano applicato.
+    asset_con_piano = {
+        asset_id for (_plan_id, asset_id), resolution in resolutions.items() if resolution.is_applied
+    }
+    asset_in_uso = Asset.objects.filter(status=Asset.STATUS_IN_USE).count()
+
+    # Copertura dei campi facoltativi sugli interventi chiusi nell'anno.
+    chiusi = WorkOrder.objects.filter(status=WorkOrder.STATUS_DONE, closed_at__date__gte=anno_fa).aggregate(
+        totale=Count("id"),
+        con_durata=Count("id", filter=Q(intervention_duration_minutes__gt=0)),
+        con_fermo=Count("id", filter=Q(downtime_minutes__gt=0)),
+        con_costo=Count(
+            "id",
+            filter=Q(cost_eur__gt=0) | Q(labor_cost_eur__gt=0) | Q(materials_cost_eur__gt=0),
+        ),
+    )
+    totale_chiusi = chiusi["totale"] or 0
+
+    return {
+        "concluse_12m": concluse,
+        "nei_tempi_12m": nei_tempi,
+        "puntualita_pct": round(100 * nei_tempi / concluse) if concluse else None,
+        "andamento": andamento,
+        "scadute": len(scadute),
+        "arretrato_da": piu_vecchia,
+        "arretrato_giorni": (today - piu_vecchia).days if piu_vecchia else None,
+        "documentale_base": len(done_rows),
+        "documentale_mancanti": report_missing,
+        "documentale_pct": (
+            round(100 * (len(done_rows) - report_missing) / len(done_rows)) if done_rows else None
+        ),
+        "asset_con_piano": len(asset_con_piano),
+        "asset_in_uso": asset_in_uso,
+        "asset_pct": round(100 * len(asset_con_piano) / asset_in_uso) if asset_in_uso else None,
+        "non_misurabili": [
+            {
+                "label": "Durata degli interventi",
+                "perche": "compilata a mano in chiusura",
+                "coverage": _copertura_dato(chiusi["con_durata"] or 0, totale_chiusi),
+            },
+            {
+                "label": "Fermo macchina",
+                "perche": "senza questo dato non esiste disponibilita impianti",
+                "coverage": _copertura_dato(chiusi["con_fermo"] or 0, totale_chiusi),
+            },
+            {
+                "label": "Costi di manutenzione",
+                "perche": "manodopera e materiali non vengono valorizzati",
+                "coverage": _copertura_dato(chiusi["con_costo"] or 0, totale_chiusi),
+            },
+        ],
+        "non_misurabili_base": totale_chiusi,
+    }
+
+
 @login_required
 def maintenance_responsabile(request: HttpRequest) -> HttpResponse:
     """Quadro generale: cosa e' scaduto, cosa sta per scadere, cosa NON e' ancora
@@ -568,13 +697,8 @@ def maintenance_responsabile(request: HttpRequest) -> HttpResponse:
             "settimana": row["settimana"],
         })
 
-    conflicts = [
-        resolution
-        for resolution in domain.build_plan_resolutions(
-            asset_queryset=Asset.objects.filter(status=Asset.STATUS_IN_USE)
-        ).values()
-        if resolution.is_conflict
-    ]
+    resolutions = domain.build_plan_resolutions(asset_queryset=Asset.objects.filter(status=Asset.STATUS_IN_USE))
+    conflicts = [resolution for resolution in resolutions.values() if resolution.is_conflict]
 
     kpi = {
         "overdue": sum(1 for r in open_rows if r["state"] == MaintenanceOccurrence.VIEW_OVERDUE),
@@ -589,6 +713,21 @@ def maintenance_responsabile(request: HttpRequest) -> HttpResponse:
         "conflicts": len(conflicts),
     }
 
+    # Due letture della stessa pagina, non due pagine: l'operativo elenca cosa fare,
+    # la sintesi dice come sta andando. Stesso URL, stesso conteggio, un parametro.
+    vista = _vista_cruscotto(request)
+    sintesi = (
+        _sintesi_direzione(
+            today=today,
+            open_rows=open_rows,
+            done_rows=done_rows,
+            report_missing=len(report_missing),
+            resolutions=resolutions,
+        )
+        if vista == "sintesi"
+        else None
+    )
+
     return render(
         request,
         "assets/pages/maintenance_responsabile.html",
@@ -596,6 +735,8 @@ def maintenance_responsabile(request: HttpRequest) -> HttpResponse:
             **_assets_shell_context(request),
             "page_title": "Cruscotto manutenzione",
             "today": today,
+            "vista": vista,
+            "sintesi": sintesi,
             "kpi": kpi,
             "unplanned": unplanned[:60],
             "report_missing": report_missing[:40],

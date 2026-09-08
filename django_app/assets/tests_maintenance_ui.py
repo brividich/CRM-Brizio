@@ -1210,3 +1210,89 @@ class StoricoCoperturaDatoTests(TestCase):
 
         # 1/301 arrotonderebbe a "0%", che accanto a "1 su 301" stona.
         self.assertEqual(response.context["history_duration_coverage"], "<1%")
+
+
+class SintesiDirezioneTests(MaintenanceUITestCase):
+    """Fase 11: il Cruscotto ha due letture, non due pagine.
+
+    La sintesi mostra solo cio' che i dati mantengono: puntualita' e arretrato si
+    calcolano su scadenza e data di esecuzione, che ci sono sempre. Costi, fermo
+    macchina e durata sono facoltativi e quasi mai compilati: al loro posto la
+    pagina dichiara la copertura, invece di disegnare un grafico piatto a zero.
+    """
+
+    def _chiudi(self, occurrence, *, giorni_di_ritardo=0):
+        occurrence.status = MaintenanceOccurrence.STATUS_DONE
+        occurrence.completed_on = occurrence.due_date + timedelta(days=giorni_di_ritardo)
+        occurrence.save(update_fields=["status", "completed_on"])
+        return occurrence
+
+    def test_la_sintesi_misura_la_puntualita_sulle_concluse(self):
+        self._chiudi(self.occurrences[0], giorni_di_ritardo=-2)
+        self._chiudi(self.occurrences[1], giorni_di_ritardo=5)
+
+        response = self.client.get(reverse("assets:maintenance_responsabile") + "?vista=sintesi")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["vista"], "sintesi")
+        sintesi = response.context["sintesi"]
+        self.assertEqual(sintesi["concluse_12m"], 2)
+        self.assertEqual(sintesi["nei_tempi_12m"], 1)
+        self.assertEqual(sintesi["puntualita_pct"], 50)
+        # Un mese di andamento, con la barra divisa fra puntuali e tardive.
+        self.assertEqual(sum(m["concluse"] for m in sintesi["andamento"]), 2)
+
+    def test_la_sintesi_dichiara_cio_che_non_puo_misurare(self):
+        """Niente MTTR/MTBF/spesa: i campi da cui si calcolano non sono compilati,
+        e un valore mostrato lo stesso sarebbe inventato al ribasso."""
+        chiuso = WorkOrder.objects.create(
+            asset=self.assets[0],
+            kind=WorkOrder.KIND_CORRECTIVE,
+            title="Intervento senza consuntivo",
+        )
+        chiuso.close(status=WorkOrder.STATUS_DONE)
+
+        response = self.client.get(reverse("assets:maintenance_responsabile") + "?vista=sintesi")
+
+        self.assertContains(response, "Cosa il portale non puo ancora misurare")
+        self.assertContains(response, "MTTR")
+        gaps = {gap["label"]: gap["coverage"] for gap in response.context["sintesi"]["non_misurabili"]}
+        # I campi hanno default 0, non NULL: la copertura si misura con "> 0".
+        self.assertEqual(gaps["Costi di manutenzione"]["rows"], 0)
+        self.assertEqual(gaps["Costi di manutenzione"]["label"], "0%")
+        self.assertFalse(gaps["Fermo macchina"]["reliable"])
+
+    def test_le_liste_operative_non_compaiono_nella_sintesi(self):
+        WorkOrder.objects.create(
+            asset=self.assets[0],
+            kind=WorkOrder.KIND_CORRECTIVE,
+            title="Guasto da gestire subito",
+        )
+
+        sintesi = self.client.get(reverse("assets:maintenance_responsabile") + "?vista=sintesi")
+        operativo = self.client.get(reverse("assets:maintenance_responsabile") + "?vista=operativo")
+
+        self.assertNotContains(sintesi, "Guasto da gestire subito")
+        self.assertContains(operativo, "Guasto da gestire subito")
+        self.assertEqual(operativo.context["sintesi"], None)
+
+    def test_il_default_segue_i_permessi_gia_esistenti(self):
+        """Chi non puo' ne' pianificare ne' eseguire non ha nulla da fare con le
+        liste operative: apre sulla sintesi. Nessun secondo sistema di ruoli."""
+        from assets import views_maintenance
+
+        # Il superuser esegue: default operativo.
+        self.assertEqual(
+            self.client.get(reverse("assets:maintenance_responsabile")).context["vista"], "operativo"
+        )
+
+        originale = views_maintenance.can_execute_maintenance
+        views_maintenance.can_execute_maintenance = lambda request: False
+        try:
+            response = self.client.get(reverse("assets:maintenance_responsabile"))
+            self.assertEqual(response.context["vista"], "sintesi")
+            # La scelta esplicita vince comunque sul default.
+            scelto = self.client.get(reverse("assets:maintenance_responsabile") + "?vista=operativo")
+            self.assertEqual(scelto.context["vista"], "operativo")
+        finally:
+            views_maintenance.can_execute_maintenance = originale

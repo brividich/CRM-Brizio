@@ -4,7 +4,7 @@ Documento di ripresa. Scritto per essere il **primo file da aprire** in una sess
 nuova: dice dove siamo, cosa è già fatto, cosa resta e quali trappole sono già state
 pagate.
 
-Ultimo aggiornamento: **2026-09-08**.
+Ultimo aggiornamento: **2026-09-08** (seconda sessione: P2 chiusa, Fase 11 fatta).
 
 ---
 
@@ -68,30 +68,35 @@ reversibili):
 - [x] Cruscotto: sezioni vuote compresse a «nessuna criticità»
 - [x] **Carico manutentori** con riga «Non assegnate» in evidenza
 
-### P2 (parziale, sul branch)
+### P2 (sul branch, chiusa)
 
 - [x] Storico: KPI onesti sulla copertura del dato
 - [x] Piani: colonna **Copertura** `32/33` + %, colonna **Ultima esecuzione**
 - [x] Piani: `prefetch_related` mancante — da 141 a 84 query
-- [ ] **Fornitori** — vedi decisione aperta al §4
-- [ ] **Vista Sintesi direzione** (Fase 11) — vedi §3
+- [x] **Scheda fornitore** `/assets/manutenzione/fornitori/<id>/`: contratti, manutenzioni
+      affidate, verifiche periodiche, interventi aperti e conclusi, asset coperti. La spesa
+      **non viene stampata**: il riquadro «Quanto è documentato il lavoro svolto» dichiara la
+      copertura di durata, fermo macchina e costo. L'anagrafica resta in `/fornitori/`
+- [x] Helper di copertura condiviso `_copertura_dato` (era interno allo Storico)
+
+### Fase 11 — Sintesi direzione (sul branch, fatta)
+
+- [x] Toggle `[ Operativo ] [ Sintesi ]` nel Cruscotto, stesso URL (`?vista=`)
+- [x] KPI su dati reali: nei tempi 12 mesi, scadute + anzianità della più vecchia,
+      interventi aperti oltre soglia, copertura documentale, parco con un piano, conflitti
+- [x] Grafico a barre 12 mesi (HTML+CSS, nessuna libreria) diviso puntuali / in ritardo
+- [x] Riquadro **«Cosa il portale non può ancora misurare»**: copertura reale di durata,
+      fermo macchina e costi, più MTTR/MTBF/disponibilità dichiarati non calcolabili
+- [x] Default dai permessi esistenti (`can_execute_maintenance`), scelta esplicita vince
 
 ---
 
 ## 3. Da fare — in ordine
 
-### Prossimo passo: vista Sintesi direzione (Fase 11)
+### Prossimo passo: il rilascio
 
-Criterio già concordato: **non disegnare grafici su dati che non esistono.** Costi e
-fermo macchina sono compilati su quasi nulla (§5), quindi un grafico sarebbe piatto a
-zero — peggio di un grafico assente.
-
-- [ ] Toggle `[ Operativo ] [ Sintesi ]` nel Cruscotto (non una pagina nuova)
-- [ ] KPI che poggiano su dati reali: % manutenzioni nei tempi, scadute, interventi
-      aperti, copertura documentale
-- [ ] Dichiarare esplicitamente quali metriche non sono disponibili e perché
-- [ ] Default per ruolo se i permessi già presenti lo consentono, **senza** costruire
-      un secondo sistema di ruoli
+P2 e Fase 11 sono chiuse. Quello che resta non è codice: è portare in produzione un
+lavoro che oggi vive solo su un branch, e farlo guardare da una persona (§4.2).
 
 ### P3, solo dove i dati lo permettono
 
@@ -115,16 +120,15 @@ zero — peggio di un grafico assente.
    quindi pesa su **ogni pagina del portale**. Una cache per richiesta lo risolve in
    poche righe ma tocca `core`. **Farla? Quando?**
 
-2. **Il dettaglio fornitore non esiste**: c'è solo la lista (`maintenance_suppliers`).
-   La Fase 10 descrive una scheda con contratto, asset coperti, interventi e costi
-   dell'anno, rapporti mancanti, documenti. Costruirla significa una pagina nuova, e
-   **due riquadri su sei nascerebbero vuoti** perché i costi non sono compilati.
-   **Farla comunque, o rimandarla?**
-
-3. **Verifica visiva a video mai eseguita.** La cattura schermo va in timeout su questo
+2. **Verifica visiva a video mai eseguita.** La cattura schermo va in timeout su questo
    ambiente (JS e query passano, lo screenshot no). Tutte le verifiche sono su HTML
    renderizzato, contesto delle view e database. **Le pagine vanno guardate da una
-   persona** prima del rilascio.
+   persona** prima del rilascio — in particolare la Sintesi, il cui grafico a barre è
+   l'unico pezzo di layout non coperto dai test.
+
+> **Chiusa:** il dettaglio fornitore si è fatto, con il criterio del §8 — i due riquadri
+> che sarebbero nati vuoti (costi, tempi) sono diventati un riquadro solo che *dichiara*
+> quanto quei campi sono compilati. Un riquadro vuoto non informa; la sua copertura sì.
 
 ---
 
@@ -206,8 +210,11 @@ scegliendone una.
   `/assets/manutenzione/impostazioni/?tab=catalogo`, che ha una scheda sola.
 - **Il server di sviluppo è lentissimo al primo caricamento** (SQL Server reale, non
   SQLite): attendere prima di concludere che una pagina sia rotta.
+- **La copertura di un campo non si misura con `exclude(campo=None)`**: durata, fermo
+  macchina e costi hanno **default `0`, non `NULL`**, quindi risulterebbe sempre il 100%.
+  Si conta con `filter(campo__gt=0)`; l'helper condiviso è `views._copertura_dato`.
 - **Test**: `manage.py test assets --settings=config.settings.test --keepdb`.
-  Baseline attuale **533 verdi**.
+  Baseline attuale **538 verdi**.
 
 ---
 

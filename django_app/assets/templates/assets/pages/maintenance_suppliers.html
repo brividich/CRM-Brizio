@@ -48,8 +48,9 @@ body.theme-dark .msup-link { color:#60a5fa; }
   </div>
   <div class="msup-intro">
     Ditte terze collegate a manutenzione tramite <strong>regole esterne</strong>, <strong>ordini di lavoro</strong>,
-    <strong>contratti di assistenza</strong> o <strong>verifiche periodiche</strong>. Clicca una riga per aprire
-    il dettaglio nel modulo <strong>Fornitori</strong> (fonte unica di gestione/anagrafica).
+    <strong>contratti di assistenza</strong> o <strong>verifiche periodiche</strong>. Clicca una riga per la
+    <strong>scheda di manutenzione</strong> (cosa gli è affidato e cosa ha fatto); l'anagrafica completa resta
+    nel modulo <strong>Fornitori</strong>.
   </div>
   <div class="msup-table-wrap">
     <table class="msup-table">
@@ -70,7 +71,7 @@ body.theme-dark .msup-link { color:#60a5fa; }
             <td>{% if row.workorders %}<span class="msup-badge">{{ row.workorders }}</span>{% else %}<span class="msup-muted">—</span>{% endif %}</td>
             <td>{% if row.contracts %}<span class="msup-badge">{{ row.contracts }}</span>{% else %}<span class="msup-muted">—</span>{% endif %}</td>
             <td>{% if row.verifications %}<span class="msup-badge">{{ row.verifications }}</span>{% else %}<span class="msup-muted">—</span>{% endif %}</td>
-            <td><a href="{{ row.detail_url }}" class="msup-link">Apri</a></td>
+            <td><a href="{{ row.detail_url }}" class="msup-link">Scheda</a> &middot; <a href="{{ row.anagrafica_url }}" class="msup-link">Anagrafica</a></td>
           </tr>
           {% endfor %}
         {% else %}
