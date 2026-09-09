@@ -8,6 +8,13 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+## 1.5.0 - 2026-09-09
+
+Rilascio di allineamento: entra la rifinitura UX del modulo Manutenzione e rientrano
+undici branch rimasti indietro, alcuni fermi da luglio. Restano deliberatamente fuori
+il bump a Django 6.0 (major, da provare in un ambiente dedicato prima) e tre branch i
+cui conflitti riguardano il vecchio motore manutenzioni e i cancelli ACL.
+
 ### Changed
 
 - **KICK-OFF · il responsabile di un punto all'ordine del giorno si sceglie fra i convocati** (`django_app/tasks/templates/tasks/project_meeting_form.html`, `django_app/tasks/forms.py` — nuovo `KickoffMeetingForm.clean()` —, `tests_meeting_flow.py`). La tendina "Responsabile (opzionale)" del form "Nuovo punto all'ordine del giorno" elencava tutti gli utenti attivi del portale, anche chi non era stato convocato all'incontro. Ora le opzioni sono ricostruite dalle checkbox di "Partecipanti" (e si aggiornano quando la selezione cambia): senza partecipanti selezionati la tendina è disabilitata e recita "seleziona prima i partecipanti"; se un responsabile già scelto viene tolto dai convocati, la scelta si azzera. Stessa regola applicata server-side in `clean()`, così un POST costruito a mano — o un partecipante rimosso dopo l'assegnazione — non lascia un responsabile estraneo all'incontro.
