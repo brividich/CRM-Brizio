@@ -78,6 +78,17 @@
 .admin-item-row { display: grid; grid-template-columns: 1fr 140px 95px 90px 105px auto auto; gap: 8px; align-items: end; }
 .admin-hint { font-size: var(--fs-sm); color: #64748b; }
 .admin-item + form { margin-top: -6px; }
+.doc-folder-cat { border: 1px solid #e1e8f3; border-radius: 10px; background: #fff; }
+.doc-folder-cat > summary { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; padding: 10px 12px; cursor: pointer; list-style: none; }
+.doc-folder-cat > summary::-webkit-details-marker { display:none; }
+.doc-folder-cat-name::before { content: "\25B8"; color: #94a3b8; margin-right: 8px; }
+.doc-folder-cat[open] .doc-folder-cat-name::before { content: "\25BE"; }
+.doc-folder-cat[open] > summary { border-bottom: 1px solid #eef2f8; }
+.doc-folder-cat-name { font-weight: 700; color: #0f172a; }
+.doc-folder-body { padding: 10px 12px 12px; }
+body.theme-dark .doc-folder-cat { background: var(--surface-alt); border-color: var(--border); }
+body.theme-dark .doc-folder-cat-name { color: var(--text); }
+body.theme-dark .doc-folder-cat[open] > summary { border-bottom-color: var(--border); }
 .sidebar-shell { display:grid; gap:8px; }
 .sidebar-editor { border:1px solid #dbe3f0; border-radius:11px; overflow:hidden; }
 .sidebar-editor-summary { list-style:none; cursor:pointer; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; gap:10px; user-select:none; -webkit-user-select:none; }
@@ -367,6 +378,7 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
     <a href="?tab=config" class="ga-tab {% if tab == 'config' %}active{% endif %}">Configurazione</a>
     <a href="?tab=sidebar" class="ga-tab {% if tab == 'sidebar' %}active{% endif %}">Sidebar</a>
     <a href="?tab=categorie" class="ga-tab {% if tab == 'categorie' %}active{% endif %}">Categorie asset</a>
+    <a href="?tab=cartelle" class="ga-tab {% if tab == 'cartelle' %}active{% endif %}">Cartelle documento</a>
     <a href="?tab=record" class="ga-tab {% if tab == 'record' %}active{% endif %}">Record</a>
     <a href="?tab=ticket" class="ga-tab {% if tab == 'ticket' %}active{% endif %}">Categorie Ticket</a>
     <a href="?tab=log" class="ga-tab {% if tab == 'log' %}active{% endif %}">Log attivit&agrave;</a>
@@ -1429,6 +1441,148 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
           </form>
         {% empty %}
           <div class="admin-hint">Nessun campo categoria configurato.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+
+  {# ========== TAB CARTELLE DOCUMENTO ========== #}
+  {% if tab == 'cartelle' %}
+  <div class="card" style="margin-bottom:14px;">
+    <div class="card-body">
+      <div class="text-heading" style="font-size:var(--fs-lg);font-weight:800;">Cartelle documento degli asset</div>
+      <div class="muted-note" style="margin-top:4px;max-width:900px;">
+        Sono le schede della card <strong>Documenti</strong> nella pagina di un asset. Le tre cartelle di base
+        ({% for label in document_folder_base_labels %}{{ label }}{% if not forloop.last %}, {% endif %}{% endfor %})
+        ci sono sempre; quelle aggiunte qui valgono per <strong>tutti gli asset della categoria</strong>.
+        Il nome non &egrave; modificabile dopo la creazione (&egrave; la chiave con cui i file vengono archiviati) e una
+        cartella si disattiva o si elimina solo se non contiene documenti.
+      </div>
+      <div class="inline-actions" style="margin-top:10px;">
+        <span class="chip-soft blue">{{ document_folder_rows|length }} categorie</span>
+        <span class="chip-soft slate">{{ document_folder_extra_total }} cartelle aggiuntive</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h3 class="card-title">Cartelle per categoria</h3>
+      <span class="muted-note">Apri una categoria per gestirne le cartelle</span>
+    </div>
+    <div class="card-body">
+      <div class="admin-list">
+        {% for row in document_folder_rows %}
+        <details class="doc-folder-cat" {% if row.extra_folders %}open{% endif %}>
+          <summary>
+            <span class="doc-folder-cat-name">{{ row.category.label }}</span>
+            <span class="inline-actions">
+              {% if not row.category.is_active %}<span class="chip-soft slate">Categoria disattiva</span>{% endif %}
+              {% if row.extra_folders %}
+                <span class="chip-soft blue">{{ row.extra_active_count }}/{{ row.extra_folders|length }} cartelle extra attive</span>
+              {% else %}
+                <span class="chip-soft slate">Solo cartelle di base</span>
+              {% endif %}
+              <span class="chip-soft slate">{{ row.asset_count }} asset</span>
+              <span class="chip-soft slate">{{ row.document_count }} documenti</span>
+            </span>
+          </summary>
+
+          <div class="doc-folder-body">
+            <table class="tbl" data-fm-table-skip="1">
+              <thead>
+                <tr>
+                  <th>Cartella</th>
+                  <th>Chiave</th>
+                  <th style="width:150px;">Ordine</th>
+                  <th style="width:110px;">Documenti</th>
+                  <th style="width:120px;">Stato</th>
+                  <th style="width:200px;">Azioni</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for base in row.base_folders %}
+                <tr>
+                  <td>{{ base.label }}</td>
+                  <td><code style="font-size:var(--fs-sm);">{{ base.code }}</code></td>
+                  <td>&mdash;</td>
+                  <td>{{ base.document_count }}</td>
+                  <td><span class="chip-soft blue">Di base</span></td>
+                  <td class="muted-note">Sempre presente</td>
+                </tr>
+                {% endfor %}
+                {% for item in row.extra_folders %}
+                <tr>
+                  <td>{{ item.folder.name }}</td>
+                  <td><code style="font-size:var(--fs-sm);">{{ item.folder.slug }}</code></td>
+                  <td>
+                    <form method="post" class="inline-actions" style="gap:6px;">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="update_asset_category_document_folder_order">
+                      <input type="hidden" name="folder_id" value="{{ item.folder.id }}">
+                      <input class="input" type="number" name="sort_order" value="{{ item.folder.order }}" min="0" style="width:70px;">
+                      <button class="btn btn-sm" type="submit" style="border:1px solid #dbe3f0;">Salva</button>
+                    </form>
+                  </td>
+                  <td>{{ item.document_count }}</td>
+                  <td>
+                    {% if item.folder.is_active %}
+                      <span class="chip-soft green">Attiva</span>
+                    {% else %}
+                      <span class="chip-soft slate">Disattiva</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <form method="post" style="display:inline;">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="toggle_asset_category_document_folder">
+                      <input type="hidden" name="folder_id" value="{{ item.folder.id }}">
+                      <button
+                        type="submit"
+                        class="btn btn-sm"
+                        style="background:#f1f5f9;border-color:#cbd5e1;color:#475569;"
+                        {% if item.folder.is_active and not item.can_remove %}disabled title="La cartella contiene {{ item.document_count }} documenti"{% endif %}
+                      >{% if item.folder.is_active %}Disattiva{% else %}Riattiva{% endif %}</button>
+                    </form>
+                    <form method="post" style="display:inline;" onsubmit="return confirm('Eliminare la cartella documento &quot;{{ item.folder.name|escapejs }}&quot; dalla categoria {{ row.category.label|escapejs }}?');">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="delete_asset_category_document_folder">
+                      <input type="hidden" name="folder_id" value="{{ item.folder.id }}">
+                      <button
+                        type="submit"
+                        class="btn btn-sm btn-danger"
+                        {% if not item.can_remove %}disabled title="La cartella contiene {{ item.document_count }} documenti"{% endif %}
+                      >Elimina</button>
+                    </form>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+
+            <form method="post" class="inline-actions" style="margin-top:10px;gap:8px;align-items:flex-end;">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="create_asset_category_document_folder">
+              <input type="hidden" name="category_id" value="{{ row.category.id }}">
+              <div class="field">
+                <label>Nuova cartella documento</label>
+                <input class="input" type="text" name="folder_name" maxlength="120" placeholder="Es. Collaudi" required>
+              </div>
+              <div class="field">
+                <label>Ordine</label>
+                <input class="input" type="number" name="sort_order" min="0" placeholder="auto" style="width:100px;">
+              </div>
+              <button class="btn btn-primary btn-sm" type="submit">Aggiungi cartella</button>
+            </form>
+          </div>
+        </details>
+        {% empty %}
+        <div class="muted-note">
+          Nessuna categoria asset configurata: creane una dal tab
+          <a href="?tab=categorie">Categorie asset</a> per poterle assegnare cartelle documento.
+        </div>
         {% endfor %}
       </div>
     </div>
