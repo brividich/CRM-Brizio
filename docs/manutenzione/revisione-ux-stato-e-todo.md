@@ -4,7 +4,7 @@ Documento di ripresa. Scritto per essere il **primo file da aprire** in una sess
 nuova: dice dove siamo, cosa è già fatto, cosa resta e quali trappole sono già state
 pagate.
 
-Ultimo aggiornamento: **2026-09-08** (seconda sessione: P2 chiusa, Fase 11 fatta).
+Ultimo aggiornamento: **2026-09-09** (P2 chiusa, Fase 11 fatta, verifica visiva eseguita, merge in `main` e `release/prod` fatti).
 
 ---
 
@@ -12,30 +12,17 @@ Ultimo aggiornamento: **2026-09-08** (seconda sessione: P2 chiusa, Fase 11 fatta
 
 | Ramo | Commit | Contiene |
 |---|---|---|
-| `origin/fix/assets-manutenzione-p0` | `ad362d48` | **tutto il lavoro P0+P1+P2+Fase 11**, non mergiato |
-| `main` = `origin/main` | `2aa349c3` | coda condivisa, sidebar categorie, P0 |
-| `release/prod` = `origin/release/prod` | `9eea3864` | indietro di 4 commit rispetto a `main` |
-| **produzione (PCLOGSYS)** | `acf1813` | **non ha nulla di questa revisione** |
+| `origin/main` | `e1321228` | **tutta la revisione: P0+P1+P2+Fase 11** (mergiata 08/09) |
+| `origin/release/prod` | `684e439b` | allineato a `main` |
+| `release/prod` **locale** nel checkout condiviso | `9eea3864` | **indietro**: da allineare prima di impacchettare, vedi §6 |
+| `origin/fix/assets-manutenzione-p0` | `2b17afd6` | mergiato, si puo' cancellare |
+| **produzione (PCLOGSYS)** | `acf1813` | **non ha ancora nulla di questa revisione** |
 
-Commit sul branch non ancora in `main`, dal più recente:
-
-```
-ad362d48  "100% nei tempi" era un artefatto della migrazione
-e8dd9349  docs - aggiorna lo stato della revisione UX
-33168148  P2 conclusa (scheda fornitore) e Fase 11 (Sintesi direzione)
-514af5c1  docs - stato e cose da fare della revisione UX manutenzione
-4dd8bf51  P2 - Storico onesto sui dati e Piani con copertura reale
-2d8f7fcc  P1.4/P1.5 - Interventi coerenti e Cruscotto senza blocchi vuoti
-87ffe4d9  "Attivita'" e "Parametri" erano la stessa pagina
-64f3b046  P1.3 - carico manutentori nel Cruscotto
-86942148  P1.2 - "Da fare" risponde a "cosa devo fare adesso"
-1a3ae8aa  P1.1 - il menu manutenzione si divide in due rami
-```
-
-> **Il checkout condiviso `C:\Dev\Portale Novicrom` è sporco (21 file).** Non è WIP da
-> salvare: sono copie del branch, messe lì per poter guardare le pagine sul server di
-> sviluppo. Prima di qualunque merge, verificare che siano identiche al branch e
-> scartarle — la procedura è al §6.
+> **Il checkout condiviso `C:\Dev\Portale Novicrom` è ancora sporco (22 file).**
+> Verificato il 08/09: **venti su ventidue sono copie esatte di un commit del branch**,
+> gli altri due (`views.py`, `maintenance_history.html`) sono versioni *più vecchie*
+> degli stessi helper. Nessun WIP altrui, nulla da salvare. Vanno scartati **prima di
+> impacchettare**, insieme ai quattro file non tracciati — vedi §6.
 
 **Migrazioni introdotte** (tutte sui pulsanti di menu, nessun cambio di schema, tutte
 reversibili):
@@ -109,8 +96,11 @@ lavoro che oggi vive solo su un branch, e farlo guardare da una persona (§4.2).
 
 ### Rilascio
 
-- [ ] Merge `fix/assets-manutenzione-p0` → `main`
-- [ ] Merge `main` → `release/prod`
+- [x] Merge `fix/assets-manutenzione-p0` → `main` (`e1321228`, due genitori)
+- [x] Merge `main` → `release/prod` (`684e439b`, due genitori) — fatto da worktree
+      staccato, senza toccare il checkout condiviso
+- [ ] **Allineare il `release/prod` locale** nel checkout condiviso (§6): è da lì che
+      `package-release.ps1` esporta, e oggi punta ancora a `9eea3864`
 - [ ] `package-release.ps1` + promote
 - [ ] **`migrate` applica 0101, 0102, 0103**
 - [ ] Dopo il promote: **«📅 Registra schedule»** in Centrale di comando
@@ -173,44 +163,31 @@ Le pagine operative in dev sembrano vuote: non è un errore, è il dataset.
 
 ---
 
-## 6. Procedura di merge
+## 6. Quello che resta da fare a mano
 
-Il checkout condiviso contiene copie del branch. Verificare che siano identiche prima
-di scartarle:
+I due merge sono fatti e pushati. Resta **una cosa sola**, e va fatta nel checkout
+condiviso, che è di un'altra sessione: scartare le copie e allineare il ramo da cui
+il packager esporta.
 
 ```powershell
 cd "C:\Dev\Portale Novicrom"
-git fetch --all
-# per ogni file modificato: deve dire IDENTICO
-foreach ($f in (git status --porcelain | ForEach-Object { ($_ -split '\s+',3)[2] })) {
-    git diff --quiet origin/fix/assets-manutenzione-p0 -- $f
-    if ($?) { "IDENTICO  $f" } else { "DIVERSO   $f" }
-}
-```
-
-Se tutti identici:
-
-```powershell
+git status --porcelain        # devono essere le 22 copie gia' verificate, nient'altro
 git checkout -- .
-git status --porcelain          # deve essere VUOTO
-
-# merge in main da worktree dedicato, MAI dal checkout condiviso
-cd C:\Dev\pn-merge
-git checkout main ; git pull --ff-only
-git merge --no-ff origin/fix/assets-manutenzione-p0 -m "Merge branch 'fix/assets-manutenzione-p0'"
-git log -1 --format="%h parents=%p"     # devono essere DUE genitori
-git push origin main
-
-# poi release/prod, dal checkout condiviso (e' li' che vive il branch)
-cd "C:\Dev\Portale Novicrom"
-git merge --no-ff main -m "merge: allinea release/prod a main (revisione UX manutenzione)"
-git push origin release/prod
+Remove-Item django_app\assets\migrations\0101_sidebar_sezione_categorie.py, `
+            django_app\assets\migrations\0102_sidebar_manutenzione_configurazione.py, `
+            django_app\assets\migrations\0103_sidebar_attivita_voce_unica.py, `
+            docs\manutenzione\revisione-ux-stato-e-todo.md
+git status --porcelain        # deve essere VUOTO
+git pull --ff-only origin release/prod
+git log --oneline -1          # deve dire 684e439b
 ```
 
-Conflitti attesi su `CHANGELOG.md`: si risolvono **tenendo entrambe le voci**, mai
-scegliendone una.
+I quattro file cancellati **non si perdono**: tornano tracciati con il `pull`, perché
+sono già dentro `main` e `release/prod`.
 
----
+> **Perché a mano.** Scartare modifiche non committate in un albero condiviso da più
+> sessioni è l'unica operazione di questa serie che può distruggere il lavoro di
+> qualcun altro: va fatta da chi sa che nessuno ci sta lavorando sopra.
 
 ## 7. Trappole già pagate — non ripagarle
 
