@@ -169,6 +169,35 @@ def _descrizione_divergenze(divergenze: list[dict]) -> str:
     return "Periodicità diverse dal catalogo (vale il catalogo) — " + "; ".join(pezzi)
 
 
+def _trova_visita_da_associare(*, legacy_id: int, tipo_id: int, data_giudizio, tolleranza: int):
+    """La visita già registrata più vicina alla data del certificato, se c'è.
+
+    Candidata solo una ``VisitaMedica`` **senza referto agganciato**: una che ce
+    l'ha già è stata prodotta da un altro certificato, non va toccata. Fra più
+    candidate nella finestra vince la più vicina alla data letta: è quella con
+    più probabilità di essere lo stesso evento.
+    """
+    from datetime import timedelta
+
+    from ..models import VisitaMedica
+
+    if tolleranza <= 0:
+        return None
+
+    candidate = list(
+        VisitaMedica.objects.filter(
+            legacy_anagrafica_id=legacy_id,
+            tipo_id=tipo_id,
+            referto_documento__isnull=True,
+            data_svolgimento__gte=data_giudizio - timedelta(days=tolleranza),
+            data_svolgimento__lte=data_giudizio + timedelta(days=tolleranza),
+        )
+    )
+    if not candidate:
+        return None
+    return min(candidate, key=lambda v: abs((v.data_svolgimento - data_giudizio).days))
+
+
 @transaction.atomic
 def registra(riga, *, utente=None, legacy_id: int | None = None):
     """Crea le visite del protocollo e archivia il referto nel fascicolo.
@@ -180,7 +209,7 @@ def registra(riga, *, utente=None, legacy_id: int | None = None):
     from django.utils import timezone
 
     from ..models import VisitaMedica
-    from ..models_sorveglianza import RefertoIntakeRiga
+    from ..models_sorveglianza import RefertoIntakeConfig, RefertoIntakeRiga
     from .referti_parsing import CampiReferto
 
     legacy_id = legacy_id or riga.legacy_anagrafica_id_proposto
@@ -222,11 +251,28 @@ def registra(riga, *, utente=None, legacy_id: int | None = None):
         )
         .values_list("tipo_id", flat=True)
     )
-    da_creare = [(t, v) for t, v in piano.tipi if t.id not in gia_presenti]
-    if not da_creare:
+    da_valutare = [(t, v) for t, v in piano.tipi if t.id not in gia_presenti]
+    if not da_valutare:
         raise ErroreRegistrazione(
             "Queste visite risultano già registrate per il dipendente in questa data."
         )
+
+    # Finestra di tolleranza: una visita già presente, senza referto agganciato,
+    # a pochi giorni dalla data del giudizio è lo stesso evento — non un doppione
+    # né una visita nuova. La data registrata NON viene toccata (la scadenza è
+    # già calcolata su quella): si aggancia solo il documento.
+    tolleranza = RefertoIntakeConfig.load().giorni_tolleranza_associazione
+    da_creare = []
+    da_associare = []  # [(VisitaMedica esistente, tipo)]
+    for tipo, voce in da_valutare:
+        candidata = _trova_visita_da_associare(
+            legacy_id=legacy_id, tipo_id=tipo.id,
+            data_giudizio=riga.letto_data_giudizio, tolleranza=tolleranza,
+        )
+        if candidata is not None:
+            da_associare.append((candidata, tipo))
+        else:
+            da_creare.append((tipo, voce))
 
     documento = _archivia_nel_fascicolo(riga, legacy_id, utente)
 
@@ -246,22 +292,38 @@ def registra(riga, *, utente=None, legacy_id: int | None = None):
         visita.save()  # la scadenza la calcola save() dal catalogo
         create.append(visita)
 
+    associate = []
+    for visita, _tipo in da_associare:
+        scarto_giorni = abs((visita.data_svolgimento - riga.letto_data_giudizio).days)
+        nota = (
+            f"Referto agganciato: giudizio del {riga.letto_data_giudizio:%d/%m/%Y}"
+            + (f", {scarto_giorni} giorni dopo la data registrata" if scarto_giorni else "")
+            + "."
+        )
+        visita.referto_documento = documento
+        visita.note = (visita.note + " " + nota).strip() if visita.note else nota
+        visita.updated_by = utente
+        visita.save(update_fields=["referto_documento", "note", "updated_by", "updated_at"])
+        associate.append(visita)
+
     riga.legacy_anagrafica_id_proposto = legacy_id
     riga.esito = RefertoIntakeRiga.ESITO_OK
     riga.visite_create = len(create)
+    riga.visite_associate = len(associate)
     riga.documento = documento
     riga.divergenze = piano.divergenze
     riga.confermato_da = utente
     riga.confermato_il = timezone.now()
-    saltate = len(piano.tipi) - len(da_creare)
+    saltate = len(piano.tipi) - len(da_creare) - len(associate)
     riga.messaggio = (
         f"{len(create)} visite registrate"
+        + (f", {len(associate)} agganciate a visite già presenti" if associate else "")
         + (f", {saltate} già presenti" if saltate else "")
         + ("; " + _descrizione_divergenze(piano.divergenze) if piano.divergenze else "")
     )
     riga.save()
 
-    return create
+    return create + associate
 
 
 def _archivia_nel_fascicolo(riga, legacy_id: int, utente):

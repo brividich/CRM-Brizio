@@ -159,6 +159,18 @@ class RefertoIntakeConfig(models.Model):
                   "letto dal riconoscimento di ripiego.",
     )
 
+    # ── Associazione a visite già registrate ───────────────────────────────────
+    giorni_tolleranza_associazione = models.PositiveSmallIntegerField(
+        default=7,
+        help_text="Una visita dello stesso dipendente e tipo, già presente e senza "
+                  "referto agganciato, entro questi giorni dalla data del giudizio "
+                  "letta sul certificato, viene considerata la stessa visita: il "
+                  "referto vi si aggancia invece di crearne una seconda. Serve perché "
+                  "la data registrata a mano (es. dalla Giornata visite) e quella "
+                  "scritta poi dal medico sul certificato («Espresso il») spesso non "
+                  "coincidono di un giorno o due, pur essendo lo stesso evento.",
+    )
+
     ultima_esecuzione = models.DateTimeField(null=True, blank=True)
     ultimo_esito = models.TextField(
         blank=True, default="",
@@ -296,6 +308,12 @@ class RefertoIntakeRiga(models.Model):
         default=0,
         help_text="Quante VisitaMedica sono nate da questa riga: un certificato porta "
                   "un intero protocollo, non una visita sola.",
+    )
+    visite_associate = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Quante VisitaMedica già registrate (senza referto agganciato) sono "
+                  "state riconosciute come lo stesso evento e collegate a questo "
+                  "certificato invece di generarne una seconda.",
     )
     documento = models.ForeignKey(
         "anagrafica.DocumentoDipendente",
