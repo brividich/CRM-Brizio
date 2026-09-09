@@ -5333,7 +5333,7 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Quadro",
+            "label": "Cruscotto",
             "url": maintenance_quadro,
             "is_subitem": True,
             "active": current_route == "maintenance_responsabile",
@@ -5586,6 +5586,28 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "is_visible": True,
         },
         {
+            "code": "manutenzione_config",
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Configurazione",
+            "target_url": "django:assets:maintenance_template_list",
+            "active_match": "",
+            "is_subitem": False,
+            "parent_code": "",
+            "sort_order": 55,
+            "is_visible": True,
+        },
+        {
+            "code": "maintenance_copertura",
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Copertura",
+            "target_url": "django:assets:maintenance_coverage",
+            "active_match": "/assets/manutenzione/copertura/",
+            "is_subitem": True,
+            "parent_code": "manutenzione_config",
+            "sort_order": 40,
+            "is_visible": True,
+        },
+        {
             "code": "maintenance_templates",
             "section": AssetSidebarButton.SECTION_MAIN,
             "label": "Catalogo attivita",
@@ -5621,12 +5643,12 @@ def _default_sidebar_seed_rows() -> list[dict]:
         {
             "code": "maintenance_quadro",
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Quadro",
+            "label": "Cruscotto",
             "target_url": "django:assets:maintenance_responsabile",
             "active_match": "/assets/manutenzione/quadro/",
             "is_subitem": True,
             "parent_code": "manutenzione_hub",
-            "sort_order": 30,
+            "sort_order": 50,
             "is_visible": True,
         },
         {
@@ -5637,7 +5659,7 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "active_match": "/assets/workorders/",
             "is_subitem": True,
             "parent_code": "manutenzione_hub",
-            "sort_order": 40,
+            "sort_order": 30,
             "is_visible": True,
         },
         {
@@ -5648,7 +5670,7 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "active_match": "/assets/manutenzione/piani/",
             "is_subitem": True,
             "parent_code": "manutenzione_hub",
-            "sort_order": 50,
+            "sort_order": 40,
             "is_visible": True,
         },
         {
@@ -5658,8 +5680,8 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "target_url": "django:assets:asset_group_list",
             "active_match": "/assets/manutenzione/gruppi/",
             "is_subitem": True,
-            "parent_code": "manutenzione_hub",
-            "sort_order": 60,
+            "parent_code": "manutenzione_config",
+            "sort_order": 20,
             "is_visible": True,
         },
         {
@@ -5670,7 +5692,7 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "active_match": "/assets/manutenzione/storico/",
             "is_subitem": True,
             "parent_code": "manutenzione_hub",
-            "sort_order": 70,
+            "sort_order": 60,
             "is_visible": True,
         },
         {
@@ -5680,19 +5702,19 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "target_url": "django:assets:maintenance_suppliers",
             "active_match": "/assets/manutenzione/fornitori/",
             "is_subitem": True,
-            "parent_code": "manutenzione_hub",
-            "sort_order": 90,
+            "parent_code": "manutenzione_config",
+            "sort_order": 30,
             "is_visible": True,
         },
         {
             "code": "maintenance_impostazioni",
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Impostazioni",
+            "label": "Attività",
             "target_url": "django:assets:maintenance_impostazioni",
             "active_match": "/assets/manutenzione/impostazioni/",
             "is_subitem": True,
-            "parent_code": "manutenzione_hub",
-            "sort_order": 110,
+            "parent_code": "manutenzione_config",
+            "sort_order": 10,
             "is_visible": True,
         },
         {
@@ -5966,6 +5988,8 @@ def _build_sidebar_groups(request: HttpRequest, rows: int = 25) -> list[dict]:
         AssetSidebarButton.SECTION_MAIN: 0,
         AssetSidebarButton.SECTION_ANALYTICS: 1,
         AssetSidebarButton.SECTION_OPERATIONS: 2,
+        # Ultima: e' la piu' lunga e la meno usata per navigare.
+        AssetSidebarButton.SECTION_CATEGORIES: 3,
     }
     configured = list(
         AssetSidebarButton.objects.filter(is_visible=True)
@@ -6402,6 +6426,7 @@ def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
         "report_template_admin": "report_templates",
         "maintenance_impostazioni": "settings",
         "maintenance_suppliers": "suppliers",
+        "maintenance_supplier_detail": "suppliers",
         "maintenance_template_list": "settings",
         "maintenance_template_create": "settings",
         "maintenance_template_edit": "settings",
@@ -6442,7 +6467,7 @@ def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
         },
         {
             "key": "quadro",
-            "label": "Quadro",
+            "label": "Cruscotto",
             "url": reverse("assets:maintenance_responsabile"),
         },
         {
@@ -16017,6 +16042,18 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
     total_duration = sum(int(row["duration_minutes"] or 0) for row in rows)
     total_cost = sum((row["cost"] or Decimal("0")) for row in rows)
 
+    # Un totale ha senso solo se il dato e' compilato. Durata e costi si compilano a
+    # mano in chiusura e quasi nessuno lo fa: presentare "1,5 h" accanto a 661
+    # attivita' concluse non e' una statistica, e' un numero che invita a conclusioni
+    # sbagliate. Qui si misura su quante righe il dato esiste davvero (>0) e la
+    # pagina lo dichiara; sotto una soglia minima il KPI non viene mostrato affatto,
+    # perche' un dato coperto all'1% non dice nulla nemmeno con l'avvertenza.
+    totale_righe = len(rows)
+    righe_con_durata = sum(1 for row in rows if int(row["duration_minutes"] or 0) > 0)
+    righe_con_costo = sum(1 for row in rows if (row["cost"] or Decimal("0")) > 0)
+    copertura_durata = _copertura_dato(righe_con_durata, totale_righe)
+    copertura_costo = _copertura_dato(righe_con_costo, totale_righe)
+
     return render(
         request,
         "assets/pages/maintenance_history.html",
@@ -16029,6 +16066,12 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
             "history_ticket_count": sum(1 for row in rows if row["source"] == "ticket"),
             "history_duration_hours": round(total_duration / 60, 1),
             "history_total_cost": total_cost,
+            "history_duration_coverage": copertura_durata["label"],
+            "history_cost_coverage": copertura_costo["label"],
+            "history_duration_rows": righe_con_durata,
+            "history_cost_rows": righe_con_costo,
+            "history_duration_reliable": copertura_durata["reliable"],
+            "history_cost_reliable": copertura_costo["reliable"],
             "q": q,
             "source": source,
             "date_from": date_from,
@@ -16381,6 +16424,34 @@ def maintenance_scadenzario(request: HttpRequest) -> HttpResponse:
     return redirect("assets:maintenance_scadenze")
 
 
+# Sotto questa copertura un totale e' aneddotico: si mostra quanto e' compilato il
+# campo, non la somma. Un numero coperto all'1% non diventa affidabile aggiungendoci
+# un'avvertenza.
+SOGLIA_DATO_AFFIDABILE = 20
+
+
+def _copertura_dato(quante: int, totale: int) -> dict[str, object]:
+    """Quanto e' compilato un campo facoltativo, e se il totale costruito sopra e'
+    presentabile. ``label`` scrive "<1%" e non "0%" quando il dato c'e' ma sta sotto
+    l'unita' percentuale: "0%" accanto a "3 su 661" stona.
+
+    Attenzione: durata, fermo macchina e costi hanno default ``0``, non ``NULL``.
+    Si contano con ``> 0``, mai con ``exclude(campo=None)`` che restituirebbe il 100%.
+    """
+    pct = round(100 * quante / totale) if totale else 0
+    if not quante:
+        label = "0%"
+    else:
+        label = "<1%" if pct == 0 else f"{pct}%"
+    return {
+        "rows": quante,
+        "total": totale,
+        "pct": pct,
+        "label": label,
+        "reliable": pct >= SOGLIA_DATO_AFFIDABILE,
+    }
+
+
 def _maintenance_supplier_rows() -> list[dict[str, object]]:
     """Fornitori usati in manutenzione (regole esterne, OdL, contratti, verifiche periodiche),
     con i relativi conteggi. La gestione dei fornitori resta nel modulo dedicato /fornitori/:
@@ -16428,7 +16499,10 @@ def _maintenance_supplier_rows() -> list[dict[str, object]]:
                 "workorders": wo_counts.get(supplier.id, 0),
                 "contracts": contract_counts.get(supplier.id, 0),
                 "verifications": verif_counts.get(supplier.id, 0),
-                "detail_url": reverse("fornitori:fornitore_detail", kwargs={"fornitore_id": supplier.id}),
+                # La riga apre la scheda di manutenzione; l'anagrafica completa
+                # resta nel modulo /fornitori/, raggiunta dal link dedicato.
+                "detail_url": reverse("assets:maintenance_supplier_detail", kwargs={"fornitore_id": supplier.id}),
+                "anagrafica_url": reverse("fornitori:fornitore_detail", kwargs={"fornitore_id": supplier.id}),
             }
         )
     return rows
@@ -16713,6 +16787,178 @@ def maintenance_suppliers(request: HttpRequest) -> HttpResponse:
             "supplier_total": len(rows),
             "url_fornitori_list": reverse("fornitori:fornitori_list"),
             "url_fornitore_new": reverse("fornitori:fornitore_create"),
+        },
+    )
+
+
+@login_required
+def maintenance_supplier_detail(request: HttpRequest, fornitore_id: int) -> HttpResponse:
+    """Scheda di manutenzione di una ditta terza: cosa le e' affidato (contratti,
+    piani esterni, verifiche periodiche), quali asset tocca, che interventi ha svolto
+    e quanto di quel lavoro e' documentato.
+
+    Non e' un secondo dettaglio fornitore: l'anagrafica (dati fiscali, contatti,
+    documenti, valutazioni) resta nel modulo ``/fornitori/`` ed e' raggiunta da un
+    link. Qui non si modifica nulla, si guarda il rapporto di lavoro.
+
+    Costi e fermo macchina sono richiesti ma quasi mai compilati in chiusura: invece
+    di stampare "0,00 EUR spesi nell'anno" - che sembrerebbe un dato e sarebbe falso -
+    la pagina dichiara la copertura reale del campo (vedi ``_copertura_dato``).
+    """
+    from django.db.models import Q as _Q
+
+    from anagrafica.models import Fornitore
+
+    from .models import AssistanceContract
+
+    supplier = get_object_or_404(Fornitore, pk=fornitore_id)
+    today = timezone.localdate()
+    now = timezone.now()
+
+    contracts = list(
+        AssistanceContract.objects.filter(supplier=supplier)
+        .select_related("asset", "asset_category", "document")
+        .order_by("-is_active", "-start_date", "id")
+    )
+    rules = list(
+        MaintenanceRule.objects.filter(supplier=supplier)
+        .select_related("intervention_template", "asset_category")
+        .prefetch_related("assets")
+        .order_by("-is_active", "asset_category__label", "sort_order", "id")
+    )
+    verifications = list(
+        PeriodicVerification.objects.filter(supplier=supplier)
+        .prefetch_related("assets")
+        .order_by("-is_active", "next_verification_date", "id")
+    )
+    workorders = list(
+        WorkOrder.objects.filter(supplier=supplier)
+        .select_related("asset", "assigned_to")
+        .order_by("-opened_at", "-id")
+    )
+
+    open_wos = [wo for wo in workorders if wo.status == WorkOrder.STATUS_OPEN]
+    closed_wos = [wo for wo in workorders if wo.status == WorkOrder.STATUS_DONE]
+    ultimo_anno = today.replace(year=today.year - 1)
+    closed_12m = [wo for wo in closed_wos if wo.closed_at and wo.closed_at.date() >= ultimo_anno]
+
+    # Asset toccati dal fornitore: quelli citati direttamente (OdL, contratto su
+    # singolo asset, verifiche, piani su asset scelti) piu' quelli che ricadono
+    # nelle categorie coperte da un contratto o da un piano di categoria.
+    asset_ids: set[int] = {wo.asset_id for wo in workorders if wo.asset_id}
+    category_ids: set[int] = set()
+    for contract in contracts:
+        if not contract.is_active:
+            continue
+        if contract.asset_id:
+            asset_ids.add(contract.asset_id)
+        elif contract.asset_category_id:
+            category_ids.add(contract.asset_category_id)
+    for rule in rules:
+        if not rule.is_active:
+            continue
+        if rule.scope_type == MaintenanceRule.SCOPE_ASSETS:
+            asset_ids.update(asset.id for asset in rule.assets.all())
+        elif rule.asset_category_id:
+            category_ids.add(rule.asset_category_id)
+    for verification in verifications:
+        if verification.is_active:
+            asset_ids.update(asset.id for asset in verification.assets.all())
+
+    covered_assets: list[Asset] = []
+    if asset_ids or category_ids:
+        covered_assets = list(
+            Asset.objects.filter(_Q(pk__in=asset_ids) | _Q(asset_category_id__in=category_ids))
+            .select_related("asset_category")
+            .order_by("name", "id")
+        )
+
+    # Copertura del dato sugli interventi chiusi: i campi hanno default 0, non NULL,
+    # quindi si contano con "> 0" (exclude(campo=None) direbbe sempre 100%).
+    chiusi = len(closed_wos)
+    coperture = [
+        {
+            "label": "Durata intervento",
+            "coverage": _copertura_dato(sum(1 for wo in closed_wos if (wo.intervention_duration_minutes or 0) > 0), chiusi),
+        },
+        {
+            "label": "Fermo macchina",
+            "coverage": _copertura_dato(sum(1 for wo in closed_wos if (wo.downtime_minutes or 0) > 0), chiusi),
+        },
+        {
+            "label": "Costo consuntivato",
+            "coverage": _copertura_dato(
+                sum(1 for wo in closed_wos if (wo.resolved_total_cost_eur or Decimal("0")) > 0), chiusi
+            ),
+        },
+    ]
+    costo_totale = sum((wo.resolved_total_cost_eur or Decimal("0")) for wo in closed_12m)
+    costo_coverage = _copertura_dato(
+        sum(1 for wo in closed_12m if (wo.resolved_total_cost_eur or Decimal("0")) > 0), len(closed_12m)
+    )
+
+    contract_rows = [
+        {
+            "c": contract,
+            "is_current": contract.is_current(today),
+            "target": contract.target_label,
+            "canone": contract.periodic_cost_eur if (contract.periodic_cost_eur or 0) > 0 else None,
+        }
+        for contract in contracts
+    ]
+    rule_rows = [
+        {
+            "r": rule,
+            "periodicita": f"ogni {rule.threshold_value} {rule.get_threshold_type_display().lower()}",
+            "ambito": rule.asset_category.label
+            if rule.scope_type == MaintenanceRule.SCOPE_CATEGORY and rule.asset_category_id
+            else f"{len(rule.assets.all())} asset scelti",
+        }
+        for rule in rules
+    ]
+    verification_rows = [
+        {
+            "v": verification,
+            "assets": len(verification.assets.all()),
+            "scaduta": bool(
+                verification.is_active
+                and verification.next_verification_date
+                and verification.next_verification_date < today
+            ),
+        }
+        for verification in verifications
+    ]
+
+    return render(
+        request,
+        "assets/pages/maintenance_supplier_detail.html",
+        {
+            **_assets_shell_context(request),
+            "page_title": f"Manutenzione - {supplier.ragione_sociale}",
+            "is_admin": _is_assets_admin(request),
+            "supplier": supplier,
+            "contract_rows": contract_rows,
+            "rule_rows": rule_rows,
+            "verification_rows": verification_rows,
+            "contracts_active": sum(1 for contract in contracts if contract.is_active),
+            "rules_active": sum(1 for rule in rules if rule.is_active),
+            "verifications_active": sum(1 for verification in verifications if verification.is_active),
+            "open_workorders": open_wos,
+            "open_total": len(open_wos),
+            "open_overdue": sum(1 for wo in open_wos if wo.is_overdue),
+            "open_unassigned": sum(1 for wo in open_wos if not wo.assigned_to_id),
+            "closed_recent": closed_wos[:10],
+            "closed_total": chiusi,
+            "closed_12m": len(closed_12m),
+            "covered_assets": covered_assets[:50],
+            "covered_total": len(covered_assets),
+            "coperture": coperture,
+            "costo_12m": costo_totale,
+            "costo_12m_coverage": costo_coverage,
+            "now": now,
+            "url_suppliers": reverse("assets:maintenance_suppliers"),
+            "url_anagrafica": reverse("fornitori:fornitore_detail", kwargs={"fornitore_id": supplier.id}),
+            "url_contracts": reverse("assets:assistance_contract_list"),
         },
     )
 

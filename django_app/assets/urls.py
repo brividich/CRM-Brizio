@@ -32,6 +32,11 @@ urlpatterns = [
     path("assets/manutenzione/impostazioni/", views.maintenance_impostazioni, name="maintenance_impostazioni"),
     path("assets/manutenzione/fornitori/", views.maintenance_suppliers, name="maintenance_suppliers"),
     path(
+        "assets/manutenzione/fornitori/<int:fornitore_id>/",
+        views.maintenance_supplier_detail,
+        name="maintenance_supplier_detail",
+    ),
+    path(
         "assets/manutenzione/scheda/<int:asset_id>/<int:rule_id>/",
         views.maintenance_worksheet,
         name="maintenance_worksheet",

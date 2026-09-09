@@ -1,21 +1,159 @@
 {% extends "assets/base_shell.html" %}
 
-{% block title %}Quadro manutenzione{% endblock %}
+{% block title %}Cruscotto manutenzione{% endblock %}
 
-{% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}{% endblock %}
+{% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}
+<style>
+.ms-switch{display:inline-flex;border:1px solid #dbe1ea;border-radius:10px;overflow:hidden}
+.ms-switch a{padding:6px 16px;font-size:var(--fs-sm);font-weight:700;text-decoration:none;color:#475569;background:#fff}
+.ms-switch a.is-on{background:#1d4ed8;color:#fff}
+.ms-note{border:1px solid #dbe1ea;border-radius:12px;background:#f8fafc;color:#475569;padding:12px 16px;font-size:var(--fs-sm)}
+.ms-chart{border:1px solid #dbe1ea;border-radius:12px;background:#fff;padding:14px 16px}
+.ms-bars{display:flex;align-items:flex-end;gap:8px;height:150px;margin-top:10px;overflow-x:auto}
+.ms-bar{flex:1;min-width:26px;display:flex;flex-direction:column;justify-content:flex-end;height:100%}
+.ms-bar .seg-late{background:#f59e0b;border-radius:3px 3px 0 0}
+.ms-bar .seg-ok{background:#2563eb}
+.ms-bar .seg-ok.is-base{border-radius:3px 3px 0 0}
+.ms-bar-label{margin-top:6px;text-align:center;font-size:var(--fs-xs);color:#64748b;white-space:nowrap}
+.ms-legend{display:flex;gap:14px;font-size:var(--fs-xs);color:#64748b;margin-top:8px}
+.ms-legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px}
+.ms-gaps{border:1px solid #dbe1ea;border-radius:12px;background:#fff;overflow:hidden}
+.ms-gaps h2{margin:0;padding:12px 16px;border-bottom:1px solid #eef2f7;font-size:var(--fs-md);font-weight:800}
+.ms-gap{display:flex;gap:12px;align-items:baseline;padding:11px 16px;border-bottom:1px solid #f1f5f9}
+.ms-gap:last-child{border-bottom:none}
+.ms-gap strong{min-width:56px;color:#b91c1c;font-weight:800}
+.ms-gap span{color:#64748b;font-size:var(--fs-sm)}
+body.theme-dark .ms-switch{border-color:var(--border)}
+body.theme-dark .ms-switch a{background:var(--surface);color:var(--text)}
+body.theme-dark .ms-switch a.is-on{background:#1d4ed8;color:#fff}
+body.theme-dark .ms-note,body.theme-dark .ms-chart,body.theme-dark .ms-gaps{background:var(--surface);border-color:var(--border);color:var(--text)}
+body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
+</style>
+{% endblock %}
 
-{% block assets_shell_title %}Quadro manutenzione{% endblock %}
+{% block assets_shell_title %}Cruscotto manutenzione{% endblock %}
 {% block assets_shell_subtitle %}
   <p>Cosa e' scaduto, cosa sta per scadere e — la domanda che di solito nessuno vede — cosa e' <em>dovuto ma non ancora pianificato</em>.</p>
 {% endblock %}
 
 {% block assets_shell_toolbar %}
+  {% comment %}
+    Due letture della stessa pagina, non due pagine: stesso URL, un parametro.
+    Il default segue i permessi che esistono gia' (chi non pianifica ne esegue
+    apre sulla sintesi), ma la scelta esplicita vince sempre.
+  {% endcomment %}
+  <span class="ms-switch">
+    <a class="{% if vista == 'operativo' %}is-on{% endif %}" href="?vista=operativo">Operativo</a>
+    <a class="{% if vista == 'sintesi' %}is-on{% endif %}" href="?vista=sintesi">Sintesi</a>
+  </span>
   <a class="btn" href="{% url 'assets:maintenance_da_fare' %}">Da fare</a>
   <a class="btn" href="{% url 'assets:maintenance_scadenze' %}">Scadenze</a>
 {% endblock %}
 
 {% block assets_shell_content %}
 <div class="md-page">
+
+{% if vista == "sintesi" %}
+
+  {% comment %}
+    Sintesi direzione. Solo indicatori che poggiano su campi effettivamente
+    compilati: scadenza e data di esecuzione ci sono sempre, quindi puntualita' e
+    arretrato si misurano. Costi, fermo macchina e durata no: al posto di un
+    grafico piatto a zero - che sembrerebbe un risultato - la pagina dichiara
+    quanto quei campi sono coperti.
+  {% endcomment %}
+  <div class="md-kpis">
+    {% comment %}
+      Nelle occorrenze migrate dal vecchio motore la scadenza e' stata dedotta dalla
+      data di esecuzione: sono puntuali per costruzione. Se restano fuori troppe
+      righe, la percentuale non si mostra affatto - si dice perche'.
+    {% endcomment %}
+    <div class="md-kpi {% if sintesi.puntualita_pct != None and sintesi.puntualita_pct < 80 %}is-warn{% endif %}">
+      <span class="md-kpi-label">Manutenzioni nei tempi</span>
+      <span class="md-kpi-value">{% if sintesi.puntualita_misurabile %}{{ sintesi.puntualita_pct }}%{% else %}n.d.{% endif %}</span>
+      {% if sintesi.puntualita_misurabile %}
+        <span class="md-kpi-sub">{{ sintesi.nei_tempi_12m }} su {{ sintesi.concluse_12m }} concluse dal portale{% if sintesi.concluse_non_misurabili_12m %}, {{ sintesi.concluse_non_misurabili_12m }} migrate escluse{% endif %}</span>
+      {% else %}
+        <span class="md-kpi-sub">base insufficiente: {{ sintesi.concluse_non_misurabili_12m }} delle {{ sintesi.concluse_totali_12m }} concluse vengono dalla migrazione, dove la scadenza e' dedotta dall'esecuzione</span>
+      {% endif %}
+    </div>
+    <a class="md-kpi {% if sintesi.scadute %}is-danger{% endif %}" href="{% url 'assets:maintenance_scadenze' %}?window=overdue">
+      <span class="md-kpi-label">Scadute adesso</span>
+      <span class="md-kpi-value">{{ sintesi.scadute }}</span>
+      <span class="md-kpi-sub">{% if sintesi.arretrato_giorni %}la piu' vecchia da {{ sintesi.arretrato_giorni }} giorni{% else %}nessun arretrato{% endif %}</span>
+    </a>
+    <div class="md-kpi {% if kpi.workorders_overdue %}is-warn{% endif %}">
+      <span class="md-kpi-label">Interventi aperti</span>
+      <span class="md-kpi-value">{{ kpi.workorders_open }}</span>
+      <span class="md-kpi-sub">{{ kpi.workorders_overdue }} aperti da oltre {{ wo_overdue_days }} giorni</span>
+    </div>
+    <div class="md-kpi {% if sintesi.documentale_mancanti %}is-warn{% endif %}">
+      <span class="md-kpi-label">Copertura documentale</span>
+      <span class="md-kpi-value">{% if sintesi.documentale_pct != None %}{{ sintesi.documentale_pct }}%{% else %}&mdash;{% endif %}</span>
+      <span class="md-kpi-sub">{{ sintesi.documentale_mancanti }} rapporti mancanti su {{ sintesi.documentale_base }} (120 giorni)</span>
+    </div>
+    <div class="md-kpi">
+      <span class="md-kpi-label">Parco con un piano</span>
+      <span class="md-kpi-value">{% if sintesi.asset_pct != None %}{{ sintesi.asset_pct }}%{% else %}&mdash;{% endif %}</span>
+      <span class="md-kpi-sub">{{ sintesi.asset_con_piano }} asset su {{ sintesi.asset_in_uso }} in uso</span>
+    </div>
+    <a class="md-kpi {% if kpi.conflicts %}is-danger{% endif %}" href="{% url 'assets:maintenance_coverage' %}">
+      <span class="md-kpi-label">Conflitti di periodicita'</span>
+      <span class="md-kpi-value">{{ kpi.conflicts }}</span>
+      <span class="md-kpi-sub">stesso asset, due cadenze</span>
+    </a>
+  </div>
+
+  <section class="ms-chart">
+    <h2 style="margin:0;font-size:var(--fs-md);font-weight:800">Manutenzioni concluse, ultimi 12 mesi</h2>
+    {% if sintesi.andamento %}
+      <div class="ms-bars">
+        {% for mese in sintesi.andamento %}
+        <div class="ms-bar" title="{{ mese.mese|date:'F Y' }}: {{ mese.concluse }} concluse, {{ mese.tardive }} oltre la scadenza">
+          {% if mese.tardive %}<div class="seg-late" style="height:{{ mese.h_tardive }}%"></div>{% endif %}
+          <div class="seg-ok{% if not mese.tardive %} is-base{% endif %}" style="height:{{ mese.h_nei_tempi }}%"></div>
+          <div class="ms-bar-label">{{ mese.mese|date:"M" }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="ms-legend">
+        <span><i style="background:#2563eb"></i>nei tempi</span>
+        <span><i style="background:#f59e0b"></i>oltre la scadenza</span>
+      </div>
+    {% else %}
+      <p class="md-sub" style="margin:10px 0 0">
+        Nessuna manutenzione conclusa <em>dal portale</em> negli ultimi 12 mesi.
+        {% if sintesi.concluse_non_misurabili_12m %}
+          Le {{ sintesi.concluse_non_misurabili_12m }} concluse che risultano a sistema vengono dalla
+          migrazione, dove la scadenza e' dedotta dalla data di esecuzione: disegnarle qui direbbe
+          che sono state tutte puntuali, che e' vero per costruzione e falso come misura.
+        {% endif %}
+      </p>
+    {% endif %}
+  </section>
+
+  <section class="ms-gaps">
+    <h2>Cosa il portale non puo' ancora misurare</h2>
+    {% for gap in sintesi.non_misurabili %}
+    <div class="ms-gap">
+      <strong>{{ gap.coverage.label }}</strong>
+      <span><b>{{ gap.label }}</b> &mdash; {{ gap.perche }}: presente su {{ gap.coverage.rows }} dei {{ gap.coverage.total }} interventi chiusi nell'anno.</span>
+    </div>
+    {% endfor %}
+    <div class="ms-gap">
+      <strong>&mdash;</strong>
+      <span><b>MTTR, MTBF, disponibilita impianti, spesa di manutenzione</b> &mdash; si calcolano su durata,
+      fermo macchina e costi: finche quei campi non vengono compilati in chiusura, qualunque valore
+      mostrato qui sarebbe inventato al ribasso.</span>
+    </div>
+  </section>
+
+  <div class="ms-note">
+    Questa e' la lettura di andamento. Le liste operative &mdash; cosa e' scaduto, quali ordini di lavoro
+    sono aperti, chi ha troppo carico &mdash; sono nella vista <a href="?vista=operativo">Operativo</a>.
+  </div>
+
+{% else %}
 
   <div class="md-kpis">
     <a class="md-kpi is-danger" href="{% url 'assets:maintenance_scadenze' %}?window=overdue">
@@ -53,7 +191,12 @@
     </a>
   </div>
 
-  <section class="md-section is-warn">
+  {% comment %}
+    Una sezione vuota non deve occupare mezza schermata con una tabella che ha
+    solo l'intestazione: si comprime a una riga. Il Cruscotto serve a trovare i
+    problemi, e il vuoto e' una buona notizia da dire in fretta.
+  {% endcomment %}
+  <section class="md-section is-warn{% if not unplanned %} is-empty{% endif %}">
     <div class="md-section-head">
       <h2>Manutenzioni dovute ma non pianificate</h2>
       <span class="md-badge badge-warning">{{ unplanned|length }}</span>
@@ -62,8 +205,13 @@
     {% include "assets/components/_occurrence_rows.html" with rows=unplanned selectable=0 show_plan=1 %}
   </section>
 
-  <section class="md-section">
-    <div class="md-section-head"><h2>Ordini di lavoro aperti</h2><span class="md-badge badge-muted">{{ open_workorders|length }}</span></div>
+  <section class="md-section{% if not open_workorders %} is-empty{% endif %}">
+    <div class="md-section-head">
+      <h2>Ordini di lavoro attivi</h2>
+      <span class="md-badge badge-muted">{{ open_workorders|length }}</span>
+      {% if overdue_workorders %}<span class="md-badge badge-danger">di cui {{ overdue_workorders|length }} aperti da oltre {{ wo_overdue_days }} giorni</span>{% endif %}
+      {% if planned_workorders_count %}<span class="md-sub">{{ planned_workorders_count }} da manutenzione programmata</span>{% endif %}
+    </div>
     <div class="md-scroll">
       <table class="md-table" data-fm-hide-search="1">
         <thead><tr><th>OdL</th><th>Titolo</th><th class="md-right">Asset</th><th>Assegnato a</th><th>Stato</th><th>Aperto il</th></tr></thead>
@@ -89,9 +237,52 @@
     </div>
   </section>
 
-  <section class="md-section {% if overdue_workorders %}is-urgent{% endif %}" id="odl-in-ritardo">
+  {% comment %}
+    Chi ha troppo lavoro, e quanto non e' di nessuno. La riga "Non assegnate" e'
+    la piu' importante della tabella: e' il lavoro che nessuno ha preso in mano,
+    e da li' si va a vedere quale.
+  {% endcomment %}
+  <section class="md-section" id="carico-manutentori">
     <div class="md-section-head">
-      <h2>Ordini di lavoro in ritardo</h2>
+      <h2>Carico manutentori</h2>
+      <span class="md-sub" style="display:inline">manutenzioni aperte per persona</span>
+    </div>
+    <table class="md-table">
+      <thead>
+        <tr>
+          <th>Tecnico</th>
+          <th class="md-num">Aperte</th>
+          <th class="md-num">Scadute</th>
+          <th class="md-num">Questa settimana</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for riga in carico %}
+          <tr>
+            <td><a class="ux-link" href="{% url 'assets:maintenance_da_fare' %}?assignee={{ riga.user_id }}">{{ riga.label }}</a></td>
+            <td class="md-num">{{ riga.aperte }}</td>
+            <td class="md-num">{% if riga.scadute %}<span class="md-badge badge-danger">{{ riga.scadute }}</span>{% else %}0{% endif %}</td>
+            <td class="md-num">{{ riga.settimana }}</td>
+          </tr>
+        {% endfor %}
+        {% if carico_non_assegnate %}
+          <tr class="md-row-unassigned">
+            <td><a class="ux-link" href="{% url 'assets:maintenance_da_fare' %}?planning=unplanned"><strong>Non assegnate</strong></a></td>
+            <td class="md-num"><strong>{{ carico_non_assegnate.aperte }}</strong></td>
+            <td class="md-num">{% if carico_non_assegnate.scadute %}<span class="md-badge badge-danger">{{ carico_non_assegnate.scadute }}</span>{% else %}0{% endif %}</td>
+            <td class="md-num">{{ carico_non_assegnate.settimana }}</td>
+          </tr>
+        {% endif %}
+        {% if not carico and not carico_non_assegnate %}
+          <tr><td colspan="4"><span class="md-sub">Nessuna manutenzione aperta.</span></td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="md-section {% if overdue_workorders %}is-urgent{% else %}is-empty{% endif %}" id="odl-in-ritardo">
+    <div class="md-section-head">
+      <h2>Aperti da oltre {{ wo_overdue_days }} giorni</h2>
       <span class="md-badge {% if overdue_workorders %}badge-danger{% else %}badge-muted{% endif %}">{{ overdue_workorders|length }}</span>
       <span class="md-sub">aperti da oltre {{ wo_overdue_days }} giorni</span>
     </div>
@@ -115,12 +306,12 @@
     </div>
   </section>
 
-  <section class="md-section">
+  <section class="md-section{% if not report_missing %} is-empty{% endif %}">
     <div class="md-section-head"><h2>Rapporti mancanti</h2><span class="md-badge badge-warning">{{ report_missing|length }}</span></div>
     {% include "assets/components/_occurrence_rows.html" with rows=report_missing selectable=0 show_plan=1 %}
   </section>
 
-  <section class="md-section">
+  <section class="md-section{% if not follow_ups %} is-empty{% endif %}">
     <div class="md-section-head"><h2>Follow-up aperti</h2><span class="md-badge badge-muted">{{ follow_ups|length }}</span></div>
     <div class="md-scroll">
       <table class="md-table" data-fm-hide-search="1">
@@ -158,5 +349,7 @@
       </div>
     </section>
   {% endif %}
+
+{% endif %}
 </div>
 {% endblock %}

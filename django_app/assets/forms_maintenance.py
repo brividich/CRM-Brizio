@@ -616,6 +616,29 @@ class OccurrenceFilterForm(forms.Form):
     assignee = forms.ModelChoiceField(queryset=None, required=False, label="Assegnatario", empty_label="Chiunque")
     supplier = forms.ModelChoiceField(queryset=None, required=False, label="Fornitore", empty_label="Tutti")
     report_missing = forms.BooleanField(required=False, label="Solo rapporto mancante")
+    # Filtro avanzato: le viste temporali mostrano cio' che resta da gestire, e le
+    # concluse vivono nello Storico. Chi vuole vedere anche quelle dentro la stessa
+    # finestra lo chiede: il default resta operativo.
+    include_done = forms.BooleanField(required=False, label="Includi concluse")
+
+    # I quattro filtri che si usano ogni giorno restano a vista; gli altri stanno
+    # sotto "Filtri avanzati". Nessuno viene tolto: cambia solo cosa si vede prima.
+    SIMPLE_FIELDS = ("q", "reparto", "assignee", "window")
+
+    @property
+    def simple_fields(self):
+        return [self[name] for name in self.SIMPLE_FIELDS if name in self.fields]
+
+    @property
+    def advanced_fields(self):
+        return [self[name] for name in self.fields if name not in self.SIMPLE_FIELDS]
+
+    @property
+    def advanced_active(self) -> bool:
+        """True se almeno un filtro avanzato e' valorizzato: il pannello si apre da
+        solo, altrimenti un filtro attivo resterebbe nascosto e la lista sembrerebbe
+        semplicemente vuota."""
+        return any(self.data.get(field.name) for field in self.advanced_fields)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

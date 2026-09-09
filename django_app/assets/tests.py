@@ -4755,7 +4755,7 @@ class WorkOrderFlowTests(TestCase):
         self.assertEqual(workorder.assigned_to, self.user)
         mine_response = self.client.get(reverse("assets:wo_list"), {"view": "mine"})
         self.assertContains(mine_response, workorder.title)
-        self.assertContains(mine_response, "In carico a te")
+        self.assertContains(mine_response, "Assegnato a te")
 
     def test_workorder_create_from_list_uses_guided_ui_and_back_link(self):
         self.client.force_login(self.user)
@@ -6061,6 +6061,43 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.assertContains(page, "Fornitori usati in manutenzione")
         self.assertContains(page, "Fornitore Manut Srl")
         self.assertContains(page, reverse("fornitori:fornitore_detail", kwargs={"fornitore_id": supplier.id}))
+
+    def test_maintenance_supplier_detail_dichiara_la_copertura_dei_costi(self):
+        """La scheda fornitore non stampa "0,00 EUR di spesa": dice su quanti
+        interventi il costo e' compilato davvero. I campi hanno default 0, non NULL."""
+        from anagrafica.models import Fornitore
+
+        supplier = Fornitore.objects.create(ragione_sociale="Ditta Esterna Srl")
+        self.base_rule.execution_mode = MaintenanceRule.MODE_EXTERNAL
+        self.base_rule.supplier = supplier
+        self.base_rule.save(update_fields=["execution_mode", "supplier"])
+
+        WorkOrder.objects.create(asset=self.asset, supplier=supplier, title="Intervento aperto")
+        chiuso = WorkOrder.objects.create(asset=self.asset, supplier=supplier, title="Intervento chiuso")
+        chiuso.close(status=WorkOrder.STATUS_DONE)
+
+        self.client.force_login(self.admin)
+        page = self.client.get(
+            reverse("assets:maintenance_supplier_detail", kwargs={"fornitore_id": supplier.id})
+        )
+
+        self.assertEqual(page.status_code, 200)
+        self.assertEqual(page.context["open_total"], 1)
+        self.assertEqual(page.context["closed_total"], 1)
+        # Nessun costo compilato: copertura 0%, e la pagina lo dichiara invece di
+        # mostrare un totale che sembrerebbe la spesa dell'anno.
+        self.assertEqual(page.context["costo_12m_coverage"]["rows"], 0)
+        self.assertFalse(page.context["costo_12m_coverage"]["reliable"])
+        self.assertContains(page, "calcolabile dal portale")
+        # La manutenzione affidata e l'anagrafica restano raggiungibili.
+        self.assertEqual(len(page.context["rule_rows"]), 1)
+        self.assertContains(page, reverse("fornitori:fornitore_detail", kwargs={"fornitore_id": supplier.id}))
+
+        # La lista porta alla scheda, non piu' direttamente all'anagrafica.
+        lista = self.client.get(reverse("assets:maintenance_suppliers"))
+        self.assertContains(
+            lista, reverse("assets:maintenance_supplier_detail", kwargs={"fornitore_id": supplier.id})
+        )
 
     def test_maintenance_worksheet_renders(self):
         self.client.force_login(self.admin)
@@ -7889,6 +7926,43 @@ class CategorySidebarTests(TestCase):
         self.assertIn(f"asset_category={self.child_pc.id}", pc_btn.target_url)
         # I report restano raggiungibili.
         self.assertTrue(AssetSidebarButton.objects.filter(code="report_asset").exists())
+
+    def test_categorie_stanno_nella_sezione_dedicata(self):
+        """Le categorie sono un filtro sull'inventario, non destinazioni: tredici
+        radici in "Navigazione" sommergevano le pagine che si usano davvero."""
+        from assets.services.sidebar_categories import rebuild_category_sidebar
+
+        rebuild_category_sidebar(AssetCategory, AssetSidebarButton)
+
+        categoria_buttons = AssetSidebarButton.objects.filter(code__startswith="catnav-")
+        self.assertTrue(categoria_buttons.exists())
+        self.assertEqual(
+            set(categoria_buttons.values_list("section", flat=True)),
+            {AssetSidebarButton.SECTION_CATEGORIES},
+        )
+        # Nessuna categoria resta a ingombrare la navigazione.
+        self.assertFalse(
+            categoria_buttons.filter(section=AssetSidebarButton.SECTION_MAIN).exists()
+        )
+        # I report restano dove stavano: sono uno strumento, non una categoria.
+        self.assertEqual(
+            AssetSidebarButton.objects.get(code="report_asset").section,
+            AssetSidebarButton.SECTION_OPERATIONS,
+        )
+
+    def test_sezione_categorie_e_ultima_nella_sidebar(self):
+        """La sezione piu' lunga e meno usata per navigare va in fondo."""
+        from assets.services.sidebar_categories import rebuild_category_sidebar
+        from assets.views import _build_sidebar_groups
+
+        rebuild_category_sidebar(AssetCategory, AssetSidebarButton)
+        request = RequestFactory().get(reverse("assets:asset_list"))
+        request.user = self.user
+
+        sezioni = [group["section"] for group in _build_sidebar_groups(request)]
+
+        self.assertIn(AssetSidebarButton.SECTION_CATEGORIES, sezioni)
+        self.assertEqual(sezioni[-1], AssetSidebarButton.SECTION_CATEGORIES)
 
     def test_subtree_ids_include_descendants(self):
         from assets.views import _category_subtree_ids

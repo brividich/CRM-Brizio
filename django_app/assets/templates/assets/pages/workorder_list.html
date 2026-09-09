@@ -640,7 +640,7 @@ body.theme-dark .wob-overdue { color: #fca5a5; }
 
   <article class="wo-table-card">
     <div class="wo-table-head">
-      <h2 class="wo-table-title">{% if workorder_view == 'mine' %}Interventi assegnati a me{% elif workorder_view == 'unassigned' %}Interventi da prendere in carico{% elif workorder_view == 'closed' %}Archivio interventi chiusi{% else %}Interventi aperti{% endif %}</h2>
+      <h2 class="wo-table-title">{% if workorder_view == 'mine' %}Interventi assegnati a me{% elif workorder_view == 'unassigned' %}Interventi di nessuno{% elif workorder_view == 'closed' %}Archivio interventi chiusi{% else %}Interventi aperti{% endif %}</h2>
       <span class="as-badge as-badge--info">{{ workorders|length }} righe</span>
       {% if workorder_view != 'closed' %}
         <a class="btn" href="{{ workorder_display_toggle_url }}">{% if workorder_display == 'board' %}Vista elenco{% else %}Vista board{% endif %}</a>
@@ -678,7 +678,7 @@ body.theme-dark .wob-overdue { color: #fca5a5; }
               <td>
                 <div class="wo-assignment">
                   <div><span class="as-badge {% if wo.status == 'OPEN' %}as-badge--warn{% elif wo.status == 'DONE' %}as-badge--ok{% else %}as-badge--muted{% endif %}">{{ wo.get_status_display }}</span></div>
-                  {% if wo.assigned_to_id == request.user.id %}<div class="wo-assignment-main wo-assignment--mine">In carico a te</div>{% elif wo.assigned_to %}<div class="wo-assignment-main">{{ wo.assigned_to.get_full_name|default:wo.assigned_to.username }}</div>{% else %}<div class="wo-assignment-main wo-assignment--empty">Non assegnato</div>{% endif %}
+                  {% if wo.assigned_to_id == request.user.id %}<div class="wo-assignment-main wo-assignment--mine">Assegnato a te</div>{% elif wo.assigned_to %}<div class="wo-assignment-main">{{ wo.assigned_to.get_full_name|default:wo.assigned_to.username }}</div>{% else %}<div class="wo-assignment-main wo-assignment--empty">Di nessuno</div>{% endif %}
                   {% if wo.executed_by %}<div class="wo-muted">Eseguito da {{ wo.executed_by.get_full_name|default:wo.executed_by.username }}</div>{% endif %}
                 </div>
               </td>
@@ -687,15 +687,14 @@ body.theme-dark .wob-overdue { color: #fca5a5; }
               </td>
               <td>
                 <div class="wo-action-cell">
+                  {% comment %}La coda della manutenzione e' condivisa: non si "prende in
+                  carico", si apre e si fa, e "Chiudi" vale anche su cio' che non e' di
+                  nessuno — chiudendolo diventa di chi lo chiude. Un'azione sola per
+                  colonna: prima un OdL non assegnato mostrava "Apri" due volte e non
+                  offriva affatto la chiusura.{% endcomment %}
                   <a class="btn" href="{% url 'assets:wo_view' wo.id %}">Apri</a>
                   {% if wo.status == 'OPEN' %}
-                    {% if not wo.assigned_to_id %}
-                    {# La coda della manutenzione e' condivisa: non si "prende in carico",
-                       si apre e si fa. L'intestazione avviene alla chiusura, a chi chiude. #}
-                    <a class="btn btn-primary" href="{% url 'assets:wo_view' wo.id %}">Apri</a>
-                    {% else %}
                     <a class="btn btn-primary" href="{% url 'assets:wo_close' wo.id %}">Chiudi</a>
-                    {% endif %}
                   {% endif %}
                 </div>
               </td>

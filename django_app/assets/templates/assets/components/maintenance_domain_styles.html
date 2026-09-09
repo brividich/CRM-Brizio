@@ -177,4 +177,39 @@ body.theme-dark .md-bulk { box-shadow:0 -8px 26px rgba(0,0,0,.45); }
 }
   .md-scope-note{margin:0 0 12px;padding:8px 14px;border:1px solid var(--border);border-left:3px solid #2563eb;border-radius:8px;background:var(--surface);font-size:var(--fs-sm)}
   .md-scope-note a{margin-left:8px;font-weight:700}
+
+  /* Filtri avanzati: nessun filtro tolto, solo messo in seconda fila. */
+  .md-advanced { grid-column: 1 / -1; margin-top: 4px; border-top: 1px solid var(--border); padding-top: 8px; }
+  .md-advanced > summary {
+    cursor: pointer; list-style: none; font-size: var(--fs-xs); font-weight: 800;
+    letter-spacing: .04em; text-transform: uppercase; color: var(--text-mid);
+    display: flex; align-items: center; gap: 8px; padding: 4px 0;
+  }
+  .md-advanced > summary::-webkit-details-marker { display: none; }
+  .md-advanced > summary::before { content: "B8"; transition: transform .15s; }
+  .md-advanced[open] > summary::before { transform: rotate(90deg); }
+  .md-advanced > summary:hover { color: var(--text); }
+  .md-advanced-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 10px; padding: 10px 0 4px;
+  }
+
+  /* La riga del lavoro di nessuno non deve confondersi con le altre. */
+  .md-row-unassigned { background: var(--surface-alt, rgba(220,38,38,.05)); }
+  .md-row-unassigned td { border-top: 2px solid var(--danger, #dc2626); }
+  .md-num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* Sezione senza righe: resta il titolo con "nessuna criticita'", sparisce la
+     tabella vuota. Non si nasconde la sezione: sapere che il controllo e' stato
+     fatto e non ha trovato nulla e' un'informazione. */
+  .md-section.is-empty { opacity: .72; }
+  .md-section.is-empty .md-scroll,
+  .md-section.is-empty .md-table,
+  .md-section.is-empty .md-occ-list { display: none; }
+  .md-section.is-empty .md-section-head { border-bottom: 0; margin-bottom: 0; }
+  .md-section.is-empty .md-section-head::after {
+    content: "nessuna criticità";
+    font-size: var(--fs-xs); color: var(--text-light); font-weight: 600;
+    margin-left: auto;
+  }
 </style>
