@@ -19,6 +19,21 @@
 .woc-main,.woc-side { display:grid; gap:14px; align-content:start; }
 .woc-card { border:1px solid #dbe1ea; border-radius:13px; background:#fff; box-shadow:0 8px 24px rgba(15,23,42,.045); overflow:hidden; }
 .woc-card-body { padding:18px; display:grid; gap:16px; }
+/* Gate di chiusura con manutenzioni ancora dovute: deve fermare lo sguardo, non
+   somigliare a un altro riquadro del modulo. */
+.woc-gate { border:1px solid #fca5a5; border-left:4px solid #dc2626; border-radius:13px; background:rgba(220,38,38,.05); padding:16px 18px; display:grid; gap:10px; }
+.woc-gate-title { margin:0; font-size:var(--fs-md,1.02rem); font-weight:900; color:#b91c1c; }
+.woc-gate-copy { margin:0; font-size:var(--fs-sm,.9rem); color:var(--text,#3f4b5e); }
+.woc-gate-list { margin:0; padding:0; list-style:none; display:grid; gap:5px; max-height:190px; overflow:auto; }
+.woc-gate-list li { display:flex; gap:8px; flex-wrap:wrap; align-items:baseline; font-size:var(--fs-sm,.9rem); }
+.woc-gate-list li span { color:var(--text-mid,#64748b); font-size:var(--fs-xs,.82rem); }
+.woc-gate-field { display:grid; gap:4px; font-size:var(--fs-xs,.82rem); font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--text-mid,#64748b); }
+.woc-gate-field textarea { font:inherit; font-weight:400; text-transform:none; letter-spacing:0; padding:8px 10px; border:1px solid var(--border,#cbd5e1); border-radius:9px; background:var(--surface,#fff); color:var(--text,#0f172a); }
+.woc-gate-hint { font-weight:600; text-transform:none; letter-spacing:0; color:var(--text-mid,#8ea2bf); }
+.woc-gate-actions { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+body.theme-dark .woc-gate { background:rgba(220,38,38,.12); border-color:rgba(220,38,38,.5); }
+body.theme-dark .woc-gate-title { color:#fca5a5; }
+body.theme-dark .woc-gate-copy { color:var(--text); }
 .woc-summary { border-left:4px solid #2563eb; }
 .woc-summary .woc-card-body { grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:14px; }
 .woc-summary-title { margin:0; color:#0f172a; font-size:var(--fs-title-md); }
@@ -91,6 +106,38 @@ body.theme-dark .woc-details-body{border-color:var(--border)}
     {{ form.intervention_duration_minutes }}
     {{ form.downtime_minutes }}
     {% if form.non_field_errors %}<div class="assets-message assets-message-error">{{ form.non_field_errors }}</div>{% endif %}
+
+    {% if pending_confirmation %}
+      <div class="woc-gate" id="woc-gate">
+        <h2 class="woc-gate-title">
+          Rimangono {{ pending_occurrences|length }} manutenzion{{ pending_occurrences|length|pluralize:"e,i" }} non registrat{{ pending_occurrences|length|pluralize:"a,e" }}.
+        </h2>
+        <p class="woc-gate-copy">
+          Chiudendo l'intervento continueranno a risultare dovute: la loro scadenza resta
+          aperta e il piano dell'asset non avanza.
+        </p>
+        <ul class="woc-gate-list">
+          {% for occ in pending_occurrences %}
+            <li>
+              <strong>{{ occ.plan.label }}</strong>
+              <span>{{ occ.asset.asset_tag|default:occ.asset.name }} · scadenza {{ occ.due_date|date:"d/m/Y" }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+        {% if pending_reason_required %}
+          <label class="woc-gate-field" for="open_occurrences_reason">
+            <span>Perche' chiudi lasciandole dovute?</span>
+            <textarea id="open_occurrences_reason" name="open_occurrences_reason" rows="2" required
+                      placeholder="Es. il ricambio non e' arrivato, la manutenzione si fara' alla prossima fermata.">{{ pending_reason_value }}</textarea>
+            <span class="woc-gate-hint">La motivazione resta nello storico dell'intervento.</span>
+          </label>
+        {% endif %}
+        <div class="woc-gate-actions">
+          <a class="btn btn-primary" href="{{ occurrences_anchor }}">Torna alle manutenzioni</a>
+          <button class="btn" type="submit" name="confirm_open_occurrences" value="1">Chiudi comunque</button>
+        </div>
+      </div>
+    {% endif %}
 
     <div class="woc-layout">
       <div class="woc-main">
@@ -238,7 +285,13 @@ body.theme-dark .woc-details-body{border-color:var(--border)}
       <div class="woc-actions-copy">La conferma registra stato, data/ora, giorni eseguiti e storico dell'intervento.</div>
       <div class="woc-actions-buttons">
         <a class="btn" href="{% url 'assets:wo_view' workorder.id %}">Annulla</a>
-        <button class="btn btn-primary" id="workorderCloseSubmit" type="submit">{{ close_submit_label }}</button>
+        {% if pending_confirmation %}
+          {# La chiusura e' gia' stata fermata piu' su: qui non si ripropone come se nulla fosse. #}
+          <a class="btn btn-primary" href="{{ occurrences_anchor }}">Torna alle manutenzioni</a>
+          <button class="btn" type="submit" name="confirm_open_occurrences" value="1">Chiudi comunque</button>
+        {% else %}
+          <button class="btn btn-primary" id="workorderCloseSubmit" type="submit">{{ close_submit_label }}</button>
+        {% endif %}
       </div>
     </div>
   </form>

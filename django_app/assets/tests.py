@@ -9695,9 +9695,17 @@ class WorkOrderPriorityAndOperationalStateTests(TestCase):
 
 
 class IlMioTurnoSidebarSeedTests(TestCase):
-    def test_migration_seeds_visible_sidebar_button(self):
+    def test_migration_hides_sidebar_button_but_keeps_the_page(self):
+        """La 0104 toglie la voce dal menu, non la pagina.
+
+        «Il mio turno» e «Da fare» raccontavano lo stesso lavoro manutentivo da
+        due angoli diversi: la coda operativa e' una sola, ed e' «Da fare», che
+        ora apre con il blocco «I miei interventi». Il pulsante resta a database
+        ma nascosto, e l'URL continua a rispondere: chi ha un segnalibro non
+        trova un 404.
+        """
         button = AssetSidebarButton.objects.get(code="il_mio_turno")
-        self.assertTrue(button.is_visible)
+        self.assertFalse(button.is_visible)
         self.assertEqual(button.target_url, "django:assets:il_mio_turno")
         self.assertFalse(button.is_subitem)
 

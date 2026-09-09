@@ -151,7 +151,7 @@
       <div>
         <h3>Per il manutentore</h3>
         <ul>
-          <li><a href="#turno">4 · Il mio turno</a></li>
+          <li><a href="#turno">4 · La coda è di tutti</a></li>
           <li><a href="#dafare">5 · Da fare</a></li>
           <li><a href="#interventi">6 · Interventi</a></li>
           <li><a href="#odl">7 · Dentro un intervento</a></li>
@@ -251,8 +251,11 @@
       </tbody>
     </table>
 
-    <p><span class="ui">Il mio turno</span> sta più in alto, sotto <b>Navigazione</b>: è la prima
-       pagina che apre chi lavora sul campo.</p>
+    <p>Chi lavora sul campo comincia da <span class="ui">Da fare</span>: è la prima voce del ramo, ed è
+       l'unica pagina operativa. La vecchia voce <span class="ui">Il mio turno</span>, che stava più in
+       alto sotto <b>Navigazione</b>, non c'è più: il suo contenuto vive dentro «Da fare» come blocco
+       <b>I miei interventi</b> (vedi il <a href="#turno">capitolo 4</a>). L'indirizzo di prima continua
+       a funzionare per chi lo avesse salvato tra i preferiti.</p>
   </section>
 
   <!-- ══════════════════════════════════════════════ 3 -->
@@ -295,34 +298,48 @@
 
   <!-- ══════════════════════════════════════════════ 4 -->
   <section id="turno">
-    <h2><span class="n">4</span> Il mio turno <span style="font-size:.7rem;color:var(--light);font-weight:600">· manutentore</span></h2>
-    <p class="lead">La pagina con cui si comincia la giornata. Una coda sola, ordinata per urgenza.</p>
+    <h2><span class="n">4</span> La coda è di tutti <span style="font-size:.7rem;color:var(--light);font-weight:600">· manutentore</span></h2>
+    <p class="lead">Come funziona il lavoro condiviso, e dove vedi cosa hai già per le mani.</p>
+
+    <div class="note">
+      <span class="tag">Cambiato</span><br>
+      Fino a poco fa esisteva una pagina a parte, <b>Il mio turno</b>. Raccontava lo stesso lavoro di
+      <b>Da fare</b> da un altro angolo — partendo dagli ordini di lavoro invece che dalle manutenzioni
+      dovute — e chi entrava si trovava davanti <em>due code</em> senza sapere quale fosse quella vera.
+      Ora la coda operativa è una sola: <a href="#dafare">Da fare</a>, che apre con il blocco
+      <span class="ui">I miei interventi</span>. La voce non è più nel menu; il vecchio indirizzo
+      <code>/assets/manutenzione/il-mio-turno/</code> continua a rispondere, quindi un segnalibro
+      salvato non porta a una pagina di errore.
+    </div>
 
     <figure>
-      <img src="img/01_mio_turno.jpg" alt="Pagina Il mio turno con la coda degli interventi">
-      <figcaption>La riga verde in alto riassume ciò che <b>non</b> c'è: «nessuno bloccato · nessuna emergenza ·
-        niente di scaduto · niente per oggi · niente di iniziato». Le sezioni vuote non vengono stampate.</figcaption>
+      <img src="img/01_miei_interventi.png" alt="Il blocco «I miei interventi» in cima alla pagina Da fare">
+      <figcaption>In cima a <b>Da fare</b>: gli ordini di lavoro <b>in corso, bloccati o urgenti</b>.
+        Sotto, le manutenzioni dovute. Il blocco compare <em>solo se c'è qualcosa</em>: un riquadro vuoto
+        in cima spingerebbe il lavoro vero sotto la piega.</figcaption>
     </figure>
 
-    <p>L'ordine delle sezioni è quello dell'urgenza reale, non alfabetico:</p>
-    <ol class="steps">
-      <li><b>Bloccati / in attesa</b> — interventi fermi per ricambi, fornitori o autorizzazioni. Vanno
-          guardati per primi perché qualcuno deve sbloccarli.</li>
-      <li><b>Emergenze</b> — priorità dichiarata alta.</li>
-      <li><b>Scaduti</b> — la data è passata.</li>
-      <li><b>Oggi</b> — quello che è previsto per la giornata.</li>
-      <li><b>In corso</b> — già iniziati da qualcuno, incluso te.</li>
-      <li><b>Il resto della coda</b> — tutto il lavoro aperto che non rientra sopra.</li>
-    </ol>
+    <p>Il blocco mostra quello che è <em>tuo o di nessuno</em> — mai il lavoro che un altro si è già
+       intestato — e solo ciò che chiede attenzione adesso: fermo in attesa, urgente, oppure già
+       cominciato. Il resto della coda è già rappresentato dalle manutenzioni elencate più sotto.</p>
 
-    <h3>La coda è di tutti</h3>
-    <p>Un intervento senza assegnatario è marcato <span class="ui">Di nessuno</span> e compare nel
-       turno di chiunque. <strong>Non si «prende in carico»: si apre e si fa.</strong> L'intestazione
-       avviene <em>alla chiusura</em>, a chi chiude — e in quel momento potrai toglierla se stai
-       registrando il lavoro di un altro.</p>
+    <h3>Nessuno «prende in carico»: si apre e si fa</h3>
+    <p>Un intervento senza assegnatario è marcato <span class="ui">Di nessuno</span> e riguarda tutta
+       la squadra. Non c'è un passaggio di presa in carico da fare prima di lavorare.</p>
 
-    <p>Il pulsante <span class="ui">Inizia</span> su ogni riga fa una cosa sola: segna che il lavoro
-       è partito, così gli altri lo vedono «In corso» e non ci si mette in due sulla stessa macchina.</p>
+    <p>Quando però premi <span class="ui">Inizia</span>, succedono due cose: viene registrata
+       <b>l'ora di inizio</b> e, se l'intervento non era di nessuno, <b>viene intestato a te</b>.
+       Non è una formalità: è l'unico modo perché gli altri vedano
+       <span class="ui">In corso — Mario Rossi · dalle 09:42</span> in <b>Da fare</b> e in
+       <b>Interventi</b>, e non ci si metta in due sulla stessa macchina. Chi comincia un lavoro se lo
+       intesta; chi non lo comincia non si intesta niente.</p>
+
+    <div class="note tip">
+      <span class="tag">Se registri per un altro</span><br>
+      In chiusura c'è la casella <span class="ui">Intesta a me questo intervento</span>, spuntata di
+      default. Toglila quando stai registrando a sistema il lavoro fatto da un collega: lo storico
+      deve dire chi c'è andato davvero.
+    </div>
   </section>
 
   <!-- ══════════════════════════════════════════════ 5 -->
@@ -331,9 +348,31 @@
     <p class="lead">Risponde a una domanda sola: <em>cosa devo fare adesso.</em></p>
 
     <figure>
-      <img src="img/02_da_fare.jpg" alt="Pagina Da fare con i quattro riquadri e i filtri">
-      <figcaption>Quattro numeri, quattro filtri a vista, il raggruppamento e le sezioni per urgenza.</figcaption>
+      <img src="img/02_da_fare.jpg" alt="Pagina Da fare con i quattro riquadri, i filtri e le sezioni per urgenza">
+      <figcaption>Quattro numeri, quattro filtri a vista, il blocco <b>I miei interventi</b> e le sezioni
+        per urgenza. Ogni riga porta a sinistra una <b>barra di colore</b> che dice l'urgenza prima che
+        tu legga il testo.</figcaption>
     </figure>
+
+    <h3>Come si legge una riga</h3>
+    <p>Quattro colonne, in ordine di importanza: <b>Attività</b> (cosa va fatto, e da quanto è scaduta),
+       <b>Asset</b> (su quale macchina, in quale reparto), <b>Gestione</b> (a che punto è e di chi è),
+       <b>Azione</b>. Le informazioni non sono state tolte — piano, tipo, reparto, ordine di lavoro,
+       assegnatario e fornitore ci sono tutti — sono state <em>messe in ordine</em>: quella che serve
+       per prima è scritta più in grande.</p>
+
+    <table>
+      <thead><tr><th>Barra</th><th>Significato</th></tr></thead>
+      <tbody>
+        <tr><td><b style="color:#dc2626">Rossa</b></td><td>Scaduta. La data è passata.</td></tr>
+        <tr><td><b style="color:#d97706">Arancione</b></td><td>Scade oggi, o è imminente.</td></tr>
+        <tr><td><b style="color:#2563eb">Blu</b></td><td>Programmata: c'è già un ordine di lavoro, o la data è più avanti.</td></tr>
+        <tr><td><b style="color:#64748b">Grigia</b></td><td>In attesa: ferma per ricambi, fornitori o autorizzazioni.</td></tr>
+        <tr><td><b style="color:#16a34a">Verde</b></td><td>Conclusa e documentata.</td></tr>
+      </tbody>
+    </table>
+    <p>La stessa convenzione vale in <a href="#interventi">Interventi</a>: i colori vogliono dire la
+       stessa cosa in tutto il modulo.</p>
 
     <h3>I quattro riquadri</h3>
     <p>Non misurano la salute del modulo (quello è mestiere del Cruscotto): misurano la tua giornata.
@@ -361,9 +400,13 @@
        rispetto al «cosa faccio adesso».</p>
 
     <h3>Le sezioni</h3>
-    <p>Sotto ai filtri: <b>Scadute</b>, <b>Da fare entro 7 giorni</b>, <b>Programmate</b>,
+    <p>In cima <b>I miei interventi</b> (vedi il <a href="#turno">capitolo 4</a>), poi
+       <b>Scadute</b>, <b>Da fare entro 7 giorni</b>, <b>Programmate</b>,
        <b>In attesa</b>, <b>Esterne</b>, e in fondo <b>Raggruppate per piano</b>. Ogni sezione si apre
        e si chiude dal titolo, e la scelta viene ricordata.</p>
+    <p>Una sezione senza righe non si gonfia: si riduce a una riga sola con la spunta verde —
+       <span class="ui">✓ Nessuna manutenzione scaduta</span> — perché il vuoto, qui, è una buona
+       notizia da dare in fretta.</p>
 
     <div class="note tip">
       <span class="tag">La via breve</span><br>
@@ -395,9 +438,17 @@
 
     <p>La colonna <b>Tempistiche</b> dice da quanto un intervento è aperto — <em>«Aperto da 4 mesi»</em> —
        e non una scadenza: gli ordini di lavoro in genere non ne hanno una.</p>
-    <p>In alto a destra: <span class="ui">Nuovo intervento</span> per aprirne uno a mano,
-       <span class="ui">Campagna</span> per aprirne uno che tocca molte macchine insieme,
-       <span class="ui">Esporta</span> per portare la lista in Excel.</p>
+
+    <p>La colonna <b>Gestione</b> dice di chi è e a che punto è. Se qualcuno ha premuto
+       <span class="ui">Inizia</span>, ci trovi <span class="ui">In corso dalle 22:02 del 03-09</span>:
+       serve a non mandare due persone sulla stessa macchina. Anche qui ogni riga ha la
+       <b>barra di colore</b> a sinistra, con lo stesso significato di <a href="#dafare">Da fare</a>.</p>
+
+    <p>In alto a destra c'è <b>una sola azione principale, in blu</b>:
+       <span class="ui">Nuovo intervento</span>. Le altre — <span class="ui">Campagna</span>
+       (un intervento che tocca molte macchine insieme), <span class="ui">Esporta</span>
+       (la lista in Excel), <span class="ui">Inventario</span> — sono in bianco con il bordo:
+       sono lì quando servono, ma non competono con l'azione che conta.</p>
   </section>
 
   <!-- ══════════════════════════════════════════════ 7 -->
@@ -474,10 +525,30 @@
     <p class="lead">Tre passaggi numerati. Solo il primo e il terzo sono obbligatori.</p>
 
     <figure>
-      <img src="img/06_chiusura.jpg" alt="Modulo di chiusura intervento, passo 1">
+      <img src="img/06_chiusura.jpg" alt="Modulo di chiusura intervento con l'avviso sulle manutenzioni non registrate">
       <figcaption>Passo 1: esito e persone. La casella <b>«Intesta a me questo intervento»</b> compare solo
-        sugli interventi di nessuno ed è già spuntata.</figcaption>
+        sugli interventi di nessuno ed è già spuntata. In alto, il riquadro rosso è l'avviso descritto
+        qui sotto: la chiusura si è fermata perché restano manutenzioni non registrate.</figcaption>
     </figure>
+
+    <div class="note warn">
+      <span class="tag">Se restano manutenzioni non registrate</span><br>
+      Chiudere l'intervento <strong>non</strong> registra le manutenzioni che ci sono dentro: ogni macchina
+      avanza sul suo piano quando <em>quella</em> manutenzione viene dichiarata eseguita
+      (vedi <a href="#registra">capitolo 8</a>). Se ne restano di aperte, la chiusura <b>si ferma</b> e te
+      lo dice prima, elencandole:
+      <em>«Rimangono 2 manutenzioni non registrate. Chiudendo l'intervento continueranno a risultare dovute.»</em>
+      <ul>
+        <li><span class="ui">Torna alle manutenzioni</span> — la scelta giusta quasi sempre: registri quello
+            che hai fatto e poi chiudi.</li>
+        <li><span class="ui">Chiudi comunque</span> — quando è davvero così (il ricambio non è arrivato, si
+            farà alla prossima fermata). Chi ha il permesso di <b>pianificazione</b> chiude con un click;
+            a chi ha solo il permesso di <b>esecuzione</b> viene chiesta una <b>motivazione</b>, che resta
+            scritta nello storico dell'intervento.</li>
+      </ul>
+      In entrambi i casi le manutenzioni <b>non vengono toccate</b>: restano dovute e continuano a comparire
+      in <b>Da fare</b> finché qualcuno non le registra. Nessuna scadenza si sposta di nascosto.
+    </div>
 
     <ol class="steps">
       <li><b>Esito e chiusura.</b> <b>Esito finale</b> è lo stato dell'intervento. <b>Esito</b> è come è
@@ -512,24 +583,38 @@
   <!-- ══════════════════════════════════════════════ 10 -->
   <section id="cruscotto">
     <h2><span class="n">10</span> Cruscotto operativo <span style="font-size:.7rem;color:var(--light);font-weight:600">· responsabile</span></h2>
-    <p class="lead">Nove numeri che dicono cosa non va. Sotto, le liste per andarci dentro.</p>
+    <p class="lead">Nove numeri che dicono cosa non va — quattro comandano, cinque commentano.
+       Sotto, le liste per andarci dentro.</p>
 
     <figure>
       <img src="img/08_cruscotto_operativo.jpg" alt="Cruscotto manutenzione, vista Operativo">
       <figcaption>In alto a destra l'interruttore <span class="ui">Operativo</span> /
-        <span class="ui">Sintesi</span>: due letture della stessa pagina, stesso indirizzo.</figcaption>
+        <span class="ui">Sintesi</span>: due letture della stessa pagina, stesso indirizzo.
+        I quattro numeri grandi sono quelli che decidono la giornata; i cinque più piccoli la
+        commentano.</figcaption>
     </figure>
 
+    <p><strong>Ogni riquadro è cliccabile</strong> e porta dove il numero si spiega: alla sezione della
+       pagina che elenca quei casi, oppure alla lista già filtrata. Nessuna destinazione a sorpresa.</p>
+
+    <p><b>I quattro principali:</b></p>
     <table>
       <thead><tr><th>Numero</th><th>Cosa conta davvero</th></tr></thead>
       <tbody>
         <tr><td><span class="ui">Scadute</span></td><td>Manutenzioni con la data superata, ancora aperte.</td></tr>
-        <tr><td><span class="ui">In scadenza</span></td><td>Dentro la finestra di preavviso del loro piano.</td></tr>
         <tr><td><span class="ui">Non pianificate</span></td><td><b>Dovute, ma senza un ordine di lavoro.</b> È la domanda che di solito nessuno vede.</td></tr>
         <tr><td><span class="ui">OdL aperti</span></td><td><b>Tutti</b> gli ordini aperti, correttivi compresi — non solo quelli nati da un piano.</td></tr>
-        <tr><td><span class="ui">In attesa</span></td><td>Fermi per ricambi, fornitori, autorizzazioni.</td></tr>
-        <tr><td><span class="ui">OdL in ritardo</span></td><td>Aperti da oltre la soglia (di serie 21 giorni). Vedi la nota qui sotto.</td></tr>
         <tr><td><span class="ui">Rapporti mancanti</span></td><td>Eseguite ma non documentate: il lavoro è fatto, la pratica no.</td></tr>
+      </tbody>
+    </table>
+
+    <p><b>I cinque secondari:</b></p>
+    <table>
+      <thead><tr><th>Numero</th><th>Cosa conta davvero</th></tr></thead>
+      <tbody>
+        <tr><td><span class="ui">In scadenza</span></td><td>Dentro la finestra di preavviso del loro piano.</td></tr>
+        <tr><td><span class="ui">In attesa</span></td><td>Fermi per ricambi, fornitori, autorizzazioni.</td></tr>
+        <tr><td><span class="ui">Aperti da oltre N giorni</span></td><td>Anzianità degli ordini aperti. Vedi la nota qui sotto.</td></tr>
         <tr><td><span class="ui">Follow-up aperti</span></td><td>Anomalie trovate e non ancora richiuse.</td></tr>
         <tr><td><span class="ui">Conflitti</span></td><td>Stesso asset, due periodicità in contrasto.</td></tr>
       </tbody>
@@ -537,14 +622,16 @@
 
     <div class="note warn">
       <span class="tag">Da leggere bene</span><br>
-      <strong>«OdL in ritardo» misura l'anzianità, non un ritardo.</strong> Gli ordini di lavoro in pratica
-      non hanno una scadenza valorizzata: quello che si conta è da quanti giorni sono aperti, oltre
-      la soglia condivisa (<code>assets_wo_overdue_days</code>, di serie 21). La riga sotto al numero
-      lo dice: «aperti da oltre 21 gg».
+      <strong>«Aperti da oltre N giorni» misura l'anzianità, non un ritardo.</strong> Gli ordini di lavoro
+      in pratica non hanno una scadenza valorizzata: quello che si conta è da quanti giorni sono aperti,
+      oltre la soglia condivisa (<code>assets_wo_overdue_days</code>, di serie 21). Il riquadro si chiama
+      proprio così — prima diceva «OdL in ritardo», ed era una parola sbagliata: faceva pensare a una data
+      sforata che non esiste.
     </div>
 
     <p>Le sezioni sotto ai numeri — manutenzioni dovute ma non pianificate, ordini attivi, rapporti
-       mancanti, follow-up, conflitti — <strong>si comprimono a una riga quando sono vuote</strong>.
+       mancanti, follow-up, conflitti — <strong>si comprimono a una riga quando sono vuote</strong>,
+       con la spunta verde <span class="ui">✓ nessuna criticità</span>.
        Il vuoto è una buona notizia e va detto in fretta.</p>
   </section>
 
@@ -575,9 +662,16 @@
 
     <figure>
       <img src="img/10_cruscotto_sintesi.jpg" alt="Cruscotto manutenzione, vista Sintesi">
-      <figcaption>Sei indicatori di andamento, il grafico dei 12 mesi e — sotto — l'elenco esplicito
-        di ciò che <b>non</b> è misurabile.</figcaption>
+      <figcaption>Sei indicatori di andamento, il grafico dei 12 mesi, le prossime scadenze
+        amministrative e — sotto — l'elenco esplicito di ciò che <b>non</b> è misurabile.</figcaption>
     </figure>
+
+    <div class="note">
+      <span class="tag">Pensata per chi legge, non per chi lavora</span><br>
+      In questa vista <b>spariscono le scorciatoie operative</b> («Da fare», «Scadenze»): sono azioni di
+      chi esegue, e su una pagina che si legge in trenta secondi competerebbero con i numeri. Restano
+      raggiungibili con un click, dall'interruttore <span class="ui">Operativo</span>.
+    </div>
 
     <table>
       <thead><tr><th>Indicatore</th><th>Come si legge</th></tr></thead>
@@ -590,6 +684,14 @@
         <tr><td><span class="ui">Conflitti di periodicità</span></td><td>Stesso asset, due cadenze in contrasto.</td></tr>
       </tbody>
     </table>
+
+    <h3>Prossime scadenze amministrative</h3>
+    <p>Sotto al grafico, al massimo cinque righe — <b>data · scadenza · asset o fornitore</b> — con gli
+       adempimenti amministrativi in arrivo: revisioni, verifiche di legge, rinnovi. Non è una pagina
+       nuova né un elenco da gestire: è il promemoria che serve a chi firma.</p>
+    <p>Gli adempimenti <em>già scaduti</em> non vengono mescolati alle prossime — non sono «prossimi» —
+       ma nemmeno taciuti: una riga in testa li conta e rimanda alla lista filtrata. Un calendario che
+       sembra a posto mentre l'arretrato è da un'altra parte sarebbe peggio di nessun calendario.</p>
 
     <h3>Perché a volte «Manutenzioni nei tempi» dice <code>n.d.</code></h3>
     <p>Perché la puntualità si misura <strong>solo dove scadenza ed esecuzione sono due eventi distinti</strong>.
@@ -960,7 +1062,24 @@
     <h4>Ho registrato la manutenzione ma la macchina compare ancora fra le scadute.</h4>
     <p>Probabilmente hai chiuso l'<em>intervento</em> senza registrare le <em>manutenzioni</em> che
        raccoglieva. Sono due gesti diversi: riapri l'intervento e usa
-       <span class="ui">Registra</span> (o <span class="ui">Registra le selezionate</span>) sulle righe.</p>
+       <span class="ui">Registra</span> (o <span class="ui">Registra le selezionate</span>) sulle righe.
+       Da oggi è più difficile che succeda: la chiusura si ferma e te lo dice prima
+       (vedi il <a href="#chiusura">capitolo 9</a>). Gli interventi chiusi <em>prima</em> di questa
+       modifica possono però aver lasciato indietro delle manutenzioni: se ne trovi di dovute su un
+       lavoro che risulta già fatto, è quasi sempre questo il motivo.</p>
+
+    <h4>Dov'è finito «Il mio turno»?</h4>
+    <p>Dentro <span class="ui">Da fare</span>, in cima, come blocco <b>I miei interventi</b>. Le due
+       pagine mostravano lo stesso lavoro da due angoli diversi e avere due code confondeva: ora la
+       coda operativa è una sola. Il vecchio indirizzo continua a rispondere, quindi un preferito
+       salvato non porta a un errore.</p>
+
+    <h4>Ho premuto «Inizia» e adesso l'intervento risulta mio: è giusto?</h4>
+    <p>Sì. La coda resta di tutti e non c'è nessuna presa in carico obbligatoria, ma quando qualcuno
+       comincia davvero un lavoro gli altri devono sapere chi è: è l'unico modo perché in
+       <b>Interventi</b> e in <b>Da fare</b> compaia «In corso — Nome · dalle 09:42» e non si vada in
+       due sulla stessa macchina. Se stai registrando il lavoro di un collega, in chiusura togli la
+       spunta <span class="ui">Intesta a me</span> e metti il suo nome.</p>
 
     <h4>Ho tolto una macchina dall'intervento: ho cancellato la sua manutenzione?</h4>
     <p>No. È tornata «da pianificare» e continua a comparire fra le dovute. È voluto.</p>
@@ -991,7 +1110,7 @@
   </section>
 
   <footer>
-    NOVICROM HUB · Guida al modulo Manutenzione · aggiornata al 09/09/2026<br>
+    NOVICROM HUB · Guida al modulo Manutenzione · aggiornata al 09/09/2026 (revisione UX finale)<br>
     Le schermate provengono dall'ambiente di sviluppo, con dati di prova: i numeri che vedi nelle
     figure non sono quelli di produzione.
   </footer>
