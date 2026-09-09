@@ -722,11 +722,11 @@ def get_cose_da_fare_overview(today: date | None = None, limit: int = 6) -> dict
 
     Chiavi restituite:
         wo_open            int   – ordini di lavoro aperti (asset non dismessi)
-        wo_overdue         int   – OdL aperti da oltre la soglia di ritardo (SiteConfig)
+        wo_overdue         int   – OdL aperti da oltre la soglia di anzianita' (SiteConfig)
         deadlines_overdue  int   – scadenze amministrative scadute
         deadlines_30       int   – scadenze amministrative entro 30 giorni
         verifiche_overdue  int   – verifiche periodiche scadute
-        total_urgent       int   – somma degli elementi scaduti/in ritardo
+        total_urgent       int   – somma degli elementi scaduti o aperti da troppo tempo
         items              list  – OdL aperti più vecchi (per la lista breve)
         has_data           bool  – True se c'è almeno un elemento da gestire
     """

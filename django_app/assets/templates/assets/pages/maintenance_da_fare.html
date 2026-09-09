@@ -10,8 +10,8 @@
 {% endblock %}
 
 {% block assets_shell_toolbar %}
-  <a class="btn" href="{% url 'assets:maintenance_scadenze' %}">Scadenze</a>
-  {% if can_plan %}<a class="btn" href="{% url 'assets:maintenance_responsabile' %}">Quadro</a>{% endif %}
+  <a class="btn btn-secondary" href="{% url 'assets:maintenance_scadenze' %}">Scadenze</a>
+  {% if can_plan %}<a class="btn btn-secondary" href="{% url 'assets:maintenance_responsabile' %}">Cruscotto</a>{% endif %}
 {% endblock %}
 
 {% block assets_shell_content %}
@@ -96,6 +96,68 @@
     <a class="md-tab {% if view_mode == 'asset' %}active{% endif %}" href="?by=asset">Asset</a>
   </div>
 
+  {% comment %}
+    Gli ordini di lavoro gia' in mano a qualcuno. Le occorrenze qui sotto dicono
+    cosa e' dovuto; questo dice cosa e' gia' partito, ed e' l'unica cosa che la
+    pagina "Il mio turno" mostrava e questa no. Compare solo se c'e' qualcosa:
+    un riquadro vuoto in cima spingerebbe il lavoro vero sotto la piega.
+  {% endcomment %}
+  {% if my_workorder_rows %}
+    <details class="md-section is-warn" data-md-block="miei_interventi" open>
+      <summary class="md-section-head">
+        <h2>I miei interventi</h2>
+        <span class="md-sub" style="display:inline">in corso, bloccati o urgenti</span>
+        <span class="md-badge badge-warning">{{ my_workorder_rows|length }}</span>
+      </summary>
+      <div class="md-scroll">
+        <table class="md-table md-table--op" data-fm-hide-search="1">
+          <thead>
+            <tr><th>Intervento</th><th>Asset</th><th>Gestione</th><th class="md-right">Azione</th></tr>
+          </thead>
+          <tbody>
+            {% for row in my_workorder_rows %}
+              {% with wo=row.wo %}
+              <tr class="tone-{{ row.tone }}">
+                <td>
+                  <a class="md-op-title" href="{% url 'assets:wo_view' wo.id %}">{{ wo.title|default:"Intervento" }}</a>
+                  <span class="md-sub">OdL #{{ wo.display_number }} · {{ wo.get_kind_display }}</span>
+                </td>
+                <td>
+                  <a class="md-op-title" href="{% url 'assets:asset_view' wo.asset_id %}">{{ wo.asset.asset_tag|default:wo.asset.name }}</a>
+                  <span class="md-sub">{{ wo.asset.name }}{% if wo.asset.reparto %} · {{ wo.asset.reparto }}{% endif %}</span>
+                </td>
+                <td>
+                  <div class="md-op-meta">
+                    <div>
+                      {% if wo.is_waiting %}<span class="md-badge badge-muted">In attesa</span>
+                      {% elif wo.started_at %}<span class="md-badge badge-primary">In corso</span>
+                      {% else %}<span class="md-badge badge-info">Da fare</span>{% endif %}
+                      {% if wo.priority == "URGENT" %}<span class="md-badge badge-danger">Urgente</span>{% endif %}
+                    </div>
+                    <span class="md-sub">
+                      {% if wo.started_at %}
+                        {% if wo.assigned_to %}{{ wo.assigned_to.get_full_name|default:wo.assigned_to.username }} · {% endif %}dalle {{ wo.started_at|time:"H:i" }}
+                      {% elif wo.assigned_to %}
+                        Assegnato a {{ wo.assigned_to.get_full_name|default:wo.assigned_to.username }}
+                      {% else %}
+                        Nessun assegnatario
+                      {% endif %}
+                      {% if wo.is_waiting and wo.get_wait_reason_display %} · {{ wo.get_wait_reason_display }}{% endif %}
+                    </span>
+                  </div>
+                </td>
+                <td class="md-right md-nowrap">
+                  <a class="btn btn-sm btn-primary" href="{% url 'assets:wo_view' wo.id %}">Apri</a>
+                </td>
+              </tr>
+              {% endwith %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  {% endif %}
+
   {% for block in blocks %}
     {% comment %}
       Blocchi apribili e richiudibili: cinque tabelle sempre aperte sono un muro,
@@ -111,9 +173,9 @@
         <span class="md-badge {% if block.tone == 'urgent' %}badge-danger{% elif block.tone == 'warn' %}badge-warning{% else %}badge-muted{% endif %}">{{ block.rows|length }}</span>
       </summary>
       {% if block.rows %}
-        {% include "assets/components/_occurrence_rows.html" with rows=block.rows selectable=can_plan show_plan=1 %}
+        {% include "assets/components/_occurrence_rows.html" with rows=block.rows selectable=can_plan show_plan=1 layout="op" %}
       {% else %}
-        <p class="md-empty">Niente in questo blocco.</p>
+        <p class="md-quiet">{{ block.quiet }}</p>
       {% endif %}
     </details>
   {% endfor %}
@@ -134,7 +196,7 @@
             {% if group.overdue %}<span class="md-badge badge-danger">{{ group.overdue }} scadute</span>{% endif %}
             <span class="md-group-count">{{ group.rows|length }}</span>
           </summary>
-          {% include "assets/components/_occurrence_rows.html" with rows=group.rows selectable=can_plan show_plan=1 %}
+          {% include "assets/components/_occurrence_rows.html" with rows=group.rows selectable=can_plan show_plan=1 layout="op" %}
         </details>
       {% empty %}
         <p class="md-empty">Nessuna manutenzione aperta con i filtri correnti.</p>

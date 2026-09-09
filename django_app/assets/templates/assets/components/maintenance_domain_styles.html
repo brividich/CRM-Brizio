@@ -86,6 +86,35 @@ details.md-section.is-warn > summary.md-section-head:hover { background:rgba(217
 }
 .md-table td { padding:9px 12px; border-bottom:1px solid var(--border,#eef2f7); vertical-align:middle; }
 .md-table tbody tr:hover { background:var(--tbody-hover,#f8fbff); }
+/* ---- Variante OPERATIVA -------------------------------------------------
+   Stessa tabella, altro linguaggio. "Da fare" e "Interventi" si leggono da un
+   monitor di officina: righe piu' alte, meno colonne, una barra di colore che
+   dice l'urgenza prima che si legga il testo. Le pagine gestionali (Scadenze,
+   Piani, scheda piano, Cruscotto) NON aggiungono questa classe e restano dense
+   come sono: e' la densita' giusta per chi pianifica.
+   Le misure seguono i token del design system, con fallback espliciti. */
+.md-table--op td { padding:12px 12px; }
+.md-table--op th { padding:8px 12px; font-size:var(--fs-2xs,.72rem); }
+.md-table--op .md-op-title { display:block; font-size:var(--fs-sm,.9rem); font-weight:800; color:var(--text,#0f172a); text-decoration:none; line-height:1.3; }
+.md-table--op a.md-op-title:hover { text-decoration:underline; }
+.md-table--op .md-sub { margin-top:3px; font-size:var(--fs-xs,.8rem); line-height:1.35; }
+.md-table--op .md-op-when { display:block; margin-top:4px; font-size:var(--fs-xs,.8rem); font-weight:800; }
+.md-table--op .md-op-when.is-late { color:#dc2626; }
+.md-table--op .md-op-when.is-today { color:#b45309; }
+.md-table--op .md-op-meta { display:grid; gap:3px; }
+/* La barra e' sulla prima cella: una sola riga di CSS per riga di tabella, e
+   non si somma al bordo delle celle successive. */
+.md-table--op tbody tr > td:first-child { padding-left:16px; }
+.md-table--op tbody tr.tone-red    > td:first-child { box-shadow:inset 4px 0 0 #dc2626; }
+.md-table--op tbody tr.tone-amber  > td:first-child { box-shadow:inset 4px 0 0 #d97706; }
+.md-table--op tbody tr.tone-blue   > td:first-child { box-shadow:inset 4px 0 0 #2563eb; }
+.md-table--op tbody tr.tone-grey   > td:first-child { box-shadow:inset 4px 0 0 var(--border,#cbd5e1); }
+.md-table--op tbody tr.tone-green  > td:first-child { box-shadow:inset 4px 0 0 #16a34a; }
+.md-table--op tbody tr:hover { background:var(--tbody-hover,rgba(37,99,235,.035)); }
+/* Empty state operativo: una riga sola, positiva. Una sezione vuota non deve
+   occupare lo spazio di una piena. */
+.md-quiet { display:flex; gap:8px; align-items:center; padding:9px 16px; font-size:var(--fs-sm,.9rem); color:var(--text-mid,#64748b); }
+.md-quiet::before { content:"\2713"; font-weight:900; color:#16a34a; }
 .md-table .md-due { font-weight:800; white-space:nowrap; }
 .md-table .md-due.is-late { color:#dc2626; }
 .md-asset { font-weight:800; color:var(--text,#0f172a); text-decoration:none; }
@@ -163,6 +192,14 @@ body.theme-dark .md-badge.badge-info,
 body.theme-dark .md-badge.badge-primary { color:#93c5fd; }
 body.theme-dark .md-badge.badge-success { color:#86efac; }
 body.theme-dark .md-table .md-due.is-late { color:#fca5a5; }
+/* Variante operativa: sul fondo scuro i rossi e gli ambra pieni si spengono. */
+body.theme-dark .md-table--op .md-op-when.is-late { color:#fca5a5; }
+body.theme-dark .md-table--op .md-op-when.is-today { color:#fcd34d; }
+body.theme-dark .md-table--op tbody tr.tone-grey > td:first-child { box-shadow:inset 4px 0 0 #475569; }
+body.theme-dark .md-quiet::before { color:#86efac; }
+body.theme-dark .md-row-unassigned { background:rgba(220,38,38,.12); }
+body.theme-dark .md-row-unassigned strong { color:#fca5a5; }
+body.theme-dark .md-section.is-empty .md-section-head::after { color:#86efac; }
 body.theme-dark .md-conflict { border-color:rgba(220,38,38,.5); }
 body.theme-dark .md-conflict h3 { color:#fca5a5; }
 body.theme-dark .md-matrix .cell-inherited { color:#86efac; }
@@ -194,9 +231,22 @@ body.theme-dark .md-bulk { box-shadow:0 -8px 26px rgba(0,0,0,.45); }
     gap: 10px; padding: 10px 0 4px;
   }
 
-  /* La riga del lavoro di nessuno non deve confondersi con le altre. */
-  .md-row-unassigned { background: var(--surface-alt, rgba(220,38,38,.05)); }
-  .md-row-unassigned td { border-top: 2px solid var(--danger, #dc2626); }
+  /* La riga del lavoro di nessuno non deve confondersi con le altre: non serve
+     colorarla tutta di rosso, basta che si veda al primo sguardo che questo
+     lavoro non ha un responsabile. */
+  .md-row-unassigned { background: rgba(220,38,38,.06); }
+  .md-row-unassigned td { border-top: 2px solid var(--danger, #dc2626); padding-top: 11px; padding-bottom: 11px; }
+  .md-row-unassigned td:first-child { border-left: 4px solid var(--danger, #dc2626); }
+  .md-row-unassigned strong { color: #b91c1c; }
+
+  /* Gerarchia dei KPI del Cruscotto: quattro numeri comandano la giornata, gli
+     altri la commentano. Stesso componente, due pesi — non due componenti. */
+  .md-kpis--lead { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+  .md-kpis--lead .md-kpi-value { font-size: 2.1rem; }
+  .md-kpis--sub { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+  .md-kpis--sub .md-kpi { padding: 9px 12px; }
+  .md-kpis--sub .md-kpi-value { font-size: 1.25rem; }
+  .md-kpis--sub .md-kpi-label { font-size: var(--fs-2xs, .72rem); }
   .md-num { text-align: right; font-variant-numeric: tabular-nums; }
 
   /* Sezione senza righe: resta il titolo con "nessuna criticita'", sparisce la
@@ -208,8 +258,8 @@ body.theme-dark .md-bulk { box-shadow:0 -8px 26px rgba(0,0,0,.45); }
   .md-section.is-empty .md-occ-list { display: none; }
   .md-section.is-empty .md-section-head { border-bottom: 0; margin-bottom: 0; }
   .md-section.is-empty .md-section-head::after {
-    content: "nessuna criticità";
-    font-size: var(--fs-xs); color: var(--text-light); font-weight: 600;
+    content: "\2713  nessuna criticità";
+    font-size: var(--fs-xs); color: #16a34a; font-weight: 700;
     margin-left: auto;
   }
 </style>

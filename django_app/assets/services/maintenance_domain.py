@@ -596,6 +596,23 @@ OPERATIONAL_STATE_LABELS = {
     MaintenanceOccurrence.VIEW_CANCELED: "Annullata",
 }
 
+# Tono della riga nelle pagine operative: una barra verticale a sinistra si legge
+# da tre metri, un badge da trenta centimetri. Convenzione unica per tutto il
+# modulo — rosso scaduto/critico, arancio oggi/imminente, blu programmato/futuro,
+# grigio in attesa/neutro, verde concluso/conforme.
+VIEW_STATE_TONES = {
+    MaintenanceOccurrence.VIEW_OVERDUE: "red",
+    MaintenanceOccurrence.VIEW_DUE_SOON: "amber",
+    MaintenanceOccurrence.VIEW_TO_PLAN: "blue",
+    MaintenanceOccurrence.VIEW_PLANNED: "blue",
+    MaintenanceOccurrence.VIEW_IN_PROGRESS: "blue",
+    MaintenanceOccurrence.VIEW_WAITING: "grey",
+    MaintenanceOccurrence.VIEW_EXECUTED: "green",
+    MaintenanceOccurrence.VIEW_REPORT_MISSING: "amber",
+    MaintenanceOccurrence.VIEW_COMPLETED: "green",
+    MaintenanceOccurrence.VIEW_CANCELED: "grey",
+}
+
 # Solo per cio' che e' gia' stato eseguito: su un'occorrenza ancora da fare non
 # c'e' nessuna documentazione da attendersi, e dirlo sarebbe rumore.
 DOCUMENT_STATE = {
@@ -608,12 +625,19 @@ DOCUMENT_STATE = {
 def occurrence_state_payload(occurrence: MaintenanceOccurrence, *, today: date | None = None) -> dict[str, Any]:
     state = occurrence_view_state(occurrence, today=today)
     document_label, document_badge, document_ok = DOCUMENT_STATE.get(state, ("", "", None))
+    days_until_due = occurrence.days_until_due(today)
+    tone = VIEW_STATE_TONES.get(state, "grey")
+    # "Oggi" non e' uno stato a se' — e' una scadenza che cade adesso, e va vista
+    # come tale anche quando lo stato direbbe solo "da pianificare".
+    if tone == "blue" and days_until_due == 0:
+        tone = "amber"
     return {
         "state": state,
+        "row_tone": tone,
         "label": VIEW_STATE_LABELS.get(state, ""),
         "badge_class": VIEW_STATE_BADGES.get(state, "badge-muted"),
         "order": VIEW_STATE_ORDER.get(state, 99),
-        "days_until_due": occurrence.days_until_due(today),
+        "days_until_due": days_until_due,
         # Stato OPERATIVO: a che punto e' il lavoro.
         "operational_label": OPERATIONAL_STATE_LABELS.get(state, ""),
         "operational_badge": VIEW_STATE_BADGES.get(state, "badge-muted"),

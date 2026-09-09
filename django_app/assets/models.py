@@ -2607,18 +2607,36 @@ class WorkOrder(models.Model):
         self.assigned_to = user
         self.save(update_fields=["assigned_to"])
 
-    def start(self) -> None:
+    def start(self, user=None) -> bool:
         """Segna l'inizio della lavorazione effettiva (bottone 'Inizia intervento').
         Idempotente: non sposta ``started_at`` se l'intervento e' gia' in corso.
         Riprende automaticamente da un'attesa, perche' premere "Inizia/Riprendi"
-        e' l'unico gesto che il manutentore compie sul campo."""
+        e' l'unico gesto che il manutentore compie sul campo.
+
+        Se l'OdL non era di nessuno, ``user`` se lo intesta. La coda resta condivisa:
+        non si "prende in carico" un lavoro che non si comincia — ma dal momento in
+        cui qualcuno lo comincia, gli altri devono vedere chi ci sta lavorando, e
+        senza questo il nome non esisterebbe da nessuna parte (non c'e' un campo
+        ``started_by``: il "quando" e' ``started_at``, il "chi" e' l'assegnatario).
+
+        Ritorna True se l'intervento e' stato intestato ora, per il log della view.
+        """
         if self.status != self.STATUS_OPEN:
-            return
+            return False
         if self.is_waiting:
             self.resume_from_waiting()
+        claimed = False
+        fields: list[str] = []
         if not self.started_at:
             self.started_at = timezone.now()
-            self.save(update_fields=["started_at"])
+            fields.append("started_at")
+        if self.assigned_to_id is None and user is not None and getattr(user, "is_authenticated", False):
+            self.assigned_to = user
+            fields.append("assigned_to")
+            claimed = True
+        if fields:
+            self.save(update_fields=fields)
+        return claimed
 
     @property
     def operational_state(self) -> str | None:

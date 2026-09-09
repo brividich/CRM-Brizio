@@ -173,7 +173,7 @@ def _get_recipients(override: list[str] | None) -> list[str]:
 
 
 class Command(BaseCommand):
-    help = "Invia email promemoria per scadenze manutenzione e OdL aperti in ritardo."
+    help = "Invia email promemoria per scadenze manutenzione e OdL aperti da troppo tempo."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -279,7 +279,8 @@ class Command(BaseCommand):
             )
         ]
 
-        # 3. OdL aperti in ritardo
+        # 3. OdL aperti da oltre la soglia di anzianita'. NON si chiamano "in ritardo":
+        #    la soglia si applica a ``opened_at``, non a una scadenza dichiarata.
         overdue_wo = list(
             WorkOrder.objects.filter(
                 status=WorkOrder.STATUS_OPEN,
@@ -561,7 +562,7 @@ class Command(BaseCommand):
                         f"Manutenzione in scadenza: {asset.asset_tag} - {label}.",
                         f"/assets/manutenzione/prossime/?asset={asset.id}&status=due",
                     )
-            # L'OdL in ritardo va anche a chi deve farlo, non solo alla lista collettiva.
+            # L'OdL anziano va anche a chi deve farlo, non solo alla lista collettiva.
             personal = 0
             for wo in overdue_wo:
                 if wo.assigned_to_id is None:

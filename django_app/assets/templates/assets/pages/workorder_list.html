@@ -255,16 +255,30 @@
   white-space: nowrap;
 }
 .wo-table td {
-  padding: 11px 12px;
+  padding: 14px 12px;
   border-bottom: 1px solid #f1f5f9;
   color: #0f172a;
   font-size: .88rem;
   vertical-align: top;
 }
+/* Pagina operativa: l'urgenza si legge dal colore della riga prima che dal
+   badge. Stessa convenzione di "Da fare" (rosso scaduto/urgente, arancio in
+   scadenza oggi, blu aperto, grigio in attesa, verde chiuso), su una barra
+   verticale a sinistra: la barra sta sulla prima cella, cosi' non si somma ai
+   bordi delle successive. */
+/* box-shadow e non border-left: con border-collapse il bordo sinistro della prima
+   cella viene risolto contro quello della tabella e sparisce. */
+.wo-table tbody tr > td:first-child { padding-left:16px; }
+.wo-table tbody tr.tone-red   > td:first-child { box-shadow:inset 4px 0 0 #dc2626; }
+.wo-table tbody tr.tone-amber > td:first-child { box-shadow:inset 4px 0 0 #d97706; }
+.wo-table tbody tr.tone-blue  > td:first-child { box-shadow:inset 4px 0 0 #2563eb; }
+.wo-table tbody tr.tone-grey  > td:first-child { box-shadow:inset 4px 0 0 #cbd5e1; }
+.wo-table tbody tr.tone-green > td:first-child { box-shadow:inset 4px 0 0 #16a34a; }
 .wo-row--open:hover td { background:#fbfdff; }
 .wo-workorder-meta { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:5px; }
 .wo-assignment { display:grid; gap:4px; }
 .wo-assignment-main { font-weight:750; color:#24364f; }
+.wo-inprogress { color:#1d4ed8; font-weight:700; }
 .wo-assignment--mine { color:#166534; }
 .wo-assignment--empty { color:#b45309; }
 .wo-time-main { color:#24364f; font-weight:750; white-space:nowrap; }
@@ -346,6 +360,8 @@ body.theme-dark .wo-advanced-filters summary,body.theme-dark .wo-advanced-grid l
 body.theme-dark .wo-row--open:hover td { background:rgba(37,99,235,.06); }
 body.theme-dark .wo-assignment-main,body.theme-dark .wo-time-main { color:var(--text); }
 body.theme-dark .wo-assignment--mine { color:#86efac; }
+body.theme-dark .wo-inprogress { color:#93c5fd; }
+body.theme-dark .wo-table tbody tr.tone-grey > td:first-child { box-shadow:inset 4px 0 0 #475569; }
 body.theme-dark .wo-assignment--empty { color:#fbbf24; }
 @media(max-width:900px){.wo-view-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}.wo-advanced-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:620px){.wo-view-tabs,.wo-advanced-grid{grid-template-columns:1fr}.wo-search-row{grid-template-columns:1fr 1fr}.wo-search-row input{grid-column:1/-1}.wo-search-row .btn{justify-content:center}}
@@ -458,11 +474,11 @@ body.theme-dark .wob-overdue { color: #fca5a5; }
 {% block assets_shell_title %}Interventi{% endblock %}
 {% block assets_shell_subtitle %}<p>La coda è di tutti: apri un intervento, fallo e chiudilo — chiudendolo diventa tuo.</p>{% endblock %}
 {% block assets_shell_toolbar %}
-  <a class="btn" href="{% url 'assets:maintenance_hub' %}">&#8592; Hub manutenzione</a>
-  <a class="btn" href="{% url 'assets:asset_list' %}">Inventario</a>
+  <a class="btn btn-secondary" href="{% url 'assets:maintenance_hub' %}">&#8592; Hub manutenzione</a>
+  <a class="btn btn-secondary" href="{% url 'assets:asset_list' %}">Inventario</a>
   <button type="button" onclick="document.getElementById('woCreateDlg').showModal()" class="btn btn-primary"{% if not workorder_create_asset_options %} disabled{% endif %}>+ Nuovo intervento</button>
-  <a class="btn" href="{% url 'assets:wo_campaign_create' %}">+ Campagna</a>
-  <button type="button" onclick="document.getElementById('woExportDlg').showModal()" class="btn">&#8595; Esporta</button>
+  <a class="btn btn-secondary" href="{% url 'assets:wo_campaign_create' %}">+ Campagna</a>
+  <button type="button" onclick="document.getElementById('woExportDlg').showModal()" class="btn btn-secondary">&#8595; Esporta</button>
   <dialog id="woCreateDlg" class="wo-create-dialog">
     <form method="get" action="{% url 'assets:wo_create' %}" class="wo-create-form">
       <div class="wo-create-head">
@@ -661,8 +677,9 @@ body.theme-dark .wob-overdue { color: #fca5a5; }
           </tr>
         </thead>
         <tbody>
+          {% now "Y-m-d" as oggi %}
           {% for wo in workorders %}
-            <tr{% if wo.status == 'OPEN' %} class="wo-row--open"{% endif %}>
+            <tr class="{% if wo.status == 'OPEN' %}wo-row--open {% endif %}{% if wo.status == 'DONE' %}tone-green{% elif wo.status != 'OPEN' %}tone-grey{% elif wo.is_waiting %}tone-grey{% elif wo.is_overdue or wo.priority == 'URGENT' %}tone-red{% elif wo.due_at and wo.due_at|date:'Y-m-d' == oggi %}tone-amber{% else %}tone-blue{% endif %}">
               <td>
                 <a class="wo-title-link" href="{% url 'assets:wo_view' wo.id %}">#{{ wo.display_number }} - {{ wo.title }}</a>
                 {% if wo.status == 'OPEN' and wo.priority != 'NORMAL' %}<span class="as-badge {% if wo.priority == 'URGENT' %}as-badge--danger{% else %}as-badge--muted{% endif %}">{{ wo.get_priority_display }}</span>{% endif %}
@@ -679,6 +696,11 @@ body.theme-dark .wob-overdue { color: #fca5a5; }
                 <div class="wo-assignment">
                   <div><span class="as-badge {% if wo.status == 'OPEN' %}as-badge--warn{% elif wo.status == 'DONE' %}as-badge--ok{% else %}as-badge--muted{% endif %}">{{ wo.get_status_display }}</span></div>
                   {% if wo.assigned_to_id == request.user.id %}<div class="wo-assignment-main wo-assignment--mine">Assegnato a te</div>{% elif wo.assigned_to %}<div class="wo-assignment-main">{{ wo.assigned_to.get_full_name|default:wo.assigned_to.username }}</div>{% else %}<div class="wo-assignment-main wo-assignment--empty">Di nessuno</div>{% endif %}
+                  {% comment %}Coda condivisa: chi non e' andato sul posto deve
+                  vedere subito che qualcuno ci sta gia' lavorando, senza aprire
+                  l'intervento. Il "chi" e' l'assegnatario (premere Inizia intesta
+                  l'OdL a chi lo comincia), il "quando" e' started_at.{% endcomment %}
+                  {% if wo.status == 'OPEN' and wo.started_at and not wo.is_waiting %}<div class="wo-muted wo-inprogress">In corso dalle {{ wo.started_at|time:"H:i" }} del {{ wo.started_at|date:"d-m" }}</div>{% endif %}
                   {% if wo.executed_by %}<div class="wo-muted">Eseguito da {{ wo.executed_by.get_full_name|default:wo.executed_by.username }}</div>{% endif %}
                 </div>
               </td>
