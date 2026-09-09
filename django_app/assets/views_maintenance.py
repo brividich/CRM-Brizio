@@ -20,7 +20,7 @@ from typing import Any
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count, F, Max, Q
+from django.db.models import Case, Count, F, IntegerField, Max, Q, Value, When
 from django.db.models.functions import TruncMonth
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -317,12 +317,14 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
             "key": "overdue",
             "title": "Scadute",
             "tone": "urgent",
+            "quiet": "Nessuna manutenzione scaduta",
             "rows": [r for r in rows if r["state"] == MaintenanceOccurrence.VIEW_OVERDUE],
         },
         {
             "key": "week",
             "title": "Da fare entro 7 giorni",
             "tone": "warn",
+            "quiet": "Niente in scadenza questa settimana",
             "rows": [
                 r
                 for r in rows
@@ -334,6 +336,7 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
             "key": "planned",
             "title": "Programmate",
             "tone": "",
+            "quiet": "Nessuna manutenzione gia' programmata",
             "rows": [
                 r
                 for r in rows
@@ -344,12 +347,14 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
             "key": "waiting",
             "title": "In attesa",
             "tone": "",
+            "quiet": "Nessun intervento bloccato",
             "rows": [r for r in rows if r["state"] == MaintenanceOccurrence.VIEW_WAITING],
         },
         {
             "key": "external",
             "title": "Esterne",
             "tone": "",
+            "quiet": "Nessuna manutenzione affidata a fornitori",
             "rows": [r for r in rows if r["occurrence"].is_external],
         },
     ]
@@ -377,6 +382,45 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
         ),
     }
 
+    # Gli ordini di lavoro che riguardano chi guarda la pagina. Le occorrenze qui
+    # sopra dicono *cosa* e' dovuto; questo blocco dice *cosa e' gia' in mano a
+    # qualcuno* — l'unica cosa che "Il mio turno" mostrava e questa pagina no.
+    # Coda condivisa: i miei piu' quelli di nessuno, mai quelli di un altro.
+    # Solo cio' che chiede attenzione adesso (bloccato, urgente, iniziato): il
+    # resto della coda e' gia' rappresentato dalle occorrenze.
+    my_workorders = list(
+        WorkOrder.objects.select_related("asset", "assigned_to")
+        .filter(status=WorkOrder.STATUS_OPEN)
+        .filter(Q(assigned_to=request.user) | Q(assigned_to__isnull=True))
+        .filter(
+            Q(is_waiting=True)
+            | Q(started_at__isnull=False)
+            | Q(priority=WorkOrder.PRIORITY_URGENT)
+        )
+        # ``priority`` e' un CharField: ordinarlo alfabeticamente darebbe il
+        # risultato giusto per caso, non per costruzione.
+        .annotate(
+            _urgenza=Case(
+                When(priority=WorkOrder.PRIORITY_URGENT, then=Value(0)),
+                When(priority=WorkOrder.PRIORITY_NORMAL, then=Value(1)),
+                default=Value(2),
+                output_field=IntegerField(),
+            )
+        )
+        .order_by("_urgenza", "started_at", "opened_at", "id")[:40]
+    )
+    my_workorder_rows = [
+        {
+            "wo": wo,
+            "tone": (
+                "grey" if wo.is_waiting
+                else "red" if wo.priority == WorkOrder.PRIORITY_URGENT
+                else "blue"
+            ),
+        }
+        for wo in my_workorders
+    ]
+
     return render(
         request,
         "assets/pages/maintenance_da_fare.html",
@@ -384,6 +428,7 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
             **_assets_shell_context(request),
             "page_title": "Da fare",
             "today": today,
+            "my_workorder_rows": my_workorder_rows,
             "filter_form": form,
             "blocks": blocks,
             "groups": _group_rows(rows, view_mode),
@@ -550,7 +595,26 @@ def _sintesi_direzione(*, today: date, open_rows: list[dict[str, Any]], done_row
     )
     totale_chiusi = chiusi["totale"] or 0
 
+    # Prossime scadenze amministrative: revisioni, verifiche di legge, contratti.
+    # Sono le uniche che la direzione guarda per data e non per carico di lavoro.
+    # Nessun campo nuovo: sono occorrenze aperte di piani amministrativi.
+    amministrative_qs = MaintenanceOccurrence.objects.filter(
+        status=MaintenanceOccurrence.STATUS_OPEN,
+        plan__maintenance_type=MaintenanceInterventionTemplate.TYPE_ADMINISTRATIVE,
+    )
+    prossime_amministrative = list(
+        amministrative_qs.filter(due_date__gte=today)
+        .select_related("plan", "asset", "supplier")
+        .order_by("due_date", "id")[:5]
+    )
+    # Un adempimento gia' scaduto non e' una "prossima scadenza" e non va mescolato
+    # alle altre, ma nemmeno taciuto: se ce ne sono, la sezione lo dichiara in una
+    # riga sola invece di mostrare un calendario che sembra a posto.
+    amministrative_scadute = amministrative_qs.filter(due_date__lt=today).count()
+
     return {
+        "prossime_amministrative": prossime_amministrative,
+        "amministrative_scadute": amministrative_scadute,
         "concluse_12m": concluse,
         "concluse_totali_12m": concluse_totali,
         "concluse_non_misurabili_12m": concluse_totali - concluse,

@@ -15045,11 +15045,14 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
             else:
                 was_waiting = workorder.is_waiting
                 already_started = bool(workorder.started_at)
-                workorder.start()
+                claimed = workorder.start(user=request.user)
+                actor_label = request.user.get_full_name() or request.user.username
                 if not already_started:
                     log_text = "Intervento iniziato."
                     if was_waiting:
                         log_text = "Intervento ripreso e iniziato."
+                    if claimed:
+                        log_text = f"{log_text} Intestato a {actor_label}, che lo ha avviato."
                     WorkOrderLog.objects.create(work_order=workorder, note=log_text, author=author)
                     messages.success(request, "Intervento iniziato.")
                 elif was_waiting:
@@ -15470,10 +15473,13 @@ def workorder_set_state(request: HttpRequest, id: int) -> JsonResponse:
         )
         notify_workorder_taken_over(workorder, previous_assignee=previous_assignee, actor=request.user)
     elif target_state == WorkOrder.OPSTATE_IN_PROGRESS:
-        workorder.start()
+        claimed = workorder.start(user=request.user)
+        note = f"Intervento avviato da {actor} (board)."
+        if claimed:
+            note = f"{note} Intestato a {actor}, che lo ha avviato."
         WorkOrderLog.objects.create(
             work_order=workorder,
-            note=f"Intervento avviato da {actor} (board).",
+            note=note,
             author=request.user,
         )
     elif target_state == WorkOrder.OPSTATE_WAITING:
@@ -15498,12 +15504,46 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
         pk=id,
     )
 
+    # Manutenzioni raccolte e non ancora registrate: la chiusura non le tocca (ogni
+    # asset avanza sul suo piano quando *quella* manutenzione e' dichiarata eseguita),
+    # quindi restano dovute. Prima l'avviso arrivava a cose fatte, su una pagina gia'
+    # cambiata: si leggeva di sfuggita. Ora ferma la chiusura e la fa confermare.
+    from .views_maintenance import can_plan_maintenance
+
+    pending_occurrences: list = []
+    pending_confirmation = False
+    pending_reason_required = False
+    pending_reason_value = ""
+    can_force_close = can_plan_maintenance(request)
+
     if request.method == "POST":
         form = WorkOrderCloseForm(request.POST, asset=workorder.asset, workorder=workorder)
         uploads, upload_errors = _validate_workorder_attachment_uploads(request, field_name="close_attachments")
         form_is_valid = form.is_valid()
         for error in upload_errors:
             form.add_error(None, error)
+        pending_reason_value = _clean_string(request.POST.get("open_occurrences_reason"))
+        if form_is_valid and form.cleaned_data["status"] in (WorkOrder.STATUS_DONE, WorkOrder.STATUS_CANCELED):
+            from .models import MaintenanceOccurrence
+
+            pending_occurrences = list(
+                MaintenanceOccurrence.objects.filter(
+                    work_order=workorder, status=MaintenanceOccurrence.STATUS_OPEN
+                ).select_related("plan", "asset")
+            )
+            if pending_occurrences:
+                confirmed = request.POST.get("confirm_open_occurrences") == "1"
+                # Chi pianifica sa che cosa lascia dovuto: gli basta un click. Chi
+                # esegue lo dichiara, e la motivazione finisce nel log di chiusura.
+                pending_reason_required = not can_force_close
+                if not confirmed or (pending_reason_required and not pending_reason_value):
+                    pending_confirmation = True
+                    form_is_valid = False
+                    if confirmed and pending_reason_required and not pending_reason_value:
+                        form.add_error(
+                            None,
+                            "Spiega perche' chiudi l'intervento lasciando manutenzioni non registrate.",
+                        )
         if form_is_valid and form.cleaned_data["status"] == WorkOrder.STATUS_DONE:
             blocking_items = [item for item in workorder.checklist_items.all() if item.blocks_closure]
             if blocking_items:
@@ -15639,6 +15679,13 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
                     )
                 if execution_days:
                     closure_note = f"{closure_note} Giorni esecuzione: {', '.join(day.strftime('%d/%m/%Y') for day in execution_days)}."
+                if pending_occurrences:
+                    closure_note = (
+                        f"{closure_note} Chiuso con {len(pending_occurrences)} manutenzioni "
+                        "raccolte non registrate, che restano dovute."
+                    )
+                    if pending_reason_value:
+                        closure_note = f"{closure_note} Motivo: {pending_reason_value}"
                 if log_note:
                     closure_note = f"{closure_note} {log_note}"
                 if uploads:
@@ -15732,6 +15779,12 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
             "attachment_accept": _workorder_attachment_accept_attr(),
             "attachment_max_mb": int(ASSET_DOCUMENT_MAX_BYTES / (1024 * 1024)),
             "checklist_blocking_items": [item for item in workorder.checklist_items.all() if item.blocks_closure],
+            "pending_occurrences": pending_occurrences if pending_confirmation else [],
+            "pending_confirmation": pending_confirmation,
+            "pending_reason_required": pending_reason_required,
+            "pending_reason_value": pending_reason_value,
+            "can_force_close": can_force_close,
+            "occurrences_anchor": f"{reverse('assets:wo_view', kwargs={'id': workorder.id})}#manutenzioni-raccolte",
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
             "assets_section_nav": None,
         },

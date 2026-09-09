@@ -46,8 +46,14 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
     <a class="{% if vista == 'operativo' %}is-on{% endif %}" href="?vista=operativo">Operativo</a>
     <a class="{% if vista == 'sintesi' %}is-on{% endif %}" href="?vista=sintesi">Sintesi</a>
   </span>
-  <a class="btn" href="{% url 'assets:maintenance_da_fare' %}">Da fare</a>
-  <a class="btn" href="{% url 'assets:maintenance_scadenze' %}">Scadenze</a>
+  {% comment %}
+    Le scorciatoie operative appartengono a chi lavora: in Sintesi non servono e
+    competerebbero con la lettura. Restano un click piu' in la', nello switch.
+  {% endcomment %}
+  {% if vista != "sintesi" %}
+    <a class="btn btn-secondary" href="{% url 'assets:maintenance_da_fare' %}">Da fare</a>
+    <a class="btn btn-secondary" href="{% url 'assets:maintenance_scadenze' %}">Scadenze</a>
+  {% endif %}
 {% endblock %}
 
 {% block assets_shell_content %}
@@ -132,6 +138,42 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
     {% endif %}
   </section>
 
+  {% comment %}
+    La sola lista operativa che serve alla direzione: cinque date, non un
+    elenco. Se non c'e' nulla in arrivo la sezione non si stampa.
+  {% endcomment %}
+  {% if sintesi.prossime_amministrative or sintesi.amministrative_scadute %}
+  <section class="ms-gaps">
+    <h2>Prossime scadenze amministrative</h2>
+    {% if sintesi.amministrative_scadute %}
+      <div class="ms-gap">
+        <strong>{{ sintesi.amministrative_scadute }}</strong>
+        <span>gia' <b>scadut{{ sintesi.amministrative_scadute|pluralize:"a,e" }}</b> &mdash; non compaiono qui sotto, che elenca cio' che deve ancora arrivare.
+        <a href="{% url 'assets:maintenance_scadenze' %}?window=overdue&plan_type=administrative">Vedile</a></span>
+      </div>
+    {% endif %}
+    {% if sintesi.prossime_amministrative %}
+    <div class="md-scroll">
+      <table class="md-table" data-fm-hide-search="1">
+        <thead><tr><th style="width:120px">Data</th><th>Scadenza</th><th>Asset / fornitore</th></tr></thead>
+        <tbody>
+          {% for occ in sintesi.prossime_amministrative %}
+            <tr>
+              <td class="md-nowrap"><span class="md-due">{{ occ.due_date|date:"d/m/Y" }}</span></td>
+              <td>{{ occ.plan.label }}</td>
+              <td>
+                {{ occ.asset.asset_tag|default:occ.asset.name }}
+                {% if occ.supplier %}<span class="md-sub">{{ occ.supplier.ragione_sociale }}</span>{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </section>
+  {% endif %}
+
   <section class="ms-gaps">
     <h2>Cosa il portale non puo' ancora misurare</h2>
     {% for gap in sintesi.non_misurabili %}
@@ -155,37 +197,49 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
 
 {% else %}
 
-  <div class="md-kpis">
+  {% comment %}
+    Nove numeri con lo stesso peso non sono una gerarchia: sono un muro. I quattro
+    che comandano la giornata stanno davanti e grandi; gli altri cinque la
+    commentano, e restano tutti. Ogni riquadro porta alla lista che lo spiega —
+    dentro la pagina quando la sezione c'e' gia', altrimenti alla lista filtrata.
+  {% endcomment %}
+  <div class="md-kpis md-kpis--lead">
     <a class="md-kpi is-danger" href="{% url 'assets:maintenance_scadenze' %}?window=overdue">
       <span class="md-kpi-label">Scadute</span><span class="md-kpi-value">{{ kpi.overdue }}</span>
+      <span class="md-kpi-sub">da recuperare adesso</span>
     </a>
-    <a class="md-kpi is-warn" href="{% url 'assets:maintenance_scadenze' %}?window=30">
-      <span class="md-kpi-label">In scadenza</span><span class="md-kpi-value">{{ kpi.due_soon }}</span>
-    </a>
-    <a class="md-kpi is-warn" href="{% url 'assets:maintenance_scadenze' %}?planning=unplanned">
+    <a class="md-kpi is-warn" href="#non-pianificate">
       <span class="md-kpi-label">Non pianificate</span><span class="md-kpi-value">{{ kpi.unplanned }}</span>
       <span class="md-kpi-sub">dovute, senza OdL</span>
     </a>
-    <div class="md-kpi">
+    <a class="md-kpi" href="#odl-attivi">
       <span class="md-kpi-label">OdL aperti</span><span class="md-kpi-value">{{ kpi.workorders_open }}</span>
       <span class="md-kpi-sub">{{ kpi.workorders_running }} in corso</span>
-    </div>
+    </a>
+    <a class="md-kpi is-warn" href="#rapporti-mancanti">
+      <span class="md-kpi-label">Rapporti mancanti</span><span class="md-kpi-value">{{ kpi.report_missing }}</span>
+      <span class="md-kpi-sub">eseguite ma non documentate</span>
+    </a>
+  </div>
+
+  <div class="md-kpis md-kpis--sub">
+    <a class="md-kpi" href="{% url 'assets:maintenance_scadenze' %}?window=30">
+      <span class="md-kpi-label">In scadenza</span><span class="md-kpi-value">{{ kpi.due_soon }}</span>
+      <span class="md-kpi-sub">entro 30 giorni</span>
+    </a>
     <div class="md-kpi">
       <span class="md-kpi-label">In attesa</span><span class="md-kpi-value">{{ kpi.waiting }}</span>
       <span class="md-kpi-sub">ricambi, fornitori, autorizzazioni</span>
     </div>
-    <a class="md-kpi {% if kpi.workorders_overdue %}is-danger{% endif %}" href="#odl-in-ritardo">
-      <span class="md-kpi-label">OdL in ritardo</span><span class="md-kpi-value">{{ kpi.workorders_overdue }}</span>
-      <span class="md-kpi-sub">aperti da oltre {{ wo_overdue_days }} gg</span>
+    <a class="md-kpi {% if kpi.workorders_overdue %}is-warn{% endif %}" href="#odl-anziani">
+      <span class="md-kpi-label">Aperti da oltre {{ wo_overdue_days }} giorni</span><span class="md-kpi-value">{{ kpi.workorders_overdue }}</span>
+      <span class="md-kpi-sub">anzianita', non una scadenza</span>
     </a>
-    <a class="md-kpi is-warn" href="{% url 'assets:maintenance_scadenze' %}?report_missing=on&window=">
-      <span class="md-kpi-label">Rapporti mancanti</span><span class="md-kpi-value">{{ kpi.report_missing }}</span>
-      <span class="md-kpi-sub">eseguite ma non documentate</span>
-    </a>
-    <div class="md-kpi">
+    <a class="md-kpi" href="#follow-up">
       <span class="md-kpi-label">Follow-up aperti</span><span class="md-kpi-value">{{ kpi.follow_ups }}</span>
-    </div>
-    <a class="md-kpi {% if kpi.conflicts %}is-danger{% endif %}" href="{% url 'assets:maintenance_coverage' %}">
+      <span class="md-kpi-sub">da verificare</span>
+    </a>
+    <a class="md-kpi {% if kpi.conflicts %}is-warn{% endif %}" href="{% url 'assets:maintenance_coverage' %}">
       <span class="md-kpi-label">Conflitti</span><span class="md-kpi-value">{{ kpi.conflicts }}</span>
       <span class="md-kpi-sub">periodicita in contrasto</span>
     </a>
@@ -196,7 +250,7 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
     solo l'intestazione: si comprime a una riga. Il Cruscotto serve a trovare i
     problemi, e il vuoto e' una buona notizia da dire in fretta.
   {% endcomment %}
-  <section class="md-section is-warn{% if not unplanned %} is-empty{% endif %}">
+  <section class="md-section is-warn{% if not unplanned %} is-empty{% endif %}" id="non-pianificate">
     <div class="md-section-head">
       <h2>Manutenzioni dovute ma non pianificate</h2>
       <span class="md-badge badge-warning">{{ unplanned|length }}</span>
@@ -205,7 +259,7 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
     {% include "assets/components/_occurrence_rows.html" with rows=unplanned selectable=0 show_plan=1 %}
   </section>
 
-  <section class="md-section{% if not open_workorders %} is-empty{% endif %}">
+  <section class="md-section{% if not open_workorders %} is-empty{% endif %}" id="odl-attivi">
     <div class="md-section-head">
       <h2>Ordini di lavoro attivi</h2>
       <span class="md-badge badge-muted">{{ open_workorders|length }}</span>
@@ -280,7 +334,7 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
     </table>
   </section>
 
-  <section class="md-section {% if overdue_workorders %}is-urgent{% else %}is-empty{% endif %}" id="odl-in-ritardo">
+  <section class="md-section {% if overdue_workorders %}is-urgent{% else %}is-empty{% endif %}" id="odl-anziani">
     <div class="md-section-head">
       <h2>Aperti da oltre {{ wo_overdue_days }} giorni</h2>
       <span class="md-badge {% if overdue_workorders %}badge-danger{% else %}badge-muted{% endif %}">{{ overdue_workorders|length }}</span>
@@ -306,12 +360,12 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
     </div>
   </section>
 
-  <section class="md-section{% if not report_missing %} is-empty{% endif %}">
+  <section class="md-section{% if not report_missing %} is-empty{% endif %}" id="rapporti-mancanti">
     <div class="md-section-head"><h2>Rapporti mancanti</h2><span class="md-badge badge-warning">{{ report_missing|length }}</span></div>
     {% include "assets/components/_occurrence_rows.html" with rows=report_missing selectable=0 show_plan=1 %}
   </section>
 
-  <section class="md-section{% if not follow_ups %} is-empty{% endif %}">
+  <section class="md-section{% if not follow_ups %} is-empty{% endif %}" id="follow-up">
     <div class="md-section-head"><h2>Follow-up aperti</h2><span class="md-badge badge-muted">{{ follow_ups|length }}</span></div>
     <div class="md-scroll">
       <table class="md-table" data-fm-hide-search="1">

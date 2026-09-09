@@ -1343,3 +1343,100 @@ class SintesiDirezioneTests(MaintenanceUITestCase):
             self.assertEqual(scelto.context["vista"], "operativo")
         finally:
             views_maintenance.can_execute_maintenance = originale
+
+
+class RifinituraUXTests(MaintenanceUITestCase):
+    """Fase di rifinitura: le tre correzioni semantiche.
+
+    1. Un OdL "in ritardo" non esiste finche' non ha una scadenza: la soglia
+       misura da quanto e' aperto, e cosi' deve chiamarsi.
+    2. Premere INIZIA su un lavoro di nessuno lo intesta a chi lo comincia: e'
+       l'unico modo per dire agli altri chi ci sta lavorando senza un campo nuovo.
+    3. Chiudere un intervento non registra le manutenzioni raccolte, quindi la
+       chiusura si ferma e lo dichiara prima, non dopo.
+    """
+
+    def _work_order(self, **kwargs):
+        campi = {
+            "asset": self.assets[0],
+            "title": "Intervento di prova",
+            "status": WorkOrder.STATUS_OPEN,
+        }
+        campi.update(kwargs)
+        return WorkOrder.objects.create(**campi)
+
+    def test_cruscotto_non_chiama_piu_in_ritardo_l_anzianita(self):
+        response = self.client.get(reverse("assets:maintenance_responsabile") + "?vista=operativo")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "OdL in ritardo")
+        self.assertContains(response, "Aperti da oltre")
+
+    def test_inizia_intesta_l_odl_a_chi_lo_comincia(self):
+        wo = self._work_order()
+        self.assertIsNone(wo.assigned_to_id)
+        response = self.client.post(
+            reverse("assets:wo_view", kwargs={"id": wo.id}), {"action": "start"}
+        )
+        self.assertEqual(response.status_code, 302)
+        wo.refresh_from_db()
+        self.assertIsNotNone(wo.started_at)
+        self.assertEqual(wo.assigned_to_id, self.admin.id)
+
+    def test_inizia_non_ruba_un_odl_gia_assegnato(self):
+        altro = User.objects.create_user(username="manutentore-2", password="x")
+        wo = self._work_order(assigned_to=altro)
+        self.client.post(reverse("assets:wo_view", kwargs={"id": wo.id}), {"action": "start"})
+        wo.refresh_from_db()
+        self.assertEqual(wo.assigned_to_id, altro.id)
+
+    def test_chiusura_si_ferma_se_restano_manutenzioni_non_registrate(self):
+        wo = self._work_order()
+        occurrence = self.occurrences[0]
+        occurrence.work_order = wo
+        occurrence.save(update_fields=["work_order"])
+
+        payload = {
+            "status": WorkOrder.STATUS_DONE,
+            "esito": WorkOrder.OUTCOME_RESOLVED,
+            "resolution": "Sostituito il cuscinetto.",
+        }
+        response = self.client.post(reverse("assets:wo_close", kwargs={"id": wo.id}), payload)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(dict(response.context["form"].errors), {})
+        self.assertTrue(response.context["pending_confirmation"])
+        self.assertContains(response, "Rimangono 1 manutenzion")
+        self.assertContains(response, "Chiudi comunque")
+        wo.refresh_from_db()
+        self.assertEqual(wo.status, WorkOrder.STATUS_OPEN)
+
+    def test_chiudi_comunque_chiude_e_lo_scrive_nello_storico(self):
+        wo = self._work_order()
+        occurrence = self.occurrences[0]
+        occurrence.work_order = wo
+        occurrence.save(update_fields=["work_order"])
+
+        payload = {
+            "status": WorkOrder.STATUS_DONE,
+            "esito": WorkOrder.OUTCOME_RESOLVED,
+            "resolution": "Sostituito il cuscinetto.",
+            "confirm_open_occurrences": "1",
+        }
+        response = self.client.post(reverse("assets:wo_close", kwargs={"id": wo.id}), payload)
+
+        self.assertEqual(response.status_code, 302)
+        wo.refresh_from_db()
+        self.assertEqual(wo.status, WorkOrder.STATUS_DONE)
+        # L'occorrenza NON viene registrata: la separazione resta.
+        occurrence.refresh_from_db()
+        self.assertEqual(occurrence.status, MaintenanceOccurrence.STATUS_OPEN)
+        note = " ".join(wo.logs.values_list("note", flat=True))
+        self.assertIn("non registrate", note)
+
+    def test_da_fare_mostra_gli_interventi_gia_in_mano_a_qualcuno(self):
+        wo = self._work_order(started_at=timezone.now(), assigned_to=self.admin)
+        response = self.client.get(reverse("assets:maintenance_da_fare"))
+        self.assertEqual(response.status_code, 200)
+        righe = response.context["my_workorder_rows"]
+        self.assertIn(wo.id, [riga["wo"].id for riga in righe])
+        self.assertContains(response, "I miei interventi")

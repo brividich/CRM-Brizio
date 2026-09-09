@@ -1,10 +1,101 @@
 {% comment %}Tabella di occorrenze, riusata da "Da fare", "Scadenze", scheda piano e quadro.
    Parametri attesi nel contesto d'inclusione:
-     rows          righe {occurrence, state, label, badge_class, days_until_due}
+     rows          righe {occurrence, state, label, badge_class, days_until_due, row_tone}
      selectable    mostra le checkbox per l'azione massiva
      show_plan     mostra la colonna Piano (si nasconde nella scheda piano)
-     today         data di riferimento{% endcomment %}
+     today         data di riferimento
+     layout        "op" per la variante operativa (Da fare): quattro colonne,
+                   righe piu' alte, barra di urgenza a sinistra. Assente = tabella
+                   gestionale densa, invariata, per Scadenze / Piani / Cruscotto.
+
+   Nella variante operativa NON si perde nessun dato: piano, tipo, reparto, OdL,
+   assegnatario e fornitore restano tutti, spostati di livello gerarchico dentro
+   le celle Attivita' / Asset / Gestione.{% endcomment %}
 <div class="md-scroll">
+  {% if layout == "op" %}
+  <table class="md-table md-table--op" data-fm-hide-search="1">
+    <thead>
+      <tr>
+        {% if selectable %}<th style="width:34px"><input type="checkbox" data-md-check-all></th>{% endif %}
+        <th>Attività</th>
+        <th>Asset</th>
+        <th>Gestione</th>
+        <th class="md-right">Azione</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        {% with occ=row.occurrence wo=row.occurrence.work_order %}
+        <tr class="tone-{{ row.row_tone|default:'grey' }}">
+          {% if selectable %}
+            <td>
+              {% if not occ.work_order_id and occ.status == "OPEN" %}
+                <input type="checkbox" name="occurrence_ids" value="{{ occ.pk }}" form="md-bulk-form" data-md-check>
+              {% endif %}
+            </td>
+          {% endif %}
+          <td>
+            {% if show_plan %}
+              <a class="md-op-title" href="{% url 'assets:maintenance_plan_detail' occ.plan_id %}">{{ occ.plan.label }}</a>
+              <span class="md-sub">{{ occ.plan.get_maintenance_type_display }}</span>
+            {% else %}
+              <span class="md-op-title">{{ occ.plan.label }}</span>
+            {% endif %}
+            <span class="md-op-when {% if row.state == 'overdue' %}is-late{% elif row.days_until_due == 0 %}is-today{% endif %}">
+              {% if row.days_late %}Scaduta da {{ row.days_late }} giorn{{ row.days_late|pluralize:"o,i" }}
+              {% elif row.days_until_due == 0 %}Scade oggi
+              {% elif row.days_until_due %}Fra {{ row.days_until_due }} giorn{{ row.days_until_due|pluralize:"o,i" }}
+              {% else %}{{ occ.due_date|date:"d/m/Y" }}{% endif %}
+              <span class="md-sub" style="display:inline">· {{ occ.due_date|date:"d/m/Y" }}</span>
+            </span>
+          </td>
+          <td>
+            <a class="md-op-title" href="{% url 'assets:asset_maintenance_plans' occ.asset_id %}">{{ occ.asset.asset_tag|default:occ.asset.name }}</a>
+            <span class="md-sub">{{ occ.asset.name }}{% if occ.asset.reparto %} · {{ occ.asset.reparto }}{% endif %}</span>
+          </td>
+          <td>
+            <div class="md-op-meta">
+              <div>
+                <span class="md-badge {{ row.operational_badge|default:row.badge_class }}">{{ row.operational_label|default:row.label }}</span>
+                {% if row.document_label %}<span class="md-badge {{ row.document_badge }} md-badge--doc">{{ row.document_label }}</span>{% endif %}
+              </div>
+              {% if occ.work_order_id %}
+                <span class="md-sub">
+                  {% if wo.started_at %}
+                    In corso{% if wo.assigned_to %} — {{ wo.assigned_to.get_full_name|default:wo.assigned_to.username }}{% endif %} · dalle {{ wo.started_at|time:"H:i" }}
+                  {% elif wo.assigned_to %}
+                    Assegnata a {{ wo.assigned_to.get_full_name|default:wo.assigned_to.username }}
+                  {% else %}
+                    Nessun assegnatario
+                  {% endif %}
+                  · <a href="{% url 'assets:wo_view' occ.work_order_id %}">OdL #{{ occ.work_order_id }}</a>
+                  {% if occ.execution_day_id %} · {{ occ.execution_day.execution_date|date:"d/m" }}{% endif %}
+                </span>
+              {% else %}
+                <span class="md-sub">Da pianificare</span>
+              {% endif %}
+              {% if occ.is_external %}<span class="md-sub">Esterna{% if occ.supplier %} · {{ occ.supplier.ragione_sociale }}{% endif %}</span>{% endif %}
+            </div>
+          </td>
+          <td class="md-right md-nowrap">
+            {% if occ.status == "OPEN" %}
+              <a class="btn btn-sm btn-primary" href="{% url 'assets:occurrence_complete' occ.pk %}">Registra</a>
+            {% elif not occ.attachments.all %}
+              <a class="btn btn-sm" href="{% url 'assets:occurrence_complete' occ.pk %}">Allega rapporto</a>
+            {% else %}
+              {% for attachment in occ.attachments.all|slice:":1" %}
+                <a class="btn btn-sm" href="{% url 'assets:occurrence_attachment_download' attachment.pk %}">Rapporto</a>
+              {% endfor %}
+            {% endif %}
+          </td>
+        </tr>
+        {% endwith %}
+      {% empty %}
+        <tr><td colspan="{% if selectable %}5{% else %}4{% endif %}" class="md-quiet">Niente da fare qui.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
   <table class="md-table" data-fm-hide-search="1">
     <thead>
       <tr>
@@ -79,4 +170,5 @@
       {% endfor %}
     </tbody>
   </table>
+  {% endif %}
 </div>
