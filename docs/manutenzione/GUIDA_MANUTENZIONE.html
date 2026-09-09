@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guida · Manutenzione — NOVICROM HUB</title>
+<style>
+  :root{
+    --navy:#0c2545; --navy-mid:#2f5f89; --cyan:#1f87cd; --orange:#ff8a1f;
+    --bg:#eef2f6; --surf:#fff; --surf-alt:#f6f9fc; --border:#d7e0ea;
+    --text:#1a202c; --mid:#4a5568; --light:#94a3b8;
+    --success:#38a169; --warning:#d69e2e; --danger:#e53e3e;
+    --radius:16px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:"Outfit",system-ui,-apple-system,"Segoe UI",sans-serif;
+    line-height:1.55; font-size:15px;
+  }
+  .wrap{max-width:1060px; margin:0 auto; padding:28px 20px 80px;}
+
+  /* ── Hero ── */
+  .hero{
+    background:linear-gradient(135deg,#0a1f3c 0%,var(--navy) 55%,#173a63 100%);
+    color:#fff; border-radius:var(--radius); padding:34px 34px 30px; position:relative; overflow:hidden;
+    box-shadow:0 18px 40px rgba(12,37,69,.18);
+  }
+  .hero::after{content:""; position:absolute; right:-60px; top:-60px; width:240px; height:240px;
+    background:radial-gradient(circle, rgba(255,138,31,.28), transparent 70%);}
+  .hero .eyebrow{font-size:.7rem; font-weight:800; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.6);}
+  .hero h1{margin:.3em 0 .25em; font-size:2.05rem; font-weight:800; letter-spacing:-.01em;}
+  .hero p{margin:0; max-width:64ch; color:rgba(255,255,255,.82); font-size:1rem;}
+  .hero .pills{margin-top:18px; display:flex; gap:8px; flex-wrap:wrap;}
+  .hero .pill{display:inline-flex; align-items:center; gap:7px; background:rgba(255,255,255,.10);
+    border:1px solid rgba(255,255,255,.18); border-radius:999px; padding:6px 13px; font-size:.78rem; font-weight:700;}
+  .hero .pill b{color:var(--orange);}
+
+  /* ── Indice ── */
+  .toc{margin-top:22px; background:var(--surf); border:1px solid var(--border); border-radius:var(--radius); padding:18px 22px;}
+  .toc h2{margin:0 0 12px; font-size:.72rem; letter-spacing:.1em; text-transform:uppercase; color:var(--light);}
+  .toc .cols{display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:18px;}
+  .toc h3{margin:0 0 6px; font-size:.85rem; color:var(--navy); font-weight:800;}
+  .toc ul{margin:0; padding:0; list-style:none;}
+  .toc li{margin:0;}
+  .toc a{display:block; text-decoration:none; color:var(--mid); padding:4px 7px; border-radius:7px; font-size:.9rem;}
+  .toc a:hover{background:var(--surf-alt); color:var(--cyan);}
+
+  /* ── Sezioni ── */
+  section{background:var(--surf); border:1px solid var(--border); border-radius:var(--radius); padding:26px 30px; margin-top:18px;
+    box-shadow:0 8px 24px rgba(12,37,69,.05);}
+  section > h2{margin:0 0 6px; font-size:1.32rem; font-weight:800; color:var(--navy); display:flex; align-items:center; gap:11px;}
+  section > h2 .n{flex:0 0 32px; height:32px; line-height:32px; text-align:center; font-size:.85rem; font-weight:800; color:#fff;
+    background:linear-gradient(135deg,var(--cyan),#1567a8); border-radius:9px;}
+  section > .lead{margin:.2em 0 0; color:var(--mid);}
+  h3{margin:26px 0 6px; font-size:1.05rem; color:var(--navy-mid); font-weight:800; scroll-margin-top:14px;}
+  h4{margin:18px 0 4px; font-size:.94rem; color:var(--navy); font-weight:800;}
+  p{margin:.55em 0;}
+  ul,ol{margin:.4em 0; padding-left:1.35em;}
+  li{margin:.3em 0;}
+  a{color:var(--cyan);}
+  strong{color:var(--navy);}
+  code{background:#eef3f9; border:1px solid #dde7f1; border-radius:6px; padding:.08em .4em; font-size:.86em;
+    font-family:"JetBrains Mono",ui-monospace,Consolas,monospace; color:#173a63;}
+  .ui{display:inline-block; background:#fff; border:1px solid var(--border); border-bottom-width:2px; border-radius:6px;
+    padding:1px 8px; font-size:.86em; font-weight:700; color:var(--navy-mid); white-space:nowrap;}
+
+  /* ── Ruoli ── */
+  .roles{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:14px; margin-top:16px;}
+  .role{border:1px solid var(--border); border-radius:14px; padding:16px 18px; background:var(--surf-alt);}
+  .role h4{margin:0 0 4px; display:flex; align-items:center; gap:8px; font-size:1rem;}
+  .role .who{font-size:.78rem; color:var(--light); font-weight:700; text-transform:uppercase; letter-spacing:.06em;}
+  .role p{margin:.4em 0 0; font-size:.9rem; color:var(--mid);}
+  .role .perm{margin-top:8px; font-family:ui-monospace,Consolas,monospace; font-size:.76rem; color:var(--cyan); font-weight:700;}
+
+  /* ── Figure ── */
+  figure{margin:16px 0 6px; border:1px solid var(--border); border-radius:12px; overflow:hidden; background:var(--surf-alt);}
+  figure img{display:block; width:100%; height:auto;}
+  figcaption{padding:9px 14px; font-size:.83rem; color:var(--mid); border-top:1px solid var(--border); background:var(--surf);}
+  figcaption b{color:var(--navy);}
+  figure.narrow{max-width:330px;}
+
+  /* ── Passi ── */
+  ol.steps{counter-reset:s; list-style:none; padding:0; margin:14px 0;}
+  ol.steps > li{counter-increment:s; position:relative; padding:0 0 0 40px; margin:12px 0;}
+  ol.steps > li::before{content:counter(s); position:absolute; left:0; top:0; width:26px; height:26px; line-height:26px;
+    text-align:center; font-size:.78rem; font-weight:800; color:#fff; background:var(--navy-mid); border-radius:8px;}
+  ol.steps > li b:first-child{color:var(--navy);}
+
+  /* ── Callout ── */
+  .note{border-left:4px solid var(--cyan); background:#eef6ff; border-radius:0 12px 12px 0; padding:12px 16px; margin:16px 0; font-size:.94rem;}
+  .note.warn{border-color:var(--warning); background:rgba(214,158,46,.10);}
+  .note.tip{border-color:var(--success); background:rgba(56,161,105,.09);}
+  .note.stop{border-color:var(--danger); background:rgba(229,62,62,.08);}
+  .note .tag{display:inline-block; font-size:.62rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--navy-mid); margin-bottom:2px;}
+
+  /* ── Tabelle ── */
+  table{width:100%; border-collapse:collapse; margin:14px 0; font-size:.9rem;}
+  th,td{text-align:left; padding:9px 12px; border-bottom:1px solid var(--border); vertical-align:top;}
+  thead th{background:var(--surf-alt); color:var(--navy-mid); font-size:.7rem; letter-spacing:.05em; text-transform:uppercase;}
+  tbody tr:hover{background:var(--surf-alt);}
+  td .ui{font-size:.8em;}
+
+  /* ── Modello ── */
+  .flow{display:flex; align-items:stretch; gap:10px; flex-wrap:wrap; margin:16px 0;}
+  .flow .box{flex:1 1 180px; border:1px solid var(--border); border-radius:12px; padding:13px 15px; background:var(--surf-alt);}
+  .flow .box b{display:block; color:var(--navy); font-size:.95rem;}
+  .flow .box span{font-size:.84rem; color:var(--mid);}
+  .flow .arrow{align-self:center; color:var(--light); font-weight:800;}
+
+  footer{margin-top:26px; text-align:center; color:var(--light); font-size:.8rem;}
+  @media (max-width:680px){ .hero h1{font-size:1.6rem;} section{padding:20px 18px;} }
+  @media print{
+    body{background:#fff;} .wrap{max-width:none; padding:0;}
+    section,.toc,.hero{box-shadow:none; break-inside:avoid;}
+    .toc{display:none;} a{color:var(--text); text-decoration:none;}
+    figure{break-inside:avoid;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <div class="eyebrow">NOVICROM HUB · Operations</div>
+    <h1>Manutenzione — guida all'uso</h1>
+    <p>Come si usa il modulo, passo per passo, per le tre persone che ci lavorano: chi
+       <b>esegue</b> gli interventi, chi <b>organizza</b> il lavoro e chi <b>configura</b> il portale.
+       Ogni schermata è quella vera, con i pulsanti al posto in cui li trovi.</p>
+    <div class="pills">
+      <span class="pill">Per il <b>manutentore</b></span>
+      <span class="pill">Per il <b>responsabile</b></span>
+      <span class="pill">Per l'<b>amministratore</b></span>
+      <span class="pill">Aggiornata al <b>09/09/2026</b></span>
+    </div>
+  </header>
+
+  <nav class="toc">
+    <h2>Indice</h2>
+    <div class="cols">
+      <div>
+        <h3>Prima di cominciare</h3>
+        <ul>
+          <li><a href="#modello">1 · Come è fatto il modulo</a></li>
+          <li><a href="#menu">2 · Dove si trovano le pagine</a></li>
+          <li><a href="#ruoli">3 · I tre ruoli e i permessi</a></li>
+        </ul>
+      </div>
+      <div>
+        <h3>Per il manutentore</h3>
+        <ul>
+          <li><a href="#turno">4 · Il mio turno</a></li>
+          <li><a href="#dafare">5 · Da fare</a></li>
+          <li><a href="#interventi">6 · Interventi</a></li>
+          <li><a href="#odl">7 · Dentro un intervento</a></li>
+          <li><a href="#registra">8 · Registrare le manutenzioni</a></li>
+          <li><a href="#chiusura">9 · Chiudere l'intervento</a></li>
+        </ul>
+      </div>
+      <div>
+        <h3>Per il responsabile</h3>
+        <ul>
+          <li><a href="#cruscotto">10 · Cruscotto operativo</a></li>
+          <li><a href="#carico">11 · Carico manutentori</a></li>
+          <li><a href="#sintesi">12 · Vista Sintesi</a></li>
+          <li><a href="#scadenze">13 · Scadenze</a></li>
+          <li><a href="#storico">14 · Storico</a></li>
+          <li><a href="#fornitori">15 · Fornitori</a></li>
+        </ul>
+      </div>
+      <div>
+        <h3>Per l'amministratore</h3>
+        <ul>
+          <li><a href="#attivita">16 · Attività (catalogo)</a></li>
+          <li><a href="#piani">17 · Piani e applicazioni</a></li>
+          <li><a href="#gruppi">18 · Gruppi asset</a></li>
+          <li><a href="#copertura">19 · Copertura</a></li>
+          <li><a href="#contratti">20 · Contratti assistenza</a></li>
+          <li><a href="#permessi">21 · Permessi</a></li>
+          <li><a href="#automatismi">22 · Automatismi</a></li>
+        </ul>
+      </div>
+      <div>
+        <h3>In fondo</h3>
+        <ul>
+          <li><a href="#faq">23 · «Perché vedo questo?»</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ══════════════════════════════════════════════ 1 -->
+  <section id="modello">
+    <h2><span class="n">1</span> Come è fatto il modulo</h2>
+    <p class="lead">Quattro oggetti, in fila. Capiti questi, tutto il resto del modulo si spiega da sé.</p>
+
+    <div class="flow">
+      <div class="box"><b>Attività</b><span>Cosa si fa: «Cambio olio», con istruzioni e checklist.</span></div>
+      <div class="arrow">→</div>
+      <div class="box"><b>Piano</b><span>Dove e con che frequenza: su quali macchine, ogni quanti giorni.</span></div>
+      <div class="arrow">→</div>
+      <div class="box"><b>Scadenza</b><span>«Il piano X va eseguito sulla macchina Y entro il Z». La genera il portale.</span></div>
+      <div class="arrow">→</div>
+      <div class="box"><b>Intervento (OdL)</b><span>Il lavoro vero: una o più scadenze raccolte in un'uscita sola.</span></div>
+    </div>
+
+    <p>Due conseguenze pratiche, che spiegano quasi tutti i «ma perché…» del modulo:</p>
+    <ul>
+      <li><strong>La scadenza non vive dentro l'intervento.</strong> Se togli una macchina da un
+          intervento che ne raccoglie cinque, la sua manutenzione <em>non</em> sparisce: torna
+          «da pianificare» e continua a comparire fra le cose dovute.</li>
+      <li><strong>«Dovuta» e «pianificata» non sono la stessa cosa.</strong> Una manutenzione può
+          essere scaduta senza che nessuno abbia ancora aperto un intervento. È esattamente il
+          numero che il Cruscotto chiama <span class="ui">Non pianificate</span>.</li>
+    </ul>
+
+    <div class="note tip">
+      <span class="tag">Da sapere</span><br>
+      Le scadenze le crea il portale ogni mattina alle 06:00. <strong>Raggruppare le scadenze in un
+      intervento resta una decisione umana</strong>: il sistema non apre un ordine di lavoro per ogni
+      macchina, altrimenti ne troveresti trecento aperti.
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════ 2 -->
+  <section id="menu">
+    <h2><span class="n">2</span> Dove si trovano le pagine</h2>
+    <p class="lead">Il menu di sinistra divide il modulo in due rami: quello che si apre ogni giorno
+       e quello che si tocca una volta ogni sei mesi.</p>
+
+    <figure class="narrow">
+      <img src="img/00b_menu_configurazione.jpg" alt="Menu laterale: rami Manutenzione e Configurazione">
+      <figcaption><b>Manutenzione</b> è il lavoro quotidiano. <b>Configurazione</b> è la messa a punto.</figcaption>
+    </figure>
+
+    <table>
+      <thead><tr><th>Voce</th><th>A cosa serve</th><th>Chi la usa</th></tr></thead>
+      <tbody>
+        <tr><td><span class="ui">Da fare</span></td><td>Cosa va fatto, su quali macchine, entro quando</td><td>Manutentore</td></tr>
+        <tr><td><span class="ui">Scadenze</span></td><td>La vista temporale completa, con tutti i filtri</td><td>Responsabile</td></tr>
+        <tr><td><span class="ui">Interventi</span></td><td>La coda degli ordini di lavoro</td><td>Tutti</td></tr>
+        <tr><td><span class="ui">Piani</span></td><td>Cosa è pianificato, dove e con che frequenza</td><td>Responsabile / Amministratore</td></tr>
+        <tr><td><span class="ui">Cruscotto</span></td><td>Lo stato del modulo: cosa non va</td><td>Responsabile</td></tr>
+        <tr><td><span class="ui">Storico</span></td><td>Tutto ciò che è stato concluso</td><td>Responsabile</td></tr>
+        <tr><td><span class="ui">Attività</span></td><td>Il catalogo di cosa si può fare</td><td>Amministratore</td></tr>
+        <tr><td><span class="ui">Gruppi asset</span></td><td>Le famiglie di macchine su cui applicare i piani</td><td>Amministratore</td></tr>
+        <tr><td><span class="ui">Fornitori</span></td><td>Le ditte terze e cosa è affidato a loro</td><td>Responsabile / Amministratore</td></tr>
+        <tr><td><span class="ui">Copertura</span></td><td>Matrice macchine × piani: i buchi e i conflitti</td><td>Amministratore</td></tr>
+      </tbody>
+    </table>
+
+    <p><span class="ui">Il mio turno</span> sta più in alto, sotto <b>Navigazione</b>: è la prima
+       pagina che apre chi lavora sul campo.</p>
+  </section>
+
+  <!-- ══════════════════════════════════════════════ 3 -->
+  <section id="ruoli">
+    <h2><span class="n">3</span> I tre ruoli e i permessi</h2>
+    <p class="lead">Non sono ruoli «nuovi»: sono tre permessi del pannello Accessi. Uno più alto
+       comprende quello più basso.</p>
+
+    <div class="roles">
+      <div class="role">
+        <div class="who">Ruolo 1</div>
+        <h4>Manutentore</h4>
+        <p>Esegue: registra le manutenzioni, allega i rapporti, apre i follow-up. Non decide
+           <em>cosa</em> va fatto, decide che è stato fatto.</p>
+        <div class="perm">assets · maintenance_execute</div>
+      </div>
+      <div class="role">
+        <div class="who">Ruolo 2</div>
+        <h4>Responsabile</h4>
+        <p>Organizza: crea gli interventi raccogliendo le scadenze, distribuisce le giornate,
+           toglie una macchina da un'uscita. Vede il carico di tutti.</p>
+        <div class="perm">assets · maintenance_planning</div>
+      </div>
+      <div class="role">
+        <div class="who">Ruolo 3</div>
+        <h4>Amministratore di portale</h4>
+        <p>Configura: attività, piani, periodicità, gruppi, fornitori, contratti. Decide cosa il
+           portale considera «dovuto».</p>
+        <div class="perm">assets · admin_assets</div>
+      </div>
+    </div>
+
+    <div class="note">
+      <span class="tag">Come si concedono</span><br>
+      I tre permessi si assegnano dal pannello <strong>Accessi</strong> del portale — vedi il
+      <a href="#permessi">capitolo 21</a>. Non serve essere amministratori di sistema per pianificare
+      o eseguire: sono permessi granulari, ed è così che devono essere usati.
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════ 4 -->
+  <section id="turno">
+    <h2><span class="n">4</span> Il mio turno <span style="font-size:.7rem;color:var(--light);font-weight:600">· manutentore</span></h2>
+    <p class="lead">La pagina con cui si comincia la giornata. Una coda sola, ordinata per urgenza.</p>
+
+    <figure>
+      <img src="img/01_mio_turno.jpg" alt="Pagina Il mio turno con la coda degli interventi">
+      <figcaption>La riga verde in alto riassume ciò che <b>non</b> c'è: «nessuno bloccato · nessuna emergenza ·
+        niente di scaduto · niente per oggi · niente di iniziato». Le sezioni vuote non vengono stampate.</figcaption>
+    </figure>
+
+    <p>L'ordine delle sezioni è quello dell'urgenza reale, non alfabetico:</p>
+    <ol class="steps">
+      <li><b>Bloccati / in attesa</b> — interventi fermi per ricambi, fornitori o autorizzazioni. Vanno
+          guardati per primi perché qualcuno deve sbloccarli.</li>
+      <li><b>Emergenze</b> — priorità dichiarata alta.</li>
+      <li><b>Scaduti</b> — la data è passata.</li>
+      <li><b>Oggi</b> — quello che è previsto per la giornata.</li>
+      <li><b>In corso</b> — già iniziati da qualcuno, incluso te.</li>
+      <li><b>Il resto della coda</b> — tutto il lavoro aperto che non rientra sopra.</li>
+    </ol>
+
+    <h3>La coda è di tutti</h3>
+    <p>Un intervento senza assegnatario è marcato <span class="ui">Di nessuno</span> e compare nel
+       turno di chiunque. <strong>Non si «prende in carico»: si apre e si fa.</strong> L'intestazione
+       avviene <em>alla chiusura</em>, a chi chiude — e in quel momento potrai toglierla se stai
+       registrando il lavoro di un altro.</p>
+
+    <p>Il pulsante <span class="ui">Inizia</span> su ogni riga fa una cosa sola: segna che il lavoro
+       è partito, così gli altri lo vedono «In corso» e non ci si mette in due sulla stessa macchina.</p>
+  </section>
+
+  <!-- ══════════════════════════════════════════════ 5 -->
+  <section id="dafare">
+    <h2><span class="n">5</span> Da fare <span style="font-size:.7rem;color:var(--light);font-weight:600">· manutentore</span></h2>
+    <p class="lead">Risponde a una domanda sola: <em>cosa devo fare adesso.</em></p>
+
+    <figure>
+      <img src="img/02_da_fare.jpg" alt="Pagina Da fare con i quattro riquadri e i filtri">
+      <figcaption>Quattro numeri, quattro filtri a vista, il raggruppamento e le sezioni per urgenza.</figcaption>
+    </figure>
+
+    <h3>I quattro riquadri</h3>
+    <p>Non misurano la salute del modulo (quello è mestiere del Cruscotto): misurano la tua giornata.
+       <strong>Ognuno è un filtro</strong> — cliccarlo restringe la lista sotto, non ti porta altrove.</p>
+    <table>
+      <thead><tr><th>Riquadro</th><th>Cosa conta</th></tr></thead>
+      <tbody>
+        <tr><td><span class="ui">Scadute</span></td><td>Data superata. Da recuperare.</td></tr>
+        <tr><td><span class="ui">Da fare oggi</span></td><td>In scadenza entro fine giornata.</td></tr>
+        <tr><td><span class="ui">Prossimi 7 giorni</span></td><td>La settimana che hai davanti.</td></tr>
+        <tr><td><span class="ui">Assegnate a me</span></td><td>Quelle che hanno il tuo nome sopra.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Filtri</h3>
+    <p>Quattro sono sempre visibili — <b>Cerca</b>, <b>Reparto</b>, <b>Assegnatario</b>, <b>Scadenza</b> —
+       gli altri stanno sotto <span class="ui">Filtri avanzati</span>. Non ne è stato tolto nessuno:
+       cambia solo cosa vedi per primo. Se un filtro avanzato è attivo, il pannello si apre da solo,
+       così una lista vuota non resta senza spiegazione.</p>
+
+    <h3>Raggruppamento</h3>
+    <p><span class="ui">Piano</span> · <span class="ui">Famiglia</span> · <span class="ui">Asset</span>:
+       la stessa lista letta in tre modi. Serve a costruire <em>un'uscita sola</em> — «già che vado
+       al tornio, faccio tutto quello che scade lì». È chiuso di default perché è un secondo momento
+       rispetto al «cosa faccio adesso».</p>
+
+    <h3>Le sezioni</h3>
+    <p>Sotto ai filtri: <b>Scadute</b>, <b>Da fare entro 7 giorni</b>, <b>Programmate</b>,
+       <b>In attesa</b>, <b>Esterne</b>, e in fondo <b>Raggruppate per piano</b>. Ogni sezione si apre
+       e si chiude dal titolo, e la scelta viene ricordata.</p>
+
+    <div class="note tip">
+      <span class="tag">La via breve</span><br>
+      Il pulsante <span class="ui">Registra</span> su una riga chiude quella singola manutenzione
+      senza passare da un ordine di lavoro. È la strada giusta quando hai fatto una cosa sola.
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════ 6 -->
+  <section id="interventi">
+    <h2><span class="n">6</span> Interventi <span style="font-size:.7rem;color:var(--light);font-weight:600">· manutentore</span></h2>
+    <p class="lead">La coda di tutti: apri un intervento, fallo e chiudilo — chiudendolo diventa tuo.</p>
+
+    <figure>
+      <img src="img/03_interventi.jpg" alt="Lista Interventi con le quattro schede">
+      <figcaption>Quattro schede in cima e, per ogni riga, <b>una sola azione per colonna</b>:
+        <span class="ui">Apri</span> sempre, <span class="ui">Chiudi</span> su tutti gli interventi aperti.</figcaption>
+    </figure>
+
+    <table>
+      <thead><tr><th>Scheda</th><th>Cosa contiene</th></tr></thead>
+      <tbody>
+        <tr><td><span class="ui">Aperti</span></td><td>Tutto il lavoro in corso, di chiunque sia.</td></tr>
+        <tr><td><span class="ui">Assegnati a me</span></td><td>Quelli intestati a te.</td></tr>
+        <tr><td><span class="ui">Non assegnati</span></td><td>Gli interventi «di nessuno»: sono di tutti.</td></tr>
+        <tr><td><span class="ui">Chiusi</span></td><td>L'archivio recente.</td></tr>
+      </tbody>
+    </table>
+
+    <p>La colonna <b>Tempistiche</b> dice da quanto un intervento è aperto — <em>«Aperto da 4 mesi»</em> —
+       e non una scadenza: gli ordini di lavoro in genere non ne hanno una.</p>
+    <p>In alto a destra: <span class="ui">Nuovo intervento</span> per aprirne uno a mano,
+       <span class="ui">Campagna</span> per aprirne uno che tocca molte macchine insieme,
+       <span class="ui">Esporta</span> per portare la lista in Excel.</p>
+  </section>
+
+  <!-- ══════════════════════════════════════════════ 7 -->
+  <section id="odl">
+    <h2><span class="n">7</span> Dentro un intervento <span style="font-size:.7rem;color:var(--light);font-weight:600">· manutentore</span></h2>
+    <p class="lead">Tutto quello che serve per farlo, e il posto dove si registra ciò che è stato fatto.</p>
+
+    <figure>
+      <img src="img/04_odl_dettaglio.jpg" alt="Scheda di un intervento con panoramica e manutenzioni raccolte">
+      <figcaption>A sinistra la <b>Panoramica</b> e le <b>Manutenzioni raccolte</b>; a destra il
+        <b>Riepilogo rapido</b>, gli allegati e i collegamenti alla scheda macchina e al contratto.</figcaption>
+    </figure>
+
+    <h3>Manutenzioni raccolte</h3>
+    <p>È il pannello che spiega perché quell'intervento esiste. L'intestazione conta
+       <em>completate · da fare · totale iniziale</em>, così si vede a colpo d'occhio quanto manca.
+       Per ogni riga tre azioni:</p>
+    <ul>
+      <li><span class="ui">Registra</span> — chiude quella manutenzione e fa nascere la prossima scadenza.</li>
+      <li><span class="ui">Follow-up</span> — hai trovato un'anomalia: apre un secondo intervento collegato.</li>
+      <li><span class="ui">Rimuovi</span> — toglie la macchina da questa uscita <strong>senza chiudere
+          la sua manutenzione</strong>: torna fra quelle da pianificare.</li>
+    </ul>
+
+    <div class="note warn">
+      <span class="tag">Attenzione</span><br>
+      <strong>Chiudere l'intervento non registra le manutenzioni che raccoglie.</strong> Se ne restano di
+      aperte, il portale te lo dice in rosso — come nella figura — perché altrimenti quelle scadenze
+      resterebbero scadute in silenzio e la successiva non nascerebbe mai.
+    </div>
+
+    <p>Più in basso nella pagina: <b>Checklist operativa</b> (gli step da spuntare, con valore e foto
+       quando previsti), <b>Note operative</b> (ogni nota resta legata a data, ora e autore) e
+       <b>Allegati</b>.</p>
+  </section>
+
+  <!-- ══════════════════════════════════════════════ 8 -->
+  <section id="registra">
+    <h2><span class="n">8</span> Registrare più manutenzioni insieme <span style="font-size:.7rem;color:var(--light);font-weight:600">· manutentore</span></h2>
+    <p class="lead">Quando un'uscita ha toccato dieci macchine, non si compilano dieci moduli.</p>
+
+    <figure>
+      <img src="img/05_registra_selezionate.jpg" alt="Registrazione massiva delle manutenzioni selezionate">
+      <figcaption>Selezioni le righe, dichiari <b>una volta sola</b> giorno, fermo, note ed eventuale
+        rapporto, e premi <span class="ui">Registra le selezionate</span>.</figcaption>
+    </figure>
+
+    <ol class="steps">
+      <li><b>Seleziona</b> le macchine su cui hai effettivamente lavorato — o
+          <span class="ui">Seleziona tutte</span>.</li>
+      <li><b>Compila la riga sotto</b>: <b>Eseguite il</b> (la data vera dell'intervento, non quella di oggi
+          se hai lavorato ieri), <b>Fermo (min)</b>, <b>Note</b>, e un <b>Rapporto unico</b> se ne hai uno solo
+          per tutte.</li>
+      <li><b>Premi</b> <span class="ui">Registra le selezionate</span>.</li>
+    </ol>
+
+    <div class="note">
+      <span class="tag">Come funziona davvero</span><br>
+      Dichiari i dati una volta, ma <strong>ogni manutenzione viene chiusa singolarmente</strong> e la sua
+      prossima scadenza è calcolata sul suo piano: una che va ogni 30 giorni e una ogni 180 non
+      finiscono alla stessa data. Quelle che richiedono un <b>documento obbligatorio</b> vengono
+      saltate e ti vengono dette per nome — non spariscono in silenzio.
+    </div>
+
+    <h3>Distribuire su più giornate</h3>
+    <p>Se l'uscita si spalma su due o tre giorni, <span class="ui">Distribuisci sulla giornata</span>
+       sposta le righe selezionate nel giorno che indichi. Il pannello poi le raggruppa per giornata,
+       e lo storico riporta i giorni effettivi.</p>
+  </section>
+
+  <!-- ══════════════════════════════════════════════ 9 -->
+  <section id="chiusura">
+    <h2><span class="n">9</span> Chiudere l'intervento <span style="font-size:.7rem;color:var(--light);font-weight:600">· manutentore</span></h2>
+    <p class="lead">Tre passaggi numerati. Solo il primo e il terzo sono obbligatori.</p>
+
+    <figure>
+      <img src="img/06_chiusura.jpg" alt="Modulo di chiusura intervento, passo 1">
+      <figcaption>Passo 1: esito e persone. La casella <b>«Intesta a me questo intervento»</b> compare solo
+        sugli interventi di nessuno ed è già spuntata.</figcaption>
+    </figure>
+
+    <ol class="steps">
+      <li><b>Esito e chiusura.</b> <b>Esito finale</b> è lo stato dell'intervento. <b>Esito</b> è come è
+          andata: <span class="ui">Risolto</span>, <span class="ui">Risolto temporaneamente</span>,
+          <span class="ui">Non risolto</span>. Se scegli una delle ultime due il portale chiede una
+          <b>data di verifica</b> e crea da solo un intervento di follow-up collegato: il problema non
+          si perde.</li>
+      <li><b>Persone.</b> <b>Eseguito da</b> è chi ha fatto il lavoro. Se stai registrando il lavoro di
+          un collega, togli la spunta «Intesta a me» e metti il suo nome.</li>
+      <li><b>Quando e per quanto tempo.</b> Facoltativo: giorni di esecuzione (possono essere più di uno),
+          tempo indicativo, fermo impianto.</li>
+      <li><b>Risoluzione.</b> Cosa hai fatto e con che risultato. <strong>Obbligatoria</strong> se l'esito
+          finale è «Chiusa».</li>
+      <li><b>Premi</b> <span class="ui">Chiudi definitivamente</span>.</li>
+    </ol>
+
+    <figure>
+      <img src="img/07_chiusura_tempi.jpg" alt="Passi 2 e 3 del modulo di chiusura">
+      <figcaption>I passi 2 e 3, con il pulsante di conferma sempre visibile in fondo.</figcaption>
+    </figure>
+
+    <div class="note tip">
+      <span class="tag">Vale la pena compilarli</span><br>
+      <b>Tempo</b> e <b>fermo impianto</b> sono facoltativi, e oggi quasi nessuno li compila: sui dati veri
+      il tempo risulta registrato su meno dell'1% degli interventi. È per questo che il portale
+      <em>non</em> mostra MTTR, disponibilità impianti o spesa di manutenzione — non perché non sappia
+      calcolarli, ma perché non ha i numeri. Ogni campo compilato in chiusura è un indicatore che si
+      accende più avanti.
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════ 10 -->
+  <section id="cruscotto">
+    <h2><span class="n">10</span> Cruscotto operativo <span style="font-size:.7rem;color:var(--light);font-weight:600">· responsabile</span></h2>
+    <p class="lead">Nove numeri che dicono cosa non va. Sotto, le liste per andarci dentro.</p>
+
+    <figure>
+      <img src="img/08_cruscotto_operativo.jpg" alt="Cruscotto manutenzione, vista Operativo">
+      <figcaption>In alto a destra l'interruttore <span class="ui">Operativo</span> /
+        <span class="ui">Sintesi</span>: due letture della stessa pagina, stesso indirizzo.</figcaption>
+    </figure>
+
+    <table>
+      <thead><tr><th>Numero</th><th>Cosa conta davvero</th></tr></thead>
+      <tbody>
+        <tr><td><span class="ui">Scadute</span></td><td>Manutenzioni con la data superata, ancora aperte.</td></tr>
+        <tr><td><span class="ui">In scadenza</span></td><td>Dentro la finestra di preavviso del loro piano.</td></tr>
+        <tr><td><span class="ui">Non pianificate</span></td><td><b>Dovute, ma senza un ordine di lavoro.</b> È la domanda che di solito nessuno vede.</td></tr>
+        <tr><td><span class="ui">OdL aperti</span></td><td><b>Tutti</b> gli ordini aperti, correttivi compresi — non solo quelli nati da un piano.</td></tr>
+        <tr><td><span class="ui">In attesa</span></td><td>Fermi per ricambi, fornitori, autorizzazioni.</td></tr>
+        <tr><td><span class="ui">OdL in ritardo</span></td><td>Aperti da oltre la soglia (di serie 21 giorni). Vedi la nota qui sotto.</td></tr>
+        <tr><td><span class="ui">Rapporti mancanti</span></td><td>Eseguite ma non documentate: il lavoro è fatto, la pratica no.</td></tr>
+        <tr><td><span class="ui">Follow-up aperti</span></td><td>Anomalie trovate e non ancora richiuse.</td></tr>
+        <tr><td><span class="ui">Conflitti</span></td><td>Stesso asset, due periodicità in contrasto.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="note warn">
+      <span class="tag">Da leggere bene</span><br>
+      <strong>«OdL in ritardo» misura l'anzianità, non un ritardo.</strong> Gli ordini di lavoro in pratica
+      non hanno una scadenza valorizzata: quello che si conta è da quanti giorni sono aperti, oltre
+      la soglia condivisa (<code>assets_wo_overdue_days</code>, di serie 21). La riga sotto al numero
+      lo dice: «aperti da oltre 21 gg».
+    </div>
+
+    <p>Le sezioni sotto ai numeri — manutenzioni dovute ma non pianificate, ordini attivi, rapporti
+       mancanti, follow-up, conflitti — <strong>si comprimono a una riga quando sono vuote</strong>.
+       Il vuoto è una buona notizia e va detto in fretta.</p>
+  </section>
+
+  <!-- ══════════════════════════════════════════════ 11 -->
+  <section id="carico">
+    <h2><span class="n">11</span> Carico manutentori <span style="font-size:.7rem;color:var(--light);font-weight:600">· responsabile</span></h2>
+    <p class="lead">Chi ce l'ha in mano, e quanto lavoro non è di nessuno.</p>
+
+    <figure>
+      <img src="img/09_carico_manutentori.jpg" alt="Tabella carico manutentori nel Cruscotto">
+      <figcaption>Tecnico · Aperte · Scadute · Questa settimana. Ogni nome è cliccabile e porta a
+        «Da fare» già filtrato su quella persona.</figcaption>
+    </figure>
+
+    <p>La riga <strong>«Non assegnate»</strong> è staccata dalle altre e messa in evidenza, perché è la
+       domanda che conta: quel lavoro non è di nessuno, e qualcuno deve andarci. Raccoglie sia le
+       manutenzioni senza ordine di lavoro sia quelle dentro un ordine che non ha ancora un
+       assegnatario — per chi organizza sono lo stesso problema.</p>
+
+    <p>Subito sotto trovi <b>Aperti da oltre N giorni</b> con la colonna «Aperto da» in giorni, e
+       <b>Rapporti mancanti</b>.</p>
+  </section>
+
+  <!-- ══════════════════════════════════════════════ 12 -->
+  <section id="sintesi">
+    <h2><span class="n">12</span> Vista Sintesi <span style="font-size:.7rem;color:var(--light);font-weight:600">· responsabile / direzione</span></h2>
+    <p class="lead">Come sta andando, non cosa fare adesso. Stesso indirizzo, un interruttore.</p>
+
+    <figure>
+      <img src="img/10_cruscotto_sintesi.jpg" alt="Cruscotto manutenzione, vista Sintesi">
+      <figcaption>Sei indicatori di andamento, il grafico dei 12 mesi e — sotto — l'elenco esplicito
+        di ciò che <b>non</b> è misurabile.</figcaption>
+    </figure>
+
+    <table>
+      <thead><tr><th>Indicatore</th><th>Come si legge</th></tr></thead>
+      <tbody>
+        <tr><td><span class="ui">Manutenzioni nei tempi</span></td><td>Quota conclusa entro la scadenza, ultimi 12 mesi.</td></tr>
+        <tr><td><span class="ui">Scadute adesso</span></td><td>Con l'anzianità della più vecchia: una scaduta di ieri e una di due anni fa non sono lo stesso problema.</td></tr>
+        <tr><td><span class="ui">Interventi aperti</span></td><td>Di cui quanti oltre la soglia di anzianità.</td></tr>
+        <tr><td><span class="ui">Copertura documentale</span></td><td>Quante delle eseguite hanno il rapporto (ultimi 120 giorni).</td></tr>
+        <tr><td><span class="ui">Parco con un piano</span></td><td>Quanti asset in uso hanno almeno un piano applicato.</td></tr>
+        <tr><td><span class="ui">Conflitti di periodicità</span></td><td>Stesso asset, due cadenze in contrasto.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Perché a volte «Manutenzioni nei tempi» dice <code>n.d.</code></h3>
+    <p>Perché la puntualità si misura <strong>solo dove scadenza ed esecuzione sono due eventi distinti</strong>.
+       Nelle manutenzioni <em>migrate dal vecchio sistema</em> la scadenza è stata dedotta dalla data di
+       esecuzione: risultano puntuali per costruzione. Contarle darebbe un bel 100% che non significa
+       niente. Quando la base misurabile è troppo piccola, il portale scrive <code>n.d.</code> e spiega
+       il motivo, invece di stampare una percentuale che sembrerebbe una statistica.</p>
+
+    <h3>«Cosa il portale non può ancora misurare»</h3>
+    <p>Il riquadro in fondo non è una scusa: è un elenco con dei numeri. Per durata, fermo macchina e
+       costi dice <em>su quanti interventi chiusi quel campo è compilato davvero</em>. Finché quelle
+       percentuali restano all'1%, MTTR, MTBF, disponibilità impianti e spesa di manutenzione non
+       vengono mostrati — un grafico piatto a zero sembrerebbe un risultato.</p>
+
+    <div class="note tip">
+      <span class="tag">Chi apre cosa</span><br>
+      Chi non può né pianificare né eseguire (tipicamente la direzione) apre direttamente sulla
+      <b>Sintesi</b>: le liste operative non gli servono. Chiunque può comunque passare all'altra vista
+      con l'interruttore — la scelta esplicita vince sempre.
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════ 13 -->
+  <section id="scadenze">
+    <h2><span class="n">13</span> Scadenze <span style="font-size:.7rem;color:var(--light);font-weight:600">· responsabile</span></h2>
+    <p class="lead">La vista temporale completa: ordinarie e amministrative insieme, perché per chi
+       le deve rispettare sono la stessa cosa.</p>
+
+    <figure>
+      <img src="img/11_scadenze.jpg" alt="Pagina Scadenze con le finestre temporali e i filtri">
+      <figcaption>Le finestre in alto, e sotto tutti i filtri: piano, gruppo, asset, reparto, tipo,
+        esecuzione, pianificazione, assegnatario, fornitore.</figcaption>
+    </figure>
+
+    <table>
+      <thead><tr><th>Finestra</th><th>Cosa mostra</th></tr></thead>
+      <tbody>
+        <tr><td><span class="ui">Scadute</span></td><td>Data già superata, ancora aperte.</td></tr>
+        <tr><td><span class="ui">30 / 90 giorni</span></td><td><b>Da oggi</b> a fra 30 o 90 giorni. Solo aperte.</td></tr>
+        <tr><td><span class="ui">Tutte</span></td><td>Tutte le future.</td></tr>
+        <tr><td><span class="ui">Amministrative</span> / <span class="ui">Ordinario</span></td><td>Le due nature separate.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="note">
+      <span class="tag">Perché «30 giorni» a volte è vuoto</span><br>
+      Perché è una vista <b>operativa</b>: mostra ciò che scade da qui a 30 giorni ed è ancora aperto.
+      Se il lavoro è in pari, è giusto che sia vuota. Le manutenzioni già concluse stanno nello
+      <a href="#storico">Storico</a>; se le vuoi dentro la stessa finestra c'è il filtro avanzato
+      <span class="ui">Includi concluse</span>.
+    </div>
+
+    <figure>
+      <img src="img/12_scadenze_scadute.jpg" alt="Scadenze, finestra Scadute con due righe">
+      <figcaption>Ogni riga dice da quanti giorni è scaduta, su quale asset, con quale stato e
+        l'eventuale ordine di lavoro collegato.</figcaption>
+    </figure>
+
+    <h3>Raccogliere più scadenze in un intervento</h3>
+    <ol class="steps">
+      <li><b>Filtra</b> quello che vuoi raccogliere: per reparto, per piano, per macchina.</li>
+      <li><b>Spunta</b> le righe con le caselle a sinistra (la casella in testa seleziona tutto).</li>
+      <li><b>Compila il pannello</b> che compare — <b>Titolo</b>, <b>Assegna a</b>, <b>Ditta esterna</b> se il
+          lavoro va fuori, <b>Entro</b> — e premi <span class="ui">Crea ordine di lavoro</span>: nasce
+          <b>un solo</b> intervento con dentro tutte le manutenzioni scelte.</li>
+      <li>Da lì in poi l'intervento vive nella pagina <a href="#odl">Interventi</a>, e il manutentore
+          registra le righe man mano.</li>
+    </ol>
+  </section>
+
+  <!-- ══════════════════════════════════════════════ 14 -->
+  <section id="storico">
+    <h2><span class="n">14</span> Storico <span style="font-size:.7rem;color:var(--light);font-weight:600">· responsabile</span></h2>
+    <p class="lead">Una cronologia sola per ordini di lavoro conclusi e ticket di manutenzione.</p>
+
+    <figure>
+      <img src="img/13_storico.jpg" alt="Storico manutenzione aziendale con i cinque indicatori">
+      <figcaption>I due indicatori a destra non sono totali: sono <b>coperture</b>. Dicono su quanti
+        interventi il dato esiste davvero.</figcaption>
+    </figure>
+
+    <p>I primi tre numeri sono conteggi: attività concluse, di cui ordini di lavoro e ticket. Gli
+       ultimi due sono la parte onesta della pagina:</p>
+    <ul>
+      <li>Se il dato è compilato su una quota sufficiente, vedi il <b>totale</b> e la pagina dichiara
+          su quanti interventi poggia.</li>
+      <li>Se è compilato su pochissimi, vedi <b>solo la copertura</b> — «&lt;1% degli interventi ha il
+          tempo registrato (3 su 661)». Un totale calcolato sull'1% non diventa affidabile
+          aggiungendoci un'avvertenza.</li>
+    </ul>
+
+    <p>Sotto: ricerca libera, filtro per origine (OdL, ticket o entrambi) e intervallo di date. La
+       tabella riporta data, origine, attività e asset, tipo/esito, tecnico e tempo/costo.</p>
+  </section>
+
+  <!-- ══════════════════════════════════════════════ 15 -->
+  <section id="fornitori">
+    <h2><span class="n">15</span> Fornitori <span style="font-size:.7rem;color:var(--light);font-weight:600">· responsabile</span></h2>
+    <p class="lead">Le ditte terze collegate alla manutenzione — e per ognuna, cosa le è affidato.</p>
+
+    <figure>
+      <img src="img/14_fornitori.jpg" alt="Elenco fornitori manutenzione">
+      <figcaption>Per ogni ditta: regole esterne, ordini di lavoro, contratti, verifiche. La riga porta
+        alla <b>scheda di manutenzione</b>; <span class="ui">Anagrafica</span> porta al modulo Fornitori.</figcaption>
+    </figure>
+
+    <p>L'elenco comprende anche i fornitori catalogati come «Manutenzione» che non hanno ancora nulla
+       collegato: compaiono con i conteggi a zero, pronti da assegnare.</p>
+
+    <figure>
+      <img src="img/15_fornitore_scheda.jpg" alt="Scheda di manutenzione di un fornitore">
+      <figcaption>La scheda: interventi aperti, conclusi negli ultimi 12 mesi, contratti attivi, asset
+        coperti — e sopra a tutto, quanto è documentato il lavoro svolto.</figcaption>
+    </figure>
+
+    <p>La scheda raccoglie in una pagina sola quello che prima richiedeva quattro pagine filtrate a
+       mano: <b>contratti di assistenza</b> (periodo, cosa coprono, canone, se sono in corso),
+       <b>manutenzioni affidate</b> con ambito e periodicità, <b>verifiche periodiche</b> con la prossima
+       scadenza, <b>interventi aperti</b> e ultimi conclusi, <b>asset coperti</b>.</p>
+
+    <div class="note warn">
+      <span class="tag">Perché non c'è la spesa</span><br>
+      Perché il costo è compilato su una frazione minima degli interventi chiusi. Un totale stampato
+      lì sembrerebbe «quanto abbiamo speso con questa ditta nell'anno» e sarebbe una cifra inventata
+      al ribasso. Il riquadro dichiara la copertura di durata, fermo macchina e costo: quando quei
+      campi verranno compilati, il totale comparirà da solo.
+    </div>
+
+    <p>L'anagrafica del fornitore — dati fiscali, contatti, documenti, valutazioni — resta nel modulo
+       <b>Fornitori</b>: qui non si modifica nulla, si guarda il rapporto di lavoro.</p>
+  </section>
+
+  <!-- ══════════════════════════════════════════════ 16 -->
+  <section id="attivita">
+    <h2><span class="n">16</span> Attività — il catalogo <span style="font-size:.7rem;color:var(--light);font-weight:600">· amministratore</span></h2>
+    <p class="lead">Cosa si può fare. Si definisce una volta e si riusa su tutte le macchine.</p>
+
+    <figure>
+      <img src="img/19_attivita.jpg" alt="Catalogo attività e piani di manutenzione">
+      <figcaption>In cima i numeri del catalogo, poi la scorciatoia «creazione rapida piano» in tre
+        passaggi, i filtri e la tabella delle attività.</figcaption>
+    </figure>
+
+    <p>Un'<strong>attività</strong> descrive il lavoro: istruzioni, checklist, durata, se richiede un
+       documento obbligatorio, se è interna o esterna. <strong>Non</strong> dice su quali macchine va fatta né
+       ogni quanto: quello è il piano.</p>
+
+    <ol class="steps">
+      <li><b>Nuova attività</b> — le dai un nome parlante («Cambio olio», non «Manut. 03»), la famiglia
+          e la categoria.</li>
+      <li><b>Definisci la checklist</b>, se serve: gli step che il manutentore spunterà sul campo, con
+          valore atteso o foto quando previsto.</li>
+      <li><b>Crea piano</b> dal pulsante sulla riga: è la scorciatoia che collega l'attività alle
+          macchine e alla frequenza, senza passare da tre pagine.</li>
+    </ol>
+
+    <p>La colonna <b>Piani collegati</b> dice quante volte l'attività è già in uso. Un'attività a zero
+       piani è un pezzo di catalogo che non produce nulla: o va collegata, o va disattivata.</p>
+  </section>
+
+  <!-- ══════════════════════════════════════════════ 17 -->
+  <section id="piani">
+    <h2><span class="n">17</span> Piani e applicazioni <span style="font-size:.7rem;color:var(--light);font-weight:600">· amministratore</span></h2>
+    <p class="lead">Il piano dice cosa va fatto. L'applicazione dice <em>dove</em> e <em>con che tempi</em>.</p>
+
+    <figure>
+      <img src="img/16_piani.jpg" alt="Elenco dei piani di manutenzione">
+      <figcaption><b>Copertura</b> è il rapporto fra asset raggiunti e asset in perimetro — «33 / 33,
+        100% degli asset in perimetro» — non sull'intero parco: «32 su 400» non direbbe nulla.</figcaption>
+    </figure>
+
+    <table>
+      <thead><tr><th>Colonna</th><th>Cosa dice</th></tr></thead>
+      <tbody>
+        <tr><td><b>Copertura</b></td><td>Quanto il piano è completo sugli asset che tocca davvero.</td></tr>
+        <tr><td><b>Periodicità applicate</b></td><td>Le cadenze in uso: lo stesso piano può valere ogni 182 giorni su un gruppo e ogni 365 su un altro.</td></tr>
+        <tr><td><b>Ultima esecuzione</b></td><td>Quando è stato eseguito l'ultima volta. «mai» è un segnale.</td></tr>
+        <tr><td><b>Prossima scadenza</b> / <b>Scadute</b></td><td>Lo stato di salute del piano.</td></tr>
+      </tbody>
+    </table>
+
+    <figure>
+      <img src="img/17_piano_dettaglio.jpg" alt="Dettaglio di un piano con le sue applicazioni">
+      <figcaption>Dentro il piano: cosa va fatto, le <b>applicazioni</b>, le prossime scadenze e lo
+        storico delle esecuzioni con lo scostamento rispetto alla scadenza teorica.</figcaption>
+    </figure>
+
+    <h3>Aggiungere un'applicazione</h3>
+    <ol class="steps">
+      <li><b>Apri il piano</b> e premi <span class="ui">+ Applica a…</span>.</li>
+      <li><b>Scegli il bersaglio</b>: una categoria di asset, un gruppo, o singole macchine. La
+          precedenza è <strong>asset &gt; gruppo &gt; categoria</strong>: più è specifico, più vince.</li>
+      <li><b>Imposta la periodicità</b> — solo di calendario: giorni, settimane, mesi, anni, trimestre,
+          semestre, «primo lunedì del mese», «ultimo giorno del mese», annuale a data fissa.</li>
+      <li><b>Preavviso</b>: quanti giorni prima la scadenza deve comparire come «in scadenza».</li>
+      <li><b>Ancoraggio</b>: la manutenzione ordinaria riparte dalla <b>data di esecuzione</b>; la scadenza
+          amministrativa resta ancorata alla <b>scadenza teorica</b> — rinnovare una polizza in ritardo
+          non deve spostare in avanti tutti gli anni successivi.</li>
+    </ol>
+
+    <div class="note warn">
+      <span class="tag">Conflitti</span><br>
+      Se due gruppi impongono periodicità diverse alla stessa macchina, il portale <strong>dichiara il
+      conflitto</strong> invece di sceglierne una in silenzio. Lo trovi nel Cruscotto e nella
+      <a href="#copertura">matrice di copertura</a>, e si risolve personalizzando il piano su quella macchina.
+    </div>
+
+    <div class="note">
+      <span class="tag">Manutenzioni a contatore</span><br>
+      Ore, chilometri e cicli sono modellati ma <strong>fuori dal flusso operativo</strong>: senza letture
+      attendibili producevano scadenze false presentate come verdi. Le periodicità in uso sono di
+      calendario.
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════ 18 -->
+  <section id="gruppi">
+    <h2><span class="n">18</span> Gruppi asset <span style="font-size:.7rem;color:var(--light);font-weight:600">· amministratore</span></h2>
+    <p class="lead">La famiglia operativa che la categoria non sa dare.</p>
+
+    <figure>
+      <img src="img/20_gruppi.jpg" alt="Pagina Gruppi di asset, vuota">
+      <figcaption>Nell'ambiente di prova non ci sono ancora gruppi: la pagina mostra lo stato vuoto con
+        l'invito a crearne uno.</figcaption>
+    </figure>
+
+    <p>Un gruppo è un insieme di macchine su cui applicare gli stessi piani: <em>TORNI</em>,
+       <em>DMG MORI</em>, <em>MACCHINE REPARTO 1</em>. Serve perché <strong>una macchina può stare in più
+       gruppi</strong>, mentre la categoria d'inventario è una sola — e le esigenze di manutenzione non
+       seguono la classificazione contabile.</p>
+
+    <ol class="steps">
+      <li><b>+ Nuovo gruppo</b>, dai un codice e un'etichetta leggibile.</li>
+      <li><b>Aggiungi le macchine</b> al gruppo.</li>
+      <li><b>Applica i piani</b> al gruppo, non alle singole macchine: quando entra una macchina nuova,
+          basta aggiungerla al gruppo e si porta dietro tutto il piano di manutenzione.</li>
+    </ol>
+  </section>
+
+  <!-- ══════════════════════════════════════════════ 19 -->
+  <section id="copertura">
+    <h2><span class="n">19</span> Copertura <span style="font-size:.7rem;color:var(--light);font-weight:600">· amministratore</span></h2>
+    <p class="lead">Macchine per piani: i buchi e i conflitti si vedono qui, senza aprire una scheda alla volta.</p>
+
+    <figure>
+      <img src="img/18_copertura.jpg" alt="Matrice di copertura asset per piani">
+      <figcaption>Una riga per macchina, una colonna per piano. La legenda è in cima alla pagina.</figcaption>
+    </figure>
+
+    <table>
+      <thead><tr><th>Simbolo</th><th>Significa</th></tr></thead>
+      <tbody>
+        <tr><td><b>✓ ereditato</b></td><td>Il piano si applica per categoria o per gruppo.</td></tr>
+        <tr><td><b>P personalizzato</b></td><td>Su questa macchina la periodicità è stata cambiata a mano.</td></tr>
+        <tr><td><b>X escluso</b></td><td>La macchina è stata esclusa esplicitamente dal piano.</td></tr>
+        <tr><td><b>! conflitto</b></td><td>Due regole si contraddicono: va risolto.</td></tr>
+        <tr><td><b>– non applicato</b></td><td>Nessuna regola. Se è una macchina che andrebbe manutenuta, è un buco.</td></tr>
+      </tbody>
+    </table>
+
+    <p>È la pagina da guardare dopo ogni cambio di configurazione: una colonna tutta «–» significa un
+       piano che non produce scadenze, una riga tutta «–» una macchina che nessuno sta manutenendo.</p>
+  </section>
+
+  <!-- ══════════════════════════════════════════════ 20 -->
+  <section id="contratti">
+    <h2><span class="n">20</span> Contratti di assistenza <span style="font-size:.7rem;color:var(--light);font-weight:600">· amministratore</span></h2>
+    <p class="lead">Chi copre cosa, con che finestra di validità.</p>
+
+    <figure>
+      <img src="img/21_contratti.jpg" alt="Pagina contratti assistenza con form di inserimento">
+      <figcaption>A sinistra l'elenco filtrabile, a destra il modulo per un nuovo contratto.</figcaption>
+    </figure>
+
+    <ol class="steps">
+      <li><b>Fornitore</b> — dalla stessa anagrafica del portale, non un nome scritto a mano.</li>
+      <li><b>Dove si applica</b> — un singolo asset <em>oppure</em> un'intera categoria: sono alternativi.</li>
+      <li><b>Finestra</b> — data inizio e data fine. Senza data fine il contratto è a tempo indeterminato.</li>
+      <li><b>Canone e SLA</b> — facoltativi; il canone compare nella scheda fornitore solo se valorizzato.</li>
+      <li><b>Copertura</b> — cosa comprende, in parole.</li>
+    </ol>
+
+    <p>Un contratto attivo e nel periodo si vede nella scheda del fornitore come «in corso»; scaduto o
+       fuori finestra viene marcato, non nascosto.</p>
+  </section>
+
+  <!-- ══════════════════════════════════════════════ 21 -->
+  <section id="permessi">
+    <h2><span class="n">21</span> Permessi <span style="font-size:.7rem;color:var(--light);font-weight:600">· amministratore</span></h2>
+    <p class="lead">Tre codici, concessi dal pannello Accessi. Nessun ruolo nuovo da inventare.</p>
+
+    <figure>
+      <img src="img/22_permessi.jpg" alt="Pannello ACL canonico del portale">
+      <figcaption>Il pannello <b>ACL Canonico</b>: si parte dal permesso, lo si lega alla rotta, poi al
+        ruolo, e in ultima istanza al singolo utente.</figcaption>
+    </figure>
+
+    <table>
+      <thead><tr><th>Codice</th><th>Concede</th></tr></thead>
+      <tbody>
+        <tr><td><code>assets · maintenance_execute</code></td><td>Registrare manutenzioni, allegare rapporti, aprire follow-up.</td></tr>
+        <tr><td><code>assets · maintenance_planning</code></td><td>Creare ordini di lavoro, distribuire le giornate, rimuovere asset da un'uscita. Comprende l'esecuzione.</td></tr>
+        <tr><td><code>assets · admin_assets</code></td><td>Configurare attività, piani, applicazioni, gruppi. Comprende i due precedenti.</td></tr>
+      </tbody>
+    </table>
+
+    <ol class="steps">
+      <li><b>Apri</b> il pannello Accessi del portale (area amministrazione).</li>
+      <li><b>Cerca</b> il permesso per codice — ad esempio <code>maintenance_execute</code>.</li>
+      <li><b>Assegnalo al ruolo</b> giusto (Role Grant): è la strada corretta, perché sopravvive ai
+          cambi di persona.</li>
+      <li><b>Solo per le eccezioni</b>, usa l'override sul singolo utente.</li>
+    </ol>
+
+    <div class="note tip">
+      <span class="tag">Nota</span><br>
+      La visibilità del menu <strong>non</strong> è una barriera di sicurezza: nascondere una voce non
+      protegge la pagina. È il permesso a decidere, sempre, lato server.
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════ 22 -->
+  <section id="automatismi">
+    <h2><span class="n">22</span> Automatismi <span style="font-size:.7rem;color:var(--light);font-weight:600">· amministratore</span></h2>
+    <p class="lead">Due lavori notturni e una soglia. È tutto quello che gira da solo.</p>
+
+    <table>
+      <thead><tr><th>Job</th><th>Quando</th><th>Cosa fa</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>assets_generate_occurrences</code></td>
+          <td>ogni giorno alle <b>06:00</b></td>
+          <td>Genera le scadenze dovute dai piani. È idempotente: rilanciarlo non crea doppioni.
+              <b>Non</b> apre ordini di lavoro.</td>
+        </tr>
+        <tr>
+          <td><code>assets_maintenance_reminders</code></td>
+          <td>ogni giorno alle <b>07:00</b></td>
+          <td>Manda il promemoria via email: scadute, eseguite ma senza rapporto, in scadenza, più gli
+              ordini aperti da troppo tempo. Gira dopo la generazione, così le scadenze nuove sono già
+              nella mail del giorno.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <ul>
+      <li><b>Destinatari del promemoria</b>: si impostano in <code>SiteConfig · assets_reminder_emails</code>.
+          Se la lista è vuota il messaggio non si perde: va agli amministratori.</li>
+      <li><b>Soglia «aperti da oltre N giorni»</b>: <code>SiteConfig · assets_wo_overdue_days</code>, di
+          serie 21. È la stessa soglia usata dal Cruscotto e dal promemoria — si cambia in un posto solo.</li>
+      <li><b>Entrambi i job si disattivano</b> dalla <b>Centrale di comando</b>, e restano disattivati
+          anche dopo un rilascio.</li>
+    </ul>
+
+    <div class="note warn">
+      <span class="tag">Dopo ogni rilascio</span><br>
+      Il promote non registra gli schedule: usa il pulsante <span class="ui">📅 Registra schedule</span>
+      della Centrale di comando e <strong>riavvia il cluster django-q</strong> — il rilascio ricicla solo il
+      sito web. Se lo salti, gli automatismi restano fermi senza dare errore.
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════ 23 -->
+  <section id="faq">
+    <h2><span class="n">23</span> «Perché vedo questo?»</h2>
+    <p class="lead">Le domande che tornano più spesso, con la risposta vera.</p>
+
+    <h4>Ho registrato la manutenzione ma la macchina compare ancora fra le scadute.</h4>
+    <p>Probabilmente hai chiuso l'<em>intervento</em> senza registrare le <em>manutenzioni</em> che
+       raccoglieva. Sono due gesti diversi: riapri l'intervento e usa
+       <span class="ui">Registra</span> (o <span class="ui">Registra le selezionate</span>) sulle righe.</p>
+
+    <h4>Ho tolto una macchina dall'intervento: ho cancellato la sua manutenzione?</h4>
+    <p>No. È tornata «da pianificare» e continua a comparire fra le dovute. È voluto.</p>
+
+    <h4>La finestra «30 giorni» delle Scadenze è vuota, ma so che c'è del lavoro.</h4>
+    <p>Quella finestra mostra solo le <b>aperte</b> che scadono <b>da oggi</b> in avanti. Se il lavoro è
+       già stato registrato, sta nello Storico. Per vederlo nella stessa finestra spunta
+       <span class="ui">Includi concluse</span>.</p>
+
+    <h4>«Manutenzioni nei tempi» dice <code>n.d.</code>: è un errore?</h4>
+    <p>No, è la risposta corretta. Vuol dire che quasi tutte le manutenzioni concluse vengono dalla
+       migrazione, dove la scadenza è stata dedotta dall'esecuzione. Contarle darebbe 100% e non
+       significherebbe nulla. Il numero comparirà da sé man mano che il portale accumula manutenzioni
+       generate e chiuse da lui.</p>
+
+    <h4>Perché non vedo i costi di manutenzione da nessuna parte?</h4>
+    <p>Perché quasi nessuno li compila in chiusura. Il portale preferisce dire «questo campo è
+       compilato sullo 0% degli interventi» piuttosto che mostrare 0,00 € come se fosse la spesa
+       dell'anno. Compilando costo e tempo, gli indicatori si accendono da soli.</p>
+
+    <h4>Un collega non trova la pagina che io vedo.</h4>
+    <p>È una questione di permesso, non di menu: controlla che abbia
+       <code>maintenance_execute</code> o <code>maintenance_planning</code> (capitolo 21).</p>
+
+    <h4>Ho cambiato la periodicità di un piano: le scadenze già aperte si aggiornano?</h4>
+    <p>Le scadenze già generate restano; la nuova periodicità vale da lì in avanti. Se una scadenza
+       aperta è sbagliata, registrala o rimuovila: la successiva nascerà con le regole nuove.</p>
+  </section>
+
+  <footer>
+    NOVICROM HUB · Guida al modulo Manutenzione · aggiornata al 09/09/2026<br>
+    Le schermate provengono dall'ambiente di sviluppo, con dati di prova: i numeri che vedi nelle
+    figure non sono quelli di produzione.
+  </footer>
+
+</div>
+</body>
+</html>
