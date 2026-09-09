@@ -2015,6 +2015,136 @@ class AssetsRoutingTests(TestCase):
             folder.refresh_from_db()
             self.assertFalse(folder.is_active)
 
+    def test_gestione_admin_cartelle_tab_lists_base_and_extra_folders(self):
+        """Il tab Cartelle documento elenca le cartelle di base e quelle extra."""
+        admin = User.objects.create_superuser(
+            username="asset-doc-folder-tab-admin",
+            email="asset-doc-folder-tab-admin@test.local",
+            password="pass12345",
+        )
+        category = AssetCategory.objects.create(code="cnc-tab", label="CNC tab", is_active=True)
+        AssetCategoryDocumentFolder.objects.create(category=category, name="Collaudi", slug="collaudi", order=1)
+        self.client.force_login(admin)
+
+        response = self.client.get(reverse("assets:gestione_admin"), {"tab": "cartelle"})
+        self.assertEqual(response.status_code, 200)
+        rows = response.context["document_folder_rows"]
+        row = next(item for item in rows if item["category"].id == category.id)
+        self.assertEqual([spec["code"] for spec in row["base_folders"]], ["SPECIFICHE", "INTERVENTI", "MANUALI"])
+        self.assertEqual([item["folder"].slug for item in row["extra_folders"]], ["collaudi"])
+        self.assertContains(response, "Cartelle documento degli asset")
+
+    def test_gestione_admin_document_folder_create_toggle_delete(self):
+        """Dalle impostazioni si crea, disattiva, riattiva ed elimina una cartella."""
+        admin = User.objects.create_superuser(
+            username="asset-doc-folder-crud-admin",
+            email="asset-doc-folder-crud-admin@test.local",
+            password="pass12345",
+        )
+        category = AssetCategory.objects.create(code="cnc-crud", label="CNC crud", is_active=True)
+        url = reverse("assets:gestione_admin")
+        self.client.force_login(admin)
+
+        self.client.post(
+            url,
+            {
+                "action": "create_asset_category_document_folder",
+                "category_id": category.id,
+                "folder_name": "Collaudi qualità",
+            },
+        )
+        folder = category.document_folders.get()
+        self.assertEqual(folder.slug, "collaudi-qualita")
+        self.assertTrue(folder.is_active)
+
+        self.client.post(
+            url,
+            {"action": "toggle_asset_category_document_folder", "folder_id": folder.id},
+        )
+        folder.refresh_from_db()
+        self.assertFalse(folder.is_active)
+
+        self.client.post(
+            url,
+            {"action": "toggle_asset_category_document_folder", "folder_id": folder.id},
+        )
+        folder.refresh_from_db()
+        self.assertTrue(folder.is_active)
+
+        self.client.post(
+            url,
+            {
+                "action": "update_asset_category_document_folder_order",
+                "folder_id": folder.id,
+                "sort_order": 7,
+            },
+        )
+        folder.refresh_from_db()
+        self.assertEqual(folder.order, 7)
+
+        self.client.post(
+            url,
+            {"action": "delete_asset_category_document_folder", "folder_id": folder.id},
+        )
+        self.assertFalse(category.document_folders.exists())
+
+    def test_gestione_admin_document_folder_with_documents_is_protected(self):
+        """Una cartella con documenti non si disattiva e non si elimina."""
+        admin = User.objects.create_superuser(
+            username="asset-doc-folder-guard-admin",
+            email="asset-doc-folder-guard-admin@test.local",
+            password="pass12345",
+        )
+        category = AssetCategory.objects.create(code="cnc-guard", label="CNC guard", is_active=True)
+        folder = AssetCategoryDocumentFolder.objects.create(
+            category=category, name="Collaudi", slug="collaudi", order=1
+        )
+        asset = Asset.objects.create(
+            name="Centro guard cartella",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            asset_category=category,
+            reparto="CN5",
+            source_key="manual-wm-guard-folder",
+        )
+        url = reverse("assets:gestione_admin")
+        self.client.force_login(admin)
+
+        with _workspace_temporary_directory("assets-folder-guard-") as tmpdir, override_settings(MEDIA_ROOT=Path(tmpdir)):
+            AssetDocument.objects.create(
+                asset=asset,
+                category=folder.slug,
+                file=SimpleUploadedFile("collaudo.pdf", b"%PDF-1.4 test", content_type="application/pdf"),
+                original_name="collaudo.pdf",
+            )
+            self.client.post(
+                url,
+                {"action": "toggle_asset_category_document_folder", "folder_id": folder.id},
+            )
+            folder.refresh_from_db()
+            self.assertTrue(folder.is_active)
+
+            self.client.post(
+                url,
+                {"action": "delete_asset_category_document_folder", "folder_id": folder.id},
+            )
+            self.assertTrue(AssetCategoryDocumentFolder.objects.filter(pk=folder.id).exists())
+
+    def test_gestione_admin_document_folder_requires_admin(self):
+        """La pagina impostazioni resta chiusa a chi non e' admin del modulo."""
+        category = AssetCategory.objects.create(code="cnc-noadmin", label="CNC noadmin", is_active=True)
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("assets:gestione_admin"),
+            {
+                "action": "create_asset_category_document_folder",
+                "category_id": category.id,
+                "folder_name": "Collaudi",
+            },
+        )
+        self.assertIn(response.status_code, (302, 403))
+        self.assertFalse(category.document_folders.exists())
+
     def test_asset_edit_assignment_from_anagrafica_autofills_department_and_location(self):
         self.client.force_login(self.user)
         legacy_user = UtenteLegacy.objects.create(

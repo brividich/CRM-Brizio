@@ -283,6 +283,13 @@ LIST_LAYOUT_ACTIONS = {
     "reset_asset_list_layout",
 }
 
+DOCUMENT_FOLDER_ACTIONS = {
+    "create_asset_category_document_folder",
+    "toggle_asset_category_document_folder",
+    "update_asset_category_document_folder_order",
+    "delete_asset_category_document_folder",
+}
+
 CATEGORY_ACTIONS = {
     "create_asset_category",
     "update_asset_category",
@@ -7659,6 +7666,177 @@ def _handle_asset_category_request(request: HttpRequest) -> tuple[bool, str]:
         return True, f"Campo categoria \"{label}\" eliminato ({touched} asset ripuliti)."
 
     return False, "Azione categoria asset non valida."
+
+
+def _asset_document_folder_usage(folder: "AssetCategoryDocumentFolder") -> int:
+    """Quanti documenti usano la cartella (chiave slug) nella sua categoria."""
+    return AssetDocument.objects.filter(
+        asset__asset_category_id=folder.category_id, category=folder.slug
+    ).count()
+
+
+def _handle_asset_document_folder_request(request: HttpRequest) -> tuple[bool, str]:
+    """Gestione delle cartelle documento extra dalle impostazioni Assets.
+
+    Stesse regole della scheda asset (``add_asset_document_folder`` /
+    ``deactivate_asset_document_folder``): lo slug e' la chiave stabile salvata
+    in ``AssetDocument.category`` e non e' rinominabile, e una cartella si
+    disattiva o si elimina solo se non contiene documenti. Qui in piu' si puo'
+    riattivare una cartella e cambiarne l'ordine, perche' la pagina vede tutte
+    le categorie insieme.
+    """
+    action = _clean_string(request.POST.get("action"))
+
+    if action == "create_asset_category_document_folder":
+        category_id = _as_int(request.POST.get("category_id"), default=0)
+        category = AssetCategory.objects.filter(pk=category_id).first()
+        if not category:
+            return False, "Categoria asset non trovata."
+        raw_name = _clean_string(request.POST.get("folder_name"))[:120]
+        slug = slugify(raw_name)[:60]
+        base_codes = {code.lower() for code, _ in AssetDocument.CATEGORY_CHOICES}
+        if not raw_name or not slug:
+            return False, "Nome cartella non valido."
+        if slug in base_codes:
+            return False, "Esiste gia una cartella di base con questo nome."
+        if category.document_folders.filter(slug=slug).exists():
+            return False, f'La categoria "{category.label}" ha gia una cartella documento con questo nome.'
+        default_order = (category.document_folders.aggregate(m=Max("order"))["m"] or 0) + 1
+        AssetCategoryDocumentFolder.objects.create(
+            category=category,
+            name=raw_name,
+            slug=slug,
+            order=max(0, _as_int(request.POST.get("sort_order"), default=default_order)),
+        )
+        log_action(
+            request,
+            "add_asset_document_folder",
+            "assets",
+            {"category_id": category.id, "slug": slug, "name": raw_name, "origine": "impostazioni"},
+        )
+        return True, f'Cartella documento "{raw_name}" aggiunta alla categoria {category.label}.'
+
+    if action == "toggle_asset_category_document_folder":
+        folder = (
+            AssetCategoryDocumentFolder.objects.filter(pk=_as_int(request.POST.get("folder_id"), default=0))
+            .select_related("category")
+            .first()
+        )
+        if not folder:
+            return False, "Cartella documento non trovata."
+        if folder.is_active and _asset_document_folder_usage(folder):
+            return False, "Impossibile disattivare: la cartella contiene ancora documenti."
+        folder.is_active = not folder.is_active
+        folder.save(update_fields=["is_active"])
+        log_action(
+            request,
+            "activate_asset_document_folder" if folder.is_active else "deactivate_asset_document_folder",
+            "assets",
+            {
+                "folder_id": folder.id,
+                "slug": folder.slug,
+                "category_id": folder.category_id,
+                "origine": "impostazioni",
+            },
+        )
+        stato = "riattivata" if folder.is_active else "disattivata"
+        return True, f'Cartella documento "{folder.name}" {stato}.'
+
+    if action == "update_asset_category_document_folder_order":
+        folder = AssetCategoryDocumentFolder.objects.filter(
+            pk=_as_int(request.POST.get("folder_id"), default=0)
+        ).first()
+        if not folder:
+            return False, "Cartella documento non trovata."
+        folder.order = max(0, _as_int(request.POST.get("sort_order"), default=folder.order))
+        folder.save(update_fields=["order"])
+        return True, f'Ordine della cartella "{folder.name}" aggiornato.'
+
+    if action == "delete_asset_category_document_folder":
+        folder = (
+            AssetCategoryDocumentFolder.objects.filter(pk=_as_int(request.POST.get("folder_id"), default=0))
+            .select_related("category")
+            .first()
+        )
+        if not folder:
+            return False, "Cartella documento non trovata."
+        if _asset_document_folder_usage(folder):
+            return False, "Impossibile eliminare: la cartella contiene ancora documenti."
+        name = folder.name
+        log_action(
+            request,
+            "delete_asset_document_folder",
+            "assets",
+            {"folder_id": folder.id, "slug": folder.slug, "category_id": folder.category_id},
+        )
+        folder.delete()
+        return True, f'Cartella documento "{name}" eliminata.'
+
+    return False, "Azione cartella documento non valida."
+
+
+def _build_asset_document_folder_rows(categories: list[AssetCategory]) -> list[dict[str, object]]:
+    """Righe della pagina impostazioni: per categoria, cartelle di base ed extra.
+
+    Il conteggio dei documenti e' una sola query per tutte le categorie;
+    ``.order_by()`` azzera il ``Meta.ordering`` di ``AssetDocument``, altrimenti
+    SQL Server rifiuta l'aggregazione (errore 8127).
+    """
+    category_ids = [category.id for category in categories]
+    if not category_ids:
+        return []
+
+    doc_counts: dict[tuple[int, str], int] = {}
+    for row in (
+        AssetDocument.objects.filter(asset__asset_category_id__in=category_ids)
+        .values("asset__asset_category_id", "category")
+        .annotate(total=Count("id"))
+        .order_by()
+    ):
+        doc_counts[(row["asset__asset_category_id"], row["category"])] = int(row["total"] or 0)
+
+    folders_by_category: dict[int, list[AssetCategoryDocumentFolder]] = defaultdict(list)
+    for folder in AssetCategoryDocumentFolder.objects.filter(category_id__in=category_ids):
+        folders_by_category[folder.category_id].append(folder)
+
+    asset_counts = {
+        row["asset_category_id"]: int(row["total"] or 0)
+        for row in (
+            Asset.objects.filter(asset_category_id__in=category_ids)
+            .values("asset_category_id")
+            .annotate(total=Count("id"))
+            .order_by()
+        )
+    }
+
+    rows: list[dict[str, object]] = []
+    for category in categories:
+        base_folders = [
+            {"code": code, "label": label, "document_count": doc_counts.get((category.id, code), 0)}
+            for code, label in AssetDocument.CATEGORY_CHOICES
+        ]
+        extra_folders = []
+        for folder in folders_by_category.get(category.id, []):
+            document_count = doc_counts.get((category.id, folder.slug), 0)
+            extra_folders.append(
+                {
+                    "folder": folder,
+                    "document_count": document_count,
+                    "can_remove": document_count == 0,
+                }
+            )
+        rows.append(
+            {
+                "category": category,
+                "asset_count": asset_counts.get(category.id, 0),
+                "base_folders": base_folders,
+                "extra_folders": extra_folders,
+                "extra_active_count": sum(1 for item in extra_folders if item["folder"].is_active),
+                "document_count": sum(item["document_count"] for item in base_folders)
+                + sum(item["document_count"] for item in extra_folders),
+            }
+        )
+    return rows
 
 
 def _query_url(request: HttpRequest, **overrides) -> str:
@@ -17606,6 +17784,15 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
         action = request.POST.get("action")
         config_redirect = redirect(f"{reverse('assets:gestione_admin')}?tab=config")
         category_redirect = redirect(f"{reverse('assets:gestione_admin')}?tab=categorie")
+        folder_redirect = redirect(f"{reverse('assets:gestione_admin')}?tab=cartelle")
+
+        if action in DOCUMENT_FOLDER_ACTIONS:
+            ok, text = _handle_asset_document_folder_request(request)
+            if ok:
+                messages.success(request, text)
+            else:
+                messages.error(request, text)
+            return folder_redirect
 
         if action == "add_list_option":
             fk = request.POST.get("field_key", "").strip()
@@ -17788,6 +17975,14 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
         )
         asset_category_rows = _build_asset_category_admin_rows(asset_categories)
 
+    document_folder_rows = []
+    document_folder_categories = []
+    if tab == "cartelle":
+        document_folder_categories = list(
+            AssetCategory.objects.order_by("sort_order", "label", "id")
+        )
+        document_folder_rows = _build_asset_document_folder_rows(document_folder_categories)
+
     # --- Categorie ticket (solo tab ticket) ---
     from tickets.models import CategoriaTicket as _CategoriaTicket, TipoTicket as _TipoTicket
     categorie_ticket = (
@@ -17862,6 +18057,12 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
             "asset_category_fields_active_count": sum(1 for row in asset_category_fields if row.is_active),
             "categorie_ticket": categorie_ticket,
             "ticket_tipo_choices": _TipoTicket.choices,
+            "document_folder_rows": document_folder_rows,
+            "document_folder_categories": document_folder_categories,
+            "document_folder_base_labels": [label for _, label in AssetDocument.CATEGORY_CHOICES],
+            "document_folder_extra_total": sum(
+                len(row["extra_folders"]) for row in document_folder_rows
+            ),
             **_assets_shell_context(request),
         },
     )
