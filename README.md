@@ -7,7 +7,7 @@
 **Il portale interno unificato di Costruzioni Novicrom SRL**
 *Workflow · Operations · Sicurezza · Automazioni · Governance*
 
-![Version](https://img.shields.io/badge/version-1.4.0-F97316?style=flat-square)
+![Version](https://img.shields.io/badge/version-1.5.0-F97316?style=flat-square)
 ![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white)
 ![Django](https://img.shields.io/badge/Django-5.2-0C4B33?style=flat-square&logo=django&logoColor=white)
 ![DB](https://img.shields.io/badge/DB-SQLite%20%7C%20SQL%20Server-1E3A5F?style=flat-square&logo=microsoftsqlserver&logoColor=white)
