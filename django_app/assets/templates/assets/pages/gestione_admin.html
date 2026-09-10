@@ -1457,8 +1457,9 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
         Sono le schede della card <strong>Documenti</strong> nella pagina di un asset. Le tre cartelle di base
         ({% for label in document_folder_base_labels %}{{ label }}{% if not forloop.last %}, {% endif %}{% endfor %})
         ci sono sempre; quelle aggiunte qui valgono per <strong>tutti gli asset della categoria</strong>.
-        Il nome non &egrave; modificabile dopo la creazione (&egrave; la chiave con cui i file vengono archiviati) e una
-        cartella si disattiva o si elimina solo se non contiene documenti.
+        Il nome &egrave; rinominabile in qualsiasi momento (cambia solo l&#39;etichetta mostrata: la chiave con cui i
+        file sono archiviati resta quella originale) e una cartella si disattiva o si elimina solo se non contiene
+        documenti.
       </div>
       <div class="inline-actions" style="margin-top:10px;">
         <span class="chip-soft blue">{{ document_folder_rows|length }} categorie</span>
@@ -1475,7 +1476,7 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
     <div class="card-body">
       <div class="admin-list">
         {% for row in document_folder_rows %}
-        <details class="doc-folder-cat" {% if row.extra_folders %}open{% endif %}>
+        <details class="doc-folder-cat" id="cat-{{ row.category.id }}" {% if row.extra_folders or document_folder_focus_id == row.category.id %}open{% endif %}>
           <summary>
             <span class="doc-folder-cat-name">{{ row.category.label }}</span>
             <span class="inline-actions">
@@ -1515,13 +1516,23 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
                 {% endfor %}
                 {% for item in row.extra_folders %}
                 <tr>
-                  <td>{{ item.folder.name }}</td>
+                  <td>
+                    <form method="post" class="inline-actions" style="gap:6px;">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="rename_asset_category_document_folder">
+                      <input type="hidden" name="folder_id" value="{{ item.folder.id }}">
+                      <input type="hidden" name="cat_focus" value="{{ row.category.id }}">
+                      <input class="input" type="text" name="folder_name" value="{{ item.folder.name }}" maxlength="120" required style="min-width:160px;">
+                      <button class="btn btn-sm" type="submit" style="border:1px solid #dbe3f0;" title="Rinomina la cartella (la chiave resta {{ item.folder.slug }})">Rinomina</button>
+                    </form>
+                  </td>
                   <td><code style="font-size:var(--fs-sm);">{{ item.folder.slug }}</code></td>
                   <td>
                     <form method="post" class="inline-actions" style="gap:6px;">
                       {% csrf_token %}
                       <input type="hidden" name="action" value="update_asset_category_document_folder_order">
                       <input type="hidden" name="folder_id" value="{{ item.folder.id }}">
+                      <input type="hidden" name="cat_focus" value="{{ row.category.id }}">
                       <input class="input" type="number" name="sort_order" value="{{ item.folder.order }}" min="0" style="width:70px;">
                       <button class="btn btn-sm" type="submit" style="border:1px solid #dbe3f0;">Salva</button>
                     </form>
@@ -1539,6 +1550,7 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
                       {% csrf_token %}
                       <input type="hidden" name="action" value="toggle_asset_category_document_folder">
                       <input type="hidden" name="folder_id" value="{{ item.folder.id }}">
+                      <input type="hidden" name="cat_focus" value="{{ row.category.id }}">
                       <button
                         type="submit"
                         class="btn btn-sm"
@@ -1550,6 +1562,7 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
                       {% csrf_token %}
                       <input type="hidden" name="action" value="delete_asset_category_document_folder">
                       <input type="hidden" name="folder_id" value="{{ item.folder.id }}">
+                      <input type="hidden" name="cat_focus" value="{{ row.category.id }}">
                       <button
                         type="submit"
                         class="btn btn-sm btn-danger"
@@ -1566,6 +1579,7 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
               {% csrf_token %}
               <input type="hidden" name="action" value="create_asset_category_document_folder">
               <input type="hidden" name="category_id" value="{{ row.category.id }}">
+              <input type="hidden" name="cat_focus" value="{{ row.category.id }}">
               <div class="field">
                 <label>Nuova cartella documento</label>
                 <input class="input" type="text" name="folder_name" maxlength="120" placeholder="Es. Collaudi" required>

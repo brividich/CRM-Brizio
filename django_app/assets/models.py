@@ -1803,7 +1803,8 @@ class AssetCategoryDocumentFolder(models.Model):
     Si aggiunge alle tre cartelle di base (specifiche/interventi/manuali) e vale
     per tutti gli asset di quella categoria. Lo ``slug`` e la chiave stabile
     salvata in ``AssetDocument.category``.
-    Non e rinominabile; la disattivazione (soft-delete) e consentita solo se
+    Il ``name`` e solo l etichetta mostrata e si puo rinominare (lo slug resta
+    quello originale); la disattivazione (soft-delete) e consentita solo se
     nessun documento la usa.
     """
 
