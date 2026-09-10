@@ -57,12 +57,44 @@ if (-not $PythonExe) {
     $PythonExe = if (Test-Path $candidate) { $candidate } else { "python" }
 }
 if (-not $OutputDir) {
-    $OutputDir = Join-Path $SourcePath ("acl-cleanup-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
+    # Fuori dal repo di proposito: report e backup dentro il checkout
+    # sporcherebbero il working tree, e il pre-flight del packager si blocca
+    # su un tree sporco.
+    $base = if ($env:TEMP) { $env:TEMP } else { $SourcePath }
+    $OutputDir = Join-Path $base ("acl-cleanup-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
 }
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 
 $manage = Join-Path $SourcePath "django_app\manage.py"
 if (-not (Test-Path $manage)) { throw "manage.py non trovato in $SourcePath" }
+
+# I settings devono caricarsi PRIMA di qualunque altra cosa: quando falliscono,
+# Django elenca solo i comandi built-in e l'errore che arriva e' un fuorviante
+# "Unknown command: acl_cleanup". Meglio dire cosa manca davvero.
+# Le sonde scrivono su stderr quando falliscono, ed e' proprio il caso che ci
+# interessa: senza abbassare ErrorActionPreference qui, PowerShell solleverebbe
+# sulla prima riga di stderr e il messaggio utile non verrebbe mai composto.
+$probe = $null
+$diag = $null
+try {
+    $ErrorActionPreference = "Continue"
+    $probe = & $PythonExe $manage help acl_cleanup "--settings=$Settings" 2>&1
+    $probeExit = $LASTEXITCODE
+    if ($probeExit -ne 0 -or ($probe -join "`n") -match "Unknown command") {
+        # "help <comando>" dice solo "Unknown command"; la ragione vera sta nella
+        # nota che Django stampa in coda a "help" senza argomenti.
+        $diag = & $PythonExe $manage help "--settings=$Settings" 2>&1
+    }
+} finally {
+    $ErrorActionPreference = "Stop"
+}
+if ($diag -ne $null) {
+    $detail = ($diag | Where-Object { $_ -match "error:|ImproperlyConfigured|not properly configured" }) -join " "
+    if (-not $detail) { $detail = ($probe -join " ") }
+    throw ("Il comando acl_cleanup non e' disponibile con --settings=$Settings. " +
+           "Quasi sempre significa che quei settings non si caricano su questa macchina " +
+           "(manca il config\.env dell'ambiente). Dettaglio: $detail")
+}
 
 $reportBefore = Join-Path $OutputDir "report-prima.json"
 $backupDir = Join-Path $OutputDir "backup"
