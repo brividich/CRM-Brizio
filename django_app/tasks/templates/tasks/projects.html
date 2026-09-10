@@ -142,18 +142,12 @@
 
               <!-- Riga team -->
               <div class="pf-card-team">
+                {% for block in project.team_blocks %}
                 <div class="pf-card-team-item">
-                  <span class="pf-card-team-role">PM</span>
-                  <span class="pf-card-team-name">{% if project.project_manager %}{{ project.project_manager.get_full_name|default:project.project_manager.username }}{% else %}—{% endif %}</span>
+                  <span class="pf-card-team-role">{{ block.label }}</span>
+                  <span class="pf-card-team-name">{{ block.display|default:"—" }}</span>
                 </div>
-                <div class="pf-card-team-item">
-                  <span class="pf-card-team-role">Capocommessa</span>
-                  <span class="pf-card-team-name">{% if project.capo_commessa %}{{ project.capo_commessa.get_full_name|default:project.capo_commessa.username }}{% else %}—{% endif %}</span>
-                </div>
-                <div class="pf-card-team-item">
-                  <span class="pf-card-team-role">Programmatore</span>
-                  <span class="pf-card-team-name">{% if project.programmer %}{{ project.programmer.get_full_name|default:project.programmer.username }}{% else %}—{% endif %}</span>
-                </div>
+                {% endfor %}
               </div>
 
               <!-- VRF status row -->

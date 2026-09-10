@@ -78,6 +78,30 @@
 .kp-help { font-size: 11px; color: var(--text-light); margin-top: 4px; }
 .kp-err { font-size: 11px; color: var(--danger, #e53e3e); margin-top: 4px; }
 
+/* ── Selezione multipla del team (piu' persone per ruolo) ────────────── */
+.kp-multipick {
+  border: 1px solid var(--border); border-radius: 8px; background: var(--surface);
+  display: flex; flex-direction: column; min-width: 0;
+}
+.kp-multipick-search {
+  border: 0 !important; border-bottom: 1px solid var(--border) !important;
+  border-radius: 8px 8px 0 0 !important; font-size: 12px !important;
+}
+.kp-multipick-search:focus { outline-offset: -2px; }
+.kp-multipick-list { max-height: 168px; overflow-y: auto; padding: 4px; }
+.kp-multipick-opt {
+  display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 6px;
+  font-size: 13px; color: var(--text); cursor: pointer;
+}
+.kp-multipick-opt:hover { background: var(--accent-light); }
+.kp-multipick-opt input[type="checkbox"] { width: auto; margin: 0; flex-shrink: 0; }
+.kp-multipick-opt span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kp-multipick-opt.is-hidden { display: none; }
+.kp-multipick-empty, .kp-multipick-hint {
+  margin: 0; padding: 6px 8px; font-size: 11px; color: var(--text-light);
+}
+.kp-multipick-hint { border-top: 1px solid var(--border); }
+
 /* ── Azioni ──────────────────────────────────────────────────────────── */
 .kp-actions { display: flex; justify-content: space-between; gap: 12px; margin-top: 20px; flex-wrap: wrap; align-items: center; }
 .kp-actions .kp-right { display: flex; gap: 10px; flex-wrap: wrap; }

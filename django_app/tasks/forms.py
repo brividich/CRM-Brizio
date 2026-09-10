@@ -156,20 +156,28 @@ class ProjectKickoffForm(forms.ModelForm):
     consentire alla view di redirigere al kickoff gia esistente.
     """
 
-    project_manager = forms.ModelChoiceField(
+    # Ogni ruolo ammette piu' persone: checkbox multiple invece della tendina singola.
+    TEAM_FIELDS = ("project_managers", "capi_commessa", "programmers", "caporeparti")
+
+    project_managers = forms.ModelMultipleChoiceField(
         required=False, queryset=User.objects.none(),
-        widget=forms.Select(attrs={"class": "input"}),
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "kp-multipick-input"}),
         label="Project manager",
     )
-    capo_commessa = forms.ModelChoiceField(
+    capi_commessa = forms.ModelMultipleChoiceField(
         required=False, queryset=User.objects.none(),
-        widget=forms.Select(attrs={"class": "input"}),
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "kp-multipick-input"}),
         label="Capocommessa",
     )
-    programmer = forms.ModelChoiceField(
+    programmers = forms.ModelMultipleChoiceField(
         required=False, queryset=User.objects.none(),
-        widget=forms.Select(attrs={"class": "input"}),
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "kp-multipick-input"}),
         label="Programmatore",
+    )
+    caporeparti = forms.ModelMultipleChoiceField(
+        required=False, queryset=User.objects.none(),
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "kp-multipick-input"}),
+        label="Caporeparto",
     )
 
     class Meta:
@@ -203,10 +211,11 @@ class ProjectKickoffForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.reused_existing_project: Project | None = None
         self.project_queryset = project_queryset if project_queryset is not None else Project.objects.all()
-        self.fields["project_manager"].queryset = _users_for_role(TaskRoleType.PROJECT_MANAGER)
-        self.fields["capo_commessa"].queryset   = _users_for_capo_commessa()
-        self.fields["programmer"].queryset      = _users_for_role(TaskRoleType.PROGRAMMER)
-        for _name in ("project_manager", "capo_commessa", "programmer"):
+        self.fields["project_managers"].queryset = _users_for_role(TaskRoleType.PROJECT_MANAGER)
+        self.fields["capi_commessa"].queryset    = _users_for_capo_commessa()
+        self.fields["programmers"].queryset      = _users_for_role(TaskRoleType.PROGRAMMER)
+        self.fields["caporeparti"].queryset      = _users_for_role(TaskRoleType.CAPOREPARTO)
+        for _name in self.TEAM_FIELDS:
             self.fields[_name].label_from_instance = user_display_label
         for name in ("part_number", "revisione", "versione",
                      "description", "control_method", "vrf_quote_number",
@@ -223,14 +232,11 @@ class ProjectKickoffForm(forms.ModelForm):
         if not client_name:
             self.add_error("client_name", "Il campo Cliente è obbligatorio.")
 
-        team_filled = any([
-            cleaned.get("project_manager"),
-            cleaned.get("capo_commessa"),
-            cleaned.get("programmer"),
-        ])
+        team_filled = any(cleaned.get(name) for name in self.TEAM_FIELDS)
         if not team_filled:
             raise forms.ValidationError(
-                "Almeno un membro del team di progetto (Project manager, Capocommessa o Programmatore) è obbligatorio."
+                "Almeno un membro del team di progetto (Project manager, Capocommessa, "
+                "Programmatore o Caporeparto) è obbligatorio."
             )
 
         if (revisione or versione) and not part_number:
@@ -253,12 +259,15 @@ class ProjectKickoffForm(forms.ModelForm):
         if self.reused_existing_project is not None:
             return self.reused_existing_project
         project = super().save(commit=False)
-        project.project_manager = self.cleaned_data.get("project_manager")
-        project.capo_commessa = self.cleaned_data.get("capo_commessa")
-        project.programmer = self.cleaned_data.get("programmer")
         if commit:
             project.save()
+            self.save_team(project)
         return project
+
+    def save_team(self, project) -> None:
+        """Applica gli elenchi multipli del team (richiede project gia' salvato)."""
+        for name in self.TEAM_FIELDS:
+            getattr(project, name).set(self.cleaned_data.get(name) or [])
 
 
 class TaskForm(forms.ModelForm):
@@ -777,9 +786,6 @@ class TaskForm(forms.ModelForm):
             field_updates = {
                 "description": (self.cleaned_data.get("project_new_description") or "").strip(),
                 "client_name": (self.cleaned_data.get("project_new_client") or "").strip(),
-                "project_manager": self.cleaned_data.get("project_new_manager"),
-                "capo_commessa": self.cleaned_data.get("project_new_capo_commessa"),
-                "programmer": self.cleaned_data.get("project_new_programmer"),
                 "control_method": (self.cleaned_data.get("project_new_control_method") or "").strip(),
                 "similar_project": self.cleaned_data.get("project_similar_choice"),
                 "similar_work_note": (self.cleaned_data.get("project_similar_new_note") or "").strip(),
@@ -793,18 +799,18 @@ class TaskForm(forms.ModelForm):
                     updated_fields.append(field_name)
             if updated_fields:
                 project.save()
+            # I ruoli del team sono elenchi: si aggiunge senza rimuovere chi c'e' gia'.
+            if self._add_team_members(project):
+                updated_fields.append("team")
             self.reused_existing_project = project
             self.reused_existing_project_fields = updated_fields
             return project
 
         self.new_project_created = True
-        return Project.objects.create(
+        project = Project.objects.create(
             name="",
             description=(self.cleaned_data.get("project_new_description") or "").strip(),
             client_name=(self.cleaned_data.get("project_new_client") or "").strip(),
-            project_manager=self.cleaned_data.get("project_new_manager"),
-            capo_commessa=self.cleaned_data.get("project_new_capo_commessa"),
-            programmer=self.cleaned_data.get("project_new_programmer"),
             control_method=(self.cleaned_data.get("project_new_control_method") or "").strip(),
             part_number=(self.cleaned_data.get("project_new_part_number") or "").strip(),
             revisione=(self.cleaned_data.get("project_new_revisione") or "").strip(),
@@ -813,6 +819,27 @@ class TaskForm(forms.ModelForm):
             similar_work_note=(self.cleaned_data.get("project_similar_new_note") or "").strip(),
             created_by=created_by,
         )
+        self._add_team_members(project)
+        return project
+
+    _NEW_PROJECT_TEAM_MAP = (
+        ("project_new_manager", "project_managers"),
+        ("project_new_capo_commessa", "capi_commessa"),
+        ("project_new_programmer", "programmers"),
+    )
+
+    def _add_team_members(self, project) -> bool:
+        """Aggiunge agli elenchi del team i referenti scelti nel form task."""
+        added = False
+        for form_field, m2m_field in self._NEW_PROJECT_TEAM_MAP:
+            user = self.cleaned_data.get(form_field)
+            if user is None:
+                continue
+            manager = getattr(project, m2m_field)
+            if not manager.filter(pk=user.pk).exists():
+                manager.add(user)
+                added = True
+        return added
 
     @staticmethod
     def _resolve_planning_window(*, next_step_due: date | None, due_date: date | None) -> tuple[date, date] | None:

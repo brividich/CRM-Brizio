@@ -20,6 +20,7 @@ from django.utils import timezone
 from core.legacy_cache import bump_legacy_cache_version
 from core.legacy_models import Permesso
 from core.models import Notifica, Profile, UserOnboarding
+from .tests_utils import make_project
 from attrezzature.models import (
     Attrezzatura,
     AttrezzaturaKickoffLink,
@@ -333,7 +334,7 @@ class MeetingIssueWorkflowTests(TasksBaseTestCase):
             role_id=2,
             role_name="tasks",
         )
-        self.project = Project.objects.create(name="Kickoff test", created_by=self.user)
+        self.project = make_project(name="Kickoff test", created_by=self.user)
 
     def test_minutes_create_managed_issue_and_carry_it_to_next_agenda(self):
         self.client.force_login(self.user)
@@ -632,7 +633,7 @@ class TaskAttrezzaturaEmbeddedPanelTests(TasksBaseTestCase):
             role_id=2,
             role_name="utente",
         )
-        self.project = Project.objects.create(
+        self.project = make_project(
             name="Kickoff panel",
             created_by=self.user,
             part_number=" pn-77 ",
@@ -916,8 +917,8 @@ class TaskListFiltersTests(TasksBaseTestCase):
         self.user = _create_user_with_legacy(username="filteruser", legacy_user_id=4001, role_id=2, role_name="utente")
         self.manager = _create_user_with_legacy(username="manager", legacy_user_id=4002, role_id=3, role_name="manager")
         self.other = _create_user_with_legacy(username="other", legacy_user_id=4003, role_id=2, role_name="utente")
-        self.project_alpha = Project.objects.create(name="Project Alpha", created_by=self.manager)
-        self.project_beta = Project.objects.create(name="Project Beta", created_by=self.manager)
+        self.project_alpha = make_project(name="Project Alpha", created_by=self.manager)
+        self.project_beta = make_project(name="Project Beta", created_by=self.manager)
 
         today = timezone.localdate()
         self.t_overdue = Task.objects.create(
@@ -1182,7 +1183,7 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         project_manager = User.objects.create_user(username="pm_user", password="pass12345")
         capo_commessa = User.objects.create_user(username="capo_user", password="pass12345")
         programmatore = User.objects.create_user(username="prog_user", password="pass12345")
-        similar_project = Project.objects.create(name="Commessa simile", created_by=self.user)
+        similar_project = make_project(name="Commessa simile", created_by=self.user)
 
         payload = self._base_task_payload("Task con metadati progetto")
         payload.update(
@@ -1205,16 +1206,16 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         self.assertIsNotNone(task.project_id)
         project = task.project
         self.assertEqual(project.client_name, "Cliente Alfa")
-        self.assertEqual(project.project_manager_id, project_manager.id)
-        self.assertEqual(project.capo_commessa_id, capo_commessa.id)
-        self.assertEqual(project.programmer_id, programmatore.id)
+        self.assertEqual(list(project.project_managers.all()), [project_manager])
+        self.assertEqual(list(project.capi_commessa.all()), [capo_commessa])
+        self.assertEqual(list(project.programmers.all()), [programmatore])
         self.assertEqual(project.control_method, "Checklist e test collaudo")
         self.assertEqual(project.part_number, "PN-001")
         self.assertEqual(project.similar_project_id, similar_project.id)
 
     def test_create_task_reuses_existing_project_with_same_part_number_identity(self):
         self.client.force_login(self.user)
-        project = Project.objects.create(
+        project = make_project(
             name="Commessa storica",
             client_name="Cliente Legacy",
             part_number="PN-777",
@@ -1265,7 +1266,7 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
 
     def test_create_task_with_existing_project(self):
         self.client.force_login(self.user)
-        project = Project.objects.create(name="Progetto Esistente", created_by=self.user)
+        project = make_project(name="Progetto Esistente", created_by=self.user)
         payload = self._base_task_payload("Task su progetto esistente")
         payload.update(
             {
@@ -1281,8 +1282,8 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         self.assertEqual(Project.objects.count(), 1)
 
     def test_project_model_auto_generates_kickoff_name_and_number(self):
-        first = Project.objects.create(name="", created_by=self.user)
-        second = Project.objects.create(name="", created_by=self.user)
+        first = make_project(name="", created_by=self.user)
+        second = make_project(name="", created_by=self.user)
 
         self.assertTrue(first.name.startswith("KICK-OFF "))
         self.assertTrue(second.name.startswith("KICK-OFF "))
@@ -1291,7 +1292,7 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         self.assertNotEqual(first.kickoff_number, second.kickoff_number)
 
     def test_existing_kickoff_name_is_not_renamed(self):
-        legacy = Project.objects.create(
+        legacy = make_project(
             name="Legacy Kickoff",
             kickoff_number=77,
             client_name="Cliente Legacy",
@@ -1315,7 +1316,7 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
 
     def test_create_form_from_kickoff_context_hides_kickoff_selection(self):
         self.client.force_login(self.user)
-        project = Project.objects.create(
+        project = make_project(
             name="",
             client_name="Cliente Context",
             part_number="PN-CONTEXT-01",
@@ -1332,7 +1333,7 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
 
     def test_create_form_from_kickoff_context_forces_task_into_that_kickoff(self):
         self.client.force_login(self.user)
-        project = Project.objects.create(
+        project = make_project(
             name="",
             client_name="Cliente Locked",
             part_number="PN-LOCK-01",
@@ -1357,7 +1358,7 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
 
     def test_project_list_shows_copy_buttons(self):
         self.client.force_login(self.user)
-        Project.objects.create(name="", created_by=self.user)
+        make_project(name="", created_by=self.user)
 
         response = self.client.get(reverse("tasks:project_list"))
 
@@ -1372,7 +1373,7 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         direttamente (come ProjectActionsViewTests) per isolare il costo dalla
         query di ACL/middleware/branding condivisa da ogni richiesta HTTP."""
         for i in range(12):
-            Project.objects.create(
+            make_project(
                 name=f"Commessa budget {i}", client_name="Cliente Budget", created_by=self.user
             )
         admin = User.objects.create_superuser(username="portfolio-budget-admin", password="pass12345")
@@ -1384,20 +1385,21 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
 
         # Budget: 1 query per le righe progetto (readiness Exists() e i conteggi
         # azioni di annotate_open_action_counts() sono sottoquery correlate nella
-        # stessa query, non round-trip aggiuntivi) + 1 per client_choices + 6 per
+        # stessa query, non round-trip aggiuntivi) + 4 per il prefetch dei ruoli
+        # del team (M2M) + 1 per client_choices + 6 per
         # TaskImpostazioni.get_singleton() (get_or_create con audit log). Nessuna
         # di queste cresce con il numero di commesse nel portfolio.
         with patch("tasks.views.render", side_effect=render_without_template_queries):
-            with self.assertNumQueries(8):
+            with self.assertNumQueries(12):
                 response = project_list(request)
 
         self.assertEqual(response.status_code, 200)
 
     def test_project_list_builds_client_filter_from_distinct_names(self):
         self.client.force_login(self.user)
-        Project.objects.create(name="Kickoff Alfa", client_name="Cliente Alfa", created_by=self.user)
-        Project.objects.create(name="Kickoff Beta", client_name="Cliente Beta", created_by=self.user)
-        Project.objects.create(name="Kickoff vuoto", client_name="", created_by=self.user)
+        make_project(name="Kickoff Alfa", client_name="Cliente Alfa", created_by=self.user)
+        make_project(name="Kickoff Beta", client_name="Cliente Beta", created_by=self.user)
+        make_project(name="Kickoff vuoto", client_name="", created_by=self.user)
 
         response = self.client.get(reverse("tasks:project_list"))
 
@@ -1408,7 +1410,7 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
     def test_copy_project_with_vrf_duplicates_kickoff_metadata_and_file(self):
         self.client.force_login(self.user)
         project_manager = User.objects.create_user(username="copy_pm", password="pass12345")
-        source_project = Project.objects.create(
+        source_project = make_project(
             name="",
             description="Kickoff sorgente",
             client_name="Cliente Copy",
@@ -1454,7 +1456,10 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         self.assertNotEqual(copied_project.kickoff_number, source_project.kickoff_number)
         self.assertEqual(copied_project.description, source_project.description)
         self.assertEqual(copied_project.client_name, source_project.client_name)
-        self.assertEqual(copied_project.project_manager_id, source_project.project_manager_id)
+        self.assertEqual(
+            list(copied_project.project_managers.all()),
+            list(source_project.project_managers.all()),
+        )
         self.assertEqual(copied_project.control_method, source_project.control_method)
         self.assertEqual(copied_project.part_number, "PN-COPY-001")
         self.assertEqual(copied_project.revisione, "A")
@@ -1469,7 +1474,7 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
 
     def test_copy_project_with_vrf_without_pn_clears_project_and_excel_part_number(self):
         self.client.force_login(self.user)
-        source_project = Project.objects.create(
+        source_project = make_project(
             name="",
             client_name="Cliente No PN",
             part_number="PN-COPY-002",
@@ -1515,7 +1520,7 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
             due_date=today + timedelta(days=5),
         )
 
-        conflict_project = Project.objects.create(
+        conflict_project = make_project(
             name="", client_name="Cliente Conf", part_number="PN-CONF-1", created_by=self.user
         )
         payload = self._base_task_payload("Task nuova con conflitto")
@@ -1548,7 +1553,7 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
             due_date=today + timedelta(days=4),
         )
 
-        raise_project = Project.objects.create(
+        raise_project = make_project(
             name="", client_name="Cliente Raise", part_number="PN-RAISE-1", created_by=self.user
         )
         payload = self._base_task_payload("Task nuova con priorita auto")
@@ -1587,7 +1592,7 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
 
     def test_upload_attachment_to_project_creates_event(self):
         self.client.force_login(self.user)
-        project = Project.objects.create(name="Project Attach", created_by=self.user)
+        project = make_project(name="Project Attach", created_by=self.user)
         task = Task.objects.create(title="Task con progetto allegato", created_by=self.user, project=project)
         file_obj = SimpleUploadedFile("project-note.txt", b"contenuto allegato progetto", content_type="text/plain")
         with patch("tasks.forms.validate_extension_and_mime", return_value="text/plain"):
@@ -1622,7 +1627,7 @@ class TaskProjectGanttAndNotificationsTests(TasksBaseTestCase):
             username="g_outsider", legacy_user_id=6004, role_id=2, role_name="utente"
         )
 
-        self.project = Project.objects.create(
+        self.project = make_project(
             name="Gantt Project",
             created_by=self.owner,
             programmer=self.assignee,
@@ -1901,7 +1906,7 @@ class TaskAbsenceConflictTests(TasksBaseTestCase):
             person_email=self.assignee.email,
             date_value=target_day,
         )
-        project = Project.objects.create(name="Project assenze", created_by=self.owner)
+        project = make_project(name="Project assenze", created_by=self.owner)
         Task.objects.create(
             title="Task conflitto gantt",
             created_by=self.owner,
@@ -1940,7 +1945,7 @@ class TaskEditAndDueDatePermissionsTests(TasksBaseTestCase):
             username="admin_user", legacy_user_id=7004, role_id=3, role_name="manager"
         )
 
-        self.project = Project.objects.create(name="Project Lead Edit", created_by=self.project_lead)
+        self.project = make_project(name="Project Lead Edit", created_by=self.project_lead)
         self.task = Task.objects.create(
             title="Task permessi edit",
             created_by=self.project_lead,
@@ -2134,7 +2139,7 @@ class TaskReminderAdminTabTests(TasksBaseTestCase):
         self.user = _create_user_with_legacy(
             username="remuser", legacy_user_id=9501, role_id=2, role_name="utente",
         )
-        self.project = Project.objects.create(name="KO rem", created_by=self.user)
+        self.project = make_project(name="KO rem", created_by=self.user)
         self.task = Task.objects.create(
             title="T rem", project=self.project, assigned_to=self.user,
             due_date=timezone.localdate() + timedelta(days=5),
@@ -2208,7 +2213,7 @@ class TaskScopedAccessRulesTests(TasksBaseTestCase):
         self.override_user = _create_user_with_legacy(username="ko_override", legacy_user_id=9606, role_id=2, role_name="utente")
         self.outsider = _create_user_with_legacy(username="ko_outsider", legacy_user_id=9607, role_id=2, role_name="utente")
 
-        self.project = Project.objects.create(
+        self.project = make_project(
             name="Kickoff accessi",
             created_by=self.owner,
             project_manager=self.pm_user,
@@ -2376,7 +2381,7 @@ class TaskOutlookReminderTests(TasksBaseTestCase):
         self.user = _create_user_with_legacy(
             username="outlookuser", legacy_user_id=8001, role_id=2, role_name="utente",
         )
-        self.project = Project.objects.create(name="KO Reminder", created_by=self.user)
+        self.project = make_project(name="KO Reminder", created_by=self.user)
         self.impostazioni = TaskImpostazioni.get_singleton()
         self.impostazioni.notifiche_scadenza_attive = True
         self.impostazioni.giorni_preavviso = 3
@@ -2577,7 +2582,7 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
                 "vrf_quote_number": "Q-1",
                 "vrf_description": "",
                 "vrf_esp": "02",
-                "project_manager": self.user.id,
+                "project_managers": [self.user.id],
             },
         )
         project = Project.objects.get(part_number="PN-NEW-001")
@@ -2598,7 +2603,7 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
         self.assertFalse(project.safety_impact)
 
     def test_project_safety_impact_defaults_false(self):
-        project = Project.objects.create(name="Kickoff safety default", created_by=self.user)
+        project = make_project(name="Kickoff safety default", created_by=self.user)
 
         self.assertFalse(project.safety_impact)
 
@@ -2617,7 +2622,7 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
                 "vrf_quote_number": "Q-SAFE",
                 "vrf_description": "",
                 "vrf_esp": "",
-                "project_manager": self.user.id,
+                "project_managers": [self.user.id],
             },
         )
 
@@ -2630,7 +2635,7 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
         self.assertEqual(project.vrf_status, VRFDocStatus.PENDING)
 
     def test_project_kickoff_form_edit_post_can_clear_safety_impact(self):
-        project = Project.objects.create(
+        project = make_project(
             client_name="Cliente Edit",
             part_number="PN-EDIT-SAFE",
             revisione="A",
@@ -2650,7 +2655,7 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
                 "vrf_quote_number": project.vrf_quote_number,
                 "vrf_description": project.vrf_description,
                 "vrf_esp": project.vrf_esp,
-                "project_manager": self.user.id,
+                "project_managers": [self.user.id],
             },
             instance=project,
             project_queryset=Project.objects.exclude(pk=project.pk),
@@ -2664,7 +2669,7 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
         self.client.force_login(self.user)
         response = self.client.post(
             reverse("tasks:project_create"),
-            {"client_name": "X", "part_number": "", "revisione": "A", "versione": "", "project_manager": self.user.id},
+            {"client_name": "X", "part_number": "", "revisione": "A", "versione": "", "project_managers": [self.user.id]},
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(
@@ -2674,7 +2679,7 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
         self.assertFalse(Project.objects.filter(client_name="X").exists())
 
     def test_duplicate_identity_reuses_existing_kickoff(self):
-        existing = Project.objects.create(
+        existing = make_project(
             part_number="DUP-001", revisione="B", versione="2.0",
             client_name="Cliente Precedente", created_by=self.user,
         )
@@ -2686,7 +2691,7 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
                 "part_number": "DUP-001",
                 "revisione": "B",
                 "versione": "2.0",
-                "project_manager": self.user.id,
+                "project_managers": [self.user.id],
             },
         )
         self.assertRedirects(
@@ -2700,13 +2705,13 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
         self.assertEqual(existing.client_name, "Cliente Precedente")
 
     def test_safety_impact_badge_visible_on_project_detail_and_list_only_when_true(self):
-        safety_project = Project.objects.create(
+        safety_project = make_project(
             name="Kickoff safety",
             part_number="PN-SAFE-LIST",
             safety_impact=True,
             created_by=self.user,
         )
-        Project.objects.create(
+        make_project(
             name="Kickoff normal",
             part_number="PN-NORMAL-LIST",
             safety_impact=False,
@@ -2747,7 +2752,7 @@ class VRFCompileOnlineTests(TasksBaseTestCase):
         Path(self._media_root, "tasks_vrf", today.strftime("%Y"), today.strftime("%m")).mkdir(parents=True, exist_ok=True)
         self.addCleanup(self._media_override.disable)
         self.addCleanup(shutil.rmtree, self._media_root, True)
-        self.project = Project.objects.create(
+        self.project = make_project(
             name="TBD",
             client_name="Test Client",
             part_number="PN-TEST-1",
@@ -2917,7 +2922,7 @@ class ReadinessComputeTests(TestCase):
     def _project(self, **kw):
         from tasks.models import Project
 
-        return Project.objects.create(name=kw.pop("name", "P"), created_by=self.user, **kw)
+        return make_project(name=kw.pop("name", "P"), created_by=self.user, **kw)
 
     def test_all_criteria_met_is_ready(self):
         from tasks.models import VRFDocStatus
@@ -2986,7 +2991,7 @@ class ReadinessQuerysetTests(TestCase):
 
         from tasks.models import MeetingStatus
 
-        p_full = Project.objects.create(name="full", created_by=self.user)
+        p_full = make_project(name="full", created_by=self.user)
         KickoffMeeting.objects.create(
             project=p_full, titolo="k", data=timezone.localdate(),
             created_by=self.user, stato=MeetingStatus.SVOLTO,
@@ -2994,7 +2999,7 @@ class ReadinessQuerysetTests(TestCase):
         Task.objects.create(
             title="t", created_by=self.user, project=p_full, due_date=timezone.localdate()
         )
-        p_empty = Project.objects.create(name="empty", created_by=self.user)
+        p_empty = make_project(name="empty", created_by=self.user)
 
         rows = {p.id: p for p in annotate_readiness_qs(Project.objects.all())}
         assert rows[p_full.id].rd_has_meeting is True
@@ -3006,7 +3011,7 @@ class ReadinessQuerysetTests(TestCase):
         from tasks.models import KickoffMeeting, MeetingStatus, Project
         from tasks.readiness import annotate_readiness_qs, compute_project_readiness
 
-        p = Project.objects.create(name="solo pianificato", created_by=self.user)
+        p = make_project(name="solo pianificato", created_by=self.user)
         KickoffMeeting.objects.create(
             project=p, titolo="futuro", data=timezone.localdate() + timedelta(days=7),
             created_by=self.user, stato=MeetingStatus.PIANIFICATO,
@@ -3025,7 +3030,7 @@ class ReadinessQuerysetTests(TestCase):
         from tasks.readiness import annotate_readiness_qs, compute_project_readiness
 
         for i in range(3):
-            Project.objects.create(name=f"P{i}", created_by=self.user)
+            make_project(name=f"P{i}", created_by=self.user)
         with self.assertNumQueries(1):
             projects = list(annotate_readiness_qs(Project.objects.all()))
             _ = [compute_project_readiness(p) for p in projects]
@@ -3034,8 +3039,8 @@ class ReadinessQuerysetTests(TestCase):
         from tasks.models import Project, VRFDocStatus
         from tasks.readiness import annotate_readiness_qs, readiness_summary
 
-        Project.objects.create(name="n", created_by=self.user)
-        Project.objects.create(
+        make_project(name="n", created_by=self.user)
+        make_project(
             name="p", created_by=self.user, vrf_status=VRFDocStatus.UPLOADED,
             project_manager=self.user, capo_commessa=self.user, programmer=self.user,
         )
@@ -3057,7 +3062,7 @@ class ReadinessPortfolioRenderTests(TestCase):
         from tasks.models import Project
 
         self.client.force_login(self.admin)
-        Project.objects.create(name="Vuota", created_by=self.admin)
+        make_project(name="Vuota", created_by=self.admin)
 
     def test_portfolio_shows_readiness_badge(self):
         r = self.client.get(reverse("tasks:project_list"))
@@ -3078,7 +3083,7 @@ class ReadinessProjectHeaderRenderTests(TestCase):
         from tasks.models import Project
 
         self.client.force_login(self.admin)
-        self.project = Project.objects.create(name="Commessa", created_by=self.admin)
+        self.project = make_project(name="Commessa", created_by=self.admin)
 
     def test_project_mode_shows_readiness_checklist(self):
         r = self.client.get(reverse("tasks:list") + f"?project={self.project.id}")
@@ -3100,7 +3105,7 @@ class ReadinessDashboardAggregateTests(TestCase):
         from tasks.models import Project, Task
 
         self.client.force_login(self.admin)
-        p = Project.objects.create(name="C1", created_by=self.admin)
+        p = make_project(name="C1", created_by=self.admin)
         Task.objects.create(
             title="t1", created_by=self.admin, project=p, due_date=timezone.localdate()
         )
@@ -3139,8 +3144,8 @@ class KickoffDaGestireTests(TestCase):
         from tasks.models import Project, VRFDocStatus
         from tasks.da_gestire import build_kickoff_da_gestire
 
-        p_pending = Project.objects.create(name="x", created_by=self.admin)  # PENDING
-        Project.objects.create(
+        p_pending = make_project(name="x", created_by=self.admin)  # PENDING
+        make_project(
             name="y", created_by=self.admin, vrf_status=VRFDocStatus.UPLOADED
         )
         secs = self._sections(build_kickoff_da_gestire(self._req(), "portfolio"))
@@ -3152,7 +3157,7 @@ class KickoffDaGestireTests(TestCase):
         from tasks.models import Project
         from tasks.da_gestire import build_kickoff_da_gestire
 
-        p = Project.objects.create(name="x", created_by=self.admin)  # 0/4 -> notready
+        p = make_project(name="x", created_by=self.admin)  # 0/4 -> notready
         secs = self._sections(build_kickoff_da_gestire(self._req(), "portfolio"))
         urls = [i["url"] for i in secs["not_ready"]["items"]]
         assert any(f"?project={p.id}" in u for u in urls)
@@ -3161,7 +3166,7 @@ class KickoffDaGestireTests(TestCase):
         from tasks.models import Project, Task, TaskStatus
         from tasks.da_gestire import build_kickoff_da_gestire
 
-        p = Project.objects.create(name="C", created_by=self.admin)
+        p = make_project(name="C", created_by=self.admin)
         Task.objects.create(
             title="Scaduta", created_by=self.admin, project=p,
             due_date=timezone.localdate() - timedelta(days=2),
@@ -3179,7 +3184,7 @@ class KickoffDaGestireTests(TestCase):
         from tasks.models import Project, KickoffMeeting, MeetingIssue, MeetingIssueStatus
         from tasks.da_gestire import build_kickoff_da_gestire
 
-        p = Project.objects.create(name="M", created_by=self.admin)
+        p = make_project(name="M", created_by=self.admin)
         m = KickoffMeeting.objects.create(
             project=p, titolo="Inc1", data=timezone.localdate(), created_by=self.admin
         )
@@ -3211,7 +3216,7 @@ class KickoffDaGestireRenderTests(TestCase):
         from tasks.models import Project
 
         self.client.force_login(self.admin)
-        Project.objects.create(name="Vuota", created_by=self.admin)
+        make_project(name="Vuota", created_by=self.admin)
 
     def test_page_renders_with_sections_and_toggle(self):
         r = self.client.get(reverse("tasks:da_gestire"))
@@ -3272,7 +3277,7 @@ class ProjectSetPhaseTests(TestCase):
     def _make_project(self):
         from tasks.models import Project
 
-        return Project.objects.create(name="P", created_by=self.admin)
+        return make_project(name="P", created_by=self.admin)
 
     def test_editor_can_set_phase(self):
         p = self._make_project()
@@ -3313,7 +3318,7 @@ class ProjectBoardRenderTests(TestCase):
         from tasks.models import Project
 
         self.client.force_login(self.admin)
-        Project.objects.create(name="P1", created_by=self.admin)
+        make_project(name="P1", created_by=self.admin)
 
     def test_board_view_renders_columns(self):
         r = self.client.get(reverse("tasks:project_list") + "?view=board")
@@ -3367,7 +3372,7 @@ class MeetingsCalendarRenderTests(TestCase):
         from tasks.models import Project, KickoffMeeting
 
         self.client.force_login(self.admin)
-        p = Project.objects.create(name="P", created_by=self.admin)
+        p = make_project(name="P", created_by=self.admin)
         self.meeting = KickoffMeeting.objects.create(
             project=p, numero=1, titolo="Inc", data=timezone.localdate(), created_by=self.admin
         )
@@ -3455,7 +3460,7 @@ class PortfolioTimelineRenderTests(TestCase):
         from tasks.models import Project, Task
 
         self.client.force_login(self.admin)
-        p = Project.objects.create(name="P", created_by=self.admin)
+        p = make_project(name="P", created_by=self.admin)
         Task.objects.create(
             title="t", created_by=self.admin, project=p,
             next_step_due=timezone.localdate(),
@@ -3577,10 +3582,10 @@ class KickoffMeetingProjectScopeTests(TasksBaseTestCase):
 
         # NB: Project.save() auto-genera "KICK-OFF N" se il nome è vuoto; passando
         # sia name che kickoff_number il nome custom viene preservato.
-        self.project_kickoff = Project.objects.create(
+        self.project_kickoff = make_project(
             name="Commessa con kickoff ZZ1", kickoff_number=9101, created_by=self.owner
         )
-        self.project_estraneo = Project.objects.create(
+        self.project_estraneo = make_project(
             name="Commessa estranea ZZ2", kickoff_number=9102, created_by=self.owner
         )
 
@@ -3624,7 +3629,7 @@ class MeetingCreateTaskButtonTests(TasksBaseTestCase):
             username="mtg-manager", legacy_user_id=9801, role_id=2, role_name="tasks"
         )
         # created_by == user → can_manage True.
-        self.project = Project.objects.create(name="Progetto incontro", created_by=self.user)
+        self.project = make_project(name="Progetto incontro", created_by=self.user)
         self.meeting = KickoffMeeting.objects.create(
             project=self.project, numero=1, data=timezone.localdate(), created_by=self.user
         )

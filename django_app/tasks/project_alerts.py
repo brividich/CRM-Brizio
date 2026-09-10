@@ -9,9 +9,7 @@ from __future__ import annotations
 def project_recipients(project) -> list[str]:
     """Email di PM e capo commessa del progetto (deduplicate)."""
     emails: list[str] = []
-    for user in (getattr(project, "project_manager", None), getattr(project, "capo_commessa", None)):
-        if user is None:
-            continue
+    for user in project.team_members("project_managers") + project.team_members("capi_commessa"):
         email = (getattr(user, "email", "") or "").strip()
         if email and email not in emails:
             emails.append(email)

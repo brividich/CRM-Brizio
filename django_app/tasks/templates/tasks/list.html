@@ -129,9 +129,7 @@
         <p class="pk-header-desc">{{ active_project.description|truncatechars:120 }}</p>
       {% endif %}
       <div class="pk-header-people">
-        {% if active_project.project_manager %}<span><b>PM</b> {{ active_project.project_manager.get_full_name|default:active_project.project_manager.username }}</span>{% endif %}
-        {% if active_project.capo_commessa   %}<span><b>CC</b> {{ active_project.capo_commessa.get_full_name|default:active_project.capo_commessa.username }}</span>{% endif %}
-        {% if active_project.programmer      %}<span><b>Prog.</b> {{ active_project.programmer.get_full_name|default:active_project.programmer.username }}</span>{% endif %}
+        {% for block in active_project.team_blocks %}{% if block.display %}<span><b>{{ block.label }}</b> {{ block.display }}</span>{% endif %}{% endfor %}
       </div>
     </div>
 

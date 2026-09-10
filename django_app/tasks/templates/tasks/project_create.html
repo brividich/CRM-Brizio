@@ -132,18 +132,23 @@
           </div>
           <div class="kp-body">
             <div class="kp-grid">
+              {% for team_field in team_fields %}
               <div class="kp-field">
-                <label for="{{ form.project_manager.id_for_label }}">Project manager</label>
-                {{ form.project_manager }}
+                <label>{{ team_field.label }}</label>
+                <div class="kp-multipick" data-kp-multipick>
+                  <input type="search" class="kp-multipick-search input" data-kp-ignore placeholder="Filtra {{ team_field.label|lower }}…" aria-label="Filtra {{ team_field.label|lower }}">
+                  <div class="kp-multipick-list">
+                    {% for choice in team_field %}
+                      <label class="kp-multipick-opt">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>
+                    {% empty %}
+                      <p class="kp-multipick-empty">Nessun utente disponibile per questo ruolo.</p>
+                    {% endfor %}
+                  </div>
+                  <p class="kp-multipick-hint">Puoi selezionare più persone.</p>
+                </div>
+                {% if team_field.errors %}<div class="kp-err">{{ team_field.errors }}</div>{% endif %}
               </div>
-              <div class="kp-field">
-                <label for="{{ form.capo_commessa.id_for_label }}">Capocommessa</label>
-                {{ form.capo_commessa }}
-              </div>
-              <div class="kp-field">
-                <label for="{{ form.programmer.id_for_label }}">Programmatore</label>
-                {{ form.programmer }}
-              </div>
+              {% endfor %}
             </div>
           </div>
         </section>
@@ -168,6 +173,21 @@
   'use strict';
 
   const suggestUrl = "{% url 'tasks:identity_suggest' %}";
+
+  // Filtro locale sulle liste di selezione multipla del team.
+  document.querySelectorAll('[data-kp-multipick]').forEach(function (box) {
+    const search = box.querySelector('.kp-multipick-search');
+    const options = Array.prototype.slice.call(box.querySelectorAll('.kp-multipick-opt'));
+    if (!search || !options.length) return;
+    search.addEventListener('input', function () {
+      const needle = search.value.trim().toLowerCase();
+      options.forEach(function (opt) {
+        const checked = opt.querySelector('input[type="checkbox"]').checked;
+        const match = !needle || opt.textContent.toLowerCase().indexOf(needle) !== -1;
+        opt.classList.toggle('is-hidden', !(match || checked));
+      });
+    });
+  });
 
   function attachIdentitySuggestions(inputId, datalistId, field) {
     const input = document.getElementById(inputId);
