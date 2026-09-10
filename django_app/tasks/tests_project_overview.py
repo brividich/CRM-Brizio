@@ -5,6 +5,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.models import RoutePermissionBinding
+from .tests_utils import make_project
 
 from .action_register import count_project_open_actions
 from .acl_bootstrap import bootstrap_tasks_acl_endpoints
@@ -48,7 +49,7 @@ class ProjectOverviewTests(TasksBaseTestCase):
             role_name="tasks",
         )
         today = timezone.localdate()
-        self.project = Project.objects.create(
+        self.project = make_project(
             name="",
             client_name="Cliente Demo",
             part_number="PN-OVERVIEW",

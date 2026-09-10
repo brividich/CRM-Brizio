@@ -1307,10 +1307,14 @@ def _task_line(task, today: date) -> str:
 def _project_line(project) -> str:
     number = getattr(project, "kickoff_number", None)
     prefix = f"KICK-OFF {number}" if number else str(getattr(project, "name", "") or "KICK-OFF")
-    pm = _display_user(getattr(project, "project_manager", None))
-    cc = _display_user(getattr(project, "capo_commessa", None))
-    programmer = _display_user(getattr(project, "programmer", None))
-    return f"- {prefix}: PM {pm}, capocommessa {cc}, programmatore {programmer}"
+    pm = project.team_display("project_managers") or "-"
+    cc = project.team_display("capi_commessa") or "-"
+    programmer = project.team_display("programmers") or "-"
+    caporeparto = project.team_display("caporeparti") or "-"
+    return (
+        f"- {prefix}: PM {pm}, capocommessa {cc}, "
+        f"programmatore {programmer}, caporeparto {caporeparto}"
+    )
 
 
 def _asset_line(asset) -> str:

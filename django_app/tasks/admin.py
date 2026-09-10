@@ -62,9 +62,7 @@ class ProjectAdmin(admin.ModelAdmin):
         "id",
         "name",
         "client_name",
-        "project_manager",
-        "capo_commessa",
-        "programmer",
+        "team_display_pm",
         "part_number",
         "updated_at",
     )
@@ -81,10 +79,13 @@ class ProjectAdmin(admin.ModelAdmin):
     )
     autocomplete_fields = (
         "created_by",
-        "project_manager",
-        "capo_commessa",
-        "programmer",
         "similar_project",
+    )
+    filter_horizontal = (
+        "project_managers",
+        "capi_commessa",
+        "programmers",
+        "caporeparti",
     )
     readonly_fields = ("created_at", "updated_at")
 

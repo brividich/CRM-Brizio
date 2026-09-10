@@ -303,7 +303,7 @@ class ProjectActionsViewTests(TasksBaseTestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_view_query_budget_is_four_queries(self):
-        """Budget: progetto scoped (1) + issue, task e subtask (3)."""
+        """Budget: progetto scoped (1) + team M2M (4) + issue, task e subtask (3)."""
         admin = User.objects.create_superuser(username="actions-admin", password="pass12345")
         request = RequestFactory().get(reverse("tasks:project_actions", args=[self.project.pk]))
         request.user = admin
@@ -312,7 +312,8 @@ class ProjectActionsViewTests(TasksBaseTestCase):
             return HttpResponse(f"{template_name}:{context['open_count']}")
 
         with patch("tasks.views_projects.render", side_effect=render_without_template_queries):
-            with self.assertNumQueries(4):
+            # 4 + il prefetch dei quattro ruoli del team (M2M) sul progetto.
+            with self.assertNumQueries(8):
                 response = project_actions(request, project_id=self.project.pk)
 
         self.assertEqual(response.status_code, 200)

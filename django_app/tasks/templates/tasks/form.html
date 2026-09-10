@@ -236,7 +236,7 @@ function applySuggestedStart(iso){
 function renderInfo(data){
   applySuggestedStart(data.suggested_start_date);
   const ids=[chip("P/N",data.part_number,"pn"),chip("Rev",data.revisione,"rev"),chip("Ver",data.versione,"ver")].join("");
-  const meta=[["Cliente",data.client_name],["Project manager",data.project_manager],["Capo commessa",data.capo_commessa],["Programmatore",data.programmer]].map(function(item){return '<div class="tf-meta-item"><div class="lbl">'+esc(item[0])+'</div><div class="val">'+esc(item[1]||"-")+'</div></div>';}).join("");
+  const meta=[["Cliente",data.client_name],["Project manager",data.project_manager],["Capo commessa",data.capo_commessa],["Programmatore",data.programmer],["Caporeparto",data.caporeparto]].map(function(item){return '<div class="tf-meta-item"><div class="lbl">'+esc(item[0])+'</div><div class="val">'+esc(item[1]||"-")+'</div></div>';}).join("");
   let tasksHtml='<div class="tf-empty">Nessuna attivita ancora presente in questo kickoff.</div>';
   if(data.tasks&&data.tasks.length){
     const rows=data.tasks.map(function(row){return "<tr>"+'<td style="text-align:center;font-weight:800;color:var(--text-light);">'+esc(row.wbs)+'</td>'+"<td>"+esc(row.title)+"</td>"+"<td>"+statusBadge(row.status)+"</td>"+"<td>"+esc(row.next_step_due||"-")+"</td>"+"<td>"+esc(row.due_date||"-")+"</td>"+"<td>"+esc(row.assignee||"-")+"</td>"+"</tr>";}).join("");

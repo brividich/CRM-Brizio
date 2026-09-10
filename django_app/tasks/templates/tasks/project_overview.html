@@ -26,18 +26,12 @@
 
 {% block tasks_shell_content %}
   <section class="ko-team" aria-label="Team commessa">
+    {% for block in project.team_blocks %}
     <div class="ko-team-item">
-      <span class="ko-team-role">Project manager</span>
-      <span class="ko-team-name">{% if project.project_manager %}{{ project.project_manager.get_full_name|default:project.project_manager.username }}{% else %}Non assegnato{% endif %}</span>
+      <span class="ko-team-role">{{ block.label }}</span>
+      <span class="ko-team-name">{{ block.display|default:"Non assegnato" }}</span>
     </div>
-    <div class="ko-team-item">
-      <span class="ko-team-role">Capocommessa</span>
-      <span class="ko-team-name">{% if project.capo_commessa %}{{ project.capo_commessa.get_full_name|default:project.capo_commessa.username }}{% else %}Non assegnato{% endif %}</span>
-    </div>
-    <div class="ko-team-item">
-      <span class="ko-team-role">Programmatore</span>
-      <span class="ko-team-name">{% if project.programmer %}{{ project.programmer.get_full_name|default:project.programmer.username }}{% else %}Non assegnato{% endif %}</span>
-    </div>
+    {% endfor %}
   </section>
 
   <section class="ko-metrics" aria-label="Metriche commessa">

@@ -51,6 +51,13 @@ class TaskEventType(models.TextChoices):
     ATTACHMENT_ADDED = "ATTACHMENT_ADDED", "Attachment added"
 
 
+def user_label(user) -> str:
+    """Nome leggibile di un utente (fallback su username)."""
+    if user is None:
+        return ""
+    return user.get_full_name() or user.username
+
+
 class Project(models.Model):
     kickoff_number = models.PositiveIntegerField(
         null=True,
@@ -62,26 +69,31 @@ class Project(models.Model):
     name = models.CharField(max_length=180)
     description = models.TextField(blank=True, default="")
     client_name = models.CharField(max_length=180, blank=True, default="")
-    project_manager = models.ForeignKey(
+    # Team di progetto: dal 1.5.1 ogni ruolo ammette piu' persone (M2M), perche'
+    # una commessa puo' avere due capicommessa o due programmatori che si alternano.
+    project_managers = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
         blank=True,
-        related_name="projects_as_manager",
+        related_name="projects_as_pm",
+        verbose_name="Project manager",
     )
-    capo_commessa = models.ForeignKey(
+    capi_commessa = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
         blank=True,
-        related_name="projects_as_capo_commessa",
+        related_name="projects_as_cc",
+        verbose_name="Capocommessa",
     )
-    programmer = models.ForeignKey(
+    programmers = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
         blank=True,
-        related_name="projects_as_programmer",
+        related_name="projects_as_prg",
+        verbose_name="Programmatore",
+    )
+    caporeparti = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name="projects_as_cr",
+        verbose_name="Caporeparto",
     )
     control_method = models.CharField(max_length=180, blank=True, default="")
     part_number = models.CharField(max_length=120, blank=True, default="")
@@ -127,6 +139,65 @@ class Project(models.Model):
 
     class Meta:
         ordering = ["-updated_at", "-id"]
+
+    # Ruoli del team di progetto: (campo M2M, etichetta, codice TaskRoleType).
+    # I codici sono letterali per non anticipare TaskRoleType, definito piu' sotto.
+    TEAM_ROLES = (
+        ("project_managers", "Project manager", "PM"),
+        ("capi_commessa", "Capocommessa", "CC"),
+        ("programmers", "Programmatore", "PRG"),
+        ("caporeparti", "Caporeparto", "CR"),
+    )
+    TEAM_ROLE_FIELDS = tuple(field for field, _label, _code in TEAM_ROLES)
+
+    def team_members(self, field_name):
+        """Persone assegnate a un ruolo del team (lista, sfrutta il prefetch)."""
+        return list(getattr(self, field_name).all())
+
+    def team_display(self, field_name) -> str:
+        return ", ".join(user_label(u) for u in self.team_members(field_name))
+
+    @property
+    def team_blocks(self):
+        """Team pronto per i template: un blocco per ruolo, anche se vuoto."""
+        return [
+            {
+                "field": field,
+                "label": label,
+                "role_type": code,
+                "members": self.team_members(field),
+                "display": self.team_display(field),
+            }
+            for field, label, code in self.TEAM_ROLES
+        ]
+
+    @property
+    def team_display_pm(self) -> str:
+        return self.team_display("project_managers")
+
+    @property
+    def team_users(self):
+        """Tutti i membri del team, senza duplicati, nell'ordine dei ruoli."""
+        seen: set[int] = set()
+        people = []
+        for field in self.TEAM_ROLE_FIELDS:
+            for user in self.team_members(field):
+                if user.pk not in seen:
+                    seen.add(user.pk)
+                    people.append(user)
+        return people
+
+    @property
+    def team_user_ids(self):
+        return [user.pk for user in self.team_users]
+
+    def role_types_for_user(self, user_id) -> list[str]:
+        """Codici ruolo ricoperti dall'utente in questo kickoff."""
+        return [
+            code
+            for field, _label, code in self.TEAM_ROLES
+            if any(member.pk == user_id for member in self.team_members(field))
+        ]
 
     def save(self, *args, **kwargs):
         self.part_number = normalize_part_number(self.part_number)
@@ -637,7 +708,7 @@ class TaskRoleAccessRule(models.Model):
     """Regola accesso per ruolo operativo kickoff.
 
     La regola vale all'interno dei kickoff in cui l'utente ricopre il ruolo
-    configurato (`project_manager`, `capo_commessa`, `programmer`).
+    configurato (`project_managers`, `capi_commessa`, `programmers`, `caporeparti`).
     """
 
     role_type = models.CharField(

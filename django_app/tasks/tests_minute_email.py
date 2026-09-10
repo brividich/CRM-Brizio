@@ -13,6 +13,7 @@ from tasks.minute_email import (
     send_meeting_minute,
 )
 from tasks.models import KickoffMeeting, Project, Task
+from .tests_utils import make_project
 
 User = get_user_model()
 
@@ -21,7 +22,7 @@ class MinuteEmailTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="pm", email="pm@example.com", password="x")
         self.capo = User.objects.create_user(username="capo", email="capo@example.com", password="x")
-        self.project = Project.objects.create(
+        self.project = make_project(
             name="", created_by=self.user, project_manager=self.user, capo_commessa=self.capo
         )
         self.meeting = KickoffMeeting.objects.create(
@@ -107,7 +108,7 @@ class MinuteEmailTests(TestCase):
 class MeetingIssueReminderTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="resp", email="resp@example.com", password="x")
-        self.project = Project.objects.create(name="", created_by=self.user)
+        self.project = make_project(name="", created_by=self.user)
 
     def test_reminder_emails_overdue_open_issue(self):
         from unittest.mock import patch

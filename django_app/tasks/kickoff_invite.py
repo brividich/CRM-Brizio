@@ -32,11 +32,10 @@ def _transaction_id(project) -> str:
 def _collect_team_emails(project) -> list[str]:
     """Raccoglie le email dei membri del team di progetto."""
     emails: list[str] = []
-    for user in (project.project_manager, project.capo_commessa, project.programmer):
-        if user is not None:
-            email = (user.email or "").strip()
-            if email and email not in emails:
-                emails.append(email)
+    for user in project.team_users:
+        email = (user.email or "").strip()
+        if email and email not in emails:
+            emails.append(email)
     return emails
 
 
@@ -89,12 +88,9 @@ def _kickoff_body_html(request, project, kickoff_date, kickoff_location: str) ->
         lines.append(f"<p><strong>Descrizione:</strong><br>{desc}</p>")
 
     team_parts = []
-    if project.project_manager:
-        team_parts.append(f"PM: {escape(project.project_manager.get_full_name() or project.project_manager.username)}")
-    if project.capo_commessa:
-        team_parts.append(f"Capocommessa: {escape(project.capo_commessa.get_full_name() or project.capo_commessa.username)}")
-    if project.programmer:
-        team_parts.append(f"Programmatore: {escape(project.programmer.get_full_name() or project.programmer.username)}")
+    for block in project.team_blocks:
+        if block["members"]:
+            team_parts.append(f"{block['label']}: {escape(block['display'])}")
     if team_parts:
         lines.append("<p><strong>Team:</strong> " + " — ".join(team_parts) + "</p>")
 

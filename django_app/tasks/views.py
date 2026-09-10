@@ -377,7 +377,7 @@ def _build_tasks_settings_context(request, *, tab: str) -> dict:
         if filter_status:
             tasks_qs = tasks_qs.filter(status=filter_status)
 
-        projects_qs = Project.objects.select_related("project_manager").order_by("-updated_at")
+        projects_qs = Project.objects.prefetch_related("project_managers").order_by("-updated_at")
         if q_proj:
             projects_qs = projects_qs.filter(Q(name__icontains=q_proj) | Q(client_name__icontains=q_proj))
 
@@ -769,9 +769,6 @@ def _duplicate_kickoff(source_project: Project, *, created_by, clear_part_number
         name="",
         description=source_project.description,
         client_name=source_project.client_name,
-        project_manager=source_project.project_manager,
-        capo_commessa=source_project.capo_commessa,
-        programmer=source_project.programmer,
         control_method=source_project.control_method,
         part_number="" if clear_part_number else source_project.part_number,
         revisione=source_project.revisione,
@@ -786,6 +783,10 @@ def _duplicate_kickoff(source_project: Project, *, created_by, clear_part_number
         similar_work_note=source_project.similar_work_note,
         created_by=created_by,
     )
+
+    # Il team si eredita per intero: ogni ruolo puo' avere piu' persone.
+    for field in Project.TEAM_ROLE_FIELDS:
+        getattr(kickoff, field).set(getattr(source_project, field).all())
 
     file_bytes, filename = _copy_project_vrf_file(source_project, clear_part_number=clear_part_number)
     if file_bytes is not None:
@@ -947,14 +948,11 @@ def _project_role_access_level(request, project: Project | None) -> str:
         return TaskAccessLevel.NONE
 
     role_map = _request_task_role_access_map(request)
-    levels: list[str] = []
     user_id = request.user.id
-    if getattr(project, "project_manager_id", None) == user_id:
-        levels.append(role_map.get(TaskRoleType.PROJECT_MANAGER, TaskAccessLevel.NONE))
-    if getattr(project, "capo_commessa_id", None) == user_id:
-        levels.append(role_map.get(TaskRoleType.CAPO_COMMESSA, TaskAccessLevel.NONE))
-    if getattr(project, "programmer_id", None) == user_id:
-        levels.append(role_map.get(TaskRoleType.PROGRAMMER, TaskAccessLevel.NONE))
+    levels: list[str] = [
+        role_map.get(role_code, TaskAccessLevel.NONE)
+        for role_code in project.role_types_for_user(user_id)
+    ]
     if not levels:
         return TaskAccessLevel.NONE
     return max(levels, key=_task_access_rank)
@@ -976,11 +974,13 @@ def _task_scope_filter_q(request) -> Q:
     q = Q(created_by=user) | Q(assigned_to=user) | Q(subscribers=user)
     role_map = _request_task_role_access_map(request)
     if _task_access_allows_read(role_map.get(TaskRoleType.PROJECT_MANAGER)):
-        q |= Q(project__project_manager=user)
+        q |= Q(project__project_managers=user)
     if _task_access_allows_read(role_map.get(TaskRoleType.CAPO_COMMESSA)):
-        q |= Q(project__capo_commessa=user)
+        q |= Q(project__capi_commessa=user)
     if _task_access_allows_read(role_map.get(TaskRoleType.PROGRAMMER)):
-        q |= Q(project__programmer=user)
+        q |= Q(project__programmers=user)
+    if _task_access_allows_read(role_map.get(TaskRoleType.CAPOREPARTO)):
+        q |= Q(project__caporeparti=user)
     category_role_codes = [
         role_code
         for role_code in _request_task_user_role_codes(request)
@@ -1005,11 +1005,13 @@ def _project_scope_filter_q(request) -> Q:
     )
     role_map = _request_task_role_access_map(request)
     if _task_access_allows_read(role_map.get(TaskRoleType.PROJECT_MANAGER)):
-        q |= Q(project_manager=user)
+        q |= Q(project_managers=user)
     if _task_access_allows_read(role_map.get(TaskRoleType.CAPO_COMMESSA)):
-        q |= Q(capo_commessa=user)
+        q |= Q(capi_commessa=user)
     if _task_access_allows_read(role_map.get(TaskRoleType.PROGRAMMER)):
-        q |= Q(programmer=user)
+        q |= Q(programmers=user)
+    if _task_access_allows_read(role_map.get(TaskRoleType.CAPOREPARTO)):
+        q |= Q(caporeparti=user)
     category_role_codes = [
         role_code
         for role_code in _request_task_user_role_codes(request)
@@ -1020,17 +1022,20 @@ def _project_scope_filter_q(request) -> Q:
     return q
 
 
+# Il team del kickoff e' M2M: si prefetcha per non fare una query per riga.
+_PROJECT_TEAM_PREFETCH_VIA_TASK = tuple(
+    f"project__{field}" for field in Project.TEAM_ROLE_FIELDS
+)
+
+
 def _scoped_tasks_queryset(request):
     qs = Task.objects.select_related(
         "created_by",
         "assigned_to",
         "category",
         "project",
-        "project__project_manager",
-        "project__capo_commessa",
-        "project__programmer",
         "project__similar_project",
-    )
+    ).prefetch_related(*_PROJECT_TEAM_PREFETCH_VIA_TASK)
     if _has_task_permission(request, "tasks_admin"):
         return qs
     if _task_access_allows_read(_request_task_user_access_level(request)):
@@ -1041,11 +1046,8 @@ def _scoped_tasks_queryset(request):
 def _scoped_projects_queryset(request):
     qs = Project.objects.select_related(
         "created_by",
-        "project_manager",
-        "capo_commessa",
-        "programmer",
         "similar_project",
-    )
+    ).prefetch_related(*Project.TEAM_ROLE_FIELDS)
     if _has_task_permission(request, "tasks_admin"):
         return qs
     if _task_access_allows_read(_request_task_user_access_level(request)):
@@ -2596,9 +2598,7 @@ def _suggest_task_start_date(project) -> date:
 @task_permissions_required("tasks_view")
 def project_info_json(request, project_id: int):
     """Restituisce info progetto + lista task (ordine creazione) in formato JSON, per l'AJAX del form."""
-    project = get_object_or_404(_scoped_projects_queryset(request).select_related(
-        "project_manager", "capo_commessa", "programmer"
-    ), pk=project_id)
+    project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
     raw_tasks = list(
         Task.objects.filter(project=project)
         .order_by("id")
@@ -2619,9 +2619,6 @@ def project_info_json(request, project_id: int):
             "due_date": t["due_date"].strftime("%d-%m-%Y") if t["due_date"] else "",
             "assignee": assignee,
         })
-    pm = project.project_manager
-    cc = project.capo_commessa
-    prog = project.programmer
     cfg = TaskImpostazioni.get_singleton()
     vrf_detail = _vrf_status_detail(project, cfg)
     return JsonResponse({
@@ -2631,9 +2628,10 @@ def project_info_json(request, project_id: int):
         "part_number": project.part_number or "",
         "revisione": project.revisione or "",
         "versione": project.versione or "",
-        "project_manager": (pm.get_full_name() or pm.username) if pm else "",
-        "capo_commessa": (cc.get_full_name() or cc.username) if cc else "",
-        "programmer": (prog.get_full_name() or prog.username) if prog else "",
+        "project_manager": project.team_display("project_managers"),
+        "capo_commessa": project.team_display("capi_commessa"),
+        "programmer": project.team_display("programmers"),
+        "caporeparto": project.team_display("caporeparti"),
         "task_total": len(tasks_data),
         "vrf_status": vrf_detail["status"],
         "vrf_label": vrf_detail["label"],
@@ -2653,7 +2651,7 @@ def _task_create_locked_project(request, projects_qs):
     except (TypeError, ValueError):
         return None
     return get_object_or_404(
-        projects_qs.select_related("project_manager", "capo_commessa", "programmer"),
+        projects_qs.prefetch_related(*Project.TEAM_ROLE_FIELDS),
         pk=project_id,
     )
 
@@ -3259,13 +3257,7 @@ def _create_first_meeting(project: Project, user) -> KickoffMeeting | None:
         created_by=user if getattr(user, "is_authenticated", False) else None,
     )
 
-    team_ids = {
-        pk for pk in (
-            project.project_manager_id,
-            project.capo_commessa_id,
-            project.programmer_id,
-        ) if pk
-    }
+    team_ids = set(project.team_user_ids)
     if team_ids:
         # Passa dal queryset degli utenti selezionabili: un membro del team
         # disattivato non deve rientrare dalla finestra come partecipante.
@@ -3312,6 +3304,9 @@ def project_create(request):
                 project = form.save(commit=False)
                 project.created_by = request.user
                 project.save()
+                # Il team va scritto prima dell'incontro: i partecipanti di default
+                # si leggono dagli elenchi M2M appena salvati.
+                form.save_team(project)
                 meeting = _create_first_meeting(project, request.user)
             log_action(request, "kickoff_created", "tasks", {
                 "project_id": project.id,
@@ -3347,6 +3342,7 @@ def project_create(request):
             **_tasks_shell_context(request, active="projects"),
             "page_title": "Nuovo kickoff",
             "form": form,
+            "team_fields": [form[name] for name in ProjectKickoffForm.TEAM_FIELDS],
         },
     )
 
@@ -3672,11 +3668,8 @@ def project_gantt(request, project_id: int):
                 "created_by",
                 "assigned_to",
                 "project",
-                "project__project_manager",
-                "project__capo_commessa",
-                "project__programmer",
                 "project__similar_project",
-            ).prefetch_related("subscribers").order_by("id"),
+            ).prefetch_related("subscribers", *_PROJECT_TEAM_PREFETCH_VIA_TASK).order_by("id"),
         ),
         Prefetch(
             "comments",
@@ -4160,7 +4153,7 @@ def gestione_admin(request):
         tasks_qs = tasks_qs.filter(status=filter_status)
     tasks_page = Paginator(tasks_qs, 50).get_page(request.GET.get("task_page"))
 
-    projects_qs = Project.objects.select_related("project_manager").order_by("-updated_at")
+    projects_qs = Project.objects.prefetch_related("project_managers").order_by("-updated_at")
     if q_proj:
         projects_qs = projects_qs.filter(Q(name__icontains=q_proj) | Q(client_name__icontains=q_proj))
     projects_page = Paginator(projects_qs, 50).get_page(request.GET.get("proj_page"))
@@ -6177,7 +6170,6 @@ def import_excel(request):
 
                     proj_defaults = {
                         "client_name": row["cliente"],
-                        "project_manager": pm_user,
                     }
                     part_number = (row["part_number"] or "").strip()
                     revisione = (row["revisione"] or "").strip()
@@ -6207,7 +6199,6 @@ def import_excel(request):
                                 project = Project.objects.create(
                                     name="",
                                     client_name=row["cliente"],
-                                    project_manager=pm_user,
                                     part_number=part_number,
                                     revisione=revisione,
                                     versione=versione,
@@ -6223,7 +6214,6 @@ def import_excel(request):
                             project = Project.objects.create(
                                 name="",
                                 client_name=row["cliente"],
-                                project_manager=pm_user,
                                 created_by=request.user,
                             )
                             project_was_created = True
@@ -6233,7 +6223,6 @@ def import_excel(request):
                         project = Project.objects.create(
                             name="",
                             client_name=row["cliente"],
-                            project_manager=pm_user,
                             created_by=request.user,
                         )
                         project_was_created = True
@@ -6246,6 +6235,10 @@ def import_excel(request):
                             updated_fields.append(field_name)
                     if updated_fields:
                         project.save(update_fields=updated_fields + ["updated_at"])
+                    if pm_user is not None and not project.project_managers.filter(pk=pm_user.pk).exists():
+                        # Il PM del file si aggiunge all'elenco, non sostituisce chi c'e' gia'.
+                        project.project_managers.add(pm_user)
+                        updated_fields.append("project_managers")
                     if project.id not in updated_project_ids and updated_fields and not project_was_created:
                         updated_project_ids.add(project.id)
                         updated_projects += 1
@@ -6806,9 +6799,7 @@ def project_meeting_create(request, project_id: int):
             for action in _open_meeting_actions_for_project(project)
         ]
         auto_agenda += _carry_over_agenda_items(project)
-        default_partecipanti = [
-            u.pk for u in (project.project_manager, project.capo_commessa, project.programmer) if u
-        ]
+        default_partecipanti = project.team_user_ids
         form = KickoffMeetingForm(initial={
             "data": timezone.localdate(),
             "agenda_items_raw": json.dumps(auto_agenda),
@@ -7281,8 +7272,9 @@ def project_meeting_proposal_create(request, project_id: int, meeting_id: int):
         "proposal_id": proposal.pk, "meeting_id": meeting.pk, "project_id": project.pk,
     })
     autore = request.user.get_full_name() or request.user.username
-    for manager in {project.project_manager, project.capo_commessa}:
-        if manager is not None and manager.pk != request.user.pk:
+    referenti = project.team_members("project_managers") + project.team_members("capi_commessa")
+    for manager in {u.pk: u for u in referenti}.values():
+        if manager.pk != request.user.pk:
             _notifica_utente(
                 manager,
                 f'{autore} propone un punto per l\'incontro {meeting.numero}: "{titolo}".',

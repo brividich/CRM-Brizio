@@ -3,6 +3,7 @@ from django.core import mail
 from django.test import TestCase
 
 from tasks.models import Project, ProjectPhase, VRFDocStatus
+from .tests_utils import make_project
 from tasks.project_alerts import project_recipients, send_project_alert
 
 User = get_user_model()
@@ -12,7 +13,7 @@ class ProjectAlertTests(TestCase):
     def setUp(self):
         self.pm = User.objects.create_user(username="pm", email="pm@example.com", password="x")
         self.capo = User.objects.create_user(username="capo", email="capo@example.com", password="x")
-        self.project = Project.objects.create(
+        self.project = make_project(
             name="", created_by=self.pm, project_manager=self.pm, capo_commessa=self.capo,
             safety_impact=True, vrf_status=VRFDocStatus.PENDING, phase=ProjectPhase.EXEC,
         )
@@ -38,7 +39,7 @@ class ProjectAlertTests(TestCase):
         self.assertEqual(result["reason"], "unknown_kind")
 
     def test_no_recipients_skips(self):
-        p = Project.objects.create(name="", created_by=self.pm)  # niente PM/capo
+        p = make_project(name="", created_by=self.pm)  # niente PM/capo
         result = send_project_alert(p, "safety")
         self.assertFalse(result["sent"])
         self.assertEqual(result["reason"], "no_recipients")
@@ -54,7 +55,7 @@ class ProjectAlertActionTests(TestCase):
         )
 
         self.pm = User.objects.create_user(username="pm2", email="pm2@example.com", password="x")
-        self.project = Project.objects.create(
+        self.project = make_project(
             name="", created_by=self.pm, project_manager=self.pm, safety_impact=True,
         )
         self.rule = AutomationRule.objects.create(

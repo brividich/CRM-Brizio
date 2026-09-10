@@ -6,6 +6,8 @@ nessuna migrazione). Fonte di verita' unica del calcolo.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import reduce
+from operator import and_
 
 from django.db.models import Exists, OuterRef
 from django.urls import reverse
@@ -69,6 +71,17 @@ def _has_planned_task(project) -> bool:
     return project.tasks.filter(due_date__isnull=False).exists()
 
 
+_TEAM_REQUIRED_FIELDS = ("project_managers", "capi_commessa", "programmers")
+
+
+def _has_team(project) -> bool:
+    """Team completo: almeno una persona per PM, capocommessa e programmatore."""
+    anno = getattr(project, "rd_has_team", None)
+    if anno is not None:
+        return bool(anno)
+    return all(getattr(project, field).exists() for field in _TEAM_REQUIRED_FIELDS)
+
+
 def _meeting_action_url(project, pid: int) -> str:
     """Se un incontro esiste gia' ma non e' svolto, la CTA porta alla lista
     (dove si registra l'esito), non alla creazione di un doppione."""
@@ -83,9 +96,7 @@ def compute_project_readiness(project) -> ReadinessResult:
     pid = project.id
     vrf_ok = project.vrf_status in (VRFDocStatus.UPLOADED, VRFDocStatus.NOT_REQUIRED)
     meeting_ok = _has_meeting(project)
-    team_ok = bool(
-        project.project_manager_id and project.capo_commessa_id and project.programmer_id
-    )
+    team_ok = _has_team(project)
     plan_ok = _has_planned_task(project)
 
     criteria = [
@@ -111,7 +122,7 @@ def compute_project_readiness(project) -> ReadinessResult:
 
 
 def annotate_readiness_qs(qs):
-    from .models import KickoffMeeting, MeetingStatus, Task
+    from .models import KickoffMeeting, MeetingStatus, Project, Task
 
     return qs.annotate(
         rd_has_meeting=Exists(
@@ -122,6 +133,14 @@ def annotate_readiness_qs(qs):
         rd_has_any_meeting=Exists(KickoffMeeting.objects.filter(project=OuterRef("pk"))),
         rd_has_planned=Exists(
             Task.objects.filter(project=OuterRef("pk"), due_date__isnull=False)
+        ),
+        # Il team e' M2M: senza annotazione ogni progetto costerebbe tre query.
+        rd_has_team=reduce(
+            and_,
+            (
+                Exists(Project.objects.filter(pk=OuterRef("pk"), **{f"{field}__isnull": False}))
+                for field in _TEAM_REQUIRED_FIELDS
+            ),
         ),
     )
 

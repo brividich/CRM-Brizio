@@ -106,7 +106,7 @@ body.tk-wide .content sta in tasks.css.
   {% endif %}
 
   {# ── Anagrafica kickoff ── #}
-  {% if project.client_name or project.project_manager or project.capo_commessa or project.programmer or project.control_method or project.safety_impact or project.part_number or project.revisione or project.versione or project.similar_project or project.similar_work_note %}
+  {% if project.client_name or project.team_users or project.control_method or project.safety_impact or project.part_number or project.revisione or project.versione or project.similar_project or project.similar_work_note %}
     <section class="ts-panel">
       <div class="ts-panel-head">
         <div class="ts-panel-title-wrap">
@@ -130,9 +130,7 @@ body.tk-wide .content sta in tasks.css.
           {% if project.vrf_quote_number %}<span class="task-meta-chip">Prev. {{ project.vrf_quote_number }}</span>{% endif %}
           {% if project.vrf_description %}<span class="task-meta-chip">{{ project.vrf_description }}</span>{% endif %}
           {% if project.safety_impact %}<span class="task-meta-chip" style="background:var(--danger-bg);border-color:var(--danger-bg);color:var(--danger);">Impatto sicurezza</span>{% endif %}
-          {% if project.project_manager %}<span class="task-meta-chip">PM: {{ project.project_manager.get_full_name|default:project.project_manager.username }}</span>{% endif %}
-          {% if project.capo_commessa %}<span class="task-meta-chip">Capocommessa: {{ project.capo_commessa.get_full_name|default:project.capo_commessa.username }}</span>{% endif %}
-          {% if project.programmer %}<span class="task-meta-chip">Prog.: {{ project.programmer.get_full_name|default:project.programmer.username }}</span>{% endif %}
+          {% for block in project.team_blocks %}{% if block.display %}<span class="task-meta-chip">{{ block.label }}: {{ block.display }}</span>{% endif %}{% endfor %}
           {% if project.control_method %}<span class="task-meta-chip">Controllo: {{ project.control_method }}</span>{% endif %}
           {% if project.similar_project %}<span class="task-meta-chip">Simile a: {{ project.similar_project.name }}</span>{% endif %}
           {% if project.similar_work_note %}<span class="task-meta-chip">{{ project.similar_work_note }}</span>{% endif %}

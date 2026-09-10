@@ -26,7 +26,7 @@
             <tr>
               <td>{{ p.name }}</td>
               <td>{{ p.client_name|default:"-" }}</td>
-              <td>{{ p.project_manager.username|default:"-" }}</td>
+              <td>{{ p.team_display_pm|default:"-" }}</td>
               <td>{{ p.created_at|date:"d-m-Y" }}</td>
               <td><a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_gantt' p.id %}">Gantt</a></td>
             </tr>

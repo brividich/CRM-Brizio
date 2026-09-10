@@ -11,6 +11,7 @@ from unittest.mock import patch
 from django.core import mail
 from django.test import override_settings
 from django.urls import reverse
+from .tests_utils import make_project
 
 from tasks.models import (
     KickoffMeeting,
@@ -42,7 +43,7 @@ class MeetingTwoStepFlowTests(TasksBaseTestCase):
         )
         self.user.email = "pm@example.com"
         self.user.save(update_fields=["email"])
-        self.project = Project.objects.create(
+        self.project = make_project(
             name="", created_by=self.user, project_manager=self.user
         )
         self.meeting = KickoffMeeting.objects.create(
@@ -183,7 +184,7 @@ class MinuteContentTests(TasksBaseTestCase):
             role_id=2,
             role_name="tasks",
         )
-        self.project = Project.objects.create(name="", created_by=self.user)
+        self.project = make_project(name="", created_by=self.user)
         self.meeting = KickoffMeeting.objects.create(
             project=self.project,
             data="2026-09-10",
@@ -245,7 +246,7 @@ class FirstMeetingOnKickoffCreateTests(TasksBaseTestCase):
             "vrf_quote_number": "",
             "vrf_description": "",
             "vrf_esp": "",
-            "project_manager": self.user.id,
+            "project_managers": [self.user.id],
         }
         payload.update(extra)
         return self.client.post(reverse("tasks:project_create"), payload)
@@ -277,7 +278,7 @@ class FirstMeetingOnKickoffCreateTests(TasksBaseTestCase):
     def test_helper_idempotente_non_crea_un_secondo_incontro(self):
         from tasks.views import _create_first_meeting
 
-        project = Project.objects.create(name="", created_by=self.user)
+        project = make_project(name="", created_by=self.user)
         first = _create_first_meeting(project, self.user)
         second = _create_first_meeting(project, self.user)
 
@@ -288,7 +289,7 @@ class FirstMeetingOnKickoffCreateTests(TasksBaseTestCase):
     def test_incontro_senza_team_resta_senza_partecipanti(self):
         from tasks.views import _create_first_meeting
 
-        project = Project.objects.create(name="", created_by=self.user)
+        project = make_project(name="", created_by=self.user)
         meeting = _create_first_meeting(project, self.user)
 
         self.assertEqual(meeting.partecipanti_utenti.count(), 0)
@@ -306,7 +307,7 @@ class NewMeetingDefaultParticipantsTests(TasksBaseTestCase):
         self.pm = _create_user_with_legacy(username="pm-default", legacy_user_id=401, role_id=2, role_name="tasks")
         self.capo = _create_user_with_legacy(username="capo-default", legacy_user_id=402, role_id=2, role_name="tasks")
         self.prog = _create_user_with_legacy(username="prog-default", legacy_user_id=403, role_id=2, role_name="tasks")
-        self.project = Project.objects.create(
+        self.project = make_project(
             name="", created_by=self.pm,
             project_manager=self.pm, capo_commessa=self.capo, programmer=self.prog,
         )
@@ -319,7 +320,7 @@ class NewMeetingDefaultParticipantsTests(TasksBaseTestCase):
         self.assertEqual(preselected, {self.pm.id, self.capo.id, self.prog.id})
 
     def test_ruoli_non_assegnati_non_rompono_il_default(self):
-        project = Project.objects.create(name="", created_by=self.pm, project_manager=self.pm)
+        project = make_project(name="", created_by=self.pm, project_manager=self.pm)
         response = self.client.get(reverse("tasks:project_meeting_create", args=[project.id]))
         self.assertEqual(response.status_code, 200)
         preselected = set(response.context["form"].initial.get("partecipanti_utenti") or [])
@@ -418,7 +419,7 @@ class MeetingsDigestJobTests(TasksBaseTestCase):
         )
         self.user.email = "reminder@example.com"
         self.user.save(update_fields=["email"])
-        self.project = Project.objects.create(name="", created_by=self.user, project_manager=self.user)
+        self.project = make_project(name="", created_by=self.user, project_manager=self.user)
 
     def test_promemoria_solo_per_incontri_di_domani_non_ancora_avvisati(self):
         from datetime import timedelta
@@ -542,7 +543,7 @@ class MeetingRunTests(TasksBaseTestCase):
         self.estraneo = _create_user_with_legacy(
             username="conduci-estraneo", legacy_user_id=582, role_id=2, role_name="tasks"
         )
-        self.project = Project.objects.create(
+        self.project = make_project(
             name="", created_by=self.user, project_manager=self.user
         )
         self.meeting = KickoffMeeting.objects.create(
@@ -656,7 +657,7 @@ class MeetingAgendaProposalTests(TasksBaseTestCase):
         self.estraneo = _create_user_with_legacy(
             username="proposta-estraneo", legacy_user_id=573, role_id=2, role_name="tasks"
         )
-        self.project = Project.objects.create(
+        self.project = make_project(
             name="", created_by=self.pm, project_manager=self.pm
         )
         self.meeting = KickoffMeeting.objects.create(
@@ -749,7 +750,7 @@ class MeetingActionAndDecisionTests(TasksBaseTestCase):
         )
         self.user.email = "azioni@example.com"
         self.user.save(update_fields=["email"])
-        self.project = Project.objects.create(
+        self.project = make_project(
             name="", created_by=self.user, project_manager=self.user
         )
         self.meeting = KickoffMeeting.objects.create(
@@ -924,7 +925,7 @@ class MeetingAgendaTemplateTests(TasksBaseTestCase):
         self.user = _create_user_with_legacy(
             username="modelli-pm", legacy_user_id=551, role_id=1, role_name="admin"
         )
-        self.project = Project.objects.create(
+        self.project = make_project(
             name="", created_by=self.user, project_manager=self.user
         )
         self.client.force_login(self.user)
@@ -1007,7 +1008,7 @@ class MeetingListaTests(TasksBaseTestCase):
         self.altro = _create_user_with_legacy(
             username="lista-altro", legacy_user_id=542, role_id=2, role_name="tasks"
         )
-        self.project = Project.objects.create(
+        self.project = make_project(
             name="", created_by=self.user, project_manager=self.user
         )
         self.mio = KickoffMeeting.objects.create(
@@ -1053,7 +1054,7 @@ class MeetingMinuteApprovalTests(TasksBaseTestCase):
         self.user = _create_user_with_legacy(
             username="minuta-pm", legacy_user_id=531, role_id=2, role_name="tasks"
         )
-        self.project = Project.objects.create(
+        self.project = make_project(
             name="", created_by=self.user, project_manager=self.user
         )
         self.meeting = KickoffMeeting.objects.create(
@@ -1134,7 +1135,7 @@ class MeetingAgendaCarryOverTests(TasksBaseTestCase):
         self.user = _create_user_with_legacy(
             username="carry-pm", legacy_user_id=521, role_id=2, role_name="tasks"
         )
-        self.project = Project.objects.create(
+        self.project = make_project(
             name="", created_by=self.user, project_manager=self.user
         )
         self.client.force_login(self.user)
@@ -1227,7 +1228,7 @@ class MeetingAttendanceTests(TasksBaseTestCase):
         self.assente = _create_user_with_legacy(
             username="presenze-assente", legacy_user_id=512, role_id=2, role_name="tasks"
         )
-        self.project = Project.objects.create(
+        self.project = make_project(
             name="", created_by=self.user, project_manager=self.user
         )
         self.meeting = KickoffMeeting.objects.create(

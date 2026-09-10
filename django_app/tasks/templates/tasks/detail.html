@@ -115,9 +115,7 @@
               <div>{{ task.project.name }}</div>
               <div class="ts-card-meta" style="margin-top:8px;">
                 {% if task.project.client_name %}<span class="task-meta-chip">Cliente: {{ task.project.client_name }}</span>{% endif %}
-                {% if task.project.project_manager %}<span class="task-meta-chip">PM: {{ task.project.project_manager.get_full_name|default:task.project.project_manager.username }}</span>{% endif %}
-                {% if task.project.capo_commessa %}<span class="task-meta-chip">Capocommessa: {{ task.project.capo_commessa.get_full_name|default:task.project.capo_commessa.username }}</span>{% endif %}
-                {% if task.project.programmer %}<span class="task-meta-chip">Programmatore: {{ task.project.programmer.get_full_name|default:task.project.programmer.username }}</span>{% endif %}
+                {% for block in task.project.team_blocks %}{% if block.display %}<span class="task-meta-chip">{{ block.label }}: {{ block.display }}</span>{% endif %}{% endfor %}
                 {% if task.project.control_method %}<span class="task-meta-chip">Controllo: {{ task.project.control_method }}</span>{% endif %}
                 {% if task.project.part_number %}<span class="task-meta-chip">P/N: {{ task.project.part_number }}</span>{% endif %}
                 {% if task.project.safety_impact %}<span class="task-meta-chip">Impatto sicurezza</span>{% endif %}

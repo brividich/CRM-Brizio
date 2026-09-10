@@ -1241,15 +1241,18 @@ def _board_data_progetti(legacy_user_id: int | None, params: dict) -> list[dict]
             return []
         user = profile.user
         max_items = min(int(params.get("max_items") or 8), MAX_BOARD_WIDGET_ITEMS)
-        qs = Project.objects.filter(capo_commessa=user).select_related("project_manager")[:max_items]
+        qs = (
+            Project.objects.filter(capi_commessa=user)
+            .prefetch_related("project_managers")
+            .distinct()[:max_items]
+        )
         out = []
         for p in qs:
-            pm = p.project_manager
             out.append({
                 "id": p.id,
                 "name": p.name,
                 "client": p.client_name or "",
-                "manager": pm.get_full_name() if pm else "",
+                "manager": p.team_display_pm,
                 "part_number": p.part_number or "",
             })
         return out

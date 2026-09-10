@@ -18,7 +18,10 @@
       return Array.prototype.every.call(required, textFilled);
     }
     // Nessun campo obbligatorio esplicito: "compilata" se almeno un campo ha valore.
-    var any = station.querySelectorAll("input,select,textarea");
+    // I campi di servizio (es. filtro della selezione multipla) non contano.
+    var any = station.querySelectorAll(
+      "input:not([data-kp-ignore]),select:not([data-kp-ignore]),textarea:not([data-kp-ignore])"
+    );
     return Array.prototype.some.call(any, textFilled);
   }
 

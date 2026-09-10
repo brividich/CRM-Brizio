@@ -415,9 +415,7 @@ def _cc_management(meeting, exclude: list[str]) -> list[str]:
     """Email di PM e capo commessa del progetto, escludendo chi è già destinatario."""
     cc: list[str] = []
     project = meeting.project
-    for user in (getattr(project, "project_manager", None), getattr(project, "capo_commessa", None)):
-        if user is None:
-            continue
+    for user in project.team_members("project_managers") + project.team_members("capi_commessa"):
         email = (getattr(user, "email", "") or "").strip()
         if email and email not in exclude and email not in cc:
             cc.append(email)
