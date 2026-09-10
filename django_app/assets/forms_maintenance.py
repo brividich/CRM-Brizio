@@ -17,6 +17,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from anagrafica.models import Fornitore
+from core.form_fields import user_display_label
 
 from .forms import _attach_input_css
 from .models import (
@@ -38,7 +39,16 @@ _RECURRENCE_FIELDS = ("frequency", "interval", "weekday", "week_of_month", "day_
 def _active_users_queryset():
     from django.contrib.auth import get_user_model
 
-    return get_user_model().objects.filter(is_active=True).order_by("last_name", "first_name", "username")
+    # ``first_name`` contiene il cognome (vedi ``core.legacy_utils._split_name``):
+    # l'ordinamento segue l'etichetta mostrata, non i nomi dei campi.
+    return get_user_model().objects.filter(is_active=True).order_by("first_name", "last_name", "username")
+
+
+def _set_user_choices(field):
+    """Popola un campo utente e ne mostra il nominativo al posto dello username."""
+    field.queryset = _active_users_queryset()
+    field.label_from_instance = user_display_label
+    return field
 
 
 class MaintenancePlanForm(forms.ModelForm):
@@ -98,7 +108,7 @@ class MaintenancePlanForm(forms.ModelForm):
         self.fields["default_supplier"].required = False
         self.fields["default_supplier"].queryset = Fornitore.objects.order_by("ragione_sociale")
         self.fields["default_assignee"].required = False
-        self.fields["default_assignee"].queryset = _active_users_queryset()
+        _set_user_choices(self.fields["default_assignee"])
         self.fields["schedule_anchor"].required = False
         self.fields["schedule_anchor"].help_text = (
             "Lascia vuoto per il comportamento standard: le manutenzioni ordinarie ripartono dalla data di "
@@ -255,7 +265,7 @@ class MaintenancePlanAssignmentForm(RecurrenceFormMixin, forms.ModelForm):
         self.fields["supplier"].required = False
         self.fields["supplier"].queryset = Fornitore.objects.order_by("ragione_sociale")
         self.fields["assigned_to"].required = False
-        self.fields["assigned_to"].queryset = _active_users_queryset()
+        _set_user_choices(self.fields["assigned_to"])
         self.fields["schedule_anchor"].required = False
         self.fields["execution_mode"].required = False
         self.fields["first_due_date"].help_text = (
@@ -538,7 +548,7 @@ class WorkOrderFromOccurrencesForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["assigned_to"].queryset = _active_users_queryset()
+        _set_user_choices(self.fields["assigned_to"])
         self.fields["supplier"].queryset = Fornitore.objects.order_by("ragione_sociale")
         self.fields["title"].help_text = "Lascia vuoto per generarlo dal piano e dal numero di asset."
         _attach_input_css(self)
@@ -574,7 +584,7 @@ class FollowUpForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["assigned_to"].queryset = _active_users_queryset()
+        _set_user_choices(self.fields["assigned_to"])
         _attach_input_css(self)
 
 
@@ -647,7 +657,7 @@ class OccurrenceFilterForm(forms.Form):
         )
         self.fields["group"].queryset = AssetGroup.objects.filter(is_active=True).order_by("sort_order", "label")
         self.fields["asset"].queryset = Asset.objects.order_by("asset_tag", "name")
-        self.fields["assignee"].queryset = _active_users_queryset()
+        _set_user_choices(self.fields["assignee"])
         self.fields["supplier"].queryset = Fornitore.objects.order_by("ragione_sociale")
         reparti = (
             Asset.objects.exclude(reparto="")
