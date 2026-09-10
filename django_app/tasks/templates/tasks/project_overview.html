@@ -10,6 +10,7 @@
 
 {% block tasks_shell_meta %}
   <span class="ko-phase">{{ project.get_phase_display }}</span>
+  {% if first_meeting_date %}<span class="ts-hero-pill">Inizio {{ first_meeting_date|date:"d/m/Y" }}</span>{% endif %}
   {% include "tasks/_readiness_badge.html" with readiness=readiness %}
 {% endblock %}
 
@@ -35,11 +36,17 @@
   </section>
 
   <section class="ko-metrics" aria-label="Metriche commessa">
-    <a class="ko-metric" href="{% url 'tasks:project_actions' project.id %}">
-      <span class="ko-metric-value">{{ action_open_count }}</span>
-      <span class="ko-metric-label">Azioni aperte</span>
+    {# Data di inizio = primo incontro non annullato: e' il fatto che «apre» il kickoff. #}
+    <a class="ko-metric ko-metric--start" href="{% url 'tasks:project_meetings' project.id %}">
+      {% if first_meeting_date %}
+        <span class="ko-metric-value ko-metric-value--date">{{ first_meeting_date|date:"d/m/Y" }}</span>
+        <span class="ko-metric-label">Data di inizio · primo incontro</span>
+      {% else %}
+        <span class="ko-metric-value ko-metric-value--empty">—</span>
+        <span class="ko-metric-label">Inizio da pianificare</span>
+      {% endif %}
     </a>
-    <a class="ko-metric" href="{% url 'tasks:project_meetings' project.id %}">
+    <a class="ko-metric ko-metric--meeting" href="{% url 'tasks:project_meetings' project.id %}">
       {% if next_meeting %}
         <span class="ko-metric-value ko-metric-value--date">{{ next_meeting.data|date:"d/m/Y" }}</span>
         <span class="ko-metric-label">Prossimo incontro · n. {{ next_meeting.numero }}</span>
@@ -48,7 +55,11 @@
         <span class="ko-metric-label">Nessun incontro pianificato</span>
       {% endif %}
     </a>
-    <a class="ko-metric" href="{% url 'tasks:project_gantt' project.id %}">
+    <a class="ko-metric ko-metric--actions" href="{% url 'tasks:project_actions' project.id %}">
+      <span class="ko-metric-value">{{ action_open_count }}</span>
+      <span class="ko-metric-label">Azioni aperte</span>
+    </a>
+    <a class="ko-metric ko-metric--plan" href="{% url 'tasks:project_gantt' project.id %}">
       <span class="ko-metric-value">{{ planned_task_count }}/{{ total_task_count }}</span>
       <span class="ko-metric-label">Attività a piano</span>
     </a>

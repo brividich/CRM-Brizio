@@ -22,14 +22,19 @@ def _url(name, *args):
 
 
 def _projects_qs(request, scope):
+    from .models import Project
     from .views import _scoped_projects_queryset
 
     qs = _scoped_projects_queryset(request)
     if scope == "mine":
         u = request.user
-        qs = qs.filter(
-            Q(project_manager=u) | Q(capo_commessa=u) | Q(programmer=u) | Q(created_by=u)
-        )
+        # Il team di commessa e' M2M dal 1.5.1 (project_managers/capi_commessa/...):
+        # i vecchi nomi FK al singolare sollevavano FieldError, inghiottito dal
+        # try/except di build_kickoff_da_gestire -> le sezioni sparivano in scope "mine".
+        team_q = Q(created_by=u)
+        for field, _label, _code in Project.TEAM_ROLES:
+            team_q |= Q(**{field: u})
+        qs = qs.filter(team_q).distinct()
     return qs
 
 

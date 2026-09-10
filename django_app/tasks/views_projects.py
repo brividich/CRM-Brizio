@@ -124,6 +124,13 @@ def project_overview(request, project_id: int):
         planned=Count("id", filter=Q(due_date__isnull=False)),
     )
     recent_meetings = list(project.meetings.order_by("-numero", "-id")[:3])
+    # Data di inizio della commessa: primo incontro non annullato.
+    first_meeting_date = (
+        project.meetings.exclude(stato=MeetingStatus.ANNULLATO)
+        .order_by("data")
+        .values_list("data", flat=True)
+        .first()
+    )
     readiness = compute_project_readiness(project)
     can_manage = _can_manage_project(request, project)
 
@@ -144,6 +151,7 @@ def project_overview(request, project_id: int):
             "top_actions": actions[:5],
             "action_open_count": action_open_count,
             "next_meeting": next_meeting,
+            "first_meeting_date": first_meeting_date,
             "planned_task_count": task_counts["planned"],
             "total_task_count": task_counts["total"],
             "recent_meetings": recent_meetings,

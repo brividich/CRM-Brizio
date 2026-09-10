@@ -3,6 +3,7 @@
   {% if project.client_name %}<div class="kbf-card-client">{{ project.client_name }}</div>{% endif %}
   {% if project.readiness %}<div class="kbf-card-badge">{% include "tasks/_readiness_badge.html" with readiness=project.readiness %}</div>{% endif %}
   <div class="kbf-card-meta">
+    {% if project.data_inizio %}<span>dal {{ project.data_inizio|date:"d/m/y" }}</span><span>·</span>{% endif %}
     <span>{{ project.task_open }} aperte</span><span>·</span><span>{{ project.task_total }} tot</span>
   </div>
   {% if is_board_editor %}

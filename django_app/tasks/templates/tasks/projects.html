@@ -108,8 +108,14 @@
                 </span>
               </div>
 
-              <!-- Riga 2: cliente + P/N + revisione -->
+              <!-- Riga 2: inizio + cliente + P/N + revisione -->
               <div class="pf-chips">
+                {# Data di inizio = primo incontro del kickoff (annotazione data_inizio). #}
+                {% if project.data_inizio %}
+                  <span class="pf-chip start"><span class="lbl">Inizio</span>{{ project.data_inizio|date:"d/m/Y" }}</span>
+                {% else %}
+                  <a class="pf-chip start empty" href="{% url 'tasks:project_meetings' project.id %}"><span class="lbl">Inizio</span>da pianificare</a>
+                {% endif %}
                 {% if project.client_name %}
                   <span class="pf-chip client">{{ project.client_name }}</span>
                 {% endif %}

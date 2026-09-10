@@ -2160,12 +2160,25 @@ def task_list(request):
         for t in tasks:
             t.project_readiness = rmap.get(getattr(t, "project_id", None))
 
+    # Segnalazioni incontri (prossimi / da gestire): personali per default,
+    # allargate a tutto lo scope per chi amministra il modulo.
+    from tasks.meeting_alerts import build_meeting_alerts
+
+    try:
+        meeting_alerts = build_meeting_alerts(request, only_mine=not is_scope_admin)
+    except Exception:
+        # La banda e' accessoria: non deve far cadere la dashboard. Ma l'errore
+        # va a log, altrimenti sparisce in silenzio come le sezioni di «da gestire».
+        logger.exception("Segnalazioni incontri non calcolabili")
+        meeting_alerts = None
+
     return render(
         request,
         "tasks/list.html",
         {
             **_tasks_shell_context(request, active="dashboard"),
             "page_title": "KICK-OFF",
+            "meeting_alerts": meeting_alerts,
             "tasks": tasks,
             "filter_form": filter_form,
             "can_create": can_create,
@@ -3376,7 +3389,19 @@ def project_list(request):
         .annotate(v=Min("due_date"))
         .values("v")
     )
+    # Data di inizio del kickoff = data del PRIMO incontro. Sottoquery correlata
+    # per la stessa ragione di earliest_due: un Min() diretto sulla relazione
+    # multi-riga «meetings» sdoppierebbe le righe di progetto.
+    first_meeting_sq = (
+        KickoffMeeting.objects.filter(project=OuterRef("pk"))
+        .exclude(stato=MeetingStatus.ANNULLATO)
+        .order_by()
+        .values("project")
+        .annotate(v=Min("data"))
+        .values("v")
+    )
     projects_qs = projects_base_qs.annotate(
+        data_inizio=Subquery(first_meeting_sq),
         task_done=Count("tasks", filter=Q(tasks__status=TaskStatus.DONE), distinct=True),
         task_overdue=Count(
             "tasks",
@@ -6755,9 +6780,38 @@ def _sync_meeting_decisions_from_post(request, project: Project, meeting: Kickof
 @task_permissions_required("tasks_view")
 def project_meetings(request, project_id: int):
     project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
-    meetings = project.meetings.select_related("created_by").prefetch_related("partecipanti_utenti").order_by("numero")
+    meetings = list(
+        project.meetings.select_related("created_by")
+        .prefetch_related("partecipanti_utenti")
+        .annotate(
+            partecipanti_count=Count("partecipanti_utenti", distinct=True),
+            open_issue_count=Count(
+                "issues_created",
+                filter=Q(issues_created__status=MeetingIssueStatus.OPEN),
+                distinct=True,
+            ),
+        )
+        .order_by("numero")
+    )
     can_manage = _can_manage_project(request, project)
     open_issue_count = project.meeting_issues.filter(status=MeetingIssueStatus.OPEN).count()
+
+    # Data di inizio della commessa = primo incontro non annullato; «prossimo»
+    # e' il primo pianificato da oggi in avanti (evidenziato in elenco).
+    today = timezone.localdate()
+    valid = [m for m in meetings if m.stato != MeetingStatus.ANNULLATO]
+    first_meeting_date = min((m.data for m in valid), default=None)
+    next_meeting = next(
+        (
+            m
+            for m in sorted(valid, key=lambda m: m.data)
+            if m.stato == MeetingStatus.PIANIFICATO and m.data >= today
+        ),
+        None,
+    )
+    for meeting in meetings:
+        meeting.is_next = bool(next_meeting and meeting.pk == next_meeting.pk)
+
     return render(
         request,
         "tasks/project_meetings.html",
@@ -6768,6 +6822,8 @@ def project_meetings(request, project_id: int):
             "meetings": meetings,
             "can_manage": can_manage,
             "open_issue_count": open_issue_count,
+            "first_meeting_date": first_meeting_date,
+            "next_meeting": next_meeting,
         },
     )
 
