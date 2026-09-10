@@ -188,6 +188,16 @@ body.theme-dark .mod-bulk .count-lbl { color: var(--text-mid); }
   {% include "admin_portale/components/page_header.html" with page_title="Gestione Accessi" page_subtitle="Ruolo → Moduli → Pulsanti. Tutto in una pagina. Master checkbox = abilita/disabilita intero modulo." %}
   {% include "admin_portale/components/flash_messages.html" %}
 
+  <div class="panel-readonly-note" style="border:1px solid #fcd34d;background:#fffbeb;color:#92400e;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:13px;">
+    <strong>Sola lettura.</strong> Questa pagina mostra i permessi <em>legacy</em> del ruolo, che il portale
+    ignora appena esiste un grant canonico: era la ragione per cui una spunta qui poteva non avere effetto.
+    I permessi si concedono da <a href="{% url 'admin_portale:accessi' %}">Accessi</a>.
+  </div>
+
+<style>
+body.theme-dark .panel-readonly-note { background:rgba(245,158,11,.12); border-color:rgba(245,158,11,.35); color:#fcd34d; }
+</style>
+
   {# ── Selettore ruolo ── #}
   <div class="role-bar">
     <form method="get" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">

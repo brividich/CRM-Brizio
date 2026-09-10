@@ -852,6 +852,22 @@ Archivio schede dati di sicurezza (SDS) dei prodotti chimici, ancorato al repart
 | `AccessGroup` + `AccessGroupMembership` | **Gruppi ad appartenenza multipla**: una persona può stare in più gruppi, `priority` dice quale pesa di più |
 | `GroupPermissionGrant` | Grant per gruppo → `permission_code` |
 
+### Dove si concede: un solo pannello
+
+**`/admin-portale/accessi/`** e' l'unico posto che scrive permessi, e scrive solo
+il layer canonico. Matrice **soggetto x permessi**: il soggetto e' un **gruppo**
+(con la sua priorita' e i suoi membri, gestiti nella stessa pagina) oppure un
+ruolo; le righe sono i permessi canonici per modulo, e ognuna dice se governa una
+**pagina** o una **sezione** dentro una pagina.
+
+Un gruppo **concede**: togliere una spunta cancella la riga invece di scrivere un
+diniego, cosi' un gruppo non toglie mai ai suoi membri cio' che il ruolo gia' da'.
+Per negare a una singola persona c'e' l'override utente.
+
+*Gestione Accessi* (permessi legacy) e *Accessi Semplificati* (grant per modulo
+intero) restano consultabili ma **non salvano piu'**: erano la ragione per cui la
+stessa spunta poteva funzionare o no a seconda della pagina.
+
 ### Chi decide: `core.acl_resolver`
 
 Tutte le decisioni passano da `resolve_permission_decision()`

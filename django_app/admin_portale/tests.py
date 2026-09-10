@@ -3135,23 +3135,32 @@ class AdminPortaleSimpleAccessTests(TestCase):
         ):
             return self.client.post(url, data)
 
-    def test_accessi_route_points_to_simple_page(self):
+    def test_accessi_route_points_to_unified_panel(self):
+        """La rotta /accessi/ porta al pannello unico, non piu' al semplificato."""
+        response = self._as_admin_get(reverse("admin_portale:accessi"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Nuovo gruppo", html=False)
+        self.assertContains(response, 'name="all_codes"', html=False)
+
+    def test_pannello_semplificato_resta_consultabile(self):
         response = self._as_admin_get(
-            reverse("admin_portale:accessi"),
+            reverse("admin_portale:accessi_semplice"),
             {"ruolo_id": "2"},
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Accessi Semplificati", html=False)
-        self.assertContains(response, "grant canonici", html=False)
-        self.assertContains(response, 'name="simple_modules"', html=False)
+        self.assertContains(response, "Sola lettura", html=False)
 
-    def test_accessi_semplice_post_enables_canonical_grants_only(self):
+    def test_accessi_post_scrive_solo_grant_canonici(self):
+        """Il pannello unico concede per singolo permesso, e non tocca il legacy."""
         response = self._as_admin_post(
             reverse("admin_portale:accessi"),
             {
-                "ruolo_id": "2",
-                "simple_modules": ["dashboard"],
+                "action": "save_grants",
+                "subject": "role:2",
+                "all_codes": ["dashboard.home.view"],
+                "granted": ["dashboard.home.view"],
             },
         )
 
@@ -3166,7 +3175,7 @@ class AdminPortaleSimpleAccessTests(TestCase):
         )
         self.assertFalse(NavigationRoleAccess.objects.filter(item=self.nav_item, legacy_role_id=2).exists())
 
-    def test_accessi_semplice_post_can_disable_canonical_grants_without_touching_legacy(self):
+    def test_accessi_post_puo_revocare_senza_toccare_il_legacy(self):
         RolePermissionGrant.objects.create(
             legacy_role_id=2,
             permission_id="dashboard.home.view",
@@ -3176,7 +3185,9 @@ class AdminPortaleSimpleAccessTests(TestCase):
         response = self._as_admin_post(
             reverse("admin_portale:accessi"),
             {
-                "ruolo_id": "2",
+                "action": "save_grants",
+                "subject": "role:2",
+                "all_codes": ["dashboard.home.view"],
             },
         )
 
