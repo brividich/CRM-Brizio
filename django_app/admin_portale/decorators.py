@@ -68,3 +68,70 @@ def legacy_admin_required(view_func):
 
     setattr(_wrapped, LEGACY_ADMIN_BYPASS_ATTR, True)
     return _wrapped
+
+
+def legacy_admin_or_acl_required(modulo: str, azione: str):
+    """Gate admin che rispetta l'ACL invece di ignorarla.
+
+    ``legacy_admin_required`` ammette solo superuser e ruoli legacy admin: una
+    pagina protetta cosi' resta chiusa anche dopo che il pannello Accessi ha
+    concesso il permesso, perche' il permesso non viene mai letto. Qui invece,
+    dopo i due canali admin, si accetta anche la concessione ACL: la pagina
+    canonica v2 associata al percorso, oppure l'azione modulo+azione.
+    """
+
+    def _decorator(view_func):
+        @wraps(view_func)
+        def _wrapped(request, *args, **kwargs):
+            if not request.user.is_authenticated:
+                login_redirect = redirect_to_login(request.get_full_path())
+                if _is_json_request(request):
+                    return JsonResponse(
+                        {
+                            "ok": False,
+                            "error": "Autenticazione richiesta.",
+                            "reason": "unauthenticated",
+                            "login_url": login_redirect.url,
+                        },
+                        status=401,
+                    )
+                return login_redirect
+
+            legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+            request.legacy_user = legacy_user
+
+            if bool(getattr(request.user, "is_superuser", False)):
+                return view_func(request, *args, **kwargs)
+
+            if legacy_user and is_legacy_admin(legacy_user):
+                return view_func(request, *args, **kwargs)
+
+            # Import locale: core.acl tira dentro i modelli ACL, tenerlo fuori
+            # dall'import di modulo evita cicli in fase di avvio.
+            from core.acl import check_permesso, evaluate_modulo_action_access
+
+            if check_permesso(legacy_user, request.path):
+                return view_func(request, *args, **kwargs)
+
+            allowed = evaluate_modulo_action_access(
+                legacy_user=legacy_user,
+                modulo=modulo,
+                azione=azione,
+            ).get("allowed", False)
+            if allowed:
+                return view_func(request, *args, **kwargs)
+
+            if _is_json_request(request):
+                return JsonResponse(
+                    {
+                        "ok": False,
+                        "error": "Permessi insufficienti.",
+                        "reason": "forbidden",
+                    },
+                    status=403,
+                )
+            return render(request, "core/pages/forbidden.html", status=403)
+
+        return _wrapped
+
+    return _decorator
