@@ -17,7 +17,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
-from admin_portale.decorators import legacy_admin_required
+from admin_portale.decorators import legacy_admin_or_acl_required
 from core.acl import user_can_modulo_action
 from core.audit import log_action
 from core.legacy_cache import get_cached_perm_map
@@ -4121,7 +4121,7 @@ def add_project_comment(request, project_id: int):
     return redirect(target_url)
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("tasks", "gestione_admin")
 def gestione_admin(request):
     """Pagina di gestione interna Tasks — accesso solo admin."""
     from django.core.paginator import Paginator
@@ -4197,7 +4197,7 @@ def gestione_admin(request):
     )
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("tasks", "impostazioni")
 def impostazioni(request):
     """Impostazioni globali del modulo Task."""
     cfg = TaskImpostazioni.get_singleton()
@@ -4231,7 +4231,7 @@ def impostazioni(request):
     })
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("tasks", "gestione_admin")
 def gestione_admin(request):
     """Compat legacy: la vecchia gestione admin confluisce nelle impostazioni."""
     params = request.GET.copy()
@@ -5512,7 +5512,7 @@ def _handle_tasks_categories_post(request):
     return redirect(base_url)
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("tasks", "impostazioni")
 def impostazioni(request):
     """Pagina canonica impostazioni/admin del modulo Task."""
     cfg = TaskImpostazioni.get_singleton()

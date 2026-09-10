@@ -9,14 +9,14 @@ from django.shortcuts import get_object_or_404, redirect
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_http_methods
 
-from admin_portale.decorators import legacy_admin_required
+from admin_portale.decorators import legacy_admin_or_acl_required
 
 from .forms import AutomationActionForm
 from .models import AutomationRule
 from .views import _get_default_source_code
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "add_azione_partial")
 @require_http_methods(["POST"])
 def add_azione_partial(request, rule_id: int):
     """
@@ -56,7 +56,7 @@ def add_azione_partial(request, rule_id: int):
     return response
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "remove_azione_partial")
 @require_http_methods(["POST"])
 def remove_azione_partial(request, rule_id: int):
     """

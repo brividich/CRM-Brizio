@@ -14,7 +14,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 
-from admin_portale.decorators import legacy_admin_required
+from admin_portale.decorators import legacy_admin_or_acl_required
 from core.csv_export import CSV_CONTENT_TYPE, bom_first, safe_csv_writer
 from core.acl import check_permesso, user_can_modulo_action
 from core.audit import log_action
@@ -959,7 +959,7 @@ def report_csv(request):
     return _csv_streaming_response(rows(), headers, "report_notizie.csv")
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("notizie", "gestione_admin")
 def gestione_admin(request):
     """Pagina di gestione interna Notizie — accesso solo admin."""
     from django.core.paginator import Paginator

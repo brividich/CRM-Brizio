@@ -18,7 +18,7 @@ from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
-from admin_portale.decorators import legacy_admin_required
+from admin_portale.decorators import legacy_admin_or_acl_required
 from core.audit import log_action
 from core.public_headers import risposta_pubblica
 from monitoring.models import AutomationJob, AutomationExecution
@@ -4286,7 +4286,7 @@ def _inline_action_nodes(actions: list) -> list[dict]:
     return nodes
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "sorgenti_page")
 @require_GET
 def sorgenti_page(request):
     sources = []
@@ -4301,7 +4301,7 @@ def sorgenti_page(request):
     return render(request, "automazioni/pages/sorgenti.html", context)
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "contenuti_page")
 @require_GET
 def contenuti_page(request):
     sources = []
@@ -4325,7 +4325,7 @@ def contenuti_page(request):
     return render(request, "automazioni/pages/contenuti.html", context)
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "rule_list_page")
 @require_GET
 def rule_list_page(request):
     filters = _build_rule_filters_context(request)
@@ -4415,7 +4415,7 @@ def _build_power_automate_converter_context(
     }
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "rule_power_automate_convert_page")
 def rule_power_automate_convert_page(request):
     approval_template_state = _build_power_automate_approval_template_state()
     state = _get_power_automate_converter_state(request)
@@ -4572,7 +4572,7 @@ def rule_power_automate_convert_page(request):
     return render(request, "automazioni/pages/power_automate_convert.html", context)
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "rule_power_automate_package_download")
 @require_GET
 def rule_power_automate_package_download(request):
     state = _get_power_automate_converter_state(request)
@@ -4637,7 +4637,7 @@ def _build_package_import_context(
     }
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "rule_package_import_page")
 def rule_package_import_page(request):
     state = _get_package_import_state(request)
     analysis = state.get("analysis") if isinstance(state.get("analysis"), dict) else None
@@ -4767,7 +4767,7 @@ def rule_package_import_page(request):
     return render(request, "automazioni/pages/package_import.html", context)
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "rule_package_import_result_page")
 @require_GET
 def rule_package_import_result_page(request):
     result = _pop_package_import_result(request)
@@ -4781,7 +4781,7 @@ def rule_package_import_result_page(request):
     return render(request, "automazioni/pages/package_import_result.html", context)
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "rule_detail_page")
 @require_GET
 def rule_detail_page(request, rule_id: int):
     rule = get_object_or_404(
@@ -4824,7 +4824,7 @@ def rule_detail_page(request, rule_id: int):
     return render(request, "automazioni/pages/rule_detail.html", context)
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "rule_create_page")
 def rule_create_page(request):
     rule = AutomationRule()
     selected_source_code = _get_rule_source_code(request, rule)
@@ -4882,7 +4882,7 @@ def rule_create_page(request):
     return render(request, "automazioni/pages/rule_form.html", context)
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "rule_edit_page")
 def rule_edit_page(request, rule_id: int):
     rule = get_object_or_404(AutomationRule, pk=rule_id)
     selected_source_code = _get_rule_source_code(request, rule)
@@ -4939,7 +4939,7 @@ def rule_edit_page(request, rule_id: int):
     return render(request, "automazioni/pages/rule_form.html", context)
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "rule_designer_create_page")
 def rule_designer_create_page(request):
     rule = AutomationRule()
     selected_source_code = _get_rule_source_code(request, rule)
@@ -4994,7 +4994,7 @@ def rule_designer_create_page(request):
     return render(request, "automazioni/pages/rule_designer.html", context)
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "rule_designer_page")
 def rule_designer_page(request, rule_id: int):
     rule = get_object_or_404(AutomationRule, pk=rule_id)
     selected_source_code = _get_rule_source_code(request, rule)
@@ -5048,7 +5048,7 @@ def rule_designer_page(request, rule_id: int):
     return render(request, "automazioni/pages/rule_designer.html", context)
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "rule_toggle_view")
 @require_POST
 def rule_toggle_view(request, rule_id: int):
     rule = get_object_or_404(AutomationRule, pk=rule_id)
@@ -5065,7 +5065,7 @@ def rule_toggle_view(request, rule_id: int):
     return redirect("admin_portale:automazioni_rule_detail", rule_id=rule.id)
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "rule_delete_view")
 @require_POST
 def rule_delete_view(request, rule_id: int):
     rule = get_object_or_404(AutomationRule, pk=rule_id)
@@ -5089,7 +5089,7 @@ def rule_delete_view(request, rule_id: int):
     return redirect("admin_portale:automazioni_rule_list")
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "rule_condition_reorder_view")
 @require_POST
 def rule_condition_reorder_view(request, rule_id: int):
     rule = get_object_or_404(AutomationRule, pk=rule_id)
@@ -5101,7 +5101,7 @@ def rule_condition_reorder_view(request, rule_id: int):
     return JsonResponse({"ok": True, "ordered_ids": ordered_ids})
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "rule_action_reorder_view")
 @require_POST
 def rule_action_reorder_view(request, rule_id: int):
     rule = get_object_or_404(AutomationRule, pk=rule_id)
@@ -5113,7 +5113,7 @@ def rule_action_reorder_view(request, rule_id: int):
     return JsonResponse({"ok": True, "ordered_ids": ordered_ids})
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "rule_test_page")
 def rule_test_page(request, rule_id: int):
     rule = get_object_or_404(AutomationRule, pk=rule_id)
     run_log = None
@@ -5429,7 +5429,7 @@ def _queue_table_exists() -> bool:
         return False
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "queue_list_page")
 @require_GET
 def queue_list_page(request):
     status = _get_filter_value(request, "status")
@@ -5494,7 +5494,7 @@ def queue_list_page(request):
     return render(request, "automazioni/pages/queue_list.html", context)
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "queue_detail_page")
 @require_GET
 def queue_detail_page(request, queue_id: int):
     queue_event = get_queue_event_detail(queue_id)
@@ -5532,7 +5532,7 @@ def queue_detail_page(request, queue_id: int):
     return render(request, "automazioni/pages/queue_detail.html", context)
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "queue_reset_view")
 @require_POST
 def queue_reset_view(request, queue_id: int):
     if reset_queue_event_to_pending(queue_id):
@@ -5542,7 +5542,7 @@ def queue_reset_view(request, queue_id: int):
     return redirect("admin_portale:automazioni_queue_detail", queue_id=queue_id)
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "queue_retry_view")
 @require_POST
 def queue_retry_view(request, queue_id: int):
     result = process_single_queue_event_by_id(queue_id)
@@ -5556,7 +5556,7 @@ def queue_retry_view(request, queue_id: int):
     return redirect("admin_portale:automazioni_queue_detail", queue_id=queue_id)
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "queue_stop_view")
 @require_POST
 def queue_stop_view(request, queue_id: int):
     if stop_queue_event(queue_id):
@@ -5575,7 +5575,7 @@ def queue_stop_view(request, queue_id: int):
     return redirect("admin_portale:automazioni_queue_detail", queue_id=queue_id)
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "queue_delete_view")
 @require_POST
 def queue_delete_view(request, queue_id: int):
     if delete_queue_event(queue_id):
@@ -5597,7 +5597,7 @@ def queue_delete_view(request, queue_id: int):
     return redirect("admin_portale:automazioni_queue_list")
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "run_log_list_page")
 @require_GET
 def run_log_list_page(request):
     from datetime import timedelta
@@ -5685,7 +5685,7 @@ def _run_log_source_choices() -> list[tuple[str, str]]:
     return choices
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "run_log_detail_page")
 @require_GET
 def run_log_detail_page(request, run_log_id: int):
     run_log = get_object_or_404(
@@ -5710,7 +5710,7 @@ def run_log_detail_page(request, run_log_id: int):
 # API: gestione whitelist tabelle (AutomationTableConfig)
 # ---------------------------------------------------------------------------
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "api_table_config_list")
 @require_GET
 def api_table_config_list(request):
     """GET /automazioni/api/table-configs/ — lista configs + tabelle disponibili per il picker."""
@@ -5721,7 +5721,7 @@ def api_table_config_list(request):
     return JsonResponse({"ok": True, "configs": configs, "available": available})
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "api_table_config_save")
 @require_POST
 def api_table_config_save(request):
     """POST /automazioni/api/table-configs/ — crea o aggiorna una voce."""
@@ -5795,7 +5795,7 @@ def api_table_config_save(request):
     return JsonResponse({"ok": True, "id": obj.pk, "created": created})
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "api_table_config_delete")
 @require_POST
 def api_table_config_delete(request, config_id: int):
     """POST /automazioni/api/table-configs/<id>/delete/ — elimina una voce."""
@@ -5803,7 +5803,7 @@ def api_table_config_delete(request, config_id: int):
     return JsonResponse({"ok": True, "deleted": deleted})
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "api_recent_records")
 @require_GET
 def api_recent_records(request, source_code: str):
     """GET /api/sorgenti/<source_code>/record-recenti/ — record recenti per il picker del test live."""
@@ -5811,7 +5811,7 @@ def api_recent_records(request, source_code: str):
     return JsonResponse({"ok": True, "records": records})
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "api_source_field_values")
 @require_GET
 def api_source_field_values(request, source_code: str, field_name: str):
     field_definition = _get_source_field_definition(source_code, field_name)
@@ -5840,7 +5840,7 @@ def api_source_field_values(request, source_code: str, field_name: str):
     )
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "api_record_payload")
 @require_GET
 def api_record_payload(request, source_code: str, record_id: str):
     """GET /api/sorgenti/<source_code>/record/<record_id>/payload/ — payload completo di un record."""
@@ -5850,7 +5850,7 @@ def api_record_payload(request, source_code: str, record_id: str):
     return JsonResponse({"ok": True, "payload": payload})
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "api_test_rule_ajax")
 @require_POST
 def api_test_rule_ajax(request, rule_id: int):
     """POST /api/regole/<rule_id>/test-ajax/ — esegue un test della regola e restituisce i risultati JSON."""
@@ -6154,7 +6154,7 @@ def _handle_approval_proxy(request, token, decision: str):
 # Canali Teams — gestione TeamsWebhookPreset
 # ─────────────────────────────────────────────────────────────────────────────
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "settings_page")
 def settings_page(request):
     from core.models import SiteConfig
 
@@ -6485,7 +6485,7 @@ def _apply_trigger_sql(sql: str) -> dict[str, object]:
         return {"ok": False, "message": str(exc)}
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "trigger_generator_page")
 def trigger_generator_page(request):
     """Generatore visuale trigger SQL Server per le sorgenti automazioni."""
     all_sources = _get_trigger_sources()
@@ -6572,12 +6572,12 @@ def trigger_generator_page(request):
     })
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "teams_presets_page")
 def teams_presets_page(request):
     return render(request, "automazioni/pages/teams_presets.html", _build_teams_delivery_context())
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "approval_mailbox_log_page")
 def approval_mailbox_log_page(request):
     """Diagnostica: ultimi messaggi letti dalla mailbox approvazioni."""
     from .models import ApprovalMailboxMessage
@@ -6605,7 +6605,7 @@ def approval_mailbox_log_page(request):
     )
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "teams_preset_create")
 def teams_preset_create(request):
     if request.method == "POST":
         form = TeamsWebhookPresetForm(request.POST)
@@ -6622,7 +6622,7 @@ def teams_preset_create(request):
     )
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "teams_preset_edit")
 def teams_preset_edit(request, pk: int):
     preset = get_object_or_404(TeamsWebhookPreset, pk=pk)
     if request.method == "POST":
@@ -6644,7 +6644,7 @@ def teams_preset_edit(request, pk: int):
     )
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "teams_preset_delete")
 @require_POST
 def teams_preset_delete(request, pk: int):
     preset = get_object_or_404(TeamsWebhookPreset, pk=pk)
@@ -6654,7 +6654,7 @@ def teams_preset_delete(request, pk: int):
     return redirect("admin_portale:automazioni_teams_presets")
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "teams_flow_endpoint_create")
 def teams_flow_endpoint_create(request):
     _flow_endpoints, flow_endpoints_warning = _get_teams_flow_endpoints_context(active_only=None)
     if flow_endpoints_warning:
@@ -6675,7 +6675,7 @@ def teams_flow_endpoint_create(request):
     )
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "teams_flow_endpoint_edit")
 def teams_flow_endpoint_edit(request, pk: int):
     _flow_endpoints, flow_endpoints_warning = _get_teams_flow_endpoints_context(active_only=None)
     if flow_endpoints_warning:
@@ -6705,7 +6705,7 @@ def teams_flow_endpoint_edit(request, pk: int):
     )
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "teams_flow_endpoint_delete")
 @require_POST
 def teams_flow_endpoint_delete(request, pk: int):
     _flow_endpoints, flow_endpoints_warning = _get_teams_flow_endpoints_context(active_only=None)
@@ -6736,13 +6736,13 @@ def _get_approval_templates_context() -> dict:
     }
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "approval_templates_list_page")
 def approval_templates_list_page(request):
     ctx = _get_approval_templates_context()
     return render(request, "automazioni/pages/approval_template_list.html", ctx)
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "approval_template_create_page")
 def approval_template_create_page(request):
     from .approval_email_templates import get_default_approval_mailbox
 
@@ -6769,7 +6769,7 @@ def approval_template_create_page(request):
     })
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "approval_template_edit_page")
 def approval_template_edit_page(request, pk: int):
     tpl = get_object_or_404(ApprovalEmailTemplate, pk=pk)
     if request.method == "POST":
@@ -6793,7 +6793,7 @@ def approval_template_edit_page(request, pk: int):
     })
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "approval_template_delete_page")
 @require_POST
 def approval_template_delete_page(request, pk: int):
     tpl = get_object_or_404(ApprovalEmailTemplate, pk=pk)
@@ -6803,7 +6803,7 @@ def approval_template_delete_page(request, pk: int):
     return redirect("admin_portale:automazioni_approval_templates")
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "approval_template_clone_page")
 @require_POST
 def approval_template_clone_page(request, pk: int):
     """Clona un template esistente con nuovo code/name."""
@@ -6841,7 +6841,7 @@ def approval_template_clone_page(request, pk: int):
     return redirect("admin_portale:automazioni_approval_template_edit", pk=clone.pk)
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "approval_template_preview_page")
 def approval_template_preview_page(request, pk: int):
     """
     Preview HTML del template con dati mock o payload custom via GET params.
@@ -6887,7 +6887,7 @@ def approval_template_preview_page(request, pk: int):
 
 # ── Task pianificati (schedule django-q) — riflessi nell'area automazioni ──────
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "pianificati_page")
 @require_GET
 def pianificati_page(request):
     """Elenco dei task pianificati (SCHEDULES) con stato on/off e prossima esecuzione.
@@ -6913,7 +6913,7 @@ def pianificati_page(request):
     return render(request, "automazioni/pages/pianificati.html", context)
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "pianificati_action")
 @require_POST
 def pianificati_action(request):
     """Toggle on/off durevole o 'esegui ora' di un task pianificato."""
@@ -6956,7 +6956,7 @@ def pianificati_action(request):
     return redirect("admin_portale:automazioni_pianificati")
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "pianificati_mail_config_page")
 @require_GET
 def pianificati_mail_config_page(request, name):
     """Configura destinatari + cornice testuale (oggetto/intro/nota) di un task mail."""
@@ -6983,7 +6983,7 @@ def pianificati_mail_config_page(request, name):
     return render(request, "automazioni/pages/pianificati_mail.html", context)
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "pianificati_mail_config_save")
 @require_POST
 def pianificati_mail_config_save(request, name):
     """Salva destinatari (SiteConfig) + testo (ScheduledMailText) di un task mail."""
@@ -7015,7 +7015,7 @@ def pianificati_mail_config_save(request, name):
     return redirect("admin_portale:automazioni_pianificati_mail", name=name)
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("automazioni", "pianificati_mail_test")
 @require_POST
 def pianificati_mail_test(request, name):
     """Invia all'admin corrente un'ANTEPRIMA della mail del flusso (dati di esempio).

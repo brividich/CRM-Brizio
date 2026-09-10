@@ -896,6 +896,15 @@ La navigazione segue la stessa logica: se una `NavigationItem` espone
 unmapped. Gli override `UserNavigationOverride` sono hide-only: possono
 nascondere una voce gia consentita, non mostrarne una negata.
 
+### Gate delle pagine amministrative
+
+Fuori da `admin_portale` i pannelli dei moduli usano
+`legacy_admin_or_acl_required(modulo, azione)`: superuser e admin legacy passano
+come prima, ma la concessione dal pannello Accessi conta davvero.
+`legacy_admin_required`, che i permessi non li legge, resta solo in
+`admin_portale` - riservato per scelta, non per dimenticanza, e
+`core/test_acl_gate_coverage.py` verifica che la divisione regga nel tempo.
+
 ### Permessi di sezione (gate in-view, senza route binding)
 
 Alcune sezioni non sono una rotta a sé ma un **blocco dentro una pagina** (i dati

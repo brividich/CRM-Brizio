@@ -35,7 +35,7 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.http import require_GET, require_POST
 from PIL import Image, UnidentifiedImageError
 
-from admin_portale.decorators import legacy_admin_required as _staff_required
+from admin_portale.decorators import legacy_admin_or_acl_required
 from config.app_version import build_module_version_env_block, load_app_version
 from config.env_config import primary_runtime_env_path, update_env_file_values
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
@@ -641,7 +641,7 @@ def _set_login_redirect_target(key: str) -> None:
 # Module Manager
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "moduli")
 def moduli(request):
     states = _get_module_states()
     redirect_target = _get_login_redirect_target()
@@ -658,7 +658,7 @@ def moduli(request):
     })
 
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "api_toggle_module")
 @require_POST
 def api_toggle_module(request):
     try:
@@ -680,7 +680,7 @@ def api_toggle_module(request):
         return _json_internal_error("api_toggle_module")
 
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "api_set_login_redirect")
 @require_POST
 def api_set_login_redirect(request):
     try:
@@ -724,7 +724,7 @@ def _get_db_engine() -> str:
     return "unknown"
 
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "database")
 def database(request):
     engine = _get_db_engine()
     backups = []
@@ -742,7 +742,7 @@ def database(request):
     })
 
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "api_db_stats")
 @require_GET
 def api_db_stats(request):
     engine = _get_db_engine()
@@ -785,7 +785,7 @@ def api_db_stats(request):
         return _json_internal_error("api_db_stats")
 
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "api_db_backup")
 @require_POST
 def api_db_backup(request):
     engine = _get_db_engine()
@@ -836,7 +836,7 @@ def api_db_backup(request):
         return _json_internal_error("api_db_backup")
 
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "api_db_cleanup")
 @require_POST
 def api_db_cleanup(request):
     """Pulizia: sessioni scadute, log vecchi, eventi automazione processati."""
@@ -884,7 +884,7 @@ def api_db_cleanup(request):
     return JsonResponse({"ok": True, "results": results})
 
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "api_db_optimize")
 @require_POST
 def api_db_optimize(request):
     """Ottimizzazione: VACUUM (SQLite) o UPDATE STATISTICS + rebuild index (SQL Server)."""
@@ -938,7 +938,7 @@ def api_db_optimize(request):
         return _json_internal_error("api_db_optimize")
 
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "api_db_restore")
 @require_POST
 def api_db_restore(request):
     """Ripristino database da file di backup."""
@@ -994,13 +994,13 @@ def api_db_restore(request):
 # Homepage Builder
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "homepage_builder")
 def homepage_builder(request):
     """Mostra l'Homepage Builder integrato nell'admin (in iframe)."""
     return render(request, "hub_tools/homepage_builder.html")
 
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "homepage_builder_tool")
 @xframe_options_exempt
 @require_GET
 def homepage_builder_tool(request):
@@ -1015,7 +1015,7 @@ def homepage_builder_tool(request):
 # Setup Wizard â€” Riconfigura (legge .env corrente)
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "setup_wizard_hub")
 def setup_wizard_hub(request):
     """Mostra il Setup Wizard precompilato con i valori del .env corrente."""
     env = _normalize_env_booleans(_read_env())
@@ -1026,20 +1026,20 @@ def setup_wizard_hub(request):
 # Guide e Manuali
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "db_schema")
 def db_schema(request):
     """Infografica schema DB: modelli, campi e relazioni."""
     return render(request, "hub_tools/db_schema.html")
 
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "guide_list")
 def guide_list(request):
     """Elenco guide e manuali disponibili."""
     guides = _discover_guides()
     return render(request, "hub_tools/guide_list.html", {"guides": guides, "guide_count": len(guides)})
 
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "guide_view")
 def guide_view(request, slug):
     """Visualizza una guida specifica in iframe."""
     guide = _find_guide(slug)
@@ -1048,7 +1048,7 @@ def guide_view(request, slug):
     return render(request, "hub_tools/guide_view.html", {"guide": guide})
 
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "guide_serve")
 @xframe_options_exempt
 @require_GET
 def guide_serve(request, filename):
@@ -1072,7 +1072,7 @@ def guide_serve(request, filename):
 # API Riconfigura â€” salva .env anche a setup giÃ  completato
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "api_reconfigure")
 @require_POST
 def api_reconfigure(request):
     """
@@ -1448,7 +1448,7 @@ def _save_portal_brand_asset(
     return default_storage.url(saved_path)
 
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "categorie")
 def categorie(request):
     from django.shortcuts import redirect
 
@@ -1628,7 +1628,7 @@ def categorie(request):
 # Gestione Notifiche
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "notifiche_hub")
 def notifiche_hub(request):
     """Dashboard notifiche: lista, filtri, statistiche, invio manuale."""
     from core.models import Notifica
@@ -1722,7 +1722,7 @@ def notifiche_hub(request):
     })
 
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "api_notifica_invia")
 @require_POST
 def api_notifica_invia(request):
     """Invia notifica manuale a: singolo utente / reparto / tutti."""
@@ -1797,7 +1797,7 @@ def api_notifica_invia(request):
     return JsonResponse({"ok": True, "count": count, "message": f"Notifica inviata a {count} destinatari."})
 
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "api_notifica_elimina")
 @require_POST
 def api_notifica_elimina(request, notifica_id: int):
     """Elimina una singola notifica."""
@@ -1900,7 +1900,7 @@ _HUB_TOOLS = [
 ]
 
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "hub_index")
 def hub_index(request):
     """Pagina indice Hub Tools — raccoglie tutti gli strumenti di gestione."""
     from django.urls import reverse
@@ -1918,7 +1918,7 @@ def hub_index(request):
 # Hub — KPI Manager
 # ══════════════════════════════════════════════════════════════════════════
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "hub_kpi_manager")
 def hub_kpi_manager(request):
     """Gestione visiva delle KPI card: etichette, colori, icone, visibilità."""
     from core.models import SiteConfig
@@ -1947,7 +1947,7 @@ def hub_kpi_manager(request):
     return render(request, "hub_tools/kpi_manager.html", {"kpis": kpis})
 
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "api_hub_kpi_save")
 @require_POST
 def api_hub_kpi_save(request):
     """Salva la configurazione di una o tutte le KPI card."""
@@ -2117,7 +2117,7 @@ def _update_card_image_only(pulsante_id: int, card_image: str) -> None:
                 )
 
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "hub_pulsanti_manager")
 def hub_pulsanti_manager(request):
     """Lista e gestione pulsanti hub (nome, modulo, URL, logo, stato)."""
     from core.legacy_models import Pulsante
@@ -2151,7 +2151,7 @@ def hub_pulsanti_manager(request):
     })
 
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "api_pulsante_save")
 @require_POST
 def api_pulsante_save(request):
     """Crea o aggiorna un pulsante (campi base + ui_meta)."""
@@ -2212,7 +2212,7 @@ def api_pulsante_save(request):
         return _json_internal_error("api_pulsante_save")
 
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "api_pulsante_logo_upload")
 @require_POST
 def api_pulsante_logo_upload(request, pid: int):
     """Carica o sostituisce il logo di un pulsante."""
@@ -2244,7 +2244,7 @@ def api_pulsante_logo_upload(request, pid: int):
         return _json_internal_error("api_pulsante_logo_upload")
 
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "api_pulsante_toggle")
 @require_POST
 def api_pulsante_toggle(request, pid: int):
     """Abilita o disabilita un pulsante (enabled in ui_pulsanti_meta)."""
@@ -2267,7 +2267,7 @@ def api_pulsante_toggle(request, pid: int):
         return _json_internal_error("api_pulsante_toggle")
 
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "api_pulsante_delete")
 @require_POST
 def api_pulsante_delete(request, pid: int):
     """Elimina un pulsante (rimuove da pulsanti + ui_pulsanti_meta)."""
@@ -2286,7 +2286,7 @@ def api_pulsante_delete(request, pid: int):
 # Hub — Branding pagina hub-preview
 # ══════════════════════════════════════════════════════════════════════════
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "hub_branding")
 def hub_branding(request):
     """Personalizzazione grafica della pagina hub-preview."""
     branding = _get_hub_branding()
@@ -2297,7 +2297,7 @@ def hub_branding(request):
     })
 
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "api_hub_branding_save")
 @require_POST
 def api_hub_branding_save(request):
     """Salva le impostazioni di branding hub (testo + colori)."""
@@ -2320,7 +2320,7 @@ def api_hub_branding_save(request):
         return _json_internal_error("api_hub_branding_save")
 
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "api_hub_branding_logo_upload")
 @require_POST
 def api_hub_branding_logo_upload(request):
     """Carica il logo da mostrare nell'hero della hub-preview."""
@@ -2351,7 +2351,7 @@ def api_hub_branding_logo_upload(request):
         return _json_internal_error("api_hub_branding_logo_upload")
 
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "api_hub_branding_logo_remove")
 @require_POST
 def api_hub_branding_logo_remove(request):
     """Rimuove il logo hub."""
@@ -2363,7 +2363,7 @@ def api_hub_branding_logo_remove(request):
         return _json_internal_error("api_hub_branding_logo_remove")
 
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "api_set_hub_as_homepage")
 @require_POST
 def api_set_hub_as_homepage(request):
     """Imposta hub-preview come dashboard principale post-login (non si applica agli admin)."""
@@ -2380,7 +2380,7 @@ def api_set_hub_as_homepage(request):
         return _json_internal_error("api_set_hub_as_homepage")
 
 
-@_staff_required
+@legacy_admin_or_acl_required("hub_tools", "api_notifiche_bulk")
 @require_POST
 def api_notifiche_bulk(request):
     """Azioni bulk: elimina_lette | elimina_utente | segna_lette_tutte."""
