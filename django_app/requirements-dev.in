@@ -16,4 +16,4 @@ model-bakery>=1.24.0
 ruff>=0.15.15
 
 # --- Git hooks ---
-pre-commit>=3.7
+pre-commit>=4.6.2
