@@ -8,6 +8,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Changed
+
+- **Manutenzione · le tendine di assegnazione mostrano il nominativo, non lo username** (`django_app/assets/forms_maintenance.py`, `django_app/assets/forms.py`, `django_app/assets/views.py`). I menù "Assegna a" / "Manutentore" / "Assegnatario" erano `ModelChoiceField` su `User`, quindi rendevano `str(user)` == lo username (`a.coldani`, e per chi ha l'UPN come login addirittura `it@costruzioninovicrom.it`): illeggibile per chi deve scegliere una persona. Ora usano `core.form_fields.user_display_label` (fonte unica già in uso in Suggestion Corner e KICK-OFF), che mostra "Cognome Nome" con fallback allo username quando nome e cognome non sono valorizzati — nessun utente sparisce dall'elenco. Coinvolte tutte le tendine del dominio manutenzione: barra di selezione massiva di "Da fare" e "Scadenze" (`WorkOrderFromOccurrencesForm`), follow-up di anomalia, filtro "Assegnatario" dei filtri condivisi, applicazione di piano, piano (manutentore predefinito), regola legacy, ordine di lavoro e chiusura intervento (`assigned_to` + `executed_by`). Allineato anche l'**ordinamento**: `first_name` contiene il cognome (`core.legacy_utils._split_name` spezza il "nome" legacy in cognome + nome), quindi le liste erano ordinate per nome di battesimo pur mostrando il cognome per primo; ora l'ordine segue l'etichetta mostrata, incluse le quattro liste già rese a nome nei template (`workorder_list`, `workorder_detail`, `workorder_campaign_create`, `maintenance_hub`).
+
 ## 1.5.0 - 2026-09-09
 
 Rilascio di allineamento: entra la rifinitura UX del modulo Manutenzione e rientrano
