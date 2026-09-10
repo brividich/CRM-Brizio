@@ -13,6 +13,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from anagrafica.models import Fornitore, FornitoreDocumento, Reparto
+from core.form_fields import user_display_label
 from schede_sicurezza.forms import ProdottoChimicoForm
 from schede_sicurezza.models import ProdottoChimico
 
@@ -1171,7 +1172,8 @@ class MaintenanceRuleForm(forms.ModelForm):
         current_assigned_id = getattr(self.instance, "assigned_to_id", None)
         self.fields["assigned_to"].queryset = User.objects.filter(
             Q(is_active=True) | Q(pk=current_assigned_id)
-        ).order_by("last_name", "first_name", "username")
+        ).order_by("first_name", "last_name", "username")
+        self.fields["assigned_to"].label_from_instance = user_display_label
         self.fields["assigned_to"].required = False
         self.fields["scope_type"].required = False
         self.fields["scope_type"].initial = self.fields["scope_type"].initial or MaintenanceRule.SCOPE_CATEGORY
@@ -2875,7 +2877,8 @@ class WorkOrderForm(forms.ModelForm):
         self.fields["assigned_to"].required = False
         self.fields["assigned_to"].queryset = User.objects.filter(
             Q(is_active=True) | Q(pk=current_assigned_id)
-        ).order_by("last_name", "first_name", "username")
+        ).order_by("first_name", "last_name", "username")
+        self.fields["assigned_to"].label_from_instance = user_display_label
         self.fields["assigned_to"].help_text = "Opzionale: assegna l'intervento a un manutentore."
         _attach_input_css(self)
         self.fields["covered_by_contract"].widget.attrs["class"] = ""
@@ -3064,10 +3067,12 @@ class WorkOrderCloseForm(forms.Form):
         User = get_user_model()
         current_assigned_id = getattr(self.workorder, "assigned_to_id", None)
         current_executed_id = getattr(self.workorder, "executed_by_id", None)
-        user_qs = User.objects.filter(is_active=True).order_by("last_name", "first_name", "username")
+        user_qs = User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
         self.fields["assigned_to"].queryset = user_qs
+        self.fields["assigned_to"].label_from_instance = user_display_label
         self.fields["assigned_to"].help_text = "Manutentore assegnato all'intervento."
         self.fields["executed_by"].queryset = user_qs
+        self.fields["executed_by"].label_from_instance = user_display_label
         self.fields["executed_by"].help_text = "Chi ha fisicamente eseguito il lavoro."
         # La coda della manutenzione e' condivisa: gli interventi non sono di nessuno
         # finche' qualcuno non li chiude. La casella compare solo quando serve davvero,
