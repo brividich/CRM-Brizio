@@ -8,6 +8,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Fixed
+
+- **Assets · le Impostazioni assets ora leggono davvero il permesso concesso** (`django_app/admin_portale/decorators.py` — nuovo `legacy_admin_or_acl_required` —, `django_app/assets/views.py` — `gestione_admin` —, nuovo `django_app/assets/tests_acl_impostazioni_gate.py`). `/assets/impostazioni/` era protetta da `@legacy_admin_required`, che ammette **solo** superuser e ruoli legacy admin e non interroga mai i permessi: concedere la pagina dal pannello Accessi non aveva alcun effetto e l'utente riceveva 403. Il sintomo era ingannevole due volte — la voce di menu **si accendeva** (`can_gestione_admin` valuta già `assets`/`admin_assets`, `views.py:6395`) e la pagina di errore recita «Il resolver ACL ha negato l'accesso» anche quando a negare è un gate che l'ACL non l'ha nemmeno letta. Il nuovo decoratore mantiene i due canali admin e, dopo di essi, accetta la concessione ACL: la pagina canonica v2 associata al percorso (`assets_gestione`, `assets/acl_bootstrap.py:47`) oppure l'azione modulo `assets`/`admin_assets`, cioè la stessa che accende la voce di menu. Non porta più il flag `_legacy_admin_bypass`, così il pannello ACL v2 smette di segnalare la rotta come bypass amministrativo. Nessuna URL nuova, nessuna migration, gate invariato per superuser e legacy admin.
+
 ## 1.5.0 - 2026-09-09
 
 Rilascio di allineamento: entra la rifinitura UX del modulo Manutenzione e rientrano

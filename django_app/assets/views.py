@@ -42,7 +42,7 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 from reportlab.platypus import Paragraph
 
-from admin_portale.decorators import legacy_admin_required
+from admin_portale.decorators import legacy_admin_or_acl_required, legacy_admin_required
 from config.env_config import get_first_env_value, load_env_file_values, resolve_env_value, update_env_file_values
 from core.acl import user_can_modulo_action
 from core.public_headers import risposta_pubblica
@@ -17754,9 +17754,14 @@ def work_machine_maintenance_month_pdf(request: HttpRequest) -> HttpResponse:
     return response
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("assets", "admin_assets")
 def gestione_admin(request: HttpRequest) -> HttpResponse:
-    """Pagina di gestione interna Assets — accesso solo admin."""
+    """Pagina di gestione interna Assets — admin oppure permesso ACL esplicito.
+
+    La voce di menu si accende gia' su ``admin_assets`` (vedi
+    ``can_gestione_admin``): il gate deve leggere gli stessi permessi, altrimenti
+    la voce compare ma la pagina risponde 403.
+    """
 
     # --- Statistiche ---
     total_assets = Asset.objects.count()
