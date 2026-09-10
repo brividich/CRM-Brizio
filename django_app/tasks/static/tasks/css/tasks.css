@@ -6,6 +6,10 @@
 /* ── Token layer ── */
 .ts-shell {
   display: grid;
+  /* Le righe sono auto: senza align-content:start il grid distribuisce l'altezza
+     residua della pagina fra hero, tab di commessa e pannelli — la striscia delle
+     tab si gonfiava fino a ~140px sulle pagine con poco contenuto. */
+  align-content: start;
   gap: 14px;
   padding: 12px 0 32px;
   --ts-primary: var(--primary);
@@ -864,12 +868,19 @@ body.tk-wide .content { width: 100%; max-width: none; }
 
 /* ── Panoramica commessa ────────────────────────────────────────── */
 .ko-phase { display: inline-flex; padding: var(--hub-space-1) var(--hub-space-2); border: 1px solid var(--hub-color-border); border-radius: var(--hub-radius-md); background: var(--hub-status-neutral-bg); color: var(--hub-color-text-muted); font-size: var(--hub-font-xs); font-weight: 600; }
-.ko-team { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--hub-space-3); margin-bottom: var(--hub-space-4); }
+/* auto-fit: i ruoli di team sono 4 dal 1.5.1 (caporeparto), le 3 colonne fisse lasciavano una scheda orfana a capo. */
+.ko-team { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--hub-space-3); margin-bottom: var(--hub-space-4); }
 .ko-team-item { display: flex; flex-direction: column; gap: var(--hub-space-1); padding: var(--hub-space-3) var(--hub-space-4); border: 1px solid var(--hub-color-border); border-radius: var(--hub-radius-lg); background: var(--hub-color-surface); box-shadow: var(--hub-shadow-sm); }
 .ko-team-role { color: var(--hub-color-text-muted); font-size: var(--hub-font-xs); }
 .ko-team-name { color: var(--hub-color-text); font-size: var(--hub-font-base); font-weight: 600; }
-.ko-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--hub-space-3); margin-bottom: var(--hub-space-4); }
-.ko-metric { display: flex; flex-direction: column; gap: var(--hub-space-1); min-height: 82px; padding: var(--hub-space-4); border: 1px solid var(--hub-color-border); border-radius: var(--hub-radius-lg); background: var(--hub-color-surface); color: var(--hub-color-text); text-decoration: none; box-shadow: var(--hub-shadow-sm); }
+.ko-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--hub-space-3); margin-bottom: var(--hub-space-4); }
+.ko-metric { position: relative; display: flex; flex-direction: column; gap: var(--hub-space-1); min-height: 82px; padding: var(--hub-space-4) var(--hub-space-4) var(--hub-space-4) 18px; border: 1px solid var(--hub-color-border); border-radius: var(--hub-radius-lg); background: var(--hub-color-surface); color: var(--hub-color-text); text-decoration: none; box-shadow: var(--hub-shadow-sm); overflow: hidden; }
+/* Filetto colorato a sinistra: stessa grammatica delle KPI della dashboard. */
+.ko-metric::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--ko-metric-accent, var(--primary-mid)); }
+.ko-metric--start { --ko-metric-accent: var(--accent); }
+.ko-metric--actions { --ko-metric-accent: var(--danger); }
+.ko-metric--meeting { --ko-metric-accent: var(--primary-mid); }
+.ko-metric--plan { --ko-metric-accent: var(--success); }
 .ko-metric:hover { background: var(--hub-color-surface-raised); }
 .ko-metric-value { font-size: var(--hub-font-heading); font-weight: 600; }
 .ko-metric-value--date { font-size: var(--hub-font-xl); }
@@ -3468,7 +3479,9 @@ body.theme-dark .md-hero { background: linear-gradient(135deg,#0f172a 0%,#1e3a5f
 /* ── _meeting_form_styles.html (Passata 3, partial condiviso convocazione/esito) ── */
 /* ── Layout ─────────────────────────────────────────────────────────── */
 .mf-wrap {
-  max-width: 1040px;
+  /* Allineata alle altre pagine di commessa: a 1040px la colonna restava molto
+     piu' stretta della striscia delle tab e sembrava fuori asse. */
+  max-width: 1240px;
   margin: 0 auto;
   padding: 0 4px 32px;
 }
@@ -3833,3 +3846,323 @@ body.theme-dark .mf-attendees-preview { background: rgba(37,99,235,.1); border-c
 }
 .mf-recap b { color: var(--text-light); font-weight: 600; }
 .mf-recap a { color: var(--primary-mid); text-decoration: none; font-weight: 600; }
+
+/* ══════════════════════════════════════════════════════════════════
+   Segnalazioni incontri (dashboard KICK-OFF) — tasks/_meeting_alerts.html
+   Colori dai token semantici di theme.css (*-bg cambiano da soli in dark).
+   ══════════════════════════════════════════════════════════════════ */
+.ka-band {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 14px;
+}
+
+.ka-col {
+  border: 1px solid var(--border);
+  border-radius: var(--hub-radius-lg, 14px);
+  background: var(--surface);
+  box-shadow: 0 2px 12px rgba(15, 23, 42, .05);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.ka-col-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--primary) 4%, var(--surface));
+}
+
+.ka-col--todo .ka-col-head {
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+}
+
+.ka-col-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-md);
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -.01em;
+}
+
+.ka-col-title svg { width: 17px; height: 17px; stroke: var(--accent); flex: none; }
+.ka-col--next .ka-col-title svg { stroke: var(--primary-mid); }
+
+.ka-count {
+  min-width: 20px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--danger-bg);
+  color: var(--danger);
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  font-size: var(--fs-2xs);
+  font-weight: 800;
+  text-align: center;
+}
+
+.ka-col-link {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--text-mid);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.ka-col-link:hover { color: var(--accent); }
+
+.ka-list { list-style: none; margin: 0; padding: 0; }
+
+.ka-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  min-width: 0;
+}
+.ka-item:last-child { border-bottom: none; }
+.ka-item:hover { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+
+/* Data dell'incontro, colonna fissa a sinistra */
+.ka-when {
+  flex: none;
+  width: 52px;
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  padding: 5px 0;
+  border-radius: 10px;
+  background: var(--accent-light);
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  line-height: 1.1;
+}
+.ka-when b { font-size: var(--fs-base); font-weight: 800; color: var(--text); }
+.ka-when small { font-size: var(--fs-2xs); color: var(--text-mid); }
+.ka-when--warn { background: var(--warning-bg); border-color: color-mix(in srgb, var(--warning) 35%, transparent); }
+
+.ka-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--text-light); }
+.ka-dot--danger { background: var(--danger); }
+.ka-dot--warn   { background: var(--warning); }
+.ka-dot--info   { background: var(--primary-mid); }
+
+.ka-body { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
+
+.ka-title {
+  font-size: var(--fs-base);
+  font-weight: 700;
+  color: var(--text);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ka-title:hover { color: var(--accent); }
+
+.ka-meta {
+  display: flex;
+  gap: 5px;
+  font-size: var(--fs-xs);
+  color: var(--text-mid);
+  overflow: hidden;
+  white-space: nowrap;
+}
+.ka-meta a { color: var(--text-mid); text-decoration: none; overflow: hidden; text-overflow: ellipsis; }
+.ka-meta a:hover { color: var(--accent); text-decoration: underline; }
+
+.ka-chip, .ka-reason {
+  flex: none;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: var(--fs-2xs);
+  font-weight: 800;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.ka-chip--info,   .ka-reason--info   { background: var(--accent-light); color: var(--primary-mid); border-color: color-mix(in srgb, var(--primary-mid) 25%, transparent); }
+.ka-chip--warn,   .ka-reason--warn   { background: var(--warning-bg); color: var(--warning); border-color: color-mix(in srgb, var(--warning) 35%, transparent); }
+.ka-chip--danger, .ka-reason--danger { background: var(--danger-bg); color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, transparent); }
+
+.ka-action {
+  flex: none;
+  padding: 5px 11px;
+  border-radius: 8px;
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  text-decoration: none;
+  color: #fff;
+  background: var(--accent);
+  white-space: nowrap;
+}
+.ka-action:hover { filter: brightness(1.06); }
+
+.ka-empty {
+  margin: 0;
+  padding: 20px 16px;
+  font-size: var(--fs-sm);
+  color: var(--text-mid);
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  .ka-item { flex-wrap: wrap; }
+  .ka-body { flex-basis: 100%; order: 2; }
+  .ka-chip, .ka-reason, .ka-action { order: 3; }
+}
+
+/* Data di inizio del kickoff (primo incontro) sulla card di portfolio */
+.pf-chip.start { background: var(--accent-light); border-color: color-mix(in srgb, var(--accent) 25%, transparent); color: var(--text); }
+.pf-chip.start.empty { color: var(--text-mid); background: transparent; border-style: dashed; text-decoration: none; }
+.pf-chip.start.empty:hover { color: var(--accent); border-color: var(--accent); }
+
+/* ══════════════════════════════════════════════════════════════════
+   Elenco incontri di commessa — tasks/project_meetings.html
+   ══════════════════════════════════════════════════════════════════ */
+.mtg-list { list-style: none; margin: 0; padding: 0; }
+
+.mtg-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 18px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  border-left: 3px solid transparent;
+  min-width: 0;
+}
+.mtg-row:last-child { border-bottom: none; }
+.mtg-row:hover { background: color-mix(in srgb, var(--accent) 4%, transparent); }
+.mtg-row--next { border-left-color: var(--accent); background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.mtg-row--annullato { opacity: .6; }
+
+.mtg-num {
+  flex: none;
+  width: 30px; height: 30px;
+  display: grid; place-items: center;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+  color: var(--primary-mid);
+  border: 1px solid color-mix(in srgb, var(--primary) 18%, transparent);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+}
+.mtg-row--svolto .mtg-num { background: var(--success-bg); color: var(--success); border-color: color-mix(in srgb, var(--success) 30%, transparent); }
+
+.mtg-main { flex: 1 1 auto; min-width: 0; display: grid; gap: 3px; }
+
+.mtg-title {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--text);
+  text-decoration: none;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mtg-title:hover { color: var(--accent); }
+
+.mtg-meta { display: flex; flex-wrap: wrap; gap: 12px; font-size: var(--fs-xs); color: var(--text-mid); }
+.mtg-meta-item { display: inline-flex; align-items: center; gap: 5px; }
+.mtg-meta-item svg { width: 13px; height: 13px; stroke: currentColor; flex: none; }
+
+.mtg-flags { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; flex: none; max-width: 260px; }
+
+.mtg-stato, .mtg-flag {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: var(--fs-2xs);
+  font-weight: 800;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.mtg-stato--pianificato { background: var(--accent-light); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 30%, transparent); }
+.mtg-stato--svolto      { background: var(--success-bg); color: var(--success); border-color: color-mix(in srgb, var(--success) 30%, transparent); }
+.mtg-stato--annullato   { background: color-mix(in srgb, var(--text-light) 18%, transparent); color: var(--text-mid); border-color: var(--border); }
+.mtg-flag.danger { background: var(--danger-bg); color: var(--danger); border-color: color-mix(in srgb, var(--danger) 32%, transparent); }
+.mtg-flag.warn   { background: var(--warning-bg); color: var(--warning); border-color: color-mix(in srgb, var(--warning) 32%, transparent); }
+.mtg-flag.ok     { background: var(--success-bg); color: var(--success); border-color: color-mix(in srgb, var(--success) 30%, transparent); }
+
+.mtg-actions { display: flex; gap: 6px; flex: none; }
+
+@media (max-width: 900px) {
+  .mtg-row { flex-wrap: wrap; }
+  .mtg-main { flex-basis: calc(100% - 46px); }
+  .mtg-flags { max-width: none; justify-content: flex-start; }
+  .mtg-actions { flex-basis: 100%; }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   Esito incontro — indice sezioni + barra di salvataggio agganciata
+   ══════════════════════════════════════════════════════════════════ */
+.mf-jump {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 14px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+.mf-jump a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--text-mid);
+  text-decoration: none;
+  border: 1px solid transparent;
+}
+.mf-jump a:hover { color: var(--accent); background: var(--accent-light); border-color: color-mix(in srgb, var(--accent) 25%, transparent); }
+.mf-jump a b {
+  font-size: var(--fs-2xs);
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-light) 22%, transparent);
+  color: var(--text-mid);
+}
+
+/* Le ancore non devono finire sotto la barra sticky dell'indice. */
+.mf-section[id] { scroll-margin-top: 64px; }
+
+.mf-actions--sticky {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  justify-content: flex-end;
+  margin-top: 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 -4px 16px rgba(15, 23, 42, .08);
+}
+
+.mf-actions-note {
+  margin-right: auto;
+  font-size: var(--fs-xs);
+  color: var(--text-mid);
+}
+
+@media (max-width: 720px) {
+  .mf-actions--sticky { flex-direction: column; align-items: stretch; }
+  .mf-actions-note { margin-right: 0; }
+}
+
+/* Dark: --primary-mid resta blu scuro anche in tema scuro, quindi i chip "info"
+   (testo blu su fondo tenue) diventavano illeggibili. */
+body.theme-dark .ka-chip--info,
+body.theme-dark .ka-reason--info { color: #93c5fd; border-color: rgba(147,197,253,.3); }
+body.theme-dark .ka-dot--info { background: #93c5fd; }
+body.theme-dark .ka-col--next .ka-col-title svg { stroke: #93c5fd; }
+body.theme-dark .mtg-num { color: #93c5fd; border-color: rgba(147,197,253,.28); }

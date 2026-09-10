@@ -30,9 +30,6 @@ urlpatterns = [
     path("readyz", monitoring_views.readyz, name="readyz"),
     # Setup wizard — deve essere prima di tutto per intercettare il primo avvio
     path("setup/", include(("setup_wizard.urls", "setup_wizard"), namespace="setup_wizard")),
-    # Compat alias un-namespaced (evita NoReverseMatch su vecchi riferimenti "project_list"/"project_gantt")
-    path("tasks/projects/", task_views.project_list, name="project_list"),
-    path("tasks/projects/<int:project_id>/gantt/", task_views.project_gantt, name="project_gantt"),
     path("", include("dashboard.urls")),
     path("hub/home/", include(("dashboard.urls_home_portale", "home_portale"), namespace="home_portale")),
     path("assistente-ai/", include(("ai_assistant.urls", "ai_assistant"), namespace="ai_assistant")),
@@ -41,6 +38,12 @@ urlpatterns = [
     path("", include(("assets.urls", "assets"), namespace="assets")),
     path("", include(("attrezzature.urls", "attrezzature"), namespace="attrezzature")),
     path("", include(("tasks.urls", "tasks"), namespace="tasks")),
+    # Compat alias un-namespaced (evita NoReverseMatch su vecchi riferimenti
+    # "project_list"/"project_gantt"). DEVONO stare DOPO l'include namespaced:
+    # in testa oscuravano la risoluzione, lasciando resolver_match.app_name vuoto
+    # -> niente subnav di modulo e binding ACL "tasks:project_list" mai applicato.
+    path("tasks/projects/", task_views.project_list, name="project_list"),
+    path("tasks/projects/<int:project_id>/gantt/", task_views.project_gantt, name="project_gantt"),
     path("carichi-macchina/", include(("gestione_carichi_macchina.urls", "gestione_carichi_macchina"), namespace="gestione_carichi_macchina")),
     path("gestione-specifiche/", include(("gestione_specifiche.urls", "gestione_specifiche"), namespace="gestione_specifiche")),
     # Registro OFI/NC (MOD.174) — strumento trasversale del portale, al top-level.

@@ -1,0 +1,74 @@
+{% comment %}
+Segnalazioni incontri: prossimi appuntamenti + cosa aspetta un'azione.
+Lo scope e' gia' filtrato in tasks/meeting_alerts.py (ACL + «i miei»).
+{% endcomment %}
+<section class="ka-band" aria-label="Segnalazioni incontri">
+
+  <article class="ka-col ka-col--next">
+    <header class="ka-col-head">
+      <span class="ka-col-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
+        Prossimi incontri
+      </span>
+      <a class="ka-col-link" href="{% url 'tasks:incontri_lista' %}?periodo=prossimi">Tutti &rarr;</a>
+    </header>
+
+    {% if meeting_alerts.prossimi %}
+      <ul class="ka-list">
+        {% for row in meeting_alerts.prossimi %}
+          <li class="ka-item">
+            <span class="ka-when ka-when--{{ row.tone }}">
+              <b>{{ row.meeting.data|date:"d/m" }}</b>
+              <small>{% if row.meeting.ora %}{{ row.meeting.ora|time:"H:i" }}{% else %}&mdash;{% endif %}</small>
+            </span>
+            <span class="ka-body">
+              <a class="ka-title" href="{{ row.url }}">{{ row.label }}</a>
+              <span class="ka-meta">
+                <a href="{% url 'tasks:project_overview' row.project.id %}">{{ row.project.name }}</a>
+                {% if row.meeting.luogo %}<span>· {{ row.meeting.luogo }}</span>{% endif %}
+              </span>
+            </span>
+            <span class="ka-chip ka-chip--{{ row.tone }}">{{ row.quando }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="ka-empty">Nessun incontro in programma.</p>
+    {% endif %}
+  </article>
+
+  <article class="ka-col ka-col--todo">
+    <header class="ka-col-head">
+      <span class="ka-col-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
+        Incontri da gestire
+        {% if meeting_alerts.da_gestire_total %}<span class="ka-count">{{ meeting_alerts.da_gestire_total }}</span>{% endif %}
+      </span>
+      <a class="ka-col-link" href="{% url 'tasks:da_gestire' %}">Centro «da gestire» &rarr;</a>
+    </header>
+
+    {% if meeting_alerts.da_gestire %}
+      <ul class="ka-list">
+        {% for row in meeting_alerts.da_gestire %}
+          <li class="ka-item">
+            <span class="ka-dot ka-dot--{{ row.tone }}" aria-hidden="true"></span>
+            <span class="ka-body">
+              <a class="ka-title" href="{{ row.url }}">{{ row.label }}</a>
+              <span class="ka-meta">
+                <a href="{% url 'tasks:project_overview' row.project.id %}">{{ row.project.name }}</a>
+                <span>· {{ row.meeting.data|date:"d/m/Y" }}</span>
+              </span>
+            </span>
+            <span class="ka-reason ka-reason--{{ row.tone }}">{{ row.motivo }}</span>
+            {% if row.action_url %}
+              <a class="ka-action" href="{{ row.action_url }}">{{ row.action_label }}</a>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="ka-empty">Niente in sospeso: esiti registrati e minute approvate.</p>
+    {% endif %}
+  </article>
+
+</section>

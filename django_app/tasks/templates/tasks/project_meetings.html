@@ -1,74 +1,109 @@
 {% extends "tasks/base_shell.html" %}
 {% load static %}
 
-{% block tasks_shell_content %}
-<div class="ts-panel" style="padding:0; overflow:hidden;">
-  <div style="padding:24px 28px 0;">
-    <div class="meetings-hero">
-      <div class="meetings-hero-icon">
-        <svg fill="none" viewBox="0 0 24 24" stroke-width="2" xmlns="http://www.w3.org/2000/svg">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z"/>
-        </svg>
-      </div>
-      <div class="meetings-hero-body">
-        <h2>Incontri di avanzamento</h2>
-        <p>{{ project.name }} &mdash; traccia lo stato di avanzamento, i problemi aperti e i next steps incontro per incontro{% if open_issue_count %} · {{ open_issue_count }} problem{% if open_issue_count == 1 %}a{% else %}i{% endif %} ancora apert{% if open_issue_count == 1 %}o{% else %}i{% endif %}{% endif %}</p>
-      </div>
-      {% if can_manage %}
-        <a class="meetings-hero-cta" href="{% url 'tasks:project_meeting_create' project.id %}">+ Nuovo incontro</a>
-      {% endif %}
-    </div>
+{% comment %}
+Pagina incontri di commessa. L'intestazione e' quella dello shell (come la
+Panoramica): la vecchia hero blu duplicava titolo e sottotitolo e stampava il
+testo scuro su fondo scuro.
+{% endcomment %}
 
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Incontri</span>{% endblock %}
+{% block tasks_shell_title %}{{ project.name }}{% endblock %}
+
+{% block tasks_shell_subtitle %}
+  Stato di avanzamento, problemi aperti e next steps, incontro per incontro.
+{% endblock %}
+
+{% block tasks_shell_meta %}
+  <span class="ts-hero-pill">{{ meetings|length }} incontr{{ meetings|length|pluralize:"o,i" }}</span>
+  {% if first_meeting_date %}<span class="ts-hero-pill">Inizio {{ first_meeting_date|date:"d/m/Y" }}</span>{% endif %}
+  {% if next_meeting %}<span class="ts-hero-pill">Prossimo {{ next_meeting.data|date:"d/m/Y" }}</span>{% endif %}
+  {% if open_issue_count %}
+    <span class="ts-hero-pill" style="background:rgba(239,68,68,.22);border-color:rgba(239,68,68,.35);">{{ open_issue_count }} problem{{ open_issue_count|pluralize:"a,i" }} apert{{ open_issue_count|pluralize:"o,i" }}</span>
+  {% endif %}
+{% endblock %}
+
+{% block tasks_shell_actions %}
+  <a class="ts-hero-action" href="{% url 'tasks:project_overview' project.id %}">Panoramica</a>
+  <a class="ts-hero-action" href="{% url 'tasks:incontri_calendario' %}">Calendario</a>
+  {% if can_manage %}
+    <a class="ts-hero-action primary" href="{% url 'tasks:project_meeting_create' project.id %}">+ Nuovo incontro</a>
+  {% endif %}
+{% endblock %}
+
+{% block tasks_shell_content %}
+<section class="ts-panel">
+  <div class="ts-panel-head">
+    <div class="ts-panel-title-wrap">
+      <h2 class="ts-panel-title">Incontri di avanzamento</h2>
+      <p class="ts-panel-subtitle">In ordine cronologico, dal primo all'ultimo.</p>
+    </div>
+  </div>
+
+  <div class="ts-panel-body no-pad">
     {% if meetings %}
-      <div style="margin-bottom:28px;">
+      <ul class="mtg-list">
         {% for meeting in meetings %}
-          <div class="meeting-card">
-            <div class="meeting-num">{{ meeting.numero }}</div>
-            <div class="meeting-body">
-              <h3>
+          <li class="mtg-row mtg-row--{{ meeting.stato|lower }}{% if meeting.is_next %} mtg-row--next{% endif %}">
+            <span class="mtg-num" aria-hidden="true">{{ meeting.numero }}</span>
+
+            <span class="mtg-main">
+              <a class="mtg-title" href="{% url 'tasks:project_meeting_detail' project.id meeting.id %}">
                 {% if meeting.titolo %}{{ meeting.titolo }}{% else %}Incontro {{ meeting.numero }}{% endif %}
-                <span class="meeting-stato {{ meeting.stato|lower }}">{{ meeting.get_stato_display }}</span>
-              </h3>
-              <div class="meeting-meta">
-                <span class="meeting-meta-item">
-                  <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
-                  {{ meeting.data|date:"d-m-Y" }}{% if meeting.ora %} &middot; {{ meeting.ora|time:"H:i" }}{% endif %}
+              </a>
+              <span class="mtg-meta">
+                <span class="mtg-meta-item">
+                  <svg viewBox="0 0 24 24" fill="none" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
+                  {{ meeting.data|date:"d/m/Y" }}{% if meeting.ora %} · {{ meeting.ora|time:"H:i" }}{% endif %}
                 </span>
                 {% if meeting.luogo %}
-                  <span class="meeting-meta-item">
-                    <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/></svg>
+                  <span class="mtg-meta-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/></svg>
                     {{ meeting.luogo }}
                   </span>
                 {% endif %}
-                {% if meeting.problemi_aperti %}
-                  <span class="meeting-meta-item" style="color:var(--danger);">
-                    <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
-                    Problemi aperti
+                {% if meeting.partecipanti_count %}
+                  <span class="mtg-meta-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z"/></svg>
+                    {{ meeting.partecipanti_count }}
                   </span>
                 {% endif %}
-              </div>
-            </div>
-            <div class="meeting-actions">
-              <a class="meeting-btn ghost" href="{% url 'tasks:project_meeting_detail' project.id meeting.id %}">Apri</a>
-              {% if can_manage %}
-                <a class="meeting-btn{% if meeting.stato == 'PIANIFICATO' %} primary{% else %} ghost{% endif %}" href="{% url 'tasks:project_meeting_minutes' project.id meeting.id %}">{% if meeting.stato == 'SVOLTO' %}Aggiorna esito{% else %}Registra esito{% endif %}</a>
-                <a class="meeting-btn ghost" href="{% url 'tasks:project_meeting_edit' project.id meeting.id %}">Convocazione</a>
+              </span>
+            </span>
+
+            <span class="mtg-flags">
+              <span class="mtg-stato mtg-stato--{{ meeting.stato|lower }}">{{ meeting.get_stato_display }}</span>
+              {% if meeting.open_issue_count %}
+                <span class="mtg-flag danger" title="Problemi ancora aperti">{{ meeting.open_issue_count }} problem{{ meeting.open_issue_count|pluralize:"a,i" }}</span>
               {% endif %}
-            </div>
-          </div>
+              {% if meeting.stato == 'SVOLTO' and not meeting.minuta_chiusa_at %}
+                <span class="mtg-flag warn">Minuta da approvare</span>
+              {% elif meeting.minuta_chiusa_at %}
+                <span class="mtg-flag ok">Minuta approvata</span>
+              {% endif %}
+            </span>
+
+            <span class="mtg-actions">
+              <a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_meeting_detail' project.id meeting.id %}">Apri</a>
+              {% if can_manage %}
+                <a class="btn btn-sm{% if meeting.stato == 'SVOLTO' %} btn-secondary{% endif %}" href="{% url 'tasks:project_meeting_minutes' project.id meeting.id %}">{% if meeting.stato == 'SVOLTO' %}Aggiorna esito{% else %}Registra esito{% endif %}</a>
+                <a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_meeting_edit' project.id meeting.id %}">Convocazione</a>
+              {% endif %}
+            </span>
+          </li>
         {% endfor %}
-      </div>
+      </ul>
     {% else %}
-      <div class="meeting-empty">
-        <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z"/>
-        </svg>
-        <p>Nessun incontro registrato per questo kickoff.</p>
+      <div class="ts-empty">
+        <strong>Nessun incontro registrato per questo kickoff.</strong>
+        <div>Il primo incontro fissa anche la data di inizio della commessa.</div>
         {% if can_manage %}
-          <a class="meeting-btn primary" href="{% url 'tasks:project_meeting_create' project.id %}">Aggiungi il primo incontro</a>
+          <div class="ts-actions">
+            <a class="btn btn-sm" href="{% url 'tasks:project_meeting_create' project.id %}">Aggiungi il primo incontro</a>
+          </div>
         {% endif %}
       </div>
     {% endif %}
   </div>
-</div>
+</section>
 {% endblock %}
