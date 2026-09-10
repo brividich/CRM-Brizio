@@ -841,7 +841,7 @@ Archivio schede dati di sicurezza (SDS) dei prodotti chimici, ancorato al repart
 
 ![Flusso ACL](.github/assets/acl-flow.svg)
 
-### I 4 pilastri dell'ACL canonico
+### I pilastri dell'ACL canonico
 
 | Tabella | Scopo |
 |---|---|
@@ -849,6 +849,23 @@ Archivio schede dati di sicurezza (SDS) dei prodotti chimici, ancorato al repart
 | `RoutePermissionBinding` | Mappa `route_name` o `path_pattern` → `permission_code` |
 | `RolePermissionGrant` | Grant per ruolo legacy → `permission_code` |
 | `UserPermissionGrant` | Override positivo/negativo per singolo utente |
+| `AccessGroup` + `AccessGroupMembership` | **Gruppi ad appartenenza multipla**: una persona può stare in più gruppi, `priority` dice quale pesa di più |
+| `GroupPermissionGrant` | Grant per gruppo → `permission_code` |
+
+### Chi decide: `core.acl_resolver`
+
+Tutte le decisioni passano da `resolve_permission_decision()`
+([`django_app/core/acl_resolver.py`](django_app/core/acl_resolver.py)), unica
+sede della regola. Precedenza:
+
+**superuser → admin legacy → override utente → gruppi → ruolo → compat legacy → diniego**
+
+Fra i gruppi vince la `priority` più alta e, a parità, il **diniego**: l'esito non
+dipende dall'ordine in cui i gruppi sono stati creati. Vale ovunque la stessa
+distinzione: **l'assenza di riga è silenzio, `enabled=False` è un no esplicito** —
+il fallback legacy interviene solo dove il canonico tace davvero.
+`evaluate_permission_code_access`, `resolve_acl_access` e la visibilità del menu
+sono traduttori di questo esito, non implementazioni parallele.
 
 ### Migrazione incrementale legacy → canonico
 
@@ -935,6 +952,13 @@ python django_app/manage.py acl_diagnose --role Manutenzione --route tickets:das
 
 # Audit delle route ancora in fallback
 python django_app/manage.py acl_fallback_report --only-unbound --app assenze
+
+# Bonifica binding: riattiva i binding per-route conservando gli accessi esistenti
+# (dry-run di default; --apply scrive, --backup-dir salva le tabelle prima)
+python django_app/manage.py acl_cleanup --report bonifica.json
+python django_app/manage.py acl_cleanup --apply --backup-dir C:	empcl-backup
+# opt-in: riallinea i grant canonici alle spunte legacy che non avevano effetto
+python django_app/manage.py acl_cleanup --apply --sync-legacy
 
 # Bootstrap canonico di un'app (dry-run poi apply)
 python django_app/manage.py bootstrap_acl_v2 --apps assenze --dry-run

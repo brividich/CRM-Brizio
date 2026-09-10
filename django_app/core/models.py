@@ -1159,3 +1159,95 @@ class HubLinkRoleAccess(models.Model):
 
     def __str__(self) -> str:
         return f"HubLinkAccess<link={self.link_id} role={self.legacy_role_id}>"
+
+
+# ---------------------------------------------------------------------------
+# Gruppi di accesso (ACL v2) - appartenenza multipla con indice di priorita'
+# ---------------------------------------------------------------------------
+
+ACCESS_GROUP_CODE_VALIDATOR = RegexValidator(
+    r"^[a-z0-9]+(?:[._-][a-z0-9]+)*$",
+    "Codice gruppo: minuscole, cifre e separatori . _ - (es. 'manutenzione').",
+)
+
+
+class AccessGroup(models.Model):
+    """Gruppo di accesso: una persona puo' appartenere a piu' gruppi.
+
+    Il ruolo legacy (``UtenteLegacy.ruolo_id``) resta uno solo per persona e non
+    basta piu' quando gli stessi permessi vanno dati a insiemi trasversali
+    (manutenzione, caporeparto, ...). ``priority`` e' l'indice di chi conta di
+    piu': fra i gruppi che si esprimono sullo stesso permesso decide quello con
+    priorita' piu' alta; a parita' vince il diniego.
+    """
+
+    code = models.CharField(max_length=80, unique=True, validators=[ACCESS_GROUP_CODE_VALIDATOR], db_index=True)
+    label = models.CharField(max_length=160)
+    description = models.CharField(max_length=500, blank=True, default="")
+    priority = models.IntegerField(
+        default=100,
+        db_index=True,
+        help_text="Piu' alto = pesa di piu' quando due gruppi dicono cose diverse.",
+    )
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-priority", "label", "id"]
+        verbose_name = "Gruppo di accesso"
+        verbose_name_plural = "Gruppi di accesso"
+
+    def __str__(self) -> str:
+        return f"{self.label} ({self.code})"
+
+    def clean(self):
+        super().clean()
+        self.code = str(self.code or "").strip().lower()
+
+
+class AccessGroupMembership(models.Model):
+    """Appartenenza di un utente legacy a un gruppo di accesso."""
+
+    group = models.ForeignKey(AccessGroup, on_delete=models.CASCADE, related_name="memberships")
+    legacy_user_id = models.IntegerField(db_index=True)
+    note = models.CharField(max_length=255, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("group", "legacy_user_id")]
+        ordering = ["group_id", "legacy_user_id"]
+        verbose_name = "Appartenenza a gruppo"
+        verbose_name_plural = "Appartenenze a gruppi"
+
+    def __str__(self) -> str:
+        return f"Membership<group={self.group_id} user={self.legacy_user_id}>"
+
+
+class GroupPermissionGrant(models.Model):
+    """Grant canonico gruppo -> permission_code.
+
+    Stesso schema di :class:`RolePermissionGrant`: ``enabled=False`` e' un
+    diniego esplicito, l'assenza di riga e' silenzio (il gruppo non si esprime).
+    """
+
+    group = models.ForeignKey(AccessGroup, on_delete=models.CASCADE, related_name="permission_grants")
+    permission = models.ForeignKey(
+        PermissionDefinition,
+        to_field="code",
+        db_column="permission_code",
+        on_delete=models.CASCADE,
+        related_name="group_grants",
+    )
+    enabled = models.BooleanField(default=False)
+    note = models.CharField(max_length=255, blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("group", "permission")]
+        ordering = ["group_id", "permission_id"]
+        verbose_name = "Grant permesso di gruppo"
+        verbose_name_plural = "Grant permessi di gruppo"
+
+    def __str__(self) -> str:
+        return f"GroupGrant<group={self.group_id} code={self.permission_id} enabled={self.enabled}>"

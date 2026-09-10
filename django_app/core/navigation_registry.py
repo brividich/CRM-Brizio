@@ -207,6 +207,12 @@ def _compiled_items_for_role(
             if str(row.permission_id or "").strip()
         }
 
+    from core.acl_resolver import group_grants_map
+
+    # I gruppi stanno fra l'override utente e il ruolo, come nel risolutore:
+    # la mappa arriva gia' risolta per priorita'.
+    group_map: dict[str, bool] = group_grants_map(legacy_user_id)
+
     compiled: list[dict] = []
     label_overrides = navigation_code_label_map(surface="menu")
     target_cache: dict[str, str] = {}
@@ -216,6 +222,8 @@ def _compiled_items_for_role(
             if required_permission_code:
                 if required_permission_code in user_grants_map:
                     allowed = bool(user_grants_map[required_permission_code])
+                elif required_permission_code in group_map:
+                    allowed = bool(group_map[required_permission_code])
                 elif required_permission_code in role_grants_map:
                     allowed = bool(role_grants_map.get(required_permission_code, False))
                 else:
