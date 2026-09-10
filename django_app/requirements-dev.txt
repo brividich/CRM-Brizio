@@ -69,7 +69,7 @@ django-q2==1.9.0
     # via -r requirements.in
 django-stubs-ext==6.0.6
     # via django-fsm-2
-djangorestframework==3.17.1
+djangorestframework==3.18.0
     # via -r requirements.in
 et-xmlfile==2.0.0
     # via openpyxl
@@ -212,6 +212,8 @@ wheel==0.47.0
 x690==1.0.0.post1
     # via puresnmp
 xlrd==2.0.2
+    # via -r requirements.in
+zxing-cpp==3.1.1
     # via -r requirements.in
 
 # The following packages are considered to be unsafe in a requirements file:
