@@ -26,7 +26,7 @@ reportlab>=4.0                  # generazione PDF
 pymupdf>=1.28.0                   # rendering PDF->PNG (import slide e-learning da PPTX/PDF)
 
 # --- Task queue ---
-django-q2>=1.7,<2               # code automazioni e task asincroni
+django-q2>=1.11.1,<2               # code automazioni e task asincroni
 croniter>=6.2.4                   # richiesto da django-q2 per gli Schedule di tipo CRON (report scadenze)
 
 # --- Utilità runtime ---
