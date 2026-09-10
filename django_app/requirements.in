@@ -52,7 +52,7 @@ django-ninja>=1.0,<2            # API REST elenco/ricerca/transizioni gestione_s
 snowballstemmer>=2.2            # stemmer italiano opt-in per il RAG (OLLAMA_RAG_STEMMING_ENABLED); pure-python
 
 # --- HTMX integration ---
-django-htmx>=1.17               # middleware + script bundled per htmx SSR
+django-htmx>=1.29.0               # middleware + script bundled per htmx SSR
 
 # --- Dev server (django-extensions runserver_plus) ---
 django-extensions>=4.1

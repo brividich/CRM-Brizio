@@ -59,7 +59,7 @@ django-extensions==4.1
     # via -r requirements.in
 django-fsm-2==4.2.4
     # via -r requirements.in
-django-htmx==1.27.0
+django-htmx==1.29.0
     # via -r requirements.in
 django-ninja==1.6.2
     # via -r requirements.in
@@ -212,6 +212,8 @@ wheel==0.47.0
 x690==1.0.0.post1
     # via puresnmp
 xlrd==2.0.2
+    # via -r requirements.in
+zxing-cpp==3.1.1
     # via -r requirements.in
 
 # The following packages are considered to be unsafe in a requirements file:
