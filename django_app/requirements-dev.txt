@@ -39,7 +39,7 @@ cryptography==44.0.3
     #   pyspnego
 distlib==0.4.0
     # via virtualenv
-django==5.2.16
+django==6.0.8
     # via
     #   -r requirements.in
     #   django-axes
@@ -212,6 +212,8 @@ wheel==0.47.0
 x690==1.0.0.post1
     # via puresnmp
 xlrd==2.0.2
+    # via -r requirements.in
+zxing-cpp==3.1.1
     # via -r requirements.in
 
 # The following packages are considered to be unsafe in a requirements file:
