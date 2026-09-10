@@ -285,6 +285,7 @@ LIST_LAYOUT_ACTIONS = {
 
 DOCUMENT_FOLDER_ACTIONS = {
     "create_asset_category_document_folder",
+    "rename_asset_category_document_folder",
     "toggle_asset_category_document_folder",
     "update_asset_category_document_folder_order",
     "delete_asset_category_document_folder",
@@ -7680,10 +7681,11 @@ def _handle_asset_document_folder_request(request: HttpRequest) -> tuple[bool, s
 
     Stesse regole della scheda asset (``add_asset_document_folder`` /
     ``deactivate_asset_document_folder``): lo slug e' la chiave stabile salvata
-    in ``AssetDocument.category`` e non e' rinominabile, e una cartella si
-    disattiva o si elimina solo se non contiene documenti. Qui in piu' si puo'
-    riattivare una cartella e cambiarne l'ordine, perche' la pagina vede tutte
-    le categorie insieme.
+    in ``AssetDocument.category`` e non cambia mai, e una cartella si disattiva
+    o si elimina solo se non contiene documenti. Qui in piu' si puo' riattivare
+    una cartella, cambiarne l'ordine e rinominarla (cambia solo l'etichetta
+    mostrata: i documenti gia' archiviati restano sullo slug), perche' la pagina
+    vede tutte le categorie insieme.
     """
     action = _clean_string(request.POST.get("action"))
 
@@ -7715,6 +7717,42 @@ def _handle_asset_document_folder_request(request: HttpRequest) -> tuple[bool, s
             {"category_id": category.id, "slug": slug, "name": raw_name, "origine": "impostazioni"},
         )
         return True, f'Cartella documento "{raw_name}" aggiunta alla categoria {category.label}.'
+
+    if action == "rename_asset_category_document_folder":
+        folder = (
+            AssetCategoryDocumentFolder.objects.filter(pk=_as_int(request.POST.get("folder_id"), default=0))
+            .select_related("category")
+            .first()
+        )
+        if not folder:
+            return False, "Cartella documento non trovata."
+        raw_name = _clean_string(request.POST.get("folder_name"))[:120]
+        if not raw_name:
+            return False, "Nome cartella non valido."
+        if raw_name == folder.name:
+            return True, f'Cartella documento "{folder.name}" invariata.'
+        if (
+            folder.category.document_folders.filter(name__iexact=raw_name)
+            .exclude(pk=folder.pk)
+            .exists()
+        ):
+            return False, f'La categoria "{folder.category.label}" ha gia una cartella documento con questo nome.'
+        old_name = folder.name
+        folder.name = raw_name
+        folder.save(update_fields=["name"])
+        log_action(
+            request,
+            "rename_asset_document_folder",
+            "assets",
+            {
+                "folder_id": folder.id,
+                "slug": folder.slug,
+                "category_id": folder.category_id,
+                "da": old_name,
+                "a": raw_name,
+            },
+        )
+        return True, f'Cartella documento "{old_name}" rinominata in "{raw_name}".'
 
     if action == "toggle_asset_category_document_folder":
         folder = (
@@ -17837,15 +17875,19 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
         action = request.POST.get("action")
         config_redirect = redirect(f"{reverse('assets:gestione_admin')}?tab=config")
         category_redirect = redirect(f"{reverse('assets:gestione_admin')}?tab=categorie")
-        folder_redirect = redirect(f"{reverse('assets:gestione_admin')}?tab=cartelle")
-
         if action in DOCUMENT_FOLDER_ACTIONS:
             ok, text = _handle_asset_document_folder_request(request)
             if ok:
                 messages.success(request, text)
             else:
                 messages.error(request, text)
-            return folder_redirect
+            # Torna sulla categoria da cui e' partita l'azione: il ``cat`` tiene
+            # aperto il <details> e l'ancora riporta la pagina allo stesso punto.
+            folder_focus = _as_int(request.POST.get("cat_focus"), default=0)
+            folder_url = f"{reverse('assets:gestione_admin')}?tab=cartelle"
+            if folder_focus:
+                folder_url += f"&cat={folder_focus}#cat-{folder_focus}"
+            return redirect(folder_url)
 
         if action == "add_list_option":
             fk = request.POST.get("field_key", "").strip()
@@ -18116,6 +18158,7 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
             "document_folder_extra_total": sum(
                 len(row["extra_folders"]) for row in document_folder_rows
             ),
+            "document_folder_focus_id": _as_int(request.GET.get("cat"), default=0),
             **_assets_shell_context(request),
         },
     )

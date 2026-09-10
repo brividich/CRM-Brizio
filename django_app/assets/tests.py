@@ -2165,6 +2165,53 @@ class AssetsRoutingTests(TestCase):
         )
         self.assertFalse(category.document_folders.exists())
 
+    def test_gestione_admin_document_folder_rename_keeps_slug_and_position(self):
+        """La rinomina cambia solo l'etichetta e riporta la pagina sulla categoria."""
+        admin = User.objects.create_superuser(
+            username="asset-doc-folder-rename-admin",
+            email="asset-doc-folder-rename-admin@test.local",
+            password="pass12345",
+        )
+        category = AssetCategory.objects.create(code="cnc-rename", label="CNC rename", is_active=True)
+        folder = AssetCategoryDocumentFolder.objects.create(
+            category=category, name="Collaudi", slug="collaudi", is_active=True
+        )
+        url = reverse("assets:gestione_admin")
+        self.client.force_login(admin)
+
+        response = self.client.post(
+            url,
+            {
+                "action": "rename_asset_category_document_folder",
+                "folder_id": folder.id,
+                "folder_name": "Collaudi finali",
+                "cat_focus": category.id,
+            },
+        )
+        folder.refresh_from_db()
+        self.assertEqual(folder.name, "Collaudi finali")
+        self.assertEqual(folder.slug, "collaudi")
+        self.assertEqual(
+            response["Location"],
+            f"{url}?tab=cartelle&cat={category.id}#cat-{category.id}",
+        )
+
+        # Nome gia' usato nella stessa categoria: rifiutato.
+        AssetCategoryDocumentFolder.objects.create(
+            category=category, name="Verbali", slug="verbali", is_active=True
+        )
+        self.client.post(
+            url,
+            {
+                "action": "rename_asset_category_document_folder",
+                "folder_id": folder.id,
+                "folder_name": "verbali",
+                "cat_focus": category.id,
+            },
+        )
+        folder.refresh_from_db()
+        self.assertEqual(folder.name, "Collaudi finali")
+
     def test_gestione_admin_document_folder_with_documents_is_protected(self):
         """Una cartella con documenti non si disattiva e non si elimina."""
         admin = User.objects.create_superuser(

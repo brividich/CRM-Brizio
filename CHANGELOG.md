@@ -8,6 +8,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Changed
+
+- **Assets · le cartelle documento si rinominano e la pagina non riparte dall'inizio** (`django_app/assets/views.py`, `django_app/assets/models.py`, `django_app/assets/templates/assets/pages/gestione_admin.html`, `django_app/assets/tests.py`). In *Impostazioni Assets → Cartelle documento* il nome di una cartella extra era definitivo: per correggere un refuso bisognava eliminarla e ricrearla, possibile solo se non conteneva ancora documenti. Nuova azione **`rename_asset_category_document_folder`**: il campo nome della riga è diventato editabile con un pulsante «Rinomina» accanto. Cambia **solo l'etichetta mostrata**; lo `slug` — la chiave con cui i file sono archiviati in `AssetDocument.category` — resta quello originale, quindi i documenti già caricati non si spostano e nessuna cartella con documenti è «bloccata» per un errore di battitura. Nome duplicato nella stessa categoria rifiutato (confronto case-insensitive), rinomina registrata a audit con nome vecchio e nuovo. Risolto anche il salto a inizio pagina: ogni azione sulle cartelle (crea, rinomina, ordine, disattiva/riattiva, elimina) ora porta con sé la categoria di partenza (`cat_focus`) e il redirect torna su `?tab=cartelle&cat=<id>#cat-<id>`, che riapre quel `<details>` e riporta la pagina al punto in cui si stava lavorando — prima si ripartiva dalla cima dell'elenco di tutte le categorie.
+
 ## 1.5.0 - 2026-09-09
 
 Rilascio di allineamento: entra la rifinitura UX del modulo Manutenzione e rientrano
