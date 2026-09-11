@@ -64,7 +64,7 @@ class AccessiUnificatiTest(TestCase):
     def test_la_pagina_si_apre(self):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Nuovo gruppo")
+        self.assertContains(response, "Crea un gruppo")
 
     def test_crea_gruppo(self):
         response = self.client.post(

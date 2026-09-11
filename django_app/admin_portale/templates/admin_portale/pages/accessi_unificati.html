@@ -4,114 +4,237 @@
 
 {% block extra_head %}
 <style>
-/* Pagina costruita sui componenti del sistema (hub-card, hub-kpi-card,
-   hub-status-badge) e sui token --hub-*: qui sotto solo cio' che il design
-   system non ha gia', mai un secondo vocabolario di colori o spaziature. */
+/* Pannello Accessi — impostato come un quadro di comando, non come una scheda
+   amministrativa: chi lo usa apre e chiude alimentazioni, e deve vedere a
+   colpo d'occhio quanto e' acceso. L'arancione qui significa una cosa sola,
+   "concesso": non decora nulla. La barra verticale di stato e il contatore a
+   cifre tabellari riprendono la grammatica gia' usata nel modulo Manutenzione.
 
-.acl-kpis {
+   Colori e spaziature vengono dai token del portale; le due tinte scure della
+   plancia sono l'unica aggiunta, e derivano dal navy del brand. */
+.acl {
+  --acl-deep: #0f2338;
+  --acl-navy: #1e3a5f;
+  --acl-live: var(--accent, #f97316);
+  --acl-steel: #64748b;
+  --acl-rail: rgba(255, 255, 255, .14);
+}
+
+/* ── Plancia: soggetto, quanto e' acceso, peso del gruppo ─────────────── */
+.acl-console {
+  background: linear-gradient(115deg, var(--acl-deep) 0%, var(--acl-navy) 100%);
+  border-radius: var(--hub-radius-lg, 12px);
+  padding: var(--hub-space-5, 20px) var(--hub-space-5, 20px);
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: var(--hub-space-3);
-  margin-bottom: var(--hub-space-4);
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--hub-space-5, 20px);
+  align-items: end;
+  margin-bottom: var(--hub-space-4, 16px);
+  color: #fff;
 }
+@media (max-width: 760px) { .acl-console { grid-template-columns: 1fr; } }
 
-.acl-toolbar {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--hub-space-3);
-  flex-wrap: wrap;
-  margin-bottom: var(--hub-space-4);
+.acl-console__subject { min-width: 0; }
+.acl-console__kind { font-size: 12px; color: rgba(255, 255, 255, .62); }
+.acl-console__name {
+  /* Il tema del portale colora gli h1 con --text: su fondo scuro va riaffermato,
+     altrimenti il nome del soggetto sparisce nel navy. */
+  color: #fff;
+  font-size: clamp(26px, 3.4vw, 40px);
+  font-weight: 800;
+  letter-spacing: -.02em;
+  line-height: 1.05;
+  margin: 2px 0 var(--hub-space-3, 12px);
+  overflow-wrap: anywhere;
 }
-.acl-field { display: flex; flex-direction: column; gap: var(--hub-space-1); }
-.acl-field > span {
-  font-size: var(--hub-font-xs);
-  font-weight: 600;
-  color: var(--hub-color-text-muted);
-  letter-spacing: .02em;
+.acl-console__pick { display: flex; gap: var(--hub-space-2, 8px); align-items: center; flex-wrap: wrap; }
+.acl-console__pick select {
+  background: rgba(255, 255, 255, .1);
+  border: 1px solid var(--acl-rail);
+  color: #fff;
+  border-radius: var(--hub-radius-sm, 6px);
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 13px;
+  min-width: 240px;
 }
-.acl-field .input { min-width: 150px; }
-.acl-field--grow { flex: 1; min-width: 220px; }
-.acl-field--grow .input { width: 100%; }
+.acl-console__pick select option { color: #16202e; }
+.acl-console__pick button {
+  background: transparent; color: #fff;
+  border: 1px solid var(--acl-rail);
+  border-radius: var(--hub-radius-sm, 6px);
+  padding: 7px 14px; font: inherit; font-size: 13px; cursor: pointer;
+}
+.acl-console__pick button:hover { background: rgba(255, 255, 255, .12); }
 
-.acl-cards { display: grid; gap: var(--hub-space-3); margin-bottom: var(--hub-space-4); }
-@media (min-width: 900px) { .acl-cards { grid-template-columns: 3fr 2fr; } }
-
-.acl-hint {
-  font-size: var(--hub-font-xs);
-  color: var(--hub-color-text-muted);
-  line-height: 1.5;
-  margin: 0 0 var(--hub-space-3);
+/* Il conteggio e' il dato che comanda la pagina: e' l'unico elemento grande. */
+.acl-meter { text-align: right; }
+.acl-meter__count {
+  font-size: clamp(40px, 6vw, 64px);
+  font-weight: 800;
+  line-height: .95;
+  letter-spacing: -.03em;
+  font-variant-numeric: tabular-nums;
 }
-
-.acl-members { list-style: none; margin: var(--hub-space-3) 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--hub-space-2); }
-.acl-member {
-  display: inline-flex; align-items: center; gap: var(--hub-space-2);
-  border: 1px solid var(--hub-color-border);
-  border-radius: var(--hub-radius-lg);
-  padding: 4px 4px 4px var(--hub-space-3);
-  background: var(--hub-color-surface-raised);
-  font-size: var(--hub-font-xs);
+.acl-meter__count b { color: var(--acl-live); font-weight: 800; }
+.acl-meter__of { font-size: 13px; color: rgba(255, 255, 255, .62); margin-top: 4px; }
+.acl-meter__bar {
+  margin-top: var(--hub-space-3, 12px);
+  height: 6px; width: min(320px, 46vw);
+  background: rgba(255, 255, 255, .16);
+  border-radius: 999px; overflow: hidden; margin-left: auto;
 }
-.acl-member__name { font-weight: 600; color: var(--hub-color-text); }
-.acl-member__mail { color: var(--hub-color-text-muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-.acl-member__drop {
-  border: 0; background: transparent; cursor: pointer; line-height: 1;
-  color: var(--hub-color-text-muted); font-size: var(--hub-font-md); padding: 0 6px; border-radius: var(--hub-radius-sm);
-}
-.acl-member__drop:hover { color: var(--hub-status-danger); background: var(--hub-status-danger-bg); }
+.acl-meter__fill { height: 100%; background: var(--acl-live); border-radius: 999px; }
 
-/* Modulo: intestazione cliccabile + corpo a tabella */
-.acl-module { border: 1px solid var(--hub-color-border); border-radius: var(--hub-radius-lg); margin-bottom: var(--hub-space-2); overflow: hidden; background: var(--hub-color-surface); }
-.acl-module__head {
-  display: flex; align-items: center; gap: var(--hub-space-3);
-  padding: var(--hub-space-3) var(--hub-space-4);
+/* In tema scuro la plancia e la pagina sono entrambe scure: un filo di luce
+   sul bordo la stacca senza cambiarne il peso. */
+body.theme-dark .acl-console { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); }
+body.theme-dark .acl-commit { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08), 0 6px 20px rgba(0, 0, 0, .45); }
+.acl-meter__tags { display: flex; gap: var(--hub-space-2, 8px); justify-content: flex-end; margin-top: var(--hub-space-3, 12px); flex-wrap: wrap; }
+.acl-tag {
+  font-size: 12px; padding: 3px 10px; border-radius: 999px;
+  border: 1px solid var(--acl-rail); color: rgba(255, 255, 255, .86);
+  font-variant-numeric: tabular-nums;
+}
+.acl-tag--live { border-color: transparent; background: var(--acl-live); color: #16202e; font-weight: 700; }
+
+/* ── Gruppo e creazione ───────────────────────────────────────────────── */
+.acl-cards { display: grid; gap: var(--hub-space-3, 12px); margin-bottom: var(--hub-space-4, 16px); }
+@media (min-width: 960px) { .acl-cards { grid-template-columns: 3fr 2fr; } }
+
+.acl-panel {
+  border: 1px solid var(--hub-color-border, #d7e0ea);
+  border-radius: var(--hub-radius-lg, 12px);
+  background: var(--hub-color-surface, #fff);
+  padding: var(--hub-space-4, 16px);
+}
+.acl-panel > h3 {
+  margin: 0 0 var(--hub-space-2, 8px);
+  font-size: var(--hub-font-md, 14px);
+  font-weight: 700;
+  color: var(--hub-color-text, #1a202c);
+}
+.acl-note { font-size: var(--hub-font-xs, 12px); color: var(--hub-color-text-muted, #4a5568); line-height: 1.55; margin: 0 0 var(--hub-space-3, 12px); }
+
+.acl-form { display: flex; gap: var(--hub-space-3, 12px); align-items: flex-end; flex-wrap: wrap; }
+.acl-form label { display: flex; flex-direction: column; gap: 4px; font-size: var(--hub-font-xs, 12px); color: var(--hub-color-text-muted, #4a5568); }
+.acl-form .input { min-width: 140px; }
+.acl-form label.grow { flex: 1; min-width: 200px; }
+.acl-form label.grow .input { width: 100%; }
+
+.acl-people { list-style: none; margin: var(--hub-space-3, 12px) 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--hub-space-2, 8px); }
+.acl-person {
+  display: inline-flex; align-items: center; gap: var(--hub-space-2, 8px);
+  border: 1px solid var(--hub-color-border, #d7e0ea);
+  border-left: 3px solid var(--acl-live);
+  border-radius: var(--hub-radius-sm, 6px);
+  padding: 5px 5px 5px 10px;
+  font-size: var(--hub-font-xs, 12px);
+  background: var(--hub-color-surface-raised, #fbfdff);
+}
+.acl-person b { font-weight: 600; color: var(--hub-color-text, #1a202c); }
+.acl-person span { color: var(--hub-color-text-muted, #4a5568); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.acl-person button {
+  border: 0; background: transparent; cursor: pointer; color: var(--hub-color-text-muted, #4a5568);
+  font-size: 15px; line-height: 1; padding: 2px 6px; border-radius: 4px;
+}
+.acl-person button:hover { color: var(--hub-status-danger, #e53e3e); background: var(--hub-status-danger-bg, #fff5f5); }
+
+/* ── Righe di quadro ──────────────────────────────────────────────────── */
+.acl-filter { display: flex; gap: var(--hub-space-2, 8px); align-items: center; flex-wrap: wrap; margin-bottom: var(--hub-space-3, 12px); }
+.acl-filter .input { flex: 1; min-width: 220px; }
+
+.acl-bank {
+  border: 1px solid var(--hub-color-border, #d7e0ea);
+  border-radius: var(--hub-radius-md, 10px);
+  background: var(--hub-color-surface, #fff);
+  margin-bottom: 6px;
+  overflow: hidden;
+}
+.acl-bank__head {
+  display: flex; align-items: center; gap: var(--hub-space-3, 12px);
+  padding: 11px var(--hub-space-4, 16px) 11px 0;
   cursor: pointer; user-select: none;
+  border-left: 4px solid var(--hub-color-border, #d7e0ea);
 }
-.acl-module__head:hover { background: var(--hub-color-surface-raised); }
-.acl-module__head.is-open { border-bottom: 1px solid var(--hub-color-border); }
-.acl-module__name { font-weight: 600; font-size: var(--hub-font-sm); flex: 1; min-width: 0; }
-.acl-module__caret { color: var(--hub-color-text-muted); transition: transform .18s ease; font-size: var(--hub-font-xs); }
-.acl-module__head.is-open .acl-module__caret { transform: rotate(90deg); }
-.acl-module__body { display: none; }
-.acl-module__body.is-open { display: block; }
-.acl-module__bulk {
-  display: flex; align-items: center; gap: var(--hub-space-2);
-  padding: var(--hub-space-2) var(--hub-space-4);
-  background: var(--hub-color-surface-raised);
-  border-bottom: 1px solid var(--hub-color-border);
-  font-size: var(--hub-font-xs);
-}
-.acl-module__count { margin-left: auto; color: var(--hub-color-text-muted); }
+.acl-bank__head:hover { background: var(--hub-color-surface-raised, #fbfdff); }
+.acl-bank--live .acl-bank__head { border-left-color: var(--acl-live); }
+.acl-bank--part .acl-bank__head { border-left-color: var(--acl-steel); }
+.acl-bank__switch { padding-left: var(--hub-space-4, 16px); display: flex; }
+.acl-bank__name { font-weight: 600; font-size: var(--hub-font-sm, 13px); flex: 1; min-width: 0; color: var(--hub-color-text, #1a202c); }
+.acl-bank__gauge { display: flex; align-items: center; gap: var(--hub-space-2, 8px); }
+.acl-bank__track { width: 84px; height: 5px; border-radius: 999px; background: var(--hub-color-border, #d7e0ea); overflow: hidden; }
+.acl-bank__level { height: 100%; background: var(--acl-live); }
+.acl-bank__score { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--hub-color-text-muted, #4a5568); min-width: 58px; text-align: right; }
+.acl-bank__caret { color: var(--hub-color-text-muted, #4a5568); font-size: 11px; transition: transform .18s ease; }
+.acl-bank__head.is-open .acl-bank__caret { transform: rotate(90deg); }
+.acl-bank__head.is-open { border-bottom: 1px solid var(--hub-color-border, #d7e0ea); }
+.acl-bank__body { display: none; }
+.acl-bank__body.is-open { display: block; }
 
-.acl-table { width: 100%; border-collapse: collapse; font-size: var(--hub-font-xs); }
-.acl-table th {
-  text-align: left; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
-  color: var(--hub-color-text-muted); font-size: 10px;
-  padding: var(--hub-space-2) var(--hub-space-4);
-  border-bottom: 1px solid var(--hub-color-border);
+.acl-bulk {
+  display: flex; align-items: center; gap: var(--hub-space-2, 8px);
+  padding: 7px var(--hub-space-4, 16px);
+  background: var(--hub-color-surface-raised, #fbfdff);
+  border-bottom: 1px solid var(--hub-color-border, #d7e0ea);
+  font-size: var(--hub-font-xs, 12px);
 }
-.acl-table th.is-center, .acl-table td.is-center { text-align: center; width: 110px; }
-.acl-table td { padding: var(--hub-space-2) var(--hub-space-4); border-bottom: 1px solid var(--hub-color-border); vertical-align: middle; }
-.acl-table tr:last-child td { border-bottom: 0; }
-.acl-table tbody tr:hover td { background: var(--hub-color-surface-raised); }
-.acl-perm__label { font-weight: 600; color: var(--hub-color-text); }
-.acl-perm__code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--hub-color-text-muted); font-size: 10px; }
-.acl-check { width: 17px; height: 17px; cursor: pointer; accent-color: var(--hub-color-orange); }
-.acl-master { width: 17px; height: 17px; cursor: pointer; accent-color: var(--hub-color-orange); flex-shrink: 0; }
+.acl-bulk__count { margin-left: auto; color: var(--hub-color-text-muted, #4a5568); font-variant-numeric: tabular-nums; }
 
-.acl-save {
-  position: sticky; bottom: var(--hub-space-3); margin-top: var(--hub-space-4);
-  display: flex; align-items: center; justify-content: space-between; gap: var(--hub-space-3);
+.acl-grid { width: 100%; border-collapse: collapse; }
+.acl-grid td { padding: 9px var(--hub-space-4, 16px); border-bottom: 1px solid var(--hub-color-border, #d7e0ea); vertical-align: middle; }
+.acl-grid tr:last-child td { border-bottom: 0; }
+.acl-grid tbody tr:hover td { background: var(--hub-color-surface-raised, #fbfdff); }
+.acl-grid td.is-switch { width: 74px; text-align: right; }
+.acl-grid td.is-scope { width: 88px; }
+.acl-perm { font-size: var(--hub-font-xs, 12px); font-weight: 600; color: var(--hub-color-text, #1a202c); }
+.acl-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--hub-color-text-muted, #4a5568); }
+.acl-scope { font-size: 11px; color: var(--hub-color-text-muted, #4a5568); }
+.acl-scope::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 2px; background: currentColor; margin-right: 6px; vertical-align: 1px; }
+.acl-scope--page { color: var(--acl-navy); }
+
+/* Interruttori, non caselle: l'oggetto di questa pagina e' aprire e chiudere. */
+.acl-switch { display: inline-flex; cursor: pointer; }
+.acl-switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.acl-switch span {
+  width: 42px; height: 23px; border-radius: 999px; position: relative;
+  background: var(--hub-color-border, #d7e0ea);
+  transition: background .15s ease;
+}
+.acl-switch span::after {
+  content: ""; position: absolute; top: 3px; left: 3px;
+  width: 17px; height: 17px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 2px rgba(15, 35, 56, .35);
+  transition: transform .15s ease;
+}
+.acl-switch input:checked + span { background: var(--acl-live); }
+.acl-switch input:checked + span::after { transform: translateX(19px); }
+.acl-switch input:focus-visible + span { outline: 2px solid var(--acl-navy); outline-offset: 2px; }
+
+.acl-commit {
+  position: sticky; bottom: 12px; margin-top: var(--hub-space-4, 16px);
+  display: flex; align-items: center; justify-content: space-between; gap: var(--hub-space-3, 12px);
   flex-wrap: wrap;
-  padding: var(--hub-space-3) var(--hub-space-4);
-  background: var(--hub-color-surface);
-  border: 1px solid var(--hub-color-border);
-  border-radius: var(--hub-radius-lg);
-  box-shadow: var(--hub-shadow-md);
+  padding: 12px var(--hub-space-4, 16px);
+  border-radius: var(--hub-radius-md, 10px);
+  background: var(--acl-deep);
+  color: rgba(255, 255, 255, .78);
+  font-size: var(--hub-font-xs, 12px);
+  box-shadow: 0 6px 20px rgba(15, 35, 56, .28);
 }
-.acl-save__note { font-size: var(--hub-font-xs); color: var(--hub-color-text-muted); }
-.acl-dirty { display: none; }
-.acl-dirty.is-visible { display: inline-flex; }
+.acl-commit code { color: #fff; }
+.acl-commit__pending { color: var(--acl-live); font-weight: 700; display: none; }
+.acl-commit__pending.is-on { display: inline; }
+.acl-commit button {
+  background: var(--acl-live); color: #16202e; border: 0;
+  border-radius: var(--hub-radius-sm, 6px);
+  padding: 9px 20px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.acl-commit button:hover { filter: brightness(1.06); }
+
+@media (prefers-reduced-motion: reduce) {
+  .acl-switch span, .acl-switch span::after, .acl-bank__caret { transition: none; }
+}
 </style>
 {% endblock %}
 
@@ -120,214 +243,185 @@
 {% endblock %}
 
 {% block content %}
-  {% include "admin_portale/components/page_header.html" with page_title="Accessi" page_subtitle="Gruppi e ruoli → permessi. Si scrive solo il layer canonico: è quello su cui il portale decide davvero." %}
+<div class="acl">
   {% include "admin_portale/components/flash_messages.html" %}
 
-  {# ── Numeri di contesto ── #}
-  <div class="acl-kpis">
-    <div class="hub-kpi-card hub-kpi-card--accent">
-      <div class="hub-kpi-card__label">Concessi</div>
-      <div class="hub-kpi-card__value">{{ total_active }}</div>
-      <div class="hub-kpi-card__meta">su {{ total_permissions }} permessi</div>
+  {# ── Plancia ── #}
+  <section class="acl-console">
+    <div class="acl-console__subject">
+      <div class="acl-console__kind">{% if selected_group %}Gruppo di accesso{% elif selected_role %}Ruolo legacy{% else %}Accessi{% endif %}</div>
+      <h1 class="acl-console__name">{% if selected_group %}{{ selected_group.label }}{% elif selected_role %}{{ selected_role.nome }}{% else %}Nessun soggetto{% endif %}</h1>
+      <form method="get" class="acl-console__pick">
+        <select id="subject-sel" name="subject" aria-label="Gruppo o ruolo da configurare">
+          {% if groups %}
+          <optgroup label="Gruppi">
+            {% for group in groups %}
+              <option value="group:{{ group.id }}" {% if subject_kind == "group" and group.id == subject_id %}selected{% endif %}>
+                {{ group.label }} — priorità {{ group.priority }}{% if not group.is_active %} (disattivo){% endif %}
+              </option>
+            {% endfor %}
+          </optgroup>
+          {% endif %}
+          <optgroup label="Ruoli">
+            {% for role in roles %}
+              <option value="role:{{ role.id }}" {% if subject_kind == "role" and role.id == subject_id %}selected{% endif %}>{{ role.nome }}</option>
+            {% endfor %}
+          </optgroup>
+        </select>
+        <button type="submit">Cambia</button>
+      </form>
     </div>
-    <div class="hub-kpi-card hub-kpi-card--info">
-      <div class="hub-kpi-card__label">Moduli</div>
-      <div class="hub-kpi-card__value">{{ module_rows|length }}</div>
-      <div class="hub-kpi-card__meta">aree del portale</div>
-    </div>
-    <div class="hub-kpi-card">
-      <div class="hub-kpi-card__label">Gruppi</div>
-      <div class="hub-kpi-card__value">{{ groups|length }}</div>
-      <div class="hub-kpi-card__meta">ad appartenenza multipla</div>
-    </div>
-    {% if selected_group %}
-    <div class="hub-kpi-card hub-kpi-card--success">
-      <div class="hub-kpi-card__label">Nel gruppo</div>
-      <div class="hub-kpi-card__value">{{ members|length }}</div>
-      <div class="hub-kpi-card__meta">persone · priorità {{ selected_group.priority }}</div>
-    </div>
-    {% endif %}
-  </div>
 
-  {# ── Chi sto configurando ── #}
-  <form method="get" class="acl-toolbar">
-    <label class="acl-field" for="subject-sel">
-      <span>Configuro</span>
-      <select class="input" id="subject-sel" name="subject">
-        {% if groups %}
-        <optgroup label="Gruppi">
-          {% for group in groups %}
-            <option value="group:{{ group.id }}" {% if subject_kind == "group" and group.id == subject_id %}selected{% endif %}>
-              {{ group.label }} — priorità {{ group.priority }}{% if not group.is_active %} (disattivo){% endif %}
-            </option>
-          {% endfor %}
-        </optgroup>
+    <div class="acl-meter">
+      <div class="acl-console__kind">Permessi concessi</div>
+      <div class="acl-meter__count"><b>{{ total_active }}</b> / {{ total_permissions }}</div>
+      <div class="acl-meter__bar" aria-hidden="true"><div class="acl-meter__fill" data-fill-of="{{ total_permissions }}" data-fill-value="{{ total_active }}"></div></div>
+      <div class="acl-meter__tags">
+        {% if selected_group %}
+          <span class="acl-tag acl-tag--live">priorità {{ selected_group.priority }}</span>
+          <span class="acl-tag">{{ members|length }} {% if members|length == 1 %}persona{% else %}persone{% endif %}</span>
         {% endif %}
-        <optgroup label="Ruoli">
-          {% for role in roles %}
-            <option value="role:{{ role.id }}" {% if subject_kind == "role" and role.id == subject_id %}selected{% endif %}>
-              {{ role.nome }} (#{{ role.id }})
-            </option>
-          {% endfor %}
-        </optgroup>
-      </select>
-    </label>
-    <button type="submit" class="btn btn-secondary btn-sm">Carica</button>
-  </form>
+        <span class="acl-tag">{{ module_rows|length }} moduli</span>
+      </div>
+    </div>
+  </section>
 
   <div class="acl-cards">
-    {# ── Gruppo selezionato ── #}
     {% if selected_group %}
-    <section class="hub-card">
-      <header class="hub-card__header">
-        <h3 class="hub-card__title">{{ selected_group.label }}</h3>
-        <span class="hub-status-badge {% if selected_group.is_active %}hub-status-badge--info{% else %}hub-status-badge--warning{% endif %}">
-          <span class="hub-status-badge__dot"></span>priorità {{ selected_group.priority }}
-        </span>
-      </header>
-      <div class="hub-card__body">
-        <p class="acl-hint">
-          Una persona può stare in più gruppi. Se due gruppi dicono cose diverse sullo stesso permesso
-          decide quello con <strong>priorità più alta</strong>; a parità vince il diniego.
-          Un gruppo <strong>concede</strong>: togliere una spunta qui non toglie ciò che il ruolo già dà.
-        </p>
+    <section class="acl-panel">
+      <h3>Chi ne fa parte</h3>
+      <p class="acl-note">
+        Una persona può stare in più gruppi. Se due gruppi dicono cose diverse sullo stesso permesso
+        decide quello con priorità più alta; a parità vince il diniego. Un gruppo concede: spegnere
+        un interruttore qui non toglie ciò che il ruolo già dà.
+      </p>
 
-        <form method="post" class="acl-toolbar" style="margin-bottom:var(--hub-space-3)">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="group_update">
-          <input type="hidden" name="group_id" value="{{ selected_group.id }}">
-          <input type="hidden" name="subject" value="{{ subject_value }}">
-          <label class="acl-field"><span>Nome</span><input class="input" type="text" name="label" value="{{ selected_group.label }}"></label>
-          <label class="acl-field"><span>Priorità</span><input class="input" type="number" name="priority" value="{{ selected_group.priority }}" style="min-width:90px"></label>
-          <label class="acl-field"><span>Stato</span>
-            <select class="input" name="is_active" style="min-width:120px">
-              <option value="1" {% if selected_group.is_active %}selected{% endif %}>Attivo</option>
-              <option value="0" {% if not selected_group.is_active %}selected{% endif %}>Disattivo</option>
-            </select>
-          </label>
-          <button type="submit" class="btn btn-secondary btn-sm">Salva gruppo</button>
-        </form>
+      <form method="post" class="acl-form">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="member_add">
+        <input type="hidden" name="group_id" value="{{ selected_group.id }}">
+        <input type="hidden" name="subject" value="{{ subject_value }}">
+        <label class="grow">Email o ID legacy
+          <input class="input" type="text" name="member" placeholder="nome.cognome@costruzioninovicrom.it">
+        </label>
+        <button type="submit" class="btn btn-secondary btn-sm">Aggiungi al gruppo</button>
+      </form>
 
-        <form method="post" class="acl-toolbar" style="margin-bottom:0">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="member_add">
-          <input type="hidden" name="group_id" value="{{ selected_group.id }}">
-          <input type="hidden" name="subject" value="{{ subject_value }}">
-          <label class="acl-field acl-field--grow">
-            <span>Aggiungi persona (email o ID legacy)</span>
-            <input class="input" type="text" name="member" placeholder="nome.cognome@costruzioninovicrom.it">
-          </label>
-          <button type="submit" class="btn btn-secondary btn-sm">Aggiungi</button>
-        </form>
+      {% if members %}
+      <ul class="acl-people">
+        {% for member in members %}
+        <li class="acl-person">
+          <b>{{ member.nome }}</b>
+          {% if member.email %}<span>{{ member.email }}</span>{% endif %}
+          <form method="post" style="display:inline">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="member_remove">
+            <input type="hidden" name="membership_id" value="{{ member.membership_id }}">
+            <input type="hidden" name="subject" value="{{ subject_value }}">
+            <button type="submit" title="Togli dal gruppo" aria-label="Togli {{ member.nome }} dal gruppo">×</button>
+          </form>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="acl-note" style="margin:12px 0 0">Il gruppo è vuoto: i permessi qui sotto non raggiungono ancora nessuno.</p>
+      {% endif %}
 
-        {% if members %}
-        <ul class="acl-members">
-          {% for member in members %}
-          <li class="acl-member">
-            <span class="acl-member__name">{{ member.nome }}</span>
-            {% if member.email %}<span class="acl-member__mail">{{ member.email }}</span>{% endif %}
-            <form method="post" style="display:inline">
-              {% csrf_token %}
-              <input type="hidden" name="action" value="member_remove">
-              <input type="hidden" name="membership_id" value="{{ member.membership_id }}">
-              <input type="hidden" name="subject" value="{{ subject_value }}">
-              <button type="submit" class="acl-member__drop" title="Rimuovi dal gruppo" aria-label="Rimuovi {{ member.nome }}">×</button>
-            </form>
-          </li>
-          {% endfor %}
-        </ul>
-        {% else %}
-        <p class="acl-hint" style="margin:var(--hub-space-3) 0 0">Nessuna persona nel gruppo: i permessi qui sotto non raggiungono ancora nessuno.</p>
-        {% endif %}
-      </div>
+      <hr style="border:0;border-top:1px solid var(--hub-color-border);margin:16px 0">
+      <form method="post" class="acl-form">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="group_update">
+        <input type="hidden" name="group_id" value="{{ selected_group.id }}">
+        <input type="hidden" name="subject" value="{{ subject_value }}">
+        <label>Nome<input class="input" type="text" name="label" value="{{ selected_group.label }}"></label>
+        <label>Priorità<input class="input" type="number" name="priority" value="{{ selected_group.priority }}" style="min-width:88px"></label>
+        <label>Stato
+          <select class="input" name="is_active" style="min-width:118px">
+            <option value="1" {% if selected_group.is_active %}selected{% endif %}>Attivo</option>
+            <option value="0" {% if not selected_group.is_active %}selected{% endif %}>Disattivo</option>
+          </select>
+        </label>
+        <button type="submit" class="btn btn-secondary btn-sm">Salva il gruppo</button>
+      </form>
     </section>
     {% endif %}
 
-    {# ── Nuovo gruppo ── #}
-    <section class="hub-card">
-      <header class="hub-card__header"><h3 class="hub-card__title">Nuovo gruppo</h3></header>
-      <div class="hub-card__body">
-        <form method="post" class="acl-toolbar" style="margin-bottom:0">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="group_create">
-          <label class="acl-field"><span>Codice</span><input class="input" type="text" name="code" placeholder="manutenzione" required></label>
-          <label class="acl-field"><span>Nome</span><input class="input" type="text" name="label" placeholder="Manutenzione" required></label>
-          <label class="acl-field"><span>Priorità</span><input class="input" type="number" name="priority" value="100" style="min-width:90px"></label>
-          <label class="acl-field acl-field--grow"><span>Descrizione</span><input class="input" type="text" name="description" placeholder="A cosa serve questo gruppo"></label>
-          <button type="submit" class="btn btn-sm">Crea</button>
-        </form>
-      </div>
+    <section class="acl-panel">
+      <h3>Crea un gruppo</h3>
+      <p class="acl-note">Serve quando gli stessi permessi vanno a un insieme di persone che il ruolo da solo non descrive.</p>
+      <form method="post" class="acl-form">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="group_create">
+        <label>Codice<input class="input" type="text" name="code" placeholder="manutenzione" required></label>
+        <label>Nome<input class="input" type="text" name="label" placeholder="Manutenzione" required></label>
+        <label>Priorità<input class="input" type="number" name="priority" value="100" style="min-width:88px"></label>
+        <label class="grow">A cosa serve<input class="input" type="text" name="description" placeholder="Squadra manutenzione impianti"></label>
+        <button type="submit" class="btn btn-sm">Crea il gruppo</button>
+      </form>
     </section>
   </div>
 
-  {# ── Matrice permessi ── #}
+  {# ── Quadro dei permessi ── #}
   {% if module_rows %}
   <form method="post" id="accessi-form">
     {% csrf_token %}
     <input type="hidden" name="action" value="save_grants">
     <input type="hidden" name="subject" value="{{ subject_value }}">
-    {% comment %}Un solo campo con i selezionati: un hidden per permesso sfonderebbe DATA_UPLOAD_MAX_NUMBER_FIELDS e il POST tornerebbe 400.{% endcomment %}
+    {% comment %}I selezionati viaggiano in un solo campo: un hidden per permesso supererebbe DATA_UPLOAD_MAX_NUMBER_FIELDS e il POST tornerebbe 400.{% endcomment %}
     <input type="hidden" name="granted_json" id="granted-json">
 
-    <div class="acl-toolbar">
-      <button type="button" class="btn btn-secondary btn-sm" id="btn-expand-all">Espandi tutti</button>
-      <button type="button" class="btn btn-secondary btn-sm" id="btn-collapse-all">Comprimi tutti</button>
-      <label class="acl-field acl-field--grow">
-        <span>Filtra</span>
-        <input class="input" type="search" id="perm-search" placeholder="Nome del permesso, codice o modulo…">
-      </label>
+    <div class="acl-filter">
+      <input class="input" type="search" id="perm-search" placeholder="Filtra per permesso, codice o modulo" aria-label="Filtra i permessi">
+      <button type="button" class="btn btn-secondary btn-sm" id="btn-expand-all">Apri tutti</button>
+      <button type="button" class="btn btn-secondary btn-sm" id="btn-collapse-all">Chiudi tutti</button>
     </div>
 
     {% for mod in module_rows %}
-    <section class="acl-module" data-modulo="{{ mod.modulo }}">
-      <div class="acl-module__head" data-target="acl-body-{{ forloop.counter }}">
-        <span onclick="event.stopPropagation()" style="display:flex">
-          <input type="checkbox" class="acl-master" data-modulo="{{ mod.modulo }}"
-                 {% if mod.all_on %}checked{% endif %}
-                 title="Concedi o togli tutti i permessi di {{ mod.modulo }}">
+    <section class="acl-bank {% if mod.all_on %}acl-bank--live{% elif mod.partial %}acl-bank--part{% endif %}" data-modulo="{{ mod.modulo }}">
+      <div class="acl-bank__head" data-target="acl-bank-{{ forloop.counter }}">
+        <span class="acl-bank__switch" onclick="event.stopPropagation()">
+          <label class="acl-switch" title="Accendi o spegni tutto {{ mod.modulo }}">
+            <input type="checkbox" class="acl-master" data-modulo="{{ mod.modulo }}" {% if mod.all_on %}checked{% endif %}
+                   aria-label="Tutti i permessi di {{ mod.modulo }}">
+            <span></span>
+          </label>
         </span>
-        <span class="acl-module__name">{{ mod.modulo }}</span>
-        {% if mod.all_on %}
-          <span class="hub-status-badge hub-status-badge--success"><span class="hub-status-badge__dot"></span>{{ mod.active_count }}/{{ mod.total_count }}</span>
-        {% elif mod.partial %}
-          <span class="hub-status-badge hub-status-badge--warning"><span class="hub-status-badge__dot"></span>{{ mod.active_count }}/{{ mod.total_count }}</span>
-        {% else %}
-          <span class="hub-status-badge"><span class="hub-status-badge__dot"></span>0/{{ mod.total_count }}</span>
-        {% endif %}
-        <span class="acl-module__caret">▶</span>
+        <span class="acl-bank__name">{{ mod.modulo }}</span>
+        <span class="acl-bank__gauge">
+          <span class="acl-bank__track" aria-hidden="true"><span class="acl-bank__level" data-fill-of="{{ mod.total_count }}" data-fill-value="{{ mod.active_count }}"></span></span>
+          <span class="acl-bank__score">{{ mod.active_count }}/{{ mod.total_count }}</span>
+        </span>
+        <span class="acl-bank__caret" aria-hidden="true">▶</span>
       </div>
 
-      <div class="acl-module__body" id="acl-body-{{ forloop.counter }}">
-        <div class="acl-module__bulk">
-          <button type="button" class="btn btn-secondary btn-sm acl-bulk-on" data-modulo="{{ mod.modulo }}">Tutti ON</button>
-          <button type="button" class="btn btn-secondary btn-sm acl-bulk-off" data-modulo="{{ mod.modulo }}">Tutti OFF</button>
-          <span class="acl-module__count">{{ mod.total_count }} permessi</span>
+      <div class="acl-bank__body" id="acl-bank-{{ forloop.counter }}">
+        <div class="acl-bulk">
+          <button type="button" class="btn btn-secondary btn-sm acl-bulk-on" data-modulo="{{ mod.modulo }}">Accendi tutto</button>
+          <button type="button" class="btn btn-secondary btn-sm acl-bulk-off" data-modulo="{{ mod.modulo }}">Spegni tutto</button>
+          <span class="acl-bulk__count">{{ mod.total_count }} permessi</span>
         </div>
-        <table class="acl-table" data-fm-table-skip="1">
-          <thead>
-            <tr>
-              <th>Permesso</th>
-              <th class="is-center">Governa</th>
-              <th class="is-center">Concesso</th>
-            </tr>
-          </thead>
+        <table class="acl-grid" data-fm-table-skip="1">
           <tbody>
             {% for perm in mod.permissions %}
             <tr data-search="{{ perm.code }} {{ perm.label|lower }}">
               <td>
-                <div class="acl-perm__label">{{ perm.label }}</div>
-                <div class="acl-perm__code">{{ perm.code }}</div>
+                <div class="acl-perm">{{ perm.label }}</div>
+                <div class="acl-code">{{ perm.code }}</div>
               </td>
-              <td class="is-center">
+              <td class="is-scope">
                 {% if perm.governs_route %}
-                  <span class="hub-status-badge hub-status-badge--info"><span class="hub-status-badge__dot"></span>pagina</span>
+                  <span class="acl-scope acl-scope--page">pagina</span>
                 {% else %}
-                  <span class="hub-status-badge"><span class="hub-status-badge__dot"></span>sezione</span>
+                  <span class="acl-scope">sezione</span>
                 {% endif %}
               </td>
-              <td class="is-center">
-                <input type="checkbox" class="acl-check" name="granted" value="{{ perm.code }}"
-                       data-modulo="{{ mod.modulo }}" {% if perm.enabled %}checked{% endif %}>
+              <td class="is-switch">
+                <label class="acl-switch">
+                  <input type="checkbox" class="acl-check" name="granted" value="{{ perm.code }}"
+                         data-modulo="{{ mod.modulo }}" {% if perm.enabled %}checked{% endif %}
+                         aria-label="{{ perm.label }}">
+                  <span></span>
+                </label>
               </td>
             </tr>
             {% endfor %}
@@ -337,32 +431,41 @@
     </section>
     {% endfor %}
 
-    <div class="acl-save">
+    <div class="acl-commit">
       <div>
-        <span class="hub-status-badge hub-status-badge--warning acl-dirty" id="acl-dirty"><span class="hub-status-badge__dot"></span>Modifiche non salvate</span>
-        <span class="acl-save__note">Si scrivono solo grant canonici: la tabella legacy <code>permessi</code> non viene toccata.</span>
+        <span class="acl-commit__pending" id="acl-pending">Modifiche non salvate.</span>
+        Si scrive solo il layer canonico: la tabella legacy <code>permessi</code> non viene toccata.
       </div>
-      <button type="submit" class="btn">Salva permessi</button>
+      <button type="submit">Salva i permessi</button>
     </div>
   </form>
   {% else %}
-    <div class="hub-empty-state">
-      <div class="hub-empty-state__title">Nessun permesso in catalogo</div>
-      <div class="hub-empty-state__text">Esegui <code>bootstrap_acl_v2</code> per popolare i permessi canonici.</div>
-    </div>
+    <section class="acl-panel">
+      <h3>Nessun permesso in catalogo</h3>
+      <p class="acl-note">Esegui <code>bootstrap_acl_v2</code> per popolare i permessi canonici, poi torna qui.</p>
+    </section>
   {% endif %}
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
 (function () {
+  // Le barre di riempimento prendono la misura dai dati, non da uno stile inline
+  // per riga: il template resta leggibile e la percentuale si calcola una volta.
+  document.querySelectorAll('[data-fill-of]').forEach(function (el) {
+    var total = parseInt(el.dataset.fillOf, 10) || 0;
+    var value = parseInt(el.dataset.fillValue, 10) || 0;
+    el.style.width = (total ? Math.round((value / total) * 100) : 0) + '%';
+  });
+
   var form = document.getElementById('accessi-form');
   if (!form) { return; }
 
   function bodyFor(head) { return document.getElementById(head.dataset.target); }
   function boxes(modulo) { return form.querySelectorAll('.acl-check[data-modulo="' + modulo + '"]'); }
 
-  document.querySelectorAll('.acl-module__head').forEach(function (head) {
+  document.querySelectorAll('.acl-bank__head').forEach(function (head) {
     head.addEventListener('click', function () {
       var body = bodyFor(head);
       if (!body) { return; }
@@ -372,7 +475,7 @@
   });
 
   function setOpen(open) {
-    document.querySelectorAll('.acl-module__head').forEach(function (head) {
+    document.querySelectorAll('.acl-bank__head').forEach(function (head) {
       var body = bodyFor(head);
       if (!body) { return; }
       head.classList.toggle('is-open', open);
@@ -382,42 +485,53 @@
   document.getElementById('btn-expand-all').addEventListener('click', function () { setOpen(true); });
   document.getElementById('btn-collapse-all').addEventListener('click', function () { setOpen(false); });
 
-  function markDirty() {
-    var badge = document.getElementById('acl-dirty');
-    if (badge) { badge.classList.add('is-visible'); }
+  function markPending() {
+    var flag = document.getElementById('acl-pending');
+    if (flag) { flag.classList.add('is-on'); }
   }
-  function syncMaster(modulo) {
-    var master = form.querySelector('.acl-master[data-modulo="' + modulo + '"]');
-    if (!master) { return; }
+
+  function refresh(modulo) {
+    var bank = form.querySelector('.acl-bank[data-modulo="' + modulo + '"]');
     var all = boxes(modulo);
     var on = 0;
     all.forEach(function (cb) { if (cb.checked) { on += 1; } });
-    master.checked = on === all.length && all.length > 0;
-    master.indeterminate = on > 0 && on < all.length;
+
+    var master = form.querySelector('.acl-master[data-modulo="' + modulo + '"]');
+    if (master) {
+      master.checked = on === all.length && all.length > 0;
+      master.indeterminate = on > 0 && on < all.length;
+    }
+    if (bank) {
+      bank.classList.toggle('acl-bank--live', on === all.length && all.length > 0);
+      bank.classList.toggle('acl-bank--part', on > 0 && on < all.length);
+      var level = bank.querySelector('.acl-bank__level');
+      var score = bank.querySelector('.acl-bank__score');
+      if (level) { level.style.width = (all.length ? Math.round((on / all.length) * 100) : 0) + '%'; }
+      if (score) { score.textContent = on + '/' + all.length; }
+    }
   }
 
   form.querySelectorAll('.acl-master').forEach(function (master) {
-    syncMaster(master.dataset.modulo);
+    refresh(master.dataset.modulo);
     master.addEventListener('change', function () {
       boxes(master.dataset.modulo).forEach(function (cb) { cb.checked = master.checked; });
-      markDirty();
+      refresh(master.dataset.modulo);
+      markPending();
     });
   });
   form.querySelectorAll('.acl-check').forEach(function (cb) {
-    cb.addEventListener('change', function () { syncMaster(cb.dataset.modulo); markDirty(); });
+    cb.addEventListener('change', function () { refresh(cb.dataset.modulo); markPending(); });
   });
   form.querySelectorAll('.acl-bulk-on, .acl-bulk-off').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var on = btn.classList.contains('acl-bulk-on');
       boxes(btn.dataset.modulo).forEach(function (cb) { cb.checked = on; });
-      syncMaster(btn.dataset.modulo);
-      markDirty();
+      refresh(btn.dataset.modulo);
+      markPending();
     });
   });
 
-  // Al salvataggio i selezionati viaggiano in UN campo JSON e i checkbox escono
-  // dal POST: con oltre mille permessi, un campo per riga supera il limite di
-  // Django (DATA_UPLOAD_MAX_NUMBER_FIELDS) e la risposta e' 400.
+  // I selezionati partono in un campo solo: vedi il commento nel markup.
   form.addEventListener('submit', function () {
     var selected = [];
     form.querySelectorAll('.acl-check').forEach(function (cb) {
@@ -431,18 +545,17 @@
   if (search) {
     search.addEventListener('input', function () {
       var needle = search.value.trim().toLowerCase();
-      document.querySelectorAll('.acl-module').forEach(function (section) {
-        var rows = section.querySelectorAll('tbody tr');
+      document.querySelectorAll('.acl-bank').forEach(function (bank) {
         var visible = 0;
-        rows.forEach(function (row) {
+        bank.querySelectorAll('tbody tr').forEach(function (row) {
           var hit = !needle || (row.dataset.search || '').indexOf(needle) !== -1
-                    || (section.dataset.modulo || '').indexOf(needle) !== -1;
+                    || (bank.dataset.modulo || '').indexOf(needle) !== -1;
           row.hidden = !hit;
           if (hit) { visible += 1; }
         });
-        section.hidden = needle !== '' && visible === 0;
+        bank.hidden = needle !== '' && visible === 0;
         if (needle !== '' && visible > 0) {
-          var head = section.querySelector('.acl-module__head');
+          var head = bank.querySelector('.acl-bank__head');
           var body = bodyFor(head);
           head.classList.add('is-open');
           if (body) { body.classList.add('is-open'); }
