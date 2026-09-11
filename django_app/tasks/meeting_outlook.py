@@ -47,6 +47,36 @@ def _resolve_organizer_email(meeting, request) -> str:
     return ""
 
 
+# Caselle di funzione tipiche: esistono come indirizzo ma non sono mailbox
+# personali, e Graph non ci crea sopra un evento. Elenco volutamente corto:
+# serve a suggerire, non a decidere.
+_FUNCTIONAL_MAILBOX_PREFIXES = (
+    "it", "info", "amministrazione", "ufficio", "acquisti", "commerciale",
+    "qualita", "produzione", "hr", "noreply", "no-reply", "postmaster",
+)
+
+
+def _organizer_hint(organizer_email: str) -> str:
+    """Suggerimento sull'organizzatore, tarato su come e' fatto l'indirizzo."""
+    email = (organizer_email or "").strip().lower()
+    local_part, _, domain = email.partition("@")
+    if domain.endswith(".local"):
+        return (
+            " L'indirizzo sembra un account interno '.local': nel campo «Email organizzatore» "
+            "metti la mailbox Microsoft 365 reale."
+        )
+    if local_part in _FUNCTIONAL_MAILBOX_PREFIXES:
+        return (
+            " L'indirizzo sembra una casella di funzione o condivisa: un evento di calendario "
+            "deve nascere su una mailbox personale con licenza. Indicane una nel campo "
+            "«Email organizzatore»."
+        )
+    return (
+        " Il campo «Email organizzatore» è vuoto, quindi vale l'email del tuo account: "
+        "se non è una mailbox personale con licenza, indicane una lì."
+    )
+
+
 def _build_attendees(meeting) -> list[dict]:
     return [
         {
@@ -237,16 +267,45 @@ def sync_meeting_outlook_event(*, request, meeting) -> tuple[str, str]:
         logger.warning("Meeting outlook sync fallita (meeting=%s): %s", meeting.id, exc)
         exc_text = str(exc)
         low = exc_text.lower()
-        if "is invalid" in low or "resourcenotfound" in low or "user not found" in low:
+        explicit_organizer = bool((meeting.outlook_organizer_email or "").strip())
+        hint = _organizer_hint(organizer_email) if not explicit_organizer else (
+            f" L'organizzatore '{organizer_email}' arriva dal campo «Email organizzatore» "
+            "della convocazione."
+        )
+        if (
+            "is invalid" in low
+            or "resourcenotfound" in low
+            or "user not found" in low
+            or "errorinvaliduser" in low
+            or "mailboxnotenabledforrestapi" in low
+        ):
             return (
                 "warning",
-                f"Outlook: la mailbox '{organizer_email}' non è valida nel tenant M365. "
-                "Usa il campo 'Email organizzatore' per specificare una casella personale con licenza.",
+                (
+                    f"Outlook: per Microsoft 365 '{organizer_email}' non è una mailbox personale "
+                    "su cui creare un evento (casella condivisa, gruppo di distribuzione o alias)."
+                    f"{hint} "
+                    "L'incontro è salvato e la convocazione via email parte lo stesso."
+                ),
             )
-        if "forbidden" in low or "accessdenied" in low or "403" in low:
+        # Graph scrive «Access is denied»: con gli spazi non combacia con
+        # «accessdenied», e l'errore finiva nel ramo generico che ristampa la
+        # frase nuda senza dire dove intervenire.
+        if (
+            "forbidden" in low
+            or "accessdenied" in low
+            or "access is denied" in low
+            or "403" in low
+        ):
             return (
                 "warning",
-                f"Outlook: l'app non ha accesso al calendario di '{organizer_email}'. "
-                "Verifica che Calendars.ReadWrite sia abilitato come Application permission in Entra ID.",
+                (
+                    f"Outlook: l'app non è autorizzata a scrivere sul calendario di '{organizer_email}'. "
+                    "Verifica in Entra ID che Calendars.ReadWrite sia concesso come permesso "
+                    "Application con consenso amministratore, e che nessuna Application Access "
+                    "Policy di Exchange escluda quella mailbox. Dopo la concessione riavvia l'app "
+                    "pool: il token resta in cache."
+                    f"{hint} L'incontro è salvato e la convocazione via email parte lo stesso."
+                ),
             )
         return ("warning", f"Outlook: {exc_text}")

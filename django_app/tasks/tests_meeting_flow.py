@@ -6,10 +6,11 @@ incontro: invio convocazione, invio minuta, download PDF.
 """
 from __future__ import annotations
 
+from datetime import date
 from unittest.mock import patch
 
 from django.core import mail
-from django.test import override_settings
+from django.test import SimpleTestCase, override_settings
 from django.urls import reverse
 from .tests_utils import make_project
 
@@ -1310,3 +1311,134 @@ class MeetingAttendanceTests(TasksBaseTestCase):
             reverse("tasks:project_meeting_detail", args=[self.project.id, self.meeting.id])
         )
         self.assertContains(response, "2 presenti su 4 convocati")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class MeetingOutlookErrorMessageTests(TasksBaseTestCase):
+    """Errori Graph sull'incontro: il messaggio deve dire dove intervenire."""
+
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "tasks")
+        _grant_role_actions(2, ["tasks_view", "tasks_create"])
+        self._refresh_acl_cache()
+        self.user = _create_user_with_legacy(
+            username="outlook-pm", legacy_user_id=701, role_id=2, role_name="tasks"
+        )
+        self.user.email = "it@example.invalid"
+        self.user.save(update_fields=["email"])
+        self.project = make_project(name="", created_by=self.user, project_manager=self.user)
+        self.meeting = KickoffMeeting.objects.create(
+            project=self.project, data=date(2026, 9, 10), created_by=self.user, sync_outlook=True,
+        )
+
+    def _sync(self, error_text):
+        from tasks.meeting_outlook import sync_meeting_outlook_event
+
+        with patch("tasks.meeting_outlook.graph_ready", return_value=True), patch(
+            "tasks.meeting_outlook.create_event", side_effect=RuntimeError(error_text)
+        ):
+            return sync_meeting_outlook_event(request=None, meeting=self.meeting)
+
+    def test_access_is_denied_non_finisce_nel_ramo_generico(self):
+        # Graph scrive «Access is denied», che non combacia con «accessdenied»:
+        # prima cadeva nel fallback e ristampava la frase nuda.
+        level, message = self._sync("Access is denied. Check credentials and try again. [HTTP 403 · ErrorAccessDenied]")
+        self.assertEqual(level, "warning")
+        self.assertIn("Calendars.ReadWrite", message)
+        self.assertIn("Application", message)
+        self.assertIn("app pool", message)
+        self.assertNotEqual(message, "Outlook: Access is denied. Check credentials and try again.")
+
+    def test_mailbox_non_personale_lo_dice(self):
+        level, message = self._sync("The requested user 'it@example.invalid' is invalid. [HTTP 404 · ErrorInvalidUser]")
+        self.assertEqual(level, "warning")
+        self.assertIn("mailbox personale", message)
+        self.assertIn("Email organizzatore", message)
+
+    def test_casella_di_funzione_riconosciuta_dal_prefisso(self):
+        from tasks.meeting_outlook import _organizer_hint
+
+        self.assertIn("casella di funzione", _organizer_hint("it@azienda.it"))
+        self.assertIn(".local", _organizer_hint("mario.rossi@dominio.local"))
+        self.assertIn("Email organizzatore", _organizer_hint("mario.rossi@azienda.it"))
+
+    def test_il_messaggio_rassicura_che_l_incontro_e_salvato(self):
+        _, message = self._sync("Access is denied. Check credentials and try again.")
+        self.assertIn("incontro è salvato", message)
+
+    def test_errore_sconosciuto_resta_riportato_tale_e_quale(self):
+        level, message = self._sync("Qualcosa di inatteso")
+        self.assertEqual(level, "warning")
+        self.assertEqual(message, "Outlook: Qualcosa di inatteso")
+
+
+class GraphErrorMessageTests(SimpleTestCase):
+    """`_graph_error_message`: stato HTTP e codice, per separare le due cause."""
+
+    def _response(self, status, body):
+        from unittest.mock import Mock
+
+        response = Mock()
+        response.status_code = status
+        response.json.return_value = body
+        response.text = ""
+        return response
+
+    def test_stato_e_codice_finiscono_nel_messaggio(self):
+        from core.outlook_calendar import _graph_error_message
+
+        message = _graph_error_message(self._response(403, {
+            "error": {"code": "ErrorAccessDenied", "message": "Access is denied. Check credentials and try again."}
+        }))
+        self.assertIn("Access is denied", message)
+        self.assertIn("HTTP 403", message)
+        self.assertIn("ErrorAccessDenied", message)
+
+    def test_il_testo_di_graph_resta_in_testa(self):
+        # I chiamanti riconoscono l'errore cercando sottostringhe: il contesto
+        # va in coda, mai in mezzo al messaggio originale.
+        from core.outlook_calendar import _graph_error_message
+
+        message = _graph_error_message(self._response(404, {
+            "error": {"code": "ErrorInvalidUser", "message": "The requested user 'x@y.it' is invalid."}
+        }))
+        self.assertTrue(message.startswith("The requested user 'x@y.it' is invalid."))
+
+    def test_corpo_senza_json_non_perde_lo_stato(self):
+        from core.outlook_calendar import _graph_error_message
+
+        response = self._response(500, {})
+        response.json.side_effect = ValueError
+        response.text = ""
+        self.assertIn("HTTP 500", _graph_error_message(response))
+
+
+class GraphTokenCacheInvalidationTests(SimpleTestCase):
+    """Su 401/403 il token va buttato: altrimenti il permesso appena concesso
+    non ha effetto finche' la cache non scade (fino a un'ora)."""
+
+    def _response(self, status):
+        from unittest.mock import Mock
+
+        response = Mock()
+        response.status_code = status
+        response.json.return_value = {"error": {"code": "ErrorAccessDenied", "message": "Access is denied."}}
+        response.text = ""
+        return response
+
+    def test_403_invalida_il_token(self):
+        from core import outlook_calendar
+
+        with patch.object(outlook_calendar, "invalidate_graph_token_cache") as invalidate:
+            with self.assertRaises(RuntimeError):
+                outlook_calendar._raise_graph_error(self._response(403))
+        self.assertTrue(invalidate.called)
+
+    def test_404_non_tocca_il_token(self):
+        from core import outlook_calendar
+
+        with patch.object(outlook_calendar, "invalidate_graph_token_cache") as invalidate:
+            with self.assertRaises(RuntimeError):
+                outlook_calendar._raise_graph_error(self._response(404))
+        self.assertFalse(invalidate.called)
