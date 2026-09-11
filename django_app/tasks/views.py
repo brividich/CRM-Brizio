@@ -4,6 +4,7 @@ import json
 import logging
 from datetime import date, datetime, timedelta
 from functools import wraps
+from uuid import uuid4
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model
@@ -6471,6 +6472,58 @@ def _agenda_templates_payload() -> list[dict]:
     ]
 
 
+# Quanti incontri passati si guardano per costruire i suggerimenti ODG: il
+# JSON degli items si scandisce in Python (JSONField non e' aggregabile in SQL
+# Server), quindi la finestra resta limitata per non pesare sul form.
+AGENDA_SUGGESTIONS_SCAN_LIMIT = 400
+AGENDA_SUGGESTIONS_MAX = 60
+
+
+def _agenda_title_suggestions() -> list[dict]:
+    """Titoli ODG gia' usati negli altri incontri, per suggerirli in fase di stesura.
+
+    Ogni incontro riscriveva a mano punti che in azienda si ripetono («Stato
+    avanzamento», «Non conformita' aperte»): qui si raccolgono i titoli
+    dall'ordine del giorno degli incontri passati, di qualunque commessa, con
+    la nota e la durata dell'uso piu' recente come precompilazione.
+
+    Esclusi i punti generati automaticamente (problemi tracciati e azioni
+    aperte): non sono testo scritto da qualcuno, e come suggerimento
+    riproporrebbero il problema di un'altra commessa.
+    """
+    rows = (
+        KickoffMeeting.objects
+        .order_by("-id")
+        .values_list("agenda_items", flat=True)[:AGENDA_SUGGESTIONS_SCAN_LIMIT]
+    )
+    suggestions: dict[str, dict] = {}
+    for items in rows:
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, dict) or item.get("issue_id") or item.get("action_id"):
+                continue
+            titolo = str(item.get("titolo", "")).strip()
+            if not titolo:
+                continue
+            key = titolo.casefold()
+            existing = suggestions.get(key)
+            if existing is None:
+                # I meeting arrivano dal piu' recente: la prima occorrenza e'
+                # quella da cui prendere nota e durata.
+                durata = item.get("durata_minuti")
+                suggestions[key] = {
+                    "titolo": titolo,
+                    "nota": str(item.get("nota", "")).strip(),
+                    "durata_minuti": durata if isinstance(durata, int) else None,
+                    "usi": 1,
+                }
+            else:
+                existing["usi"] += 1
+    ordered = sorted(suggestions.values(), key=lambda s: (-s["usi"], s["titolo"].casefold()))
+    return ordered[:AGENDA_SUGGESTIONS_MAX]
+
+
 def _previous_meeting_agenda(project: Project, *, exclude_meeting_id: int | None = None) -> list[dict]:
     """Punti dell'ultimo incontro della commessa, per il «duplica ODG precedente».
 
@@ -6885,6 +6938,7 @@ def project_meeting_create(request, project_id: int):
             "agenda_templates_json": _agenda_templates_payload(),
             "previous_agenda_json": previous_agenda,
             "has_previous_agenda": bool(previous_agenda),
+            "agenda_suggestions_json": _agenda_title_suggestions(),
         },
     )
 
@@ -6978,6 +7032,7 @@ def project_meeting_edit(request, project_id: int, meeting_id: int):
             "agenda_templates_json": _agenda_templates_payload(),
             "previous_agenda_json": previous_agenda,
             "has_previous_agenda": bool(previous_agenda),
+            "agenda_suggestions_json": _agenda_title_suggestions(),
         },
     )
 
@@ -7463,6 +7518,30 @@ def project_decisions(request, project_id: int):
     )
 
 
+def _ensure_unique_agenda_item_ids(meeting: KickoffMeeting) -> list[dict]:
+    """Ripara gli id duplicati o mancanti dei punti, e restituisce i punti.
+
+    Gli id nascevano da `Date.now()`: due punti aggiunti nello stesso
+    millisecondo condividevano l'id, e in conduzione nota, spunta e tempo
+    finivano sempre sul primo dei due. Gli incontri gia' salvati si sistemano
+    qui, alla prima apertura della conduzione.
+    """
+    items = [item for item in (meeting.agenda_items or []) if isinstance(item, dict)]
+    seen: set[str] = set()
+    changed = False
+    for index, item in enumerate(items):
+        item_id = str(item.get("id") or "").strip()
+        if not item_id or item_id in seen:
+            item_id = f"{item_id or 'item'}-{index}-{uuid4().hex[:6]}"
+            item["id"] = item_id
+            changed = True
+        seen.add(item_id)
+    if changed:
+        meeting.agenda_items = items
+        meeting.save(update_fields=["agenda_items", "updated_at"])
+    return items
+
+
 @task_permissions_required("tasks_create")
 def project_meeting_run(request, project_id: int, meeting_id: int):
     """Schermata di conduzione: un punto alla volta, tempi e cattura rapida.
@@ -7476,7 +7555,7 @@ def project_meeting_run(request, project_id: int, meeting_id: int):
         messages.error(request, "Non hai i permessi per condurre questo incontro.")
         return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
 
-    items = [item for item in (meeting.agenda_items or []) if isinstance(item, dict)]
+    items = _ensure_unique_agenda_item_ids(meeting)
     planned_minutes = sum(int(item.get("durata_minuti") or 0) for item in items)
     return render(
         request,
@@ -7499,6 +7578,11 @@ def project_meeting_run(request, project_id: int, meeting_id: int):
                 "tasks:project_meeting_quick_capture",
                 kwargs={"project_id": project_id, "meeting_id": meeting_id},
             ),
+            "item_task_create_url": reverse(
+                "tasks:project_meeting_agenda_item_task_create",
+                kwargs={"project_id": project_id, "meeting_id": meeting_id},
+            ),
+            "project_tasks_json": _project_tasks_for_picker(project),
         },
     )
 
@@ -7532,6 +7616,20 @@ def project_meeting_agenda_item_update(request, project_id: int, meeting_id: int
         except (TypeError, ValueError):
             minuti = 0
         target["tempo_effettivo_minuti"] = minuti if 0 < minuti <= 480 else None
+    if "task_id" in request.POST:
+        # Collegamento all'attivita' anche durante la conduzione: mentre si
+        # parla si capisce quale attivita' copre il punto, e prima lo si poteva
+        # dire solo tornando nella convocazione.
+        raw_task_id = (request.POST.get("task_id") or "").strip()
+        if not raw_task_id:
+            target["task_id"] = None
+            target["task_label"] = ""
+        else:
+            task = project.tasks.filter(pk=_safe_int(raw_task_id)).first()
+            if task is None:
+                return JsonResponse({"ok": False, "reason": "task_not_found"}, status=404)
+            target["task_id"] = task.pk
+            target["task_label"] = task.title
 
     meeting.agenda_items = items
     meeting.save(update_fields=["agenda_items", "updated_at"])
@@ -7540,6 +7638,78 @@ def project_meeting_agenda_item_update(request, project_id: int, meeting_id: int
         "item_id": item_id,
         "done": bool(target.get("done")),
         "tempo_effettivo_minuti": target.get("tempo_effettivo_minuti"),
+        "task_id": target.get("task_id"),
+        "task_label": target.get("task_label") or "",
+    })
+
+
+@require_POST
+@task_permissions_required("tasks_create")
+def project_meeting_agenda_item_task_create(request, project_id: int, meeting_id: int):
+    """Crea un'attivita' di commessa e la collega al punto ODG, dalla conduzione.
+
+    Durante l'incontro il punto spesso diventa un'attivita': senza questo
+    passaggio bisognava uscire dalla pagina, creare il task altrove e tornare a
+    collegarlo a mano.
+    """
+    project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
+    if not _can_manage_project(request, project):
+        return JsonResponse({"ok": False, "reason": "forbidden"}, status=403)
+
+    item_id = (request.POST.get("item_id") or "").strip()
+    items = meeting.agenda_items or []
+    target = None
+    for item in items:
+        if isinstance(item, dict) and str(item.get("id", "")) == item_id:
+            target = item
+            break
+    if target is None:
+        return JsonResponse({"ok": False, "reason": "item_not_found"}, status=404)
+
+    title = (request.POST.get("title") or "").strip()
+    if not title:
+        return JsonResponse({"ok": False, "reason": "title_required"}, status=400)
+
+    assigned_to = None
+    assigned_to_id = (request.POST.get("assigned_to") or "").strip()
+    if assigned_to_id:
+        assigned_to = User.objects.filter(pk=_safe_int(assigned_to_id)).first()
+    due_date = _parse_optional_date(request.POST.get("due_date") or "")
+    priority = (request.POST.get("priority") or TaskPriority.MEDIUM).strip().upper()
+    if priority not in (TaskPriority.LOW, TaskPriority.MEDIUM, TaskPriority.HIGH):
+        priority = TaskPriority.MEDIUM
+
+    nota = str(target.get("nota") or "").strip()
+    descrizione = f"Punto all'ordine del giorno dell'incontro #{meeting.numero} ({meeting.data:%d-%m-%Y})"
+    if nota:
+        descrizione = descrizione + "\n\n" + nota
+    with transaction.atomic():
+        task = Task.objects.create(
+            title=title[:220],
+            project=project,
+            assigned_to=assigned_to,
+            due_date=due_date,
+            priority=priority,
+            status=TaskStatus.TODO,
+            created_by=request.user if request.user.is_authenticated else None,
+            description=descrizione,
+        )
+        target["task_id"] = task.pk
+        target["task_label"] = task.title
+        meeting.agenda_items = items
+        meeting.save(update_fields=["agenda_items", "updated_at"])
+
+    log_action(request, "kickoff_task_from_agenda_item", "tasks", {
+        "task_id": task.pk, "item_id": item_id,
+        "meeting_id": meeting.pk, "project_id": project.pk,
+    })
+    return JsonResponse({
+        "ok": True,
+        "item_id": item_id,
+        "task_id": task.pk,
+        "task_label": task.title,
+        "task_url": reverse("tasks:detail", kwargs={"task_id": task.pk}),
     })
 
 

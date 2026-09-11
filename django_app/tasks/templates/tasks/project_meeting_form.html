@@ -169,7 +169,9 @@
             </div>
             <div class="mf-field">
               <label class="mf-label" for="new-agenda-title">Titolo <span class="req">*</span></label>
-              <input type="text" id="new-agenda-title" class="input" placeholder="Es. Stato avanzamento commessa, Gestione anomalie, Collaudo…" maxlength="200" style="width:100%;box-sizing:border-box">
+              <input type="text" id="new-agenda-title" class="input" placeholder="Es. Stato avanzamento commessa, Gestione anomalie, Collaudo…" maxlength="200" autocomplete="off" list="agenda-suggestions-datalist" style="width:100%;box-sizing:border-box">
+              <datalist id="agenda-suggestions-datalist"></datalist>
+              <p class="mf-hint" id="agenda-suggestions-hint" hidden>Inizia a scrivere: compaiono i punti già usati negli altri incontri. Scegliendone uno si precompilano nota e durata.</p>
             </div>
             <div class="mf-field">
               <label class="mf-label" for="new-agenda-nota">Nota aggiuntiva</label>
@@ -313,6 +315,7 @@
 {{ meeting_rooms_json|json_script:"meeting-rooms-data" }}
 {{ agenda_templates_json|json_script:"agenda-templates-data" }}
 {{ previous_agenda_json|json_script:"previous-agenda-data" }}
+{{ agenda_suggestions_json|json_script:"agenda-suggestions-data" }}
 
 <script>
 (function () {
@@ -429,6 +432,12 @@
       try { agenda = JSON.parse(raw.value) || []; } catch(e) { agenda = []; }
     }
     renderAgenda();
+  }
+
+  /* Id del punto: due punti aggiunti nello stesso millisecondo prendevano lo
+     stesso id, e in conduzione la nota/spunta finiva sempre sul primo dei due. */
+  function newAgendaItemId() {
+    return String(Date.now()) + '-' + Math.random().toString(36).slice(2, 8);
   }
 
   function saveAgendaToHidden() {
@@ -548,7 +557,7 @@
     const durata = durataEl && durataEl.value ? parseInt(durataEl.value) : null;
 
     agenda.push({
-      id: String(Date.now()),
+      id: newAgendaItemId(),
       titolo: title,
       nota: notaEl ? notaEl.value.trim() : '',
       task_id: taskId ? parseInt(taskId) : null,
@@ -573,6 +582,45 @@
   if (agendaConfirmBtn) agendaConfirmBtn.addEventListener('click', confirmAddItem);
   if (agendaCancelBtn)  agendaCancelBtn.addEventListener('click', hideAddForm);
   if (agendaCustomAddBtn) agendaCustomAddBtn.addEventListener('click', () => addCustomFieldRow());
+
+  /* ─── Suggerimenti ODG dagli incontri passati ─────────────────────── */
+  let agendaSuggestions = [];
+  try {
+    const el = document.getElementById('agenda-suggestions-data');
+    if (el) agendaSuggestions = JSON.parse(el.textContent) || [];
+  } catch (e) { agendaSuggestions = []; }
+  (function initAgendaSuggestions() {
+    const dl = document.getElementById('agenda-suggestions-datalist');
+    const titleEl = document.getElementById('new-agenda-title');
+    if (!dl || !titleEl || agendaSuggestions.length === 0) return;
+    agendaSuggestions.forEach(function (s) {
+      const opt = document.createElement('option');
+      opt.value = s.titolo;
+      /* L'etichetta dice quanto e' ricorrente il punto: aiuta a scegliere fra
+         due formulazioni simili senza aprire gli incontri passati. */
+      const bits = [];
+      if (s.usi > 1) bits.push('usato ' + s.usi + ' volte');
+      if (s.durata_minuti) bits.push(s.durata_minuti + ' min');
+      if (bits.length) opt.label = bits.join(' · ');
+      dl.appendChild(opt);
+    });
+    document.getElementById('agenda-suggestions-hint')?.removeAttribute('hidden');
+
+    /* Scegliendo un suggerimento si precompilano nota e durata, ma solo se
+       vuote: quello che l'utente ha gia' scritto non si sovrascrive mai. */
+    titleEl.addEventListener('input', function () {
+      const scelto = titleEl.value.trim().toLowerCase();
+      if (!scelto) return;
+      const match = agendaSuggestions.find(function (s) {
+        return String(s.titolo || '').trim().toLowerCase() === scelto;
+      });
+      if (!match) return;
+      const notaEl = document.getElementById('new-agenda-nota');
+      const durataEl = document.getElementById('new-agenda-durata');
+      if (notaEl && !notaEl.value.trim() && match.nota) notaEl.value = match.nota;
+      if (durataEl && !durataEl.value.trim() && match.durata_minuti) durataEl.value = match.durata_minuti;
+    });
+  })();
 
   /* Tasto Enter nel campo titolo aggiunge l'item */
   const newAgendaTitleEl = document.getElementById('new-agenda-title');
@@ -606,7 +654,7 @@
       const titolo = String(raw.titolo || '').trim();
       if (!titolo) return;
       agenda.push({
-        id: String(Date.now()) + '-' + i,
+        id: newAgendaItemId(),
         titolo: titolo,
         nota: String(raw.nota || '').trim(),
         task_id: null,

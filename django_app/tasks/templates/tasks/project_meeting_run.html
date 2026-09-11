@@ -26,7 +26,7 @@
   {% if agenda_items %}
     <div class="run-items">
       {% for item in agenda_items %}
-        <article class="run-item{% if item.done %} done{% endif %}" data-item-id="{{ item.id }}">
+        <article class="run-item{% if item.done %} done{% endif %}" data-item-id="{{ item.id }}" data-task-id="{{ item.task_id|default_if_none:'' }}">
           <header class="run-item-head">
             <span class="run-item-num">{{ forloop.counter }}</span>
             <h3 class="run-item-title">{{ item.titolo }}</h3>
@@ -37,6 +37,35 @@
 
           <textarea class="input run-item-nota" data-role="nota" rows="3"
                     placeholder="Cosa è emerso su questo punto (si salva da solo)">{{ item.nota }}</textarea>
+
+          {# Attivita' di commessa: il punto si collega a una esistente o ne genera una nuova #}
+          <div class="run-item-task" data-role="task-box">
+            <label class="tpl-inline">
+              Attività collegata
+              <select class="input" data-role="task-select" style="min-width:240px">
+                <option value="">— nessuna —</option>
+              </select>
+            </label>
+            <a class="mf-btn-sm ghost" data-role="task-link" href="#"{% if not item.task_id %} hidden{% endif %}>Apri attività</a>
+            <button type="button" class="mf-btn-sm ghost" data-role="task-new-toggle">+ Nuova attività</button>
+          </div>
+          <div class="run-item-task-new" data-role="task-new" hidden>
+            <input class="input" type="text" data-role="task-new-title" maxlength="200" placeholder="Titolo della nuova attività">
+            <select class="input" data-role="task-new-owner">
+              <option value="">Responsabile</option>
+              {% for u in active_users %}
+                <option value="{{ u.pk }}">{{ u.get_full_name|default:u.username }}</option>
+              {% endfor %}
+            </select>
+            <input class="input" type="date" data-role="task-new-due" title="Scadenza">
+            <select class="input" data-role="task-new-priority">
+              <option value="LOW">Priorità bassa</option>
+              <option value="MEDIUM" selected>Priorità media</option>
+              <option value="HIGH">Priorità alta</option>
+            </select>
+            <button type="button" class="mf-btn-sm primary" data-role="task-new-save">Crea e collega</button>
+            <button type="button" class="mf-btn-sm ghost" data-role="task-new-cancel">Annulla</button>
+          </div>
 
           <div class="run-item-actions">
             <button type="button" class="mf-btn-sm primary" data-role="toggle-done">
@@ -95,12 +124,21 @@
 {% endblock %}
 
 {% block tasks_shell_scripts %}
+{{ project_tasks_json|json_script:"project-tasks-data" }}
 <script>
 (function () {
   'use strict';
 
   const ITEM_URL = "{{ item_update_url }}";
   const CAPTURE_URL = "{{ quick_capture_url }}";
+  const TASK_CREATE_URL = "{{ item_task_create_url }}";
+  const TASK_DETAIL_URL_TEMPLATE = "{% url 'tasks:detail' 0 %}";
+
+  let projectTasks = [];
+  try {
+    const el = document.getElementById('project-tasks-data');
+    if (el) projectTasks = JSON.parse(el.textContent) || [];
+  } catch (e) { projectTasks = []; }
   const PLANNED = {{ planned_minutes|default:0 }};
 
   function csrfToken() {
@@ -180,6 +218,91 @@
         })
         .catch(function () {})
         .finally(function () { toggle.disabled = false; });
+    });
+
+    /* ─── Attività collegata al punto ──────────────────────────────── */
+    const taskSelect = card.querySelector('[data-role=task-select]');
+    const taskLink = card.querySelector('[data-role=task-link]');
+    const newBox = card.querySelector('[data-role=task-new]');
+    const newTitle = card.querySelector('[data-role=task-new-title]');
+
+    function paintTaskLink(taskId) {
+      if (!taskLink) return;
+      if (!taskId) { taskLink.hidden = true; taskLink.removeAttribute('href'); return; }
+      taskLink.href = TASK_DETAIL_URL_TEMPLATE.replace(/0(\/?)$/, String(taskId) + '$1');
+      taskLink.hidden = false;
+    }
+
+    if (taskSelect) {
+      /* Il menu si popola qui e non nel markup: le attività sono le stesse per
+         tutti i punti, ripeterle nel template moltiplicherebbe il DOM. */
+      projectTasks.forEach(function (t) {
+        const opt = document.createElement('option');
+        opt.value = String(t.id);
+        opt.textContent = t.title;
+        taskSelect.appendChild(opt);
+      });
+      const current = card.getAttribute('data-task-id') || '';
+      if (current) taskSelect.value = current;
+      paintTaskLink(current);
+
+      taskSelect.addEventListener('change', function () {
+        post(ITEM_URL, { item_id: itemId, task_id: taskSelect.value })
+          .then(function (data) {
+            if (!data || !data.ok) { return; }
+            card.setAttribute('data-task-id', data.task_id ? String(data.task_id) : '');
+            paintTaskLink(data.task_id);
+            flashSaved();
+          })
+          .catch(function () {});
+      });
+    }
+
+    card.querySelector('[data-role=task-new-toggle]')?.addEventListener('click', function () {
+      if (!newBox) return;
+      newBox.hidden = !newBox.hidden;
+      if (!newBox.hidden && newTitle) {
+        /* Il titolo del punto è quasi sempre il titolo dell'attività: si parte da lì. */
+        if (!newTitle.value.trim()) {
+          newTitle.value = (card.querySelector('.run-item-title')?.textContent || '').trim();
+        }
+        newTitle.focus();
+      }
+    });
+
+    card.querySelector('[data-role=task-new-cancel]')?.addEventListener('click', function () {
+      if (newBox) newBox.hidden = true;
+    });
+
+    card.querySelector('[data-role=task-new-save]')?.addEventListener('click', function (ev) {
+      const btn = ev.currentTarget;
+      const title = newTitle ? newTitle.value.trim() : '';
+      if (!title) { newTitle?.focus(); return; }
+      btn.disabled = true;
+      post(TASK_CREATE_URL, {
+        item_id: itemId,
+        title: title,
+        assigned_to: card.querySelector('[data-role=task-new-owner]')?.value || '',
+        due_date: card.querySelector('[data-role=task-new-due]')?.value || '',
+        priority: card.querySelector('[data-role=task-new-priority]')?.value || 'MEDIUM',
+      }).then(function (data) {
+        if (!data || !data.ok) return;
+        /* La nuova attività entra anche nei menu degli altri punti: senza
+           questo, per collegarla altrove bisognava ricaricare la pagina. */
+        projectTasks.push({ id: data.task_id, title: data.task_label, status: 'TODO' });
+        document.querySelectorAll('[data-role=task-select]').forEach(function (sel) {
+          const opt = document.createElement('option');
+          opt.value = String(data.task_id);
+          opt.textContent = data.task_label;
+          sel.appendChild(opt);
+        });
+        if (taskSelect) taskSelect.value = String(data.task_id);
+        card.setAttribute('data-task-id', String(data.task_id));
+        paintTaskLink(data.task_id);
+        if (newBox) newBox.hidden = true;
+        if (newTitle) newTitle.value = '';
+        flashSaved();
+      }).catch(function () {}).finally(function () { btn.disabled = false; });
     });
   });
 

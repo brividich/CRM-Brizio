@@ -15,6 +15,7 @@ from .tests_utils import make_project
 
 from tasks.models import (
     KickoffMeeting,
+    Task,
     MeetingIssue,
     MeetingIssueStatus,
     MeetingStatus,
@@ -637,6 +638,139 @@ class MeetingRunTests(TasksBaseTestCase):
             reverse("tasks:project_meeting_minutes", args=[self.project.id, self.meeting.id])
         )
         self.assertEqual(response.context["form"].initial["note"], "verbale scritto a mano")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class MeetingRunTaskLinkTests(TasksBaseTestCase):
+    """Dalla conduzione il punto si collega a un'attivita' o ne genera una nuova."""
+
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "tasks")
+        _grant_role_actions(2, ["tasks_view", "tasks_create"])
+        self._refresh_acl_cache()
+        self.user = _create_user_with_legacy(
+            username="conduci-task", legacy_user_id=591, role_id=2, role_name="tasks"
+        )
+        self.project = make_project(name="", created_by=self.user, project_manager=self.user)
+        self.meeting = KickoffMeeting.objects.create(
+            project=self.project,
+            data="2026-09-10",
+            created_by=self.user,
+            agenda_items=[
+                {"id": "a1", "titolo": "Collaudo linea", "nota": "manca il report", "done": False},
+                {"id": "a1", "titolo": "Fornitura viteria", "nota": "", "done": False},
+            ],
+        )
+        self.client.force_login(self.user)
+        self.run_url = reverse("tasks:project_meeting_run", args=[self.project.id, self.meeting.id])
+        self.item_url = reverse(
+            "tasks:project_meeting_agenda_item_update", args=[self.project.id, self.meeting.id]
+        )
+        self.task_create_url = reverse(
+            "tasks:project_meeting_agenda_item_task_create", args=[self.project.id, self.meeting.id]
+        )
+
+    def test_gli_id_duplicati_vengono_riparati_all_apertura(self):
+        response = self.client.get(self.run_url)
+        self.assertEqual(response.status_code, 200)
+        ids = [item["id"] for item in response.context["agenda_items"]]
+        self.assertEqual(len(set(ids)), 2)
+
+    def test_crea_attivita_dal_punto_e_la_collega(self):
+        self.client.get(self.run_url)
+        self.meeting.refresh_from_db()
+        item_id = self.meeting.agenda_items[0]["id"]
+        response = self.client.post(self.task_create_url, {
+            "item_id": item_id,
+            "title": "Chiudere il collaudo",
+            "assigned_to": str(self.user.pk),
+            "due_date": "2026-09-30",
+            "priority": "HIGH",
+        })
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+
+        task = Task.objects.get(pk=payload["task_id"])
+        self.assertEqual(task.project, self.project)
+        self.assertEqual(task.assigned_to, self.user)
+        self.assertEqual(task.priority, "HIGH")
+        # La nota del punto resta nella descrizione: e' il contesto di cui si parlava.
+        self.assertIn("manca il report", task.description)
+
+        self.meeting.refresh_from_db()
+        self.assertEqual(self.meeting.agenda_items[0]["task_id"], task.pk)
+        self.assertEqual(self.meeting.agenda_items[0]["task_label"], "Chiudere il collaudo")
+
+    def test_collega_e_scollega_un_attivita_esistente(self):
+        self.client.get(self.run_url)
+        self.meeting.refresh_from_db()
+        item_id = self.meeting.agenda_items[1]["id"]
+        task = Task.objects.create(title="Ordine viteria", project=self.project, created_by=self.user)
+
+        self.client.post(self.item_url, {"item_id": item_id, "task_id": str(task.pk)})
+        self.meeting.refresh_from_db()
+        self.assertEqual(self.meeting.agenda_items[1]["task_id"], task.pk)
+
+        self.client.post(self.item_url, {"item_id": item_id, "task_id": ""})
+        self.meeting.refresh_from_db()
+        self.assertIsNone(self.meeting.agenda_items[1]["task_id"])
+
+    def test_un_attivita_di_un_altra_commessa_non_si_collega(self):
+        altro_progetto = make_project(name="", created_by=self.user, project_manager=self.user)
+        estranea = Task.objects.create(title="Fuori commessa", project=altro_progetto, created_by=self.user)
+        self.client.get(self.run_url)
+        self.meeting.refresh_from_db()
+        item_id = self.meeting.agenda_items[0]["id"]
+
+        response = self.client.post(self.item_url, {"item_id": item_id, "task_id": str(estranea.pk)})
+        self.assertEqual(response.status_code, 404)
+        self.meeting.refresh_from_db()
+        self.assertIsNone(self.meeting.agenda_items[0].get("task_id"))
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AgendaSuggestionsTests(TasksBaseTestCase):
+    """I punti gia' usati negli altri incontri si ripropongono in fase di stesura."""
+
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "tasks")
+        _grant_role_actions(2, ["tasks_view", "tasks_create"])
+        self._refresh_acl_cache()
+        self.user = _create_user_with_legacy(
+            username="odg-suggerimenti", legacy_user_id=592, role_id=2, role_name="tasks"
+        )
+        self.project = make_project(name="", created_by=self.user, project_manager=self.user)
+        self.altro = make_project(name="", created_by=self.user, project_manager=self.user)
+        self.client.force_login(self.user)
+
+    def test_i_titoli_arrivano_anche_dagli_incontri_di_altre_commesse(self):
+        KickoffMeeting.objects.create(
+            project=self.altro, data="2026-09-01", created_by=self.user,
+            agenda_items=[
+                {"id": "x1", "titolo": "Stato avanzamento", "nota": "milestone", "durata_minuti": 15},
+                {"id": "x2", "titolo": "Problema tracciato", "issue_id": 7},
+            ],
+        )
+        KickoffMeeting.objects.create(
+            project=self.altro, data="2026-09-05", created_by=self.user,
+            agenda_items=[{"id": "x3", "titolo": "stato avanzamento", "nota": ""}],
+        )
+
+        response = self.client.get(
+            reverse("tasks:project_meeting_create", args=[self.project.id])
+        )
+        suggestions = response.context["agenda_suggestions_json"]
+        titoli = [s["titolo"] for s in suggestions]
+        self.assertIn("stato avanzamento", [t.lower() for t in titoli])
+        # I punti generati dai problemi tracciati non sono testo scritto da qualcuno.
+        self.assertNotIn("Problema tracciato", titoli)
+        primo = suggestions[0]
+        self.assertEqual(primo["usi"], 2)
+        # Nota e durata vengono dall'uso piu' recente.
+        self.assertEqual(primo["durata_minuti"], None)
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
