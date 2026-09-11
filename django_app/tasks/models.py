@@ -199,6 +199,23 @@ class Project(models.Model):
             if any(member.pk == user_id for member in self.team_members(field))
         ]
 
+    def default_name(self, kickoff_number=None) -> str:
+        """Nome proposto: «Cliente · P/N · KICK-OFF n».
+
+        «KICK-OFF 12» da solo non dice a chi appartiene la commessa: negli
+        elenchi e nelle email si riconosceva solo aprendola. Cliente e P/N
+        mancanti si saltano, cosi' il nome resta leggibile anche a scheda
+        incompleta.
+        """
+        numero = kickoff_number or self.kickoff_number
+        parti = [
+            (self.client_name or "").strip(),
+            (self.part_number or "").strip(),
+        ]
+        parti = [parte for parte in parti if parte]
+        parti.append(f"KICK-OFF {numero}" if numero else "KICK-OFF")
+        return " · ".join(parti)[:180]
+
     def save(self, *args, **kwargs):
         self.part_number = normalize_part_number(self.part_number)
         self.client_name = normalize_client_name(self.client_name)
@@ -210,13 +227,18 @@ class Project(models.Model):
 
         if self.kickoff_number:
             if not self.name:
-                self.name = f"KICK-OFF {self.kickoff_number}"
+                self.name = self.default_name()
             return super().save(*args, **kwargs)
 
+        # Un nome scritto a mano nel form vince sempre sulla proposta; qui si
+        # decide una volta sola, perche' a ogni tentativo il numero cambia e la
+        # proposta va ricomposta con quello nuovo.
+        nome_automatico = not (self.name or "").strip()
         max_attempts = 5
         for attempt in range(max_attempts):
             self.kickoff_number = _next_kickoff_number()
-            self.name = f"KICK-OFF {self.kickoff_number}"
+            if nome_automatico:
+                self.name = self.default_name()
             try:
                 with transaction.atomic():
                     return super().save(*args, **kwargs)

@@ -46,11 +46,17 @@
             <span class="kp-num">1</span>
             <div class="kp-station-titles">
               <h3>Identificazione kickoff</h3>
-              <p>Il nome è assegnato in automatico come <strong>KICK-OFF &lt;progressivo&gt;</strong>. Compila P/N, revisione e versione per evitare duplicati.</p>
+              <p>Il nome si compone da solo come <strong>Cliente · P/N · KICK-OFF &lt;progressivo&gt;</strong>, e resta modificabile. Compila P/N, revisione e versione per evitare duplicati.</p>
             </div>
           </div>
           <div class="kp-body">
             <div class="kp-grid">
+              <div class="kp-field col-2">
+                <label for="{{ form.name.id_for_label }}">Nome del kickoff</label>
+                {{ form.name }}
+                <div class="kp-help">Lascia vuoto per il nome proposto: <strong>Cliente · P/N · KICK-OFF &lt;progressivo&gt;</strong>.</div>
+                {% if form.name.errors %}<div class="kp-err">{{ form.name.errors|join:" " }}</div>{% endif %}
+              </div>
               <div class="kp-field col-2">
                 <label for="{{ form.client_name.id_for_label }}">Cliente <span class="kp-req">*</span></label>
                 {{ form.client_name }}
@@ -231,6 +237,24 @@
     input.addEventListener('input', loadSuggestions);
     input.addEventListener('change', loadSuggestions);
   }
+
+  /* Nome proposto: si vede come segnaposto mentre si compilano cliente e P/N,
+     cosi' chi non scrive nulla sa gia' come si chiamera' il kickoff. Il
+     progressivo lo assegna il server al salvataggio. */
+  (function proponiNome() {
+    const nameInput = document.getElementById('id_kickoff_name');
+    const clientInput = document.getElementById('{{ form.client_name.id_for_label }}');
+    const pnInput = document.getElementById('{{ form.part_number.id_for_label }}');
+    if (!nameInput || !clientInput) return;
+    function aggiorna() {
+      const parti = [clientInput.value.trim(), (pnInput ? pnInput.value.trim() : '')].filter(Boolean);
+      parti.push('KICK-OFF …');
+      nameInput.placeholder = parti.join(' · ');
+    }
+    clientInput.addEventListener('input', aggiorna);
+    pnInput?.addEventListener('input', aggiorna);
+    aggiorna();
+  })();
 
   attachIdentitySuggestions('{{ form.client_name.id_for_label }}', 'project-client-datalist', 'client');
   attachIdentitySuggestions('{{ form.part_number.id_for_label }}', 'project-part-number-datalist', 'part_number');

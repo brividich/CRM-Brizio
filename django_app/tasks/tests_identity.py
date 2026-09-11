@@ -59,6 +59,23 @@ class ProjectIdentityPersistenceTests(TasksBaseTestCase):
         super().setUp()
         self.user = User.objects.create_user(username="identity-owner", password="pass12345")
 
+    def test_il_nome_proposto_mette_cliente_e_pn_davanti_al_progressivo(self):
+        project = Project.objects.create(
+            name="", client_name="ACME", part_number="PN-4471", created_by=self.user,
+        )
+        self.assertEqual(project.name, f"ACME · PN-4471 · KICK-OFF {project.kickoff_number}")
+
+    def test_senza_cliente_e_pn_il_nome_resta_il_solo_progressivo(self):
+        project = Project.objects.create(name="", created_by=self.user)
+        self.assertEqual(project.name, f"KICK-OFF {project.kickoff_number}")
+
+    def test_un_nome_scritto_a_mano_non_viene_sostituito(self):
+        project = Project.objects.create(
+            name="Ripristino stampo urgente", client_name="ACME",
+            part_number="PN-9", created_by=self.user,
+        )
+        self.assertEqual(project.name, "Ripristino stampo urgente")
+
     def test_project_save_normalizes_identity_on_create_and_update(self):
         project = Project.objects.create(
             name="",
@@ -104,7 +121,8 @@ class ProjectIdentityPersistenceTests(TasksBaseTestCase):
 
         self.assertEqual(calls["count"], 2)
         self.assertEqual(project.kickoff_number, 102)
-        self.assertEqual(project.name, "KICK-OFF 102")
+        # Il nome si ricompone col numero del tentativo andato a buon fine.
+        self.assertEqual(project.name, "Cliente Retry · PN-RETRY · KICK-OFF 102")
         self.assertEqual(project.client_name, "Cliente Retry")
         self.assertEqual(project.part_number, "PN-RETRY")
 

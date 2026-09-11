@@ -1452,7 +1452,8 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         self.assertEqual(response.status_code, 302)
 
         copied_project = Project.objects.exclude(id=source_project.id).get()
-        self.assertTrue(copied_project.name.startswith("KICK-OFF "))
+        # Il nome proposto porta cliente e P/N davanti al progressivo.
+        self.assertIn("KICK-OFF ", copied_project.name)
         self.assertNotEqual(copied_project.kickoff_number, source_project.kickoff_number)
         self.assertEqual(copied_project.description, source_project.description)
         self.assertEqual(copied_project.client_name, source_project.client_name)

@@ -183,6 +183,7 @@ class ProjectKickoffForm(forms.ModelForm):
     class Meta:
         model = Project
         fields = [
+            "name",
             "client_name",
             "part_number",
             "revisione",
@@ -195,6 +196,7 @@ class ProjectKickoffForm(forms.ModelForm):
             "vrf_esp",
         ]
         widgets = {
+            "name":             forms.TextInput(attrs={"class": "input", "maxlength": 180, "id": "id_kickoff_name"}),
             "client_name":      forms.TextInput(attrs={"class": "input", "maxlength": 180, "placeholder": "Cliente"}),
             "part_number":      forms.TextInput(attrs={"class": "input", "maxlength": 120, "placeholder": "P/N"}),
             "revisione":        forms.TextInput(attrs={"class": "input", "maxlength": 60,  "placeholder": "es. A, B, 01"}),
@@ -217,10 +219,16 @@ class ProjectKickoffForm(forms.ModelForm):
         self.fields["caporeparti"].queryset      = _users_for_role(TaskRoleType.CAPOREPARTO)
         for _name in self.TEAM_FIELDS:
             self.fields[_name].label_from_instance = user_display_label
-        for name in ("part_number", "revisione", "versione",
+        for name in ("name", "part_number", "revisione", "versione",
                      "description", "control_method", "vrf_quote_number",
                      "vrf_description", "vrf_esp"):
             self.fields[name].required = False
+        # Il nome si compone da solo come «Cliente · P/N · KICK-OFF n»: qui resta
+        # scrivibile per i casi in cui quella formula non basta.
+        self.fields["name"].label = "Nome del kickoff"
+        self.fields["name"].help_text = (
+            "Lascia vuoto per il nome proposto: «Cliente · P/N · KICK-OFF n»."
+        )
 
     def clean(self):
         cleaned = super().clean()
