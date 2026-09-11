@@ -139,3 +139,78 @@ class AclCleanupCommandTest(TestCase):
         self._run("--apply", "--sync-legacy")
         cache.clear()
         self.assertTrue(self._can("legacy.assets.admin_assets"))
+
+    def test_path_servito_da_due_route_non_perde_l_accesso(self):
+        """Due route sullo stesso path: a runtime ne vince una sola.
+
+        Regressione osservata in dev: /tasks/projects e' servito da
+        ``project_list`` e ``tasks:project_list``. Il comando conservava
+        l'accesso sul permesso del binding che stava esaminando, mentre il
+        resolver ne usava un altro, e due ruoli restavano fuori.
+        """
+        gemello = PermissionDefinition.objects.create(
+            code="assets.gestione_admin_alias.view", label="Alias", module="assets"
+        )
+        # Stesso path del binding proprio, ma con un altro route_name: e' la
+        # coppia che a runtime si contende la pagina.
+        RoutePermissionBinding.objects.create(
+            route_name="gestione_admin",
+            permission=gemello,
+            is_active=False,
+            priority=200,
+        )
+
+        self._run("--apply")
+        cache.clear()
+
+        # Qualunque dei due vinca, il ruolo che entrava prima deve entrare ancora.
+        self.assertTrue(self._can(OWN_CODE) or self._can("assets.gestione_admin_alias.view"))
+        from core.acl_v2 import resolve_acl_access
+
+        decisione = resolve_acl_access(
+            path="/assets/impostazioni/",
+            legacy_user=self.legacy_user,
+            django_user=None,
+            include_legacy_diagnostic=False,
+        )
+        self.assertTrue(decisione["allowed"], decisione.get("reason"))
+
+    def test_il_report_segnala_le_pagine_che_si_aprirebbero(self):
+        """Il binding riattivato puo' puntare a un permesso generico gia' dato.
+
+        Caso visto in dev: /assenze/gestione-admin e' finita sotto
+        ``assenze.route.view``, che il ruolo "utente" aveva gia'. Nessuno perde
+        accesso, ma una pagina amministrativa si apre: il report deve dirlo
+        prima, non dopo.
+        """
+        generico = PermissionDefinition.objects.create(
+            code="assets.generico.view", label="Permesso generico", module="assets"
+        )
+        RolePermissionGrant.objects.create(
+            legacy_role_id=RUOLO_ID, permission=generico, enabled=True
+        )
+        # Route FUORI dal prefisso /assets: oggi il ruolo non entra (nessun
+        # binding, nessun pulsante legacy), domani entrerebbe grazie al permesso
+        # generico che gia' possiede.
+        RoutePermissionBinding.objects.create(
+            route_name="tasks:project_list",
+            permission=generico,
+            is_active=False,
+            priority=200,
+        )
+        import json
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            report_path = Path(tmp) / "report.json"
+            output = self._run("--report", str(report_path))
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+
+        widened = report["access_widened"]
+        self.assertTrue(widened, "il report deve elencare le pagine che si aprirebbero")
+        self.assertTrue(
+            any(row["permission"] == "assets.generico.view" for row in widened),
+            widened,
+        )
+        self.assertIn("APRIREBBERO", output)

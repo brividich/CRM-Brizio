@@ -20,7 +20,9 @@ Dry-run per default. Esempi:
 """
 from __future__ import annotations
 
+import collections
 import contextlib
+import copy
 import json
 import logging
 import re
@@ -32,7 +34,7 @@ from django.db import transaction
 
 from core.acl import check_permesso, normalize_acl_path
 from core.acl_resolver import resolve_permission_decision
-from core.acl_v2 import _find_canonical_binding
+from core.acl_v2 import _find_canonical_binding, resolve_route_name
 from core.legacy_models import Ruolo, UtenteLegacy
 from core.legacy_utils import is_legacy_admin
 from core.models import (
@@ -46,6 +48,7 @@ _SAMPLE_SEGMENT_RE = re.compile(r"<[^>]+>")
 GRANDFATHER_NOTE = "[ACL_CLEANUP] grandfathering: accesso preesistente conservato"
 REACTIVATION_NOTE = "[ACL_CLEANUP] binding per-route riattivato"
 LEGACY_SYNC_NOTE = "[ACL_CLEANUP] riallineato al permesso legacy concesso nel pannello"
+LEGACY_SYNC_UNDONE_NOTE = "[ACL_CLEANUP] riallineamento annullato"
 BACKUP_MODELS = (
     ("route_bindings", RoutePermissionBinding),
     ("role_grants", RolePermissionGrant),
@@ -99,6 +102,20 @@ class Command(BaseCommand):
             "--limit", type=int, default=0, help="Analizza solo i primi N binding (per prove rapide)."
         )
         parser.add_argument(
+            "--sync-legacy-wide",
+            action="store_true",
+            help=(
+                "Riallinea ANCHE i permessi che governano piu' di una route (binding di "
+                "prefisso): uno solo puo' riaprire un intero modulo. Da usare dopo aver "
+                "letto l'elenco nel report, mai alla cieca."
+            ),
+        )
+        parser.add_argument(
+            "--undo-sync-legacy",
+            action="store_true",
+            help="Riporta a False i grant riallineati da una corsa precedente (nota [ACL_CLEANUP]).",
+        )
+        parser.add_argument(
             "--sync-legacy",
             action="store_true",
             help=(
@@ -136,7 +153,9 @@ class Command(BaseCommand):
             "bindings_orphan_route": [],
             "role_grants_to_create": [],
             "user_grants_to_create": [],
+            "access_widened": [],
             "legacy_divergences": [],
+            "legacy_divergences_wide": [],
         }
 
         with _quiet_acl_warnings():
@@ -149,13 +168,20 @@ class Command(BaseCommand):
                 report=report,
             )
 
-        report["legacy_divergences"] = self._collect_legacy_divergences()
+        narrow, wide = self._split_wide_divergences(self._collect_legacy_divergences(), path_map)
+        report["legacy_divergences"] = narrow
+        report["legacy_divergences_wide"] = wide
 
         if apply_changes:
             backup_dir = opts.get("backup_dir")
             if backup_dir:
                 self._write_backup(Path(backup_dir))
-            self._apply(report, sync_legacy=bool(opts.get("sync_legacy")))
+            self._apply(
+                report,
+                sync_legacy=bool(opts.get("sync_legacy")),
+                sync_legacy_wide=bool(opts.get("sync_legacy_wide")),
+                undo_sync_legacy=bool(opts.get("undo_sync_legacy")),
+            )
 
         self._render(report, apply_changes=apply_changes)
         if opts.get("report"):
@@ -165,6 +191,12 @@ class Command(BaseCommand):
 
     def _analyze(self, *, candidates, path_map, active_bindings, roles, simulated, report) -> None:
         """Confronto prima/dopo per ogni binding candidato."""
+        activated_candidates = []
+        for candidate in candidates:
+            clone = copy.copy(candidate)
+            clone.is_active = True
+            activated_candidates.append(clone)
+
         for binding in candidates:
             path = path_map.get(str(binding.route_name or "").lower())
             if not path:
@@ -173,11 +205,26 @@ class Command(BaseCommand):
                 report["bindings_orphan_route"].append(binding.route_name)
                 continue
 
-            new_code = str(binding.permission_id)
+            # Il route_name da cui dipende tutto e' quello che il RESOLVER ricava
+            # dal path, non quello scritto sul binding: quando due route servono lo
+            # stesso path (project_list e tasks:project_list) i due valori divergono,
+            # e basta questo per calcolare prima/dopo su permessi che a runtime non
+            # verranno mai usati - lasciando fuori chi entrava.
+            runtime_route = resolve_route_name(path) or binding.route_name
+
             old_binding, matched_by = _find_canonical_binding(
-                route_name=binding.route_name, path_norm=path, bindings=active_bindings
+                route_name=runtime_route, path_norm=path, bindings=active_bindings
             )
             old_code = str(old_binding.permission_id) if old_binding is not None else ""
+
+            # Copie attivate: il matcher in-memory scarta i binding con
+            # is_active=False, e i candidati lo sono ancora. Non si salva nulla,
+            # serve solo a simulare lo stato successivo.
+            post_bindings = active_bindings + activated_candidates
+            effective, _matched = _find_canonical_binding(
+                route_name=runtime_route, path_norm=path, bindings=post_bindings
+            )
+            new_code = str(effective.permission_id) if effective is not None else str(binding.permission_id)
 
             entry = {
                 "binding_id": int(binding.id),
@@ -199,14 +246,29 @@ class Command(BaseCommand):
                     before = self._allowed_before(
                         old_binding=old_binding, path=path, legacy_user=legacy_user
                     )
-                    if not before:
-                        continue
                     after = resolve_permission_decision(
                         permission_code=new_code,
                         legacy_user=legacy_user,
                         allow_superuser=False,
                         allow_legacy_admin=False,
                     ).allowed
+                    if not before:
+                        # Il rovescio del grandfathering: il binding riattivato puo'
+                        # puntare a un permesso GENERICO gia' concesso, e allora la
+                        # pagina si apre a chi prima non entrava. Non si blocca
+                        # nulla - va deciso caso per caso, di solito dando a quella
+                        # pagina un permesso proprio - ma deve saperlo prima.
+                        if after:
+                            report["access_widened"].append(
+                                {
+                                    "legacy_role_id": int(role.id),
+                                    "ruolo": role.nome,
+                                    "route": binding.route_name,
+                                    "path": path,
+                                    "permission": new_code,
+                                }
+                            )
+                        continue
                     if after:
                         continue
                     entry["roles_grandfathered"].append({"id": int(role.id), "nome": role.nome})
@@ -270,6 +332,30 @@ class Command(BaseCommand):
             ).allowed
         return bool(check_permesso(legacy_user, path))
 
+    def _split_wide_divergences(self, divergences: list[dict], path_map: dict[str, str]) -> tuple[list[dict], list[dict]]:
+        """Separa le divergenze "di pagina" da quelle che aprono un sottoalbero.
+
+        Nel legacy un permesso e' un pulsante, cioe' una pagina. Nel canonico lo
+        stesso codice puo' stare su un binding di PREFISSO e governare tutto cio'
+        che sta sotto: riallineare ``legacy.anagrafica.anagrafica_index`` non
+        riapre l'indice, riapre l'intero modulo anagrafica. Quelle vanno decise
+        una per una, non in blocco.
+        """
+        governed: dict[str, int] = {}
+        for code in {row["permission"] for row in divergences}:
+            count = 0
+            for path in set(path_map.values()):
+                binding, _matched = _find_canonical_binding(route_name="", path_norm=path)
+                if binding is not None and str(binding.permission_id) == code:
+                    count += 1
+            governed[code] = count
+
+        narrow, wide = [], []
+        for row in divergences:
+            row = dict(row, routes_governed=governed.get(row["permission"], 0))
+            (wide if row["routes_governed"] > 1 else narrow).append(row)
+        return narrow, wide
+
     def _collect_legacy_divergences(self) -> list[dict]:
         """Grant canonici a False che il legacy oggi concede.
 
@@ -307,7 +393,8 @@ class Command(BaseCommand):
             self.stdout.write(f"Backup {name}: {target}")
 
     @transaction.atomic
-    def _apply(self, report: dict, *, sync_legacy: bool) -> None:
+    def _apply(self, report: dict, *, sync_legacy: bool, sync_legacy_wide: bool = False,
+               undo_sync_legacy: bool = False) -> None:
         for row in report["role_grants_to_create"]:
             grant, created = RolePermissionGrant.objects.get_or_create(
                 legacy_role_id=row["legacy_role_id"],
@@ -329,9 +416,18 @@ class Command(BaseCommand):
         binding_ids = [entry["binding_id"] for entry in report["bindings_to_activate"]]
         RoutePermissionBinding.objects.filter(id__in=binding_ids).update(is_active=True, priority=120)
 
+        if undo_sync_legacy:
+            undone = RolePermissionGrant.objects.filter(note=LEGACY_SYNC_NOTE).update(
+                enabled=False, note=LEGACY_SYNC_UNDONE_NOTE
+            )
+            report["legacy_sync_undone"] = int(undone)
+
         if sync_legacy:
+            to_sync = list(report["legacy_divergences"])
+            if sync_legacy_wide:
+                to_sync += list(report.get("legacy_divergences_wide") or [])
             RolePermissionGrant.objects.filter(
-                id__in=[row["id"] for row in report["legacy_divergences"]]
+                id__in=[row["id"] for row in to_sync]
             ).update(enabled=True, note=LEGACY_SYNC_NOTE)
 
         from core.legacy_cache import bump_legacy_cache_version
@@ -349,6 +445,31 @@ class Command(BaseCommand):
             f"Grant canonici che ignorano il legacy: {len(report['legacy_divergences'])} "
             "(riallineati solo con --sync-legacy)"
         )
+        wide = report.get("legacy_divergences_wide") or []
+        if wide:
+            self.stdout.write(self.style.WARNING(
+                f"  di cui AD AMPIO RAGGIO, esclusi: {len(wide)} - un solo grant riaprirebbe "
+                "piu' pagine (binding di prefisso). Vanno decisi uno per uno:"
+            ))
+            for row in wide[:10]:
+                self.stdout.write(
+                    f"    ruolo {row['legacy_role_id']}: {row['permission']} "
+                    f"-> governa {row['routes_governed']} route"
+                )
+        if report.get("legacy_sync_undone"):
+            self.stdout.write(f"Riallineamenti annullati        : {report['legacy_sync_undone']}")
+        widened = report.get("access_widened") or []
+        if widened:
+            per_role = collections.Counter(row["ruolo"] for row in widened)
+            self.stdout.write(self.style.WARNING(
+                f"Pagine che si APRIREBBERO           : {len(widened)} "
+                "(il binding punta a un permesso generico gia' concesso)"
+            ))
+            for ruolo, n in per_role.most_common(6):
+                self.stdout.write(f"    {ruolo}: {n}")
+            for row in widened[:5]:
+                self.stdout.write(f"    es. {row['ruolo']} -> {row['path']} ({row['permission']})")
+
         changed = [e for e in report["bindings_to_activate"] if e["old_permission"] != e["new_permission"]]
         self.stdout.write(f"Pagine che cambiano permesso     : {len(changed)}")
         for entry in changed[:10]:

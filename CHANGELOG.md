@@ -27,6 +27,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ### Fixed
 
+- **ACL · `acl_cleanup`: tre difetti trovati applicandolo davvero** (`django_app/core/management/commands/acl_cleanup.py`, `django_app/core/test_acl_cleanup_command.py`). La prima applicazione reale (su dev, con confronto indipendente prima/dopo ricostruito dai backup) ha mostrato **4 accessi persi** e **300 guadagnati**, entrambi non voluti.
+  1. **Path serviti da due route.** `/tasks/projects` è servito sia da `project_list` sia da `tasks:project_list`: il comando calcolava prima/dopo sul `route_name` scritto nel binding, mentre a runtime vince quello che il **resolver ricava dal path**. Conservava quindi l'accesso su un permesso che nessuno avrebbe mai usato, e due ruoli restavano fuori. Ora entrambi i lati del confronto partono da `resolve_route_name(path)`. Il calcolo del "dopo" usava inoltre i binding candidati **così com'erano, cioè inattivi**, e il matcher in-memory li scartava: ora riceve copie già attivate (mai salvate).
+  2. **`--sync-legacy` ad ampio raggio.** Nel legacy un permesso è un pulsante, cioè una pagina; nel canonico lo stesso codice può stare su un binding di **prefisso**. Riallineare `legacy.anagrafica.anagrafica_index` non ha riaperto l'indice: ha aperto **l'intero modulo anagrafica** al caporeparto, 223 route. Ora il comando misura quante route governa ogni permesso divergente e **esclude** quelli che ne governano più di una, elencandoli a parte nel report; per farlo comunque serve `--sync-legacy-wide`, e `--undo-sync-legacy` annulla una corsa precedente.
+  3. **Pagine che si aprono.** Il rovescio del grandfathering: un binding riattivato può puntare a un permesso **generico già concesso**, e allora la pagina si apre a chi prima non entrava — è successo a `/assenze/gestione-admin`, finita sotto `assenze.route.view` che il ruolo "utente" possiede. Non si blocca nulla, ma ora il report ha una sezione **`access_widened`** e il riepilogo le conta per ruolo: si decidono prima, di solito dando a quella pagina un permesso proprio.
+
+  Dopo le correzioni, sullo stesso DB: **accessi persi 0**, guadagni scesi da 300 a 99 (tutti da esaminare con la nuova sezione del report).
+
+
 - **ACL · il test del gate impostazioni ora riproduce la condizione di produzione** (`django_app/assets/tests_acl_impostazioni_gate.py`). I test esistenti passavano **anche col difetto**: nel DB di test il catalogo canonico è vuoto, quindi scattava il fallback sui permessi legacy e la concessione sembrava funzionare. In produzione il catalogo esiste e la riga `RolePermissionGrant(enabled=False)` lo spegne. Aggiunti i due casi mancanti: con grant canonico a `False` il permesso legacy non basta (403), e un **gruppo** con priorità riapre la pagina scavalcando il ruolo (200).
 
 ### Changed
