@@ -260,6 +260,7 @@ Superficie minima ed estendibile per chat AI locale, servita da Django e protett
 
 Sostituisce il Django admin nativo con un pannello ritagliato sulle operazioni reali del portale.
 
+- **Home catalogo** (`/admin-portale/`): tutte le pagine del pannello sono elencate come schede nelle sezioni Utenti & Accessi, Navigazione & Menu, Automazioni, Monitoraggio, Configurazione, Sistema & Diagnostica, Hub Tools, Pannelli Moduli, Deploy e Versioning — comprese Gestione Ruoli, Matrice Permessi, Import Utenti LDAP, Wizard Pulsante, Mappa Permessi/Navigazione, Branding & Favicon, Gestione Notifiche, Bacheca, ACL Canonico, ACL Route Coverage, Log Notifiche e FAQ & Knowledge AI
 - **Gestione accessi** semplici canonico-first con toggle per modulo su `RolePermissionGrant`
 - **ACL canonico** con 5 tab (Permission, Binding, Role grant, User override, Nav override)
 - **ACL route coverage** report con stati e export CSV

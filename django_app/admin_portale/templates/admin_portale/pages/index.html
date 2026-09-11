@@ -376,7 +376,7 @@ body.theme-dark .ap-qn-pill:hover { background: var(--accent-light); color: var(
     <div class="ap-section-head">
       <div class="ap-section-icon">👤</div>
       <div class="ap-section-title">Utenti &amp; Accessi</div>
-      <span class="ap-section-count">6 strumenti</span>
+      <span class="ap-section-count">9 strumenti</span>
     </div>
     <div class="modules-grid">
       <a class="mod" href="{% url 'admin_portale:utenti_list' %}">
@@ -389,8 +389,8 @@ body.theme-dark .ap-qn-pill:hover { background: var(--accent-light); color: var(
       <a class="mod" href="{% url 'admin_portale:accessi' %}">
         <div class="mod-icon">🛡️</div>
         <div>
-          <div class="mod-name">Accessi Semplici</div>
-          <div class="mod-sub">Gestione rapida ruoli — accesso modulo + pulsanti attivi</div>
+          <div class="mod-name">Accessi</div>
+          <div class="mod-sub">Pannello unico: gruppi con priorità, ruoli e utenti — scrive i grant canonici</div>
         </div>
       </a>
       <a class="mod" href="{% url 'admin_portale:accessi_avanzati' %}">
@@ -421,6 +421,27 @@ body.theme-dark .ap-qn-pill:hover { background: var(--accent-light); color: var(
           <div class="mod-sub">Policy, ruoli soggetti, reti interne, OTP/TOTP per utente</div>
         </div>
       </a>
+      <a class="mod" href="{% url 'admin_portale:ruoli_list' %}">
+        <div class="mod-icon">🎭</div>
+        <div>
+          <div class="mod-name">Gestione Ruoli</div>
+          <div class="mod-sub">Elenco ruoli legacy con conteggio utenti, creazione, rinomina ed eliminazione</div>
+        </div>
+      </a>
+      <a class="mod" href="{% url 'admin_portale:matrice_permessi' %}">
+        <div class="mod-icon">🧮</div>
+        <div>
+          <div class="mod-name">Matrice Permessi</div>
+          <div class="mod-sub">Griglia pulsanti × ruoli di un modulo, per confrontare e correggere in blocco</div>
+        </div>
+      </a>
+      <a class="mod" href="{% url 'admin_portale:ldap_import_utenti' %}">
+        <div class="mod-icon">📥</div>
+        <div>
+          <div class="mod-name">Import Utenti LDAP</div>
+          <div class="mod-sub">Importazione selettiva degli account da Active Directory</div>
+        </div>
+      </a>
     </div>
   </div>
 
@@ -429,7 +450,7 @@ body.theme-dark .ap-qn-pill:hover { background: var(--accent-light); color: var(
     <div class="ap-section-head">
       <div class="ap-section-icon">🧭</div>
       <div class="ap-section-title">Navigazione &amp; Menu</div>
-      <span class="ap-section-count">4 strumenti</span>
+      <span class="ap-section-count">6 strumenti</span>
     </div>
     <div class="modules-grid">
       <a class="mod" href="{% url 'admin_portale:pulsanti' %}">
@@ -458,6 +479,20 @@ body.theme-dark .ap-qn-pill:hover { background: var(--accent-light); color: var(
         <div>
           <div class="mod-name">Admin Subnav</div>
           <div class="mod-sub">Aggiungi, rinomina, riordina e descrivi le voci della barra in questa pagina</div>
+        </div>
+      </a>
+      <a class="mod" href="{% url 'admin_portale:wizard_pulsante' %}">
+        <div class="mod-icon">✨</div>
+        <div>
+          <div class="mod-name">Wizard Pulsante</div>
+          <div class="mod-sub">Crea un pulsante passo per passo, con i permessi già collegati</div>
+        </div>
+      </a>
+      <a class="mod" href="{% url 'admin_portale:mappa_permessi_navigazione' %}">
+        <div class="mod-icon">🗺️</div>
+        <div>
+          <div class="mod-name">Mappa Permessi/Navigazione</div>
+          <div class="mod-sub">Vista unica route, menu, ruoli, override e redirect legacy</div>
         </div>
       </a>
     </div>
@@ -579,7 +614,7 @@ body.theme-dark .ap-qn-pill:hover { background: var(--accent-light); color: var(
     <div class="ap-section-head">
       <div class="ap-section-icon">⚙️</div>
       <div class="ap-section-title">Configurazione</div>
-      <span class="ap-section-count">3 strumenti</span>
+      <span class="ap-section-count">6 strumenti</span>
     </div>
     <div class="modules-grid">
 
@@ -604,6 +639,27 @@ body.theme-dark .ap-qn-pill:hover { background: var(--accent-light); color: var(
           <div class="mod-sub">Voci check-in / check-out e monitoraggio stato per dipendente</div>
         </div>
       </a>
+      <a class="mod" href="{% url 'admin_portale:branding_config' %}">
+        <div class="mod-icon">🖼️</div>
+        <div>
+          <div class="mod-name">Branding &amp; Favicon</div>
+          <div class="mod-sub">Favicon del portale: caricamento, anteprima e rimozione</div>
+        </div>
+      </a>
+      <a class="mod" href="{% url 'admin_portale:notifiche_config' %}">
+        <div class="mod-icon">🔔</div>
+        <div>
+          <div class="mod-name">Gestione Notifiche</div>
+          <div class="mod-sub">Interruttore globale per categoria di notifica, con enforcement reale</div>
+        </div>
+      </a>
+      <a class="mod" href="{% url 'admin_portale:bacheca' %}">
+        <div class="mod-icon">📌</div>
+        <div>
+          <div class="mod-name">Bacheca: Documenti &amp; Collegamenti</div>
+          <div class="mod-sub">Categorie, link e documenti della home, con visibilità per ruolo</div>
+        </div>
+      </a>
     </div>
   </div>
 
@@ -612,7 +668,7 @@ body.theme-dark .ap-qn-pill:hover { background: var(--accent-light); color: var(
     <div class="ap-section-head">
       <div class="ap-section-icon">🔧</div>
       <div class="ap-section-title">Sistema &amp; Diagnostica</div>
-      <span class="ap-section-count">8 strumenti</span>
+      <span class="ap-section-count">12 strumenti</span>
     </div>
     <div class="modules-grid">
       <a class="mod" href="{% url 'admin_portale:audit_log' %}">
@@ -675,6 +731,34 @@ body.theme-dark .ap-qn-pill:hover { background: var(--accent-light); color: var(
         <div>
           <div class="mod-name">GuestPortal SSO</div>
           <div class="mod-sub">Accedi al pannello WiFi guest con credenziali AD</div>
+        </div>
+      </a>
+      <a class="mod" href="{% url 'admin_portale:acl_canonico' %}">
+        <div class="mod-icon">V2</div>
+        <div>
+          <div class="mod-name">ACL Canonico</div>
+          <div class="mod-sub">Permission code, binding route/path e grant di ruolo nel layer canonico</div>
+        </div>
+      </a>
+      <a class="mod" href="{% url 'admin_portale:acl_route_coverage' %}">
+        <div class="mod-icon">RPT</div>
+        <div>
+          <div class="mod-name">ACL Route Coverage</div>
+          <div class="mod-sub">Classifica ogni route in canonical, legacy fallback, unbound o redirect only</div>
+        </div>
+      </a>
+      <a class="mod" href="{% url 'admin_portale:notifiche_log' %}">
+        <div class="mod-icon">📨</div>
+        <div>
+          <div class="mod-name">Log Notifiche</div>
+          <div class="mod-sub">Cosa e' partito davvero e a chi: filtri per tipo, utente, stato e giorni</div>
+        </div>
+      </a>
+      <a class="mod" href="{% url 'admin_portale:ai_knowledge' %}">
+        <div class="mod-icon">💡</div>
+        <div>
+          <div class="mod-name">FAQ &amp; Knowledge AI</div>
+          <div class="mod-sub">Domande e risposte curate servite dall'assistente, con i feedback da approvare</div>
         </div>
       </a>
     </div>
