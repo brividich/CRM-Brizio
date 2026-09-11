@@ -65,6 +65,9 @@
             </select>
             <button type="button" class="mf-btn-sm primary" data-role="task-new-save">Crea e collega</button>
             <button type="button" class="mf-btn-sm ghost" data-role="task-new-cancel">Annulla</button>
+            {# Qui si creano attivita' essenziali: asset, tooling e reminder stanno nel form completo. #}
+            <a class="mf-btn-sm ghost" href="{% url 'tasks:create' %}?project={{ project.id }}" target="_blank" rel="noopener">Form completo</a>
+            <span class="run-item-task-err" data-role="task-new-err" hidden></span>
           </div>
 
           <div class="run-item-actions">
@@ -286,7 +289,17 @@
         due_date: card.querySelector('[data-role=task-new-due]')?.value || '',
         priority: card.querySelector('[data-role=task-new-priority]')?.value || 'MEDIUM',
       }).then(function (data) {
-        if (!data || !data.ok) return;
+        const err = card.querySelector('[data-role=task-new-err]');
+        if (!data || !data.ok) {
+          /* Il kickoff bloccato per VRF mancante e' un no motivato, non un
+             silenzio: senza messaggio il pulsante sembrava non funzionare. */
+          if (err) {
+            err.textContent = (data && data.message) || 'Attività non creata.';
+            err.hidden = false;
+          }
+          return;
+        }
+        if (err) err.hidden = true;
         /* La nuova attività entra anche nei menu degli altri punti: senza
            questo, per collegarla altrove bisognava ricaricare la pagina. */
         projectTasks.push({ id: data.task_id, title: data.task_label, status: 'TODO' });

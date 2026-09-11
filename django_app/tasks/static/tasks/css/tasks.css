@@ -1952,6 +1952,8 @@ body.theme-dark .tf-asset-conflict-list li { background:rgba(255,255,255,.05); }
 /* `display:flex` batterebbe l'attributo hidden: il pannello «nuova attivita'»
    e il link all'attivita' resterebbero a video sempre. */
 .run-item-task-new[hidden], .run-item-task [hidden] { display: none !important; }
+.run-item-task-new[hidden], .run-item-task-err[hidden] { display: none !important; }
+.run-item-task-err { flex: 1 1 100%; font-size: .8rem; color: var(--danger); font-weight: 600; }
 .run-item-task-new [data-role="task-new-title"] { flex: 1 1 240px; min-width: 200px; }
 .run-capture-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .run-capture-form .input { width: auto; min-width: 140px; }

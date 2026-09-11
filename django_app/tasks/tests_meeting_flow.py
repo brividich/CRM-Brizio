@@ -703,6 +703,22 @@ class MeetingRunTaskLinkTests(TasksBaseTestCase):
         self.assertEqual(self.meeting.agenda_items[0]["task_id"], task.pk)
         self.assertEqual(self.meeting.agenda_items[0]["task_label"], "Chiudere il collaudo")
 
+    def test_un_kickoff_bloccato_per_vrf_non_accetta_nuove_attivita(self):
+        from unittest.mock import patch as _patch
+
+        self.client.get(self.run_url)
+        self.meeting.refresh_from_db()
+        item_id = self.meeting.agenda_items[0]["id"]
+        bloccato = {"status": "blocked", "label": "", "is_blocked": True,
+                    "days_pending": 9, "show_upload_cta": True}
+        with _patch("tasks.views._vrf_status_detail", return_value=bloccato):
+            response = self.client.post(self.task_create_url, {
+                "item_id": item_id, "title": "Non deve nascere",
+            })
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["reason"], "vrf_blocked")
+        self.assertFalse(Task.objects.filter(title="Non deve nascere").exists())
+
     def test_collega_e_scollega_un_attivita_esistente(self):
         self.client.get(self.run_url)
         self.meeting.refresh_from_db()

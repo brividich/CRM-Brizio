@@ -7671,6 +7671,20 @@ def project_meeting_agenda_item_task_create(request, project_id: int, meeting_id
     if not title:
         return JsonResponse({"ok": False, "reason": "title_required"}, status=400)
 
+    # Stessa guardia del form completo (`task_create`): su un kickoff bloccato per
+    # VRF mancante non si creano attivita', e questa scorciatoia non puo' essere
+    # la via per aggirarla.
+    vrf_detail = _vrf_status_detail(project, TaskImpostazioni.get_singleton())
+    if vrf_detail["is_blocked"]:
+        return JsonResponse({
+            "ok": False,
+            "reason": "vrf_blocked",
+            "message": "Kickoff bloccato: carica il documento VRF prima di creare attività.",
+            "vrf_upload_url": reverse(
+                "tasks:project_vrf_upload", kwargs={"project_id": project.pk}
+            ),
+        }, status=409)
+
     assigned_to = None
     assigned_to_id = (request.POST.get("assigned_to") or "").strip()
     if assigned_to_id:
