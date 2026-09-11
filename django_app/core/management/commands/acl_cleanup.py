@@ -20,7 +20,9 @@ Dry-run per default. Esempi:
 """
 from __future__ import annotations
 
+import contextlib
 import json
+import logging
 import re
 from datetime import datetime
 from pathlib import Path
@@ -49,6 +51,24 @@ BACKUP_MODELS = (
     ("role_grants", RolePermissionGrant),
     ("user_grants", UserPermissionGrant),
 )
+
+
+@contextlib.contextmanager
+def _quiet_acl_warnings():
+    """Zittisce i warning di ``core.acl`` durante la simulazione.
+
+    Il comando valuta ogni route per ogni ruolo, e per i path senza pulsante
+    legacy ``check_permesso`` logga "nessun pulsante matchato": informazione
+    utile a runtime, qui solo rumore che sommerge il risultato - il report dice
+    gia' quali route sono in fallback.
+    """
+    acl_logger = logging.getLogger("core.acl")
+    previous = acl_logger.level
+    acl_logger.setLevel(logging.ERROR)
+    try:
+        yield
+    finally:
+        acl_logger.setLevel(previous)
 
 
 def _simulated_user(ruolo: Ruolo) -> UtenteLegacy:
@@ -119,6 +139,32 @@ class Command(BaseCommand):
             "legacy_divergences": [],
         }
 
+        with _quiet_acl_warnings():
+            self._analyze(
+                candidates=candidates,
+                path_map=path_map,
+                active_bindings=active_bindings,
+                roles=roles,
+                simulated=simulated,
+                report=report,
+            )
+
+        report["legacy_divergences"] = self._collect_legacy_divergences()
+
+        if apply_changes:
+            backup_dir = opts.get("backup_dir")
+            if backup_dir:
+                self._write_backup(Path(backup_dir))
+            self._apply(report, sync_legacy=bool(opts.get("sync_legacy")))
+
+        self._render(report, apply_changes=apply_changes)
+        if opts.get("report"):
+            Path(opts["report"]).write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+            self.stdout.write(f"Report scritto in {opts['report']}")
+        return None
+
+    def _analyze(self, *, candidates, path_map, active_bindings, roles, simulated, report) -> None:
+        """Confronto prima/dopo per ogni binding candidato."""
         for binding in candidates:
             path = path_map.get(str(binding.route_name or "").lower())
             if not path:
@@ -184,20 +230,6 @@ class Command(BaseCommand):
                         )
 
             report["bindings_to_activate"].append(entry)
-
-        report["legacy_divergences"] = self._collect_legacy_divergences()
-
-        if apply_changes:
-            backup_dir = opts.get("backup_dir")
-            if backup_dir:
-                self._write_backup(Path(backup_dir))
-            self._apply(report, sync_legacy=bool(opts.get("sync_legacy")))
-
-        self._render(report, apply_changes=apply_changes)
-        if opts.get("report"):
-            Path(opts["report"]).write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
-            self.stdout.write(f"Report scritto in {opts['report']}")
-        return None
 
     # ------------------------------------------------------------------ helper
     def _route_path_map(self) -> dict[str, str]:
