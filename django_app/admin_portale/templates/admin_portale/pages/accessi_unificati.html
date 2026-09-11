@@ -4,101 +4,114 @@
 
 {% block extra_head %}
 <style>
-/* Stessa grammatica visiva di Gestione Accessi: chi arriva da li' non deve
-   reimparare la pagina. Cambia l'asse (gruppi/ruoli x permessi), non il look. */
-.subject-bar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
-.subject-bar select { min-width:260px; }
-.subject-stats { display:flex; gap:16px; flex-wrap:wrap; margin-left:auto; }
-.subject-stat { font-size:12px; color:var(--text-muted,#888); }
-.subject-stat strong { color:var(--text,#1a202c); }
+/* Pagina costruita sui componenti del sistema (hub-card, hub-kpi-card,
+   hub-status-badge) e sui token --hub-*: qui sotto solo cio' che il design
+   system non ha gia', mai un secondo vocabolario di colori o spaziature. */
 
-.panel-card {
-  border:1px solid var(--border,#e5e7eb); border-radius:10px;
-  padding:14px 16px; margin-bottom:16px; background:var(--bg,#fff);
-}
-.panel-card h3 { margin:0 0 10px; font-size:14px; font-weight:700; }
-.panel-card .hint { font-size:12px; color:var(--text-muted,#888); margin:0 0 12px; }
-.inline-form { display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; }
-.inline-form label { display:flex; flex-direction:column; gap:4px; font-size:11px; font-weight:600; color:var(--text-muted,#888); }
-.inline-form .input { min-width:150px; }
-
-.member-list { list-style:none; margin:10px 0 0; padding:0; display:flex; flex-wrap:wrap; gap:8px; }
-.member-list li {
-  display:flex; align-items:center; gap:8px; font-size:12px;
-  border:1px solid var(--border,#e5e7eb); border-radius:999px; padding:4px 6px 4px 12px;
-}
-.member-list .who { font-weight:600; }
-.member-list .mail { color:var(--text-muted,#888); font-family:monospace; font-size:11px; }
-
-.prio-badge {
-  font-size:11px; font-weight:700; border-radius:999px; padding:2px 9px;
-  background:#e0e7ff; color:#3730a3; white-space:nowrap;
+.acl-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--hub-space-3);
+  margin-bottom: var(--hub-space-4);
 }
 
-.mod-section { border:1px solid var(--border,#e5e7eb); border-radius:10px; margin-bottom:6px; overflow:hidden; }
-.mod-header { display:flex; align-items:center; gap:12px; padding:10px 14px; cursor:pointer; background:var(--bg,#fff); user-select:none; }
-.mod-header:hover { background:var(--bg-hover,#f8fafc); }
-.mod-header.is-open { border-bottom:1px solid var(--border,#e5e7eb); }
-.mod-master-wrap { flex-shrink:0; }
-.mod-master { width:18px; height:18px; cursor:pointer; accent-color:var(--accent,#3b82f6); }
-.mod-name { font-weight:600; font-size:14px; flex:1; min-width:0; }
-.mod-badge { font-size:11px; font-weight:600; border-radius:999px; padding:2px 9px; white-space:nowrap; }
-.badge-all { background:#dcfce7; color:#166534; }
-.badge-part { background:#fef3c7; color:#92400e; }
-.badge-none { background:#f3f4f6; color:#6b7280; }
-.mod-chevron { font-size:12px; color:var(--text-muted,#888); transition:transform .2s; flex-shrink:0; }
-.mod-header.is-open .mod-chevron { transform:rotate(90deg); }
-
-.mod-body { display:none; overflow-x:auto; }
-.mod-body.is-open { display:block; }
-.perm-table { width:100%; border-collapse:collapse; font-size:12px; }
-.perm-table th {
-  font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em;
-  color:var(--text-muted,#888); padding:7px 10px; border-bottom:1px solid var(--border,#e5e7eb);
-  text-align:center; background:var(--bg-alt,#fafafa); white-space:nowrap;
+.acl-toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--hub-space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--hub-space-4);
 }
-.perm-table th.col-label { text-align:left; min-width:260px; }
-.perm-table td { padding:7px 10px; border-bottom:1px solid var(--border,#f0f0f0); vertical-align:middle; }
-.perm-table tr:last-child td { border-bottom:none; }
-.perm-table tr:hover td { background:var(--bg-hover,#f8fafc); }
-.cell-label .lbl { font-weight:500; }
-.cell-label .cod { font-family:monospace; font-size:10px; color:var(--text-muted,#999); }
-.cell-flag { text-align:center; width:90px; }
-.perm-cb { width:16px; height:16px; cursor:pointer; accent-color:var(--accent,#3b82f6); }
-.scope-tag { font-size:10px; font-weight:600; border-radius:6px; padding:2px 7px; white-space:nowrap; }
-.scope-route { background:#dbeafe; color:#1e40af; }
-.scope-section { background:#f3f4f6; color:#6b7280; }
-
-.mod-bulk { display:flex; gap:6px; align-items:center; padding:6px 14px; background:var(--bg-alt,#fafafa); border-bottom:1px solid var(--border,#e5e7eb); font-size:11px; }
-.mod-bulk .count-lbl { color:var(--text-muted,#888); margin-left:auto; }
-.expand-bar { display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; align-items:center; }
-.perm-search { margin-left:auto; min-width:220px; }
-
-.sticky-save {
-  position:sticky; bottom:10px; margin-top:16px; background:rgba(255,255,255,.96);
-  backdrop-filter:blur(4px); border:1px solid var(--border,#e5e7eb); border-radius:10px;
-  padding:10px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+.acl-field { display: flex; flex-direction: column; gap: var(--hub-space-1); }
+.acl-field > span {
+  font-size: var(--hub-font-xs);
+  font-weight: 600;
+  color: var(--hub-color-text-muted);
+  letter-spacing: .02em;
 }
-.unsaved-badge { display:none; background:#fef3c7; color:#92400e; border-radius:6px; padding:3px 10px; font-size:12px; font-weight:600; }
-.unsaved-badge.visible { display:inline-block; }
+.acl-field .input { min-width: 150px; }
+.acl-field--grow { flex: 1; min-width: 220px; }
+.acl-field--grow .input { width: 100%; }
 
-/* Dark mode: solo override additivi, i colori vivono nei token */
-body.theme-dark .panel-card,
-body.theme-dark .mod-header { background:var(--surface); }
-body.theme-dark .mod-header:hover { background:rgba(255,255,255,.04); }
-body.theme-dark .perm-table th { background:var(--surface-alt,#17222f); color:var(--text-mid); }
-body.theme-dark .perm-table tr:hover td { background:rgba(255,255,255,.04); }
-body.theme-dark .mod-bulk { background:var(--surface-alt,#17222f); }
-body.theme-dark .sticky-save { background:var(--surface); }
-body.theme-dark .subject-stat,
-body.theme-dark .mod-chevron,
-body.theme-dark .panel-card .hint,
-body.theme-dark .member-list .mail,
-body.theme-dark .cell-label .cod,
-body.theme-dark .mod-bulk .count-lbl { color:var(--text-mid); }
-body.theme-dark .prio-badge { background:rgba(99,102,241,.18); color:#c7d2fe; }
-body.theme-dark .scope-route { background:rgba(59,130,246,.18); color:#bfdbfe; }
-body.theme-dark .scope-section { background:rgba(255,255,255,.06); color:var(--text-mid); }
+.acl-cards { display: grid; gap: var(--hub-space-3); margin-bottom: var(--hub-space-4); }
+@media (min-width: 900px) { .acl-cards { grid-template-columns: 3fr 2fr; } }
+
+.acl-hint {
+  font-size: var(--hub-font-xs);
+  color: var(--hub-color-text-muted);
+  line-height: 1.5;
+  margin: 0 0 var(--hub-space-3);
+}
+
+.acl-members { list-style: none; margin: var(--hub-space-3) 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--hub-space-2); }
+.acl-member {
+  display: inline-flex; align-items: center; gap: var(--hub-space-2);
+  border: 1px solid var(--hub-color-border);
+  border-radius: var(--hub-radius-lg);
+  padding: 4px 4px 4px var(--hub-space-3);
+  background: var(--hub-color-surface-raised);
+  font-size: var(--hub-font-xs);
+}
+.acl-member__name { font-weight: 600; color: var(--hub-color-text); }
+.acl-member__mail { color: var(--hub-color-text-muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.acl-member__drop {
+  border: 0; background: transparent; cursor: pointer; line-height: 1;
+  color: var(--hub-color-text-muted); font-size: var(--hub-font-md); padding: 0 6px; border-radius: var(--hub-radius-sm);
+}
+.acl-member__drop:hover { color: var(--hub-status-danger); background: var(--hub-status-danger-bg); }
+
+/* Modulo: intestazione cliccabile + corpo a tabella */
+.acl-module { border: 1px solid var(--hub-color-border); border-radius: var(--hub-radius-lg); margin-bottom: var(--hub-space-2); overflow: hidden; background: var(--hub-color-surface); }
+.acl-module__head {
+  display: flex; align-items: center; gap: var(--hub-space-3);
+  padding: var(--hub-space-3) var(--hub-space-4);
+  cursor: pointer; user-select: none;
+}
+.acl-module__head:hover { background: var(--hub-color-surface-raised); }
+.acl-module__head.is-open { border-bottom: 1px solid var(--hub-color-border); }
+.acl-module__name { font-weight: 600; font-size: var(--hub-font-sm); flex: 1; min-width: 0; }
+.acl-module__caret { color: var(--hub-color-text-muted); transition: transform .18s ease; font-size: var(--hub-font-xs); }
+.acl-module__head.is-open .acl-module__caret { transform: rotate(90deg); }
+.acl-module__body { display: none; }
+.acl-module__body.is-open { display: block; }
+.acl-module__bulk {
+  display: flex; align-items: center; gap: var(--hub-space-2);
+  padding: var(--hub-space-2) var(--hub-space-4);
+  background: var(--hub-color-surface-raised);
+  border-bottom: 1px solid var(--hub-color-border);
+  font-size: var(--hub-font-xs);
+}
+.acl-module__count { margin-left: auto; color: var(--hub-color-text-muted); }
+
+.acl-table { width: 100%; border-collapse: collapse; font-size: var(--hub-font-xs); }
+.acl-table th {
+  text-align: left; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--hub-color-text-muted); font-size: 10px;
+  padding: var(--hub-space-2) var(--hub-space-4);
+  border-bottom: 1px solid var(--hub-color-border);
+}
+.acl-table th.is-center, .acl-table td.is-center { text-align: center; width: 110px; }
+.acl-table td { padding: var(--hub-space-2) var(--hub-space-4); border-bottom: 1px solid var(--hub-color-border); vertical-align: middle; }
+.acl-table tr:last-child td { border-bottom: 0; }
+.acl-table tbody tr:hover td { background: var(--hub-color-surface-raised); }
+.acl-perm__label { font-weight: 600; color: var(--hub-color-text); }
+.acl-perm__code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--hub-color-text-muted); font-size: 10px; }
+.acl-check { width: 17px; height: 17px; cursor: pointer; accent-color: var(--hub-color-orange); }
+.acl-master { width: 17px; height: 17px; cursor: pointer; accent-color: var(--hub-color-orange); flex-shrink: 0; }
+
+.acl-save {
+  position: sticky; bottom: var(--hub-space-3); margin-top: var(--hub-space-4);
+  display: flex; align-items: center; justify-content: space-between; gap: var(--hub-space-3);
+  flex-wrap: wrap;
+  padding: var(--hub-space-3) var(--hub-space-4);
+  background: var(--hub-color-surface);
+  border: 1px solid var(--hub-color-border);
+  border-radius: var(--hub-radius-lg);
+  box-shadow: var(--hub-shadow-md);
+}
+.acl-save__note { font-size: var(--hub-font-xs); color: var(--hub-color-text-muted); }
+.acl-dirty { display: none; }
+.acl-dirty.is-visible { display: inline-flex; }
 </style>
 {% endblock %}
 
@@ -110,10 +123,36 @@ body.theme-dark .scope-section { background:rgba(255,255,255,.06); color:var(--t
   {% include "admin_portale/components/page_header.html" with page_title="Accessi" page_subtitle="Gruppi e ruoli → permessi. Si scrive solo il layer canonico: è quello su cui il portale decide davvero." %}
   {% include "admin_portale/components/flash_messages.html" %}
 
+  {# ── Numeri di contesto ── #}
+  <div class="acl-kpis">
+    <div class="hub-kpi-card hub-kpi-card--accent">
+      <div class="hub-kpi-card__label">Concessi</div>
+      <div class="hub-kpi-card__value">{{ total_active }}</div>
+      <div class="hub-kpi-card__meta">su {{ total_permissions }} permessi</div>
+    </div>
+    <div class="hub-kpi-card hub-kpi-card--info">
+      <div class="hub-kpi-card__label">Moduli</div>
+      <div class="hub-kpi-card__value">{{ module_rows|length }}</div>
+      <div class="hub-kpi-card__meta">aree del portale</div>
+    </div>
+    <div class="hub-kpi-card">
+      <div class="hub-kpi-card__label">Gruppi</div>
+      <div class="hub-kpi-card__value">{{ groups|length }}</div>
+      <div class="hub-kpi-card__meta">ad appartenenza multipla</div>
+    </div>
+    {% if selected_group %}
+    <div class="hub-kpi-card hub-kpi-card--success">
+      <div class="hub-kpi-card__label">Nel gruppo</div>
+      <div class="hub-kpi-card__value">{{ members|length }}</div>
+      <div class="hub-kpi-card__meta">persone · priorità {{ selected_group.priority }}</div>
+    </div>
+    {% endif %}
+  </div>
+
   {# ── Chi sto configurando ── #}
-  <div class="subject-bar">
-    <form method="get" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-      <label for="subject-sel" style="font-weight:600;font-size:13px;">Configuro:</label>
+  <form method="get" class="acl-toolbar">
+    <label class="acl-field" for="subject-sel">
+      <span>Configuro</span>
       <select class="input" id="subject-sel" name="subject">
         {% if groups %}
         <optgroup label="Gruppi">
@@ -132,85 +171,93 @@ body.theme-dark .scope-section { background:rgba(255,255,255,.06); color:var(--t
           {% endfor %}
         </optgroup>
       </select>
-      <button type="submit" class="btn btn-sm">Carica</button>
-    </form>
-    <div class="subject-stats">
-      <span class="subject-stat"><strong>{{ module_rows|length }}</strong> moduli</span>
-      <span class="subject-stat"><strong>{{ total_active }}</strong> / {{ total_permissions }} permessi concessi</span>
-    </div>
-  </div>
+    </label>
+    <button type="submit" class="btn btn-secondary btn-sm">Carica</button>
+  </form>
 
-  {# ── Gruppo selezionato: priorità e membri ── #}
-  {% if selected_group %}
-  <div class="panel-card">
-    <h3>{{ selected_group.label }} <span class="prio-badge">priorità {{ selected_group.priority }}</span></h3>
-    <p class="hint">
-      Una persona può stare in più gruppi. Quando due gruppi dicono cose diverse sullo stesso
-      permesso decide quello con <strong>priorità più alta</strong>; a parità vince il diniego.
-      Un gruppo <strong>concede</strong>: togliere la spunta qui non toglie ciò che il ruolo già dà.
-    </p>
+  <div class="acl-cards">
+    {# ── Gruppo selezionato ── #}
+    {% if selected_group %}
+    <section class="hub-card">
+      <header class="hub-card__header">
+        <h3 class="hub-card__title">{{ selected_group.label }}</h3>
+        <span class="hub-status-badge {% if selected_group.is_active %}hub-status-badge--info{% else %}hub-status-badge--warning{% endif %}">
+          <span class="hub-status-badge__dot"></span>priorità {{ selected_group.priority }}
+        </span>
+      </header>
+      <div class="hub-card__body">
+        <p class="acl-hint">
+          Una persona può stare in più gruppi. Se due gruppi dicono cose diverse sullo stesso permesso
+          decide quello con <strong>priorità più alta</strong>; a parità vince il diniego.
+          Un gruppo <strong>concede</strong>: togliere una spunta qui non toglie ciò che il ruolo già dà.
+        </p>
 
-    <form method="post" class="inline-form">
-      {% csrf_token %}
-      <input type="hidden" name="action" value="group_update">
-      <input type="hidden" name="group_id" value="{{ selected_group.id }}">
-      <input type="hidden" name="subject" value="{{ subject_value }}">
-      <label>Nome<input class="input" type="text" name="label" value="{{ selected_group.label }}"></label>
-      <label>Priorità<input class="input" type="number" name="priority" value="{{ selected_group.priority }}" style="min-width:90px"></label>
-      <label>Stato
-        <select class="input" name="is_active">
-          <option value="1" {% if selected_group.is_active %}selected{% endif %}>Attivo</option>
-          <option value="0" {% if not selected_group.is_active %}selected{% endif %}>Disattivo</option>
-        </select>
-      </label>
-      <button type="submit" class="btn btn-sm">Salva gruppo</button>
-    </form>
-
-    <form method="post" class="inline-form" style="margin-top:12px">
-      {% csrf_token %}
-      <input type="hidden" name="action" value="member_add">
-      <input type="hidden" name="group_id" value="{{ selected_group.id }}">
-      <input type="hidden" name="subject" value="{{ subject_value }}">
-      <label>Aggiungi persona (email o ID legacy)
-        <input class="input" type="text" name="member" placeholder="nome.cognome@costruzioninovicrom.it" style="min-width:280px">
-      </label>
-      <button type="submit" class="btn btn-secondary btn-sm">Aggiungi</button>
-    </form>
-
-    {% if members %}
-    <ul class="member-list">
-      {% for member in members %}
-      <li>
-        <span class="who">{{ member.nome }}</span>
-        {% if member.email %}<span class="mail">{{ member.email }}</span>{% endif %}
-        <form method="post" style="display:inline">
+        <form method="post" class="acl-toolbar" style="margin-bottom:var(--hub-space-3)">
           {% csrf_token %}
-          <input type="hidden" name="action" value="member_remove">
-          <input type="hidden" name="membership_id" value="{{ member.membership_id }}">
+          <input type="hidden" name="action" value="group_update">
+          <input type="hidden" name="group_id" value="{{ selected_group.id }}">
           <input type="hidden" name="subject" value="{{ subject_value }}">
-          <button type="submit" class="btn btn-secondary btn-sm" title="Rimuovi dal gruppo">×</button>
+          <label class="acl-field"><span>Nome</span><input class="input" type="text" name="label" value="{{ selected_group.label }}"></label>
+          <label class="acl-field"><span>Priorità</span><input class="input" type="number" name="priority" value="{{ selected_group.priority }}" style="min-width:90px"></label>
+          <label class="acl-field"><span>Stato</span>
+            <select class="input" name="is_active" style="min-width:120px">
+              <option value="1" {% if selected_group.is_active %}selected{% endif %}>Attivo</option>
+              <option value="0" {% if not selected_group.is_active %}selected{% endif %}>Disattivo</option>
+            </select>
+          </label>
+          <button type="submit" class="btn btn-secondary btn-sm">Salva gruppo</button>
         </form>
-      </li>
-      {% endfor %}
-    </ul>
-    {% else %}
-    <p class="hint" style="margin:10px 0 0">Nessuna persona nel gruppo: i permessi qui sotto non raggiungono ancora nessuno.</p>
-    {% endif %}
-  </div>
-  {% endif %}
 
-  {# ── Nuovo gruppo ── #}
-  <div class="panel-card">
-    <h3>Nuovo gruppo</h3>
-    <form method="post" class="inline-form">
-      {% csrf_token %}
-      <input type="hidden" name="action" value="group_create">
-      <label>Codice<input class="input" type="text" name="code" placeholder="manutenzione" required></label>
-      <label>Nome<input class="input" type="text" name="label" placeholder="Manutenzione" required></label>
-      <label>Priorità<input class="input" type="number" name="priority" value="100" style="min-width:90px"></label>
-      <label style="flex:1">Descrizione<input class="input" type="text" name="description" placeholder="A cosa serve questo gruppo" style="min-width:240px"></label>
-      <button type="submit" class="btn btn-sm">Crea</button>
-    </form>
+        <form method="post" class="acl-toolbar" style="margin-bottom:0">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="member_add">
+          <input type="hidden" name="group_id" value="{{ selected_group.id }}">
+          <input type="hidden" name="subject" value="{{ subject_value }}">
+          <label class="acl-field acl-field--grow">
+            <span>Aggiungi persona (email o ID legacy)</span>
+            <input class="input" type="text" name="member" placeholder="nome.cognome@costruzioninovicrom.it">
+          </label>
+          <button type="submit" class="btn btn-secondary btn-sm">Aggiungi</button>
+        </form>
+
+        {% if members %}
+        <ul class="acl-members">
+          {% for member in members %}
+          <li class="acl-member">
+            <span class="acl-member__name">{{ member.nome }}</span>
+            {% if member.email %}<span class="acl-member__mail">{{ member.email }}</span>{% endif %}
+            <form method="post" style="display:inline">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="member_remove">
+              <input type="hidden" name="membership_id" value="{{ member.membership_id }}">
+              <input type="hidden" name="subject" value="{{ subject_value }}">
+              <button type="submit" class="acl-member__drop" title="Rimuovi dal gruppo" aria-label="Rimuovi {{ member.nome }}">×</button>
+            </form>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="acl-hint" style="margin:var(--hub-space-3) 0 0">Nessuna persona nel gruppo: i permessi qui sotto non raggiungono ancora nessuno.</p>
+        {% endif %}
+      </div>
+    </section>
+    {% endif %}
+
+    {# ── Nuovo gruppo ── #}
+    <section class="hub-card">
+      <header class="hub-card__header"><h3 class="hub-card__title">Nuovo gruppo</h3></header>
+      <div class="hub-card__body">
+        <form method="post" class="acl-toolbar" style="margin-bottom:0">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="group_create">
+          <label class="acl-field"><span>Codice</span><input class="input" type="text" name="code" placeholder="manutenzione" required></label>
+          <label class="acl-field"><span>Nome</span><input class="input" type="text" name="label" placeholder="Manutenzione" required></label>
+          <label class="acl-field"><span>Priorità</span><input class="input" type="number" name="priority" value="100" style="min-width:90px"></label>
+          <label class="acl-field acl-field--grow"><span>Descrizione</span><input class="input" type="text" name="description" placeholder="A cosa serve questo gruppo"></label>
+          <button type="submit" class="btn btn-sm">Crea</button>
+        </form>
+      </div>
+    </section>
   </div>
 
   {# ── Matrice permessi ── #}
@@ -219,68 +266,67 @@ body.theme-dark .scope-section { background:rgba(255,255,255,.06); color:var(--t
     {% csrf_token %}
     <input type="hidden" name="action" value="save_grants">
     <input type="hidden" name="subject" value="{{ subject_value }}">
+    {% comment %}Un solo campo con i selezionati: un hidden per permesso sfonderebbe DATA_UPLOAD_MAX_NUMBER_FIELDS e il POST tornerebbe 400.{% endcomment %}
+    <input type="hidden" name="granted_json" id="granted-json">
 
-    {% for mod in module_rows %}
-      {% for perm in mod.permissions %}
-        <input type="hidden" name="all_codes" value="{{ perm.code }}">
-      {% endfor %}
-    {% endfor %}
-
-    <div class="expand-bar">
+    <div class="acl-toolbar">
       <button type="button" class="btn btn-secondary btn-sm" id="btn-expand-all">Espandi tutti</button>
       <button type="button" class="btn btn-secondary btn-sm" id="btn-collapse-all">Comprimi tutti</button>
-      <input class="input perm-search" type="search" id="perm-search" placeholder="Filtra per permesso o modulo…">
+      <label class="acl-field acl-field--grow">
+        <span>Filtra</span>
+        <input class="input" type="search" id="perm-search" placeholder="Nome del permesso, codice o modulo…">
+      </label>
     </div>
 
     {% for mod in module_rows %}
-    <div class="mod-section" data-modulo="{{ mod.modulo }}">
-      <div class="mod-header" data-target="mod-body-{{ forloop.counter }}">
-        <div class="mod-master-wrap" onclick="event.stopPropagation()">
-          <input type="checkbox" class="mod-master" data-modulo="{{ mod.modulo }}"
+    <section class="acl-module" data-modulo="{{ mod.modulo }}">
+      <div class="acl-module__head" data-target="acl-body-{{ forloop.counter }}">
+        <span onclick="event.stopPropagation()" style="display:flex">
+          <input type="checkbox" class="acl-master" data-modulo="{{ mod.modulo }}"
                  {% if mod.all_on %}checked{% endif %}
-                 title="Concedi/togli tutti i permessi di {{ mod.modulo }}">
-        </div>
-        <span class="mod-name">{{ mod.modulo }}</span>
+                 title="Concedi o togli tutti i permessi di {{ mod.modulo }}">
+        </span>
+        <span class="acl-module__name">{{ mod.modulo }}</span>
         {% if mod.all_on %}
-          <span class="mod-badge badge-all">{{ mod.active_count }}/{{ mod.total_count }} ON</span>
+          <span class="hub-status-badge hub-status-badge--success"><span class="hub-status-badge__dot"></span>{{ mod.active_count }}/{{ mod.total_count }}</span>
         {% elif mod.partial %}
-          <span class="mod-badge badge-part">{{ mod.active_count }}/{{ mod.total_count }} parziale</span>
+          <span class="hub-status-badge hub-status-badge--warning"><span class="hub-status-badge__dot"></span>{{ mod.active_count }}/{{ mod.total_count }}</span>
         {% else %}
-          <span class="mod-badge badge-none">0/{{ mod.total_count }} OFF</span>
+          <span class="hub-status-badge"><span class="hub-status-badge__dot"></span>0/{{ mod.total_count }}</span>
         {% endif %}
-        <span class="mod-chevron">▶</span>
+        <span class="acl-module__caret">▶</span>
       </div>
 
-      <div class="mod-body" id="mod-body-{{ forloop.counter }}">
-        <div class="mod-bulk">
-          <button type="button" class="btn btn-secondary btn-sm mod-all-on" data-modulo="{{ mod.modulo }}">Tutti ON</button>
-          <button type="button" class="btn btn-secondary btn-sm mod-all-off" data-modulo="{{ mod.modulo }}">Tutti OFF</button>
-          <span class="count-lbl">{{ mod.total_count }} permessi</span>
+      <div class="acl-module__body" id="acl-body-{{ forloop.counter }}">
+        <div class="acl-module__bulk">
+          <button type="button" class="btn btn-secondary btn-sm acl-bulk-on" data-modulo="{{ mod.modulo }}">Tutti ON</button>
+          <button type="button" class="btn btn-secondary btn-sm acl-bulk-off" data-modulo="{{ mod.modulo }}">Tutti OFF</button>
+          <span class="acl-module__count">{{ mod.total_count }} permessi</span>
         </div>
-        <table class="perm-table" data-fm-table-skip="1">
+        <table class="acl-table" data-fm-table-skip="1">
           <thead>
             <tr>
-              <th class="col-label">Permesso</th>
-              <th>Governa</th>
-              <th>Concesso</th>
+              <th>Permesso</th>
+              <th class="is-center">Governa</th>
+              <th class="is-center">Concesso</th>
             </tr>
           </thead>
           <tbody>
             {% for perm in mod.permissions %}
             <tr data-search="{{ perm.code }} {{ perm.label|lower }}">
-              <td class="cell-label">
-                <div class="lbl">{{ perm.label }}</div>
-                <div class="cod">{{ perm.code }}</div>
+              <td>
+                <div class="acl-perm__label">{{ perm.label }}</div>
+                <div class="acl-perm__code">{{ perm.code }}</div>
               </td>
-              <td class="cell-flag">
+              <td class="is-center">
                 {% if perm.governs_route %}
-                  <span class="scope-tag scope-route">pagina</span>
+                  <span class="hub-status-badge hub-status-badge--info"><span class="hub-status-badge__dot"></span>pagina</span>
                 {% else %}
-                  <span class="scope-tag scope-section">sezione</span>
+                  <span class="hub-status-badge"><span class="hub-status-badge__dot"></span>sezione</span>
                 {% endif %}
               </td>
-              <td class="cell-flag">
-                <input type="checkbox" class="perm-cb" name="granted" value="{{ perm.code }}"
+              <td class="is-center">
+                <input type="checkbox" class="acl-check" name="granted" value="{{ perm.code }}"
                        data-modulo="{{ mod.modulo }}" {% if perm.enabled %}checked{% endif %}>
               </td>
             </tr>
@@ -288,19 +334,22 @@ body.theme-dark .scope-section { background:rgba(255,255,255,.06); color:var(--t
           </tbody>
         </table>
       </div>
-    </div>
+    </section>
     {% endfor %}
 
-    <div class="sticky-save">
+    <div class="acl-save">
       <div>
-        <span class="unsaved-badge" id="unsaved">Modifiche non salvate</span>
-        <span class="subject-stat">Si scrivono solo grant canonici: la tabella legacy <code>permessi</code> non viene toccata.</span>
+        <span class="hub-status-badge hub-status-badge--warning acl-dirty" id="acl-dirty"><span class="hub-status-badge__dot"></span>Modifiche non salvate</span>
+        <span class="acl-save__note">Si scrivono solo grant canonici: la tabella legacy <code>permessi</code> non viene toccata.</span>
       </div>
       <button type="submit" class="btn">Salva permessi</button>
     </div>
   </form>
   {% else %}
-    <p class="hint">Nessun permesso canonico in catalogo: esegui prima <code>bootstrap_acl_v2</code>.</p>
+    <div class="hub-empty-state">
+      <div class="hub-empty-state__title">Nessun permesso in catalogo</div>
+      <div class="hub-empty-state__text">Esegui <code>bootstrap_acl_v2</code> per popolare i permessi canonici.</div>
+    </div>
   {% endif %}
 {% endblock %}
 
@@ -310,37 +359,35 @@ body.theme-dark .scope-section { background:rgba(255,255,255,.06); color:var(--t
   var form = document.getElementById('accessi-form');
   if (!form) { return; }
 
-  function bodyFor(header) { return document.getElementById(header.dataset.target); }
+  function bodyFor(head) { return document.getElementById(head.dataset.target); }
+  function boxes(modulo) { return form.querySelectorAll('.acl-check[data-modulo="' + modulo + '"]'); }
 
-  document.querySelectorAll('.mod-header').forEach(function (header) {
-    header.addEventListener('click', function () {
-      var body = bodyFor(header);
+  document.querySelectorAll('.acl-module__head').forEach(function (head) {
+    head.addEventListener('click', function () {
+      var body = bodyFor(head);
       if (!body) { return; }
-      header.classList.toggle('is-open');
+      head.classList.toggle('is-open');
       body.classList.toggle('is-open');
     });
   });
 
   function setOpen(open) {
-    document.querySelectorAll('.mod-header').forEach(function (header) {
-      var body = bodyFor(header);
+    document.querySelectorAll('.acl-module__head').forEach(function (head) {
+      var body = bodyFor(head);
       if (!body) { return; }
-      header.classList.toggle('is-open', open);
+      head.classList.toggle('is-open', open);
       body.classList.toggle('is-open', open);
     });
   }
   document.getElementById('btn-expand-all').addEventListener('click', function () { setOpen(true); });
   document.getElementById('btn-collapse-all').addEventListener('click', function () { setOpen(false); });
 
-  function boxes(modulo) {
-    return form.querySelectorAll('.perm-cb[data-modulo="' + modulo + '"]');
-  }
   function markDirty() {
-    var badge = document.getElementById('unsaved');
-    if (badge) { badge.classList.add('visible'); }
+    var badge = document.getElementById('acl-dirty');
+    if (badge) { badge.classList.add('is-visible'); }
   }
   function syncMaster(modulo) {
-    var master = form.querySelector('.mod-master[data-modulo="' + modulo + '"]');
+    var master = form.querySelector('.acl-master[data-modulo="' + modulo + '"]');
     if (!master) { return; }
     var all = boxes(modulo);
     var on = 0;
@@ -349,30 +396,42 @@ body.theme-dark .scope-section { background:rgba(255,255,255,.06); color:var(--t
     master.indeterminate = on > 0 && on < all.length;
   }
 
-  form.querySelectorAll('.mod-master').forEach(function (master) {
+  form.querySelectorAll('.acl-master').forEach(function (master) {
     syncMaster(master.dataset.modulo);
     master.addEventListener('change', function () {
       boxes(master.dataset.modulo).forEach(function (cb) { cb.checked = master.checked; });
       markDirty();
     });
   });
-  form.querySelectorAll('.perm-cb').forEach(function (cb) {
+  form.querySelectorAll('.acl-check').forEach(function (cb) {
     cb.addEventListener('change', function () { syncMaster(cb.dataset.modulo); markDirty(); });
   });
-  form.querySelectorAll('.mod-all-on, .mod-all-off').forEach(function (btn) {
+  form.querySelectorAll('.acl-bulk-on, .acl-bulk-off').forEach(function (btn) {
     btn.addEventListener('click', function () {
-      var on = btn.classList.contains('mod-all-on');
+      var on = btn.classList.contains('acl-bulk-on');
       boxes(btn.dataset.modulo).forEach(function (cb) { cb.checked = on; });
       syncMaster(btn.dataset.modulo);
       markDirty();
     });
   });
 
+  // Al salvataggio i selezionati viaggiano in UN campo JSON e i checkbox escono
+  // dal POST: con oltre mille permessi, un campo per riga supera il limite di
+  // Django (DATA_UPLOAD_MAX_NUMBER_FIELDS) e la risposta e' 400.
+  form.addEventListener('submit', function () {
+    var selected = [];
+    form.querySelectorAll('.acl-check').forEach(function (cb) {
+      if (cb.checked) { selected.push(cb.value); }
+      cb.removeAttribute('name');
+    });
+    document.getElementById('granted-json').value = JSON.stringify(selected);
+  });
+
   var search = document.getElementById('perm-search');
   if (search) {
     search.addEventListener('input', function () {
       var needle = search.value.trim().toLowerCase();
-      document.querySelectorAll('.mod-section').forEach(function (section) {
+      document.querySelectorAll('.acl-module').forEach(function (section) {
         var rows = section.querySelectorAll('tbody tr');
         var visible = 0;
         rows.forEach(function (row) {
@@ -383,9 +442,9 @@ body.theme-dark .scope-section { background:rgba(255,255,255,.06); color:var(--t
         });
         section.hidden = needle !== '' && visible === 0;
         if (needle !== '' && visible > 0) {
-          var header = section.querySelector('.mod-header');
-          var body = bodyFor(header);
-          header.classList.add('is-open');
+          var head = section.querySelector('.acl-module__head');
+          var body = bodyFor(head);
+          head.classList.add('is-open');
           if (body) { body.classList.add('is-open'); }
         }
       });

@@ -147,3 +147,44 @@ class AccessiUnificatiTest(TestCase):
             response = self.client.post(reverse(name), {"ruolo_id": RUOLO_ADMIN_ID})
             self.assertEqual(response.status_code, 302)
             self.assertEqual(response["Location"], self.url)
+
+    def test_salva_con_un_solo_campo_json(self):
+        """Oltre mille permessi: un campo per riga farebbe 400 prima della view.
+
+        Regressione vista in produzione (1027 permessi in catalogo): il form
+        mandava un hidden per permesso e superava
+        ``DATA_UPLOAD_MAX_NUMBER_FIELDS``, che Django tratta come richiesta
+        sospetta. Ora i selezionati viaggiano in un campo solo.
+        """
+        import json
+
+        group = self._group()
+        response = self.client.post(
+            self.url,
+            {
+                "action": "save_grants",
+                "subject": f"group:{group.id}",
+                "granted_json": json.dumps([PERM_A]),
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            GroupPermissionGrant.objects.filter(group=group, permission_id=PERM_A, enabled=True).exists()
+        )
+        self.assertFalse(GroupPermissionGrant.objects.filter(group=group, permission_id=PERM_B).exists())
+
+    def test_il_form_non_manda_un_campo_per_permesso(self):
+        """Il difetto stava nel markup: niente hidden per riga."""
+        response = self.client.get(self.url)
+        body = response.content.decode("utf-8")
+        self.assertNotIn('name="all_codes"', body)
+        self.assertIn('name="granted_json"', body)
+
+    def test_selezione_json_illeggibile_non_scrive_nulla(self):
+        group = self._group()
+        GroupPermissionGrant.objects.create(group=group, permission_id=PERM_A, enabled=True)
+        self.client.post(
+            self.url,
+            {"action": "save_grants", "subject": f"group:{group.id}", "granted_json": "{non-json"},
+        )
+        self.assertTrue(GroupPermissionGrant.objects.filter(group=group, permission_id=PERM_A).exists())

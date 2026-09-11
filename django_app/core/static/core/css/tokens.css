@@ -50,8 +50,18 @@
 }
 
 body.theme-dark {
+  /* I token hub-* sono dichiarati su :root, e una custom property si risolve
+     dove viene DICHIARATA: var(--surface) preso li' resta il valore chiaro
+     anche quando body.theme-dark cambia --surface. Vanno quindi ridichiarati
+     qui, altrimenti le superfici dei componenti restano bianche in tema scuro
+     mentre il testo diventa chiaro - cioe' illeggibili. */
+  --hub-color-bg: var(--bg, #0b1220);
+  --hub-color-surface: var(--surface, #111a2a);
   --hub-color-surface-raised: var(--surface-alt, #0f1b2d);
   --hub-color-border: var(--border, #223147);
+  --hub-color-text: var(--text, #e5e7eb);
+  --hub-color-text-muted: var(--text-mid, #cbd5e1);
+  --hub-color-text-soft: var(--text-light, #94a3b8);
   --hub-status-info-bg: rgba(31, 135, 205, .18);
   --hub-status-neutral-bg: rgba(255, 255, 255, .08);
 }

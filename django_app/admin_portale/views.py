@@ -11967,8 +11967,27 @@ def _accessi_save_grants(request, *, kind: str, subject_id: int | None) -> None:
         messages.error(request, "Seleziona prima un gruppo o un ruolo.")
         return
 
-    rendered = [str(code).strip() for code in request.POST.getlist("all_codes") if str(code).strip()]
-    checked = {str(code).strip() for code in request.POST.getlist("granted") if str(code).strip()}
+    # I selezionati arrivano in UN solo campo JSON, non un campo per permesso:
+    # con oltre mille permessi in catalogo un hidden per riga sfonda
+    # DATA_UPLOAD_MAX_NUMBER_FIELDS (1000) e Django risponde 400 prima ancora di
+    # entrare nella view. Il ramo a campi separati resta per il caso senza JS.
+    raw_selection = request.POST.get("granted_json")
+    if raw_selection:
+        try:
+            selection = json.loads(raw_selection)
+        except ValueError:
+            messages.error(request, "Selezione non leggibile: riprova.")
+            return
+        checked = {str(code).strip() for code in selection if str(code).strip()}
+        rendered = [
+            str(code)
+            for code in PermissionDefinition.objects.filter(is_active=True)
+            .order_by("module", "code")
+            .values_list("code", flat=True)
+        ]
+    else:
+        rendered = [str(code).strip() for code in request.POST.getlist("all_codes") if str(code).strip()]
+        checked = {str(code).strip() for code in request.POST.getlist("granted") if str(code).strip()}
     if not rendered:
         messages.warning(request, "Nessun dato ricevuto.")
         return
